@@ -16,7 +16,9 @@ function test_EphysAnalysisApp()
 %   collapsing a section; the section headers' colors and keys (Ctrl+1 to
 %   Ctrl+9 and Ctrl+0 going to a section; Aux signals has none); the Aux
 %   signals rows of a PSTH (shown for spikes only, grayed out while Off, an
-%   edit reaching the plot and the preview); the epoch diagram (opened from the plot editor
+%   edit reaching the plot and the preview); the error rows (type, band
+%   fill and edge reaching the style and the preview's bands, enabled with
+%   the Error box); the epoch diagram (opened from the plot editor
 %   with the plot's own epochs, redrawn on an edit of pre, epochs dropped
 %   outside the recording, a refused window reported, paging, opened from
 %   the Alignment tab for the defaults, closing with the app); a raster's
@@ -460,6 +462,24 @@ E.auxMode.Value = 'off'; app.onConfigChanged("plot");
 check(app.Config.Plots(kAux).aux.mode == "off" && E.auxChannels.Enable == "off", 'Off takes the aux signal off the plot');
 E.auxPlacement.Value = 'below'; E.auxChannels.Value = ''; E.auxBaseline.Value = false; E.auxBaseFrom.Value = -0.2;
 E.auxByGroup.Value = true; app.onConfigChanged("plot");   % the defaults again, for what follows
+errRows = shown(E.errType) && shown(E.errFace) && shown(E.errEdge) && E.errResamples.Enable == "off" ...
+    && E.errEdgeStyle.Enable == "off" && string(E.showSEM.Text) == "Error";
+E.errType.Value = 'std'; E.errAlpha.Value = 0.3; E.errEdge.Value = 'auto'; E.errEdgeWidth.Value = 1;
+app.onConfigChanged("plot");
+st = app.Config.Plots(kAux).style;
+check(errRows && st.ErrorType == "std" && st.ErrorFaceAlpha == 0.3 && st.ErrorEdgeColor == "auto" && st.ErrorEdgeWidth == 1 ...
+    && st.ErrorFaceColor == "" && E.errEdgeStyle.Enable == "on" && E.errResamples.Enable == "off", ...
+    'a PSTH shows the Error, Band fill and Band edge rows; edits reach its style (auto fill = "", the edge''s style once it has one)');
+app.refreshPreview(Force=true);
+sb = findall(app.PreviewPanel, 'Tag', 'sem');
+check(~isempty(app.PreviewResult) && app.PreviewResult.err.type == "std" && ~isempty(sb) && all([sb.FaceAlpha] == 0.3), ...
+    'the preview computes mean +/- SD and draws the bands in the look set');
+E.errType.Value = 'ci95'; app.syncPlotEditor();
+ciOn = E.errResamples.Enable == "on";
+E.showSEM.Value = false; app.syncPlotEditor();
+check(ciOn && E.errType.Enable == "off" && E.errFace.Enable == "off", 'resamples for the bootstrap CI; the rows wait for the Error box');
+E.showSEM.Value = true; E.errType.Value = 'sem'; E.errAlpha.Value = []; E.errEdge.Value = 'none'; E.errEdgeWidth.Value = 0.5;
+app.onConfigChanged("plot");   % the defaults again
 app.onPlotSelected(1);
 app.onAddPlot("heatmap");
 hideA = ~shown(E.aMethod) && ~shown(E.aCutoff) && any(string(E.baselineMode.Items) == "auroc") && ~shown(E.raMethod);

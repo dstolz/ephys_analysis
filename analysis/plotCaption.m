@@ -28,8 +28,11 @@ function txt = plotCaption(spec, R)
 %   PSTH or raster with the mean aux signal (R.aux) which channels it
 %   shows and how (each channel, or their vector magnitude; the baseline
 %   subtracted), where, over how many epochs, and how many epochs left the
-%   AUX signal or held missing samples and were left out of it. The
-%   reports print it under each figure.
+%   AUX signal or held missing samples and were left out of it. With
+%   Style.ShowSEM, what the error bands or bars show: "bands: mean +/- SEM
+%   across epochs", "mean +/- SD", or "the bootstrap 95% CI of the mean
+%   (1000 resamples, percentile)" -- across the units for an overlay of
+%   several units (PSTH, tuning). The reports print it under each figure.
 %
 %   See also renderPlot, writeHtmlReport, writePdfReport.
 
@@ -145,7 +148,12 @@ if spec.kind == "behavior"
         case "points", parts(end+1) = "every epoch's value, with the mean +/- SEM";
         case "line",   parts(end+1) = "mean +/- SEM";
     end
-    if ~spec.style.ShowSEM && spec.layout ~= "box"; parts(end) = replace(parts(end), " +/- SEM", ""); end
+    if spec.layout ~= "box"
+        [~, ~, E] = resultBounds(R, 'mean');
+        pm = errPhrase(E.type, E.nBoot);
+        if ~spec.style.ShowSEM; pm = ""; end
+        parts(end) = replace(parts(end), " +/- SEM", pm);
+    end
 end
 if isfield(U, 'nDroppedNoValue') && U.nDroppedNoValue > 0
     parts(end+1) = sprintf("%d event(s) without a value of %s left out", U.nDroppedNoValue, U.ref.offsetParam);
@@ -165,6 +173,8 @@ if spec.kind == "psth"
         parts(end+1) = "groups stacked, first at the bottom";
     end
 end
+et = errorText(spec, R);
+if et ~= ""; parts(end+1) = et; end
 if ismember(spec.kind, ["psth" "raster"]) && isfield(R, 'raster') && ~isempty(R.raster)
     by = spec.rasterSort;
     if by == "stop"; by = "stop latency"; end
@@ -267,10 +277,70 @@ if A.byGroup && height(A.groups) > 1
 else
     s = s + sprintf(" (n = %d epochs)", sum(A.nEpochs));
 end
+if spec.style.ShowSEM
+    [~, ~, E] = resultBounds(A, 'mean');
+    s = s + ", bands: " + errWords(E.type, E.nBoot) + " across epochs";
+end
 parts = s;
 nOut = A.droppedEdge + A.droppedNonFinite;
 if nOut > 0
     parts(end+1) = sprintf("%d epoch(s) leaving the AUX signal or holding missing samples left out of the aux mean", nOut);
+end
+end
+
+
+function s = errorText(spec, R)
+%errorText  What a PSTH's, evoked plot's, rate plot's or tuning curve's error bands or bars show ("": none drawn).
+%   Over the epochs, the error R.err holds; over the units, for an overlay
+%   of several units, the style's (the renderer makes it).
+s = "";
+if ~spec.style.ShowSEM; return; end
+across = "epochs";
+switch spec.kind
+    case "psth"
+        if isAuroc(R); return; end
+        what = "bands"; field = 'rate';
+        if spec.layout == "overlay" && size(R.rate, 2) > 1; across = "units"; end
+    case "evoked"
+        if spec.layout == "butterfly"; return; end
+        what = "bands"; field = 'mean';
+    case "rate"
+        if spec.layout ~= "bar"; return; end
+        what = "error bars"; field = 'meanRate';
+    case "tuning"
+        what = "error bars"; field = 'mean';
+        if spec.layout == "overlay" && size(R.mean, 2) > 1; across = "units"; end
+    otherwise
+        return
+end
+if across == "units"
+    type = spec.style.ErrorType;
+    nBoot = spec.style.ErrorResamples;
+else
+    [~, ~, E] = resultBounds(R, field);
+    type = E.type;
+    nBoot = E.nBoot;
+end
+s = what + ": " + errWords(type, nBoot) + " across " + across;
+end
+
+
+function s = errWords(type, nBoot)
+%errWords  An error band's name: "mean +/- SEM", "mean +/- SD", or the bootstrap CI and how it was made.
+switch type
+    case "std",  s = "mean +/- SD";
+    case "ci95", s = sprintf("the bootstrap 95%% CI of the mean (%d resamples, percentile)", nBoot);
+    otherwise,   s = "mean +/- SEM";
+end
+end
+
+
+function s = errPhrase(type, nBoot)
+%errPhrase  " +/- SEM" in a behavior caption, or what stands for it.
+switch type
+    case "std",  s = " +/- SD";
+    case "ci95", s = sprintf(" and its bootstrap 95%% CI (%d resamples of the epochs, percentile)", nBoot);
+    otherwise,   s = " +/- SEM";
 end
 end
 

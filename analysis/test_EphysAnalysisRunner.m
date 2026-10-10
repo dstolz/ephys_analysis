@@ -423,6 +423,17 @@ check(contains(txtA, "[Ya, fsa, metaA] = selectChannels(src, ""AUX"", Channels=[
     && ~contains(outA2, "FAILED") && ~isempty(dir(fullfile(root, 'outAux', '**', '*.png'))), ...
     'the standalone script computes the mean aux signal and draws the PSTH with it');
 if contains(outA2, "FAILED"); disp(outA2); end
+specS = cfg.plotFor("psth_stim"); specS.style.ErrorType = "std";
+Rsd = r.computePlot(src, specS);
+specN = specS; specN.style.ShowSEM = false;
+Rn = r.computePlot(src, specN);
+nG3 = reshape(Rsd.nEpochs, 1, 1, []);
+cfgS = cfg; cfgS.Plots(cfgS.plotIndex("psth_stim")).style.ErrorType = "std";
+txtS2 = EphysAnalysisScript.standalone(cfgS);
+check(Rsd.err.type == "std" && Rn.err.type == "sem" && max(abs(Rsd.err.hi - Rsd.rate - Rsd.sem .* sqrt(nG3)), [], 'all') < 1e-6 ...
+    && contains(txtS2, "ErrorType=""std"", ErrorResamples=1000);") && ~contains(txtS, "ErrorType="), ...
+    ['computePlot makes the error the style asks for (mean +/- SD; SEM when no error is drawn), and the standalone ' ...
+    'script passes it on (only when it is not the default SEM)']);
 clear figCloser
 
 fprintf('\n== 7. a failing export closes its page ==\n');

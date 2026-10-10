@@ -37,13 +37,21 @@ function R = evokedPotential(Y, fs, E, opts)
 %     Check       a function handle called with no input before every 16th
 %                 epoch (default []); it may throw to stop (the app's Cancel
 %                 button)
+%     ErrorType   the error band around each mean, over the group's epochs
+%                 (errorBounds): "sem" (default, mean +/- SEM), "std" (mean
+%                 +/- SD) or "ci95" (a bootstrap 95% CI of the mean,
+%                 percentile, ErrorResamples resamples of the epochs,
+%                 default 1000; the epochs are held in single precision for
+%                 it, as KeepEpochs holds them)
 %
 %   R fields: kind "evoked", t, mean / sem [nTime x nChan x nGroups],
 %   nEpochs [nGroups x 1] (kept), data, channels, labels, channelLabels
 %   (the used channels' labels), magnitude, fs, units, sampleOffsets
 %   [s0 s1], onsetRule "event" (offset 0 is the sample nearest the one that
 %   produced the event, above), keptEpochs (rows of E), droppedEdge,
-%   droppedNonFinite, groups, meta, n (= nEpochs), params, created.
+%   droppedNonFinite, groups, meta, n (= nEpochs), err (the error band:
+%   type, lo / hi [nTime x nChan x nGroups], over "epochs", nBoot; mean +/-
+%   sem for "sem"), params, created.
 %
 %   Only the epochs' rows of the used channels are read from Y, so Y (e.g.
 %   the outputs' cached signal) is never copied whole.
@@ -66,6 +74,8 @@ arguments
     opts.Meta = []
     opts.Units (1,1) string = "uV"
     opts.Check = []
+    opts.ErrorType (1,1) string {mustBeMember(opts.ErrorType, ["sem" "std" "ci95"])} = "sem"
+    opts.ErrorResamples (1,1) double {mustBePositive, mustBeInteger} = 1000
 end
 
 ch = opts.Channels;
@@ -103,7 +113,8 @@ base = round(E.t0Continuous * fs) + 1;
 S = zeros(nT, nOut, nG); SS = zeros(nT, nOut, nG); N = zeros(nT, nOut, nG);
 kept = false(nE, 1);
 dropEdge = 0; dropNonFinite = 0;
-if opts.KeepEpochs; data = zeros(nT, nOut, nE, 'single'); else; data = []; end
+keepX = opts.KeepEpochs || opts.ErrorType == "ci95";   % the epochs themselves: asked for, or for the bootstrap
+if keepX; data = zeros(nT, nOut, nE, 'single'); else; data = []; end
 for e = 1:nE
     if ~isempty(opts.Check) && mod(e, 16) == 1; opts.Check(); end
     [X, inside] = epochSamples(Y, base(e), s0, s1, ch);
@@ -127,20 +138,37 @@ for e = 1:nE
     SS(:, :, g) = SS(:, :, g) + X0 .^ 2;
     N(:, :, g) = N(:, :, g) + ok;
     kept(e) = true;
-    if opts.KeepEpochs; data(:, :, e) = single(X); end
+    if keepX; data(:, :, e) = single(X); end
 end
 M = S ./ N;
 V = (SS - S .^ 2 ./ N) ./ (N - 1);
 SE = sqrt(max(V, 0)) ./ sqrt(N);
 SE(N < 2) = NaN;
 M(N == 0) = NaN;
-if opts.KeepEpochs; data = data(:, :, kept); end
+switch opts.ErrorType
+    case "sem"
+        lo = M - SE; hi = M + SE;
+    case "std"
+        SD = sqrt(max(V, 0));
+        SD(N < 2) = NaN;
+        lo = M - SD; hi = M + SD;
+    case "ci95"
+        lo = NaN(size(M)); hi = lo;
+        gk = E.groupIndex;
+        for g = 1:nG
+            rows = kept & gk == g;
+            if nnz(rows) < 2; continue; end
+            [lo(:, :, g), hi(:, :, g)] = errorBounds(data(:, :, rows), 3, "ci95", opts.ErrorResamples);
+        end
+end
+if opts.KeepEpochs; data = data(:, :, kept); else; data = []; end
 
 R = struct();
 R.kind = "evoked";
 R.t = t;
 R.mean = M;
 R.sem = SE;
+R.err = struct('type', opts.ErrorType, 'lo', lo, 'hi', hi, 'over', "epochs", 'nBoot', opts.ErrorResamples);
 R.nEpochs = accumarray(E.groupIndex(kept), 1, [nG 1]);
 R.data = data;
 R.channels = ch(:);

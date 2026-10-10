@@ -7,8 +7,9 @@ function h = renderPSTH(R, target, opts)
 %
 %   Options
 %     Layout      "grid" (default): one tile per unit;
-%                 "overlay": one panel with the mean over units (+/- SEM
-%                 across units); a single unit is shown as itself
+%                 "overlay": one panel with the mean over units (its error
+%                 band across the units, Style.ErrorType); a single unit
+%                 is shown as itself
 %     WithRaster  a raster above each rate panel (default true; grid, or
 %                 overlay of one unit), flush on the same time axis: the
 %                 two are a 2 x 1 tiled layout in the unit's tile
@@ -21,7 +22,9 @@ function h = renderPSTH(R, target, opts)
 %                 every epoch sorted as one block (see renderRaster)
 %     EventMarks  how the raster marks R.rasterEvents (see renderRaster)
 %     HistStyle   "bar" (default): one bar per bin; "line": a trace through
-%                 the bin centers. SEM is a band behind either
+%                 the bin centers. The error band (R.err: mean +/- SEM or
+%                 SD, or a bootstrap 95% CI, over the epochs) is behind
+%                 either, as patches in Style's Error* look (errorPatch)
 %     Fill        true (default): the bars, or the area under the line,
 %                 filled; false: the bars' outline, or the line alone
 %     FillAlpha   fill opacity 0-1; NaN (default) = 0.5 where groups are
@@ -58,11 +61,14 @@ function h = renderPSTH(R, target, opts)
 %                 its rows' peaks, so "over" goes below a stack; an axes
 %                 TARGET has room for "over" only. Each trace is drawn as
 %                 auxLooks says (the groups' colors; a channel's own color
-%                 or line style), its mean +/- SEM band with ShowSEM;
+%                 or line style), its error band (R.aux.err) with ShowSEM;
 %                 several channels get legend entries (in the aux panel's
 %                 own legend under a stack)
 %     Style       EphysAnalysisConfig.defaults("Style") fields (LineWidth,
-%                 ShowSEM, ShowStop, ShowZeroLine, Colormap, FontSize, XLim,
+%                 ShowSEM, ErrorType (the overlay's band across units),
+%                 ErrorResamples, the bands' look (ErrorFaceColor,
+%                 ErrorFaceAlpha, ErrorEdgeColor, ErrorEdgeStyle,
+%                 ErrorEdgeWidth), ShowStop, ShowZeroLine, Colormap, FontSize, XLim,
 %                 YLim, Grid, Legend, LegendLocation, LegendOrientation,
 %                 LegendBox, MaxTiles, SortShank, SortDepth,
 %                 LabelShank, LabelDepth: the grid's units go by shank, then
@@ -126,7 +132,7 @@ nG = size(R.rate, 3);
 auroc = isAuroc(R);
 norm = opts.Normalize;
 if auroc; norm = "none"; end   % an auROC is on its own 0-1 scale
-[rate, sem, yUnits] = normalizeRates(R, norm);
+[rate, ~, yUnits, errLo, errHi] = normalizeRates(R, norm);
 look = struct('hist', opts.HistStyle, 'fill', opts.Fill, 'alpha', opts.FillAlpha, ...
     'stack', opts.Stack && nG > 1, 'spacing', opts.Spacing);
 if ~isfinite(look.alpha)
@@ -154,7 +160,11 @@ if opts.Layout == "overlay" && nU > 1
         place = "";   % one axes: no room for a panel
     end
     P.m = reshape(mean(rate, 2, 'omitnan'), [], nG);
-    P.s = reshape(semOf(rate, 2), [], nG);
+    P.lo = NaN(size(P.m)); P.hi = P.lo;
+    if style.ShowSEM   % the band across the units, of the style's error type
+        [olo, ohi] = errorBounds(rate, 2, style.ErrorType, style.ErrorResamples);
+        P.lo = reshape(olo, [], nG); P.hi = reshape(ohi, [], nG);
+    end
     P.peak = max(P.m, [], 1).';
     P.peakLabel = "Peak (" + R.units + ")";
     if norm ~= "none"; P.peakLabel = "Peak (normalized)"; end
@@ -225,7 +235,8 @@ for j = 1:numel(idx)
     end
     tagPart(ax, "axes", "", names(u));
     P.m = reshape(rate(:, u, :), [], nG);
-    P.s = reshape(sem(:, u, :), [], nG);
+    P.lo = reshape(errLo(:, u, :), [], nG);
+    P.hi = reshape(errHi(:, u, :), [], nG);
     P.peak = reshape(max(R.rate(:, u, :), [], 1), [], 1);
     P.peakLabel = "Peak (" + R.units + ")";
     P.yUnits = yUnits;
@@ -351,12 +362,14 @@ end
 end
 
 
-function [rate, sem, label] = normalizeRates(R, mode)
-%normalizeRates  R.rate / R.sem divided per unit ("unitPeak") or per PSTH ("groupPeak").
+function [rate, sem, label, lo, hi] = normalizeRates(R, mode)
+%normalizeRates  R.rate / R.sem and the error band's edges divided per unit ("unitPeak") or per PSTH ("groupPeak").
 %   The divisor is the largest absolute value (the peak, for rates); a unit
 %   or PSTH with none is NaN. LABEL is the y axis label of what comes back.
+%   LO / HI: the band R.err holds (resultBounds), divided the same way.
 rate = R.rate;
 sem = R.sem;
+[lo, hi] = resultBounds(R, 'rate');
 label = R.units;
 switch mode
     case "unitPeak"
@@ -371,6 +384,8 @@ end
 p(~(p > 0)) = NaN;
 rate = rate ./ p;
 sem = sem ./ p;
+lo = lo ./ p;
+hi = hi ./ p;
 end
 
 
@@ -411,7 +426,8 @@ end
 
 function step = drawPanel(ax, P, R, colors, style, look, show)
 %drawPanel  One rate panel: the groups overlaid, or stacked in rows.
-%   P: m / s [nBins x nGroups] (what is drawn), peak [nGroups x 1] and
+%   P: m / lo / hi [nBins x nGroups] (what is drawn: the means and their
+%   error bands' edges), peak [nGroups x 1] and
 %   peakLabel (the right axis of a stack), yUnits (the y label when
 %   overlaid). SHOW: legend (overlaid), left / right (the axis labels),
 %   layout (the grid's tiled layout, [] for one axes) and auto (the
@@ -430,7 +446,7 @@ if ref ~= 0
 end
 if style.ShowSEM
     for g = 1:nG
-        semBand(ax, R.t, P.m(:, g), P.s(:, g), colors(g, :), R.groups.label(g), style);
+        errorPatch(ax, R.t, P.lo(:, g), P.hi(:, g), colors(g, :), R.groups.label(g), style);
     end
 end
 lh = gobjects(1, nG);
@@ -492,19 +508,19 @@ for g = nG:-1:1
     b = base(g);
     tagPart(line(ax, W, [b b], 'Color', [0.72 0.72 0.72], 'LineWidth', 0.5, 'HandleVisibility', 'off'), "stackBase", R.groups.label(g));
     m = P.m(:, g);
-    s = zeros(size(m));
+    elo = m; ehi = m;   % how far the row reaches: its band, where it has one
     if style.ShowSEM
-        semBand(ax, R.t, m + b, P.s(:, g), colors(g, :), R.groups.label(g), style);
-        s = P.s(:, g);
-        s(~isfinite(s)) = 0;
+        errorPatch(ax, R.t, P.lo(:, g) + b, P.hi(:, g) + b, colors(g, :), R.groups.label(g), style);
+        f = isfinite(P.lo(:, g)); elo(f) = P.lo(f, g);
+        f = isfinite(P.hi(:, g)); ehi(f) = P.hi(f, g);
     end
     histTrace(ax, R.t, R.edges, m, b, colors(g, :), look, style.LineWidth, R.groups.label(g));
     if style.ShowStop && isfield(R, 'stopMean') && isfinite(R.stopMean(g))
         tagPart(line(ax, R.stopMean([g g]), b + [0 0.9 * min(step, tallest)], 'LineStyle', '--', 'Color', colors(g, :), ...
             'HandleVisibility', 'off'), "stopLine", R.groups.label(g));
     end
-    lo = min([lo; b + m - s]);
-    hi = max([hi; b + m + s]);
+    lo = min([lo; b + elo]);
+    hi = max([hi; b + ehi]);
 end
 if style.ShowZeroLine
     tagPart(xline(ax, 0, ':', 'Color', [0.3 0.3 0.3], 'HandleVisibility', 'off'), "zeroLine");

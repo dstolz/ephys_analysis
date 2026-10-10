@@ -355,7 +355,8 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   *Responsive only* unit selection; `tiedrank`, `tinv` and `ranksum` in its
   auROC, `aurocCurves` and `aurocCall`: the auROC baseline of PSTH and
   heatmap plots, the auROC response test and `populationAnalysis`' calls
-  pooled over every dataset).
+  pooled over every dataset; `bootci` for the analysis plots' bootstrap 95%
+  CI error bands and bars, `Style.ErrorType "ci95"`, `errorBounds`).
 - Parallel Computing Toolbox (optional; `Parallel.Enabled` in a pipeline
   config, or `UseParallel=true` on `detectSpikes`, `artifactIntervals` and
   `analyzeArtifacts`). The Visualize tab's envelope builds

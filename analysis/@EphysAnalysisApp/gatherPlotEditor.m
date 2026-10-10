@@ -134,6 +134,16 @@ p.style.SortShank = E.sortShank.Value;
 p.style.LabelDepth = E.labelDepth.Value;
 p.style.LabelShank = E.labelShank.Value;
 p.style.ShowSEM = E.showSEM.Value;
+p.style.ErrorType = string(E.errType.Value);
+p.style.ErrorResamples = E.errResamples.Value;
+p.style.ErrorFaceColor = strtrim(string(E.errFace.Value));
+if lower(p.style.ErrorFaceColor) == "auto"; p.style.ErrorFaceColor = ""; end
+p.style.ErrorFaceAlpha = E.errAlpha.Value;
+if isempty(p.style.ErrorFaceAlpha); p.style.ErrorFaceAlpha = NaN; end
+p.style.ErrorEdgeColor = strtrim(string(E.errEdge.Value));
+if p.style.ErrorEdgeColor == ""; p.style.ErrorEdgeColor = "none"; end
+p.style.ErrorEdgeStyle = string(E.errEdgeStyle.Value);
+p.style.ErrorEdgeWidth = E.errEdgeWidth.Value;
 p.style.ShowStop = E.showStop.Value;
 p.style.Legend = E.legend.Value;
 p.style.LegendLocation = string(E.legendLoc.Value);

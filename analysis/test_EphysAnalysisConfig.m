@@ -5,7 +5,8 @@ function test_EphysAnalysisConfig()
 %   merge of the Defaults, plot ids (auto ids, DuplicatePlotId), every
 %   validate rule (ids and patterns whose files would collide too), the
 %   behavior kind, the raster's sort (by an event's latency too: its
-%   rasterSortEvent) and event marks, the mean aux signal (aux), events shifted by
+%   rasterSortEvent) and event marks, the mean aux signal (aux), the error
+%   bands' style (ErrorType, resamples, look), events shifted by
 %   a trial parameter and event sequences (fields, round trips, rules), LoadWarnings,
 %   BadSchema, figureFileName and plotFileName's page suffix.
 %
@@ -294,6 +295,32 @@ xs.save(f);
 x2 = EphysAnalysisConfig.load(f);
 check(x2.isequalConfig(xs) && isequal(x2.Plots(1).aux, xs.Plots(1).aux) && isequal(x2.Plots(1).aux.channels, 2) ...
     && ~x2.Plots(1).aux.byGroup, 'the aux settings survive save / load (one channel stays a number)');
+d = EphysAnalysisConfig.defaults("Style");
+check(d.ShowSEM && d.ErrorType == "sem" && d.ErrorResamples == 1000 && d.ErrorFaceColor == "" && isnan(d.ErrorFaceAlpha) ...
+    && d.ErrorEdgeColor == "none" && d.ErrorEdgeStyle == "-" && d.ErrorEdgeWidth == 0.5, ...
+    'the error: mean +/- SEM by default, bands opaque and paled with no edge (as before)');
+es = cfg; es.Plots(1).style.ErrorType = "std";
+check(~hasIssue(es, "psth_1.style.Error", "error") && ~hasIssue(es, "psth_1.style.Error", "warning"), 'mean +/- SD is a valid error');
+bad = cfg; bad.Plots(1).style.ErrorType = "iqr";
+bad2 = cfg; bad2.Plots(1).style.ErrorResamples = 2.5;
+bad3 = cfg; bad3.Plots(1).style.ErrorFaceAlpha = 1.5;
+bad4 = cfg; bad4.Plots(1).style.ErrorEdgeStyle = "~";
+bad5 = cfg; bad5.Plots(1).style.ErrorEdgeWidth = 0;
+w1 = cfg; w1.Plots(1).style.ErrorFaceColor = "plaid"; w1.Plots(1).style.ErrorEdgeColor = "nope";
+check(hasIssue(bad, "psth_1.style.ErrorType", "error") && hasIssue(bad2, "psth_1.style.ErrorResamples", "error") ...
+    && hasIssue(bad3, "psth_1.style.ErrorFaceAlpha", "error") && hasIssue(bad4, "psth_1.style.ErrorEdgeStyle", "error") ...
+    && hasIssue(bad5, "psth_1.style.ErrorEdgeWidth", "error") && hasIssue(w1, "psth_1.style.ErrorFaceColor", "warning") ...
+    && hasIssue(w1, "psth_1.style.ErrorEdgeColor", "warning"), ...
+    'the error type, resamples (whole), opacity (0-1 or NaN), edge style and width are checked; a color that is not one warns');
+ci = cfg; ci.Plots(1).style.ErrorType = "ci95";
+haveBoot = license('test', 'Statistics_Toolbox') && exist('bootci', 'file') == 2;
+check(hasIssue(ci, "psth_1.style.ErrorType", "error") == ~haveBoot, 'the bootstrap CI needs the Statistics and Machine Learning Toolbox');
+es.Plots(1).style.ErrorFaceAlpha = 0.3; es.Plots(1).style.ErrorEdgeColor = "auto"; es.Plots(1).style.ErrorType = "ci95";
+es.Plots(1).style.ErrorResamples = 500;
+es.save(f);
+e2 = EphysAnalysisConfig.load(f);
+check(e2.isequalConfig(es) && e2.Plots(1).style.ErrorType == "ci95" && e2.Plots(1).style.ErrorFaceAlpha == 0.3 ...
+    && isnan(e2.Plots(2).style.ErrorFaceAlpha), 'the error settings survive save / load (a NaN opacity too)');
 d = EphysAnalysisConfig.defaults("Plot").note;
 check(d.text == "" && d.placement == "below" && d.align == "left" && d.valign == "middle" && isnan(d.fontSize) ...
     && ~d.bold && ~d.italic && ~d.box && d.color == "" && d.interpreter == "none", ...

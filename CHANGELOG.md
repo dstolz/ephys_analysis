@@ -10,6 +10,21 @@ says how to cut a release.
 
 ### Added
 
+- Error bands and bars of a chosen kind on every analysis plot that draws them: `Style.ErrorType` is
+  `"sem"` (mean ± SEM, the default and the look so far), `"std"` (mean ± SD) or `"ci95"` (the 95%
+  confidence interval of the mean from `Style.ErrorResamples` bootstrap resamples, percentile, `bootci`;
+  a fixed stream, so a plot gives the same band each run). The compute functions make it over the
+  epochs (`spikePSTH`, `evokedPotential`, `firingRate`, `tuningCurve`, `behaviorValues`, `auxMean`,
+  `populationSummary` across units: `ErrorType=`, `ErrorResamples=`, result `R.err` with the band's
+  `lo` and `hi`); an overlay of several units draws it across the units. Bands are patches
+  (`errorPatch`) whose look is set per plot: `ErrorFaceColor`, `ErrorFaceAlpha` (NaN = opaque and paled,
+  as before), `ErrorEdgeColor`, `ErrorEdgeStyle`, `ErrorEdgeWidth`; error bars (rates, tuning, behavior)
+  draw the chosen error, asymmetric for a CI. Captions name the error and what it is across. The
+  analysis app's Appearance section gets **Error**, **Band fill** and **Band edge** rows (the Show box
+  is now **Error**). `EphysAnalysisConfig.validate` checks the fields and that `"ci95"` has the
+  Statistics and Machine Learning Toolbox. See
+  [Error bands](documentation/EphysAnalysisConfig.md#error-bands).
+
 - The mean aux (accelerometer) signal on PSTH and raster plots of spikes. A plot's `aux` (`mode`
   `"channels"`: each channel's mean, or `"magnitude"`: the mean of each epoch's vector magnitude,
   sqrt(x² + y² + z²) at every sample) is cut from the AUX extract over the plot's own epochs and drawn in

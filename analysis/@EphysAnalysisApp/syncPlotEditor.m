@@ -40,7 +40,13 @@ function syncPlotEditor(obj)
 %     group colors, legend       psth, raster, rate, tuning, behavior, evoked but "butterfly"
 %       (its place, orientation and box: enabled with the legend on)
 %     heat colors                heatmap, probemap, corrmap
-%     SEM                         psth, tuning, behavior, rate "bar", evoked but "butterfly"
+%     error (Show box), error type
+%       and resamples             psth, tuning, behavior, rate "bar", evoked but "butterfly",
+%                                 a raster with an aux signal (enabled with the box;
+%                                 resamples for the bootstrap CI)
+%     band fill and edge          the plots with bands: psth, evoked but "butterfly", an
+%                                 aux signal (enabled with the box; the edge's style and
+%                                 width with an edge color)
 %     stop marks                  psth, raster
 %     grid                        psth, raster, evoked, rate, tuning, behavior
 %     unit waveform               spikes: raster; psth and tuning "grid";
@@ -120,7 +126,7 @@ psth = kind == "psth";
 
 % --- what shows ---------------------------------------------------------------------
 [v, on] = rowsUsed(kind, source, layout, string(E.baselineMode.Value), string(E.aCutoff.Value), ...
-    string(E.respTest.Value), string(E.raCutoff.Value));
+    string(E.respTest.Value), string(E.raCutoff.Value), string(E.auxMode.Value));
 auroc = v.aMethod;
 aligned = row.Aligned;
 kinds = kind;
@@ -128,7 +134,7 @@ for q = obj.Config.Plots(ks(2:end))
     lq = q.layout;
     if lq == ""; lq = K.DefaultLayout(K.Kind == q.kind); end
     [vq, onq] = rowsUsed(q.kind, q.source, lq, q.baseline.Mode, q.auroc.cutoff, q.units.response.test, ...
-        q.units.response.auroc.cutoff);
+        q.units.response.auroc.cutoff, q.aux.mode);
     for f = string(fieldnames(v)).'
         v.(f) = v.(f) && vq.(f);
     end
@@ -220,6 +226,10 @@ en(E.jitter, layout == "points");
 en([E.legend E.ylim], ~stacked);
 en([E.legendLoc E.legendOrient E.legendBox], ~stacked && E.legend.Value);
 en([E.waveSpikes E.waveLocation E.waveBox E.waveScale E.wavePP E.waveCount], string(E.waveMode.Value) ~= "off");
+errOn = logical(E.showSEM.Value);
+en([E.errType E.errFace E.errAlpha E.errEdge], errOn);
+en(E.errResamples, errOn && string(E.errType.Value) == "ci95");
+en([E.errEdgeStyle E.errEdgeWidth], errOn && lower(strtrim(string(E.errEdge.Value))) ~= "none");
 auxOn = string(E.auxMode.Value) ~= "off";
 en([E.auxPlacement E.auxChannels E.auxBaseline E.auxByGroup], auxOn);
 en([E.auxBaseFrom E.auxBaseTo], auxOn && E.auxBaseline.Value);
@@ -235,11 +245,11 @@ obj.layoutPlotEditor();
 end
 
 
-function [v, on] = rowsUsed(kind, source, layout, baselineMode, aCutoff, respTest, raCutoff)
+function [v, on] = rowsUsed(kind, source, layout, baselineMode, aCutoff, respTest, raCutoff, auxMode)
 %rowsUsed  The editor's rows a plot uses: V.(key) for each row's first key, ON for the Show boxes.
 %   From its kind, source and layout, and the options that add rows: its
 %   baseline mode and auROC cutoff, its response test and that test's auROC
-%   cutoff. ON: SEM, stop marks, legend, grid.
+%   cutoff, its aux signal's mode. ON: error, stop marks, legend, grid.
 spikes = ismember(source, EphysAnalysisConfig.SpikeSources);
 ch = plotEditorChoices(kind, source);
 psth = kind == "psth";
@@ -299,7 +309,11 @@ for f = ["annText" "annPlace" "annX" "annAlign" "annRotation" "annFont" "annBold
     v.(f) = true;   % the text note is every kind's
 end
 v.ovList = true;   % so are the overlays (their rows follow the overlay picked: syncPlotEditor)
-on =[psth || ismember(kind, ["tuning" "behavior"]) || (kind == "rate" && layout == "bar") || (kind == "evoked" && layout ~= "butterfly"), ...
+auxBands = v.auxMode && auxMode ~= "off";   % the aux signal's bands (a raster's too)
+traceBands = psth || (kind == "evoked" && layout ~= "butterfly") || auxBands;
+v.errType = traceBands || ismember(kind, ["tuning" "behavior"]) || (kind == "rate" && layout == "bar");
+v.errFace = traceBands; v.errEdge = traceBands;   % the bands' look (error bars are not patches)
+on =[v.errType, ...
     ismember(kind, ["psth" "raster"]), grouped, ismember(kind, ["psth" "raster" "evoked" "rate" "tuning" "behavior"]) ...
     || (kind == "waveforms" && layout == "grid")];
 end

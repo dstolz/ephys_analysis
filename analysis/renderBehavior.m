@@ -14,6 +14,8 @@ function h = renderBehavior(R, target, opts)
 %               with the mean +/- SEM over them
 %     "violin"  the values' density at each x value (violinplot, MATLAB
 %               R2024b or later), with the mean +/- SEM over it
+%   "+/- SEM" is the error the result holds (R.err: mean +/- SEM or SD, or a
+%   bootstrap 95% CI of the mean, over the epochs), drawn as error bars.
 %   Jitter   points: spread the dots sideways (default true), with a fixed,
 %            repeatable pattern; false: every dot on its x value
 %   XScale   "category" (default): the x values evenly spaced, labeled with
@@ -63,6 +65,7 @@ if opts.Layout == "line"; offs(:) = 0; end
 if isempty(ax); ax = nexttile(tl); end
 tagPart(ax, "axes");
 V = R.values;
+[eLo, eHi] = resultBounds(R, 'mean');
 hold(ax, 'on');
 lh = gobjects(1, nS);
 for k = 1:nS
@@ -76,9 +79,9 @@ for k = 1:nS
             jit = zeros(size(xx));
             if opts.Jitter; jit = (mod((0:numel(xx) - 1).', 7) - 3) / 3 * per * 0.3; end
             lh(k) = tagPart(plot(ax, xx + jit, y, '.', 'Color', c, 'MarkerSize', 8), "points", gl);
-            meanMarks(ax, xpos + offs(k), R.mean(:, k), R.sem(:, k), c, style, gl, false);
+            meanMarks(ax, xpos + offs(k), R.mean(:, k), eLo(:, k), eHi(:, k), c, style, gl, false);
         case "line"
-            lh(k) = meanMarks(ax, xpos, R.mean(:, k), R.sem(:, k), c, style, gl, true);
+            lh(k) = meanMarks(ax, xpos, R.mean(:, k), eLo(:, k), eHi(:, k), c, style, gl, true);
         case "box"
             if isempty(y)
                 lh(k) = tagPart(plot(ax, NaN, NaN, 's', 'Color', c), "box", gl);
@@ -93,7 +96,7 @@ for k = 1:nS
                 lh(k) = tagPart(swarmchart(ax, xx, y, 12, c, 'filled', 'XJitter', 'density', ...
                     'XJitterWidth', per * 0.8), "swarm", gl);
             end
-            meanMarks(ax, xpos + offs(k), R.mean(:, k), R.sem(:, k), c, style, gl, false);
+            meanMarks(ax, xpos + offs(k), R.mean(:, k), eLo(:, k), eHi(:, k), c, style, gl, false);
         case "violin"
             if isempty(y)
                 lh(k) = tagPart(patch(ax, NaN, NaN, c, 'EdgeColor', c), "violin", gl);
@@ -103,7 +106,7 @@ for k = 1:nS
                 lh(k) = tagPart(v(1), "violin", gl);
                 tagPart(v(2:end), "violin", gl);
             end
-            meanMarks(ax, xpos + offs(k), R.mean(:, k), R.sem(:, k), c, style, gl, false);
+            meanMarks(ax, xpos + offs(k), R.mean(:, k), eLo(:, k), eHi(:, k), c, style, gl, false);
     end
 end
 hold(ax, 'off');
@@ -128,15 +131,15 @@ h = struct('layout', tl, 'axes', ax);
 end
 
 
-function lh = meanMarks(ax, x, m, s, c, style, label, joined)
-%meanMarks  Each x value's mean (+/- SEM with Style.ShowSEM), joined for the line layout.
+function lh = meanMarks(ax, x, m, lo, hi, c, style, label, joined)
+%meanMarks  Each x value's mean (with its error bar from LO to HI with Style.ShowSEM), joined for the line layout.
 ok = isfinite(m);
 ls = 'none';
 if joined; ls = '-'; end
 edge = c * 0.6;
 if joined; edge = c; end
 if style.ShowSEM
-    lh = errorbar(ax, x(ok), m(ok), s(ok), 'o', 'LineStyle', ls, 'Color', edge, 'MarkerFaceColor', c, ...
+    lh = errorbar(ax, x(ok), m(ok), m(ok) - lo(ok), hi(ok) - m(ok), 'o', 'LineStyle', ls, 'Color', edge, 'MarkerFaceColor', c, ...
         'MarkerSize', 5, 'LineWidth', style.LineWidth, 'CapSize', 4);
 else
     lh = plot(ax, x(ok), m(ok), 'o', 'LineStyle', ls, 'Color', edge, 'MarkerFaceColor', c, ...

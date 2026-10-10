@@ -52,7 +52,11 @@ function issues = validate(obj, opts)
 %               style and width, opacities (0-1), and colors (one that is
 %               not a color is a warning), a warning for a panel the plot
 %               does not draw and for two overlays with one name; style
-%               values
+%               values (the error: ErrorType sem / std / ci95, ci95 with
+%               the Statistics and Machine Learning Toolbox where the plot
+%               draws it, whole ErrorResamples >= 1, the bands' opacity
+%               (0-1 or NaN), edge style and width; a face or edge color
+%               that is not one is a warning)
 %     Export    formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
 %               folder and file-name patterns use known tokens; a warning
 %               when the files of two enabled plots, or of two datasets,
@@ -450,6 +454,30 @@ for k = 1:numel(obj.Plots)
     end
     if ~ismember(st.LegendOrientation, ["auto" "vertical" "horizontal"])
         add("Plots", f0 + ".style.LegendOrientation", "error", "LegendOrientation is auto, vertical or horizontal.");
+    end
+    if ~ismember(st.ErrorType, EphysAnalysisConfig.ErrorTypes)
+        add("Plots", f0 + ".style.ErrorType", "error", "ErrorType is sem (mean +/- SEM), std (mean +/- SD) or ci95 (bootstrap 95% CI).");
+    elseif st.ShowSEM && st.ErrorType == "ci95" && (plotErrorType(p) == "ci95" || plotErrorType(p, "aux") == "ci95") ...
+            && ~(license('test', 'Statistics_Toolbox') && exist('bootci', 'file'))
+        add("Plots", f0 + ".style.ErrorType", "error", "The bootstrap 95% CI needs the Statistics and Machine Learning Toolbox (bootci).");
+    end
+    if ~(isfinite(st.ErrorResamples) && st.ErrorResamples >= 1 && st.ErrorResamples == round(st.ErrorResamples))
+        add("Plots", f0 + ".style.ErrorResamples", "error", "ErrorResamples is a whole number of bootstrap resamples, at least 1.");
+    end
+    if ~(isnan(st.ErrorFaceAlpha) || (st.ErrorFaceAlpha >= 0 && st.ErrorFaceAlpha <= 1))
+        add("Plots", f0 + ".style.ErrorFaceAlpha", "error", "ErrorFaceAlpha is an opacity from 0 to 1 (NaN = opaque, the trace's color paled).");
+    end
+    if st.ErrorFaceColor ~= "" && ~isColor(st.ErrorFaceColor)
+        add("Plots", f0 + ".style.ErrorFaceColor", "warning", "No color """ + st.ErrorFaceColor + """; the bands take their trace's color.");
+    end
+    if ~ismember(lower(strtrim(st.ErrorEdgeColor)), ["none" "auto"]) && ~isColor(st.ErrorEdgeColor)
+        add("Plots", f0 + ".style.ErrorEdgeColor", "warning", "No color """ + st.ErrorEdgeColor + """; the bands have no edge.");
+    end
+    if ~ismember(st.ErrorEdgeStyle, EphysAnalysisConfig.OverlayLineStyles)
+        add("Plots", f0 + ".style.ErrorEdgeStyle", "error", "ErrorEdgeStyle is one of " + strjoin(EphysAnalysisConfig.OverlayLineStyles, "  ") + ".");
+    end
+    if ~(isfinite(st.ErrorEdgeWidth) && st.ErrorEdgeWidth > 0)
+        add("Plots", f0 + ".style.ErrorEdgeWidth", "error", "ErrorEdgeWidth must be positive (points).");
     end
     if ~(st.FontSize > 0);  add("Plots", f0 + ".style.FontSize", "error", "FontSize must be positive."); end
     if ~(st.LineWidth > 0); add("Plots", f0 + ".style.LineWidth", "error", "LineWidth must be positive."); end

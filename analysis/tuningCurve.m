@@ -12,6 +12,10 @@ function R = tuningCurve(rates, x, opts)
 %     SeriesParam   name of Series (legend)
 %     Meta, Labels  unit table / labels as in spikePSTH
 %     Units         unit of RATES (default "spikes/s")
+%     ErrorType     the error of each mean, over the epochs of its value
+%                   (errorBounds): "sem" (default), "std" or "ci95" (a
+%                   bootstrap 95% CI of the mean, percentile,
+%                   ErrorResamples resamples, default 1000)
 %
 %   Epochs whose X (or Series) is missing are left out; when that leaves
 %   none (e.g. recording-scope events that all fall outside the trials) it
@@ -19,7 +23,8 @@ function R = tuningCurve(rates, x, opts)
 %   values: numeric ascending, text alphabetical), xIsNumeric, series
 %   (labels), seriesValues, mean / sem [nX x nUnits x nSeries], n [nX x
 %   nSeries], groups (one row per series: index, label, color), param,
-%   seriesParam, labels, meta, units, params, created.
+%   seriesParam, labels, meta, units, err (type, lo / hi [nX x nUnits x
+%   nSeries], over "epochs", nBoot), params, created.
 %
 %   See also firingRate, epochTable, renderTuning.
 
@@ -32,6 +37,8 @@ arguments
     opts.Meta = []
     opts.Labels (1,:) string = string.empty(1,0)
     opts.Units (1,1) string = "spikes/s"
+    opts.ErrorType (1,1) string {mustBeMember(opts.ErrorType, ["sem" "std" "ci95"])} = "sem"
+    opts.ErrorResamples (1,1) double {mustBePositive, mustBeInteger} = 1000
 end
 
 nE = size(rates, 1);
@@ -69,6 +76,7 @@ ux = unique(x(ok));
 us = unique(s(ok));
 nX = numel(ux); nS = numel(us);
 M = NaN(nX, nU, nS); SE = NaN(nX, nU, nS); N = zeros(nX, nS);
+LO = NaN(nX, nU, nS); HI = NaN(nX, nU, nS);
 for i = 1:nX
     for j = 1:nS
         rows = ok & x == ux(i) & s == us(j);
@@ -76,6 +84,7 @@ for i = 1:nX
         if N(i, j) == 0; continue; end
         M(i, :, j) = mean(rates(rows, :), 1, 'omitnan');
         SE(i, :, j) = semOf(rates(rows, :), 1);
+        [LO(i, :, j), HI(i, :, j)] = errorBounds(rates(rows, :), 1, opts.ErrorType, opts.ErrorResamples);
     end
 end
 if isempty(opts.Series)
@@ -96,6 +105,7 @@ R.series = slabels(:);
 R.seriesValues = us;
 R.mean = M;
 R.sem = SE;
+R.err = struct('type', opts.ErrorType, 'lo', LO, 'hi', HI, 'over', "epochs", 'nBoot', opts.ErrorResamples);
 R.n = N;
 R.groups = G;
 R.param = opts.Param;

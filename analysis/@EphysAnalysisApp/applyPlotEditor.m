@@ -164,6 +164,17 @@ E.sortShank.Value = s.SortShank;
 E.labelDepth.Value = s.LabelDepth;
 E.labelShank.Value = s.LabelShank;
 E.showSEM.Value = s.ShowSEM;
+E.errType.Value = char(pickFrom(s.ErrorType, string(E.errType.ItemsData), "sem"));
+E.errResamples.Value = min(E.errResamples.Limits(2), max(E.errResamples.Limits(1), round(s.ErrorResamples)));
+offerItems(E.errFace, string(E.errFace.Items), pick(s.ErrorFaceColor, "auto"));
+if isnan(s.ErrorFaceAlpha)
+    E.errAlpha.Value = [];
+else
+    E.errAlpha.Value = min(1, max(0, s.ErrorFaceAlpha));
+end
+offerItems(E.errEdge, string(E.errEdge.Items), pick(s.ErrorEdgeColor, "none"));
+E.errEdgeStyle.Value = char(pickFrom(s.ErrorEdgeStyle, string(E.errEdgeStyle.ItemsData), "-"));
+E.errEdgeWidth.Value = min(E.errEdgeWidth.Limits(2), max(E.errEdgeWidth.Limits(1), s.ErrorEdgeWidth));
 E.showStop.Value = s.ShowStop;
 E.legend.Value = s.Legend;
 E.legendLoc.Value = char(pickFrom(s.LegendLocation, string(E.legendLoc.ItemsData), "auto"));

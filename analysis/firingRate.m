@@ -21,6 +21,11 @@ function R = firingRate(spikeTimes, E, opts)
 %                 "zscore" ((value - mean baseline) / SD of the baseline over
 %                 all epochs)
 %     Groups, Meta, Labels   as in spikePSTH
+%     ErrorType   the error of each unit's mean per group, over the group's
+%                 epochs (errorBounds): "sem" (default, mean +/- SEM), "std"
+%                 (mean +/- SD) or "ci95" (a bootstrap 95% CI of the mean,
+%                 percentile, ErrorResamples resamples of the epochs,
+%                 default 1000)
 %
 %   R fields: kind "rate", measure, rate / count [nEpochs x nUnits] (the
 %   Measure's value after Normalize, count raw), rawRate (before Normalize),
@@ -28,7 +33,8 @@ function R = firingRate(spikeTimes, E, opts)
 %   value per epoch, NaN without Baseline),
 %   meanRate / sem / median [nUnits x nGroups], baselineRate [nUnits x
 %   nGroups], epochIndex (E.epoch), groupIndex, groups, labels, meta, n
-%   (epochs per group), units, params, created.
+%   (epochs per group), units, err (type, lo / hi [nUnits x nGroups], over
+%   "epochs", nBoot), params, created.
 %
 %   See also epochTable, selectUnits, tuningCurve, renderRates.
 
@@ -41,6 +47,8 @@ arguments
     opts.Groups = []
     opts.Meta = []
     opts.Labels (1,:) string = string.empty(1,0)
+    opts.ErrorType (1,1) string {mustBeMember(opts.ErrorType, ["sem" "std" "ci95"])} = "sem"
+    opts.ErrorResamples (1,1) double {mustBePositive, mustBeInteger} = 1000
 end
 
 if iscell(spikeTimes); st = reshape(spikeTimes, [], 1); else; st = {spikeTimes}; end
@@ -94,11 +102,15 @@ end
 rate(~isfinite(rate)) = NaN;
 
 meanRate = NaN(nU, nG); sem = NaN(nU, nG); med = NaN(nU, nG); baseRate = NaN(nU, nG);
+errLo = NaN(nU, nG); errHi = NaN(nU, nG);
 for g = 1:nG
     rows = gIdx == g;
     if ~any(rows); continue; end
     meanRate(:, g) = mean(rate(rows, :), 1, 'omitnan').';
     sem(:, g) = semOf(rate(rows, :), 1).';
+    [lo, hi] = errorBounds(rate(rows, :), 1, opts.ErrorType, opts.ErrorResamples);
+    errLo(:, g) = lo.';
+    errHi(:, g) = hi.';
     med(:, g) = median(rate(rows, :), 1, 'omitnan').';
     if useBase; baseRate(:, g) = mean(base(rows, :), 1, 'omitnan').'; end
 end
@@ -112,6 +124,7 @@ R.duration = dur;
 R.baseline = base;
 R.meanRate = meanRate;
 R.sem = sem;
+R.err = struct('type', opts.ErrorType, 'lo', errLo, 'hi', errHi, 'over', "epochs", 'nBoot', opts.ErrorResamples);
 R.median = med;
 R.baselineRate = baseRate;
 R.epochIndex = E.epoch;

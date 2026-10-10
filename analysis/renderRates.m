@@ -7,7 +7,9 @@ function h = renderRates(R, target, opts)
 %   labels.
 %
 %   Layout
-%     "bar"     (default) mean +/- SEM over each group's epochs
+%     "bar"     (default) the mean over each group's epochs, with its error
+%               bar (R.err: +/- SEM or SD, or a bootstrap 95% CI;
+%               Style.ShowSEM)
 %     "box"     box plot of the epochs' rates
 %     "points"  every epoch's rate as a dot (a fixed, repeatable jitter)
 %               with the mean as a bar
@@ -30,6 +32,7 @@ order = probeOrder(R.meta, nU, style);
 [tl, ax] = renderLayout(target, 1, 1);
 if isempty(ax); ax = nexttile(tl); end
 tagPart(ax, "axes");
+[eLo, eHi] = resultBounds(R, 'meanRate');
 w = 0.8 / nG;                                   % width of one group's slot
 offs = ((1:nG) - (nG + 1) / 2) * w;
 hold(ax, 'on');
@@ -42,7 +45,7 @@ for g = 1:nG
         case "bar"
             lh(g) = tagPart(bar(ax, x, m, w * 0.9, 'FaceColor', colors(g, :), 'EdgeColor', 'none'), "bar", gl);
             if style.ShowSEM
-                tagPart(errorbar(ax, x, m, R.sem(order, g), 'LineStyle', 'none', 'Color', [0.2 0.2 0.2], ...
+                tagPart(errorbar(ax, x, m, m - eLo(order, g), eHi(order, g) - m, 'LineStyle', 'none', 'Color', [0.2 0.2 0.2], ...
                     'CapSize', 2, 'HandleVisibility', 'off'), "errorBar", gl);
             end
         case "box"

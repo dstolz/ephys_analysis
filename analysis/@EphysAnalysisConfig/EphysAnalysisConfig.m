@@ -77,6 +77,8 @@ classdef EphysAnalysisConfig
         % What a psth / raster plot's mean aux signal (aux) draws, and where: a panel below or above the unit's
         % raster / PSTH, or over it on its right y axis.
         AuxModes      = ["off" "channels" "magnitude"]
+        % The error a plot draws as bands or bars (Style.ErrorType): mean +/- SEM, mean +/- SD, bootstrap 95% CI of the mean.
+        ErrorTypes    = ["sem" "std" "ci95"]
         AuxPlacements = ["below" "above" "over"]
         % Where a plot's note sits (a plot's note.placement): outside the plot, over it, or at a point.
         NotePlacements = ["below" "above" "right" "left" "northwest" "north" "northeast" "west" "center" "east" ...

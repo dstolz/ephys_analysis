@@ -249,6 +249,9 @@ classdef EphysAnalysisScript
             if spec.baseline.Mode ~= "none"; b = lit(spec.baseline.Window); end
             epochs = "[E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection, Baseline=" + b + ");";
             isSignal = ismember(spec.source, EphysAnalysisConfig.SignalSources);
+            [et, nb] = plotErrorType(spec);   % the error the plot draws, as computePlot passes it
+            err = "";
+            if et ~= "sem"; err = ", ErrorType=" + lit(et) + ", ErrorResamples=" + lit(nb); end
             L = strings(0, 1);
             switch spec.kind
                 case {"psth" "raster" "heatmap"}
@@ -266,8 +269,8 @@ classdef EphysAnalysisScript
                         L(end+1, 1) = "[st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);";
                         L(end+1, 1) = "R = spikePSTH(st, E, Window=" + w + ", BinSec=" + lit(spec.bins.BinSec) + ...
                             ", SmoothSec=" + lit(spec.bins.SmoothSec) + ", Measure=" + lit(spec.measure) + ", ...";
-                        tail = ");";
-                        if spec.baseline.Mode == "auroc"; tail = ", Auroc=spec.auroc);   % auROC settings: spec.auroc"; end
+                        tail = err + ");";
+                        if spec.baseline.Mode == "auroc"; tail = ", Auroc=spec.auroc" + err + ");   % auROC settings: spec.auroc"; end
                         L(end+1, 1) = "    Baseline=" + b + ", BaselineMode=" + lit(spec.baseline.Mode) + ", MaskAfterStop=" + lit(spec.maskAfterStop) + ", Raster=" + lit(raster) + ", Groups=G, Meta=meta" + tail;
                         m = spec.rasterEvents;
                         if raster && ~isempty(m.sequences)
@@ -285,19 +288,22 @@ classdef EphysAnalysisScript
                         if ismember(spec.kind, ["psth" "raster"]) && x.mode ~= "off"
                             ab = "[]";
                             if x.baseline == "subtract"; ab = lit(x.baselineWindow); end
+                            [ex, nx] = plotErrorType(spec, "aux");
+                            errA = "";
+                            if ex ~= "sem"; errA = ", ErrorType=" + lit(ex) + ", ErrorResamples=" + lit(nx); end
                             L(end+1, 1) = "[Ya, fsa, metaA] = selectChannels(src, ""AUX"", Channels=" + lit(x.channels) + ");   % the mean aux signal (spec.aux)";
                             L(end+1, 1) = "R.aux = auxMean(Ya, fsa, E, Window=" + w + ", Mode=" + lit(x.mode) + ", Baseline=" + ab + ...
-                                ", ByGroup=" + lit(x.byGroup) + ", Groups=G, Meta=metaA);";
+                                ", ByGroup=" + lit(x.byGroup) + ", Groups=G, Meta=metaA" + errA + ");";
                         end
                     end
                 case "evoked"
                     L(end+1, 1) = epochs;
                     L(end+1, 1) = "[Y, fs, meta] = selectChannels(src, " + lit(spec.source) + ", Channels=" + lit(spec.channels) + ");";
-                    L(end+1, 1) = "R = evokedPotential(Y, fs, E, Window=" + w + ", Baseline=" + b + ", Groups=G, Meta=meta, Units=meta.units(1));";
+                    L(end+1, 1) = "R = evokedPotential(Y, fs, E, Window=" + w + ", Baseline=" + b + ", Groups=G, Meta=meta, Units=meta.units(1)" + err + ");";
                 case "rate"
                     L(end+1, 1) = epochs;
                     L(end+1, 1) = "[st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);";
-                    L(end+1, 1) = "R = firingRate(st, E, Measure=" + lit(spec.measure) + ", Baseline=" + b + ", Normalize=" + lit(spec.baseline.Mode) + ", Groups=G, Meta=meta);";
+                    L(end+1, 1) = "R = firingRate(st, E, Measure=" + lit(spec.measure) + ", Baseline=" + b + ", Normalize=" + lit(spec.baseline.Mode) + ", Groups=G, Meta=meta" + err + ");";
                 case "tuning"
                     cols = [spec.param spec.seriesParam];
                     cols = cols(cols ~= "");
@@ -307,7 +313,7 @@ classdef EphysAnalysisScript
                     series = "[]";
                     if spec.seriesParam ~= ""; series = "E.(" + lit(spec.seriesParam) + ")"; end
                     L(end+1, 1) = "R = tuningCurve(F.rate, E.(" + lit(spec.param) + "), Series=" + series + ", Param=" + lit(spec.param) + ...
-                        ", SeriesParam=" + lit(spec.seriesParam) + ", Meta=meta, Units=F.units);";
+                        ", SeriesParam=" + lit(spec.seriesParam) + ", Meta=meta, Units=F.units" + err + ");";
                 case "corrmap"
                     L(end+1, 1) = epochs;
                     L(end+1, 1) = "[st, meta] = selectUnits(src, spec.units, Ref=spec.ref, Selection=spec.selection);";
@@ -342,7 +348,7 @@ classdef EphysAnalysisScript
                         yArgs = ", YName=" + lit(spec.yParam) + ", YUnits=""""";
                     end
                     L(end+1, 1) = "R = behaviorValues(y, E.(" + lit(spec.param) + "), Series=" + series + ", Param=" + lit(spec.param) + ...
-                        ", SeriesParam=" + lit(spec.seriesParam) + yArgs + ");";
+                        ", SeriesParam=" + lit(spec.seriesParam) + yArgs + err + ");";
             end
             if ismember(spec.source, EphysAnalysisConfig.SpikeSources) && (spec.kind == "waveforms" || ...
                     (spec.waveform.mode ~= "off" && (spec.kind == "raster" || (ismember(spec.kind, ["psth" "tuning"]) && spec.layout ~= "overlay"))))

@@ -4,10 +4,13 @@ function h = renderTuning(R, target, opts)
 %
 %   Layout
 %     "grid"     (default) one tile per unit (MaxTiles per page), one curve
-%                per series, mean +/- SEM over the epochs of each value; units
+%                per series, the mean with its error bars (R.err: +/- SEM or
+%                SD, or a bootstrap 95% CI, over the epochs of each value;
+%                Style.ShowSEM); units
 %                go by Style.SortShank / Style.SortDepth and are titled with
 %                their shank / depth for Style.LabelShank / Style.LabelDepth
-%     "overlay"  one panel: the mean over units, +/- SEM across units
+%     "overlay"  one panel: the mean over units, its error bars across the
+%                units (Style.ErrorType, ErrorResamples)
 %   A text parameter is spaced evenly with its values as tick labels.
 %
 %   Waveform (EphysAnalysisConfig.defaults("Waveform") fields): grid
@@ -48,8 +51,12 @@ if opts.Layout == "overlay" && nU > 1
     [tl, ax] = renderLayout(target, 1, 1);
     if isempty(ax); ax = nexttile(tl); end
     m = reshape(mean(R.mean, 2, 'omitnan'), nX, nS);
-    s = reshape(semOf(R.mean, 2), nX, nS);
-    drawCurves(ax, xv, m, s, R, colors, style, true, tl, 'best');
+    lo = NaN(nX, nS); hi = lo;
+    if style.ShowSEM   % across the units, of the style's error type
+        [lo, hi] = errorBounds(R.mean, 2, style.ErrorType, style.ErrorResamples);
+        lo = reshape(lo, nX, nS); hi = reshape(hi, nX, nS);
+    end
+    drawCurves(ax, xv, m, lo, hi, R, colors, style, true, tl, 'best');
     title(ax, sprintf('Mean of %d units', nU), 'FontWeight', 'normal');
     xlabel(ax, R.param, 'Interpreter', 'none');
     ylabel(ax, R.units);
@@ -64,13 +71,15 @@ end
 [tl, ax0] = renderLayout(target, nr, nc, style);
 if ~isempty(ax0); idx = idx(1:min(1, end)); end
 axs = gobjects(1, numel(idx));
+[eLo, eHi] = resultBounds(R, 'mean');
 names = siteLabels(shortUnitLabels(R.labels), R.meta, style);
 order = probeOrder(R.meta, nU, style);
 for j = 1:numel(idx)
     u = order(idx(j));
     if ~isempty(ax0); ax = ax0; else; ax = nexttile(tl, j); end
     tagPart(ax, "axes", "", names(u));
-    drawCurves(ax, xv, reshape(R.mean(:, u, :), nX, nS), reshape(R.sem(:, u, :), nX, nS), R, colors, style, j == 1, tl, "east");
+    drawCurves(ax, xv, reshape(R.mean(:, u, :), nX, nS), reshape(eLo(:, u, :), nX, nS), reshape(eHi(:, u, :), nX, nS), ...
+        R, colors, style, j == 1, tl, "east");
     waveformInset(ax, waves, u, wave, style);
     title(ax, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
     axs(j) = ax;
@@ -81,15 +90,15 @@ h = struct('layout', tl, 'axes', axs);
 end
 
 
-function drawCurves(ax, xv, m, s, R, colors, style, withLegend, tl, auto)
-%drawCurves  One panel's curves; its legend (WITHLEGEND) at AUTO unless the style places it.
+function drawCurves(ax, xv, m, lo, hi, R, colors, style, withLegend, tl, auto)
+%drawCurves  One panel's curves, with error bars from LO to HI; its legend (WITHLEGEND) at AUTO unless the style places it.
 nS = size(m, 2);
 hold(ax, 'on');
 lh = gobjects(1, nS);
 for k = 1:nS
     if style.ShowSEM
-        lh(k) = tagPart(errorbar(ax, xv, m(:, k), s(:, k), '-o', 'Color', colors(k, :), 'LineWidth', style.LineWidth, ...
-            'MarkerSize', 4, 'MarkerFaceColor', colors(k, :), 'CapSize', 3), "curve", R.series(k));
+        lh(k) = tagPart(errorbar(ax, xv, m(:, k), m(:, k) - lo(:, k), hi(:, k) - m(:, k), '-o', 'Color', colors(k, :), ...
+            'LineWidth', style.LineWidth, 'MarkerSize', 4, 'MarkerFaceColor', colors(k, :), 'CapSize', 3), "curve", R.series(k));
     else
         lh(k) = tagPart(plot(ax, xv, m(:, k), '-o', 'Color', colors(k, :), 'LineWidth', style.LineWidth, ...
             'MarkerSize', 4, 'MarkerFaceColor', colors(k, :)), "curve", R.series(k));

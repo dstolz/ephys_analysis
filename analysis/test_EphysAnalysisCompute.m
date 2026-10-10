@@ -27,7 +27,13 @@ function test_EphysAnalysisCompute()
 %   magnitude, every epoch as one group, epochs leaving the signal) and its
 %   panels below and above, on the right axis of a PSTH or raster (below a
 %   stack), their colors, line styles, legend, y labels, caption, overlays,
-%   the aesthetics editor's list and the export page's height.
+%   the aesthetics editor's list and the export page's height; the error
+%   bands and bars: errorBounds (SEM as semOf, SD, the bootstrap 95% CI as
+%   bootci's percentile one, repeatable, the global stream untouched), the
+%   error each compute function makes (R.err; a z-scored PSTH's scaled, an
+%   auROC's none), the bands' look from the style (and the default as
+%   before), the bands and bars drawn from R.err, an overlay's across the
+%   units, captions, and plotErrorType.
 %
 %   Usage:  test_EphysAnalysisCompute
 
@@ -967,6 +973,154 @@ check(fx0.Position(4) - fx.Position(4) > 1.4, 'an exported grid page grows by 1.
 delete([fx fx0]);
 clear closerA
 
+fprintf('\n== error bands: SEM, SD, bootstrap 95%% CI ==\n');
+haveBoot = license('test', 'Statistics_Toolbox') && exist('bootci', 'file') == 2;
+Xe = [1 2 2 5; 2 2 2 NaN; 3 2 NaN NaN; 4 2 NaN NaN];   % columns of 4, 4, 2 and 1 values
+[lo, hi] = errorBounds(Xe, 1, "sem");
+m = mean(Xe, 1, 'omitnan');
+check(isequaln(lo, m - semOf(Xe, 1)) && isequaln(hi, m + semOf(Xe, 1)) && lo(2) == 2 && hi(2) == 2 && isnan(lo(4)) && isnan(hi(4)), ...
+    'errorBounds "sem": the mean +/- semOf''s SEM; none from a single value');
+[lo, hi] = errorBounds(Xe, 1, "std");
+[lo2, hi2] = errorBounds(Xe.', 2, "std");
+check(abs(hi(1) - lo(1) - 2 * std([1 2 3 4])) < 1e-12 && abs(hi(3) - 2) < 1e-12 && isnan(hi(4)) ...
+    && isequaln(lo2, lo.') && isequaln(hi2, hi.'), '"std": the mean +/- the SD of the values, along either dimension');
+X3 = cat(3, [1 2; 3 4], [2 3; 4 6], [0 1; 1 1]);
+[lo3, hi3] = errorBounds(X3, 3, "sem");
+check(isequal(size(lo3), [2 2]) && abs(lo3(2, 2) - (mean([4 6 1]) - std([4 6 1]) / sqrt(3))) < 1e-12 ...
+    && abs(hi3(1, 1) - (1 + std([1 2 0]) / sqrt(3))) < 1e-12, 'a 3-D array, the observations along its third dimension');
+if haveBoot
+    g0 = RandStream.getGlobalStream;
+    state0 = g0.State;
+    [cl, ch] = errorBounds(Xe, 1, "ci95", 2000);
+    [cl2, ch2] = errorBounds(Xe, 1, "ci95", 2000);
+    g1 = RandStream.getGlobalStream;
+    prev = RandStream.setGlobalStream(RandStream('mt19937ar', 'Seed', 0));
+    ci = bootci(2000, {@(y) mean(y, 1, 'omitnan'), Xe(:, 1)}, 'Type', 'per');
+    RandStream.setGlobalStream(prev);
+    check(isequaln(cl, cl2) && isequaln(ch, ch2) && g1 == g0 && isequal(g0.State, state0) ...
+        && abs(cl(1) - ci(1)) < 1e-12 && abs(ch(1) - ci(2)) < 1e-12 && cl(1) < m(1) && ch(1) > m(1) ...
+        && cl(2) == 2 && ch(2) == 2 && isnan(cl(4)) && isnan(ch(4)), ...
+        ['"ci95": bootci''s percentile 95% CI of the mean, from a seed-0 stream of its own (the same every time, the ' ...
+        'global stream untouched); a constant column has a zero-width CI; none from a single value']);
+else
+    fprintf('  (no Statistics and Machine Learning Toolbox: the bootstrap checks are skipped)\n');
+end
+rng(21, 'twister');
+tE = (10:2:70).';
+gE = 1 + mod((1:numel(tE)).', 2);
+Ee = epochs(tE, gE);
+trains = {poissonTrain(15, 80), sort([poissonTrain(10, 80); driven(tE, 0, 0.2, 40)])};
+Rs0 = spikePSTH(trains, Ee, Window=[-0.2 0.5], BinSec=0.05);
+Rsd = spikePSTH(trains, Ee, Window=[-0.2 0.5], BinSec=0.05, ErrorType="std");
+Rs0.epochs = Ee; Rsd.epochs = Ee;
+nPer = reshape(Rs0.nEpochs, 1, 1, []);
+check(Rs0.err.type == "sem" && Rs0.err.over == "epochs" && isequaln(Rs0.err.lo, Rs0.rate - Rs0.sem) && isequaln(Rs0.err.hi, Rs0.rate + Rs0.sem) ...
+    && Rsd.err.type == "std" && isequaln(Rsd.rate, Rs0.rate) && max(abs(Rsd.err.hi - Rsd.rate - Rs0.sem .* sqrt(nPer)), [], 'all') < 1e-9, ...
+    'spikePSTH: R.err is the mean +/- SEM by default; "std" is the mean +/- SD over the group''s epochs (SEM x sqrt(n))');
+Rz = spikePSTH(trains, Ee, Window=[-0.2 0.5], BinSec=0.05, Baseline=[-0.2 0], BaselineMode="zscore", ErrorType="std");
+sdB = reshape(Rz.baselineSD, 1, size(Rz.baselineSD, 1), []);
+check(max(abs((Rz.err.hi - Rz.rate) .* sdB - (Rsd.err.hi - Rsd.rate)), [], 'all') < 1e-9, ...
+    'a z-scored PSTH''s band is scaled by the baseline''s SD, as its mean is');
+if haveBoot   % the auROC needs the toolbox too
+    Ra0 = spikePSTH(trains, Ee, Window=[-0.2 0.5], BinSec=0.05, Baseline=[-0.2 0], BaselineMode="auroc", ...
+        Auroc=struct('cutoff', "none"), ErrorType="std");
+    check(all(isnan(Ra0.err.lo), 'all') && all(isnan(Ra0.err.hi), 'all'), 'an auROC curve has no band');
+end
+Ye = single(randn(80000, 2));
+Ee2 = epochs(tE, gE, 1000);
+V0 = evokedPotential(Ye, 1000, Ee2, Window=[-0.1 0.2]);
+Vs = evokedPotential(Ye, 1000, Ee2, Window=[-0.1 0.2], ErrorType="std");
+nV = reshape(V0.nEpochs, 1, 1, []);
+check(isequaln(V0.err.lo, V0.mean - V0.sem) && max(abs(Vs.err.hi - Vs.mean - V0.sem .* sqrt(nV)), [], 'all') < 1e-9 ...
+    && isempty(Vs.data), 'evokedPotential: mean +/- SEM by default; "std" the mean +/- SD over the epochs; no epochs kept unless asked');
+if haveBoot
+    Vc = evokedPotential(Ye, 1000, Ee2, Window=[-0.1 0.2], ErrorType="ci95", ErrorResamples=500);
+    Vk = evokedPotential(Ye, 1000, Ee2, Window=[-0.1 0.2], KeepEpochs=true);
+    [l1, h1] = errorBounds(Vk.data(:, :, Ee2.groupIndex(Vk.keptEpochs) == 1), 3, "ci95", 500);
+    check(Vc.err.type == "ci95" && isequaln(Vc.err.lo(:, :, 1), l1) && isequaln(Vc.err.hi(:, :, 1), h1) && isempty(Vc.data) ...
+        && all(Vc.err.lo <= Vc.mean & Vc.err.hi >= Vc.mean, 'all'), ...
+        'evokedPotential "ci95": the bootstrap CI of each group''s epochs, the epochs not returned unless asked');
+end
+Fr = firingRate(trains, Ee, ErrorType="std");
+Tu = tuningCurve(Fr.rate, mod((1:numel(tE)).', 3), Param="P", ErrorType="std");
+Bv = behaviorValues(Fr.rate(:, 1), mod((1:numel(tE)).', 3), Param="P", ErrorType="std");
+sdOf = @(v) std(v, 0, 1, 'omitnan');
+check(abs(Fr.err.hi(1, 1) - Fr.meanRate(1, 1) - sdOf(Fr.rate(gE == 1, 1))) < 1e-9 ...
+    && abs(Tu.err.hi(1, 2, 1) - Tu.mean(1, 2, 1) - sdOf(Fr.rate(mod((1:numel(tE)).', 3) == 0, 2))) < 1e-9 ...
+    && abs(Bv.err.lo(2) - (Bv.mean(2) - sdOf(Fr.rate(mod((1:numel(tE)).', 3) == 1, 1)))) < 1e-9, ...
+    'firingRate, tuningCurve and behaviorValues make the error over each mean''s epochs');
+
+figE = figure('Visible', 'off');
+closerE = onCleanup(@() delete(figE));
+c1 = Rs0.groups.color(1, :);
+bandsOf = @(ax, g) ofGroup(findall(ax, 'Tag', 'sem'), g);
+h = renderPSTH(Rs0, figE, WithRaster=false);
+sb = bandsOf(h.axes(1), Rs0.groups.label(1));
+check(~isempty(sb) && all(arrayfun(@(p) max(abs(p.FaceColor - (c1 + ([1 1 1] - c1) * 0.75))) < 1e-12 && p.FaceAlpha == 1 ...
+    && isequal(p.EdgeColor, 'none'), sb)), 'by default a band is opaque, the group''s color paled, with no edge (as before)');
+h = renderPSTH(Rs0, figE, WithRaster=false, Style=struct('ErrorFaceAlpha', 0.3, 'ErrorEdgeColor', "auto", ...
+    'ErrorEdgeStyle', "--", 'ErrorEdgeWidth', 1.5));
+sb = bandsOf(h.axes(1), Rs0.groups.label(1));
+check(~isempty(sb) && all(arrayfun(@(p) isequal(p.FaceColor, c1) && p.FaceAlpha == 0.3 && isequal(p.EdgeColor, c1) ...
+    && strcmp(p.LineStyle, '--') && p.LineWidth == 1.5, sb)), ...
+    'the bands take the style''s look: an opacity (the color unpaled), the edge in the fill''s color, its style and width');
+h = renderPSTH(Rs0, figE, WithRaster=false, Style=struct('ErrorFaceColor', "black", 'ErrorEdgeColor', "#ff0000"));
+sb = bandsOf(h.axes(1), Rs0.groups.label(2));
+check(~isempty(sb) && all(arrayfun(@(p) isequal(p.FaceColor, [0 0 0]) && p.FaceAlpha == 1 && isequal(p.EdgeColor, [1 0 0]), sb)), ...
+    'a face color given is drawn as given, opaque; an edge color given is used');
+h = renderPSTH(Rsd, figE, WithRaster=false);
+sb = bandsOf(h.axes(1), Rsd.groups.label(1));
+yb = vertcat(sb.YData);
+check(abs(max(yb) - max(Rsd.err.hi(:, 1, 1))) < 1e-9 && abs(min(yb) - min(Rsd.err.lo(:, 1, 1))) < 1e-9, ...
+    'a PSTH''s band runs between R.err''s edges');
+h = renderPSTH(Rsd, figE, Layout="overlay", Style=struct('ErrorType', "std"));
+[olo, ohi] = errorBounds(Rsd.rate, 2, "std");
+sb = bandsOf(h.axes(1), Rsd.groups.label(1));
+yb = vertcat(sb.YData);
+check(abs(max(yb) - max(ohi(:, 1, 1))) < 1e-9 && abs(min(yb) - min(olo(:, 1, 1))) < 1e-9, ...
+    'an overlay of units draws the style''s error across the units');
+h = renderPSTH(Rsd, figE, WithRaster=false, Stack=true);
+check(isfinite(h.step(1)), 'a stack draws its rows'' bands from R.err');
+h = renderEvoked(Vs, figE, Layout="grid");
+sb = findall(h.layout, 'Tag', 'sem');
+check(~isempty(sb) && abs(max(vertcat(sb.YData)) - max(Vs.err.hi, [], 'all')) < 1e-9, 'an evoked grid draws R.err''s band');
+h = renderRates(Fr, figE);
+eb = findall(h.axes, 'Tag', 'errorBar');
+deltas = @(objs, f) sort(cell2mat(arrayfun(@(e) reshape(e.(f), [], 1), objs, 'UniformOutput', false)));
+dP = deltas(eb, 'YPositiveDelta'); dN = deltas(eb, 'YNegativeDelta');
+check(numel(eb) == 2 && max(abs(dP - sort(reshape(Fr.err.hi - Fr.meanRate, [], 1)))) < 1e-9 && max(abs(dP - dN)) < 1e-12, ...
+    'rate bars: error bars from R.err (the SD here, symmetric)');
+h = renderTuning(Tu, figE);
+cv = findall(h.layout, 'Tag', 'curve');
+dT = deltas(cv, 'YPositiveDelta');
+check(numel(cv) == size(Tu.mean, 2) && max(abs(dT - sort(reshape(Tu.err.hi - Tu.mean, [], 1)))) < 1e-9, ...
+    'a tuning curve''s error bars come from R.err');
+h = renderBehavior(Bv, figE, Layout="line");
+mb = findall(h.axes, 'Tag', 'behaviorMean');
+check(isscalar(mb) && max(abs(mb.YNegativeDelta(:) - (Bv.mean(:) - Bv.err.lo(:)))) < 1e-9, 'a behavior plot''s error bars come from R.err');
+cap = @(sp, R) plotCaption(EphysAnalysisConfig.normalizePlot(sp), R);
+check(contains(cap(struct('kind', "psth"), Rs0), "bands: mean +/- SEM across epochs") ...
+    && contains(cap(struct('kind', "psth", 'style', struct('ErrorType', "std")), Rsd), "bands: mean +/- SD across epochs") ...
+    && contains(cap(struct('kind', "psth", 'layout', "overlay", 'style', struct('ErrorType', "std")), Rsd), "bands: mean +/- SD across units") ...
+    && ~contains(cap(struct('kind', "psth", 'style', struct('ShowSEM', false)), Rs0), "bands:") ...
+    && contains(cap(struct('kind', "rate"), Fr), "error bars: mean +/- SD across epochs"), ...
+    'the caption names the error and what it is across');
+if haveBoot
+    Rci = spikePSTH(trains, Ee, Window=[-0.2 0.5], BinSec=0.05, ErrorType="ci95", ErrorResamples=300);
+    Rci.epochs = Ee;
+    check(contains(cap(struct('kind', "psth", 'style', struct('ErrorType', "ci95", 'ErrorResamples', 300)), Rci), ...
+        "bands: the bootstrap 95% CI of the mean (300 resamples, percentile) across epochs"), 'the caption names the bootstrap and its resamples');
+end
+pe = @(varargin) plotErrorType(EphysAnalysisConfig.normalizePlot(struct(varargin{:})));
+ciS = struct('ErrorType', "ci95");
+check(pe('kind', "psth", 'style', ciS) == "ci95" && pe('kind', "raster", 'style', ciS) == "sem" ...
+    && pe('kind', "evoked", 'source', "LFP", 'layout', "butterfly", 'style', ciS) == "sem" && pe('kind', "evoked", 'source', "LFP", 'style', ciS) == "ci95" ...
+    && pe('kind', "rate", 'layout', "box", 'style', ciS) == "sem" && pe('kind', "behavior", 'style', ciS) == "ci95" ...
+    && pe('kind', "psth", 'style', struct('ErrorType', "ci95", 'ShowSEM', false)) == "sem" ...
+    && plotErrorType(EphysAnalysisConfig.normalizePlot(struct('kind', "raster", 'aux', struct('mode', "channels"), 'style', ciS)), "aux") == "ci95", ...
+    'plotErrorType: the style''s error where the plot draws it, "sem" where it draws none (no bootstrap for nothing)');
+clear closerE
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisCompute:Failures', '%d checks failed.', nFail);
@@ -985,6 +1139,13 @@ yyaxis(ax, side);
 for k = 1:numel(r)
     if ~any(r(k) == h); h(end+1, 1) = r(k); end %#ok<AGROW>
 end
+end
+
+
+function h = ofGroup(h, g)
+%ofGroup  The objects of H whose PlotGroup is G.
+keep = arrayfun(@(p) isappdata(p, 'PlotGroup') && string(getappdata(p, 'PlotGroup')) == g, h);
+h = h(keep);
 end
 
 

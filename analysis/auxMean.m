@@ -27,11 +27,14 @@ function A = auxMean(Y, fs, E, opts)
 %     Groups    the groups table (epochTable); default from E
 %     Meta      the channel table (selectChannels); its units name A.units
 %     Check     called before every 16th epoch (evokedPotential's Check)
+%     ErrorType, ErrorResamples   the error band around each trace, over
+%               the epochs: "sem" (default), "std" or "ci95" (bootstrap,
+%               evokedPotential's)
 %
 %   A: evokedPotential's result -- t, mean / sem [nTime x nTraces x
 %   nGroups] (nTraces: the channels, or 1 for the magnitude), labels (one
 %   per trace), channelLabels (the channels used), channels, nEpochs,
-%   keptEpochs, droppedEdge, droppedNonFinite, groups, units, fs, params --
+%   keptEpochs, droppedEdge, droppedNonFinite, groups, units, fs, err, params --
 %   with kind "aux", mode and byGroup.
 %
 %   See also evokedPotential, selectChannels, renderPSTH, renderRaster.
@@ -47,6 +50,8 @@ arguments
     opts.Groups = []
     opts.Meta = []
     opts.Check = []
+    opts.ErrorType (1,1) string {mustBeMember(opts.ErrorType, ["sem" "std" "ci95"])} = "sem"
+    opts.ErrorResamples (1,1) double {mustBePositive, mustBeInteger} = 1000
 end
 
 G = opts.Groups;
@@ -59,7 +64,7 @@ if istable(opts.Meta) && ismember("units", string(opts.Meta.Properties.VariableN
     units = string(opts.Meta.units(1));
 end
 A = evokedPotential(Y, fs, E, Window=opts.Window, Baseline=opts.Baseline, Groups=G, Meta=opts.Meta, Units=units, ...
-    Magnitude=opts.Mode == "magnitude", Check=opts.Check);
+    Magnitude=opts.Mode == "magnitude", Check=opts.Check, ErrorType=opts.ErrorType, ErrorResamples=opts.ErrorResamples);
 A.kind = "aux";
 A.mode = opts.Mode;
 A.byGroup = opts.ByGroup;

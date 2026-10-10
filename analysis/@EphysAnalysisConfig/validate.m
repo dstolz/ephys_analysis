@@ -40,7 +40,12 @@ function issues = validate(obj, opts)
 %               and maxSpikes, and a warning when the plot draws no unit
 %               tiles (a raster, a PSTH or tuning grid of spikes, a
 %               waveforms plot); its amplitude scale; a waveforms plot's
-%               mode is never off; a note's placement, alignment, rotation,
+%               mode is never off; an aux mode other than off: its
+%               placement (a warning for "over" on a stacked PSTH, drawn
+%               below), channels (whole numbers >= 1), baseline and a
+%               baseline window [b0 b1] that overlaps the epoch window,
+%               and a warning when the plot is not a PSTH or raster of
+%               spikes; a note's placement, alignment, rotation,
 %               font size and interpreter (a color that is not one is a
 %               warning); each overlay's shape, axis, finite position (line)
 %               or edges (region, which must differ), panel, layer, line
@@ -322,6 +327,39 @@ for k = 1:numel(obj.Plots)
                 (ismember(p.kind, ["psth" "tuning"]) && p.layout ~= "overlay")))
             add("Plots", w0 + ".mode", "warning", "Unit waveforms are drawn in the tiles of a raster, or of a " + ...
                 "PSTH or tuning grid, of spikes; this plot draws none.");
+        end
+    end
+    aux = p.aux;
+    x0 = f0 + ".aux";
+    if ~ismember(aux.mode, EphysAnalysisConfig.AuxModes)
+        add("Plots", x0 + ".mode", "error", "The aux mode is one of " + strjoin(EphysAnalysisConfig.AuxModes, ", ") + ".");
+    elseif aux.mode ~= "off"
+        if ~(ismember(p.kind, ["psth" "raster"]) && ismember(p.source, EphysAnalysisConfig.SpikeSources))
+            add("Plots", x0 + ".mode", "warning", "The mean aux signal is drawn with the units of a PSTH or raster " + ...
+                "of spikes; this plot draws none.");
+        end
+        if ~ismember(aux.placement, EphysAnalysisConfig.AuxPlacements)
+            add("Plots", x0 + ".placement", "error", "The aux placement is one of " + ...
+                strjoin(EphysAnalysisConfig.AuxPlacements, ", ") + ".");
+        elseif aux.placement == "over" && p.kind == "psth" && p.stack
+            add("Plots", x0 + ".placement", "warning", "A stacked PSTH's right axis labels its rows' peaks: " + ...
+                "the aux signal goes below it instead of over it.");
+        end
+        if ~isempty(aux.channels) && ~all(aux.channels >= 1 & aux.channels == round(aux.channels))
+            add("Plots", x0 + ".channels", "error", "The aux channels are columns of the AUX extract: whole numbers, at least 1 ([] = all).");
+        end
+        if ~ismember(aux.baseline, ["none" "subtract"])
+            add("Plots", x0 + ".baseline", "error", "The aux baseline is none or subtract.");
+        elseif aux.baseline == "subtract"
+            bw = aux.baselineWindow;
+            w = p.window;
+            if isequal(w, "default"); w = D.Window; end
+            if ~(numel(bw) == 2 && all(isfinite(bw)) && bw(2) > bw(1))
+                add("Plots", x0 + ".baselineWindow", "error", "The aux baseline window must be [b0 b1] with b0 < b1 (s from the event).");
+            elseif isstruct(w) && (bw(2) < w.pre || bw(1) > w.post)
+                add("Plots", x0 + ".baselineWindow", "error", sprintf("The aux baseline window [%g %g] s must overlap " + ...
+                    "the epoch window [%g %g] s: it is taken from the samples cut for each epoch.", bw(1), bw(2), w.pre, w.post));
+            end
         end
     end
     nt = p.note;

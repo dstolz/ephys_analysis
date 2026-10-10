@@ -271,17 +271,20 @@ their headers (**▼** / **►**; which are collapsed is remembered):
 | *Kind* options | PSTH and raster: **Sort raster by** (blank = trial order, stop latency, *event* (the latency of the sort event) or a trial parameter; `rasterSort`) and its direction (ascending or descending; `rasterSortOrder`), **Sort event** and **Sort sequence** (with *event*: the line and edge, e.g. Platform offset, and the steps that must follow it; the rows go by each epoch's latency to the first such event at or after its event, in its trial, as a stop event is found, those without one last; `rasterSortEvent`), **Raster rows by group first** (unticked: every epoch sorted as one block, each row on its group's color; `rasterByGroup`), **Mark events** (the lines whose events are marked on each row, e.g. `Trough`, several separated by spaces or commas; onset, offset or both; every event in the window or only in the epoch's trial; `rasterEvents`) and **Mark look** (marker, size, and *auto* (a color per line and edge) or one color; right-click a mark to style one line's marks on its own); behavior: **Y value** (a trial parameter such as RespLatency, or *stop*: the stop event's latency, ms; `yParam`), parameter and series (`param`, `seriesParam`), **X axis** (evenly spaced or at their values; `xScale`) and **Jitter points** (points layout; `jitter`); PSTH: **Raster above each PSTH** (`withRaster`), **PSTH as** bar or line (`histStyle`), normalization (none, unit peak, group peak; `normalize`), **Filled** and its opacity (blank = automatic; `fill`, `fillAlpha`), **Stack groups** and its spacing (a row per group, labeled by value on the left and by peak rate on the right; `stack`, `stackSpacing`); tuning: parameter and series (`param`, `seriesParam`); probe map: value (`value`); heatmap: row order (*probe*, *peak*, and *modulation* with the auROC baseline; `order`); unit correlation: epoch rate (mean or peak; `metric`) , correlation (Pearson or Spearman; `correlation`) and **Fisher z transform** (`fisherZ`) |
 | Appearance (`style`) | tiles per page (`MaxTiles`), grid spacing (*loose*, *compact*, *tight*, *none*; `TileSpacing`), font size, line width, site size (probe map), y limits (blank = automatic, or two numbers such as `0 40`), group colors (*lines*: the trial selection's colors; a colormap; or one color such as *black* or `#1f77b4`, typed in; `Colormap`), heat colors (*auto*: parula, or blueWhiteRed for unit correlations; `HeatColormap`), **Color limits** (heatmap, probe map, unit correlation: two ascending values such as `-0.5 1`, low then high; blank or not ascending = automatic; `CLim`), **Sort by** depth and / or shank (`SortDepth`, `SortShank`: units and channels top of the probe first, by shank first), **Label with** depth and / or shank (`LabelDepth`, `LabelShank`), and **Show** SEM, stop marks, legend, grid |
 | Unit waveform | rasters, and PSTH and tuning grids, of spikes: **Show** (*Off*, *Mean*, *Subsample*, *Mean + subsample*) each unit's waveform on its peak channel in its tile, and how many spikes the subsample draws (a sorted unit's mean is over them); **Location** (*North-east* by default; north is the top edge), **Axis box** (an outline on a pale ground; unticked, the waveform alone) and its size (1x = a third of the tile). Sorted units' spikes are cut from the sorted `.bin` (their templates when it is not there); detections need the Spikes step's *Waveforms* option (`waveform`; [Unit waveforms](EphysAnalysisConfig.md#unit-waveforms)) |
+| Aux signals | PSTHs and rasters of spikes: **Show** (*Off*, *Each channel*: one mean per AUX channel, *Magnitude*: the mean of each epoch's vector sum of the channels, sqrt(x² + y² + z²)) the mean aux (accelerometer) signal over the plot's epochs, and where (*Below the plot*: a panel under each unit's PSTH or raster; *Above the plot*: one over its raster or PSTH; *Over the plot*: on the PSTH's or raster's own axes, on a right y axis); **Channels** (the AUX extract's columns, blank = all, e.g. `1 2 3`); **Baseline (s)**: **Subtract** each epoch's mean over the window from each channel, before the magnitude; **One trace per trial group** (unticked: one mean over every epoch). The rows below *Show* are grayed out while it is *Off* (`aux`; [Aux signals](EphysAnalysisConfig.md#aux-signals)) |
 | Text note | any plot: **Text** (a block of descriptive text; each new line is a line; blank draws nothing), **Place** (*Below*, *Above*, *Right of* or *Left of* the plot, which gives up a band for it; *Over the plot* at a corner, an edge or the center; or *At x, y*, the anchor's place across and up the plot, 0-1), **Align** (left, center, right; top, middle, bottom: how the lines line up and where the text sits in its band), **Rotation**, **Font** (*auto* = the design's, or any installed font) and size (blank = the plot's font size), **Bold**, **Italic**, **Outline**, **Colors** (text and ground; *auto* and *none* leave them to the design) and **Interpreter** (*As typed* or *TeX*). Its settings wait for some text (`note`; [Plot notes](EphysAnalysisConfig.md#plot-notes)); right-click the note in the preview to restyle it like any other part of the plot |
 | Overlays (*Overlays (n)* once there are some) | any plot: a list of the plot's overlays -- lines and semitransparent patches drawn on its axes -- with **Add line**, **Add patch**, **Duplicate** (the picked one, look and all, named *name copy*) and **Remove**; add as many as you like. The rows below the list edit the one picked: **Name** and **Enabled**; **Draw** (a vertical line at an x value, a horizontal line at a y value, a patch between two x values, or between two y values); **At** (a line's value) or **From / to** (a patch's edges, either order); **Show on** (*All panels*, *Data panels* or *Raster panels*) and the layer (*Over the data* or *Under the data*); a line's **Color** and opacity, or a patch's **Fill** color and opacity and **Outline** color (*none* for no outline); and the **Line** style and width (a line's, or an outlined patch's). The Add buttons give each overlay a name of its own (*Line 1*, *Patch 1*, ...). With several plots selected the section shows while they all hold the same overlays (none, to add one to every plot) and an edit gives each the first's list (`overlays`; [Plot overlays](EphysAnalysisConfig.md#plot-overlays)); right-click an overlay in the preview to restyle it like any other part of the plot |
 
-Each of the ten headed sections has a title color of its own and a key. The
-colors are ten steps along MATLAB's `turbo` map, in the order of the table
+Each of the eleven headed sections has a title color of its own, and all but
+Aux signals a key. The
+colors are eleven steps along MATLAB's `turbo` map, in the order of the table
 above (blue for Units & channels, red for Overlays), each darkened, keeping
 its hue, only as far as it needs to read on the header bar (a contrast ratio
 of 4.5). **Ctrl+1** to **Ctrl+9** and **Ctrl+0** (**Cmd** on a Mac; the number pad too) go
 to the section of that number: Units & channels is 1, Event
 reference 2, Epoch window 3, Trial selection 4, Bins & baseline 5, the kind's
-options 6, Appearance 7, Unit waveform 8, Text note 9 and Overlays 0. The key opens the
+options 6, Appearance 7, Unit waveform 8, Text note 9 and Overlays 0 (Aux
+signals, added after the keys were given out, has none). The key opens the
 section if it is collapsed (it stays open, and is remembered like any
 other collapse), scrolls the editor to it and puts the keyboard focus on its
 header, so **Tab** walks into its rows. The header names its key. Keys work
@@ -564,6 +567,11 @@ each unit.
   event on, so the mean covers only the epochs still going. **Stop marks**
   draws a dashed line at each group's mean stop time and a dot on each
   raster row.
+- **Aux signals** draws the mean accelerometer signal (each AUX channel,
+  or their vector magnitude) over the same epochs in every unit's tile: in
+  a panel under the PSTH or over the raster, or on the PSTH's right y axis.
+  A stacked PSTH's right axis is its rows' peaks, so there it goes below
+  ([Aux signals](EphysAnalysisConfig.md#aux-signals)).
 
 ### Raster
 
@@ -593,6 +601,10 @@ grid.
   after each trial's end on its row. Each sequence is one legend entry and
   one aesthetics component. With **Mark events** scope *trial*, a
   sequence's mark shows only on the row of the trial it started in.
+- **Aux signals** draws the mean accelerometer signal (each AUX channel,
+  or their vector magnitude) over the same epochs in every unit's tile, in
+  a panel below or above the raster, or over it on a right y axis
+  ([Aux signals](EphysAnalysisConfig.md#aux-signals)).
 
 <!-- wiki: ![Rasters of several units, epochs sorted by Depth](images/analysis-example-raster.png) -->
 
@@ -854,7 +866,7 @@ The runner's `plotSkipReason`, shown by the preview, Plan and the results:
 | disabled | the plot's **Enabled** box is off | tick it |
 | no sorted units | the sorting folder holds no sorted units | sort the dataset, or associate its sorted-output folder ([Sorting](EphysPipelineApp.md#sorting)) |
 | no detected spikes | the spikes file has no threshold detections | run the Spikes step ([Spikes](EphysPipelineApp.md#spikes)) |
-| no LFP extract (MUA, SPIKE, AUX) | the Signals step did not write that signal | enable it in the pipeline's Signals step and run it ([Signals](EphysPipelineApp.md#signals)) |
+| no LFP extract (MUA, SPIKE, AUX) | the Signals step did not write that signal (no AUX extract: also a PSTH or raster that shows **Aux signals**) | enable it in the pipeline's Signals step and run it ([Signals](EphysPipelineApp.md#signals)) |
 | no paired trials | trial scope, the `Trial` line, a filter / response / trial list / group-by, an event or stop shifted by a trial parameter, or a tuning or behavior plot, on a dataset without paired trials | approve the pairing on the pipeline app's [Trials tab](EphysPipelineApp.md#trials) and write the behavior file; or align in recording scope without a selection |
 | no line X | the event or stop line, or a line the raster marks, is not among the dataset's lines (in trial scope: among the lines seen in its trials) | check the line names on the Data tab |
 | no trial parameter X | a group-by, shift-by, tuning, series, behavior y value or raster sort parameter the trials lack | pick one from the dataset's parameters |
@@ -892,7 +904,10 @@ from another tab, the run and results tools following the Export tab's
 buttons); the scan; opening on a list of datasets
 (`Datasets=`, as the pipeline app's Tools panel does); the active dataset's
 lines and parameters; grouping by Depth from the Alignment controls; adding
-a PSTH and an LFP evoked potential and previewing both; the response test
+a PSTH and an LFP evoked potential and previewing both; the Aux signals
+rows (shown for a PSTH of spikes, hidden for a plot of signals, grayed out
+while Off, an edit reaching the plot and the preview's aux panels); the
+section keys (Aux signals has none, the others keep theirs); the response test
 (*Responsive only* and its settings reaching the plot); a PSTH's stack,
 normalization, fill, opacity and group colors reaching the plot and the
 stacked preview; the preview's badge (Drawn after a preview, Out of date

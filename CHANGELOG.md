@@ -10,6 +10,21 @@ says how to cut a release.
 
 ### Added
 
+- The mean aux (accelerometer) signal on PSTH and raster plots of spikes. A plot's `aux` (`mode`
+  `"channels"`: each channel's mean, or `"magnitude"`: the mean of each epoch's vector magnitude,
+  sqrt(x² + y² + z²) at every sample) is cut from the AUX extract over the plot's own epochs and drawn in
+  every unit's tile: in a panel `"below"` or `"above"` the unit's PSTH and raster, flush on the same time axis,
+  or `"over"` the PSTH (or raster) on a right y axis. `channels` picks the AUX columns, `baseline "subtract"`
+  removes each epoch's mean over `baselineWindow` from each channel first (before the magnitude), and
+  `byGroup` draws a trace per trial group in its color or one over every epoch. `auxMean` computes it
+  (`computePlot` keeps it as `R.aux`; standalone scripts write the calls); `evokedPotential` gets a
+  `Magnitude` option for it. Epochs that leave the AUX signal or hold missing samples are dropped from the
+  aux mean and the caption counts them; a dataset without an AUX extract skips the plot ("no AUX extract").
+  The analysis app's plot editor has an **Aux signals** section (no Ctrl+digit key: the other sections keep
+  theirs). Traces and bands are components of their own for the aesthetics editor (`auxTrace`, `auxSem`); an
+  overlay on all panels reaches the aux panels too. See
+  [Aux signals](documentation/EphysAnalysisConfig.md#aux-signals).
+
 - Check boxes on the analysis app's plot tree: a plot's box is ticked while the plot is enabled
   (double-click the plot to flip it), a group's is ticked when all its plots are and half-filled when some
   are. Above the tree, **All**, **None** and **Invert** act on every plot, and a drop-down naming the plots

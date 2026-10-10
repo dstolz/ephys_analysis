@@ -24,7 +24,11 @@ function txt = plotCaption(spec, R)
 %   and the events its sequence did not follow are counted; a raster says how its
 %   rows are sorted (by an event's latency: how many epochs had no such
 %   event and went last) and which events it marks; a behavior plot what it
-%   plots against what, per series, and how many epochs had no value. The
+%   plots against what, per series, and how many epochs had no value; a
+%   PSTH or raster with the mean aux signal (R.aux) which channels it
+%   shows and how (each channel, or their vector magnitude; the baseline
+%   subtracted), where, over how many epochs, and how many epochs left the
+%   AUX signal or held missing samples and were left out of it. The
 %   reports print it under each figure.
 %
 %   See also renderPlot, writeHtmlReport, writePdfReport.
@@ -191,6 +195,9 @@ end
 if isfield(R, 'waveforms') && spec.waveform.mode ~= "off"
     parts(end+1) = waveText(spec, R.waveforms);
 end
+if ismember(spec.kind, ["psth" "raster"]) && isfield(R, 'aux') && isstruct(R.aux) && ~isempty(R.aux) && spec.aux.mode ~= "off"
+    parts = [parts auxText(spec, R)];
+end
 parts(end+1) = sourceText(spec, R);
 txt = strjoin(parts, "; ") + ".";
 end
@@ -225,6 +232,46 @@ nT = nnz(W.from == "template");
 nN = nnz(W.from == "none");
 if nT > 0; s = s + sprintf(", %d by their template (the sorted .bin is not there)", nT); end
 if nN > 0; s = s + sprintf(", none for %d", nN); end
+end
+
+
+function parts = auxText(spec, R)
+%auxText  The mean aux signal: what it is, where it is drawn, its epochs and those left out of it.
+A = R.aux;
+ch = strjoin(reshape(A.channelLabels, 1, []), ", ");
+if A.mode == "magnitude"
+    s = "aux: mean vector magnitude (square root of the sum of squares, in each epoch at every sample) of " + ch;
+else
+    s = "aux: mean of " + ch;
+end
+if isfield(A.params, 'Baseline') && numel(A.params.Baseline) == 2
+    s = s + sprintf(" with each epoch's mean over [%g %g] s subtracted from each channel", A.params.Baseline(1), A.params.Baseline(2));
+    if A.mode == "magnitude"; s = s + " first"; end
+end
+s = s + " (" + A.units + ")";
+place = spec.aux.placement;
+if place == "over" && spec.kind == "psth" && spec.stack && isfield(R, 'rate') && size(R.rate, 3) > 1
+    place = "below";   % a stack's right axis is its rows' peaks
+end
+what = "PSTH";
+if spec.kind == "raster" || (place == "above" && spec.withRaster && isfield(R, 'raster') && ~isempty(R.raster))
+    what = "raster";
+end
+switch place
+    case "below", s = s + ", in a panel below the " + what;
+    case "above", s = s + ", in a panel above the " + what;
+    otherwise,    s = s + ", on the " + what + "'s right axis";
+end
+if A.byGroup && height(A.groups) > 1
+    s = s + sprintf(", one trace per group (n = %s epochs)", strjoin(string(A.nEpochs(:).'), ", "));
+else
+    s = s + sprintf(" (n = %d epochs)", sum(A.nEpochs));
+end
+parts = s;
+nOut = A.droppedEdge + A.droppedNonFinite;
+if nOut > 0
+    parts(end+1) = sprintf("%d epoch(s) leaving the AUX signal or holding missing samples left out of the aux mean", nOut);
+end
 end
 
 

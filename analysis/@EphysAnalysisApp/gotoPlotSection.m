@@ -1,7 +1,8 @@
 function gotoPlotSection(obj, name)
 %gotoPlotSection  Go to the plot editor's section NAME: open it if collapsed, scroll to it, focus its header.
 %   NAME is as for onPlotSectionToggled ("units", "ref", "window",
-%   "selection", "bins", "kind", "style", "waveform", "note" or "overlays").
+%   "selection", "bins", "kind", "style", "waveform", "aux", "note" or
+%   "overlays").
 %   Ctrl+1 to Ctrl+9 and Ctrl+0 call this (onKeyPress), the keys following the editor's order,
 %   not what the plot shows. A section the selected plot does not show
 %   stays where it is, and the status bar says so. Opening a collapsed

@@ -123,6 +123,16 @@ E.waveScale.Value = min(E.waveScale.Limits(2), max(E.waveScale.Limits(1), wv.sca
 E.waveAmp.Value = char(pickFrom(wv.ampScale, string(E.waveAmp.ItemsData), "unit"));
 E.waveSites.Value = wv.showSites;
 E.waveNames.Value = wv.showNames;
+xs = p.aux;
+E.auxMode.Value = char(pickFrom(xs.mode, string(E.auxMode.ItemsData), "off"));
+E.auxPlacement.Value = char(pickFrom(xs.placement, string(E.auxPlacement.ItemsData), "below"));
+E.auxChannels.Value = listText(xs.channels);
+E.auxBaseline.Value = xs.baseline == "subtract";
+bw = xs.baselineWindow;
+if ~(numel(bw) == 2 && all(isfinite(bw))); bw = EphysAnalysisConfig.defaults("Aux").baselineWindow; end
+E.auxBaseFrom.Value = bw(1);
+E.auxBaseTo.Value = bw(2);
+E.auxByGroup.Value = xs.byGroup;
 nt = p.note;
 E.annText.Value = cellstr(splitlines(nt.text));
 E.annPlace.Value = char(pickFrom(nt.placement, string(E.annPlace.ItemsData), "below"));

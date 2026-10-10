@@ -34,6 +34,12 @@ function [R, E, G] = computePlot(obj, src, spec, opts) %#ok<INUSD>
 %   its sort key: a struct of t and label from [t, label] =
 %   eventLatency(src, E, spec.rasterSortEvent), each epoch's latency to the
 %   event (s) and the event's name.
+%   A psth or raster of spikes with spec.aux.mode other than "off" also
+%   gets R.aux, the mean aux (accelerometer) signal over the same epochs:
+%       [Ya, fsa, metaA] = selectChannels(src, "AUX", Channels=spec.aux.channels)
+%       R.aux = auxMean(Ya, fsa, E, Window=[pre post], Mode=spec.aux.mode,
+%           Baseline=spec.aux.baselineWindow (aux baseline "subtract", else []),
+%           ByGroup=spec.aux.byGroup, Groups=G, Meta=metaA)
 %     waveforms [~, meta] = selectUnits(src, spec.units, Ref=, Selection=); R holds
 %               meta, labels, one group, and the probe map; the waveforms below
 %   A waveforms plot, a raster, or a PSTH or tuning grid, of spikes with
@@ -94,6 +100,10 @@ switch spec.kind
             end
             if isfield(R, 'raster') && ~isempty(R.raster) && spec.rasterSort == "event"
                 R.rasterSortEvent = sortEvent(src, E, spec.rasterSortEvent);
+            end
+            if drawsAux(spec)
+                obj.checkpoint();
+                R.aux = auxOf(src, E, G, spec, chk);
             end
         end
     case "evoked"
@@ -201,6 +211,24 @@ if isempty(ref)
 end
 [t, label] = eventLatency(src, E, ref);
 S = struct('label', label, 't', t);
+end
+
+
+function tf = drawsAux(spec)
+%drawsAux  The plot draws the mean aux signal with its units: a psth or raster of spikes, aux.mode on.
+tf = ismember(spec.kind, ["psth" "raster"]) && ismember(spec.source, EphysAnalysisConfig.SpikeSources) ...
+    && spec.aux.mode ~= "off";
+end
+
+
+function A = auxOf(src, E, G, spec, chk)
+%auxOf  The mean aux signal over the plot's epochs (auxMean), as spec.aux says.
+x = spec.aux;
+b = [];
+if x.baseline == "subtract"; b = x.baselineWindow; end
+[Y, fs, meta] = selectChannels(src, "AUX", Channels=x.channels);
+A = auxMean(Y, fs, E, Window=[spec.window.pre spec.window.post], Mode=x.mode, Baseline=b, ByGroup=x.byGroup, ...
+    Groups=G, Meta=meta, Check=chk);
 end
 
 

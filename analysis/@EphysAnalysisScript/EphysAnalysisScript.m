@@ -17,7 +17,9 @@ classdef EphysAnalysisScript
     %                                 unitWaveforms for the waveform boxes,
     %                                 epochEvents for a raster's event
     %                                 marks, eventLatency for a raster
-    %                                 sorted by an event), then a page at a time
+    %                                 sorted by an event, selectChannels +
+    %                                 auxMean for a PSTH's or raster's mean
+    %                                 aux signal), then a page at a time
     %                                 newExportFigure, renderPlot,
     %                                 exportFigure, reportImage and
     %                                 reportPdfPage, the report calls. It
@@ -278,6 +280,14 @@ classdef EphysAnalysisScript
                         if raster && spec.rasterSort == "event"
                             L(end+1, 1) = "[sortLat, sortLabel] = eventLatency(src, E, spec.rasterSortEvent);   % the raster's sort key: each epoch's latency to the event";
                             L(end+1, 1) = "R.rasterSortEvent = struct('label', sortLabel, 't', sortLat);";
+                        end
+                        x = spec.aux;
+                        if ismember(spec.kind, ["psth" "raster"]) && x.mode ~= "off"
+                            ab = "[]";
+                            if x.baseline == "subtract"; ab = lit(x.baselineWindow); end
+                            L(end+1, 1) = "[Ya, fsa, metaA] = selectChannels(src, ""AUX"", Channels=" + lit(x.channels) + ");   % the mean aux signal (spec.aux)";
+                            L(end+1, 1) = "R.aux = auxMean(Ya, fsa, E, Window=" + w + ", Mode=" + lit(x.mode) + ", Baseline=" + ab + ...
+                                ", ByGroup=" + lit(x.byGroup) + ", Groups=G, Meta=metaA);";
                         end
                     end
                 case "evoked"

@@ -23,6 +23,14 @@ function R = evokedPotential(Y, fs, E, opts)
 %                 hold non-finite samples; "nan": keep them, NaN outside
 %                 (the average then ignores the missing samples)
 %     KeepEpochs  keep the epochs in R.data [nTime x nChan x nKept] (single)
+%     Magnitude   false (default); true: each epoch's channels become one,
+%                 their vector magnitude sqrt(sum of squares) at every
+%                 sample, taken after Detrend and Baseline and before the
+%                 average (the mean of the magnitudes, not the magnitude of
+%                 the means). A sample missing in any channel is missing in
+%                 the magnitude. R then has one channel, labeled
+%                 "|<label 1>, <label 2>, ...|"; R.channelLabels names the
+%                 channels combined and R.meta is []
 %     Groups      groups table (epochTable); default from E
 %     Meta        channel table (selectChannels)
 %     Units       unit of Y (default "uV")
@@ -31,11 +39,11 @@ function R = evokedPotential(Y, fs, E, opts)
 %                 button)
 %
 %   R fields: kind "evoked", t, mean / sem [nTime x nChan x nGroups],
-%   nEpochs [nGroups x 1] (kept), data, channels, labels, fs, units,
-%   sampleOffsets [s0 s1], onsetRule "event" (offset 0 is the sample
-%   nearest the one that produced the event, above), keptEpochs (rows of
-%   E), droppedEdge, droppedNonFinite, groups, meta, n (= nEpochs), params,
-%   created.
+%   nEpochs [nGroups x 1] (kept), data, channels, labels, channelLabels
+%   (the used channels' labels), magnitude, fs, units, sampleOffsets
+%   [s0 s1], onsetRule "event" (offset 0 is the sample nearest the one that
+%   produced the event, above), keptEpochs (rows of E), droppedEdge,
+%   droppedNonFinite, groups, meta, n (= nEpochs), params, created.
 %
 %   Only the epochs' rows of the used channels are read from Y, so Y (e.g.
 %   the outputs' cached signal) is never copied whole.
@@ -53,6 +61,7 @@ arguments
     opts.Detrend (1,1) logical = false
     opts.Incomplete (1,1) string {mustBeMember(opts.Incomplete, ["drop" "nan"])} = "drop"
     opts.KeepEpochs (1,1) logical = false
+    opts.Magnitude (1,1) logical = false
     opts.Groups = []
     opts.Meta = []
     opts.Units (1,1) string = "uV"
@@ -73,6 +82,8 @@ s1 = round(W(2) * fs);
 t = (s0:s1).' / fs;
 nT = numel(t);
 nC = numel(ch);
+nOut = nC;   % the columns averaged: the channels, or their magnitude
+if opts.Magnitude; nOut = 1; end
 b = opts.Baseline;
 useBase = ~isempty(b);
 if useBase
@@ -89,10 +100,10 @@ G = groupsFor(E, opts.Groups);
 nG = height(G);
 nE = height(E);
 base = round(E.t0Continuous * fs) + 1;
-S = zeros(nT, nC, nG); SS = zeros(nT, nC, nG); N = zeros(nT, nC, nG);
+S = zeros(nT, nOut, nG); SS = zeros(nT, nOut, nG); N = zeros(nT, nOut, nG);
 kept = false(nE, 1);
 dropEdge = 0; dropNonFinite = 0;
-if opts.KeepEpochs; data = zeros(nT, nC, nE, 'single'); else; data = []; end
+if opts.KeepEpochs; data = zeros(nT, nOut, nE, 'single'); else; data = []; end
 for e = 1:nE
     if ~isempty(opts.Check) && mod(e, 16) == 1; opts.Check(); end
     [X, inside] = epochSamples(Y, base(e), s0, s1, ch);
@@ -105,6 +116,9 @@ for e = 1:nE
     end
     if useBase
         X = X - mean(X(inBase, :), 1, 'omitnan');
+    end
+    if opts.Magnitude
+        X = sqrt(sum(X .^ 2, 2));   % NaN where any channel is
     end
     g = E.groupIndex(e);
     ok = isfinite(X);
@@ -136,6 +150,11 @@ if isempty(labels) && istable(opts.Meta) && height(opts.Meta) == nC && ismember(
 end
 if numel(labels) ~= nC; labels = "ch" + ch(:); end
 R.labels = reshape(string(labels), [], 1);
+R.channelLabels = R.labels;
+R.magnitude = opts.Magnitude;
+if opts.Magnitude
+    R.labels = "|" + strjoin(R.channelLabels.', ", ") + "|";
+end
 R.fs = fs;
 R.units = opts.Units;
 R.sampleOffsets = [s0 s1];
@@ -145,8 +164,10 @@ R.droppedEdge = dropEdge;
 R.droppedNonFinite = dropNonFinite;
 R.groups = G;
 R.meta = opts.Meta;
+if opts.Magnitude; R.meta = []; end   % one row per column of R.mean: there is one column, no channel's
 R.n = R.nEpochs;
-R.params = struct('Window', W, 'Baseline', b, 'Detrend', opts.Detrend, 'Incomplete', opts.Incomplete);
+R.params = struct('Window', W, 'Baseline', b, 'Detrend', opts.Detrend, 'Incomplete', opts.Incomplete, ...
+    'Magnitude', opts.Magnitude);
 R.created = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
 end
 

@@ -9,7 +9,8 @@ function fig = newExportFigure(exportSection, R, spec, opts)
 %   FIG = newExportFigure(EXPORT, R, SPEC, Page=P) sizes it for page P of
 %   the plot SPEC computed as R (what renderPlot draws there): a grid page
 %   (plotPageCount) is made taller when its rows of tiles need it, 3 cm a
-%   row (4.5 cm for a PSTH with a raster over each panel) and 1.5 cm for
+%   row (4.5 cm for a PSTH with a raster over each panel; 1.5 cm more for
+%   a panel of the mean aux signal below or above, R.aux) and 1.5 cm for
 %   the title and x label, so a page of many units stays legible. The
 %   width stays FigureSizeCm(1), and the height is never below
 %   FigureSizeCm(2).
@@ -44,6 +45,10 @@ page = min(page, plotPageCount(R, spec));
 [~, nr] = pageItems(n, page, spec.style.MaxTiles);
 row = 3;
 if spec.kind == "psth" && spec.withRaster && isfield(R, 'raster') && ~isempty(R.raster); row = 4.5; end
+if ismember(spec.kind, ["psth" "raster"]) && isfield(R, 'aux') && ~isempty(R.aux) && spec.aux.mode ~= "off" ...
+        && (ismember(spec.aux.placement, ["above" "below"]) || (spec.kind == "psth" && spec.stack && size(R.rate, 3) > 1))
+    row = row + 1.5;   % the aux panel (a stack's "over" goes below)
+end
 h = nr * row + 1.5;
 end
 

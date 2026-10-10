@@ -5,7 +5,7 @@ function test_EphysAnalysisConfig()
 %   merge of the Defaults, plot ids (auto ids, DuplicatePlotId), every
 %   validate rule (ids and patterns whose files would collide too), the
 %   behavior kind, the raster's sort (by an event's latency too: its
-%   rasterSortEvent) and event marks, events shifted by
+%   rasterSortEvent) and event marks, the mean aux signal (aux), events shifted by
 %   a trial parameter and event sequences (fields, round trips, rules), LoadWarnings,
 %   BadSchema, figureFileName and plotFileName's page suffix.
 %
@@ -265,6 +265,35 @@ wv.save(f);
 w2 = EphysAnalysisConfig.load(f);
 check(w2.isequalConfig(wv) && isequal(w2.Plots(1).waveform, wv.Plots(1).waveform) && ~w2.Plots(1).waveform.box, ...
     'the waveform settings survive save / load');
+d = EphysAnalysisConfig.defaults("Plot").aux;
+check(d.mode == "off" && isempty(d.channels) && d.placement == "below" && d.baseline == "none" ...
+    && isequal(d.baselineWindow, [-0.2 0]) && d.byGroup, ...
+    'the mean aux signal: off by default; all channels, below, no baseline, a trace per group');
+xs = cfg; xs.Plots(1).aux.mode = "magnitude";
+check(~hasIssue(xs, "psth_1.aux", "error") && ~hasIssue(xs, "psth_1.aux", "warning") && ~hasIssue(cfg, ".aux", "warning"), ...
+    'a PSTH of units takes the aux signal');
+bad = xs; bad.Plots(1).aux.mode = "vector";
+bad2 = xs; bad2.Plots(1).aux.placement = "beside";
+bad3 = xs; bad3.Plots(1).aux.channels = [1 2.5];
+bad4 = xs; bad4.Plots(1).aux.baseline = "zscore";
+bad5 = xs; bad5.Plots(1).aux.baseline = "subtract"; bad5.Plots(1).aux.baselineWindow = [0 -0.1];
+bad6 = xs; bad6.Plots(1).aux.baseline = "subtract"; bad6.Plots(1).aux.baselineWindow = [-2 -1];   % outside the [-0.2 0.8] window
+ok6 = xs; ok6.Plots(1).aux.baseline = "subtract"; ok6.Plots(1).aux.baselineWindow = [-0.5 0];   % overlaps it
+check(hasIssue(bad, "psth_1.aux.mode", "error") && hasIssue(bad2, "psth_1.aux.placement", "error") ...
+    && hasIssue(bad3, "psth_1.aux.channels", "error") && hasIssue(bad4, "psth_1.aux.baseline", "error") ...
+    && hasIssue(bad5, "psth_1.aux.baselineWindow", "error") && hasIssue(bad6, "psth_1.aux.baselineWindow", "error") ...
+    && ~hasIssue(ok6, "psth_1.aux", "error"), ...
+    'the aux mode, placement, channels (whole, >= 1), baseline and its window (ordered, overlapping the epoch window) are checked');
+st = xs; st.Plots(1).stack = true; st.Plots(1).aux.placement = "over";
+ev = cfg; ev.Plots(2).aux.mode = "channels";
+check(hasIssue(st, "psth_1.aux.placement", "warning") && hasIssue(ev, "evoked_1.aux.mode", "warning"), ...
+    'over a stacked PSTH warns (drawn below); an aux signal on a plot of signals warns that none is drawn');
+xs.Plots(1).aux = struct('mode', "channels", 'channels', 2, 'placement', "over", 'baseline', "subtract", ...
+    'baselineWindow', [-0.1 0], 'byGroup', false);
+xs.save(f);
+x2 = EphysAnalysisConfig.load(f);
+check(x2.isequalConfig(xs) && isequal(x2.Plots(1).aux, xs.Plots(1).aux) && isequal(x2.Plots(1).aux.channels, 2) ...
+    && ~x2.Plots(1).aux.byGroup, 'the aux settings survive save / load (one channel stays a number)');
 d = EphysAnalysisConfig.defaults("Plot").note;
 check(d.text == "" && d.placement == "below" && d.align == "left" && d.valign == "middle" && isnan(d.fontSize) ...
     && ~d.bold && ~d.italic && ~d.box && d.color == "" && d.interpreter == "none", ...

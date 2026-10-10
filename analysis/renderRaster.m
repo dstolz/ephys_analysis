@@ -1,6 +1,6 @@
 function h = renderRaster(R, target, opts)
 %renderRaster  Draw the spike rasters of a spikePSTH result, one tile per unit.
-%   H = renderRaster(R, TARGET, Page=, SortBy=, SortOrder=, ByGroup=, EventMarks=, Waveform=, Style=)
+%   H = renderRaster(R, TARGET, Page=, SortBy=, SortOrder=, ByGroup=, EventMarks=, Waveform=, Aux=, Style=)
 %   draws one raster per unit of the page (MaxTiles per page; units by
 %   Style.SortShank / Style.SortDepth, titled with their shank / depth for
 %   Style.LabelShank / Style.LabelDepth): epochs as rows, sorted by group,
@@ -33,12 +33,21 @@ function h = renderRaster(R, target, opts)
 %           tile -- its mean, a subsample of its spikes, or both -- at a
 %           compass point (location), with or without the box's outline
 %           (box), sized by scale (default mode "off": none)
+%   Aux     EphysAnalysisConfig.defaults("Aux") fields: with a mode other
+%           than "off" (default "off": none), the mean aux signal R.aux
+%           (auxMean) in every unit's tile, by its placement: "below" or
+%           "above" the raster, a panel of its own half the raster's
+%           height, flush on the same time axis; or "over" it, on its right
+%           y axis. An axes TARGET has room for "over" only. The traces
+%           look as auxLooks says; several channels get legend entries
 %
 %   The grid's x and y labels are its tiled layout's (the y label says how
-%   the rows are sorted), and its legend goes east of the grid unless
-%   Style.LegendLocation says otherwise.
+%   the rows are sorted, and names an aux panel below or above them), and
+%   its legend goes east of the grid unless Style.LegendLocation says
+%   otherwise.
 %
-%   H: layout (tiled layout or []), axes.
+%   H: layout (tiled layout or []), axes, auxAxes (the aux panels, tagged
+%   "auxAxes").
 %
 %   See also spikePSTH, renderPSTH, renderPlot.
 
@@ -51,11 +60,13 @@ arguments
     opts.ByGroup (1,1) logical = true
     opts.EventMarks = struct()
     opts.Waveform = struct()
+    opts.Aux = struct()
     opts.Style = struct()
 end
 
 style = renderStyle(opts.Style);
 wave = EphysAnalysisConfig.normalizeSection("Waveform", opts.Waveform);
+auxOpt = EphysAnalysisConfig.normalizeSection("Aux", opts.Aux);
 waves = [];
 if isfield(R, 'waveforms'); waves = R.waveforms; end
 if ~isfield(R, 'raster') || isempty(R.raster)
@@ -66,7 +77,16 @@ nU = numel(R.raster);
 [idx, nr, nc] = pageItems(nU, opts.Page, style.MaxTiles);
 [tl, ax0] = renderLayout(target, nr, nc, style);
 if ~isempty(ax0); idx = idx(1:min(1, end)); end
+place = "";   % where the mean aux signal goes: "" (none), "above", "below" (panels of their own) or "over"
+X = [];
+W = R.edges([1 end]);
+if auxOpt.mode ~= "off" && isfield(R, 'aux') && isstruct(R.aux) && ~isempty(R.aux)
+    place = auxOpt.placement;
+    X = auxLooks(R.aux, colors, style);
+end
+if ~isempty(ax0) && ismember(place, ["above" "below"]); place = ""; end   % one axes: no room for a panel
 axs = gobjects(1, numel(idx));
+xax = gobjects(1, 0);
 meta = [];
 if isfield(R, 'meta'); meta = R.meta; end
 names = siteLabels(shortUnitLabels(R.labels), meta, style);
@@ -75,14 +95,53 @@ look = struct('order', opts.SortOrder, 'byGroup', opts.ByGroup, 'marks', opts.Ev
 rows = "Epoch";
 for j = 1:numel(idx)
     u = order(idx(j));
-    if ~isempty(ax0); ax = ax0; else; ax = nexttile(tl, j); end
+    c = j - (ceil(j / nc) - 1) * nc;
+    xa = gobjects(0);
+    if ~isempty(ax0)
+        ax = ax0;
+    elseif ismember(place, ["above" "below"])
+        % the raster and its aux panel share the tile, flush on one time axis: the raster two rows, the aux one
+        pair = tiledlayout(tl, 3, 1, 'TileSpacing', 'none', 'Padding', 'tight');
+        pair.Layout.Tile = j;
+        if place == "above"
+            xa = nexttile(pair, 1);
+            ax = nexttile(pair, 2, [2 1]);
+        else
+            ax = nexttile(pair, 1, [2 1]);
+            xa = nexttile(pair, 3);
+        end
+    else
+        ax = nexttile(tl, j);
+    end
     rows = rasterInto(ax, R, u, style, colors, opts.SortBy, look);
     tagPart(ax, "rasterAxes", "", names(u));
     waveformInset(ax, waves, u, wave, style);
-    title(ax, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
+    top = ax;
+    if ~isempty(xa)
+        auxInto(xa, R.aux, X, W, style, false, false);
+        tagPart(xa, "auxAxes", "", names(u));
+        if place == "above"
+            xa.XTickLabel = [];
+            top = xa;
+        else
+            ax.XTickLabel = [];
+        end
+        xax(end+1) = xa; %#ok<AGROW>
+    elseif place == "over"
+        auxInto(ax, R.aux, X, W, style, true, c == nc || j == numel(idx) || ~isempty(ax0));
+    end
+    title(top, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
     axs(j) = ax;
 end
-gridLabels(tl, axs, "Time (s)", rows, style);
+yName = rows;
+if ~isempty(xax)
+    if place == "below"
+        yName = X.label + "  ·  " + rows;
+    else
+        yName = rows + "  ·  " + X.label;
+    end
+end
+gridLabels(tl, [axs xax], "Time (s)", yName, style);
 marks = struct('label', {}, 'look', {});
 if isfield(R, 'rasterEvents') && ~isempty(R.rasterEvents)
     mk = EphysAnalysisConfig.coerceStruct(EphysAnalysisConfig.defaults("Plot").rasterEvents, opts.EventMarks, "EventMarks");
@@ -92,7 +151,8 @@ if isfield(R, 'rasterEvents') && ~isempty(R.rasterEvents)
             'Color', rasterMarkColor(mk.color, m), 'MarkerFaceColor', rasterMarkColor(mk.color, m)};
     end
 end
-if ~isempty(axs) && style.Legend && (height(R.groups) > 1 || ~isempty(marks))
+auxEntries = ~isempty(X) && ~isempty(X.legend);
+if ~isempty(axs) && style.Legend && (height(R.groups) > 1 || ~isempty(marks) || auxEntries)
     ax = axs(1);
     hold(ax, 'on');
     lh = gobjects(1, 0);
@@ -108,9 +168,17 @@ if ~isempty(axs) && style.Legend && (height(R.groups) > 1 || ~isempty(marks))
         lh(end+1) = tagPart(line(ax, NaN, NaN, marks(m).look{:}), "rasterEvent", marks(m).label); %#ok<AGROW>
         labels(end+1) = marks(m).label; %#ok<AGROW>
     end
+    if auxEntries   % the aux channels (auxStandIns)
+        [sh, sl] = auxStandIns(ax, X, style);
+        lh = [lh sh];
+        labels = [labels sl];
+    end
     hold(ax, 'off');
     placeLegend(ax, lh, labels, style, tl, "east");
 end
-if nr * nc > 1; tileTicks(axs, style); end
-h = struct('layout', tl, 'axes', axs);
+if nr * nc > 1; tileTicks([axs xax], style); end
+edge = "top";
+if place == "above"; edge = "bottom"; end
+auxEdgeTicks(xax, edge);
+h = struct('layout', tl, 'axes', axs, 'auxAxes', xax);
 end

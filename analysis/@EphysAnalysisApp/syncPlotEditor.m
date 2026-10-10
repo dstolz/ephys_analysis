@@ -50,6 +50,10 @@ function syncPlotEditor(obj)
 %                                 first three only; the amplitude scale
 %                                 for waveforms, its size, sites and unit
 %                                 names for the "probe" layout)
+%     aux signals                 psth, raster of spikes (the placement,
+%                                 channels, baseline and per-group box
+%                                 enabled when it is not Off; the baseline
+%                                 window with Subtract ticked)
 %     text note                   every kind (its place, alignment, rotation,
 %                                 font, colors and interpreter enabled when
 %                                 it has text; x and y at "At x, y")
@@ -216,6 +220,9 @@ en(E.jitter, layout == "points");
 en([E.legend E.ylim], ~stacked);
 en([E.legendLoc E.legendOrient E.legendBox], ~stacked && E.legend.Value);
 en([E.waveSpikes E.waveLocation E.waveBox E.waveScale E.wavePP E.waveCount], string(E.waveMode.Value) ~= "off");
+auxOn = string(E.auxMode.Value) ~= "off";
+en([E.auxPlacement E.auxChannels E.auxBaseline E.auxByGroup], auxOn);
+en([E.auxBaseFrom E.auxBaseTo], auxOn && E.auxBaseline.Value);
 noted = strtrim(strjoin(string(E.annText.Value(:)).', newline)) ~= "";
 en([E.annPlace E.annAlign E.annVAlign E.annRotation E.annFont E.annSize E.annBold E.annItalic E.annBox ...
     E.annColor E.annBackground E.annInterp], noted);
@@ -286,6 +293,8 @@ v.waveLabel = v.waveMode;
 v.waveScale = inset || (wavePlot && layout == "probe");
 v.waveAmp = wavePlot;
 v.waveSites = wavePlot && layout == "probe"; v.waveNames = v.waveSites;
+v.auxMode = ismember(kind, ["psth" "raster"]) && spikes;   % the mean aux signal with each unit's panels
+v.auxChannels = v.auxMode; v.auxBaseline = v.auxMode; v.auxByGroup = v.auxMode;
 for f = ["annText" "annPlace" "annX" "annAlign" "annRotation" "annFont" "annBold" "annColor" "annInterp"]
     v.(f) = true;   % the text note is every kind's
 end

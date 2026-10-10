@@ -19,7 +19,9 @@ function test_EphysAnalysisRunner()
 %   after RespWindow onset, which is RespLatency) and a raster sorted by a
 %   stop event shifted by RespLatency (the response), descending across
 %   groups, with the Trough onsets and offsets marked, all of them in the
-%   scripts too.
+%   scripts too; and a PSTH with the mean aux magnitude (computePlot against
+%   auxMean on the AUX extract, its panels, caption and skip reason, and
+%   the standalone script).
 %
 %   Usage:  test_EphysAnalysisRunner
 
@@ -391,6 +393,36 @@ check(contains(txtE, "[sortLat, sortLabel] = eventLatency(src, E, spec.rasterSor
     && ~isempty(dir(fullfile(root, 'outEvent', '**', '*.png'))), ...
     'the standalone script computes the sort event''s latencies and draws the raster sorted by them');
 if contains(outE, "FAILED"); disp(outE); end
+spec = cfg.plotFor("psth_stim");
+spec.aux = struct('mode', "magnitude", 'channels', [], 'placement', "below", 'baseline', "subtract", ...
+    'baselineWindow', [-0.2 0], 'byGroup', true);
+[Ra, Ea, Ga] = r.computePlot(src, spec);
+[Ya, fsa, metaA] = selectChannels(src, "AUX");
+A0 = auxMean(Ya, fsa, Ea, Window=[spec.window.pre spec.window.post], Mode="magnitude", Baseline=[-0.2 0], Groups=Ga, Meta=metaA);
+h = renderPlot(Ra, spec, fig);
+cap = plotCaption(spec, Ra);
+check(isfield(Ra, 'aux') && isequaln(Ra.aux.mean, A0.mean) && isequaln(Ra.aux.sem, A0.sem) && Ra.aux.fs == fsa ...
+    && sum(Ra.aux.nEpochs) + Ra.aux.droppedEdge + Ra.aux.droppedNonFinite == height(Ea) && size(Ra.aux.mean, 2) == 1 ...
+    && Ra.aux.labels == "|" + strjoin(metaA.label.', ", ") + "|" && numel(h.auxAxes) == numel(h.axes) ...
+    && contains(cap, "aux: mean vector magnitude"), ...
+    'computePlot adds the mean aux magnitude over the plot''s own epochs (auxMean on the AUX extract); every tile gets its panel');
+srcN = src; srcN.signals.AUX = false;
+check(plotSkipReason(srcN, spec) == "no AUX extract" && plotSkipReason(srcN, cfg.plotFor("psth_stim")) == "", ...
+    'a dataset without an AUX extract skips a plot that draws the aux signal ("no AUX extract"), not one that does not');
+cfgX = cfg;
+cfgX.Plots = cfgX.Plots(cfgX.plotIndex("psth_stim"));
+cfgX.Plots(1).aux = spec.aux;
+cfgX.Source.Selection = "list"; cfgX.Source.Datasets = F.keys(1);
+cfgX.Export.Folder = fullfile(root, "outAux", "{Name}"); cfgX.Export.Formats = "png";
+cfgX.Report.Enabled = false;
+axFile = fullfile(root, 'scripts', 'run_aux.m');
+txtA = EphysAnalysisScript.standalone(cfgX, File=axFile);
+outA2 = runScript(axFile);
+check(contains(txtA, "[Ya, fsa, metaA] = selectChannels(src, ""AUX"", Channels=[]);") ...
+    && contains(txtA, "R.aux = auxMean(Ya, fsa, E, Window=[-0.2 0.8], Mode=""magnitude"", Baseline=[-0.2 0], ByGroup=true, Groups=G, Meta=metaA);") ...
+    && ~contains(outA2, "FAILED") && ~isempty(dir(fullfile(root, 'outAux', '**', '*.png'))), ...
+    'the standalone script computes the mean aux signal and draws the PSTH with it');
+if contains(outA2, "FAILED"); disp(outA2); end
 clear figCloser
 
 fprintf('\n== 7. a failing export closes its page ==\n');

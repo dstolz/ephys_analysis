@@ -10,14 +10,18 @@ function buildPlotsTab(obj)
 %   diagram, onShowEpochs), Trial selection (the Alignment tab's values
 %   while "Use default" is ticked; editing one gives the plot its own),
 %   Bins & baseline, the kind's own options, Appearance and Unit waveform
-%   (each unit's mean and / or spikes in its tile), Text note (a block of
+%   (each unit's mean and / or spikes in its tile), Aux signals (a PSTH's
+%   or raster's mean aux signal -- each accelerometer channel, or their
+%   vector magnitude -- in a panel below or above each unit's, or over it
+%   on its right axis), Text note (a block of
 %   descriptive text beside or over the plot) and Overlays (any number of
 %   lines and semitransparent patches drawn on the plot's axes, over or
 %   under its data: a list with Add line / Add patch / Duplicate / Remove,
 %   and the rows of the one picked), each collapsing under
 %   its header (onPlotSectionToggled). Each header bar has its own color, a
 %   desaturated step along the turbo map in the sections' order, with black text, and its key: Ctrl+1 to
-%   Ctrl+9 and Ctrl+0 go to the section (gotoPlotSection; onKeyPress).
+%   Ctrl+9 and Ctrl+0 go to the section (gotoPlotSection; onKeyPress). Aux signals, added after the
+%   keys were given out, has none: the other sections keep theirs.
 %   syncPlotEditor shows the rows the selected plot uses; layoutPlotEditor
 %   packs them.
 g = uigridlayout(obj.TabPlots, [1 3]);
@@ -93,8 +97,8 @@ obj.DownPlotButton.Layout.Row = 10; obj.DownPlotButton.Layout.Column = 2;
 % --- the editor ----------------------------------------------------------------------
 ep = uipanel(g, "Title", "Plot");
 obj.PlotEditorPanel = ep;
-eg = uigridlayout(ep, [12 1]);
-eg.RowHeight = [repmat({0}, 1, 11) {'1x'}];
+eg = uigridlayout(ep, [13 1]);
+eg.RowHeight = [repmat({0}, 1, 12) {'1x'}];
 eg.RowSpacing = 6;
 eg.Padding = [4 4 4 4];
 eg.Scrollable = "on";
@@ -102,7 +106,8 @@ obj.PlotEditorGrid = eg;
 E = struct();
 
 % the sections with a header, in order: each takes a header color (a step along the turbo map, desaturated by formSection) and a key (1-9, then 0)
-order = ["units" "ref" "window" "selection" "bins" "kind" "style" "waveform" "note" "overlays"];
+order = ["units" "ref" "window" "selection" "bins" "kind" "style" "waveform" "aux" "note" "overlays"];
+keyed = order(order ~= "aux");   % the sections with a key: those before aux was added keep theirs
 hue = turbo(256);
 hue = hue(round(linspace(24, 232, numel(order))), :);
 tint = @(name) hue(order == name, :);
@@ -494,8 +499,42 @@ E.waveNames = uicheckbox(wp, "Text", "Unit names", "Value", false, "ValueChanged
     "Tooltip", "Write each unit's name (and the label ticked above) beside its waveform.");
 sec(end+1) = S;
 
+% the mean aux (accelerometer) signal over the plot's epochs, with each unit's raster and PSTH
+S = formSection(eg, 10, "aux", "Aux signals", Color=tint("aux"));
+[S, r] = formRow(S, ["auxMode" "auxPlacement"], "Show:");
+xg = subgrid(S.Body, r, {'1x', '1x'});
+E.auxMode = uidropdown(xg, "Items", ["Off" "Each channel" "Magnitude"], "ItemsData", EphysAnalysisConfig.AuxModes, ...
+    "Value", "off", "ValueChangedFcn", changed, "Tooltip", "The mean of the AUX extract (the headstage's " + ...
+    "accelerometer inputs, volts) over the plot's epochs, aligned like the spikes. Each channel: one trace per " + ...
+    "channel. Magnitude: the vector sum of the channels, sqrt(x^2 + y^2 + z^2), taken in each epoch at every sample " + ...
+    "and then averaged. The dataset needs an AUX extract (the pipeline's Signals step).");
+E.auxPlacement = uidropdown(xg, "Items", ["Below the plot" "Above the plot" "Over the plot"], ...
+    "ItemsData", EphysAnalysisConfig.AuxPlacements, "Value", "below", "ValueChangedFcn", changed, "Tooltip", ...
+    "Below: a panel under each unit's PSTH (or raster). Above: a panel over each unit's raster (or PSTH). Over: on " + ...
+    "the PSTH's (or raster's) own axes, on a right y axis. A stacked PSTH's right axis is its rows' peaks, so " + ...
+    "over goes below it.");
+[S, r] = formRow(S, "auxChannels", "Channels:");
+E.auxChannels = uieditfield(S.Body, "text", "Placeholder", "all, or e.g. 1 2 3", "ValueChangedFcn", changed, ...
+    "Tooltip", "Columns of the AUX extract: 1 is its first input (blank = all), e.g. 1 2 3 for the three " + ...
+    "accelerometer axes of the first headstage. The magnitude combines the channels listed.");
+place(E.auxChannels, r, 2);
+[S, r] = formRow(S, ["auxBaseline" "auxBaseFrom"], "Baseline (s):");
+bg = subgrid(S.Body, r, {'fit', '1x', 'fit', '1x'});
+E.auxBaseline = uicheckbox(bg, "Text", "Subtract", "Value", false, "ValueChangedFcn", changed, ...
+    "Tooltip", "Subtract each epoch's mean over this window from each channel, before the magnitude: the traces " + ...
+    "then show the change from the baseline (an accelerometer's static offset and gravity removed). Unticked: as recorded.");
+E.auxBaseFrom = uieditfield(bg, "numeric", "Value", -0.2, "ValueChangedFcn", changed, ...
+    "Tooltip", "The baseline window's start, s from the event (within the epoch window).");
+uilabel(bg, "Text", "to");
+E.auxBaseTo = uieditfield(bg, "numeric", "Value", 0, "ValueChangedFcn", changed, "Tooltip", "The baseline window's end, s.");
+[S, r] = formRow(S, "auxByGroup", "");
+E.auxByGroup = uicheckbox(S.Body, "Text", "One trace per trial group", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "Ticked: a mean per trial group, in the group's color. Unticked: one mean over every epoch.");
+place(E.auxByGroup, r, [1 2]);
+sec(end+1) = S;
+
 % descriptive text on the plot
-S = formSection(eg, 10, "note", "Text note", Color=tint("note"));
+S = formSection(eg, 11, "note", "Text note", Color=tint("note"));
 [S, r] = formRow(S, "annText", "Text:", 78);
 E.annText = uitextarea(S.Body, "Value", "", "ValueChangedFcn", changed, ...
     "Tooltip", "Words to put on the plot -- a caption, a condition, a remark. Each new line is a line of text; blank " + ...
@@ -558,7 +597,7 @@ place(E.annInterp, r, 2);
 sec(end+1) = S;
 
 % lines and patches on the plot's axes: a list, and the rows of the one picked
-S = formSection(eg, 11, "overlays", "Overlays", Color=tint("overlays"));
+S = formSection(eg, 12, "overlays", "Overlays", Color=tint("overlays"));
 [S, r] = formRow(S, ["ovList" "ovAddLine"], "Overlays:", 112);
 olg = subgrid(S.Body, r, {'1x', 96});
 E.ovList = uilistbox(olg, "Items", {}, "ValueChangedFcn", @(~,~) obj.onOverlayPicked(), ...
@@ -639,7 +678,8 @@ sec(end+1) = S;
 for i = 2:numel(sec)
     name = sec(i).Name;
     sec(i).Toggle.ButtonPushedFcn = @(~,~) obj.onPlotSectionToggled(name);
-    sec(i).Key = string(mod(find(order == name), 10));   % Ctrl+1 ... Ctrl+9, then Ctrl+0 for the tenth (onKeyPress)
+    k = find(keyed == name);
+    if ~isempty(k); sec(i).Key = string(mod(k, 10)); end   % Ctrl+1 ... Ctrl+9, then Ctrl+0 for the tenth (onKeyPress)
 end
 obj.PlotEditor = E;
 obj.PlotSections = sec;

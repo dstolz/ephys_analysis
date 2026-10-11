@@ -340,7 +340,6 @@ for sIdx = 1:nSeg
     s0 = (sIdx - 1) * nSegSamp;
     n  = min(nSegSamp, nSamp - s0);
     tick((sIdx - 1) / (nSeg + 1), sprintf("Writing %s: segment %d of %d", name, sIdx, nSeg));
-    t = (s0 + (0:n-1)).' / Fs;
     X = M.signal(s0, n);
     % digital word
     W = zeros(n, 1, 'uint16');

@@ -158,23 +158,19 @@ end
 if AppPrefs.ispref(g, 'SynthOptions')
     v = AppPrefs.getpref(g, 'SynthOptions');
     if isstruct(v)
-        applyIf(v, 'source',      @(x) set(obj.SynthSourceDropDown, 'Value', char(x)));
         applyIf(v, 'numTrials',   @(x) set(obj.SynthTrialsSpinner, 'Value', x));
         applyIf(v, 'scenario',    @(x) set(obj.SynthScenarioDropDown, 'Value', char(x)));
-        applyIf(v, 'trialDuration', @(x) set(obj.SynthTrialDurField, 'Value', char(x)));
-        applyIf(v, 'lines',       @(x) set(obj.SynthLinesTable, 'Data', reshape(cellstr(x), [], 3)));
         applyIf(v, 'format',      @(x) set(obj.SynthFormatDropDown, 'Value', char(x)));
         applyIf(v, 'Fs',          @(x) set(obj.SynthFsField, 'Value', x));
         applyIf(v, 'numChannels', @(x) set(obj.SynthChannelsField, 'Value', x));
         applyIf(v, 'fileSeconds', @(x) set(obj.SynthFileSecondsField, 'Value', x));
-        applyIf(v, 'maxDuration', @(x) set(obj.SynthMaxDurField, 'Value', x));
         applyIf(v, 'seed',        @(x) set(obj.SynthSeedField, 'Value', x));
         applyIf(v, 'subject',     @(x) set(obj.SynthSubjectField, 'Value', char(x)));
         applyIf(v, 'sorted',      @(x) set(obj.SynthSortedCheckBox, 'Value', logical(x)));
         applyIf(v, 'artifacts',   @(x) set(obj.SynthArtifactsCheckBox, 'Value', logical(x)));
         applyIf(v, 'output',      @(x) set(obj.SynthOutputField, 'Value', char(x)));
         applyIf(v, 'span',        @(x) set(obj.SynthTimelineSpanField, 'Value', x));
-        applyIf(v, 'design',      @(x) obj.applySynthDesign(SyntheticDesign.fromStruct(jsondecode(char(x)))));
+        applyIf(v, 'design',      @(x) applySynthPref(obj, jsondecode(char(x))));
         obj.syncSynthControls();
     end
 end
@@ -214,6 +210,14 @@ end
 
 function setVizSourceKind(obj, x)
 obj.VizSourceKind = string(x);
+end
+
+
+function applySynthPref(obj, s)
+%applySynthPref  The saved Synthetic-tab design, unless an older generator wrote it (then the built-in one stays).
+if isfield(s, 'schema') && string(s.schema) == SyntheticDesign.FileSchema
+    obj.applySynthDesign(SyntheticDesign.fromStruct(s));
+end
 end
 
 

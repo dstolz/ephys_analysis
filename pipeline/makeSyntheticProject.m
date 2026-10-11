@@ -18,9 +18,12 @@ function S = makeSyntheticProject(root, opts)
 %           <Name>_manifest.json         probe + session associated
 %           kilosort4/                   ground-truth units as Kilosort4 / phy output
 %
-%   The recordings hold spiking units, LFP, artifacts, six digital lines
-%   (InTrial is the trial line) and accelerometer inputs; each Epsych2
-%   session has one trial per InTrial interval. The four scenarios differ in
+%   The recordings hold simple, exactly known signals (SyntheticDesign.builtIn:
+%   units on one channel each, half of them driven by Stim and one silenced
+%   by it, a Stim-evoked potential, white noise and a 2 Hz sine), artifacts,
+%   six digital lines (InTrial is the trial line) and accelerometer inputs
+%   (0.1 V higher while InTrial is on); each Epsych2 session has one trial
+%   per InTrial interval. The four scenarios differ in
 %   how the recording covers the session, so the trial pairing has one case
 %   of each kind to review: "clean" (counts agree), "late-start" (the
 %   recording started during trial 3), "early-stop" (it stopped during trial
@@ -257,19 +260,24 @@ if startsWith(opts.Format, "openephys-")
     w('channels (CH1..), 3 AUX (accelerometer) inputs, TTL lines TTL1..TTL6 named by the config''s');
     w('Signals.LineNames: TTL1=Trough, TTL2=Platform, TTL3=Stim, TTL4=InTrial (the trial line),');
     w('TTL5=RespWindow, TTL6=Commutator (never active, so never seen). %d recording(s) per session.', opts.Parts);
-    w('Amplifier data holds LFP');
+    w('Amplifier data holds');
 elseif opts.Format == "tdt"
     w('Every recording: a TDT Synapse block (<subject>-yymmdd-hhmmss: .tsq + .tev), %.10g Hz, stream', opts.Fs);
     w('Wav1 of %d channels (Ch1..) in float32 volts, no AUX, strobe epoc stores PC0_..PC5_ named by', opts.NumChannels);
     w('the config''s Signals.LineNames: PC0_=Trough, PC1_=Platform, PC2_=Stim, PC3_=InTrial (the trial');
-    w('line), PC4_=RespWindow, PC5_=Commutator (never active, so never seen). Amplifier data holds LFP');
+    w('line), PC4_=RespWindow, PC5_=Commutator (never active, so never seen). Amplifier data holds');
 else
     w('Every recording: %s layout, %g Hz, %d amplifier channels (A-000..), 3 accelerometer inputs', opts.Format, opts.Fs, opts.NumChannels);
     w('(accelX/Y/Z, Intan layouts only), 6 digital lines in RHX order: Trough, Platform, Stim,');
-    w('InTrial (the trial line), RespWindow, Commutator (never active). Amplifier data holds LFP');
+    w('InTrial (the trial line), RespWindow, Commutator (never active). Amplifier data holds');
 end
-w('rhythms, noise, 60 Hz, a stimulus-evoked potential, %d spiking units and%s two large', numel(D(1).units), ternary(opts.Artifacts, '', ' (Artifacts off) no'));
-w('artifacts (one saturates the ADC). The Epsych2 session (<subject>_<yymmdd>T<HHMMSS>.mat,');
+w('10 uV white noise, a 100 uV 2 Hz sine, a -150 uV evoked potential on every channel 20-70 ms');
+w('after each Stim onset (peak at 45 ms), %d spiking units, each on one channel (listed below), and', numel(D(1).units));
+w('%stwo large artifacts (one saturates the ADC).', ternary(opts.Artifacts, '', '(Artifacts off) no '));
+if ~ismember(opts.Format, ["binary" "tdt"])
+    w('The accelerometer inputs are constant, 0.1 V higher while InTrial is on.');
+end
+w('The Epsych2 session (<subject>_<yymmdd>T<HHMMSS>.mat,');
 w('variables Data + Info) sits in the recording folder and starts 65 s before the recording.');
 if opts.SortedOutput
     w('kilosort4/ holds the ground-truth units as Kilosort4 / phy output, so the');
@@ -298,7 +306,14 @@ for k = 1:numel(D)
         case "spurious"
             w('    A 40 ms InTrial pulse before the first trial is not a trial: cut %d interval from the START.', T.expectedCuts.intervals(1));
     end
-    w('    Units: %s', strjoin(arrayfun(@(u) sprintf("%d@ch%d %.0fuV %s %s", u.id, u.peakChannel, u.amplitudeUV, u.label, u.modulation), T.units), ", "));
+    w('    Units (id@channel, trough, label, baseline rate, response):');
+    for u = T.units
+        resp = "unmodulated";
+        if u.event ~= ""
+            resp = sprintf("x%g from %g to %g ms after %s %s", u.gain, u.latencyMs, u.latencyMs + u.durationMs, u.event, u.edge);
+        end
+        w('      %d@ch%d %.0f uV %s %g Hz, %s', u.id, u.peakChannel, u.amplitudeUV, u.label, u.baselineHz, resp);
+    end
     if ~isempty(T.artifacts)
         w('    Artifacts (s): %s', strjoin(compose("%.2f-%.2f", T.artifacts), ", "));
     end

@@ -1,8 +1,8 @@
 function T = generateSynthetic(obj, opts)
 %generateSynthetic  Write the Synthetic tab's dataset (the core of Generate..., no questions asked).
-%   T = app.generateSynthetic() loads the source when needed, then runs
-%   makeSyntheticRecording with the tab's settings (synthGeneratorArgs)
-%   into <output root>\<Subject>\<Subject>_<yymmdd>_<HHmmss> (Open Ephys
+%   T = app.generateSynthetic() runs makeSyntheticRecording with the tab's
+%   settings (synthGeneratorArgs) into
+%   <output root>\<Subject>\<Subject>_<yymmdd>_<HHmmss> (Open Ephys
 %   formats: the GUI's <Subject>_<yyyy-MM-dd>_<HH-mm-ss>), named from the
 %   recording's start, with a progress dialog. When that folder lies under
 %   the project root the project is scanned again and the new dataset made
@@ -28,9 +28,6 @@ end
 T = [];
 args = opts.Args; folder = opts.Folder;
 if isempty(args) || folder == ""
-    if obj.SynthSourceDropDown.Value ~= "task" && (isempty(obj.SynthSource) || obj.SynthSourceKey ~= obj.synthSourceKey())
-        if ~obj.onSynthLoadSource(); return; end
-    end
     [args, acq] = obj.synthGeneratorArgs();
     [folder, why] = obj.synthOutputFolder(acq);
     if folder == ""
@@ -61,7 +58,7 @@ catch ME
 end
 delete(closer);
 
-msg = sprintf("Wrote %s: %.1f s, %d channels, %d units, %d LFP component(s), %.0f MB (session %s).", ...
+msg = sprintf("Wrote %s: %.1f s, %d channels, %d units, %d evoked potential(s), %.0f MB (session %s).", ...
     folder, T.duration, numel(T.channelNames), numel(T.units), numel(T.lfp), T.bytes / 2^20, T.behaviorFile);
 obj.SynthStatusLabel.Text = msg;
 obj.SynthStatusLabel.FontColor = [0.16 0.45 0.25];

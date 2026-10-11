@@ -1,10 +1,10 @@
 function onSynthDesign(obj, action)
 %onSynthDesign  The Synthetic tab's editing buttons.
-%   ACTION: "addUnit" | "removeUnit" | "addOscillation" | "addEvoked" |
-%   "removeLFP" | "builtIn" | "clear" | "addLine" | "removeLine" | "load" |
-%   "save" | "browseOutput". New units and LFP components are linked to Stim
-%   when the source has it, else to its trial line; Remove takes the
-%   selected rows (the last row when none is selected).
+%   ACTION: "addUnit" | "removeUnit" | "addEvoked" | "removeLFP" |
+%   "builtIn" | "clear" | "load" | "save" | "browseOutput". New units and
+%   evoked potentials are linked to Stim when the task has it, else to its
+%   trial line; Remove takes the selected rows (the last row when none is
+%   selected).
 arguments
     obj (1,1) EphysPipelineApp
     action (1,1) string
@@ -20,31 +20,18 @@ switch action
         D.Units = [D.Units; r];
     case "removeUnit"
         D.Units(selectedRows(obj.SynthUnitsTable, height(D.Units)), :) = [];
-    case "addOscillation"
-        D.LFP = [D.LFP; SyntheticDesign.newLFP("oscillation", event, nextName("gamma", D.LFP.Name))];
     case "addEvoked"
-        D.LFP = [D.LFP; SyntheticDesign.newLFP("evoked", event, nextName("evoked", D.LFP.Name))];
+        D.LFP = [D.LFP; SyntheticDesign.newLFP(event, nextName("evoked", D.LFP.Name))];
     case "removeLFP"
         D.LFP(selectedRows(obj.SynthLFPTable, height(D.LFP)), :) = [];
     case "builtIn"
         B = SyntheticDesign.builtIn(obj.SynthChannelsField.Value, Event=event);
-        B.Background = D.Background;
+        B.NoiseUV = D.NoiseUV;
+        B.SineUV = D.SineUV;
         D = B;
     case "clear"
         D.Units = SyntheticDesign.unitTable(0);
         D.LFP = SyntheticDesign.lfpTable(0);
-    case "addLine"
-        C = obj.SynthLinesTable.Data;
-        if isempty(C); C = cell(0, 3); end
-        obj.SynthLinesTable.Data = [C; {char("Line" + (size(C, 1) + 1)), '0', '100'}];
-        obj.onSynthControlsChanged("schedule");
-        return
-    case "removeLine"
-        C = obj.SynthLinesTable.Data;
-        C(selectedRows(obj.SynthLinesTable, size(C, 1)), :) = [];
-        obj.SynthLinesTable.Data = C;
-        obj.onSynthControlsChanged("schedule");
-        return
     case "load"
         [f, p] = uigetfile({'*.json', 'Synthetic design (*.json)'}, "Load a synthetic design", char(startFolder(obj)));
         figure(obj.Fig);

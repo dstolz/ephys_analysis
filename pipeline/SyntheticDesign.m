@@ -1,95 +1,74 @@
 classdef SyntheticDesign
-    %SyntheticDesign  What a synthetic recording holds: units, event-linked LFP, background.
+    %SyntheticDesign  What a synthetic recording holds: units, evoked potentials, noise and a sine.
     %   A SyntheticDesign describes the neural signals makeSyntheticRecording
-    %   writes, independently of when the events happen (the schedule: the
-    %   built-in task, or an Epsych2 session, see syntheticSessionSchedule):
+    %   writes, independently of when the events happen (the built-in task,
+    %   syntheticTaskSchedule). The signals are deliberately simple, so that
+    %   what the pipeline and the analyses should recover is exact:
     %
-    %     Units       one row per spiking unit. A unit fires at BaselineHz and,
-    %                 when Event names a digital line, changes its rate around
-    %                 every Edge ("onset" | "offset") of that line: from
-    %                 LatencyMs after the edge, for DurationMs, the rate is
-    %                 BaselineHz x (1 + (Gain - 1) x envelope), the envelope
-    %                 given by Shape. Gain > 1 excites, Gain < 1 suppresses.
-    %     LFP         one row per LFP component locked to a line's edges: an
-    %                 "oscillation" (FrequencyHz, AmplitudeUV, a Tukey
-    %                 envelope with RiseMs ramps; PhaseLocked = the same phase
-    %                 on every event, so it survives averaging, else a random
-    %                 phase: induced power only) or an "evoked" potential (an
-    %                 alpha function peaking RiseMs after the latency, signed
-    %                 AmplitudeUV), spread over the channels by Profile.
-    %     Background  ongoing LFP rhythms, 1/f-like and white noise, line noise
+    %     Units    one row per spiking unit: a fixed waveform (a negative
+    %              Gaussian trough of AmplitudeUV, sigma 0.2 ms) on its
+    %              Channel only, fired as a Poisson process (2 ms dead time)
+    %              at BaselineHz. When Event names a digital line, the rate is
+    %              BaselineHz x Gain from LatencyMs to LatencyMs + DurationMs
+    %              after every Edge ("onset" | "offset") of that line: a
+    %              step up (Gain > 1) or down (Gain < 1, 0 = silent).
+    %     LFP      one row per evoked potential locked to a line's edges: a
+    %              raised-cosine deflection of AmplitudeUV (signed) that
+    %              starts LatencyMs after the edge, peaks halfway through and
+    %              ends DurationMs later, on Channel or (NaN) every channel.
+    %     NoiseUV  RMS of the white Gaussian noise on every channel.
+    %     SineUV   amplitude of a 2 Hz sine on every channel (SineHz; 0 =
+    %              off). It stands in for the ongoing LFP, so that detectors
+    %              whose thresholds follow the background (the artifact
+    %              detector's running RMS) behave as on real recordings
+    %              instead of flagging every spike and evoked potential.
+    %              The spike band removes it; event-locked averages over
+    %              trials at random phases cancel it.
     %
     %   Unit columns
     %     Name         unique label
-    %     Channel      peak channel (1-based); NaN = spread the units evenly
-    %     AmplitudeUV  trough amplitude on the peak channel; NaN = random 60-200
-    %     WidthMs      trough width (Gaussian sigma); NaN = random 0.15-0.3
-    %     BaselineHz   rate away from events; NaN = random 1.5-8
-    %     Event        digital line the unit responds to; "" = none
+    %     Channel      the channel it is on (1-based)
+    %     AmplitudeUV  trough amplitude (> 0)
+    %     BaselineHz   rate away from its responses
+    %     Event        digital line it responds to; "" = none
     %     Edge         "onset" | "offset"
-    %     Shape        "sustained" (flat for DurationMs) | "transient" (a
-    %                  raised-cosine bump over DurationMs) | "phasic-tonic"
-    %                  (a bump over the first 30 % over a plateau at 40 %)
-    %     Gain         rate multiplier at the envelope's peak; NaN = random 2-5
+    %     Gain         rate multiplier inside the response window
     %     LatencyMs    edge to response start (may be negative)
-    %     DurationMs   response length; NaN = as long as the line's interval
-    %     JitterMs     SD of the latency from event to event
+    %     DurationMs   response length (> 0)
     %     Parameter    Epsych2 trial parameter that scales the response; ""
-    %                  = none. The response is scaled by the trial's value
-    %                  normalized to 0..1 over the session (Tuning
-    %                  "increasing") or by 1 minus that ("decreasing");
-    %                  events outside any trial respond fully
-    %     Tuning       "increasing" | "decreasing"
+    %                  = none. The rate is then BaselineHz x (1 + (Gain - 1)
+    %                  x v), v the trial's value normalized to 0..1 over the
+    %                  session; events outside any trial respond fully
     %
     %   LFP columns
-    %     Name, Event, Edge, LatencyMs, JitterMs, Parameter, Tuning  as for units
-    %     Kind         "oscillation" | "evoked"
-    %     FrequencyHz  oscillation frequency (ignored for "evoked")
-    %     AmplitudeUV  peak amplitude on the profile's peak channel; signed
-    %                  for "evoked" (negative = a negative-going potential)
-    %     DurationMs   oscillation: its length, NaN = the line's interval;
-    %                  evoked: the window it is drawn in, NaN = 8 x RiseMs
-    %     RiseMs       oscillation: envelope ramp; evoked: time to peak
-    %     PhaseLocked  oscillation: the same phase on every event
-    %     Profile      over the probe's depth (site y): "uniform" |
-    %                  "superficial" | "middle" | "deep" | "reversal" (the
-    %                  sign flips at mid depth, as across a dipole), scaled
-    %                  so the largest channel has gain 1
-    %
-    %   Background fields
-    %     RhythmScale  x the 1.7 / 7.3 / 12.5 Hz rhythms (120 / 60 / 25 uV); 0 = off
-    %     PinkUV       RMS of the slow (4 Hz low-passed) noise
-    %     NoiseUV      RMS of the white noise
-    %     LineNoiseUV  line-noise amplitude (its 3rd harmonic at 30 %)
-    %     LineFreqHz   50 | 60
+    %     Name, Event, Edge, LatencyMs, DurationMs, Parameter  as for units
+    %                  (Event is required; Parameter scales the amplitude)
+    %     Channel      the channel it is on; NaN = every channel
+    %     AmplitudeUV  peak amplitude, signed (negative = negative-going)
     %
     %   Usage
     %     D = SyntheticDesign.builtIn(16);        % what makeSyntheticRecording writes by default
     %     D.Units(end+1, :) = SyntheticDesign.newUnit("tone", "Stim");
-    %     D.LFP(end+1, :) = SyntheticDesign.newLFP("oscillation", "Stim");
+    %     D.LFP(end+1, :) = SyntheticDesign.newLFP("Stim");
     %     issues = D.validate(["Stim" "InTrial"], "Depth", 16);
     %     D.save("design.json"); D2 = SyntheticDesign.load("design.json");
     %
-    %   See also makeSyntheticRecording, syntheticModel,
-    %   syntheticSessionSchedule, syntheticTaskSchedule.
+    %   See also makeSyntheticRecording, syntheticModel, syntheticTaskSchedule.
 
     properties
-        Background (1,1) struct = SyntheticDesign.defaultBackground()
+        NoiseUV (1,1) double = 10
+        SineUV (1,1) double = 100
         Units table = SyntheticDesign.unitTable(0)
         LFP table = SyntheticDesign.lfpTable(0)
     end
 
     properties (Constant)
-        Edges    = ["onset" "offset"]
-        Shapes   = ["sustained" "transient" "phasic-tonic"]
-        Kinds    = ["oscillation" "evoked"]
-        Profiles = ["uniform" "superficial" "middle" "deep" "reversal"]
-        Tunings  = ["increasing" "decreasing"]
-        UnitColumns = ["Name" "Channel" "AmplitudeUV" "WidthMs" "BaselineHz" "Event" "Edge" ...
-            "Shape" "Gain" "LatencyMs" "DurationMs" "JitterMs" "Parameter" "Tuning"]
-        LFPColumns = ["Name" "Kind" "Event" "Edge" "FrequencyHz" "AmplitudeUV" "LatencyMs" ...
-            "DurationMs" "RiseMs" "PhaseLocked" "Profile" "JitterMs" "Parameter" "Tuning"]
-        FileSchema = "ephys-synthetic-design/1"
+        Edges = ["onset" "offset"]
+        SineHz = 2
+        UnitColumns = ["Name" "Channel" "AmplitudeUV" "BaselineHz" "Event" "Edge" "Gain" ...
+            "LatencyMs" "DurationMs" "Parameter"]
+        LFPColumns = ["Name" "Channel" "AmplitudeUV" "Event" "Edge" "LatencyMs" "DurationMs" "Parameter"]
+        FileSchema = "ephys-synthetic-design/2"
     end
 
     methods
@@ -102,7 +81,7 @@ classdef SyntheticDesign
         end
 
         function lines = usedLines(obj)
-            %usedLines  The digital lines the units and LFP components are linked to.
+            %usedLines  The digital lines the units and evoked potentials are linked to.
             lines = unique([obj.Units.Event; obj.LFP.Event]).';
             lines = lines(lines ~= "");
         end
@@ -113,29 +92,24 @@ classdef SyntheticDesign
             params = params(params ~= "");
         end
 
-        function issues = validate(obj, lineNames, paramNames, nChannels, Fs)
+        function issues = validate(obj, lineNames, paramNames, nChannels)
             %validate  Problems with the design for a schedule and a recording.
-            %   ISSUES = D.validate(LINENAMES, PARAMNAMES, NCHANNELS, FS) lists
+            %   ISSUES = D.validate(LINENAMES, PARAMNAMES, NCHANNELS) lists
             %   (string, one per problem, empty when none) rows that cannot be
             %   generated: unknown lines or parameters, channels beyond
-            %   NCHANNELS, frequencies at or above FS/2, bad numbers. Pass []
-            %   for a check to skip it.
+            %   NCHANNELS, bad numbers. Pass [] for a check to skip it.
             arguments
                 obj (1,1) SyntheticDesign
                 lineNames = []
                 paramNames = []
                 nChannels = []
-                Fs = []
             end
             issues = strings(0, 1);
-            B = obj.Background;
-            for f = ["RhythmScale" "PinkUV" "NoiseUV" "LineNoiseUV"]
-                if ~(isscalar(B.(f)) && isfinite(B.(f)) && B.(f) >= 0)
-                    issues(end+1, 1) = sprintf("Background %s must be a number >= 0.", f); %#ok<AGROW>
-                end
+            if ~(isfinite(obj.NoiseUV) && obj.NoiseUV >= 0)
+                issues(end+1, 1) = "NoiseUV must be a number >= 0.";
             end
-            if ~(isscalar(B.LineFreqHz) && B.LineFreqHz > 0)
-                issues(end+1, 1) = "Background LineFreqHz must be > 0.";
+            if ~(isfinite(obj.SineUV) && obj.SineUV >= 0)
+                issues(end+1, 1) = "SineUV must be a number >= 0.";
             end
 
             U = obj.Units;
@@ -143,24 +117,19 @@ classdef SyntheticDesign
             for k = 1:height(U)
                 u = U(k, :);
                 w = "Unit " + displayName(u.Name, k) + ": ";
-                if ~isnan(u.Channel) && ~(u.Channel >= 1 && u.Channel == round(u.Channel))
-                    issues(end+1, 1) = w + "Channel must be a whole number >= 1 (or NaN to spread the units)."; %#ok<AGROW>
-                elseif ~isempty(nChannels) && ~isnan(u.Channel) && u.Channel > nChannels
-                    issues(end+1, 1) = w + sprintf("Channel %d is beyond the %d channel(s).", u.Channel, nChannels); %#ok<AGROW>
+                issues = [issues; channelIssues(u.Channel, w, nChannels, false)]; %#ok<AGROW>
+                if ~(isfinite(u.AmplitudeUV) && u.AmplitudeUV > 0)
+                    issues(end+1, 1) = w + "AmplitudeUV must be > 0."; %#ok<AGROW>
                 end
-                issues = [issues; positive(u.AmplitudeUV, w + "AmplitudeUV", true, false)]; %#ok<AGROW>
-                if ~isnan(u.WidthMs) && ~(u.WidthMs >= 0.05 && u.WidthMs <= 2)
-                    issues(end+1, 1) = w + "WidthMs must be between 0.05 and 2 (or NaN)."; %#ok<AGROW>
+                if ~(isfinite(u.BaselineHz) && u.BaselineHz >= 0)
+                    issues(end+1, 1) = w + "BaselineHz must be >= 0."; %#ok<AGROW>
                 end
-                issues = [issues; positive(u.BaselineHz, w + "BaselineHz", true, true)]; %#ok<AGROW>
-                issues = [issues; positive(u.Gain, w + "Gain", true, true)]; %#ok<AGROW>
+                if ~(isfinite(u.Gain) && u.Gain >= 0)
+                    issues(end+1, 1) = w + "Gain must be >= 0."; %#ok<AGROW>
+                elseif isfinite(u.BaselineHz) && u.BaselineHz * max(u.Gain, 1) > 450
+                    issues(end+1, 1) = w + "the peak rate (BaselineHz x Gain) exceeds 450 Hz, more than the 2 ms dead time allows."; %#ok<AGROW>
+                end
                 issues = [issues; eventIssues(u, w, lineNames, paramNames)]; %#ok<AGROW>
-                if ~ismember(u.Shape, SyntheticDesign.Shapes)
-                    issues(end+1, 1) = w + "Shape must be one of " + strjoin(SyntheticDesign.Shapes, ", ") + "."; %#ok<AGROW>
-                end
-                if ~isnan(u.BaselineHz) && ~isnan(u.Gain) && u.BaselineHz * max(u.Gain, 1) > 500
-                    issues(end+1, 1) = w + "the peak rate (BaselineHz x Gain) exceeds 500 Hz, which the 2 ms refractory period cannot give."; %#ok<AGROW>
-                end
             end
 
             L = obj.LFP;
@@ -168,31 +137,14 @@ classdef SyntheticDesign
             for k = 1:height(L)
                 c = L(k, :);
                 w = "LFP " + displayName(c.Name, k) + ": ";
-                if ~ismember(c.Kind, SyntheticDesign.Kinds)
-                    issues(end+1, 1) = w + "Kind must be oscillation or evoked."; %#ok<AGROW>
+                issues = [issues; channelIssues(c.Channel, w, nChannels, true)]; %#ok<AGROW>
+                if ~isfinite(c.AmplitudeUV)
+                    issues(end+1, 1) = w + "AmplitudeUV must be a number."; %#ok<AGROW>
                 end
                 if c.Event == ""
                     issues(end+1, 1) = w + "choose the line (Event) it is locked to."; %#ok<AGROW>
                 end
                 issues = [issues; eventIssues(c, w, lineNames, paramNames)]; %#ok<AGROW>
-                if ~isfinite(c.AmplitudeUV)
-                    issues(end+1, 1) = w + "AmplitudeUV must be a number."; %#ok<AGROW>
-                end
-                if c.Kind == "oscillation"
-                    if ~(isfinite(c.FrequencyHz) && c.FrequencyHz > 0)
-                        issues(end+1, 1) = w + "FrequencyHz must be > 0."; %#ok<AGROW>
-                    elseif ~isempty(Fs) && c.FrequencyHz >= Fs / 2
-                        issues(end+1, 1) = w + sprintf("FrequencyHz must be below half the sample rate (%g Hz).", Fs / 2); %#ok<AGROW>
-                    end
-                    if ~(isfinite(c.RiseMs) && c.RiseMs >= 0)
-                        issues(end+1, 1) = w + "RiseMs must be >= 0."; %#ok<AGROW>
-                    end
-                elseif c.Kind == "evoked" && ~(isfinite(c.RiseMs) && c.RiseMs > 0)
-                    issues(end+1, 1) = w + "RiseMs (time to peak) must be > 0."; %#ok<AGROW>
-                end
-                if ~ismember(c.Profile, SyntheticDesign.Profiles)
-                    issues(end+1, 1) = w + "Profile must be one of " + strjoin(SyntheticDesign.Profiles, ", ") + "."; %#ok<AGROW>
-                end
             end
         end
 
@@ -200,7 +152,8 @@ classdef SyntheticDesign
             %toStruct  Plain struct for JSON / preferences (tables as struct arrays).
             s = struct();
             s.schema = SyntheticDesign.FileSchema;
-            s.Background = obj.Background;
+            s.NoiseUV = obj.NoiseUV;
+            s.SineUV = obj.SineUV;
             s.Units = table2struct(obj.Units).';
             s.LFP = table2struct(obj.LFP).';
         end
@@ -219,11 +172,12 @@ classdef SyntheticDesign
         function D = builtIn(nChannels, opts)
             %builtIn  The design makeSyntheticRecording writes by default.
             %   D = SyntheticDesign.builtIn(NCHANNELS) has max(2, round(NCHANNELS/2))
-            %   units spread over the channels with random amplitudes, widths
-            %   and rates: every second unit is driven while Event (default
-            %   "Stim") is on (a random 2-5 fold gain), the third is suppressed
-            %   to 30 %, the rest are unmodulated; and an evoked potential
-            %   (-150 uV, 45 ms to peak) at mid depth on the line's onset.
+            %   units at 5 Hz, spread over the channels, their amplitudes
+            %   evenly from 200 down to 60 uV. Every second unit is driven
+            %   (x 5) from 20 to 220 ms after Event's onset (default "Stim"),
+            %   the third is silenced (Gain 0) from 0 to 500 ms after it, the
+            %   rest are unmodulated; and an evoked potential of -150 uV on
+            %   every channel from 20 to 70 ms after the onset (peak at 45 ms).
             arguments
                 nChannels (1,1) double {mustBeInteger, mustBePositive} = 16
                 opts.Event (1,1) string = "Stim"
@@ -231,94 +185,68 @@ classdef SyntheticDesign
             nU = max(2, round(nChannels / 2));
             U = SyntheticDesign.unitTable(nU);
             U.Name = "u" + (1:nU).';
-            U.Channel(:) = NaN; U.AmplitudeUV(:) = NaN; U.WidthMs(:) = NaN; U.BaselineHz(:) = NaN;
-            U.Gain(:) = 1;
-            U.Shape(:) = "sustained";
-            U.DurationMs(:) = NaN;
+            U.Channel = max(1, min(nChannels, round(((1:nU).' - 0.5) * nChannels / nU)));
+            U.AmplitudeUV = round(linspace(200, 60, nU).');
+            U.BaselineHz(:) = 5;
             driven = false(nU, 1); driven(2:2:nU) = true;
-            U.Event(driven) = opts.Event; U.Gain(driven) = NaN;
+            U.Event(driven) = opts.Event; U.Gain(driven) = 5;
+            U.LatencyMs(driven) = 20; U.DurationMs(driven) = 200;
             if nU >= 3
-                U.Event(3) = opts.Event; U.Gain(3) = 0.3;
+                U.Event(3) = opts.Event; U.Gain(3) = 0; U.LatencyMs(3) = 0; U.DurationMs(3) = 500;
             end
-            L = SyntheticDesign.newLFP("evoked", opts.Event);
-            L.Name = "evoked"; L.AmplitudeUV = -150; L.LatencyMs = 0; L.RiseMs = 45; L.DurationMs = 350;
-            L.Profile = "middle";
+            L = SyntheticDesign.newLFP(opts.Event, "evoked");
+            L.AmplitudeUV = -150; L.LatencyMs = 20; L.DurationMs = 50;
             D = SyntheticDesign();
             D.Units = U;
             D.LFP = L;
         end
 
         function T = newUnit(name, event)
-            %newUnit  One unit row with a typical sensory response to EVENT.
+            %newUnit  One unit row on channel 1, driven x 4 from 15 to 215 ms after EVENT's onset.
             arguments
                 name (1,1) string = "u1"
                 event (1,1) string = ""
             end
             T = SyntheticDesign.unitTable(1);
-            T.Name = name; T.Channel = 1; T.AmplitudeUV = 120; T.WidthMs = 0.2; T.BaselineHz = 5;
-            T.Event = event; T.Shape = "phasic-tonic"; T.Gain = 4; T.LatencyMs = 15; T.DurationMs = 200;
-            T.JitterMs = 3;
+            T.Name = name; T.AmplitudeUV = 120; T.Event = event; T.Gain = 4; T.LatencyMs = 15; T.DurationMs = 200;
         end
 
-        function T = newLFP(kind, event, name)
-            %newLFP  One LFP row: a 40 Hz phase-locked oscillation or an evoked potential on EVENT.
+        function T = newLFP(event, name)
+            %newLFP  One evoked potential on every channel: -100 uV from 10 to 70 ms after EVENT's onset.
             arguments
-                kind (1,1) string {mustBeMember(kind, ["oscillation" "evoked"])} = "oscillation"
                 event (1,1) string = ""
-                name (1,1) string = ""
+                name (1,1) string = "evoked"
             end
             T = SyntheticDesign.lfpTable(1);
-            T.Kind = kind; T.Event = event; T.Name = name;
-            if kind == "oscillation"
-                if name == ""; T.Name = "gamma"; end
-                T.FrequencyHz = 40; T.AmplitudeUV = 60; T.LatencyMs = 20; T.DurationMs = 300;
-                T.RiseMs = 50; T.PhaseLocked = true; T.Profile = "superficial";
-            else
-                if name == ""; T.Name = "evoked"; end
-                T.FrequencyHz = NaN; T.AmplitudeUV = -100; T.LatencyMs = 10; T.DurationMs = NaN;
-                T.RiseMs = 30; T.PhaseLocked = true; T.Profile = "reversal";
-            end
+            T.Name = name; T.Event = event; T.AmplitudeUV = -100; T.LatencyMs = 10; T.DurationMs = 60;
         end
 
         function T = unitTable(n)
-            %unitTable  N unit rows with neutral values (no event, no modulation).
+            %unitTable  N unit rows: channel 1, 100 uV, 5 Hz, no event, no modulation.
             arguments
                 n (1,1) double {mustBeInteger, mustBeNonnegative} = 0
             end
-            T = table(strings(n, 1), NaN(n, 1), NaN(n, 1), NaN(n, 1), NaN(n, 1), strings(n, 1), ...
-                repmat("onset", n, 1), repmat("sustained", n, 1), ones(n, 1), zeros(n, 1), NaN(n, 1), ...
-                zeros(n, 1), strings(n, 1), repmat("increasing", n, 1), ...
+            T = table(strings(n, 1), ones(n, 1), 100 * ones(n, 1), 5 * ones(n, 1), strings(n, 1), ...
+                repmat("onset", n, 1), ones(n, 1), zeros(n, 1), 100 * ones(n, 1), strings(n, 1), ...
                 'VariableNames', cellstr(SyntheticDesign.UnitColumns));
         end
 
         function T = lfpTable(n)
-            %lfpTable  N LFP rows (phase-locked oscillations, no event yet).
+            %lfpTable  N evoked-potential rows: every channel, -100 uV over 100 ms, no event yet.
             arguments
                 n (1,1) double {mustBeInteger, mustBeNonnegative} = 0
             end
-            T = table(strings(n, 1), repmat("oscillation", n, 1), strings(n, 1), repmat("onset", n, 1), ...
-                40 * ones(n, 1), 50 * ones(n, 1), zeros(n, 1), NaN(n, 1), 20 * ones(n, 1), true(n, 1), ...
-                repmat("uniform", n, 1), zeros(n, 1), strings(n, 1), repmat("increasing", n, 1), ...
+            T = table(strings(n, 1), NaN(n, 1), -100 * ones(n, 1), strings(n, 1), repmat("onset", n, 1), ...
+                zeros(n, 1), 100 * ones(n, 1), strings(n, 1), ...
                 'VariableNames', cellstr(SyntheticDesign.LFPColumns));
-        end
-
-        function B = defaultBackground()
-            B = struct('RhythmScale', 1, 'PinkUV', 30, 'NoiseUV', 9, 'LineNoiseUV', 5, 'LineFreqHz', 60);
         end
 
         function D = fromStruct(s)
             %fromStruct  Inverse of toStruct (also accepts what jsondecode returns).
             D = SyntheticDesign();
             if ~isstruct(s); return; end
-            if isfield(s, 'Background') && isstruct(s.Background)
-                B = D.Background;
-                for f = string(fieldnames(B)).'
-                    if isfield(s.Background, f)
-                        B.(f) = toNumber(s.Background.(f), B.(f));
-                    end
-                end
-                D.Background = B;
-            end
+            if isfield(s, 'NoiseUV'); D.NoiseUV = toNumber(s.NoiseUV, D.NoiseUV); end
+            if isfield(s, 'SineUV'); D.SineUV = toNumber(s.SineUV, D.SineUV); end
             if isfield(s, 'Units'); D.Units = structRows(s.Units, SyntheticDesign.unitTable(0)); end
             if isfield(s, 'LFP'); D.LFP = structRows(s.LFP, SyntheticDesign.lfpTable(0)); end
         end
@@ -362,8 +290,6 @@ classdef SyntheticDesign
                 x = T.(v);
                 if isstring(ref.(v))
                     x = string(x); x(ismissing(x)) = "";
-                elseif islogical(ref.(v))
-                    x = logical(x);
                 else
                     x = double(x);
                 end
@@ -394,18 +320,17 @@ if name == ""; s = "#" + k; else; s = """" + name + """"; end
 end
 
 
-function issues = positive(x, what, allowNaN, allowZero)
+function issues = channelIssues(ch, w, nChannels, allowNaN)
 issues = strings(0, 1);
-if isnan(x)
-    if ~allowNaN; issues = what + " must be a number."; end
-    return
-end
-if ~isfinite(x) || x < 0 || (~allowZero && x == 0)
-    if allowZero
-        issues = what + " must be >= 0.";
+if isnan(ch) && allowNaN; return; end
+if ~(ch >= 1 && ch == round(ch))
+    if allowNaN
+        issues = w + "Channel must be a whole number >= 1 (or NaN for every channel).";
     else
-        issues = what + " must be > 0.";
+        issues = w + "Channel must be a whole number >= 1.";
     end
+elseif ~isempty(nChannels) && ch > nChannels
+    issues = w + sprintf("Channel %d is beyond the %d channel(s).", ch, nChannels);
 end
 end
 
@@ -421,11 +346,8 @@ end
 if ~isfinite(r.LatencyMs)
     issues(end+1, 1) = w + "LatencyMs must be a number.";
 end
-if ~isnan(r.DurationMs) && ~(isfinite(r.DurationMs) && r.DurationMs > 0)
-    issues(end+1, 1) = w + "DurationMs must be > 0 (or NaN).";
-end
-if ~(isfinite(r.JitterMs) && r.JitterMs >= 0)
-    issues(end+1, 1) = w + "JitterMs must be >= 0.";
+if ~(isfinite(r.DurationMs) && r.DurationMs > 0)
+    issues(end+1, 1) = w + "DurationMs must be > 0.";
 end
 if r.Parameter ~= ""
     if r.Event == ""
@@ -435,9 +357,6 @@ if r.Parameter ~= ""
     elseif isempty(paramNames) && ~isequal(paramNames, [])
         issues(end+1, 1) = w + "the schedule has no Epsych2 parameters to scale by.";
     end
-end
-if ~ismember(r.Tuning, SyntheticDesign.Tunings)
-    issues(end+1, 1) = w + "Tuning must be increasing or decreasing.";
 end
 end
 
@@ -470,8 +389,6 @@ for j = 1:numel(names)
     v = names(j);
     if isstring(ref.(v))
         col = strings(n, 1);
-    elseif islogical(ref.(v))
-        col = false(n, 1);
     else
         col = NaN(n, 1);
     end
@@ -480,8 +397,6 @@ for j = 1:numel(names)
         x = s(i).(v);
         if isstring(col)
             if ~isempty(x); col(i) = string(x); end
-        elseif islogical(col)
-            if ~isempty(x); col(i) = logical(toNumber(x, 0)); end
         else
             col(i) = toNumber(x, NaN);
         end

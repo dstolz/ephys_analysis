@@ -7,11 +7,11 @@ function R = benchmarkDetection(opts)
 %   automatic artifact detector (EphysDataset.analyzeArtifacts) on them,
 %   and scores both against that truth.
 %
-%   The recordings: units of the given trough amplitudes (raw, on the peak
-%   site; the template spreads over the neighboring sites as the generator
-%   draws it), firing without events at RateHz, over the generator's
-%   default background (white noise, 1/f noise, LFP rhythms, line noise)
-%   and its two artifacts (a 150 ms burst and a 400 ms saturating step).
+%   The recordings: units of the given trough amplitudes (raw; the
+%   generator puts each unit on its channel only), firing without events
+%   at RateHz, over the generator's background (white noise and a 2 Hz
+%   sine, see SyntheticDesign) and its two artifacts (a 150 ms burst and a
+%   400 ms saturating step).
 %
 %   Spikes. The true artifact periods are erased first (detectSpikes'
 %   ArtifactIntervals), so the two detectors are scored apart; true spikes
@@ -48,9 +48,9 @@ function R = benchmarkDetection(opts)
 %     AmplitudesUV    [40 60 90 140 200]: one unit per entry
 %     Channels        their peak channels (default: spread over the
 %                     channels, the largest unit last)
-%     WidthMs         0.2: trough width (Gaussian sigma)
 %     RateHz          10
-%     Background      struct of SyntheticDesign background fields to change
+%     NoiseUV         10: RMS of the white noise (SyntheticDesign.NoiseUV)
+%     SineUV          100: the 2 Hz sine (SyntheticDesign.SineUV)
 %     Format          "traditional" (default: 30 s *.rhd files, which are
 %                     the detectors' chunks) | any makeSyntheticRecording format
 %     DetectOptions   detectSpikes options (default: the pipeline's,
@@ -90,9 +90,9 @@ arguments
     opts.NumChannels (1,1) double {mustBeInteger, mustBePositive} = 8
     opts.AmplitudesUV (1,:) double {mustBePositive} = [40 60 90 140 200]
     opts.Channels (1,:) double {mustBeInteger, mustBePositive} = []
-    opts.WidthMs (1,1) double {mustBePositive} = 0.2
     opts.RateHz (1,1) double {mustBePositive} = 10
-    opts.Background (1,1) struct = struct()
+    opts.NoiseUV (1,1) double {mustBeNonnegative} = 10
+    opts.SineUV (1,1) double {mustBeNonnegative} = 100
     opts.Format (1,1) string = "traditional"
     opts.DetectOptions (1,1) struct = EphysPipelineConfig.detectOptions(EphysPipelineConfig.defaults("Spikes"))
     opts.ArtifactConfig (1,1) struct = EphysDataset.defaultArtifactConfig()
@@ -270,17 +270,10 @@ U = SyntheticDesign.unitTable(nU);
 U.Name = "u" + (1:nU).';
 U.Channel = chans(:);
 U.AmplitudeUV = opts.AmplitudesUV(:);
-U.WidthMs(:) = opts.WidthMs;
 U.BaselineHz(:) = opts.RateHz;
 D = SyntheticDesign();
-B = D.Background;
-for f = string(fieldnames(opts.Background)).'
-    if ~isfield(B, f)
-        error('benchmarkDetection:Background', 'Unknown background field "%s".', f);
-    end
-    B.(f) = opts.Background.(f);
-end
-D.Background = B;
+D.NoiseUV = opts.NoiseUV;
+D.SineUV = opts.SineUV;
 D.Units = U;
 end
 

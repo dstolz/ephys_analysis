@@ -429,17 +429,18 @@ or by tag (`Tag=`).
 
 For trying the pipeline or the app by hand without real data,
 [`makeSyntheticProject`](../pipeline/makeSyntheticProject.m) (or the app's
-**File → Create synthetic test project...**) writes a realistic project:
-recordings with spiking units, LFP, artifacts, the lab's six digital lines
-and accelerometer inputs, an Epsych2 session per recording, ground-truth
-sorted output and a ready pipeline config. See
+**File → Create synthetic test project...**) writes a project of deliberately
+simple, exactly known signals: units of a fixed waveform on one channel each
+whose rates step in a window after Stim, an evoked potential, white noise and
+a 2 Hz sine, artifacts, the lab's six digital lines and accelerometer inputs,
+an Epsych2 session per recording, ground-truth sorted output and a ready
+pipeline config. See
 [EphysPipelineApp → Synthetic test project](EphysPipelineApp.md#synthetic-test-project).
 To shape the data yourself, the app's **Synthetic** tab (or
 [`SyntheticDesign`](../pipeline/SyntheticDesign.m) with
-[`makeSyntheticRecording`](../pipeline/makeSyntheticRecording.m)) links units and
-LFP oscillations or evoked potentials to the events of the built-in task or
-of a real Epsych2 session ([`syntheticSessionSchedule`](../pipeline/syntheticSessionSchedule.m));
-see [EphysPipelineApp → Synthetic](EphysPipelineApp.md#synthetic).
+[`makeSyntheticRecording`](../pipeline/makeSyntheticRecording.m)) links units
+and evoked potentials to the events of the built-in task; see
+[EphysPipelineApp → Synthetic](EphysPipelineApp.md#synthetic).
 
 ```matlab
 cd C:\src\ephys_analysis\pipeline
@@ -493,7 +494,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_ManifestViewerApp` | the manifest viewer, headless: the Summary checks, opening from a file, a folder or a dataset, the plots, the default probe, Rewrite |
 | `test_ChannelMapper` | the channel mapper: parsing vendor rows, the shipped hardware bank and saving entries, mating (both orientations, GND / REF safety, one-way connectors), the golden chains (H32 + RHD2132 = probeinterface's `H32>RHD2132`; H64LP + RHD2164 = `H64LP_4x16lin_probemap.json`; H16 + the 16-channel RHD2132), two headstages, a dataset's channel numbers, the Kilosort4 export and its sidecar, text output, saved mappings, the site-order templates, and `ChannelMapperApp` headless (selection, orientation, export, mappings, the entry editor, preferences) |
 | `test_SyntheticDataset` | `makeSyntheticProject` / `makeSyntheticRecording`: the written lines, sessions, spikes, aux and artifacts read back; pairing per scenario; the one-file-per-signal and binary layouts; the config through the pipeline; the app's File-menu action and the active dataset across its tabs |
-| `test_SyntheticGenerator` | `SyntheticDesign` (validation, JSON), the built-in model, responses and LFP at their latency after the edge, `PreviewOnly` = what is written, schedules from a dataset's Epsych2 session (recorded lines, rebuilt lines, tuning, locked vs induced oscillations, `MaxDuration`), the app's Synthetic tab |
+| `test_SyntheticGenerator` | `SyntheticDesign` (validation, JSON), the built-in design read back from the files (silenced window, evoked potential, aux steps), responses exactly in their window after the edge, evoked potentials peaking halfway through theirs, parameter scaling, `PreviewOnly` = what is written, the app's Synthetic tab |
 | `test_EphysAnalysisCompute` (analysis/) | compute functions on seeded spike trains and signals, the trial-filter compiler, every renderer, the raster's sort and event marks, behavior values and plots |
 | `test_PlotAesthetics` (analysis/) | the right-click aesthetics editor: rules, every renderer naming what it draws, the user's rules then the plot's, the menu, the editor (Apply to, Reset, Cancel, OK, Remember, Forget), the config and the script literal |
 | `test_PlotDesign` (analysis/) | plot designs: the built-in ones (every kind and layout draws in each), ground, palette, sequential and heat colors, the layering (design, the user's rules, the plot's), choosing one redrawing every plot on screen, capturing a plot's look, saving, importing and deleting designs, refused files |
@@ -517,8 +518,8 @@ suite's temporary preferences, so close it before the run ends.
 ### Detection benchmark
 
 [`benchmarkDetection`](../pipeline/benchmarkDetection.m) writes synthetic
-recordings whose truth is known (each unit's spike rows and its template on
-every site, each artifact period), runs `detectSpikes` over the whole
+recordings whose truth is known (each unit's spike rows and its template,
+on its channel only, each artifact period), runs `detectSpikes` over the whole
 recording and the automatic artifact detector (`analyzeArtifacts`), and
 scores them. Spikes are scored per unit on its peak channel (recall within
 0.5 ms) and per channel (each detection matched to a spike of a unit visible
@@ -536,11 +537,16 @@ disp(R.units); disp(R.summary)
 
 `test_DetectionBenchmark` holds the defaults to regression floors. A model of
 the same signal and detectors in Python (MATLAB could not be run where the
-floors were set) gave, over six seeds: recall >= 0.985 for units at SNR >= 6,
-0.82-0.88 at SNR 4.3; precision ~0.82; isolated noise crossings <= 0.56 Hz per
-channel; both artifacts found whole, edges within 0.5 ms, no false ones. It
-also gave about 0.5 duplicate detections per spike on the channels of the 140
-and 200 uV units: the band-passed waveform's later lobe crosses the threshold
-again more than `MinPeriodMs` (1 ms) after the trough. The test caps that
-rather than accepting it; raise the floors to the measured values once the
-suite has run in MATLAB.
+floors were set) gave, over eight seeds of the generator's simple background
+(10 uV white noise and a 100 uV 2 Hz sine): recall >= 0.998 for units at SNR
+>= 6, 0.75-0.81 at SNR 4.0; precision ~0.82; isolated noise crossings
+0.82-0.95 Hz per channel, which is what Gaussian noise gives at 4 x MAD in the
+500-5000 Hz band (the ceiling is 1.5 Hz); both artifacts found whole, edges
+within 0.5 ms, no false ones. It also gave up to about 0.5 duplicate
+detections per spike on the channels of the larger units: the band-passed
+waveform's later lobe crosses the threshold again more than `MinPeriodMs`
+(1 ms) after the trough. The test caps that rather than accepting it; raise
+the floors to the measured values once the suite has run in MATLAB. Without
+the sine, the artifact detector (running RMS, 9 robust SDs above each
+channel's baseline) flags coincident spikes on two channels and every evoked
+potential: white noise alone gives that RMS almost no spread.

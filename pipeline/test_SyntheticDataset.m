@@ -122,9 +122,10 @@ u = T1.units(ib);
 check(size(data.aux, 2) == 3 && data.auxFs == Fs / 4 && size(data.aux, 1) == T1.nSamples / 4 ...
     && all(data.aux(:) > 1.2 & data.aux(:) < 2.3) && isequal(string(data.auxNames), T1.aux.names), ...
     'three accelerometer inputs at Fs/4, in volts');
-% Spike-triggered average at the peak channel: the LFP and noise average out
-% and the template trough (about -0.88 x amplitude) remains. Spikes inside
-% the artifacts are left out and the value 0.75 ms earlier is the baseline.
+% Spike-triggered average at the peak channel: the noise, the sine and the
+% evoked potential average out and the template trough (-amplitude) remains.
+% Spikes inside the artifacts are left out and the value 0.75 ms earlier is
+% the baseline.
 tS = (u.samples - 1) / Fs;
 inArt = false(size(tS));
 for k = 1:size(T1.artifacts, 1)

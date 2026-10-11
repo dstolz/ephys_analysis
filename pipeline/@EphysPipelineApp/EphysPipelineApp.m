@@ -89,16 +89,13 @@ classdef EphysPipelineApp < handle
     %                LFP / MUA / SPIKE / AUX) with its sorted units and
     %                detected spikes, read a window at a time; mark manual
     %                artifact periods
-    %     Synthetic  design and write a synthetic dataset (makeSyntheticRecording):
-    %                events from the built-in task or from the active
-    %                dataset's Epsych2 session (its recorded lines, or lines
-    %                rebuilt from the session's parameters); spiking units
-    %                whose rate follows a line's edges (latency, duration,
-    %                shape, gain, jitter, tuned to an Epsych2 parameter) and
-    %                event-locked LFP (phase-locked or induced oscillations,
-    %                evoked potentials, a depth profile); preview the
-    %                spikes, rasters, PSTHs and LFP it will write, then
-    %                Generate. Not a pipeline step
+    %     Synthetic  design and write a synthetic dataset (makeSyntheticRecording)
+    %                around the built-in task's events: units of a fixed
+    %                waveform on one channel whose rate steps by a gain in a
+    %                window after a line's edge (optionally scaled by an
+    %                Epsych2 parameter), evoked potentials, white noise and
+    %                a 2 Hz sine; preview the spikes, rasters, PSTHs and LFP
+    %                it will write, then Generate. Not a pipeline step
     %     Clean up   free local disk space once datasets are preprocessed, or
     %                remove what chosen preprocessing steps wrote: preview
     %                every local file of the selected datasets as Remove or
@@ -526,55 +523,41 @@ classdef EphysPipelineApp < handle
         ReviewWaveScaleSpinner  matlab.ui.control.Spinner         % its size, a factor
 
         % --- Synthetic tab (makeSyntheticRecording; every setting is a preference) ---
-        SynthSourceDropDown   matlab.ui.control.DropDown          % ItemsData "task" | "recording" | "session"
-        SynthDatasetDropDown  matlab.ui.control.DropDown          % datasetPicker
-        SynthLoadButton       matlab.ui.control.Button
         SynthPreviewButton    matlab.ui.control.Button
         SynthGenerateButton   matlab.ui.control.Button
         SynthStatusLabel      matlab.ui.control.Label
         SynthTrialsSpinner    matlab.ui.control.Spinner           % built-in task: trials
         SynthScenarioDropDown matlab.ui.control.DropDown          % built-in task: scenario
-        SynthTrialDurField    matlab.ui.control.EditField         % rebuilt session: trial duration (ms expression)
-        SynthLinesTable       matlab.ui.control.Table             % rebuilt session: Line | Onset | Duration (ms expressions)
-        SynthAddLineButton    matlab.ui.control.Button
-        SynthRemoveLineButton matlab.ui.control.Button
         SynthFormatDropDown   matlab.ui.control.DropDown
         SynthFsField          matlab.ui.control.NumericEditField
         SynthChannelsField    matlab.ui.control.NumericEditField
         SynthSeedField        matlab.ui.control.NumericEditField
         SynthSubjectField     matlab.ui.control.EditField
         SynthFileSecondsField matlab.ui.control.NumericEditField
-        SynthMaxDurField      matlab.ui.control.NumericEditField  % dataset sources: length limit (s), 0 = whole
+        SynthNoiseField       matlab.ui.control.NumericEditField  % SyntheticDesign.NoiseUV
+        SynthSineField        matlab.ui.control.NumericEditField  % SyntheticDesign.SineUV
         SynthSortedCheckBox   matlab.ui.control.CheckBox
         SynthArtifactsCheckBox matlab.ui.control.CheckBox
-        SynthProbeLabel       matlab.ui.control.Label
         SynthUnitsTable       matlab.ui.control.Table             % SyntheticDesign.Units (synthColumns order)
         SynthAddUnitButton    matlab.ui.control.Button
         SynthRemoveUnitButton matlab.ui.control.Button
         SynthBuiltInButton    matlab.ui.control.Button
         SynthClearButton      matlab.ui.control.Button
         SynthLFPTable         matlab.ui.control.Table             % SyntheticDesign.LFP (synthColumns order)
-        SynthAddOscButton     matlab.ui.control.Button
         SynthAddEvokedButton  matlab.ui.control.Button
         SynthRemoveLFPButton  matlab.ui.control.Button
-        SynthRhythmField      matlab.ui.control.NumericEditField  % SyntheticDesign.Background
-        SynthPinkField        matlab.ui.control.NumericEditField
-        SynthNoiseField       matlab.ui.control.NumericEditField
-        SynthLineNoiseField   matlab.ui.control.NumericEditField
-        SynthLineFreqDropDown matlab.ui.control.DropDown
         SynthOutputField      matlab.ui.control.EditField         % output root ("" = <project root>_synthetic)
         SynthBrowseOutputButton matlab.ui.control.Button
         SynthLoadDesignButton matlab.ui.control.Button
         SynthSaveDesignButton matlab.ui.control.Button
         SynthUnitDropDown     matlab.ui.control.DropDown          % preview: the unit shown (ItemsData = index)
-        SynthLFPDropDown      matlab.ui.control.DropDown          % preview: the LFP component shown
+        SynthLFPDropDown      matlab.ui.control.DropDown          % preview: the evoked potential shown
         SynthTimelineStartField matlab.ui.control.NumericEditField
         SynthTimelineSpanField  matlab.ui.control.NumericEditField
         SynthTimelineAxes     matlab.ui.control.UIAxes
         SynthRasterAxes       matlab.ui.control.UIAxes
         SynthPSTHAxes         matlab.ui.control.UIAxes
         SynthLFPAxes          matlab.ui.control.UIAxes
-        SynthProfileAxes      matlab.ui.control.UIAxes
 
         % --- Clean up tab (planLocalCleanup / runLocalCleanup; the kinds ticked and where files go are preferences) ---
         CleanupScopeLabel         matlab.ui.control.Label
@@ -963,8 +946,6 @@ classdef EphysPipelineApp < handle
         EpsychMetaCache = []
 
         % --- Synthetic tab state (in memory) ---
-        SynthSource = []                     % the schedule loaded (syntheticTaskSchedule / syntheticSessionSchedule)
-        SynthSourceKey (1,1) string = ""     % what it was loaded for (synthSourceKey)
         SynthModel = []                      % the last preview: makeSyntheticRecording(PreviewOnly=true)
 
         % --- Clean up tab state (in memory) ---
@@ -1348,20 +1329,17 @@ classdef EphysPipelineApp < handle
         showReviewUnits(obj)
 
         % --- Synthetic tab ---
-        ok = onSynthLoadSource(obj)
         ok = onSynthPreview(obj)
         renderSynthPreview(obj)
         onSynthGenerate(obj)
         T = generateSynthetic(obj, opts)
         onSynthDesign(obj, action)
-        onSynthControlsChanged(obj, what)
-        onSynthSourceChanged(obj)
+        onSynthControlsChanged(obj)
         syncSynthControls(obj)
         D = gatherSynthDesign(obj)
         applySynthDesign(obj, D)
         [vars, names, widths] = synthColumns(obj, kind)
         [lines, params, trialLine] = synthSourceLists(obj)
-        key = synthSourceKey(obj)
         [args, acq] = synthGeneratorArgs(obj)
         root = synthOutputRoot(obj)
         [folder, why] = synthOutputFolder(obj, acq)

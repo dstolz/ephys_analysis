@@ -594,6 +594,24 @@ says how to cut a release.
 
 ### Changed
 
+- The synthetic data generator (`SyntheticDesign`, `syntheticModel`, `makeSyntheticRecording`, the app's
+  Synthetic tab, `makeSyntheticProject`) writes deliberately simple, exactly known signals for
+  validating the pipeline and the time-locked analyses. Units have one fixed waveform (a negative
+  Gaussian trough of `AmplitudeUV`, sigma 0.2 ms) on their `Channel` only, every spike the same size,
+  and fire as a Poisson process whose rate is `BaselineHz` x `Gain` from `LatencyMs` to `LatencyMs +
+  DurationMs` after the event's edge (optionally scaled by an Epsych2 `Parameter`). LFP rows are
+  evoked potentials only: a raised-cosine deflection of `AmplitudeUV` from `LatencyMs` to `LatencyMs
+  + DurationMs`, peaking halfway, on `Channel` or (NaN) every channel. The background is white noise
+  (`NoiseUV`, 10 uV) plus a 2 Hz sine (`SineUV`, 100 uV), which keeps the artifact detector's
+  running-RMS threshold above spikes and evoked potentials as on real recordings. The accelerometer
+  inputs are constant, 0.1 V higher while the trial line is on. The built-in design's units have
+  fixed amplitudes (200 down to 60 uV) and rates (5 Hz): half of them x5 from 20 to 220 ms after Stim
+  onset, the third silenced from 0 to 500 ms, with a -150 uV evoked potential from 20 to 70 ms. The
+  design file schema is `ephys-synthetic-design/2`; older designs are refused by `SyntheticDesign.load`
+  and not restored from the app's preferences. `SyntheticDesign.newLFP(event, name)` drops its kind
+  argument and `validate` its sample-rate argument. `benchmarkDetection` takes `NoiseUV` and `SineUV`
+  instead of `WidthMs` and `Background`; `test_DetectionBenchmark`'s ceiling on isolated noise
+  crossings is 1.5 Hz (Gaussian noise gives about 0.95 Hz at 4 x MAD).
 - Analysis grids (PSTH, raster, tuning, evoked butterfly and grid, heatmap,
   unit correlation) are labeled once, on their tiled layout: one x label
   under the whole grid and one y label beside it (a PSTH with rasters names
@@ -736,6 +754,16 @@ says how to cut a release.
   new suites), with the same checks.
 - `.gitignore` covers MATLAB backups and autosaves, test-runner output,
   `.claude/worktrees` and operating-system files.
+
+### Removed
+
+- From the synthetic generator: schedules from a real dataset's Epsych2 session
+  (`syntheticSessionSchedule`; `makeSyntheticRecording`'s `Session` and `MaxDuration`; the Synthetic
+  tab's Timing from, Dataset, Load source, rebuilt-lines table, Trial (ms) and Max (s)); LFP
+  oscillations (phase-locked and induced), depth profiles and jitter; unit waveform widths, spread
+  over neighboring sites, response shapes, latency jitter, decreasing tuning and per-spike amplitude
+  scatter; values drawn at random for NaN; the background rhythms, 1/f noise and line noise; the
+  Synthetic tab's probe-gain plot and its PSTH split by parameter.
 
 ### Fixed
 

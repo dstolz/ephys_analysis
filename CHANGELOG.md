@@ -10,6 +10,12 @@ says how to cut a release.
 
 ### Added
 
+- Continuous integration: GitHub Actions runs every test suite (`run_all_tests`) on each pull request and
+  each push to `main`, on Windows with MATLAB R2025a and the Signal Processing, Statistics and Machine
+  Learning, and Parallel Computing toolboxes (`.github/workflows/matlab-tests.yml`). The JUnit report is
+  kept as an artifact; **Run workflow** runs chosen suites. See
+  [Tests](documentation/README.md#tests).
+
 - The aux signal's place and scale: `aux.yLim` fixes its y limits (a panel's, or over a plot the part of
   the right axis it spans), and `aux.overPosition` (`[bottom top]`, fractions of the plot's height) puts
   it where it should sit over a PSTH or raster, e.g. `[0 0.3]` for the bottom three tenths; the right

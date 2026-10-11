@@ -72,7 +72,9 @@ Create synthetic test project...** in the GUI) writes synthetic recordings
 to run.
 
 Tests: `cd pipeline; run_all_tests` (all suites; `run_all_tests(JUnit="junit.xml")` also writes a
-JUnit report). The tests keep the apps' preferences in a temporary file, never yours.
+JUnit report). The tests keep the apps' preferences in a temporary file, never yours. GitHub Actions
+runs them all on each pull request and push to `main`
+([MATLAB tests](.github/workflows/matlab-tests.yml); [Tests](documentation/README.md#tests)).
 
 ## Versions, license and citation
 

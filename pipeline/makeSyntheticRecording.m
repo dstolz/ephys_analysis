@@ -1,24 +1,25 @@
 function T = makeSyntheticRecording(folder, opts)
 %makeSyntheticRecording  Write one synthetic recording with its Epsych2 session (test data).
 %   T = makeSyntheticRecording(folder, Name=Value) writes into FOLDER a
-%   recording shaped like what the lab acquires with an Intan RHX system
-%   while Epsych2 runs a task, with everything the pipeline consumes, and
-%   returns the truth of what was written in T:
+%   recording in the layout of an Intan RHX system (or another format)
+%   while the built-in Epsych2 task runs, with everything the pipeline
+%   consumes, and returns the truth of what was written in T. The signals
+%   are deliberately simple, so that what the pipeline and the analyses
+%   should recover, above all around the events, is exact:
 %
 %     amplifier data     what Design describes (default SyntheticDesign.builtIn):
-%                        LFP rhythms with a depth profile, 1/f-like and white
-%                        noise, line noise, event-locked LFP (by default a
-%                        stimulus-evoked potential), spiking units with
-%                        realistic waveforms spread over the neighboring
-%                        sites whose rates follow the events, and
-%                        (Artifacts) two large artifacts, one of them
-%                        saturating the ADC
-%     digital inputs     the schedule's lines. The built-in task has the six
-%                        lines of the lab's rig, in RHX order: Trough (nose
-%                        pokes), Platform, Stim, InTrial (the trial line),
-%                        RespWindow, Commutator (never active)
+%                        white noise and a 2 Hz sine, units of a fixed
+%                        waveform on one channel each whose rates step up
+%                        or down in a window after the events, evoked
+%                        potentials (a raised-cosine deflection) after the
+%                        events, and (Artifacts) a noise burst and a step
+%                        that saturates the ADC
+%     digital inputs     the six lines of the lab's rig, in RHX order:
+%                        Trough (nose pokes), Platform, Stim, InTrial (the
+%                        trial line), RespWindow, Commutator (never active)
 %     aux inputs         three accelerometer channels at Fs/4 (Intan layouts;
-%                        Open Ephys formats hold each value for 4 samples)
+%                        Open Ephys formats hold each value for 4 samples):
+%                        constant, 0.1 V higher while InTrial is on
 %     Epsych2 session    <Subject>_<yymmdd>T<HHMMSS>.mat (Data + Info) in the
 %                        recording folder, named from its start time as
 %                        Epsych2 does
@@ -28,12 +29,12 @@ function T = makeSyntheticRecording(folder, opts)
 %                        sorted units without Python
 %     manifest           (WriteManifest) with the session and ProbeFile
 %                        associated, as after a run
-%     <Name>_synthetic.json   the design, the schedule's source and the seed
+%     <Name>_synthetic.json   the design, the scenario and the seed
 %
 %   The schedule: when the events happen
-%     By default the built-in AM-detection task (syntheticTaskSchedule), one
-%     trial per InTrial interval, with a Scenario for how the recording
-%     relates to the Epsych2 session:
+%     The built-in AM-detection task (syntheticTaskSchedule), one trial per
+%     InTrial interval, with a Scenario for how the recording relates to
+%     the Epsych2 session:
 %       "clean"       the recording covers every trial: as many InTrial
 %                     intervals as trials
 %       "late-start"  the recording started during trial 3: trials 1-2 have no
@@ -46,23 +47,13 @@ function T = makeSyntheticRecording(folder, opts)
 %     T.expectedCuts gives the cuts (trials / intervals dropped from the start
 %     and the end) after which every remaining trial pairs with a whole
 %     interval; see pairEpsychTrials.
-%     Session=S (syntheticSessionSchedule) takes a real Epsych2 session
-%     instead: the recording gets its lines (as recorded, or rebuilt from the
-%     session's parameters) over its length, and a copy of the session is
-%     written next to it (Data as saved; Info with this Subject, the new
-%     file name and an Info.Synthetic note naming the source). The copy's
-%     times move with AcqTime. NumTrials and Scenario do not apply.
 %
 %   Options
 %     Subject        "SYNTH-01"
-%     Design         SyntheticDesign: units, event-linked LFP, background
+%     Design         SyntheticDesign: units, evoked potentials, noise, sine
 %                    (default SyntheticDesign.builtIn(NumChannels))
-%     Session        schedule struct from syntheticSessionSchedule (default:
-%                    the built-in task)
 %     Scenario       "clean" (default) | "late-start" | "early-stop" | "spurious"
 %     NumTrials      12 (at least 4)
-%     MaxDuration    Inf: with Session, stop the recording after this many
-%                    seconds (lines still on then end at the last sample)
 %     Format         "traditional" (default: RHX-style *.rhd files of
 %                    FileSeconds each) | "one-file-per-signal" (info.rhd +
 %                    *.dat) | "binary" (recording.json + .bin; no aux inputs)
@@ -87,13 +78,11 @@ function T = makeSyntheticRecording(folder, opts)
 %                    starts is lost where the format cannot know it (the Open
 %                    Ephys format without an edge in that recording; NWB in
 %                    a recording without any edge)
-%     Fs             30000 (with Session: the source's rate when known;
-%                    "tdt": 24414.0625, or the source's when it is a TDT rate)
-%     NumChannels    16 (at least 2; with Session: the source's count)
+%     Fs             30000 ("tdt": 24414.0625)
+%     NumChannels    16 (at least 2)
 %     FileSeconds    30 (also the size of the chunks generated in memory)
-%     AcqTime        nominal start of the recording (default: with Session,
-%                    the source recording's start; else 2 min ago). The
-%                    built-in session starts 65 s earlier, as in the lab. The
+%     AcqTime        nominal start of the recording (default 2 min ago). The
+%                    session starts 65 s earlier, as in the lab. The
 %                    Intan files are named from it as RHX names them and
 %                    stamped as RHX leaves them: each data file with the
 %                    time it was closed (the end of its data), info.rhd
@@ -101,14 +90,14 @@ function T = makeSyntheticRecording(folder, opts)
 %                    stamping worked)
 %     Seed           1 (the same seed gives the same data in every format)
 %     Probe          struct chanMap / xc / yc / kcoords for the site geometry
-%                    (default: with Session, its probe file when it has the
-%                    sites; else makeSyntheticProbe(NumChannels))
-%     ProbeFile      probe .json recorded in the manifest (default: with
-%                    Session, its probe file when that gave the sites; else
-%                    none, or with WriteProbe the synthetic probe)
-%     WriteProbe     false: true writes the synthetic probe (when no probe
-%                    file gave the sites) as <Name>_probe.json in FOLDER
-%                    and records it in the manifest
+%                    (default makeSyntheticProbe(NumChannels)); it only
+%                    places the channels in the sorted output and the probe
+%                    file, the signals do not depend on it
+%     ProbeFile      probe .json recorded in the manifest (default: none,
+%                    or with WriteProbe the synthetic probe)
+%     WriteProbe     false: true writes the synthetic probe (when neither
+%                    Probe nor ProbeFile is given) as <Name>_probe.json in
+%                    FOLDER and records it in the manifest
 %     PreviewOnly    false: true writes nothing and returns, at once, what
 %                    would be written: T.model (syntheticModel), T.schedule
 %                    and the fields up to trials (the app's Synthetic tab
@@ -116,42 +105,36 @@ function T = makeSyntheticRecording(folder, opts)
 %     SortedOutput   true
 %     Artifacts      true
 %     InvertedLines  lines written with inverted logic: on = low (default
-%                    none; with a Session, the lines its source inverts,
-%                    except for the Open Ephys and TDT formats, which cannot)
+%                    none; not for the Open Ephys and TDT formats)
 %     WriteManifest  true
 %     ProgressFcn    ProgressFcn(fraction, message)
 %
-%   T fields: folder, name, subject, scenario ("session" with Session),
-%   format, parts (part end rows), lineNames (Open Ephys: "TTL1=Trough",
-%   ...), Fs, nSamples, duration, files, acqTime, sessionStart,
-%   behaviorFile, channelNames, digInNames, digInOrders, trialLine,
-%   invertedLines, events (struct: line -> [k x 2] seconds ON, t = row/Fs,
-%   the readers' convention), nTrials, nIntervals, expectedCuts (trials /
-%   intervals [start end]; NaN with Session), trials (table: TrialIndex,
-%   TrialType, RespCode (NaN when the session has none), Onset, Offset,
-%   Interval; NaN outside the recording), units (struct array: id,
-%   name, peakChannel, samples (1-based rows), amplitudeUV, widthMs,
-%   baselineHz, label, modulation, event, edge, shape, gain, latencyMs,
-%   durationMs, jitterMs, parameter, tuning, eventTimes (s: the edges it
-%   responds to), starts (s: its responses' starts)), lfp (the resolved LFP
-%   components, see syntheticModel), design, source (the schedule's
-%   source, "" for the built-in task), designFile, artifacts ([k x 2] s),
-%   aux (names, Fs), sortedDir, manifestFile, probeFile (the probe the
-%   manifest records, "" for none), probeSource ("given" | "session" |
-%   "synthetic": where the sites came from), fileTimesSet, bytes, seed.
+%   T fields: folder, name, subject, scenario, format, parts (part end
+%   rows), lineNames (Open Ephys: "TTL1=Trough", ...), Fs, nSamples,
+%   duration, files, acqTime, sessionStart, behaviorFile, channelNames,
+%   digInNames, digInOrders, trialLine, invertedLines, events (struct: line
+%   -> [k x 2] seconds ON, t = row/Fs, the readers' convention), nTrials,
+%   nIntervals, expectedCuts (trials / intervals [start end]), trials
+%   (table: TrialIndex, TrialType, RespCode, Onset, Offset, Interval; NaN
+%   outside the recording), units (struct array: id, name, peakChannel,
+%   samples (1-based rows), amplitudeUV, baselineHz, label, modulation,
+%   event, edge, gain, latencyMs, durationMs, parameter, eventTimes (s: the
+%   edges it responds to), starts (s: its responses' starts)), lfp (the
+%   resolved evoked potentials, see syntheticModel), design, designFile,
+%   artifacts ([k x 2] s), aux (names, Fs, offset), sortedDir,
+%   manifestFile, probeFile (the probe the manifest records, "" for none),
+%   probeSource ("given" | "synthetic"), fileTimesSet, bytes, seed.
 %
 %   See also makeSyntheticProject, makeSyntheticProbe, SyntheticDesign,
-%   syntheticModel, syntheticTaskSchedule, syntheticSessionSchedule,
-%   EphysDataset, pairEpsychTrials, readEpsychSession.
+%   syntheticModel, syntheticTaskSchedule, EphysDataset, pairEpsychTrials,
+%   readEpsychSession.
 
 arguments
     folder (1,1) string
     opts.Subject (1,1) string = "SYNTH-01"
     opts.Design = []
-    opts.Session (1,1) struct = struct()
     opts.Scenario (1,1) string {mustBeMember(opts.Scenario, ["clean" "late-start" "early-stop" "spurious"])} = "clean"
     opts.NumTrials (1,1) double {mustBeInteger, mustBeGreaterThanOrEqual(opts.NumTrials, 4)} = 12
-    opts.MaxDuration (1,1) double {mustBePositive} = Inf
     opts.Format (1,1) string {mustBeMember(opts.Format, ["traditional" "one-file-per-signal" "binary" ...
         "openephys-binary" "openephys-legacy" "openephys-nwb" "tdt"])} = "traditional"
     opts.Fs (1,1) double = NaN
@@ -174,31 +157,19 @@ end
 rngState = rng;                     % the caller's generator, put back at the end
 restoreRng = onCleanup(@() rng(rngState)); %#ok<NASGU>
 rng(opts.Seed, 'twister');
-fromSession = ~isempty(fieldnames(opts.Session));
-S = opts.Session;
-if fromSession && ~(isfield(S, 'kind') && S.kind == "session")
-    error('makeSyntheticRecording:Session', 'Session must be a schedule from syntheticSessionSchedule.');
-end
-if ~fromSession && isfinite(opts.MaxDuration)
-    error('makeSyntheticRecording:MaxDuration', 'MaxDuration applies with a Session only.');
-end
 isTDT = opts.Format == "tdt";
 tdtRate = @(f) isfinite(f) && f > 0 && abs(195312.5 / f - round(195312.5 / f)) < 1e-9;
 Fs = opts.Fs;
 if isnan(Fs)
     Fs = 30000;
     if isTDT; Fs = 24414.0625; end
-    if fromSession && isfinite(S.Fs) && (~isTDT || tdtRate(S.Fs)); Fs = S.Fs; end
 end
 if isTDT && ~tdtRate(Fs)
     error('makeSyntheticRecording:TDTRate', ...
         'A TDT block''s rate must divide 195312.5 Hz (e.g. 24414.0625 or 12207.03125); %g does not.', Fs);
 end
 nCh = opts.NumChannels;
-if isnan(nCh)
-    nCh = 16;
-    if fromSession && isfinite(S.nChannels); nCh = S.nChannels; end
-end
+if isnan(nCh); nCh = 16; end
 if ~(Fs > 0) || ~(nCh >= 2 && nCh == round(nCh))
     error('makeSyntheticRecording:Size', 'Fs must be > 0 and NumChannels a whole number >= 2.');
 end
@@ -235,35 +206,16 @@ name = string(leaf);
     end
 
 % --- the schedule ---------------------------------------------------------------
-if fromSession
-    scenario = "session";
-    acq = opts.AcqTime;
-    if isnat(acq); acq = S.acqTime; end
-    if isnat(acq); acq = dateshift(datetime('now') - minutes(2), 'start', 'second'); end
-    L = min(S.duration, opts.MaxDuration);
-    if isfinite(S.nSamples) && Fs == S.Fs && ~isfinite(opts.MaxDuration)
-        nSamp = ceil(S.nSamples / spb) * spb;    % as long as the source (padded to whole blocks)
-    else
-        nSamp = max(spb, ceil(L * Fs / spb) * spb);
-    end
-    if isfinite(opts.MaxDuration)
-        nSamp = max(spb, floor(opts.MaxDuration * Fs / spb) * spb);
-        nSamp = min(nSamp, ceil(S.duration * Fs / spb) * spb);
-    end
-    cuts = struct('trials', [NaN NaN], 'intervals', [NaN NaN]);
-    S = alignToRate(S, Fs, nSamp);
+S = syntheticTaskSchedule(NumTrials=opts.NumTrials, Scenario=opts.Scenario);
+scenario = opts.Scenario;
+acq = opts.AcqTime;
+if isnat(acq); acq = dateshift(datetime('now') - minutes(2), 'start', 'second'); end
+if scenario == "early-stop"
+    nSamp = round(S.duration * Fs / spb) * spb;
 else
-    S = syntheticTaskSchedule(NumTrials=opts.NumTrials, Scenario=opts.Scenario);
-    scenario = opts.Scenario;
-    acq = opts.AcqTime;
-    if isnat(acq); acq = dateshift(datetime('now') - minutes(2), 'start', 'second'); end
-    if scenario == "early-stop"
-        nSamp = round(S.duration * Fs / spb) * spb;
-    else
-        nSamp = ceil(S.duration * Fs / spb) * spb;
-    end
-    cuts = S.expectedCuts;
+    nSamp = ceil(S.duration * Fs / spb) * spb;
 end
+cuts = S.expectedCuts;
 L = nSamp / Fs;
 lineNames = reshape(string(S.lineNames), 1, []);
 trialLine = string(S.trialLine);
@@ -276,22 +228,11 @@ if ~isempty(bad)
     error('makeSyntheticRecording:InvertedLines', 'Unknown line(s) in InvertedLines: %s', strjoin(bad, ', '));
 end
 inverted = opts.InvertedLines;
-if fromSession && isempty(inverted) && ~isOE && ~isTDT && isfield(S, 'invertedLines')
-    inverted = intersect(reshape(string(S.invertedLines), 1, []), lineNames, 'stable');   % as the source records them
-end
 
 % --- the probe --------------------------------------------------------------------
 probe = opts.Probe;
 probeFile = opts.ProbeFile;                 % the probe the manifest records
 probeSource = "given";
-if isempty(fieldnames(probe)) && fromSession && S.probeFile ~= "" && isfile(S.probeFile)
-    p = readJsonFile(S.probeFile, ErrorOnFail=false);
-    if isstruct(p) && isfield(p, 'xc') && isfield(p, 'yc') && numel(p.xc) >= nCh && numel(p.yc) >= nCh
-        probe = sitesInChannelOrder(p, nCh);
-        probeSource = "session";
-        if probeFile == ""; probeFile = S.probeFile; end
-    end
-end
 if isempty(fieldnames(probe))
     probe = makeSyntheticProbe(nCh);
     probeSource = "synthetic";
@@ -319,8 +260,8 @@ oeLineNames = "TTL" + (1:nLines) + "=" + lineNames;
 tdtStores = "PC" + string(cellstr(dec2hex(0:nLines-1))).' + "_";   % PC0_, PC1_, ..., PCF_
 tdtLineNames = tdtStores + "=" + lineNames;
 
-% --- the model: lines at Fs, units, LFP, background -------------------------------
-M = syntheticModel(S, D, Fs, nSamp, struct('xc', xc, 'yc', yc), Artifacts=opts.Artifacts);
+% --- the model: lines at Fs, units, evoked potentials, noise ---------------------
+M = syntheticModel(S, D, Fs, nSamp, nCh, Artifacts=opts.Artifacts);
 rows = M.rows;
 trialRows = M.trialRows;
 [~, trialInterval] = ismember(trialRows, rows.(trialLine), 'rows');
@@ -334,7 +275,7 @@ if opts.PreviewOnly
         trialRows, trialInterval, nIntervals, cuts, D, probeSource, probeFile, xc, yc, kcoords, opts.Seed);
     return
 end
-auxBase = [1.65 1.70 2.00]; auxF = [0.9 1.3 0.7]; auxPh = 2 * pi * rand(1, 3);
+auxBase = [1.65 1.70 2.00];                % volts; 0.1 V higher while the trial line is on
 
 % --- Open Ephys recordings (parts): boundaries outside the trial line's intervals --
 partEnd = nSamp;
@@ -393,12 +334,7 @@ if isTDT
         'NumChannels', nCh, 'StartTime', posixtime(datetime(acq, 'TimeZone', 'local')), ...
         'LineStores', {cellstr(tdtStores)}));
 end
-if fromSession
-    notes = [sprintf("Synthetic recording (seed %d) written by makeSyntheticRecording", opts.Seed), ...
-        "Schedule from the Epsych2 session of " + S.source, ""];
-else
-    notes = [sprintf("Synthetic recording (%s scenario, seed %d) written by makeSyntheticRecording", scenario, opts.Seed), "", ""];
-end
+notes = [sprintf("Synthetic recording (%s scenario, seed %d) written by makeSyntheticRecording", scenario, opts.Seed), "", ""];
 
 for sIdx = 1:nSeg
     s0 = (sIdx - 1) * nSegSamp;
@@ -419,15 +355,14 @@ for sIdx = 1:nSeg
             W = bitxor(W, bit);
         end
     end
-    % accelerometer at Fs/4: the animal moves between trials
-    t4 = t(1:4:end);
-    moving = ones(numel(t4), 1);
+    % accelerometer at Fs/4: a step of 0.1 V while the trial line is on
+    r4 = s0 + (1:4:n).';                    % the rows the Fs/4 samples are taken at
+    inTrial = false(numel(r4), 1);
     tl = rows.(trialLine);
     for i = find(tl(:, 2) >= s0 + 1 & tl(:, 1) <= s0 + n).'
-        moving(t4 >= (tl(i, 1) - 1) / Fs & t4 <= tl(i, 2) / Fs) = 0.15;
+        inTrial(r4 >= tl(i, 1) & r4 <= tl(i, 2)) = true;
     end
-    V = auxBase + moving .* (0.06 * sin(2 * pi * auxF .* t4 + auxPh) + 0.03 * sin(2 * pi * 3.1 * auxF .* t4)) ...
-        + 0.004 * randn(numel(t4), 3);
+    V = auxBase + 0.1 * inTrial;
     auxRaw = uint16(min(max(round(V / auxVoltsPerBit), 0), 65535)).';   % [3 x n/4]
 
     switch fmt
@@ -482,7 +417,6 @@ switch fmt
         fileTimes = [acq, repmat(acq + seconds(nSamp / Fs), 1, numel(files) - 1)];
     case "binary"
         src = struct('tool', "makeSyntheticRecording", 'scenario', scenario, 'seed', opts.Seed);
-        if fromSession; src.session = S.source; end
         BinaryReader.writeDescriptor(folder, struct( ...
             'name', name, 'data_file', name + ".bin", 'dtype', "int16", 'n_chan', nCh, 'fs', Fs, ...
             'n_samples', nSamp, 'gain_to_uV', uvPerBit, 'offset', 0, ...
@@ -504,20 +438,12 @@ end
 
 % --- the Epsych2 session file ---------------------------------------------------
 tick(nSeg / (nSeg + 1), "Writing the Epsych2 session");
-if fromSession
-    [Data, Info, sessionStart] = sessionCopy(S, acq, subject);
-else
-    sessionStart = acq - seconds(S.sessionLead);
-    Data = S.Data;
-    ts = sessionStart + seconds(S.trialEnd);        % session-relative trial ends
-    for k = 1:numel(Data); Data(k).computerTimestamp = ts(k); end
-end
+sessionStart = acq - seconds(S.sessionLead);
+Data = S.Data;
+ts = sessionStart + seconds(S.trialEnd);        % session-relative trial ends
+for k = 1:numel(Data); Data(k).computerTimestamp = ts(k); end
 behFile = fullfile(folder, subject + "_" + fmtTime(sessionStart, 'yyMMdd''T''HHmmss') + ".mat");
-if fromSession
-    Info.DataFilename = char(behFile);
-else
-    Info = taskInfo(subject, behFile, sessionStart, scenario, opts.Seed);
-end
+Info = taskInfo(subject, behFile, sessionStart, scenario, opts.Seed);
 save(behFile, 'Data', 'Info');
 setFileModifiedTime(behFile, sessionStart);
 
@@ -531,12 +457,12 @@ if opts.SortedOutput
     tick(nSeg / (nSeg + 1), "Writing the ground-truth sorted output");
     sortedDir = fullfile(folder, 'kilosort4');
     if ~isfolder(sortedDir); mkdir(sortedDir); end
-    allS = zeros(0, 1); allC = zeros(0, 1); allA = zeros(0, 1);
+    allS = zeros(0, 1); allC = zeros(0, 1);
     for u = 1:nU
         allS = [allS; units(u).samples(:) - 1]; %#ok<AGROW>
         allC = [allC; (u - 1) * ones(numel(units(u).samples), 1)]; %#ok<AGROW>
-        allA = [allA; units(u).scales(:)]; %#ok<AGROW>
     end
+    allA = ones(numel(allS), 1);                        % every spike at its template's amplitude
     nNoise = 25;                                        % a "noise" cluster on the artifacts
     if ~isempty(artRows)
         k = randi(size(artRows, 1), nNoise, 1);
@@ -582,15 +508,10 @@ if opts.SortedOutput
 end
 
 % --- the design, for the record ----------------------------------------------------
-source = ""; sourceFile = ""; timing = "task";
-if fromSession
-    source = S.source; sourceFile = S.behaviorFile;
-    if isfield(S, 'timing'); timing = S.timing; end
-end
 designFile = fullfile(folder, name + "_synthetic.json");
 writeJsonFile(designFile, struct('tool', "makeSyntheticRecording", 'seed', opts.Seed, 'Fs', Fs, ...
-    'numChannels', nCh, 'schedule', struct('kind', string(S.kind), 'scenario', scenario, 'source', source, ...
-    'behaviorFile', sourceFile, 'timing', timing), 'design', D.toStruct()), NonFinite="string");
+    'numChannels', nCh, 'schedule', struct('kind', string(S.kind), 'scenario', scenario, ...
+    'numTrials', height(S.trials)), 'design', D.toStruct()), NonFinite="string");
 
 % --- verify by reading the headers back; write the manifest ----------------------
 ds = EphysDataset(folder);
@@ -623,18 +544,17 @@ for ln = lineNames
     events.(ln) = iv / Fs;
 end
 unitTruth = struct('id', {}, 'name', {}, 'peakChannel', {}, 'samples', {}, 'amplitudeUV', {}, ...
-    'widthMs', {}, 'baselineHz', {}, 'label', {}, 'modulation', {}, 'event', {}, 'edge', {}, 'shape', {}, ...
-    'gain', {}, 'latencyMs', {}, 'durationMs', {}, 'jitterMs', {}, 'parameter', {}, 'tuning', {}, ...
-    'eventTimes', {}, 'starts', {});
+    'baselineHz', {}, 'label', {}, 'modulation', {}, 'event', {}, 'edge', {}, 'gain', {}, ...
+    'latencyMs', {}, 'durationMs', {}, 'parameter', {}, 'eventTimes', {}, 'starts', {});
 for u = 1:nU
     q = units(u);
     lbl = "";
     if ~isempty(labels); lbl = labels(u); end
     unitTruth(u) = struct('id', q.id, 'name', q.name, 'peakChannel', q.peakChannel, 'samples', q.samples, ...
-        'amplitudeUV', q.amplitudeUV, 'widthMs', q.widthMs, 'baselineHz', q.baselineHz, 'label', lbl, ...
-        'modulation', q.modulation, 'event', q.event, 'edge', q.edge, 'shape', q.shape, 'gain', q.gain, ...
-        'latencyMs', q.latencyMs, 'durationMs', q.durationMs, 'jitterMs', q.jitterMs, ...
-        'parameter', q.parameter, 'tuning', q.tuning, 'eventTimes', q.eventTimes, 'starts', q.starts);
+        'amplitudeUV', q.amplitudeUV, 'baselineHz', q.baselineHz, 'label', lbl, ...
+        'modulation', q.modulation, 'event', q.event, 'edge', q.edge, 'gain', q.gain, ...
+        'latencyMs', q.latencyMs, 'durationMs', q.durationMs, 'parameter', q.parameter, ...
+        'eventTimes', q.eventTimes, 'starts', q.starts);
 end
 N = height(S.trials);
 trials = truthTrials(S, trialRows, trialInterval, Fs);
@@ -678,7 +598,6 @@ T.trials        = trials;
 T.units         = unitTruth;
 T.lfp           = lfp;
 T.design        = D;
-T.source        = source;
 T.designFile    = string(designFile);
 T.artifacts     = [artRows(:, 1) - 1, artRows(:, 2)] / Fs;   % [a b) on the continuous clock
 T.aux           = struct('names', auxNames, 'Fs', auxFs, 'offset', auxOffset);   % Open Ephys: volts - 1.2255
@@ -693,36 +612,6 @@ end
 
 
 %% ---------------------------------------------------------------------------
-function S = alignToRate(S, Fs, nSamp)
-%alignToRate  A schedule of recorded lines at the rate and length written.
-%   Recorded lines are at t = row/S.Fs. At another rate each edge goes to
-%   the sample of its own, round((t - 1/S.Fs)*Fs) + 1, as events map onto
-%   any signal. A line still on at the source's last sample stays on to the
-%   end when the recording is padded to whole blocks, so a partial interval
-%   does not become a complete one.
-if ~(isfield(S, 'timing') && S.timing == "recording" && isfinite(S.Fs) && isfinite(S.nSamples)); return; end
-if Fs ~= S.Fs
-    map = @(t) (round((t - 1 / S.Fs) * Fs) + 1) / Fs;
-else
-    map = @(t) t;
-end
-tLast = S.nSamples / S.Fs;           % the source's last row
-tEnd = nSamp / Fs;
-for ln = reshape(string(fieldnames(S.events)), 1, [])
-    iv = S.events.(ln);
-    if isempty(iv); continue; end
-    open = iv(:, 2) >= tLast - 0.5 / S.Fs;
-    iv = map(iv);
-    iv(open, 2) = max(iv(open, 2), tEnd);
-    S.events.(ln) = iv;
-end
-open = S.trials.Offset >= tLast - 0.5 / S.Fs;
-S.trials.Onset = map(S.trials.Onset);
-S.trials.Offset = map(S.trials.Offset);
-S.trials.Offset(open) = max(S.trials.Offset(open), tEnd);
-end
-
-
 function trials = truthTrials(S, trialRows, trialInterval, Fs)
 %truthTrials  One row per Epsych2 trial: where its trial-line interval was written.
 N = height(S.trials);
@@ -770,39 +659,6 @@ T.model        = M;
 end
 
 
-function [Data, Info, sessionStart] = sessionCopy(S, acq, subject)
-%sessionCopy  The source session, moved in time with the recording and renamed to SUBJECT.
-Data = S.Data;
-Info = S.Info;
-delta = seconds(0);
-if ~isnat(S.acqTime); delta = acq - S.acqTime; end
-sessionStart = S.sessionStart;
-if isnat(sessionStart)
-    sessionStart = acq - seconds(65);
-else
-    sessionStart = sessionStart + delta;
-end
-if isstruct(Info)
-    if isfield(Info, 'StartTime') && isdatetime(Info.StartTime); Info.StartTime = Info.StartTime + delta; end
-    if isfield(Info, 'Subject') && isstruct(Info.Subject)
-        if isfield(Info.Subject, 'Name'); Info.Subject.Name = subject; end
-        if isfield(Info.Subject, 'ID'); Info.Subject.ID = subject; end
-    else
-        Info.Subject = subject;
-    end
-    Info.Synthetic = struct('SourceFile', S.behaviorFile, 'SourceSubject', S.subject, ...
-        'Source', S.source, 'Note', "A copy of the source session for a synthetic recording (makeSyntheticRecording).");
-end
-if isstruct(Data) && isfield(Data, 'computerTimestamp')
-    for k = 1:numel(Data)
-        if isdatetime(Data(k).computerTimestamp)
-            Data(k).computerTimestamp = Data(k).computerTimestamp + delta;
-        end
-    end
-end
-end
-
-
 function Info = taskInfo(subject, behFile, sessionStart, scenario, seed)
 %taskInfo  Info of the built-in task's session.
 Info = struct();
@@ -821,22 +677,6 @@ Info.TrialTable = [Info.WriteParams; {0, 0.5, 10, 1000, 500, 600, 1300, 2000, 60
 Info.WriteParamIdx = cell2struct(num2cell(1:numel(Info.WriteParams)), Info.WriteParams, 2);
 Info.Notes = struct('Trial', [], 'Time', [], 'Elapsed', [], 'Subject', subject, 'Text', "");
 Info.NotesText = sprintf('Synthetic session (%s scenario, seed %d) written by makeSyntheticRecording.', scenario, seed);
-end
-
-
-function probe = sitesInChannelOrder(p, nCh)
-%sitesInChannelOrder  A probe's sites for channels 1..nCh (channel c sits where chanMap is c - 1).
-xc = double(p.xc(:)); yc = double(p.yc(:));
-kc = zeros(numel(xc), 1);
-if isfield(p, 'kcoords') && numel(p.kcoords) == numel(xc); kc = double(p.kcoords(:)); end
-cm = (0:numel(xc) - 1).';
-if isfield(p, 'chanMap') && numel(p.chanMap) == numel(xc); cm = double(p.chanMap(:)); end
-probe = struct('xc', zeros(nCh, 1), 'yc', zeros(nCh, 1), 'kcoords', zeros(nCh, 1));
-for c = 1:nCh
-    j = find(cm == c - 1, 1);
-    if isempty(j); j = min(c, numel(xc)); end
-    probe.xc(c) = xc(j); probe.yc(c) = yc(j); probe.kcoords(c) = kc(j);
-end
 end
 
 

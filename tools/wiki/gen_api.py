@@ -1008,7 +1008,7 @@ PIPE_GROUPS = [
     ("Units and names", ["unitTable", "parseNameTokens"]),
     ("Derived signals and conversion", ["intan2matlab", "matrix2kilosort", "extract_trials"]),
     ("Synthetic data", ["makeSyntheticProject", "makeSyntheticRecording", "makeSyntheticProbe",
-                        "syntheticModel", "syntheticSessionSchedule", "syntheticTaskSchedule",
+                        "syntheticModel", "syntheticTaskSchedule",
                         "benchmarkDetection"]),
     ("Probe maps", ["probeMapProblems", "writeProbeMap"]),
     ("File I/O", ["readJsonFile", "writeJsonFile", "stringifyNonFinite", "readNPY", "writeNPY", "readNPZ",

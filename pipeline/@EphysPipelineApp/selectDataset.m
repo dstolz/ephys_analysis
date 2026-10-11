@@ -48,7 +48,6 @@ obj.highlightDatasetRow(Scroll=~opts.FromTable);
 if changed
     clearResults(obj);
     obj.ReviewDatasetIdx = -1;   % reload when the Review tab shows
-    obj.onSynthSourceChanged();  % a schedule read from the previous dataset no longer applies
 end
 obj.syncExcludeField();
 obj.onProbeSelected();

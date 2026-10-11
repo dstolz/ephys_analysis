@@ -13,8 +13,7 @@ function S = syntheticTaskSchedule(opts)
 %     NumTrials   12 (at least 4)
 %     Scenario    "clean" | "late-start" | "early-stop" | "spurious"
 %
-%   S fields (the schedule every synthetic recording is written from; see
-%   also syntheticSessionSchedule)
+%   S fields (the schedule every synthetic recording is written from)
 %     kind          "task"
 %     lineNames     the six lines, in bit order
 %     trialLine     "InTrial"

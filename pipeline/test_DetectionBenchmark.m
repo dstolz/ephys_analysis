@@ -2,27 +2,30 @@ classdef test_DetectionBenchmark < matlab.unittest.TestCase
     %test_DetectionBenchmark  Spike and artifact detection meet their accuracy floors on synthetic truth.
     %   benchmarkDetection writes one synthetic recording (8 channels, about
     %   55 s, units of 40 / 60 / 90 / 140 / 200 uV on channels 1 / 3 / 5 / 7 /
-    %   8, at 10 Hz, over the generator's default background and its two
-    %   artifacts), detects with
+    %   8, at 10 Hz, over the generator's default background, 10 uV of white
+    %   noise and a 100 uV 2 Hz sine, and its two artifacts), detects with
     %   the pipeline's default settings and scores the result against the
     %   truth. The floors are regression floors, set below what a model of
-    %   the same signal and detectors gave over six seeds:
+    %   the same signal and detectors gave over eight seeds:
     %
     %     measure (default settings)            model     floor
-    %     recall, units with SNR >= 6           >= 0.985  >= 0.95
-    %     recall, the 40 uV unit (SNR ~4.3)     0.82-0.88 >= 0.6
+    %     recall, units with SNR >= 6           >= 0.998  >= 0.95
+    %     recall, the 40 uV unit (SNR ~4.0)     0.75-0.81 >= 0.6
     %     precision, all detections             ~0.82     >= 0.7
-    %     duplicates per visible spike (max)    <= 0.51   <= 0.8
-    %     isolated noise crossings (max/chan)   <= 0.56   <= 1.0 Hz
+    %     duplicates per visible spike (max)    <= 0.48   <= 0.8
+    %     isolated noise crossings (max/chan)   <= 0.95   <= 1.5 Hz
     %     artifacts found / coverage            all / 1   all / >= 0.99
     %     artifact edges                        <= 0.5 ms <= 2 ms
     %     false artifact intervals              0         0
     %
     %   The duplicates are second crossings of large spikes (the band-passed
     %   waveform's later lobe, past MinPeriodMs): their ceiling guards
-    %   against more of them, it does not say they are wanted. Raise a floor
-    %   when the detector improves; report R (benchmarkDetection) when one
-    %   fails.
+    %   against more of them, it does not say they are wanted. The isolated
+    %   crossings are what Gaussian noise gives at 4 x MAD in the 500-5000 Hz
+    %   band (about 0.95 Hz, Rice's formula): the background is pure white
+    %   noise there, and the channels without a unit carry nothing else.
+    %   Raise a floor when the detector improves; report R
+    %   (benchmarkDetection) when one fails.
     %
     %   Usage:  runtests("test_DetectionBenchmark")
     %           run_all_tests(Tag="Benchmark")
@@ -58,7 +61,7 @@ classdef test_DetectionBenchmark < matlab.unittest.TestCase
         function spikePrecision(tc)
             s = tc.R.summary;
             tc.verifyGreaterThanOrEqual(s.precision, 0.7);
-            tc.verifyLessThanOrEqual(s.maxIsolatedHz, 1.0, "noise crossings at 4 x MAD: under 1 Hz per channel");
+            tc.verifyLessThanOrEqual(s.maxIsolatedHz, 1.5, "noise crossings at 4 x MAD: about 1 Hz per channel on Gaussian noise");
             tc.verifyLessThanOrEqual(s.maxDuplicatesPerSpike, 0.8, "second crossings of large spikes do not grow");
             C = tc.R.channels;
             tc.verifyEqual(C.matched + C.duplicates + C.isolated, C.detections, "every detection is classified once");

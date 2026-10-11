@@ -1,5 +1,5 @@
 function applySynthDesign(obj, D)
-%applySynthDesign  Show SyntheticDesign D in the Synthetic tab's tables and background fields.
+%applySynthDesign  Show SyntheticDesign D in the Synthetic tab's tables and noise fields.
 %   An empty Event or Parameter shows as "(none)". See gatherSynthDesign.
 arguments
     obj (1,1) EphysPipelineApp
@@ -7,12 +7,8 @@ arguments
 end
 obj.SynthUnitsTable.Data = toCells(D.Units, obj.synthColumns("unit"));
 obj.SynthLFPTable.Data = toCells(D.LFP, obj.synthColumns("lfp"));
-B = D.Background;
-obj.SynthRhythmField.Value = B.RhythmScale;
-obj.SynthPinkField.Value = B.PinkUV;
-obj.SynthNoiseField.Value = B.NoiseUV;
-obj.SynthLineNoiseField.Value = B.LineNoiseUV;
-if ismember(B.LineFreqHz, [50 60]); obj.SynthLineFreqDropDown.Value = B.LineFreqHz; end
+obj.SynthNoiseField.Value = D.NoiseUV;
+obj.SynthSineField.Value = D.SineUV;
 end
 
 
@@ -25,8 +21,6 @@ for j = 1:numel(vars)
             s = x(i);
             if s == "" && ismember(vars(j), ["Event" "Parameter"]); s = "(none)"; end
             C{i, j} = char(s);
-        elseif islogical(x)
-            C{i, j} = x(i);
         else
             C{i, j} = double(x(i));
         end

@@ -3009,7 +3009,14 @@ label above.
 
 ## Synthetic
 
-Designs, previews and writes one synthetic dataset with
+This tab exists to create ground-truth data for testing the accuracy of the
+pipeline and of the analyses that follow it. Because the designer chooses the
+units, their spike times, the event-linked responses and the LFP, the correct
+answer is known. Running the pipeline and the analyses on the synthetic
+recording and comparing their results with the design shows whether, and how
+well, they recover what was put in.
+
+It designs, previews and writes one synthetic dataset with
 [`makeSyntheticRecording`](../pipeline/makeSyntheticRecording.m): a
 recording, a copy of its Epsych2 session, ground-truth sorted output and a
 manifest. The neural signals are a [`SyntheticDesign`](../pipeline/SyntheticDesign.m);

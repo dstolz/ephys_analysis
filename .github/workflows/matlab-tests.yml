@@ -65,6 +65,12 @@ jobs:
             cd pipeline
             run_all_tests(names, JUnit=junit);
 
+      - name: List the failed tests
+        if: failure() && hashFiles('test-results/junit.xml') != ''
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python .github/scripts/junit_failures.py test-results/junit.xml
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v6

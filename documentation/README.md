@@ -433,7 +433,9 @@ on a Windows runner with MATLAB R2025a and the Signal Processing, Statistics
 and Machine Learning, and Parallel Computing toolboxes, set up by the
 MathWorks actions (`matlab-actions/setup-matlab`, `run-command`), which
 license MATLAB for a public repository with no secret. The JUnit report is
-kept as the run's `test-results-*` artifact. **Run workflow** on the Actions
+kept as the run's `test-results-*` artifact; a failed run lists the failed
+tests with their messages at the end of its log and in its job summary
+([`junit_failures.py`](../.github/scripts/junit_failures.py)). **Run workflow** on the Actions
 tab runs chosen suites (names separated by spaces). The runner has no
 Kilosort4 or phy environment and no GPU, so the tests that need them are
 skipped there as on any machine without them.

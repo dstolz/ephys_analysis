@@ -429,8 +429,9 @@ or by tag (`Tag=`).
 
 GitHub Actions runs every suite on each pull request and each push to `main`
 ([`matlab-tests.yml`](../.github/workflows/matlab-tests.yml)): `run_all_tests`
-on a Windows runner with MATLAB R2025a and the Signal Processing, Statistics
-and Machine Learning, and Parallel Computing toolboxes, set up by the
+on a Windows runner (its screen set to 1920x1080, as the app tests expect a
+desktop-sized screen) with MATLAB R2025a and the Signal Processing,
+Statistics and Machine Learning, and Parallel Computing toolboxes, set up by the
 MathWorks actions (`matlab-actions/setup-matlab`, `run-command`), which
 license MATLAB for a public repository with no secret. The JUnit report is
 kept as the run's `test-results-*` artifact; a failed run lists the failed

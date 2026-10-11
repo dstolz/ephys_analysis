@@ -53,12 +53,25 @@ jobs:
             Parallel_Computing_Toolbox
           cache: true
 
+      # The hosted Windows runner's screen is 1024x768, smaller than the apps' windows (the pipeline
+      # app opens at 1240x800); the app tests point at plots laid out for a desktop-sized screen.
+      - name: Set the screen to 1920x1080
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (Get-Command Set-DisplayResolution -ErrorAction SilentlyContinue) {
+            Set-DisplayResolution -Width 1920 -Height 1080 -Force
+          } else {
+            Write-Warning "Set-DisplayResolution is not available; the screen stays as it is."
+          }
+
       - name: Run tests
         uses: matlab-actions/run-command@v3
         env:
           SUITES: ${{ inputs.suites }}
         with:
           command: |
+            disp("Screen size: " + mat2str(get(groot, "ScreenSize")));
             junit = fullfile(pwd, "test-results", "junit.xml");
             names = split(strtrim(string(getenv("SUITES"))));
             names = reshape(names(names ~= ""), 1, []);

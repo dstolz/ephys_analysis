@@ -32,7 +32,8 @@ function h = renderPSTH(R, target, opts)
 %     Normalize   "none" (default); "unitPeak": each unit's PSTHs divided by
 %                 their largest absolute value over every group (the groups
 %                 keep their sizes); "groupPeak": each PSTH divided by its
-%                 own. The overlay layout normalizes each unit before the
+%                 own; "allPeak": every PSTH of every unit divided by the
+%                 largest of them all (the PSTHs keep their sizes). The overlay layout normalizes each unit before the
 %                 mean
 %     Stack       false (default): groups overlaid; true: one row per
 %                 group, the first at the bottom, a row's baseline labeled
@@ -115,7 +116,7 @@ arguments
     opts.HistStyle (1,1) string {mustBeMember(opts.HistStyle, ["bar" "line"])} = "bar"
     opts.Fill (1,1) logical = true
     opts.FillAlpha (1,1) double = NaN
-    opts.Normalize (1,1) string {mustBeMember(opts.Normalize, ["none" "unitPeak" "groupPeak"])} = "none"
+    opts.Normalize (1,1) string {mustBeMember(opts.Normalize, ["none" "unitPeak" "groupPeak" "allPeak"])} = "none"
     opts.Stack (1,1) logical = false
     opts.Spacing (1,1) double {mustBePositive, mustBeFinite} = 1.1
     opts.Page (1,1) double {mustBePositive, mustBeInteger} = 1
@@ -381,6 +382,9 @@ switch mode
     case "groupPeak"
         p = max(abs(rate), [], 1);
         label = "Normalized (each peak = 1)";
+    case "allPeak"
+        p = max(abs(rate), [], "all");
+        label = "Normalized (overall peak = 1)";
     otherwise
         return
 end

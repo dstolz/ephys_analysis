@@ -1,0 +1,241 @@
+# Plan: multi-session plots and data export for EphysAnalysisApp
+
+## Context
+
+Every analysis plot today is computed and drawn for one dataset at a time: `loadAnalysisSource` → `EphysAnalysisRunner.computePlot(src, spec)` → `R` → `renderPlot(R, spec, target)`, and `R` is thrown away after each figure (`analysis/@EphysAnalysisRunner/runDataset.m`). The only cross-dataset code is `analysis/populationAnalysis.m` (its own fixed pipeline, CSV/JSON output, not wired into the app). Nothing in `analysis/` writes computed results to a `.mat` file or the workspace.
+
+The owner wants to (1) draw several sessions (datasets) on one plot: sessions as colors, or one tile per channel / unit with every session overlaid, with across-session summaries; (2) make the organized, epoched data available for further analysis in MATLAB (`.mat` files or the base workspace); (3) put this on a new tab; and (4) know which Claude models should implement each part.
+
+## Decisions made with the owner (2026-10-09)
+
+| Question | Answer |
+| --- | --- |
+| Structure | New **Sessions** tab. Each *session plot* references one existing plot (its alignment, units, bins, look) and adds only the cross-session settings. |
+| Unit matching across sessions | All three: **pool** (every session-unit its own tile, colored by session), **site** (one tile per probe site / recording channel; a session's units there averaged), **mapping** (a user table naming the same cell's unit id in each dataset). |
+| Modes | Sessions as colors; mean ± error across sessions; per-subject grouping (one color per subject, its sessions averaged); individual sessions drawn faintly under a summary. |
+| Trial groups of the base plot | **pool** (default: groupBy cleared, color = session), **each** (one figure per trial group), **combine** (color = session, line style = trial group). |
+| Kinds in v1 | PSTH (+raster), evoked, firing rate, tuning, behavior, **heatmap** (rows = session-units), **unit waveforms** (pooled tiles). Not probemap, corrmap, nor an auROC-baseline PSTH. |
+| Export shape | Struct per plot (matrices + epoch table + metadata) **and** a helper that unrolls it to a long/tidy table. |
+| Data files in runs | Both: a config option (`Export.Data`) so runs write the `.mat` files, **and** buttons on the tab to export on demand. |
+| "Models" | Which Claude models (and effort) should implement each work package. |
+
+## Architecture in one paragraph
+
+A session plot is computed by running the base plot's `computePlot` on every included dataset (results cached per dataset × effective spec), then merging the per-dataset `R` structs with a new pure function `combineSessions`. The merged `R` keeps the **same kind** as the base plot, with the session / subject / "all" series in `R.groups` and the matched tiles in `R.meta`, so every existing renderer, the aesthetics roles, the designs and `groupPalette` draw it unchanged. Renderers get two small additions only: a pale *member* line pass (individual sessions under a summary) and a per-group line style (the `combine` trial-group mode). The data export is a second pure layer (`epochData` per dataset, `sessionData` assembling a run-independent struct, `epochLongTable` for the tidy form, `writeAnalysisData` for `.mat`), used by the tab's buttons and by runs when `Export.Data.Enabled`.
+
+```
+Data tab ticks ──► sessionTable(names, keys, ...)   (index, key, name, subject, date, label)
+                            │
+ base plot spec ──► effective spec = Config.sessionPlotFor(id)  (groupBy pooled / kept / combined)
+                            │
+   per dataset:  R_k = runner.cachedPlot(k, spec)     ◄── ResultCache (key = datasetKey | jsonencode(core spec))
+                            │
+   res = sessionResults({R_k}, sessions, sp, spec)   → one R per facet × trial group, via combineSessions
+                            │
+      renderPlot(R, spec, target)   (unchanged renderers + memberLine + lineStyle)
+                            │
+   figures → Export.SessionsFolder ;  report section "Across sessions" (addReportSection)
+   data    → sessionData → writeAnalysisData(.mat) / assignin('base', ...)
+```
+
+## Facts verified in the code that shape the design
+
+- `analysis/private/isOrdinalGroups.m` is true when `height(G) > 2` and `G.color` equals `groupColors(zeros(n,1), true)` (parula rows). So sequential-by-date session colors are made with `groupColors((1:n)', true)` and the design's sequential map follows through `groupPalette` with no renderer change.
+- `renderRaster` indexes everything by epoch row: `R.raster(u).epoch`, `R.epochGroup`, `R.epochStop`, `R.rasterSortEvent.t`, `R.epochs.(sortBy)`, `R.rasterEvents(m).epoch`. A merged `R` must renumber epochs 1..N across sessions and offset every one of these.
+- `writeHtmlReport.m` / `writePdfReport.m` render a dataset's `summary` by fixed field names (`recording`, `lines`, `trials`, `units`, `topRates`; the PDF writer calls `tableLines(S.recording)` unconditionally). An "Across sessions" section needs a generic summary renderer plus `addReportSection`.
+- `run.m` (lines 70 and 77-80) compares `Results.Dataset` with `obj.Names(k)` for cancel bookkeeping, so session rows must use a label that never equals a dataset name: `"sessions: <label>"`.
+- `plotFileName` takes the dataset name as an argument; `R.dataset` is read only by `renderPlot` (the subtitle). `withSubjectDate` leaves Subject / Date blank for unknown names (harmless).
+- `test_EphysAnalysisApp.m:70-71` asserts five tabs with `TabLog` fifth. `helpURL` anchors must be headings of `documentation/EphysAnalysisApp.md` (`tools/wiki/test_gen_pages.py`), so a `### Sessions tab` heading is required.
+- `EphysPipelineScript.structLiteral` / `literal` write nested structs and struct arrays, so session-plot entries and effective specs can be emitted by the standalone script.
+- `EphysDataset.saveAtomically(file, S, ver)` saves `S`'s fields as the `.mat`'s variables and verifies them with `whos`.
+- A cached PSTH `R` (64 units × 300 epochs, 1 s window, rasters on) is about 5–8 MB, 20 MB at high rates; an evoked `R` about 1 MB. A byte cap of 512 MB with oldest-first eviction is enough.
+- The test fixture `makeAnalysisFixture(root, Scenarios=["clean" "late-start"], NumTrials=12)` gives two datasets of one subject on consecutive days with LFP/MUA/AUX, detections, ground-truth units and paired behavior (`Depth`, `RespLatency`): a ready multi-session case.
+- The pipeline's Analysis step calls `runner.run(...)`; check `@EphysPipeline`'s analysis step for an explicit `Plots=` list and pass `SessionPlots=` there too if it has one.
+
+## Data contracts
+
+### Config: `SessionPlots` (new top-level list), `EphysAnalysisConfig.defaults("SessionPlot")`
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `id`, `enabled`, `title` | `""`, true, `""` | as a plot's; ids are their own namespace (`"<plot>_sessions_<n>"` from `freeId`) |
+| `plot` | `""` | id of the base plot (must exist; its `enabled` does not gate the session plot) |
+| `layout` | `""` | `""` = the base plot's; else one of the kind's layouts |
+| `datasets` | `"ticked"` | `"ticked"` (the run's dataset selection) or `"list"` |
+| `datasetKeys` | `string.empty` | the keys when `"list"` (a `ListFields` entry) |
+| `facet` | `"none"` | `"none"` or `"subject"`: one figure per subject |
+| `series` | `"session"` | `"session"` \| `"subject"` \| `"all"`: what gets a color; sessions within a subject / all are averaged |
+| `colorOrder` | `"palette"` | `"palette"` \| `"sequential"` (by date; `groupColors(..., true)`) |
+| `showMembers` | false | series subject / all: draw each session faintly under its summary |
+| `error` | `"sem"` | the across-session band for series subject / all: `"sem"` \| `"sd"` \| `"ci95"` \| `"none"` |
+| `match` | `"pool"` | spike sources: `"pool"` \| `"site"` \| `"mapping"`; signal sources always match channels by recording channel (a warning when set) |
+| `mappingFile` | `""` | CSV: column `cell`, then one column per dataset key holding that dataset's unit id(s) |
+| `minSessions` | 1 | a tile (site / cell) is kept only when at least this many sessions have data for it |
+| `trialGroups` | `"pool"` | `"pool"` \| `"each"` \| `"combine"` |
+| `data` | `"results"` | list of what the data export includes: `"results"` (per-session `R`), `"epochs"` (`epochData`), `"signals"` (epoched signal samples too) |
+| `aesthetics` | `PlotAesthetics.emptyRules()` | the session plot's own remembered looks, applied after the base plot's (so a session preview's right-click edits do not change the per-dataset figures) |
+
+Also in `Export`: `SessionsFolder` (default `"{OutputRoot}" + filesep + "analysis" + filesep + "sessions"`; `{OutputFolder}` has no meaning across datasets and is a validation warning there) and `Data = struct(Enabled=false, Folder="{OutputRoot}\analysis\data", FilenamePattern="{Name}_{Plot}", MatVersion="-v7.3")` (`Export.Overwrite` applies).
+
+Config class: property `SessionPlots` with `set.SessionPlots` → `normalizeSessionPlots` (duplicate ids → `EphysAnalysisConfig:DuplicateSessionPlotId`); constants `SessionKinds = ["psth" "raster" "evoked" "rate" "tuning" "behavior" "heatmap" "waveforms"]`, `SessionSeries`, `SessionMatches`, `SessionErrors`, `SessionData`; `ListFields` + `"datasetKeys" "data"`; `toStruct` / `fromStruct` carry it (`known` list updated); methods `addSessionPlot(sp, Id=)`, `removeSessionPlot`, `sessionPlotIndex`, `sessionPlotIds`, `enabledSessionPlots`, `sessionPlotFor(id)` → the effective spec: `plotFor(sp.plot)` with `enabled = true`, `id = sp.id`, `title` / `layout` overridden when non-empty, `selection.groupBy = []` (and `seriesParam = ""` for tuning / behavior) when `trialGroups "pool"`. The JSON schema stays `ephys-analysis-config` v1 (a file without the list loads with defaults; no shim).
+
+`validate` (new section "SessionPlots"): id unique and file-name safe; `plot` names an existing plot; its kind in `SessionKinds`; base `baseline.Mode ~= "auroc"` (error); `layout` fits the kind; every enum; `minSessions` a whole number ≥ 1; `"list"` with no keys (warning); keys not among `Source.Datasets` cannot be checked statically (the plan reports them); `match ~= "pool"` on a signal or heatmap / waveforms base (warning: ignored); `mappingFile` empty with `"mapping"` (error), missing with CheckPaths (error), unreadable or without a `cell` column (error), lacking a column for a listed key (warning); tuning / behavior base with `seriesParam` and `"pool"` (warning: replaced by the sessions); `showMembers` with `series "session"` (warning); `"combine"` with a psth base whose `histStyle` is `"bar"` (warning: drawn as lines); heatmap base with `series ~= "all"` (warning: rows are session-units, no averaging). Export: `SessionsFolder` and `Data.Folder` folder patterns, `Data.FilenamePattern` file pattern, `MatVersion` in `["-v7.3" "-v7"]`. The "No plot is enabled" error becomes "no plot and no session plot enabled".
+
+### `sessionTable` (pure, `analysis/sessionTable.m`)
+
+```matlab
+S = sessionTable(names, keys, NamePattern=EphysDataset.DefaultNamePattern, AcqDates=NaT, Folders="")
+```
+
+One row per dataset, in the given order: `index`, `key`, `name`, `folder`, `subject` (SubjectID via `pipeline/subjectAndDate.m`, `""` when unknown), `date` (datetime, NaT when unknown), `dateText` (`yyyy-MM-dd`), `label` (`"<subject> <dateText>"`, else the name; made unique with `" (2)"`). The runner's `sessionTable(idx)` fills `AcqDates` from `Project.Datasets(k).AcqDate` (as `@EphysAnalysisApp/private/withSubjectDate.m` does) and sorts by date then name. The standalone script builds the same table without the runner.
+
+### `combineSessions` (pure, `analysis/combineSessions.m`)
+
+```matlab
+R = combineSessions(Rs, sessions, Series=, Match=, Mapping=, Error=, ShowMembers=, MinSessions=, ColorOrder=, Group=0, TrialGroups="pool")
+```
+
+- `Rs`: cell `{1 x nSessions}` of per-dataset results of one kind computed with the same effective spec (`[]` = that session missing); `sessions`: the table rows in the same order.
+- `Group`: 0 = each `R` must have one trial group (`combineSessions:Groups` otherwise); a label = that trial group sliced from each `R` (sessions without it contribute NaN; groups are matched by `G.label`, not index, since depth sets can differ between days). `TrialGroups "combine"`: every trial group kept, `R.groups` = session × group.
+- Errors: `combineSessions:Kind` (mixed kinds), `:Bins` (PSTH edges differ; message like `populationAnalysis:Bins`), `:TimeBase` (evoked `t` / `fs` differ; no resampling), `:MixedLevels` (tuning / behavior x numeric in some sessions, text in others), `:Mapping` (no `cell` column, or no column for a session key), `:TooFew` (no tile reaches `MinSessions`).
+- Fields on every kind: `kind`, `units`, `params`, `measure` from `Rs{1}`; `groups` = the series (`index`, `label` (session labels | subject ids | "All sessions" | `"<session> · <group>"` for combine), `color` (palette `groupColors(1:n, false)`, sequential `groupColors(1:n, true)`, one series `[0.15 0.15 0.15]`), `n` (epochs), `nSessions`, `nTrials`, and `lineStyle` for combine, cycling `- -- : -.` by trial group); `sessions` (the table + `series`, `status` done | missing, `nItems`, `nEpochs`); `series` struct (`mode`, `error`, `errorNote` ("95% CI, t" or "1.96 × SEM"), `match`, `minSessions`, `group`); `epochs` = `vertcat` of each session's `E` with `epoch` renumbered 1..N and new columns `session`, `sessionKey` (extra trial columns unioned; `UserData` = `Rs{1}`'s with the counts summed and `sessions = n`); `tiles` (`match`, `key` per tile, `units {nTiles x nSessions}` indices into each session's `meta`, `nUnits [nTiles x nSessions]`); `labels` / `meta` one row per tile; `members` (with `ShowMembers` and series ≠ session: `series`, `label` per member plus the kind's per-member array); `dataset` = `"3 sessions (SYNTH-01)"` or `"5 sessions, 2 subjects"` (+ `", <group>"`), the subtitle; `spec` = `Rs{1}.spec`.
+- Tiles by match: **pool** — each session's `meta` rows stacked with a `session` column; the tile label is shortened to `"<class><id> · <session label>"` (the full label stays in `meta.label`; `shortUnitLabels` would otherwise leave `su12_1255_260908T1039`); values of the tile's own series only, NaN elsewhere. **site** — one tile per recording channel with a unit in at least `MinSessions` sessions; `label` = `channelName` else `"ch" + channel`, probe columns from the first session holding the site; a session's units on the site averaged (`sem` = `sqrt(sum(sem.^2))/k`), spikes pooled for the raster (documented: dense but honest). **mapping** — one tile per `cell` row; each session's value from its unit id(s); missing → NaN. Probe disagreement across sessions (`src.probe.chanMap`) is a logged warning; matching is by channel number regardless.
+- Per kind (nS = series, nT = tiles):
+  - **psth / raster**: `t, edges, window` from `Rs{1}`; `rate/sem/count [nB x nT x nS]`; series subject / all: `rate` = mean over member sessions, `sem` = SEM | SD | CI95 half-width across sessions (`tinv` from the Statistics and Machine Learning Toolbox when present, else 1.96 × SEM; NaN with fewer than 2 sessions or `"none"`); `nEpochs/n [nS]`; `raster (1 x nT)` concatenated with offset epochs and `group` = series; `epochGroup`, `epochStop` concatenated; `stopMean [nS]`; `baselineRate/SD [nT x nS]` = mean over sessions; `rasterEvents` concatenated by label; `rasterSortEvent.t` concatenated (NaN where absent); `waveforms` concatenated per tile for pool, dropped for site / mapping; `auroc = []`; `members.rate [nB x nT x nMembers]`.
+  - **evoked**: `t, fs, sampleOffsets, onsetRule` from `Rs{1}`; `channels` = union of `meta.channel`; `mean/sem [nTime x nC x nS]` as psth; `nEpochs/n [nS]`; `keptEpochs` renumbered; `data = []`; `droppedEdge/NonFinite` summed; `members.mean`.
+  - **rate**: series session: `rate/count/rawRate/baseline [nEpochsAll x nT]` (NaN where the epoch's session has no unit on the tile), `duration`, `epochIndex` renumbered, `groupIndex` = series, `meanRate/sem/median/baselineRate [nT x nS]`, `R.rowsAre = "epochs"`. Series subject / all: rows = sessions (each session's `meanRate(:,1)'`), `duration = NaN`, `epochIndex` = session index, `groupIndex` = the session's series, `meanRate` = mean over sessions, `sem` = the across-session error, `median` over sessions, `R.rowsAre = "sessions"` (so `renderRates`' bar / box / points layouts agree with each other).
+  - **tuning**: `x` = union of levels (sorted; `xIsNumeric` must agree), `mean/sem [nX x nT x nS]`, `n [nX x nS]`, `series` / `seriesValues` = the series labels, `seriesParam` = `"session"` | `"subject"` | `""`, `param` from `Rs{1}`; `members.mean`.
+  - **behavior**: `x` union; `values` (epoch renumbered, `xIndex` into the union, `seriesIndex` = the epoch's session's series, `y`, + `session`); `mean/sem/median/n [nX x nS]`; `nEpochs / nMissing` summed; `yName / units / param`.
+  - **heatmap**: of spikes = the psth merge with pool matching and **one series** (rows = session-units; `series` is ignored with a warning); rows ordered session then probe (`order "probe"`), `meta.session` drives a thin divider between sessions; of a signal = the evoked merge, one series. With `trialGroups "each"` the base plot's groups become the tiles as today.
+  - **waveforms**: pool only; `meta` stacked with `session`; `R.waveforms` concatenated; `R.groups` = sessions so each tile is colored by its session (`renderWaveforms` gets a one-line color lookup by `meta.session` when `R.sessions` exists).
+
+### `sessionResults` (pure, `analysis/sessionResults.m`)
+
+```matlab
+res = sessionResults(Rs, sessions, sp, spec)
+```
+
+Struct array (`facet`, `group`, `label`, `R`): facets by `sp.facet` (`"subject"`: one per subject in date order), groups by `sp.trialGroups` (`"each"`: the union of `G.label` over the facet's sessions in first-seen order, up to the selection's `maxGroups`), calling `combineSessions` with the session plot's options and setting `R.spec = spec`. Used by the runner, the app preview and the standalone script, so parity needs no duplicated logic. `label` = `"all"`, the subject, or `"<subject> / <group>"`.
+
+### `epochData` (pure, `analysis/epochData.m`)
+
+```matlab
+D = epochData(src, spec, Signals=false, Spikes=true, Counts=true, MaxMB=1024, Check=[])
+```
+
+`D.identity` (key, name, folder, subject, date, fs, durationSec), `D.spec`, `D.E` and `D.G` (`epochTable` with `Columns = [groupBy param seriesParam yParam rasterSort]`, `UserData` kept), `D.meta`. Spike sources: `D.spikes.times {nEpochs x nUnits}` (s from `t0Continuous`, inside `[pre post]`, no stop masking), `D.spikes.counts [nEpochs x nBins x nUnits]` (from `binCounts` with the spec's edges), `.edges`, `.t`, `.window`. Signal sources with `Signals=true`: `D.signals.data [nTime x nChan x nKept]` single (`evokedPotential(KeepEpochs=true)`'s own order, kept to avoid a copy; `D.signals.dims = "time x channel x epoch"` says so), `.t`, `.fs`, `.epochs` (rows of `E` kept), `.channels`, `.units`, `.droppedEdge / .droppedNonFinite`; `epochData:TooLarge` before reading when `nTime*nChan*nEpochs*4 > MaxMB*2^20`. `D.created`, `D.provenance`.
+
+### `sessionData`, `writeAnalysisData`, `epochLongTable`
+
+```matlab
+S = sessionData(sp, spec, sessions, Rs, res, Config=struct(), Epochs={}, Files=strings(1,0))
+```
+
+`S.schema = "ephys-analysis-sessions/1"`, `S.sessionPlot`, `S.spec`, `S.sessions` (table + `status`, `message`, `nItems`, `nEpochs`), `S.results` (struct array per figure: `facet`, `group`, `label`, `R`, `files`), `S.perSession` (`{1 x n}` base `R` per session, with `"results"` in `sp.data`), `S.epochs` (`{1 x n}` `epochData`, with `"epochs"`; each with `signals` when `"signals"`), `S.config` (`cfg.toStruct()`), `S.created`, `S.provenance`.
+
+`writeAnalysisData(file, S, MatVersion="-v7.3", Overwrite=false)` → `EphysDataset.saveAtomically`; the `.mat`'s variables are `S`'s fields (`load(file)` gives the struct back); `writeAnalysisData:Exists` unless Overwrite. One file per session plot (`results` carries every facet / group).
+
+```matlab
+T = epochLongTable(X, What="values"|"counts"|"spikes"|"signals", MaxRows=5e6)
+```
+
+`X` a sessions struct or one `epochData` `D`. `"values"` (sessions): one row per result × series × tile × bin / x: `plot, facet, group, series, session (NaN for a summary), subject, date, tile, unit, channel, t|x, value, err, n`, from `perSession` when present else the combined `R`. `"counts"` (a `D`): epoch × unit × bin with `session, subject, date, trial, epoch, group, unit, bin, t, count` + `E`'s extra columns; `"spikes"`: one row per spike; `"signals"`: epoch × channel × sample (`epochLongTable:TooLarge` above `MaxRows`).
+
+### Mapping CSV (`readUnitMapping` / `writeUnitMapping`)
+
+```
+cell,SYNTH-01/260908_103000,SYNTH-01/260909_101500
+cellA,42,17
+cellB,8,
+```
+
+Columns after `cell` are dataset keys (the Data tab's Key column; `readtable(..., VariableNamingRule="preserve", TextType="string")` because keys hold `/`); values are unit ids (`meta.unitId`; `"3 7"` = two units averaged). `readUnitMapping:NoCell` without the `cell` column. The app's **Edit mapping...** dialog (uitable: rows = cells, one column per included dataset key) reads and writes it.
+
+## Work packages, files and the model for each
+
+Cost figures are Anthropic's first-party API list prices on 2026-10-06 (input / output per million tokens): Fable 5.1 $10 / $50, Opus 5.5 $4 / $20, Sonnet 5.5 $2 / $10, Haiku 5.5 $0.10 / $0.50. Claude Code subscription use is billed differently, but the ratios hold: Sonnet is half of Opus, Fable 2.5× Opus, Haiku about a twentieth of Sonnet. Pick the model with `/model`; set effort per the table.
+
+| WP | Scope | Model, effort | Why |
+| --- | --- | --- | --- |
+| 1 | Config + validate; `sessionTable`, `combineSessions` (all kinds), `sessionResults`; runner cache, `computeSessionPlot`, `runSessionPlot`, `run` / `plan` integration; `addReportSection` + generic summary rendering | **Opus 5.5, high** (Fable 5.1 if the budget allows) | The correctness core: NaN semantics, epoch renumbering, group tables every renderer reads, timing conventions, roles / tagging, report parity. Mistakes here are the subtle kind (one-sample slips were the top bug class in the 2026-09 review). |
+| 2 | Renderer touches: `memberLine` pass, `lineStyle` per group, heatmap session rows + divider, waveforms colors; new roles in `PlotAesthetics.roles`, rules in `analysis/designs/*.json`; `plotCaption` sessions clause; `test_PlotAesthetics` / `test_PlotDesign` | **Opus 5.5, medium** | Small diffs in intricate files with strict tests (every draw call tagged; every kind in every design). |
+| 3 | Data export: `epochData`, `sessionData`, `epochLongTable`, `writeAnalysisData`, `readUnitMapping` / `writeUnitMapping`, `Export.Data` in `runSessionPlot`, the runner's `sessionData` wrapper, app handlers to workspace / `.mat` | **Sonnet 5.5, high** | Well-specified contracts with precedents to copy (`saveAtomically`, `onExportEpochsToWorkspace`, `exportEpochs`). |
+| 4a | Sessions tab skeleton: `buildSessionsTab`, shared `showPreviewState`, config round trip, declarations, prefs, help anchor, tab order, the six-tab test assertion | **Opus 5.5, high** | The app's conventions are many and unwritten in places (classdef declarations, `styleButtons` roles, `formSection` / `formShow` / `formLayout`, `onConfigChanged` paths, the `Applying` guard). |
+| 4b | Editor rows and handlers (add / remove / duplicate / move, dataset picker, mapping dialog, data buttons), `syncSessionEditor` rules, `test_EphysAnalysisApp` additions | **Sonnet 5.5, high**, from WP4a's skeleton and a precise brief | Pattern work once the skeleton exists. |
+| 5 | Scripts: the standalone session block; parity in `test_EphysAnalysisRunner` | **Sonnet 5.5, medium** | Mechanical mirroring of the runner's calls (`computeLines`, `pageLines` exist). |
+| 6 | Docs (`EphysAnalysis.md`, `EphysAnalysisApp.md`, `EphysAnalysisConfig.md`, `file-formats.md`), CHANGELOG, README Dependencies | **Sonnet 5.5, medium**; **Haiku 5.5** for a consistency read-through only | Prose from the finished code; cheap. |
+| 7 | Review before merge: `/code-review high` on the branch; the owner decides on a full test run | **Fable 5.1 or Opus 5.5** | A fresh read of the diff, not anchored on the author. |
+
+Sequencing: WP1 first (it fixes the contracts); WP2 and WP3 in parallel once `combineSessions`' output contract is written into its header; WP4a after WP1 + WP2 (the preview draws merged results); WP4b and WP5 after WP4a / WP1; WP6 last; WP7 on the whole branch. Each WP in its own scratch worktree off one feature branch (`sessions`), because the main checkout has about 290 uncommitted files from other sessions. American spellings throughout (color, canceled, gray).
+
+### WP1 — core
+
+New files: `analysis/sessionTable.m`, `analysis/combineSessions.m` (local functions `mergePSTH`, `mergeEvoked`, `mergeRate`, `mergeTuning`, `mergeBehavior`, `mergeHeatmap`, `mergeWaveforms`, shared `sliceGroup`, `tileMap`, `acrossSessions`, `seriesOf`, `concatEpochs`, `renumber`), `analysis/sessionResults.m`, `analysis/addReportSection.m`, `analysis/sessionPlotSkipReason.m`, `@EphysAnalysisRunner/sessionTable.m`, `cachedPlot.m` (`R = r.cachedPlot(k, spec, Keep=false)`: hit, or `source(k)` + `computePlot` + `cachePut`, then `src.outputs.clearCache()` unless Keep), `cacheKey.m` (static: `key + "|" + jsonencode(coreSpec)`, core = the effective spec minus render-only fields `id title enabled style aesthetics note overlays histStyle fill fillAlpha normalize stack stackSpacing rasterSortOrder rasterByGroup jitter xScale value order`, with `rasterEvents` reduced to lines / sequences / edge / scope), `clearResultCache.m`, `computeSessionPlot.m` (`[res, sessions, spec] = r.computeSessionPlot(sp, idx, KeepActive=0)`: `sessionPlotFor`, `sessionTable` sorted by date, per session `plotSkipReason` → status, `cachedPlot` for the rest (a failing compute → status "error", logged), `sessionResults`; `datasets "list"` maps `datasetKeys` through `index()`), `runSessionPlot.m` (the per-session-plot export: pages exactly as `runDataset`, into `figureFileName(X.SessionsFolder, tokens of the first dataset, Kind="folder")`, file name = `res.label`; `addReportFigure`; Results rows `{"sessions: " + label, sp.id, kind, status, message, files, seconds}`; too few sessions → "skipped" with the per-session reasons; `Export.Data.Enabled` → `sessionData` + `writeAnalysisData` into `Data.Folder` / `FilenamePattern` (`{Name}` = `"all"` or the facet), the file appended to the row's Files).
+
+Changed: `@EphysAnalysisConfig/EphysAnalysisConfig.m`, `defaults.m`, `validate.m` (above; `normalizeSection("SessionPlot", ...)` routed like Plot); `@EphysAnalysisRunner/EphysAnalysisRunner.m` (properties `ResultCache` containers.Map, `CacheMaxMB = 512`, `CacheBytes`, `CacheWanted (1,:) string`; declarations); `run.m` (`opts.SessionPlots` default `cfg.enabledSessionPlots()`; `clearResultCache` at the start; `CacheWanted` = the enabled session plots' cache keys per dataset; spans over `nD + nS` units; after the dataset loop, not canceled: `addReportSection(report, "Across sessions", Summary=struct('sessions', table))` once, then `runSessionPlot` per session plot in its own `Canceled` try / catch marking the rest canceled; `PerDataset` → a separate report `<FileName>_sessions`; the run record gains `sessionPlots`); `runDataset.m` (after `computePlot`: `cachePut` when the key is wanted; one line); `plan.m` (rows per session plot after the dataset × plot rows: Dataset `"sessions: <facet>"`, Reason from `sessionPlotSkipReason`: disabled, base plot missing, unsupported kind, fewer than `minSessions` sessions can draw it (with reasons), mapping file missing); `writeHtmlReport.m` / `writePdfReport.m` (iterate `fieldnames(summary)` with a label map: `recording` → "Recording" (kv), `lines` → "Digital lines", `trials`, `units`, `topRates` → "Highest rates", `sessions` → "Sessions", unknown → its name; the PDF's `tableLines(S.recording)` becomes conditional; dataset sections render exactly as before); `renderPlot.m`'s `autoTitle` ("<Kind>: <event> (<n> sessions, <m> epochs)" when `R.sessions` exists; `renderPlot` applies `sp.aesthetics` last when the spec carries them); `newAnalysisReport.m` (doc: `datasets` may hold sections).
+
+Note on cost: `trialGroups "pool"` on a base plot that has a `groupBy` gives an effective spec that differs from the base plot's, so a run computes that base `R` twice per dataset (once per-dataset, once pooled). Log it; re-weighting the grouped result is not an option (`zscore` / `percent` baselines, masked bins).
+
+### WP2 — renderers
+
+- `renderPSTH.m` `drawPanel` (not stacks): before the SEM bands, when `R.members` exists, each member session as a thin line `tagPart(plot(ax, R.t, m, 'Color', paleColor(colors(s,:), ...), 'LineWidth', 0.6*style.LineWidth, 'HandleVisibility', 'off'), "memberLine", R.groups.label(s))`; the overlay layout averages `members.rate` over tiles first. `histTrace` takes a `LineStyle` from `R.groups.lineStyle(g)` when the column exists; `renderPlot` forces `histStyle "line"` for a combine `R`.
+- `renderEvoked.m`: members in the stack (offset like the mean) and grid layouts, line styles in every layout's trace loop; butterfly skips members. `renderTuning.m` `drawCurves`: members as thin lines without markers, line styles. `renderRates.m`, `renderBehavior.m`: unchanged (verified: they read nothing a merged `R` lacks; combine labels are `"<session> · <group>"`).
+- `renderHeatmap.m`: with `R.sessions`, a thin separator between sessions (role `sessionDivider`); row labels keep the session.
+- `renderWaveforms.m`: color by `R.groups.color(R.meta.session, :)` when `R.sessions` exists.
+- `PlotAesthetics.m` `roles()`: `memberLine` ("Session line"), `sessionDivider`; `analysis/designs/*.json` (Journal, Night, Talk, Tufte, Gray panel): a rule each (`LineWidth 0.75`; no Color, the pale per-series color stays; Night's divider light). `memberLine` must stay out of `PlotDesign.capture`'s group-color roles (it is).
+- `plotCaption.m`: with `R.sessions`: "across N sessions (M subjects); one series per session | per subject, mean ± SEM | SD | 95% CI across sessions; units matched by site | by the mapping file | each session's units on its own tile; K sessions drawn faint", and `sourceText` counts tiles ("12 sites", "8 cells", "37 session-units").
+- Tests: `test_PlotAesthetics` (a merged psth with members and a heatmap with dividers: every object tagged; a rule on `memberLine` reaches it), `test_PlotDesign` (a merged psth with members in every design; the role named in each design file).
+
+### WP3 — data export
+
+New: `analysis/epochData.m`, `sessionData.m`, `writeAnalysisData.m`, `epochLongTable.m`, `readUnitMapping.m` (+ `writeUnitMapping`), `@EphysAnalysisRunner/sessionData.m` (`S = r.sessionData(sp, idx, Results=res)`: reuses the cache, computes what is missing, `epochData` per session through `source(k)` with the bulk cache cleared after each). App: `@EphysAnalysisApp/onSessionsToWorkspace.m` (`assignin('base', matlab.lang.makeValidName("sessions_" + sp.id), S)`; ask before overwriting an existing variable, as `pipeline/@EphysPipelineApp/onExportEpochsToWorkspace.m` does; a `uialert` listing the fields), `onSaveSessionData.m` (`uiputfile` defaulting to the resolved `Export.Data.Folder` / `<id>.mat`; `Overwrite=true` after the dialog's own prompt), a cancelable progress dialog (every dataset is read), the `Signals` size check (`MaxMB` raised on confirmation).
+
+Tests: `test_EphysAnalysisCompute` (`epochData` on synthetic trains / signals: shapes, times inside the window, counts equal `binCounts`, `TooLarge`; `epochLongTable` row counts and a spot value; `writeAnalysisData` round trip and `:Exists`), `test_EphysAnalysisRunner` (a run with `Export.Data.Enabled` writes `<Data.Folder>\all_<id>.mat`; `load` gives `sessions` of height 2 and `results(1).R.kind`).
+
+### WP4 — the Sessions tab
+
+- `buildUI.m`: tabs Data, Alignment, Plots, **Sessions**, Export, Log; `styleButtons`: the tab's Preview `primary`, To workspace / Save .mat `confirm`, Remove plain. `test_EphysAnalysisApp.m:70-71` → six tabs, `TabSessions` fourth, `TabLog` sixth.
+- New `buildSessionsTab.m`: columns `{285, 470, '1x'}` like the Plots tab. Left: `SessionList` (uilistbox, `"<id>  (<plot>)"`, `"(off)"` when disabled), a base-plot drop-down (ids of plots whose kind is in `SessionKinds`) + **Add**, **Remove**, **Duplicate**, **Up**, **Down**. Middle: `formSection` column with colored headers and keys (`onKeyPress` gets a Sessions branch): **General** (always open: the base plot's kind, Enabled, Id, Title, Base plot drop-down, Layout drop-down "(base plot's)" + the kind's layouts, Trial groups pool / each / combine), **Sessions** (Datasets: "the ticked datasets" | "these datasets" + a read-only keys field with **Pick...** (`private/pickSessionDatasets.m`: a modal tick table of the scanned datasets with Subject and Date), Facet, Series, Color order, Show sessions under summary, Error band), **Matching** (Match, Mapping file + **Browse...** + **Edit...**, Min. sessions spinner), **Data** (check boxes results / epochs / signals; **To workspace**, **Save .mat...**). `syncSessionEditor` hides rows: mapping file and Edit only for `"mapping"`; Show members only for series ≠ session; keys only for "these datasets"; Matching only for spike bases that are not heatmap / waveforms; Trial groups only when the base plot's selection has a groupBy; "signals" only for signal bases. Right: a "Sessions: N ticked (…)" label, **Preview**, **Auto** (default off, pref `SessionAutoPreview`), a trial-group drop-down (visible with `"each"` and several groups), `<` `>`, the panel, badge, status line, page label.
+- Preview: `refreshSessionPreview.m` mirrors `refreshPreview.m`: guards (a selected session plot, a scanned runner, ticked datasets ≥ 1), `Runner.PollFcn` for Cancel between datasets (`onCancelSessionPreview` → `Runner.cancel()`), busy card "Computing <id> on N sessions ...", `res = Runner.computeSessionPlot(sp, idx, KeepActive=ActiveIdx)`, the group drop-down from `[res.label]`, draw `res(i).R` via `renderPlotFigures(R, R.spec, Target=SessionPreviewPanel, Page=, OnRemember=@(rules) remember into sp.aesthetics)`. Every page is computed (tiles are merged across datasets, so per-dataset `Page=` is meaningless); `<` `>` only redraw. `setPreviewState.m` becomes a wrapper over `private/showPreviewState(obj, P, state, opts)` with `P = struct(Panel, Badge, StateProp, CancelFcn)`; `setSessionPreviewState.m` is the second wrapper; the busy card is found per panel by tag.
+- Round trip: `gatherSessionEditor.m` / `applySessionEditor.m` / `syncSessionEditor.m` / `layoutSessionEditor.m`; `gatherConfig.m` sets `cfg.SessionPlots(SelectedSessionPlot)`; `applyConfig.m` calls `refreshSessionList` + `applySessionEditor`; `onConfigChanged("sessions")`; invalidation: `"plot"` on the base plot, `"defaults"`, `"ticks"`, `"sessions"` → session preview stale; `onScan` → cleared. `onRemovePlot` warns in the status bar when a session plot references the plot (validate catches the dangling id anyway).
+- `onTabChanged.m`, `selectTab.m`, `helpURL.m` (`Analysis-App#sessions-tab`), `buildToolbar.m` (Preview previews the session plot while the Sessions tab is shown), `loadPreferences.m` / `savePreferences.m` (`SessionSectionsCollapsed`, `SessionAutoPreview`), `onRunExport.m` unchanged (the results table gets the "sessions: ..." rows; **Open figure folder** stays per dataset, the tooltip names the sessions folder).
+- Classdef: new properties under `% --- Sessions tab ---` (`TabSessions`, `SessionList`, `AddSessionBaseDropDown`, `SessionEditorPanel/Grid`, `SessionSections`, `SessionEditor`, `SessionPreviewPanel`, `SessionPreviewButton`, `SessionAutoCheckBox`, `SessionGroupDropDown`, `SessionPrev/NextPageButton`, `SessionPageLabel`, `SessionPreviewLabel`, `SessionPreviewBadge`) and state (`SelectedSessionPlot`, `SessionPreviewResults`, `SessionPreviewIndex`, `SessionPreviewPage/Pages`, `SessionPreviewState`, `SessionPreviewRedo`, `SessionPreviewSeconds`); every new method declared (`test_ClassdefDeclarations`).
+- Tests (`test_EphysAnalysisApp`): six tabs; Add gives a session plot on the chosen base plot; editor round trip through `gatherConfig` / `applyConfig`; `refreshSessionPreview` over the fixture's two datasets draws two groups (badge "Drawn"; two `rate` roles found with `findall`); a trial-group drop-down with `"each"`; stale after a base-plot edit; **To workspace** puts `sessions_<id>` in base (`evalin` then `clear`); **Save .mat...** with a file argument; Browse / Edit with a planted CSV; `helpURL` on the tab; toolbar Preview on the tab; prefs saved and restored.
+
+### WP5 — scripts and parity
+
+`EphysAnalysisScript.standalone`: the project loop also collects `acq(end+1) = d.AcqDate` (NaT in folders mode); after the dataset loop and before the report, a `%% Session plots` block per enabled session plot `j`: `sp<j>` and `sspec<j>` literals; `sessions = sessionTable(names, keys, NamePattern=..., AcqDates=acq, Folders=folders);`; `Rs = cell(1, numel(outs)); for k ...: src = loadAnalysisSource(outs(k), Key=keys(k)); spec = sspec<j>; if plotSkipReason(src, spec) == ""` → `computeLines(spec)` + `R.dataset = src.name; R.spec = spec; Rs{k} = R;` end; `src.outputs.clearCache();` end`; `res = sessionResults(Rs, sessions, sp<j>, sspec<j>);`; the sessions folder from `exportOpts.SessionsFolder`; `for i = 1:numel(res)` → `pageLines` + `addReportFigure` + the data lines when `Export.Data.Enabled`. The sessions summary section is added with `addReportSection` before the block. The script recomputes the base `R` per session (no cache; a comment says the runner reuses its cache); results are deterministic, so parity holds. The compact script needs nothing.
+
+`test_EphysAnalysisRunner`, new section "session plots": one session plot per supported kind over the fixture's two datasets (series session; one with series all + members; one `facet subject`; one `trialGroups each` on `Depth`; one `combine`; one `match site`): `plan` rows; `run` writes `<SessionsFolder>\all_<id>.png` (+ `_<group>`); the report's "Across sessions" section (the HTML holds the sessions table and the figures; PDF page count = +1 summary page + session pages); Results rows "sessions: ..."; `Export.Data`; cache reuse (`CacheBytes > 0` after the run; a second `computeSessionPlot` reads no data); `Overwrite` off skips existing files; cancel during the session phase marks them canceled; the run record lists `sessionPlots`; compact vs standalone parity for the session figures and report pages (both configs' `SessionsFolder` and `Data.Folder` under `outA` / `outB`, like `Export.Folder`). Expected runtime increase 40–60 s.
+
+### WP6 — docs
+
+- `documentation/EphysAnalysis.md`: "Across sessions" section (`sessionTable`, `combineSessions` per kind, `sessionResults`, `epochData`, `sessionData`, `writeAnalysisData`, `epochLongTable`, `readUnitMapping`), Runner rows (`sessionTable`, `cachedPlot`, `computeSessionPlot`, `runSessionPlot`, `sessionData`, `clearResultCache`, `CacheMaxMB`, `run(SessionPlots=)`), the script block, the `memberLine` / `sessionDivider` roles, the Tests table.
+- `documentation/EphysAnalysisApp.md`: `### Sessions tab` (the required anchor) between the Plots and Export tabs: controls table, preview states, To workspace / Save .mat, the mapping editor; Preferences rows; Outputs (sessions folder, data files).
+- `documentation/EphysAnalysisConfig.md`: `## Session plots` (fields table, `### Matching units across sessions`, `### Trial groups across sessions`), Export rows `SessionsFolder` and `Data.*`, Validation rows, the JSON example gains a `SessionPlots` entry.
+- `documentation/file-formats.md`: the sessions data `.mat` (variables, shapes per kind, `rowsAre`, `signals.dims`), the unit-mapping CSV, "Exported figure names" (session figures), "Report files" (the Across sessions section), the atomic-writes list.
+- `documentation/README.md` Dependencies: Statistics and Machine Learning Toolbox also for `ci95` (`tinv`; falls back to 1.96 × SEM). No new toolbox.
+- `CHANGELOG.md` Unreleased / Added: one prose bullet per feature (session plots; data export) with doc links. The wiki is regenerated from these pages later (`tools/wiki/`); not part of this work.
+
+## Verification
+
+1. Unit level (WP1–3), `run_all_tests({'test_EphysAnalysisCompute','test_EphysAnalysisConfig'})`: `combineSessions` on hand-built per-session results of every kind (two sessions, one subject; three sessions, two subjects): shapes, NaN placement, series means equal to by-hand means, `ci95` width, epoch renumbering (`R.raster(u).epoch` indexes `R.epochs`; `rasterEvents`, `epochIndex`, `values.epoch` too), site averaging and raster pooling, mapping with a missing id, `minSessions` and `:TooFew`, `:Bins` / `:TimeBase` / `:MixedLevels` / `:Groups` / `:Mapping`, `Group=` slicing vs the pooled compute, `"combine"` labels and line styles, `rowsAre`; every renderer draws the merged `R` into a figure in every layout, with pages; `plotCaption`'s sessions clause; `sessionResults` facets / groups; `sessionTable` labels unique; config defaults, JSON round trip (`datasetKeys` one-element list stays a list), `addSessionPlot` ids, `DuplicateSessionPlotId`, `sessionPlotFor` overrides, every validate rule.
+2. Runner level (WP1, 3, 5), `run_all_tests({'test_EphysAnalysisRunner'})` (about 3–4 min): figures, report section, data `.mat`, cache reuse, cancel, script parity.
+3. Renderers (WP2), `run_all_tests({'test_PlotAesthetics','test_PlotDesign'})`.
+4. App (WP4), `run_all_tests({'test_EphysAnalysisApp'})` in the background (1–10 min).
+5. By hand in the app over `D:\EPHYS_synthetic` (4 datasets, subject SYNTH-01; run Behavior + Signals + Spikes first if the outputs are missing): a PSTH session plot in all three series modes and all three matchings; an evoked session plot per channel; `trialGroups` each and combine with `groupBy Depth`; a heatmap and a waveforms session plot; To workspace, then `data.combined`, `epochLongTable(data)`; a run with `Export.Data.Enabled`, open the report.
+6. Per CLAUDE.md: only the suites a WP touched, once at the end of the WP; a full run (about 25 min) only with the owner's OK, before the merge of the whole branch.
+
+## Risks and notes for the implementers
+
+- **Shared working tree**: about 290 uncommitted files from other sessions in `C:\src\ephys_analysis`. Work in a scratch worktree per WP off a `sessions` branch; commit own hunks only (see the `ephys-concurrent-sessions` memory); check `git log` on each touched file before a whole-file Write.
+- **Memory**: the cache is capped by bytes (`whos` on each entry, `CacheMaxMB` 512, oldest first); `R.waveforms` is dropped from cached entries unless the session plot's kind needs it (pool waveforms). A session preview loads every ticked dataset in turn and clears each dataset's bulk cache after its compute, keeping the active dataset's (`KeepActive`) so the Plots tab preview stays fast.
+- **Epoch indices**: everything that indexes `R.epochs` must be offset per session. One `renumber` helper, tested on every field.
+- **Group labels across sessions** (`"each"`): `selectTrials` labels like `"Depth = 0.5"` match textually (`%.10g` formatting, stable). `maxGroups` 12 bounds the figure count per facet.
+- **Probe agreement for site matching**: compare `src.probe.chanMap`; on a mismatch log a warning and match by channel number anyway (chronic implants keep the probe).
+- **Refused in v1** (validate errors with clear messages): auROC-baseline base plots, probemap / corrmap, differing `fs` across sessions. Tuning / behavior `seriesParam` is pooled with a warning.
+- **Timing conventions**: nothing new is computed from raw times in the merge; `epochData` uses `t0Continuous` for spikes and `evokedPotential`'s rows for signals, never its own arithmetic.
+- **Classdef declarations**: every new method of the app, runner and config needs its declaration (`test_ClassdefDeclarations` finds mismatches only at test time).
+- **Cache key**: `jsonencode` writes `Inf` as `null` (`units.maxUnits = Inf`); fine for keying since `normalizeSection` never yields NaN there.
+- **`newExportFigure` page height** follows `withRaster && ~isempty(R.raster)`; the merged `R` keeps `raster` when the base had it.
+- **Line endings**: the tree mixes CRLF / LF; use the Write / Edit tools, not shell `sed`.

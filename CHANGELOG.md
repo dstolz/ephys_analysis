@@ -773,6 +773,30 @@ says how to cut a release.
 
 ### Fixed
 
+- The NWB export failed on Windows machines that treat `AUX.npy` as the reserved device name `AUX`
+  (Windows Server, the GitHub-hosted runner): it staged each signal as `<SIG>.npy`. The staged
+  signals are now `signal_<SIG>.npy` (`exportNWB`; `nwb_export.py` reads the names from
+  `stage.json`).
+
+- A `"*"` probe rule did not match a dataset whose name does not parse with its name pattern,
+  although such a dataset has no subject and only a `"*"` rule is meant to match it
+  (`EphysPipeline.probeRule`).
+
+- The caption of a PSTH or raster with the mean aux signal failed with `Unrecognized field name
+  "yLim"` when the plot's `aux` left out `yLim` or `overPosition`; it now reads them with their
+  defaults, as the renderers do (`plotCaption`).
+
+- Tests that failed on any machine or only on a hosted runner, found by the first CI runs:
+  `test_ChannelMapper` compares against its own copies of the example mapping and the H64LP probe
+  map (`pipeline/testdata/channelmapper`), so editing the lab's files in `pipeline/hardware` and
+  `pipeline/probes` no longer changes what it checks; `test_PlotAesthetics` reads an overlay's
+  color before the next plot clears it, and compares a plot's draw order with the same plot drawn
+  where no overlay ever was; `test_PlotDesign` compares the ground Default restores with the
+  figure's own starting color, not white; `test_IntanReader` checks the notch filter's agreement
+  with Intan's loop and its speed-up (now: faster than the loop) separately;
+  `test_CopySessions/scheduleRunsAsAWindowsTask` is skipped on GitHub-hosted runners, where the
+  MATLAB Task Scheduler starts does not run, and quotes `matlab.log` when it fails elsewhere.
+
 - Analysis plots of threshold detections (source *detected*) and of signals
   labeled every channel "sh0" with no depth, and could not sort them by depth
   or shank, when the dataset's manifest names no probe file: the case for a

@@ -152,6 +152,7 @@ cases = {
     "behavior box",       Rb,  struct('kind', "behavior", 'layout', "box")
     "behavior swarm",     Rb,  struct('kind', "behavior", 'layout', "swarm")};
 fig = figure('Visible', 'off');
+ground0 = fig.Color;   % the figure's own ground (its theme's, or the user's default), before any design
 cleanFig = onCleanup(@() delete(fig(isvalid(fig))));
 bad = strings(0, 1);
 for n = builtin
@@ -212,7 +213,7 @@ journal = PlotDesign.load("Journal");
 check(max(abs(h.axes(1).Colormap - PlotDesign.colormap(journal.diverging, 256)), [], 'all') < 1e-9, ...
     'a correlation map takes the diverging colors');
 renderPlot(Rp, struct('kind', "psth"), fig, Design="Default");
-check(isequal(fig.Color, [1 1 1]), 'Default puts back the ground the figure had before a design');
+check(isequal(fig.Color, ground0), 'Default puts back the ground the figure had before a design');
 
 fprintf('\n== 4. layering: the design, the user''s rules, the plot''s ==\n');
 PlotAesthetics.setUserRules("psth", struct('role', "axes", 'group', "", 'property', "Box", 'value', "on"));
@@ -231,6 +232,7 @@ owner = figure('Visible', 'off');
 PlotDesign.listen(owner, @() setappdata(owner, 'heard', getappdata(owner, 'heard') + 1));
 setappdata(owner, 'heard', 0);
 live = figure('Visible', 'off');
+liveGround = live.Color;
 renderPlot(Rp, struct('kind', "psth"), live, Editable=true);
 pinned = figure('Visible', 'off');
 cleanFigs = onCleanup(@() delete([live pinned]));
@@ -262,7 +264,7 @@ items(string({items.Text}) == "Tufte").MenuSelectedFcn([], []);
 check(PlotDesign.currentName() == "Tufte" && isequal(live.Color, tufte.background), 'picking a design in the submenu chooses it');
 delete(owner);
 PlotDesign.use("Default");
-check(isequal(live.Color, [1 1 1]) && PlotDesign.currentName() == "Default", 'back to Default: the ground as it was');
+check(isequal(live.Color, liveGround) && PlotDesign.currentName() == "Default", 'back to Default: the ground as it was');
 
 fprintf('\n== 6. capturing a look, saving and listing designs ==\n');
 spec = struct('kind', "psth", 'histStyle', "line", 'aesthetics', [struct('role', "rate", 'group', "", 'property', "LineWidth", 'value', 3) ...

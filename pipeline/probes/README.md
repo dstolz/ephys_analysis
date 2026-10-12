@@ -117,5 +117,7 @@ copies them along.
 
 `H64LP_4x16lin_probemap.json` is what the mapper gives for a NeuroNexus
 A4x16-Poly2-5mm-20s-lin-160 on an H64LP package, plugged into an Intan
-RHD2164 in the reference orientation; `test_ChannelMapper` checks this. See
-[ChannelMapperApp](../../documentation/ChannelMapperApp.md).
+RHD2164 in the reference orientation, with its kcoords since set by hand.
+`test_ChannelMapper` checks the mapper against its own copy of the file as
+the mapper writes it (kcoords = shanks), in `pipeline/testdata/channelmapper`.
+See [ChannelMapperApp](../../documentation/ChannelMapperApp.md).

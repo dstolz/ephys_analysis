@@ -439,7 +439,11 @@ tests with their messages at the end of its log and in its job summary
 ([`junit_failures.py`](../.github/scripts/junit_failures.py)). **Run workflow** on the Actions
 tab runs chosen suites (names separated by spaces). The runner has no
 Kilosort4 or phy environment and no GPU, so the tests that need them are
-skipped there as on any machine without them.
+skipped there as on any machine without them. The copy schedule's end-to-end
+test (`test_CopySessions/scheduleRunsAsAWindowsTask`) is skipped on
+GitHub-hosted runners: the MATLAB that Task Scheduler starts there exits
+before running any code (most likely unlicensed, as only the MATLAB the
+MathWorks action starts is licensed).
 
 For trying the pipeline or the app by hand without real data,
 [`makeSyntheticProject`](../pipeline/makeSyntheticProject.m) (or the app's

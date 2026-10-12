@@ -362,6 +362,10 @@ ax = h.axes(1);
 yd = get(findobj(ax, 'Type', 'patch'), 'YData');
 check(abs(max(cellfun(@max, yd)) - 1) < 1e-9 && startsWith(string(h.layout.YLabel.String), "Normalized (unit peak = 1)"), ...
     'unitPeak unstacked: the tallest group reaches 1, and the y label says so');
+h = renderPSTH(Rd, f6, Normalize="allPeak", Stack=false, Style=struct('SortDepth', false, 'ShowSEM', false));
+yd = arrayfun(@(a) max(cellfun(@max, get(findobj(a, 'Type', 'patch'), 'YData'))), h.axes);
+check(abs(max(yd) - 1) < 1e-9 && all(yd <= 1 + 1e-9) && startsWith(string(h.layout.YLabel.String), "Normalized (overall peak = 1)"), ...
+    'allPeak: the tallest PSTH of all units reaches 1, none above, and the y label says so');
 h = renderPSTH(Rd, f6, Layout="overlay", Normalize="unitPeak", Stack=true, Style=struct('SortDepth', false, 'ShowSEM', false));
 ax = h.axes(1);
 m = reshape(mean(Rd.rate ./ max(Rd.rate, [], [1 3]), 2, 'omitnan'), [], 3);

@@ -192,7 +192,7 @@ d = EphysAnalysisConfig.defaults("Plot");
 check(d.fill && isnan(d.fillAlpha) && d.normalize == "none" && ~d.stack && d.stackSpacing == 1.1, ...
     'PSTH defaults: filled, automatic opacity, not normalized, not stacked, spacing 1.1');
 bad = cfg; bad.Plots(1).normalize = "area";
-check(hasIssue(bad, "psth_1.normalize", "error"), 'psth normalize is none, unitPeak or groupPeak');
+check(hasIssue(bad, "psth_1.normalize", "error"), 'psth normalize is none, unitPeak, groupPeak or allPeak');
 bad = cfg; bad.Plots(1).fillAlpha = 1.5;
 check(hasIssue(bad, "psth_1.fillAlpha", "error"), 'psth fillAlpha is 0-1');
 bad = cfg; bad.Plots(1).stackSpacing = 0;

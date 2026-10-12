@@ -92,7 +92,7 @@ closeSequenceDialog(obj, E.sortSeqText);
 setSequenceHolder(E.sortSeqText, struct('sequence', se.sequence, 'alignStep', se.alignStep));
 E.rasterByGroup.Value = p.rasterByGroup;
 mk = p.rasterEvents;
-E.markLines.Value = char(strjoin(mk.lines, " "));
+offerItems(E.markLines, ["" unique(lines, 'stable')], strjoin(mk.lines, " "));
 offerItems(E.markEdge, ["onset" "offset" "both"], mk.edge);
 offerItems(E.markScope, ["window" "trial"], mk.scope);
 closeSequenceDialog(obj, E.markSeqText);

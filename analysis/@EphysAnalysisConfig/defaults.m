@@ -262,7 +262,7 @@ switch section
             'histStyle',     "bar", ...         % psth: "bar" | "line"
             'fill',          true, ...          % psth: filled bars / area under the line (false: outline / line only)
             'fillAlpha',     NaN, ...           % psth: fill opacity 0-1 (NaN: 0.5 where groups overlap, else 1)
-            'normalize',     "none", ...        % psth: "none" | "unitPeak" (a unit's PSTHs / its largest peak) | "groupPeak" (each PSTH / its own peak)
+            'normalize',     "none", ...        % psth: "none" | "unitPeak" (a unit's PSTHs / its largest peak) | "groupPeak" (each PSTH / its own peak) | "allPeak" (every PSTH / the largest of all)
             'stack',         false, ...         % psth: one row per group, stacked upwards, instead of overlaid
             'stackSpacing',  1.1, ...           % psth stack: row step, x the tallest PSTH of the panel (< 1 overlaps)
             'maskAfterStop', false, ...         % psth, raster, heatmap of spikes: drop what follows each epoch's stop event

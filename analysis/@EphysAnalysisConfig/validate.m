@@ -251,8 +251,8 @@ for k = 1:numel(obj.Plots)
         if ~ismember(p.histStyle, ["bar" "line"])
             add("Plots", f0 + ".histStyle", "error", "A PSTH is drawn as bar or line.");
         end
-        if ~ismember(p.normalize, ["none" "unitPeak" "groupPeak"])
-            add("Plots", f0 + ".normalize", "error", "A PSTH's normalize is none, unitPeak or groupPeak.");
+        if ~ismember(p.normalize, ["none" "unitPeak" "groupPeak" "allPeak"])
+            add("Plots", f0 + ".normalize", "error", "A PSTH's normalize is none, unitPeak, groupPeak or allPeak.");
         end
         if ~(isnan(p.fillAlpha) || (p.fillAlpha >= 0 && p.fillAlpha <= 1))
             add("Plots", f0 + ".fillAlpha", "error", "fillAlpha is an opacity from 0 to 1 (NaN = automatic).");

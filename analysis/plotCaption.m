@@ -168,6 +168,7 @@ if spec.kind == "psth"
     switch spec.normalize
         case "unitPeak",  parts(end+1) = "each unit's PSTHs normalized to its largest peak";
         case "groupPeak", parts(end+1) = "each PSTH normalized to its own peak";
+        case "allPeak",   parts(end+1) = "every PSTH normalized to the largest peak of all";
     end
     if spec.stack && size(R.rate, 3) > 1
         parts(end+1) = "groups stacked, first at the bottom";

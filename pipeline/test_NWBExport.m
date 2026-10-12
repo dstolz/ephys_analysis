@@ -112,7 +112,12 @@ classdef test_NWBExport < matlab.unittest.TestCase
             tc.verifyError(@() D.ds.exportNWB(Extract=D.S, Units=false, ProbeFile=D.probe, Metadata=D.meta), ...
                 'EphysDataset:exportNWB:NoPython');
             noStart = rmfield(D.meta, 'SessionStartTime');
-            tc.verifyError(@() D.ds.exportNWB(Extract=D.S, Units=false, StageOnly=true, Metadata=noStart), ...
+            % a dataset with no recording has no AcqDate (a binary recording's is at least its data
+            % file's modified time), and the name "bare" gives no start
+            bare = fullfile(tc.Root, "bare");
+            mkdir(bare);
+            dsBare = EphysDataset(bare, AutoMetadata=false, OutputDir=fullfile(tc.Root, "out_bare"));
+            tc.verifyError(@() dsBare.exportNWB(Extract=D.S, Units=false, StageOnly=true, Metadata=noStart), ...
                 'EphysDataset:exportNWB:NoStartTime');
             badZone = D.meta;
             badZone.TimeZone = "Mars/Olympus";

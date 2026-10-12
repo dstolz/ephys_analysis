@@ -790,8 +790,11 @@ says how to cut a release.
   `test_ChannelMapper` compares against its own copies of the example mapping and the H64LP probe
   map (`pipeline/testdata/channelmapper`), so editing the lab's files in `pipeline/hardware` and
   `pipeline/probes` no longer changes what it checks; `test_PlotAesthetics` reads an overlay's
-  color before the next plot clears it, and compares a plot's draw order with the same plot drawn
-  where no overlay ever was; `test_PlotDesign` compares the ground Default restores with the
+  color before the next plot clears it, compares a plot's draw order with the same plot drawn
+  where no overlay ever was, and checks that an invisible figure gets no menu on a new figure (its
+  shared figure had been drawn editable before); `test_NWBExport` checks the missing-start error on a
+  dataset with no recording (a binary recording always has a start: its data file's modified time
+  when the descriptor gives none); `test_PlotDesign` compares the ground Default restores with the
   figure's own starting color, not white; `test_IntanReader` checks the notch filter's agreement
   with Intan's loop and its speed-up (now: faster than the loop) separately;
   `test_CopySessions/scheduleRunsAsAWindowsTask` is skipped on GitHub-hosted runners, where the

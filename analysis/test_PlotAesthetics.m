@@ -404,9 +404,11 @@ warning(w);
 check(~isempty(h.layout) && strcmp(wid, 'PlotAesthetics:BadValue'), 'a value the object refuses warns and the plot is still drawn');
 
 fprintf('\n== 4. the right-click menu ==\n');
-h = renderPlot(Rp, struct('kind', "psth"), fig);
-check(~isappdata(fig, PlotAesthetics.ContextKey) && isempty(findall(fig, 'Type', 'uicontextmenu')), ...
+inv = figure('Visible', 'off');   % a new figure, as a run's export is: fig was drawn editable in section 2b
+renderPlot(Rp, struct('kind', "psth"), inv);
+check(~isappdata(inv, PlotAesthetics.ContextKey) && isempty(findall(inv, 'Type', 'uicontextmenu')), ...
     'an invisible figure (a run''s export) gets no menu');
+delete(inv);
 h = renderPlot(Rp, struct('kind', "psth", 'id', "p1"), fig, Editable=true, OnRemember=@(r) setappdata(0, 'aestheticsGot', r));
 ctx = getappdata(fig, PlotAesthetics.ContextKey);
 cms = findall(fig, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag);

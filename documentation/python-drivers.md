@@ -215,7 +215,7 @@ folder `~<name>.nwbstage` next to the target and runs the script on it
 | --- | --- |
 | `stage.json` | format `ephys_analysis-nwb-stage/1`, the target, the session and subject metadata, the device, electrode groups and electrodes (text columns inline, numbers as keys into `stage.npz`), the signals (file, kind `lfp` / `filtered` / `aux`, filtering, description), the units' and trials' columns, the digital lines, the reason for the invalid times |
 | `stage.npz` | every number as MATLAB holds it (`writeNPZ`): rates, conversions, electrode positions and rows, spike times (concatenated) with the end index per unit, unit ids and electrodes, `units_resolution`, trial times and numeric columns, the lines' `[start stop]` tables, `invalid_times` |
-| `<SIG>.npy` | each signal as stored, shape `(channels, samples)` in C order, so a block of samples is one contiguous run per channel |
+| `signal_<SIG>.npy` | each signal as stored, shape `(channels, samples)` in C order, so a block of samples is one contiguous run per channel |
 
 The script:
 

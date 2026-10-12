@@ -59,7 +59,7 @@ function out = exportNWB(obj, opts)
 %
 %   How. MATLAB writes the data to a staging folder next to the file:
 %   stage.json (the structure and every text), stage.npz (every number, as
-%   held: writeNPZ) and one <SIG>.npy per signal. nwb_export.py (next to
+%   held: writeNPZ) and one signal_<SIG>.npy per signal. nwb_export.py (next to
 %   this file) then runs in Python. pynwb builds the file, written as
 %   "~<name>.partial.nwb" and renamed when complete, and nwbinspector checks
 %   it: pynwb's schema validation and the NWB best practices. The staging
@@ -285,7 +285,7 @@ end
 % --- signals ---------------------------------------------------------------------------------
 signals = {};
 for sig = in.signals
-    f = sig + ".npy";
+    f = "signal_" + sig + ".npy";   % not AUX.npy: AUX is a reserved device name on Windows
     writeNPY(fullfile(stage, f), S.Y.(sig), "", Shape="transpose");   % (channels, samples), C order
     A.(sig + "_rate") = double(S.info.(sig).Fs);
     shapes.(sig + "_rate") = "scalar";

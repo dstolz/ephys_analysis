@@ -8,7 +8,8 @@ The staging folder holds
                the signals, events and what each array in stage.npz is
   stage.npz    every number, exactly as MATLAB holds it: rates, positions,
                spike times, trial times and columns, interval tables
-  <SIG>.npy    one array per signal, shape (channels, samples), C order, so
+  signal_<SIG>.npy
+               one array per signal, shape (channels, samples), C order, so
                a block of samples of every channel is one run per channel
 
 The file is built with pynwb, written as "~<name>.partial.nwb" next to the

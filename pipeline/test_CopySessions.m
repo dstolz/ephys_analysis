@@ -1543,6 +1543,9 @@ classdef test_CopySessions < matlab.unittest.TestCase
             % MATLAB in the background, the run copies today's session and
             % reports, and remove takes the task away again.
             tc.assumeTrue(ispc, "Task Scheduler needs Windows");
+            tc.assumeNotEqual(string(getenv("RUNNER_ENVIRONMENT")), "github-hosted", ...
+                "on a GitHub-hosted runner the MATLAB that Task Scheduler starts exits before running any code " + ...
+                "(most likely unlicensed: only the MATLAB the MathWorks action starts is licensed there)");
             stamp = string(datetime('today'), 'yyMMdd');
             tc.addPair(stamp + "T090000", stamp + "_090130");
             mkdir(tc.Dest);
@@ -1565,8 +1568,11 @@ classdef test_CopySessions < matlab.unittest.TestCase
                 if ~st.Running && ~isempty(st.LastRun) && st.LastRun.State ~= "running"; break; end
             end
             tc.assertFalse(st.Running, "the scheduled run did not finish in 5 min");
-            tc.verifyEqual(st.LastResult, 0, "MATLAB's exit code reaches Task Scheduler");
-            tc.assertNotEmpty(st.LastRun, "the run wrote no last_run.json; see " + fullfile(sch.Folder, "matlab.log"));
+            logFile = fullfile(sch.Folder, "matlab.log");   % deleted with the test's folder: quote it
+            logText = "(no matlab.log)";
+            if isfile(logFile); logText = string(fileread(logFile)); end
+            tc.verifyEqual(st.LastResult, 0, "MATLAB's exit code reaches Task Scheduler; " + logFile + ": " + logText);
+            tc.assertNotEmpty(st.LastRun, "the run wrote no last_run.json; " + logFile + ": " + logText);
             tc.verifyEqual(st.LastRun.State, "done");
             tc.verifyEqual(st.LastRun.Sessions.Status, "copied");
             tc.verifyTrue(isfile(fullfile(tc.Dest, tc.Subj, tc.Subj + "_" + stamp + "_090130", "session_manifest.json")));

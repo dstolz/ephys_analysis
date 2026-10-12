@@ -146,7 +146,8 @@ NeuroNexus package maps named in each file's `source`. Two chains are checked
 - H32 + RHD2132 in the reference orientation reproduces probeinterface's
   `H32>RHD2132` wiring.
 - H64LP + RHD2164 in the reference orientation reproduces
-  `pipeline/probes/H64LP_4x16lin_probemap.json`.
+  `H64LP_4x16lin_probemap.json` as the mapper writes it (the suite's copy in
+  `pipeline/testdata/channelmapper`).
 
 The template designs follow the site-order templates of the package maps
 (`ChannelMap.templates`). `A4x8-5mm-50-200-177` and `A1x32-Poly3-10mm-50-177`

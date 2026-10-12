@@ -37,9 +37,9 @@ classdef test_NWBExport < matlab.unittest.TestCase
             A = readNPZ(fullfile(out.stage, "stage.npz"));
             tc.verifyEqual(string(st.format), "ephys_analysis-nwb-stage/1");
             % signals as stored, (channels, samples)
-            tc.verifyEqual(readNPY(fullfile(out.stage, "LFP.npy")), D.S.Y.LFP.', 'the LFP as the extract holds it');
-            tc.verifyEqual(readNPY(fullfile(out.stage, "MUA.npy")), D.S.Y.MUA.');
-            tc.verifyEqual(readNPY(fullfile(out.stage, "AUX.npy")), D.S.Y.AUX.');
+            tc.verifyEqual(readNPY(fullfile(out.stage, "signal_LFP.npy")), D.S.Y.LFP.', 'the LFP as the extract holds it');
+            tc.verifyEqual(readNPY(fullfile(out.stage, "signal_MUA.npy")), D.S.Y.MUA.');
+            tc.verifyEqual(readNPY(fullfile(out.stage, "signal_AUX.npy")), D.S.Y.AUX.');
             tc.verifyEqual([A.LFP_rate A.MUA_rate A.AUX_rate], [1000 2000 500]);
             tc.verifyEqual([A.LFP_conversion A.MUA_conversion A.AUX_conversion], [1e-6 1e-6 1]);
             tc.verifyEqual(A.LFP_electrodes, int64(0:5).');
@@ -112,7 +112,12 @@ classdef test_NWBExport < matlab.unittest.TestCase
             tc.verifyError(@() D.ds.exportNWB(Extract=D.S, Units=false, ProbeFile=D.probe, Metadata=D.meta), ...
                 'EphysDataset:exportNWB:NoPython');
             noStart = rmfield(D.meta, 'SessionStartTime');
-            tc.verifyError(@() D.ds.exportNWB(Extract=D.S, Units=false, StageOnly=true, Metadata=noStart), ...
+            % a dataset with no recording has no AcqDate (a binary recording's is at least its data
+            % file's modified time), and the name "bare" gives no start
+            bare = fullfile(tc.Root, "bare");
+            mkdir(bare);
+            dsBare = EphysDataset(bare, AutoMetadata=false, OutputDir=fullfile(tc.Root, "out_bare"));
+            tc.verifyError(@() dsBare.exportNWB(Extract=D.S, Units=false, StageOnly=true, Metadata=noStart), ...
                 'EphysDataset:exportNWB:NoStartTime');
             badZone = D.meta;
             badZone.TimeZone = "Mars/Olympus";

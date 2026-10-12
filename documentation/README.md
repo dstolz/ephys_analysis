@@ -427,6 +427,24 @@ report (`JUnit=`), an HTML or Cobertura code-coverage report of `pipeline/`
 and `analysis/` (`Coverage=` / `CoverageXML=`), and can run a subset by name
 or by tag (`Tag=`).
 
+GitHub Actions runs every suite on each pull request and each push to `main`
+([`matlab-tests.yml`](../.github/workflows/matlab-tests.yml)): `run_all_tests`
+on a Windows runner (its screen set to 1920x1080, as the app tests expect a
+desktop-sized screen) with MATLAB R2025a and the Signal Processing,
+Statistics and Machine Learning, and Parallel Computing toolboxes, set up by the
+MathWorks actions (`matlab-actions/setup-matlab`, `run-command`), which
+license MATLAB for a public repository with no secret. The JUnit report is
+kept as the run's `test-results-*` artifact; a failed run lists the failed
+tests with their messages at the end of its log and in its job summary
+([`junit_failures.py`](../.github/scripts/junit_failures.py)). **Run workflow** on the Actions
+tab runs chosen suites (names separated by spaces). The runner has no
+Kilosort4 or phy environment and no GPU, so the tests that need them are
+skipped there as on any machine without them. The copy schedule's end-to-end
+test (`test_CopySessions/scheduleRunsAsAWindowsTask`) is skipped on
+GitHub-hosted runners: the MATLAB that Task Scheduler starts there exits
+before running any code (most likely unlicensed, as only the MATLAB the
+MathWorks action starts is licensed).
+
 For trying the pipeline or the app by hand without real data,
 [`makeSyntheticProject`](../pipeline/makeSyntheticProject.m) (or the app's
 **File → Create synthetic test project...**) writes a project of deliberately

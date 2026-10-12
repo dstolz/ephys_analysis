@@ -308,7 +308,12 @@ ax = h.axes(1); gs = findall(ax, 'Tag', 'overlayLine'); names = arrayfun(@(x) st
 kids = allKids(ax);
 check(find(kids == gs(names == "Later")) < find(kids == gs(names == "Front")), 'of two overlays over the data, the later one is on top');
 h = renderPlot(Rp, struct('kind', "psth"), fig);
-check(string(h.axes(1).SortMethod) == "depth" && isempty(h.overlays), 'a plot without overlays keeps its axes'' draw order as it was');
+ref = figure('Visible', 'off');   % the same plot in a figure that never had overlays: MATLAB's own draw order
+hr = renderPlot(Rp, struct('kind', "psth"), ref);
+drawnow;
+sameOrder = string(h.axes(1).SortMethod) == string(hr.axes(1).SortMethod);
+delete(ref);
+check(sameOrder && isempty(h.overlays), 'a plot without overlays keeps its axes'' draw order as it was');
 red = [1 0 0];
 orr = ovL; orr.color = "red";
 D = PlotDesign.none(); D.rules = struct('role', "overlayLine", 'group', "", 'property', "Color", 'value', [0 1 0]);
@@ -321,9 +326,10 @@ PlotAesthetics.setUserRules("psth", []);
 check(isequal(c0, red) && isequal(c1, red), 'an overlay''s own color wins over its design''s and the user''s rules');
 h = renderPlot(Rp, struct('kind', "psth", 'overlays', orr, 'aesthetics', ...
     struct('role', "overlayLine", 'group', "Stim", 'property', "Color", 'value', [0 0 1])), fig);
+cStim = h.overlays(1).Color;   % read now: the next renderPlot into fig clears it
 h2 = renderPlot(Rp, struct('kind', "psth", 'overlays', orr, 'aesthetics', ...
     struct('role', "overlayLine", 'group', "Other", 'property', "Color", 'value', [0 0 1])), fig);
-check(isequal(h.overlays(1).Color, [0 0 1]) && isequal(h2.overlays(1).Color, red), ...
+check(isequal(cStim, [0 0 1]) && isequal(h2.overlays(1).Color, red), ...
     'the plot''s own aesthetics rule for an overlay''s name wins over the overlay''s color; another name''s does not reach it');
 off = ovL; off.enabled = false;
 nan = ovL; nan.value = NaN;
@@ -398,9 +404,11 @@ warning(w);
 check(~isempty(h.layout) && strcmp(wid, 'PlotAesthetics:BadValue'), 'a value the object refuses warns and the plot is still drawn');
 
 fprintf('\n== 4. the right-click menu ==\n');
-h = renderPlot(Rp, struct('kind', "psth"), fig);
-check(~isappdata(fig, PlotAesthetics.ContextKey) && isempty(findall(fig, 'Type', 'uicontextmenu')), ...
+inv = figure('Visible', 'off');   % a new figure, as a run's export is: fig was drawn editable in section 2b
+renderPlot(Rp, struct('kind', "psth"), inv);
+check(~isappdata(inv, PlotAesthetics.ContextKey) && isempty(findall(inv, 'Type', 'uicontextmenu')), ...
     'an invisible figure (a run''s export) gets no menu');
+delete(inv);
 h = renderPlot(Rp, struct('kind', "psth", 'id', "p1"), fig, Editable=true, OnRemember=@(r) setappdata(0, 'aestheticsGot', r));
 ctx = getappdata(fig, PlotAesthetics.ContextKey);
 cms = findall(fig, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag);

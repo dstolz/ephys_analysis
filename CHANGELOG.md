@@ -10,6 +10,12 @@ says how to cut a release.
 
 ### Added
 
+- Continuous integration: GitHub Actions runs every test suite (`run_all_tests`) on each pull request and
+  each push to `main`, on Windows with MATLAB R2025a and the Signal Processing, Statistics and Machine
+  Learning, and Parallel Computing toolboxes (`.github/workflows/matlab-tests.yml`). The JUnit report is
+  kept as an artifact; **Run workflow** runs chosen suites. See
+  [Tests](documentation/README.md#tests).
+
 - The aux signal's place and scale: `aux.yLim` fixes its y limits (a panel's, or over a plot the part of
   the right axis it spans), and `aux.overPosition` (`[bottom top]`, fractions of the plot's height) puts
   it where it should sit over a PSTH or raster, e.g. `[0 0.3]` for the bottom three tenths; the right
@@ -766,6 +772,33 @@ says how to cut a release.
   Synthetic tab's probe-gain plot and its PSTH split by parameter.
 
 ### Fixed
+
+- The NWB export failed on Windows machines that treat `AUX.npy` as the reserved device name `AUX`
+  (Windows Server, the GitHub-hosted runner): it staged each signal as `<SIG>.npy`. The staged
+  signals are now `signal_<SIG>.npy` (`exportNWB`; `nwb_export.py` reads the names from
+  `stage.json`).
+
+- A `"*"` probe rule did not match a dataset whose name does not parse with its name pattern,
+  although such a dataset has no subject and only a `"*"` rule is meant to match it
+  (`EphysPipeline.probeRule`).
+
+- The caption of a PSTH or raster with the mean aux signal failed with `Unrecognized field name
+  "yLim"` when the plot's `aux` left out `yLim` or `overPosition`; it now reads them with their
+  defaults, as the renderers do (`plotCaption`).
+
+- Tests that failed on any machine or only on a hosted runner, found by the first CI runs:
+  `test_ChannelMapper` compares against its own copies of the example mapping and the H64LP probe
+  map (`pipeline/testdata/channelmapper`), so editing the lab's files in `pipeline/hardware` and
+  `pipeline/probes` no longer changes what it checks; `test_PlotAesthetics` reads an overlay's
+  color before the next plot clears it, compares a plot's draw order with the same plot drawn
+  where no overlay ever was, and checks that an invisible figure gets no menu on a new figure (its
+  shared figure had been drawn editable before); `test_NWBExport` checks the missing-start error on a
+  dataset with no recording (a binary recording always has a start: its data file's modified time
+  when the descriptor gives none); `test_PlotDesign` compares the ground Default restores with the
+  figure's own starting color, not white; `test_IntanReader` checks the notch filter's agreement
+  with Intan's loop and its speed-up (now: faster than the loop) separately;
+  `test_CopySessions/scheduleRunsAsAWindowsTask` is skipped on GitHub-hosted runners, where the
+  MATLAB Task Scheduler starts does not run, and quotes `matlab.log` when it fails elsewhere.
 
 - Analysis plots of threshold detections (source *detected*) and of signals
   labeled every channel "sh0" with no depth, and could not sort them by depth

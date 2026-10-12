@@ -1,0 +1,93 @@
+# MATLAB tests: every suite of pipeline/ and analysis/ through pipeline/run_all_tests, on each pull
+# request and each push to main. Run it by hand from the Actions tab (Run workflow) to choose suites.
+#
+# The repository is public, so the MathWorks actions license MATLAB and the toolboxes below with no
+# secret. A private copy needs a MATLAB batch licensing token in the MLM_LICENSE_TOKEN environment
+# variable (https://github.com/matlab-actions/setup-matlab#use-matlab-batch-licensing-token).
+#
+# Windows and R2025a, as the code is developed and tested (documentation/platforms.md). The toolboxes
+# are those listed under Dependencies in documentation/README.md. Tests that need what the runner
+# lacks (Python, a conda environment, a GPU) are skipped as Incomplete, not failed.
+
+name: MATLAB tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      suites:
+        description: Suites to run, separated by spaces (blank = every suite)
+        required: false
+        default: ""
+
+concurrency:
+  group: matlab-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: run_all_tests (${{ matrix.os }}, ${{ matrix.release }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest]
+        release: [R2025a]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 150
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up MATLAB
+        uses: matlab-actions/setup-matlab@v3
+        with:
+          release: ${{ matrix.release }}
+          products: >
+            Signal_Processing_Toolbox
+            Statistics_and_Machine_Learning_Toolbox
+            Parallel_Computing_Toolbox
+          cache: true
+
+      # The hosted Windows runner's screen is 1024x768, smaller than the apps' windows (the pipeline
+      # app opens at 1240x800); the app tests point at plots laid out for a desktop-sized screen.
+      - name: Set the screen to 1920x1080
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (Get-Command Set-DisplayResolution -ErrorAction SilentlyContinue) {
+            Set-DisplayResolution -Width 1920 -Height 1080 -Force
+          } else {
+            Write-Warning "Set-DisplayResolution is not available; the screen stays as it is."
+          }
+
+      - name: Run tests
+        uses: matlab-actions/run-command@v3
+        env:
+          SUITES: ${{ inputs.suites }}
+        with:
+          command: |
+            disp("Screen size: " + mat2str(get(groot, "ScreenSize")));
+            junit = fullfile(pwd, "test-results", "junit.xml");
+            names = split(strtrim(string(getenv("SUITES"))));
+            names = reshape(names(names ~= ""), 1, []);
+            cd pipeline
+            run_all_tests(names, JUnit=junit);
+
+      - name: List the failed tests
+        if: failure() && hashFiles('test-results/junit.xml') != ''
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python .github/scripts/junit_failures.py test-results/junit.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-results-${{ matrix.os }}-${{ matrix.release }}
+          path: test-results/
+          if-no-files-found: ignore

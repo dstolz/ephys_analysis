@@ -1219,7 +1219,7 @@ classdef EphysPipeline < handle
                 pat = strtrim(subjects(k));
                 if pat == ""; continue; end
                 rx = "^" + string(regexptranslate('wildcard', char(pat))) + "$";
-                if (pat == "*" || subject ~= "") && ~isempty(regexpi(subject, rx, 'once'))
+                if pat == "*" || (subject ~= "" && ~isempty(regexpi(subject, rx, 'once')))   % "*" also matches no subject
                     probe = strtrim(probes(k));
                     rule = k;
                     return

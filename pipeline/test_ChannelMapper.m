@@ -6,8 +6,13 @@ function test_ChannelMapper()
 %   bank, saving entries, saved mappings) and ChannelMapperApp, headless.
 %   The golden checks: NeuroNexus H32 + Intan RHD2132 reproduces
 %   probeinterface's H32>RHD2132 pathway (G1), H64LP + RHD2164 reproduces
-%   pipeline/probes/H64LP_4x16lin_probemap.json (G2), and H16 + the 16-channel
-%   RHD2132 gives the rule-derived map (G3). No Python is needed.
+%   H64LP_4x16lin_probemap.json (G2), and H16 + the 16-channel RHD2132
+%   gives the rule-derived map (G3). No Python is needed.
+%   The reference files are the suite's own copies in
+%   pipeline/testdata/channelmapper (the H32_A1x32_RHD2132 example mapping
+%   and the H64LP probe map as the mapper writes them, kcoords = shanks), so
+%   editing the lab's files in pipeline/hardware and pipeline/probes, as the
+%   app saves there, does not change what the suite checks against.
 %
 %   Usage:  test_ChannelMapper
 
@@ -37,7 +42,8 @@ hwFolder = HardwareBank.defaultFolder();
 bank = HardwareBank(hwFolder);
 G1 = [16 17 18 20 21 22 31 30 29 27 26 25 24 28 23 19 12 8 3 7 6 5 4 2 1 0 9 10 11 13 14 15];
 G3 = [16 18 19 23 20 21 22 17 14 9 10 11 8 12 13 15];
-ref64 = readJsonFile(fullfile(here, 'probes', 'H64LP_4x16lin_probemap.json'));
+refDir = fullfile(here, 'testdata', 'channelmapper');
+ref64 = readJsonFile(fullfile(refDir, 'H64LP_4x16lin_probemap.json'));
 
 %% ---- 1. parseRow / faceFromRows ------------------------------------------------
 fprintf('\n== 1. parseRow ==\n');
@@ -181,8 +187,9 @@ check(isequal(R1.Table.RecordingRow0', G1) && isempty(R1.Problems) && R1.Trust =
     "in-order rows equal the hardware channels, no problems, trust verified");
 R1n = ChannelMap.resolve(makeChain(bank, "", "neuronexus/H32", "intan/RHD2132-32ch"));
 check(isequal(R1n.Table.HardwareChannel', G1) && all(isnan(R1n.Table.X)), "the same without a probe design (no geometry)");
-Rm = ChannelMap.resolve(bank.chainFromMapping(bank.get("H32_A1x32_RHD2132")));
-check(isequal(Rm.Table.HardwareChannel', G1), "the shipped mapping H32_A1x32_RHD2132 gives G1");
+mapFile = fullfile(refDir, 'H32_A1x32_RHD2132.json');
+Rm = ChannelMap.resolve(bank.chainFromMapping(HardwareBank.normalize(readJsonFile(mapFile), mapFile)));
+check(isequal(Rm.Table.HardwareChannel', G1), "the example mapping H32_A1x32_RHD2132 gives G1");
 check(contains(ChannelMap.pathText(R1, 18), "in8") && contains(ChannelMap.pathText(R1, 18), "row 9 (1-based) / 8 (0-based)") && ...
     contains(ChannelMap.pathText(R1, 18), "top:2") && contains(ChannelMap.pathText(R1, 18), "top:17"), ...
     "pathText: site 18 -> H32 top:2 -> RHD2132 top:17 -> in8 -> row 9 / 8");
@@ -194,9 +201,9 @@ R2 = ChannelMap.resolve(c2);
 f2 = fullfile(root, 'H64LP_export.json');
 [pf, sc] = ChannelMap.exportKS4(R2, f2);
 w = readJsonFile(pf);
-check(isequal(w.chanMap(:), ref64.chanMap(:)), "H64LP + RHD2164 chanMap = H64LP_4x16lin_probemap.json, site by site");
+check(isequal(w.chanMap(:), ref64.chanMap(:)), "H64LP + RHD2164 chanMap = the reference H64LP_4x16lin_probemap.json, site by site");
 check(isequal(w.xc(:), ref64.xc(:)) && isequal(w.yc(:), ref64.yc(:)) && isequal(w.kcoords(:), ref64.kcoords(:)) && w.n_chan == 64, ...
-    "xc / yc / kcoords / n_chan equal the lab file");
+    "xc / yc / kcoords / n_chan equal the reference file");
 check(R2.Trust == "verified" && isempty(R2.Problems), "trust verified, no problems");
 c2r = makeChain(bank, "neuronexus/A4x16-Poly2-5mm-20s-lin-160", "neuronexus/H64LP", "intan/RHD2164-64ch", Orientation="rotated");
 R2r = ChannelMap.resolve(c2r);
@@ -455,7 +462,7 @@ ed.GenN.Value = 4;
 ed.GenPitch.Value = 25;
 m.editorGenerate();
 check(height(m.Editor.Sites.Data) == 4 && m.Editor.Channels.Value == 4, "the probe editor generates sites");
-m.editorImport("ks4", fullfile(here, 'probes', 'H64LP_4x16lin_probemap.json'));
+m.editorImport("ks4", fullfile(refDir, 'H64LP_4x16lin_probemap.json'));
 check(height(m.Editor.Sites.Data) == 64 && isequal(unique(m.Editor.Sites.Data.Shank)', 1:4) && ...
     contains(string(m.Editor.Notes.Value), "order"), "it imports a Kilosort4 probe (sites by order, shanks 1..4)");
 m.editorGenerate();

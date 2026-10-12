@@ -249,6 +249,7 @@ end
 function parts = auxText(spec, R)
 %auxText  The mean aux signal: what it is, where it is drawn, its epochs and those left out of it.
 A = R.aux;
+aux = EphysAnalysisConfig.normalizeSection("Aux", spec.aux);   % as the renderers read it: fields left out take their defaults
 ch = strjoin(reshape(A.channelLabels, 1, []), ", ");
 if A.mode == "magnitude"
     s = "aux: mean vector magnitude (square root of the sum of squares, in each epoch at every sample) of " + ch;
@@ -260,7 +261,7 @@ if isfield(A.params, 'Baseline') && numel(A.params.Baseline) == 2
     if A.mode == "magnitude"; s = s + " first"; end
 end
 s = s + " (" + A.units + ")";
-place = spec.aux.placement;
+place = aux.placement;
 if place == "over" && spec.kind == "psth" && spec.stack && isfield(R, 'rate') && size(R.rate, 3) > 1
     place = "below";   % a stack's right axis is its rows' peaks
 end
@@ -273,13 +274,13 @@ switch place
     case "above", s = s + ", in a panel above the " + what;
     otherwise
         s = s + ", on the " + what + "'s right axis";
-        op = spec.aux.overPosition;
+        op = aux.overPosition;
         if numel(op) == 2 && ~isequal(op, [0 1])
             s = s + sprintf(" (from %g to %g of its height)", op(1), op(2));
         end
 end
-if numel(spec.aux.yLim) == 2
-    s = s + sprintf(", y limits [%g %g] %s", spec.aux.yLim(1), spec.aux.yLim(2), A.units);
+if numel(aux.yLim) == 2
+    s = s + sprintf(", y limits [%g %g] %s", aux.yLim(1), aux.yLim(2), A.units);
 end
 if A.byGroup && height(A.groups) > 1
     s = s + sprintf(", one trace per group (n = %s epochs)", strjoin(string(A.nEpochs(:).'), ", "));

@@ -6,8 +6,9 @@ function showTransferProgress(obj)
 %   for a background sort, and the batch in flight with what the copy
 %   engine said last. The tooltip adds each destination. Called by the
 %   timer (pollTransfers), so it must be cheap.
-if isempty(obj.RunTransferLabel) || ~isvalid(obj.RunTransferLabel) || isempty(obj.Transfers); return; end
-infos = arrayfun(@(X) X.progress(), obj.Transfers);
+T = obj.Transfers;   % the monitor timer's pollTransfers can empty obj.Transfers while this runs
+if isempty(obj.RunTransferLabel) || ~isvalid(obj.RunTransferLabel) || isempty(T); return; end
+infos = arrayfun(@(X) X.progress(), T);
 total = sum([infos.BytesTotal]);
 doneBytes = sum([infos.BytesDone]);
 batches = sum(vertcat(infos.Batches), 1);
@@ -42,7 +43,8 @@ if ~isempty(k)
     s = s + "   " + infos(k).Current;
     if infos(k).Message ~= ""; s = s + " (" + infos(k).Message + ")"; end
 end
-tip = s + newline + "To: " + strjoin(unique([obj.Transfers.Destination], 'stable'), ", ");
+if isempty(obj.Transfers); return; end   % they finished meanwhile: keep pollTransfers' last message
+tip = s + newline + "To: " + strjoin(unique([T.Destination], 'stable'), ", ");
 obj.RunTransferLabel.Text = char(s);
 obj.RunTransferLabel.Tooltip = char(tip);
 obj.RunTransferLabel.FontColor = [0.2 0.2 0.2];

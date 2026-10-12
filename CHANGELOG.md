@@ -775,6 +775,13 @@ says how to cut a release.
 
 ### Fixed
 
+- The pipeline app's output-copy progress line could fail with `First input must be a string array or cell
+  array of character vectors` (`showTransferProgress`, from `pollTransfers`) when the copies finished
+  while it was being drawn: the monitor timer's `pollTransfers` emptied the list of transfers between the
+  progress line's check and its tooltip. It now works on its own copy of the list, and leaves the row to
+  the final "Output copies done" message when the copies finish meanwhile. Seen once in CI
+  (`test_EphysPipelineApp`, which passed on the re-run).
+
 - The NWB export failed on Windows machines that treat `AUX.npy` as the reserved device name `AUX`
   (Windows Server, the GitHub-hosted runner): it staged each signal as `<SIG>.npy`. The staged
   signals are now `signal_<SIG>.npy` (`exportNWB`; `nwb_export.py` reads the names from

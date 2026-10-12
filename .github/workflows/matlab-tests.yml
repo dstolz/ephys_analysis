@@ -1,5 +1,9 @@
-# MATLAB tests: every suite of pipeline/ and analysis/ through pipeline/run_all_tests, on each pull
-# request and each push to main. Run it by hand from the Actions tab (Run workflow) to choose suites.
+# MATLAB tests: the suites of pipeline/ and analysis/ through pipeline/run_all_tests.
+# - A pull request runs the suites its change can reach (.github/scripts/select_suites.py, which says
+#   why in the job summary); none when it changes only documentation or comments, all when it
+#   changes the test runner, this workflow or its scripts.
+# - A push to main runs every suite.
+# - Run it by hand from the Actions tab (Run workflow) to choose suites; blank runs every suite.
 #
 # The repository is public, so the MathWorks actions license MATLAB and the toolboxes below with no
 # secret. A private copy needs a MATLAB batch licensing token in the MLM_LICENSE_TOKEN environment
@@ -30,8 +34,37 @@ permissions:
   contents: read
 
 jobs:
+  select:
+    name: Choose the suites
+    runs-on: ubuntu-latest
+    outputs:
+      suites: ${{ steps.pick.outputs.suites }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2   # a pull request checks out its merge commit; HEAD^1 is the base it merges into
+
+      - id: pick
+        name: Choose the suites
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_SUITES: ${{ inputs.suites }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            suites=$(python3 .github/scripts/select_suites.py HEAD^1 HEAD)
+          elif [ -n "$INPUT_SUITES" ]; then
+            suites=$INPUT_SUITES
+          else
+            suites=all
+          fi
+          echo "Suites: $suites"
+          echo "suites=$suites" >> "$GITHUB_OUTPUT"
+
   test:
     name: run_all_tests (${{ matrix.os }}, ${{ matrix.release }})
+    needs: select
+    if: needs.select.outputs.suites != 'none'
     strategy:
       fail-fast: false
       matrix:
@@ -68,13 +101,16 @@ jobs:
       - name: Run tests
         uses: matlab-actions/run-command@v3
         env:
-          SUITES: ${{ inputs.suites }}
+          SUITES: ${{ needs.select.outputs.suites }}
         with:
           command: |
             disp("Screen size: " + mat2str(get(groot, "ScreenSize")));
             junit = fullfile(pwd, "test-results", "junit.xml");
-            names = split(strtrim(string(getenv("SUITES"))));
-            names = reshape(names(names ~= ""), 1, []);
+            suites = strtrim(string(getenv("SUITES")));
+            disp("Suites: " + suites);
+            names = string.empty(1, 0);
+            if suites ~= "all"; names = reshape(split(suites), 1, []); end
+            names = names(names ~= "");
             cd pipeline
             run_all_tests(names, JUnit=junit);
 

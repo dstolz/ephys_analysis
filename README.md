@@ -73,7 +73,7 @@ to run.
 
 Tests: `cd pipeline; run_all_tests` (all suites; `run_all_tests(JUnit="junit.xml")` also writes a
 JUnit report). The tests keep the apps' preferences in a temporary file, never yours. GitHub Actions
-runs them all on each pull request and push to `main`
+runs them all on each push to `main`, and on a pull request the suites its change can reach
 ([MATLAB tests](.github/workflows/matlab-tests.yml); [Tests](documentation/README.md#tests)).
 
 ## Versions, license and citation

@@ -427,9 +427,21 @@ report (`JUnit=`), an HTML or Cobertura code-coverage report of `pipeline/`
 and `analysis/` (`Coverage=` / `CoverageXML=`), and can run a subset by name
 or by tag (`Tag=`).
 
-GitHub Actions runs every suite on each pull request and each push to `main`
-([`matlab-tests.yml`](../.github/workflows/matlab-tests.yml)): `run_all_tests`
-on a Windows runner (its screen set to 1920x1080, as the app tests expect a
+GitHub Actions runs the tests ([`matlab-tests.yml`](../.github/workflows/matlab-tests.yml)):
+every suite on each push to `main`, and on a pull request the suites its
+change can reach, chosen by
+[`select_suites.py`](../.github/scripts/select_suites.py), whose job summary
+says why each one runs. The script starts from the names the change touches
+(a function file's name; for a method file or a classdef, the methods whose
+lines changed, or the class when its properties or declarations did; a data
+file's name) and adds the code that uses them: within a class folder, or a
+private function's folder, every user in turn, so a private helper of an app
+reaches the app; elsewhere one step out. A suite runs when it uses any of
+these names or changed itself. A change to documentation, or to comments
+only, runs none; a change to the test runner, the workflow or its scripts runs
+all. Name matching misses a call made from a string built at run time and a
+user two steps away across folders, which the run on `main` then catches. The
+tests run through `run_all_tests` on a Windows runner (its screen set to 1920x1080, as the app tests expect a
 desktop-sized screen) with MATLAB R2025a and the Signal Processing,
 Statistics and Machine Learning, and Parallel Computing toolboxes, set up by the
 MathWorks actions (`matlab-actions/setup-matlab`, `run-command`), which
@@ -437,7 +449,8 @@ license MATLAB for a public repository with no secret. The JUnit report is
 kept as the run's `test-results-*` artifact; a failed run lists the failed
 tests with their messages at the end of its log and in its job summary
 ([`junit_failures.py`](../.github/scripts/junit_failures.py)). **Run workflow** on the Actions
-tab runs chosen suites (names separated by spaces). The runner has no
+tab runs chosen suites (names separated by spaces; blank runs every suite).
+The runner has no
 Kilosort4 or phy environment and no GPU, so the tests that need them are
 skipped there as on any machine without them. The copy schedule's end-to-end
 test (`test_CopySessions/scheduleRunsAsAWindowsTask`) is skipped on

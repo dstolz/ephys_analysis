@@ -413,6 +413,10 @@ classdef EphysAnalysisApp < handle
         onOpenReport(obj)
         onOpenExportFolder(obj)
 
+        % --- Sessions tab ---
+        S = onSessionsToWorkspace(obj, sp, opts)
+        file = onSaveSessionData(obj, sp, opts)
+
         % --- Chronux tab ---
         buildChronuxTab(obj)
         refreshChronuxTab(obj)

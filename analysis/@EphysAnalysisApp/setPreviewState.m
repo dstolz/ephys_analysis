@@ -8,7 +8,8 @@ function setPreviewState(obj, state, opts)
 %     drawing    the result is being drawn (blue spinner)
 %     drawn      the preview is the plot as it is now
 %     stale      the plot changed since it was drawn, and auto-preview did
-%                not redraw it (off, slow, or another tab): press Preview
+%                not redraw it (off, slow, or another tab): press Preview;
+%                the Preview button turns orange (primary blue otherwise)
 %     waiting    a large signal extract waits for the Preview button
 %     skipped    the dataset cannot draw the plot
 %     failed     computing or drawing it failed
@@ -49,6 +50,11 @@ B.Icon.ImageSource = fullfile(iconFolder(), state + ".svg");
 B.Text.Text = word;
 B.Text.FontColor = c{2};
 set([B.Icon B.Text], "Tooltip", tip);
+if state == "stale"   % the Preview button asks for a press, in the badge's amber
+    set(obj.PreviewButton, "BackgroundColor", [1.00 0.62 0.15], "FontColor", [0.10 0.10 0.10]);
+else
+    styleButton(obj.PreviewButton, "primary");
+end
 
 busy = ismember(state, ["computing" "drawing"]);
 card = findobj(obj.PreviewPanel.Children, "flat", "Tag", "previewBusyCard");

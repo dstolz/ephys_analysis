@@ -369,9 +369,9 @@ runner, so it is what a run exports.
 | Control | Effect |
 | --- | --- |
 | **Active dataset** | the dataset previewed (the same one as on the other tabs) |
-| **Preview** | computes now, also for a signal extract above `PreviewMaxMB`; a grid of units or channels only for the page shown. **Ctrl+click** computes every page |
+| **Preview** | computes now, also for a signal extract above `PreviewMaxMB`; a grid of units or channels only for the page shown. **Ctrl+click** computes every page. It is the tall button left of the two rows of controls, and turns orange while the plot is *Out of date* |
 | **Auto** | redraw after every edit while a preview takes under 2 s; a slower one says so (*"slow, so edits wait for Preview"*) |
-| **<**, **>** | the pages of a paged grid: computes the page it goes to, or only draws it after a Ctrl+click on **Preview** |
+| **<**, **>** | the pages of a paged grid (**Page Up**, **Page Down**): computes the page it goes to, or only draws it after a Ctrl+click on **Preview**. The page shown (*page 2 of 5*) is named small at the bottom right of the preview |
 | **Design** | the look of every plot (Default, Tufte, Journal, Night, Talk, Gray panel, and yours): picking one redraws the preview, and every other plot on screen, at once; runs draw their figures in it |
 | **Save look as design...** | keeps the preview's look -- every property of every component, its ground and its group colors -- as a design of yours, and picks it |
 

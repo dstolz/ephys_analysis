@@ -30,6 +30,11 @@ says how to cut a release.
   names the statistic, the transform and the band. See
   [Aux signals](documentation/EphysAnalysisConfig.md#aux-signals).
 
+- The analysis app's Plots tab: **Preview**, **Auto** and the page buttons now sit left of the
+  *Active dataset* and *Design* rows, **Preview** as one button over both rows, turning orange while
+  the plot is *Out of date*. **Page Up** and **Page Down** flip the preview's pages (named in the
+  buttons' tooltips), and the page label at the bottom is smaller.
+
 - The aux signal's place and scale: `aux.yLim` fixes its y limits (a panel's, or over a plot the part of
   the right axis it spans), and `aux.overPosition` (`[bottom top]`, fractions of the plot's height) puts
   it where it should sit over a PSTH or raster, e.g. `[0 0.3]` for the bottom three tenths; the right

@@ -766,31 +766,43 @@ obj.PlotSections = sec;
 obj.layoutPlotEditor();
 
 % --- the preview ---------------------------------------------------------------------------
-pg = uigridlayout(g, [4 6]);
+pg = uigridlayout(g, [4 4]);
 pg.RowHeight = {30, 30, '1x', 26};
-pg.ColumnWidth = {'fit', '1x', 'fit', 'fit', 'fit', 'fit'};
+pg.ColumnWidth = {100, 'fit', 'fit', '1x'};   % Preview over two rows, Auto and the pages, then the labels and their controls
 pg.Padding = [0 0 0 0];
-l = uilabel(pg, "Text", "Active dataset:");
-l.Layout.Row = 1; l.Layout.Column = 1;
-obj.PlotsDatasetDropDown = uidropdown(pg, "Items", "(scan first)", "ItemsData", 0, ...
-    "ValueChangedFcn", @(dd, ~) obj.selectDataset(dd.Value));
-obj.PlotsDatasetDropDown.Layout.Row = 1; obj.PlotsDatasetDropDown.Layout.Column = 2;
 obj.PreviewButton = uibutton(pg, "Text", "Preview", ...
     "Tooltip", "Compute and draw the selected plot on the active dataset: only the page shown, for a grid of " + ...
-    "units or channels. Ctrl+click to compute every page, so < and > flip pages without computing.", ...
+    "units or channels. Ctrl+click to compute every page, so < and > flip pages without computing. " + ...
+    "Orange: the plot changed since it was drawn.", ...
     "ButtonPushedFcn", @(~,~) obj.refreshPreview(Force=true, AllPages=string(obj.Fig.SelectionType) == "alt"));
-obj.PreviewButton.Layout.Row = 1; obj.PreviewButton.Layout.Column = 3;
-obj.AutoPreviewCheckBox = uicheckbox(pg, "Text", "Auto", "Value", true, ...
+obj.PreviewButton.Layout.Row = [1 2]; obj.PreviewButton.Layout.Column = 1;
+cg = uigridlayout(pg, [2 1]);
+cg.Layout.Row = [1 2]; cg.Layout.Column = 2;
+cg.RowHeight = {30, 30};
+cg.RowSpacing = pg.RowSpacing;
+cg.ColumnWidth = {'fit'};
+cg.Padding = [0 0 0 0];
+obj.AutoPreviewCheckBox = uicheckbox(cg, "Text", "Auto", "Value", true, ...
     "Tooltip", "Redraw on every change while a preview takes under 2 s.", "ValueChangedFcn", @(~,~) obj.onAutoPreviewToggled());
-obj.AutoPreviewCheckBox.Layout.Row = 1; obj.AutoPreviewCheckBox.Layout.Column = 4;
-obj.PrevPageButton = uibutton(pg, "Text", "<", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onPreviewPage(-1));
-obj.PrevPageButton.Layout.Row = 1; obj.PrevPageButton.Layout.Column = 5;
-obj.NextPageButton = uibutton(pg, "Text", ">", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onPreviewPage(1));
-obj.NextPageButton.Layout.Row = 1; obj.NextPageButton.Layout.Column = 6;
+obj.AutoPreviewCheckBox.Layout.Row = 1;
+kg = uigridlayout(cg, [1 2]);
+kg.Layout.Row = 2;
+kg.ColumnWidth = {34, 34};
+kg.ColumnSpacing = 4;
+kg.Padding = [0 0 0 0];
+obj.PrevPageButton = uibutton(kg, "Text", "<", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onPreviewPage(-1), ...
+    "Tooltip", "The previous page of a paged grid (Page Up).");
+obj.NextPageButton = uibutton(kg, "Text", ">", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onPreviewPage(1), ...
+    "Tooltip", "The next page of a paged grid (Page Down).");
+l = uilabel(pg, "Text", "Active dataset:");
+l.Layout.Row = 1; l.Layout.Column = 3;
+obj.PlotsDatasetDropDown = uidropdown(pg, "Items", "(scan first)", "ItemsData", 0, ...
+    "ValueChangedFcn", @(dd, ~) obj.selectDataset(dd.Value));
+obj.PlotsDatasetDropDown.Layout.Row = 1; obj.PlotsDatasetDropDown.Layout.Column = 4;
 l = uilabel(pg, "Text", "Design:");
-l.Layout.Row = 2; l.Layout.Column = 1;
+l.Layout.Row = 2; l.Layout.Column = 3;
 dg = uigridlayout(pg, [1 3]);
-dg.Layout.Row = 2; dg.Layout.Column = [2 6];
+dg.Layout.Row = 2; dg.Layout.Column = 4;
 dg.ColumnWidth = {200, 'fit', '1x'};
 dg.Padding = [0 0 0 0];
 obj.DesignDropDown = uidropdown(dg, "Items", PlotDesign.DefaultName, "ItemsData", PlotDesign.DefaultName, ...
@@ -801,7 +813,7 @@ obj.SaveDesignButton = uibutton(dg, "Text", "Save look as design...", "ButtonPus
     "Tooltip", "Keep the preview's look -- every property of every component, its ground and its group " + ...
     "colors -- as a design of your own, to choose for any plot.");
 vg = uigridlayout(pg, [2 1], "RowHeight", {0, '1x'}, "Padding", [0 0 0 0], "RowSpacing", 0);
-vg.Layout.Row = 3; vg.Layout.Column = [1 6];
+vg.Layout.Row = 3; vg.Layout.Column = [1 4];
 obj.PreviewGrid = vg;
 A.Grid = uigridlayout(vg, [1 1], "Padding", [8 2 8 2], "Visible", "off");   % shown while several plots are selected
 A.Text = uilabel(A.Grid, "Text", "", "FontWeight", "bold");
@@ -809,13 +821,14 @@ obj.SelectionBar = A;
 obj.PreviewPanel = uipanel(vg, "BackgroundColor", "w", "BorderType", "line");
 obj.PreviewPanel.Layout.Row = 2;
 sg = uigridlayout(pg, [1 3], "ColumnWidth", {'fit', '1x', 'fit'}, "Padding", [0 0 0 0], "ColumnSpacing", 8);
-sg.Layout.Row = 4; sg.Layout.Column = [1 6];
+sg.Layout.Row = 4; sg.Layout.Column = [1 4];
 B.Grid = uigridlayout(sg, [1 2], "ColumnWidth", {18, 'fit'}, "Padding", [6 2 10 2], "ColumnSpacing", 5);
 B.Icon = uiimage(B.Grid, "ScaleMethod", "fit");
 B.Text = uilabel(B.Grid, "FontWeight", "bold");
 obj.PreviewBadge = B;
 obj.PreviewLabel = uilabel(sg, "Text", "Add a plot, scan and pick a dataset to preview.", "FontColor", [0.35 0.35 0.35]);
-obj.PageLabel = uilabel(sg, "Text", "", "HorizontalAlignment", "right");
+obj.PageLabel = uilabel(sg, "Text", "", "HorizontalAlignment", "right", "FontSize", 11, "FontColor", [0.35 0.35 0.35], ...
+    "Tooltip", "The page of a paged grid shown (Page Up and Page Down flip pages).");
 obj.setPreviewState("idle");
 end
 

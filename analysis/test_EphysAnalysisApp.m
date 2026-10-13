@@ -220,6 +220,18 @@ stale = app.PreviewState == "stale" && string(app.PreviewBadge.Text.Text) == "Ou
 app.AutoPreviewCheckBox.Value = true;
 app.refreshPreview(Force=true);
 check(stale && app.PreviewState == "drawn", 'an edit Auto does not redraw marks the preview Out of date; Preview draws it again');
+blue = app.PreviewButton.BackgroundColor;
+app.setPreviewState("stale");
+orange = app.PreviewButton.BackgroundColor;
+app.setPreviewState("drawn");
+check(~isequal(orange, blue) && isequal(app.PreviewButton.BackgroundColor, blue) ...
+    && app.PreviewButton.Layout.Row(end) - app.PreviewButton.Layout.Row(1) == 1 ...
+    && contains(app.PrevPageButton.Tooltip, "Page Up") && contains(app.NextPageButton.Tooltip, "Page Down"), ...
+    'the Preview button spans two rows and turns orange while the plot is Out of date; the page buttons name their keys');
+pressed = @(k, mods) struct('Key', k, 'Modifier', {mods}, 'Character', '');
+app.onKeyPress(pressed('pagedown', {}));
+app.onKeyPress(pressed('pageup', {}));
+check(app.PreviewPage == 1 && app.PreviewState == "drawn", 'Page Up and Page Down on a single page leave the preview as it is');
 tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(~, ~) app.onCancelPreview());   % a click on the busy card's Cancel
 start(tm);
 app.refreshPreview(Force=true);

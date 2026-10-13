@@ -1005,6 +1005,27 @@ check(numel(app.Config.Plots) == n0 - 3 && isequal([app.Config.Plots.id], ["psth
     'Remove takes every selected plot; one plot left selected, the banner and bar are gone');
 app.onPlotSectionToggled("bins");
 app.onPlotSelected(1);
+% --- Copy from...: another plot's settings onto the selected one, of another type ------------------
+cx = app.Config; p1 = cx.Plots(1); cx.Plots(1).style.FontSize = 13; cx.Plots(1).bins.BinSec = 0.025; app.applyConfig(cx);
+app.onAddPlot("raster");
+kC = app.SelectedPlot;
+idC = app.Config.Plots(kC).id;
+check(app.CopyPlotButton.Enable == "on", 'Copy from... is on with a plot selected and another to copy from');
+answerDialog('Copy plot settings', @copySettingsDialog);
+app.onCopyPlotSettings();
+seen = getappdata(groot, 'copySettingsSeen');
+if isappdata(groot, 'copySettingsSeen'); rmappdata(groot, 'copySettingsSeen'); end
+pC = app.Config.Plots(kC);
+check(isstruct(seen) && ~seen.evokedMarks && seen.evokedStyle && seen.psthMarks && seen.count == "12 part(s) to copy", ...
+    'the window offers only the parts the raster shares with the plot picked (no event marks from an evoked potential)');
+check(pC.id == idC && pC.kind == "raster" && pC.style.FontSize == 13 && pC.bins.BinSec ~= 0.025 && E.fontSize.Value == 13 ...
+    && app.SelectedPlot == kC && contains(string(app.StatusBar.Text), "Copied from psth_1"), ...
+    'Copy gives the raster the PSTH''s ticked parts (its look), not the one unticked (bins); the editor shows them');
+app.onCopyPlotSettings(From="psth_1", Parts="bins");
+check(app.Config.Plots(kC).bins.BinSec == 0.025 && E.binMs.Value == 25, 'From= and Parts= copy without the window (the bins now)');
+app.onRemovePlot();
+cx = app.Config; cx.Plots(1) = p1; app.applyConfig(cx);   % psth_1 as it was
+app.onPlotSelected(1);
 
 fprintf('\n== 4. gather / apply, save / reopen, script ==\n');
 c1 = app.gatherConfig();
@@ -1524,6 +1545,24 @@ X{3, 3} = '9';
 D.Table.Data = X;
 D.Table.CellSelectionCallback(D.Table, struct('Indices', [2 1]));
 press(D, ["Remove" "Save"]);
+end
+
+
+function copySettingsDialog(D)
+%copySettingsDialog  In the Copy plot settings window: note what evoked_1 and psth_1 offer, untick Bins, Copy from psth_1.
+from = D.From.ItemsData;
+D.From.Value = from(string(D.From.Items) == "evoked_1  (Evoked potential)");
+D.From.ValueChangedFcn(D.From, []);
+seen = struct('evokedMarks', D.Boxes.marks.Enable == "on", 'evokedStyle', D.Boxes.style.Enable == "on");
+D.From.Value = from(string(D.From.Items) == "psth_1  (PSTH)");
+D.From.ValueChangedFcn(D.From, []);
+seen.psthMarks = D.Boxes.marks.Enable == "on" && D.Boxes.marks.Value;
+D.Boxes.bins.Value = false;
+D.Boxes.bins.ValueChangedFcn(D.Boxes.bins, []);
+lab = findall(ancestor(D.All, 'figure'), 'Type', 'uilabel');
+seen.count = string(lab(contains(string({lab.Text}), "part(s) to copy")).Text);
+setappdata(groot, 'copySettingsSeen', seen);
+press(D, "Ok");
 end
 
 

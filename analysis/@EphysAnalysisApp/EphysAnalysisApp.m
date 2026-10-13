@@ -185,6 +185,7 @@ classdef EphysAnalysisApp < handle
         AddPlotButton      matlab.ui.control.Button
         RemovePlotButton   matlab.ui.control.Button
         DuplicatePlotButton matlab.ui.control.Button
+        CopyPlotButton     matlab.ui.control.Button         % Copy from...: another plot's settings onto the selected plots (onCopyPlotSettings)
         UpPlotButton       matlab.ui.control.Button
         DownPlotButton     matlab.ui.control.Button
         PlotEditorPanel    matlab.ui.container.Panel        % the editor's panel (its title counts the plots selected)
@@ -419,6 +420,7 @@ classdef EphysAnalysisApp < handle
         onAddPlot(obj, kind)
         onRemovePlot(obj)
         onDuplicatePlot(obj)
+        onCopyPlotSettings(obj, opts)
         onMovePlot(obj, step)
         onPlotSelected(obj, k)
         onPlotTreeSelected(obj, nodes)

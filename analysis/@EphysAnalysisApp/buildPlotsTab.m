@@ -30,8 +30,8 @@ g.Padding = [8 8 8 8];
 changed = @(~,~) obj.onConfigChanged("plot");
 
 % --- the plots: a tree under groups ------------------------------------------------------
-lg = uigridlayout(g, [10 2]);
-lg.RowHeight = {22, 28, 30, 28, 30, '1x', 30, 30, 30, 30};
+lg = uigridlayout(g, [11 2]);
+lg.RowHeight = {22, 28, 30, 28, 30, '1x', 30, 30, 30, 30, 30};
 lg.ColumnWidth = {'1x', '1x'};
 lg.Padding = [0 0 0 0];
 l = uilabel(lg, "Text", "Plots  (ticked = enabled)", "FontWeight", "bold");
@@ -93,6 +93,10 @@ obj.UpPlotButton = uibutton(lg, "Text", "Up", "ButtonPushedFcn", @(~,~) obj.onMo
 obj.UpPlotButton.Layout.Row = 10; obj.UpPlotButton.Layout.Column = 1;
 obj.DownPlotButton = uibutton(lg, "Text", "Down", "ButtonPushedFcn", @(~,~) obj.onMovePlot(1));
 obj.DownPlotButton.Layout.Row = 10; obj.DownPlotButton.Layout.Column = 2;
+obj.CopyPlotButton = uibutton(lg, "Text", "Copy from...", "ButtonPushedFcn", @(~,~) obj.onCopyPlotSettings(), ...
+    "Tooltip", "Copy another plot's settings onto the selected plots, of any plot type: pick the plot and the parts " + ...
+    "(units, alignment, bins, appearance, overlays, ...). Each keeps its id, type and title.");
+obj.CopyPlotButton.Layout.Row = 11; obj.CopyPlotButton.Layout.Column = [1 2];
 
 % --- the editor ----------------------------------------------------------------------
 ep = uipanel(g, "Title", "Plot");

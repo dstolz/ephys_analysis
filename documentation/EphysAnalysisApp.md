@@ -260,6 +260,7 @@ a header leaves the plots selected as they were. **Ctrl**- or
 | **Group by** | *Plot type* (default), *Source* (units, detected, LFP, ...), *Layout* (the layout drawn), *Enabled / off*, or *None* (a flat list); remembered |
 | kind drop-down (its own row), **Add** | adds a plot of that kind ([Plot kinds](#plot-kinds)) with the next free id (`psth_1`, `psth_2`, ...) and selects it |
 | **Remove**, **Duplicate** | removes the selected plots; copies each with a new id, right after it, and selects the copies |
+| **Copy from...** | copies another plot's settings onto the selected plots, whatever their plot type: a window asks which plot (**From**, by id and type) and which parts, one box per editor section -- Units & channels (with the source), Event reference, Epoch window, Trial selection, Bins & baseline, Plot type options (the options the two types have in common, and the layout when their layouts are the same), Event marks, Appearance, Unit waveform, Aux signals, Text note, Overlays -- and the Remembered looks. A part the two plot types do not share cannot be ticked (its tooltip says why: a probe map has no event reference, a unit waveforms plot's settings are not a PSTH's inset). Each plot keeps its id, type, title and enabled, and within a part what its type does not take: a source it does not read, a *between* epoch window when it needs a fixed one, a baseline mode it has not got; the status bar says what was copied and what was kept (`copyPlotSettings`, `plotSettingParts`) |
 | **Up**, **Down** | swaps it with its neighbor in its group (the whole list when ungrouped), which changes the run order of those two; off while several plots are selected |
 
 **The editor.** On top: the plot's kind (with a line on what it draws),
@@ -1194,7 +1195,7 @@ box-plot preview); several plots selected at once (Ctrl-click keeping the
 first picked in the editor and the preview, the banner, title and bar
 saying so, only the rows they share, an edit, an event edit, *Use default*,
 a sort event and a remembered look reaching each plot as changed and no further,
-Duplicate and Remove taking them all); collapsing a
+Duplicate and Remove taking them all); **Copy from...** (its window offering only the parts a raster shares with the plot picked; a PSTH's look copied onto a raster, a part unticked left; `From` and `Parts` without the window); collapsing a
 section; the section headers' bar colors (distinct, desaturated, black text) and
 keys, Ctrl+1 to Ctrl+9 and Ctrl+0 opening a collapsed section and saying so for one the
 plot does not show; the gather / apply

@@ -684,6 +684,11 @@ says how to cut a release.
   `OnRemember`. The renderers name everything they draw (`tagPart`).
   `PlotAesthetics`; suite `test_PlotAesthetics`. The script generator's
   `literal` writes struct arrays.
+- The analysis app's plot list has **Copy from...**: another plot's settings onto the selected plots, of any
+  plot type (a PSTH's units, alignment, bins and look onto a raster, say), part by part -- one box per editor
+  section and the remembered looks, only the parts the two types share. Each plot keeps its id, type, title
+  and enabled, and a source, epoch window mode or baseline mode its type does not take. New functions
+  `copyPlotSettings` and `plotSettingParts`; suite `test_copyPlotSettings`.
 
 ### Changed
 

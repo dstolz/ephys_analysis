@@ -10,7 +10,7 @@ function issues = validate(obj, opts)
 %     Defaults  the event reference, window and selection are valid (a
 %               filter that does not parse is a warning: it is checked
 %               against each dataset's trials when it runs)
-%     Plots     at least one enabled; ids stay distinct as file names
+%     Plots     at least one plot or session plot enabled; ids stay distinct as file names
 %               ({Plot} replaces characters outside A-Z a-z 0-9 _ - . by
 %               "_", and Windows ignores case); kind is one of Kinds; source fits the
 %               kind (units / detected for spike kinds, LFP / MUA / SPIKE /
@@ -62,11 +62,27 @@ function issues = validate(obj, opts)
 %               draws it, whole ErrorResamples >= 1, the bands' opacity
 %               (0-1 or NaN), edge style and width; a face or edge color
 %               that is not one is a warning)
+%     SessionPlots  ids distinct as file names and file-name safe; the base
+%               plot exists, is of a SessionKinds kind and has no auROC
+%               baseline; the layout fits its kind; datasets, facet,
+%               series, colorOrder, error, match, trialGroups and data are
+%               known values; minSessions a whole number >= 1; match
+%               "mapping" needs a mapping file that exists (CheckPaths),
+%               reads and has a cell column (a listed dataset key without a
+%               column is a warning). Warnings: "list" without keys; match
+%               not "pool" for a signal, heatmap, waveforms or behavior
+%               base (ignored); a tuning / behavior base's seriesParam
+%               pooled by trialGroups "pool"; showMembers with series
+%               "session"; "combine" on a PSTH drawn as bars (drawn as
+%               lines); a heatmap base with series other than "all"
 %     Export    formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
 %               folder and file-name patterns use known tokens; a warning
 %               when the files of two enabled plots, or of two datasets,
 %               would get the same names (no {Plot} -- or {Kind} for plots
-%               of different kinds -- no {Name} / {OutputFolder})
+%               of different kinds -- no {Name} / {OutputFolder});
+%               SessionsFolder and Data.Folder (folder patterns; a warning
+%               for {OutputFolder}), Data.FilenamePattern (a file pattern)
+%               and Data.MatVersion (-v7.3 or -v7)
 %     Report    Format html / pdf / both; EmbedFormat png / svg; Dpi;
 %               FileName; the folder pattern
 %
@@ -128,8 +144,8 @@ checkSelection(D.Selection, "Defaults", "Selection");
 
 % --- Plots -----------------------------------------------------------------------------
 K = EphysAnalysisConfig.plotKinds();
-if isempty(obj.Plots) || ~any([obj.Plots.enabled])
-    add("Plots", "enabled", "error", "No plot is enabled.");
+if (isempty(obj.Plots) || ~any([obj.Plots.enabled])) && isempty(obj.enabledSessionPlots())
+    add("Plots", "enabled", "error", "No plot and no session plot is enabled.");
 end
 ids = obj.plotIds();
 key = lower(regexprep(ids, '[^\w\-\.]', '_'));   % the id as {Plot} writes it (figureFileName), case-blind (Windows)
@@ -533,6 +549,97 @@ for k = 1:numel(obj.Plots)
     end
 end
 
+% --- SessionPlots -------------------------------------------------------------------------
+sids = obj.sessionPlotIds();
+skey = lower(regexprep(sids, '[^\w\-\.]', '_'));   % the id as {Plot} writes it, case-blind
+for u = unique(skey)
+    same = sids(skey == u);
+    if numel(same) > 1
+        add("SessionPlots", same(end) + ".id", "error", "Session plot ids " + strjoin("""" + same + """", " and ") + ...
+            " name the same files: {Plot} replaces characters outside A-Z a-z 0-9 _ - . by ""_"", and Windows ignores case.");
+    end
+end
+for k = 1:numel(obj.SessionPlots)
+    sp = obj.SessionPlots(k);
+    f0 = sp.id;
+    if ~isempty(regexp(sp.id, '[\\/:*?"<>|]', 'once')) || strtrim(sp.id) == ""
+        add("SessionPlots", f0 + ".id", "error", "A session plot id names its files: no \ / : * ? "" < > |, and not empty.");
+    end
+    enums = struct('datasets', ["ticked" "list"], 'facet', EphysAnalysisConfig.SessionFacets, ...
+        'series', EphysAnalysisConfig.SessionSeries, 'colorOrder', EphysAnalysisConfig.SessionColorOrders, ...
+        'error', EphysAnalysisConfig.SessionErrors, 'match', EphysAnalysisConfig.SessionMatches, ...
+        'trialGroups', EphysAnalysisConfig.SessionTrialGroups);
+    for ef = string(fieldnames(enums)).'
+        if ~ismember(sp.(ef), enums.(ef))
+            add("SessionPlots", f0 + "." + ef, "error", "A session plot's " + ef + " is one of " + strjoin(enums.(ef), ", ") + ...
+                ", not """ + sp.(ef) + """.");
+        end
+    end
+    badData = setdiff(sp.data, EphysAnalysisConfig.SessionData);
+    if ~isempty(badData)
+        add("SessionPlots", f0 + ".data", "error", "A session plot's data holds " + strjoin(EphysAnalysisConfig.SessionData, ", ") + ...
+            ", not " + strjoin("""" + badData + """", ", ") + ".");
+    end
+    if ~(isfinite(sp.minSessions) && sp.minSessions >= 1 && sp.minSessions == round(sp.minSessions))
+        add("SessionPlots", f0 + ".minSessions", "error", "minSessions is a whole number of sessions, at least 1.");
+    end
+    if sp.datasets == "list" && isempty(sp.datasetKeys)
+        add("SessionPlots", f0 + ".datasetKeys", "warning", "datasets is ""list"" but no dataset keys are listed; the session plot draws nothing.");
+    end
+    if sp.showMembers && sp.series == "session"
+        add("SessionPlots", f0 + ".showMembers", "warning", "Each session is its own series already: showMembers draws the sessions " + ...
+            "faintly under a subject's or every session's summary (series subject or all).");
+    end
+    if sp.match == "mapping"
+        if strtrim(sp.mappingFile) == ""
+            add("SessionPlots", f0 + ".mappingFile", "error", "match ""mapping"" needs a mapping file (CSV: a column cell, then one per dataset key).");
+        elseif ~isfile(sp.mappingFile)
+            if opts.CheckPaths
+                add("SessionPlots", f0 + ".mappingFile", "error", "The mapping file does not exist: " + sp.mappingFile);
+            end
+        else
+            checkMapping(sp, f0);
+        end
+    end
+    b = obj.plotIndex(sp.plot);
+    if b == 0
+        add("SessionPlots", f0 + ".plot", "error", "No base plot """ + sp.plot + """ (a session plot draws an existing plot over the sessions).");
+        continue
+    end
+    p = obj.Plots(b);
+    if ~ismember(p.kind, EphysAnalysisConfig.SessionKinds)
+        add("SessionPlots", f0 + ".plot", "error", "A session plot draws a " + strjoin(EphysAnalysisConfig.SessionKinds, ", ") + ...
+            " plot, not a " + p.kind + " plot (""" + p.id + """).");
+        continue
+    end
+    if p.baseline.Mode == "auroc"
+        add("SessionPlots", f0 + ".plot", "error", "The base plot """ + p.id + """ has an auROC baseline: auROC curves are not merged across sessions.");
+    end
+    row = K(K.Kind == p.kind, :);
+    if sp.layout ~= "" && ~ismember(sp.layout, row.Layouts{1})
+        add("SessionPlots", f0 + ".layout", "error", sprintf("A %s plot has layouts %s, not ""%s"".", p.kind, strjoin(row.Layouts{1}, " / "), sp.layout));
+    end
+    isSignal = ismember(p.source, EphysAnalysisConfig.SignalSources);
+    if sp.match ~= "pool" && (isSignal || ismember(p.kind, ["heatmap" "waveforms" "behavior"]))
+        what = "a " + p.kind + " plot's sessions are pooled";
+        if isSignal; what = "signals are matched by recording channel"; end
+        if p.kind == "behavior"; what = "a behavior plot has no units"; end
+        add("SessionPlots", f0 + ".match", "warning", "match """ + sp.match + """ is ignored: " + what + ".");
+    end
+    if ismember(p.kind, ["tuning" "behavior"]) && p.seriesParam ~= "" && sp.trialGroups == "pool"
+        add("SessionPlots", f0 + ".trialGroups", "warning", "The base plot's series (" + p.seriesParam + ") are pooled: " + ...
+            "the sessions are the series (trialGroups each or combine keeps them).");
+    end
+    if sp.trialGroups == "combine" && p.kind == "psth" && p.histStyle == "bar"
+        add("SessionPlots", f0 + ".trialGroups", "warning", "trialGroups ""combine"" tells the trial groups apart by line style: " + ...
+            "the base plot's bars are drawn as lines.");
+    end
+    if p.kind == "heatmap" && sp.series ~= "all"
+        add("SessionPlots", f0 + ".series", "warning", "A heatmap's rows are the session-units (spikes) or the channels " + ...
+            "averaged over every session (signals): series """ + sp.series + """ is ignored.");
+    end
+end
+
 % --- Export -----------------------------------------------------------------------------
 X = obj.Export;
 if X.Enabled && isempty(X.Formats)
@@ -556,6 +663,19 @@ end
 if ~contains(X.Folder, ["{OutputFolder}" "{Name}"]) && ~contains(X.FilenamePattern, "{Name}") ...
         && ~(S.Mode == "folders" && numel(S.Folders) <= 1)
     add("Export", "Folder", "warning", "Neither the export folder nor the file-name pattern names the dataset ({OutputFolder} or {Name}), so the datasets' files overwrite each other.");
+end
+checkPattern(X.SessionsFolder, "folder", "Export", "SessionsFolder");
+if contains(X.SessionsFolder, "{OutputFolder}")
+    add("Export", "SessionsFolder", "warning", "{OutputFolder} is one dataset's folder; the session plots' figures go to the first dataset's.");
+end
+XD = X.Data;
+checkPattern(XD.Folder, "folder", "Export", "Data.Folder");
+checkPattern(XD.FilenamePattern, "file", "Export", "Data.FilenamePattern");
+if contains(XD.Folder, "{OutputFolder}")
+    add("Export", "Data.Folder", "warning", "{OutputFolder} is one dataset's folder; the session plots' data files go to the first dataset's.");
+end
+if ~ismember(XD.MatVersion, ["-v7.3" "-v7"])
+    add("Export", "Data.MatVersion", "error", "MatVersion is -v7.3 or -v7.");
 end
 
 % --- Report -------------------------------------------------------------------------------
@@ -647,6 +767,29 @@ issues = table(Section, Field, Severity, Message);
                 add(sec, field + ".filter", "warning", string(ME.message));
             else
                 add(sec, field, "error", string(ME.message));
+            end
+        end
+    end
+
+    function checkMapping(sp, f0)
+        %checkMapping  A unit-mapping CSV: readable, a cell column, a column per listed dataset key.
+        try
+            M = readtable(sp.mappingFile, 'VariableNamingRule', 'preserve', 'TextType', 'string', 'Delimiter', ',', ...
+                'FileType', 'text');
+        catch ME
+            add("SessionPlots", f0 + ".mappingFile", "error", "The mapping file cannot be read (" + string(ME.message) + "): " + sp.mappingFile);
+            return
+        end
+        cols = string(M.Properties.VariableNames);
+        if ~ismember("cell", cols)
+            add("SessionPlots", f0 + ".mappingFile", "error", "The mapping file has no ""cell"" column: " + sp.mappingFile);
+            return
+        end
+        if sp.datasets == "list"
+            missingKeys = setdiff(sp.datasetKeys, cols, 'stable');
+            if ~isempty(missingKeys)
+                add("SessionPlots", f0 + ".mappingFile", "warning", "The mapping file has no column for " + ...
+                    strjoin(missingKeys, ", ") + ": those sessions cannot be matched.");
             end
         end
     end

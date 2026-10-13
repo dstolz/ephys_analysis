@@ -7,8 +7,11 @@ function test_EphysAnalysisConfig()
 %   behavior kind, the raster's sort (by an event's latency too: its
 %   rasterSortEvent) and event marks, the mean aux signal (aux), the error
 %   bands' style (ErrorType, resamples, look), events shifted by
-%   a trial parameter and event sequences (fields, round trips, rules), LoadWarnings,
-%   BadSchema, figureFileName and plotFileName's page suffix.
+%   a trial parameter and event sequences (fields, round trips, rules), session
+%   plots (defaults, Export.SessionsFolder / Data, addSessionPlot ids,
+%   DuplicateSessionPlotId, the JSON round trip, sessionPlotFor, every
+%   validate rule), LoadWarnings, BadSchema, figureFileName and plotFileName's
+%   page suffix.
 %
 %   Usage:  test_EphysAnalysisConfig
 
@@ -528,6 +531,154 @@ c7 = EphysAnalysisConfig.load(f);
 warning(ws);
 check(any(contains(c7.LoadWarnings, "sequence(1).bogus")), 'an unknown step field is dropped and listed');
 
+fprintf('\n== 4c. session plots ==\n');
+c0 = EphysAnalysisConfig();
+check(isempty(c0.SessionPlots) && isstruct(c0.SessionPlots) && isempty(c0.enabledSessionPlots()) ...
+    && c0.Export.SessionsFolder == "{OutputRoot}" + filesep + "analysis" + filesep + "sessions" ...
+    && isequal(c0.Export.Data, struct('Enabled', false, 'Folder', "{OutputRoot}" + filesep + "analysis" + filesep + "data", ...
+    'FilenamePattern', "{Name}_{Plot}", 'MatVersion', "-v7.3")), ...
+    'defaults: no session plots; Export.SessionsFolder and Export.Data (off, -v7.3)');
+d = EphysAnalysisConfig.defaults("SessionPlot");
+check(d.datasets == "ticked" && d.series == "session" && d.match == "pool" && d.minSessions == 1 && d.trialGroups == "pool" ...
+    && isequal(d.data, "results") && d.error == "sem" && d.colorOrder == "palette" && ~d.showMembers && isempty(d.datasetKeys) ...
+    && isempty(d.aesthetics) && d.facet == "none", 'defaults("SessionPlot")');
+cs = cfg;
+[cs, s1] = cs.addSessionPlot("psth_1");
+[cs, s2] = cs.addSessionPlot(struct('plot', "psth_1", 'series', "all", 'showMembers', true));
+[cs, s3] = cs.addSessionPlot("tuning_1", Id="tuning_days");
+check(isequal([s1 s2 s3], ["psth_1_sessions_1" "psth_1_sessions_2" "tuning_days"]) && isequal(cs.sessionPlotIds(), [s1 s2 s3]) ...
+    && cs.sessionPlotIndex("tuning_days") == 3 && cs.sessionPlotIndex("nope") == 0, ...
+    'addSessionPlot: ids "<plot>_sessions_<n>" in their own namespace, a given one kept');
+cs.SessionPlots(2).enabled = false;
+check(isequal(cs.enabledSessionPlots(), [s1 s3]) && numel(cs.removeSessionPlot(s1).SessionPlots) == 2 ...
+    && strcmp(errorId(@() cs.removeSessionPlot("nope")), 'EphysAnalysisConfig:NoSessionPlot'), ...
+    'enabledSessionPlots, removeSessionPlot (NoSessionPlot for an unknown id)');
+check(strcmp(errorId(@() setSessionPlots(cs, [cs.SessionPlots(1) cs.SessionPlots(1)])), 'EphysAnalysisConfig:DuplicateSessionPlotId'), ...
+    'two session plots with one id: DuplicateSessionPlotId');
+c4 = cs;
+c4.SessionPlots = {struct('plot', "psth_1"), struct('plot', "evoked_1", 'id', "evoked_1_sessions_1"), struct('plot', "evoked_1")};
+check(isequal([c4.SessionPlots.id], ["psth_1_sessions_1" "evoked_1_sessions_1" "evoked_1_sessions_2"]), ...
+    'a cell of partial session plots (jsondecode) gets free ids');
+cs.SessionPlots(1).datasets = "list";
+cs.SessionPlots(1).datasetKeys = "SYNTH-01/260908_103000";
+cs.SessionPlots(1).data = ["results" "epochs"];
+cs.SessionPlots(1).title = "Across days";
+cs.SessionPlots(1).layout = "overlay";
+cs.SessionPlots(1).aesthetics = PlotAesthetics.normalizeRules(struct('role', "rate", 'group', "", 'property', "LineWidth", 'value', 2));
+cs.SessionPlots(3).trialGroups = "each";
+cs.Export.Data.Enabled = true;
+cs.Export.Data.MatVersion = "-v7";
+f = fullfile(root, 'sessions.json');
+cs.save(f);
+cs2 = EphysAnalysisConfig.load(f);
+txt = fileread(f);
+check(cs.isequalConfig(cs2) && isequal(cs2.SessionPlots(1).datasetKeys, "SYNTH-01/260908_103000") ...
+    && isequal(cs2.SessionPlots(1).data, ["results" "epochs"]) && isequal(cs2.SessionPlots(2).data, "results") ...
+    && numel(cs2.SessionPlots(1).aesthetics) == 1 && cs2.Export.Data.Enabled && cs2.Export.Data.MatVersion == "-v7" ...
+    && contains(txt, '"SessionPlots"') && isempty(cs2.LoadWarnings), ...
+    'session plots and Export.Data survive save / load exactly (a one-key list stays a list)');
+s = rmfield(cfg.toStruct(), 'SessionPlots');
+fo = fullfile(root, 'no_sessions.json');
+writeJsonFile(fo, s, NonFinite="string");
+co = EphysAnalysisConfig.load(fo);
+check(co.isequalConfig(cfg) && isempty(co.SessionPlots) && isempty(co.LoadWarnings), ...
+    'a config file without SessionPlots loads with none and no warning (schema v1 unchanged)');
+sp1 = cs.sessionPlotFor(s1);
+sp3 = cs.sessionPlotFor("tuning_days");
+base = cs.plotFor("psth_1");
+check(sp1.id == s1 && sp1.title == "Across days" && sp1.layout == "overlay" && sp1.enabled && isempty(sp1.selection.groupBy) ...
+    && isequal(sp1.ref, base.ref) && isequal(sp1.bins, base.bins) && isequal(sp1.sessionAesthetics, cs.SessionPlots(1).aesthetics) ...
+    && isequal(sp1.aesthetics, base.aesthetics) && isequal(sp3.selection.groupBy, cs.plotFor("tuning_1").selection.groupBy) ...
+    && sp3.layout == cs.plotFor("tuning_1").layout && sp3.title == "", ...
+    'sessionPlotFor: the base plot with id, title, layout and the session plot''s own aesthetics; trialGroups "pool" clears groupBy, "each" keeps it');
+ct = cs; ct.Plots(ct.plotIndex("tuning_1")).seriesParam = "TrialType";
+ct.SessionPlots(3).trialGroups = "pool";
+check(ct.sessionPlotFor("tuning_days").seriesParam == "" && ct.plotFor("tuning_1").seriesParam == "TrialType" ...
+    && strcmp(errorId(@() cs.sessionPlotFor("nope")), 'EphysAnalysisConfig:NoSessionPlot') ...
+    && strcmp(errorId(@() cs.sessionPlotFor(struct('plot', "nope"))), 'EphysAnalysisConfig:NoPlot') ...
+    && cs.sessionPlotFor(struct('plot', "psth_1", 'id', "x")).id == "x" && cs.sessionPlotFor(2).id == s2, ...
+    'sessionPlotFor: a tuning plot''s series pooled too; an unknown id or base plot errors; a struct or an index works');
+
+% validate
+good = cs;
+good.SessionPlots(1).datasets = "ticked";
+good.SessionPlots(1).datasetKeys = string.empty(1, 0);
+I = good.validate(CheckPaths=false);
+check(~any(I.Section == "SessionPlots") && ~any(I.Severity == "error"), 'valid session plots raise no issue');
+bad = good; [bad.Plots.enabled] = deal(false);
+check(~hasIssue(bad, "enabled", "error"), 'no plot enabled but a session plot is: not an error');
+bad.SessionPlots = EphysAnalysisConfig.emptySessionPlots();
+I = bad.validate(CheckPaths=false);
+check(any(I.Field == "enabled" & I.Severity == "error" & contains(I.Message, "session plot")), 'neither a plot nor a session plot enabled: an error');
+mods = {
+    "id",           @(c) setSp(c, 1, 'id', "a/b"),                     "a/b.id",                 "error"
+    "plot",         @(c) setSp(c, 1, 'plot', "nope"),                  s1 + ".plot",             "error"
+    "kind",         @(c) setSp(c, 1, 'plot', "probemap_1"),            s1 + ".plot",             "error"
+    "layout",       @(c) setSp(c, 1, 'layout', "stack"),               s1 + ".layout",           "error"
+    "datasets",     @(c) setSp(c, 1, 'datasets', "some"),              s1 + ".datasets",         "error"
+    "facet",        @(c) setSp(c, 1, 'facet', "day"),                  s1 + ".facet",            "error"
+    "series",       @(c) setSp(c, 1, 'series', "unit"),                s1 + ".series",           "error"
+    "colorOrder",   @(c) setSp(c, 1, 'colorOrder', "rainbow"),         s1 + ".colorOrder",       "error"
+    "error",        @(c) setSp(c, 1, 'error', "iqr"),                  s1 + ".error",            "error"
+    "match",        @(c) setSp(c, 1, 'match', "nearest"),              s1 + ".match",            "error"
+    "trialGroups",  @(c) setSp(c, 1, 'trialGroups', "split"),          s1 + ".trialGroups",      "error"
+    "data",         @(c) setSp(c, 1, 'data', ["results" "spikes"]),    s1 + ".data",             "error"
+    "minSessions",  @(c) setSp(c, 1, 'minSessions', 1.5),              s1 + ".minSessions",      "error"
+    "minSessions 0", @(c) setSp(c, 1, 'minSessions', 0),               s1 + ".minSessions",      "error"
+    "list, no keys", @(c) setSp(c, 1, 'datasets', "list"),             s1 + ".datasetKeys",      "warning"
+    "mapping, no file", @(c) setSp(c, 1, 'match', "mapping"),          s1 + ".mappingFile",      "error"
+    "showMembers",  @(c) setSp(c, 1, 'showMembers', true),             s1 + ".showMembers",      "warning"
+    "combine bars", @(c) setSp(c, 1, 'trialGroups', "combine"),        s1 + ".trialGroups",      "warning"
+    "match a signal", @(c) setSp(setSp(c, 1, 'plot', "evoked_1"), 1, 'match', "site"), s1 + ".match", "warning"
+    "series pooled", @(c) setSp(setPlotField(c, "tuning_1", 'seriesParam', "TrialType"), 3, 'trialGroups', "pool"), "tuning_days.trialGroups", "warning"
+    };
+for m = 1:size(mods, 1)
+    check(hasIssue(mods{m, 2}(good), mods{m, 3}, mods{m, 4}), "validate SessionPlots: " + mods{m, 1} + " -> " + mods{m, 4} + " on " + mods{m, 3});
+end
+bad = good; bad.SessionPlots(2).id = upper(bad.SessionPlots(1).id);
+check(hasIssue(bad, ".id", "error"), 'two session plot ids that name the same files (case-blind)');
+bad = good; bad.Plots(1).baseline = struct('Mode', "auroc", 'Window', [-0.2 0]);
+check(hasIssue(bad, s1 + ".plot", "error"), 'a base plot with an auROC baseline');
+bad = good; bad.Plots(end+1) = EphysAnalysisConfig.normalizePlot(struct('kind', "heatmap", 'id', "heat"));
+bad = bad.addSessionPlot("heat", Id="heat_days");
+check(hasIssue(bad, "heat_days.series", "warning") && ~hasIssue(setSp(bad, 4, 'series', "all"), "heat_days.series", "warning") ...
+    && hasIssue(setSp(bad, 4, 'match', "site"), "heat_days.match", "warning"), ...
+    'a heatmap base: series other than all, and a match other than pool, are ignored (warnings)');
+bad = setSp(good, 1, 'match', "mapping");
+bad.SessionPlots(1).mappingFile = fullfile(root, 'nomap.csv');
+I = bad.validate(CheckPaths=true);
+check(any(I.Field == s1 + ".mappingFile" & I.Severity == "error") && ~hasIssue(bad, s1 + ".mappingFile", "error"), ...
+    'a mapping file that does not exist: an error with CheckPaths');
+mf = fullfile(root, 'map_nocell.csv');
+writelines(["unit,SYNTH-01/a"; "u1,3"], mf);
+bad.SessionPlots(1).mappingFile = mf;
+check(hasIssue(bad, s1 + ".mappingFile", "error"), 'a mapping file without a cell column');
+mf = fullfile(root, 'map.csv');
+writelines(["cell,SYNTH-01/a"; "cellA,3"], mf);
+bad.SessionPlots(1).mappingFile = mf;
+bad.SessionPlots(1).datasets = "list";
+bad.SessionPlots(1).datasetKeys = ["SYNTH-01/a" "SYNTH-01/b"];
+I = bad.validate(CheckPaths=false);
+check(~any(I.Field == s1 + ".mappingFile" & I.Severity == "error") && any(I.Field == s1 + ".mappingFile" & I.Severity == "warning" ...
+    & contains(I.Message, "SYNTH-01/b")), 'a mapping file lacking a listed dataset key''s column: a warning');
+bad = good; bad.Export.SessionsFolder = "{Bogus}";
+check(hasIssue(bad, "SessionsFolder", "error"), 'Export.SessionsFolder: a folder pattern');
+bad.Export.SessionsFolder = "{OutputFolder}";
+check(hasIssue(bad, "SessionsFolder", "warning"), 'Export.SessionsFolder with {OutputFolder}: the first dataset''s folder (warning)');
+bad = good; bad.Export.Data.Folder = "{Plot}";
+check(hasIssue(bad, "Data.Folder", "error"), 'Export.Data.Folder: a folder pattern');
+bad = good; bad.Export.Data.FilenamePattern = "{OutputRoot}";
+check(hasIssue(bad, "Data.FilenamePattern", "error"), 'Export.Data.FilenamePattern: a file pattern');
+bad = good; bad.Export.Data.MatVersion = "-v6";
+check(hasIssue(bad, "Data.MatVersion", "error"), 'Export.Data.MatVersion: -v7.3 or -v7');
+s = cs.toStruct();
+s.SessionPlots(1).bogus = 1;
+writeJsonFile(f, s, NonFinite="string");
+ws = warning('off', 'EphysAnalysisConfig:LoadWarnings');
+c8 = EphysAnalysisConfig.load(f);
+warning(ws);
+check(any(contains(c8.LoadWarnings, "SessionPlots(1).bogus")) && c8.isequalConfig(cs), 'an unknown session plot field is dropped and listed');
+
 fprintf('\n== 5. load warnings and schema ==\n');
 s = cfg.toStruct();
 s.Export.Nope = 1;
@@ -583,4 +734,19 @@ end
 
 function cfg = setSection(cfg, name, s)
 cfg.(name) = s;
+end
+
+
+function cfg = setSessionPlots(cfg, p)
+cfg.SessionPlots = p;
+end
+
+
+function cfg = setSp(cfg, k, field, value)
+cfg.SessionPlots(k).(field) = value;
+end
+
+
+function cfg = setPlotField(cfg, id, field, value)
+cfg.Plots(cfg.plotIndex(id)).(field) = value;
 end

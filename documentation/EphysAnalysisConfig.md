@@ -944,7 +944,7 @@ with them:
 | --- | --- |
 | `"pool"` (default) | the groups are cleared (`sessionPlotFor` sets `selection.groupBy = []`; a tuning or behavior plot's `seriesParam` too): every epoch of a session together, and the series are the sessions (or subjects). Because that spec differs from the base plot's, a run computes the base plot twice per dataset (logged) |
 | `"each"` | the groups are kept, and one figure is made per group, each group merged across the sessions on its own (at most the selection's `maxGroups`). The groups are matched by label (`Depth = 0.5`), not by position, so sessions whose depth sets differ still line up; a session without a group contributes nothing to it. A heatmap keeps the groups as its tiles in one figure |
-| `"combine"` | every group kept in one figure: a series per session (or subject, or all) and trial group, labeled `"<session> · <group>"`, colored by the session or subject and told apart by a line style (`-` `--` `:` `-.` by group), drawn as lines even for a bar PSTH (a warning for `histStyle "bar"`) |
+| `"combine"` | every group kept in one figure: a series per session (or subject, or all) and trial group, labeled `"<session> · <group>"`, colored by the session or subject and told apart by a line style (`-` `--` `:` `-.` by group), drawn as lines even for a bar PSTH (`sessionPlotFor` sets the effective spec's `histStyle` to `"line"`; a warning for `histStyle "bar"`) |
 
 ## Export
 

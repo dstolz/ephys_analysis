@@ -1415,7 +1415,7 @@ the session plot's `data` holds `"signals"`):
 | `spikes.times` | `{nEpochs x nUnits}`, each unit's spike times in each epoch, seconds from the event on the continuous clock (`E.t0Continuous`, so a spike in the event's own sample is at 0), inside `[pre post)` (a *between* window: the epoch's own `[tStart tStop)`), sorted, no stop masking |
 | `spikes.counts` | `[nEpochs x nBins x nUnits]` spikes per bin, the bins of `spikes.edges` (`[1 x nBins+1]`, relative to the event) with centers `spikes.t`; `spikes.binSec`, `spikes.window`, `spikes.binWindow` |
 | `signals.data` | `[nTime x nChannel x nKept]` single, the kept epochs' samples as `evokedPotential` cuts them: **raw, with no baseline subtracted**. `signals.dims` says so: `"time x channel x epoch"` |
-| `signals.t`, `fs`, `epochs`, `channels`, `labels`, `units` | the sample times relative to the event (s) and rate; the rows of `E` kept (an epoch that leaves the recording or holds a non-finite sample is dropped: `droppedEdge`, `droppedNonFinite`); the columns used and their labels and unit |
+| `signals.t`, `fs`, `sampleOffsets`, `epochs`, `channels`, `labels`, `units` | the sample times relative to the event (s), the rate and the sample offsets, as `evokedPotential` gives them; the rows of `E` kept (an epoch that leaves the recording or holds a non-finite sample is dropped: `droppedEdge`, `droppedNonFinite`); the columns used and their labels and unit |
 
 `epochLongTable` unrolls this file's struct into tables
 ([columns](EphysAnalysis.md#data-export)).

@@ -428,8 +428,13 @@ if opts.Events && isstruct(in.events) && isfinite(eventFs)
         shapes.(key) = "full";
         nm = names(i);
         if ismember(nm, ["trials" "epochs" "invalid_times"]); nm = "line_" + nm; end
+        what = "Pulses of digital input " + names(i) + " (polarity applied)";
+        dk = find(string({in.derived.name}) == names(i), 1);
+        if ~isempty(dk)
+            what = "Derived event " + names(i) + ": the " + in.derived(dk).description;
+        end
         events{end+1} = struct('name', nm, 'key', key, 'description', ...
-            "Pulses of digital input " + names(i) + " (polarity applied), [start stop] on the continuous clock: " + ...
+            what + ", [start stop] on the continuous clock: " + ...
             "an event at recording row r is at (r-1)/Fs."); %#ok<AGROW>
     end
 end

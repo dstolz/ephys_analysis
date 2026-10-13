@@ -462,7 +462,7 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | `ArtifactConfig` | `defaultArtifactConfig()` | automatic artifact-detector settings |
 | `SortingDir` | `""` | an explicit sorted-output folder (the one holding `params.py`). `""` = auto-discover under `kilosortDir()`; see [Sorted output](#sorted-output) |
 | `BehaviorFile` | `""` | the associated Epsych2 session `.mat`; see [Behavior](#behavior-epsych2) |
-| `TrialConfig` | `defaultTrialConfig()` | trial pairing and line naming: `TrialLine` (`"InTrial"`), `InvertedLines` (see [polarity](EphysPipeline.md#digital-line-polarity)), `SignalFs` (struct of derived-signal rates), `LabelField` (`"custom"` / `"native"`) and `LineNames` (`"native=name"` entries); see [Digital-line names](#digital-line-names) |
+| `TrialConfig` | `defaultTrialConfig()` | trial pairing and line naming: `TrialLine` (`"InTrial"`), `InvertedLines` (see [polarity](EphysPipeline.md#digital-line-polarity)), `SignalFs` (struct of derived-signal rates), `LabelField` (`"custom"` / `"native"`), `LineNames` (`"native=name"` entries) and `DerivedEvents` (the config's `Behavior.DerivedEvents`, see [Derived events](EphysPipeline.md#derived-events)); see [Digital-line names](#digital-line-names) |
 | `ReaderOptions` | `struct()` | the config's `Acquisition` section, passed to the reader. Setting a different value drops the reader, so the next access rebuilds it (call `refreshMetadata` for fresh metadata) |
 | `NamePattern` | `EphysDataset.DefaultNamePattern` = `"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"` | [`parseNameTokens`](../pipeline/parseNameTokens.m) pattern that splits `Name` into the tokens labeling sorted units. Pushed from `EphysProject.NamePattern` / the config's `Project.NamePattern` |
 | `DatasetKey` | `""` | folder relative to the project root, saved with every unit (`""` = the absolute folder). Pushed by `EphysProject` and the pipeline |
@@ -2166,8 +2166,26 @@ validation to Python.
   spikes, Chronux and FieldTrip files do not. Errors
   `EphysDataset:behaviorToMat:NoFile` without an associated session and
   `:Exists` when the file exists and `Overwrite` is off. `out`: `file`,
-  `bytes`, `seconds`, `behaviorFile`, `nTrials`, `paired`. With `Pairing=P`
-  the trials table carries the pairing columns and `behavior.pairing` the summary.
+  `bytes`, `seconds`, `behaviorFile`, `nTrials`, `paired`, `derivedEvents`,
+  `derivedFailed`, `extractFiles`. With `Pairing=P`
+  the trials table carries the pairing columns and `behavior.pairing` the summary,
+  and the derived events of `TrialConfig.DerivedEvents` are made
+  ([Derived events](EphysPipeline.md#derived-events)): `behavior.derivedEvents`,
+  each line in every trial's `TrialEvents`, a logical trials column for each
+  one marked `InDataset`; a definition the session cannot meet is left out
+  with a warning (`EphysDataset:behaviorStruct:DerivedEvent`) and listed in
+  `behavior.derivedEventsFailed`. With `UpdateExtract=true` (the default, for
+  the default file) an existing extract's events follow (`writeExtractEvents`).
+- `D = readDerivedEvents(File=)` returns `behavior.derivedEvents` of the
+  behavior file (empty without one). The extract (`toMat`), every export
+  (their events) and the analysis (`loadAnalysisSource`) take the derived
+  events from there.
+- `files = writeExtractEvents(D)` puts the derived events marked `InDataset`
+  into the existing extract's `events` (one file or the per-signal-type
+  files), takes out those it held before that are no longer marked, lists
+  them in `info.derivedEvents`, and rewrites only `events` and `info`
+  (`save -append`) of a file that changes, so the signals are not derived
+  again. Without `D`, the behavior file's.
 - `E = digitalEvents(LabelField=, LineNames=, Relabel=true, Cache=true, Refresh=false, ProgressFcn=)`
   returns the dig-in `events` (high runs), `Fs`, `nSamples`, `digInNames`
   (the final line names), `digInNativeNames` and `digInDefaultNames` (the

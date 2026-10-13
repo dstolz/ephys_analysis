@@ -124,6 +124,44 @@ if B.Enabled
     if B.PairTrials && strtrim(B.TrialLine) == ""
         add("behavior", "TrialLine", "error", "TrialLine must name the digital line that is on during trials.");
     end
+    if ~isempty(B.DerivedEvents) && ~B.PairTrials
+        add("behavior", "DerivedEvents", "warning", ...
+            "Derived events need paired trials; with PairTrials off the behavior step adds none.");
+    end
+end
+% Derived events (Behavior.DerivedEvents) are checked whether or not the step is
+% on: the Trials tab and a behavior file written by hand use them too. Their
+% lines and trial columns are checked when they are computed (deriveEvents).
+names = strings(1, 0);
+for k = 1:numel(B.DerivedEvents)
+    e = B.DerivedEvents(k);
+    nm = strtrim(e.Name);
+    what = sprintf("Derived event %d (%s)", k, nm);
+    if ~isvarname(nm)
+        add("behavior", "DerivedEvents", "error", ...
+            sprintf("Derived event %d: ""%s"" is not a valid name (letters, digits and _, starting with a letter).", k, nm));
+    elseif ismember(nm, names) || nm == "Trial" || nm == strtrim(B.TrialLine)
+        add("behavior", "DerivedEvents", "error", what + ": the name is used twice, or is ""Trial"" or the trial line.");
+    end
+    names(end+1) = nm; %#ok<AGROW>
+    if strtrim(e.Line) == ""
+        add("behavior", "DerivedEvents", "error", what + ": Line must name the line whose intervals are taken (""Trial"" = the trial line).");
+    end
+    if ~ismember(e.Combine, ["all" "any"])
+        add("behavior", "DerivedEvents", "error", what + ": Combine must be ""all"" or ""any"".");
+    end
+    conds = strtrim(e.Conditions);
+    conds = conds(conds ~= "");
+    if isempty(conds)
+        add("behavior", "DerivedEvents", "error", what + ": it needs at least one condition.");
+    end
+    for c = conds
+        try
+            tableFilterFcn(c);   % syntax only; the trial columns are checked when it is computed
+        catch ME
+            add("behavior", "DerivedEvents", "error", what + ": " + string(ME.message));
+        end
+    end
 end
 
 % --- Artifacts -------------------------------------------------------------------

@@ -19,13 +19,21 @@ function out = behaviorToMat(obj, opts)
 %     MatVersion  "-v7.3" (default) | "-v7"
 %     Overwrite   false (default): error if File already exists
 %     Pairing     [] (default) or a pairTrials result to add to the trials
+%                 (and the derived events of TrialConfig.DerivedEvents)
+%     UpdateExtract  true (default): when the extract exists, bring the
+%                 derived events in its events up to date
+%                 (writeExtractEvents: those marked InDataset, without
+%                 deriving the signals again); only with File the default
 %
 %   Errors with EphysDataset:behaviorToMat:NoFile when no Epsych2 session is
 %   associated (BehaviorFile) or it no longer exists, unless the trials come
 %   from a TDT block's epocs (behaviorSource "epocs"; behaviorFile is "").
 %
 %   OUT fields: file, bytes, seconds, behaviorFile, nTrials, paired (true
-%   when the pairing columns were written).
+%   when the pairing columns were written), derivedEvents (the names of the
+%   derived events written), derivedFailed (one message per derived event
+%   that could not be made, see behaviorStruct) and extractFiles (the
+%   extract files whose events were rewritten).
 %
 %   See also EphysDataset.behaviorStruct, EphysDataset.readBehavior,
 %   DatasetOutputs.
@@ -36,6 +44,7 @@ arguments
     opts.MatVersion (1,1) string {mustBeMember(opts.MatVersion, ["-v7.3", "-v7"])} = "-v7.3"
     opts.Overwrite (1,1) logical = false
     opts.Pairing = []
+    opts.UpdateExtract (1,1) logical = true
     opts.Provenance = []   % ephysProvenance() of the run writing it ([] = made here)
 end
 prov = opts.Provenance;
@@ -47,8 +56,9 @@ if obj.behaviorSource() ~= "epocs" && (obj.BehaviorFile == "" || ~isfile(obj.Beh
         'No Epsych2 session is associated with %s (set BehaviorFile).', obj.Name);
 end
 file = opts.File;
+standard = string(fullfile(obj.outputFolder(), obj.Name + "_behavior.mat"));
 if file == ""
-    file = string(fullfile(obj.outputFolder(), obj.Name + "_behavior.mat"));
+    file = standard;
 end
 if isfile(file) && ~opts.Overwrite
     error('EphysDataset:behaviorToMat:Exists', ...
@@ -73,8 +83,15 @@ S.conversion = struct( ...
 S.conversion.provenance = prov;
 EphysDataset.saveAtomically(file, S, opts.MatVersion);
 
+xf = strings(1, 0);
+if opts.UpdateExtract && strcmpi(file, standard)
+    xf = obj.writeExtractEvents(S.behavior.derivedEvents);
+end
 d = dir(file);
 out = struct('file', file, 'bytes', d.bytes, 'seconds', toc(t0), ...
     'behaviorFile', obj.BehaviorFile, 'nTrials', S.behavior.nTrials, ...
     'paired', ~isempty(opts.Pairing));
+out.derivedEvents = reshape(string({S.behavior.derivedEvents.name}), 1, []);
+out.derivedFailed = reshape(string({S.behavior.derivedEventsFailed.message}), 1, []);
+out.extractFiles = xf;
 end

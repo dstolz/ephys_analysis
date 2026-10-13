@@ -331,6 +331,7 @@ classdef EphysPipelineConfig
             %trialConfig  EphysDataset.TrialConfig from the Behavior section
             %   (plus Signals.LabelField / LineNames / InvertedLines, the
             %   digital-line naming and polarity every events output shares).
+            %   DerivedEvents are Behavior.DerivedEvents (see deriveEvents).
             %   SignalFs holds the rate of every enabled derived signal (LFP,
             %   MUA, SPIKE; SPIKE only when resampled) so the pairing adds
             %   sample columns for each.
@@ -346,6 +347,7 @@ classdef EphysPipelineConfig
             tc.SignalFs       = fs;
             tc.LabelField     = S.LabelField;
             tc.LineNames      = S.LineNames;
+            tc.DerivedEvents  = B.DerivedEvents;
         end
 
         function cfg = artifactConfig(a, r)

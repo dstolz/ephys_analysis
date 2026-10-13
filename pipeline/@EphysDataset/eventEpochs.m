@@ -175,7 +175,7 @@ eventIndex   = double.empty(0,1);
 
 switch opts.EventSource
     case "line"
-        lineName = resolveLine(obj, opts.EventLine, ev.lines);
+        lineName = resolveLine(obj, opts.EventLine, ev.lines, [string.empty(1, 0), in.derived.name]);
         [onsets, einfo] = cx.eventOnsets(lineName, MinDurationSec=opts.MinDurationSec, ...
             MaxDurationSec=opts.MaxDurationSec);
         offsets    = einfo.offsets;
@@ -411,8 +411,10 @@ end
 
 
 % =========================================================================
-function lineName = resolveLine(obj, wanted, lines)
+function lineName = resolveLine(obj, wanted, lines, derived)
 %resolveLine  Which digital line the epochs are cut around.
+%   Without a line named, the trial line, else the only recorded line (the
+%   derived events aside).
 if isempty(lines)
     error('EphysDataset:eventEpochs:NoEvents', ...
         ['The extract of %s carries no digital-input events, so there is no line to ' ...
@@ -429,8 +431,8 @@ end
 trialLine = string(obj.TrialConfig.TrialLine);
 if trialLine ~= "" && ismember(trialLine, lines)
     lineName = trialLine;
-elseif isscalar(lines)
-    lineName = lines(1);
+elseif isscalar(setdiff(lines, derived))
+    lineName = setdiff(lines, derived);
 else
     error('EphysDataset:eventEpochs:EventLine', ...
         'Name the digital-input line to epoch around (EventLine=); %s has %s.', ...

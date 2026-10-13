@@ -310,6 +310,8 @@ classdef EphysPipelineApp < handle
         TrialsPairCheckBox    matlab.ui.control.CheckBox
         TrialsAutoApproveCheckBox matlab.ui.control.CheckBox
         TrialsLineDropDown    matlab.ui.control.DropDown
+        TrialsDerivedButton   matlab.ui.control.Button    % opens the Derived events window
+        TrialsDerivedLabel    matlab.ui.control.Label     % the derived events, with their counts on the loaded dataset
         TrialsLinesTable      matlab.ui.control.Table
         TrialsCutSpinners     % 2 x 2 matlab.ui.control.Spinner: rows trials / intervals, columns start / end
         TrialsCutIntervalsLabel matlab.ui.control.Label
@@ -913,6 +915,8 @@ classdef EphysPipelineApp < handle
         TrialsParamColumns (1,:) string = string.empty(1,0)  % trial parameters shown as Trials-table columns (a preference)
         TrialsLabelParams (1,:) string = string.empty(1,0)   % trial parameters shown as trial labels in the Trials plot (a preference)
         TrialsColumnOrder (1,:) string = string.empty(1,0)   % Trials-table variables in display order (a preference)
+        TrialsDerivedEvents = repmat(EphysPipelineConfig.defaults("DerivedEvent"), 1, 0)   % Behavior.DerivedEvents as edited (gatherBehaviorSection)
+        TrialsDerivedDialog = []             % the open DerivedEventsDialog ([] when none)
 
         % --- Copy tab state (in memory) ---
         CopyFound = []                                  % findCopySessions table as found (Unstitch restores rows from it)
@@ -1176,6 +1180,9 @@ classdef EphysPipelineApp < handle
         onTrialsWriteBehavior(obj)
         onTrialsToWorkspace(obj, source)
         onTrialsSettingsChanged(obj)
+        onTrialsDerivedEvents(obj)
+        syncTrialsDerived(obj, preview)
+        [E, D, failed, T] = trialsDerived(obj)
 
         % --- Artifacts tab ---
         onDetectArtifacts(obj)

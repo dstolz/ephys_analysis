@@ -530,7 +530,8 @@ which holds `H64LP_4x16.json` as a starting point.
   "Probe":     { "DefaultProbeFile", "WriteDefaultToManifest", "AutoAssign", "RuleSubjects", "RuleProbes" },
   "Reference": { "Mode", "BadLow", "BadHigh" },
   "Behavior":  { "Enabled", "Search", "SearchDirs", "Match", "MaxStartOffsetMin", "Overwrite", "WriteFile",
-                 "PairTrials", "AutoApprove", "TrialLine" },
+                 "PairTrials", "AutoApprove", "TrialLine",
+                 "DerivedEvents": [ { "Name", "Line", "Conditions", "Combine", "InDataset" }, ... ] },
   "Artifacts": { "Enabled", "Method", "Threshold", ... , "Fill", "NoiseBandHz", "NoiseSeed", "ApplyToSorting", "ApplyToSpikes", "ApplyToSignals", "CacheIntervals" },
   "Sorting":   { "Enabled", "PythonExe", "CondaEnv", "Execution", "MaxConcurrent", "Devices", "DryRun", "SkipExisting", "BinDir",
                  "KS4": {...}, "KS4ExtraJSON" },
@@ -976,7 +977,7 @@ inputs), each holding only that signal in `Y` and `info`:
 | Variable | Contents |
 | --- | --- |
 | `Y` | struct with `LFP`, `MUA`, `SPIKE` (`single`, `[nSamples x nChan]`, µV) and `AUX` (volts); unrequested fields are `single([])`. Row k of a signal is at `(k-1)/info.<type>.Fs` |
-| `events` | struct, one field per digital-input line, `[k x 2]` `[t_on t_off]` seconds; onset = rising edge, or falling edge for the lines in `info.invertedLines` (`Signals.InvertedLines`) |
+| `events` | struct, one field per digital-input line, `[k x 2]` `[t_on t_off]` seconds; onset = rising edge, or falling edge for the lines in `info.invertedLines` (`Signals.InvertedLines`). Plus the [derived events](EphysPipeline.md#derived-events) marked `InDataset`, which `info.derivedEvents` lists (`name`, `line`, `conditions`, `combine`, `expression`, `description`); the behavior step keeps them up to date |
 | `info` | per signal `Fs` and `nSamples` (the row count; there are no time vectors), `origFs`, `labels`, `invertedLines`, `badChannels` (the columns interpolated, their recording channels, the method per column and the weights), `reference` (the common reference: `mode`, `channels`, and `signals`, the ones it was subtracted from; each signal's own `info.<TYPE>.reference` says `"none"`, `"car"` or `"cmr"`), `artifacts` (the periods erased before any signal was derived: `intervals` `[k x 2]` `[tStart tEnd)` s on the continuous clock, `fill` `"line"`, `nSamples` replaced; in every file, combined or per type), `importOptions`, ...; see [intan2matlab.md](intan2matlab.md#outputs) |
 | `conversion` | `tool`, `created`, `dataset`, `sourceFolder`, `recordingFormat`, `matFileVersion`, `matlabVersion`, `provenance` ([Provenance](#provenance)) |
 
@@ -1009,7 +1010,7 @@ When trials were paired (`Behavior.PairTrials`), `behavior.trials` also has:
 | `TrialOnsetSample`, `TrialOffsetSample` | 1-based rows at the recording rate (first / last on sample) |
 | `TrialOnsetSample_<SIG>`, `TrialOffsetSample_<SIG>` | `round((t - 1/Fs) * Fs_SIG) + 1` (`Fs` = `pairing.Fs`, the recording rate) for each enabled derived signal (LFP, MUA, resampled SPIKE): the row of that signal nearest the recording row; the rates are in `pairing.signalFs` |
 | `PairingFlag` | `"ok"`, `"partial"` (the interval begins at the first or ends at the last sample of the recording), `"cut"` (dropped by the cuts), `"unpaired"` (no interval left for it) |
-| `TrialEvents` | struct per trial: one field per other digital line, `[n x 2]` seconds of its intervals that overlap the trial (polarity applied) |
+| `TrialEvents` | struct per trial: one field per other digital line and per derived event, `[n x 2]` seconds of its intervals that overlap the trial (polarity applied) |
 | `TrialEventSamples` | the same in rows at the recording rate |
 
 `behavior.pairing` holds `status` (`"approved"` only after review, or
@@ -1018,6 +1019,17 @@ automatically with `Behavior.AutoApprove`), `autoApproved`, `trialLine`, `invert
 counts dropped before pairing), `countMismatch`, `warnings`,
 `partialIntervals`, `unpairedTrials`, `unpairedIntervals`, `fingerprint`,
 `summary` and `conventions`.
+
+`behavior.derivedEvents` holds the derived events
+([`Behavior.DerivedEvents`](EphysPipeline.md#derived-events)), one element
+each: `index`, `name`, `line`, `conditions` (as typed), `combine`,
+`inDataset`, `sourceLine` (`"Trial"` resolved), `expression` (the conditions
+as one expression), `description`, `trials` (`[nTrials x 1]` logical: the
+trial meets the conditions), `nTrials` (paired ones), `intervals` (`[k x 2]`
+seconds) and `nIntervals`. Each one marked `inDataset` is also a logical
+trials column of its name. `behavior.derivedEventsFailed` lists the
+definitions this session could not meet (`index`, `name`, `identifier`,
+`message`).
 
 ## Chronux export (`EphysDataset.exportChronux`; the Export step)
 
@@ -1279,7 +1291,7 @@ dropped and listed in `LoadWarnings`.
 | `schema`, `version`, `name`, `description` | identification |
 | `Source` | `Mode` (`project` / `folders`), `Root`, `OutputRoot`, `NamePattern`, `Recordings` (the Open Ephys recording mode), `Selection`, `Datasets`, `Folders` |
 | `Defaults` | `EventRef`, `Window` (`stop` is `[]` or an event reference), `Selection` |
-| `Plots` | array of plots: `id`, `kind`, `enabled`, `title`, `source`, `units`, `channels`, `ref` / `window` / `selection` (`"default"` or an object), `bins`, `measure`, `baseline`, `auroc`, `layout`, `withRaster`, `rasterSort`, `rasterSortEvent`, `histStyle`, `fill`, `fillAlpha`, `normalize`, `stack`, `stackSpacing`, `maskAfterStop`, `param`, `seriesParam`, `value`, `order`, `metric`, `correlation`, `waveform`, `style`, `aesthetics` |
+| `Plots` | array of plots: `id`, `kind`, `enabled`, `title`, `source`, `units`, `channels`, `ref` / `window` / `selection` (`"default"` or an object), `bins`, `measure`, `baseline`, `auroc`, `layout`, `withRaster`, `rasterSort`, `rasterSortEvent`, `histStyle`, `fill`, `fillAlpha`, `normalize`, `stack`, `stackSpacing`, `stackRaster`, `stackRasterEqual`, `stackRasterTrials`, `maskAfterStop`, `param`, `seriesParam`, `value`, `order`, `metric`, `correlation`, `waveform`, `style`, `aesthetics` |
 | `SessionPlots` | array of session plots (a plot drawn over several datasets and merged): `id`, `enabled`, `title`, `plot` (the base plot's id), `layout`, `datasets`, `datasetKeys`, `facet`, `series`, `colorOrder`, `showMembers`, `error`, `match`, `mappingFile`, `minSessions`, `trialGroups`, `data`, `aesthetics`. A file without the key loads with none |
 | `Export` | `Enabled`, `Formats`, `Folder`, `FilenamePattern`, `Dpi`, `FigureSizeCm`, `Overwrite`, `SessionsFolder`, `Data` (`Enabled`, `Folder`, `FilenamePattern`, `MatVersion`) |
 | `Report` | `Enabled`, `Format`, `Title`, `Folder`, `FileName`, `PerDataset`, `EmbedFormat`, `Dpi`, `IncludeSummary`, `IncludeParameters`, `IncludeConfig` |

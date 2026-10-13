@@ -134,9 +134,10 @@ analysis needs. **No signal and no spike time is loaded**: `selectUnits` and
 | --- | --- |
 | `name`, `key`, `folder`, `outputs` | the dataset, its key (`Key=` option), output folder and `DatasetOutputs` |
 | `fs`, `durationSec` | recording rate and length: the manifest's `metadata.fs` / `duration_s`, else the extract (`info.origFs`, `info.<SIG>.nSamples / Fs`), else the pairing. Rates divide by `durationSec`, never by the time of the last spike. `fs` is also the rate the digital-event rows count at (`t = row/fs`), which `epochTable` uses |
-| `events` | line → `[k x 2]` `[t_on t_off]` s, **polarity applied**, from the extract (the smallest extract file's `events`) |
+| `events` | line → `[k x 2]` `[t_on t_off]` s, **polarity applied**, from the extract (the smallest extract file's `events`), plus every derived event of the behavior file |
+| `derivedEvents` | the behavior file's [derived events](EphysPipeline.md#derived-events) (`name`, `line`, `conditions`, `combine`, `expression`, `description`, `intervals`, ...; empty without) |
 | `artifacts` | `[k x 2]` `[tStart tEnd)` s on the continuous clock (row r at `(r − 1)/fs`): the artifact periods the Signals step erased (that file's `info.artifacts.intervals`; `zeros(0,2)` when none). `epochTable` drops the epochs that touch one, for spike plots too. Only these periods count: with `Signals.BlankArtifacts` off (or `Artifacts.ApplyToSignals` off while sorting or detection used the automatic periods) the periods erased before sorting or detection are not here |
-| `invertedLines`, `lines` | lines inverted; table `Line, Count, MeanDurationSec, First, Last, Inverted` |
+| `invertedLines`, `lines` | lines inverted; table `Line, Count, MeanDurationSec, First, Last, Inverted, Derived` (a derived event's description, `""` for a recorded line) |
 | `labels` | amplifier channel labels (`info.labels`) |
 | `signals`, `signalFs` | `LFP / MUA / SPIKE / AUX` → extract present, and its rate |
 | `hasBehavior`, `hasTrials` | a behavior file was found; it carries the trial pairing (`TrialOnset`, `TrialEvents`, ...) |
@@ -247,7 +248,7 @@ epoch's event the animal left the platform; a raster can be sorted by it
 | `groupOrder` | `"ascending"` | `"ascending"`, `"descending"` or `"appearance"` |
 | `maxGroups` | 12 | more groups is `selectTrials:TooManyGroups` |
 
-Response words are the bits of `RespCode` ([`respCodeBits`](../analysis/respCodeBits.m)):
+Response words are the bits of `RespCode` ([`respCodeBits`](../pipeline/respCodeBits.m)):
 Hit 1, Miss 2, CR 4, FA 8, Reward 32, Punish 64, NoResponse 128, Response 256.
 
 **Filters** are compiled from an allow-list and never passed to `eval`:
@@ -259,7 +260,18 @@ strcmpi contains startsWith endsWith lower upper string double bitand` and
 `true false pi NaN Inf` are allowed; field access, `;`, `@` and every other
 name are rejected (`trialSelection:BadFilter`). Text columns compare with
 `==`. A parameter whose name is not a valid MATLAB identifier can only be
-grouped by, not filtered on.
+grouped by, not filtered on. The same language defines the pipeline's
+derived events (below), compiled by
+[`tableFilterFcn`](../pipeline/tableFilterFcn.m).
+
+**Derived events.** The pipeline's derived events (`Behavior.DerivedEvents`,
+[`deriveEvents`](../pipeline/deriveEvents.m); defined on its Trials tab) are
+lines like any other here: each is a line of `src.events` and of every
+trial's `TrialEvents`, so `eventRef(line="Shallow")` aligns to it in either
+scope, and `src.derivedEvents` holds the definitions (the Data tab's lines
+table shows each one's under **Derived from**). One made with **Include in the
+original dataset** is also a true / false trial column of its name, so
+`filter="Shallow & Hit"` or `groupBy="Shallow"` work too.
 
 `[mask, G, gi] = selectTrials(src, sel)` applies it: `mask` over
 `src.trials`, the groups table `G` (`index, label, color, n, <params>`, labels

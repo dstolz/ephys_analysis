@@ -8,7 +8,9 @@ function refreshTrialsPlot(obj)
 %   values of the trial parameters in TrialsLabelParams that the session
 %   has: the value alone for one parameter, name=value for several. The
 %   plot's context menu shows or hides the onset / offset lines, the grid
-%   lines and the labels (onTrialsPlotMenu).
+%   lines and the labels (onTrialsPlotMenu). The derived events being
+%   edited (trialsDerived) are purple rows below the recorded lines,
+%   labeled "(derived)".
 ax = obj.TrialsAxes;
 delete(allchild(ax));   % not cla: it leaves the objects kept out of the legend
 legend(ax, "off");
@@ -17,7 +19,8 @@ if isempty(P)
     return
 end
 
-E = P.events;
+[E, D] = obj.trialsDerived();
+derived = [string.empty(1, 0), D.name];
 names = [P.trialLine, setdiff(string(fieldnames(E)).', P.trialLine, 'stable')];
 nL = numel(names);
 iv = P.intervals;
@@ -49,7 +52,9 @@ for st = ["ok" "partial" "cut" "unpaired"]
     end
 end
 for j = 2:nL
-    segments(ax, E.(names(j)), nL - j + 1, [0.4 0.4 0.4], 5, "", names(j));
+    color = [0.4 0.4 0.4];
+    if ismember(names(j), derived); color = [0.45 0.25 0.65]; end
+    segments(ax, E.(names(j)), nL - j + 1, color, 5, "", names(j));
 end
 if ~isempty(labeled)
     text(ax, P.onset(labeled), repmat(nL + 0.25, numel(labeled), 1), cellstr(trialText(labeled)), ...
@@ -65,6 +70,8 @@ yticks(ax, 1:nL);
 rowLabels = names;
 isInverted = ismember(names, P.invertedLines);
 rowLabels(isInverted) = rowLabels(isInverted) + " (inverted)";
+isDerived = ismember(names, derived);
+rowLabels(isDerived) = rowLabels(isDerived) + " (derived)";
 yticklabels(ax, cellstr(flip(rowLabels)));
 if nI > 0
     legend(ax, "Location", "eastoutside");

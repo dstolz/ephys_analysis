@@ -15,6 +15,10 @@ function out = toMat(obj, opts)
 %   the signals were derived (SignalOptions.artifactIntervals; see
 %   deriveSignals), so whatever reads one signal knows which of its rows
 %   they cover.
+%   The events are the recording's digital lines plus the derived events
+%   of the behavior file marked InDataset (readDerivedEvents; deriveEvents),
+%   which info.derivedEvents lists; the behavior step keeps them up to date
+%   in an existing extract (writeExtractEvents).
 %   AUX (the accelerometer inputs) is written only when the recording has
 %   them: a requested AUX that is absent gets no _AUX file.
 %
@@ -107,6 +111,7 @@ end
 t0 = tic;
 args = namedargs2cell(opts.SignalOptions);
 [Y, ev, info] = obj.deriveSignals(args{:}, 'ProgressFcn', cb);
+[ev, info] = mergeDerivedEvents(ev, info, obj.readDerivedEvents());   % the behavior file's, marked InDataset
 
 conversion = struct( ...
     'tool',            "EphysDataset.toMat (deriveSignals / intan2matlab)", ...

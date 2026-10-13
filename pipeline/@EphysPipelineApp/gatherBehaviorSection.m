@@ -14,4 +14,5 @@ B.WriteFile = logical(obj.BehWriteFileCheckBox.Value);
 B.PairTrials = logical(obj.TrialsPairCheckBox.Value);
 B.AutoApprove = logical(obj.TrialsAutoApproveCheckBox.Value);
 B.TrialLine = strtrim(string(obj.TrialsLineDropDown.Value));
+B.DerivedEvents = obj.TrialsDerivedEvents;   % edited in the Derived events window
 end

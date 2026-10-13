@@ -14,4 +14,6 @@ L = obj.TrialsLinesTable.Data;
 names = string.empty(0, 1);
 if istable(L); names = string(L.Name); end
 obj.setTrialsLineItems(names, B.TrialLine);
+obj.TrialsDerivedEvents = B.DerivedEvents;
+obj.syncTrialsDerived();
 end

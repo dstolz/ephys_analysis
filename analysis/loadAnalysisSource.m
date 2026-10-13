@@ -21,7 +21,14 @@ function src = loadAnalysisSource(out, opts)
 %                       place events on the clock of the signals and spikes
 %     events            struct: line -> [k x 2] [t_on t_off] s, t = row/Fs,
 %                       polarity applied (from the extract; struct() when
-%                       there is none)
+%                       there is none), plus every derived event of the
+%                       behavior file (derivedEvents)
+%     derivedEvents     the behavior file's derived events (deriveEvents'
+%                       D: name, line, conditions, combine, expression,
+%                       description, intervals, ...; 1 x 0 without). Each
+%                       is a line of events and of every trial's
+%                       TrialEvents, so it aligns like a recorded line; one
+%                       marked InDataset is also a logical trial column
 %     artifacts         [k x 2] [tStart tEnd) s on the continuous clock (row
 %                       r at (r-1)/Fs): the artifact periods the Signals
 %                       step erased (the extract's info.artifacts.intervals;
@@ -32,7 +39,8 @@ function src = loadAnalysisSource(out, opts)
 %                       here
 %     invertedLines     lines whose polarity was inverted
 %     lines             table: Line, Count, MeanDurationSec, First, Last,
-%                       Inverted
+%                       Inverted, Derived (a derived event's description,
+%                       "" for a recorded line)
 %     labels            amplifier channel labels (extract info.labels)
 %     signals           struct LFP / MUA / SPIKE / AUX -> logical: extract
 %                       file present
@@ -171,6 +179,7 @@ src.respField = "";
 src.trialLine = "";
 src.subject = "";
 src.startTime = NaT;
+[~, src.derivedEvents] = deriveEvents(struct(), table(), []);
 if out.has("behavior")
     B = out.Behavior;
     src.hasBehavior = true;
@@ -197,12 +206,18 @@ if out.has("behavior")
     wp = vars(~ismember(vars, timing) & ~startsWith(vars, "TrialOnsetSample_") & ~startsWith(vars, "TrialOffsetSample_"));
     [~, ord] = sort(lower(wp));
     src.paramNames = wp(ord);
+    if isfield(B, 'derivedEvents') && isstruct(B.derivedEvents) && ~isempty(B.derivedEvents)
+        src.derivedEvents = reshape(B.derivedEvents, 1, []);
+        for k = 1:numel(src.derivedEvents)
+            src.events.(src.derivedEvents(k).name) = src.derivedEvents(k).intervals;
+        end
+    end
     if isfield(B, 'subject'); src.subject = string(B.subject); end
     if isfield(B, 'startTime') && isdatetime(B.startTime); src.startTime = B.startTime; end
 end
 
 % --- lines table ----------------------------------------------------------------------
-src.lines = linesTable(src.events, src.invertedLines);
+src.lines = linesTable(src.events, src.invertedLines, src.derivedEvents);
 
 % --- spikes / units -----------------------------------------------------------------------
 src.spikesFile = "";
@@ -293,7 +308,7 @@ end
 end
 
 
-function L = linesTable(events, inverted)
+function L = linesTable(events, inverted, derived)
 %linesTable  One row per digital line: counts, durations and extent.
 names = string(fieldnames(events));
 n = numel(names);
@@ -309,5 +324,9 @@ for k = 1:n
 end
 Line = names;
 Inverted = ismember(names, inverted);
-L = table(Line, Count, MeanDurationSec, First, Last, Inverted);
+Derived = strings(n, 1);
+for d = derived
+    Derived(names == d.name) = d.description;
+end
+L = table(Line, Count, MeanDurationSec, First, Last, Inverted, Derived);
 end

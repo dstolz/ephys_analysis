@@ -147,6 +147,9 @@ for step = steps
                     if ~isempty(d.TrialPairing)
                         pr = pr + " (recorded pairing: " + d.TrialPairing.status + ")";
                     end
+                    if ~isempty(c.Behavior.DerivedEvents)
+                        pr = pr + ", deriving " + strjoin([c.Behavior.DerivedEvents.Name], ", ");
+                    end
                     note = strjoin([note(note ~= ""), pr], "; ");
                 end
                 keep = ~c.Behavior.Overwrite || ~c.Behavior.Search;

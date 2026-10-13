@@ -12,7 +12,11 @@ function [s, unknown] = normalizeSection(section, in)
 %   (Artifacts.FilterCutoff: 300, or [lo hi] for a band-pass), so they are
 %   kept as a row. The fields of MapFields (Sorting.SIParams) are maps:
 %   every field whose name is a valid identifier is kept, its value a
-%   string (one per SpikeInterface sorter).
+%   string (one per SpikeInterface sorter). The fields of ListFields
+%   (Behavior.DerivedEvents) are rows of structs, each element normalized
+%   as the section ListFields names (DerivedEvent); JSON gives them as an
+%   array of objects (a struct array, or a cell array when the objects'
+%   fields differ) or [] for none.
 %
 %   See also EphysPipelineConfig.defaults, writeJsonFile.
 
@@ -40,9 +44,47 @@ tf = any(path == MapFields);
 end
 
 
+function sec = listSection(path)
+%listSection  The section each element of a list field is normalized as ("" = not a list).
+ListFields = ["Behavior.DerivedEvents" "DerivedEvent"];
+k = find(ListFields(:, 1) == path, 1);
+sec = "";
+if ~isempty(k); sec = ListFields(k, 2); end
+end
+
+
+function [out, unknown] = coerceList(def, in, path, sec)
+%coerceList  A list field: a row of structs, each normalized as section SEC.
+out = def;
+unknown = string.empty(1, 0);
+if iscell(in)
+    if ~all(cellfun(@(c) isstruct(c) && isscalar(c), in))
+        error('EphysPipelineConfig:BadValue', '%s must be a list of objects.', path);
+    end
+elseif isstruct(in)
+    in = num2cell(in);
+elseif isempty(in)
+    return
+else
+    error('EphysPipelineConfig:BadValue', '%s must be a list of objects.', path);
+end
+items = cell(1, numel(in));
+for k = 1:numel(in)
+    [items{k}, u] = coerceStruct(EphysPipelineConfig.defaults(sec), in{k}, sprintf("%s(%d)", path, k));
+    unknown = [unknown, u]; %#ok<AGROW>
+end
+if ~isempty(items); out = [items{:}]; end
+end
+
+
 function [out, unknown] = coerceStruct(def, in, path)
 out = def;
 unknown = string.empty(1, 0);
+sec = listSection(path);
+if sec ~= ""
+    [out, unknown] = coerceList(def, in, path, sec);
+    return
+end
 if isempty(in) || ~isstruct(in)
     return
 end

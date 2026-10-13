@@ -68,7 +68,17 @@ switch section
             'WriteFile',         true, ...    % save <Name>_behavior.mat for associated datasets
             'PairTrials',        true, ...    % pair trials in order with TrialLine intervals (needs review)
             'AutoApprove',       false, ...   % approve a pairing whose trial / interval counts match without cuts
-            'TrialLine',         "InTrial");  % digital line that is on during each trial
+            'TrialLine',         "InTrial", ...  % digital line that is on during each trial
+            'DerivedEvents',     repmat(EphysPipelineConfig.defaults("DerivedEvent"), 1, 0));  % new lines cut from a line by trial conditions (deriveEvents)
+
+    case "DerivedEvent"
+        % One entry of Behavior.DerivedEvents (see deriveEvents).
+        s = struct( ...
+            'Name',       "", ...                 % the new line's name (a valid identifier)
+            'Line',       "Trial", ...            % the line whose intervals are taken ("Trial" = the trial line)
+            'Conditions', string.empty(1,0), ...  % logical expressions over the trial columns, e.g. "Depth >= -6"
+            'Combine',    "all", ...              % "all": every condition holds; "any": at least one
+            'InDataset',  false);                 % also in the extract's events and as a trials column
 
     case "Artifacts"
         a = EphysDataset.defaultArtifactConfig();

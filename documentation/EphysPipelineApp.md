@@ -892,6 +892,7 @@ need a look here.
 | **Behavior to workspace** | loads the `behavior` struct of `<Name>_behavior.mat` (trials with the pairing columns, `info`, `meta`, `pairing`, ...) into the base workspace as `behavior_<Name>`, the same way. The file must exist: run the behavior step or press **Write behavior .mat** first |
 | **Pair trials in the behavior step**, **Trial line** | `Behavior.PairTrials`, `Behavior.TrialLine` |
 | **Auto approve when the counts match** | `Behavior.AutoApprove` (off by default): approve a pairing as soon as it is paired, when it needs no cuts ([Auto approval](#auto-approval)) |
+| **Derived events...** | opens the Derived events window (`Behavior.DerivedEvents`: new lines from a line's intervals in the trials that meet conditions); the line beside it names them, with each one's interval count on the loaded pairing ([Derived events](#derived-events)) |
 | Lines table (**Native**, **Name**, **Intervals**, **Inverted**) | one row per digital line: its native name (`DIGITAL-IN-04`, Open Ephys `TTL4`), its name, and its interval count. Edit **Name** to rename a line ([Naming digital lines](#naming-digital-lines)); tick **Inverted** for a line whose TTL logic is inverted ([Line polarity](#line-polarity)) |
 | **Resolve a count mismatch** | four spinners: trials and trial-line intervals to cut from the start and from the end before pairing. They belong to the dataset (its manifest), not to the config; cuts that would drop more than there is are refused. They are enabled once a pairing is loaded |
 | Trials table | trial, `TrialIndex`, interval, onset / offset (s), onset / offset sample, flag (orange = partial: the interval touches the recording start or end; gray = cut; red = unpaired), the other lines overlapping the trial. Click a header to sort, drag it to move the column. Right-click for **Parameter columns** (the loaded trials' parameters in alphabetical order: Epsych2 parameters, or the other epoc stores' values at each trial onset; tick one, e.g. `TrialType` or a response code, to show it after Flag), **Remove "*name*"** (on a parameter column) and **Reset column order**. The chosen parameters and the column order are preferences, so they apply to every dataset and the next session; a parameter a session lacks is not shown there (the menu lists it as *not in these trials*) and returns to its place for sessions that have it. Values that are not one number, text or date per trial are shown as text. A header click's sort is kept when the table refreshes (Load, a cut, a setting or a column change), for every dataset and the next session; the flag colors follow their rows, and right-click → **Clear sort** returns to trial order ([Sorted tables](#sorted-tables)) |
@@ -960,6 +961,34 @@ approve; approving by hand replaces the automatic mark.
 Equal counts do not prove the pairing right: a missing trial at one end and a
 spurious pulse at the other also give equal counts. Leave the box off to look
 at every dataset.
+
+### Derived events
+
+**Derived events...** opens a window that defines new lines from the
+existing ones: the intervals of a line in the trials that meet conditions on
+the trial parameters. With a `Depth` parameter of `0 -2 ... -16`, an event
+`Shallow` from `Depth >= -6` and an event `Mid` from `Depth < -6` and
+`Depth >= -10` each become a line that the exports, the analysis app and
+Visualize take like a recorded one
+([how they are made](EphysPipeline.md#derived-events)).
+
+| Control | What it does |
+| --- | --- |
+| List | one row per derived event: its name, the line it comes from, its conditions, whether it goes into the original dataset, and its trial and interval counts on the loaded pairing (red: it cannot be made there) |
+| **Add**, **Duplicate**, **Remove**, **Up**, **Down** | a new event; a copy of the selected one, to write the next group; delete; reorder (events are made in order, so one can take its intervals from an earlier one) |
+| **Name** | the new line's name: letters, digits and `_`, starting with a letter |
+| **From line** | the line whose intervals are taken; **Trial** is the trial line. An interval counts for the trial that holds its onset |
+| **Conditions** | one logical expression per line, over the trial parameters: `Depth >= -6`, `Depth < -6 & Depth >= -10`, `ismember(Level, [40 60])`, `Hit \| FA` ([the language](EphysAnalysis.md#trialselection-which-trials-in-which-groups)). They are kept as typed, so reopen the window to change `Depth >= -6` to `Depth >= -4` |
+| **Combine** | **all** (a trial meets every condition) or **any** (at least one) |
+| **Include in the original dataset** | also put the line in the extract's events and a true / false trials column of its name in the behavior file (the exports and the analysis app have it either way) |
+| Result line | the selected event's counts on the loaded dataset, or what is wrong (a misspelled parameter, a name already taken) |
+| Parameters table | the loaded trials' parameters and their values, to write conditions with |
+
+Every edit goes into the config at once (save it as usual); the Trials plot
+draws the events as purple rows labeled `(derived)`. The behavior step, or
+**Write behavior .mat** and **Approve pairing**, writes them into the behavior
+file, and with **Include in the original dataset** brings an existing
+extract's events up to date without running the Signals step again.
 
 ### Naming digital lines
 

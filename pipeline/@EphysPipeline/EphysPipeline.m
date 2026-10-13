@@ -678,7 +678,9 @@ classdef EphysPipeline < handle
             %   trials and intervals differ (a "behavior:pairing" result row,
             %   and a WARNING log line; resolve it on the app's Trials tab).
             %   The pairing columns are written into the behavior file either
-            %   way.
+            %   way, with the derived events of Behavior.DerivedEvents
+            %   (deriveEvents; an existing extract's events follow, see
+            %   EphysDataset.writeExtractEvents).
             %
             %   An associated session is kept unless Behavior.Overwrite, also
             %   while its file is not there ("behavior file missing": a disk or
@@ -777,8 +779,19 @@ classdef EphysPipeline < handle
                 if c.WriteFile
                     try
                         r = d.behaviorToMat(File=out, Overwrite=true, Pairing=P, Provenance=obj.provenance());
-                        obj.log("[behavior] %s: wrote %s (%d trials)", d.Name, r.file, r.nTrials);
-                        obj.addResult("behavior:file", d.Name, "done", sprintf("%d trials", r.nTrials), r.file, r.seconds);
+                        msg = sprintf("%d trials", r.nTrials);
+                        if ~isempty(r.derivedEvents)
+                            msg = msg + "; derived events " + strjoin(r.derivedEvents, ", ");
+                        end
+                        if ~isempty(r.extractFiles)
+                            msg = msg + "; the extract's events updated";
+                        end
+                        obj.log("[behavior] %s: wrote %s (%s)", d.Name, r.file, msg);
+                        obj.addResult("behavior:file", d.Name, "done", msg, r.file, r.seconds);
+                        for m = r.derivedFailed
+                            obj.log("[behavior] %s: WARNING %s", d.Name, m);
+                            obj.addResult("behavior:derived", d.Name, "left out", m, r.file, 0);
+                        end
                     catch ME
                         obj.log("[behavior] %s: ERROR writing %s: %s", d.Name, out, ME.message);
                         obj.addResult("behavior:file", d.Name, "error", string(ME.message), out, 0);

@@ -9,7 +9,11 @@ function buildTrialsTab(obj)
 %   .mat, the trial source / <name>_behavior.mat to the base workspace,
 %   and the pairing summary with the count-mismatch warning. Left: the
 %   config's pairing settings (Behavior section: pair in the behavior step,
-%   auto approve a pairing whose counts match without cuts, trial line), one
+%   auto approve a pairing whose counts match without cuts, trial line), the
+%   derived events (Derived events...: new lines from a line's intervals in
+%   the trials that meet conditions on the trial parameters, edited in a
+%   DerivedEventsDialog and listed with their counts on the loaded dataset;
+%   the plot draws them as rows below the recorded lines), one
 %   row per digital line with its native name, its name (editable:
 %   Signals.LineNames, e.g. an Open Ephys TTL4 named InTrial) and its
 %   polarity (Signals.InvertedLines: an inverted line is on while low, so
@@ -78,8 +82,8 @@ obj.TrialsSummaryLabel.Layout.Row = 2; obj.TrialsSummaryLabel.Layout.Column = [1
 % --- row 3 left: settings and cuts -------------------------------------------
 sp = uipanel(g, "Title", "Digital lines and pairing");
 sp.Layout.Row = 3; sp.Layout.Column = 1;
-sg = uigridlayout(sp, [6 2]);
-sg.RowHeight = {'fit', 'fit', 'fit', '1x', 'fit', 'fit'};
+sg = uigridlayout(sp, [7 2]);
+sg.RowHeight = {'fit', 'fit', 'fit', 'fit', '1x', 'fit', 'fit'};
 sg.ColumnWidth = {'fit', '1x'};
 obj.TrialsPairCheckBox = uicheckbox(sg, "Text", "Pair trials in the behavior step", "Value", true, ...
     "ValueChangedFcn", changed);
@@ -93,18 +97,27 @@ obj.TrialsLineDropDown = uidropdown(sg, "Items", {'InTrial'}, "Value", 'InTrial'
     "Tooltip", "Digital line that is on for the duration of each trial (type a name or pick a loaded line).", ...
     "ValueChangedFcn", changed);
 obj.TrialsLineDropDown.Layout.Row = 3; obj.TrialsLineDropDown.Layout.Column = 2;
+dg = uigridlayout(sg, [1 2]);
+dg.Layout.Row = 4; dg.Layout.Column = [1 2];
+dg.ColumnWidth = {'fit', '1x'};
+dg.RowHeight = {30};
+dg.Padding = [0 0 0 0];
+obj.TrialsDerivedButton = uibutton(dg, "Text", "Derived events...", ...
+    "Tooltip", "Define new lines from a line's intervals in the trials that meet conditions on the trial parameters (e.g. Depth >= -6). The behavior step adds them to the behavior file, the exports and the analysis app (Behavior.DerivedEvents).", ...
+    "ButtonPushedFcn", @(~,~) obj.onTrialsDerivedEvents());
+obj.TrialsDerivedLabel = uilabel(dg, "Text", "", "WordWrap", "on", "FontColor", [0.3 0.3 0.3]);
 obj.TrialsLinesTable = uitable(sg, "ColumnName", {'Native', 'Name', 'Intervals', 'Inverted'}, ...
     "ColumnEditable", [false true false true], "ColumnWidth", {90, 100, 60, 60}, "RowName", {}, ...
     "Tooltip", ["Name: what the line is called in the pairing, the extract and export files (Signals.LineNames; blank = its default name)." ...
         "Inverted: the line is on while low (onset = falling edge, offset = rising edge)."], ...
     "CellEditCallback", @(~, evt) obj.onTrialsLinesEdited(evt));
-obj.TrialsLinesTable.Layout.Row = 4; obj.TrialsLinesTable.Layout.Column = [1 2];
+obj.TrialsLinesTable.Layout.Row = 5; obj.TrialsLinesTable.Layout.Column = [1 2];
 makeSortable(obj, obj.TrialsLinesTable);
 obj.TrialsLinesTable.Data = table(strings(0, 1), strings(0, 1), zeros(0, 1), false(0, 1), ...
     'VariableNames', {'Native', 'Name', 'Intervals', 'Inverted'});
 
 cp = uipanel(sg, "Title", "Resolve a count mismatch (this dataset)");
-cp.Layout.Row = 5; cp.Layout.Column = [1 2];
+cp.Layout.Row = 6; cp.Layout.Column = [1 2];
 cg = uigridlayout(cp, [3 3]);
 cg.RowHeight = {'fit', 'fit', 'fit'};
 cg.ColumnWidth = {'1x', 64, 64};
@@ -132,7 +145,7 @@ obj.TrialsCutSpinners = s;
 
 lbl = uilabel(sg, "WordWrap", "on", "FontColor", [0.4 0.4 0.4], "Text", ...
     "Trials pair in order with the trial line's intervals. When the counts differ, cut the trials run before the recording started (or after it stopped), or the partial intervals at the recording edges, then Approve.");
-lbl.Layout.Row = 6; lbl.Layout.Column = [1 2];
+lbl.Layout.Row = 7; lbl.Layout.Column = [1 2];
 
 % --- row 3 right: trials ---------------------------------------------------
 % Columns are laid out by refreshTrialsTable; the context menu adds or removes
@@ -166,6 +179,7 @@ obj.TrialsAxes.ContextMenu = cm;
 
 obj.syncTrialsButtons();
 obj.syncTrialsCuts();
+obj.syncTrialsDerived();
 end
 
 

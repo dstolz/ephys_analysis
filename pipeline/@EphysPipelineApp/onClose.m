@@ -69,5 +69,8 @@ try
 catch ME
     warning('EphysPipelineApp:SavePrefsFailed', 'Could not save preferences: %s', ME.message);
 end
+if ~isempty(obj.TrialsDerivedDialog) && isvalid(obj.TrialsDerivedDialog)
+    delete(obj.TrialsDerivedDialog);
+end
 delete(obj.Fig);
 end

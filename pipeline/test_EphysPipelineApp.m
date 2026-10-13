@@ -1476,6 +1476,26 @@ app.onTrialsApprove("approved");
 mT = readJsonFile(dT.manifestFile());
 check(strcmp(mT.behavior.pairing.status, 'approved') && contains(app.DatasetsTable.Data.Behavior(1), "pairing approved"), ...
     'Approve saves the pairing in the manifest and the table shows it');
+app.onTrialsDerivedEvents();
+dlgD = app.TrialsDerivedDialog;
+check(isvalid(dlgD) && isempty(dlgD.Defs) && startsWith(app.TrialsDerivedLabel.Text, "None"), ...
+    'Derived events... opens its window, with none defined yet');
+dlgD.add();
+dlgD.edit("Name", "Loud");
+dlgD.edit("Conditions", "ToneLevel >= 60");
+check(isscalar(app.Config.Behavior.DerivedEvents) && app.Config.Behavior.DerivedEvents.Name == "Loud" ...
+    && app.Config.Behavior.DerivedEvents.Conditions == "ToneLevel >= 60" && dlgD.Results(1).nIntervals == 1 ...
+    && app.TrialsDerivedLabel.Text == "Loud (1)" && any(contains(string(app.TrialsAxes.YTickLabel), "Loud (derived)")), ...
+    'an edit goes into the config at once; the window, the line beside the button and the plot count it on the loaded pairing');
+dlgD.edit("Conditions", "Nope > 1");
+check(dlgD.Results(1).message ~= "" && contains(app.TrialsDerivedLabel.Text, "cannot be made here"), ...
+    'a condition on a parameter the trials lack says so');
+app.onTrialsDerivedEvents();
+check(app.TrialsDerivedDialog == dlgD, 'the button brings the open window back rather than opening another');
+dlgD.remove();
+check(isempty(app.Config.Behavior.DerivedEvents) && ~any(contains(string(app.TrialsAxes.YTickLabel), "(derived)")), ...
+    'removing it takes it out of the config and the plot');
+delete(dlgD);
 app.TrialsLinesTable.Data.Inverted(1) = true;
 app.onTrialsSettingsChanged();
 check(isequal(app.Config.Signals.InvertedLines, "din0") && app.TrialsPairing.stale ...

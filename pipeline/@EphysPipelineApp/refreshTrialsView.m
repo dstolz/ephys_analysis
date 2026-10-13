@@ -5,6 +5,7 @@ obj.refreshTrialsTable();
 obj.refreshTrialsPlot();
 obj.syncTrialsButtons();
 obj.syncTrialsCuts();
+obj.syncTrialsDerived(true);
 if isempty(P)
     return
 end

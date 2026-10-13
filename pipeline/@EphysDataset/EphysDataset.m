@@ -182,8 +182,9 @@ classdef EphysDataset < handle
 
         % How Epsych2 trials are paired with a digital line (pairTrials) and
         % how the digital lines are named: TrialLine, InvertedLines, SignalFs
-        % (derived-signal rates for sample columns), LabelField and
-        % LineNames. Pushed from the config's Behavior and Signals sections.
+        % (derived-signal rates for sample columns), LabelField, LineNames
+        % and DerivedEvents. Pushed from the config's Behavior and Signals
+        % sections.
         % See defaultTrialConfig.
         TrialConfig struct = EphysDataset.defaultTrialConfig()
 
@@ -303,6 +304,8 @@ classdef EphysDataset < handle
         [src, store] = behaviorSource(obj)
         b      = behaviorStruct(obj, opts)
         out    = behaviorToMat(obj, opts)
+        D      = readDerivedEvents(obj, opts)
+        files  = writeExtractEvents(obj, D)
         tf     = associateFolderBehavior(obj)
         E      = digitalEvents(obj, opts)
         P      = pairTrials(obj, opts)
@@ -1302,9 +1305,13 @@ classdef EphysDataset < handle
             %   LabelField      "custom" | "native": each line's default name
             %   LineNames       "native=name" entries renaming lines (e.g.
             %                   "TTL4=InTrial"); see relabelEvents
+            %   DerivedEvents   new lines cut from a line by trial conditions,
+            %                   added by behaviorStruct (struct array, see
+            %                   deriveEvents; default none)
             %   TrialLine and InvertedLines use the final names.
             cfg = struct('TrialLine', "InTrial", 'InvertedLines', string.empty(1,0), ...
-                'SignalFs', struct(), 'LabelField', "custom", 'LineNames', string.empty(1,0));
+                'SignalFs', struct(), 'LabelField', "custom", 'LineNames', string.empty(1,0), ...
+                'DerivedEvents', repmat(EphysPipelineConfig.defaults("DerivedEvent"), 1, 0));
         end
 
         function p = normalizeTrialPairing(p)

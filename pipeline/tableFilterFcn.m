@@ -9,9 +9,12 @@ function [fcn, names] = tableFilterFcn(expr, columns, opts)
 %   "!=" "~=" and a single "=" "=="; functions must be on the allow-list.
 %   The text is compiled with str2func, never eval, from these tokens only.
 %   With COLUMNS = [] only the syntax is checked (any name counts as a
-%   column).
+%   column). The analysis trial filters (selectTrials) and the pipeline's
+%   derived events (deriveEvents) share it.
 %
 %   Errors: trialSelection:BadFilter.
+%
+%   See also trialSelection, deriveEvents, respCodeBits.
 
 arguments
     expr (1,1) string

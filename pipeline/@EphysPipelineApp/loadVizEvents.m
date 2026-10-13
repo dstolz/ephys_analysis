@@ -9,7 +9,9 @@ function loadVizEvents(obj, out, read)
 %     3. with READ only, the recording itself (EphysDataset.digitalEvents,
 %        which can mean reading all of it, and then writes the cache)
 %   and gives 2 and 3 the polarity of the dataset's
-%   TrialConfig.InvertedLines (digitalLinePolarity). It sets VizData.events
+%   TrialConfig.InvertedLines (digitalLinePolarity), then adds the derived
+%   events of the behavior file (EphysDataset.readDerivedEvents) to
+%   whichever it took. It sets VizData.events
 %   (EphysTraceViewer.eventLines: on the traces' clock) and
 %   VizData.eventsNote, fills the Lines list (a line picked before stays
 %   picked, else every line with an event is) and enables Read events
@@ -32,7 +34,7 @@ if out.has("extract")
             if isfield(S, 'info') && isstruct(S.info) && isfield(S.info, 'origFs')
                 fs = double(S.info.origFs);
             end
-            E = EphysTraceViewer.eventLines(S.events, fs);
+            E = EphysTraceViewer.eventLines(withDerived(S.events, d), fs);
             note = "Events from the Signals step's extract.";
         end
     catch ME
@@ -49,7 +51,7 @@ if isempty(E) && (read || isfile(cacheFile))
             inverted = reshape(string(d.TrialConfig.InvertedLines), 1, []);
         end
         ev = digitalLinePolarity(R.events, inverted, R.nSamples, R.Fs);
-        E = EphysTraceViewer.eventLines(ev, R.Fs);
+        E = EphysTraceViewer.eventLines(withDerived(ev, d), R.Fs);
         if R.source == "cache"
             note = "Events from " + d.Name + "_events.mat.";
         else
@@ -82,4 +84,17 @@ elseif ~isempty(E)
 end
 obj.VizEventsLabel.Text = note;
 obj.VizEventsReadButton.Enable = matlab.lang.OnOffSwitchState(isempty(E));
+end
+
+
+function ev = withDerived(ev, d)
+%withDerived  The events with the behavior file's derived events added.
+try
+    D = d.readDerivedEvents();
+catch
+    return   % an unreadable behavior file leaves the recorded lines
+end
+for k = 1:numel(D)
+    ev.(D(k).name) = D(k).intervals;
+end
 end

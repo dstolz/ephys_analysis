@@ -78,7 +78,8 @@ obj.MemoryLabel = uilabel(rg, "Text", "No dataset selected.", "WordWrap", "on");
 obj.InventoryTable = uitable(rg, "RowName", {}, "ColumnName", {'Kind', 'Exists', 'Source', 'File'}, ...
     "ColumnWidth", {70, 50, 80, 'auto'}, "ColumnSortable", true);
 obj.LinesTable = uitable(rg, "RowName", {}, ...
-    "ColumnName", {'Line', 'Count', 'Mean length (s)', 'First (s)', 'Last (s)', 'Inverted'}, "ColumnWidth", 'auto', "ColumnSortable", true);
+    "ColumnName", {'Line', 'Count', 'Mean length (s)', 'First (s)', 'Last (s)', 'Inverted', 'Derived from'}, "ColumnWidth", 'auto', "ColumnSortable", true, ...
+    "Tooltip", "Derived from: a derived event's definition (the pipeline's Behavior.DerivedEvents), blank for a recorded line.");
 obj.BehaviorLabel = uilabel(rg, "Text", "", "WordWrap", "on");
 obj.ParamsTable = uitable(rg, "RowName", {}, "ColumnName", {'Parameter', 'Values'}, "ColumnWidth", {120, 'auto'}, "ColumnSortable", true);
 obj.UnitsTable = uitable(rg, "RowName", {}, "ColumnName", {'Class', 'Shank', 'Units', 'Spikes'}, "ColumnWidth", 'auto', "ColumnSortable", true);

@@ -10,6 +10,22 @@ says how to cut a release.
 
 ### Added
 
+- Derived events. A new named line made from an existing one: the intervals of a line (the trial line, a
+  stimulus line, or an earlier derived event) in the trials that meet conditions on the trial parameters,
+  e.g. `Depth >= -6`, or `Depth < -6` and `Depth >= -10`, several combined with all (AND) or any (OR), in
+  the trial-filter language (MATLAB operators and an allow-list, never `eval`). The definitions are a new
+  `Behavior.DerivedEvents` list in the pipeline config, kept as typed so they can be changed later, and
+  are edited in a Derived events window opened from the Trials tab (`DerivedEventsDialog`: counts on the
+  loaded dataset, the trial parameters and their values, the events drawn in the Trials plot).
+  `deriveEvents` makes them in the behavior step: `behavior.derivedEvents`, each line in every trial's
+  `TrialEvents`, and every export (Chronux, FieldTrip, epochs, kCSD, NWB), the analysis app
+  (`loadAnalysisSource`: `src.events`, `src.derivedEvents`, a **Derived from** column on the Data tab) and
+  Visualize take them like recorded lines. **Include in the original dataset** (`InDataset`) also puts the
+  line in the extract's events (`info.derivedEvents`; an existing extract is brought up to date without
+  deriving its signals again, `EphysDataset.writeExtractEvents`) and a true / false trials column in the
+  behavior file. A definition a session cannot meet is left out of it with a warning and a
+  `behavior:derived` result row. `tableFilterFcn` and `respCodeBits` moved from `analysis/` to `pipeline/`,
+  which both use them.
 - Plots across sessions. A new `SessionPlots` list in the analysis config: each session plot names a base
   plot (its alignment, units, bins and look) and draws it over several datasets, merged into one result of
   the same kind, so every renderer and design draws it unchanged. A color per session, per subject (its

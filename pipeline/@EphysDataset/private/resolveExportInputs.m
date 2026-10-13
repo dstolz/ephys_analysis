@@ -5,7 +5,10 @@ function in = resolveExportInputs(obj, opts, who)
 %     in.signals   signals to export (present in in.S.Y)
 %     in.units     readSortedUnits struct or []
 %     in.detected  spikesToMat detected struct or []
-%     in.events    dig-in events struct (or empty struct)
+%     in.events    dig-in events struct (or empty struct), with every
+%                  derived event of the behavior file added (whether or not
+%                  it is in the extract: readDerivedEvents)
+%     in.derived   those derived events (deriveEvents' D, 1 x 0 without)
 %     in.eventFs   the recording rate, the clock the event times count rows
 %                  of (t = row/eventFs): info.origFs, else the dataset's Fs,
 %                  else NaN
@@ -31,6 +34,7 @@ function in = resolveExportInputs(obj, opts, who)
 
 in = struct('S', [], 'signals', string.empty(1,0), 'units', [], 'detected', [], ...
     'events', struct(), 'eventFs', NaN, 'artifacts', [], 'sources', struct());
+[~, in.derived] = deriveEvents(struct(), table(), []);
 src = struct('extractFile', "", 'spikesFile', "", 'sortingDir', "");
 if isfield(opts, 'Sources')
     for fld = intersect(string(fieldnames(opts.Sources)).', string(fieldnames(src)).')
@@ -101,6 +105,13 @@ end
 % --- events -------------------------------------------------------------------
 if opts.Events && isfield(S, 'events') && isstruct(S.events)
     in.events = S.events;
+end
+if opts.Events
+    in.derived = obj.readDerivedEvents();
+    for k = 1:numel(in.derived)
+        in.events.(in.derived(k).name) = in.derived(k).intervals;
+    end
+    if ~isempty(in.derived); in.S.events = in.events; end   % what reads the extract struct sees them too
 end
 if isfield(S.info, 'origFs'); in.eventFs = double(S.info.origFs); end
 if ~isfinite(in.eventFs) && ~isnan(obj.Fs); in.eventFs = obj.Fs; end

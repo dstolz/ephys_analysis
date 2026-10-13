@@ -999,7 +999,7 @@ PIPE_GROUPS = [
     ("Path setup", ["addpath_nogit"]),
     ("Epsych2 sessions and trials", ["readEpsychSession", "epsychSessionMeta", "findEpsychSessions",
                                      "matchEpsychSession", "pairEpsychTrials", "digitalLinePolarity",
-                                     "stitchEpsychSessions"]),
+                                     "stitchEpsychSessions", "deriveEvents", "tableFilterFcn", "respCodeBits"]),
     ("Copying sessions from the source", ["findCopySessions", "stitchCopySessions", "copySessions"]),
     ("Freeing local disk space (Clean up tab)", ["planLocalCleanup", "cleanupMoveTargets", "runLocalCleanup"]),
     ("Background Kilosort4 runs", ["sortingSlot", "waitForSortingSlot"]),
@@ -1021,7 +1021,7 @@ PIPE_GROUPS = [
 
 ANALYSIS_GROUPS = [
     ("Loading", ["loadAnalysisSource"]),
-    ("Events, trial selection and epochs", ["eventRef", "resolveEvents", "respCodeBits", "trialSelection",
+    ("Events, trial selection and epochs", ["eventRef", "resolveEvents", "trialSelection",
                                             "selectTrials", "epochWindow", "epochTable"]),
     ("Units and channels", ["selectUnits", "selectChannels", "unitWaveforms"]),
     ("Compute", ["spikePSTH", "firingRate", "tuningCurve", "evokedPotential", "unitCorrelation",

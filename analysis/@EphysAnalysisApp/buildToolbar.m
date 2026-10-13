@@ -5,12 +5,14 @@ function buildToolbar(obj)
 %   or Cmd on a Mac). Left to right, in groups:
 %     File      New config, Open config, Save config
 %     Look      Scan for datasets (Data tab), Preview the selected plot
-%               (Plots tab)
+%               (Plots tab; on the Sessions tab, the selected session
+%               plot)
 %     Run       Validate config, Plan, Run, Cancel run (Export tab)
 %     Results   Open the last run's report, its figure folder
 %     Tools     Open pipeline app (File menu)
 %     Help      Help for this tab
-%   Preview shows the Plots tab, and Validate, Plan and Run the Export tab,
+%   Preview shows the Plots tab (unless the Sessions tab shows, where it
+%   previews the session plot), and Validate, Plan and Run the Export tab,
 %   where they put what they find. The Run tools follow the Export tab's
 %   buttons: Validate, Plan and Run are off while a run goes, Cancel is on
 %   only then, and the two Results tools come on when a run wrote a report
@@ -28,7 +30,8 @@ addTool(tb, iconDir, "save", "Save config", "S", @(~,~) obj.onSaveConfig());
 
 % --- Look: the datasets and the plot being edited ---
 addTool(tb, iconDir, "scan", "Scan for datasets", "", @(~,~) obj.onScan(), Separator=true);
-addTool(tb, iconDir, "preview", "Preview the selected plot on the active dataset", "", @(~,~) preview(obj));
+addTool(tb, iconDir, "preview", "Preview the selected plot on the active dataset (on the Sessions tab: the " + ...
+    "selected session plot over its datasets)", "", @(~,~) preview(obj));
 
 % --- Run: as the Export tab's buttons ---
 obj.ToolbarValidateTool = addTool(tb, iconDir, "validate", "Validate config", "", ...
@@ -60,6 +63,11 @@ function preview(obj)
 %preview  The Plots tab, then the selected plot drawn as its Preview button draws it.
 %   The tab shows first, so a slow preview is seen computing. Its hint
 %   follows; the auto-preview onTabChanged starts finds the plot drawn.
+%   On the Sessions tab: the session plot, as its Preview button draws it.
+if obj.Tabs.SelectedTab == obj.TabSessions
+    obj.refreshSessionPreview();
+    return
+end
 obj.Tabs.SelectedTab = obj.TabPlots;
 obj.refreshPreview(Force=true);
 obj.onTabChanged();

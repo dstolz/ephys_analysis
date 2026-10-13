@@ -2,7 +2,7 @@ function onScan(obj)
 %onScan  Find the datasets (a new EphysAnalysisRunner) and list them.
 %   In project mode every dataset under the root is listed and the config's
 %   "list" selection only sets the Run ticks. The first ticked dataset
-%   becomes the active one.
+%   becomes the active one. The Sessions tab's preview is forgotten.
 cfg = obj.gatherConfig();
 scanCfg = cfg;
 scanCfg.Source.Selection = "all";
@@ -29,6 +29,7 @@ obj.PreviewResult = [];
 obj.ChronuxResult = [];
 obj.ChronuxIndex = [];
 obj.ChronuxFile = "";
+resetSessionPreview(obj, "Press Preview on the Sessions tab to draw a session plot over the datasets found.");
 obj.refreshDatasetsTable();
 names = r.Names;
 if n == 0
@@ -45,6 +46,7 @@ if n > 0
     if isempty(first); first = 1; end
     obj.selectDataset(first);
 end
+obj.syncSessionEditor();   % the sessions the session plot covers; its data buttons
 obj.setStatus(obj.ScanLabel.Text);
 end
 

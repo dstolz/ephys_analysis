@@ -471,6 +471,11 @@ A value that gives no epochs is reported in red, and the lines are still
 drawn, so you can see why. Examples: a fixed window with *pre* after
 *post*, a line the dataset lacks, or a scope it cannot use.
 
+### Sessions tab
+
+Session plots: one plot of the Plots tab drawn over several datasets at
+once, merged. This section is being written.
+
 ### Export tab
 
 <!-- wiki: ![Export tab: figure files, the report, and a finished run's results](images/analysis-export-tab.png) -->

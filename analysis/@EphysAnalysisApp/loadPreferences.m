@@ -3,7 +3,9 @@ function loadPreferences(obj, openLast)
 %   Group EphysAnalysisApp: FigurePosition, LastConfigFile, RecentConfigs,
 %   ScriptFolder, AutoPreview, PreviewMaxMB, PlotSectionsCollapsed (the
 %   plot editor's collapsed sections), PlotGroupBy and PlotGroupsCollapsed
-%   (the plot tree's grouping and collapsed groups), ChronuxCacheFolder,
+%   (the plot tree's grouping and collapsed groups), SessionAutoPreview
+%   and SessionSectionsCollapsed (the Sessions tab's Auto box, off by
+%   default, and its editor's collapsed sections), ChronuxCacheFolder,
 %   ChronuxMaxMB, ChronuxSettings and ChronuxSectionsCollapsed (the
 %   Chronux tab's). Everything else is the config.
 if nargin < 2; openLast = true; end
@@ -42,6 +44,14 @@ if AppPrefs.ispref(g, 'PlotSectionsCollapsed')
         obj.PlotSections(i).Expanded = ~ismember(obj.PlotSections(i).Name, shut);
     end
     obj.layoutPlotEditor();
+end
+if AppPrefs.ispref(g, 'SessionAutoPreview'); obj.SessionAutoCheckBox.Value = isequal(AppPrefs.getpref(g, 'SessionAutoPreview'), true); end
+if AppPrefs.ispref(g, 'SessionSectionsCollapsed')
+    shut = string(AppPrefs.getpref(g, 'SessionSectionsCollapsed'));
+    for i = 1:numel(obj.SessionSections)
+        obj.SessionSections(i).Expanded = ~ismember(obj.SessionSections(i).Name, shut);
+    end
+    obj.layoutSessionEditor();
 end
 if AppPrefs.ispref(g, 'ChronuxCacheFolder'); obj.ChronuxCacheFolder = string(AppPrefs.getpref(g, 'ChronuxCacheFolder')); end
 if AppPrefs.ispref(g, 'ChronuxMaxMB')

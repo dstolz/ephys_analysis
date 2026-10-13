@@ -24,6 +24,14 @@ end
 obj.AlsoSelected = zeros(1, 0);   % one plot selected: the caller selects others again (onPlotSelected)
 obj.refreshPlotList();
 obj.applyPlotEditor();
+m = numel(cfg.SessionPlots);
+if m == 0
+    obj.SelectedSessionPlot = 0;
+else
+    obj.SelectedSessionPlot = min(max(obj.SelectedSessionPlot, 1), m);
+end
+obj.refreshSessionList();
+obj.applySessionEditor();
 if opts.MarkSaved
     obj.SavedConfigStruct = cfg.toStruct();
 end

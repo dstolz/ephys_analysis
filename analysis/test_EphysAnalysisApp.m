@@ -40,7 +40,11 @@ function test_EphysAnalysisApp()
 %   of date after an edit of what is computed, a display edit redrawing,
 %   a spectrogram over the whole recording, Save results and Save
 %   figure, the local cache: a file created there and found once the
-%   output folder's is gone); closing. The app's preferences live in a
+%   output folder's is gone); the Sessions tab (Add on a base plot, the
+%   editor's rows and its gather / apply round trip, a preview over both
+%   datasets, Out of date after a base-plot edit, the toolbar's Preview
+%   and Help there, Browse for a mapping file, Remove, its preferences
+%   restored by a new app); closing. The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
 %   Usage:  test_EphysAnalysisApp
@@ -77,9 +81,9 @@ check(numel(F.names) == 2, 'two datasets run through the pipeline');
 fprintf('\n== 1. build, open the project, scan ==\n');
 app = EphysAnalysisApp(F.proj);
 appCleanup = onCleanup(@() closeApp(app));
-check(isvalid(app.Fig) && numel(app.Tabs.Children) == 6 && app.Tabs.Children(1) == app.TabData ...
-    && app.Tabs.Children(5) == app.TabChronux && app.Tabs.Children(6) == app.TabLog, ...
-    'the app has the Data, Alignment, Plots, Export, Chronux and Log tabs');
+check(isvalid(app.Fig) && numel(app.Tabs.Children) == 7 && app.Tabs.Children(1) == app.TabData ...
+    && app.Tabs.Children(4) == app.TabSessions && app.Tabs.Children(6) == app.TabChronux && app.Tabs.Children(7) == app.TabLog, ...
+    'the app has the Data, Alignment, Plots, Sessions, Export, Chronux and Log tabs');
 T = app.DatasetsTable.Data;
 check(~isempty(app.Runner) && height(T) == 2 && all(T.Run) && isequal(sort(T.Name), sort(F.names(:))) ...
     && all(T.LFP == "✓") && all(T.Behavior == "✓"), 'the project root was scanned: both datasets, ticked, with LFP and behavior');
@@ -1134,13 +1138,111 @@ check(app.ChronuxFileWhere == "cache" && app.ChronuxFile == o2.file && contains(
 app.Tabs.SelectedTab = app.TabData;
 if chronuxPath ~= ""; rmpath(chronuxPath); end
 
+fprintf('\n== 5c. the Sessions tab ==\n');
+app.selectTab(app.TabSessions);
+SE = app.SessionEditor;
+check(isempty(app.Config.SessionPlots) && isempty(app.SessionList.Items) && app.SessionPreviewState == "idle" ...
+    && isequal(string(app.AddSessionBaseDropDown.ItemsData), ["psth_1" "evoked_1"]) && app.RemoveSessionButton.Enable == "off" ...
+    && ~shown(SE.id) && shown(SE.note) && endsWith(app.helpURL("tab"), "#sessions-tab") ...
+    && startsWith(string(app.SessionCountLabel.Text), "Sessions: 2 ticked"), ...
+    'the Sessions tab: no session plot yet, the PSTH and the evoked plot offered as bases, two datasets ticked; Help goes to its section');
+app.AddSessionBaseDropDown.Value = "psth_1";
+app.onAddSessionPlot();
+sp = app.Config.SessionPlots;
+check(isscalar(sp) && sp.plot == "psth_1" && sp.id == "psth_1_sessions_1" && app.SelectedSessionPlot == 1 ...
+    && string(app.SessionList.Items{1}) == "psth_1_sessions_1  (psth_1)" && string(SE.id.Value) == sp.id ...
+    && string(SE.plot.Value) == "psth_1" && string(SE.layout.Value) == "base" && startsWith(string(SE.kind.Text), "PSTH") ...
+    && startsWith(app.Fig.Name, "*") && app.RemoveSessionButton.Enable == "on", ...
+    'Add makes psth_1_sessions_1 on the chosen base plot, listed and shown in the editor; the config is unsaved');
+grouped = ~isempty(app.Config.plotFor("psth_1").selection.groupBy);
+check(shown(SE.series) && shown(SE.match) && shown(SE.minSessions) && ~shown(SE.showMembers) && ~shown(SE.error) ...
+    && ~shown(SE.datasetKeys) && ~shown(SE.mappingFile) && shown(SE.trialGroups) == grouped && ~shown(SE.dataSignals) ...
+    && shown(SE.toWorkspace) && SE.toWorkspace.Enable == "on", ...
+    'a PSTH of units shows the matching rows, not the summary''s, the keys, the mapping file or the signals box');
+SE.series.Value = "all";
+SE.error.Value = "sd";
+SE.showMembers.Value = true;
+SE.minSessions.Value = 2;
+SE.title.Value = 'Across days';
+SE.dataEpochs.Value = true;
+SE.match.Value = "mapping";
+app.onConfigChanged("sessions");
+sp = app.Config.SessionPlots(1);
+check(sp.series == "all" && sp.error == "sd" && sp.showMembers && sp.minSessions == 2 && sp.title == "Across days" ...
+    && isequal(sp.data, ["results" "epochs"]) && sp.match == "mapping" && shown(SE.showMembers) && shown(SE.error) ...
+    && shown(SE.mappingFile) && shown(SE.editMapping), ...
+    'edits reach the session plot; one mean shows the faint sessions and the error band, mapping the file row');
+mapFile = string(fullfile(root, 'unit_mapping.csv'));
+writelines(["cell," + strjoin(app.Runner.Keys, ","), "cellA,1,1"], mapFile);
+app.onBrowseUnitMapping(mapFile);
+check(app.Config.SessionPlots(1).mappingFile == mapFile && string(SE.mappingFile.Value) == mapFile, ...
+    'Browse (a file given) puts the mapping file in the editor and the session plot');
+s1 = app.gatherConfig();
+app.applyConfig(s1);
+s2 = app.gatherConfig();
+check(s1.isequalConfig(s2) && isequaln(s1.SessionPlots, s2.SessionPlots) && string(SE.series.Value) == "all" ...
+    && SE.minSessions.Value == 2 && string(SE.mappingFile.Value) == mapFile, ...
+    'gatherConfig -> applyConfig -> gatherConfig keeps the session plot and the editor''s values');
+SE.series.Value = "session";
+SE.match.Value = "pool";
+SE.minSessions.Value = 1;
+app.onConfigChanged("sessions");
+check(~shown(SE.showMembers) && ~shown(SE.error) && ~shown(SE.mappingFile), ...
+    'a color per session and pooled units hide the summary rows and the mapping file again');
+app.refreshSessionPreview();
+res = app.SessionPreviewResults;
+drawn = app.SessionPreviewState == "drawn" && string(app.SessionPreviewBadge.Text.Text) == "Drawn" && isscalar(res) ...
+    && res(1).status == "done";
+if drawn
+    R = res(1).R;
+    drawn = height(R.sessions) == 2 && height(R.groups) == 2;
+end
+nRate = numel(findall(app.SessionPreviewPanel, 'Tag', 'rate'));
+check(drawn && nRate >= 2 && isempty(findall(app.SessionPreviewPanel, 'Tag', 'previewBusyCard')) ...
+    && isempty(app.Runner.PollFcn) && string(app.Fig.Pointer) == "arrow" && app.SessionGroupDropDown.Parent.Visible == "off" ...
+    && contains(string(app.SessionPreviewLabel.Text), "over 2 of 2 session"), ...
+    sprintf('Preview computes psth_1 on both datasets and draws them merged, a color each (%d rate lines); one figure', nRate));
+ctx = getappdata(app.SessionPreviewPanel, PlotAesthetics.ContextKey);
+kP = app.Config.plotIndex("psth_1");
+baseLook = app.Config.Plots(kP).aesthetics;
+ctx.onRemember(look);
+check(isstruct(ctx) && isscalar(app.Config.SessionPlots(1).aesthetics) && app.Config.SessionPlots(1).aesthetics.value == 0.4 ...
+    && isequaln(app.Config.Plots(kP).aesthetics, baseLook) && app.SessionPreviewResults(1).R.spec.sessionAesthetics.value == 0.4, ...
+    'a look remembered from the session preview goes to the session plot, not to its base plot');
+app.onPlotSelected(kP);
+app.PlotEditor.smoothMs.Value = app.PlotEditor.smoothMs.Value + 5;
+app.onConfigChanged("plot");
+check(app.SessionPreviewState == "stale" && string(app.SessionPreviewBadge.Text.Text) == "Out of date" ...
+    && app.Tabs.SelectedTab == app.TabSessions, 'an edit of the base plot leaves the session preview Out of date (Auto is off)');
+clickTool(app, "preview");
+check(app.Tabs.SelectedTab == app.TabSessions && app.SessionPreviewState == "drawn" ...
+    && ~isempty(findall(app.SessionPreviewPanel, 'Tag', 'rate')), ...
+    'the toolbar''s Preview on the Sessions tab previews the session plot there');
+app.SessionAutoCheckBox.Value = true;
+app.onSessionAutoPreviewToggled();   % keeps the preference; draws now
+app.onSessionSectionToggled("data");
+app.savePreferences();
+saved = isequal(AppPrefs.getpref(g, 'SessionAutoPreview'), true) ...
+    && isequal(string(AppPrefs.getpref(g, 'SessionSectionsCollapsed')), "data");
+check(saved && app.SessionPreviewState == "drawn" && ~app.SessionSections([app.SessionSections.Name] == "data").Expanded, ...
+    'Auto and a collapsed section of the Sessions tab are kept as preferences');
+app.onRemoveSessionPlot();
+check(isempty(app.Config.SessionPlots) && isempty(app.SessionList.Items) && app.SessionPreviewState == "idle" ...
+    && ~shown(SE.id) && app.RemoveSessionButton.Enable == "off", 'Remove takes the session plot away; the editor and preview are empty');
+app.onSaveConfig();
+app2 = EphysAnalysisApp();
+restored = app2.SessionAutoCheckBox.Value && ~app2.SessionSections([app2.SessionSections.Name] == "data").Expanded ...
+    && app2.SessionSections([app2.SessionSections.Name] == "sessions").Expanded;
+closeApp(app2);
+check(~startsWith(app.Fig.Name, "*") && restored, 'a new app restores the Sessions tab''s Auto and collapsed section');
+app.Tabs.SelectedTab = app.TabData;
+
 fprintf('\n== 6. close ==\n');
 app.savePreferences();
 check(strcmp(AppPrefs.getpref(g, 'LastConfigFile'), cfgFile) && isequal(string(AppPrefs.getpref(g, 'PlotSectionsCollapsed')), "bins"), ...
     'the last config and the collapsed plot-editor section are remembered');
 app.onShowEpochs("plot");
 dz = app.EpochDiagramWindow;
-dbg_cfgdiff(app);
 app.onClose();
 check(~isvalid(app.Fig) && ~dz.isOpen(), 'Close (clean config) closes the window, and the epoch diagram with it');
 

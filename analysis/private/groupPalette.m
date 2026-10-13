@@ -6,9 +6,22 @@ function C = groupPalette(G, style)
 %   group, else its palette in order; the name of any colormap function
 %   (parula, turbo, hot, ...) resamples them from it; a color name or hex
 %   code ("black", "#1f77b4") gives every group that color.
+%   Groups with a base column (combineSessions "combine": a series per
+%   session and trial group) are colored by base: the colors are chosen for
+%   the base series (each base's first row) and every row takes its base's,
+%   so a session keeps its color across its trial groups.
 C = G.color;
 name = char(style.Colormap);
 if height(G) == 0
+    return
+end
+if ismember("base", string(G.Properties.VariableNames))
+    [~, first, ib] = unique(G.base);
+    Gb = G(first, :);
+    Gb.base = [];
+    Gb.index = (1:height(Gb)).';
+    Cb = groupPalette(Gb, style);
+    C = Cb(ib, :);
     return
 end
 if strcmpi(name, "lines")

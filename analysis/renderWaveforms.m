@@ -28,6 +28,10 @@ function h = renderWaveforms(R, target, opts)
 %              common scale a bar says how much amplitude a bar's length is.
 %              Units without a position are left out, and the panel says so
 %
+%   A result merged across sessions (combineSessions: R.sessions) draws
+%   each unit in its session's color (R.groups through R.meta.session): its
+%   mean tagged "trace" with the session's label, its spikes paler.
+%
 %   H: layout (tiled layout or []), axes.
 %
 %   See also unitWaveforms, renderPlot, renderProbeMap.
@@ -64,6 +68,7 @@ end
 function h = gridLayout(R, W, P, target, wave, style, page)
 %gridLayout  One tile per unit of the page.
 nU = numel(P);
+S = sessionLooks(R, style);
 [idx, nr, nc] = pageItems(nU, page, style.MaxTiles);
 [tl, ax0] = renderLayout(target, nr, nc, style);
 if ~isempty(ax0); idx = idx(1:min(1, end)); end
@@ -84,12 +89,13 @@ for j = 1:numel(idx)
         end
         pad = 0.08 * (hi - lo);
         if ~(pad > 0); pad = 1; end
+        [spikeColor, meanColor, meanRole, group] = looks(S, u);
         if p.spikes
             tagPart(line(ax, repmat([p.t; NaN], size(p.S, 2), 1), reshape([p.S; NaN(1, size(p.S, 2))], [], 1), ...
-                'Color', [0.30 0.45 0.75 0.25], 'LineWidth', 0.5), "waveSpikes");
+                'Color', spikeColor, 'LineWidth', 0.5), "waveSpikes", group);
         end
         if p.mean
-            tagPart(line(ax, p.t, p.m, 'Color', [0.80 0.10 0.10], 'LineWidth', max(1, style.LineWidth)), "waveMean");
+            tagPart(line(ax, p.t, p.m, 'Color', meanColor, 'LineWidth', max(1, style.LineWidth)), meanRole, group);
         end
         tagPart(xline(ax, 0, ':', 'Color', [0.5 0.5 0.5]), "waveZero");
         xlim(ax, [min(p.t) max(p.t)]);
@@ -160,7 +166,9 @@ if wave.showSites && ~isempty(sx)
     tagPart(plot(ax, sx + shift(sk), sy, 's', 'MarkerSize', 3, 'Color', [0.8 0.8 0.8]), "waveSites");
 end
 X0 = ux + shift(shank);
-spk = cell(0, 1); mu = cell(0, 1);
+L = sessionLooks(R, style);
+nL = max(1, numel(L.label));   % one spikes line and one means line per session (one in all without sessions)
+spk = cell(0, 1); mu = cell(0, 1); spkOf = zeros(0, 1); muOf = zeros(0, 1);
 common = zeros(nU, 1);
 for u = find(placed).'
     p = P{u};
@@ -175,21 +183,28 @@ for u = find(placed).'
     if ~(tspan > 0); tspan = 1; end
     gx = X0(u) + gw * ((p.t - min(p.t)) / tspan - 0.5);
     at = @(v) uy(u) + gh * (v - (lo + hi) / 2) / span1;
+    sk1 = 1;
+    if ~isempty(L.session); sk1 = L.session(u); end
     if p.spikes
         k = size(p.S, 2);
         spk{end+1, 1} = [repmat([gx; NaN], k, 1), reshape([at(p.S); NaN(1, k)], [], 1)]; %#ok<AGROW>
+        spkOf(end+1, 1) = sk1; %#ok<AGROW>
     end
     if p.mean
         mu{end+1, 1} = [gx, at(p.m); NaN NaN]; %#ok<AGROW>
+        muOf(end+1, 1) = sk1; %#ok<AGROW>
     end
 end
-if ~isempty(spk)
-    S = vertcat(spk{:});
-    tagPart(line(ax, S(:, 1), S(:, 2), 'Color', [0.30 0.45 0.75 0.25], 'LineWidth', 0.5), "waveSpikes");
-end
-if ~isempty(mu)
-    M = vertcat(mu{:});
-    tagPart(line(ax, M(:, 1), M(:, 2), 'Color', [0.80 0.10 0.10], 'LineWidth', max(1, style.LineWidth)), "waveMean");
+for s = 1:nL
+    [spikeColor, meanColor, meanRole, group] = looks(L, find(L.session == s, 1));
+    if any(spkOf == s)
+        Sx = vertcat(spk{spkOf == s});
+        tagPart(line(ax, Sx(:, 1), Sx(:, 2), 'Color', spikeColor, 'LineWidth', 0.5), "waveSpikes", group);
+    end
+    if any(muOf == s)
+        M = vertcat(mu{muOf == s});
+        tagPart(line(ax, M(:, 1), M(:, 2), 'Color', meanColor, 'LineWidth', max(1, style.LineWidth)), meanRole, group);
+    end
 end
 fs = max(5, style.FontSize - 3);
 if wave.showNames
@@ -230,6 +245,48 @@ hold(ax, 'off');
 styleAxes(ax, style);
 xlabel(ax, 'x (µm)'); ylabel(ax, 'y (µm)');
 h = struct('layout', tl, 'axes', ax);
+end
+
+
+function L = sessionLooks(R, style)
+%sessionLooks  A result merged across sessions (combineSessions: R.sessions): each unit's series and the series' colors.
+%   L.session [nUnits x 1]: the series (row of R.groups) of each unit's
+%   session (R.meta.session through R.sessions.series); L.color: the
+%   series' colors (groupPalette); L.label: their labels. Without sessions
+%   all three are empty, and the units keep the usual look.
+L = struct('session', zeros(0, 1), 'color', zeros(0, 3), 'label', strings(0, 1), 'style', style);
+if ~isfield(R, 'sessions') || ~istable(R.sessions) || ~isfield(R, 'groups') || ~istable(R.groups) ...
+        || ~ismember("session", string(R.meta.Properties.VariableNames))
+    return
+end
+s = double(R.meta.session(:));
+if ismember("series", string(R.sessions.Properties.VariableNames))
+    ser = double(R.sessions.series(:));
+    ok = s >= 1 & s <= numel(ser);
+    s(ok) = ser(s(ok));
+end
+s(~(s >= 1 & s <= height(R.groups))) = 1;
+L.session = s;
+L.color = groupPalette(R.groups, style);
+L.label = reshape(string(R.groups.label), [], 1);
+end
+
+
+function [spikeColor, meanColor, meanRole, group] = looks(L, u)
+%looks  How unit U's spikes and mean are drawn: in its session's color (tagged "trace" with the session) or as usual.
+%   The session-colored mean is a "trace" (a group's color, as the other
+%   kinds' means), so a design's one waveMean color does not paint every
+%   session alike.
+spikeColor = [0.30 0.45 0.75 0.25];
+meanColor = [0.80 0.10 0.10];
+meanRole = "waveMean";
+group = "";
+if isempty(L.session) || isempty(u); return; end
+g = L.session(u);
+meanColor = L.color(g, :);
+spikeColor = [paleColor(meanColor, 0.3, L.style) 0.25];
+meanRole = "trace";
+group = L.label(g);
 end
 
 

@@ -32,7 +32,14 @@ function txt = plotCaption(spec, R)
 %   Style.ShowSEM, what the error bands or bars show: "bands: mean +/- SEM
 %   across epochs", "mean +/- SD", or "the bootstrap 95% CI of the mean
 %   (1000 resamples, percentile)" -- across the units for an overlay of
-%   several units (PSTH, tuning). The reports print it under each figure.
+%   several units (PSTH, tuning). A result merged across sessions
+%   (combineSessions) says over how many sessions and subjects, what its
+%   series are and the band across sessions ("one series per subject, mean
+%   +/- SEM across sessions"; a 95% CI across sessions is a t interval, not
+%   a bootstrap), how units were matched ("units matched by site", "by the
+%   mapping file", "each session's units on its own tile"), how many
+%   sessions are drawn faint, and counts its tiles ("12 sites", "8 cells",
+%   "37 session-units"). The reports print it under each figure.
 %
 %   See also renderPlot, writeHtmlReport, writePdfReport.
 
@@ -47,6 +54,7 @@ if spec.kind == "probemap"
 end
 if spec.kind == "waveforms"
     parts(end+1) = waveText(spec, R.waveforms) + waveLayoutText(spec);
+    parts = [parts sessionText(R)];
     parts(end+1) = sourceText(spec, R);
     txt = strjoin(parts, "; ") + ".";
     return
@@ -151,6 +159,14 @@ if spec.kind == "behavior"
     if spec.layout ~= "box"
         [~, ~, E] = resultBounds(R, 'mean');
         pm = errPhrase(E.type, E.nBoot);
+        if isMerged(R) && isfield(R, 'err') && isfield(R.err, 'over') && R.err.over == "sessions"
+            switch R.sessionSeries.error   % the band across sessions
+                case "sem",  pm = " +/- SEM across sessions";
+                case "sd",   pm = " +/- SD across sessions";
+                case "ci95", pm = " and its 95% CI across sessions (" + R.sessionSeries.errorNote + ")";
+                otherwise,   pm = "";
+            end
+        end
         if ~spec.style.ShowSEM; pm = ""; end
         parts(end) = replace(parts(end), " +/- SEM", pm);
     end
@@ -209,8 +225,76 @@ end
 if ismember(spec.kind, ["psth" "raster"]) && isfield(R, 'aux') && isstruct(R.aux) && ~isempty(R.aux) && spec.aux.mode ~= "off"
     parts = [parts auxText(spec, R)];
 end
+parts = [parts sessionText(R)];
 parts(end+1) = sourceText(spec, R);
 txt = strjoin(parts, "; ") + ".";
+end
+
+
+function tf = isMerged(R)
+%isMerged  A result merged across sessions (combineSessions).
+tf = isfield(R, 'sessions') && istable(R.sessions) && isfield(R, 'sessionSeries') && isstruct(R.sessionSeries);
+end
+
+
+function parts = sessionText(R)
+%sessionText  How a result merged across sessions was made, e.g. "across 3 sessions (2 subjects)", "one series
+%   per subject, mean +/- SEM across sessions", "units matched by site", "3 sessions drawn faint" (none: empty).
+parts = strings(1, 0);
+if ~isMerged(R); return; end
+S = R.sessions;
+X = R.sessionSeries;
+done = true(height(S), 1);
+if ismember("status", string(S.Properties.VariableNames)); done = S.status == "done"; end
+n = nnz(done);
+s = sprintf("across %d session%s", n, plural(n));
+if ismember("subject", string(S.Properties.VariableNames))
+    m = numel(unique(S.subject(done)));
+    s = s + sprintf(" (%d subject%s)", m, plural(m));
+end
+parts = s;
+err = sessionErrWords(X.error, X.errorNote);
+switch X.mode
+    case "session"
+        parts(end+1) = "one series per session";
+    case "subject"
+        parts(end+1) = "one series per subject";
+        if err ~= ""; parts(end) = parts(end) + ", " + err + " across sessions"; end
+    otherwise
+        if err ~= ""; parts(end+1) = err + " across sessions"; else; parts(end+1) = "the mean of the sessions"; end
+end
+if isfield(X, 'trialGroups') && X.trialGroups == "combine"
+    parts(end) = parts(end) + ", a line style per trial group";
+end
+switch X.match
+    case "site",    parts(end+1) = "units matched by site";
+    case "mapping", parts(end+1) = "units matched by the mapping file";
+    case "pool",    parts(end+1) = "each session's units on its own tile";
+    case "channel", parts(end+1) = "channels matched by recording channel";
+end
+if isfield(R, 'members') && isstruct(R.members) && isfield(R.members, 'series') && ~isempty(R.members.series)
+    k = numel(R.members.series);
+    parts(end+1) = sprintf("%d session%s drawn faint", k, plural(k));
+end
+end
+
+
+function s = sessionErrWords(type, note)
+%sessionErrWords  The band across sessions: "mean +/- SEM", "mean +/- SD", "the mean and its 95% CI (t)" ("": none).
+switch type
+    case "sem",  s = "mean +/- SEM";
+    case {"sd", "std"}, s = "mean +/- SD";
+    case "ci95"
+        if note == "" || startsWith(note, "95%"); s = "the mean and its 95% CI (t distribution)";
+        else; s = "the mean +/- " + replace(note, "×", "x"); end
+    otherwise,   s = "";
+end
+end
+
+
+function s = plural(n)
+s = "";
+if n ~= 1; s = "s"; end
 end
 
 
@@ -334,6 +418,9 @@ switch spec.kind
     otherwise
         return
 end
+if across == "epochs" && isMerged(R) && isfield(R, 'err') && isfield(R.err, 'over') && R.err.over == "sessions"
+    return   % the band across sessions: sessionText says what it is
+end
 if across == "units"
     type = spec.style.ErrorType;
     nBoot = spec.style.ErrorResamples;
@@ -439,6 +526,22 @@ if spec.kind == "behavior" || spec.source == "trials"
 end
 nItems = numel(R.labels);
 if isfield(R, 'n') && spec.kind == "probemap"; nItems = R.n; end
+if isMerged(R)   % the tiles matched across sessions
+    match = R.sessionSeries.match;
+    switch match
+        case "site",    s = sprintf("%d site%s", nItems, plural(nItems));
+        case "mapping", s = sprintf("%d cell%s", nItems, plural(nItems));
+        case "pool"
+            s = sprintf("%d session-unit%s", nItems, plural(nItems));
+            if spec.source == "detected"; s = sprintf("threshold detections on %d session-channel%s", nItems, plural(nItems)); end
+        otherwise
+            s = sprintf("%s, %d channel%s", spec.source, nItems, plural(nItems));
+    end
+    if spec.source == "units" && ~isempty(spec.units.classes) && match ~= "channel"
+        s = s + " (" + strjoin(spec.units.classes, ", ") + ")";
+    end
+    return
+end
 switch spec.source
     case "units"
         s = sprintf("%d sorted unit(s)", nItems);

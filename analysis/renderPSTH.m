@@ -93,6 +93,13 @@ function h = renderPSTH(R, target, opts)
 %   arrow or n.s. (overlay: each group's count of units called up and
 %   down).
 %
+%   A result merged across sessions (combineSessions) draws like any other;
+%   with R.members (ShowMembers) each member session is a thin pale line in
+%   its series' color under the error bands (role "memberLine", out of the
+%   legend; the overlay layout: each member's mean over the tiles; not in
+%   a stack), and with R.groups.lineStyle (TrialGroups "combine") each
+%   series' line takes its style.
+%
 %   A grid's x and y labels are its tiled layout's, once for every tile
 %   (with rasters, the y label names the rates, then the rasters' rows);
 %   its legend goes east of the grid unless Style.LegendLocation says
@@ -140,7 +147,11 @@ nG = size(R.rate, 3);
 auroc = isAuroc(R);
 norm = opts.Normalize;
 if auroc; norm = "none"; end   % an auROC is on its own 0-1 scale
-[rate, ~, yUnits, errLo, errHi] = normalizeRates(R, norm);
+[rate, ~, yUnits, errLo, errHi, normBy] = normalizeRates(R, norm);
+members = [];   % the member sessions' rates (combineSessions ShowMembers), divided like the series'
+if isfield(R, 'members') && isstruct(R.members) && isfield(R.members, 'rate') && ~isempty(R.members.rate)
+    members = memberRates(R, norm, normBy);
+end
 look = struct('hist', opts.HistStyle, 'fill', opts.Fill, 'alpha', opts.FillAlpha, ...
     'stack', opts.Stack && nG > 1, 'spacing', opts.Spacing);
 if ~isfinite(look.alpha)
@@ -176,6 +187,8 @@ if opts.Layout == "overlay" && nU > 1
     P.peakLabel = "Peak (" + R.units + ")";
     if norm ~= "none"; P.peakLabel = "Peak (normalized)"; end
     P.yUnits = yUnits;
+    P.members = [];
+    if ~isempty(members); P.members = reshape(mean(members, 2, 'omitnan'), size(members, 1), []); end   % each member's mean over the tiles
     h.step = drawPanel(ax, P, R, colors, style, look, struct('legend', true, 'left', true, 'right', true, 'layout', tl, ...
         'auto', 'best', 'aux', legendAux(X, place, look)));
     top = ax;
@@ -247,6 +260,8 @@ for j = 1:numel(idx)
     P.peak = reshape(max(R.rate(:, u, :), [], 1), [], 1);
     P.peakLabel = "Peak (" + R.units + ")";
     P.yUnits = yUnits;
+    P.members = [];
+    if ~isempty(members); P.members = reshape(members(:, u, :), size(members, 1), []); end
     right = c == nc || j == numel(idx);
     step(j) = drawPanel(ax, P, R, colors, style, look, ...
         struct('legend', j == 1, 'left', false, 'right', right, 'layout', tl, 'auto', "east", 'aux', legendAux(X, place, look)));
@@ -369,11 +384,13 @@ end
 end
 
 
-function [rate, sem, label, lo, hi] = normalizeRates(R, mode)
+function [rate, sem, label, lo, hi, p] = normalizeRates(R, mode)
 %normalizeRates  R.rate / R.sem and the error band's edges divided per unit ("unitPeak") or per PSTH ("groupPeak").
 %   The divisor is the largest absolute value (the peak, for rates); a unit
 %   or PSTH with none is NaN. LABEL is the y axis label of what comes back.
 %   LO / HI: the band R.err holds (resultBounds), divided the same way.
+%   P: the divisor ([] for "none"), for the member sessions (memberRates).
+p = [];
 rate = R.rate;
 sem = R.sem;
 [lo, hi] = resultBounds(R, 'rate');
@@ -450,9 +467,13 @@ step = NaN;
 nG = size(P.m, 2);
 ref = 0;
 if isAuroc(R); ref = 0.5; end   % auROC: bars from chance, 0.5
+ls = groupLineStyles(R);
 hold(ax, 'on');
 if ref ~= 0
     modulationWindow(ax, R);
+end
+if isfield(P, 'members') && ~isempty(P.members)   % each member session, faint, under its series
+    memberLines(ax, R.t, P.members, R, colors, style);
 end
 if style.ShowSEM
     for g = 1:nG
@@ -461,7 +482,7 @@ if style.ShowSEM
 end
 lh = gobjects(1, nG);
 for g = 1:nG
-    lh(g) = histTrace(ax, R.t, R.edges, P.m(:, g) - ref, ref, colors(g, :), look, style.LineWidth, R.groups.label(g));
+    lh(g) = histTrace(ax, R.t, R.edges, P.m(:, g) - ref, ref, colors(g, :), look, style.LineWidth, R.groups.label(g), ls(g));
 end
 if style.ShowZeroLine
     tagPart(xline(ax, 0, ':', 'Color', [0.3 0.3 0.3], 'HandleVisibility', 'off'), "zeroLine");
@@ -509,6 +530,7 @@ if ~(tallest > 0); tallest = 1; end
 step = look.spacing * tallest;
 base = (0:nG-1) * step;
 W = R.edges([1 end]);
+ls = groupLineStyles(R);
 yyaxis(ax, 'left');
 ax.LineStyleOrder = '-';   % a yyaxis side cycles through markers ('o-', '^-', ...) otherwise
 hold(ax, 'on');
@@ -524,7 +546,7 @@ for g = nG:-1:1
         f = isfinite(P.lo(:, g)); elo(f) = P.lo(f, g);
         f = isfinite(P.hi(:, g)); ehi(f) = P.hi(f, g);
     end
-    histTrace(ax, R.t, R.edges, m, b, colors(g, :), look, style.LineWidth, R.groups.label(g));
+    histTrace(ax, R.t, R.edges, m, b, colors(g, :), look, style.LineWidth, R.groups.label(g), ls(g));
     if style.ShowStop && isfield(R, 'stopMean') && isfinite(R.stopMean(g))
         tagPart(line(ax, R.stopMean([g g]), b + [0 0.9 * min(step, tallest)], 'LineStyle', '--', 'Color', colors(g, :), ...
             'HandleVisibility', 'off'), "stopLine", R.groups.label(g));
@@ -560,15 +582,17 @@ set(ax.YAxis, 'Color', ax.XAxis.Color);
 end
 
 
-function hMain = histTrace(ax, t, e, m, base, color, look, lw, group)
+function hMain = histTrace(ax, t, e, m, base, color, look, lw, group, ls)
 %histTrace  One PSTH from BASE up: bars or a line, filled or not.
 %   The fill patches are tagged "rateFill", the line or outline "rate",
-%   both with GROUP (tagPart).
+%   both with GROUP (tagPart). LS: the line's (or outline's) LineStyle
+%   (default "-"; a merged result's R.groups.lineStyle, groupLineStyles).
 %   Filled: one patch per run of finite bins (FaceAlpha look.alpha), bars
 %   as a staircase, a line with the area down to BASE under it. Unfilled
 %   bars are the staircase outline, dropping to BASE at each run's ends.
 %   Returns the object a legend shows (the bars' first patch or outline;
 %   the line).
+if nargin < 10; ls = "-"; end
 t = t(:); e = e(:); m = m(:);
 ok = isfinite(m);
 d = diff([false; ok; false]);
@@ -592,13 +616,37 @@ for k = 1:numel(starts)
     ox = [ox; x; NaN]; oy = [oy; y; NaN]; %#ok<AGROW>
 end
 if look.hist == "line"
-    hMain = tagPart(plot(ax, t, m + base, 'Color', color, 'LineWidth', lw), "rate", group);
+    hMain = tagPart(plot(ax, t, m + base, 'Color', color, 'LineWidth', lw, 'LineStyle', ls), "rate", group);
 elseif ~look.fill && ~isempty(ox)
-    hMain = tagPart(line(ax, ox, oy, 'Color', color, 'LineWidth', lw), "rate", group);
+    hMain = tagPart(line(ax, ox, oy, 'Color', color, 'LineWidth', lw, 'LineStyle', ls), "rate", group);
 end
 if isempty(hMain)
-    hMain = tagPart(line(ax, NaN, NaN, 'Color', color, 'LineWidth', lw), "rate", group);
+    hMain = tagPart(line(ax, NaN, NaN, 'Color', color, 'LineWidth', lw, 'LineStyle', ls), "rate", group);
 end
+end
+
+
+function memberLines(ax, t, M, R, colors, style)
+%memberLines  Each member session (R.members) as a thin pale line, under its series' summary.
+%   M: [nBins x nMembers], the members' values on this panel. Tagged
+%   "memberLine" with the series' label; kept out of the legend.
+ls = groupLineStyles(R);
+for s = 1:size(M, 2)
+    g = R.members.series(s);
+    tagPart(plot(ax, t, M(:, s), 'Color', paleColor(colors(g, :), 0.55, style), 'LineWidth', 0.6 * style.LineWidth, ...
+        'LineStyle', ls(g), 'HandleVisibility', 'off'), "memberLine", R.groups.label(g));
+end
+end
+
+
+function M = memberRates(R, norm, p)
+%memberRates  R.members.rate [nBins x nTiles x nMembers] divided as normalizeRates divided the series (P: its divisor).
+M = R.members.rate;
+if norm == "none" || isempty(p); return; end
+if size(p, 3) > 1   % groupPeak: each member by its series' peak
+    p = p(:, :, R.members.series);
+end
+M = M ./ p;
 end
 
 
@@ -607,9 +655,26 @@ function [labels, name] = rowLabels(R)
 %   The parameters are the trial selection's groupBy (R.epochs' UserData,
 %   from epochTable); a result without it (put together by hand) takes the
 %   group table's columns other than its bookkeeping (index, label, color,
-%   n, nTrials). Without any: the group labels, and "Group".
+%   n, nTrials). Without any: the group labels, and "Group". A result
+%   merged across sessions (combineSessions: R.sessions) has series, not
+%   trial groups, as its rows: their labels, named by what they are
+%   ("Session", "Subject"; combine: "Session · trial group").
 G = R.groups;
 vars = string(G.Properties.VariableNames);
+if isfield(R, 'sessions') && istable(R.sessions)
+    labels = string(G.label);
+    name = "Group";
+    if isfield(R, 'sessionSeries') && isfield(R.sessionSeries, 'mode')
+        switch R.sessionSeries.mode
+            case "session", name = "Session";
+            case "subject", name = "Subject";
+        end
+    end
+    if ismember("lineStyle", vars)
+        if name == "Group"; name = "Trial group"; else; name = name + " · trial group"; end
+    end
+    return
+end
 extra = string.empty(1, 0);
 if isfield(R, 'epochs') && istable(R.epochs) && isfield(R.epochs.Properties.UserData, 'selection')
     extra = R.epochs.Properties.UserData.selection.groupBy;

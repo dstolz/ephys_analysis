@@ -108,7 +108,8 @@ place(obj.ResultsTable, 4, [1 6]);
 og = uigridlayout(right, [1 3], "Padding", [0 0 0 0], "ColumnWidth", {'fit', 'fit', '1x'});
 place(og, 5, [1 6]);
 obj.OpenReportButton = uibutton(og, "Text", "Open report", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onOpenReport());
-obj.OpenFolderButton = uibutton(og, "Text", "Open figure folder", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onOpenExportFolder());
+obj.OpenFolderButton = uibutton(og, "Text", "Open figure folder", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onOpenExportFolder(), ...
+    "Tooltip", "The first dataset's figure folder of the last run. The session plots' figures go to the sessions folder (Export.SessionsFolder).");
 end
 
 

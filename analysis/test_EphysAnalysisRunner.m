@@ -27,7 +27,9 @@ function test_EphysAnalysisRunner()
 %   report's "Across sessions" section in HTML and PDF, "sessions: ..."
 %   Results rows, the run record, the result cache reused, Overwrite off,
 %   a cancel during the session plots, a per-dataset report's own
-%   <FileName>_sessions); and the data export: epochData on the fixture
+%   <FileName>_sessions); a session plot of every kind, and the compact and
+%   the standalone script writing the same session figures (pixel for
+%   pixel), report pages and data .mat files; and the data export: epochData on the fixture
 %   (counts equal binCounts at t0Continuous and sum to the PSTH's, the
 %   epoched LFP equal to evokedPotential's, TooLarge), r.sessionData
 %   without Results (spike epochs, epoched signals), and a run with
@@ -680,6 +682,119 @@ check(numel(rP.ReportFiles) == numel(names) + 1 && any(endsWith(rP.ReportFiles, 
     && contains(string(fileread(rP.ReportFiles(endsWith(rP.ReportFiles, "_sessions.html")))), "lfp_days"), ...
     'Report.PerDataset: the session plots get a report of their own, <FileName>_sessions');
 
+% --- every supported kind, and compact vs standalone parity for the session plots --------
+cfgQ = cfgS;
+for id = ["tuning_depth" "heat_det"]
+    cfgQ = cfgQ.addPlot(cfg.Plots(cfg.plotIndex(id)), Id=id);
+end
+cfgQ = cfgQ.addPlot("waveforms", Id="wf_units");
+[cfgQ.Plots.enabled] = deal(false);   % only the session plots draw
+cfgQ = cfgQ.addSessionPlot(struct('plot', "tuning_depth"), Id="tuning_days");
+cfgQ = cfgQ.addSessionPlot(struct('plot', "heat_det", 'series', "all", 'datasets', "list", 'datasetKeys', flip(F.keys)), Id="heat_days");   % the listed keys, in reverse
+cfgQ = cfgQ.addSessionPlot(struct('plot', "wf_units"), Id="wave_days");
+cfgQ = cfgQ.addSessionPlot(struct('plot', "psth_stim", 'trialGroups', "each", 'series', "all", 'showMembers', true, ...
+    'data', ["results" "epochs"]), Id="psth_each");
+cfgQ.SessionPlots(cfgQ.sessionPlotIndex("lfp_days")).data = ["results" "epochs" "signals"];
+cfgQ.Export.Formats = "png";
+cfgQ.Export.Data.Enabled = true;
+cfgQ.Report.Format = "both";
+IQ = cfgQ.validate();
+check(~any(IQ.Severity == "error"), 'the config with a session plot of every kind validates');
+kindsQ = arrayfun(@(sp) string(cfgQ.sessionPlotFor(sp.id).kind), cfgQ.SessionPlots);
+check(all(ismember(["psth" "raster" "evoked" "rate" "tuning" "behavior" "heatmap" "waveforms"], kindsQ)), ...
+    'session plots over psth, raster, evoked, rate, tuning, behavior, heatmap and waveforms');
+outQA = fullfile(root, 'outQA'); outQB = fullfile(root, 'outQB');
+cfgQA = cfgQ; cfgQB = cfgQ;
+for c = ["A" "B"]
+    o = fullfile(root, "outQ" + c);
+    q = cfgQ;
+    q.Export.Folder = fullfile(o, "{Name}"); q.Export.SessionsFolder = fullfile(o, "sessions");
+    q.Export.Data.Folder = fullfile(o, "data"); q.Report.Folder = o;
+    if c == "A"; cfgQA = q; else; cfgQB = q; end
+end
+cfgQA = cfgQA.save(fullfile(root, 'analysisQ.json'));
+compactQ = fullfile(root, 'scripts', 'run_sessions_compact.m');
+standaloneQ = fullfile(root, 'scripts', 'run_sessions_standalone.m');
+EphysAnalysisScript.compact(cfgQA, File=compactQ);
+txtQ = EphysAnalysisScript.standalone(cfgQB, File=standaloneQ);
+check(contains(txtQ, "%% Session plots") && contains(txtQ, "sessionTable(names(sel).'") && contains(txtQ, "sessionResults(Rs, sessions, sp, spec)") ...
+    && contains(txtQ, "addReportSection(report, ""Across sessions""") && contains(txtQ, "writeAnalysisData(dfile, S") ...
+    && contains(txtQ, "epochData(src, spec, Signals=true") && ~contains(txtQ, "EphysAnalysisRunner") && ~contains(txtQ, "computeSessionPlot"), ...
+    'the standalone script has the Session plots block: sessionTable, sessionResults, addReportSection, epochData and writeAnalysisData, never the runner');
+mQ = checkcode(standaloneQ, '-id');
+check(isempty(mQ) || ~any(isErr(mQ)), 'checkcode finds no syntax error in the session script');
+if ~isempty(mQ) && any(isErr(mQ)); disp(mQ(isErr(mQ))); end
+runScript(compactQ);
+outSQ = runScript(standaloneQ);
+check(~contains(outSQ, "FAILED"), 'the standalone script reported no failure over the session plots');
+if contains(outSQ, "FAILED"); disp(outSQ); end
+paQ = dir(fullfile(outQA, 'sessions', '*.png')); pbQ = dir(fullfile(outQB, 'sessions', '*.png'));
+naQ = sort(string({paQ.name})); nbQ = sort(string({pbQ.name}));
+check(numel(naQ) >= numel(cfgQ.SessionPlots) + 1 && isequal(naQ, nbQ) ...
+    && all(ismember(["all_raster_days.png" "all_tuning_days.png" "all_heat_days.png" "all_wave_days.png"], naQ)), ...
+    sprintf('both scripts write the same %d session figure files (%d session plots; trial groups and a subject facet add files)', numel(naQ), numel(cfgQ.SessionPlots)));
+samePixQ = true;
+for k = 1:numel(naQ)
+    same = isequal(imread(fullfile(outQA, 'sessions', naQ(k))), imread(fullfile(outQB, 'sessions', nbQ(k))));
+    if ~same; fprintf(2, '    %s differs\n', naQ(k)); end
+    samePixQ = samePixQ && same;
+end
+check(samePixQ, 'every session figure is pixel-identical between the compact and the standalone script');
+haQ = normalizeHtml(fileread(fullfile(outQA, 'analysis_report.html')));
+hbQ = normalizeHtml(fileread(fullfile(outQB, 'analysis_report.html')));
+check(contains(haQ, "<h2>Across sessions</h2>") && haQ == hbQ, 'the HTML reports, with their Across sessions section, are equal between the scripts');
+taQ = pdfPageTexts(fullfile(outQA, 'analysis_report.pdf'));
+tbQ = pdfPageTexts(fullfile(outQB, 'analysis_report.pdf'));
+check(numel(taQ) == numel(tbQ) && numel(taQ) > 3 && isequal(erase(taQ(2:end), " "), erase(tbQ(2:end), " ")), ...
+    sprintf('both scripts write the same %d PDF pages for the session plots', numel(taQ)));
+daQ = dir(fullfile(outQA, 'data', '*.mat')); dbQ = dir(fullfile(outQB, 'data', '*.mat'));
+check(isequal(sort(string({daQ.name})), sort(string({dbQ.name}))) && numel(daQ) == numel(cfgQ.SessionPlots), ...
+    sprintf('both scripts write the same %d data files, one per session plot', numel(daQ)));
+sameData = true;
+for k = 1:numel(daQ)
+    LA = load(fullfile(outQA, 'data', daQ(k).name));
+    LB = load(fullfile(outQB, 'data', daQ(k).name));
+    same = isequaln(dataForCompare(LA), dataForCompare(LB)) && LA.config.name == LB.config.name ...
+        && isequal(cellfun(@(f) strrep(string(f), string(outQA), ""), {LA.results.files}, 'UniformOutput', false), ...
+                   cellfun(@(f) strrep(string(f), string(outQB), ""), {LB.results.files}, 'UniformOutput', false));
+    if ~same
+        dA = dataForCompare(LA); dB = dataForCompare(LB);
+        bad = string(fieldnames(dA)); bad = bad(arrayfun(@(f) ~isequaln(dA.(f), dB.(f)), bad));
+        fprintf(2, '    data file %s differs (%s)\n', daQ(k).name, strjoin(bad, ", "));
+        for q = 1:min(numel(dA.perSession), numel(dB.perSession))
+            if ~isequaln(dA.perSession{q}, dB.perSession{q})
+                fa = string(fieldnames(dA.perSession{q}));
+                fprintf(2, '      perSession{%d}: %s\n', q, strjoin(fa(arrayfun(@(f) ~isequaln(dA.perSession{q}.(f), dB.perSession{q}.(f)), fa)), ", "));
+            end
+        end
+    end
+    sameData = sameData && same;
+end
+check(sameData, 'every session data .mat is equal between the scripts (created, provenance, the config and file paths aside)');
+
+% the per-dataset report mode: the session plots' own report
+cfgQP = cfgQ;
+cfgQP.SessionPlots = cfgQP.SessionPlots(cfgQP.sessionPlotIndex("lfp_days"));
+cfgQP.Export.Data.Enabled = false; cfgQP.Report.PerDataset = true; cfgQP.Report.Format = "html";
+cfgQPA = cfgQP; cfgQPB = cfgQP;
+for c = ["A" "B"]
+    o = fullfile(root, "outQP" + c);
+    q = cfgQP;
+    q.Export.Folder = fullfile(o, "{Name}"); q.Export.SessionsFolder = fullfile(o, "sessions"); q.Report.Folder = o;
+    if c == "A"; cfgQPA = q; else; cfgQPB = q; end
+end
+cfgQPA = cfgQPA.save(fullfile(root, 'analysisQP.json'));
+compactQP = fullfile(root, 'scripts', 'run_sessions_pd_compact.m');
+standaloneQP = fullfile(root, 'scripts', 'run_sessions_pd_standalone.m');
+EphysAnalysisScript.compact(cfgQPA, File=compactQP);
+EphysAnalysisScript.standalone(cfgQPB, File=standaloneQP);
+runScript(compactQP);
+outSQP = runScript(standaloneQP);
+fqA = fullfile(root, 'outQPA', 'analysis_report_sessions.html'); fqB = fullfile(root, 'outQPB', 'analysis_report_sessions.html');
+check(~contains(outSQP, "FAILED") && isfile(fqA) && isfile(fqB) && normalizeHtml(fileread(fqA)) == normalizeHtml(fileread(fqB)) ...
+    && contains(fileread(fqA), "lfp_days") && isequal(imread(fullfile(root, 'outQPA', 'sessions', 'all_lfp_days.png')), imread(fullfile(root, 'outQPB', 'sessions', 'all_lfp_days.png'))), ...
+    'Report.PerDataset: both scripts write the same <FileName>_sessions report and session figure');
+
 fprintf('\n== 10. data export: epochData, r.sessionData, Export.Data ==\n');
 src1 = rS.source(1);
 specD = cfgS.plotFor("psth_stim");
@@ -788,6 +903,29 @@ check(any(contains(RE2.Message, "data file:")) && any(contains(RE2.Message, "exi
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisRunner:Failures', '%d checks failed.', nFail);
+end
+end
+
+
+function S = dataForCompare(S)
+%dataForCompare  A session data file's contents without what differs run to run (created, provenance), the config and file paths.
+for f = ["created" "provenance" "config"]
+    if isfield(S, f); S = rmfield(S, f); end
+end
+if isfield(S, 'results') && isfield(S.results, 'files'); S.results = rmfield(S.results, 'files'); end
+for c = ["epochs" "perSession"]   % per-session structs: each result and epochData carries a timestamp (and provenance)
+    if isfield(S, c)
+        for k = 1:numel(S.(c))
+            drop = ["created" "provenance"];
+            if c == "perSession"; drop(end+1) = "spec"; end   % the runner's cached result keeps the spec of the plot that computed it first
+            for f = drop
+                if isstruct(S.(c){k}) && isfield(S.(c){k}, f); S.(c){k} = rmfield(S.(c){k}, f); end
+            end
+        end
+    end
+end
+for i = 1:numel(S.results)   % the merged results
+    if isfield(S.results(i).R, 'created'); S.results(i).R = rmfield(S.results(i).R, 'created'); end
 end
 end
 

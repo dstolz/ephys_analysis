@@ -25,8 +25,8 @@ says how to cut a release.
   `Export.SessionsFolder`; Validate checks them. `EphysAnalysisRunner` computes the base plot on each dataset
   once (`ResultCache`, `CacheMaxMB` 512, `cachedPlot`, `computeSessionPlot`, `runSessionPlot`), `plan` lists
   the session plots, and `run` draws them after the datasets (rows `sessions: <label>`, figures in the
-  sessions folder, an *Across sessions* section in the HTML and PDF reports, or a `_sessions` report per
-  dataset); the standalone script gets a `Session plots` block. The analysis app gets a **Sessions** tab (the
+  sessions folder, an *Across sessions* section in the HTML and PDF reports (with `Report.PerDataset`, a `_sessions` report
+  of their own); the standalone script gets a `Session plots` block. The analysis app gets a **Sessions** tab (the
   session plot list, an editor in collapsible sections, a dataset picker, a mapping-file editor, a preview
   over the ticked datasets with its own badge, cancelable) and the seven tabs are Data, Alignment, Plots,
   Sessions, Export, Chronux and Log. See [Across sessions](documentation/EphysAnalysis.md#across-sessions),

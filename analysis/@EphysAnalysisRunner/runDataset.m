@@ -22,6 +22,9 @@ function rows = runDataset(obj, k, opts)
 %   Without Export the report draws its own (addReportFigure). A
 %   plot that fails is an "error" row (its open page is closed); the
 %   others still run. Afterwards the dataset's cached data is cleared.
+%   A result whose cacheKey is in r.CacheWanted (run puts the enabled
+%   session plots' keys there) is kept in r.ResultCache (cachePut), so the
+%   session plots after the datasets reuse it.
 %   The report (Report) is r.Report, started by run(). Span=[a b] is the
 %   share of a longer run this dataset covers (run passes it): plot j of m
 %   reports progress a + (b - a) * (j-1)/m (default [0 1]).
@@ -76,6 +79,8 @@ for j = 1:numel(ids)
     end
     try
         R = obj.computePlot(src, spec);
+        key = EphysAnalysisRunner.cacheKey(obj.Keys(k), spec);
+        if ismember(key, obj.CacheWanted); obj.cachePut(key, R); end   % a session plot of this run reuses it
         files = string.empty(1, 0);
         images = cell(1, 0);
         pages = strings(1, 0);

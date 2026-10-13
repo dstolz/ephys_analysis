@@ -55,6 +55,21 @@ classdef EphysAnalysisRunner < handle
     %                   version, MATLAB, host, user and the Results rows, in
     %                   <report folder>/analysis_runs (see run)
     %
+    %   Session plots (Config.SessionPlots) draw a base plot over several
+    %   datasets: computeSessionPlot computes the base plot on each dataset
+    %   (cachedPlot) and merges the results (sessionResults,
+    %   combineSessions); runSessionPlot exports and reports them; run does
+    %   both after its datasets. The per-dataset results a session plot
+    %   needs are kept in a cache:
+    %     ResultCache   containers.Map cacheKey -> struct(R, bytes)
+    %     CacheMaxMB    its size limit (default 512); the oldest entries go
+    %                   first when it is passed
+    %     CacheBytes    its size now
+    %     CacheWanted   the keys runDataset puts in the cache as it computes
+    %                   them (run sets them: the enabled session plots' keys
+    %                   of every dataset it runs), so a session plot reuses
+    %                   the per-dataset run's results
+    %
     %   See also EphysAnalysisConfig, EphysAnalysisScript, EphysAnalysisApp.
 
     properties
@@ -63,6 +78,8 @@ classdef EphysAnalysisRunner < handle
         PollFcn = []
         LogFcn = @(msg) fprintf('%s\n', msg)
         SearchDirs (1,:) string = string.empty(1, 0)
+        CacheMaxMB (1,1) double {mustBeNonnegative} = 512
+        CacheWanted (1,:) string = string.empty(1, 0)
     end
 
     properties (SetAccess = protected)
@@ -76,6 +93,12 @@ classdef EphysAnalysisRunner < handle
         Report = []
         ReportFiles (1,:) string = string.empty(1, 0)
         RunRecordFile (1,1) string = ""   % the run record the last run wrote ("" = none)
+        ResultCache = []                  % containers.Map: cacheKey -> struct('R', R, 'bytes', n)
+        CacheBytes (1,1) double = 0       % the bytes ResultCache holds
+    end
+
+    properties (Hidden, SetAccess = protected)
+        CacheOrder (1,:) string = string.empty(1, 0)   % ResultCache's keys, oldest first
     end
 
     methods
@@ -92,6 +115,12 @@ classdef EphysAnalysisRunner < handle
         progress(obj, fraction, message)
         checkpoint(obj)
         log(obj, fmt, varargin)
+        S = sessionTable(obj, idx)
+        R = cachedPlot(obj, k, spec, opts)
+        cachePut(obj, key, R)
+        clearResultCache(obj)
+        [res, sessions, spec, Rs] = computeSessionPlot(obj, sp, idx, opts)
+        rows = runSessionPlot(obj, sp, idx, opts)
 
         function obj = EphysAnalysisRunner(cfg, opts)
             %EphysAnalysisRunner  Find the config's datasets (Scan=false: later, with datasets()).
@@ -107,6 +136,7 @@ classdef EphysAnalysisRunner < handle
             obj.LogFcn = opts.LogFcn;
             obj.SearchDirs = opts.SearchDirs;
             obj.Sources = containers.Map('KeyType', 'char', 'ValueType', 'any');
+            obj.ResultCache = containers.Map('KeyType', 'char', 'ValueType', 'any');
             if opts.Scan
                 obj.datasets();
             end
@@ -146,13 +176,17 @@ classdef EphysAnalysisRunner < handle
         end
 
         function clearSources(obj)
-            %clearSources  Forget the loaded sources and every dataset's cached data.
+            %clearSources  Forget the loaded sources, every dataset's cached data and the cached results.
             if ~isempty(obj.Sources); remove(obj.Sources, keys(obj.Sources)); end
             for k = 1:numel(obj.Outputs); obj.Outputs(k).clearCache(); end
+            if ~isempty(obj.ResultCache); obj.clearResultCache(); end
         end
     end
 
     methods (Static)
+        % --- methods defined in separate files ---
+        key = cacheKey(datasetKey, spec)
+
         function T = emptyResults()
             T = table(strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), zeros(0, 1), ...
                 'VariableNames', {'Dataset', 'Plot', 'Kind', 'Status', 'Message', 'Files', 'Seconds'});

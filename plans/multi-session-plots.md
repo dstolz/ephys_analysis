@@ -189,6 +189,18 @@ Changed: `@EphysAnalysisConfig/EphysAnalysisConfig.m`, `defaults.m`, `validate.m
 
 Note on cost: `trialGroups "pool"` on a base plot that has a `groupBy` gives an effective spec that differs from the base plot's, so a run computes that base `R` twice per dataset (once per-dataset, once pooled). Log it; re-weighting the grouped result is not an option (`zscore` / `percent` baselines, masked bins).
 
+**As built (WP1, 2026-10-12)** — where the code differs from the text above; `combineSessions`' help header is the contract:
+
+- The merged `R`'s series struct is `R.sessionSeries`, not `R.series`: tuning and behavior results already use `R.series` for their series labels, which `renderTuning` / `renderBehavior` read.
+- The session plot's own rules travel on the effective spec as `spec.sessionAesthetics` (set by `sessionPlotFor`); `renderPlot` applies them after `spec.aesthetics`, and its aesthetics editor then remembers edits there.
+- `combine` groups carry `group` (the trial group) and `base` (the session / subject / all series) besides `lineStyle`; color a combine series by `base`.
+- `combineSessions` also has `Kind=` (a heatmap's results are psth / evoked) and the errors `:Auroc` and `:Size`. With `TrialGroups "each"` a heatmap keeps every group as its tiles (one figure; `sessionResults` does not split it).
+- `MinSessions` counts sessions per tile for site / mapping / signal channels, and sessions with a result for pool and behavior.
+- `sessionResults` returns `status` / `message` per figure (a facet with too few sessions is `"skipped"`, others still draw) and reads the mapping CSV itself (`readUnitMapping` when it exists).
+- Reports: `report.datasets` gained `kind` (`"dataset"` | `"section"`); the HTML header counts sections apart. `writePdfReport` keeps a dataset page to recording, trials and units, as before.
+- Not cached by layout: `cacheKey` drops `layout` too (adding back what it decides for the compute: the error type and whether waveforms are read), so a grid and an overlay share a result. Waveforms are kept in cached results (small).
+- `runSessionPlot`'s `Export.Data` block calls `r.sessionData` and `writeAnalysisData` (WP3); until they exist an enabled `Data` fails into the first row's message without stopping the run.
+
 ### WP2 — renderers
 
 - `renderPSTH.m` `drawPanel` (not stacks): before the SEM bands, when `R.members` exists, each member session as a thin line `tagPart(plot(ax, R.t, m, 'Color', paleColor(colors(s,:), ...), 'LineWidth', 0.6*style.LineWidth, 'HandleVisibility', 'off'), "memberLine", R.groups.label(s))`; the overlay layout averages `members.rate` over tiles first. `histTrace` takes a `LineStyle` from `R.groups.lineStyle(g)` when the column exists; `renderPlot` forces `histStyle "line"` for a combine `R`.

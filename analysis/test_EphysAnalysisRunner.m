@@ -21,7 +21,13 @@ function test_EphysAnalysisRunner()
 %   groups, with the Trough onsets and offsets marked, all of them in the
 %   scripts too; and a PSTH with the mean aux magnitude (computePlot against
 %   auxMean on the AUX extract, its panels, caption and skip reason, and
-%   the standalone script).
+%   the standalone script); and session plots over the two datasets (the
+%   sessions table, plan rows and skip reasons, a run writing
+%   <SessionsFolder>/all_<id>.png and per group / subject files, the
+%   report's "Across sessions" section in HTML and PDF, "sessions: ..."
+%   Results rows, the run record, the result cache reused, Overwrite off,
+%   a cancel during the session plots, a per-dataset report's own
+%   <FileName>_sessions).
 %
 %   Usage:  test_EphysAnalysisRunner
 
@@ -553,6 +559,122 @@ txtWf = EphysAnalysisScript.standalone(cfgWf);
 check(contains(txtWf, "R = struct('kind', ""waveforms""") && contains(txtWf, "unitWaveforms(src, R.meta"), ...
     'the standalone script computes it the same way');
 clear figCloser
+
+fprintf('\n== 9. session plots ==\n');
+cfgS = cfg;
+cfgS.Plots = cfg.Plots(ismember(cfg.plotIds(), ["psth_stim" "raster_stim" "lfp_stim" "rate_resp" "behavior_lat"]));
+for id = ["psth_stim" "rate_resp" "behavior_lat"]   % drawn only across sessions here
+    cfgS.Plots(cfgS.plotIndex(id)).enabled = false;
+end
+cfgS.Plots(cfgS.plotIndex("raster_stim")).style.MaxTiles = 64;
+outS = fullfile(root, 'outSessions');
+cfgS.Export.Folder = fullfile(outS, "{Name}");
+cfgS.Export.SessionsFolder = fullfile(outS, "sessions");
+cfgS.Export.Formats = "png";
+cfgS.Report.Folder = outS;
+cfgS = cfgS.addSessionPlot("raster_stim", Id="raster_days");
+cfgS = cfgS.addSessionPlot(struct('plot', "lfp_stim", 'series', "all", 'showMembers', true), Id="lfp_days");
+cfgS = cfgS.addSessionPlot(struct('plot', "psth_stim", 'trialGroups', "combine", 'layout', "overlay"), Id="psth_combine");
+cfgS = cfgS.addSessionPlot(struct('plot', "rate_resp", 'trialGroups', "each", 'match', "site"), Id="rate_each");
+cfgS = cfgS.addSessionPlot(struct('plot', "behavior_lat", 'facet', "subject"), Id="behavior_days");
+sids = cfgS.sessionPlotIds();
+I = cfgS.validate();
+check(~any(I.Severity == "error"), 'the session plot config validates');
+rS = EphysAnalysisRunner(cfgS, LogFcn=[]);
+sessS = rS.sessionTable();
+subj = unique(sessS.subject);
+check(height(sessS) == 2 && issorted(sessS.date) && isequal(sort(sessS.index), [1; 2]) && all(sessS.label ~= "") ...
+    && isscalar(subj) && subj ~= "", 'r.sessionTable(): both datasets, by date, one subject');
+Tp = rS.plan();
+sRows = Tp(startsWith(Tp.Dataset, "sessions: "), :);
+check(height(sRows) == numel(sids) && isequal(sRows.Plot, sids.') && all(sRows.Enabled) ...
+    && sRows.Dataset(sRows.Plot == "behavior_days") == "sessions: " + subj && all(sRows.Dataset(sRows.Plot ~= "behavior_days") == "sessions: all") ...
+    && height(Tp) == 2 * numel(cfgS.Plots) + numel(sids), ...
+    'plan: a row per session plot (per subject with facet "subject") after the dataset x plot rows');
+cfgB = cfgS;
+cfgB = cfgB.addSessionPlot(struct('plot', "nope"), Id="no_base");
+cfgB = cfgB.addSessionPlot(struct('plot', "lfp_stim", 'minSessions', 3), Id="three");
+cfgB = cfgB.addSessionPlot(struct('plot', "lfp_stim", 'enabled', false), Id="off");
+cfgB = cfgB.addSessionPlot(struct('plot', "psth_stim", 'datasets', "list", 'datasetKeys', F.keys(1), 'minSessions', 2), Id="one_listed");
+Tb = EphysAnalysisRunner(cfgB, LogFcn=[]).plan(Plots=string.empty(1, 0), SessionPlots=["no_base" "three" "off" "one_listed"]);
+rb = @(id) Tb.Reason(Tb.Plot == id);
+check(rb("no_base") == "no base plot nope" && startsWith(rb("three"), "fewer than 3 session(s) can draw it") ...
+    && rb("off") == "disabled" && startsWith(rb("one_listed"), "fewer than 2 session(s)") && ~any(Tb.Enabled(startsWith(Tb.Dataset, "sessions: "))), ...
+    'plan: session plot skip reasons (no base plot, fewer than minSessions sessions, disabled, a list of one dataset)');
+
+made = 0;
+oldCreate = get(groot, 'DefaultFigureCreateFcn');
+set(groot, 'DefaultFigureCreateFcn', @countFigure);
+nFig = numel(findall(groot, 'Type', 'figure'));
+RS = rS.run();
+set(groot, 'DefaultFigureCreateFcn', oldCreate);
+rowsS = RS(startsWith(RS.Dataset, "sessions: "), :);
+resEach = rS.computeSessionPlot("rate_each");
+check(numel(findall(groot, 'Type', 'figure')) == nFig && all(rowsS.Status == "done") && isequal(unique(rowsS.Plot, 'stable'), sids.') ...
+    && nnz(rowsS.Plot == "rate_each") == numel(resEach) && numel(resEach) > 1 && ~any(ismember(rowsS.Dataset, names)) ...
+    && all(rowsS.Files ~= ""), ...
+    sprintf('run: every session plot done, a "sessions: <label>" row per figure (%d for rate_each, one per Depth group) (%s)', ...
+    numel(resEach), strjoin(rowsS.Message(rowsS.Status ~= "done"), "; ")));
+sf = fullfile(outS, "sessions");
+grpFiles = arrayfun(@(e) fullfile(sf, "all_rate_each_" + regexprep(e.group, '[^\w\-\.]', '_') + ".png"), resEach);
+check(isfile(fullfile(sf, "all_raster_days.png")) && isfile(fullfile(sf, "all_lfp_days.png")) && isfile(fullfile(sf, "all_psth_combine.png")) ...
+    && all(isfile(grpFiles)) && isfile(fullfile(sf, regexprep(subj, '[^\w\-\.]', '_') + "_behavior_days.png")), ...
+    'run: <SessionsFolder>/all_<id>.png, all_<id>_<group>.png for each trial group, <subject>_<id>.png per subject');
+htmlS = fullfile(outS, "analysis_report.html");
+HS = string(fileread(htmlS));
+check(contains(HS, "<h2>Across sessions</h2>") && contains(HS, "<h4>Sessions</h4>") && contains(HS, "raster_days") ...
+    && contains(HS, "rate_each (all / ") && contains(HS, "1 section(s)") && contains(HS, sessS.label(1)) ...
+    && max([0 strfind(HS, "<h2>Across sessions</h2>")]) > max([0 strfind(HS, "<h2>" + names(2) + "</h2>")]), ...
+    'the HTML report: an "Across sessions" section after the datasets, its sessions table and figures');
+textsS = pdfPageTexts(fullfile(outS, "analysis_report.pdf"));
+nPages = 1;
+for D = rS.Report.datasets
+    nPages = nPages + 1 + sum(arrayfun(@(e) numel(e.pages), D.entries([D.entries.status] == "done")));
+end
+secPage = 1 + numel(names) + sum(arrayfun(@(D) sum(arrayfun(@(e) numel(e.pages), D.entries([D.entries.status] == "done"))), ...
+    rS.Report.datasets(1:numel(names)))) + 1;
+check(numel(textsS) == nPages && contains(textsS(secPage), "Across sessions") && contains(textsS(secPage), "Sessions") ...
+    && rS.Report.datasets(end).kind == "section" && numel(rS.Report.datasets(end).entries) == height(rowsS), ...
+    sprintf('the PDF report: a summary page for the section, then its figures'' pages (%d pages)', numel(textsS)));
+recS = jsondecode(fileread(rS.RunRecordFile));
+check(isequal(string(recS.sessionPlots(:)).', sids) && numel(recS.results) == height(RS), 'the run record lists the session plots');
+kRaster = EphysAnalysisRunner.cacheKey(rS.Keys(1), cfgS.sessionPlotFor("raster_days"));
+check(rS.CacheBytes > 0 && isKey(rS.ResultCache, char(kRaster)) && ismember(kRaster, rS.CacheWanted) ...
+    && kRaster == EphysAnalysisRunner.cacheKey(rS.Keys(1), cfgS.plotFor("raster_stim")), ...
+    'cache: the per-dataset raster''s result is kept for its session plot (the same key: only looks differ)');
+polls = 0; cancelAt = 0;
+rS.PollFcn = @onPoll;
+[resR, sessR] = rS.computeSessionPlot("raster_days");
+rS.PollFcn = [];
+check(polls == height(sessR) && resR.status == "done" && numel(resR.R.raster) == sum(resR.R.sessions.nItems) ...
+    && all(resR.R.sessions.status == "done"), ...
+    'a second computeSessionPlot reads no data: only its own checkpoint per session, every result from the cache');
+f0 = dir(fullfile(sf, "all_raster_days.*"));
+ro = cfgS; ro.Export.Overwrite = false; ro.Report.Enabled = false;
+[ro.Plots.enabled] = deal(false);
+Tro = EphysAnalysisRunner(ro, LogFcn=[]).run(SessionPlots="raster_days");
+f1 = dir(fullfile(sf, "all_raster_days.*"));
+check(height(Tro) == 1 && Tro.Status == "done" && contains(Tro.Files, "all_raster_days.png") && isequal([f0.datenum], [f1.datenum]), ...
+    'Overwrite off: a session figure whose files exist is listed, not written again');
+r3 = EphysAnalysisRunner(cfgS, LogFcn=[]);
+    function onSessionProgress(~, msg)
+        if startsWith(msg, "Session plot"); r3.cancel(); end
+    end
+r3.ProgressFcn = @onSessionProgress;
+R3 = r3.run(Export=false, Report=false);
+rec3 = jsondecode(fileread(r3.RunRecordFile));
+c3 = R3(startsWith(R3.Dataset, "sessions: "), :);
+check(height(c3) == numel(sids) && all(c3.Status == "canceled") && isequal(c3.Plot, sids.') && all(R3.Status(~startsWith(R3.Dataset, "sessions: ")) ~= "canceled") ...
+    && rec3.outcome == "canceled", 'cancel during the session plots: each one is "canceled", the run record says so');
+cfgP = cfgS;
+cfgP.SessionPlots = cfgP.SessionPlots(cfgP.sessionPlotIndex("lfp_days"));
+[cfgP.Plots.enabled] = deal(false);
+cfgP.Report.PerDataset = true; cfgP.Report.Format = "html";
+rP = EphysAnalysisRunner(cfgP, LogFcn=[]);
+rP.run(Export=false);
+check(numel(rP.ReportFiles) == numel(names) + 1 && any(endsWith(rP.ReportFiles, "analysis_report_sessions.html")) ...
+    && contains(string(fileread(rP.ReportFiles(endsWith(rP.ReportFiles, "_sessions.html")))), "lfp_days"), ...
+    'Report.PerDataset: the session plots get a report of their own, <FileName>_sessions');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

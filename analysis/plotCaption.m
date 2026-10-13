@@ -240,6 +240,7 @@ end
 function parts = sessionText(R)
 %sessionText  How a result merged across sessions was made, e.g. "across 3 sessions (2 subjects)", "one series
 %   per subject, mean +/- SEM across sessions", "units matched by site", "3 sessions drawn faint" (none: empty).
+%   Sessions without a subject are not counted as one; with none named the "(N subjects)" clause is left out.
 parts = strings(1, 0);
 if ~isMerged(R); return; end
 S = R.sessions;
@@ -249,8 +250,9 @@ if ismember("status", string(S.Properties.VariableNames)); done = S.status == "d
 n = nnz(done);
 s = sprintf("across %d session%s", n, plural(n));
 if ismember("subject", string(S.Properties.VariableNames))
-    m = numel(unique(S.subject(done)));
-    s = s + sprintf(" (%d subject%s)", m, plural(m));
+    subj = string(S.subject(done));
+    m = numel(unique(subj(~ismissing(subj) & subj ~= "")));   % as combineSessions' subtitle: no subject is not one
+    if m > 0; s = s + sprintf(" (%d subject%s)", m, plural(m)); end
 end
 parts = s;
 err = sessionErrWords(X.error, X.errorNote);

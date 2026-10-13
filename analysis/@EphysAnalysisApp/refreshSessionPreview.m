@@ -4,7 +4,8 @@ function refreshSessionPreview(obj)
 %   session, cached per dataset, merged by sessionResults; then
 %   renderPlotFigures into the Sessions tab's preview panel), so the
 %   preview is what a run draws. Its datasets are the ticked ones, or the
-%   session plot's own list. Every page and every figure (one per subject
+%   session plot's own list (the keys of it that are scanned datasets,
+%   Runner.index; the Computing message counts those). Every page and every figure (one per subject
 %   with Figures "One per subject", one per trial group with "A figure per
 %   group") is computed: the figure box and < > only draw (drawSessionPreview).
 %   A right-click on the preview opens the aesthetics editor; what it
@@ -58,9 +59,14 @@ elseif ~ismember(cfg.Plots(b).kind, EphysAnalysisConfig.SessionKinds)
 end
 idx = [];
 if reason == ""
-    if sp.datasets == "list"
-        n = numel(sp.datasetKeys);
-        if n == 0; reason = "it lists no dataset (Pick...)"; end
+    if sp.datasets == "list"   % the listed keys that are scanned datasets (computeSessionPlot resolves them alike)
+        listed = arrayfun(@(key) obj.Runner.index(key), reshape(sp.datasetKeys, 1, []));
+        n = nnz(listed > 0);
+        if isempty(sp.datasetKeys)
+            reason = "it lists no dataset (Pick...)";
+        elseif n == 0
+            reason = "none of the datasets it lists is scanned";
+        end
     else
         idx = obj.tickedDatasetIndices();
         n = numel(idx);

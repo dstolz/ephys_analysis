@@ -79,8 +79,10 @@ for j = 1:numel(ids)
     end
     try
         R = obj.computePlot(src, spec);
-        key = EphysAnalysisRunner.cacheKey(obj.Keys(k), spec);
-        if ismember(key, obj.CacheWanted); obj.cachePut(key, R); end   % a session plot of this run reuses it
+        if ~isempty(obj.CacheWanted)   % only a run with session plots wants results kept
+            key = EphysAnalysisRunner.cacheKey(obj.Keys(k), spec);
+            if ismember(key, obj.CacheWanted); obj.cachePut(key, R); end   % a session plot of this run reuses it
+        end
         files = string.empty(1, 0);
         images = cell(1, 0);
         pages = strings(1, 0);

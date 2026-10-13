@@ -26,9 +26,10 @@ function res = sessionResults(Rs, sessions, sp, spec, opts)
 %   Options
 %     Mapping  match "mapping": the unit-mapping table (a cell column, one
 %              per dataset key); default: SP.mappingFile read with
-%              readtable(VariableNamingRule="preserve", TextType="string")
+%              readUnitMapping
 %
-%   See also combineSessions, sessionTable, EphysAnalysisRunner.computeSessionPlot.
+%   See also combineSessions, sessionTable, readUnitMapping,
+%   EphysAnalysisRunner.computeSessionPlot.
 
 arguments
     Rs cell
@@ -42,7 +43,7 @@ sp = EphysAnalysisConfig.normalizeSection("SessionPlot", sp);
 Rs = reshape(Rs, 1, []);
 mapping = opts.Mapping;
 if sp.match == "mapping" && isempty(mapping) && strtrim(sp.mappingFile) ~= "" && isfile(sp.mappingFile)
-    mapping = readMapping(sp.mappingFile);
+    mapping = readUnitMapping(sp.mappingFile);
 end
 res = struct('facet', {}, 'group', {}, 'label', {}, 'R', {}, 'status', {}, 'message', {});
 n = height(sessions);
@@ -101,15 +102,5 @@ for k = 1:numel(Rs)
     if isempty(r) || ~isfield(r, 'groups') || ~istable(r.groups); continue; end
     lab = string(r.groups.label(:));
     L = [L; lab(~ismember(lab, L))]; %#ok<AGROW>
-end
-end
-
-
-function M = readMapping(file)
-%readMapping  The unit-mapping CSV: readUnitMapping when there is one, else the table as it is.
-if exist('readUnitMapping', 'file') == 2
-    M = readUnitMapping(file);
-else
-    M = readtable(file, 'VariableNamingRule', 'preserve', 'TextType', 'string', 'Delimiter', ',', 'FileType', 'text');
 end
 end

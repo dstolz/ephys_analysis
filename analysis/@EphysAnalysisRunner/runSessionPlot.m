@@ -20,7 +20,8 @@ function rows = runSessionPlot(obj, sp, idx, opts)
 %   files all exist is not written again. With Report each figure goes to
 %   r.Report (addReportFigure: into the section run started, "Across
 %   sessions"). With Export.Data.Enabled the session plot's data are saved
-%   as well (sessionData + writeAnalysisData, one .mat per session plot, in
+%   as well (sessionData, handed what was computed here, + writeAnalysisData,
+%   one .mat per session plot, in
 %   Export.Data.Folder named by Data.FilenamePattern with {Name} "all"),
 %   and the file is added to the first row's Files. A failure is an
 %   "error" row; EphysAnalysisRunner:Canceled is rethrown.
@@ -48,7 +49,7 @@ sp = EphysAnalysisConfig.normalizeSection("SessionPlot", sp);
 kind = "";
 if cfg.plotIndex(sp.plot) > 0; kind = cfg.Plots(cfg.plotIndex(sp.plot)).kind; end
 try
-    [res, sessions, spec] = obj.computeSessionPlot(sp, idx, Span=opts.Span);
+    [res, sessions, spec, Rs] = obj.computeSessionPlot(sp, idx, Span=opts.Span);
 catch ME
     if ME.identifier == "EphysAnalysisRunner:Canceled"; rethrow(ME); end
     obj.Results(end+1, :) = {"sessions: all", sp.id, kind, "error", string(ME.message), "", toc(t0)};
@@ -142,7 +143,7 @@ end
 % without stopping the run.
 if X.Data.Enabled && any([res.status] == "done")
     try
-        S = obj.sessionData(sp, idx, Results=res);
+        S = obj.sessionData(sp, idx, Results=res, Sessions=sessions, Spec=spec, Rs=Rs);   % nothing computed again
         dname = figureFileName(X.Data.FilenamePattern, struct('Name', "all", 'Plot', sp.id, 'Kind', spec.kind, ...
             'Group', "all", 'Unit', "all", 'Index', 1));
         dfile = fullfile(figureFileName(X.Data.Folder, tokens, Kind="folder"), dname + ".mat");

@@ -289,9 +289,9 @@ mcases = {
     "psth subject stack",             "subj",  struct('kind', "psth", 'stack', true)
     "psth subject, unit peak",        "subj",  struct('kind', "psth", 'normalize', "groupPeak", 'histStyle', "line")
     "psth all ci95 + members",        "ci",    struct('kind', "psth", 'histStyle', "line")
-    "psth combine (bars asked)",      "comb",  struct('kind', "psth")
-    "psth combine + members stack",   "combm", struct('kind', "psth", 'stack', true)
-    "psth combine + members overlay", "combm", struct('kind', "psth", 'layout', "overlay")
+    "psth combine (lines)",           "comb",  struct('kind', "psth", 'histStyle', "line")   % sessionPlotFor: combine -> line
+    "psth combine + members stack",   "combm", struct('kind', "psth", 'histStyle', "line", 'stack', true)
+    "psth combine + members overlay", "combm", struct('kind', "psth", 'histStyle', "line", 'layout', "overlay")
     "raster pool",                    "pool",  struct('kind', "raster")
     "raster combine",                 "comb",  struct('kind', "raster", 'rasterByGroup', false)
     "heatmap of session-units",       "heatp", struct('kind', "heatmap")
@@ -385,7 +385,8 @@ check(numel(dv) == 2 && all(strcmp({dv.HandleVisibility}, 'off')) && isequal(dv(
 renderPlot(Ms.heat, struct('kind', "heatmap"), figM, UserAesthetics=false);
 check(numel(findall(figM, 'Tag', 'sessionDivider')) == 2 * 3, 'heatmap with trial groups as tiles: the dividers in every tile');
 
-renderPlot(Ms.comb, struct('kind', "psth"), figM, UserAesthetics=false);
+combSpec = struct('kind', "psth", 'histStyle', "line");   % the effective spec of a "combine" session plot (sessionPlotFor)
+renderPlot(Ms.comb, combSpec, figM, UserAesthetics=false);
 rl = findall(figM, 'Tag', 'rate');
 grp = arrayfun(@(o) string(getappdata(o, 'PlotGroup')), rl);
 st = string({rl.LineStyle});
@@ -393,8 +394,8 @@ a = rl(grp == S3.label(1) + " · " + G.label(1)); b = rl(grp == S3.label(1) + " 
 c = rl(grp == S3.label(2) + " · " + G.label(1));
 check(all(strcmp(get(rl, 'Type'), 'line')) && any(st == "--") && any(st == "-") && ~isempty(a) && ~isempty(b) ...
     && isequal(a(1).Color, b(1).Color) && ~isequal(a(1).Color, c(1).Color) && string(a(1).LineStyle) ~= string(b(1).LineStyle), ...
-    'combine: drawn as lines (bars asked), a session''s trial groups in its color, each group in its line style');
-renderPlot(Ms.comb, struct('kind', "psth"), figM, Design="Night");
+    'combine: drawn as lines (the effective spec''s histStyle), a session''s trial groups in its color, each group in its line style');
+renderPlot(Ms.comb, combSpec, figM, Design="Night");
 rl = findall(figM, 'Tag', 'rate');
 grp = arrayfun(@(o) string(getappdata(o, 'PlotGroup')), rl);
 night = PlotDesign.load("Night");

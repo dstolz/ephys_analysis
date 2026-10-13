@@ -21,6 +21,13 @@ function S = sessionData(obj, sp, idx, opts)
 %                 returns them) when the caller has them already
 %                 (runSessionPlot does); default: from computeSessionPlot.
 %                 The figure files a run wrote are looked up in r.Results
+%     Sessions, Rs, Spec
+%                 computeSessionPlot's SESSIONS, RS and SPEC when the caller
+%                 has them already (runSessionPlot hands over all four).
+%                 Given SESSIONS and RS, nothing is computed again: a missing
+%                 SPEC is Config.sessionPlotFor(SP) and missing RESULTS
+%                 sessionResults(RS, SESSIONS, SP, SPEC); without them,
+%                 computeSessionPlot runs (and fills in what is missing)
 %     MaxMB       epochData's limit for the epoched samples (default 1024);
 %                 epochData:TooLarge propagates
 %     KeepActive  a dataset index whose bulk data stays loaded afterward
@@ -36,6 +43,9 @@ arguments
     sp
     idx = []
     opts.Results = []
+    opts.Sessions = []
+    opts.Spec = []
+    opts.Rs = []
     opts.MaxMB (1,1) double {mustBePositive} = 1024
     opts.KeepActive (1,1) double = 0
     opts.Span double = []
@@ -53,8 +63,18 @@ end
 span = opts.Span;
 phase1 = [];
 if ~isempty(span); phase1 = [span(1), span(1) + 0.3 * diff(span)]; end   % computing what is missing: the rest is for the epochs
-[res, sessions, spec, Rs] = obj.computeSessionPlot(sp, idx, KeepActive=opts.KeepActive, Span=phase1);
-if ~isempty(opts.Results); res = opts.Results; end
+res = opts.Results;
+sessions = opts.Sessions;
+spec = opts.Spec;
+Rs = opts.Rs;
+if ~istable(sessions) || ~iscell(Rs)          % the per-session results are missing: compute them all
+    [res1, sessions, spec1, Rs] = obj.computeSessionPlot(sp, idx, KeepActive=opts.KeepActive, Span=phase1);
+    if ~isstruct(res); res = res1; end
+    if ~isstruct(spec); spec = spec1; end
+else                                            % handed over: make only what is missing
+    if ~isstruct(spec); spec = cfg.sessionPlotFor(sp); end
+    if ~isstruct(res); res = sessionResults(Rs, sessions, sp, spec); end
+end
 
 what = string(sp.data);
 n = height(sessions);

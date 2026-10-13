@@ -773,18 +773,21 @@ issues = table(Section, Field, Severity, Message);
 
     function checkMapping(sp, f0)
         %checkMapping  A unit-mapping CSV: readable, a cell column, a column per listed dataset key.
+        %   Read with readUnitMapping, the reader the run uses (sessionResults).
         try
-            M = readtable(sp.mappingFile, 'VariableNamingRule', 'preserve', 'TextType', 'string', 'Delimiter', ',', ...
-                'FileType', 'text');
+            M = readUnitMapping(sp.mappingFile);
         catch ME
-            add("SessionPlots", f0 + ".mappingFile", "error", "The mapping file cannot be read (" + string(ME.message) + "): " + sp.mappingFile);
+            switch ME.identifier
+                case 'readUnitMapping:NoFile'
+                    add("SessionPlots", f0 + ".mappingFile", "error", "The mapping file does not exist: " + sp.mappingFile);
+                case 'readUnitMapping:NoCell'
+                    add("SessionPlots", f0 + ".mappingFile", "error", "The mapping file has no ""cell"" column: " + sp.mappingFile);
+                otherwise
+                    add("SessionPlots", f0 + ".mappingFile", "error", "The mapping file cannot be read (" + string(ME.message) + "): " + sp.mappingFile);
+            end
             return
         end
         cols = string(M.Properties.VariableNames);
-        if ~ismember("cell", cols)
-            add("SessionPlots", f0 + ".mappingFile", "error", "The mapping file has no ""cell"" column: " + sp.mappingFile);
-            return
-        end
         if sp.datasets == "list"
             missingKeys = setdiff(sp.datasetKeys, cols, 'stable');
             if ~isempty(missingKeys)

@@ -19,7 +19,9 @@ function h = renderPlot(R, spec, target, opts)
 %   with the dataset (R.dataset; a merged result's "3 sessions (SYNTH-01)")
 %   and page as a subtitle. A merged result whose series are sessions x
 %   trial groups (R.groups.lineStyle, combineSessions TrialGroups "combine")
-%   is drawn with histStyle "line", each series in its line style. SPEC.note, when it has text, adds descriptive text beside or
+%   draws each series in its line style; its effective spec
+%   (EphysAnalysisConfig.sessionPlotFor) has histStyle "line" for a psth.
+%   SPEC.note, when it has text, adds descriptive text beside or
 %   over the plot (drawNote, placeNote; H.note is the text object).
 %   SPEC.overlays adds lines and semitransparent patches in data units on
 %   the plot's axes, over or under its data (drawOverlays; H.overlays are
@@ -71,9 +73,6 @@ arguments
 end
 
 spec = plotSpecFor(R, spec);
-if isfield(R, 'groups') && istable(R.groups) && ismember("lineStyle", string(R.groups.Properties.VariableNames))
-    spec.histStyle = "line";   % sessions x trial groups (combineSessions "combine"): told apart by line style, so lines
-end
 [design, follows] = designFor(opts.Design, opts.UserAesthetics);
 style = spec.style;
 style.Design = design;

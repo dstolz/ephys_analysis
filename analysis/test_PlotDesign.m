@@ -176,7 +176,7 @@ cases = {
     "behavior swarm",     Rb,  struct('kind', "behavior", 'layout', "swarm")
     "sessions: psth + members", Rsm, struct('kind', "psth", 'histStyle', "line")
     "sessions: psth overlay + members", Rsm, struct('kind', "psth", 'layout', "overlay")
-    "sessions: psth combine", Rsc, struct('kind', "psth")
+    "sessions: psth combine", Rsc, struct('kind', "psth", 'histStyle', "line")
     "sessions: heatmap",  Rsh, struct('kind', "heatmap")};
 fig = figure('Visible', 'off');
 ground0 = fig.Color;   % the figure's own ground (its theme's, or the user's default), before any design
@@ -254,7 +254,7 @@ dv = findall(fig, 'Tag', 'sessionDivider');
 dcol = night.rules([night.rules.role] == "sessionDivider" & [night.rules.property] == "Color").value;
 check(numel(dv) == 2 && all(arrayfun(@(o) isequal(o.Color, dcol), dv)) && mean(dcol) > 0.5, ...
     'Night: the heat map''s session dividers in the design''s light color');
-renderPlot(Rsc, struct('kind', "psth"), fig, Design="Night");
+renderPlot(Rsc, struct('kind', "psth", 'histStyle', "line"), fig, Design="Night");   % a "combine" session plot's effective spec
 rl = findall(fig, 'Tag', 'rate');
 grp = arrayfun(@(o) string(getappdata(o, 'PlotGroup')), rl);
 a = rl(grp == Rsc.groups.label(2)); b = rl(grp == Rsc.groups.label(4));

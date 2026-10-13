@@ -336,7 +336,9 @@ classdef EphysAnalysisConfig
             %   layout overridden when not "", and with trialGroups "pool"
             %   the trial groups cleared (selection.groupBy = []; a tuning or
             %   behavior plot's seriesParam = "" too: the sessions are the
-            %   series). SPEC.sessionAesthetics holds sp.aesthetics, the
+            %   series); with trialGroups "combine" a psth's histStyle is
+            %   "line" (the sessions x trial groups are told apart by line
+            %   style). SPEC.sessionAesthetics holds sp.aesthetics, the
             %   session plot's own rules, which renderPlot applies after the
             %   base plot's (SPEC.aesthetics), so a session figure's
             %   remembered looks never change the per-dataset figures.
@@ -366,6 +368,9 @@ classdef EphysAnalysisConfig
             if sp.trialGroups == "pool"
                 spec.selection.groupBy = string.empty(1, 0);
                 if ismember(spec.kind, ["tuning" "behavior"]); spec.seriesParam = ""; end
+            end
+            if sp.trialGroups == "combine" && spec.kind == "psth"
+                spec.histStyle = "line";   % sessions x trial groups are told apart by line style
             end
             spec.sessionAesthetics = sp.aesthetics;
         end

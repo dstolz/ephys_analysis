@@ -12,6 +12,9 @@ function buildSortingTab(obj)
 %   SpikeInterface's defaults, beside their descriptions; showSorterControls).
 %   The "Bin folder" field (Sorting.BinDir, onBrowseBinDir) puts the sorting
 %   .bin in a folder of its own instead of the dataset's output folder.
+%   The middle column (KSHelpPanel) details one Kilosort4 parameter: its
+%   definition, function, impact, tuning and defaults (ks4ParamHelp), picked
+%   from its drop-down or by editing the parameter.
 %   The right column shows the
 %   selected dataset's sorted-output association (auto-discovered or pinned
 %   with "Use folder..."), what phy did there (a lamp and a line, from
@@ -28,8 +31,8 @@ for gi = 1:numel(groups)
 end
 nRows = nRows + 5;
 
-g = uigridlayout(obj.TabSorting, [1 2]);
-g.ColumnWidth = {720, '1x'};
+g = uigridlayout(obj.TabSorting, [1 3]);
+g.ColumnWidth = {720, '1x', 310};   % fitSortingColumns sets them as the tab resizes
 g.Padding     = [10 10 10 10];
 changed = @(~,~) obj.onConfigChanged();
 
@@ -145,7 +148,7 @@ for gi = 1:numel(groups)
         l = lab(cg, [s.label ':'], r);
         l.Layout.Column = lcol;
         l.Tooltip = s.tip;
-        ctrl = makeControl(cg, s, changed);
+        ctrl = makeControl(cg, s, @(~,~) paramEdited(obj, s.name));
         ctrl.Layout.Row = r;
         ctrl.Layout.Column = lcol + 1;
         obj.ParamControls.(s.name) = ctrl;
@@ -173,9 +176,21 @@ rows = arrayfun(@(c) c.Layout.Row(1), kids);
 obj.KS4ParamWidgets = kids(rows >= rKS4 & rows <= r);
 buildSIPanel(obj, cg, [rKS4 r]);
 
+% =================== middle column: Kilosort4 parameter details ===================
+obj.KSHelpPanel = uipanel(g, "Title", "Kilosort4 parameter details");
+obj.KSHelpPanel.Layout.Column = 2;
+hg = uigridlayout(obj.KSHelpPanel, [2 1]);
+hg.RowHeight = {26, '1x'};
+names = {spec.name};
+obj.KSHelpDropDown = uidropdown(hg, "Items", names, "ItemsData", names, "Value", names{1}, ...
+    "Tooltip", "The parameter to describe. Editing a parameter on the left also shows it here.", ...
+    "ValueChangedFcn", @(src,~) showParamHelp(obj, src.Value));
+obj.KSHelpArea = uitextarea(hg, "Editable", "off", "FontColor", [0.2 0.2 0.2]);
+showParamHelp(obj, names{1});
+
 % =================== right column: results association + run + log ===================
 right = uigridlayout(g, [2 1]);
-right.Layout.Column = 2;
+right.Layout.Column = 3;
 right.RowHeight = {'fit', '1x'};
 right.Padding = [0 0 0 0];
 
@@ -229,6 +244,9 @@ lg = uigridlayout(logPanel, [1 1]);
 obj.KSLogArea = uitextarea(lg, "Editable", "off");
 
 obj.refreshSorterItems();   % the sorters remembered from the last Find
+obj.TabSorting.AutoResizeChildren = "off";
+obj.TabSorting.SizeChangedFcn = @(~,~) fitSortingColumns(obj);
+fitSortingColumns(obj);
 end
 
 
@@ -263,6 +281,50 @@ obj.SIParamsHelpArea.Layout.Row = 3; obj.SIParamsHelpArea.Layout.Column = 2;
 obj.SIDocsLink = uihyperlink(sg, "Text", "SpikeInterface sorter docs", ...
     "URL", "https://spikeinterface.readthedocs.io/en/stable/modules/sorters.html");
 obj.SIDocsLink.Layout.Row = 4; obj.SIDocsLink.Layout.Column = 1;
+end
+
+
+function paramEdited(obj, name)
+%paramEdited  A Kilosort4 parameter control changed: take it into the config, describe it.
+obj.onConfigChanged();
+showParamHelp(obj, name);
+end
+
+
+function showParamHelp(obj, name)
+%showParamHelp  Definition, function, impact, tuning and defaults of the Kilosort4 parameter NAME.
+spec = EphysPipelineConfig.kilosortParamSpec();
+s = spec(strcmp({spec.name}, name));
+H = ks4ParamHelp();
+h = H.(name);
+switch s.kind
+    case 'bool'
+        mine = string(mat2str(logical(s.default)));
+    case {'int', 'float'}
+        mine = string(s.default);
+    otherwise
+        mine = string(s.default);
+        if mine == ""; mine = "blank (auto)"; end
+end
+obj.KSHelpDropDown.Value = name;
+obj.KSHelpArea.Value = cellstr([
+    string(name) + "   (" + s.group + ")"
+    ""
+    "DEFINITION"
+    h.definition
+    ""
+    "FUNCTION"
+    h.function
+    ""
+    "IMPACT"
+    h.impact
+    ""
+    "TUNING"
+    h.tuning
+    ""
+    "DEFAULT"
+    "This pipeline: " + mine
+    "Kilosort4 4.1.7: " + h.ks4default]);
 end
 
 

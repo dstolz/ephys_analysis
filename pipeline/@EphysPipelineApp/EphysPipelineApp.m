@@ -461,6 +461,10 @@ classdef EphysPipelineApp < handle
         ParamControls struct = struct()
         ExtraSettingsArea matlab.ui.control.TextArea
         KSDocsLink        matlab.ui.control.Hyperlink
+        % The details of one Kilosort4 parameter (ks4ParamHelp), left of the Sorted output panel.
+        KSHelpPanel       matlab.ui.container.Panel
+        KSHelpDropDown    matlab.ui.control.DropDown
+        KSHelpArea        matlab.ui.control.TextArea
         SortDatasetDropDown matlab.ui.control.DropDown
         SortResultsLabel  matlab.ui.control.Label
         % What phy did in the active dataset's sorted output (EphysDataset.phyStatus).

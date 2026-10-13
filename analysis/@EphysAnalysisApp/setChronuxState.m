@@ -47,7 +47,9 @@ if busy
     obj.Fig.Pointer = "watch";
     drawnow;
 else
-    obj.ChronuxComputeButton.Enable = matlab.lang.OnOffSwitchState(~isempty(obj.ChronuxIndex) && ChronuxDataset.hasChronux());
+    C = obj.ChronuxControls;
+    ok = chronuxCanCompute(obj.ChronuxIndex, string(C.analysis.Value), string(C.spikeSource.Value));
+    obj.ChronuxComputeButton.Enable = matlab.lang.OnOffSwitchState(ok && ChronuxDataset.hasChronux());
     obj.Fig.Pointer = "arrow";
 end
 has = ~isempty(obj.ChronuxResult) && ismember(state, ["drawn" "stale"]);

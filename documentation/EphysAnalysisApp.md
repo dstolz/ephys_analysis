@@ -701,7 +701,7 @@ rows the analysis uses:
 | **Frequency & errors** | **Frequencies** (`fpass`, Hz; blank = Nyquist), **Padding** (`pad`), **Error bars** (*jackknife*, *theoretical* or *none*, and *p*: 0.05 = 95%; not over time; a coherence's give its confidence level `confC` too), **Detrend** (each trial's mean, line, or nothing, removed before its spectrum), and for the spike analyses the **Finite-size correction** (`fscorr`) and the **grid** (Hz) the trains are taken on (`params.Fs`: its half is the highest frequency) |
 | **Moving window** | a spectrogram's or coherence over time's **Window** and **step** (s) |
 | **Baseline** | an epochs spectrogram: **Normalize** each frequency against its mean power over the baseline **Window** (s from the event): *dB change*, *% change*, *z-score* or *ratio* |
-| **Display** | **Power as** dB, a log axis or linear; **Layout**: a tile per channel, train or pair (groups overlaid) or a tile per group (they overlaid); **Error bars as bands**; **The phase under each coherence** (a tile of its own); **Tiles per page**; **Y limits** (a spectrum's) and **Color limits** (a spectrogram's or coherogram's) |
+| **Display** | **Power as** dB, a log axis or linear; **Layout**: a tile per channel, train or pair (groups overlaid) or a tile per group (they overlaid); **Error bars as bands**; **Phase under each coherence** (a tile of its own, where the coherence is over `confC`); **Tiles per page**; **Y limits** (a spectrum's) and **Color limits** (a spectrogram's or coherogram's) |
 
 Nothing that touches an artifact period is used: epochs that touch one are
 left out (`epochTable`), and a stretch is cut into segments only where it is

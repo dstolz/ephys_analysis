@@ -1560,7 +1560,7 @@ Its steps are functions of their own, for scripts:
 | `chronuxSpikeSpectrum(SP, TB, S)` | `mtspectrumpt` per train and group on a `S.spikeFs` grid: `R.S`, `R.rate` (where the spectrum tends at high frequencies) |
 | `chronuxSpikeField(D, SP, TB, S)` | `coherencycpt` of each train with the field channel `S.fieldChannel`, the spikes cut to the field's very samples |
 | `chronuxUnitCoherence(SP, TB, S)` | `coherencypt` of the seed train with its partner, or with every other train |
-| `renderChronux(R, target, Display=)` | draws any of them (a tile per channel, train or pair, or per group; a coherence's phase under it; an image per channel or pair and group over time) in the plot design, its parts named for the aesthetics editor |
+| `renderChronux(R, target, Display=)` | draws any of them (a tile per channel, train or pair, or per group; a coherence's phase under it; an image per channel or pair and group over time) in the plot design, its parts named for the aesthetics editor (a coherence's `confLine` and `phase`, a spike spectrum's `rateLine`) |
 
 A spectrum of the LFP over the epochs around each Stim onset, per Depth:
 

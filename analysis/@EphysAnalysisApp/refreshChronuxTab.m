@@ -4,8 +4,9 @@ function refreshChronuxTab(obj)
 %   cache's) is indexed once (loadChronuxExport) while it does not change.
 %   It says where the file is, when it was made, its signals and units,
 %   and when it is older than the dataset's extract (Recreate it). Create
-%   needs an extract (the Signals step); Compute needs the file and
-%   Chronux on the MATLAB path.
+%   needs an extract (the Signals step); Compute needs the file, what the
+%   analysis reads (chronuxCanCompute: a signal, spike trains) and Chronux
+%   on the MATLAB path.
 C = obj.ChronuxControls;
 if isempty(fieldnames(C)); return; end
 amber = [0.55 0.33 0.00];
@@ -108,11 +109,13 @@ else
     end
 end
 obj.onChronuxEdited("signal");
+obj.onChronuxEdited("spikeSource");   % the file's spike trains
 end
 
 
 function syncCompute(obj, busy)
-ok = ~isempty(obj.ChronuxIndex) && ~isempty(fieldnames(obj.ChronuxIndex.signals));
+C = obj.ChronuxControls;
+ok = chronuxCanCompute(obj.ChronuxIndex, string(C.analysis.Value), string(C.spikeSource.Value));
 has = ChronuxDataset.hasChronux();
 obj.ChronuxComputeButton.Enable = matlab.lang.OnOffSwitchState(ok && has && ~busy);
 if ~has

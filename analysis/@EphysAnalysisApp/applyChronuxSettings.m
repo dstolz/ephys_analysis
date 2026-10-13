@@ -1,11 +1,16 @@
 function applyChronuxSettings(obj, S)
 %applyChronuxSettings  Set the Chronux tab's controls from settings S (chronuxSettings; a remembered preference).
-%   The signal and channels are the dataset's and stay as they are; a
-%   value a control cannot take is left as it was.
+%   The signal, channels, units and field channel are the dataset's and
+%   stay as they are; a value a control cannot take is left as it was.
 C = obj.ChronuxControls;
 S = chronuxSettings(S);
 set1(C.analysis, S.analysis);
 set1(C.timeBase, S.timeBase);
+set1(C.spikeSource, S.spikeSource);
+set1(C.pairMode, S.pairMode);
+set1(C.overTime, S.overTime);
+set1(C.spikeFs, S.spikeFs);
+set1(C.fscorr, S.fscorr);
 set1(C.pre, S.window(1));
 set1(C.post, S.window(2));
 set1(C.useGroups, S.useGroups);
@@ -32,6 +37,7 @@ d = S.display;
 set1(C.scale, d.scale);
 set1(C.layout, d.layout);
 set1(C.showErr, d.showErr);
+set1(C.showPhase, d.showPhase);
 set1(C.maxTiles, d.maxTiles);
 set1(C.ylim, strjoin(string(d.ylim), " "));
 set1(C.clim, strjoin(string(d.clim), " "));

@@ -10,6 +10,19 @@ s = struct();
 s.analysis = string(C.analysis.Value);
 s.signal = sig;
 s.channels = reshape(double(ch), 1, []);
+un = C.units.Value;
+if iscell(un); un = cell2mat(un); end
+s.spikeSource = string(C.spikeSource.Value);
+s.units = reshape(double(un), 1, []);
+s.pairMode = string(C.pairMode.Value);
+s.overTime = C.overTime.Value;
+s.seed = numberOr(C.seed.Value, 1);
+s.partner = numberOr(C.partner.Value, 2);
+s.unitSeed = numberOr(C.unitSeed.Value, 1);
+s.unitPartner = numberOr(C.unitPartner.Value, 2);
+s.fieldChannel = numberOr(C.fieldChannel.Value, 1);
+s.spikeFs = C.spikeFs.Value;
+s.fscorr = C.fscorr.Value;
 s.timeBase = string(C.timeBase.Value);
 s.window = [C.pre.Value C.post.Value];
 s.useGroups = C.useGroups.Value;
@@ -29,9 +42,15 @@ s.movingwin = [C.mwWin.Value C.mwStep.Value];
 s.baseline = string(C.baseline.Value);
 s.baselineWindow = [C.baseFrom.Value C.baseTo.Value];
 s.display = struct('scale', string(C.scale.Value), 'layout', string(C.layout.Value), 'showErr', C.showErr.Value, ...
-    'maxTiles', C.maxTiles.Value, 'ylim', twoNumbers(C.ylim.Value), 'clim', twoNumbers(C.clim.Value), ...
-    'page', max(1, obj.ChronuxPage));
+    'showPhase', C.showPhase.Value, 'maxTiles', C.maxTiles.Value, 'ylim', twoNumbers(C.ylim.Value), ...
+    'clim', twoNumbers(C.clim.Value), 'page', max(1, obj.ChronuxPage));
 S = chronuxSettings(s);
+end
+
+
+function v = numberOr(v, default)
+%numberOr  A dropdown's number, DEFAULT when it holds none (an empty file).
+if ~isnumeric(v) || ~isscalar(v); v = default; end
 end
 
 

@@ -5,11 +5,12 @@ function buildChronuxTab(obj)
 %   cache, or missing) with Create (EphysDataset.exportChronux: from the
 %   dataset's extract, sorted units and detections) and the local cache
 %   folder for datasets whose output folder cannot be written (a share);
-%   the signal and its channels. Middle: the analysis and its settings in
-%   collapsible sections (formSection) -- Time base (epochs around the
-%   Alignment tab's event, or segments of a stretch of the recording),
-%   Tapers, Frequency & errors, Moving window, Baseline, Display -- each
-%   showing the rows the analysis uses (syncChronuxControls). Right:
+%   the signal and its channels, and the file's spike trains (the sorted
+%   units or the threshold detections) for the spike analyses. Middle: the
+%   analysis and its settings in collapsible sections (formSection) -- Time
+%   base (epochs around the Alignment tab's event, or segments of a stretch
+%   of the recording), Tapers, Frequency & errors, Moving window, Baseline, Display --
+%   each showing the rows the analysis uses (syncChronuxControls). Right:
 %   Compute (Chronux, on the active dataset), Cancel, Save figure, Save
 %   results, the pages, the plot (renderChronux) and a badge saying where
 %   it is (setChronuxState).
@@ -23,8 +24,9 @@ compute = @(~,~) obj.onChronuxEdited("compute");
 display = @(~,~) obj.onChronuxEdited("display");
 
 % --- left: dataset, file, signal and channels ------------------------------------------------
-lg = uigridlayout(g, [12 2]);
-lg.RowHeight = {22, 26, 22, 64, 30, 22, 36, 30, 26, 22, '1x', 30};
+lg = uigridlayout(g, [16 2]);
+lg.RowHeight = {22, 26, 22, 64, 30, 22, 36, 30, 26, 22, '1x', 30, 26, 22, '1x', 30};
+C.left = lg;   % syncChronuxControls hides the rows the analysis does not use
 lg.ColumnWidth = {'1x', '1x'};
 lg.Padding = [0 0 0 0];
 l = uilabel(lg, "Text", "Active dataset:", "FontWeight", "bold");
@@ -58,17 +60,36 @@ obj.ChronuxCacheButton = uibutton(lg, "Text", "Choose cache...", "ButtonPushedFc
 place(obj.ChronuxCacheButton, 8, [1 2]);
 l = uilabel(lg, "Text", "Signal:");
 place(l, 9, 1);
+C.signalLabel = l;
 C.signal = uidropdown(lg, "Items", "(none)", "ItemsData", "", "ValueChangedFcn", @(~,~) obj.onChronuxEdited("signal"), ...
     "Tooltip", "The continuous signal analyzed: those the Chronux file holds.");
 place(C.signal, 9, 2);
 l = uilabel(lg, "Text", "Channels (none picked = all):");
 place(l, 10, [1 2]);
+C.channelsLabel = l;
 C.channels = uilistbox(lg, "Items", {}, "Multiselect", "on", "Value", {}, "ValueChangedFcn", compute, ...
     "Tooltip", "The channels analyzed, each its own spectrum. Ctrl- or Shift-click picks several; none picked = all.");
 place(C.channels, 11, [1 2]);
 C.allChannels = uibutton(lg, "Text", "All channels", "ButtonPushedFcn", @(~,~) pickAll(obj, C.channels), ...
     "Tooltip", "Clear the pick: every channel.");
 place(C.allChannels, 12, [1 2]);
+l = uilabel(lg, "Text", "Spikes:");
+place(l, 13, 1);
+C.spikeLabel = l;
+C.spikeSource = uidropdown(lg, "Items", ["Sorted units" "Threshold detections"], "ItemsData", ["units" "detected"], ...
+    "ValueChangedFcn", @(~,~) obj.onChronuxEdited("spikeSource"), ...
+    "Tooltip", "The spike trains analyzed: the sorted units the Chronux file holds, or its threshold detections (a train per channel).");
+place(C.spikeSource, 13, 2);
+l = uilabel(lg, "Text", "Spike trains (none picked = all):");
+place(l, 14, [1 2]);
+C.unitsLabel = l;
+C.units = uilistbox(lg, "Items", {}, "Multiselect", "on", "Value", {}, "ValueChangedFcn", compute, ...
+    "Tooltip", "The spike trains analyzed, each its own spectrum (a coherence's seed train against each). Ctrl- or " + ...
+    "Shift-click picks several; none picked = all.");
+place(C.units, 15, [1 2]);
+C.allUnits = uibutton(lg, "Text", "All spike trains", "ButtonPushedFcn", @(~,~) pickAll(obj, C.units), ...
+    "Tooltip", "Clear the pick: every spike train.");
+place(C.allUnits, 16, [1 2]);
 
 % --- middle: the analysis and its settings ---------------------------------------------------
 ep = uipanel(g, "Title", "Analysis");
@@ -85,11 +106,45 @@ tint = @(name) hue(order == name, :);
 
 S = formSection(eg, 1, "general", "");
 [S, r] = formRow(S, "analysis", "Analysis:");
-C.analysis = uidropdown(S.Body, "Items", ["Power spectrum (mtspectrumc)" "Spectrogram (mtspecgramc)"], ...
-    "ItemsData", ["spectrum" "specgram"], "ValueChangedFcn", @(~,~) obj.onChronuxEdited("analysis"), ...
-    "Tooltip", "The Chronux analysis run on the channels picked.");
+C.analysis = uidropdown(S.Body, "Items", ["Power spectrum (mtspectrumc)" "Spectrogram (mtspecgramc)" ...
+    "Coherence of two channels (coherencyc)" "Spike spectrum (mtspectrumpt)" ...
+    "Spike-field coherence (coherencycpt)" "Spike-train coherence (coherencypt)"], ...
+    "ItemsData", ["spectrum" "specgram" "coherence" "spikeSpectrum" "spikeField" "unitCoherence"], ...
+    "ValueChangedFcn", @(~,~) obj.onChronuxEdited("analysis"), ...
+    "Tooltip", "The Chronux analysis run on the channels or spike trains picked.");
 place(C.analysis, r, 2);
-[S, r] = formRow(S, "about", "", 44);
+[S, r] = formRow(S, "overTime", "");
+C.overTime = uicheckbox(S.Body, "Text", "Over time (cohgramc)", "Value", false, "ValueChangedFcn", ...
+    @(~,~) obj.onChronuxEdited("analysis"), "Tooltip", "The coherence over time and frequency, over the moving " + ...
+    "window, instead of one coherence per pair.");
+place(C.overTime, r, [1 2]);
+[S, r] = formRow(S, "pairMode", "Pairs:");
+C.pairMode = uidropdown(S.Body, "Items", ["the seed with each other one picked" "the seed with its partner"], ...
+    "ItemsData", ["seed" "pair"], "ValueChangedFcn", @(~,~) obj.onChronuxEdited("pairMode"), ...
+    "Tooltip", "A coherence's pairs: the seed with every other channel (or spike train) picked (none picked: " + ...
+    "all), or with one partner.");
+place(C.pairMode, r, 2);
+[S, r] = formRow(S, "seed", "Seed channel:");
+C.seed = uidropdown(S.Body, "Items", "(none)", "ItemsData", 1, "ValueChangedFcn", compute, ...
+    "Tooltip", "The channel the coherence is of. It is read even when it is not picked.");
+place(C.seed, r, 2);
+[S, r] = formRow(S, "partner", "Partner channel:");
+C.partner = uidropdown(S.Body, "Items", "(none)", "ItemsData", 2, "ValueChangedFcn", compute, ...
+    "Tooltip", "The channel the seed's coherence is with.");
+place(C.partner, r, 2);
+[S, r] = formRow(S, "unitSeed", "Seed train:");
+C.unitSeed = uidropdown(S.Body, "Items", "(none)", "ItemsData", 1, "ValueChangedFcn", compute, ...
+    "Tooltip", "The spike train the coherence is of. It is read even when it is not picked.");
+place(C.unitSeed, r, 2);
+[S, r] = formRow(S, "unitPartner", "Partner train:");
+C.unitPartner = uidropdown(S.Body, "Items", "(none)", "ItemsData", 2, "ValueChangedFcn", compute, ...
+    "Tooltip", "The spike train the seed's coherence is with.");
+place(C.unitPartner, r, 2);
+[S, r] = formRow(S, "fieldChannel", "Field channel:");
+C.fieldChannel = uidropdown(S.Body, "Items", "(none)", "ItemsData", 1, "ValueChangedFcn", compute, ...
+    "Tooltip", "The channel of the signal the spikes are coherent with: its field.");
+place(C.fieldChannel, r, 2);
+[S, r] = formRow(S, "about", "", 60);
 C.about = uilabel(S.Body, "Text", "", "WordWrap", "on", "VerticalAlignment", "top", "FontColor", [0.35 0.35 0.35]);
 place(C.about, r, [1 2]);
 sec = S;
@@ -186,6 +241,16 @@ C.detrend = uidropdown(S.Body, "Items", ["each trial's mean" "each trial's line"
     "ItemsData", ["constant" "linear" "none"], "Value", "constant", "ValueChangedFcn", compute, ...
     "Tooltip", "Removed from every trial before its spectrum, so the power at 0 Hz does not leak into the low frequencies.");
 place(C.detrend, r, 2);
+[S, r] = formRow(S, "spikeFs", "Spike grid (Hz):");
+C.spikeFs = uieditfield(S.Body, "numeric", "Value", 1000, "Limits", [0 Inf], "LowerLimitInclusive", "off", ...
+    "ValueChangedFcn", compute, "Tooltip", "The rate of the grid the spike times are binned on for the spike " + ...
+    "spectrum and the spike-train coherence (params.Fs: 1000 is a millisecond; its half is the highest frequency). " + ...
+    "Spike-field coherence uses the signals own rate.");
+place(C.spikeFs, r, 2);
+[S, r] = formRow(S, "fscorr", "");
+C.fscorr = uicheckbox(S.Body, "Text", "Finite-size correction", "Value", false, "ValueChangedFcn", compute, ...
+    "Tooltip", "Chronuxs correction for the few spikes of a short trial (fscorr), for the spike analyses.");
+place(C.fscorr, r, [1 2]);
 sec(end+1) = S;
 
 S = formSection(eg, 5, "moving", "Moving window", Color=tint("moving"));
@@ -224,6 +289,11 @@ place(C.layout, r, 2);
 [S, r] = formRow(S, "showErr", "");
 C.showErr = uicheckbox(S.Body, "Text", "Error bars as bands", "Value", true, "ValueChangedFcn", display);
 place(C.showErr, r, [1 2]);
+[S, r] = formRow(S, "showPhase", "");
+C.showPhase = uicheckbox(S.Body, "Text", "Phase under each coherence", "Value", true, "ValueChangedFcn", display, ...
+    "Tooltip", "A panel under each coherence tile with its phase, at the frequencies where the coherence is over " + ...
+    "the level independent signals stay under.");
+place(C.showPhase, r, [1 2]);
 [S, r] = formRow(S, "maxTiles", "Tiles per page:");
 C.maxTiles = uispinner(S.Body, "Limits", [1 64], "Value", 16, "RoundFractionalValues", "on", "ValueChangedFcn", display);
 place(C.maxTiles, r, 2);

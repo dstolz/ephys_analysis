@@ -1123,6 +1123,79 @@ app.onSaveChronuxResults(fr);
 app.onSaveChronuxFigure(fp);
 L = load(fr);
 check(isfield(L, 'R') && L.R.kind == "chronuxSpecgram" && isfile(fp), 'Save results writes R; Save figure writes the page');
+nSp = numel(app.ChronuxIndex.sp);
+C.timeBase.Value = "aligned";
+C.analysis.Value = "coherence";
+app.onChronuxEdited("analysis");
+app.onChronuxEdited("timeBase");
+C.channels.Value = [1 2];
+R7 = app.onChronuxCompute();
+check(~isempty(R7) && R7.kind == "chronuxCoherence" && size(R7.C, 2) == 1 && R7.pairs.a == 1 && R7.pairs.b == 2 ...
+    && size(R7.C, 3) > 1 && app.ChronuxState == "drawn" && numel(findall(app.ChronuxPanel, 'Tag', 'phase')) > 0 ...
+    && strcmp(C.seed.Visible, 'on') && strcmp(C.overTime.Visible, 'on') && strcmp(C.partner.Visible, 'off'), ...
+    'Compute: the coherence of the seed channel with the other channel picked, one per Depth group, phase drawn under it');
+C.pairMode.Value = "pair";
+C.partner.Value = C.partner.ItemsData(end);
+app.onChronuxEdited("pairMode");
+R7b = app.onChronuxCompute();
+check(~isempty(R7b) && size(R7b.C, 2) == 1 && R7b.pairs.b == C.partner.ItemsData(end) && strcmp(C.partner.Visible, 'on'), ...
+    'one partner: the seed with a channel that is not picked');
+C.pairMode.Value = "seed";
+C.overTime.Value = true;
+app.onChronuxEdited("analysis");
+R7c = app.onChronuxCompute();
+check(~isempty(R7c) && R7c.kind == "chronuxCohgram" && R7c.aligned && ~isempty(findobj(app.ChronuxPanel, 'Type', 'image')) ...
+    && app.ChronuxSections([app.ChronuxSections.Name] == "moving").Visible, 'over time: a coherogram over the moving window, drawn as an image');
+C.overTime.Value = false;
+C.analysis.Value = "spikeSpectrum";
+app.onChronuxEdited("analysis");
+check(nSp > 1 && numel(C.units.Items) == nSp && numel(C.unitSeed.ItemsData) == nSp && numel(C.fieldChannel.ItemsData) > 1 ...
+    && strcmp(C.units.Visible, 'on') && strcmp(C.signal.Visible, 'off') && strcmp(C.channels.Visible, 'off') ...
+    && strcmp(C.spikeFs.Visible, 'on') && app.ChronuxComputeButton.Enable == "on", ...
+    'a spike analysis lists the file''s sorted units and shows the spike grid, not the signal and its channels');
+R3 = app.onChronuxCompute();
+check(~isempty(R3) && R3.kind == "chronuxSpikeSpectrum" && size(R3.S, 2) == nSp && size(R3.S, 3) > 1 ...
+    && app.ChronuxState == "drawn" && ~isempty(findobj(app.ChronuxPanel, 'Type', 'axes')) ...
+    && ~isempty(findall(app.ChronuxPanel, 'Tag', 'rateLine')), ...
+    'Compute: a spike spectrum of every sorted unit over the Alignment tab''s epochs, one per Depth group, with its mean rates');
+C.units.Value = C.units.ItemsData(1);
+app.onChronuxEdited("compute");
+R3b = app.onChronuxCompute();
+check(~isempty(R3b) && size(R3b.S, 2) == 1 && isequal(R3b.index, 1), 'a unit picked: only its spectrum');
+C.units.Value = {};
+C.analysis.Value = "spikeField";
+app.onChronuxEdited("analysis");
+check(strcmp(C.signal.Visible, 'on') && strcmp(C.channels.Visible, 'off') && strcmp(C.fieldChannel.Visible, 'on'), ...
+    'spike-field coherence shows the signal and its field channel, not the channel list');
+C.fieldChannel.Value = C.fieldChannel.ItemsData(1);
+R4 = app.onChronuxCompute();
+check(~isempty(R4) && R4.kind == "chronuxSpikeField" && size(R4.C, 2) == nSp && R4.settings.fieldChannel == 1 ...
+    && app.ChronuxState == "drawn" && numel(findall(app.ChronuxPanel, 'Tag', 'phase')) > 0, ...
+    'Compute: the units'' coherence with the field channel, its phase drawn under it');
+C.analysis.Value = "unitCoherence";
+app.onChronuxEdited("analysis");
+C.unitSeed.Value = C.unitSeed.ItemsData(1);
+R5 = app.onChronuxCompute();
+check(~isempty(R5) && R5.kind == "chronuxUnitCoherence" && size(R5.C, 2) == nSp - 1 && R5.settings.unitSeed == 1, ...
+    'Compute: the seed unit''s coherence with every other unit');
+C.pairMode.Value = "pair";
+C.unitPartner.Value = C.unitPartner.ItemsData(2);
+app.onChronuxEdited("pairMode");
+R6 = app.onChronuxCompute();
+check(~isempty(R6) && size(R6.C, 2) == 1 && R6.pairs.b == 2 && strcmp(C.unitPartner.Visible, 'on'), ...
+    'one partner: the seed against it alone');
+o3 = app.onCreateChronuxExport(WithoutUnits=true);
+app.onChronuxEdited("analysis");
+check(~isempty(o3) && o3.nUnits == 0 && app.ChronuxComputeButton.Enable == "off" && contains(C.about.Text, "no sorted units") ...
+    && isempty(C.units.Items), ...
+    'a file without units: the spike analyses cannot be computed, and the tab says why');
+C.analysis.Value = "spectrum";
+app.onChronuxEdited("analysis");
+check(app.ChronuxComputeButton.Enable == "on", 'the continuous analyses still can');
+app.onCreateChronuxExport(WithoutUnits=false);
+C.pairMode.Value = "seed";
+C.analysis.Value = "spectrum";
+app.onChronuxEdited("analysis");
 cache = string(fullfile(root, 'chronux cache'));
 app.onChronuxCacheFolder(cache);
 o2 = app.onCreateChronuxExport(Where="cache", WithoutUnits=false);

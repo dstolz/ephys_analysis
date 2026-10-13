@@ -137,9 +137,9 @@ for i = 1:numel(res)
     end
 end
 
-% --- WP3 hook: the session plot's data file (sessionData + writeAnalysisData) ----------
-% Runs only with Export.Data.Enabled; until WP3 adds r.sessionData and writeAnalysisData
-% it fails into the first row's message without stopping the run.
+% --- the session plot's data file (sessionData + writeAnalysisData) ----------------------
+% Runs only with Export.Data.Enabled; a failure goes into the first row's message
+% without stopping the run.
 if X.Data.Enabled && any([res.status] == "done")
     try
         S = obj.sessionData(sp, idx, Results=res);

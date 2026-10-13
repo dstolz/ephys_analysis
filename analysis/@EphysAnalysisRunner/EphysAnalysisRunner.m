@@ -59,7 +59,10 @@ classdef EphysAnalysisRunner < handle
     %   datasets: computeSessionPlot computes the base plot on each dataset
     %   (cachedPlot) and merges the results (sessionResults,
     %   combineSessions); runSessionPlot exports and reports them; run does
-    %   both after its datasets. The per-dataset results a session plot
+    %   both after its datasets. sessionData gathers a session plot's data
+    %   (the merged and per-session results, the epoched spikes or signals)
+    %   into one struct for writeAnalysisData or the workspace; run writes it
+    %   with Export.Data.Enabled. The per-dataset results a session plot
     %   needs are kept in a cache:
     %     ResultCache   containers.Map cacheKey -> struct(R, bytes)
     %     CacheMaxMB    its size limit (default 512); the oldest entries go
@@ -121,6 +124,7 @@ classdef EphysAnalysisRunner < handle
         clearResultCache(obj)
         [res, sessions, spec, Rs] = computeSessionPlot(obj, sp, idx, opts)
         rows = runSessionPlot(obj, sp, idx, opts)
+        S = sessionData(obj, sp, idx, opts)
 
         function obj = EphysAnalysisRunner(cfg, opts)
             %EphysAnalysisRunner  Find the config's datasets (Scan=false: later, with datasets()).

@@ -27,7 +27,11 @@ function test_EphysAnalysisRunner()
 %   report's "Across sessions" section in HTML and PDF, "sessions: ..."
 %   Results rows, the run record, the result cache reused, Overwrite off,
 %   a cancel during the session plots, a per-dataset report's own
-%   <FileName>_sessions).
+%   <FileName>_sessions); and the data export: epochData on the fixture
+%   (counts equal binCounts at t0Continuous and sum to the PSTH's, the
+%   epoched LFP equal to evokedPotential's, TooLarge), r.sessionData
+%   without Results (spike epochs, epoched signals), and a run with
+%   Export.Data.Enabled writing <Data.Folder>\all_<id>.mat.
 %
 %   Usage:  test_EphysAnalysisRunner
 
@@ -676,9 +680,125 @@ check(numel(rP.ReportFiles) == numel(names) + 1 && any(endsWith(rP.ReportFiles, 
     && contains(string(fileread(rP.ReportFiles(endsWith(rP.ReportFiles, "_sessions.html")))), "lfp_days"), ...
     'Report.PerDataset: the session plots get a report of their own, <FileName>_sessions');
 
+fprintf('\n== 10. data export: epochData, r.sessionData, Export.Data ==\n');
+src1 = rS.source(1);
+specD = cfgS.plotFor("psth_stim");
+wD = specD.window;
+D = epochData(src1, specD);
+[Ed, Gd] = epochTable(src1, specD.ref, Window=wD, Selection=specD.selection);
+[trainsD, metad] = selectUnits(src1, specD.units, Ref=specD.ref, Selection=specD.selection);
+nEd = height(Ed); nUd = numel(trainsD); nBd = numel(D.spikes.t);
+okCounts = isequal(size(D.spikes.counts), [nEd nBd nUd]) && isequal(size(D.spikes.times), [nEd nUd]);
+okTimes = true;
+for u = 1:nUd
+    ref = binCounts(trainsD{u}, Ed.t0Continuous, D.spikes.edges).';
+    okCounts = okCounts && isequal(D.spikes.counts(:, :, u), ref);
+    inside = cellfun(@(x) all(x >= wD.pre - 1e-9 & x < wD.post) && issorted(x), D.spikes.times(:, u));
+    okTimes = okTimes && all(inside) && sum(cellfun(@numel, D.spikes.times(:, u))) == sum(ref, 'all');
+end
+Rp = spikePSTH(trainsD, Ed, Window=[wD.pre wD.post], BinSec=specD.bins.BinSec, Groups=Gd, Meta=metad, Raster=false);
+okPsth = true;
+for g = 1:height(Gd)
+    okPsth = okPsth && isequal(reshape(sum(D.spikes.counts(Ed.groupIndex == g, :, :), 1), nBd, nUd), Rp.count(:, :, g));
+end
+check(nEd > 0 && nUd > 0 && isequal(D.E.t0Continuous, Ed.t0Continuous) && ismember("Depth", string(D.E.Properties.VariableNames)) ...
+    && isequal(D.meta.unitId, metad.unitId) && okCounts && okPsth && isequal(D.spikes.edges, Rp.edges) && isequal(D.spikes.t, Rp.t), ...
+    sprintf('epochData: %d epochs x %d bins x %d units of counts equal binCounts at t0Continuous, and sum to the PSTH''s counts', nEd, nBd, nUd));
+check(okTimes && D.identity.name == src1.name && D.identity.fs == src1.fs && D.identity.key == src1.key && isequaln(D.spec, specD) ...
+    && isempty(D.signals) && isstruct(D.provenance) && strlength(D.created) > 0, ...
+    'epochData: spike times sorted and inside [pre post), as many as the counts; the identity, the spec and the provenance');
+check(strcmp(errorIdOf(@() epochData(src1, specD, MaxMB=1e-6)), 'epochData:TooLarge') ...
+    && isempty(epochData(src1, specD, Spikes=false).spikes) && size(epochData(src1, specD, Counts=false).spikes.counts, 2) == 0, ...
+    'epochData: TooLarge before the counts are made; Spikes=false and Counts=false leave them out');
+
+specL = cfgS.plotFor("lfp_stim");
+wL = specL.window;
+DL = epochData(src1, specL, Signals=true);
+[YL, fsL, mL] = selectChannels(src1, "LFP", Channels=specL.channels);
+[EL, GL] = epochTable(src1, specL.ref, Window=wL, Selection=specL.selection, Baseline=specL.baseline.Window);
+Rv = evokedPotential(YL, fsL, EL, Window=[wL.pre wL.post], Groups=GL, Meta=mL, KeepEpochs=true);
+e1 = DL.signals.epochs.epoch(1);
+rows = round(EL.t0Continuous(EL.epoch == e1) * fsL) + 1 + (round(wL.pre * fsL):round(wL.post * fsL));
+check(isequal(DL.signals.data, Rv.data) && DL.signals.dims == "time x channel x epoch" && isequal(DL.signals.t, Rv.t) && DL.signals.fs == fsL ...
+    && isequal(DL.signals.epochs.epoch, Rv.keptEpochs) && size(DL.signals.data, 3) == height(DL.signals.epochs) && isa(DL.signals.data, 'single') ...
+    && isequal(DL.signals.data(:, :, 1), YL(rows(:), :)) && height(DL.meta) == size(DL.signals.data, 2) && isempty(DL.spikes), ...
+    'epochData signals: the kept epochs'' samples as evokedPotential cuts them, the first one the rows round(t0Continuous*fs)+1 + (s0:s1) of the signal');
+check(strcmp(errorIdOf(@() epochData(src1, specL, Signals=true, MaxMB=1e-6)), 'epochData:TooLarge') && isempty(epochData(src1, specL).signals), ...
+    'epochData: epoched signals over MaxMB are refused before they are cut, and read only with Signals=true');
+src1.outputs.clearCache();
+
+cfgD = cfgS;
+cfgD = cfgD.addSessionPlot(struct('plot', "psth_stim", 'data', ["results" "epochs"]), Id="psth_data");
+cfgD = cfgD.addSessionPlot(struct('plot', "lfp_stim", 'data', ["epochs" "signals"]), Id="lfp_data");
+rD = EphysAnalysisRunner(cfgD, LogFcn=[]);
+S1 = rD.sessionData("psth_data");
+spD = cfgD.sessionPlotFor("psth_data");
+Dk = epochData(rD.source(S1.sessions.index(1)), spD);
+check(S1.schema == "ephys-analysis-sessions/1" && height(S1.sessions) == 2 && all(S1.sessions.status == "done") && isscalar(S1.results) ...
+    && S1.results(1).R.kind == "psth" && numel(S1.perSession) == 2 && S1.perSession{1}.kind == "psth" && numel(S1.epochs) == 2 ...
+    && ~any(cellfun(@isempty, S1.epochs)) && S1.epochs{1}.identity.label == S1.sessions.label(1) && S1.epochs{2}.identity.label == S1.sessions.label(2) ...
+    && S1.epochs{1}.identity.subject == S1.sessions.subject(1) && isequal(S1.epochs{1}.spikes.counts, Dk.spikes.counts) ...
+    && height(S1.epochs{2}.meta) == numel(S1.perSession{2}.labels) && isequal(S1.sessions.nItems, [numel(S1.perSession{1}.labels); numel(S1.perSession{2}.labels)]) ...
+    && S1.config.name == cfgD.Name && rD.CacheBytes > 0, ...
+    'r.sessionData without Results: computes the sessions'' results and each one''s epochs, labeled and ordered like the sessions table');
+Tl = epochLongTable(S1);
+Tn = epochLongTable(S1, What="counts");
+check(height(Tl) == sum(S1.sessions.nItems) * numel(S1.perSession{1}.t) && isequal(unique(Tl.session).', [1 2]) ...
+    && height(Tn) == sum(cellfun(@(d) numel(d.spikes.counts), S1.epochs)) && all(ismember(unique(Tn.session), S1.sessions.label)), ...
+    'epochLongTable over the real data: values per session-unit and bin, counts per epoch, unit and bin');
+S2 = rD.sessionData("lfp_data");
+nKept = size(S2.epochs{1}.signals.data, 3);
+check(isempty(S2.perSession) && numel(S2.epochs) == 2 && S2.epochs{1}.signals.dims == "time x channel x epoch" ...
+    && nKept == height(S2.epochs{1}.signals.epochs) && size(S2.epochs{2}.signals.data, 2) == height(S2.epochs{2}.meta) ...
+    && strcmp(errorIdOf(@() rD.sessionData("lfp_data", [], MaxMB=1e-6)), 'epochData:TooLarge'), ...
+    'r.sessionData with "signals": the epoched samples of every session; MaxMB refuses them (TooLarge)');
+Tsg = epochLongTable(S2, What="signals");
+check(height(Tsg) == sum(cellfun(@(d) numel(d.signals.data), S2.epochs)), 'epochLongTable signals over the real data: a row per epoch, channel and sample');
+
+outE = fullfile(root, 'outData');
+dataDir = fullfile(outE, 'data');
+cfgE = cfgD;
+[cfgE.Plots.enabled] = deal(false);
+cfgE.Export.Folder = fullfile(outE, "{Name}");
+cfgE.Export.SessionsFolder = fullfile(outE, "sessions");
+cfgE.Export.Formats = "png";
+cfgE.Report.Enabled = false;
+cfgE.Export.Data.Folder = dataDir;
+rOff = EphysAnalysisRunner(cfgE, LogFcn=[]);
+rOff.run(SessionPlots="psth_data");
+check(~isfolder(dataDir) || isempty(dir(fullfile(dataDir, '*.mat'))), 'Export.Data off (the default): no data file is written');
+cfgE.Export.Data.Enabled = true;
+rE = EphysAnalysisRunner(cfgE, LogFcn=[]);
+RE = rE.run(SessionPlots=["psth_data" "lfp_days"]);
+dfile = fullfile(dataDir, "all_psth_data.mat");
+dfile2 = fullfile(dataDir, "all_lfp_days.mat");
+rowsE = RE(startsWith(RE.Dataset, "sessions: "), :);
+L = load(dfile);
+L2 = load(dfile2);
+check(all(rowsE.Status == "done") && isfile(dfile) && isfile(dfile2) && contains(rowsE.Files(rowsE.Plot == "psth_data"), dfile) ...
+    && height(L.sessions) == 2 && L.results(1).R.kind == "psth" && numel(L.perSession) == 2 && numel(L.epochs) == 2 ...
+    && L.epochs{1}.spikes.counts(1) >= 0 && L.sessionPlot.id == "psth_data" && L2.results(1).R.kind == "evoked" && height(L2.sessions) == 2 ...
+    && numel(L2.perSession) == 2 && isempty(L2.epochs) && any(contains(L.results(1).files, "all_psth_data_p1.png")), ...
+    'run with Export.Data.Enabled: <Data.Folder>\all_<id>.mat holds sessions (2 rows), results(1).R, the per-session results and epochs, the figure files');
+cfgE.Export.Overwrite = false;
+RE2 = EphysAnalysisRunner(cfgE, LogFcn=[]).run(SessionPlots="psth_data");
+check(any(contains(RE2.Message, "data file:")) && any(contains(RE2.Message, "exists")), ...
+    'Export.Overwrite off: an existing data file is kept and the run says so in the row''s message');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisRunner:Failures', '%d checks failed.', nFail);
+end
+end
+
+
+function id = errorIdOf(fcn)
+%errorIdOf  The identifier of the error FCN throws ('' when it does not).
+id = '';
+try
+    fcn();
+catch ME
+    id = ME.identifier;
 end
 end
 

@@ -2,7 +2,8 @@
 
 `EphysAnalysisConfig` ([source](../analysis/@EphysAnalysisConfig/EphysAnalysisConfig.m))
 is a value class that describes a set of quick-look figures: which datasets
-to read, how to align them, which plots to draw, and how to export and
+to read, how to align them, which plots to draw (and which to draw
+[across sessions](#session-plots)), and how to export and
 report them. `EphysAnalysisApp` edits one, `EphysAnalysisRunner` runs one and
 `EphysAnalysisScript` writes scripts from one ([Analysis](EphysAnalysis.md)).
 It is saved as JSON (schema `ephys-analysis-config`, version 1) and
@@ -40,13 +41,16 @@ keep the result (`cfg = cfg.addPlot(...)`, `cfg = cfg.save(...)`).
 | `Name`, `Description` | text; `Name` (default `"Untitled"`) fills `{Name}` in the report title |
 | `Source`, `Defaults`, `Export`, `Report` | sections (structs), coerced on assignment |
 | `Plots` | struct array, one entry per plot, in run and report order; a cell array (what `jsondecode` gives for plots whose fields differ) is accepted too |
+| `SessionPlots` | struct array, one entry per [session plot](#session-plots): one plot drawn over several datasets and merged. Its ids are a namespace of their own (`EphysAnalysisConfig:DuplicateSessionPlotId`); a cell array is accepted as for `Plots` |
 | `File`, `LoadWarnings` | transient: where it was loaded from / saved to; the unknown fields `load` dropped |
-| `Schema`, `Version`, `Sections`, `Kinds`, `SpikeSources`, `SignalSources`, `WaveformLocations`, `ListFields` | constants |
+| `Schema`, `Version`, `Sections`, `Kinds`, `SpikeSources`, `SignalSources`, `WaveformLocations`, `ListFields` | constants. The session plots' choices: `SessionKinds` (the plot kinds that can be merged: `psth`, `raster`, `evoked`, `rate`, `tuning`, `behavior`, `heatmap`, `waveforms`), `SessionSeries`, `SessionMatches`, `SessionErrors`, `SessionData`, `SessionTrialGroups`, `SessionFacets`, `SessionColorOrders` |
 | `toStruct()`, `toJson()`, `save(file)` | plain struct; the JSON `save` writes (`Inf` / `-Inf` / `NaN` as `"Inf"` / `"-Inf"` / `"NaN"`) |
 | `EphysAnalysisConfig.load(file)`, `fromStruct(s)` | errors `EphysAnalysisConfig:BadSchema` on another schema or version |
 | `validate(CheckPaths=true)` | issues table `Section, Field, Severity, Message` ([rules](#validation)) |
 | `addPlot(kindOrStruct, Id=)`, `removePlot(id)`, `plotIndex(id)`, `plotIds()`, `enabledPlots()` | the plot list. `[cfg, id] = cfg.addPlot(...)` also returns the plot's id; a plot added without a `source` reads its kind's first (`units`; `LFP` for evoked, `trials` for behavior); `removePlot` of an unknown id is `EphysAnalysisConfig:NoPlot`; `plotIndex` is 0 for one |
 | `plotFor(id)` | a plot (by id or index) with every `"default"` resolved from `Defaults`, `units.source` set to the plot's `source` and an empty layout replaced by the kind's default: what the runner draws |
+| `addSessionPlot(plotIdOrStruct, Id=)`, `removeSessionPlot(id)`, `sessionPlotIndex(id)`, `sessionPlotIds()`, `enabledSessionPlots()` | the session plot list. `[cfg, id] = cfg.addSessionPlot("psth_stim")` (a base plot's id, or a partial session plot struct) returns the new id too, `"<plot>_sessions_<n>"` when none is given; `removeSessionPlot` of an unknown id is `EphysAnalysisConfig:NoSessionPlot`; `sessionPlotIndex` is 0 for one |
+| `sessionPlotFor(idOrIndexOrStruct)` | the *effective spec* of a session plot: `plotFor(sp.plot)` with `enabled = true`, `id = sp.id`, `title` and `layout` replaced when the session plot sets them, and with `trialGroups "pool"` the trial groups cleared (`selection.groupBy = []`, and a tuning or behavior plot's `seriesParam = ""`: the sessions are the series). The session plot's own look travels as `spec.sessionAesthetics`, which `renderPlot` applies after the base plot's `aesthetics`. `EphysAnalysisConfig:NoSessionPlot` for an unknown session plot, `EphysAnalysisConfig:NoPlot` when its base plot does not exist |
 | `isequalConfig(other)` | same values (NaN equal) |
 | `defaults(section)`, `normalizeSection(section, s)`, `normalizePlot(p)`, `plotKinds()` | static: the single source of truth for fields, types and shapes |
 
@@ -54,7 +58,7 @@ Values are coerced to the class and shape of their default on every
 assignment: a one-element list read back from JSON is a list again, `"Inf"`
 is `Inf`, `[]` is an empty list or number. String fields named in
 `ListFields` (`response`, `pairingFlags`, `groupBy`, `classes`, `groups`,
-`Formats`, `Datasets`, `Folders`) stay lists even with one element. Missing
+`Formats`, `Datasets`, `Folders`, `datasetKeys`, `data`) stay lists even with one element. Missing
 fields take their defaults. Unknown fields are dropped: `load` lists them in
 `LoadWarnings` and reports them with the warning
 `EphysAnalysisConfig:LoadWarnings`. Text where a number belongs is
@@ -105,8 +109,16 @@ distinct as file names: `{Plot}` replaces every character outside
                   "stop": { "line": "RespWindow", "edge": "offset", "which": "first", "scope": "trial", "...": "..." } },
       "selection": { "filter": "Hit | Miss", "groupBy": "Depth", "...": "..." },
       "baseline": { "Mode": "subtract", "Window": [-0.5, 0] }, "...": "..." } ],
+  "SessionPlots": [
+    { "id": "psth_days", "enabled": true, "title": "", "plot": "psth_stim", "layout": "overlay",
+      "datasets": "ticked", "datasetKeys": [], "facet": "none", "series": "subject", "colorOrder": "palette",
+      "showMembers": true, "error": "ci95", "match": "site", "mappingFile": "", "minSessions": 2,
+      "trialGroups": "pool", "data": ["results", "epochs"], "aesthetics": [] } ],
   "Export": { "Enabled": true, "Formats": ["png", "svg"], "Folder": "{OutputFolder}\\analysis",
-              "FilenamePattern": "{Name}_{Plot}", "Dpi": 150, "FigureSizeCm": [18, 12], "Overwrite": true },
+              "FilenamePattern": "{Name}_{Plot}", "Dpi": 150, "FigureSizeCm": [18, 12], "Overwrite": true,
+              "SessionsFolder": "{OutputRoot}\\analysis\\sessions",
+              "Data": { "Enabled": false, "Folder": "{OutputRoot}\\analysis\\data",
+                        "FilenamePattern": "{Name}_{Plot}", "MatVersion": "-v7.3" } },
   "Report": { "Enabled": true, "Format": "html", "Title": "{Name}",
               "Folder": "{OutputRoot}\\analysis", "FileName": "analysis_report", "PerDataset": false,
               "EmbedFormat": "png", "Dpi": 110, "IncludeSummary": true, "IncludeParameters": true,
@@ -116,15 +128,16 @@ distinct as file names: `{Plot}` replaces every character outside
 
 The top level holds `schema` and `version`, `name` and `description` (the
 class's `Name` and `Description`), the sections `Source`, `Defaults`,
-`Export` and `Report`, and `Plots`. `save` writes every field of every
-section and plot, pretty-printed (the `"..."` above stand for the rest); a
+`Export` and `Report`, `Plots` and `SessionPlots`. `save` writes every field of every
+section, plot and session plot, pretty-printed (the `"..."` above stand for the rest); a
 file written by hand may leave fields out, and they take their defaults
 when it is loaded. Two things the JSON encoder does that a hand-written
 file need not copy:
 
 - A one-element list is written as a scalar (`"pairingFlags": "ok"`,
   `"groupBy": "Depth"`), and a config with a single plot writes `Plots` as
-  one object instead of an array of one. Both read back correctly.
+  one object instead of an array of one (`SessionPlots` and a session plot's
+  `datasetKeys` and `data` the same). All read back correctly.
 - A plot's `ref`, `window` and `selection` are either the string
   `"default"` or an object of their own, whose missing fields take the
   [building blocks](#building-blocks)' defaults (not the config's
@@ -845,6 +858,94 @@ opacity outside 0-1, or a style or width that is not valid is drawn with the
 default's (Validate reports it); an overlay without a finite position, or a
 patch with equal edges, is not drawn.
 
+## Session plots
+
+A *session plot* draws one plot of [`Plots`](#plots) over several datasets
+(sessions) at once and merges the results
+([Across sessions](EphysAnalysis.md#across-sessions)): the sessions as colors,
+or a mean with an error band across them, or one color per subject. It
+**references** a plot, its *base plot*, and keeps the base plot's event,
+window, trial selection, units, bins, baseline and look; it adds only the
+cross-session settings below. Edit the base plot and every session plot on it
+follows. Session plots are drawn after the datasets' own plots, in a run, and
+have their own tab in the app ([Sessions tab](EphysAnalysisApp.md#sessions-tab)).
+
+```matlab
+[cfg, id] = cfg.addSessionPlot("psth_stim");              % id "psth_stim_sessions_1"
+k = cfg.sessionPlotIndex(id);
+cfg.SessionPlots(k).series = "subject";                   % a color per subject, its sessions averaged
+cfg.SessionPlots(k).showMembers = true;                   % each session faintly under its subject's mean
+cfg.SessionPlots(k).match = "site";                       % units meet on their recording channel
+cfg.SessionPlots(k).data = ["results" "epochs"];          % what Export.Data writes
+```
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `id` | `""` | names the session plot's figure and data files (`{Plot}`); unique among session plots (a namespace of their own: it may equal a plot's id), file-name safe, distinct as a file name once sanitized. Blank: `<plot>_sessions_<n>` |
+| `enabled` | `true` | unticked, it stays in the config but runs do not draw it |
+| `title` | `""` | blank = automatic: the base plot's title with the number of sessions, e.g. *PSTH: Stim onset (3 sessions, 112 epochs)* |
+| `plot` | `""` | the base plot's id. It must exist, be a `psth`, `raster`, `evoked`, `rate`, `tuning`, `behavior`, `heatmap` or `waveforms` plot (not `probemap` or `corrmap`) and not have the auROC baseline (curves are not merged). The base plot's own `enabled` does not gate the session plot |
+| `layout` | `""` | blank = the base plot's layout; else one of its kind's layouts |
+| `datasets` | `"ticked"` | `"ticked"`: the run's datasets (the Data tab's ticks, or `run(Datasets=)`); `"list"`: the datasets of `datasetKeys` |
+| `datasetKeys` | `[]` | `"list"`: the datasets' keys (the Data tab's **Key** column, e.g. `SYNTH-01/260908_103000`); a key no dataset has is left out and logged |
+| `facet` | `"none"` | `"none"`: one figure over every session; `"subject"`: one figure per subject (a name pattern without `SubjectID` leaves the sessions in `(no subject)`), in date order |
+| `series` | `"session"` | what gets a color: `"session"` (a series per session), `"subject"` (a series per subject, its sessions averaged) or `"all"` (one series, every session averaged) |
+| `colorOrder` | `"palette"` | `"palette"`: the design's palette in turn; `"sequential"`: a sequential map in date order (the design's sequential colors), so the days read as a progression |
+| `showMembers` | `false` | series `"subject"` / `"all"`: draw each session faintly under its summary (role `memberLine`). Needs a summary: a warning with series `"session"` |
+| `error` | `"sem"` | series `"subject"` / `"all"`: the band across the sessions averaged: `"sem"`, `"sd"`, `"ci95"` (a *t* interval: the *t* quantile, `tinv`, Statistics and Machine Learning Toolbox, times the SEM; 1.96 × SEM without the toolbox) or `"none"`. NaN with fewer than two sessions. With series `"session"` each series keeps the base plot's own error over its epochs |
+| `match` | `"pool"` | spike sources: how units meet across sessions: `"pool"`, `"site"` or `"mapping"` ([below](#matching-units-across-sessions)). Signals match channels by recording channel; heatmaps and waveforms pool; behavior has no units (a warning when set) |
+| `mappingFile` | `""` | `"mapping"`: the unit-mapping CSV ([format](file-formats.md#unit-mapping-csv)) |
+| `minSessions` | `1` | a tile (site, cell or channel) is drawn only when at least this many sessions have data for it; for pool and behavior, the number of sessions with a result. Fewer is *skipped* (`combineSessions:TooFew`). A whole number >= 1 |
+| `trialGroups` | `"pool"` | the base plot's trial groups (its `groupBy`): `"pool"`, `"each"` or `"combine"` ([below](#trial-groups-across-sessions)) |
+| `data` | `"results"` | what [`Export.Data`](#export) and the app's data buttons hold, a list of `"results"` (each session's own result of the base plot, besides the merged one), `"epochs"` (each session's `epochData`: the epoch table, spike times and binned counts per unit) and `"signals"` (with `"epochs"`, a signal base plot's epoched samples too, which can be large) |
+| `aesthetics` | `[]` | the session plot's own remembered looks (role, group, property, value), applied after the base plot's, so a session figure's edits never change the per-dataset figures |
+
+### Matching units across sessions
+
+`match` decides what a tile of a spike plot (a PSTH or raster unit, a tuning
+curve, a rate-plot unit) is:
+
+| `match` | One tile per | Notes |
+| --- | --- | --- |
+| `"pool"` | session-unit | every session's units, each on a tile of its own, labeled `"<unit> · <session>"`; a tile has values for its own session's series only, NaN for the others. Needs no matching |
+| `"site"` | recording channel with a unit in at least `minSessions` sessions | a session's units on the channel are averaged (their SEM combined as `sqrt(sum(sem.^2))/k`) and, in a raster, their spikes pooled. Assumes the probe sat on the same channels: sites are matched by channel number, and a session whose probe channel map differs from the first's is logged |
+| `"mapping"` | row of the mapping file | the same cell by name; each session's value is its unit id(s) from its column |
+
+Signals (evoked, a signal heatmap, an aux or LFP rate) always match by
+recording channel, and `minSessions` then counts the sessions that hold the
+channel; unit heatmaps and unit waveforms always pool.
+
+The mapping file is a CSV with one row per cell: a column `cell` (its
+name), then one column per dataset key holding that dataset's unit id(s) for
+the cell (`meta.unitId`, the number in the unit's label, `su12`). An id is
+a number, or text such as `3 7` for two units that are averaged; an empty
+field means the cell was not found in that session, which then contributes
+NaN to the tile. A session the file has no column for is
+`combineSessions:Mapping`; Validate warns of it for a session plot that
+lists its datasets.
+
+```text
+cell,SYNTH-01/260908_103000,SYNTH-01/260909_101500
+cellA,42,17
+cellB,8,
+cellC,3 7,5
+```
+
+`readUnitMapping` and `writeUnitMapping` read and write it; the app's
+**Edit...** button opens it in a table ([Sessions tab](EphysAnalysisApp.md#sessions-tab)).
+
+### Trial groups across sessions
+
+A base plot that groups its trials (`groupBy`, e.g. `Depth`) has one series
+per group in each session. `trialGroups` says what the session plot does
+with them:
+
+| `trialGroups` | Result |
+| --- | --- |
+| `"pool"` (default) | the groups are cleared (`sessionPlotFor` sets `selection.groupBy = []`; a tuning or behavior plot's `seriesParam` too): every epoch of a session together, and the series are the sessions (or subjects). Because that spec differs from the base plot's, a run computes the base plot twice per dataset (logged) |
+| `"each"` | the groups are kept, and one figure is made per group, each group merged across the sessions on its own (at most the selection's `maxGroups`). The groups are matched by label (`Depth = 0.5`), not by position, so sessions whose depth sets differ still line up; a session without a group contributes nothing to it. A heatmap keeps the groups as its tiles in one figure |
+| `"combine"` | every group kept in one figure: a series per session (or subject, or all) and trial group, labeled `"<session> · <group>"`, colored by the session or subject and told apart by a line style (`-` `--` `:` `-.` by group), drawn as lines even for a bar PSTH (`sessionPlotFor` sets the effective spec's `histStyle` to `"line"`; a warning for `histStyle "bar"`) |
+
 ## Export
 
 | Field | Default | Meaning |
@@ -855,7 +956,12 @@ patch with equal edges, is not drawn.
 | `FilenamePattern` | `{Name}_{Plot}` | a [file-name pattern](#file-name-tokens): `{Name}` (dataset) `{Plot}` `{Kind}` `{Group}` `{Unit}` `{Index}` `{Date}`; a paged plot adds `_p<page>` unless the pattern tells its pages apart: `{Index}`, or `{Unit}` with a unit filled in (a paged evoked grid's `{Unit}` is `all` on every page) |
 | `Dpi` | 150 | PNG resolution |
 | `FigureSizeCm` | `[18 12]` | figure size `[width height]`; a grid page is made taller when its rows need it: 3 cm a row of tiles (4.5 cm for PSTHs with rasters) plus 1.5 cm |
-| `Overwrite` | `true` | `false`: a page whose files all exist is not written again, nor drawn unless the report needs its image (HTML) or page (PDF) |
+| `Overwrite` | `true` | `false`: a page whose files all exist is not written again, nor drawn unless the report needs its image (HTML) or page (PDF); a session plot's data file is not replaced either (a note in the row's message) |
+| `SessionsFolder` | `{OutputRoot}\analysis\sessions` | where the [session plots'](#session-plots) figures go: a [folder pattern](#file-name-tokens) whose tokens are the first session's (`{OutputFolder}` is one dataset's folder, so a warning there). Named with `FilenamePattern`, `{Name}` being the facet (`all`, or the subject) and `{Plot}` the session plot's id, then `_<trial group>` for `trialGroups "each"` |
+| `Data.Enabled` | `false` | write each session plot's data as a `.mat` file in a run ([format](file-formats.md#session-data-mat)); the app's **To workspace** and **Save .mat...** work either way |
+| `Data.Folder` | `{OutputRoot}\analysis\data` | a folder pattern, as `SessionsFolder` |
+| `Data.FilenamePattern` | `{Name}_{Plot}` | a [file-name pattern](#file-name-tokens); `{Name}` is `all`, `{Plot}` the session plot's id; `.mat` is added. One file per session plot holds every facet and trial group |
+| `Data.MatVersion` | `"-v7.3"` | `"-v7.3"` (HDF5, no 2 GB limit, readable with `h5read` and from Python) or `"-v7"` |
 
 `exportFigure` writes PNG with `exportgraphics` at `Dpi`, PDF and EPS as
 vector graphics (`exportgraphics`, `ContentType="vector"`) and SVG with
@@ -899,6 +1005,11 @@ vector graphics (`exportgraphics`, `ContentType="vector"`) and SVG with
   `figureFileName:BadPattern`.
 - A report over every dataset with `{OutputFolder}` in its folder goes to
   the first dataset's folder (a validation warning).
+- `Export.SessionsFolder` and `Export.Data.Folder` are folder patterns too,
+  with the first session's tokens. In a session plot's figure or data file
+  name, `{Name}` is the facet (`all`, or the subject) and `{Plot}` the session
+  plot's id; `{Group}` and `{Index}` are as for a plot, and a trial group of
+  `trialGroups "each"` is added after the page as `_<group>`.
 
 With the defaults, a PSTH `psth_stim` of dataset `SYNTH-01_260918_101500`
 with 20 units and 16 tiles per page is written as
@@ -919,10 +1030,13 @@ with 20 units and 16 tiles per page is written as
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
 | Defaults, Plots | the event reference, window and selection are valid: known values, `n` a whole number >= 1, `0 <= minDurationSec <= maxDurationSec`, `timeRange` ordered, a finite `offsetSec`, `offsetParamUnit` ms or s, each sequence step's relation, line, edge, `n`, positive `maxGapSec` and lengths, an `alignStep` of 0, `Inf` or a followedBy step (the stop's and each raster-mark sequence's too), finite `pre` and `post`, `pre <= post` in a fixed window, a stop event in a `"between"` window, known response words and pairing flags, at most 2 distinct `groupBy` parameters, `maxGroups` and `trials` whole numbers >= 1 | error |
 | Defaults, Plots | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
-| Plots | at least one enabled; ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; `measure` rate / count / probability; tuning names its parameter; behavior names `param` and `yParam` (`"stop"` with a stop event), its `xScale` is category / linear and the violin layout has `violinplot`; a psth / raster `rasterSortOrder` ascending / descending, a `rasterSortEvent` (a valid event reference) with `rasterSort "event"`, and `rasterEvents` edge, scope, marker and a positive size; `BinSec > 0`, `SmoothSec >= 0` where bins are used; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak / allPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order (`"modulation"` only with the auROC baseline); the auROC settings (method, windows, whole-bin window and step, call window, cutoff, threshold, test, `nResamples`, correction, alpha, `modulatedOnly` with a cutoff) and the toolbox they need; corrmap metric and correlation; `maxUnits >= 1`; an enabled response test of spikes: its test, `param` for tuning / either / both, `baseline` and `window` ordered, direction, correction, alpha in (0, 1], the auROC settings of a test `"auroc"` (with a cutoff) and the Statistics and Machine Learning Toolbox; a `waveform` mode off / mean / subsample / both and, when not off, its location, `scale` in (0, 3] and a whole `maxSpikes >= 1`; an `aux` mode off / channels / magnitude and, when not off, its `placement` below / above / over, `display` lines / stacked / heatmap, `statistic` mean / median, `transform` none / rectify, `colorBy` auto / group / channel, `errorType` off / sem / std / ci95 / iqr (`ci95` and `iqr` need the Statistics and Machine Learning Toolbox), whole `channels >= 1`, `baseline` none / subtract and, when subtracting, a `baselineWindow` `[b0 b1]` with `b0 < b1` that overlaps the epoch window; for a note with text, its `placement`, `align`, `valign`, `interpreter`, a numeric `rotation`, a positive or `NaN` `fontSize`, and `x` and `y` for `"custom"`; for each overlay, its `shape` line / region, `axis` x / y, a finite `value` (line) or two finite, different `from` and `to` (region), `panel` all / data / raster, `layer` over / under, a `lineStyle` among `-` `--` `:` `-.`, a positive `lineWidth` and `alpha` and `faceAlpha` within 0-1; `MaxTiles >= 1`, `TileSpacing` loose / compact / tight / none, `FontSize`, `LineWidth`, `SiteSize` positive; `ErrorType` sem / std / ci95 (`ci95` needs the Statistics and Machine Learning Toolbox where the plot draws it), a whole `ErrorResamples >= 1`, `ErrorFaceAlpha` 0-1 or NaN, `ErrorEdgeStyle` among `-` `--` `:` `-.`, a positive `ErrorEdgeWidth` | error |
+| Plots | at least one plot or session plot enabled; ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; `measure` rate / count / probability; tuning names its parameter; behavior names `param` and `yParam` (`"stop"` with a stop event), its `xScale` is category / linear and the violin layout has `violinplot`; a psth / raster `rasterSortOrder` ascending / descending, a `rasterSortEvent` (a valid event reference) with `rasterSort "event"`, and `rasterEvents` edge, scope, marker and a positive size; `BinSec > 0`, `SmoothSec >= 0` where bins are used; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak / allPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order (`"modulation"` only with the auROC baseline); the auROC settings (method, windows, whole-bin window and step, call window, cutoff, threshold, test, `nResamples`, correction, alpha, `modulatedOnly` with a cutoff) and the toolbox they need; corrmap metric and correlation; `maxUnits >= 1`; an enabled response test of spikes: its test, `param` for tuning / either / both, `baseline` and `window` ordered, direction, correction, alpha in (0, 1], the auROC settings of a test `"auroc"` (with a cutoff) and the Statistics and Machine Learning Toolbox; a `waveform` mode off / mean / subsample / both and, when not off, its location, `scale` in (0, 3] and a whole `maxSpikes >= 1`; an `aux` mode off / channels / magnitude and, when not off, its `placement` below / above / over, `display` lines / stacked / heatmap, `statistic` mean / median, `transform` none / rectify, `colorBy` auto / group / channel, `errorType` off / sem / std / ci95 / iqr (`ci95` and `iqr` need the Statistics and Machine Learning Toolbox), whole `channels >= 1`, `baseline` none / subtract and, when subtracting, a `baselineWindow` `[b0 b1]` with `b0 < b1` that overlaps the epoch window; for a note with text, its `placement`, `align`, `valign`, `interpreter`, a numeric `rotation`, a positive or `NaN` `fontSize`, and `x` and `y` for `"custom"`; for each overlay, its `shape` line / region, `axis` x / y, a finite `value` (line) or two finite, different `from` and `to` (region), `panel` all / data / raster, `layer` over / under, a `lineStyle` among `-` `--` `:` `-.`, a positive `lineWidth` and `alpha` and `faceAlpha` within 0-1; `MaxTiles >= 1`, `TileSpacing` loose / compact / tight / none, `FontSize`, `LineWidth`, `SiteSize` positive; `ErrorType` sem / std / ci95 (`ci95` needs the Statistics and Machine Learning Toolbox where the plot draws it), a whole `ErrorResamples >= 1`, `ErrorFaceAlpha` 0-1 or NaN, `ErrorEdgeStyle` among `-` `--` `:` `-.`, a positive `ErrorEdgeWidth` | error |
 | Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a color (the default is used); a `rasterEvents.color` that is not a color (each mark gets its own); a `waveform` mode on a plot that draws no unit tiles (an overlay, a plot of signals, a kind other than raster / psth / tuning / waveforms); an `aux` mode on a plot other than a psth or raster of spikes; `aux.placement "over"` on a stacked PSTH or with a heat map (drawn below); an `aux.errorType` other than off with a heat map (no band is drawn), or `"sem"` / `"std"` with the median; a note's `color` or `background` that is not a color (left to the design); an overlay's `color`, `faceColor` or `edgeColor` that is not a color (its default is drawn); an overlay's raster or data `panel` on a plot that draws no such panel (nothing is drawn); two overlays of a plot with one `name`; an `ErrorFaceColor` or `ErrorEdgeColor` that is not a color | warning |
-| Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi` positive; `FigureSizeCm` two positive numbers; the folder and file-name patterns use known tokens, and the file-name pattern is not empty | error |
+| SessionPlots | the id is not empty, has no `\ / : * ? " < > \|`, and stays distinct from the other session plots' once sanitized (case-blind); `datasets`, `facet`, `series`, `colorOrder`, `error`, `match` and `trialGroups` are known values and `data` holds only `results`, `epochs` and `signals`; `minSessions` a whole number >= 1; `match "mapping"` has a mapping file that exists (with `CheckPaths`), that reads and has a `cell` column; the base plot exists, is a kind that can be merged (`SessionKinds`) and has no auROC baseline; the `layout` fits its kind | error |
+| SessionPlots | `datasets "list"` with no `datasetKeys`; a mapping file with no column for a listed dataset key; `match` other than `"pool"` on a plot of signals, a heatmap, a waveforms or a behavior plot (ignored); a tuning or behavior plot's `seriesParam` with `trialGroups "pool"` (replaced by the sessions); `showMembers` with `series "session"`; `"combine"` on a PSTH drawn as bars (drawn as lines); a heatmap with `series` other than `"all"` (its rows are the session-units, or the channels averaged: ignored) | warning |
+| Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi` positive; `FigureSizeCm` two positive numbers; the folder and file-name patterns use known tokens, and the file-name pattern is not empty; `SessionsFolder` and `Data.Folder` are folder patterns, `Data.FilenamePattern` a file-name pattern, and `Data.MatVersion` is `-v7.3` or `-v7` | error |
 | Export | a file-name pattern without `{Plot}` while several plots are enabled (`{Kind}` is enough when the enabled plots all differ in kind); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |
+| Export | `{OutputFolder}` in `SessionsFolder` or `Data.Folder`: it is one dataset's folder, so the session plots' files go to the first dataset's | warning |
 | Report | Format html / pdf / both, EmbedFormat png / svg, `Dpi` positive, a plain `FileName`, the folder pattern | error |
 | Report | `{OutputFolder}` in a report over every dataset | warning |
 
@@ -941,7 +1055,13 @@ fields, events shifted by a parameter, the error settings), `plotFor`, `removePl
 of partial plots, every validate rule (ids and patterns whose files would
 collide, the auROC baseline and response test, behavior plots, the
 raster's sort event and raster marks, the aux signal and the error settings included), `LoadWarnings`, `BadSchema`, `BadValue`,
-`figureFileName` and `plotFileName`'s page suffix.
+`figureFileName` and `plotFileName`'s page suffix; and session plots: the defaults
+(none; `Export.SessionsFolder`, `Export.Data` off, `-v7.3`), `addSessionPlot`'s
+ids, `removeSessionPlot`, `enabledSessionPlots`, `DuplicateSessionPlotId`, a cell
+of partial session plots, the JSON round trip (a one-key list stays a list; a
+config file without `SessionPlots` loads with none and no warning), `sessionPlotFor`
+(the overrides, `"pool"` clearing the groups and a tuning plot's series, `"each"`
+keeping them, `sessionAesthetics`) and every session-plot validate rule.
 
 <!-- wiki
 ## Related

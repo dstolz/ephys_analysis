@@ -40,7 +40,11 @@ function test_EphysAnalysisApp()
 %   of date after an edit of what is computed, a display edit redrawing,
 %   a spectrogram over the whole recording, Save results and Save
 %   figure, the local cache: a file created there and found once the
-%   output folder's is gone); closing. The app's preferences live in a
+%   output folder's is gone); the Sessions tab (Add on a base plot, the
+%   editor's rows and its gather / apply round trip, a preview over both
+%   datasets, Out of date after a base-plot edit, the toolbar's Preview
+%   and Help there, Browse for a mapping file, Remove, its preferences
+%   restored by a new app); closing. The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
 %   Usage:  test_EphysAnalysisApp
@@ -77,9 +81,9 @@ check(numel(F.names) == 2, 'two datasets run through the pipeline');
 fprintf('\n== 1. build, open the project, scan ==\n');
 app = EphysAnalysisApp(F.proj);
 appCleanup = onCleanup(@() closeApp(app));
-check(isvalid(app.Fig) && numel(app.Tabs.Children) == 6 && app.Tabs.Children(1) == app.TabData ...
-    && app.Tabs.Children(5) == app.TabChronux && app.Tabs.Children(6) == app.TabLog, ...
-    'the app has the Data, Alignment, Plots, Export, Chronux and Log tabs');
+check(isvalid(app.Fig) && numel(app.Tabs.Children) == 7 && app.Tabs.Children(1) == app.TabData ...
+    && app.Tabs.Children(4) == app.TabSessions && app.Tabs.Children(6) == app.TabChronux && app.Tabs.Children(7) == app.TabLog, ...
+    'the app has the Data, Alignment, Plots, Sessions, Export, Chronux and Log tabs');
 T = app.DatasetsTable.Data;
 check(~isempty(app.Runner) && height(T) == 2 && all(T.Run) && isequal(sort(T.Name), sort(F.names(:))) ...
     && all(T.LFP == "✓") && all(T.Behavior == "✓"), 'the project root was scanned: both datasets, ticked, with LFP and behavior');
@@ -1134,13 +1138,257 @@ check(app.ChronuxFileWhere == "cache" && app.ChronuxFile == o2.file && contains(
 app.Tabs.SelectedTab = app.TabData;
 if chronuxPath ~= ""; rmpath(chronuxPath); end
 
+fprintf('\n== 5c. the Sessions tab ==\n');
+app.selectTab(app.TabSessions);
+SE = app.SessionEditor;
+check(isempty(app.Config.SessionPlots) && isempty(app.SessionList.Items) && app.SessionPreviewState == "idle" ...
+    && isequal(string(app.AddSessionBaseDropDown.ItemsData), ["psth_1" "evoked_1"]) && app.RemoveSessionButton.Enable == "off" ...
+    && ~shown(SE.id) && shown(SE.note) && endsWith(app.helpURL("tab"), "#sessions-tab") ...
+    && startsWith(string(app.SessionCountLabel.Text), "Sessions: 2 ticked"), ...
+    'the Sessions tab: no session plot yet, the PSTH and the evoked plot offered as bases, two datasets ticked; Help goes to its section');
+app.AddSessionBaseDropDown.Value = "psth_1";
+app.onAddSessionPlot();
+sp = app.Config.SessionPlots;
+check(isscalar(sp) && sp.plot == "psth_1" && sp.id == "psth_1_sessions_1" && app.SelectedSessionPlot == 1 ...
+    && string(app.SessionList.Items{1}) == "psth_1_sessions_1  (psth_1)" && string(SE.id.Value) == sp.id ...
+    && string(SE.plot.Value) == "psth_1" && string(SE.layout.Value) == "base" && startsWith(string(SE.kind.Text), "PSTH") ...
+    && startsWith(app.Fig.Name, "*") && app.RemoveSessionButton.Enable == "on", ...
+    'Add makes psth_1_sessions_1 on the chosen base plot, listed and shown in the editor; the config is unsaved');
+grouped = ~isempty(app.Config.plotFor("psth_1").selection.groupBy);
+check(shown(SE.series) && shown(SE.match) && shown(SE.minSessions) && ~shown(SE.showMembers) && ~shown(SE.error) ...
+    && ~shown(SE.datasetKeys) && ~shown(SE.mappingFile) && shown(SE.trialGroups) == grouped && ~shown(SE.dataSignals) ...
+    && shown(SE.toWorkspace) && SE.toWorkspace.Enable == "on", ...
+    'a PSTH of units shows the matching rows, not the summary''s, the keys, the mapping file or the signals box');
+SE.series.Value = "all";
+SE.error.Value = "sd";
+SE.showMembers.Value = true;
+SE.minSessions.Value = 2;
+SE.title.Value = 'Across days';
+SE.dataEpochs.Value = true;
+SE.match.Value = "mapping";
+app.onConfigChanged("sessions");
+sp = app.Config.SessionPlots(1);
+check(sp.series == "all" && sp.error == "sd" && sp.showMembers && sp.minSessions == 2 && sp.title == "Across days" ...
+    && isequal(sp.data, ["results" "epochs"]) && sp.match == "mapping" && shown(SE.showMembers) && shown(SE.error) ...
+    && shown(SE.mappingFile) && shown(SE.editMapping), ...
+    'edits reach the session plot; one mean shows the faint sessions and the error band, mapping the file row');
+mapFile = string(fullfile(root, 'unit_mapping.csv'));
+writelines(["cell," + strjoin(app.Runner.Keys, ","), "cellA,1,1"], mapFile);
+app.onBrowseUnitMapping(mapFile);
+check(app.Config.SessionPlots(1).mappingFile == mapFile && string(SE.mappingFile.Value) == mapFile, ...
+    'Browse (a file given) puts the mapping file in the editor and the session plot');
+s1 = app.gatherConfig();
+app.applyConfig(s1);
+s2 = app.gatherConfig();
+check(s1.isequalConfig(s2) && isequaln(s1.SessionPlots, s2.SessionPlots) && string(SE.series.Value) == "all" ...
+    && SE.minSessions.Value == 2 && string(SE.mappingFile.Value) == mapFile, ...
+    'gatherConfig -> applyConfig -> gatherConfig keeps the session plot and the editor''s values');
+SE.series.Value = "session";
+SE.match.Value = "pool";
+SE.minSessions.Value = 1;
+app.onConfigChanged("sessions");
+check(~shown(SE.showMembers) && ~shown(SE.error) && ~shown(SE.mappingFile), ...
+    'a color per session and pooled units hide the summary rows and the mapping file again');
+app.refreshSessionPreview();
+res = app.SessionPreviewResults;
+drawn = app.SessionPreviewState == "drawn" && string(app.SessionPreviewBadge.Text.Text) == "Drawn" && isscalar(res) ...
+    && res(1).status == "done";
+if drawn
+    R = res(1).R;
+    drawn = height(R.sessions) == 2 && height(R.groups) == 2;
+end
+nRate = numel(findall(app.SessionPreviewPanel, 'Tag', 'rate'));
+check(drawn && nRate >= 2 && isempty(findall(app.SessionPreviewPanel, 'Tag', 'previewBusyCard')) ...
+    && isempty(app.Runner.PollFcn) && string(app.Fig.Pointer) == "arrow" && app.SessionGroupDropDown.Parent.Visible == "off" ...
+    && contains(string(app.SessionPreviewLabel.Text), "over 2 of 2 session"), ...
+    sprintf('Preview computes psth_1 on both datasets and draws them merged, a color each (%d rate lines); one figure', nRate));
+ctx = getappdata(app.SessionPreviewPanel, PlotAesthetics.ContextKey);
+kP = app.Config.plotIndex("psth_1");
+baseLook = app.Config.Plots(kP).aesthetics;
+ctx.onRemember(look);
+check(isstruct(ctx) && isscalar(app.Config.SessionPlots(1).aesthetics) && app.Config.SessionPlots(1).aesthetics.value == 0.4 ...
+    && isequaln(app.Config.Plots(kP).aesthetics, baseLook) && app.SessionPreviewResults(1).R.spec.sessionAesthetics.value == 0.4, ...
+    'a look remembered from the session preview goes to the session plot, not to its base plot');
+app.onPlotSelected(kP);
+app.PlotEditor.smoothMs.Value = app.PlotEditor.smoothMs.Value + 5;
+app.onConfigChanged("plot");
+check(app.SessionPreviewState == "stale" && string(app.SessionPreviewBadge.Text.Text) == "Out of date" ...
+    && app.Tabs.SelectedTab == app.TabSessions, 'an edit of the base plot leaves the session preview Out of date (Auto is off)');
+clickTool(app, "preview");
+check(app.Tabs.SelectedTab == app.TabSessions && app.SessionPreviewState == "drawn" ...
+    && ~isempty(findall(app.SessionPreviewPanel, 'Tag', 'rate')), ...
+    'the toolbar''s Preview on the Sessions tab previews the session plot there');
+% --- Duplicate, Up, Down ---------------------------------------------------------------------
+app.onDuplicateSessionPlot();
+P = app.Config.SessionPlots;
+origId = P(1).id;
+copyId = P(2).id;
+check(numel(P) == 2 && copyId ~= origId && P(2).plot == P(1).plot && P(2).minSessions == P(1).minSessions && P(2).title == P(1).title ...
+    && app.SelectedSessionPlot == 2 && string(SE.id.Value) == copyId && string(app.SessionList.Items{2}) == copyId + "  (psth_1)" ...
+    && app.UpSessionButton.Enable == "on" && app.DownSessionButton.Enable == "off", ...
+    'Duplicate copies the session plot under a new id, right after it, and selects the copy');
+app.onMoveSessionPlot(-1);
+check(isequal([app.Config.SessionPlots.id], [copyId origId]) && app.SelectedSessionPlot == 1 && string(SE.id.Value) == copyId ...
+    && app.UpSessionButton.Enable == "off" && app.DownSessionButton.Enable == "on" && startsWith(string(app.SessionList.Items{1}), copyId), ...
+    'Up moves the selected session plot up the list, and it stays selected');
+app.onMoveSessionPlot(-1);   % already first: nothing
+app.onMoveSessionPlot(1);
+check(isequal([app.Config.SessionPlots.id], [origId copyId]) && app.SelectedSessionPlot == 2 && string(SE.id.Value) == copyId ...
+    && app.DownSessionButton.Enable == "off", 'Down moves it back; Up on the first and Down on the last change nothing');
+app.onRemoveSessionPlot();
+check(isscalar(app.Config.SessionPlots) && app.Config.SessionPlots(1).id == origId && app.SelectedSessionPlot == 1, ...
+    'Remove takes the copy away');
+
+% --- the figure box: a figure per trial group ---------------------------------------------------
+SE.trialGroups.Value = "each";
+app.onConfigChanged("sessions");
+app.refreshSessionPreview();
+res = app.SessionPreviewResults;
+dd = app.SessionGroupDropDown;
+check(grouped && numel(res) >= 2 && numel(dd.ItemsData) == numel(res) && dd.Parent.Visible == "on" && app.SessionPreviewState == "drawn", ...
+    sprintf('trial groups "a figure per group" on a base plot grouped by Depth: the figure box lists %d figures', numel(res)));
+app.onSessionGroupChanged(2);
+check(app.SessionPreviewIndex == 2 && ~isempty(findall(app.SessionPreviewPanel, 'Tag', 'rate')), ...
+    'picking the second figure draws it from the results already computed');
+SE.trialGroups.Value = "pool";
+app.onConfigChanged("sessions");
+
+% --- Pick datasets ---------------------------------------------------------------------------
+keys = reshape(string(app.Runner.Keys), 1, []);
+SE.datasets.Value = "list";
+app.onConfigChanged("sessions");
+check(app.Config.SessionPlots(1).datasets == "list" && shown(SE.datasetKeys) && shown(SE.pickDatasets) ...
+    && startsWith(string(app.SessionCountLabel.Text), "Sessions: 0 listed"), ...
+    '"These datasets" shows the keys box and Pick..., and no dataset is listed yet');
+app.onPickSessionDatasets(Keys=keys(2));
+check(isequal(app.Config.SessionPlots(1).datasetKeys, keys(2)) && string(SE.datasetKeys.Value) == keys(2) ...
+    && startsWith(string(app.SessionCountLabel.Text), "Sessions: 1 listed"), ...
+    'Pick (keys given) writes datasetKeys into the editor and the config; the sessions line follows');
+tm = answerDialog('Pick the datasets', @(D) press(D, ["All" "Ok"]));
+app.onPickSessionDatasets();
+delete(tm);
+T = app.Runner.sessionTable();
+check(isequal(app.Config.SessionPlots(1).datasetKeys, reshape(T.key, 1, [])) && startsWith(string(app.SessionCountLabel.Text), "Sessions: 2 listed"), ...
+    'the Pick window (answered by a timer): All, then OK, lists both datasets in date order');
+tm = answerDialog('Pick the datasets', @(D) press(D, ["None" "Cancel"]));
+app.onPickSessionDatasets();
+delete(tm);
+check(numel(app.Config.SessionPlots(1).datasetKeys) == 2, 'Cancel in the Pick window changes nothing');
+tm = answerDialog('Pick the datasets', @(D) press(D, ["None" "Ok"]));
+app.onPickSessionDatasets();
+delete(tm);
+check(isempty(app.Config.SessionPlots(1).datasetKeys) && isempty(SE.datasetKeys.Value), 'None, then OK, lists no dataset');
+app.onPickSessionDatasets(Keys=keys);
+
+% --- Edit mapping ------------------------------------------------------------------------------
+oldMap = string(fullfile(root, 'unit_mapping_edit.csv'));
+extra = "OTHER/260101_000000";
+writelines(["cell," + strjoin(keys, ",") + "," + extra, "cellA,1,2,X1", "cellB,3 4,,X2"], oldMap);
+tm = answerDialog('Unit mapping: unit_mapping_edit.csv', @editMappingDialog);
+app.onEditUnitMapping(File=oldMap);
+delete(tm);
+M = readUnitMapping(oldMap);
+check(isequal(string(M.Properties.VariableNames), ["cell" keys extra]) && isequal(string(M.cell), ["cellA"; "cellC"]) ...
+    && isequaln(M.(keys(1)), [5; NaN]) && isequaln(M.(keys(2)), [NaN; 9]) && M.(extra)(1) == "X1" && ismissing(M.(extra)(2)) ...
+    && app.Config.SessionPlots(1).mappingFile == oldMap && string(SE.mappingFile.Value) == oldMap, ...
+    'Edit mapping (the window answered by a timer): edit a field, add a row, remove a row, Save; the other dataset''s column is kept for the cell that stayed');
+noneMap = oldMap + ".new.csv";
+app.onEditUnitMapping(File=noneMap, Table=table(["x"; "y"], [10; NaN], ["3 7"; "8"], 'VariableNames', {'cell', char(keys(1)), char(keys(2))}));
+M2 = readUnitMapping(noneMap);
+check(isequal(string(M2.cell), ["x"; "y"]) && isequaln(M2.(keys(1)), [10; NaN]) && isequal(string(M2.(keys(2))), ["3 7"; "8"]) ...
+    && app.Config.SessionPlots(1).mappingFile == noneMap && string(SE.mappingFile.Value) == noneMap, ...
+    'Edit mapping (a table given) writes it straight away, as readUnitMapping reads it back, and puts the file in the editor');
+delete(noneMap);
+bad = false;
+try
+    app.onEditUnitMapping(File=oldMap, Table=table(["x"; "x"], [1; 2], [3; 4], 'VariableNames', {'cell', char(keys(1)), char(keys(2))}));
+catch ME
+    bad = ME.identifier == "EphysAnalysisApp:UnitMapping";
+end
+check(bad && height(readUnitMapping(oldMap)) == 2, 'a mapping with two cells of one name is refused and the file is left as it was');
+
+% --- a session plot that matches by the mapping ---------------------------------------------------
+pspec = app.Config.sessionPlotFor(app.Config.SessionPlots(1).id);
+ids = cell(1, 2);
+for j = 1:2
+    [~, meta] = selectUnits(app.Runner.source(app.Runner.index(keys(j))), pspec.units, Ref=pspec.ref, Selection=pspec.selection);
+    ids{j} = meta.unitId(1:min(2, height(meta)));
+end
+nCells = min(numel(ids{1}), numel(ids{2}));
+cellNames = "cell" + string(char('A' + (0:nCells - 1)).');
+mapFile = string(fullfile(root, 'unit_mapping_ids.csv'));
+app.onEditUnitMapping(File=mapFile, Table=table(cellNames, ids{1}(1:nCells), ids{2}(1:nCells), 'VariableNames', {'cell', char(keys(1)), char(keys(2))}));
+check(nCells >= 2 && app.Config.SessionPlots(1).mappingFile == mapFile, ...
+    sprintf('a mapping of %d cells, the first units of each dataset, written for the session plot', nCells));
+SE.datasets.Value = "ticked";
+SE.match.Value = "mapping";
+app.onConfigChanged("sessions");
+app.refreshSessionPreview();
+res = app.SessionPreviewResults;
+ok = app.SessionPreviewState == "drawn" && isscalar(res) && res(1).status == "done";
+if ok
+    R = res(1).R;
+    ok = R.tiles.match == "mapping" && isequal(string(R.meta.cell), cellNames) && all(R.tiles.nUnits(:) == 1) && size(R.rate, 2) == nCells;
+end
+check(ok && ~isempty(findall(app.SessionPreviewPanel, 'Tag', 'rate')), ...
+    'a session plot with match "mapping" previews over the fixture with that CSV: a tile per cell, one unit of each dataset on it');
+SE.match.Value = "pool";
+app.onConfigChanged("sessions");
+
+% --- the data buttons -----------------------------------------------------------------------------
+sid = app.Config.SessionPlots(1).id;
+vname = string(matlab.lang.makeValidName("sessions_" + sid));
+S = app.onSessionsToWorkspace(sid, Variable=vname);
+W = evalin('base', char(vname));
+evalin('base', "clear " + vname);
+check(isstruct(S) && isstruct(W) && W.schema == "ephys-analysis-sessions/1" && height(W.sessions) == 2 && ~isempty(W.epochs) ...
+    && W.results(1).R.kind == "psth", 'To workspace puts sessions_<id> in the base workspace: the merged and per-session results, and the epochs');
+dataFile = string(fullfile(root, 'sessions_data.mat'));
+out = app.onSaveSessionData(sid, File=dataFile);
+L = load(dataFile);
+check(out == dataFile && isfield(L, 'schema') && L.schema == "ephys-analysis-sessions/1" && height(L.sessions) == 2 && numel(L.results) == 1, ...
+    'Save .mat (a file given) writes the data; load gives schema, sessions and results');
+
+% --- the Export tab shows the session figures -------------------------------------------------------
+R = app.onRunExport(Plots="psth_1");
+row = find(startsWith(string(R.Dataset), "sessions: "));
+T = app.ResultsTable.Data;
+files = string.empty;
+if isscalar(row)
+    files = split(R.Files(row), "; ");
+    files = files(endsWith(files, ".png"));
+end
+check(isscalar(row) && R.Status(row) == "done" && ~isempty(files) && isfile(files(1)) && contains(files(1), sid) ...
+    && height(T) == height(R) && all(ismember(["Subject" "Date"], string(T.Properties.VariableNames))) ...
+    && T.Subject(string(T.Dataset) == R.Dataset(row)) == "" && T.Date(string(T.Dataset) == R.Dataset(row)) == "", ...
+    'a run with a session plot: a "sessions: ..." row with its figure, and the results table shows it without a subject or date');
+check(~isempty(files) && contains(string(app.OpenFolderButton.Tooltip), string(fileparts(files(1)))), ...
+    'Open figure folder''s tooltip names the sessions folder');
+app.SessionAutoCheckBox.Value = true;
+app.onSessionAutoPreviewToggled();   % keeps the preference; draws now
+app.onSessionSectionToggled("data");
+app.savePreferences();
+saved = isequal(AppPrefs.getpref(g, 'SessionAutoPreview'), true) ...
+    && isequal(string(AppPrefs.getpref(g, 'SessionSectionsCollapsed')), "data");
+check(saved && app.SessionPreviewState == "drawn" && ~app.SessionSections([app.SessionSections.Name] == "data").Expanded, ...
+    'Auto and a collapsed section of the Sessions tab are kept as preferences');
+app.onRemoveSessionPlot();
+check(isempty(app.Config.SessionPlots) && isempty(app.SessionList.Items) && app.SessionPreviewState == "idle" ...
+    && ~shown(SE.id) && app.RemoveSessionButton.Enable == "off", 'Remove takes the session plot away; the editor and preview are empty');
+app.onSaveConfig();
+app2 = EphysAnalysisApp();
+restored = app2.SessionAutoCheckBox.Value && ~app2.SessionSections([app2.SessionSections.Name] == "data").Expanded ...
+    && app2.SessionSections([app2.SessionSections.Name] == "sessions").Expanded;
+closeApp(app2);
+check(~startsWith(app.Fig.Name, "*") && restored, 'a new app restores the Sessions tab''s Auto and collapsed section');
+app.Tabs.SelectedTab = app.TabData;
+
 fprintf('\n== 6. close ==\n');
 app.savePreferences();
 check(strcmp(AppPrefs.getpref(g, 'LastConfigFile'), cfgFile) && isequal(string(AppPrefs.getpref(g, 'PlotSectionsCollapsed')), "bins"), ...
     'the last config and the collapsed plot-editor section are remembered');
 app.onShowEpochs("plot");
 dz = app.EpochDiagramWindow;
-dbg_cfgdiff(app);
 app.onClose();
 check(~isvalid(app.Fig) && ~dz.isOpen(), 'Close (clean config) closes the window, and the epoch diagram with it');
 
@@ -1155,6 +1403,54 @@ function clickTool(app, tag)
 %clickTool  Run the toolbar tool TAG's callback as a click would.
 t = findobj(app.Toolbar.Children, 'flat', 'Tag', tag);
 t.ClickedCallback(t, []);
+end
+
+
+function t = answerDialog(name, fcn)
+%answerDialog  Answer the modal window NAME from a timer, as a user would: FCN(UserData) gets its controls.
+%   The window is created inside the call under test (which waits in uiwait);
+%   the timer looks for it every half second and runs FCN once. A failing FCN
+%   closes the window, so the call under test returns instead of waiting.
+t = timer('ExecutionMode', 'fixedSpacing', 'Period', 0.5, 'StartDelay', 0.5, 'TasksToExecute', 240, ...
+    'TimerFcn', @(tm, ~) answerTick(tm, name, fcn));
+start(t);
+end
+
+
+function answerTick(tm, name, fcn)
+f = findall(0, 'Type', 'figure', 'Name', name);
+if isempty(f) || ~isstruct(f(1).UserData); return; end   % not built yet: the window sets its UserData last
+stop(tm);
+try
+    fcn(f(1).UserData);
+catch ME
+    fprintf(2, '  (the answer to "%s" failed: %s)\n', name, ME.message);
+    delete(f);
+end
+end
+
+
+function press(D, names)
+%press  Push the buttons NAMES of a window's controls D, one after the other.
+for n = reshape(string(names), 1, [])
+    D.(n).ButtonPushedFcn(D.(n), []);
+end
+end
+
+
+function editMappingDialog(D)
+%editMappingDialog  In the Unit mapping window: change cellA's first id, give cellA no id in the second dataset, add cellC (id 9 in the second), remove cellB, Save.
+X = D.Table.Data;
+X{1, 2} = '5';
+X{1, 3} = '';
+D.Table.Data = X;
+press(D, "Add");
+X = D.Table.Data;
+X{3, 1} = 'cellC';
+X{3, 3} = '9';
+D.Table.Data = X;
+D.Table.CellSelectionCallback(D.Table, struct('Indices', [2 1]));
+press(D, ["Remove" "Save"]);
 end
 
 

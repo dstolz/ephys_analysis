@@ -3,7 +3,10 @@ function test_PlotAesthetics()
 %   No recording is needed: seeded Poisson spike trains make PSTH, rate,
 %   tuning, heatmap, correlation and probe-map results. Checks the rules
 %   (normalizeRules, mergeRules, colors as text), that every renderer
-%   tags everything it draws (no component without a role), that renderPlot
+%   tags everything it draws (no component without a role) -- results
+%   merged across sessions too (combineSessions: every kind and layout,
+%   member lines, line styles, session dividers, session colors, the
+%   caption's sessions clause) -- that renderPlot
 %   applies the user's rules and then the plot's (and UserAesthetics=false
 %   skips the user's), the right-click menu (only in a visible figure, or
 %   with Editable=true), the editor (PlotAestheticsDialog: live edits, Apply
@@ -244,6 +247,183 @@ check(isequal(h.layout.OuterPosition, [0 0 1 1]) && isempty(h.note) && isempty(f
     && isempty(findall(fig, 'Tag', 'note')), 'drawing the layout again without a note takes the old note and its band away');
 h = renderPlot(Rp, struct('kind', "psth", 'note', struct('text', "   ")), fig);
 check(isempty(h.note) && isempty(findall(fig, 'Tag', 'noteHost')), 'a note of blanks draws nothing');
+
+fprintf('\n== 2c. results merged across sessions (combineSessions) ==\n');
+S3 = sessionTable(["SYNTH-01_260908_103000"; "SYNTH-01_260909_101500"; "SYNTH-02_260910_090000"], ...
+    ["SYNTH-01/260908_103000"; "SYNTH-01/260909_101500"; "SYNTH-02/260910_090000"]);
+Ep = E; Ep.groupIndex(:) = 1; Ep.group(:) = G.label(1);
+Ev1 = Ev; Ev1.groupIndex(:) = 1; Ev1.group(:) = G.label(1);
+[Ps, Gs, Fs, Ts, Bs, Vs, Ws] = deal(cell(1, 3));
+for k = 1:3
+    tr = trains(circshift(1:4, 1 - k));   % each session its own rates on the same sites
+    Ps{k} = spikePSTH(tr, Ep, Window=[-0.2 0.5], BinSec=0.02, Groups=G(1, :), Meta=meta); Ps{k}.epochs = Ep;
+    Gs{k} = spikePSTH(tr, E, Window=[-0.2 0.5], BinSec=0.02, Groups=G, Meta=meta); Gs{k}.epochs = E;
+    Fs{k} = firingRate(tr, Ep, Groups=G(1, :), Meta=meta); Fs{k}.epochs = Ep;
+    Ts{k} = tuningCurve(Fs{k}.rate, mod((1:nE).', 4), Param="Depth", Meta=meta); Ts{k}.epochs = Ep;
+    Bs{k} = behaviorValues(yb + 10 * k, mod((1:nE).', 3), Param="Depth", YName="RespLatency"); Bs{k}.epochs = Ep;
+    Vs{k} = evokedPotential(randn(800, 3, 'single'), 1000, Ev1, Window=[-0.1 0.1], Groups=G(1, :));
+    Vs{k}.meta = Rv.meta; Vs{k}.epochs = Ev1;
+    Ws{k} = Rwf; Ws{k}.epochs = []; Ws{k}.waveforms.total = [20; 20; 0; 0];   % unitWaveforms gives the spike totals
+end
+Ms = struct();
+Ms.pool = combineSessions(Ps, S3);
+Ms.subj = combineSessions(Ps, S3, Match="site", Series="subject", ShowMembers=true);
+Ms.ci = combineSessions(Ps, S3, Match="site", Series="all", Error="ci95", ShowMembers=true);
+Ms.comb = combineSessions(Gs(1:2), S3(1:2, :), TrialGroups="combine");
+Ms.combm = combineSessions(Gs, S3, Match="site", TrialGroups="combine", Series="all", ShowMembers=true);
+Ms.heat = combineSessions(Gs, S3, Kind="heatmap", TrialGroups="each");
+Ms.heatp = combineSessions(Ps, S3, Kind="heatmap");
+Ms.heatv = combineSessions(Vs, S3, Kind="heatmap");
+Ms.rate = combineSessions(Fs, S3);
+Ms.rate2 = combineSessions(Fs, S3, Match="site", Series="all");
+Ms.tun = combineSessions(Ts, S3, Match="site", Series="subject", ShowMembers=true);
+Ms.beh = combineSessions(Bs, S3, Series="subject");
+Ms.ev = combineSessions(Vs, S3, Series="all", ShowMembers=true);
+Ms.evs = combineSessions(Vs, S3);
+Ms.wav = combineSessions(Ws, S3);
+mcases = {
+    "psth pool grid + raster",        "pool",  struct('kind', "psth")
+    "psth subject + members, bars",   "subj",  struct('kind', "psth")
+    "psth subject + members, line",   "subj",  struct('kind', "psth", 'histStyle', "line", 'fill', false)
+    "psth subject + members overlay", "subj",  struct('kind', "psth", 'layout', "overlay")
+    "psth subject stack",             "subj",  struct('kind', "psth", 'stack', true)
+    "psth subject, unit peak",        "subj",  struct('kind', "psth", 'normalize', "groupPeak", 'histStyle', "line")
+    "psth all ci95 + members",        "ci",    struct('kind', "psth", 'histStyle', "line")
+    "psth combine (lines)",           "comb",  struct('kind', "psth", 'histStyle', "line")   % sessionPlotFor: combine -> line
+    "psth combine + members stack",   "combm", struct('kind', "psth", 'histStyle', "line", 'stack', true)
+    "psth combine + members overlay", "combm", struct('kind', "psth", 'histStyle', "line", 'layout', "overlay")
+    "raster pool",                    "pool",  struct('kind', "raster")
+    "raster combine",                 "comb",  struct('kind', "raster", 'rasterByGroup', false)
+    "heatmap of session-units",       "heatp", struct('kind', "heatmap")
+    "heatmap by peak",                "heatp", struct('kind', "heatmap", 'order', "peak")
+    "heatmap, trial groups as tiles", "heat",  struct('kind', "heatmap")
+    "heatmap of a signal",            "heatv", struct('kind', "heatmap", 'source', "LFP")
+    "evoked stack + members",         "ev",    struct('kind', "evoked", 'layout', "stack", 'source', "LFP")
+    "evoked butterfly",               "ev",    struct('kind', "evoked", 'layout', "butterfly", 'source', "LFP")
+    "evoked grid + members",          "ev",    struct('kind', "evoked", 'layout', "grid", 'source', "LFP")
+    "evoked per session grid",        "evs",   struct('kind', "evoked", 'layout', "grid", 'source', "LFP")
+    "rate bar",                       "rate",  struct('kind', "rate", 'layout', "bar")
+    "rate box",                       "rate",  struct('kind', "rate", 'layout', "box")
+    "rate points",                    "rate",  struct('kind', "rate", 'layout', "points")
+    "rate bar (sessions)",            "rate2", struct('kind', "rate", 'layout', "bar")
+    "rate box (sessions)",            "rate2", struct('kind', "rate", 'layout', "box")
+    "rate points (sessions)",         "rate2", struct('kind', "rate", 'layout', "points")
+    "tuning grid + members",          "tun",   struct('kind', "tuning")
+    "tuning overlay + members",       "tun",   struct('kind', "tuning", 'layout', "overlay")
+    "behavior points",                "beh",   struct('kind', "behavior")
+    "behavior line",                  "beh",   struct('kind', "behavior", 'layout', "line")
+    "behavior box",                   "beh",   struct('kind', "behavior", 'layout', "box")
+    "behavior swarm",                 "beh",   struct('kind', "behavior", 'layout', "swarm")
+    "waveforms grid",                 "wav",   struct('kind', "waveforms", 'waveform', struct('mode', "both"))
+    "waveforms probe",                "wav",   struct('kind', "waveforms", 'layout', "probe", 'waveform', struct('mode', "both", 'showNames', true))};
+if exist('violinplot', 'file')
+    mcases(end+1, :) = {"behavior violin", "beh", struct('kind', "behavior", 'layout', "violin")};
+end
+figM = figure('Visible', 'off');
+closeM = onCleanup(@() delete(figM(isvalid(figM))));
+okDraw = true; why = strings(0, 1);
+for i = 1:size(mcases, 1)
+    Rm = Ms.(mcases{i, 2});
+    spec = mcases{i, 3};
+    try
+        for p = 1:plotPageCount(Rm, spec)
+            h = renderPlot(Rm, spec, figM, Page=p, UserAesthetics=false);
+            C = PlotAesthetics.components(h.layout);
+            if any(C.Role == "") || ~all(ismember(C.Role, PlotAesthetics.roles().Role))
+                okDraw = false;
+                why(end+1) = mcases{i, 1} + ": untagged " + strjoin(C.Type(C.Role == "" | ~ismember(C.Role, PlotAesthetics.roles().Role)), ", "); %#ok<AGROW>
+            end
+            cap = plotCaption(spec, Rm);
+            if ~contains(cap, "across ") || ~contains(cap, "session")
+                okDraw = false; why(end+1) = mcases{i, 1} + ": caption " + cap; %#ok<AGROW>
+            end
+        end
+    catch ME
+        okDraw = false;
+        why(end+1) = mcases{i, 1} + ": " + ME.message; %#ok<AGROW>
+    end
+end
+check(okDraw, "every renderer draws a merged result of its kind in every layout, on every page, into a classic figure, " + ...
+    "everything tagged with a known role, the caption naming the sessions" + ifText(~okDraw, " (" + strjoin(why, "; ") + ")"));
+
+lw0 = EphysAnalysisConfig.defaults("Style").LineWidth;
+specM = struct('kind', "psth", 'histStyle', "line");
+h = renderPlot(Ms.subj, specM, figM, UserAesthetics=false);
+ml = findall(figM, 'Tag', 'memberLine');
+rl = findall(figM, 'Tag', 'rate');
+lg = findobj(figM, 'Type', 'legend');
+grp = arrayfun(@(o) string(getappdata(o, 'PlotGroup')), ml);
+r1 = rl(arrayfun(@(o) string(getappdata(o, 'PlotGroup')) == "SYNTH-01", rl));
+c1 = r1(1).Color;
+m1 = ml(grp == "SYNTH-01");
+check(numel(ml) == 3 * numel(h.axes) && all(strcmp({ml.HandleVisibility}, 'off')) && all(abs([ml.LineWidth] - 0.6 * lw0) < 1e-9) ...
+    && sum(grp == "SYNTH-01") == 2 * numel(h.axes) && ~isempty(lg) && numel(lg(1).String) == 2 ...
+    && all(mean(vertcat(m1.Color), 2) > mean(c1(1, :))), ...
+    'members: each session a thin pale line in its series'' color (role memberLine, its subject''s label), out of the legend');
+kids = allKids(h.axes(1));
+tags = string(get(kids, 'Tag'));
+check(max(find(tags == "memberLine")) > max(find(tags == "sem" | tags == "rate")), ...
+    'members are drawn first, under the error bands and the means'); %#ok<MXFND>
+rulesM = [struct('role', "memberLine", 'group', "", 'property', "LineWidth", 'value', 2.5) ...
+    struct('role', "memberLine", 'group', "SYNTH-02", 'property', "Color", 'value', [1 0 0])];
+renderPlot(Ms.subj, setfield(specM, 'aesthetics', rulesM), figM, UserAesthetics=false); %#ok<SFLD>
+ml = findall(figM, 'Tag', 'memberLine');
+grp = arrayfun(@(o) string(getappdata(o, 'PlotGroup')), ml);
+red = arrayfun(@(o) isequal(o.Color, [1 0 0]), ml);
+check(all([ml.LineWidth] == 2.5) && all(red(grp == "SYNTH-02")) && ~any(red(grp ~= "SYNTH-02")), ...
+    'a rule on memberLine reaches every member; a group rule only that series'' members');
+h = renderPlot(Ms.subj, struct('kind', "psth", 'layout', "overlay"), figM, UserAesthetics=false);
+check(numel(findall(figM, 'Tag', 'memberLine')) == 3 && isscalar(h.axes), 'overlay: one line per member, its mean over the tiles');
+
+h = renderPlot(Ms.heatp, struct('kind', "heatmap"), figM, UserAesthetics=false);
+dv = findall(figM, 'Tag', 'sessionDivider');
+yl = string(h.axes(1).YTickLabel);
+sess = extractAfter(yl, " · ");
+check(numel(dv) == 2 && all(strcmp({dv.HandleVisibility}, 'off')) && isequal(dv(1).Color, [1 1 1]) ...
+    && isequal(sess(:), repelem(S3.label, 4)) && isequal(sort([dv.Value]), [4.5 8.5]), ...
+    'heatmap: rows by session (each labeled with its session), a thin line in the ground''s color between sessions');
+renderPlot(Ms.heat, struct('kind', "heatmap"), figM, UserAesthetics=false);
+check(numel(findall(figM, 'Tag', 'sessionDivider')) == 2 * 3, 'heatmap with trial groups as tiles: the dividers in every tile');
+
+combSpec = struct('kind', "psth", 'histStyle', "line");   % the effective spec of a "combine" session plot (sessionPlotFor)
+renderPlot(Ms.comb, combSpec, figM, UserAesthetics=false);
+rl = findall(figM, 'Tag', 'rate');
+grp = arrayfun(@(o) string(getappdata(o, 'PlotGroup')), rl);
+st = string({rl.LineStyle});
+a = rl(grp == S3.label(1) + " · " + G.label(1)); b = rl(grp == S3.label(1) + " · " + G.label(2));
+c = rl(grp == S3.label(2) + " · " + G.label(1));
+check(all(strcmp(get(rl, 'Type'), 'line')) && any(st == "--") && any(st == "-") && ~isempty(a) && ~isempty(b) ...
+    && isequal(a(1).Color, b(1).Color) && ~isequal(a(1).Color, c(1).Color) && string(a(1).LineStyle) ~= string(b(1).LineStyle), ...
+    'combine: drawn as lines (the effective spec''s histStyle), a session''s trial groups in its color, each group in its line style');
+renderPlot(Ms.comb, combSpec, figM, Design="Night");
+rl = findall(figM, 'Tag', 'rate');
+grp = arrayfun(@(o) string(getappdata(o, 'PlotGroup')), rl);
+night = PlotDesign.load("Night");
+a = rl(grp == S3.label(1) + " · " + G.label(2)); c = rl(grp == S3.label(2) + " · " + G.label(1));
+check(max(abs(a(1).Color - night.palette(1, :))) < 1e-9 && max(abs(c(1).Color - night.palette(2, :))) < 1e-9, ...
+    'combine in a design: the palette by session (groupPalette by base), not by row');
+
+h = renderPlot(Ms.wav, struct('kind', "waveforms", 'waveform', struct('mode', "both")), figM, UserAesthetics=false);
+tr = findall(figM, 'Tag', 'trace');
+grp = arrayfun(@(o) string(getappdata(o, 'PlotGroup')), tr);
+ok = ~isempty(tr) && all(ismember(grp, S3.label));
+for s = unique(grp).'
+    x = tr(grp == s);
+    ok = ok && all(arrayfun(@(o) isequal(o.Color, Ms.wav.groups.color(Ms.wav.groups.label == s, :)), x));
+end
+check(ok && numel(unique(grp)) >= 2 && isempty(findall(figM, 'Tag', 'waveMean')) && ~isempty(h.axes), ...
+    'waveforms: each unit''s mean in its session''s color, tagged with the session');
+
+cap = plotCaption(struct('kind', "psth"), Ms.subj);
+capP = plotCaption(struct('kind', "psth"), Ms.pool);
+capC = plotCaption(struct('kind', "psth", 'histStyle', "line"), Ms.ci);
+check(contains(cap, "across 3 sessions (2 subjects)") && contains(cap, "one series per subject, mean +/- SEM across sessions") ...
+    && contains(cap, "units matched by site") && contains(cap, "3 sessions drawn faint") && contains(cap, "4 sites") ...
+    && ~contains(cap, "across epochs"), "caption, per subject: " + cap);
+check(contains(capP, "one series per session") && contains(capP, "each session's units on its own tile") ...
+    && contains(capP, "12 session-units") && contains(capP, "across epochs"), "caption, pooled: " + capP);
+check(contains(capC, "95% CI (t") && ~contains(capC, "bootstrap"), "caption, a 95% CI across sessions is a t interval: " + capC);
+clear closeM
 
 fprintf('\n== 2b. overlays: lines and patches on the axes ==\n');
 ovL = EphysAnalysisConfig.defaults("Overlay"); ovL.name = "Stim"; ovL.value = 0.1;

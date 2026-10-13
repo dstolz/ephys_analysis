@@ -16,7 +16,8 @@ function refreshPreview(obj, opts)
 %   A grid of units or channels is computed for the page shown only
 %   (computePlot Page=); < and > then compute the page they go to.
 %   AllPages (Ctrl+click on Preview) computes every page, which < and >
-%   then only draw.
+%   then only draw. Nothing is computed while the Sessions tab's preview
+%   computes (the runner is busy): a drawn preview is marked Out of date.
 arguments
     obj (1,1) EphysAnalysisApp
     opts.Force (1,1) logical = false
@@ -24,6 +25,10 @@ arguments
 end
 if ismember(obj.PreviewState, ["computing" "drawing"])
     obj.PreviewRedo = true;
+    return
+end
+if ismember(obj.SessionPreviewState, ["computing" "drawing"])   % called from inside the Sessions tab's preview (its polling)
+    if obj.PreviewState == "drawn"; obj.setPreviewState("stale"); end
     return
 end
 L = obj.PreviewLabel;

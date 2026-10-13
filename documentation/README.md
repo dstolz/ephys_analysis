@@ -38,9 +38,9 @@ on `pipeline`; `pipeline` does not depend on it. See [Analysis](EphysAnalysis.md
 | [ChronuxDataset](ChronuxDataset.md) | connector that hands recordings, trials and spike trains to the Chronux toolbox |
 | [FieldTripExport](FieldTripExport.md) | FieldTrip raw / spike / event structures and `exportFieldTrip` |
 | [Platforms](platforms.md) | what runs on Windows, macOS and Linux; `platformSupport`, `openInSystem` |
-| [Analysis](EphysAnalysis.md) | the `analysis` folder: event references, epochs, trial selection and grouping, PSTH / evoked / rate / tuning computations, response statistics, population analysis, renderers, export, HTML / PDF reports, `EphysAnalysisRunner`, `EphysAnalysisScript` |
+| [Analysis](EphysAnalysis.md) | the `analysis` folder: event references, epochs, trial selection and grouping, PSTH / evoked / rate / tuning computations, response statistics, population analysis, plots merged across sessions and their data export, renderers, export, HTML / PDF reports, `EphysAnalysisRunner`, `EphysAnalysisScript` |
 | [EphysAnalysisConfig](EphysAnalysisConfig.md) | the analysis config (JSON `ephys-analysis-config`): every field, plot kinds, validation, tokens |
-| [EphysAnalysisApp](EphysAnalysisApp.md) | the analysis GUI: Data, Alignment, Plots, Export and Log tabs, preferences, why a plot is skipped |
+| [EphysAnalysisApp](EphysAnalysisApp.md) | the analysis GUI: Data, Alignment, Plots, Sessions, Export, Chronux and Log tabs, preferences, why a plot is skipped |
 | [Python drivers](python-drivers.md) | `run_ks4.py`, `probe_tool.py` |
 | [Kilosort4 notes](kilosort4-notes.md) | Kilosort4 parameters its documentation does not settle, worked out from its source: `whitening_range`, and `shank_spacing` (moving the shanks apart for the sort only) |
 | [Files on disk](file-formats.md) | folder layout and every JSON / `.bin` / `.mat` schema |
@@ -356,7 +356,9 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   auROC, `aurocCurves` and `aurocCall`: the auROC baseline of PSTH and
   heatmap plots, the auROC response test and `populationAnalysis`' calls
   pooled over every dataset; `bootci` for the analysis plots' bootstrap 95%
-  CI error bands and bars, `Style.ErrorType "ci95"`, `errorBounds`).
+  CI error bands and bars, `Style.ErrorType "ci95"`, `errorBounds`; `tinv`
+  for the *t* interval across sessions of a session plot's `error "ci95"`,
+  `combineSessions`, which falls back to 1.96 × SEM without the toolbox).
 - Parallel Computing Toolbox (optional; `Parallel.Enabled` in a pipeline
   config, or `UseParallel=true` on `detectSpikes`, `artifactIntervals` and
   `analyzeArtifacts`). The Visualize tab's envelope builds
@@ -532,13 +534,13 @@ suite's temporary preferences, so close it before the run ends.
 | `test_SyntheticDataset` | `makeSyntheticProject` / `makeSyntheticRecording`: the written lines, sessions, spikes, aux and artifacts read back; pairing per scenario; the one-file-per-signal and binary layouts; the config through the pipeline; the app's File-menu action and the active dataset across its tabs |
 | `test_SyntheticGenerator` | `SyntheticDesign` (validation, JSON), the built-in design read back from the files (silenced window, evoked potential, aux steps), responses exactly in their window after the edge, evoked potentials peaking halfway through theirs, parameter scaling, `PreviewOnly` = what is written, the app's Synthetic tab |
 | `test_ChronuxAnalysis` (analysis/) | the Chronux tab's analyses: settings, reading a Chronux file by parts, trials from epochs or from segments clear of artifact periods, their alignment, multitaper spectra, spectrograms and coherence of known signals and spike trains, drawing them |
-| `test_EphysAnalysisCompute` (analysis/) | compute functions on seeded spike trains and signals, the trial-filter compiler, every renderer, the raster's sort and event marks, behavior values and plots |
-| `test_PlotAesthetics` (analysis/) | the right-click aesthetics editor: rules, every renderer naming what it draws, the user's rules then the plot's, the menu, the editor (Apply to, Reset, Cancel, OK, Remember, Forget), the config and the script literal |
+| `test_EphysAnalysisCompute` (analysis/) | compute functions on seeded spike trains and signals, the trial-filter compiler, every renderer, the raster's sort and event marks, behavior values and plots, results merged across sessions and the session data export |
+| `test_PlotAesthetics` (analysis/) | the right-click aesthetics editor: rules, every renderer naming what it draws, the user's rules then the plot's, the menu, the editor (Apply to, Reset, Cancel, OK, Remember, Forget), the config and the script literal, results merged across sessions |
 | `test_PlotDesign` (analysis/) | plot designs: the built-in ones (every kind and layout draws in each), ground, palette, sequential and heat colors, the layering (design, the user's rules, the plot's), choosing one redrawing every plot on screen, capturing a plot's look, saving, importing and deleting designs, refused files |
 | `test_EphysAnalysisEpochs` (analysis/) | sources, event references, epochs (intervals and their trials, between windows, artifact periods, events shifted by a trial parameter), raster event marks (`epochEvents`), trial selection and grouping, units and detections, `selectUnits`' response and auROC tests, against the synthetic truth |
-| `test_EphysAnalysisConfig` (analysis/) | the analysis config: JSON round trips, `plotFor`, validation (behavior plots, raster options, the aux signal and parameter shifts included) |
-| `test_EphysAnalysisRunner` (analysis/) | plan, run, exports, HTML / PDF reports (each page drawn once), cancel, rendering real results (behavior plots, a raster aligned and sorted by the response with its event marks, a PSTH with the mean aux magnitude), a failing export closing its page, unit waveforms, compact vs standalone script equivalence |
-| `test_EphysAnalysisApp` (analysis/) | the analysis GUI, headless |
+| `test_EphysAnalysisConfig` (analysis/) | the analysis config: JSON round trips, `plotFor`, validation (behavior plots, raster options, the aux signal and parameter shifts included), session plots (`sessionPlotFor`, their validation) |
+| `test_EphysAnalysisRunner` (analysis/) | plan, run, exports, HTML / PDF reports (each page drawn once), cancel, rendering real results (behavior plots, a raster aligned and sorted by the response with its event marks, a PSTH with the mean aux magnitude), a failing export closing its page, unit waveforms, session plots of every kind (figures, the *Across sessions* report section, the data export, the result cache, cancel), compact vs standalone script equivalence |
+| `test_EphysAnalysisApp` (analysis/) | the analysis GUI, headless (the Sessions tab included) |
 | `test_PipelineAnalysisStep` (analysis/) | the pipeline's Analysis step running a saved analysis config over a synthetic project: validation, plan, dry run, figures and report, progress, cancel, a `list` selection with one report per dataset, both scripts |
 | `test_ResponseStats` (analysis/) | `pAdjust` against statsmodels; `responseStats` on known counts against `signrank` / `kruskalwallis` called directly (toolbox tests skipped without it) |
 | `test_Auroc` (analysis/) | `aucOf`; `aurocCurves` (`"psth"` against a port of the Caras lab's code, `"epochs"`, windows, the stop mask, cutoffs, `aurocCall` over stacked results, silent units, bootstrap / ranksum / shuffle tests); `spikePSTH`'s auROC result; the PSTH and heatmap marks (skipped without the toolbox) |

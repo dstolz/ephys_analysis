@@ -33,7 +33,19 @@ function test_EphysAnalysisCompute()
 %   error each compute function makes (R.err; a z-scored PSTH's scaled, an
 %   auROC's none), the bands' look from the style (and the default as
 %   before), the bands and bars drawn from R.err, an overlay's across the
-%   units, captions, and plotErrorType.
+%   units, captions, and plotErrorType; and across sessions: sessionTable
+%   (labels, order), combineSessions on hand-made results of every kind
+%   (pool / site / mapping tiles, series per session / subject / all, the
+%   SEM and t 95% CI across sessions, members, epoch renumbering on every
+%   epoch-indexed field, Group slicing against the compute over that group,
+%   combine's labels and line styles, rate's rowsAre, every error id), every
+%   renderer drawing the merged results on every page, a session spec's own
+%   aesthetics, and sessionResults' facets and groups; and the data export:
+%   the unit-mapping CSV (writeUnitMapping, readUnitMapping), sessionData,
+%   writeAnalysisData (round trip, Exists) and epochLongTable (counts,
+%   spikes, signals and every kind's values) on hand-made epochData and
+%   results (epochData itself is checked on the fixture in
+%   test_EphysAnalysisRunner).
 %
 %   Usage:  test_EphysAnalysisCompute
 
@@ -1214,10 +1226,538 @@ if haveBoot
 end
 clear closerE
 
+fprintf('\n== across sessions: sessionTable, combineSessions, sessionResults ==\n');
+sessionChecks(@check, @errorId);
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisCompute:Failures', '%d checks failed.', nFail);
 end
+end
+
+
+function sessionChecks(check, errorId)
+%sessionChecks  sessionTable, combineSessions (every kind, every error) and sessionResults on hand-made results,
+%   and every renderer drawing the merged results.
+rng(11, 'twister');
+names = ["SYNTH-01_260908_103000"; "SYNTH-01_260909_101500"; "SYNTH-02_260910_090000"];
+keys = ["SYNTH-01/260908_103000"; "SYNTH-01/260909_101500"; "SYNTH-02/260910_090000"];
+S = sessionTable(names, keys);
+check(isequal(S.subject, ["SYNTH-01"; "SYNTH-01"; "SYNTH-02"]) && isequal(S.dateText, ["2026-09-08"; "2026-09-09"; "2026-09-10"]) ...
+    && isequal(S.label, ["SYNTH-01 2026-09-08"; "SYNTH-01 2026-09-09"; "SYNTH-02 2026-09-10"]) && isequal(S.index, (1:3).') ...
+    && all(S.folder == "") && S.date(1) == datetime(2026, 9, 8, 10, 30, 0), ...
+    'sessionTable: subject, date and "<subject> <date>" labels from the name pattern, in the order given');
+Sd = sessionTable(["x"; "x"; "y"], ["k1"; "k2"; "k3"]);
+Ss = sessionTable(names([3 1 2]), keys([3 1 2]), Sort=true, Index=[7; 8; 9], AcqDates=NaT);
+check(isequal(Sd.label, ["x"; "x (2)"; "y"]) && all(isnat(Sd.date)) && all(Sd.subject == "") ...
+    && isequal(Ss.name, names) && isequal(Ss.index, [8; 9; 7]), ...
+    'sessionTable: names without a subject and date keep their name, made unique ("x (2)"); Sort orders by date, keeping Index');
+
+% --- per-session results ------------------------------------------------------------------
+t0 = (5:2:85).';
+nE = numel(t0);
+g2 = 1 + mod((1:nE).', 2);
+Ep = epochs(t0, ones(nE, 1));          % one group
+Eg = epochs(t0, g2);                   % two groups, "group 1" and "group 2"
+Eg3 = epochs(t0, ones(nE, 1));         % the third session: group 1 only
+mk = @(ids, ch, sfx) table("su" + ids(:) + "_" + sfx, ids(:), repmat("su", numel(ids), 1), ch(:), "A-" + compose("%03d", ch(:)), ...
+    zeros(numel(ids), 1), zeros(numel(ids), 1), 10 * ch(:), ones(numel(ids), 1), ...
+    'VariableNames', {'label', 'unitId', 'class', 'channel', 'channelName', 'shank', 'x', 'y', 'nSpikes'});
+meta = {mk([1 2 3], [5 5 9], "SYNTH-01_260908T1030"), mk([11 12], [5 7], "SYNTH-01_260909T1015"), mk(21, 9, "SYNTH-02_260910T0900")};
+trains = {{poissonTrain(10, 90), poissonTrain(20, 90), poissonTrain(30, 90)}, {poissonTrain(15, 90), poissonTrain(25, 90)}, ...
+    {poissonTrain(12, 90)}};
+specP = EphysAnalysisConfig.normalizePlot(struct('kind', "psth", 'selection', struct('maxGroups', 12)));
+P = cell(1, 3); G = cell(1, 3); F = cell(1, 3);
+for k = 1:3
+    E = Ep; Eh = Eg; if k == 3; Eh = Eg3; end
+    P{k} = spikePSTH(trains{k}, E, Window=[-0.2 0.5], BinSec=0.05, Meta=meta{k});
+    P{k}.epochs = E; P{k}.spec = specP; P{k}.dataset = names(k);
+    G{k} = spikePSTH(trains{k}, Eh, Window=[-0.2 0.5], BinSec=0.05, Meta=meta{k});
+    G{k}.epochs = Eh; G{k}.spec = specP;
+    F{k} = firingRate(trains{k}, E, Meta=meta{k}, Baseline=[-1 0]);
+    F{k}.epochs = E;
+end
+h1 = nE; h2 = nE;
+P{1}.rasterEvents = struct('line', "Lick", 'edge', "onset", 'label', "Lick onset", 'epoch', [1; 3], 't', [0.1; 0.2]);
+P{2}.rasterEvents = struct('line', "Lick", 'edge', "onset", 'label', "Lick onset", 'epoch', 2, 't', 0.3);
+P{1}.rasterSortEvent = struct('label', "Lick onset", 't', (1:h1).' / 100);
+
+% --- pool, a series per session -----------------------------------------------------------
+R = combineSessions(P(1:2), S(1:2, :));
+nB = numel(P{1}.t);
+check(isequal(size(R.rate), [nB 5 2]) && isequaln(R.rate(:, 1:3, 1), P{1}.rate) && isequaln(R.rate(:, 4:5, 2), P{2}.rate) ...
+    && all(isnan(R.rate(:, 1:3, 2)), 'all') && all(isnan(R.rate(:, 4:5, 1)), 'all') && isequaln(R.sem(:, 4:5, 2), P{2}.sem) ...
+    && isequaln(R.err.lo(:, 1:3, 1), P{1}.err.lo) && isequaln(R.err.hi(:, 4:5, 2), P{2}.err.hi) && R.err.type == "sem" ...
+    && R.err.over == "epochs" && isequal(R.count(:, 1:3, 1), P{1}.count) && all(R.count(:, 1:3, 2) == 0, 'all') ...
+    && isequaln(R.baselineRate(1:3, 1), P{1}.baselineRate) && R.kind == "psth" && isequal(R.edges, P{1}.edges), ...
+    'pool: every session-unit its own tile, its own session''s values copied, NaN in the other series, counts summed');
+nT = height(R.epochs);
+check(nT == h1 + h2 && isequal(R.epochs.epoch, (1:nT).') && isequal(R.epochs.session, [ones(h1, 1); 2 * ones(h2, 1)]) ...
+    && all(R.epochs.sessionKey(h1+1:end) == keys(2)) && isequal(R.epochGroup, R.epochs.session) && isequal(R.nEpochs, [h1; h2]) ...
+    && isequaln(R.epochStop, [P{1}.epochStop; P{2}.epochStop]) && isequal(R.epochs.t0, [Ep.t0; Ep.t0]) ...
+    && R.epochs.Properties.UserData.sessions == 2 && R.epochs.Properties.UserData.dataset == R.dataset, ...
+    'pool: the epochs stacked and renumbered 1..N, with session and sessionKey; epochGroup is each epoch''s series');
+ok = true;
+for t = 1:5
+    k = 1 + (t > 3); u = t - 3 * (t > 3);
+    ok = ok && isequal(R.raster(t).times, P{k}.raster(u).times) && isequal(R.raster(t).epoch, P{k}.raster(u).epoch + (k - 1) * h1) ...
+        && isequal(R.raster(t).group, R.epochGroup(R.raster(t).epoch));
+end
+check(ok, 'pool: each tile''s raster is its unit''s spikes, epochs offset to rows of R.epochs, group the epoch''s series');
+check(isequal(R.rasterEvents.epoch, [1; 3; 2 + h1]) && isequal(R.rasterEvents.t, [0.1; 0.2; 0.3]) && R.rasterEvents.label == "Lick onset" ...
+    && isequaln(R.rasterSortEvent.t, [(1:h1).' / 100; NaN(h2, 1)]), ...
+    'raster marks are concatenated by label with offset epochs; the sort key is NaN for a session without it');
+check(R.labels(1) == "su1 · SYNTH-01 2026-09-08" && R.meta.label(1) == meta{1}.label(1) && isequal(R.meta.session, [1; 1; 1; 2; 2]) ...
+    && isequal(R.groups.label, S.label(1:2)) && isequal(R.groups.color, lines(2)) && isequal(R.groups.nSessions, [1; 1]) ...
+    && R.dataset == "2 sessions (SYNTH-01)" && isequal(R.tiles.units{4, 2}, 1) && isempty(R.tiles.units{4, 1}) ...
+    && R.tiles.key(4) == keys(2) + "|11" && R.tiles.match == "pool" && R.sessionSeries.mode == "session", ...
+    'pool: tile labels "<unit> · <session>", meta.session, a palette color per session, the subtitle, the tiles'' units');
+check(isequal(R.sessions.status, ["done"; "done"]) && isequal(R.sessions.nItems, [3; 2]) && isequal(R.sessions.nEpochs, [h1; h2]) ...
+    && isequal(R.sessions.series, [1; 2]) && isfield(R, 'spec') && isequaln(R.spec, specP), ...
+    'R.sessions: each session''s series, status, units and epochs');
+Rq = combineSessions(P, S, ColorOrder="sequential");
+check(isequal(Rq.groups.color, groupColors((1:3).', true)) && isOrdinalGroups(Rq.groups), ...
+    'ColorOrder "sequential": the groups'' ordered colors, so a design''s sequential map follows');
+
+% --- site, every session averaged; the 95% CI --------------------------------------------------
+v1 = mean(P{1}.rate(:, 1:2), 2, 'omitnan');
+v2 = P{2}.rate(:, 1);
+X = [v1 v2];
+q = 1.96;
+if license('test', 'Statistics_Toolbox') && exist('tinv', 'file'); q = tinv(0.975, 1); end
+R = combineSessions(P, S, Match="site", Series="all", MinSessions=2, Error="ci95");
+check(isequal(R.tiles.key, ["ch5"; "ch9"]) && max(abs(R.rate(:, 1) - mean(X, 2)), [], 'all') < 1e-12 ...
+    && max(abs(R.sem(:, 1) - q * std(X, 0, 2) / sqrt(2))) < 1e-9 && isequaln(R.err.hi, R.rate + R.sem) && R.err.type == "ci95" ...
+    && R.err.over == "sessions" && R.sessionSeries.errorNote ~= "" && R.groups.label == "All sessions" && isequal(R.groups.color, [0.15 0.15 0.15]) ...
+    && isequal(R.meta.label, ["A-005"; "A-009"]) && isequal(R.meta.nSessions, [2; 2]) && isequal(R.meta.nUnits, [3; 2]) ...
+    && ~isfield(R, 'waveforms') && R.dataset == "3 sessions, 2 subjects", ...
+    'site + all: one tile per channel held by >= MinSessions sessions, the mean over sessions and the t 95% CI across them');
+check(numel(R.raster(1).times) == numel(P{1}.raster(1).times) + numel(P{1}.raster(2).times) + numel(P{2}.raster(1).times) ...
+    && all(R.epochs.session(R.raster(1).epoch(numel(P{1}.raster(1).times) + numel(P{1}.raster(2).times) + 1:end)) == 2), ...
+    'site: a tile''s raster pools its units'' spikes, each on its own session''s rows');
+Rs1 = combineSessions(P, S, Match="site", MinSessions=2);
+check(max(abs(Rs1.rate(:, 1, 1) - v1)) < 1e-12 && max(abs(Rs1.sem(:, 1, 1) - sqrt(P{1}.sem(:, 1) .^ 2 + P{1}.sem(:, 2) .^ 2) / 2)) < 1e-12 ...
+    && isequaln(Rs1.rate(:, 1, 2), P{2}.rate(:, 1)) && all(isnan(Rs1.rate(:, 1, 3))) && isequaln(Rs1.rate(:, 2, 3), P{3}.rate(:, 1)), ...
+    'site, a series per session: a session''s units on the site averaged, their SEM combined as sqrt(sum(sem^2)) / k');
+
+% --- per subject, members ------------------------------------------------------------------
+R = combineSessions(P, S, Match="site", Series="subject", ShowMembers=true);
+check(isequal(R.tiles.key, ["ch5"; "ch7"; "ch9"]) && isequal(R.groups.label, ["SYNTH-01"; "SYNTH-02"]) && isequal(R.groups.nSessions, [2; 1]) ...
+    && max(abs(R.rate(:, 1, 1) - mean(X, 2))) < 1e-12 && max(abs(R.sem(:, 1, 1) - std(X, 0, 2) / sqrt(2))) < 1e-12 ...
+    && isequaln(R.rate(:, 3, 2), P{3}.rate(:, 1)) && all(isnan(R.sem(:, 3, 2))) && isequal(size(R.members.rate), [nB 3 3]) ...
+    && isequal(R.members.series, [1; 1; 2]) && isequal(R.members.session, [1; 2; 3]) && isequaln(R.members.rate(:, 1, 1), v1), ...
+    'series subject: each subject''s sessions averaged (a single session has no band); members keep each session''s values');
+
+% --- mapping --------------------------------------------------------------------------------
+M = table(["cellA"; "cellB"; "cellC"], ["1"; "3"; ""], [11; NaN; 12], 'VariableNames', ["cell" keys(1) keys(2)]);
+R = combineSessions(P(1:2), S(1:2, :), Match="mapping", Mapping=M);
+check(isequal(R.tiles.key, ["cellA"; "cellB"; "cellC"]) && isequaln(R.rate(:, 1, 1), P{1}.rate(:, 1)) && isequaln(R.rate(:, 1, 2), P{2}.rate(:, 1)) ...
+    && all(isnan(R.rate(:, 2, 2))) && isequaln(R.rate(:, 3, 2), P{2}.rate(:, 2)) && all(isnan(R.rate(:, 3, 1))) ...
+    && isequal(R.tiles.nUnits, [1 1; 1 0; 0 1]) && isequal(R.meta.cell, ["cellA"; "cellB"; "cellC"]) && isequal(R.labels, R.meta.cell), ...
+    'mapping: one tile per cell, each session''s unit id in its key''s column; a missing id is NaN');
+M2 = table("cellX", "1 2", 11, 'VariableNames', ["cell" keys(1) keys(2)]);
+R = combineSessions(P(1:2), S(1:2, :), Match="mapping", Mapping=M2);
+Rm = combineSessions(P(1:2), S(1:2, :), Match="mapping", Mapping=M, MinSessions=2);
+check(max(abs(R.rate(:, 1, 1) - mean(P{1}.rate(:, 1:2), 2))) < 1e-12 && isequal(R.tiles.nUnits, [2 1]) && Rm.tiles.key == "cellA", ...
+    'mapping: "1 2" averages two units; MinSessions keeps the cells found in enough sessions');
+check(strcmp(errorId(@() combineSessions(P(1:2), S(1:2, :), Match="mapping", Mapping=M(:, 2:3))), 'combineSessions:Mapping') ...
+    && strcmp(errorId(@() combineSessions(P(1:2), S(1:2, :), Match="mapping", Mapping=M(:, 1:2))), 'combineSessions:Mapping') ...
+    && strcmp(errorId(@() combineSessions(P(1:2), S(1:2, :), Match="mapping")), 'combineSessions:Mapping'), ...
+    'combineSessions:Mapping: no cell column, no column for a session key, no mapping');
+
+% --- errors ------------------------------------------------------------------------------------
+Pb = spikePSTH(trains{2}, Ep, Window=[-0.2 0.5], BinSec=0.1, Meta=meta{2}); Pb.epochs = Ep;
+check(strcmp(errorId(@() combineSessions({P{1}, F{2}}, S(1:2, :))), 'combineSessions:Kind') ...
+    && strcmp(errorId(@() combineSessions({P{1}, Pb}, S(1:2, :))), 'combineSessions:Bins') ...
+    && strcmp(errorId(@() combineSessions(G(1:2), S(1:2, :))), 'combineSessions:Groups') ...
+    && strcmp(errorId(@() combineSessions(P(1:2), S(1:2, :), Match="site", MinSessions=3)), 'combineSessions:TooFew') ...
+    && strcmp(errorId(@() combineSessions(P(1:2), S(1:2, :), MinSessions=3)), 'combineSessions:TooFew') ...
+    && strcmp(errorId(@() combineSessions({[], []}, S(1:2, :))), 'combineSessions:TooFew') ...
+    && strcmp(errorId(@() combineSessions(P(1:2), S)), 'combineSessions:Size'), ...
+    'errors: Kind, Bins, Groups (several groups, no Group), TooFew (no tile / session reaches MinSessions, none at all), Size');
+Pa = P{1}; Pa.auroc = struct('cutoff', "ci");
+check(strcmp(errorId(@() combineSessions({Pa, P{2}}, S(1:2, :))), 'combineSessions:Auroc'), 'an auROC result: combineSessions:Auroc');
+
+% --- one trial group sliced, every epoch-indexed field renumbered -----------------------------
+G{1}.rasterEvents = struct('line', "Lick", 'edge', "onset", 'label', "Lick onset", 'epoch', (1:nE).', 't', 0.01 * (1:nE).');
+G{1}.rasterSortEvent = struct('label', "Lick onset", 't', Eg.t0);
+R = combineSessions(G, S, Group="group 2");
+E2 = Eg(Eg.groupIndex == 2, :); E2.epoch = (1:height(E2)).'; E2.groupIndex(:) = 1; E2.group(:) = "group 2";
+ref1 = spikePSTH(trains{1}, E2, Window=[-0.2 0.5], BinSec=0.05, Meta=meta{1});
+n2 = height(E2);
+check(isequaln(R.rate(:, 1:3, 1), ref1.rate) && isequaln(R.sem(:, 1:3, 1), ref1.sem) && isequaln(R.err.lo(:, 1:3, 1), ref1.err.lo) ...
+    && isequal(R.raster(1).epoch, ref1.raster(1).epoch) && isequal(R.raster(1).times, ref1.raster(1).times) ...
+    && R.sessions.status(3) == "missing" && R.dataset == "2 sessions (SYNTH-01), group 2" && height(R.epochs) == 2 * n2 ...
+    && all(R.epochs.groupIndex == 1) && R.sessionSeries.group == "group 2" && isequal(R.nEpochs, [n2; n2]), ...
+    'Group slicing: a session''s group 2 merged is spikePSTH over its group-2 epochs; the session without it is missing');
+check(isequal(R.epochs.t0(R.rasterEvents.epoch), E2.t0) && isequal(R.rasterEvents.t, 0.01 * find(Eg.groupIndex == 2)) ...
+    && isequal(R.rasterSortEvent.t(1:n2), R.epochs.t0(1:n2)) && all(isnan(R.rasterSortEvent.t(n2+1:end))) ...
+    && isequal(R.epochs.t0(R.raster(4).epoch), Eg.t0(G{2}.raster(1).epoch(Eg.groupIndex(G{2}.raster(1).epoch) == 2))), ...
+    'Group slicing: raster marks, the sort key and the rasters index the merged epochs (each lands on its own event)');
+Fg = firingRate(trains{1}, Eg, Meta=meta{1}); Fg.epochs = Eg;
+Rf = combineSessions({Fg}, S(1, :), Group="group 2");
+check(isequaln(Rf.rate, Fg.rate(Eg.groupIndex == 2, :)) && isequal(Rf.epochs.t0(Rf.epochIndex), E2.t0) && isequal(Rf.groupIndex, ones(n2, 1)), ...
+    'Group slicing a rate result: its epochs'' rates, epochIndex into the merged epochs');
+check(strcmp(errorId(@() combineSessions(G, S, Group="group 9")), 'combineSessions:TooFew'), 'a group no session has: TooFew');
+
+% --- combine: session x trial group, line styles ------------------------------------------------
+R = combineSessions(G(1:2), S(1:2, :), TrialGroups="combine");
+c2 = lines(2);
+check(isequal(R.groups.label, [S.label(1) + " · group 1"; S.label(1) + " · group 2"; S.label(2) + " · group 1"; S.label(2) + " · group 2"]) ...
+    && isequal(R.groups.lineStyle, ["-"; "--"; "-"; "--"]) && isequal(R.groups.color, c2([1 1 2 2], :)) && isequal(R.groups.base, [1; 1; 2; 2]) ...
+    && isequal(R.groups.group, ["group 1"; "group 2"; "group 1"; "group 2"]) && isequaln(R.rate(:, 1:3, 2), G{1}.rate(:, :, 2)) ...
+    && isequaln(R.rate(:, 4:5, 3), G{2}.rate(:, :, 1)) && isequal(R.epochGroup, [Eg.groupIndex; Eg.groupIndex + 2]) ...
+    && isequal(R.nEpochs, [G{1}.nEpochs; G{2}.nEpochs]), ...
+    'combine: a series per session and trial group, "<session> · <group>", the session''s color, a line style per group');
+
+% --- heatmap: pooled rows, the trial groups as its tiles ----------------------------------------
+R = combineSessions(G(1:2), S(1:2, :), Kind="heatmap", TrialGroups="each", Match="site", Series="session");
+check(R.sessionSeries.match == "pool" && R.sessionSeries.mode == "all" && isequal(R.groups.label, ["group 1"; "group 2"]) && isequal(size(R.rate), [nB 5 2]) ...
+    && isequaln(R.rate(:, 1:3, 2), G{1}.rate(:, :, 2)) && isequaln(R.rate(:, 4:5, 1), G{2}.rate(:, :, 1)) && isequal(R.meta.session, [1; 1; 1; 2; 2]), ...
+    'heatmap: rows are the session-units (pool, whatever the match), the trial groups its tiles');
+
+% --- rate --------------------------------------------------------------------------------------
+R = combineSessions(F(1:2), S(1:2, :));
+check(R.rowsAre == "epochs" && isequal(size(R.rate), [h1 + h2 5]) && isequaln(R.rate(1:h1, 1:3), F{1}.rate) && all(isnan(R.rate(1:h1, 4:5)), 'all') ...
+    && isequaln(R.rate(h1+1:end, 4:5), F{2}.rate) && isequal(R.epochIndex, (1:h1 + h2).') && isequal(R.groupIndex, [ones(h1, 1); 2 * ones(h2, 1)]) ...
+    && isequaln(R.meanRate(1:3, 1), F{1}.meanRate) && all(isnan(R.meanRate(1:3, 2))) && isequaln(R.median(4:5, 2), F{2}.median) ...
+    && isequaln(R.duration, [F{1}.duration; F{2}.duration]), ...
+    'rate, a series per session: rows are every epoch (NaN off its session), the means per session copied');
+Ra = combineSessions(F, S, Match="site", Series="all");
+m5 = [mean(F{1}.meanRate(1:2)); F{2}.meanRate(1); NaN];
+check(Ra.rowsAre == "sessions" && size(Ra.rate, 1) == 3 && isequal(Ra.epochIndex, (1:3).') && all(Ra.groupIndex == 1) ...
+    && max(abs(Ra.rate(1:2, 1) - m5(1:2))) < 1e-12 && isnan(Ra.rate(3, 1)) && abs(Ra.meanRate(1) - mean(m5(1:2))) < 1e-12 ...
+    && abs(Ra.sem(1) - std(m5(1:2)) / sqrt(2)) < 1e-12 && all(isnan(Ra.duration)), ...
+    'rate, every session averaged: one row per session (its mean rate), so bars, boxes and points agree');
+
+% --- tuning --------------------------------------------------------------------------------------
+x1 = 1 + mod((1:nE).', 2); x2 = 2 + mod((1:nE).', 2);
+T1 = tuningCurve(F{1}.rate, x1, Param="Depth", Meta=meta{1}); T1.epochs = Ep;
+T2 = tuningCurve(F{2}.rate, x2, Param="Depth", Meta=meta{2}); T2.epochs = Ep;
+R = combineSessions({T1, T2}, S(1:2, :));
+check(isequal(R.x, [1; 2; 3]) && isequaln(R.mean(1:2, 1:3, 1), T1.mean) && all(isnan(R.mean(3, 1:3, 1))) && isequaln(R.mean(2:3, 4:5, 2), T2.mean) ...
+    && isequal(R.n, [T1.n(1) 0; T1.n(2) T2.n(1); 0 T2.n(2)]) && R.seriesParam == "session" ...
+    && isequal(R.series, S.label(1:2)) && R.param == "Depth", ...
+    'tuning: the curves on the union of the levels, NaN where a session has none');
+T2t = tuningCurve(F{2}.rate, string(x2), Param="Depth", Meta=meta{2}); T2t.epochs = Ep;
+check(strcmp(errorId(@() combineSessions({T1, T2t}, S(1:2, :))), 'combineSessions:MixedLevels'), ...
+    'a level numeric in one session and text in another: combineSessions:MixedLevels');
+Rt = combineSessions({T1, T2}, S(1:2, :), Match="site", Series="all", ShowMembers=true);
+check(isequal(size(Rt.members.mean), [3 3 2]) && Rt.seriesParam == "" && max(abs(Rt.mean(2, 1) - mean([mean(T1.mean(2, 1:2)) T2.mean(1, 1)]))) < 1e-12, ...
+    'tuning over every session: the site''s mean at a shared level, the members kept');
+
+% --- behavior ----------------------------------------------------------------------------------
+y1 = 200 + 10 * randn(nE, 1); y1(1:5:end) = NaN;
+y2 = 250 + 10 * randn(nE, 1);
+B1 = behaviorValues(y1, x1, Param="Depth", YName="RespLatency", YUnits="ms"); B1.epochs = Ep;
+B2 = behaviorValues(y2, x2, Param="Depth", YName="RespLatency", YUnits="ms"); B2.epochs = Ep;
+R = combineSessions({B1, B2}, S(1:2, :));
+nb1 = height(B1.values);
+check(isequal(R.x, [1; 2; 3]) && height(R.values) == nb1 + height(B2.values) && isequal(R.values.epoch, [B1.values.epoch; B2.values.epoch + h1]) ...
+    && isequal(R.epochs.session(R.values.epoch), R.values.session) && isequal(R.values.xIndex, [B1.values.xIndex; B2.values.xIndex + 1]) ...
+    && isequal(R.values.seriesIndex, R.values.session) && isequaln(R.mean(1:2, 1), B1.mean) && isequaln(R.mean(2:3, 2), B2.mean) ...
+    && R.nMissing == B1.nMissing + B2.nMissing && R.nEpochs == 2 * nE && R.yName == "RespLatency" && R.units == "ms", ...
+    'behavior: every value kept, its epoch a row of the merged epochs, its x into the union, its session''s series');
+Rb = combineSessions({B1, B2}, S(1:2, :), Series="all");
+check(abs(Rb.mean(2) - mean([B1.mean(2) B2.mean(1)])) < 1e-12 && Rb.mean(1) == B1.mean(1) && isnan(Rb.sem(1)) && all(Rb.values.seriesIndex == 1), ...
+    'behavior over every session: the sessions'' means averaged at each level');
+
+% --- evoked ------------------------------------------------------------------------------------
+fs = 1000;
+Y1 = single(randn(90 * fs, 3)); Y2 = single(randn(90 * fs, 3));
+mc = @(ch) table("c" + ch(:), ch(:), zeros(numel(ch), 1), zeros(numel(ch), 1), 25 * ch(:), 'VariableNames', {'label', 'channel', 'shank', 'x', 'y'});
+V1 = evokedPotential(Y1, fs, Ep, Window=[-0.1 0.2], Meta=mc(1:3)); V1.epochs = Ep;
+V2 = evokedPotential(Y2, fs, Ep, Window=[-0.1 0.2], Meta=mc(2:4)); V2.epochs = Ep;
+R = combineSessions({V1, V2}, S(1:2, :), MinSessions=2);
+check(isequal(R.channels, [2; 3]) && isequal(R.labels, ["c2"; "c3"]) && isequaln(R.mean(:, 1, 1), V1.mean(:, 2)) && isequaln(R.mean(:, 1, 2), V2.mean(:, 1)) ...
+    && isequal(R.keptEpochs, [V1.keptEpochs; V2.keptEpochs + h1]) && R.droppedEdge == V1.droppedEdge + V2.droppedEdge && isempty(R.data) ...
+    && R.sessionSeries.match == "channel" && isequal(R.t, V1.t) && R.fs == fs, ...
+    'evoked: channels matched by recording channel (MinSessions 2: the shared two), kept epochs offset');
+V3 = evokedPotential(Y2, 2 * fs, Ep, Window=[-0.1 0.2], Meta=mc(2:4)); V3.epochs = Ep;
+check(strcmp(errorId(@() combineSessions({V1, V3}, S(1:2, :))), 'combineSessions:TimeBase'), 'evoked at another rate: combineSessions:TimeBase');
+Rhv = combineSessions({V1, V2}, S(1:2, :), Kind="heatmap");
+check(size(Rhv.mean, 3) == 1 && max(abs(Rhv.mean(:, 2) - mean([V1.mean(:, 2) V2.mean(:, 1)], 2))) < 1e-6, ...
+    'heatmap of a signal: the channels averaged over the sessions, one tile');
+
+% --- waveforms -----------------------------------------------------------------------------------
+wv = @(n, tot) struct('timeMs', {repmat({(-1:0.5:1).'}, n, 1)}, 'mean', {num2cell(rand(5, n), 1).'}, 'spikes', {cell(n, 1)}, ...
+    'from', repmat("template", n, 1), 'units', repmat("uV", n, 1), 'total', tot(:), 'note', "", 'maxSpikes', 100);
+Gw = table(1, "all", [0.15 0.15 0.15], 3, 'VariableNames', {'index', 'label', 'color', 'n'});
+W1 = struct('kind', "waveforms", 'meta', meta{1}, 'labels', meta{1}.label, 'n', 3, 'groups', Gw, 'probe', [], ...
+    'waveforms', wv(3, [10 20 30]), 'epochs', []);
+Gw.n = 2;
+W2 = struct('kind', "waveforms", 'meta', meta{2}, 'labels', meta{2}.label, 'n', 2, 'groups', Gw, 'probe', [], ...
+    'waveforms', wv(2, [40 50]), 'epochs', []);
+Rw = combineSessions({W1, W2}, S(1:2, :), Series="all", Match="site");
+check(Rw.sessionSeries.mode == "session" && Rw.sessionSeries.match == "pool" && height(Rw.groups) == 2 && isequal(Rw.groups.n, [3; 2]) ...
+    && numel(Rw.waveforms.mean) == 5 && isequal(Rw.waveforms.total, [10; 20; 30; 40; 50]) && isequal(Rw.waveforms.mean{4}, W2.waveforms.mean{1}) ...
+    && isequal(Rw.meta.session, [1; 1; 1; 2; 2]) && Rw.n == 5 && isempty(Rw.epochs), ...
+    'waveforms: every session''s units side by side, a series (color) per session, the waveforms concatenated');
+
+% --- every renderer draws the merged results -----------------------------------------------------
+Rpool = combineSessions(P(1:2), S(1:2, :));
+Rall = combineSessions(P, S, Match="site", Series="all", ShowMembers=true);
+Rcomb = combineSessions(G(1:2), S(1:2, :), TrialGroups="combine");
+Rheat = combineSessions(G(1:2), S(1:2, :), Kind="heatmap", TrialGroups="each");
+Rrate = combineSessions(F(1:2), S(1:2, :));
+Rrate2 = combineSessions(F, S, Match="site", Series="all");
+Rtun = combineSessions({T1, T2}, S(1:2, :));
+Rtun2 = Rt;
+Rbeh = combineSessions({B1, B2}, S(1:2, :));
+Rev = combineSessions({V1, V2}, S(1:2, :));
+sp = @(kind, layout, varargin) EphysAnalysisConfig.normalizePlot(struct('kind', kind, 'layout', layout, varargin{:}));
+cases = {
+    "psth grid + raster", Rpool, sp("psth", "grid", 'style', struct('MaxTiles', 2))
+    "psth overlay",       Rpool, sp("psth", "overlay")
+    "psth all + members", Rall,  sp("psth", "grid", 'histStyle', "line")
+    "psth combine",       Rcomb, sp("psth", "grid", 'histStyle', "line")
+    "psth stack",         Rcomb, sp("psth", "grid", 'stack', true)
+    "raster",             Rpool, sp("raster", "grid")
+    "raster combine",     Rcomb, sp("raster", "grid", 'rasterByGroup', false)
+    "heatmap",            Rheat, sp("heatmap", "groups")
+    "heatmap evoked",     Rhv,   sp("heatmap", "groups", 'source', "LFP")
+    "evoked stack",       Rev,   sp("evoked", "stack", 'source', "LFP")
+    "evoked butterfly",   Rev,   sp("evoked", "butterfly", 'source', "LFP")
+    "evoked grid",        Rev,   sp("evoked", "grid", 'source', "LFP")
+    "rate bar",           Rrate, sp("rate", "bar")
+    "rate box",           Rrate, sp("rate", "box")
+    "rate points",        Rrate, sp("rate", "points")
+    "rate bar (sessions)",    Rrate2, sp("rate", "bar")
+    "rate box (sessions)",    Rrate2, sp("rate", "box")
+    "rate points (sessions)", Rrate2, sp("rate", "points")
+    "tuning grid",        Rtun,  sp("tuning", "grid", 'param', "Depth")
+    "tuning overlay",     Rtun2, sp("tuning", "overlay", 'param', "Depth")
+    "behavior points",    Rbeh,  sp("behavior", "points", 'source', "trials")
+    "behavior line",      Rbeh,  sp("behavior", "line", 'source', "trials")
+    "behavior box",       Rbeh,  sp("behavior", "box", 'source', "trials")
+    "behavior swarm",     Rbeh,  sp("behavior", "swarm", 'source', "trials")
+    "waveforms grid",     Rw,    sp("waveforms", "grid", 'waveform', struct('mode', "both"))
+    };
+if exist('violinplot', 'file')
+    cases(end+1, :) = {"behavior violin", Rbeh, sp("behavior", "violin", 'source', "trials")};
+end
+for c = 1:size(cases, 1)
+    Rc = cases{c, 2}; spec = cases{c, 3};
+    msg = "";
+    ok = true;
+    try
+        n = plotPageCount(Rc, spec);
+        for p = 1:n
+            fig = newExportFigure(struct(), Rc, spec, Page=p);
+            closer = onCleanup(@() close(fig));
+            h = renderPlot(Rc, spec, fig, Page=p);
+            ok = ok && ~isempty(h.axes) && all(isgraphics(h.axes)) && contains(h.title, "session");
+            plotCaption(spec, Rc);
+            clear closer
+        end
+        if cases{c, 1} == "psth grid + raster"; ok = ok && n == 3; end
+    catch ME
+        ok = false;
+        msg = " (" + string(ME.message) + ")";
+    end
+    check(ok, "a merged " + cases{c, 1} + " draws on every page, titled with its sessions" + msg);
+end
+specS = sp("psth", "grid");
+specS.aesthetics = PlotAesthetics.normalizeRules(struct('role', "rate", 'group', "", 'property', "LineWidth", 'value', 2));
+specS.sessionAesthetics = PlotAesthetics.normalizeRules(struct('role', "rate", 'group', "", 'property', "LineWidth", 'value', 3));
+specS.histStyle = "line";
+fig = newExportFigure(struct(), Rpool, specS);
+closer = onCleanup(@() close(fig));
+h = renderPlot(Rpool, specS, fig);
+lw = arrayfun(@(o) o.LineWidth, findall(fig, 'Tag', 'rate'));
+check(~isempty(lw) && all(lw == 3) && startsWith(h.title, "PSTH") && contains(h.title, "(2 sessions, " + (h1 + h2) + " epochs)") ...
+    && contains(string(h.layout.Subtitle.String), "2 sessions (SYNTH-01)"), ...
+    'renderPlot: a session spec''s sessionAesthetics apply after the base plot''s aesthetics; the title counts sessions and epochs');
+clear closer
+
+% --- sessionResults ------------------------------------------------------------------------------
+spx = EphysAnalysisConfig.normalizeSection("SessionPlot", struct('plot', "p", 'facet', "subject", 'trialGroups', "each"));
+res = sessionResults(G, S, spx, specP);
+check(numel(res) == 3 && isequal([res.label], ["SYNTH-01 / group 1" "SYNTH-01 / group 2" "SYNTH-02 / group 1"]) ...
+    && all([res.status] == "done") && isequaln(res(1).R.spec, specP) && res(3).R.dataset == "1 session (SYNTH-02), group 1" ...
+    && isequal([res.facet], ["SYNTH-01" "SYNTH-01" "SYNTH-02"]) && isequal([res.group], ["group 1" "group 2" "group 1"]), ...
+    'sessionResults: facet subject x trialGroups each: a figure per subject and group, labeled "<subject> / <group>"');
+spx.facet = "none"; spx.trialGroups = "pool";
+r1 = sessionResults(P, S, spx, specP);
+r2 = sessionResults(G, S, spx, specP);
+spx.minSessions = 5;
+r3 = sessionResults(P, S, spx, specP);
+spx.minSessions = 1; spx.trialGroups = "each";
+specP1 = specP; specP1.selection.maxGroups = 1;
+r4 = sessionResults(G, S, spx, specP1);
+spx.trialGroups = "combine";
+r5 = sessionResults(G, S, spx, specP);
+check(isscalar(r1) && r1.label == "all" && r1.status == "done" && r2.status == "error" && contains(r2.message, "trial groups") ...
+    && r3.status == "skipped" && isscalar(r4) && r4.group == "group 1" && isscalar(r5) && height(r5.R.groups) == 5, ...
+    'sessionResults: pool gives one figure ("all"); several groups unpooled is an error, too few sessions skipped; maxGroups caps "each"; combine is one figure');
+
+% --- data export: the mapping CSV, sessionData, writeAnalysisData, epochLongTable -----------------
+fprintf('\n== data export: mapping CSV, sessionData, writeAnalysisData, epochLongTable ==\n');
+dxDir = tempname;
+mkdir(dxDir);
+dxClean = onCleanup(@() rmdir(dxDir, 's'));
+
+% the mapping CSV
+mf = fullfile(dxDir, 'sub', 'map.csv');
+M3 = table(["cellA"; "cellB"; "c,d"], ["1"; "2 3"; ""], [11; NaN; 12], 'VariableNames', ["cell" keys(1) keys(2)]);
+mfOut = writeUnitMapping(mf, M3);
+txt = splitlines(string(fileread(mf)));
+Mr = readUnitMapping(mf);
+check(mfOut == mf && txt(1) == "cell," + keys(1) + "," + keys(2) && txt(2) == "cellA,1,11" && txt(3) == "cellB,2 3," ...
+    && txt(4) == """c,d"",,12" && isempty(dir(fullfile(dxDir, 'sub', '~*'))), ...
+    'writeUnitMapping: the contract''s CSV (header of keys, empty field for a NaN, a field with a comma quoted), the folder made, no temp file left');
+check(isequal(string(Mr.Properties.VariableNames), ["cell" keys(1) keys(2)]) && isequal(Mr.cell, M3.cell) && Mr.(keys(1))(2) == "2 3" ...
+    && ismissing(Mr.(keys(1))(3)) && Mr.(keys(2))(1) == 11 && isnan(Mr.(keys(2))(2)), ...
+    'readUnitMapping: the cell column as text, the key columns as written (text for "2 3", NaN / missing for an empty field)');
+Rm1 = combineSessions(P(1:2), S(1:2, :), Match="mapping", Mapping=M3);
+Rm2 = combineSessions(P(1:2), S(1:2, :), Match="mapping", Mapping=Mr);
+spm = EphysAnalysisConfig.normalizeSection("SessionPlot", struct('plot', "p", 'match', "mapping", 'mappingFile', mf));
+rm = sessionResults(P(1:2), S(1:2, :), spm, specP);
+check(isequaln(Rm1.rate, Rm2.rate) && isequal(Rm1.tiles.key, Rm2.tiles.key) && isequal(Rm2.tiles.key, ["cellA"; "cellB"; "c,d"]) ...
+    && isequal(Rm2.tiles.nUnits, [1 1; 2 0; 0 1]) && isscalar(rm) && rm.status == "done" && isequal(rm.R.tiles.key, Rm2.tiles.key), ...
+    'a written and read mapping gives the tiles the table does, and sessionResults reads the file itself');
+bad = fullfile(dxDir, 'bad.csv');
+writelines(["a,b"; "1,2"], bad);
+Mcase = readUnitMapping(writeUnitMapping(fullfile(dxDir, 'case.csv'), table("x", 1, 'VariableNames', ["cell" "k"])));
+check(strcmp(errorId(@() readUnitMapping(bad)), 'readUnitMapping:NoCell') ...
+    && strcmp(errorId(@() readUnitMapping(fullfile(dxDir, 'none.csv'))), 'readUnitMapping:NoFile') ...
+    && strcmp(errorId(@() writeUnitMapping(fullfile(dxDir, 'x.csv'), table(1, 'VariableNames', "a"))), 'writeUnitMapping:NoCell') ...
+    && strcmp(errorId(@() writeUnitMapping(mf, M3, Overwrite=false)), 'writeUnitMapping:Exists') && Mcase.cell == "x", ...
+    'mapping errors: readUnitMapping:NoCell / :NoFile, writeUnitMapping:NoCell / :Exists');
+
+% epochLongTable on one dataset's epochData
+Ed = epochs((5:8).', [1; 2; 1; 2]);
+Ed.trial = (1:4).';
+Ed.Depth = [0.1; 0.2; 0.1; 0.2];
+cnt = reshape(1:24, [4 3 2]);
+tms = {[0.01; 0.02], 0.05; zeros(0, 1), [0.2; 0.3]; 0.3, zeros(0, 1); [0.1; 0.2; 0.4], zeros(0, 1)};
+Dd = struct('identity', struct('key', keys(1), 'name', names(1), 'label', S.label(1), 'folder', "", 'subject', "SYNTH-01", ...
+    'date', S.date(1), 'fs', 30000, 'durationSec', 100), 'spec', specP, 'E', Ed, 'G', table(), 'meta', meta{1}(1:2, :), ...
+    'spikes', struct('times', {tms}, 'counts', cnt, 'edges', (-1:2) * 0.1, 't', [-0.05; 0.05; 0.15], 'binSec', 0.1, ...
+    'window', [-0.1 0.2], 'binWindow', [-0.1 0.2]), ...
+    'signals', struct('data', single(reshape(1:30, [5 2 3])), 'dims', "time x channel x epoch", 't', (-2:2).' / 100, 'fs', 100, ...
+    'epochs', Ed([1 3 4], :), 'channels', [4; 7], 'labels', ["c4"; "c7"], 'units', "uV", 'sampleOffsets', [-2 2], ...
+    'droppedEdge', 1, 'droppedNonFinite', 0));
+Tc = epochLongTable(Dd);
+r = Tc.epoch == 3 & Tc.unit == 2 & Tc.bin == 2;
+check(height(Tc) == 24 && isequal(string(Tc.Properties.VariableNames), ["session" "subject" "date" "trial" "epoch" "group" "unit" "bin" "t" "count" "Depth"]) ...
+    && isequal(Tc.count, reshape(permute(cnt, [2 1 3]), [], 1)) && nnz(r) == 1 && Tc.count(r) == cnt(3, 2, 2) && Tc.t(r) == 0.05 ...
+    && Tc.Depth(r) == 0.1 && Tc.group(r) == "group 1" && Tc.session(r) == S.label(1) && Tc.subject(r) == "SYNTH-01" && Tc.trial(r) == 3 ...
+    && sum(Tc.count) == sum(cnt(:)), ...
+    'epochLongTable counts: a row per epoch x unit x bin (bin fastest), the unit id, the bin center, the trial parameter columns');
+Ts = epochLongTable(Dd, What="spikes");
+r = Ts.epoch == 2 & Ts.unit == 2;
+check(height(Ts) == 9 && isequal(Ts.t(r), [0.2; 0.3]) && sum(Ts.unit == 1) == 6 && all(Ts.Depth(Ts.epoch == 4) == 0.2) ...
+    && isequal(string(Ts.Properties.VariableNames), ["session" "subject" "date" "trial" "epoch" "group" "unit" "t" "Depth"]), ...
+    'epochLongTable spikes: a row per spike, relative to the event');
+Tg = epochLongTable(Dd, What="signals");
+r = Tg.epoch == 3 & Tg.channel == 7 & Tg.sample == 1;
+check(height(Tg) == 30 && nnz(r) == 1 && Tg.value(r) == Dd.signals.data(4, 2, 2) && Tg.t(r) == 0.01 && Tg.label(r) == "c7" ...
+    && isequal(unique(Tg.epoch).', [1 3 4]) && Tg.Depth(r) == 0.1, ...
+    'epochLongTable signals: a row per kept epoch x channel x sample, the sample offset from the event, the value');
+Dn = Dd; Dn.signals = [];
+Dm = Dd; Dm.spikes = [];
+Dz = Dd; Dz.spikes.counts = zeros(4, 0, 2);
+check(strcmp(errorId(@() epochLongTable(Dd, MaxRows=10)), 'epochLongTable:TooLarge') ...
+    && strcmp(errorId(@() epochLongTable(Dn, What="signals")), 'epochLongTable:NoSignals') ...
+    && strcmp(errorId(@() epochLongTable(Dm, What="spikes")), 'epochLongTable:NoSpikes') ...
+    && strcmp(errorId(@() epochLongTable(Dm)), 'epochLongTable:NoCounts') && strcmp(errorId(@() epochLongTable(Dz)), 'epochLongTable:NoCounts') ...
+    && strcmp(errorId(@() epochLongTable(Dd, What="values")), 'epochLongTable:Input') && strcmp(errorId(@() epochLongTable(struct('a', 1))), 'epochLongTable:Input'), ...
+    'epochLongTable errors: TooLarge (MaxRows), NoSignals, NoSpikes, NoCounts, Input');
+
+% sessionData and the values table
+Ss = S(1:2, :);
+Ss.status = ["done"; "done"];
+Ss.message = ["" ""].';
+spd = EphysAnalysisConfig.normalizeSection("SessionPlot", struct('id', "sd", 'plot', "p", 'data', ["results" "epochs"]));
+resD = sessionResults(P(1:2), Ss, spd, specP);
+Sx = sessionData(spd, specP, Ss, P(1:2), resD, Epochs={Dd, Dd}, Config=struct('Name', "t"), Files={["a.png" "a.svg"]});
+check(Sx.schema == "ephys-analysis-sessions/1" && isequal(fieldnames(Sx).', {'schema', 'sessionPlot', 'spec', 'sessions', 'results', 'perSession', ...
+    'epochs', 'config', 'created', 'provenance'}) && isequal(Sx.sessions.nItems, [3; 2]) && isequal(Sx.sessions.nEpochs, [nE; nE]) ...
+    && isequal(Sx.sessions.status, ["done"; "done"]) && isscalar(Sx.results) && Sx.results(1).label == "all" && Sx.results(1).R.kind == "psth" ...
+    && isequal(Sx.results(1).files, ["a.png" "a.svg"]) && Sx.results(1).status == "done" && numel(Sx.perSession) == 2 && isequaln(Sx.perSession{2}.rate, P{2}.rate) ...
+    && numel(Sx.epochs) == 2 && Sx.config.Name == "t" && isfield(Sx.provenance, 'code') && Sx.sessionPlot.id == "sd" && isequaln(Sx.spec, specP), ...
+    'sessionData: schema, sessions with nItems / nEpochs, a result per figure, the per-session results and epochs as the data list asks');
+spd2 = spd; spd2.data = "epochs";
+spd3 = spd; spd3.data = "results";
+Sx2 = sessionData(spd2, specP, Ss, P(1:2), resD, Epochs={Dd, Dd});
+Sx3 = sessionData(spd3, specP, Ss, P(1:2), resD, Epochs={Dd, Dd});
+check(isempty(Sx2.perSession) && numel(Sx2.epochs) == 2 && numel(Sx3.perSession) == 2 && isempty(Sx3.epochs) ...
+    && strcmp(errorId(@() sessionData(spd, specP, Ss, P(1:3), resD)), 'sessionData:Size'), ...
+    'sessionData: per-session results only with "results", epochs only with "epochs"; sessionData:Size');
+nB = numel(P{1}.t);
+Tv1 = epochLongTable(Sx);
+r = Tv1.session == 2 & Tv1.tile == P{2}.labels(2) & Tv1.t == P{2}.t(5);
+check(isequal(string(Tv1.Properties.VariableNames), ["plot" "facet" "group" "series" "session" "subject" "date" "tile" "unit" "channel" "t" "value" "err" "n"]) ...
+    && height(Tv1) == nB * 5 && nnz(r) == 1 && Tv1.value(r) == P{2}.rate(5, 2, 1) && Tv1.err(r) == P{2}.sem(5, 2, 1) && Tv1.n(r) == P{2}.nEpochs(1) ...
+    && Tv1.series(r) == Ss.label(2) && Tv1.unit(r) == 12 && Tv1.channel(r) == 7 && Tv1.subject(r) == "SYNTH-01" && Tv1.facet(r) == "all" && Tv1.plot(r) == "p" ...
+    && Tv1.date(r) == Ss.date(2) && Tv1.group(r) == P{2}.groups.label(1), ...
+    'epochLongTable values from the per-session results: a row per session x unit x bin, with its session, unit, channel, value, error and epochs');
+Tv2 = epochLongTable(Sx2);
+r = Tv2.series == Ss.label(2) & Tv2.unit == 11 & Tv2.t == P{1}.t(3);
+check(height(Tv2) == nB * 5 * 2 && nnz(r) == 1 && Tv2.value(r) == resD.R.rate(3, 4, 2) && Tv2.session(r) == 2 && Tv2.tile(r) == resD.R.labels(4) ...
+    && sum(isnan(Tv2.value)) == nB * 5, ...
+    'epochLongTable values without the per-session results: from the merged result, a row per series x tile x bin (NaN where a series has no unit)');
+spa = spd2; spa.series = "all"; spa.match = "site";
+resA = sessionResults(P(1:2), Ss, spa, specP);
+Va = epochLongTable(sessionData(spa, specP, Ss, P(1:2), resA));
+spb = spd2; spb.series = "subject";
+resB = sessionResults(P, S, spb, specP);
+Vb = epochLongTable(sessionData(spb, specP, S, P, resB));
+check(all(isnan(Va.session)) && all(Va.series == "All sessions") && height(Va) == nB * height(resA.R.meta) && all(isnat(Va.date)) ...
+    && isequal(unique(Vb.series, 'stable'), ["SYNTH-01"; "SYNTH-02"]) && isequal(Vb.subject, Vb.series) && all(isnan(Vb.session)), ...
+    'epochLongTable values of a summary series: no session (NaN), a subject series carries its subject');
+specF = EphysAnalysisConfig.normalizePlot(struct('kind', "rate"));
+resF = sessionResults(F(1:2), Ss, spd2, specF);
+Vf = epochLongTable(sessionData(spd2, specF, Ss, F(1:2), resF));
+r = Vf.series == Ss.label(2) & Vf.tile == resF.R.labels(4);
+check(~ismember("t", string(Vf.Properties.VariableNames)) && ~ismember("x", string(Vf.Properties.VariableNames)) && height(Vf) == 5 * 2 ...
+    && nnz(r) == 1 && Vf.value(r) == resF.R.meanRate(4, 2) && Vf.err(r) == resF.R.sem(4, 2), ...
+    'epochLongTable values of a rate result: a row per series x tile, no position column');
+specV = EphysAnalysisConfig.normalizePlot(struct('kind', "evoked", 'source', "LFP"));
+resV = sessionResults({V1, V2}, Ss, spd2, specV);
+Vv = epochLongTable(sessionData(spd2, specV, Ss, {V1, V2}, resV));
+ic = find(resV.R.labels == "c2");
+r = Vv.series == Ss.label(1) & Vv.tile == "c2" & Vv.t == resV.R.t(5);
+check(height(Vv) == numel(resV.R.t) * numel(resV.R.labels) * 2 && nnz(r) == 1 && Vv.value(r) == resV.R.mean(5, ic, 1) && Vv.channel(r) == 2, ...
+    'epochLongTable values of an evoked result: the channel, the time, the mean');
+specT = EphysAnalysisConfig.normalizePlot(struct('kind', "tuning", 'param', "Depth"));
+resT = sessionResults({T1, T2}, Ss, spd2, specT);
+Vt = epochLongTable(sessionData(spd2, specT, Ss, {T1, T2}, resT));
+r = Vt.series == Ss.label(2) & Vt.x == 2 & Vt.tile == resT.R.labels(4);
+check(height(Vt) == 3 * 5 * 2 && nnz(r) == 1 && Vt.value(r) == resT.R.mean(2, 4, 2) && Vt.n(r) == resT.R.n(2, 2), ...
+    'epochLongTable values of a tuning result: the level as x');
+specB = EphysAnalysisConfig.normalizePlot(struct('kind', "behavior", 'param', "Depth", 'source', "trials"));
+resBh = sessionResults({B1, B2}, Ss, spd2, specB);
+Vh = epochLongTable(sessionData(spd2, specB, Ss, {B1, B2}, resBh));
+r = Vh.series == Ss.label(2) & Vh.x == 2;
+check(height(Vh) == 3 * 2 && nnz(r) == 1 && Vh.value(r) == resBh.R.mean(2, 2) && Vh.tile(r) == "", ...
+    'epochLongTable values of a behavior result: no tiles');
+specW = EphysAnalysisConfig.normalizePlot(struct('kind', "waveforms", 'layout', "grid"));
+resW = sessionResults({W1, W2}, Ss, spd2, specW);
+check(strcmp(errorId(@() epochLongTable(sessionData(spd2, specW, Ss, {W1, W2}, resW))), 'epochLongTable:Kind') ...
+    && strcmp(errorId(@() epochLongTable(Sx3, What="counts")), 'epochLongTable:NoEpochs') ...
+    && strcmp(errorId(@() epochLongTable(Sx, MaxRows=20)), 'epochLongTable:TooLarge'), ...
+    'epochLongTable: a waveforms result has no values (:Kind), no epochs (:NoEpochs), :TooLarge past MaxRows');
+Tx = epochLongTable(Sx, What="counts");
+check(height(Tx) == 48 && all(Tx.session == S.label(1)), 'epochLongTable counts of a sessions struct: every session''s epochs stacked');
+
+% writeAnalysisData
+df = fullfile(dxDir, 'data', 'sd');
+out = writeAnalysisData(df, Sx);
+L = load(out);
+check(out == df + ".mat" && isfile(out) && isequal(sort(fieldnames(L)), sort(fieldnames(Sx))) && L.schema == Sx.schema ...
+    && isequal(L.sessions.label, Sx.sessions.label) && isequal(L.sessions.nItems, Sx.sessions.nItems) && L.results(1).R.kind == "psth" ...
+    && isequaln(L.results(1).R.rate, Sx.results(1).R.rate) && isequaln(L.perSession{1}.rate, P{1}.rate) && numel(L.epochs) == 2 ...
+    && isequaln(L.epochs{1}.spikes.counts, Dd.spikes.counts) && isequaln(L.epochs{2}.signals.data, Dd.signals.data) ...
+    && isempty(dir(fullfile(dxDir, 'data', '~*'))), ...
+    'writeAnalysisData: ".mat" added, the struct''s fields are the file''s variables (load gives them back), no temp file left');
+out7 = writeAnalysisData(fullfile(dxDir, 'v7.mat'), Sx, MatVersion="-v7");
+L7 = load(out7);
+check(strcmp(errorId(@() writeAnalysisData(out, Sx)), 'writeAnalysisData:Exists') && writeAnalysisData(out, Sx, Overwrite=true) == out ...
+    && numel(L7.results) == 1 && isequaln(L7.results(1).R.rate, Sx.results(1).R.rate), ...
+    'writeAnalysisData: :Exists unless Overwrite; MatVersion "-v7" writes too');
+clear dxClean
 end
 
 

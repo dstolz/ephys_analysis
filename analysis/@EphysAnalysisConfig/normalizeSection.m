@@ -18,6 +18,8 @@ function [s, unknown] = normalizeSection(section, in)
 %     one struct in; a 1 x n struct array out)
 %   - SECTION "Plot" is normalizePlot: ref / window / selection are
 %     "default" or a normalized EventRef / EpochWindow / TrialSelection
+%   - SECTION "SessionPlot" (one entry of SessionPlots) has its aesthetics
+%     rules normalized by PlotAesthetics.normalizeRules, as a plot's
 %
 %   See also EphysAnalysisConfig.defaults, EphysAnalysisConfig.normalizePlot.
 
@@ -30,6 +32,30 @@ if section == "Plot"
     [s, unknown] = EphysAnalysisConfig.normalizePlot(in);
     return
 end
+if section == "SessionPlot"
+    [s, unknown] = normalizeSessionPlot(in);
+    return
+end
 def = EphysAnalysisConfig.defaults(section);
 [s, unknown] = EphysAnalysisConfig.coerceStruct(def, in, section);
+end
+
+
+function [s, unknown] = normalizeSessionPlot(in)
+%normalizeSessionPlot  One session plot: coerced to defaults("SessionPlot"), its aesthetics rules normalized.
+path = "SessionPlot";
+if isstruct(in) && ~isempty(in) && ~isscalar(in)
+    error('EphysAnalysisConfig:BadValue', '%s must be a scalar struct.', path);
+end
+looks = [];
+if isstruct(in) && isfield(in, 'aesthetics')
+    looks = in.aesthetics;
+    in = rmfield(in, 'aesthetics');
+end
+[s, unknown] = EphysAnalysisConfig.coerceStruct(EphysAnalysisConfig.defaults("SessionPlot"), in, path);
+try
+    s.aesthetics = PlotAesthetics.normalizeRules(looks, path + ".aesthetics");
+catch ME
+    error('EphysAnalysisConfig:BadValue', '%s', ME.message);
+end
 end

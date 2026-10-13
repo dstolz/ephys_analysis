@@ -1,9 +1,13 @@
 function onConfigChanged(obj, what)
 %onConfigChanged  A control changed: re-gather the config and refresh what depends on it.
 %   WHAT says which part changed: "name", "source", "ticks", "defaults"
-%   (the Alignment tab), "plot" (the plot editor) or "export". The runner
-%   gets the new config; the Alignment count, the plot list, the epoch
-%   diagram (when open) and the preview (auto-preview) follow.
+%   (the Alignment tab), "plot" (the plot editor), "sessions" (the session
+%   plot editor) or "export". The runner gets the new config; the
+%   Alignment count, the plot list, the epoch diagram (when open) and the
+%   preview (auto-preview) follow. The Sessions tab's preview
+%   (autoSessionPreview: redrawn, or marked out of date) follows an edit of
+%   the session plot, of its base plot, of the defaults, and of the ticks
+%   when it draws the ticked datasets; its list and editor follow the plots.
 arguments
     obj (1,1) EphysAnalysisApp
     what (1,1) string = ""
@@ -36,11 +40,30 @@ switch what
         obj.applyPlotEditorDefaults();
         obj.refreshEpochDiagram();
         obj.autoPreview();
+        obj.autoSessionPreview();
     case "plot"
         obj.refreshPlotList();
         obj.syncPlotEditor();
         obj.refreshEpochDiagram();
         obj.autoPreview();
+        obj.refreshSessionList();   % a plot's id or kind: the base plots offered
+        obj.syncSessionEditor();
+        j = obj.SelectedSessionPlot;
+        ks = obj.selectedPlots();
+        if j >= 1 && j <= numel(cfg.SessionPlots) && ~isempty(ks) && (any([cfg.Plots(ks).id] == cfg.SessionPlots(j).plot) ...
+                || cfg.plotIndex(cfg.SessionPlots(j).plot) == 0)
+            obj.autoSessionPreview();   % its base plot changed (or was renamed away)
+        end
+    case "ticks"
+        obj.syncSessionEditor();   % the sessions it covers
+        j = obj.SelectedSessionPlot;
+        if j >= 1 && j <= numel(cfg.SessionPlots) && cfg.SessionPlots(j).datasets == "ticked"
+            obj.autoSessionPreview();
+        end
+    case "sessions"
+        obj.refreshSessionList();
+        obj.syncSessionEditor();
+        obj.autoSessionPreview();
 end
 obj.updateTitle();
 end

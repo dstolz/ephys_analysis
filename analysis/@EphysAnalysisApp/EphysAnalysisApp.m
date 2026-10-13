@@ -50,6 +50,20 @@ classdef EphysAnalysisApp < handle
     %                draws, on the active dataset, the digital lines as TTL
     %                traces, each event, window and epoch and what is
     %                dropped, redrawn on every edit (onShowEpochs)
+    %     Sessions   session plots (buildSessionsTab): one plot of the Plots
+    %                tab (its base plot) computed on several datasets and
+    %                merged (EphysAnalysisRunner.computeSessionPlot,
+    %                combineSessions): add (on a base plot), remove,
+    %                duplicate, reorder; an editor in collapsible sections
+    %                (the datasets, figures per subject, a color per
+    %                session / subject / one mean, color order, sessions
+    %                under a summary, error band; unit matching: pool, site,
+    %                mapping file; the data export, To workspace, Save .mat)
+    %                showing only the rows it uses (syncSessionEditor); a
+    %                preview over the ticked datasets (refreshSessionPreview;
+    %                Auto off by default), its figures (per subject, per
+    %                trial group) and pages, with its own badge
+    %                (setSessionPreviewState)
     %     Export     figure formats, folder and file-name pattern, the report
     %                (HTML / PDF), Validate, Plan, Run over the ticked
     %                datasets (cancelable), results, open the report / folder
@@ -79,14 +93,18 @@ classdef EphysAnalysisApp < handle
     %
     %   Keys (onKeyPress), on the Plots tab: Ctrl+1 to Ctrl+9 and Ctrl+0 (Cmd on a Mac)
     %   go to the plot editor's sections (gotoPlotSection); each header
-    %   names its key and has a color of its own.
+    %   names its key and has a color of its own. On the Sessions tab
+    %   Ctrl+1 to Ctrl+3 go to the session editor's (gotoSessionSection).
+    %   Page Up and Page Down flip the shown tab's preview pages.
     %
     %   Preferences (getpref group 'EphysAnalysisApp'): FigurePosition,
     %   LastConfigFile, RecentConfigs, ScriptFolder, AutoPreview,
     %   PreviewMaxMB (signal previews of larger extracts wait for the Preview
     %   button), PlotSectionsCollapsed (the plot editor's collapsed sections),
     %   PlotGroupBy (how the plot tree groups), PlotGroupsCollapsed (its
-    %   collapsed groups), ChronuxCacheFolder (the local folder for
+    %   collapsed groups), SessionAutoPreview (the Sessions tab's Auto,
+    %   off by default), SessionSectionsCollapsed (its editor's collapsed
+    %   sections), ChronuxCacheFolder (the local folder for
     %   Chronux files of datasets whose output folder cannot be written),
     %   ChronuxMaxMB (the most signal the Chronux tab reads at once),
     %   ChronuxSettings (its last settings) and ChronuxSectionsCollapsed.
@@ -109,6 +127,7 @@ classdef EphysAnalysisApp < handle
         TabData    matlab.ui.container.Tab
         TabAlign   matlab.ui.container.Tab
         TabPlots   matlab.ui.container.Tab
+        TabSessions matlab.ui.container.Tab
         TabExport  matlab.ui.container.Tab
         TabChronux matlab.ui.container.Tab
         TabLog     matlab.ui.container.Tab
@@ -187,6 +206,29 @@ classdef EphysAnalysisApp < handle
         PreviewGrid        matlab.ui.container.GridLayout   % the SelectionBar (row 1, 0 px while one plot is selected) over the PreviewPanel
         SelectionBar struct = struct()           % the bar over the preview while several plots are selected: Grid, Text (showPlotSelection)
 
+        % --- Sessions tab (buildSessionsTab) ---
+        SessionList            matlab.ui.control.ListBox        % "<id>  (<base plot>)"; ItemsData = index into Config.SessionPlots
+        AddSessionBaseDropDown matlab.ui.control.DropDown       % the base plot of a new session plot (kinds in SessionKinds)
+        AddSessionButton       matlab.ui.control.Button
+        RemoveSessionButton    matlab.ui.control.Button
+        DuplicateSessionButton matlab.ui.control.Button
+        UpSessionButton        matlab.ui.control.Button
+        DownSessionButton      matlab.ui.control.Button
+        SessionEditorPanel     matlab.ui.container.Panel        % the editor's panel (its title names the session plot)
+        SessionEditorGrid      matlab.ui.container.GridLayout   % the editor's column of sections
+        SessionSections struct = struct([])      % the editor's sections (formSection): general, sessions, matching, data
+        SessionEditor struct = struct()          % session-editor controls by field
+        SessionCountLabel      matlab.ui.control.Label          % "Sessions: N ticked (...)": what the session plot draws
+        SessionPreviewButton   matlab.ui.control.Button
+        SessionAutoCheckBox    matlab.ui.control.CheckBox       % auto-preview (pref SessionAutoPreview, off by default)
+        SessionGroupDropDown   matlab.ui.control.DropDown       % the figure shown (facet / trial group); ItemsData = index into SessionPreviewResults
+        SessionPrevPageButton  matlab.ui.control.Button
+        SessionNextPageButton  matlab.ui.control.Button
+        SessionPageLabel       matlab.ui.control.Label
+        SessionPreviewLabel    matlab.ui.control.Label
+        SessionPreviewPanel    matlab.ui.container.Panel
+        SessionPreviewBadge struct = struct()    % the session preview's state badge: Grid, Icon, Text (setSessionPreviewState)
+
         % --- Export tab ---
         ExportControls struct = struct()
         ReportControls struct = struct()
@@ -254,7 +296,16 @@ classdef EphysAnalysisApp < handle
         LastReportFiles (1,:) string = string.empty(1,0)
         LastExportFolder (1,1) string = ""
 
-        ChronuxIndex = []                   % loadChronuxExport's index of ChronuxFile
+        SelectedSessionPlot (1,1) double = 0    % the session plot in the editor (index into Config.SessionPlots), the one previewed
+        SessionPreviewResults = []              % the last session preview's figures (computeSessionPlot's RES: facet, group, label, R, status, message)
+        SessionPreviewIndex (1,1) double = 1    % the figure of SessionPreviewResults shown
+        SessionPreviewPage (1,1) double = 1
+        SessionPreviewPages (1,1) double = 1
+        SessionPreviewState (1,1) string = "idle"   % what the session preview's badge says (setSessionPreviewState)
+        SessionPreviewRedo (1,1) logical = false    % an edit or a Preview press came in while one computed: it ends Out of date
+        SessionPreviewSeconds (1,1) double = 0      % time the last session preview took (auto-preview under 2 s)
+
+        ChronuxIndex = []                  % loadChronuxExport's index of ChronuxFile
         ChronuxFile (1,1) string = ""       % the active dataset's Chronux file ("" = none)
         ChronuxFileWhere (1,1) string = ""  % "output" (its output folder) | "cache" (the local cache)
         ChronuxResult = []                  % the last Chronux analysis (chronuxSpectrum, chronuxSpecgram)
@@ -412,6 +463,35 @@ classdef EphysAnalysisApp < handle
         onCancelRun(obj)
         onOpenReport(obj)
         onOpenExportFolder(obj)
+
+        % --- Sessions tab ---
+        buildSessionsTab(obj)
+        refreshSessionList(obj)
+        sp = gatherSessionEditor(obj)
+        applySessionEditor(obj)
+        syncSessionEditor(obj)
+        layoutSessionEditor(obj)
+        onAddSessionPlot(obj, base)
+        onRemoveSessionPlot(obj)
+        onDuplicateSessionPlot(obj)
+        onMoveSessionPlot(obj, step)
+        onSessionPlotSelected(obj, k)
+        onSessionSectionToggled(obj, name)
+        gotoSessionSection(obj, name)
+        onPickSessionDatasets(obj, opts)
+        onBrowseUnitMapping(obj, file)
+        T = onEditUnitMapping(obj, opts)
+        refreshSessionPreview(obj)
+        state = drawSessionPreview(obj)
+        setSessionPreviewState(obj, state, opts)
+        onCancelSessionPreview(obj)
+        onSessionPreviewPage(obj, step)
+        onSessionGroupChanged(obj, i)
+        rememberSessionAesthetics(obj, id, rules)
+        autoSessionPreview(obj)
+        onSessionAutoPreviewToggled(obj)
+        S = onSessionsToWorkspace(obj, sp, opts)
+        file = onSaveSessionData(obj, sp, opts)
 
         % --- Chronux tab ---
         buildChronuxTab(obj)

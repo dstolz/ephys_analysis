@@ -14,8 +14,14 @@ function h = renderPlot(R, spec, target, opts)
 %   uiaxes, figure, uifigure, panel, tab, grid layout or tiled layout: the
 %   app draws its previews into a panel, the runner into an invisible
 %   classic figure (newExportFigure). It adds a title -- SPEC.title, else
-%   "<Kind>: <line> <edge> (<n> epochs)" -- with the dataset and page as a
-%   subtitle. SPEC.note, when it has text, adds descriptive text beside or
+%   "<Kind>: <line> <edge> (<n> epochs)", or "(<n> sessions, <m> epochs)"
+%   for a result merged across sessions (combineSessions: R.sessions) --
+%   with the dataset (R.dataset; a merged result's "3 sessions (SYNTH-01)")
+%   and page as a subtitle. A merged result whose series are sessions x
+%   trial groups (R.groups.lineStyle, combineSessions TrialGroups "combine")
+%   draws each series in its line style; its effective spec
+%   (EphysAnalysisConfig.sessionPlotFor) has histStyle "line" for a psth.
+%   SPEC.note, when it has text, adds descriptive text beside or
 %   over the plot (drawNote, placeNote; H.note is the text object).
 %   SPEC.overlays adds lines and semitransparent patches in data units on
 %   the plot's axes, over or under its data (drawOverlays; H.overlays are
@@ -26,7 +32,11 @@ function h = renderPlot(R, spec, target, opts)
 %   colors and colormaps), and after drawing the rules are applied: the
 %   design's, the user's for SPEC.kind (PlotAesthetics.userRules), the
 %   note's own font and colors (SPEC.note), each overlay's own look
-%   (SPEC.overlays), then the plot's own (SPEC.aesthetics), so the later win. In a visible figure
+%   (SPEC.overlays), then the plot's own (SPEC.aesthetics), then, for a
+%   session plot (EphysAnalysisConfig.sessionPlotFor), the session plot's
+%   own (SPEC.sessionAesthetics), so the later win; the aesthetics editor
+%   then remembers its edits in SPEC.sessionAesthetics, never in the base
+%   plot's rules. In a visible figure
 %   a right-click on any component opens PlotAestheticsDialog, which edits
 %   the plot live, or picks another design (every plot on screen that
 %   follows the chosen design is redrawn in it) or saves the plot's look as
@@ -130,6 +140,13 @@ if isempty(root) && ~isempty(h.axes); root = h.axes(1); end
 if isempty(root); return; end
 plotRules = PlotAesthetics.normalizeRules(spec.aesthetics);
 rules = [N.rules OV.rules plotRules];
+ownField = 'aesthetics';   % where the aesthetics editor keeps the plot's own rules
+if isfield(spec, 'sessionAesthetics')   % a session plot (sessionPlotFor): its own rules, after the base plot's
+    sessionRules = PlotAesthetics.normalizeRules(spec.sessionAesthetics);
+    rules = [rules sessionRules];
+    plotRules = sessionRules;
+    ownField = 'sessionAesthetics';
+end
 if opts.UserAesthetics
     rules = [PlotAesthetics.userRules(spec.kind) rules];
 end
@@ -142,8 +159,8 @@ if editable(opts.Editable, target)
         'onRemember', {opts.OnRemember}, 'design', design, 'followsDesign', follows, ...
         'ordinal', isfield(R, 'groups') && istable(R.groups) && ismember('color', R.groups.Properties.VariableNames) ...
             && isOrdinalGroups(R.groups), 'mapField', mapFieldOf(R, spec), ...
-        'redraw', @(newRules) renderPlot(R, setfield(spec, 'aesthetics', newRules), target, Page=page, ...
-            Design=opts.Design, UserAesthetics=opts.UserAesthetics, Editable=opts.Editable, OnRemember=opts.OnRemember)); %#ok<SFLD>
+        'redraw', @(newRules) renderPlot(R, setfield(spec, ownField, newRules), target, Page=page, ...
+            Design=opts.Design, UserAesthetics=opts.UserAesthetics, Editable=opts.Editable, OnRemember=opts.OnRemember));
     PlotAesthetics.enableEditing(target, ctx);
 end
 end
@@ -193,9 +210,14 @@ end
 
 
 function t = autoTitle(R, spec)
-%autoTitle  "<Kind>: <line> <edge> (<n> epochs)".
+%autoTitle  "<Kind>: <line> <edge> (<n> epochs)"; merged sessions: "(<n> sessions, <m> epochs)".
 K = EphysAnalysisConfig.plotKinds();
 label = K.Label(K.Kind == spec.kind);
+nSess = "";   % "<n> sessions, " for a result merged across sessions (combineSessions)
+if isfield(R, 'sessions') && istable(R.sessions) && ismember("status", string(R.sessions.Properties.VariableNames))
+    n = nnz(R.sessions.status == "done");
+    if n == 1; nSess = "1 session, "; else; nSess = n + " sessions, "; end
+end
 if spec.kind == "probemap"
     what = "units";
     if spec.source == "detected"; what = "channels"; end
@@ -203,13 +225,13 @@ if spec.kind == "probemap"
     return
 end
 if spec.kind == "behavior"
-    t = sprintf("%s: %s by %s (%d epochs)", label, R.yName, R.param, height(R.values));
+    t = sprintf("%s: %s by %s (%s%d epochs)", label, R.yName, R.param, nSess, height(R.values));
     return
 end
 if spec.kind == "waveforms"
     what = "units";
     if spec.source == "detected"; what = "channels"; end
-    t = sprintf("%s (%d %s)", label, R.n, what);
+    t = sprintf("%s (%s%d %s)", label, nSess, R.n, what);
     return
 end
 ev = "";
@@ -237,5 +259,9 @@ if spec.kind == "corrmap"
 end
 t = label;
 if ev ~= ""; t = t + ": " + ev; end
-if isfinite(nEp); t = t + sprintf(" (%d epochs)", nEp); end
+if isfinite(nEp)
+    t = t + sprintf(" (%s%d epochs)", nSess, nEp);
+elseif nSess ~= ""
+    t = t + " (" + extractBefore(nSess, strlength(nSess) - 1) + ")";
+end
 end

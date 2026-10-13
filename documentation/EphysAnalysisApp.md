@@ -6,7 +6,11 @@ PSTHs with rasters, rasters, evoked potentials, firing rates, tuning curves,
 heatmaps, probe maps and unit-by-unit correlation matrices. Every figure can
 be aligned to any digital line, and trials can be filtered and grouped by
 Epsych2 parameters such as `Depth`. The figures are written as PNG / EPS /
-SVG / PDF files and collected into an HTML and / or PDF report.
+SVG / PDF files and collected into an HTML and / or PDF report. A plot can
+also be drawn over several datasets at once and merged (a color per session
+or per subject, or a mean with an error band across sessions), and the
+organized data behind it saved or put in the MATLAB workspace: the
+[Sessions tab](#sessions-tab).
 
 The app edits one [`EphysAnalysisConfig`](EphysAnalysisConfig.md) (saved as
 JSON) and draws it with an `EphysAnalysisRunner`
@@ -471,6 +475,156 @@ A value that gives no epochs is reported in red, and the lines are still
 drawn, so you can see why. Examples: a fixed window with *pre* after
 *post*, a line the dataset lacks, or a scope it cannot use.
 
+### Sessions tab
+
+A *session plot* draws one plot of the Plots tab, its *base plot*, over
+several datasets at once and merges the results: a color per session, or per
+subject (its sessions averaged), or one mean over all, with an error band
+across the sessions, one tile per matched unit or channel, and the data
+behind the figure a click away. It keeps the base plot's event, window,
+trial selection, units, bins and look and adds only the cross-session
+settings, so editing the base plot changes every session plot on it. How the
+results are merged: [Across sessions](EphysAnalysis.md#across-sessions); every
+field: [Session plots](EphysAnalysisConfig.md#session-plots). Runs draw the
+enabled session plots after the datasets' own plots.
+
+Three columns: the session plots, the editor of the selected one, and the
+preview.
+
+**The session plots.** The list reads `<id>  (<base plot>)`, with *(off)* for
+a disabled one. The drop-down under it names the plots a session plot can be
+made on (PSTH, raster, evoked potential, firing rate, tuning curve,
+behavior, heatmap and unit waveforms plots; a probe map, a unit correlation
+and a plot with the auROC baseline cannot be merged).
+
+| Control | Effect |
+| --- | --- |
+| **Add** | adds a session plot on the base plot picked in the drop-down, with the next free id (`psth_1_sessions_1`, ...), and selects it |
+| **Remove**, **Duplicate** | removes the selected session plot (its base plot stays); copies it with a new id, right after it, and selects the copy |
+| **Up**, **Down** | swaps it with its neighbor, which changes the order runs draw them in |
+
+**The editor.** On top, always open: the base plot's kind, **Enabled**,
+**Id** (unique among session plots; it names the figure and data files),
+**Title** (blank = automatic), **Base plot**, **Layout** (*(base plot's)* or
+one of the kind's layouts) and **Trial groups** (shown when the base plot's
+trial selection has a *Group by*). Then three sections that collapse under
+colored headers (**▼** / **►**; which are collapsed is remembered), with the
+keys **Ctrl+1** to **Ctrl+3** (**Cmd** on a Mac) with the Sessions tab showing:
+
+| Section | Row | Effect | Config field |
+| --- | --- | --- | --- |
+| (top) | **Base plot** | the plot (Plots tab) computed on every session; its own *Enabled* box does not matter here | `plot` |
+| | **Layout** | how the merged plot is laid out | `layout` |
+| | **Trial groups** | *Pool them (a color per session)*, *A figure per group* or *Combine (a line style per group)* ([trial groups](EphysAnalysisConfig.md#trial-groups-across-sessions)) | `trialGroups` |
+| Sessions (1) | **Datasets** | *The ticked datasets* (those ticked to run on the Data tab) or *These datasets*, a list of their own | `datasets` |
+| | **Keys**, **Pick...** | with *These datasets*: the keys, and the window that picks them ([below](#picking-the-datasets-and-editing-the-mapping)) | `datasetKeys` |
+| | **Figures** | *One for all the sessions* or *One per subject* | `facet` |
+| | **A color per** | *Session*, *Subject (its sessions averaged)* or *Nothing (all sessions averaged)* | `series` |
+| | **Colors** | *The design's palette*, or *By date (sequential)*: the design's sequential colors in date order | `colorOrder` |
+| | **Show each session faintly under its mean** | with a color per subject or one mean: each session's own trace, pale | `showMembers` |
+| | **Error band** | with a color per subject or one mean: *mean ± SEM*, *mean ± SD*, *95% CI* (Student's *t*; Statistics and Machine Learning Toolbox, else 1.96 × SEM) or *None* | `error` |
+| Matching (2) | **Units** | *Pool* (each session's units a tile each), *Site* (one tile per recording channel, a session's units there averaged) or *Mapping* (a table names each cell's units); for spike plots other than heatmaps and unit waveforms, which always pool ([matching](EphysAnalysisConfig.md#matching-units-across-sessions)) | `match` |
+| | **Mapping file**, **Browse...**, **Edit...** | with *Mapping*: the CSV, the file dialog, and a table editor for it | `mappingFile` |
+| | **Min. sessions** | a tile (site, cell, channel) is drawn only when at least this many sessions have data for it | `minSessions` |
+| Data (3) | **Export holds** | *results* (each session's own result besides the merged one), *epochs* (each session's epoch table, spike times and binned counts) and *signals* (with epochs, a signal plot's epoched samples; only for plots of signals) | `data` |
+| | **To workspace**, **Save .mat...** | the session plot's data, now ([below](#to-workspace-and-save-mat)) | |
+
+Only what the selected session plot uses is shown (`syncSessionEditor`): the
+trial groups row needs a grouped base plot, the keys *These datasets*, the
+last two rows of Sessions a color per subject or one mean (with a color per
+session there is no mean), the mapping rows *Mapping* and the units row a
+spike plot that is not a heatmap or unit waveforms (signals match by
+recording channel; *Min. sessions* stays, as it counts sessions per channel).
+A base plot that is gone or cannot be merged is said in a note on top of the
+editor. With no session plot selected only a note shows.
+
+**The preview** draws the selected session plot through the runner, so it is
+what a run exports.
+
+| Control | Effect |
+| --- | --- |
+| **Sessions: N ticked (subject; first to last date)** | the datasets the session plot covers: those ticked on the Data tab, or *N listed* for its own list |
+| **Preview** | computes the base plot on every session, merges and draws. Every dataset is read (the results are kept, so a second preview is quick), so every page and every figure is computed: **<** **>** and the figure box only draw. The tall button turns orange while the preview is *Out of date* |
+| **Auto** | redraw after every edit while a preview takes under 2 s. Off by default (a session preview reads every dataset); remembered |
+| **Figure** | when the session plot makes several figures (one per subject, or per trial group): the one shown. Figures that could not be made are marked *(skipped)* or *(error)* |
+| **<**, **>** | the pages of a paged grid (**Page Up**, **Page Down**) |
+
+The line under the preview names the session plot, how many sessions it was
+drawn over and the time taken, and lists the sessions left out with the
+reason (the runner's [skip reasons](#why-is-my-plot-skipped)); a right-click
+on the plot opens the aesthetics editor, whose rules are kept with the
+**session plot** (its `aesthetics`), never in the base plot, so the
+datasets' own figures do not change. The badge at its left says where the
+preview is, as on the Plots tab:
+
+| Badge | Means |
+| --- | --- |
+| **Computing** (amber, spinning) | the base plot is being computed on the sessions |
+| **Drawing** (blue, spinning) | the merged result is being drawn |
+| **Drawn** (green) | the preview is the session plot as it is now |
+| **Out of date** (amber) | the session plot, its base plot, the Alignment defaults or the ticked datasets changed and the preview was not redrawn: press **Preview** |
+| **Cannot draw** (gray) | the base plot is gone or cannot be merged, no dataset is ticked or listed, or too few sessions can draw it; the line says why |
+| **Failed** (red) | computing or drawing it failed; the line and the Log tab say why |
+| **Canceled** (gray) | you pressed **Cancel** while it computed |
+| **No preview** (gray) | no session plot is selected, or nothing is scanned |
+
+While it computes, a card over the last plot says what (*"Computing
+psth_days on 3 session(s) ..."*) and has a red **Cancel** button; the
+compute checks for it between sessions and between units. The Plots tab's
+preview and this one share the runner's computing: one waits while the
+other works, and a run blocks both. The toolbar's **Preview** previews the
+session plot while this tab shows. **Help → Help for this tab** opens this
+section on the wiki.
+
+#### To workspace and Save .mat
+
+**To workspace** computes the session plot over its datasets (reusing the
+results the preview kept) and puts the
+[data struct](EphysAnalysis.md#data-export) in the base workspace as
+`sessions_<id>`; it asks before replacing a variable of that name and then
+lists the struct's fields. **Save .mat...** asks for a file
+(`uiputfile`, starting in the resolved `Export.Data.Folder` as `<id>.mat`,
+and asking before replacing a file) and writes the same struct as its
+variables, in `Export.Data.MatVersion` ([format](file-formats.md#session-data-mat)).
+What they hold is the **Export holds** row: the merged results and the
+sessions table always, each session's own result with *results*, its
+epochs (spike times and binned counts per unit) with *epochs*, and the
+epoched samples of a signal plot with *signals*. Both read every dataset
+under a progress dialog with a **Cancel** button that stops between
+datasets and inside a compute. Epoched samples over 1024 MB are refused
+(`epochData:TooLarge`); the dialog then offers to raise the limit to what
+they need. In MATLAB:
+
+```matlab
+S = sessions_psth_days;                       % the struct (To workspace)
+T = epochLongTable(S);                         % the plotted numbers, one row per observation
+C = epochLongTable(S, What="counts");          % epoch x unit x bin (with "epochs")
+```
+
+#### Picking the datasets and editing the mapping
+
+**Pick...** opens a window over the scanned datasets in date order: a table
+of **Use**, **Name**, **Subject**, **Date** and **Key**, pre-ticked from the
+session plot's keys, with **All** and **None**. **OK** writes the keys (and
+the **Keys** box) and the session plot goes *Out of date*; keys the scan
+lacks are dropped, and the window says how many. **Cancel** leaves them.
+
+**Browse...** picks the mapping file; **Edit...** opens it in a table, a
+row per cell. The window's columns are `cell` and one column per included
+dataset, headed by its key: the keys the session plot lists, or, with *The
+ticked datasets*, the ticked ones in date order. Type a cell's name and,
+under each dataset, the unit id(s) it has there (a number, or `3 7` for two
+units that are averaged; blank when the cell was not found). **Add row**
+adds an empty cell, **Remove row** drops the rows of the selected fields,
+**Save** writes the CSV and **Cancel** discards the edits. **Save** refuses a
+row with ids but no name, and two rows of one name, and leaves the window
+open. Columns of other datasets that the file already holds are kept, matched
+to the rows by cell name (a cell renamed here loses its ids in those
+columns). An empty **Mapping file** box asks for a path first
+(`unit_mapping.csv` beside the config is offered). Saving sets the box and
+sends the preview out of date. The format:
+[Unit mapping CSV](file-formats.md#unit-mapping-csv).
+
 ### Export tab
 
 <!-- wiki: ![Export tab: figure files, the report, and a finished run's results](images/analysis-export-tab.png) -->
@@ -503,14 +657,17 @@ drawn, so you can see why. Examples: a fixed window with *pre* after
 | Button | Effect |
 | --- | --- |
 | **Validate** | lists the config's issues (Section, Field, Severity, Message) in the table; errors stop a run |
-| **Plan** | one row per ticked dataset and plot (Dataset, Subject, Date, Plot, Kind, Source, Enabled, Reason): whether it will run, and why not ([skip reasons](#why-is-my-plot-skipped)). Cheap: no signals or spikes are loaded |
-| **Run** | validates, then runs every enabled plot on every ticked dataset with a cancelable progress dialog: compute, export, report. A failing plot is an error row and the rest still run |
+| **Plan** | one row per ticked dataset and plot (Dataset, Subject, Date, Plot, Kind, Source, Enabled, Reason): whether it will run, and why not ([skip reasons](#why-is-my-plot-skipped)), then one row per session plot and figure (Dataset `sessions: all`, or `sessions: <subject>`). Cheap: no signals or spikes are loaded |
+| **Run** | validates, then runs every enabled plot on every ticked dataset and then every enabled [session plot](#sessions-tab) over them, with a cancelable progress dialog: compute, export, report. A failing plot is an error row and the rest still run |
 | **Cancel** | stops before the next plot; the plots left are *canceled* |
-| **Open report**, **Open figure folder** | after a run: the report files written, and the first dataset's figure folder |
+| **Open report**, **Open figure folder** | after a run: the report files written, and the first dataset's figure folder. After a run with session plots the button's tooltip names the sessions folder (`Export.SessionsFolder`) too; the button itself still opens the first dataset's folder |
 
 The results table has one row per dataset and plot: `Dataset`, `Subject`,
 `Date`, `Plot`, `Kind`, `Status` (`done`, `skipped`, `error`, `canceled`), `Message`,
-`Files`, `Seconds`. The label above it counts each status.
+`Files`, `Seconds`. The label above it counts each status. A session plot's
+rows read `sessions: all` (or `sessions: <subject>`, or `sessions: <subject> /
+<trial group>`) in the `Dataset` column, with the Subject and Date blank, and
+list its figure files and, with `Export.Data.Enabled`, its data file.
 
 ### Chronux tab
 
@@ -859,7 +1016,7 @@ item's shortcut, if it has one (Ctrl, or Cmd on a Mac). In groups:
 | --- | --- |
 | New config, Open config, Save config | File (Ctrl+N, Ctrl+O, Ctrl+S) |
 | Scan for datasets | the Data tab's **Scan** |
-| Preview the selected plot on the active dataset | the Plots tab's **Preview**; shows the Plots tab first |
+| Preview the selected plot on the active dataset | the Plots tab's **Preview**; shows the Plots tab first, unless the Sessions tab is showing, where it previews the selected session plot (the Sessions tab's **Preview**) |
 | Validate config, Plan, Run, Cancel run | the Export tab's buttons; Validate, Plan and Run show the Export tab first, where they list what they find |
 | Open the last run's report, Open the last run's figure folder | the Export tab's **Open report** and **Open figure folder** |
 | Open pipeline app | File → **Open pipeline app** |
@@ -885,6 +1042,18 @@ A run writes, for each ticked dataset and enabled plot:
   with its caption, parameters and links to its files; the PDF has a title
   page, a summary page per dataset and every figure as vector pages
   ([Report files](file-formats.md#report-files)).
+- **Session figures**, for each enabled [session plot](#sessions-tab): one
+  file per page and format in the sessions folder (`Export.SessionsFolder`,
+  by default `<output root>\analysis\sessions`), named with the file-name
+  pattern, `{Name}` being the facet (`all`, or the subject), by default
+  `all_<session plot id>.png`, plus `_<trial group>` for a figure per trial
+  group ([Exported figure names](file-formats.md#exported-figure-names)). The
+  report gets an *Across sessions* section after the datasets: a table of the
+  sessions and these figures.
+- **Session data**, when `Export.Data.Enabled` is on: one `.mat` file per
+  session plot in `Export.Data.Folder` (by default
+  `<output root>\analysis\data\all_<id>.mat`), the same struct **To
+  workspace** and **Save .mat...** give ([format](file-formats.md#session-data-mat)).
 - **A run record**, `<report folder>/analysis_runs/<runId>_<name>.json`: the
   config, the code version, the machine and the results
   ([Run records](file-formats.md#run-records)).
@@ -916,6 +1085,8 @@ is in the config.
 | `PlotSectionsCollapsed` | the plot editor's collapsed sections |
 | `PlotGroupBy` | how the plot tree groups (`kind`, `source`, `layout`, `status`, `none`) |
 | `PlotGroupsCollapsed` | the plot tree's collapsed groups |
+| `SessionAutoPreview` | the Sessions tab's Auto box (off by default: a session preview reads every dataset) |
+| `SessionSectionsCollapsed` | the session plot editor's collapsed sections |
 | `ChronuxCacheFolder` | the Chronux tab's local cache folder |
 | `ChronuxMaxMB` | the most signal the Chronux tab reads at once, and a spectrogram's largest size (default 2000 MB) |
 | `ChronuxSettings` | the Chronux tab's last settings (`chronuxSettings`) |
@@ -942,6 +1113,16 @@ The runner's `plotSkipReason`, shown by the preview, Plan and the results:
 | no trial parameter X | a group-by, shift-by, tuning, series, behavior y value or raster sort parameter the trials lack | pick one from the dataset's parameters |
 | no probe map | the manifest names no probe file and the dataset has no sort whose channel map could stand in (probe maps only) | assign a probe on the pipeline app's [Probe tab](EphysPipelineApp.md#probe) |
 
+A [session plot](#sessions-tab) is skipped, in Plan and the preview, when
+(`sessionPlotSkipReason`): it is *disabled*; there is *no base plot X*; *a X
+plot is not drawn across sessions* (a probe map or unit correlation);
+*an auROC baseline is not merged across sessions*; with *Mapping*, there is
+*no mapping file* or the *mapping file is not found*; or *fewer than N
+session(s) can draw it*, followed by each session that cannot and its own
+reason from the table above (`session label: no sorted units`). A session
+plot that passes can still draw nothing when no site or cell reaches
+**Min. sessions**.
+
 A plot that is not skipped can still fail when it runs, e.g. *no Stim onset
 event is left after the selection* or *none of the N events makes a usable
 epoch (M with a window outside the recording)*: the message is in the
@@ -958,6 +1139,7 @@ results, on the Log tab and in the report.
 | data | `openSource`, `onScan`, `refreshDatasetsTable`, `selectDataset`, `refreshDatasetInfo` |
 | previews | `refreshAlignPreview`, `refreshPreview`, `autoPreview`, `onPreviewPage`, `setPreviewState` (the badge and the busy card; its icons in `analysis/icons/status`), `onCancelPreview` |
 | epoch diagram | `onShowEpochs`, `refreshEpochDiagram`; the window itself is `analysis/EpochDiagram.m` |
+| Sessions tab | `buildSessionsTab`; the list `refreshSessionList`, `onSessionPlotSelected`, `onAddSessionPlot`, `onRemoveSessionPlot`, `onDuplicateSessionPlot`, `onMoveSessionPlot`; the editor `gatherSessionEditor` / `applySessionEditor`, `syncSessionEditor` (what shows), `layoutSessionEditor`, `onSessionSectionToggled`, `gotoSessionSection` and `onKeyPress` (Ctrl+1 ... Ctrl+3); the preview `refreshSessionPreview` and `drawSessionPreview`, `autoSessionPreview`, `onSessionAutoPreviewToggled`, `onSessionPreviewPage`, `onSessionGroupChanged`, `onCancelSessionPreview`, `rememberSessionAesthetics`, `setSessionPreviewState` (over `private/showPreviewState`, which `setPreviewState` shares); the dialogs `onPickSessionDatasets` (`private/pickSessionDatasets`), `onBrowseUnitMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`); the data `onSessionsToWorkspace` and `onSaveSessionData` (`private/collectSessionData`, `private/sessionPlotContext`); the session plots themselves are `analysis/` functions ([Across sessions](EphysAnalysis.md#across-sessions)) |
 | plot designs | `refreshDesigns` (the Design menu and list; `PlotDesign.listen` keeps them current), `onDesignChosen`, `onSaveDesign`, `onImportDesign`, `onDeleteDesign`, `onDesignsFolder`; the designs themselves: `PlotDesign`, `analysis/designs` |
 | running | `onValidate`, `onPlan`, `onRunExport`, `onCancelRun` |
 | files | `onNewConfig`, `onOpenConfig`, `openConfigFile`, `onSaveConfig`, `onSaveConfigAs`, `onGenerateScript`, `loadPreferences`, `savePreferences` |
@@ -969,7 +1151,7 @@ results, on the Log tab and in the report.
 
 `test_EphysAnalysisApp` builds the app headlessly on the analysis fixture
 (a small synthetic project run through the pipeline) and drives it through
-its methods: the six tabs; the toolbar (its tools in groups with their
+its methods: the seven tabs; the toolbar (its tools in groups with their
 icons, every menu shortcut named in a tooltip, Preview and Plan clicked
 from another tab, the run and results tools following the Export tab's
 buttons); the scan; opening on a list of datasets
@@ -1026,7 +1208,15 @@ group, *Out of date* after an edit of what is computed, a display edit
 redrawing, a spectrogram over the whole recording, a coherence of one pair
 and a spike-field coherence of every unit, the plot left as it was when
 the tab is shown again, Save results and Save figure, a file created in the local cache and found once the output
-folder's is gone); the preferences remembered (the
+folder's is gone); the Sessions tab (Add on a base plot, Duplicate, Up, Down and
+Remove, the rows shown for each choice, the editor's round trip through the
+config, Browse and Pick with and without the window, the mapping editor with
+a planted CSV (edits, Add row, Remove row, Save, a duplicate name refused,
+another dataset's column kept), a two-session preview drawing a line per
+session, a figure per trial group, a look remembered into the session plot, *Out
+of date* after a base plot edit, the toolbar's Preview, **To workspace** and
+**Save .mat...**, and a run writing a session figure, its `sessions: ...` row
+and the folder tooltip); the preferences remembered (the
 last config, the collapsed section); closing. It keeps the app's
 preferences in a temporary file (`AppPrefs`), so the user's own are never
 read or changed.

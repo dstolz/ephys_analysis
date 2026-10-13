@@ -9,6 +9,10 @@ switch obj.Tabs.SelectedTab
     case obj.TabPlots
         msg = "Plots: add plots, edit them, preview them on the active dataset.";
         if isempty(obj.PreviewResult) || obj.PreviewState == "stale"; obj.autoPreview(); end
+    case obj.TabSessions
+        msg = "Sessions: a plot drawn over several datasets at once; pick its base plot, Add, then Preview over the ticked datasets.";
+        obj.syncSessionEditor();
+        if isempty(obj.SessionPreviewResults) || obj.SessionPreviewState == "stale"; obj.autoSessionPreview(); end
     case obj.TabExport
         msg = "Export: figure files and the report; Validate, Plan, Run over the ticked datasets.";
     case obj.TabChronux

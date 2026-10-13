@@ -25,6 +25,12 @@ function h = renderEvoked(R, target, opts)
 %   once for every tile; the grid's legend goes east of it unless
 %   Style.LegendLocation says otherwise.
 %
+%   A result merged across sessions (combineSessions) with R.members
+%   (ShowMembers) draws each member session as a thin pale line in its
+%   series' color under the stack's and the grid's means (role
+%   "memberLine"; the butterfly has none); R.groups.lineStyle (TrialGroups
+%   "combine") sets each series' line style in every layout.
+%
 %   An axes TARGET gets the stack (or the first tile of the other layouts).
 %   H: layout (tiled layout or []), axes, spacing (stack).
 %
@@ -47,6 +53,9 @@ t = R.t;
 [eLo, eHi] = resultBounds(R, 'mean');
 h = struct('layout', [], 'axes', gobjects(0), 'spacing', NaN);
 yl = "Amplitude (" + unitText(R.units) + ")";
+ls = groupLineStyles(R);
+members = [];   % the member sessions' means (combineSessions ShowMembers), drawn faint under the stack and grid
+if isfield(R, 'members') && isstruct(R.members) && isfield(R.members, 'mean'); members = R.members.mean; end
 
 switch opts.Layout
     case "stack"
@@ -65,12 +74,14 @@ switch opts.Layout
         for k = 1:nC
             c = order(k);
             off = -(k - 1) * spacing;
+            memberLines(ax, t, members, c, off, R, colors, ls, style);
             for g = 1:nG
                 m = R.mean(:, c, g) + off;
                 if style.ShowSEM
                     errorPatch(ax, t, eLo(:, c, g) + off, eHi(:, c, g) + off, colors(g, :), R.groups.label(g), style);
                 end
-                lh(g) = tagPart(plot(ax, t, m, 'Color', colors(g, :), 'LineWidth', style.LineWidth), "trace", R.groups.label(g));
+                lh(g) = tagPart(plot(ax, t, m, 'Color', colors(g, :), 'LineWidth', style.LineWidth, 'LineStyle', ls(g)), ...
+                    "trace", R.groups.label(g));
             end
         end
         if style.ShowZeroLine; tagPart(xline(ax, 0, ':', 'Color', [0.3 0.3 0.3], 'HandleVisibility', 'off'), "zeroLine"); end
@@ -102,7 +113,8 @@ switch opts.Layout
             tagPart(ax, "axes", "", R.groups.label(g));
             hold(ax, 'on');
             for k = 1:nC
-                tagPart(plot(ax, t, R.mean(:, order(k), g), 'Color', depthColors(k, :), 'LineWidth', style.LineWidth * 0.8), ...
+                tagPart(plot(ax, t, R.mean(:, order(k), g), 'Color', depthColors(k, :), 'LineWidth', style.LineWidth * 0.8, ...
+                    'LineStyle', ls(g)), ...
                     "channelTrace", labels(order(k)));
             end
             if style.ShowZeroLine; tagPart(xline(ax, 0, ':', 'Color', [0.3 0.3 0.3]), "zeroLine"); end
@@ -137,9 +149,10 @@ switch opts.Layout
             tagPart(ax, "axes", "", labels(c));
             hold(ax, 'on');
             lh = gobjects(1, nG);
+            memberLines(ax, t, members, c, 0, R, colors, ls, style);
             for g = 1:nG
                 if style.ShowSEM; errorPatch(ax, t, eLo(:, c, g), eHi(:, c, g), colors(g, :), R.groups.label(g), style); end
-                lh(g) = tagPart(plot(ax, t, R.mean(:, c, g), 'Color', colors(g, :), 'LineWidth', style.LineWidth), ...
+                lh(g) = tagPart(plot(ax, t, R.mean(:, c, g), 'Color', colors(g, :), 'LineWidth', style.LineWidth, 'LineStyle', ls(g)), ...
                     "trace", R.groups.label(g));
             end
             if style.ShowZeroLine; tagPart(xline(ax, 0, ':', 'Color', [0.3 0.3 0.3], 'HandleVisibility', 'off'), "zeroLine"); end
@@ -155,6 +168,17 @@ switch opts.Layout
         gridLabels(tl, axs, "Time (s)", yl, style);
         if nr * nc > 1; tileTicks(axs, style); end
         h.layout = tl; h.axes = axs;
+end
+end
+
+
+function memberLines(ax, t, M, c, off, R, colors, ls, style)
+%memberLines  Each member session's mean on channel C (R.members), a thin pale line OFF up, tagged "memberLine".
+if isempty(M); return; end
+for s = 1:size(M, 3)
+    g = R.members.series(s);
+    tagPart(plot(ax, t, M(:, c, s) + off, 'Color', paleColor(colors(g, :), 0.55, style), 'LineWidth', 0.6 * style.LineWidth, ...
+        'LineStyle', ls(g), 'HandleVisibility', 'off'), "memberLine", R.groups.label(g));
 end
 end
 

@@ -298,6 +298,8 @@ classdef PlotAesthetics
                 "sem"          "Error band"
                 "stopLine"     "Stop event (mean)"
                 "stackBase"    "Row baseline"
+                "memberLine"   "Session line"
+                "sessionDivider" "Session divider"
                 "overlayLine"  "Overlay line"
                 "overlayRegion" "Overlay region"
                 "zeroLine"     "Event line (t = 0)"

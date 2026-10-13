@@ -1,5 +1,8 @@
 function cfg = gatherConfig(obj)
-%gatherConfig  The config the controls show: name, Source, Defaults, the edited plot, Export, Report.
+%gatherConfig  The config the controls show: name, Source, Defaults, the edited plot and session plot, Export, Report.
+%   The session plot in the Sessions tab's editor (SelectedSessionPlot) is
+%   taken from it (gatherSessionEditor); the other session plots as they
+%   are in obj.Config.
 %   Plots other than the one in the editor are taken from obj.Config as
 %   they are (the list buttons change them there directly), but for the
 %   others selected with it: they take what the editor's plot changed since
@@ -21,5 +24,9 @@ if ~isempty(ks)
     if numel(ks) > 1 && ~isempty(fieldnames(obj.ShownPlot))
         cfg.Plots = spreadPlotEdit(cfg.Plots, ks(1), ks(2:end), obj.ShownPlot, cfg.Defaults);
     end
+end
+k = obj.SelectedSessionPlot;
+if k >= 1 && k <= numel(cfg.SessionPlots)
+    cfg.SessionPlots(k) = obj.gatherSessionEditor();
 end
 end

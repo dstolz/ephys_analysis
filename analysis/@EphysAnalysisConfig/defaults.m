@@ -7,7 +7,7 @@ function s = defaults(section)
 %   from here.
 %
 %   Config sections   Source, Defaults, Export, Report, Plot (one entry of
-%                     Plots)
+%                     Plots), SessionPlot (one entry of SessionPlots)
 %   Building blocks   EventRef, SequenceStep (one step of an EventRef's
 %                     sequence), EpochWindow, TrialSelection, UnitSelection,
 %                     Style, Auroc, Waveform, Aux, Note, Overlay (one entry
@@ -224,7 +224,13 @@ switch section
             'FilenamePattern', "{Name}_{Plot}", ...                   % tokens: Name Plot Kind Group Unit Index Date
             'Dpi',             150, ...
             'FigureSizeCm',    [18 12], ...
-            'Overwrite',       true);
+            'Overwrite',       true, ...
+            'SessionsFolder',  "{OutputRoot}" + filesep + "analysis" + filesep + "sessions", ...   % session plots' figures (one folder for every dataset: {OutputFolder} is the first dataset's)
+            'Data',            struct( ...                            % session plots' data files (.mat); Overwrite applies
+                'Enabled',         false, ...
+                'Folder',          "{OutputRoot}" + filesep + "analysis" + filesep + "data", ...
+                'FilenamePattern', "{Name}_{Plot}", ...               % {Name} = "all"
+                'MatVersion',      "-v7.3"));                         % "-v7.3" | "-v7"
 
     case "Report"
         s = struct( ...
@@ -287,6 +293,29 @@ switch section
             'overlays',      repmat(EphysAnalysisConfig.defaults("Overlay"), 1, 0), ...   % lines and patches drawn on the plot's axes (renderPlot's drawOverlays)
             'style',         EphysAnalysisConfig.defaults("Style"), ...
             'aesthetics',   PlotAesthetics.emptyRules());   % remembered looks of components: role, group, property, value (PlotAesthetics)
+
+    case "SessionPlot"
+        % one plot over several sessions (datasets): a base plot (its alignment, units, bins, look) drawn per
+        % dataset and merged (combineSessions); only the cross-session settings live here (sessionPlotFor)
+        s = struct( ...
+            'id',          "", ...                  % its own namespace ("" = "<plot>_sessions_<n>")
+            'enabled',     true, ...
+            'title',       "", ...                  % "" = automatic
+            'plot',        "", ...                  % id of the base plot (its enabled does not gate this one)
+            'layout',      "", ...                  % "" = the base plot's; else one of the kind's layouts
+            'datasets',    "ticked", ...            % "ticked" (the run's datasets) | "list" (datasetKeys)
+            'datasetKeys', string.empty(1,0), ...   % the dataset keys when "list"
+            'facet',       "none", ...              % "none" | "subject" (one figure per subject)
+            'series',      "session", ...           % what gets a color: "session" | "subject" | "all" (sessions within a subject / all averaged)
+            'colorOrder',  "palette", ...           % "palette" | "sequential" (by date)
+            'showMembers', false, ...               % series subject / all: each session drawn faintly under its summary
+            'error',       "sem", ...               % series subject / all: the band across sessions, "sem" | "sd" | "ci95" | "none"
+            'match',       "pool", ...              % spike sources: "pool" | "site" | "mapping" (signals: by recording channel)
+            'mappingFile', "", ...                  % match "mapping": CSV, column cell then one per dataset key holding unit ids
+            'minSessions', 1, ...                   % a tile (site / cell) is kept with data from at least this many sessions
+            'trialGroups', "pool", ...              % the base plot's trial groups: "pool" | "each" (a figure each) | "combine" (line styles)
+            'data',        "results", ...           % what the data export holds: "results" | "epochs" | "signals"
+            'aesthetics',  PlotAesthetics.emptyRules());   % its own remembered looks, applied after the base plot's
 
     otherwise
         error('EphysAnalysisConfig:BadSection', 'Unknown section "%s".', section);

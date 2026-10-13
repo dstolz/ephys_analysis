@@ -52,6 +52,7 @@ if cfg.Export.Enabled
     obj.LastExportFolder = figureFileName(cfg.Export.Folder, struct('OutputFolder', r.datasetFolder(idx(1)), ...
         'OutputRoot', r.outputRoot(), 'Root', cfg.Source.Root, 'Name', r.Names(idx(1))), Kind="folder");
 end
+obj.OpenFolderButton.Tooltip = openFolderTip(obj, cfg, idx);
 obj.OpenReportButton.Enable = matlab.lang.OnOffSwitchState(~isempty(obj.LastReportFiles));
 obj.OpenFolderButton.Enable = matlab.lang.OnOffSwitchState(obj.LastExportFolder ~= "" && isfolder(obj.LastExportFolder));
 obj.ToolbarReportTool.Enable = obj.OpenReportButton.Enable;
@@ -81,4 +82,20 @@ set([obj.RunButton obj.PlanButton obj.ValidateButton], 'Enable', 'on');
 set([obj.ToolbarRunTool obj.ToolbarPlanTool obj.ToolbarValidateTool], 'Enable', 'on');
 obj.CancelButton.Enable = 'off';
 obj.ToolbarCancelTool.Enable = 'off';
+end
+
+
+function tip = openFolderTip(obj, cfg, idx)
+%openFolderTip  The Open figure folder button's tooltip: the first dataset's folder, and where the session plots' figures went.
+tip = "The first dataset's figure folder of the last run.";
+if isempty(cfg.enabledSessionPlots()); return; end
+try
+    r = obj.Runner;
+    first = r.sessionTable(idx).index(1);
+    folder = figureFileName(cfg.Export.SessionsFolder, struct('OutputFolder', r.datasetFolder(first), ...
+        'OutputRoot', r.outputRoot(), 'Root', cfg.Source.Root, 'Name', r.Names(first)), Kind="folder");
+    tip = tip + " The session plots' figures are in " + folder + ".";
+catch
+    tip = tip + " The session plots' figures are in the sessions folder (Export.SessionsFolder).";
+end
 end

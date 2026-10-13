@@ -19,6 +19,12 @@ function h = renderTuning(R, target, opts)
 %   compass point (location), with or without the box's outline (box),
 %   sized by scale (default mode "off": none).
 %
+%   A result merged across sessions (combineSessions) with R.members
+%   (ShowMembers) draws each member session's curve as a thin pale line
+%   without markers under its series (role "memberLine"; the overlay: each
+%   member's mean over the units); R.groups.lineStyle (TrialGroups
+%   "combine") sets each series' line style.
+%
 %   The grid's x and y labels are its tiled layout's, once for every tile,
 %   and its legend goes east of the grid unless Style.LegendLocation says
 %   otherwise.
@@ -42,6 +48,8 @@ waves = [];
 if isfield(R, 'waveforms') && opts.Layout == "grid"; waves = R.waveforms; end
 colors = groupPalette(R.groups, style);
 [nX, nU, nS] = size(R.mean);
+members = [];   % the member sessions' curves (combineSessions ShowMembers)
+if isfield(R, 'members') && isstruct(R.members) && isfield(R.members, 'mean'); members = R.members.mean; end
 if R.xIsNumeric
     xv = double(R.x(:));
 else
@@ -56,7 +64,9 @@ if opts.Layout == "overlay" && nU > 1
         [lo, hi] = errorBounds(R.mean, 2, style.ErrorType, style.ErrorResamples);
         lo = reshape(lo, nX, nS); hi = reshape(hi, nX, nS);
     end
-    drawCurves(ax, xv, m, lo, hi, R, colors, style, true, tl, 'best');
+    M = [];
+    if ~isempty(members); M = reshape(mean(members, 2, 'omitnan'), nX, []); end   % each member's mean over the tiles
+    drawCurves(ax, xv, m, lo, hi, R, colors, style, true, tl, 'best', M);
     title(ax, sprintf('Mean of %d units', nU), 'FontWeight', 'normal');
     xlabel(ax, R.param, 'Interpreter', 'none');
     ylabel(ax, R.units);
@@ -78,8 +88,10 @@ for j = 1:numel(idx)
     u = order(idx(j));
     if ~isempty(ax0); ax = ax0; else; ax = nexttile(tl, j); end
     tagPart(ax, "axes", "", names(u));
+    M = [];
+    if ~isempty(members); M = reshape(members(:, u, :), nX, []); end
     drawCurves(ax, xv, reshape(R.mean(:, u, :), nX, nS), reshape(eLo(:, u, :), nX, nS), reshape(eHi(:, u, :), nX, nS), ...
-        R, colors, style, j == 1, tl, "east");
+        R, colors, style, j == 1, tl, "east", M);
     waveformInset(ax, waves, u, wave, style);
     title(ax, names(u), 'FontWeight', 'normal', 'Interpreter', 'none');
     axs(j) = ax;
@@ -90,17 +102,25 @@ h = struct('layout', tl, 'axes', axs);
 end
 
 
-function drawCurves(ax, xv, m, lo, hi, R, colors, style, withLegend, tl, auto)
+function drawCurves(ax, xv, m, lo, hi, R, colors, style, withLegend, tl, auto, M)
 %drawCurves  One panel's curves, with error bars from LO to HI; its legend (WITHLEGEND) at AUTO unless the style places it.
+%   M: the member sessions' curves on this panel [nX x nMembers] (R.members;
+%   [] for none), drawn first as thin pale lines without markers.
 nS = size(m, 2);
+ls = groupLineStyles(R);
 hold(ax, 'on');
+for s = 1:size(M, 2)
+    k = R.members.series(s);
+    tagPart(plot(ax, xv, M(:, s), 'Color', paleColor(colors(k, :), 0.55, style), 'LineWidth', 0.6 * style.LineWidth, ...
+        'LineStyle', ls(k), 'Marker', 'none', 'HandleVisibility', 'off'), "memberLine", R.series(k));
+end
 lh = gobjects(1, nS);
 for k = 1:nS
     if style.ShowSEM
-        lh(k) = tagPart(errorbar(ax, xv, m(:, k), m(:, k) - lo(:, k), hi(:, k) - m(:, k), '-o', 'Color', colors(k, :), ...
+        lh(k) = tagPart(errorbar(ax, xv, m(:, k), m(:, k) - lo(:, k), hi(:, k) - m(:, k), 'o', 'LineStyle', ls(k), 'Color', colors(k, :), ...
             'LineWidth', style.LineWidth, 'MarkerSize', 4, 'MarkerFaceColor', colors(k, :), 'CapSize', 3), "curve", R.series(k));
     else
-        lh(k) = tagPart(plot(ax, xv, m(:, k), '-o', 'Color', colors(k, :), 'LineWidth', style.LineWidth, ...
+        lh(k) = tagPart(plot(ax, xv, m(:, k), 'o', 'LineStyle', ls(k), 'Color', colors(k, :), 'LineWidth', style.LineWidth, ...
             'MarkerSize', 4, 'MarkerFaceColor', colors(k, :)), "curve", R.series(k));
     end
 end

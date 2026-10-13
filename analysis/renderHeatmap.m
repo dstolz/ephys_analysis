@@ -14,7 +14,11 @@ function h = renderHeatmap(R, target, opts)
 %                other tiles keep that order (as the paper's Fig 3A). Other
 %                results: as "probe"
 %   Style.LabelShank / Style.LabelDepth append the shank / depth to the row
-%   labels.
+%   labels. A result merged across sessions (combineSessions: R.sessions,
+%   R.meta.session) keeps each session's rows together, in session order,
+%   each session's rows in the Order chosen, with a thin line in the
+%   ground's color between sessions (role "sessionDivider"); its row
+%   labels name the session ("su12 · SYNTH-01 2026-09-08").
 %
 %   An auROC result (spikePSTH BaselineMode "auroc") is colored on [0 1]
 %   unless Style.CLim says otherwise. With a cutoff and
@@ -57,6 +61,14 @@ switch opts.Order
             [~, order] = sortrows([-R.auroc.mean(:, 1) (1:nR).']);   % highest first; NaN last
         end
 end
+session = [];   % a result merged across sessions: each row's session (rows are session-units)
+if isfield(R, 'sessions') && istable(R.meta) && height(R.meta) == nR && ismember("session", string(R.meta.Properties.VariableNames))
+    session = double(R.meta.session(:));
+    order = order(:);
+    [~, by] = sortrows([session(order) (1:nR).']);   % by session, each session's rows in the order chosen
+    order = order(by);
+    session = session(order);
+end
 labels = siteLabels(shortUnitLabels(R.labels), R.meta, style);
 clim0 = style.CLim;
 if ~(numel(clim0) == 2 && clim0(2) > clim0(1))
@@ -90,6 +102,10 @@ for j = 1:numel(idx)
     grid(ax, 'off');
     ylim(ax, [0.5 nR + 0.5]);
     if auroc; heatMarks(ax, R, order, g, style); end
+    for b = reshape(find(diff(session) ~= 0), 1, [])   % a thin line in the ground's color between sessions
+        tagPart(yline(ax, b + 0.5, '-', 'Color', paleColor([0 0 0], 1, style), 'LineWidth', 1, 'HandleVisibility', 'off'), ...
+            "sessionDivider", R.groups.label(g));
+    end
     if nR <= 40
         set(ax, 'YTick', 1:nR, 'YTickLabel', labels(order), 'TickLabelInterpreter', 'none', ...
             'FontSize', max(6, style.FontSize - (nR > 20)));

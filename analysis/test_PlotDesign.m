@@ -10,7 +10,9 @@ function test_PlotDesign()
 %   plot's own colors win), choosing a design (the preference, redrawing
 %   every plot on screen, listeners), the right-click Design submenu,
 %   capturing a plot's look and saving, listing, importing and deleting
-%   designs, and refused files and names. The preferences and your
+%   designs, and refused files and names. Results merged across sessions
+%   (combineSessions) draw in every design; each design names the session
+%   roles (memberLine, sessionDivider). The preferences and your
 %   designs folder are temporary (AppPrefs.useTemporary).
 %
 %   Usage:  test_PlotDesign
@@ -100,6 +102,16 @@ for u = 1:2
 end
 Wv.mean{3} = 60 * shape;
 Rpw = Rp; Rpw.waveforms = Wv;
+S3 = sessionTable(["SYNTH-01_260908_103000"; "SYNTH-01_260909_101500"; "SYNTH-02_260910_090000"], ...
+    ["SYNTH-01/260908_103000"; "SYNTH-01/260909_101500"; "SYNTH-02/260910_090000"]);   % results merged across sessions
+P3 = cell(1, 3);
+for k = 1:3
+    P3{k} = spikePSTH(trains(circshift(1:4, 1 - k)), E1, Window=[-0.2 0.5], BinSec=0.02, Groups=G(1, :), Meta=meta);
+    P3{k}.epochs = E1;
+end
+Rsm = combineSessions(P3, S3, Match="site", Series="subject", ShowMembers=true);   % members under each subject
+Rsc = combineSessions({Rp, Rp}, S3(1:2, :), TrialGroups="combine");                % session x trial group
+Rsh = combineSessions(P3, S3, Kind="heatmap");                                     % session-units, dividers
 
 fprintf('\n== 1. the built-in designs ==\n');
 L = PlotDesign.list();
@@ -122,6 +134,17 @@ for n = builtin(2:end)
     end
 end
 check(ok, "every built-in design loads, names only known roles and gives a ground, palette and colormaps" + ifText(~ok, " (" + why + ")"));
+ok = true; why = "";
+for n = builtin(2:end)
+    D = PlotDesign.load(n);
+    mw = D.rules([D.rules.role] == "memberLine" & [D.rules.property] == "LineWidth");
+    dc = D.rules([D.rules.role] == "sessionDivider" & [D.rules.property] == "Color");
+    if ~(isscalar(mw) && mw.value == 0.75 && isscalar(dc) && ~any([D.rules([D.rules.role] == "memberLine").property] == "Color"))
+        ok = false; why = why + " " + n;
+    end
+end
+check(ok, "every built-in design names the session roles: memberLine (LineWidth 0.75, no color: the pale series color stays) " + ...
+    "and sessionDivider (its color)" + ifText(~ok, " (" + why + ")"));
 D = PlotDesign.load("tufte");
 check(D.name == "Tufte" && isequal(PlotDesign.load("Default"), PlotDesign.none()) && isequal(PlotDesign.load(""), PlotDesign.none()), ...
     'load: by name in any case (named by the file); Default and "" are no design');
@@ -150,7 +173,11 @@ cases = {
     "evoked butterfly",   Rv,  struct('kind', "evoked", 'layout', "butterfly", 'source', "LFP")
     "behavior points",    Rb,  struct('kind', "behavior")
     "behavior box",       Rb,  struct('kind', "behavior", 'layout', "box")
-    "behavior swarm",     Rb,  struct('kind', "behavior", 'layout', "swarm")};
+    "behavior swarm",     Rb,  struct('kind', "behavior", 'layout', "swarm")
+    "sessions: psth + members", Rsm, struct('kind', "psth", 'histStyle', "line")
+    "sessions: psth overlay + members", Rsm, struct('kind', "psth", 'layout', "overlay")
+    "sessions: psth combine", Rsc, struct('kind', "psth")
+    "sessions: heatmap",  Rsh, struct('kind', "heatmap")};
 fig = figure('Visible', 'off');
 ground0 = fig.Color;   % the figure's own ground (its theme's, or the user's default), before any design
 cleanFig = onCleanup(@() delete(fig(isvalid(fig))));
@@ -212,6 +239,27 @@ h = renderPlot(Rc, struct('kind', "corrmap"), fig, Design="Journal");
 journal = PlotDesign.load("Journal");
 check(max(abs(h.axes(1).Colormap - PlotDesign.colormap(journal.diverging, 256)), [], 'all') < 1e-9, ...
     'a correlation map takes the diverging colors');
+night = PlotDesign.load("Night");
+renderPlot(Rsm, struct('kind', "psth", 'histStyle', "line"), fig, Design="Night");
+ml = findall(fig, 'Tag', 'memberLine');
+rl = findall(fig, 'Tag', 'rate');
+r1 = rl(arrayfun(@(o) string(getappdata(o, 'PlotGroup')) == "SYNTH-01", rl));
+m1 = ml(arrayfun(@(o) string(getappdata(o, 'PlotGroup')) == "SYNTH-01", ml));
+pale = night.palette(1, :) + (night.background - night.palette(1, :)) * 0.55;
+check(~isempty(ml) && all([ml.LineWidth] == 0.75) && max(abs(r1(1).Color - night.palette(1, :))) < 1e-9 ...
+    && all(arrayfun(@(o) max(abs(o.Color - pale)) < 1e-9, m1)), ...
+    'Night: member sessions 0.75 wide, their series'' palette color paled towards the dark ground');
+renderPlot(Rsh, struct('kind', "heatmap"), fig, Design="Night");
+dv = findall(fig, 'Tag', 'sessionDivider');
+dcol = night.rules([night.rules.role] == "sessionDivider" & [night.rules.property] == "Color").value;
+check(numel(dv) == 2 && all(arrayfun(@(o) isequal(o.Color, dcol), dv)) && mean(dcol) > 0.5, ...
+    'Night: the heat map''s session dividers in the design''s light color');
+renderPlot(Rsc, struct('kind', "psth"), fig, Design="Night");
+rl = findall(fig, 'Tag', 'rate');
+grp = arrayfun(@(o) string(getappdata(o, 'PlotGroup')), rl);
+a = rl(grp == Rsc.groups.label(2)); b = rl(grp == Rsc.groups.label(4));
+check(max(abs(a(1).Color - night.palette(1, :))) < 1e-9 && max(abs(b(1).Color - night.palette(2, :))) < 1e-9, ...
+    'Night, sessions x trial groups: the palette by session, every trial group of a session in its color');
 renderPlot(Rp, struct('kind', "psth"), fig, Design="Default");
 check(isequal(fig.Color, ground0), 'Default puts back the ground the figure had before a design');
 

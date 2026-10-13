@@ -65,6 +65,8 @@
     {"role": "chanceLine", "property": "LineStyle", "value": ":"},
     {"role": "chanceLine", "property": "LineWidth", "value": 0.5},
     {"role": "stackBase", "property": "Color", "value": "#bfbfbf"},
+    {"role": "memberLine", "property": "LineWidth", "value": 0.75},
+    {"role": "sessionDivider", "property": "Color", "value": "#ffffff"},
     {"role": "modWindow", "property": "FaceColor", "value": "#000000"},
     {"role": "modWindow", "property": "FaceAlpha", "value": 0.06},
     {"role": "modWindow", "property": "Color", "value": "#000000"},

@@ -10,7 +10,11 @@ trials can be **filtered and grouped by Epsych2 parameters** (Depth,
 TrialType, response bits). Figures are exported as PNG / EPS / SVG / PDF and
 collected into a self-contained HTML report and / or a multi-page PDF.
 Per-unit response tests and a population analysis over every unit of every
-dataset give numbers as well as figures.
+dataset give numbers as well as figures. A plot can also be drawn
+[across sessions](#across-sessions): the same plot computed on several
+datasets and merged into one figure (a color per session or per subject, or a
+mean with an error band across sessions), with the organized data behind it
+saved as a `.mat` file or put in the MATLAB workspace.
 
 It is for quick looks. Multitaper spectra, spectrograms and coherence of a
 dataset's Chronux file are its [Chronux analyses](#chronux-analyses) (the
@@ -649,6 +653,182 @@ Pt = populationAnalysis(cfg, AurocGroupBy="TrialType", ...
     Selection=struct('response', ["Hit" "FA"]), Window=struct('pre', -2, 'post', 5));
 ```
 
+## Across sessions
+
+A *session plot* draws one plot over several datasets (*sessions*) at once.
+It names a *base plot* of the config, which supplies the alignment, units,
+bins and look, and adds only the cross-session settings: which datasets,
+what gets a color (each session, each subject, or one mean), how units are
+matched, how trial groups are handled
+([Session plots](EphysAnalysisConfig.md#session-plots)). The runner computes
+the base plot on every dataset and merges the results with
+`combineSessions` into one result **of the same kind**, with the series in
+`R.groups` and the matched tiles as its units or channels, so every
+renderer, design and aesthetics rule draws it as it draws one session's.
+Nothing is computed from spike or event times in the merge: epochs are
+renumbered and concatenated, arrays are copied, averaged or summed.
+
+```mermaid
+flowchart LR
+    TAB["sessionTable<br/>subject, date, label"] --> RES
+    CP["per dataset: cachedPlot<br/>(computePlot, kept in ResultCache)"] --> RES["sessionResults<br/>combineSessions<br/>one R per figure"]
+    RES --> RND["renderPlot<br/>(the same renderers)"]
+    RES --> SD["sessionData, epochData<br/>writeAnalysisData, epochLongTable"]
+    RND --> OUT["Export.SessionsFolder<br/>report: Across sessions"]
+    SD --> DAT["Export.Data .mat<br/>or the workspace"]
+```
+
+```matlab
+cfg = EphysAnalysisConfig.load("D:\EPHYS\am_quicklook.json");
+[cfg, id] = cfg.addSessionPlot("psth_stim", Id="psth_days");  % the base plot's alignment, units, bins, look
+k = cfg.sessionPlotIndex(id);
+cfg.SessionPlots(k).series = "subject";       % a color per subject, its sessions averaged
+cfg.SessionPlots(k).showMembers = true;       % each session faintly under its subject's mean
+cfg.SessionPlots(k).error = "ci95";           % the band across sessions: a t interval
+r = EphysAnalysisRunner(cfg);
+[res, sessions] = r.computeSessionPlot(id);   % the base plot on every dataset (cached), merged
+res(1).R.sessionSeries                         % how it was made: mode, error, match, ...
+renderPlot(res(1).R, res(1).R.spec, figure);
+T = r.run();                                   % every dataset's plots, then the session plots
+T(startsWith(T.Dataset, "sessions: "), :)      % their rows
+```
+
+The pieces are functions of their own:
+
+| Function | Does |
+| --- | --- |
+| `sessionTable(names, keys, NamePattern=, AcqDates=, Folders=, Index=, Sort=)` | one row per dataset: `index`, `key`, `name`, `folder`, `subject` (the name pattern's `SubjectID`, `""` when unknown), `date` (the recording's own start, else the name's date and time; `NaT` when unknown), `dateText` (`yyyy-MM-dd`) and `label` (`"<subject> <dateText>"`, else the name; made unique with `" (2)"`). `Sort=true` orders by date, then name. Pure |
+| `combineSessions(Rs, sessions, Series=, Match=, Mapping=, Error=, ShowMembers=, MinSessions=, ColorOrder=, Group=, TrialGroups=, Kind=)` | merges `Rs`, a cell of per-session results of one kind computed with one effective spec (`[]` = that session has none), into one result ([below](#the-merged-result)). Pure: no I/O, no graphics |
+| `sessionResults(Rs, sessions, sp, spec)` | the figures of a session plot `sp` (effective spec `spec`): a struct array `facet` (`"all"`, or a subject with `facet "subject"`), `group` (`""`, or a trial group with `trialGroups "each"`), `label`, `R` (with `R.spec = spec`), `status` (`done`, `skipped` for too few sessions or tiles, `error`) and `message`. The runner, the app's preview and the standalone script all call it, so they draw the same figures. It reads the mapping CSV itself (`readUnitMapping`) |
+| `sessionPlotSkipReason(cfg, sp, reasons, Labels=)` | why a session plot cannot be drawn (`""`: it can): *disabled*, *no base plot X*, *a X plot is not drawn across sessions*, *an auROC baseline is not merged across sessions*, *no mapping file* / *mapping file not found*, or *fewer than N session(s) can draw it* with each session's own `plotSkipReason`. `plan` shows it |
+| `addReportSection(report, name, Summary=)` | starts a report section that is not one dataset's (`kind "section"`), such as *Across sessions*, with its summary tables; figures added next go into it |
+| `epochData`, `sessionData`, `writeAnalysisData`, `epochLongTable` | the organized data behind the figures ([below](#data-export)) |
+| `readUnitMapping(file)`, `writeUnitMapping(file, T, Overwrite=)` | the [unit-mapping CSV](file-formats.md#unit-mapping-csv) (`readUnitMapping:NoFile`, `:NoCell`; `writeUnitMapping:NoCell`, `:Exists`, `:CannotWrite`) |
+
+### The merged result
+
+`R = combineSessions(...)` has the base plot's `kind` and, on every kind:
+
+| Field | Meaning |
+| --- | --- |
+| `groups` | one row per series: `index`, `label` (the session labels, the subject ids, `"All sessions"`, or `"<series> · <trial group>"` for `combine`), `color` (`groupColors(1:n, false)`; `groupColors(1:n, true)` for `ColorOrder "sequential"`, in date order, which a design draws with its sequential colors; one dark gray for one series), `n` (epochs; units for waveforms), `nSessions`, `nTrials`, and for `combine` `lineStyle` (`-` `--` `:` `-.` by trial group), `group` and `base` (the session, subject or all series the row belongs to: color a `combine` series by `base`) |
+| `sessions` | the sessions table plus `series` (the session's series, NaN when it has no result), `status` (`done` / `missing`; a status the table already held is kept), `nItems` (units or channels of its result; behavior: epochs with a value) and `nEpochs` |
+| `sessionSeries` | how it was made: `mode` (`session`, `subject`, `all`; a heatmap is `all`, waveforms `session`), `error`, `errorNote` (`"95% CI, t"` or `"1.96 × SEM"` for `ci95` across sessions), `match` (`pool`, `site`, `mapping`, `channel` for signals, `none` for behavior), `minSessions`, `group`, `trialGroups`. (Named so because tuning and behavior results already use `R.series` for their series labels) |
+| `epochs` | every session's epochs stacked, `epoch` renumbered 1..N, with the new columns `session` (the row of `R.sessions`) and `sessionKey`; every epoch-indexed field of the kind (`R.raster(u).epoch`, `epochGroup`, `epochIndex`, `values.epoch`, `rasterEvents`, `keptEpochs`, ...) is offset to match |
+| `tiles` | `match`, `key`, `units` (`{nTiles x nSessions}` row indices into each session's `meta`), `nUnits`, `labels`, `meta`, `channel` |
+| `err` | the band: for series `subject` / `all`, `over = "sessions"` and type `sem`, `std`, `ci95` or `none`; for series `session`, the results' own (over epochs) |
+| `members` | with `ShowMembers` and series `subject` / `all`: each member session's own values, drawn faintly under its summary |
+| `dataset`, `spec` | the subtitle (*3 sessions (SYNTH-01)*, *5 sessions, 2 subjects*); the effective spec |
+
+Series **subject** and **all** average their member sessions (NaN ignored)
+and take the error across the sessions averaged: `sem`, `sd`, or `ci95`,
+whose half width is the t quantile (`tinv`, Statistics and Machine Learning
+Toolbox) times the SEM, 1.96 × SEM without the toolbox; with fewer than two
+sessions with a value the band is NaN. Series **session** copies each
+session's own values (NaN on a tile that belongs to another session).
+
+How the units of different sessions meet on a tile (`Match`), for spike
+sources: **pool** (every session-unit its own tile, labeled
+`"<unit> · <session>"`), **site** (one tile per recording channel; a
+session's units there are averaged, with their SEM combined as
+`sqrt(sum(sem.^2))/k`, and their spikes pooled in the raster) and
+**mapping** (one tile per row of a CSV naming the same cell's unit ids in
+each dataset; [Matching units across sessions](EphysAnalysisConfig.md#matching-units-across-sessions)).
+Signals always match channels by recording channel; heatmaps and waveforms
+always pool; behavior has no tiles. `MinSessions` drops a tile with data
+from fewer sessions (for pool and behavior it is the number of sessions
+with a result): `combineSessions:TooFew` when nothing is left.
+
+| Kind | What the merge does |
+| --- | --- |
+| `psth`, `raster` | `rate`, `sem`, `count` `[nBins x nTiles x nSeries]`; the rasters of all epochs, with offset epoch numbers; the bins must agree (`combineSessions:Bins`). `auroc` is `[]`; the aux signal is not merged |
+| `evoked` | `mean`, `sem` `[nTime x nChannels x nSeries]`; the time base (`t`, `fs`) must agree (`combineSessions:TimeBase`; nothing is resampled) |
+| `rate` | series `session`: one row per epoch (`rowsAre = "epochs"`, NaN where the epoch's session has no unit on the tile). Series `subject` / `all`: one row per member session, its mean rate (`rowsAre = "sessions"`), so the bar, box and points layouts agree |
+| `tuning` | the union of every session's levels (all numeric or all text: `combineSessions:MixedLevels`), `mean`, `sem` `[nLevels x nTiles x nSeries]`; the series label is `seriesParam` `"session"` or `"subject"` |
+| `behavior` | `values` with `session` and the session's series, `mean`, `sem`, `median`, `n` `[nLevels x nSeries]` |
+| `heatmap` | pool matching and one series: rows are the session-units in session order (a thin divider between sessions); a signal heatmap averages channels over the sessions. With `TrialGroups "each"` the base plot's trial groups are its tiles, in one figure |
+| `waveforms` | pool only: the units' waveforms of every session, each tile colored by its session |
+
+A result that cannot be merged is an error with an identifier:
+`combineSessions:Kind` (mixed kinds), `:Bins`, `:TimeBase`, `:MixedLevels`,
+`:Mapping` (no mapping, no `cell` column, or no column for a session key),
+`:TooFew`, `:Groups` (several trial groups and no `Group=`), `:Auroc` (an
+auROC result) and `:Size`.
+
+**Trial groups.** `TrialGroups "pool"` (the default) clears the base plot's
+`groupBy` (`EphysAnalysisConfig.sessionPlotFor`): every epoch of a session
+is together and the colors are the sessions. `"each"` keeps them and makes
+a figure per group (`Group=` slices one trial group, matched by label, out
+of every session's result, so a depth set that differs between days still
+lines up). `"combine"` keeps every group in one figure: a color per series,
+a line style per trial group, drawn as lines even for a bar PSTH.
+([Trial groups across sessions](EphysAnalysisConfig.md#trial-groups-across-sessions).)
+
+### Data export
+
+`epochData(src, spec, Signals=, Spikes=, Counts=, MaxMB=, Check=, Provenance=)`
+organizes one dataset's epochs, nothing averaged: `identity` (`key`,
+`name`, `label`, `folder`, `subject`, `date`, `fs`, `durationSec`), `spec`,
+`E` and `G` (the `epochTable` result, with the trial columns the plot
+uses), `meta` (the units or channels), and
+
+- `spikes` (a spike source): `times` `{nEpochs x nUnits}`, each unit's spike
+  times in each epoch in seconds from the event on the continuous clock
+  (`E.t0Continuous`, so a spike in the event's own sample is at 0), inside
+  `[pre post)` (a *between* window: the epoch's own `[tStart tStop)`) and
+  not masked after the stop; `counts` `[nEpochs x nBins x nUnits]` from
+  `binCounts` with the spec's bins, so `counts(e,:,u)` is the PSTH's count of
+  epoch `e`; and `edges`, `t`, `binSec`, `window`, `binWindow`;
+- `signals` (a signal source, with `Signals=true`): `data` `[nTime x
+  nChannel x nKept]` single, the epoched samples as `evokedPotential` cuts
+  them (**no baseline subtraction**), `dims` (`"time x channel x epoch"`),
+  `t`, `fs`, `epochs` (the rows of `E` kept), `channels`, `labels`,
+  `units`, `droppedEdge`, `droppedNonFinite`.
+
+`MaxMB` (1024) refuses, before reading, more epoched samples or counts than
+that (`epochData:TooLarge`). `sessionData(sp, spec, sessions, Rs, res,
+Config=, Epochs=, Files=, Provenance=)` assembles a session plot's data
+into one struct, independent of the run; `EphysAnalysisRunner.sessionData`
+(or the app's **To workspace** / **Save .mat...**) computes the inputs:
+
+| Field | Contents |
+| --- | --- |
+| `schema` | `"ephys-analysis-sessions/1"` |
+| `sessionPlot`, `spec` | the session plot's settings and the effective spec every session was computed with |
+| `sessions` | the sessions table with `status`, `message`, `nItems`, `nEpochs` |
+| `results` | one element per figure: `facet`, `group`, `label`, `status`, `message`, `R` (the merged result), `files` (the figure files written) |
+| `perSession` | with `"results"` in the session plot's `data`: `{1 x nSessions}`, each session's own base result (`[]` where none); else `{}` |
+| `epochs` | with `"epochs"` (and `"signals"` for the epoched samples): `{1 x nSessions}` of `epochData`; else `{}` |
+| `config`, `created`, `provenance` | the analysis config as a struct, when, and the code and machine |
+
+```matlab
+cfg.SessionPlots(k).data = ["results" "epochs"];          % what the export holds
+S = EphysAnalysisRunner(cfg).sessionData(id);              % computes (or takes from the cache) and gathers
+T = epochLongTable(S);                                     % the plotted numbers, one row per observation
+C = epochLongTable(S, What="counts");                      % epoch x unit x bin
+writeAnalysisData("D:\EPHYS\analysis\data\psth_days.mat", S, Overwrite=true);
+S = load("D:\EPHYS\analysis\data\psth_days.mat");          % the fields come back as variables
+```
+
+`writeAnalysisData(file, S, MatVersion="-v7.3", Overwrite=false)` saves the
+fields of `S` as the variables of the `.mat` file through
+`EphysDataset.saveAtomically` (a temporary name, checked, then renamed;
+`writeAnalysisData:Exists` without `Overwrite`). The file is described in
+[file formats](file-formats.md#session-data-mat). `epochLongTable(X,
+What=, MaxRows=)` unrolls `S` (or one `epochData`) into a tidy table for
+R, pandas or MATLAB's grouping functions:
+
+| `What` | One row per | Columns |
+| --- | --- | --- |
+| `"values"` (a sessions struct; the default) | result x series x tile x bin or level | `plot`, `facet`, `group`, `series`, `session` (NaN for a series that averages sessions), `subject`, `date`, `tile`, `unit`, `channel`, `t` (psth, evoked) or `x` (tuning, behavior; none for rate), `value`, `err`, `n`; from `perSession` when it was kept, else from the merged results |
+| `"counts"` (an `epochData`, or a sessions struct holding epochs; the default for one `epochData`) | epoch x unit x bin | `session`, `subject`, `date`, `trial`, `epoch`, `group`, `unit`, `bin`, `t`, `count`, and the epochs' trial columns |
+| `"spikes"` | spike | `session`, `subject`, `date`, `trial`, `epoch`, `group`, `unit`, `t`, and the trial columns |
+| `"signals"` | epoch x channel x sample | `session`, `subject`, `date`, `trial`, `epoch`, `group`, `channel`, `label`, `sample`, `t`, `value`, and the trial columns |
+
+More rows than `MaxRows` (5e6) is `epochLongTable:TooLarge`; the other errors
+are `:Input`, `:Kind` (a result with no values, such as waveforms),
+`:NoValues`, `:NoEpochs`, `:NoCounts`, `:NoSpikes` and `:NoSignals`.
+
 ## Render
 
 `h = render<Kind>(R, target, ...)` draws into `target`: an axes or uiaxes
@@ -760,7 +940,10 @@ trace, bars, error bars, boxes, points and mean bars, a tuning curve, a
 behavior plot's points, swarm, violins and mean ± SEM (`behaviorMean`), an
 image, probe sites (with and without a value), site and shank labels,
 unit positions, and a unit waveform's box, spikes, mean and amplitude
-label. The group is the trial group's label, a tuning or behavior
+label; and, in a result [merged across sessions](#across-sessions), each member
+session's pale line under its summary (`memberLine`, "Session line") and a
+heatmap's divider between sessions (`sessionDivider`). The group is the trial
+group's label, a tuning or behavior
 series, an evoked channel or a raster mark's line and edge. Axes, tile titles, axis labels,
 legends, color bars and the plot's title and subtitle are components too.
 A grid's x and y labels (its tiled layout's) are the plot's own components
@@ -879,7 +1062,10 @@ group colors apply while the plot's group colors are `"lines"` (the
 default), its colormaps while the plot's heat colors are `"auto"`, so a
 plot that picks its own keeps them. The legend's place, orientation and
 box stay the plot's (Style `LegendLocation`, `LegendOrientation`,
-`LegendBox`); a design colors the legend.
+`LegendBox`); a design colors the legend. Every design names the two roles of
+a result merged across sessions: `memberLine` (0.75 pt, in its series' pale
+color) and `sessionDivider` (white in Journal, Gray panel and Talk -- 1.5 pt in
+Talk --, `#d8dee9` in Night, a 0.5 pt `#7f7f7f` in Tufte).
 
 A design is a JSON file named by its file name. The built-in ones are in
 `analysis/designs`; the user's are in their designs folder
@@ -1029,6 +1215,7 @@ writePdfReport(report, "E:\out\stim_report.pdf");
 | `newAnalysisReport(Title=, Config=, Export=, Options=)` | an empty report. `Options` is a [`Report`](EphysAnalysisConfig.md#report) section (`Format`, `EmbedFormat`, `Dpi`, `Include*`), `Export.FigureSizeCm` sizes the pages it draws, and `Config` (a plain struct, `cfg.toStruct()`) is printed at the end. It records the code version, MATLAB and machine (`ephysProvenance`), printed under the title |
 | `addReportDataset(report, src)` | starts a dataset's section, with its summary tables when `IncludeSummary` (`reportSummaryTables`: the recording, the digital lines, the trials, the units by class and shank, the ten highest-rate units) |
 | `addReportFigure(report, spec, R, Files=, Images=, Pages=)` | one plot in the last dataset: its caption (`plotCaption`), its pages and links to its exported `Files`. `spec` needs an `id` (`cfg.plotFor(id)`). `R = []` with `Status="skipped"` or `"error"` and `Message=` lists a plot that was not drawn |
+| `addReportSection(report, name, Summary=)` | starts a section that is not one dataset's (`kind "section"`), such as the runner's *Across sessions*, with its summary tables when `IncludeSummary` (`Summary=struct('sessions', T)`); `addReportFigure` then adds to it. Both writers print each field of a summary under its label (`recording` *Recording*, `lines` *Digital lines*, `trials`, `units`, `topRates` *Highest rates*, `sessions` *Sessions*, any other by its name; a dataset's PDF page keeps to its recording, trials and units) |
 | `reportImage(fig, report, Title=, Files=)` | one drawn page as the HTML report embeds it |
 | `reportPdfPage(fig, report, Files=)` | one drawn page as the PDF report holds it |
 | `writeHtmlReport(report, file)`, `writePdfReport(report, file)` | the files; neither draws a plot again |
@@ -1050,12 +1237,15 @@ HTML only keeps no pages, so it cannot be written as a PDF
 (`reportPdfPage:NoPages`, `writePdfReport:NoPages`): set `Format` to
 `"pdf"` or `"both"` before adding plots.
 
-The HTML is one self-contained file (contents, a section per dataset, PNG
+The HTML is one self-contained file (contents, a section per dataset and, after
+the datasets, the *Across sessions* section: a table of the sessions and the
+session plots' figures; PNG
 as `data:` URIs or inline SVG, the caption, the plot's parameters and the
 config folded). Its links to the exported files are relative to the
 report's folder (a `file://` URL on another drive or share), worked out
 from absolute paths, each path segment percent-encoded (UTF-8). The PDF
-has a title page and a summary page per dataset (which lists the plots
+has a title page and a summary page per dataset and for the *Across sessions*
+section (which lists the plots
 that failed), drawn when it is written, and each plot's pages, joined in
 that order with the Apache PDFBox library MATLAB ships
 (`PDFMergerUtility`); the MATLAB Report Generator is not needed. See
@@ -1094,16 +1284,23 @@ pipeline's selected datasets instead of `cfg.Source`
 
 | Member | Meaning |
 | --- | --- |
-| `plan(Datasets=, Plots=)` | table `Dataset, Plot, Kind, Source, Enabled, Reason`, one row per dataset and plot (default: every plot, enabled or not). It reads only each dataset's source. `Reason` comes from `plotSkipReason`: *disabled*, *no sorted units*, *no detected spikes*, *no LFP extract* (or another signal), *no probe map*, *no paired trials*, *no line X*, *no trial parameter X*, or *cannot read the dataset: ...* ([why a plot is skipped](EphysAnalysisApp.md#why-is-my-plot-skipped)). A plot that passes can still fail when it runs, e.g. when no event is left after the selection |
-| `run(Datasets=, Plots=, Export=, Report=)` | every plot on every dataset; returns (and keeps in `Results`) one row per dataset and plot: `Dataset, Plot, Kind, Status` (`done`, `skipped`, `error`, `canceled`), `Message, Files, Seconds`. `Datasets` takes indices, keys or names (default all), `Plots` plot ids (default the enabled plots); `Export` / `Report` override `cfg.Export.Enabled` / `cfg.Report.Enabled` |
+| `plan(Datasets=, Plots=, SessionPlots=)` | table `Dataset, Plot, Kind, Source, Enabled, Reason`, one row per dataset and plot (default: every plot, enabled or not), then one row per session plot and figure (`Dataset` is `"sessions: all"`, or `"sessions: <subject>"` with `facet "subject"`; `Plot` the session plot's id, `Kind` and `Source` its base plot's; `Reason` from `sessionPlotSkipReason`; default: every session plot, `string.empty` for none). It reads only each dataset's source. `Reason` comes from `plotSkipReason`: *disabled*, *no sorted units*, *no detected spikes*, *no LFP extract* (or another signal), *no probe map*, *no paired trials*, *no line X*, *no trial parameter X*, or *cannot read the dataset: ...* ([why a plot is skipped](EphysAnalysisApp.md#why-is-my-plot-skipped)). A plot that passes can still fail when it runs, e.g. when no event is left after the selection |
+| `run(Datasets=, Plots=, SessionPlots=, Export=, Report=)` | every plot on every dataset, then every session plot over the datasets; returns (and keeps in `Results`) one row per dataset and plot: `Dataset, Plot, Kind, Status` (`done`, `skipped`, `error`, `canceled`), `Message, Files, Seconds`, and per session plot figure a row whose `Dataset` is `"sessions: <label>"` (`all`, the subject, or `<subject> / <trial group>`; never a dataset's name). `Datasets` takes indices, keys or names (default all), `Plots` plot ids (default the enabled plots), `SessionPlots` session plot ids (default the enabled ones; `string.empty` none); `Export` / `Report` override `cfg.Export.Enabled` / `cfg.Report.Enabled` ([session plots in a run](#session-plots-in-a-run)) |
 | `runDataset(k, Plots=, Export=, Report=)` | every plot on dataset `k`, appended to `Results` (`Export` default true, `Report` false; the report is the one `run` started) |
 | `computePlot(src, spec, Page=)` | `[R, E, G]` of one plot (`cfg.plotFor(id)`) on one dataset (`source(k)`); `Page=p` (the app's preview; 0, the default, = all) computes only the units or channels on page `p` of a grid, in probe order, and sets `R.page = [p nPages]`, which `plotPageCount` and `renderPlot` follow |
 | `renderPlotFigures(R, spec, Target=, Page=, OnRemember=)` | `renderPlot` of one page into a target: the app's preview. Without a target it is `EphysAnalysisRunner:NoTarget` |
+| `sessionTable(idx)` | `sessionTable` of the runner's datasets `idx` (default all): `AcqDates` from the project's recordings (NaT in folders mode), `index` the runner's dataset index, sorted by date then name |
+| `cachedPlot(k, spec, Keep=)` | `computePlot` of dataset `k`, or the result kept under `cacheKey(Keys(k), spec)`. Unless `Keep` the dataset's loaded signals and spikes are cleared afterwards, so a run over many datasets holds one at a time |
+| `computeSessionPlot(sp, idx, KeepActive=, Span=)` | `[res, sessions, spec, Rs]` of a session plot (an id, or a struct): `spec = cfg.sessionPlotFor(sp)`; the sessions of `idx` (indices, keys or names; default all; `datasets "list"`: its `datasetKeys`, keys not found left out and logged) by date; per session `plotSkipReason` (status `skipped` and the reason) else `cachedPlot` (a failing compute is `error`, logged, and the rest still run); then `sessionResults`. `sessions` gains `status` and `message`; `Rs` holds the per-session results. `KeepActive` keeps one dataset's data loaded (the app's active dataset); `Span` reports progress within a share of a run |
+| `runSessionPlot(sp, idx, Export=, Report=, Span=)` | `computeSessionPlot`, then each figure's pages exactly as `runDataset` draws a plot's, into `Export.SessionsFolder`, report entries and the data file; appends the `"sessions: <label>"` rows |
+| `sessionData(sp, idx, Results=, MaxMB=, KeepActive=, Span=)` | the session plot's [data struct](#data-export): `computeSessionPlot` (cached results are reused), plus every session's own result and `epochData` as the session plot's `data` asks, each dataset's bulk data cleared after its turn. `epochData:TooLarge` propagates |
+| `clearResultCache()` | forgets every cached per-dataset result (`run` does at its start) |
 | `source(k)` | `loadAnalysisSource(Outputs(k), Key=Keys(k))` of dataset `k` (index, key or name), loaded once and kept in `Sources` |
 | `datasets()` | finds the datasets again: `Outputs`, `Keys` (root-relative folders, or the folders) and `Names`; forgets the loaded sources |
 | `clearSources()` | forgets the loaded sources and every dataset's cached data |
 | `cancel()` | the plot being drawn finishes; the next `progress()` call throws `EphysAnalysisRunner:Canceled`, and what is left is `canceled` |
 | `Results`, `Report`, `ReportFiles`, `RunRecordFile` | the last run's results, report struct, report files and run record |
+| `ResultCache`, `CacheMaxMB`, `CacheBytes`, `CacheWanted` | the per-dataset results session plots reuse: a `containers.Map` from `cacheKey` (dataset key + the compute-relevant part of the spec) to the result; its size limit in MB (default 512: the oldest entries go first); its size now; and the keys `runDataset` puts in it as it computes them (`run` sets them to the enabled session plots' keys, so a session plot whose spec matches its base plot's computes nothing again) |
 | `ProgressFcn`, `LogFcn` | `ProgressFcn(fraction, message)` before each dataset and plot, `fraction` how far the whole run is (dataset j of n starts at (j−1)/n and its plots share its 1/n); it may call `cancel()` itself. `LogFcn(message)` per line (default: print; `[]` = quiet) |
 | `PollFcn` | `PollFcn()` at `computePlot`'s checkpoints (between its steps; per unit, group or sixteenth epoch inside `spikePSTH`, `aurocCurves`, `evokedPotential` and `unitWaveforms`, which take it as `Check=`). The app's preview sets it so its Cancel button can act while a plot computes: after `cancel()` the next checkpoint throws `EphysAnalysisRunner:Canceled`. Empty (a run, a script) means no checkpoints. `clearCancel()` forgets an earlier `cancel()` |
 
@@ -1145,6 +1342,55 @@ pipeline's selected datasets instead of `cfg.Source`
   that cannot be written is the warning `EphysAnalysisRunner:RunRecord`.
 - `run` does not validate the config (the app does): call `cfg.validate()`
   first when the config was edited by hand.
+
+### Session plots in a run
+
+After the datasets (a canceled run skips them), `run` starts the report's
+*Across sessions* section (a table of the run's sessions: `Session`,
+`Subject`, `Date`, `Dataset`, `Key`) and runs each enabled session plot in
+turn, over the run's datasets (`Datasets=`, or all) or, with `datasets
+"list"`, the session plot's own keys.
+
+- **Computing.** A session plot needs its base plot's result on every
+  dataset. `run` clears the result cache first and tells it which results the
+  session plots need (`CacheWanted`), so `runDataset` keeps them as it computes
+  the datasets' own plots and a session plot whose effective spec equals its
+  base plot's computes nothing again. The key leaves out what only changes how
+  a result is drawn (`id`, `title`, `style`, `aesthetics`, `histStyle`,
+  `layout`, ...), so a grid and an overlay share a result; trial groups
+  pooled (`groupBy` cleared) make a different spec, so a grouped base plot is
+  computed twice per dataset, once for itself and once pooled (logged).
+  After a dataset's turn its bulk data is cleared; the cache holds at most
+  `CacheMaxMB` of results. A dataset that cannot draw the plot is `skipped`
+  in the session table with the reason, one that fails `error`; the others
+  still merge. With site matching, a session whose probe channel map
+  differs from the first's is logged (sites are matched by channel number all
+  the same).
+- **Figures.** Each figure's pages are drawn as a dataset's plot is, into
+  `Export.SessionsFolder` (the folder tokens are the first session's), named
+  `plotFileName(Export.FilenamePattern, <facet>, ...)`: `{Name}` is the facet
+  (`all`, or the subject), `{Plot}` the session plot's id, `_p<page>` for a
+  paged plot and then `_<trial group>` when `trialGroups` is `"each"`. The
+  default gives `<output root>\analysis\sessions\all_psth_days.png`.
+  `Export.Overwrite` off keeps a page whose files all exist.
+- **Data.** With `Export.Data.Enabled` one `.mat` file per session plot is
+  written, `<Data.Folder>\<Data.FilenamePattern>.mat` with `{Name}` = `all`
+  ([format](file-formats.md#session-data-mat)); its path is added to the
+  first row's `Files`. A file that exists with `Overwrite` off, or any other
+  failure, goes into that row's `Message` and the run goes on.
+- **Rows.** One `Results` row per figure, `Dataset` `"sessions: <label>"`.
+  `Status` is `skipped` when too few sessions or tiles can draw it (the
+  message lists each session that could not, and why), `error` when merging
+  or drawing failed, `canceled` for a session plot a cancel stopped before it
+  ran (`"sessions: all"`). Progress gives each dataset and each session plot
+  an equal share of the run.
+- **Reports.** The section's figures follow the datasets' in the one report.
+  With `Report.PerDataset` the session plots get a report of their own,
+  `<FileName>_sessions`. The run record lists the `sessionPlots` run.
+
+The pipeline's [Analysis step](EphysPipeline.md#analysis-step) runs an
+analysis config's session plots too, over the pipeline's selected datasets;
+its dry run lists the datasets' figures, not the session plots'.
 
 ### Changing a config in code
 
@@ -1212,7 +1458,7 @@ Both return the script text; `File=` also writes it.
 | Form | Contains | Needs |
 | --- | --- | --- |
 | **compact** | `cfg = EphysAnalysisConfig.load(...)`, a few commented overrides (export formats, report format, group-by), then `EphysAnalysisRunner(cfg)`, `plan`, `run` and the report files | the saved config next to it: a config never saved, with no `ConfigFile=`, is `EphysAnalysisScript:NoConfigFile` |
-| **standalone** | the config JSON as a comment; the datasets (`EphysProject` and its keys, or the folder list); one fully resolved spec per enabled plot (`spec1`, `spec2`, ... with `ref`, `window` and `selection` written out); the export and report settings; then per dataset and plot the calls `computePlot` makes, the export loop (the runner's page loop, a page at a time with an `onCleanup` per page) and the report calls | nothing but the repository. It never uses the runner, so it shows exactly what a run does. It writes no run record |
+| **standalone** | the config JSON as a comment; the datasets (`EphysProject` and its keys, or the folder list); one fully resolved spec per enabled plot (`spec1`, `spec2`, ... with `ref`, `window` and `selection` written out); the export and report settings; then per dataset and plot the calls `computePlot` makes, the export loop (the runner's page loop, a page at a time with an `onCleanup` per page) and the report calls; then a *Session plots* block per enabled session plot ([below](#session-plots-in-a-standalone-script)) | nothing but the repository. It never uses the runner, so it shows exactly what a run does. It writes no run record |
 
 A standalone script's loop body for a PSTH starts like this:
 
@@ -1236,6 +1482,48 @@ The test suite runs a compact and a standalone script of the same config
 into separate roots and requires pixel-identical figures, equal HTML
 reports and the same PDF pages. Run a generated script in a fresh MATLAB
 session with the repository on the path.
+
+### Session plots in a standalone script
+
+A config with enabled session plots gets, in the standalone script, a
+`%% Session plots` block after the dataset loop (the compact script runs the
+runner, so it needs nothing). The loop over the datasets also collects each
+dataset's `names` and recording start `acq`; the "Session plot specs"
+section after the plot specs holds, per session plot `j`, `sp<j>` (its own
+settings) and `sspec<j>` (`sessionPlotFor`: the base plot's spec with the
+session plot's overrides); a session plot whose base plot is missing is left
+out with a comment (the runner reports it as a row). Per session plot the
+block makes the calls `runSessionPlot` makes:
+
+```matlab
+sp = sp1; spec = sspec1;                         % the session plot and its effective spec
+sel = 1:numel(outs);                             % the run's datasets (datasets "list": found by key or name)
+sessions = sessionTable(names(sel).', keys(sel).', NamePattern=..., AcqDates=acq(sel).', Folders=folders(sel).', Index=sel.', Sort=true);
+sessions.status = repmat("done", height(sessions), 1);  sessions.message = strings(height(sessions), 1);
+Rs = cell(1, height(sessions));
+for j = 1:height(sessions)                       % one session at a time, by date
+    k = sessions.index(j);
+    src = loadAnalysisSource(outs(k), Key=keys(k));   % in a try: "cannot read the dataset"
+    reason = plotSkipReason(src, spec);          % "skipped" with the reason, else the plot's own compute lines
+    ...                                          % epochTable, selectUnits, spikePSTH, ... (in a try: "error")
+    R.dataset = src.name;  R.spec = spec;  Rs{j} = R;
+    src.outputs.clearCache();
+end
+res = sessionResults(Rs, sessions, sp, spec);   % one result per facet and trial group
+```
+
+then, for each figure, the page loop (`pageLines`: `newExportFigure`,
+`renderPlot`, `exportFigure` with `plotFileName(pattern, e.facet, ...)` plus
+`"_<group>"`, `reportImage`, `reportPdfPage`) into
+`exportOpts.SessionsFolder`, `addReportFigure`, and, with
+`Export.Data.Enabled`, the data file (`epochData` per session, `sessionData`,
+`writeAnalysisData` into `Data.Folder`). The "Across sessions" section is
+added before the block (with `Report.PerDataset`, to a new report that ends
+as `<FileName>_sessions`). Sessions are indexed, skipped and reported as the
+runner does (`cannot read the dataset`, the `plotSkipReason`, a failed compute
+is `error`). Not mirrored: the result cache (the script computes the base
+plot again for each session plot, which gives the same numbers), cancel,
+the `Results` rows and the run record.
 
 ## Chronux analyses
 
@@ -1289,15 +1577,15 @@ and counted. Each trial's mean is removed before its spectrum unless
 
 | Suite | Covers |
 | --- | --- |
-| `test_EphysAnalysisCompute` | no fixture: `spikePSTH` on seeded Poisson trains (rate, SEM, half-open bins, bins that are whole multiples from the event and `R.window`, `spikePSTH:BadWindow`, a spike in the event's own sample at 0, baselines, smoothing, stop masking), `firingRate` over between windows, `tuningCurve` (and `tuningCurve:NoValues`), `evokedPotential` (event rule: the event's own row at `t = 0`; padding, drop counts, baseline), the filter compiler, `unitCorrelation` (Pearson and Spearman against `corrcoef`, peak rates and partial bins, baseline, groups, constant units), `binCounts` and `countBelow` against brute force (a spike on a bin edge in the bin that starts there, also on a 30 kHz sample grid), every renderer into axes, uiaxes, figure and uipanel, PSTH fills, normalization and stacks (row steps, value and peak axes), `renderPlot` pages, titles and captions, corrmaps and `shortUnitLabels`, probe order and site labels (`probeOrder`, `siteLabels`), the rate / count / probability measures, a grid's labels and legend on its tiled layout (once, the tiles unlabeled; the PSTH-with-raster y label; the aesthetics editor's `xlabel` / `ylabel` at tile 0) and `TileSpacing`, the raster's `SortBy` (`renderRaster:NoSortColumn`; `"event"`: by `R.rasterSortEvent`'s latencies, an epoch without one last, the y label, the caption's count, `renderRaster:NoSortEvent`), `SortOrder`, `ByGroup` (rows across groups, a band face per run of a group's rows) and event marks (on their rows, in the look asked for, named and in the legend, restyled by a plot's aesthetics rule; the caption), unit waveform boxes (each location, on a reversed raster too; modes, box and scale; limits kept; none on an overlay; templates), the mean aux signal (`auxMean`: each channel, the magnitude taken per epoch before the mean, the baseline before the magnitude, every epoch as one group, epochs leaving the signal counted; its panels below and above a PSTH or raster, on the right axis, below a stack, in one axes; colors, line styles and legend entries; y labels, caption, overlays, the aesthetics editor's list, the export page's height), the error bands and bars (`errorBounds`: SEM as `semOf`, SD, the bootstrap 95% CI as `bootci`'s percentile one, repeatable and leaving the global stream alone; `R.err` from each compute function, scaled by a z-scored PSTH's baseline, none for an auROC; the bands' look from the style and the default as before; bands and bars drawn from `R.err`, an overlay's across units; captions; `plotErrorType`), `behaviorValues` (means, SEM, medians, series, missing values counted, its errors) and `renderBehavior` (points with and without jitter, line on a linear x axis, box, swarm, violin with R2024b; the title and caption) |
+| `test_EphysAnalysisCompute` | no fixture: `spikePSTH` on seeded Poisson trains (rate, SEM, half-open bins, bins that are whole multiples from the event and `R.window`, `spikePSTH:BadWindow`, a spike in the event's own sample at 0, baselines, smoothing, stop masking), `firingRate` over between windows, `tuningCurve` (and `tuningCurve:NoValues`), `evokedPotential` (event rule: the event's own row at `t = 0`; padding, drop counts, baseline), the filter compiler, `unitCorrelation` (Pearson and Spearman against `corrcoef`, peak rates and partial bins, baseline, groups, constant units), `binCounts` and `countBelow` against brute force (a spike on a bin edge in the bin that starts there, also on a 30 kHz sample grid), every renderer into axes, uiaxes, figure and uipanel, PSTH fills, normalization and stacks (row steps, value and peak axes), `renderPlot` pages, titles and captions, corrmaps and `shortUnitLabels`, probe order and site labels (`probeOrder`, `siteLabels`), the rate / count / probability measures, a grid's labels and legend on its tiled layout (once, the tiles unlabeled; the PSTH-with-raster y label; the aesthetics editor's `xlabel` / `ylabel` at tile 0) and `TileSpacing`, the raster's `SortBy` (`renderRaster:NoSortColumn`; `"event"`: by `R.rasterSortEvent`'s latencies, an epoch without one last, the y label, the caption's count, `renderRaster:NoSortEvent`), `SortOrder`, `ByGroup` (rows across groups, a band face per run of a group's rows) and event marks (on their rows, in the look asked for, named and in the legend, restyled by a plot's aesthetics rule; the caption), unit waveform boxes (each location, on a reversed raster too; modes, box and scale; limits kept; none on an overlay; templates), the mean aux signal (`auxMean`: each channel, the magnitude taken per epoch before the mean, the baseline before the magnitude, every epoch as one group, epochs leaving the signal counted; its panels below and above a PSTH or raster, on the right axis, below a stack, in one axes; colors, line styles and legend entries; y labels, caption, overlays, the aesthetics editor's list, the export page's height), the error bands and bars (`errorBounds`: SEM as `semOf`, SD, the bootstrap 95% CI as `bootci`'s percentile one, repeatable and leaving the global stream alone; `R.err` from each compute function, scaled by a z-scored PSTH's baseline, none for an auROC; the bands' look from the style and the default as before; bands and bars drawn from `R.err`, an overlay's across units; captions; `plotErrorType`), `behaviorValues` (means, SEM, medians, series, missing values counted, its errors) and `renderBehavior` (points with and without jitter, line on a linear x axis, box, swarm, violin with R2024b; the title and caption), and across sessions: `sessionTable` (labels, order), `combineSessions` on hand-made results of every kind (pool, site and mapping tiles, a series per session, subject or all, the SEM and the t 95% CI across sessions, members, epoch renumbering on every epoch-indexed field, `Group` slicing against the compute over that group, `combine`'s labels and line styles, `rate`'s `rowsAre`, every error identifier), every renderer drawing the merged results on every page, a session spec's own aesthetics, `sessionResults`' facets and groups, and the data export on hand-made `epochData` and results (the mapping CSV, `sessionData`, `writeAnalysisData`'s round trip and `:Exists`, `epochLongTable`'s counts, spikes, signals and every kind's values) |
 | `test_EphysAnalysisEpochs` | the fixture: `loadAnalysisSource` against the generator's truth (`durationSec` from `info.LFP.nSamples`; without a probe file, the sort's probe map places the detections as the probe file does), `t0Continuous` and `offsetSec` on both clocks, trial / recording scope, `"Trial"`, an interval belonging to the trial holding its edge (spanning trials, touching trials, `Platform` in recording scope), events shifted by a trial parameter (RespWindow onset + RespLatency at the generator's response troughs, both clocks, `"s"`, a shifted stop event, the misses counted, the errors), `epochEvents` (every onset and offset in each window, several per trial, trial scope), event sequences (Trial offset then the first poke after it, never past the next trial; `maxGapSec`, `n`, step lengths, `notFollowedBy`, `alignStep`, a step on its own line and edge, `which` after the sequence, the counts, a stop event and raster marks of sequences, `eventRefLabel`, the errors), `eventLatency` (a shifted stop event's latency again; Platform offset after each Stim onset among the intervals overlapping its trial; its label; a line name; `resolveEvents:NoLine`), `groupBy`, response and filter selection, between windows, approved cuts, `selectUnits` / `selectChannels` (units as `DatasetOutputs.readUnits` gives them, the sorting folder read once, shanks by the probe map's `kcoords`; every channel gives the cached signal as it is), `selectUnits`' response test (the same as `responseStats` over its own epochs; direction and alpha; `selectUnits:NoneLeft`, `selectUnits:BadResponse`; `responseStats:NoToolbox` without the toolbox) and its auROC test (the units `aurocCurves` calls modulated; no cutoff is `selectUnits:BadResponse`), error identifiers, the no-behavior fallback, `src.artifacts` and the epochs that touch one (dropped by default, also when only the baseline touches it; a period ending at a window's start does not touch it; kept and flagged with `Artifacts="keep"`) |
 | `test_ResponseStats` | no fixture: `pAdjust` against statsmodels' `multipletests` (`pipeline/testdata/padjust_golden.json` from `tools/golden/padjust_golden.py`; NaN, ties, one value), `responseStats` on hand-made epochs with known counts (rates, p against `signrank` / `kruskalwallis` called directly, direction, correction, the epochs left out, rates for windows of different lengths, the errors). The tests that call the toolbox are skipped without it |
 | `test_Auroc` | no fixture: `aucOf` against counting every pair; the `"psth"` method against a port of the Caras lab's `auROC_response_curve`; the `"epochs"` method against hand counts; tiled and sliding windows, the whole-bin rules and the errors; the stop mask; the 95% CI formula, the fixed cutoff and the wide-cutoff warning; bootstrap, ranksum and shuffle tests on driven, suppressed and flat units (reproducible by seed; ranksum against `ranksum` called directly); a unit silent over a group's epochs has no auROC (NaN) and stays out of the cutoff; units measured apart (`Call=false`) and called in one `aurocCall` get the cutoff, the test's correction and the calls of one `aurocCurves` over them all; `spikePSTH`'s auROC result, `modulatedOnly` and caption; the PSTH and heatmap marks, tagged. Skipped without the toolbox |
 | `test_PopulationAnalysis` | the fixture: `populationAnalysis`' units, rates, PSTHs and per-level rates equal the per-dataset calls (the selection's groups pooled); the summary's counts and means add up; the groupings (none, dataset × shank, depth bins); the correction over every unit or each dataset; each unit's auROC equal to `aurocCurves`' over its dataset, the 95% CI cutoff pooled over every unit (the formula over all of them; `Family="dataset"`: each dataset's own) and, with `AurocGroupBy`, over every unit x group curve, the calls, peaks and summary counts that follow, a test cutoff's p corrected over the family, and the auROC columns and cutoff in the files; the files written; the errors |
-| `test_PlotAesthetics` | no fixture: rules (decoded JSON, refused properties, merging, colors as text), every kind and layout naming everything it draws, the user's rules then the plot's (and `UserAesthetics=false`), a value an object refuses (a warning, the plot still drawn), the right-click menu only in a visible figure or with `Editable=true` (one per figure; legends find their plot), the editor (live edits, Apply to one / same / role / ticked, Reset, Cancel, OK remembering for the plot or the user, Forget and the redraw, unremembered edits put back), the config's `aesthetics` through JSON, and the script literal of a rule list |
-| `test_PlotDesign` | no fixture: the built-in designs (they load, name known roles, and every kind and layout draws in each without a refused value), what a design does (ground, palette, single and sequential colors, heat and diverging colormaps, rules for every plot and for one kind; a plot's own colors win), the layering (design, the user's rules, the plot's), choosing a design (the preference, every plot on screen redrawn, a plot with its own design kept, listeners, the right-click Design submenu), capturing a plot's look and saving, listing, importing and deleting designs, refused files and names, the editor's tick length |
+| `test_PlotAesthetics` | no fixture: rules (decoded JSON, refused properties, merging, colors as text), every kind and layout naming everything it draws, the user's rules then the plot's (and `UserAesthetics=false`), a value an object refuses (a warning, the plot still drawn), the right-click menu only in a visible figure or with `Editable=true` (one per figure; legends find their plot), the editor (live edits, Apply to one / same / role / ticked, Reset, Cancel, OK remembering for the plot or the user, Forget and the redraw, unremembered edits put back), the config's `aesthetics` through JSON, the script literal of a rule list, and a result merged across sessions (every object tagged, including each member session's `memberLine` and a heatmap's `sessionDivider`; a rule on either reaches it) |
+| `test_PlotDesign` | no fixture: the built-in designs (they load, name known roles, and every kind and layout draws in each without a refused value), what a design does (ground, palette, single and sequential colors, heat and diverging colormaps, rules for every plot and for one kind; a plot's own colors win), the layering (design, the user's rules, the plot's), choosing a design (the preference, every plot on screen redrawn, a plot with its own design kept, listeners, the right-click Design submenu), capturing a plot's look and saving, listing, importing and deleting designs, refused files and names, the editor's tick length, and a result merged across sessions (with member sessions) drawn in every design, each design naming `memberLine` and `sessionDivider` |
 | `test_EphysAnalysisConfig` | see [EphysAnalysisConfig](EphysAnalysisConfig.md#tests) |
-| `test_EphysAnalysisRunner` | the fixture: `plan` skip reasons, `run` exports and paged names (no figure left open), HTML and PDF reports (percent-encoded and `file://` links; a `"both"` report holds the image and the PDF page of every exported page and no result; one figure per page, so each is drawn once; the PDF's title, summary and plot pages in order), `Overwrite` off, rendering real results (a stack of real `epochTable` groups labeled by the `groupBy` parameter, a raster showing every epoch and an evoked stack whatever `Style.YLim`, `rasterSort` copied onto the epochs, a tuning caption counting its curve's epochs, behavior plots of RespLatency by Depth and of the Trough onset's latency after RespWindow onset (RespLatency again), a raster sorted descending across groups by a stop event shifted by RespLatency with the Trough onsets and offsets marked at the responses, and sorted by the same event as a sort event of its own (`rasterSort "event"`: the same latencies and rows, its y label and caption; a sort event's missing line skipping a raster but not a PSTH without one; the standalone script's `eventLatency` call run), a failing export closing its page (runner and standalone script), cancel, driven units, compact vs standalone script equivalence (figures, HTML and PDF pages), unit waveforms (templates without the sorted `.bin` and the warning; the spikes cut from a planted one, at most `maxSpikes`, and kept in the cache; detections drawn from the spikes file's waveforms (`maxSpikes` of them, the mean over all); none with the mode off or for an overlay; the script's `unitWaveforms` line), a PSTH with the mean aux magnitude (`computePlot`'s `R.aux` equal to `auxMean` on the AUX extract, a panel per tile, the caption, "no AUX extract", the standalone script's `auxMean` call run), the error a PSTH asks for (`computePlot`'s `R.err`: mean +/- SD, SEM with no error drawn; the standalone script's `ErrorType=` only when not SEM) |
+| `test_EphysAnalysisRunner` | the fixture: `plan` skip reasons, `run` exports and paged names (no figure left open), HTML and PDF reports (percent-encoded and `file://` links; a `"both"` report holds the image and the PDF page of every exported page and no result; one figure per page, so each is drawn once; the PDF's title, summary and plot pages in order), `Overwrite` off, rendering real results (a stack of real `epochTable` groups labeled by the `groupBy` parameter, a raster showing every epoch and an evoked stack whatever `Style.YLim`, `rasterSort` copied onto the epochs, a tuning caption counting its curve's epochs, behavior plots of RespLatency by Depth and of the Trough onset's latency after RespWindow onset (RespLatency again), a raster sorted descending across groups by a stop event shifted by RespLatency with the Trough onsets and offsets marked at the responses, and sorted by the same event as a sort event of its own (`rasterSort "event"`: the same latencies and rows, its y label and caption; a sort event's missing line skipping a raster but not a PSTH without one; the standalone script's `eventLatency` call run), a failing export closing its page (runner and standalone script), cancel, driven units, compact vs standalone script equivalence (figures, HTML and PDF pages), unit waveforms (templates without the sorted `.bin` and the warning; the spikes cut from a planted one, at most `maxSpikes`, and kept in the cache; detections drawn from the spikes file's waveforms (`maxSpikes` of them, the mean over all); none with the mode off or for an overlay; the script's `unitWaveforms` line), a PSTH with the mean aux magnitude (`computePlot`'s `R.aux` equal to `auxMean` on the AUX extract, a panel per tile, the caption, "no AUX extract", the standalone script's `auxMean` call run), the error a PSTH asks for (`computePlot`'s `R.err`: mean +/- SD, SEM with no error drawn; the standalone script's `ErrorType=` only when not SEM), and session plots of all eight kinds over the fixture's two datasets (`plan` rows, `run`'s figures `<SessionsFolder>\all_<id>.png` with `_<group>`, the *Across sessions* section of the HTML and PDF reports, the `"sessions: ..."` rows, `Overwrite` off, cancel during the session phase, the run record's `sessionPlots`, `Export.Data` files read back, `epochData` on the fixture, the result cache reused by a second `computeSessionPlot`, and compact vs standalone script parity for the session figures pixel for pixel, the reports, the data `.mat` files and the `_sessions` report) |
 | `test_ChronuxAnalysis` | no fixture: hand-built Chronux files (-v7.3 and -v7): `chronuxSettings` and its errors; `loadChronuxExport` (the index, rows read by parts equal to the whole signal, channels in the order asked, `Span`, `Check`, `TooLarge`, `NoLayout`); `chronuxTimeBase` (segments clear of the artifact periods' rows, the seconds accounted for, segments on the spike clock, epochs and their groups); the alignment (a signal whose value is its row); and with Chronux on the path `chronuxSpectrum` (a 40 Hz sine's peak, the jackknife bars bracketing the spectrum, a burst inside an artifact period not seen, groups), `chronuxSpecgram` (a burst after each event, the dB baseline, window centers, NaN over an artifact period, `TooLarge`), a throwing `Check`, `chronuxPairs` and `chronuxCoherence` (a delayed copy coherent with the delay's phase, noise under `confC`, a coherogram NaN over an artifact period), the spike analyses (`chronuxSpikeTrains`; a train modulated at 20 Hz peaks there and tends to its rate, spikes locked to a 40 Hz field are coherent with it, identical trains have a coherence of 1), and `renderChronux` (every kind, layout and scale, the phase tiles, the rate line, pages, a uifigure panel, every part's role known) |
 | `test_EphysAnalysisApp` | see [EphysAnalysisApp](EphysAnalysisApp.md#tests) |
 | `test_PipelineAnalysisStep` | the fixture: the pipeline's Analysis step running a saved analysis config, see [EphysPipeline](EphysPipeline.md#tests) |

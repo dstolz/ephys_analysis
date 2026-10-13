@@ -10,6 +10,39 @@ says how to cut a release.
 
 ### Added
 
+- Plots across sessions. A new `SessionPlots` list in the analysis config: each session plot names a base
+  plot (its alignment, units, bins and look) and draws it over several datasets, merged into one result of
+  the same kind, so every renderer and design draws it unchanged. A color per session, per subject (its
+  sessions averaged) or one mean over all, with a mean ± SEM, SD or *t* 95% CI across sessions and each
+  session faintly under its summary (roles `memberLine`, `sessionDivider`); a figure per subject; the
+  sessions colored by date; units matched by pooling every session-unit, by recording channel (site) or by a
+  unit-mapping CSV naming the same cell in each dataset (`readUnitMapping`, `writeUnitMapping`); the base
+  plot's trial groups pooled, a figure per group, or kept as line styles; a minimum number of sessions per
+  tile. PSTH, raster, evoked potential, firing rate, tuning, behavior, heatmap (rows are session-units) and
+  unit waveforms plots. New functions `sessionTable`, `combineSessions`, `sessionResults`,
+  `sessionPlotSkipReason` and `addReportSection`; `EphysAnalysisConfig` gets `addSessionPlot`,
+  `removeSessionPlot`, `sessionPlotIndex`, `sessionPlotIds`, `enabledSessionPlots` and `sessionPlotFor`, and
+  `Export.SessionsFolder`; Validate checks them. `EphysAnalysisRunner` computes the base plot on each dataset
+  once (`ResultCache`, `CacheMaxMB` 512, `cachedPlot`, `computeSessionPlot`, `runSessionPlot`), `plan` lists
+  the session plots, and `run` draws them after the datasets (rows `sessions: <label>`, figures in the
+  sessions folder, an *Across sessions* section in the HTML and PDF reports, or a `_sessions` report per
+  dataset); the standalone script gets a `Session plots` block. The analysis app gets a **Sessions** tab (the
+  session plot list, an editor in collapsible sections, a dataset picker, a mapping-file editor, a preview
+  over the ticked datasets with its own badge, cancelable) and the seven tabs are Data, Alignment, Plots,
+  Sessions, Export, Chronux and Log. See [Across sessions](documentation/EphysAnalysis.md#across-sessions),
+  [Session plots](documentation/EphysAnalysisConfig.md#session-plots) and the
+  [Sessions tab](documentation/EphysAnalysisApp.md#sessions-tab).
+
+- The organized data behind the analysis plots, for further analysis in MATLAB. `epochData` gives one
+  dataset's epochs (each unit's spike times and binned counts per epoch, or the epoched signal samples),
+  `sessionData` gathers a session plot's merged and per-session results and epochs into one struct,
+  `writeAnalysisData` saves it as a `.mat` file (`-v7.3` or `-v7`, written atomically) and `epochLongTable`
+  unrolls it to a tidy table (values, counts, spikes or signals) for R, pandas or MATLAB's grouping
+  functions. A run writes one file per session plot with `Export.Data.Enabled`; the Sessions tab's **To
+  workspace** puts the struct in the workspace as `sessions_<id>` and **Save .mat...** saves it, both
+  under a cancelable progress dialog. See [Data export](documentation/EphysAnalysis.md#data-export) and
+  the [file format](documentation/file-formats.md#session-data-mat).
+
 - Continuous integration: GitHub Actions runs the test suites (`run_all_tests`) on Windows with MATLAB
   R2025a and the Signal Processing, Statistics and Machine Learning, and Parallel Computing toolboxes
   (`.github/workflows/matlab-tests.yml`): every suite on each push to `main`, and on a pull request the

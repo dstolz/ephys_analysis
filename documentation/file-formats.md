@@ -74,6 +74,8 @@ the readers take both. Probe maps are the exception
 
 <analysis OutputRoot, else Root>/analysis/   an analysis config's default Report.Folder ({OutputRoot}\analysis)
 ├─ analysis_report.html, .pdf           analysis report (EphysAnalysisRunner; Report.FileName)
+├─ sessions/                            session plots' figures (Export.SessionsFolder; Exported figure names)
+├─ data/<name>.mat                      a session plot's data (Export.Data; see Session data .mat)
 └─ analysis_runs/<runId>_<name>.json    run record of each analysis run (EphysAnalysisRunner.run)
 
 <Root>/
@@ -1257,7 +1259,7 @@ the report folder being `Report.Folder` resolved for the first dataset
 (whether or not a report was written). Written by `EphysAnalysisRunner.run`;
 schema `ephys-analysis-run/1`: `runId`, `name`, `outcome` (`finished` |
 `canceled`), `started`, `finished`, `seconds`, `datasets`, `plots`,
-`reportFiles`, `results` (the runner's Results rows), `provenance` and
+`sessionPlots` (the session plots run), `reportFiles`, `results` (the runner's Results rows), `provenance` and
 `config` (the analysis config). `EphysAnalysisRunner.RunRecordFile` names it.
 The pipeline's Analysis step writes one too (its `config.Source` is the
 pipeline's project and selected datasets), and the pipeline run's record
@@ -1278,7 +1280,8 @@ dropped and listed in `LoadWarnings`.
 | `Source` | `Mode` (`project` / `folders`), `Root`, `OutputRoot`, `NamePattern`, `Recordings` (the Open Ephys recording mode), `Selection`, `Datasets`, `Folders` |
 | `Defaults` | `EventRef`, `Window` (`stop` is `[]` or an event reference), `Selection` |
 | `Plots` | array of plots: `id`, `kind`, `enabled`, `title`, `source`, `units`, `channels`, `ref` / `window` / `selection` (`"default"` or an object), `bins`, `measure`, `baseline`, `auroc`, `layout`, `withRaster`, `rasterSort`, `rasterSortEvent`, `histStyle`, `fill`, `fillAlpha`, `normalize`, `stack`, `stackSpacing`, `maskAfterStop`, `param`, `seriesParam`, `value`, `order`, `metric`, `correlation`, `waveform`, `style`, `aesthetics` |
-| `Export` | `Enabled`, `Formats`, `Folder`, `FilenamePattern`, `Dpi`, `FigureSizeCm`, `Overwrite` |
+| `SessionPlots` | array of session plots (a plot drawn over several datasets and merged): `id`, `enabled`, `title`, `plot` (the base plot's id), `layout`, `datasets`, `datasetKeys`, `facet`, `series`, `colorOrder`, `showMembers`, `error`, `match`, `mappingFile`, `minSessions`, `trialGroups`, `data`, `aesthetics`. A file without the key loads with none |
+| `Export` | `Enabled`, `Formats`, `Folder`, `FilenamePattern`, `Dpi`, `FigureSizeCm`, `Overwrite`, `SessionsFolder`, `Data` (`Enabled`, `Folder`, `FilenamePattern`, `MatVersion`) |
 | `Report` | `Enabled`, `Format`, `Title`, `Folder`, `FileName`, `PerDataset`, `EmbedFormat`, `Dpi`, `IncludeSummary`, `IncludeParameters`, `IncludeConfig` |
 
 Every field, its type and default: [EphysAnalysisConfig](EphysAnalysisConfig.md).
@@ -1304,6 +1307,22 @@ names `{Index}`, or `{Unit}` with a unit filled in (a paged evoked grid's
 <outputFolder>/analysis/SYNTH-01_260918_101500_lfp_stim.svg
 ```
 
+**Session plots' figures** ([Across sessions](EphysAnalysis.md#across-sessions))
+go to `Export.SessionsFolder` (a folder pattern, default
+`{OutputRoot}\analysis\sessions`, with the first session's tokens) and are
+named by the same file-name pattern with `{Name}` being the facet (`all`, or
+the subject of a figure per subject) and `{Plot}` the session plot's id.
+`_p<page>` is added as above, and then `_<trial group>` (characters outside
+`A-Za-z0-9_.-` replaced by `_`) for a session plot with `trialGroups "each"`,
+which makes a figure per group:
+
+```
+<output root>/analysis/sessions/all_psth_days.png
+<output root>/analysis/sessions/all_psth_days_p2.png
+<output root>/analysis/sessions/SYNTH-01_psth_days.png                 facet "subject"
+<output root>/analysis/sessions/all_psth_depth_Depth___0.5.png        trialGroups "each", group "Depth = 0.5"
+```
+
 ## Report files
 
 `<Report.Folder>/<Report.FileName>.html` and / or `.pdf`
@@ -1327,6 +1346,104 @@ names `{Index}`, or `{Unit}` with a unit filled in (a paged evoked grid's
   exported (an exported `.pdf` is reused) and joined in that order with the
   Apache PDFBox library MATLAB ships.
 
+**Across sessions.** A run with enabled session plots adds a section after
+the datasets, *Across sessions*: in the HTML, a section of its own (counted
+apart from the datasets in the header) with a *Sessions* table
+(`Session`, `Subject`, `Date`, `Dataset`, `Key`, by date) and every session
+figure with its caption (*across 3 sessions (2 subjects); one series per
+subject, mean +/- SEM across sessions; units matched by site; 5 sessions drawn
+faint*), exported files and parameters; in the PDF, a summary page with the
+same table, then the figures' pages. A session figure that could not be drawn
+is listed with the reason, like a plot. With `Report.PerDataset`, the session
+plots' section is a report of its own, `<FileName>_sessions.html` / `.pdf`.
+
+## Session data `.mat`
+
+Written by `writeAnalysisData` (`EphysDataset.saveAtomically`) for a session
+plot: in a run with `Export.Data.Enabled`, at
+`<Export.Data.Folder>/<Export.Data.FilenamePattern>.mat` (default
+`{OutputRoot}\analysis\data\all_<session plot id>.mat`, one file per session
+plot, holding every facet and trial group), and by the analysis app's **Save
+.mat...**. The app's **To workspace** puts the same struct in the workspace as
+`sessions_<id>`. `-v7.3` (the default; `Export.Data.MatVersion`) or `-v7`. The
+variables of the file are the fields of the struct, so `S = load(file)` gives
+it back; the tables in it are MATLAB tables, which only MATLAB reads back as
+tables (`writetable(epochLongTable(S), "values.csv")` hands the numbers to
+other tools).
+
+| Variable | Contents |
+| --- | --- |
+| `schema` | `"ephys-analysis-sessions/1"` |
+| `sessionPlot` | the session plot's settings (`EphysAnalysisConfig` `SessionPlots` entry) |
+| `spec` | the effective spec (`sessionPlotFor`) every session was computed with |
+| `sessions` | a table, one row per session in date order: `index` (the runner's dataset index), `key`, `name`, `folder`, `subject`, `date`, `dateText`, `label`, `status` (`done`, `skipped`, `error`), `message` (the reason), `nItems` (units or channels of its result; behavior: values), `nEpochs` |
+| `results` | a struct array, one element per figure (facet x trial group): `facet`, `group`, `label`, `status`, `message`, `R` (the merged result, below; `[]` when none was made), `files` (the figure files written; empty when called outside a run) |
+| `perSession` | with `"results"` in the session plot's `data`: `{1 x nSessions}`, each session's own result of the base plot (`[]` where none), shaped as `computePlot` makes it; else `{}` |
+| `epochs` | with `"epochs"`: `{1 x nSessions}` of one dataset's `epochData` (`[]` where none), else `{}` |
+| `config` | the analysis config as a struct (`EphysAnalysisConfig.toStruct`) |
+| `created`, `provenance` | `yyyy-MM-dd HH:mm:ss`; the code version, MATLAB and machine ([Provenance](#provenance)) |
+
+**`results(i).R`**, the merged result, is a result of the base plot's kind
+([the merged result](EphysAnalysis.md#the-merged-result)). Times are seconds
+from the event, a PSTH's values are in the plot's `measure` (spikes/s by
+default), an evoked plot's in microvolts (AUX: volts). `nTiles` is the number
+of units, sites, cells or channels, `nSeries` the number of sessions,
+subjects or `1`:
+
+| Kind | Arrays |
+| --- | --- |
+| `psth`, `raster`, spike `heatmap` | `t` `[nBins x 1]`, `edges`, `window`; `rate`, `sem`, `count` `[nBins x nTiles x nSeries]`; `nEpochs`, `n` `[nSeries x 1]`; `raster` `(1 x nTiles)` of `times`, `epoch` (row of `R.epochs`) and `group`; `epochGroup`, `epochStop` `[nEpochs x 1]`; `baselineRate`, `baselineSD` `[nTiles x nSeries]`; `members.rate` `[nBins x nTiles x nMembers]` |
+| `evoked`, signal `heatmap` | `t` `[nTime x 1]`, `fs`; `mean`, `sem` `[nTime x nChannels x nSeries]`; `channels`; `nEpochs`, `n`; `members.mean` |
+| `rate` | `rate`, `count`, `rawRate`, `baseline` `[nRows x nTiles]`; `rowsAre` (`"epochs"`: a row per epoch, `epochIndex` rows of `R.epochs`; `"sessions"`: a row per member session of a subject or all series, `epochIndex` its row of `R.sessions`); `groupIndex` (the row's series); `meanRate`, `sem`, `median`, `baselineRate` `[nTiles x nSeries]` |
+| `tuning` | `x` `[nLevels x 1]`; `mean`, `sem` `[nLevels x nTiles x nSeries]`; `n` `[nLevels x nSeries]`; `series`, `param`, `seriesParam` |
+| `behavior` | `x`; `values` (a table: `epoch`, `xIndex`, `seriesIndex`, `y`, `session`); `mean`, `sem`, `median`, `n` `[nLevels x nSeries]` |
+| `waveforms` | `waveforms` (per tile: `timeMs`, `mean`, `spikes`, `from`, `units`), `meta.session` |
+
+On every kind: `groups` (the series), `sessions`, `sessionSeries`, `epochs`
+(all sessions' epochs, renumbered), `tiles`, `labels`, `meta`, `err`,
+`dataset` and `spec`.
+
+**`epochs{k}`**, one dataset's `epochData`: `identity`, `spec`, `E` (one
+row per epoch: `epoch`, `trial`, `t0`, `t0Continuous`, `t1`, `tStart`,
+`tStop`, `duration`, `complete`, `artifact`, `groupIndex`, `group`, and the
+trial columns the plot uses), `G` (the groups), `meta` (units or channels),
+and for a spike source `spikes`, for a signal source `signals` (only when
+the session plot's `data` holds `"signals"`):
+
+| Field | Contents |
+| --- | --- |
+| `spikes.times` | `{nEpochs x nUnits}`, each unit's spike times in each epoch, seconds from the event on the continuous clock (`E.t0Continuous`, so a spike in the event's own sample is at 0), inside `[pre post)` (a *between* window: the epoch's own `[tStart tStop)`), sorted, no stop masking |
+| `spikes.counts` | `[nEpochs x nBins x nUnits]` spikes per bin, the bins of `spikes.edges` (`[1 x nBins+1]`, relative to the event) with centers `spikes.t`; `spikes.binSec`, `spikes.window`, `spikes.binWindow` |
+| `signals.data` | `[nTime x nChannel x nKept]` single, the kept epochs' samples as `evokedPotential` cuts them: **raw, with no baseline subtracted**. `signals.dims` says so: `"time x channel x epoch"` |
+| `signals.t`, `fs`, `epochs`, `channels`, `labels`, `units` | the sample times relative to the event (s) and rate; the rows of `E` kept (an epoch that leaves the recording or holds a non-finite sample is dropped: `droppedEdge`, `droppedNonFinite`); the columns used and their labels and unit |
+
+`epochLongTable` unrolls this file's struct into tables
+([columns](EphysAnalysis.md#data-export)).
+
+## Unit mapping CSV
+
+Read by `readUnitMapping`, written by `writeUnitMapping` and the analysis
+app's mapping editor; the file a session plot with `match "mapping"` names
+(`mappingFile`). UTF-8 text, a header row, comma-separated: a column `cell`
+(the cell's name, any case of the header), then one column per dataset key
+(the Data tab's **Key** column, e.g. `SYNTH-01/260908_103000`, kept as it is
+since keys hold `/`) holding the unit id or ids the cell has in that dataset:
+
+```text
+cell,SYNTH-01/260908_103000,SYNTH-01/260909_101500
+cellA,42,17
+cellB,8,
+cellC,3 7,5
+```
+
+An id is a number (`meta.unitId`), or text such as `3 7` for two units that
+are averaged; an empty field means the cell was not found in that dataset. A
+field holding a comma, a quote or a line break is quoted. Read back, a key
+column of only numbers (and empty fields) is numeric with NaN for an empty
+field; one with any text is a string column with `missing`. A file without
+a `cell` column is `readUnitMapping:NoCell`. `writeUnitMapping` writes to a
+temporary name and moves it into place.
+
 ## Which writes are atomic
 
 A file written atomically goes to a temporary name next to it and is renamed
@@ -1335,5 +1452,5 @@ previous file as it was.
 
 | Written atomically (temporary file + rename) | Written directly |
 | --- | --- |
-| the six `.mat` outputs (`toMat`, `spikesToMat`, `behaviorToMat`, `exportChronux`, `exportFieldTrip`, `exportEpochs`) via `EphysDataset.saveAtomically`; the stitched Epsych2 file; the kCSD `.npz`; the `.nwb`; the Visualize envelopes | the `.bin` and its JSON sidecar, `settings.json`, `<Name>_events.mat`, generated scripts, analysis figures and reports |
+| the six `.mat` outputs (`toMat`, `spikesToMat`, `behaviorToMat`, `exportChronux`, `exportFieldTrip`, `exportEpochs`) and the session plots' data `.mat` (`writeAnalysisData`) via `EphysDataset.saveAtomically`; the unit-mapping CSV (`writeUnitMapping`); the stitched Epsych2 file; the kCSD `.npz`; the `.nwb`; the Visualize envelopes | the `.bin` and its JSON sidecar, `settings.json`, `<Name>_events.mat`, generated scripts, analysis figures and reports |
 | through `writeJsonFile`: the dataset manifest, the artifact cache, `recording.json` (`writeDescriptor`), `openephys-part.json`, probe maps and the derived `_excluded` / `_spaced` probes (`writeProbeMap`), `<probe>.ks4.json`, `<probe>.chanmap.json`, hardware bank entries, pipeline and analysis configs, run records, `quality_metrics.json`, `<Name>_nwbinspector.json`, `<Name>_cleanup.json`, `session_manifest.json`, the scheduled copy's `schedule.json` and `last_run.json`, and the `ks4_status.json` of a run stopped from MATLAB | everything Python writes (`ks4_status.json`, `ks4_run.log`, the sorter output), and the logs appended a line at a time (`copy_schedule.log`) |

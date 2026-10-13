@@ -68,6 +68,13 @@ else
 end
 E.stack.Value = p.stack;
 if p.stackSpacing > 0 && isfinite(p.stackSpacing); E.stackSpacing.Value = p.stackSpacing; end
+E.stackRaster.Value = p.stackRaster;
+E.stackRasterEqual.Value = p.stackRasterEqual;
+if isfinite(p.stackRasterTrials)
+    E.stackRasterTrials.Value = max(1, round(p.stackRasterTrials));
+else
+    E.stackRasterTrials.Value = [];
+end
 E.maskAfterStop.Value = p.maskAfterStop;
 params = string.empty(1, 0);
 lines = "Trial";
@@ -91,15 +98,8 @@ offerItems(E.sortEdge, ["onset" "offset"], se.edge);
 closeSequenceDialog(obj, E.sortSeqText);
 setSequenceHolder(E.sortSeqText, struct('sequence', se.sequence, 'alignStep', se.alignStep));
 E.rasterByGroup.Value = p.rasterByGroup;
-mk = p.rasterEvents;
-offerItems(E.markLines, ["" unique(lines, 'stable')], strjoin(mk.lines, " "));
-offerItems(E.markEdge, ["onset" "offset" "both"], mk.edge);
-offerItems(E.markScope, ["window" "trial"], mk.scope);
 closeSequenceDialog(obj, E.markSeqText);
-setSequenceHolder(E.markSeqText, mk.sequences);
-E.markMarker.Value = char(pickFrom(mk.marker, string(E.markMarker.ItemsData), "diamond"));
-E.markSize.Value = min(E.markSize.Limits(2), max(E.markSize.Limits(1), mk.size));
-offerItems(E.markColor, string(E.markColor.Items), pick(mk.color, "auto"));
+setSequenceHolder(E.markSeqText, p.rasterEvents);   % the marks, each with its look (syncPlotEditor: markLookTable)
 offerItems(E.yParam, ["" "stop" params], p.yParam);
 E.xScale.Value = char(pickFrom(p.xScale, string(E.xScale.ItemsData), "category"));
 E.jitter.Value = p.jitter;

@@ -42,9 +42,22 @@ function h = renderPSTH(R, target, opts)
 %                 overlay layout's normalized mean in its own units). The
 %                 raster above is flipped to match (first group at the
 %                 bottom). A single group is not stacked
+%     StackRaster stack with WithRaster: false (default): the raster in a
+%                 panel above; true: each group's raster in its own row,
+%                 just above its PSTH (as tall as the tallest PSTH, its
+%                 epochs first at the bottom; grid layout, or overlay of
+%                 one unit), and no raster panel
+%     StackRasterEqual  StackRaster: true: every row's raster ticks one
+%                 height, that of the row showing the most epochs, a row
+%                 with fewer filled from the bottom; false (default): each
+%                 row's epochs fill its raster
+%     StackRasterTrials  StackRaster: the most epochs a row's raster shows
+%                 (default Inf: all), picked evenly over its sorted order;
+%                 the PSTH still averages every epoch
 %     Spacing     stack: the row step as a multiple of the panel's tallest
-%                 PSTH (default 1.1; below 1 the rows overlap, the lower in
-%                 front)
+%                 PSTH, or with StackRaster of a row's height (its tallest
+%                 PSTH and its band, then the raster) (default 1.1; below 1
+%                 the rows overlap, the lower in front)
 %     Page        page of units in grid layout (MaxTiles per page)
 %     Waveform    EphysAnalysisConfig.defaults("Waveform") fields: grid
 %                 layout, each unit's waveform from R.waveforms
@@ -123,12 +136,15 @@ arguments
     opts.SortBy (1,1) string = ""
     opts.SortOrder (1,1) string {mustBeMember(opts.SortOrder, ["ascending" "descending"])} = "ascending"
     opts.ByGroup (1,1) logical = true
-    opts.EventMarks = struct()
+    opts.EventMarks = []
     opts.HistStyle (1,1) string {mustBeMember(opts.HistStyle, ["bar" "line"])} = "bar"
     opts.Fill (1,1) logical = true
     opts.FillAlpha (1,1) double = NaN
     opts.Normalize (1,1) string {mustBeMember(opts.Normalize, ["none" "unitPeak" "groupPeak" "allPeak"])} = "none"
     opts.Stack (1,1) logical = false
+    opts.StackRaster (1,1) logical = false
+    opts.StackRasterEqual (1,1) logical = false
+    opts.StackRasterTrials (1,1) double {mustBePositive} = Inf
     opts.Spacing (1,1) double {mustBePositive, mustBeFinite} = 1.1
     opts.Page (1,1) double {mustBePositive, mustBeInteger} = 1
     opts.Waveform = struct()
@@ -153,7 +169,7 @@ if isfield(R, 'members') && isstruct(R.members) && isfield(R.members, 'rate') &&
     members = memberRates(R, norm, normBy);
 end
 look = struct('hist', opts.HistStyle, 'fill', opts.Fill, 'alpha', opts.FillAlpha, ...
-    'stack', opts.Stack && nG > 1, 'spacing', opts.Spacing);
+    'stack', opts.Stack && nG > 1, 'spacing', opts.Spacing, 'raster', []);
 if ~isfinite(look.alpha)
     look.alpha = 1;
     if nG > 1 && ~look.stack; look.alpha = 0.5; end
@@ -220,6 +236,8 @@ else
     [idx, nr, nc] = pageItems(nU, opts.Page, style.MaxTiles);
 end
 withRaster = opts.WithRaster && isfield(R, 'raster') && ~isempty(R.raster);
+inRows = withRaster && look.stack && opts.StackRaster;   % each group's raster in its row of the stack, not a panel
+withRaster = withRaster && ~inRows;
 [tl, ax0] = renderLayout(target, nr, nc, style);
 if ~isempty(ax0)
     idx = idx(1:min(1, end));
@@ -246,7 +264,7 @@ for j = 1:numel(idx)
     top = ax;
     if ~isempty(ra)
         rows = rasterInto(ra, R, u, style, colors, opts.SortBy, ...
-            struct('order', opts.SortOrder, 'byGroup', opts.ByGroup, 'marks', opts.EventMarks));
+            struct('order', opts.SortOrder, 'byGroup', opts.ByGroup, 'marks', {opts.EventMarks}));
         tagPart(ra, "rasterAxes", "", names(u));
         if look.stack; set(ra, 'YDir', 'normal'); end
         ra.XTickLabel = [];
@@ -262,6 +280,10 @@ for j = 1:numel(idx)
     P.yUnits = yUnits;
     P.members = [];
     if ~isempty(members); P.members = reshape(members(:, u, :), size(members, 1), []); end
+    if inRows
+        look.raster = struct('u', u, 'sortBy', opts.SortBy, 'equal', opts.StackRasterEqual, 'trials', opts.StackRasterTrials, 'look', ...
+            struct('order', opts.SortOrder, 'byGroup', true, 'marks', {opts.EventMarks}));
+    end
     right = c == nc || j == numel(idx);
     step(j) = drawPanel(ax, P, R, colors, style, look, ...
         struct('legend', j == 1, 'left', false, 'right', right, 'layout', tl, 'auto', "east", 'aux', legendAux(X, place, look)));
@@ -522,12 +544,24 @@ function step = drawStack(ax, P, R, colors, style, look, show)
 %   Left axis: a tick at each row's baseline, labeled with the group's
 %   value (the groupBy parameters name the axis). Right axis: a tick where
 %   each row peaks, labeled with P.peak (named by P.peakLabel). Rows are drawn top
-%   down, so where they overlap the lower one is in front.
+%   down, so where they overlap the lower one is in front. With look.raster
+%   (u, sortBy, equal, trials, look: rasterInto's) each row also holds its group's raster,
+%   as tall as the tallest PSTH, just above the highest reach of any row's
+%   PSTH and band; the step is then Spacing x that row's height.
 nG = size(P.m, 2);
 tallest = max(P.m, [], 'all');
 if ~(tallest > 0); tallest = max(abs(P.m), [], 'all'); end
 if ~(tallest > 0); tallest = 1; end
-step = look.spacing * tallest;
+rowHeight = tallest;
+inRows = isfield(look, 'raster') && ~isempty(look.raster);
+if inRows
+    reach = tallest;
+    if style.ShowSEM; reach = max([reach; P.hi(:)]); end
+    gap = 0.05 * tallest;
+    rasterAt = reach + gap;   % the raster's bottom, from the row's baseline
+    rowHeight = rasterAt + tallest;
+end
+step = look.spacing * rowHeight;
 base = (0:nG-1) * step;
 W = R.edges([1 end]);
 ls = groupLineStyles(R);
@@ -535,7 +569,12 @@ yyaxis(ax, 'left');
 ax.LineStyleOrder = '-';   % a yyaxis side cycles through markers ('o-', '^-', ...) otherwise
 hold(ax, 'on');
 lo = 0;
-hi = base(end) + tallest;
+hi = base(end) + rowHeight;
+if inRows   % behind the rows' PSTHs
+    rl = look.raster.look;
+    rl.into = struct('base', base + rasterAt, 'height', tallest, 'equal', look.raster.equal, 'trials', look.raster.trials);
+    rasterInto(ax, R, look.raster.u, style, colors, look.raster.sortBy, rl);
+end
 for g = nG:-1:1
     b = base(g);
     tagPart(line(ax, W, [b b], 'Color', [0.72 0.72 0.72], 'LineWidth', 0.5, 'HandleVisibility', 'off'), "stackBase", R.groups.label(g));

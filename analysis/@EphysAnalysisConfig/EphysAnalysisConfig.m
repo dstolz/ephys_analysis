@@ -20,7 +20,8 @@ classdef EphysAnalysisConfig
     %               channels, ref, window, selection, bins, baseline, layout,
     %               withRaster, rasterSort, rasterSortEvent, rasterSortOrder,
     %               rasterByGroup, rasterEvents, histStyle, fill, fillAlpha,
-    %               normalize, stack, stackSpacing, maskAfterStop, param,
+    %               normalize, stack, stackSpacing, stackRaster, stackRasterEqual,
+    %               stackRasterTrials, maskAfterStop, param,
     %               seriesParam, yParam, jitter, xScale, value, order,
     %               metric, correlation, measure, auroc, waveform, aux,
     %               note, overlays, aesthetics, style

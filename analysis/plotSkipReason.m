@@ -70,13 +70,9 @@ if ismember(spec.kind, ["psth" "raster"]) && ismember(spec.source, ["units" "det
     if spec.aux.mode ~= "off" && ~(isfield(src.signals, 'AUX') && src.signals.AUX)
         reason = "no AUX extract"; return
     end
-    for ln = spec.rasterEvents.lines
-        if ~(isfield(src.events, ln) || (ln == "Trial" && src.trialLine ~= ""))
-            reason = "no line " + ln; return
-        end
-    end
-    for q = 1:numel(spec.rasterEvents.sequences)
-        mk = spec.rasterEvents.sequences(q);
+    marks = eventMarkRef(spec.rasterEvents);
+    for q = 1:numel(marks)
+        mk = marks(q);
         if (mk.scope == "trial" || mk.line == "Trial") && ~src.hasTrials
             reason = "no paired trials"; return
         end

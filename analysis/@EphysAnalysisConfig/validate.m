@@ -19,7 +19,8 @@ function issues = validate(obj, opts)
 %               event; tuning names its parameter; groupBy <= 2; BinSec > 0;
 %               pre <= post; baseline mode fits the kind and its window is
 %               [b0 b1] with b0 < b1; psth histStyle, normalize,
-%               fillAlpha (0-1 or NaN) and stackSpacing (> 0); probemap value;
+%               fillAlpha (0-1 or NaN), stackSpacing (> 0) and
+%               stackRasterTrials (a whole number >= 1, or Inf); probemap value;
 %               heatmap order ("modulation" with an auROC baseline);
 %               corrmap metric and correlation; a psth / raster's raster
 %               sort direction, its sort event (rasterSort "event": one
@@ -220,25 +221,20 @@ for k = 1:numel(obj.Plots)
                 checkRef(p.rasterSortEvent, "Plots", f0 + ".rasterSortEvent");
             end
         end
-        mk = p.rasterEvents;
-        if ~ismember(mk.edge, ["onset" "offset" "both"])
-            add("Plots", f0 + ".rasterEvents.edge", "error", "The raster marks' edge is onset, offset or both.");
-        end
-        if ~ismember(mk.scope, ["window" "trial"])
-            add("Plots", f0 + ".rasterEvents.scope", "error", "The raster marks' scope is window or trial.");
-        end
         markers = PlotAesthetics.catalog().Marker.Choices;
-        if ~ismember(mk.marker, markers)
-            add("Plots", f0 + ".rasterEvents.marker", "error", "The raster marks' marker is one of " + strjoin(markers, ", ") + ".");
-        end
-        if ~(mk.size > 0 && isfinite(mk.size))
-            add("Plots", f0 + ".rasterEvents.size", "error", "The raster marks' size must be positive (points).");
-        end
-        if mk.color ~= "" && ~isColor(mk.color)
-            add("Plots", f0 + ".rasterEvents.color", "warning", "No color """ + mk.color + """; each mark gets its own color.");
-        end
-        for q = 1:numel(mk.sequences)
-            checkRef(mk.sequences(q), "Plots", f0 + ".rasterEvents.sequences(" + q + ")");
+        for q = 1:numel(p.rasterEvents)
+            mk = p.rasterEvents(q);
+            fq = f0 + ".rasterEvents(" + q + ")";
+            checkRef(eventMarkRef(mk), "Plots", fq);
+            if ~ismember(mk.marker, markers)
+                add("Plots", fq + ".marker", "error", "A raster mark's marker is one of " + strjoin(markers, ", ") + ".");
+            end
+            if ~(mk.size > 0 && isfinite(mk.size))
+                add("Plots", fq + ".size", "error", "A raster mark's size must be positive (points).");
+            end
+            if mk.color ~= "" && ~isColor(mk.color)
+                add("Plots", fq + ".color", "warning", "No color """ + mk.color + """; the mark gets its automatic color.");
+            end
         end
     end
     if ismember(p.kind, ["psth" "raster"]) || (p.kind == "heatmap" && ismember(p.source, EphysAnalysisConfig.SpikeSources)) ...
@@ -279,6 +275,9 @@ for k = 1:numel(obj.Plots)
         end
         if ~(p.stackSpacing > 0 && isfinite(p.stackSpacing))
             add("Plots", f0 + ".stackSpacing", "error", "stackSpacing must be positive (1 = the tallest PSTH reaches the next row).");
+        end
+        if ~(p.stackRasterTrials >= 1 && (isinf(p.stackRasterTrials) || p.stackRasterTrials == round(p.stackRasterTrials)))
+            add("Plots", f0 + ".stackRasterTrials", "error", "stackRasterTrials is a whole number of epochs, 1 or more (Inf = all).");
         end
     end
     if p.kind == "probemap" && ~ismember(p.value, ["rate" "nSpikes" "nUnits"])
@@ -472,7 +471,7 @@ for k = 1:numel(obj.Plots)
         end
         if ~ismember(ov.panel, EphysAnalysisConfig.OverlayPanels)
             add("Plots", o0 + ".panel", "error", "An overlay's panel is one of " + strjoin(EphysAnalysisConfig.OverlayPanels, ", ") + ".");
-        elseif (ov.panel == "raster" && ~(p.kind == "raster" || (p.kind == "psth" && p.withRaster))) ...
+        elseif (ov.panel == "raster" && ~(p.kind == "raster" || (p.kind == "psth" && p.withRaster && ~(p.stack && p.stackRaster)))) ...
                 || (ov.panel == "data" && p.kind == "raster")
             add("Plots", o0 + ".panel", "warning", "A " + p.kind + " plot draws no " + ov.panel + " panel here; this overlay is not drawn.");
         end

@@ -684,6 +684,11 @@ says how to cut a release.
   `OnRemember`. The renderers name everything they draw (`tagPart`).
   `PlotAesthetics`; suite `test_PlotAesthetics`. The script generator's
   `literal` writes struct arrays.
+- Stacked PSTHs can draw each group's raster in its own row, just above its PSTH, instead of one raster
+  panel above the stack: plot field `stackRaster` (`renderPSTH` option `StackRaster`), the plot editor's
+  **Raster in each row, above its PSTH**. Its ticks can be one height in every row (`stackRasterEqual`) and
+  each row can show at most a set number of trials, picked evenly over its sort order (`stackRasterTrials`;
+  editor row **Row rasters**).
 - The analysis app's plot list has **Copy from...**: another plot's settings onto the selected plots, of any
   plot type (a PSTH's units, alignment, bins and look onto a raster, say), part by part -- one box per editor
   section and the remembered looks, only the parts the two types share. Each plot keeps its id, type, title
@@ -692,6 +697,13 @@ says how to cut a release.
 
 ### Changed
 
+- A plot's raster marks, `rasterEvents`, are a list of marks, each an event reference (with or without a
+  sequence; `which "all"` and `scope "recording"` by default) with its own `marker`, `size` and `color`
+  (`EventMark`). The old `lines`, `edge`, `scope`, `sequences` and one look for all marks are gone: a line's
+  events are a mark with no steps. New functions `eventMarkRef`, `rasterMarkLabels` and `rasterMarkLooks`.
+  The analysis app's plot editor has an **Event marks** section of its own (between the kind's options and
+  Appearance, no Ctrl+number key): **Sequences** (**Edit...**: the *Event sequence* window, a mark per
+  sequence) and **Each mark**, a table of every mark's marker, size and color.
 - The synthetic data generator (`SyntheticDesign`, `syntheticModel`, `makeSyntheticRecording`, the app's
   Synthetic tab, `makeSyntheticProject`) writes deliberately simple, exactly known signals for
   validating the pipeline and the time-locked analyses. Units have one fixed waveform (a negative

@@ -1,6 +1,6 @@
 function onPlotSectionToggled(obj, name)
 %onPlotSectionToggled  Collapse the plot editor's section NAME, or expand it again.
-%   NAME is "units", "ref", "window", "selection", "bins", "kind", "style",
+%   NAME is "units", "ref", "window", "selection", "bins", "kind", "marks", "style",
 %   "waveform", "aux", "note" or "overlays". A section stays as left when another plot is selected,
 %   and between sessions (preference PlotSectionsCollapsed).
 i = find([obj.PlotSections.Name] == name, 1);

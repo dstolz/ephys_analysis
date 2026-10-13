@@ -188,6 +188,14 @@ if spec.kind == "psth"
     end
     if spec.stack && size(R.rate, 3) > 1
         parts(end+1) = "groups stacked, first at the bottom";
+        if spec.withRaster && spec.stackRaster && isfield(R, 'raster') && ~isempty(R.raster)
+            parts(end) = parts(end) + ", each with its raster above it (epochs first at the bottom)";
+            nMost = max(histcounts(R.epochGroup, 0.5:1:height(R.groups) + 0.5));
+            if isfinite(spec.stackRasterTrials) && spec.stackRasterTrials < nMost
+                parts(end+1) = sprintf("each raster at most %d epochs, spread over its order (the PSTHs use all)", spec.stackRasterTrials);
+            end
+            if spec.stackRasterEqual; parts(end+1) = "raster rows of one height in every group"; end
+        end
     end
 end
 et = errorText(spec, R);
@@ -202,7 +210,8 @@ if ismember(spec.kind, ["psth" "raster"]) && isfield(R, 'raster') && ~isempty(R.
     end
     if by == "" && spec.rasterSortOrder == "descending"; by = "time"; end
     within = " within each group";
-    if ~spec.rasterByGroup && height(R.groups) > 1; within = " across groups"; end
+    inRows = spec.kind == "psth" && spec.stack && spec.stackRaster && height(R.groups) > 1;   % a row's raster is its group's
+    if ~spec.rasterByGroup && height(R.groups) > 1 && ~inRows; within = " across groups"; end
     if by ~= ""
         dir = "";
         if spec.rasterSortOrder == "descending"; dir = ", descending"; end
@@ -214,9 +223,7 @@ if ismember(spec.kind, ["psth" "raster"]) && isfield(R, 'raster') && ~isempty(R.
         parts(end+1) = "raster epochs in time order across groups";
     end
     if isfield(R, 'rasterEvents') && ~isempty(R.rasterEvents)
-        where = "in each epoch's window";
-        if spec.rasterEvents.scope == "trial"; where = "in each epoch's own trial"; end
-        parts(end+1) = "raster marks: " + strjoin([R.rasterEvents.label], ", ") + " (every one " + where + ")";
+        parts(end+1) = "raster marks: " + strjoin([R.rasterEvents.label], ", ") + " (every one in each epoch's window)";
     end
 end
 if isfield(R, 'waveforms') && spec.waveform.mode ~= "off"
@@ -355,7 +362,7 @@ s = s + " (" + A.units + ")";
 stacked = spec.kind == "psth" && spec.stack && isfield(R, 'rate') && size(R.rate, 3) > 1;
 place = auxPlace(aux, stacked);   % a stack's right axis is its rows' peaks; an image is not drawn on one
 what = "PSTH";
-if spec.kind == "raster" || (place == "above" && spec.withRaster && isfield(R, 'raster') && ~isempty(R.raster))
+if spec.kind == "raster" || (place == "above" && spec.withRaster && ~(stacked && spec.stackRaster) && isfield(R, 'raster') && ~isempty(R.raster))
     what = "raster";
 end
 switch place

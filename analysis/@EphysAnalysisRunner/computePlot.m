@@ -27,9 +27,9 @@ function [R, E, G] = computePlot(obj, src, spec, opts) %#ok<INUSD>
 %               signals' artifact periods do not concern behavior), then
 %               behaviorValues(y, E.(param), Series=E.(seriesParam), ...) with
 %               y = E.(yParam), or 1000 * (E.t1 - E.t0) (ms) for yParam "stop"
-%   A raster of spikes (raster, or psth with withRaster) with event lines
-%   or sequences to mark (spec.rasterEvents.lines, .sequences) also gets
-%   R.rasterEvents = epochEvents(src, E, Lines=, Edge=, Scope=, Sequences=);
+%   A raster of spikes (raster, or psth with withRaster) with events to
+%   mark (spec.rasterEvents, EventMark each) also gets
+%   R.rasterEvents = epochEvents(src, E, Sequences=eventMarkRef(spec.rasterEvents));
 %   one sorted by an event (spec.rasterSort "event") gets R.rasterSortEvent,
 %   its sort key: a struct of t and label from [t, label] =
 %   eventLatency(src, E, spec.rasterSortEvent), each epoch's latency to the
@@ -102,10 +102,9 @@ switch spec.kind
                 Measure=spec.measure, Baseline=b, BaselineMode=spec.baseline.Mode, MaskAfterStop=spec.maskAfterStop, ...
                 Raster=spec.kind == "raster" || (spec.kind == "psth" && spec.withRaster), Groups=G, Meta=meta, ...
                 Auroc=spec.auroc, Check=chk, ErrorType=et, ErrorResamples=nb);
-            m = spec.rasterEvents;
             obj.checkpoint();
-            if isfield(R, 'raster') && ~isempty(R.raster) && (~isempty(m.lines) || ~isempty(m.sequences))
-                R.rasterEvents = epochEvents(src, E, Lines=m.lines, Edge=m.edge, Scope=m.scope, Sequences=m.sequences);
+            if isfield(R, 'raster') && ~isempty(R.raster) && ~isempty(spec.rasterEvents)
+                R.rasterEvents = epochEvents(src, E, Sequences=eventMarkRef(spec.rasterEvents));
             end
             if isfield(R, 'raster') && ~isempty(R.raster) && spec.rasterSort == "event"
                 R.rasterSortEvent = sortEvent(src, E, spec.rasterSortEvent);

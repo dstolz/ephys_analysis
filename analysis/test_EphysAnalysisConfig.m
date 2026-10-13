@@ -192,14 +192,18 @@ check(hasIssue(bad, "filter", "warning"), 'a filter that does not parse is a war
 bad = cfg; bad.Plots(1).style.HeatColormap = "notacolormap";
 check(hasIssue(bad, "HeatColormap", "warning"), 'an unknown colormap warns');
 d = EphysAnalysisConfig.defaults("Plot");
-check(d.fill && isnan(d.fillAlpha) && d.normalize == "none" && ~d.stack && d.stackSpacing == 1.1, ...
-    'PSTH defaults: filled, automatic opacity, not normalized, not stacked, spacing 1.1');
+check(d.fill && isnan(d.fillAlpha) && d.normalize == "none" && ~d.stack && d.stackSpacing == 1.1 && ~d.stackRaster && ~d.stackRasterEqual && isinf(d.stackRasterTrials), ...
+    'PSTH defaults: filled, automatic opacity, not normalized, not stacked, spacing 1.1, the raster in a panel');
 bad = cfg; bad.Plots(1).normalize = "area";
 check(hasIssue(bad, "psth_1.normalize", "error"), 'psth normalize is none, unitPeak, groupPeak or allPeak');
 bad = cfg; bad.Plots(1).fillAlpha = 1.5;
 check(hasIssue(bad, "psth_1.fillAlpha", "error"), 'psth fillAlpha is 0-1');
 bad = cfg; bad.Plots(1).stackSpacing = 0;
 check(hasIssue(bad, "psth_1.stackSpacing", "error"), 'psth stackSpacing > 0');
+bad = cfg; bad.Plots(1).stackRasterTrials = 2.5; bad2 = cfg; bad2.Plots(1).stackRasterTrials = 0;
+okT = cfg; okT.Plots(1).stackRasterTrials = 12;
+check(hasIssue(bad, "psth_1.stackRasterTrials", "error") && hasIssue(bad2, "psth_1.stackRasterTrials", "error") ...
+    && ~hasIssue(okT, "psth_1.stackRasterTrials", "error"), 'psth stackRasterTrials: a whole number >= 1 (or Inf)');
 ok = cfg; ok.Plots(1).style.Colormap = "black"; ok.Plots(2).style.Colormap = "#1f77b4"; ok.Plots(3).style.Colormap = "turbo";
 check(~hasIssue(ok, "Colormap", "warning"), 'a single color ("black", "#1f77b4") or a colormap function are group colors');
 bad = cfg; bad.Plots(1).style.Colormap = "nope";
@@ -456,29 +460,33 @@ cr = cb;
 cr.Plots(1).rasterSort = "Depth";
 cr.Plots(1).rasterSortOrder = "descending";
 cr.Plots(1).rasterByGroup = false;
-cr.Plots(1).rasterEvents = struct('lines', "Trough", 'edge', "both", 'scope', "trial", 'marker', "^", 'size', 6, 'color', "#ff00ff");
+cr.Plots(1).rasterEvents = struct('line', "Trough", 'edge', {"onset" "offset"}, 'marker', "^", 'size', 6, 'color', {"#ff00ff" ""});
 cr.Plots(1).ref = struct('line', "RespWindow", 'offsetParam', "RespLatency");
 cr.Defaults.Window.stop = struct('line', "RespWindow", 'edge', "onset", 'offsetParam', "RespLatency", 'offsetParamUnit', "s");
 cr.save(f);
 c5 = EphysAnalysisConfig.load(f);
 p1 = c5.Plots(1);
-check(cr.isequalConfig(c5) && p1.rasterSortOrder == "descending" && ~p1.rasterByGroup && isequal(p1.rasterEvents.lines, "Trough") ...
+check(cr.isequalConfig(c5) && p1.rasterSortOrder == "descending" && ~p1.rasterByGroup && numel(p1.rasterEvents) == 2 && all([p1.rasterEvents.line] == "Trough") ...
     && p1.ref.offsetParam == "RespLatency" && p1.ref.offsetParamUnit == "ms" && c5.Defaults.Window.stop.offsetParamUnit == "s" ...
     && c5.Plots(end).yParam == "RespLatency", ...
-    'the raster sort, its event marks, behavior fields and parameter shifts round-trip (a one-line list stays a list)');
+    'the raster sort, its event marks (each with its look), behavior fields and parameter shifts round-trip');
 check(~any(cr.validate(CheckPaths=false).Severity == "error"), 'that config validates');
 bad = cr; bad.Plots(1).rasterSortOrder = "up";
 check(hasIssue(bad, "psth_1.rasterSortOrder", "error"), 'an unknown raster sort order');
-bad = cr; bad.Plots(1).rasterEvents.edge = "middle";
-check(hasIssue(bad, "psth_1.rasterEvents.edge", "error"), 'an unknown mark edge');
-bad = cr; bad.Plots(1).rasterEvents.scope = "session";
-check(hasIssue(bad, "psth_1.rasterEvents.scope", "error"), 'an unknown mark scope');
-bad = cr; bad.Plots(1).rasterEvents.marker = "star";
-check(hasIssue(bad, "psth_1.rasterEvents.marker", "error"), 'a marker the editor does not know');
-bad = cr; bad.Plots(1).rasterEvents.size = 0;
-check(hasIssue(bad, "psth_1.rasterEvents.size", "error"), 'a mark size of 0');
-bad = cr; bad.Plots(1).rasterEvents.color = "notacolor";
-check(hasIssue(bad, "psth_1.rasterEvents.color", "warning"), 'a mark color that is not one warns');
+bad = cr; bad.Plots(1).rasterEvents(1).edge = "middle";
+check(hasIssue(bad, "psth_1.rasterEvents(1)", "error"), 'a mark that is not a valid event reference (an unknown edge)');
+bad = cr; bad.Plots(1).rasterEvents(2).marker = "star";
+check(hasIssue(bad, "psth_1.rasterEvents(2).marker", "error"), 'a marker the editor does not know');
+bad = cr; bad.Plots(1).rasterEvents(1).size = 0;
+check(hasIssue(bad, "psth_1.rasterEvents(1).size", "error"), 'a mark size of 0');
+bad = cr; bad.Plots(1).rasterEvents(1).color = "notacolor";
+check(hasIssue(bad, "psth_1.rasterEvents(1).color", "warning"), 'a mark color that is not one warns');
+L = rasterMarkLooks(p1.rasterEvents, rasterMarkLabels(p1.rasterEvents));
+check(isequal(rasterMarkLabels(p1.rasterEvents), ["Trough onset" "Trough offset"]) && p1.rasterEvents(1).which == "all" ...
+    && p1.rasterEvents(1).scope == "recording" && L(1).marker == "^" && L(1).size == 6 && isequal(L(1).color, validatecolor("#ff00ff")) ...
+    && ~isequal(L(2).color, L(1).color) && isequal(rasterMarkLooks(struct([]), "Lick onset").marker, "diamond"), ...
+    ['rasterMarkLabels names each mark; a mark is every event in the window by default; rasterMarkLooks gives each its own ' ...
+    'look, color "" its automatic one, a label no mark has the default look']);
 bad = cr; bad.Plots(1).ref.offsetParamUnit = "min";
 check(hasIssue(bad, "psth_1.ref", "error"), 'a shift unit other than ms / s');
 ce = cr;
@@ -506,7 +514,7 @@ cs.Defaults.EventRef.sequence = {struct('line', "Trough", 'maxGapSec', 2), ...
     struct('relation', "notFollowedBy", 'line', "Platform", 'edge', "offset")};
 cs.Defaults.EventRef.alignStep = 1;
 cs.Defaults.Window.stop = struct('line', "RespWindow", 'edge', "offset", 'sequence', struct('line', "Trough", 'n', 2));
-cs.Plots(1).rasterEvents.sequences = struct('line', "Trial", 'edge', "offset", 'sequence', struct('line', "Trough"));
+cs.Plots(1).rasterEvents = struct('line', "Trial", 'edge', "offset", 'sequence', struct('line', "Trough"));
 cs.save(f);
 c6 = EphysAnalysisConfig.load(f);
 d = c6.Defaults.EventRef;
@@ -514,16 +522,16 @@ pr = c6.Plots(1).ref;
 check(cs.isequalConfig(c6) && numel(d.sequence) == 2 && d.sequence(1).maxGapSec == 2 && d.sequence(1).relation == "followedBy" ...
     && d.sequence(2).relation == "notFollowedBy" && isinf(d.sequence(2).maxGapSec) && d.alignStep == 1 ...
     && pr.sequence.line == "Trough" && pr.sequence.edge == "onset" && pr.sequence.n == 1 && isinf(pr.alignStep) ...
-    && c6.Defaults.Window.stop.sequence.n == 2 && numel(c6.Plots(1).rasterEvents.sequences) == 1 ...
-    && c6.Plots(1).rasterEvents.sequences.sequence.line == "Trough" && isempty(cr.Defaults.EventRef.sequence), ...
+    && c6.Defaults.Window.stop.sequence.n == 2 && isscalar(c6.Plots(1).rasterEvents) ...
+    && c6.Plots(1).rasterEvents.sequence.line == "Trough" && isempty(cr.Defaults.EventRef.sequence), ...
     'event sequences round-trip: the default event''s two steps (a cell in), alignStep, a plot''s, the stop''s and a mark''s; missing step fields take their defaults');
 check(~any(cs.validate(CheckPaths=false).Severity == "error"), 'that config validates');
 bad = cs; bad.Defaults.EventRef.sequence(1).relation = "before";
 check(hasIssue(bad, "EventRef", "error"), 'a step relation other than followedBy / notFollowedBy');
 bad = cs; bad.Defaults.EventRef.alignStep = 2;
 check(hasIssue(bad, "EventRef", "error"), 'alignStep on a notFollowedBy step');
-bad = cs; bad.Plots(1).rasterEvents.sequences(1).sequence(1).line = "";
-check(hasIssue(bad, "psth_1.rasterEvents.sequences(1)", "error"), 'a mark sequence step without a line');
+bad = cs; bad.Plots(1).rasterEvents(1).sequence(1).line = "";
+check(hasIssue(bad, "psth_1.rasterEvents(1)", "error"), 'a mark sequence step without a line');
 s = cs.toStruct();
 s.Defaults.EventRef.sequence(1).bogus = 1;
 writeJsonFile(f, s, NonFinite="string");

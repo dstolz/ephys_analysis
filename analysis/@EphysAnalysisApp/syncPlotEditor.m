@@ -4,7 +4,9 @@ function syncPlotEditor(obj)
 %   Rows it does not use are hidden, and so is a section left with none
 %   (layoutPlotEditor). Its other options decide which of the rows shown
 %   are enabled: the fill opacity only when filled; the stack spacing only
-%   when stacked (no y limits or legend then); the baseline window only
+%   when stacked (no y limits or legend then), and the rasters in its rows
+%   only with a raster too (their tick height and trials only with them);
+%   the baseline window only
 %   with a baseline; a unit correlation's bins only for its peak rate; the
 %   mask and the stop marks only with a stop event; the alignment
 %   controls as syncAlignEnable says.
@@ -22,12 +24,14 @@ function syncPlotEditor(obj)
 %     measure                     psth, rate, tuning, heatmap of spikes
 %     baseline                    every kind but raster, probemap and behavior
 %     grid spacing                every kind but rate and behavior (only grids use it)
-%     raster, PSTH as, normalize, fill, stack   psth
+%     raster, PSTH as, normalize, fill, stack (and its rasters)   psth
 %     sort raster by (and its direction), sort event and its sequence,
-%       rows by group, mark events,
-%       mark look                 psth, raster (enabled with a raster; the
-%                                 sort event when sorting by "event"; the
-%                                 look with lines to mark)
+%       rows by group             psth, raster (enabled with a raster; the
+%                                 sort event when sorting by "event")
+%     event marks: sequences,
+%       each mark's look          psth, raster of spikes (enabled with a
+%                                 raster; the table with marks in it, a
+%                                 row per mark: markLookTable)
 %     parameter, series           tuning, behavior
 %     y value, x axis             behavior (jitter enabled for points)
 %     value                       probemap
@@ -223,10 +227,13 @@ en(E.raStepMs, on && string(E.raWindows.Value) == "sliding");
 en(E.raThreshold, on && string(E.raCutoff.Value) == "fixed");
 en(E.raResamples, on && string(E.raTest.Value) ~= "ranksum");
 en(E.stackSpacing, stacked);
+en(E.stackRaster, stacked && E.withRaster.Value);
+en([E.stackRasterEqual E.stackRasterTrials], stacked && E.withRaster.Value && E.stackRaster.Value);
 raster = kind == "raster" || E.withRaster.Value;
-en([E.rasterSort E.rasterSortOrder E.rasterByGroup E.markLines E.markEdge E.markScope E.markSeqText E.markSeqEdit], raster);
+en([E.rasterSort E.rasterSortOrder E.rasterByGroup E.markSeqText E.markSeqEdit], raster);
 en([E.sortLine E.sortEdge E.sortSeqText E.sortSeqEdit], raster && strtrim(string(E.rasterSort.Value)) == "event");
-en([E.markMarker E.markSize E.markColor], raster && (strtrim(string(E.markLines.Value)) ~= "" || ~isempty(E.markSeqText.UserData)));
+E.markTable.Enable = char(onoff(raster && ~isempty(E.markSeqText.UserData)));   % a table's Enable takes text only
+markLookTable(E.markTable, E.markSeqText.UserData);   % a row per mark and its look
 en(E.jitter, layout == "points");
 en([E.legend E.ylim], ~stacked);
 en([E.legendLoc E.legendOrient E.legendBox], ~stacked && E.legend.Value);
@@ -285,9 +292,9 @@ v.aTest = auroc && aCutoff == "test";
 respAuroc = spikes && respTest == "auroc";
 v.raMethod = respAuroc; v.raWinMs = respAuroc; v.raCutoff = respAuroc;
 v.raTest = respAuroc && raCutoff == "test";
-v.withRaster = psth; v.histStyle = psth; v.normalize = psth; v.fill = psth; v.stack = psth;
+v.withRaster = psth; v.histStyle = psth; v.normalize = psth; v.fill = psth; v.stack = psth; v.stackRaster = psth; v.stackRasterEqual = psth;
 v.rasterSort = ismember(kind, ["psth" "raster"]) && spikes;
-v.rasterByGroup = v.rasterSort; v.markLines = v.rasterSort; v.markSeqText = v.rasterSort; v.markMarker = v.rasterSort;
+v.rasterByGroup = v.rasterSort; v.markSeqText = v.rasterSort; v.markTable = v.rasterSort;
 v.sortLine = v.rasterSort; v.sortSeqText = v.rasterSort;
 v.param = ismember(kind, ["tuning" "behavior"]); v.seriesParam = v.param;
 v.yParam = behavior; v.xScale = behavior;

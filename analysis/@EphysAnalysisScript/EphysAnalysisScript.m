@@ -319,13 +319,8 @@ classdef EphysAnalysisScript
                         tail = err + ");";
                         if spec.baseline.Mode == "auroc"; tail = ", Auroc=spec.auroc" + err + ");   % auROC settings: spec.auroc"; end
                         L(end+1, 1) = "    Baseline=" + b + ", BaselineMode=" + lit(spec.baseline.Mode) + ", MaskAfterStop=" + lit(spec.maskAfterStop) + ", Raster=" + lit(raster) + ", Groups=G, Meta=meta" + tail;
-                        m = spec.rasterEvents;
-                        if raster && ~isempty(m.sequences)
-                            L(end+1, 1) = "R.rasterEvents = epochEvents(src, E, Lines=" + lit(m.lines) + ", Edge=" + lit(m.edge) + ...
-                                ", Scope=" + lit(m.scope) + ", Sequences=spec.rasterEvents.sequences);   % the raster's event marks";
-                        elseif raster && ~isempty(m.lines)
-                            L(end+1, 1) = "R.rasterEvents = epochEvents(src, E, Lines=" + lit(m.lines) + ", Edge=" + lit(m.edge) + ...
-                                ", Scope=" + lit(m.scope) + ");   % the raster's event marks";
+                        if raster && ~isempty(spec.rasterEvents)
+                            L(end+1, 1) = "R.rasterEvents = epochEvents(src, E, Sequences=eventMarkRef(spec.rasterEvents));   % the raster's event marks";
                         end
                         if raster && spec.rasterSort == "event"
                             L(end+1, 1) = "[sortLat, sortLabel] = eventLatency(src, E, spec.rasterSortEvent);   % the raster's sort key: each epoch's latency to the event";

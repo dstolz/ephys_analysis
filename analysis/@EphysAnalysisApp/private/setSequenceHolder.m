@@ -5,8 +5,8 @@ function setSequenceHolder(holder, data)
 %     struct('sequence', STEPS, 'alignStep', A)   an event reference's or
 %         a stop's steps (buildAlignControls' "Sequence" rows): "none", or
 %         the steps after the panel's line, e.g. "then Trough onset"
-%     a 1 x n EventRef struct array   a plot's mark sequences (the plot
-%         editor's "Mark sequences" row): "none", or each one's
+%     a 1 x n EventMark struct array   a plot's raster marks (the plot
+%         editor's Event marks "Sequences" row): "none", or each one's
 %         eventRefLabel, "; " between
 %   editSequence edits DATA; gatherAlignControls / gatherPlotEditor read it
 %   back.
@@ -24,7 +24,7 @@ if isfield(data, 'alignStep') && ~isfield(data, 'line')
 elseif isempty(data)
     txt = "none";
 else
-    txt = strjoin(arrayfun(@eventRefLabel, data), "; ");
+    txt = strjoin(arrayfun(@eventRefLabel, eventMarkRef(data)), "; ");
 end
 holder.UserData = data;
 holder.Text = txt;

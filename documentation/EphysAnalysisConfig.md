@@ -94,9 +94,9 @@ distinct as file names: `{Plot}` replaces every character outside
       "bins": { "BinSec": 0.01, "SmoothSec": 0.01 }, "measure": "rate",
       "baseline": { "Mode": "none", "Window": [-0.2, 0] }, "auroc": { "method": "psth", "...": "..." },
       "layout": "grid", "withRaster": true, "rasterSort": "", "rasterSortEvent": [], "rasterSortOrder": "ascending", "rasterByGroup": true,
-      "rasterEvents": { "lines": [], "edge": "onset", "scope": "window", "marker": "diamond", "size": 4, "color": "" },
+      "rasterEvents": [],
       "histStyle": "bar", "fill": true, "fillAlpha": "NaN", "normalize": "none",
-      "stack": false, "stackSpacing": 1.1, "maskAfterStop": false, "param": "", "seriesParam": "",
+      "stack": false, "stackSpacing": 1.1, "stackRaster": false, "stackRasterEqual": false, "stackRasterTrials": "Inf", "maskAfterStop": false, "param": "", "seriesParam": "",
       "yParam": "", "jitter": true, "xScale": "category",
       "value": "rate", "order": "probe", "metric": "mean", "correlation": "pearson", "fisherZ": false,
       "waveform": { "mode": "both", "location": "northeast", "box": true, "scale": 1, "maxSpikes": 100 },
@@ -386,13 +386,16 @@ use.
 | `rasterSortEvent` | `[]` | psth, raster with `rasterSort "event"` (required then): the [event reference](#eventref) whose latency from each epoch's event orders the rows, e.g. `{ "line": "Platform", "edge": "offset" }` (a line name alone is short for its onset). Ignored by the other sorts |
 | `rasterSortOrder` | `"ascending"` | psth, raster: the direction of `rasterSort`: `"ascending"` or `"descending"` (with `rasterSort ""`, the last trial first). Missing values stay last either way; ties keep the trial order |
 | `rasterByGroup` | `true` | psth, raster: the rows go by group first, each group on a band of its color; `false`: every epoch sorted by `rasterSort` as one block, each row on its group's color (the y label adds "groups mixed") |
-| `rasterEvents` | none | psth, raster: marks on each raster row at digital-line events inside its epoch ([Raster event marks](#raster-event-marks)) |
+| `rasterEvents` | none | psth, raster: the marks on each raster row, a list of event references (with or without a sequence), each with its own look ([Raster event marks](#raster-event-marks)) |
 | `histStyle` | `"bar"` | psth: `"bar"` (one bar per bin) or `"line"` (a trace through the bin centers) |
 | `fill` | `true` | psth: fill the bars, or the area under the line; `false` = the bars' outline, or the line alone |
 | `fillAlpha` | `NaN` | psth: fill opacity 0-1; `NaN` = 0.5 where groups are overlaid, else 1 |
 | `normalize` | `"none"` | psth: `"unitPeak"` divides each unit's PSTHs by their largest absolute value over every group (the groups keep their sizes); `"groupPeak"` divides each PSTH by its own. The overlay layout normalizes each unit before the mean |
 | `stack` | `false` | psth: one row per group instead of overlaid (see [Stacked PSTHs](#stacked-psths)) |
-| `stackSpacing` | 1.1 | psth stack: the row step, times the panel's tallest PSTH (1 = it just reaches the next row; below 1 the rows overlap) |
+| `stackSpacing` | 1.1 | psth stack: the row step, times the panel's tallest PSTH (1 = it just reaches the next row; below 1 the rows overlap); with `stackRaster`, times a row's height |
+| `stackRaster` | false | psth stack with `withRaster`: each group's raster in its own row, just above its PSTH, instead of a raster panel above the stack ([Stacked PSTHs](#stacked-psths)) |
+| `stackRasterEqual` | false | `stackRaster`: every row's raster ticks one height, that of the row showing the most epochs (a row with fewer is filled from the bottom); false: each row's epochs fill its raster |
+| `stackRasterTrials` | Inf | `stackRaster`: the most epochs a row's raster shows, picked evenly over its sort order (Inf = all); the PSTHs still average every epoch |
 | `maskAfterStop` | `false` | psth, raster, heatmap of spikes: drop each epoch's bins, and its raster ticks, from its stop event on (the mean then covers the epochs still going) |
 | `param`, `seriesParam` | `""` | tuning, behavior: the trial parameter on the x axis (required); one curve (series) per value of the series parameter (`""` = one) |
 | `yParam` | `""` | behavior: what each epoch shows (required): a numeric trial parameter, e.g. `"RespLatency"` (as recorded; Epsych2 stores ms), or `"stop"`: the epoch's stop-event latency from its event, ms (needs a stop event) |
@@ -464,6 +467,22 @@ they overlap (`stackSpacing` below 1) the lower one is in front.
   and `Style.YLim` is not used.
 - The raster above each tile is flipped to match, its first group at the
   bottom; like every raster it ignores `Style.YLim`.
+- With `stackRaster` (and `withRaster`) there is no raster panel: each
+  group's raster sits in its own row, just above its PSTH and its error
+  band, on its pale band as tall as the tile's tallest PSTH, its epochs
+  sorted as `rasterSort` says and the first at the bottom. A row is then
+  the PSTH, a small gap and the raster, and the step is `stackSpacing`
+  times that. The rows go by group whatever `rasterByGroup` says, and an
+  overlay on the `raster` panel has none to go on. The overlay layout's
+  mean of several units has no raster.
+- Each row's epochs fill its raster, so a group with few trials gets tall
+  ticks. `stackRasterEqual` gives every row ticks of one height (the
+  fullest row's), the rows with fewer epochs filled from the bottom, and
+  `stackRasterTrials` caps the epochs a raster shows: that many, picked
+  evenly from the first to the last in the row's sort order (so a raster
+  sorted by latency keeps its spread). With both, every row with that
+  many epochs shows the same rows; the caption says so. The PSTHs use
+  every epoch either way.
 - A plot with one group is drawn unstacked.
 
 ### auROC
@@ -528,28 +547,28 @@ the event on each row too, mark it ([Raster event marks](#raster-event-marks)).
 ### Raster event marks
 
 A raster (the raster kind, or a PSTH's raster) can mark, on each row, the
-onsets and / or offsets of digital lines inside the row's epoch: every
-one of them, so a trial with several beam crossings or licks gets a mark
-for each. The plot's `rasterEvents`:
+events inside the row's epoch: every one of them, so a trial with several
+beam crossings or licks gets a mark for each. The plot's `rasterEvents` is
+a list of marks. Each is an [event reference](#eventref) -- its `line`,
+`edge`, `which`, `scope`, and a [sequence](#event-sequences) or none --
+with its own look:
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `lines` | none | the lines whose events are marked (`"Trial"` = the trial line); none = no marks |
-| `sequences` | none | [event references](#eventref), usually with a [sequence](#event-sequences), whose events are marked too, one mark per event at its `alignStep` (e.g. `{line "Trial", edge "offset", which "all", sequence [{line "Trough"}]}`: the first Trough onset after each trial's end). Each is resolved over every paired trial (or the recording), not only the selected ones |
-| `edge` | `"onset"` | `"onset"`, `"offset"` or `"both"` (each edge is its own mark) of `lines` |
-| `scope` | `"window"` | `"window"`: every event inside the epoch's window; `"trial"`: only those inside the epoch's own trial (a sequence's: those whose own trial, the one holding its first event, is the epoch's) |
+| the [event reference](#eventref)'s fields | `which "all"`, `scope "recording"` | the events marked, one mark per event at its `alignStep`: `{line "Trough"}` marks every Trough onset; `{line "Trial", edge "offset", sequence [{line "Trough"}]}` the first Trough onset after each trial's end. Each is resolved over every paired trial (or the recording), not only the selected ones |
 | `marker` | `"diamond"` | a line marker the aesthetics editor knows (`o`, `square`, `diamond`, `^`, `v`, `>`, `<`, `+`, `*`, `.`, `x`, `_`, `\|`, `pentagram`, `hexagram`) |
 | `size` | 4 | marker size, points |
-| `color` | `""` | `""`: a color per line and edge (blue, green, purple, yellow, cyan, teal; never the ticks' black or the stop dots' red); or one color for every mark (a name or `#rrggbb`) |
+| `color` | `""` | `""`: the mark's automatic color, by its place in the list (blue, green, purple, yellow, cyan, teal; never the ticks' black or the stop dots' red); or a name or `#rrggbb` |
 
 `epochEvents` finds them ([Analysis page](EphysAnalysis.md#compute)) on
 the clock of each epoch's event, so a mark sits where the spikes of that
-sample sit. Each line and edge, and each sequence, is one component for the
+sample sit. `eventMarkRef` gives the marks' event references (their look
+left out), `rasterMarkLabels` their labels and `rasterMarkLooks` how each
+is drawn. Each mark is one component for the
 [aesthetics editor](EphysAnalysis.md#plot-aesthetics), role `rasterEvent`,
-group `"<line> <edge>"` (e.g. `"Trough onset"`; a sequence's
-`eventRefLabel`, e.g. `"Trial offset then Trough onset"`): right-click a mark to give
-one line's marks their own marker, size or color. The raster kind's
-legend lists them; the caption names them.
+group its `eventRefLabel` (e.g. `"Trough onset"`, `"Trial offset then
+Trough onset"`). The raster kind's legend lists them; the caption names
+them.
 
 ### Behavior plots
 
@@ -1030,8 +1049,8 @@ with 20 units and 16 tiles per page is written as
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
 | Defaults, Plots | the event reference, window and selection are valid: known values, `n` a whole number >= 1, `0 <= minDurationSec <= maxDurationSec`, `timeRange` ordered, a finite `offsetSec`, `offsetParamUnit` ms or s, each sequence step's relation, line, edge, `n`, positive `maxGapSec` and lengths, an `alignStep` of 0, `Inf` or a followedBy step (the stop's and each raster-mark sequence's too), finite `pre` and `post`, `pre <= post` in a fixed window, a stop event in a `"between"` window, known response words and pairing flags, at most 2 distinct `groupBy` parameters, `maxGroups` and `trials` whole numbers >= 1 | error |
 | Defaults, Plots | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
-| Plots | at least one plot or session plot enabled; ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; `measure` rate / count / probability; tuning names its parameter; behavior names `param` and `yParam` (`"stop"` with a stop event), its `xScale` is category / linear and the violin layout has `violinplot`; a psth / raster `rasterSortOrder` ascending / descending, a `rasterSortEvent` (a valid event reference) with `rasterSort "event"`, and `rasterEvents` edge, scope, marker and a positive size; `BinSec > 0`, `SmoothSec >= 0` where bins are used; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak / allPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order (`"modulation"` only with the auROC baseline); the auROC settings (method, windows, whole-bin window and step, call window, cutoff, threshold, test, `nResamples`, correction, alpha, `modulatedOnly` with a cutoff) and the toolbox they need; corrmap metric and correlation; `maxUnits >= 1`; an enabled response test of spikes: its test, `param` for tuning / either / both, `baseline` and `window` ordered, direction, correction, alpha in (0, 1], the auROC settings of a test `"auroc"` (with a cutoff) and the Statistics and Machine Learning Toolbox; a `waveform` mode off / mean / subsample / both and, when not off, its location, `scale` in (0, 3] and a whole `maxSpikes >= 1`; an `aux` mode off / channels / magnitude and, when not off, its `placement` below / above / over, `display` lines / stacked / heatmap, `statistic` mean / median, `transform` none / rectify, `colorBy` auto / group / channel, `errorType` off / sem / std / ci95 / iqr (`ci95` and `iqr` need the Statistics and Machine Learning Toolbox), whole `channels >= 1`, `baseline` none / subtract and, when subtracting, a `baselineWindow` `[b0 b1]` with `b0 < b1` that overlaps the epoch window; for a note with text, its `placement`, `align`, `valign`, `interpreter`, a numeric `rotation`, a positive or `NaN` `fontSize`, and `x` and `y` for `"custom"`; for each overlay, its `shape` line / region, `axis` x / y, a finite `value` (line) or two finite, different `from` and `to` (region), `panel` all / data / raster, `layer` over / under, a `lineStyle` among `-` `--` `:` `-.`, a positive `lineWidth` and `alpha` and `faceAlpha` within 0-1; `MaxTiles >= 1`, `TileSpacing` loose / compact / tight / none, `FontSize`, `LineWidth`, `SiteSize` positive; `ErrorType` sem / std / ci95 (`ci95` needs the Statistics and Machine Learning Toolbox where the plot draws it), a whole `ErrorResamples >= 1`, `ErrorFaceAlpha` 0-1 or NaN, `ErrorEdgeStyle` among `-` `--` `:` `-.`, a positive `ErrorEdgeWidth` | error |
-| Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a color (the default is used); a `rasterEvents.color` that is not a color (each mark gets its own); a `waveform` mode on a plot that draws no unit tiles (an overlay, a plot of signals, a kind other than raster / psth / tuning / waveforms); an `aux` mode on a plot other than a psth or raster of spikes; `aux.placement "over"` on a stacked PSTH or with a heat map (drawn below); an `aux.errorType` other than off with a heat map (no band is drawn), or `"sem"` / `"std"` with the median; a note's `color` or `background` that is not a color (left to the design); an overlay's `color`, `faceColor` or `edgeColor` that is not a color (its default is drawn); an overlay's raster or data `panel` on a plot that draws no such panel (nothing is drawn); two overlays of a plot with one `name`; an `ErrorFaceColor` or `ErrorEdgeColor` that is not a color | warning |
+| Plots | at least one plot or session plot enabled; ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; `measure` rate / count / probability; tuning names its parameter; behavior names `param` and `yParam` (`"stop"` with a stop event), its `xScale` is category / linear and the violin layout has `violinplot`; a psth / raster `rasterSortOrder` ascending / descending, a `rasterSortEvent` (a valid event reference) with `rasterSort "event"`, and each of its `rasterEvents` a valid event reference with a known marker and a positive size; `BinSec > 0`, `SmoothSec >= 0` where bins are used; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak / allPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order (`"modulation"` only with the auROC baseline); the auROC settings (method, windows, whole-bin window and step, call window, cutoff, threshold, test, `nResamples`, correction, alpha, `modulatedOnly` with a cutoff) and the toolbox they need; corrmap metric and correlation; `maxUnits >= 1`; an enabled response test of spikes: its test, `param` for tuning / either / both, `baseline` and `window` ordered, direction, correction, alpha in (0, 1], the auROC settings of a test `"auroc"` (with a cutoff) and the Statistics and Machine Learning Toolbox; a `waveform` mode off / mean / subsample / both and, when not off, its location, `scale` in (0, 3] and a whole `maxSpikes >= 1`; an `aux` mode off / channels / magnitude and, when not off, its `placement` below / above / over, `display` lines / stacked / heatmap, `statistic` mean / median, `transform` none / rectify, `colorBy` auto / group / channel, `errorType` off / sem / std / ci95 / iqr (`ci95` and `iqr` need the Statistics and Machine Learning Toolbox), whole `channels >= 1`, `baseline` none / subtract and, when subtracting, a `baselineWindow` `[b0 b1]` with `b0 < b1` that overlaps the epoch window; for a note with text, its `placement`, `align`, `valign`, `interpreter`, a numeric `rotation`, a positive or `NaN` `fontSize`, and `x` and `y` for `"custom"`; for each overlay, its `shape` line / region, `axis` x / y, a finite `value` (line) or two finite, different `from` and `to` (region), `panel` all / data / raster, `layer` over / under, a `lineStyle` among `-` `--` `:` `-.`, a positive `lineWidth` and `alpha` and `faceAlpha` within 0-1; `MaxTiles >= 1`, `TileSpacing` loose / compact / tight / none, `FontSize`, `LineWidth`, `SiteSize` positive; `ErrorType` sem / std / ci95 (`ci95` needs the Statistics and Machine Learning Toolbox where the plot draws it), a whole `ErrorResamples >= 1`, `ErrorFaceAlpha` 0-1 or NaN, `ErrorEdgeStyle` among `-` `--` `:` `-.`, a positive `ErrorEdgeWidth` | error |
+| Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a color (the default is used); a raster mark's `color` that is not a color (it gets its automatic one); a `waveform` mode on a plot that draws no unit tiles (an overlay, a plot of signals, a kind other than raster / psth / tuning / waveforms); an `aux` mode on a plot other than a psth or raster of spikes; `aux.placement "over"` on a stacked PSTH or with a heat map (drawn below); an `aux.errorType` other than off with a heat map (no band is drawn), or `"sem"` / `"std"` with the median; a note's `color` or `background` that is not a color (left to the design); an overlay's `color`, `faceColor` or `edgeColor` that is not a color (its default is drawn); an overlay's raster or data `panel` on a plot that draws no such panel (nothing is drawn); two overlays of a plot with one `name`; an `ErrorFaceColor` or `ErrorEdgeColor` that is not a color | warning |
 | SessionPlots | the id is not empty, has no `\ / : * ? " < > \|`, and stays distinct from the other session plots' once sanitized (case-blind); `datasets`, `facet`, `series`, `colorOrder`, `error`, `match` and `trialGroups` are known values and `data` holds only `results`, `epochs` and `signals`; `minSessions` a whole number >= 1; `match "mapping"` has a mapping file that exists (with `CheckPaths`), that reads and has a `cell` column; the base plot exists, is a kind that can be merged (`SessionKinds`) and has no auROC baseline; the `layout` fits its kind | error |
 | SessionPlots | `datasets "list"` with no `datasetKeys`; a mapping file with no column for a listed dataset key; `match` other than `"pool"` on a plot of signals, a heatmap, a waveforms or a behavior plot (ignored); a tuning or behavior plot's `seriesParam` with `trialGroups "pool"` (replaced by the sessions); `showMembers` with `series "session"`; `"combine"` on a PSTH drawn as bars (drawn as lines); a heatmap with `series` other than `"all"` (its rows are the session-units, or the channels averaged: ignored) | warning |
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi` positive; `FigureSizeCm` two positive numbers; the folder and file-name patterns use known tokens, and the file-name pattern is not empty; `SessionsFolder` and `Data.Folder` are folder patterns, `Data.FilenamePattern` a file-name pattern, and `Data.MatVersion` is `-v7.3` or `-v7` | error |

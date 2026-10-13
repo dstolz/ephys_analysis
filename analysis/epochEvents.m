@@ -127,7 +127,7 @@ function [line, edge] = alignedEvent(ref)
 line = ref.line; edge = ref.edge;
 a = ref.alignStep;
 if isinf(a)
-    a = find([ref.sequence.relation] == "followedBy", 1, 'last');
+    a = find([string.empty(1, 0) ref.sequence.relation] == "followedBy", 1, 'last');   % none without steps
 end
 if ~isempty(a) && a >= 1
     line = ref.sequence(a).line; edge = ref.sequence(a).edge;

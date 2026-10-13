@@ -11,7 +11,8 @@ function s = defaults(section)
 %   Building blocks   EventRef, SequenceStep (one step of an EventRef's
 %                     sequence), EpochWindow, TrialSelection, UnitSelection,
 %                     Style, Auroc, Waveform, Aux, Note, Overlay (one entry
-%                     of a plot's overlays)
+%                     of a plot's overlays), EventMark (one entry of a
+%                     plot's rasterEvents: an EventRef and its look)
 %
 %   See also EphysAnalysisConfig, EphysAnalysisConfig.normalizeSection.
 
@@ -195,6 +196,16 @@ switch section
             'box',        false, ...        % an outline round the text
             'interpreter', "none");         % "none" (as typed) | "tex" (\mu, x^2, x_i, \bf)
 
+    case "EventMark"
+        % one raster event mark (Plot.rasterEvents): an event reference -- usually which "all", often with a sequence --
+        % whose events are marked on each raster row (epochEvents), and its look
+        s = EphysAnalysisConfig.defaults("EventRef");
+        s.which = "all";                % every event in the epoch's window ...
+        s.scope = "recording";          % ... in the trials or between them
+        s.marker = "diamond";           % a line marker (PlotAesthetics' list: o, square, diamond, ^, v, |, ...)
+        s.size = 4;                     % marker size, points
+        s.color = "";                   % "" = the mark's automatic color (rasterMarkColor); or a name / #rrggbb
+
     case "Overlay"
         % one graphic drawn on a plot's axes in data units (drawOverlays): a line across the axis, or a semitransparent
         % patch between two values; a plot holds any number of them (Plot.overlays), each with its own look
@@ -269,13 +280,16 @@ switch section
             'rasterSortEvent', [], ...          % psth / raster, rasterSort "event": [] or an EventRef, e.g. Platform offset, whose latency from each epoch's event sorts the rows (eventLatency)
             'rasterSortOrder', "ascending", ... % psth / raster: the sort key's direction, "ascending" | "descending" (missing values last)
             'rasterByGroup', true, ...          % psth / raster: rows by group first, on bands (false: every epoch sorted as one block)
-            'rasterEvents',  rasterEventsDefaults(), ...   % psth / raster: marks on each row at a digital line's onsets / offsets (epochEvents)
+            'rasterEvents',  repmat(EphysAnalysisConfig.defaults("EventMark"), 1, 0), ...   % psth / raster: marks on each row, EventMark each (epochEvents)
             'histStyle',     "bar", ...         % psth: "bar" | "line"
             'fill',          true, ...          % psth: filled bars / area under the line (false: outline / line only)
             'fillAlpha',     NaN, ...           % psth: fill opacity 0-1 (NaN: 0.5 where groups overlap, else 1)
             'normalize',     "none", ...        % psth: "none" | "unitPeak" (a unit's PSTHs / its largest peak) | "groupPeak" (each PSTH / its own peak) | "allPeak" (every PSTH / the largest of all)
             'stack',         false, ...         % psth: one row per group, stacked upwards, instead of overlaid
-            'stackSpacing',  1.1, ...           % psth stack: row step, x the tallest PSTH of the panel (< 1 overlaps)
+            'stackSpacing',  1.1, ...           % psth stack: row step, x the tallest PSTH of the panel (with stackRaster: x a row's height) (< 1 overlaps)
+            'stackRaster',   false, ...         % psth stack with withRaster: each group's raster in its row, just above its PSTH (no raster panel)
+            'stackRasterEqual', false, ...      % stackRaster: every row's ticks one height (that of the row showing the most epochs) instead of each row's epochs filling it
+            'stackRasterTrials', Inf, ...       % stackRaster: the most epochs a row's raster shows, picked evenly over its sort order (Inf = all; the PSTH uses all)
             'maskAfterStop', false, ...         % psth, raster, heatmap of spikes: drop what follows each epoch's stop event
             'param',         "", ...            % tuning / behavior: trial parameter on the x axis
             'seriesParam',   "", ...            % tuning / behavior: one curve (series) per value of this parameter
@@ -320,19 +334,6 @@ switch section
     otherwise
         error('EphysAnalysisConfig:BadSection', 'Unknown section "%s".', section);
 end
-end
-
-
-function e = rasterEventsDefaults()
-%rasterEventsDefaults  Plot.rasterEvents: none; how the marks look.
-e = struct( ...
-    'lines',  string.empty(1,0), ... % digital lines ("Trial" = the trial line) whose events are marked on each row
-    'sequences', repmat(EphysAnalysisConfig.defaults("EventRef"), 1, 0), ...   % event references (with sequences) whose events are marked too
-    'edge',   "onset", ...           % "onset" | "offset" | "both" (of lines)
-    'scope',  "window", ...          % "window": every event in the epoch's window | "trial": only those in the epoch's own trial
-    'marker', "diamond", ...         % a line marker (PlotAesthetics' list: o, square, diamond, ^, v, |, ...)
-    'size',   4, ...                 % marker size, points
-    'color',  "");                   % "" = a color per line and edge; or one color (a name or #rrggbb)
 end
 
 

@@ -390,7 +390,56 @@ check(isscalar(h.axes(1).YAxis) && isnan(h.step), 'a single group is not stacked
 h = renderPSTH(Rd, f6, Style=struct('Colormap', "black"));
 pa = findobj(h.axes(1), 'Type', 'patch', '-not', 'FaceAlpha', 1);
 check(numel(pa) == 3 && all(arrayfun(@(p) isequal(p.FaceColor, [0 0 0]), pa)), 'Colormap "black" gives every group black');
+% StackRaster: each group's raster in its own row, just above its PSTH
+h = renderPSTH(Rd, f6, Stack=true, StackRaster=true, Style=struct('SortDepth', false, 'ShowSEM', false));
+ax = h.axes(1);
+tall = max(Rd.rate(:, 1, :), [], 'all');
+at = 1.05 * tall;   % the raster's bottom above its row's baseline: the tallest PSTH and a gap
+stp = 1.1 * (at + tall);
+band = findall(ax, 'Tag', 'rasterBand');
+by = sortrows(cell2mat(arrayfun(@(b) [min(b.YData) max(b.YData)], band, 'UniformOutput', false)));
+tk = get(findall(ax, 'Tag', 'rasterTicks'), 'YData');
+tk = reshape(tk(isfinite(tk)), 2, []);   % each tick's bottom and top
+inBand = arrayfun(@(g) nnz(tk(1, :) >= by(g, 1) & tk(2, :) <= by(g, 2)), 1:3);
+grpOf = @(u) arrayfun(@(g) nnz(Rd.epochGroup(Rd.raster(u).epoch) == g), 1:3);
+check(isempty(h.rasterAxes) && numel(h.axes) == 3 && abs(h.step(1) - stp) < 1e-9 ...
+    && max(abs(ax.YAxis(1).TickValues - (0:2) * stp)) < 1e-9, ...
+    'StackRaster: no raster panel; the row step is Spacing x a row (PSTH, gap, raster as tall as the PSTH)');
+check(numel(band) == 3 && max(abs(by(:, 1) - ((0:2).' * stp + at))) < 1e-9 && max(abs(diff(by, 1, 2) - tall)) < 1e-9 ...
+    && sum(inBand) == size(tk, 2) && any(arrayfun(@(u) isequal(inBand, grpOf(u)), 1:numel(Rd.raster))), ...
+    'StackRaster: a band per group just above its row, as tall as the tallest PSTH, holding that group''s epochs'' spikes');
+check(isempty(findall(ax, 'Tag', 'rasterTicks', '-not', 'Parent', ax)) && strcmp(ax.YDir, 'normal') ...
+    && ax.YLim(2) >= 2 * stp + at + tall - 1e-9, 'StackRaster: the rasters are in the rate axes, which reach the top raster');
+h = renderPSTH(Rd, f6, Stack=true, StackRaster=true, HistStyle="line", Style=struct('SortDepth', false, 'ShowSEM', false));
+tk2 = get(findall(h.axes(1), 'Tag', 'rasterTicks'), 'YData');
+check(isequal(size(tk2), [1 numel(tk) + size(tk, 2)]) && ishold(h.axes(1)) == false, ...
+    'StackRaster with line PSTHs: the rows'' plot calls keep the ticks (the raster leaves the stack''s hold on)');
+h = renderPSTH(Rd, f6, Stack=false, StackRaster=true);
+check(numel(h.rasterAxes) == 3, 'StackRaster without a stack: the raster panel above, as before');
+Ru = Rd; Ru.epochGroup(find(Ru.epochGroup == 3, 40)) = 1;   % 107, 67 and 26 epochs: rows of uneven heights
+nPer = arrayfun(@(g) nnz(Ru.epochGroup == g), 1:3);
+tickSpans = @(h) reshape(subsref(get(findall(h.axes(1), 'Tag', 'rasterTicks'), 'YData'), substruct('()', {':'})), 3, []);
+h = renderPSTH(Ru, f6, Stack=true, StackRaster=true, Style=struct('SortDepth', false, 'ShowSEM', false));
+sp0 = tickSpans(h); sp0 = sp0(1:2, isfinite(sp0(1, :)));
+h = renderPSTH(Ru, f6, Stack=true, StackRaster=true, StackRasterEqual=true, Style=struct('SortDepth', false, 'ShowSEM', false));
+sp = tickSpans(h); sp = sp(1:2, isfinite(sp(1, :)));
+top3 = 2 * stp + at;   % group 3's band bottom (the row step as above: the same rates)
+in3 = sp(1, :) >= top3 - 1e-9;
+check(numel(unique(round(diff(sp0), 9))) == 3 && max(abs(diff(sp) - 0.8 * tall / max(nPer))) < 1e-9 ...
+    && max(sp(2, in3)) <= top3 + tall * nPer(3) / max(nPer) + 1e-9, ...
+    'StackRasterEqual: every row''s ticks the height of the fullest row''s, a row with fewer epochs filled from the bottom');
+h = renderPSTH(Ru, f6, Stack=true, StackRaster=true, StackRasterTrials=10, Style=struct('SortDepth', false, 'ShowSEM', false));
+sp = tickSpans(h); sp = sp(1:2, isfinite(sp(1, :)));
+rowsPer = arrayfun(@(g) numel(unique(round(mean(sp(:, sp(1, :) >= (g - 1) * stp + at - 1e-9 & sp(2, :) <= (g - 1) * stp + at + tall + 1e-9), 1), 9))), 1:3);
+check(all(rowsPer <= 10) && all(rowsPer >= 8) && max(abs(diff(sp) - 0.8 * tall / 10)) < 1e-9, ...
+    'StackRasterTrials 10: each row''s raster shows at most 10 epochs, in rows of one height');
+cap = plotCaption(EphysAnalysisConfig.normalizePlot(struct('kind', "psth", 'stack', true, 'stackRaster', true, ...
+    'stackRasterTrials', 10, 'stackRasterEqual', true)), Ru);
+check(contains(cap, "each raster at most 10 epochs") && contains(cap, "raster rows of one height"), "plotCaption: " + cap);
 delete(f6);
+sp = EphysAnalysisConfig.normalizePlot(struct('kind', "psth", 'stack', true, 'stackRaster', true));
+cap = plotCaption(sp, Rd);
+check(contains(cap, "each with its raster above it") && ~contains(cap, "across groups"), "plotCaption: " + cap);
 sp = EphysAnalysisConfig.normalizePlot(struct('kind', "psth", 'stack', true, 'normalize', "groupPeak"));
 cap = plotCaption(sp, Rd);
 check(contains(cap, "each PSTH normalized to its own peak") && contains(cap, "groups stacked"), "plotCaption: " + cap);
@@ -691,7 +740,7 @@ check(contains(plotCaption(struct('kind', "raster", 'rasterSort', "stop", 'raste
     "sorted by stop latency, descending across groups"), 'the caption says how the raster is sorted');
 Rm = Rs;
 Rm.rasterEvents = struct('line', "Beam", 'edge', "onset", 'label', "Beam onset", 'epoch', [1; 1; 4], 't', [0.1; 0.3; -0.1]);
-h = renderRaster(Rm, fig9, SortBy="level", EventMarks=struct('marker', "^", 'size', 7, 'color', "#ff00ff"));
+h = renderRaster(Rm, fig9, SortBy="level", EventMarks=struct('line', "Beam", 'marker', "^", 'size', 7, 'color', "#ff00ff"));
 mk = findall(h.axes(1), 'Tag', 'rasterEvent', 'HandleVisibility', 'off');
 lg = h.axes(1).Legend;
 check(isscalar(mk) && isequal(mk.XData(:).', [0.1 0.3 -0.1]) && isequal(mk.YData(:).', [3 3 6]) && string(mk.Marker) == "^" ...
@@ -703,6 +752,20 @@ h = renderPlot(Rm, struct('kind', "raster", 'aesthetics', struct('role', "raster
 mk = findall(h.axes(1), 'Tag', 'rasterEvent', 'HandleVisibility', 'off');
 check(isscalar(mk) && mk.MarkerSize == 11 && string(mk.Marker) == "diamond" && contains(plotCaption(struct('kind', "raster"), Rm), ...
     "raster marks: Beam onset"), 'a plot''s aesthetics rule restyles the marks; the default marker is a diamond; the caption lists them');
+Rm2 = Rm;
+Rm2.rasterEvents(2) = struct('line', "Lick", 'edge', "onset", 'label', "Lick onset", 'epoch', 2, 't', 0.2);
+marks = struct('line', {"Beam" "Lick"}, 'marker', {"^" "square"}, 'size', {5 9}, 'color', {"red" ""});
+h = renderRaster(Rm2, fig9, EventMarks=marks);
+mk = findall(h.axes(1), 'Tag', 'rasterEvent', 'HandleVisibility', 'off');
+beam = mk(arrayfun(@(x) getappdata(x, 'PlotGroup') == "Beam onset", mk));
+lick = mk(arrayfun(@(x) getappdata(x, 'PlotGroup') == "Lick onset", mk));
+stand = findall(h.axes(1), 'Tag', 'rasterEvent', 'HandleVisibility', 'on');
+standLick = stand(arrayfun(@(x) getappdata(x, 'PlotGroup') == "Lick onset", stand));
+auto = rasterMarkLooks(marks, ["Beam onset" "Lick onset"]);
+check(string(beam.Marker) == "^" && beam.MarkerSize == 5 && isequal(beam.Color, [1 0 0]) ...
+    && string(lick.Marker) == "square" && lick.MarkerSize == 9 && isequal(lick.Color, auto(2).color) && ~isequal(lick.Color, [1 0 0]) ...
+    && isscalar(standLick) && string(standLick.Marker) == "square" && standLick.MarkerSize == 9, ...
+    'each mark is drawn in its own look (Plot.rasterEvents), legend too, its color "" its automatic one');
 delete(fig9);
 
 fprintf('\n== behavior values ==\n');

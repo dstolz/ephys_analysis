@@ -6,11 +6,13 @@ function editSequence(obj, holder, mode, lineCtl, edgeCtl, done)
 %     MODE "event"  one event reference's (or stop's) steps: it starts at
 %                   the line and edge of the drop-downs LINECTL / EDGECTL
 %                   (shown, edited in the panel)
-%     MODE "marks"  a plot's mark sequences: a list of event references,
-%                   each with its own start (line, edge, which, scope) and
-%                   steps; EDGECTL is unused
-%   The steps are a table: Then (followed by / not followed by), Line,
-%   Edge, n, Within (s) (maxGapSec, Inf = up to the next trial), Min / Max
+%     MODE "marks"  a plot's raster marks (rasterEvents): a list of
+%                   EventMarks, each with its own start (line, edge, which,
+%                   scope) and steps, and its look (kept as it is: the
+%                   plot editor's "Each mark" table sets it); EDGECTL is
+%                   unused
+%   The steps are a table: Then (followed by / not followed by), Line (a
+%   drop-down of the lines), Edge, n, Within (s) (maxGapSec, Inf = up to the next trial), Min / Max
 %   length (s). "Align to" picks the epoch's event (alignStep). Apply
 %   stores the result in HOLDER and calls DONE(); Cancel drops it. One
 %   window at a time: opening another closes it, and so does showing
@@ -27,6 +29,7 @@ marks = mode == "marks";
 lines = unique(["Trial" string(lineCtl.Items)], 'stable');
 def = EphysAnalysisConfig.defaults("EventRef");
 if marks
+    def = EphysAnalysisConfig.defaults("EventMark");   % an event reference and its look
     refs = holder.UserData;
     if isempty(refs); refs = repmat(def, 1, 0); end
 else
@@ -133,7 +136,7 @@ show();
             set([D.Line D.Edge D.Which D.Scope D.Table D.AddStep D.RemoveStep D.Up D.Down D.Align D.RemoveSeq], "Enable", onOff);
         end
         if cur < 1
-            D.Table.Data = stepTable(repmat(EphysAnalysisConfig.defaults("SequenceStep"), 1, 0));
+            D.Table.Data = stepTable(repmat(EphysAnalysisConfig.defaults("SequenceStep"), 1, 0), lines);
             return
         end
         r = refs(cur);
@@ -143,7 +146,7 @@ show();
             setDrop(D.Which, r.which);
             D.Scope.Value = char(r.scope);
         end
-        D.Table.Data = stepTable(r.sequence);
+        D.Table.Data = stepTable(r.sequence, lines);
         refreshAlign(r.alignStep);
     end
 
@@ -215,7 +218,7 @@ show();
         T = D.Table.Data;
         s = EphysAnalysisConfig.defaults("SequenceStep");
         s.line = "Trough";
-        D.Table.Data = [T; stepTable(s)];
+        D.Table.Data = [T; stepTable(s, categories(T.Line))];
         refreshAlign();
     end
 
@@ -241,7 +244,7 @@ show();
         try
             if marks
                 if cur >= 1; refs(cur) = current(); end
-                for k = 1:numel(refs); eventRef(refs(k)); end   % checked here: a bad step is said now
+                for k = 1:numel(refs); eventRef(eventMarkRef(refs(k))); end   % checked here: a bad step is said now
                 setSequenceHolder(holder, refs);
             else
                 r = current();
@@ -258,14 +261,19 @@ show();
 end
 
 
-function T = stepTable(S)
-%stepTable  The steps S as the table shows them.
+function T = stepTable(S, lines)
+%stepTable  The steps S as the table shows them; the Line column is a
+%   drop-down of LINES (and of any line the steps already name).
 n = numel(S);
 rel = categorical(repmat("followed by", n, 1), ["followed by" "not followed by"]);
 if n > 0; rel([S.relation] == "notFollowedBy") = "not followed by"; end
 edge = categorical(reshape(string({S.edge}), [], 1), ["onset" "offset"]);
 if n == 0; edge = categorical(strings(0, 1), ["onset" "offset"]); end
-T = table(rel, reshape(cellstr(string({S.line})), [], 1), edge, reshape([S.n], [], 1), ...
+stepLines = reshape(string({S.line}), [], 1);
+choices = unique([reshape(string(lines), 1, []) reshape(stepLines, 1, [])], 'stable');
+choices(choices == "") = [];
+line = categorical(stepLines, choices);   % a step without a line is <undefined> (dropped by tableSteps)
+T = table(rel, line, edge, reshape([S.n], [], 1), ...
     reshape([S.maxGapSec], [], 1), reshape([S.minDurationSec], [], 1), reshape([S.maxDurationSec], [], 1), ...
     'VariableNames', {'Then', 'Line', 'Edge', 'n', 'Within', 'MinLength', 'MaxLength'});
 end
@@ -275,8 +283,9 @@ function S = tableSteps(T)
 %tableSteps  The steps a table shows (rows without a line dropped).
 S = repmat(EphysAnalysisConfig.defaults("SequenceStep"), 1, 0);
 for k = 1:height(T)
-    line = strtrim(string(T.Line{k}));
-    if line == ""; continue; end
+    line = string(T.Line(k));
+    if ismissing(line) || strtrim(line) == ""; continue; end
+    line = strtrim(line);
     s = EphysAnalysisConfig.defaults("SequenceStep");
     if string(T.Then(k)) == "not followed by"; s.relation = "notFollowedBy"; end
     s.line = line;

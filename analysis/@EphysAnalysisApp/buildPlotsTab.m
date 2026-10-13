@@ -9,7 +9,9 @@ function buildPlotsTab(obj)
 %   reference, Epoch window (with "Epoch Diagram" under it, the epoch
 %   diagram, onShowEpochs), Trial selection (the Alignment tab's values
 %   while "Use default" is ticked; editing one gives the plot its own),
-%   Bins & baseline, the kind's own options, Appearance and Unit waveform
+%   Bins & baseline, the kind's own options, Event marks (the events,
+%   each an event reference with or without a sequence, marked on each
+%   raster row, and each mark's look), Appearance and Unit waveform
 %   (each unit's mean and / or spikes in its tile), Aux signals (a PSTH's
 %   or raster's mean aux signal -- each accelerometer channel, or their
 %   vector magnitude -- in a panel below or above each unit's, or over it
@@ -20,8 +22,8 @@ function buildPlotsTab(obj)
 %   and the rows of the one picked), each collapsing under
 %   its header (onPlotSectionToggled). Each header bar has its own color, a
 %   desaturated step along the turbo map in the sections' order, with black text, and its key: Ctrl+1 to
-%   Ctrl+9 and Ctrl+0 go to the section (gotoPlotSection; onKeyPress). Aux signals, added after the
-%   keys were given out, has none: the other sections keep theirs.
+%   Ctrl+9 and Ctrl+0 go to the section (gotoPlotSection; onKeyPress). Event marks and Aux signals,
+%   added after the keys were given out, have none: the other sections keep theirs.
 %   syncPlotEditor shows the rows the selected plot uses; layoutPlotEditor
 %   packs them.
 g = uigridlayout(obj.TabPlots, [1 3]);
@@ -101,8 +103,8 @@ obj.CopyPlotButton.Layout.Row = 11; obj.CopyPlotButton.Layout.Column = [1 2];
 % --- the editor ----------------------------------------------------------------------
 ep = uipanel(g, "Title", "Plot");
 obj.PlotEditorPanel = ep;
-eg = uigridlayout(ep, [13 1]);
-eg.RowHeight = [repmat({0}, 1, 12) {'1x'}];
+eg = uigridlayout(ep, [14 1]);
+eg.RowHeight = [repmat({0}, 1, 13) {'1x'}];
 eg.RowSpacing = 6;
 eg.Padding = [4 4 4 4];
 eg.Scrollable = "on";
@@ -110,8 +112,8 @@ obj.PlotEditorGrid = eg;
 E = struct();
 
 % the sections with a header, in order: each takes a header color (a step along the turbo map, desaturated by formSection) and a key (1-9, then 0)
-order = ["units" "ref" "window" "selection" "bins" "kind" "style" "waveform" "aux" "note" "overlays"];
-keyed = order(order ~= "aux");   % the sections with a key: those before aux was added keep theirs
+order = ["units" "ref" "window" "selection" "bins" "kind" "marks" "style" "waveform" "aux" "note" "overlays"];
+keyed = order(~ismember(order, ["marks" "aux"]));   % the sections with a key: those before aux and marks were added keep theirs
 hue = turbo(256);
 hue = hue(round(linspace(24, 232, numel(order))), :);
 tint = @(name) hue(order == name, :);
@@ -288,36 +290,6 @@ E.rasterByGroup = uicheckbox(S.Body, "Text", "Raster rows by group first (one ba
     "ValueChangedFcn", changed, "Tooltip", "Ticked: each group's epochs together on a band of its color, sorted " + ...
     "within it. Unticked: every epoch sorted as one block, each row on its group's color.");
 place(E.rasterByGroup, r, [1 2]);
-[S, r] = formRow(S, ["markLines" "markEdge" "markScope"], "Mark events:");
-mg = subgrid(S.Body, r, {'1x', 80, 80});
-E.markLines = uidropdown(mg, "Editable", "on", "Items", "", "Value", "", "ValueChangedFcn", changed, ...
-    "Tooltip", "Digital line whose events are marked on each raster row, e.g. Trough (beam breaks) or a lick " + ...
-    "line; pick one or type several separated by spaces or commas. Every event in the epoch is marked, so a trial with several " + ...
-    "crossings gets several marks. Right-click a mark to change its look per line.");
-E.markEdge = uidropdown(mg, "Items", ["onset" "offset" "both"], "Value", "onset", "ValueChangedFcn", changed, ...
-    "Tooltip", "Mark each event's onset, offset, or both (each its own mark).");
-E.markScope = uidropdown(mg, "Items", ["window" "trial"], "Value", "window", "ValueChangedFcn", changed, ...
-    "Tooltip", "window: every event inside the epoch's window; trial: only those inside the epoch's own trial " + ...
-    "(a sequence's: those whose sequence started in the epoch's trial).");
-[S, r] = formRow(S, ["markSeqText" "markSeqEdit"], "Mark sequences:");
-msg = subgrid(S.Body, r, {'1x', 70});
-E.markSeqText = uilabel(msg, "Text", "none");
-setSequenceHolder(E.markSeqText, repmat(EphysAnalysisConfig.defaults("EventRef"), 1, 0));
-E.markSeqEdit = uibutton(msg, "Text", "Edit...", "Tooltip", "Mark events defined by a sequence on each raster row, " + ...
-    "e.g. Trial offset then Trough onset: the first Trough onset after each trial's end.");
-E.markSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(E.markSeqText, "marks", obj.PlotAlignControls.Line, [], ...
-    @() obj.onConfigChanged("plot"));
-[S, r] = formRow(S, ["markMarker" "markSize" "markColor"], "Mark look:");
-mlg = subgrid(S.Body, r, {'1x', 'fit', 60, '1x'});
-markers = PlotAesthetics.catalog().Marker;
-E.markMarker = uidropdown(mlg, "Items", markers.ChoiceLabels(2:end), "ItemsData", markers.Choices(2:end), ...
-    "Value", "diamond", "ValueChangedFcn", changed, "Tooltip", "The marker drawn at each event.");
-uilabel(mlg, "Text", "size:");
-E.markSize = uispinner(mlg, "Limits", [0.5 40], "Step", 1, "Value", 4, "ValueChangedFcn", changed, ...
-    "Tooltip", "Marker size, points.");
-E.markColor = uidropdown(mlg, "Editable", "on", "Items", ["auto" "black" "red" "blue" "green" "magenta" "cyan"], ...
-    "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "auto: a color per line and edge; or one color for " + ...
-    "every mark (a name or #RRGGBB). The aesthetics editor (right-click) styles each line's marks on its own.");
 [S, r] = formRow(S, "histStyle", "PSTH as:");
 E.histStyle = uidropdown(S.Body, "Items", ["bar" "line"], "Value", "bar", "ValueChangedFcn", changed, ...
     "Tooltip", "One bar per bin, or a line through the bin centers.");
@@ -341,7 +313,22 @@ E.stack = uicheckbox(sg, "Text", "Stack groups", "ValueChangedFcn", changed, ...
 uilabel(sg, "Text", "spacing:");
 E.stackSpacing = uieditfield(sg, "numeric", "Value", 1.1, "Limits", [0 Inf], "LowerLimitInclusive", "off", ...
     "ValueChangedFcn", changed, "Tooltip", "The row step, times the tallest PSTH (1: it just reaches the " + ...
-    "next row; below 1 the rows overlap).");
+    "next row; below 1 the rows overlap). With the rasters in the rows: times a row's height, PSTH and raster.");
+[S, r] = formRow(S, "stackRaster", "");
+E.stackRaster = uicheckbox(S.Body, "Text", "Raster in each row, above its PSTH", "ValueChangedFcn", changed, ...
+    "Tooltip", "Stacked, with the raster on: each group's raster just above its own PSTH, as tall as the " + ...
+    "tallest PSTH, its epochs first at the bottom, instead of one raster panel above the stack.");
+place(E.stackRaster, r, [1 2]);
+[S, r] = formRow(S, ["stackRasterEqual" "stackRasterTrials"], "Row rasters:");
+srg = subgrid(S.Body, r, {'fit', 'fit', '1x'});
+E.stackRasterEqual = uicheckbox(srg, "Text", "Ticks one height", "ValueChangedFcn", changed, ...
+    "Tooltip", "Every row's raster ticks the same height, that of the row showing the most trials; a row with " + ...
+    "fewer fills its raster from the bottom. Unticked: each row's trials fill its raster.");
+uilabel(srg, "Text", "trials:");
+E.stackRasterTrials = uieditfield(srg, "numeric", "AllowEmpty", "on", "Value", [], "Placeholder", "all", ...
+    "Limits", [1 Inf], "RoundFractionalValues", "on", "ValueChangedFcn", changed, ...
+    "Tooltip", "The most trials each row's raster shows, picked evenly over its sort order, so every row " + ...
+    "can show the same number (blank: all). The PSTH still averages every trial.");
 [S, r] = formRow(S, "yParam", "Y value:");
 E.yParam = uidropdown(S.Body, "Editable", "on", "Items", ["" "stop"], "Value", "", "ValueChangedFcn", changed, ...
     "Tooltip", "What each epoch shows: a numeric trial parameter, e.g. RespLatency (as recorded, ms in Epsych2), " + ...
@@ -381,8 +368,28 @@ E.fisherZ = uicheckbox(S.Body, "Text", "Fisher z transform", "Value", false, "Va
 place(E.fisherZ, r, [1 2]);
 sec(end+1) = S;
 
+% marks on each raster row: event references (with sequences), each with its own look
+S = formSection(eg, 8, "marks", "Event marks", Color=tint("marks"));
+[S, r] = formRow(S, ["markSeqText" "markSeqEdit"], "Sequences:");
+msg = subgrid(S.Body, r, {'1x', 70});
+E.markSeqText = uilabel(msg, "Text", "none");
+setSequenceHolder(E.markSeqText, repmat(EphysAnalysisConfig.defaults("EventMark"), 1, 0));
+E.markSeqEdit = uibutton(msg, "Text", "Edit...", "Tooltip", "The events marked on each raster row: add a sequence " + ...
+    "per mark, e.g. Trough onset (no steps: every Trough onset in the epoch) or Trial offset then Trough onset (the " + ...
+    "first Trough onset after each trial's end). Each mark's look is set below.");
+E.markSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(E.markSeqText, "marks", obj.PlotAlignControls.Line, [], ...
+    @() obj.onConfigChanged("plot"));
+[S, r] = formRow(S, "markTable", "Each mark:", 112);
+E.markTable = uitable(S.Body, "RowName", {}, "ColumnName", {'Mark', 'Marker', 'Size', 'Color'}, ...
+    "ColumnWidth", {'1x', 100, 46, 72}, "ColumnEditable", [false true true true], ...
+    "CellEditCallback", @(t, evt) markLookEdited(obj, E.markSeqText, t, evt), ...
+    "Tooltip", "Each mark the plot draws, in the order of its sequences, and its look: the marker, its size " + ...
+    "(points) and its color (auto: the mark's automatic color; or a name or #RRGGBB).");
+place(E.markTable, r, 2);
+sec(end+1) = S;
+
 % appearance
-S = formSection(eg, 8, "style", "Appearance", Color=tint("style"));
+S = formSection(eg, 9, "style", "Appearance", Color=tint("style"));
 [S, r] = formRow(S, "maxTiles", "Tiles per page:");
 E.maxTiles = uispinner(S.Body, "Limits", [1 64], "Value", 16, "RoundFractionalValues", "on", "ValueChangedFcn", changed);
 place(E.maxTiles, r, 2);
@@ -486,7 +493,7 @@ E.errEdgeWidth = uispinner(beg, "Limits", [0.1 6], "Step", 0.25, "Value", 0.5, "
 sec(end+1) = S;
 
 % each unit's waveform in its tile
-S = formSection(eg, 9, "waveform", "Unit waveform", Color=tint("waveform"));
+S = formSection(eg, 10, "waveform", "Unit waveform", Color=tint("waveform"));
 [S, r] = formRow(S, ["waveMode" "waveSpikes"], "Show:");
 wg = subgrid(S.Body, r, {'1x', 'fit', 70});
 E.waveMode = uidropdown(wg, "Items", ["Off" "Mean" "Subsample" "Mean + subsample"], ...
@@ -535,7 +542,7 @@ E.waveNames = uicheckbox(wp, "Text", "Unit names", "Value", false, "ValueChanged
 sec(end+1) = S;
 
 % the mean aux (accelerometer) signal over the plot's epochs, with each unit's raster and PSTH
-S = formSection(eg, 10, "aux", "Aux signals", Color=tint("aux"));
+S = formSection(eg, 11, "aux", "Aux signals", Color=tint("aux"));
 [S, r] = formRow(S, ["auxMode" "auxPlacement"], "Show:");
 xg = subgrid(S.Body, r, {'1x', '1x'});
 E.auxMode = uidropdown(xg, "Items", ["Off" "Each channel" "Magnitude"], "ItemsData", EphysAnalysisConfig.AuxModes, ...
@@ -618,7 +625,7 @@ place(E.auxByGroup, r, [1 2]);
 sec(end+1) = S;
 
 % descriptive text on the plot
-S = formSection(eg, 11, "note", "Text note", Color=tint("note"));
+S = formSection(eg, 12, "note", "Text note", Color=tint("note"));
 [S, r] = formRow(S, "annText", "Text:", 78);
 E.annText = uitextarea(S.Body, "Value", "", "ValueChangedFcn", changed, ...
     "Tooltip", "Words to put on the plot -- a caption, a condition, a remark. Each new line is a line of text; blank " + ...
@@ -681,7 +688,7 @@ place(E.annInterp, r, 2);
 sec(end+1) = S;
 
 % lines and patches on the plot's axes: a list, and the rows of the one picked
-S = formSection(eg, 12, "overlays", "Overlays", Color=tint("overlays"));
+S = formSection(eg, 13, "overlays", "Overlays", Color=tint("overlays"));
 [S, r] = formRow(S, ["ovList" "ovAddLine"], "Overlays:", 112);
 olg = subgrid(S.Body, r, {'1x', 96});
 E.ovList = uilistbox(olg, "Items", {}, "ValueChangedFcn", @(~,~) obj.onOverlayPicked(), ...

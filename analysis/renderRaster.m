@@ -23,9 +23,10 @@ function h = renderRaster(R, target, opts)
 %   ByGroup true (default): rows by group first, each group on its band;
 %           false: every epoch sorted by SortBy as one block, each row on
 %           its group's color
-%   EventMarks  EphysAnalysisConfig.defaults("Plot").rasterEvents fields
-%           (marker, size, color): how the events in R.rasterEvents
-%           (epochEvents) are marked on their rows, one mark per event,
+%   EventMarks  Plot.rasterEvents, EventMark structs ([] = none): each
+%           mark's marker, size and color (by its label, rasterMarkLooks):
+%           how the events in R.rasterEvents (epochEvents) are marked on
+%           their rows, one mark per event,
 %           named "rasterEvent" with its line and edge for the aesthetics
 %           editor; the legend lists them
 %   Waveform  EphysAnalysisConfig.defaults("Waveform") fields: each unit's
@@ -64,7 +65,7 @@ arguments
     opts.SortBy (1,1) string = ""
     opts.SortOrder (1,1) string {mustBeMember(opts.SortOrder, ["ascending" "descending"])} = "ascending"
     opts.ByGroup (1,1) logical = true
-    opts.EventMarks = struct()
+    opts.EventMarks = []
     opts.Waveform = struct()
     opts.Aux = struct()
     opts.Style = struct()
@@ -97,7 +98,7 @@ meta = [];
 if isfield(R, 'meta'); meta = R.meta; end
 names = siteLabels(shortUnitLabels(R.labels), meta, style);
 order = probeOrder(meta, nU, style);
-look = struct('order', opts.SortOrder, 'byGroup', opts.ByGroup, 'marks', opts.EventMarks);
+look = struct('order', opts.SortOrder, 'byGroup', opts.ByGroup, 'marks', {opts.EventMarks});
 rows = "Epoch";
 for j = 1:numel(idx)
     u = order(idx(j));
@@ -150,11 +151,11 @@ end
 gridLabels(tl, [axs xax], "Time (s)", yName, style);
 marks = struct('label', {}, 'look', {});
 if isfield(R, 'rasterEvents') && ~isempty(R.rasterEvents)
-    mk = EphysAnalysisConfig.coerceStruct(EphysAnalysisConfig.defaults("Plot").rasterEvents, opts.EventMarks, "EventMarks");
+    mks = rasterMarkLooks(opts.EventMarks, [R.rasterEvents.label]);
     for m = 1:numel(R.rasterEvents)
         marks(m).label = R.rasterEvents(m).label;
-        marks(m).look = {'LineStyle', 'none', 'Marker', mk.marker, 'MarkerSize', mk.size, ...
-            'Color', rasterMarkColor(mk.color, m), 'MarkerFaceColor', rasterMarkColor(mk.color, m)};
+        marks(m).look = {'LineStyle', 'none', 'Marker', mks(m).marker, 'MarkerSize', mks(m).size, ...
+            'Color', mks(m).color, 'MarkerFaceColor', mks(m).color};
     end
 end
 auxEntries = ~isempty(X) && ~isempty(X.legend);

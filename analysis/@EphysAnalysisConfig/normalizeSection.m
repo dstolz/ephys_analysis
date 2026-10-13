@@ -14,8 +14,8 @@ function [s, unknown] = normalizeSection(section, in)
 %   - an EpochWindow's stop, and a plot's rasterSortEvent, is [] or an
 %     EventRef (normalized in turn; a line name is short for one)
 %   - an EventRef's sequence is a list of SequenceStep structs, a plot's
-%     rasterEvents.sequences a list of EventRefs (a struct array, a cell or
-%     one struct in; a 1 x n struct array out)
+%     rasterEvents a list of EventMarks (a struct array, a cell or one
+%     struct in; a 1 x n struct array out)
 %   - SECTION "Plot" is normalizePlot: ref / window / selection are
 %     "default" or a normalized EventRef / EpochWindow / TrialSelection
 %   - SECTION "SessionPlot" (one entry of SessionPlots) has its aesthetics

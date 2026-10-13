@@ -4,9 +4,10 @@ function key = cacheKey(datasetKey, spec)
 %   "|" + jsonencode(core), core being SPEC without what only changes how a
 %   result is drawn -- id, title, enabled, style, aesthetics,
 %   sessionAesthetics, note, overlays, histStyle, fill, fillAlpha,
-%   normalize, stack, stackSpacing, rasterSortOrder, rasterByGroup, jitter,
+%   normalize, stack, stackSpacing, stackRaster, stackRasterEqual,
+%   stackRasterTrials, rasterSortOrder, rasterByGroup, jitter,
 %   xScale, value, order, layout -- with rasterEvents cut to what is
-%   computed (lines, sequences, edge, scope), waveform to its maxSpikes, and
+%   computed (each mark's event reference, not its look), waveform to its maxSpikes, and
 %   what those fields decide for the compute added back: the error the
 %   compute makes (plotErrorType: type and resamples) and whether unit
 %   waveforms are read. So a per-dataset plot and a session plot that
@@ -25,11 +26,11 @@ end
 waves = ismember(spec.source, EphysAnalysisConfig.SpikeSources) && (spec.kind == "waveforms" || ...
     (spec.waveform.mode ~= "off" && (spec.kind == "raster" || (ismember(spec.kind, ["psth" "tuning"]) && spec.layout ~= "overlay"))));
 drop = ["id" "title" "enabled" "style" "aesthetics" "sessionAesthetics" "note" "overlays" "histStyle" "fill" "fillAlpha" ...
-    "normalize" "stack" "stackSpacing" "rasterSortOrder" "rasterByGroup" "jitter" "xScale" "value" "order" "layout"];
+    "normalize" "stack" "stackSpacing" "stackRaster" "stackRasterEqual" "stackRasterTrials" ...
+    "rasterSortOrder" "rasterByGroup" "jitter" "xScale" "value" "order" "layout"];
 core = rmfield(spec, intersect(drop, string(fieldnames(spec))));
 if isfield(core, 'rasterEvents') && isstruct(core.rasterEvents)
-    m = core.rasterEvents;
-    core.rasterEvents = struct('lines', m.lines, 'sequences', m.sequences, 'edge', m.edge, 'scope', m.scope);
+    core.rasterEvents = eventMarkRef(core.rasterEvents);
 end
 if isfield(core, 'waveform') && isstruct(core.waveform)
     core.waveform = struct('maxSpikes', core.waveform.maxSpikes);

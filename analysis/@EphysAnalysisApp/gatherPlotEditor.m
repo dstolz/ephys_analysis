@@ -5,7 +5,9 @@ function p = gatherPlotEditor(obj)
 %   "default"; unticked (or edited: onPlotAlignEdited), the plot takes the
 %   values in that section's controls (set on the plot's own values, else
 %   the Defaults they showed: gatherAlignControls). The overlays are the
-%   list's, the one picked read from its rows (overlayGather).
+%   list's, the one picked read from its rows (overlayGather). The raster
+%   marks, each with its look, are those the Sequences label holds
+%   (editSequence; their looks edited in "Each mark": markLookEdited).
 E = obj.PlotEditor;
 p = obj.Config.Plots(obj.SelectedPlot);
 p.enabled = E.enabled.Value;
@@ -60,17 +62,7 @@ if p.rasterSort == "event"   % else the plot keeps the event it has
 end
 p.rasterSortOrder = string(E.rasterSortOrder.Value);
 p.rasterByGroup = logical(E.rasterByGroup.Value);
-lines = split(replace(strtrim(string(E.markLines.Value)), ",", " "));
-lines = reshape(unique(lines(lines ~= ""), 'stable'), 1, []);
-if isempty(lines); lines = string.empty(1, 0); end
-p.rasterEvents.lines = lines;
-p.rasterEvents.edge = string(E.markEdge.Value);
-p.rasterEvents.scope = string(E.markScope.Value);
-p.rasterEvents.sequences = E.markSeqText.UserData;
-p.rasterEvents.marker = string(E.markMarker.Value);
-p.rasterEvents.size = E.markSize.Value;
-p.rasterEvents.color = strtrim(string(E.markColor.Value));
-if p.rasterEvents.color == "auto"; p.rasterEvents.color = ""; end
+p.rasterEvents = E.markSeqText.UserData;
 p.histStyle = string(E.histStyle.Value);
 p.normalize = string(E.normalize.Value);
 p.fill = E.fill.Value;
@@ -78,6 +70,10 @@ p.fillAlpha = E.fillAlpha.Value;
 if isempty(p.fillAlpha); p.fillAlpha = NaN; end
 p.stack = E.stack.Value;
 p.stackSpacing = E.stackSpacing.Value;
+p.stackRaster = E.stackRaster.Value;
+p.stackRasterEqual = E.stackRasterEqual.Value;
+p.stackRasterTrials = E.stackRasterTrials.Value;
+if isempty(p.stackRasterTrials); p.stackRasterTrials = Inf; end
 p.maskAfterStop = E.maskAfterStop.Value;
 p.param = strtrim(string(E.param.Value));
 p.seriesParam = strtrim(string(E.seriesParam.Value));

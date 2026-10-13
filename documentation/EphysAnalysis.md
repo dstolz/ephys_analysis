@@ -12,7 +12,9 @@ collected into a self-contained HTML report and / or a multi-page PDF.
 Per-unit response tests and a population analysis over every unit of every
 dataset give numbers as well as figures.
 
-It is for quick looks. Spectra, coherence and other analyses belong in
+It is for quick looks. Multitaper spectra, spectrograms and coherence of a
+dataset's Chronux file are its [Chronux analyses](#chronux-analyses) (the
+app's Chronux tab); anything further belongs in
 [Chronux](ChronuxDataset.md) or [FieldTrip](FieldTripExport.md).
 
 `analysis` depends on `pipeline`: it reads the outputs through
@@ -1235,6 +1237,54 @@ into separate roots and requires pixel-identical figures, equal HTML
 reports and the same PDF pages. Run a generated script in a fresh MATLAB
 session with the repository on the path.
 
+## Chronux analyses
+
+The analysis app's [Chronux tab](EphysAnalysisApp.md#chronux-tab) runs
+[Chronux](http://chronux.org) (bundled in `toolboxes/chronux`; put it on the
+path) on a dataset's Chronux file, `<Name>_chronux.mat`
+([format](file-formats.md#chronux-export-ephysdatasetexportchronux-the-export-step)).
+Its steps are functions of their own, for scripts:
+
+| Function | Does |
+| --- | --- |
+| `loadChronuxExport(file)` | the file's index (`export.layout`): its signals' rate, size, labels and units, events, artifact periods, units and spike trains. No signal is read |
+| `loadChronuxExport(file, Signal=, Channels=, Span=)` | a block of one signal: the rows the span `[t0 t1]` (s) needs, of the channels asked, read a window at a time from a -v7.3 file (`MaxMB=` refuses more; `Check=` is called between windows) |
+| `chronuxSettings(s)` | the settings, complete and checked: the analysis, signal and channels, the time base, the tapers (`[TW K]`, or the half bandwidth W and p), `fpass`, `pad`, the error bars, the detrend, the moving window, the baseline, and how it is drawn (`display`) |
+| `chronuxTimeBase("aligned", E=, Groups=, Window=)` | the trials: the epochs of an `epochTable` (its groups kept), each `Window` (`[pre post]` s) around its event on the continuous clock |
+| `chronuxTimeBase("range", Range=, Artifacts=, Fs=, NRows=, Segment=)` | the trials: back-to-back segments of a stretch, only where it is clear of the artifact periods, on the signal's own rows |
+| `chronuxSpectrum(D, TB, S)` | `mtspectrumc` per channel and group over its trials (`trialave` 1): `R.f`, `R.S`, the error bars `R.Slo` / `R.Shi`, `R.nTrials`, `R.params` (the exact Chronux params), `R.tapers` |
+| `chronuxSpecgram(D, TB, S)` | `mtspecgramc`: over epochs averaged and normalized to the baseline (`R.baseline`); over a stretch, one per clear stretch on one time grid, NaN in between |
+| `chronuxPairs(S, channels, labels)` | a coherence's pairs: the seed with its partner, or with every other channel picked |
+| `chronuxCoherence(D, TB, S)` | `coherencyc` per pair and group: `R.C`, `R.phi`, `R.confC`, `R.phistd`, the jackknife bars `R.Clo` / `R.Chi`; `S.overTime`: `cohgramc`, as a spectrogram |
+| `chronuxSpikeTrains(X, source, which)` | the index's sorted units (`"units"`) or detections (`"detected"`) as Chronux spike trains, labeled |
+| `chronuxSpikeSpectrum(SP, TB, S)` | `mtspectrumpt` per train and group on a `S.spikeFs` grid: `R.S`, `R.rate` (where the spectrum tends at high frequencies) |
+| `chronuxSpikeField(D, SP, TB, S)` | `coherencycpt` of each train with the field channel `S.fieldChannel`, the spikes cut to the field's very samples |
+| `chronuxUnitCoherence(SP, TB, S)` | `coherencypt` of the seed train with its partner, or with every other train |
+| `renderChronux(R, target, Display=)` | draws any of them (a tile per channel, train or pair, or per group; a coherence's phase under it; an image per channel or pair and group over time) in the plot design, its parts named for the aesthetics editor |
+
+A spectrum of the LFP over the epochs around each Stim onset, per Depth:
+
+```matlab
+out = DatasetOutputs("D:\EPHYS\out\subj1_day1");
+src = loadAnalysisSource(out);
+win = epochWindow(mode="fixed", pre=-0.5, post=1);
+[E, G] = epochTable(src, eventRef(line="Stim"), Window=win, ...
+    Selection=trialSelection(groupBy="Depth"));       % drops epochs touching artifacts
+S  = chronuxSettings(struct('window', [-0.5 1], 'fpass', [0 100], 'TW', 3, 'K', 5));
+TB = chronuxTimeBase("aligned", E=E, Groups=G, Window=S.window);
+D  = loadChronuxExport(out.ChronuxFile, Signal="LFP", Channels=1:4, Span=TB.span);
+R  = chronuxSpectrum(D, TB, S);
+renderChronux(R, figure);
+```
+
+The trials are cut as `evokedPotential` cuts its epochs: offset 0 of a
+trial is the row nearest its time 0 on the continuous clock (row `k` at
+`(k-1)/Fs`), `round(t0Continuous*Fs) + 1`
+([time conventions](README.md#time-and-indexing-conventions)). A
+trial that leaves the rows read, or holds a non-finite sample, is left out
+and counted. Each trial's mean is removed before its spectrum unless
+`detrend` is `"none"`.
+
 ## Tests
 
 | Suite | Covers |
@@ -1248,6 +1298,7 @@ session with the repository on the path.
 | `test_PlotDesign` | no fixture: the built-in designs (they load, name known roles, and every kind and layout draws in each without a refused value), what a design does (ground, palette, single and sequential colors, heat and diverging colormaps, rules for every plot and for one kind; a plot's own colors win), the layering (design, the user's rules, the plot's), choosing a design (the preference, every plot on screen redrawn, a plot with its own design kept, listeners, the right-click Design submenu), capturing a plot's look and saving, listing, importing and deleting designs, refused files and names, the editor's tick length |
 | `test_EphysAnalysisConfig` | see [EphysAnalysisConfig](EphysAnalysisConfig.md#tests) |
 | `test_EphysAnalysisRunner` | the fixture: `plan` skip reasons, `run` exports and paged names (no figure left open), HTML and PDF reports (percent-encoded and `file://` links; a `"both"` report holds the image and the PDF page of every exported page and no result; one figure per page, so each is drawn once; the PDF's title, summary and plot pages in order), `Overwrite` off, rendering real results (a stack of real `epochTable` groups labeled by the `groupBy` parameter, a raster showing every epoch and an evoked stack whatever `Style.YLim`, `rasterSort` copied onto the epochs, a tuning caption counting its curve's epochs, behavior plots of RespLatency by Depth and of the Trough onset's latency after RespWindow onset (RespLatency again), a raster sorted descending across groups by a stop event shifted by RespLatency with the Trough onsets and offsets marked at the responses, and sorted by the same event as a sort event of its own (`rasterSort "event"`: the same latencies and rows, its y label and caption; a sort event's missing line skipping a raster but not a PSTH without one; the standalone script's `eventLatency` call run), a failing export closing its page (runner and standalone script), cancel, driven units, compact vs standalone script equivalence (figures, HTML and PDF pages), unit waveforms (templates without the sorted `.bin` and the warning; the spikes cut from a planted one, at most `maxSpikes`, and kept in the cache; detections drawn from the spikes file's waveforms (`maxSpikes` of them, the mean over all); none with the mode off or for an overlay; the script's `unitWaveforms` line), a PSTH with the mean aux magnitude (`computePlot`'s `R.aux` equal to `auxMean` on the AUX extract, a panel per tile, the caption, "no AUX extract", the standalone script's `auxMean` call run), the error a PSTH asks for (`computePlot`'s `R.err`: mean +/- SD, SEM with no error drawn; the standalone script's `ErrorType=` only when not SEM) |
+| `test_ChronuxAnalysis` | no fixture: hand-built Chronux files (-v7.3 and -v7): `chronuxSettings` and its errors; `loadChronuxExport` (the index, rows read by parts equal to the whole signal, channels in the order asked, `Span`, `Check`, `TooLarge`, `NoLayout`); `chronuxTimeBase` (segments clear of the artifact periods' rows, the seconds accounted for, segments on the spike clock, epochs and their groups); the alignment (a signal whose value is its row); and with Chronux on the path `chronuxSpectrum` (a 40 Hz sine's peak, the jackknife bars bracketing the spectrum, a burst inside an artifact period not seen, groups), `chronuxSpecgram` (a burst after each event, the dB baseline, window centers, NaN over an artifact period, `TooLarge`), a throwing `Check`, `chronuxPairs` and `chronuxCoherence` (a delayed copy coherent with the delay's phase, noise under `confC`, a coherogram NaN over an artifact period), the spike analyses (`chronuxSpikeTrains`; a train modulated at 20 Hz peaks there and tends to its rate, spikes locked to a 40 Hz field are coherent with it, identical trains have a coherence of 1), and `renderChronux` (every kind, layout and scale, the phase tiles, the rate line, pages, a uifigure panel, every part's role known) |
 | `test_EphysAnalysisApp` | see [EphysAnalysisApp](EphysAnalysisApp.md#tests) |
 | `test_PipelineAnalysisStep` | the fixture: the pipeline's Analysis step running a saved analysis config, see [EphysPipeline](EphysPipeline.md#tests) |
 

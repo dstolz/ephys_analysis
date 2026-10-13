@@ -35,6 +35,21 @@ says how to cut a release.
   the plot is *Out of date*. **Page Up** and **Page Down** flip the preview's pages (named in the
   buttons' tooltips), and the page label at the bottom is smaller.
 
+- A **Chronux** tab in the analysis app: multitaper power spectra (`mtspectrumc`, with jackknife or
+  theoretical error bars), spectrograms (`mtspecgramc`, normalized to a baseline), coherence between
+  channels (`coherencyc`, over time `cohgramc`), spike-train spectra (`mtspectrumpt`), spike-field
+  coherence (`coherencycpt`) and spike-train coherence (`coherencypt`) of the active dataset's Chronux
+  file, over the epochs around the Alignment tab's event (per trial group) or over
+  segments of a stretch of the recording, nothing that touches an artifact period used. When the
+  dataset has no `<Name>_chronux.mat`, **Create** writes it (`exportChronux`) into its output folder,
+  or into a local cache folder when that cannot be written. Compute reads only the rows and channels
+  needed, can be canceled, and the result is drawn in the plot design (aesthetics editor on a
+  right-click), saved as a figure or as a .mat. Scripts get the same steps: `loadChronuxExport`,
+  `chronuxSettings`, `chronuxTimeBase`, `chronuxSpectrum`, `chronuxSpecgram`, `chronuxPairs`,
+  `chronuxCoherence`, `chronuxSpikeTrains`, `chronuxSpikeSpectrum`, `chronuxSpikeField`,
+  `chronuxUnitCoherence`, `renderChronux`.
+  `exportChronux` now writes `export.layout`, the index those read a -v7.3 file's signals by.
+
 - The aux signal's place and scale: `aux.yLim` fixes its y limits (a panel's, or over a plot the part of
   the right axis it spans), and `aux.overPosition` (`[bottom top]`, fractions of the plot's height) puts
   it where it should sit over a PSTH or raster, e.g. `[0 0.3]` for the bottom three tenths; the right

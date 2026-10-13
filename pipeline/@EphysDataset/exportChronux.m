@@ -34,7 +34,11 @@ function out = exportChronux(obj, opts)
 %                 EphysDataset.intervalRows -- fill and nSamples. No intervals:
 %                 nothing was erased
 %     export      provenance: tool, created, dataset, sources, signals,
-%                 eventFs (the recording rate), timeConventions
+%                 eventFs (the recording rate), timeConventions, and layout:
+%                 per signal fs, nSamples, nChan, labels, units and
+%                 sampleRange -- what loadChronuxExport needs to read
+%                 windows of a -v7.3 file's data (h5read) without loading
+%                 the signal whole
 %
 %   Options
 %   -------
@@ -98,12 +102,15 @@ end
 in = resolveExportInputs(obj, opts, 'exportChronux');
 
 S = struct();
+layout = struct();
 for sig = in.signals
     cx = ChronuxDataset(in.S, Signal=sig);
     [data, params, info] = cx.continuous(Class="double");
     t = ((info.sampleRange(1):info.sampleRange(2)) - 1) / info.fs;
     S.(sig) = struct('data', data, 'params', params, 't', t, ...
         'labels', string(info.labels(:)).', 'info', info);
+    layout.(sig) = struct('fs', info.fs, 'nSamples', size(data, 1), 'nChan', size(data, 2), ...
+        'labels', string(info.labels(:)).', 'units', string(info.units), 'sampleRange', info.sampleRange);
 end
 
 S.sp = [];
@@ -126,6 +133,7 @@ S.export = struct( ...
     'dataset',    obj.Name, ...
     'sourceFolder', obj.Folder, ...
     'signals',    in.signals, ...
+    'layout',     layout, ...
     'eventFs',    in.eventFs, ...
     'nUnits',     numel(S.sp), ...
     'nDetectedChannels', numel(S.spDetected), ...

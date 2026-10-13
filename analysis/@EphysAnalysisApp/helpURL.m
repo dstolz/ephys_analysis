@@ -13,6 +13,7 @@ if page == "tab"
         case obj.TabAlign,  page = "Analysis-App#alignment-tab";
         case obj.TabPlots,  page = "Analysis-App#plots-tab";
         case obj.TabExport, page = "Analysis-App#export-tab";
+        case obj.TabChronux, page = "Analysis-App#chronux-tab";
         otherwise,          page = "Analysis-App#log-tab";
     end
 end

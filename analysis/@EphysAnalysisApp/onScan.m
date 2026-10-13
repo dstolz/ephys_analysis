@@ -26,6 +26,9 @@ else
 end
 obj.ActiveIdx = 0;
 obj.PreviewResult = [];
+obj.ChronuxResult = [];
+obj.ChronuxIndex = [];
+obj.ChronuxFile = "";
 obj.refreshDatasetsTable();
 names = r.Names;
 if n == 0
@@ -33,7 +36,7 @@ if n == 0
 else
     items = names; data = 1:n;
 end
-set([obj.AlignDatasetDropDown obj.PlotsDatasetDropDown], 'Items', items, 'ItemsData', data);
+set([obj.AlignDatasetDropDown obj.PlotsDatasetDropDown obj.ChronuxDatasetDropDown], 'Items', items, 'ItemsData', data);
 obj.ScanLabel.Text = sprintf("%d dataset(s) found (%s).", n, ternary(cfg.Source.Mode == "project", ...
     "project " + cfg.Source.Root, "output folders"));
 obj.log("Scan: " + obj.ScanLabel.Text);

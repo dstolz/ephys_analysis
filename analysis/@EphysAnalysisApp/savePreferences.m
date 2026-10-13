@@ -13,4 +13,13 @@ AppPrefs.setpref(g, 'PlotGroupBy', char(obj.PlotGroupDropDown.Value));
 AppPrefs.setpref(g, 'PlotGroupsCollapsed', cellstr(obj.PlotGroupsCollapsed));
 S = obj.PlotSections;
 AppPrefs.setpref(g, 'PlotSectionsCollapsed', cellstr([string.empty(1, 0) S(~[S.Expanded]).Name]));
+AppPrefs.setpref(g, 'ChronuxCacheFolder', char(obj.ChronuxCacheFolder));
+AppPrefs.setpref(g, 'ChronuxMaxMB', obj.ChronuxMaxMB);
+S = obj.ChronuxSections;
+AppPrefs.setpref(g, 'ChronuxSectionsCollapsed', cellstr([string.empty(1, 0) S(~[S.Expanded]).Name]));
+try
+    AppPrefs.setpref(g, 'ChronuxSettings', obj.gatherChronuxSettings());
+catch
+    % a value that cannot be used: the last good settings stay
+end
 end

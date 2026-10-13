@@ -34,7 +34,13 @@ function test_EphysAnalysisApp()
 %   the gather / apply round trip, keeping the fields without a control
 %   (stop-event offset, length and time range, trial rows); save
 %   and reopen; a standalone script from the app's config; a run of one
-%   plot writing its figures and report; closing. The app's preferences live in a
+%   plot writing its figures and report; the Chronux tab (a dataset
+%   without a Chronux file, Create writing it into the output folder and
+%   showing it, a spectrum over the Alignment tab's epochs per group, Out
+%   of date after an edit of what is computed, a display edit redrawing,
+%   a spectrogram over the whole recording, Save results and Save
+%   figure, the local cache: a file created there and found once the
+%   output folder's is gone); closing. The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
 %   Usage:  test_EphysAnalysisApp
@@ -71,8 +77,9 @@ check(numel(F.names) == 2, 'two datasets run through the pipeline');
 fprintf('\n== 1. build, open the project, scan ==\n');
 app = EphysAnalysisApp(F.proj);
 appCleanup = onCleanup(@() closeApp(app));
-check(isvalid(app.Fig) && numel(app.Tabs.Children) == 5 && app.Tabs.Children(1) == app.TabData ...
-    && app.Tabs.Children(5) == app.TabLog, 'the app has the Data, Alignment, Plots, Export and Log tabs');
+check(isvalid(app.Fig) && numel(app.Tabs.Children) == 6 && app.Tabs.Children(1) == app.TabData ...
+    && app.Tabs.Children(5) == app.TabChronux && app.Tabs.Children(6) == app.TabLog, ...
+    'the app has the Data, Alignment, Plots, Export, Chronux and Log tabs');
 T = app.DatasetsTable.Data;
 check(~isempty(app.Runner) && height(T) == 2 && all(T.Run) && isequal(sort(T.Name), sort(F.names(:))) ...
     && all(T.LFP == "✓") && all(T.Behavior == "✓"), 'the project root was scanned: both datasets, ticked, with LFP and behavior');
@@ -1056,12 +1063,84 @@ check(app.ToolbarReportTool.Enable == "on" && app.ToolbarFolderTool.Enable == ap
     'after the run the toolbar''s report and figure-folder tools follow the Export tab''s buttons; Run is on again, Cancel off');
 check(any(contains(string(app.LogArea.Value), "psth_1 done")), 'the Log tab has the runner''s lines');
 
+fprintf('\n== 5b. the Chronux tab ==\n');
+chronuxPath = "";
+if ~ChronuxDataset.hasChronux()   % the bundled copy, only for this section: its findpeaks shadows MATLAB's
+    chronuxPath = string(genpath(fullfile(repo, 'toolboxes', 'chronux')));
+    addpath(chronuxPath);
+end
+k = app.ActiveIdx;
+out = app.Runner.Outputs(k);
+app.Tabs.SelectedTab = app.TabChronux;
+app.onTabChanged();
+check(app.ChronuxFile == "" && contains(app.ChronuxFileLabel.Text, "No Chronux file") ...
+    && app.ChronuxCreateButton.Enable == "on" && app.ChronuxComputeButton.Enable == "off" ...
+    && endsWith(app.helpURL("tab"), "#chronux-tab"), ...
+    'a dataset without a Chronux file: Create on, Compute off; Help goes to the tab''s section');
+o = app.onCreateChronuxExport(WithoutUnits=false);
+C = app.ChronuxControls;
+check(~isempty(o) && isfile(o.file) && endsWith(o.file, app.Runner.Names(k) + "_chronux.mat") ...
+    && app.ChronuxFileWhere == "output" && contains(app.ChronuxFileLabel.Text, "In the output folder") ...
+    && any(string(C.signal.Items) == "LFP") && numel(C.channels.Items) > 1 && app.ChronuxComputeButton.Enable == "on", ...
+    'Create writes <Name>_chronux.mat into the output folder; the tab shows it, its signals and channels');
+C.channels.Value = [1 2];
+C.pre.Value = -0.2;
+C.post.Value = 0.5;
+C.TW.Value = 2;
+C.K.Value = 3;
+app.onChronuxEdited("compute");
+R = app.onChronuxCompute();
+nGroups = height(R.groups);
+check(~isempty(R) && R.kind == "chronuxSpectrum" && size(R.S, 2) == 2 && nGroups > 1 && size(R.S, 3) == nGroups ...
+    && app.ChronuxState == "drawn" && ~isempty(findobj(app.ChronuxPanel, 'Type', 'axes')) ...
+    && app.ChronuxSaveResultsButton.Enable == "on" && contains(app.ChronuxControls.coverage.Text, "epochs"), ...
+    'Compute: a spectrum of the two channels over the Alignment tab''s epochs, one per Depth group, drawn');
+C.fmax.Value = 80;
+app.onChronuxEdited("compute");
+stale = app.ChronuxState == "stale";
+C.scale.Value = "linear";
+app.onChronuxEdited("display");
+check(stale && app.ChronuxState == "stale" && ~isempty(findobj(app.ChronuxPanel, 'Type', 'axes')), ...
+    'an edit of what is computed leaves the plot Out of date; a display edit redraws it, still Out of date');
+C.analysis.Value = "specgram";
+app.onChronuxEdited("analysis");
+C.timeBase.Value = "range";
+app.onChronuxEdited("timeBase");
+sec = app.ChronuxSections;
+check(sec([sec.Name] == "moving").Visible && ~sec([sec.Name] == "baseline").Visible ...
+    && strcmp(C.from.Parent.Visible, 'on') && strcmp(C.segment.Visible, 'off'), ...
+    'a spectrogram over a stretch shows the moving window, not the baseline or the segments');
+R2 = app.onChronuxCompute();
+check(~isempty(R2) && R2.kind == "chronuxSpecgram" && ~R2.aligned && app.ChronuxState == "drawn" ...
+    && ~isempty(findobj(app.ChronuxPanel, 'Type', 'image')), 'a spectrogram over the whole recording, drawn');
+fr = string(fullfile(root, 'chronux_result.mat'));
+fp = string(fullfile(root, 'chronux_figure.png'));
+app.onSaveChronuxResults(fr);
+app.onSaveChronuxFigure(fp);
+L = load(fr);
+check(isfield(L, 'R') && L.R.kind == "chronuxSpecgram" && isfile(fp), 'Save results writes R; Save figure writes the page');
+cache = string(fullfile(root, 'chronux cache'));
+app.onChronuxCacheFolder(cache);
+o2 = app.onCreateChronuxExport(Where="cache", WithoutUnits=false);
+check(~isempty(o2) && startsWith(o2.file, cache) && isfile(o2.file) && endsWith(o2.file, app.Runner.Names(k) + "_chronux.mat") ...
+    && string(AppPrefs.getpref(g, 'ChronuxCacheFolder')) == cache, ...
+    'Create into the local cache: <cache>/<key>/<Name>_chronux.mat; the cache folder is remembered');
+check(app.ChronuxFileWhere == "output", 'while the output folder has its file, that one is used');
+delete(o.file);
+out.refresh();
+app.refreshChronuxTab();
+check(app.ChronuxFileWhere == "cache" && app.ChronuxFile == o2.file && contains(app.ChronuxFileLabel.Text, "local cache"), ...
+    'once the output folder''s file is gone, the cache''s is found');
+app.Tabs.SelectedTab = app.TabData;
+if chronuxPath ~= ""; rmpath(chronuxPath); end
+
 fprintf('\n== 6. close ==\n');
 app.savePreferences();
 check(strcmp(AppPrefs.getpref(g, 'LastConfigFile'), cfgFile) && isequal(string(AppPrefs.getpref(g, 'PlotSectionsCollapsed')), "bins"), ...
     'the last config and the collapsed plot-editor section are remembered');
 app.onShowEpochs("plot");
 dz = app.EpochDiagramWindow;
+dbg_cfgdiff(app);
 app.onClose();
 check(~isvalid(app.Fig) && ~dz.isOpen(), 'Close (clean config) closes the window, and the epoch diagram with it');
 

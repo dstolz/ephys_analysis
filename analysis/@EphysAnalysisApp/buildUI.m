@@ -1,5 +1,5 @@
 function buildUI(obj)
-%buildUI  The figure, menus, toolbar, the five tabs and the status bar; every
+%buildUI  The figure, menus, toolbar, the six tabs and the status bar; every
 %   button styled (styleButtons), the main actions in color; the figure's
 %   key presses (onKeyPress) once the tabs are there.
 obj.Fig = uifigure("Name", "Ephys analysis", "Position", [140 80 1280 820]);
@@ -18,6 +18,7 @@ obj.TabData   = uitab(obj.Tabs, "Title", "Data");
 obj.TabAlign  = uitab(obj.Tabs, "Title", "Alignment");
 obj.TabPlots  = uitab(obj.Tabs, "Title", "Plots");
 obj.TabExport = uitab(obj.Tabs, "Title", "Export");
+obj.TabChronux = uitab(obj.Tabs, "Title", "Chronux");
 obj.TabLog    = uitab(obj.Tabs, "Title", "Log");
 
 bar = uipanel(outer, "BorderType", "line", "BackgroundColor", [0.96 0.96 0.98]);
@@ -30,6 +31,7 @@ obj.buildDataTab();
 obj.buildAlignTab();
 obj.buildPlotsTab();
 obj.buildExportTab();
+obj.buildChronuxTab();
 obj.buildLogTab();
 styleButtons(obj);
 obj.Tabs.SelectedTab = obj.TabData;
@@ -44,6 +46,6 @@ function styleButtons(obj)
 %   The plot editor's section headers (formSection) keep their header look.
 b = findall(obj.Fig, "Type", "uibutton", "-or", "Type", "uistatebutton");
 styleButton(b(~strcmp(get(b, "Tag"), "formSectionToggle")));
-styleButton([obj.ScanButton, obj.PreviewButton, obj.RunButton], "primary");
-styleButton(obj.CancelButton, "danger");
+styleButton([obj.ScanButton, obj.PreviewButton, obj.RunButton, obj.ChronuxComputeButton, obj.ChronuxCreateButton], "primary");
+styleButton([obj.CancelButton, obj.ChronuxCancelButton], "danger");
 end

@@ -1031,7 +1031,7 @@ Chronux functions take; no Chronux function is called to produce it.
 | `detected` | the spikes file's `detected` struct, or `[]` |
 | `events` | dig-in lines → `[k x 2]` seconds, `t = row/eventFs` on the recording's clock: on a signal at `Fs` that is row `round((t - 1/eventFs)*Fs) + 1` |
 | `artifacts` | the extract's `info.artifacts`: `intervals` (`[k x 2]` `[tStart tEnd)` seconds on the continuous clock, the periods erased before the signals were derived; on a signal at `Fs` they touch rows `EphysDataset.intervalRows(intervals, Fs, nRows)`), `fill`, `nSamples`. No intervals: nothing was erased |
-| `export` | `tool`, `created`, `dataset`, `sourceFolder`, `sources`, `signals`, `eventFs` (the recording rate), `nUnits`, `nDetectedChannels`, `timeConventions` (`continuous`, `events`, `spikes`, `artifacts`), `provenance` ([Provenance](#provenance)) |
+| `export` | `tool`, `created`, `dataset`, `sourceFolder`, `sources`, `signals`, `eventFs` (the recording rate), `nUnits`, `nDetectedChannels`, `timeConventions` (`continuous`, `events`, `spikes`, `artifacts`), `layout` (per signal: `fs`, `nSamples`, `nChan`, `labels`, `units`, `sampleRange`: the index the analysis app's Chronux tab reads a -v7.3 file's signals by, a window of rows at a time, `loadChronuxExport`), `provenance` ([Provenance](#provenance)) |
 
 ## FieldTrip export (`EphysDataset.exportFieldTrip`; the Export step)
 

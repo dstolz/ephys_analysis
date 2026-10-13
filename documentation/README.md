@@ -389,7 +389,12 @@ another). See
 [`toolboxes/chronux`](../toolboxes/chronux), which `addpath_nogit` on the
 repository root puts on the path)
 and [FieldTrip](https://www.fieldtriptoolbox.org/), each only for analyzing the
-files the pipeline exports for it. Producing the files never calls either
+files the pipeline exports for it. The analysis app's
+[Chronux tab](EphysAnalysisApp.md#chronux-tab) calls Chronux's `mtspectrumc`,
+`mtspecgramc`, `coherencyc`, `cohgramc`, `mtspectrumpt`, `coherencycpt`,
+`coherencypt` and `getfgrid` on a dataset's Chronux file (it needs Chronux on
+the path to compute). Chronux's own `findpeaks` and `jackknife` shadow
+MATLAB's while it is on the path. Producing the files never calls either
 toolbox; `ChronuxDataset.hasChronux` / `FieldTripExport.hasFieldTrip` report
 whether they are on the path, and the FieldTrip export validates its
 structures with `ft_datatype_*` when FieldTrip is present.
@@ -526,6 +531,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_ChannelMapper` | the channel mapper: parsing vendor rows, the shipped hardware bank and saving entries, mating (both orientations, GND / REF safety, one-way connectors), the golden chains (H32 + RHD2132 = probeinterface's `H32>RHD2132`; H64LP + RHD2164 = `H64LP_4x16lin_probemap.json`; H16 + the 16-channel RHD2132), two headstages, a dataset's channel numbers, the Kilosort4 export and its sidecar, text output, saved mappings, the site-order templates, and `ChannelMapperApp` headless (selection, orientation, export, mappings, the entry editor, preferences) |
 | `test_SyntheticDataset` | `makeSyntheticProject` / `makeSyntheticRecording`: the written lines, sessions, spikes, aux and artifacts read back; pairing per scenario; the one-file-per-signal and binary layouts; the config through the pipeline; the app's File-menu action and the active dataset across its tabs |
 | `test_SyntheticGenerator` | `SyntheticDesign` (validation, JSON), the built-in design read back from the files (silenced window, evoked potential, aux steps), responses exactly in their window after the edge, evoked potentials peaking halfway through theirs, parameter scaling, `PreviewOnly` = what is written, the app's Synthetic tab |
+| `test_ChronuxAnalysis` (analysis/) | the Chronux tab's analyses: settings, reading a Chronux file by parts, trials from epochs or from segments clear of artifact periods, their alignment, multitaper spectra, spectrograms and coherence of known signals and spike trains, drawing them |
 | `test_EphysAnalysisCompute` (analysis/) | compute functions on seeded spike trains and signals, the trial-filter compiler, every renderer, the raster's sort and event marks, behavior values and plots |
 | `test_PlotAesthetics` (analysis/) | the right-click aesthetics editor: rules, every renderer naming what it draws, the user's rules then the plot's, the menu, the editor (Apply to, Reset, Cancel, OK, Remember, Forget), the config and the script literal |
 | `test_PlotDesign` (analysis/) | plot designs: the built-in ones (every kind and layout draws in each), ground, palette, sequential and heat colors, the layering (design, the user's rules, the plot's), choosing one redrawing every plot on screen, capturing a plot's look, saving, importing and deleting designs, refused files |

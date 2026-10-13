@@ -655,8 +655,13 @@ plot's `aux` (`EphysAnalysisConfig.defaults("Aux")`):
 | `placement` | `"below"` | `"below"`: a panel of its own under the unit's PSTH (a raster's: under the raster); `"above"`: one over the unit's raster (a PSTH without a raster: over the PSTH); `"over"`: on the PSTH's (a raster plot's: the raster's) own axes, on a right y axis |
 | `baseline` | `"none"` | `"subtract"`: each epoch's mean over `baselineWindow` is subtracted from each channel first, before the magnitude; `"none"`: as recorded |
 | `baselineWindow` | `[-0.2 0]` | s from the event; it must overlap the epoch window (the samples cut for each epoch) |
-| `byGroup` | `true` | one trace per trial group, in the group's color; `false`: one mean over every epoch |
-| `yLim` | `[]` | the signal's y limits `[lo hi]`, in its units (V): a panel's y axis, or (`"over"`) the part of the right axis the signal spans; the same scale on every plot. `[]` = from the traces (and their bands, when drawn) inside the time window, padded 5% each way |
+| `byGroup` | `true` | one trace per trial group; `false`: one mean over every epoch |
+| `display` | `"lines"` | `"lines"`: a line per trace (a channel, or the magnitude, per group); `"stacked"`: every trace in a row of its own, on one amplitude scale; `"heatmap"`: an image, a row per trace in color, on one color scale (a panel of its own: `"over"` goes below, and it has no band) |
+| `statistic` | `"mean"` | what is drawn at each sample over the epochs of a group: `"mean"` or `"median"` |
+| `transform` | `"none"` | `"none"`: the signal as recorded (after the baseline); `"rectify"`: each epoch's absolute value at every sample, after the baseline and the magnitude and before the statistic, so movement either way adds up instead of cancelling |
+| `errorType` | `"sem"` | the band around each trace, over the epochs, chosen for the aux signal alone (not by `Style.ShowSEM` / `Style.ErrorType`): `"off"`; `"sem"`: statistic +/- SEM; `"std"`: +/- SD; `"ci95"`: the bootstrap 95% CI (of the median for `"median"`; `Style.ErrorResamples` resamples); `"iqr"`: the 25th to 75th percentile of the epochs |
+| `colorBy` | `"auto"` | `"group"`: each trial selection group's color (several channels differ by line style; a heat map marks each row's group at its left edge); `"channel"`: a color per channel (several groups differ by line style); `"auto"`: the group's color with several groups or one channel, else the channel's |
+| `yLim` | `[]` | the signal's y limits `[lo hi]`, in its units (V): a panel's y axis, or (`"over"`) the part of the right axis the signal spans; the same scale on every plot. `[]` = from the traces (and their bands, when drawn) inside the time window, padded 5% each way. Stacked: the span each row has. Heat map: the color scale |
 | `overPosition` | `[0 1]` | `"over"`: where the signal sits on the plot, `[bottom top]` as fractions of its height (0 = the bottom edge, 1 = the top): `[0 0.3]` puts it in the bottom three tenths, `[0.7 1]` along the top. The right axis' limits are set so that `yLim` (or the traces' range) falls exactly there, and its ticks (at most three, at round values) stay along that span. `[0 1]` with `yLim` `[]` leaves the right axis automatic |
 
 `auxMean` computes it ([Analysis page](EphysAnalysis.md#compute)) with
@@ -687,23 +692,40 @@ How it is drawn:
   edge). The error bands are semitransparent there (0.2, unless `ErrorFaceAlpha` sets an opacity) so the data under them
   shows. A stacked PSTH's right axis labels its rows' peaks, so `"over"`
   goes below a stack (Validate warns).
-- The traces are the groups' colors (a group per trace with `byGroup`, a
-  single group's color). Several channels of one group (or of every
-  epoch) get colors of their own (orange, green, purple, ...); several
-  channels of several groups keep the groups' colors and differ by line
-  style (solid, dashed, dotted, dash-dot), and the legend lists each
-  channel's style. One trace over every epoch is gray (light gray on a dark
-  design). `Style.ShowSEM` draws each trace's mean +/- SEM; `Style.YLim`
-  is not used (it is the rate's). The y label is `AUX (V)`,
-  `AUX - baseline (V)`, `|AUX| (V)` or `|AUX - baseline| (V)`.
+- With `colorBy "auto"` the traces are the groups' colors (a group per
+  trace with `byGroup`, a single group's color). Several channels of one
+  group (or of every epoch) get colors of their own (orange, green,
+  purple, ...); several channels of several groups keep the groups' colors
+  and differ by line style (solid, dashed, dotted, dash-dot), and the
+  legend lists each channel's style. `colorBy "channel"` colors by channel
+  whatever the groups (the groups then differ by line style, and the
+  legend lists them). One trace over every epoch is gray (light gray on a
+  dark design). The bands are `errorType`'s (their fill, opacity and edge
+  are the Style's `ErrorFace*` / `ErrorEdge*`); `Style.YLim` is not used
+  (it is the rate's). The y label is `AUX (V)`, `AUX - baseline (V)`,
+  `|AUX| (V)` (the magnitude, or a rectified signal) or
+  `|AUX - baseline| (V)`, with "median" in front for the median.
+- Stacked rows run from the first channel down, a channel's groups
+  together, each labeled at its tick (`AUX1 · group`; at most six labels),
+  centered on its own median over the time window; all rows share one
+  amplitude scale (the tallest trace and band, or `yLim`), and a scale bar
+  at the right of the bottom row is half a row's spacing at most. The rows
+  are the same lines, bands and colors as `"lines"`. A heat map draws one
+  image (rows as in a stack) on a color scale from `yLim`, else from the
+  range of the traces in the time window (symmetric about zero, with the
+  design's diverging colormap, when they run both ways; else the design's
+  heat colormap, or `Style.HeatColormap`); a bar of each row's group or
+  channel color sits at its left edge and the scale is written in its
+  corner.
 - The traces and bands are components of their own for the
   [aesthetics](EphysAnalysis.md#plot-aesthetics) editor (`auxTrace`,
   `auxSem`, grouped by channel, or by group when there is one trace per
-  group); an aux panel is styled as a data panel (role `axes`). An
+  group; a heat map's `auxImage`, `auxGroup` marks and the `auxScale` bar or
+  range text); an aux panel is styled as a data panel (role `axes`). An
   overlay whose panel is `"all"` is drawn on the aux panels too; `"data"`
   and `"raster"` leave them out.
 - An exported grid page is 1.5 cm taller per row of tiles for a panel
-  below or above.
+  below or above (2 cm for stacked rows or a heat map).
 
 ### Error bands
 
@@ -714,6 +736,12 @@ With `Style.ShowSEM` a plot draws the error of its means, of `Style.ErrorType`:
 | `"sem"` (default) | mean +/- SEM (std / sqrt(n)) | |
 | `"std"` | mean +/- the standard deviation of the values | |
 | `"ci95"` | the 95% confidence interval of the mean: `ErrorResamples` bootstrap resamples of the values, percentile method (`bootci`); asymmetric where the values are | Statistics and Machine Learning Toolbox |
+
+An aux signal's band is chosen in its own `aux.errorType` (the same three,
+plus `"off"` and `"iqr"`, the interquartile range, `prctile`; it needs the
+same toolbox for `"ci95"` and `"iqr"`), and follows its `aux.statistic`:
+for the median `"sem"` and `"std"` are drawn around the median (Validate
+warns) and `"ci95"` is the bootstrap CI of the median.
 
 The values are each epoch's: the compute function makes the band over the
 epochs of a group (`spikePSTH`, `evokedPotential`, `firingRate`,
@@ -891,8 +919,8 @@ with 20 units and 16 tiles per page is written as
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
 | Defaults, Plots | the event reference, window and selection are valid: known values, `n` a whole number >= 1, `0 <= minDurationSec <= maxDurationSec`, `timeRange` ordered, a finite `offsetSec`, `offsetParamUnit` ms or s, each sequence step's relation, line, edge, `n`, positive `maxGapSec` and lengths, an `alignStep` of 0, `Inf` or a followedBy step (the stop's and each raster-mark sequence's too), finite `pre` and `post`, `pre <= post` in a fixed window, a stop event in a `"between"` window, known response words and pairing flags, at most 2 distinct `groupBy` parameters, `maxGroups` and `trials` whole numbers >= 1 | error |
 | Defaults, Plots | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
-| Plots | at least one enabled; ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; `measure` rate / count / probability; tuning names its parameter; behavior names `param` and `yParam` (`"stop"` with a stop event), its `xScale` is category / linear and the violin layout has `violinplot`; a psth / raster `rasterSortOrder` ascending / descending, a `rasterSortEvent` (a valid event reference) with `rasterSort "event"`, and `rasterEvents` edge, scope, marker and a positive size; `BinSec > 0`, `SmoothSec >= 0` where bins are used; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak / allPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order (`"modulation"` only with the auROC baseline); the auROC settings (method, windows, whole-bin window and step, call window, cutoff, threshold, test, `nResamples`, correction, alpha, `modulatedOnly` with a cutoff) and the toolbox they need; corrmap metric and correlation; `maxUnits >= 1`; an enabled response test of spikes: its test, `param` for tuning / either / both, `baseline` and `window` ordered, direction, correction, alpha in (0, 1], the auROC settings of a test `"auroc"` (with a cutoff) and the Statistics and Machine Learning Toolbox; a `waveform` mode off / mean / subsample / both and, when not off, its location, `scale` in (0, 3] and a whole `maxSpikes >= 1`; an `aux` mode off / channels / magnitude and, when not off, its `placement` below / above / over, whole `channels >= 1`, `baseline` none / subtract and, when subtracting, a `baselineWindow` `[b0 b1]` with `b0 < b1` that overlaps the epoch window; for a note with text, its `placement`, `align`, `valign`, `interpreter`, a numeric `rotation`, a positive or `NaN` `fontSize`, and `x` and `y` for `"custom"`; for each overlay, its `shape` line / region, `axis` x / y, a finite `value` (line) or two finite, different `from` and `to` (region), `panel` all / data / raster, `layer` over / under, a `lineStyle` among `-` `--` `:` `-.`, a positive `lineWidth` and `alpha` and `faceAlpha` within 0-1; `MaxTiles >= 1`, `TileSpacing` loose / compact / tight / none, `FontSize`, `LineWidth`, `SiteSize` positive; `ErrorType` sem / std / ci95 (`ci95` needs the Statistics and Machine Learning Toolbox where the plot draws it), a whole `ErrorResamples >= 1`, `ErrorFaceAlpha` 0-1 or NaN, `ErrorEdgeStyle` among `-` `--` `:` `-.`, a positive `ErrorEdgeWidth` | error |
-| Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a color (the default is used); a `rasterEvents.color` that is not a color (each mark gets its own); a `waveform` mode on a plot that draws no unit tiles (an overlay, a plot of signals, a kind other than raster / psth / tuning / waveforms); an `aux` mode on a plot other than a psth or raster of spikes; `aux.placement "over"` on a stacked PSTH (drawn below); a note's `color` or `background` that is not a color (left to the design); an overlay's `color`, `faceColor` or `edgeColor` that is not a color (its default is drawn); an overlay's raster or data `panel` on a plot that draws no such panel (nothing is drawn); two overlays of a plot with one `name`; an `ErrorFaceColor` or `ErrorEdgeColor` that is not a color | warning |
+| Plots | at least one enabled; ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; `measure` rate / count / probability; tuning names its parameter; behavior names `param` and `yParam` (`"stop"` with a stop event), its `xScale` is category / linear and the violin layout has `violinplot`; a psth / raster `rasterSortOrder` ascending / descending, a `rasterSortEvent` (a valid event reference) with `rasterSort "event"`, and `rasterEvents` edge, scope, marker and a positive size; `BinSec > 0`, `SmoothSec >= 0` where bins are used; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak / allPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order (`"modulation"` only with the auROC baseline); the auROC settings (method, windows, whole-bin window and step, call window, cutoff, threshold, test, `nResamples`, correction, alpha, `modulatedOnly` with a cutoff) and the toolbox they need; corrmap metric and correlation; `maxUnits >= 1`; an enabled response test of spikes: its test, `param` for tuning / either / both, `baseline` and `window` ordered, direction, correction, alpha in (0, 1], the auROC settings of a test `"auroc"` (with a cutoff) and the Statistics and Machine Learning Toolbox; a `waveform` mode off / mean / subsample / both and, when not off, its location, `scale` in (0, 3] and a whole `maxSpikes >= 1`; an `aux` mode off / channels / magnitude and, when not off, its `placement` below / above / over, `display` lines / stacked / heatmap, `statistic` mean / median, `transform` none / rectify, `colorBy` auto / group / channel, `errorType` off / sem / std / ci95 / iqr (`ci95` and `iqr` need the Statistics and Machine Learning Toolbox), whole `channels >= 1`, `baseline` none / subtract and, when subtracting, a `baselineWindow` `[b0 b1]` with `b0 < b1` that overlaps the epoch window; for a note with text, its `placement`, `align`, `valign`, `interpreter`, a numeric `rotation`, a positive or `NaN` `fontSize`, and `x` and `y` for `"custom"`; for each overlay, its `shape` line / region, `axis` x / y, a finite `value` (line) or two finite, different `from` and `to` (region), `panel` all / data / raster, `layer` over / under, a `lineStyle` among `-` `--` `:` `-.`, a positive `lineWidth` and `alpha` and `faceAlpha` within 0-1; `MaxTiles >= 1`, `TileSpacing` loose / compact / tight / none, `FontSize`, `LineWidth`, `SiteSize` positive; `ErrorType` sem / std / ci95 (`ci95` needs the Statistics and Machine Learning Toolbox where the plot draws it), a whole `ErrorResamples >= 1`, `ErrorFaceAlpha` 0-1 or NaN, `ErrorEdgeStyle` among `-` `--` `:` `-.`, a positive `ErrorEdgeWidth` | error |
+| Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a color (the default is used); a `rasterEvents.color` that is not a color (each mark gets its own); a `waveform` mode on a plot that draws no unit tiles (an overlay, a plot of signals, a kind other than raster / psth / tuning / waveforms); an `aux` mode on a plot other than a psth or raster of spikes; `aux.placement "over"` on a stacked PSTH or with a heat map (drawn below); an `aux.errorType` other than off with a heat map (no band is drawn), or `"sem"` / `"std"` with the median; a note's `color` or `background` that is not a color (left to the design); an overlay's `color`, `faceColor` or `edgeColor` that is not a color (its default is drawn); an overlay's raster or data `panel` on a plot that draws no such panel (nothing is drawn); two overlays of a plot with one `name`; an `ErrorFaceColor` or `ErrorEdgeColor` that is not a color | warning |
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi` positive; `FigureSizeCm` two positive numbers; the folder and file-name patterns use known tokens, and the file-name pattern is not empty | error |
 | Export | a file-name pattern without `{Plot}` while several plots are enabled (`{Kind}` is enough when the enabled plots all differ in kind); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |
 | Report | Format html / pdf / both, EmbedFormat png / svg, `Dpi` positive, a plain `FileName`, the folder pattern | error |

@@ -466,6 +466,24 @@ check(spanOff && E.auxOverFrom.Enable == "on" && isequal(xa.overPosition, [0 0.3
     && xa.placement == "over", 'over the plot: its span (0 to 0.3) and y limits reach the plot; the span waits for placement Over');
 E.auxYLim.Value = '0.1 -0.1'; app.onConfigChanged("plot");
 check(isempty(app.Config.Plots(kAux).aux.yLim), 'y limits that are not two ascending values are automatic');
+E.auxPlacement.Value = 'below'; E.auxYLim.Value = '';
+E.auxDisplay.Value = 'heatmap'; E.auxStatistic.Value = 'median'; E.auxTransform.Value = 'rectify';
+E.auxErrType.Value = 'iqr'; E.auxColorBy.Value = 'channel';
+app.onConfigChanged("plot");
+xa = app.Config.Plots(kAux).aux;
+check(shown(E.auxDisplay) && shown(E.auxStatistic) && shown(E.auxErrType) && shown(E.auxColorBy) && xa.display == "heatmap" ...
+    && xa.statistic == "median" && xa.transform == "rectify" && xa.errorType == "iqr" && xa.colorBy == "channel" ...
+    && E.auxErrType.Enable == "off" && E.auxStatistic.Enable == "on", ...
+    'the Aux signals display, statistic, rectify, error band and color-by choices reach the plot''s aux; a heat map takes no band');
+app.refreshPreview(Force=true);
+check(~isempty(findall(app.PreviewPanel, 'Tag', 'auxImage')) && isempty(findall(app.PreviewPanel, 'Tag', 'auxTrace')) ...
+    && app.PreviewResult.aux.statistic == "median" && app.PreviewResult.aux.rectified, ...
+    'the preview computes the median of the rectified signal and draws it as a heat map');
+E.auxDisplay.Value = 'stacked'; E.auxErrType.Value = 'ci95'; app.onConfigChanged("plot");
+check(E.auxErrType.Enable == "on" && E.errResamples.Enable == "on" && E.errFace.Enable == "on", ...
+    'an aux bootstrap band enables the resamples and the band look, whatever the plot''s own Error says');
+E.auxDisplay.Value = 'lines'; E.auxStatistic.Value = 'mean'; E.auxTransform.Value = 'none';
+E.auxErrType.Value = 'sem'; E.auxColorBy.Value = 'auto';
 E.auxMode.Value = 'off'; app.onConfigChanged("plot");
 check(app.Config.Plots(kAux).aux.mode == "off" && E.auxChannels.Enable == "off", 'Off takes the aux signal off the plot');
 E.auxPlacement.Value = 'below'; E.auxChannels.Value = ''; E.auxBaseline.Value = false; E.auxBaseFrom.Value = -0.2;

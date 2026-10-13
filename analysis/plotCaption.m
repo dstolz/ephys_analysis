@@ -251,20 +251,23 @@ function parts = auxText(spec, R)
 A = R.aux;
 aux = EphysAnalysisConfig.normalizeSection("Aux", spec.aux);   % as the renderers read it: fields left out take their defaults
 ch = strjoin(reshape(A.channelLabels, 1, []), ", ");
+stat = "mean";
+if isfield(A, 'statistic'); stat = A.statistic; end
+rectified = isfield(A, 'rectified') && A.rectified;
 if A.mode == "magnitude"
-    s = "aux: mean vector magnitude (square root of the sum of squares, in each epoch at every sample) of " + ch;
+    s = "aux: " + stat + " vector magnitude (square root of the sum of squares, in each epoch at every sample) of " + ch;
+elseif rectified
+    s = "aux: " + stat + " of the rectified (absolute value, in each epoch at every sample) " + ch;
 else
-    s = "aux: mean of " + ch;
+    s = "aux: " + stat + " of " + ch;
 end
 if isfield(A.params, 'Baseline') && numel(A.params.Baseline) == 2
     s = s + sprintf(" with each epoch's mean over [%g %g] s subtracted from each channel", A.params.Baseline(1), A.params.Baseline(2));
     if A.mode == "magnitude"; s = s + " first"; end
 end
 s = s + " (" + A.units + ")";
-place = aux.placement;
-if place == "over" && spec.kind == "psth" && spec.stack && isfield(R, 'rate') && size(R.rate, 3) > 1
-    place = "below";   % a stack's right axis is its rows' peaks
-end
+stacked = spec.kind == "psth" && spec.stack && isfield(R, 'rate') && size(R.rate, 3) > 1;
+place = auxPlace(aux, stacked);   % a stack's right axis is its rows' peaks; an image is not drawn on one
 what = "PSTH";
 if spec.kind == "raster" || (place == "above" && spec.withRaster && isfield(R, 'raster') && ~isempty(R.raster))
     what = "raster";
@@ -279,22 +282,30 @@ switch place
             s = s + sprintf(" (from %g to %g of its height)", op(1), op(2));
         end
 end
+switch aux.display
+    case "stacked", s = s + ", each trace in a row of its own";
+    case "heatmap", s = s + ", as a heat map, a row per trace";
+end
 if numel(aux.yLim) == 2
-    s = s + sprintf(", y limits [%g %g] %s", aux.yLim(1), aux.yLim(2), A.units);
+    if aux.display == "heatmap"
+        s = s + sprintf(", color scale [%g %g] %s", aux.yLim(1), aux.yLim(2), A.units);
+    else
+        s = s + sprintf(", y limits [%g %g] %s", aux.yLim(1), aux.yLim(2), A.units);
+    end
 end
 if A.byGroup && height(A.groups) > 1
     s = s + sprintf(", one trace per group (n = %s epochs)", strjoin(string(A.nEpochs(:).'), ", "));
 else
     s = s + sprintf(" (n = %d epochs)", sum(A.nEpochs));
 end
-if spec.style.ShowSEM
+if aux.errorType ~= "off" && aux.display ~= "heatmap"
     [~, ~, E] = resultBounds(A, 'mean');
-    s = s + ", bands: " + errWords(E.type, E.nBoot) + " across epochs";
+    s = s + ", bands: " + auxErrWords(E.type, E.nBoot, stat) + " across epochs";
 end
 parts = s;
 nOut = A.droppedEdge + A.droppedNonFinite;
 if nOut > 0
-    parts(end+1) = sprintf("%d epoch(s) leaving the AUX signal or holding missing samples left out of the aux mean", nOut);
+    parts(end+1) = sprintf("%d epoch(s) leaving the AUX signal or holding missing samples left out of the aux %s", nOut, stat);
 end
 end
 
@@ -341,6 +352,22 @@ switch type
     case "std",  s = "mean +/- SD";
     case "ci95", s = sprintf("the bootstrap 95%% CI of the mean (%d resamples, percentile)", nBoot);
     otherwise,   s = "mean +/- SEM";
+end
+end
+
+
+function s = auxErrWords(type, nBoot, stat)
+%auxErrWords  The aux band's name: errWords' for the mean, the median's for the median, or the interquartile range.
+if type == "iqr"
+    s = "the interquartile range (25th to 75th percentile)";
+elseif stat == "median"
+    switch type
+        case "std",  s = "median +/- SD";
+        case "ci95", s = sprintf("the bootstrap 95%% CI of the median (%d resamples, percentile)", nBoot);
+        otherwise,   s = "median +/- SEM";
+    end
+else
+    s = errWords(type, nBoot);
 end
 end
 

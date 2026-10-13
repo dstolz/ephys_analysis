@@ -5,12 +5,14 @@ function auxEdgeTicks(xa, side)
 %   PSTH) or above it ("top": the panel is below one), so a tick label at
 %   that edge would run into the other panel's. The ticks become manual;
 %   call it once the limits are final (after tileTicks), as renderPSTH
-%   does for its rasters.
+%   does for its rasters. A panel whose ticks the renderer labeled (the
+%   rows of a stacked or heat map display) is left alone.
 %
 %   See also auxInto, renderPSTH, renderRaster.
 for ax = reshape(xa, 1, [])
     if ~isgraphics(ax); continue; end
     r = ax.YAxis(1);
+    if r.TickValuesMode == "manual" && r.TickLabelsMode == "manual"; continue; end
     lim = double(r.Limits);
     tk = r.TickValues;
     if side == "bottom"

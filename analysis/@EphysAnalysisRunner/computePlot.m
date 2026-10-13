@@ -39,7 +39,8 @@ function [R, E, G] = computePlot(obj, src, spec, opts) %#ok<INUSD>
 %       [Ya, fsa, metaA] = selectChannels(src, "AUX", Channels=spec.aux.channels)
 %       R.aux = auxMean(Ya, fsa, E, Window=[pre post], Mode=spec.aux.mode,
 %           Baseline=spec.aux.baselineWindow (aux baseline "subtract", else []),
-%           ByGroup=spec.aux.byGroup, Groups=G, Meta=metaA)
+%           ByGroup=spec.aux.byGroup, Rectify=(spec.aux.transform "rectify"),
+%           Statistic=spec.aux.statistic, Groups=G, Meta=metaA)
 %     waveforms [~, meta] = selectUnits(src, spec.units, Ref=, Selection=); R holds
 %               meta, labels, one group, and the probe map; the waveforms below
 %   A waveforms plot, a raster, or a PSTH or tuning grid, of spikes with
@@ -239,7 +240,7 @@ if x.baseline == "subtract"; b = x.baselineWindow; end
 [Y, fs, meta] = selectChannels(src, "AUX", Channels=x.channels);
 [et, nb] = plotErrorType(spec, "aux");
 A = auxMean(Y, fs, E, Window=[spec.window.pre spec.window.post], Mode=x.mode, Baseline=b, ByGroup=x.byGroup, ...
-    Groups=G, Meta=meta, Check=chk, ErrorType=et, ErrorResamples=nb);
+    Rectify=x.transform == "rectify", Statistic=x.statistic, Groups=G, Meta=meta, Check=chk, ErrorType=et, ErrorResamples=nb);
 end
 
 

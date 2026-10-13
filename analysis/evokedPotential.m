@@ -37,16 +37,27 @@ function R = evokedPotential(Y, fs, E, opts)
 %     Check       a function handle called with no input before every 16th
 %                 epoch (default []); it may throw to stop (the app's Cancel
 %                 button)
+%     Rectify     false (default); true: each epoch's samples become their
+%                 absolute value, after Detrend, Baseline and Magnitude and
+%                 before the average (the mean of the rectified signal, not
+%                 the rectified mean)
+%     Statistic   "mean" (default) or "median": what R.mean holds, over the
+%                 group's epochs at each sample (the epochs are held in
+%                 single precision for the median, as KeepEpochs holds
+%                 them). R.sem is the standard error of the mean either way
 %     ErrorType   the error band around each mean, over the group's epochs
 %                 (errorBounds): "sem" (default, mean +/- SEM), "std" (mean
-%                 +/- SD) or "ci95" (a bootstrap 95% CI of the mean,
+%                 +/- SD), "ci95" (a bootstrap 95% CI of the mean,
 %                 percentile, ErrorResamples resamples of the epochs,
 %                 default 1000; the epochs are held in single precision for
-%                 it, as KeepEpochs holds them)
+%                 it, as KeepEpochs holds them) or "iqr" (the 25th to the
+%                 75th percentile of the epochs). With Statistic "median",
+%                 "sem" and "std" are centered on the median and "ci95" is
+%                 the bootstrap CI of the median
 %
 %   R fields: kind "evoked", t, mean / sem [nTime x nChan x nGroups],
 %   nEpochs [nGroups x 1] (kept), data, channels, labels, channelLabels
-%   (the used channels' labels), magnitude, fs, units, sampleOffsets
+%   (the used channels' labels), magnitude, statistic, rectified, fs, units, sampleOffsets
 %   [s0 s1], onsetRule "event" (offset 0 is the sample nearest the one that
 %   produced the event, above), keptEpochs (rows of E), droppedEdge,
 %   droppedNonFinite, groups, meta, n (= nEpochs), err (the error band:
@@ -74,7 +85,9 @@ arguments
     opts.Meta = []
     opts.Units (1,1) string = "uV"
     opts.Check = []
-    opts.ErrorType (1,1) string {mustBeMember(opts.ErrorType, ["sem" "std" "ci95"])} = "sem"
+    opts.Rectify (1,1) logical = false
+    opts.Statistic (1,1) string {mustBeMember(opts.Statistic, ["mean" "median"])} = "mean"
+    opts.ErrorType (1,1) string {mustBeMember(opts.ErrorType, ["sem" "std" "ci95" "iqr"])} = "sem"
     opts.ErrorResamples (1,1) double {mustBePositive, mustBeInteger} = 1000
 end
 
@@ -113,7 +126,8 @@ base = round(E.t0Continuous * fs) + 1;
 S = zeros(nT, nOut, nG); SS = zeros(nT, nOut, nG); N = zeros(nT, nOut, nG);
 kept = false(nE, 1);
 dropEdge = 0; dropNonFinite = 0;
-keepX = opts.KeepEpochs || opts.ErrorType == "ci95";   % the epochs themselves: asked for, or for the bootstrap
+% the epochs themselves: asked for, or for the bootstrap, the percentiles and the median
+keepX = opts.KeepEpochs || ismember(opts.ErrorType, ["ci95" "iqr"]) || opts.Statistic == "median";
 if keepX; data = zeros(nT, nOut, nE, 'single'); else; data = []; end
 for e = 1:nE
     if ~isempty(opts.Check) && mod(e, 16) == 1; opts.Check(); end
@@ -131,6 +145,9 @@ for e = 1:nE
     if opts.Magnitude
         X = sqrt(sum(X .^ 2, 2));   % NaN where any channel is
     end
+    if opts.Rectify
+        X = abs(X);
+    end
     g = E.groupIndex(e);
     ok = isfinite(X);
     X0 = X; X0(~ok) = 0;
@@ -145,6 +162,15 @@ V = (SS - S .^ 2 ./ N) ./ (N - 1);
 SE = sqrt(max(V, 0)) ./ sqrt(N);
 SE(N < 2) = NaN;
 M(N == 0) = NaN;
+gk = E.groupIndex;
+if opts.Statistic == "median"
+    for g = 1:nG
+        rows = kept & gk == g;
+        if ~any(rows); continue; end
+        M(:, :, g) = median(double(data(:, :, rows)), 3, 'omitnan');
+    end
+    M(N == 0) = NaN;
+end
 switch opts.ErrorType
     case "sem"
         lo = M - SE; hi = M + SE;
@@ -152,13 +178,12 @@ switch opts.ErrorType
         SD = sqrt(max(V, 0));
         SD(N < 2) = NaN;
         lo = M - SD; hi = M + SD;
-    case "ci95"
+    case {"ci95", "iqr"}
         lo = NaN(size(M)); hi = lo;
-        gk = E.groupIndex;
         for g = 1:nG
             rows = kept & gk == g;
             if nnz(rows) < 2; continue; end
-            [lo(:, :, g), hi(:, :, g)] = errorBounds(data(:, :, rows), 3, "ci95", opts.ErrorResamples);
+            [lo(:, :, g), hi(:, :, g)] = errorBounds(data(:, :, rows), 3, opts.ErrorType, opts.ErrorResamples, opts.Statistic);
         end
 end
 if opts.KeepEpochs; data = data(:, :, kept); else; data = []; end
@@ -180,6 +205,8 @@ if numel(labels) ~= nC; labels = "ch" + ch(:); end
 R.labels = reshape(string(labels), [], 1);
 R.channelLabels = R.labels;
 R.magnitude = opts.Magnitude;
+R.statistic = opts.Statistic;
+R.rectified = opts.Rectify;
 if opts.Magnitude
     R.labels = "|" + strjoin(R.channelLabels.', ", ") + "|";
 end
@@ -195,7 +222,7 @@ R.meta = opts.Meta;
 if opts.Magnitude; R.meta = []; end   % one row per column of R.mean: there is one column, no channel's
 R.n = R.nEpochs;
 R.params = struct('Window', W, 'Baseline', b, 'Detrend', opts.Detrend, 'Incomplete', opts.Incomplete, ...
-    'Magnitude', opts.Magnitude);
+    'Magnitude', opts.Magnitude, 'Rectify', opts.Rectify, 'Statistic', opts.Statistic);
 R.created = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
 end
 

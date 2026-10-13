@@ -39,10 +39,13 @@ function h = renderRaster(R, target, opts)
 %           "above" the raster, a panel of its own half the raster's
 %           height, flush on the same time axis; or "over" it, on its right
 %           y axis. An axes TARGET has room for "over" only. The traces
-%           look as auxLooks says; several channels get legend entries.
-%           yLim fixes the signal's y limits; overPosition ([bottom top],
-%           fractions of the raster's height) is where it sits over the
-%           raster (auxInto)
+%           look as auxLooks says (colorBy); several channels get legend
+%           entries. display "lines" is a line a trace, with a band for
+%           errorType; "stacked", a row each; "heatmap", an image (a panel
+%           of its own, no bands: "over" goes below). yLim fixes the
+%           signal's y limits (a row's span; the color scale);
+%           overPosition ([bottom top], fractions of the raster's height)
+%           is where it sits over the raster (auxInto)
 %
 %   The grid's x and y labels are its tiled layout's (the y label says how
 %   the rows are sorted, and names an aux panel below or above them), and
@@ -84,8 +87,8 @@ place = "";   % where the mean aux signal goes: "" (none), "above", "below" (pan
 X = [];
 W = R.edges([1 end]);
 if auxOpt.mode ~= "off" && isfield(R, 'aux') && isstruct(R.aux) && ~isempty(R.aux)
-    place = auxOpt.placement;
-    X = auxLooks(R.aux, colors, style);
+    place = auxPlace(auxOpt, false);   % an image is not drawn on the right axis of a plot
+    X = auxLooks(R.aux, colors, style, auxOpt);
 end
 if ~isempty(ax0) && ismember(place, ["above" "below"]); place = ""; end   % one axes: no room for a panel
 axs = gobjects(1, numel(idx));

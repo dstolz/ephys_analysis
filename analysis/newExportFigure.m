@@ -46,8 +46,9 @@ page = min(page, plotPageCount(R, spec));
 row = 3;
 if spec.kind == "psth" && spec.withRaster && isfield(R, 'raster') && ~isempty(R.raster); row = 4.5; end
 if ismember(spec.kind, ["psth" "raster"]) && isfield(R, 'aux') && ~isempty(R.aux) && spec.aux.mode ~= "off" ...
-        && (ismember(spec.aux.placement, ["above" "below"]) || (spec.kind == "psth" && spec.stack && size(R.rate, 3) > 1))
-    row = row + 1.5;   % the aux panel (a stack's "over" goes below)
+        && ismember(auxPlace(spec.aux, spec.kind == "psth" && spec.stack && size(R.rate, 3) > 1), ["above" "below"])
+    row = row + 1.5;   % the aux panel (a stack's "over" goes below, and a heat map's)
+    if spec.aux.display ~= "lines"; row = row + 0.5; end   % a row each: room for the labels
 end
 h = nr * row + 1.5;
 end

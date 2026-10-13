@@ -41,12 +41,13 @@ function syncPlotEditor(obj)
 %       (its place, orientation and box: enabled with the legend on)
 %     heat colors                heatmap, probemap, corrmap
 %     error (Show box), error type
-%       and resamples             psth, tuning, behavior, rate "bar", evoked but "butterfly",
-%                                 a raster with an aux signal (enabled with the box;
-%                                 resamples for the bootstrap CI)
+%       and resamples             psth, tuning, behavior, rate "bar", evoked but "butterfly"
+%                                 (enabled with the box; resamples for the bootstrap CI,
+%                                 and for an aux signal's, a raster's too: the Error
+%                                 box and type only where the plot draws an error)
 %     band fill and edge          the plots with bands: psth, evoked but "butterfly", an
-%                                 aux signal (enabled with the box; the edge's style and
-%                                 width with an edge color)
+%                                 aux signal with bands (enabled with the box, or the aux
+%                                 band; the edge's style and width with an edge color)
 %     stop marks                  psth, raster
 %     grid                        psth, raster, evoked, rate, tuning, behavior
 %     unit waveform               spikes: raster; psth and tuning "grid";
@@ -56,11 +57,13 @@ function syncPlotEditor(obj)
 %                                 first three only; the amplitude scale
 %                                 for waveforms, its size, sites and unit
 %                                 names for the "probe" layout)
-%     aux signals                 psth, raster of spikes (the placement,
-%                                 channels, baseline, y limits and per-group
-%                                 box enabled when it is not Off; the
-%                                 baseline window with Subtract ticked; the
-%                                 span over the plot with placement Over)
+%     aux signals                 psth, raster of spikes (the placement, display,
+%                                 mean / median, rectify, channels, baseline,
+%                                 color by, y limits and per-group box enabled
+%                                 when it is not Off; the error band unless
+%                                 the display is a heat map; the baseline
+%                                 window with Subtract ticked; the span over
+%                                 the plot with placement Over, not a heat map)
 %     text note                   every kind (its place, alignment, rotation,
 %                                 font, colors and interpreter enabled when
 %                                 it has text; x and y at "At x, y")
@@ -227,13 +230,17 @@ en(E.jitter, layout == "points");
 en([E.legend E.ylim], ~stacked);
 en([E.legendLoc E.legendOrient E.legendBox], ~stacked && E.legend.Value);
 en([E.waveSpikes E.waveLocation E.waveBox E.waveScale E.wavePP E.waveCount], string(E.waveMode.Value) ~= "off");
-errOn = logical(E.showSEM.Value);
-en([E.errType E.errFace E.errAlpha E.errEdge], errOn);
-en(E.errResamples, errOn && string(E.errType.Value) == "ci95");
-en([E.errEdgeStyle E.errEdgeWidth], errOn && lower(strtrim(string(E.errEdge.Value))) ~= "none");
 auxOn = string(E.auxMode.Value) ~= "off";
-en([E.auxPlacement E.auxChannels E.auxBaseline E.auxByGroup E.auxYLim], auxOn);
-en([E.auxOverFrom E.auxOverTo], auxOn && string(E.auxPlacement.Value) == "over");
+auxHeat = string(E.auxDisplay.Value) == "heatmap";
+auxBand = auxOn && ~auxHeat && string(E.auxErrType.Value) ~= "off";   % the aux signal's bands: its own choice
+errOn = logical(E.showSEM.Value);
+en(E.errType, errOn);
+en([E.errFace E.errAlpha E.errEdge], errOn || auxBand);   % the look the aux bands share
+en(E.errResamples, (errOn && string(E.errType.Value) == "ci95") || (auxBand && string(E.auxErrType.Value) == "ci95"));
+en([E.errEdgeStyle E.errEdgeWidth], (errOn || auxBand) && lower(strtrim(string(E.errEdge.Value))) ~= "none");
+en([E.auxPlacement E.auxDisplay E.auxStatistic E.auxTransform E.auxChannels E.auxBaseline E.auxByGroup E.auxYLim E.auxColorBy], auxOn);
+en(E.auxErrType, auxOn && ~auxHeat);
+en([E.auxOverFrom E.auxOverTo], auxOn && string(E.auxPlacement.Value) == "over" && ~auxHeat);
 en([E.auxBaseFrom E.auxBaseTo], auxOn && E.auxBaseline.Value);
 noted = strtrim(strjoin(string(E.annText.Value(:)).', newline)) ~= "";
 en([E.annPlace E.annAlign E.annVAlign E.annRotation E.annFont E.annSize E.annBold E.annItalic E.annBox ...
@@ -308,15 +315,17 @@ v.waveSites = wavePlot && layout == "probe"; v.waveNames = v.waveSites;
 v.auxMode = ismember(kind, ["psth" "raster"]) && spikes;   % the mean aux signal with each unit's panels
 v.auxChannels = v.auxMode; v.auxBaseline = v.auxMode; v.auxByGroup = v.auxMode;
 v.auxYLim = v.auxMode; v.auxOverFrom = v.auxMode;
+v.auxDisplay = v.auxMode; v.auxStatistic = v.auxMode; v.auxErrType = v.auxMode; v.auxColorBy = v.auxMode;
 for f = ["annText" "annPlace" "annX" "annAlign" "annRotation" "annFont" "annBold" "annColor" "annInterp"]
     v.(f) = true;   % the text note is every kind's
 end
 v.ovList = true;   % so are the overlays (their rows follow the overlay picked: syncPlotEditor)
-auxBands = v.auxMode && auxMode ~= "off";   % the aux signal's bands (a raster's too)
-traceBands = psth || (kind == "evoked" && layout ~= "butterfly") || auxBands;
-v.errType = traceBands || ismember(kind, ["tuning" "behavior"]) || (kind == "rate" && layout == "bar");
-v.errFace = traceBands; v.errEdge = traceBands;   % the bands' look (error bars are not patches)
-on =[v.errType, ...
+auxBands = v.auxMode && auxMode ~= "off";   % the aux signal's bands (a raster's too): their look and resamples are these rows'
+traceBands = psth || (kind == "evoked" && layout ~= "butterfly");
+drawsError = traceBands || ismember(kind, ["tuning" "behavior"]) || (kind == "rate" && layout == "bar");
+v.errType = drawsError || auxBands;
+v.errFace = traceBands || auxBands; v.errEdge = v.errFace;   % the bands' look (error bars are not patches)
+on =[drawsError, ...
     ismember(kind, ["psth" "raster"]), grouped, ismember(kind, ["psth" "raster" "evoked" "rate" "tuning" "behavior"]) ...
     || (kind == "waveforms" && layout == "grid")];
 end

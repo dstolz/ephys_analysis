@@ -27,15 +27,22 @@ function A = auxMean(Y, fs, E, opts)
 %     Groups    the groups table (epochTable); default from E
 %     Meta      the channel table (selectChannels); its units name A.units
 %     Check     called before every 16th epoch (evokedPotential's Check)
+%     Rectify   false (default); true: each epoch's samples are replaced by
+%               their absolute value (after the baseline subtraction and
+%               the magnitude), so the average is of the rectified signal
+%     Statistic "mean" (default) or "median": what A.mean holds, over the
+%               epochs of each group at each sample
 %     ErrorType, ErrorResamples   the error band around each trace, over
-%               the epochs: "sem" (default), "std" or "ci95" (bootstrap,
-%               evokedPotential's)
+%               the epochs: "sem" (default), "std", "ci95" (bootstrap) or
+%               "iqr" (25th to 75th percentile) -- evokedPotential's; with
+%               Statistic "median" the first two are centered on the median
+%               and the bootstrap is of the median
 %
-%   A: evokedPotential's result -- t, mean / sem [nTime x nTraces x
-%   nGroups] (nTraces: the channels, or 1 for the magnitude), labels (one
-%   per trace), channelLabels (the channels used), channels, nEpochs,
-%   keptEpochs, droppedEdge, droppedNonFinite, groups, units, fs, err, params --
-%   with kind "aux", mode and byGroup.
+%   A: evokedPotential's result -- t, mean (the Statistic) / sem [nTime x
+%   nTraces x nGroups] (nTraces: the channels, or 1 for the magnitude),
+%   labels (one per trace), channelLabels (the channels used), channels,
+%   nEpochs, keptEpochs, droppedEdge, droppedNonFinite, groups, units, fs,
+%   err, params, statistic, rectified -- with kind "aux", mode and byGroup.
 %
 %   See also evokedPotential, selectChannels, renderPSTH, renderRaster.
 
@@ -50,7 +57,9 @@ arguments
     opts.Groups = []
     opts.Meta = []
     opts.Check = []
-    opts.ErrorType (1,1) string {mustBeMember(opts.ErrorType, ["sem" "std" "ci95"])} = "sem"
+    opts.Rectify (1,1) logical = false
+    opts.Statistic (1,1) string {mustBeMember(opts.Statistic, ["mean" "median"])} = "mean"
+    opts.ErrorType (1,1) string {mustBeMember(opts.ErrorType, ["sem" "std" "ci95" "iqr"])} = "sem"
     opts.ErrorResamples (1,1) double {mustBePositive, mustBeInteger} = 1000
 end
 
@@ -64,7 +73,8 @@ if istable(opts.Meta) && ismember("units", string(opts.Meta.Properties.VariableN
     units = string(opts.Meta.units(1));
 end
 A = evokedPotential(Y, fs, E, Window=opts.Window, Baseline=opts.Baseline, Groups=G, Meta=opts.Meta, Units=units, ...
-    Magnitude=opts.Mode == "magnitude", Check=opts.Check, ErrorType=opts.ErrorType, ErrorResamples=opts.ErrorResamples);
+    Magnitude=opts.Mode == "magnitude", Rectify=opts.Rectify, Statistic=opts.Statistic, Check=opts.Check, ...
+    ErrorType=opts.ErrorType, ErrorResamples=opts.ErrorResamples);
 A.kind = "aux";
 A.mode = opts.Mode;
 A.byGroup = opts.ByGroup;

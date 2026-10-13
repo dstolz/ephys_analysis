@@ -290,7 +290,9 @@ classdef EphysAnalysisScript
                             if x.baseline == "subtract"; ab = lit(x.baselineWindow); end
                             [ex, nx] = plotErrorType(spec, "aux");
                             errA = "";
-                            if ex ~= "sem"; errA = ", ErrorType=" + lit(ex) + ", ErrorResamples=" + lit(nx); end
+                            if x.transform == "rectify"; errA = errA + ", Rectify=true"; end
+                            if x.statistic ~= "mean"; errA = errA + ", Statistic=" + lit(x.statistic); end
+                            if ex ~= "sem"; errA = errA + ", ErrorType=" + lit(ex) + ", ErrorResamples=" + lit(nx); end
                             L(end+1, 1) = "[Ya, fsa, metaA] = selectChannels(src, ""AUX"", Channels=" + lit(x.channels) + ");   % the mean aux signal (spec.aux)";
                             L(end+1, 1) = "R.aux = auxMean(Ya, fsa, E, Window=" + w + ", Mode=" + lit(x.mode) + ", Baseline=" + ab + ...
                                 ", ByGroup=" + lit(x.byGroup) + ", Groups=G, Meta=metaA" + errA + ");";

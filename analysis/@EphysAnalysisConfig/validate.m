@@ -41,8 +41,12 @@ function issues = validate(obj, opts)
 %               tiles (a raster, a PSTH or tuning grid of spikes, a
 %               waveforms plot); its amplitude scale; a waveforms plot's
 %               mode is never off; an aux mode other than off: its
-%               placement (a warning for "over" on a stacked PSTH, drawn
-%               below), y limits ([] or ascending), overPosition (0 <=
+%               placement (a warning for "over" on a stacked PSTH or for
+%               a heat map, drawn below), display, statistic, transform,
+%               colorBy and errorType (the bootstrap and the quartiles
+%               need the Statistics and Machine Learning Toolbox; a
+%               warning for a band in a heat map, or SEM / SD around a
+%               median), y limits ([] or ascending), overPosition (0 <=
 %               bottom < top <= 1), channels (whole numbers >= 1), baseline and a
 %               baseline window [b0 b1] that overlaps the epoch window,
 %               and a warning when the plot is not a PSTH or raster of
@@ -349,6 +353,34 @@ for k = 1:numel(obj.Plots)
         elseif aux.placement == "over" && p.kind == "psth" && p.stack
             add("Plots", x0 + ".placement", "warning", "A stacked PSTH's right axis labels its rows' peaks: " + ...
                 "the aux signal goes below it instead of over it.");
+        elseif aux.placement == "over" && aux.display == "heatmap"
+            add("Plots", x0 + ".placement", "warning", "A heat map is an image of its own: " + ...
+                "the aux signal goes below the plot instead of over it.");
+        end
+        if ~ismember(aux.display, EphysAnalysisConfig.AuxDisplays)
+            add("Plots", x0 + ".display", "error", "The aux display is one of " + strjoin(EphysAnalysisConfig.AuxDisplays, ", ") + ".");
+        end
+        if ~ismember(aux.statistic, EphysAnalysisConfig.AuxStatistics)
+            add("Plots", x0 + ".statistic", "error", "The aux statistic is one of " + strjoin(EphysAnalysisConfig.AuxStatistics, ", ") + ".");
+        end
+        if ~ismember(aux.transform, EphysAnalysisConfig.AuxTransforms)
+            add("Plots", x0 + ".transform", "error", "The aux transform is one of " + strjoin(EphysAnalysisConfig.AuxTransforms, ", ") + ".");
+        end
+        if ~ismember(aux.colorBy, EphysAnalysisConfig.AuxColorBy)
+            add("Plots", x0 + ".colorBy", "error", "The aux colorBy is one of " + strjoin(EphysAnalysisConfig.AuxColorBy, ", ") + ".");
+        end
+        if ~ismember(aux.errorType, EphysAnalysisConfig.AuxErrorTypes)
+            add("Plots", x0 + ".errorType", "error", "The aux errorType is one of " + strjoin(EphysAnalysisConfig.AuxErrorTypes, ", ") + ...
+                " (off: no band; sem: +/- SEM; std: +/- SD; ci95: bootstrap 95% CI; iqr: 25th to 75th percentile).");
+        elseif aux.errorType == "ci95" && ~(license('test', 'Statistics_Toolbox') && exist('bootci', 'file'))
+            add("Plots", x0 + ".errorType", "error", "The bootstrap 95% CI needs the Statistics and Machine Learning Toolbox (bootci).");
+        elseif aux.errorType == "iqr" && ~(license('test', 'Statistics_Toolbox') && exist('prctile', 'file'))
+            add("Plots", x0 + ".errorType", "error", "The interquartile range needs the Statistics and Machine Learning Toolbox (prctile).");
+        elseif aux.display == "heatmap" && aux.errorType ~= "off"
+            add("Plots", x0 + ".errorType", "warning", "A heat map draws no error band.");
+        elseif aux.statistic == "median" && ismember(aux.errorType, ["sem" "std"])
+            add("Plots", x0 + ".errorType", "warning", "SEM and SD bands are a mean's: with the median they are drawn around it; " + ...
+                "ci95 (the bootstrap CI of the median) or iqr belong to it.");
         end
         yl = aux.yLim;
         if ~(isempty(yl) || (numel(yl) == 2 && all(isfinite(yl)) && yl(2) > yl(1)))
@@ -466,7 +498,7 @@ for k = 1:numel(obj.Plots)
     end
     if ~ismember(st.ErrorType, EphysAnalysisConfig.ErrorTypes)
         add("Plots", f0 + ".style.ErrorType", "error", "ErrorType is sem (mean +/- SEM), std (mean +/- SD) or ci95 (bootstrap 95% CI).");
-    elseif st.ShowSEM && st.ErrorType == "ci95" && (plotErrorType(p) == "ci95" || plotErrorType(p, "aux") == "ci95") ...
+    elseif st.ShowSEM && st.ErrorType == "ci95" && plotErrorType(p) == "ci95" ...
             && ~(license('test', 'Statistics_Toolbox') && exist('bootci', 'file'))
         add("Plots", f0 + ".style.ErrorType", "error", "The bootstrap 95% CI needs the Statistics and Machine Learning Toolbox (bootci).");
     end

@@ -18,6 +18,18 @@ says how to cut a release.
   runner or the CI changes). The JUnit report is kept as an artifact; **Run workflow** runs chosen
   suites. See [Tests](documentation/README.md#tests).
 
+- More ways to draw the mean aux signal of a PSTH or raster. A plot's `aux` gets `display` (`"lines"`,
+  `"stacked"`: a row per trace on one amplitude scale with a scale bar, or `"heatmap"`: an image, a row per
+  trace on one color scale, group or channel colors at the rows' edge), `statistic` (`"mean"` or
+  `"median"`), `transform` (`"none"` or `"rectify"`: each epoch's absolute value before the statistic),
+  `errorType` (`"off"`, `"sem"`, `"std"`, `"ci95"` or `"iqr"`: its own band, no longer taken from
+  `Style.ShowSEM` / `Style.ErrorType`; the bands' look is still the Style's) and `colorBy` (`"auto"`,
+  `"group"`, the trial selection group's color, or `"channel"`). `evokedPotential` and `auxMean` take
+  `Rectify=` and `Statistic=`, and `ErrorType="iqr"`. The Aux signals section of the analysis app gets
+  **Display**, **Signal**, **Error band** and **Color by** rows; Validate checks them and the caption
+  names the statistic, the transform and the band. See
+  [Aux signals](documentation/EphysAnalysisConfig.md#aux-signals).
+
 - The aux signal's place and scale: `aux.yLim` fixes its y limits (a panel's, or over a plot the part of
   the right axis it spans), and `aux.overPosition` (`[bottom top]`, fractions of the plot's height) puts
   it where it should sit over a PSTH or raster, e.g. `[0 0.3]` for the bottom three tenths; the right

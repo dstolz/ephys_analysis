@@ -165,6 +165,11 @@ switch section
             'mode',           "off", ...       % "off" | "channels" (each channel's mean) | "magnitude" (the mean of each epoch's vector magnitude, sqrt of the sum of squares of the channels)
             'channels',       [], ...          % columns of the AUX extract ([] = all)
             'placement',      "below", ...     % "below" | "above" the unit's raster / PSTH (a panel of its own), or "over" it (its right y axis)
+            'display',        "lines", ...     % "lines" (a line per trace) | "stacked" (a row of its own per trace) | "heatmap" (a row per trace, in color; a panel of its own: "over" goes below)
+            'statistic',      "mean", ...      % "mean" | "median" over the epochs, at each sample
+            'transform',      "none", ...      % "none" (as recorded) | "rectify" (each epoch's absolute value, before the statistic)
+            'errorType',      "sem", ...       % the band around each trace, over the epochs: "off" | "sem" | "std" | "ci95" (bootstrap, Style.ErrorResamples) | "iqr" (25th-75th percentile); none in a heat map
+            'colorBy',        "auto", ...      % the traces' colors: "auto" (the trial group's when there are several groups or one channel, else the channel's) | "group" (the trial selection group's) | "channel"
             'baseline',       "none", ...      % "none" | "subtract": each epoch's mean over baselineWindow, per channel (before the magnitude)
             'baselineWindow', [-0.2 0], ...    % s from the event
             'byGroup',        true, ...        % one trace per trial group, in its color (false: one over every epoch)

@@ -80,6 +80,18 @@ classdef EphysAnalysisConfig
         % The error a plot draws as bands or bars (Style.ErrorType): mean +/- SEM, mean +/- SD, bootstrap 95% CI of the mean.
         ErrorTypes    = ["sem" "std" "ci95"]
         AuxPlacements = ["below" "above" "over"]
+        % How the mean aux signal is drawn (aux.display): lines, one per trace; stacked, a row of its own per trace;
+        % or a heat map, a row per trace in color.
+        AuxDisplays   = ["lines" "stacked" "heatmap"]
+        % What it shows at each sample over the epochs (aux.statistic), and of what (aux.transform): the signal as
+        % recorded, or rectified (its absolute value, taken in each epoch before the statistic).
+        AuxStatistics = ["mean" "median"]
+        AuxTransforms = ["none" "rectify"]
+        % Its error band (aux.errorType): off, mean +/- SEM, mean +/- SD, bootstrap 95% CI, or the interquartile range.
+        AuxErrorTypes = ["off" "sem" "std" "ci95" "iqr"]
+        % What its traces are colored by (aux.colorBy): auto (by trial group when several, else by channel), the
+        % trial selection group, or the channel.
+        AuxColorBy    = ["auto" "group" "channel"]
         % Where a plot's note sits (a plot's note.placement): outside the plot, over it, or at a point.
         NotePlacements = ["below" "above" "right" "left" "northwest" "north" "northeast" "west" "center" "east" ...
             "southwest" "south" "southeast" "custom"]

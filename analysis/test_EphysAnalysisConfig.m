@@ -270,6 +270,7 @@ d = EphysAnalysisConfig.defaults("Plot").aux;
 check(d.mode == "off" && isempty(d.channels) && d.placement == "below" && d.baseline == "none" ...
     && isequal(d.baselineWindow, [-0.2 0]) && d.byGroup && isempty(d.yLim) && isequal(d.overPosition, [0 1]), ...
     'the mean aux signal: off by default; all channels, below, no baseline, a trace per group');
+d0aux = d;
 xs = cfg; xs.Plots(1).aux.mode = "magnitude";
 check(~hasIssue(xs, "psth_1.aux", "error") && ~hasIssue(xs, "psth_1.aux", "warning") && ~hasIssue(cfg, ".aux", "warning"), ...
     'a PSTH of units takes the aux signal');
@@ -296,6 +297,18 @@ st = xs; st.Plots(1).stack = true; st.Plots(1).aux.placement = "over";
 ev = cfg; ev.Plots(2).aux.mode = "channels";
 check(hasIssue(st, "psth_1.aux.placement", "warning") && hasIssue(ev, "evoked_1.aux.mode", "warning"), ...
     'over a stacked PSTH warns (drawn below); an aux signal on a plot of signals warns that none is drawn');
+check(d0aux.display == "lines" && d0aux.statistic == "mean" && d0aux.transform == "none" && d0aux.errorType == "sem" ...
+    && d0aux.colorBy == "auto", 'the aux signal: lines, the mean as recorded, an SEM band, colored automatically by default');
+for f = ["display" "statistic" "transform" "errorType" "colorBy"]
+    bx = xs; bx.Plots(1).aux.(f) = "nope";
+    check(hasIssue(bx, "psth_1.aux." + f, "error"), 'the aux ' + f + ' is one of its list');
+end
+hm = xs; hm.Plots(1).aux.display = "heatmap"; hm.Plots(1).aux.placement = "over";
+md = xs; md.Plots(1).aux.statistic = "median"; md.Plots(1).aux.errorType = "std";
+okb = xs; okb.Plots(1).aux.display = "stacked"; okb.Plots(1).aux.statistic = "median"; okb.Plots(1).aux.errorType = "iqr";
+check(hasIssue(hm, "psth_1.aux.placement", "warning") && hasIssue(hm, "psth_1.aux.errorType", "warning") ...
+    && hasIssue(md, "psth_1.aux.errorType", "warning") && ~hasIssue(okb, "psth_1.aux", "error") && ~hasIssue(okb, "psth_1.aux", "warning"), ...
+    'a heat map warns it goes below and draws no band; SEM / SD around a median warns; the median with iqr or stacked rows is fine');
 xs.Plots(1).aux = struct('mode', "channels", 'channels', 2, 'placement', "over", 'baseline', "subtract", ...
     'baselineWindow', [-0.1 0], 'byGroup', false, 'yLim', [-0.05 0.05], 'overPosition', [0.6 1]);
 xs.save(f);

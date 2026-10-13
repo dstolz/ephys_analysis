@@ -61,11 +61,15 @@ function h = renderPSTH(R, target, opts)
 %                 rate panel, on its right y axis. A stack's right axis is
 %                 its rows' peaks, so "over" goes below a stack; an axes
 %                 TARGET has room for "over" only. Each trace is drawn as
-%                 auxLooks says (the groups' colors; a channel's own color
-%                 or line style), its error band (R.aux.err) with ShowSEM;
-%                 several channels get legend entries (in the aux panel's
-%                 own legend under a stack). yLim fixes the signal's y
-%                 limits; overPosition ([bottom top], fractions of the
+%                 auxLooks says (colorBy: the trial group's color or a
+%                 channel's own, the other by line style), its error band
+%                 (R.aux.err) with errorType (not "off"); several
+%                 channels get legend entries (in the aux panel's own
+%                 legend under a stack). display "lines" is a line a
+%                 trace; "stacked", a row each; "heatmap", an image (a
+%                 panel of its own, no bands: "over" goes below).
+%                 yLim fixes the signal's y limits (a row's span; the color
+%                 scale); overPosition ([bottom top], fractions of the
 %                 rate panel's height) is where it sits over the panel
 %                 (auxInto)
 %     Style       EphysAnalysisConfig.defaults("Style") fields (LineWidth,
@@ -149,9 +153,8 @@ place = "";   % where the mean aux signal goes: "" (none), "above", "below" (pan
 X = [];
 W = R.edges([1 end]);
 if auxOpt.mode ~= "off" && isfield(R, 'aux') && isstruct(R.aux) && ~isempty(R.aux)
-    place = auxOpt.placement;
-    if place == "over" && look.stack; place = "below"; end   % a stack's right axis is its rows' peaks
-    X = auxLooks(R.aux, colors, style);
+    place = auxPlace(auxOpt, look.stack);   % a stack's right axis is its rows' peaks; an image is not drawn on one
+    X = auxLooks(R.aux, colors, style, auxOpt);
 end
 paneled = ismember(place, ["above" "below"]);
 

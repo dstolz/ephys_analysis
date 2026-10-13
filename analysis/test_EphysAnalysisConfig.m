@@ -302,10 +302,11 @@ check(hasIssue(st, "psth_1.aux.placement", "warning") && hasIssue(ev, "evoked_1.
     'over a stacked PSTH warns (drawn below); an aux signal on a plot of signals warns that none is drawn');
 check(d0aux.display == "lines" && d0aux.statistic == "mean" && d0aux.transform == "none" && d0aux.errorType == "sem" ...
     && d0aux.colorBy == "auto", 'the aux signal: lines, the mean as recorded, an SEM band, colored automatically by default');
-for f = ["display" "statistic" "transform" "errorType" "colorBy"]
-    bx = xs; bx.Plots(1).aux.(f) = "nope";
-    check(hasIssue(bx, "psth_1.aux." + f, "error"), 'the aux ' + f + ' is one of its list');
+for fld = ["display" "statistic" "transform" "errorType" "colorBy"]
+    bx = xs; bx.Plots(1).aux.(fld) = "nope";
+    check(hasIssue(bx, "psth_1.aux." + fld, "error"), 'the aux ' + fld + ' is one of its list');
 end
+f = fullfile(root, 'aux_signal.json');   % not aux.json: a reserved device name on Windows
 hm = xs; hm.Plots(1).aux.display = "heatmap"; hm.Plots(1).aux.placement = "over";
 md = xs; md.Plots(1).aux.statistic = "median"; md.Plots(1).aux.errorType = "std";
 okb = xs; okb.Plots(1).aux.display = "stacked"; okb.Plots(1).aux.statistic = "median"; okb.Plots(1).aux.errorType = "iqr";

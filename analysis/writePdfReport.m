@@ -2,8 +2,10 @@ function file = writePdfReport(report, file)
 %writePdfReport  Write a report as one multi-page PDF.
 %   FILE = writePdfReport(REPORT, FILE) writes a title page (the report's
 %   title, when it was made, its datasets and plots), then for each dataset
-%   a summary page (IncludeSummary) and the vector pages of every plot (each
-%   page of a paged grid). The title and summary pages are drawn here; the
+%   (and each addReportSection section, such as "Across sessions") a
+%   summary page (IncludeSummary: a dataset's recording, trials and units;
+%   a section's tables, e.g. "Sessions") and the vector pages of every plot
+%   (each page of a paged grid). The title and summary pages are drawn here; the
 %   plots' pages are those they were added with (addReportFigure: the
 %   reportPdfPage files made from the exported figures, or drawn then), so
 %   no plot is drawn again. The pages are joined in that order with the
@@ -45,9 +47,16 @@ for d = 1:numel(report.datasets)
     L = strings(0, 1);
     if ~isempty(D.summary)
         S = D.summary;
-        L = [L; tableLines(S.recording); ""]; %#ok<AGROW>
-        if height(S.trials) > 0; L = [L; "Trials"; tableLines(S.trials); ""]; end %#ok<AGROW>
-        if height(S.units) > 0; L = [L; "Units"; tableLines(S.units); ""]; end %#ok<AGROW>
+        for f = string(fieldnames(S)).'
+            T = S.(f);
+            if f == "recording"
+                L = [L; tableLines(T); ""]; %#ok<AGROW>
+            elseif ismember(f, ["lines" "topRates"])   % a dataset's page keeps to its recording, trials and units
+                continue
+            elseif istable(T) && height(T) > 0
+                L = [L; summaryLabel(f); tableLines(T); ""]; %#ok<AGROW>
+            end
+        end
     end
     status = string({D.entries.status});
     for e = D.entries(status ~= "done")
@@ -77,6 +86,17 @@ mergePages(parts, file);
         xlim(ax, [0 1]); ylim(ax, [0 1]);
         f = exportFigure(fig, fullfile(tmp, "page" + k), Format="pdf");
     end
+end
+
+
+function s = summaryLabel(f)
+%summaryLabel  The heading of a summary table: a known field's label, else its name.
+switch f
+    case "trials",   s = "Trials";
+    case "units",    s = "Units";
+    case "sessions", s = "Sessions";
+    otherwise,       s = f;
+end
 end
 
 

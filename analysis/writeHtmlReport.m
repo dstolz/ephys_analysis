@@ -2,8 +2,13 @@ function file = writeHtmlReport(report, file)
 %writeHtmlReport  Write a report as one self-contained HTML file.
 %   FILE = writeHtmlReport(REPORT, FILE) writes the report built with
 %   newAnalysisReport / addReportDataset / addReportFigure: a title, a table
-%   of contents, then one section per dataset with its summary tables
-%   (IncludeSummary) and every plot -- its pages embedded as PNG
+%   of contents, then one section per dataset (and per addReportSection
+%   section, such as "Across sessions") with its summary tables
+%   (IncludeSummary: every table of the summary struct, under its label --
+%   recording "Recording" (field / value rows, always shown), lines
+%   "Digital lines", trials, units, topRates "Highest rates", sessions
+%   "Sessions", any other by its name -- when it has rows) and every plot
+%   -- its pages embedded as PNG
 %   (data:image/png;base64) or inline SVG, its caption, the parameters it
 %   was drawn with (IncludeParameters, folded) and links to its exported
 %   files -- and the config JSON at the end (IncludeConfig, folded). No
@@ -30,8 +35,11 @@ L(end+1) = "<!DOCTYPE html><html><head><meta charset=""utf-8"">";
 L(end+1) = "<title>" + htmlEscape(report.title) + "</title><style>" + css() + "</style></head><body>";
 L(end+1) = "<h1>" + htmlEscape(report.title) + "</h1>";
 nPlots = sum(arrayfun(@(d) numel(d.entries), report.datasets));
+isSection = arrayfun(@(d) isfield(d, 'kind') && d.kind == "section", report.datasets);
+counts = numel(report.datasets) - nnz(isSection) + " dataset(s), ";
+if any(isSection); counts = counts + nnz(isSection) + " section(s), "; end
 L(end+1) = "<p class=""meta"">Generated <span class=""created"">" + htmlEscape(report.created) + "</span> &middot; " ...
-    + numel(report.datasets) + " dataset(s), " + nPlots + " plot(s)</p>";
+    + counts + nPlots + " plot(s)</p>";
 if isfield(report, 'provenance') && isstruct(report.provenance)
     p = report.provenance;
     L(end+1) = "<p class=""meta provenance"">ephys_analysis " + htmlEscape(p.code) + " &middot; MATLAB " ...
@@ -60,11 +68,14 @@ for d = 1:numel(report.datasets)
     if ~isempty(D.summary)
         S = D.summary;
         L(end+1) = "<div class=""tables"">"; %#ok<AGROW>
-        L(end+1) = "<div><h4>Recording</h4>" + htmlTable(S.recording, "kv") + "</div>"; %#ok<AGROW>
-        if height(S.lines) > 0; L(end+1) = "<div><h4>Digital lines</h4>" + htmlTable(S.lines) + "</div>"; end %#ok<AGROW>
-        if height(S.trials) > 0; L(end+1) = "<div><h4>Trials</h4>" + htmlTable(S.trials) + "</div>"; end %#ok<AGROW>
-        if height(S.units) > 0; L(end+1) = "<div><h4>Units</h4>" + htmlTable(S.units) + "</div>"; end %#ok<AGROW>
-        if height(S.topRates) > 0; L(end+1) = "<div><h4>Highest rates</h4>" + htmlTable(S.topRates) + "</div>"; end %#ok<AGROW>
+        for f = string(fieldnames(S)).'
+            T = S.(f);
+            if f == "recording"   % always shown, as field / value rows
+                L(end+1) = "<div><h4>" + htmlEscape(summaryLabel(f)) + "</h4>" + htmlTable(T, "kv") + "</div>"; %#ok<AGROW>
+            elseif istable(T) && height(T) > 0
+                L(end+1) = "<div><h4>" + htmlEscape(summaryLabel(f)) + "</h4>" + htmlTable(T) + "</div>"; %#ok<AGROW>
+            end
+        end
         L(end+1) = "</div>"; %#ok<AGROW>
     end
     for k = 1:numel(D.entries)
@@ -177,6 +188,20 @@ end
 function n = fileName(f)
 [~, a, b] = fileparts(f);
 n = a + b;
+end
+
+
+function s = summaryLabel(f)
+%summaryLabel  The heading of a summary table: a known field's label, else its name.
+switch f
+    case "recording", s = "Recording";
+    case "lines",     s = "Digital lines";
+    case "trials",    s = "Trials";
+    case "units",     s = "Units";
+    case "topRates",  s = "Highest rates";
+    case "sessions",  s = "Sessions";
+    otherwise,        s = f;
+end
 end
 
 

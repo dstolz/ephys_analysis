@@ -19,5 +19,5 @@ end
 entry = struct('plot', {}, 'kind', {}, 'title', {}, 'caption', {}, 'spec', {}, ...
     'images', {}, 'pages', {}, 'files', {}, 'status', {}, 'message', {});
 report.datasets(end+1) = struct('name', src.name, 'key', src.key, 'folder', src.folder, ...
-    'summary', summary, 'entries', entry);
+    'summary', summary, 'entries', entry, 'kind', "dataset");
 end

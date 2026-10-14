@@ -1,0 +1,199 @@
+function hk = drawContinuousPanel(ax, P, look)
+%drawContinuousPanel  Draw a figure's continuous signal panel: each layer's epoch mean per trial group.
+%   HK = drawContinuousPanel(AX, P, LOOK) draws the panel result P
+%   (F.panels(k) of EphysAnalysisRunner.computeFigure) into the axes AX,
+%   as renderFigure asks (LOOK: style, colors, W, spec, panel, panelId,
+%   isTop, isBottom, epochs, groups, observation, isTime). Each signal
+%   layer (LFP, MUA, SPIKE, AUX: an evokedPotential result) gives its
+%   items: each channel in probe order, or with aggregate "mean" the mean
+%   over its channels (R.layerMean, its band across them). options.display:
+%     "lines"    every item and trial group a trace (role "trace"; a channel
+%                of a layer that draws several, "channelTrace") over its
+%                band (options.errorType not "off": R.err, errorPatch, role
+%                "sem"), in the group's color (or the layer's) and the
+%                item's line style (the layer's lineStyle, else by order);
+%                y label "Amplitude (<units>)"; options.yLim fixes the axis
+%     "stacked"  every item a row of its own, offset by options.stackSpacing
+%                (NaN: 1.2 x the 90th percentile of the traces' ranges, as
+%                renderEvoked's stack), the rows named on the y axis, the
+%                groups overlaid in each row; y label "Channel (<step> per
+%                row)"
+%   The components' group is the trial group's label, with several items
+%   "<item> · <group>" (the item alone for one group). Style.ShowZeroLine
+%   draws the event's line; the events layers drawn as marks become latency
+%   lines and a rug (figEventMarks), also on a panel whose signal layers
+%   are all skipped (then on a plain axis, whatever the display). Skipped
+%   layers are noted (figLayerNotes). The legend offers the groups, then
+%   the items when there are several, then the marks.
+%
+%   See also renderFigure, renderEvoked, figurePanelRegistry.
+
+style = look.style;
+o = look.panel.options;
+Ls = look.panel.layers;
+hk = figDrawResult(ax);
+tagPart(ax, "axes", "", look.panelId);
+
+items = zeros(0, 2);   % [layer, channel index of R.mean] (0: the layer's mean)
+for j = 1:numel(P.layers)
+    R = P.layers(j).R;
+    if P.layers(j).skip ~= "" || ~isstruct(R) || ~isfield(R, 'mean') || ~isfield(R, 'kind') || R.kind ~= "evoked"; continue; end
+    if j <= numel(Ls) && Ls(j).aggregate == "mean" && isfield(R, 'layerMean')
+        items(end+1, :) = [j 0]; %#ok<AGROW>
+    else
+        nC = size(R.mean, 2);
+        items = [items; repmat(j, nC, 1) probeOrder(R.meta, nC, style)]; %#ok<AGROW>
+    end
+end
+nI = size(items, 1);
+hasMarks = any(arrayfun(@(l) l.skip == "" && isstruct(l.R) && isfield(l.R, 'kind') && l.R.kind == "events", P.layers));
+if nI == 0 && ~hasMarks
+    figLayerNotes(ax, P, look, false);
+    return
+end
+
+% each item's traces: mean, band edges [nTime x nGroups]
+S = repmat(struct('t', [], 'm', [], 'lo', [], 'hi', [], 'name', "", 'role', "trace", 'R', []), 1, nI);
+for i = 1:nI
+    j = items(i, 1);
+    c = items(i, 2);
+    R = P.layers(j).R;
+    S(i).R = R;
+    S(i).t = R.t(:);
+    if c == 0
+        S(i).m = squeeze3(R.layerMean.mean);
+        S(i).lo = squeeze3(R.layerMean.lo);
+        S(i).hi = squeeze3(R.layerMean.hi);
+        S(i).name = P.layers(j).name;
+    else
+        [lo, hi] = resultBounds(R, 'mean');
+        S(i).m = squeeze3(R.mean(:, c, :));
+        S(i).lo = squeeze3(lo(:, c, :));
+        S(i).hi = squeeze3(hi(:, c, :));
+        S(i).name = channelName(P.layers(j), R, c);
+        if size(R.mean, 2) > 1; S(i).role = "channelTrace"; end
+    end
+end
+
+stacked = o.display == "stacked" && nI > 0;   % marks alone (every signal layer skipped): a plain axis for them
+spacing = 0;
+if stacked
+    spacing = o.stackSpacing;
+    if ~(isfinite(spacing) && spacing > 0)
+        rng1 = zeros(1, 0);
+        for i = 1:nI
+            rng1 = [rng1 max(S(i).m, [], 1) - min(S(i).m, [], 1)]; %#ok<AGROW>
+        end
+        spacing = 1.2 * pct90(rng1(isfinite(rng1)));
+        if ~(isfinite(spacing) && spacing > 0); spacing = 1; end
+    end
+end
+band = o.errorType ~= "off";
+hold(ax, 'on');
+lss = strings(1, nI);
+for i = 1:nI
+    j = items(i, 1);
+    R = S(i).R;
+    colors = look.colors;
+    if size(colors, 1) ~= height(R.groups); colors = groupPalette(R.groups, style); end
+    off = -(i - 1) * spacing;
+    nG = size(S(i).m, 2);
+    for g = 1:nG
+        gl = string(R.groups.label(g));
+        [c, ls] = figLayerLook(Ls(j), i, colors(g, :));
+        if stacked; ls = string(Ls(j).lineStyle); if ~ismember(ls, ["-" "--" ":" "-."]); ls = "-"; end; end
+        lss(i) = ls;
+        tg = gl;
+        if nI > 1
+            tg = S(i).name;
+            if nG > 1; tg = S(i).name + " · " + gl; end
+        end
+        if band
+            errorPatch(ax, S(i).t, S(i).lo(:, g) + off, S(i).hi(:, g) + off, c, tg, style);
+        end
+        h1 = tagPart(plot(ax, S(i).t, S(i).m(:, g) + off, 'Color', c, 'LineWidth', style.LineWidth, 'LineStyle', ls), S(i).role, tg);
+        if i == 1 && nG > 1
+            hk.legendHandles(end+1) = h1;
+            hk.legendLabels(end+1) = gl;
+            hk.legendGroup(end+1) = true;
+        end
+    end
+end
+if nI > 1 && ~stacked   % the items, by line style (stacked: named on the y axis)
+    for i = 1:nI
+        j = items(i, 1);
+        colors = look.colors;
+        if size(colors, 1) ~= height(S(i).R.groups); colors = groupPalette(S(i).R.groups, style); end
+        c = [0.25 0.25 0.25];
+        if size(colors, 1) == 1; c = colors(1, :); end
+        c = figLayerLook(Ls(j), i, c);
+        hk.legendHandles(end+1) = tagPart(line(ax, NaN, NaN, 'Color', c, 'LineStyle', lss(i), 'LineWidth', style.LineWidth), ...
+            S(i).role, S(i).name);
+        hk.legendLabels(end+1) = S(i).name;
+        hk.legendGroup(end+1) = false;
+    end
+end
+if style.ShowZeroLine
+    tagPart(xline(ax, 0, ':', 'Color', [0.3 0.3 0.3], 'HandleVisibility', 'off'), "zeroLine");
+end
+hold(ax, 'off');
+if numel(look.W) == 2 && look.W(2) > look.W(1); xlim(ax, look.W); end
+flat = style;
+flat.XLim = [];
+flat.YLim = [];
+units = "";
+if nI > 0; units = unitText(S(1).R.units); end
+if stacked
+    styleAxes(ax, flat);
+    offs = -(0:nI-1) * spacing;
+    set(ax, 'YTick', fliplr(offs), 'YTickLabel', cellstr(fliplr([S.name])), 'TickLabelInterpreter', 'none');
+    ylim(ax, [offs(end) - spacing, spacing]);
+    hk.yName = sprintf("Channel (%s %s per row)", sprintf('%.3g', spacing), units);
+else
+    flat.YLim = o.yLim;
+    styleAxes(ax, flat);
+    if units ~= ""; hk.yName = "Amplitude (" + units + ")"; end
+end
+
+nGroups = size(look.colors, 1);
+if nI > 0; nGroups = height(S(1).R.groups); end
+[hm, lm] = figEventMarks(ax, P, look, 1:max(1, nGroups), "group");
+for m = 1:numel(hm)
+    hk.legendHandles(end+1) = hm(m);
+    hk.legendLabels(end+1) = lm(m);
+    hk.legendGroup(end+1) = false;
+end
+figLayerNotes(ax, P, look, true);
+end
+
+
+function X = squeeze3(X)
+%squeeze3  [nTime x 1 x nGroups] as [nTime x nGroups].
+X = reshape(X, size(X, 1), []);
+end
+
+
+function name = channelName(lay, R, c)
+%channelName  One channel of a signal layer: the layer's name when it holds one, else "<source> ch <N>".
+name = lay.name;
+if size(R.mean, 2) == 1 && name ~= ""; return; end
+name = lay.source + " " + string(R.labels(c));
+if isfield(R, 'meta') && istable(R.meta) && ismember("recordingChannel", string(R.meta.Properties.VariableNames)) ...
+        && height(R.meta) >= c && isfinite(R.meta.recordingChannel(c))
+    name = lay.source + " ch " + R.meta.recordingChannel(c);
+end
+end
+
+
+function s = unitText(u)
+%unitText  A signal's unit for a label (µV for uV).
+s = replace(string(u), "uV", "µV");
+end
+
+
+function v = pct90(x)
+%pct90  90th percentile (nearest rank) without the Statistics Toolbox.
+x = sort(x(:));
+if isempty(x); v = NaN; return; end
+v = x(max(1, ceil(0.9 * numel(x))));
+end

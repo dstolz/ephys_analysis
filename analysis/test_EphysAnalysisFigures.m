@@ -31,6 +31,21 @@ function test_EphysAnalysisFigures()
 %   signal's baseline with no sample in the window skipping its layer;
 %   probemap, corrmap and waveforms as computePlot's; PollFcn checkpoints
 %   and cancel; one observation faster than computePlot over every unit.
+%   Render (8): figureTiles (relative sizes in quarter steps, spans, the
+%   32-unit cap); a compute and a draw function for every panel type;
+%   every panel type drawn by renderFigure into an axes, a uiaxes, a
+%   figure, a uipanel and a grid layout, every component tagged with a
+%   known role and the tiles named by panel; the title (automatic, and the
+%   figure's own with the observation on the top-left panel); one time axis
+%   down a stack (the window on every time panel, tick labels and "Time
+%   (s)" at the bottom only, a panel's own window kept); one legend, each
+%   group once; skipped layers' notes; events marks on a raster and as
+%   latency lines and a rug on a PSTH; a stacked continuous panel of marks
+%   alone; a behavior panel's series in the figure's legend; a raster of
+%   five blocks keeping every block's name; a raster over a waveforms
+%   panel keeping its time axis; figureTiles' order past its cap;
+%   Editable, OnRemember and the context's redraw; the editor's colormap;
+%   one observation drawn in under a second.
 %
 %   Usage:  test_EphysAnalysisFigures
 
@@ -931,6 +946,277 @@ if nU >= 4 && haveBootT
 else
     fprintf('  (timing check skipped: %d unit(s), bootci %d)\n', nU, haveBootT);
 end
+
+%% ============================================================================ render
+fprintf('\n== 8. render: renderFigure, figureTiles, the draw functions ==\n');
+% figureTiles: relative sizes as equal units
+pp = struct('row', {1 2}, 'col', {1 1}, 'rowSpan', {1 1}, 'colSpan', {1 1});
+gr = struct('rows', 2, 'cols', 1, 'rowHeights', [1 2], 'colWidths', [], 'spacing', "none");
+[nr1, nc1, to1, so1] = figureTiles(gr, pp);
+gr.rowHeights = [1 1.5];
+[nr2, ~, to2, so2] = figureTiles(gr, pp);
+gr.rowHeights = [];
+[nr3, ~, to3, so3] = figureTiles(gr, pp);
+check(nr1 == 3 && nc1 == 1 && isequal(to1, [1; 2]) && isequal(so1, [1 1; 2 1]) && nr2 == 5 && isequal(to2, [1; 3]) ...
+    && isequal(so2, [2 1; 3 1]) && nr3 == 2 && isequal(to3, [1; 2]) && isequal(so3, [1 1; 1 1]), ...
+    'figureTiles: rows [1 2] are 3 unit rows (spans 1 and 2), [1 1.5] are 2 + 3 of 5, [] equal');
+pq = struct('row', {1 2 2}, 'col', {1 1 2}, 'rowSpan', {1 1 1}, 'colSpan', {2 1 1});
+gq = struct('rows', 2, 'cols', 2, 'rowHeights', [], 'colWidths', [1 3], 'spacing', "tight");
+[nr4, nc4, to4, so4] = figureTiles(gq, pq);
+gq.colWidths = [1 1.37];
+[~, nc5] = figureTiles(gq, pq);
+gq.colWidths = [1 100];
+[~, nc6, ~, so6] = figureTiles(gq, pq);
+check(nr4 == 2 && nc4 == 4 && isequal(to4, [1; 5; 6]) && isequal(so4, [1 4; 1 1; 1 3]) && nc5 == 9 && nc6 <= 32 ...
+    && so6(2, 2) == 1 && so6(1, 2) == nc6, ...
+    sprintf('figureTiles: column widths [1 3] with a spanning panel; [1 1.37] in quarter steps (%d units); [1 100] capped (%d units)', nc5, nc6));
+hc = [52 47 1 1 1 1 1 1 1 1 1];
+pc = struct('row', num2cell(1:numel(hc)), 'col', 1, 'rowSpan', 1, 'colSpan', 1);
+[nr7, ~, ~, so7] = figureTiles(struct('rows', numel(hc), 'cols', 1, 'rowHeights', hc, 'colWidths', [], 'spacing', "none"), pc);
+[~, oc] = sort(hc);
+check(nr7 <= 32 && all(so7(:, 1) >= 1) && all(diff(so7(oc, 1)) >= 0) && so7(1, 1) >= so7(2, 1), ...
+    sprintf('figureTiles: past the 32-unit cap the sizes keep their order (rows %s as %s units)', mat2str(hc), mat2str(so7(:, 1).')));
+
+% the registry
+reg = figurePanelRegistry();
+okReg = all(arrayfun(@(t) isfield(reg, t) && isa(reg.(t).compute, 'function_handle') && isa(reg.(t).draw, 'function_handle'), T.Type));
+check(okReg && isequal(sort(string(fieldnames(reg))), sort(T.Type)), 'figurePanelRegistry: a compute and a draw function for every panel type');
+
+% two more figures: a heat map, and a PSTH with latency marks
+cfg = cfg.addFigure("heatmap", Id="hm");
+Fh = rn.computeFigure(src, cfg.figureFor("hm"));
+evOff = ev;
+evOff.event.edge = "offset";
+fm = cfg.Figures(cfg.figureIndex("rp"));
+fm.id = "marks";
+fm.panels(2).layers = [fm.panels(2).layers evOff];
+cfg = cfg.addFigure(fm);
+Fm = rn.computeFigure(src, cfg.figureFor("marks"), Observation=Tu(1, :));
+
+% every panel type into every kind of target
+fig = figure('Visible', 'off', 'Position', [100 100 700 800]);
+ufig = uifigure('Visible', 'off', 'Position', [100 100 700 800]);
+fe1 = figure('Visible', 'off', 'Position', [100 100 700 800]);
+closeFigs = onCleanup(@() delete([fig ufig fe1]));
+roles = PlotAesthetics.roles().Role;
+rcases = {
+    "raster + PSTH",                    F1
+    "raster / PSTH / continuous stack", F3
+    "events as marks and a train",      Fe
+    "PSTH with latency marks",          Fm
+    "a layer's mean of three units",    Fa
+    "a panel's own window",             Fo
+    "a channel observation",            Fc
+    "heat map",                         Fh
+    "behavior",                         Fb
+    "behavior, its layer skipped",      Fn
+    "probe map",                        Fp
+    "unit correlation",                 Fcm
+    "unit waveforms",                   Fw};
+for k = 1:size(rcases, 1)
+    Fk = rcases{k, 2};
+    ids = [Fk.panels.id];
+    okAll = true;
+    msgs = "";
+    for mode = ["axes" "uiaxes" "figure" "panel" "grid"]
+        try
+            switch mode
+                case "axes",   clf(fig); tg = axes(fig); %#ok<LAXES>
+                case "uiaxes", delete(ufig.Children); tg = uiaxes(ufig);
+                case "figure", tg = fig;
+                case "panel",  delete(ufig.Children); tg = uipanel(ufig);
+                case "grid",   delete(ufig.Children); tg = uigridlayout(ufig, [1 1]);
+            end
+            h = renderFigure(Fk, Fk.spec, tg);
+            drawnow;
+            ok = ~isempty(h.axes) && all(isgraphics(h.axes)) && ~isempty(h.axes(1).Children) && h.title ~= "" ...
+                && isequal([h.panels.id], ids);
+            if ismember(mode, ["axes" "uiaxes"])
+                ok = ok && isempty(h.layout) && isscalar(h.axes) && h.axes == tg;
+                C = PlotAesthetics.components(tg);
+            else
+                ok = ok && ~isempty(h.layout) && numel(h.axes) == numel(ids) && string(h.layout.Title.String) == h.title;
+                C = PlotAesthetics.components(h.layout);
+                named = all(ismember(ids, C.TileName(C.Tile > 0)));
+                if ~named; msgs = msgs + mode + ": tiles " + strjoin(unique(C.TileName(C.Tile > 0)), ", ") + "  "; end
+                ok = ok && named;
+            end
+            bad = C.Role == "" | ~ismember(C.Role, roles);
+            if any(bad); msgs = msgs + mode + ": untagged " + strjoin(C.Type(bad) + " " + C.Role(bad), ", ") + "  "; end
+            ok = ok && ~any(bad);
+        catch ME
+            ok = false;
+            msgs = msgs + mode + ": " + ME.message + "  ";
+        end
+        okAll = okAll && ok;
+    end
+    msg = rcases{k, 1} + " draws into an axes, a uiaxes, a figure, a uipanel and a grid layout, every component tagged, the tiles named by panel";
+    if msgs ~= ""; msg = msg + " (" + msgs + ")"; end
+    check(okAll, msg);
+end
+
+% title and subtitle
+h1 = renderFigure(F1, F1.spec, fig);
+want = "rp: " + F1.observation.label + " — " + eventRefLabel(F1.spec.ref) + " (" + height(F1.epochs) + " epochs)";
+check(h1.title == want && string(h1.layout.Title.String) == want && string(h1.layout.Subtitle.String) == src.name ...
+    && isequal([h1.panels.type], ["raster" "psth"]) && isequal(h1.panels(2).axes, h1.axes(2)), ...
+    sprintf('the title names the figure, the observation, the event and the epochs ("%s"); the dataset is the subtitle', want));
+sT = F1.spec;
+sT.title = "My figure";
+hT = renderFigure(F1, sT, fig);
+check(hT.title == "My figure" && string(hT.layout.Title.String) == "My figure" ...
+    && string(hT.axes(1).Title.String) == F1.observation.label && string(hT.axes(2).Title.String) == "", ...
+    'a title of the figure''s own: the top-left panel names the observation');
+
+% one time axis down a stack
+h3 = renderFigure(F3, F3.spec, fig);
+A = h3.axes;
+W = [F3.spec.window.pre F3.spec.window.post];
+check(numel(A) == 3 && all(arrayfun(@(a) isequal(xlim(a), W), A)), ...
+    sprintf('the three time panels of a stack all show the figure''s window [%g %g]', W));
+check(isempty(A(1).XTickLabel) && isempty(A(2).XTickLabel) && ~isempty(A(3).XTickLabel) ...
+    && string(A(3).XLabel.String) == "Time (s)" && string(A(1).XLabel.String) == "" && string(A(2).XLabel.String) == "", ...
+    'the upper time panels of a column drop their x tick labels; the bottom one has them and "Time (s)"');
+ho = renderFigure(Fo, Fo.spec, fig);
+check(~isempty(ho.axes(1).XTickLabel) && ~isempty(ho.axes(2).XTickLabel) && isequal(xlim(ho.axes(2)), [-0.1 0.3]) ...
+    && isequal(xlim(ho.axes(1)), [Fo.spec.window.pre Fo.spec.window.post]), ...
+    'a panel with a window of its own keeps its own time axis, and the panel above keeps its tick labels');
+hr = renderFigure(F3, F3.spec, fig);
+lg = findall(fig, 'Type', 'legend');
+ls3 = string(lg(1).String);
+check(isscalar(lg) && all(arrayfun(@(g) nnz(ls3 == g) == 1, string(F3.groups.label))) && numel(unique(ls3)) == numel(ls3) ...
+    && isequal(ls3(1:height(F3.groups)), reshape(string(F3.groups.label), 1, [])) && isgraphics(hr.layout), ...
+    sprintf('one legend for the figure: each group once, first, then the layers (%s)', strjoin(ls3, ", ")));
+
+% skipped layers say why
+notes = findall(hr.layout, 'Tag', 'layerNote');
+noteText = strjoin(string(get(notes, 'String')), " | ");
+check(~isempty(notes) && contains(noteText, auxMsg), sprintf('a skipped layer shows its reason in its panel ("%s")', noteText));
+hn = renderFigure(Fn, Fn.spec, fig);
+notes = findall(hn.layout, 'Tag', 'layerNote');
+check(isscalar(notes) && contains(string(notes.String), "no stop event in the window") && notes.HorizontalAlignment == "center", ...
+    'a panel with nothing to draw says why, in its middle');
+
+% events: raster marks, PSTH latency lines and rug
+he = renderFigure(Fe, Fe.spec, fig);
+rm = findall(he.axes(1), 'Tag', 'rasterEvent');
+okE = ~isempty(rm) && any(arrayfun(@(x) string(getappdata(x, 'PlotGroup')) == "Stim onset", rm)) ...
+    && isequal(xlim(he.axes(1)), [Fe.spec.window.pre Fe.spec.window.post]);
+check(okE, 'events marks on a raster: every block''s rows marked in the mark''s look');
+hm = renderFigure(Fm, Fm.spec, fig);
+el = findall(hm.axes(2), 'Tag', 'eventLine');
+er = findall(hm.axes(2), 'Tag', 'eventRug');
+lg = findall(fig, 'Type', 'legend');
+check(~isempty(el) && numel(el) <= height(Fm.groups) && isscalar(er) && string(getappdata(er, 'PlotGroup')) == "Stim offset" ...
+    && all(arrayfun(@(x) string(getappdata(x, 'PlotGroup')) == "Stim offset", el)) && any(string(lg(1).String) == "Stim offset"), ...
+    sprintf('events marks on a PSTH: %d latency line(s) (one per group) and a rug, in the legend', numel(el)));
+
+% a stacked continuous panel whose only signal layer is skipped still draws its marks
+cfg = cfg.addFigure(struct('panels', {{struct('id', "sig", 'type', "continuous", 'layers', [auxF ev], ...
+    'options', struct('display', "stacked"))}}), Id="cmarks");
+try
+    Fk1 = rn.computeFigure(src, cfg.figureFor("cmarks"));
+    hk1 = renderFigure(Fk1, Fk1.spec, fig);
+    nt = findall(hk1.axes(1), 'Tag', 'layerNote');
+    noteText = "";
+    if ~isempty(nt); noteText = strjoin(string(get(nt, 'String')), " "); end
+    sk1 = Fk1.panels(1).layers(1).skip;
+    ok1 = sk1 ~= "" && sk1 ~= "disabled" && Fk1.panels(1).layers(2).skip == "" ...
+        && isscalar(findall(hk1.axes(1), 'Tag', 'eventRug')) && contains(noteText, sk1);
+    msg1 = "";
+catch ME
+    ok1 = false;
+    msg1 = " (" + ME.message + ")";
+end
+check(ok1, "a stacked continuous panel whose signal layers are all skipped still draws its marks, and says why" + msg1);
+
+% a behavior panel's series join the figure's one legend
+bl = EphysAnalysisConfig.defaultLayer("behavior");
+bl.yParam = "RespLatency";
+bl.seriesParam = "TrialType";
+cfg = cfg.addFigure(struct('grid', struct('rows', 2, 'cols', 1), 'panels', {{ ...
+    struct('id', "beh", 'type', "behavior", 'row', 1, 'layers', bl, 'options', struct('param', "Depth")), ...
+    struct('id', "rate", 'type', "psth", 'row', 2, 'layers', EphysAnalysisConfig.defaultLayer("psth"))}}), Id="bseries");
+Fb2 = rn.computeFigure(src, cfg.figureFor("bseries"), Observation=Tu(1, :));
+hb2 = renderFigure(Fb2, Fb2.spec, fig);
+Rbh = Fb2.panels(1).layers(1).R;
+lg = findall(fig, 'Type', 'legend');
+lgText = strings(1, 0);
+if isscalar(lg); lgText = string(lg.String); end
+check(Fb2.panels(1).layers(1).skip == "" && numel(Rbh.series) >= 2 && isscalar(lg) && all(ismember(string(Rbh.series), lgText)) ...
+    && all(ismember(string(Fb2.groups.label), lgText)) && isgraphics(hb2.layout), ...
+    sprintf('a behavior panel''s series join the figure''s one legend, with the trial groups (%s)', strjoin(lgText, ", ")));
+
+% a raster of five or more blocks keeps every block's name on a flush stack
+fixedAll = EphysAnalysisConfig.defaultLayer("raster");
+fixedAll.binding = "fixed";
+trOff = tr;
+trOff.event.edge = "offset";
+fr5 = cfg.Figures(cfg.figureIndex("rp"));
+fr5.id = "blocks";
+fr5.panels(1).layers = [fr5.panels(1).layers fixedAll tr trOff];
+cfg = cfg.addFigure(fr5);
+F5 = rn.computeFigure(src, cfg.figureFor("blocks"), Observation=Tu(1, :));
+h5 = renderFigure(F5, F5.spec, fig);
+ra = h5.axes(1);
+nb = 1 + numel(F5.panels(1).layers(2).R.raster) + 2;
+check(nb >= 5 && numel(ra.YTick) == nb && numel(ra.YTickLabel) == nb && string(ra.YTickLabel{end}) == "Stim offset" ...
+    && isempty(ra.XTickLabel), sprintf('a raster of %d blocks over a PSTH keeps every block''s name (no seam clearing of named ticks)', nb));
+
+% a raster over a waveforms panel over a PSTH keeps its own time axis
+fw3 = cfg.Figures(cfg.figureIndex("rp"));
+fw3.id = "rwp";
+fw3 = EphysAnalysisConfig.placePanel(fw3, struct('id', "wave", 'type', "waveforms", ...
+    'layers', EphysAnalysisConfig.defaultLayer("waveforms")), "below", "raster_1");
+cfg = cfg.addFigure(fw3);
+wsw = warning('off', 'unitWaveforms:Templates');
+wsn = warning('off', 'unitWaveforms:NoWaveforms');
+Fw3 = rn.computeFigure(src, cfg.figureFor("rwp"), Observation=Tu(1, :));
+warning(wsn); warning(wsw);
+h6 = renderFigure(Fw3, Fw3.spec, fig);
+axOf = @(id) h6.panels([h6.panels.id] == id).axes;
+r6 = axOf("raster_1");
+check(Fw3.spec.panels([Fw3.spec.panels.id] == "wave").row == 2 && ~isempty(r6.XTickLabel) && string(r6.XLabel.String) == "Time (s)" ...
+    && ~isempty(axOf("psth_1").XTickLabel) && string(axOf("psth_1").XLabel.String) == "Time (s)", ...
+    'a raster over a waveforms panel keeps its tick labels and "Time (s)": the next time panel down is not what sits under it');
+
+% editing, OnRemember and redraw
+remembered = [];
+    function remember(r)
+        remembered = r;
+    end
+renderFigure(F1, F1.spec, fe1);
+noCtx = ~isappdata(fe1, PlotAesthetics.ContextKey);
+hE = renderFigure(F1, F1.spec, fe1, Editable=true, OnRemember=@remember);
+ctx = getappdata(fe1, PlotAesthetics.ContextKey);
+menus = findall(fe1, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag);
+check(noCtx && isstruct(ctx) && ctx.kind == "figure" && ctx.id == "rp" && isequal(ctx.root, hE.layout) && isequal(ctx.target, fe1) ...
+    && ~isempty(menus) && ctx.mapField == "" && isempty(ctx.plotRules) && isa(ctx.redraw, 'function_handle'), ...
+    sprintf('Editable=true installs the aesthetics editor (%d context menus, context kind "figure"); "auto" in an invisible figure does not', numel(menus)));
+rules = PlotAesthetics.normalizeRules(struct('role', "rasterTicks", 'group', "", 'property', "LineWidth", 'value', 2));
+ctx.onRemember(rules);
+ctx.redraw(rules);
+ctx2 = getappdata(fe1, PlotAesthetics.ContextKey);
+tk = findall(fe1, 'Tag', 'rasterTicks');
+check(isequaln(remembered, rules) && isequaln(ctx2.plotRules, rules) && ~isvalid(hE.layout) && ~isempty(tk) && all([tk.LineWidth] == 2), ...
+    'OnRemember receives the rules; the context''s redraw draws the figure again with them as its own aesthetics');
+renderFigure(Fh, Fh.spec, fe1, Editable=true);
+ctxH = getappdata(fe1, PlotAesthetics.ContextKey);
+renderFigure(Fcm, Fcm.spec, fe1, Editable=true);
+ctxC = getappdata(fe1, PlotAesthetics.ContextKey);
+check(ctxH.mapField == "heat" && ctxC.mapField == "diverging", 'the editor''s colormap: "heat" for a heat map, "diverging" for a correlation map');
+
+% one observation draws fast
+renderFigure(F1, F1.spec, fig);
+drawnow;
+tR = Inf;
+for rep = 1:3
+    tc0 = tic;
+    renderFigure(F1, F1.spec, fig);
+    drawnow;
+    tR = min(tR, toc(tc0));
+end
+check(tR < 1, sprintf('the raster + PSTH figure of one observation renders in %.3f s (under 1 s)', tR));
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

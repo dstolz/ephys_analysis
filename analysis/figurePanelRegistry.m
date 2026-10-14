@@ -14,27 +14,36 @@ function reg = figurePanelRegistry()
 %              observe, ref (the panel's), window, selection (the
 %              figure's), style, errorType / nBoot (figureErrorType) and
 %              skips (figureSkipReason's reason per layer)
-%     draw     the draw function (renderFigure's), [] until it is written
+%     draw     @(ax, P, look) -> hk, the panel drawn into the axes AX:
+%              P is the panel's result (F.panels(k) of computeFigure),
+%              LOOK what renderFigure passes (style, colors: the trial
+%              groups' palette, W: the panel's [pre post], spec, panel: the
+%              spec's panel, panelId, isTop, isBottom, epochs, groups,
+%              observation, isTime) and HK figDrawResult's struct: axes,
+%              legendHandles, legendLabels, legendGroup, yName
 %   EphysAnalysisRunner.computeFigure and renderFigure dispatch through it
 %   (no switch on the type). The functions live in analysis/private:
 %   computeRasterPanel, computePsthPanel, computeContinuousPanel,
 %   computeHeatmapPanel, computeWaveformsPanel, computeBehaviorPanel,
-%   computeProbeMapPanel, computeCorrMapPanel.
+%   computeProbeMapPanel, computeCorrMapPanel, and drawRasterPanel,
+%   drawPsthPanel, drawContinuousPanel, drawHeatmapPanel,
+%   drawWaveformsPanel, drawBehaviorPanel, drawProbeMapPanel,
+%   drawCorrMapPanel.
 %
-%   See also EphysAnalysisRunner.computeFigure, EphysAnalysisConfig.panelTypes.
+%   See also EphysAnalysisRunner.computeFigure, renderFigure, EphysAnalysisConfig.panelTypes.
 
 reg = struct();
-reg.raster     = entry(@computeRasterPanel);
-reg.psth       = entry(@computePsthPanel);
-reg.continuous = entry(@computeContinuousPanel);
-reg.heatmap    = entry(@computeHeatmapPanel);
-reg.waveforms  = entry(@computeWaveformsPanel);
-reg.behavior   = entry(@computeBehaviorPanel);
-reg.probemap   = entry(@computeProbeMapPanel);
-reg.corrmap    = entry(@computeCorrMapPanel);
+reg.raster     = entry(@computeRasterPanel,     @drawRasterPanel);
+reg.psth       = entry(@computePsthPanel,       @drawPsthPanel);
+reg.continuous = entry(@computeContinuousPanel, @drawContinuousPanel);
+reg.heatmap    = entry(@computeHeatmapPanel,    @drawHeatmapPanel);
+reg.waveforms  = entry(@computeWaveformsPanel,  @drawWaveformsPanel);
+reg.behavior   = entry(@computeBehaviorPanel,   @drawBehaviorPanel);
+reg.probemap   = entry(@computeProbeMapPanel,   @drawProbeMapPanel);
+reg.corrmap    = entry(@computeCorrMapPanel,    @drawCorrMapPanel);
 end
 
 
-function e = entry(compute)
-e = struct('compute', compute, 'draw', []);
+function e = entry(compute, draw)
+e = struct('compute', compute, 'draw', draw);
 end

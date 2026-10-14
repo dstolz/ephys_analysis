@@ -14,9 +14,10 @@ function s = defaults(section)
 %                     Style, Auroc, Waveform, Aux, Note, Overlay (one entry
 %                     of a plot's overlays), EventMark (one entry of a
 %                     plot's rasterEvents: an EventRef and its look);
-%                     a figure's Observe (what it is drawn for), Panel (one
-%                     entry of its panels; options from panelTypes) and
-%                     Layer (one entry of a panel's layers)
+%                     a figure's Observe (what it is drawn for),
+%                     FigureCommon (its common options), Panel (one entry
+%                     of its panels; options from panelTypes) and Layer
+%                     (one entry of a panel's layers)
 %
 %   See also EphysAnalysisConfig, EphysAnalysisConfig.normalizeSection.
 
@@ -368,6 +369,7 @@ switch section
             'colSpan', 1, ...
             'ref',     "default", ...           % "default" (the figure's) or an EventRef
             'window',  "default", ...           % "default" (the figure's) or an EpochWindow (own epochs, the figure's selection)
+            'common',  true, ...                % true: the figure's common options (Figure.common) for every common field its type has (commonFieldsOf); false: its own options
             'layers',  repmat(EphysAnalysisConfig.defaults("Layer"), 1, 0), ...
             'options', T.DefaultOptions{T.Type == "psth"});   % the type's options (panelTypes().DefaultOptions)
 
@@ -396,12 +398,24 @@ switch section
                 'rowHeights', [], ...           % [] = equal; else one positive relative height per row
                 'colWidths',  [], ...           % [] = equal; else one positive relative width per column
                 'spacing',    "tight"), ...     % TileSpacing: "loose" | "compact" | "tight" | "none" (flush stacked time panels)
+            'common',     EphysAnalysisConfig.defaults("FigureCommon"), ...   % options the panels with common = true take
             'panels',     repmat(EphysAnalysisConfig.defaults("Panel"), 1, 0), ...
             'ref',        "default", ...        % "default" (Defaults.EventRef) or an EventRef
             'window',     "default", ...        % "default" (Defaults.Window) or an EpochWindow
             'selection',  "default", ...        % "default" (Defaults.Selection) or a TrialSelection
             'style',      EphysAnalysisConfig.defaults("Style"), ...   % YLim / CLim / MaxTiles / TileSpacing unused (panel options, grid.spacing)
             'aesthetics', PlotAesthetics.emptyRules());
+
+    case "FigureCommon"
+        % a figure's common options (Figure.common): every panel with common = true takes the ones its type has
+        % (commonFieldsOf), so one change reaches every linked panel; the fields mean what the panel options of the
+        % same name mean (panelTypes)
+        s = struct( ...
+            'bins',          struct('BinSec', 0.01, 'SmoothSec', 0.01), ...   % psth, heatmap, corrmap
+            'measure',       "rate", ...        % psth, heatmap: "rate" | "count" | "probability"
+            'baseline',      struct('Mode', "none", 'Window', [-0.2 0]), ...   % psth, heatmap, continuous, corrmap (continuous / corrmap / a heat map of a signal: none | subtract)
+            'maskAfterStop', false, ...         % raster, psth, heatmap
+            'waveform',      EphysAnalysisConfig.defaults("Waveform"));   % raster / psth: the waveform inset; a waveforms panel: its settings ("off" there = "both")
 
     otherwise
         error('EphysAnalysisConfig:BadSection', 'Unknown section "%s".', section);

@@ -10,7 +10,13 @@ function spec = figureFor(obj, id)
 %     "default", and two fields added: aligned (panelTypes().Aligned of
 %     its type) and sharesTime (the type shares time and both its ref and
 %     window were "default": it takes the figure's time axis)
-%   - each panel's options completed against its type's DefaultOptions
+%   - each panel's options completed against its type's DefaultOptions,
+%     and, where the panel's common is true, the figure's common values
+%     put in for every common field its type has (commonFieldsOf, via
+%     panelOptions): bins, measure, baseline, maskAfterStop, waveform. A
+%     waveforms panel never draws mode "off": a common waveform mode
+%     "off" (the insets' default) becomes "both" for it. The panel's
+%     common flag stays in the spec (the link state)
 %   - each layer's category added (categoryOf: "point", "continuous",
 %     "trial", "unit", or "" where the type does not draw the source) and
 %     its units.source set to its source (a complete UnitSelection)
@@ -59,6 +65,7 @@ for j = 1:numel(fig.panels)
     if isequal(p.window, "default"); p.window = spec.window; end
     if known
         p.options = EphysAnalysisConfig.coerceStruct(T.DefaultOptions{row}, p.options, "options");
+        p.options = EphysAnalysisConfig.panelOptions(fig, p);
     end
     L = repmat(layer0, 1, 0);
     for i = 1:numel(p.layers)

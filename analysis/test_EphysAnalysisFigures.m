@@ -151,6 +151,20 @@ check(D1.source == "LFP" && D1.binding == "observation" && D2.source == "trials"
     && D3.source == "units" && D3.binding == "fixed" && D4.source == "units" && D4.binding == "observation", ...
     'defaultLayer: the type''s first source with its default binding');
 check(strcmp(errorId(@() layerOf("violin")), 'EphysAnalysisConfig:BadValue'), 'defaultLayer of an unknown type: BadValue');
+C = EphysAnalysisConfig.defaults("FigureCommon");
+fnF = string(fieldnames(F)).';
+check(isequal(string(fieldnames(C)).', ["bins" "measure" "baseline" "maskAfterStop" "waveform"]) && C.bins.BinSec == 0.01 ...
+    && C.bins.SmoothSec == 0.01 && C.measure == "rate" && C.baseline.Mode == "none" && isequal(C.baseline.Window, [-0.2 0]) ...
+    && ~C.maskAfterStop && isequal(C.waveform, EphysAnalysisConfig.defaults("Waveform")) && isequaln(F.common, C) ...
+    && find(fnF == "common") == find(fnF == "grid") + 1, 'defaults("FigureCommon"), and Figure.common after grid');
+fnP = string(fieldnames(P)).';
+check(P.common == true && islogical(P.common) && find(fnP == "common") == find(fnP == "window") + 1, 'Panel.common: true, after window');
+cfo = @EphysAnalysisConfig.commonFieldsOf;
+check(isequal(EphysAnalysisConfig.commonFields(), ["bins" "measure" "baseline" "maskAfterStop" "waveform"]) ...
+    && isequal(cfo("raster"), ["maskAfterStop" "waveform"]) && isequal(cfo("psth"), ["bins" "measure" "baseline" "maskAfterStop" "waveform"]) ...
+    && isequal(cfo("continuous"), "baseline") && isequal(cfo("heatmap"), ["bins" "measure" "baseline" "maskAfterStop"]) ...
+    && isequal(cfo("waveforms"), "waveform") && isequal(cfo("corrmap"), ["bins" "baseline"]) && isempty(cfo("behavior")) ...
+    && isempty(cfo("probemap")) && isempty(cfo("violin")), 'commonFields and commonFieldsOf(type)');
 
 fu = EphysAnalysisConfig.normalizeFigure(struct('panels', {{struct('type', "raster", 'layers', layerOf("raster"))}}));
 fc = EphysAnalysisConfig.normalizeFigure(struct('panels', {{struct('type', "continuous", 'layers', layerOf("continuous"))}}));
@@ -243,6 +257,29 @@ cfg.Figures(1).panels(2).type = "violin";
 s = cfg.figureFor(1);
 check(isempty(fieldnames(cfg.Figures(1).panels(2).options)) && ~s.panels(2).aligned && s.panels(2).layers.category == "", ...
     'an unknown type keeps empty options (validate reports it)');
+cc = EphysAnalysisConfig();
+cc = cc.addFigure();
+cc = cc.addFigure("waveforms", Id="wf");
+cc.Figures(1).common.bins = struct('BinSec', 0.05, 'SmoothSec', 0);
+cc.Figures(1).common.baseline = struct('Mode', "zscore", 'Window', [-0.3 0]);
+cc.Figures(1).common.waveform.mode = "mean";
+cc.Figures(1).panels(2).options.histStyle = "line";
+cc.Figures(1).panels(2).options.bins.BinSec = 0.002;
+s = cc.figureFor(1);
+check(s.panels(2).common && s.panels(2).options.bins.BinSec == 0.05 && s.panels(2).options.bins.SmoothSec == 0 ...
+    && s.panels(2).options.baseline.Mode == "zscore" && s.panels(2).options.histStyle == "line" ...
+    && s.panels(1).options.waveform.mode == "mean" && s.panels(2).options.waveform.mode == "mean" && isequaln(s.common, cc.Figures(1).common), ...
+    'figureFor: a linked PSTH takes the common bins, baseline and waveform, and keeps its own type-specific options');
+cc.Figures(1).panels(2).common = false;
+s = cc.figureFor(1);
+check(~s.panels(2).common && s.panels(2).options.bins.BinSec == 0.002 && s.panels(2).options.baseline.Mode == "none" ...
+    && s.panels(2).options.waveform.mode == "off" && s.panels(1).options.waveform.mode == "mean", ...
+    'figureFor: an unlinked PSTH keeps its own; the linked raster still takes the common waveform');
+s = cc.figureFor("wf");
+cc.Figures(2).common.waveform.mode = "subsample";
+s2 = cc.figureFor("wf");
+check(s.panels.common && s.panels.options.waveform.mode == "both" && s2.panels.options.waveform.mode == "subsample", ...
+    'figureFor: a waveforms panel takes the common waveform, its mode "off" drawn as "both"');
 
 fprintf('\n== 4. config: a JSON round trip ==\n');
 cfg = EphysAnalysisConfig();
@@ -329,6 +366,21 @@ check(contains(w, "Figures: dropped unknown field(s)") && contains(w, "Figures(1
     && contains(w, "Figures(1).panels(1).options.baz") && ~contains(w, "top-level"), ...
     'unknown figure, observe, panel, layer and options fields are dropped and listed in LoadWarnings');
 check(c3.isequalConfig(cfg), 'and the rest loads unchanged');
+cj = cfg;
+cj.Figures(1).common = struct('bins', struct('BinSec', 0.02, 'SmoothSec', 0), 'measure', "count", ...
+    'baseline', struct('Mode', "subtract", 'Window', [-0.5 -0.1]), 'maskAfterStop', true, 'waveform', struct('mode', "both", 'scale', 1.5));
+cj.Figures(1).panels(2).common = false;
+fj = fullfile(root, 'common.json');
+cj.save(fj);
+cj2 = EphysAnalysisConfig.load(fj);
+check(cj.isequalConfig(cj2) && isempty(cj2.LoadWarnings) && cj2.Figures(1).common.measure == "count" ...
+    && cj2.Figures(1).common.waveform.scale == 1.5 && ~cj2.Figures(1).panels(2).common && cj2.Figures(1).panels(1).common ...
+    && cj2.Figures(2).panels(1).common && contains(fileread(fj), '"common"'), ...
+    'the common options and a panel''s common = false survive save / load');
+rpt = EphysAnalysisConfig();
+rpt = rpt.addFigure("rasterPsth");
+rpt.save(fj);
+check(rpt.isequalConfig(EphysAnalysisConfig.load(fj)), 'the rasterPsth template round-trips (its panels linked)');
 v = jsondecode('[{"id": "a", "panels": [{"type": "raster"}]}, {"grid": {"rows": 2, "rowHeights": [1, 1.5]}, "panels": {"type": "psth", "row": 2}}]');
 c4 = EphysAnalysisConfig();
 c4.Figures = v;
@@ -406,6 +458,33 @@ ov = EphysAnalysisConfig.normalizeFigure(struct('grid', struct('rows', 1, 'cols'
     {{struct('type', "psth", 'colSpan', 2), struct('type', "raster", 'col', 2)}}));
 [cl, over] = cellsOf(ov);
 check(isequal(cl, [1 1]) && isequal(over, [1 2]), 'figureCells lists overlapping panels once');
+
+% apply to all panels, re-link
+ap = EphysAnalysisConfig.normalizeFigure(struct('grid', struct('rows', 3, 'cols', 1), 'panels', {{ ...
+    struct('id', "p1", 'type', "psth", 'row', 1, 'common', false, 'ref', struct('line', "Platform"), ...
+        'options', struct('bins', struct('BinSec', 0.05), 'baseline', struct('Mode', "zscore"), 'histStyle', "line", 'yLim', [0 9])), ...
+    struct('id', "p2", 'type', "psth", 'row', 2, 'common', false, 'window', struct('mode', "fixed", 'pre', -1, 'post', 2)), ...
+    struct('id', "c1", 'type', "continuous", 'row', 3, 'common', false, 'options', struct('display', "stacked"))}}));
+ad = EphysAnalysisConfig.adoptPanelOptions(ap, "p1");
+check(ad.common.bins.BinSec == 0.05 && ad.common.baseline.Mode == "zscore" && all([ad.panels.common]) ...
+    && ad.panels(2).options.histStyle == "line" && isequal(ad.panels(2).options.yLim, [0 9]) && ad.panels(2).options.bins.BinSec == 0.01 ...
+    && ad.panels(3).options.display == "stacked" && isequaln(ad.panels(3).options, ap.panels(3).options) ...
+    && isequal(ad.panels(1).ref, ap.panels(1).ref), ...
+    'adoptPanelOptions: the panel''s common fields become the figure''s, every panel linked, type-specific options only to same-type panels');
+ad2 = EphysAnalysisConfig.adoptPanelOptions(ad, "c1");
+check(isequaln(ad2.common, ad.common), 'adoptPanelOptions from a linked panel leaves the common options as they are');
+al = EphysAnalysisConfig.adoptPanelAlignment(ap, "p1");
+al2 = EphysAnalysisConfig.adoptPanelAlignment(ap, "p2");
+check(isstruct(al.ref) && al.ref.line == "Platform" && isequal(al.window, "default") && isequal([al.panels.ref], ["default" "default" "default"]) ...
+    && isequal([al.panels.window], ["default" "default" "default"]) && isequal(al2.ref, "default") && al2.window.pre == -1 ...
+    && ~any([al.panels.common]), 'adoptPanelAlignment: the panel''s own ref / window become the figure''s; every panel follows it');
+rl = EphysAnalysisConfig.relinkPanels(ap);
+check(all([rl.panels.common]) && isequal([rl.panels.ref], ["default" "default" "default"]) ...
+    && isequal([rl.panels.window], ["default" "default" "default"]) && isequaln(rl.common, ap.common) ...
+    && isequaln(rl.panels(1).options, ap.panels(1).options), 'relinkPanels: every panel''s ref, window and options linked again (own values kept)');
+check(strcmp(errorId(@() EphysAnalysisConfig.adoptPanelOptions(ap, "zz")), 'EphysAnalysisConfig:NoPanel') ...
+    && strcmp(errorId(@() EphysAnalysisConfig.adoptPanelAlignment(ap, "zz")), 'EphysAnalysisConfig:NoPanel'), ...
+    'adoptPanelOptions / adoptPanelAlignment: NoPanel');
 
 fprintf('\n== 6. config: validate ==\n');
 base = EphysAnalysisConfig();
@@ -574,31 +653,32 @@ b2 = base.addFigure("corrmap", Id="cm"); b2.Figures(2).window = between;
 check(has(b, "figure_1.raster_1.window", "error") && has(b, "figure_1.psth_1.window", "error") && isempty(figIssues(b2)), ...
     'a "between" window only on a unit correlation panel');
 
-% 9. options
+% 9. options (a panel's own common fields are checked where it is not linked to the figure's common options)
+ub = unlinkFigure(base, 1);
 o = "figure_1.raster_1.options.";
 b = base; b.Figures(1).panels(1).options.rasterSortOrder = "up";
 check(has(b, o + "rasterSortOrder", "error"), 'raster: rasterSortOrder');
 b = base; b.Figures(1).panels(1).options.rasterSort = "event";
 b2 = b; b2.Figures(1).panels(1).options.rasterSortEvent = struct('line', "Platform", 'edge', "middle");
 check(has(b, o + "rasterSortEvent", "error") && has(b2, o + "rasterSortEvent", "error"), 'raster: rasterSort "event" needs a valid rasterSortEvent');
-b = base; b.Figures(1).panels(1).options.waveform.mode = "huge";
+b = ub; b.Figures(1).panels(1).options.waveform.mode = "huge";
 check(has(b, o + "waveform.mode", "error"), 'raster: the waveform inset''s mode');
-b = base; b.Figures(1).panels(1).options.waveform = struct('mode', "mean", 'scale', 5, 'location', "up", 'maxSpikes', 0.5, 'ampScale', "x");
+b = ub; b.Figures(1).panels(1).options.waveform = struct('mode', "mean", 'scale', 5, 'location', "up", 'maxSpikes', 0.5, 'ampScale', "x");
 check(has(b, o + "waveform.scale", "error") && has(b, o + "waveform.location", "error") && has(b, o + "waveform.maxSpikes", "error") ...
     && has(b, o + "waveform.ampScale", "error"), 'raster: the waveform inset''s scale, location, maxSpikes, ampScale');
 o = "figure_1.psth_1.options.";
-b = base; b.Figures(1).panels(2).options.bins.BinSec = 0; b.Figures(1).panels(2).options.bins.SmoothSec = -1;
+b = ub; b.Figures(1).panels(2).options.bins.BinSec = 0; b.Figures(1).panels(2).options.bins.SmoothSec = -1;
 check(has(b, o + "bins.BinSec", "error") && has(b, o + "bins.SmoothSec", "error"), 'psth: bins');
-b = base; b.Figures(1).panels(2).options.measure = "volts";
+b = ub; b.Figures(1).panels(2).options.measure = "volts";
 check(has(b, o + "measure", "error"), 'psth: measure');
-b = base; b.Figures(1).panels(2).options.baseline.Mode = "auroc";
-b2 = base; b2.Figures(1).panels(2).options.baseline = struct('Mode', "subtract", 'Window', [0 -1]);
+b = ub; b.Figures(1).panels(2).options.baseline.Mode = "auroc";
+b2 = ub; b2.Figures(1).panels(2).options.baseline = struct('Mode', "subtract", 'Window', [0 -1]);
 check(has(b, o + "baseline.Mode", "error") && has(b2, o + "baseline.Window", "error"), 'psth: baseline mode (no auROC) and window');
 b = base; b.Figures(1).panels(2).options.histStyle = "pie"; b.Figures(1).panels(2).options.normalize = "max";
 b.Figures(1).panels(2).options.fillAlpha = 2; b.Figures(1).panels(2).options.yLim = [1 0];
 check(has(b, o + "histStyle", "error") && has(b, o + "normalize", "error") && has(b, o + "fillAlpha", "error") && has(b, o + "yLim", "error"), ...
     'psth: histStyle, normalize, fillAlpha, yLim');
-b = base.addFigure("continuous", Id="ct");
+b = unlinkFigure(base.addFigure("continuous", Id="ct"), 2);
 b.Figures(2).panels.options = struct('display', "grid", 'statistic', "mode", 'transform', "log", 'errorType', "mad", 'stackSpacing', -1, ...
     'baseline', struct('Mode', "zscore"));
 o = "ct.continuous_1.options.";
@@ -607,13 +687,13 @@ check(has(b, o + "display", "error") && has(b, o + "statistic", "error") && has(
 haveBoot = license('test', 'Statistics_Toolbox') && exist('bootci', 'file');
 b = base.addFigure("continuous", Id="ct"); b.Figures(2).panels.options.errorType = "ci95";
 check(has(b, o + "errorType", "error") == ~haveBoot, 'continuous: the bootstrap CI needs the Statistics and Machine Learning Toolbox');
-b = base.addFigure("continuous", Id="ct"); b.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [-1 -0.5]);
-b2 = base.addFigure("continuous", Id="ct"); b2.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [-0.5 -0.1]);
-b3 = base.addFigure("continuous", Id="ct"); b3.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [-0.2 -0.15]);
+b = unlinkFigure(base.addFigure("continuous", Id="ct"), 2); b.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [-1 -0.5]);
+b2 = unlinkFigure(base.addFigure("continuous", Id="ct"), 2); b2.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [-0.5 -0.1]);
+b3 = unlinkFigure(base.addFigure("continuous", Id="ct"), 2); b3.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [-0.2 -0.15]);
 b3.Figures(2).panels.window = struct('mode', "fixed", 'pre', -0.1, 'post', 0.3);
-b4 = base.addFigure("heatmap", Id="hm"); b4.Figures(2).panels.layers.source = "LFP";
+b4 = unlinkFigure(base.addFigure("heatmap", Id="hm"), 2); b4.Figures(2).panels.layers.source = "LFP";
 b4.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [1 2]);
-b5 = base.addFigure("heatmap", Id="hm"); b5.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [1 2]);
+b5 = unlinkFigure(base.addFigure("heatmap", Id="hm"), 2); b5.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [1 2]);
 check(has(b, o + "baseline", "error") && ~has(b2, o + "baseline", "error") && has(b3, o + "baseline", "error") ...
     && has(b4, "hm.heatmap_1.options.baseline", "error") && ~has(b5, "hm.heatmap_1.options.baseline", "error"), ...
     'a signal''s baseline window must overlap the panel''s resolved window (continuous, a heat map of a signal; not of spikes)');
@@ -621,10 +701,10 @@ b = base.addFigure("heatmap", Id="hm"); b.Figures(2).panels.options.order = "mod
 b.Figures(2).panels.options.cLim = [2 1];
 o = "hm.heatmap_1.options.";
 check(has(b, o + "order", "error") && has(b, o + "group", "error") && has(b, o + "cLim", "error"), 'heatmap: order, group, cLim');
-b = base.addFigure("heatmap", Id="hm"); b.Figures(2).panels.layers.source = "LFP"; b.Figures(2).panels.options.baseline.Mode = "zscore";
-b2 = base.addFigure("heatmap", Id="hm"); b2.Figures(2).panels.options.baseline.Mode = "zscore";
+b = unlinkFigure(base.addFigure("heatmap", Id="hm"), 2); b.Figures(2).panels.layers.source = "LFP"; b.Figures(2).panels.options.baseline.Mode = "zscore";
+b2 = unlinkFigure(base.addFigure("heatmap", Id="hm"), 2); b2.Figures(2).panels.options.baseline.Mode = "zscore";
 check(has(b, o + "baseline.Mode", "error") && isempty(figIssues(b2)), 'heatmap: z-score for spikes, not for a signal');
-b = base.addFigure("waveforms", Id="wf"); b.Figures(2).panels.options.waveform.mode = "off";
+b = unlinkFigure(base.addFigure("waveforms", Id="wf"), 2); b.Figures(2).panels.options.waveform.mode = "off";
 check(has(b, "wf.waveforms_1.options.waveform.mode", "error"), 'waveforms: the mode is never off');
 b = base.addFigure("behavior", Id="bh"); b.Figures(2).panels.layers.yParam = "RespLatency";
 b.Figures(2).panels.options.display = "pie"; b.Figures(2).panels.options.xScale = "log";
@@ -636,9 +716,32 @@ check(has(b, o + "display", "error") == ~exist('violinplot', 'file'), 'behavior:
 b = base.addFigure("probemap", Id="pm"); b.Figures(2).panels.options.value = "x";
 check(has(b, "pm.probemap_1.options.value", "error"), 'probemap: value');
 b = base.addFigure("corrmap", Id="cm"); b.Figures(2).panels.options.metric = "max"; b.Figures(2).panels.options.correlation = "kendall";
-b2 = base.addFigure("corrmap", Id="cm"); b2.Figures(2).panels.options.metric = "peak"; b2.Figures(2).panels.options.bins.BinSec = 0;
+b2 = unlinkFigure(base.addFigure("corrmap", Id="cm"), 2); b2.Figures(2).panels.options.metric = "peak"; b2.Figures(2).panels.options.bins.BinSec = 0;
 check(has(b, "cm.corrmap_1.options.metric", "error") && has(b, "cm.corrmap_1.options.correlation", "error") ...
     && has(b2, "cm.corrmap_1.options.bins.BinSec", "error"), 'corrmap: metric, correlation, bins of a peak rate');
+
+% 9b. the common options
+c0 = "figure_1.common.";
+b = base; b.Figures(1).common.bins.BinSec = 0; b.Figures(1).common.measure = "volts";
+b.Figures(1).common.waveform = struct('mode', "mean", 'scale', 5);
+check(has(b, c0 + "bins.BinSec", "error") && has(b, c0 + "measure", "error") && has(b, c0 + "waveform.scale", "error") ...
+    && ~has(b, "figure_1.psth_1.options.bins.BinSec", "error"), 'the common block: bins, measure, waveform (once, not per linked panel)');
+b = base; b.Figures(1).common.baseline.Mode = "auroc";
+b2 = base; b2.Figures(1).common.baseline = struct('Mode', "subtract", 'Window', [0 -1]);
+check(has(b, c0 + "baseline.Mode", "error") && has(b2, c0 + "baseline.Window", "error"), 'the common block: baseline Mode and window');
+b = base.addFigure("continuous", Id="ct"); b.Figures(2).common.baseline.Mode = "zscore";
+I = figIssues(b);
+check(any(I.Field == "ct.continuous_1.common" & I.Severity == "error" & contains(I.Message, """zscore""") ...
+    & contains(I.Message, "continuous signal panel") & contains(I.Message, "untick")) && ~has(b, "ct.common.baseline.Mode", "error"), ...
+    'a common baseline "zscore" a linked continuous panel does not take: an error at the panel''s common');
+b.Figures(2).panels.common = false;
+check(isempty(figIssues(b)), 'unlinking the panel clears it (its own baseline is "none")');
+b = base; b.Figures(1).common.baseline.Mode = "zscore";
+check(isempty(figIssues(b)), 'a PSTH takes the common z-score');
+b = base.addFigure("continuous", Id="ct"); b.Figures(2).common.baseline = struct('Mode', "subtract", 'Window', [-1 -0.5]);
+check(has(b, "ct.continuous_1.common.baseline", "error"), 'a linked signal''s common baseline must overlap the panel''s window');
+b = base.addFigure("waveforms", Id="wf");
+check(isempty(figIssues(b)), 'a linked waveforms panel takes the common waveform mode "off" as "both"');
 
 % 10. the style, shared with the plots (checkStyle)
 st = base.Plots(1).style;
@@ -889,6 +992,7 @@ check(~ismember("NoSuchSort", string(src.trials.Properties.VariableNames)) && Fr
 fbb = cfg.Figures(cfg.figureIndex("ct"));
 fbb.id = "badbase";
 fbb.panels(1).options.baseline = struct('Mode', "subtract", 'Window', [-1 -0.5]);
+fbb.panels(1).common = false;   % its own baseline, not the figure's common one
 cfg = cfg.addFigure(fbb);
 Fbb = rn.computeFigure(src, cfg.figureFor("badbase"), Observation=Tc(1, :));
 check(Fbb.panels(1).skip == "" && startsWith(Fbb.panels(1).layers(1).skip, "Baseline [") && isempty(Fbb.panels(1).layers(1).R), ...
@@ -1234,6 +1338,14 @@ check(tR < 1, sprintf('the raster + PSTH figure of one observation renders in %.
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisFigures:Failures', '%d checks failed.', nFail);
+end
+end
+
+
+function cfg = unlinkFigure(cfg, k)
+%unlinkFigure  Figure k's panels with their own options (common = false).
+for j = 1:numel(cfg.Figures(k).panels)
+    cfg.Figures(k).panels(j).common = false;
 end
 end
 

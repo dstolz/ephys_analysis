@@ -31,10 +31,18 @@ classdef EphysAnalysisConfig
     %               panel of a type (panelTypes) drawing one or more layers,
     %               each layer bound to a source (FigureSources) that either
     %               follows the observation or names fixed items: id,
-    %               enabled, title, observe, grid, panels, ref, window,
-    %               selection, style, aesthetics. A panel (defaults("Panel")):
-    %               id, type, title, row, col, rowSpan, colSpan, ref, window,
-    %               layers, options (the type's DefaultOptions); a layer
+    %               enabled, title, observe, grid, common, panels, ref,
+    %               window, selection, style, aesthetics. common holds the
+    %               options every linked panel takes (commonFields: bins,
+    %               measure, baseline, maskAfterStop, waveform), as a panel
+    %               whose ref / window are "default" takes the figure's
+    %               alignment; adoptPanelOptions, adoptPanelAlignment and
+    %               relinkPanels spread one panel's settings or re-link
+    %               every panel. A panel (defaults("Panel")): id, type,
+    %               title, row, col, rowSpan, colSpan, ref, window, common
+    %               (true: the figure's common options for the fields its
+    %               type has, commonFieldsOf), layers, options (the type's
+    %               DefaultOptions; panelOptions gives them as drawn); a layer
     %               (defaults("Layer")): name, enabled, source, binding,
     %               units, channels, aggregate, event, eventsAs, yParam,
     %               seriesParam, color, lineStyle. Figure ids are a
@@ -486,6 +494,9 @@ classdef EphysAnalysisConfig
         fig = placePanel(fig, panel, where, anchorId)
         fig = removePanel(fig, id)
         [fig, moved] = movePanel(fig, id, direction)
+        fig = adoptPanelOptions(fig, panelId)
+        fig = adoptPanelAlignment(fig, panelId)
+        fig = relinkPanels(fig)
 
         function obj = fromStruct(s)
             %fromStruct  Build a config from a struct (e.g. decoded JSON).
@@ -735,6 +746,42 @@ classdef EphysAnalysisConfig
             L = EphysAnalysisConfig.defaults("Layer");
             L.source = srcs(1);
             L.binding = T.DefaultBinding(row);
+        end
+
+        function f = commonFields()
+            %commonFields  The fields of a figure's common options (defaults("FigureCommon")), in order.
+            f = ["bins" "measure" "baseline" "maskAfterStop" "waveform"];
+        end
+
+        function f = commonFieldsOf(type)
+            %commonFieldsOf  The common fields a panel type has among its options (a string row; none for an unknown type).
+            %   raster: maskAfterStop, waveform; psth: bins, measure,
+            %   baseline, maskAfterStop, waveform; continuous: baseline;
+            %   heatmap: bins, measure, baseline, maskAfterStop; waveforms:
+            %   waveform; corrmap: bins, baseline; behavior, probemap: none.
+            f = string.empty(1, 0);
+            T = EphysAnalysisConfig.panelTypes();
+            row = T.Type == string(type);
+            if ~any(row); return; end
+            names = EphysAnalysisConfig.commonFields();
+            f = names(isfield(T.DefaultOptions{row}, cellstr(names)));
+        end
+
+        function op = panelOptions(fig, panel)
+            %panelOptions  A panel's options as drawn: the figure's common values where the panel is linked.
+            %   OP = EphysAnalysisConfig.panelOptions(FIG, PANEL) is
+            %   PANEL.options with, when PANEL.common is true, each field of
+            %   commonFieldsOf(PANEL.type) taken from FIG.common. A
+            %   waveforms panel never draws mode "off": a common waveform
+            %   mode "off" (the insets' default) is "both" there.
+            op = panel.options;
+            if ~panel.common; return; end
+            for f = EphysAnalysisConfig.commonFieldsOf(panel.type)
+                op.(f) = fig.common.(f);
+            end
+            if panel.type == "waveforms" && op.waveform.mode == "off"
+                op.waveform.mode = "both";
+            end
         end
     end
 

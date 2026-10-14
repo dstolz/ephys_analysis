@@ -110,7 +110,11 @@ function issues = validate(obj, opts)
 %               stackSpacing, heatmap order, group, behavior param /
 %               display / xScale / violinplot, probemap value, corrmap
 %               metric / correlation, the waveform settings, y / color
-%               limits); the style, as a plot's
+%               limits; a linked panel's common fields are checked once,
+%               in the figure's common options -- bins, measure,
+%               baseline Mode and window, the waveform settings --, plus
+%               an error at "<figure>.<panel>.common" when its type does
+%               not take the common baseline Mode); the style, as a plot's
 %     Export    formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
 %               folder and file-name patterns use known tokens; a warning
 %               when the files of two enabled plots, or of two datasets,
@@ -698,6 +702,20 @@ for k = 1:numel(obj.Figures)
         add("Figures", f0 + ".observe.kind", "warning", "No layer follows the observation: the figure is the same for every " + ob.kind + ".");
     end
 
+    % the common options (each linked panel's fit to them is checked with its options)
+    cm0 = f0 + ".common";
+    cmn = fg.common;
+    checkFigBins(cmn.bins, cm0);
+    checkFigMeasure(cmn.measure, cm0);
+    if ~ismember(cmn.baseline.Mode, ["none" "subtract" "zscore" "percent"])
+        add("Figures", cm0 + ".baseline.Mode", "error", "The common baseline Mode is one of none, subtract, zscore, percent, not """ + ...
+            cmn.baseline.Mode + """.");
+    elseif cmn.baseline.Mode ~= "none" && ~(numel(cmn.baseline.Window) == 2 && all(isfinite(cmn.baseline.Window)) ...
+            && cmn.baseline.Window(2) > cmn.baseline.Window(1))
+        add("Figures", cm0 + ".baseline.Window", "error", "The baseline window must be [b0 b1] with b0 < b1.");
+    end
+    checkFigWaveform(cmn.waveform, cm0 + ".waveform", false);
+
     % the grid
     G = fg.grid;
     gridOk = true;
@@ -906,9 +924,15 @@ for k = 1:numel(obj.Figures)
             end
         end
 
-        % options
-        op = pj.options;
+        % options, as drawn (panelOptions): a linked panel's common fields are the figure's common options, checked
+        % above; here only whether its type takes the common baseline
+        linked = strings(1, 0);
+        if pj.common; linked = EphysAnalysisConfig.commonFieldsOf(pj.type); end
+        ownField = @(f) ~any(linked == f);
+        op = EphysAnalysisConfig.panelOptions(fg, pj);
         o0 = p0 + ".options";
+        b0 = o0;                       % where a signal baseline's overlap with the window is reported
+        if ~ownField("baseline"); b0 = p0 + ".common"; end
         firstSignal = false;
         if any(on)
             firstOn = Lp(find(on, 1));
@@ -917,11 +941,11 @@ for k = 1:numel(obj.Figures)
         switch pj.type
             case "raster"
                 checkRasterSort(op, o0);
-                checkFigWaveform(op.waveform, o0 + ".waveform", false);
+                if ownField("waveform"); checkFigWaveform(op.waveform, o0 + ".waveform", false); end
             case "psth"
-                checkFigBins(op.bins, o0);
-                checkFigMeasure(op.measure, o0);
-                checkFigBaseline(op.baseline, ["none" "subtract" "zscore" "percent"], o0, A);
+                if ownField("bins"); checkFigBins(op.bins, o0); end
+                if ownField("measure"); checkFigMeasure(op.measure, o0); end
+                checkPanelBaseline(op.baseline, ["none" "subtract" "zscore" "percent"], o0, A, ownField("baseline"), p0);
                 if ~ismember(op.histStyle, ["bar" "line"])
                     add("Figures", o0 + ".histStyle", "error", "A PSTH is drawn as bar or line.");
                 end
@@ -932,10 +956,10 @@ for k = 1:numel(obj.Figures)
                     add("Figures", o0 + ".fillAlpha", "error", "fillAlpha is an opacity from 0 to 1 (NaN = automatic).");
                 end
                 checkFigLim(op.yLim, o0 + ".yLim", "y");
-                checkFigWaveform(op.waveform, o0 + ".waveform", false);
+                if ownField("waveform"); checkFigWaveform(op.waveform, o0 + ".waveform", false); end
             case "continuous"
-                checkFigBaseline(op.baseline, ["none" "subtract"], o0, A);
-                checkSignalBaseline(op.baseline, pw, o0);
+                checkPanelBaseline(op.baseline, ["none" "subtract"], o0, A, ownField("baseline"), p0);
+                checkSignalBaseline(op.baseline, pw, b0);
                 if ~ismember(op.display, ["lines" "stacked"])
                     add("Figures", o0 + ".display", "error", "A continuous signal panel's display is lines or stacked.");
                 end
@@ -959,12 +983,12 @@ for k = 1:numel(obj.Figures)
                 checkFigLim(op.yLim, o0 + ".yLim", "y");
             case "heatmap"
                 if ~firstSignal
-                    checkFigBins(op.bins, o0);
-                    checkFigMeasure(op.measure, o0);
-                    checkFigBaseline(op.baseline, ["none" "subtract" "zscore" "percent"], o0, A);
+                    if ownField("bins"); checkFigBins(op.bins, o0); end
+                    if ownField("measure"); checkFigMeasure(op.measure, o0); end
+                    checkPanelBaseline(op.baseline, ["none" "subtract" "zscore" "percent"], o0, A, ownField("baseline"), p0);
                 else
-                    checkFigBaseline(op.baseline, ["none" "subtract"], o0, A);
-                    checkSignalBaseline(op.baseline, pw, o0);
+                    checkPanelBaseline(op.baseline, ["none" "subtract"], o0, A, ownField("baseline"), p0);
+                    checkSignalBaseline(op.baseline, pw, b0);
                 end
                 if ~ismember(op.order, ["probe" "peak"])
                     add("Figures", o0 + ".order", "error", "A heat map orders its rows by probe (the style's sort options) or peak.");
@@ -972,7 +996,7 @@ for k = 1:numel(obj.Figures)
                 checkFigGroup(op.group, o0);
                 checkFigLim(op.cLim, o0 + ".cLim", "color");
             case "waveforms"
-                checkFigWaveform(op.waveform, o0 + ".waveform", true);
+                if ownField("waveform"); checkFigWaveform(op.waveform, o0 + ".waveform", true); end
                 checkFigLim(op.yLim, o0 + ".yLim", "y");
             case "behavior"
                 if strtrim(op.param) == ""
@@ -995,13 +1019,13 @@ for k = 1:numel(obj.Figures)
             case "corrmap"
                 if ~ismember(op.metric, ["mean" "peak"])
                     add("Figures", o0 + ".metric", "error", "A unit correlation map correlates each epoch's mean or peak rate.");
-                elseif op.metric == "peak"
+                elseif op.metric == "peak" && ownField("bins")
                     checkFigBins(op.bins, o0);
                 end
                 if ~ismember(op.correlation, ["pearson" "spearman"])
                     add("Figures", o0 + ".correlation", "error", "A unit correlation map's correlation is pearson or spearman.");
                 end
-                checkFigBaseline(op.baseline, ["none" "subtract"], o0, A);
+                checkPanelBaseline(op.baseline, ["none" "subtract"], o0, A, ownField("baseline"), p0);
                 checkFigGroup(op.group, o0);
                 checkFigLim(op.cLim, o0 + ".cLim", "color");
         end
@@ -1138,6 +1162,18 @@ issues = table(Section, Field, Severity, Message);
             add("Figures", hO0 + ".baseline", "error", sprintf(['The baseline window [%g %g] s has no sample in the ' ...
                 'panel''s window [%g %g] s: a signal''s baseline is cut from the epoch, so it must overlap it.'], ...
                 hB.Window(1), hB.Window(2), hW.pre, hW.post));
+        end
+    end
+
+    function checkPanelBaseline(hB, hModes, hO0, hWho, hOwn, hP0)
+        %checkPanelBaseline  A panel's own baseline (checkFigBaseline), or whether its type takes the figure's common one.
+        %   A common Mode outside every type's modes, or a bad common window, is the common block's error already.
+        if hOwn
+            checkFigBaseline(hB, hModes, hO0, hWho);
+        elseif ~ismember(hB.Mode, hModes) && ismember(hB.Mode, ["none" "subtract" "zscore" "percent"])
+            add("Figures", hP0 + ".common", "error", sprintf(['The figure''s common baseline Mode "%s" is not one %s ' ...
+                'takes (%s): untick the panel''s common options, or change the figure''s common baseline.'], ...
+                hB.Mode, lower(extractBefore(hWho, 2)) + extractAfter(hWho, 1), strjoin(hModes, ", ")));
         end
     end
 

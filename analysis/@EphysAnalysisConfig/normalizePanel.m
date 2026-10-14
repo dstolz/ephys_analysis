@@ -8,6 +8,8 @@ function [p, unknown] = normalizePanel(in, path)
 %     "default"
 %   - layers is a list of layers (a struct array, a cell from jsondecode,
 %     one struct or [] for none), each normalizeLayer'd
+%   - common is a logical: true = the panel takes the figure's common
+%     options for its type's common fields (figureFor)
 %   - options are coerced to the type's DefaultOptions (panelTypes), so a
 %     changed type re-seeds them: fields the type knows keep their values,
 %     the others are dropped. An unknown type keeps an empty options

@@ -458,6 +458,16 @@ check(has(b, "ct.continuous_1.layers(1).source", "warning"), 'an LFP layer follo
 auxFollow = layerOf("continuous"); auxFollow.source = "AUX";
 b = base; b.Figures(1) = place(b.Figures(1), struct('type', "continuous", 'layers', auxFollow), "below", "psth_1");
 check(has(b, "figure_1.continuous_1.layers(1).binding", "error"), 'AUX cannot follow a unit (no recording channel)');
+b = base.addFigure("continuous", Id="ct"); b.Figures(2).observe.kind = "channel"; b.Figures(2).panels.layers.source = "AUX";
+I = figIssues(b);
+check(any(I.Field == "ct.continuous_1.layers(1).binding" & I.Severity == "error" ...
+    & I.Message == "AUX has no recording channel: bind it to fixed channels.") && ~has(b, "ct.continuous_1.layers(1).source", "warning"), ...
+    'AUX cannot follow an LFP channel (no recording channel): an error, as the compute skips it');
+b = base.addFigure("continuous", Id="ct"); b.Figures(2).observe.kind = "channel"; b.Figures(2).observe.signal = "AUX";
+I = figIssues(b);
+check(any(I.Field == "ct.continuous_1.layers(1).binding" & I.Severity == "error" ...
+    & I.Message == "The observed AUX channel has no recording channel for LFP to follow.") && ~has(b, "ct.continuous_1.layers(1).source", "warning"), ...
+    'an LFP layer cannot follow an AUX channel (no recording channel): an error, as the compute skips it');
 
 % 3. grid
 b = base; b.Figures(1).grid.rows = 0;

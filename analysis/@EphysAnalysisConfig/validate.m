@@ -832,8 +832,16 @@ for k = 1:numel(obj.Figures)
                 elseif kind == "unit" && L.source == "AUX"
                     add("Figures", l0 + ".binding", "error", "AUX has no recording channel to follow the observed unit's: bind it to fixed channels.");
                 elseif kind == "channel" && ismember(L.source, EphysAnalysisConfig.SignalSources) && L.source ~= ob.signal
-                    add("Figures", l0 + ".source", "warning", "This " + L.source + " layer follows a " + ob.signal + " channel: it takes the " + ...
-                        "observed channel's number in its own extract.");
+                    % as figureLayerItems resolves it: AUX records no amplifier channel, either way
+                    if L.source == "AUX"
+                        add("Figures", l0 + ".binding", "error", "AUX has no recording channel: bind it to fixed channels.");
+                    elseif ob.signal == "AUX"
+                        add("Figures", l0 + ".binding", "error", "The observed AUX channel has no recording channel for " + ...
+                            L.source + " to follow.");
+                    else
+                        add("Figures", l0 + ".source", "warning", "This " + L.source + " layer follows a " + ob.signal + " channel: it takes the " + ...
+                            "observed channel's number in its own extract.");
+                    end
                 end
             end
             if ~ismember(L.aggregate, ["each" "mean"])

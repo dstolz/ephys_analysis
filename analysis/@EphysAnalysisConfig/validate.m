@@ -76,6 +76,39 @@ function issues = validate(obj, opts)
 %               pooled by trialGroups "pool"; showMembers with series
 %               "session"; "combine" on a PSTH drawn as bars (drawn as
 %               lines); a heatmap base with series other than "all"
+%     Figures   (Field "<figure>.<field>", "<figure>.<panel>.<field>" or
+%               "<figure>.<panel>.layers(<j>).<field>") ids distinct as file
+%               names and file-name safe; the figure's ref, window and
+%               selection (groupBy <= 2); observe: kind, source, signal,
+%               channels, maxUnits, datasets ("list" without keys is a
+%               warning), no layer following a "dataset" observation, a
+%               warning when an explicit unit / channel observation has no
+%               following layer; grid: whole rows and cols >= 1,
+%               rowHeights / colWidths [] or one positive size each,
+%               spacing; panels: a known type, whole row / col / spans
+%               inside the grid, no overlaps, ids of their own (warnings:
+%               no panels, cells no panel covers); a panel's own ref /
+%               window only on aligned types, a "between" window only on a
+%               unit correlation panel; layers: a source the type draws
+%               (categoryOf), the binding ("observation" only for spikes
+%               and signals, never on heatmap / probemap / corrmap /
+%               behavior; AUX cannot follow a unit; a warning for a signal
+%               following another signal's channel), aggregate, maxUnits
+%               (a warning above 8 units drawn each in a raster / PSTH),
+%               channels, a trials layer's yParam ("stop" needs a stop
+%               event), events layers only on time panels, a train only
+%               on raster / psth / heatmap, the mark's event reference,
+%               marker, size and color, a layer's color and line style, a
+%               raster of marks alone (an error: no rows); warnings for a
+%               panel without enabled layers and for several layers on a
+%               one-layer type; the type's options (bins, measure,
+%               baseline modes and window, histStyle, normalize,
+%               fillAlpha, the raster sort, continuous display /
+%               statistic / transform / errorType and its toolbox,
+%               stackSpacing, heatmap order, group, behavior param /
+%               display / xScale / violinplot, probemap value, corrmap
+%               metric / correlation, the waveform settings, y / color
+%               limits); the style, as a plot's
 %     Export    formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
 %               folder and file-name patterns use known tokens; a warning
 %               when the files of two enabled plots, or of two datasets,
@@ -500,52 +533,7 @@ for k = 1:numel(obj.Plots)
         end
         names(end+1) = strtrim(ov.name); %#ok<AGROW>
     end
-    st = p.style;
-    if ~(st.MaxTiles >= 1); add("Plots", f0 + ".style.MaxTiles", "error", "MaxTiles must be >= 1."); end
-    if ~ismember(st.TileSpacing, ["loose" "compact" "tight" "none"])
-        add("Plots", f0 + ".style.TileSpacing", "error", "TileSpacing is loose, compact, tight or none.");
-    end
-    if ~ismember(st.LegendLocation, ["auto" "inside" "north" "south" "east" "west"])
-        add("Plots", f0 + ".style.LegendLocation", "error", "LegendLocation is auto, inside, north, south, east or west.");
-    end
-    if ~ismember(st.LegendOrientation, ["auto" "vertical" "horizontal"])
-        add("Plots", f0 + ".style.LegendOrientation", "error", "LegendOrientation is auto, vertical or horizontal.");
-    end
-    if ~ismember(st.ErrorType, EphysAnalysisConfig.ErrorTypes)
-        add("Plots", f0 + ".style.ErrorType", "error", "ErrorType is sem (mean +/- SEM), std (mean +/- SD) or ci95 (bootstrap 95% CI).");
-    elseif st.ShowSEM && st.ErrorType == "ci95" && plotErrorType(p) == "ci95" ...
-            && ~(license('test', 'Statistics_Toolbox') && exist('bootci', 'file'))
-        add("Plots", f0 + ".style.ErrorType", "error", "The bootstrap 95% CI needs the Statistics and Machine Learning Toolbox (bootci).");
-    end
-    if ~(isfinite(st.ErrorResamples) && st.ErrorResamples >= 1 && st.ErrorResamples == round(st.ErrorResamples))
-        add("Plots", f0 + ".style.ErrorResamples", "error", "ErrorResamples is a whole number of bootstrap resamples, at least 1.");
-    end
-    if ~(isnan(st.ErrorFaceAlpha) || (st.ErrorFaceAlpha >= 0 && st.ErrorFaceAlpha <= 1))
-        add("Plots", f0 + ".style.ErrorFaceAlpha", "error", "ErrorFaceAlpha is an opacity from 0 to 1 (NaN = opaque, the trace's color paled).");
-    end
-    if st.ErrorFaceColor ~= "" && ~isColor(st.ErrorFaceColor)
-        add("Plots", f0 + ".style.ErrorFaceColor", "warning", "No color """ + st.ErrorFaceColor + """; the bands take their trace's color.");
-    end
-    if ~ismember(lower(strtrim(st.ErrorEdgeColor)), ["none" "auto"]) && ~isColor(st.ErrorEdgeColor)
-        add("Plots", f0 + ".style.ErrorEdgeColor", "warning", "No color """ + st.ErrorEdgeColor + """; the bands have no edge.");
-    end
-    if ~ismember(st.ErrorEdgeStyle, EphysAnalysisConfig.OverlayLineStyles)
-        add("Plots", f0 + ".style.ErrorEdgeStyle", "error", "ErrorEdgeStyle is one of " + strjoin(EphysAnalysisConfig.OverlayLineStyles, "  ") + ".");
-    end
-    if ~(isfinite(st.ErrorEdgeWidth) && st.ErrorEdgeWidth > 0)
-        add("Plots", f0 + ".style.ErrorEdgeWidth", "error", "ErrorEdgeWidth must be positive (points).");
-    end
-    if ~(st.FontSize > 0);  add("Plots", f0 + ".style.FontSize", "error", "FontSize must be positive."); end
-    if ~(st.LineWidth > 0); add("Plots", f0 + ".style.LineWidth", "error", "LineWidth must be positive."); end
-    if ~(st.SiteSize > 0);  add("Plots", f0 + ".style.SiteSize", "error", "SiteSize must be positive."); end
-    for cm = ["Colormap" "HeatColormap"]
-        if ~(cm == "Colormap" && (st.(cm) == "lines" || isColor(st.(cm)))) && ~(cm == "HeatColormap" && st.(cm) == "") ...
-                && ~ismember(exist(char(st.(cm))), [2 5]) %#ok<EXIST>
-            what = "colormap function";
-            if cm == "Colormap"; what = "colormap function or color"; end
-            add("Plots", f0 + ".style." + cm, "warning", "No " + what + " """ + st.(cm) + """; the default is used.");
-        end
-    end
+    checkStyle(p.style, "Plots", f0, plotErrorType(p) == "ci95");
 end
 
 % --- SessionPlots -------------------------------------------------------------------------
@@ -639,6 +627,383 @@ for k = 1:numel(obj.SessionPlots)
     end
 end
 
+% --- Figures ------------------------------------------------------------------------------
+% Fields: "<figure>.<field>" for the figure's own settings, "<figure>.<panel>.<field>" for a panel's,
+% "<figure>.<panel>.layers(<j>).<field>" for a layer's.
+FT = EphysAnalysisConfig.panelTypes();
+isWhole = @(x) isscalar(x) && isfinite(x) && x >= 1 && x == round(x);
+fids = obj.figureIds();
+if numel(fids) > 1
+    fkey = lower(regexprep(fids, '[^\w\-\.]', '_'));   % the id as {Plot} writes it, case-blind
+    for u = unique(fkey)
+        same = fids(fkey == u);
+        if numel(same) > 1
+            add("Figures", same(end) + ".id", "error", "Figure ids " + strjoin("""" + same + """", " and ") + ...
+                " name the same files: {Plot} replaces characters outside A-Z a-z 0-9 _ - . by ""_"", and Windows ignores case.");
+        end
+    end
+end
+for k = 1:numel(obj.Figures)
+    fg = obj.Figures(k);
+    f0 = fg.id;
+    if ~isempty(regexp(fg.id, '[\\/:*?"<>|]', 'once')) || strtrim(fg.id) == ""
+        add("Figures", f0 + ".id", "error", "A figure id names its files: no \ / : * ? "" < > |, and not empty.");
+    end
+
+    % the figure's alignment
+    if isstruct(fg.ref); checkRef(fg.ref, "Figures", f0 + ".ref"); end
+    if isstruct(fg.window); checkWindow(fg.window, "Figures", f0 + ".window"); end
+    if isstruct(fg.selection); checkSelection(fg.selection, "Figures", f0 + ".selection"); end
+    fw = fg.window;
+    if isequal(fw, "default"); fw = D.Window; end
+
+    % what it is drawn for
+    ob = fg.observe;
+    kind = "";
+    if ~ismember(ob.kind, EphysAnalysisConfig.ObserveKinds)
+        add("Figures", f0 + ".observe.kind", "error", "observe.kind is one of " + strjoin(EphysAnalysisConfig.ObserveKinds, ", ") + ...
+            ", not """ + ob.kind + """.");
+    else
+        kind = EphysAnalysisConfig.observeKind(fg);
+    end
+    if ~ismember(ob.source, EphysAnalysisConfig.SpikeSources)
+        add("Figures", f0 + ".observe.source", "error", "The observed units are units (sorted) or detected (one per channel), not """ + ob.source + """.");
+    end
+    if ~ismember(ob.signal, EphysAnalysisConfig.SignalSources)
+        add("Figures", f0 + ".observe.signal", "error", "The observed channels' signal is one of " + strjoin(EphysAnalysisConfig.SignalSources, ", ") + ...
+            ", not """ + ob.signal + """.");
+    end
+    if ~isempty(ob.channels) && ~all(arrayfun(isWhole, ob.channels))
+        add("Figures", f0 + ".observe.channels", "error", "The observed channels are columns of the extract: whole numbers, at least 1 ([] = all).");
+    end
+    if ~(ob.units.maxUnits >= 1)
+        add("Figures", f0 + ".observe.units.maxUnits", "error", "maxUnits must be >= 1 (Inf = all).");
+    end
+    if ~ismember(ob.datasets, ["ticked" "list"])
+        add("Figures", f0 + ".observe.datasets", "error", "observe.datasets is ticked or list, not """ + ob.datasets + """.");
+    elseif ob.datasets == "list" && isempty(ob.datasetKeys)
+        add("Figures", f0 + ".observe.datasetKeys", "warning", "datasets is ""list"" but no dataset keys are listed; the figure is drawn for none.");
+    end
+    nFollow = 0;
+    for j = 1:numel(fg.panels)
+        Lj = fg.panels(j).layers;
+        if ~isempty(Lj); nFollow = nFollow + nnz([Lj.enabled] & [Lj.binding] == "observation"); end
+    end
+    if kind == "dataset" && nFollow > 0
+        add("Figures", f0 + ".observe.kind", "error", "A layer follows the observation, but the figure is drawn for the dataset: " + ...
+            "observe units or channels, or bind the layer to fixed items.");
+    elseif ismember(ob.kind, ["unit" "channel"]) && nFollow == 0
+        add("Figures", f0 + ".observe.kind", "warning", "No layer follows the observation: the figure is the same for every " + ob.kind + ".");
+    end
+
+    % the grid
+    G = fg.grid;
+    gridOk = true;
+    for gf = ["rows" "cols"]
+        if ~isWhole(G.(gf))
+            add("Figures", f0 + ".grid." + gf, "error", "The grid's " + gf + " is a whole number, at least 1.");
+            gridOk = false;
+        end
+    end
+    for gf = ["rowHeights" "colWidths"]
+        nWant = G.rows;
+        sizeWhat = "height per row";
+        if gf == "colWidths"; nWant = G.cols; sizeWhat = "width per column"; end
+        v = G.(gf);
+        if ~isempty(v) && ~(numel(v) == nWant && all(isfinite(v) & v > 0))
+            add("Figures", f0 + ".grid." + gf, "error", gf + " is [] (all equal) or one positive relative " + sizeWhat + ...
+                " (" + nWant + ").");
+        end
+    end
+    if ~ismember(G.spacing, ["loose" "compact" "tight" "none"])
+        add("Figures", f0 + ".grid.spacing", "error", "The grid's spacing is loose, compact, tight or none.");
+    end
+    if isempty(fg.panels)
+        add("Figures", f0 + ".panels", "warning", "The figure has no panels: it draws nothing.");
+    end
+
+    % the panels' places
+    pids = strings(1, 0);
+    if ~isempty(fg.panels); pids = [fg.panels.id]; end
+    placed = true;
+    for j = 1:numel(fg.panels)
+        pj = fg.panels(j);
+        p0 = f0 + "." + pj.id;
+        if pj.id == "" || nnz(pids == pj.id) > 1
+            add("Figures", p0 + ".id", "error", "Each panel of a figure needs an id of its own.");
+        end
+        for pf = ["row" "col" "rowSpan" "colSpan"]
+            if ~isWhole(pj.(pf))
+                add("Figures", p0 + "." + pf, "error", "A panel's " + pf + " is a whole number, at least 1.");
+                placed = false;
+            end
+        end
+        if gridOk && isWhole(pj.row) && isWhole(pj.rowSpan) && pj.row + pj.rowSpan - 1 > G.rows
+            add("Figures", p0 + ".row", "error", sprintf("Panel ""%s"" reaches row %d; the grid has %d.", pj.id, pj.row + pj.rowSpan - 1, G.rows));
+        end
+        if gridOk && isWhole(pj.col) && isWhole(pj.colSpan) && pj.col + pj.colSpan - 1 > G.cols
+            add("Figures", p0 + ".col", "error", sprintf("Panel ""%s"" reaches column %d; the grid has %d.", pj.id, pj.col + pj.colSpan - 1, G.cols));
+        end
+    end
+    if gridOk && placed && ~isempty(fg.panels)
+        [cells, over] = EphysAnalysisConfig.figureCells(fg);
+        for j = 1:size(over, 1)
+            add("Figures", f0 + "." + pids(over(j, 2)) + ".row", "error", "Panels """ + pids(over(j, 1)) + """ and """ + ...
+                pids(over(j, 2)) + """ overlap: a cell holds one panel.");
+        end
+        [ec, er] = find(cells.' == 0);   % row by row
+        if ~isempty(er)
+            add("Figures", f0 + ".grid", "warning", "No panel covers cell(s) " + strjoin(compose("(%d,%d)", er(:).', ec(:).'), ", ") + ...
+                ": they stay blank.");
+        end
+    end
+
+    % each panel: type, alignment, layers, options
+    for j = 1:numel(fg.panels)
+        pj = fg.panels(j);
+        p0 = f0 + "." + pj.id;
+        trow = FT.Type == pj.type;
+        if ~any(trow)
+            add("Figures", p0 + ".type", "error", "Unknown panel type """ + pj.type + """ (types: " + strjoin(FT.Type, ", ") + ").");
+            continue
+        end
+        tr = FT(trow, :);
+        label = tr.Label;
+        if label ~= "PSTH"; label = lower(label); end
+        A = "A " + label + " panel";
+
+        for af = ["ref" "window"]
+            if ~isstruct(pj.(af)); continue; end
+            if ~tr.Aligned
+                add("Figures", p0 + "." + af, "error", A + " is not aligned to events: its " + af + " must be ""default"".");
+            elseif af == "ref"
+                checkRef(pj.ref, "Figures", p0 + ".ref");
+            else
+                checkWindow(pj.window, "Figures", p0 + ".window");
+            end
+        end
+        pw = pj.window;
+        if isequal(pw, "default"); pw = fw; end
+        if tr.Aligned && pw.mode == "between" && pj.type ~= "corrmap"
+            add("Figures", p0 + ".window", "error", A + " needs a fixed window (""between"" windows are for unit correlation panels).");
+        end
+
+        % layers
+        Lp = pj.layers;
+        on = false(1, 0);
+        if ~isempty(Lp); on = [Lp.enabled]; end
+        if ~any(on)
+            add("Figures", p0 + ".layers", "warning", "The panel has no enabled layer: it draws nothing.");
+        elseif nnz(on) > 1 && ~tr.MultiLayer
+            add("Figures", p0 + ".layers", "warning", A + " draws one layer: only the first enabled one is drawn.");
+        end
+        for i = find(on)
+            L = Lp(i);
+            l0 = p0 + ".layers(" + i + ")";
+            if ~ismember(L.source, EphysAnalysisConfig.FigureSources)
+                add("Figures", l0 + ".source", "error", "A layer's source is one of " + strjoin(EphysAnalysisConfig.FigureSources, ", ") + ...
+                    ", not """ + L.source + """.");
+                continue
+            end
+            isEvents = L.source == "events";
+            if isEvents && ~tr.SharesTime
+                add("Figures", l0 + ".source", "error", "Events layers go on panels that share the time axis (raster, PSTH, " + ...
+                    "continuous signal, heat map), not on " + lower(A) + ".");
+                continue
+            end
+            if ~isEvents && EphysAnalysisConfig.categoryOf(L.source, pj.type) == ""
+                add("Figures", l0 + ".source", "error", A + " draws " + categoryWords(tr.Categories{1}) + " layers, not " + L.source + ".");
+                continue
+            end
+            if ~ismember(L.binding, ["observation" "fixed"])
+                add("Figures", l0 + ".binding", "error", "A layer's binding is observation (it follows the observed unit or channel) or fixed, not """ + ...
+                    L.binding + """.");
+            elseif L.binding == "observation"
+                if ~ismember(L.source, [EphysAnalysisConfig.SpikeSources EphysAnalysisConfig.SignalSources])
+                    if isEvents
+                        add("Figures", l0 + ".binding", "error", "An events layer is always fixed: it names its line (event).");
+                    else
+                        add("Figures", l0 + ".binding", "error", "A trials layer is always fixed: it names its values (yParam).");
+                    end
+                elseif ismember(pj.type, ["heatmap" "probemap" "corrmap" "behavior"])
+                    add("Figures", l0 + ".binding", "error", A + " draws fixed layers: bind the layer to fixed units or channels.");
+                elseif kind == "unit" && L.source == "AUX"
+                    add("Figures", l0 + ".binding", "error", "AUX has no recording channel to follow the observed unit's: bind it to fixed channels.");
+                elseif kind == "channel" && ismember(L.source, EphysAnalysisConfig.SignalSources) && L.source ~= ob.signal
+                    add("Figures", l0 + ".source", "warning", "This " + L.source + " layer follows a " + ob.signal + " channel: it takes the " + ...
+                        "observed channel's number in its own extract.");
+                end
+            end
+            if ~ismember(L.aggregate, ["each" "mean"])
+                add("Figures", l0 + ".aggregate", "error", "A layer's aggregate is each (a trace or block per item) or mean.");
+            end
+            if ismember(L.source, EphysAnalysisConfig.SpikeSources)
+                if ~(L.units.maxUnits >= 1)
+                    add("Figures", l0 + ".units.maxUnits", "error", "maxUnits must be >= 1 (Inf = all).");
+                elseif L.binding == "fixed" && ismember(pj.type, ["raster" "psth"]) && L.aggregate == "each"
+                    nU = L.units.maxUnits;
+                    if ~isempty(L.units.ids); nU = min(nU, numel(L.units.ids)); end
+                    if nU > 8
+                        add("Figures", l0 + ".units.maxUnits", "warning", "This fixed layer may keep more than 8 units, each drawn in " + ...
+                            "the one panel: limit units.maxUnits or ids, or aggregate them (mean).");
+                    end
+                end
+            end
+            if ismember(L.source, EphysAnalysisConfig.SignalSources) && ~isempty(L.channels) && ~all(arrayfun(isWhole, L.channels))
+                add("Figures", l0 + ".channels", "error", "A layer's channels are columns of its extract: whole numbers, at least 1 ([] = all).");
+            end
+            if L.source == "trials"
+                if strtrim(L.yParam) == ""
+                    add("Figures", l0 + ".yParam", "error", "A trials layer needs yParam: a trial parameter (e.g. RespLatency), " + ...
+                        "or ""stop"" for the stop event's latency.");
+                elseif L.yParam == "stop" && isempty(pw.stop)
+                    add("Figures", l0 + ".yParam", "error", "yParam ""stop"" plots each epoch's stop-event latency: " + ...
+                        "give the panel's epoch window a stop event.");
+                end
+            end
+            if isEvents
+                if ~ismember(L.eventsAs, ["marks" "train"])
+                    add("Figures", l0 + ".eventsAs", "error", "An events layer is drawn as marks or as a train.");
+                elseif L.eventsAs == "train" && ~ismember(pj.type, ["raster" "psth" "heatmap"])
+                    add("Figures", l0 + ".eventsAs", "error", "Events drawn as a train go on a raster, PSTH or heat map panel; " + ...
+                        lower(A) + " draws them as latency lines (marks).");
+                end
+                mk = L.event;
+                checkRef(eventMarkRef(mk), "Figures", l0 + ".event");
+                markers = PlotAesthetics.catalog().Marker.Choices;
+                if ~ismember(mk.marker, markers)
+                    add("Figures", l0 + ".event.marker", "error", "An event mark's marker is one of " + strjoin(markers, ", ") + ".");
+                end
+                if ~(mk.size > 0 && isfinite(mk.size))
+                    add("Figures", l0 + ".event.size", "error", "An event mark's size must be positive (points).");
+                end
+                if mk.color ~= "" && ~isColor(mk.color)
+                    add("Figures", l0 + ".event.color", "warning", "No color """ + mk.color + """; the mark gets its automatic color.");
+                end
+            end
+            if L.color ~= "" && ~isColor(L.color)
+                add("Figures", l0 + ".color", "warning", "No color """ + L.color + """; the layer takes its group's color.");
+            end
+            if L.lineStyle ~= "" && ~ismember(L.lineStyle, EphysAnalysisConfig.OverlayLineStyles)
+                add("Figures", l0 + ".lineStyle", "error", "A layer's line style is """" (by layer order) or one of " + ...
+                    strjoin(EphysAnalysisConfig.OverlayLineStyles, "  ") + ".");
+            end
+        end
+        if pj.type == "raster" && any(on)
+            Lon = Lp(on);
+            if all([Lon.source] == "events" & [Lon.eventsAs] == "marks")
+                add("Figures", p0 + ".layers", "error", "A raster's marks need rows: add a units, detected or train layer.");
+            end
+        end
+
+        % options
+        op = pj.options;
+        o0 = p0 + ".options";
+        firstSignal = false;
+        if any(on)
+            firstOn = Lp(find(on, 1));
+            firstSignal = ismember(firstOn.source, EphysAnalysisConfig.SignalSources);
+        end
+        switch pj.type
+            case "raster"
+                checkRasterSort(op, o0);
+                checkFigWaveform(op.waveform, o0 + ".waveform", false);
+            case "psth"
+                checkFigBins(op.bins, o0);
+                checkFigMeasure(op.measure, o0);
+                checkFigBaseline(op.baseline, ["none" "subtract" "zscore" "percent"], o0, A);
+                if ~ismember(op.histStyle, ["bar" "line"])
+                    add("Figures", o0 + ".histStyle", "error", "A PSTH is drawn as bar or line.");
+                end
+                if ~ismember(op.normalize, ["none" "unitPeak" "groupPeak" "allPeak"])
+                    add("Figures", o0 + ".normalize", "error", "A PSTH's normalize is none, unitPeak, groupPeak or allPeak.");
+                end
+                if ~(isnan(op.fillAlpha) || (op.fillAlpha >= 0 && op.fillAlpha <= 1))
+                    add("Figures", o0 + ".fillAlpha", "error", "fillAlpha is an opacity from 0 to 1 (NaN = automatic).");
+                end
+                checkFigLim(op.yLim, o0 + ".yLim", "y");
+                checkFigWaveform(op.waveform, o0 + ".waveform", false);
+            case "continuous"
+                checkFigBaseline(op.baseline, ["none" "subtract"], o0, A);
+                if ~ismember(op.display, ["lines" "stacked"])
+                    add("Figures", o0 + ".display", "error", "A continuous signal panel's display is lines or stacked.");
+                end
+                if ~ismember(op.statistic, EphysAnalysisConfig.AuxStatistics)
+                    add("Figures", o0 + ".statistic", "error", "The statistic is one of " + strjoin(EphysAnalysisConfig.AuxStatistics, ", ") + ".");
+                end
+                if ~ismember(op.transform, EphysAnalysisConfig.AuxTransforms)
+                    add("Figures", o0 + ".transform", "error", "The transform is one of " + strjoin(EphysAnalysisConfig.AuxTransforms, ", ") + ".");
+                end
+                if ~ismember(op.errorType, EphysAnalysisConfig.AuxErrorTypes)
+                    add("Figures", o0 + ".errorType", "error", "The errorType is one of " + strjoin(EphysAnalysisConfig.AuxErrorTypes, ", ") + ...
+                        " (off: no band; sem: +/- SEM; std: +/- SD; ci95: bootstrap 95% CI; iqr: 25th to 75th percentile).");
+                elseif op.errorType == "ci95" && ~(license('test', 'Statistics_Toolbox') && exist('bootci', 'file'))
+                    add("Figures", o0 + ".errorType", "error", "The bootstrap 95% CI needs the Statistics and Machine Learning Toolbox (bootci).");
+                elseif op.errorType == "iqr" && ~(license('test', 'Statistics_Toolbox') && exist('prctile', 'file'))
+                    add("Figures", o0 + ".errorType", "error", "The interquartile range needs the Statistics and Machine Learning Toolbox (prctile).");
+                end
+                if ~(isnan(op.stackSpacing) || (isfinite(op.stackSpacing) && op.stackSpacing > 0))
+                    add("Figures", o0 + ".stackSpacing", "error", "stackSpacing is positive (NaN = automatic).");
+                end
+                checkFigLim(op.yLim, o0 + ".yLim", "y");
+            case "heatmap"
+                if ~firstSignal
+                    checkFigBins(op.bins, o0);
+                    checkFigMeasure(op.measure, o0);
+                    checkFigBaseline(op.baseline, ["none" "subtract" "zscore" "percent"], o0, A);
+                else
+                    checkFigBaseline(op.baseline, ["none" "subtract"], o0, A);
+                end
+                if ~ismember(op.order, ["probe" "peak"])
+                    add("Figures", o0 + ".order", "error", "A heat map orders its rows by probe (the style's sort options) or peak.");
+                end
+                checkFigGroup(op.group, o0);
+                checkFigLim(op.cLim, o0 + ".cLim", "color");
+            case "waveforms"
+                checkFigWaveform(op.waveform, o0 + ".waveform", true);
+                checkFigLim(op.yLim, o0 + ".yLim", "y");
+            case "behavior"
+                if strtrim(op.param) == ""
+                    add("Figures", o0 + ".param", "error", "A behavior panel needs param: the trial parameter on its x axis.");
+                end
+                if ~ismember(op.display, ["points" "line" "box" "swarm" "violin"])
+                    add("Figures", o0 + ".display", "error", "A behavior panel's display is points, line, box, swarm or violin.");
+                elseif op.display == "violin" && ~exist('violinplot', 'file')
+                    add("Figures", o0 + ".display", "error", "The violin display needs violinplot (MATLAB R2024b or later).");
+                end
+                if ~ismember(op.xScale, ["category" "linear"])
+                    add("Figures", o0 + ".xScale", "error", "A behavior panel's xScale is category or linear.");
+                end
+                checkFigLim(op.yLim, o0 + ".yLim", "y");
+            case "probemap"
+                if ~ismember(op.value, ["rate" "nSpikes" "nUnits"])
+                    add("Figures", o0 + ".value", "error", "A probe map shows rate, nSpikes or nUnits.");
+                end
+                checkFigLim(op.cLim, o0 + ".cLim", "color");
+            case "corrmap"
+                if ~ismember(op.metric, ["mean" "peak"])
+                    add("Figures", o0 + ".metric", "error", "A unit correlation map correlates each epoch's mean or peak rate.");
+                elseif op.metric == "peak"
+                    checkFigBins(op.bins, o0);
+                end
+                if ~ismember(op.correlation, ["pearson" "spearman"])
+                    add("Figures", o0 + ".correlation", "error", "A unit correlation map's correlation is pearson or spearman.");
+                end
+                checkFigBaseline(op.baseline, ["none" "subtract"], o0, A);
+                checkFigGroup(op.group, o0);
+                checkFigLim(op.cLim, o0 + ".cLim", "color");
+        end
+    end
+
+    % the style (its error drawn as a bootstrap CI by a PSTH's bands or a behavior panel's means but a box display's)
+    drawsCi95 = false;
+    for j = 1:numel(fg.panels)
+        pj = fg.panels(j);
+        drawsCi95 = drawsCi95 || pj.type == "psth" || (pj.type == "behavior" && isfield(pj.options, 'display') && pj.options.display ~= "box");
+    end
+    checkStyle(fg.style, "Figures", f0, drawsCi95 && fg.style.ErrorType == "ci95");
+end
+
 % --- Export -----------------------------------------------------------------------------
 X = obj.Export;
 if X.Enabled && isempty(X.Formats)
@@ -709,6 +1074,130 @@ issues = table(Section, Field, Severity, Message);
             epochWindow(w);
         catch ME
             add(sec, field, "error", string(ME.message));
+        end
+    end
+
+    function checkRasterSort(hOp, hO0)
+        %checkRasterSort  A raster panel's sort options.
+        if ~ismember(hOp.rasterSortOrder, ["ascending" "descending"])
+            add("Figures", hO0 + ".rasterSortOrder", "error", "The raster sort order is ascending or descending.");
+        end
+        if hOp.rasterSort == "event"
+            if isempty(hOp.rasterSortEvent)
+                add("Figures", hO0 + ".rasterSortEvent", "error", "rasterSort ""event"" sorts the raster by an event's " + ...
+                    "latency from each epoch's event: give rasterSortEvent, e.g. Platform offset.");
+            else
+                checkRef(hOp.rasterSortEvent, "Figures", hO0 + ".rasterSortEvent");
+            end
+        end
+    end
+
+    function checkFigBins(hBins, hO0)
+        %checkFigBins  A panel's bins.
+        if ~(hBins.BinSec > 0); add("Figures", hO0 + ".bins.BinSec", "error", "BinSec must be positive."); end
+        if ~(hBins.SmoothSec >= 0); add("Figures", hO0 + ".bins.SmoothSec", "error", "SmoothSec must be >= 0."); end
+    end
+
+    function checkFigMeasure(hMeasure, hO0)
+        %checkFigMeasure  A panel's measure of spikes.
+        if ~ismember(hMeasure, ["rate" "count" "probability"])
+            add("Figures", hO0 + ".measure", "error", "The measure is rate, count or probability.");
+        end
+    end
+
+    function checkFigBaseline(hB, hModes, hO0, hWho)
+        %checkFigBaseline  A panel's baseline: its Mode one of HMODES, and its window [b0 b1] with b0 < b1.
+        if ~ismember(hB.Mode, hModes)
+            add("Figures", hO0 + ".baseline.Mode", "error", sprintf("%s's baseline Mode is one of %s, not ""%s"".", ...
+                hWho, strjoin(hModes, ", "), hB.Mode));
+        elseif hB.Mode ~= "none" && ~(numel(hB.Window) == 2 && all(isfinite(hB.Window)) && hB.Window(2) > hB.Window(1))
+            add("Figures", hO0 + ".baseline.Window", "error", "The baseline window must be [b0 b1] with b0 < b1.");
+        end
+    end
+
+    function checkFigLim(hLim, hField, hWhat)
+        %checkFigLim  A panel's y or color limits: [] (automatic) or an ascending pair.
+        if ~(isempty(hLim) || (numel(hLim) == 2 && all(isfinite(hLim)) && hLim(2) > hLim(1)))
+            add("Figures", hField, "error", "The " + hWhat + " limits are [] (automatic) or [lo hi] with lo < hi.");
+        end
+    end
+
+    function checkFigGroup(hG, hO0)
+        %checkFigGroup  The trial group a one-group panel draws.
+        if ~isWhole(hG)
+            add("Figures", hO0 + ".group", "error", "group is the trial group drawn: a whole number, at least 1.");
+        end
+    end
+
+    function checkFigWaveform(hW, hW0, hOwn)
+        %checkFigWaveform  A raster / PSTH panel's waveform inset, or (HOWN) a waveforms panel's settings.
+        if ~ismember(hW.ampScale, ["unit" "common"])
+            add("Figures", hW0 + ".ampScale", "error", "The waveform amplitude scale is unit or common.");
+        end
+        if ~ismember(hW.mode, ["off" "mean" "subsample" "both"])
+            add("Figures", hW0 + ".mode", "error", "The waveform mode is off, mean, subsample or both.");
+        elseif hOwn && hW.mode == "off"
+            add("Figures", hW0 + ".mode", "error", "A unit waveforms panel shows the mean, a subsample or both: its waveform mode cannot be off.");
+        elseif hW.mode ~= "off"
+            if ~ismember(hW.location, EphysAnalysisConfig.WaveformLocations)
+                add("Figures", hW0 + ".location", "error", "The waveform location is one of " + ...
+                    strjoin(EphysAnalysisConfig.WaveformLocations, ", ") + ".");
+            end
+            if ~(hW.scale > 0 && hW.scale <= 3)
+                add("Figures", hW0 + ".scale", "error", "The waveform scale is above 0 and at most 3 (1 = a third of the tile).");
+            end
+            if ~(hW.maxSpikes >= 1 && hW.maxSpikes == round(hW.maxSpikes))
+                add("Figures", hW0 + ".maxSpikes", "error", "maxSpikes is a whole number of spikes, at least 1.");
+            end
+        end
+    end
+
+    function checkStyle(st, sec, id, drawsCi95)
+        %checkStyle  A plot's or figure's Style; DRAWSCI95: it draws the style's error (plotErrorType) as a bootstrap CI.
+        if ~(st.MaxTiles >= 1); add(sec, id + ".style.MaxTiles", "error", "MaxTiles must be >= 1."); end
+        if ~ismember(st.TileSpacing, ["loose" "compact" "tight" "none"])
+            add(sec, id + ".style.TileSpacing", "error", "TileSpacing is loose, compact, tight or none.");
+        end
+        if ~ismember(st.LegendLocation, ["auto" "inside" "north" "south" "east" "west"])
+            add(sec, id + ".style.LegendLocation", "error", "LegendLocation is auto, inside, north, south, east or west.");
+        end
+        if ~ismember(st.LegendOrientation, ["auto" "vertical" "horizontal"])
+            add(sec, id + ".style.LegendOrientation", "error", "LegendOrientation is auto, vertical or horizontal.");
+        end
+        if ~ismember(st.ErrorType, EphysAnalysisConfig.ErrorTypes)
+            add(sec, id + ".style.ErrorType", "error", "ErrorType is sem (mean +/- SEM), std (mean +/- SD) or ci95 (bootstrap 95% CI).");
+        elseif st.ShowSEM && st.ErrorType == "ci95" && drawsCi95 ...
+                && ~(license('test', 'Statistics_Toolbox') && exist('bootci', 'file'))
+            add(sec, id + ".style.ErrorType", "error", "The bootstrap 95% CI needs the Statistics and Machine Learning Toolbox (bootci).");
+        end
+        if ~(isfinite(st.ErrorResamples) && st.ErrorResamples >= 1 && st.ErrorResamples == round(st.ErrorResamples))
+            add(sec, id + ".style.ErrorResamples", "error", "ErrorResamples is a whole number of bootstrap resamples, at least 1.");
+        end
+        if ~(isnan(st.ErrorFaceAlpha) || (st.ErrorFaceAlpha >= 0 && st.ErrorFaceAlpha <= 1))
+            add(sec, id + ".style.ErrorFaceAlpha", "error", "ErrorFaceAlpha is an opacity from 0 to 1 (NaN = opaque, the trace's color paled).");
+        end
+        if st.ErrorFaceColor ~= "" && ~isColor(st.ErrorFaceColor)
+            add(sec, id + ".style.ErrorFaceColor", "warning", "No color """ + st.ErrorFaceColor + """; the bands take their trace's color.");
+        end
+        if ~ismember(lower(strtrim(st.ErrorEdgeColor)), ["none" "auto"]) && ~isColor(st.ErrorEdgeColor)
+            add(sec, id + ".style.ErrorEdgeColor", "warning", "No color """ + st.ErrorEdgeColor + """; the bands have no edge.");
+        end
+        if ~ismember(st.ErrorEdgeStyle, EphysAnalysisConfig.OverlayLineStyles)
+            add(sec, id + ".style.ErrorEdgeStyle", "error", "ErrorEdgeStyle is one of " + strjoin(EphysAnalysisConfig.OverlayLineStyles, "  ") + ".");
+        end
+        if ~(isfinite(st.ErrorEdgeWidth) && st.ErrorEdgeWidth > 0)
+            add(sec, id + ".style.ErrorEdgeWidth", "error", "ErrorEdgeWidth must be positive (points).");
+        end
+        if ~(st.FontSize > 0);  add(sec, id + ".style.FontSize", "error", "FontSize must be positive."); end
+        if ~(st.LineWidth > 0); add(sec, id + ".style.LineWidth", "error", "LineWidth must be positive."); end
+        if ~(st.SiteSize > 0);  add(sec, id + ".style.SiteSize", "error", "SiteSize must be positive."); end
+        for cm = ["Colormap" "HeatColormap"]
+            if ~(cm == "Colormap" && (st.(cm) == "lines" || isColor(st.(cm)))) && ~(cm == "HeatColormap" && st.(cm) == "") ...
+                    && ~ismember(exist(char(st.(cm))), [2 5]) %#ok<EXIST>
+                what = "colormap function";
+                if cm == "Colormap"; what = "colormap function or color"; end
+                add(sec, id + ".style." + cm, "warning", "No " + what + " """ + st.(cm) + """; the default is used.");
+            end
         end
     end
 
@@ -811,6 +1300,17 @@ issues = table(Section, Field, Severity, Message);
             add(sec, field, "error", "The file-name pattern is empty.");
         end
     end
+end
+
+
+function s = categoryWords(cats)
+%categoryWords  "point-process or continuous": the source categories CATS in words.
+words = struct('point', "point-process", 'continuous', "continuous", 'trial', "trial-value", 'unit', "unit-summary");
+s = strings(1, numel(cats));
+for k = 1:numel(cats)
+    s(k) = words.(cats(k));
+end
+s = strjoin(s, " or ");
 end
 
 

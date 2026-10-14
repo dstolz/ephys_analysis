@@ -7,12 +7,16 @@ function s = defaults(section)
 %   from here.
 %
 %   Config sections   Source, Defaults, Export, Report, Plot (one entry of
-%                     Plots), SessionPlot (one entry of SessionPlots)
+%                     Plots), SessionPlot (one entry of SessionPlots),
+%                     Figure (one entry of Figures)
 %   Building blocks   EventRef, SequenceStep (one step of an EventRef's
 %                     sequence), EpochWindow, TrialSelection, UnitSelection,
 %                     Style, Auroc, Waveform, Aux, Note, Overlay (one entry
 %                     of a plot's overlays), EventMark (one entry of a
-%                     plot's rasterEvents: an EventRef and its look)
+%                     plot's rasterEvents: an EventRef and its look);
+%                     a figure's Observe (what it is drawn for), Panel (one
+%                     entry of its panels; options from panelTypes) and
+%                     Layer (one entry of a panel's layers)
 %
 %   See also EphysAnalysisConfig, EphysAnalysisConfig.normalizeSection.
 
@@ -330,6 +334,74 @@ switch section
             'trialGroups', "pool", ...              % the base plot's trial groups: "pool" | "each" (a figure each) | "combine" (line styles)
             'data',        "results", ...           % what the data export holds: "results" | "epochs" | "signals"
             'aesthetics',  PlotAesthetics.emptyRules());   % its own remembered looks, applied after the base plot's
+
+    case "Layer"
+        % one data binding of a figure panel (Panel.layers): a source, and either the observation (the previewed /
+        % generated unit or channel) or the fixed items it names
+        u = EphysAnalysisConfig.defaults("UnitSelection");
+        s = struct( ...
+            'name',        "", ...              % legend / aesthetics label ("" = automatic: the unit label, "LFP ch 3", the event label)
+            'enabled',     true, ...            % unticked, it stays in the config but is not drawn
+            'source',      "units", ...         % one of FigureSources: units | detected | events | LFP | MUA | SPIKE | AUX | trials
+            'binding',     "observation", ...   % "observation" (the observed unit / channel) | "fixed" (units / channels / event / yParam); events and trials are always fixed
+            'units',       rmfield(u, 'source'), ...   % fixed point / unit layers: which units (may keep several)
+            'channels',    [], ...              % fixed continuous layers: the extract's columns ([] = all)
+            'aggregate',   "each", ...          % several units / channels: "each" (a trace or block each) | "mean" (their mean, a band across them)
+            'event',       EphysAnalysisConfig.defaults("EventMark"), ...   % source events: the line, edge, which / scope / sequence, and the mark's look
+            'eventsAs',    "marks", ...         % source events: "marks" (on raster rows; latency lines elsewhere) | "train" (the events as a spike train)
+            'yParam',      "", ...              % source trials: the value drawn (a numeric trial parameter, or "stop")
+            'seriesParam', "", ...              % source trials: one series per value of this parameter
+            'color',       "", ...              % "" = the group's color; else a name / #rrggbb for every trace of this layer
+            'lineStyle',   "");                 % "" = by layer order (- -- : -.); else one of OverlayLineStyles
+
+    case "Panel"
+        % one panel of a figure (Figure.panels): a type, a cell of the grid and its span, optional alignment overrides,
+        % the type's options and the layers it draws
+        T = EphysAnalysisConfig.panelTypes();
+        s = struct( ...
+            'id',      "", ...                  % unique within the figure ("" = "<type>_<n>")
+            'type',    "psth", ...              % one of panelTypes().Type
+            'title',   "", ...                  % "" = automatic
+            'row',     1, ...                   % the top-left cell
+            'col',     1, ...
+            'rowSpan', 1, ...
+            'colSpan', 1, ...
+            'ref',     "default", ...           % "default" (the figure's) or an EventRef
+            'window',  "default", ...           % "default" (the figure's) or an EpochWindow (own epochs, the figure's selection)
+            'layers',  repmat(EphysAnalysisConfig.defaults("Layer"), 1, 0), ...
+            'options', T.DefaultOptions{T.Type == "psth"});   % the type's options (panelTypes().DefaultOptions)
+
+    case "Observe"
+        % what a figure is drawn for: what Generate iterates and the preview picker lists
+        u = EphysAnalysisConfig.defaults("UnitSelection");
+        s = struct( ...
+            'kind',        "auto", ...          % "auto" (a unit when a units / detected layer follows the observation, else a channel when a signal layer does, else the dataset) | "unit" | "channel" | "dataset"
+            'source',      "units", ...         % unit observations: "units" (sorted) | "detected" (one per channel)
+            'units',       rmfield(u, 'source'), ...   % unit observations: the filter
+            'signal',      "LFP", ...           % channel observations: which extract
+            'channels',    [], ...              % channel observations: the extract's columns ([] = all)
+            'datasets',    "ticked", ...        % "ticked" (the run's datasets) | "list" (datasetKeys)
+            'datasetKeys', string.empty(1,0));
+
+    case "Figure"
+        % one figure (Figures): one observation's panels on a grid; the preview draws one observation, Generate many
+        s = struct( ...
+            'id',         "", ...               % unique among figures ("" = "figure_<n>")
+            'enabled',    true, ...
+            'title',      "", ...               % "" = automatic: "<id>: <observation> - <ref label> (<n> epochs)"
+            'observe',    EphysAnalysisConfig.defaults("Observe"), ...
+            'grid',       struct( ...
+                'rows',       1, ...
+                'cols',       1, ...
+                'rowHeights', [], ...           % [] = equal; else one positive relative height per row
+                'colWidths',  [], ...           % [] = equal; else one positive relative width per column
+                'spacing',    "tight"), ...     % TileSpacing: "loose" | "compact" | "tight" | "none" (flush stacked time panels)
+            'panels',     repmat(EphysAnalysisConfig.defaults("Panel"), 1, 0), ...
+            'ref',        "default", ...        % "default" (Defaults.EventRef) or an EventRef
+            'window',     "default", ...        % "default" (Defaults.Window) or an EpochWindow
+            'selection',  "default", ...        % "default" (Defaults.Selection) or a TrialSelection
+            'style',      EphysAnalysisConfig.defaults("Style"), ...   % YLim / CLim / MaxTiles / TileSpacing unused (panel options, grid.spacing)
+            'aesthetics', PlotAesthetics.emptyRules());
 
     otherwise
         error('EphysAnalysisConfig:BadSection', 'Unknown section "%s".', section);

@@ -518,6 +518,9 @@ b = base; b.Figures(1).panels(2).layers(1).binding = "fixed";
 b2 = b; b2.Figures(1).panels(2).layers(1).units.ids = [1 2];
 check(has(b, "figure_1.psth_1.layers(1).units.maxUnits", "warning") && ~has(b2, "figure_1.psth_1.layers(1).units.maxUnits", "warning"), ...
     'a fixed layer of possibly more than 8 units drawn each in a PSTH warns');
+b = base.addFigure("heatmap", Id="hm"); b.Figures(2).panels.type = "psth";   % a heat map's fixed all-units layer, its panel made a PSTH
+check(has(b, "hm.heatmap_1.layers(1).units.maxUnits", "warning"), ...
+    'so does a heat map''s fixed all-units layer left in a panel made a PSTH (the app makes it follow the observation)');
 b = base; b.Figures(1).panels(1).layers(1).aggregate = "sum";
 check(has(b, "figure_1.raster_1.layers(1).aggregate", "error"), 'aggregate is each or mean');
 b = base; b.Figures(1).panels(1).layers(1).units.maxUnits = 0;

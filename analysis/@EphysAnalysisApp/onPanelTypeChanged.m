@@ -6,7 +6,11 @@ function onPanelTypeChanged(obj)
 %   group shown); the waveform inset or panel and the display (a
 %   continuous panel's and a behavior panel's differ) start afresh. The layers the
 %   new type cannot draw are dropped; those kept are fixed where the type
-%   draws only fixed layers; with none left the type's default layer is
+%   draws only fixed layers, and take the new type's binding (following the
+%   observation on a raster, PSTH, continuous or waveforms panel) where the
+%   old type could only fix them (a heat map's, probe map's or correlation
+%   map's units); a layer both types could bind keeps its binding. With
+%   none left the type's default layer is
 %   added. A type not aligned to events uses the figure's event and window.
 %   The status bar says what changed.
 if obj.Applying; return; end
@@ -31,8 +35,15 @@ end
 dropped = strings(1, 0);
 for i = find(~keep); dropped(end+1) = layerLabel(p.layers(i)); end %#ok<AGROW>
 L = p.layers(keep);
+follows = strings(1, 0);   % the layers that follow the observation now
 for i = 1:numel(L)
-    if ~figureEditorChoices(new, L(i).source).Bindable; L(i).binding = "fixed"; end
+    canNew = figureEditorChoices(new, L(i).source).Bindable;
+    if ~canNew
+        L(i).binding = "fixed";
+    elseif ~figureEditorChoices(old, L(i).source).Bindable && L(i).binding ~= PT.DefaultBinding(row)
+        L(i).binding = PT.DefaultBinding(row);   % fixed only because the old type could not follow: the new type's own binding
+        if L(i).binding == "observation"; follows(end+1) = L(i).source; end %#ok<AGROW>
+    end
 end
 added = "";
 if isempty(L)
@@ -66,6 +77,7 @@ was = old;
 if any(PT.Type == old); was = word(PT.Label(PT.Type == old)); end
 msg = p.id + " is now a " + word(PT.Label(row)) + " panel (was a " + was + " panel): options reset";
 if ~isempty(dropped); msg = msg + "; dropped " + strjoin(dropped, ", "); end
+if ~isempty(follows); msg = msg + "; its " + strjoin(follows, " and ") + " layer now follows the observation"; end
 commitFigureEdit(obj, cfg, msg + added + ".");
 end
 

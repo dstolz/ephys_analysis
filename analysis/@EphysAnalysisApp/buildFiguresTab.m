@@ -371,8 +371,9 @@ E.layerSource = uidropdown(S.Body, "Items", "units", "ValueChangedFcn", changed,
 place(E.layerSource, r, 2);
 [S, r] = formRow(S, "layerBinding", "Binding:");
 E.layerBinding = uidropdown(S.Body, "Items", ["Follows the observation" "Fixed"], "ItemsData", ["observation" "fixed"], ...
-    "ValueChangedFcn", changed, "Tooltip", "Follows the observation: the unit or channel picked over the preview " + ...
-    "(another spike source: its channel's; a signal: the unit's own channel). Fixed: the units or channels named below.");
+    "ValueChangedFcn", @(~, evt) onBindingEdited(obj, evt), "Tooltip", "Follows the observation: the unit or " + ...
+    "channel picked over the preview (another spike source: its channel's; a signal: the unit's own channel). Fixed: " + ...
+    "the units or channels named below; a spike layer fixed while it shows a unit keeps that unit (its id).");
 place(E.layerBinding, r, 2);
 [S, r] = formRow(S, "layerFollows", "", 30);
 E.layerFollows = uilabel(S.Body, "Text", "", "FontColor", gray, "WordWrap", "on");
@@ -831,6 +832,43 @@ end
 
 function setAddSource(obj, s)
 obj.FigureAddSource = string(s);
+end
+
+
+function onBindingEdited(obj, evt)
+%onBindingEdited  A layer's binding: a spike layer fixed while it follows an observed unit keeps that unit.
+%   From "Follows the observation" to "Fixed", a units / detected layer of a
+%   raster, PSTH or waveforms panel whose unit ids are blank (all) gets the
+%   observed unit's id (the picked observation's unitId: a detection's is
+%   its channel) -- or, read from the other spike source, the observed
+%   unit's channel -- so the panel keeps showing what it showed until the
+%   ids are edited. Back to following, the ids stay as they are.
+if obj.Applying; return; end
+E = obj.FigureEditor;
+note = "";
+k = obj.SelectedFigure;
+j = obj.SelectedPanel;
+T = obj.FigureObservations;
+i = obj.FigureObservationDropDown.Value;
+if string(evt.Value) == "fixed" && string(evt.PreviousValue) == "observation" && k >= 1 && k <= numel(obj.Config.Figures) ...
+        && j >= 1 && j <= numel(obj.Config.Figures(k).panels) && istable(T) && isnumeric(i) && i >= 1 && i <= height(T) ...
+        && T.kind(i) == "unit"
+    fig = obj.Config.Figures(k);
+    type = fig.panels(j).type;
+    src = string(E.layerSource.Value);
+    if ismember(type, ["raster" "psth" "waveforms"]) && ismember(src, EphysAnalysisConfig.SpikeSources) ...
+            && strtrim(string(E.layerIds.Value)) == ""
+        if src == fig.observe.source && isfinite(T.unitId(i))
+            E.layerIds.Value = char(string(T.unitId(i)));
+            note = "Fixed to unit " + T.unitId(i) + "; edit Unit ids to change it.";
+        elseif isfinite(T.channel(i)) && strtrim(string(E.layerUnitChannels.Value)) == ""
+            E.layerUnitChannels.Value = char(string(T.channel(i)));
+            note = "Fixed to channel " + T.channel(i) + "'s " + src + "; edit Channels to change it.";
+        end
+    end
+end
+obj.onConfigChanged("figure");
+if note ~= ""; obj.setStatus(note); end
 end
 
 

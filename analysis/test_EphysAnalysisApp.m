@@ -1701,10 +1701,26 @@ check(p2.type == "heatmap" && isscalar(p2.layers) && p2.layers.source == "units"
     'a heat map now: its units layer kept but fixed, the bins it shares kept, its own rows shown');
 FE.panelType.Value = "psth";
 app.onPanelTypeChanged();
+backFollows = app.Config.Figures(1).panels(2).layers(1).binding == "observation" ...
+    && contains(app.StatusBar.Text, "now follows the observation") && string(FE.layerBinding.Value) == "observation";
 FE.layerBinding.Value = "observation";
 app.onConfigChanged("figure");
-check(app.Config.Figures(1).panels(2).type == "psth" && app.Config.Figures(1).panels(2).layers(1).binding == "observation", ...
-    'back to a PSTH, its layer following the unit again');
+check(backFollows && app.Config.Figures(1).panels(2).type == "psth" && app.Config.Figures(1).panels(2).layers(1).binding == "observation", ...
+    'back to a PSTH, its layer follows the unit again by itself (the heat map could only fix it), and the status bar says so');
+Tobs = app.FigureObservations;
+obsId = Tobs.unitId(app.FigureObservationDropDown.Value);
+FE.layerBinding.Value = "fixed";
+FE.layerBinding.ValueChangedFcn(FE.layerBinding, struct('Value', "fixed", 'PreviousValue', "observation"));
+L2 = app.Config.Figures(1).panels(2).layers(1);
+check(L2.binding == "fixed" && isequal(L2.units.ids, obsId) && string(FE.layerIds.Value) == string(obsId) ...
+    && startsWith(app.StatusBar.Text, "Fixed to unit " + obsId) && app.FigurePreviewState == "drawn", ...
+    sprintf('Binding Fixed on the PSTH''s units layer keeps the observed unit: ids = %d', obsId));
+FE.layerBinding.Value = "observation";
+FE.layerBinding.ValueChangedFcn(FE.layerBinding, struct('Value', "observation", 'PreviousValue', "fixed"));
+L2 = app.Config.Figures(1).panels(2).layers(1);
+check(L2.binding == "observation" && isequal(L2.units.ids, obsId), 'following again, the layer keeps the ids as they are');
+FE.layerIds.Value = '';
+app.onConfigChanged("figure");
 % the gather / apply round trip, a remembered look
 s1 = app.gatherConfig();
 app.applyConfig(s1);
@@ -1845,6 +1861,20 @@ check(movedUp && isequal([app.Config.Figures.id], ["figure_1" "figure_2"]) && ap
 app.onRemoveFigure();
 app.FigureAutoCheckBox.Value = true;
 check(isscalar(app.Config.Figures) && app.SelectedFigure == 1, 'the blank figure removed again');
+% a panel made from a heat map or a probe map follows the observation: one unit, not all of them
+for pair = ["heatmap" "psth"; "probemap" "raster"].'
+    app.onAddFigure(pair(1));
+    FE.panelType.Value = pair(2);
+    app.onPanelTypeChanged();
+    Lp = app.Config.Figures(2).panels(1).layers;
+    Fp = app.FigurePreviewResult;
+    nShown = NaN;
+    if isstruct(Fp) && ~isempty(Fp.panels(1).layers(1).meta); nShown = height(Fp.panels(1).layers(1).meta); end
+    check(isscalar(Lp) && Lp.source == "units" && Lp.binding == "observation" && contains(app.StatusBar.Text, "now follows the observation") ...
+        && app.FigurePreviewState == "drawn" && Fp.observation.kind == "unit" && nShown == 1, ...
+        sprintf('a %s made a %s: its units layer follows the observation, and the preview draws %g unit', pair(1), pair(2), nShown));
+    app.onRemoveFigure();
+end
 % a scan makes the observation list again (the same dataset active)
 app.selectDataset(find(app.Ticked, 1));
 oldT = app.FigureObservations;

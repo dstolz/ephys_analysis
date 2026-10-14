@@ -111,6 +111,7 @@ has = k >= 1 && k <= numel(obj.Config.Plots);
 onoff = @(tf) matlab.lang.OnOffSwitchState(tf);
 set([obj.RemovePlotButton obj.DuplicatePlotButton], 'Enable', onoff(has));
 obj.CopyPlotButton.Enable = onoff(has && numel(obj.Config.Plots) > numel(ks));
+obj.ConvertPlotButton.Enable = onoff(has);
 obj.UpPlotButton.Enable = onoff(has && k > 1 && isscalar(ks));
 obj.DownPlotButton.Enable = onoff(has && k < numel(obj.Config.Plots) && isscalar(ks));
 if ~has

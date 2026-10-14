@@ -218,6 +218,7 @@ classdef EphysAnalysisApp < handle
         RemovePlotButton   matlab.ui.control.Button
         DuplicatePlotButton matlab.ui.control.Button
         CopyPlotButton     matlab.ui.control.Button         % Copy from...: another plot's settings onto the selected plots (onCopyPlotSettings)
+        ConvertPlotButton  matlab.ui.control.Button         % Convert to figure: a figure of each selected plot (onConvertPlotToFigure)
         UpPlotButton       matlab.ui.control.Button
         DownPlotButton     matlab.ui.control.Button
         PlotEditorPanel    matlab.ui.container.Panel        % the editor's panel (its title counts the plots selected)
@@ -268,6 +269,7 @@ classdef EphysAnalysisApp < handle
         AddFigureButton        matlab.ui.control.Button
         RemoveFigureButton     matlab.ui.control.Button
         DuplicateFigureButton  matlab.ui.control.Button
+        CopyFigureButton       matlab.ui.control.Button         % Copy from...: another figure's settings onto the selected one (onCopyFigureSettings)
         UpFigureButton         matlab.ui.control.Button
         DownFigureButton       matlab.ui.control.Button
         FigureEditorPanel      matlab.ui.container.Panel        % the editor's panel (its title names the figure)
@@ -575,6 +577,8 @@ classdef EphysAnalysisApp < handle
         onDuplicateFigure(obj)
         onMoveFigure(obj, step)
         onFigureSelected(obj, k)
+        onCopyFigureSettings(obj, opts)
+        onConvertPlotToFigure(obj)
         applyFigureEditor(obj)
         fig = gatherFigureEditor(obj)
         applyFigureEditorDefaults(obj)

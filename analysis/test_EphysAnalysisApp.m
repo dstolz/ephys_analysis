@@ -1999,6 +1999,57 @@ check(isempty(app.Config.Figures) && isempty(app.FigureList.Items) && app.Figure
 app.onSaveConfig();
 app.Tabs.SelectedTab = app.TabData;
 
+fprintf('\n== 5e. Convert to figure, Copy from... for figures ==\n');
+app.selectTab(app.TabPlots);
+kP = app.Config.plotIndex("psth_1");
+app.onPlotSelected(kP);
+want = EphysAnalysisConfig.plotToFigure(app.Config, "psth_1");
+check(app.ConvertPlotButton.Enable == "on" && app.CopyFigureButton.Enable == "off", ...
+    'Convert to figure is on with a plot selected; Copy from... under the figures is off with no figure');
+app.onConvertPlotToFigure();
+fg = app.Config.Figures;
+check(isscalar(fg) && fg.id == "psth_1_fig" && isequal([fg.panels.type], [want.panels.type]) && isequaln(fg, want) ...
+    && app.Tabs.SelectedTab == app.TabFigures && app.SelectedFigure == 1 && string(FE.id.Value) == "psth_1_fig" ...
+    && numel(app.Config.Plots) >= 2 && startsWith(string(app.StatusBar.Text), "Converted psth_1 to figure psth_1_fig"), ...
+    sprintf('Convert to figure of psth_1: figure psth_1_fig (%s) on the Figures tab, selected; the plot stays', strjoin([fg.panels.type], " / ")));
+check(app.FigurePreviewState == "drawn" && numel(figAxes()) == numel(fg.panels) && nPatches() == numel(fg.panels), ...
+    'the converted figure is previewed at once, one axes and one schematic patch per panel');
+app.selectTab(app.TabPlots);
+app.onAddPlot("rate");
+kR = app.SelectedPlot;
+app.onConvertPlotToFigure();
+check(isscalar(app.Config.Figures) && app.Tabs.SelectedTab == app.TabPlots && contains(string(app.StatusBar.Text), "cannot be converted"), ...
+    'a rate plot cannot be converted: the status bar says why, the tab stays');
+app.onPlotSelected(kR);
+app.onRemovePlot();
+app.selectTab(app.TabFigures);
+app.onAddFigure("heatmap");
+cx = app.gatherConfig();
+cx.Figures(2).style.FontSize = 15;
+cx.Figures(2).common.bins.BinSec = 0.05;
+app.applyConfig(cx);
+app.onFigureSelected(1);
+check(app.CopyFigureButton.Enable == "on", 'Copy from... is on with a figure selected and another to copy from');
+app.onCopyFigureSettings(From="figure_1", Parts="style");
+f1 = app.Config.Figures(1);
+check(f1.id == "psth_1_fig" && f1.style.FontSize == 15 && f1.common.bins.BinSec ~= 0.05 && isequal([f1.panels.type], [want.panels.type]) ...
+    && contains(string(app.StatusBar.Text), "Copied from figure_1 onto psth_1_fig: Appearance") && app.FigurePreviewState == "drawn", ...
+    'From= and Parts= copy the appearance alone; the panels and common options stay, the preview follows');
+answerDialog('Copy figure settings', @copyFigureDialog);
+app.onCopyFigureSettings();
+seen = getappdata(groot, 'copyFigureSeen');
+if isappdata(groot, 'copyFigureSeen'); rmappdata(groot, 'copyFigureSeen'); end
+f1 = app.Config.Figures(1);
+check(isstruct(seen) && seen.count == "2 part(s) to copy" && seen.from == "figure_1  (1 panels)" ...
+    && f1.id == "psth_1_fig" && isequal([f1.panels.type], "heatmap") && f1.common.bins.BinSec == 0.05 && app.SelectedPanel == 1 ...
+    && nPatches() == 1, 'the window copies the parts ticked (common options, arrangement): psth_1_fig is now the heat map''s panels');
+app.onRemoveFigure();
+app.onFigureSelected(1);
+app.onRemoveFigure();
+check(isempty(app.Config.Figures), 'both figures removed');
+app.onSaveConfig();
+app.Tabs.SelectedTab = app.TabData;
+
 fprintf('\n== 6. close ==\n');
 app.savePreferences();
 check(strcmp(AppPrefs.getpref(g, 'LastConfigFile'), cfgFile) && isequal(string(AppPrefs.getpref(g, 'PlotSectionsCollapsed')), "bins"), ...
@@ -2084,6 +2135,21 @@ D.Boxes.bins.ValueChangedFcn(D.Boxes.bins, []);
 lab = findall(ancestor(D.All, 'figure'), 'Type', 'uilabel');
 seen.count = string(lab(contains(string({lab.Text}), "part(s) to copy")).Text);
 setappdata(groot, 'copySettingsSeen', seen);
+press(D, "Ok");
+end
+
+
+function copyFigureDialog(D)
+%copyFigureDialog  In the Copy figure settings window: None, tick Common options and Arrangement, note the count, Copy.
+press(D, "None");
+for b = [D.Boxes.common D.Boxes.arrangement]
+    b.Value = true;
+    b.ValueChangedFcn(b, []);
+end
+lab = findall(ancestor(D.All, 'figure'), 'Type', 'uilabel');
+seen = struct('count', string(lab(contains(string({lab.Text}), "part(s) to copy")).Text), ...
+    'from', string(D.From.Items{D.From.ItemsData == D.From.Value}));
+setappdata(groot, 'copyFigureSeen', seen);
 press(D, "Ok");
 end
 

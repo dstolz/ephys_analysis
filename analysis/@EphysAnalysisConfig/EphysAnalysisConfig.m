@@ -377,6 +377,22 @@ classdef EphysAnalysisConfig
             end
         end
 
+        function [obj, id, notes] = convertPlotToFigure(obj, plotId)
+            %convertPlotToFigure  Append a figure that draws what plot PLOTID draws (plotToFigure).
+            %   [CFG, ID, NOTES] = cfg.convertPlotToFigure(PLOTID) returns the
+            %   new config, the figure's id ("<plotId>_fig", "_fig2", ...:
+            %   free among plots and figures) and NOTES, what the figure could not
+            %   carry. The plot stays. Errors: EphysAnalysisConfig:NoPlot,
+            %   EphysAnalysisConfig:NotConvertible (rate, tuning, behavior).
+            arguments
+                obj (1,1) EphysAnalysisConfig
+                plotId (1,1) string
+            end
+            [f, notes] = EphysAnalysisConfig.plotToFigure(obj, plotId);
+            obj.Figures = [obj.Figures, f];
+            id = f.id;
+        end
+
         %% --- session plots ------------------------------------------------------
         function [obj, id] = addSessionPlot(obj, sp, opts)
             %addSessionPlot  Append a session plot: a base plot's id or a (partial) session plot struct.
@@ -497,6 +513,7 @@ classdef EphysAnalysisConfig
         fig = adoptPanelOptions(fig, panelId)
         fig = adoptPanelAlignment(fig, panelId)
         fig = relinkPanels(fig)
+        [fig, notes] = plotToFigure(cfg, plotId)
 
         function obj = fromStruct(s)
             %fromStruct  Build a config from a struct (e.g. decoded JSON).

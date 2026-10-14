@@ -8,7 +8,9 @@ function buildFiguresTab(obj)
 %   Left    the figures (FigureList: "<id>  (<n> panels, per <kind>)",
 %           "(off)" when disabled), the template a new one starts from
 %           (EphysAnalysisConfig.figureTemplates, "Raster over PSTH (per
-%           unit)" first) with Add, and Remove, Duplicate, Up, Down.
+%           unit)" first) with Add, and Remove, Duplicate, Up, Down and
+%           Copy from... (onCopyFigureSettings: another figure's settings,
+%           part by part).
 %   Middle  the editor, a column of sections (formSection): Id, Title,
 %           Enabled and a summary, always open; then Observations (what the
 %           figure is drawn for and the unit filter), Arrangement (the
@@ -47,8 +49,8 @@ obj.FigureObservation = containers.Map('KeyType', 'char', 'ValueType', 'any');
 PT = EphysAnalysisConfig.panelTypes();
 
 % --- left: the figures ------------------------------------------------------------------------
-lg = uigridlayout(g, [7 2]);
-lg.RowHeight = {22, '1x', 28, 30, 30, 30, 36};
+lg = uigridlayout(g, [8 2]);
+lg.RowHeight = {22, '1x', 28, 30, 30, 30, 30, 36};
 lg.ColumnWidth = {'1x', '1x'};
 lg.Padding = [0 0 0 0];
 l = uilabel(lg, "Text", "Figures", "FontWeight", "bold");
@@ -76,9 +78,13 @@ place(obj.UpFigureButton, 6, 1);
 obj.DownFigureButton = uibutton(lg, "Text", "Down", "ButtonPushedFcn", @(~,~) obj.onMoveFigure(1), ...
     "Tooltip", "Move the selected figure down the list.");
 place(obj.DownFigureButton, 6, 2);
+obj.CopyFigureButton = uibutton(lg, "Text", "Copy from...", "ButtonPushedFcn", @(~,~) obj.onCopyFigureSettings(), ...
+    "Tooltip", "Copy another figure's settings onto the selected figure: pick the figure and the parts (observations, " + ...
+    "alignment, common options, arrangement and panels, appearance, looks). It keeps its id, title and enabled.");
+place(obj.CopyFigureButton, 7, [1 2]);
 l = uilabel(lg, "Text", "A figure is one observation's panels: a unit's, a channel's or the dataset's.", ...
     "WordWrap", "on", "FontColor", gray, "VerticalAlignment", "top");
-place(l, 7, [1 2]);
+place(l, 8, [1 2]);
 
 % --- middle: the editor --------------------------------------------------------------------------
 ep = uipanel(g, "Title", "Figure");

@@ -1648,17 +1648,55 @@ FE.defaultRef.Value = true;
 app.onFigureDefaultToggled();
 check(isequal(app.Config.Figures(1).ref, "default") && string(FA.Edge.Value) == "onset", 'Use default goes back to the Alignment tab''s event');
 app.onPanelSelected(3);
+locked = FE.panelSame.Value && FP.Post.Enable == "off" && FP.Line.Enable == "off" && FE.alignApplyAll.Enable == "off" ...
+    && FE.alignRelinkAll.Enable == "off";
 FP.Post.Value = 0.5;
-app.onPanelAlignEdited("window");
+app.onPanelAlignEdited("window");   % as if an edit came in: ignored while the panel is linked
+check(locked && isequal(app.Config.Figures(1).panels(3).window, "default") && FE.panelSame.Value, ...
+    'while "Same as the figure" is ticked the panel''s rows are locked, and an edit does not detach it');
+FA.Post.Value = 0.9;
+app.onFigureAlignEdited("window");
+spec = app.Config.figureFor(1);
+check(isstruct(app.Config.Figures(1).window) && spec.panels(3).window.post == 0.9 && spec.panels(3).sharesTime ...
+    && FP.Post.Value == 0.9 && app.FigurePreviewState == "drawn" && app.FigurePreviewResult.spec.panels(3).window.post == 0.9, ...
+    'an edit of the figure''s Epoch window reaches the linked panel (its rows show it) and the preview is computed again');
+FE.panelSame.Value = false;
+app.onPanelDefaultToggled();
 spec = app.Config.figureFor(1);
 p3 = app.Config.Figures(1).panels(3);
-check(isstruct(p3.window) && p3.window.post == 0.5 && isequal(p3.ref, "default") && ~FE.panelSame.Value ...
-    && ~spec.panels(3).sharesTime && spec.panels(1).sharesTime && app.FigurePreviewState == "drawn", ...
-    'an edit in Panel alignment gives the panel its own window (its event stays the figure''s) and its own time axis');
-FE.panelSame.Value = true;
+check(isstruct(p3.ref) && isstruct(p3.window) && p3.window.post == 0.9 && p3.ref.line == spec.ref.line && p3.ref.edge == spec.ref.edge ...
+    && FP.Post.Enable == "on" && FE.alignApplyAll.Enable == "on" && FE.alignRelinkAll.Enable == "on" && ~spec.panels(3).sharesTime, ...
+    'unticking copies the figure''s current event and window into the panel and opens its rows');
+FP.Post.Value = 0.5;
+app.onPanelAlignEdited("window");
+p3 = app.Config.Figures(1).panels(3);
+check(p3.window.post == 0.5 && app.Config.figureFor(1).panels(1).window.post == 0.9 && app.FigurePreviewState == "drawn", ...
+    'an edit then changes this panel''s own window only');
+app.onPanelSelected(1);
+FE.panelSame.Value = false;
+app.onPanelDefaultToggled();   % the raster's own copy too
+app.onPanelSelected(3);
+FE.alignApplyAll.ButtonPushedFcn(FE.alignApplyAll, []);
+fg = app.Config.Figures(1);
+relinked = arrayfun(@(q) isequal(q.ref, "default") && isequal(q.window, "default"), fg.panels);
+check(isstruct(fg.window) && fg.window.post == 0.5 && all(relinked) && FE.panelSame.Value && FA.Post.Value == 0.5 ...
+    && app.Config.figureFor(1).panels(1).window.post == 0.5 && contains(app.StatusBar.Text, "are now the figure's") ...
+    && FE.alignRelinkAll.Enable == "off", ...
+    'Apply to all panels makes this panel''s window the figure''s and links every panel (the raster''s own dropped)');
+FE.panelSame.Value = false;
 app.onPanelDefaultToggled();
-check(isequal(app.Config.Figures(1).panels(3).window, "default") && FP.Post.Value == app.Config.figureFor(1).window.post, ...
-    '"Same as the figure" goes back to the figure''s window');
+FP.Post.Value = 0.6;
+app.onPanelAlignEdited("window");
+own = isstruct(app.Config.Figures(1).panels(3).window);
+FE.alignRelinkAll.ButtonPushedFcn(FE.alignRelinkAll, []);
+fg = app.Config.Figures(1);
+check(own && isequal(fg.panels(3).window, "default") && isequal(fg.panels(3).ref, "default") && fg.window.post == 0.5 ...
+    && FE.panelSame.Value && FP.Post.Value == 0.5 && contains(app.StatusBar.Text, "Re-linked 1 panel"), ...
+    'Re-link all panels drops a panel''s own window: it follows the figure''s again');
+FE.defaultWindow.Value = true;
+app.onFigureDefaultToggled();
+check(isequal(app.Config.Figures(1).window, "default") && FP.Post.Value == app.Config.figureFor(1).window.post, ...
+    'the figure''s window back to the default, the linked panel''s rows follow');
 % a tightened unit filter
 n0 = height(app.FigureObservations);
 FE.obsMaxUnits.Value = '1';

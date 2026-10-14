@@ -308,30 +308,38 @@ sec = [sec Sr Sw Ss];
 S = formSection(eg, 8, "palign", "Panel alignment", "panel", Color=tint("palign"));
 E.panelSame = uicheckbox(S.HeaderGrid, "Text", "Same as the figure", "Value", true, ...
     "ValueChangedFcn", @(~,~) obj.onPanelDefaultToggled(), ...
-    "Tooltip", "Ticked: the panel uses the figure's event reference and epoch window, and shares its time axis. " + ...
-    "Editing a value below gives the panel its own (its own epochs, the figure's trial selection); tick again to go back.");
+    "Tooltip", "Ticked: the panel uses the figure's event reference and epoch window (the rows below show them, " + ...
+    "locked), shares its time axis, and follows every change of them. Untick to give the panel its own, starting " + ...
+    "from the figure's (its own epochs, the figure's trial selection); tick again to go back.");
 E.panelSame.Layout.Column = 2;
-pg = uigridlayout(S.Body, [4 1]);
+pg = uigridlayout(S.Body, [5 1]);
 pg.Padding = [0 0 0 0];
 pg.RowSpacing = 4;
 E.palignNote = uilabel(pg, "Text", "", "FontColor", gray, "WordWrap", "on");
 E.palignNote.Layout.Row = 1;
+bg = uigridlayout(pg, [1 2], "ColumnWidth", {'1x', '1x'}, "Padding", [4 0 4 0], "ColumnSpacing", 6);
+bg.Layout.Row = 2;
+E.alignApplyAll = uibutton(bg, "Text", "Apply to all panels", "ButtonPushedFcn", @(~,~) applyAlignToAll(obj), ...
+    "Tooltip", "Make this panel's own event and window the figure's, and link every panel to them again " + ...
+    "(Same as the figure). Only while this panel has its own.");
+E.alignRelinkAll = uibutton(bg, "Text", "Re-link all panels", "ButtonPushedFcn", @(~,~) relinkAll(obj), ...
+    "Tooltip", "Every panel uses the figure's event and window again: the panels' own are dropped.");
 pr = uipanel(pg, "BorderType", "none");
-pr.Layout.Row = 2;
+pr.Layout.Row = 3;
 pw = uipanel(pg, "BorderType", "none");
-pw.Layout.Row = 3;
+pw.Layout.Row = 4;
 ps = uipanel(pg, "BorderType", "none", "Visible", "off");   % the selection: the figure's, always
-ps.Layout.Row = 4;
+ps.Layout.Row = 5;
 C2 = obj.buildAlignControls([pr pw ps], @(part) obj.onPanelAlignEdited(part));
 C2.Diagram.Visible = "off";
 C2.WindowGrid.RowHeight{end} = 0;
 set([C2.RefGrid C2.WindowGrid], 'Padding', [4 2 4 2]);
 hr = gridHeight(C2.RefGrid);
 hw = gridHeight(C2.WindowGrid);
-pg.RowHeight = {0, hr, hw, 0};
+pg.RowHeight = {0, 30, hr, hw, 0};
 pg.UserData = [hr hw];
 E.palignGrid = pg;
-S.BodyHeight = hr + hw + 3 * pg.RowSpacing;
+S.BodyHeight = 30 + hr + hw + 4 * pg.RowSpacing;
 obj.PanelAlignControls = C2;
 sec(end+1) = S;
 
@@ -832,6 +840,45 @@ end
 
 function setAddSource(obj, s)
 obj.FigureAddSource = string(s);
+end
+
+
+function applyAlignToAll(obj)
+%applyAlignToAll  The selected panel's own event and window become the figure's; every panel is linked to them again.
+%   A part the panel does not have of its own stays the figure's.
+k = obj.SelectedFigure;
+j = obj.SelectedPanel;
+if k < 1 || k > numel(obj.Config.Figures) || j < 1 || j > numel(obj.Config.Figures(k).panels); return; end
+cfg = obj.gatherConfig();
+fig = cfg.Figures(k);
+p = fig.panels(j);
+if ~isstruct(p.ref) && ~isstruct(p.window); return; end
+if isstruct(p.ref); fig.ref = p.ref; end
+if isstruct(p.window); fig.window = p.window; end
+for q = 1:numel(fig.panels)
+    fig.panels(q).ref = "default";
+    fig.panels(q).window = "default";
+end
+cfg.Figures(k) = fig;
+commitFigureEdit(obj, cfg, sprintf("%s's event and window are now the figure's; all %d panels follow them.", p.id, numel(fig.panels)));
+end
+
+
+function relinkAll(obj)
+%relinkAll  Every panel of the selected figure uses the figure's event and window again (their own are dropped).
+k = obj.SelectedFigure;
+if k < 1 || k > numel(obj.Config.Figures); return; end
+cfg = obj.gatherConfig();
+fig = cfg.Figures(k);
+n = 0;
+for q = 1:numel(fig.panels)
+    n = n + (isstruct(fig.panels(q).ref) || isstruct(fig.panels(q).window));
+    fig.panels(q).ref = "default";
+    fig.panels(q).window = "default";
+end
+if n == 0; return; end
+cfg.Figures(k) = fig;
+commitFigureEdit(obj, cfg, sprintf("Re-linked %d panel(s): every panel follows the figure's event and window again.", n));
 end
 
 

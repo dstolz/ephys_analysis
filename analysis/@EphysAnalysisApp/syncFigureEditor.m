@@ -10,8 +10,11 @@ function syncFigureEditor(obj)
 %     Arrangement    the selected panel's rows once there is one
 %     Panel, Panel alignment, Layers, Options   with a panel selected;
 %                    Group shown for the one-group types (heat map, unit
-%                    correlation); Panel alignment grayed out, with a note,
-%                    for a type not aligned to events
+%                    correlation); Panel alignment's rows grayed out (they
+%                    show the figure's) while "Same as the figure" is
+%                    ticked, and, with a note, for a type not aligned to
+%                    events; its Apply to all panels only while the panel
+%                    has its own, Re-link all panels while any panel does
 %     Event reference, Epoch window, Trial selection   unless every panel
 %                    of the figure is one not aligned to events
 %     Layers         the picked layer's rows by its source and binding:
@@ -206,10 +209,12 @@ if hasPanel
     if t == "corrmap"; modes = ["fixed" "between"]; end
     setWindowModes(obj.PanelAlignControls.Mode, modes);
     C2 = obj.PanelAlignControls;
+    unlinked = paligned && ~E.panelSame.Value;   % linked ("Same as the figure"): the rows show the figure's, locked
     ctl = findobj([C2.RefGrid C2.WindowGrid], '-property', 'Enable');
-    set(ctl, 'Enable', onoff(paligned));
-    if paligned; syncAlignEnable(C2); end
+    set(ctl, 'Enable', onoff(unlinked));
+    if unlinked; syncAlignEnable(C2); end
     en(E.panelSame, paligned);
+    en(E.alignApplyAll, unlinked);
     E.palignNote.Text = "";
     if ~paligned
         E.palignNote.Text = typeLabel + " panels are not aligned to events: they use no event or window.";
@@ -222,11 +227,16 @@ if hasPanel
     end
 end
 en(E.removePanel, hasPanel);
+own = false;   % any panel with its own event or window: Re-link all panels has something to do
+for q = 1:np
+    own = own || isstruct(fig.panels(q).ref) || isstruct(fig.panels(q).window);
+end
+en(E.alignRelinkAll, own);
 pg = E.palignGrid;
 hs = pg.UserData;
 note = 34 * (hasPanel && ~paligned);
-pg.RowHeight = {note, hs(1), hs(2), 0};
-S(names == "palign").BodyHeight = note + hs(1) + hs(2) + 3 * pg.RowSpacing;
+pg.RowHeight = {note, 30, hs(1), hs(2), 0};
+S(names == "palign").BodyHeight = note + 30 + hs(1) + hs(2) + 4 * pg.RowSpacing;
 
 % appearance
 types = strings(1, 0);

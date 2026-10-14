@@ -10,7 +10,11 @@ SVG / PDF files and collected into an HTML and / or PDF report. A plot can
 also be drawn over several datasets at once and merged (a color per session
 or per subject, or a mean with an error band across sessions), and the
 organized data behind it saved or put in the MATLAB workspace: the
-[Sessions tab](#sessions-tab).
+[Sessions tab](#sessions-tab). Panels of different types (a raster flush
+above its PSTH above the LFP of the same unit, say) can be designed as one
+figure for a unit, a channel or the dataset, and previewed one observation at
+a time (the runner's `computeFigure` and `renderFigure`; figures are not run
+or exported yet): the [Figures tab](#figures-tab).
 
 The app edits one [`EphysAnalysisConfig`](EphysAnalysisConfig.md) (saved as
 JSON) and draws it with an `EphysAnalysisRunner`
@@ -449,10 +453,248 @@ own rules still win over a design, and a plot's own group or heat colors
 win over the design's. The design you pick is your preference, not part
 of the config. See [Plot designs](EphysAnalysis.md#plot-designs).
 
+### Figures tab
+
+A *figure* is a grid of panels of different types (a raster, a PSTH, a
+signal trace, a probe map, ...) designed for **one observation**, a sorted
+unit, a channel of a signal or the dataset, and drawn for it: each panel
+holds *layers* of data that follow the observation or name fixed items, so a
+raster flush above its PSTH above the LFP of the same unit's channel is one
+figure. The tab edits the config's `Figures` list
+([every field and the model](EphysAnalysisConfig.md#figures)) and previews
+the figure for the observation you pick, reading only that unit's spikes or
+that channel's column, so an edit redraws quickly.
+
+In this release a figure is **previewed only**. **Run**, **Plan**, the
+report and the generated scripts ignore `Figures`, and Validate's rule that
+some plot or session plot must be enabled still counts only those, so a
+config that holds figures and nothing else is refused by it (Validate does
+check the figures themselves:
+[Validating figures](EphysAnalysisConfig.md#validating-figures)). Drawing a
+figure for every observation of every dataset it selects (**Generate**) is a
+later phase; the **Datasets** row of the Observations section is kept in the
+config for it. **File → Save config** keeps the figures, and **Help → Help
+for this tab** opens this section.
+
+Three columns: the figures, the editor of the selected one, and the preview.
+
+**The figure list.** It reads `<id>  (<n> panels, per <kind>)`, with *per
+unit*, *per channel* or *per dataset* for what the figure is drawn for (its
+Observe row, resolved), and *(off)* for a disabled figure.
+
+| Control | Effect |
+| --- | --- |
+| template drop-down, **Add** | adds a figure from the template with the next free id (`figure_1`, `figure_2`, ...) and selects it, with its first panel and layer. The templates: *Raster over PSTH (per unit)* (first: a 2 x 1 grid, a raster flush above a PSTH, each following the observed unit), one panel of each [panel type](EphysAnalysisConfig.md#panel-types), and *Blank* (an empty 1 x 1 grid to add panels to) |
+| **Remove**, **Duplicate** | removes the selected figure; copies it, with its remembered looks and its observation, under a new id right after it, and selects the copy |
+| **Up**, **Down** | swaps it with its neighbor in the list (and the config) |
+
+**The editor.** On top, always open: **Id** (unique among figures; it will
+name the figure's files; `id`), **Title** (blank = automatic: the id, the
+observation, the event and the epoch count; a title of your own names no
+observation, so the top-left panel names it; `title`), **Enabled** (a
+disabled figure stays in the config and is still drawn by the preview, but a
+later phase will not generate it; `enabled`) and a gray summary (*"2 rows x 1
+column, 2 panels; per unit"*). Then sections that collapse under their
+headers (**▼** / **►**), in this order:
+
+| Section | Rows |
+| --- | --- |
+| Observations (1) | what the figure is drawn for. **Observe**: *auto* (a unit when a layer that follows the observation reads sorted or detected spikes, else a channel when one reads a signal, else the dataset; the row says which it came to), *a unit*, *a channel* or *the dataset* (`observe.kind`). For units: **Spike source** (*units (sorted)* or *detected (per channel)*), unit classes, **Unit ids**, **Good units only**, **Responsive only** with its test, direction, windows and options, **Max units**, **Shanks** and **Channels**: the [Plots tab](#plots-tab)'s Units & channels rows, over the figure's epochs (`observe.units`). For channels: **Signal** (LFP, MUA, SPIKE or AUX) and **Channels** (the extract's columns, blank = all). **Datasets**: *the ticked datasets* or *a list*, which a later phase's Generate draws the figure over (`observe.datasets`; the preview uses the active dataset). A count line ends it (*"14 units on subj1_day1."*) |
+| Arrangement (2) | the schematic of the grid, **Add panel** with **Above**, **Below**, **Left** and **Right**, the selected panel's **Row span**, **Column span**, **Row height** and **Column width**, **Spacing**, **Remove panel** and **Move** (below) |
+| Panel (3) | **Type** (a change starts the panel afresh: below), **Title** (blank = none) and **Group shown** (heat map and unit correlation panels: which of the figure's trial groups they draw, 1 = the first; `options.group`) |
+| Event reference (4), Epoch window (5), Trial selection (6) | the figure's alignment: the [Alignment tab](#alignment-tab)'s controls, for this figure (`ref`, `window`, `selection`), each with **Use default** in its header; **Epoch Diagram** sits under the Epoch window. Hidden when every panel of the figure is of a type that is not aligned to events (probe map, unit waveforms) |
+| Panel alignment (7) | the selected panel's own event reference and epoch window (an aligned type only), with **Same as the figure** in the header; the trial selection is always the figure's |
+| Layers (8) | the selected panel's layers: the list with **Add** (a source the type draws), **Remove**, **Up** and **Down**, and the rows of the layer picked (below) |
+| Options (9) | the panel type's own rows, under the type's name (*Raster options*, *PSTH options*, ...; below) |
+| Appearance (0) | the figure's `style` (below); collapsed until opened |
+| Looks | how many looks are remembered for the figure (*"1 remembered look(s); right-click the preview to edit."*) and **Forget**, which drops them and redraws; no key; collapsed until opened |
+
+Each of the eleven headed sections has a title color of its own (steps along
+`turbo`, as on the Plots tab) and all but Looks a key: **Ctrl+1** to
+**Ctrl+9** and **Ctrl+0** (**Cmd** on a Mac; the number pad too) go to the
+section of that number, in the order above: Observations is 1, Arrangement
+2, Panel 3, Event reference 4, Epoch window 5, Trial selection 6, Panel
+alignment 7, Layers 8, Options 9 and Appearance 0. The key opens the section
+if it is collapsed, scrolls the editor to it and puts the keyboard focus on
+its header. Keys work with the Figures tab showing; for a section the figure
+does not show (no panel is picked, say) the status bar says so and nothing
+moves. Which sections are collapsed is remembered.
+
+**What shows.** Only what the figure, the selected panel and the picked layer
+use is shown (`syncFigureEditor`). The Observations rows follow what the
+figure is observed as; the sections from Panel to Options need a panel
+picked; Panel alignment is grayed out, with a note, for a type that is not
+aligned to events; a layer's rows follow its source and binding; the
+Options rows follow the panel's type. A section left with no row is hidden.
+Rows that another option switches off stay in place, grayed out: the binding
+until the layer's source and the panel's type let it follow the observation,
+*Draw as* a spike train until the panel is a raster, PSTH or heat map, the
+response test's rows until *Responsive only*, the baseline window until a
+baseline mode, the fill's opacity until *Filled*, the sort event until the
+sort is *event*, the jitter until the *points* display, the waveform's rows
+until its mode is not *Off*, a unit correlation's bins until its *peak*
+rate, the mask until the window has a stop event, the stack spacing until
+*stacked rows*, and the error and legend rows until their boxes.
+
+**The arrangement.** The schematic in the Arrangement section draws the grid
+in proportion (each row's relative height, each column's relative width): a
+box per panel, tinted by its type and naming it and how many layers it has;
+the selected panel has a dark edge and its id; cells no panel covers are
+dotted. Click a box to pick the panel; the sections from Panel to Options
+then show it.
+
+| Control | Effect |
+| --- | --- |
+| **Add panel** type, **Above**, **Below**, **Left**, **Right** | adds a panel of the type next to the selected one: *Above* and *Below* make a new row of the grid, as high as the selected panel's row, and the new panel takes the selected panel's columns; *Left* and *Right* make a new column, as wide as its column, and the new panel takes its rows. Panels past the new row (column) move down (right) by one, and those whose span crosses it grow by one. The first panel of a figure goes to row 1, column 1. The new panel holds the type's default layer, so it draws at once, and is selected ([Editing the grid](EphysAnalysisConfig.md#editing-the-grid)) |
+| **Row span**, **Column span** | how many rows and columns the panel covers, from its own cell; refused, with the reason in the status bar, past the grid's edge or over another panel (`rowSpan`, `colSpan`) |
+| **Row height**, **Column width** | the relative height of the panel's first row and width of its first column against the others (1 = equal; steps of 0.25). A figure is drawn on a tiled layout of equal tiles, so a size is rounded to quarter steps of the smallest, with at most 32 tiles a side (`grid.rowHeights`, `grid.colWidths`) |
+| **Spacing** | the space between the panels: *loose*, *compact*, *tight* or *none (flush)*, which draws stacked time panels sharing their edges (`grid.spacing`) |
+| **Remove panel** | removes the panel, then every row and column in which no remaining panel starts, so it exactly undoes the Add that made them (a blank row or column that was there before closes too) |
+| **Move** (arrows) | swaps the panel with the panel of the same shape above, below, left or right of it; an arrow is off when there is none |
+
+**Changing a panel's type** (Panel → **Type**) starts its options afresh from
+the new type's ([Panel options](EphysAnalysisConfig.md#panel-options)),
+keeping the values both types have (bins, the baseline when the new type
+takes its mode, measure, the mask after the stop event, y and color limits,
+the group shown); the waveform inset or panel starts over. It drops the
+layers the new type cannot draw (a heat map draws no trials layer), makes the
+layers it keeps fixed where the new type draws only fixed ones, and adds the
+type's default layer when none is left. A type that is not aligned to events
+(unit waveforms, probe map) goes back to the figure's event reference and
+epoch window. The status bar says what changed (*"psth_2 is now a heat map
+panel (was a PSTH panel): options reset; ..."*).
+
+**Panel alignment.** With **Same as the figure** ticked the panel uses the
+figure's event reference and epoch window and shares its time axis, so time
+panels stacked in a column are labeled once, at the bottom
+([shared time axis](EphysAnalysisConfig.md#shared-time-axis)). An edit gives
+the panel its own event reference and epoch window (both, starting from the
+figure's): its own epochs, cut with the figure's trial selection, and an x
+axis of its own; ticking the box goes back. The panel's groups must match
+the figure's by label, or it is skipped. The trial selection is the
+figure's alone, so a figure has one group table, one palette and one
+legend.
+
+**Layers.** The list names the panel's layers (*units, follows the
+observation*, *LFP, fixed: ch 3 5*, *events: Stim offset (marks)*, *trials:
+RespLatency*; a name of your own comes first, *(off)* ends an unticked one).
+**Add** adds a layer of the source in the drop-down beside it, which offers
+only what the panel's type draws
+([source categories](EphysAnalysisConfig.md#source-categories), and *events
+(a line)* on a panel that shares the time axis); the layer is bound as the
+type binds a new one, and fixed where it cannot follow the observation. **Remove**, **Up**
+and **Down** edit the list; the order is the drawing order (the first
+layer's first unit is a raster's top rows). A type that draws one layer
+(heat map, unit waveforms, behavior, probe map, unit correlation) says in
+red when it has more: only the first enabled one is drawn. The rows below the
+list edit the layer picked:
+
+| Row | Effect |
+| --- | --- |
+| **Name**, **Enabled** | the legend and aesthetics label (blank = the unit's, channel's or event's own); unticked, the layer is kept and not drawn (`name`, `enabled`) |
+| **Source** | what the layer reads: only the sources the type draws (`source`) |
+| **Binding** | *Follows the observation*: reads the unit or channel picked over the preview (for the other spike source, the detections or units on its channel; for a signal, the column that records the unit's channel, or the observed column; AUX has no recording channel, so it must be fixed). *Fixed*: reads the items named below. Only spike and signal layers on a raster, PSTH, continuous signal or unit waveforms panel may follow; events and trials layers, and any layer of the other types, are fixed. A gray line says what the layer draws for the figure's observation ([What a layer reads](EphysAnalysisConfig.md#what-a-layer-reads); `binding`) |
+| fixed units or detected spikes | unit classes (units), **Unit ids**, **Good units only**, **Responsive only**, **Max units**, **Shanks** and **Channels** (the recording channels kept): the Observations rows, for the layer's own units (`units`) |
+| fixed LFP, MUA, SPIKE or AUX | **Channels**: the extract's columns drawn, blank = all (`channels`) |
+| **Aggregate** | a fixed layer of a raster, PSTH or continuous signal panel with several units or channels: *each* one on its own, or *their mean* with a band across them (`aggregate`) |
+| events | **Line** and **Edge** (the dataset's lines are listed; one can be typed), **Sequence** with **Edit...** (the *Event sequence* window), **Draw as** (*marks*: a mark at each event on a raster's rows, a line at each trial group's median latency on a PSTH or signal panel; *a spike train of its own*: the events drawn as a unit would be, on a raster, PSTH or heat map only), and for marks the **Marker**, its size and **Mark color** (`event`, `eventsAs`; [Raster event marks](EphysAnalysisConfig.md#raster-event-marks)) |
+| trials | **Y value** (a numeric trial parameter such as `RespLatency`, or *stop*: the stop event's latency, ms) and **Series** (a trial parameter: one series per value) (`yParam`, `seriesParam`) |
+| **Color**, **Line style** | *auto*: each trial group's color, and the line style by the layer's order (solid, dashed, dotted, dash-dot); or one color and line style for the layer's traces. Event marks have their own (`color`, `lineStyle`) |
+
+**Options** are the panel type's rows (`options`; the fields are in
+[Panel options](EphysAnalysisConfig.md#panel-options)):
+
+| Panel type | Rows |
+| --- | --- |
+| Raster | **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*), **Rows by group first**, **Mask after the stop event**, and the waveform inset (**Waveform**, **Inset location**, **Inset size**, **Label**) |
+| PSTH | **Bin**, **Smooth**, **Measure**, **Baseline** and its window, **Mask after the stop event**, **PSTH as**, **Fill** and its opacity, **Normalize**, **Y limits**, and the waveform inset |
+| Continuous signal | **Baseline** and its window, **Display** (*lines* or *stacked rows*), **Signal** (mean or median; as recorded or rectified), **Error band** (off, mean ± SEM, mean ± SD, bootstrap 95% CI or interquartile range), **Stack spacing**, **Y limits** |
+| Heat map | **Bin**, **Smooth**, **Measure** and **Mask after the stop event** (a spike layer), **Baseline**, **Row order** (*probe* or *peak*), **Color limits**; the group drawn is in the Panel section |
+| Unit waveforms | **Waveform** (*Mean*, *Subsample* or *Mean + subsample*, and how many spikes), **Label**, **Y limits** |
+| Behavior | **X parameter**, **Display** (points, line, box, swarm or violin), **X axis**, **Jitter points**, **Y limits** |
+| Probe map | **Value** (*rate*, *nSpikes* or *nUnits*), **Color limits** |
+| Unit correlation | **Epoch rate**, **Correlation**, **Fisher z transform**, **Baseline**, **Bin** and **Smooth** (for the *peak* rate), **Color limits** |
+
+**Appearance** is the figure's `style`: font size, line width, site size
+(probe maps), group colors, heat colors (heat map, probe map and unit
+correlation panels), **Sort by** and **Label with** depth and shank (they
+order and label the observation picker too), **Show** error, stop marks,
+legend and grid, the legend's place, orientation and box, **Error** (its type
+and the bootstrap's resamples), **Band fill** and **Band edge**: the Plots
+tab's [Appearance](#plots-tab) rows. It has no tiles per page, grid spacing
+or y and color limits: a figure is one observation, the spacing is the
+Arrangement's, and each panel has its own y and color limits among its
+Options.
+
+**The preview** draws the selected figure for the observation picked, on the
+active dataset: `figureObservations` lists the observations,
+`EphysAnalysisRunner.computeFigure` computes the one picked (no graphics;
+only that unit's spikes or that channel's column are read) and
+`renderFigure` draws it, so it is what a script calling them draws.
+
+| Control | Effect |
+| --- | --- |
+| **Dataset** | the active dataset (the same one as on the other tabs) |
+| **Observation** | what the figure is drawn for: the units, channels or dataset the Observations section keeps, in probe order (*su12  ch 7  -320 µm*). Each figure remembers its pick until the app closes, by label, so it stays through a filter change or another dataset while that label is in the list, else the first is picked. Picking one draws it, whether or not Auto is on |
+| **<**, **>** | the previous and next observation (**Page Up**, **Page Down**: a figure has no pages); off at either end of the list |
+| **Preview** | computes now, also for a signal extract above `PreviewMaxMB`, which otherwise waits for it. It is the tall button left of the two rows of controls, and turns orange while the figure is *Out of date* |
+| **Auto** | redraw after every edit while a preview takes under 2 s; a slower one says so (*"slow, so edits wait for Preview"*). On by default, because one observation is quick; remembered. The first figure drawn after the app starts is not timed, since it also loads the graphics, so that warm-up does not make the edits after it wait |
+| **Design** | names the design every plot and figure is drawn in. It is chosen on the Plots tab or in the Design menu, and a new choice redraws the figure preview too |
+
+The line under the preview names the figure, the observation, the dataset and
+the time taken (*"figure_1, su12  ch 7  -320 µm on subj1_day1 (0.4 s);
+right-click to change colors, lines and fonts"*), or says why the figure
+cannot be drawn: the runner's [skip reasons](#why-is-my-plot-skipped) (no
+sorted units, no LFP extract, no paired trials, ...), or that no unit or
+channel passes the Observations filter. A layer that cannot be drawn for the
+observation is kept: its panel draws the other layers and prints the reason
+in small gray text. A colored badge at its left says where the preview is, as
+on the Plots tab:
+
+| Badge | Means |
+| --- | --- |
+| **Computing** (amber, spinning) | the figure is being computed for the observation picked on the active dataset |
+| **Drawing** (blue, spinning) | the result is being drawn |
+| **Drawn** (green) | the preview is the figure as it is now, for the observation picked |
+| **Out of date** (amber) | the figure, the defaults or the dataset changed and the preview was not redrawn (Auto is off, the last preview took 2 s or more, the edit was on another tab, or another tab's preview was computing): press **Preview** |
+| **Press Preview** (blue) | a layer, or the observed signal, reads an extract larger than `PreviewMaxMB` |
+| **Cannot draw** (gray) | the active dataset cannot draw the figure, or no observation passes the filter; the line says why |
+| **Failed** (red) | computing or drawing it failed; the line and the Log tab say why |
+| **Canceled** (gray) | you pressed **Cancel** on the card while it computed; auto-preview leaves it until you press **Preview** |
+| **No preview** (gray) | no figure is selected, or nothing is scanned or active |
+
+While it computes, a card over the last drawing says what (*"Computing
+figure_1 (su12 ...) on subj1_day1 ..."*) and has a red **Cancel** button. The
+compute stops at its next checkpoint, within about one unit's or one
+channel's work; reading an extract finishes first, and drawing cannot be
+stopped. Edits made while it computes do not start a second preview; they
+leave the one that finishes *Out of date*. Closing the app stops it too.
+The Plots, Figures and Sessions tabs' previews share the runner's computing
+and refuse each other: while one computes, the others compute nothing and
+mark a drawn preview *Out of date*, and a run blocks all three. The
+toolbar's **Preview** previews the selected figure while this tab shows.
+
+**Aesthetics.** Right-click any part of the preview and pick **Edit
+aesthetics...** as on the Plots tab; the editor names a panel's components by
+its id (`raster_1`, `psth_1`). **Remember for future plots** keeps the
+changes with this figure (its `aesthetics`, saved with the config, so
+the Looks section counts them) or in your preferences; a look remembered for
+PSTH plots on the Plots tab also dresses the PSTH panels of a figure. See
+[Plot aesthetics](EphysAnalysis.md#plot-aesthetics).
+
+**Epoch Diagram**, under the figure's Epoch window, opens the
+[epoch diagram](#epoch-diagram) in its figure mode: the figure's event reference,
+epoch window and trial selection (its own or the defaults), cut as the
+compute cuts the figure's epochs, with the incomplete ones and those that
+touch an artifact period dropped and the baseline windows of the panels on
+the figure's alignment tested too. A figure with no panel aligned to events
+says it has no epochs. The window follows the selected figure and redraws on
+every edit.
+
 ### Epoch diagram
 
-**Epoch Diagram** (under the Epoch window, in the plot editor and on the
-Alignment tab) opens a window that draws how the event reference, epoch
+**Epoch Diagram** (under the Epoch window, in the plot editor, in the figure
+editor and on the Alignment tab) opens a window that draws how the event reference, epoch
 window and trial selection cut the active dataset into epochs. It gets
 the epochs from `epochTable`, as the plot does, so they are exactly the
 plot's epochs. The window is not modal: it stays above the app while you
@@ -460,7 +702,9 @@ edit, and redraws on every edit, on a change of plot or of the active
 dataset, and when a config is opened. From the plot editor it follows the
 selected plot: its own values or the defaults, its baseline, and what it
 drops (a behavior plot keeps every epoch). From the Alignment tab it shows
-the defaults. It closes with the app.
+the defaults. From the Figures tab's editor it follows the selected figure
+(its own values or the defaults, and the baseline windows of its panels). It
+closes with the app.
 
 Top to bottom:
 
@@ -1027,7 +1271,7 @@ item's shortcut, if it has one (Ctrl, or Cmd on a Mac). In groups:
 | --- | --- |
 | New config, Open config, Save config | File (Ctrl+N, Ctrl+O, Ctrl+S) |
 | Scan for datasets | the Data tab's **Scan** |
-| Preview the selected plot on the active dataset | the Plots tab's **Preview**; shows the Plots tab first, unless the Sessions tab is showing, where it previews the selected session plot (the Sessions tab's **Preview**) |
+| Preview the selected plot on the active dataset | the Plots tab's **Preview**; shows the Plots tab first, unless the Sessions tab is showing, where it previews the selected session plot (the Sessions tab's **Preview**), or the Figures tab, where it previews the selected figure for the observation picked (the Figures tab's **Preview**) |
 | Validate config, Plan, Run, Cancel run | the Export tab's buttons; Validate, Plan and Run show the Export tab first, where they list what they find |
 | Open the last run's report, Open the last run's figure folder | the Export tab's **Open report** and **Open figure folder** |
 | Open pipeline app | File → **Open pipeline app** |
@@ -1098,6 +1342,8 @@ is in the config.
 | `PlotGroupsCollapsed` | the plot tree's collapsed groups |
 | `SessionAutoPreview` | the Sessions tab's Auto box (off by default: a session preview reads every dataset) |
 | `SessionSectionsCollapsed` | the session plot editor's collapsed sections |
+| `FigureAutoPreview` | the Figures tab's Auto box (on by default: one observation is quick to compute) |
+| `FigureSectionsCollapsed` | the figure editor's collapsed sections (Appearance and Looks start collapsed) |
 | `ChronuxCacheFolder` | the Chronux tab's local cache folder |
 | `ChronuxMaxMB` | the most signal the Chronux tab reads at once, and a spectrogram's largest size (default 2000 MB) |
 | `ChronuxSettings` | the Chronux tab's last settings (`chronuxSettings`) |
@@ -1150,6 +1396,7 @@ results, on the Log tab and in the report.
 | data | `openSource`, `onScan`, `refreshDatasetsTable`, `selectDataset`, `refreshDatasetInfo` |
 | previews | `refreshAlignPreview`, `refreshPreview`, `autoPreview`, `onPreviewPage`, `setPreviewState` (the badge and the busy card; its icons in `analysis/icons/status`), `onCancelPreview` |
 | epoch diagram | `onShowEpochs`, `refreshEpochDiagram`; the window itself is `analysis/EpochDiagram.m` |
+| Figures tab | `buildFiguresTab`; the list `refreshFigureList`, `onFigureSelected`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure`; the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `gotoFigureSection` and `onKeyPress` (Ctrl+1 ... Ctrl+9, Ctrl+0), `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`; the arrangement `drawFigureSchematic`, `onPanelSelected`, `onAddPanel`, `onRemovePanel`, `onMovePanel`, `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `removePanel` and `movePanel`; a structural edit ends in `private/commitFigureEdit`); the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`); the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoPreviewToggled`, `onCancelFigurePreview`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); the epoch diagram's figure mode is `onShowEpochs("figure")`; the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
 | Sessions tab | `buildSessionsTab`; the list `refreshSessionList`, `onSessionPlotSelected`, `onAddSessionPlot`, `onRemoveSessionPlot`, `onDuplicateSessionPlot`, `onMoveSessionPlot`; the editor `gatherSessionEditor` / `applySessionEditor`, `syncSessionEditor` (what shows), `layoutSessionEditor`, `onSessionSectionToggled`, `gotoSessionSection` and `onKeyPress` (Ctrl+1 ... Ctrl+3); the preview `refreshSessionPreview` and `drawSessionPreview`, `autoSessionPreview`, `onSessionAutoPreviewToggled`, `onSessionPreviewPage`, `onSessionGroupChanged`, `onCancelSessionPreview`, `rememberSessionAesthetics`, `setSessionPreviewState` (over `private/showPreviewState`, which `setPreviewState` shares); the dialogs `onPickSessionDatasets` (`private/pickSessionDatasets`), `onBrowseUnitMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`); the data `onSessionsToWorkspace` and `onSaveSessionData` (`private/collectSessionData`, `private/sessionPlotContext`); the session plots themselves are `analysis/` functions ([Across sessions](EphysAnalysis.md#across-sessions)) |
 | plot designs | `refreshDesigns` (the Design menu and list; `PlotDesign.listen` keeps them current), `onDesignChosen`, `onSaveDesign`, `onImportDesign`, `onDeleteDesign`, `onDesignsFolder`; the designs themselves: `PlotDesign`, `analysis/designs` |
 | running | `onValidate`, `onPlan`, `onRunExport`, `onCancelRun` |
@@ -1162,7 +1409,7 @@ results, on the Log tab and in the report.
 
 `test_EphysAnalysisApp` builds the app headlessly on the analysis fixture
 (a small synthetic project run through the pipeline) and drives it through
-its methods: the seven tabs; the toolbar (its tools in groups with their
+its methods: the eight tabs; the toolbar (its tools in groups with their
 icons, every menu shortcut named in a tooltip, Preview and Plan clicked
 from another tab, the run and results tools following the Export tab's
 buttons); the scan; opening on a list of datasets
@@ -1231,6 +1478,41 @@ and the folder tooltip); the preferences remembered (the
 last config, the collapsed section); closing. It keeps the app's
 preferences in a temporary file (`AppPrefs`), so the user's own are never
 read or changed.
+
+Its section 5d drives the Figures tab on the same fixture. With no figure
+the editor shows only a hint, the preview is *No preview*, *Raster over PSTH
+(per unit)* is the first template and Help goes to `#figures-tab`; **Add**
+from that template makes `figure_1`, listed *(2 panels, per unit)*, with
+two boxes in the schematic and the config unsaved. The picker lists the
+fixture's units in the order `figureObservations` gives and the preview
+draws the first at once, in two axes; **>** and Page Up step to the next and
+previous unit (the title names it, and the figure remembers its pick). A
+Continuous signal panel added **Below** the PSTH makes a 3 x 1 stack whose
+LFP layer follows the unit and draws at once; the editor then shows that
+type's rows only (and the raster's rows when the raster is picked, with the
+binding grayed out for an events layer, which is always fixed); **Add** of an
+events layer to the raster draws its marks. Ctrl+1 opens the collapsed
+Observations section and Appearance is Ctrl+0. With Auto off an edit leaves
+the preview *Out of date* until **Preview**, and **Cancel** on the busy card
+(clicked from a timer, as on the Plots tab) leaves it *Canceled* with the
+card and the polling gone. An edit in the figure's Event reference gives it
+an event of its own (the Alignment tab's unchanged) that the title and the
+panel alignment follow, and **Use default** goes back; an edit in Panel
+alignment gives that panel a window of its own and its own time axis, and
+**Same as the figure** goes back. *Max units* shrinks the picker and *Inf*
+restores it. Changing a PSTH panel to a heat map keeps its units layer
+(fixed) and the shared bins, shows the heat map's rows and says so in the
+status bar, and changing it back lets the layer follow the unit again. The
+gather / apply round trip keeps the figure and the panel picked; a look
+remembered from the preview's editor lands in the figure's `aesthetics` (and
+the runner's config), and **Forget** drops it. **Remove panel** takes the
+continuous panel and its row away, **Duplicate** copies the figure as
+`figure_2` and **Remove** takes the copy away. After a save and a reopen the
+config keeps the figure, and a new app restores the Auto box and the collapsed
+section; the last **Remove** leaves the editor and preview empty. The grid
+editing (`placePanel`, `removePanel`, `movePanel`), the compute and the
+render are `test_EphysAnalysisFigures`
+([Tests](EphysAnalysisConfig.md#tests)).
 
 <!-- wiki
 ## Related

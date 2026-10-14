@@ -30,6 +30,24 @@ says how to cut a release.
   run, exported or reported yet: `run`, `plan`, the reports and the generated scripts ignore them, and
   Validate's "no plot enabled" rule still counts plots and session plots only. See
   [Figures](documentation/EphysAnalysisConfig.md#figures).
+- Figures tab in the analysis app. A new tab beside Plots designs a figure and previews it for one
+  observation at a time. The figure list adds a figure from a template ("Raster over PSTH (per unit)" first,
+  or one panel of a type) and removes, duplicates and reorders; the editor, in collapsible sections with
+  Ctrl+1 to Ctrl+9 and Ctrl+0, sets what the figure is drawn for (a unit with its filter, a channel, or the
+  dataset), the arrangement (a schematic to click a panel in, Add panel above, below, left or right of the
+  selected one, spans, row heights and column widths, spacing, Remove and Move), the panel (type, title,
+  group shown, its own event and window or "Same as the figure"), its layers (a source the type draws,
+  following the observation or fixed, with the units, channels, event line or trial values it needs) and
+  the type's options, besides the figure's event reference, epoch window and trial selection ("Use default"
+  for the Alignment tab's) and appearance. Changing a panel's type keeps the options and layers both types
+  share. The preview picks the dataset and the observation (< and >, Page Up and Page Down) and computes
+  only that unit's spikes or that channel's column, so Auto redraws after every edit unless a preview takes
+  2 s or more; it has the Plots tab's badge states and a Cancel, shares the runner with the Plots and
+  Sessions previews, remembers looks from the right-click aesthetics editor with the figure, and the
+  Epoch Diagram can follow the figure. New preferences `FigureAutoPreview` (on by default) and
+  `FigureSectionsCollapsed`. Figures are previewed only: generating them for every observation and
+  dataset, exporting and reporting them are a later phase. See
+  [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
 - Kilosort4 parameter details on the Sorting tab. Each parameter's name is a link that opens a modal
   window with its definition, function, impact, tuning and defaults (this pipeline's and Kilosort4
   4.1.7's own).

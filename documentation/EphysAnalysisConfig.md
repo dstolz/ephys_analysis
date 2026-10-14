@@ -1015,7 +1015,7 @@ ignore `Figures`, and the [validation](#validation) rule that some plot or
 session plot must be enabled still counts only those, so a config that holds
 figures and nothing else is refused by it. What exists is the config below,
 `figureObservations`, `EphysAnalysisRunner.computeFigure` and `renderFigure`,
-which the app's Figures tab and a script both call:
+which the app's [Figures tab](EphysAnalysisApp.md#figures-tab) and a script both call:
 
 ```matlab
 cfg = EphysAnalysisConfig();

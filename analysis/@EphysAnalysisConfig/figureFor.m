@@ -18,7 +18,7 @@ function spec = figureFor(obj, id)
 %     "off" (the insets' default) becomes "both" for it. The panel's
 %     common flag stays in the spec (the link state)
 %   - each layer's category added (categoryOf: "point", "continuous",
-%     "trial", "unit", or "" where the type does not draw the source) and
+%     "unit", or "" where the type does not draw the source) and
 %     its units.source set to its source (a complete UnitSelection)
 %   A panel of an unknown type keeps its empty options, with aligned and
 %   sharesTime false. Error: EphysAnalysisConfig:NoFigure.

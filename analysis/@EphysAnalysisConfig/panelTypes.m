@@ -3,10 +3,10 @@ function T = panelTypes()
 %   T = EphysAnalysisConfig.panelTypes() has one row per type, the analog
 %   of plotKinds for the panels of a figure (the Figures section):
 %     Type            "raster" | "psth" | "continuous" | "heatmap" |
-%                     "waveforms" | "behavior" | "probemap" | "corrmap"
+%                     "waveforms" | "probemap" | "corrmap"
 %     Label           name shown in the app
 %     Categories      the source categories its layers draw
-%                     (sourceCategories: point, continuous, trial, unit)
+%                     (sourceCategories: point, continuous, unit)
 %     Aligned         true when it is cut into epochs around events (its
 %                     ref and window are used)
 %     SharesTime      its x axis is time from the event: while its ref and
@@ -74,12 +74,6 @@ opts.heatmap = struct( ...
 opts.waveforms = struct( ...
     'waveform', waveformsOwn, ...       % mode "mean" | "subsample" | "both" (never "off")
     'yLim',     []);
-opts.behavior = struct( ...
-    'param',   "", ...                  % the trial parameter on the x axis
-    'xScale',  "category", ...          % "category" | "linear"
-    'display', "points", ...            % "points" | "line" | "box" | "swarm" | "violin"
-    'jitter',  true, ...                % points: spread sideways (a fixed, repeatable jitter)
-    'yLim',    []);
 opts.probemap = struct( ...
     'value', "rate", ...                % "rate" | "nSpikes" | "nUnits"
     'cLim',  []);
@@ -99,7 +93,6 @@ rows = {
     "continuous", "Continuous signal", "continuous",            true,   true,      false,   true,      "observation",  "The epochs' mean of LFP / MUA / SPIKE / AUX channels, with an error band"
     "heatmap",    "Heat map",          ["point" "continuous"],  true,   true,      true,    false,     "fixed",        "Units or channels by time in color, one trial group"
     "waveforms",  "Unit waveforms",    "unit",                  false,  false,     false,   false,     "observation",  "A unit's mean waveform and a sample of its spikes"
-    "behavior",   "Behavior",          "trial",                 true,   false,     false,   false,     "fixed",        "A per-trial value against a trial parameter"
     "probemap",   "Probe map",         "unit",                  false,  false,     false,   false,     "fixed",        "A per-channel value (rate, spikes, units) drawn on the probe sites"
     "corrmap",    "Unit correlation",  "unit",                  true,   false,     true,    false,     "fixed",        "Pairwise correlation of the units' per-epoch rates, one trial group"
     };

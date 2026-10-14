@@ -20,7 +20,7 @@ rp = struct();
 rp.grid = struct('rows', 2, 'cols', 1, 'rowHeights', [1 1], 'colWidths', [], 'spacing', "none");
 rp.panels = {panelOf("raster", 1), panelOf("psth", 2)};
 
-order = ["psth" "raster" "continuous" "heatmap" "waveforms" "behavior" "probemap" "corrmap"];
+order = ["psth" "raster" "continuous" "heatmap" "waveforms" "probemap" "corrmap"];
 n = numel(order) + 2;
 Template = strings(n, 1); Label = strings(n, 1); Description = strings(n, 1); Figure = cell(n, 1);
 Template(1) = "rasterPsth";

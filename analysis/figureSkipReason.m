@@ -18,16 +18,13 @@ function [reason, layerReasons] = figureSkipReason(src, spec)
 %   layer (the layer's index in the panel; 0 = the panel itself) and
 %   reason ("" = it can be computed): one entry per panel, then one per
 %   enabled layer of it. A panel's own reasons: an unknown type; its own
-%   ref / window (as the figure's above); a behavior panel without paired
-%   trials or its param ("no trial parameter X"); a raster sorted by a
+%   ref / window (as the figure's above); a raster sorted by a
 %   trial parameter the trials lack, or by an event (rasterSort "event")
 %   that names none or whose line is missing; a probe map without a probe
 %   map ("no probe map"). A layer's: "no sorted units", "no detected
 %   spikes", "no <SIGNAL> extract"; events: "no line X" (or of its
 %   sequence), "no paired trials" (trial scope or "Trial"), "no trial
-%   parameter X" (offsetParam); trials: "no paired trials", "no trial
-%   parameter X" (yParam, seriesParam), "no stop event in the window" for
-%   yParam "stop"; a following layer: "AUX has no recording channel: bind
+%   parameter X" (offsetParam); a following layer: "AUX has no recording channel: bind
 %   it to fixed channels" (an AUX layer following a unit, or a channel of
 %   another signal), "no unit or channel observed" (a dataset figure); a
 %   source the panel type does not draw, or events drawn as a train on a
@@ -70,7 +67,7 @@ for k = 1:numel(spec.panels)
     end
 end
 if aligned
-    reason = alignReason(src, spec.ref, spec.window, sel, vars, false);
+    reason = alignReason(src, spec.ref, spec.window, sel, vars);
     if reason ~= ""; return; end
 end
 
@@ -82,9 +79,9 @@ for k = 1:numel(spec.panels)
     if ~any(row)
         pr = "unknown panel type " + p.type;
     else
-        own = PT.Aligned(row) && (p.type == "behavior" || ~isequaln(p.ref, spec.ref) || ~isequaln(p.window, spec.window));
+        own = PT.Aligned(row) && (~isequaln(p.ref, spec.ref) || ~isequaln(p.window, spec.window));
         if own
-            pr = alignReason(src, p.ref, p.window, sel, vars, p.type == "behavior");
+            pr = alignReason(src, p.ref, p.window, sel, vars);
         end
         if pr == ""
             pr = panelReason(src, p, vars);
@@ -104,12 +101,12 @@ if ~isempty(out); layerReasons = [layerReasons, out{:}]; end
 end
 
 
-function r = alignReason(src, ref, win, sel, vars, needTrials)
+function r = alignReason(src, ref, win, sel, vars)
 %alignReason  What an alignment (ref, window, the figure's selection) needs that the dataset lacks.
 st = win.stop;
 restrictive = sel.filter ~= "" || ~isempty(sel.response) || ~isempty(sel.trials) || ~isempty(sel.groupBy);
 shifted = ref.offsetParam ~= "" || (~isempty(st) && st.offsetParam ~= "");
-if (needTrials || ref.scope == "trial" || ref.line == "Trial" || restrictive || shifted) && ~src.hasTrials
+if (ref.scope == "trial" || ref.line == "Trial" || restrictive || shifted) && ~src.hasTrials
     r = "no paired trials"; return
 end
 r = lineReason(src, ref);
@@ -144,10 +141,6 @@ switch p.type
             if ~src.hasTrials; r = "no paired trials"; return; end
             r = paramReason(o.rasterSort, vars);
         end
-    case "behavior"
-        if ~src.hasTrials; r = "no paired trials"; return; end
-        if o.param == ""; r = "no trial parameter on the x axis (options.param)"; return; end
-        r = paramReason(o.param, vars);
     case "probemap"
         if isempty(src.probe); r = "no probe map"; end
 end
@@ -189,17 +182,6 @@ switch s
         end
         r = lineReason(src, ref);
         if r == ""; r = paramReason(ref.offsetParam, vars); end
-    case "trials"
-        if ~src.hasTrials; r = "no paired trials"; return; end
-        if L.yParam == "stop"
-            if isempty(p.window.stop); r = "no stop event in the window"; return; end
-        elseif L.yParam == ""
-            r = "no trial value to draw (yParam)"; return
-        else
-            r = paramReason(L.yParam, vars);
-            if r ~= ""; return; end
-        end
-        r = paramReason(L.seriesParam, vars);
     otherwise   % a signal
         if ~hasSignal(src, s); r = "no " + s + " extract"; end
 end

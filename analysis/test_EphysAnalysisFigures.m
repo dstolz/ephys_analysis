@@ -24,9 +24,7 @@ function test_EphysAnalysisFigures()
 %   three units averaged; events as marks (epochEvents) and as a train (a
 %   one-unit PSTH peaking at 0 when aligned to its own line); a panel's own
 %   window (its epochs, the figure's groups); a channel observation (its
-%   column, the MUA column of the same channel, the units on it); behavior
-%   (the stop latency, as computePlot's; no stop event, or a yParam /
-%   seriesParam the trials lack, skips the layer); a raster sorted by a
+%   column, the MUA column of the same channel, the units on it); a raster sorted by a
 %   missing parameter skipped while the PSTH under it is computed; a
 %   signal's baseline with no sample in the window skipping its layer;
 %   probemap, corrmap and waveforms as computePlot's; PollFcn checkpoints
@@ -41,7 +39,7 @@ function test_EphysAnalysisFigures()
 %   (s)" at the bottom only, a panel's own window kept); one legend, each
 %   group once; skipped layers' notes; events marks on a raster and as
 %   latency lines and a rug on a PSTH; a stacked continuous panel of marks
-%   alone; a behavior panel's series in the figure's legend; a raster of
+%   alone; a raster of
 %   five blocks keeping every block's name; a raster over a waveforms
 %   panel keeping its time axis; figureTiles' order past its cap;
 %   Editable, OnRemember and the context's redraw; the editor's colormap;
@@ -89,7 +87,7 @@ nPass = 0; nFail = 0;
     end
 
 T = EphysAnalysisConfig.panelTypes();
-types = ["raster" "psth" "continuous" "heatmap" "waveforms" "behavior" "probemap" "corrmap"];
+types = ["raster" "psth" "continuous" "heatmap" "waveforms" "probemap" "corrmap"];
 place = @EphysAnalysisConfig.placePanel;
 remove = @EphysAnalysisConfig.removePanel;
 move = @EphysAnalysisConfig.movePanel;
@@ -114,43 +112,44 @@ L = EphysAnalysisConfig.defaults("Layer");
 check(L.name == "" && L.enabled && L.source == "units" && L.binding == "observation" && ~isfield(L.units, 'source') ...
     && isequaln(L.units, rmfield(EphysAnalysisConfig.defaults("UnitSelection"), 'source')) && isequal(L.channels, []) ...
     && L.aggregate == "each" && isequaln(L.event, EphysAnalysisConfig.defaults("EventMark")) && L.eventsAs == "marks" ...
-    && L.yParam == "" && L.seriesParam == "" && L.color == "" && L.lineStyle == "", 'defaults("Layer")');
+    && L.color == "" && L.lineStyle == "" && ~isfield(L, 'yParam') && ~isfield(L, 'seriesParam'), 'defaults("Layer")');
 O = EphysAnalysisConfig.defaults("Observe");
 check(O.kind == "auto" && O.source == "units" && ~isfield(O.units, 'source') && O.signal == "LFP" && isequal(O.channels, []) ...
     && O.datasets == "ticked" && isstring(O.datasetKeys) && isequal(size(O.datasetKeys), [1 0]), 'defaults("Observe")');
 
 check(isequal(T.Type.', types) && isequal(string(T.Properties.VariableNames), ["Type" "Label" "Categories" "Aligned" ...
-    "SharesTime" "OneGroup" "MultiLayer" "DefaultBinding" "Description" "DefaultOptions"]), 'panelTypes: the eight types and the columns');
-check(isequal(T.SharesTime.', [true true true true false false false false]) && isequal(T.Aligned.', [true true true true false true false true]) ...
-    && isequal(T.OneGroup.', [false false false true false false false true]) && isequal(T.MultiLayer.', [true true true false false false false false]) ...
-    && isequal(T.DefaultBinding.', ["observation" "observation" "observation" "fixed" "observation" "fixed" "fixed" "fixed"]) ...
+    "SharesTime" "OneGroup" "MultiLayer" "DefaultBinding" "Description" "DefaultOptions"]), 'panelTypes: the seven types and the columns');
+check(isequal(T.SharesTime.', [true true true true false false false]) && isequal(T.Aligned.', [true true true true false false true]) ...
+    && isequal(T.OneGroup.', [false false false true false false true]) && isequal(T.MultiLayer.', [true true true false false false false]) ...
+    && isequal(T.DefaultBinding.', ["observation" "observation" "observation" "fixed" "observation" "fixed" "fixed"]) ...
     && isequal(T.Categories{T.Type == "heatmap"}, ["point" "continuous"]), 'panelTypes: aligned, shared time, one group, layers, binding, categories');
 O = T.DefaultOptions;
 check(isempty(O{1}.rasterSortEvent) && O{1}.rasterSortOrder == "ascending" && O{1}.waveform.mode == "off" ...
     && O{2}.bins.BinSec == 0.01 && O{2}.histStyle == "bar" && isnan(O{2}.fillAlpha) && isequal(O{2}.yLim, []) ...
     && O{3}.display == "lines" && O{3}.errorType == "sem" && isnan(O{3}.stackSpacing) ...
-    && O{4}.order == "probe" && O{4}.group == 1 && O{5}.waveform.mode == "both" && O{6}.display == "points" && O{6}.jitter ...
-    && O{7}.value == "rate" && O{8}.metric == "mean" && O{8}.correlation == "pearson" && ~O{8}.fisherZ, ...
+    && O{4}.order == "probe" && O{4}.group == 1 && O{5}.waveform.mode == "both" ...
+    && O{6}.value == "rate" && O{7}.metric == "mean" && O{7}.correlation == "pearson" && ~O{7}.fisherZ, ...
     'panelTypes: each type''s DefaultOptions');
 S = EphysAnalysisConfig.sourceCategories();
-check(isequal(S.Category.', ["point" "continuous" "trial" "unit"]) && isequal(S.Sources{1}, ["units" "detected" "events"]) ...
-    && isequal(S.Sources{4}, ["units" "detected"]) && isequal(S.Aligned.', [true true true false]), 'sourceCategories');
-check(isequal(EphysAnalysisConfig.FigureSources, ["units" "detected" "events" "LFP" "MUA" "SPIKE" "AUX" "trials"]), 'FigureSources');
+check(isequal(S.Category.', ["point" "continuous" "unit"]) && isequal(S.Sources{1}, ["units" "detected" "events"]) ...
+    && isequal(S.Sources{3}, ["units" "detected"]) && isequal(S.Aligned.', [true true false]), 'sourceCategories (no trial category)');
+check(isequal(EphysAnalysisConfig.FigureSources, ["units" "detected" "events" "LFP" "MUA" "SPIKE" "AUX"]), 'FigureSources (no trials)');
 catOf = @EphysAnalysisConfig.categoryOf;
 check(catOf("units", "raster") == "point" && catOf("detected", "waveforms") == "unit" && catOf("units", "corrmap") == "unit" ...
-    && catOf("LFP", "heatmap") == "continuous" && catOf("units", "heatmap") == "point" && catOf("trials", "behavior") == "trial" ...
-    && catOf("trials", "heatmap") == "" && catOf("LFP", "raster") == "" && catOf("units", "continuous") == "" && catOf("units", "nope") == "", ...
+    && catOf("LFP", "heatmap") == "continuous" && catOf("units", "heatmap") == "point" ...
+    && catOf("trials", "heatmap") == "" && catOf("units", "behavior") == "" && catOf("LFP", "raster") == "" && catOf("units", "continuous") == "" && catOf("units", "nope") == "", ...
     'categoryOf: the category a type draws a source in, else ""');
 check(catOf("events", "continuous") == "point" && catOf("events", "heatmap") == "point" && catOf("events", "raster") == "point" ...
-    && catOf("events", "waveforms") == "" && catOf("events", "behavior") == "", 'categoryOf: events fit every time panel, and no other');
+    && catOf("events", "waveforms") == "" && catOf("events", "probemap") == "", 'categoryOf: events fit every time panel, and no other');
 D1 = layerOf("continuous");
-D2 = layerOf("behavior");
+D2 = layerOf("probemap");
 D3 = layerOf("heatmap");
 D4 = layerOf("waveforms");
-check(D1.source == "LFP" && D1.binding == "observation" && D2.source == "trials" && D2.binding == "fixed" ...
+check(D1.source == "LFP" && D1.binding == "observation" && D2.source == "units" && D2.binding == "fixed" ...
     && D3.source == "units" && D3.binding == "fixed" && D4.source == "units" && D4.binding == "observation", ...
     'defaultLayer: the type''s first source with its default binding');
-check(strcmp(errorId(@() layerOf("violin")), 'EphysAnalysisConfig:BadValue'), 'defaultLayer of an unknown type: BadValue');
+check(strcmp(errorId(@() layerOf("violin")), 'EphysAnalysisConfig:BadValue') && strcmp(errorId(@() layerOf("behavior")), 'EphysAnalysisConfig:BadValue'), ...
+    'defaultLayer of an unknown type (behavior is not a panel type): BadValue');
 C = EphysAnalysisConfig.defaults("FigureCommon");
 fnF = string(fieldnames(F)).';
 check(isequal(string(fieldnames(C)).', ["bins" "measure" "baseline" "maskAfterStop" "waveform"]) && C.bins.BinSec == 0.01 ...
@@ -163,7 +162,7 @@ cfo = @EphysAnalysisConfig.commonFieldsOf;
 check(isequal(EphysAnalysisConfig.commonFields(), ["bins" "measure" "baseline" "maskAfterStop" "waveform"]) ...
     && isequal(cfo("raster"), ["maskAfterStop" "waveform"]) && isequal(cfo("psth"), ["bins" "measure" "baseline" "maskAfterStop" "waveform"]) ...
     && isequal(cfo("continuous"), "baseline") && isequal(cfo("heatmap"), ["bins" "measure" "baseline" "maskAfterStop"]) ...
-    && isequal(cfo("waveforms"), "waveform") && isequal(cfo("corrmap"), ["bins" "baseline"]) && isempty(cfo("behavior")) ...
+    && isequal(cfo("waveforms"), "waveform") && isequal(cfo("corrmap"), ["bins" "baseline"]) ...
     && isempty(cfo("probemap")) && isempty(cfo("violin")), 'commonFields and commonFieldsOf(type)');
 
 fu = EphysAnalysisConfig.normalizeFigure(struct('panels', {{struct('type', "raster", 'layers', layerOf("raster"))}}));
@@ -179,7 +178,7 @@ check(EphysAnalysisConfig.observeKind(fu) == "unit" && EphysAnalysisConfig.obser
 fprintf('\n== 2. config: addFigure, templates and ids ==\n');
 FT = EphysAnalysisConfig.figureTemplates();
 check(FT.Template(1) == "rasterPsth" && FT.Label(1) == "Raster over PSTH (per unit)" ...
-    && isequal(FT.Template(2:end-1).', ["psth" "raster" "continuous" "heatmap" "waveforms" "behavior" "probemap" "corrmap"]) ...
+    && isequal(FT.Template(2:end-1).', ["psth" "raster" "continuous" "heatmap" "waveforms" "probemap" "corrmap"]) ...
     && FT.Template(end) == "blank", 'figureTemplates: rasterPsth first, one per type, blank last');
 cfg = EphysAnalysisConfig();
 [cfg, id1] = cfg.addFigure();
@@ -306,12 +305,9 @@ Pc{3}.layers = [Pc{3}.layers, aux];
 Pc{3}.options = struct('errorType', "std", 'display', "stacked");
 Pc{4}.layers.source = "LFP"; Pc{4}.layers.channels = [1 2 3];
 Pc{4}.options = struct('cLim', [-1 1], 'group', 2);
-Pc{6}.layers.yParam = "RespLatency"; Pc{6}.layers.seriesParam = "Depth";
-Pc{6}.options = struct('param', "Depth", 'display', "box");
-Pc{6}.window = struct('mode', "fixed", 'pre', 0, 'post', 2, 'stop', struct('line', "Response"));
-Pc{7}.options = struct('value', "nUnits");
-Pc{8}.ref = struct('line', "Platform");
-Pc{8}.window = struct('mode', "between", 'pre', 0, 'post', 0, 'stop', struct('line', "Platform", 'edge', "offset"));
+Pc{6}.options = struct('value', "nUnits");
+Pc{7}.ref = struct('line', "Platform");
+Pc{7}.window = struct('mode', "between", 'pre', 0, 'post', 0, 'stop', struct('line', "Platform", 'edge', "offset"));
 allTypes = struct('id', "all_types", 'title', "Every panel type", ...
     'observe', struct('kind', "unit", 'datasets', "list", 'datasetKeys', ["S1/a" "S2/b"], 'units', struct('classes', "su", 'maxUnits', 4)), ...
     'grid', struct('rows', 4, 'cols', 2, 'rowHeights', [1 1.5 1 1], 'colWidths', [2 1], 'spacing', "compact"), ...
@@ -332,7 +328,7 @@ g = c2.Figures(1);
 check(isequal(g.grid.rowHeights, [1 1.5 1 1]) && isequal(g.grid.colWidths, [2 1]) && isequal(c2.Figures(2).grid.rowHeights, [1 1.5]) ...
     && isequal(c2.Figures(2).grid.colWidths, []), 'relative sizes come back as rows; [] stays []');
 check(isequal([g.panels.type], types) && isequal([g.panels.id], types + "_1") && g.panels(3).options.display == "stacked" ...
-    && g.panels(7).options.value == "nUnits" && g.panels(4).options.group == 2 && g.panels(6).options.display == "box", ...
+    && g.panels(6).options.value == "nUnits" && g.panels(4).options.group == 2, ...
     'every panel type, with its options');
 e = g.panels(1).layers(2);
 check(e.source == "events" && e.binding == "fixed" && numel(e.event.sequence) == 2 && e.event.sequence(2).relation == "notFollowedBy" ...
@@ -342,8 +338,8 @@ check(isequal(g.panels(2).layers(2).units.ids, [3 5]) && g.panels(2).layers(2).a
     && g.panels(2).layers(2).lineStyle == "--" && isequal(g.panels(3).layers(2).channels, [1 2]) && isequal(g.panels(4).layers.channels, [1 2 3]), ...
     'fixed and following layers');
 check(isequal(c2.Figures(2).ref, "default") && isequal(c2.Figures(2).window, "default") && isequal(c2.Figures(2).panels(1).ref, "default") ...
-    && isstruct(g.panels(2).window) && isequal(g.panels(2).ref, "default") && isstruct(g.panels(8).window.stop) ...
-    && g.panels(8).window.mode == "between" && isequal(g.ref.timeRange, [0 Inf]), '"default" sentinels and overrides');
+    && isstruct(g.panels(2).window) && isequal(g.panels(2).ref, "default") && isstruct(g.panels(7).window.stop) ...
+    && g.panels(7).window.mode == "between" && isequal(g.ref.timeRange, [0 Inf]), '"default" sentinels and overrides');
 check(isequal(g.observe.datasetKeys, ["S1/a" "S2/b"]) && isequal(g.observe.units.classes, "su") && g.observe.units.maxUnits == 4 ...
     && isequal(g.selection.groupBy, ["Depth" "TrialType"]) && isscalar(g.aesthetics) && isstruct(g.panels(1).options.rasterSortEvent) ...
     && g.panels(1).options.rasterSortEvent.edge == "offset" && isnan(g.panels(2).options.fillAlpha) && g.panels(2).options.baseline.Mode == "zscore", ...
@@ -497,9 +493,8 @@ for t = FT.Template.'
     tc = tc.addFigure(t, Id="t_" + t);
 end
 I = figIssues(tc);
-check(isempty(I(~startsWith(I.Field, ["t_behavior." "t_blank."]), :)), 'every template validates clean but behavior and blank');
-check(has(tc, "t_behavior.behavior_1.options.param", "error") && has(tc, "t_behavior.behavior_1.layers(1).yParam", "error") ...
-    && has(tc, "t_blank.panels", "warning"), 'a behavior panel needs its param and yParam; a blank figure has no panels');
+check(isempty(I(~startsWith(I.Field, "t_blank."), :)), 'every template validates clean but blank');
+check(has(tc, "t_blank.panels", "warning"), 'a blank figure has no panels');
 nf = EphysAnalysisConfig();
 nf.Source.Root = root;
 nf = nf.addFigure();
@@ -579,10 +574,12 @@ check(has(b, "figure_1.grid", "warning") && contains(I.Message(I.Field == "figur
 evL = layerOf("raster"); evL.source = "events"; evL.binding = "fixed"; evL.event.line = "Stim";
 b = base; b.Figures(1).panels(1).layers(1).source = "spikes";
 check(has(b, "figure_1.raster_1.layers(1).source", "error"), 'a layer source not in FigureSources');
-b = base.addFigure("heatmap", Id="hm"); b.Figures(2).panels.layers.source = "trials";
+b = base.addFigure("waveforms", Id="wf"); b.Figures(2).panels.layers.source = "LFP";
 I = figIssues(b);
-check(any(I.Field == "hm.heatmap_1.layers(1).source" & I.Severity == "error" ...
-    & I.Message == "A heat map panel draws point-process or continuous layers, not trials."), 'a source the panel type does not draw');
+check(any(I.Field == "wf.waveforms_1.layers(1).source" & I.Severity == "error" ...
+    & I.Message == "A unit waveforms panel draws unit-summary layers, not LFP."), 'a source the panel type does not draw');
+b = base; b.Figures(1).panels(1).layers(1).source = "trials";
+check(has(b, "figure_1.raster_1.layers(1).source", "error"), 'trials is no layer source (the behavior panel type is gone)');
 b = base; b.Figures(1).panels(1).layers(1).binding = "both";
 check(has(b, "figure_1.raster_1.layers(1).binding", "error"), 'binding is observation or fixed');
 b = base; ev2 = evL; ev2.binding = "observation"; b.Figures(1).panels(1).layers(2) = ev2;
@@ -606,10 +603,9 @@ b = base; b.Figures(1).panels(1).layers(1).units.maxUnits = 0;
 check(has(b, "figure_1.raster_1.layers(1).units.maxUnits", "error"), 'a layer''s maxUnits >= 1');
 b = base.addFigure("continuous", Id="ct"); b.Figures(2).panels.layers.channels = 1.5;
 check(has(b, "ct.continuous_1.layers(1).channels", "error"), 'a layer''s channels are whole numbers >= 1');
-b = base.addFigure("behavior", Id="bh"); b.Figures(2).panels.options.param = "Depth"; b.Figures(2).panels.layers.yParam = "stop";
-b2 = b; b2.Figures(2).window = struct('mode', "fixed", 'pre', 0, 'post', 1, 'stop', struct('line', "Response"));
-check(has(b, "bh.behavior_1.layers(1).yParam", "error") && ~has(b2, "bh.behavior_1.layers(1).yParam", "error") && isempty(figIssues(b2)), ...
-    'yParam "stop" needs a stop event in the panel''s window');
+b = base; b.Figures(1).panels(1).type = "behavior";
+check(has(b, "figure_1.raster_1.type", "error") && strcmp(errorId(@() base.addFigure("behavior")), 'EphysAnalysisConfig:BadValue'), ...
+    'behavior is no panel type, nor a figure template');
 b = base; b.Figures(1).panels(1).layers(1).color = "plaid";
 check(has(b, "figure_1.raster_1.layers(1).color", "warning"), 'a layer color that is not one warns');
 b = base; b.Figures(1).panels(1).layers(1).lineStyle = "~";
@@ -706,13 +702,6 @@ b2 = unlinkFigure(base.addFigure("heatmap", Id="hm"), 2); b2.Figures(2).panels.o
 check(has(b, o + "baseline.Mode", "error") && isempty(figIssues(b2)), 'heatmap: z-score for spikes, not for a signal');
 b = unlinkFigure(base.addFigure("waveforms", Id="wf"), 2); b.Figures(2).panels.options.waveform.mode = "off";
 check(has(b, "wf.waveforms_1.options.waveform.mode", "error"), 'waveforms: the mode is never off');
-b = base.addFigure("behavior", Id="bh"); b.Figures(2).panels.layers.yParam = "RespLatency";
-b.Figures(2).panels.options.display = "pie"; b.Figures(2).panels.options.xScale = "log";
-o = "bh.behavior_1.options.";
-check(has(b, o + "param", "error") && has(b, o + "display", "error") && has(b, o + "xScale", "error"), 'behavior: param, display, xScale');
-b = base.addFigure("behavior", Id="bh"); b.Figures(2).panels.layers.yParam = "RespLatency";
-b.Figures(2).panels.options.param = "Depth"; b.Figures(2).panels.options.display = "violin";
-check(has(b, o + "display", "error") == ~exist('violinplot', 'file'), 'behavior: violin needs violinplot');
 b = base.addFigure("probemap", Id="pm"); b.Figures(2).panels.options.value = "x";
 check(has(b, "pm.probemap_1.options.value", "error"), 'probemap: value');
 b = base.addFigure("corrmap", Id="cm"); b.Figures(2).panels.options.metric = "max"; b.Figures(2).panels.options.correlation = "kendall";
@@ -946,38 +935,14 @@ check(isscalar(k1) && Fc.observation.kind == "channel" && Fc.observation.column 
     && all(Fc.panels(2).layers(1).meta.channel == Tc.channel(k1)) && any(Fc.panels(2).layers(1).meta.unitId == Tu.unitId(1)), ...
     'a channel observation: its own column, the same recording channel in the MUA extract, the units on that channel');
 
-% behavior: the stop event's latency
-cfg = cfg.addFigure("behavior", Id="bh");
-kb = cfg.figureIndex("bh");
-cfg.Figures(kb).panels(1).options.param = "Depth";
-cfg.Figures(kb).panels(1).layers(1).yParam = "stop";
-cfg.Figures(kb).ref = struct('line', "RespWindow", 'scope', "trial");
-noStop = cfg.figureFor("bh");
-cfg.Figures(kb).window = struct('mode', "fixed", 'pre', 0, 'post', 0, 'stop', struct('line', "Trough", 'scope', "trial"));
-sb = cfg.figureFor("bh");
-Fb = rn.computeFigure(src, sb);
-cfg = cfg.addPlot(struct('kind', "behavior", 'param', "Depth", 'yParam', "stop", 'ref', struct('line', "RespWindow", 'scope', "trial"), ...
-    'window', struct('pre', 0, 'post', 0, 'stop', struct('line', "Trough", 'scope', "trial"))), Id="bh_plot");
-Rb = rn.computePlot(src, cfg.plotFor("bh_plot"));
-Lb = Fb.panels(1).layers(1);
-check(Lb.skip == "" && Lb.R.kind == "behavior" && isequaln(Lb.R.mean, Rb.mean) && isequaln(Lb.R.n, Rb.n) && Lb.R.units == "ms" ...
-    && Lb.name == "Trough onset latency" && istable(Fb.panels(1).epochs), ...
-    'behavior: each epoch''s stop-event latency by Depth, as computePlot''s behavior plot gives it');
-[~, lrb] = figureSkipReason(src, noStop);
-Fn = rn.computeFigure(src, noStop);
-check(any([lrb.reason] == "no stop event in the window") && Fn.panels(1).layers(1).skip == "no stop event in the window" ...
-    && isempty(Fn.panels(1).layers(1).R), 'yParam "stop" needs a stop event in the window: else the layer is skipped with that reason');
-cfg = cfg.addFigure("behavior", Id="bhbad");
-kx = cfg.figureIndex("bhbad");
-cfg.Figures(kx).panels(1).options.param = "Depth";
-cfg.Figures(kx).panels(1).layers(1).yParam = "NoSuchParam";
-Fx = rn.computeFigure(src, cfg.figureFor("bhbad"));
-cfg.Figures(kx).panels(1).layers(1).yParam = "RespLatency";
-cfg.Figures(kx).panels(1).layers(1).seriesParam = "NoSuchSeries";
-Fy = rn.computeFigure(src, cfg.figureFor("bhbad"));
-check(Fx.panels(1).skip == "" && Fx.panels(1).layers(1).skip == "no trial parameter NoSuchParam" && isempty(Fx.panels(1).layers(1).R) ...
-    && Fy.panels(1).skip == "" && Fy.panels(1).layers(1).skip == "no trial parameter NoSuchSeries" && isempty(Fy.panels(1).layers(1).R), ...
-    'a behavior layer whose yParam or seriesParam the trials lack is skipped with that reason (the figure is still computed)');
+% a panel whose only layer is skipped (an AUX layer following a unit)
+auxOnly = EphysAnalysisConfig.defaultLayer("continuous");
+auxOnly.source = "AUX";
+cfg = cfg.addFigure(struct('observe', struct('kind', "unit"), 'panels', {{struct('id', "auxonly", 'type', "continuous", ...
+    'layers', auxOnly)}}), Id="auxonly");
+Fn = rn.computeFigure(src, cfg.figureFor("auxonly"), Observation=Tu(1, :));
+check(Fn.panels(1).skip == "" && Fn.panels(1).layers(1).skip == auxMsg && isempty(Fn.panels(1).layers(1).R), ...
+    'a panel whose only layer is skipped keeps the layer and its reason');
 
 % a parameter or a baseline the panel cannot use skips it, not the figure
 fr = cfg.Figures(cfg.figureIndex("rp"));
@@ -1125,8 +1090,7 @@ rcases = {
     "a panel's own window",             Fo
     "a channel observation",            Fc
     "heat map",                         Fh
-    "behavior",                         Fb
-    "behavior, its layer skipped",      Fn
+    "a panel of one skipped layer",     Fn
     "probe map",                        Fp
     "unit correlation",                 Fcm
     "unit waveforms",                   Fw};
@@ -1211,7 +1175,7 @@ noteText = strjoin(string(get(notes, 'String')), " | ");
 check(~isempty(notes) && contains(noteText, auxMsg), sprintf('a skipped layer shows its reason in its panel ("%s")', noteText));
 hn = renderFigure(Fn, Fn.spec, fig);
 notes = findall(hn.layout, 'Tag', 'layerNote');
-check(isscalar(notes) && contains(string(notes.String), "no stop event in the window") && notes.HorizontalAlignment == "center", ...
+check(isscalar(notes) && contains(string(notes.String), auxMsg) && notes.HorizontalAlignment == "center", ...
     'a panel with nothing to draw says why, in its middle');
 
 % events: raster marks, PSTH latency lines and rug
@@ -1246,23 +1210,6 @@ catch ME
     msg1 = " (" + ME.message + ")";
 end
 check(ok1, "a stacked continuous panel whose signal layers are all skipped still draws its marks, and says why" + msg1);
-
-% a behavior panel's series join the figure's one legend
-bl = EphysAnalysisConfig.defaultLayer("behavior");
-bl.yParam = "RespLatency";
-bl.seriesParam = "TrialType";
-cfg = cfg.addFigure(struct('grid', struct('rows', 2, 'cols', 1), 'panels', {{ ...
-    struct('id', "beh", 'type', "behavior", 'row', 1, 'layers', bl, 'options', struct('param', "Depth")), ...
-    struct('id', "rate", 'type', "psth", 'row', 2, 'layers', EphysAnalysisConfig.defaultLayer("psth"))}}), Id="bseries");
-Fb2 = rn.computeFigure(src, cfg.figureFor("bseries"), Observation=Tu(1, :));
-hb2 = renderFigure(Fb2, Fb2.spec, fig);
-Rbh = Fb2.panels(1).layers(1).R;
-lg = findall(fig, 'Type', 'legend');
-lgText = strings(1, 0);
-if isscalar(lg); lgText = string(lg.String); end
-check(Fb2.panels(1).layers(1).skip == "" && numel(Rbh.series) >= 2 && isscalar(lg) && all(ismember(string(Rbh.series), lgText)) ...
-    && all(ismember(string(Fb2.groups.label), lgText)) && isgraphics(hb2.layout), ...
-    sprintf('a behavior panel''s series join the figure''s one legend, with the trial groups (%s)', strjoin(lgText, ", ")));
 
 % a raster of five or more blocks keeps every block's name on a flush stack
 fixedAll = EphysAnalysisConfig.defaultLayer("raster");

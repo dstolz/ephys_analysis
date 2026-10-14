@@ -29,7 +29,7 @@ function h = renderFigure(F, spec, target, opts)
 %   Legend   one, east of the panels (Style.LegendLocation, placeLegend):
 %            the trial groups once (as a PSTH panel draws them, else a
 %            continuous one, else a raster's bands), then the panels'
-%            layer, unit, channel, mark and behavior series entries, each
+%            layer, unit, channel and mark entries, each
 %            label once; no panel keeps a legend of its own.
 %   Style    SPEC.style: FontSize, LineWidth, ShowSEM, the Error* band
 %            look, ShowZeroLine, ShowStop, Grid, Legend*, Colormap,

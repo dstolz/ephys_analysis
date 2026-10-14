@@ -28,7 +28,7 @@ function it = figureLayerItems(L, obs, observe, chanMeta)
 %   observed AUX channel; a dataset observation has nothing to follow.
 %
 %   IT fields
-%     what     "units" | "channels" | "events" | "trials"
+%     what     "units" | "channels" | "events"
 %     units    the UnitSelection to pass to selectUnits / unitSummary
 %              (what "units"; source = L.source)
 %     columns  the extract's columns to read (what "channels"; [] = all)
@@ -52,7 +52,7 @@ if signal
     it.what = "channels";
     it.columns = L.channels;
 elseif ~spike
-    it.what = L.source;   % "events" | "trials": always what they name
+    it.what = L.source;   % "events": always the line it names
     return
 end
 if L.binding ~= "observation"; return; end

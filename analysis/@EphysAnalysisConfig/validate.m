@@ -91,12 +91,11 @@ function issues = validate(obj, opts)
 %               window only on aligned types, a "between" window only on a
 %               unit correlation panel; layers: a source the type draws
 %               (categoryOf), the binding ("observation" only for spikes
-%               and signals, never on heatmap / probemap / corrmap /
-%               behavior; AUX cannot follow a unit; a warning for a signal
-%               following another signal's channel), aggregate, maxUnits
-%               (a warning above 8 units drawn each in a raster / PSTH),
-%               channels, a trials layer's yParam ("stop" needs a stop
-%               event), events layers only on time panels, a train only
+%               and signals, never on heatmap / probemap / corrmap; AUX
+%               cannot follow a unit; a warning for a signal following
+%               another signal's channel), aggregate, maxUnits (a
+%               warning above 8 units drawn each in a raster / PSTH),
+%               channels, events layers only on time panels, a train only
 %               on raster / psth / heatmap, the mark's event reference,
 %               marker, size and color, a layer's color and line style, a
 %               raster of marks alone (an error: no rows); warnings for a
@@ -107,8 +106,7 @@ function issues = validate(obj, opts)
 %               the panel's window --, histStyle, normalize,
 %               fillAlpha, the raster sort, continuous display /
 %               statistic / transform / errorType and its toolbox,
-%               stackSpacing, heatmap order, group, behavior param /
-%               display / xScale / violinplot, probemap value, corrmap
+%               stackSpacing, heatmap order, group, probemap value, corrmap
 %               metric / correlation, the waveform settings, y / color
 %               limits; a linked panel's common fields are checked once,
 %               in the figure's common options -- bins, measure,
@@ -839,13 +837,9 @@ for k = 1:numel(obj.Figures)
                 add("Figures", l0 + ".binding", "error", "A layer's binding is observation (it follows the observed unit or channel) or fixed, not """ + ...
                     L.binding + """.");
             elseif L.binding == "observation"
-                if ~ismember(L.source, [EphysAnalysisConfig.SpikeSources EphysAnalysisConfig.SignalSources])
-                    if isEvents
-                        add("Figures", l0 + ".binding", "error", "An events layer is always fixed: it names its line (event).");
-                    else
-                        add("Figures", l0 + ".binding", "error", "A trials layer is always fixed: it names its values (yParam).");
-                    end
-                elseif ismember(pj.type, ["heatmap" "probemap" "corrmap" "behavior"])
+                if isEvents
+                    add("Figures", l0 + ".binding", "error", "An events layer is always fixed: it names its line (event).");
+                elseif ismember(pj.type, ["heatmap" "probemap" "corrmap"])
                     add("Figures", l0 + ".binding", "error", A + " draws fixed layers: bind the layer to fixed units or channels.");
                 elseif kind == "unit" && L.source == "AUX"
                     add("Figures", l0 + ".binding", "error", "AUX has no recording channel to follow the observed unit's: bind it to fixed channels.");
@@ -879,15 +873,6 @@ for k = 1:numel(obj.Figures)
             end
             if ismember(L.source, EphysAnalysisConfig.SignalSources) && ~isempty(L.channels) && ~all(arrayfun(isWhole, L.channels))
                 add("Figures", l0 + ".channels", "error", "A layer's channels are columns of its extract: whole numbers, at least 1 ([] = all).");
-            end
-            if L.source == "trials"
-                if strtrim(L.yParam) == ""
-                    add("Figures", l0 + ".yParam", "error", "A trials layer needs yParam: a trial parameter (e.g. RespLatency), " + ...
-                        "or ""stop"" for the stop event's latency.");
-                elseif L.yParam == "stop" && isempty(pw.stop)
-                    add("Figures", l0 + ".yParam", "error", "yParam ""stop"" plots each epoch's stop-event latency: " + ...
-                        "give the panel's epoch window a stop event.");
-                end
             end
             if isEvents
                 if ~ismember(L.eventsAs, ["marks" "train"])
@@ -998,19 +983,6 @@ for k = 1:numel(obj.Figures)
             case "waveforms"
                 if ownField("waveform"); checkFigWaveform(op.waveform, o0 + ".waveform", true); end
                 checkFigLim(op.yLim, o0 + ".yLim", "y");
-            case "behavior"
-                if strtrim(op.param) == ""
-                    add("Figures", o0 + ".param", "error", "A behavior panel needs param: the trial parameter on its x axis.");
-                end
-                if ~ismember(op.display, ["points" "line" "box" "swarm" "violin"])
-                    add("Figures", o0 + ".display", "error", "A behavior panel's display is points, line, box, swarm or violin.");
-                elseif op.display == "violin" && ~exist('violinplot', 'file')
-                    add("Figures", o0 + ".display", "error", "The violin display needs violinplot (MATLAB R2024b or later).");
-                end
-                if ~ismember(op.xScale, ["category" "linear"])
-                    add("Figures", o0 + ".xScale", "error", "A behavior panel's xScale is category or linear.");
-                end
-                checkFigLim(op.yLim, o0 + ".yLim", "y");
             case "probemap"
                 if ~ismember(op.value, ["rate" "nSpikes" "nUnits"])
                     add("Figures", o0 + ".value", "error", "A probe map shows rate, nSpikes or nUnits.");
@@ -1031,12 +1003,8 @@ for k = 1:numel(obj.Figures)
         end
     end
 
-    % the style (its error drawn as a bootstrap CI by a PSTH's bands or a behavior panel's means but a box display's)
-    drawsCi95 = false;
-    for j = 1:numel(fg.panels)
-        pj = fg.panels(j);
-        drawsCi95 = drawsCi95 || pj.type == "psth" || (pj.type == "behavior" && isfield(pj.options, 'display') && pj.options.display ~= "box");
-    end
+    % the style (its error drawn as a bootstrap CI by a PSTH's bands)
+    drawsCi95 = ~isempty(fg.panels) && any([fg.panels.type] == "psth");
     checkStyle(fg.style, "Figures", f0, drawsCi95 && fg.style.ErrorType == "ci95");
 end
 

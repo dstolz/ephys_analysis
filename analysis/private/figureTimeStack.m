@@ -12,7 +12,7 @@ function figureTimeStack(axs, panels, isTime, labelSize)
 %         tenth, which would run into the top tick label of the panel it
 %         sits on (clearRasterEdge), unless its ticks name its blocks
 %     otherwise (nothing below, a panel of another kind of x axis such as
-%         waveforms or behavior, or another time span)  the panel keeps
+%         waveforms, or another time span)  the panel keeps
 %         its ticks and is labeled "Time (s)"
 %   So a stack sharing the figure's time axis is labeled once, at its
 %   bottom, and a panel with a window of its own keeps its own axis.

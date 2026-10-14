@@ -7,8 +7,6 @@ function [type, nBoot] = figureErrorType(spec, panel)
 %                 Style.ShowSEM on
 %     continuous  the panel's own options.errorType ("sem", "std", "ci95"
 %                 or "iqr") unless it is "off"
-%     behavior    SPEC.style.ErrorType with Style.ShowSEM on, unless the
-%                 panel's display is "box"
 %   and "sem" otherwise (rasters, heat maps, waveforms, probe and
 %   correlation maps draw no band): what every compute function makes
 %   anyway, so no bootstrap is run for a band nobody sees. NBOOT is
@@ -30,7 +28,5 @@ switch panel.type
         if st.ShowSEM; type = st.ErrorType; end
     case "continuous"
         if panel.options.errorType ~= "off"; type = panel.options.errorType; end
-    case "behavior"
-        if st.ShowSEM && panel.options.display ~= "box"; type = st.ErrorType; end
 end
 end

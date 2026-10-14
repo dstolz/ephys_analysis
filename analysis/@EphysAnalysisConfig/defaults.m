@@ -343,15 +343,13 @@ switch section
         s = struct( ...
             'name',        "", ...              % legend / aesthetics label ("" = automatic: the unit label, "LFP ch 3", the event label)
             'enabled',     true, ...            % unticked, it stays in the config but is not drawn
-            'source',      "units", ...         % one of FigureSources: units | detected | events | LFP | MUA | SPIKE | AUX | trials
-            'binding',     "observation", ...   % "observation" (the observed unit / channel) | "fixed" (units / channels / event / yParam); events and trials are always fixed
+            'source',      "units", ...         % one of FigureSources: units | detected | events | LFP | MUA | SPIKE | AUX
+            'binding',     "observation", ...   % "observation" (the observed unit / channel) | "fixed" (units / channels / event); events are always fixed
             'units',       rmfield(u, 'source'), ...   % fixed point / unit layers: which units (may keep several)
             'channels',    [], ...              % fixed continuous layers: the extract's columns ([] = all)
             'aggregate',   "each", ...          % several units / channels: "each" (a trace or block each) | "mean" (their mean, a band across them)
             'event',       EphysAnalysisConfig.defaults("EventMark"), ...   % source events: the line, edge, which / scope / sequence, and the mark's look
             'eventsAs',    "marks", ...         % source events: "marks" (on raster rows; latency lines elsewhere) | "train" (the events as a spike train)
-            'yParam',      "", ...              % source trials: the value drawn (a numeric trial parameter, or "stop")
-            'seriesParam', "", ...              % source trials: one series per value of this parameter
             'color',       "", ...              % "" = the group's color; else a name / #rrggbb for every trace of this layer
             'lineStyle',   "");                 % "" = by layer order (- -- : -.); else one of OverlayLineStyles
 

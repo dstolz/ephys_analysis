@@ -16,18 +16,14 @@ function F = computeFigure(obj, src, spec, opts)
 %             Selection=spec.selection, Baseline=bFig, Columns=colsFig)
 %         bFig: the hull of the baseline windows of the panels on the
 %         figure's alignment, colsFig: their rasters' sort parameters
-%         (Incomplete / Artifacts "keep" when the only aligned panels are
-%         behavior panels)
 %     a panel with its own ref or window: its own epochTable with the
 %         figure's selection; its groups are matched to G by label (each
 %         epoch's groupIndex then indexes G), or the panel is skipped
-%     a behavior panel: its own epochTable with Columns = [options.param,
-%         seriesParam, yParam], Incomplete="keep", Artifacts="keep"
 %     each panel: figurePanelRegistry().(type).compute(src, panel, Ep, Gp,
 %         ctx), every layer resolved for OBS by figureLayerItems and
 %         computed as the panel type says (spikePSTH, epochEvents,
-%         evokedPotential, unitWaveforms, behaviorValues, unitSummary +
-%         probeMapValues, unitCorrelation); errors from data the dataset
+%         evokedPotential, unitWaveforms, unitSummary + probeMapValues,
+%         unitCorrelation); errors from data the dataset
 %         lacks for one layer or panel (no unit left, no event, no usable
 %         epoch) skip only it
 %   The error each panel draws as a band comes from figureErrorType
@@ -95,7 +91,7 @@ reg = figurePanelRegistry();
 np = numel(spec.panels);
 vars = string.empty(1, 0);   % the trial parameters epochTable can copy (Columns)
 if istable(src.trials); vars = string(src.trials.Properties.VariableNames); end
-known = false(1, np); live = false(1, np); onFig = false(1, np); isBehavior = false(1, np);
+known = false(1, np); live = false(1, np); onFig = false(1, np);
 skipsOf = cell(1, np);       % figureSkipReason's reason per layer of each panel
 panelSkip = strings(1, np);  % ... and of each panel itself
 for k = 1:np
@@ -108,19 +104,14 @@ for k = 1:np
     % a panel skipped for its own reason (e.g. a raster sorted by a parameter the trials lack) needs no epochs,
     % and gives the figure's epochTable none of its sort columns or baseline
     live(k) = hasOn && PT.Aligned(row) && panelSkip(k) == "";
-    isBehavior(k) = p.type == "behavior";
-    onFig(k) = live(k) && ~isBehavior(k) && isequaln(p.ref, spec.ref) && isequaln(p.window, spec.window);
+    onFig(k) = live(k) && isequaln(p.ref, spec.ref) && isequaln(p.window, spec.window);
 end
 
 E = [];
 G = [];
 if any(live)
-    if all(isBehavior(live))
-        [E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection, Incomplete="keep", Artifacts="keep");
-    else
-        [E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection, ...
-            Baseline=baselineHull(spec.panels(onFig)), Columns=sortColumns(spec.panels(onFig), vars));
-    end
+    [E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection, ...
+        Baseline=baselineHull(spec.panels(onFig)), Columns=sortColumns(spec.panels(onFig), vars));
     obj.checkpoint();
 end
 
@@ -145,7 +136,7 @@ for k = 1:np
             Ep = E;
         else
             try
-                [Ep, Gp, P.skip] = panelEpochs(src, spec, p, G, skips, vars);
+                [Ep, Gp, P.skip] = panelEpochs(src, spec, p, G, vars);
                 P.epochs = Ep;
             catch ME
                 % what figureSkipReason cannot see beforehand: no event, or no usable epoch, for this panel
@@ -231,27 +222,12 @@ end
 end
 
 
-function [Ep, Gp, reason] = panelEpochs(src, spec, p, G, skips, vars)
+function [Ep, Gp, reason] = panelEpochs(src, spec, p, G, vars)
 %panelEpochs  A panel's own epochs (its ref / window, the figure's selection), its groups those of G.
-%   A behavior panel copies its param and, when its layer is not skipped
-%   (SKIPS: figureSkipReason's reason per layer, e.g. "no trial parameter
-%   X"), the layer's seriesParam and yParam: only what the trials have
-%   (VARS), so a missing parameter skips its layer, never the figure.
+%   Its rasters' sort parameters are copied when the trials have them (VARS).
 reason = "";
-if p.type == "behavior"
-    cols = p.options.param;
-    j = find([p.layers.enabled], 1);
-    if ~isempty(j) && p.layers(j).source == "trials" && (j > numel(skips) || skips(j) == "")
-        cols = [cols p.layers(j).seriesParam];
-        if p.layers(j).yParam ~= "stop"; cols(end+1) = p.layers(j).yParam; end
-    end
-    cols = reshape(unique(cols(cols ~= "" & ismember(cols, vars)), 'stable'), 1, []);
-    [Ep, Gp] = epochTable(src, p.ref, Window=p.window, Selection=spec.selection, Columns=cols, ...
-        Incomplete="keep", Artifacts="keep");
-else
-    [Ep, Gp] = epochTable(src, p.ref, Window=p.window, Selection=spec.selection, ...
-        Baseline=baselineHull(p), Columns=sortColumns(p, vars));
-end
+[Ep, Gp] = epochTable(src, p.ref, Window=p.window, Selection=spec.selection, ...
+    Baseline=baselineHull(p), Columns=sortColumns(p, vars));
 if ~istable(G); return; end
 [ok, at] = ismember(Gp.label, G.label);
 if any(~ok & Gp.n > 0)

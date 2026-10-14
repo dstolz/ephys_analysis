@@ -44,8 +44,8 @@ classdef EphysAnalysisConfig
     %               type has, commonFieldsOf), layers, options (the type's
     %               DefaultOptions; panelOptions gives them as drawn); a layer
     %               (defaults("Layer")): name, enabled, source, binding,
-    %               units, channels, aggregate, event, eventsAs, yParam,
-    %               seriesParam, color, lineStyle. Figure ids are a
+    %               units, channels, aggregate, event, eventsAs, color,
+    %               lineStyle. Figure ids are a
     %               namespace of their own (DuplicateFigureId), panel ids
     %               one per figure (DuplicatePanelId); figureFor(id) is the
     %               spec the compute draws. Figures are previewed only in
@@ -114,9 +114,9 @@ classdef EphysAnalysisConfig
         Kinds    = ["psth" "raster" "evoked" "rate" "tuning" "heatmap" "probemap" "corrmap" "behavior" "waveforms"]
         SpikeSources  = ["units" "detected"]
         SignalSources = ["LFP" "MUA" "SPIKE" "AUX"]
-        % What a figure layer reads (Layer.source): spike times, a digital / derived line's events, a signal, or the
-        % trials' values; sourceCategories groups them, panelTypes says which categories each panel type draws.
-        FigureSources = ["units" "detected" "events" "LFP" "MUA" "SPIKE" "AUX" "trials"]
+        % What a figure layer reads (Layer.source): spike times, a digital / derived line's events, or a signal;
+        % sourceCategories groups them, panelTypes says which categories each panel type draws.
+        FigureSources = ["units" "detected" "events" "LFP" "MUA" "SPIKE" "AUX"]
         % What a figure is drawn for (Figure.observe.kind): auto (resolved by observeKind), a unit, a channel, the dataset.
         ObserveKinds  = ["auto" "unit" "channel" "dataset"]
         % Where in a unit's tile its waveform box sits (a plot's waveform.location).
@@ -320,7 +320,7 @@ classdef EphysAnalysisConfig
             %   "rasterPsth" (the default: a 2 x 1 grid, a raster flush over
             %   a PSTH, each with a units layer following the observed
             %   unit), one per panel type ("psth", "raster", "continuous",
-            %   "heatmap", "waveforms", "behavior", "probemap", "corrmap":
+            %   "heatmap", "waveforms", "probemap", "corrmap":
             %   one panel holding defaultLayer(type)) and "blank" (an
             %   empty 1 x 1 grid). Errors: EphysAnalysisConfig:BadValue
             %   (an unknown template), EphysAnalysisConfig:DuplicateFigureId.
@@ -679,7 +679,7 @@ classdef EphysAnalysisConfig
             %   CAT = EphysAnalysisConfig.categoryOf(SOURCE, TYPE) is the
             %   category of SOURCE (sourceCategories) that panel type TYPE
             %   accepts (panelTypes().Categories): "point", "continuous",
-            %   "trial", "unit" or "". units / detected are "point" in a
+            %   "unit" or "". units / detected are "point" in a
             %   raster, PSTH or heat map and "unit" in a waveforms panel,
             %   probe map or correlation map. An events layer is "point" in
             %   every panel that shares the time axis (raster, psth,
@@ -732,7 +732,7 @@ classdef EphysAnalysisConfig
             %   L = EphysAnalysisConfig.defaultLayer(TYPE) is defaults("Layer")
             %   with the first source of the type's first category (units
             %   for raster / psth / heatmap / waveforms / probemap /
-            %   corrmap, LFP for continuous, trials for behavior) and the
+            %   corrmap, LFP for continuous) and the
             %   type's DefaultBinding, so a new panel draws at once.
             %   Error: EphysAnalysisConfig:BadValue (an unknown type).
             T = EphysAnalysisConfig.panelTypes();
@@ -758,7 +758,7 @@ classdef EphysAnalysisConfig
             %   raster: maskAfterStop, waveform; psth: bins, measure,
             %   baseline, maskAfterStop, waveform; continuous: baseline;
             %   heatmap: bins, measure, baseline, maskAfterStop; waveforms:
-            %   waveform; corrmap: bins, baseline; behavior, probemap: none.
+            %   waveform; corrmap: bins, baseline; probemap: none.
             f = string.empty(1, 0);
             T = EphysAnalysisConfig.panelTypes();
             row = T.Type == string(type);

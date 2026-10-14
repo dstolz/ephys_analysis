@@ -1,7 +1,7 @@
 function T = sourceCategories()
 %sourceCategories  The data categories a figure panel's layers draw, and the sources in each.
 %   T = EphysAnalysisConfig.sourceCategories() has one row per category:
-%     Category     "point" | "continuous" | "trial" | "unit"
+%     Category     "point" | "continuous" | "unit"
 %     Label        name shown in the app
 %     Sources      the layer sources (FigureSources) of the category
 %     Aligned      true when the category is cut into epochs around events
@@ -17,7 +17,6 @@ function T = sourceCategories()
 rows = {
     "point",      "Point process",     ["units" "detected" "events"],   true,  "Event times: sorted units, threshold detections, or a digital / derived line's events"
     "continuous", "Continuous signal", ["LFP" "MUA" "SPIKE" "AUX"],     true,  "Sampled signals cut around each event: the LFP, MUA, SPIKE or AUX extract's channels"
-    "trial",      "Trial values",      "trials",                        true,  "One value per trial: a trial parameter, or the stop event's latency"
     "unit",       "Unit summary",      ["units" "detected"],            false, "One summary per unit over the recording: its waveform, its place on the probe, its rate"
     };
 n = size(rows, 1);

@@ -3,7 +3,8 @@ function test_EphysAnalysisConfig()
 %   Defaults, JSON save / load round trips (Inf, NaN, empty lists, one-item
 %   lists, "default" sentinels, a heterogeneous Plots array), plotFor's
 %   merge of the Defaults, plot ids (auto ids, DuplicatePlotId), every
-%   validate rule (ids and patterns whose files would collide too), the
+%   validate rule (ids and patterns whose files would collide too, figures
+%   counted as enabled and their ids against the plots'), the
 %   behavior kind, the raster's sort (by an event's latency too: its
 %   rasterSortEvent) and event marks, the mean aux signal (aux), the error
 %   bands' style (ErrorType, resamples, look), events shifted by
@@ -242,6 +243,25 @@ bad = cfg; bad.Export.Folder = fullfile(root, "figs"); bad.Export.FilenamePatter
 ok = bad; ok.Source.Mode = "folders"; ok.Source.Folders = string(root);
 check(exportIssue(bad, "Folder") && ~exportIssue(ok, "Folder") && ~exportIssue(cfg, "Folder"), ...
     'an export folder and pattern that name no dataset warn, unless there is one dataset folder');
+% figures run too: counted as enabled, named by {Plot} as plots are
+nf = EphysAnalysisConfig();
+nf2 = nf.addFigure("rasterPsth");
+nf3 = nf2; nf3.Figures(1).enabled = false;
+In1 = nf.validate(CheckPaths=false); In2 = nf2.validate(CheckPaths=false); In3 = nf3.validate(CheckPaths=false);
+isNone = @(I) any(I.Section == "Plots" & I.Field == "enabled" & I.Severity == "error" & I.Message == "No plot, figure or session plot is enabled.");
+check(isNone(In1) && ~isNone(In2) && isNone(In3), 'nothing enabled: "No plot, figure or session plot is enabled."; an enabled figure alone is enough');
+bad = cfg.addFigure("rasterPsth", Id="PSTH_1");
+bad2 = cfg.addFigure("rasterPsth", Id="psth 1");
+ok = cfg.addFigure("rasterPsth", Id="psth_card");
+check(hasIssue(bad, "PSTH_1.id", "error") && hasIssue(bad2, "psth 1.id", "error") && ~hasIssue(ok, ".id", "error") ...
+    && any(bad.validate(CheckPaths=false).Section == "Figures"), ...
+    'a figure id that names the same files as a plot id ("PSTH_1", "psth 1" vs the plot psth_1) is an error: both fill {Plot}');
+ok = cfg; ok.Export.FilenamePattern = "{Name}_{Kind}";
+ok = ok.addFigure("rasterPsth", Id="card");
+bad = ok.addFigure("probemap", Id="map");
+check(~exportIssue(ok, "FilenamePattern") && exportIssue(bad, "FilenamePattern") ...
+    && exportIssue(nf2.addFigure("probemap"), "FilenamePattern") == ~contains(nf2.Export.FilenamePattern, "{Plot}"), ...
+    'the {Plot} warning counts enabled figures (their {Kind} is "figure": one figure beside plots of other kinds is fine, two are not)');
 rt = cfg;
 rt.Plots(1).stack = true; rt.Plots(1).stackSpacing = 0.8; rt.Plots(1).normalize = "groupPeak";
 rt.Plots(1).fill = false; rt.Plots(1).fillAlpha = 0.3; rt.Plots(1).style.Colormap = "black";

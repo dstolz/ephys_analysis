@@ -22,7 +22,14 @@ classdef EphysAnalysisScript
     %                                 aux signal), then a page at a time
     %                                 newExportFigure, renderPlot,
     %                                 exportFigure, reportImage and
-    %                                 reportPdfPage, the report calls. After the
+    %                                 reportPdfPage, the report calls; then
+    %                                 per enabled figure (fspec<k>, figureFor
+    %                                 written out) figureSkipReason,
+    %                                 figureObservations and, a page per
+    %                                 observation, figureCompute,
+    %                                 newExportFigure, renderFigure and
+    %                                 exportFigure (figureOutputName), the
+    %                                 report entry with figureCaption. After the
     %                                 datasets, a "Session plots" block per
     %                                 enabled session plot: sessionTable, the
     %                                 base plot's compute on each session,
@@ -155,6 +162,14 @@ classdef EphysAnalysisScript
                 L = [L; EphysPipelineScript.structLiteral("spec" + k, cfg.plotFor(ids(k)))]; %#ok<AGROW>
             end
             L(end+1, 1) = "";
+            fids = cfg.enabledFigures();
+            if ~isempty(fids)
+                L(end+1, 1) = "%% Figure specs (Figures: every ""default"" resolved, as figureFor gives them)";
+                for k = 1:numel(fids)
+                    L = [L; EphysPipelineScript.structLiteral("fspec" + k, cfg.figureFor(fids(k)))]; %#ok<AGROW>
+                end
+                L(end+1, 1) = "";
+            end
             sessionIds = strings(1, 0);   % the session plots that have a base plot to resolve
             if ~isempty(sids)
                 L(end+1, 1) = "%% Session plot specs (the session plot's own settings, then its effective spec: the base plot's, resolved)";
@@ -244,6 +259,9 @@ classdef EphysAnalysisScript
                 end
                 L(end+1, 1) = "        fprintf('%s: %s skipped (%s)\n', name, spec.id, reason);"; %#ok<AGROW>
                 L(end+1, 1) = "    end"; %#ok<AGROW>
+            end
+            for k = 1:numel(fids)
+                L = [L; EphysAnalysisScript.figureLines(fids(k), k, X.Enabled, doReport, withImages, withPages)]; %#ok<AGROW>
             end
             L(end+1, 1) = "    src.outputs.clearCache();   % free this dataset's spikes and signals";
             if doReport && P.PerDataset
@@ -644,6 +662,90 @@ classdef EphysAnalysisScript
             end
             L(end+1, 1) = "    clear closer";
             L(end+1, 1) = "end";
+        end
+
+        function L = figureLines(id, k, doExport, doReport, withImages, withPages)
+            %figureLines  One figure on one dataset, a page per observation, as EphysAnalysisRunner.runDataset draws it.
+            %   The figure's spec is fspec<K> (written above); figureCompute is
+            %   what the runner's computeFigure calls, without its checkpoints.
+            B = strings(0, 1);
+            B(end+1, 1) = "";
+            B(end+1, 1) = "% --- " + id + " (figure) ---";
+            B(end+1, 1) = "fspec = fspec" + k + ";";
+            if doReport
+                B(end+1, 1) = "fspecKind = fspec; fspecKind.kind = ""figure"";   % the report entry's kind";
+            end
+            B(end+1, 1) = "reason = figureSkipReason(src, fspec);   % what the dataset lacks for this figure";
+            B(end+1, 1) = "if reason == """"";
+            B(end+1, 1) = "    obsT = figureObservations(src, fspec);   % its units, channels, or the dataset: a page each";
+            B(end+1, 1) = "    if height(obsT) == 0; reason = ""no observation""; end";
+            B(end+1, 1) = "end";
+            B(end+1, 1) = "if reason == """"";
+            B(end+1, 1) = "    try";
+            B(end+1, 1) = "        files = strings(1, 0);";
+            if withImages; B(end+1, 1) = "        images = cell(1, 0);   % each observation's page as the HTML report embeds it"; end
+            if withPages; B(end+1, 1) = "        pages = strings(1, 0);   % ... and as the PDF report holds it"; end
+            B(end+1, 1) = "        nObs = height(obsT);";
+            B(end+1, 1) = "        for i = 1:nObs";
+            B(end+1, 1) = "            base = fullfile(folder, figureOutputName(exportOpts.FilenamePattern, name, fspec, obsT(i, :), i, nObs));";
+            draws = doExport || withImages || withPages;
+            if doExport
+                B(end+1, 1) = "            want = base + ""."" + exportOpts.Formats;";
+                B(end+1, 1) = "            kept = ~exportOpts.Overwrite && all(isfile(want));   % its files exist: not written again";
+                B(end+1, 1) = "            if kept; files = [files want]; end %#ok<AGROW>";
+                if ~withImages && ~withPages
+                    B(end+1, 1) = "            if kept; continue; end   % ... nor computed";
+                end
+            end
+            B(end+1, 1) = "            fres = figureCompute(src, fspec, Observation=obsT(i, :));   % that observation's data only";
+            if draws
+                B(end+1, 1) = "            fig = newExportFigure(exportOpts, fres, fspec);   % a page grows with the arrangement's rows";
+                B(end+1, 1) = "            closer = onCleanup(@() close(fig));   % closes the page on a failure too";
+                if withImages
+                    B(end+1, 1) = "            h = renderFigure(fres, fspec, fig);";
+                else
+                    B(end+1, 1) = "            renderFigure(fres, fspec, fig);";
+                end
+                B(end+1, 1) = "            written = strings(1, 0);";
+                if doExport
+                    B(end+1, 1) = "            if ~kept";
+                    B(end+1, 1) = "                written = exportFigure(fig, base, Format=exportOpts.Formats, Dpi=exportOpts.Dpi);";
+                    B(end+1, 1) = "                files = [files written]; %#ok<AGROW>";
+                    B(end+1, 1) = "            end";
+                end
+                if withImages
+                    B(end+1, 1) = "            images{end+1} = reportImage(fig, report, Title=h.title, Files=written); %#ok<AGROW>";
+                end
+                if withPages
+                    B(end+1, 1) = "            pages(end+1) = reportPdfPage(fig, report, Files=written); %#ok<AGROW>";
+                end
+                B(end+1, 1) = "            clear closer";
+            end
+            B(end+1, 1) = "        end";
+            if doReport
+                drawn = "Files=files";
+                if withImages; drawn = drawn + ", Images=images"; end
+                if withPages; drawn = drawn + ", Pages=pages"; end
+                B(end+1, 1) = "        report = addReportFigure(report, fspecKind, fres, " + drawn + ", Caption=figureCaption(fspec, obsT, Dataset=name));";
+            end
+            B(end+1, 1) = "        fprintf('%s: %s done (%d observation(s), %d file(s))\n', name, fspec.id, nObs, numel(files));";
+            B(end+1, 1) = "    catch ME";
+            if draws
+                B(end+1, 1) = "        clear closer   % the page a failure left open";
+            end
+            if doReport
+                B(end+1, 1) = "        report = addReportFigure(report, fspecKind, [], Status=""error"", Message=string(ME.message));";
+            end
+            B(end+1, 1) = "        fprintf(2, '%s: %s FAILED: %s\n', name, fspec.id, ME.message);";
+            B(end+1, 1) = "    end";
+            B(end+1, 1) = "else";
+            if doReport
+                B(end+1, 1) = "    report = addReportFigure(report, fspecKind, [], Status=""skipped"", Message=reason);";
+            end
+            B(end+1, 1) = "    fprintf('%s: %s skipped (%s)\n', name, fspec.id, reason);";
+            B(end+1, 1) = "end";
+            L = "    " + B;
+            L(1) = "";
         end
 
         function L = reportLines(folderExpr, nameExpr, perDataset)

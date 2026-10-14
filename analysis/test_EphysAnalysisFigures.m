@@ -28,7 +28,9 @@ function test_EphysAnalysisFigures()
 %   missing parameter skipped while the PSTH under it is computed; a
 %   signal's baseline with no sample in the window skipping its layer;
 %   probemap, corrmap and waveforms as computePlot's; PollFcn checkpoints
-%   and cancel; one observation faster than computePlot over every unit.
+%   and cancel; figureCompute (no runner) equal to computeFigure, its
+%   Check=; figureOutputName's names and figureCaption; one observation
+%   faster than computePlot over every unit.
 %   Render (8): figureTiles (relative sizes in quarter steps, spans, the
 %   32-unit cap); a compute and a draw function for every panel type;
 %   every panel type drawn by renderFigure into an axes, a uiaxes, a
@@ -499,8 +501,8 @@ nf = EphysAnalysisConfig();
 nf.Source.Root = root;
 nf = nf.addFigure();
 I = nf.validate(CheckPaths=false);
-check(any(I.Section == "Plots" & I.Field == "enabled" & I.Severity == "error"), ...
-    'the "nothing enabled" rule is unchanged: figures do not run yet, so a config of figures alone has nothing enabled');
+check(~any(I.Section == "Plots" & I.Field == "enabled" & I.Severity == "error"), ...
+    'the "nothing enabled" rule counts figures: a config of one enabled figure alone has something to run');
 
 % 1. ids
 b = base.addFigure("psth", Id="Figure_1");
@@ -1006,6 +1008,48 @@ rn.PollFcn = [];
 rn.clearCancel();
 check(nPolls >= 5 && isequaln(Fq.panels(2).layers(1).R.rate, L2.R.rate) && cid == "EphysAnalysisRunner:Canceled", ...
     sprintf('with PollFcn set, computeFigure reaches %d checkpoints; a cancel() there stops it (EphysAnalysisRunner:Canceled)', nPolls));
+
+% figureCompute: the runner's computeFigure without a runner
+Fg = figureCompute(src, spec, Observation=Tu(2, :));
+Fr2 = rn.computeFigure(src, spec, Observation=Tu(2, :));
+nChk = 0;
+    function countCheck()
+        nChk = nChk + 1;
+    end
+Fg2 = figureCompute(src, spec, Observation=Tu(2, :), Check=@countCheck);
+cidF = string(errorId(@() figureCompute(src, spec, Observation=Tu(2, :), Check=@() error('test:Stop', 'stop'))));
+check(isequaln(rmfield(Fg, 'created'), rmfield(Fr2, 'created')) && isequaln(rmfield(Fg2, 'created'), rmfield(Fr2, 'created')) ...
+    && nChk >= 5 && cidF == "test:Stop", ...
+    sprintf('figureCompute equals computeFigure''s result; Check= is called at %d checkpoints and what it throws stops the compute', nChk));
+
+% figureOutputName: {Plot} the figure, {Unit} the observation, "_<Unit>" when the pattern does not tell them apart
+pat = "{Name}_{Plot}";
+u2 = shortUnitLabels(Tu.meta{2}.label);
+n1 = figureOutputName(pat, "DS-1", spec, Tu(2, :), 2, nU);
+n2 = figureOutputName("{Name}_{Plot}_{Unit}", "DS-1", spec, Tu(2, :), 2, nU);
+n3 = figureOutputName("{Plot}_{Index}_{Kind}", "DS-1", spec, Tu(2, :), 2, nU);
+n4 = figureOutputName(pat, "DS-1", spec, Tu(2, :), 1, 1);
+n5 = figureOutputName(pat, "DS-1", sc, Tc(1, :), 1, height(Tc));
+n6 = figureOutputName(pat, "DS-1", sp, Td, 1, 1);
+n7 = figureOutputName(pat, "DS-1", spec, struct('kind', "unit", 'unitId', 7), 1, 2);
+check(n1 == "DS-1_rp_" + u2 && n2 == "DS-1_rp_" + u2 && n3 == "rp_2_figure" && n4 == "DS-1_rp" ...
+    && n5 == "DS-1_ct_ch" + Tc.channel(1) && n6 == "DS-1_pm" && n7 == "DS-1_rp_u7", ...
+    sprintf('figureOutputName: "%s", "%s" ({Unit}), "%s" ({Index}: no suffix), "%s" (one observation), "%s", "%s", "%s"', ...
+    n1, n2, n3, n4, n5, n6, n7));
+
+detObs = @(lbl, ch) struct('kind', "unit", 'unitId', ch, 'meta', table(lbl, ch, "det", 'VariableNames', {'label', 'unitId', 'class'}));
+d1 = figureOutputName(pat, "DS-1", spec, detObs("Shank_1", 1), 1, 2);
+d2 = figureOutputName(pat, "DS-1", spec, detObs("Shank_2", 2), 2, 2);
+check(d1 == "DS-1_rp_Shank_1" && d2 == "DS-1_rp_Shank_2", ...
+    sprintf('figureOutputName: detections keep their channel''s whole name ("%s", "%s"), never one shared short label', d1, d2));
+
+% figureCaption
+capU =figureCaption(spec, Tu, Dataset=src.name);
+capD = figureCaption(sp, Td);
+check(startsWith(capU, sprintf("rp: %d observations (sorted units", nU)) && contains(capU, " of " + src.name) ...
+    && contains(capU, "panels: raster, PSTH") && contains(capU, "aligned to Stim onset") && contains(capU, "window [-0.2 0.8] s") ...
+    && contains(capU, "groups by Depth") && startsWith(capD, "pm: 1 observation (the dataset); panels: probe map") ...
+    && ~contains(capD, "aligned") && endsWith(capD, "."), "figureCaption: " + capU + " / " + capD);
 
 % one observation costs a fraction of every unit
 haveBootT = license('test', 'Statistics_Toolbox') && exist('bootci', 'file');

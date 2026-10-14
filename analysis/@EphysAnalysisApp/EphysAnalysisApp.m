@@ -73,8 +73,10 @@ classdef EphysAnalysisApp < handle
     %                channel's column (refreshFigurePreview: figureObservations,
     %                EphysAnalysisRunner.computeFigure, renderFigure; Auto
     %                while a preview takes under 2 s), with its own badge
-    %                (setFigurePreviewState). Figures are previewed only: runs,
-    %                plans, reports and generated scripts ignore them
+    %                (setFigurePreviewState). Runs, plans, reports and the
+    %                generated scripts draw the enabled figures too: one
+    %                page per observation, after each dataset's plots
+    %                (EphysAnalysisRunner.runDataset)
     %     Sessions   session plots (buildSessionsTab): one plot of the Plots
     %                tab (its base plot) computed on several datasets and
     %                merged (EphysAnalysisRunner.computeSessionPlot,

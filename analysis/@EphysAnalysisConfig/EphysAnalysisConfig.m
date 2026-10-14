@@ -48,8 +48,10 @@ classdef EphysAnalysisConfig
     %               lineStyle. Figure ids are a
     %               namespace of their own (DuplicateFigureId), panel ids
     %               one per figure (DuplicatePanelId); figureFor(id) is the
-    %               spec the compute draws. Figures are previewed only in
-    %               this release: the run does not draw them
+    %               spec the compute draws. The run draws each enabled
+    %               figure once per observation after each dataset's plots
+    %               (EphysAnalysisRunner.runDataset), a file each named by
+    %               figureOutputName ({Plot} its id, {Unit} the observation)
     %     SessionPlots  struct array, one entry per session plot
     %               (defaults("SessionPlot")): a base plot (plot, by id)
     %               drawn over several datasets and merged

@@ -5,6 +5,12 @@ function T = plan(obj, opts)
 %   sorted units", "no LFP extract", "no paired trials", "no line X", "no
 %   trial parameter X", "no probe map", or a dataset that cannot be read).
 %   Reading each dataset's source is cheap (no signals or spikes).
+%   Then one row per dataset and figure (Config.Figures): Kind "figure",
+%   Source what it is drawn for (the observe kind: "unit", "channel" or
+%   "dataset"), Reason from figureSkipReason (no units, detections or
+%   extract to observe, a missing line or parameter). Nothing is loaded
+%   for it: a unit filter or channel list that leaves no observation shows
+%   only when the figure runs ("skipped: no observation").
 %   Then one row per session plot and facet (its figures: "all", or one
 %   per subject with facet "subject"): Dataset "sessions: <facet>", Plot the
 %   session plot's id, Kind and Source its base plot's, and Reason from
@@ -12,30 +18,32 @@ function T = plan(obj, opts)
 %   kind, "no mapping file", "fewer than N session(s) can draw it (...)"
 %   with each session's own reason).
 %
-%   Options: Datasets (indices, keys or names; default all), Plots (ids;
-%   default every plot), SessionPlots (ids; default every session plot;
-%   string.empty = none).
+%   Options: Datasets (indices, keys or names; default all), Plots and
+%   Figures (ids; [] = default: every plot / figure, enabled or not;
+%   string.empty(1, 0) = none), SessionPlots (ids; default every session
+%   plot; string.empty = none).
 %
 %   See also plotSkipReason, sessionPlotSkipReason, EphysAnalysisRunner.run.
 
 arguments
     obj (1,1) EphysAnalysisRunner
     opts.Datasets = []
-    opts.Plots (1,:) string = string.empty(1, 0)
+    opts.Plots = []
+    opts.Figures = []
     opts.SessionPlots = []
 end
 
 cfg = obj.Config;
 idx = datasetIndices(obj, opts.Datasets);
-ids = opts.Plots;
-if isempty(ids); ids = cfg.plotIds(); end
+ids = EphysAnalysisRunner.idList(opts.Plots, @() cfg.plotIds());
+fids = EphysAnalysisRunner.idList(opts.Figures, @() cfg.figureIds());
 sids = opts.SessionPlots;
 if isnumeric(sids) && isempty(sids)
     sids = cfg.sessionPlotIds();
 else
     sids = reshape(string(sids), 1, []);
 end
-n = numel(idx) * numel(ids);
+n = numel(idx) * (numel(ids) + numel(fids));
 Dataset = strings(n, 1); Plot = strings(n, 1); Kind = strings(n, 1); Source = strings(n, 1);
 Enabled = false(n, 1); Reason = strings(n, 1);
 r = 0;
@@ -64,6 +72,17 @@ for i = idx
             Reason(r) = plotSkipReason(src, spec);
         end
         Enabled(r) = Reason(r) == "";
+    end
+    for id = fids
+        r = r + 1;
+        spec = cfg.figureFor(id);
+        Dataset(r, 1) = obj.Names(i); Plot(r, 1) = id; Kind(r, 1) = "figure"; Source(r, 1) = spec.observe.kind;
+        if err ~= ""
+            Reason(r, 1) = err;
+        else
+            Reason(r, 1) = figureReason(src, spec);
+        end
+        Enabled(r, 1) = Reason(r) == "";
     end
 end
 for id = sids
@@ -108,6 +127,17 @@ for id = sids
     end
 end
 T = table(Dataset, Plot, Kind, Source, Enabled, Reason);
+end
+
+
+function reason = figureReason(src, spec)
+%figureReason  Why a figure cannot run on a dataset, from cheap facts only ("" = it can).
+%   figureSkipReason's reason (what the dataset lacks: the observed sorted
+%   units, detections or extract, the alignment's lines and parameters).
+%   Nothing is loaded: whether the unit filter or the channel list leaves
+%   an observation needs the units' or the extract's data, so the run
+%   decides it ("no observation", runDataset).
+reason = figureSkipReason(src, spec);
 end
 
 

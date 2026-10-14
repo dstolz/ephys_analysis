@@ -32,8 +32,7 @@ function [reason, layerReasons] = figureSkipReason(src, spec)
 %   observation or when it runs (EphysAnalysisRunner.computeFigure keeps
 %   such a layer with its reason).
 %
-%   hasLine and missingStepLine are copies of plotSkipReason's local
-%   functions (phase 2 of the figures work moves both to private/).
+%   The line checks (private hasLine, missingStepLine) are plotSkipReason's.
 %
 %   See also plotSkipReason, figureObservations, EphysAnalysisRunner.computeFigure.
 
@@ -209,37 +208,4 @@ end
 
 function tf = hasSignal(src, signal)
 tf = isfield(src.signals, signal) && src.signals.(signal);
-end
-
-
-function reason = missingStepLine(src, ref)
-%missingStepLine  "no line X" for the first step of REF's sequence whose line the recording lacks.
-reason = "";
-for k = 1:numel(ref.sequence)
-    ln = ref.sequence(k).line;
-    if ln == "Trial" || (src.trialLine ~= "" && ln == src.trialLine)
-        ok = src.hasTrials || isfield(src.events, src.trialLine);
-    else
-        ok = isfield(src.events, ln) || (src.hasTrials && height(src.trials) > 0 && isfield(src.trials.TrialEvents, char(ln)));
-    end
-    if ~ok
-        reason = "no line " + ln;
-        return
-    end
-end
-end
-
-
-function tf = hasLine(src, ref)
-%hasLine  The line exists where the reference's scope looks for it.
-if ref.line == "Trial" || (src.trialLine ~= "" && ref.line == src.trialLine)
-    tf = src.hasTrials || isfield(src.events, src.trialLine);
-    return
-end
-useTrials = ref.scope == "trial" || (ref.scope == "auto" && src.hasTrials);
-if useTrials && src.hasTrials && height(src.trials) > 0
-    tf = isfield(src.trials.TrialEvents, char(ref.line));
-else
-    tf = isfield(src.events, ref.line);
-end
 end

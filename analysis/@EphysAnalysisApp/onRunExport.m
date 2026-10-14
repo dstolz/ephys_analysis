@@ -5,7 +5,8 @@ function R = onRunExport(obj, opts)
 %   tests use them); by default every enabled plot and every ticked dataset.
 arguments
     obj (1,1) EphysAnalysisApp
-    opts.Plots (1,:) string = string.empty(1, 0)
+    opts.Plots = []      % [] = the enabled plots; string.empty(1, 0) = none; else ids
+    opts.Figures = []    % likewise for the figures
     opts.Datasets = []
 end
 R = table();
@@ -39,7 +40,7 @@ obj.ToolbarCancelTool.Enable = 'on';
 cleanup = onCleanup(@() finish(obj, dlg));
 t0 = tic;
 try
-    R = r.run(Datasets=idx, Plots=opts.Plots);
+    R = r.run(Datasets=idx, Plots=opts.Plots, Figures=opts.Figures);
 catch ME
     obj.log("Run failed: " + string(ME.message));
     uialert(obj.Fig, "The run failed:" + newline + string(ME.message), "Run");

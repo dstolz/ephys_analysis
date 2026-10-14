@@ -10,7 +10,7 @@ function issues = validate(obj, opts)
 %     Defaults  the event reference, window and selection are valid (a
 %               filter that does not parse is a warning: it is checked
 %               against each dataset's trials when it runs)
-%     Plots     at least one plot or session plot enabled; ids stay distinct as file names
+%     Plots     at least one plot, figure or session plot enabled; ids stay distinct as file names
 %               ({Plot} replaces characters outside A-Z a-z 0-9 _ - . by
 %               "_", and Windows ignores case); kind is one of Kinds; source fits the
 %               kind (units / detected for spike kinds, LFP / MUA / SPIKE /
@@ -78,7 +78,8 @@ function issues = validate(obj, opts)
 %               lines); a heatmap base with series other than "all"
 %     Figures   (Field "<figure>.<field>", "<figure>.<panel>.<field>" or
 %               "<figure>.<panel>.layers(<j>).<field>") ids distinct as file
-%               names and file-name safe; the figure's ref, window and
+%               names (from each other and from the plots' ids: both fill
+%               {Plot}) and file-name safe; the figure's ref, window and
 %               selection (groupBy <= 2); observe: kind, source, signal,
 %               channels, maxUnits, datasets ("list" without keys is a
 %               warning), no layer following a "dataset" observation, a
@@ -115,9 +116,10 @@ function issues = validate(obj, opts)
 %               not take the common baseline Mode); the style, as a plot's
 %     Export    formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
 %               folder and file-name patterns use known tokens; a warning
-%               when the files of two enabled plots, or of two datasets,
-%               would get the same names (no {Plot} -- or {Kind} for plots
-%               of different kinds -- no {Name} / {OutputFolder});
+%               when the files of two enabled plots or figures, or of two
+%               datasets, would get the same names (no {Plot} -- or {Kind}
+%               for plots of different kinds, a figure's being "figure" --
+%               no {Name} / {OutputFolder});
 %               SessionsFolder and Data.Folder (folder patterns; a warning
 %               for {OutputFolder}), Data.FilenamePattern (a file pattern)
 %               and Data.MatVersion (-v7.3 or -v7)
@@ -182,8 +184,8 @@ checkSelection(D.Selection, "Defaults", "Selection");
 
 % --- Plots -----------------------------------------------------------------------------
 K = EphysAnalysisConfig.plotKinds();
-if (isempty(obj.Plots) || ~any([obj.Plots.enabled])) && isempty(obj.enabledSessionPlots())
-    add("Plots", "enabled", "error", "No plot and no session plot is enabled.");
+if (isempty(obj.Plots) || ~any([obj.Plots.enabled])) && isempty(obj.enabledFigures()) && isempty(obj.enabledSessionPlots())
+    add("Plots", "enabled", "error", "No plot, figure or session plot is enabled.");
 end
 ids = obj.plotIds();
 key = lower(regexprep(ids, '[^\w\-\.]', '_'));   % the id as {Plot} writes it (figureFileName), case-blind (Windows)
@@ -647,6 +649,13 @@ if numel(fids) > 1
         end
     end
 end
+if ~isempty(fids)   % a figure's files are named by {Plot} like a plot's
+    pkey = lower(regexprep(obj.plotIds(), '[^\w\-\.]', '_'));
+    for f = fids(ismember(lower(regexprep(fids, '[^\w\-\.]', '_')), pkey))
+        add("Figures", f + ".id", "error", "Figure id """ + f + """ names the same files as a plot's id: both fill {Plot} " + ...
+            "(characters outside A-Z a-z 0-9 _ - . replaced by ""_"", case ignored).");
+    end
+end
 for k = 1:numel(obj.Figures)
     fg = obj.Figures(k);
     f0 = fg.id;
@@ -1024,9 +1033,16 @@ end
 checkPattern(X.FilenamePattern, "file", "Export", "FilenamePattern");
 checkPattern(X.Folder, "folder", "Export", "Folder");
 on = obj.Plots([obj.Plots.enabled]);
-if numel(on) > 1 && ~contains(X.FilenamePattern, "{Plot}") ...
-        && ~(contains(X.FilenamePattern, "{Kind}") && numel(unique([on.kind])) == numel(on))
-    add("Export", "FilenamePattern", "warning", sprintf("The file-name pattern has no {Plot}, so the %d enabled plots' files overwrite each other.", numel(on)));
+onKinds = string([on.kind]);
+nFig = numel(obj.enabledFigures());
+if nFig > 0; onKinds = [onKinds repmat("figure", 1, nFig)]; end   % a figure's {Kind} is "figure"
+if numel(onKinds) > 1 && ~contains(X.FilenamePattern, "{Plot}") ...
+        && ~(contains(X.FilenamePattern, "{Kind}") && numel(unique(onKinds)) == numel(onKinds))
+    if nFig > 0
+        add("Export", "FilenamePattern", "warning", sprintf("The file-name pattern has no {Plot}, so the %d enabled plots' and %d enabled figures' files overwrite each other.", numel(on), nFig));
+    else
+        add("Export", "FilenamePattern", "warning", sprintf("The file-name pattern has no {Plot}, so the %d enabled plots' files overwrite each other.", numel(on)));
+    end
 end
 if ~contains(X.Folder, ["{OutputFolder}" "{Name}"]) && ~contains(X.FilenamePattern, "{Name}") ...
         && ~(S.Mode == "folders" && numel(S.Folders) <= 1)

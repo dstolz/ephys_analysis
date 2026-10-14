@@ -1,19 +1,17 @@
-function hMain = figHistTrace(ax, t, e, m, base, color, look, lw, group, ls)
-%figHistTrace  One PSTH from BASE up: bars or a line, filled or not (a figure's PSTH panel).
-%   HMAIN = figHistTrace(AX, T, E, M, BASE, COLOR, LOOK, LW, GROUP, LS)
+function hMain = histTrace(ax, t, e, m, base, color, look, lw, group, ls)
+%histTrace  One PSTH from BASE up: bars or a line, filled or not.
+%   HMAIN = histTrace(AX, T, E, M, BASE, COLOR, LOOK, LW, GROUP, LS)
 %   draws the PSTH M [nBins] at the bin centers T and edges E. LOOK: hist
 %   ("bar" | "line"), fill (true / false) and alpha (the fill's opacity).
 %   The fill patches are tagged "rateFill", the line or outline "rate",
 %   both with GROUP (tagPart). LS: the line's (or outline's) LineStyle
-%   (default "-"). Filled: one patch per run of finite bins (FaceAlpha
-%   look.alpha), bars as a staircase, a line with the area down to BASE
-%   under it. Unfilled bars are the staircase outline, dropping to BASE at
-%   each run's ends. Returns the object a legend shows (the bars' first
-%   patch or outline; the line).
-%
-%   A copy of renderPSTH's local histTrace, so that no existing renderer
-%   changes in phase 1 of the modular figures; phase 2 consolidates the two
-%   into one shared helper.
+%   (default "-"; a merged result's R.groups.lineStyle, groupLineStyles).
+%   Filled: one patch per run of finite bins (FaceAlpha look.alpha), bars
+%   as a staircase, a line with the area down to BASE under it. Unfilled
+%   bars are the staircase outline, dropping to BASE at each run's ends.
+%   Returns the object a legend shows (the bars' first patch or outline;
+%   the line). Shared by renderPSTH and a figure's PSTH panel
+%   (drawPsthPanel).
 %
 %   See also drawPsthPanel, renderPSTH.
 if nargin < 10; ls = "-"; end

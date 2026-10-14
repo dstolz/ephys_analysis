@@ -428,7 +428,7 @@ end
 % The analysis config is read (and checked) only with CheckPaths: without it
 % nothing on disk is looked at.
 An = obj.Analysis;
-analysisUnits = false;   % an enabled plot of the analysis config reads sorted units
+analysisUnits = false;   % an enabled plot or figure of the analysis config reads sorted units
 if An.Enabled
     if strtrim(An.ConfigFile) == ""
         add("analysis", "ConfigFile", "error", "Analysis is enabled but no analysis config is chosen.");
@@ -450,6 +450,12 @@ if An.Enabled
             end
             on = acfg.Plots([acfg.Plots.enabled]);
             analysisUnits = any([on.source] == "units");
+            for fid = acfg.enabledFigures()   % a figure observing sorted units, or with a units layer, reads them too
+                fs = acfg.figureFor(fid);
+                L = [fs.panels.layers];
+                analysisUnits = analysisUnits || (fs.observe.kind == "unit" && fs.observe.source == "units") ...
+                    || (~isempty(L) && any([L.enabled] & [L.source] == "units"));
+            end
         end
     end
     if ~An.Figures && ~An.Report

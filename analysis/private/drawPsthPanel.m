@@ -11,14 +11,14 @@ function hk = drawPsthPanel(ax, P, look)
 %   trial group is
 %     a band   the error R.err holds (Style.ShowSEM), errorPatch, role "sem"
 %     a trace  bars or a line (options.histStyle, fill, fillAlpha:
-%              figHistTrace), roles "rate" / "rateFill"
+%              histTrace), roles "rate" / "rateFill"
 %   in the group's color (or the layer's color) and the item's line style
 %   (the layer's lineStyle, else by order: -, --, :, -.); with several
 %   items only the first is filled, the others are outlines, so each stays
 %   visible. The components' group is the trial group's label, with
 %   several items "<item> · <group>" (or the item alone for one group).
 %   options.normalize divides the rates as renderPSTH does
-%   (figNormalizeRates); options.yLim fixes the y axis. Style.ShowZeroLine
+%   (normalizeRates); options.yLim fixes the y axis. Style.ShowZeroLine
 %   draws the event's line, Style.ShowStop each group's mean stop latency
 %   (R.stopMean, role "stopLine"). The events layers drawn as marks become
 %   latency lines and a rug (figEventMarks, roles "eventLine" /
@@ -27,7 +27,7 @@ function hk = drawPsthPanel(ax, P, look)
 %   The legend offers the groups, then the items when there are several,
 %   then the marks. HK: figDrawResult's, yName = the rates' unit.
 %
-%   See also renderFigure, renderPSTH, figHistTrace, figurePanelRegistry.
+%   See also renderFigure, renderPSTH, histTrace, figurePanelRegistry.
 
 style = look.style;
 o = look.panel.options;
@@ -66,7 +66,7 @@ for i = 1:nI
     if isempty(R0); R0 = R; end
     key = "L" + j;
     if ~isfield(normed, key)
-        [rate, ~, units, lo, hi] = figNormalizeRates(R, o.normalize);
+        [rate, ~, units, lo, hi] = normalizeRates(R, o.normalize);
         normed.(key) = struct('rate', rate, 'units', units, 'lo', lo, 'hi', hi);
     end
     N = normed.(key);
@@ -105,7 +105,7 @@ for i = 1:nI
         if style.ShowSEM
             errorPatch(ax, R.t, mlo(:, 1, g), mhi(:, 1, g), c, tg, style);
         end
-        h1 = figHistTrace(ax, R.t, R.edges, m(:, 1, g), 0, c, hl, style.LineWidth, tg, ls);
+        h1 = histTrace(ax, R.t, R.edges, m(:, 1, g), 0, c, hl, style.LineWidth, tg, ls);
         if i == 1 && nG > 1
             hk.legendHandles(end+1) = h1;
             hk.legendLabels(end+1) = gl;

@@ -26,16 +26,23 @@ classdef EphysAnalysisRunner < handle
     %   and then writeHtmlReport / writePdfReport. The app previews a page
     %   with renderPlotFigures.
     %
-    %   A figure (Config.Figures; one observation's panels) is computed for
-    %   one observation at a time, with no graphics (the run does not draw
-    %   figures yet; the app's Figures tab previews them):
+    %   A figure (Config.Figures; one observation's panels) is drawn once
+    %   per observation, a page each; run draws the enabled figures after
+    %   each dataset's plots (runDataset, Figures=), and plan lists them:
     %     spec = cfg.figureFor(id)
-    %     T = figureObservations(src, spec)          (its units, channels, or the dataset)
     %     [reason, layerReasons] = figureSkipReason(src, spec)
-    %     F = r.computeFigure(src, spec, Observation=T(k,:))
+    %     T = figureObservations(src, spec)          (its units, channels, or the dataset)
+    %     per observation, one at a time:
+    %       F = r.computeFigure(src, spec, Observation=T(i,:))   (figureCompute)
+    %       fig = newExportFigure(cfg.Export, F, spec); h = renderFigure(F, spec, fig)
+    %       exportFigure(fig, <folder>/<figureOutputName(...)>, Format=, Dpi=)
+    %     addReportFigure(report, spec, F, Files=, Images=, Pages=, Caption=figureCaption(spec, T))
     %   computeFigure reads only the observation's data (one unit's spike
     %   train, one extract column) where a layer follows it, and stops at
     %   its checkpoints like computePlot while PollFcn is set.
+    %   Plots= and Figures= of run, runDataset and plan: [] (the default)
+    %   = the enabled ones (plan: all of them), string.empty(1, 0) = none,
+    %   else the ids (idList).
     %
     %   Properties
     %     Config        the EphysAnalysisConfig
@@ -58,7 +65,8 @@ classdef EphysAnalysisRunner < handle
     %     Outputs       DatasetOutputs per dataset (CacheData=true)
     %     Keys, Names   dataset keys (root-relative, or the folder) and names
     %     Sources       containers.Map key -> loadAnalysisSource struct
-    %     Results       last run: Dataset, Plot, Kind, Status (done |
+    %     Results       last run: Dataset, Plot (a plot's or a figure's id),
+    %                   Kind ("figure" for a figure), Status (done |
     %                   skipped | error | canceled), Message, Files, Seconds
     %     Report        the last run's report struct (newAnalysisReport)
     %     ReportFiles   the report files the last run wrote
@@ -202,6 +210,20 @@ classdef EphysAnalysisRunner < handle
     methods (Static)
         % --- methods defined in separate files ---
         key = cacheKey(datasetKey, spec)
+
+        function ids = idList(sel, all)
+            %idList  The ids a Plots= / Figures= / SessionPlots= option names.
+            %   IDS = EphysAnalysisRunner.idList(SEL, ALL): [] (an empty
+            %   numeric, the options' default) = ALL() (e.g. the enabled
+            %   ones); any empty string (string.empty(1, 0)) = none; else
+            %   SEL's ids as a string row ("" dropped).
+            if isnumeric(sel) && isempty(sel)
+                ids = reshape(string(all()), 1, []);
+                return
+            end
+            ids = reshape(string(sel), 1, []);
+            ids = ids(ids ~= "");
+        end
 
         function T = emptyResults()
             T = table(strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), zeros(0, 1), ...

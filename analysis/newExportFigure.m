@@ -15,7 +15,13 @@ function fig = newExportFigure(exportSection, R, spec, opts)
 %   width stays FigureSizeCm(1), and the height is never below
 %   FigureSizeCm(2).
 %
-%   See also exportFigure, renderPlot, EphysAnalysisRunner.runDataset.
+%   FIG = newExportFigure(EXPORT, F, SPEC) sizes it for a figure (the
+%   Figures section: SPEC from figureFor, with panels; F from
+%   figureCompute, F.kind "figure"): one observation's panels on one page,
+%   3.5 cm for each row of the arrangement (SPEC.grid.rows) and 2 cm for
+%   the title and x label, never below FigureSizeCm(2). Page is not used.
+%
+%   See also exportFigure, renderPlot, renderFigure, EphysAnalysisRunner.runDataset.
 
 arguments
     exportSection = struct()
@@ -26,12 +32,26 @@ end
 
 x = EphysAnalysisConfig.normalizeSection("Export", onlyKnown(exportSection));
 sz = x.FigureSizeCm;
-if ~isempty(R)
+nRows = figureRows(R, spec);
+if nRows > 0
+    sz(2) = max(sz(2), 3.5 * nRows + 2);   % a figure: 3.5 cm a row of its arrangement, 2 cm for the title and x label
+elseif ~isempty(R)
     sz(2) = max(sz(2), gridHeightCm(R, spec, opts.Page));
 end
 fig = figure('Visible', 'off', 'Color', 'w', 'Units', 'centimeters', 'Position', [1 1 sz(1) sz(2)], ...
     'PaperUnits', 'centimeters', 'PaperSize', sz, 'PaperPosition', [0 0 sz(1) sz(2)], ...
     'InvertHardcopy', 'off', 'IntegerHandle', 'off', 'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none');
+end
+
+
+function rows = figureRows(R, spec)
+%figureRows  The arrangement's rows of a figure of the Figures section (SPEC with panels, or F.kind "figure"); 0 = a plot.
+rows = 0;
+if isstruct(spec) && isscalar(spec) && isfield(spec, 'panels') && isfield(spec, 'grid')
+    rows = spec.grid.rows;
+elseif isstruct(R) && isscalar(R) && isfield(R, 'kind') && isequal(string(R.kind), "figure") && isfield(R, 'spec')
+    rows = R.spec.grid.rows;
+end
 end
 
 

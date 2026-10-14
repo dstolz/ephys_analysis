@@ -1,15 +1,18 @@
 function T = run(obj, opts)
-%run  Run every enabled plot on every dataset; export and report.
-%   T = r.run(Datasets=, Plots=, Export=, Report=) runs runDataset on each
-%   dataset in turn and returns (and keeps in r.Results) one row per dataset
-%   and plot: Dataset, Plot, Kind, Status (done | skipped | error |
+%run  Run every enabled plot and figure on every dataset; export and report.
+%   T = r.run(Datasets=, Plots=, Figures=, Export=, Report=) runs
+%   runDataset on each dataset in turn (its plots, then its figures, a
+%   page per observation) and returns (and keeps in r.Results) one row per
+%   dataset and plot or figure: Dataset, Plot (the plot's or figure's id),
+%   Kind ("figure" for a figure), Status (done | skipped | error |
 %   canceled), Message, Files, Seconds. With Report it builds the report
 %   (newAnalysisReport) and writes it (Report.Format: html, pdf or both)
 %   to Report.Folder / Report.FileName -- one report over all datasets, or
 %   one per dataset with Report.PerDataset. The written files are in
 %   r.ReportFiles. ProgressFcn hears how far the whole run is: dataset j of
-%   n starts at (j-1)/n and its plots share its 1/n. cancel() stops before
-%   the next plot; the rest are "canceled". Every run that reaches a
+%   n starts at (j-1)/n and its plots and figures share its 1/n. cancel()
+%   stops before the next plot or figure observation; the rest are
+%   "canceled". Every run that reaches a
 %   dataset ends by writing a run record (config, code version, machine, Results) to
 %   <report folder>/analysis_runs (r.RunRecordFile).
 %
@@ -27,7 +30,11 @@ function T = run(obj, opts)
 %
 %   Options
 %     Datasets      indices, keys or names (default all)
-%     Plots         plot ids (default Config.enabledPlots())
+%     Plots         plot ids ([] = default: Config.enabledPlots();
+%                   string.empty(1, 0) = none)
+%     Figures       figure ids ([] = default: Config.enabledFigures();
+%                   string.empty(1, 0) = none), e.g. one figure alone:
+%                   run(Figures=id, Plots=string.empty(1, 0))
 %     SessionPlots  session plot ids (default Config.enabledSessionPlots();
 %                   string.empty = none)
 %     Export        write figure files (default Config.Export.Enabled)
@@ -39,7 +46,8 @@ function T = run(obj, opts)
 arguments
     obj (1,1) EphysAnalysisRunner
     opts.Datasets = []
-    opts.Plots (1,:) string = string.empty(1, 0)
+    opts.Plots = []
+    opts.Figures = []
     opts.SessionPlots = []
     opts.Export = []
     opts.Report = []
@@ -53,8 +61,8 @@ doExport = cfg.Export.Enabled;
 if ~isempty(opts.Export); doExport = logical(opts.Export); end
 doReport = cfg.Report.Enabled;
 if ~isempty(opts.Report); doReport = logical(opts.Report); end
-ids = opts.Plots;
-if isempty(ids); ids = cfg.enabledPlots(); end
+ids = EphysAnalysisRunner.idList(opts.Plots, @() cfg.enabledPlots());
+fids = EphysAnalysisRunner.idList(opts.Figures, @() cfg.enabledFigures());
 if isempty(opts.Datasets)
     idx = 1:numel(obj.Outputs);
 elseif isnumeric(opts.Datasets)
@@ -78,7 +86,8 @@ perDataset = doReport && P.PerDataset;
 if doReport && ~perDataset
     obj.Report = newReport(cfg);
 end
-obj.log("Analysis ""%s"": %d dataset(s) x %d plot(s), %d session plot(s)", cfg.Name, numel(idx), numel(ids), numel(sids));
+obj.log("Analysis ""%s"": %d dataset(s) x %d plot(s) and %d figure(s), %d session plot(s)", ...
+    cfg.Name, numel(idx), numel(ids), numel(fids), numel(sids));
 canceled = false;
 nUnits = numel(idx) + numel(sids);   % the run's progress: a share per dataset and per session plot
 for j = 1:numel(idx)
@@ -87,21 +96,17 @@ for j = 1:numel(idx)
     try
         span = [j - 1, j] / nUnits;   % this dataset's share of the run, which its plots report within
         obj.progress(span(1), "Dataset " + obj.Names(k));
-        obj.runDataset(k, Plots=ids, Export=doExport, Report=doReport, Span=span);   % appends to obj.Results
+        obj.runDataset(k, Plots=ids, Figures=fids, Export=doExport, Report=doReport, Span=span);   % appends to obj.Results
     catch ME
         if ME.identifier ~= "EphysAnalysisRunner:Canceled"; rethrow(ME); end
         canceled = true;
         if ~any(obj.Results.Dataset == obj.Names(k))   % canceled before the dataset started
-            for id = ids
-                obj.Results(end+1, :) = {obj.Names(k), id, kindOf(cfg, id), "canceled", "canceled", "", 0};
-            end
+            cancelDataset(obj, obj.Names(k), ids, fids);
         end
     end
     if canceled
         for kk = idx(j+1:end)
-            for id = ids
-                obj.Results(end+1, :) = {obj.Names(kk), id, kindOf(cfg, id), "canceled", "canceled", "", 0};
-            end
+            cancelDataset(obj, obj.Names(kk), ids, fids);
         end
         cancelSessionPlots(obj, sids);
         obj.log("Canceled.");
@@ -141,7 +146,7 @@ end
 if ~isempty(idx)
     outcome = "finished";
     if canceled; outcome = "canceled"; end
-    obj.RunRecordFile = writeRunRecord(obj, idx, ids, sids, started, outcome);
+    obj.RunRecordFile = writeRunRecord(obj, idx, ids, fids, sids, started, outcome);
 end
 try
     obj.progress(1, "Done");
@@ -199,10 +204,10 @@ T = table(S.label, S.subject, S.dateText, S.name, S.key, ...
 end
 
 
-function file = writeRunRecord(obj, idx, ids, sids, started, outcome)
+function file = writeRunRecord(obj, idx, ids, fids, sids, started, outcome)
 %writeRunRecord  What this run did and with what: <report folder>/analysis_runs/<runId>_<name>.json.
 %   Schema ephys-analysis-run/1: the run id, outcome, start, end, the
-%   datasets, plots and session plots, the report files, the Results rows, the code and
+%   datasets, plots, figures and session plots, the report files, the Results rows, the code and
 %   machine (ephysProvenance) and the config. The report folder is
 %   Report.Folder resolved for the first dataset, whether or not a report
 %   was written. A record that cannot be written is a warning, never an
@@ -227,6 +232,7 @@ try
     rec.seconds = seconds(finished - started);
     rec.datasets = cellstr(obj.Names(idx));
     rec.plots = cellstr(ids);
+    rec.figures = cellstr(fids);
     rec.sessionPlots = cellstr(sids);
     rec.reportFiles = cellstr(obj.ReportFiles);
     rec.results = num2cell(table2struct(obj.Results)).';
@@ -268,6 +274,13 @@ obj.log("Report: %s", strjoin(files, ", "));
 end
 
 
-function k = kindOf(cfg, id)
-k = cfg.Plots(cfg.plotIndex(id)).kind;
+function cancelDataset(obj, name, ids, fids)
+%cancelDataset  A "canceled" row for each plot and figure of a dataset the run did not reach.
+cfg = obj.Config;
+for id = ids
+    obj.Results(end+1, :) = {name, id, cfg.Plots(cfg.plotIndex(id)).kind, "canceled", "canceled", "", 0};
+end
+for id = fids
+    obj.Results(end+1, :) = {name, id, "figure", "canceled", "canceled", "", 0};
+end
 end

@@ -1,5 +1,5 @@
 function runAnalysis(obj, opts)
-%runAnalysis  Run the analysis config's plots on the selected datasets: figures and report.
+%runAnalysis  Run the analysis config's plots and figures on the selected datasets: figure files and report.
 %   Loads Analysis.ConfigFile, an EphysAnalysisApp config, when the step
 %   runs (EphysPipelineConfig.loadAnalysisConfig), so what is saved in the
 %   analysis app applies to the next run, and runs it with
@@ -11,9 +11,11 @@ function runAnalysis(obj, opts)
 %   where and as the analysis config's Export and Report sections say; the
 %   runner also writes its own run record (<report folder>/analysis_runs).
 %
-%   Results: one row per dataset and enabled plot, step "analysis:<plot
-%   id>": done (Output: the files written), skipped (Message: why the
-%   dataset cannot have that plot, plotSkipReason), error or canceled; and
+%   Results: one row per dataset and enabled plot, then enabled figure
+%   (Config.Figures: a page per observation), step "analysis:<plot or
+%   figure id>": done (Output: the files written), skipped (Message: why
+%   the dataset cannot have that plot or figure, plotSkipReason /
+%   figureSkipReason), error or canceled; and
 %   one "analysis:report" row per report: Dataset "" for one report over
 %   every dataset, else the dataset's name (Report.PerDataset). A config
 %   that cannot be loaded, and a dataset whose outputs cannot be read or
@@ -55,7 +57,8 @@ if isempty(acfg)
     return
 end
 ids = acfg.enabledPlots();
-obj.log("[analysis] ""%s"" (%s): %d plot(s) on %d dataset(s)", acfg.Name, A.ConfigFile, numel(ids), n);
+fids = acfg.enabledFigures();
+obj.log("[analysis] ""%s"" (%s): %d plot(s) and %d figure(s) on %d dataset(s)", acfg.Name, A.ConfigFile, numel(ids), numel(fids), n);
 
 if opts.DryRun
     T = obj.analysisTargets(acfg, idx);
@@ -66,7 +69,7 @@ if opts.DryRun
             obj.addResult(T.Step(r), T.Dataset(r), "dry run", "would write: " + T.Note(r), T.Output(r), 0);
         end
     end
-    obj.log("[analysis] dry run: %d plot(s) x %d dataset(s)%s", numel(ids), n, ...
+    obj.log("[analysis] dry run: %d plot(s) and %d figure(s) x %d dataset(s)%s", numel(ids), numel(fids), n, ...
         ternary(A.Report, ", and the report", ""));
     return
 end

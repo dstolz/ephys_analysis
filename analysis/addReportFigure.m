@@ -17,6 +17,13 @@ function report = addReportFigure(report, spec, R, opts)
 %   REPORT = addReportFigure(REPORT, SPEC, [], Status="error", Message=M)
 %   records a plot that could not be drawn (listed in the report).
 %
+%   Caption=TXT gives the caption instead of plotCaption's. A figure of the
+%   Figures section (SPEC with panels, its kind "figure"; R its
+%   figureCompute result for one observation, figureCaption the caption)
+%   is added as one entry for all its observations: its Images and Pages
+%   are what the caller drew, page by page, and nothing is drawn here
+%   (drawReportPages draws plots only).
+%
 %   See also newAnalysisReport, reportImage, reportPdfPage, writeHtmlReport,
 %   writePdfReport.
 
@@ -29,20 +36,28 @@ arguments
     opts.Pages (1,:) string = string.empty(1, 0)
     opts.Status (1,1) string = "done"
     opts.Message (1,1) string = ""
+    opts.Caption = []
 end
 
 if isempty(report.datasets)
     error('addReportFigure:NoDataset', 'Add a dataset (addReportDataset) before its figures.');
 end
-e = struct('plot', spec.id, 'kind', spec.kind, 'title', spec.title, 'caption', "", 'spec', spec, ...
+isFigure = isfield(spec, 'panels');   % a figure of the Figures section: the caller draws its pages
+kind = "figure";
+if isfield(spec, 'kind'); kind = string(spec.kind); end
+e = struct('plot', spec.id, 'kind', kind, 'title', spec.title, 'caption', "", 'spec', spec, ...
     'images', {cell(1, 0)}, 'pages', string.empty(1, 0), 'files', opts.Files, 'status', opts.Status, 'message', opts.Message);
 if ~isempty(R) && opts.Status == "done"
-    e.caption = plotCaption(spec, R);
+    if ~isempty(opts.Caption)
+        e.caption = string(opts.Caption);
+    elseif ~isFigure
+        e.caption = plotCaption(spec, R);
+    end
     e.images = opts.Images;
     e.pages = opts.Pages;
     needImages = report.options.Format ~= "pdf" && isempty(e.images);
     needPages = report.options.Format ~= "html" && isempty(e.pages);
-    if needImages || needPages
+    if (needImages || needPages) && ~isFigure
         [images, pages] = drawReportPages(R, spec, report, Images=needImages, Pages=needPages);
         if needImages; e.images = images; end
         if needPages; e.pages = pages; end

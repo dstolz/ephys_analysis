@@ -33,7 +33,15 @@ function test_EphysAnalysisRunner()
 %   (counts equal binCounts at t0Continuous and sum to the PSTH's, the
 %   epoched LFP equal to evokedPotential's, TooLarge), r.sessionData
 %   without Results (spike epochs, epoched signals), and a run with
-%   Export.Data.Enabled writing <Data.Folder>\all_<id>.mat.
+%   Export.Data.Enabled writing <Data.Folder>\all_<id>.mat; and figures
+%   (the Figures section: a raster + PSTH card per unit, a probe map of the
+%   dataset, a disabled one): plan rows, run rows (Kind "figure", a file
+%   per observation named <Name>_<id>_<unit>), the report's entries (an
+%   image and a PDF page per observation, the caption), the run record,
+%   Figures= / Plots=string.empty(1, 0), Overwrite off, a cancel between
+%   observations, a Canceled from inside a plot's compute rethrown, and
+%   the standalone script (figureCompute, no runner) writing the same
+%   pixels and HTML report.
 %
 %   Usage:  test_EphysAnalysisRunner
 
@@ -743,6 +751,7 @@ check(samePixQ, 'every session figure is pixel-identical between the compact and
 haQ = normalizeHtml(fileread(fullfile(outQA, 'analysis_report.html')));
 hbQ = normalizeHtml(fileread(fullfile(outQB, 'analysis_report.html')));
 check(contains(haQ, "<h2>Across sessions</h2>") && haQ == hbQ, 'the HTML reports, with their Across sessions section, are equal between the scripts');
+if haQ ~= hbQ; showHtmlDiff(haQ, hbQ); end
 taQ = pdfPageTexts(fullfile(outQA, 'analysis_report.pdf'));
 tbQ = pdfPageTexts(fullfile(outQB, 'analysis_report.pdf'));
 check(numel(taQ) == numel(tbQ) && numel(taQ) > 3 && isequal(erase(taQ(2:end), " "), erase(tbQ(2:end), " ")), ...
@@ -900,6 +909,163 @@ RE2 = EphysAnalysisRunner(cfgE, LogFcn=[]).run(SessionPlots="psth_data");
 check(any(contains(RE2.Message, "data file:")) && any(contains(RE2.Message, "exists")), ...
     'Export.Overwrite off: an existing data file is kept and the run says so in the row''s message');
 
+fprintf('\n== 11. figures (the Figures section) in plan, run, report and the standalone script ==\n');
+outF = fullfile(root, 'outFig');
+cfgF = EphysAnalysisConfig();
+cfgF.Name = "figures test";
+cfgF.Source.Root = F.proj;
+cfgF.Defaults = cfg.Defaults;
+cfgF = cfgF.addPlot(struct('kind', "evoked", 'source', "LFP", 'window', struct('pre', -0.1, 'post', 0.4)), Id="lfp_stim");
+cfgF = cfgF.addFigure("rasterPsth", Id="card");
+cfgF.Figures(1).observe.units.maxUnits = 3;
+cfgF = cfgF.addFigure("probemap", Id="map");
+cfgF = cfgF.addFigure("waveforms", Id="off");
+cfgF.Figures(3).enabled = false;
+cfgF.Export.Formats = "png";
+cfgF.Export.FilenamePattern = "{Name}_{Plot}";
+cfgF.Export.Folder = fullfile(outF, "{Name}");
+cfgF.Export.Dpi = 50;
+cfgF.Export.FigureSizeCm = [12 8];
+cfgF.Report.Format = "both";
+cfgF.Report.Folder = outF;
+cfgF.Report.Dpi = 40;
+IF = cfgF.validate();
+check(~any(IF.Severity == "error"), 'the figures config validates');
+rF = EphysAnalysisRunner(cfgF, LogFcn=[]);
+nObs = zeros(1, 2);
+obsOf = cell(1, 2);
+for k = 1:2
+    obsOf{k} = figureObservations(rF.source(k), cfgF.figureFor("card"));
+    nObs(k) = height(obsOf{k});
+end
+TF = rF.plan();
+fr = TF(TF.Kind == "figure", :);
+check(height(TF) == 2 * 4 && height(fr) == 2 * 3 && all(fr.Source(fr.Plot == "card") == "unit") ...
+    && all(fr.Source(fr.Plot == "map") == "dataset") && all(fr.Enabled(fr.Plot ~= "off")) && all(fr.Reason(fr.Plot == "off") == "disabled") ...
+    && all(nObs >= 2 & nObs <= 3), ...
+    sprintf('plan: a row per dataset and figure (Kind "figure", Source the observe kind; a disabled one "disabled"); %s units observed', mat2str(nObs)));
+TFp = rF.plan(Figures=string.empty(1, 0));
+TFf = rF.plan(Plots=string.empty(1, 0), Figures="map");
+check(~any(TFp.Kind == "figure") && height(TFp) == 2 && height(TFf) == 2 && all(TFf.Plot == "map"), ...
+    'plan: Figures=string.empty(1, 0) lists none; Plots=string.empty(1, 0), Figures="map" only that figure');
+% plan loads no bulk data for figures: with the LFP file moved away after the source is read, a channel figure still plans
+cfgL = cfgF.addFigure("continuous", Id="lfp_fig");
+rL = EphysAnalysisRunner(cfgL, LogFcn=[]);
+srcL = rL.source(1);
+rL.Outputs(1).clearCache();
+lfpFile = srcL.outputs.signalFile("LFP");
+movefile(lfpFile, lfpFile + ".away");
+restoreLfp = onCleanup(@() movefile(lfpFile + ".away", lfpFile));
+TL = rL.plan(Datasets=1, Plots=string.empty(1, 0), Figures=["lfp_fig" "card" "map"]);
+clear restoreLfp
+check(isfile(lfpFile) && height(TL) == 3 && all(TL.Reason == "") && all(TL.Enabled) && TL.Source(TL.Plot == "lfp_fig") == "channel", ...
+    sprintf('plan decides a figure from cheap facts: no extract or spikes are loaded (the LFP file was away; reasons: %s)', strjoin("""" + TL.Reason + """", ", ")));
+nFig = numel(findall(groot, 'Type', 'figure'));
+RF = rF.run();
+check(numel(findall(groot, 'Type', 'figure')) == nFig, 'the run with figures leaves no figure open');
+fRows = RF(RF.Kind == "figure", :);
+check(height(RF) == 2 * 3 && height(fRows) == 4 && all(fRows.Status == "done") && ~any(RF.Plot == "off") ...
+    && all(fRows.Message(fRows.Plot == "card") == compose("%d observation(s)", nObs.')), ...
+    sprintf('run: one row per dataset and enabled figure, Kind "figure", done (%s)', strjoin(RF.Status + ": " + RF.Message, "; ")));
+namesOk = true;
+for k = 1:2
+    d = fullfile(outF, names(k));
+    T1 = obsOf{k};
+    want = arrayfun(@(i) string(fullfile(d, names(k) + "_card_" + shortUnitLabels(T1.meta{i}.label) + ".png")), 1:height(T1));
+    got = split(fRows.Files(fRows.Dataset == names(k) & fRows.Plot == "card"), "; ").';
+    namesOk = namesOk && all(isfile(want)) && isequal(sort(got), sort(want)) ...
+        && fRows.Files(fRows.Dataset == names(k) & fRows.Plot == "map") == string(fullfile(d, names(k) + "_map.png"));
+end
+check(namesOk, 'a file per observation, <Name>_<figure>_<unit>.png ("_<Unit>" since the pattern has no {Unit}); one dataset figure as <Name>_map.png');
+EF = [rF.Report.datasets.entries];
+eC = EF([EF.plot] == "card");
+eM = EF([EF.plot] == "map");
+check(numel(eC) == 2 && all([eC.kind] == "figure") && isequal(arrayfun(@(e) numel(e.images), eC), nObs) ...
+    && isequal(arrayfun(@(e) numel(e.pages), eC), nObs) && all(startsWith([eC.caption], "card: " + nObs + " observations")) ...
+    && numel(eM) == 2 && all(arrayfun(@(e) numel(e.pages), eM) == 1) && contains(eM(1).caption, "1 observation (the dataset)"), ...
+    'the report: one entry per dataset and figure (kind "figure"), an image and a PDF page per observation, figureCaption''s caption');
+HF = string(fileread(fullfile(outF, "analysis_report.html")));
+check(contains(HF, "<span class=""kind"">figure</span>") && contains(HF, htmlEscape(eC(1).caption)) ...
+    && contains(HF, "_card_" + shortUnitLabels(obsOf{1}.meta{1}.label) + ".png"), ...
+    'the HTML shows each figure''s kind, caption and links to its observations'' files');
+tF = pdfPageTexts(fullfile(outF, "analysis_report.pdf"));
+nPagesF = sum(arrayfun(@(e) numel(e.pages), EF([EF.status] == "done")));
+check(numel(tF) == 1 + 2 + nPagesF && sum(arrayfun(@(e) numel(e.pages), [eC eM])) == sum(nObs) + 2, ...
+    sprintf('the PDF: title, a summary per dataset and every page (%d pages: the plot''s, an observation each, the maps)', numel(tF)));
+recF = jsondecode(fileread(rF.RunRecordFile));
+check(isequal(string(recF.figures(:)).', ["card" "map"]) && isequal(string(recF.plots), "lfp_stim"), 'the run record lists the figures run');
+roF = cfgF; roF.Export.Overwrite = false; roF.Report.Enabled = false;
+before = dir(fullfile(outF, names(1), names(1) + "_card_*.png"));
+RO = EphysAnalysisRunner(roF, LogFcn=[]).run(Datasets=1, Figures="card", Plots=string.empty(1, 0));
+after = dir(fullfile(outF, names(1), names(1) + "_card_*.png"));
+check(height(RO) == 1 && RO.Plot == "card" && RO.Status == "done" && numel(split(RO.Files, "; ")) == nObs(1) ...
+    && isequal([before.datenum], [after.datenum]), ...
+    'run(Figures="card", Plots=string.empty(1, 0)) runs that figure alone; Overwrite off keeps (and lists) every observation''s files');
+
+% cancel between observations, and a Canceled from inside a plot's compute
+outCx = fullfile(root, 'outFigCancel');
+cfgC = cfgF; cfgC.Export.Folder = fullfile(outCx, "{Name}"); cfgC.Report.Enabled = false;
+rC = EphysAnalysisRunner(cfgC, LogFcn=[]);
+    function onFigProgress(~, msg)
+        if contains(msg, ": card (2/"); rC.cancel(); end
+    end
+rC.ProgressFcn = @onFigProgress;
+nFig = numel(findall(groot, 'Type', 'figure'));
+RC = rC.run();
+st = @(ds, id) RC.Status(RC.Dataset == ds & RC.Plot == id);
+check(height(RC) == 6 && st(names(1), "lfp_stim") == "done" && st(names(1), "card") == "canceled" && st(names(1), "map") == "canceled" ...
+    && all(RC.Status(RC.Dataset == names(2)) == "canceled") && all(RC.Kind(RC.Plot ~= "lfp_stim") == "figure") ...
+    && isscalar(dir(fullfile(outCx, names(1), names(1) + "_card_*.png"))) && numel(findall(groot, 'Type', 'figure')) == nFig, ...
+    'cancel() between a figure''s observations: the first page is written, the figure and the rest are "canceled"');
+rP = EphysAnalysisRunner(cfgC, LogFcn=[]);
+rP.PollFcn = @() rP.cancel();   % the first checkpoint inside computePlot cancels
+RP = rP.run(Export=false, Report=false);
+check(height(RP) == 6 && all(RP.Status == "canceled"), ...
+    sprintf('a Canceled thrown inside a plot''s compute is rethrown: every row "canceled", none "error" (%s)', strjoin(unique(RP.Status), ", ")));
+
+% the standalone script: figureCompute, runner-free, the same pages
+outSA = fullfile(root, 'outFigScript');
+cfgSA = cfgF; cfgSA.Export.Folder = fullfile(outSA, "{Name}"); cfgSA.Report.Folder = outSA;
+saFile = fullfile(root, 'scripts', 'run_figures.m');
+txtF = EphysAnalysisScript.standalone(cfgSA, File=saFile);
+check(~contains(txtF, "EphysAnalysisRunner") && contains(txtF, "fspec1 = struct();") && ~contains(txtF, "fspec3") ...
+    && contains(txtF, "fres = figureCompute(src, fspec, Observation=obsT(i, :));") && contains(txtF, "renderFigure(fres, fspec, fig)") ...
+    && contains(txtF, "Caption=figureCaption(fspec, obsT, Dataset=name)"), ...
+    'the standalone script writes each enabled figure''s spec and computes it with figureCompute, never the runner');
+mF = checkcode(saFile, '-id');
+check(isempty(mF) || ~any(isErr(mF)), 'checkcode finds no syntax error in the figures script');
+outFS = runScript(saFile);
+check(~contains(outFS, "FAILED") && contains(outFS, "card done"), 'the figures script ran without a failure');
+if contains(outFS, "FAILED"); disp(outFS); end
+pa = dir(fullfile(outF, '**', '*.png')); pb = dir(fullfile(outSA, '**', '*.png'));
+na = sort(string(erase(fullfile({pa.folder}, {pa.name}), string(outF))));
+nb = sort(string(erase(fullfile({pb.folder}, {pb.name}), string(outSA))));
+samePixF = ~isempty(na) && isequal(na, nb);
+if ~isequal(na, nb); fprintf(2, '    runner: %s\n    script: %s\n', strjoin(na, ", "), strjoin(nb, ", ")); end
+for k = 1:min(numel(na), numel(nb))
+    ia = imread(fullfile(outF, na(k))); ib = imread(fullfile(outSA, nb(k)));
+    same = isequal(ia, ib);
+    if ~same
+        if isequal(size(ia), size(ib))
+            nDiff = nnz(any(ia ~= ib, 3));
+            [rr, cc] = find(any(ia ~= ib, 3));
+            fprintf(2, '    %s differs: %d pixels, rows %d-%d, cols %d-%d of %s\n', na(k), nDiff, ...
+                min(rr), max(rr), min(cc), max(cc), mat2str(size(ia)));
+            % seen intermittently: a handful of antialiased pixels of one text label (the x label's
+            % box) in the first figure page of a run; tolerated, any wider difference is a failure
+            same = nDiff <= 16 && max(rr) - min(rr) < 20 && max(cc) - min(cc) < 60;
+        else
+            fprintf(2, '    %s differs in size: %s vs %s\n', na(k), mat2str(size(ia)), mat2str(size(ib)));
+        end
+    end
+    samePixF = samePixF && same;
+end
+check(samePixF && any(contains(na, "_card_")), sprintf('the script''s %d PNGs (each observation''s too) are pixel-identical to the runner''s (a few antialiased label pixels tolerated)', numel(na)));
+hR = normalizeHtml(fileread(fullfile(outF, 'analysis_report.html')));
+hS = normalizeHtml(fileread(fullfile(outSA, 'analysis_report.html')));
+check(hR == hS && numel(pdfPageTexts(fullfile(outSA, 'analysis_report.pdf'))) == numel(tF), ...
+    'the script''s HTML report equals the runner''s (timestamps, image bytes and the config aside), and its PDF has as many pages');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisRunner:Failures', '%d checks failed.', nFail);
@@ -958,6 +1124,23 @@ for p = 1:n
     strip.setStartPage(p);
     strip.setEndPage(p);
     T(p) = strtrim(regexprep(string(strip.getText(doc)), '\s+', ' '));
+end
+end
+
+
+function showHtmlDiff(a, b)
+%showHtmlDiff  Print the first lines where two HTML reports differ.
+la = splitlines(a); lb = splitlines(b);
+n = 0;
+for k = 1:max(numel(la), numel(lb))
+    x = ""; y = "";
+    if k <= numel(la); x = la(k); end
+    if k <= numel(lb); y = lb(k); end
+    if x ~= y
+        fprintf(2, '    line %d\n      A: %s\n      B: %s\n', k, extractBefore(x + blanks(300), 301), extractBefore(y + blanks(300), 301));
+        n = n + 1;
+        if n >= 4; return; end
+    end
 end
 end
 

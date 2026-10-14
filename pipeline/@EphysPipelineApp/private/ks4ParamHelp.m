@@ -2,7 +2,8 @@ function H = ks4ParamHelp()
 %ks4ParamHelp  What each Kilosort4 parameter of kilosortParamSpec is, does and how to tune it.
 %   H = ks4ParamHelp() returns a struct with one field per parameter name
 %   of EphysPipelineConfig.kilosortParamSpec. Each holds the text the
-%   Sorting tab's parameter details box shows (buildSortingTab):
+%   window opened by clicking a parameter's name on the Sorting tab shows
+%   (showKS4ParamInfo):
 %     definition  what the parameter is, with its units
 %     function    what Kilosort4 does with it
 %     impact      what raising or lowering it changes in the sort

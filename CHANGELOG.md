@@ -10,10 +10,9 @@ says how to cut a release.
 
 ### Added
 
-- Kilosort4 parameter details on the Sorting tab. A text box left of the Sorted output panel gives one
-  parameter's definition, function, impact, tuning and defaults (this pipeline's and Kilosort4 4.1.7's
-  own), picked from a drop-down or by editing the parameter. It closes while a SpikeInterface sorter is
-  chosen.
+- Kilosort4 parameter details on the Sorting tab. Each parameter's name is a link that opens a modal
+  window with its definition, function, impact, tuning and defaults (this pipeline's and Kilosort4
+  4.1.7's own).
 - Derived events. A new named line made from an existing one: the intervals of a line (the trial line, a
   stimulus line, or an earlier derived event) in the trials that meet conditions on the trial parameters,
   e.g. `Depth >= -6`, or `Depth < -6` and `Depth >= -10`, several combined with all (AND) or any (OR), in

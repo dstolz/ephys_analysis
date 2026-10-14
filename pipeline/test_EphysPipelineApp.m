@@ -1757,28 +1757,39 @@ check(isequaln(S.KS4, EphysPipelineConfig.defaults("Sorting").KS4) && S.KS4Extra
 check(S.PythonExe == before.PythonExe && S.Enabled == before.Enabled ...
     && app.Config.Probe.DefaultProbeFile == "", 'and leaves the other Sorting settings alone');
 
-% Kilosort4 parameter details (the column left of Sorted output)
-helpText = @() strjoin(string(app.KSHelpArea.Value), newline);
-ksNames = {EphysPipelineConfig.kilosortParamSpec().name};
-described = false(size(ksNames));
-for k = 1:numel(ksNames)
-    app.KSHelpDropDown.Value = ksNames{k};
-    app.KSHelpDropDown.ValueChangedFcn(app.KSHelpDropDown, []);
-    lines = string(app.KSHelpArea.Value);
-    described(k) = startsWith(lines(1), ksNames{k}) && numel(lines) == 17 && all(lines([4 7 10 13]) ~= "");
+% Kilosort4 parameter info: each name is a link that opens a modal window
+spec = EphysPipelineConfig.kilosortParamSpec();
+links = findall(app.TabSorting, 'Type', 'uihyperlink');
+infoFig = @() findall(groot, 'Type', 'figure', 'Tag', 'KS4ParamInfo');
+infoBody = @(d) string(findall(d, 'Type', 'uilabel', 'Interpreter', 'html').Text);   % the sections, as HTML
+infoTitle = @(d) string(findall(d, 'Type', 'uilabel', 'Interpreter', 'none').Text);
+described = false(size(spec));
+for k = 1:numel(spec)
+    link = links(strcmp({links.Text}, [spec(k).label ':']));
+    if ~isscalar(link) || ~isempty(link.URL); continue; end
+    link.HyperlinkClickedFcn(link, []);
+    d = infoFig();
+    if ~isscalar(d); delete(d); continue; end
+    body = infoBody(d);
+    described(k) = d.WindowStyle == "modal" && startsWith(infoTitle(d), spec(k).name) ...
+        && count(body, "<p><b>") == 5 && ~contains(body, "</b><br></p>");   % five sections, none empty
+    delete(d);
 end
-check(isequal(app.KSHelpDropDown.ItemsData, ksNames) && all(described), ...
-    'the details drop-down lists every Kilosort4 parameter, each with its details');
-app.KSHelpDropDown.Value = 'Th_universal';
-app.KSHelpDropDown.ValueChangedFcn(app.KSHelpDropDown, []);
-t = helpText();
-check(startsWith(t, "Th_universal") && all(contains(t, ["DEFINITION" "FUNCTION" "IMPACT" "TUNING" "DEFAULT"])) ...
+check(all(described), 'every Kilosort4 parameter''s name is a link opening a modal window of its details');
+link = links(strcmp({links.Text}, 'Th_universal:'));
+link.HyperlinkClickedFcn(link, []);
+d = infoFig();
+t = infoBody(d);
+check(all(contains(t, "<b>" + ["DEFINITION" "FUNCTION" "IMPACT" "TUNING" "DEFAULT"] + "</b>")) ...
     && contains(t, "This pipeline: 7") && contains(t, "Kilosort4 4.1.7: 9"), ...
-    'picking a parameter shows its definition, function, impact, tuning and both defaults');
-app.ParamControls.nblocks.Value = 2;
-app.ParamControls.nblocks.ValueChangedFcn(app.ParamControls.nblocks, []);
-check(strcmp(app.KSHelpDropDown.Value, 'nblocks') && startsWith(helpText(), "nblocks") ...
-    && app.Config.Sorting.KS4.nblocks == 2, 'editing a parameter takes it into the config and describes it');
+    'the window gives the definition, function, impact, tuning and both defaults, under bold headers');
+b = findall(d, 'Type', 'uibutton', 'Text', 'Close');
+b.ButtonPushedFcn(b, []);
+check(isempty(infoFig()), 'Close closes it');
+link.HyperlinkClickedFcn(link, []);
+d = infoFig();
+d.KeyPressFcn(d, struct('Key', 'escape'));
+check(isempty(infoFig()), 'and so does Esc');
 app.onResetKS4Params();
 
 % SpikeInterface sorters (a stand-in list: no Python needed)
@@ -1806,8 +1817,6 @@ check(S.Sorter == "tridesclous2" && EphysPipelineConfig.siParams(S) == "" && log
     && contains(app.SortEnableCheckBox.Text, "tridesclous2 (SpikeInterface)") ...
     && any(contains(string(app.SIParamsHelpArea.Value), "Threshold for detection")), ...
     'a SpikeInterface sorter shows its default parameters and their descriptions in place of Kilosort4''s');
-check(~logical(app.KSHelpPanel.Visible) && isequal(app.KSHelpPanel.Parent.ColumnWidth{2}, 0), ...
-    'and the Kilosort4 parameter details column closes');
 check(app.Project.Datasets(1).Sorter == "tridesclous2" ...
     && endsWith(string(app.Project.Datasets(1).sortRunDir()), "si_tridesclous2"), ...
     'the datasets'' sorted output follows the sorter (si_tridesclous2)');
@@ -1836,9 +1845,8 @@ check(startsWith(app.RunDiagram.steps(4).what, "Kilosort4, ") ...
 S = app.Config.Sorting;
 check(S.Sorter == "kilosort4" && S.SIParams.tridesclous2 == "{""detect_threshold"": 6}" && ~logical(app.SIPanel.Visible) ...
     && all(shown(app.KS4ParamWidgets)) && isequaln(S.KS4, ks4Before) ...
-    && app.SortEnableCheckBox.Text == "Enable the Sorting step (Kilosort4)" ...
-    && logical(app.KSHelpPanel.Visible) && isequal(app.KSHelpPanel.Parent.ColumnWidth{2}, '1x'), ...
-    'back to Kilosort4: its parameters (and their details) as they were; the SpikeInterface parameters are kept');
+    && app.SortEnableCheckBox.Text == "Enable the Sorting step (Kilosort4)", ...
+    'back to Kilosort4: its parameters as they were; the SpikeInterface parameters are kept');
 app.SortSorterDropDown.Value = 'tridesclous2';
 app.onSorterChanged();
 app.onResetSIParams();

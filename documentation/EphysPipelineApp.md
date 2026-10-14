@@ -1534,7 +1534,7 @@ executable to be sorted.
 | **Optimize for probe** | loads the Kilosort4 parameters saved for the active dataset's probe (else the default probe) from `<probe>.ks4.json` next to the probe map; without that file, offers to generate it from the current parameters or from the probe layout ([details](#optimize-for-probe)) |
 | **Reset to defaults** | every `Sorting.KS4` parameter back to its `kilosortParamSpec` default and `KS4ExtraJSON` cleared; the Python and execution settings stay |
 | a SpikeInterface sorter's parameters (JSON), their descriptions, **Reset to defaults**, SpikeInterface sorter docs link | in place of the Kilosort4 parameters when a SpikeInterface sorter is chosen: `Sorting.SIParams.<sorter>` ([SpikeInterface sorters](#spikeinterface-sorters)) |
-| **Kilosort4 parameter details** panel: parameter drop-down, text box | read-only: one Kilosort4 parameter's definition, function, impact, tuning and defaults ([Parameter details](#parameter-details)) |
+| a Kilosort4 parameter's name (a link) | opens a window of that parameter's definition, function, impact, tuning and defaults ([Parameter details](#parameter-details)) |
 | **Sorted output** panel: Dataset, label, **Use folder...**, **Use auto**, **Open in phy** | the active dataset's sorted-output association ([Sorted output](#sorted-output)) |
 | **Run this step** | `EphysPipeline.runSorting` over the selected datasets |
 | progress label + **<sorter> log** (named for the selected sorter) | background runs (`ks4_run.log` or `si_run.log` tail, `ks4_status.json` or `si_status.json`), see [Watching background runs](#watching-background-runs) |
@@ -1616,11 +1616,8 @@ For choosing `whitening_range` and `shank_spacing`, see the
 
 #### Parameter details
 
-The **Kilosort4 parameter details** panel, between the settings and the
-**Sorted output** panel, describes one parameter at a time: pick it in the
-panel's drop-down, or edit it on the left. The panel takes the width the
-settings and the Sorted output panel (at least 310 px) leave. The text box
-gives its
+Each Kilosort4 parameter's name is a link. Clicking it opens a modal
+window (**Close** or **Esc** closes it) with the parameter's
 
 - **Definition**: what it is, in which units;
 - **Function**: what Kilosort4 does with it;
@@ -1634,8 +1631,7 @@ gives its
 
 The text was checked against the installed Kilosort4 4.1.7 (its
 `parameters.py` and the code that reads each setting) and lives in the app's
-private `ks4ParamHelp.m`. The panel closes while a SpikeInterface sorter is
-chosen, whose parameters have their own descriptions.
+private `ks4ParamHelp.m`.
 
 ### Optimize for probe
 

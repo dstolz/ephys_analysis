@@ -3,8 +3,7 @@ function showSorterControls(obj, S)
 %   Kilosort4: its parameter rows, as they always were. A SpikeInterface
 %   sorter: those rows hide and SIPanel shows that sorter's parameters
 %   (Sorting.SIParams.<sorter> of the working config, else SpikeInterface's
-%   defaults) beside their descriptions, and the Kilosort4 parameter
-%   details column (KSHelpPanel) closes. The step's check box (here and on
+%   defaults) beside their descriptions. The step's check box (here and on
 %   the Run tab), the Run tab's runs-at-once label, the Artifacts tab's
 %   "Erase in sorting", the note on artifacts, the log panel and "Use auto"
 %   name the sorter. SIParamsShown
@@ -22,8 +21,6 @@ si = sorter ~= "kilosort4";
 what = EphysDataset.sorterLabel(sorter);
 set(obj.KS4ParamWidgets(isvalid(obj.KS4ParamWidgets)), "Visible", ~si);
 obj.SIPanel.Visible = si;
-obj.KSHelpPanel.Visible = ~si;   % its column closes up (SIParamsHelpArea describes a SpikeInterface sorter's)
-fitSortingColumns(obj);
 obj.SortEnableCheckBox.Text = "Enable the Sorting step (" + what + ")";
 if ~isempty(obj.RunSortingCheckBox) && isvalid(obj.RunSortingCheckBox)   % Run tab's Steps panel
     obj.RunSortingCheckBox.Text = "Sorting: " + what;

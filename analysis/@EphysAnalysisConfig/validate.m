@@ -102,7 +102,9 @@ function issues = validate(obj, opts)
 %               raster of marks alone (an error: no rows); warnings for a
 %               panel without enabled layers and for several layers on a
 %               one-layer type; the type's options (bins, measure,
-%               baseline modes and window, histStyle, normalize,
+%               baseline modes and window -- a signal's baseline, in a
+%               continuous panel or a heat map of a signal, overlapping
+%               the panel's window --, histStyle, normalize,
 %               fillAlpha, the raster sort, continuous display /
 %               statistic / transform / errorType and its toolbox,
 %               stackSpacing, heatmap order, group, behavior param /
@@ -925,6 +927,7 @@ for k = 1:numel(obj.Figures)
                 checkFigWaveform(op.waveform, o0 + ".waveform", false);
             case "continuous"
                 checkFigBaseline(op.baseline, ["none" "subtract"], o0, A);
+                checkSignalBaseline(op.baseline, pw, o0);
                 if ~ismember(op.display, ["lines" "stacked"])
                     add("Figures", o0 + ".display", "error", "A continuous signal panel's display is lines or stacked.");
                 end
@@ -953,6 +956,7 @@ for k = 1:numel(obj.Figures)
                     checkFigBaseline(op.baseline, ["none" "subtract" "zscore" "percent"], o0, A);
                 else
                     checkFigBaseline(op.baseline, ["none" "subtract"], o0, A);
+                    checkSignalBaseline(op.baseline, pw, o0);
                 end
                 if ~ismember(op.order, ["probe" "peak"])
                     add("Figures", o0 + ".order", "error", "A heat map orders its rows by probe (the style's sort options) or peak.");
@@ -1112,6 +1116,20 @@ issues = table(Section, Field, Severity, Message);
                 hWho, strjoin(hModes, ", "), hB.Mode));
         elseif hB.Mode ~= "none" && ~(numel(hB.Window) == 2 && all(isfinite(hB.Window)) && hB.Window(2) > hB.Window(1))
             add("Figures", hO0 + ".baseline.Window", "error", "The baseline window must be [b0 b1] with b0 < b1.");
+        end
+    end
+
+    function checkSignalBaseline(hB, hW, hO0)
+        %checkSignalBaseline  A signal's baseline is taken from the samples it cuts: its window must overlap the panel's [pre post].
+        %   (evokedPotential subtracts each epoch's mean over the baseline's samples inside the epoch's window.)
+        if hB.Mode == "none" || ~(numel(hB.Window) == 2 && all(isfinite(hB.Window)) && hB.Window(2) > hB.Window(1)) ...
+                || ~isstruct(hW) || ~(isfinite(hW.pre) && isfinite(hW.post))
+            return
+        end
+        if hB.Window(2) < hW.pre || hB.Window(1) > hW.post
+            add("Figures", hO0 + ".baseline", "error", sprintf(['The baseline window [%g %g] s has no sample in the ' ...
+                'panel''s window [%g %g] s: a signal''s baseline is cut from the epoch, so it must overlap it.'], ...
+                hB.Window(1), hB.Window(2), hW.pre, hW.post));
         end
     end
 

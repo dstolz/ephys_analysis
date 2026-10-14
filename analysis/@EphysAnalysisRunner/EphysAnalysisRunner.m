@@ -26,6 +26,17 @@ classdef EphysAnalysisRunner < handle
     %   and then writeHtmlReport / writePdfReport. The app previews a page
     %   with renderPlotFigures.
     %
+    %   A figure (Config.Figures; one observation's panels) is computed for
+    %   one observation at a time, with no graphics (the run does not draw
+    %   figures yet; the app's Figures tab previews them):
+    %     spec = cfg.figureFor(id)
+    %     T = figureObservations(src, spec)          (its units, channels, or the dataset)
+    %     [reason, layerReasons] = figureSkipReason(src, spec)
+    %     F = r.computeFigure(src, spec, Observation=T(k,:))
+    %   computeFigure reads only the observation's data (one unit's spike
+    %   train, one extract column) where a layer follows it, and stops at
+    %   its checkpoints like computePlot while PollFcn is set.
+    %
     %   Properties
     %     Config        the EphysAnalysisConfig
     %     ProgressFcn   ProgressFcn(fraction, message), called before each
@@ -110,6 +121,7 @@ classdef EphysAnalysisRunner < handle
         src = source(obj, k)
         T = plan(obj, opts)
         [R, E, G] = computePlot(obj, src, spec, opts)
+        F = computeFigure(obj, src, spec, opts)
         h = renderPlotFigures(obj, R, spec, opts)
         rows = runDataset(obj, k, opts)
         T = run(obj, opts)

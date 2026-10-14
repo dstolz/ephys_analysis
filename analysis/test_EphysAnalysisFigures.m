@@ -12,6 +12,25 @@ function test_EphysAnalysisFigures()
 %   DuplicateFigureId / DuplicatePanelId; every validate rule of the
 %   Figures section, and the Plots style messages unchanged by the
 %   shared checkStyle.
+%   Compute (7), on makeAnalysisFixture's "clean" dataset:
+%   figureObservations (the filter's units in probe order, a tightened
+%   filter, the LFP channels of a continuous figure, one row for a dataset
+%   figure); computeFigure of the raster + PSTH figure (the first
+%   observation by default, one unit in each layer, the PSTH equal to
+%   computePlot's, Observation= as a row or a struct); an LFP layer
+%   following the unit (its recording channel's column), a fixed AUX layer
+%   with aggregate "mean" (R.layerMean) and an AUX layer following the unit
+%   (skipped with its reason, in figureSkipReason too); a fixed layer of
+%   three units averaged; events as marks (epochEvents) and as a train (a
+%   one-unit PSTH peaking at 0 when aligned to its own line); a panel's own
+%   window (its epochs, the figure's groups); a channel observation (its
+%   column, the MUA column of the same channel, the units on it); behavior
+%   (the stop latency, as computePlot's; no stop event, or a yParam /
+%   seriesParam the trials lack, skips the layer); a raster sorted by a
+%   missing parameter skipped while the PSTH under it is computed; a
+%   signal's baseline with no sample in the window skipping its layer;
+%   probemap, corrmap and waveforms as computePlot's; PollFcn checkpoints
+%   and cancel; one observation faster than computePlot over every unit.
 %
 %   Usage:  test_EphysAnalysisFigures
 
@@ -560,6 +579,16 @@ check(has(b, o + "display", "error") && has(b, o + "statistic", "error") && has(
 haveBoot = license('test', 'Statistics_Toolbox') && exist('bootci', 'file');
 b = base.addFigure("continuous", Id="ct"); b.Figures(2).panels.options.errorType = "ci95";
 check(has(b, o + "errorType", "error") == ~haveBoot, 'continuous: the bootstrap CI needs the Statistics and Machine Learning Toolbox');
+b = base.addFigure("continuous", Id="ct"); b.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [-1 -0.5]);
+b2 = base.addFigure("continuous", Id="ct"); b2.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [-0.5 -0.1]);
+b3 = base.addFigure("continuous", Id="ct"); b3.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [-0.2 -0.15]);
+b3.Figures(2).panels.window = struct('mode', "fixed", 'pre', -0.1, 'post', 0.3);
+b4 = base.addFigure("heatmap", Id="hm"); b4.Figures(2).panels.layers.source = "LFP";
+b4.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [1 2]);
+b5 = base.addFigure("heatmap", Id="hm"); b5.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [1 2]);
+check(has(b, o + "baseline", "error") && ~has(b2, o + "baseline", "error") && has(b3, o + "baseline", "error") ...
+    && has(b4, "hm.heatmap_1.options.baseline", "error") && ~has(b5, "hm.heatmap_1.options.baseline", "error"), ...
+    'a signal''s baseline window must overlap the panel''s resolved window (continuous, a heat map of a signal; not of spikes)');
 b = base.addFigure("heatmap", Id="hm"); b.Figures(2).panels.options.order = "modulation"; b.Figures(2).panels.options.group = 0;
 b.Figures(2).panels.options.cLim = [2 1];
 o = "hm.heatmap_1.options.";
@@ -621,6 +650,288 @@ b2 = base; b2.Figures(1).style.ErrorType = "ci95"; b2.Figures(1).panels(2).type 
 check(has(b, "figure_1.style.ErrorType", "error") == ~haveBoot && ~has(b2, "figure_1.style.ErrorType", "error"), ...
     'a figure''s bootstrap CI needs the toolbox only where a panel draws the style''s error');
 
+%% ============================================================================ compute
+fprintf('\n== 7. compute: observations, bindings, panels and layers ==\n');
+froot = string(root) + "_fixture";
+cleanFixture = onCleanup(@() rmdirQuiet(froot));
+FX = makeAnalysisFixture(froot, Scenarios="clean", NumTrials=12);
+cfg = EphysAnalysisConfig();
+cfg.Source.Root = FX.proj;
+cfg.Defaults.EventRef.line = "Stim";
+cfg.Defaults.Window = struct('mode', "fixed", 'pre', -0.2, 'post', 0.8, 'stop', []);
+cfg.Defaults.Selection.groupBy = "Depth";
+cfg = cfg.addFigure("rasterPsth", Id="rp");
+cfg = cfg.addFigure("continuous", Id="ct");
+cfg = cfg.addFigure("probemap", Id="pm");
+rn = EphysAnalysisRunner(cfg, LogFcn=[]);
+src = rn.source(1);
+spec = cfg.figureFor("rp");
+varsObs = ["kind" "label" "unitId" "channel" "column" "shank" "depth" "meta"];
+
+% observations
+Tu = figureObservations(src, spec);
+[~, mU] = selectUnits(src, spec.observe.units);
+ordU = probeOrder(mU, height(mU), spec.style);
+nU = height(Tu);
+check(nU == height(mU) && nU >= 2 && all(Tu.kind == "unit") && isequal(Tu.unitId, mU.unitId(ordU)) ...
+    && isequal(Tu.channel, mU.channel(ordU)) && isequaln(Tu.depth, mU.y(ordU)) && all(isnan(Tu.column)) ...
+    && isequal(string(Tu.Properties.VariableNames), varsObs) && isequal(Tu.meta{1}.unitId, Tu.unitId(1)) ...
+    && all(arrayfun(@(k) contains(Tu.label(k), "ch " + Tu.channel(k)), 1:nU)), ...
+    sprintf('figureObservations: the filter''s %d units in probe order ("%s", ...)', nU, Tu.label(1)));
+s2 = spec; s2.observe.units.ids = Tu.unitId([1 end]).';
+T2 = figureObservations(src, s2);
+s3 = spec; s3.observe.units.ids = 9999;
+T3 = figureObservations(src, s3);
+check(height(T2) == 2 && isequal(sort(T2.unitId), sort(Tu.unitId([1 end]))) && height(T3) == 0 ...
+    && isequal(string(T3.Properties.VariableNames), varsObs), 'a tightened filter lists its units only; none left gives an empty table');
+sc = cfg.figureFor("ct");
+Tc = figureObservations(src, sc);
+[~, ~, mL] = selectChannels(src, "LFP");
+check(sc.observe.kind == "channel" && height(Tc) == height(mL) && all(Tc.kind == "channel") && isequal(sort(Tc.column), sort(mL.channel)) ...
+    && isequal(Tc.channel, mL.recordingChannel(Tc.column)) && all(startsWith(Tc.label, "LFP ch ")) && all(isnan(Tc.unitId)), ...
+    sprintf('figureObservations: the LFP channels of a continuous-only figure ("%s", ...)', Tc.label(1)));
+sp = cfg.figureFor("pm");
+Td = figureObservations(src, sp);
+check(sp.observe.kind == "dataset" && isscalar(Td.kind) && Td.kind == "dataset" && Td.label == src.name && isnan(Td.unitId), ...
+    'figureObservations: one row, the dataset, for a dataset figure');
+
+% raster + PSTH of one unit
+F1 = rn.computeFigure(src, spec);
+L1 = F1.panels(1).layers;
+L2 = F1.panels(2).layers;
+check(F1.kind == "figure" && F1.id == "rp" && F1.dataset == src.name && F1.observation.kind == "unit" ...
+    && F1.observation.unitId == Tu.unitId(1) && F1.observation.label == Tu.label(1) && isequal([F1.panels.id], ["raster_1" "psth_1"]) ...
+    && all([F1.panels.sharesTime]) && isempty(F1.panels(1).epochs) && istable(F1.epochs) && isequal(F1.panels(2).groups, F1.groups), ...
+    'computeFigure: the first observation by default; both panels on the figure''s epochs and groups');
+check(isscalar(L1) && L1.skip == "" && L2.skip == "" && isscalar(L1.R.raster) && size(L2.R.rate, 2) == 1 ...
+    && L1.meta.unitId == Tu.unitId(1) && L2.meta.unitId == Tu.unitId(1) && L2.name == shortUnitLabels(Tu.meta{1}.label) ...
+    && L2.binding == "observation" && L2.category == "point", 'one unit in each layer''s R: the observed one, named by its label');
+cfg = cfg.addPlot(struct('kind', "psth"), Id="psth_all");
+Rp = rn.computePlot(src, cfg.plotFor("psth_all"));
+u1 = find(Rp.meta.unitId == Tu.unitId(1));
+check(isscalar(u1) && isequaln(L2.R.rate, Rp.rate(:, u1, :)) && isequaln(L2.R.err.lo, Rp.err.lo(:, u1, :)) ...
+    && isequaln(F1.epochs.t0, Rp.epochs.t0), 'the PSTH layer is computePlot''s PSTH of that unit (the same epochs, bins and band)');
+F2 = rn.computeFigure(src, spec, Observation=Tu(2, :));
+Fs = rn.computeFigure(src, spec, Observation=struct('kind', "unit", 'unitId', Tu.unitId(2), 'channel', Tu.channel(2)));
+check(F2.observation.unitId == Tu.unitId(2) && F2.panels(2).layers(1).meta.unitId == Tu.unitId(2) ...
+    && isequaln(Fs.panels(2).layers(1).R.rate, F2.panels(2).layers(1).R.rate), 'Observation= picks another unit (a table row or a struct)');
+
+% a continuous panel: LFP following the unit, AUX fixed, AUX following (skipped)
+lfpL = EphysAnalysisConfig.defaultLayer("continuous");
+auxL = lfpL; auxL.source = "AUX"; auxL.binding = "fixed"; auxL.channels = [1 2]; auxL.aggregate = "mean";
+auxF = lfpL; auxF.source = "AUX";
+stack = EphysAnalysisConfig.placePanel(cfg.Figures(cfg.figureIndex("rp")), ...
+    struct('id', "sig", 'type', "continuous", 'layers', [lfpL auxL auxF]), "below", "psth_1");
+stack.id = "stack";
+cfg = cfg.addFigure(stack);
+ss = cfg.figureFor("stack");
+F3 = rn.computeFigure(src, ss, Observation=Tu(2, :));
+Ls = F3.panels(3).layers;
+[Yl, fsl] = selectChannels(src, "LFP");
+col = find(mL.recordingChannel == Tu.channel(2), 1);
+Rref = evokedPotential(Yl, fsl, F3.epochs, Window=[ss.window.pre ss.window.post], Channels=col, Groups=F3.groups, Meta=mL(col, :));
+check(Ls(1).skip == "" && isequal(Ls(1).R.channels, col) && isequaln(Ls(1).R.mean, Rref.mean) && Ls(1).name == "LFP ch " + Tu.channel(2) ...
+    && Ls(1).meta.recordingChannel == Tu.channel(2), 'an LFP layer following the unit reads the column of its recording channel, as evokedPotential does');
+d2 = Ls(2).R.layerMean;
+check(Ls(2).skip == "" && isequal(Ls(2).R.channels(:).', [1 2]) && Ls(2).R.units == "V" && size(Ls(2).R.mean, 2) == 2 ...
+    && isequaln(d2.mean, mean(Ls(2).R.mean, 2, 'omitnan')) && isequal(size(d2.lo), size(d2.mean)) && d2.over == "channels" && d2.n == 2, ...
+    'a fixed AUX layer reads its columns; aggregate "mean" adds their mean with a band across them (R.layerMean)');
+auxMsg = "AUX has no recording channel: bind it to fixed channels";
+[~, lr] = figureSkipReason(src, ss);
+hit = [lr.panel] == "sig" & [lr.layer] == 3;
+check(Ls(3).skip == auxMsg && isempty(Ls(3).R) && F3.panels(3).skip == "" && isscalar(lr(hit)) && lr(hit).reason == auxMsg ...
+    && all([lr(~hit).reason] == ""), 'an AUX layer following a unit is skipped with its reason (figureSkipReason''s too); the others are computed');
+
+% a fixed point layer keeping three units, aggregate "mean"
+n3 = min(3, nU);
+fx = EphysAnalysisConfig.defaultLayer("psth");
+fx.binding = "fixed"; fx.units.ids = Tu.unitId(1:n3).'; fx.aggregate = "mean";
+cfg = cfg.addFigure(struct('panels', {{struct('id', "mean3", 'type', "psth", 'layers', fx)}}), Id="agg");
+sa = cfg.figureFor("agg");
+Fa = rn.computeFigure(src, sa);
+Ra = Fa.panels(1).layers(1).R;
+semU = std(Ra.rate, 0, 2, 'omitnan') / sqrt(n3);
+check(sa.observe.kind == "dataset" && Fa.observation.kind == "dataset" && size(Ra.rate, 2) == n3 && isequal(sort(Ra.meta.unitId), sort(Tu.unitId(1:n3))) ...
+    && isequaln(Ra.layerMean.mean, mean(Ra.rate, 2, 'omitnan')) && Ra.layerMean.n == n3 && Ra.layerMean.over == "units" ...
+    && max(abs(Ra.layerMean.hi - Ra.layerMean.mean - semU), [], 'all') < 1e-9 && Fa.panels(1).layers(1).name == "mean of " + n3 + " units", ...
+    sprintf('a fixed layer keeping %d units, aggregate "mean": each in R.rate, their mean +/- SEM across them in R.layerMean', n3));
+
+% events: marks and a train
+ev = EphysAnalysisConfig.defaultLayer("raster");
+ev.source = "events"; ev.binding = "fixed"; ev.event.line = "Stim";
+tr = ev; tr.eventsAs = "train";
+fe = cfg.Figures(cfg.figureIndex("rp"));
+fe.id = "events";
+fe.panels(1).layers = [fe.panels(1).layers ev tr];
+fe.panels(2).layers = tr;
+cfg = cfg.addFigure(fe);
+se = cfg.figureFor("events");
+Fe = rn.computeFigure(src, se, Observation=Tu(1, :));
+Lm = Fe.panels(1).layers(2);
+Lt = Fe.panels(1).layers(3);
+Lp = Fe.panels(2).layers(1);
+M = epochEvents(src, Fe.epochs, Sequences=eventMarkRef(ev.event));
+nE = height(Fe.epochs);
+check(Lm.skip == "" && Lm.R.kind == "events" && isequaln(Lm.R.marks, M) && Lm.name == "Stim onset" && Lm.eventsAs == "marks", ...
+    'events marks: epochEvents of the line over the figure''s epochs, named by the line');
+at0 = abs(Lt.R.raster.times) < 1e-9;
+check(Lt.skip == "" && Lt.name == "Stim onset" && Lt.R.labels == "Stim onset" && Lt.R.meta.class == "event" && Lt.eventsAs == "train" ...
+    && isscalar(Lt.R.raster) && isequal(unique(Lt.R.raster.epoch(at0)).', 1:nE), ...
+    'events as a train: a one-unit spike train named by the line, with a raster event at 0 in every epoch');
+[~, kPk] = max(sum(Lp.R.rate, 3));
+check(Lp.skip == "" && abs(Lp.R.edges(kPk)) < 1e-9 && nnz(abs(M.t) < 1e-9) == nE && nnz(at0) == nE, ...
+    'the train''s PSTH of the Stim line peaks in the bin from 0 when aligned to Stim onset, as epochEvents'' latencies of 0 say');
+
+% a panel's own window
+fo = cfg.Figures(cfg.figureIndex("rp"));
+fo.id = "own";
+fo.panels(2).window = struct('mode', "fixed", 'pre', -0.1, 'post', 0.3);
+cfg = cfg.addFigure(fo);
+so = cfg.figureFor("own");
+Fo = rn.computeFigure(src, so, Observation=Tu(1, :));
+Po = Fo.panels(2);
+check(istable(Po.epochs) && ~Po.sharesTime && Fo.panels(1).sharesTime && isempty(Fo.panels(1).epochs) ...
+    && all(abs(Po.epochs.tStop - Po.epochs.t0 - 0.3) < 1e-9) && all(abs(Po.epochs.tStart - Po.epochs.t0 + 0.1) < 1e-9) ...
+    && isequal(Po.groups.label, Fo.groups.label) && sum(Po.groups.n) == height(Po.epochs) ...
+    && all(abs(Po.layers(1).R.window - [-0.1 0.3]) < 1e-9) && isequal(Po.layers(1).R.groups.label, Fo.groups.label), ...
+    'a panel''s own window: its own epochs over it, with the figure''s groups');
+
+% a channel observation
+k1 = find(Tc.channel == Tu.channel(1), 1);
+fc = cfg.Figures(cfg.figureIndex("ct"));
+fc.id = "chan";
+fc.observe.kind = "channel";
+muaL = lfpL; muaL.source = "MUA";
+fc.panels(1).layers = [fc.panels(1).layers muaL];
+fc = EphysAnalysisConfig.placePanel(fc, struct('id', "r", 'type', "raster", 'layers', EphysAnalysisConfig.defaultLayer("raster")), ...
+    "below", "continuous_1");
+cfg = cfg.addFigure(fc);
+sch = cfg.figureFor("chan");
+Fc = rn.computeFigure(src, sch, Observation=Tc(k1, :));
+[~, ~, mM] = selectChannels(src, "MUA");
+Lc = Fc.panels(1).layers;
+check(isscalar(k1) && Fc.observation.kind == "channel" && Fc.observation.column == Tc.column(k1) && isequal(Lc(1).R.channels, Tc.column(k1)) ...
+    && isequal(Lc(2).R.channels, find(mM.recordingChannel == Tc.channel(k1), 1)) && Fc.panels(2).layers(1).skip == "" ...
+    && all(Fc.panels(2).layers(1).meta.channel == Tc.channel(k1)) && any(Fc.panels(2).layers(1).meta.unitId == Tu.unitId(1)), ...
+    'a channel observation: its own column, the same recording channel in the MUA extract, the units on that channel');
+
+% behavior: the stop event's latency
+cfg = cfg.addFigure("behavior", Id="bh");
+kb = cfg.figureIndex("bh");
+cfg.Figures(kb).panels(1).options.param = "Depth";
+cfg.Figures(kb).panels(1).layers(1).yParam = "stop";
+cfg.Figures(kb).ref = struct('line', "RespWindow", 'scope', "trial");
+noStop = cfg.figureFor("bh");
+cfg.Figures(kb).window = struct('mode', "fixed", 'pre', 0, 'post', 0, 'stop', struct('line', "Trough", 'scope', "trial"));
+sb = cfg.figureFor("bh");
+Fb = rn.computeFigure(src, sb);
+cfg = cfg.addPlot(struct('kind', "behavior", 'param', "Depth", 'yParam', "stop", 'ref', struct('line', "RespWindow", 'scope', "trial"), ...
+    'window', struct('pre', 0, 'post', 0, 'stop', struct('line', "Trough", 'scope', "trial"))), Id="bh_plot");
+Rb = rn.computePlot(src, cfg.plotFor("bh_plot"));
+Lb = Fb.panels(1).layers(1);
+check(Lb.skip == "" && Lb.R.kind == "behavior" && isequaln(Lb.R.mean, Rb.mean) && isequaln(Lb.R.n, Rb.n) && Lb.R.units == "ms" ...
+    && Lb.name == "Trough onset latency" && istable(Fb.panels(1).epochs), ...
+    'behavior: each epoch''s stop-event latency by Depth, as computePlot''s behavior plot gives it');
+[~, lrb] = figureSkipReason(src, noStop);
+Fn = rn.computeFigure(src, noStop);
+check(any([lrb.reason] == "no stop event in the window") && Fn.panels(1).layers(1).skip == "no stop event in the window" ...
+    && isempty(Fn.panels(1).layers(1).R), 'yParam "stop" needs a stop event in the window: else the layer is skipped with that reason');
+cfg = cfg.addFigure("behavior", Id="bhbad");
+kx = cfg.figureIndex("bhbad");
+cfg.Figures(kx).panels(1).options.param = "Depth";
+cfg.Figures(kx).panels(1).layers(1).yParam = "NoSuchParam";
+Fx = rn.computeFigure(src, cfg.figureFor("bhbad"));
+cfg.Figures(kx).panels(1).layers(1).yParam = "RespLatency";
+cfg.Figures(kx).panels(1).layers(1).seriesParam = "NoSuchSeries";
+Fy = rn.computeFigure(src, cfg.figureFor("bhbad"));
+check(Fx.panels(1).skip == "" && Fx.panels(1).layers(1).skip == "no trial parameter NoSuchParam" && isempty(Fx.panels(1).layers(1).R) ...
+    && Fy.panels(1).skip == "" && Fy.panels(1).layers(1).skip == "no trial parameter NoSuchSeries" && isempty(Fy.panels(1).layers(1).R), ...
+    'a behavior layer whose yParam or seriesParam the trials lack is skipped with that reason (the figure is still computed)');
+
+% a parameter or a baseline the panel cannot use skips it, not the figure
+fr = cfg.Figures(cfg.figureIndex("rp"));
+fr.id = "nosort";
+fr.panels(1).options.rasterSort = "NoSuchSort";
+cfg = cfg.addFigure(fr);
+Fr = rn.computeFigure(src, cfg.figureFor("nosort"), Observation=Tu(1, :));
+check(~ismember("NoSuchSort", string(src.trials.Properties.VariableNames)) && Fr.panels(1).skip == "no trial parameter NoSuchSort" ...
+    && Fr.panels(1).layers(1).skip == "no trial parameter NoSuchSort" && isempty(Fr.panels(1).layers(1).R) ...
+    && Fr.panels(2).skip == "" && Fr.panels(2).layers(1).skip == "" && isequaln(Fr.panels(2).layers(1).R.rate, L2.R.rate), ...
+    'a raster sorted by a parameter the trials lack is skipped with that reason; the PSTH under it is still computed');
+fbb = cfg.Figures(cfg.figureIndex("ct"));
+fbb.id = "badbase";
+fbb.panels(1).options.baseline = struct('Mode', "subtract", 'Window', [-1 -0.5]);
+cfg = cfg.addFigure(fbb);
+Fbb = rn.computeFigure(src, cfg.figureFor("badbase"), Observation=Tc(1, :));
+check(Fbb.panels(1).skip == "" && startsWith(Fbb.panels(1).layers(1).skip, "Baseline [") && isempty(Fbb.panels(1).layers(1).R), ...
+    sprintf('a signal''s baseline with no sample in the window skips the layer with the reason ("%s")', Fbb.panels(1).layers(1).skip));
+
+% probemap, corrmap, waveforms
+Fp = rn.computeFigure(src, sp);
+Lpm = Fp.panels(1).layers(1);
+if isempty(src.probe)
+    check(Fp.panels(1).skip == "no probe map", 'probemap: no probe map in the fixture, the panel says so');
+else
+    cfg = cfg.addPlot(struct('kind', "probemap", 'value', "rate"), Id="pm_plot");
+    Rpm = rn.computePlot(src, cfg.plotFor("pm_plot"));
+    check(Lpm.skip == "" && Lpm.R.kind == "probemap" && isequaln(Lpm.R.value, Rpm.value) && isempty(Fp.epochs) && isempty(Fp.panels(1).groups), ...
+        'probemap: the units'' rates on the probe sites, as computePlot''s probe map; no epochs');
+end
+cfg = cfg.addFigure("corrmap", Id="cm");
+Fcm = rn.computeFigure(src, cfg.figureFor("cm"));
+cfg = cfg.addPlot(struct('kind', "corrmap"), Id="cm_plot");
+Rcm = rn.computePlot(src, cfg.plotFor("cm_plot"));
+Lcm = Fcm.panels(1).layers(1);
+check(Lcm.skip == "" && Lcm.R.kind == "corrmap" && isequaln(Lcm.R.r, Rcm.r) && size(Lcm.R.r, 1) == height(Rcm.meta) && size(Lcm.R.r, 1) >= 2, ...
+    'corrmap: the units'' pairwise correlations, as computePlot''s correlation map');
+cfg = cfg.addFigure("waveforms", Id="wf");
+sw = cfg.figureFor("wf");
+wsw = warning('off', 'unitWaveforms:Templates');
+wsn = warning('off', 'unitWaveforms:NoWaveforms');
+Fw = rn.computeFigure(src, sw, Observation=Tu(1, :));
+warning(wsn); warning(wsw);
+Lw = Fw.panels(1).layers(1);
+check(sw.observe.kind == "unit" && Lw.skip == "" && Lw.R.kind == "waveforms" && Lw.R.n == 1 && Lw.meta.unitId == Tu.unitId(1) ...
+    && isscalar(Lw.R.waveforms.mean) && ismember(Lw.R.waveforms.from, ["spikes" "template"]) && isempty(Fw.epochs), ...
+    'waveforms: the observed unit''s mean waveform (unitWaveforms); not aligned, no epochs');
+
+% cancel, checkpoints
+nPolls = 0;
+    function countPoll()
+        nPolls = nPolls + 1;
+    end
+rn.clearCancel();
+rn.PollFcn = @countPoll;
+Fq = rn.computeFigure(src, spec, Observation=Tu(1, :));
+rn.PollFcn = @() rn.cancel();
+cid = string(errorId(@() rn.computeFigure(src, spec, Observation=Tu(1, :))));
+rn.PollFcn = [];
+rn.clearCancel();
+check(nPolls >= 5 && isequaln(Fq.panels(2).layers(1).R.rate, L2.R.rate) && cid == "EphysAnalysisRunner:Canceled", ...
+    sprintf('with PollFcn set, computeFigure reaches %d checkpoints; a cancel() there stops it (EphysAnalysisRunner:Canceled)', nPolls));
+
+% one observation costs a fraction of every unit
+haveBootT = license('test', 'Statistics_Toolbox') && exist('bootci', 'file');
+if nU >= 4 && haveBootT
+    % bootstrap bands make the per-unit work, not the fixed steps, the bulk of the time
+    cfgT = cfg;
+    cfgT.Figures(cfgT.figureIndex("rp")).style.ErrorType = "ci95";
+    cfgT = cfgT.addPlot(struct('kind', "psth", 'style', struct('ErrorType', "ci95")), Id="psth_ci");
+    specT = cfgT.figureFor("rp");
+    plotT = cfgT.plotFor("psth_ci");
+    rn.computeFigure(src, specT, Observation=Tu(1, :));   % warm both
+    rn.computePlot(src, plotT);
+    tF = Inf; tP = Inf;
+    for rep = 1:3
+        tc0 = tic; rn.computeFigure(src, specT, Observation=Tu(1, :)); tF = min(tF, toc(tc0));
+        tc0 = tic; rn.computePlot(src, plotT); tP = min(tP, toc(tc0));
+    end
+    check(tF <= 0.5 * tP, sprintf(['one observation of the raster + PSTH figure (%.3f s) takes at most half the time of ' ...
+        'computePlot''s PSTH of all %d units (%.3f s)'], tF, nU, tP));
+else
+    fprintf('  (timing check skipped: %d unit(s), bootci %d)\n', nU, haveBootT);
+end
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisFigures:Failures', '%d checks failed.', nFail);
@@ -630,4 +941,14 @@ end
 
 function cfg = setFigures(cfg, f)
 cfg.Figures = f;
+end
+
+
+function rmdirQuiet(root)
+if isfolder(root)
+    try
+        rmdir(root, 's');
+    catch
+    end
+end
 end

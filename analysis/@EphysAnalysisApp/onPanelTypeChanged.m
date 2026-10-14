@@ -3,8 +3,7 @@ function onPanelTypeChanged(obj)
 %   Its options start afresh from the new type's (panelTypes'
 %   DefaultOptions), keeping the values both types have (bins, baseline --
 %   its mode when the new type takes it --, measure, the mask, limits, the
-%   group shown); the waveform inset or panel and the display (a
-%   continuous panel's and a behavior panel's differ) start afresh. The layers the
+%   group shown); the waveform inset or panel starts afresh. The layers the
 %   new type cannot draw are dropped; those kept are fixed where the type
 %   draws only fixed layers, and take the new type's binding (following the
 %   observation on a raster, PSTH, continuous or waveforms panel) where the
@@ -59,7 +58,7 @@ if isempty(i); i = 1; end
 first = L(i).source;
 modes = figureEditorChoices(new, first).BaselineModes;
 for f = string(fieldnames(op)).'
-    if ismember(f, ["waveform" "display"]) || ~isfield(p.options, f); continue; end   % display: lines / stacked vs points / box / ...
+    if f == "waveform" || ~isfield(p.options, f); continue; end   % an inset vs a waveforms panel's own
     v = p.options.(f);
     if f == "baseline" && ~ismember(v.Mode, modes); v.Mode = "none"; end
     op.(f) = v;

@@ -14,7 +14,15 @@ function syncFigureEditor(obj)
 %                    show the figure's) while "Same as the figure" is
 %                    ticked, and, with a note, for a type not aligned to
 %                    events; its Apply to all panels only while the panel
-%                    has its own, Re-link all panels while any panel does
+%                    has its own, Re-link all panels while any panel has
+%                    its own event, window or options
+%     Common options always (the waveform rows enabled when it is not Off,
+%                    the baseline window with a baseline); a linked panel's
+%                    Options rows of its type's common fields (bins,
+%                    measure, baseline, mask, waveform) are locked, showing
+%                    the figure's; Options' Apply to all panels when the
+%                    panel has its own common values or another panel of
+%                    its type
 %     Event reference, Epoch window, Trial selection   unless every panel
 %                    of the figure is one not aligned to events
 %     Layers         the picked layer's rows by its source and binding:
@@ -22,8 +30,8 @@ function syncFigureEditor(obj)
 %                    unit rows, a fixed signal layer's channels, the
 %                    aggregate on a raster, PSTH or continuous panel; an
 %                    events layer's line, edge, sequence and how it is
-%                    drawn (a mark's look for marks); a trials layer's y
-%                    value and series; the color and line style but for marks
+%                    drawn (a mark's look for marks); the color and line
+%                    style but for marks
 %     Options        the panel type's own (titled "<Type> options"); a heat
 %                    map of a signal has no bins or measure
 %     Appearance     all rows; the site size with a probe map, the heat
@@ -32,8 +40,8 @@ function syncFigureEditor(obj)
 %   observation (figureEditorChoices: Bindable; otherwise it shows Fixed),
 %   the train only on a raster, PSTH or heat map, the response test's rows
 %   with Responsive only, the baseline window with a baseline, the fill
-%   opacity when filled, the sort event with "event", the jitter for
-%   points, the waveform's rows when it is not Off, the bins of a unit
+%   opacity when filled, the sort event with "event", the
+%   waveform's rows when it is not Off, the bins of a unit
 %   correlation for its peak rate, the mask with a stop event, the stack
 %   spacing when stacked, the error and legend rows with their boxes, each
 %   Move button when the panel has a same-shaped neighbor that way, and
@@ -81,9 +89,13 @@ end
 
 v = struct();
 for f = ["id" "title" "enabled" "summary" "observe" "obsDatasets" "obsCount" "schematic" "addType" "addWhere" "spacing" ...
-        "fontSize" "lineWidth" "colormap" "sortDepth" "labelDepth" "showSEM" "legendLoc" "errType" "errFace" "errEdge" "looksText"]
+        "fontSize" "lineWidth" "colormap" "sortDepth" "labelDepth" "showSEM" "legendLoc" "errType" "errFace" "errEdge" "looksText" ...
+        "cmNote" "cmBinMs" "cmSmoothMs" "cmMeasure" "cmBaselineMode" "cmBaseFrom" "cmMaskAfterStop" "cmWaveMode" ...
+        "cmWaveLocation" "cmWaveScale" "cmWavePP"]
     v.(f) = true;   % the rows every figure shows
 end
+en([E.cmBaseFrom E.cmBaseTo], string(E.cmBaselineMode.Value) ~= "none");
+en([E.cmWaveSpikes E.cmWaveLocation E.cmWaveBox E.cmWaveScale E.cmWavePP E.cmWaveCount], string(E.cmWaveMode.Value) ~= "off");
 % observations
 unit = kind == "unit";
 sorted = unit && fig.observe.source == "units";
@@ -101,10 +113,11 @@ v.panelType = hasPanel; v.panelTitle = hasPanel; v.group = false;
 % layers and options: off unless the panel uses them
 layerKeys = ["layerList" "layerAdd" "layerNote" "layerName" "layerSource" "layerBinding" "layerFollows" "layerClasses" ...
     "layerIds" "layerQuality" "layerMaxUnits" "layerShanks" "layerUnitChannels" "layerChannels" "layerAggregate" "evLine" ...
-    "evEdge" "evSeqText" "evDrawAs" "evMarker" "evColor" "layerYParam" "layerSeries" "layerColor" "layerLineStyle"];
+    "evEdge" "evSeqText" "evDrawAs" "evMarker" "evColor" "layerColor" "layerLineStyle"];
 optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort" "sortLine" "sortSeqText" "rasterByGroup" ...
-    "maskAfterStop" "histStyle" "fill" "normalize" "contDisplay" "statistic" "errorType" "stackSpacing" "order" "param" ...
-    "behDisplay" "xScale" "value" "metric" "correlation" "fisherZ" "yLim" "cLim" "waveMode" "waveLocation" "waveScale" "wavePP"];
+    "maskAfterStop" "histStyle" "fill" "normalize" "contDisplay" "statistic" "errorType" "stackSpacing" "order" ...
+    "value" "metric" "correlation" "fisherZ" "yLim" "cLim" "waveMode" "waveLocation" "waveScale" "wavePP" ...
+    "optApplyAll"];
 for f = [layerKeys optionKeys]; v.(f) = false; end
 optionsTitle = "Options";
 paligned = false;
@@ -160,7 +173,6 @@ if hasPanel
         v.layerAggregate = fixed && (isSpike || isSignal) && ismember(t, ["raster" "psth" "continuous"]);
         v.evLine = L.source == "events"; v.evEdge = v.evLine; v.evSeqText = v.evLine; v.evDrawAs = v.evLine;
         v.evMarker = marks; v.evColor = marks;
-        v.layerYParam = L.source == "trials"; v.layerSeries = v.layerYParam;
         v.layerColor = ~marks; v.layerLineStyle = ~marks;
         if ~lc.Bindable; E.layerBinding.Value = "fixed"; end
         en(E.layerBinding, lc.Bindable);
@@ -185,10 +197,9 @@ if hasPanel
     v.histStyle = t == "psth"; v.fill = v.histStyle; v.normalize = v.histStyle;
     v.contDisplay = t == "continuous"; v.statistic = v.contDisplay; v.errorType = v.contDisplay; v.stackSpacing = v.contDisplay;
     v.order = t == "heatmap";
-    v.param = t == "behavior"; v.behDisplay = v.param; v.xScale = v.param;
     v.value = t == "probemap";
     v.metric = t == "corrmap"; v.correlation = v.metric; v.fisherZ = v.metric;
-    v.yLim = ismember(t, ["psth" "continuous" "waveforms" "behavior"]);
+    v.yLim = ismember(t, ["psth" "continuous" "waveforms"]);
     v.cLim = ismember(t, ["heatmap" "probemap" "corrmap"]);
     v.waveMode = ismember(t, ["raster" "psth" "waveforms"]); v.wavePP = v.waveMode;
     v.waveLocation = ismember(t, ["raster" "psth"]); v.waveScale = v.waveLocation;
@@ -196,13 +207,23 @@ if hasPanel
     en([E.baseFrom E.baseTo], string(E.baselineMode.Value) ~= "none");
     en(E.fillAlpha, E.fill.Value);
     en([E.sortLine E.sortEdge E.sortSeqText E.sortSeqEdit], strtrim(string(E.rasterSort.Value)) == "event");
-    en(E.jitter, string(E.behDisplay.Value) == "points");
     en([E.waveSpikes E.waveLocation E.waveBox E.waveScale E.wavePP E.waveCount], string(E.waveMode.Value) ~= "off");
     en([E.binMs E.smoothMs], t ~= "corrmap" || string(E.metric.Value) == "peak");
     stop = obj.FigureAlignControls.StopOn.Value;
     if isstruct(p.window); stop = obj.PanelAlignControls.StopOn.Value; end
     en(E.maskAfterStop, stop);
     en(E.stackSpacing, string(E.contDisplay.Value) == "stacked");
+    % a linked panel's common rows show the figure's Common options, locked
+    rowsOf = struct('bins', [E.binMs E.smoothMs], 'measure', E.measure, 'baseline', [E.baselineMode E.baseFrom E.baseTo], ...
+        'maskAfterStop', E.maskAfterStop, 'waveform', [E.waveMode E.waveSpikes E.waveLocation E.waveBox E.waveScale E.wavePP E.waveCount]);
+    cf = EphysAnalysisConfig.commonFieldsOf(t);
+    if p.common
+        for f = cf; en(rowsOf.(f), false); end
+    end
+    en(E.panelCommon, ~isempty(cf));
+    sameType = nnz([fig.panels.type] == t) > 1;
+    v.optApplyAll = known;
+    en(E.optApplyAll, (~p.common && ~isempty(cf)) || sameType);
 
     % the panel's own alignment
     modes = "fixed";
@@ -227,9 +248,9 @@ if hasPanel
     end
 end
 en(E.removePanel, hasPanel);
-own = false;   % any panel with its own event or window: Re-link all panels has something to do
+own = false;   % any panel with its own event, window or options: Re-link all panels has something to do
 for q = 1:np
-    own = own || isstruct(fig.panels(q).ref) || isstruct(fig.panels(q).window);
+    own = own || isstruct(fig.panels(q).ref) || isstruct(fig.panels(q).window) || ~fig.panels(q).common;
 end
 en(E.alignRelinkAll, own);
 pg = E.palignGrid;

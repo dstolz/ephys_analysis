@@ -3,7 +3,6 @@ function t = layerLabel(L)
 %   T = layerLabel(L) for one layer L (defaults("Layer")):
 %     events    "events: Stim offset (marks)" (its event's eventRefLabel,
 %               and drawn as marks or a train)
-%     trials    "trials: RespLatency" (its y value; "no y value yet")
 %     fixed     "units, fixed: ids 3 5 (mean)", "LFP, fixed: ch 3 5" or
 %               "..., fixed: all"; the mean when it averages them
 %     following "units, follows the observation"
@@ -14,11 +13,6 @@ function t = layerLabel(L)
 switch L.source
     case "events"
         t = "events: " + eventRefLabel(eventMarkRef(L.event)) + " (" + L.eventsAs + ")";
-    case "trials"
-        y = L.yParam;
-        if y == ""; y = "no y value yet"; end
-        t = "trials: " + y;
-        if L.seriesParam ~= ""; t = t + " by " + L.seriesParam; end
     otherwise
         if L.binding == "observation"
             t = L.source + ", follows the observation";

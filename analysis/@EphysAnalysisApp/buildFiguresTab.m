@@ -18,13 +18,18 @@ function buildFiguresTab(obj)
 %           Remove panel, Move), Panel (its type, title, group shown), the
 %           figure's Event reference, Epoch window and Trial selection (the
 %           Alignment tab's while "Use default" is ticked; Epoch Diagram),
-%           Panel alignment (the panel's own event and window, "Same as the
-%           figure" ticked otherwise), Layers (the panel's layers, Add a
-%           source the type draws, Remove, Up, Down, and the rows of the
-%           layer picked), the panel type's Options, Appearance and Looks.
-%           Each section collapses under its colored header
-%           (onFigureSectionToggled); Ctrl+1 to Ctrl+9 and Ctrl+0 go to the
-%           first ten (gotoFigureSection; onKeyPress). syncFigureEditor
+%           Common options (the figure's bins, measure, baseline, mask and
+%           waveform inset, which every linked panel takes), Panel alignment
+%           (the panel's own event and window, locked to the figure's while
+%           "Same as the figure" is ticked; Apply to all panels, Re-link all
+%           panels), Layers (the panel's layers, Add a source the type
+%           draws, Remove, Up, Down, and the rows of the layer picked), the
+%           panel type's Options ("Common options from the figure": its
+%           common rows locked to the figure's; Apply to all panels),
+%           Appearance and Looks. Each section collapses under its colored
+%           header (onFigureSectionToggled); Ctrl+1 to Ctrl+9 and Ctrl+0 go
+%           to the first ten, Observations to Options (gotoFigureSection;
+%           onKeyPress); Appearance and Looks have no key. syncFigureEditor
 %           shows the rows the figure, panel and layer use;
 %           layoutFigureEditor packs them.
 %   Right   the dataset, the observation picked (figureObservations' labels)
@@ -78,8 +83,8 @@ place(l, 7, [1 2]);
 % --- middle: the editor --------------------------------------------------------------------------
 ep = uipanel(g, "Title", "Figure");
 obj.FigureEditorPanel = ep;
-eg = uigridlayout(ep, [13 1]);
-eg.RowHeight = [repmat({0}, 1, 12) {'1x'}];
+eg = uigridlayout(ep, [14 1]);
+eg.RowHeight = [repmat({0}, 1, 13) {'1x'}];
 eg.RowSpacing = 6;
 eg.Padding = [4 4 4 4];
 eg.Scrollable = "on";
@@ -87,8 +92,8 @@ obj.FigureEditorGrid = eg;
 E = struct();
 
 % the sections with a header, in order: a header color each (a step along the turbo map) and the keys 1-9, 0
-order = ["observations" "arrangement" "panel" "ref" "window" "selection" "palign" "layers" "options" "style" "looks"];
-keyed = order(1:10);
+order = ["observations" "arrangement" "panel" "ref" "window" "selection" "common" "palign" "layers" "options" "style" "looks"];
+keyed = order(1:10);   % Observations Ctrl+1 ... Options Ctrl+0; Appearance and Looks have no key
 hue = turbo(256);
 hue = hue(round(linspace(24, 232, numel(order))), :);
 tint = @(name) hue(order == name, :);
@@ -304,8 +309,63 @@ Ss.BodyHeight = gridHeight(C.SelectionGrid);
 obj.FigureAlignControls = C;
 sec = [sec Sr Sw Ss];
 
+% the figure's common options: every panel with "Common options from the figure" ticked takes those its type has
+cchanged = @(~,~) onCommonEdited(obj);
+S = formSection(eg, 8, "common", "Common options", Color=tint("common"));
+[S, r] = formRow(S, "cmNote", "", 30);
+E.cmNote = uilabel(S.Body, "Text", "Every panel with ""Common options from the figure"" ticked (its Options section) " + ...
+    "takes the ones its type has: a change here reaches all of them.", "FontColor", gray, "WordWrap", "on");
+place(E.cmNote, r, [1 2]);
+[S, r] = formRow(S, "cmBinMs", "Bin (ms):");
+E.cmBinMs = uieditfield(S.Body, "numeric", "Value", 10, "Limits", [0.001 Inf], "ValueChangedFcn", cchanged, ...
+    "Tooltip", "PSTH, heat map and unit correlation panels' bins.");
+place(E.cmBinMs, r, 2);
+[S, r] = formRow(S, "cmSmoothMs", "Smooth (ms):");
+E.cmSmoothMs = uieditfield(S.Body, "numeric", "Value", 10, "Limits", [0 Inf], "ValueChangedFcn", cchanged, ...
+    "Tooltip", "Gaussian SD; 0 = none.");
+place(E.cmSmoothMs, r, 2);
+[S, r] = formRow(S, "cmMeasure", "Measure:");
+E.cmMeasure = uidropdown(S.Body, "Items", ["rate" "count" "probability"], "ValueChangedFcn", cchanged, ...
+    "Tooltip", "PSTH and heat map panels: spikes/s, spikes per bin, or the share of epochs with a spike in the bin.");
+place(E.cmMeasure, r, 2);
+[S, r] = formRow(S, "cmBaselineMode", "Baseline:");
+E.cmBaselineMode = uidropdown(S.Body, "Items", ["none" "subtract" "zscore" "percent"], "ValueChangedFcn", cchanged, ...
+    "Tooltip", "Against the baseline window's value, epoch by epoch (continuous and correlation panels: none or subtract).");
+place(E.cmBaselineMode, r, 2);
+[S, r] = formRow(S, ["cmBaseFrom" "cmBaseTo"], "Baseline (s):");
+bg = subgrid(S.Body, r, {'1x', 'fit', '1x'});
+E.cmBaseFrom = uieditfield(bg, "numeric", "Value", -0.2, "ValueChangedFcn", cchanged, "Tooltip", "Baseline window start (s from the event).");
+uilabel(bg, "Text", "to");
+E.cmBaseTo = uieditfield(bg, "numeric", "Value", 0, "ValueChangedFcn", cchanged, "Tooltip", "Baseline window end (s).");
+[S, r] = formRow(S, "cmMaskAfterStop", "");
+E.cmMaskAfterStop = uicheckbox(S.Body, "Text", "Mask after the stop event", "ValueChangedFcn", cchanged, ...
+    "Tooltip", "Raster, PSTH and heat map panels: drop what follows each epoch's stop event.");
+place(E.cmMaskAfterStop, r, [1 2]);
+[S, r] = formRow(S, ["cmWaveMode" "cmWaveSpikes"], "Waveform:");
+wg = subgrid(S.Body, r, {'1x', 'fit', 70});
+E.cmWaveMode = uidropdown(wg, "Items", ["Off" "Mean" "Subsample" "Mean + subsample"], "ItemsData", ["off" "mean" "subsample" "both"], ...
+    "Value", "off", "ValueChangedFcn", cchanged, "Tooltip", "Raster and PSTH panels' waveform inset (a waveforms " + ...
+    "panel draws Off as Mean + subsample).");
+uilabel(wg, "Text", "spikes:");
+E.cmWaveSpikes = uispinner(wg, "Limits", [1 2000], "Step", 50, "Value", 100, "RoundFractionalValues", "on", "ValueChangedFcn", cchanged, ...
+    "Tooltip", "How many of the unit's spikes the subsample draws.");
+[S, r] = formRow(S, ["cmWaveLocation" "cmWaveBox"], "Inset location:");
+wl = subgrid(S.Body, r, {'1x', 'fit'});
+E.cmWaveLocation = uidropdown(wl, "Items", ["North-east" "North" "North-west" "West" "South-west" "South" "South-east" "East"], ...
+    "ItemsData", EphysAnalysisConfig.WaveformLocations, "Value", "northeast", "ValueChangedFcn", cchanged);
+E.cmWaveBox = uicheckbox(wl, "Text", "Axis box", "Value", true, "ValueChangedFcn", cchanged);
+[S, r] = formRow(S, "cmWaveScale", "Inset size:");
+E.cmWaveScale = uispinner(S.Body, "Limits", [0.25 3], "Step", 0.25, "Value", 1, "ValueDisplayFormat", "%.2gx", "ValueChangedFcn", cchanged);
+place(E.cmWaveScale, r, 2);
+[S, r] = formRow(S, ["cmWavePP" "cmWaveCount"], "Label:");
+wt = subgrid(S.Body, r, {'fit', 'fit', '1x'});
+wt.ColumnSpacing = 12;
+E.cmWavePP = uicheckbox(wt, "Text", "p-p", "Value", true, "ValueChangedFcn", cchanged, "Tooltip", "Show the mean waveform's amplitude.");
+E.cmWaveCount = uicheckbox(wt, "Text", "# spikes", "ValueChangedFcn", cchanged, "Tooltip", "Show the unit's spike count.");
+sec(end+1) = S;
+
 % the selected panel's own event reference and window
-S = formSection(eg, 8, "palign", "Panel alignment", "panel", Color=tint("palign"));
+S = formSection(eg, 9, "palign", "Panel alignment", "panel", Color=tint("palign"));
 E.panelSame = uicheckbox(S.HeaderGrid, "Text", "Same as the figure", "Value", true, ...
     "ValueChangedFcn", @(~,~) obj.onPanelDefaultToggled(), ...
     "Tooltip", "Ticked: the panel uses the figure's event reference and epoch window (the rows below show them, " + ...
@@ -323,7 +383,8 @@ E.alignApplyAll = uibutton(bg, "Text", "Apply to all panels", "ButtonPushedFcn",
     "Tooltip", "Make this panel's own event and window the figure's, and link every panel to them again " + ...
     "(Same as the figure). Only while this panel has its own.");
 E.alignRelinkAll = uibutton(bg, "Text", "Re-link all panels", "ButtonPushedFcn", @(~,~) relinkAll(obj), ...
-    "Tooltip", "Every panel uses the figure's event and window again: the panels' own are dropped.");
+    "Tooltip", "Every panel uses the figure's event, window and common options again: the panels' own event and " + ...
+    "window are dropped (their own options stay stored, unused).");
 pr = uipanel(pg, "BorderType", "none");
 pr.Layout.Row = 3;
 pw = uipanel(pg, "BorderType", "none");
@@ -344,7 +405,7 @@ obj.PanelAlignControls = C2;
 sec(end+1) = S;
 
 % the selected panel's layers
-S = formSection(eg, 9, "layers", "Layers", Color=tint("layers"));
+S = formSection(eg, 10, "layers", "Layers", Color=tint("layers"));
 [S, r] = formRow(S, "layerList", "", 92);
 E.layerList = uilistbox(S.Body, "Items", {}, "ValueChangedFcn", @(lb, ~) obj.onLayerSelected(lb.Value), ...
     "Tooltip", "The data the panel draws, one binding each: a layer follows the observation (the unit or channel " + ...
@@ -375,7 +436,7 @@ E.layerEnabled = uicheckbox(ng, "Text", "Enabled", "Value", true, "ValueChangedF
     "Tooltip", "Unticked, the layer stays in the panel but is not drawn.");
 [S, r] = formRow(S, "layerSource", "Source:");
 E.layerSource = uidropdown(S.Body, "Items", "units", "ValueChangedFcn", changed, ...
-    "Tooltip", "What the layer reads: only the sources the panel's type draws. Events and trials layers are always fixed.");
+    "Tooltip", "What the layer reads: only the sources the panel's type draws. Events layers are always fixed.");
 place(E.layerSource, r, 2);
 [S, r] = formRow(S, "layerBinding", "Binding:");
 E.layerBinding = uidropdown(S.Body, "Items", ["Follows the observation" "Fixed"], "ItemsData", ["observation" "fixed"], ...
@@ -454,14 +515,6 @@ E.evSize = uispinner(mg, "Limits", [0.5 60], "Step", 1, "Value", 4, "ValueChange
 E.evColor = uidropdown(S.Body, "Editable", "on", "Items", ["auto" "black" "red" "blue" "#ff7f0e" "#9467bd"], "Value", "auto", ...
     "ValueChangedFcn", changed, "Tooltip", "auto: the mark's automatic color; or a name or #RRGGBB.");
 place(E.evColor, r, 2);
-[S, r] = formRow(S, "layerYParam", "Y value:");
-E.layerYParam = uidropdown(S.Body, "Editable", "on", "Items", ["" "stop"], "Value", "", "ValueChangedFcn", changed, ...
-    "Tooltip", "What each trial shows: a numeric trial parameter (e.g. RespLatency), or stop: the stop event's latency (ms).");
-place(E.layerYParam, r, 2);
-[S, r] = formRow(S, "layerSeries", "Series:");
-E.layerSeries = uidropdown(S.Body, "Editable", "on", "Items", "", "Value", "", "ValueChangedFcn", changed, ...
-    "Tooltip", "One series per value of this trial parameter (blank = one series).");
-place(E.layerSeries, r, 2);
 [S, r] = formRow(S, "layerColor", "Color:");
 E.layerColor = uidropdown(S.Body, "Editable", "on", "Items", ["auto" "black" "gray" "red" "blue" "#1f77b4" "#d62728"], ...
     "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "auto: each trial group's color; or one color (a name or " + ...
@@ -475,7 +528,17 @@ place(E.layerLineStyle, r, 2);
 sec(end+1) = S;
 
 % the panel type's options: every type's rows, shown per type (syncFigureEditor)
-S = formSection(eg, 10, "options", "Options", Color=tint("options"));
+S = formSection(eg, 11, "options", "Options", Color=tint("options"));
+E.panelCommon = uicheckbox(S.HeaderGrid, "Text", "Common options from the figure", "Value", true, ...
+    "ValueChangedFcn", @(~,~) onPanelCommonToggled(obj), ...
+    "Tooltip", "Ticked: the panel takes the figure's Common options (bins, measure, baseline, mask, waveform inset) " + ...
+    "for those its type has; their rows below show them, locked. Untick to give the panel its own, starting from them.");
+E.panelCommon.Layout.Column = 2;
+[S, r] = formRow(S, "optApplyAll", "", 30);
+E.optApplyAll = uibutton(S.Body, "Text", "Apply to all panels", "ButtonPushedFcn", @(~,~) applyOptionsToAll(obj), ...
+    "Tooltip", "This panel's common values become the figure's Common options and every panel is linked to them " + ...
+    "again; its other options go to the other panels of its type.");
+place(E.optApplyAll, r, [1 2]);
 [S, r] = formRow(S, "binMs", "Bin (ms):");
 E.binMs = uieditfield(S.Body, "numeric", "Value", 10, "Limits", [0.001 Inf], "ValueChangedFcn", changed);
 place(E.binMs, r, 2);
@@ -561,20 +624,6 @@ place(E.stackSpacing, r, 2);
 E.order = uidropdown(S.Body, "Items", ["probe" "peak"], "ValueChangedFcn", changed, ...
     "Tooltip", "probe: the rows follow the sort options (Appearance); peak: by the time of each row's maximum.");
 place(E.order, r, 2);
-[S, r] = formRow(S, "param", "X parameter:");
-E.param = uidropdown(S.Body, "Editable", "on", "Items", "", "Value", "", "ValueChangedFcn", changed, ...
-    "Tooltip", "The trial parameter on the x axis.");
-place(E.param, r, 2);
-[S, r] = formRow(S, "behDisplay", "Display:");
-E.behDisplay = uidropdown(S.Body, "Items", ["points" "line" "box" "swarm" "violin"], "ValueChangedFcn", changed, ...
-    "Tooltip", "How each x value's trials are drawn.");
-place(E.behDisplay, r, 2);
-[S, r] = formRow(S, ["xScale" "jitter"], "X axis:");
-xg = subgrid(S.Body, r, {'1x', 'fit'});
-E.xScale = uidropdown(xg, "Items", ["evenly spaced" "at their values"], "ItemsData", ["category" "linear"], "ValueChangedFcn", changed, ...
-    "Tooltip", "The x values evenly spaced and labeled, or at their values on a linear axis.");
-E.jitter = uicheckbox(xg, "Text", "Jitter points", "Value", true, "ValueChangedFcn", changed, ...
-    "Tooltip", "Points: spread the dots sideways (a fixed pattern).");
 [S, r] = formRow(S, "value", "Value:");
 E.value = uidropdown(S.Body, "Items", ["rate" "nSpikes" "nUnits"], "ValueChangedFcn", changed, "Tooltip", "What colors each site.");
 place(E.value, r, 2);
@@ -623,13 +672,13 @@ E.waveCount = uicheckbox(wt, "Text", "# spikes", "ValueChangedFcn", changed, "To
 sec(end+1) = S;
 
 % appearance: the figure's style (the Plots tab's rows, but tiles, grid spacing and limits: the arrangement and the panels have those)
-S = formSection(eg, 11, "style", "Appearance", Color=tint("style"));
+S = formSection(eg, 12, "style", "Appearance", Color=tint("style"));
 [S, r] = formRow(S, "fontSize", "Font size:");
 E.fontSize = uispinner(S.Body, "Limits", [5 24], "Value", 9, "ValueChangedFcn", changed);
 place(E.fontSize, r, 2);
 [S, r] = formRow(S, "lineWidth", "Line width:");
 E.lineWidth = uispinner(S.Body, "Limits", [0.25 6], "Step", 0.25, "Value", 1.2, "ValueChangedFcn", changed, ...
-    "Tooltip", "PSTH lines and outlines, signal traces, behavior lines.");
+    "Tooltip", "PSTH lines and outlines, signal traces.");
 place(E.lineWidth, r, 2);
 [S, r] = formRow(S, "siteSize", "Site size:");
 E.siteSize = uispinner(S.Body, "Limits", [1 40], "Step", 1, "Value", 8, "ValueChangedFcn", changed, ...
@@ -659,7 +708,7 @@ E.labelShank = uicheckbox(lag, "Text", "Shank", "ValueChangedFcn", changed, "Too
 shg = subgrid(S.Body, r, repmat({'fit'}, 1, 4));
 shg.ColumnSpacing = 12;
 E.showSEM = uicheckbox(shg, "Text", "Error", "Value", true, "ValueChangedFcn", changed, ...
-    "Tooltip", "Draw the error of the means: bands behind PSTH traces, bars on behavior means.");
+    "Tooltip", "Draw the error of the means: bands behind PSTH traces.");
 E.showStop = uicheckbox(shg, "Text", "Stop marks", "Value", true, "ValueChangedFcn", changed, ...
     "Tooltip", "Mark each epoch's stop event (the Epoch window's).");
 E.legend = uicheckbox(shg, "Text", "Legend", "Value", true, "ValueChangedFcn", changed);
@@ -675,7 +724,7 @@ E.legendBox = uicheckbox(lgg, "Text", "Box", "ValueChangedFcn", changed, "Toolti
 [S, r] = formRow(S, ["errType" "errResamples"], "Error:");
 erg = subgrid(S.Body, r, {'1x', 'fit', 80});
 E.errType = uidropdown(erg, "Items", ["mean ± SEM" "mean ± SD" "bootstrap 95% CI"], "ItemsData", EphysAnalysisConfig.ErrorTypes, ...
-    "Value", "sem", "ValueChangedFcn", changed, "Tooltip", "What the PSTH bands and the behavior error bars show, over " + ...
+    "Value", "sem", "ValueChangedFcn", changed, "Tooltip", "What the PSTH bands show, over " + ...
     "the epochs (the bootstrap needs the Statistics and Machine Learning Toolbox). A continuous panel's band is its own option.");
 uilabel(erg, "Text", "resamples:");
 E.errResamples = uispinner(erg, "Limits", [1 1e6], "Step", 500, "Value", 1000, "RoundFractionalValues", "on", ...
@@ -698,7 +747,7 @@ E.errEdgeWidth = uispinner(beg, "Limits", [0.1 6], "Step", 0.25, "Value", 0.5, "
 sec(end+1) = S;
 
 % the looks remembered for the figure (the preview's right-click editor)
-S = formSection(eg, 12, "looks", "Looks", Color=tint("looks"));
+S = formSection(eg, 13, "looks", "Looks", Color=tint("looks"));
 [S, r] = formRow(S, ["looksText" "looksForget"], "", 30);
 kg = subgrid(S.Body, r, {'1x', 'fit'});
 place(kg, r, [1 2]);
@@ -853,32 +902,86 @@ cfg = obj.gatherConfig();
 fig = cfg.Figures(k);
 p = fig.panels(j);
 if ~isstruct(p.ref) && ~isstruct(p.window); return; end
-if isstruct(p.ref); fig.ref = p.ref; end
-if isstruct(p.window); fig.window = p.window; end
-for q = 1:numel(fig.panels)
-    fig.panels(q).ref = "default";
-    fig.panels(q).window = "default";
-end
+fig = EphysAnalysisConfig.adoptPanelAlignment(fig, p.id);
 cfg.Figures(k) = fig;
 commitFigureEdit(obj, cfg, sprintf("%s's event and window are now the figure's; all %d panels follow them.", p.id, numel(fig.panels)));
 end
 
 
 function relinkAll(obj)
-%relinkAll  Every panel of the selected figure uses the figure's event and window again (their own are dropped).
+%relinkAll  Every panel of the selected figure takes the figure's event, window and common options again (relinkPanels).
 k = obj.SelectedFigure;
 if k < 1 || k > numel(obj.Config.Figures); return; end
 cfg = obj.gatherConfig();
 fig = cfg.Figures(k);
 n = 0;
 for q = 1:numel(fig.panels)
-    n = n + (isstruct(fig.panels(q).ref) || isstruct(fig.panels(q).window));
-    fig.panels(q).ref = "default";
-    fig.panels(q).window = "default";
+    n = n + (isstruct(fig.panels(q).ref) || isstruct(fig.panels(q).window) || ~fig.panels(q).common);
 end
 if n == 0; return; end
+fig = EphysAnalysisConfig.relinkPanels(fig);
 cfg.Figures(k) = fig;
-commitFigureEdit(obj, cfg, sprintf("Re-linked %d panel(s): every panel follows the figure's event and window again.", n));
+commitFigureEdit(obj, cfg, sprintf("Re-linked %d panel(s): every panel follows the figure's event, window and common options again.", n));
+end
+
+
+function onCommonEdited(obj)
+%onCommonEdited  A Common options row: the figure's common values change, and every linked panel's rows show them.
+if obj.Applying; return; end
+obj.onConfigChanged("figure");
+obj.applyFigureEditor();   % the linked panel's Options rows show the new values
+end
+
+
+function onPanelCommonToggled(obj)
+%onPanelCommonToggled  "Common options from the figure": ticked, the panel takes the figure's common values; unticked, a copy of them as its own.
+%   Unticking copies the values the panel draws now (panelOptions: the
+%   figure's common ones) into its options for the common fields its type
+%   has, so its rows start from them; ticking links it again (its own
+%   values stay stored, unused).
+if obj.Applying; return; end
+k = obj.SelectedFigure;
+j = obj.SelectedPanel;
+if k < 1 || k > numel(obj.Config.Figures) || j < 1 || j > numel(obj.Config.Figures(k).panels); return; end
+linked = logical(obj.FigureEditor.panelCommon.Value);
+cfg = obj.gatherConfig();
+fig = cfg.Figures(k);
+p = fig.panels(j);
+if linked
+    p.common = true;
+    msg = p.id + " takes the figure's common options again.";
+else
+    op = EphysAnalysisConfig.panelOptions(fig, p);
+    for f = EphysAnalysisConfig.commonFieldsOf(p.type)
+        p.options.(f) = op.(f);
+    end
+    p.common = false;
+    msg = p.id + " has its own options now, starting from the figure's common ones.";
+end
+fig.panels(j) = p;
+cfg.Figures(k) = fig;
+commitFigureEdit(obj, cfg, msg);
+end
+
+
+function applyOptionsToAll(obj)
+%applyOptionsToAll  adoptPanelOptions: the panel's common values become the figure's, every panel is linked, its other options go to the panels of its type.
+k = obj.SelectedFigure;
+j = obj.SelectedPanel;
+if k < 1 || k > numel(obj.Config.Figures) || j < 1 || j > numel(obj.Config.Figures(k).panels); return; end
+cfg = obj.gatherConfig();
+fig = cfg.Figures(k);
+p = fig.panels(j);
+same = nnz([fig.panels.type] == p.type) - 1;
+fig = EphysAnalysisConfig.adoptPanelOptions(fig, p.id);
+cfg.Figures(k) = fig;
+msg = p.id + "'s";
+if ~p.common; msg = msg + " common options are now the figure's and every panel is linked to them"; end
+if same > 0
+    if ~p.common; msg = msg + "; its"; end
+    msg = msg + sprintf(" other options went to the %d other %s panel(s)", same, p.type);
+end
+commitFigureEdit(obj, cfg, msg + ".");
 end
 
 

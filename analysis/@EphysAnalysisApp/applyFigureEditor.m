@@ -88,6 +88,24 @@ end
 offerItems(E.errEdge, string(E.errEdge.Items), pick(s.ErrorEdgeColor, "none"));
 E.errEdgeStyle.Value = char(pickFrom(s.ErrorEdgeStyle, string(E.errEdgeStyle.ItemsData), "-"));
 E.errEdgeWidth.Value = min(E.errEdgeWidth.Limits(2), max(E.errEdgeWidth.Limits(1), s.ErrorEdgeWidth));
+
+% the common options every linked panel takes
+c = fig.common;
+E.cmBinMs.Value = max(E.cmBinMs.Limits(1), 1000 * c.bins.BinSec);
+E.cmSmoothMs.Value = max(0, 1000 * c.bins.SmoothSec);
+offerItems(E.cmMeasure, ["rate" "count" "probability"], c.measure);
+offerItems(E.cmBaselineMode, ["none" "subtract" "zscore" "percent"], c.baseline.Mode);
+E.cmBaseFrom.Value = c.baseline.Window(1);
+E.cmBaseTo.Value = c.baseline.Window(2);
+E.cmMaskAfterStop.Value = logical(c.maskAfterStop);
+wv = c.waveform;
+E.cmWaveMode.Value = char(pickFrom(wv.mode, string(E.cmWaveMode.ItemsData), "off"));
+E.cmWaveSpikes.Value = min(E.cmWaveSpikes.Limits(2), max(E.cmWaveSpikes.Limits(1), round(wv.maxSpikes)));
+E.cmWaveLocation.Value = char(pickFrom(wv.location, string(E.cmWaveLocation.ItemsData), "northeast"));
+E.cmWaveBox.Value = wv.box;
+E.cmWaveScale.Value = min(E.cmWaveScale.Limits(2), max(E.cmWaveScale.Limits(1), wv.scale));
+E.cmWavePP.Value = wv.showPP;
+E.cmWaveCount.Value = wv.showCount;
 n = numel(fig.aesthetics);
 E.looksText.Text = sprintf("%d remembered look(s); right-click the preview to edit.", n);
 E.looksForget.Enable = matlab.lang.OnOffSwitchState(n > 0);
@@ -138,8 +156,9 @@ if own(1); pref = p.ref; end
 if own(2); pwin = p.window; end
 obj.applyAlignControls(obj.PanelAlignControls, pref, pwin, sel);
 
-% options: the rows of the panel type's fields
-op = p.options;
+% options: the rows of the panel type's fields, as drawn (a linked panel's common fields: the figure's)
+E.panelCommon.Value = p.common;
+op = EphysAnalysisConfig.panelOptions(fig, p);
 first = "";
 on = [p.layers.enabled];
 if any(on); first = p.layers(find(on, 1)).source; end
@@ -181,12 +200,6 @@ if p.type == "continuous"
     if isfinite(op.stackSpacing) && op.stackSpacing > 0; E.stackSpacing.Value = op.stackSpacing; else; E.stackSpacing.Value = []; end
 end
 if isfield(op, 'order'); offerItems(E.order, ["probe" "peak"], op.order); end
-if p.type == "behavior"
-    offerItems(E.param, ["" params], op.param);
-    offerItems(E.behDisplay, ["points" "line" "box" "swarm" "violin"], op.display);
-    E.xScale.Value = char(pickFrom(op.xScale, string(E.xScale.ItemsData), "category"));
-    E.jitter.Value = op.jitter;
-end
 if isfield(op, 'value'); offerItems(E.value, ["rate" "nSpikes" "nUnits"], op.value); end
 if isfield(op, 'metric')
     offerItems(E.metric, ["mean" "peak"], op.metric);
@@ -231,7 +244,7 @@ end
 end
 
 
-function applyLayer(obj, E, L, type, lines, params)
+function applyLayer(obj, E, L, type, lines, ~)
 %applyLayer  The rows of layer L of a panel of TYPE.
 ch = figureEditorChoices(type, L.source);
 srcs = ch.Sources;
@@ -262,8 +275,6 @@ E.evDrawAs.Value = char(pickFrom(L.eventsAs, ["marks" "train"], "marks"));
 E.evMarker.Value = char(pickFrom(ev.marker, string(E.evMarker.ItemsData), "diamond"));
 E.evSize.Value = min(E.evSize.Limits(2), max(E.evSize.Limits(1), ev.size));
 offerItems(E.evColor, string(E.evColor.Items), pick(ev.color, "auto"));
-offerItems(E.layerYParam, ["" "stop" params], L.yParam);
-offerItems(E.layerSeries, ["" params], L.seriesParam);
 offerItems(E.layerColor, string(E.layerColor.Items), pick(L.color, "auto"));
 E.layerLineStyle.Value = char(pickFrom(pick(L.lineStyle, "auto"), string(E.layerLineStyle.ItemsData), "auto"));
 end

@@ -12,7 +12,10 @@ function fig = gatherFigureEditor(obj)
 %   panel's spans, its row's height and its column's width are written
 %   only when their spinners differ from what applyFigureEditor showed, so
 %   a value they cannot show is kept as stored; a row height or column
-%   width of 1 keeps equal rows ([] sizes) equal.
+%   width of 1 keeps equal rows ([] sizes) equal. The Common options rows
+%   are the figure's common; a linked panel's (common true) common fields
+%   are not read from its Options rows (locked, showing the figure's), and
+%   its common flag is the Options header box's (onPanelCommonToggled).
 E = obj.FigureEditor;
 fig = obj.Config.Figures(obj.SelectedFigure);
 fig.id = strtrim(string(E.id.Value));
@@ -78,6 +81,23 @@ s.ErrorEdgeStyle = string(E.errEdgeStyle.Value);
 s.ErrorEdgeWidth = E.errEdgeWidth.Value;
 fig.style = s;
 
+% the common options every linked panel takes
+c = fig.common;
+c.bins.BinSec = E.cmBinMs.Value / 1000;
+c.bins.SmoothSec = E.cmSmoothMs.Value / 1000;
+c.measure = string(E.cmMeasure.Value);
+c.baseline.Mode = string(E.cmBaselineMode.Value);
+c.baseline.Window = [E.cmBaseFrom.Value E.cmBaseTo.Value];
+c.maskAfterStop = logical(E.cmMaskAfterStop.Value);
+c.waveform.mode = string(E.cmWaveMode.Value);
+c.waveform.maxSpikes = E.cmWaveSpikes.Value;
+c.waveform.location = string(E.cmWaveLocation.Value);
+c.waveform.box = logical(E.cmWaveBox.Value);
+c.waveform.scale = E.cmWaveScale.Value;
+c.waveform.showPP = logical(E.cmWavePP.Value);
+c.waveform.showCount = logical(E.cmWaveCount.Value);
+fig.common = c;
+
 % the figure's alignment
 D = obj.Config.Defaults;
 ref = D.EventRef; win = D.Window; sel = D.Selection;
@@ -127,13 +147,16 @@ end
 function op = gatherOptions(E, p)
 %gatherOptions  The panel's options as the Options rows (and Group shown) show them; fields of other types are not there.
 op = p.options;
+linked = string.empty(1, 0);   % a linked panel's common fields: the figure's, their rows locked (an edit there is not taken)
+if p.common; linked = EphysAnalysisConfig.commonFieldsOf(p.type); end
+own = @(f) isfield(op, f) && ~ismember(f, linked);
 if isfield(op, 'group'); op.group = E.group.Value; end
-if isfield(op, 'bins')
+if own('bins')
     op.bins.BinSec = E.binMs.Value / 1000;
     op.bins.SmoothSec = E.smoothMs.Value / 1000;
 end
-if isfield(op, 'measure'); op.measure = string(E.measure.Value); end
-if isfield(op, 'baseline')
+if own('measure'); op.measure = string(E.measure.Value); end
+if own('baseline')
     op.baseline.Mode = string(E.baselineMode.Value);
     op.baseline.Window = [E.baseFrom.Value E.baseTo.Value];
 end
@@ -156,7 +179,7 @@ if isfield(op, 'rasterSort')
     op.rasterSortOrder = string(E.rasterSortOrder.Value);
     op.rasterByGroup = logical(E.rasterByGroup.Value);
 end
-if isfield(op, 'maskAfterStop'); op.maskAfterStop = logical(E.maskAfterStop.Value); end
+if own('maskAfterStop'); op.maskAfterStop = logical(E.maskAfterStop.Value); end
 if isfield(op, 'histStyle')
     op.histStyle = string(E.histStyle.Value);
     op.fill = logical(E.fill.Value);
@@ -164,19 +187,13 @@ if isfield(op, 'histStyle')
     if isempty(op.fillAlpha); op.fillAlpha = NaN; end
     op.normalize = string(E.normalize.Value);
 end
-switch p.type
-    case "continuous"
-        op.display = string(E.contDisplay.Value);
-        op.statistic = string(E.statistic.Value);
-        op.transform = string(E.transform.Value);
-        op.errorType = string(E.errorType.Value);
-        op.stackSpacing = E.stackSpacing.Value;
-        if isempty(op.stackSpacing); op.stackSpacing = NaN; end
-    case "behavior"
-        op.param = strtrim(string(E.param.Value));
-        op.display = string(E.behDisplay.Value);
-        op.xScale = string(E.xScale.Value);
-        op.jitter = logical(E.jitter.Value);
+if p.type == "continuous"
+    op.display = string(E.contDisplay.Value);
+    op.statistic = string(E.statistic.Value);
+    op.transform = string(E.transform.Value);
+    op.errorType = string(E.errorType.Value);
+    op.stackSpacing = E.stackSpacing.Value;
+    if isempty(op.stackSpacing); op.stackSpacing = NaN; end
 end
 if isfield(op, 'order'); op.order = string(E.order.Value); end
 if isfield(op, 'value'); op.value = string(E.value.Value); end
@@ -187,7 +204,7 @@ if isfield(op, 'metric')
 end
 if isfield(op, 'yLim'); op.yLim = limits(E.yLim.Value); end
 if isfield(op, 'cLim'); op.cLim = limits(E.cLim.Value); end
-if isfield(op, 'waveform')
+if own('waveform')
     wv = op.waveform;
     wv.mode = string(E.waveMode.Value);
     wv.maxSpikes = E.waveSpikes.Value;
@@ -210,7 +227,7 @@ L.enabled = logical(E.layerEnabled.Value);
 L.source = string(E.layerSource.Value);
 L.binding = string(E.layerBinding.Value);
 ch = figureEditorChoices(type, L.source);
-if ~ch.Bindable; L.binding = "fixed"; end   % events, trials, and the types that draw fixed layers
+if ~ch.Bindable; L.binding = "fixed"; end   % events, and the types that draw fixed layers
 u = L.units;
 u.classes = ticked(E.layerClasses);
 u.ids = parseList(E.layerIds.Value);
@@ -233,8 +250,6 @@ ev.color = strtrim(string(E.evColor.Value));
 if lower(ev.color) == "auto"; ev.color = ""; end
 L.event = ev;
 L.eventsAs = string(E.evDrawAs.Value);
-L.yParam = strtrim(string(E.layerYParam.Value));
-L.seriesParam = strtrim(string(E.layerSeries.Value));
 L.color = strtrim(string(E.layerColor.Value));
 if lower(L.color) == "auto"; L.color = ""; end
 L.lineStyle = string(E.layerLineStyle.Value);

@@ -97,7 +97,6 @@ switch type
     case "continuous", c = [0.871 0.949 0.890];
     case "heatmap",    c = [0.984 0.933 0.839];
     case "waveforms",  c = [0.925 0.886 0.965];
-    case "behavior",   c = [0.871 0.941 0.953];
     case "probemap",   c = [0.949 0.949 0.863];
     case "corrmap",    c = [0.965 0.871 0.918];
     otherwise,         c = [0.92 0.92 0.92];

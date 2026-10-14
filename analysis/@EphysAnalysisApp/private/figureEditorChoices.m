@@ -31,8 +31,8 @@ if any(row)
     if T.SharesTime(row); srcs(end+1) = "events"; end
 end
 srcs = unique(srcs, 'stable');
-names = dictionary(["units" "detected" "events" "LFP" "MUA" "SPIKE" "AUX" "trials"], ...
-    ["units (sorted)" "detected spikes" "events (a line)" "LFP" "MUA" "SPIKE" "AUX" "trials"]);
+names = dictionary(["units" "detected" "events" "LFP" "MUA" "SPIKE" "AUX"], ...
+    ["units (sorted)" "detected spikes" "events (a line)" "LFP" "MUA" "SPIKE" "AUX"]);
 labels = srcs;
 known = isKey(names, srcs);
 labels(known) = names(srcs(known));

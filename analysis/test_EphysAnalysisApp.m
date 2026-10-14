@@ -54,7 +54,9 @@ function test_EphysAnalysisApp()
 %   and Forget, another config opened, a row height the spinner's old
 %   limits clipped, Remove panel, Duplicate, Add panel above / right /
 %   left, spans (and their refusals), sizes and spacing, Move, layer and
-%   figure Up / Down, the display across type changes, a scan listing the
+%   figure Up / Down, no Behavior type or trials source offered, linked
+%   panels' locked alignment and common options (Apply to all panels,
+%   Re-link all panels, Ctrl+7 / Ctrl+0), a scan listing the
 %   observations again, the previews refusing each other while one
 %   computes, save and reopen, its preferences restored by a new app,
 %   Remove);
@@ -1611,8 +1613,10 @@ collapsed = ~app.FigureSections([app.FigureSections.Name] == "observations").Exp
 app.onKeyPress(pressed('1', {'control'}));
 check(collapsed && app.FigureSections([app.FigureSections.Name] == "observations").Expanded ...
     && app.FigureSections([app.FigureSections.Name] == "observations").Key == "1" ...
-    && app.FigureSections([app.FigureSections.Name] == "style").Key == "0", ...
-    'Ctrl+1 opens the collapsed Observations section; Appearance is Ctrl+0');
+    && app.FigureSections([app.FigureSections.Name] == "common").Key == "7" ...
+    && app.FigureSections([app.FigureSections.Name] == "options").Key == "0" ...
+    && app.FigureSections([app.FigureSections.Name] == "style").Key == "", ...
+    'Ctrl+1 opens the collapsed Observations section; Common options is Ctrl+7, Options Ctrl+0, Appearance has no key');
 % Out of date with Auto off, Cancel
 app.FigureAutoCheckBox.Value = false;
 FE.title.Value = 'Unit card';
@@ -1728,15 +1732,24 @@ app.refreshFigurePreview(Force=true);
 check(height(app.FigureObservations) == n0 && app.FigurePreviewState == "drawn", 'listed again, the figure draws');
 % a type change
 app.onPanelSelected(2);
-FE.binMs.Value = 20;
-app.onConfigChanged("figure");
+lockedBins = FE.panelCommon.Value && FE.binMs.Enable == "off" && FE.histStyle.Enable == "on" ...
+    && FE.binMs.Value == 1000 * app.Config.Figures(1).common.bins.BinSec;
+FE.binMs.Value = 50;
+app.onConfigChanged("figure");   % a locked row: not taken
+ignored = app.Config.Figures(1).panels(2).options.bins.BinSec == 0.01 && app.Config.figureFor(1).panels(2).options.bins.BinSec == 0.01;
+FE.cmBinMs.Value = 20;
+FE.cmBinMs.ValueChangedFcn(FE.cmBinMs, []);
+spec = app.Config.figureFor(1);
+check(lockedBins && ignored && app.Config.Figures(1).common.bins.BinSec == 0.02 && spec.panels(2).options.bins.BinSec == 0.02 ...
+    && FE.binMs.Value == 20 && app.FigurePreviewState == "drawn" && app.FigurePreviewResult.spec.panels(2).options.bins.BinSec == 0.02, ...
+    'a linked PSTH''s bins row shows the Common options, locked (an edit there is not taken); a Common options edit reaches it and the preview is computed again');
 FE.panelType.Value = "heatmap";
 app.onPanelTypeChanged();
 p2 = app.Config.Figures(1).panels(2);
 check(p2.type == "heatmap" && isscalar(p2.layers) && p2.layers.source == "units" && p2.layers.binding == "fixed" ...
-    && p2.options.bins.BinSec == 0.02 && isfield(p2.options, 'order') && shown(FE.group) && shown(FE.order) ...
+    && app.Config.figureFor(1).panels(2).options.bins.BinSec == 0.02 && isfield(p2.options, 'order') && shown(FE.group) && shown(FE.order) ...
     && contains(app.StatusBar.Text, "is now a heat map") && app.FigurePreviewState == "drawn", ...
-    'a heat map now: its units layer kept but fixed, the bins it shares kept, its own rows shown');
+    'a heat map now: its units layer kept but fixed, the common bins it takes, its own rows shown');
 FE.panelType.Value = "psth";
 app.onPanelTypeChanged();
 backFollows = app.Config.Figures(1).panels(2).layers(1).binding == "observation" ...
@@ -1759,6 +1772,35 @@ L2 = app.Config.Figures(1).panels(2).layers(1);
 check(L2.binding == "observation" && isequal(L2.units.ids, obsId), 'following again, the layer keeps the ids as they are');
 FE.layerIds.Value = '';
 app.onConfigChanged("figure");
+% common options: a panel's own, Apply to all panels, Re-link all panels
+app.onPanelSelected(2);   % the PSTH
+FE.panelCommon.Value = false;
+FE.panelCommon.ValueChangedFcn(FE.panelCommon, []);
+p2 = app.Config.Figures(1).panels(2);
+check(~p2.common && p2.options.bins.BinSec == 0.02 && FE.binMs.Enable == "on" && FE.optApplyAll.Enable == "on" ...
+    && FE.alignRelinkAll.Enable == "on", 'unticking Common options from the figure copies the common values into the panel''s own and opens its rows');
+FE.binMs.Value = 30;
+app.onConfigChanged("figure");
+spec = app.Config.figureFor(1);
+check(spec.panels(2).options.bins.BinSec == 0.03 && app.Config.Figures(1).common.bins.BinSec == 0.02 ...
+    && app.FigurePreviewResult.spec.panels(2).options.bins.BinSec == 0.03, 'an edit then changes this panel''s bins only, not the figure''s');
+FE.optApplyAll.ButtonPushedFcn(FE.optApplyAll, []);
+fg = app.Config.Figures(1);
+check(fg.common.bins.BinSec == 0.03 && all([fg.panels.common]) && FE.panelCommon.Value && FE.binMs.Enable == "off" ...
+    && contains(app.StatusBar.Text, "common options are now the figure's"), ...
+    'Apply to all panels: the panel''s bins become the Common options and every panel is linked to them');
+FE.panelCommon.Value = false;
+FE.panelCommon.ValueChangedFcn(FE.panelCommon, []);
+unlinked = ~app.Config.Figures(1).panels(2).common;
+FE.alignRelinkAll.ButtonPushedFcn(FE.alignRelinkAll, []);
+check(unlinked && all([app.Config.Figures(1).panels.common]) && FE.panelCommon.Value && contains(app.StatusBar.Text, "common options again"), ...
+    'Re-link all panels links the panel''s options to the Common options again');
+app.onKeyPress(pressed('7', {'control'}));
+toCommon = app.FigureSections([app.FigureSections.Name] == "common").Expanded;
+app.onKeyPress(pressed('0', {'control'}));
+check(toCommon && app.FigureSections([app.FigureSections.Name] == "options").Expanded, 'Ctrl+7 goes to Common options, Ctrl+0 to Options');
+FE.cmBinMs.Value = 10;
+FE.cmBinMs.ValueChangedFcn(FE.cmBinMs, []);
 % the gather / apply round trip, a remembered look
 s1 = app.gatherConfig();
 app.applyConfig(s1);
@@ -1877,20 +1919,10 @@ down = isequal(srcs(), ["units" "events"]) && app.SelectedLayer == 2;
 app.onRemoveLayer();
 check(up && down && isequal(srcs(), "units") && numel(FE.layerList.Items) == 1 && contains(app.StatusBar.Text, "Removed layer"), ...
     'layer Up and Down reorder the panel''s layers, Remove takes the one picked away');
-FE.panelType.Value = "continuous";
-app.onPanelTypeChanged();
-FE.contDisplay.Value = "stacked";
-app.onConfigChanged("figure");
-FE.panelType.Value = "behavior";
-app.onPanelTypeChanged();
-dispB = app.Config.Figures(2).panels(app.SelectedPanel).options.display;
-FE.behDisplay.Value = "box";
-app.onConfigChanged("figure");
-FE.panelType.Value = "continuous";
-app.onPanelTypeChanged();
-dispC = app.Config.Figures(2).panels(app.SelectedPanel).options.display;
-check(dispB == "points" && dispC == "lines" && string(FE.contDisplay.Value) == "lines", ...
-    'a type change starts the display afresh: stacked continuous -> behavior points; box behavior -> continuous lines');
+check(~any(string(FE.addType.ItemsData) == "behavior") && ~any(string(app.FigureTemplateDropDown.ItemsData) == "behavior") ...
+    && ~any(string(FE.panelType.ItemsData) == "behavior") && ~any(string(FE.addSource.ItemsData) == "trials") ...
+    && ~any(string(FE.layerSource.ItemsData) == "trials"), ...
+    'no Behavior panel type or template is offered, and no trials layer source');
 app.onMoveFigure(-1);
 movedUp = isequal([app.Config.Figures.id], ["figure_2" "figure_1"]) && app.SelectedFigure == 1 && app.UpFigureButton.Enable == "off";
 app.onMoveFigure(1);

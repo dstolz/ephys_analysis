@@ -12,9 +12,9 @@ says how to cut a release.
 
 - Figures: panels of different types, drawn for one observation, in the analysis config. A new `Figures`
   list holds figures; each is a grid (rows and columns, relative sizes, spans) of panels, each of one of
-  eight types (raster, PSTH, continuous signal, heat map, unit waveforms, behavior, probe map, unit
+  seven types (raster, PSTH, continuous signal, heat map, unit waveforms, probe map, unit
   correlation), and each panel draws one or more layers bound to a source (sorted units, detected spikes,
-  an event line, an LFP, MUA, SPIKE or AUX extract, trial values). A layer either follows the observation
+  an event line, an LFP, MUA, SPIKE or AUX extract). A layer either follows the observation
   (a sorted unit, a channel or the dataset, as the figure's `observe` block says) or is fixed to the units,
   channels or line it names, so a raster flush above its PSTH above the LFP of the same unit's channel,
   with the stimulus offset marked on every raster row, is one figure drawn for one unit at a time.
@@ -37,7 +37,7 @@ says how to cut a release.
   dataset), the arrangement (a schematic to click a panel in, Add panel above, below, left or right of the
   selected one, spans, row heights and column widths, spacing, Remove and Move), the panel (type, title,
   group shown, its own event and window or "Same as the figure"), its layers (a source the type draws,
-  following the observation or fixed, with the units, channels, event line or trial values it needs) and
+  following the observation or fixed, with the units, channels or event line it needs) and
   the type's options, besides the figure's event reference, epoch window and trial selection ("Use default"
   for the Alignment tab's) and appearance. Changing a panel's type keeps the options and layers both types
   share. The preview picks the dataset and the observation (< and >, Page Up and Page Down) and computes
@@ -48,6 +48,21 @@ says how to cut a release.
   `FigureSectionsCollapsed`. Figures are previewed only: generating them for every observation and
   dataset, exporting and reporting them are a later phase. See
   [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
+- Figures: common options and linked panels. A figure has a `common` block (bins, measure, baseline, mask
+  after the stop event, waveform inset) that every panel draws while its own `common` flag is true, the
+  default, for the fields its type has (`commonFields`, `commonFieldsOf`); `figureFor` resolves the
+  effective options (`panelOptions`), Validate checks the block once and a linked panel's type against the
+  common baseline mode, and the pure helpers `adoptPanelOptions`, `adoptPanelAlignment` and `relinkPanels`
+  link panels again. In the Figures tab a new Common options section (Ctrl+7; Panel alignment, Layers and
+  Options move to Ctrl+8, Ctrl+9 and Ctrl+0, and Appearance and Looks have no key) edits the block; a
+  "Common options from the figure" box in the Options header grays a linked panel's common rows, which show
+  the figure's values, and unticking copies them into the panel; a panel's Panel alignment rows are locked
+  to the figure's while "Same as the figure" is ticked, and unticking copies the figure's event and window
+  into the panel; "Apply to all panels" (in Panel alignment and in Options) makes a panel's alignment or
+  common options the figure's and links every panel, and "Re-link all panels" links them all again. The
+  Behavior panel type was removed from figures (no behavior type or template, no trial source category or
+  trials layer, no `yParam` and `seriesParam` layer fields); the behavior plot kind is unchanged. See
+  [Common options](documentation/EphysAnalysisConfig.md#common-options).
 - Kilosort4 parameter details on the Sorting tab. Each parameter's name is a link that opens a modal
   window with its definition, function, impact, tuning and defaults (this pipeline's and Kilosort4
   4.1.7's own).

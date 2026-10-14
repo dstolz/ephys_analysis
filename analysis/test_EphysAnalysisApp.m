@@ -44,7 +44,21 @@ function test_EphysAnalysisApp()
 %   editor's rows and its gather / apply round trip, a preview over both
 %   datasets, Out of date after a base-plot edit, the toolbar's Preview
 %   and Help there, Browse for a mapping file, Remove, its preferences
-%   restored by a new app); closing. The app's preferences live in a
+%   restored by a new app); the Figures tab (Add from the template, the
+%   schematic, the observation picker and its preview of one unit, < and
+%   > and Page Up, a continuous panel added below, an events layer on the
+%   raster, the rows a panel type shows, Ctrl+digit to a section, Out of
+%   date with Auto off, Cancel, the figure's own event, a panel's own
+%   window, a tightened unit filter and one nothing passes, a listing
+%   error, a type change, the gather / apply round trip, a remembered look
+%   and Forget, another config opened, a row height the spinner's old
+%   limits clipped, Remove panel, Duplicate, Add panel above / right /
+%   left, spans (and their refusals), sizes and spacing, Move, layer and
+%   figure Up / Down, the display across type changes, a scan listing the
+%   observations again, the previews refusing each other while one
+%   computes, save and reopen, its preferences restored by a new app,
+%   Remove);
+%   closing. The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
 %   Usage:  test_EphysAnalysisApp
@@ -81,9 +95,10 @@ check(numel(F.names) == 2, 'two datasets run through the pipeline');
 fprintf('\n== 1. build, open the project, scan ==\n');
 app = EphysAnalysisApp(F.proj);
 appCleanup = onCleanup(@() closeApp(app));
-check(isvalid(app.Fig) && numel(app.Tabs.Children) == 7 && app.Tabs.Children(1) == app.TabData ...
-    && app.Tabs.Children(4) == app.TabSessions && app.Tabs.Children(6) == app.TabChronux && app.Tabs.Children(7) == app.TabLog, ...
-    'the app has the Data, Alignment, Plots, Sessions, Export, Chronux and Log tabs');
+check(isvalid(app.Fig) && numel(app.Tabs.Children) == 8 && app.Tabs.Children(1) == app.TabData ...
+    && app.Tabs.Children(4) == app.TabFigures && app.Tabs.Children(5) == app.TabSessions ...
+    && app.Tabs.Children(7) == app.TabChronux && app.Tabs.Children(8) == app.TabLog, ...
+    'the app has the Data, Alignment, Plots, Figures, Sessions, Export, Chronux and Log tabs');
 T = app.DatasetsTable.Data;
 check(~isempty(app.Runner) && height(T) == 2 && all(T.Run) && isequal(sort(T.Name), sort(F.names(:))) ...
     && all(T.LFP == "✓") && all(T.Behavior == "✓"), 'the project root was scanned: both datasets, ticked, with LFP and behavior');
@@ -1524,6 +1539,366 @@ closeApp(app2);
 check(~startsWith(app.Fig.Name, "*") && restored, 'a new app restores the Sessions tab''s Auto and collapsed section');
 app.Tabs.SelectedTab = app.TabData;
 
+fprintf('\n== 5d. the Figures tab ==\n');
+app.selectTab(app.TabFigures);
+FE = app.FigureEditor;
+FA = app.FigureAlignControls;
+FP = app.PanelAlignControls;
+figAxes = @() findall(app.FigurePreviewPanel, 'Type', 'axes', '-regexp', 'Tag', '^(axes|rasterAxes)$');
+figTitle = @() strjoin(string(findall(app.FigurePreviewPanel, 'Type', 'tiledlayout').Title.String), " ");
+nPatches = @() numel(findall(app.FigureSchematic, 'Type', 'patch'));
+check(isempty(app.Config.Figures) && isempty(app.FigureList.Items) && ~shown(FE.id) && shown(FE.summary) ...
+    && app.FigurePreviewState == "idle" && endsWith(app.helpURL("tab"), "#figures-tab") && app.RemoveFigureButton.Enable == "off" ...
+    && string(app.FigureTemplateDropDown.Value) == "rasterPsth", ...
+    'the Figures tab: no figure yet, only a hint in the editor, no preview, "Raster over PSTH" offered first; Help goes to its section');
+app.onAddFigure(string(app.FigureTemplateDropDown.Value));
+fg = app.Config.Figures;
+check(isscalar(fg) && fg.id == "figure_1" && numel(fg.panels) == 2 && app.SelectedFigure == 1 && app.SelectedPanel == 1 ...
+    && nPatches() == 2 && string(app.FigureList.Items{1}) == "figure_1  (2 panels, per unit)" && string(FE.id.Value) == "figure_1" ...
+    && startsWith(app.Fig.Name, "*"), ...
+    'Add makes figure_1 from the template: two panels, two patches in the schematic, listed per unit; the config is unsaved');
+spec = app.Config.figureFor(1);
+T0 = figureObservations(app.Runner.source(app.ActiveIdx), spec);
+T = app.FigureObservations;
+check(istable(T) && height(T) >= 2 && isequal(T.label, T0.label) && all(T.kind == "unit") ...
+    && isequal(reshape(string(app.FigureObservationDropDown.Items), [], 1), T.label) && app.FigureObservationDropDown.Value == 1 ...
+    && app.FigurePreviewState == "drawn" && numel(figAxes()) == 2 && app.FigurePreviewResult.observation.label == T.label(1) ...
+    && app.FigureObsPrevButton.Enable == "off" && app.FigureObsNextButton.Enable == "on" && contains(figTitle(), T.label(1)), ...
+    sprintf('the picker lists the dataset''s %d units and the preview draws the first at once, in two axes (%s)', height(T), T.label(1)));
+app.onFigureObservationStep(1);
+check(app.FigureObservationDropDown.Value == 2 && app.FigurePreviewState == "drawn" && contains(figTitle(), T.label(2)) ...
+    && string(app.FigureObservation('figure_1')) == T.label(2) && app.FigureObsPrevButton.Enable == "on", ...
+    '> draws the next unit: the title names it, and the figure remembers its pick');
+app.onKeyPress(pressed('pageup', {}));
+check(app.FigureObservationDropDown.Value == 1 && contains(figTitle(), T.label(1)), 'Page Up (<) goes back to the first unit');
+app.onPanelSelected(2);
+FE.addType.Value = "continuous";
+FE.addType.ValueChangedFcn(FE.addType, []);
+app.onAddPanel("below");
+fg = app.Config.Figures(1);
+p3 = fg.panels(end);
+check(fg.grid.rows == 3 && fg.grid.cols == 1 && p3.type == "continuous" && p3.row == 3 && isscalar(p3.layers) ...
+    && p3.layers.source == "LFP" && p3.layers.binding == "observation" && app.SelectedPanel == 3 && nPatches() == 3 ...
+    && app.FigurePreviewState == "drawn" && numel(figAxes()) == 3 && contains(app.StatusBar.Text, "below psth_1"), ...
+    'Continuous signal, Below: a 3 x 1 stack whose new panel''s LFP layer follows the observed unit, drawn at once');
+check(string(FE.panelType.Value) == "continuous" && shown(FE.contDisplay) && shown(FE.errorType) && shown(FE.layerFollows) ...
+    && ~shown(FE.binMs) && ~shown(FE.histStyle) && ~shown(FE.rasterSort) && ~shown(FE.evLine) && ~shown(FE.group) ...
+    && FE.layerBinding.Enable == "on" && contains(string(FE.layerFollows.Text), "own LFP channel") ...
+    && app.FigureSections([app.FigureSections.Name] == "options").Title == "Continuous signal options", ...
+    'the editor shows the continuous panel''s rows only: its options, its layer following the unit');
+app.onPanelSelected(1);
+check(shown(FE.rasterSort) && shown(FE.waveMode) && ~shown(FE.contDisplay) && ~shown(FE.binMs) && FE.panelSame.Enable == "on", ...
+    'a raster shows its own rows instead');
+FE.addSource.Value = "events";
+FE.addSource.ValueChangedFcn(FE.addSource, []);
+app.onAddLayer();
+check(app.SelectedLayer == 2 && shown(FE.evLine) && shown(FE.evDrawAs) && shown(FE.evMarker) && ~shown(FE.layerFollows) ...
+    && FE.layerBinding.Enable == "off" && string(FE.layerBinding.Value) == "fixed" && numel(FE.layerList.Items) == 2, ...
+    'Add an events layer to the raster: its line, edge, sequence and marks show; it is always fixed');
+FE.evLine.Value = 'Stim';
+FE.evEdge.Value = 'offset';
+app.onConfigChanged("figure");
+L = app.Config.Figures(1).panels(1).layers(2);
+marks = findall(app.FigurePreviewPanel, 'Tag', 'rasterEvent');
+nMarks = 0;
+for m = reshape(marks, 1, [])
+    nMarks = nMarks + nnz(isfinite(m.XData));
+end
+check(L.source == "events" && L.binding == "fixed" && L.event.line == "Stim" && L.event.edge == "offset" && L.eventsAs == "marks" ...
+    && app.FigurePreviewState == "drawn" && nMarks > 0, sprintf('Stim offset marks are drawn on the raster''s rows (%d marks)', nMarks));
+app.onFigureSectionToggled("observations");
+collapsed = ~app.FigureSections([app.FigureSections.Name] == "observations").Expanded;
+app.onKeyPress(pressed('1', {'control'}));
+check(collapsed && app.FigureSections([app.FigureSections.Name] == "observations").Expanded ...
+    && app.FigureSections([app.FigureSections.Name] == "observations").Key == "1" ...
+    && app.FigureSections([app.FigureSections.Name] == "style").Key == "0", ...
+    'Ctrl+1 opens the collapsed Observations section; Appearance is Ctrl+0');
+% Out of date with Auto off, Cancel
+app.FigureAutoCheckBox.Value = false;
+FE.title.Value = 'Unit card';
+app.onConfigChanged("figure");
+stale = app.FigurePreviewState == "stale" && string(app.FigurePreviewBadge.Text.Text) == "Out of date" && app.Config.Figures(1).title == "Unit card";
+app.FigureAutoCheckBox.Value = true;
+app.refreshFigurePreview(Force=true);
+check(stale && app.FigurePreviewState == "drawn" && contains(figTitle(), "Unit card"), ...
+    'with Auto off an edit leaves the preview Out of date; Preview draws it with the new title');
+FE.title.Value = '';
+app.onConfigChanged("figure");
+tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(~, ~) app.onCancelFigurePreview());   % a click on the busy card's Cancel
+start(tm);
+app.refreshFigurePreview(Force=true);
+stop(tm); delete(tm);
+check(app.FigurePreviewState == "canceled" && string(app.FigurePreviewBadge.Text.Text) == "Canceled" && isempty(app.FigurePreviewResult) ...
+    && isempty(findall(app.FigurePreviewPanel, 'Tag', 'previewBusyCard')) && isempty(app.Runner.PollFcn) ...
+    && ~isfinite(app.FigurePreviewSeconds) && string(app.Fig.Pointer) == "arrow", ...
+    'Cancel on the busy card stops the figure preview while it computes: Canceled, the card and the polling gone');
+app.autoFigurePreview();
+canceled = app.FigurePreviewState == "canceled";
+app.refreshFigurePreview(Force=true);
+check(canceled && app.FigurePreviewState == "drawn" && numel(figAxes()) == 3, 'an edit does not redraw a canceled preview; Preview does');
+% the figure's own event, a panel's own window
+FA.Edge.Value = 'offset';
+app.onFigureAlignEdited("ref");
+fg = app.Config.Figures(1);
+check(isstruct(fg.ref) && fg.ref.edge == "offset" && ~FE.defaultRef.Value && isequal(fg.window, "default") && FE.defaultWindow.Value ...
+    && app.Config.Defaults.EventRef.edge == "onset" && app.FigurePreviewState == "drawn" && contains(figTitle(), "Stim offset") ...
+    && string(FP.Edge.Value) == "offset", ...
+    'an edit of the figure''s event gives it its own (the defaults unchanged); the preview and the panel''s alignment follow');
+FE.defaultRef.Value = true;
+app.onFigureDefaultToggled();
+check(isequal(app.Config.Figures(1).ref, "default") && string(FA.Edge.Value) == "onset", 'Use default goes back to the Alignment tab''s event');
+app.onPanelSelected(3);
+FP.Post.Value = 0.5;
+app.onPanelAlignEdited("window");
+spec = app.Config.figureFor(1);
+p3 = app.Config.Figures(1).panels(3);
+check(isstruct(p3.window) && p3.window.post == 0.5 && isequal(p3.ref, "default") && ~FE.panelSame.Value ...
+    && ~spec.panels(3).sharesTime && spec.panels(1).sharesTime && app.FigurePreviewState == "drawn", ...
+    'an edit in Panel alignment gives the panel its own window (its event stays the figure''s) and its own time axis');
+FE.panelSame.Value = true;
+app.onPanelDefaultToggled();
+check(isequal(app.Config.Figures(1).panels(3).window, "default") && FP.Post.Value == app.Config.figureFor(1).window.post, ...
+    '"Same as the figure" goes back to the figure''s window');
+% a tightened unit filter
+n0 = height(app.FigureObservations);
+FE.obsMaxUnits.Value = '1';
+app.onConfigChanged("figure");
+n1 = height(app.FigureObservations);
+check(app.Config.Figures(1).observe.units.maxUnits == 1 && n1 == 1 && numel(app.FigureObservationDropDown.Items) == 1 ...
+    && startsWith(string(FE.obsCount.Text), "1 unit on") && app.FigureObsNextButton.Enable == "off", ...
+    sprintf('Max units 1 shrinks the picker from %d units to %d', n0, n1));
+FE.obsMaxUnits.Value = 'Inf';
+app.onConfigChanged("figure");
+check(height(app.FigureObservations) == n0, 'and Inf lists them all again');
+FE.obsIds.Value = '999';
+app.onConfigChanged("figure");
+U = app.FigureObservationDropDown.UserData;
+check(isempty(app.FigureObservations) && startsWith(string(app.FigureObservationDropDown.Items{1}), "(no unit") ...
+    && isstruct(U) && isfield(U, 'key') && U.error == "" && app.FigurePreviewState == "skipped", ...
+    'a filter no unit passes: an empty picker, kept (not listed again on every edit), and nothing drawn');
+FE.obsIds.Value = '';
+app.onConfigChanged("figure");
+U = app.FigureObservationDropDown.UserData;
+U.error = "Cannot list the observations: a test error";
+app.FigureObservationDropDown.UserData = U;   % as when figureObservations throws
+app.FigureObservations = [];
+app.refreshFigurePreview(Force=true);
+check(app.FigurePreviewState == "failed" && contains(string(app.FigurePreviewLabel.Text), "a test error"), ...
+    'when the observations cannot be listed, the preview says why');
+app.refreshFigureObservations(Force=true);
+app.refreshFigurePreview(Force=true);
+check(height(app.FigureObservations) == n0 && app.FigurePreviewState == "drawn", 'listed again, the figure draws');
+% a type change
+app.onPanelSelected(2);
+FE.binMs.Value = 20;
+app.onConfigChanged("figure");
+FE.panelType.Value = "heatmap";
+app.onPanelTypeChanged();
+p2 = app.Config.Figures(1).panels(2);
+check(p2.type == "heatmap" && isscalar(p2.layers) && p2.layers.source == "units" && p2.layers.binding == "fixed" ...
+    && p2.options.bins.BinSec == 0.02 && isfield(p2.options, 'order') && shown(FE.group) && shown(FE.order) ...
+    && contains(app.StatusBar.Text, "is now a heat map") && app.FigurePreviewState == "drawn", ...
+    'a heat map now: its units layer kept but fixed, the bins it shares kept, its own rows shown');
+FE.panelType.Value = "psth";
+app.onPanelTypeChanged();
+FE.layerBinding.Value = "observation";
+app.onConfigChanged("figure");
+check(app.Config.Figures(1).panels(2).type == "psth" && app.Config.Figures(1).panels(2).layers(1).binding == "observation", ...
+    'back to a PSTH, its layer following the unit again');
+% the gather / apply round trip, a remembered look
+s1 = app.gatherConfig();
+app.applyConfig(s1);
+s2 = app.gatherConfig();
+check(isequaln(s1.Figures, s2.Figures) && s1.isequalConfig(s2) && app.SelectedFigure == 1 && app.SelectedPanel == 2, ...
+    'gatherConfig -> applyConfig -> gatherConfig keeps the figure and the panel picked');
+app.refreshFigurePreview(Force=true);
+ctx = getappdata(app.FigurePreviewPanel, PlotAesthetics.ContextKey);
+figLook = struct('role', "rateFill", 'group', "", 'property', "FaceAlpha", 'value', 0.4);
+ctx.onRemember(figLook);
+check(isstruct(ctx) && ctx.kind == "figure" && ctx.id == "figure_1" && isscalar(app.Config.Figures(1).aesthetics) ...
+    && app.Config.Figures(1).aesthetics.value == 0.4 && isequal(app.Runner.Config.Figures(1).aesthetics, app.Config.Figures(1).aesthetics) ...
+    && startsWith(string(FE.looksText.Text), "1 remembered") && FE.looksForget.Enable == "on", ...
+    'the figure preview is editable (right-click); rules remembered for the figure go into the config (rememberFigureAesthetics)');
+FE.looksForget.ButtonPushedFcn(FE.looksForget, []);
+check(isempty(app.Config.Figures(1).aesthetics) && FE.looksForget.Enable == "off" && app.FigurePreviewState == "drawn", ...
+    'Forget drops them and redraws the preview without them');
+% another config opened; sizes the spinners cannot show
+cfgA = app.gatherConfig();
+saved0 = app.SavedConfigStruct;
+other = EphysAnalysisConfig();
+other = other.addFigure("continuous", Id="figure_1");
+cfgB = cfgA;
+cfgB.Figures = other.Figures;
+app.FigureAutoCheckBox.Value = false;
+app.applyConfig(cfgB, MarkSaved=true);
+check(app.FigurePreviewState == "stale" && isempty(app.FigurePreviewResult) && isempty(figAxes()) ...
+    && ~isappdata(app.FigurePreviewPanel, PlotAesthetics.ContextKey), ...
+    'another config opened: the last config''s drawing and its look editor are dropped; the preview is Out of date');
+app.FigureAutoCheckBox.Value = true;
+app.applyConfig(cfgA);
+app.SavedConfigStruct = saved0;
+app.updateTitle();
+rows0 = app.Config.Figures(1).grid.rowHeights;
+cfgC = app.gatherConfig();
+cfgC.Figures(1).grid.rowHeights = [0.2 0.8 ones(1, cfgC.Figures(1).grid.rows - 2)];
+app.applyConfig(cfgC);
+app.onPanelSelected(1);
+name0 = app.ConfigNameField.Value;
+app.ConfigNameField.Value = [name0 ' (2)'];
+app.onConfigChanged("name");
+check(isequal(app.Config.Figures(1).grid.rowHeights(1:2), [0.2 0.8]) && FE.rowHeight.Value == 0.2, ...
+    'a row height the old spinner limits did not take (0.2) survives an edit elsewhere');
+app.ConfigNameField.Value = name0;
+cfgC = app.gatherConfig();
+cfgC.Figures(1).grid.rowHeights = rows0;
+app.applyConfig(cfgC);
+app.refreshFigurePreview(Force=true);
+% Remove panel, Duplicate
+app.onPanelSelected(3);
+app.onRemovePanel();
+fg = app.Config.Figures(1);
+check(fg.grid.rows == 2 && numel(fg.panels) == 2 && nPatches() == 2 && app.SelectedPanel == 2 && numel(figAxes()) == 2 ...
+    && app.FigurePreviewState == "drawn", 'Remove panel takes the continuous panel and its row away');
+app.onDuplicateFigure();
+check(numel(app.Config.Figures) == 2 && app.Config.Figures(2).id == "figure_2" && app.SelectedFigure == 2 ...
+    && isequaln(rmfield(app.Config.Figures(2), 'id'), rmfield(app.Config.Figures(1), 'id')) && string(FE.id.Value) == "figure_2", ...
+    'Duplicate copies the figure as figure_2, right after it, and selects the copy');
+app.onRemoveFigure();
+check(isscalar(app.Config.Figures) && app.SelectedFigure == 1 && string(FE.id.Value) == "figure_1", 'Remove takes the copy away');
+% the arrangement, on a blank figure (Auto off: nothing here needs drawing)
+app.FigureAutoCheckBox.Value = false;
+app.onAddFigure("blank");
+pickType = @(t) FE.addType.ValueChangedFcn(FE.addType, struct('Value', t));
+cellOf = @(id) arrayfun(@(q) [q.row q.col q.rowSpan q.colSpan], app.Config.Figures(2).panels([app.Config.Figures(2).panels.id] == id), ...
+    'UniformOutput', false);
+gridOf = @() [app.Config.Figures(2).grid.rows app.Config.Figures(2).grid.cols];
+FE.addType.Value = "psth"; pickType("psth");
+app.onAddPanel("right");
+check(app.SelectedFigure == 2 && isequal(gridOf(), [1 1]) && isequal(cellOf("psth_1"), {[1 1 1 1]}), ...
+    'a blank figure''s first panel goes to row 1, column 1, whichever button');
+FE.addType.Value = "raster"; pickType("raster");
+app.onAddPanel("above");
+check(isequal(gridOf(), [2 1]) && isequal(cellOf("raster_1"), {[1 1 1 1]}) && isequal(cellOf("psth_1"), {[2 1 1 1]}) ...
+    && app.Config.Figures(2).panels(app.SelectedPanel).id == "raster_1", 'Above: a row before the selected panel; the new one is selected');
+app.onAddPanel("right");
+check(isequal(gridOf(), [2 2]) && isequal(cellOf("raster_2"), {[1 2 1 1]}) && isequal(cellOf("psth_1"), {[2 1 1 1]}), ...
+    'Right: a column after it, in its row');
+app.onAddPanel("left");
+check(isequal(gridOf(), [2 3]) && isequal(cellOf("raster_3"), {[1 2 1 1]}) && isequal(cellOf("raster_2"), {[1 3 1 1]}) ...
+    && nPatches() == 4, 'Left: a column before it; the panels right of it move over');
+app.onPanelSelected(find([app.Config.Figures(2).panels.id] == "psth_1"));
+FE.colSpan.Value = 3;
+FE.colSpan.ValueChangedFcn(FE.colSpan, struct('PreviousValue', 1, 'Value', 3));
+check(isequal(cellOf("psth_1"), {[2 1 1 3]}), 'Column span 3: the bottom panel spans the three columns');
+FE.rowSpan.Value = 2;
+FE.rowSpan.ValueChangedFcn(FE.rowSpan, struct('PreviousValue', 1, 'Value', 2));
+check(isequal(cellOf("psth_1"), {[2 1 1 3]}) && FE.rowSpan.Value == 1 && contains(app.StatusBar.Text, "cannot span past"), ...
+    'a row span past the grid''s last row is refused');
+app.onPanelSelected(find([app.Config.Figures(2).panels.id] == "raster_3"));
+FE.rowSpan.Value = 2;
+FE.rowSpan.ValueChangedFcn(FE.rowSpan, struct('PreviousValue', 1, 'Value', 2));
+check(isequal(cellOf("raster_3"), {[1 2 1 1]}) && FE.rowSpan.Value == 1 && contains(app.StatusBar.Text, "would overlap psth_1"), ...
+    'a span over another panel is refused');
+FE.rowHeight.Value = 1.5;
+FE.colWidth.Value = 2;
+FE.spacing.Value = "loose";
+app.onConfigChanged("figure");
+G2 = app.Config.Figures(2).grid;
+check(isequal(G2.rowHeights, [1.5 1]) && isequal(G2.colWidths, [1 2 1]) && G2.spacing == "loose", ...
+    'Row height, Column width and Spacing reach the grid (its row and column, the others 1)');
+app.onMovePanel("right");
+check(isequal(cellOf("raster_3"), {[1 3 1 1]}) && isequal(cellOf("raster_2"), {[1 2 1 1]}) && contains(app.StatusBar.Text, "Moved raster_3 right"), ...
+    'Move right swaps the panel with its same-shaped neighbor');
+app.onMovePanel("up");
+check(isequal(cellOf("raster_3"), {[1 3 1 1]}) && contains(app.StatusBar.Text, "no panel of the same shape above"), ...
+    'Move up with nothing above it changes nothing, and says so');
+FE.addSource.Value = "events";
+FE.addSource.ValueChangedFcn(FE.addSource, []);
+app.onAddLayer();
+srcs = @() [app.Config.Figures(2).panels(app.SelectedPanel).layers.source];
+app.onMoveLayer(-1);
+up = isequal(srcs(), ["events" "units"]) && app.SelectedLayer == 1 && FE.layerUp.Enable == "off";
+app.onMoveLayer(1);
+down = isequal(srcs(), ["units" "events"]) && app.SelectedLayer == 2;
+app.onRemoveLayer();
+check(up && down && isequal(srcs(), "units") && numel(FE.layerList.Items) == 1 && contains(app.StatusBar.Text, "Removed layer"), ...
+    'layer Up and Down reorder the panel''s layers, Remove takes the one picked away');
+FE.panelType.Value = "continuous";
+app.onPanelTypeChanged();
+FE.contDisplay.Value = "stacked";
+app.onConfigChanged("figure");
+FE.panelType.Value = "behavior";
+app.onPanelTypeChanged();
+dispB = app.Config.Figures(2).panels(app.SelectedPanel).options.display;
+FE.behDisplay.Value = "box";
+app.onConfigChanged("figure");
+FE.panelType.Value = "continuous";
+app.onPanelTypeChanged();
+dispC = app.Config.Figures(2).panels(app.SelectedPanel).options.display;
+check(dispB == "points" && dispC == "lines" && string(FE.contDisplay.Value) == "lines", ...
+    'a type change starts the display afresh: stacked continuous -> behavior points; box behavior -> continuous lines');
+app.onMoveFigure(-1);
+movedUp = isequal([app.Config.Figures.id], ["figure_2" "figure_1"]) && app.SelectedFigure == 1 && app.UpFigureButton.Enable == "off";
+app.onMoveFigure(1);
+check(movedUp && isequal([app.Config.Figures.id], ["figure_1" "figure_2"]) && app.SelectedFigure == 2 && app.DownFigureButton.Enable == "off", ...
+    'figure Up and Down reorder the list; the figure stays selected');
+app.onRemoveFigure();
+app.FigureAutoCheckBox.Value = true;
+check(isscalar(app.Config.Figures) && app.SelectedFigure == 1, 'the blank figure removed again');
+% a scan makes the observation list again (the same dataset active)
+app.selectDataset(find(app.Ticked, 1));
+oldT = app.FigureObservations;
+stale = oldT;
+stale.label(:) = "stale";
+app.FigureObservations = stale;
+app.onScan();
+T1 = figureObservations(app.Runner.source(app.ActiveIdx), app.Config.figureFor(1));
+check(app.ActiveIdx == find(app.Ticked, 1) && istable(app.FigureObservations) && isequal(app.FigureObservations.label, T1.label) ...
+    && ~any(app.FigureObservations.label == "stale"), 'Scan lists the observations again on the new runner, even with the same dataset active');
+% the previews refuse each other while one computes (the runner is busy)
+app.refreshPreview(Force=true);
+app.refreshFigurePreview(Force=true);
+setappdata(groot, 'probeOther', []);
+tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) probeOther(t, app, "figure"));
+start(tm);
+app.refreshFigurePreview(Force=true);
+stop(tm); delete(tm);
+r1 = getappdata(groot, 'probeOther');
+check(isstruct(r1) && r1.state == "stale" && r1.same && app.FigurePreviewState == "drawn", ...
+    'asked while the figure preview computes, the Plots preview computes nothing and is marked Out of date');
+app.refreshPreview(Force=true);
+setappdata(groot, 'probeOther', []);
+tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) probeOther(t, app, "plot"));
+start(tm);
+app.refreshPreview(Force=true);
+stop(tm); delete(tm);
+r2 = getappdata(groot, 'probeOther');
+check(isstruct(r2) && r2.state == "stale" && r2.same && app.PreviewState == "drawn", ...
+    'and asked while the Plots preview computes, the figure preview is marked Out of date');
+rmappdata(groot, 'probeOther');
+app.refreshFigurePreview(Force=true);
+% save, reopen, preferences
+app.onFigureSectionToggled("options");
+app.FigureAutoCheckBox.Value = false;
+app.onFigureAutoPreviewToggled();
+app.onSaveConfig();
+app2 = EphysAnalysisApp();
+kept = isscalar(app2.Config.Figures) && isequaln(app2.Config.Figures, app.Config.Figures) && app2.SelectedFigure == 1 ...
+    && string(app2.FigureList.Items{1}) == "figure_1  (2 panels, per unit)";
+restored = ~app2.FigureAutoCheckBox.Value && ~app2.FigureSections([app2.FigureSections.Name] == "options").Expanded ...
+    && app2.FigureSections([app2.FigureSections.Name] == "layers").Expanded;
+closeApp(app2);
+check(~startsWith(app.Fig.Name, "*") && kept, 'saved and opened again, the config keeps the figure');
+check(restored, 'a new app restores the Figures tab''s Auto and collapsed section');
+app.FigureAutoCheckBox.Value = true;
+app.onFigureAutoPreviewToggled();
+app.onFigureSectionToggled("options");
+app.onRemoveFigure();
+check(isempty(app.Config.Figures) && isempty(app.FigureList.Items) && app.FigurePreviewState == "idle" && ~shown(FE.id) ...
+    && app.RemoveFigureButton.Enable == "off" && nPatches() == 0, 'Remove takes the figure away; the editor and preview are empty');
+app.onSaveConfig();
+app.Tabs.SelectedTab = app.TabData;
+
 fprintf('\n== 6. close ==\n');
 app.savePreferences();
 check(strcmp(AppPrefs.getpref(g, 'LastConfigFile'), cfgFile) && isequal(string(AppPrefs.getpref(g, 'PlotSectionsCollapsed')), "bins"), ...
@@ -1632,6 +2007,25 @@ function l = relLuminance(c)
 %relLuminance  The relative luminance of the sRGB color C.
 lin = (c <= 0.04045) .* (c / 12.92) + (c > 0.04045) .* (((c + 0.055) / 1.055) .^ 2.4);
 l = lin(:).' * [0.2126; 0.7152; 0.0722];
+end
+
+
+function probeOther(tm, app, busy)
+%probeOther  While the BUSY preview ("figure" or "plot") computes, ask once for the other one; keep its state then (appdata probeOther).
+switch busy
+    case "figure"
+        if app.FigurePreviewState ~= "computing"; return; end
+        stop(tm);
+        before = app.PreviewResult;
+        app.refreshPreview();
+        setappdata(groot, 'probeOther', struct('state', app.PreviewState, 'same', isequaln(before, app.PreviewResult)));
+    otherwise
+        if app.PreviewState ~= "computing"; return; end
+        stop(tm);
+        before = app.FigurePreviewResult;
+        app.refreshFigurePreview();
+        setappdata(groot, 'probeOther', struct('state', app.FigurePreviewState, 'same', isequaln(before, app.FigurePreviewResult)));
+end
 end
 
 

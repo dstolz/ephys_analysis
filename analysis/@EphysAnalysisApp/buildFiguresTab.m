@@ -1,0 +1,928 @@
+function buildFiguresTab(obj)
+%buildFiguresTab  The Figures tab: the figures, their editor with the arrangement's schematic, and the preview of one observation.
+%   A figure (the Figures section of the config) is designed for one
+%   observation -- a sorted unit, a signal channel, or the dataset -- as a
+%   grid of panels (raster, PSTH, continuous signal, heat map, ...), each
+%   holding layers of data that follow the observation or name fixed items.
+%   Three columns:
+%   Left    the figures (FigureList: "<id>  (<n> panels, per <kind>)",
+%           "(off)" when disabled), the template a new one starts from
+%           (EphysAnalysisConfig.figureTemplates, "Raster over PSTH (per
+%           unit)" first) with Add, and Remove, Duplicate, Up, Down.
+%   Middle  the editor, a column of sections (formSection): Id, Title,
+%           Enabled and a summary, always open; then Observations (what the
+%           figure is drawn for and the unit filter), Arrangement (the
+%           schematic of the grid, drawFigureSchematic: click a panel to
+%           pick it; Add panel above / below / left / right of it; its
+%           spans, its row's height and column's width, the spacing,
+%           Remove panel, Move), Panel (its type, title, group shown), the
+%           figure's Event reference, Epoch window and Trial selection (the
+%           Alignment tab's while "Use default" is ticked; Epoch Diagram),
+%           Panel alignment (the panel's own event and window, "Same as the
+%           figure" ticked otherwise), Layers (the panel's layers, Add a
+%           source the type draws, Remove, Up, Down, and the rows of the
+%           layer picked), the panel type's Options, Appearance and Looks.
+%           Each section collapses under its colored header
+%           (onFigureSectionToggled); Ctrl+1 to Ctrl+9 and Ctrl+0 go to the
+%           first ten (gotoFigureSection; onKeyPress). syncFigureEditor
+%           shows the rows the figure, panel and layer use;
+%           layoutFigureEditor packs them.
+%   Right   the dataset, the observation picked (figureObservations' labels)
+%           with < and > (Page Up / Page Down), Preview, Auto, the design
+%           every plot is drawn in (chosen on the Plots tab or the Design
+%           menu), the preview panel (refreshFigurePreview: computeFigure
+%           and renderFigure for that one observation), its badge
+%           (setFigurePreviewState) and status line.
+g = uigridlayout(obj.TabFigures, [1 3]);
+g.ColumnWidth = {285, 470, '1x'};
+g.Padding = [8 8 8 8];
+changed = @(~,~) obj.onConfigChanged("figure");
+gray = [0.35 0.35 0.35];
+obj.FigureObservation = containers.Map('KeyType', 'char', 'ValueType', 'any');
+PT = EphysAnalysisConfig.panelTypes();
+
+% --- left: the figures ------------------------------------------------------------------------
+lg = uigridlayout(g, [7 2]);
+lg.RowHeight = {22, '1x', 28, 30, 30, 30, 36};
+lg.ColumnWidth = {'1x', '1x'};
+lg.Padding = [0 0 0 0];
+l = uilabel(lg, "Text", "Figures", "FontWeight", "bold");
+place(l, 1, [1 2]);
+obj.FigureList = uilistbox(lg, "Items", {}, "ValueChangedFcn", @(lb, ~) obj.onFigureSelected(lb.Value), ...
+    "Tooltip", "Each figure is one observation's panels: a unit's, a channel's or the dataset's. The list says " + ...
+    "how many panels it has and what it is drawn for. Click one to edit and preview it.");
+place(obj.FigureList, 2, [1 2]);
+FT = EphysAnalysisConfig.figureTemplates();
+obj.FigureTemplateDropDown = uidropdown(lg, "Items", FT.Label, "ItemsData", FT.Template, "Value", FT.Template(1), ...
+    "Tooltip", "What a new figure starts from: a raster over a PSTH of the observed unit, one panel of a type, or a blank grid.");
+place(obj.FigureTemplateDropDown, 3, [1 2]);
+obj.AddFigureButton = uibutton(lg, "Text", "Add", "ButtonPushedFcn", @(~,~) obj.onAddFigure(string(obj.FigureTemplateDropDown.Value)), ...
+    "Tooltip", "Add a figure from the template above, edit it, and preview its first observation.");
+place(obj.AddFigureButton, 4, [1 2]);
+obj.RemoveFigureButton = uibutton(lg, "Text", "Remove", "ButtonPushedFcn", @(~,~) obj.onRemoveFigure(), ...
+    "Tooltip", "Remove the selected figure from the config.");
+place(obj.RemoveFigureButton, 5, 1);
+obj.DuplicateFigureButton = uibutton(lg, "Text", "Duplicate", "ButtonPushedFcn", @(~,~) obj.onDuplicateFigure(), ...
+    "Tooltip", "Copy the selected figure under a new id, right after it; the copy is selected.");
+place(obj.DuplicateFigureButton, 5, 2);
+obj.UpFigureButton = uibutton(lg, "Text", "Up", "ButtonPushedFcn", @(~,~) obj.onMoveFigure(-1), ...
+    "Tooltip", "Move the selected figure up the list.");
+place(obj.UpFigureButton, 6, 1);
+obj.DownFigureButton = uibutton(lg, "Text", "Down", "ButtonPushedFcn", @(~,~) obj.onMoveFigure(1), ...
+    "Tooltip", "Move the selected figure down the list.");
+place(obj.DownFigureButton, 6, 2);
+l = uilabel(lg, "Text", "A figure is one observation's panels: a unit's, a channel's or the dataset's.", ...
+    "WordWrap", "on", "FontColor", gray, "VerticalAlignment", "top");
+place(l, 7, [1 2]);
+
+% --- middle: the editor --------------------------------------------------------------------------
+ep = uipanel(g, "Title", "Figure");
+obj.FigureEditorPanel = ep;
+eg = uigridlayout(ep, [13 1]);
+eg.RowHeight = [repmat({0}, 1, 12) {'1x'}];
+eg.RowSpacing = 6;
+eg.Padding = [4 4 4 4];
+eg.Scrollable = "on";
+obj.FigureEditorGrid = eg;
+E = struct();
+
+% the sections with a header, in order: a header color each (a step along the turbo map) and the keys 1-9, 0
+order = ["observations" "arrangement" "panel" "ref" "window" "selection" "palign" "layers" "options" "style" "looks"];
+keyed = order(1:10);
+hue = turbo(256);
+hue = hue(round(linspace(24, 232, numel(order))), :);
+tint = @(name) hue(order == name, :);
+
+% the figure: always open
+S = formSection(eg, 1, "general", "");
+[S, r] = formRow(S, "id", "Id:");
+E.id = uieditfield(S.Body, "text", "ValueChangedFcn", @(f, evt) onIdEdited(obj, f, evt), ...
+    "Tooltip", "Unique among the figures; it will name the figure's files.");
+place(E.id, r, 2);
+[S, r] = formRow(S, "title", "Title:");
+E.title = uieditfield(S.Body, "text", "Placeholder", "automatic", "ValueChangedFcn", changed, ...
+    "Tooltip", "Blank: ""<id>: <observation> — <event> (<n> epochs)"". A title of your own names no " + ...
+    "observation, so the top-left panel names it.");
+place(E.title, r, 2);
+[S, r] = formRow(S, "enabled", "");
+E.enabled = uicheckbox(S.Body, "Text", "Enabled", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "Unticked, the figure stays in the config but is not generated. The preview still draws it.");
+place(E.enabled, r, [1 2]);
+[S, r] = formRow(S, "summary", "");
+E.summary = uilabel(S.Body, "Text", "", "FontColor", gray);
+place(E.summary, r, [1 2]);
+sec = S;
+
+% what the figure is drawn for
+S = formSection(eg, 2, "observations", "Observations", Color=tint("observations"));
+[S, r] = formRow(S, ["observe" "observeResolved"], "Observe:");
+og = subgrid(S.Body, r, {'1x', 'fit'});
+E.observe = uidropdown(og, "Items", ["auto" "a unit" "a channel" "the dataset"], "ItemsData", EphysAnalysisConfig.ObserveKinds, ...
+    "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "What one figure is drawn for, and what the picker " + ...
+    "above the preview lists. auto: a unit when a units or detected layer follows the observation, else a " + ...
+    "channel when a signal layer does, else the dataset.");
+E.observeResolved = uilabel(og, "Text", "", "FontColor", gray);
+[S, r] = formRow(S, "obsSource", "Spike source:");
+E.obsSource = uidropdown(S.Body, "Items", ["units (sorted)" "detected (per channel)"], "ItemsData", EphysAnalysisConfig.SpikeSources, ...
+    "ValueChangedFcn", changed, "Tooltip", "The observed units: sorted units, or each channel's threshold detections.");
+place(E.obsSource, r, 2);
+[S, r] = formRow(S, "obsClasses", "Unit classes:");
+cg = subgrid(S.Body, r, repmat({'fit'}, 1, 4));
+cg.ColumnSpacing = 12;
+E.obsClasses = struct();
+for c = ["su" "mua" "uns" "noise"]
+    E.obsClasses.(c) = uicheckbox(cg, "Text", c, "Value", ismember(c, ["su" "mua"]), "ValueChangedFcn", changed, ...
+        "Tooltip", "Sorted-unit classes observed (none ticked = every class).");
+end
+[S, r] = formRow(S, "obsIds", "Unit ids:");
+E.obsIds = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
+    "Tooltip", "Unit ids (sorted units) or channels (detections), e.g. 3 5 8:12.");
+place(E.obsIds, r, 2);
+[S, r] = formRow(S, "obsQuality", "Quality:");
+E.obsQuality = uicheckbox(S.Body, "Text", "Good units only", "ValueChangedFcn", changed, ...
+    "Tooltip", "Observe only the sorted units that meet the good-unit criteria (observe.units.quality in the config).");
+place(E.obsQuality, r, 2);
+[S, r] = formRow(S, ["obsResponse" "obsRespTest" "obsRespDirection"], "Response:");
+rg = subgrid(S.Body, r, {'fit', '1x', '1x'});
+E.obsResponse = uicheckbox(rg, "Text", "Responsive only", "ValueChangedFcn", changed, ...
+    "Tooltip", "Observe only the units that respond to the figure's event (responseStats; Statistics and Machine " + ...
+    "Learning Toolbox), over the figure's epochs.");
+E.obsRespTest = uidropdown(rg, "Items", ["vs baseline" "tuned" "either" "both" "auROC"], "ItemsData", ["evoked" "tuning" "either" "both" "auroc"], ...
+    "ValueChangedFcn", changed, "Tooltip", "vs baseline: the response window's rate differs from the baseline's " + ...
+    "(signrank). tuned: it differs across the parameter's levels (kruskalwallis). either / both of them. " + ...
+    "auROC: the auROC calls the unit modulated over the response window.");
+E.obsRespDirection = uidropdown(rg, "Items", ["any" "excited" "suppressed"], "ValueChangedFcn", changed, ...
+    "Tooltip", "vs baseline: keep the units whose rate rises (excited), falls (suppressed), or either.");
+[S, r] = formRow(S, ["obsRespBaseFrom" "obsRespBaseTo" "obsRespFrom" "obsRespTo"], "Test windows (s):");
+wg = subgrid(S.Body, r, {'1x', 'fit', '1x', 'fit', '1x', 'fit', '1x'});
+E.obsRespBaseFrom = uieditfield(wg, "numeric", "Value", -0.2, "ValueChangedFcn", changed, "Tooltip", "The test's baseline window start (s from the event).");
+uilabel(wg, "Text", "to");
+E.obsRespBaseTo = uieditfield(wg, "numeric", "Value", 0, "ValueChangedFcn", changed, "Tooltip", "The test's baseline window end (s).");
+uilabel(wg, "Text", "response");
+E.obsRespFrom = uieditfield(wg, "numeric", "Value", 0, "ValueChangedFcn", changed, "Tooltip", "The response window start (s from the event).");
+uilabel(wg, "Text", "to");
+E.obsRespTo = uieditfield(wg, "numeric", "Value", 0.2, "ValueChangedFcn", changed, "Tooltip", "The response window end (s).");
+[S, r] = formRow(S, ["obsRespParam" "obsRespCorrection" "obsRespAlpha"], "Test options:");
+og = subgrid(S.Body, r, {'1x', 'fit', '1x', 'fit', '1x'});
+E.obsRespParam = uidropdown(og, "Editable", "on", "Items", "", "ValueChangedFcn", changed, ...
+    "Tooltip", "The trial parameter of the tuning test.");
+uilabel(og, "Text", "correction:");
+E.obsRespCorrection = uidropdown(og, "Items", ["BH (FDR)" "Holm" "Bonferroni" "none"], "ItemsData", ["bh" "holm" "bonferroni" "none"], ...
+    "ValueChangedFcn", changed, "Tooltip", "How the p values are adjusted for the number of units tested (pAdjust).");
+uilabel(og, "Text", "alpha:");
+E.obsRespAlpha = uieditfield(og, "numeric", "Value", 0.05, "Limits", [0 1], "LowerLimitInclusive", "off", ...
+    "ValueChangedFcn", changed, "Tooltip", "A unit passes when its adjusted p is at most alpha.");
+[S, E] = aurocRows(S, E, "obsRa", changed);
+[S, r] = formRow(S, "obsMaxUnits", "Max units:");
+E.obsMaxUnits = uieditfield(S.Body, "text", "Value", "Inf", "ValueChangedFcn", changed, ...
+    "Tooltip", "The most units observed (Inf = all), in probe order.");
+place(E.obsMaxUnits, r, 2);
+[S, r] = formRow(S, "obsShanks", "Shanks:");
+E.obsShanks = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed);
+place(E.obsShanks, r, 2);
+[S, r] = formRow(S, "obsUnitChannels", "Channels:");
+E.obsUnitChannels = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
+    "Tooltip", "The recording channels whose units are observed, e.g. 1:8.");
+place(E.obsUnitChannels, r, 2);
+[S, r] = formRow(S, "obsSignal", "Signal:");
+E.obsSignal = uidropdown(S.Body, "Items", EphysAnalysisConfig.SignalSources, "ValueChangedFcn", changed, ...
+    "Tooltip", "The extract whose channels are observed.");
+place(E.obsSignal, r, 2);
+[S, r] = formRow(S, "obsChannels", "Channels:");
+E.obsChannels = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
+    "Tooltip", "The extract's columns observed, e.g. 1 3 5 (blank = all).");
+place(E.obsChannels, r, 2);
+[S, r] = formRow(S, "obsDatasets", "Datasets:");
+E.obsDatasets = uidropdown(S.Body, "Items", ["the ticked datasets" "a list"], "ItemsData", ["ticked" "list"], ...
+    "ValueChangedFcn", changed, "Tooltip", "What Generate (a later release) draws the figure over: the datasets " + ...
+    "ticked to run, or a list of its own (kept in the config; edited in a later release).");
+place(E.obsDatasets, r, 2);
+[S, r] = formRow(S, "obsCount", "");
+E.obsCount = uilabel(S.Body, "Text", "", "FontColor", gray);
+place(E.obsCount, r, [1 2]);
+sec(end+1) = S;
+
+% the arrangement: the schematic, placing, sizing and moving panels
+S = formSection(eg, 3, "arrangement", "Arrangement", Color=tint("arrangement"));
+[S, r] = formRow(S, "schematic", "", 160);
+E.schematicPanel = uipanel(S.Body, "BorderType", "none", "UserData", false);   % formLayout shows and hides the row's panel
+place(E.schematicPanel, r, [1 2]);   % its axes: drawFigureSchematic makes it while the row is shown (one made or kept at 0 px does not draw)
+[S, r] = formRow(S, "addType", "Add panel:");
+E.addType = uidropdown(S.Body, "Items", PT.Label, "ItemsData", PT.Type, "Value", "continuous", ...
+    "ValueChangedFcn", @(dd, ~) setAddType(obj, dd.Value), ...
+    "Tooltip", "The type of the panel the four buttons below add; it gets the type's default layer, so it draws at once.");
+place(E.addType, r, 2);
+obj.FigureAddType = "continuous";
+[S, r] = formRow(S, "addWhere", "", 30);
+ag = subgrid(S.Body, r, {'1x', '1x', '1x', '1x'});
+where = ["above" "below" "left" "right"];
+for w = where
+    E.("add" + upper(extractBefore(w, 2)) + extractAfter(w, 1)) = uibutton(ag, "Text", upper(extractBefore(w, 2)) + extractAfter(w, 1), ...
+        "ButtonPushedFcn", @(~,~) obj.onAddPanel(w), "Tooltip", "Add a panel of the type above " + w + ...
+        " the selected panel: a new " + ternary(ismember(w, ["above" "below"]), "row", "column") + ...
+        " of the grid. The first panel of a figure goes to row 1, column 1.");
+end
+[S, r] = formRow(S, "selPanel", "Selected panel:");
+E.selPanel = uilabel(S.Body, "Text", "", "FontWeight", "bold");
+place(E.selPanel, r, 2);
+[S, r] = formRow(S, "noPanel", "");
+E.noPanel = uilabel(S.Body, "Text", "No panel yet: pick a type and press Above, Below, Left or Right.", "FontColor", gray);
+place(E.noPanel, r, [1 2]);
+[S, r] = formRow(S, "rowSpan", "Row span:");
+E.rowSpan = uispinner(S.Body, "Limits", [1 32], "Step", 1, "Value", 1, "RoundFractionalValues", "on", ...
+    "ValueChangedFcn", @(sp, evt) onSpanEdited(obj, sp, evt, "row"), ...
+    "Tooltip", "How many rows of the grid the selected panel covers, down from its own.");
+place(E.rowSpan, r, 2);
+[S, r] = formRow(S, "colSpan", "Column span:");
+E.colSpan = uispinner(S.Body, "Limits", [1 32], "Step", 1, "Value", 1, "RoundFractionalValues", "on", ...
+    "ValueChangedFcn", @(sp, evt) onSpanEdited(obj, sp, evt, "col"), ...
+    "Tooltip", "How many columns of the grid the selected panel covers, right from its own.");
+place(E.colSpan, r, 2);
+[S, r] = formRow(S, "rowHeight", "Row height:");
+E.rowHeight = uispinner(S.Body, "Limits", [0 Inf], "LowerLimitInclusive", "off", "Step", 0.25, "Value", 1, "ValueDisplayFormat", "%.4gx", ...
+    "ValueChangedFcn", changed, "Tooltip", "The relative height of the selected panel's (first) row, against the " + ...
+    "other rows' (1 each when all are equal). Drawn in quarter steps of the smallest.");
+place(E.rowHeight, r, 2);
+[S, r] = formRow(S, "colWidth", "Column width:");
+E.colWidth = uispinner(S.Body, "Limits", [0 Inf], "LowerLimitInclusive", "off", "Step", 0.25, "Value", 1, "ValueDisplayFormat", "%.4gx", ...
+    "ValueChangedFcn", changed, "Tooltip", "The relative width of the selected panel's (first) column, against the other columns'.");
+place(E.colWidth, r, 2);
+[S, r] = formRow(S, "spacing", "Spacing:");
+E.spacing = uidropdown(S.Body, "Items", ["loose" "compact" "tight" "none (flush)"], "ItemsData", ["loose" "compact" "tight" "none"], ...
+    "ValueChangedFcn", changed, "Tooltip", "The space between the panels. none: flush, so stacked time panels share their edges.");
+place(E.spacing, r, 2);
+[S, r] = formRow(S, "panelButtons", "", 30);
+pb = subgrid(S.Body, r, {'fit', 'fit', 40, 40, 40, 40});
+place(pb, r, [1 2]);
+E.removePanel = uibutton(pb, "Text", "Remove panel", "ButtonPushedFcn", @(~,~) obj.onRemovePanel(), ...
+    "Tooltip", "Remove the selected panel; the rows and columns no panel starts in any more go with it.");
+uilabel(pb, "Text", "  Move:", "HorizontalAlignment", "right");
+dirs = ["up" "down" "left" "right"];
+arrows = ["↑" "↓" "←" "→"];
+for i = 1:4
+    d = dirs(i);
+    E.("move" + upper(extractBefore(d, 2)) + extractAfter(d, 1)) = uibutton(pb, "Text", arrows(i), ...
+        "ButtonPushedFcn", @(~,~) obj.onMovePanel(d), ...
+        "Tooltip", "Swap the selected panel with the panel of the same shape " + ternary(ismember(d, ["up" "down"]), ...
+        ternary(d == "up", "above", "below") + " it", "to its " + d) + ".");
+end
+sec(end+1) = S;
+
+% the selected panel
+S = formSection(eg, 4, "panel", "Panel", Color=tint("panel"));
+[S, r] = formRow(S, "panelType", "Type:");
+E.panelType = uidropdown(S.Body, "Items", PT.Label, "ItemsData", PT.Type, "ValueChangedFcn", @(~,~) obj.onPanelTypeChanged(), ...
+    "Tooltip", "The panel's type. A change starts its options afresh (keeping what both types share), drops the " + ...
+    "layers the new type cannot draw and, when none is left, adds the type's default layer.");
+place(E.panelType, r, 2);
+[S, r] = formRow(S, "panelTitle", "Title:");
+E.panelTitle = uieditfield(S.Body, "text", "Placeholder", "automatic", "ValueChangedFcn", changed, ...
+    "Tooltip", "Blank: none (the top-left panel names the observation under a title of the figure's own).");
+place(E.panelTitle, r, 2);
+[S, r] = formRow(S, "group", "Group shown:");
+E.group = uispinner(S.Body, "Limits", [1 100], "Step", 1, "Value", 1, "RoundFractionalValues", "on", "ValueChangedFcn", changed, ...
+    "Tooltip", "The trial group a heat map or a unit correlation map draws (1 = the first of the figure's groups).");
+place(E.group, r, 2);
+sec(end+1) = S;
+
+% the figure's event reference, window and selection: the Alignment tab's controls
+Sr = formSection(eg, 5, "ref", "Event reference", "panel", Color=tint("ref"));
+Sw = formSection(eg, 6, "window", "Epoch window", "panel", Color=tint("window"));
+Ss = formSection(eg, 7, "selection", "Trial selection", "panel", Color=tint("selection"));
+E.defaultRef = defaultBox(obj, Sr, "event reference");
+E.defaultWindow = defaultBox(obj, Sw, "epoch window");
+E.defaultSelection = defaultBox(obj, Ss, "trial selection");
+C = obj.buildAlignControls([Sr.Body Sw.Body Ss.Body], @(part) obj.onFigureAlignEdited(part));
+E.epochs = C.Diagram;
+E.epochs.ButtonPushedFcn = @(~,~) obj.onShowEpochs("figure");
+E.epochs.Tooltip = "A window, kept above the app, that draws how this figure's event reference, epoch window and " + ...
+    "trial selection cut the active dataset into epochs. It follows every edit.";
+set([C.RefGrid C.WindowGrid C.SelectionGrid], 'Padding', [4 2 4 2]);
+Sr.BodyHeight = gridHeight(C.RefGrid);
+Sw.BodyHeight = gridHeight(C.WindowGrid);
+Ss.BodyHeight = gridHeight(C.SelectionGrid);
+obj.FigureAlignControls = C;
+sec = [sec Sr Sw Ss];
+
+% the selected panel's own event reference and window
+S = formSection(eg, 8, "palign", "Panel alignment", "panel", Color=tint("palign"));
+E.panelSame = uicheckbox(S.HeaderGrid, "Text", "Same as the figure", "Value", true, ...
+    "ValueChangedFcn", @(~,~) obj.onPanelDefaultToggled(), ...
+    "Tooltip", "Ticked: the panel uses the figure's event reference and epoch window, and shares its time axis. " + ...
+    "Editing a value below gives the panel its own (its own epochs, the figure's trial selection); tick again to go back.");
+E.panelSame.Layout.Column = 2;
+pg = uigridlayout(S.Body, [4 1]);
+pg.Padding = [0 0 0 0];
+pg.RowSpacing = 4;
+E.palignNote = uilabel(pg, "Text", "", "FontColor", gray, "WordWrap", "on");
+E.palignNote.Layout.Row = 1;
+pr = uipanel(pg, "BorderType", "none");
+pr.Layout.Row = 2;
+pw = uipanel(pg, "BorderType", "none");
+pw.Layout.Row = 3;
+ps = uipanel(pg, "BorderType", "none", "Visible", "off");   % the selection: the figure's, always
+ps.Layout.Row = 4;
+C2 = obj.buildAlignControls([pr pw ps], @(part) obj.onPanelAlignEdited(part));
+C2.Diagram.Visible = "off";
+C2.WindowGrid.RowHeight{end} = 0;
+set([C2.RefGrid C2.WindowGrid], 'Padding', [4 2 4 2]);
+hr = gridHeight(C2.RefGrid);
+hw = gridHeight(C2.WindowGrid);
+pg.RowHeight = {0, hr, hw, 0};
+pg.UserData = [hr hw];
+E.palignGrid = pg;
+S.BodyHeight = hr + hw + 3 * pg.RowSpacing;
+obj.PanelAlignControls = C2;
+sec(end+1) = S;
+
+% the selected panel's layers
+S = formSection(eg, 9, "layers", "Layers", Color=tint("layers"));
+[S, r] = formRow(S, "layerList", "", 92);
+E.layerList = uilistbox(S.Body, "Items", {}, "ValueChangedFcn", @(lb, ~) obj.onLayerSelected(lb.Value), ...
+    "Tooltip", "The data the panel draws, one binding each: a layer follows the observation (the unit or channel " + ...
+    "picked over the preview) or names fixed items. Pick one to edit it below.");
+place(E.layerList, r, [1 2]);
+[S, r] = formRow(S, "layerAdd", "", 30);
+lb = subgrid(S.Body, r, {'1x', 'fit', 'fit', 'fit', 'fit'});
+place(lb, r, [1 2]);
+E.addSource = uidropdown(lb, "Items", "units", "ValueChangedFcn", @(dd, ~) setAddSource(obj, dd.Value), ...
+    "Tooltip", "The source of the layer Add adds: only those the panel's type draws.");
+obj.FigureAddSource = "units";
+E.addLayer = uibutton(lb, "Text", "Add", "ButtonPushedFcn", @(~,~) obj.onAddLayer(), ...
+    "Tooltip", "Add a layer of the source on the left to the panel.");
+E.removeLayer = uibutton(lb, "Text", "Remove", "ButtonPushedFcn", @(~,~) obj.onRemoveLayer(), ...
+    "Tooltip", "Remove the layer picked from the panel.");
+E.layerUp = uibutton(lb, "Text", "Up", "ButtonPushedFcn", @(~,~) obj.onMoveLayer(-1), ...
+    "Tooltip", "Draw the layer picked earlier (under the later ones; the first layer's units are a raster's top rows).");
+E.layerDown = uibutton(lb, "Text", "Down", "ButtonPushedFcn", @(~,~) obj.onMoveLayer(1), ...
+    "Tooltip", "Draw the layer picked later.");
+[S, r] = formRow(S, "layerNote", "");
+E.layerNote = uilabel(S.Body, "Text", "", "FontColor", [0.70 0.15 0.10]);
+place(E.layerNote, r, [1 2]);
+[S, r] = formRow(S, ["layerName" "layerEnabled"], "Name:");
+ng = subgrid(S.Body, r, {'1x', 'fit'});
+E.layerName = uieditfield(ng, "text", "Placeholder", "automatic", "ValueChangedFcn", changed, ...
+    "Tooltip", "The layer's name in the legend and the aesthetics editor (blank: the unit's, channel's or event's label).");
+E.layerEnabled = uicheckbox(ng, "Text", "Enabled", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "Unticked, the layer stays in the panel but is not drawn.");
+[S, r] = formRow(S, "layerSource", "Source:");
+E.layerSource = uidropdown(S.Body, "Items", "units", "ValueChangedFcn", changed, ...
+    "Tooltip", "What the layer reads: only the sources the panel's type draws. Events and trials layers are always fixed.");
+place(E.layerSource, r, 2);
+[S, r] = formRow(S, "layerBinding", "Binding:");
+E.layerBinding = uidropdown(S.Body, "Items", ["Follows the observation" "Fixed"], "ItemsData", ["observation" "fixed"], ...
+    "ValueChangedFcn", changed, "Tooltip", "Follows the observation: the unit or channel picked over the preview " + ...
+    "(another spike source: its channel's; a signal: the unit's own channel). Fixed: the units or channels named below.");
+place(E.layerBinding, r, 2);
+[S, r] = formRow(S, "layerFollows", "", 30);
+E.layerFollows = uilabel(S.Body, "Text", "", "FontColor", gray, "WordWrap", "on");
+place(E.layerFollows, r, [1 2]);
+[S, r] = formRow(S, "layerClasses", "Unit classes:");
+cg = subgrid(S.Body, r, repmat({'fit'}, 1, 4));
+cg.ColumnSpacing = 12;
+E.layerClasses = struct();
+for c = ["su" "mua" "uns" "noise"]
+    E.layerClasses.(c) = uicheckbox(cg, "Text", c, "Value", ismember(c, ["su" "mua"]), "ValueChangedFcn", changed, ...
+        "Tooltip", "Sorted-unit classes the layer keeps (none ticked = every class).");
+end
+[S, r] = formRow(S, "layerIds", "Unit ids:");
+E.layerIds = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
+    "Tooltip", "Unit ids (sorted units) or channels (detections) the layer draws, e.g. 3 5.");
+place(E.layerIds, r, 2);
+[S, r] = formRow(S, ["layerQuality" "layerResponse"], "");
+qg = subgrid(S.Body, r, {'fit', 'fit', '1x'});
+qg.ColumnSpacing = 12;
+E.layerQuality = uicheckbox(qg, "Text", "Good units only", "ValueChangedFcn", changed, ...
+    "Tooltip", "Keep only the sorted units that meet the good-unit criteria.");
+E.layerResponse = uicheckbox(qg, "Text", "Responsive only", "ValueChangedFcn", changed, ...
+    "Tooltip", "Keep only the units that respond to the event (the test settings in the config).");
+[S, r] = formRow(S, "layerMaxUnits", "Max units:");
+E.layerMaxUnits = uieditfield(S.Body, "text", "Value", "Inf", "ValueChangedFcn", changed);
+place(E.layerMaxUnits, r, 2);
+[S, r] = formRow(S, "layerShanks", "Shanks:");
+E.layerShanks = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed);
+place(E.layerShanks, r, 2);
+[S, r] = formRow(S, "layerUnitChannels", "Channels:");
+E.layerUnitChannels = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
+    "Tooltip", "The recording channels whose units the layer keeps.");
+place(E.layerUnitChannels, r, 2);
+[S, r] = formRow(S, "layerChannels", "Channels:");
+E.layerChannels = uieditfield(S.Body, "text", "Placeholder", "all, e.g. 3 5 8", "ValueChangedFcn", changed, ...
+    "Tooltip", "The extract's columns the layer draws (blank = all).");
+place(E.layerChannels, r, 2);
+[S, r] = formRow(S, "layerAggregate", "Aggregate:");
+E.layerAggregate = uidropdown(S.Body, "Items", ["each one" "their mean"], "ItemsData", ["each" "mean"], "ValueChangedFcn", changed, ...
+    "Tooltip", "Several units or channels: a trace or block for each, or their mean with a band across them.");
+place(E.layerAggregate, r, 2);
+[S, r] = formRow(S, "evLine", "Line:");
+E.evLine = uidropdown(S.Body, "Editable", "on", "Items", "Stim", "Value", "Stim", "ValueChangedFcn", changed, ...
+    "Tooltip", "The digital or derived line whose events the layer draws; ""Trial"" is the paired trial line.");
+place(E.evLine, r, 2);
+[S, r] = formRow(S, "evEdge", "Edge:");
+E.evEdge = uidropdown(S.Body, "Items", ["onset" "offset"], "ValueChangedFcn", changed, "Tooltip", "The line's onsets or offsets.");
+place(E.evEdge, r, 2);
+[S, r] = formRow(S, ["evSeqText" "evSeqEdit"], "Sequence:");
+sg = subgrid(S.Body, r, {'1x', 70});
+E.evSeqText = uilabel(sg, "Text", "none");
+setSequenceHolder(E.evSeqText, struct('sequence', repmat(EphysAnalysisConfig.defaults("SequenceStep"), 1, 0), 'alignStep', Inf));
+E.evSeqEdit = uibutton(sg, "Text", "Edit...", "Tooltip", "Events that must (or must not) follow the line's event, " + ...
+    "e.g. Stim onset then Trough onset: the first Trough onset after each Stim onset.");
+E.evSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(E.evSeqText, "event", E.evLine, E.evEdge, @() obj.onConfigChanged("figure"));
+[S, r] = formRow(S, "evDrawAs", "Draw as:");
+E.evDrawAs = uidropdown(S.Body, "Items", ["marks (on the rows / latency lines)" "a spike train of its own"], ...
+    "ItemsData", ["marks" "train"], "ValueChangedFcn", changed, "Tooltip", "Marks: a mark at each event on a raster's " + ...
+    "rows, a line at each group's median latency elsewhere. A train: the events as a spike train, drawn as a unit " + ...
+    "would be (rows of their own in a raster, a PSTH of their own).");
+place(E.evDrawAs, r, 2);
+MK = PlotAesthetics.catalog().Marker;
+[S, r] = formRow(S, ["evMarker" "evSize"], "Marker:");
+mg = subgrid(S.Body, r, {'1x', 'fit', 70});
+E.evMarker = uidropdown(mg, "Items", MK.ChoiceLabels(2:end), "ItemsData", MK.Choices(2:end), "Value", "diamond", ...
+    "ValueChangedFcn", changed, "Tooltip", "The mark drawn at each event on the raster's rows.");
+uilabel(mg, "Text", "size:");
+E.evSize = uispinner(mg, "Limits", [0.5 60], "Step", 1, "Value", 4, "ValueChangedFcn", changed, "Tooltip", "The mark's size, points.");
+[S, r] = formRow(S, "evColor", "Mark color:");
+E.evColor = uidropdown(S.Body, "Editable", "on", "Items", ["auto" "black" "red" "blue" "#ff7f0e" "#9467bd"], "Value", "auto", ...
+    "ValueChangedFcn", changed, "Tooltip", "auto: the mark's automatic color; or a name or #RRGGBB.");
+place(E.evColor, r, 2);
+[S, r] = formRow(S, "layerYParam", "Y value:");
+E.layerYParam = uidropdown(S.Body, "Editable", "on", "Items", ["" "stop"], "Value", "", "ValueChangedFcn", changed, ...
+    "Tooltip", "What each trial shows: a numeric trial parameter (e.g. RespLatency), or stop: the stop event's latency (ms).");
+place(E.layerYParam, r, 2);
+[S, r] = formRow(S, "layerSeries", "Series:");
+E.layerSeries = uidropdown(S.Body, "Editable", "on", "Items", "", "Value", "", "ValueChangedFcn", changed, ...
+    "Tooltip", "One series per value of this trial parameter (blank = one series).");
+place(E.layerSeries, r, 2);
+[S, r] = formRow(S, "layerColor", "Color:");
+E.layerColor = uidropdown(S.Body, "Editable", "on", "Items", ["auto" "black" "gray" "red" "blue" "#1f77b4" "#d62728"], ...
+    "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "auto: each trial group's color; or one color (a name or " + ...
+    "#RRGGBB) for every trace of this layer.");
+place(E.layerColor, r, 2);
+[S, r] = formRow(S, "layerLineStyle", "Line style:");
+E.layerLineStyle = uidropdown(S.Body, "Items", ["auto (by layer order)" "solid" "dashed" "dotted" "dash-dot"], ...
+    "ItemsData", ["auto" EphysAnalysisConfig.OverlayLineStyles], "Value", "auto", "ValueChangedFcn", changed, ...
+    "Tooltip", "auto: the first layer solid, the next dashed, dotted, dash-dot.");
+place(E.layerLineStyle, r, 2);
+sec(end+1) = S;
+
+% the panel type's options: every type's rows, shown per type (syncFigureEditor)
+S = formSection(eg, 10, "options", "Options", Color=tint("options"));
+[S, r] = formRow(S, "binMs", "Bin (ms):");
+E.binMs = uieditfield(S.Body, "numeric", "Value", 10, "Limits", [0.001 Inf], "ValueChangedFcn", changed);
+place(E.binMs, r, 2);
+[S, r] = formRow(S, "smoothMs", "Smooth (ms):");
+E.smoothMs = uieditfield(S.Body, "numeric", "Value", 10, "Limits", [0 Inf], "ValueChangedFcn", changed, "Tooltip", "Gaussian SD; 0 = none.");
+place(E.smoothMs, r, 2);
+[S, r] = formRow(S, "measure", "Measure:");
+E.measure = uidropdown(S.Body, "Items", ["rate" "count" "probability"], "ValueChangedFcn", changed, ...
+    "Tooltip", "rate: spikes/s; count: spikes per bin; probability: the share of epochs with a spike in the bin.");
+place(E.measure, r, 2);
+[S, r] = formRow(S, "baselineMode", "Baseline:");
+E.baselineMode = uidropdown(S.Body, "Items", "none", "ValueChangedFcn", changed, ...
+    "Tooltip", "subtract / zscore / percent: against the baseline window's value, epoch by epoch.");
+place(E.baselineMode, r, 2);
+[S, r] = formRow(S, ["baseFrom" "baseTo"], "Baseline (s):");
+bg = subgrid(S.Body, r, {'1x', 'fit', '1x'});
+E.baseFrom = uieditfield(bg, "numeric", "Value", -0.2, "ValueChangedFcn", changed, "Tooltip", "Baseline window start (s from the event).");
+uilabel(bg, "Text", "to");
+E.baseTo = uieditfield(bg, "numeric", "Value", 0, "ValueChangedFcn", changed, "Tooltip", "Baseline window end (s).");
+[S, r] = formRow(S, ["rasterSort" "rasterSortOrder"], "Sort rows by:");
+rsg = subgrid(S.Body, r, {'1x', 110});
+E.rasterSort = uidropdown(rsg, "Editable", "on", "Items", ["" "stop" "event"], "Value", "", "ValueChangedFcn", changed, ...
+    "Tooltip", "The order of the raster's epochs: blank = trial (time) order; stop = the stop event's latency; " + ...
+    "event = the latency of the sort event below; or a trial parameter. Missing values go last.");
+E.rasterSortOrder = uidropdown(rsg, "Items", ["ascending" "descending"], "ValueChangedFcn", changed, ...
+    "Tooltip", "The sort's direction. Missing values stay last.");
+[S, r] = formRow(S, ["sortLine" "sortEdge"], "Sort event:");
+seg = subgrid(S.Body, r, {'1x', 80});
+E.sortLine = uidropdown(seg, "Editable", "on", "Items", "", "Value", "", "ValueChangedFcn", changed, ...
+    "Tooltip", "Sort rows by ""event"": the line whose event orders the rows by its latency from each epoch's event.");
+E.sortEdge = uidropdown(seg, "Items", ["onset" "offset"], "ValueChangedFcn", changed, "Tooltip", "The sort event's edge.");
+[S, r] = formRow(S, ["sortSeqText" "sortSeqEdit"], "Sort sequence:");
+ssg = subgrid(S.Body, r, {'1x', 70});
+E.sortSeqText = uilabel(ssg, "Text", "none");
+setSequenceHolder(E.sortSeqText, struct('sequence', repmat(EphysAnalysisConfig.defaults("SequenceStep"), 1, 0), 'alignStep', Inf));
+E.sortSeqEdit = uibutton(ssg, "Text", "Edit...", "Tooltip", "Events that must follow the sort event's line.");
+E.sortSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(E.sortSeqText, "event", E.sortLine, E.sortEdge, @() obj.onConfigChanged("figure"));
+[S, r] = formRow(S, "rasterByGroup", "");
+E.rasterByGroup = uicheckbox(S.Body, "Text", "Rows by group first (one band per group)", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "Ticked: each group's epochs together on a band of its color. Unticked: every epoch sorted as one block.");
+place(E.rasterByGroup, r, [1 2]);
+[S, r] = formRow(S, "maskAfterStop", "");
+E.maskAfterStop = uicheckbox(S.Body, "Text", "Mask after the stop event", "ValueChangedFcn", changed, ...
+    "Tooltip", "Drop what follows each epoch's stop event (the Epoch window's).");
+place(E.maskAfterStop, r, [1 2]);
+[S, r] = formRow(S, "histStyle", "PSTH as:");
+E.histStyle = uidropdown(S.Body, "Items", ["bar" "line"], "ValueChangedFcn", changed, "Tooltip", "One bar per bin, or a line through the bin centers.");
+place(E.histStyle, r, 2);
+[S, r] = formRow(S, ["fill" "fillAlpha"], "Fill:");
+fg = subgrid(S.Body, r, {'fit', 'fit', '1x'});
+E.fill = uicheckbox(fg, "Text", "Filled", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "Fill the bars, or the area under the line.");
+uilabel(fg, "Text", "opacity:");
+E.fillAlpha = uieditfield(fg, "numeric", "AllowEmpty", "on", "Value", [], "Placeholder", "auto", "Limits", [0 1], ...
+    "ValueChangedFcn", changed, "Tooltip", "Fill opacity, 0 to 1 (blank: 0.5 where groups overlap, else 1).");
+[S, r] = formRow(S, "normalize", "Normalize:");
+E.normalize = uidropdown(S.Body, "Items", ["none" "across groups" "within groups" "across all"], "ItemsData", ["none" "unitPeak" "groupPeak" "allPeak"], ...
+    "ValueChangedFcn", changed, "Tooltip", "Divide each unit's PSTHs by their largest peak (across groups), each PSTH " + ...
+    "by its own (within groups), or every PSTH by the largest of all.");
+place(E.normalize, r, 2);
+[S, r] = formRow(S, "contDisplay", "Display:");
+E.contDisplay = uidropdown(S.Body, "Items", ["lines" "stacked rows"], "ItemsData", ["lines" "stacked"], "ValueChangedFcn", changed, ...
+    "Tooltip", "Lines: a trace per channel and group on one axis. Stacked rows: each channel in a row of its own.");
+place(E.contDisplay, r, 2);
+[S, r] = formRow(S, ["statistic" "transform"], "Signal:");
+tg = subgrid(S.Body, r, {'1x', '1x'});
+E.statistic = uidropdown(tg, "Items", ["Mean" "Median"], "ItemsData", EphysAnalysisConfig.AuxStatistics, "ValueChangedFcn", changed, ...
+    "Tooltip", "What is drawn at each sample, over the epochs of a group.");
+E.transform = uidropdown(tg, "Items", ["As recorded" "Rectified |x|"], "ItemsData", EphysAnalysisConfig.AuxTransforms, ...
+    "ValueChangedFcn", changed, "Tooltip", "Rectified: each epoch's absolute value, before the mean or median.");
+[S, r] = formRow(S, "errorType", "Error band:");
+E.errorType = uidropdown(S.Body, "Items", ["Off" "mean ± SEM" "mean ± SD" "bootstrap 95% CI" "interquartile range"], ...
+    "ItemsData", EphysAnalysisConfig.AuxErrorTypes, "ValueChangedFcn", changed, ...
+    "Tooltip", "The band around each trace, over the epochs (the bootstrap and the interquartile range need the " + ...
+    "Statistics and Machine Learning Toolbox).");
+place(E.errorType, r, 2);
+[S, r] = formRow(S, "stackSpacing", "Stack spacing:");
+E.stackSpacing = uieditfield(S.Body, "numeric", "AllowEmpty", "on", "Value", [], "Placeholder", "auto", ...
+    "Limits", [0 Inf], "LowerLimitInclusive", "off", "ValueChangedFcn", changed, ...
+    "Tooltip", "Stacked rows: the offset between channels, in the signal's units (blank: automatic).");
+place(E.stackSpacing, r, 2);
+[S, r] = formRow(S, "order", "Row order:");
+E.order = uidropdown(S.Body, "Items", ["probe" "peak"], "ValueChangedFcn", changed, ...
+    "Tooltip", "probe: the rows follow the sort options (Appearance); peak: by the time of each row's maximum.");
+place(E.order, r, 2);
+[S, r] = formRow(S, "param", "X parameter:");
+E.param = uidropdown(S.Body, "Editable", "on", "Items", "", "Value", "", "ValueChangedFcn", changed, ...
+    "Tooltip", "The trial parameter on the x axis.");
+place(E.param, r, 2);
+[S, r] = formRow(S, "behDisplay", "Display:");
+E.behDisplay = uidropdown(S.Body, "Items", ["points" "line" "box" "swarm" "violin"], "ValueChangedFcn", changed, ...
+    "Tooltip", "How each x value's trials are drawn.");
+place(E.behDisplay, r, 2);
+[S, r] = formRow(S, ["xScale" "jitter"], "X axis:");
+xg = subgrid(S.Body, r, {'1x', 'fit'});
+E.xScale = uidropdown(xg, "Items", ["evenly spaced" "at their values"], "ItemsData", ["category" "linear"], "ValueChangedFcn", changed, ...
+    "Tooltip", "The x values evenly spaced and labeled, or at their values on a linear axis.");
+E.jitter = uicheckbox(xg, "Text", "Jitter points", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "Points: spread the dots sideways (a fixed pattern).");
+[S, r] = formRow(S, "value", "Value:");
+E.value = uidropdown(S.Body, "Items", ["rate" "nSpikes" "nUnits"], "ValueChangedFcn", changed, "Tooltip", "What colors each site.");
+place(E.value, r, 2);
+[S, r] = formRow(S, "metric", "Epoch rate:");
+E.metric = uidropdown(S.Body, "Items", ["mean" "peak"], "ValueChangedFcn", changed, ...
+    "Tooltip", "Each epoch's mean rate over its window, or its peak binned rate.");
+place(E.metric, r, 2);
+[S, r] = formRow(S, "correlation", "Correlation:");
+E.correlation = uidropdown(S.Body, "Items", ["Pearson" "Spearman"], "ItemsData", ["pearson" "spearman"], "ValueChangedFcn", changed);
+place(E.correlation, r, 2);
+[S, r] = formRow(S, "fisherZ", "");
+E.fisherZ = uicheckbox(S.Body, "Text", "Fisher z transform", "ValueChangedFcn", changed, ...
+    "Tooltip", "Draw z = atanh(r) instead of r.");
+place(E.fisherZ, r, [1 2]);
+[S, r] = formRow(S, "yLim", "Y limits:");
+E.yLim = uieditfield(S.Body, "text", "Placeholder", "automatic, or lo hi", "ValueChangedFcn", changed, ...
+    "Tooltip", "This panel's y axis: two ascending values. Blank: from the data.");
+place(E.yLim, r, 2);
+[S, r] = formRow(S, "cLim", "Color limits:");
+E.cLim = uieditfield(S.Body, "text", "Placeholder", "automatic, or lo hi", "ValueChangedFcn", changed, ...
+    "Tooltip", "This panel's color scale: two ascending values. Blank: automatic.");
+place(E.cLim, r, 2);
+[S, r] = formRow(S, ["waveMode" "waveSpikes"], "Waveform:");
+wg = subgrid(S.Body, r, {'1x', 'fit', 70});
+E.waveMode = uidropdown(wg, "Items", ["Off" "Mean" "Subsample" "Mean + subsample"], "ItemsData", ["off" "mean" "subsample" "both"], ...
+    "Value", "off", "ValueChangedFcn", changed, "Tooltip", "The unit's waveform on its peak channel: its mean, a " + ...
+    "subsample of its spikes, or both. A raster or PSTH draws it as an inset.");
+uilabel(wg, "Text", "spikes:");
+E.waveSpikes = uispinner(wg, "Limits", [1 2000], "Step", 50, "Value", 100, "RoundFractionalValues", "on", "ValueChangedFcn", changed, ...
+    "Tooltip", "How many of the unit's spikes the subsample draws.");
+[S, r] = formRow(S, ["waveLocation" "waveBox"], "Inset location:");
+wl = subgrid(S.Body, r, {'1x', 'fit'});
+E.waveLocation = uidropdown(wl, "Items", ["North-east" "North" "North-west" "West" "South-west" "South" "South-east" "East"], ...
+    "ItemsData", EphysAnalysisConfig.WaveformLocations, "Value", "northeast", "ValueChangedFcn", changed, ...
+    "Tooltip", "Where in the panel the inset sits.");
+E.waveBox = uicheckbox(wl, "Text", "Axis box", "Value", true, "ValueChangedFcn", changed, "Tooltip", "The inset's outline and pale ground.");
+[S, r] = formRow(S, "waveScale", "Inset size:");
+E.waveScale = uispinner(S.Body, "Limits", [0.25 3], "Step", 0.25, "Value", 1, "ValueDisplayFormat", "%.2gx", "ValueChangedFcn", changed, ...
+    "Tooltip", "The inset's size, a factor of its default (a third of the panel's width and height).");
+place(E.waveScale, r, 2);
+[S, r] = formRow(S, ["wavePP" "waveCount"], "Label:");
+wt = subgrid(S.Body, r, {'fit', 'fit', '1x'});
+wt.ColumnSpacing = 12;
+E.wavePP = uicheckbox(wt, "Text", "p-p", "Value", true, "ValueChangedFcn", changed, "Tooltip", "Say the mean waveform's peak-to-peak amplitude.");
+E.waveCount = uicheckbox(wt, "Text", "# spikes", "ValueChangedFcn", changed, "Tooltip", "Say how many spikes the unit has.");
+sec(end+1) = S;
+
+% appearance: the figure's style (the Plots tab's rows, but tiles, grid spacing and limits: the arrangement and the panels have those)
+S = formSection(eg, 11, "style", "Appearance", Color=tint("style"));
+[S, r] = formRow(S, "fontSize", "Font size:");
+E.fontSize = uispinner(S.Body, "Limits", [5 24], "Value", 9, "ValueChangedFcn", changed);
+place(E.fontSize, r, 2);
+[S, r] = formRow(S, "lineWidth", "Line width:");
+E.lineWidth = uispinner(S.Body, "Limits", [0.25 6], "Step", 0.25, "Value", 1.2, "ValueChangedFcn", changed, ...
+    "Tooltip", "PSTH lines and outlines, signal traces, behavior lines.");
+place(E.lineWidth, r, 2);
+[S, r] = formRow(S, "siteSize", "Site size:");
+E.siteSize = uispinner(S.Body, "Limits", [1 40], "Step", 1, "Value", 8, "ValueChangedFcn", changed, ...
+    "Tooltip", "Probe map: size of the plotted sites (points).");
+place(E.siteSize, r, 2);
+[S, r] = formRow(S, "colormap", "Group colors:");
+E.colormap = uidropdown(S.Body, "Editable", "on", "Items", ["lines" "parula" "turbo" "jet" "hot" "cool" "gray" "black"], ...
+    "Value", "lines", "ValueChangedFcn", changed, "Tooltip", "lines: the trial selection's colors; a colormap function; " + ...
+    "or one color for every group (a name or #RRGGBB).");
+place(E.colormap, r, 2);
+[S, r] = formRow(S, "heatColormap", "Heat colors:");
+E.heatColormap = uidropdown(S.Body, "Items", ["auto" "parula" "turbo" "hot" "gray" "jet" "cool" "blueWhiteRed"], ...
+    "ValueChangedFcn", changed, "Tooltip", "auto: parula; blueWhiteRed for unit correlation.");
+place(E.heatColormap, r, 2);
+[S, r] = formRow(S, ["sortDepth" "sortShank"], "Sort by:");
+sog = subgrid(S.Body, r, {'fit', 'fit', '1x'});
+sog.ColumnSpacing = 12;
+E.sortDepth = uicheckbox(sog, "Text", "Depth", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "Units / channels with the top of the probe first: the observation picker's order too.");
+E.sortShank = uicheckbox(sog, "Text", "Shank", "ValueChangedFcn", changed, "Tooltip", "Units / channels grouped by shank first.");
+[S, r] = formRow(S, ["labelDepth" "labelShank"], "Label with:");
+lag = subgrid(S.Body, r, {'fit', 'fit', '1x'});
+lag.ColumnSpacing = 12;
+E.labelDepth = uicheckbox(lag, "Text", "Depth", "ValueChangedFcn", changed, "Tooltip", "Append each unit's / channel's probe depth to its label.");
+E.labelShank = uicheckbox(lag, "Text", "Shank", "ValueChangedFcn", changed, "Tooltip", "Append each unit's / channel's shank to its label.");
+[S, r] = formRow(S, ["showSEM" "showStop" "legend" "grid"], "Show:");
+shg = subgrid(S.Body, r, repmat({'fit'}, 1, 4));
+shg.ColumnSpacing = 12;
+E.showSEM = uicheckbox(shg, "Text", "Error", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "Draw the error of the means: bands behind PSTH traces, bars on behavior means.");
+E.showStop = uicheckbox(shg, "Text", "Stop marks", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "Mark each epoch's stop event (the Epoch window's).");
+E.legend = uicheckbox(shg, "Text", "Legend", "Value", true, "ValueChangedFcn", changed);
+E.grid = uicheckbox(shg, "Text", "Grid", "Value", true, "ValueChangedFcn", changed);
+[S, r] = formRow(S, ["legendLoc" "legendOrient" "legendBox"], "Legend:");
+lgg = subgrid(S.Body, r, {'1x', '1x', 'fit'});
+E.legendLoc = uidropdown(lgg, "Items", ["Auto" "Inside" "North (above)" "South (below)" "East (right)" "West (left)"], ...
+    "ItemsData", ["auto" "inside" "north" "south" "east" "west"], "Value", "auto", "ValueChangedFcn", changed, ...
+    "Tooltip", "Where the figure's one legend goes.");
+E.legendOrient = uidropdown(lgg, "Items", ["Auto" "Vertical" "Horizontal"], "ItemsData", ["auto" "vertical" "horizontal"], ...
+    "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "How the legend's entries line up.");
+E.legendBox = uicheckbox(lgg, "Text", "Box", "ValueChangedFcn", changed, "Tooltip", "Draw the legend's outline and background.");
+[S, r] = formRow(S, ["errType" "errResamples"], "Error:");
+erg = subgrid(S.Body, r, {'1x', 'fit', 80});
+E.errType = uidropdown(erg, "Items", ["mean ± SEM" "mean ± SD" "bootstrap 95% CI"], "ItemsData", EphysAnalysisConfig.ErrorTypes, ...
+    "Value", "sem", "ValueChangedFcn", changed, "Tooltip", "What the PSTH bands and the behavior error bars show, over " + ...
+    "the epochs (the bootstrap needs the Statistics and Machine Learning Toolbox). A continuous panel's band is its own option.");
+uilabel(erg, "Text", "resamples:");
+E.errResamples = uispinner(erg, "Limits", [1 1e6], "Step", 500, "Value", 1000, "RoundFractionalValues", "on", ...
+    "ValueChangedFcn", changed, "Tooltip", "Bootstrap 95% CI: how many resamples.");
+[S, r] = formRow(S, ["errFace" "errAlpha"], "Band fill:");
+bfg = subgrid(S.Body, r, {'1x', 'fit', 60});
+E.errFace = uidropdown(bfg, "Editable", "on", "Items", ["auto" "gray" "black" "white" "#d9d9d9"], "Value", "auto", ...
+    "ValueChangedFcn", changed, "Tooltip", "auto: the trace's color; or one color for every band (a name or #RRGGBB).");
+uilabel(bfg, "Text", "opacity");
+E.errAlpha = uieditfield(bfg, "numeric", "AllowEmpty", "on", "Value", [], "Placeholder", "opaque", "Limits", [0 1], ...
+    "ValueChangedFcn", changed, "Tooltip", "Blank: opaque, paled towards the ground. 0 to 1: that opacity.");
+[S, r] = formRow(S, ["errEdge" "errEdgeStyle"], "Band edge:");
+beg = subgrid(S.Body, r, {'1x', '1x', 60});
+E.errEdge = uidropdown(beg, "Editable", "on", "Items", ["none" "auto" "black" "gray"], "Value", "none", ...
+    "ValueChangedFcn", changed, "Tooltip", "none: no outline; auto: the fill's color; or a color.");
+E.errEdgeStyle = uidropdown(beg, "Items", ["solid" "dashed" "dotted" "dash-dot"], "ItemsData", EphysAnalysisConfig.OverlayLineStyles, ...
+    "Value", "-", "ValueChangedFcn", changed, "Tooltip", "The outline's line style.");
+E.errEdgeWidth = uispinner(beg, "Limits", [0.1 6], "Step", 0.25, "Value", 0.5, "ValueChangedFcn", changed, ...
+    "Tooltip", "The outline's width, points.");
+sec(end+1) = S;
+
+% the looks remembered for the figure (the preview's right-click editor)
+S = formSection(eg, 12, "looks", "Looks", Color=tint("looks"));
+[S, r] = formRow(S, ["looksText" "looksForget"], "", 30);
+kg = subgrid(S.Body, r, {'1x', 'fit'});
+place(kg, r, [1 2]);
+E.looksText = uilabel(kg, "Text", "", "WordWrap", "on");
+E.looksForget = uibutton(kg, "Text", "Forget", "ButtonPushedFcn", @(~,~) onForgetLooks(obj), ...
+    "Tooltip", "Forget the looks remembered for this figure (colors, lines, fonts set in the right-click editor).");
+sec(end+1) = S;
+
+names = [sec.Name];
+for i = 2:numel(sec)
+    name = sec(i).Name;
+    sec(i).Toggle.ButtonPushedFcn = @(~,~) obj.onFigureSectionToggled(name);
+    k = find(keyed == name);
+    if ~isempty(k); sec(i).Key = string(mod(k, 10)); end   % Ctrl+1 ... Ctrl+9, then Ctrl+0 for the tenth (onKeyPress)
+end
+for i = find(ismember(names, ["style" "looks"]))
+    sec(i).Expanded = false;   % collapsed until opened (then kept: FigureSectionsCollapsed)
+end
+obj.FigureEditor = E;
+obj.FigureSections = sec;
+obj.layoutFigureEditor();
+
+% --- right: the observation picker and the preview ----------------------------------------------
+pg = uigridlayout(g, [4 5]);
+pg.RowHeight = {30, 30, '1x', 26};
+pg.ColumnWidth = {100, 'fit', 'fit', '1x', 'fit'};
+pg.Padding = [0 0 0 0];
+obj.FigurePreviewButton = uibutton(pg, "Text", "Preview", ...
+    "Tooltip", "Compute and draw the selected figure for the observation picked, on the active dataset. " + ...
+    "Orange: the figure changed since it was drawn.", ...
+    "ButtonPushedFcn", @(~,~) obj.refreshFigurePreview(Force=true));
+obj.FigurePreviewButton.Layout.Row = [1 2]; obj.FigurePreviewButton.Layout.Column = 1;
+obj.FigureAutoCheckBox = uicheckbox(pg, "Text", "Auto", "Value", true, ...
+    "Tooltip", "Redraw on every change while a preview takes under " + obj.AutoPreviewSeconds + " s (one observation is quick).", ...
+    "ValueChangedFcn", @(~,~) obj.onFigureAutoPreviewToggled());
+obj.FigureAutoCheckBox.Layout.Row = 1; obj.FigureAutoCheckBox.Layout.Column = 2;
+kg = uigridlayout(pg, [1 2], "ColumnWidth", {34, 34}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);
+kg.Layout.Row = 2; kg.Layout.Column = 2;
+obj.FigureObsPrevButton = uibutton(kg, "Text", "<", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onFigureObservationStep(-1), ...
+    "Tooltip", "The previous observation (Page Up).");
+obj.FigureObsNextButton = uibutton(kg, "Text", ">", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onFigureObservationStep(1), ...
+    "Tooltip", "The next observation (Page Down).");
+l = uilabel(pg, "Text", "Dataset:");
+l.Layout.Row = 1; l.Layout.Column = 3;
+obj.FiguresDatasetDropDown = uidropdown(pg, "Items", "(scan first)", "ItemsData", 0, ...
+    "ValueChangedFcn", @(dd, ~) obj.selectDataset(dd.Value), "Tooltip", "The active dataset (the same on every tab).");
+obj.FiguresDatasetDropDown.Layout.Row = 1; obj.FiguresDatasetDropDown.Layout.Column = 4;
+obj.FigureDesignLabel = uilabel(pg, "Text", "Design: " + PlotDesign.currentName(), "FontColor", gray, ...
+    "Tooltip", "The design every plot and figure is drawn in: choose it on the Plots tab or in the Design menu.");
+obj.FigureDesignLabel.Layout.Row = 1; obj.FigureDesignLabel.Layout.Column = 5;
+l = uilabel(pg, "Text", "Observation:");
+l.Layout.Row = 2; l.Layout.Column = 3;
+obj.FigureObservationDropDown = uidropdown(pg, "Items", "(no observation)", "ItemsData", 0, ...
+    "ValueChangedFcn", @(~,~) obj.onFigureObservationChanged(), ...
+    "Tooltip", "What the preview draws the figure for: one of the units, channels or the dataset the Observations " + ...
+    "section keeps, in probe order. Each figure remembers its pick.");
+obj.FigureObservationDropDown.Layout.Row = 2; obj.FigureObservationDropDown.Layout.Column = [4 5];
+obj.FigurePreviewPanel = uipanel(pg, "BackgroundColor", "w", "BorderType", "line");
+obj.FigurePreviewPanel.Layout.Row = 3; obj.FigurePreviewPanel.Layout.Column = [1 5];
+sg = uigridlayout(pg, [1 2], "ColumnWidth", {'fit', '1x'}, "Padding", [0 0 0 0], "ColumnSpacing", 8);
+sg.Layout.Row = 4; sg.Layout.Column = [1 5];
+B.Grid = uigridlayout(sg, [1 2], "ColumnWidth", {18, 'fit'}, "Padding", [6 2 10 2], "ColumnSpacing", 5);
+B.Icon = uiimage(B.Grid, "ScaleMethod", "fit");
+B.Text = uilabel(B.Grid, "FontWeight", "bold");
+obj.FigurePreviewBadge = B;
+obj.FigurePreviewLabel = uilabel(sg, "Text", "Add a figure, scan and pick a dataset to preview.", "FontColor", gray);
+obj.setFigurePreviewState("idle");
+end
+
+
+function onIdEdited(obj, f, evt)
+%onIdEdited  A new figure id: refused when blank or another figure's; the observation picked moves with it.
+if obj.Applying; return; end
+k = obj.SelectedFigure;
+if k < 1 || k > numel(obj.Config.Figures); return; end
+id = strtrim(string(f.Value));
+others = obj.Config.figureIds();
+others(k) = [];
+if id == "" || any(others == id)
+    f.Value = evt.PreviousValue;
+    if id == ""
+        obj.setStatus("A figure needs an id.");
+    else
+        obj.setStatus("Config: a figure named " + id + " already exists.");
+    end
+    return
+end
+old = char(obj.Config.Figures(k).id);
+if isKey(obj.FigureObservation, old) && ~strcmp(old, char(id))
+    obj.FigureObservation(char(id)) = obj.FigureObservation(old);
+    remove(obj.FigureObservation, old);
+end
+obj.onConfigChanged("figure");
+end
+
+
+function onSpanEdited(obj, sp, evt, which)
+%onSpanEdited  A panel's row or column span: refused past the grid's edge or over another panel.
+if obj.Applying; return; end
+k = obj.SelectedFigure;
+if k < 1 || k > numel(obj.Config.Figures); return; end
+fig = obj.Config.Figures(k);
+j = obj.SelectedPanel;
+if j < 1 || j > numel(fig.panels); return; end
+p = fig.panels(j);
+v = round(sp.Value);
+if which == "row"
+    if p.row + v - 1 > fig.grid.rows
+        sp.Value = evt.PreviousValue;
+        obj.setStatus(p.id + " cannot span past the grid's last row: add a row below it first.");
+        return
+    end
+    fig.panels(j).rowSpan = v;
+else
+    if p.col + v - 1 > fig.grid.cols
+        sp.Value = evt.PreviousValue;
+        obj.setStatus(p.id + " cannot span past the grid's last column: add a column right of it first.");
+        return
+    end
+    fig.panels(j).colSpan = v;
+end
+[~, over] = EphysAnalysisConfig.figureCells(fig);
+if ~isempty(over)
+    sp.Value = evt.PreviousValue;
+    q = over(1, :);
+    q = q(q ~= j);
+    obj.setStatus(p.id + " would overlap " + fig.panels(q(1)).id + ".");
+    return
+end
+obj.onConfigChanged("figure");
+obj.setStatus(sprintf("%s spans %d row(s) and %d column(s).", p.id, fig.panels(j).rowSpan, fig.panels(j).colSpan));
+end
+
+
+function setAddType(obj, t)
+obj.FigureAddType = string(t);
+end
+
+
+function setAddSource(obj, s)
+obj.FigureAddSource = string(s);
+end
+
+
+function onForgetLooks(obj)
+%onForgetLooks  Forget the figure's remembered looks, and redraw the preview without them.
+k = obj.SelectedFigure;
+if k < 1 || k > numel(obj.Config.Figures); return; end
+id = obj.Config.Figures(k).id;
+obj.rememberFigureAesthetics(id, []);
+obj.setStatus("Forgot " + id + "'s remembered looks.");
+F = obj.FigurePreviewResult;
+if obj.FigurePreviewState ~= "drawn" || isempty(F) || F.id ~= id; return; end
+try
+    spec = obj.Config.figureFor(k);
+    renderFigure(F, spec, obj.FigurePreviewPanel, OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules));
+catch
+    obj.autoFigurePreview();
+end
+end
+
+
+function b = defaultBox(obj, S, what)
+%defaultBox  The "Use default" box in the header of an alignment section.
+b = uicheckbox(S.HeaderGrid, "Text", "Use default", "Value", true, ...
+    "ValueChangedFcn", @(~,~) obj.onFigureDefaultToggled(), ...
+    "Tooltip", "Ticked: the Alignment tab's " + what + " (the config's Defaults). Editing a value below " + ...
+    "gives this figure its own; tick again to go back to the default.");
+b.Layout.Column = 2;
+end
+
+
+function [S, E] = aurocRows(S, E, p, changed)
+%aurocRows  The response test's auROC settings' rows in form section S; P prefixes their editor fields (the Plots tab's rows).
+[S, r] = formRow(S, p + "Method", "auROC from:");
+g = subgrid(S.Body, r, {'1x', '1x'});
+E.(p + "Method") = uidropdown(g, "Items", ["PSTH bins" "each epoch"], "ItemsData", ["psth" "epochs"], ...
+    "ValueChangedFcn", changed, "Tooltip", "PSTH bins: the trial-averaged PSTH's bins in each window against those " + ...
+    "in the baseline. each epoch: each epoch's spike count in the window against the baseline's.");
+E.(p + "Windows") = uidropdown(g, "Items", ["tiled" "sliding"], "ValueChangedFcn", changed, ...
+    "Tooltip", "tiled: windows back to back, edged at the event. sliding: a window starts every step.");
+[S, r] = formRow(S, p + "WinMs", "auROC (ms):");
+g = subgrid(S.Body, r, {'fit', '1x', 'fit', '1x', 'fit', '1x'});
+uilabel(g, "Text", "window");
+E.(p + "WinMs") = uieditfield(g, "numeric", "Value", 100, "Limits", [0 Inf], "LowerLimitInclusive", "off", ...
+    "ValueChangedFcn", changed, "Tooltip", "The auROC window, ms: a whole number of bins.");
+uilabel(g, "Text", "step");
+E.(p + "StepMs") = uieditfield(g, "numeric", "Value", 10, "Limits", [0 Inf], "LowerLimitInclusive", "off", ...
+    "ValueChangedFcn", changed, "Tooltip", "Sliding windows: one starts every step, ms.");
+uilabel(g, "Text", "bin");
+E.(p + "BinMs") = uieditfield(g, "numeric", "Value", 10, "Limits", [0 Inf], "LowerLimitInclusive", "off", ...
+    "ValueChangedFcn", changed, "Tooltip", "The bins the test counts spikes in, ms.");
+[S, r] = formRow(S, p + "Cutoff", "Modulated if:");
+g = subgrid(S.Body, r, {'1x', 'fit', '1x'});
+E.(p + "Cutoff") = uidropdown(g, "Items", ["95% CI (paper)" "fixed threshold" "per-unit test"], "ItemsData", ["ci" "fixed" "test"], ...
+    "ValueChangedFcn", changed, "Tooltip", "95% CI: beyond 0.5 +/- the 95% CI of the units' mean modulation. fixed: " + ...
+    "beyond 0.5 +/- the threshold. per-unit test: the test below, its p adjusted over the units.");
+uilabel(g, "Text", "+/-");
+E.(p + "Threshold") = uieditfield(g, "numeric", "Value", 0.1, "Limits", [0 0.5], "UpperLimitInclusive", "off", ...
+    "ValueChangedFcn", changed, "Tooltip", "fixed threshold: modulated when |mean auROC - 0.5| is above this.");
+[S, r] = formRow(S, p + "Test", "Unit test:");
+g = subgrid(S.Body, r, {'1x', 'fit', '1x'});
+E.(p + "Test") = uidropdown(g, "Items", ["bootstrap" "ranksum" "shuffle"], "ValueChangedFcn", changed, ...
+    "Tooltip", "bootstrap: resample the epochs. ranksum: the window's values against the baseline's. shuffle: shift each epoch's spikes circularly.");
+uilabel(g, "Text", "n");
+E.(p + "Resamples") = uieditfield(g, "numeric", "Value", 1000, "Limits", [1 Inf], "RoundFractionalValues", "on", ...
+    "ValueChangedFcn", changed, "Tooltip", "Bootstrap resamples, or shuffles.");
+end
+
+
+function h = gridHeight(g)
+%gridHeight  The height a grid of fixed-height rows takes.
+rh = [g.RowHeight{:}];
+h = sum(rh) + (numel(rh) - 1) * g.RowSpacing + g.Padding(2) + g.Padding(4);
+end
+
+
+function sg = subgrid(parent, row, widths)
+%subgrid  A borderless one-row grid in column 2 of form row ROW.
+sg = uigridlayout(parent, [1 numel(widths)]);
+sg.ColumnWidth = widths;
+sg.Padding = [0 0 0 0];
+sg.ColumnSpacing = 6;
+place(sg, row, 2);
+end
+
+
+function place(c, row, col)
+c.Layout.Row = row;
+c.Layout.Column = col;
+end
+
+
+function s = ternary(c, a, b)
+if c; s = a; else; s = b; end
+end

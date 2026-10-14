@@ -18,6 +18,9 @@ labels(mine) = labels(mine) + "  (mine)";
 set(obj.DesignDropDown, "Items", labels, "ItemsData", T.Name, "Value", T.Name(k), ...
     "Tooltip", T.Name(k) + ": " + T.Description(k) + newline + "Choosing a design redraws every plot on screen; " + ...
     "runs draw their figures in it too.");
+if ~isempty(obj.FigureDesignLabel) && isvalid(obj.FigureDesignLabel)
+    obj.FigureDesignLabel.Text = "Design: " + T.Name(k);   % the Figures tab names it; it is chosen here or in the menu
+end
 
 m = obj.DesignMenu;
 delete(m.Children);

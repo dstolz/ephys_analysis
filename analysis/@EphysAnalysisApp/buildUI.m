@@ -1,5 +1,5 @@
 function buildUI(obj)
-%buildUI  The figure, menus, toolbar, the seven tabs and the status bar; every
+%buildUI  The figure, menus, toolbar, the eight tabs and the status bar; every
 %   button styled (styleButtons), the main actions in color; the figure's
 %   key presses (onKeyPress) once the tabs are there.
 obj.Fig = uifigure("Name", "Ephys analysis", "Position", [140 80 1280 820]);
@@ -17,6 +17,7 @@ obj.Tabs.SelectionChangedFcn = @(~,~) obj.onTabChanged();
 obj.TabData   = uitab(obj.Tabs, "Title", "Data");
 obj.TabAlign  = uitab(obj.Tabs, "Title", "Alignment");
 obj.TabPlots  = uitab(obj.Tabs, "Title", "Plots");
+obj.TabFigures = uitab(obj.Tabs, "Title", "Figures");
 obj.TabSessions = uitab(obj.Tabs, "Title", "Sessions");
 obj.TabExport = uitab(obj.Tabs, "Title", "Export");
 obj.TabChronux = uitab(obj.Tabs, "Title", "Chronux");
@@ -31,13 +32,14 @@ obj.StatusBar = uilabel(bg, "Text", "Ready.", "FontColor", [0.15 0.15 0.15]);
 obj.buildDataTab();
 obj.buildAlignTab();
 obj.buildPlotsTab();
+obj.buildFiguresTab();
 obj.buildSessionsTab();
 obj.buildExportTab();
 obj.buildChronuxTab();
 obj.buildLogTab();
 styleButtons(obj);
 obj.Tabs.SelectedTab = obj.TabData;
-obj.Fig.WindowKeyPressFcn = @(~, evt) obj.onKeyPress(evt);   % Ctrl+1 ... Ctrl+9, Ctrl+0: the plot editor's (and session editor's) sections
+obj.Fig.WindowKeyPressFcn = @(~, evt) obj.onKeyPress(evt);   % Ctrl+1 ... Ctrl+9, Ctrl+0: the plot, figure and session editors' sections
 obj.refreshDesigns();
 PlotDesign.listen(obj.Fig, @() obj.refreshDesigns());   % a design chosen anywhere (a plot's right-click menu too)
 end
@@ -49,7 +51,8 @@ function styleButtons(obj)
 b = findall(obj.Fig, "Type", "uibutton", "-or", "Type", "uistatebutton");
 styleButton(b(~strcmp(get(b, "Tag"), "formSectionToggle")));
 styleButton([obj.ScanButton, obj.PreviewButton, obj.SessionPreviewButton, obj.RunButton, obj.ChronuxComputeButton, ...
-    obj.ChronuxCreateButton], "primary");
-styleButton([obj.SessionEditor.toWorkspace, obj.SessionEditor.saveMat], "confirm");
-styleButton([obj.CancelButton, obj.ChronuxCancelButton], "danger");
+    obj.ChronuxCreateButton, obj.FigurePreviewButton], "primary");
+styleButton([obj.SessionEditor.toWorkspace, obj.SessionEditor.saveMat, obj.AddFigureButton, obj.FigureEditor.addLayer], "confirm");
+styleButton([obj.CancelButton, obj.ChronuxCancelButton, obj.RemoveFigureButton, obj.FigureEditor.removePanel, ...
+    obj.FigureEditor.removeLayer], "danger");
 end

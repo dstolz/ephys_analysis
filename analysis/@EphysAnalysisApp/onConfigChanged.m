@@ -8,6 +8,11 @@ function onConfigChanged(obj, what)
 %   (autoSessionPreview: redrawn, or marked out of date) follows an edit of
 %   the session plot, of its base plot, of the defaults, and of the ticks
 %   when it draws the ticked datasets; its list and editor follow the plots.
+%   "figure" (the Figures tab's editor): its list, editor and schematic,
+%   the observation picker (made again when the observe block, the
+%   figure's alignment or its sorting changed), the epoch diagram and the
+%   figure preview (autoFigurePreview) follow; an edit of the defaults
+%   reaches the figure editor and its preview too.
 arguments
     obj (1,1) EphysAnalysisApp
     what (1,1) string = ""
@@ -38,9 +43,18 @@ switch what
         syncAlignEnable(obj.AlignControls);
         obj.refreshAlignPreview();
         obj.applyPlotEditorDefaults();
+        obj.applyFigureEditorDefaults();
+        obj.refreshFigureObservations();
         obj.refreshEpochDiagram();
         obj.autoPreview();
         obj.autoSessionPreview();
+        obj.autoFigurePreview();
+    case "figure"
+        obj.refreshFigureList();
+        obj.syncFigureEditor();
+        obj.refreshFigureObservations();   % again only when its observe block, alignment or sorting changed
+        obj.refreshEpochDiagram();
+        obj.autoFigurePreview();
     case "plot"
         obj.refreshPlotList();
         obj.syncPlotEditor();

@@ -5,8 +5,10 @@ function onShowEpochs(obj, what)
 %   shows the plot's event reference, epoch window and trial selection (its
 %   own, or the Alignment tab's where it uses the defaults), its baseline and
 %   what it drops. onShowEpochs(OBJ, "defaults") opens the window for the
-%   Alignment tab's Defaults (that tab's button). The window shows the
-%   active dataset.
+%   Alignment tab's Defaults (that tab's button). onShowEpochs(OBJ,
+%   "figure") opens it for the figure in the Figures tab's editor (its
+%   Epoch window's button): the figure's event reference, window and
+%   selection, its own or the defaults. The window shows the active dataset.
 %
 %   The window is not modal: it stays above the app, whose controls keep
 %   working. It is redrawn on every edit, a change of plot or of the active
@@ -15,7 +17,7 @@ function onShowEpochs(obj, what)
 %   to what that button shows.
 arguments
     obj (1,1) EphysAnalysisApp
-    what (1,1) string {mustBeMember(what, ["plot" "defaults"])} = "plot"
+    what (1,1) string {mustBeMember(what, ["plot" "defaults" "figure"])} = "plot"
 end
 obj.EpochDiagramFor = what;
 d = obj.EpochDiagramWindow;

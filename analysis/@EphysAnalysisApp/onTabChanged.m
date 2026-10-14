@@ -9,6 +9,10 @@ switch obj.Tabs.SelectedTab
     case obj.TabPlots
         msg = "Plots: add plots, edit them, preview them on the active dataset.";
         if isempty(obj.PreviewResult) || obj.PreviewState == "stale"; obj.autoPreview(); end
+    case obj.TabFigures
+        msg = "Figures: design a figure for one unit, channel or the dataset; the preview draws the observation picked above it.";
+        obj.refreshFigureObservations();
+        if isempty(obj.FigurePreviewResult) || obj.FigurePreviewState == "stale"; obj.autoFigurePreview(); end
     case obj.TabSessions
         msg = "Sessions: a plot drawn over several datasets at once; pick its base plot, Add, then Preview over the ticked datasets.";
         obj.syncSessionEditor();

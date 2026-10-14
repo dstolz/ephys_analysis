@@ -16,6 +16,9 @@ AppPrefs.setpref(g, 'PlotSectionsCollapsed', cellstr([string.empty(1, 0) S(~[S.E
 AppPrefs.setpref(g, 'SessionAutoPreview', logical(obj.SessionAutoCheckBox.Value));
 S = obj.SessionSections;
 AppPrefs.setpref(g, 'SessionSectionsCollapsed', cellstr([string.empty(1, 0) S(~[S.Expanded]).Name]));
+AppPrefs.setpref(g, 'FigureAutoPreview', logical(obj.FigureAutoCheckBox.Value));
+S = obj.FigureSections;
+AppPrefs.setpref(g, 'FigureSectionsCollapsed', cellstr([string.empty(1, 0) S(~[S.Expanded]).Name]));
 AppPrefs.setpref(g, 'ChronuxCacheFolder', char(obj.ChronuxCacheFolder));
 AppPrefs.setpref(g, 'ChronuxMaxMB', obj.ChronuxMaxMB);
 S = obj.ChronuxSections;

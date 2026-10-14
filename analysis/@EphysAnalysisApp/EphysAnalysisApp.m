@@ -50,6 +50,31 @@ classdef EphysAnalysisApp < handle
     %                draws, on the active dataset, the digital lines as TTL
     %                traces, each event, window and epoch and what is
     %                dropped, redrawn on every edit (onShowEpochs)
+    %     Figures    figures (buildFiguresTab): panels of different types
+    %                (raster, PSTH, continuous signal, heat map, unit
+    %                waveforms, behavior, probe map, unit correlation) on a
+    %                grid, designed for ONE observation (a sorted unit, a
+    %                channel or the dataset) at a time; a list of figures
+    %                (add from a template, remove, duplicate, reorder) and an
+    %                editor in collapsible sections: the observations (the
+    %                unit filter), the arrangement (a schematic of the grid:
+    %                Add panel above / below / left / right of the selected
+    %                one, spans, relative row heights and column widths,
+    %                spacing, Remove, Move), the panel (type, title, group
+    %                shown), the figure's event reference, epoch window and
+    %                trial selection ("Use default" for the Alignment tab's),
+    %                the panel's own event and window ("Same as the figure"),
+    %                its layers (each follows the observation or is fixed),
+    %                the type's options, appearance and remembered looks,
+    %                showing only the rows the figure, panel and layer use
+    %                (syncFigureEditor); a preview of the observation picked
+    %                in the dataset and observation drop-downs (< and >),
+    %                which computes only that unit's spikes or that
+    %                channel's column (refreshFigurePreview: figureObservations,
+    %                EphysAnalysisRunner.computeFigure, renderFigure; Auto
+    %                while a preview takes under 2 s), with its own badge
+    %                (setFigurePreviewState). Figures are previewed only: runs,
+    %                plans, reports and generated scripts ignore them
     %     Sessions   session plots (buildSessionsTab): one plot of the Plots
     %                tab (its base plot) computed on several datasets and
     %                merged (EphysAnalysisRunner.computeSessionPlot,
@@ -94,8 +119,12 @@ classdef EphysAnalysisApp < handle
     %   Keys (onKeyPress), on the Plots tab: Ctrl+1 to Ctrl+9 and Ctrl+0 (Cmd on a Mac)
     %   go to the plot editor's sections (gotoPlotSection); each header
     %   names its key and has a color of its own. On the Sessions tab
-    %   Ctrl+1 to Ctrl+3 go to the session editor's (gotoSessionSection).
-    %   Page Up and Page Down flip the shown tab's preview pages.
+    %   Ctrl+1 to Ctrl+3 go to the session editor's (gotoSessionSection). On
+    %   the Figures tab Ctrl+1 to Ctrl+9 and Ctrl+0 go to the figure
+    %   editor's (gotoFigureSection).
+    %   Page Up and Page Down flip the shown tab's preview pages; on the
+    %   Figures tab, which has none, they step to the previous and next
+    %   observation (onFigureObservationStep).
     %
     %   Preferences (getpref group 'EphysAnalysisApp'): FigurePosition,
     %   LastConfigFile, RecentConfigs, ScriptFolder, AutoPreview,
@@ -104,7 +133,9 @@ classdef EphysAnalysisApp < handle
     %   PlotGroupBy (how the plot tree groups), PlotGroupsCollapsed (its
     %   collapsed groups), SessionAutoPreview (the Sessions tab's Auto,
     %   off by default), SessionSectionsCollapsed (its editor's collapsed
-    %   sections), ChronuxCacheFolder (the local folder for
+    %   sections), FigureAutoPreview (the Figures tab's Auto, on by default:
+    %   one observation is quick), FigureSectionsCollapsed (its editor's
+    %   collapsed sections), ChronuxCacheFolder (the local folder for
     %   Chronux files of datasets whose output folder cannot be written),
     %   ChronuxMaxMB (the most signal the Chronux tab reads at once),
     %   ChronuxSettings (its last settings) and ChronuxSectionsCollapsed.
@@ -127,6 +158,7 @@ classdef EphysAnalysisApp < handle
         TabData    matlab.ui.container.Tab
         TabAlign   matlab.ui.container.Tab
         TabPlots   matlab.ui.container.Tab
+        TabFigures matlab.ui.container.Tab
         TabSessions matlab.ui.container.Tab
         TabExport  matlab.ui.container.Tab
         TabChronux matlab.ui.container.Tab
@@ -230,6 +262,33 @@ classdef EphysAnalysisApp < handle
         SessionPreviewPanel    matlab.ui.container.Panel
         SessionPreviewBadge struct = struct()    % the session preview's state badge: Grid, Icon, Text (setSessionPreviewState)
 
+        % --- Figures tab (buildFiguresTab) ---
+        FigureList             matlab.ui.control.ListBox        % "<id>  (<n> panels, per <kind>)"; ItemsData = index into Config.Figures
+        FigureTemplateDropDown matlab.ui.control.DropDown       % the template a new figure starts from (figureTemplates)
+        AddFigureButton        matlab.ui.control.Button
+        RemoveFigureButton     matlab.ui.control.Button
+        DuplicateFigureButton  matlab.ui.control.Button
+        UpFigureButton         matlab.ui.control.Button
+        DownFigureButton       matlab.ui.control.Button
+        FigureEditorPanel      matlab.ui.container.Panel        % the editor's panel (its title names the figure)
+        FigureEditorGrid       matlab.ui.container.GridLayout   % the editor's column of sections
+        FigureSections struct = struct([])       % the editor's sections (formSection), top to bottom
+        FigureEditor struct = struct()           % figure-editor controls by field
+        FigureAlignControls struct = struct()    % the figure's event / window / selection (buildAlignControls)
+        PanelAlignControls struct = struct()     % the selected panel's own event / window (buildAlignControls; its selection hidden)
+        FigureSchematic        matlab.ui.control.UIAxes         % the arrangement's schematic (drawFigureSchematic)
+        FiguresDatasetDropDown matlab.ui.control.DropDown       % the active dataset (as on the other tabs)
+        FigureObservationDropDown matlab.ui.control.DropDown    % the observation previewed; ItemsData = row of FigureObservations
+        FigureObsPrevButton    matlab.ui.control.Button
+        FigureObsNextButton    matlab.ui.control.Button
+        FigurePreviewButton    matlab.ui.control.Button
+        FigureAutoCheckBox     matlab.ui.control.CheckBox       % auto-preview (pref FigureAutoPreview, on by default)
+        FigureDesignLabel      matlab.ui.control.Label          % "Design: <name>" (chosen on the Plots tab or the Design menu)
+        FigurePreviewPanel     matlab.ui.container.Panel
+        FigurePreviewBadge struct = struct()     % the figure preview's state badge: Grid, Icon, Text (setFigurePreviewState)
+        FigurePreviewLabel     matlab.ui.control.Label
+        FigureCancelButton     matlab.ui.control.Button         % the busy card's Cancel while the figure preview computes (else empty)
+
         % --- Export tab ---
         ExportControls struct = struct()
         ReportControls struct = struct()
@@ -292,7 +351,7 @@ classdef EphysAnalysisApp < handle
         PreviewState (1,1) string = "idle"  % what the preview badge says (setPreviewState)
         PreviewRedo (1,1) logical = false   % an edit or a Preview press came in while one computed: it ends Out of date
         EpochDiagramWindow = []             % the EpochDiagram window, while open (onShowEpochs)
-        EpochDiagramFor (1,1) string = "plot"   % what it draws: "plot" (the editor's) | "defaults"
+        EpochDiagramFor (1,1) string = "plot"   % what it draws: "plot" (the editor's) | "defaults" | "figure" (the Figures tab's)
         Running (1,1) logical = false
         LastReportFiles (1,:) string = string.empty(1,0)
         LastExportFolder (1,1) string = ""
@@ -305,6 +364,19 @@ classdef EphysAnalysisApp < handle
         SessionPreviewState (1,1) string = "idle"   % what the session preview's badge says (setSessionPreviewState)
         SessionPreviewRedo (1,1) logical = false    % an edit or a Preview press came in while one computed: it ends Out of date
         SessionPreviewSeconds (1,1) double = 0      % time the last session preview took (auto-preview under 2 s)
+
+        SelectedFigure (1,1) double = 0     % the figure in the editor (index into Config.Figures), the one previewed
+        SelectedPanel (1,1) double = 0      % its panel in the editor (index into its panels; 0 = none)
+        SelectedLayer (1,1) double = 0      % that panel's layer in the editor (index into its layers; 0 = none)
+        FigureObservations = []             % the picker's observations: figureObservations' table on the active dataset
+        FigureObservation = []              % the observation each figure last showed: containers.Map, figure id -> its label
+        FigurePreviewResult = []            % the last figure preview's result (computeFigure's F)
+        FigurePreviewSeconds (1,1) double = 0   % time the last figure preview took (auto-preview under AutoPreviewSeconds)
+        FigurePreviewWarm (1,1) logical = false % a figure was drawn already: the first one's time (graphics loading) is not counted
+        FigurePreviewState (1,1) string = "idle"   % what the figure preview's badge says (setFigurePreviewState)
+        FigurePreviewRedo (1,1) logical = false    % an edit or a Preview press came in while one computed: it ends Out of date
+        FigureAddType (1,1) string = "continuous"  % the panel type Add panel adds (the Arrangement's drop-down)
+        FigureAddSource (1,1) string = "units"     % the source Add layer adds, when the panel's type draws it
 
         ChronuxIndex = []                  % loadChronuxExport's index of ChronuxFile
         ChronuxFile (1,1) string = ""       % the active dataset's Chronux file ("" = none)
@@ -494,6 +566,45 @@ classdef EphysAnalysisApp < handle
         onSessionAutoPreviewToggled(obj)
         S = onSessionsToWorkspace(obj, sp, opts)
         file = onSaveSessionData(obj, sp, opts)
+
+        % --- Figures tab ---
+        buildFiguresTab(obj)
+        refreshFigureList(obj)
+        onAddFigure(obj, template)
+        onRemoveFigure(obj)
+        onDuplicateFigure(obj)
+        onMoveFigure(obj, step)
+        onFigureSelected(obj, k)
+        applyFigureEditor(obj)
+        fig = gatherFigureEditor(obj)
+        applyFigureEditorDefaults(obj)
+        syncFigureEditor(obj)
+        layoutFigureEditor(obj)
+        onFigureSectionToggled(obj, name)
+        gotoFigureSection(obj, name)
+        onFigureAlignEdited(obj, part)
+        onFigureDefaultToggled(obj)
+        onPanelAlignEdited(obj, part)
+        onPanelDefaultToggled(obj)
+        onPanelSelected(obj, k)
+        onAddPanel(obj, where)
+        onRemovePanel(obj)
+        onMovePanel(obj, direction)
+        onPanelTypeChanged(obj)
+        drawFigureSchematic(obj)
+        onLayerSelected(obj, j)
+        onAddLayer(obj)
+        onRemoveLayer(obj)
+        onMoveLayer(obj, step)
+        refreshFigureObservations(obj, opts)
+        onFigureObservationChanged(obj)
+        onFigureObservationStep(obj, step)
+        refreshFigurePreview(obj, opts)
+        autoFigurePreview(obj)
+        onFigureAutoPreviewToggled(obj)
+        onCancelFigurePreview(obj)
+        setFigurePreviewState(obj, state, opts)
+        rememberFigureAesthetics(obj, id, rules)
 
         % --- Chronux tab ---
         buildChronuxTab(obj)

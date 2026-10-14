@@ -6,7 +6,7 @@ function buildToolbar(obj)
 %     File      New config, Open config, Save config
 %     Look      Scan for datasets (Data tab), Preview the selected plot
 %               (Plots tab; on the Sessions tab, the selected session
-%               plot)
+%               plot; on the Figures tab, the selected figure)
 %     Run       Validate config, Plan, Run, Cancel run (Export tab)
 %     Results   Open the last run's report, its figure folder
 %     Tools     Open pipeline app (File menu)
@@ -31,7 +31,7 @@ addTool(tb, iconDir, "save", "Save config", "S", @(~,~) obj.onSaveConfig());
 % --- Look: the datasets and the plot being edited ---
 addTool(tb, iconDir, "scan", "Scan for datasets", "", @(~,~) obj.onScan(), Separator=true);
 addTool(tb, iconDir, "preview", "Preview the selected plot on the active dataset (on the Sessions tab: the " + ...
-    "selected session plot over its datasets)", "", @(~,~) preview(obj));
+    "selected session plot over its datasets; on the Figures tab: the selected figure)", "", @(~,~) preview(obj));
 
 % --- Run: as the Export tab's buttons ---
 obj.ToolbarValidateTool = addTool(tb, iconDir, "validate", "Validate config", "", ...
@@ -63,9 +63,14 @@ function preview(obj)
 %preview  The Plots tab, then the selected plot drawn as its Preview button draws it.
 %   The tab shows first, so a slow preview is seen computing. Its hint
 %   follows; the auto-preview onTabChanged starts finds the plot drawn.
-%   On the Sessions tab: the session plot, as its Preview button draws it.
+%   On the Sessions tab: the session plot, as its Preview button draws it;
+%   on the Figures tab, the figure.
 if obj.Tabs.SelectedTab == obj.TabSessions
     obj.refreshSessionPreview();
+    return
+end
+if obj.Tabs.SelectedTab == obj.TabFigures
+    obj.refreshFigurePreview(Force=true);
     return
 end
 obj.Tabs.SelectedTab = obj.TabPlots;

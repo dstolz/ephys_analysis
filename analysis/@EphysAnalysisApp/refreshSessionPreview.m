@@ -15,8 +15,8 @@ function refreshSessionPreview(obj)
 %   the old plot, and how it ended; the card's Cancel button
 %   (onCancelSessionPreview) stops the compute between sessions (the
 %   runner polls, Runner.PollFcn). Edits made meanwhile leave it Out of
-%   date. Nothing is computed while a run goes or the Plots tab's preview
-%   computes.
+%   date. Nothing is computed while a run goes or the Plots or Figures
+%   tab's preview computes.
 arguments
     obj (1,1) EphysAnalysisApp
 end
@@ -47,6 +47,11 @@ if obj.Running
 end
 if ismember(obj.PreviewState, ["computing" "drawing"])   % called from inside the Plots tab's preview (its polling)
     L.Text = "The Plots tab's preview is computing: press Preview when it is done.";
+    return
+end
+if ismember(obj.FigurePreviewState, ["computing" "drawing"])   % called from inside the Figures tab's preview (its polling)
+    if obj.SessionPreviewState == "drawn"; obj.setSessionPreviewState("stale"); end
+    L.Text = "The Figures tab's preview is computing: press Preview when it is done.";
     return
 end
 sp = cfg.SessionPlots(k);

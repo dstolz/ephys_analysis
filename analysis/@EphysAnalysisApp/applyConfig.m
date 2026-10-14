@@ -1,5 +1,8 @@
 function applyConfig(obj, cfg, opts)
 %applyConfig  Show a config in every control (MarkSaved=true: it is the saved state).
+%   With MarkSaved (a config opened or made new) the Figures tab's drawing
+%   of the last config is dropped and its preview marked Out of date
+%   (autoFigurePreview then draws the new config's figure when it can).
 arguments
     obj (1,1) EphysAnalysisApp
     cfg (1,1) EphysAnalysisConfig
@@ -32,6 +35,14 @@ else
 end
 obj.refreshSessionList();
 obj.applySessionEditor();
+nf = numel(cfg.Figures);
+if nf == 0
+    obj.SelectedFigure = 0;
+else
+    obj.SelectedFigure = min(max(obj.SelectedFigure, 1), nf);
+end
+obj.refreshFigureList();
+obj.applyFigureEditor();
 if opts.MarkSaved
     obj.SavedConfigStruct = cfg.toStruct();
 end
@@ -42,6 +53,15 @@ if ~isempty(obj.Runner)
         obj.ScanLabel.Text = "The source changed: Scan to list its datasets.";
     end
 end
+obj.refreshFigureObservations();
+if opts.MarkSaved && ~ismember(obj.FigurePreviewState, ["idle" "computing" "drawing"])
+    forgetFigurePreview(obj);   % another config: its figure is not the one drawn
+end
+if obj.SelectedFigure < 1 && ~ismember(obj.FigurePreviewState, ["idle" "computing" "drawing"])
+    obj.refreshFigurePreview();   % no figure left to show: the preview empties
+elseif opts.MarkSaved && obj.SelectedFigure >= 1
+    obj.autoFigurePreview();
+end
 obj.refreshEpochDiagram();
 obj.updateTitle();
 end
@@ -49,4 +69,19 @@ end
 
 function setApplying(obj, tf)
 if isvalid(obj); obj.Applying = tf; end
+end
+
+
+function forgetFigurePreview(obj)
+%forgetFigurePreview  Drop the Figures tab's drawing of the last config: its result, its look editor; Out of date.
+obj.FigurePreviewResult = [];
+obj.FigurePreviewSeconds = 0;
+P = obj.FigurePreviewPanel;
+delete(P.Children);
+if isappdata(P, PlotAesthetics.ContextKey); rmappdata(P, PlotAesthetics.ContextKey); end   % its right-click editor drew the old figure
+g = uigridlayout(P, [1 1]);
+msg = "Another config is open: press Preview to draw its figure.";
+uilabel(g, "Text", msg, "WordWrap", "on", "HorizontalAlignment", "center", "FontColor", [0.4 0.4 0.4]);
+obj.FigurePreviewLabel.Text = msg;
+obj.setFigurePreviewState("stale");
 end

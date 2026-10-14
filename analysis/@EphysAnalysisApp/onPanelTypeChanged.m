@@ -1,0 +1,77 @@
+function onPanelTypeChanged(obj)
+%onPanelTypeChanged  The selected panel takes the type picked in the Panel section.
+%   Its options start afresh from the new type's (panelTypes'
+%   DefaultOptions), keeping the values both types have (bins, baseline --
+%   its mode when the new type takes it --, measure, the mask, limits, the
+%   group shown); the waveform inset or panel and the display (a
+%   continuous panel's and a behavior panel's differ) start afresh. The layers the
+%   new type cannot draw are dropped; those kept are fixed where the type
+%   draws only fixed layers; with none left the type's default layer is
+%   added. A type not aligned to events uses the figure's event and window.
+%   The status bar says what changed.
+if obj.Applying; return; end
+k = obj.SelectedFigure;
+if k < 1 || k > numel(obj.Config.Figures); return; end
+j = obj.SelectedPanel;
+if j < 1 || j > numel(obj.Config.Figures(k).panels); return; end
+new = string(obj.FigureEditor.panelType.Value);
+cfg = obj.gatherConfig();
+fig = cfg.Figures(k);
+p = fig.panels(j);
+old = p.type;
+if new == old; return; end
+PT = EphysAnalysisConfig.panelTypes();
+row = PT.Type == new;
+
+% the layers it can draw
+keep = false(1, numel(p.layers));
+for i = 1:numel(p.layers)
+    keep(i) = EphysAnalysisConfig.categoryOf(p.layers(i).source, new) ~= "";
+end
+dropped = strings(1, 0);
+for i = find(~keep); dropped(end+1) = layerLabel(p.layers(i)); end %#ok<AGROW>
+L = p.layers(keep);
+for i = 1:numel(L)
+    if ~figureEditorChoices(new, L(i).source).Bindable; L(i).binding = "fixed"; end
+end
+added = "";
+if isempty(L)
+    L = EphysAnalysisConfig.defaultLayer(new);
+    added = "; added its default layer (" + layerLabel(L) + ")";
+end
+p.layers = L;
+
+% its options: the new type's, with the values both have
+op = PT.DefaultOptions{row};
+i = find([L.enabled], 1);
+if isempty(i); i = 1; end
+first = L(i).source;
+modes = figureEditorChoices(new, first).BaselineModes;
+for f = string(fieldnames(op)).'
+    if ismember(f, ["waveform" "display"]) || ~isfield(p.options, f); continue; end   % display: lines / stacked vs points / box / ...
+    v = p.options.(f);
+    if f == "baseline" && ~ismember(v.Mode, modes); v.Mode = "none"; end
+    op.(f) = v;
+end
+p.options = op;
+if ~PT.Aligned(row)
+    p.ref = "default";
+    p.window = "default";
+end
+p.type = new;
+fig.panels(j) = p;
+cfg.Figures(k) = fig;
+obj.SelectedLayer = 1;
+was = old;
+if any(PT.Type == old); was = word(PT.Label(PT.Type == old)); end
+msg = p.id + " is now a " + word(PT.Label(row)) + " panel (was a " + was + " panel): options reset";
+if ~isempty(dropped); msg = msg + "; dropped " + strjoin(dropped, ", "); end
+commitFigureEdit(obj, cfg, msg + added + ".");
+end
+
+
+function w = word(label)
+%word  A type's label as a word in a sentence: lower case, but an acronym (PSTH).
+w = label;
+if label ~= upper(label); w = lower(label); end
+end

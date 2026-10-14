@@ -10,6 +10,26 @@ says how to cut a release.
 
 ### Added
 
+- Figures: panels of different types, drawn for one observation, in the analysis config. A new `Figures`
+  list holds figures; each is a grid (rows and columns, relative sizes, spans) of panels, each of one of
+  eight types (raster, PSTH, continuous signal, heat map, unit waveforms, behavior, probe map, unit
+  correlation), and each panel draws one or more layers bound to a source (sorted units, detected spikes,
+  an event line, an LFP, MUA, SPIKE or AUX extract, trial values). A layer either follows the observation
+  (a sorted unit, a channel or the dataset, as the figure's `observe` block says) or is fixed to the units,
+  channels or line it names, so a raster flush above its PSTH above the LFP of the same unit's channel,
+  with the stimulus offset marked on every raster row, is one figure drawn for one unit at a time.
+  `EphysAnalysisConfig` gets `Figures`, `addFigure`, `removeFigure`, `figureIndex`, `figureIds`,
+  `enabledFigures` and `figureFor`, the tables `panelTypes`, `sourceCategories` and `figureTemplates`, and
+  the grid editors `placePanel`, `removePanel` (which exactly undoes an add), `movePanel` and
+  `figureCells`; Validate checks figures. `figureObservations` lists the units, channels or dataset a
+  figure can be drawn for and `figureSkipReason` says why a figure or one of its layers cannot be
+  computed; `EphysAnalysisRunner.computeFigure` computes one observation with no graphics, reading only
+  that unit's spikes or channel's column, and can be canceled; `renderFigure` draws the result on one
+  tiled layout with one time axis down a stack, one legend and the plot aesthetics editor (new roles
+  `eventLine`, `eventRug` and `layerNote`), each panel type through `figurePanelRegistry`. Figures are not
+  run, exported or reported yet: `run`, `plan`, the reports and the generated scripts ignore them, and
+  Validate's "no plot enabled" rule still counts plots and session plots only. See
+  [Figures](documentation/EphysAnalysisConfig.md#figures).
 - Kilosort4 parameter details on the Sorting tab. Each parameter's name is a link that opens a modal
   window with its definition, function, impact, tuning and defaults (this pipeline's and Kilosort4
   4.1.7's own).

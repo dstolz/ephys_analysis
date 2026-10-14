@@ -265,6 +265,7 @@ a header leaves the plots selected as they were. **Ctrl**- or
 | kind drop-down (its own row), **Add** | adds a plot of that kind ([Plot kinds](#plot-kinds)) with the next free id (`psth_1`, `psth_2`, ...) and selects it |
 | **Remove**, **Duplicate** | removes the selected plots; copies each with a new id, right after it, and selects the copies |
 | **Copy from...** | copies another plot's settings onto the selected plots, whatever their plot type: a window asks which plot (**From**, by id and type) and which parts, one box per editor section -- Units & channels (with the source), Event reference, Epoch window, Trial selection, Bins & baseline, Plot type options (the options the two types have in common, and the layout when their layouts are the same), Event marks, Appearance, Unit waveform, Aux signals, Text note, Overlays -- and the Remembered looks. A part the two plot types do not share cannot be ticked (its tooltip says why: a probe map has no event reference, a unit waveforms plot's settings are not a PSTH's inset). Each plot keeps its id, type, title and enabled, and within a part what its type does not take: a source it does not read, a *between* epoch window when it needs a fixed one, a baseline mode it has not got; the status bar says what was copied and what was kept (`copyPlotSettings`, `plotSettingParts`) |
+| **Convert to figure** | beside **Copy from...**: makes a [figure](#figures-tab) of each selected plot that draws what the plot draws (`EphysAnalysisConfig.plotToFigure`): a PSTH's raster, event marks and aux signal become panels and layers, and the plot's alignment, unit filter, bins, baseline and look carry over. The plots stay; each figure is added to the Figures tab as `<plot>_fig` (`_fig2`, ... when taken). The last figure made is selected and opened on the Figures tab, previewed at once (Auto on). The status bar says `Converted <plot> to figure <id>.` followed by what the figure could not carry (the notes, joined by `;`: an auROC baseline, stacking, an overlay's raster, a text note, overlays, ...), or why a plot cannot be converted: rate, tuning and behavior plots have no panel type, and the tab stays. The kinds, layouts and notes are listed under [Converting a plot](EphysAnalysisConfig.md#converting-a-plot) |
 | **Up**, **Down** | swaps it with its neighbor in its group (the whole list when ungrouped), which changes the run order of those two; off while several plots are selected |
 
 **The editor.** On top: the plot's kind (with a line on what it draws),
@@ -465,16 +466,16 @@ figure. The tab edits the config's `Figures` list
 the figure for the observation you pick, reading only that unit's spikes or
 that channel's column, so an edit redraws quickly.
 
-In this release a figure is **previewed only**. **Run**, **Plan**, the
-report and the generated scripts ignore `Figures`, and Validate's rule that
-some plot or session plot must be enabled still counts only those, so a
-config that holds figures and nothing else is refused by it (Validate does
-check the figures themselves:
-[Validating figures](EphysAnalysisConfig.md#validating-figures)). Drawing a
-figure for every observation of every dataset it selects (**Generate**) is a
-later phase; the **Datasets** row of the Observations section is kept in the
-config for it. **File → Save config** keeps the figures, and **Help → Help
-for this tab** opens this section.
+The preview draws one observation. The Export tab's **Plan** and **Run**
+draw every enabled figure for every observation of every ticked dataset, a
+page each, exported and reported ([Export tab](#export-tab)), and so do the
+generated scripts and the pipeline's Analysis step; Validate counts an enabled
+figure as something to run, so a config that holds figures and nothing else is
+accepted, and checks the figures themselves
+([Validating figures](EphysAnalysisConfig.md#validating-figures)). Starting the
+run from this tab (**Generate**) is a later phase; the **Datasets** row of the
+Observations section is kept in the config for it. **File → Save config**
+keeps the figures, and **Help → Help for this tab** opens this section.
 
 Three columns: the figures, the editor of the selected one, and the preview.
 
@@ -487,13 +488,14 @@ Observe row, resolved), and *(off)* for a disabled figure.
 | template drop-down, **Add** | adds a figure from the template with the next free id (`figure_1`, `figure_2`, ...) and selects it, with its first panel and layer. The templates: *Raster over PSTH (per unit)* (first: a 2 x 1 grid, a raster flush above a PSTH, each following the observed unit), one panel of each [panel type](EphysAnalysisConfig.md#panel-types), and *Blank* (an empty 1 x 1 grid to add panels to) |
 | **Remove**, **Duplicate** | removes the selected figure; copies it, with its remembered looks and its observation, under a new id right after it, and selects the copy |
 | **Up**, **Down** | swaps it with its neighbor in the list (and the config) |
+| **Copy from...** | under the list, on with a figure selected and another to copy from: copies another figure's settings onto the selected one, part by part. A window asks which figure (**From**, by id) and which of six parts, one box each, all ticked at first (**All**, **None**): *Observations* (`observe`: the kind, unit filter, signal, channels, datasets), *Alignment* (`ref`, `window`, `selection`), *Common options* (`common`), *Arrangement and panels* (`grid` and every panel with its type, options, own alignment and layers; the other figure's panel ids are copied too), *Appearance* (`style`) and *Remembered looks* (`aesthetics`). The figure keeps its id, title and enabled, and every part not ticked. The editor, the observation picker and the preview follow (after the arrangement the first panel and layer are selected), and the status bar says what was copied (`copyFigureSettings`, `figureSettingParts`) |
 
-**The editor.** On top, always open: **Id** (unique among figures; it will
-name the figure's files; `id`), **Title** (blank = automatic: the id, the
+**The editor.** On top, always open: **Id** (unique among figures and not
+a plot's id either; it names the figure's files, `{Plot}`; `id`), **Title** (blank = automatic: the id, the
 observation, the event and the epoch count; a title of your own names no
 observation, so the top-left panel names it; `title`), **Enabled** (a
 disabled figure stays in the config and is still drawn by the preview, but a
-later phase will not generate it; `enabled`) and a gray summary (*"2 rows x 1
+run does not draw it; `enabled`) and a gray summary (*"2 rows x 1
 column, 2 panels; per unit"*). Then sections that collapse under their
 headers (**▼** / **►**), in this order:
 
@@ -919,13 +921,13 @@ sends the preview out of date. The format:
 
 | Control | Meaning | Default |
 | --- | --- | --- |
-| **Write figure files** | export each plot's pages (`Enabled`) | on |
+| **Write figure files** | export each plot's pages and each [figure's](#figures-tab) observations (`Enabled`) | on |
 | **Formats** | any of `png`, `eps`, `svg`, `pdf` | png, svg |
 | **Folder**, **Browse...** | a folder pattern with `{OutputFolder}` (each dataset's output folder), `{OutputRoot}`, `{Root}`, `{Name}`, `{Date}` | `{OutputFolder}\analysis` |
-| **File names** | a file-name pattern with `{Name}` `{Plot}` `{Kind}` `{Group}` `{Unit}` `{Index}` `{Date}`. A paged plot adds `_p<page>` unless the pattern tells its pages apart ([Exported figure names](file-formats.md#exported-figure-names)) | `{Name}_{Plot}` |
+| **File names** | a file-name pattern with `{Name}` `{Plot}` `{Kind}` `{Group}` `{Unit}` `{Index}` `{Date}`. A paged plot adds `_p<page>` unless the pattern tells its pages apart ([Exported figure names](file-formats.md#exported-figure-names)). A figure writes a file set per observation: `{Plot}` is its id, `{Unit}` the observation's short label (`su12`, `ch7`, `dataset`), `{Index}` its number, and `_<Unit>` is added when the pattern names neither ([Figures in an export](EphysAnalysisConfig.md#figures-in-an-export)) | `{Name}_{Plot}` |
 | **Dpi (png)** | the PNG resolution | 150 |
 | **Overwrite existing** | off: a page whose files all exist is not written again | on |
-| **Size (cm)** | the figure's width and height (a page of many tiles is made taller) | 18 × 12 |
+| **Size (cm)** | the figure's width and height (a page of many tiles is made taller, and a figure's page grows with its rows: 3.5 cm each plus 2 cm) | 18 × 12 |
 
 **Report** (config `Report`):
 
@@ -943,14 +945,17 @@ sends the preview out of date. The format:
 | Button | Effect |
 | --- | --- |
 | **Validate** | lists the config's issues (Section, Field, Severity, Message) in the table; errors stop a run |
-| **Plan** | one row per ticked dataset and plot (Dataset, Subject, Date, Plot, Kind, Source, Enabled, Reason): whether it will run, and why not ([skip reasons](#why-is-my-plot-skipped)), then one row per session plot and figure (Dataset `sessions: all`, or `sessions: <subject>`). Cheap: no signals or spikes are loaded |
-| **Run** | validates, then runs every enabled plot on every ticked dataset and then every enabled [session plot](#sessions-tab) over them, with a cancelable progress dialog: compute, export, report. A failing plot is an error row and the rest still run |
-| **Cancel** | stops before the next plot; the plots left are *canceled* |
+| **Plan** | one row per ticked dataset and plot (Dataset, Subject, Date, Plot, Kind, Source, Enabled, Reason): whether it will run, and why not ([skip reasons](#why-is-my-plot-skipped)), then one row per ticked dataset and [figure](#figures-tab) (`Plot` its id, Kind `figure`, Source what it is drawn for: `unit`, `channel` or `dataset`; the Reason is the figure's skip reason: no sorted units, no LFP extract, no line X, ...), then one row per session plot and figure (Dataset `sessions: all`, or `sessions: <subject>`). Every figure is listed, enabled or not. Cheap: no signals or spikes are loaded, so a unit filter or channel list that leaves nothing to draw shows only when the figure runs |
+| **Run** | validates, then runs every enabled plot and then every enabled figure on every ticked dataset, and then every enabled [session plot](#sessions-tab) over them, with a cancelable progress dialog: compute, export, report. A figure is drawn once per observation (a unit, a channel or the dataset), a page each, and the dialog names the observation (`<dataset>: <figure> (3/12)`). A failing plot or figure is an error row and the rest still run |
+| **Cancel** | stops before the next plot or figure observation; what is left (the rest of that figure's observations too) is *canceled* |
 | **Open report**, **Open figure folder** | after a run: the report files written, and the first dataset's figure folder. After a run with session plots the button's tooltip names the sessions folder (`Export.SessionsFolder`) too; the button itself still opens the first dataset's folder |
 
-The results table has one row per dataset and plot: `Dataset`, `Subject`,
+The results table has one row per dataset and plot or figure: `Dataset`, `Subject`,
 `Date`, `Plot`, `Kind`, `Status` (`done`, `skipped`, `error`, `canceled`), `Message`,
-`Files`, `Seconds`. The label above it counts each status. A session plot's
+`Files`, `Seconds`. A figure's row has `Kind` `figure` and, when it is done,
+`<n> observation(s)` as its `Message` and every observation's files in `Files`;
+it is `skipped` with the reason, or with `no observation` when its unit filter or
+channel list leaves nothing. The label above it counts each status. A session plot's
 rows read `sessions: all` (or `sessions: <subject>`, or `sessions: <subject> /
 <trial group>`) in the `Dataset` column, with the Subject and Date blank, and
 list its figure files and, with `Export.Data.Enabled`, its data file.
@@ -1437,6 +1442,7 @@ results, on the Log tab and in the report.
 | previews | `refreshAlignPreview`, `refreshPreview`, `autoPreview`, `onPreviewPage`, `setPreviewState` (the badge and the busy card; its icons in `analysis/icons/status`), `onCancelPreview` |
 | epoch diagram | `onShowEpochs`, `refreshEpochDiagram`; the window itself is `analysis/EpochDiagram.m` |
 | Figures tab | `buildFiguresTab`; the list `refreshFigureList`, `onFigureSelected`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure`; the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `gotoFigureSection` and `onKeyPress` (Ctrl+1 ... Ctrl+9, Ctrl+0), `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`; the arrangement `drawFigureSchematic`, `onPanelSelected`, `onAddPanel`, `onRemovePanel`, `onMovePanel`, `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `removePanel` and `movePanel`; a structural edit ends in `private/commitFigureEdit`); the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`); the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoPreviewToggled`, `onCancelFigurePreview`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); the epoch diagram's figure mode is `onShowEpochs("figure")`; the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
+| figures from plots, copying figures | `onConvertPlotToFigure` (the Plots tab's **Convert to figure**: `EphysAnalysisConfig.convertPlotToFigure`, `plotToFigure`), `onCopyFigureSettings` (the Figures tab's **Copy from...**: `private/pickFigureSettings`, then `analysis/copyFigureSettings` with `analysis/figureSettingParts`) |
 | Sessions tab | `buildSessionsTab`; the list `refreshSessionList`, `onSessionPlotSelected`, `onAddSessionPlot`, `onRemoveSessionPlot`, `onDuplicateSessionPlot`, `onMoveSessionPlot`; the editor `gatherSessionEditor` / `applySessionEditor`, `syncSessionEditor` (what shows), `layoutSessionEditor`, `onSessionSectionToggled`, `gotoSessionSection` and `onKeyPress` (Ctrl+1 ... Ctrl+3); the preview `refreshSessionPreview` and `drawSessionPreview`, `autoSessionPreview`, `onSessionAutoPreviewToggled`, `onSessionPreviewPage`, `onSessionGroupChanged`, `onCancelSessionPreview`, `rememberSessionAesthetics`, `setSessionPreviewState` (over `private/showPreviewState`, which `setPreviewState` shares); the dialogs `onPickSessionDatasets` (`private/pickSessionDatasets`), `onBrowseUnitMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`); the data `onSessionsToWorkspace` and `onSaveSessionData` (`private/collectSessionData`, `private/sessionPlotContext`); the session plots themselves are `analysis/` functions ([Across sessions](EphysAnalysis.md#across-sessions)) |
 | plot designs | `refreshDesigns` (the Design menu and list; `PlotDesign.listen` keeps them current), `onDesignChosen`, `onSaveDesign`, `onImportDesign`, `onDeleteDesign`, `onDesignsFolder`; the designs themselves: `PlotDesign`, `analysis/designs` |
 | running | `onValidate`, `onPlan`, `onRunExport`, `onCancelRun` |
@@ -1562,6 +1568,21 @@ section; the last **Remove** leaves the editor and preview empty. The grid
 editing (`placePanel`, `removePanel`, `movePanel`), the compute and the
 render are `test_EphysAnalysisFigures`
 ([Tests](EphysAnalysisConfig.md#tests)).
+
+Its section 5e drives **Convert to figure** and the figures' **Copy from...**.
+With a PSTH plot selected **Convert to figure** is on and **Copy from...** under
+the figures is off (no figure). The click adds `psth_1_fig`, equal to
+`plotToFigure`'s, leaves the plot, opens and selects the figure on the Figures
+tab with the status bar saying `Converted psth_1 to figure psth_1_fig` and
+previews it at once, one axes and one schematic patch per panel. A rate plot is
+not converted: the status bar says why and the tab stays. With a second figure,
+**Copy from...** is on; `From=` and `Parts="style"` copy the appearance alone
+(the panels and common options stay, the status bar names the part and the
+preview follows), and the window, answered from a timer, copies the parts ticked
+(common options and arrangement), after which `psth_1_fig` holds the other
+figure's panel and common bins. The converter itself is `test_plotToFigure`
+([Tests](EphysAnalysisConfig.md#tests)); figures in plans, runs, exports and
+reports are section 11 of `test_EphysAnalysisRunner`.
 
 <!-- wiki
 ## Related

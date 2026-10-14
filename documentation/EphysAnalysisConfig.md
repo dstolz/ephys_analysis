@@ -42,7 +42,7 @@ keep the result (`cfg = cfg.addPlot(...)`, `cfg = cfg.save(...)`).
 | `Name`, `Description` | text; `Name` (default `"Untitled"`) fills `{Name}` in the report title |
 | `Source`, `Defaults`, `Export`, `Report` | sections (structs), coerced on assignment |
 | `Plots` | struct array, one entry per plot, in run and report order; a cell array (what `jsondecode` gives for plots whose fields differ) is accepted too |
-| `Figures` | struct array, one entry per [figure](#figures): one observation's panels (a unit, a channel or the dataset) on a grid. Its ids are a namespace of their own (`EphysAnalysisConfig:DuplicateFigureId`; a figure's panel ids `EphysAnalysisConfig:DuplicatePanelId`); a cell array is accepted as for `Plots`. Figures are previewed only in this release: a run does not draw them |
+| `Figures` | struct array, one entry per [figure](#figures): one observation's panels (a unit, a channel or the dataset) on a grid. Its ids are unique among figures (`EphysAnalysisConfig:DuplicateFigureId`; a figure's panel ids `EphysAnalysisConfig:DuplicatePanelId`) and, as `{Plot}` writes them, distinct from the plots' ids, as both name files; a cell array is accepted as for `Plots`. A run draws the enabled figures, a page per observation ([Export](#export), [Report](#report)) |
 | `SessionPlots` | struct array, one entry per [session plot](#session-plots): one plot drawn over several datasets and merged. Its ids are a namespace of their own (`EphysAnalysisConfig:DuplicateSessionPlotId`); a cell array is accepted as for `Plots` |
 | `File`, `LoadWarnings` | transient: where it was loaded from / saved to; the unknown fields `load` dropped |
 | `Schema`, `Version`, `Sections`, `Kinds`, `SpikeSources`, `SignalSources`, `FigureSources`, `ObserveKinds`, `WaveformLocations`, `ListFields` | constants (`FigureSources`: what a figure's layer reads, `ObserveKinds`: what a figure is drawn for; `Figures` is a list like `Plots`, not one of the four `Sections`). The session plots' choices: `SessionKinds` (the plot kinds that can be merged: `psth`, `raster`, `evoked`, `rate`, `tuning`, `behavior`, `heatmap`, `waveforms`), `SessionSeries`, `SessionMatches`, `SessionErrors`, `SessionData`, `SessionTrialGroups`, `SessionFacets`, `SessionColorOrders` |
@@ -53,6 +53,7 @@ keep the result (`cfg = cfg.addPlot(...)`, `cfg = cfg.save(...)`).
 | `plotFor(id)` | a plot (by id or index) with every `"default"` resolved from `Defaults`, `units.source` set to the plot's `source` and an empty layout replaced by the kind's default: what the runner draws |
 | `addFigure(templateOrStruct, Id=)`, `removeFigure(id)`, `figureIndex(id)`, `figureIds()`, `enabledFigures()` | the figure list. `[cfg, id] = cfg.addFigure("rasterPsth")` (a template's name from `figureTemplates()`, or a partial figure struct) returns the new id too, `"figure_<n>"` when none is given; `removeFigure` of an unknown id is `EphysAnalysisConfig:NoFigure`; `figureIndex` is 0 for one |
 | `figureFor(idOrIndex)` | a figure with every `"default"` resolved and each panel's type facts and each layer's category added: what the compute draws ([Resolving a figure](#resolving-a-figure)). `EphysAnalysisConfig:NoFigure` for an unknown one |
+| `EphysAnalysisConfig.plotToFigure(cfg, plotId)`, `cfg.convertPlotToFigure(plotId)` | the figure that draws what a plot draws, and the notes on what it could not carry; `convertPlotToFigure` appends it as `<plot>_fig` and returns `[cfg, id, notes]` ([Converting a plot](#converting-a-plot)) |
 | `addSessionPlot(plotIdOrStruct, Id=)`, `removeSessionPlot(id)`, `sessionPlotIndex(id)`, `sessionPlotIds()`, `enabledSessionPlots()` | the session plot list. `[cfg, id] = cfg.addSessionPlot("psth_stim")` (a base plot's id, or a partial session plot struct) returns the new id too, `"<plot>_sessions_<n>"` when none is given; `removeSessionPlot` of an unknown id is `EphysAnalysisConfig:NoSessionPlot`; `sessionPlotIndex` is 0 for one |
 | `sessionPlotFor(idOrIndexOrStruct)` | the *effective spec* of a session plot: `plotFor(sp.plot)` with `enabled = true`, `id = sp.id`, `title` and `layout` replaced when the session plot sets them, and with `trialGroups "pool"` the trial groups cleared (`selection.groupBy = []`, and a tuning or behavior plot's `seriesParam = ""`: the sessions are the series). The session plot's own look travels as `spec.sessionAesthetics`, which `renderPlot` applies after the base plot's `aesthetics`. `EphysAnalysisConfig:NoSessionPlot` for an unknown session plot, `EphysAnalysisConfig:NoPlot` when its base plot does not exist |
 | `isequalConfig(other)` | same values (NaN equal) |
@@ -382,7 +383,9 @@ A plot's `units` (its `source` is the plot's `source`). Sorted units
 `Plots` is a list of plot entries (`EphysAnalysisConfig.defaults("Plot")`).
 Every field exists on every entry; a kind ignores the fields it does not
 use. To combine panels of different types for one unit or channel (a raster
-over a PSTH over an LFP trace, say), design a [figure](#figures) instead.
+over a PSTH over an LFP trace, say), design a [figure](#figures) instead; **Convert to
+figure** in the app (`convertPlotToFigure`) starts one from a plot
+([Converting a plot](#converting-a-plot)).
 
 | Field | Default | Meaning |
 | --- | --- | --- |
@@ -988,7 +991,7 @@ with them:
 `Figures` is a list of *figures*: panels of different types (a raster, a PSTH, a
 signal trace, a probe map, ...) arranged on a grid and drawn for **one
 observation** at a time. (Here a figure is an entry of `Figures`; the figure
-files that [`Export`](#export) writes are the pages of [plots](#plots).) A plot
+files that [`Export`](#export) writes hold the pages of [plots](#plots) and of figures.) A plot
 draws one kind of data for a page of units or channels; a figure puts several
 kinds side by side for one unit, for example a raster flush above its PSTH
 above the LFP of its own channel, with the stimulus offset marked on every
@@ -1011,14 +1014,17 @@ which every panel linked to it draws ([Common options](#common-options)).
 
 The preview draws one observation of one dataset: it reads one unit's spikes
 and one extract column, not a page of units, so an edit redraws quickly.
-Drawing the same figure for every observation and dataset it selects
-(**Generate**) is a later phase. In this release figures are previewed only:
-`EphysAnalysisRunner.run` and `plan`, the reports and the generated scripts
-ignore `Figures`, and the [validation](#validation) rule that some plot or
-session plot must be enabled still counts only those, so a config that holds
-figures and nothing else is refused by it. What exists is the config below,
-`figureObservations`, `EphysAnalysisRunner.computeFigure` and `renderFigure`,
-which the app's [Figures tab](EphysAnalysisApp.md#figures-tab) and a script both call:
+A run draws the same figure for every observation it selects, one page each:
+`EphysAnalysisRunner.run`, `runDataset` and `plan` take `Figures=` beside
+`Plots=`, the figure files are [exported](#export) and the figures appear in the
+[report](#report), the generated scripts and the pipeline's Analysis step run
+them too, and the [validation](#validation) rule that something must be enabled
+counts an enabled figure. Starting that run from the app's Figures tab
+(**Generate**) is a later phase; the Export tab's **Run** already draws the
+enabled figures. The pieces are the config below, `figureObservations`,
+`figureCompute` (`EphysAnalysisRunner.computeFigure` wraps it) and
+`renderFigure`, which the app's [Figures tab](EphysAnalysisApp.md#figures-tab), a
+run and a script all call:
 
 ```matlab
 cfg = EphysAnalysisConfig();
@@ -1033,6 +1039,7 @@ src = runner.source(1);                                     % the first dataset,
 T = figureObservations(src, spec);                          % its units in probe order, one row each
 F = runner.computeFigure(src, spec, Observation=T(3, :));   % the third unit: no graphics
 h = renderFigure(F, spec, figure);                          % draw it
+R = runner.run(Figures=id, Plots=string.empty(1, 0));       % or this figure alone, every unit of every dataset, a page each
 ```
 
 `EphysAnalysisConfig.defaults("Figure" | "FigureCommon" | "Observe" | "Panel" | "Layer")`
@@ -1042,7 +1049,7 @@ give the fields below; every field exists on every entry.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `id` | auto | unique among figures (a namespace of its own: it may equal a plot's id; `EphysAnalysisConfig:DuplicateFigureId`), file-name safe and distinct once sanitized, as a plot's. Blank: `figure_<n>` |
+| `id` | auto | unique among figures (`EphysAnalysisConfig:DuplicateFigureId`), file-name safe and distinct once sanitized, as a plot's; it may not equal a plot's id either, since both fill `{Plot}` (a [validation](#validating-figures) error). Names the exported files (`{Plot}`). Blank: `figure_<n>` |
 | `enabled` | `true` | unticked, it stays in the config: `figureSkipReason` says "disabled", and `computeFigure` still computes it when asked, as the preview does |
 | `title` | `""` | `""` = automatic: the id, the observation's label, the aligned event and the epoch count (a dataset figure names no observation, a figure with no aligned panel no event); the dataset is the subtitle. With a title of your own, the top-left panel names the observation |
 | `observe` | below | what the figure is drawn for |
@@ -1061,7 +1068,7 @@ give the fields below; every field exists on every entry.
 | `rowHeights`, `colWidths` | `[]` | `[]` = equal; else one positive relative size per row / column, e.g. `[1.5 1 1]`. The drawing is a tiled layout of equal tiles, so a size is rounded to quarter steps of the smallest, and at most 32 tiles are used a side: `[1.5 1 1]` is 3 : 2 : 2 tiles, `[1 1.37]` draws as `[1 1.25]` |
 | `spacing` | `"tight"` | the tiled layout's `TileSpacing`: `"loose"`, `"compact"`, `"tight"` or `"none"` (`"none"` draws stacked time panels flush) |
 
-`observe` (what the preview's picker lists and what Generate will repeat the figure over):
+`observe` (what the preview's picker lists and what a run repeats the figure over):
 
 | Field | Default | Meaning |
 | --- | --- | --- |
@@ -1070,7 +1077,7 @@ give the fields below; every field exists on every entry.
 | `units` | [UnitSelection](#unitselection) without `source` | unit observations: the filter that picks the units the figure can be drawn for (classes, quality, response test, ids, channels, shanks, `maxUnits`) |
 | `signal` | `"LFP"` | channel observations: which extract (`"LFP"`, `"MUA"`, `"SPIKE"`, `"AUX"`) |
 | `channels` | `[]` | channel observations: the extract's columns (`[]` = all) |
-| `datasets` | `"ticked"` | the datasets Generate will draw the figure for: `"ticked"` (the run's) or `"list"` (`datasetKeys`). A preview draws the dataset it is given |
+| `datasets` | `"ticked"` | the datasets the Figures tab's Generate (a later phase) will draw the figure for: `"ticked"` (the run's) or `"list"` (`datasetKeys`). A preview draws the dataset it is given, and `EphysAnalysisRunner.run` the datasets it is given (`Datasets=`), whatever this says |
 | `datasetKeys` | none | `"list"`: the datasets' keys (the Data tab's **Key** column) |
 
 `addFigure` takes a template's name (`EphysAnalysisConfig.figureTemplates()`) or
@@ -1413,8 +1420,8 @@ false (validate reports the type).
 ### Observations and skip reasons
 
 `T = figureObservations(src, spec)` lists what dataset `src` (`runner.source(k)`)
-offers the figure `spec`, one row each: the preview's picker, and what Generate
-will repeat the figure over. By `spec.observe.kind`:
+offers the figure `spec`, one row each: the preview's picker, and the
+observations a run draws a page for. By `spec.observe.kind`:
 
 - `"unit"`: the units `observe.units` keeps (`selectUnits`, with the figure's
   `ref` and `selection`; only their table is used, the spike trains stay in the
@@ -1490,6 +1497,12 @@ its checkpoints, between steps, panels and layers and inside the long calls; aft
 `cancel()` the next one throws `EphysAnalysisRunner:Canceled`. Other errors:
 `EphysAnalysisRunner:NoObservation` (no `Observation` given and the dataset offers
 none).
+
+`F = figureCompute(src, spec, Observation=obs, Check=chk)` is the same compute as
+a free function, with no runner: `runner.computeFigure` calls it, adding the
+checkpoint while `PollFcn` is set, and the generated standalone script calls it
+directly ([Generated scripts](EphysAnalysis.md#generated-scripts)). Its errors
+are `computeFigure`'s.
 
 ### renderFigure
 
@@ -1593,7 +1606,8 @@ The rules, by severity (the full list of the other sections is under
 Errors:
 
 - the figure's id is not empty, has none of `\ / : * ? " < > |`, and stays distinct
-  from the other figures' once `{Plot}` has sanitized it (case-blind);
+  from the other figures' and from the plots' once `{Plot}` has sanitized it
+  (case-blind): a figure's files are named with `{Plot}` as a plot's are;
 - the figure's own `ref`, `window` and `selection` are valid, by the plots' rules
   (at most 2 `groupBy` parameters);
 - `observe`: `kind` is `auto`, `unit`, `channel` or `dataset`; `source` is `units` or
@@ -1664,6 +1678,90 @@ Whether a dataset can draw the figure (units, signals, lines, trial parameters, 
 probe) is not a config error: `figureSkipReason` says why a figure or a layer is
 skipped on a dataset ([above](#observations-and-skip-reasons)).
 
+### Converting a plot
+
+`[fig, notes] = EphysAnalysisConfig.plotToFigure(cfg, plotId)` makes the figure
+that draws what a plot of `Plots` draws, with the plot's alignment, unit filter,
+bins, baseline and look, and `notes`, a string row of what the figure could not
+carry (one sentence each; nothing is dropped silently). `[cfg, id, notes] =
+cfg.convertPlotToFigure(plotId)` appends the figure to `Figures`; the plot stays.
+The app's **Convert to figure** button calls it
+([Plots tab](EphysAnalysisApp.md#plots-tab)).
+
+```matlab
+[cfg, id, notes] = cfg.convertPlotToFigure("psth_stim");   % id = "psth_stim_fig"
+disp(notes.')                                              % e.g. "PSTH stacking (stack) is not available in figures yet: ..."
+any(cfg.validate(CheckPaths=false).Severity == "error")    % false: the figure validates
+```
+
+**Figure level.** The id is `<plot>_fig`, or `<plot>_fig2`, `_fig3`, ... when a
+plot or figure already has it (case ignored): a figure may not share a plot's id,
+as both name files through `{Plot}` ([validation](#validating-figures)).
+
+| Figure field | Taken from the plot |
+| --- | --- |
+| `enabled`, `title`, `aesthetics` | the plot's |
+| `ref`, `window`, `selection` | the plot's; `"default"` stays `"default"` |
+| `style` | the plot's, with `MaxTiles`, `TileSpacing`, `XLim`, `YLim` and `CLim` back at their defaults (a figure does not use them). `YLim` goes to the data panel's `options.yLim` and `CLim` to its `options.cLim` |
+| `common` | the plot's `bins`, `measure`, `baseline`, `maskAfterStop` and `waveform`; every panel is linked to them ([Common options](#common-options)) |
+| `observe` | below. The plot's `source` (`units` or `detected`) is the layers' source and, for a figure drawn per unit, `observe.source`; its unit filter is `observe.units` when the figure observes units, else the fixed layer's `units` |
+| `grid` | one column, a row per panel top to bottom; `spacing "none"` (flush) for a unit's raster, PSTH and aux panels |
+
+**By plot kind.** The second column is what the figure is drawn for
+(`observe.kind`), the third its panels, top to bottom, and their layers.
+
+| Plot kind and layout | Observe | Panels and layers |
+| --- | --- | --- |
+| `psth`, grid | unit (`source`, the `units` filter) | a raster (when `withRaster`; its sort options; `rasterEvents` as events layers drawn as marks) over a PSTH (`histStyle`, `fill`, `fillAlpha`, `normalize`, `yLim`), each with a layer following the unit; equal heights (with an aux panel, the unit's panels are twice as high as it: 2 : 2 : 1) |
+| `psth`, overlay | dataset | one PSTH panel with a fixed `units` layer (the filter) and `aggregate "mean"` |
+| `raster` | unit | a raster panel with the marks layers |
+| `evoked`, grid | channel (`signal` = the plot's `source`, `channels` = the plot's) | one continuous panel following the channel |
+| `evoked`, stack | dataset | a continuous panel with a fixed layer of the channels, `aggregate "each"`, `display "stacked"`, `stackSpacing` = `Style.StackSpacing` |
+| `evoked`, butterfly | dataset | as the stack, `display "lines"` |
+| `heatmap` | dataset | a heat map panel with a fixed layer (the units filter, or the channels), `order`, `group` 1, `cLim` |
+| `probemap` | dataset | a probe map panel with a fixed layer, `value`, `cLim` |
+| `corrmap` | dataset | a correlation map panel with a fixed layer, `metric`, `correlation`, `fisherZ`, `group` 1, `cLim` |
+| `waveforms`, grid | unit | a waveforms panel following the unit; `common.waveform` = the plot's waveform settings |
+| `waveforms`, probe | dataset | a waveforms panel with a fixed layer |
+| `rate`, `tuning`, `behavior` | none | not converted: `EphysAnalysisConfig:NotConvertible` (no panel type draws them yet) |
+
+An unknown plot id is `EphysAnalysisConfig:NoPlot`. A PSTH's or raster's **aux
+signal** (`aux.mode` not `off`) becomes a continuous panel of a fixed `AUX` layer
+below the unit's panels (above them for `placement "above"`), half as high as
+each of them: `"channels"` is `aggregate "each"`, `"magnitude"` is
+`aggregate "mean"`; the aux `baseline`, `statistic`, `transform`, `errorType` and
+`yLim` become that panel's own options (it is not linked to the common
+baseline); `channels` and `display` carry over. A PSTH with a waveform inset keeps
+it in the PSTH panel (the raster, which would otherwise draw it too, is unlinked
+from the common options and keeps the plot's `maskAfterStop`).
+
+**Notes.** What the figure does not hold gives a note, one sentence each:
+
+- an auROC baseline becomes `none` (its `auroc` settings are not carried);
+- a baseline mode the panel cannot take (`zscore` or `percent` on a continuous or
+  correlation panel or a heat map of a signal) becomes `none`;
+- the aux magnitude became the mean of the AUX channels;
+- an aux `placement "over"` (on the right y axis) becomes `below`;
+- the aux heat map display becomes `lines`;
+- the aux `colorBy` and `byGroup` are not carried (the panel colors its traces by
+  trial group, one trace each);
+- `stack` and `stackRaster` are not carried (the groups are overlaid);
+- an overlay's `withRaster`, event marks and waveform inset are not carried (an
+  overlay of several units draws none);
+- event marks of a plot without a raster (`withRaster` off) are not carried;
+- a butterfly's one panel per trial group is not available: the channels are lines
+  in one panel;
+- a heat map's `modulation` order (auROC) becomes `probe`;
+- a heat map or correlation map draws one trial group (group 1) when the selection
+  groups its trials, where the plot drew one per group: set the panel's group, or
+  add a panel per group;
+- the waveforms probe layout is not available: the units' waveforms are drawn in
+  one panel;
+- `MaxTiles`, `TileSpacing` and `XLim` are not used (a figure draws one observation
+  per page, takes `grid.spacing` and shows the epoch window), nor are `YLim` and
+  `CLim` when no panel of the figure takes them;
+- the plot's text note and overlays are not carried yet (figures have none).
+
 ## Export
 
 | Field | Default | Meaning |
@@ -1671,10 +1769,10 @@ skipped on a dataset ([above](#observations-and-skip-reasons)).
 | `Enabled` | `true` | write figure files (the runner's default for `run(Export=)`) |
 | `Formats` | `["png" "svg"]` | any of `png`, `eps`, `svg`, `pdf` |
 | `Folder` | `{OutputFolder}\analysis` | a [folder pattern](#file-name-tokens) |
-| `FilenamePattern` | `{Name}_{Plot}` | a [file-name pattern](#file-name-tokens): `{Name}` (dataset) `{Plot}` `{Kind}` `{Group}` `{Unit}` `{Index}` `{Date}`; a paged plot adds `_p<page>` unless the pattern tells its pages apart: `{Index}`, or `{Unit}` with a unit filled in (a paged evoked grid's `{Unit}` is `all` on every page) |
+| `FilenamePattern` | `{Name}_{Plot}` | a [file-name pattern](#file-name-tokens): `{Name}` (dataset) `{Plot}` `{Kind}` `{Group}` `{Unit}` `{Index}` `{Date}`; a paged plot adds `_p<page>` unless the pattern tells its pages apart: `{Index}`, or `{Unit}` with a unit filled in (a paged evoked grid's `{Unit}` is `all` on every page). A [figure](#figures) writes a file set per observation instead of pages: [below](#figures-in-an-export) |
 | `Dpi` | 150 | PNG resolution |
-| `FigureSizeCm` | `[18 12]` | figure size `[width height]`; a grid page is made taller when its rows need it: 3 cm a row of tiles (4.5 cm for PSTHs with rasters) plus 1.5 cm |
-| `Overwrite` | `true` | `false`: a page whose files all exist is not written again, nor drawn unless the report needs its image (HTML) or page (PDF); a session plot's data file is not replaced either (a note in the row's message) |
+| `FigureSizeCm` | `[18 12]` | figure size `[width height]`; a grid page is made taller when its rows need it: 3 cm a row of tiles (4.5 cm for PSTHs with rasters) plus 1.5 cm; a figure's page, 3.5 cm for each row of its arrangement plus 2 cm |
+| `Overwrite` | `true` | `false`: a page (a figure's observation) whose files all exist is not written again, nor drawn unless the report needs its image (HTML) or page (PDF); a session plot's data file is not replaced either (a note in the row's message) |
 | `SessionsFolder` | `{OutputRoot}\analysis\sessions` | where the [session plots'](#session-plots) figures go: a [folder pattern](#file-name-tokens) whose tokens are the first session's (`{OutputFolder}` is one dataset's folder, so a warning there). Named with `FilenamePattern`, `{Name}` being the facet (`all`, or the subject) and `{Plot}` the session plot's id, then `_<trial group>` for `trialGroups "each"` |
 | `Data.Enabled` | `false` | write each session plot's data as a `.mat` file in a run ([format](file-formats.md#session-data-mat)); the app's **To workspace** and **Save .mat...** work either way |
 | `Data.Folder` | `{OutputRoot}\analysis\data` | a folder pattern, as `SessionsFolder` |
@@ -1684,6 +1782,37 @@ skipped on a dataset ([above](#observations-and-skip-reasons)).
 `exportFigure` writes PNG with `exportgraphics` at `Dpi`, PDF and EPS as
 vector graphics (`exportgraphics`, `ContentType="vector"`) and SVG with
 `print -dsvg -vector`, creating the folder.
+
+### Figures in an export
+
+A [figure](#figures) is drawn once per observation (a sorted unit, a channel of
+a signal, or the dataset), and each observation is one page and one file set
+(`Formats`), named by `figureOutputName` from `FilenamePattern` with these
+token values (the folder pattern is the plots'):
+
+| Token | Value for a figure's observation |
+| --- | --- |
+| `{Name}` | the dataset |
+| `{Plot}` | the figure's id |
+| `{Kind}` | `figure` |
+| `{Group}` | `all` |
+| `{Unit}` | the observation's short label: a sorted unit's label before the recording suffix (`su12` of `su12_RAT1_260918T1015`), a detection's whole label (its channel's name, `Shank_1`), else `u<unitId>`; a channel `ch<N>`, `N` its recording channel (an AUX channel: its label); the dataset `dataset` |
+| `{Index}` | the observation's number, 1 to the count |
+| `{Date}` | today (yyyyMMdd) |
+
+- A figure has no `_p<page>`. When it has more than one observation and the
+  pattern names neither `{Unit}` nor `{Index}`, `_<Unit>` is added to the name, so
+  the default `{Name}_{Plot}` writes `SYNTH-01_..._card_su12.png`,
+  `..._card_su14.png`, ... A one-observation figure, such as a dataset figure,
+  keeps `<Name>_<id>.png`.
+- A figure's page is `FigureSizeCm(1)` wide and 3.5 cm tall for each row of its
+  arrangement (`grid.rows`) plus 2 cm for the title and x label, never below
+  `FigureSizeCm(2)`.
+- With `Overwrite` off an observation whose files all exist is neither computed
+  nor drawn again, unless the report needs its image or page.
+- A layer or panel that cannot be computed for one observation (no sorted unit
+  left, no event in the window) is drawn as a note in the page, not as a failure;
+  a figure that fails is an `error` row and the others still run.
 
 ## Report
 
@@ -1701,6 +1830,22 @@ vector graphics (`exportgraphics`, `ContentType="vector"`) and SVG with
 | `IncludeParameters` | `true` | HTML: each plot's parameters, folded |
 | `IncludeConfig` | `true` | HTML: the config JSON at the end, folded |
 
+A [figure](#figures) is one entry per dataset in the report, kind `figure`,
+whatever its number of observations: its pages are the observations, one image
+(HTML) and one page (PDF) each, in the order of `figureObservations`, under one
+caption from `figureCaption`. The caption names the figure (and its title), how
+many observations of what it was drawn for (sorted units and the classes the
+filter keeps, detections, the extract's channels, or the dataset), the panel
+types in order, and, when a panel with an enabled layer is aligned, the event,
+the window and the trial grouping, for example:
+
+> rp: 12 observations (sorted units: su, mua) of RAT1_260918; panels: raster,
+> PSTH; aligned to Stim onset; window [-0.2 0.8] s; groups by Depth.
+
+The entry links the exported files and, with `IncludeParameters`, folds the
+figure's resolved spec under it. A figure the dataset cannot draw (or that fails)
+is listed with its status and message, as a plot is.
+
 ## File-name tokens
 
 `figureFileName` fills the patterns, of two kinds:
@@ -1708,7 +1853,7 @@ vector graphics (`exportgraphics`, `ContentType="vector"`) and SVG with
 | Pattern | Tokens |
 | --- | --- |
 | folder (`Export.Folder`, `Report.Folder`) | `{OutputFolder}` (the dataset's output folder), `{OutputRoot}`, `{Root}` (`Source.Root`), `{Name}` (the dataset), `{Date}` (yyyyMMdd) |
-| file name (`Export.FilenamePattern`) | `{Name}` (the dataset), `{Plot}` (the plot id), `{Kind}`, `{Group}` (`all`: a page holds every group), `{Unit}` (the first unit on a page of a paged psth, raster or tuning grid, else `all`), `{Index}` (the page), `{Date}` (yyyyMMdd) |
+| file name (`Export.FilenamePattern`) | `{Name}` (the dataset), `{Plot}` (the plot id), `{Kind}`, `{Group}` (`all`: a page holds every group), `{Unit}` (the first unit on a page of a paged psth, raster or tuning grid, else `all`), `{Index}` (the page), `{Date}` (yyyyMMdd). For a figure's observation (`figureOutputName`): `{Plot}` is the figure's id, `{Kind}` is `figure`, `{Unit}` the observation's short label (`su12`, `ch7`, `dataset`) and `{Index}` its number |
 
 - `{OutputRoot}` is `Source.OutputRoot`, else `Source.Root`, else the
   folder above the first dataset's output folder.
@@ -1718,6 +1863,9 @@ vector graphics (`exportgraphics`, `ContentType="vector"`) and SVG with
 - A plot with several pages (a grid with more units or channels than
   `Style.MaxTiles`) gets `_p<page>` added, unless the pattern tells its
   pages apart (`Export` above).
+- A figure has a file set per observation and no `_p<page>`: when it has several
+  and the pattern names neither `{Unit}` nor `{Index}`, `_<Unit>` is appended
+  ([Figures in an export](#figures-in-an-export)).
 - An unknown token is `figureFileName:UnknownToken`; a brace without its
   pair, or a file name holding `\ / : * ? " < > |`, is
   `figureFileName:BadPattern`.
@@ -1748,14 +1896,14 @@ with 20 units and 16 tiles per page is written as
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
 | Defaults, Plots | the event reference, window and selection are valid: known values, `n` a whole number >= 1, `0 <= minDurationSec <= maxDurationSec`, `timeRange` ordered, a finite `offsetSec`, `offsetParamUnit` ms or s, each sequence step's relation, line, edge, `n`, positive `maxGapSec` and lengths, an `alignStep` of 0, `Inf` or a followedBy step (the stop's and each raster-mark sequence's too), finite `pre` and `post`, `pre <= post` in a fixed window, a stop event in a `"between"` window, known response words and pairing flags, at most 2 distinct `groupBy` parameters, `maxGroups` and `trials` whole numbers >= 1 | error |
 | Defaults, Plots | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
-| Plots | at least one plot or session plot enabled; ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; `measure` rate / count / probability; tuning names its parameter; behavior names `param` and `yParam` (`"stop"` with a stop event), its `xScale` is category / linear and the violin layout has `violinplot`; a psth / raster `rasterSortOrder` ascending / descending, a `rasterSortEvent` (a valid event reference) with `rasterSort "event"`, and each of its `rasterEvents` a valid event reference with a known marker and a positive size; `BinSec > 0`, `SmoothSec >= 0` where bins are used; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak / allPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order (`"modulation"` only with the auROC baseline); the auROC settings (method, windows, whole-bin window and step, call window, cutoff, threshold, test, `nResamples`, correction, alpha, `modulatedOnly` with a cutoff) and the toolbox they need; corrmap metric and correlation; `maxUnits >= 1`; an enabled response test of spikes: its test, `param` for tuning / either / both, `baseline` and `window` ordered, direction, correction, alpha in (0, 1], the auROC settings of a test `"auroc"` (with a cutoff) and the Statistics and Machine Learning Toolbox; a `waveform` mode off / mean / subsample / both and, when not off, its location, `scale` in (0, 3] and a whole `maxSpikes >= 1`; an `aux` mode off / channels / magnitude and, when not off, its `placement` below / above / over, `display` lines / stacked / heatmap, `statistic` mean / median, `transform` none / rectify, `colorBy` auto / group / channel, `errorType` off / sem / std / ci95 / iqr (`ci95` and `iqr` need the Statistics and Machine Learning Toolbox), whole `channels >= 1`, `baseline` none / subtract and, when subtracting, a `baselineWindow` `[b0 b1]` with `b0 < b1` that overlaps the epoch window; for a note with text, its `placement`, `align`, `valign`, `interpreter`, a numeric `rotation`, a positive or `NaN` `fontSize`, and `x` and `y` for `"custom"`; for each overlay, its `shape` line / region, `axis` x / y, a finite `value` (line) or two finite, different `from` and `to` (region), `panel` all / data / raster, `layer` over / under, a `lineStyle` among `-` `--` `:` `-.`, a positive `lineWidth` and `alpha` and `faceAlpha` within 0-1; `MaxTiles >= 1`, `TileSpacing` loose / compact / tight / none, `FontSize`, `LineWidth`, `SiteSize` positive; `ErrorType` sem / std / ci95 (`ci95` needs the Statistics and Machine Learning Toolbox where the plot draws it), a whole `ErrorResamples >= 1`, `ErrorFaceAlpha` 0-1 or NaN, `ErrorEdgeStyle` among `-` `--` `:` `-.`, a positive `ErrorEdgeWidth` | error |
+| Plots | at least one plot, figure or session plot enabled (`No plot, figure or session plot is enabled.`); ids that stay distinct once `{Plot}` has sanitized them (case-blind); the kind exists; the source, layout, window mode and baseline mode fit the kind; `measure` rate / count / probability; tuning names its parameter; behavior names `param` and `yParam` (`"stop"` with a stop event), its `xScale` is category / linear and the violin layout has `violinplot`; a psth / raster `rasterSortOrder` ascending / descending, a `rasterSortEvent` (a valid event reference) with `rasterSort "event"`, and each of its `rasterEvents` a valid event reference with a known marker and a positive size; `BinSec > 0`, `SmoothSec >= 0` where bins are used; a baseline window `[b0 b1]` with `b0 < b1`; probemap value, psth `histStyle` bar / line, `normalize` none / unitPeak / groupPeak / allPeak, `fillAlpha` 0-1 or NaN, `stackSpacing > 0`; heatmap order (`"modulation"` only with the auROC baseline); the auROC settings (method, windows, whole-bin window and step, call window, cutoff, threshold, test, `nResamples`, correction, alpha, `modulatedOnly` with a cutoff) and the toolbox they need; corrmap metric and correlation; `maxUnits >= 1`; an enabled response test of spikes: its test, `param` for tuning / either / both, `baseline` and `window` ordered, direction, correction, alpha in (0, 1], the auROC settings of a test `"auroc"` (with a cutoff) and the Statistics and Machine Learning Toolbox; a `waveform` mode off / mean / subsample / both and, when not off, its location, `scale` in (0, 3] and a whole `maxSpikes >= 1`; an `aux` mode off / channels / magnitude and, when not off, its `placement` below / above / over, `display` lines / stacked / heatmap, `statistic` mean / median, `transform` none / rectify, `colorBy` auto / group / channel, `errorType` off / sem / std / ci95 / iqr (`ci95` and `iqr` need the Statistics and Machine Learning Toolbox), whole `channels >= 1`, `baseline` none / subtract and, when subtracting, a `baselineWindow` `[b0 b1]` with `b0 < b1` that overlaps the epoch window; for a note with text, its `placement`, `align`, `valign`, `interpreter`, a numeric `rotation`, a positive or `NaN` `fontSize`, and `x` and `y` for `"custom"`; for each overlay, its `shape` line / region, `axis` x / y, a finite `value` (line) or two finite, different `from` and `to` (region), `panel` all / data / raster, `layer` over / under, a `lineStyle` among `-` `--` `:` `-.`, a positive `lineWidth` and `alpha` and `faceAlpha` within 0-1; `MaxTiles >= 1`, `TileSpacing` loose / compact / tight / none, `FontSize`, `LineWidth`, `SiteSize` positive; `ErrorType` sem / std / ci95 (`ci95` needs the Statistics and Machine Learning Toolbox where the plot draws it), a whole `ErrorResamples >= 1`, `ErrorFaceAlpha` 0-1 or NaN, `ErrorEdgeStyle` among `-` `--` `:` `-.`, a positive `ErrorEdgeWidth` | error |
 | Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a color (the default is used); a raster mark's `color` that is not a color (it gets its automatic one); a `waveform` mode on a plot that draws no unit tiles (an overlay, a plot of signals, a kind other than raster / psth / tuning / waveforms); an `aux` mode on a plot other than a psth or raster of spikes; `aux.placement "over"` on a stacked PSTH or with a heat map (drawn below); an `aux.errorType` other than off with a heat map (no band is drawn), or `"sem"` / `"std"` with the median; a note's `color` or `background` that is not a color (left to the design); an overlay's `color`, `faceColor` or `edgeColor` that is not a color (its default is drawn); an overlay's raster or data `panel` on a plot that draws no such panel (nothing is drawn); two overlays of a plot with one `name`; an `ErrorFaceColor` or `ErrorEdgeColor` that is not a color | warning |
 | SessionPlots | the id is not empty, has no `\ / : * ? " < > \|`, and stays distinct from the other session plots' once sanitized (case-blind); `datasets`, `facet`, `series`, `colorOrder`, `error`, `match` and `trialGroups` are known values and `data` holds only `results`, `epochs` and `signals`; `minSessions` a whole number >= 1; `match "mapping"` has a mapping file that exists (with `CheckPaths`), that reads and has a `cell` column; the base plot exists, is a kind that can be merged (`SessionKinds`) and has no auROC baseline; the `layout` fits its kind | error |
 | SessionPlots | `datasets "list"` with no `datasetKeys`; a mapping file with no column for a listed dataset key; `match` other than `"pool"` on a plot of signals, a heatmap, a waveforms or a behavior plot (ignored); a tuning or behavior plot's `seriesParam` with `trialGroups "pool"` (replaced by the sessions); `showMembers` with `series "session"`; `"combine"` on a PSTH drawn as bars (drawn as lines); a heatmap with `series` other than `"all"` (its rows are the session-units, or the channels averaged: ignored) | warning |
-| Figures | the figure id is not empty, file-name safe and distinct once sanitized; the figure's alignment is valid; `observe` (kind, source, signal, channels, `maxUnits`, datasets) and `grid` (rows, columns, relative sizes, spacing) hold known values; each panel has an id of its own, a known type, a place inside the grid that no other panel overlaps, and its own `ref` / `window` only when its type is aligned; the figure's common options (bins, measure, baseline, waveform), checked once, and a linked panel's type taking the common baseline mode; each enabled layer's source, binding, aggregate, channels, events (`eventsAs`, event reference, marker, size) and line style fit its panel type; a raster has rows, not marks alone; each type's options as drawn (a linked panel's common fields are the common options'); the style ([rules](#validating-figures)) | error |
+| Figures | the figure id is not empty, file-name safe and distinct once sanitized from the other figures' and from the plots' ids (both fill `{Plot}`: `Figure id "x" names the same files as a plot's id`); the figure's alignment is valid; `observe` (kind, source, signal, channels, `maxUnits`, datasets) and `grid` (rows, columns, relative sizes, spacing) hold known values; each panel has an id of its own, a known type, a place inside the grid that no other panel overlaps, and its own `ref` / `window` only when its type is aligned; the figure's common options (bins, measure, baseline, waveform), checked once, and a linked panel's type taking the common baseline mode; each enabled layer's source, binding, aggregate, channels, events (`eventsAs`, event reference, marker, size) and line style fit its panel type; a raster has rows, not marks alone; each type's options as drawn (a linked panel's common fields are the common options'); the style ([rules](#validating-figures)) | error |
 | Figures | no panels; cells no panel covers; a panel with no enabled layer, or with several on a type that draws one; an explicit unit or channel observation with no layer following it; `datasets "list"` with no keys; a signal layer following another signal's channel; a fixed raster or PSTH layer that may keep more than 8 units; a layer, mark or style color that is not a color ([rules](#validating-figures)) | warning |
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi` positive; `FigureSizeCm` two positive numbers; the folder and file-name patterns use known tokens, and the file-name pattern is not empty; `SessionsFolder` and `Data.Folder` are folder patterns, `Data.FilenamePattern` a file-name pattern, and `Data.MatVersion` is `-v7.3` or `-v7` | error |
-| Export | a file-name pattern without `{Plot}` while several plots are enabled (`{Kind}` is enough when the enabled plots all differ in kind); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |
+| Export | a file-name pattern without `{Plot}` while several plots and figures are enabled (`{Kind}` is enough when the enabled plots and figures all differ in kind, a figure's kind being `figure`); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |
 | Export | `{OutputFolder}` in `SessionsFolder` or `Data.Folder`: it is one dataset's folder, so the session plots' files go to the first dataset's | warning |
 | Report | Format html / pdf / both, EmbedFormat png / svg, `Dpi` positive, a plain `FileName`, the folder pattern | error |
 | Report | `{OutputFolder}` in a report over every dataset | warning |
@@ -1781,7 +1929,11 @@ ids, `removeSessionPlot`, `enabledSessionPlots`, `DuplicateSessionPlotId`, a cel
 of partial session plots, the JSON round trip (a one-key list stays a list; a
 config file without `SessionPlots` loads with none and no warning), `sessionPlotFor`
 (the overrides, `"pool"` clearing the groups and a tuning plot's series, `"each"`
-keeping them, `sessionAesthetics`) and every session-plot validate rule.
+keeping them, `sessionAesthetics`) and every session-plot validate rule; and the
+rules that count figures: "No plot, figure or session plot is enabled." (an enabled
+figure alone is enough), a figure id that names a plot's files (`PSTH_1`, `psth 1`
+beside the plot `psth_1`), and the `{Plot}` warning counting enabled figures
+(their `{Kind}` is `figure`).
 
 `test_EphysAnalysisFigures`, in eight sections. Config (1 to 6): the defaults of
 Figure, FigureCommon, Panel, Layer and Observe (`common` after `grid` in a
@@ -1815,7 +1967,37 @@ and one observation computed faster than the plot over every unit). Render (8):
 drawn into an axes, uiaxes, figure, panel and grid layout with every component
 tagged, the titles, one time axis down a stack, one legend, skipped layers'
 notes, events as marks, latency lines and a rug, and the editing hooks
-(`Editable`, `OnRemember`, the redraw).
+(`Editable`, `OnRemember`, the redraw). Compute (7) also checks `figureCompute`
+against `computeFigure` (equal results, `Check=` called at the checkpoints and
+what it throws stopping the compute), `figureOutputName` (`{Plot}`, `{Unit}`,
+`{Index}`, the `_<Unit>` suffix, the short labels of units, detections and
+channels) and `figureCaption`.
+
+`test_plotToFigure`, in eight sections, on hand-made configs: a PSTH grid with its
+raster, event marks, waveform inset and aux magnitude, field by field (observe,
+panels, layers, options, common, style, notes); the PSTH variants (without its
+raster, an overlay, stacking and an auROC baseline as notes, a raster with its aux
+above, and `"over"`); a raster; evoked grid, stack and butterfly; heat maps of
+units and of LFP, a probe map and a correlation map; unit waveforms in a grid and
+on the probe; `NotConvertible` for rate, tuning and behavior, `NoPlot`, the ids
+(`<plot>_fig`, `_fig2`, ... free among plots and figures), `"default"` sentinels
+kept and a plot's own alignment carried, the text note, overlays, `MaxTiles`,
+`TileSpacing`, `XLim` and an unused `YLim` as notes, and `convertPlotToFigure`
+appending; every converted figure validates. On the analysis fixture a converted
+PSTH with its raster, Stim offset marks and aux channels computes and renders for
+one unit.
+
+`test_EphysAnalysisRunner`'s section 11 runs figures through the runner on the
+fixture: `plan` rows (Kind `figure`, Source `unit`, `channel` or `dataset`,
+`Figures=` and `Plots=` with `string.empty(1, 0)` for none, no bulk data loaded),
+`run` (a row per figure with `<n> observation(s)`, a file per observation named
+`<Name>_<figure>_<unit>.png` and a one-observation dataset figure `<Name>_map.png`,
+no figure left open), the report (one entry per figure and dataset, an image and
+a PDF page per observation, `figureCaption`'s caption, the HTML's kind, caption
+and file links), the run record's `figures`, one figure alone with `Overwrite` off,
+`cancel()` between a figure's observations and during a plot, and the standalone
+script (`fspec<k>`, `figureCompute` and no runner, no syntax error, run, its PNGs
+pixel-identical to the runner's and an equal HTML report).
 
 <!-- wiki
 ## Related

@@ -26,9 +26,8 @@ says how to cut a release.
   computed; `EphysAnalysisRunner.computeFigure` computes one observation with no graphics, reading only
   that unit's spikes or channel's column, and can be canceled; `renderFigure` draws the result on one
   tiled layout with one time axis down a stack, one legend and the plot aesthetics editor (new roles
-  `eventLine`, `eventRug` and `layerNote`), each panel type through `figurePanelRegistry`. Figures are not
-  run, exported or reported yet: `run`, `plan`, the reports and the generated scripts ignore them, and
-  Validate's "no plot enabled" rule still counts plots and session plots only. See
+  `eventLine`, `eventRug` and `layerNote`), each panel type through `figurePanelRegistry`. Figures run, are
+  exported and appear in reports too (next bullets). See
   [Figures](documentation/EphysAnalysisConfig.md#figures).
 - Figures tab in the analysis app. A new tab beside Plots designs a figure and previews it for one
   observation at a time. The figure list adds a figure from a template ("Raster over PSTH (per unit)" first,
@@ -45,8 +44,8 @@ says how to cut a release.
   2 s or more; it has the Plots tab's badge states and a Cancel, shares the runner with the Plots and
   Sessions previews, remembers looks from the right-click aesthetics editor with the figure, and the
   Epoch Diagram can follow the figure. New preferences `FigureAutoPreview` (on by default) and
-  `FigureSectionsCollapsed`. Figures are previewed only: generating them for every observation and
-  dataset, exporting and reporting them are a later phase. See
+  `FigureSectionsCollapsed`. Running, exporting and reporting figures is in the next bullets; drawing every
+  observation from the tab itself is a later phase. See
   [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
 - Figures: common options and linked panels. A figure has a `common` block (bins, measure, baseline, mask
   after the stop event, waveform inset) that every panel draws while its own `common` flag is true, the
@@ -63,6 +62,39 @@ says how to cut a release.
   Behavior panel type was removed from figures (no behavior type or template, no trial source category or
   trials layer, no `yParam` and `seriesParam` layer fields); the behavior plot kind is unchanged. See
   [Common options](documentation/EphysAnalysisConfig.md#common-options).
+- Figures in runs, exports, reports, standalone scripts and the pipeline's Analysis step. A run draws each
+  enabled figure once per observation (a unit, a channel or the dataset): `EphysAnalysisRunner.run`,
+  `runDataset` and `plan` take `Figures=` beside `Plots=`, both with one convention (`[]` = the enabled
+  ones, `plan`'s default every one; `string.empty(1, 0)` = none; else ids), so one figure runs alone with
+  `run(Figures=id, Plots=string.empty(1, 0))`. A figure is a Results row of `Kind` `"figure"` (`Message`
+  `<n> observation(s)`; `skipped` with `figureSkipReason`'s reason or `no observation`), a page per
+  observation exported through `newExportFigure` (a figure page is 3.5 cm tall for each row of the
+  arrangement plus 2 cm) and `renderFigure`, and one report entry per figure and dataset whose pages are
+  the observations, with a caption (`figureCaption`). File names come from `figureOutputName`: `{Plot}` is
+  the figure's id, `{Unit}` the observation's short label (`su12`, `ch7`, `dataset`) and `{Index}` its
+  number, and a pattern that names neither gets `_<Unit>` appended. Progress reads `<name>: <id> (<i>/<n>)`
+  and `cancel()` stops between observations. The run record lists the `figures`. `plan` lists a figure's rows
+  (`Source` `unit`, `channel` or `dataset`). The generated standalone script writes an `fspec<k>` per
+  enabled figure and calls the new runner-free `figureCompute` (which `EphysAnalysisRunner.computeFigure`
+  now wraps), `figureObservations`, `newExportFigure`, `renderFigure` and `exportFigure`; the pipeline's
+  Analysis step runs the config's enabled figures, lists them in its dry run (`figure of <kind>`) and
+  checks that figures reading sorted units have them. Validate now accepts a config whose only enabled item
+  is a figure ("No plot, figure or session plot is enabled."), counts figures in the `{Plot}` warning of the
+  file-name pattern, and refuses a figure id that names the same files as a plot's. See
+  [Figures](documentation/EphysAnalysisConfig.md#figures) and
+  [Runner](documentation/EphysAnalysis.md#runner).
+- Convert a plot to a figure. `EphysAnalysisConfig.plotToFigure(cfg, plotId)` returns a figure that draws
+  what a PSTH, raster, evoked potential, heat map, probe map, unit correlation or unit waveforms plot
+  draws (a PSTH's raster, event marks, aux signal and waveform inset become panels and layers; the plot's
+  alignment, unit filter, bins, baseline and look carry over) with the notes for what a figure cannot
+  hold yet (auROC baselines, stacking, an overlay's raster, text notes, overlays, ...); rate, tuning and
+  behavior plots raise `EphysAnalysisConfig:NotConvertible`. `convertPlotToFigure` appends it under the
+  id `<plot>_fig` (`_fig2`, ...). The Plots tab gets **Convert to figure** beside **Copy from...**, which
+  converts the selected plots, opens the last on the Figures tab and lists the notes in the status bar;
+  the Figures tab gets **Copy from...** under the figure list, which copies parts of another figure's
+  settings (`figureSettingParts`, `copyFigureSettings`: Observations, Alignment, Common options,
+  Arrangement and panels, Appearance, Remembered looks), keeping the figure's id, title and enabled. See
+  [Converting a plot](documentation/EphysAnalysisConfig.md#converting-a-plot).
 - Kilosort4 parameter details on the Sorting tab. Each parameter's name is a link that opens a modal
   window with its definition, function, impact, tuning and defaults (this pipeline's and Kilosort4
   4.1.7's own).

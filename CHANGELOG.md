@@ -131,6 +131,33 @@ says how to cut a release.
   [Panel types](documentation/EphysAnalysisConfig.md#panel-types),
   [Panel options](documentation/EphysAnalysisConfig.md#panel-options) and
   [Common options](documentation/EphysAnalysisConfig.md#common-options).
+- Figures: per-trial traces, a trials-by-time heat map, a panel's own trial selection and one figure per
+  trial group. A continuous panel's new `trials` option draws every epoch's trace (`"faint"`: in the
+  group's color, paler and thinner, behind the mean and its band; `"only"`: the traces alone, standing for
+  the groups in the legend), at most `maxTrials` of them picked evenly over their order (the result gets
+  `R.data`, `R.trialEpochs` and `R.trialGroup`; the aesthetics editor a role `trialTrace`, "Trial traces").
+  A heat map's new `rows` `"trials"` draws one unit's epochs as rows, every trial group at once (a layer
+  that follows the observation or is fixed to one unit), binned as the PSTH counts them (`bins`, `measure`,
+  `maskAfterStop`, and a `subtract`, `zscore` or `percent` baseline against each epoch's group; the auROC
+  baseline is an error), sorted as a raster's rows (`rasterSort`, `rasterSortEvent`, `rasterSortOrder`,
+  `rasterByGroup`), with the groups as a strip along the left edge; `order` and `group` are not used. A
+  panel's new `selection` is `"default"` (the figure's) or a trial selection of its own on an aligned type:
+  its own epochs and groups, colored apart, with a legend inside the panel and a title that says its
+  grouping (`by Depth`, `all trials`) when it differs from the figure's. It is not matched to the figure's
+  groups, does not change the shared time axis, is checked by `figureSkipReason` and Validate, and is taken
+  by `adoptPanelAlignment` and cleared by `relinkPanels` (so by **Apply to all panels** and **Re-link all
+  panels**). A figure's new `observe.perGroup` draws each observation once per trial group of its selection
+  (Validate warns while the selection groups by nothing): `figureObservations` gains the columns `group`
+  and `groupLabel` and lists a row per observation and group, `figureCompute` keeps that group's epochs
+  only, the title and the caption (`one figure per trial group`) name the group and the file-name token
+  `{Group}` is its label (`_<Group>` is appended when the pattern names neither `{Group}` nor `{Index}`).
+  In the Figures tab, Observations gets **Per trial group** with an "N units x G trial groups" count, Panel
+  alignment a **Trial selection as the figure** box with the selection rows under it, a continuous panel's
+  Options a **Trials** row with **at most**, a heat map's a **Rows** row (the raster sort rows show for
+  trials while **Row order** and **Group shown** hide), and the picker lists each unit's groups. The tab's
+  auto-preview limit is now the app's `FigureAutoPreviewSeconds` property (2 s) so its tests no longer
+  depend on machine load. See [Figures](documentation/EphysAnalysisConfig.md#figures) and the
+  [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
 - Kilosort4 parameter details on the Sorting tab. Each parameter's name is a link that opens a modal
   window with its definition, function, impact, tuning and defaults (this pipeline's and Kilosort4
   4.1.7's own).

@@ -18,6 +18,14 @@ function hk = drawContinuousPanel(ax, P, look)
 %                renderEvoked's stack), the rows named on the y axis, the
 %                groups overlaid in each row; y label "Channel (<step> per
 %                row)"
+%   options.trials "faint" draws each epoch's trace (R.data, at most
+%   options.maxTrials of them: computeContinuousPanel) of every item and
+%   group as one NaN-joined line (role "trialTrace") in the group's color
+%   paled, thin, over the band and under the mean; "only" draws the traces
+%   in the group's color, without band or mean (they then stand for the
+%   groups in the legend; a layer whose traces were not kept is drawn as
+%   its mean). With aggregate "mean" each trace is the epoch's mean over
+%   the layer's channels.
 %   The components' group is the trial group's label, with several items
 %   "<item> · <group>" (the item alone for one group). Style.ShowZeroLine
 %   draws the event's line; the events layers drawn as marks become latency
@@ -53,13 +61,23 @@ if nI == 0 && ~hasMarks
 end
 
 % each item's traces: mean, band edges [nTime x nGroups]
-S = repmat(struct('t', [], 'm', [], 'lo', [], 'hi', [], 'name', "", 'role', "trace", 'R', []), 1, nI);
+trials = "off";   % each epoch's trace: "faint" behind the mean, "only" without it
+if isfield(o, 'trials'); trials = string(o.trials); end
+S = repmat(struct('t', [], 'm', [], 'lo', [], 'hi', [], 'name', "", 'role', "trace", 'R', [], 'X', [], 'xg', []), 1, nI);
 for i = 1:nI
     j = items(i, 1);
     c = items(i, 2);
     R = P.layers(j).R;
     S(i).R = R;
     S(i).t = R.t(:);
+    if trials ~= "off" && isfield(R, 'data') && ~isempty(R.data) && isfield(R, 'trialGroup')
+        if c == 0   % a layer's mean: each epoch's mean over its channels
+            S(i).X = reshape(mean(double(R.data), 2, 'omitnan'), size(R.data, 1), []);
+        else
+            S(i).X = reshape(double(R.data(:, c, :)), size(R.data, 1), []);
+        end
+        S(i).xg = R.trialGroup(:);
+    end
     if c == 0
         S(i).m = squeeze3(R.layerMean.mean);
         S(i).lo = squeeze3(R.layerMean.lo);
@@ -108,11 +126,18 @@ for i = 1:nI
             tg = S(i).name;
             if nG > 1; tg = S(i).name + " · " + gl; end
         end
-        if band
+        only = trials == "only" && ~isempty(S(i).X);   % the traces alone: no band, no mean
+        if band && ~only
             errorPatch(ax, S(i).t, S(i).lo(:, g) + off, S(i).hi(:, g) + off, c, tg, style);
         end
-        h1 = tagPart(plot(ax, S(i).t, S(i).m(:, g) + off, 'Color', c, 'LineWidth', style.LineWidth, 'LineStyle', ls), S(i).role, tg);
-        if i == 1 && nG > 1
+        h1 = gobjects(0);
+        if ~isempty(S(i).X)
+            h1 = trialLines(ax, S(i).t, S(i).X(:, S(i).xg == g) + off, c, trials, ls, style, tg);
+        end
+        if ~only
+            h1 = tagPart(plot(ax, S(i).t, S(i).m(:, g) + off, 'Color', c, 'LineWidth', style.LineWidth, 'LineStyle', ls), S(i).role, tg);
+        end
+        if i == 1 && nG > 1 && ~isempty(h1)
             hk.legendHandles(end+1) = h1;
             hk.legendLabels(end+1) = gl;
             hk.legendGroup(end+1) = true;
@@ -164,6 +189,24 @@ for m = 1:numel(hm)
     hk.legendGroup(end+1) = false;
 end
 figLayerNotes(ax, P, look, true);
+end
+
+
+function h = trialLines(ax, t, X, c, mode, ls, style, tg)
+%trialLines  The epochs' traces X [nTime x nEpochs] as one NaN-joined line: pale and thin behind the mean ("faint"), else in C.
+lw = max(0.25, 0.5 * style.LineWidth);
+if mode == "faint"
+    c = paleColor(c, 0.6, style);
+    lw = max(0.25, 0.4 * style.LineWidth);
+end
+k = size(X, 2);
+xx = NaN;
+yy = NaN;
+if k > 0
+    xx = repmat([t(:); NaN], k, 1);
+    yy = reshape([X; NaN(1, k)], [], 1);
+end
+h = tagPart(line(ax, xx, yy, 'Color', c, 'LineWidth', lw, 'LineStyle', ls), "trialTrace", tg);
 end
 
 

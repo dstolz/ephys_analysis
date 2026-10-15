@@ -18,9 +18,16 @@ function F = figureCompute(src, spec, opts)
 %         bFig: the hull of the baseline windows of the panels on the
 %         figure's alignment, colsFig: their rasters' sort parameters and
 %         their tuning curves' parameters (figureTuningParam)
+%         An observation of one trial group (a figureObservations row of
+%         a perGroup figure: group, groupLabel) keeps that group's epochs
+%         only: E's rows of it, G that one row with n recounted
 %     a panel with its own ref or window: its own epochTable with the
 %         figure's selection; its groups are matched to G by label (each
-%         epoch's groupIndex then indexes G), or the panel is skipped
+%         epoch's groupIndex then indexes G; a per-group observation
+%         keeps that group's epochs), or the panel is skipped
+%     a panel with a selection of its own (Panel.selection): its own
+%         epochTable and its own groups, not matched to G and not cut to
+%         a per-group observation's group
 %     each panel: figurePanelRegistry().(type).compute(src, panel, Ep, Gp,
 %         ctx), every layer resolved for OBS by figureLayerItems and
 %         computed as the panel type says (spikePSTH, epochEvents,
@@ -34,13 +41,16 @@ function F = figureCompute(src, spec, opts)
 %   F fields
 %     kind "figure", id, spec (SPEC), dataset (SRC.name), observation (OBS
 %     as a struct: kind, label, unitId, channel, column, shank, depth,
-%     meta), epochs (E; [] when no panel is aligned), groups (G; []
+%     meta, group, groupLabel), epochs (E; [] when no panel is aligned), groups (G; []
 %     likewise), created, and panels (one per SPEC.panels, in order):
 %       id, type, sharesTime   as in SPEC
 %       epochs   the panel's own epochs (a table), or [] = F.epochs (and []
 %                for a panel that is not aligned)
 %       groups   its groups: G (with n counting its own epochs when it has
-%                them); [] for a panel that is not aligned
+%                them), or its own with a selection of its own; [] for a
+%                panel that is not aligned
+%       ownSelection  true when its groups are its own selection's
+%                (renderFigure colors them apart, with a legend inside it)
 %       skip     "" or why the panel is not computed (every layer then
 %                carries the same reason)
 %       layers   one per SPEC.panels(k).layers, same order: name (the
@@ -99,7 +109,7 @@ reg = figurePanelRegistry();
 np = numel(spec.panels);
 vars = string.empty(1, 0);   % the trial parameters epochTable can copy (Columns)
 if istable(src.trials); vars = string(src.trials.Properties.VariableNames); end
-known = false(1, np); live = false(1, np); onFig = false(1, np);
+known = false(1, np); live = false(1, np); onFig = false(1, np); ownSel = false(1, np);
 skipsOf = cell(1, np);       % figureSkipReason's reason per layer of each panel
 panelSkip = strings(1, np);  % ... and of each panel itself
 for k = 1:np
@@ -112,7 +122,8 @@ for k = 1:np
     % a panel skipped for its own reason (e.g. a raster sorted by a parameter the trials lack) needs no epochs,
     % and gives the figure's epochTable none of its sort columns or baseline
     live(k) = hasOn && PT.Aligned(row) && panelSkip(k) == "";
-    onFig(k) = live(k) && isequaln(p.ref, spec.ref) && isequaln(p.window, spec.window);
+    ownSel(k) = ~isequaln(selectionOf(p, spec), spec.selection);
+    onFig(k) = live(k) && isequaln(p.ref, spec.ref) && isequaln(p.window, spec.window) && ~ownSel(k);
 end
 
 E = [];
@@ -120,10 +131,13 @@ G = [];
 if any(live)
     [E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection, ...
         Baseline=baselineHull(spec.panels(onFig)), Columns=sortColumns(spec.panels(onFig), vars, spec.selection, src));
+    if isfinite(obs.group) || obs.groupLabel ~= ""   % one figure per trial group: that group's epochs only
+        [E, G] = keepGroup(E, G, obs, spec.id);
+    end
     tick(chk);
 end
 
-P0 = struct('id', "", 'type', "", 'epochs', [], 'groups', [], 'sharesTime', false, 'skip', "", ...
+P0 = struct('id', "", 'type', "", 'epochs', [], 'groups', [], 'sharesTime', false, 'ownSelection', false, 'skip', "", ...
     'layers', figurePanelLayers(EphysAnalysisConfig.defaults("Panel")));
 panels = repmat(P0, 1, np);
 for k = 1:np
@@ -133,6 +147,7 @@ for k = 1:np
     P.id = p.id;
     P.type = p.type;
     P.sharesTime = p.sharesTime;
+    P.ownSelection = live(k) && ownSel(k);
     skips = skipsOf{k};
     P.skip = panelSkip(k);
     hasOn = ~isempty(p.layers) && any([p.layers.enabled]);
@@ -144,7 +159,7 @@ for k = 1:np
             Ep = E;
         else
             try
-                [Ep, Gp, P.skip] = panelEpochs(src, spec, p, G, vars);
+                [Ep, Gp, P.skip] = panelEpochs(src, spec, p, G, vars, ownSel(k), obs);
                 P.epochs = Ep;
             catch ME
                 % what figureSkipReason cannot see beforehand: no event, or no usable epoch, for this panel
@@ -164,7 +179,7 @@ for k = 1:np
         continue
     end
     ctx = struct('check', [], 'checkpoint', @() tick(chk), 'observation', obs, 'observe', spec.observe, ...
-        'ref', p.ref, 'window', p.window, 'selection', spec.selection, 'style', spec.style, 'spec', spec, 'skips', skips);
+        'ref', p.ref, 'window', p.window, 'selection', selectionOf(p, spec), 'style', spec.style, 'spec', spec, 'skips', skips);
     ctx.check = chk;
     R = reg.(p.type).compute(src, p, Ep, Gp, ctx);
     P.layers = R.layers;
@@ -192,7 +207,8 @@ end
 
 function o = observationOf(obs)
 %observationOf  One observation as a struct (a figureObservations row, or a partial struct).
-o = struct('kind', "unit", 'label', "", 'unitId', NaN, 'channel', NaN, 'column', NaN, 'shank', NaN, 'depth', NaN, 'meta', []);
+o = struct('kind', "unit", 'label', "", 'unitId', NaN, 'channel', NaN, 'column', NaN, 'shank', NaN, 'depth', NaN, 'meta', [], ...
+    'group', NaN, 'groupLabel', "");
 if istable(obs)
     if height(obs) < 1
         error('EphysAnalysisRunner:NoObservation', 'Observation is an empty table: pass one row of figureObservations.');
@@ -214,9 +230,43 @@ else
 end
 o.kind = string(o.kind);
 o.label = string(o.label);
-for f = ["unitId" "channel" "column" "shank" "depth"]
+o.groupLabel = string(o.groupLabel);
+if isempty(o.groupLabel) || ismissing(o.groupLabel); o.groupLabel = ""; end
+for f = ["unitId" "channel" "column" "shank" "depth" "group"]
     o.(f) = double(o.(f));
+    if isempty(o.(f)); o.(f) = NaN; end
 end
+end
+
+
+function s = selectionOf(p, spec)
+%selectionOf  A panel's trial selection: its own (figureFor resolved it), else the figure's.
+s = spec.selection;
+if isfield(p, 'selection') && isstruct(p.selection); s = p.selection; end
+end
+
+
+function g = groupOf(G, obs)
+%groupOf  The row of the groups table G that observation OBS draws (by its label, else its index; [] = none).
+g = [];
+if obs.groupLabel ~= ""; g = find(string(G.label) == obs.groupLabel, 1); end
+if isempty(g) && obs.groupLabel == "" && isfinite(obs.group) && obs.group >= 1 && obs.group <= height(G)
+    g = obs.group;
+end
+end
+
+
+function [E, G] = keepGroup(E, G, obs, id)
+%keepGroup  The epochs of one trial group (a per-group observation): E's rows of it, G that one row with its n.
+g = groupOf(G, obs);
+if isempty(g) || ~any(E.groupIndex == g)
+    error('EphysAnalysisRunner:NoObservation', 'Figure "%s": no epoch of trial group "%s" here.', id, obs.groupLabel);
+end
+E = E(E.groupIndex == g, :);
+E.groupIndex(:) = 1;
+G = G(g, :);
+G.n = height(E);
+if ismember("index", string(G.Properties.VariableNames)); G.index = 1; end
 end
 
 
@@ -236,13 +286,26 @@ end
 end
 
 
-function [Ep, Gp, reason] = panelEpochs(src, spec, p, G, vars)
-%panelEpochs  A panel's own epochs (its ref / window, the figure's selection), its groups those of G.
-%   Its rasters' sort parameters are copied when the trials have them (VARS).
+function [Ep, Gp, reason] = panelEpochs(src, spec, p, G, vars, own, obs)
+%panelEpochs  A panel's own epochs (its ref / window / selection), its groups those of G unless the selection is its own.
+%   Its rasters' sort parameters are copied when the trials have them
+%   (VARS). With a selection of its own (OWN) the panel keeps its own
+%   groups, whatever the figure's. On the figure's selection its groups
+%   are matched to G by label; a per-group observation (OBS.groupLabel)
+%   keeps that group's epochs only.
 reason = "";
-[Ep, Gp] = epochTable(src, p.ref, Window=p.window, Selection=spec.selection, ...
-    Baseline=baselineHull(p), Columns=sortColumns(p, vars, spec.selection, src));
-if ~istable(G); return; end
+sel = selectionOf(p, spec);
+[Ep, Gp] = epochTable(src, p.ref, Window=p.window, Selection=sel, ...
+    Baseline=baselineHull(p), Columns=sortColumns(p, vars, sel, src));
+if own || ~istable(G); return; end
+if isfinite(obs.group) || obs.groupLabel ~= ""
+    Ep = Ep(string(Ep.group) == string(G.label(1)), :);
+    if height(Ep) == 0
+        reason = "no epoch of trial group " + string(G.label(1)) + " in its own window";
+        return
+    end
+    Gp.n = accumarray(Ep.groupIndex(:), 1, [height(Gp) 1]);
+end
 [ok, at] = ismember(Gp.label, G.label);
 if any(~ok & Gp.n > 0)
     reason = "its trial groups (" + strjoin(Gp.label(~ok & Gp.n > 0).', ", ") + ") are not the figure's";
@@ -271,7 +334,7 @@ end
 
 
 function c = sortColumns(panels, vars, sel, src)
-%sortColumns  The trial parameters PANELS' rasters sort their epochs by, and their tuning curves' x and series, as epochTable Columns.
+%sortColumns  The trial parameters PANELS' rasters (and heat maps of trials) sort their epochs by, and their tuning curves' x and series, as epochTable Columns.
 %   Only those the trials have (VARS): a raster sorted by a missing one, or
 %   a tuning curve over one, is skipped for it (figureSkipReason), never
 %   the figure's epochs. SEL (the figure's selection) and SRC resolve a
@@ -279,7 +342,8 @@ function c = sortColumns(panels, vars, sel, src)
 c = string.empty(1, 0);
 for k = 1:numel(panels)
     p = panels(k);
-    if p.type == "raster" && isfield(p.options, 'rasterSort') && ~ismember(p.options.rasterSort, ["" "stop" "event"])
+    trialRows = p.type == "heatmap" && isfield(p.options, 'rows') && p.options.rows == "trials";   % sorted as a raster
+    if (p.type == "raster" || trialRows) && isfield(p.options, 'rasterSort') && ~ismember(p.options.rasterSort, ["" "stop" "event"])
         c(end+1) = p.options.rasterSort; %#ok<AGROW>
     elseif p.type == "tuning" && isfield(p.options, 'param')
         [x, s] = figureTuningParam(p.options, sel, src);

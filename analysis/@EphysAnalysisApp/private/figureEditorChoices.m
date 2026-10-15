@@ -1,6 +1,8 @@
-function ch = figureEditorChoices(type, source)
+function ch = figureEditorChoices(type, source, rows)
 %figureEditorChoices  What the figure editor's drop-downs offer a panel of TYPE whose first layer reads SOURCE.
-%   CH = figureEditorChoices(TYPE, SOURCE) has
+%   CH = figureEditorChoices(TYPE, SOURCE, ROWS) has (ROWS, default
+%   "items": a heat map's options.rows; "trials" lets its spike layer
+%   follow the observation)
 %     Sources        the layer sources the panel type draws, in order: those
 %                    of its categories (EphysAnalysisConfig.panelTypes,
 %                    sourceCategories), then "events" on a panel that
@@ -8,7 +10,8 @@ function ch = figureEditorChoices(type, source)
 %     SourceLabels   their names in the app ("units (sorted)", ...)
 %     Bindable       a layer of SOURCE on this type may follow the
 %                    observation (spikes or a signal, on a raster, PSTH,
-%                    continuous, waveforms, rate or tuning panel); otherwise it is fixed
+%                    continuous, waveforms, rate or tuning panel; spikes on
+%                    a heat map of trials); otherwise it is fixed
 %     BaselineModes  the options.baseline modes the type takes (auroc on a
 %                    PSTH or a heat map of spikes; a heat map of a signal,
 %                    SOURCE a signal: none and subtract only; rate and
@@ -21,6 +24,7 @@ function ch = figureEditorChoices(type, source)
 arguments
     type (1,1) string
     source (1,1) string = ""
+    rows (1,1) string = "items"
 end
 T = EphysAnalysisConfig.panelTypes();
 S = EphysAnalysisConfig.sourceCategories();
@@ -39,8 +43,9 @@ labels = srcs;
 known = isKey(names, srcs);
 labels(known) = names(srcs(known));
 ch = struct('Sources', srcs, 'SourceLabels', labels, ...
-    'Bindable', ismember(source, [EphysAnalysisConfig.SpikeSources EphysAnalysisConfig.SignalSources]) ...
-        && ismember(type, ["raster" "psth" "continuous" "waveforms" "rate" "tuning"]), ...
+    'Bindable', (ismember(source, [EphysAnalysisConfig.SpikeSources EphysAnalysisConfig.SignalSources]) ...
+        && ismember(type, ["raster" "psth" "continuous" "waveforms" "rate" "tuning"])) ...
+        || (type == "heatmap" && rows == "trials" && ismember(source, EphysAnalysisConfig.SpikeSources)), ...
     'BaselineModes', "none", 'WaveModes', ["off" "mean" "subsample" "both"], ...
     'WaveLabels', ["Off" "Mean" "Subsample" "Mean + subsample"]);
 switch type

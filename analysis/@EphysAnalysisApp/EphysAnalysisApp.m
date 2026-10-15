@@ -378,6 +378,7 @@ classdef EphysAnalysisApp < handle
         FigurePreviewResult = []            % the last figure preview's result (computeFigure's F)
         FigurePreviewSeconds (1,1) double = 0   % time the last figure preview took (auto-preview under AutoPreviewSeconds)
         FigurePreviewWarm (1,1) logical = false % a figure was drawn already: the first one's time (graphics loading) is not counted
+        FigureAutoPreviewSeconds (1,1) double = 2   % edits redraw the figure preview while the last one took under this (AutoPreviewSeconds; tests raise it)
         FigurePreviewState (1,1) string = "idle"   % what the figure preview's badge says (setFigurePreviewState)
         FigurePreviewRedo (1,1) logical = false    % an edit or a Preview press came in while one computed: it ends Out of date
         FigureAddType (1,1) string = "continuous"  % the panel type Add panel adds (the Arrangement's drop-down)

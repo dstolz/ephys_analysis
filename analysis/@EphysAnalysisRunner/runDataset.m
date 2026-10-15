@@ -31,7 +31,8 @@ function rows = runDataset(obj, k, opts)
 %   per observation, one page each:
 %     reason = figureSkipReason(src, spec)   ("" = it can be drawn; else a
 %         "skipped" row and report entry)
-%     T = figureObservations(src, spec)      (none: skipped, "no observation")
+%     T = figureObservations(src, spec)      (none: skipped, "no observation"; a
+%         figure with observe.perGroup: a row per observation and trial group)
 %     for each observation i of n, one figure at a time:
 %       F = r.computeFigure(src, spec, Observation=T(i,:))
 %       fig = newExportFigure(Export, F, spec); h = renderFigure(F, spec, fig)
@@ -45,7 +46,8 @@ function rows = runDataset(obj, k, opts)
 %   observation's page. The file name is figureOutputName's ({Plot} the
 %   figure's id, {Unit} the observation's short label, "_<Unit>" appended
 %   when the pattern tells the observations apart by neither {Unit} nor
-%   {Index}). With Export.Overwrite off an observation whose files all
+%   {Index}; {Group} a per-group observation's group, "_<Group>" appended
+%   likewise). With Export.Overwrite off an observation whose files all
 %   exist is neither computed nor drawn again unless the report needs its
 %   page. Without Export and Report each observation is computed only. A
 %   layer or panel that cannot be computed for one observation is drawn as

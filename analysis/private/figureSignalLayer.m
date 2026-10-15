@@ -18,7 +18,13 @@ function lay = figureSignalLayer(src, L, lay, E, G, ctx, opts)
 %   the reason; EphysAnalysisRunner:Canceled passes through.
 %
 %   Options: Window [pre post], Baseline ([] or [b0 b1]: subtract each
-%   epoch's mean over it), Rectify, Statistic ("mean" | "median").
+%   epoch's mean over it), Rectify, Statistic ("mean" | "median"),
+%   KeepEpochs (false: true keeps the epochs' traces, as averaged --
+%   baseline and rectification applied -- in R.data [nTime x nChannels x
+%   nTrials] single, with R.trialEpochs (their epoch numbers) and
+%   R.trialGroup (their group, a row of G)) and MaxTrials (Inf: with
+%   KeepEpochs, at most this many epochs kept, picked evenly over their
+%   order).
 %
 %   See also EphysAnalysisRunner.computeFigure, figureLayerItems, evokedPotential.
 
@@ -33,6 +39,8 @@ arguments
     opts.Baseline double = []
     opts.Rectify (1,1) logical = false
     opts.Statistic (1,1) string = "mean"
+    opts.KeepEpochs (1,1) logical = false
+    opts.MaxTrials (1,1) double = Inf
 end
 
 ctx.checkpoint();
@@ -56,10 +64,21 @@ ctx.checkpoint();
 try
     R = evokedPotential(Y, fs, E, Window=opts.Window, Channels=cols, Baseline=opts.Baseline, Groups=G, Meta=metaC, ...
         Units=metaC.units(1), Check=ctx.check, Rectify=opts.Rectify, Statistic=opts.Statistic, ...
-        ErrorType=ctx.errorType, ErrorResamples=ctx.nBoot);
+        ErrorType=ctx.errorType, ErrorResamples=ctx.nBoot, KeepEpochs=opts.KeepEpochs);
 catch ME
     lay.skip = figureLayerError(ME);   % e.g. a baseline with no sample in the window; a cancel passes through
     return
+end
+if opts.KeepEpochs   % the epochs' traces: at most MaxTrials of them, picked evenly over their order
+    [~, rowOf] = ismember(R.keptEpochs(:), E.epoch);
+    nK = size(R.data, 3);
+    pick = 1:nK;
+    if nK > opts.MaxTrials
+        pick = unique(round(linspace(1, nK, opts.MaxTrials)));
+    end
+    R.data = R.data(:, :, pick);
+    R.trialEpochs = reshape(R.keptEpochs(pick), [], 1);
+    R.trialGroup = reshape(E.groupIndex(rowOf(pick)), [], 1);
 end
 R.epochs = E;
 R.dataset = src.name;

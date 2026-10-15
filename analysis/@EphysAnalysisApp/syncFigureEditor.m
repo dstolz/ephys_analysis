@@ -13,9 +13,11 @@ function syncFigureEditor(obj)
 %                    correlation); Panel alignment's rows grayed out (they
 %                    show the figure's) while "Same as the figure" is
 %                    ticked, and, with a note, for a type not aligned to
-%                    events; its Apply to all panels only while the panel
-%                    has its own, Re-link all panels while any panel has
-%                    its own event, window or options
+%                    events; its trial selection rows grayed out while
+%                    "Trial selection as the figure" is ticked; its Apply
+%                    to all panels only while the panel has its own,
+%                    Re-link all panels while any panel has its own
+%                    event, window, selection or options
 %     Common options always (the waveform rows enabled when it is not Off,
 %                    the baseline window with a baseline, the auROC rows
 %                    with the auroc baseline); a linked panel's
@@ -37,6 +39,10 @@ function syncFigureEditor(obj)
 %                    map of a signal has no bins or measure; a PSTH's or a
 %                    spike heat map's auROC rows with the auroc baseline
 %                    (the test row with a per-unit test); a PSTH's stack;
+%                    a continuous panel's trials (and at most, enabled
+%                    unless off); a heat map's rows, its raster sort
+%                    rows for trials (and neither row order nor Group
+%                    shown then);
 %                    a rate panel's display; a tuning panel's parameter
 %                    and series; a waveforms panel's layout
 %     Appearance     all rows; the site size with a probe map, the heat
@@ -97,7 +103,7 @@ for q = 1:np
 end
 
 v = struct();
-for f = ["id" "title" "enabled" "summary" "observe" "obsDatasets" "obsCount" "schematic" "addType" "addWhere" "spacing" ...
+for f = ["id" "title" "enabled" "summary" "observe" "obsDatasets" "obsPerGroup" "obsCount" "schematic" "addType" "addWhere" "spacing" ...
         "fontSize" "lineWidth" "colormap" "sortDepth" "labelDepth" "showSEM" "legendLoc" "errType" "errFace" "errEdge" "looksText" ...
         "cmNote" "cmBinMs" "cmSmoothMs" "cmMeasure" "cmBaselineMode" "cmBaseFrom" "cmMaskAfterStop" "cmWaveMode" ...
         "cmWaveLocation" "cmWaveScale" "cmWavePP"]
@@ -133,7 +139,8 @@ layerKeys = ["layerList" "layerAdd" "layerNote" "layerName" "layerSource" "layer
 optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort" "sortLine" "sortSeqText" "rasterByGroup" ...
     "maskAfterStop" "histStyle" "fill" "normalize" "contDisplay" "statistic" "errorType" "stackSpacing" "order" ...
     "value" "metric" "correlation" "fisherZ" "yLim" "cLim" "waveMode" "waveLocation" "waveScale" "wavePP" ...
-    "optApplyAll" "auMethod" "auWinMs" "auModFrom" "auCutoff" "auTest" "auMarks" "stack" "param" "rateDisplay" "waveLayout"];
+    "optApplyAll" "auMethod" "auWinMs" "auModFrom" "auCutoff" "auTest" "auMarks" "stack" "param" "rateDisplay" "waveLayout" ...
+    "contTrials" "heatRows"];
 for f = [layerKeys optionKeys]; v.(f) = false; end
 optionsTitle = "Options";
 paligned = false;
@@ -153,6 +160,8 @@ if hasPanel
     first = "";
     if any(on); first = p.layers(find(on, 1)).source; end
     pointHeat = t == "heatmap" && ~ismember(first, signals);
+    rowsNow = string(E.heatRows.Value);   % a heat map's rows: its units / channels, or one unit's epochs
+    trialHeat = t == "heatmap" && rowsNow == "trials";
     ch = figureEditorChoices(t, first);
 
     % layers
@@ -175,7 +184,7 @@ if hasPanel
     i = obj.SelectedLayer;
     if i >= 1 && i <= nl
         L = p.layers(i);
-        lc = figureEditorChoices(t, L.source);
+        lc = figureEditorChoices(t, L.source, rowsNow);
         isSpike = ismember(L.source, spikes);
         isSignal = ismember(L.source, signals);
         fixed = L.binding == "fixed";
@@ -212,11 +221,15 @@ if hasPanel
     v.param = t == "tuning";
     v.rateDisplay = t == "rate";
     v.waveLayout = t == "waveforms";
-    v.rasterSort = t == "raster"; v.sortLine = v.rasterSort; v.sortSeqText = v.rasterSort; v.rasterByGroup = v.rasterSort;
+    v.rasterSort = t == "raster" || trialHeat; v.sortLine = v.rasterSort; v.sortSeqText = v.rasterSort; v.rasterByGroup = v.rasterSort;
+    v.heatRows = t == "heatmap";
+    v.contTrials = t == "continuous";
+    en(E.maxTrials, string(E.contTrials.Value) ~= "off");
     v.maskAfterStop = ismember(t, ["raster" "psth"]) || pointHeat;
     v.histStyle = t == "psth"; v.fill = v.histStyle; v.normalize = v.histStyle;
     v.contDisplay = t == "continuous"; v.statistic = v.contDisplay; v.errorType = v.contDisplay; v.stackSpacing = v.contDisplay;
-    v.order = t == "heatmap";
+    v.order = t == "heatmap" && ~trialHeat;
+    if trialHeat; v.group = false; end   % a heat map of trials draws every group
     v.value = t == "probemap";
     v.metric = t == "corrmap"; v.correlation = v.metric; v.fisherZ = v.metric;
     v.yLim = ismember(t, ["psth" "continuous" "waveforms" "rate" "tuning"]);
@@ -266,8 +279,11 @@ if hasPanel
     ctl = findobj([C2.RefGrid C2.WindowGrid], '-property', 'Enable');
     set(ctl, 'Enable', onoff(unlinked));
     if unlinked; syncAlignEnable(C2); end
+    ownSel = paligned && ~E.panelSameSel.Value;   % linked ("Trial selection as the figure"): the figure's, locked
+    set(findobj(C2.SelectionGrid, '-property', 'Enable'), 'Enable', onoff(ownSel));
     en(E.panelSame, paligned);
-    en(E.alignApplyAll, unlinked);
+    en(E.panelSameSel, paligned);
+    en(E.alignApplyAll, unlinked || ownSel);
     E.palignNote.Text = "";
     if ~paligned
         E.palignNote.Text = typeLabel + " panels are not aligned to events: they use no event or window.";
@@ -280,16 +296,17 @@ if hasPanel
     end
 end
 en(E.removePanel, hasPanel);
-own = false;   % any panel with its own event, window or options: Re-link all panels has something to do
+own = false;   % any panel with its own event, window, selection or options: Re-link all panels has something to do
 for q = 1:np
-    own = own || isstruct(fig.panels(q).ref) || isstruct(fig.panels(q).window) || ~fig.panels(q).common;
+    own = own || isstruct(fig.panels(q).ref) || isstruct(fig.panels(q).window) || isstruct(fig.panels(q).selection) ...
+        || ~fig.panels(q).common;
 end
 en(E.alignRelinkAll, own);
 pg = E.palignGrid;
 hs = pg.UserData;
 note = 34 * (hasPanel && ~paligned);
-pg.RowHeight = {note, 30, hs(1), hs(2), 0};
-S(names == "palign").BodyHeight = note + 30 + hs(1) + hs(2) + 4 * pg.RowSpacing;
+pg.RowHeight = {note, 30, hs(1), hs(2), 22, hs(3)};
+S(names == "palign").BodyHeight = note + 30 + hs(1) + hs(2) + 22 + hs(3) + 5 * pg.RowSpacing;
 
 % appearance
 types = strings(1, 0);

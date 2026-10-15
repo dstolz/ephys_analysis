@@ -7,7 +7,9 @@ function refreshFigureObservations(obj, opts)
 %   -> label), so it survives a filter change or another dataset while that
 %   label is still there; else the first is picked. The list is made again
 %   only when what it depends on changed -- the observe block and what it
-%   resolves to, the figure's event and selection (the response test), the
+%   resolves to, the figure's event and selection (the response test; with
+%   Per trial group, the groups: one row per observation and group, and
+%   the window too), the
 %   sort options, the dataset (by its key; a scan forgets the list,
 %   onScan) -- unless Force is set; an empty list is kept as well. When the
 %   list cannot be made, the picker's UserData.error says why (the preview
@@ -35,6 +37,7 @@ spec = obj.Config.figureFor(k);
 st = spec.style;
 key = struct('id', spec.id, 'dataset', string(obj.Runner.Keys(obj.ActiveIdx)), 'observe', spec.observe, 'ref', spec.ref, ...
     'selection', spec.selection, 'sort', [st.SortDepth st.SortShank st.LabelDepth st.LabelShank]);   % the dataset by its key (onScan forgets the list)
+if spec.observe.perGroup; key.window = spec.window; end   % one row per trial group: the groups with epochs in the window
 if ~opts.Force && isstruct(dd.UserData) && isfield(dd.UserData, 'key') && isequaln(dd.UserData.key, key)
     return
 end
@@ -61,8 +64,15 @@ switch kind
     otherwise
         what = "dataset";
 end
-if kind == "dataset"
+nG = 0;   % per trial group: the observations' groups
+if n > 0 && any(isfinite(T.group)); nG = numel(unique(T.group(isfinite(T.group)))); end
+if kind == "dataset" && nG == 0
     E.obsCount.Text = "The whole dataset: one figure for " + src.name + ".";
+elseif kind == "dataset"
+    E.obsCount.Text = sprintf("The whole dataset, once per trial group: %d figures for %s.", n, src.name);
+elseif nG > 0
+    nObs = n / nG;
+    E.obsCount.Text = sprintf("%d %s%s x %d trial groups on %s.", nObs, what, repmat('s', 1, nObs ~= 1), nG, src.name);
 else
     E.obsCount.Text = sprintf("%d %s%s on %s.", n, what, repmat('s', 1, n ~= 1), src.name);
 end

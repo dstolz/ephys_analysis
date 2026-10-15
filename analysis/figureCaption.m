@@ -12,7 +12,9 @@ function txt = figureCaption(spec, T, opts)
 %   itself), the panels' types in order (each type once), and, when a
 %   panel with an enabled layer is aligned to events, the event
 %   (eventRefLabel), the window ("from <event> to <stop>" for a "between"
-%   window) and the trial grouping. NAME (default "") is left out when
+%   window) and the trial grouping, and "one figure per trial group" for a
+%   perGroup figure (T then has a row per observation and group, each
+%   counted as an observation). NAME (default "") is left out when
 %   empty. The reports print it under the figure's pages
 %   (addReportFigure Caption=).
 %
@@ -71,6 +73,9 @@ if aligned
     end
     g = spec.selection.groupBy;
     if ~isempty(g); parts(end+1) = "groups by " + strjoin(g, " x "); end
+end
+if isfield(ob, 'perGroup') && ob.perGroup && isfield(spec.selection, 'groupBy') && ~isempty(spec.selection.groupBy)
+    parts(end+1) = "one figure per trial group";
 end
 txt = strjoin(parts, "; ") + ".";
 end

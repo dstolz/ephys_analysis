@@ -177,7 +177,14 @@ check(isequal(string(fieldnames(C)).', ["bins" "measure" "baseline" "auroc" "mas
     && ~C.maskAfterStop && isequal(C.waveform, EphysAnalysisConfig.defaults("Waveform")) && isequaln(F.common, C) ...
     && find(fnF == "common") == find(fnF == "grid") + 1, 'defaults("FigureCommon"), and Figure.common after grid');
 fnP = string(fieldnames(P)).';
-check(P.common == true && islogical(P.common) && find(fnP == "common") == find(fnP == "window") + 1, 'Panel.common: true, after window');
+check(P.common == true && islogical(P.common) && find(fnP == "selection") == find(fnP == "window") + 1 ...
+    && find(fnP == "common") == find(fnP == "selection") + 1 && isequal(P.selection, "default"), ...
+    'Panel.selection: "default", after window; Panel.common: true, after it');
+Oc = T.DefaultOptions{T.Type == "continuous"};
+Oh = T.DefaultOptions{T.Type == "heatmap"};
+check(Oc.trials == "off" && isinf(Oc.maxTrials) && Oh.rows == "items" && Oh.rasterSort == "" && isempty(Oh.rasterSortEvent) ...
+    && Oh.rasterSortOrder == "ascending" && Oh.rasterByGroup && ~EphysAnalysisConfig.defaults("Observe").perGroup, ...
+    'continuous trials "off", maxTrials Inf; heat map rows "items" with a raster''s sort fields; observe.perGroup false');
 cfo = @EphysAnalysisConfig.commonFieldsOf;
 check(isequal(EphysAnalysisConfig.commonFields(), ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform"]) ...
     && isequal(cfo("raster"), ["maskAfterStop" "waveform"]) && isequal(cfo("psth"), ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform"]) ...
@@ -345,6 +352,21 @@ cw = cw.addFigure("waveforms");
 cw.Figures(1).panels.options.layout = "probe";
 cw2 = cw; cw2.Figures(1).panels.options.layout = "grid";
 check(cw.figureFor(1).panels.options.layout == "probe" && cw2.figureFor(1).panels.options.layout == "grid", 'figureFor: the waveforms layout');
+cs = EphysAnalysisConfig();
+cs.Defaults.Selection.groupBy = "Depth";
+cs = cs.addFigure();
+cs.Figures(1).panels(2).selection = struct('groupBy', "TrialType");
+s = cs.figureFor(1);
+check(isequaln(s.panels(1).selection, cs.Defaults.Selection) && isstruct(s.panels(2).selection) ...
+    && isequal(s.panels(2).selection.groupBy, "TrialType") && s.panels(2).sharesTime && s.panels(1).sharesTime, ...
+    'figureFor: a panel''s "default" selection is the figure''s; its own is kept, and time stays shared (ref + window only)');
+ap2 = cs.Figures(1);
+ap2.panels(1).window = struct('mode', "fixed", 'pre', -0.1, 'post', 0.2);
+al3 = EphysAnalysisConfig.adoptPanelAlignment(ap2, "psth_1");
+rl3 = EphysAnalysisConfig.relinkPanels(ap2);
+check(isequal(al3.selection.groupBy, "TrialType") && all(arrayfun(@(p) isequal(p.selection, "default"), al3.panels)) ...
+    && isequal(al3.window, "default") && all(arrayfun(@(p) isequal(p.selection, "default") && isequal(p.window, "default"), rl3.panels)), ...
+    'adoptPanelAlignment takes a panel''s own selection as the figure''s; both link every panel''s selection again');
 
 fprintf('\n== 4. config: a JSON round trip ==\n');
 cfg = EphysAnalysisConfig();
@@ -453,6 +475,25 @@ rpt = EphysAnalysisConfig();
 rpt = rpt.addFigure("rasterPsth");
 rpt.save(fj);
 check(rpt.isequalConfig(EphysAnalysisConfig.load(fj)), 'the rasterPsth template round-trips (its panels linked)');
+rn4 = EphysAnalysisConfig();
+rn4 = rn4.addFigure("rasterPsth");
+rn4 = rn4.addFigure("continuous", Id="ct4");
+rn4 = rn4.addFigure("heatmap", Id="hm4");
+rn4.Figures(1).observe.perGroup = true;
+rn4.Figures(1).panels(2).selection = struct('groupBy', "TrialType", 'filter', "Depth > 0");
+rn4.Figures(2).panels.options.trials = "faint";
+rn4.Figures(2).panels.options.maxTrials = 25;
+rn4.Figures(3).panels.options.rows = "trials";
+rn4.Figures(3).panels.options.rasterSort = "Depth";
+rn4.Figures(3).panels.options.rasterSortOrder = "descending";
+rn4.save(fj);
+rn5 = EphysAnalysisConfig.load(fj);
+check(rn4.isequalConfig(rn5) && isempty(rn5.LoadWarnings) && rn5.Figures(1).observe.perGroup ...
+    && isequal(rn5.Figures(1).panels(2).selection.groupBy, "TrialType") && rn5.Figures(1).panels(2).selection.filter == "Depth > 0" ...
+    && isequal(rn5.Figures(1).panels(1).selection, "default") && rn5.Figures(2).panels.options.trials == "faint" ...
+    && rn5.Figures(2).panels.options.maxTrials == 25 && rn5.Figures(3).panels.options.rows == "trials" ...
+    && rn5.Figures(3).panels.options.rasterSort == "Depth" && rn5.Figures(3).panels.options.rasterSortOrder == "descending", ...
+    'perGroup, a panel''s own selection, continuous trials / maxTrials and a heat map of trials survive save / load');
 v = jsondecode('[{"id": "a", "panels": [{"type": "raster"}]}, {"grid": {"rows": 2, "rowHeights": [1, 1.5]}, "panels": {"type": "psth", "row": 2}}]');
 c4 = EphysAnalysisConfig();
 c4.Figures = v;
@@ -897,6 +938,46 @@ b2 = base; b2.Figures(1).style.ErrorType = "ci95"; b2.Figures(1).panels(2).type 
 check(has(b, "figure_1.style.ErrorType", "error") == ~haveBoot && ~has(b2, "figure_1.style.ErrorType", "error"), ...
     'a figure''s bootstrap CI needs the toolbox only where a panel draws the style''s error');
 
+% phase 4b: per-trial traces, a heat map of trials, a panel's own selection, per trial group
+b = base.addFigure("continuous", Id="ct");
+b.Figures(2).panels.options.trials = "faint";
+b.Figures(2).panels.options.maxTrials = 40;
+check(isempty(figIssues(b)), 'continuous trials "faint" with maxTrials 40 validates clean');
+b.Figures(2).panels.options.trials = "some";
+b.Figures(2).panels.options.maxTrials = 0.5;
+check(has(b, "ct.continuous_1.options.trials", "error") && has(b, "ct.continuous_1.options.maxTrials", "error"), ...
+    'continuous trials is off / faint / only, maxTrials a whole number >= 1');
+hmT = EphysAnalysisConfig.defaultLayer("heatmap");
+hmT.binding = "observation";
+b = base.addFigure(struct('panels', {{struct('id', "ht", 'type', "heatmap", 'layers', hmT, ...
+    'options', struct('rows', "trials", 'rasterSort', "stop"))}}), Id="trialmap");
+check(isempty(figIssues(b)), 'a heat map of trials following the observed unit validates clean (it may follow)');
+b2 = b; b2.Figures(2).panels.options.rows = "rows";
+check(has(b2, "trialmap.ht.options.rows", "error"), 'heat map rows are items or trials');
+b2 = b; b2.Figures(2).panels.layers.binding = "fixed";
+check(has(b2, "trialmap.ht.layers(1).units", "error"), 'a heat map of trials fixed to every unit: one unit only');
+b2.Figures(2).panels.layers.units.ids = 7;
+check(~has(b2, "trialmap.ht.layers(1).units", "error"), '... one fixed id is fine');
+b2 = b; b2.Figures(2).panels.layers.source = "LFP";
+check(has(b2, "trialmap.ht.options.rows", "error"), 'a heat map of trials of a signal: an error');
+b2 = b; b2.Figures(2).panels.common = false; b2.Figures(2).panels.options.baseline.Mode = "auroc";
+check(has(b2, "trialmap.ht.options.baseline.Mode", "error"), 'a heat map of trials takes no auROC baseline');
+b2 = b; b2.Figures(2).panels.options.rasterSort = "event";
+check(has(b2, "trialmap.ht.options.rasterSortEvent", "error"), 'a heat map of trials sorted by "event" needs its event (the raster''s rule)');
+b2 = b; b2.Figures(2).panels.options.rows = "items";
+check(has(b2, "trialmap.ht.layers(1).binding", "error"), 'a heat map of items still draws fixed layers only');
+b = base; b.Figures(1).panels(2).selection = struct('groupBy', "TrialType");
+check(isempty(figIssues(b)), 'a PSTH with a trial selection of its own validates clean');
+b.Figures(1).panels(2).selection = struct('groupBy', ["A" "B" "C"]);
+check(has(b, "figure_1.psth_1.selection", "error"), 'a panel''s own selection is checked as the figure''s (groupBy <= 2)');
+b = base.addFigure("probemap", Id="pm6");
+b.Figures(2).panels.selection = struct('groupBy', "TrialType");
+check(has(b, "pm6.probemap_1.selection", "error"), 'a selection of its own only on an aligned panel type');
+b = base; b.Figures(1).observe.perGroup = true;
+b2 = b; b2.Defaults.Selection.groupBy = "Depth";
+check(has(b, "figure_1.observe.perGroup", "warning") && ~has(b2, "figure_1.observe.perGroup", "warning"), ...
+    'perGroup warns while the figure''s selection groups by nothing');
+
 %% ============================================================================ compute
 fprintf('\n== 7. compute: observations, bindings, panels and layers ==\n');
 froot = string(root) + "_fixture";
@@ -913,7 +994,7 @@ cfg = cfg.addFigure("probemap", Id="pm");
 rn = EphysAnalysisRunner(cfg, LogFcn=[]);
 src = rn.source(1);
 spec = cfg.figureFor("rp");
-varsObs = ["kind" "label" "unitId" "channel" "column" "shank" "depth" "meta"];
+varsObs = ["kind" "label" "unitId" "channel" "column" "shank" "depth" "meta" "group" "groupLabel"];
 
 % observations
 Tu = figureObservations(src, spec);
@@ -1272,6 +1353,113 @@ check(numel(Lwp) == 2 && Lwp(1).skip == "" && Lwp(1).R.kind == "waveforms" && Lw
     && Lwp(2).skip == "" && Lwp(2).R.kind == "ring" && Lwp(2).meta.unitId == Tu.unitId(2) && ~isfield(Lwp(2).R, 'waveforms'), ...
     'a waveforms panel in the probe layout: its first layer''s units with their waveforms, a following layer naming the unit to ring');
 
+% per-trial continuous traces: every epoch's, and at most maxTrials of them
+ftr = cfg.Figures(cfg.figureIndex("ct"));
+ftr.id = "trials";
+ftr.panels.options.trials = "faint";
+cfg = cfg.addFigure(ftr);
+str = cfg.figureFor("trials");
+Ttr = figureObservations(src, str);
+Ftr = rn.computeFigure(src, str, Observation=Ttr(1, :));
+Rtr = Ftr.panels.layers(1).R;
+nK = numel(Rtr.keptEpochs);
+gTr = Ftr.epochs.groupIndex(ismember(Ftr.epochs.epoch, Rtr.keptEpochs));
+m1 = mean(double(Rtr.data(:, 1, Rtr.trialGroup == 1)), 3);
+check(Ftr.panels.layers(1).skip == "" && isequal(size(Rtr.data, [1 2 3]), [numel(Rtr.t) 1 nK]) && isa(Rtr.data, 'single') ...
+    && isequal(Rtr.trialEpochs, Rtr.keptEpochs(:)) && isequal(Rtr.trialGroup, gTr) ...
+    && max(abs(m1 - Rtr.mean(:, 1, 1))) <= 1e-4 * max(abs(Rtr.mean(:, 1, 1))) + 1e-9, ...
+    sprintf('continuous trials "faint": R.data holds every epoch''s trace [%d x 1 x %d], their epochs and groups; a group''s traces average to its mean', ...
+    numel(Rtr.t), nK));
+ftr5 = ftr;
+ftr5.id = "trials5";
+ftr5.panels.options.trials = "only";
+ftr5.panels.options.maxTrials = 5;
+cfg = cfg.addFigure(ftr5);
+Ftr5 = rn.computeFigure(src, cfg.figureFor("trials5"), Observation=Ttr(1, :));
+R5 = Ftr5.panels.layers(1).R;
+pick = unique(round(linspace(1, nK, 5)));
+check(nK > 5 && size(R5.data, 3) == 5 && isequal(R5.trialEpochs, reshape(Rtr.keptEpochs(pick), [], 1)) ...
+    && isequaln(R5.data, Rtr.data(:, :, pick)) && isequaln(R5.trialGroup, Rtr.trialGroup(pick)) && isequaln(R5.mean, Rtr.mean), ...
+    'maxTrials 5: five epochs picked evenly over their order (the mean still over every epoch)');
+check(isempty(F3.panels(3).layers(1).R.data) && ~isfield(F3.panels(3).layers(1).R, 'trialEpochs'), 'trials "off" keeps no traces');
+
+% a heat map of one unit's trials
+hmL = EphysAnalysisConfig.defaultLayer("heatmap");
+hmL.binding = "observation";
+fth = struct('panels', {{struct('id', "tm", 'type', "heatmap", 'layers', hmL, 'common', false, 'options', struct('rows', "trials", ...
+    'measure', "count", 'bins', struct('BinSec', 0.02, 'SmoothSec', 0), 'rasterSort', "Depth", 'rasterSortOrder', "descending"))}});
+cfg = cfg.addFigure(fth, Id="trialmap");
+sth = cfg.figureFor("trialmap");
+Fth = rn.computeFigure(src, sth, Observation=Tu(1, :));
+Rth = Fth.panels.layers(1).R;
+nEh = height(Fth.epochs);
+withSpikes = unique(Rth.raster.epoch);
+e1 = withSpikes(1);
+byHand = histcounts(Rth.raster.times(Rth.raster.epoch == e1) + 1e-9, Rth.edges);
+okMean = true;
+for g = 1:height(Fth.groups)
+    okMean = okMean && max(abs(mean(Rth.trialMatrix(Rth.trialGroup == g, :), 1).' - Rth.rate(:, 1, g)), [], 'omitnan') < 1e-12;
+end
+check(Fth.panels.layers(1).skip == "" && sth.observe.kind == "unit" && Fth.panels.layers(1).meta.unitId == Tu.unitId(1) ...
+    && isequal(size(Rth.trialMatrix), [nEh numel(Rth.t)]) && isequal(Rth.trialMatrix(e1, :), byHand) && okMean, ...
+    sprintf('a heat map of trials: [%d epochs x %d bins], epoch %d''s row the raster binned by hand; each group''s rows average to its PSTH', ...
+    nEh, numel(Rth.t), e1));
+og = Rth.trialGroup(Rth.trialOrder);
+dep = Fth.epochs.Depth(Rth.trialOrder);
+okOrder = isequal(sort(Rth.trialOrder(:)), (1:nEh).') && issorted(og);
+for g = reshape(unique(og), 1, [])
+    okOrder = okOrder && issorted(flipud(dep(og == g)));
+end
+check(okOrder && Rth.trialRowsName == "Epoch (by Depth), descending", ...
+    'its rows go as a raster sorts them: by group, then Depth descending');
+
+% a panel with a trial selection of its own: its own epochs and groups
+fos = cfg.Figures(cfg.figureIndex("rp"));
+fos.id = "ownsel";
+fos.panels(2).selection = struct('groupBy', string.empty(1, 0));
+cfg = cfg.addFigure(fos);
+Fos = rn.computeFigure(src, cfg.figureFor("ownsel"), Observation=Tu(1, :));
+check(~Fos.panels(1).ownSelection && Fos.panels(2).ownSelection && height(Fos.groups) > 1 && height(Fos.panels(2).groups) == 1 ...
+    && istable(Fos.panels(2).epochs) && height(Fos.panels(2).epochs) == height(Fos.epochs) && size(Fos.panels(2).layers(1).R.rate, 3) == 1 ...
+    && Fos.panels(2).sharesTime && isempty(Fos.panels(1).epochs), ...
+    sprintf('a PSTH with a selection of its own (no groupBy): its own epochs and one group, the raster on the figure''s %d groups', ...
+    height(Fos.groups)));
+
+% one figure per trial group
+fpg = cfg.Figures(cfg.figureIndex("rp"));
+fpg.id = "pergroup";
+fpg.observe.perGroup = true;
+cfg = cfg.addFigure(fpg);
+spg = cfg.figureFor("pergroup");
+Tpg = figureObservations(src, spg);
+gOn = find(F1.groups.n > 0);
+nGg = numel(gOn);
+check(nGg >= 2 && height(Tpg) == nU * nGg && isequal(Tpg.unitId, repelem(Tu.unitId, nGg)) && isequal(Tpg.group(1:nGg), gOn) ...
+    && isequal(Tpg.groupLabel(1:nGg), string(F1.groups.label(gOn))) && all(endsWith(Tpg.label, " · " + Tpg.groupLabel)) ...
+    && all(isnan(Tu.group)) && all(Tu.groupLabel == ""), ...
+    sprintf('perGroup: one observation per unit and trial group (%d units x %d groups), the label ending in its group', nU, nGg));
+Fpg = rn.computeFigure(src, spg, Observation=Tpg(2, :));
+g2 = Tpg.group(2);
+check(height(Fpg.groups) == 1 && string(Fpg.groups.label) == Tpg.groupLabel(2) && Fpg.groups.n == F1.groups.n(g2) ...
+    && height(Fpg.epochs) == F1.groups.n(g2) && all(Fpg.epochs.groupIndex == 1) && all(string(Fpg.epochs.group) == Tpg.groupLabel(2)) ...
+    && isequaln(Fpg.panels(2).layers(1).R.rate, F1.panels(2).layers(1).R.rate(:, :, g2)) && Fpg.observation.groupLabel == Tpg.groupLabel(2), ...
+    'a per-group figure keeps that group''s epochs only (one group, n recounted): its PSTH is the unit''s PSTH of the group');
+fpo = fpg;
+fpo.id = "pergroupown";
+fpo.panels(2).selection = struct('groupBy', string.empty(1, 0));
+cfg = cfg.addFigure(fpo);
+Fpo = rn.computeFigure(src, cfg.figureFor("pergroupown"), Observation=Tpg(2, :));
+check(height(Fpo.epochs) == F1.groups.n(g2) && height(Fpo.panels(2).epochs) == height(F1.epochs), ...
+    'a panel with a selection of its own is not cut to the observation''s group');
+u1 = figureOutputName("{Unit}", "DS", spg, Tu(1, :), 1, 1);
+gs = regexprep(Tpg.groupLabel(2), '[^\w\-\.]', '_');
+nm1 = figureOutputName("{Name}_{Plot}", "DS", spg, Tpg(2, :), 2, height(Tpg));
+nm2 = figureOutputName("{Name}_{Plot}_{Group}", "DS", spg, Tpg(2, :), 2, height(Tpg));
+nm3 = figureOutputName("{Name}_{Plot}_{Index}", "DS", spg, Tpg(2, :), 2, height(Tpg));
+check(nm1 == "DS_pergroup_" + u1 + "_" + gs && nm2 == "DS_pergroup_" + gs + "_" + u1 && nm3 == "DS_pergroup_2" ...
+    && contains(figureCaption(spg, Tpg), "one figure per trial group") && ~contains(figureCaption(spec, Tu), "per trial group"), ...
+    sprintf('figureOutputName: {Group} = the group ("%s"; "_<Group>" appended without {Group} or {Index}); figureCaption says per trial group', nm1));
+
 % one observation costs a fraction of every unit
 haveBootT = license('test', 'Statistics_Toolbox') && exist('bootci', 'file');
 if nU >= 4 && haveBootT
@@ -1365,7 +1553,12 @@ rcases = {
     "tuning curves per series, inset",  Ftc2
     "an auROC PSTH",                    Fau
     "a stacked PSTH",                   Fst
-    "unit waveforms on the probe",      Fwp};
+    "unit waveforms on the probe",      Fwp
+    "continuous trials, faint",         Ftr
+    "continuous trials only, 5 of them", Ftr5
+    "a heat map of trials",             Fth
+    "a PSTH with its own selection",    Fos
+    "one trial group's figure",         Fpg};
 for k = 1:size(rcases, 1)
     Fk = rcases{k, 2};
     ids = [Fk.panels.id];
@@ -1441,7 +1634,57 @@ check(isscalar(lg) && all(arrayfun(@(g) nnz(ls3 == g) == 1, string(F3.groups.lab
     && isequal(ls3(1:height(F3.groups)), reshape(string(F3.groups.label), 1, [])) && isgraphics(hr.layout), ...
     sprintf('one legend for the figure: each group once, first, then the layers (%s)', strjoin(ls3, ", ")));
 
+% per-trial traces, a heat map of trials, a panel's own legend, one group's figure
+htr = renderFigure(Ftr, Ftr.spec, fig);
+tt = findall(htr.axes(1), 'Tag', 'trialTrace');
+mt = findall(htr.axes(1), 'Tag', 'trace');
+nGtr = height(Ftr.groups);
+check(numel(tt) == nGtr && numel(mt) == nGtr && all(arrayfun(@(x) nnz(isnan(x.YData)), tt) >= 1) ...
+    && sum(arrayfun(@(x) nnz(isnan(x.YData)), tt)) == nK && ismember("trialTrace", PlotAesthetics.roles().Role) ...
+    && PlotAesthetics.roleLabel("trialTrace") == "Trial traces" && tt(1).LineWidth < mt(1).LineWidth ...
+    && ~isequal(tt(1).Color, mt(1).Color), ...
+    sprintf('trials "faint": one NaN-joined pale line of traces per group (%d epochs in all) under each mean, role trialTrace', nK));
+ht5 = renderFigure(Ftr5, Ftr5.spec, fig);
+lg5 = findall(fig, 'Type', 'legend');
+check(numel(findall(ht5.axes(1), 'Tag', 'trialTrace')) == nGtr && isempty(findall(ht5.axes(1), 'Tag', 'trace')) ...
+    && isempty(findall(ht5.axes(1), 'Tag', 'sem')) && (nGtr < 2 || (isscalar(lg5) && numel(lg5.String) >= nGtr)), ...
+    'trials "only": the traces without the mean or its band; they stand for the groups in the legend');
+hth = renderFigure(Fth, Fth.spec, fig);
+ath = hth.axes(1);
+img = findall(ath, 'Tag', 'image');
+bands = findall(ath, 'Tag', 'rasterBand');
+check(isscalar(img) && isequal(size(img.CData), [nEh numel(Rth.t)]) && isequaln(img.CData, Rth.trialMatrix(Rth.trialOrder, :)) ...
+    && numel(bands) >= height(Fth.groups) && string(ath.YLabel.String) == "Epoch (by Depth), descending" ...
+    && isequal(xlim(ath), [Fth.spec.window.pre Fth.spec.window.post]) && string(ath.YDir) == "reverse", ...
+    'a heat map of trials draws a row per epoch in its order, the groups as a strip at the left, y label "Epoch (by ...)"');
+hos = renderFigure(Fos, Fos.spec, fig);
+check(string(hos.axes(2).Title.String) == "all trials" && isscalar(findall(fig, 'Type', 'legend')), ...
+    'a PSTH with a selection of its own that groups by nothing: titled "all trials", no legend of one group');
+fod = cfg.Figures(cfg.figureIndex("rp"));
+fod.id = "ownsel2";
+fod.panels(2).selection = struct('groupBy', "Depth", 'groupOrder', "descending");
+cfg = cfg.addFigure(fod);
+Fod = rn.computeFigure(src, cfg.figureFor("ownsel2"), Observation=Tu(1, :));
+hod = renderFigure(Fod, Fod.spec, fig);
+lgs = findall(fig, 'Type', 'legend');
+mine = arrayfun(@(l) isequal(l.Axes, hod.axes(2)), lgs);
+inPanel = lgs(mine);
+outer = lgs(~mine);
+gl = reshape(string(Fod.groups.label), 1, []);
+check(Fod.panels(2).ownSelection && numel(lgs) == 2 && isscalar(inPanel) && isscalar(outer) && string(inPanel.Location) == "best" ...
+    && isequal(string(inPanel.String), reshape(string(Fod.panels(2).groups.label), 1, [])) && isequal(string(inPanel.String), fliplr(gl)) ...
+    && isequal(string(outer.String(1:numel(gl))), gl) && string(hod.axes(2).Title.String) == "", ...
+    'a PSTH with its own selection (groups in descending order): its own legend inside it; the figure''s legend the raster''s groups');
+hpg = renderFigure(Fpg, Fpg.spec, fig);
+sTg = Fpg.spec;
+sTg.title = "Card";
+hpg2 = renderFigure(Fpg, sTg, fig);
+check(endsWith(hpg.title, "(" + height(Fpg.epochs) + " epochs)") && contains(hpg.title, Tpg.label(2)) ...
+    && hpg2.title == "Card · " + Tpg.groupLabel(2), ...
+    sprintf('one trial group''s figure names its group in the title ("%s")', hpg.title));
+
 % skipped layers say why
+hr = renderFigure(F3, F3.spec, fig);   % again: the checks above drew other figures into fig
 notes = findall(hr.layout, 'Tag', 'layerNote');
 noteText = strjoin(string(get(notes, 'String')), " | ");
 check(~isempty(notes) && contains(noteText, auxMsg), sprintf('a skipped layer shows its reason in its panel ("%s")', noteText));

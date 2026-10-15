@@ -1002,6 +1002,25 @@ check(height(RO) == 1 && RO.Plot == "card" && RO.Status == "done" && numel(split
     && isequal([before.datenum], [after.datenum]), ...
     'run(Figures="card", Plots=string.empty(1, 0)) runs that figure alone; Overwrite off keeps (and lists) every observation''s files');
 
+% one figure per trial group: a file per unit and group, the group in its name
+outPg = fullfile(root, 'outFigGroup');
+cfgPg = cfgF;
+cfgPg.Figures(1).observe.perGroup = true;
+cfgPg.Export.Folder = fullfile(outPg, "{Name}");
+cfgPg.Report.Enabled = false;
+Tpg = figureObservations(EphysAnalysisRunner(cfgPg, LogFcn=[]).source(1), cfgPg.figureFor("card"));
+nGpg = numel(unique(Tpg.group));
+RPg = EphysAnalysisRunner(cfgPg, LogFcn=[]).run(Datasets=1, Figures="card", Plots=string.empty(1, 0));
+filesPg = split(RPg.Files, "; ");
+wantPg = strings(height(Tpg), 1);
+for i = 1:height(Tpg)
+    wantPg(i) = string(fullfile(outPg, names(1), names(1) + "_card_" + shortUnitLabels(Tpg.meta{i}.label) + "_" ...
+        + regexprep(Tpg.groupLabel(i), '[^\w\-\.]', '_') + ".png"));
+end
+check(height(RPg) == 1 && RPg.Status == "done" && nGpg >= 2 && height(Tpg) == nObs(1) * nGpg && numel(filesPg) == height(Tpg) ...
+    && isequal(sort(filesPg), sort(wantPg)) && all(isfile(wantPg)) && RPg.Message == compose("%d observation(s)", height(Tpg)), ...
+    sprintf('perGroup: one file per unit and trial group (%d x %d), <Name>_card_<unit>_<group>.png', nObs(1), nGpg));
+
 % cancel between observations, and a Canceled from inside a plot's compute
 outCx = fullfile(root, 'outFigCancel');
 cfgC = cfgF; cfgC.Export.Folder = fullfile(outCx, "{Name}"); cfgC.Report.Enabled = false;

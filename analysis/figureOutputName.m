@@ -3,10 +3,11 @@ function f = figureOutputName(pattern, name, spec, obs, i, n)
 %   F = figureOutputName(PATTERN, NAME, SPEC, OBS, I, N) fills
 %   Export.FilenamePattern (figureFileName) for observation I of the N a
 %   figure (SPEC, figureFor) is drawn for on the dataset NAME: Name = NAME,
-%   Plot = SPEC.id, Kind = "figure", Group = "all", Unit = the
+%   Plot = SPEC.id, Kind = "figure", Group = the observation's trial group
+%   (a perGroup figure's: its groupLabel; else "all"), Unit = the
 %   observation's short label, Index = I and Date = today. OBS is one row
 %   of figureObservations (a table row or a struct with kind, label,
-%   unitId, channel and meta). Its short label:
+%   unitId, channel, meta and groupLabel). Its short label:
 %     a unit      a sorted unit's label before the recording suffix
 %                 ("su12" of "su12_RAT1_260918T1015", shortUnitLabels); a
 %                 detection's (class "det") whole label, its channel's
@@ -17,7 +18,9 @@ function f = figureOutputName(pattern, name, spec, obs, i, n)
 %     the dataset "dataset"
 %   with every character outside [A-Za-z0-9_-.] replaced by "_". With N > 1
 %   and a pattern that names neither {Unit} nor {Index}, "_<Unit>" is
-%   appended, so the observations never overwrite each other. Figures and
+%   appended (not for the dataset), and for a trial group's observation
+%   with a pattern that names neither {Group} nor {Index}, "_<Group>", so
+%   the observations never overwrite each other. Figures and
 %   plots share {Plot}: EphysAnalysisConfig.validate checks that a figure
 %   id and a plot id never name the same files.
 %
@@ -34,10 +37,21 @@ arguments
 end
 
 unit = regexprep(observationLabel(obs), '[^\w\-\.]', '_');
-f = figureFileName(pattern, struct('Name', name, 'Plot', spec.id, 'Kind', "figure", 'Group', "all", ...
+grp = string(valueOf(obs, 'groupLabel', ""));
+if isempty(grp) || ismissing(grp); grp = ""; end
+perGroup = grp ~= "";
+if perGroup
+    grp = regexprep(grp, '[^\w\-\.]', '_');
+else
+    grp = "all";
+end
+f = figureFileName(pattern, struct('Name', name, 'Plot', spec.id, 'Kind', "figure", 'Group', grp, ...
     'Unit', unit, 'Index', i));
-if n > 1 && ~contains(pattern, ["{Unit}" "{Index}"])
+if n > 1 && ~contains(pattern, ["{Unit}" "{Index}"]) && string(valueOf(obs, 'kind', "unit")) ~= "dataset"
     f = f + "_" + unit;
+end
+if perGroup && ~contains(pattern, ["{Group}" "{Index}"])
+    f = f + "_" + grp;
 end
 end
 

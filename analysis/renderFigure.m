@@ -25,12 +25,18 @@ function h = renderFigure(F, spec, target, opts)
 %            at its bottom, and drops the inner x tick labels.
 %   Title    SPEC.title, else "<id>: <observation> — <event> (<n> epochs)"
 %            (a dataset figure names no observation; a figure with no
-%            aligned panel no event); the dataset as its subtitle.
+%            aligned panel no event); the dataset as its subtitle. An
+%            observation of one trial group (a perGroup figure) names its
+%            group: in the observation's label, else appended ("· <group>").
 %   Legend   one, east of the panels (Style.LegendLocation, placeLegend):
 %            the trial groups once (as a PSTH panel draws them, else a
 %            continuous one, else a raster's bands), then the panels'
-%            layer, unit, channel and mark entries, each
-%            label once; no panel keeps a legend of its own.
+%            layer, unit, channel and mark entries, each label once. A
+%            panel with a trial selection of its own (F.panels(k).
+%            ownSelection) colors its own groups (groupPalette of its
+%            groups) and lists its entries in a legend of its own inside
+%            it (placeLegend, "inside"); its title then says its grouping
+%            ("by <parameter>", "all trials") when it is not the figure's.
 %   Style    SPEC.style: FontSize, LineWidth, ShowSEM, the Error* band
 %            look, ShowZeroLine, ShowStop, Grid, Legend*, Colormap,
 %            HeatColormap, SortShank / SortDepth, LabelShank / LabelDepth,
@@ -128,7 +134,10 @@ for k = 1:nDraw
     else
         ax = ax0;
     end
-    look = lookFor(F, spec, p, P, style, colors, isTime(k));
+    own = isfield(P, 'ownSelection') && P.ownSelection && istable(P.groups) && height(P.groups) > 0;
+    colorsK = colors;   % a panel with a selection of its own colors its own groups
+    if own; colorsK = groupPalette(P.groups, style); end
+    look = lookFor(F, spec, p, P, style, colorsK, isTime(k));
     if isfield(reg, p.type)
         hk = reg.(p.type).draw(ax, P, look);
     else
@@ -143,7 +152,22 @@ for k = 1:nDraw
         xlim(ax, [spec.window.pre spec.window.post]);
     end
     if hk.yName ~= ""; ylabel(ax, hk.yName, 'Interpreter', 'none'); end
-    if p.title ~= ""; title(ax, p.title, 'FontWeight', 'normal', 'Interpreter', 'none'); end
+    ttl = p.title;
+    if own; ttl = groupingTitle(ttl, p, spec); end
+    if ttl ~= ""; title(ax, ttl, 'FontWeight', 'normal', 'Interpreter', 'none'); end
+    if own   % its groups are not the figure's: a legend of its own, inside it; the figure's legend serves the others
+        if style.Legend
+            v = isgraphics(hk.legendHandles);
+            if any(v)
+                inside = style;
+                inside.LegendLocation = "inside";
+                placeLegend(ax, hk.legendHandles(v), hk.legendLabels(v), inside, [], "inside");
+            end
+        end
+        hk.legendHandles = gobjects(1, 0);
+        hk.legendLabels = strings(1, 0);
+        hk.legendGroup = false(1, 0);
+    end
     axs(k) = ax;
     hks{k} = hk;
 end
@@ -166,7 +190,13 @@ if txt ~= "" && named && any(drawn)
         title(axs(k1), string(obs.label), 'FontWeight', 'normal', 'Interpreter', 'none');
     end
 end
-if txt == ""; txt = autoTitle(F, spec, named); end
+grpTxt = "";   % one figure per trial group: the group drawn
+if isstruct(obs) && isfield(obs, 'groupLabel'); grpTxt = string(obs.groupLabel); end
+if txt == ""
+    txt = autoTitle(F, spec, named, grpTxt);
+elseif grpTxt ~= ""
+    txt = txt + " · " + grpTxt;
+end
 sub = string(F.dataset);
 if ~isempty(tl)
     title(tl, txt, 'FontSize', style.FontSize + 1, 'FontWeight', 'bold', 'Interpreter', 'none');
@@ -315,11 +345,32 @@ end
 end
 
 
-function t = autoTitle(F, spec, named)
-%autoTitle  "<id>: <observation> — <event> (<n> epochs)".
+function t = groupingTitle(t, p, spec)
+%groupingTitle  A panel title that says how the panel's own selection groups its trials, when not as the figure does.
+gb = strings(1, 0);
+fb = strings(1, 0);
+if isfield(p, 'selection') && isstruct(p.selection) && isfield(p.selection, 'groupBy'); gb = string(p.selection.groupBy); end
+if isstruct(spec.selection) && isfield(spec.selection, 'groupBy'); fb = string(spec.selection.groupBy); end
+if isequal(reshape(gb, 1, []), reshape(fb, 1, [])); return; end
+what = "all trials";
+if ~isempty(gb); what = "by " + strjoin(gb, " x "); end
+if t == ""
+    t = what;
+else
+    t = t + " (" + what + ")";
+end
+end
+
+
+function t = autoTitle(F, spec, named, grpTxt)
+%autoTitle  "<id>: <observation> — <event> (<n> epochs)" (a trial group's observation names its group).
 t = spec.id;
 if t == ""; t = "Figure"; end
-if named; t = t + ": " + string(F.observation.label); end
+if named
+    t = t + ": " + string(F.observation.label);
+elseif grpTxt ~= ""
+    t = t + ": " + grpTxt;
+end
 if istable(F.epochs) && isstruct(spec.ref)
     ev = eventRefLabel(spec.ref);
     w = spec.window;

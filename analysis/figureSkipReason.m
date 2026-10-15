@@ -18,7 +18,8 @@ function [reason, layerReasons] = figureSkipReason(src, spec)
 %   layer (the layer's index in the panel; 0 = the panel itself) and
 %   reason ("" = it can be computed): one entry per panel, then one per
 %   enabled layer of it. A panel's own reasons: an unknown type; its own
-%   ref / window (as the figure's above); a raster sorted by a
+%   ref / window / selection (as the figure's above); a raster (or a heat
+%   map of trials) sorted by a
 %   trial parameter the trials lack, or by an event (rasterSort "event")
 %   that names none or whose line is missing; a probe map without a probe
 %   map ("no probe map"); a tuning panel without paired trials, without a
@@ -81,12 +82,14 @@ for k = 1:numel(spec.panels)
     if ~any(row)
         pr = "unknown panel type " + p.type;
     else
-        own = PT.Aligned(row) && (~isequaln(p.ref, spec.ref) || ~isequaln(p.window, spec.window));
+        psel = sel;   % a panel's own trial selection, else the figure's
+        if isfield(p, 'selection') && isstruct(p.selection); psel = p.selection; end
+        own = PT.Aligned(row) && (~isequaln(p.ref, spec.ref) || ~isequaln(p.window, spec.window) || ~isequaln(psel, sel));
         if own
-            pr = alignReason(src, p.ref, p.window, sel, vars);
+            pr = alignReason(src, p.ref, p.window, psel, vars);
         end
         if pr == ""
-            pr = panelReason(src, p, vars, sel);
+            pr = panelReason(src, p, vars, psel);
         end
     end
     e = struct('panel', p.id, 'layer', 0, 'reason', pr);
@@ -134,22 +137,31 @@ switch p.type
         if param == ""; r = "no numeric trial parameter to tune over"; return; end
         r = paramReason([param series], vars);
     case "raster"
-        if o.rasterSort == "event"
-            if isempty(o.rasterSortEvent)
-                r = "no sort event (rasterSortEvent)"; return
-            end
-            ref = eventRef(o.rasterSortEvent);
-            if (ref.scope == "trial" || ref.line == "Trial" || ref.offsetParam ~= "") && ~src.hasTrials
-                r = "no paired trials"; return
-            end
-            r = lineReason(src, ref);
-            if r == ""; r = paramReason(ref.offsetParam, vars); end
-        elseif ~ismember(o.rasterSort, ["" "stop"])
-            if ~src.hasTrials; r = "no paired trials"; return; end
-            r = paramReason(o.rasterSort, vars);
-        end
+        r = sortReason(src, o, vars);
+    case "heatmap"
+        if isfield(o, 'rows') && o.rows == "trials"; r = sortReason(src, o, vars); end   % its rows sorted as a raster's
     case "probemap"
         if isempty(src.probe); r = "no probe map"; end
+end
+end
+
+
+function r = sortReason(src, o, vars)
+%sortReason  What a raster's sort (rasterSort, rasterSortEvent) needs that the dataset lacks.
+r = "";
+if o.rasterSort == "event"
+    if isempty(o.rasterSortEvent)
+        r = "no sort event (rasterSortEvent)"; return
+    end
+    ref = eventRef(o.rasterSortEvent);
+    if (ref.scope == "trial" || ref.line == "Trial" || ref.offsetParam ~= "") && ~src.hasTrials
+        r = "no paired trials"; return
+    end
+    r = lineReason(src, ref);
+    if r == ""; r = paramReason(ref.offsetParam, vars); end
+elseif ~ismember(o.rasterSort, ["" "stop"])
+    if ~src.hasTrials; r = "no paired trials"; return; end
+    r = paramReason(o.rasterSort, vars);
 end
 end
 

@@ -3,9 +3,9 @@ function [p, unknown] = normalizePanel(in, path)
 %   [P, UNKNOWN] = EphysAnalysisConfig.normalizePanel(IN, PATH) fills the
 %   fields IN leaves out, coerces the rest (see normalizeSection) and drops
 %   unknown fields (their paths, prefixed by PATH, in UNKNOWN):
-%   - ref and window are the string "default" (the figure's) or a struct,
-%     normalized as an EventRef / EpochWindow; an empty value means
-%     "default"
+%   - ref, window and selection are the string "default" (the figure's)
+%     or a struct, normalized as an EventRef / EpochWindow /
+%     TrialSelection; an empty value means "default"
 %   - layers is a list of layers (a struct array, a cell from jsondecode,
 %     one struct or [] for none), each normalizeLayer'd
 %   - common is a logical: true = the panel takes the figure's common
@@ -23,13 +23,13 @@ arguments
 end
 
 def = EphysAnalysisConfig.defaults("Panel");
-sentinels = struct('ref', "EventRef", 'window', "EpochWindow");
+sentinels = struct('ref', "EventRef", 'window', "EpochWindow", 'selection', "TrialSelection");
 held = struct();
 if isstruct(in) && ~isempty(in)
     if ~isscalar(in)
         error('EphysAnalysisConfig:BadValue', '%s must be a scalar struct.', path);
     end
-    for f = ["ref" "window" "layers" "options"]
+    for f = ["ref" "window" "selection" "layers" "options"]
         if isfield(in, f)
             held.(f) = in.(f);
             in = rmfield(in, f);
@@ -38,7 +38,7 @@ if isstruct(in) && ~isempty(in)
 end
 [p, unknown] = EphysAnalysisConfig.coerceStruct(def, in, path);
 
-for f = ["ref" "window"]
+for f = ["ref" "window" "selection"]
     if ~isfield(held, f); continue; end
     v = held.(f);
     if isempty(v) || ((isstring(v) || ischar(v)) && lower(strtrim(string(v))) == "default")

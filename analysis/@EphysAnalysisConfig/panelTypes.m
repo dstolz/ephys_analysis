@@ -41,6 +41,14 @@ function T = panelTypes()
 %   zscore. A waveforms panel's layout "probe" draws every unit of its
 %   first layer at its place on the probe; a further layer (e.g. one
 %   following the observation) rings its units there.
+%   A continuous panel draws each epoch's trace with trials "faint"
+%   (behind the mean, pale and thin) or "only" (no mean), at most
+%   maxTrials epochs picked evenly over their order. A heat map's rows
+%   "trials" draw one unit's epochs (a layer following the observation, or
+%   fixed to one unit), binned as its PSTH, sorted as a raster
+%   (rasterSort, rasterSortOrder, rasterByGroup); its group is not used.
+%   Every aligned panel may take a trial selection of its own
+%   (Panel.selection): its own groups, colors and legend.
 %
 %   See also EphysAnalysisConfig.sourceCategories, EphysAnalysisConfig.categoryOf,
 %   EphysAnalysisConfig.plotKinds, EphysAnalysisConfig.defaultLayer.
@@ -81,14 +89,21 @@ opts.continuous = struct( ...
     'transform',    "none", ...         % "none" | "rectify" (each epoch's absolute value, before the statistic)
     'errorType',    "sem", ...          % the band: "off" | "sem" | "std" | "ci95" | "iqr"
     'stackSpacing', NaN, ...            % stacked: the offset between channels (NaN = automatic)
+    'trials',       "off", ...          % each epoch's trace: "off" | "faint" (pale and thin, behind the mean) | "only" (the traces, no mean)
+    'maxTrials',    Inf, ...            % trials: at most this many epochs drawn, picked evenly over their order
     'yLim',         []);
 opts.heatmap = struct( ...
     'bins',          bins, ...
     'measure',       "rate", ...
     'baseline',      baseline, ...      % spikes: Mode "none" | "subtract" | "zscore" | "percent" | "auroc"; a signal: "none" | "subtract"
     'auroc',         auroc, ...         % spikes, baseline Mode "auroc": the auROC's settings
-    'order',         "probe", ...       % rows: "probe" (the style's SortDepth / SortShank) | "peak" | "modulation" (auROC: the mean in the modulation window)
-    'group',         1, ...             % the trial group drawn
+    'rows',          "items", ...       % "items" (the layer's units or channels) | "trials" (one row per epoch of one unit)
+    'order',         "probe", ...       % rows "items": "probe" (the style's SortDepth / SortShank) | "peak" | "modulation" (auROC: the mean in the modulation window)
+    'rasterSort',      "", ...          % rows "trials": the epochs' order, as a raster's ("" | "stop" | "event" | a trial parameter)
+    'rasterSortEvent', [], ...          % rows "trials", rasterSort "event": [] or an EventRef
+    'rasterSortOrder', "ascending", ... % rows "trials": "ascending" | "descending"
+    'rasterByGroup',   true, ...        % rows "trials": by group first (a color strip at the left), else one block
+    'group',         1, ...             % rows "items": the trial group drawn
     'cLim',          [], ...
     'maskAfterStop', false);
 opts.waveforms = struct( ...

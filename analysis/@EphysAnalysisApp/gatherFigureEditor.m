@@ -8,7 +8,10 @@ function fig = gatherFigureEditor(obj)
 %   figure's ref / window / selection is "default"; unticked (or edited:
 %   onFigureAlignEdited), the figure takes the values its controls show.
 %   The panel's ref and window are its own where it has them
-%   (E.panelSame.UserData: onPanelAlignEdited), else "default". The
+%   (E.panelSame.UserData: onPanelAlignEdited), else "default"; its
+%   selection is its own while "Trial selection as the figure" is
+%   unticked (the selection rows of the Panel alignment section), else
+%   "default". The
 %   panel's spans, its row's height and its column's width are written
 %   only when their spinners differ from what applyFigureEditor showed, so
 %   a value they cannot show is kept as stored; a row height or column
@@ -46,6 +49,7 @@ o.units = u;
 o.signal = string(E.obsSignal.Value);
 o.channels = parseList(E.obsChannels.Value);
 o.datasets = string(E.obsDatasets.Value);
+o.perGroup = logical(E.obsPerGroup.Value);
 fig.observe = o;
 
 % arrangement and appearance
@@ -126,18 +130,23 @@ if j >= 1 && j <= numel(fig.panels)
     end
     own = E.panelSame.UserData;
     if ~(islogical(own) && numel(own) == 2); own = [false false]; end
-    if any(own)
-        fref = ref; fwin = win;   % the figure's (resolved): where the panel's own start from
+    ownSel = ~E.panelSameSel.Value;   % "Trial selection as the figure" unticked: the panel's own
+    if any(own) || ownSel
+        fref = ref; fwin = win; fsel = sel;   % the figure's (resolved): where the panel's own start from
         if isstruct(p.ref); fref = p.ref; end
         if isstruct(p.window); fwin = p.window; end
-        [pref, pwin] = obj.gatherAlignControls(obj.PanelAlignControls, fref, fwin, sel);
+        if isstruct(p.selection); fsel = p.selection; end
+        [pref, pwin, psel] = obj.gatherAlignControls(obj.PanelAlignControls, fref, fwin, fsel);
     end
     if own(1); p.ref = pref; else; p.ref = "default"; end
     if own(2); p.window = pwin; else; p.window = "default"; end
+    if ownSel; p.selection = psel; else; p.selection = "default"; end
     p.options = gatherOptions(E, p);
     i = obj.SelectedLayer;
     if i >= 1 && i <= numel(p.layers)
-        p.layers(i) = gatherLayer(E, p.layers(i), p.type);
+        rows = "items";
+        if isfield(p.options, 'rows'); rows = p.options.rows; end
+        p.layers(i) = gatherLayer(E, p.layers(i), p.type, rows);
     end
     fig.panels(j) = p;
 end
@@ -206,7 +215,10 @@ if p.type == "continuous"
     op.errorType = string(E.errorType.Value);
     op.stackSpacing = E.stackSpacing.Value;
     if isempty(op.stackSpacing); op.stackSpacing = NaN; end
+    op.trials = string(E.contTrials.Value);
+    op.maxTrials = E.maxTrials.Value;
 end
+if isfield(op, 'rows'); op.rows = string(E.heatRows.Value); end
 if isfield(op, 'order'); op.order = string(E.order.Value); end
 if isfield(op, 'value'); op.value = string(E.value.Value); end
 if isfield(op, 'metric')
@@ -232,13 +244,13 @@ end
 end
 
 
-function L = gatherLayer(E, L, type)
-%gatherLayer  Layer L of a panel of TYPE as the Layers rows show it.
+function L = gatherLayer(E, L, type, rows)
+%gatherLayer  Layer L of a panel of TYPE (a heat map's options.rows ROWS) as the Layers rows show it.
 L.name = strtrim(string(E.layerName.Value));
 L.enabled = logical(E.layerEnabled.Value);
 L.source = string(E.layerSource.Value);
 L.binding = string(E.layerBinding.Value);
-ch = figureEditorChoices(type, L.source);
+ch = figureEditorChoices(type, L.source, rows);
 if ~ch.Bindable; L.binding = "fixed"; end   % events, and the types that draw fixed layers
 u = L.units;
 u.classes = ticked(E.layerClasses);

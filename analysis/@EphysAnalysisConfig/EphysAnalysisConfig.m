@@ -38,8 +38,11 @@ classdef EphysAnalysisConfig
     %               whose ref / window are "default" takes the figure's
     %               alignment; adoptPanelOptions, adoptPanelAlignment and
     %               relinkPanels spread one panel's settings or re-link
-    %               every panel. A panel (defaults("Panel")): id, type,
-    %               title, row, col, rowSpan, colSpan, ref, window, common
+    %               every panel. observe.perGroup draws each observation once
+    %               per trial group of the figure's selection. A panel
+    %               (defaults("Panel")): id, type, title, row, col,
+    %               rowSpan, colSpan, ref, window, selection (its own:
+    %               its own groups, colors and legend), common
     %               (true: the figure's common options for the fields its
     %               type has, commonFieldsOf), layers, options (the type's
     %               DefaultOptions; panelOptions gives them as drawn); a layer
@@ -51,7 +54,8 @@ classdef EphysAnalysisConfig
     %               spec the compute draws. The run draws each enabled
     %               figure once per observation after each dataset's plots
     %               (EphysAnalysisRunner.runDataset), a file each named by
-    %               figureOutputName ({Plot} its id, {Unit} the observation)
+    %               figureOutputName ({Plot} its id, {Unit} the observation,
+    %               {Group} its trial group per group)
     %     SessionPlots  struct array, one entry per session plot
     %               (defaults("SessionPlot")): a base plot (plot, by id)
     %               drawn over several datasets and merged

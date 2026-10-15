@@ -6,10 +6,13 @@ function spec = figureFor(obj, id)
 %   - observe.kind resolved from "auto" (observeKind: "unit", "channel" or
 %     "dataset"), and observe.units.source set to observe.source (a
 %     complete UnitSelection, for selectUnits)
-%   - each panel's ref / window taken from the figure's (resolved) where
-%     "default", and two fields added: aligned (panelTypes().Aligned of
-%     its type) and sharesTime (the type shares time and both its ref and
-%     window were "default": it takes the figure's time axis)
+%   - each panel's ref / window / selection taken from the figure's
+%     (resolved) where "default", and two fields added: aligned
+%     (panelTypes().Aligned of its type) and sharesTime (the type shares
+%     time and both its ref and window were "default": it takes the
+%     figure's time axis; a selection of its own does not change that). A
+%     panel whose selection differs from the figure's computes its own
+%     epochs and groups (figureCompute)
 %   - each panel's options completed against its type's DefaultOptions,
 %     and, where the panel's common is true, the figure's common values
 %     put in for every common field its type has (commonFieldsOf, via
@@ -63,6 +66,7 @@ for j = 1:numel(fig.panels)
     p.sharesTime = known && T.SharesTime(row) && isequal(p.ref, "default") && isequal(p.window, "default");
     if isequal(p.ref, "default");    p.ref = spec.ref;       end
     if isequal(p.window, "default"); p.window = spec.window; end
+    if isequal(p.selection, "default"); p.selection = spec.selection; end
     if known
         p.options = EphysAnalysisConfig.coerceStruct(T.DefaultOptions{row}, p.options, "options");
         p.options = EphysAnalysisConfig.panelOptions(fig, p);

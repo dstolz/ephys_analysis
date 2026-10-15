@@ -135,7 +135,7 @@ end
 obj.setFigurePreviewState("drawn");
 if obj.FigurePreviewRedo; obj.setFigurePreviewState("stale"); end
 L.Text = sprintf("%s, %s on %s (%.1f s); right-click to change colors, lines and fonts", spec.id, obs.label, src.name, secs);
-if obj.FigurePreviewSeconds >= obj.AutoPreviewSeconds && obj.FigureAutoCheckBox.Value
+if obj.FigurePreviewSeconds >= obj.FigureAutoPreviewSeconds && obj.FigureAutoCheckBox.Value
     L.Text = L.Text + ": slow, so edits wait for Preview";
 end
 end

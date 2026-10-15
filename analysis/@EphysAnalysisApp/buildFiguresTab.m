@@ -13,7 +13,8 @@ function buildFiguresTab(obj)
 %           part by part).
 %   Middle  the editor, a column of sections (formSection): Id, Title,
 %           Enabled and a summary, always open; then Observations (what the
-%           figure is drawn for and the unit filter), Arrangement (the
+%           figure is drawn for, the unit filter, Per trial group: one
+%           figure per observation and group), Arrangement (the
 %           schematic of the grid, drawFigureSchematic: click a panel to
 %           pick it; Add panel above / below / left / right of it; its
 %           spans, its row's height and column's width, the spacing,
@@ -23,7 +24,9 @@ function buildFiguresTab(obj)
 %           Common options (the figure's bins, measure, baseline, mask and
 %           waveform inset, which every linked panel takes), Panel alignment
 %           (the panel's own event and window, locked to the figure's while
-%           "Same as the figure" is ticked; Apply to all panels, Re-link all
+%           "Same as the figure" is ticked; its own trial selection, locked
+%           to the figure's while "Trial selection as the figure" is ticked:
+%           onPanelSelectionToggled; Apply to all panels, Re-link all
 %           panels), Layers (the panel's layers, Add a source the type
 %           draws, Remove, Up, Down, and the rows of the layer picked), the
 %           panel type's Options ("Common options from the figure": its
@@ -211,6 +214,12 @@ E.obsDatasets = uidropdown(S.Body, "Items", ["the ticked datasets" "a list"], "I
     "ValueChangedFcn", changed, "Tooltip", "What the figure is drawn over. Generate and Run draw it on the datasets " + ...
     "ticked to run; a list of its own is kept in the config, but edited and used in a later release.");
 place(E.obsDatasets, r, 2);
+[S, r] = formRow(S, "obsPerGroup", "");
+E.obsPerGroup = uicheckbox(S.Body, "Text", "Per trial group (one figure per group)", "ValueChangedFcn", changed, ...
+    "Tooltip", "Draw each observation once per trial group of the figure's trial selection (its Group by): the " + ...
+    "picker lists every observation and group, and each figure keeps that group's epochs only. A panel with a " + ...
+    "trial selection of its own keeps its own groups. Needs a Group by.");
+place(E.obsPerGroup, r, [1 2]);
 [S, r] = formRow(S, "obsCount", "");
 E.obsCount = uilabel(S.Body, "Text", "", "FontColor", gray);
 place(E.obsCount, r, [1 2]);
@@ -383,9 +392,9 @@ E.panelSame = uicheckbox(S.HeaderGrid, "Text", "Same as the figure", "Value", tr
     "ValueChangedFcn", @(~,~) obj.onPanelDefaultToggled(), ...
     "Tooltip", "Ticked: the panel uses the figure's event reference and epoch window (the rows below show them, " + ...
     "locked), shares its time axis, and follows every change of them. Untick to give the panel its own, starting " + ...
-    "from the figure's (its own epochs, the figure's trial selection); tick again to go back.");
+    "from the figure's (its own epochs; its trial selection: the box below); tick again to go back.");
 E.panelSame.Layout.Column = 2;
-pg = uigridlayout(S.Body, [5 1]);
+pg = uigridlayout(S.Body, [6 1]);
 pg.Padding = [0 0 0 0];
 pg.RowSpacing = 4;
 E.palignNote = uilabel(pg, "Text", "", "FontColor", gray, "WordWrap", "on");
@@ -393,27 +402,34 @@ E.palignNote.Layout.Row = 1;
 bg = uigridlayout(pg, [1 2], "ColumnWidth", {'1x', '1x'}, "Padding", [4 0 4 0], "ColumnSpacing", 6);
 bg.Layout.Row = 2;
 E.alignApplyAll = uibutton(bg, "Text", "Apply to all panels", "ButtonPushedFcn", @(~,~) applyAlignToAll(obj), ...
-    "Tooltip", "Make this panel's own event and window the figure's, and link every panel to them again " + ...
-    "(Same as the figure). Only while this panel has its own.");
+    "Tooltip", "Make this panel's own event, window and trial selection the figure's, and link every panel to them " + ...
+    "again (Same as the figure). Only while this panel has its own.");
 E.alignRelinkAll = uibutton(bg, "Text", "Re-link all panels", "ButtonPushedFcn", @(~,~) relinkAll(obj), ...
-    "Tooltip", "Every panel uses the figure's event, window and common options again: the panels' own event and " + ...
-    "window are dropped (their own options stay stored, unused).");
+    "Tooltip", "Every panel uses the figure's event, window, trial selection and common options again: the panels' " + ...
+    "own event, window and selection are dropped (their own options stay stored, unused).");
 pr = uipanel(pg, "BorderType", "none");
 pr.Layout.Row = 3;
 pw = uipanel(pg, "BorderType", "none");
 pw.Layout.Row = 4;
-ps = uipanel(pg, "BorderType", "none", "Visible", "off");   % the selection: the figure's, always
-ps.Layout.Row = 5;
+E.panelSameSel = uicheckbox(pg, "Text", "Trial selection as the figure", "Value", true, ...
+    "ValueChangedFcn", @(~,~) onPanelSelectionToggled(obj), ...
+    "Tooltip", "Ticked: the panel uses the figure's trial selection (the rows below show it, locked): its groups, " + ...
+    "colors and legend are the figure's. Untick to give the panel its own, starting from the figure's: its own " + ...
+    "epochs and groups, colored apart, with a legend inside the panel. Tick again to go back.");
+E.panelSameSel.Layout.Row = 5;
+ps = uipanel(pg, "BorderType", "none");   % the panel's own trial selection (the figure's while linked)
+ps.Layout.Row = 6;
 C2 = obj.buildAlignControls([pr pw ps], @(part) obj.onPanelAlignEdited(part));
 C2.Diagram.Visible = "off";
 C2.WindowGrid.RowHeight{end} = 0;
-set([C2.RefGrid C2.WindowGrid], 'Padding', [4 2 4 2]);
+set([C2.RefGrid C2.WindowGrid C2.SelectionGrid], 'Padding', [4 2 4 2]);
 hr = gridHeight(C2.RefGrid);
 hw = gridHeight(C2.WindowGrid);
-pg.RowHeight = {0, 30, hr, hw, 0};
-pg.UserData = [hr hw];
+hs = gridHeight(C2.SelectionGrid);
+pg.RowHeight = {0, 30, hr, hw, 22, hs};
+pg.UserData = [hr hw hs];
 E.palignGrid = pg;
-S.BodyHeight = 30 + hr + hw + 4 * pg.RowSpacing;
+S.BodyHeight = 30 + hr + hw + 22 + hs + 5 * pg.RowSpacing;
 obj.PanelAlignControls = C2;
 sec(end+1) = S;
 
@@ -593,6 +609,12 @@ E.waveLayout = uidropdown(S.Body, "Items", ["grid (the unit, or several overlaid
     "at its place on the probe (bind that layer to fixed units); a further layer, e.g. one following the observed " + ...
     "unit, is framed in red there.");
 place(E.waveLayout, r, 2);
+[S, r] = formRow(S, "heatRows", "Rows:");
+E.heatRows = uidropdown(S.Body, "Items", ["the layer's units or channels" "one unit's epochs (trials)"], ...
+    "ItemsData", ["items" "trials"], "ValueChangedFcn", changed, "Tooltip", "Units or channels: a row each, one " + ...
+    "trial group (Group shown). Trials: a row per epoch of one unit (a layer following the observation, or fixed " + ...
+    "to one unit), every group, sorted as a raster's rows (Sort rows by), the groups as a color strip at the left.");
+place(E.heatRows, r, 2);
 [S, r] = formRow(S, ["rasterSort" "rasterSortOrder"], "Sort rows by:");
 rsg = subgrid(S.Body, r, {'1x', 110});
 E.rasterSort = uidropdown(rsg, "Editable", "on", "Items", ["" "stop" "event"], "Value", "", "ValueChangedFcn", changed, ...
@@ -663,6 +685,14 @@ E.stackSpacing = uieditfield(S.Body, "numeric", "AllowEmpty", "on", "Value", [],
     "Limits", [0 Inf], "LowerLimitInclusive", "off", "ValueChangedFcn", changed, ...
     "Tooltip", "Stacked rows: the offset between channels, in the signal's units (blank: automatic).");
 place(E.stackSpacing, r, 2);
+[S, r] = formRow(S, ["contTrials" "maxTrials"], "Trials:");
+tg2 = subgrid(S.Body, r, {'1x', 'fit', 70});
+E.contTrials = uidropdown(tg2, "Items", ["Off" "Faint, behind the mean" "Only the trials"], "ItemsData", ["off" "faint" "only"], ...
+    "ValueChangedFcn", changed, "Tooltip", "Each epoch's trace: off; faint (pale and thin, behind the mean and its " + ...
+    "band); or only the traces, without the mean.");
+uilabel(tg2, "Text", "at most:");
+E.maxTrials = uieditfield(tg2, "numeric", "Value", Inf, "Limits", [1 Inf], "RoundFractionalValues", "on", ...
+    "ValueChangedFcn", changed, "Tooltip", "The most epochs drawn, picked evenly over their order (Inf = every one).");
 [S, r] = formRow(S, "order", "Row order:");
 E.order = uidropdown(S.Body, "Items", ["probe" "peak" "modulation"], "ValueChangedFcn", changed, ...
     "Tooltip", "probe: the rows follow the sort options (Appearance); peak: by the time of each row's maximum; " + ...
@@ -941,7 +971,7 @@ end
 
 
 function applyAlignToAll(obj)
-%applyAlignToAll  The selected panel's own event and window become the figure's; every panel is linked to them again.
+%applyAlignToAll  The selected panel's own event, window and trial selection become the figure's; every panel is linked to them again.
 %   A part the panel does not have of its own stays the figure's.
 k = obj.SelectedFigure;
 j = obj.SelectedPanel;
@@ -949,27 +979,60 @@ if k < 1 || k > numel(obj.Config.Figures) || j < 1 || j > numel(obj.Config.Figur
 cfg = obj.gatherConfig();
 fig = cfg.Figures(k);
 p = fig.panels(j);
-if ~isstruct(p.ref) && ~isstruct(p.window); return; end
+if ~isstruct(p.ref) && ~isstruct(p.window) && ~isstruct(p.selection); return; end
 fig = EphysAnalysisConfig.adoptPanelAlignment(fig, p.id);
 cfg.Figures(k) = fig;
-commitFigureEdit(obj, cfg, sprintf("%s's event and window are now the figure's; all %d panels follow them.", p.id, numel(fig.panels)));
+commitFigureEdit(obj, cfg, sprintf("%s's event, window and trial selection are now the figure's; all %d panels follow them.", ...
+    p.id, numel(fig.panels)));
+end
+
+
+function onPanelSelectionToggled(obj)
+%onPanelSelectionToggled  "Trial selection as the figure": ticked, the panel uses the figure's again; unticked, a copy of it as its own.
+%   Unticking copies the figure's trial selection (its own, else the
+%   Defaults') into the panel, so its rows start from it; the panel then
+%   computes its own epochs and groups, colored apart with a legend inside
+%   it. Ticking drops the panel's own (selection "default").
+if obj.Applying; return; end
+k = obj.SelectedFigure;
+j = obj.SelectedPanel;
+if k < 1 || k > numel(obj.Config.Figures) || j < 1 || j > numel(obj.Config.Figures(k).panels); return; end
+linked = logical(obj.FigureEditor.panelSameSel.Value);
+cfg = obj.gatherConfig();
+fig = cfg.Figures(k);
+p = fig.panels(j);
+if linked
+    p.selection = "default";
+    msg = p.id + " uses the figure's trial selection again.";
+else
+    sel = fig.selection;
+    if ~isstruct(sel); sel = cfg.Defaults.Selection; end
+    p.selection = sel;
+    msg = p.id + " has a trial selection of its own now, starting from the figure's: its groups are colored apart, " + ...
+        "with a legend inside it.";
+end
+fig.panels(j) = p;
+cfg.Figures(k) = fig;
+commitFigureEdit(obj, cfg, msg);
 end
 
 
 function relinkAll(obj)
-%relinkAll  Every panel of the selected figure takes the figure's event, window and common options again (relinkPanels).
+%relinkAll  Every panel of the selected figure takes the figure's event, window, trial selection and common options again (relinkPanels).
 k = obj.SelectedFigure;
 if k < 1 || k > numel(obj.Config.Figures); return; end
 cfg = obj.gatherConfig();
 fig = cfg.Figures(k);
 n = 0;
 for q = 1:numel(fig.panels)
-    n = n + (isstruct(fig.panels(q).ref) || isstruct(fig.panels(q).window) || ~fig.panels(q).common);
+    n = n + (isstruct(fig.panels(q).ref) || isstruct(fig.panels(q).window) || isstruct(fig.panels(q).selection) ...
+        || ~fig.panels(q).common);
 end
 if n == 0; return; end
 fig = EphysAnalysisConfig.relinkPanels(fig);
 cfg.Figures(k) = fig;
-commitFigureEdit(obj, cfg, sprintf("Re-linked %d panel(s): every panel follows the figure's event, window and common options again.", n));
+commitFigureEdit(obj, cfg, sprintf("Re-linked %d panel(s): every panel follows the figure's event, window, trial selection " + ...
+    "and common options again.", n));
 end
 
 

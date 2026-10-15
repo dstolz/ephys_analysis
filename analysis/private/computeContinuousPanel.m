@@ -9,7 +9,10 @@ function P = computeContinuousPanel(src, panel, E, G, ctx)
 %         "subtract": each epoch's mean over its Window), transform
 %         ("rectify"), statistic and error type (options.errorType, "sem"
 %         when "off"): R.mean / err [nTime x nChannels x nGroups];
-%         aggregate "mean" adds R.layerMean
+%         aggregate "mean" adds R.layerMean. With options.trials "faint"
+%         or "only" the epochs' traces are kept too (KeepEpochs): R.data
+%         [nTime x nChannels x nTrials], R.trialEpochs, R.trialGroup, at
+%         most options.maxTrials epochs picked evenly over their order
 %     events (marks)            figurePointLayer: R.kind "events", the
 %         marks' latencies (drawn as lines)
 %   options.display, stackSpacing and yLim are the draw function's.
@@ -29,7 +32,7 @@ for j = 1:numel(P.layers)
         P.layers(j) = figurePointLayer(src, L, P.layers(j), E, G, ctx, Window=[w.pre w.post], Raster=false);
     else
         P.layers(j) = figureSignalLayer(src, L, P.layers(j), E, G, ctx, Window=[w.pre w.post], Baseline=b, ...
-            Rectify=o.transform == "rectify", Statistic=o.statistic);
+            Rectify=o.transform == "rectify", Statistic=o.statistic, KeepEpochs=o.trials ~= "off", MaxTrials=o.maxTrials);
     end
 end
 end

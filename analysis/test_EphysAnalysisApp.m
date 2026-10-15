@@ -1545,6 +1545,7 @@ check(~startsWith(app.Fig.Name, "*") && restored, 'a new app restores the Sessio
 app.Tabs.SelectedTab = app.TabData;
 
 fprintf('\n== 5d. the Figures tab ==\n');
+app.FigureAutoPreviewSeconds = Inf;   % 5d-5f: a preview slowed by a loaded machine must not leave the next one out of date (restored after 5f)
 app.selectTab(app.TabFigures);
 FE = app.FigureEditor;
 FA = app.FigureAlignControls;
@@ -1733,6 +1734,75 @@ check(app.FigurePreviewState == "failed" && contains(string(app.FigurePreviewLab
 app.refreshFigureObservations(Force=true);
 app.refreshFigurePreview(Force=true);
 check(height(app.FigureObservations) == n0 && app.FigurePreviewState == "drawn", 'listed again, the figure draws');
+% Per trial group: the picker lists every unit and group, the preview draws one group
+FE.obsPerGroup.Value = true;
+app.onConfigChanged("figure");
+Tg = app.FigureObservations;
+nGa = numel(unique(Tg.group));
+check(app.Config.Figures(1).observe.perGroup && nGa >= 2 && height(Tg) == n0 * nGa && all(endsWith(Tg.label, " · " + Tg.groupLabel)) ...
+    && isequal(reshape(string(app.FigureObservationDropDown.Items), [], 1), Tg.label) && app.FigurePreviewState == "drawn" ...
+    && height(app.FigurePreviewResult.groups) == 1 && app.FigurePreviewResult.observation.groupLabel == Tg.groupLabel(1) ...
+    && contains(string(FE.obsCount.Text), "trial groups") && contains(figTitle(), Tg.label(1)), ...
+    sprintf('Per trial group lists every unit and group (%d x %d) in the picker; the preview draws the first group''s epochs only', n0, nGa));
+app.onFigureObservationStep(1);
+check(app.FigurePreviewState == "drawn" && app.FigurePreviewResult.observation.groupLabel == Tg.groupLabel(2) ...
+    && string(app.FigurePreviewResult.groups.label) == Tg.groupLabel(2) && contains(figTitle(), Tg.groupLabel(2)), ...
+    '> steps to the next group of the unit');
+FE.obsPerGroup.Value = false;
+app.onConfigChanged("figure");
+check(~app.Config.Figures(1).observe.perGroup && height(app.FigureObservations) == n0 && all(isnan(app.FigureObservations.group)), ...
+    'unticked, one observation per unit again');
+% a panel's own trial selection: locked while linked, copied when unticked, re-linked, applied to all
+app.onPanelSelected(2);   % the PSTH
+lockedSel = FE.panelSameSel.Value && FE.panelSameSel.Enable == "on" && FP.Group1.Enable == "off" && FP.Filter.Enable == "off";
+FP.Group1.Value = '(none)';
+app.onPanelAlignEdited("selection");   % as if an edit came in: ignored while linked
+ignoredSel = isequal(app.Config.Figures(1).panels(2).selection, "default");
+FE.panelSameSel.Value = false;
+FE.panelSameSel.ValueChangedFcn(FE.panelSameSel, []);
+p2 = app.Config.Figures(1).panels(2);
+check(lockedSel && ignoredSel && isstruct(p2.selection) && isequal(p2.selection.groupBy, "Depth") && FP.Group1.Enable == "on" ...
+    && string(FP.Group1.Value) == "Depth" && FE.alignApplyAll.Enable == "on" && FE.alignRelinkAll.Enable == "on" ...
+    && contains(app.StatusBar.Text, "trial selection of its own"), ...
+    'the panel''s trial selection: the figure''s, locked, while ticked (an edit is not taken); unticking copies it into the panel');
+FP.Group1.Value = '(none)';
+app.onPanelAlignEdited("selection");
+p2 = app.Config.Figures(1).panels(2);
+Fo2 = app.FigurePreviewResult;
+check(isstruct(p2.selection) && isempty(p2.selection.groupBy) && app.FigurePreviewState == "drawn" && Fo2.panels(2).ownSelection ...
+    && height(Fo2.panels(2).groups) == 1 && height(Fo2.groups) > 1 && ~Fo2.panels(1).ownSelection ...
+    && any(arrayfun(@(a) string(a.Title.String) == "all trials", figAxes())), ...
+    'an edit of its own selection (no Group by): the preview draws the PSTH on its own single group, titled "all trials"');
+FE.alignRelinkAll.ButtonPushedFcn(FE.alignRelinkAll, []);
+check(isequal(app.Config.Figures(1).panels(2).selection, "default") && FE.panelSameSel.Value && FP.Group1.Enable == "off" ...
+    && string(FP.Group1.Value) == "Depth" && contains(app.StatusBar.Text, "Re-linked 1 panel"), ...
+    'Re-link all panels drops the panel''s own selection: the figure''s again, locked');
+FE.panelSameSel.Value = false;
+FE.panelSameSel.ValueChangedFcn(FE.panelSameSel, []);
+FP.Order.Value = 'descending';
+app.onPanelAlignEdited("selection");
+FE.alignApplyAll.ButtonPushedFcn(FE.alignApplyAll, []);
+fg = app.Config.Figures(1);
+check(isstruct(fg.selection) && fg.selection.groupOrder == "descending" && all(arrayfun(@(q) isequal(q.selection, "default"), fg.panels)) ...
+    && ~FE.defaultSelection.Value && FE.panelSameSel.Value && string(FA.Order.Value) == "descending" && app.FigurePreviewState == "drawn", ...
+    'Apply to all panels makes the panel''s own selection the figure''s, every panel linked to it');
+FE.defaultSelection.Value = true;
+app.onFigureDefaultToggled();
+check(isequal(app.Config.Figures(1).selection, "default"), 'the figure''s selection back to the default');
+% continuous trials: the Options rows reach the config, the traces are drawn
+app.onPanelSelected(3);
+offRows = shown(FE.contTrials) && ~shown(FE.heatRows) && FE.maxTrials.Enable == "off";
+FE.contTrials.Value = "faint";
+FE.maxTrials.Value = 4;
+app.onConfigChanged("figure");
+o3 = app.Config.Figures(1).panels(3).options;
+check(offRows && o3.trials == "faint" && o3.maxTrials == 4 && FE.maxTrials.Enable == "on" && app.FigurePreviewState == "drawn" ...
+    && ~isempty(findall(app.FigurePreviewPanel, 'Tag', 'trialTrace')) ...
+    && size(app.FigurePreviewResult.panels(3).layers(1).R.data, 3) <= 4, ...
+    'a continuous panel''s Trials row: faint, at most 4, reach the config; the preview draws the traces');
+FE.contTrials.Value = "off";
+FE.maxTrials.Value = Inf;
+app.onConfigChanged("figure");
 % a type change
 app.onPanelSelected(2);
 lockedBins = FE.panelCommon.Value && FE.binMs.Enable == "off" && FE.histStyle.Enable == "on" ...
@@ -1753,6 +1823,24 @@ check(p2.type == "heatmap" && isscalar(p2.layers) && p2.layers.source == "units"
     && app.Config.figureFor(1).panels(2).options.bins.BinSec == 0.02 && isfield(p2.options, 'order') && shown(FE.group) && shown(FE.order) ...
     && contains(app.StatusBar.Text, "is now a heat map") && app.FigurePreviewState == "drawn", ...
     'a heat map now: its units layer kept but fixed, the common bins it takes, its own rows shown');
+itemRows = shown(FE.heatRows) && ~shown(FE.rasterSort) && FE.layerBinding.Enable == "off";
+FE.heatRows.Value = "trials";
+app.onConfigChanged("figure");
+trialShown = shown(FE.rasterSort) && shown(FE.rasterByGroup) && ~shown(FE.order) && ~shown(FE.group) && FE.layerBinding.Enable == "on";
+FE.layerBinding.Value = "observation";
+FE.rasterSortOrder.Value = "descending";
+app.onConfigChanged("figure");
+p2 = app.Config.Figures(1).panels(2);
+Rh = app.FigurePreviewResult.panels(2).layers(1).R;
+img = findall(app.FigurePreviewPanel, 'Tag', 'image');
+check(itemRows && trialShown && p2.options.rows == "trials" && p2.options.rasterSortOrder == "descending" ...
+    && p2.layers(1).binding == "observation" && app.FigurePreviewState == "drawn" && isfield(Rh, 'trialMatrix') ...
+    && isscalar(img) && size(img.CData, 1) == height(app.FigurePreviewResult.epochs), ...
+    'a heat map''s Rows "trials": the raster sort rows show (not the row order or group), its layer may follow the unit; one row per epoch drawn');
+FE.heatRows.Value = "items";
+app.onConfigChanged("figure");
+check(app.Config.Figures(1).panels(2).layers(1).binding == "fixed" && app.Config.Figures(1).panels(2).options.rows == "items", ...
+    'back to its units as rows, the layer is fixed again');
 FE.panelType.Value = "psth";
 app.onPanelTypeChanged();
 backFollows = app.Config.Figures(1).panels(2).layers(1).binding == "observation" ...
@@ -2243,6 +2331,7 @@ check(~app.Config.Figures(kG).enabled && istable(R) && height(R) == numel(gIdx) 
 app.onRemoveFigure();
 app.onSaveConfig();
 app.Tabs.SelectedTab = app.TabData;
+app.FigureAutoPreviewSeconds = app.AutoPreviewSeconds;   % set to Inf for 5d-5f
 
 fprintf('\n== 6. close ==\n');
 app.savePreferences();

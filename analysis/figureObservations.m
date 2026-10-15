@@ -32,6 +32,14 @@ function T = figureObservations(src, spec)
 %     meta      {1 x 1} cell: the unit's selectUnits row, the channel's
 %               selectChannels row, or a one-row table of the dataset's
 %               name
+%     group     the trial group drawn (a row of epochTable's groups over
+%               the figure's alignment): NaN = every group
+%     groupLabel  that group's label ("" = every group)
+%   With SPEC.observe.perGroup and a selection that groups trials
+%   (selection.groupBy), each observation is listed once per trial group
+%   with epochs (epochTable over SPEC.ref / window / selection), the
+%   observation's rows together in group order, its label ending in
+%   " · <group label>"; figureCompute then keeps only that group's epochs.
 %   A dataset that lacks the observed source (no sorted units, no
 %   detections, no such extract) or keeps no unit gives an empty T with
 %   these columns. EphysAnalysisRunner.computeFigure takes a row
@@ -100,12 +108,45 @@ switch ob.kind
         T = table("dataset", string(src.name), NaN, NaN, NaN, NaN, NaN, {table(string(src.name), 'VariableNames', {'name'})}, ...
             'VariableNames', {'kind', 'label', 'unitId', 'channel', 'column', 'shank', 'depth', 'meta'});
 end
+T.group = NaN(height(T), 1);
+T.groupLabel = strings(height(T), 1);
+if height(T) > 0 && isfield(ob, 'perGroup') && ob.perGroup
+    T = perGroupRows(src, spec, T);
+end
+end
+
+
+function T = perGroupRows(src, spec, T)
+%perGroupRows  Each observation once per trial group of the figure's selection (its groupBy), in group order.
+%   The groups are epochTable's over the figure's own alignment, those with
+%   epochs; a selection without groupBy keeps T as it is, and an alignment
+%   with no epoch on the dataset leaves none.
+sel = spec.selection;
+if ~isstruct(sel) || ~isfield(sel, 'groupBy') || isempty(sel.groupBy); return; end
+try
+    [~, G] = epochTable(src, spec.ref, Window=spec.window, Selection=sel);
+catch ME
+    if ismember(string(ME.identifier), ["epochTable:NoEpochs" "resolveEvents:NoEvents"])
+        T = T([], :);
+        return
+    end
+    rethrow(ME);
+end
+g = find(G.n > 0);
+n = height(T);
+nG = numel(g);
+rows = repelem((1:n).', nG, 1);
+T = T(rows, :);
+T.group = repmat(g(:), n, 1);
+T.groupLabel = repmat(string(G.label(g)), n, 1);
+T.label = T.label + " · " + T.groupLabel;
 end
 
 
 function T = emptyObservations()
 T = table(strings(0, 1), strings(0, 1), zeros(0, 1), zeros(0, 1), zeros(0, 1), zeros(0, 1), zeros(0, 1), cell(0, 1), ...
-    'VariableNames', {'kind', 'label', 'unitId', 'channel', 'column', 'shank', 'depth', 'meta'});
+    zeros(0, 1), strings(0, 1), ...
+    'VariableNames', {'kind', 'label', 'unitId', 'channel', 'column', 'shank', 'depth', 'meta', 'group', 'groupLabel'});
 end
 
 

@@ -57,6 +57,7 @@ E.obsUnitChannels.Value = listText(u.channels);
 offerItems(E.obsSignal, EphysAnalysisConfig.SignalSources, o.signal);
 E.obsChannels.Value = listText(o.channels);
 E.obsDatasets.Value = char(pickFrom(o.datasets, ["ticked" "list"], "ticked"));
+E.obsPerGroup.Value = logical(o.perGroup);
 
 % arrangement, appearance, looks
 E.spacing.Value = char(pickFrom(fig.grid.spacing, string(E.spacing.ItemsData), "tight"));
@@ -153,9 +154,12 @@ E.panelSame.Value = ~any(own);
 E.panelSame.UserData = own;   % which part the panel has of its own (onPanelAlignEdited, gatherFigureEditor)
 pref = ref;
 pwin = win;
+psel = sel;
 if own(1); pref = p.ref; end
 if own(2); pwin = p.window; end
-obj.applyAlignControls(obj.PanelAlignControls, pref, pwin, sel);
+E.panelSameSel.Value = ~isstruct(p.selection);   % its own trial selection, else the figure's (locked)
+if isstruct(p.selection); psel = p.selection; end
+obj.applyAlignControls(obj.PanelAlignControls, pref, pwin, psel);
 
 % options: the rows of the panel type's fields, as drawn (a linked panel's common fields: the figure's)
 E.panelCommon.Value = p.common;
@@ -210,7 +214,10 @@ if p.type == "continuous"
     E.transform.Value = char(pickFrom(op.transform, string(E.transform.ItemsData), "none"));
     E.errorType.Value = char(pickFrom(op.errorType, string(E.errorType.ItemsData), "sem"));
     if isfinite(op.stackSpacing) && op.stackSpacing > 0; E.stackSpacing.Value = op.stackSpacing; else; E.stackSpacing.Value = []; end
+    E.contTrials.Value = char(pickFrom(op.trials, string(E.contTrials.ItemsData), "off"));
+    E.maxTrials.Value = max(1, op.maxTrials);
 end
+if isfield(op, 'rows'); E.heatRows.Value = char(pickFrom(op.rows, string(E.heatRows.ItemsData), "items")); end
 if isfield(op, 'order'); offerItems(E.order, ["probe" "peak" "modulation"], op.order); end
 if isfield(op, 'value'); offerItems(E.value, ["rate" "nSpikes" "nUnits"], op.value); end
 if isfield(op, 'metric')

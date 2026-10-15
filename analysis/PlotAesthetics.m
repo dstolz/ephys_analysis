@@ -320,6 +320,7 @@ classdef PlotAesthetics
                 "auxScale"     "Aux signal scale"
                 "trace"        "Mean trace"
                 "channelTrace" "Channel trace"
+                "trialTrace"   "Trial traces"
                 "phase"        "Coherence phase"
                 "confLine"     "Coherence confidence level"
                 "rateLine"     "Mean firing rate"

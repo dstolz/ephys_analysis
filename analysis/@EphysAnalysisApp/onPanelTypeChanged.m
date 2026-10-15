@@ -70,6 +70,7 @@ p.options = op;
 if ~PT.Aligned(row)
     p.ref = "default";
     p.window = "default";
+    p.selection = "default";
 end
 p.type = new;
 fig.panels(j) = p;

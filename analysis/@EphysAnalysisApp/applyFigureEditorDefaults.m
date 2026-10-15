@@ -21,6 +21,7 @@ if j >= 1 && j <= numel(fig.panels)
     p = fig.panels(j);
     if isstruct(p.ref); ref = p.ref; end
     if isstruct(p.window); win = p.window; end
+    if isstruct(p.selection); sel = p.selection; end
     obj.applyAlignControls(obj.PanelAlignControls, ref, win, sel);
 end
 obj.Applying = wasApplying;

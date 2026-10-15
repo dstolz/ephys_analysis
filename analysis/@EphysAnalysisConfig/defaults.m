@@ -367,6 +367,7 @@ switch section
             'colSpan', 1, ...
             'ref',     "default", ...           % "default" (the figure's) or an EventRef
             'window',  "default", ...           % "default" (the figure's) or an EpochWindow (own epochs, the figure's selection)
+            'selection', "default", ...         % "default" (the figure's) or a TrialSelection (own epochs and groups: its own colors and legend)
             'common',  true, ...                % true: the figure's common options (Figure.common) for every common field its type has (commonFieldsOf); false: its own options
             'layers',  repmat(EphysAnalysisConfig.defaults("Layer"), 1, 0), ...
             'options', T.DefaultOptions{T.Type == "psth"});   % the type's options (panelTypes().DefaultOptions)
@@ -381,7 +382,8 @@ switch section
             'signal',      "LFP", ...           % channel observations: which extract
             'channels',    [], ...              % channel observations: the extract's columns ([] = all)
             'datasets',    "ticked", ...        % "ticked" (the run's datasets) | "list" (datasetKeys)
-            'datasetKeys', string.empty(1,0));
+            'datasetKeys', string.empty(1,0), ...
+            'perGroup',    false);              % true: each observation drawn once per trial group of the figure's selection (its groupBy)
 
     case "Figure"
         % one figure (Figures): one observation's panels on a grid; the preview draws one observation, Generate many

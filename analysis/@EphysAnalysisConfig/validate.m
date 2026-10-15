@@ -84,16 +84,19 @@ function issues = validate(obj, opts)
 %               channels, maxUnits, datasets ("list" without keys is a
 %               warning), no layer following a "dataset" observation, a
 %               warning when an explicit unit / channel observation has no
-%               following layer; grid: whole rows and cols >= 1,
+%               following layer, a warning for perGroup while the figure's
+%               selection groups by nothing; grid: whole rows and cols >= 1,
 %               rowHeights / colWidths [] or one positive size each,
 %               spacing; panels: a known type, whole row / col / spans
 %               inside the grid, no overlaps, ids of their own (warnings:
 %               no panels, cells no panel covers); a panel's own ref /
-%               window only on aligned types, a "between" window only on a
+%               window / selection only on aligned types (its selection
+%               checked as the figure's), a "between" window only on a
 %               unit correlation, firing rate or tuning curve panel;
 %               layers: a source the type draws
 %               (categoryOf), the binding ("observation" only for spikes
-%               and signals, never on heatmap / probemap / corrmap; AUX
+%               and signals, never on heatmap / probemap / corrmap but a
+%               heat map of trials' spike layer; AUX
 %               cannot follow a unit; a warning for a signal following
 %               another signal's channel), aggregate, maxUnits (a
 %               warning above 8 units drawn each in a raster / PSTH /
@@ -112,7 +115,11 @@ function issues = validate(obj, opts)
 %               the panel's window --, histStyle, normalize, fillAlpha,
 %               the PSTH's stackSpacing, the raster sort, continuous
 %               display / statistic / transform / errorType and its
-%               toolbox, stackSpacing, heatmap order ("modulation" only
+%               toolbox, stackSpacing, trials (off / faint / only) and
+%               maxTrials (whole, >= 1), heatmap rows (items / trials:
+%               one unit's epochs -- a spike or train layer, following
+%               the observation or fixed to one unit, no auROC baseline,
+%               the raster sort --), order ("modulation" only
 %               with the auROC baseline), group, the waveforms layout (a
 %               warning for a probe layout whose first layer follows the
 %               observation), probemap value, corrmap metric /
@@ -708,6 +715,12 @@ for k = 1:numel(obj.Figures)
     elseif ob.datasets == "list" && isempty(ob.datasetKeys)
         add("Figures", f0 + ".observe.datasetKeys", "warning", "datasets is ""list"" but no dataset keys are listed; the figure is drawn for none.");
     end
+    fs = fg.selection;
+    if isequal(fs, "default"); fs = D.Selection; end
+    if ob.perGroup && (~isstruct(fs) || ~isfield(fs, 'groupBy') || isempty(fs.groupBy))
+        add("Figures", f0 + ".observe.perGroup", "warning", "perGroup draws each observation once per trial group, but the " + ...
+            "figure's trial selection groups by nothing (groupBy): one figure per observation, as without it.");
+    end
     nFollow = 0;
     for j = 1:numel(fg.panels)
         Lj = fg.panels(j).layers;
@@ -813,14 +826,16 @@ for k = 1:numel(obj.Figures)
         if label ~= "PSTH"; label = lower(label); end
         A = "A " + label + " panel";
 
-        for af = ["ref" "window"]
+        for af = ["ref" "window" "selection"]
             if ~isstruct(pj.(af)); continue; end
             if ~tr.Aligned
                 add("Figures", p0 + "." + af, "error", A + " is not aligned to events: its " + af + " must be ""default"".");
             elseif af == "ref"
                 checkRef(pj.ref, "Figures", p0 + ".ref");
-            else
+            elseif af == "window"
                 checkWindow(pj.window, "Figures", p0 + ".window");
+            else
+                checkSelection(pj.selection, "Figures", p0 + ".selection");
             end
         end
         pw = pj.window;
@@ -863,7 +878,9 @@ for k = 1:numel(obj.Figures)
             elseif L.binding == "observation"
                 if isEvents
                     add("Figures", l0 + ".binding", "error", "An events layer is always fixed: it names its line (event).");
-                elseif ismember(pj.type, ["heatmap" "probemap" "corrmap"])
+                elseif ismember(pj.type, ["heatmap" "probemap" "corrmap"]) ...
+                        && ~(pj.type == "heatmap" && isfield(pj.options, 'rows') && pj.options.rows == "trials" ...
+                        && ismember(L.source, EphysAnalysisConfig.SpikeSources))   % a heat map of one unit's trials may follow it
                     add("Figures", l0 + ".binding", "error", A + " draws fixed layers: bind the layer to fixed units or channels.");
                 elseif kind == "unit" && L.source == "AUX"
                     add("Figures", l0 + ".binding", "error", "AUX has no recording channel to follow the observed unit's: bind it to fixed channels.");
@@ -993,8 +1010,23 @@ for k = 1:numel(obj.Figures)
                 if ~(isnan(op.stackSpacing) || (isfinite(op.stackSpacing) && op.stackSpacing > 0))
                     add("Figures", o0 + ".stackSpacing", "error", "stackSpacing is positive (NaN = automatic).");
                 end
+                if ~ismember(op.trials, ["off" "faint" "only"])
+                    add("Figures", o0 + ".trials", "error", "A continuous signal panel's trials are off, faint (each epoch's trace " + ...
+                        "behind the mean) or only (the traces, no mean).");
+                end
+                if ~(isscalar(op.maxTrials) && op.maxTrials >= 1 && (isinf(op.maxTrials) || op.maxTrials == round(op.maxTrials)))
+                    add("Figures", o0 + ".maxTrials", "error", "maxTrials is a whole number of epochs, at least 1 (Inf = every one).");
+                end
                 checkFigLim(op.yLim, o0 + ".yLim", "y");
             case "heatmap"
+                if ~ismember(op.rows, ["items" "trials"])
+                    add("Figures", o0 + ".rows", "error", "A heat map's rows are items (the layer's units or channels) or trials " + ...
+                        "(one unit's epochs).");
+                elseif op.rows == "trials"
+                    bT = o0 + ".baseline.Mode";
+                    if ~ownField("baseline"); bT = p0 + ".common"; end
+                    checkTrialRows(Lp, find(on), op, o0, p0, bT);
+                end
                 if ~firstSignal
                     if ownField("bins"); checkFigBins(op.bins, o0); end
                     if ownField("measure"); checkFigMeasure(op.measure, o0); end
@@ -1165,6 +1197,32 @@ issues = table(Section, Field, Severity, Message);
                 checkRef(hOp.rasterSortEvent, "Figures", hO0 + ".rasterSortEvent");
             end
         end
+    end
+
+    function checkTrialRows(hL, hOn, hOp, hO0, hP0, hB0)
+        %checkTrialRows  A heat map of trials: one unit's epochs (its map layer follows the observation, is one fixed unit or a train), sorted as a raster.
+        %   HL the panel's layers, HON the enabled ones' indices, HB0 where its baseline is reported.
+        hI = hOn(~([hL(hOn).source] == "events" & [hL(hOn).eventsAs] == "marks"));
+        if ~isempty(hI)
+            hM = hL(hI(1));
+            hF = hP0 + ".layers(" + hI(1) + ")";
+            if ismember(hM.source, EphysAnalysisConfig.SignalSources)
+                add("Figures", hO0 + ".rows", "error", "A heat map of trials draws one unit's epochs: its layer is units, " + ...
+                    "detected or an events train, not " + hM.source + ".");
+            elseif ismember(hM.source, EphysAnalysisConfig.SpikeSources) && hM.binding == "fixed"
+                hN = hM.units.maxUnits;
+                if ~isempty(hM.units.ids); hN = min(hN, numel(hM.units.ids)); end
+                if ~(hN == 1)
+                    add("Figures", hF + ".units", "error", "A heat map of trials draws one unit's epochs: bind its layer to " + ...
+                        "the observation, or fix it to one unit (one id, or maxUnits 1).");
+                end
+            end
+        end
+        if hOp.baseline.Mode == "auroc"
+            add("Figures", hB0, "error", "A heat map of trials draws each epoch's rate: the auROC baseline " + ...
+                "(a curve over the epochs) does not apply. Take none, subtract, zscore or percent.");
+        end
+        checkRasterSort(hOp, hO0);
     end
 
     function checkFigBins(hBins, hO0)

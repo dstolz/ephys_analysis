@@ -1,4 +1,4 @@
-function figureTimeStack(axs, panels, isTime, labelSize)
+function figureTimeStack(axs, panels, isTime, labelSize, sided)
 %figureTimeStack  One time axis for the time panels stacked in a figure's columns.
 %   figureTimeStack(AXS, PANELS, ISTIME, LABELSIZE) goes through the
 %   arrangement's columns (PANELS: the figure spec's panels, with row,
@@ -16,10 +16,14 @@ function figureTimeStack(axs, panels, isTime, labelSize)
 %         its ticks and is labeled "Time (s)"
 %   So a stack sharing the figure's time axis is labeled once, at its
 %   bottom, and a panel with a window of its own keeps its own axis.
-%   LABELSIZE ([] = the axes' default) is the x label's font size.
+%   LABELSIZE ([] = the axes' default) is the x label's font size. SIDED(k)
+%   (default none): panel k's note takes a band left or right of its axes
+%   (renderFigure), so its axes are narrower than the column's: neither it
+%   nor the panel above it drops its time tick labels.
 %
 %   See also renderFigure.
 if nargin < 4; labelSize = []; end
+if nargin < 5; sided = false(1, numel(panels)); end
 np = numel(panels);
 drawn = false(1, np);
 for k = 1:np
@@ -40,7 +44,7 @@ for k = time
         end
         [~, i] = min([panels(below).row]);
         b = below(i);
-        if ~isTime(b) || ~sameLimits(axs(k), axs(b))
+        if ~isTime(b) || ~sameLimits(axs(k), axs(b)) || sided(k) || sided(b)
             hide = false;
             break
         end

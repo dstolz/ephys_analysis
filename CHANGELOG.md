@@ -212,6 +212,35 @@ says how to cut a release.
   part. See [Session figures](documentation/EphysAnalysisConfig.md#session-figures),
   [Sessions in the Figures tab](documentation/EphysAnalysisApp.md#sessions-in-the-figures-tab) and
   [Session figure data](documentation/file-formats.md#session-figure-data-mat).
+- Figures: a text note and overlays on each panel. A figure panel gets `note` (a note as a plot's, after
+  `options`) and `overlays` (lines and semitransparent patches drawn on the panel's own axes, the last field;
+  their `panel` is always `"all"`, set by `normalizePanel`). Validate checks them with the plots' rules at
+  `<figure>.<panel>.note.<field>` and `<figure>.<panel>.overlays(<k>).<field>` (the plot rules moved into
+  `checkNote` / `checkOverlays`, shared; no panel warning, and a shared overlay name is named "of this
+  panel"). `renderFigure` draws a note placed below, above, left or right in a band of the panel's tile (the
+  tile becomes a small tiled layout, the band at most half of it) and a note at a compass point, the center
+  or x, y in the axes; a note in a band is not listed in the right-click aesthetics editor, though its looks,
+  the design's and the figure's rules still reach it; the note's and overlays' own looks come after the
+  design's and the user's rules and before the figure's own. `h.panels(k)` gains `note` and `overlays`. The
+  plot converter now carries a plot's note (below to the bottom panel, above to the top one, else the data
+  panel, a note saying which for a figure of several panels) and overlays (`"raster"` to the raster panel,
+  `"data"` to every panel but the raster and the aux signal's, `"all"` to every panel; one naming a panel the
+  figure lacks becomes a note), where they were notes. The Figures tab gets **Text note** and **Overlays**
+  sections for the selected panel (the Plots tab's rows, no key, collapsed until opened). See
+  [Panel fields](documentation/EphysAnalysisConfig.md#panel-fields),
+  [renderFigure](documentation/EphysAnalysisConfig.md#renderfigure) and
+  [Converting a plot](documentation/EphysAnalysisConfig.md#converting-a-plot).
+- Figures: the figure list is a tree, and a panel is dragged in the schematic. The Figures tab's list is now
+  a tree under groups, **Group by** what the figures observe (per unit, per channel, per dataset; the
+  default), enabled / off, or none, with a check box on every figure and group (click the box: a figure's
+  enables or disables it, a group's ticks all or unticks all when all are ticked), **All**, **None** and
+  **Invert** above it, and **Up** / **Down** moving a figure within its group. A figure reads
+  `<id>  (<n> panels)`, with the observation kind added unless grouped by it and `(off)` unless grouped by
+  status; the selected figure's group always opens. Preferences `FigureGroupBy` and `FigureGroupsCollapsed`.
+  In the Arrangement section a panel can be dragged: drop it on an empty cell (its spans clipped to the grid;
+  refused with a message where it would overlap) or near the middle of another panel's edge to put it above,
+  below, left or right of that panel; Escape or a release outside cancels. The Add / Remove / Move buttons
+  stay. See the [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
 - Kilosort4 parameter details on the Sorting tab. Each parameter's name is a link that opens a modal
   window with its definition, function, impact, tuning and defaults (this pipeline's and Kilosort4
   4.1.7's own).

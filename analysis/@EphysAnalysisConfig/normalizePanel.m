@@ -10,6 +10,9 @@ function [p, unknown] = normalizePanel(in, path)
 %     one struct or [] for none), each normalizeLayer'd
 %   - common is a logical: true = the panel takes the figure's common
 %     options for its type's common fields (figureFor)
+%   - note is a Note (defaults("Note")) and overlays a list of Overlays
+%     (defaults("Overlay")), as a plot's; an overlay's panel is always
+%     "all" (it is drawn on the panel's own axes)
 %   - options are coerced to the type's DefaultOptions (panelTypes), so a
 %     changed type re-seeds them: fields the type knows keep their values,
 %     the others are dropped. An unknown type keeps an empty options
@@ -37,6 +40,9 @@ if isstruct(in) && ~isempty(in)
     end
 end
 [p, unknown] = EphysAnalysisConfig.coerceStruct(def, in, path);
+for q = 1:numel(p.overlays)
+    p.overlays(q).panel = "all";   % a panel's overlays go on its own axes: no panel to pick
+end
 
 for f = ["ref" "window" "selection"]
     if ~isfield(held, f); continue; end

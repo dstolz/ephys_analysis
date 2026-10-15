@@ -54,10 +54,13 @@ classdef EphysAnalysisApp < handle
     %                (raster, PSTH, continuous signal, heat map, unit
     %                waveforms, behavior, probe map, unit correlation) on a
     %                grid, designed for ONE observation (a sorted unit, a
-    %                channel or the dataset) at a time; a list of figures
-    %                (add from a template, remove, duplicate, reorder) and an
+    %                channel or the dataset) at a time; a tree of figures
+    %                under groups (what they observe, enabled / off, none),
+    %                each with a check box that enables it (add from a
+    %                template, remove, duplicate, reorder within a group) and an
     %                editor in collapsible sections: the observations (the
     %                unit filter), the arrangement (a schematic of the grid:
+    %                drag a panel to an empty cell or beside another one;
     %                Add panel above / below / left / right of the selected
     %                one, spans, relative row heights and column widths,
     %                spacing, Remove, Move), the panel (type, title, group
@@ -65,7 +68,8 @@ classdef EphysAnalysisApp < handle
     %                trial selection ("Use default" for the Alignment tab's),
     %                the panel's own event and window ("Same as the figure"),
     %                its layers (each follows the observation or is fixed),
-    %                the type's options, appearance and remembered looks,
+    %                the type's options, the panel's text note and overlays,
+    %                appearance and remembered looks,
     %                showing only the rows the figure, panel and layer use
     %                (syncFigureEditor); a preview of the observation picked
     %                in the dataset and observation drop-downs (< and >),
@@ -137,7 +141,9 @@ classdef EphysAnalysisApp < handle
     %   off by default), SessionSectionsCollapsed (its editor's collapsed
     %   sections), FigureAutoPreview (the Figures tab's Auto, on by default:
     %   one observation is quick), FigureSectionsCollapsed (its editor's
-    %   collapsed sections), ChronuxCacheFolder (the local folder for
+    %   collapsed sections), FigureGroupBy and FigureGroupsCollapsed (how
+    %   its figure tree groups, and its collapsed groups),
+    %   ChronuxCacheFolder (the local folder for
     %   Chronux files of datasets whose output folder cannot be written),
     %   ChronuxMaxMB (the most signal the Chronux tab reads at once),
     %   ChronuxSettings (its last settings) and ChronuxSectionsCollapsed.
@@ -266,7 +272,8 @@ classdef EphysAnalysisApp < handle
         SessionPreviewBadge struct = struct()    % the session preview's state badge: Grid, Icon, Text (setSessionPreviewState)
 
         % --- Figures tab (buildFiguresTab) ---
-        FigureList             matlab.ui.control.ListBox        % "<id>  (<n> panels, per <kind>)"; ItemsData = index into Config.Figures
+        FiguresTree            matlab.ui.container.Tree         % the figures under groups (figureGroups); a figure's node holds its index in NodeData
+        FigureGroupDropDown    matlab.ui.control.DropDown       % how the tree groups: what it observes, status, none
         FigureTemplateDropDown matlab.ui.control.DropDown       % the template a new figure starts from (figureTemplates)
         AddFigureButton        matlab.ui.control.Button
         RemoveFigureButton     matlab.ui.control.Button
@@ -385,6 +392,8 @@ classdef EphysAnalysisApp < handle
         FigureAddType (1,1) string = "continuous"  % the panel type Add panel adds (the Arrangement's drop-down)
         FigureAddSource (1,1) string = "units"     % the source Add layer adds, when the panel's type draws it
         FigureSessionResults = []           % a session figure's last preview: struct(res (figureSessionCompute's RES), spec, what, label, seconds)
+        FigureGroupsCollapsed (1,:) string = string.empty(1,0)   % keys of the figure tree's groups the user collapsed
+        FigureDrag = []                     % a panel dragged in the schematic (onSchematicPress): its state, else []
 
         ChronuxIndex = []                  % loadChronuxExport's index of ChronuxFile
         ChronuxFile (1,1) string = ""       % the active dataset's Chronux file ("" = none)
@@ -619,6 +628,18 @@ classdef EphysAnalysisApp < handle
         onPickFigureDatasets(obj, opts)
         onBrowseFigureMapping(obj, file)
         onFigureSessionPicked(obj)
+        onFigureTreeSelected(obj, nodes)
+        onFigureTreeClicked(obj, evt)
+        onFigureGroupToggled(obj, node, collapsed)
+        onFigureCheck(obj, how)
+        setFiguresEnabled(obj, ks, how)
+        onAddFigureOverlay(obj, shape)
+        onRemoveFigureOverlay(obj)
+        onDuplicateFigureOverlay(obj)
+        onFigureOverlayPicked(obj)
+        onSchematicPress(obj, q, evt)
+        cancelSchematicDrag(obj, msg)
+        p = schematicPixel(obj, xy)
 
         % --- Chronux tab ---
         buildChronuxTab(obj)

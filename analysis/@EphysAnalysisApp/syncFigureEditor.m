@@ -54,6 +54,12 @@ function syncFigureEditor(obj)
 %                    baseline, color limits and group; a coherence panel's
 %                    over-time box, its phase box or, over time, the moving
 %                    window, color limits and group)
+%     Text note, Overlays   with a panel selected: the panel's note rows
+%                    (its look enabled with text; x and y with "At x, y")
+%                    and its overlay list with the rows of the overlay
+%                    picked (a line's position and color, a patch's edges,
+%                    fill and outline; the line style and width with a line
+%                    or an outline); titled with the panel's id
 %     Appearance     all rows; the site size with a probe map, the heat
 %                    colors with a heat map, probe map or correlation map
 %     Sessions       Across sessions; with it ticked every row (the keys
@@ -72,7 +78,8 @@ function syncFigureEditor(obj)
 %   correlation for its peak rate, the mask with a stop event, the stack
 %   spacing when stacked, the error and legend rows with their boxes, each
 %   Move button when the panel has a same-shaped neighbor that way, and
-%   the list buttons. The schematic is redrawn (drawFigureSchematic).
+%   the list buttons; Up and Down when the figure has a neighbor that way in
+%   its group of the tree. The schematic is redrawn (drawFigureSchematic).
 E = obj.FigureEditor;
 S = obj.FigureSections;
 k = obj.SelectedFigure;
@@ -85,8 +92,9 @@ obj.CopyFigureButton.Enable = onoff(has && nf > 1);
 if ~isempty(obj.FigureGenerateButton)
     obj.FigureGenerateButton.Enable = onoff(has && ~obj.Running);   % off while a run (or a generate) goes
 end
-obj.UpFigureButton.Enable = onoff(has && k > 1);
-obj.DownFigureButton.Enable = onoff(has && k < nf);
+[up, down] = groupNeighbors(obj, k);   % Up / Down move a figure within its group of the tree
+obj.UpFigureButton.Enable = onoff(has && up);
+obj.DownFigureButton.Enable = onoff(has && down);
 names = [S.Name];
 if ~has
     for i = 1:numel(S)
@@ -171,9 +179,12 @@ optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort
     "optApplyAll" "auMethod" "auWinMs" "auModFrom" "auCutoff" "auTest" "auMarks" "stack" "param" "rateDisplay" "waveLayout" ...
     "contTrials" "heatRows" "spTimeBase" "spRangeFrom" "spSegment" "spTaperMode" "spTW" "spW" "spPad" "spFmin" "spErr" ...
     "spDetrend" "spScale" "spSpikeFs" "spOverTime" "spWin" "spShowPhase"];
-for f = [layerKeys optionKeys]; v.(f) = false; end
+noteKeys = ["annText" "annPlace" "annX" "annAlign" "annRotation" "annFont" "annBold" "annColor" "annInterp"];
+overlayKeys = ["ovList" "ovName" "ovKind" "ovValue" "ovFrom" "ovLayer" "ovColor" "ovFill" "ovEdge" "ovStyle"];
+for f = [layerKeys optionKeys noteKeys overlayKeys]; v.(f) = false; end
 optionsTitle = "Options";
 paligned = false;
+nOv = 0;
 if hasPanel
     p = fig.panels(j);
     t = p.type;
@@ -341,6 +352,26 @@ if hasPanel
         E.palignNote.Text = typeLabel + " panels are not aligned to events: they use no event or window.";
     end
 
+    % the panel's text note and overlays (the Plots tab's rows; a panel's overlays have no panel row)
+    for f = noteKeys; v.(f) = true; end
+    noted = strtrim(strjoin(string(E.annText.Value(:)).', newline)) ~= "";
+    en([E.annPlace E.annAlign E.annVAlign E.annRotation E.annFont E.annSize E.annBold E.annItalic E.annBox ...
+        E.annColor E.annBackground E.annInterp], noted);
+    en([E.annX E.annY], noted && string(E.annPlace.Value) == "custom");
+    items = overlayGather(E);
+    overlayList(E, items, E.ovList.UserData.shown);   % the labels follow the name and position edited
+    at = E.ovList.UserData.shown;
+    picked = at >= 1 && at <= numel(items);
+    isLine = startsWith(string(E.ovKind.Value), "line");
+    v.ovList = true;
+    v.ovName = picked; v.ovKind = picked; v.ovLayer = picked; v.ovStyle = picked;
+    v.ovValue = picked && isLine; v.ovColor = picked && isLine;
+    v.ovFrom = picked && ~isLine; v.ovFill = picked && ~isLine; v.ovEdge = picked && ~isLine;
+    set([E.ovDuplicate E.ovRemove], 'Enable', onoff(picked));
+    outlined = isLine || ~ismember(lower(strtrim(string(E.ovEdge.Value))), ["" "none"]);
+    en([E.ovStyle E.ovWidth], outlined);
+    nOv = numel(items);
+
     % moving and removing
     for d = ["up" "down" "left" "right"]
         [~, moved] = EphysAnalysisConfig.movePanel(fig, p.id, d);
@@ -388,7 +419,7 @@ for f = string(fieldnames(v)).'
 end
 for i = 1:numel(S)
     switch names(i)
-        case {"panel" "palign" "layers" "options"}
+        case {"panel" "palign" "layers" "options" "note" "overlays"}
             S(i).Visible = hasPanel;
         case {"ref" "window" "selection"}
             S(i).Visible = np == 0 || any(aligned);
@@ -397,6 +428,13 @@ for i = 1:numel(S)
     end
 end
 S(names == "options").Title = optionsTitle;
+S(names == "note").Title = "Text note";
+S(names == "overlays").Title = "Overlays";
+if hasPanel
+    S(names == "note").Title = "Text note on " + fig.panels(j).id;
+    S(names == "overlays").Title = "Overlays on " + fig.panels(j).id;
+    if nOv > 0; S(names == "overlays").Title = "Overlays (" + nOv + ") on " + fig.panels(j).id; end
+end
 S(names == "layers").Title = "Layers";
 if hasPanel && ~isempty(fig.panels(j).layers)
     S(names == "layers").Title = "Layers (" + numel(fig.panels(j).layers) + ") of " + fig.panels(j).id;
@@ -408,6 +446,20 @@ if ~isempty(obj.FiguresDatasetDropDown) && isvalid(obj.FiguresDatasetDropDown)
 end
 obj.layoutFigureEditor();
 obj.drawFigureSchematic();
+end
+
+
+function [up, down] = groupNeighbors(obj, k)
+%groupNeighbors  Whether figure K has a figure before (UP) and after (DOWN) it in its group of the tree (figureGroups).
+up = false;
+down = false;
+F = obj.Config.Figures;
+if k < 1 || k > numel(F); return; end
+[~, ~, members] = figureGroups(F, string(obj.FigureGroupDropDown.Value));
+group = members{cellfun(@(m) any(m == k), members)};
+i = find(group == k);
+up = i > 1;
+down = i < numel(group);
 end
 
 

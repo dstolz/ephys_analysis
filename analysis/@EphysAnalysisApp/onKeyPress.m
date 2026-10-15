@@ -14,7 +14,12 @@ function onKeyPress(obj, evt)
 %   On the Figures tab Ctrl+1 to Ctrl+9 and Ctrl+0 go to the figure
 %   editor's sections (gotoFigureSection); Page Up and Page Down step to
 %   the previous and next observation (onFigureObservationStep: there are
-%   no pages).
+%   no pages). Escape, while a panel is dragged in the schematic, cancels
+%   the drag (cancelSchematicDrag).
+if string(evt.Key) == "escape" && ~isempty(obj.FigureDrag)
+    obj.cancelSchematicDrag();   % a panel dragged in the Figures tab's schematic stays where it was
+    return
+end
 tab = obj.Tabs.SelectedTab;
 if tab == obj.TabFigures
     figureKey(obj, evt);

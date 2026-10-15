@@ -572,15 +572,25 @@ classdef PlotAesthetics
             if isempty(axs); axs = gobjects(0, 1); return; end   % nothing drawn (a figure without panels): no Tag to read
             axs = axs(~ismember({axs.Tag}, {'legendHost' 'noteHost'}));   % hidden hosts of a legend outside the grid (placeLegend) and of the note (drawNote)
             n = numel(axs);
-            tile = inf(n, 2);   % the tile, then the tile within a nested layout (a PSTH's raster and rate panel)
-            for k = 1:n
+            chains = cell(n, 1);   % the tiles from the outermost layout in: a nested layout's tile, then the tile within it (a PSTH's
+            for k = 1:n            % raster and rate panel; a figure panel's axes beside its note's band, in a coherence pair: three deep)
                 L = axs(k).Layout;
-                if isprop(L, 'Tile') && isnumeric(L.Tile); tile(k, :) = [L.Tile 0]; end
-                p = axs(k).Parent;
-                if isa(p, 'matlab.graphics.layout.TiledChartLayout') && isa(p.Parent, 'matlab.graphics.layout.TiledChartLayout') ...
-                        && isnumeric(p.Layout.Tile) && isfinite(tile(k, 1))
-                    tile(k, :) = [p.Layout.Tile tile(k, 1)];
+                c = Inf;
+                if isprop(L, 'Tile') && isnumeric(L.Tile)
+                    c = L.Tile;
+                    p = axs(k).Parent;
+                    while isa(p, 'matlab.graphics.layout.TiledChartLayout') && isa(p.Parent, 'matlab.graphics.layout.TiledChartLayout') ...
+                            && isnumeric(p.Layout.Tile)
+                        c = [p.Layout.Tile c]; %#ok<AGROW>
+                        p = p.Parent;
+                    end
                 end
+                chains{k} = c;
+            end
+            depth = max([1; cellfun(@numel, chains)]);
+            tile = zeros(n, depth + 1);   % a shorter chain ends in zeros: an outer tile before the tiles nested in it
+            for k = 1:n
+                tile(k, 1:numel(chains{k})) = chains{k};
             end
             [~, o] = sortrows([tile (1:n).']);
             axs = reshape(axs(o), 1, []);

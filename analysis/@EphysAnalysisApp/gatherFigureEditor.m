@@ -19,6 +19,8 @@ function fig = gatherFigureEditor(obj)
 %   are the figure's common; a linked panel's (common true) common fields
 %   are not read from its Options rows (locked, showing the figure's), and
 %   its common flag is the Options header box's (onPanelCommonToggled).
+%   The panel's text note is its Text note rows', its overlays the
+%   Overlays list's, the one picked read from its rows (overlayGather).
 E = obj.FigureEditor;
 fig = obj.Config.Figures(obj.SelectedFigure);
 fig.id = strtrim(string(E.id.Value));
@@ -162,6 +164,8 @@ if j >= 1 && j <= numel(fig.panels)
         if isfield(p.options, 'rows'); rows = p.options.rows; end
         p.layers(i) = gatherLayer(E, p.layers(i), p.type, rows);
     end
+    p.note = gatherNote(E, p.note);
+    p.overlays = overlayGather(E);   % the list's, the one picked read from its rows
     fig.panels(j) = p;
 end
 fig = EphysAnalysisConfig.normalizeFigure(fig);
@@ -279,6 +283,30 @@ if own('waveform')
     end
     op.waveform = wv;
 end
+end
+
+
+function nt = gatherNote(E, nt)
+%gatherNote  The panel's text note as the Text note rows show it.
+nt.text = strjoin(string(E.annText.Value(:)).', newline);
+nt.placement = string(E.annPlace.Value);
+nt.x = E.annX.Value;
+nt.y = E.annY.Value;
+nt.align = string(E.annAlign.Value);
+nt.valign = string(E.annVAlign.Value);
+nt.rotation = E.annRotation.Value;
+nt.fontName = strtrim(string(E.annFont.Value));
+if lower(nt.fontName) == "auto"; nt.fontName = ""; end
+nt.fontSize = E.annSize.Value;
+if isempty(nt.fontSize); nt.fontSize = NaN; end
+nt.bold = logical(E.annBold.Value);
+nt.italic = logical(E.annItalic.Value);
+nt.box = logical(E.annBox.Value);
+nt.color = strtrim(string(E.annColor.Value));
+if lower(nt.color) == "auto"; nt.color = ""; end
+nt.background = strtrim(string(E.annBackground.Value));
+if lower(nt.background) == "none"; nt.background = ""; end
+nt.interpreter = string(E.annInterp.Value);
 end
 
 

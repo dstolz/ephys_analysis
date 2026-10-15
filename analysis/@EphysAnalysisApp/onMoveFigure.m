@@ -1,11 +1,18 @@
 function onMoveFigure(obj, step)
-%onMoveFigure  Move the selected figure up (STEP -1) or down (+1) the list; it stays selected, its preview as it is.
+%onMoveFigure  Move the selected figure up (STEP -1) or down (+1) its group of the tree (the run order).
+%   It swaps places with its neighbor in the tree's group (the whole list
+%   when ungrouped: figureGroups), which shows as one step; the figures
+%   between them keep theirs. It stays selected, its preview as it is.
 k = obj.SelectedFigure;
 n = numel(obj.Config.Figures);
-j = k + step;
-if k < 1 || k > n || j < 1 || j > n; return; end
+if k < 1 || k > n; return; end
 cfg = obj.gatherConfig();
 F = cfg.Figures;
+[~, ~, members] = figureGroups(F, string(obj.FigureGroupDropDown.Value));
+group = members{cellfun(@(m) any(m == k), members)};
+i = find(group == k) + step;
+if i < 1 || i > numel(group); return; end
+j = group(i);
 F([k j]) = F([j k]);
 cfg.Figures = F;
 obj.SelectedFigure = j;

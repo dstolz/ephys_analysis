@@ -17,6 +17,8 @@ AppPrefs.setpref(g, 'SessionAutoPreview', logical(obj.SessionAutoCheckBox.Value)
 S = obj.SessionSections;
 AppPrefs.setpref(g, 'SessionSectionsCollapsed', cellstr([string.empty(1, 0) S(~[S.Expanded]).Name]));
 AppPrefs.setpref(g, 'FigureAutoPreview', logical(obj.FigureAutoCheckBox.Value));
+AppPrefs.setpref(g, 'FigureGroupBy', char(obj.FigureGroupDropDown.Value));
+AppPrefs.setpref(g, 'FigureGroupsCollapsed', cellstr(obj.FigureGroupsCollapsed));
 S = obj.FigureSections;
 AppPrefs.setpref(g, 'FigureSectionsCollapsed', cellstr([string.empty(1, 0) S(~[S.Expanded]).Name]));
 AppPrefs.setpref(g, 'ChronuxCacheFolder', char(obj.ChronuxCacheFolder));

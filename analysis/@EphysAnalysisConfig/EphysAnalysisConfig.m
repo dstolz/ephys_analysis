@@ -50,7 +50,9 @@ classdef EphysAnalysisConfig
     %               its own groups, colors and legend), common
     %               (true: the figure's common options for the fields its
     %               type has, commonFieldsOf), layers, options (the type's
-    %               DefaultOptions; panelOptions gives them as drawn); a layer
+    %               DefaultOptions; panelOptions gives them as drawn), note
+    %               (a Note, as a plot's) and overlays (Overlays drawn on
+    %               its own axes: their panel is always "all"); a layer
     %               (defaults("Layer")): name, enabled, source, binding,
     %               units, channels, aggregate, event, eventsAs, color,
     %               lineStyle. Figure ids are a

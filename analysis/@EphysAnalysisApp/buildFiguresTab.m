@@ -5,10 +5,17 @@ function buildFiguresTab(obj)
 %   grid of panels (raster, PSTH, continuous signal, heat map, ...), each
 %   holding layers of data that follow the observation or name fixed items.
 %   Three columns:
-%   Left    the figures (FigureList: "<id>  (<n> panels, per <kind>)",
-%           "(off)" when disabled), the template a new one starts from
+%   Left    the figures as a tree (FiguresTree, refreshFigureList: a
+%           leaf "<id>  (<n> panels)", with ", per <kind>" unless grouped by
+%           it and "(off)" when disabled unless grouped by status) under
+%           the groups Group by names (what it observes: unit, channel or
+%           dataset; enabled / off; none), each node with a check box that
+%           ticks or unticks the figure, or every figure of a group
+%           (onFigureTreeClicked), All / None / Invert (onFigureCheck);
+%           the template a new one starts from
 %           (EphysAnalysisConfig.figureTemplates, "Raster over PSTH (per
-%           unit)" first) with Add, and Remove, Duplicate, Up, Down and
+%           unit)" first) with Add, and Remove, Duplicate, Up, Down (within
+%           its group) and
 %           Copy from... (onCopyFigureSettings: another figure's settings,
 %           part by part).
 %   Middle  the editor, a column of sections (formSection): Id, Title,
@@ -16,7 +23,8 @@ function buildFiguresTab(obj)
 %           figure is drawn for, the unit filter, Per trial group: one
 %           figure per observation and group), Arrangement (the
 %           schematic of the grid, drawFigureSchematic: click a panel to
-%           pick it; Add panel above / below / left / right of it; its
+%           pick it, or drag it to an empty cell or to an edge of another
+%           panel, onSchematicPress; Add panel above / below / left / right of it; its
 %           spans, its row's height and column's width, the spacing,
 %           Remove panel, Move), Panel (its type, title, group shown), the
 %           figure's Event reference, Epoch window and Trial selection (the
@@ -31,6 +39,8 @@ function buildFiguresTab(obj)
 %           draws, Remove, Up, Down, and the rows of the layer picked), the
 %           panel type's Options ("Common options from the figure": its
 %           common rows locked to the figure's; Apply to all panels),
+%           the panel's Text note and Overlays (the Plots tab's rows, for
+%           the selected panel: onAddFigureOverlay, onFigureOverlayPicked),
 %           Appearance, Looks and Sessions (Across sessions: the figure
 %           drawn once over the ticked or picked datasets, its facet, colors,
 %           error band, unit matching with the mapping file's Browse... and
@@ -41,7 +51,7 @@ function buildFiguresTab(obj)
 %           drop-down is off). Each section collapses under its colored
 %           header (onFigureSectionToggled); Ctrl+1 to Ctrl+9 and Ctrl+0 go
 %           to the first ten, Observations to Options (gotoFigureSection;
-%           onKeyPress); Appearance, Looks and Sessions have no key. syncFigureEditor
+%           onKeyPress); Text note, Overlays, Appearance, Looks and Sessions have no key. syncFigureEditor
 %           shows the rows the figure, panel and layer use;
 %           layoutFigureEditor packs them.
 %   Right   the dataset, the observation picked (figureObservations' labels)
@@ -60,50 +70,69 @@ gray = [0.35 0.35 0.35];
 obj.FigureObservation = containers.Map('KeyType', 'char', 'ValueType', 'any');
 PT = EphysAnalysisConfig.panelTypes();
 
-% --- left: the figures ------------------------------------------------------------------------
-lg = uigridlayout(g, [8 2]);
-lg.RowHeight = {22, '1x', 28, 30, 30, 30, 30, 64};
+% --- left: the figures, a tree under groups ------------------------------------------------------
+lg = uigridlayout(g, [10 2]);
+lg.RowHeight = {22, 28, 30, '1x', 28, 30, 30, 30, 30, 64};
 lg.ColumnWidth = {'1x', '1x'};
 lg.Padding = [0 0 0 0];
-l = uilabel(lg, "Text", "Figures", "FontWeight", "bold");
+l = uilabel(lg, "Text", "Figures  (ticked = enabled)", "FontWeight", "bold");
 place(l, 1, [1 2]);
-obj.FigureList = uilistbox(lg, "Items", {}, "ValueChangedFcn", @(lb, ~) obj.onFigureSelected(lb.Value), ...
-    "Tooltip", "Each figure is one observation's panels: a unit's, a channel's or the dataset's. The list says " + ...
-    "how many panels it has and what it is drawn for. Click one to edit and preview it.");
-place(obj.FigureList, 2, [1 2]);
+l = uilabel(lg, "Text", "Group by:");
+place(l, 2, 1);
+obj.FigureGroupDropDown = uidropdown(lg, "Items", ["What it observes" "Enabled / off" "None"], ...
+    "ItemsData", ["observe" "status" "none"], "Value", "observe", "ValueChangedFcn", @(~,~) onGroupByChanged(obj), ...
+    "Tooltip", "How the tree sorts the figures: by what each is drawn for (a unit, a channel or the dataset; a figure " + ...
+    "across sessions too), enabled or off, or a flat list. Within a group the figures keep the run order; Up / Down " + ...
+    "move a figure within its group.");
+place(obj.FigureGroupDropDown, 2, 2);
+cg = uigridlayout(lg, [1 3], "Padding", [0 0 0 0], "ColumnSpacing", 4);
+place(cg, 3, [1 2]);
+uibutton(cg, "Text", "All", "ButtonPushedFcn", @(~,~) obj.onFigureCheck("all"), "Tooltip", "Enable every figure (tick them all).");
+uibutton(cg, "Text", "None", "ButtonPushedFcn", @(~,~) obj.onFigureCheck("none"), ...
+    "Tooltip", "Disable every figure (untick them all). They stay in the config.");
+uibutton(cg, "Text", "Invert", "ButtonPushedFcn", @(~,~) obj.onFigureCheck("invert"), ...
+    "Tooltip", "Enable the disabled figures and disable the enabled ones.");
+obj.FiguresTree = uitree(lg, "Multiselect", "off", "SelectionChangedFcn", @(~, evt) obj.onFigureTreeSelected(evt.SelectedNodes), ...
+    "NodeExpandedFcn", @(~, evt) obj.onFigureGroupToggled(evt.Node, false), ...
+    "NodeCollapsedFcn", @(~, evt) obj.onFigureGroupToggled(evt.Node, true), ...
+    "ClickedFcn", @(~, evt) obj.onFigureTreeClicked(evt), ...
+    "Tooltip", "Each figure is one observation's panels: a unit's, a channel's or the dataset's. Click one to edit " + ...
+    "and preview it. The box on a figure is ticked while it is enabled (Run draws it): click the box to tick or " + ...
+    "untick it. A group's box is ticked when all its figures are, half-filled when some are; click it to tick or untick them all.");
+place(obj.FiguresTree, 4, [1 2]);
 FT = EphysAnalysisConfig.figureTemplates();
 obj.FigureTemplateDropDown = uidropdown(lg, "Items", FT.Label, "ItemsData", FT.Template, "Value", FT.Template(1), ...
     "Tooltip", "What a new figure starts from: a raster over a PSTH of the observed unit, one panel of a type, or a blank grid.");
-place(obj.FigureTemplateDropDown, 3, [1 2]);
+place(obj.FigureTemplateDropDown, 5, [1 2]);
 obj.AddFigureButton = uibutton(lg, "Text", "Add", "ButtonPushedFcn", @(~,~) obj.onAddFigure(string(obj.FigureTemplateDropDown.Value)), ...
     "Tooltip", "Add a figure from the template above, edit it, and preview its first observation.");
-place(obj.AddFigureButton, 4, [1 2]);
+place(obj.AddFigureButton, 6, [1 2]);
 obj.RemoveFigureButton = uibutton(lg, "Text", "Remove", "ButtonPushedFcn", @(~,~) obj.onRemoveFigure(), ...
     "Tooltip", "Remove the selected figure from the config.");
-place(obj.RemoveFigureButton, 5, 1);
+place(obj.RemoveFigureButton, 7, 1);
 obj.DuplicateFigureButton = uibutton(lg, "Text", "Duplicate", "ButtonPushedFcn", @(~,~) obj.onDuplicateFigure(), ...
     "Tooltip", "Copy the selected figure under a new id, right after it; the copy is selected.");
-place(obj.DuplicateFigureButton, 5, 2);
+place(obj.DuplicateFigureButton, 7, 2);
 obj.UpFigureButton = uibutton(lg, "Text", "Up", "ButtonPushedFcn", @(~,~) obj.onMoveFigure(-1), ...
-    "Tooltip", "Move the selected figure up the list.");
-place(obj.UpFigureButton, 6, 1);
+    "Tooltip", "Move the selected figure up its group (the run order).");
+place(obj.UpFigureButton, 8, 1);
 obj.DownFigureButton = uibutton(lg, "Text", "Down", "ButtonPushedFcn", @(~,~) obj.onMoveFigure(1), ...
-    "Tooltip", "Move the selected figure down the list.");
-place(obj.DownFigureButton, 6, 2);
+    "Tooltip", "Move the selected figure down its group (the run order).");
+place(obj.DownFigureButton, 8, 2);
 obj.CopyFigureButton = uibutton(lg, "Text", "Copy from...", "ButtonPushedFcn", @(~,~) obj.onCopyFigureSettings(), ...
     "Tooltip", "Copy another figure's settings onto the selected figure: pick the figure and the parts (observations, " + ...
     "alignment, common options, arrangement and panels, appearance, looks). It keeps its id, title and enabled.");
-place(obj.CopyFigureButton, 7, [1 2]);
+place(obj.CopyFigureButton, 9, [1 2]);
 l = uilabel(lg, "Text", "A figure is one observation's panels: a unit's, a channel's or the dataset's. " + ...
     "Generate draws it for each observation; Run (Export tab) draws the enabled ones.", ...
     "WordWrap", "on", "FontColor", gray, "VerticalAlignment", "top");
-place(l, 8, [1 2]);
+place(l, 10, [1 2]);
 
 % --- middle: the editor --------------------------------------------------------------------------
 ep = uipanel(g, "Title", "Figure");
 obj.FigureEditorPanel = ep;
-eg = uigridlayout(ep, [15 1]);
-eg.RowHeight = [repmat({0}, 1, 14) {'1x'}];
+eg = uigridlayout(ep, [17 1]);
+eg.RowHeight = [repmat({0}, 1, 16) {'1x'}];
 eg.RowSpacing = 6;
 eg.Padding = [4 4 4 4];
 eg.Scrollable = "on";
@@ -111,8 +140,9 @@ obj.FigureEditorGrid = eg;
 E = struct();
 
 % the sections with a header, in order: a header color each (a step along the turbo map) and the keys 1-9, 0
-order = ["observations" "arrangement" "panel" "ref" "window" "selection" "common" "palign" "layers" "options" "style" "looks" "sessions"];
-keyed = order(1:10);   % Observations Ctrl+1 ... Options Ctrl+0; Appearance and Looks have no key
+order = ["observations" "arrangement" "panel" "ref" "window" "selection" "common" "palign" "layers" "options" "note" "overlays" ...
+    "style" "looks" "sessions"];
+keyed = order(1:10);   % Observations Ctrl+1 ... Options Ctrl+0; the panel's note and overlays, Appearance, Looks and Sessions have no key
 hue = turbo(256);
 hue = hue(round(linspace(24, 232, numel(order))), :);
 tint = @(name) hue(order == name, :);
@@ -828,6 +858,145 @@ E.wavePP = uicheckbox(wt, "Text", "p-p", "Value", true, "ValueChangedFcn", chang
 E.waveCount = uicheckbox(wt, "Text", "# spikes", "ValueChangedFcn", changed, "Tooltip", "Say how many spikes the unit has.");
 sec(end+1) = S;
 
+% the selected panel's descriptive text (the Plots tab's Text note rows, applied to the panel)
+S = formSection(eg, 15, "note", "Text note", Color=tint("note"));
+[S, r] = formRow(S, "annText", "Text:", 78);
+E.annText = uitextarea(S.Body, "Value", "", "ValueChangedFcn", changed, ...
+    "Tooltip", "Words to put on the selected panel -- a caption, a condition, a remark. Each new line is a line of " + ...
+    "text; blank draws nothing. Where it goes, and how it looks, are set below.");
+place(E.annText, r, 2);
+[S, r] = formRow(S, "annPlace", "Place:");
+E.annPlace = uidropdown(S.Body, "Items", ["Below the panel" "Above the panel" "Right of the panel" "Left of the panel" ...
+    "Over the panel: top left" "Over the panel: top" "Over the panel: top right" "Over the panel: left" "Over the panel: center" ...
+    "Over the panel: right" "Over the panel: bottom left" "Over the panel: bottom" "Over the panel: bottom right" "At x, y"], ...
+    "ItemsData", EphysAnalysisConfig.NotePlacements, "Value", "below", "ValueChangedFcn", changed, ...
+    "Tooltip", "Beside the panel, its tile gives up a band for the text next to its axes. Over the panel, the text " + ...
+    "sits at that place in its axes, on top of what is drawn there. At x, y puts its anchor at the point below.");
+place(E.annPlace, r, 2);
+[S, r] = formRow(S, ["annX" "annY"], "At x, y:");
+xyg = subgrid(S.Body, r, {'fit', '1x', 'fit', '1x'});
+uilabel(xyg, "Text", "x");
+E.annX = uieditfield(xyg, "numeric", "Value", 0.5, "Limits", [-2 3], "ValueChangedFcn", changed, ...
+    "Tooltip", "Across the panel: 0 is its left edge, 1 its right. The text's anchor (its left, center or right edge, by Align) goes here.");
+uilabel(xyg, "Text", "y");
+E.annY = uieditfield(xyg, "numeric", "Value", 0.5, "Limits", [-2 3], "ValueChangedFcn", changed, ...
+    "Tooltip", "Up the panel: 0 is its bottom edge, 1 its top. The text's anchor (its top, middle or bottom, by Align) goes here.");
+[S, r] = formRow(S, ["annAlign" "annVAlign"], "Align:");
+ag2 = subgrid(S.Body, r, {'1x', '1x'});
+E.annAlign = uidropdown(ag2, "Items", ["Left" "Center" "Right"], "ItemsData", ["left" "center" "right"], "Value", "left", ...
+    "ValueChangedFcn", changed, "Tooltip", "How the lines line up, left to right. Below and above the panel it is also " + ...
+    "where the text sits across it; at x, y it is the anchor.");
+E.annVAlign = uidropdown(ag2, "Items", ["Top" "Middle" "Bottom"], "ItemsData", ["top" "middle" "bottom"], "Value", "middle", ...
+    "ValueChangedFcn", changed, "Tooltip", "Where the text sits up the panel beside it (right and left), or its anchor at x, y.");
+[S, r] = formRow(S, "annRotation", "Rotation:");
+E.annRotation = uispinner(S.Body, "Limits", [-180 180], "Step", 15, "Value", 0, "ValueDisplayFormat", "%g°", ...
+    "ValueChangedFcn", changed, "Tooltip", "Degrees, counter-clockwise: 90 reads upwards (for the band beside the panel).");
+place(E.annRotation, r, 2);
+[S, r] = formRow(S, ["annFont" "annSize"], "Font:");
+fg2 = subgrid(S.Body, r, {'1x', 70});
+E.annFont = uidropdown(fg2, "Editable", "on", "Items", ["auto" "Arial" "Helvetica" "Times New Roman" "Courier New" "Calibri" ...
+    "Segoe UI" "Verdana" "Georgia" "Palatino Linotype"], "Value", "auto", "ValueChangedFcn", changed, ...
+    "Tooltip", "auto: the design's font. Or any installed font's name.");
+E.annSize = uieditfield(fg2, "numeric", "AllowEmpty", "on", "Value", [], "Placeholder", "auto", "Limits", [1 200], ...
+    "ValueChangedFcn", changed, "Tooltip", "Points; blank is the figure's font size (Appearance).");
+[S, r] = formRow(S, ["annBold" "annItalic" "annBox"], "Style:");
+stg = subgrid(S.Body, r, {'fit', 'fit', 'fit', '1x'});
+stg.ColumnSpacing = 12;
+E.annBold = uicheckbox(stg, "Text", "Bold", "ValueChangedFcn", changed);
+E.annItalic = uicheckbox(stg, "Text", "Italic", "ValueChangedFcn", changed);
+E.annBox = uicheckbox(stg, "Text", "Outline", "ValueChangedFcn", changed, "Tooltip", "Draw a box round the text, in its color.");
+[S, r] = formRow(S, ["annColor" "annBackground"], "Colors:");
+ncg = subgrid(S.Body, r, {'fit', '1x', 'fit', '1x'});
+uilabel(ncg, "Text", "text");
+E.annColor = uidropdown(ncg, "Editable", "on", "Items", ["auto" "black" "white" "red" "blue" "green" "magenta" "cyan"], ...
+    "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "auto: the design's text color; or a name or #RRGGBB.");
+uilabel(ncg, "Text", "ground");
+E.annBackground = uidropdown(ncg, "Editable", "on", "Items", ["none" "white" "black" "yellow" "cyan" "#F0F0F0"], ...
+    "Value", "none", "ValueChangedFcn", changed, "Tooltip", "none: the panel shows through; or a name or #RRGGBB behind the text.");
+[S, r] = formRow(S, "annInterp", "Interpreter:");
+E.annInterp = uidropdown(S.Body, "Items", ["As typed" "TeX"], "ItemsData", ["none" "tex"], "Value", "none", ...
+    "ValueChangedFcn", changed, "Tooltip", "As typed: every character is printed as it is. TeX: \mu, \pm, x^2, x_i, \bf{...} " + ...
+    "set symbols, powers, subscripts and bold or italic runs.");
+place(E.annInterp, r, 2);
+sec(end+1) = S;
+
+% lines and patches on the selected panel's axes: a list, and the rows of the one picked (the Plots tab's Overlays rows)
+S = formSection(eg, 16, "overlays", "Overlays", Color=tint("overlays"));
+[S, r] = formRow(S, ["ovList" "ovAddLine"], "Overlays:", 112);
+olg = subgrid(S.Body, r, {'1x', 96});
+E.ovList = uilistbox(olg, "Items", {}, "ValueChangedFcn", @(~,~) obj.onFigureOverlayPicked(), ...
+    "Tooltip", "The graphics drawn on the selected panel's axes in data units: a vertical or horizontal line, or a " + ...
+    "semitransparent patch between two x or two y values. Add as many as you like; each has its own place and " + ...
+    "look. Pick one to edit it below.");
+E.ovList.Layout.Column = 1;
+E.ovList.UserData = struct('items', repmat(EphysAnalysisConfig.defaults("Overlay"), 1, 0), 'shown', 0);
+obg = uigridlayout(olg, [4 1], "RowHeight", {24, 24, 24, 24}, "Padding", [0 0 0 0], "RowSpacing", 4);
+obg.Layout.Column = 2;
+E.ovAddLine = uibutton(obg, "Text", "Add line", "ButtonPushedFcn", @(~,~) obj.onAddFigureOverlay("line"), ...
+    "Tooltip", "Add a line across the panel's axis: vertical at an x value, or horizontal at a y value.");
+E.ovAddRegion = uibutton(obg, "Text", "Add patch", "ButtonPushedFcn", @(~,~) obj.onAddFigureOverlay("region"), ...
+    "Tooltip", "Add a semitransparent patch between two x values (the full height of the axis) or two y values (the full width).");
+E.ovDuplicate = uibutton(obg, "Text", "Duplicate", "ButtonPushedFcn", @(~,~) obj.onDuplicateFigureOverlay(), ...
+    "Tooltip", "Copy the overlay picked, with its look, right after it.");
+E.ovRemove = uibutton(obg, "Text", "Remove", "ButtonPushedFcn", @(~,~) obj.onRemoveFigureOverlay(), ...
+    "Tooltip", "Remove the overlay picked from the panel.");
+[S, r] = formRow(S, ["ovName" "ovEnabled"], "Name:");
+ong = subgrid(S.Body, r, {'1x', 'fit'});
+E.ovName = uieditfield(ong, "text", "Placeholder", "Overlay", "ValueChangedFcn", changed, ...
+    "Tooltip", "What the list and the aesthetics editor (right-click the preview) call this overlay. Keep it different " + ...
+    "from the panel's other overlays: a look remembered for the name reaches every overlay that has it.");
+E.ovEnabled = uicheckbox(ong, "Text", "Enabled", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "Unticked, the overlay stays in the config but is not drawn.");
+[S, r] = formRow(S, "ovKind", "Draw:");
+E.ovKind = uidropdown(S.Body, "Items", ["Vertical line, at an x value" "Horizontal line, at a y value" ...
+    "Patch between two x values" "Patch between two y values"], "ItemsData", ["line|x" "line|y" "region|x" "region|y"], ...
+    "Value", "line|x", "ValueChangedFcn", changed, "Tooltip", "Values are in the axis' own units: seconds from the event " + ...
+    "on a time axis, a PSTH's rate on its y axis, an epoch number on a raster's rows. An overlay does not widen the " + ...
+    "axis: one outside its limits is not seen.");
+place(E.ovKind, r, 2);
+[S, r] = formRow(S, "ovValue", "At:");
+E.ovValue = uieditfield(S.Body, "text", "Value", "0", "ValueChangedFcn", changed, ...
+    "Tooltip", "Where the line crosses its axis (a number).");
+place(E.ovValue, r, 2);
+[S, r] = formRow(S, ["ovFrom" "ovTo"], "From / to:");
+ofg = subgrid(S.Body, r, {'1x', 'fit', '1x'});
+E.ovFrom = uieditfield(ofg, "text", "Value", "0", "ValueChangedFcn", changed, "Tooltip", "One edge of the patch (a number).");
+uilabel(ofg, "Text", "to");
+E.ovTo = uieditfield(ofg, "text", "Value", "0.1", "ValueChangedFcn", changed, "Tooltip", "The other edge (a number; either order).");
+E.ovPanel = struct('Value', 'all', 'ItemsData', "all");   % no row: a panel's overlays go on its own axes (overlayRead / overlayShow read it)
+[S, r] = formRow(S, "ovLayer", "Layer:");
+E.ovLayer = uidropdown(S.Body, "Items", ["Over the data" "Under the data"], "ItemsData", EphysAnalysisConfig.OverlayLayers, ...
+    "Value", "over", "ValueChangedFcn", changed, "Tooltip", "Over: drawn after the panel's lines, points, bars and bands. " + ...
+    "Under: behind them, so they hide it where they are opaque.");
+place(E.ovLayer, r, 2);
+[S, r] = formRow(S, ["ovColor" "ovAlpha"], "Color:");
+ocg = subgrid(S.Body, r, {'1x', 'fit', 60});
+E.ovColor = uidropdown(ocg, "Editable", "on", "Items", ["#d62728" "red" "black" "white" "blue" "green" "magenta" "cyan" "orange"], ...
+    "Value", "#d62728", "ValueChangedFcn", changed, "Tooltip", "The line's color: a name or #RRGGBB.");
+uilabel(ocg, "Text", "opacity");
+E.ovAlpha = uieditfield(ocg, "numeric", "Limits", [0 1], "Value", 1, "ValueChangedFcn", changed, ...
+    "Tooltip", "0 (invisible) to 1 (solid).");
+[S, r] = formRow(S, ["ovFill" "ovFillAlpha"], "Fill:");
+ofc = subgrid(S.Body, r, {'1x', 'fit', 60});
+E.ovFill = uidropdown(ofc, "Editable", "on", "Items", ["#808080" "gray" "black" "white" "red" "blue" "green" "yellow" "cyan"], ...
+    "Value", "#808080", "ValueChangedFcn", changed, "Tooltip", "The patch's color: a name or #RRGGBB.");
+uilabel(ofc, "Text", "opacity");
+E.ovFillAlpha = uieditfield(ofc, "numeric", "Limits", [0 1], "Value", 0.25, "ValueChangedFcn", changed, ...
+    "Tooltip", "0 (invisible) to 1 (solid); a semitransparent patch lets the data show through.");
+[S, r] = formRow(S, "ovEdge", "Outline:");
+E.ovEdge = uidropdown(S.Body, "Editable", "on", "Items", ["none" "black" "white" "red" "blue" "gray"], "Value", "none", ...
+    "ValueChangedFcn", changed, "Tooltip", "none: the patch has no outline; or a color (a name or #RRGGBB), drawn in the style " + ...
+    "and width below.");
+place(E.ovEdge, r, 2);
+[S, r] = formRow(S, ["ovStyle" "ovWidth"], "Line:");
+olnG = subgrid(S.Body, r, {'1x', 'fit', 60});
+E.ovStyle = uidropdown(olnG, "Items", ["solid" "dashed" "dotted" "dash-dot"], "ItemsData", EphysAnalysisConfig.OverlayLineStyles, ...
+    "Value", "--", "ValueChangedFcn", changed, "Tooltip", "The line's style (a patch's outline).");
+uilabel(olnG, "Text", "width");
+E.ovWidth = uispinner(olnG, "Limits", [0.25 12], "Step", 0.25, "Value", 1.5, "ValueChangedFcn", changed, ...
+    "Tooltip", "Points (a patch's outline).");
+sec(end+1) = S;
+
 % appearance: the figure's style (the Plots tab's rows, but tiles, grid spacing and limits: the arrangement and the panels have those)
 S = formSection(eg, 12, "style", "Appearance", Color=tint("style"));
 [S, r] = formRow(S, "fontSize", "Font size:");
@@ -993,7 +1162,7 @@ for i = 2:numel(sec)
     k = find(keyed == name);
     if ~isempty(k); sec(i).Key = string(mod(k, 10)); end   % Ctrl+1 ... Ctrl+9, then Ctrl+0 for the tenth (onKeyPress)
 end
-for i = find(ismember(names, ["style" "looks" "sessions"]))
+for i = find(ismember(names, ["note" "overlays" "style" "looks" "sessions"]))
     sec(i).Expanded = false;   % collapsed until opened (then kept: FigureSectionsCollapsed)
 end
 obj.FigureEditor = E;
@@ -1117,6 +1286,13 @@ if ~isempty(over)
 end
 obj.onConfigChanged("figure");
 obj.setStatus(sprintf("%s spans %d row(s) and %d column(s).", p.id, fig.panels(j).rowSpan, fig.panels(j).colSpan));
+end
+
+
+function onGroupByChanged(obj)
+%onGroupByChanged  The figure tree's Group by: regroup it (the selected figure stays); Up and Down follow its new group.
+obj.refreshFigureList();
+obj.syncFigureEditor();
 end
 
 

@@ -370,7 +370,9 @@ switch section
             'selection', "default", ...         % "default" (the figure's) or a TrialSelection (own epochs and groups: its own colors and legend)
             'common',  true, ...                % true: the figure's common options (Figure.common) for every common field its type has (commonFieldsOf); false: its own options
             'layers',  repmat(EphysAnalysisConfig.defaults("Layer"), 1, 0), ...
-            'options', T.DefaultOptions{T.Type == "psth"});   % the type's options (panelTypes().DefaultOptions)
+            'options', T.DefaultOptions{T.Type == "psth"}, ...   % the type's options (panelTypes().DefaultOptions)
+            'note',    EphysAnalysisConfig.defaults("Note"), ...   % descriptive text on or beside the panel (renderFigure; drawNote)
+            'overlays', repmat(EphysAnalysisConfig.defaults("Overlay"), 1, 0));   % lines and patches on the panel's axes (drawOverlays; panel "all")
 
     case "Observe"
         % what a figure is drawn for: what Generate iterates and the preview picker lists

@@ -66,7 +66,14 @@ function test_EphysAnalysisApp()
 %   sessions (the Sessions section's rows wired to the config, the mapping
 %   file's Browse / Edit, Pick, the picker's matched sites, a preview
 %   across both datasets, no recompute on an edit, the "Figure:" drop-down,
-%   Generate into the sessions folder);
+%   Generate into the sessions folder); the figure tree (grouped by what
+%   the figures observe, by status, flat; a leaf and a header picked; the
+%   check boxes of a figure and of a group, All / None / Invert; Up / Down
+%   within a group; Group by and the collapsed groups restored by a new
+%   app), a panel's text note and overlays (their rows reach the panel
+%   picked and the preview, Add / Duplicate / Remove, another panel's
+%   own) and dragging a panel in the schematic (an edge drop, a move to
+%   an empty cell, a release outside it and Escape canceling);
 %   closing. The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -1558,14 +1565,15 @@ FP = app.PanelAlignControls;
 figAxes = @() findall(app.FigurePreviewPanel, 'Type', 'axes', '-regexp', 'Tag', '^(axes|rasterAxes)$');
 figTitle = @() strjoin(string(findall(app.FigurePreviewPanel, 'Type', 'tiledlayout').Title.String), " ");
 nPatches = @() numel(findall(app.FigureSchematic, 'Type', 'patch'));
-check(isempty(app.Config.Figures) && isempty(app.FigureList.Items) && ~shown(FE.id) && shown(FE.summary) ...
+check(isempty(app.Config.Figures) && isempty(findall(app.FiguresTree, 'Type', 'uitreenode')) && ~shown(FE.id) && shown(FE.summary) ...
     && app.FigurePreviewState == "idle" && endsWith(app.helpURL("tab"), "#figures-tab") && app.RemoveFigureButton.Enable == "off" ...
     && string(app.FigureTemplateDropDown.Value) == "rasterPsth", ...
     'the Figures tab: no figure yet, only a hint in the editor, no preview, "Raster over PSTH" offered first; Help goes to its section');
 app.onAddFigure(string(app.FigureTemplateDropDown.Value));
 fg = app.Config.Figures;
 check(isscalar(fg) && fg.id == "figure_1" && numel(fg.panels) == 2 && app.SelectedFigure == 1 && app.SelectedPanel == 1 ...
-    && nPatches() == 2 && string(app.FigureList.Items{1}) == "figure_1  (2 panels, per unit)" && string(FE.id.Value) == "figure_1" ...
+    && nPatches() == 2 && string(figureNode(app.FiguresTree, 1).Text) == "figure_1  (2 panels)" ...
+    && startsWith(string(figureNode(app.FiguresTree, 1).Parent.Text), "Per unit") && string(FE.id.Value) == "figure_1" ...
     && startsWith(app.Fig.Name, "*"), ...
     'Add makes figure_1 from the template: two panels, two patches in the schematic, listed per unit; the config is unsaved');
 spec = app.Config.figureFor(1);
@@ -2198,7 +2206,7 @@ app.onFigureAutoPreviewToggled();
 app.onSaveConfig();
 app2 = EphysAnalysisApp();
 kept = isscalar(app2.Config.Figures) && isequaln(app2.Config.Figures, app.Config.Figures) && app2.SelectedFigure == 1 ...
-    && string(app2.FigureList.Items{1}) == "figure_1  (2 panels, per unit)";
+    && string(figureNode(app2.FiguresTree, 1).Text) == "figure_1  (2 panels)";
 restored = ~app2.FigureAutoCheckBox.Value && ~app2.FigureSections([app2.FigureSections.Name] == "options").Expanded ...
     && app2.FigureSections([app2.FigureSections.Name] == "layers").Expanded;
 closeApp(app2);
@@ -2208,7 +2216,7 @@ app.FigureAutoCheckBox.Value = true;
 app.onFigureAutoPreviewToggled();
 app.onFigureSectionToggled("options");
 app.onRemoveFigure();
-check(isempty(app.Config.Figures) && isempty(app.FigureList.Items) && app.FigurePreviewState == "idle" && ~shown(FE.id) ...
+check(isempty(app.Config.Figures) && isempty(findall(app.FiguresTree, 'Type', 'uitreenode')) && app.FigurePreviewState == "idle" && ~shown(FE.id) ...
     && app.RemoveFigureButton.Enable == "off" && nPatches() == 0, 'Remove takes the figure away; the editor and preview are empty');
 % a spectrum panel (Chronux: the bundled copy, on the path for these checks only)
 spPath = "";
@@ -2384,7 +2392,7 @@ app.onConfigChanged("figure");
 R = app.onGenerateFigure();
 check(~app.Config.Figures(kG).enabled && istable(R) && height(R) == numel(gIdx) && all(R.Status == "done") ...
     && contains(string(app.StatusBar.Text), fid + " is off, so it was switched on for this run only") ...
-    && endsWith(string(app.FigureList.Items{kG}), "(off)") && ~app.Runner.Config.Figures(kG).enabled, ...
+    && endsWith(string(figureNode(app.FiguresTree, kG).Text), "(off)") && ~app.Runner.Config.Figures(kG).enabled, ...
     'Generate on a figure that is off draws it (not skipped), says so, and the config keeps it off');
 app.onRemoveFigure();
 
@@ -2587,6 +2595,21 @@ n = n(arrayfun(@(x) isequal(x.NodeData, k), n));
 end
 
 
+function n = figureNode(tree, k)
+%figureNode  The figure tree's node of figure K (a leaf: its NodeData is K).
+n = findall(tree, 'Type', 'uitreenode');
+n = n(arrayfun(@(x) isequal(x.NodeData, k), n));
+end
+
+
+function setGroupBy(app, by)
+%setGroupBy  Pick BY in the figure tree's Group by drop-down, as a user would (its ValueChangedFcn).
+dd = app.FigureGroupDropDown;
+dd.Value = by;
+dd.ValueChangedFcn(dd, []);
+end
+
+
 function r = wcagRatio(a, b)
 %wcagRatio  The WCAG contrast ratio of two RGB colors.
 la = relLuminance(a);
@@ -2668,4 +2691,16 @@ if isfolder(root)
     catch
     end
 end
+end
+
+
+function T = dragPanel(app, q, from, to)
+%dragPanel  Drag panel Q of the figure tree's figure in the schematic from FROM to TO ([x y], its units): press, one motion, release.
+%   T: the drop target the motion found.
+app.Fig.CurrentPoint = [400 300];
+app.onSchematicPress(q, struct('IntersectionPoint', [from 0]));
+app.Fig.CurrentPoint = app.schematicPixel(to);
+app.Fig.WindowButtonMotionFcn(app.Fig, []);
+T = app.FigureDrag.target;
+app.Fig.WindowButtonUpFcn(app.Fig, []);
 end

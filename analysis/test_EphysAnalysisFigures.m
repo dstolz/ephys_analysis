@@ -11,7 +11,9 @@ function test_EphysAnalysisFigures()
 %   (placePanel in four directions, removePanel, movePanel, figureCells);
 %   DuplicateFigureId / DuplicatePanelId; every validate rule of the
 %   Figures section, and the Plots style messages unchanged by the
-%   shared checkStyle.
+%   shared checkStyle; a panel's text note and overlays (defaults, an
+%   overlay's panel always "all", a JSON round trip, the plot's validate
+%   rules at the panel's fields).
 %   Compute (7), on makeAnalysisFixture's "clean" dataset:
 %   figureObservations (the filter's units in probe order, a tightened
 %   filter, the LFP channels of a continuous figure, one row for a dataset
@@ -55,7 +57,9 @@ function test_EphysAnalysisFigures()
 %   layers, points), tuning curves (a series, the inset), the waveforms'
 %   probe layout with the observed unit framed; figureTiles' order past its cap;
 %   Editable, OnRemember and the context's redraw; the editor's colormap;
-%   one observation drawn in under a second.
+%   one observation drawn in under a second; a panel's note (below: in a
+%   band of its tile; northeast: in its axes) and overlays (on its own
+%   axes), their looks as rules under the figure's own.
 %   Spectral (9): the spectral templates and validate's rules (a coherence
 %   panel's two layers, chronuxSettings' errors, a spectrogram's baseline
 %   window, a coherogram of spikes, a range spectrum's window), figureFor's
@@ -213,6 +217,15 @@ fnP = string(fieldnames(P)).';
 check(P.common == true && islogical(P.common) && find(fnP == "selection") == find(fnP == "window") + 1 ...
     && find(fnP == "common") == find(fnP == "selection") + 1 && isequal(P.selection, "default"), ...
     'Panel.selection: "default", after window; Panel.common: true, after it');
+check(isequaln(P.note, EphysAnalysisConfig.defaults("Note")) && isstruct(P.overlays) && isempty(P.overlays) ...
+    && isequal(fieldnames(P.overlays), fieldnames(EphysAnalysisConfig.defaults("Overlay"))) ...
+    && find(fnP == "note") == find(fnP == "options") + 1 && find(fnP == "overlays") == numel(fnP), ...
+    'Panel.note: a Note (no text); Panel.overlays: an empty list of Overlays; both after options');
+pn = EphysAnalysisConfig.normalizePanel(struct('type', "psth", 'note', struct('text', "n = 12", 'placement', "northeast"), ...
+    'overlays', struct('shape', "region", 'panel', "raster", 'from', 0, 'to', 0.2)));
+check(isscalar(pn.overlays) && pn.overlays.panel == "all" && pn.overlays.shape == "region" && pn.overlays.to == 0.2 ...
+    && pn.note.text == "n = 12" && pn.note.placement == "northeast" && pn.note.align == "left", ...
+    'normalizePanel: a note completed from the defaults; an overlay''s panel is always "all" (its own axes)');
 Oc = T.DefaultOptions{T.Type == "continuous"};
 Oh = T.DefaultOptions{T.Type == "heatmap"};
 check(Oc.trials == "off" && Oc.maxTrials == 100 && Oh.rows == "items" && Oh.rasterSort == "" && isempty(Oh.rasterSortEvent) ...
@@ -453,6 +466,9 @@ Pc{7}.window = struct('mode', "between", 'pre', 0, 'post', 0, 'stop', struct('li
 Pc{5}.options = struct('layout', "probe");
 Pc{8}.options = struct('display', "points", 'measure', "probability", 'baseline', struct('Mode', "ratio", 'Window', [-0.3 0]));
 Pc{9}.options = struct('param', "Depth", 'seriesParam', "TrialType", 'yLim', [0 20]);
+Pc{2}.note = struct('text', "Stim at 0" + newline + "n = 12", 'placement', "right", 'color', "#1f77b4", 'fontSize', 8);
+Pc{2}.overlays = struct('name', {"stim" "window"}, 'shape', {"line" "region"}, 'value', {0 0}, 'from', {0 0.05}, ...
+    'to', {0.1 0.25}, 'layer', {"over" "under"}, 'faceAlpha', {0.25 0.4});
 allTypes = struct('id', "all_types", 'title', "Every panel type", ...
     'observe', struct('kind', "unit", 'units', struct('classes', "su", 'maxUnits', 4)), ...
     'sessions', struct('datasets', "list", 'datasetKeys', ["S1/a" "S2/b"]), ...
@@ -496,6 +512,13 @@ check(isequal(g.sessions.datasetKeys, ["S1/a" "S2/b"]) && g.sessions.datasets ==
     && isequal(g.selection.groupBy, ["Depth" "TrialType"]) && isscalar(g.aesthetics) && isstruct(g.panels(1).options.rasterSortEvent) ...
     && g.panels(1).options.rasterSortEvent.edge == "offset" && isnan(g.panels(2).options.fillAlpha) && g.panels(2).options.baseline.Mode == "zscore", ...
     'lists of one and two, an event to sort by, NaN and aesthetics');
+nt2 = g.panels(2).note;
+ov2 = g.panels(2).overlays;
+check(nt2.text == "Stim at 0" + newline + "n = 12" && nt2.placement == "right" && nt2.color == "#1f77b4" && nt2.fontSize == 8 ...
+    && isnan(g.panels(1).note.fontSize) && g.panels(1).note.text == "" && numel(ov2) == 2 && isequal([ov2.name], ["stim" "window"]) ...
+    && isequal([ov2.shape], ["line" "region"]) && ov2(2).to == 0.25 && ov2(2).faceAlpha == 0.4 && ov2(2).layer == "under" ...
+    && all([ov2.panel] == "all") && isempty(g.panels(1).overlays) && contains(txt, '"overlays"'), ...
+    'a panel''s note (two lines) and two overlays survive save / load; the other panels keep none');
 
 s = cfg.toStruct();
 s.Figures(1).bogus = 1;
@@ -1036,6 +1059,51 @@ b = base; b.Figures(1).observe.perGroup = true;
 b2 = b; b2.Defaults.Selection.groupBy = "Depth";
 check(has(b, "figure_1.observe.perGroup", "warning") && ~has(b2, "figure_1.observe.perGroup", "warning"), ...
     'perGroup warns while the figure''s selection groups by nothing');
+
+% 11. a panel's text note and overlays: the plot's rules, at "<figure>.<panel>.note.<field>" / ".overlays(<k>).<field>"
+b = base;
+nb = EphysAnalysisConfig.defaults("Note");
+nb.text = "n = 12";
+b.Figures(1).panels(2).note = nb;
+b.Figures(1).panels(2).overlays = EphysAnalysisConfig.defaults("Overlay");
+check(isempty(figIssues(b)), 'a panel with a note and an overlay validates clean');
+nb.placement = "nowhere"; nb.align = "justify"; nb.valign = "up"; nb.interpreter = "latex"; nb.rotation = NaN;
+nb.fontSize = -1; nb.color = "plaid";
+b2 = b; b2.Figures(1).panels(2).note = nb;
+n0 = "figure_1.psth_1.note.";
+check(has(b2, n0 + "placement", "error") && has(b2, n0 + "align", "error") && has(b2, n0 + "valign", "error") ...
+    && has(b2, n0 + "interpreter", "error") && has(b2, n0 + "rotation", "error") && has(b2, n0 + "fontSize", "error") ...
+    && has(b2, n0 + "color", "warning"), 'a panel''s note: placement, alignments, interpreter, rotation, font size (errors), color (a warning)');
+b3 = b2; b3.Figures(1).panels(2).note.text = "";
+b4 = b; b4.Figures(1).panels(2).note.placement = "custom"; b4.Figures(1).panels(2).note.x = NaN;
+check(isempty(figIssues(b3)) && has(b4, n0 + "x", "error"), 'a note without text is not checked; a custom place needs a finite x and y');
+ov = EphysAnalysisConfig.defaults("Overlay");
+o1 = ov; o1.value = Inf;
+o2 = ov; o2.shape = "region"; o2.from = 0.1; o2.to = 0.1;
+o3 = ov; o3.axis = "z"; o3.layer = "middle"; o3.lineStyle = "~"; o3.lineWidth = 0; o3.alpha = 2; o3.color = "plaid";
+o4 = ov; o4.name = "Stim";
+o0 = "figure_1.psth_1.overlays";
+b5 = b; b5.Figures(1).panels(2).overlays = [o1 o2 o3 o4 o4];
+check(has(b5, o0 + "(1).value", "error") && has(b5, o0 + "(2).to", "error") && has(b5, o0 + "(3).axis", "error") ...
+    && has(b5, o0 + "(3).layer", "error") && has(b5, o0 + "(3).lineStyle", "error") && has(b5, o0 + "(3).lineWidth", "error") ...
+    && has(b5, o0 + "(3).alpha", "error") && has(b5, o0 + "(3).color", "warning") && has(b5, o0 + "(5).name", "warning") ...
+    && ~has(b5, o0 + "(4).name", "warning"), ...
+    'a panel''s overlays: a line''s position, a region''s edges, axis, layer, line style and width, opacity (errors), color and a shared name (warnings)');
+b6 = b; b6.Figures(1).panels(1).overlays = setfield(ov, 'panel', "data"); %#ok<SFLD>
+I6 = figIssues(b6);
+check(b6.Figures(1).panels(1).overlays.panel == "all" && ~any(contains(I6.Field, ".overlays(1).panel")), ...
+    'a panel''s overlay names no panel: set to "data", it is "all" (its own axes), and no panel warning comes');
+I7 = b5.validate(CheckPaths=false);
+I7 = I7(contains(I7.Field, ".overlays(5).name"), :);
+check(height(I7) == 1 && contains(I7.Message, "Another overlay of this figure"), 'the shared-name warning names the figure');
+b8 = b; b8.Figures(1).panels(1).overlays = o4; b8.Figures(1).panels(2).overlays = o4;
+check(has(b8, "figure_1.psth_1.overlays(1).name", "warning") && ~has(b8, "figure_1.raster_1.overlays(1).name", "warning"), ...
+    'two panels'' overlays of one name warn (one aesthetics rule on the name reaches both)');
+I9 = figIssues(b4);
+I9 = I9(I9.Field == n0 + "x", :);
+b10 = b2; b10.Figures(1).panels(2).type = "bogus";
+check(height(I9) == 1 && contains(I9.Message, "up the panel") && has(b10, "figure_1.psth_1.type", "error") ...
+    && has(b10, n0 + "placement", "error"), 'a custom note''s message names the panel; a panel of an unknown type still has its note checked');
 
 %% ============================================================================ compute
 fprintf('\n== 7. compute: observations, bindings, panels and layers ==\n');
@@ -1724,6 +1792,106 @@ for k = 1:size(rcases, 1)
     if msgs ~= ""; msg = msg + " (" + msgs + ")"; end
     check(okAll, msg);
 end
+
+% a panel's text note and overlays (phase 6): drawn on that panel, their looks as rules, the figure's own winning
+sN = F1.spec;
+nPs = EphysAnalysisConfig.defaults("Note");
+nPs.text = "n = 12";
+nPs.color = "#ff0000";
+nPs.placement = "below";
+sN.panels(2).note = nPs;
+nR = EphysAnalysisConfig.defaults("Note");
+nR.text = "raster note";
+nR.placement = "northeast";
+nR.bold = true;
+sN.panels(1).note = nR;
+oR = EphysAnalysisConfig.defaults("Overlay");
+oR.shape = "region"; oR.from = 0; oR.to = 0.05; oR.faceColor = "#00ff00"; oR.name = "window";
+sN.panels(1).overlays = oR;
+sN.panels(2).overlays = EphysAnalysisConfig.defaults("Overlay");
+sN.aesthetics = struct('role', "overlayRegion", 'group', "window", 'property', "FaceAlpha", 'value', 0.6);
+clf(fig);
+hN = renderFigure(F1, sN, fig);
+drawnow;
+tP = hN.panels(2).note;
+tR = hN.panels(1).note;
+gR = hN.panels(1).overlays;
+gL = hN.panels(2).overlays;
+band = ancestor(tP, 'axes');
+check(isscalar(tP) && isgraphics(tP) && string(tP.String) == "n = 12" && string(tP.Tag) == "note" && isequal(tP.Color, [1 0 0]) ...
+    && string(band.Tag) == "noteHost" && band.Visible == "off" && isa(band.Parent, 'matlab.graphics.layout.TiledChartLayout') ...
+    && band.Parent.Parent == hN.layout && band.Position(2) < hN.panels(2).axes.Position(2) ...
+    && band.Parent == hN.panels(2).axes.Parent, ...
+    'a note below a panel sits in a band of its tile under its axes (a hidden noteHost axes), its own color a rule');
+check(isscalar(tR) && ancestor(tR, 'axes') == hN.panels(1).axes && string(tR.FontWeight) == "bold" && string(tR.String) == "raster note" ...
+    && hN.panels(1).axes.Parent == hN.layout, 'a note over a panel (northeast) is in its axes; that panel keeps its plain tile');
+check(isscalar(gR) && string(gR.Tag) == "overlayRegion" && isequal(gR.FaceColor, [0 1 0]) && abs(gR.FaceAlpha - 0.6) < 1e-9 ...
+    && ancestor(gR, 'axes') == hN.panels(1).axes && isscalar(gL) && string(gL.Tag) == "overlayLine" ...
+    && ancestor(gL, 'axes') == hN.panels(2).axes, ...
+    'each panel''s overlays are drawn on its own axes (a region on the raster, a line on the PSTH); the figure''s rule wins over the overlay''s own opacity');
+CN = PlotAesthetics.components(hN.layout);
+check(~any(CN.Role == "" | ~ismember(CN.Role, roles)) && any(CN.Role == "note" & CN.TileName == "raster_1") ...
+    && any(CN.Role == "overlayRegion" & CN.Group == "window") && any(CN.Role == "overlayLine"), ...
+    'the note over a panel and every overlay are tagged components of that panel''s tile');
+xlR = xlim(hN.panels(1).axes);
+check(isequal(xlR, xlim(hN.panels(2).axes)) && isempty(hN.panels(1).axes.XTickLabel), ...
+    'with a note band under the PSTH the raster still shares its time axis (no tick labels above the PSTH)');
+% a band below keeps the axes' left edge and width those of the plain panel under it; a band beside them keeps both panels' tick labels
+sB = F1.spec;
+nB = EphysAnalysisConfig.defaults("Note");
+nB.text = "a band" + newline + "of two lines";
+nB.placement = "below";
+sB.panels(1).note = nB;
+clf(fig);
+hB = renderFigure(F1, sB, fig);
+drawnow;
+r1 = figureBox(hB.panels(1).axes, fig);
+r2 = figureBox(hB.panels(2).axes, fig);
+check(abs(r1(1) - r2(1)) <= 1 && abs(r1(3) - r2(3)) <= 1 && isempty(hB.panels(1).axes.XTickLabel) ...
+    && string(ancestor(hB.panels(1).note, 'axes').Tag) == "noteHost", ...
+    sprintf('a raster with a note below keeps the left edge and width of the PSTH under it (x %.1f / %.1f px, width %.1f / %.1f px)', ...
+    r1(1), r2(1), r1(3), r2(3)));
+nB.placement = "right";
+sB.panels(1).note = nB;
+clf(fig);
+hB = renderFigure(F1, sB, fig);
+drawnow;
+r1 = figureBox(hB.panels(1).axes, fig);
+check(r1(3) < r2(3) - 5 && ~isempty(hB.panels(1).axes.XTickLabel) && ~isempty(hB.panels(2).axes.XTickLabel) ...
+    && string(hB.panels(1).axes.XLabel.String) == "Time (s)", ...
+    'a raster with a note right of it is narrower than the PSTH under it, so each keeps its own time tick labels');
+nB.placement = "below";
+nB.text = join(repmat("a long note line", 1, 4), newline);
+nB.fontSize = 14;
+sB.panels(2).note = nB;
+sB.panels(1).note = EphysAnalysisConfig.defaults("Note");
+clf(fig);
+hB = renderFigure(F1, sB, fig);
+drawnow;
+tB = hB.panels(2).note;
+bandB = ancestor(tB, 'axes');
+tB.Units = 'normalized';
+eB = tB.Extent;
+SB = getappdata(bandB, 'NoteBand');
+check(eB(2) >= -0.02 && eB(2) + eB(4) <= 1.02 && SB.b > 1, ...
+    sprintf('a four-line note below at 14 pt gets a band it fits in (its extent %s of the band)', mat2str(eB, 2)));
+nR = EphysAnalysisConfig.defaults("Note");
+nR.text = "turned";
+nR.placement = "left";
+nR.rotation = 90;
+nR.valign = "top";
+sB.panels(2).note = nR;
+clf(fig);
+hB = renderFigure(F1, sB, fig);
+drawnow;
+tR = hB.panels(2).note;
+check(string(tR.HorizontalAlignment) == "right" && string(tR.VerticalAlignment) == "middle" && tR.Position(2) > 0.8, ...
+    'a note turned 90 degrees, valign top: right-aligned along y, at the band''s top');
+clf(fig);
+axN = axes(fig);
+hA = renderFigure(F1, sN, axN);
+check(isscalar(hA.panels(1).note) && ancestor(hA.panels(1).note, 'axes') == axN && isscalar(hA.panels(1).overlays), ...
+    'into one axes the first panel draws its note and overlays in that axes');
 
 % title and subtitle
 h1 = renderFigure(F1, F1.spec, fig);
@@ -2494,4 +2662,22 @@ if isfolder(root)
     catch
     end
 end
+end
+
+
+function r = figureBox(ax, fig)
+%figureBox  An axes' plot box in the figure's pixels, [x y w h], however deeply its tiled layouts nest.
+%   An axes or a layout nested in another layout has its position in the
+%   frame of that layout's outer box; each level up maps it into the next.
+ax.Units = 'normalized';
+r = ax.InnerPosition;
+p = ax.Parent;
+while isa(p, 'matlab.graphics.layout.TiledChartLayout') && isa(p.Parent, 'matlab.graphics.layout.TiledChartLayout')
+    p.Units = 'normalized';
+    o = p.OuterPosition;
+    r = [o(1) + r(1) * o(3), o(2) + r(2) * o(4), r(3) * o(3), r(4) * o(4)];
+    p = p.Parent;
+end
+fp = getpixelposition(fig);
+r = r .* [fp(3) fp(4) fp(3) fp(4)];
 end

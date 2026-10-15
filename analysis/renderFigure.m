@@ -37,6 +37,21 @@ function h = renderFigure(F, spec, target, opts)
 %            taken as figureSessionSpec gives it (as it was computed). An
 %            observation of one trial group (a perGroup figure) names its
 %            group: in the observation's label, else appended ("· <group>").
+%   Notes and overlays  each panel's (SPEC.panels(k).note, .overlays, as a
+%            plot's): the overlays drawn on the panel's axes (drawOverlays,
+%            every one on them: a panel has no raster / data choice; a
+%            coherence panel's x overlays on its phase strip too); the
+%            note (drawNote) placed below, above, left or right takes a
+%            band of the panel's tile beside its axes (the tile becomes a
+%            small tiled layout of its own: the axes and a hidden axes,
+%            Tag "noteHost", holding the text; the band is fitted to the
+%            text once its looks are final, at most half the tile; a band
+%            below or above keeps the axes' left edge and width those of
+%            a plain tile; a panel with a band left or right keeps its own
+%            time tick labels: figureTimeStack), placed over the panel or
+%            at x, y it sits in the axes (placeNote). Their own looks are
+%            rules after the design's and the user's and before
+%            SPEC.aesthetics, as renderPlot orders them.
 %   Legend   one, east of the panels (Style.LegendLocation, placeLegend):
 %            the trial groups once (as a PSTH panel draws them, else a
 %            continuous one, else a raster's bands), then the panels'
@@ -78,7 +93,9 @@ function h = renderFigure(F, spec, target, opts)
 %     axes    the panels' axes drawn, in panel order
 %     panels  one per SPEC.panels: id, type, axes (empty when not drawn),
 %             extraAxes (a coherence panel's phase axes, drawn under its
-%             magnitude in its tile; dressed with the panel type's looks)
+%             magnitude in its tile; dressed with the panel type's looks),
+%             note (its text, empty without one) and overlays (the lines
+%             and patches drawn)
 %     title   the figure's title text
 %   Errors: renderFigure:Mismatch (F's panels are not SPEC's).
 %
@@ -141,10 +158,16 @@ if ~isempty(ax0); nDraw = min(1, np); end
 axs = gobjects(1, np);
 extra = cell(1, np);   % each panel's further axes (a coherence panel's phase)
 hks = cell(1, np);
+notes = cell(1, np);   % each panel's note (drawNote's N) and the band that holds it beside the axes ([] = in the axes)
+bands = cell(1, np);
+ovls = cell(1, np);    % each panel's overlays (drawOverlays' O)
 for k = 1:nDraw
     p = panels(k);
     P = F.panels(k);
-    if isempty(ax0)
+    band = [];
+    if isempty(ax0) && besideNote(p)
+        [ax, band] = notedTile(tl, tileOf(k), spanOf(k, :), nr, nc, p.note, style);
+    elseif isempty(ax0)
         ax = nexttile(tl, tileOf(k), spanOf(k, :));
     else
         ax = ax0;
@@ -186,13 +209,27 @@ for k = 1:nDraw
     axs(k) = ax;
     if isfield(hk, 'extraAxes'); extra{k} = hk.extraAxes(isgraphics(hk.extraAxes)); end
     hks{k} = hk;
+    % the panel's overlays on its axes, and its note: in the band beside them, else in them
+    ovls{k} = drawOverlays(struct('axes', ax), p.overlays);
+    if ~isempty(extra{k}) && ~isempty(p.overlays)   % a coherence panel's phase strip shares its x axis: the x overlays go on it too
+        xo = p.overlays([p.overlays.axis] == "x");
+        if ~isempty(xo)
+            O2 = drawOverlays(struct('axes', extra{k}), xo);
+            ovls{k}.handles = [ovls{k}.handles O2.handles];
+        end
+    end
+    host = ax;
+    if ~isempty(band) && isgraphics(band); host = band; bands{k} = band; end
+    notes{k} = drawNote(struct('layout', [], 'axes', host), p.note, style);
 end
 drawn = isgraphics(axs);
 multi = nnz(drawn) > 1;
 if multi; tileTicks(axs(drawn), style); end
 labelSize = [];
 if multi; labelSize = style.FontSize; end
-figureTimeStack(axs, panels, isTime, labelSize);
+sided = false(1, np);   % a band left or right of a panel's axes narrows them: no shared time axis with the panel below
+for k = 1:np; sided(k) = isempty(ax0) && sideNote(panels(k)); end
+figureTimeStack(axs, panels, isTime, labelSize, sided);
 
 % title: the figure's, or what it shows; the top-left panel names the observation under a title of the figure's own
 txt = spec.title;
@@ -237,6 +274,7 @@ root = tl;
 if isempty(root); root = ax0; end
 specRules = PlotAesthetics.normalizeRules(spec.aesthetics);
 PlotAesthetics.apply(root, design.rules);
+kRules = cell(1, np);
 for k = find(drawn)
     r = kindRules(design, types(k));
     if opts.UserAesthetics && isvarname(types(k)); r = [r PlotAesthetics.userRules(types(k))]; end %#ok<AGROW>
@@ -244,11 +282,45 @@ for k = find(drawn)
     for xa = reshape(extra{k}, 1, [])
         PlotAesthetics.apply(xa, r);
     end
+    kRules{k} = r;
 end
 PlotDesign.paint(root, design);
 r = kindRules(design, "figure");
 if opts.UserAesthetics; r = [r PlotAesthetics.userRules("figure")]; end
-PlotAesthetics.apply(root, [r specRules]);
+% a panel's note and overlays: their own looks after the design's and the user's, before the figure's own (as renderPlot)
+ownRules = cell(1, np);
+for k = find(drawn)
+    ownRules{k} = PlotAesthetics.emptyRules();
+    if ~isempty(notes{k}); ownRules{k} = [ownRules{k} notes{k}.rules]; end
+    if ~isempty(ovls{k}); ownRules{k} = [ownRules{k} ovls{k}.rules]; end
+end
+if any(~cellfun(@isempty, ownRules(drawn)))
+    PlotAesthetics.apply(root, r);
+    for k = find(drawn)
+        if isempty(ownRules{k}); continue; end
+        PlotAesthetics.apply(axs(k), ownRules{k});
+        for xa = reshape(extra{k}, 1, [])
+            PlotAesthetics.apply(xa, ownRules{k});
+        end
+    end
+    PlotAesthetics.apply(root, specRules);
+else
+    PlotAesthetics.apply(root, [r specRules]);
+end
+for k = find(drawn)   % a note in a band beside the axes: that band is no tile, so its looks are given to it here
+    if isempty(bands{k}) || isempty(notes{k}) || isempty(notes{k}.text); continue; end
+    bandRules = [design.rules kRules{k} r notes{k}.rules specRules];
+    if ~isempty(bandRules); PlotAesthetics.apply(bands{k}, bandRules([bandRules.role] == "note")); end
+end
+for k = find(drawn)   % the notes go where they belong once their looks are final (their size measured)
+    if isempty(notes{k}) || isempty(notes{k}.text); continue; end
+    if isempty(bands{k})
+        placeNote(notes{k}, panels(k).note);
+    else
+        fitNoteBand(axs(k), bands{k}, notes{k}.text);   % the band fitted to the text as drawn, then the text in its free part
+        placeBandNote(notes{k}.text, panels(k).note, bands{k});
+    end
+end
 if editable(opts.Editable, target)
     mapField = "";
     aurocMap = false;   % a heat map of auROCs is drawn in the diverging colormap
@@ -277,16 +349,229 @@ if editable(opts.Editable, target)
     PlotAesthetics.enableEditing(target, ctx);
 end
 
-hp = repmat(struct('id', "", 'type', "", 'axes', gobjects(0), 'extraAxes', gobjects(0)), 1, np);
+hp = repmat(struct('id', "", 'type', "", 'axes', gobjects(0), 'extraAxes', gobjects(0), 'note', gobjects(0), ...
+    'overlays', gobjects(1, 0)), 1, np);
 for k = 1:np
     hp(k).id = panels(k).id;
     hp(k).type = types(k);
     if drawn(k)
         hp(k).axes = axs(k);
         hp(k).extraAxes = extra{k};
+        if ~isempty(notes{k}); hp(k).note = notes{k}.text; end
+        if ~isempty(ovls{k}); hp(k).overlays = ovls{k}.handles; end
     end
 end
 h = struct('layout', tl, 'axes', axs(drawn), 'panels', hp, 'title', txt);
+end
+
+
+function tf = besideNote(p)
+%besideNote  The panel has a note placed beside its axes (below, above, left or right): it takes a band of the tile.
+tf = strtrim(string(p.note.text)) ~= "" && ismember(string(p.note.placement), ["below" "above" "left" "right"]);
+end
+
+
+function tf = sideNote(p)
+%sideNote  The panel's note takes a band left or right of its axes: they are narrower than a plain tile's in the column.
+tf = besideNote(p) && ismember(string(p.note.placement), ["left" "right"]);
+end
+
+
+function [ax, band] = notedTile(tl, tile, span, nr, nc, note, style)
+%notedTile  A panel's tile as a small tiled layout of its own: the panel's axes and, beside it, a band for its note.
+%   The band (a hidden axes, Tag "noteHost", so the aesthetics editor lists
+%   no tile for it) is below, above, left or right of the axes as the note
+%   is placed, a share of the tile in steps of a twentieth (at most half):
+%   first estimated from the note's lines at its font size, then fitted to
+%   the text as drawn once its looks are final (fitNoteBand). The small
+%   layout has no padding or spacing, so a band below or above leaves the
+%   axes' left edge and width those of a plain tile in the column.
+place = string(note.placement);
+across = ismember(place, ["below" "above"]);
+n = 20;
+b = bandUnits(tl, span, nr, nc, note, style, across, n);
+if across
+    inner = tiledlayout(tl, n, 1, 'TileSpacing', 'none', 'Padding', 'none');
+else
+    inner = tiledlayout(tl, 1, n, 'TileSpacing', 'none', 'Padding', 'none');
+end
+inner.Layout.Tile = tile;
+inner.Layout.TileSpan = span;
+ax = nexttile(inner, 1);
+band = nexttile(inner, n);
+spanBand(ax, band, place, n, b);
+set(band, 'Visible', 'off', 'HitTest', 'off', 'PickableParts', 'none', 'XLim', [0 1], 'YLim', [0 1], 'Tag', 'noteHost');
+setappdata(band, 'NoteBand', struct('n', n, 'b', b, 'place', place, 'free', [0 0 1 1]));
+end
+
+
+function spanBand(holder, band, place, n, b)
+%spanBand  The axes (or the layout holding it) and the band in the small layout: the band B of its N steps, on the note's side.
+switch place
+    case "below"
+        holder.Layout.Tile = 1;      holder.Layout.TileSpan = [n - b 1];
+        band.Layout.Tile = n - b + 1; band.Layout.TileSpan = [b 1];
+    case "above"
+        band.Layout.Tile = 1;        band.Layout.TileSpan = [b 1];
+        holder.Layout.Tile = b + 1;  holder.Layout.TileSpan = [n - b 1];
+    case "left"
+        band.Layout.Tile = 1;        band.Layout.TileSpan = [1 b];
+        holder.Layout.Tile = b + 1;  holder.Layout.TileSpan = [1 n - b];
+    otherwise   % right
+        holder.Layout.Tile = 1;      holder.Layout.TileSpan = [1 n - b];
+        band.Layout.Tile = n - b + 1; band.Layout.TileSpan = [1 b];
+end
+end
+
+
+function b = bandUnits(tl, span, nr, nc, note, style, across, n)
+%bandUnits  How many of the tile's N steps the note's band takes at first: its lines (across: their height; beside: their width) over the tile's size.
+fs = style.FontSize;
+if isfinite(note.fontSize) && note.fontSize > 0; fs = note.fontSize; end
+lines = splitlines(strip(string(note.text), 'right'));
+tall = numel(lines) * fs * 1.3 + 10 + 2.8 * style.FontSize;   % points, with the axes' tick labels and label beside it
+wide = max(strlength(lines)) * fs * 0.6 + 12 + 4 * style.FontSize;
+if abs(sind(note.rotation)) > 0.7; [tall, wide] = deal(wide, tall); end
+room = [576 432];   % the container's size in points (a default when it cannot be read)
+try
+    px = getpixelposition(tl.Parent);
+    if all(px(3:4) > 20); room = px(3:4) * 72 / get(groot, 'ScreenPixelsPerInch'); end
+catch
+end
+if across
+    need = tall;
+    have = room(2) * span(1) / max(nr, 1) * 0.85;
+else
+    need = wide;
+    have = room(1) * span(2) / max(nc, 1) * 0.85;
+end
+b = min(n / 2, max(1, ceil(n * need / max(have, 1))));
+end
+
+
+function fitNoteBand(ax, band, t)
+%fitNoteBand  Size the band to the note as drawn (its looks final) and the axes' labels that reach into it.
+%   The text's extent and the room the axes' tick labels and axis label
+%   take on that side (they are drawn into the band: the small layout has
+%   no spacing) give the band's share of the tile, at most half; the band's
+%   free part (BAND's appdata NoteBand.free, [x0 y0 x1 y1] in its normalized
+%   units) is where placeBandNote puts the text.
+S = getappdata(band, 'NoteBand');
+if isempty(S) || isempty(t) || ~isgraphics(t); return; end
+inner = band.Parent;
+holder = ax;
+while ~isempty(holder.Parent) && holder.Parent ~= inner && isa(holder.Parent, 'matlab.graphics.layout.TiledChartLayout')
+    holder = holder.Parent;   % a coherence panel's pair layout holds its axes
+end
+units = t.Units;
+t.Units = 'points';
+ext = t.Extent;
+t.Units = units;
+fs = ax.FontSize;
+deco = 4;   % points the axes' labels take on the band's side
+switch S.place
+    case "below"
+        if ~isempty(ax.XTickLabel); deco = deco + 1.5 * fs; end
+        if strjoin(string(ax.XLabel.String), "") ~= ""; deco = deco + 1.5 * ax.XLabel.FontSize; end
+    case "above"
+        if strjoin(string(ax.Title.String), "") ~= ""; deco = deco + 1.6 * ax.Title.FontSize; end
+        if strjoin(string(ax.Subtitle.String), "") ~= ""; deco = deco + 1.5 * ax.Subtitle.FontSize; end
+    case "left"
+        lab = string(ax.YTickLabel);
+        if ~isempty(lab); deco = deco + 0.6 * fs * max(strlength(lab)) + 6; end
+        if strjoin(string(ax.YLabel.String), "") ~= ""; deco = deco + 1.6 * ax.YLabel.FontSize; end
+    otherwise
+        if numel(ax.YAxis) > 1; deco = deco + 0.6 * fs * 6 + 1.6 * fs; end   % a right y axis
+end
+across = ismember(S.place, ["below" "above"]);
+need = deco + 12;
+if across; need = need + ext(4); else; need = need + ext(3); end
+bp = sizeIn(band);
+if across; have = bp(2) * S.n / S.b; else; have = bp(1) * S.n / S.b; end
+b = min(S.n / 2, max(1, ceil(S.n * need / max(have, 1))));
+if b ~= S.b
+    spanBand(holder, band, S.place, S.n, b);
+    S.b = b;
+    bp = sizeIn(band);
+end
+dim = bp(1 + across);   % the band's size across it, points
+f = min(0.9, deco / max(dim, 1));   % its share the axes' labels take, next to the axes
+switch S.place
+    case "below", S.free = [0 0 1 1 - f];
+    case "above", S.free = [0 f 1 1];
+    case "left",  S.free = [0 0 1 - f 1];
+    otherwise,    S.free = [f 0 1 1];
+end
+setappdata(band, 'NoteBand', S);
+end
+
+
+function wh = sizeIn(ax)
+%sizeIn  An axes' width and height in points (laid out first when it has not been yet).
+wh = [0 0];
+for attempt = 1:2
+    units = ax.Units;
+    ax.Units = 'points';
+    p = ax.Position;
+    ax.Units = units;
+    wh = p(3:4);
+    if all(wh > 2); return; end
+    if attempt == 1; drawnow limitrate; end
+end
+wh = max(wh, 1);
+end
+
+
+function placeBandNote(t, note, band)
+%placeBandNote  A note in the band beside its panel, in the part the axes' labels leave free (fitNoteBand).
+%   Along the band by its alignment (below / above: align across the
+%   panel; left / right: valign up it), in the middle across it. A note
+%   turned a quarter (|sin(rotation)| > 0.7) reads along y: its horizontal
+%   alignment comes from valign (bottom / middle / top: left / center /
+%   right at +90, mirrored at -90), its vertical alignment is middle, and
+%   valign puts it up the band.
+if isempty(t) || ~isgraphics(t); return; end
+if note.box
+    t.EdgeColor = t.Color;
+    t.LineWidth = 0.75;
+end
+S = getappdata(band, 'NoteBand');
+fr = [0 0 1 1];
+if isstruct(S) && isfield(S, 'free'); fr = S.free; end
+t.Units = 'normalized';
+share = @(v, order) shareOf(v, order);
+alongX = @(s) fr(1) + (fr(3) - fr(1)) * (0.02 + 0.96 * s);
+alongY = @(s) fr(2) + (fr(4) - fr(2)) * (0.02 + 0.96 * s);
+midX = (fr(1) + fr(3)) / 2;
+midY = (fr(2) + fr(4)) / 2;
+across = ismember(string(note.placement), ["below" "above"]);
+sv = share(note.valign, ["bottom" "middle" "top"]);
+if abs(sind(note.rotation)) > 0.7
+    order = ["left" "center" "right"];
+    if sind(note.rotation) < 0; order = flip(order); end
+    t.HorizontalAlignment = char(order(round(2 * sv) + 1));
+    t.VerticalAlignment = 'middle';
+    if across
+        t.Position = [alongX(share(note.align, ["left" "center" "right"])), alongY(sv), 0];
+    else
+        t.Position = [midX, alongY(sv), 0];
+    end
+elseif across
+    t.Position = [alongX(share(note.align, ["left" "center" "right"])), midY, 0];
+    t.HorizontalAlignment = char(note.align);
+    t.VerticalAlignment = 'middle';
+else
+    t.Position = [midX, alongY(sv), 0];
+    t.HorizontalAlignment = 'center';
+    t.VerticalAlignment = char(note.valign);
+end
+end
+
+
+function s = shareOf(v, order)
+%shareOf  0, 0.5 or 1 for the first, second or third of ORDER (0.5 when V is none of them).
+s = (find(string(v) == order, 1) - 1) / 2;
+if isempty(s); s = 0.5; end
 end
 
 

@@ -138,7 +138,11 @@ function issues = validate(obj, opts)
 %               bins, measure, baseline Mode and window, auroc, the
 %               waveform settings --, plus an error at
 %               "<figure>.<panel>.common" when its type does not take the
-%               common baseline Mode); the style, as a plot's; sessions
+%               common baseline Mode); each panel's text note and
+%               overlays as a plot's ("<figure>.<panel>.note.<field>",
+%               "<figure>.<panel>.overlays(<k>).<field>"; its overlays are
+%               drawn on its own axes, so no panel warning; two overlays
+%               of one name anywhere in the figure warn); the style, as a plot's; sessions
 %               (a session figure, "<figure>.sessions.<field>"): datasets,
 %               facet, series, colorOrder, error, match (site / mapping)
 %               and trialGroups known values, minSessions a whole number
@@ -500,84 +504,8 @@ for k = 1:numel(obj.Plots)
             end
         end
     end
-    nt = p.note;
-    n0 = f0 + ".note";
-    if strtrim(nt.text) ~= ""
-        if ~ismember(nt.placement, EphysAnalysisConfig.NotePlacements)
-            add("Plots", n0 + ".placement", "error", "The note placement is one of " + strjoin(EphysAnalysisConfig.NotePlacements, ", ") + ".");
-        elseif nt.placement == "custom" && ~(isfinite(nt.x) && isfinite(nt.y))
-            add("Plots", n0 + ".x", "error", "A custom note needs a finite x and y (0-1 across and up the plot).");
-        end
-        if ~ismember(nt.align, ["left" "center" "right"])
-            add("Plots", n0 + ".align", "error", "The note alignment is left, center or right.");
-        end
-        if ~ismember(nt.valign, ["top" "middle" "bottom"])
-            add("Plots", n0 + ".valign", "error", "The note vertical alignment is top, middle or bottom.");
-        end
-        if ~ismember(nt.interpreter, ["none" "tex"])
-            add("Plots", n0 + ".interpreter", "error", "The note interpreter is none or tex.");
-        end
-        if ~isfinite(nt.rotation)
-            add("Plots", n0 + ".rotation", "error", "The note rotation is a number of degrees.");
-        end
-        if ~(isnan(nt.fontSize) || (isfinite(nt.fontSize) && nt.fontSize > 0))
-            add("Plots", n0 + ".fontSize", "error", "The note font size is positive (NaN: the plot's).");
-        end
-        for cf = ["color" "background"]
-            if nt.(cf) ~= "" && ~isColor(nt.(cf))
-                add("Plots", n0 + "." + cf, "warning", "No color """ + nt.(cf) + """; the note's " + cf + " is left to the design.");
-            end
-        end
-    end
-    names = strings(1, 0);
-    for q = 1:numel(p.overlays)
-        ov = p.overlays(q);
-        o0 = f0 + ".overlays(" + q + ")";
-        if ~ismember(ov.shape, ["line" "region"])
-            add("Plots", o0 + ".shape", "error", "An overlay is a line or a region.");
-        elseif ov.shape == "line" && ~isfinite(ov.value)
-            add("Plots", o0 + ".value", "error", "An overlay line needs a finite position (data units).");
-        elseif ov.shape == "region"
-            if ~(isfinite(ov.from) && isfinite(ov.to))
-                add("Plots", o0 + ".from", "error", "An overlay region needs finite edges, from and to (data units).");
-            elseif ov.from == ov.to
-                add("Plots", o0 + ".to", "error", "An overlay region's edges must differ (from and to are both " + ov.from + ").");
-            end
-        end
-        if ~ismember(ov.axis, ["x" "y"])
-            add("Plots", o0 + ".axis", "error", "An overlay's axis is x (vertical line, patch between x values) or y.");
-        end
-        if ~ismember(ov.panel, EphysAnalysisConfig.OverlayPanels)
-            add("Plots", o0 + ".panel", "error", "An overlay's panel is one of " + strjoin(EphysAnalysisConfig.OverlayPanels, ", ") + ".");
-        elseif (ov.panel == "raster" && ~(p.kind == "raster" || (p.kind == "psth" && p.withRaster && ~(p.stack && p.stackRaster)))) ...
-                || (ov.panel == "data" && p.kind == "raster")
-            add("Plots", o0 + ".panel", "warning", "A " + p.kind + " plot draws no " + ov.panel + " panel here; this overlay is not drawn.");
-        end
-        if ~ismember(ov.layer, EphysAnalysisConfig.OverlayLayers)
-            add("Plots", o0 + ".layer", "error", "An overlay's layer is over or under the data.");
-        end
-        if ~ismember(ov.lineStyle, EphysAnalysisConfig.OverlayLineStyles)
-            add("Plots", o0 + ".lineStyle", "error", "An overlay's line style is one of " + strjoin(EphysAnalysisConfig.OverlayLineStyles, "  ") + ".");
-        end
-        if ~(isfinite(ov.lineWidth) && ov.lineWidth > 0)
-            add("Plots", o0 + ".lineWidth", "error", "An overlay's line width must be positive (points).");
-        end
-        for af = ["alpha" "faceAlpha"]
-            if ~(ov.(af) >= 0 && ov.(af) <= 1)
-                add("Plots", o0 + "." + af, "error", "An overlay's " + af + " is an opacity from 0 to 1.");
-            end
-        end
-        for cf = ["color" "faceColor" "edgeColor"]
-            if ~(cf == "edgeColor" && lower(strtrim(ov.(cf))) == "none") && ~isColor(ov.(cf))
-                add("Plots", o0 + "." + cf, "warning", "No color """ + ov.(cf) + """; the overlay keeps its default " + cf + ".");
-            end
-        end
-        if strtrim(ov.name) ~= "" && ismember(strtrim(ov.name), names)
-            add("Plots", o0 + ".name", "warning", "Another overlay of this plot is also named """ + strtrim(ov.name) + ...
-                """; a change in the aesthetics editor reaches both.");
-        end
-        names(end+1) = strtrim(ov.name); %#ok<AGROW>
-    end
+    checkNote(p.note, "Plots", f0 + ".note", "plot");
+    checkOverlays(p.overlays, "Plots", f0, p, strings(1, 0));
     checkStyle(p.style, "Plots", f0, plotErrorType(p) == "ci95");
 end
 
@@ -839,9 +767,13 @@ for k = 1:numel(obj.Figures)
     end
 
     % each panel: type, alignment, layers, options
+    ovNames = strings(1, 0);   % the overlays' names over every panel of the figure (one aesthetics rule reaches each name)
     for j = 1:numel(fg.panels)
         pj = fg.panels(j);
         p0 = f0 + "." + pj.id;
+        % the panel's text note and overlays, as a plot's (an overlay is drawn on the panel's own axes)
+        checkNote(pj.note, "Figures", p0 + ".note", "panel");
+        ovNames = checkOverlays(pj.overlays, "Figures", p0, [], ovNames);
         trow = FT.Type == pj.type;
         if ~any(trow)
             add("Figures", p0 + ".type", "error", "Unknown panel type """ + pj.type + """ (types: " + strjoin(FT.Type, ", ") + ").");
@@ -1453,6 +1385,96 @@ issues = table(Section, Field, Severity, Message);
                 if cm == "Colormap"; what = "colormap function or color"; end
                 add(sec, id + ".style." + cm, "warning", "No " + what + " """ + st.(cm) + """; the default is used.");
             end
+        end
+    end
+
+    function checkNote(hNt, hSec, hN0, hWhere)
+        %checkNote  A plot's or a figure panel's text note (drawNote), unless it has no text; HWHERE: "plot" or "panel".
+        if strtrim(hNt.text) == ""; return; end
+        if ~ismember(hNt.placement, EphysAnalysisConfig.NotePlacements)
+            add(hSec, hN0 + ".placement", "error", "The note placement is one of " + strjoin(EphysAnalysisConfig.NotePlacements, ", ") + ".");
+        elseif hNt.placement == "custom" && ~(isfinite(hNt.x) && isfinite(hNt.y))
+            add(hSec, hN0 + ".x", "error", "A custom note needs a finite x and y (0-1 across and up the " + hWhere + ").");
+        end
+        if ~ismember(hNt.align, ["left" "center" "right"])
+            add(hSec, hN0 + ".align", "error", "The note alignment is left, center or right.");
+        end
+        if ~ismember(hNt.valign, ["top" "middle" "bottom"])
+            add(hSec, hN0 + ".valign", "error", "The note vertical alignment is top, middle or bottom.");
+        end
+        if ~ismember(hNt.interpreter, ["none" "tex"])
+            add(hSec, hN0 + ".interpreter", "error", "The note interpreter is none or tex.");
+        end
+        if ~isfinite(hNt.rotation)
+            add(hSec, hN0 + ".rotation", "error", "The note rotation is a number of degrees.");
+        end
+        if ~(isnan(hNt.fontSize) || (isfinite(hNt.fontSize) && hNt.fontSize > 0))
+            add(hSec, hN0 + ".fontSize", "error", "The note font size is positive (NaN: the plot's).");
+        end
+        for hCf = ["color" "background"]
+            if hNt.(hCf) ~= "" && ~isColor(hNt.(hCf))
+                add(hSec, hN0 + "." + hCf, "warning", "No color """ + hNt.(hCf) + """; the note's " + hCf + " is left to the design.");
+            end
+        end
+    end
+
+    function hNames = checkOverlays(hOvs, hSec, hF0, hPlot, hNames)
+        %checkOverlays  A plot's or a figure panel's overlays (drawOverlays).
+        %   HPLOT: the plot (its kind and raster say which of its panels an
+        %   overlay's panel names), or [] for a figure panel, whose overlays
+        %   are drawn on its own axes (panel "all", normalizePanel). HNAMES:
+        %   the names met so far (a figure's other panels': an aesthetics
+        %   rule on a name reaches every panel's overlay of that name),
+        %   returned with these added.
+        hWhat = "plot";
+        if ~isstruct(hPlot); hWhat = "figure"; end
+        for hQ = 1:numel(hOvs)
+            hOv = hOvs(hQ);
+            hO0 = hF0 + ".overlays(" + hQ + ")";
+            if ~ismember(hOv.shape, ["line" "region"])
+                add(hSec, hO0 + ".shape", "error", "An overlay is a line or a region.");
+            elseif hOv.shape == "line" && ~isfinite(hOv.value)
+                add(hSec, hO0 + ".value", "error", "An overlay line needs a finite position (data units).");
+            elseif hOv.shape == "region"
+                if ~(isfinite(hOv.from) && isfinite(hOv.to))
+                    add(hSec, hO0 + ".from", "error", "An overlay region needs finite edges, from and to (data units).");
+                elseif hOv.from == hOv.to
+                    add(hSec, hO0 + ".to", "error", "An overlay region's edges must differ (from and to are both " + hOv.from + ").");
+                end
+            end
+            if ~ismember(hOv.axis, ["x" "y"])
+                add(hSec, hO0 + ".axis", "error", "An overlay's axis is x (vertical line, patch between x values) or y.");
+            end
+            if ~ismember(hOv.panel, EphysAnalysisConfig.OverlayPanels)
+                add(hSec, hO0 + ".panel", "error", "An overlay's panel is one of " + strjoin(EphysAnalysisConfig.OverlayPanels, ", ") + ".");
+            elseif isstruct(hPlot) && ((hOv.panel == "raster" && ~(hPlot.kind == "raster" || (hPlot.kind == "psth" && hPlot.withRaster ...
+                    && ~(hPlot.stack && hPlot.stackRaster)))) || (hOv.panel == "data" && hPlot.kind == "raster"))
+                add(hSec, hO0 + ".panel", "warning", "A " + hPlot.kind + " plot draws no " + hOv.panel + " panel here; this overlay is not drawn.");
+            end
+            if ~ismember(hOv.layer, EphysAnalysisConfig.OverlayLayers)
+                add(hSec, hO0 + ".layer", "error", "An overlay's layer is over or under the data.");
+            end
+            if ~ismember(hOv.lineStyle, EphysAnalysisConfig.OverlayLineStyles)
+                add(hSec, hO0 + ".lineStyle", "error", "An overlay's line style is one of " + strjoin(EphysAnalysisConfig.OverlayLineStyles, "  ") + ".");
+            end
+            if ~(isfinite(hOv.lineWidth) && hOv.lineWidth > 0)
+                add(hSec, hO0 + ".lineWidth", "error", "An overlay's line width must be positive (points).");
+            end
+            for hAf = ["alpha" "faceAlpha"]
+                if ~(hOv.(hAf) >= 0 && hOv.(hAf) <= 1)
+                    add(hSec, hO0 + "." + hAf, "error", "An overlay's " + hAf + " is an opacity from 0 to 1.");
+                end
+            end
+            for hCf = ["color" "faceColor" "edgeColor"]
+                if ~(hCf == "edgeColor" && lower(strtrim(hOv.(hCf))) == "none") && ~isColor(hOv.(hCf))
+                    add(hSec, hO0 + "." + hCf, "warning", "No color """ + hOv.(hCf) + """; the overlay keeps its default " + hCf + ".");
+                end
+            end
+            if strtrim(hOv.name) ~= "" && ismember(strtrim(hOv.name), hNames)
+                add(hSec, hO0 + ".name", "warning", "Another overlay of this " + hWhat + " is also named """ + strtrim(hOv.name) + ...
+                    """; a change in the aesthetics editor reaches both.");
+            end
+            hNames(end+1) = strtrim(hOv.name); %#ok<AGROW>
         end
     end
 

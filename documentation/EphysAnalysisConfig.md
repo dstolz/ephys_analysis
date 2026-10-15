@@ -1117,6 +1117,8 @@ it. `"blank"` is an empty 1 x 1 grid.
 | `common` | `true` | `true`: the panel draws the figure's [common options](#common-options) for every common field its type has (`commonFieldsOf`); `false`: all of its own `options` |
 | `layers` | none | the [layers](#layer-fields), a list of any length |
 | `options` | the type's [options](#panel-options) | coerced to the type's, so changing `type` re-seeds them: fields the new type has keep their values, the others are dropped. While `common` is true the type's common fields are stored but not drawn: the figure's are |
+| `note` | `defaults("Note")` | descriptive text on or beside the panel: a [plot's note](#plot-notes) (the same fields; nothing is drawn until `text` has words), after `options`. `placement` `"below"`, `"above"`, `"right"` or `"left"` gives up a band of the panel's own tile beside its axes; a compass point, `"center"` or `"custom"` (at `x`, `y`, 0-1 across and up the panel's axes) puts the text in the axes |
+| `overlays` | none | a list of [overlays](#plot-overlays), lines and semitransparent patches drawn on the panel's own axes in data units (the same fields as a plot's), the last field of a panel. A panel's overlays are all drawn on its axes, so `panel` is always `"all"`: `normalizePanel` sets it, whatever a file says, and Validate gives no panel warning. Units are the panel's axis' own (seconds from the event on a time panel, a rate on a PSTH's y axis, an epoch number on a raster's rows) |
 
 ### Layer fields
 
@@ -1823,6 +1825,26 @@ renderers never create figures. The `Design`, `UserAesthetics`, `Editable` and
   the components, the tiles by panel id; the figure adds the roles `eventLine`,
   `eventRug` and `layerNote`, and a continuous panel's per-trial traces are the
   role `trialTrace` ("Trial traces").
+- **Notes and overlays.** A panel's `overlays` are drawn on its axes after its
+  layers (`drawOverlays`: every one of them, a panel having no raster / data
+  choice), over or under the data as each says. A panel's `note` is drawn by
+  `drawNote`. Placed `"below"`, `"above"`, `"left"` or `"right"`, it takes a band
+  of the panel's tile beside its axes: the tile becomes a small tiled layout of
+  its own holding the axes and a hidden axes (Tag `noteHost`) for the text, the
+  band sized for the note's lines at its font size, in twentieths of the tile and
+  never more than half of it. Placed at a compass point, `"center"` or
+  `"custom"`, the text sits in the panel's axes (`placeNote`), on top of what is
+  drawn there. Into a single axes target only the first panel is drawn, and its
+  note goes in that axes whatever its placement (a plot in one axes puts a
+  note below or above just past the axes' edge). A note in a band is not listed in the right-click
+  [aesthetics](EphysAnalysis.md#plot-aesthetics) editor (the band has no tile of
+  its own); a note in the axes and every overlay are listed, by the panel's tile
+  and, for an overlay, its name. The note's and the overlays' own looks are
+  rules after the design's and the user's and before the figure's own
+  `spec.aesthetics` (as `renderPlot` orders them), so a rule of the figure
+  restyles them; a band note still takes the note rules of the design, of the
+  panel's type, of the figure, its own and `spec.aesthetics`, though the editor
+  does not list it.
 - **Time and title.** The [shared time axis](#shared-time-axis); the title is
   `title`, else the id, the observation, the event and the epoch count, with the
   dataset as the subtitle. The title of a per-group observation names its group:
@@ -1836,15 +1858,16 @@ renderers never create figures. The `Design`, `UserAesthetics`, `Editable` and
   design's rules for its panel type and the user's remembered rules for that kind
   of plot (a look remembered for PSTH plots also dresses PSTH panels), then on the
   whole figure the design's and the user's `"figure"` rules and `spec.aesthetics`,
-  the later winning. In a visible figure a right-click opens the
+  the later winning (a panel's note and overlays come in between, as the item above says). In a visible figure a right-click opens the
   [aesthetics editor](EphysAnalysis.md#plot-aesthetics) on the figure.
 
 `h` holds `layout` (the tiled layout; `[]` for an axes target), `axes` (the panels'
 axes drawn, in panel order), `panels` (one per panel of the spec: `id`, `type`,
 `axes`, empty when not drawn, and `extraAxes`, the phase axes of a coherence panel
 drawn under its magnitude in its tile, dressed with the type's looks; empty for
-every other panel) and `title` (the title text). `renderFigure:Mismatch`
-when `F`'s panels are not the spec's.
+every other panel; `note`, the text object of its note, empty without one; and
+`overlays`, the lines and patches drawn on it) and `title` (the title text).
+`renderFigure:Mismatch` when `F`'s panels are not the spec's.
 
 ### A figure in JSON
 
@@ -1906,12 +1929,16 @@ that records the unit's channel. The three panels share the time axis, so only
 the bottom one is labeled. The events layer is `fixed`, as every events layer
 is, and its `event` is an [EventMark](#raster-event-marks). The `sessions` block shown
 is the default, a figure drawn per dataset; ticking `enabled` makes it a
-[session figure](#session-figures).
+[session figure](#session-figures). Each panel also holds a `note` and a list of
+`overlays` ([Panel fields](#panel-fields)), left out above: `"note"` is a
+[plot's note](#plot-notes) (`"text": ""` draws nothing) and `"overlays"` a list
+of [overlays](#plot-overlays), empty by default.
 
 ### Validating figures
 
 `cfg.validate()` checks `Figures` with the section name `Figures`; a `Field` reads
-`<figure>.<field>`, `<figure>.<panel>.<field>` or `<figure>.<panel>.layers(<j>).<field>`.
+`<figure>.<field>`, `<figure>.<panel>.<field>`, `<figure>.<panel>.layers(<j>).<field>`,
+`<figure>.<panel>.note.<field>` or `<figure>.<panel>.overlays(<k>).<field>`.
 The rules, by severity (the full list of the other sections is under
 [Validation](#validation)):
 
@@ -1997,6 +2024,14 @@ Errors:
   settings of a raster, PSTH, tuning or waveforms panel (mode, and for a waveforms
   panel never `off`; location, `scale` in (0, 3], whole `maxSpikes >= 1`, `ampScale`);
   `yLim` and `cLim` `[]` or ascending;
+- each panel's text note and overlays, by the plots' rules (one function checks both,
+  [Plot notes](#plot-notes), [Plot overlays](#plot-overlays)): a note with no text is not
+  checked, else its `placement`, a finite `x` and `y` for `"custom"`, `align`, `valign`,
+  `interpreter`, a finite `rotation` and a positive (or `NaN`) `fontSize`; an overlay's
+  `shape`, a finite `value` (line) or two different finite `from` and `to` (region), `axis`,
+  `layer`, `lineStyle`, a positive `lineWidth` and `alpha` / `faceAlpha` from 0 to 1. A
+  panel's overlay `panel` is always `"all"` (`normalizePanel`: its overlays are drawn on its
+  own axes), so the plot rule's warning that a plot draws no such panel never comes;
 - the figure's `style`, by the plots' rules (`MaxTiles >= 1`, `TileSpacing`, the legend
   settings, `ErrorType`, `ErrorResamples`, `ErrorFaceAlpha`, ...; the bootstrap CI
   needs the Statistics and Machine Learning Toolbox where a PSTH band, a rate
@@ -2024,7 +2059,11 @@ Warnings:
   observed channel's number in its own extract);
 - a fixed raster, PSTH, rate or tuning point layer that may keep more than 8 units, each drawn in
   the one panel (limit `units.maxUnits` or `ids`, or aggregate them with `mean`);
-- a layer's or mark's `color`, or a style color, that is not a color.
+- a layer's or mark's `color`, or a style color, that is not a color; likewise a
+  panel's note `color` or `background` (the design's is kept) and an overlay's `color`,
+  `faceColor` or `edgeColor` (its default is kept);
+- two overlays of a panel with the same name (`Another overlay of this panel is also
+  named ...`: a look remembered for the name reaches both).
 
 Whether a dataset can draw the figure (units, signals, lines, trial parameters, a
 probe) is not a config error: `figureSkipReason` says why a figure or a layer is
@@ -2355,6 +2394,21 @@ baseline); `channels` and `display` carry over. A PSTH with a waveform inset kee
 it in the PSTH panel (the raster, which would otherwise draw it too, is unlinked
 from the common options and keeps the plot's `maskAfterStop`).
 
+**Text note and overlays.** Both are carried, to the panels they belong to
+(a panel holds its own [`note`](#panel-fields) and `overlays`). The plot's
+**text note** goes whole, with its placement, to the panel it borders:
+`"below"` to the bottom panel, `"above"` to the top one, and any other placement
+(right, left, over the plot, custom) to the data panel, the first panel that is
+neither a raster nor the aux signal's panel (panel 1 when there is none). A
+figure of several panels says where it went (`The text note went to panel 2 of 2
+(psth): a figure's notes belong to its panels.`). The plot's **overlays** go by
+their `panel`: `"raster"` to the raster panel, `"data"` to every panel but the
+raster and the aux signal's, `"all"` to every panel; each copy has `panel`
+`"all"`, as every overlay of a panel does, and is drawn on that panel's axes in
+the same units. An overlay that names a panel the figure lacks (a `"data"` overlay
+on a raster plot, a `"raster"` one on a PSTH without its raster) is not carried:
+one note counts them.
+
 **Notes.** What the figure does not hold gives a note, one sentence each:
 
 - a baseline mode the panel cannot take (`zscore` or `percent` on a continuous or
@@ -2380,7 +2434,10 @@ from the common options and keeps the plot's `maskAfterStop`).
 - `MaxTiles`, `TileSpacing` and `XLim` are not used (a figure draws one observation
   per page, takes `grid.spacing` and shows the epoch window), nor are `YLim` and
   `CLim` when no panel of the figure takes them;
-- the plot's text note and overlays are not carried yet (figures have none).
+- a text note of a figure of several panels went to one of them (`The text note went
+  to panel 2 of 2 (psth) ...`);
+- overlays that name a panel the figure lacks (`1 overlay(s) not carried: the figure
+  has no panel of the kind they name.`).
 
 ## Export
 
@@ -2577,7 +2634,7 @@ session figure).
 
 `test_EphysAnalysisFigures`, in ten sections. Config (1 to 6): the defaults of
 Figure, FigureCommon, Panel, Layer and Observe (`common` after `grid` in a
-figure, `selection` after `window` and `common` after it in a panel; `FigureCommon` with its `auroc` block;
+figure, `selection` after `window` and `common` after it, then `options`, `note` and `overlays` last in a panel; `FigureCommon` with its `auroc` block;
 the continuous `trials` and `maxTrials` (100), the heat map's `rows` and raster sort fields and `observe.perGroup`);
 `panelTypes` (twelve types, with the rate, tuning and spectral rows' flags), `sourceCategories`,
 `categoryOf`, `observeKind`, `defaultLayer` (an unknown type is a `BadValue`),
@@ -2608,7 +2665,12 @@ and waveform; a `"between"` window on a rate and a tuning panel; an unlinked
 PSTH's own auROC windows against its own bins; a continuous panel's `trials` and
 `maxTrials`; a heat map of trials, which may follow the observation (but not through a channel), must hold one unit and no signal
 layer or auROC baseline and needs its sort event; a panel's own selection checked as the figure's and
-refused on an unaligned type; the `perGroup` warning),
+refused on an unaligned type; the `perGroup` warning; a panel's note (placement, alignments, interpreter,
+rotation, font size, a color; a custom place's `x`; no text, no check) and overlays (a line's position, a
+region's edges, axis, layer, line style and width, opacity, a color, a shared name) at
+`<figure>.<panel>.note.<field>` and `.overlays(<k>).<field>`, and an overlay's panel forced to `"all"`
+with no panel warning), a note completed from the defaults by `normalizePanel`, a panel's note and
+two overlays through a save and a load,
 and the Plots style messages
 unchanged by the style check the two share. Compute (7), on the analysis
 fixture: `figureObservations` (the filter's units in probe order, a tightened
@@ -2647,7 +2709,10 @@ inset), the waveforms probe layout with the observed unit framed, faint and only
 `trialTrace` line per group, no mean or band for `only`, the legend's groups), a heat map of trials (a row
 per epoch in its order, the group strip, the `Epoch (by ...)` label), a panel on a selection of its own
 (titled `all trials`, its own legend inside it, the figure's legend the raster's groups), a per-group
-figure's title, and the
+figure's title, a panel's note and overlays (a note below a panel in a hidden `noteHost` band of its tile under
+its axes, in its own color; one at `"northeast"` in its axes; a region on the raster and a line on the PSTH, the
+figure's rule winning over the overlay's opacity; every one a tagged component of its panel's tile; the raster
+still sharing the time axis over a note band; into one axes the first panel's note and overlays in it), and the
 editing hooks (`Editable`, `OnRemember`, the redraw). Compute (7) also checks `figureCompute`
 against `computeFigure` (equal results, `Check=` called at the checkpoints and
 what it throws stopping the compute), `figureOutputName` (`{Plot}`, `{Unit}`,
@@ -2675,7 +2740,7 @@ a facet per subject with a figure per trial group, a probe map panel (a validate
 error, the panel skipped with its reason, the rest drawn), `figureSessionSkipReason`
 and events drawn as marks skipped across sessions.
 
-`test_plotToFigure`, 39 checks in eight sections (and 6b), on hand-made configs: a PSTH grid with its
+`test_plotToFigure`, 41 checks in eight sections (and 6b), on hand-made configs: a PSTH grid with its
 raster, event marks, waveform inset and aux magnitude, field by field (observe,
 panels, layers, options, common, style, notes); the PSTH variants (without its
 raster, an overlay, stacking and an auROC baseline carried with `stackRaster` as the
@@ -2686,7 +2751,10 @@ measure, a ratio baseline, `YLim`, a `"between"` window) and tuning (a grid, and
 overlay with its inset as a note, `param` and `seriesParam`); `NotConvertible` for
 behavior, `NoPlot`, the ids
 (`<plot>_fig`, `_fig2`, ... free among plots and figures), `"default"` sentinels
-kept and a plot's own alignment carried, the text note, overlays, `MaxTiles`,
+kept and a plot's own alignment carried, the text note carried to the panel it borders
+(below to the bottom one, above to the top one, else the data panel, saying which) and the
+overlays to the panels they name (an overlay on `"raster"` to the raster, on `"data"` to the
+PSTH, on `"all"` to every panel; one naming a panel the figure lacks a note), `MaxTiles`,
 `TileSpacing`, `XLim` and an unused `YLim` as notes, and `convertPlotToFigure`
 appending; every converted figure validates. On the analysis fixture a converted
 PSTH with its raster, Stim offset marks and aux channels computes and renders for

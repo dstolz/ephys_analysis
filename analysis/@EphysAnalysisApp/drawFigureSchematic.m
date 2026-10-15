@@ -4,7 +4,8 @@ function drawFigureSchematic(obj)
 %   relative widths, [] = equal): one patch per panel, filled with a pale
 %   color of its type, the selected panel (SelectedPanel) with a dark edge
 %   and its name in bold, each with its type and how many layers it has in
-%   its middle; a click on a panel picks it (onPanelSelected). Cells no
+%   its middle; a press on a panel picks it, and dragging it moves it to
+%   an empty cell or beside another panel (onSchematicPress). Cells no
 %   panel covers are dotted; an outline goes round the grid.
 %   The axes is a uiaxes in the Arrangement section's first row. One made
 %   or kept while its row is 0 px high (no figure, the section collapsed)
@@ -64,7 +65,7 @@ for q = 1:numel(fig.panels)
     width = 1;
     if sel; edge = [0.13 0.13 0.13]; width = 2.5; end
     patch(ax, [x0 x1 x1 x0], [y0 y0 y1 y1], fillOf(p.type), "EdgeColor", edge, "LineWidth", width, ...
-        "Tag", "schematicPanel", "UserData", q, "ButtonDownFcn", @(~, ~) obj.onPanelSelected(q));
+        "Tag", "schematicPanel", "UserData", q, "ButtonDownFcn", @(~, evt) obj.onSchematicPress(q, evt));
     row = PT.Type == p.type;
     label = p.type;
     if any(row); label = PT.Label(row); end

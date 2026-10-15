@@ -7,7 +7,9 @@ function loadPreferences(obj, openLast)
 %   and SessionSectionsCollapsed (the Sessions tab's Auto box, off by
 %   default, and its editor's collapsed sections), FigureAutoPreview and
 %   FigureSectionsCollapsed (the Figures tab's Auto box, on by default, and
-%   its editor's collapsed sections), ChronuxCacheFolder,
+%   its editor's collapsed sections), FigureGroupBy and
+%   FigureGroupsCollapsed (the figure tree's grouping and collapsed
+%   groups), ChronuxCacheFolder,
 %   ChronuxMaxMB, ChronuxSettings and ChronuxSectionsCollapsed (the
 %   Chronux tab's). Everything else is the config.
 if nargin < 2; openLast = true; end
@@ -56,6 +58,15 @@ if AppPrefs.ispref(g, 'SessionSectionsCollapsed')
     obj.layoutSessionEditor();
 end
 if AppPrefs.ispref(g, 'FigureAutoPreview'); obj.FigureAutoCheckBox.Value = isequal(AppPrefs.getpref(g, 'FigureAutoPreview'), true); end
+if AppPrefs.ispref(g, 'FigureGroupBy')
+    by = string(AppPrefs.getpref(g, 'FigureGroupBy'));
+    if isscalar(by) && ismember(by, string(obj.FigureGroupDropDown.ItemsData))
+        obj.FigureGroupDropDown.Value = by;
+    end
+end
+if AppPrefs.ispref(g, 'FigureGroupsCollapsed')
+    obj.FigureGroupsCollapsed = reshape(string(AppPrefs.getpref(g, 'FigureGroupsCollapsed')), 1, []);
+end
 if AppPrefs.ispref(g, 'FigureSectionsCollapsed')
     shut = string(AppPrefs.getpref(g, 'FigureSectionsCollapsed'));
     for i = 1:numel(obj.FigureSections)

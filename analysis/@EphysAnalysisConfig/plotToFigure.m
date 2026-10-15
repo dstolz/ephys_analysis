@@ -26,6 +26,11 @@ function [fig, notes] = plotToFigure(cfg, plotId)
 %                 panels do not take (a signal's other than subtract)
 %                 becomes "none"; the auROC baseline of a PSTH or heat map
 %                 of spikes is carried with its auroc settings
+%   The plot's text note goes to the panel it borders (below: the bottom
+%   panel; above: the top one; elsewhere: the data panel) and each overlay
+%   to the panels its panel names (raster: the raster panel; data: the
+%   panels but the raster and the aux signal; all: every panel); an
+%   overlay naming a panel the figure lacks is a note.
 %   The plot's source (units / detected) is the layers' source and, for a
 %   figure drawn per unit, observe.source; its unit filter is observe.units
 %   when the figure observes units, else the fixed layer's units.
@@ -264,11 +269,44 @@ end
 if ~cUsed
     addNote(sprintf("CLim %s is not used: no panel of this figure takes color limits.", mat2str(cLim)));
 end
-if p.note.text ~= ""
-    addNote("The text note is not carried: figures have no notes yet.");
+% the text note and the overlays: onto the panels they border or are drawn on
+nP = numel(P);
+isRaster = false(1, nP);
+isAux = false(1, nP);
+for j = 1:nP
+    isRaster(j) = P{j}.type == "raster";
+    isAux(j) = ismember(p.kind, ["psth" "raster"]) && P{j}.type == "continuous";   % addAux's panel
 end
-if ~isempty(p.overlays)
-    addNote(sprintf("%d overlay(s) not carried: figures have no overlays yet.", numel(p.overlays)));
+isData = ~isRaster & ~isAux;
+if strtrim(p.note.text) ~= "" && nP > 0
+    switch p.note.placement
+        case "below", at = nP;   % the bottom panel
+        case "above", at = 1;    % the top one
+        otherwise
+            at = find(isData, 1);   % beside or over the plot: its data panel
+            if isempty(at); at = 1; end
+    end
+    P{at}.note = p.note;
+    if nP > 1
+        addNote(sprintf("The text note went to panel %d of %d (%s): a figure's notes belong to its panels.", at, nP, P{at}.type));
+    end
+end
+lost = 0;
+for i = 1:numel(p.overlays)
+    ov = p.overlays(i);
+    switch ov.panel
+        case "raster", on = isRaster;
+        case "data",   on = isData;
+        otherwise,     on = true(1, nP);
+    end
+    if ~any(on); lost = lost + 1; continue; end
+    ov.panel = "all";
+    for j = find(on)
+        if ~isfield(P{j}, 'overlays'); P{j}.overlays = ov; else; P{j}.overlays(end+1) = ov; end
+    end
+end
+if lost > 0
+    addNote(sprintf("%d overlay(s) not carried: the figure has no panel of the kind they name.", lost));
 end
 
 % --- the grid ---------------------------------------------------------------------------------------

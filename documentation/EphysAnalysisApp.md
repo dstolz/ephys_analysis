@@ -12,9 +12,10 @@ or per subject, or a mean with an error band across sessions), and the
 organized data behind it saved or put in the MATLAB workspace: the
 [Sessions tab](#sessions-tab). Panels of different types (a raster flush
 above its PSTH above the LFP of the same unit, say) can be designed as one
-figure for a unit, a channel or the dataset, and previewed one observation at
-a time (the runner's `computeFigure` and `renderFigure`; figures are not run
-or exported yet): the [Figures tab](#figures-tab).
+figure for a unit, a channel or the dataset, previewed one observation at
+a time (`figureCompute` and `renderFigure`), then generated for every
+observation of the ticked datasets, or once across several datasets:
+the [Figures tab](#figures-tab).
 
 The app edits one [`EphysAnalysisConfig`](EphysAnalysisConfig.md) (saved as
 JSON) and draws it with an `EphysAnalysisRunner`
@@ -265,7 +266,7 @@ a header leaves the plots selected as they were. **Ctrl**- or
 | kind drop-down (its own row), **Add** | adds a plot of that kind ([Plot kinds](#plot-kinds)) with the next free id (`psth_1`, `psth_2`, ...) and selects it |
 | **Remove**, **Duplicate** | removes the selected plots; copies each with a new id, right after it, and selects the copies |
 | **Copy from...** | copies another plot's settings onto the selected plots, whatever their plot type: a window asks which plot (**From**, by id and type) and which parts, one box per editor section -- Units & channels (with the source), Event reference, Epoch window, Trial selection, Bins & baseline, Plot type options (the options the two types have in common, and the layout when their layouts are the same), Event marks, Appearance, Unit waveform, Aux signals, Text note, Overlays -- and the Remembered looks. A part the two plot types do not share cannot be ticked (its tooltip says why: a probe map has no event reference, a unit waveforms plot's settings are not a PSTH's inset). Each plot keeps its id, type, title and enabled, and within a part what its type does not take: a source it does not read, a *between* epoch window when it needs a fixed one, a baseline mode it has not got; the status bar says what was copied and what was kept (`copyPlotSettings`, `plotSettingParts`) |
-| **Convert to figure** | beside **Copy from...**: makes a [figure](#figures-tab) of each selected plot that draws what the plot draws (`EphysAnalysisConfig.plotToFigure`): a PSTH's raster, event marks and aux signal become panels and layers, and the plot's alignment, unit filter, bins, baseline and look carry over. The plots stay; each figure is added to the Figures tab as `<plot>_fig` (`_fig2`, ... when taken). The last figure made is selected and opened on the Figures tab, previewed at once (Auto on). The status bar says `Converted <plot> to figure <id>.` followed by what the figure could not carry (the notes, joined by `;`: `stackRaster`, an overlay's raster, a text note, overlays, ...), or why a plot cannot be converted: a behavior plot has no panel type (rate and tuning plots convert), and the tab stays. The kinds, layouts and notes are listed under [Converting a plot](EphysAnalysisConfig.md#converting-a-plot) |
+| **Convert to figure** | beside **Copy from...**: makes a [figure](#figures-tab) of each selected plot that draws what the plot draws (`EphysAnalysisConfig.plotToFigure`): a PSTH's raster, event marks and aux signal become panels and layers, and the plot's alignment, unit filter, bins, baseline and look carry over. The plots stay; each figure is added to the Figures tab as `<plot>_fig` (`_fig2`, ... when taken). The last figure made is selected and opened on the Figures tab, previewed at once (Auto on). The status bar says `Converted <plot> to figure <id>.` followed by what the figure could not carry (the notes, joined by `;`: `stackRaster`, an overlay's raster, an overlay naming a panel the figure lacks, ...; the text note and the other overlays are carried, to the panels they border or name, and a note of a figure of several panels says which), or why a plot cannot be converted: a behavior plot has no panel type (rate and tuning plots convert), and the tab stays. The kinds, layouts and notes are listed under [Converting a plot](EphysAnalysisConfig.md#converting-a-plot) |
 | **Up**, **Down** | swaps it with its neighbor in its group (the whole list when ungrouped), which changes the run order of those two; off while several plots are selected |
 
 **The editor.** On top: the plot's kind (with a line on what it draws),
@@ -521,17 +522,19 @@ headers (**▼** / **►**), in this order:
 | Panel alignment (8) | the selected panel's own event reference and epoch window (an aligned type only), with **Same as the figure** in the header, and the panel's trial selection, the [Trial selection](#alignment-tab) rows under the **Trial selection as the figure** box (an aligned type only). **Apply to all panels** and **Re-link all panels** (below) |
 | Layers (9) | the selected panel's layers: the list with **Add** (a source the type draws), **Remove**, **Up** and **Down**, and the rows of the layer picked (below) |
 | Options (0) | the panel type's own rows, under the type's name (*Raster options*, *PSTH options*, ...; below), with **Common options from the figure** in the header and **Apply to all panels** |
+| Text note | the selected panel's `note`, titled *Text note on psth_1*: the [Plots tab's Text note](#plots-tab) rows, applied to the panel. **Text** (a new line starts a new line; blank draws nothing), **Place** (*Below*, *Above*, *Right of* or *Left of the panel*, which give up a band of the panel's tile beside its axes; nine places *Over the panel*, in its axes; or *At x, y*), **At x, y** (0-1 across and up the panel's axes; on with *At x, y*), **Align** (across and up), **Rotation**, **Font** and its size, **Style** (*Bold*, *Italic*, *Outline*), **Colors** (text and ground) and **Interpreter** (*As typed* or *TeX*). Every row but the text is grayed out until the text has words. In the preview a note over the panel is a component the right-click editor lists; one in a band beside it is not (its looks still apply, and the figure's rules still reach it). No key; collapsed until opened |
+| Overlays | the selected panel's `overlays`, titled *Overlays (2) on psth_1* once it has some: the Plots tab's [Overlays](#plots-tab) rows. A list of the panel's lines and semitransparent patches, with **Add line**, **Add patch**, **Duplicate** (the picked one, look and all, named *name copy*) and **Remove**, and the rows of the one picked: **Name** and **Enabled**; **Draw** (a vertical or horizontal line, a patch between two x or two y values); **At** or **From / to**; the **Layer** (*Over* or *Under the data*); a line's **Color** and opacity, or a patch's **Fill** color and opacity and **Outline**; the **Line** style and width. Unlike a plot's overlay there is no *Show on* row: a panel's overlays are all drawn on its own axes, in its axis' units. No key; collapsed until opened |
 | Appearance | the figure's `style` (below); no key; collapsed until opened |
 | Looks | how many looks are remembered for the figure (*"1 remembered look(s); right-click the preview to edit."*) and **Forget**, which drops them and redraws; no key; collapsed until opened |
 | Sessions | **Across sessions**, and with it ticked which datasets, how the sessions are colored, the error band, how the observed unit is matched, the minimum sessions and the trial groups: the figure drawn once over several datasets instead of once per dataset ([Sessions in the Figures tab](#sessions-in-the-figures-tab)); no key; collapsed until opened |
 
-Each of the thirteen headed sections has a title color of its own (steps along
+Each of the fifteen headed sections has a title color of its own (steps along
 `turbo`, as on the Plots tab) and the first ten a key: **Ctrl+1** to
 **Ctrl+9** and **Ctrl+0** (**Cmd** on a Mac; the number pad too) go to the
 section of that number, in the order above: Observations is 1, Arrangement
 2, Panel 3, Event reference 4, Epoch window 5, Trial selection 6, Common
-options 7, Panel alignment 8, Layers 9 and Options 0. Appearance, Looks and
-Sessions have no key. The key opens the section
+options 7, Panel alignment 8, Layers 9 and Options 0. Text note, Overlays,
+Appearance, Looks and Sessions have no key. The key opens the section
 if it is collapsed, scrolls the editor to it and puts the keyboard focus on
 its header. Keys work with the Figures tab showing; for a section the figure
 does not show (no panel is picked, say) the status bar says so and nothing
@@ -539,8 +542,8 @@ moves. Which sections are collapsed is remembered.
 
 **What shows.** Only what the figure, the selected panel and the picked layer
 use is shown (`syncFigureEditor`). The Observations rows follow what the
-figure is observed as; the sections from Panel to Options need a panel
-picked; Panel alignment is grayed out, with a note, for a type that is not
+figure is observed as; the sections from Panel to Options, and Text note and
+Overlays, need a panel picked; Panel alignment is grayed out, with a note, for a type that is not
 aligned to events, and its trial selection rows are too while **Trial selection
 as the figure** is ticked; a layer's rows follow its source and binding; the
 Options rows follow the panel's type. A section left with no row is hidden.
@@ -569,7 +572,25 @@ in proportion (each row's relative height, each column's relative width): a
 box per panel, tinted by its type and naming it and how many layers it has;
 the selected panel has a dark edge and its id; cells no panel covers are
 dotted. Click a box to pick the panel; the sections from Panel to Options
-then show it.
+then show it. **Drag** a box to move the panel (press on it, move, release):
+a dashed outline follows the pointer and the place it would go is shaded.
+
+| Drop on | Effect |
+| --- | --- |
+| an empty (dotted) cell | the panel moves there, to that row and column; its spans are clipped to the grid (the status bar says so). Refused, with the reason in the status bar and nothing moved, where it would overlap another panel |
+| the middle of another panel's edge | the outer third of the panel, along the middle third of its top, bottom, left or right edge, shades the edge band: the panel is taken from its place (as **Remove panel** does, closing a row or column it leaves empty) and put *above*, *below*, *left* or *right* of that panel (as **Add panel** does, in a new row or column). The moved panel keeps its id, type, options and layers, and is selected |
+| anywhere else (the panel itself, another panel's middle or corners) | no target: the release only picks the panel |
+
+**Escape**, or a release outside the schematic, cancels the drag, and nothing
+moves (the status bar says *"Drag canceled."*, or *"... released outside the
+arrangement."*); a right or double click only picks the panel, and a release
+over another panel's middle or corner leaves it where it was and says where a panel
+can be dropped. The drag follows the pointer however
+the editor is scrolled, and Escape works on any tab. A move ends like any
+structural edit: the schematic, the editor and the preview follow, and the config is
+unsaved. The buttons below still work: a drop beside a panel is a **Remove panel**
+and an **Add panel** in one, and a drop in an empty cell moves a panel where **Move**
+cannot (it only swaps with a same-shaped neighbor).
 
 | Control | Effect |
 | --- | --- |
@@ -1581,7 +1602,9 @@ is in the config.
 | `SessionAutoPreview` | the Sessions tab's Auto box (off by default: a session preview reads every dataset) |
 | `SessionSectionsCollapsed` | the session plot editor's collapsed sections |
 | `FigureAutoPreview` | the Figures tab's Auto box (on by default: one observation is quick to compute). The time limit it applies, 2 s, is not a preference but the app's `FigureAutoPreviewSeconds` property |
-| `FigureSectionsCollapsed` | the figure editor's collapsed sections (Appearance, Looks and Sessions start collapsed) |
+| `FigureGroupBy` | how the figure tree groups (`observe`, the default; `status`; `none`) |
+| `FigureGroupsCollapsed` | the figure tree's collapsed groups, by key (`observe:unit`, `status:Off`, ...); the selected figure's group opens whatever is kept |
+| `FigureSectionsCollapsed` | the figure editor's collapsed sections (Text note, Overlays, Appearance, Looks and Sessions start collapsed) |
 | `ChronuxCacheFolder` | the Chronux tab's local cache folder |
 | `ChronuxMaxMB` | the most signal the Chronux tab reads at once, and a spectrogram's largest size (default 2000 MB) |
 | `ChronuxSettings` | the Chronux tab's last settings (`chronuxSettings`) |
@@ -1634,7 +1657,7 @@ results, on the Log tab and in the report.
 | data | `openSource`, `onScan`, `refreshDatasetsTable`, `selectDataset`, `refreshDatasetInfo` |
 | previews | `refreshAlignPreview`, `refreshPreview`, `autoPreview`, `onPreviewPage`, `setPreviewState` (the badge and the busy card; its icons in `analysis/icons/status`), `onCancelPreview` |
 | epoch diagram | `onShowEpochs`, `refreshEpochDiagram`; the window itself is `analysis/EpochDiagram.m` |
-| Figures tab | `buildFiguresTab`; the list `refreshFigureList`, `onFigureSelected`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure`; the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `gotoFigureSection` and `onKeyPress` (Ctrl+1 ... Ctrl+9, Ctrl+0), `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`, `onPanelSelectionToggled` (the Trial selection as the figure box; local to `buildFiguresTab`); the arrangement `drawFigureSchematic`, `onPanelSelected`, `onAddPanel`, `onRemovePanel`, `onMovePanel`, `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `removePanel` and `movePanel`; a structural edit ends in `private/commitFigureEdit`); the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`); the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoPreviewToggled`, `onCancelFigurePreview`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); the Sessions section `onPickFigureDatasets`, `onBrowseFigureMapping`, `onEditUnitMapping(Target="figure")` and `onFigureSessionPicked` (its preview is `refreshFigurePreview`'s session branch over `EphysAnalysisRunner.computeSessionFigure`, its picker `refreshFigureObservations`'s over `sessionFigureObservations`); the epoch diagram's figure mode is `onShowEpochs("figure")`; the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
+| Figures tab | `buildFiguresTab`; the tree `refreshFigureList` (over `private/figureGroups`), `onFigureSelected`, `onFigureTreeSelected`, `onFigureTreeClicked` (the check boxes), `onFigureGroupToggled`, `onFigureCheck` (All / None / Invert), `setFiguresEnabled`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure` (Up / Down within a group); a panel's text note and overlays `onAddFigureOverlay`, `onDuplicateFigureOverlay`, `onRemoveFigureOverlay`, `onFigureOverlayPicked` (the rows are `applyFigureEditor`'s and `gatherFigureEditor`'s); dragging a panel in the schematic `onSchematicPress` (with the pointer callbacks it installs), `cancelSchematicDrag` (also `onKeyPress`'s Escape) and `schematicPixel` (the tests');  the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `gotoFigureSection` and `onKeyPress` (Ctrl+1 ... Ctrl+9, Ctrl+0), `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`, `onPanelSelectionToggled` (the Trial selection as the figure box; local to `buildFiguresTab`); the arrangement `drawFigureSchematic`, `onPanelSelected`, `onAddPanel`, `onRemovePanel`, `onMovePanel`, `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `removePanel` and `movePanel`; a structural edit ends in `private/commitFigureEdit`); the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`); the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoPreviewToggled`, `onCancelFigurePreview`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); the Sessions section `onPickFigureDatasets`, `onBrowseFigureMapping`, `onEditUnitMapping(Target="figure")` and `onFigureSessionPicked` (its preview is `refreshFigurePreview`'s session branch over `EphysAnalysisRunner.computeSessionFigure`, its picker `refreshFigureObservations`'s over `sessionFigureObservations`); the epoch diagram's figure mode is `onShowEpochs("figure")`; the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
 | figures from plots, copying figures | `onConvertPlotToFigure` (the Plots tab's **Convert to figure**: `EphysAnalysisConfig.convertPlotToFigure`, `plotToFigure`), `onCopyFigureSettings` (the Figures tab's **Copy from...**: `private/pickFigureSettings`, then `analysis/copyFigureSettings` with `analysis/figureSettingParts`) |
 | Sessions tab | `buildSessionsTab`; the list `refreshSessionList`, `onSessionPlotSelected`, `onAddSessionPlot`, `onRemoveSessionPlot`, `onDuplicateSessionPlot`, `onMoveSessionPlot`; the editor `gatherSessionEditor` / `applySessionEditor`, `syncSessionEditor` (what shows), `layoutSessionEditor`, `onSessionSectionToggled`, `gotoSessionSection` and `onKeyPress` (Ctrl+1 ... Ctrl+3); the preview `refreshSessionPreview` and `drawSessionPreview`, `autoSessionPreview`, `onSessionAutoPreviewToggled`, `onSessionPreviewPage`, `onSessionGroupChanged`, `onCancelSessionPreview`, `rememberSessionAesthetics`, `setSessionPreviewState` (over `private/showPreviewState`, which `setPreviewState` shares); the dialogs `onPickSessionDatasets` (`private/pickSessionDatasets`), `onBrowseUnitMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`); the data `onSessionsToWorkspace` and `onSaveSessionData` (`private/collectSessionData`, `private/sessionPlotContext`); the session plots themselves are `analysis/` functions ([Across sessions](EphysAnalysis.md#across-sessions)) |
 | plot designs | `refreshDesigns` (the Design menu and list; `PlotDesign.listen` keeps them current), `onDesignChosen`, `onSaveDesign`, `onImportDesign`, `onDeleteDesign`, `onDesignsFolder`; the designs themselves: `PlotDesign`, `analysis/designs` |
@@ -1842,7 +1865,7 @@ is on again. **Plan** lists the figure on each ticked dataset (`Kind`
 run(s) will draw*; **Run** with `Plots="psth_1"` draws the plot and the figure,
 a row per dataset for each, and the label counts them. Last, with the figure
 switched off, Generate still draws it (every row done), the status bar says it
-was switched on for this run only, the list keeps *(off)* and the runner's
+was switched on for this run only, the tree keeps *(off)* and the runner's
 config keeps it off. The figure is then removed and the config saved.
 
 Its section 5g drives a figure across sessions on the same two datasets. In
@@ -1866,6 +1889,34 @@ preview *Out of date* with the *press Preview* line; after **Preview** the
 then writes a page per matched site into the sessions folder
 (`<facet>_<id>_site_ch<N>.png`), one `sessions: all` results row, and the status
 bar reads `Generated <id> across the sessions: <n> observation(s), ...`.
+
+Its section 5h drives the figure tree, a panel's note and overlays, and the
+schematic's drag, from no figure (it, too, sets `FigureAutoPreviewSeconds` to
+`Inf` for its length). Three figures (two rasters over PSTHs, one continuous
+panel) are grouped *Per unit (2)* and *Per channel (1)*, then *Enabled (3)*, then
+flat, each leaf reading as the grouping says, and picking a leaf edits that
+figure while picking a header leaves it selected. The check boxes are clicked at
+the pixel where MATLAB draws a box (a click on a name changes nothing): a figure's
+box unticks it in the config, the editor's **Enabled** box and the group's
+half-filled box following, and a group's box ticks, then unticks, its figures
+without touching the other group's. **All**, **Invert** and **None** act on every
+figure. **Up** moves a unit figure past its group's other, not past the channel
+figure between them; a figure alone in its group has neither button, and ungrouped
+both go over the whole list. A new app restores **Group by** and a collapsed
+group from the preferences, and expanding the group forgets it. On the PSTH
+panel the Text note and Overlays sections show (no key), the note's look rows
+grayed out until it has text; text, a place and a color reach the panel's `note`
+and the preview draws it (a `note` text in that color); **Add patch**, its edges,
+**Add line**, **Duplicate** and **Remove** reach the panel's `overlays` (each with
+`panel` `"all"`), the preview draws the patch, and the section titles count them;
+the raster panel has none of its own, going back to the PSTH loses nothing, and
+`gatherConfig` after the apply gives the panel's note and overlays back unchanged.
+The drag runs on the window's pointer callbacks, which the press installs: over
+`psth_1`'s bottom band the outline follows and *below psth_1* is shaded, the
+release moves `raster_1` below it (a second row, the callbacks cleared, the
+schematic and preview redrawn); with a column added, a drop on the empty cell moves
+it there; a release outside the schematic and **Escape** both leave the config
+unchanged and the callbacks cleared.
 
 <!-- wiki
 ## Related

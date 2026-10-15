@@ -4,7 +4,8 @@ function applyFigureEditor(obj)
 %   appearance, looks), then the panel's (SelectedPanel: type, title, spans,
 %   its row's height and column's width, its own event and window or the
 %   figure's, its type's options, its layers) and the layer's
-%   (SelectedLayer). The line and parameter lists come from the active
+%   (SelectedLayer), and the panel's text note and overlays (the first
+%   picked). The line and parameter lists come from the active
 %   dataset. syncFigureEditor then shows the rows they use;
 %   drawFigureSchematic draws the arrangement.
 E = obj.FigureEditor;
@@ -143,6 +144,7 @@ if j >= 1
 else
     obj.SelectedLayer = 0;
     set(E.layerList, "Items", {}, "ItemsData", []);
+    overlayList(E, repmat(EphysAnalysisConfig.defaults("Overlay"), 1, 0), 0);
 end
 obj.syncFigureEditor();
 end
@@ -257,6 +259,11 @@ if isfield(op, 'taperMode')   % a spectral panel's Chronux rows
     applySpectral(E, op);
 end
 
+% its text note and overlays (the Plots tab's rows)
+applyNote(E, p.note);
+overlayList(E, p.overlays, 1);
+if ~isempty(p.overlays); overlayShow(E, p.overlays(1)); end
+
 % layers: the list, the sources Add offers, the layer picked
 nl = numel(p.layers);
 obj.SelectedLayer = min(max(obj.SelectedLayer, 1), nl);
@@ -277,6 +284,30 @@ end
 if obj.SelectedLayer >= 1
     applyLayer(obj, E, p.layers(obj.SelectedLayer), p.type, lines, params);
 end
+end
+
+
+function applyNote(E, nt)
+%applyNote  The panel's text note NT (defaults("Note")) in the Text note rows.
+E.annText.Value = cellstr(splitlines(nt.text));
+E.annPlace.Value = char(pickFrom(nt.placement, string(E.annPlace.ItemsData), "below"));
+E.annX.Value = min(E.annX.Limits(2), max(E.annX.Limits(1), nt.x));
+E.annY.Value = min(E.annY.Limits(2), max(E.annY.Limits(1), nt.y));
+E.annAlign.Value = char(pickFrom(nt.align, string(E.annAlign.ItemsData), "left"));
+E.annVAlign.Value = char(pickFrom(nt.valign, string(E.annVAlign.ItemsData), "middle"));
+E.annRotation.Value = min(E.annRotation.Limits(2), max(E.annRotation.Limits(1), nt.rotation));
+offerItems(E.annFont, string(E.annFont.Items), pick(nt.fontName, "auto"));
+if isfinite(nt.fontSize)
+    E.annSize.Value = min(E.annSize.Limits(2), max(E.annSize.Limits(1), nt.fontSize));
+else
+    E.annSize.Value = [];
+end
+E.annBold.Value = nt.bold;
+E.annItalic.Value = nt.italic;
+E.annBox.Value = nt.box;
+offerItems(E.annColor, string(E.annColor.Items), pick(nt.color, "auto"));
+offerItems(E.annBackground, string(E.annBackground.Items), pick(nt.background, "none"));
+E.annInterp.Value = char(pickFrom(nt.interpreter, string(E.annInterp.ItemsData), "none"));
 end
 
 

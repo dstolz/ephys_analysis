@@ -2029,7 +2029,38 @@ app.onConfigChanged("figure");
 ot = app.Config.Figures(1).panels(end).options;
 check(ot.param == "Depth" && ot.seriesParam == "TrialType" && app.FigurePreviewState == "drawn" ...
     && app.FigurePreviewResult.panels(end).layers(1).R.seriesParam == "TrialType", ...
-    'its Parameter and series reach the options and the drawing');
+    sprintf('its Parameter and series reach the options and the drawing (%s / %s; preview %s: %s)', ot.param, ot.seriesParam, ...
+    app.FigurePreviewState, string(app.FigurePreviewLabel.Text)));
+% a type change takes the new type's display and stackSpacing: the names mean other things on continuous, rate and PSTH panels
+kr = numel(app.Config.Figures(1).panels) - 1;   % the rate panel (its display "points")
+app.onPanelSelected(kr);
+FE.panelType.Value = "continuous";
+app.onPanelTypeChanged();
+o1 = app.Config.Figures(1).panels(kr).options;
+FE.panelType.Value = "rate";
+app.onPanelTypeChanged();
+o2 = app.Config.Figures(1).panels(kr).options;
+FE.panelType.Value = "psth";
+app.onPanelTypeChanged();
+FE.psthSpacing.Value = 1.5;
+app.onConfigChanged("figure");
+o3 = app.Config.Figures(1).panels(kr).options;
+FE.panelType.Value = "continuous";
+app.onPanelTypeChanged();
+o4 = app.Config.Figures(1).panels(kr).options;
+FE.panelType.Value = "psth";
+app.onPanelTypeChanged();
+o5 = app.Config.Figures(1).panels(kr).options;
+I5 = app.Config.validate(CheckPaths=false);
+check(o1.display == "lines" && isnan(o1.stackSpacing) && o2.display == "bar" && o3.stackSpacing == 1.5 ...
+    && isnan(o4.stackSpacing) && o4.display == "lines" && o5.stackSpacing == 1.1 ...
+    && ~any(startsWith(I5.Field, "figure_1." + app.Config.Figures(1).panels(kr).id + ".options") & I5.Severity == "error"), ...
+    sprintf(['rate -> continuous -> rate -> PSTH -> continuous -> PSTH: each takes its own display and stackSpacing ' ...
+    'defaults, none the other''s (%s %g, %s, %g, %s %g, %g; preview %s)'], o1.display, o1.stackSpacing, o2.display, ...
+    o3.stackSpacing, o4.display, o4.stackSpacing, o5.stackSpacing, app.FigurePreviewState));
+FE.panelType.Value = "rate";
+app.onPanelTypeChanged();
+app.onPanelSelected(numel(app.Config.Figures(1).panels));
 app.onRemovePanel();
 app.onPanelSelected(numel(app.Config.Figures(1).panels));
 app.onRemovePanel();

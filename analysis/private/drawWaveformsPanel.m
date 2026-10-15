@@ -16,8 +16,10 @@ function hk = drawWaveformsPanel(ax, P, look)
 %   In the probe layout (options.layout "probe") renderWaveforms draws every
 %   unit of the first layer at its place on the probe (Layout "probe": the
 %   sites behind, the panel's waveform settings), and the units the
-%   further layers name (R.kind "ring", e.g. the observed unit) are framed
-%   in red there (Highlight: role "unitDots", group "observed").
+%   further layers of the same source name (R.kind "ring", e.g. the
+%   observed unit; matched by unit id) are framed in red there (Highlight:
+%   role "unitDots", group "observed"); a ring layer of the other spike
+%   source frames nothing (a detected layer's id is its channel).
 %   A skipped layer's reason is noted (figLayerNotes). HK: figDrawResult's
 %   (renderWaveforms labels the axes; the overlay's y label is the
 %   amplitude).
@@ -42,7 +44,7 @@ st.YLim = [];
 if numel(o.yLim) == 2 && o.yLim(2) > o.yLim(1); st.YLim = o.yLim; end
 if isfield(o, 'layout') && o.layout == "probe"   % its y axis is the probe's (um): options.yLim is the grid's
     st.YLim = [];
-    h = renderWaveforms(R, ax, Layout="probe", Waveform=o.waveform, Style=st, Highlight=ringRows(R, P.layers));
+    h = renderWaveforms(R, ax, Layout="probe", Waveform=o.waveform, Style=st, Highlight=ringRows(R, P.layers, P.layers(j).source));
     hk.axes = h.axes(1);
     tagPart(hk.axes, "axes", "", look.panelId);
     figLayerNotes(hk.axes, P, look, true);
@@ -89,12 +91,15 @@ figLayerNotes(ax, P, look, true);
 end
 
 
-function rows = ringRows(R, layers)
+function rows = ringRows(R, layers, source)
 %ringRows  The rows of R.meta the probe layout's further layers name (R.kind "ring": by unit id and source).
+%   Only ring layers of SOURCE, the drawn layer's: a detected layer's unit
+%   id is its channel, which says nothing about a sorted unit's id.
 rows = zeros(1, 0);
 ids = double(R.meta.unitId(:));
 for l = reshape(layers, 1, [])
     if l.skip ~= "" || ~isstruct(l.R) || ~isfield(l.R, 'kind') || l.R.kind ~= "ring"; continue; end
+    if isfield(l.R, 'source') && string(l.R.source) ~= string(source); continue; end
     rows = [rows reshape(find(ismember(ids, double(l.R.meta.unitId(:)))), 1, [])]; %#ok<AGROW>
 end
 rows = unique(rows);

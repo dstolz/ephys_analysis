@@ -1607,6 +1607,23 @@ ring = findall(awp, 'Tag', 'unitDots');
 check(~isempty(findall(awp, 'Tag', 'waveMean')) && startsWith(string(awp.XLabel.String), "x (") ...
     && (isscalar(ring) || ~all(isfinite(Tu.meta{2}.y))), ...
     'a waveforms panel in the probe layout: the units at their places, the observed unit framed');
+Fwx = Fwp;   % the ring layer made a detected one naming a sorted unit's id: its id is a channel, not that unit
+Fwx.panels(1).layers(2).source = "detected";
+Fwx.panels(1).layers(2).R.source = "detected";
+hwx = renderFigure(Fwx, Fwx.spec, fig);
+fwd = cfg.Figures(cfg.figureIndex("wfprobe"));
+fwd.id = "wfprobeDet";
+fwd.panels(1).layers(2).source = "detected";
+cfgD = cfg.addFigure(fwd);
+wsw = warning('off', 'unitWaveforms:Templates');
+wsn = warning('off', 'unitWaveforms:NoWaveforms');
+Fwd = rn.computeFigure(src, cfgD.figureFor("wfprobeDet"), Observation=Tu(2, :));
+warning(wsn); warning(wsw);
+hwd = renderFigure(Fwd, Fwd.spec, fig);
+check(ismember(Tu.unitId(2), Fwx.panels(1).layers(2).R.meta.unitId) && isempty(findall(hwx.axes(1), 'Tag', 'unitDots')) ...
+    && Fwd.panels(1).layers(2).skip == "" && Fwd.panels(1).layers(2).R.source == "detected" ...
+    && isempty(findall(hwd.axes(1), 'Tag', 'unitDots')), ...
+    'a probe layout of sorted units rings nothing a detected layer names (its unit ids are channels)');
 
 % editing, OnRemember and redraw
 remembered = [];

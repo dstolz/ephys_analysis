@@ -100,6 +100,36 @@ says how to cut a release.
   settings (`figureSettingParts`, `copyFigureSettings`: Observations, Alignment, Common options,
   Arrangement and panels, Appearance, Remembered looks), keeping the figure's id, title and enabled. See
   [Converting a plot](documentation/EphysAnalysisConfig.md#converting-a-plot).
+- Figures: firing rate and tuning curve panels, the waveforms probe layout, PSTH stacking and the auROC
+  baseline. Two panel types join the seven (nine now): `rate` draws a unit's firing rate per trial group
+  as bars with an error bar, boxes or points (`firingRate`: `measure`, `baseline` `none`, `subtract`,
+  `ratio` or `zscore`, `display`, `yLim`) and `tuning` the rate against a trial parameter, a curve per
+  series with error bars and an optional waveform inset (`tuningCurve`: `param`, which is the figure's
+  first group-by parameter when blank, else the first numeric trial parameter with two or more values,
+  `seriesParam`, `measure`, `baseline`, `yLim`, `waveform`); both may follow the observation, take a
+  `"between"` window and have templates (`"rate"`, `"tuning"`). `figureSkipReason` skips a tuning panel
+  with `no trial parameter X` or `no numeric trial parameter to tune over`. A waveforms panel's new
+  `layout` `"probe"` draws every unit of its first layer at its place on the probe and frames the units
+  of further layers (for example one following the observed unit) in red; Validate warns when the first
+  layer follows the observation. A PSTH panel's new `stack` and `stackSpacing` draw one row per trial
+  group, a second layer as outlines (`yLim` unused; a raster panel above stands in for a plot's
+  `stackRaster`). A PSTH or heat map of spikes takes baseline `Mode` `"auroc"` with an `auroc` options
+  block (`defaults("Auroc")`), also in the figure's `common` block (`commonFields` now has six fields, and
+  the common baseline modes are `none`, `subtract`, `zscore`, `percent`, `ratio` and `auroc`, each type
+  taking its own: a linked panel whose type does not is an error at `<figure>.<panel>.common`). Validate
+  checks the auROC windows against the drawing panel's bins; a heat map's `order` gains `"modulation"`
+  (auROC only) and a heat map of auROCs is drawn in the diverging colormap. `commonFieldsOf`: rate takes
+  `measure` and `baseline`, tuning `measure`, `baseline` and `waveform`, PSTH and heat map also `auroc`.
+  A plot's stacked PSTH and auROC drawing (`renderPSTH`) and the probe highlight (`renderWaveforms`) are
+  now shared code (`drawStack`, `callMarks`, `modulationWindow`, `rowLabels`), drawn as before. In the
+  Figures tab, Common options and a PSTH's or heat map's Options gain the auROC rows, a PSTH gains
+  **Stack** with its spacing, a firing rate panel **Display**, a tuning curve **Parameter** and
+  **series**, a unit waveforms panel **Layout**, and the heat map's **Row order** *modulation*; the
+  Add-panel and template lists offer *Firing rate* and *Tuning curve*. A panel's common rows now open again once the panel is unlinked from the figure's
+  Common options (they stayed grayed out). See
+  [Panel types](documentation/EphysAnalysisConfig.md#panel-types),
+  [Panel options](documentation/EphysAnalysisConfig.md#panel-options) and
+  [Common options](documentation/EphysAnalysisConfig.md#common-options).
 - Kilosort4 parameter details on the Sorting tab. Each parameter's name is a link that opens a modal
   window with its definition, function, impact, tuning and defaults (this pipeline's and Kilosort4
   4.1.7's own).

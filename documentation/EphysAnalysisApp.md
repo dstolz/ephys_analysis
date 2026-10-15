@@ -488,7 +488,7 @@ Run (Export tab) draws the enabled ones.
 
 | Control | Effect |
 | --- | --- |
-| template drop-down, **Add** | adds a figure from the template with the next free id (`figure_1`, `figure_2`, ...) and selects it, with its first panel and layer. The templates: *Raster over PSTH (per unit)* (first: a 2 x 1 grid, a raster flush above a PSTH, each following the observed unit), one panel of each [panel type](EphysAnalysisConfig.md#panel-types), and *Blank* (an empty 1 x 1 grid to add panels to) |
+| template drop-down, **Add** | adds a figure from the template with the next free id (`figure_1`, `figure_2`, ...) and selects it, with its first panel and layer. The templates: *Raster over PSTH (per unit)* (first: a 2 x 1 grid, a raster flush above a PSTH, each following the observed unit), one panel of each [panel type](EphysAnalysisConfig.md#panel-types) (among them *Firing rate*, with bars, boxes or points per trial group, and *Tuning curve*, the rate against a trial parameter), and *Blank* (an empty 1 x 1 grid to add panels to) |
 | **Remove**, **Duplicate** | removes the selected figure; copies it, with its remembered looks and its observation, under a new id right after it, and selects the copy |
 | **Up**, **Down** | swaps it with its neighbor in the list (and the config) |
 | **Copy from...** | under the list, on with a figure selected and another to copy from: copies another figure's settings onto the selected one, part by part. A window asks which figure (**From**, by id) and which of six parts, one box each, all ticked at first (**All**, **None**): *Observations* (`observe`: the kind, unit filter, signal, channels, datasets), *Alignment* (`ref`, `window`, `selection`), *Common options* (`common`), *Arrangement and panels* (`grid` and every panel with its type, options, own alignment and layers; the other figure's panel ids are copied too), *Appearance* (`style`) and *Remembered looks* (`aesthetics`). The figure keeps its id, title and enabled, and every part not ticked. The editor, the observation picker and the preview follow (after the arrangement the first panel and layer are selected), and the status bar says what was copied (`copyFigureSettings`, `figureSettingParts`) |
@@ -508,7 +508,7 @@ headers (**▼** / **►**), in this order:
 | Arrangement (2) | the schematic of the grid, **Add panel** with **Above**, **Below**, **Left** and **Right**, the selected panel's **Row span**, **Column span**, **Row height** and **Column width**, **Spacing**, **Remove panel** and **Move** (below) |
 | Panel (3) | **Type** (a change starts the panel afresh: below), **Title** (blank = none) and **Group shown** (heat map and unit correlation panels: which of the figure's trial groups they draw, 1 = the first; `options.group`) |
 | Event reference (4), Epoch window (5), Trial selection (6) | the figure's alignment: the [Alignment tab](#alignment-tab)'s controls, for this figure (`ref`, `window`, `selection`), each with **Use default** in its header; **Epoch Diagram** sits under the Epoch window. Hidden when every panel of the figure is of a type that is not aligned to events (probe map, unit waveforms) |
-| Common options (7) | the options every linked panel draws: **Bin (ms)** and **Smooth (ms)**, **Measure**, **Baseline** with its window, **Mask after the stop event** and the waveform inset (**Waveform** with its spikes, **Inset location**, **Axis box**, **Inset size**, **Label**); a panel takes the ones its type has while its **Common options from the figure** box (Options) is ticked, so one change here reaches all of them (`common`; [Common options](EphysAnalysisConfig.md#common-options)) |
+| Common options (7) | the options every linked panel draws: **Bin (ms)** and **Smooth (ms)**, **Measure**, **Baseline** with its window, the auROC rows (with the *auroc* baseline: the **auROC from**, **auROC (ms)**, **Call window**, **Modulated if**, **Unit test** and **Calls** rows), **Mask after the stop event** and the waveform inset (**Waveform** with its spikes, **Inset location**, **Axis box**, **Inset size**, **Label**); a panel takes the ones its type has while its **Common options from the figure** box (Options) is ticked, so one change here reaches all of them (`common`; [Common options](EphysAnalysisConfig.md#common-options)) |
 | Panel alignment (8) | the selected panel's own event reference and epoch window (an aligned type only), with **Same as the figure** in the header; the trial selection is always the figure's. **Apply to all panels** and **Re-link all panels** (below) |
 | Layers (9) | the selected panel's layers: the list with **Add** (a source the type draws), **Remove**, **Up** and **Down**, and the rows of the layer picked (below) |
 | Options (0) | the panel type's own rows, under the type's name (*Raster options*, *PSTH options*, ...; below), with **Common options from the figure** in the header and **Apply to all panels** |
@@ -535,8 +535,9 @@ aligned to events; a layer's rows follow its source and binding; the
 Options rows follow the panel's type. A section left with no row is hidden.
 A linked panel's rows are locked and show the figure's values: Panel
 alignment's while **Same as the figure** is ticked, and Options' common rows
-(bins, measure, baseline, mask, waveform inset) while **Common options from the
-figure** is ticked.
+(bins, measure, baseline, auROC, mask, waveform inset) while **Common options
+from the figure** is ticked (unticked, they open again, whatever baseline modes
+the type offers).
 Rows that another option switches off stay in place, grayed out: the binding
 until the layer's source and the panel's type let it follow the observation,
 *Draw as* a spike train until the panel is a raster, PSTH or heat map, the
@@ -545,7 +546,12 @@ baseline mode, the fill's opacity until *Filled*, the sort event until the
 sort is *event*, the jitter until the *points* display, the waveform's rows
 until its mode is not *Off*, a unit correlation's bins until its *peak*
 rate, the mask until the window has a stop event, the stack spacing until
-*stacked rows*, and the error and legend rows until their boxes.
+*stacked rows*, a PSTH's stack spacing until **One row per group**, the auROC
+step until *sliding* windows, its threshold until the *fixed threshold* cutoff,
+its resamples until the test is not *ranksum*, its **Calls** boxes until a
+cutoff, and the error and legend rows until their boxes. The auROC rows show only
+with the *auroc* baseline (the **Unit test** row only with the *per-unit test*
+cutoff), in Common options as in a PSTH's or heat map's Options.
 
 **The arrangement.** The schematic in the Arrangement section draws the grid
 in proportion (each row's relative height, each column's relative width): a
@@ -556,7 +562,7 @@ then show it.
 
 | Control | Effect |
 | --- | --- |
-| **Add panel** type, **Above**, **Below**, **Left**, **Right** | adds a panel of the type next to the selected one: *Above* and *Below* make a new row of the grid, as high as the selected panel's row, and the new panel takes the selected panel's columns; *Left* and *Right* make a new column, as wide as its column, and the new panel takes its rows. Panels past the new row (column) move down (right) by one, and those whose span crosses it grow by one. The first panel of a figure goes to row 1, column 1. The new panel holds the type's default layer, so it draws at once, and is selected ([Editing the grid](EphysAnalysisConfig.md#editing-the-grid)) |
+| **Add panel** type, **Above**, **Below**, **Left**, **Right** | adds a panel of the type (the drop-down offers the nine [panel types](EphysAnalysisConfig.md#panel-types), *Firing rate* and *Tuning curve* among them) next to the selected one: *Above* and *Below* make a new row of the grid, as high as the selected panel's row, and the new panel takes the selected panel's columns; *Left* and *Right* make a new column, as wide as its column, and the new panel takes its rows. Panels past the new row (column) move down (right) by one, and those whose span crosses it grow by one. The first panel of a figure goes to row 1, column 1. The new panel holds the type's default layer, so it draws at once, and is selected ([Editing the grid](EphysAnalysisConfig.md#editing-the-grid)) |
 | **Row span**, **Column span** | how many rows and columns the panel covers, from its own cell; refused, with the reason in the status bar, past the grid's edge or over another panel (`rowSpan`, `colSpan`) |
 | **Row height**, **Column width** | the relative height of the panel's first row and width of its first column against the others (1 = equal; steps of 0.25). A figure is drawn on a tiled layout of equal tiles, so a size is rounded to quarter steps of the smallest, with at most 32 tiles a side (`grid.rowHeights`, `grid.colWidths`) |
 | **Spacing** | the space between the panels: *loose*, *compact*, *tight* or *none (flush)*, which draws stacked time panels sharing their edges (`grid.spacing`) |
@@ -577,15 +583,27 @@ epoch window. The status bar says what changed (*"psth_2 is now a heat map
 panel (was a PSTH panel): options reset; ..."*).
 
 **Common options.** The section holds the options a figure's panels usually
-share: bins and smoothing, measure, baseline, mask after the stop event and the
-waveform inset ([the model](EphysAnalysisConfig.md#common-options)). Each panel
-type takes the ones it has (a raster the mask and the inset, a PSTH all five, a
-continuous panel the baseline, a heat map all but the inset, unit waveforms the
-inset, a unit correlation bins and baseline, a probe map none) while its
+share: bins and smoothing, measure, baseline (with its auROC settings), mask
+after the stop event and the waveform inset
+([the model](EphysAnalysisConfig.md#common-options)). Each panel type takes the
+ones it has (a raster the mask and the inset, a PSTH all of them, a continuous
+panel the baseline, a heat map all but the inset, unit waveforms the inset, a
+unit correlation bins and baseline, a firing rate panel measure and baseline, a
+tuning curve measure, baseline and the inset, a probe map none) while its
 **Common options from the figure** box, in the Options header, is ticked, which
-it is by default. The baseline modes are the PSTH's; a continuous or unit
-correlation panel takes only *none* and *subtract*, so Validate refuses a
-*zscore* or *percent* baseline here while such a panel is linked. A waveforms
+it is by default. The **Baseline** modes are *none*, *subtract*, *zscore*,
+*percent*, *ratio* and *auroc*, but each type takes its own: a PSTH and a heat
+map of spikes *none*, *subtract*, *zscore*, *percent* and *auroc*; a firing rate
+and a tuning panel *none*, *subtract*, *ratio* and *zscore*; a continuous or unit
+correlation panel (and a heat map of a signal) only *none* and *subtract*. Validate
+refuses a mode a linked panel does not take (a *zscore* baseline with a linked
+continuous panel, *auroc* with a linked firing rate panel, ...), at the panel's
+common options. With the *auroc* baseline the auROC rows show: **auROC from**
+(the PSTH's bins or each epoch) with the windows (*tiled* or *sliding*), the
+window, step, **Call window (s)** and **Modulated if** (the 95% CI, a fixed
+threshold, a per-unit test or none; **Unit test** with its resamples, correction
+and alpha for the test), and **Calls** (*Mark them*, *Modulated units only*); the
+windows must be whole numbers of the bins, which Validate checks. A waveforms
 panel draws an *Off* inset as *Mean + subsample*.
 
 **Panel alignment.** With **Same as the figure** ticked the panel uses the
@@ -604,7 +622,9 @@ makes this panel's event reference and window the figure's and links every panel
 to them (`adoptPanelAlignment`); **Re-link all panels** (on while any panel has
 its own event, window or options) sets every panel back to the figure's event,
 window and Common options, keeping the panels' own option values stored
-(`relinkPanels`). The status bar says what changed.
+(`relinkPanels`). The status bar says what changed. A unit correlation, firing
+rate or tuning curve panel's own window may also be a *between* window (a fixed
+window is the only other mode).
 
 **Layers.** The list names the panel's layers (*units, follows the
 observation*, *LFP, fixed: ch 3 5*, *events: Stim offset (marks)*; a name of
@@ -617,17 +637,21 @@ type binds a new one, and fixed where it cannot follow the observation. **Remove
 and **Down** edit the list; the order is the drawing order (the first
 layer's first unit is a raster's top rows). A type that draws one layer
 (heat map, unit waveforms, probe map, unit correlation) says in
-red when it has more: only the first enabled one is drawn. The rows below the
+red when it has more: only the first enabled one is drawn (a unit waveforms
+panel in the *probe* layout takes more: the first layer is drawn, the others
+frame their units in red). A *probe* layout whose first layer follows the
+observation draws one unit, and Validate warns: bind the first layer to fixed
+units and add a layer that follows the unit to frame it. The rows below the
 list edit the layer picked:
 
 | Row | Effect |
 | --- | --- |
 | **Name**, **Enabled** | the legend and aesthetics label (blank = the unit's, channel's or event's own); unticked, the layer is kept and not drawn (`name`, `enabled`) |
 | **Source** | what the layer reads: only the sources the type draws (`source`) |
-| **Binding** | *Follows the observation*: reads the unit or channel picked over the preview (for the other spike source, the detections or units on its channel; for a signal, the column that records the unit's channel, or the observed column; AUX has no recording channel, so it must be fixed). *Fixed*: reads the items named below. Only spike and signal layers on a raster, PSTH, continuous signal or unit waveforms panel may follow; events layers, and any layer of the other types, are fixed. A gray line says what the layer draws for the figure's observation ([What a layer reads](EphysAnalysisConfig.md#what-a-layer-reads); `binding`) |
+| **Binding** | *Follows the observation*: reads the unit or channel picked over the preview (for the other spike source, the detections or units on its channel; for a signal, the column that records the unit's channel, or the observed column; AUX has no recording channel, so it must be fixed). *Fixed*: reads the items named below. Only spike and signal layers on a raster, PSTH, continuous signal, unit waveforms, firing rate or tuning curve panel may follow; events layers, and any layer of the other types, are fixed. A gray line says what the layer draws for the figure's observation ([What a layer reads](EphysAnalysisConfig.md#what-a-layer-reads); `binding`) |
 | fixed units or detected spikes | unit classes (units), **Unit ids**, **Good units only**, **Responsive only**, **Max units**, **Shanks** and **Channels** (the recording channels kept): the Observations rows, for the layer's own units (`units`) |
 | fixed LFP, MUA, SPIKE or AUX | **Channels**: the extract's columns drawn, blank = all (`channels`) |
-| **Aggregate** | a fixed layer of a raster, PSTH or continuous signal panel with several units or channels: *each* one on its own, or *their mean* with a band across them (`aggregate`) |
+| **Aggregate** | a fixed layer of a raster, PSTH, continuous signal, firing rate or tuning curve panel with several units or channels: *each* one on its own, or *their mean* with a band across them (`aggregate`) |
 | events | **Line** and **Edge** (the dataset's lines are listed; one can be typed), **Sequence** with **Edit...** (the *Event sequence* window), **Draw as** (*marks*: a mark at each event on a raster's rows, a line at each trial group's median latency on a PSTH or signal panel; *a spike train of its own*: the events drawn as a unit would be, on a raster, PSTH or heat map only), and for marks the **Marker**, its size and **Mark color** (`event`, `eventsAs`; [Raster event marks](EphysAnalysisConfig.md#raster-event-marks)) |
 | **Color**, **Line style** | *auto*: each trial group's color, and the line style by the layer's order (solid, dashed, dotted, dash-dot); or one color and line style for the layer's traces. Event marks have their own (`color`, `lineStyle`) |
 
@@ -637,16 +661,29 @@ list edit the layer picked:
 | Panel type | Rows |
 | --- | --- |
 | Raster | **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*), **Rows by group first**, **Mask after the stop event**, and the waveform inset (**Waveform**, **Inset location**, **Inset size**, **Label**) |
-| PSTH | **Bin**, **Smooth**, **Measure**, **Baseline** and its window, **Mask after the stop event**, **PSTH as**, **Fill** and its opacity, **Normalize**, **Y limits**, and the waveform inset |
+| PSTH | **Bin**, **Smooth**, **Measure**, **Baseline** (with *auroc*) and its window, the auROC rows (with the *auroc* baseline), **Mask after the stop event**, **PSTH as**, **Fill** and its opacity, **Normalize**, **Stack** (**One row per group** with its **spacing**, the row step in tallest PSTHs), **Y limits** (not used in a stack), and the waveform inset |
 | Continuous signal | **Baseline** and its window, **Display** (*lines* or *stacked rows*), **Signal** (mean or median; as recorded or rectified), **Error band** (off, mean ± SEM, mean ± SD, bootstrap 95% CI or interquartile range), **Stack spacing**, **Y limits** |
-| Heat map | **Bin**, **Smooth**, **Measure** and **Mask after the stop event** (a spike layer), **Baseline**, **Row order** (*probe* or *peak*), **Color limits**; the group drawn is in the Panel section |
-| Unit waveforms | **Waveform** (*Mean*, *Subsample* or *Mean + subsample*, and how many spikes), **Label**, **Y limits** |
+| Heat map | **Bin**, **Smooth**, **Measure** and **Mask after the stop event** (a spike layer), **Baseline** (*auroc* for a spike layer, with the auROC rows; the map is then of auROCs in the diverging colormap), **Row order** (*probe*, *peak* or *modulation*, the last only with the auROC baseline), **Color limits**; the group drawn is in the Panel section |
+| Unit waveforms | **Layout** (*grid*: the unit, or several overlaid; *probe*: every unit of the first layer at its place on the probe, with the units of a further layer framed in red), **Waveform** (*Mean*, *Subsample* or *Mean + subsample*, and how many spikes), **Label**, **Y limits** |
 | Probe map | **Value** (*rate*, *nSpikes* or *nUnits*), **Color limits** |
 | Unit correlation | **Epoch rate**, **Correlation**, **Fisher z transform**, **Baseline**, **Bin** and **Smooth** (for the *peak* rate), **Color limits** |
+| Firing rate | **Measure**, **Baseline** (*none*, *subtract*, *ratio* or *zscore*) and its window, **Display** (*bars (mean, error bar)*, *boxes* or *points (each epoch)*), **Y limits** |
+| Tuning curve | **Measure**, **Baseline** (as the firing rate panel's) and its window, **Parameter** (the trial parameter on the x axis; blank: the figure's first group-by parameter, else the first numeric one) with **series** (one curve per value of another trial parameter; blank: one curve), **Y limits**, and the waveform inset |
+
+**Stack** draws a PSTH panel's trial groups in rows of their own instead of
+overlaid, the first at the bottom, each group's value on the left axis and its
+peak on the right. A single group is not stacked, a second layer is drawn into
+the rows as an outline, and a raster panel above the PSTH shows the groups'
+rasters (the Plots tab's stacked rasters have no figure option). A firing rate
+panel draws the trial groups along x; a tuning curve draws the parameter's
+values along x, a curve per series with error bars, and takes a
+*between* window in Panel alignment as a unit correlation panel does. A
+firing rate or tuning panel's layers may follow the observation, as a PSTH's
+do, and a fixed layer may *aggregate* to its mean.
 
 **Common options from the figure** (a box in the Options header) says whether
 the panel draws the figure's Common options for the rows its type
-has in common with them (bins, measure, baseline, mask, waveform inset). Ticked,
+has in common with them (bins, measure, baseline, auROC, mask, waveform inset). Ticked,
 those rows are grayed out and show the effective values, the figure's; an edit
 there is not taken, and a change in the Common options section shows in them.
 Unticking the box copies the figure's values into the panel as its own and opens
@@ -1591,8 +1628,24 @@ into the panel and opens the rows, and **Apply to all panels** (Options) makes
 them the figure's and links every panel. *Max units* shrinks the picker and *Inf*
 restores it. Changing a PSTH panel to a heat map keeps its units layer
 (fixed) and the shared bins, shows the heat map's rows and says so in the
-status bar, and changing it back lets the layer follow the unit again. The
-gather / apply round trip keeps the figure and the panel picked; a look
+status bar, and changing it back lets the layer follow the unit again. A PSTH
+shows its **Stack** row (the spacing grayed out while unticked) and no auROC
+rows without the auROC baseline; ticking **One row per group** and setting the
+spacing reach the panel's options and the preview stacks its groups (a row
+baseline per group). Choosing the *auroc* baseline in Common options shows the
+auROC rows there and, locked, in the linked PSTH's; editing the window and the
+cutoff reaches the PSTH's effective options and the preview draws auROC curves
+(the result holds `auroc`); unlinking the PSTH opens its own auROC rows, which
+reach its options while the common ones stay. The Add-panel, panel-type and
+template drop-downs offer *Firing rate* and *Tuning curve*; a *Firing rate*
+panel added **Below** follows the unit, draws its bars at once and shows its
+rows only (*Display*, *Measure*, *Baseline* with the rate modes, no bins or
+stack), and *Display* *points* reaches the options and the drawing. A *Tuning
+curve* panel added **Below** draws at once over the figure's group-by parameter
+(*Depth* on the fixture) and shows its **Parameter** rows and the waveform
+inset; unlinked, its **Parameter** and **series** reach the options and the
+drawing. Both are removed again with **Remove panel**. The gather / apply
+round trip keeps the figure and the panel picked; a look
 remembered from the preview's editor lands in the figure's `aesthetics` (and
 the runner's config), and **Forget** drops it. **Remove panel** takes the
 continuous panel and its row away, **Duplicate** copies the figure as

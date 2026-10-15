@@ -470,27 +470,3 @@ if show.legend && style.Legend
     end
 end
 end
-
-
-function memberLines(ax, t, M, R, colors, style)
-%memberLines  Each member session (R.members) as a thin pale line, under its series' summary.
-%   M: [nBins x nMembers], the members' values on this panel. Tagged
-%   "memberLine" with the series' label; kept out of the legend.
-ls = groupLineStyles(R);
-for s = 1:size(M, 2)
-    g = R.members.series(s);
-    tagPart(plot(ax, t, M(:, s), 'Color', paleColor(colors(g, :), 0.55, style), 'LineWidth', 0.6 * style.LineWidth, ...
-        'LineStyle', ls(g), 'HandleVisibility', 'off'), "memberLine", R.groups.label(g));
-end
-end
-
-
-function M = memberRates(R, norm, p)
-%memberRates  R.members.rate [nBins x nTiles x nMembers] divided as normalizeRates divided the series (P: its divisor).
-M = R.members.rate;
-if norm == "none" || isempty(p); return; end
-if size(p, 3) > 1   % groupPeak: each member by its series' peak
-    p = p(:, :, R.members.series);
-end
-M = M ./ p;
-end

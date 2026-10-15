@@ -48,9 +48,23 @@ u.channels = parseList(E.obsUnitChannels.Value);
 o.units = u;
 o.signal = string(E.obsSignal.Value);
 o.channels = parseList(E.obsChannels.Value);
-o.datasets = string(E.obsDatasets.Value);
 o.perGroup = logical(E.obsPerGroup.Value);
 fig.observe = o;
+
+% across sessions (datasetKeys has no control of its own: Pick... sets it, onPickFigureDatasets)
+ss = fig.sessions;
+ss.enabled = logical(E.sesEnabled.Value);
+ss.datasets = string(E.sesDatasets.Value);
+ss.facet = string(E.sesFacet.Value);
+ss.series = string(E.sesSeries.Value);
+ss.colorOrder = string(E.sesColorOrder.Value);
+ss.showMembers = logical(E.sesShowMembers.Value);
+ss.error = string(E.sesError.Value);
+ss.match = string(E.sesMatch.Value);
+ss.mappingFile = strtrim(string(E.sesMappingFile.Value));
+ss.minSessions = max(1, round(E.sesMinSessions.Value));
+ss.trialGroups = string(E.sesTrialGroups.Value);
+fig.sessions = ss;
 
 % arrangement and appearance
 fig.grid.spacing = string(E.spacing.Value);

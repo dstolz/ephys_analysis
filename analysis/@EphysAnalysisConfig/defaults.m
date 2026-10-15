@@ -15,7 +15,7 @@ function s = defaults(section)
 %                     of a plot's overlays), EventMark (one entry of a
 %                     plot's rasterEvents: an EventRef and its look);
 %                     a figure's Observe (what it is drawn for),
-%                     FigureCommon (its common options), Panel (one entry
+%                     FigureSessions (drawn across datasets), FigureCommon (its common options), Panel (one entry
 %                     of its panels; options from panelTypes) and Layer
 %                     (one entry of a panel's layers)
 %
@@ -381,9 +381,24 @@ switch section
             'units',       rmfield(u, 'source'), ...   % unit observations: the filter
             'signal',      "LFP", ...           % channel observations: which extract
             'channels',    [], ...              % channel observations: the extract's columns ([] = all)
-            'datasets',    "ticked", ...        % "ticked" (the run's datasets) | "list" (datasetKeys)
-            'datasetKeys', string.empty(1,0), ...
             'perGroup',    false);              % true: each observation drawn once per trial group of the figure's selection (its groupBy)
+
+    case "FigureSessions"
+        % a figure drawn across several datasets (Figure.sessions): with enabled, Generate / Run draw it once over the
+        % ticked (or listed) datasets, each layer's results merged across them (combineSessions), not once per dataset
+        s = struct( ...
+            'enabled',     false, ...               % true: a session figure
+            'datasets',    "ticked", ...            % "ticked" (the run's datasets) | "list" (datasetKeys)
+            'datasetKeys', string.empty(1,0), ...   % the dataset keys when "list"
+            'facet',       "none", ...              % "none" | "subject" (one figure per subject)
+            'series',      "session", ...           % what gets a color: "session" | "subject" | "all"
+            'colorOrder',  "palette", ...           % "palette" | "sequential" (by date)
+            'showMembers', false, ...               % series subject / all: each session drawn faintly under its summary
+            'error',       "sem", ...               % series subject / all: the band across sessions, "sem" | "sd" | "ci95" | "none"
+            'match',       "site", ...              % unit observations: "site" (the observed recording channel) | "mapping" (a cell of mappingFile)
+            'mappingFile', "", ...                  % match "mapping": CSV, column cell then one per dataset key holding unit ids
+            'minSessions', 1, ...                   % an observation is kept with data from at least this many sessions
+            'trialGroups', "pool");                 % the figure's trial groups: "pool" | "each" (a figure each) | "combine" (line styles)
 
     case "Figure"
         % one figure (Figures): one observation's panels on a grid; the preview draws one observation, Generate many
@@ -403,6 +418,7 @@ switch section
             'ref',        "default", ...        % "default" (Defaults.EventRef) or an EventRef
             'window',     "default", ...        % "default" (Defaults.Window) or an EpochWindow
             'selection',  "default", ...        % "default" (Defaults.Selection) or a TrialSelection
+            'sessions',   EphysAnalysisConfig.defaults("FigureSessions"), ...   % drawn across datasets (enabled) instead of per dataset
             'style',      EphysAnalysisConfig.defaults("Style"), ...   % YLim / CLim / MaxTiles / TileSpacing unused (panel options, grid.spacing)
             'aesthetics', PlotAesthetics.emptyRules());
 

@@ -4,7 +4,7 @@ function R = onRunExport(obj, opts)
 %   cancelable progress dialog (the Export tab's and the toolbar's Cancel
 %   stop it too: onCancelRun). Plots=, Figures= and Datasets= narrow the
 %   run (the tests use them); by default every enabled plot and figure on
-%   every ticked dataset. SessionPlots=, Export= and Report= are run's
+%   every ticked dataset. SessionPlots=, SessionFigures=, Export= and Report= are run's
 %   ([] = the config's); Config= runs that config instead of the controls'
 %   (gatherConfig) and Title= names the progress dialog: the Figures tab's
 %   Generate (onGenerateFigure) runs one figure that way. One run goes at a
@@ -15,6 +15,7 @@ arguments
     opts.Plots = []      % [] = the enabled plots; string.empty(1, 0) = none; else ids
     opts.Figures = []    % likewise for the figures
     opts.SessionPlots = []   % likewise for the session plots
+    opts.SessionFigures = [] % likewise for the session figures (figures drawn across the datasets)
     opts.Datasets = []
     opts.Export = []     % [] = Export.Enabled
     opts.Report = []     % [] = Report.Enabled
@@ -54,7 +55,7 @@ cleanup = onCleanup(@() finish(obj, dlg));
 t0 = tic;
 try
     R = r.run(Datasets=idx, Plots=opts.Plots, Figures=opts.Figures, SessionPlots=opts.SessionPlots, ...
-        Export=opts.Export, Report=opts.Report);
+        SessionFigures=opts.SessionFigures, Export=opts.Export, Report=opts.Report);
 catch ME
     obj.log("Run failed: " + string(ME.message));
     uialert(obj.Fig, "The run failed:" + newline + string(ME.message), "Run");
@@ -69,7 +70,8 @@ if doExport
     obj.LastExportFolder = figureFileName(cfg.Export.Folder, struct('OutputFolder', r.datasetFolder(idx(1)), ...
         'OutputRoot', r.outputRoot(), 'Root', cfg.Source.Root, 'Name', r.Names(idx(1))), Kind="folder");
 end
-sids = EphysAnalysisRunner.idList(opts.SessionPlots, @() cfg.enabledSessionPlots());
+sids = [EphysAnalysisRunner.idList(opts.SessionPlots, @() cfg.enabledSessionPlots()) ...
+    EphysAnalysisRunner.idList(opts.SessionFigures, @() cfg.enabledSessionFigures())];
 obj.OpenFolderButton.Tooltip = openFolderTip(obj, cfg, idx, sids);
 obj.OpenReportButton.Enable = matlab.lang.OnOffSwitchState(~isempty(obj.LastReportFiles));
 obj.OpenFolderButton.Enable = matlab.lang.OnOffSwitchState(obj.LastExportFolder ~= "" && isfolder(obj.LastExportFolder));

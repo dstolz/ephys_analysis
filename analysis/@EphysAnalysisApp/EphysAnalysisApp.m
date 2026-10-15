@@ -293,6 +293,7 @@ classdef EphysAnalysisApp < handle
         FigurePreviewBadge struct = struct()     % the figure preview's state badge: Grid, Icon, Text (setFigurePreviewState)
         FigurePreviewLabel     matlab.ui.control.Label
         FigureCancelButton     matlab.ui.control.Button         % the busy card's Cancel while the figure preview computes (else empty)
+        FigureSessionDropDown  matlab.ui.control.DropDown       % "Figure:" under the preview: which of a session figure's figures (facet / group) is drawn
 
         % --- Export tab ---
         ExportControls struct = struct()
@@ -383,6 +384,7 @@ classdef EphysAnalysisApp < handle
         FigurePreviewRedo (1,1) logical = false    % an edit or a Preview press came in while one computed: it ends Out of date
         FigureAddType (1,1) string = "continuous"  % the panel type Add panel adds (the Arrangement's drop-down)
         FigureAddSource (1,1) string = "units"     % the source Add layer adds, when the panel's type draws it
+        FigureSessionResults = []           % a session figure's last preview: struct(res (figureSessionCompute's RES), spec, what, label, seconds)
 
         ChronuxIndex = []                  % loadChronuxExport's index of ChronuxFile
         ChronuxFile (1,1) string = ""       % the active dataset's Chronux file ("" = none)
@@ -614,6 +616,9 @@ classdef EphysAnalysisApp < handle
         R = onGenerateFigure(obj, opts)
         setFigurePreviewState(obj, state, opts)
         rememberFigureAesthetics(obj, id, rules)
+        onPickFigureDatasets(obj, opts)
+        onBrowseFigureMapping(obj, file)
+        onFigureSessionPicked(obj)
 
         % --- Chronux tab ---
         buildChronuxTab(obj)

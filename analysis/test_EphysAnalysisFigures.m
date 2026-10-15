@@ -66,6 +66,18 @@ function test_EphysAnalysisFigures()
 %   time base, the drawing (dB, a spectrogram on the raster's time axis,
 %   the phase axes, every role known, a coherence in one axes) and the
 %   skip reason with Chronux off the path.
+%   Session figures (10), on makeAnalysisFixture's two datasets ("clean",
+%   "late-start"): figureSessionObservations by site (each session's units
+%   on the channel, minSessions) and by a mapping file (writeUnitMapping);
+%   a raster + PSTH merged over both sessions (a series per session equal
+%   to each session's own PSTH, every epoch), drawn with known roles and
+%   "(2 sessions, n epochs)" in its title; series "all" with each session
+%   a memberLine; trialGroups "combine" in line styles; a continuous
+%   figure by channel; facet "subject" x trialGroups "each"; a probe map
+%   skipped (and a validate error, a skip reason); events marks skipped;
+%   minSessions per trial group ("each": a group one session holds is
+%   skipped at 2, drawn from that session at 1); site matching with session
+%   2's unit renamed and split in two on the site (plantUnits).
 %
 %   Usage:  test_EphysAnalysisFigures
 
@@ -137,7 +149,12 @@ check(L.name == "" && L.enabled && L.source == "units" && L.binding == "observat
     && L.color == "" && L.lineStyle == "" && ~isfield(L, 'yParam') && ~isfield(L, 'seriesParam'), 'defaults("Layer")');
 O = EphysAnalysisConfig.defaults("Observe");
 check(O.kind == "auto" && O.source == "units" && ~isfield(O.units, 'source') && O.signal == "LFP" && isequal(O.channels, []) ...
-    && O.datasets == "ticked" && isstring(O.datasetKeys) && isequal(size(O.datasetKeys), [1 0]), 'defaults("Observe")');
+    && ~isfield(O, 'datasets') && ~isfield(O, 'datasetKeys') && ~O.perGroup, 'defaults("Observe")');
+FS = EphysAnalysisConfig.defaults("FigureSessions");
+check(~FS.enabled && FS.datasets == "ticked" && isstring(FS.datasetKeys) && isequal(size(FS.datasetKeys), [1 0]) ...
+    && FS.facet == "none" && FS.series == "session" && FS.colorOrder == "palette" && ~FS.showMembers && FS.error == "sem" ...
+    && FS.match == "site" && FS.mappingFile == "" && FS.minSessions == 1 && FS.trialGroups == "pool" ...
+    && isequaln(EphysAnalysisConfig.defaults("Figure").sessions, FS), 'defaults("FigureSessions"), the Figure''s sessions block');
 
 spectralTypes = ["spectrum" "spectrogram" "coherence"];
 check(isequal(T.Type.', [types spectralTypes]) && isequal(string(T.Properties.VariableNames), ["Type" "Label" "Categories" "Aligned" ...
@@ -437,7 +454,8 @@ Pc{5}.options = struct('layout', "probe");
 Pc{8}.options = struct('display', "points", 'measure', "probability", 'baseline', struct('Mode', "ratio", 'Window', [-0.3 0]));
 Pc{9}.options = struct('param', "Depth", 'seriesParam', "TrialType", 'yLim', [0 20]);
 allTypes = struct('id', "all_types", 'title', "Every panel type", ...
-    'observe', struct('kind', "unit", 'datasets', "list", 'datasetKeys', ["S1/a" "S2/b"], 'units', struct('classes', "su", 'maxUnits', 4)), ...
+    'observe', struct('kind', "unit", 'units', struct('classes', "su", 'maxUnits', 4)), ...
+    'sessions', struct('datasets', "list", 'datasetKeys', ["S1/a" "S2/b"]), ...
     'grid', struct('rows', 5, 'cols', 2, 'rowHeights', [1 1.5 1 1 1], 'colWidths', [2 1], 'spacing', "compact"), ...
     'panels', {Pc}, 'ref', struct('line', "Stim", 'timeRange', [0 Inf]), 'selection', struct('groupBy', ["Depth" "TrialType"]), ...
     'aesthetics', struct('role', "rate", 'group', "", 'property', "LineWidth", 'value', 2));
@@ -474,7 +492,7 @@ check(isequal(g.panels(2).layers(2).units.ids, [3 5]) && g.panels(2).layers(2).a
 check(isequal(c2.Figures(2).ref, "default") && isequal(c2.Figures(2).window, "default") && isequal(c2.Figures(2).panels(1).ref, "default") ...
     && isstruct(g.panels(2).window) && isequal(g.panels(2).ref, "default") && isstruct(g.panels(7).window.stop) ...
     && g.panels(7).window.mode == "between" && isequal(g.ref.timeRange, [0 Inf]), '"default" sentinels and overrides');
-check(isequal(g.observe.datasetKeys, ["S1/a" "S2/b"]) && isequal(g.observe.units.classes, "su") && g.observe.units.maxUnits == 4 ...
+check(isequal(g.sessions.datasetKeys, ["S1/a" "S2/b"]) && g.sessions.datasets == "list" && ~g.sessions.enabled && isequal(g.observe.units.classes, "su") && g.observe.units.maxUnits == 4 ...
     && isequal(g.selection.groupBy, ["Depth" "TrialType"]) && isscalar(g.aesthetics) && isstruct(g.panels(1).options.rasterSortEvent) ...
     && g.panels(1).options.rasterSortEvent.edge == "offset" && isnan(g.panels(2).options.fillAlpha) && g.panels(2).options.baseline.Mode == "zscore", ...
     'lists of one and two, an event to sort by, NaN and aesthetics');
@@ -672,10 +690,10 @@ b = base; b.Figures(1).observe.channels = 0.5;
 check(has(b, "figure_1.observe.channels", "error"), 'observe.channels are whole numbers >= 1');
 b = base; b.Figures(1).observe.units.maxUnits = 0;
 check(has(b, "figure_1.observe.units.maxUnits", "error"), 'observe.units.maxUnits >= 1');
-b = base; b.Figures(1).observe.datasets = "some";
-check(has(b, "figure_1.observe.datasets", "error"), 'observe.datasets is ticked or list');
-b = base; b.Figures(1).observe.datasets = "list";
-check(has(b, "figure_1.observe.datasetKeys", "warning"), 'a "list" without dataset keys warns');
+b = base; b.Figures(1).sessions.datasets = "some";
+check(has(b, "figure_1.sessions.datasets", "error"), 'sessions.datasets is ticked or list');
+b = base; b.Figures(1).sessions.enabled = true; b.Figures(1).sessions.datasets = "list";
+check(has(b, "figure_1.sessions.datasetKeys", "warning"), 'a session figure''s "list" without dataset keys warns');
 b = base; b.Figures(1).observe.kind = "dataset";
 check(has(b, "figure_1.observe.kind", "error"), 'a layer following a dataset observation');
 b = base.addFigure("probemap", Id="pm"); b.Figures(2).observe.kind = "unit";
@@ -2208,9 +2226,227 @@ else
 end
 rmpathQuiet(cxAdded);
 
+%% ============================================================================ session figures
+fprintf('\n== 10. session figures: one figure across datasets ==\n');
+sroot = string(root) + "_sessions";
+cleanSessions = onCleanup(@() rmdirQuiet(sroot));
+FS2 = makeAnalysisFixture(sroot, Scenarios=["clean" "late-start"], NumTrials=12);
+sc = EphysAnalysisConfig();
+sc.Source.Root = FS2.proj;
+sc.Defaults.EventRef.line = "Stim";
+sc.Defaults.Window = struct('mode', "fixed", 'pre', -0.2, 'post', 0.8, 'stop', []);
+sc.Defaults.Selection.groupBy = "Depth";
+sc = sc.addFigure("rasterPsth", Id="srp");
+sc.Figures(1).sessions.enabled = true;
+sc = sc.addFigure("continuous", Id="sct");
+sc.Figures(2).sessions.enabled = true;
+rq = EphysAnalysisRunner(sc, LogFcn=[]);
+check(isempty(sc.enabledFigures()) && isequal(sc.enabledSessionFigures(), ["srp" "sct"]) && sc.isSessionFigure("srp") ...
+    && isequal(sc.sessionFigureIds(), ["srp" "sct"]), 'session figures are listed apart: enabledFigures (per dataset) leaves them out');
+sp1 = sc.figureFor("srp");
+[Tq, Sq, srcQ] = rq.sessionFigureObservations(sp1);
+perOwn = cellfun(@(s) figureObservations(s, setfield(sp1, 'observe', setfield(sp1.observe, 'perGroup', false))), srcQ, 'UniformOutput', false); %#ok<SFLD>
+chs = intersect(perOwn{1}.channel, perOwn{2}.channel);
+okIds = true;
+for i = 1:height(Tq)
+    for s = 1:2
+        okIds = okIds && isequal(sort(Tq.unitIds{i}{s}(:)), sort(perOwn{s}.unitId(perOwn{s}.channel == Tq.channel(i))));
+    end
+end
+check(height(Sq) == 2 && all(Sq.status == "done") && height(Tq) >= 1 && all(Tq.kind == "unit") && all(startsWith(Tq.label, "site ch ")) ...
+    && all(ismember(Tq.channel(Tq.nSessions == 2), chs)) && all(Tq.nSessions >= 1) && okIds ...
+    && all(cellfun(@(P) height(P) == 2 && islogical(P.present), Tq.perSession)), ...
+    sprintf('figureSessionObservations by site: %d sites ("%s", ...), each session''s units on the channel', height(Tq), Tq.label(1)));
+both = find(Tq.nSessions == 2, 1);
+sc2 = sc; sc2.Figures(1).sessions.minSessions = 2;
+Tq2 = figureSessionObservations(srcQ, sc2.figureFor("srp"));
+check(~isempty(both) && height(Tq2) == nnz(Tq.nSessions == 2) && all(Tq2.nSessions == 2), 'minSessions 2 keeps the sites both sessions hold');
+
+% observations by a mapping file
+mapFile = fullfile(sroot, "unit_map.csv");
+P1 = Tq.perSession{both};
+M = table(["cellA"; "cellB"], [P1.unitId(1); P1.unitId(1)], [P1.unitId(2); NaN], 'VariableNames', ["cell" Sq.key(1) Sq.key(2)]);
+writeUnitMapping(mapFile, M, Overwrite=true);
+sm = sc; sm.Figures(1).sessions.match = "mapping"; sm.Figures(1).sessions.mappingFile = mapFile;
+Tm = figureSessionObservations(srcQ, sm.figureFor("srp"));
+check(isequal(Tm.label, ["cellA"; "cellB"]) && isequal(Tm.nSessions, [2; 1]) && Tm.unitIds{1}{1} == P1.unitId(1) ...
+    && Tm.unitIds{1}{2} == P1.unitId(2) && isempty(Tm.unitIds{2}{2}) && ~Tm.perSession{2}.present(2), ...
+    'figureSessionObservations by mapping: a row per cell, each session''s unit from its column (none where empty)');
+
+% a raster + PSTH merged over the two sessions: a color per session
+[resQ, SQ, ~, FsQ] = rq.computeSessionFigure("srp", [], Observation=Tq(both, :));
+Fq = resQ(1).F;
+Rq = Fq.panels(2).layers(1).R;
+Rr = Fq.panels(1).layers(1).R;
+own = arrayfun(@(s) FsQ{s}.panels(2).layers(1).R, 1:2);
+check(isscalar(resQ) && resQ(1).status == "done" && all(SQ.status == "done") && height(Fq.sessions) == 2 && Fq.nSessions == 2 ...
+    && height(Rq.sessions) == 2 && height(Rq.groups) == 2 && Rq.sessionSeries.mode == "session" && size(Rq.rate, 2) == 1 ...
+    && isequaln(Rq.rate(:, 1, 1), own(1).rate) && isequaln(Rq.rate(:, 1, 2), own(2).rate) && ~isequal(Rq.groups.color(1, :), Rq.groups.color(2, :)) ...
+    && height(Fq.epochs) == height(FsQ{1}.epochs) + height(FsQ{2}.epochs) && contains(Fq.dataset, "2 sessions") ...
+    && height(Rr.epochs) == height(Fq.epochs) && isscalar(Rr.raster) && Fq.observation.label == Tq.label(both), ...
+    'computeSessionFigure: each session''s PSTH of its unit on the site is one series of the merged layer (sessions, colors, every epoch)');
+fgS = figure('Visible', 'off', 'Position', [0 0 900 700]);
+closeS = onCleanup(@() close(fgS));
+hq = renderFigure(Fq, sp1, fgS, Editable=false);
+Cq = PlotAesthetics.components(hq.layout);
+check(contains(hq.title, "(2 sessions, " + height(Fq.epochs) + " epochs)") && all(ismember(Cq.Role(Cq.Role ~= ""), roles)) && all(Cq.Role ~= "") ...
+    && numel(findall(fgS, 'Type', 'Legend')) >= 1, sprintf('the merged figure renders: "%s", every component a known role', hq.title));
+
+% series "all" with members; trial groups combined by line style
+sa = sc; sa.Figures(1).sessions.series = "all"; sa.Figures(1).sessions.showMembers = true;
+ra = EphysAnalysisRunner(sa, LogFcn=[]);
+resA = ra.computeSessionFigure("srp", [], Observation=Tq(both, :));
+Ra = resA(1).F.panels(2).layers(1).R;
+clf(fgS);
+renderFigure(resA(1).F, sa.figureFor("srp"), fgS, Editable=false);
+check(height(Ra.groups) == 1 && Ra.groups.label == "All sessions" && isequal(size(Ra.members.rate), [size(Ra.rate, 1) 1 2]) ...
+    && numel(findall(fgS, 'Tag', 'memberLine')) == 2 && ismember("memberLine", roles), ...
+    'series "all" with showMembers: one series, each session a pale memberLine under it');
+sb = sc; sb.Figures(1).sessions.trialGroups = "combine";
+rb = EphysAnalysisRunner(sb, LogFcn=[]);
+resB = rb.computeSessionFigure("srp", [], Observation=Tq(both, :));
+Rb = resB(1).F.panels(2).layers(1).R;
+clf(fgS);
+renderFigure(resB(1).F, sb.figureFor("srp"), fgS, Editable=false);
+styles = unique(string(get(findall(fgS, 'Tag', 'rate', 'Type', 'line'), 'LineStyle')));
+check(ismember("lineStyle", string(Rb.groups.Properties.VariableNames)) && height(Rb.groups) > 2 && numel(unique(Rb.groups.base)) == 2 ...
+    && numel(styles) >= 2 && figureSessionSpec(sb.figureFor("srp")).panels(2).options.histStyle == "line", ...
+    sprintf('trialGroups "combine": %d series (session x group), the groups drawn in %d line styles', height(Rb.groups), numel(styles)));
+
+% a continuous figure by channel
+spc = sc.figureFor("sct");
+[Tc2, ~, srcC] = rq.sessionFigureObservations(spc);
+resC = rq.computeSessionFigure("sct", [], Observation=Tc2(1, :));
+Rc = resC(1).F.panels(1).layers(1).R;
+clf(fgS);
+renderFigure(resC(1).F, spc, fgS, Editable=false);
+check(all(Tc2.kind == "channel") && all(Tc2.nSessions == 2) && resC(1).status == "done" && Rc.kind == "evoked" && size(Rc.mean, 2) == 1 ...
+    && height(Rc.groups) == 2 && Rc.sessionSeries.match == "channel" && numel(srcC) == 2, ...
+    sprintf('a continuous session figure by channel: "%s" across both sessions, one channel, a series each', Tc2.label(1)));
+
+% facet "subject" and trialGroups "each": several figures
+se = sc; se.Figures(1).sessions.trialGroups = "each"; se.Figures(1).sessions.facet = "subject";
+spe = se.figureFor("srp");
+Sx = Sq; Sx.subject(2) = "SYNTH-99";   % two subjects
+resE = figureSessionCompute(srcQ, Sx, spe, Observation=Tq(both, :));
+facetsE = unique([resE.facet]);
+check(numel(resE) > 2 && numel(facetsE) == 2 && all([resE.group] ~= "") && all(contains([resE.label], " / ")), ...
+    sprintf('facet "subject" x trialGroups "each": %d figures over %d subjects, one per trial group', numel(resE), numel(facetsE)));
+okE = resE([resE.status] == "done");
+check(~isempty(okE) && all(arrayfun(@(e) e.F.observation.groupLabel == e.group && height(e.F.panels(2).layers(1).R.groups) == 1, okE)), ...
+    'each figure of a trial group holds that group alone, named in its observation');
+
+% unsupported panels: skipped with the reason, an error to validate, a skip reason
+su = sc;
+fu = su.Figures(1);
+fu = EphysAnalysisConfig.placePanel(fu, struct('id', "pm", 'type', "probemap"), "right", "psth_1");
+su.Figures(1) = fu;
+Iu = su.validate(CheckPaths=false);
+spu = su.figureFor("srp");
+resU = figureSessionCompute(srcQ, Sq, spu, Observation=Tq(both, :));
+pu = resU(1).F.panels([resU(1).F.panels.id] == "pm");
+check(any(Iu.Section == "Figures" & Iu.Field == "srp.pm.type" & Iu.Severity == "error") && contains(pu.skip, "not merged across sessions") ...
+    && contains(figureSessionSkipReason(spu, ["" ""]), "probemap") && resU(1).status == "done", ...
+    'a probe map in a session figure: a validate error, the panel skipped with the reason, the rest drawn');
+check(figureSessionSkipReason(sp1, ["" "no line Stim"], Labels=["a" "b"]) == "" && contains(figureSessionSkipReason(sc2.figureFor("srp"), ["" "no line Stim"], Labels=["a" "b"]), "fewer than 2") ...
+    && figureSessionSkipReason(setfield(sp1, 'enabled', false), ["" ""]) == "disabled", ...
+    'figureSessionSkipReason: minSessions against the sessions'' own reasons; disabled'); %#ok<SFLD>
+evS = sc; evS.Figures(1).panels(1).layers(end+1) = EphysAnalysisConfig.defaultLayer("raster");
+evS.Figures(1).panels(1).layers(end).source = "events"; evS.Figures(1).panels(1).layers(end).binding = "fixed";
+evS.Figures(1).panels(1).layers(end).event.line = "Stim";
+resV = figureSessionCompute(srcQ, Sq, evS.figureFor("srp"), Observation=Tq(both, :));
+check(resV(1).F.panels(1).layers(end).skip == "event marks are not drawn across sessions" && resV(1).F.panels(1).layers(1).skip == "", ...
+    'events drawn as marks are skipped across sessions with the reason; the raster''s rows are drawn');
+
+% trialGroups "each" with minSessions 2: a group only one session holds is skipped, not drawn from one session.
+% The fixture's sessions ran the same depths, so session 2's first depth is moved (in a copy of its source)
+% to a depth only it ran: then each session holds a group the other lacks.
+srcG = srcQ;
+dep = srcG{2}.trials.Depth;
+d1 = dep(find(~ismissing(dep), 1));
+if isnumeric(dep); srcG{2}.trials.Depth(dep == d1) = max(dep) + 1000; else; srcG{2}.trials.Depth(dep == d1) = "elsewhere"; end
+sg = sc; sg.Figures(1).sessions.trialGroups = "each"; sg.Figures(1).sessions.minSessions = 2;
+spg = sg.figureFor("srp");
+resG = figureSessionCompute(srcG, Sq, spg, Observation=Tq(both, :));
+[~, Gq2] = selectTrials(srcG{2}, trialSelection(struct('groupBy', "Depth")));
+[~, Gq1] = selectTrials(srcG{1}, trialSelection(struct('groupBy', "Depth")));
+gl1 = string(Gq1.label); gl2 = string(Gq2.label);
+only1 = setxor(gl1, gl2);   % a depth only one of the sessions ran
+okG = true;
+for e = resG
+    if ismember(e.group, only1)
+        okG = okG && e.status == "skipped" && contains(e.message, "fewer than 2");
+    elseif e.status == "done"
+        okG = okG && e.F.nSessions == 2 && all(e.F.sessions.status == "done") && contains(e.F.dataset, "2 sessions") ...
+            && sum(e.F.sessions.nEpochs) == height(e.F.epochs);
+    end
+end
+check(okG && any([resG.status] == "done"), sprintf(['minSessions per trial group: a group held by one session is skipped ' ...
+    '(%s), the others count only that group''s sessions and epochs'], strjoin(only1, ", ")));
+check(~isempty(only1), 'the fixture''s two sessions differ in their trial groups (the case above is not vacuous)');
+sg1 = sg; sg1.Figures(1).sessions.minSessions = 1;
+resG1 = figureSessionCompute(srcG, Sq, sg1.figureFor("srp"), Observation=Tq(both, :));
+e1 = resG1(ismember([resG1.group], only1));
+check(isempty(only1) || (~isempty(e1) && e1(1).status == "done" && e1(1).F.nSessions == 1 ...
+    && any(e1(1).F.sessions.status == "missing") && contains(e1(1).F.dataset, "1 session")), ...
+    'with minSessions 1 that group is drawn from its one session: nSessions 1, the other session "missing", the title''s count agrees');
+
+% site matching with different unit ids, and two units on one site (planted in session 2's sorting folder)
+u1 = P1.unitId(1);
+u2 = P1.unitId(2);
+dir2 = string(EphysDataset.resolvePhyDir(srcQ{2}.outputs.SortingDir));
+plantUnits(dir2, u2, 900, 901);   % session 2's unit on the site becomes 900, half its spikes 901: two units there
+rp = EphysAnalysisRunner(sc, LogFcn=[]);
+Tp = rp.sessionFigureObservations(sp1);
+r = find(Tp.channel == Tq.channel(both), 1);
+Pp = Tp.perSession{r};
+check(~isempty(r) && Pp.unitId(1) == u1 && ismember(Pp.unitId(2), [900 901]) && isequal(sort(Tp.unitIds{r}{2}(:)).', [900 901]) ...
+    && ismember(u1, Tp.unitIds{r}{1}) && isnan(Tp.unitId(r)), ...
+    sprintf('site matching: session 2''s units on ch %d are 900 and 901 (ids of their own), the first in probe order (%d) is drawn', ...
+    Tq.channel(both), Pp.unitId(2)));
+[resP, ~, ~, FsP] = rp.computeSessionFigure("srp", [], Observation=Tp(r, :));
+Rp = resP(1).F.panels(2).layers(1).R;
+check(resP(1).status == "done" && size(Rp.rate, 2) == 1 && height(Rp.sessions) == 2 && all(Rp.sessions.status == "done") ...
+    && Rp.meta.unitId(1) == u1 && FsP{2}.panels(2).layers(1).meta.unitId == Pp.unitId(2) ...
+    && FsP{1}.panels(2).layers(1).meta.unitId == u1 && isequaln(Rp.rate(:, 1, 2), FsP{2}.panels(2).layers(1).R.rate), ...
+    'the merged PSTH has one tile: session 1''s unit and session 2''s own (another id), the merged meta keeps session 1''s id');
+clear closeS
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisFigures:Failures', '%d checks failed.', nFail);
+end
+end
+
+
+function plantUnits(sortDir, from, to, splitId)
+%plantUnits  Rename cluster FROM to TO in a phy folder (spike_clusters.npy and every cluster_*.tsv), then give every
+%   other spike of TO to a new cluster SPLITID (same templates: the same peak channel, i.e. a second unit on the site).
+f = fullfile(sortDir, 'spike_clusters.npy');
+c = readNPY(f);
+cls = class(c);
+c = double(c);
+c(c == from) = to;
+mine = find(c == to);
+c(mine(2:2:end)) = splitId;
+writeNPY(f, cast(c, cls));
+for t = reshape(dir(fullfile(sortDir, 'cluster_*.tsv')), 1, [])
+    p = fullfile(t.folder, t.name);
+    L = splitlines(string(fileread(p)));
+    L = L(L ~= "");
+    keep = L(1);
+    extra = strings(0, 1);
+    for i = 2:numel(L)
+        parts = split(L(i), sprintf('\t'));
+        if str2double(parts(1)) == from
+            parts(1) = string(to);
+            L(i) = strjoin(parts, sprintf('\t'));
+            parts(1) = string(splitId);
+            extra(end+1, 1) = strjoin(parts, sprintf('\t')); %#ok<AGROW>
+        end
+        keep(end+1, 1) = L(i); %#ok<AGROW>
+    end
+    writelines([keep; extra], p);
 end
 end
 

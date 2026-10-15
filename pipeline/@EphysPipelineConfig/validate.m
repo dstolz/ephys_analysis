@@ -450,7 +450,7 @@ if An.Enabled
             end
             on = acfg.Plots([acfg.Plots.enabled]);
             analysisUnits = any([on.source] == "units");
-            for fid = acfg.enabledFigures()   % a figure observing sorted units, or with a units layer, reads them too
+            for fid = [acfg.enabledFigures() acfg.enabledSessionFigures()]   % a figure observing sorted units, or with a units layer, reads them too (across sessions as well)
                 fs = acfg.figureFor(fid);
                 L = [fs.panels.layers];
                 analysisUnits = analysisUnits || (fs.observe.kind == "unit" && fs.observe.source == "units") ...

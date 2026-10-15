@@ -13,6 +13,9 @@ function T = analysisTargets(obj, acfg, idx)
 %   Project.Datasets), Output, Status ("ready", or "error: figure folder" /
 %   "error: report folder" when a folder pattern cannot be filled, Note then
 %   saying why) and Note (the plot's kind and source and what is written).
+%   Each enabled session figure (drawn once across the datasets) is one
+%   row too: Dataset "", Index 0, Output the sessions folder
+%   (Export.SessionsFolder for the first dataset).
 %   Made from names alone: nothing is read. plan() lists these rows, and
 %   runAnalysis with DryRun.
 %
@@ -69,6 +72,28 @@ for k = 1:numel(ds)
         note = "figure of " + spec.observe.kind + "; " + how;
         if why ~= ""; note = why; end
         add("analysis:" + id, d.Name, idx(k), folder, st, note);
+    end
+end
+% session figures: drawn once across the datasets (the run's own default), into Export.SessionsFolder
+sfids = acfg.enabledSessionFigures();
+if ~isempty(ds)
+    for id = sfids
+        spec = acfg.figureFor(id);
+        folder = "";
+        st = "ready";
+        note = sprintf("figure of a %s across %d dataset(s); %s", spec.observe.kind, numel(ds), how);
+        if spec.sessions.datasets == "list"
+            note = sprintf("figure of a %s across its %d listed dataset(s); %s", spec.observe.kind, numel(spec.sessions.datasetKeys), how);
+        end
+        if A.Figures
+            try
+                folder = figureFileName(X.SessionsFolder, obj.analysisTokens(ds(1)), Kind="folder");
+            catch ME
+                st = "error: figure folder";
+                note = string(ME.message);
+            end
+        end
+        add("analysis:" + id, "", 0, folder, st, note);
     end
 end
 

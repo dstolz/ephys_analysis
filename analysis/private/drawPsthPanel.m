@@ -37,7 +37,11 @@ function hk = drawPsthPanel(ax, P, look)
 %   (figEventMarks, roles "eventLine" / "eventRug"), and with
 %   options.waveform.mode on the first unit's waveform is an inset. Skipped
 %   layers are noted (figLayerNotes). The legend offers the groups, then
-%   the items when there are several, then the marks. HK: figDrawResult's,
+%   the items when there are several, then the marks. A result merged
+%   across sessions (figureSessionCompute) draws its series as the groups,
+%   each member session (R.members) a pale line under them (memberLines,
+%   divided as the series are: memberRates), and the trial groups of
+%   trialGroups "combine" by line style (figSeriesStyle). HK: figDrawResult's,
 %   yName = the rates' unit (a stack: its rows' parameters).
 %
 %   See also renderFigure, renderPSTH, histTrace, drawStack, figurePanelRegistry.
@@ -73,7 +77,7 @@ if auroc; norm = "none"; end   % an auROC is on its own 0-1 scale
 ref = 0;
 if auroc; ref = 0.5; end       % bars from chance
 yName = "";
-D = struct('R', {}, 'm', {}, 'lo', {}, 'hi', {}, 'peak', {}, 'name', {}, 'colors', {}, 'u', {});
+D = struct('R', {}, 'm', {}, 'lo', {}, 'hi', {}, 'peak', {}, 'name', {}, 'colors', {}, 'u', {}, 'members', {});
 normed = struct();
 for i = 1:nI
     j = items(i, 1);
@@ -81,8 +85,12 @@ for i = 1:nI
     R = P.layers(j).R;
     key = "L" + j;
     if ~isfield(normed, key)
-        [rate, ~, units, lo, hi] = normalizeRates(R, norm);
-        normed.(key) = struct('rate', rate, 'units', units, 'lo', lo, 'hi', hi);
+        [rate, ~, units, lo, hi, pn] = normalizeRates(R, norm);
+        mem = [];   % the member sessions' rates (a result merged across sessions, ShowMembers), divided like the series'
+        if isfield(R, 'members') && isstruct(R.members) && isfield(R.members, 'rate') && ~isempty(R.members.rate)
+            mem = memberRates(R, norm, pn);
+        end
+        normed.(key) = struct('rate', rate, 'units', units, 'lo', lo, 'hi', hi, 'members', mem);
     end
     N = normed.(key);
     if yName == ""; yName = N.units; end
@@ -95,16 +103,20 @@ for i = 1:nI
         end
         name = P.layers(j).name;
         peak = reshape(max(m, [], 1), [], 1);
+        mm = [];
+        if ~isempty(N.members); mm = reshape(mean(N.members, 2, 'omitnan'), size(N.members, 1), []); end   % each member's mean over the tiles
     else
         m = N.rate(:, u, :); mlo = N.lo(:, u, :); mhi = N.hi(:, u, :);
         nm = shortUnitLabels(R.labels);
         name = nm(u);
         if size(R.rate, 2) == 1 && P.layers(j).name ~= ""; name = P.layers(j).name; end
         peak = reshape(max(R.rate(:, u, :), [], 1), [], 1);
+        mm = [];
+        if ~isempty(N.members); mm = reshape(N.members(:, u, :), size(N.members, 1), []); end
     end
     nG = size(m, 3);
     D(i) = struct('R', R, 'm', reshape(m, [], nG), 'lo', reshape(mlo, [], nG), 'hi', reshape(mhi, [], nG), ...
-        'peak', peak, 'name', name, 'colors', paletteFor(look, R, style), 'u', u);
+        'peak', peak, 'name', name, 'colors', paletteFor(look, R, style), 'u', u, 'members', mm);
 end
 names = strings(1, nI);
 for i = 1:nI; names(i) = D(i).name; end
@@ -133,9 +145,13 @@ else
         nG = size(D(i).m, 2);
         hli = hl;
         hli.fill = o.fill && i == 1;
+        if ~isempty(D(i).members)   % each member session, faint, under its series (a result merged across sessions)
+            memberLines(ax, D(i).R.t, D(i).members, D(i).R, D(i).colors, style);
+        end
         for g = 1:nG
             gl = string(D(i).R.groups.label(g));
             [c, ls] = figLayerLook(Ls(j), i, D(i).colors(g, :));
+            ls = figSeriesStyle(D(i).R, g, ls, Ls(j));
             lss(i) = ls;
             tg = groupTag(names(i), gl, nI, nG);
             if style.ShowSEM
@@ -226,11 +242,23 @@ if isAuroc(D(1).R)   % behind the rows
     modulationWindow(ax, D(1).R);
     hold(ax, 'off');
 end
-step = drawStack(ax, P1, D(1).R, D(1).colors, style, hl, struct('left', false, 'right', true));
+step = drawStack(ax, P1, D(1).R, D(1).colors, style, hl, struct('left', false, 'right', true));   % its line styles: groupLineStyles (combine)
 [~, yName] = rowLabels(D(1).R);
 [~, lss(1)] = figLayerLook(Ls(items(1, 1)), 1, D(1).colors(1, :));
-if nI < 2; return; end
+lss(1) = figSeriesStyle(D(1).R, 1, lss(1), Ls(items(1, 1)));
 yyaxis(ax, 'left');
+hasMembers = any(arrayfun(@(d) ~isempty(d.members), D));
+if hasMembers   % each member session, faint, in its series' row (a result merged across sessions, ShowMembers)
+    hold(ax, 'on');
+    for i = 1:nI
+        if isempty(D(i).members); continue; end
+        Mi = D(i).members;
+        off = (double(D(i).R.members.series(:)).' - 1) * step;   % the row of each member's series
+        memberLines(ax, D(i).R.t, Mi + off, D(i).R, D(i).colors, style);
+    end
+    hold(ax, 'off');
+end
+if nI < 2; return; end
 yl = ylim(ax);
 lo = yl(1); hi = yl(2);
 hold(ax, 'on');
@@ -242,6 +270,7 @@ for i = 2:nI
         b = (g - 1) * step;
         gl = string(D(i).R.groups.label(g));
         [c, ls] = figLayerLook(Ls(j), i, D(i).colors(g, :));
+        ls = figSeriesStyle(D(i).R, g, ls, Ls(j));
         lss(i) = ls;
         tg = groupTag(D(i).name, gl, nI, nG);
         if style.ShowSEM

@@ -58,7 +58,9 @@ if isempty(acfg)
 end
 ids = acfg.enabledPlots();
 fids = acfg.enabledFigures();
-obj.log("[analysis] ""%s"" (%s): %d plot(s) and %d figure(s) on %d dataset(s)", acfg.Name, A.ConfigFile, numel(ids), numel(fids), n);
+sfids = acfg.enabledSessionFigures();   % drawn once across the datasets (run's default runs them too)
+obj.log("[analysis] ""%s"" (%s): %d plot(s) and %d figure(s) on %d dataset(s), %d session figure(s)", acfg.Name, A.ConfigFile, ...
+    numel(ids), numel(fids), n, numel(sfids));
 
 if opts.DryRun
     T = obj.analysisTargets(acfg, idx);
@@ -69,8 +71,8 @@ if opts.DryRun
             obj.addResult(T.Step(r), T.Dataset(r), "dry run", "would write: " + T.Note(r), T.Output(r), 0);
         end
     end
-    obj.log("[analysis] dry run: %d plot(s) and %d figure(s) x %d dataset(s)%s", numel(ids), numel(fids), n, ...
-        ternary(A.Report, ", and the report", ""));
+    obj.log("[analysis] dry run: %d plot(s) and %d figure(s) x %d dataset(s), %d session figure(s)%s", numel(ids), numel(fids), n, ...
+        numel(sfids), ternary(A.Report, ", and the report", ""));
     return
 end
 

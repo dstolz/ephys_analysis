@@ -17,6 +17,15 @@ function txt = figureCaption(spec, T, opts)
 %   counted as an observation). NAME (default "") is left out when
 %   empty. The reports print it under the figure's pages
 %   (addReportFigure Caption=).
+%   TXT = figureCaption(SPEC, T, Sessions=S) describes a session figure
+%   drawn for each row of T (figureSessionObservations) across the sessions
+%   S (sessionTable rows; those with status other than "done" are left
+%   out): "rp: site ch 7 across 3 sessions (1 subject); panels: ...", or
+%   "rp: 12 observations (sorted units, matched by site) across 3 sessions
+%   (2 subjects); ...", then the panels, alignment and grouping as above,
+%   and the series ("a color per session", "per subject", "all sessions
+%   averaged") and the trial groups' handling ("trial groups pooled", "one
+%   figure per trial group", "trial groups by line style").
 %
 %   See also plotCaption, figureObservations, addReportFigure,
 %   EphysAnalysisRunner.runDataset.
@@ -25,9 +34,11 @@ arguments
     spec (1,1) struct
     T table
     opts.Dataset (1,1) string = ""
+    opts.Sessions = []
 end
 
 n = height(T);
+across = istable(opts.Sessions);
 ob = spec.observe;
 switch ob.kind
     case "unit"
@@ -43,7 +54,23 @@ switch ob.kind
 end
 head = spec.id;
 if isfield(spec, 'title') && spec.title ~= ""; head = head + " (" + spec.title + ")"; end
-first = sprintf("%s: %d observation%s (%s)", head, n, plural(n), what);
+if across
+    S = opts.Sessions;
+    if ismember("status", string(S.Properties.VariableNames)); S = S(S.status == "done", :); end
+    nS = height(S);
+    subj = unique(S.subject(S.subject ~= ""));
+    sTxt = sprintf("%d session%s", nS, plural(nS));
+    if ~isempty(subj); sTxt = sTxt + sprintf(" (%d subject%s)", numel(subj), plural(numel(subj))); end
+    ss = spec.sessions;
+    if ob.kind == "unit"; what = what + ", matched by " + ss.match; end
+    if n == 1
+        first = head + ": " + string(T.label(1)) + " across " + sTxt;
+    else
+        first = sprintf("%s: %d observation%s (%s) across %s", head, n, plural(n), what, sTxt);
+    end
+else
+    first = sprintf("%s: %d observation%s (%s)", head, n, plural(n), what);
+end
 if opts.Dataset ~= ""; first = first + " of " + opts.Dataset; end
 parts = string(first);
 
@@ -74,7 +101,21 @@ if aligned
     g = spec.selection.groupBy;
     if ~isempty(g); parts(end+1) = "groups by " + strjoin(g, " x "); end
 end
-if isfield(ob, 'perGroup') && ob.perGroup && isfield(spec.selection, 'groupBy') && ~isempty(spec.selection.groupBy)
+if across
+    switch ss.series
+        case "session", parts(end+1) = "a color per session";
+        case "subject", parts(end+1) = "a color per subject, its sessions averaged";
+        otherwise, parts(end+1) = "all sessions averaged";
+    end
+    if isfield(spec.selection, 'groupBy') && ~isempty(spec.selection.groupBy)
+        switch ss.trialGroups
+            case "pool", parts(end+1) = "trial groups pooled";
+            case "each", parts(end+1) = "one figure per trial group";
+            otherwise, parts(end+1) = "trial groups by line style";
+        end
+    end
+    if ss.facet == "subject"; parts(end+1) = "one figure per subject"; end
+elseif isfield(ob, 'perGroup') && ob.perGroup && isfield(spec.selection, 'groupBy') && ~isempty(spec.selection.groupBy)
     parts(end+1) = "one figure per trial group";
 end
 txt = strjoin(parts, "; ") + ".";

@@ -117,6 +117,21 @@ R = pipe.run(Steps="analysis", DryRun=true);
 A = R(startsWith(R.Step, "analysis"), :);
 check(height(A) == 9 && all(A.Status == "dry run") && ~isfile(rep) && ~isfolder(fullfile(F.folders(1), "analysis")), ...
     'a dry run says what it would write and writes nothing');
+sfa = acfg.addFigure("rasterPsth", Id="card_days");   % a session figure: one row across the datasets, its sessions folder
+sfa.Figures(end).sessions.enabled = true;
+sfFile = fullfile(root, 'session_figure_analysis.json');
+sfa.save(sfFile);
+cs = cfg; cs.Analysis.ConfigFile = sfFile;
+ps = EphysPipeline(cs);
+ps.LogFcn = [];
+Ts = ps.plan(Steps="analysis");
+rs = Ts(Ts.Step == "analysis:card_days", :);
+sfFolder = figureFileName(sfa.Export.SessionsFolder, ps.analysisTokens(ps.Project.dataset(F.names(1))), Kind="folder");
+check(height(rs) == 1 && rs.Dataset == "" && rs.Status == "ready" && rs.Output == sfFolder && contains(rs.Note, "across 2 dataset") ...
+    && height(Ts(Ts.Step ~= "analysis:report", :)) == height(plotRows) + 1, ...
+    'plan (and the dry run): a session figure is one row across the datasets, its sessions folder, beside the per-dataset rows');
+iss = cs.validate(CheckPaths=false);
+check(~any(iss.Step == "analysis" & iss.Severity == "error"), 'an analysis config with a session figure validates in the pipeline');
 
 fprintf('\n== 4. run ==\n');
 events = struct('step', {}, 'dataset', {}, 'index', {}, 'count', {}, 'done', {}, 'total', {}, 'message', {});

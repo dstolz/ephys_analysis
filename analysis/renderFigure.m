@@ -26,7 +26,15 @@ function h = renderFigure(F, spec, target, opts)
 %            at its bottom, and drops the inner x tick labels.
 %   Title    SPEC.title, else "<id>: <observation> — <event> (<n> epochs)"
 %            (a dataset figure names no observation; a figure with no
-%            aligned panel no event); the dataset as its subtitle. An
+%            aligned panel no event; a figure merged across sessions,
+%            figureSessionCompute, "(<N> sessions, <n> epochs)"); the
+%            dataset as its subtitle ("3 sessions (SYNTH-01)" across
+%            sessions). A merged F draws as one dataset's: its groups are
+%            the series (sessions, subjects or all; "<series> · <group>"
+%            with trialGroups "combine", told apart by line style), the
+%            draw functions add each member session's pale line
+%            (memberLines) and a heat map's session dividers; SPEC is
+%            taken as figureSessionSpec gives it (as it was computed). An
 %            observation of one trial group (a perGroup figure) names its
 %            group: in the observation's label, else appended ("· <group>").
 %   Legend   one, east of the panels (Style.LegendLocation, placeLegend):
@@ -87,6 +95,9 @@ arguments
     opts.OnRemember = []
 end
 
+if isfield(F, 'nSessions') && isfield(spec, 'sessions')
+    spec = figureSessionSpec(spec);   % merged across sessions: drawn as computed (e.g. "combine" draws a PSTH's bars as lines)
+end
 [design, follows] = designFor(opts.Design, opts.UserAesthetics);
 s = spec.style;
 s.Design = design;
@@ -403,8 +414,20 @@ if istable(F.epochs) && isstruct(spec.ref)
     if isstruct(w) && isfield(w, 'mode') && w.mode == "between" && isfield(w, 'stop') && ~isempty(w.stop)
         ev = ev + " to " + eventRefLabel(w.stop);
     end
-    t = t + " — " + ev + sprintf(" (%d epochs)", height(F.epochs));
+    if isfield(F, 'nSessions')   % merged across sessions (figureSessionCompute)
+        t = t + " — " + ev + sprintf(" (%d session%s, %d epochs)", F.nSessions, plural(F.nSessions), height(F.epochs));
+    else
+        t = t + " — " + ev + sprintf(" (%d epochs)", height(F.epochs));
+    end
+elseif isfield(F, 'nSessions')
+    t = t + sprintf(" (%d session%s)", F.nSessions, plural(F.nSessions));
 end
+end
+
+
+function s = plural(n)
+s = "";
+if n ~= 1; s = "s"; end
 end
 
 

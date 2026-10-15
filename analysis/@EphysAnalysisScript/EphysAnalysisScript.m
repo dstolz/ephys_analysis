@@ -108,6 +108,8 @@ classdef EphysAnalysisScript
 
             % --- datasets --------------------------------------------------------
             sids = cfg.enabledSessionPlots();   % the session plots, drawn across the datasets after the loop
+            sfids = cfg.enabledSessionFigures();   % ... and the session figures
+            across = ~isempty(sids) || ~isempty(sfids);
             L(end+1, 1) = "%% Datasets";
             if S.Mode == "project"
                 L(end+1, 1) = "root = " + lit(S.Root) + ";";
@@ -120,7 +122,7 @@ classdef EphysAnalysisScript
                     L(end+1, 1) = "idx = 1:P.NumDatasets;             % every recording under the root";
                 end
                 L(end+1, 1) = "outs = DatasetOutputs.empty(1, 0); keys = strings(1, 0); folders = strings(1, 0);";
-                if ~isempty(sids)
+                if across
                     L(end+1, 1) = "names = strings(1, 0); acq = NaT(1, 0);   % for the session plots: each dataset's name and start";
                 end
                 L(end+1, 1) = "for k = idx";
@@ -128,7 +130,7 @@ classdef EphysAnalysisScript
                 L(end+1, 1) = "    outs(end+1) = d.outputs('CacheData', true);   % its processed files, loaded on demand";
                 L(end+1, 1) = "    keys(end+1) = P.datasetKey(k);";
                 L(end+1, 1) = "    folders(end+1) = string(d.outputFolder());";
-                if ~isempty(sids)
+                if across
                     L(end+1, 1) = "    names(end+1) = d.Name;";
                     L(end+1, 1) = "    a = d.AcqDate;   % the recording's own start, for the session plots' dates";
                     L(end+1, 1) = "    if isdatetime(a) && ~isempty(a); acq(end+1) = a(1); else; acq(end+1) = NaT; end";
@@ -138,12 +140,12 @@ classdef EphysAnalysisScript
                 L(end+1, 1) = "root = " + lit(S.Root) + ";";
                 L(end+1, 1) = "folders = " + lit(S.Folders) + ";   % the datasets' output folders";
                 L(end+1, 1) = "outs = DatasetOutputs.empty(1, 0);";
-                if ~isempty(sids)
+                if across
                     L(end+1, 1) = "names = strings(1, 0); acq = NaT(1, 0);   % folders carry no acquisition date";
                 end
                 L(end+1, 1) = "for f = folders";
                 L(end+1, 1) = "    outs(end+1) = DatasetOutputs(f, CacheData=true);";
-                if ~isempty(sids)
+                if across
                     L(end+1, 1) = "    names(end+1) = outs(end).Name;";
                     L(end+1, 1) = "    acq(end+1) = NaT;";
                 end
@@ -187,13 +189,22 @@ classdef EphysAnalysisScript
                 end
                 L(end+1, 1) = "";
             end
+            if ~isempty(sfids)
+                L(end+1, 1) = "%% Session figure specs (figures drawn across the datasets: figureFor, enabled as asked)";
+                for j = 1:numel(sfids)
+                    sf = cfg.figureFor(sfids(j));
+                    sf.enabled = true;   % as runSessionFigure draws it
+                    L = [L; EphysPipelineScript.structLiteral("sfspec" + j, sf)]; %#ok<AGROW>
+                end
+                L(end+1, 1) = "";
+            end
             L(end+1, 1) = "%% Export and report settings";
             L = [L; EphysPipelineScript.structLiteral("exportOpts", X)];
             L = [L; EphysPipelineScript.structLiteral("reportOpts", P)];
             doReport = P.Enabled;
             withImages = doReport && P.Format ~= "pdf";   % the HTML report embeds each exported page
             withPages = doReport && P.Format ~= "html";   % the PDF report holds each exported page
-            if doReport || (~isempty(sessionIds) && X.Data.Enabled)
+            if doReport || ((~isempty(sessionIds) || ~isempty(sfids)) && X.Data.Enabled)
                 L = [L; EphysAnalysisScript.chunkedLiteral("configJson", cfg.toJson(Pretty=false))];
                 L(end+1, 1) = "config = EphysAnalysisConfig.fromStruct(jsondecode(configJson)).toStruct();   % printed in the report and saved with the session data";
             end
@@ -268,9 +279,9 @@ classdef EphysAnalysisScript
                 L = [L; "    " + EphysAnalysisScript.reportLines("folders(k)", "name", true)];
             end
             L(end+1, 1) = "end";
-            if ~isempty(sessionIds)
+            if ~isempty(sessionIds) || ~isempty(sfids)
                 L(end+1, 1) = "";
-                L = [L; EphysAnalysisScript.sessionLines(cfg, sessionIds, withImages, withPages)];
+                L = [L; EphysAnalysisScript.sessionLines(cfg, sessionIds, withImages, withPages, sfids)];
             end
             if doReport && ~P.PerDataset
                 L(end+1, 1) = "";
@@ -420,24 +431,28 @@ classdef EphysAnalysisScript
             L(end+1, 1) = "R.epochs = E;";
         end
 
-        function L = sessionLines(cfg, ids, withImages, withPages)
+        function L = sessionLines(cfg, ids, withImages, withPages, sfids)
             %sessionLines  The "Session plots" block: each session plot across the datasets, as EphysAnalysisRunner.run makes it.
             %   IDS: the enabled session plots, whose literals sp<j> / sspec<j> the script
-            %   already holds. Mirrors run (the "Across sessions" section), computeSessionPlot
+            %   already holds; SFIDS (default none): the enabled session figures, drawn after
+            %   them (sessionFigureLines; literals sfspec<j>). Mirrors run (the "Across sessions" section), computeSessionPlot
             %   (sessionTable, plotSkipReason per session, the base plot's compute, sessionResults),
             %   runSessionPlot (the figures, the report entries, the data file) and
             %   EphysAnalysisRunner.sessionData (epochData per session, then sessionData).
             %   Differences: the runner reuses its result cache for the base plot's results,
             %   this script computes them again per session plot (results are deterministic).
+            if nargin < 5; sfids = strings(1, 0); end
             lit = @EphysPipelineScript.literal;
             S = cfg.Source;
             P = cfg.Report;
             X = cfg.Export;
             doReport = P.Enabled;
             B = strings(0, 1);   % the body, inside "if ~isempty(outs)"
-            B(end+1, 1) = "% Each session plot computes its base plot on every session, merges the results";
-            B(end+1, 1) = "% (sessionResults) and draws one figure per facet and trial group. The runner keeps";
-            B(end+1, 1) = "% the per-dataset results in a cache and reuses them; this script computes them again.";
+            if ~isempty(ids)
+                B(end+1, 1) = "% Each session plot computes its base plot on every session, merges the results";
+                B(end+1, 1) = "% (sessionResults) and draws one figure per facet and trial group. The runner keeps";
+                B(end+1, 1) = "% the per-dataset results in a cache and reuses them; this script computes them again.";
+            end
             if doReport
                 B(end+1, 1) = "sessionsAll = sessionTable(names(:), keys(:), NamePattern=" + lit(S.NamePattern) + ...
                     ", AcqDates=acq(:), Folders=folders(:), Index=(1:numel(outs)).', Sort=true);";
@@ -554,11 +569,233 @@ classdef EphysAnalysisScript
                 end
                 B(end+1, 1) = "end"; %#ok<AGROW>
             end
-            if doReport && P.PerDataset
-                B = [B; ""; EphysAnalysisScript.reportLines("folders(1)", """sessions""", true)]; %#ok<AGROW>
+            for j = 1:numel(sfids)
+                B = [B; EphysAnalysisScript.sessionFigureLines(cfg, sfids(j), j, withImages, withPages)]; %#ok<AGROW>
             end
-            L = ["%% Session plots"; "if ~isempty(outs)"; "    " + B; "end"];
+            if doReport && P.PerDataset
+                B = [B; ""; EphysAnalysisScript.reportLines("folders(1)", """sessions""", true)];
+            end
+            head = "%% Session plots";
+            if isempty(ids); head = "%% Session figures"; elseif ~isempty(sfids); head = "%% Session plots and session figures"; end
+            L = [head; "if ~isempty(outs)"; "    " + B; "end"];
             L = regexprep(L, '^    $', '');
+        end
+
+        function B = sessionFigureLines(cfg, id, j, withImages, withPages)
+            %sessionFigureLines  One session figure across the datasets, as EphysAnalysisRunner.runSessionFigure draws it.
+            %   Its spec is sfspec<J> (written above). Mirrors sessionFigureObservations
+            %   (sessionTable, a source per session), figureSessionSkipReason, then per
+            %   observation figureSessionCompute (each dataset's figureCompute, every
+            %   layer merged by combineSessions), renderFigure, exportFigure into
+            %   Export.SessionsFolder, a report entry per facet / trial group and the
+            %   data file. Lines at the level of sessionLines' body.
+            lit = @EphysPipelineScript.literal;
+            S = cfg.Source;
+            P = cfg.Report;
+            X = cfg.Export;
+            doReport = P.Enabled;
+            doExport = X.Enabled;
+            withData = X.Data.Enabled;
+            fg = cfg.Figures(cfg.figureIndex(id));
+            ss = fg.sessions;
+            okind = EphysAnalysisConfig.observeKind(fg);
+            B = strings(0, 1);
+            B(end+1, 1) = "";
+            B(end+1, 1) = "% --- " + id + " (figure across sessions) ---";
+            B(end+1, 1) = "fspec = sfspec" + j + ";";
+            B(end+1, 1) = "fspecKind = fspec; fspecKind.kind = ""figure"";   % the report entry's kind";
+            if ss.datasets == "list"
+                B(end+1, 1) = "sel = zeros(1, numel(fspec.sessions.datasetKeys));   % the listed datasets, by key or name";
+                B(end+1, 1) = "for q = 1:numel(fspec.sessions.datasetKeys)";
+                B(end+1, 1) = "    m = find(keys == fspec.sessions.datasetKeys(q), 1);";
+                B(end+1, 1) = "    if isempty(m); m = find(names == fspec.sessions.datasetKeys(q), 1); end";
+                B(end+1, 1) = "    if ~isempty(m); sel(q) = m; end";
+                B(end+1, 1) = "end";
+                B(end+1, 1) = "sel = sel(sel > 0);";
+            else
+                B(end+1, 1) = "sel = 1:numel(outs);   % the run's datasets";
+            end
+            B(end+1, 1) = "sessions = sessionTable(names(sel).', keys(sel).', NamePattern=" + lit(S.NamePattern) + ...
+                ", AcqDates=acq(sel).', Folders=folders(sel).', Index=sel.', Sort=true);   % by date, then name";
+            B(end+1, 1) = "sessions.status = repmat(""done"", height(sessions), 1);";
+            B(end+1, 1) = "sessions.message = strings(height(sessions), 1);";
+            B(end+1, 1) = "sources = cell(1, height(sessions));   % each session's source (sessionFigureObservations)";
+            B(end+1, 1) = "reasons = strings(1, height(sessions));";
+            B(end+1, 1) = "for j = 1:height(sessions)";
+            B(end+1, 1) = "    k = sessions.index(j);";
+            B(end+1, 1) = "    try";
+            B(end+1, 1) = "        sources{j} = loadAnalysisSource(outs(k), Key=keys(k));";
+            B(end+1, 1) = "        reasons(j) = figureSkipReason(sources{j}, fspec);";
+            B(end+1, 1) = "    catch ME";
+            B(end+1, 1) = "        sessions.status(j) = ""error""; sessions.message(j) = ""cannot read the dataset: "" + string(ME.message);";
+            B(end+1, 1) = "        reasons(j) = sessions.message(j);";
+            B(end+1, 1) = "    end";
+            B(end+1, 1) = "end";
+            B(end+1, 1) = "obsT = figureSessionObservations(sources, fspec);   % matched across the sessions: a page each";
+            B(end+1, 1) = "reason = figureSessionSkipReason(fspec, reasons, Labels=reshape(sessions.label, 1, []));";
+            B(end+1, 1) = "if reason == """" && height(obsT) == 0; reason = ""no "" + fspec.observe.kind + "" is matched across the sessions""; end";
+            B(end+1, 1) = "if reason ~= """"";
+            if doReport
+                B(end+1, 1) = "    report = addReportFigure(report, fspecKind, [], Status=""skipped"", Message=reason);";
+            end
+            B(end+1, 1) = "    fprintf('sessions: %s skipped (%s)\n', fspec.id, reason);";
+            B(end+1, 1) = "else";
+            C = strings(0, 1);   % the body of the else
+            C(end+1, 1) = "k1 = sessions.index(1);";
+            C(end+1, 1) = "tokens = struct('OutputFolder', folders(k1), 'OutputRoot', outputRoot, 'Root', root, 'Name', names(k1));";
+            C(end+1, 1) = "folder = figureFileName(exportOpts.SessionsFolder, tokens, Kind=""folder"");";
+            C(end+1, 1) = "nObs = height(obsT);";
+            C(end+1, 1) = "E = struct('label', {}, 'files', {}, 'images', {}, 'pages', {}, 'done', {}, 'why', {}, 'nError', {}, 'F', {}, 'rows', {});";
+            C(end+1, 1) = "usedNames = strings(1, 0);   % the file names written: a sanitized name met again gets ""_2"", ""_3"", ...";
+            if withData
+                C(end+1, 1) = "results = struct('index', {}, 'observation', {}, 'facet', {}, 'group', {}, 'label', {}, 'status', {}, 'message', {}, 'F', {});";
+                C(end+1, 1) = "perSession = cell(nObs, height(sessions));   % each dataset's own figure, per observation";
+            end
+            C(end+1, 1) = "lastSessions = sessions;";
+            C(end+1, 1) = "for i = 1:nObs";
+            C(end+1, 1) = "    try";
+            C(end+1, 1) = "        [res, lastSessions, Fs] = figureSessionCompute(sources, sessions, fspec, Observation=obsT(i, :));";
+            C(end+1, 1) = "    catch ME";
+            C(end+1, 1) = "        res = struct('facet', ""all"", 'group', """", 'label', ""all"", 'F', [], 'status', ""error"", 'message', string(ME.message));";
+            C(end+1, 1) = "        Fs = cell(1, height(sessions));";
+            C(end+1, 1) = "    end";
+            if withData
+                C(end+1, 1) = "    perSession(i, :) = Fs;";
+            end
+            switch okind   % the file name's {Unit} (runSessionFigure's fileLabel)
+                case "unit"
+                    if ss.match == "mapping"
+                        C(end+1, 1) = "    fl = string(obsT.label(i));   % the mapping's cell";
+                    else
+                        C(end+1, 1) = "    fl = ""site_ch"" + obsT.channel(i);";
+                    end
+                case "channel"
+                    C(end+1, 1) = "    fl = ""ch"" + obsT.channel(i);";
+                    C(end+1, 1) = "    if ~isfinite(obsT.channel(i)); fl = string(obsT.label(i)); end";
+                otherwise
+                    C(end+1, 1) = "    fl = ""dataset"";";
+            end
+            C(end+1, 1) = "    for e = reshape(res, 1, [])";
+            C(end+1, 1) = "        q = find(string({E.label}) == e.label, 1);";
+            C(end+1, 1) = "        if isempty(q)";
+            C(end+1, 1) = "            E(end+1) = struct('label', e.label, 'files', strings(1, 0), 'images', {cell(1, 0)}, 'pages', strings(1, 0), ...";
+            C(end+1, 1) = "                'done', 0, 'why', strings(1, 0), 'nError', 0, 'F', [], 'rows', zeros(1, 0)); %#ok<AGROW>";
+            C(end+1, 1) = "            q = numel(E);";
+            C(end+1, 1) = "        end";
+            if withData
+                C(end+1, 1) = "        results(end+1) = struct('index', i, 'observation', string(obsT.label(i)), 'facet', e.facet, 'group', e.group, ...";
+                C(end+1, 1) = "            'label', e.label, 'status', e.status, 'message', e.message, 'F', e.F); %#ok<AGROW>";
+            end
+            C(end+1, 1) = "        if e.status ~= ""done""";
+            C(end+1, 1) = "            E(q).why(end+1) = string(obsT.label(i)) + "": "" + e.message;";
+            C(end+1, 1) = "            E(q).nError = E(q).nError + (e.status == ""error"");";
+            C(end+1, 1) = "            continue";
+            C(end+1, 1) = "        end";
+            C(end+1, 1) = "        try";
+            C(end+1, 1) = "            nameObs = struct('kind', obsT.kind(i), 'label', obsT.label(i), 'unitId', NaN, 'channel', obsT.channel(i), ...";
+            C(end+1, 1) = "                'column', obsT.column(i), 'meta', table(fl, """", 'VariableNames', {'label', 'class'}), 'groupLabel', e.group);";
+            C(end+1, 1) = "            fname = figureOutputName(exportOpts.FilenamePattern, e.facet, fspec, nameObs, i, nObs);";
+            C(end+1, 1) = "            fbase = fname; kk = 1;";
+            C(end+1, 1) = "            while any(lower(usedNames) == lower(fname)); kk = kk + 1; fname = fbase + ""_"" + kk; end";
+            C(end+1, 1) = "            usedNames(end+1) = fname; %#ok<AGROW>";
+            C(end+1, 1) = "            base = fullfile(folder, fname);";
+            draws = doExport || withImages || withPages;
+            if doExport
+                C(end+1, 1) = "            want = base + ""."" + exportOpts.Formats;";
+                C(end+1, 1) = "            kept = ~exportOpts.Overwrite && all(isfile(want));   % its files exist: not written again";
+                C(end+1, 1) = "            if kept; E(q).files = [E(q).files want]; end";
+            end
+            if draws
+                if doExport && ~withImages && ~withPages
+                    C(end+1, 1) = "            if ~kept";
+                    ind = "    ";
+                else
+                    ind = "";
+                end
+                D = strings(0, 1);
+                D(end+1, 1) = "fig = newExportFigure(exportOpts, e.F, fspec);";
+                D(end+1, 1) = "closer = onCleanup(@() close(fig));   % closes the page on a failure too";
+                if withImages
+                    D(end+1, 1) = "h = renderFigure(e.F, fspec, fig);";
+                else
+                    D(end+1, 1) = "renderFigure(e.F, fspec, fig);";
+                end
+                D(end+1, 1) = "written = strings(1, 0);";
+                if doExport
+                    D(end+1, 1) = "if ~kept";
+                    D(end+1, 1) = "    written = exportFigure(fig, base, Format=exportOpts.Formats, Dpi=exportOpts.Dpi);";
+                    D(end+1, 1) = "    E(q).files = [E(q).files written];";
+                    D(end+1, 1) = "end";
+                end
+                if withImages
+                    D(end+1, 1) = "E(q).images{end+1} = reportImage(fig, report, Title=h.title, Files=written);";
+                end
+                if withPages
+                    D(end+1, 1) = "E(q).pages(end+1) = reportPdfPage(fig, report, Files=written);";
+                end
+                D(end+1, 1) = "clear closer";
+                C = [C; "            " + ind + D];
+                if ind ~= ""
+                    C(end+1, 1) = "            end";
+                end
+            end
+            C(end+1, 1) = "            E(q).done = E(q).done + 1;";
+            C(end+1, 1) = "            E(q).rows(end+1) = i;";
+            C(end+1, 1) = "            E(q).F = e.F;";
+            C(end+1, 1) = "        catch ME";
+            if draws
+                C(end+1, 1) = "            clear closer   % the page a failure left open";
+            end
+            C(end+1, 1) = "            E(q).why(end+1) = string(obsT.label(i)) + "": "" + string(ME.message);";
+            C(end+1, 1) = "            E(q).nError = E(q).nError + 1;";
+            C(end+1, 1) = "        end";
+            C(end+1, 1) = "    end";
+            C(end+1, 1) = "end";
+            C(end+1, 1) = "for q = 1:numel(E)";
+            C(end+1, 1) = "    rspec = fspecKind;   % listed in the report under the figure's id (and the figure label)";
+            C(end+1, 1) = "    if numel(E) > 1; rspec.id = fspec.id + "" ("" + E(q).label + "")""; end";
+            C(end+1, 1) = "    if E(q).done == 0";
+            C(end+1, 1) = "        msg = strjoin(E(q).why, ""; "");";
+            C(end+1, 1) = "        if msg == """"; msg = ""no observation was drawn""; end";
+            C(end+1, 1) = "        status = ""skipped"";";
+            C(end+1, 1) = "        if E(q).nError > 0 && E(q).nError == numel(E(q).why); status = ""error""; end";
+            if doReport
+                C(end+1, 1) = "        report = addReportFigure(report, rspec, [], Status=status, Message=msg);";
+            end
+            C(end+1, 1) = "        fprintf('sessions: %s: %s %s (%s)\n', E(q).label, fspec.id, status, msg);";
+            C(end+1, 1) = "        continue";
+            C(end+1, 1) = "    end";
+            if doReport
+                drawn = "Files=E(q).files";
+                if withImages; drawn = drawn + ", Images=E(q).images"; end
+                if withPages; drawn = drawn + ", Pages=E(q).pages"; end
+                C(end+1, 1) = "    report = addReportFigure(report, rspec, E(q).F, " + drawn + ", Caption=figureCaption(fspec, obsT(E(q).rows, :), Sessions=E(q).F.sessions));";
+            end
+            C(end+1, 1) = "    fprintf('sessions: %s: %s done (%d observation(s), %d file(s))\n', E(q).label, fspec.id, E(q).done, numel(E(q).files));";
+            C(end+1, 1) = "end";
+            if withData
+                C(end+1, 1) = "% --- the data file (Export.Data): every observation's merged and per-dataset figures ---";
+                C(end+1, 1) = "if any([E.done] > 0)";
+                C(end+1, 1) = "    try";
+                C(end+1, 1) = "        S = struct('schema', ""ephys-analysis-session-figure/1"", 'figure', fspec.id, 'spec', fspec, 'sessions', lastSessions, ...";
+                C(end+1, 1) = "            'observations', obsT, 'results', results, 'perSession', {perSession}, 'config', config, ...";
+                C(end+1, 1) = "            'created', string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')));";
+                C(end+1, 1) = "        dname = figureFileName(exportOpts.Data.FilenamePattern, struct('Name', ""all"", 'Plot', fspec.id, 'Kind', ""figure"", ...";
+                C(end+1, 1) = "            'Group', ""all"", 'Unit', ""all"", 'Index', 1));";
+                C(end+1, 1) = "        dfile = fullfile(figureFileName(exportOpts.Data.Folder, tokens, Kind=""folder""), dname + "".mat"");";
+                C(end+1, 1) = "        writeAnalysisData(dfile, S, MatVersion=exportOpts.Data.MatVersion, Overwrite=exportOpts.Overwrite);";
+                C(end+1, 1) = "        fprintf('sessions: %s data file %s\n', fspec.id, dfile);";
+                C(end+1, 1) = "    catch ME";
+                C(end+1, 1) = "        fprintf(2, 'sessions: %s data file FAILED: %s\n', fspec.id, ME.message);";
+                C(end+1, 1) = "    end";
+                C(end+1, 1) = "end";
+            end
+            B = [B; "    " + C];
+            B(end+1, 1) = "end";
+            B(end+1, 1) = "for j = 1:numel(sources)   % free the sessions' spikes and signals";
+            B(end+1, 1) = "    if ~isempty(sources{j}); sources{j}.outputs.clearCache(); end";
+            B(end+1, 1) = "end";
+            B = regexprep(B, '^\s+$', '');
         end
 
         function L = dataLines(what)

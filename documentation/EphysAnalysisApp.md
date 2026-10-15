@@ -480,8 +480,11 @@ figure as something to run, so a config that holds figures and nothing else is
 accepted, and checks the figures themselves
 ([Validating figures](EphysAnalysisConfig.md#validating-figures)). The tab's
 **Generate** draws the selected figure alone, from here (below).
-The **Datasets** row of the Observations section is kept in the config, but
-neither Generate nor Run uses its own list yet. **File → Save config**
+A figure can be drawn **across several datasets** instead of once per
+dataset: tick **Across sessions** in its Sessions section ([below](#sessions-in-the-figures-tab)),
+and Generate and Run draw it once over the ticked (or listed) datasets, a
+page per matched site, cell or channel, and the preview does the same.
+**File → Save config**
 keeps the figures, and **Help → Help for this tab** opens this section.
 
 Three columns: the figures, the editor of the selected one, and the preview.
@@ -497,7 +500,7 @@ Run (Export tab) draws the enabled ones.
 | template drop-down, **Add** | adds a figure from the template with the next free id (`figure_1`, `figure_2`, ...) and selects it, with its first panel and layer. The templates: *Raster over PSTH (per unit)* (first: a 2 x 1 grid, a raster flush above a PSTH, each following the observed unit), one panel of each [panel type](EphysAnalysisConfig.md#panel-types) (among them *Firing rate*, with bars, boxes or points per trial group, and *Tuning curve*, the rate against a trial parameter), and *Blank* (an empty 1 x 1 grid to add panels to) |
 | **Remove**, **Duplicate** | removes the selected figure; copies it, with its remembered looks and its observation, under a new id right after it, and selects the copy |
 | **Up**, **Down** | swaps it with its neighbor in the list (and the config) |
-| **Copy from...** | under the list, on with a figure selected and another to copy from: copies another figure's settings onto the selected one, part by part. A window asks which figure (**From**, by id) and which of six parts, one box each, all ticked at first (**All**, **None**): *Observations* (`observe`: the kind, unit filter, signal, channels, datasets), *Alignment* (`ref`, `window`, `selection`), *Common options* (`common`), *Arrangement and panels* (`grid` and every panel with its type, options, own alignment and layers; the other figure's panel ids are copied too), *Appearance* (`style`) and *Remembered looks* (`aesthetics`). The figure keeps its id, title and enabled, and every part not ticked. The editor, the observation picker and the preview follow (after the arrangement the first panel and layer are selected), and the status bar says what was copied (`copyFigureSettings`, `figureSettingParts`) |
+| **Copy from...** | under the list, on with a figure selected and another to copy from: copies another figure's settings onto the selected one, part by part. A window asks which figure (**From**, by id) and which of seven parts, one box each, all ticked at first (**All**, **None**): *Observations* (`observe`: the kind, unit filter, signal, channels, per trial group), *Alignment* (`ref`, `window`, `selection`), *Common options* (`common`), *Arrangement and panels* (`grid` and every panel with its type, options, own alignment and layers; the other figure's panel ids are copied too), *Appearance* (`style`), *Remembered looks* (`aesthetics`) and *Across sessions* (`sessions`: which datasets, the figures, colors, error band, matching and trial groups of a [session figure](#sessions-in-the-figures-tab); the whole block, the **Across sessions** box, the dataset keys and the mapping file's path included). The figure keeps its id, title and enabled, and every part not ticked. The editor, the observation picker and the preview follow (after the arrangement the first panel and layer are selected), and the status bar says what was copied (`copyFigureSettings`, `figureSettingParts`) |
 
 **The editor.** On top, always open: **Id** (unique among figures and not
 a plot's id either; it names the figure's files, `{Plot}`; `id`), **Title** (blank = automatic: the id, the
@@ -510,7 +513,7 @@ headers (**▼** / **►**), in this order:
 
 | Section | Rows |
 | --- | --- |
-| Observations (1) | what the figure is drawn for. **Observe**: *auto* (a unit when a layer that follows the observation reads sorted or detected spikes, else a channel when one reads a signal, else the dataset; the row says which it came to), *a unit*, *a channel* or *the dataset* (`observe.kind`). For units: **Spike source** (*units (sorted)* or *detected (per channel)*), unit classes, **Unit ids**, **Good units only**, **Responsive only** with its test, direction, windows and options, **Max units**, **Shanks** and **Channels**: the [Plots tab](#plots-tab)'s Units & channels rows, over the figure's epochs (`observe.units`). For channels: **Signal** (LFP, MUA, SPIKE or AUX) and **Channels** (the extract's columns, blank = all). **Datasets**: *the ticked datasets* or *a list*. Generate and Run draw the figure on the datasets ticked to run; a list of its own is kept in the config (`observe.datasets`) but is not used yet, and the preview uses the active dataset. **Per trial group (one figure per group)** (`observe.perGroup`) draws each observation once per trial group of the figure's trial selection (its **Group by**): the picker lists every observation and group (the observation's label, a middle dot, the group's label), and each figure keeps that group's epochs only, with the group in its title, its caption and its file name (`{Group}`); it needs a **Group by**, and a panel with a trial selection of its own keeps its own groups ([One figure per trial group](EphysAnalysisConfig.md#panel-types)). A count line ends it (*"14 units on subj1_day1."*; with Per trial group, *"14 units x 3 trial groups on subj1_day1."*) |
+| Observations (1) | what the figure is drawn for. **Observe**: *auto* (a unit when a layer that follows the observation reads sorted or detected spikes, else a channel when one reads a signal, else the dataset; the row says which it came to), *a unit*, *a channel* or *the dataset* (`observe.kind`). For units: **Spike source** (*units (sorted)* or *detected (per channel)*), unit classes, **Unit ids**, **Good units only**, **Responsive only** with its test, direction, windows and options, **Max units**, **Shanks** and **Channels**: the [Plots tab](#plots-tab)'s Units & channels rows, over the figure's epochs (`observe.units`). For channels: **Signal** (LFP, MUA, SPIKE or AUX) and **Channels** (the extract's columns, blank = all). **Per trial group (one figure per group)** (`observe.perGroup`; hidden for a figure across sessions, whose trial groups follow its **Trial groups** row) draws each observation once per trial group of the figure's trial selection (its **Group by**): the picker lists every observation and group (the observation's label, a middle dot, the group's label), and each figure keeps that group's epochs only, with the group in its title, its caption and its file name (`{Group}`); it needs a **Group by**, and a panel with a trial selection of its own keeps its own groups ([One figure per trial group](EphysAnalysisConfig.md#panel-types)). A count line ends it (*"14 units on subj1_day1."*; with Per trial group, *"14 units x 3 trial groups on subj1_day1."*) |
 | Arrangement (2) | the schematic of the grid, **Add panel** with **Above**, **Below**, **Left** and **Right**, the selected panel's **Row span**, **Column span**, **Row height** and **Column width**, **Spacing**, **Remove panel** and **Move** (below) |
 | Panel (3) | **Type** (a change starts the panel afresh: below), **Title** (blank = none) and **Group shown** (heat map, unit correlation and spectrogram panels, and a coherence panel drawn over time: which of the figure's trial groups they draw, 1 = the first; `options.group`; a heat map of trials draws every group, so the row hides) |
 | Event reference (4), Epoch window (5), Trial selection (6) | the figure's alignment: the [Alignment tab](#alignment-tab)'s controls, for this figure (`ref`, `window`, `selection`), each with **Use default** in its header; **Epoch Diagram** sits under the Epoch window. Hidden when every panel of the figure is of a type that is not aligned to events (probe map, unit waveforms) |
@@ -520,14 +523,15 @@ headers (**▼** / **►**), in this order:
 | Options (0) | the panel type's own rows, under the type's name (*Raster options*, *PSTH options*, ...; below), with **Common options from the figure** in the header and **Apply to all panels** |
 | Appearance | the figure's `style` (below); no key; collapsed until opened |
 | Looks | how many looks are remembered for the figure (*"1 remembered look(s); right-click the preview to edit."*) and **Forget**, which drops them and redraws; no key; collapsed until opened |
+| Sessions | **Across sessions**, and with it ticked which datasets, how the sessions are colored, the error band, how the observed unit is matched, the minimum sessions and the trial groups: the figure drawn once over several datasets instead of once per dataset ([Sessions in the Figures tab](#sessions-in-the-figures-tab)); no key; collapsed until opened |
 
-Each of the twelve headed sections has a title color of its own (steps along
+Each of the thirteen headed sections has a title color of its own (steps along
 `turbo`, as on the Plots tab) and the first ten a key: **Ctrl+1** to
 **Ctrl+9** and **Ctrl+0** (**Cmd** on a Mac; the number pad too) go to the
 section of that number, in the order above: Observations is 1, Arrangement
 2, Panel 3, Event reference 4, Epoch window 5, Trial selection 6, Common
-options 7, Panel alignment 8, Layers 9 and Options 0. Appearance and Looks
-have no key. The key opens the section
+options 7, Panel alignment 8, Layers 9 and Options 0. Appearance, Looks and
+Sessions have no key. The key opens the section
 if it is collapsed, scrolls the editor to it and puts the keyboard focus on
 its header. Keys work with the Figures tab showing; for a section the figure
 does not show (no panel is picked, say) the status bar says so and nothing
@@ -747,12 +751,12 @@ only that unit's spikes or that channel's column are read) and
 
 | Control | Effect |
 | --- | --- |
-| **Dataset** | the active dataset (the same one as on the other tabs) |
-| **Observation** | what the figure is drawn for: the units, channels or dataset the Observations section keeps, in probe order (*su12  ch 7  -320 µm*). With **Per trial group** it lists a row for each unit and trial group (the unit's rows together, in group order, the label ending in a middle dot and the group's label), the preview draws that group's epochs only, and **>** steps from a unit's group to its next one. Each figure remembers its pick until the app closes, by label, so it stays through a filter change or another dataset while that label is in the list, else the first is picked. Picking one draws it, whether or not Auto is on |
+| **Dataset** | the active dataset (the same one as on the other tabs). Grayed out for a figure across sessions, which is drawn over the ticked (or listed) datasets, not the active one |
+| **Observation** | what the figure is drawn for: the units, channels or dataset the Observations section keeps, in probe order (*su12  ch 7  -320 µm*). With **Per trial group** it lists a row for each unit and trial group (the unit's rows together, in group order, the label ending in a middle dot and the group's label), the preview draws that group's epochs only, and **>** steps from a unit's group to its next one. Each figure remembers its pick until the app closes, by label, so it stays through a filter change or another dataset while that label is in the list, else the first is picked. Picking one draws it, whether or not Auto is on. For a figure across sessions it lists the sites, cells or channels matched across the sessions, each ending *(across 3 sessions)* ([below](#sessions-in-the-figures-tab)) |
 | **Generate** | draws the selected figure for every observation it selects, on every ticked dataset, into the Export tab's folder (see **Generate** below). It sits beside **Preview**, in the same colors, and is off with no figure selected |
 | **<**, **>** | the previous and next observation (**Page Up**, **Page Down**: a figure has no pages); off at either end of the list |
 | **Preview** | computes now, also for a signal extract above `PreviewMaxMB`, which otherwise waits for it. It is the tall button left of the two rows of controls, and turns orange while the figure is *Out of date* |
-| **Auto** | redraw after every edit while a preview takes under 2 s; a slower one says so (*"slow, so edits wait for Preview"*). On by default, because one observation is quick; remembered. The first figure drawn after the app starts is not timed, since it also loads the graphics, so that warm-up does not make the edits after it wait. The 2 s is the app's `FigureAutoPreviewSeconds` property (a public property, not a preference; set it on the app object before editing, for example to `Inf` to redraw however long a preview takes, which the app's tests do so a loaded machine cannot leave a preview out of date) |
+| **Auto** | redraw after every edit while a preview takes under 2 s; a slower one says so (*"slow, so edits wait for Preview"*). On by default, because one observation is quick; remembered. It does not apply to a figure across sessions, which computes every session: an edit leaves its preview *Out of date* until **Preview** (or a pick in the observation list) draws it. The first figure drawn after the app starts is not timed, since it also loads the graphics, so that warm-up does not make the edits after it wait. The 2 s is the app's `FigureAutoPreviewSeconds` property (a public property, not a preference; set it on the app object before editing, for example to `Inf` to redraw however long a preview takes, which the app's tests do so a loaded machine cannot leave a preview out of date) |
 | **Design** | names the design every plot and figure is drawn in. It is chosen on the Plots tab or in the Design menu, and a new choice redraws the figure preview too |
 
 The line under the preview names the figure, the observation, the dataset and
@@ -814,9 +818,10 @@ when the datasets' folders differ), or *"Generating figure_1 was canceled:
 *"; 1 dataset(s) skipped (no sorted units)"* (or no LFP extract, no
 observation, ...), *"; n dataset(s) failed (the Export tab's results say
 why)"* and *"; figure_1 is off, so it was switched on for this run only"*. With
-no dataset ticked it says so and draws nothing. A figure's own **Datasets**
-row (*a list*) is not used by Generate or Run yet: both draw the datasets
-ticked on the Data tab.
+no dataset ticked it says so and draws nothing. A figure across sessions is
+the exception: Generate runs it as `run(SessionFigures=<id>)`, once across the
+ticked (or listed) datasets rather than on each, into `Export.SessionsFolder`
+([Sessions in the Figures tab](#sessions-in-the-figures-tab)).
 
 **Aesthetics.** Right-click any part of the preview and pick **Edit
 aesthetics...** as on the Plots tab; the editor names a panel's components by
@@ -834,6 +839,85 @@ touch an artifact period dropped and the baseline windows of the panels on
 the figure's alignment tested too. A figure with no panel aligned to events
 says it has no epochs. The window follows the selected figure and redraws on
 every edit.
+
+#### Sessions in the Figures tab
+
+The **Sessions** section of the editor (last, collapsed until opened, no key)
+makes the selected figure a *session figure*: drawn **once across several
+datasets** instead of once per dataset, an observation computed on every
+session and each panel's layers merged, a color per session or subject. It
+is the [Sessions tab](#sessions-tab)'s idea for a figure; the model, the
+matching and the merge are under
+[Session figures](EphysAnalysisConfig.md#session-figures). The rows:
+
+| Row | Effect | Config field |
+| --- | --- | --- |
+| **Across sessions (one figure over several datasets)** | ticked, the figure is a session figure: Generate and Run draw it once across the datasets and write it to the sessions folder; the Export tab's Run no longer draws it per dataset | `sessions.enabled` |
+| **Datasets** | *The ticked datasets* (those ticked to run on the Data tab) or *These datasets*, a list of their own | `datasets` |
+| **Keys**, **Pick...** | with *These datasets*: the keys (read-only), and the window that picks them from the scanned datasets (**Use**, **Name**, **Subject**, **Date**, **Key**, pre-ticked from the figure's keys: [Picking the datasets](#picking-the-datasets-and-editing-the-mapping)). **OK** writes the keys, and the observation list and the preview follow; **Cancel** changes nothing | `datasetKeys` |
+| **Figures** | *One for all the sessions* or *One per subject* | `facet` |
+| **A color per** | *Session*, *Subject (its sessions averaged)* or *Nothing (all sessions averaged)* | `series` |
+| **Colors** | *The design's palette*, or *By date (sequential)* | `colorOrder` |
+| **Show each session faintly under its mean** | with a color per subject or one mean: each session's own trace, pale | `showMembers` |
+| **Error band** | with a color per subject or one mean: *mean ± SEM*, *mean ± SD*, *95% CI* (Student's *t*; Statistics and Machine Learning Toolbox, else 1.96 × SEM) or *None* | `error` |
+| **Units matched by** | for a unit observation: *Site* (the unit's recording channel; a session with several units on it draws the first in probe order) or *Mapping* (a table names each cell's units). A channel observation matches by recording channel and the dataset one needs no match, so the row hides | `match` |
+| **Mapping file**, **Browse...**, **Edit...** | with *Mapping*: the CSV, the file dialog and the table editor of the [Sessions tab](#picking-the-datasets-and-editing-the-mapping), here for the figure (its columns are the keys the figure lists, or the ticked datasets'; saving sets the box and sends the preview *Out of date*) | `mappingFile` |
+| **Min. sessions** | an observation is drawn only when at least this many sessions hold it | `minSessions` |
+| **Trial groups** | *Pool them (a color per session)*, *A figure per group* or *Combine (a line style per group)* ([trial groups](EphysAnalysisConfig.md#trial-groups-in-a-session-figure)) | `trialGroups` |
+
+A gray note under the rows says what Generate and Run draw it for (*each
+recording channel with a unit (a site)*, *each cell of the mapping file*, *each
+recording channel* or *the datasets together*) and which of the figure's panels
+are not merged across sessions. With **Across sessions** unticked only the box
+shows; ticked, every row does (the keys with *These datasets*, **Units matched
+by** for a unit observation, the mapping rows with *Mapping*), the error band
+and the faint sessions are enabled unless there is a color per session, and
+the Observations section's **Per trial group** row hides (the trial groups
+follow **Trial groups**).
+
+**The preview.** A session figure ignores the active dataset: the **Dataset**
+drop-down is grayed out and the figure is drawn over the ticked (or listed)
+datasets.
+
+- The **Observation** list holds what is matched across them, each entry ending
+  *(across 3 sessions)*, and the count line says how many (*"12 sites matched
+  across 2 sessions (at least 1 each)"*; for a dataset figure *"The datasets
+  together: one figure across 2 sessions."*; with no dataset ticked or listed, it
+  asks you to tick some). A list that cannot be matched (an unreadable mapping
+  file) says why there and in the preview.
+- **Preview**, or a pick in the list, computes that observation on every
+  session and merges it (`EphysAnalysisRunner.computeSessionFigure`), with the
+  card and its **Cancel** as for any preview. An **edit does not recompute** it
+  (the sessions are all read): the preview goes *Out of date* and says *"A
+  figure across sessions computes every session: press Preview to draw it."*
+  The Auto box does not apply to it.
+- **Figure:** a drop-down at the right end of the line under the preview, shown
+  when the observation makes several figures (one per subject, or per trial
+  group), picks which of them is drawn. They are all kept, so picking another
+  draws it without computing; the pick is kept by its label through the next
+  Preview. A figure that could not be made (too few sessions drew it) is *Cannot
+  draw*, with the reason.
+- The line under the preview reads *"card, site ch 7 -320 µm across sessions: 3
+  merged, 1 skipped (SYNTH-02 2026-09-09: no site ch 7  -320 µm here) (4.2 s);
+  right-click to change colors, lines and fonts"*. The right-click editor
+  works as for any figure.
+- A panel type that cannot be merged (probe map, unit correlation map, power
+  spectrum, spectrogram, coherence) is noted in the preview and the rest of the
+  figure is drawn; Validate refuses such a figure and Plan and Run skip it as a whole.
+
+**Generate and Run.** **Generate** draws the selected session figure as
+`run(SessionFigures=<id>)`, with no per-dataset figures, plots or report: a
+page per matched observation (or per figure of a facet and trial group) into
+`Export.SessionsFolder`, named as a figure's observations are, with `{Name}`
+the facet. The status bar reads *"Generated card across the sessions: 12
+observation(s), 1 figure(s), 24 file(s) in D:\EPHYS\...\sessions"*, followed by
+*"; not drawn: ..."* with what was skipped or failed and *"; card is off, so it
+was switched on for this run only"* when it was. The Export tab's results table
+gets a row per figure (`Dataset` `sessions: all`, a subject, or a subject and
+trial group; `Kind` `figure`; `<n> observation(s)`), and **Open figure
+folder**'s tooltip names the sessions folder. The Export tab's **Plan** lists a
+row per session figure and facet, and **Run** draws the enabled session figures
+after the datasets' own plots and figures and the session plots.
 
 ### Epoch diagram
 
@@ -1047,8 +1131,8 @@ sends the preview out of date. The format:
 | Button | Effect |
 | --- | --- |
 | **Validate** | lists the config's issues (Section, Field, Severity, Message) in the table; errors stop a run |
-| **Plan** | one row per ticked dataset and plot (Dataset, Subject, Date, Plot, Kind, Source, Enabled, Reason): whether it will run, and why not ([skip reasons](#why-is-my-plot-skipped)), then one row per ticked dataset and [figure](#figures-tab) (`Plot` its id, Kind `figure`, Source what it is drawn for: `unit`, `channel` or `dataset`; the Reason is the figure's skip reason: no sorted units, no LFP extract, no line X, ...), then one row per session plot and figure (Dataset `sessions: all`, or `sessions: <subject>`). Every figure is listed, enabled or not. Cheap: no signals or spikes are loaded, so a unit filter or channel list that leaves nothing to draw shows only when the figure runs. The status bar counts the rows that will draw: *"Plan: 4 of 6 plot run(s) and 2 of 2 figure run(s) will draw."* (a row of Kind `figure` is a figure run, every other row a plot run; the figure part is left out when the plan lists no figure) |
-| **Run** | validates, then runs every enabled plot and then every enabled figure on every ticked dataset, and then every enabled [session plot](#sessions-tab) over them, with a cancelable progress dialog: compute, export, report. A figure is drawn once per observation (a unit, a channel or the dataset), a page each, and the dialog names the observation (`<dataset>: <figure> (3/12)`). A failing plot or figure is an error row and the rest still run. The Figures tab's **Generate** is this run for one figure alone, with no plots, session plots or report ([Figures tab](#figures-tab)); its rows land in this table |
+| **Plan** | one row per ticked dataset and plot (Dataset, Subject, Date, Plot, Kind, Source, Enabled, Reason): whether it will run, and why not ([skip reasons](#why-is-my-plot-skipped)), then one row per ticked dataset and [figure](#figures-tab) (`Plot` its id, Kind `figure`, Source what it is drawn for: `unit`, `channel` or `dataset`; the Reason is the figure's skip reason: no sorted units, no LFP extract, no line X, ...), then one row per session plot and per [session figure](#sessions-in-the-figures-tab) (Dataset `sessions: all`, or `sessions: <subject>`; a figure with *Across sessions* ticked is listed there and not per dataset). Every figure is listed, enabled or not. Cheap: no signals or spikes are loaded, so a unit filter or channel list that leaves nothing to draw shows only when the figure runs. The status bar counts the rows that will draw: *"Plan: 4 of 6 plot run(s) and 2 of 2 figure run(s) will draw."* (a row of Kind `figure` is a figure run, every other row a plot run; the figure part is left out when the plan lists no figure) |
+| **Run** | validates, then runs every enabled plot and then every enabled figure on every ticked dataset, and then every enabled [session plot](#sessions-tab) and [session figure](#sessions-in-the-figures-tab) over them, with a cancelable progress dialog: compute, export, report. A figure is drawn once per observation (a unit, a channel or the dataset), a page each, and the dialog names the observation (`<dataset>: <figure> (3/12)`). A failing plot or figure is an error row and the rest still run. The Figures tab's **Generate** is this run for one figure alone, with no plots, session plots or report ([Figures tab](#figures-tab)); its rows land in this table |
 | **Cancel** | stops before the next plot or figure observation; what is left (the rest of that figure's observations too) is *canceled*. It also stops a Generate, which is a run |
 | **Open report**, **Open figure folder** | after a run: the report files written, and the first dataset's figure folder. After a run with session plots the button's tooltip names the sessions folder (`Export.SessionsFolder`) too; the button itself still opens the first dataset's folder |
 
@@ -1490,7 +1574,7 @@ is in the config.
 | `SessionAutoPreview` | the Sessions tab's Auto box (off by default: a session preview reads every dataset) |
 | `SessionSectionsCollapsed` | the session plot editor's collapsed sections |
 | `FigureAutoPreview` | the Figures tab's Auto box (on by default: one observation is quick to compute). The time limit it applies, 2 s, is not a preference but the app's `FigureAutoPreviewSeconds` property |
-| `FigureSectionsCollapsed` | the figure editor's collapsed sections (Appearance and Looks start collapsed) |
+| `FigureSectionsCollapsed` | the figure editor's collapsed sections (Appearance, Looks and Sessions start collapsed) |
 | `ChronuxCacheFolder` | the Chronux tab's local cache folder |
 | `ChronuxMaxMB` | the most signal the Chronux tab reads at once, and a spectrogram's largest size (default 2000 MB) |
 | `ChronuxSettings` | the Chronux tab's last settings (`chronuxSettings`) |
@@ -1543,7 +1627,7 @@ results, on the Log tab and in the report.
 | data | `openSource`, `onScan`, `refreshDatasetsTable`, `selectDataset`, `refreshDatasetInfo` |
 | previews | `refreshAlignPreview`, `refreshPreview`, `autoPreview`, `onPreviewPage`, `setPreviewState` (the badge and the busy card; its icons in `analysis/icons/status`), `onCancelPreview` |
 | epoch diagram | `onShowEpochs`, `refreshEpochDiagram`; the window itself is `analysis/EpochDiagram.m` |
-| Figures tab | `buildFiguresTab`; the list `refreshFigureList`, `onFigureSelected`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure`; the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `gotoFigureSection` and `onKeyPress` (Ctrl+1 ... Ctrl+9, Ctrl+0), `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`, `onPanelSelectionToggled` (the Trial selection as the figure box; local to `buildFiguresTab`); the arrangement `drawFigureSchematic`, `onPanelSelected`, `onAddPanel`, `onRemovePanel`, `onMovePanel`, `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `removePanel` and `movePanel`; a structural edit ends in `private/commitFigureEdit`); the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`); the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoPreviewToggled`, `onCancelFigurePreview`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); the epoch diagram's figure mode is `onShowEpochs("figure")`; the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
+| Figures tab | `buildFiguresTab`; the list `refreshFigureList`, `onFigureSelected`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure`; the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `gotoFigureSection` and `onKeyPress` (Ctrl+1 ... Ctrl+9, Ctrl+0), `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`, `onPanelSelectionToggled` (the Trial selection as the figure box; local to `buildFiguresTab`); the arrangement `drawFigureSchematic`, `onPanelSelected`, `onAddPanel`, `onRemovePanel`, `onMovePanel`, `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `removePanel` and `movePanel`; a structural edit ends in `private/commitFigureEdit`); the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`); the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoPreviewToggled`, `onCancelFigurePreview`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); the Sessions section `onPickFigureDatasets`, `onBrowseFigureMapping`, `onEditUnitMapping(Target="figure")` and `onFigureSessionPicked` (its preview is `refreshFigurePreview`'s session branch over `EphysAnalysisRunner.computeSessionFigure`, its picker `refreshFigureObservations`'s over `sessionFigureObservations`); the epoch diagram's figure mode is `onShowEpochs("figure")`; the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
 | figures from plots, copying figures | `onConvertPlotToFigure` (the Plots tab's **Convert to figure**: `EphysAnalysisConfig.convertPlotToFigure`, `plotToFigure`), `onCopyFigureSettings` (the Figures tab's **Copy from...**: `private/pickFigureSettings`, then `analysis/copyFigureSettings` with `analysis/figureSettingParts`) |
 | Sessions tab | `buildSessionsTab`; the list `refreshSessionList`, `onSessionPlotSelected`, `onAddSessionPlot`, `onRemoveSessionPlot`, `onDuplicateSessionPlot`, `onMoveSessionPlot`; the editor `gatherSessionEditor` / `applySessionEditor`, `syncSessionEditor` (what shows), `layoutSessionEditor`, `onSessionSectionToggled`, `gotoSessionSection` and `onKeyPress` (Ctrl+1 ... Ctrl+3); the preview `refreshSessionPreview` and `drawSessionPreview`, `autoSessionPreview`, `onSessionAutoPreviewToggled`, `onSessionPreviewPage`, `onSessionGroupChanged`, `onCancelSessionPreview`, `rememberSessionAesthetics`, `setSessionPreviewState` (over `private/showPreviewState`, which `setPreviewState` shares); the dialogs `onPickSessionDatasets` (`private/pickSessionDatasets`), `onBrowseUnitMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`); the data `onSessionsToWorkspace` and `onSaveSessionData` (`private/collectSessionData`, `private/sessionPlotContext`); the session plots themselves are `analysis/` functions ([Across sessions](EphysAnalysis.md#across-sessions)) |
 | plot designs | `refreshDesigns` (the Design menu and list; `PlotDesign.listen` keeps them current), `onDesignChosen`, `onSaveDesign`, `onImportDesign`, `onDeleteDesign`, `onDesignsFolder`; the designs themselves: `PlotDesign`, `analysis/designs` |
@@ -1753,6 +1837,28 @@ a row per dataset for each, and the label counts them. Last, with the figure
 switched off, Generate still draws it (every row done), the status bar says it
 was switched on for this run only, the list keeps *(off)* and the runner's
 config keeps it off. The figure is then removed and the config saved.
+
+Its section 5g drives a figure across sessions on the same two datasets. In
+the Sessions section only **Across sessions** shows until it is ticked, and
+**Per trial group** and the Dataset drop-down are as usual; ticked, the config
+holds `sessions.enabled`, the rows show (the keys and the mapping file not yet,
+the error band off for a color per session), **Per trial group** hides, the
+Dataset drop-down is off, the note says it is drawn once across the datasets
+and the figure is a session figure, not a per-dataset one
+(`enabledSessionFigures`). A color for all sessions, the faint sessions and
+*Mapping* reach the config and open the error band and the mapping file row.
+**Browse...** (given a file) and **Edit...** (given a table) set and write the
+mapping file; **Pick...** (given keys) writes `datasetKeys` and the Keys box.
+The observation list then holds the sites matched across both datasets, each
+*(across 2 sessions)*, and its count line says so; **Preview** draws the
+merged figure (a `nSessions` result over both sessions, the status line *"...
+across sessions: 2 merged"*, the PSTH drawn, the "Figure:" drop-down hidden for
+one figure). An edit (a figure per subject, a figure per trial group) leaves the
+preview *Out of date* with the *press Preview* line; after **Preview** the
+"Figure:" drop-down picks which figure is drawn without computing. **Generate**
+then writes a page per matched site into the sessions folder
+(`<facet>_<id>_site_ch<N>.png`), one `sessions: all` results row, and the status
+bar reads `Generated <id> across the sessions: <n> observation(s), ...`.
 
 <!-- wiki
 ## Related

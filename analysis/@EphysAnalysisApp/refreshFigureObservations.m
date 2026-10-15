@@ -28,12 +28,16 @@ if k < 1 || k > numel(obj.Config.Figures)
     E.obsCount.Text = "";
     return
 end
+spec = obj.Config.figureFor(k);
+if spec.sessions.enabled && ~isempty(obj.Runner)   % a session figure: matched across the datasets, not on the active one
+    sessionObservations(obj, spec, opts.Force);
+    return
+end
 if isempty(obj.Runner) || obj.ActiveIdx < 1
     none("(scan and pick a dataset)");
     E.obsCount.Text = "Scan and pick a dataset to list what the figure is drawn for.";
     return
 end
-spec = obj.Config.figureFor(k);
 st = spec.style;
 key = struct('id', spec.id, 'dataset', string(obj.Runner.Keys(obj.ActiveIdx)), 'observe', spec.observe, 'ref', spec.ref, ...
     'selection', spec.selection, 'sort', [st.SortDepth st.SortShank st.LabelDepth st.LabelShank]);   % the dataset by its key (onScan forgets the list)
@@ -89,6 +93,77 @@ if isKey(obj.FigureObservation, id)
     if ~isempty(j); i = j; end
 end
 obj.FigureObservation(id) = labels(i);
+dd.ItemsData = [];
+set(dd, "Items", labels, "ItemsData", 1:n, "Value", i);
+syncSteps(obj);
+end
+
+
+function sessionObservations(obj, spec, force)
+%sessionObservations  A session figure's picker: figureSessionObservations over the ticked (or listed) datasets.
+%   Each label says across how many sessions it is matched; the list is kept
+%   while the datasets, the observe and sessions blocks (and the mapping
+%   file's date), the event, the selection and the sort are the same.
+dd = obj.FigureObservationDropDown;
+E = obj.FigureEditor;
+idx = obj.tickedDatasetIndices();
+idx = obj.Runner.sessionFigureIndices(spec, idx);
+st = spec.style;
+mapDate = NaN;
+if spec.sessions.mappingFile ~= "" && isfile(spec.sessions.mappingFile); d = dir(spec.sessions.mappingFile); mapDate = d(1).datenum; end
+key = struct('id', spec.id, 'datasets', reshape(obj.Runner.Keys(idx), 1, []), 'observe', spec.observe, 'sessions', spec.sessions, ...
+    'mapDate', mapDate, 'ref', spec.ref, 'selection', spec.selection, 'sort', [st.SortDepth st.SortShank st.LabelDepth st.LabelShank]);
+if ~force && isstruct(dd.UserData) && isfield(dd.UserData, 'key') && isequaln(dd.UserData.key, key)
+    return
+end
+if isempty(idx)
+    setNone(obj, "(no dataset to draw it across)");
+    E.obsCount.Text = "Tick datasets on the Data tab (or pick them in the Sessions section) to draw the figure across.";
+    dd.UserData = struct('key', key, 'error', "no dataset is ticked or listed");
+    return
+end
+try
+    [T, S] = obj.Runner.sessionFigureObservations(spec, idx);
+catch ME
+    msg = "Cannot match the observations across the sessions: " + string(ME.message);
+    setNone(obj, "(cannot list them)");
+    E.obsCount.Text = msg;
+    dd.UserData = struct('key', key, 'error', msg);
+    return
+end
+obj.FigureObservations = T;
+dd.UserData = struct('key', key, 'error', "");
+n = height(T);
+nS = height(S);
+switch spec.observe.kind
+    case "unit"
+        what = "site";
+        if spec.sessions.match == "mapping"; what = "cell"; end
+    case "channel"
+        what = spec.observe.signal + " channel";
+    otherwise
+        what = "dataset";
+end
+if spec.observe.kind == "dataset"
+    E.obsCount.Text = sprintf("The datasets together: one figure across %d session%s.", nS, repmat('s', 1, nS ~= 1));
+else
+    E.obsCount.Text = sprintf("%d %s%s matched across %d session%s (at least %d each).", n, what, repmat('s', 1, n ~= 1), ...
+        nS, repmat('s', 1, nS ~= 1), max(1, spec.sessions.minSessions));
+end
+if n == 0
+    setNone(obj, "(no " + what + " is matched across the sessions)");
+    dd.UserData = struct('key', key, 'error', "");
+    return
+end
+labels = reshape(T.label + "  (across " + T.nSessions + " session" + repmat("s", n, 1) + ")", 1, []);
+labels(T.nSessions == 1) = T.label(T.nSessions == 1).' + "  (across 1 session)";
+i = 1;
+id = char(spec.id);
+if isKey(obj.FigureObservation, id)
+    j = find(T.label == string(obj.FigureObservation(id)), 1);
+    if ~isempty(j); i = j; end
+end
+obj.FigureObservation(id) = T.label(i);
 dd.ItemsData = [];
 set(dd, "Items", labels, "ItemsData", 1:n, "Value", i);
 syncSteps(obj);

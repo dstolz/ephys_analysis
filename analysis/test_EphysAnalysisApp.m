@@ -62,7 +62,11 @@ function test_EphysAnalysisApp()
 %   Remove); Generate (a figure's files per observation on the ticked
 %   datasets, its rows in the results table, the status bar's counts,
 %   Cancel during it, a figure that is off drawn for that run only) and
-%   the Export tab's Plan and Run listing figures;
+%   the Export tab's Plan and Run listing figures; a figure across
+%   sessions (the Sessions section's rows wired to the config, the mapping
+%   file's Browse / Edit, Pick, the picker's matched sites, a preview
+%   across both datasets, no recompute on an edit, the "Figure:" drop-down,
+%   Generate into the sessions folder);
 %   closing. The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -2383,6 +2387,91 @@ check(~app.Config.Figures(kG).enabled && istable(R) && height(R) == numel(gIdx) 
     && endsWith(string(app.FigureList.Items{kG}), "(off)") && ~app.Runner.Config.Figures(kG).enabled, ...
     'Generate on a figure that is off draws it (not skipped), says so, and the config keeps it off');
 app.onRemoveFigure();
+
+fprintf('\n== 5g. a figure across sessions: the Sessions section, the picker, the preview, Generate ==\n');
+app.selectTab(app.TabFigures);
+app.onAddFigure("rasterPsth");
+kS = app.SelectedFigure;
+sid = app.Config.Figures(kS).id;
+if ~app.FigureSections([app.FigureSections.Name] == "sessions").Expanded; app.onFigureSectionToggled("sessions"); end
+check(~shown(FE.sesDatasets) && shown(FE.sesEnabled) && ~FE.sesEnabled.Value && shown(FE.obsPerGroup) && app.FiguresDatasetDropDown.Enable == "on", ...
+    'the Sessions section: only "Across sessions" until it is ticked; Per trial group and the Dataset drop-down as usual');
+FE.sesEnabled.Value = true;
+app.onConfigChanged("figure");
+ssA = app.Config.Figures(kS).sessions;
+check(ssA.enabled && shown(FE.sesDatasets) && shown(FE.sesSeries) && shown(FE.sesMatch) && shown(FE.sesTrialGroups) && ~shown(FE.sesKeys) ...
+    && ~shown(FE.sesMappingFile) && ~shown(FE.obsPerGroup) && app.FiguresDatasetDropDown.Enable == "off" && FE.sesError.Enable == "off" ...
+    && contains(string(FE.sesNote.Text), "once across the datasets") && isempty(app.Config.enabledFigures()) ...
+    && isequal(app.Config.enabledSessionFigures(), sid), ...
+    'Across sessions ticked: the config''s sessions.enabled, its rows shown (the error band off for a color per session), the Dataset drop-down off');
+FE.sesSeries.Value = "all";
+FE.sesShowMembers.Value = true;
+FE.sesMatch.Value = "mapping";
+app.onConfigChanged("figure");
+ssB = app.Config.Figures(kS).sessions;
+check(ssB.series == "all" && ssB.showMembers && ssB.match == "mapping" && shown(FE.sesMappingFile) && FE.sesError.Enable == "on", ...
+    'the rows write series, showMembers and match into the config; the mapping file row shows with match "mapping"');
+keysS = reshape(app.Runner.sessionTable(app.tickedDatasetIndices()).key, 1, []);
+mapS = fullfile(tempdir, "app_session_figure_map.csv");
+cleanMap = onCleanup(@() delete(mapS));
+app.onBrowseFigureMapping(mapS);
+TmS = app.onEditUnitMapping(Target="figure", Table=table("cellX", "1", "2", 'VariableNames', ["cell" keysS]));
+check(app.Config.Figures(kS).sessions.mappingFile == mapS && isfile(mapS) && height(TmS) == 1 && string(FE.sesMappingFile.Value) == mapS, ...
+    'Browse... and Edit... (Target "figure") set and write the figure''s mapping file');
+FE.sesMatch.Value = "site";
+FE.sesSeries.Value = "session";
+FE.sesShowMembers.Value = false;
+app.onConfigChanged("figure");
+app.onPickFigureDatasets(Keys=keysS(2));
+check(isequal(app.Config.Figures(kS).sessions.datasetKeys, keysS(2)) && string(FE.sesKeys.Value) == keysS(2), ...
+    'Pick... (keys given) writes the figure''s sessions.datasetKeys');
+app.onPickFigureDatasets(Keys=string.empty(1, 0));
+% the picker lists the observations matched across the sessions; the preview draws them across both datasets
+app.refreshFigureObservations(Force=true);
+TS = app.FigureObservations;
+check(istable(TS) && height(TS) >= 1 && ismember("perSession", string(TS.Properties.VariableNames)) && all(startsWith(TS.label, "site ch ")) ...
+    && all(contains(string(app.FigureObservationDropDown.Items), "(across ")) && contains(string(FE.obsCount.Text), "matched across 2 sessions"), ...
+    sprintf('the picker lists the sites matched across the ticked datasets ("%s")', string(app.FigureObservationDropDown.Items{1})));
+app.refreshFigurePreview(Force=true);
+FpS = app.FigurePreviewResult;
+check(app.FigurePreviewState == "drawn" && isstruct(FpS) && isfield(FpS, 'nSessions') && height(FpS.sessions) == 2 ...
+    && contains(string(app.FigurePreviewLabel.Text), "across sessions: " + FpS.nSessions + " merged") ...
+    && ~isempty([findall(app.FigurePreviewPanel, 'Tag', 'rate'); findall(app.FigurePreviewPanel, 'Tag', 'rateFill')]) ...
+    && app.FigureSessionDropDown.Visible == "off", ...
+    sprintf('Preview draws the figure across both datasets: "%s"', string(app.FigurePreviewLabel.Text)));
+FE.sesFacet.Value = "subject";
+FE.sesTrialGroups.Value = "each";
+app.onConfigChanged("figure");
+check(app.FigurePreviewState == "stale" && contains(string(app.FigurePreviewLabel.Text), "press Preview"), ...
+    'an edit does not recompute a figure across sessions: the preview is out of date until Preview');
+app.refreshFigurePreview(Force=true);
+nRes = numel(app.FigureSessionResults.res);
+if nRes > 1
+    app.FigureSessionDropDown.Value = 2;
+    app.onFigureSessionPicked();
+end
+check(app.FigurePreviewState == "drawn" && nRes > 1 && app.FigureSessionDropDown.Visible == "on" ...
+    && app.FigureSessionResults.label == app.FigureSessionResults.res(2).label && contains(string(app.FigurePreviewLabel.Text), app.FigureSessionResults.res(2).label), ...
+    sprintf('a figure per trial group: the "Figure:" drop-down picks which of the %d is drawn, computing nothing', nRes));
+FE.sesFacet.Value = "none";
+FE.sesTrialGroups.Value = "pool";
+app.onConfigChanged("figure");
+app.onFigureSessionPicked();   % the drop-down after an edit: the kept figures are gone, nothing old is drawn as current
+check(isempty(app.FigureSessionResults) && app.FigureSessionDropDown.Visible == "off" && app.FigurePreviewState ~= "drawn", ...
+    'an edit forgets the kept figures and hides the "Figure:" drop-down; picking then draws nothing old');
+% Generate draws it across the datasets into the sessions folder
+gXS = app.gatherConfig().Export;
+RS = app.onGenerateFigure();
+k1S = app.Runner.sessionTable(app.tickedDatasetIndices()).index(1);
+folderS = figureFileName(gXS.SessionsFolder, struct('OutputFolder', app.Runner.datasetFolder(k1S), 'OutputRoot', app.Runner.outputRoot(), ...
+    'Root', app.Config.Source.Root, 'Name', app.Runner.Names(k1S)), Kind="folder");
+wantS = split(RS.Files(1), "; ");
+check(istable(RS) && height(RS) == 1 && RS.Kind == "figure" && RS.Dataset == "sessions: all" && RS.Status == "done" && all(isfile(wantS)) ...
+    && numel(wantS) == height(TS) * numel(gXS.Formats) && all(startsWith(wantS, folderS)) && all(contains(wantS, sid + "_site_ch")) ...
+    && startsWith(string(app.StatusBar.Text), "Generated " + sid + " across the sessions: all: " + height(TS) + " observation(s); "), ...
+    sprintf('Generate on a session figure writes a page per site into the sessions folder (%d), one results row', height(TS)));
+app.onRemoveFigure();
+clear cleanMap
 app.onSaveConfig();
 app.Tabs.SelectedTab = app.TabData;
 clear restoreAutoLimit   % the figure preview's limit back to AutoPreviewSeconds (set to Inf for 5d-5f)

@@ -56,6 +56,13 @@ function syncFigureEditor(obj)
 %                    window, color limits and group)
 %     Appearance     all rows; the site size with a probe map, the heat
 %                    colors with a heat map, probe map or correlation map
+%     Sessions       Across sessions; with it ticked every row (the keys
+%                    with "These datasets", Units matched by for a unit
+%                    observation and the mapping file with "mapping", the
+%                    error band and faint sessions enabled unless a color
+%                    per session) and a note on what it draws; Per trial
+%                    group is hidden then and the preview's Dataset
+%                    drop-down is off
 %   What is enabled: the binding only where a layer may follow the
 %   observation (figureEditorChoices: Bindable; otherwise it shows Fixed),
 %   the train only on a raster, PSTH or heat map, the response test's rows
@@ -88,6 +95,7 @@ if ~has
     end
     S = formShow(S, "summary", true);
     E.summary.Text = "Add a figure: pick a template under the list and press Add.";
+    if ~isempty(obj.FiguresDatasetDropDown) && isvalid(obj.FiguresDatasetDropDown); obj.FiguresDatasetDropDown.Enable = "on"; end
     obj.FigureSections = S;
     obj.layoutFigureEditor();
     obj.drawFigureSchematic();
@@ -112,7 +120,7 @@ for q = 1:np
 end
 
 v = struct();
-for f = ["id" "title" "enabled" "summary" "observe" "obsDatasets" "obsPerGroup" "obsCount" "schematic" "addType" "addWhere" "spacing" ...
+for f = ["id" "title" "enabled" "summary" "observe" "sesEnabled" "obsPerGroup" "obsCount" "schematic" "addType" "addWhere" "spacing" ...
         "fontSize" "lineWidth" "colormap" "sortDepth" "labelDepth" "showSEM" "legendLoc" "errType" "errFace" "errEdge" "looksText" ...
         "cmNote" "cmBinMs" "cmSmoothMs" "cmMeasure" "cmBaselineMode" "cmBaseFrom" "cmMaskAfterStop" "cmWaveMode" ...
         "cmWaveLocation" "cmWaveScale" "cmWavePP"]
@@ -137,6 +145,18 @@ v.obsRaMethod = respAuroc; v.obsRaWinMs = respAuroc; v.obsRaCutoff = respAuroc;
 v.obsRaTest = respAuroc && string(E.obsRaCutoff.Value) == "test";
 v.obsIds = unit; v.obsMaxUnits = unit; v.obsShanks = unit; v.obsUnitChannels = unit;
 v.obsSignal = kind == "channel"; v.obsChannels = kind == "channel";
+% across sessions: every row once Across sessions is ticked; the keys with "These datasets", the mapping file with
+% match "mapping", the band and the faint sessions when the sessions are averaged (a color per subject, or none)
+ses = logical(E.sesEnabled.Value);
+v.sesDatasets = ses; v.sesKeys = ses && string(E.sesDatasets.Value) == "list";
+v.sesFacet = ses; v.sesSeries = ses; v.sesColorOrder = ses; v.sesTrialGroups = ses; v.sesMinSessions = ses;
+v.sesShowMembers = ses; v.sesError = ses;
+v.sesMatch = ses && kind == "unit";
+v.sesMappingFile = ses && kind == "unit" && string(E.sesMatch.Value) == "mapping";
+v.sesNote = ses;
+en([E.sesShowMembers E.sesError], string(E.sesSeries.Value) ~= "session");
+v.obsPerGroup = ~ses;   % a session figure's trial groups follow its Trial groups
+E.sesNote.Text = sessionNote(fig, kind);
 % arrangement and panel
 v.selPanel = hasPanel; v.noPanel = ~hasPanel;
 v.rowSpan = hasPanel; v.colSpan = hasPanel; v.rowHeight = hasPanel; v.colWidth = hasPanel; v.panelButtons = hasPanel;
@@ -383,8 +403,35 @@ if hasPanel && ~isempty(fig.panels(j).layers)
 end
 obj.FigureSections = S;
 syncAlignEnable(obj.FigureAlignControls);
+if ~isempty(obj.FiguresDatasetDropDown) && isvalid(obj.FiguresDatasetDropDown)
+    obj.FiguresDatasetDropDown.Enable = onoff(~ses);   % a session figure is drawn across the datasets, not on the active one
+end
 obj.layoutFigureEditor();
 obj.drawFigureSchematic();
+end
+
+
+function txt = sessionNote(fig, kind)
+%sessionNote  What a session figure draws, under the Sessions rows (and what it cannot hold).
+ss = fig.sessions;
+switch kind
+    case "unit"
+        if ss.match == "mapping"
+            what = "each cell of the mapping file";
+        else
+            what = "each recording channel with a unit (a site)";
+        end
+    case "channel"
+        what = "each recording channel";
+    otherwise
+        what = "the datasets together";
+end
+txt = "Generate and Run draw it once across the datasets, for " + what + ", not per dataset. Auto preview is off for it.";
+bad = intersect(string([fig.panels.type]), EphysAnalysisConfig.FigureSessionUnmerged);
+if isempty(fig.panels); bad = strings(1, 0); end
+if ~isempty(bad)
+    txt = txt + " Not merged across sessions: " + strjoin(bad, ", ") + " panels.";
+end
 end
 
 

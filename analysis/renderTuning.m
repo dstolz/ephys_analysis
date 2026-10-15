@@ -109,11 +109,7 @@ function drawCurves(ax, xv, m, lo, hi, R, colors, style, withLegend, tl, auto, M
 nS = size(m, 2);
 ls = groupLineStyles(R);
 hold(ax, 'on');
-for s = 1:size(M, 2)
-    k = R.members.series(s);
-    tagPart(plot(ax, xv, M(:, s), 'Color', paleColor(colors(k, :), 0.55, style), 'LineWidth', 0.6 * style.LineWidth, ...
-        'LineStyle', ls(k), 'Marker', 'none', 'HandleVisibility', 'off'), "memberLine", R.series(k));
-end
+memberLines(ax, xv, M, R, colors, style, R.series);
 lh = gobjects(1, nS);
 for k = 1:nS
     if style.ShowSEM

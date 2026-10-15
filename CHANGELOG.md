@@ -180,6 +180,36 @@ says how to cut a release.
   panels are not in the plot converter (no plot kind draws them). See
   [Spectral panels](documentation/EphysAnalysisConfig.md#spectral-panels) and the
   [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
+- Figures: session figures, a figure drawn across several datasets. A figure's new `sessions` block
+  (`defaults("FigureSessions")`; `observe.datasets` and `observe.datasetKeys` moved into it as
+  `sessions.datasets` and `sessions.datasetKeys`) with `enabled` draws it once across the ticked (or listed)
+  datasets instead of once per dataset: one observation, a recording channel that has a unit (`match`
+  `"site"`; a session with several units on it draws the first in probe order), a cell of a unit-mapping CSV
+  (`"mapping"`), a channel or the dataset, is computed on every session and each panel's layers are merged
+  with `combineSessions`, so `renderFigure` draws the merged figure as it draws one dataset's. The session
+  plots' settings apply: a color per session, per subject (its sessions averaged) or one mean, the error
+  band, each session faintly under its summary, colors by date, a figure per subject and a minimum number of
+  sessions; `trialGroups` pools the figure's trial groups (the sessions are the series), makes a figure per
+  group or keeps them as line styles. Events drawn as marks, the probe layout's rings and a heat map of
+  trials are skipped across sessions (with their reasons); Validate refuses a probe map, unit correlation,
+  spectrum, spectrogram or coherence panel and an auROC baseline in one (`plan` and a run skip the figure),
+  and checks the block's values, the mapping file and the warnings above. New functions
+  `figureSessionObservations`, `figureSessionCompute`, `figureSessionSpec` and `figureSessionSkipReason`;
+  `figureCaption` takes `Sessions=`; `EphysAnalysisConfig` gets `sessionFigureIds`, `enabledSessionFigures`,
+  `isSessionFigure`, `FigureSessionMatches` and `FigureSessionUnmerged` (`enabledFigures` leaves session
+  figures out); `EphysAnalysisRunner` gets `sessionFigureIndices`, `sessionFigureObservations`,
+  `computeSessionFigure`, `runSessionFigure`, `run(SessionFigures=)` and `plan(SessionFigures=)` (one
+  `sessions: <facet>` row each). A run draws them after the session plots, in the report's *Across
+  sessions* section, a page per observation in `Export.SessionsFolder` (`all_<id>_site_ch7.png`), lists
+  them in the run record as `sessionFigures`, and with `Export.Data.Enabled` writes a `.mat` of its own per
+  figure (`ephys-analysis-session-figure/1`); the standalone script makes the same calls. In the Figures tab
+  a Sessions section holds the rows (**Pick...** for the datasets, **Browse...** and **Edit...** for the
+  mapping), the Dataset drop-down is off for a session figure, a **Figure:** drop-down under the preview
+  picks one of the figures of a subject or trial group, an edit leaves the preview out of date until
+  **Preview**, **Generate** writes across the datasets, and **Copy from...** gets an *Across sessions*
+  part. See [Session figures](documentation/EphysAnalysisConfig.md#session-figures),
+  [Sessions in the Figures tab](documentation/EphysAnalysisApp.md#sessions-in-the-figures-tab) and
+  [Session figure data](documentation/file-formats.md#session-figure-data-mat).
 - Kilosort4 parameter details on the Sorting tab. Each parameter's name is a link that opens a modal
   window with its definition, function, impact, tuning and defaults (this pipeline's and Kilosort4
   4.1.7's own).

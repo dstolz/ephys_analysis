@@ -16,8 +16,11 @@ function hk = drawTuningPanel(ax, P, look)
 %   alone for one series). The legend gets the series (more than one), then
 %   the items (more than one). options.yLim fixes the y axis; with
 %   options.waveform.mode on the first unit's waveform is an inset. Skipped
-%   layers are noted (figLayerNotes). HK: figDrawResult's, yName = the
-%   rates' unit.
+%   layers are noted (figLayerNotes). A result merged across sessions
+%   (figureSessionCompute) draws its series (the sessions, subjects or all)
+%   as the curves, each member session (R.members) a pale line under them
+%   (memberLines), the trial groups of "combine" by line style
+%   (figSeriesStyle). HK: figDrawResult's, yName = the rates' unit.
 %
 %   See also renderFigure, renderTuning, tuningCurve, figurePanelRegistry.
 
@@ -68,9 +71,19 @@ for i = 1:nI
         if size(R.mean, 2) == 1 && P.layers(j).name ~= ""; names(i) = P.layers(j).name; end
     end
     colors = groupPalette(R.groups, style);
+    if isfield(R, 'members') && isstruct(R.members) && isfield(R.members, 'mean') && ~isempty(R.members.mean)
+        Mm = R.members.mean;   % [nX x nTiles x nMembers]: the member sessions (merged across sessions, ShowMembers)
+        if u == 0
+            Mm = reshape(mean(Mm, 2, 'omitnan'), nX, []);
+        else
+            Mm = reshape(Mm(:, u, :), nX, []);
+        end
+        memberLines(ax, xv, Mm, R, colors, style, R.series);
+    end
     for k = 1:nS
         sl = string(R.series(k));
         [c, ls] = figLayerLook(Ls(j), i, colors(k, :));
+        ls = figSeriesStyle(R, k, ls, Ls(j));
         lss(i) = ls;
         tg = sl;
         if nI > 1

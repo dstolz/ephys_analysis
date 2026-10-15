@@ -81,8 +81,14 @@ classdef EphysAnalysisRunner < handle
     %   both after its datasets. sessionData gathers a session plot's data
     %   (the merged and per-session results, the epoched spikes or signals)
     %   into one struct for writeAnalysisData or the workspace; run writes it
-    %   with Export.Data.Enabled. The per-dataset results a session plot
-    %   needs are kept in a cache:
+    %   with Export.Data.Enabled. Session figures (a figure whose
+    %   sessions.enabled is true) are drawn across the datasets likewise:
+    %   sessionFigureObservations matches the observed unit (site or
+    %   mapping cell), channel or dataset across them, computeSessionFigure
+    %   computes one observation per dataset and merges each layer
+    %   (figureSessionCompute), runSessionFigure exports and reports every
+    %   observation; run does it after the session plots. The per-dataset
+    %   results a session plot needs are kept in a cache:
     %     ResultCache   containers.Map cacheKey -> struct(R, bytes)
     %     CacheMaxMB    its size limit (default 512); the oldest entries go
     %                   first when it is passed
@@ -145,6 +151,10 @@ classdef EphysAnalysisRunner < handle
         [res, sessions, spec, Rs] = computeSessionPlot(obj, sp, idx, opts)
         rows = runSessionPlot(obj, sp, idx, opts)
         S = sessionData(obj, sp, idx, opts)
+        idx = sessionFigureIndices(obj, spec, idx)
+        [T, sessions, sources] = sessionFigureObservations(obj, fig, idx)
+        [res, sessions, spec, Fs] = computeSessionFigure(obj, fig, idx, opts)
+        rows = runSessionFigure(obj, id, idx, opts)
 
         function obj = EphysAnalysisRunner(cfg, opts)
             %EphysAnalysisRunner  Find the config's datasets (Scan=false: later, with datasets()).

@@ -713,6 +713,74 @@ c8 = EphysAnalysisConfig.load(f);
 warning(ws);
 check(any(contains(c8.LoadWarnings, "SessionPlots(1).bogus")) && c8.isequalConfig(cs), 'an unknown session plot field is dropped and listed');
 
+% session figures (Figure.sessions): validate's rules
+sfc = EphysAnalysisConfig();
+sfc.Defaults.EventRef.line = "Stim";
+sfc = sfc.addFigure("rasterPsth", Id="sf");
+sfc.Figures(1).sessions.enabled = true;
+I = sfc.validate(CheckPaths=false);
+check(~any(I.Section == "Figures" & contains(I.Field, ".sessions")) && ~any(I.Section == "Figures" & I.Severity == "error") ...
+    && ~any(I.Field == "enabled" & I.Severity == "error") && isequal(sfc.enabledSessionFigures(), "sf") ...
+    && isempty(sfc.enabledFigures()), 'a session figure with the default sessions block raises no issue; it counts as something to run');
+mods = {
+    "datasets",       @(c) setSf(c, 'datasets', "some"),           "sf.sessions.datasets",     "error"
+    "facet",          @(c) setSf(c, 'facet', "day"),               "sf.sessions.facet",        "error"
+    "series",         @(c) setSf(c, 'series', "unit"),             "sf.sessions.series",       "error"
+    "colorOrder",     @(c) setSf(c, 'colorOrder', "rainbow"),      "sf.sessions.colorOrder",   "error"
+    "error",          @(c) setSf(c, 'error', "iqr"),               "sf.sessions.error",        "error"
+    "match pool",     @(c) setSf(c, 'match', "pool"),              "sf.sessions.match",        "error"
+    "trialGroups",    @(c) setSf(c, 'trialGroups', "split"),       "sf.sessions.trialGroups",  "error"
+    "minSessions",    @(c) setSf(c, 'minSessions', 0),             "sf.sessions.minSessions",  "error"
+    "list, no keys",  @(c) setSf(c, 'datasets', "list"),           "sf.sessions.datasetKeys",  "warning"
+    "showMembers",    @(c) setSf(c, 'showMembers', true),          "sf.sessions.showMembers",  "warning"
+    "mapping, no file", @(c) setSf(c, 'match', "mapping"),         "sf.sessions.mappingFile",  "error"
+    "pool with groups", @(c) setSel(c, "TrialType"),             "sf.sessions.trialGroups",  "warning"
+    };
+for m = 1:size(mods, 1)
+    check(hasIssue(mods{m, 2}(sfc), mods{m, 3}, mods{m, 4}), "validate session figures: " + mods{m, 1} + " -> " + mods{m, 4} + " on " + mods{m, 3});
+end
+bad = setSf(sfc, 'trialGroups', "combine");
+bad.Figures(1).panels(2).options.histStyle = "bar";
+check(hasIssue(bad, "sf.psth_1.histStyle", "warning"), 'trialGroups "combine" with a PSTH drawn as bars: a warning');
+bad = sfc.addFigure("probemap", Id="pm");
+bad.Figures(2).sessions.enabled = true;
+check(hasIssue(bad, "pm.probemap_1.type", "error") && ~hasIssue(setFigEnabled(bad, 2, false), "pm.probemap_1.type", "error"), ...
+    'a session figure cannot hold a probe map (an error); the same figure per dataset can');
+bad = sfc;
+bad.Figures(1).panels(2).options.baseline = struct('Mode', "auroc", 'Window', [-0.2 0]);
+bad.Figures(1).panels(2).common = false;
+check(hasIssue(bad, "sf.psth_1.baseline.Mode", "error"), 'a session figure cannot hold an auROC baseline');
+bad = sfc.addFigure("continuous", Id="ch");
+bad.Figures(2).sessions.enabled = true;
+bad.Figures(2).sessions.match = "mapping";
+bad.Figures(2).sessions.mappingFile = mf;
+check(hasIssue(bad, "ch.sessions.match", "error") && ~hasIssue(setSf(sfc, 'mappingFile', mf), "sf.sessions", "error"), ...
+    'match "mapping" needs a unit observation; a channel figure gets an error');
+bad = setSf(setSf(sfc, 'match', "mapping"), 'mappingFile', fullfile(root, 'nomap.csv'));
+I = bad.validate(CheckPaths=true);
+check(any(I.Field == "sf.sessions.mappingFile" & I.Severity == "error"), 'a session figure''s mapping file that does not exist: an error with CheckPaths');
+bad = setSf(setSf(sfc, 'match', "mapping"), 'mappingFile', mf);
+bad.Figures(1).sessions.datasets = "list";
+bad.Figures(1).sessions.datasetKeys = ["SYNTH-01/a" "SYNTH-01/b"];
+I = bad.validate(CheckPaths=false);
+check(~any(I.Field == "sf.sessions.mappingFile" & I.Severity == "error") && any(I.Field == "sf.sessions.mappingFile" & I.Severity == "warning" ...
+    & contains(I.Message, "SYNTH-01/b")), 'a session figure''s mapping file lacking a listed key''s column: a warning');
+dup = sfc.addPlot(struct('kind', "psth"), Id="p_base");
+dup = dup.addSessionPlot("p_base", Id="SF");   % the session plot "SF" and the session figure "sf" write the same files
+I = dup.validate(CheckPaths=false);
+nodup = sfc.addPlot(struct('kind', "psth"), Id="p_base");
+nodup = nodup.addSessionPlot("p_base", Id="other");
+I0 = nodup.validate(CheckPaths=false);
+check(any(I.Section == "Figures" & I.Field == "sf" & I.Severity == "error" & contains(I.Message, "session plot")) ...
+    && ~any(I0.Section == "Figures" & I0.Field == "sf"), ...
+    'a session figure id that names the same files as a session plot''s id (case-blind) is an error');
+pg = sfc; pg.Figures(1).observe.perGroup = true;
+check(~hasIssue(pg, "sf.observe.perGroup", "warning") && hasIssue(setSf(pg, 'enabled', false), "sf.observe.perGroup", "warning"), ...
+    'perGroup without a groupBy warns on a per-dataset figure only (a session figure ignores perGroup)');
+off = setSf(sfc, 'enabled', false); off = setSf(off, 'facet', "day");
+check(hasIssue(off, "sf.sessions.facet", "error") && ~hasIssue(setSf(setSf(sfc, 'enabled', false), 'showMembers', true), "sf.sessions.showMembers", "warning"), ...
+    'the sessions block''s values are checked on every figure; the session rules only on a session figure');
+
 fprintf('\n== 5. load warnings and schema ==\n');
 s = cfg.toStruct();
 s.Export.Nope = 1;
@@ -778,6 +846,22 @@ end
 
 function cfg = setSp(cfg, k, field, value)
 cfg.SessionPlots(k).(field) = value;
+end
+
+
+function cfg = setSf(cfg, field, value)
+cfg.Figures(1).sessions.(field) = value;
+end
+
+
+function cfg = setSel(cfg, groupBy)
+cfg.Figures(1).selection = EphysAnalysisConfig.defaults("TrialSelection");
+cfg.Figures(1).selection.groupBy = groupBy;
+end
+
+
+function cfg = setFigEnabled(cfg, k, tf)
+cfg.Figures(k).sessions.enabled = tf;
 end
 
 

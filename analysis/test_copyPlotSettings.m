@@ -121,10 +121,11 @@ check(strcmp(errorId(@() copyPlotSettings(R0, P, "colors")), 'copyPlotSettings:B
 
 fprintf('\n== 3. figureSettingParts, copyFigureSettings ==\n');
 T = figureSettingParts();
-check(isequal(T.Part.', ["observe" "alignment" "common" "arrangement" "style" "looks"]) ...
+check(isequal(T.Part.', ["observe" "alignment" "common" "arrangement" "style" "looks" "sessions"]) ...
     && isequal(T.Fields{T.Part == "alignment"}, ["ref" "window" "selection"]) && isequal(T.Fields{T.Part == "arrangement"}, ["grid" "panels"]) ...
-    && isequal(T.Fields{T.Part == "looks"}, "aesthetics") && all(T.Label ~= "") && all(T.Description ~= ""), ...
-    'figureSettingParts: observe, alignment (ref, window, selection), common, arrangement (grid, panels), style, looks');
+    && isequal(T.Fields{T.Part == "looks"}, "aesthetics") && isequal(T.Fields{T.Part == "sessions"}, "sessions") ...
+    && all(T.Label ~= "") && all(T.Description ~= ""), ...
+    'figureSettingParts: observe, alignment (ref, window, selection), common, arrangement (grid, panels), style, looks, sessions');
 fc = EphysAnalysisConfig();
 [fc, idA] = fc.addFigure("rasterPsth", Id="a");
 [fc, idB] = fc.addFigure("heatmap", Id="b");
@@ -139,6 +140,7 @@ B.selection = EphysAnalysisConfig.defaults("TrialSelection");
 B.selection.groupBy = "Depth";
 B.common.bins.BinSec = 0.05;
 B.style.FontSize = 14;
+B.sessions.series = "all";   % its sessions block differs, so the "sessions" part shows
 B.aesthetics = PlotAesthetics.normalizeRules(struct('role', "rate", 'group', "", 'property', "LineWidth", 'value', 2));
 fc.Figures(2) = B;
 B = fc.Figures(2);

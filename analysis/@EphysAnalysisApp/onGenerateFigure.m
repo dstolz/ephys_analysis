@@ -16,6 +16,12 @@ function R = onGenerateFigure(obj, opts)
 %   <m> dataset(s), <k> file(s) in <folder>" (and what was skipped, failed
 %   or canceled). Datasets= narrows it (indices; the tests use it); by
 %   default the ticked datasets.
+%   A session figure (sessions.enabled) runs as run(SessionFigures=<id>)
+%   instead, no per-dataset figures: one page per matched observation
+%   across the datasets, into Export.SessionsFolder (runSessionFigure);
+%   the status bar says how many observations each of its figures (facet,
+%   trial group) drew, the files, and what was not drawn. With
+%   sessions.datasets "list" it runs on the listed datasets, ticked or not.
 %
 %   See also onRunExport, EphysAnalysisRunner.run, EphysAnalysisRunner.runDataset.
 arguments
@@ -43,15 +49,69 @@ wasOff = ~cfg.Figures(k).enabled;
 cfg.Figures(k).enabled = true;   % for this run only: obj.Config keeps it as it is
 cfg.Export.Enabled = true;       % the figure files are written: validated as such
 obj.setStatus("Generating " + id + " ...");
-R = obj.onRunExport(Plots=string.empty(1, 0), Figures=id, SessionPlots=string.empty(1, 0), Datasets=opts.Datasets, ...
-    Export=true, Report=false, Config=cfg, Title="Generating " + id);
+across = cfg.Figures(k).sessions.enabled;   % a session figure: drawn once across the datasets, into the sessions folder
+if across && isempty(opts.Datasets) && cfg.Figures(k).sessions.datasets == "list" && ~isempty(obj.Runner)
+    % "These datasets": the listed ones, ticked or not (runSessionFigure draws across them whatever the run's datasets)
+    listed = arrayfun(@(key) obj.Runner.index(key), reshape(cfg.Figures(k).sessions.datasetKeys, 1, []));
+    opts.Datasets = listed(listed > 0);
+    if isempty(opts.Datasets)
+        obj.setStatus("Generating " + id + ": none of its listed datasets is scanned (Sessions: Pick...).");
+        return
+    end
+end
+if across
+    R = obj.onRunExport(Plots=string.empty(1, 0), Figures=string.empty(1, 0), SessionPlots=string.empty(1, 0), ...
+        SessionFigures=id, Datasets=opts.Datasets, Export=true, Report=false, Config=cfg, Title="Generating " + id);
+else
+    R = obj.onRunExport(Plots=string.empty(1, 0), Figures=id, SessionPlots=string.empty(1, 0), ...
+        SessionFigures=string.empty(1, 0), Datasets=opts.Datasets, Export=true, Report=false, Config=cfg, Title="Generating " + id);
+end
 if ~isempty(obj.Runner) && isvalid(obj.Runner)
     obj.Runner.Config = obj.gatherConfig();   % the runner holds the config as the controls show it again
 end
 if ~istable(R) || height(R) == 0
     return   % not run: onRunExport said why (errors, no dataset ticked, a failure)
 end
-obj.setStatus(generatedText(obj, R, id, wasOff));
+if across
+    obj.setStatus(generatedAcross(obj, R, id, wasOff));
+else
+    obj.setStatus(generatedText(obj, R, id, wasOff));
+end
+end
+
+
+function txt = generatedAcross(~, R, id, wasOff)
+%generatedAcross  A session figure's: "Generated <id> across the sessions: <figure>: <n> observation(s), ...; <k> file(s) in <folder>".
+%   Each figure it made (a facet, a trial group: a "sessions: <label>"
+%   row) is counted on its own.
+rows = R(R.Kind == "figure" & R.Plot == id & startsWith(R.Dataset, "sessions: "), :);
+done = rows(rows.Status == "done", :);
+nFiles = 0;
+parts = strings(1, 0);
+for i = 1:height(done)
+    n = sscanf(char(done.Message(i)), '%d', 1);
+    if isempty(n); n = 0; end
+    parts(end+1) = extractAfter(done.Dataset(i), "sessions: ") + ": " + n + " observation(s)"; %#ok<AGROW>
+    if done.Files(i) ~= ""; nFiles = nFiles + numel(split(done.Files(i), "; ")); end
+end
+where = "";
+if nFiles > 0
+    first = split(done.Files(find(done.Files ~= "", 1)), "; ");
+    where = " in " + string(fileparts(first(1)));
+end
+if any(rows.Status == "canceled")
+    txt = "Generating " + id + " was canceled";
+else
+    txt = "Generated " + id + " across the sessions: " + strjoin(parts, ", ") + sprintf("; %d file(s)", nFiles) + where;
+end
+bad = rows(ismember(rows.Status, ["skipped" "error"]), :);
+if height(bad) > 0
+    txt = txt + "; not drawn: " + strjoin(bad.Dataset + " (" + bad.Message + ")", ", ");
+end
+if wasOff
+    txt = txt + "; " + id + " is off, so it was switched on for this run only";
+end
+txt = txt + ".";
 end
 
 

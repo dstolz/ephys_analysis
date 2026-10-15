@@ -17,11 +17,18 @@ function T = plan(obj, opts)
 %   sessionPlotSkipReason ("disabled", "no base plot X", an unsupported
 %   kind, "no mapping file", "fewer than N session(s) can draw it (...)"
 %   with each session's own reason).
+%   Then one row per session figure (a figure whose sessions.enabled is
+%   true: never listed per dataset) and facet: Dataset "sessions: <facet>",
+%   Plot its id, Kind "figure", Source its observe kind, Reason from
+%   figureSessionSkipReason ("disabled", an unsupported panel or auROC
+%   baseline, "no mapping file", "fewer than N session(s) can draw it
+%   (...)" with each session's figureSkipReason).
 %
 %   Options: Datasets (indices, keys or names; default all), Plots and
 %   Figures (ids; [] = default: every plot / figure, enabled or not;
 %   string.empty(1, 0) = none), SessionPlots (ids; default every session
-%   plot; string.empty = none).
+%   plot; string.empty = none), SessionFigures (ids; default every session
+%   figure; string.empty = none).
 %
 %   See also plotSkipReason, sessionPlotSkipReason, EphysAnalysisRunner.run.
 
@@ -31,12 +38,15 @@ arguments
     opts.Plots = []
     opts.Figures = []
     opts.SessionPlots = []
+    opts.SessionFigures = []
 end
 
 cfg = obj.Config;
 idx = datasetIndices(obj, opts.Datasets);
 ids = EphysAnalysisRunner.idList(opts.Plots, @() cfg.plotIds());
 fids = EphysAnalysisRunner.idList(opts.Figures, @() cfg.figureIds());
+fids = fids(~arrayfun(@(f) cfg.isSessionFigure(f), fids));   % drawn across the datasets: rows of their own below
+sfids = EphysAnalysisRunner.idList(opts.SessionFigures, @() cfg.sessionFigureIds());
 sids = opts.SessionPlots;
 if isnumeric(sids) && isempty(sids)
     sids = cfg.sessionPlotIds();
@@ -123,6 +133,35 @@ for id = sids
         r = r + 1;
         Dataset(r, 1) = "sessions: " + facets(f); Plot(r, 1) = id; Kind(r, 1) = kind; Source(r, 1) = source;
         Reason(r, 1) = sessionPlotSkipReason(cfg, sp, reasons(rr), Labels=S.label(rr).');
+        Enabled(r, 1) = Reason(r) == "";
+    end
+end
+for id = sfids
+    if cfg.figureIndex(id) == 0; continue; end
+    spec = cfg.figureFor(id);
+    S = obj.sessionTable(obj.sessionFigureIndices(spec, idx));
+    reasons = strings(1, height(S));
+    for j = 1:height(S)
+        [src, err] = sourceOf(S.index(j));
+        if err ~= ""
+            reasons(j) = err;
+        else
+            reasons(j) = figureSkipReason(src, spec);
+        end
+    end
+    facets = "all";
+    rowsOf = {1:height(S)};
+    if spec.sessions.facet == "subject" && height(S) > 0
+        subj = S.subject;
+        subj(subj == "") = "(no subject)";
+        facets = unique(subj, 'stable').';
+        rowsOf = arrayfun(@(f) find(subj == f).', facets, 'UniformOutput', false);
+    end
+    for f = 1:numel(facets)
+        rr = rowsOf{f};
+        r = r + 1;
+        Dataset(r, 1) = "sessions: " + facets(f); Plot(r, 1) = id; Kind(r, 1) = "figure"; Source(r, 1) = spec.observe.kind;
+        Reason(r, 1) = figureSessionSkipReason(spec, reasons(rr), Labels=reshape(S.label(rr), 1, []));
         Enabled(r, 1) = Reason(r) == "";
     end
 end

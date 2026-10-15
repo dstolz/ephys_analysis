@@ -19,5 +19,6 @@ obj.refreshEpochDiagram();
 if ~other; return; end
 obj.FigurePreviewResult = [];
 obj.FigurePreviewSeconds = 0;
+clearSessionFigurePreview(obj);   % another figure: a session figure's kept results are not its own
 obj.autoFigurePreview();
 end

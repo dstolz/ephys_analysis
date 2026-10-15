@@ -20,6 +20,11 @@ function hk = drawWaveformsPanel(ax, P, look)
 %   observed unit; matched by unit id) are framed in red there (Highlight:
 %   role "unitDots", group "observed"); a ring layer of the other spike
 %   source frames nothing (a detected layer's id is its channel).
+%   A result merged across sessions (figureSessionCompute: its units the
+%   session-units, meta.session) draws each unit's mean in its session's
+%   series color (role "trace", group the series), the series once each
+%   in the legend; one unit alone is drawn by renderWaveforms, which colors
+%   it by its session too.
 %   A skipped layer's reason is noted (figLayerNotes). HK: figDrawResult's
 %   (renderWaveforms labels the axes; the overlay's y label is the
 %   amplitude).
@@ -63,14 +68,29 @@ names = shortUnitLabels(R.labels);
 order = probeOrder(R.meta, nU, style);
 G = table((1:nU).', names(:), lines(nU), ones(nU, 1), 'VariableNames', {'index', 'label', 'color', 'n'});
 C = groupPalette(G, style);
+[ser, serLabel] = sessionSeriesOf(R, nU);   % merged across sessions: each unit in its session's (series') color
+if ~isempty(ser)
+    SC = groupPalette(R.groups, style);
+    C = SC(ser, :);
+end
 hold(ax, 'on');
 drew = false;
 for u = reshape(order, 1, [])
     if u > numel(W.mean) || isempty(W.mean{u}); continue; end
-    hk.legendHandles(end+1) = tagPart(line(ax, W.timeMs{u}(:), W.mean{u}(:), 'Color', C(u, :), ...
-        'LineWidth', max(1, style.LineWidth)), "waveMean", names(u));
-    hk.legendLabels(end+1) = names(u);
-    hk.legendGroup(end+1) = false;
+    if isempty(ser)
+        hk.legendHandles(end+1) = tagPart(line(ax, W.timeMs{u}(:), W.mean{u}(:), 'Color', C(u, :), ...
+            'LineWidth', max(1, style.LineWidth)), "waveMean", names(u));
+        hk.legendLabels(end+1) = names(u);
+        hk.legendGroup(end+1) = false;
+    else   % a "trace" in its series' color, the series listed once (as the plot's session looks)
+        h1 = tagPart(line(ax, W.timeMs{u}(:), W.mean{u}(:), 'Color', C(u, :), 'LineWidth', max(1, style.LineWidth)), ...
+            "trace", serLabel(ser(u)));
+        if ~any(hk.legendLabels == serLabel(ser(u)))
+            hk.legendHandles(end+1) = h1;
+            hk.legendLabels(end+1) = serLabel(ser(u));
+            hk.legendGroup(end+1) = true;
+        end
+    end
     drew = true;
 end
 if drew
@@ -88,6 +108,27 @@ u = unique(W.units(W.units ~= ""));
 hk.yName = "Amplitude";
 if isscalar(u); hk.yName = "Amplitude (" + ampText(u) + ")"; end
 figLayerNotes(ax, P, look, true);
+end
+
+
+function [ser, label] = sessionSeriesOf(R, nU)
+%sessionSeriesOf  A result merged across sessions (R.sessions, meta.session): each unit's series and the series' labels; [] otherwise.
+ser = zeros(0, 1);
+label = strings(0, 1);
+if ~isfield(R, 'sessions') || ~istable(R.sessions) || ~isfield(R, 'groups') || ~istable(R.groups) ...
+        || ~ismember("session", string(R.meta.Properties.VariableNames))
+    return
+end
+s = double(R.meta.session(:));
+if ismember("series", string(R.sessions.Properties.VariableNames))
+    sr = double(R.sessions.series(:));
+    ok = s >= 1 & s <= numel(sr);
+    s(ok) = sr(s(ok));
+end
+s(~(s >= 1 & s <= height(R.groups))) = 1;
+if numel(s) ~= nU; return; end
+ser = s;
+label = reshape(string(R.groups.label), [], 1);
 end
 
 

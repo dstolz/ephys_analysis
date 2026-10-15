@@ -74,7 +74,7 @@ switch opts.Layout
         for k = 1:nC
             c = order(k);
             off = -(k - 1) * spacing;
-            memberLines(ax, t, members, c, off, R, colors, ls, style);
+            memberLines(ax, t, memberColumn(members, c) + off, R, colors, style);
             for g = 1:nG
                 m = R.mean(:, c, g) + off;
                 if style.ShowSEM
@@ -149,7 +149,7 @@ switch opts.Layout
             tagPart(ax, "axes", "", labels(c));
             hold(ax, 'on');
             lh = gobjects(1, nG);
-            memberLines(ax, t, members, c, 0, R, colors, ls, style);
+            memberLines(ax, t, memberColumn(members, c), R, colors, style);
             for g = 1:nG
                 if style.ShowSEM; errorPatch(ax, t, eLo(:, c, g), eHi(:, c, g), colors(g, :), R.groups.label(g), style); end
                 lh(g) = tagPart(plot(ax, t, R.mean(:, c, g), 'Color', colors(g, :), 'LineWidth', style.LineWidth, 'LineStyle', ls(g)), ...
@@ -172,14 +172,10 @@ end
 end
 
 
-function memberLines(ax, t, M, c, off, R, colors, ls, style)
-%memberLines  Each member session's mean on channel C (R.members), a thin pale line OFF up, tagged "memberLine".
-if isempty(M); return; end
-for s = 1:size(M, 3)
-    g = R.members.series(s);
-    tagPart(plot(ax, t, M(:, c, s) + off, 'Color', paleColor(colors(g, :), 0.55, style), 'LineWidth', 0.6 * style.LineWidth, ...
-        'LineStyle', ls(g), 'HandleVisibility', 'off'), "memberLine", R.groups.label(g));
-end
+function M = memberColumn(M, c)
+%memberColumn  The member sessions' means on channel C (R.members.mean [nTime x nChannels x nMembers]) as [nTime x nMembers].
+if isempty(M); M = zeros(0, 0); return; end
+M = reshape(M(:, c, :), size(M, 1), []);
 end
 
 

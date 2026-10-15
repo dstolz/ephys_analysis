@@ -6,6 +6,19 @@ function autoFigurePreview(obj)
 %   the Preview button (FigurePreviewSeconds is Inf then). The limit is
 %   FigureAutoPreviewSeconds (AutoPreviewSeconds, 2 s; a test raises it so
 %   a loaded machine does not leave its previews out of date).
+%   A session figure (sessions.enabled) is not redrawn on an edit: it
+%   computes every session, so it waits for Preview (or a pick in the
+%   observation list), as the Sessions tab's preview does; the status line
+%   says so.
+k = obj.SelectedFigure;
+if k >= 1 && k <= numel(obj.Config.Figures) && obj.Config.Figures(k).sessions.enabled
+    clearSessionFigurePreview(obj);   % the kept figures were computed before this edit
+    if obj.FigurePreviewState == "drawn"; obj.setFigurePreviewState("stale"); end
+    if ~isempty(obj.FigurePreviewLabel) && ~ismember(obj.FigurePreviewState, ["computing" "drawing"])
+        obj.FigurePreviewLabel.Text = "A figure across sessions computes every session: press Preview to draw it.";
+    end
+    return
+end
 if isempty(obj.Tabs) || obj.Tabs.SelectedTab ~= obj.TabFigures ...
         || ~obj.FigureAutoCheckBox.Value || obj.FigurePreviewSeconds >= obj.FigureAutoPreviewSeconds
     if obj.FigurePreviewState == "drawn"; obj.setFigurePreviewState("stale"); end

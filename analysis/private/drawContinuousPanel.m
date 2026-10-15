@@ -31,7 +31,10 @@ function hk = drawContinuousPanel(ax, P, look)
 %   draws the event's line; the events layers drawn as marks become latency
 %   lines and a rug (figEventMarks), also on a panel whose signal layers
 %   are all skipped (then on a plain axis, whatever the display). Skipped
-%   layers are noted (figLayerNotes). The legend offers the groups, then
+%   layers are noted (figLayerNotes). A result merged across sessions
+%   (figureSessionCompute) draws its series as the groups, each member
+%   session (R.members) a pale line under them (memberLines), and the
+%   trial groups of trialGroups "combine" by line style (figSeriesStyle). The legend offers the groups, then
 %   the items when there are several, then the marks.
 %
 %   See also renderFigure, renderEvoked, figurePanelRegistry.
@@ -63,7 +66,7 @@ end
 % each item's traces: mean, band edges [nTime x nGroups]
 trials = "off";   % each epoch's trace: "faint" behind the mean, "only" without it
 if isfield(o, 'trials'); trials = string(o.trials); end
-S = repmat(struct('t', [], 'm', [], 'lo', [], 'hi', [], 'name', "", 'role', "trace", 'R', [], 'X', [], 'xg', []), 1, nI);
+S = repmat(struct('t', [], 'm', [], 'lo', [], 'hi', [], 'name', "", 'role', "trace", 'R', [], 'X', [], 'xg', [], 'M', []), 1, nI);
 for i = 1:nI
     j = items(i, 1);
     c = items(i, 2);
@@ -77,6 +80,14 @@ for i = 1:nI
             S(i).X = reshape(R.data(:, c, :), size(R.data, 1), []);
         end
         S(i).xg = R.trialGroup(:);
+    end
+    if isfield(R, 'members') && isstruct(R.members) && isfield(R.members, 'mean') && ~isempty(R.members.mean)
+        Mm = R.members.mean;   % [nTime x nChannels x nMembers]: the member sessions (merged across sessions, ShowMembers)
+        if c == 0
+            S(i).M = reshape(mean(Mm, 2, 'omitnan'), size(Mm, 1), []);
+        else
+            S(i).M = reshape(Mm(:, c, :), size(Mm, 1), []);
+        end
     end
     if c == 0
         S(i).m = squeeze3(R.layerMean.mean);
@@ -119,10 +130,14 @@ for pass = 1:2
         off = -(i - 1) * spacing;
         nG = size(S(i).m, 2);
         if pass == 1; traces{i} = gobjects(1, nG); end
+        if pass == 2 && ~isempty(S(i).M)   % each member session, faint, under its series
+            memberLines(ax, S(i).t, S(i).M + off, R, colors, style);
+        end
         for g = 1:nG
             gl = string(R.groups.label(g));
             [c, ls] = figLayerLook(Ls(j), i, colors(g, :));
             if stacked; ls = string(Ls(j).lineStyle); if ~ismember(ls, ["-" "--" ":" "-."]); ls = "-"; end; end
+            ls = figSeriesStyle(R, g, ls, Ls(j));
             lss(i) = ls;
             tg = gl;
             if nI > 1

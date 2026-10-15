@@ -41,7 +41,11 @@ function test_EphysAnalysisRunner()
 %   Figures= / Plots=string.empty(1, 0), Overwrite off, a cancel between
 %   observations, a Canceled from inside a plot's compute rethrown, and
 %   the standalone script (figureCompute, no runner) writing the same
-%   pixels and HTML report.
+%   pixels and HTML report; and a session figure (12: the card across both
+%   datasets): one plan row, a page per matched site in the sessions folder,
+%   the "Across sessions" report entry with its caption, the run record,
+%   Overwrite off, a cancel between observations, and the standalone
+%   script (figureSessionCompute) writing the same pixels.
 %
 %   Usage:  test_EphysAnalysisRunner
 
@@ -1084,6 +1088,94 @@ hR = normalizeHtml(fileread(fullfile(outF, 'analysis_report.html')));
 hS = normalizeHtml(fileread(fullfile(outSA, 'analysis_report.html')));
 check(hR == hS && numel(pdfPageTexts(fullfile(outSA, 'analysis_report.pdf'))) == numel(tF), ...
     'the script''s HTML report equals the runner''s (timestamps, image bytes and the config aside), and its PDF has as many pages');
+
+fprintf('\n== 12. session figures: plan, run, export, report, run record, cancel, standalone script ==\n');
+outG = fullfile(root, 'outSesFig');
+cfgG = cfgF;
+cfgG.Name = "session figures test";
+cfgG.Plots(1).enabled = false;
+cfgG.Figures(1).sessions.enabled = true;   % "card" across the two datasets
+cfgG.Figures(2).enabled = false;
+cfgG.Export.Folder = fullfile(outG, "{Name}");
+cfgG.Export.SessionsFolder = fullfile(outG, "sessions");
+cfgG.Report.Folder = outG;
+cfgG.Report.Format = "html";
+IG = cfgG.validate();
+check(~any(IG.Severity == "error") && isempty(cfgG.enabledFigures()) && isequal(cfgG.enabledSessionFigures(), "card"), ...
+    'a config of one session figure validates; it is not a per-dataset figure');
+rG = EphysAnalysisRunner(cfgG, LogFcn=[]);
+TGo = rG.sessionFigureObservations("card");
+nG = height(TGo);
+PG = rG.plan();
+pgRow = PG(PG.Plot == "card", :);
+check(height(pgRow) == 1 && pgRow.Dataset == "sessions: all" && pgRow.Kind == "figure" && pgRow.Source == "unit" && pgRow.Enabled, ...
+    'plan: the session figure is one row "sessions: all" (Kind "figure"), not a row per dataset');
+nFig = numel(findall(groot, 'Type', 'figure'));
+RG = rG.run();
+check(numel(findall(groot, 'Type', 'figure')) == nFig, 'the run with a session figure leaves no figure open');
+gRow = RG(RG.Plot == "card", :);
+wantG = arrayfun(@(i) string(fullfile(outG, "sessions", "all_card_site_ch" + TGo.channel(i) + ".png")), 1:nG);
+check(nG >= 1 && height(gRow) == 1 && gRow.Dataset == "sessions: all" && gRow.Kind == "figure" && gRow.Status == "done" ...
+    && gRow.Message == compose("%d observation(s)", nG) && isequal(sort(split(gRow.Files, "; ")).', sort(wantG)) && all(isfile(wantG)) ...
+    && ~any(RG.Dataset == names(1) & RG.Plot == "card"), ...
+    sprintf('run: the session figure is drawn once per matched site into the sessions folder, <facet>_card_site_ch<N>.png (%d pages)', nG));
+DG = rG.Report.datasets(end);
+eG = DG.entries([DG.entries.plot] == "card");
+check(DG.kind == "section" && DG.name == "Across sessions" && isscalar(eG) && eG.kind == "figure" && numel(eG.images) == nG ...
+    && startsWith(eG.caption, "card: ") && contains(eG.caption, "across 2 sessions"), ...
+    sprintf('the report: an entry in the "Across sessions" section, a page per observation, captioned "%s"', eG.caption));
+recG = jsondecode(fileread(rG.RunRecordFile));
+check(isequal(string(recG.sessionFigures), "card") && isempty(recG.figures), 'the run record lists the session figure apart from the figures');
+roG = cfgG; roG.Export.Overwrite = false; roG.Report.Enabled = false;
+beforeG = dir(fullfile(outG, "sessions", "all_card_*.png"));
+ROG = EphysAnalysisRunner(roG, LogFcn=[]).run(SessionFigures="card", Figures=string.empty(1, 0), Plots=string.empty(1, 0), ...
+    SessionPlots=string.empty(1, 0));
+afterG = dir(fullfile(outG, "sessions", "all_card_*.png"));
+check(height(ROG) == 1 && ROG.Status == "done" && numel(split(ROG.Files, "; ")) == nG && isequal([beforeG.datenum], [afterG.datenum]), ...
+    'run(SessionFigures="card") alone; Overwrite off keeps (and lists) every observation''s files');
+outGC = fullfile(root, 'outSesFigCancel');
+cfgGC = roG; cfgGC.Export.Overwrite = true; cfgGC.Export.SessionsFolder = fullfile(outGC, "sessions");
+rGC = EphysAnalysisRunner(cfgGC, LogFcn=[]);
+    function onSesProgress(~, msg)
+        if contains(msg, "sessions: card (2/"); rGC.cancel(); end
+    end
+check(nG >= 2, sprintf('the session figure has several observations to cancel between (%d sites)', nG));
+if nG >= 2
+    rGC.ProgressFcn = @onSesProgress;
+    RGC = rGC.run(Plots=string.empty(1, 0));
+    check(height(RGC) == 1 && RGC.Status == "canceled" && RGC.Dataset == "sessions: all" ...
+        && isscalar(dir(fullfile(outGC, "sessions", "all_card_*.png"))), ...
+        'cancel() between a session figure''s observations: the first page is written, the figure "canceled"');
+end
+% the standalone script: figureSessionCompute, runner-free, the same pages
+outSG = fullfile(root, 'outSesFigScript');
+cfgSG = cfgG; cfgSG.Export.Folder = fullfile(outSG, "{Name}"); cfgSG.Export.SessionsFolder = fullfile(outSG, "sessions");
+cfgSG.Report.Folder = outSG;
+sgFile = fullfile(root, 'scripts', 'run_session_figures.m');
+txtSG = EphysAnalysisScript.standalone(cfgSG, File=sgFile);
+check(~contains(txtSG, "EphysAnalysisRunner") && contains(txtSG, "sfspec1 = struct();") && contains(txtSG, "figureSessionObservations(sources, fspec)") ...
+    && contains(txtSG, "figureSessionCompute(sources, sessions, fspec, Observation=obsT(i, :))") && contains(txtSG, "Caption=figureCaption(fspec, obsT(E(q).rows, :), Sessions=E(q).F.sessions)"), ...
+    'the standalone script writes the session figure''s spec and merges it with figureSessionCompute, never the runner');
+mSG = checkcode(sgFile, '-id');
+check(isempty(mSG) || ~any(isErr(mSG)), 'checkcode finds no syntax error in the session figures script');
+outSGt = runScript(sgFile);
+check(~contains(outSGt, "FAILED") && contains(outSGt, "card done"), 'the session figures script ran without a failure');
+if contains(outSGt, "FAILED"); disp(outSGt); end
+ga = dir(fullfile(outG, 'sessions', '*.png')); gb = dir(fullfile(outSG, 'sessions', '*.png'));
+nga = sort(string({ga.name})); ngb = sort(string({gb.name}));
+samePixG = ~isempty(nga) && isequal(nga, ngb);
+for k = 1:min(numel(nga), numel(ngb))
+    ia = imread(fullfile(outG, 'sessions', nga(k))); ib = imread(fullfile(outSG, 'sessions', ngb(k)));
+    same = isequal(ia, ib);
+    if ~same && isequal(size(ia), size(ib))
+        nDiff = nnz(any(ia ~= ib, 3));
+        [rr, cc] = find(any(ia ~= ib, 3));
+        fprintf(2, '    %s differs: %d pixels, rows %d-%d, cols %d-%d\n', nga(k), nDiff, min(rr), max(rr), min(cc), max(cc));
+        same = nDiff <= 16 && max(rr) - min(rr) < 20 && max(cc) - min(cc) < 60;   % the figure check's tolerance
+    end
+    samePixG = samePixG && same;
+end
+check(samePixG, sprintf('the script''s %d session figure PNGs are pixel-identical to the runner''s (the figure check''s tolerance)', numel(nga)));
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

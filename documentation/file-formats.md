@@ -74,8 +74,8 @@ the readers take both. Probe maps are the exception
 
 <analysis OutputRoot, else Root>/analysis/   an analysis config's default Report.Folder ({OutputRoot}\analysis)
 ├─ analysis_report.html, .pdf           analysis report (EphysAnalysisRunner; Report.FileName)
-├─ sessions/                            session plots' figures (Export.SessionsFolder; Exported figure names)
-├─ data/<name>.mat                      a session plot's data (Export.Data; see Session data .mat)
+├─ sessions/                            session plots' and session figures' pages (Export.SessionsFolder; Exported figure names)
+├─ data/<name>.mat                      a session plot's data, or a session figure's (Export.Data; see Session data .mat, Session figure data .mat)
 └─ analysis_runs/<runId>_<name>.json    run record of each analysis run (EphysAnalysisRunner.run)
 
 <Root>/
@@ -1271,7 +1271,7 @@ the report folder being `Report.Folder` resolved for the first dataset
 (whether or not a report was written). Written by `EphysAnalysisRunner.run`;
 schema `ephys-analysis-run/1`: `runId`, `name`, `outcome` (`finished` |
 `canceled`), `started`, `finished`, `seconds`, `datasets`, `plots`,
-`figures` (the figure ids the run drew), `sessionPlots` (the session plots run), `reportFiles`, `results` (the runner's Results rows), `provenance` and
+`figures` (the figure ids the run drew per dataset; a figure drawn across the datasets is not among them), `sessionPlots` (the session plots run), `sessionFigures` (the session figures run: figures with `sessions.enabled`, drawn across the datasets), `reportFiles`, `results` (the runner's Results rows), `provenance` and
 `config` (the analysis config). `EphysAnalysisRunner.RunRecordFile` names it.
 The pipeline's Analysis step writes one too (its `config.Source` is the
 pipeline's project and selected datasets), and the pipeline run's record
@@ -1335,6 +1335,27 @@ which makes a figure per group:
 <output root>/analysis/sessions/all_psth_depth_Depth___0.5.png        trialGroups "each", group "Depth = 0.5"
 ```
 
+**Session figures' pages** (a [figure](EphysAnalysisConfig.md#session-figures)
+with `sessions.enabled`, drawn across the datasets) go to the same folder, one
+file set per matched observation, named by the file-name pattern as a
+figure's observations are: `{Name}` the facet (`all`, or the subject),
+`{Plot}` the figure's id and `{Unit}` the observation: `site_ch<N>` for a unit
+matched by site (`N` its recording channel), the mapping's cell name for
+`match "mapping"`, `ch<N>` for a channel (an AUX channel: its label) and
+`dataset` for the dataset. With several observations and a pattern that names
+neither `{Unit}` nor `{Index}`, `_<Unit>` is added (a single observation, such
+as the dataset's, keeps `all_card.png`); `_<trial group>` follows for
+`trialGroups "each"`. The
+default `{Name}_{Plot}` gives:
+
+```
+<output root>/analysis/sessions/all_card_site_ch7.png
+<output root>/analysis/sessions/all_card_site_ch12.png
+<output root>/analysis/sessions/SYNTH-01_card_site_ch7.png           facet "subject"
+<output root>/analysis/sessions/all_card_cellA.png                    match "mapping"
+<output root>/analysis/sessions/all_card_site_ch7_Depth___0.5.png    trialGroups "each", group "Depth = 0.5"
+```
+
 ## Report files
 
 `<Report.Folder>/<Report.FileName>.html` and / or `.pdf`
@@ -1368,6 +1389,13 @@ faint*), exported files and parameters; in the PDF, a summary page with the
 same table, then the figures' pages. A session figure that could not be drawn
 is listed with the reason, like a plot. With `Report.PerDataset`, the session
 plots' section is a report of its own, `<FileName>_sessions.html` / `.pdf`.
+A run with enabled session figures adds the section too, with the session
+plots' when there are both: each session figure is an entry per facet and
+trial group (listed under the figure's id, followed by the facet or group in
+parentheses when there are several), a page per matched observation,
+its caption *card: site ch 7 across 3 sessions (1 subject); panels: ...*, and
+its exported files and parameters; one that could not be drawn is listed with
+the reason.
 
 ## Session data `.mat`
 
@@ -1432,11 +1460,50 @@ the session plot's `data` holds `"signals"`):
 `epochLongTable` unrolls this file's struct into tables
 ([columns](EphysAnalysis.md#data-export)).
 
+### Session figure data `.mat`
+
+Written by `writeAnalysisData` in a run (`EphysAnalysisRunner.runSessionFigure`
+or the standalone script) with `Export.Data.Enabled`, for each [session
+figure](EphysAnalysisConfig.md#session-figures), at
+`<Export.Data.Folder>/<Export.Data.FilenamePattern>.mat` with `{Name}` `all`,
+`{Plot}` the figure's id and `{Kind}` `figure` (default
+`{OutputRoot}\analysis\data\all_<figure id>.mat`): one file per session figure,
+holding every observation, facet and trial group. It is **not** the session
+plot data file's shape (above): there is no `sessionPlot`, `epochs` or
+`provenance`, and the contents are figures, not the results of a plot. Written
+only when at least one observation was drawn; a file that exists with
+`Overwrite` off, or any other failure, goes into the first row's `Message`.
+`-v7.3` (default) or `-v7`; `S = load(file)` gives the struct back. The
+file can be large, since it holds the merged results and each session's own.
+
+| Variable | Contents |
+| --- | --- |
+| `schema` | `"ephys-analysis-session-figure/1"` |
+| `figure` | the figure's id |
+| `spec` | the figure's spec (`figureFor`, with `enabled` true): the alignment, panels and `sessions` block every session was computed with |
+| `sessions` | a table, one row per session in date order: `index` (the runner's dataset index), `key`, `name`, `folder`, `subject`, `date`, `dateText`, `label`, `status` (`done`, `skipped`, `error`) and `message`, as of the last observation computed |
+| `observations` | the table `figureSessionObservations` returned, one row per matched observation: `kind`, `label`, `unitId`, `channel`, `column`, `shank`, `depth`, `meta`, `group`, `groupLabel`, `nSessions`, `unitIds` and `perSession` |
+| `results` | a struct array, one element per observation and figure (facet x trial group): `index` (the row of `observations`), `observation` (its label), `facet`, `group`, `label`, `status` (`done`, `skipped`, `error`), `message` and `F`, the merged figure (`[]` unless `done`) |
+| `perSession` | `{nObs x nSessions}`: row `i`, column `k` is session `k`'s own `figureCompute` result for observation `i` (`[]` where the session did not draw it) |
+| `config` | the analysis config as a struct (`EphysAnalysisConfig.toStruct`) |
+| `created` | `yyyy-MM-dd HH:mm:ss` |
+
+**`results(i).F`**, a merged figure, is shaped as `figureCompute`'s `F` (`kind`,
+`id`, `spec`, `epochs`, `groups`, `skip`, `panels(k).layers(j)` with `R`, `skip`
+and `meta`), with each layer's `R` the merged result of its kind
+([the merged result](EphysAnalysis.md#the-merged-result): `R.groups` are the
+series, `R.sessions`, `R.sessionSeries`, `R.members`), plus `observation` (the
+matched observation as a struct, with the trial group's label in `groupLabel`),
+`sessions` (the facet's rows of the sessions table with `status`, `message` and
+`nEpochs`), `nSessions` (how many were merged), `perSession` (their indices in
+the sessions table), `sessionSeries` and `dataset` (*3 sessions (SYNTH-01)*).
+A layer that could not be merged has `skip` set and `R = []`.
+
 ## Unit mapping CSV
 
 Read by `readUnitMapping`, written by `writeUnitMapping` and the analysis
-app's mapping editor; the file a session plot with `match "mapping"` names
-(`mappingFile`). UTF-8 text, a header row, comma-separated: a column `cell`
+app's mapping editor; the file a session plot or a session figure with
+`match "mapping"` names (`mappingFile`). UTF-8 text, a header row, comma-separated: a column `cell`
 (the cell's name, any case of the header), then one column per dataset key
 (the Data tab's **Key** column, e.g. `SYNTH-01/260908_103000`, kept as it is
 since keys hold `/`) holding the unit id or ids the cell has in that dataset:

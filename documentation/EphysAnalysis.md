@@ -718,6 +718,19 @@ The pieces are functions of their own:
 | `epochData`, `sessionData`, `writeAnalysisData`, `epochLongTable` | the organized data behind the figures ([below](#data-export)) |
 | `readUnitMapping(file)`, `writeUnitMapping(file, T, Overwrite=)` | the [unit-mapping CSV](file-formats.md#unit-mapping-csv) (`readUnitMapping:NoFile`, `:NoCell`; `writeUnitMapping:NoCell`, `:Exists`, `:CannotWrite`) |
 
+**Session figures.** A [figure](#figures) with `sessions.enabled` is drawn
+across the datasets the same way, beside the session plots
+([Session figures](EphysAnalysisConfig.md#session-figures)). Where a session
+plot merges one plot's results, a session figure computes **one observation**
+(a site, a cell of the mapping, a channel or the dataset) on every session with
+`figureCompute` and merges each layer of each panel with `combineSessions`, so
+`renderFigure` draws the merged figure as it draws one dataset's. The pieces are
+functions of their own, shared by the runner, the app's preview and the
+standalone script: `figureSessionObservations` (the observations matched across
+the sessions), `figureSessionCompute` (the merge), `figureSessionSpec` (the
+trial-group rules) and `figureSessionSkipReason` ([Figures](#figures) lists
+them).
+
 ### The merged result
 
 `R = combineSessions(...)` has the base plot's `kind` and, on every kind:
@@ -1177,7 +1190,11 @@ app's preview and the standalone scripts share:
 | `figureCompute(src, spec, Observation=, Check=)` | the data of one observation, with no graphics and no runner: each panel's layers, reading only the observed unit's spikes or channel's column. `EphysAnalysisRunner.computeFigure` calls it, adding the preview's checkpoint |
 | `renderFigure(F, spec, target)` | draws that data into a target on one tiled layout, as `renderPlot` does for a plot |
 | `figureOutputName(pattern, name, spec, obs, i, n)` | the file name (no extension) of observation `i` of `n`: `Export.FilenamePattern` with `{Plot}` the figure's id, `{Unit}` the observation's short label (`su12`, `ch7`, `dataset`) and `{Index}` its number, and `_<Unit>` added when the pattern names neither |
-| `figureCaption(spec, T, Dataset=)` | the sentence under the figure in a report: the observations (`T` from `figureObservations`), the panel types and, for aligned panels, the event, window and grouping |
+| `figureCaption(spec, T, Dataset=, Sessions=)` | the sentence under the figure in a report: the observations (`T` from `figureObservations`), the panel types and, for aligned panels, the event, window and grouping. `Sessions=S` (the `sessionTable` rows) describes a [session figure](#session-figures-in-a-run) instead: *card: site ch 7 across 3 sessions (1 subject); ...*, with the series and the trial groups' handling |
+| `figureSessionObservations(sources, spec)` | a session figure's observations matched across the sessions (`sources`: a cell of `loadAnalysisSource` structs, in date order): a row per site, mapping cell, channel or the dataset, with `nSessions`, `unitIds` and `perSession` (the row each session draws). Pure |
+| `figureSessionCompute(sources, sessions, spec, Observation=, Check=)` | `[res, sessions, Fs]`: one observation of a session figure computed on every session (`figureCompute`) and each panel's layers merged with `combineSessions`; `res` has a merged figure `F` per facet and trial group. No runner, no graphics. What it merges and skips: [Session figures](EphysAnalysisConfig.md#merging-a-session-figure) |
+| `figureSessionSpec(spec)` | a session figure's spec as it is computed and drawn: `trialGroups "pool"` clears the groups (and a tuning panel's `seriesParam`), `"combine"` draws PSTH bars as lines, `perGroup` off. `renderFigure` applies it to a merged figure itself |
+| `figureSessionSkipReason(spec, reasons, Labels=)` | why a session figure cannot be drawn across the sessions (`""`: it can): *disabled*, *not a session figure*, an unmerged panel type, an auROC baseline, a missing mapping file, or *fewer than N session(s) can draw it* with each session's `figureSkipReason` (`reasons`). `plan` and `runSessionFigure` use it |
 
 One dataset's figure, observation by observation, as a run draws it
 ([Runner](#runner)):
@@ -1360,12 +1377,13 @@ pipeline's selected datasets instead of `cfg.Source`
 
 | Member | Meaning |
 | --- | --- |
-| `plan(Datasets=, Plots=, Figures=, SessionPlots=)` | table `Dataset, Plot, Kind, Source, Enabled, Reason`, one row per dataset and plot (default: every plot, enabled or not), then one row per dataset and [figure](#figures) (`Plot` its id, `Kind` `"figure"`, `Source` what it is drawn for: `unit`, `channel` or `dataset`; `Reason` from `figureSkipReason`; default: every figure; `string.empty(1, 0)` for none, as `Plots=`; whether the unit filter or channel list leaves an observation shows only when it runs, as *no observation*), then one row per session plot and figure (`Dataset` is `"sessions: all"`, or `"sessions: <subject>"` with `facet "subject"`; `Plot` the session plot's id, `Kind` and `Source` its base plot's; `Reason` from `sessionPlotSkipReason`; default: every session plot, `string.empty` for none). It reads only each dataset's source. `Reason` comes from `plotSkipReason`: *disabled*, *no sorted units*, *no detected spikes*, *no LFP extract* (or another signal), *no probe map*, *no paired trials*, *no line X*, *no trial parameter X*, or *cannot read the dataset: ...* ([why a plot is skipped](EphysAnalysisApp.md#why-is-my-plot-skipped)). A plot that passes can still fail when it runs, e.g. when no event is left after the selection |
-| `run(Datasets=, Plots=, Figures=, SessionPlots=, Export=, Report=)` | every plot on every dataset, each dataset's [figures](#figures) after its plots, then every session plot over the datasets; returns (and keeps in `Results`) one row per dataset and plot or figure: `Dataset, Plot, Kind, Status` (`done`, `skipped`, `error`, `canceled`), `Message, Files, Seconds` (`Plot` is the plot's or figure's id, `Kind` is `"figure"` for a figure), and per session plot figure a row whose `Dataset` is `"sessions: <label>"` (`all`, the subject, or `<subject> / <trial group>`; never a dataset's name). `Datasets` takes indices, keys or names (default all), `Plots` plot ids and `Figures` figure ids (each: `[]`, the default, = the enabled ones; `string.empty(1, 0)` = none; else the ids, enabled or not), `SessionPlots` session plot ids (default the enabled ones; `string.empty` none); `Export` / `Report` override `cfg.Export.Enabled` / `cfg.Report.Enabled` ([session plots in a run](#session-plots-in-a-run)) |
+| `plan(Datasets=, Plots=, Figures=, SessionPlots=, SessionFigures=)` | table `Dataset, Plot, Kind, Source, Enabled, Reason`, one row per dataset and plot (default: every plot, enabled or not), then one row per dataset and [figure](#figures) (`Plot` its id, `Kind` `"figure"`, `Source` what it is drawn for: `unit`, `channel` or `dataset`; `Reason` from `figureSkipReason`; default: every figure; `string.empty(1, 0)` for none, as `Plots=`; whether the unit filter or channel list leaves an observation shows only when it runs, as *no observation*), then one row per session plot and figure (`Dataset` is `"sessions: all"`, or `"sessions: <subject>"` with `facet "subject"`; `Plot` the session plot's id, `Kind` and `Source` its base plot's; `Reason` from `sessionPlotSkipReason`; default: every session plot, `string.empty` for none), then one row per [session figure](#session-figures-in-a-run) and facet (`Dataset` `"sessions: <facet>"`, `Plot` its id, `Kind` `"figure"`, `Source` what it observes; `Reason` from `figureSessionSkipReason`; default: every session figure, `string.empty(1, 0)` for none; a session figure is never listed per dataset, and `Figures=` leaves it out). It reads only each dataset's source. `Reason` comes from `plotSkipReason`: *disabled*, *no sorted units*, *no detected spikes*, *no LFP extract* (or another signal), *no probe map*, *no paired trials*, *no line X*, *no trial parameter X*, or *cannot read the dataset: ...* ([why a plot is skipped](EphysAnalysisApp.md#why-is-my-plot-skipped)). A plot that passes can still fail when it runs, e.g. when no event is left after the selection |
+| `run(Datasets=, Plots=, Figures=, SessionPlots=, SessionFigures=, Export=, Report=)` | every plot on every dataset, each dataset's [figures](#figures) after its plots, then every session plot over the datasets and then every [session figure](#session-figures-in-a-run); returns (and keeps in `Results`) one row per dataset and plot or figure: `Dataset, Plot, Kind, Status` (`done`, `skipped`, `error`, `canceled`), `Message, Files, Seconds` (`Plot` is the plot's or figure's id, `Kind` is `"figure"` for a figure), and per session plot figure a row whose `Dataset` is `"sessions: <label>"` (`all`, the subject, or `<subject> / <trial group>`; never a dataset's name). `Datasets` takes indices, keys or names (default all), `Plots` plot ids and `Figures` figure ids (each: `[]`, the default, = the enabled ones; `string.empty(1, 0)` = none; else the ids, enabled or not), `SessionPlots` session plot ids (default the enabled ones; `string.empty` none), `SessionFigures` session figure ids (`[]`, the default, = `Config.enabledSessionFigures()`; `string.empty(1, 0)` none; a session figure is never drawn per dataset, whatever `Figures=` names); `Export` / `Report` override `cfg.Export.Enabled` / `cfg.Report.Enabled` ([session plots in a run](#session-plots-in-a-run)) |
 | `runDataset(k, Plots=, Figures=, Export=, Report=, Span=)` | every plot, then every figure, on dataset `k`, appended to `Results` and returned (`Plots=` and `Figures=` as in `run`; `Export` default true, `Report` false; the report is the one `run` started; `Span=[a b]` the share of a longer run it covers) |
 | `computeFigure(src, spec, Observation=)` | `F` of one observation (a row of `figureObservations(src, spec)`) of a figure (`cfg.figureFor(id)`) on one dataset (`source(k)`): `figureCompute` with the runner's checkpoint while `PollFcn` is set; no graphics |
 | `computePlot(src, spec, Page=)` | `[R, E, G]` of one plot (`cfg.plotFor(id)`) on one dataset (`source(k)`); `Page=p` (the app's preview; 0, the default, = all) computes only the units or channels on page `p` of a grid, in probe order, and sets `R.page = [p nPages]`, which `plotPageCount` and `renderPlot` follow |
 | `renderPlotFigures(R, spec, Target=, Page=, OnRemember=)` | `renderPlot` of one page into a target: the app's preview. Without a target it is `EphysAnalysisRunner:NoTarget` |
+| `sessionFigureIndices(spec, idx)`, `sessionFigureObservations(fig, idx)`, `computeSessionFigure(fig, idx, Observation=)`, `runSessionFigure(id, idx, Export=, Report=, Span=)` | a [session figure](#session-figures-in-a-run) (`fig`: its id or `figureFor` spec; `idx`: indices, keys or names, `[]` = all; with `sessions.datasets "list"` the listed keys instead): the datasets it covers; `[T, sessions, sources]`, the matched observations, the sessions by date (`status`, `message`) and their sources; `[res, sessions, spec, Fs]`, one observation computed and merged (`figureSessionCompute`, with the checkpoint while `PollFcn` is set; no graphics); and one figure run, per observation: compute, render, export, report |
 | `sessionTable(idx)` | `sessionTable` of the runner's datasets `idx` (default all): `AcqDates` from the project's recordings (NaT in folders mode), `index` the runner's dataset index, sorted by date then name |
 | `cachedPlot(k, spec, Keep=)` | `computePlot` of dataset `k`, or the result kept under `cacheKey(Keys(k), spec)`. Unless `Keep` the dataset's loaded signals and spikes are cleared afterwards, so a run over many datasets holds one at a time |
 | `computeSessionPlot(sp, idx, KeepActive=, Span=)` | `[res, sessions, spec, Rs]` of a session plot (an id, or a struct): `spec = cfg.sessionPlotFor(sp)`; the sessions of `idx` (indices, keys or names; default all; `datasets "list"`: its `datasetKeys`, keys not found left out and logged) by date; per session `plotSkipReason` (status `skipped` and the reason) else `cachedPlot` (a failing compute is `error`, logged, and the rest still run); then `sessionResults`. `sessions` gains `status` and `message`; `Rs` holds the per-session results. `KeepActive` keeps one dataset's data loaded (the app's active dataset); `Span` reports progress within a share of a run |
@@ -1487,6 +1505,49 @@ The pipeline's [Analysis step](EphysPipeline.md#analysis-step) runs an
 analysis config's session plots too, over the pipeline's selected datasets;
 its dry run lists the datasets' figures, not the session plots'.
 
+### Session figures in a run
+
+A [figure](#figures) with `sessions.enabled` is never drawn per dataset:
+`enabledFigures`, `run(Figures=)` and `plan(Figures=)` leave it out, and `run`
+draws it after the datasets and the session plots (a run canceled before then marks it `canceled`), in
+the same *Across sessions* section of the report. `run(SessionFigures=)` names
+which (default `Config.enabledSessionFigures()`), each with an equal share of
+the progress; `runSessionFigure(id)` does one:
+
+- **Skip.** The figure is first tested with `figureSessionSkipReason`, given each
+  session's own `figureSkipReason`: *disabled*, a panel type that is not merged
+  across sessions (probe map, unit correlation, spectrum, spectrogram,
+  coherence), an auROC baseline, no mapping file, fewer than `minSessions`
+  sessions that can draw it, or no observation matched across them. It is
+  then one `skipped` row (`"sessions: all"`) with the reason, and `plan` shows
+  the same reason.
+- **Compute and draw.** `sessionFigureObservations` matches the observations,
+  and per observation `figureSessionCompute` makes a merged figure for each
+  facet and trial group, which is drawn exactly as `runDataset` draws a figure's
+  page (`newExportFigure`, `renderFigure`) and exported. `cancel()` stops between
+  observations.
+- **Files.** Into `Export.SessionsFolder` (the tokens are the first session's),
+  named by `figureOutputName(Export.FilenamePattern, <facet>, ...)`: `{Name}`
+  the facet (`all`, or the subject), `{Plot}` the figure's id, `{Unit}`
+  `site_ch7`, the mapping's cell, `ch7` or `dataset`, and `_<group>` for
+  `trialGroups "each"` (`all_card_site_ch7.png`).
+  `Export.Overwrite` off keeps a page whose files all exist.
+- **Data.** With `Export.Data.Enabled` one `.mat` file per session figure,
+  `<Data.Folder>\<Data.FilenamePattern>.mat` with `{Name}` `all` and `{Kind}`
+  `figure` ([format](file-formats.md#session-figure-data-mat)); its path is added
+  to the first row's `Files`.
+- **Rows and report.** One `Results` row per figure label (the facet, and the
+  trial group), `Dataset` `"sessions: <label>"`, `Kind` `"figure"`, `Message`
+  `<n> observation(s)`; `skipped` when no observation was drawn, `error` when
+  only failures remain, `canceled` for a figure a cancel stopped before it
+  ran. The report gets one entry per label, a page per observation, with the
+  caption `figureCaption(spec, T, Sessions=)`. The run record lists the ids as
+  `sessionFigures`.
+
+The pipeline's [Analysis step](EphysPipeline.md#analysis-step) runs an analysis
+config's session figures like its session plots; its dry run lists the datasets'
+figures, not the session figures'.
+
 ### Changing a config in code
 
 `EphysAnalysisConfig` is a value class: keep the result of every call. Its
@@ -1553,7 +1614,7 @@ Both return the script text; `File=` also writes it.
 | Form | Contains | Needs |
 | --- | --- | --- |
 | **compact** | `cfg = EphysAnalysisConfig.load(...)`, a few commented overrides (export formats, report format, group-by), then `EphysAnalysisRunner(cfg)`, `plan`, `run` and the report files | the saved config next to it: a config never saved, with no `ConfigFile=`, is `EphysAnalysisScript:NoConfigFile` |
-| **standalone** | the config JSON as a comment; the datasets (`EphysProject` and its keys, or the folder list); one fully resolved spec per enabled plot (`spec1`, `spec2`, ... with `ref`, `window` and `selection` written out) and per enabled figure (`fspec1`, ...: `figureFor`'s spec); the export and report settings; then per dataset and plot the calls `computePlot` makes, the export loop (the runner's page loop, a page at a time with an `onCleanup` per page) and the report calls; then, per dataset and enabled figure, [the figure block](#figures-in-a-standalone-script); then a *Session plots* block per enabled session plot ([below](#session-plots-in-a-standalone-script)) | nothing but the repository. It never uses the runner, so it shows exactly what a run does. It writes no run record |
+| **standalone** | the config JSON as a comment; the datasets (`EphysProject` and its keys, or the folder list); one fully resolved spec per enabled plot (`spec1`, `spec2`, ... with `ref`, `window` and `selection` written out) and per enabled figure (`fspec1`, ...: `figureFor`'s spec); the export and report settings; then per dataset and plot the calls `computePlot` makes, the export loop (the runner's page loop, a page at a time with an `onCleanup` per page) and the report calls; then, per dataset and enabled figure, [the figure block](#figures-in-a-standalone-script); then a *Session plots* block per enabled session plot ([below](#session-plots-in-a-standalone-script)) and a block per enabled [session figure](#session-figures-in-a-standalone-script) (`sfspec1`, ...) | nothing but the repository. It never uses the runner, so it shows exactly what a run does. It writes no run record |
 
 A standalone script's loop body for a PSTH starts like this:
 
@@ -1663,6 +1724,42 @@ is `error`). Not mirrored: the result cache (the script computes the base
 plot again for each session plot, which gives the same numbers), cancel,
 the `Results` rows and the run record.
 
+### Session figures in a standalone script
+
+A config with enabled [session figures](#session-figures-in-a-run) (figures with
+`sessions.enabled`, which the dataset loop leaves out) gets, after the dataset
+loop, the same block as session plots: `%% Session plots` when there are
+only session plots, `%% Session figures` when there are only session figures
+and `%% Session plots and session figures` for both (the compact script runs
+the runner, so it needs nothing). The "Session figure specs" section after the
+plot specs holds `sfspec<j>`, each session figure's `figureFor` spec with
+`enabled` set, and the loop over the datasets also collects each dataset's
+`names` and recording start `acq`. Per session figure the block makes the calls
+`runSessionFigure` makes, never through the runner:
+
+```matlab
+% --- card (figure across sessions) ---
+fspec = sfspec1;
+sel = 1:numel(outs);                          % the run's datasets (datasets "list": found by key or name)
+sessions = sessionTable(names(sel).', keys(sel).', NamePattern=..., AcqDates=acq(sel).', Folders=folders(sel).', Index=sel.', Sort=true);
+sources = cell(1, height(sessions));  reasons = strings(1, height(sessions));
+for j = 1:height(sessions)                    % each session's source, in a try: "cannot read the dataset"
+    sources{j} = loadAnalysisSource(outs(sessions.index(j)), Key=keys(sessions.index(j)));
+    reasons(j) = figureSkipReason(sources{j}, fspec);
+end
+obsT = figureSessionObservations(sources, fspec);   % matched across the sessions: a page each
+reason = figureSessionSkipReason(fspec, reasons, Labels=reshape(sessions.label, 1, []));
+...                                           % else, per observation:
+[res, lastSessions, Fs] = figureSessionCompute(sources, sessions, fspec, Observation=obsT(i, :));
+...                                           % newExportFigure, renderFigure, exportFigure into exportOpts.SessionsFolder
+```
+
+then, per facet and trial group, `addReportFigure` with `figureCaption(fspec,
+obsT, Sessions=lastSessions)` and, with `Export.Data.Enabled`, the data file
+(`writeAnalysisData` into `Data.Folder`: `figureSessionCompute`'s merged figures
+and each dataset's own). The sessions are read, skipped and reported as the
+runner does. Not mirrored: cancel, the `Results` rows and the run record.
+
 ## Chronux analyses
 
 The analysis app's [Chronux tab](EphysAnalysisApp.md#chronux-tab) runs
@@ -1725,7 +1822,8 @@ and counted. Each trial's mean is removed before its spectrum unless
 | `test_copyPlotSettings` | no fixture: `plotSettingParts` (the parts two kinds share, their options in common and layout, the reasons a part is not shared) and `copyPlotSettings` (every shared part by default or the parts named; what a plot keeps: id, kind, title, enabled, and a source, window mode or baseline mode its kind does not take, with a note; a copy that validates) |
 | `test_EphysAnalysisConfig` | see [EphysAnalysisConfig](EphysAnalysisConfig.md#tests) |
 | `test_plotToFigure` | converting a plot into a figure (`plotToFigure`, `convertPlotToFigure`) for every convertible kind and layout, its notes and ids, see [EphysAnalysisConfig](EphysAnalysisConfig.md#tests) |
-| `test_EphysAnalysisRunner` | the fixture: `plan` skip reasons, `run` exports and paged names (no figure left open), HTML and PDF reports (percent-encoded and `file://` links; a `"both"` report holds the image and the PDF page of every exported page and no result; one figure per page, so each is drawn once; the PDF's title, summary and plot pages in order), `Overwrite` off, rendering real results (a stack of real `epochTable` groups labeled by the `groupBy` parameter, a raster showing every epoch and an evoked stack whatever `Style.YLim`, `rasterSort` copied onto the epochs, a tuning caption counting its curve's epochs, behavior plots of RespLatency by Depth and of the Trough onset's latency after RespWindow onset (RespLatency again), a raster sorted descending across groups by a stop event shifted by RespLatency with the Trough onsets and offsets marked at the responses, and sorted by the same event as a sort event of its own (`rasterSort "event"`: the same latencies and rows, its y label and caption; a sort event's missing line skipping a raster but not a PSTH without one; the standalone script's `eventLatency` call run), a failing export closing its page (runner and standalone script), cancel, driven units, compact vs standalone script equivalence (figures, HTML and PDF pages), unit waveforms (templates without the sorted `.bin` and the warning; the spikes cut from a planted one, at most `maxSpikes`, and kept in the cache; detections drawn from the spikes file's waveforms (`maxSpikes` of them, the mean over all); none with the mode off or for an overlay; the script's `unitWaveforms` line), a PSTH with the mean aux magnitude (`computePlot`'s `R.aux` equal to `auxMean` on the AUX extract, a panel per tile, the caption, "no AUX extract", the standalone script's `auxMean` call run), the error a PSTH asks for (`computePlot`'s `R.err`: mean +/- SD, SEM with no error drawn; the standalone script's `ErrorType=` only when not SEM), and session plots of all eight kinds over the fixture's two datasets (`plan` rows, `run`'s figures `<SessionsFolder>\all_<id>.png` with `_<group>`, the *Across sessions* section of the HTML and PDF reports, the `"sessions: ..."` rows, `Overwrite` off, cancel during the session phase, the run record's `sessionPlots`, `Export.Data` files read back, `epochData` on the fixture, the result cache reused by a second `computeSessionPlot`, and compact vs standalone script parity for the session figures pixel for pixel, the reports, the data `.mat` files and the `_sessions` report), and figures (section 11: `plan` rows, `run` with `Figures=`, a file per observation named by `figureOutputName`, one report entry per figure with an image and a PDF page per observation and its caption, the run record's `figures`, one figure alone with `Overwrite` off, `cancel()` between a figure's observations, and the standalone script's `figureCompute` calls, pixel for pixel and report for report) |
+| `test_EphysAnalysisRunner` | the fixture: `plan` skip reasons, `run` exports and paged names (no figure left open), HTML and PDF reports (percent-encoded and `file://` links; a `"both"` report holds the image and the PDF page of every exported page and no result; one figure per page, so each is drawn once; the PDF's title, summary and plot pages in order), `Overwrite` off, rendering real results (a stack of real `epochTable` groups labeled by the `groupBy` parameter, a raster showing every epoch and an evoked stack whatever `Style.YLim`, `rasterSort` copied onto the epochs, a tuning caption counting its curve's epochs, behavior plots of RespLatency by Depth and of the Trough onset's latency after RespWindow onset (RespLatency again), a raster sorted descending across groups by a stop event shifted by RespLatency with the Trough onsets and offsets marked at the responses, and sorted by the same event as a sort event of its own (`rasterSort "event"`: the same latencies and rows, its y label and caption; a sort event's missing line skipping a raster but not a PSTH without one; the standalone script's `eventLatency` call run), a failing export closing its page (runner and standalone script), cancel, driven units, compact vs standalone script equivalence (figures, HTML and PDF pages), unit waveforms (templates without the sorted `.bin` and the warning; the spikes cut from a planted one, at most `maxSpikes`, and kept in the cache; detections drawn from the spikes file's waveforms (`maxSpikes` of them, the mean over all); none with the mode off or for an overlay; the script's `unitWaveforms` line), a PSTH with the mean aux magnitude (`computePlot`'s `R.aux` equal to `auxMean` on the AUX extract, a panel per tile, the caption, "no AUX extract", the standalone script's `auxMean` call run), the error a PSTH asks for (`computePlot`'s `R.err`: mean +/- SD, SEM with no error drawn; the standalone script's `ErrorType=` only when not SEM), and session plots of all eight kinds over the fixture's two datasets (`plan` rows, `run`'s figures `<SessionsFolder>\all_<id>.png` with `_<group>`, the *Across sessions* section of the HTML and PDF reports, the `"sessions: ..."` rows, `Overwrite` off, cancel during the session phase, the run record's `sessionPlots`, `Export.Data` files read back, `epochData` on the fixture, the result cache reused by a second `computeSessionPlot`, and compact vs standalone script parity for the session figures pixel for pixel, the reports, the data `.mat` files and the `_sessions` report), and figures (section 11: `plan` rows, `run` with `Figures=`, a file per observation named by `figureOutputName`, one report entry per figure with an image and a PDF page per observation and its caption, the run record's `figures`, one figure alone with `Overwrite` off, `cancel()` between a figure's observations, and the standalone script's `figureCompute` calls, pixel for pixel and report for report), and session figures (section 12: `plan`'s `sessions: all` row, `run`'s page per matched site `all_<id>_site_ch<N>.png`, the *Across sessions* report entry and caption, the run record's `sessionFigures`, `run(SessionFigures=)` alone with `Overwrite` off, cancel between observations, and the standalone script's `figureSessionCompute` calls, pixel for pixel) |
+| `test_EphysAnalysisFigures` | see [EphysAnalysisConfig](EphysAnalysisConfig.md#tests) (section 10: session figures across two datasets) |
 | `test_ChronuxAnalysis` | no fixture: hand-built Chronux files (-v7.3 and -v7): `chronuxSettings` and its errors; `loadChronuxExport` (the index, rows read by parts equal to the whole signal, channels in the order asked, `Span`, `Check`, `TooLarge`, `NoLayout`); `chronuxTimeBase` (segments clear of the artifact periods' rows, the seconds accounted for, segments on the spike clock, epochs and their groups); the alignment (a signal whose value is its row); and with Chronux on the path `chronuxSpectrum` (a 40 Hz sine's peak, the jackknife bars bracketing the spectrum, a burst inside an artifact period not seen, groups), `chronuxSpecgram` (a burst after each event, the dB baseline, window centers, NaN over an artifact period, `TooLarge`), a throwing `Check`, `chronuxPairs` and `chronuxCoherence` (a delayed copy coherent with the delay's phase, noise under `confC`, a coherogram NaN over an artifact period), the spike analyses (`chronuxSpikeTrains`; a train modulated at 20 Hz peaks there and tends to its rate, spikes locked to a 40 Hz field are coherent with it, identical trains have a coherence of 1), and `renderChronux` (every kind, layout and scale, the phase tiles, the rate line, pages, a uifigure panel, every part's role known) |
 | `test_EphysAnalysisApp` | see [EphysAnalysisApp](EphysAnalysisApp.md#tests) |
 | `test_PipelineAnalysisStep` | the fixture: the pipeline's Analysis step running a saved analysis config, see [EphysPipeline](EphysPipeline.md#tests) |

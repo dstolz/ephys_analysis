@@ -20,19 +20,35 @@ function T = onEditUnitMapping(obj, opts)
 %   numbers or text) skips the window and writes T for its keys, for
 %   scripts and tests.
 %
-%   See also onBrowseUnitMapping, readUnitMapping, writeUnitMapping.
+%   Target="figure" edits the selected figure's mapping instead (the
+%   Figures tab's Sessions section: its sessions block's mappingFile and
+%   datasetKeys; the file goes into its Mapping file box, onConfigChanged
+%   "figure").
+%
+%   See also onBrowseUnitMapping, onBrowseFigureMapping, readUnitMapping, writeUnitMapping.
 arguments
     obj (1,1) EphysAnalysisApp
     opts.File (1,1) string = ""
     opts.Table = []
+    opts.Target (1,1) string {mustBeMember(opts.Target, ["session" "figure"])} = "session"
 end
 T = [];
-k = obj.SelectedSessionPlot;
-if k < 1 || k > numel(obj.Config.SessionPlots)
-    obj.setStatus("Sessions: add or select a session plot first.");
-    return
+forFigure = opts.Target == "figure";
+if forFigure
+    k = obj.SelectedFigure;
+    if k < 1 || k > numel(obj.Config.Figures)
+        obj.setStatus("Figures: add or select a figure first.");
+        return
+    end
+    sp = obj.Config.Figures(k).sessions;   % the same fields: mappingFile, datasets, datasetKeys
+else
+    k = obj.SelectedSessionPlot;
+    if k < 1 || k > numel(obj.Config.SessionPlots)
+        obj.setStatus("Sessions: add or select a session plot first.");
+        return
+    end
+    sp = obj.Config.SessionPlots(k);
 end
-sp = obj.Config.SessionPlots(k);
 given = istable(opts.Table);
 file = opts.File;
 if file == ""; file = sp.mappingFile; end
@@ -98,6 +114,12 @@ catch ME
     return
 end
 obj.log(sprintf("Sessions: unit mapping saved to %s (%d cells, %d datasets).", file, height(T), numel(keys)));
+if forFigure
+    if file ~= sp.mappingFile; obj.FigureEditor.sesMappingFile.Value = char(file); end
+    obj.onConfigChanged("figure");   % the file changed: the matched observations and a drawn preview are out of date
+    obj.setStatus(sprintf("Figures: mapping saved to %s (%d cells).", file, height(T)));
+    return
+end
 if file ~= sp.mappingFile
     obj.SessionEditor.mappingFile.Value = char(file);
 end

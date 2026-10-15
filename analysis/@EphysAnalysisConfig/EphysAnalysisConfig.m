@@ -32,7 +32,12 @@ classdef EphysAnalysisConfig
     %               each layer bound to a source (FigureSources) that either
     %               follows the observation or names fixed items: id,
     %               enabled, title, observe, grid, common, panels, ref,
-    %               window, selection, style, aesthetics. common holds the
+    %               window, selection, sessions, style, aesthetics.
+    %               sessions (defaults("FigureSessions")) with enabled true
+    %               makes it a session figure: drawn once across the ticked
+    %               (or listed) datasets, each layer merged across them
+    %               (figureSessionCompute, EphysAnalysisRunner.runSessionFigure),
+    %               never per dataset. common holds the
     %               options every linked panel takes (commonFields: bins,
     %               measure, baseline, auroc, maskAfterStop, waveform), as a panel
     %               whose ref / window are "default" takes the figure's
@@ -163,6 +168,10 @@ classdef EphysAnalysisConfig
         SessionTrialGroups = ["pool" "each" "combine"]
         SessionFacets = ["none" "subject"]
         SessionColorOrders = ["palette" "sequential"]
+        % Session figures (Figure.sessions): how the observed unit is matched across sessions (no "pool": a figure
+        % observes one matched unit), and the panel types combineSessions does not merge (a session figure holds none).
+        FigureSessionMatches = ["site" "mapping"]
+        FigureSessionUnmerged = ["probemap" "corrmap" "spectrum" "spectrogram" "coherence"]
         % String fields that are lists even when their default has one element.
         ListFields = ["response" "pairingFlags" "groupBy" "classes" "groups" "Formats" "Datasets" "Folders" "datasetKeys" "data"]
     end
@@ -375,12 +384,40 @@ classdef EphysAnalysisConfig
         end
 
         function ids = enabledFigures(obj)
-            %enabledFigures  Ids of the enabled figures, in order.
+            %enabledFigures  Ids of the enabled figures drawn per dataset, in order (session figures apart).
             ids = string.empty(1, 0);
             if ~isempty(obj.Figures)
-                on = obj.Figures([obj.Figures.enabled]);
+                s = [obj.Figures.sessions];
+                on = obj.Figures([obj.Figures.enabled] & ~[s.enabled]);
                 if ~isempty(on); ids = reshape([on.id], 1, []); end
             end
+        end
+
+        function ids = sessionFigureIds(obj)
+            %sessionFigureIds  Ids of the session figures (sessions.enabled), enabled or not, in order.
+            ids = string.empty(1, 0);
+            if ~isempty(obj.Figures)
+                s = [obj.Figures.sessions];
+                on = obj.Figures([s.enabled]);
+                if ~isempty(on); ids = reshape([on.id], 1, []); end
+            end
+        end
+
+        function ids = enabledSessionFigures(obj)
+            %enabledSessionFigures  Ids of the enabled session figures, in order: drawn across the datasets after them.
+            ids = string.empty(1, 0);
+            if ~isempty(obj.Figures)
+                s = [obj.Figures.sessions];
+                on = obj.Figures([obj.Figures.enabled] & [s.enabled]);
+                if ~isempty(on); ids = reshape([on.id], 1, []); end
+            end
+        end
+
+        function tf = isSessionFigure(obj, id)
+            %isSessionFigure  True when figure ID (an id or an index) is drawn across datasets (sessions.enabled).
+            k = id;
+            if ~isnumeric(id); k = obj.figureIndex(id); end
+            tf = k >= 1 && k <= numel(obj.Figures) && obj.Figures(k).sessions.enabled;
         end
 
         function [obj, id, notes] = convertPlotToFigure(obj, plotId)

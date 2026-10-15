@@ -56,8 +56,22 @@ E.obsShanks.Value = listText(u.shanks);
 E.obsUnitChannels.Value = listText(u.channels);
 offerItems(E.obsSignal, EphysAnalysisConfig.SignalSources, o.signal);
 E.obsChannels.Value = listText(o.channels);
-E.obsDatasets.Value = char(pickFrom(o.datasets, ["ticked" "list"], "ticked"));
 E.obsPerGroup.Value = logical(o.perGroup);
+
+% across sessions (the Sessions section)
+ss = fig.sessions;
+E.sesEnabled.Value = logical(ss.enabled);
+E.sesDatasets.Value = char(pickFrom(ss.datasets, ["ticked" "list"], "ticked"));
+E.sesKeys.Value = char(strjoin(ss.datasetKeys, ", "));
+E.sesFacet.Value = char(pickFrom(ss.facet, EphysAnalysisConfig.SessionFacets, "none"));
+E.sesSeries.Value = char(pickFrom(ss.series, EphysAnalysisConfig.SessionSeries, "session"));
+E.sesColorOrder.Value = char(pickFrom(ss.colorOrder, EphysAnalysisConfig.SessionColorOrders, "palette"));
+E.sesShowMembers.Value = logical(ss.showMembers);
+E.sesError.Value = char(pickFrom(ss.error, EphysAnalysisConfig.SessionErrors, "sem"));
+E.sesMatch.Value = char(pickFrom(ss.match, EphysAnalysisConfig.FigureSessionMatches, "site"));
+E.sesMappingFile.Value = char(ss.mappingFile);
+E.sesMinSessions.Value = max(1, ss.minSessions);
+E.sesTrialGroups.Value = char(pickFrom(ss.trialGroups, EphysAnalysisConfig.SessionTrialGroups, "pool"));
 
 % arrangement, appearance, looks
 E.spacing.Value = char(pickFrom(fig.grid.spacing, string(E.spacing.ItemsData), "tight"));

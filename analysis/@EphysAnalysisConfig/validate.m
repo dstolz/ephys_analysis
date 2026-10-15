@@ -81,8 +81,7 @@ function issues = validate(obj, opts)
 %               names (from each other and from the plots' ids: both fill
 %               {Plot}) and file-name safe; the figure's ref, window and
 %               selection (groupBy <= 2); observe: kind, source, signal,
-%               channels, maxUnits, datasets ("list" without keys is a
-%               warning), no layer following a "dataset" observation, a
+%               channels, maxUnits, no layer following a "dataset" observation, a
 %               warning when an explicit unit / channel observation has no
 %               following layer, a warning for perGroup while the figure's
 %               selection groups by nothing; grid: whole rows and cols >= 1,
@@ -139,8 +138,21 @@ function issues = validate(obj, opts)
 %               bins, measure, baseline Mode and window, auroc, the
 %               waveform settings --, plus an error at
 %               "<figure>.<panel>.common" when its type does not take the
-%               common baseline Mode); the style, as a plot's
-%     Export    formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
+%               common baseline Mode); the style, as a plot's; sessions
+%               (a session figure, "<figure>.sessions.<field>"): datasets,
+%               facet, series, colorOrder, error, match (site / mapping)
+%               and trialGroups known values, minSessions a whole number
+%               >= 1, match "mapping" a mapping file as a session plot's
+%               and a unit observation (a channel observation matches by
+%               recording channel, a dataset one needs no match); with
+%               sessions.enabled no probe map, unit
+%               correlation or spectral panel and no auROC baseline
+%               (combineSessions merges neither). Warnings: "list"
+%               without keys; showMembers with series "session";
+%               trialGroups "pool" while the selection groups trials;
+%               "combine" with a PSTH panel drawn as bars (drawn as
+%               lines); a heat map of trials (not merged: skipped)
+%     Export   formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
 %               folder and file-name patterns use known tokens; a warning
 %               when the files of two enabled plots or figures, or of two
 %               datasets, would get the same names (no {Plot} -- or {Kind}
@@ -210,7 +222,8 @@ checkSelection(D.Selection, "Defaults", "Selection");
 
 % --- Plots -----------------------------------------------------------------------------
 K = EphysAnalysisConfig.plotKinds();
-if (isempty(obj.Plots) || ~any([obj.Plots.enabled])) && isempty(obj.enabledFigures()) && isempty(obj.enabledSessionPlots())
+if (isempty(obj.Plots) || ~any([obj.Plots.enabled])) && isempty(obj.enabledFigures()) && isempty(obj.enabledSessionPlots()) ...
+        && isempty(obj.enabledSessionFigures())
     add("Plots", "enabled", "error", "No plot, figure or session plot is enabled.");
 end
 ids = obj.plotIds();
@@ -683,6 +696,14 @@ if ~isempty(fids)   % a figure's files are named by {Plot} like a plot's
             "(characters outside A-Z a-z 0-9 _ - . replaced by ""_"", case ignored).");
     end
 end
+sfIds = obj.sessionFigureIds();
+if ~isempty(sfIds) && ~isempty(obj.sessionPlotIds())   % both go to Export.SessionsFolder as <facet>_{Plot}, data all_<id>.mat
+    spKey = lower(regexprep(obj.sessionPlotIds(), '[^\w\-\.]', '_'));
+    for f = sfIds(ismember(lower(regexprep(sfIds, '[^\w\-\.]', '_')), spKey))
+        add("Figures", f, "error", "Session figure id """ + f + """ names the same files as a session plot's id: both write " + ...
+            "<facet>_{Plot} into the sessions folder (characters outside A-Z a-z 0-9 _ - . replaced by ""_"", case ignored).");
+    end
+end
 for k = 1:numel(obj.Figures)
     fg = obj.Figures(k);
     f0 = fg.id;
@@ -719,14 +740,10 @@ for k = 1:numel(obj.Figures)
     if ~(ob.units.maxUnits >= 1)
         add("Figures", f0 + ".observe.units.maxUnits", "error", "maxUnits must be >= 1 (Inf = all).");
     end
-    if ~ismember(ob.datasets, ["ticked" "list"])
-        add("Figures", f0 + ".observe.datasets", "error", "observe.datasets is ticked or list, not """ + ob.datasets + """.");
-    elseif ob.datasets == "list" && isempty(ob.datasetKeys)
-        add("Figures", f0 + ".observe.datasetKeys", "warning", "datasets is ""list"" but no dataset keys are listed; the figure is drawn for none.");
-    end
     fs = fg.selection;
     if isequal(fs, "default"); fs = D.Selection; end
-    if ob.perGroup && (~isstruct(fs) || ~isfield(fs, 'groupBy') || isempty(fs.groupBy))
+    checkFigureSessions(fg, k, kind, fs, f0);
+    if ob.perGroup && ~fg.sessions.enabled && (~isstruct(fs) || ~isfield(fs, 'groupBy') || isempty(fs.groupBy))   % a session figure ignores perGroup
         add("Figures", f0 + ".observe.perGroup", "warning", "perGroup draws each observation once per trial group, but the " + ...
             "figure's trial selection groups by nothing (groupBy): one figure per observation, as without it.");
     end
@@ -1497,19 +1514,22 @@ issues = table(Section, Field, Severity, Message);
         end
     end
 
-    function checkMapping(sp, f0)
+    function checkMapping(sp, f0, sec)
         %checkMapping  A unit-mapping CSV: readable, a cell column, a column per listed dataset key.
-        %   Read with readUnitMapping, the reader the run uses (sessionResults).
+        %   Read with readUnitMapping, the reader the run uses (sessionResults,
+        %   figureSessionObservations). SEC: the section the issues go to
+        %   (default "SessionPlots"; a session figure's: "Figures").
+        if nargin < 3; sec = "SessionPlots"; end
         try
             M = readUnitMapping(sp.mappingFile);
         catch ME
             switch ME.identifier
                 case 'readUnitMapping:NoFile'
-                    add("SessionPlots", f0 + ".mappingFile", "error", "The mapping file does not exist: " + sp.mappingFile);
+                    add(sec, f0 + ".mappingFile", "error", "The mapping file does not exist: " + sp.mappingFile);
                 case 'readUnitMapping:NoCell'
-                    add("SessionPlots", f0 + ".mappingFile", "error", "The mapping file has no ""cell"" column: " + sp.mappingFile);
+                    add(sec, f0 + ".mappingFile", "error", "The mapping file has no ""cell"" column: " + sp.mappingFile);
                 otherwise
-                    add("SessionPlots", f0 + ".mappingFile", "error", "The mapping file cannot be read (" + string(ME.message) + "): " + sp.mappingFile);
+                    add(sec, f0 + ".mappingFile", "error", "The mapping file cannot be read (" + string(ME.message) + "): " + sp.mappingFile);
             end
             return
         end
@@ -1517,8 +1537,81 @@ issues = table(Section, Field, Severity, Message);
         if sp.datasets == "list"
             missingKeys = setdiff(sp.datasetKeys, cols, 'stable');
             if ~isempty(missingKeys)
-                add("SessionPlots", f0 + ".mappingFile", "warning", "The mapping file has no column for " + ...
+                add(sec, f0 + ".mappingFile", "warning", "The mapping file has no column for " + ...
                     strjoin(missingKeys, ", ") + ": those sessions cannot be matched.");
+            end
+        end
+    end
+
+    function checkFigureSessions(fg, k, kind, fs, f0)
+        %checkFigureSessions  A figure's sessions block, and what a session figure (sessions.enabled) cannot hold.
+        %   KIND: the resolved observe kind ("" when unknown); FS: the figure's
+        %   selection, resolved. The field is "<figure>.sessions.<field>".
+        sx = fg.sessions;
+        sx0 = f0 + ".sessions";
+        sxEnums = struct('datasets', ["ticked" "list"], 'facet', EphysAnalysisConfig.SessionFacets, ...
+            'series', EphysAnalysisConfig.SessionSeries, 'colorOrder', EphysAnalysisConfig.SessionColorOrders, ...
+            'error', EphysAnalysisConfig.SessionErrors, 'match', EphysAnalysisConfig.FigureSessionMatches, ...
+            'trialGroups', EphysAnalysisConfig.SessionTrialGroups);
+        for sxF = string(fieldnames(sxEnums)).'
+            if ~ismember(sx.(sxF), sxEnums.(sxF))
+                add("Figures", sx0 + "." + sxF, "error", "A session figure's " + sxF + " is one of " + strjoin(sxEnums.(sxF), ", ") + ...
+                    ", not """ + sx.(sxF) + """.");
+            end
+        end
+        if ~(isfinite(sx.minSessions) && sx.minSessions >= 1 && sx.minSessions == round(sx.minSessions))
+            add("Figures", sx0 + ".minSessions", "error", "minSessions is a whole number of sessions, at least 1.");
+        end
+        if ~sx.enabled; return; end
+        if sx.datasets == "list" && isempty(sx.datasetKeys)
+            add("Figures", sx0 + ".datasetKeys", "warning", "datasets is ""list"" but no dataset keys are listed; the session figure draws nothing.");
+        end
+        if sx.showMembers && sx.series == "session"
+            add("Figures", sx0 + ".showMembers", "warning", "Each session is its own series already: showMembers draws the sessions " + ...
+                "faintly under a subject's or every session's summary (series subject or all).");
+        end
+        if sx.match == "mapping"
+            if kind ~= "" && kind ~= "unit"
+                add("Figures", sx0 + ".match", "error", "match ""mapping"" names units: it needs a unit observation, not a " + kind + ".");
+            end
+            if strtrim(sx.mappingFile) == ""
+                add("Figures", sx0 + ".mappingFile", "error", "match ""mapping"" needs a mapping file (CSV: a column cell, then one per dataset key).");
+            elseif ~isfile(sx.mappingFile)
+                if opts.CheckPaths
+                    add("Figures", sx0 + ".mappingFile", "error", "The mapping file does not exist: " + sx.mappingFile);
+                end
+            else
+                checkMapping(sx, sx0, "Figures");
+            end
+        end
+        if sx.trialGroups == "pool" && isstruct(fs) && isfield(fs, 'groupBy') && ~isempty(fs.groupBy)
+            add("Figures", sx0 + ".trialGroups", "warning", "The figure's trial groups (" + strjoin(fs.groupBy, ", ") + ") are pooled: " + ...
+                "the sessions are the series (trialGroups each or combine keeps them).");
+        end
+        try
+            sxSpec = obj.figureFor(k);
+        catch
+            return   % its own errors are reported above
+        end
+        for sxK = 1:numel(sxSpec.panels)
+            sxP = sxSpec.panels(sxK);
+            sxP0 = f0 + "." + sxP.id;
+            if ismember(sxP.type, EphysAnalysisConfig.FigureSessionUnmerged)
+                add("Figures", sxP0 + ".type", "error", "A session figure cannot hold a " + sxP.type + " panel: combineSessions does not " + ...
+                    "merge it across sessions.");
+                continue
+            end
+            sxO = sxP.options;
+            if isfield(sxO, 'baseline') && isstruct(sxO.baseline) && isfield(sxO.baseline, 'Mode') && sxO.baseline.Mode == "auroc"
+                add("Figures", sxP0 + ".baseline.Mode", "error", "A session figure cannot hold an auROC baseline: auROC curves are not " + ...
+                    "merged across sessions.");
+            end
+            if sx.trialGroups == "combine" && sxP.type == "psth" && isfield(sxO, 'histStyle') && sxO.histStyle == "bar"
+                add("Figures", sxP0 + ".histStyle", "warning", "trialGroups ""combine"" tells the trial groups apart by line style: " + ...
+                    "the PSTH's bars are drawn as lines.");
+            end
+            if sxP.type == "heatmap" && isfield(sxO, 'rows') && sxO.rows == "trials"
+                add("Figures", sxP0 + ".rows", "warning", "A heat map of trials is not merged across sessions: the session figure skips it.");
             end
         end
     end

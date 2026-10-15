@@ -42,16 +42,16 @@ keep the result (`cfg = cfg.addPlot(...)`, `cfg = cfg.save(...)`).
 | `Name`, `Description` | text; `Name` (default `"Untitled"`) fills `{Name}` in the report title |
 | `Source`, `Defaults`, `Export`, `Report` | sections (structs), coerced on assignment |
 | `Plots` | struct array, one entry per plot, in run and report order; a cell array (what `jsondecode` gives for plots whose fields differ) is accepted too |
-| `Figures` | struct array, one entry per [figure](#figures): one observation's panels (a unit, a channel or the dataset) on a grid. Its ids are unique among figures (`EphysAnalysisConfig:DuplicateFigureId`; a figure's panel ids `EphysAnalysisConfig:DuplicatePanelId`) and, as `{Plot}` writes them, distinct from the plots' ids, as both name files; a cell array is accepted as for `Plots`. A run draws the enabled figures, a page per observation ([Export](#export), [Report](#report)) |
+| `Figures` | struct array, one entry per [figure](#figures): one observation's panels (a unit, a channel or the dataset) on a grid. Its ids are unique among figures (`EphysAnalysisConfig:DuplicateFigureId`; a figure's panel ids `EphysAnalysisConfig:DuplicatePanelId`) and, as `{Plot}` writes them, distinct from the plots' ids, as both name files; a cell array is accepted as for `Plots`. A run draws the enabled figures, a page per observation ([Export](#export), [Report](#report)); one with `sessions.enabled` is a [session figure](#session-figures), drawn once across the datasets instead |
 | `SessionPlots` | struct array, one entry per [session plot](#session-plots): one plot drawn over several datasets and merged. Its ids are a namespace of their own (`EphysAnalysisConfig:DuplicateSessionPlotId`); a cell array is accepted as for `Plots` |
 | `File`, `LoadWarnings` | transient: where it was loaded from / saved to; the unknown fields `load` dropped |
-| `Schema`, `Version`, `Sections`, `Kinds`, `SpikeSources`, `SignalSources`, `FigureSources`, `ObserveKinds`, `WaveformLocations`, `ListFields` | constants (`FigureSources`: what a figure's layer reads, `ObserveKinds`: what a figure is drawn for; `Figures` is a list like `Plots`, not one of the four `Sections`). The session plots' choices: `SessionKinds` (the plot kinds that can be merged: `psth`, `raster`, `evoked`, `rate`, `tuning`, `behavior`, `heatmap`, `waveforms`), `SessionSeries`, `SessionMatches`, `SessionErrors`, `SessionData`, `SessionTrialGroups`, `SessionFacets`, `SessionColorOrders` |
+| `Schema`, `Version`, `Sections`, `Kinds`, `SpikeSources`, `SignalSources`, `FigureSources`, `ObserveKinds`, `WaveformLocations`, `ListFields` | constants (`FigureSources`: what a figure's layer reads, `ObserveKinds`: what a figure is drawn for; `Figures` is a list like `Plots`, not one of the four `Sections`). The session plots' choices: `SessionKinds` (the plot kinds that can be merged: `psth`, `raster`, `evoked`, `rate`, `tuning`, `behavior`, `heatmap`, `waveforms`), `SessionSeries`, `SessionMatches`, `SessionErrors`, `SessionData`, `SessionTrialGroups`, `SessionFacets`, `SessionColorOrders`. The [session figures'](#session-figures): `FigureSessionMatches` (`"site"`, `"mapping"`: a figure observes one matched unit, so no `"pool"`) and `FigureSessionUnmerged` (the panel types that cannot be merged across sessions: `probemap`, `corrmap`, `spectrum`, `spectrogram`, `coherence`) |
 | `toStruct()`, `toJson()`, `save(file)` | plain struct; the JSON `save` writes (`Inf` / `-Inf` / `NaN` as `"Inf"` / `"-Inf"` / `"NaN"`) |
 | `EphysAnalysisConfig.load(file)`, `fromStruct(s)` | errors `EphysAnalysisConfig:BadSchema` on another schema or version |
 | `validate(CheckPaths=true)` | issues table `Section, Field, Severity, Message` ([rules](#validation)) |
 | `addPlot(kindOrStruct, Id=)`, `removePlot(id)`, `plotIndex(id)`, `plotIds()`, `enabledPlots()` | the plot list. `[cfg, id] = cfg.addPlot(...)` also returns the plot's id; a plot added without a `source` reads its kind's first (`units`; `LFP` for evoked, `trials` for behavior); `removePlot` of an unknown id is `EphysAnalysisConfig:NoPlot`; `plotIndex` is 0 for one |
 | `plotFor(id)` | a plot (by id or index) with every `"default"` resolved from `Defaults`, `units.source` set to the plot's `source` and an empty layout replaced by the kind's default: what the runner draws |
-| `addFigure(templateOrStruct, Id=)`, `removeFigure(id)`, `figureIndex(id)`, `figureIds()`, `enabledFigures()` | the figure list. `[cfg, id] = cfg.addFigure("rasterPsth")` (a template's name from `figureTemplates()`, or a partial figure struct) returns the new id too, `"figure_<n>"` when none is given; `removeFigure` of an unknown id is `EphysAnalysisConfig:NoFigure`; `figureIndex` is 0 for one |
+| `addFigure(templateOrStruct, Id=)`, `removeFigure(id)`, `figureIndex(id)`, `figureIds()`, `enabledFigures()`, `sessionFigureIds()`, `enabledSessionFigures()`, `isSessionFigure(id)` | the figure list. `enabledFigures()` is the enabled figures a run draws per dataset and leaves out the [session figures](#session-figures) (a figure whose `sessions.enabled` is true); `sessionFigureIds()` lists those, enabled or not, `enabledSessionFigures()` the enabled ones (a run draws them across the datasets, after the datasets), and `isSessionFigure(id)` (an id or an index; false for an unknown one) tells. `[cfg, id] = cfg.addFigure("rasterPsth")` (a template's name from `figureTemplates()`, or a partial figure struct) returns the new id too, `"figure_<n>"` when none is given; `removeFigure` of an unknown id is `EphysAnalysisConfig:NoFigure`; `figureIndex` is 0 for one |
 | `figureFor(idOrIndex)` | a figure with every `"default"` resolved and each panel's type facts and each layer's category added: what the compute draws ([Resolving a figure](#resolving-a-figure)). `EphysAnalysisConfig:NoFigure` for an unknown one |
 | `EphysAnalysisConfig.plotToFigure(cfg, plotId)`, `cfg.convertPlotToFigure(plotId)` | the figure that draws what a plot draws, and the notes on what it could not carry; `convertPlotToFigure` appends it as `<plot>_fig` and returns `[cfg, id, notes]` ([Converting a plot](#converting-a-plot)) |
 | `addSessionPlot(plotIdOrStruct, Id=)`, `removeSessionPlot(id)`, `sessionPlotIndex(id)`, `sessionPlotIds()`, `enabledSessionPlots()` | the session plot list. `[cfg, id] = cfg.addSessionPlot("psth_stim")` (a base plot's id, or a partial session plot struct) returns the new id too, `"<plot>_sessions_<n>"` when none is given; `removeSessionPlot` of an unknown id is `EphysAnalysisConfig:NoSessionPlot`; `sessionPlotIndex` is 0 for one |
@@ -1000,7 +1000,7 @@ raster row.
 A figure is designed for one *observation*: a sorted unit (or a channel's
 detections), a channel of a signal (`LFP`, `MUA`, `SPIKE` or `AUX`), or the
 dataset. Its `observe` block says which kind, and which ones there are: the
-unit filter, the channel list and the datasets. A panel has a type and one or
+unit filter and the channel list. A panel has a type and one or
 more *layers*; a layer is one data source (the units, the detections, an event
 line, a signal's channels). Each layer either **follows the
 observation**, reading the observed unit or the channel it sits on, or is
@@ -1045,7 +1045,13 @@ h = renderFigure(F, spec, figure);                          % draw it
 R = runner.run(Figures=id, Plots=string.empty(1, 0));       % or this figure alone, every unit of every dataset, a page each
 ```
 
-`EphysAnalysisConfig.defaults("Figure" | "FigureCommon" | "Observe" | "Panel" | "Layer")`
+A figure can also be drawn **across several datasets** instead of once per
+dataset: with `sessions.enabled` it is a [session figure](#session-figures), an
+observation (a site, a cell of a mapping, a channel or the dataset) computed
+on every session and each panel's layers merged, a color per session or
+subject.
+
+`EphysAnalysisConfig.defaults("Figure" | "FigureCommon" | "FigureSessions" | "Observe" | "Panel" | "Layer")`
 give the fields below; every field exists on every entry.
 
 ### Figure, grid and observe fields
@@ -1060,6 +1066,7 @@ give the fields below; every field exists on every entry.
 | `common` | `defaults("FigureCommon")` | the options every panel linked to the figure draws: `bins`, `measure`, `baseline`, `auroc`, `maskAfterStop`, `waveform` ([Common options](#common-options)) |
 | `panels` | none | the [panels](#panel-fields), a list of any length |
 | `ref`, `window`, `selection` | `"default"` | `"default"` = [`Defaults`](#defaults), or the figure's own [EventRef](#eventref) / [EpochWindow](#epochwindow) / [TrialSelection](#trialselection). Every aligned panel starts from them |
+| `sessions` | `defaults("FigureSessions")` | the [session figure](#session-figures) settings: with `sessions.enabled` the figure is drawn once across several datasets instead of once per dataset; `sessions.enabled` false keeps the block and leaves it unused. Which datasets, how the observation is matched across them and how the sessions are colored, merged and grouped |
 | `style` | [Style](#style) | the figure's look: fonts, line widths, error bands, legend, colors and probe sorting apply. `XLim`, `YLim`, `CLim`, `MaxTiles` and `TileSpacing` are not used: the time panels show the window, each panel has its own `options.yLim` / `cLim`, and the spacing is `grid.spacing` |
 | `aesthetics` | none | remembered looks of the figure's components, a list of rules as a plot's ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)) |
 
@@ -1080,9 +1087,7 @@ give the fields below; every field exists on every entry.
 | `units` | [UnitSelection](#unitselection) without `source` | unit observations: the filter that picks the units the figure can be drawn for (classes, quality, response test, ids, channels, shanks, `maxUnits`) |
 | `signal` | `"LFP"` | channel observations: which extract (`"LFP"`, `"MUA"`, `"SPIKE"`, `"AUX"`) |
 | `channels` | `[]` | channel observations: the extract's columns (`[]` = all) |
-| `datasets` | `"ticked"` | the datasets the figure is meant to be drawn for: `"ticked"` (the run's) or `"list"` (`datasetKeys`). Neither the Figures tab's Generate nor Run uses the list yet: a preview draws the dataset it is given, and `EphysAnalysisRunner.run` the datasets it is given (`Datasets=`), which the app takes from the ticked ones, whatever this says |
-| `datasetKeys` | none | `"list"`: the datasets' keys (the Data tab's **Key** column) |
-| `perGroup` | `false` | `true`: each observation is drawn once per trial group of the figure's selection (its `groupBy`), a figure of that group's epochs ([One figure per trial group](#panel-types)). Validate warns while the selection groups by nothing |
+| `perGroup` | `false` | `true`: each observation is drawn once per trial group of the figure's selection (its `groupBy`), a figure of that group's epochs ([One figure per trial group](#panel-types)). Validate warns while the selection groups by nothing. A [session figure's](#session-figures) trial groups follow `sessions.trialGroups` instead, and `perGroup` is ignored there |
 
 `addFigure` takes a template's name (`EphysAnalysisConfig.figureTemplates()`) or
 a partial figure struct. `"rasterPsth"` (the default) is a 2 x 1 grid of equal
@@ -1859,13 +1864,15 @@ not drawn: the figure's `common` block is. A file written by hand may leave out 
     "observe": { "kind": "auto", "source": "units",
                  "units": { "classes": ["su"], "groups": [], "ids": [], "channels": [], "shanks": [], "maxUnits": "Inf",
                             "quality": { "enabled": false, "...": "..." }, "response": { "enabled": false, "...": "..." } },
-                 "signal": "LFP", "channels": [], "datasets": "ticked", "datasetKeys": [],
-                 "perGroup": false },
+                 "signal": "LFP", "channels": [], "perGroup": false },
     "grid": { "rows": 3, "cols": 1, "rowHeights": [1.5, 1, 1], "colWidths": [], "spacing": "none" },
     "common": { "bins": { "BinSec": 0.01, "SmoothSec": 0.01 }, "measure": "rate",
                 "baseline": { "Mode": "none", "Window": [-0.2, 0] }, "maskAfterStop": false,
                 "waveform": { "mode": "off", "...": "..." } },
     "ref": "default", "window": "default", "selection": "default",
+    "sessions": { "enabled": false, "datasets": "ticked", "datasetKeys": [], "facet": "none", "series": "session",
+                  "colorOrder": "palette", "showMembers": false, "error": "sem", "match": "site", "mappingFile": "",
+                  "minSessions": 1, "trialGroups": "pool" },
     "panels": [
       { "id": "raster_1", "type": "raster", "title": "", "row": 1, "col": 1, "rowSpan": 1, "colSpan": 1,
         "ref": "default", "window": "default", "selection": "default", "common": true,
@@ -1897,7 +1904,9 @@ not drawn: the figure's `common` block is. A file written by hand may leave out 
 observation; the LFP layer follows too, reading the column of the LFP extract
 that records the unit's channel. The three panels share the time axis, so only
 the bottom one is labeled. The events layer is `fixed`, as every events layer
-is, and its `event` is an [EventMark](#raster-event-marks).
+is, and its `event` is an [EventMark](#raster-event-marks). The `sessions` block shown
+is the default, a figure drawn per dataset; ticking `enabled` makes it a
+[session figure](#session-figures).
 
 ### Validating figures
 
@@ -1915,9 +1924,11 @@ Errors:
   (at most 2 `groupBy` parameters);
 - `observe`: `kind` is `auto`, `unit`, `channel` or `dataset`; `source` is `units` or
   `detected`; `signal` is `LFP`, `MUA`, `SPIKE` or `AUX`; `channels` are whole
-  numbers >= 1; `units.maxUnits` >= 1; `datasets` is `ticked` or `list`; and a
-  layer that follows the observation does not go in a figure observed as the
-  dataset;
+  numbers >= 1; `units.maxUnits` >= 1; and a layer that follows the
+  observation does not go in a figure observed as the dataset;
+- `sessions` (`<figure>.sessions.<field>`): the known values and, with
+  `sessions.enabled`, what a figure across sessions cannot hold: the rules
+  are under [Session figures](#validating-session-figures);
 - `grid`: `rows` and `cols` whole numbers >= 1; `rowHeights` and `colWidths` `[]` or
   one finite positive size per row and column; `spacing` `loose`, `compact`, `tight`
   or `none`;
@@ -2003,9 +2014,12 @@ Warnings:
 - a coherence panel whose fixed seed layer keeps several channels or units
   (`<panel>.layers(<j>)`): only the first is the seed, so fix the layer to one;
 - an explicit `unit` or `channel` observation with no layer following it (the figure
-  is the same for every one); `datasets "list"` with no `datasetKeys`;
+  is the same for every one);
 - `observe.perGroup` while the figure's selection groups by nothing (`<figure>.observe.perGroup`:
   one figure per observation, as without it);
+- a session figure's warnings ([below](#validating-session-figures)): `datasets "list"` with no
+  `datasetKeys`, `showMembers` with `series "session"`, `trialGroups "pool"` over a selection that
+  groups, `"combine"` over PSTH bars and a heat map of trials;
 - a signal layer following a channel observation of another signal (it takes the
   observed channel's number in its own extract);
 - a fixed raster, PSTH, rate or tuning point layer that may keep more than 8 units, each drawn in
@@ -2015,6 +2029,245 @@ Warnings:
 Whether a dataset can draw the figure (units, signals, lines, trial parameters, a
 probe) is not a config error: `figureSkipReason` says why a figure or a layer is
 skipped on a dataset ([above](#observations-and-skip-reasons)).
+
+### Session figures
+
+A figure with `sessions.enabled` is a *session figure*: drawn **once across
+several datasets** (sessions) instead of once per dataset. One observation (a
+site, a cell of a mapping, a channel or the dataset) is computed on every
+session, and each panel's layers are merged with `combineSessions` into a
+result of the same kind ([the merged result](EphysAnalysis.md#the-merged-result)):
+a color per session, or per subject (its sessions averaged), or one mean, with
+a band across the sessions. It is the [session plot](#session-plots) for a
+figure: where a session plot references one plot and keeps its look, a session
+figure carries its own panels, layers, alignment and look, and adds the same
+cross-session settings in its `sessions` block. A run draws session figures
+after the datasets and the session plots, in the report's *Across sessions*
+section; never per dataset, whatever `Figures=` names.
+
+```matlab
+[cfg, id] = cfg.addFigure("rasterPsth", Id="card");
+k = cfg.figureIndex(id);
+cfg.Figures(k).sessions.enabled = true;                  % across the datasets, not per dataset
+cfg.Figures(k).sessions.series = "subject";              % a color per subject, its sessions averaged
+cfg.Figures(k).sessions.minSessions = 2;                 % a site needs a unit in two sessions
+r = EphysAnalysisRunner(cfg);
+[T, sessions] = r.sessionFigureObservations(id);         % the sites matched across the sessions
+[res, sessions] = r.computeSessionFigure(id, [], Observation=T(1, :));   % merged, no graphics
+renderFigure(res(1).F, cfg.figureFor(id), figure);       % draw it
+R = r.run(SessionFigures=id, Figures=string.empty(1, 0), Plots=string.empty(1, 0), ...
+    SessionPlots=string.empty(1, 0));                    % or every site of it, a page each
+```
+
+`sessions` is `defaults("FigureSessions")`, and the fields read as the
+session plot's of the same name:
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | `true`: a session figure. False keeps the block and leaves it unused (the figure is drawn per dataset) |
+| `datasets` | `"ticked"` | `"ticked"`: the run's datasets (the Data tab's ticks, or `run(Datasets=)`); `"list"`: the datasets of `datasetKeys` |
+| `datasetKeys` | `[]` | `"list"`: the datasets' keys (the Data tab's **Key** column, e.g. `SYNTH-01/260908_103000`); a key no dataset has is left out and logged |
+| `facet` | `"none"` | `"none"`: one figure over every session; `"subject"`: one figure per subject (a name pattern without `SubjectID` leaves the sessions in `(no subject)`), in date order |
+| `series` | `"session"` | what gets a color: `"session"`, `"subject"` (its sessions averaged) or `"all"` (one mean over every session) |
+| `colorOrder` | `"palette"` | `"palette"`: the design's palette in turn; `"sequential"`: a sequential map in date order |
+| `showMembers` | `false` | series `"subject"` / `"all"`: each session drawn faintly under its summary (role `memberLine`) |
+| `error` | `"sem"` | series `"subject"` / `"all"`: the band across the sessions averaged: `"sem"`, `"sd"`, `"ci95"` or `"none"` (as a [session plot's](#session-plots)) |
+| `match` | `"site"` | unit observations: how the observed unit is found in each session: `"site"` (the units on the same recording channel) or `"mapping"` (a cell of `mappingFile`). There is no `"pool"`: a figure observes one matched unit. A channel observation always matches by recording channel, and the dataset one needs no match |
+| `mappingFile` | `""` | `"mapping"`: the unit-mapping CSV ([format](file-formats.md#unit-mapping-csv)); a column `cell`, then one per dataset key |
+| `minSessions` | `1` | an observation is kept with data from at least this many sessions (a whole number >= 1) |
+| `trialGroups` | `"pool"` | the figure's trial groups (its selection's `groupBy`): `"pool"`, `"each"` or `"combine"` ([below](#trial-groups-in-a-session-figure)) |
+
+`observe.perGroup` is ignored in a session figure: its trial groups follow
+`trialGroups`. A figure's datasets are `sessions.datasets` and
+`sessions.datasetKeys`; `observe` holds no dataset list.
+
+#### Observations across sessions
+
+`T = figureSessionObservations(sources, spec)` lists what the figure can be
+drawn for across the datasets: `sources` is a cell, one `loadAnalysisSource`
+struct per session in date order (`[]` for one that cannot be read), `spec`
+the figure's `figureFor` spec. Each session's own observations come from
+`figureObservations` (with `perGroup` off) and are matched across the sessions
+by the observation kind and `match`, one row each:
+
+| Observation | One row per | Label |
+| --- | --- | --- |
+| unit, `match "site"` | recording channel that has a kept unit in at least `minSessions` sessions | `site ch 7  -320 µm` (the channel and its probe y). A session with several units on the site **draws the first in probe order**, not their average; `unitIds` lists them all |
+| unit, `match "mapping"` | cell of the mapping file held by at least `minSessions` sessions | the cell's name. A session's ids are looked up in its column (its dataset key) among the units it keeps, and the first of them in probe order is drawn when a cell names several |
+| channel | recording channel of the observed extract (`observe.signal`, `observe.channels`) present in at least `minSessions` sessions; an AUX channel, which has none, by its label | the first session holding it labels it, as `figureObservations` does |
+| dataset | one | `<n> sessions`; no `minSessions` |
+
+Rows follow the first session's probe order, then the channels or cells that
+later sessions add (with `"mapping"`, the file's order). A session whose
+dataset cannot be read, or that lacks the observed source (no sorted units, no
+such extract), holds no row. The columns are those of `figureObservations`
+(`kind`, `label`, `channel`, `column`, `shank`, `depth`, `meta` of the first
+session holding it, `group` NaN, `groupLabel` `""`; with several sessions `unitId` is NaN, since each
+session draws its own unit) plus:
+
+| Column | Holds |
+| --- | --- |
+| `nSessions` | how many sessions hold it |
+| `unitIds` | a 1 x 1 cell holding a 1 x nSessions cell: each session's unit ids on it (`[]`: none; always `[]` for channels and the dataset) |
+| `perSession` | a 1 x 1 cell holding a table of nSessions rows: the `figureObservations` row each session draws, with a logical `present` (false, `kind` `""`, where the session has none). `figureSessionCompute` hands row `k` to `figureCompute` for session `k` |
+
+`EphysAnalysisRunner.sessionFigureObservations(fig, idx)` returns
+`[T, sessions, sources]`: the table, the `sessionTable` of the datasets (by
+date, with `status` and `message`, `"error"` for a dataset that cannot be
+read) and their sources. With `sessions.datasets "list"` the datasets are the
+listed keys (`sessionFigureIndices`).
+
+#### Merging a session figure
+
+`[res, sessions, Fs] = figureSessionCompute(sources, sessions, spec,
+Observation=obs)` computes the figure for one row of `T` (default the first)
+without a runner or graphics:
+
+1. **Each session's figure.** `figureCompute` on every session that holds the
+   observation, with the session figure's spec as `figureSessionSpec` gives it
+   (the trial-group rules [below](#trial-groups-in-a-session-figure)). A session
+   without the observation, or one `figureCompute` skips, is `"skipped"` with the
+   reason; one that fails is `"error"`. `sessions` gains `status` and `message`,
+   and `Fs{k}` is session `k`'s own figure.
+2. **Facets and trial groups.** One merged figure per `sessions.facet` (`"all"` or
+   a subject) and, with `trialGroups "each"`, per trial group (labels in
+   first-seen order, at most the selection's `maxGroups`): `res` is a struct
+   array with `facet`, `group`, `label` (`"all"`, the subject, or
+   `"<facet> / <group>"`), `F`, `status` (`done`, `skipped`, `error`) and
+   `message`. A figure with fewer than `max(1, minSessions)` sessions that drew
+   it is `skipped`, its message listing each session left out and why.
+3. **Each layer merged** with `combineSessions` (`Series=`, `Error=`,
+   `ShowMembers=`, `ColorOrder=` from `sessions`). A layer that holds one unit or
+   channel in every session (the observed one, or an events layer drawn as a
+   train) is merged into **one tile**: the units are made common through a
+   one-row mapping. A layer that holds several (fixed units) **pools** them, a
+   tile per session-unit as a session plot's `"pool"` does. A signal layer's
+   channels match by recording channel. A layer whose `aggregate` is `"mean"`
+   has its mean taken again over the merged tiles (`layerMean`, the band across
+   them).
+
+`F` is shaped as `figureCompute`'s, so `renderFigure` draws it as it draws one
+dataset's: `panels(k).layers(j).R` is the merged result (`R.sessions`,
+`R.sessionSeries`, `R.members`; `R.groups` are the series), `epochs` and `groups`
+are those of the first merged layer on the figure's selection, and the extra
+fields `sessions` (the facet's rows with `status`, `message` and each session's
+`nEpochs`), `nSessions` (how many were merged), `perSession` (their indices in
+`sessions`), `sessionSeries` and `observation` say how it was made. The title
+reads `<id>: <observation> — <event> (3 sessions, 112 epochs)` and the subtitle
+`3 sessions (SYNTH-01)`; the legend lists the series.
+
+Not merged, each with its reason in the panel (a skipped layer, as for one
+dataset): events drawn as **marks** (*event marks are not drawn across
+sessions*), the **rings** of a waveforms panel's probe layout (*the probe
+layout's rings are not drawn across sessions*), a **heat map of trials** (*a
+heat map of trials is not merged across sessions*), and a whole panel of a type
+in `EphysAnalysisConfig.FigureSessionUnmerged` (*a probe map panel is not merged
+across sessions*; likewise a unit correlation map, power spectrum, spectrogram
+or coherence). A merge that fails (`combineSessions:TooFew`, `:Bins`,
+`:TimeBase`, ...) skips that layer with its message, and the rest of the figure
+is drawn. That is what `figureSessionCompute` and so the app's preview do with
+an unmerged panel type. Validate refuses such a figure, though, and so does
+`figureSessionSkipReason`: `plan` lists it and a run skips the **whole figure**
+with the reason (*a probemap panel is not merged across sessions*, and likewise
+*an auROC baseline is not merged across sessions*), drawing none of its panels.
+
+#### Trial groups in a session figure
+
+A figure that groups its trials (the selection's `groupBy`) has a series per
+group in each session. `trialGroups` says what the session figure does with
+them, and `figureSessionSpec` applies it to the compute and the render alike:
+
+| `trialGroups` | Result |
+| --- | --- |
+| `"pool"` (default) | the groups are cleared (the figure's and every panel's `selection.groupBy`, a tuning panel's `seriesParam`): every epoch of a session together, and the series are the sessions (or subjects) |
+| `"each"` | the groups are kept, and one merged figure is made per group, each on its own, matched by label across the sessions (a session without a group contributes nothing to it) |
+| `"combine"` | every group kept in one figure: a series per session (or subject, or all) and trial group, colored by the session or subject and told apart by line style; a PSTH panel's `histStyle` is drawn as `"line"` even when it is `"bar"` |
+
+#### What a run writes
+
+- `EphysAnalysisRunner.run(SessionFigures=)` (default
+  `Config.enabledSessionFigures()`; `string.empty(1, 0)` for none) draws them
+  after the session plots, in the report's *Across sessions* section, each
+  with an equal share of the run's progress. A cancel marks the one running and
+  the rest `canceled` (rows `"sessions: all"`). `runSessionFigure(id, idx)` is one
+  figure: compute, render, export and report, per observation.
+- `plan(SessionFigures=)` lists one row per session figure and facet, `Dataset`
+  `"sessions: <facet>"` (`all`, or a subject), `Kind` `figure`, `Source` the
+  observe kind. Its `Reason` comes from `figureSessionSkipReason`: *disabled*,
+  *a probemap panel is not merged across sessions* (any type in
+  `FigureSessionUnmerged`), *an auROC baseline is not merged across sessions*,
+  *no mapping file* / *mapping file not found: F* (a unit observation with
+  `match "mapping"`), or *fewer than N session(s) can draw it* followed, in
+  parentheses, by each session left out and its own `figureSkipReason`, with
+  N = `max(1, minSessions)`. A figure that
+  passes can still draw nothing when it runs (*no unit is matched across the
+  sessions*).
+- One page per matched observation goes to `Export.SessionsFolder` (the folder
+  tokens are the first session's), named by `figureOutputName` from
+  `Export.FilenamePattern` with `{Name}` the facet (`all`, or the subject),
+  `{Plot}` the figure's id and `{Unit}` `site_ch7` (a site), the mapping's cell,
+  `ch7` (a channel; an AUX one its label) or `dataset`. When there are several
+  observations and the pattern names neither `{Unit}` nor `{Index}`, `_<Unit>`
+  is added, and for `trialGroups "each"` `_<group>` after it (a pattern naming
+  neither `{Group}` nor `{Index}`): `all_card_site_ch7.png`,
+  `all_card_site_ch12_Depth___0.5.png`. `Export.Overwrite` off keeps a page
+  whose files all exist.
+- One `Results` row per figure label (facet and trial group), `Dataset`
+  `"sessions: <label>"`, `Kind` `figure`, `Message` `<n> observation(s)` (and
+  *; not drawn:* with the observations that were not, and why). The status is
+  `skipped` when no observation was drawn (the reasons), `error` when only
+  failures remain. The run record lists the ids as `sessionFigures`.
+- The report has one entry per label in *Across sessions*, a page per
+  observation, captioned by `figureCaption(spec, T, Sessions=sessions)`:
+  *card: site ch 7 across 3 sessions (1 subject); panels: ...*, or *card: 12
+  observations (sorted units, matched by site) across 3 sessions (2 subjects);
+  ...*, then the alignment and the series (*a color per session*, *a color per
+  subject, its sessions averaged*, *all sessions averaged*), the handling of the
+  trial groups (*trial groups pooled*, *one figure per trial group*, *trial
+  groups by line style*) and *one figure per subject*.
+- With `Export.Data.Enabled`, one `.mat` per session figure holds the merged
+  and each dataset's own figures, `<Data.Folder>/<Data.FilenamePattern>.mat`
+  with `{Name}` `all`, `{Plot}` the figure's id and `{Kind}` `figure`
+  ([Session figure data](file-formats.md#session-figure-data-mat)); its path is
+  added to the first row's `Files`, and a failure goes into its `Message`.
+
+The standalone script carries the same calls
+([Generated scripts](EphysAnalysis.md#session-figures-in-a-standalone-script)),
+and the app edits the block in the Figures tab's Sessions section
+([Figures tab](EphysAnalysisApp.md#figures-tab)).
+
+#### Validating session figures
+
+The `sessions` block is checked as `<figure>.sessions.<field>`, in the section
+`Figures`.
+
+Errors:
+
+- `datasets`, `facet`, `series`, `colorOrder`, `error`, `match` and
+  `trialGroups` known values (also while the figure is not a session figure),
+  and `minSessions` a whole number >= 1;
+- with `sessions.enabled`: `match "mapping"` on a channel or dataset observation
+  (it names units), without a `mappingFile`, or with one that does not exist
+  (with `CheckPaths`), cannot be read or has no `cell` column;
+- with `sessions.enabled`: a probe map, unit correlation, power spectrum,
+  spectrogram or coherence panel (`<figure>.<panel>.type`: it is not merged),
+  and an auROC baseline, a panel's own or the figure's common one
+  (`<figure>.<panel>.baseline.Mode`: auROC curves are not merged).
+
+Warnings (with `sessions.enabled`):
+
+- `datasets "list"` with no `datasetKeys` (it draws nothing), and a mapping
+  file with no column for a listed dataset key (that session cannot be matched);
+- `showMembers` with `series "session"` (each session is its own series
+  already);
+- `trialGroups "pool"` while the figure's selection groups its trials (the
+  groups are pooled);
+- `trialGroups "combine"` with a PSTH panel drawn as bars (drawn as lines);
+- a heat map of trials (`options.rows "trials"`; not merged, the layer is
+  skipped).
+
+A config whose only enabled item is a session figure is accepted (*No plot,
+figure or session plot is enabled* counts it).
 
 ### Converting a plot
 
@@ -2116,10 +2369,10 @@ from the common options and keeps the plot's `maskAfterStop`).
 | `Dpi` | 150 | PNG resolution |
 | `FigureSizeCm` | `[18 12]` | figure size `[width height]`; a grid page is made taller when its rows need it: 3 cm a row of tiles (4.5 cm for PSTHs with rasters) plus 1.5 cm; a figure's page, 3.5 cm for each row of its arrangement plus 2 cm |
 | `Overwrite` | `true` | `false`: a page (a figure's observation) whose files all exist is not written again, nor drawn unless the report needs its image (HTML) or page (PDF); a session plot's data file is not replaced either (a note in the row's message) |
-| `SessionsFolder` | `{OutputRoot}\analysis\sessions` | where the [session plots'](#session-plots) figures go: a [folder pattern](#file-name-tokens) whose tokens are the first session's (`{OutputFolder}` is one dataset's folder, so a warning there). Named with `FilenamePattern`, `{Name}` being the facet (`all`, or the subject) and `{Plot}` the session plot's id, then `_<trial group>` for `trialGroups "each"` |
-| `Data.Enabled` | `false` | write each session plot's data as a `.mat` file in a run ([format](file-formats.md#session-data-mat)); the app's **To workspace** and **Save .mat...** work either way |
+| `SessionsFolder` | `{OutputRoot}\analysis\sessions` | where the [session plots'](#session-plots) and the [session figures'](#session-figures) pages go: a [folder pattern](#file-name-tokens) whose tokens are the first session's (`{OutputFolder}` is one dataset's folder, so a warning there). Named with `FilenamePattern`, `{Name}` being the facet (`all`, or the subject) and `{Plot}` the session plot's or figure's id, then `_<trial group>` for `trialGroups "each"`; a session figure adds `_<Unit>` per observation (`site_ch7`, a mapping cell, `ch7`) as a figure does |
+| `Data.Enabled` | `false` | write each session plot's data, and each session figure's, as a `.mat` file in a run ([format](file-formats.md#session-data-mat); [a session figure's](file-formats.md#session-figure-data-mat)); the app's **To workspace** and **Save .mat...** work either way (for session plots) |
 | `Data.Folder` | `{OutputRoot}\analysis\data` | a folder pattern, as `SessionsFolder` |
-| `Data.FilenamePattern` | `{Name}_{Plot}` | a [file-name pattern](#file-name-tokens); `{Name}` is `all`, `{Plot}` the session plot's id; `.mat` is added. One file per session plot holds every facet and trial group |
+| `Data.FilenamePattern` | `{Name}_{Plot}` | a [file-name pattern](#file-name-tokens); `{Name}` is `all`, `{Plot}` the session plot's or session figure's id (`{Kind}` is `figure` for a figure); `.mat` is added. One file per session plot or session figure holds every facet, trial group and (a figure) observation |
 | `Data.MatVersion` | `"-v7.3"` | `"-v7.3"` (HDF5, no 2 GB limit, readable with `h5read` and from Python) or `"-v7"` |
 
 `exportFigure` writes PNG with `exportgraphics` at `Dpi`, PDF and EPS as
@@ -2194,7 +2447,10 @@ the window and the trial grouping (and `one figure per trial group` for a
 
 The entry links the exported files and, with `IncludeParameters`, folds the
 figure's resolved spec under it. A figure the dataset cannot draw (or that fails)
-is listed with its status and message, as a plot is.
+is listed with its status and message, as a plot is. A [session
+figure](#session-figures) is an entry of the *Across sessions* section instead,
+one per facet and trial group, its pages the matched observations
+([what a run writes](#what-a-run-writes)).
 
 ## File-name tokens
 
@@ -2227,7 +2483,10 @@ is listed with its status and message, as a plot is.
   with the first session's tokens. In a session plot's figure or data file
   name, `{Name}` is the facet (`all`, or the subject) and `{Plot}` the session
   plot's id; `{Group}` and `{Index}` are as for a plot, and a trial group of
-  `trialGroups "each"` is added after the page as `_<group>`.
+  `trialGroups "each"` is added after the page as `_<group>`. A [session
+  figure's](#session-figures) pages are named as a figure's observations are
+  (`figureOutputName`), with `{Name}` the facet and `{Unit}` the observation:
+  `site_ch7`, a mapping cell's name, `ch7` or `dataset`.
 
 With the defaults, a PSTH `psth_stim` of dataset `SYNTH-01_260918_101500`
 with 20 units and 16 tiles per page is written as
@@ -2252,8 +2511,8 @@ with 20 units and 16 tiles per page is written as
 | Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a color (the default is used); a raster mark's `color` that is not a color (it gets its automatic one); a `waveform` mode on a plot that draws no unit tiles (an overlay, a plot of signals, a kind other than raster / psth / tuning / waveforms); an `aux` mode on a plot other than a psth or raster of spikes; `aux.placement "over"` on a stacked PSTH or with a heat map (drawn below); an `aux.errorType` other than off with a heat map (no band is drawn), or `"sem"` / `"std"` with the median; a note's `color` or `background` that is not a color (left to the design); an overlay's `color`, `faceColor` or `edgeColor` that is not a color (its default is drawn); an overlay's raster or data `panel` on a plot that draws no such panel (nothing is drawn); two overlays of a plot with one `name`; an `ErrorFaceColor` or `ErrorEdgeColor` that is not a color | warning |
 | SessionPlots | the id is not empty, has no `\ / : * ? " < > \|`, and stays distinct from the other session plots' once sanitized (case-blind); `datasets`, `facet`, `series`, `colorOrder`, `error`, `match` and `trialGroups` are known values and `data` holds only `results`, `epochs` and `signals`; `minSessions` a whole number >= 1; `match "mapping"` has a mapping file that exists (with `CheckPaths`), that reads and has a `cell` column; the base plot exists, is a kind that can be merged (`SessionKinds`) and has no auROC baseline; the `layout` fits its kind | error |
 | SessionPlots | `datasets "list"` with no `datasetKeys`; a mapping file with no column for a listed dataset key; `match` other than `"pool"` on a plot of signals, a heatmap, a waveforms or a behavior plot (ignored); a tuning or behavior plot's `seriesParam` with `trialGroups "pool"` (replaced by the sessions); `showMembers` with `series "session"`; `"combine"` on a PSTH drawn as bars (drawn as lines); a heatmap with `series` other than `"all"` (its rows are the session-units, or the channels averaged: ignored) | warning |
-| Figures | the figure id is not empty, file-name safe and distinct once sanitized from the other figures' and from the plots' ids (both fill `{Plot}`: `Figure id "x" names the same files as a plot's id`); the figure's alignment is valid; `observe` (kind, source, signal, channels, `maxUnits`, datasets) and `grid` (rows, columns, relative sizes, spacing) hold known values; each panel has an id of its own, a known type, a place inside the grid that no other panel overlaps, and its own `ref` / `window` / `selection` only when its type is aligned; the figure's common options (bins, measure, baseline, auROC, waveform), checked once, and a linked panel's type taking the common baseline mode; each enabled layer's source, binding, aggregate, channels, events (`eventsAs`, event reference, marker, size) and line style fit its panel type; a raster has rows, not marks alone; each type's options as drawn (a linked panel's common fields are the common options'); the style ([rules](#validating-figures)) | error |
-| Figures | no panels; cells no panel covers; a panel with no enabled layer, or with several on a type that draws one; an explicit unit or channel observation with no layer following it; `datasets "list"` with no keys; `observe.perGroup` while the figure's selection groups by nothing; a signal layer following another signal's channel; a waveforms panel in the probe layout whose first layer follows the observation; a fixed raster, PSTH, rate or tuning layer that may keep more than 8 units; a layer, mark or style color that is not a color ([rules](#validating-figures)) | warning |
+| Figures | the figure id is not empty, file-name safe and distinct once sanitized from the other figures' and from the plots' ids (both fill `{Plot}`: `Figure id "x" names the same files as a plot's id`); the figure's alignment is valid; `observe` (kind, source, signal, channels, `maxUnits`), `sessions` (the known values, `minSessions`; with `sessions.enabled` no probe map, unit correlation or spectral panel, no auROC baseline, a mapping file for `match "mapping"` and a unit observation for it: [rules](#validating-session-figures)) and `grid` (rows, columns, relative sizes, spacing) hold known values; each panel has an id of its own, a known type, a place inside the grid that no other panel overlaps, and its own `ref` / `window` / `selection` only when its type is aligned; the figure's common options (bins, measure, baseline, auROC, waveform), checked once, and a linked panel's type taking the common baseline mode; each enabled layer's source, binding, aggregate, channels, events (`eventsAs`, event reference, marker, size) and line style fit its panel type; a raster has rows, not marks alone; each type's options as drawn (a linked panel's common fields are the common options'); the style ([rules](#validating-figures)) | error |
+| Figures | no panels; cells no panel covers; a panel with no enabled layer, or with several on a type that draws one; an explicit unit or channel observation with no layer following it; a session figure's `datasets "list"` with no keys, `showMembers` with `series "session"`, `trialGroups "pool"` over grouped trials, `"combine"` over PSTH bars, a heat map of trials ([rules](#validating-session-figures)); `observe.perGroup` while the figure's selection groups by nothing; a signal layer following another signal's channel; a waveforms panel in the probe layout whose first layer follows the observation; a fixed raster, PSTH, rate or tuning layer that may keep more than 8 units; a layer, mark or style color that is not a color ([rules](#validating-figures)) | warning |
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi` positive; `FigureSizeCm` two positive numbers; the folder and file-name patterns use known tokens, and the file-name pattern is not empty; `SessionsFolder` and `Data.Folder` are folder patterns, `Data.FilenamePattern` a file-name pattern, and `Data.MatVersion` is `-v7.3` or `-v7` | error |
 | Export | a file-name pattern without `{Plot}` while several plots and figures are enabled (`{Kind}` is enough when the enabled plots and figures all differ in kind, a figure's kind being `figure`); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |
 | Export | `{OutputFolder}` in `SessionsFolder` or `Data.Folder`: it is one dataset's folder, so the session plots' files go to the first dataset's | warning |
@@ -2285,9 +2544,14 @@ keeping them, `sessionAesthetics`) and every session-plot validate rule; and the
 rules that count figures: "No plot, figure or session plot is enabled." (an enabled
 figure alone is enough), a figure id that names a plot's files (`PSTH_1`, `psth 1`
 beside the plot `psth_1`), and the `{Plot}` warning counting enabled figures
-(their `{Kind}` is `figure`).
+(their `{Kind}` is `figure`); and every session-figure validate rule (the default
+block raises nothing, each enumerated value and `minSessions`, `match "pool"`,
+a mapping file missing, absent or lacking a listed key's column, `match
+"mapping"` on a channel figure, a probe map panel and an auROC baseline, the
+warnings; the values checked on every figure, the session rules only on a
+session figure).
 
-`test_EphysAnalysisFigures`, in nine sections. Config (1 to 6): the defaults of
+`test_EphysAnalysisFigures`, in ten sections. Config (1 to 6): the defaults of
 Figure, FigureCommon, Panel, Layer and Observe (`common` after `grid` in a
 figure, `selection` after `window` and `common` after it in a panel; `FigureCommon` with its `auroc` block;
 the continuous `trials` and `maxTrials` (100), the heat map's `rows` and raster sort fields and `observe.perGroup`);
@@ -2374,7 +2638,18 @@ With Chronux on the path (`toolboxes/chronux`, added for the section; skipped wi
 section computes, on section 7's fixture, a spectrum of the observed unit's LFP channel and of the unit, a
 spectrogram, coherences LFP x LFP, spike-field and unit-unit, and the range time base, draws them (dB, a
 spectrogram on the raster's time axis, the phase axes, every role known, a coherence in one axes with no
-phase strip), and checks the skip reason with Chronux off the path.
+phase strip), and checks the skip reason with Chronux off the path. Session
+figures (10), on two synthetic sessions: the figures listed apart
+(`enabledFigures` leaves them out, `sessionFigureIds`, `isSessionFigure`),
+`figureSessionObservations` by site (each session's units on the channel,
+`minSessions`) and by mapping file (a row per cell, `unitIds`, `present`),
+`computeSessionFigure`'s raster and PSTH merged over the two sessions (a series
+per session, equal to each session's own PSTH, every epoch kept) and rendered
+(title, roles, legend), `series "all"` with its faint member lines,
+`trialGroups "combine"` told apart by line style, a continuous figure by channel,
+a facet per subject with a figure per trial group, a probe map panel (a validate
+error, the panel skipped with its reason, the rest drawn), `figureSessionSkipReason`
+and events drawn as marks skipped across sessions.
 
 `test_plotToFigure`, 39 checks in eight sections (and 6b), on hand-made configs: a PSTH grid with its
 raster, event marks, waveform inset and aux magnitude, field by field (observe,
@@ -2404,7 +2679,16 @@ a PDF page per observation, `figureCaption`'s caption, the HTML's kind, caption
 and file links), the run record's `figures`, one figure alone with `Overwrite` off,
 `cancel()` between a figure's observations and during a plot, and the standalone
 script (`fspec<k>`, `figureCompute` and no runner, no syntax error, run, its PNGs
-pixel-identical to the runner's and an equal HTML report).
+pixel-identical to the runner's and an equal HTML report). Its section 12 runs a
+[session figure](#session-figures) the same way: a config of one validates and
+is no per-dataset figure; `plan` gives one `sessions: all` row; `run` writes a
+page per matched site into the sessions folder (`all_<figure>_site_ch<N>.png`),
+leaves no figure open, adds the *Across sessions* entry with its caption and
+lists `sessionFigures` in the run record; `run(SessionFigures=)` alone keeps the
+files of `Overwrite` off; `cancel()` between observations leaves the first page
+and a `canceled` row; and the standalone script (`sfspec<k>`,
+`figureSessionCompute`, no runner, no syntax error) writes PNGs pixel-identical
+to the runner's.
 
 <!-- wiki
 ## Related

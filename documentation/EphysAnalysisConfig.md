@@ -1019,9 +1019,10 @@ A run draws the same figure for every observation it selects, one page each:
 `Plots=`, the figure files are [exported](#export) and the figures appear in the
 [report](#report), the generated scripts and the pipeline's Analysis step run
 them too, and the [validation](#validation) rule that something must be enabled
-counts an enabled figure. Starting that run from the app's Figures tab
-(**Generate**) is a later phase; the Export tab's **Run** already draws the
-enabled figures. The pieces are the config below, `figureObservations`,
+counts an enabled figure. The app starts that run two ways: the Export tab's
+**Run** draws the enabled figures (with the plots), and the Figures tab's
+**Generate** draws the selected figure alone, enabled or not, on every ticked
+dataset. The pieces are the config below, `figureObservations`,
 `figureCompute` (`EphysAnalysisRunner.computeFigure` wraps it) and
 `renderFigure`, which the app's [Figures tab](EphysAnalysisApp.md#figures-tab), a
 run and a script all call:
@@ -1077,7 +1078,7 @@ give the fields below; every field exists on every entry.
 | `units` | [UnitSelection](#unitselection) without `source` | unit observations: the filter that picks the units the figure can be drawn for (classes, quality, response test, ids, channels, shanks, `maxUnits`) |
 | `signal` | `"LFP"` | channel observations: which extract (`"LFP"`, `"MUA"`, `"SPIKE"`, `"AUX"`) |
 | `channels` | `[]` | channel observations: the extract's columns (`[]` = all) |
-| `datasets` | `"ticked"` | the datasets the Figures tab's Generate (a later phase) will draw the figure for: `"ticked"` (the run's) or `"list"` (`datasetKeys`). A preview draws the dataset it is given, and `EphysAnalysisRunner.run` the datasets it is given (`Datasets=`), whatever this says |
+| `datasets` | `"ticked"` | the datasets the figure is meant to be drawn for: `"ticked"` (the run's) or `"list"` (`datasetKeys`). Neither the Figures tab's Generate nor Run uses the list yet: a preview draws the dataset it is given, and `EphysAnalysisRunner.run` the datasets it is given (`Datasets=`), which the app takes from the ticked ones, whatever this says |
 | `datasetKeys` | none | `"list"`: the datasets' keys (the Data tab's **Key** column) |
 
 `addFigure` takes a template's name (`EphysAnalysisConfig.figureTemplates()`) or

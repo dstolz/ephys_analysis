@@ -360,8 +360,8 @@ With `Transfer.Enabled`, each selected dataset has a `transfer` row, `Output`
 the folder its outputs would go to (`ready` when it is not there yet). The
 row only looks: nothing is created.
 
-The Analysis step has one row per dataset and enabled plot (`analysis:<plot
-id>`, `Output` the figure folder, `""` without `Analysis.Figures`) and one
+The Analysis step has one row per dataset and enabled plot or figure
+(`analysis:<plot or figure id>`, `Output` the figure folder, `""` without `Analysis.Figures`) and one
 per report (`analysis:report`, `Output` its file(s); `Dataset` and `Key` `""`
 for one report over every dataset): `pipe.analysisTargets(acfg, idx)`. Which
 plots a dataset can have is known only when it runs. Its folders and its
@@ -523,7 +523,10 @@ Report=Analysis.Report)` then draws every enabled plot on every dataset:
 
 - one row per dataset and plot, step `analysis:<plot id>`: `done` (`Output`
   the files written), `skipped` (`Message`: why the dataset cannot have it,
-  `plotSkipReason`), `error` or `canceled`;
+  `plotSkipReason`), `error` or `canceled`. The analysis config's enabled
+  [figures](EphysAnalysisConfig.md#figures) run too, one row per dataset and
+  figure in the same form (step `analysis:<figure id>`; the dry run's `Note` reads
+  `figure of <unit | channel | dataset>`);
 - with `Report`, one `analysis:report` row per report: `Dataset` `""` for one
   report over every dataset, else the dataset (`Report.PerDataset`). After a
   cancel, the report over every dataset is not written (`canceled`).

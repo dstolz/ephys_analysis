@@ -44,8 +44,8 @@ says how to cut a release.
   2 s or more; it has the Plots tab's badge states and a Cancel, shares the runner with the Plots and
   Sessions previews, remembers looks from the right-click aesthetics editor with the figure, and the
   Epoch Diagram can follow the figure. New preferences `FigureAutoPreview` (on by default) and
-  `FigureSectionsCollapsed`. Running, exporting and reporting figures is in the next bullets; drawing every
-  observation from the tab itself is a later phase. See
+  `FigureSectionsCollapsed`. Running, exporting and reporting figures, and the tab's own Generate button,
+  are in the next bullets. See
   [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
 - Figures: common options and linked panels. A figure has a `common` block (bins, measure, baseline, mask
   after the stop event, waveform inset) that every panel draws while its own `common` flag is true, the
@@ -80,7 +80,12 @@ says how to cut a release.
   Analysis step runs the config's enabled figures, lists them in its dry run (`figure of <kind>`) and
   checks that figures reading sorted units have them. Validate now accepts a config whose only enabled item
   is a figure ("No plot, figure or session plot is enabled."), counts figures in the `{Plot}` warning of the
-  file-name pattern, and refuses a figure id that names the same files as a plot's. See
+  file-name pattern, and refuses a figure id that names the same files as a plot's. The Figures tab's new
+  **Generate** button runs the selected figure alone (`onGenerateFigure`, through `onRunExport`: the
+  Export tab's folder and file names, no report, plots or session plots, a figure that is off drawn for
+  that run only, canceled from the progress dialog or either Cancel) and fills the Export tab's results;
+  the Export tab's **Plan** and **Run** count the plot runs and the figure runs ("Plan: 4 of 6 plot run(s)
+  and 2 of 2 figure run(s) will draw."). See
   [Figures](documentation/EphysAnalysisConfig.md#figures) and
   [Runner](documentation/EphysAnalysis.md#runner).
 - Convert a plot to a figure. `EphysAnalysisConfig.plotToFigure(cfg, plotId)` returns a figure that draws

@@ -23,7 +23,7 @@ function hs = errorPatch(ax, t, lo, hi, color, group, style, role, alpha)
 %   opacity outside 0-1, a style or width that is not valid fall back to
 %   the defaults (Validate reports them). HS: the patches drawn.
 %
-%   See also errorBounds, semBand, PlotAesthetics.
+%   See also errorBounds, resultBounds, PlotAesthetics.
 
 if nargin < 6; group = ""; end
 if nargin < 7; style = struct(); end

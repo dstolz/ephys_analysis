@@ -20,11 +20,11 @@ function f = figureOutputName(pattern, name, spec, obs, i, n)
 %   and a pattern that names neither {Unit} nor {Index}, "_<Unit>" is
 %   appended (not for the dataset), and for a trial group's observation
 %   with a pattern that names neither {Group} nor {Index}, "_<Group>", so
-%   the observations never overwrite each other. Figures and
-%   plots share {Plot}: EphysAnalysisConfig.validate checks that a figure
-%   id and a plot id never name the same files.
+%   the observations never overwrite each other. Every figure fills
+%   {Plot} with its id: EphysAnalysisConfig.validate checks that two
+%   figure ids never name the same files.
 %
-%   See also figureFileName, plotFileName, figureObservations,
+%   See also figureFileName, figureObservations,
 %   EphysAnalysisRunner.runDataset.
 
 arguments

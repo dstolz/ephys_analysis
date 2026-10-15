@@ -1,5 +1,5 @@
 function runAnalysis(obj, opts)
-%runAnalysis  Run the analysis config's plots and figures on the selected datasets: figure files and report.
+%runAnalysis  Run the analysis config's figures on the selected datasets: figure files and report.
 %   Loads Analysis.ConfigFile, an EphysAnalysisApp config, when the step
 %   runs (EphysPipelineConfig.loadAnalysisConfig), so what is saved in the
 %   analysis app applies to the next run, and runs it with
@@ -11,21 +11,21 @@ function runAnalysis(obj, opts)
 %   where and as the analysis config's Export and Report sections say; the
 %   runner also writes its own run record (<report folder>/analysis_runs).
 %
-%   Results: one row per dataset and enabled plot, then enabled figure
-%   (Config.Figures: a page per observation), step "analysis:<plot or
-%   figure id>": done (Output: the files written), skipped (Message: why
-%   the dataset cannot have that plot or figure, plotSkipReason /
-%   figureSkipReason), error or canceled; and
+%   Results: one row per dataset and enabled figure (Config.Figures: a
+%   page per observation), step "analysis:<figure id>": done (Output:
+%   the files written), skipped (Message: why the dataset cannot have
+%   that figure, figureSkipReason), error or canceled; one row per
+%   enabled session figure and facet (Dataset "sessions: <facet>"); and
 %   one "analysis:report" row per report: Dataset "" for one report over
 %   every dataset, else the dataset's name (Report.PerDataset). A config
 %   that cannot be loaded, and a dataset whose outputs cannot be read or
 %   that the analysis does not find, are "error" rows (step "analysis");
 %   the other datasets still run. Progress goes out as the "analysis" step,
-%   dataset by dataset; cancel() stops before the next plot, and a report
+%   dataset by dataset; cancel() stops before the next figure observation, and a report
 %   over every dataset is then not written.
 %
 %   Options: Datasets (indices), DryRun (writes nothing: "dry run" rows say
-%   what each plot and report would write; see analysisTargets).
+%   what each figure and report would write; see analysisTargets).
 %
 %   Needs the analysis module (the repository's analysis folder) on the path.
 %
@@ -56,11 +56,10 @@ if isempty(acfg)
     for d = ds; obj.addResult("analysis", d.Name, "error", msg, A.ConfigFile, toc(t0)); end
     return
 end
-ids = acfg.enabledPlots();
 fids = acfg.enabledFigures();
 sfids = acfg.enabledSessionFigures();   % drawn once across the datasets (run's default runs them too)
-obj.log("[analysis] ""%s"" (%s): %d plot(s) and %d figure(s) on %d dataset(s), %d session figure(s)", acfg.Name, A.ConfigFile, ...
-    numel(ids), numel(fids), n, numel(sfids));
+obj.log("[analysis] ""%s"" (%s): %d figure(s) on %d dataset(s), %d session figure(s)", acfg.Name, A.ConfigFile, ...
+    numel(fids), n, numel(sfids));
 
 if opts.DryRun
     T = obj.analysisTargets(acfg, idx);
@@ -71,7 +70,7 @@ if opts.DryRun
             obj.addResult(T.Step(r), T.Dataset(r), "dry run", "would write: " + T.Note(r), T.Output(r), 0);
         end
     end
-    obj.log("[analysis] dry run: %d plot(s) and %d figure(s) x %d dataset(s), %d session figure(s)%s", numel(ids), numel(fids), n, ...
+    obj.log("[analysis] dry run: %d figure(s) x %d dataset(s), %d session figure(s)%s", numel(fids), n, ...
         numel(sfids), ternary(A.Report, ", and the report", ""));
     return
 end
@@ -102,7 +101,7 @@ for k = 1:n
             "the analysis found no dataset " + keys(k) + " under " + obj.Config.Project.Root, "", 0);
         continue
     end
-    obj.progress("analysis", ds(k).Name, 1, n, 0, 1, "reading its outputs");   % before the first dataset's plots: the bar stays at 0
+    obj.progress("analysis", ds(k).Name, 1, n, 0, 1, "reading its outputs");   % before the first dataset's figures: the bar stays at 0
     try
         runner.source(at);
         runIdx(end+1) = at; %#ok<AGROW>
@@ -141,7 +140,7 @@ end
         %onProgress  The runner's progress (a fraction of its whole run) as
         %   the pipeline's: dataset jj of the mm it analyses, how far through it.
         if obj.CancelRequested
-            runner.cancel();   % the runner stops before its next plot, records the rest "canceled"
+            runner.cancel();   % the runner stops before its next figure observation, records the rest "canceled"
             return
         end
         mm = numel(runIdx);
@@ -151,7 +150,7 @@ end
         if startsWith(message, "Dataset ")
             message = "starting";
         elseif startsWith(message, dsName + ": ")
-            message = "plot " + extractAfter(message, dsName + ": ");
+            message = "figure " + extractAfter(message, dsName + ": ");
         end
         try
             obj.progress("analysis", dsName, jj, mm, min(max(frac * mm - (jj - 1), 0), 1), 1, message);

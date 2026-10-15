@@ -1,7 +1,7 @@
 function T = panelTypes()
 %panelTypes  The panel types of a figure: the data each draws and its options.
-%   T = EphysAnalysisConfig.panelTypes() has one row per type, the analog
-%   of plotKinds for the panels of a figure (the Figures section):
+%   T = EphysAnalysisConfig.panelTypes() has one row per type of the
+%   panels of a figure (the Figures section):
 %     Type            "raster" | "psth" | "continuous" | "heatmap" |
 %                     "waveforms" | "probemap" | "corrmap" | "rate" |
 %                     "tuning" | "spectrum" | "spectrogram" | "coherence"
@@ -32,8 +32,7 @@ function T = panelTypes()
 %   auROC against the baseline window, spikePSTH's BaselineMode "auroc")
 %   with its auroc settings (defaults("Auroc")). A PSTH stacks its groups
 %   in rows with stack (stackSpacing: the row step, x the tallest PSTH);
-%   a raster panel above it draws the rasters (the plot's stackRaster has
-%   no figure counterpart). A rate panel shows each epoch window's rate per
+%   a raster panel above it draws the rasters. A rate panel shows each epoch window's rate per
 %   trial group (firingRate), a tuning panel the rate against a trial
 %   parameter (tuningCurve: param, "" = the figure's first groupBy
 %   parameter, else the trials' first numeric one; seriesParam, "" = one
@@ -71,7 +70,7 @@ function T = panelTypes()
 %   the figure's epochs.
 %
 %   See also EphysAnalysisConfig.sourceCategories, EphysAnalysisConfig.categoryOf,
-%   EphysAnalysisConfig.plotKinds, EphysAnalysisConfig.defaultLayer.
+%   EphysAnalysisConfig.defaultLayer.
 
 bins = struct('BinSec', 0.01, 'SmoothSec', 0.01);              % SmoothSec: Gaussian SD (0 = none)
 baseline = struct('Mode', "none", 'Window', [-0.2 0]);

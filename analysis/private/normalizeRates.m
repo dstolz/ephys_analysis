@@ -7,9 +7,9 @@ function [rate, sem, label, lo, hi, p] = normalizeRates(R, mode)
 %   unit or PSTH with none is NaN. LABEL is the y axis label of what comes
 %   back. LO / HI: the band R.err holds (resultBounds), divided the same
 %   way. P: the divisor ([] for "none"), for the member sessions
-%   (renderPSTH's memberRates). Shared by renderPSTH and drawPsthPanel.
+%   (memberRates). Used by drawPsthPanel.
 %
-%   See also drawPsthPanel, renderPSTH.
+%   See also drawPsthPanel.
 p = [];
 rate = R.rate;
 sem = R.sem;

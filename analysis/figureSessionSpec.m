@@ -13,7 +13,7 @@ function s = figureSessionSpec(spec)
 %   runner, the app and the standalone script pass the figure's own spec.
 %   It changes nothing a second time (idempotent).
 %
-%   See also figureSessionCompute, EphysAnalysisConfig.sessionPlotFor.
+%   See also figureSessionCompute, EphysAnalysisConfig.figureFor.
 s = spec;
 if ~isfield(spec, 'sessions'); return; end
 s.observe.perGroup = false;

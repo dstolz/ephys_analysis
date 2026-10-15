@@ -7,36 +7,39 @@ classdef PlotAesthetics
     %   through their axes, or their tiled layout (a grid's x and y labels
     %   and the plot's title). A rule -- role, group, property, value -- sets
     %   that property on every component of the role, in every tile; group
-    %   "" means every group. renderPlot applies the user's rules for the
-    %   plot's kind (preferences) and then the plot's own (its aesthetics
-    %   field, saved in the config), and in a visible figure lets a
-    %   right-click on any component open PlotAestheticsDialog.
+    %   "" means every group. renderFigure applies the user's rules for each
+    %   panel's type and for "figure" (preferences) and then the figure's
+    %   own (its aesthetics field, saved in the config); renderChronux the
+    %   user's rules for its result's kind. In a visible figure a
+    %   right-click on any component opens PlotAestheticsDialog.
     %
     %   Rules
     %     R = PlotAesthetics.emptyRules()          1x0 struct: role, group, property, value
     %     R = PlotAesthetics.normalizeRules(V)      from a struct array, a cell (jsondecode) or []
     %     R = PlotAesthetics.mergeRules(R, NEW)     NEW added; the rules they cover dropped
     %     n = PlotAesthetics.apply(TARGET, R)       set on what is drawn in TARGET (n: values set)
-    %     R = PlotAesthetics.userRules(KIND)        the user's rules for a plot kind
+    %     R = PlotAesthetics.userRules(KIND)        the user's rules for a kind (PlotDesign.kindNames)
     %     PlotAesthetics.setUserRules(KIND, R)      ([] forgets them)
     %   The user's rules are preferences (AppPrefs group "PlotAesthetics",
-    %   one per kind), so they follow the user, not the config.
+    %   one per kind: a panel type such as "psth", "figure", or a Chronux
+    %   kind such as "chronuxSpectrum"), so they follow the user, not the
+    %   config.
     %
     %   Components
     %     T = PlotAesthetics.components(TARGET)     one row per component (see components)
     %     P = PlotAesthetics.editableProperties(H)  what the editor offers for object H
     %     v = PlotAesthetics.getValue(H, NAME)      PlotAesthetics.setValue(H, NAME, V)
     %   Editing
-    %     PlotAesthetics.enableEditing(TARGET, CONTEXT)   right-click menu (renderPlot)
+    %     PlotAesthetics.enableEditing(TARGET, CONTEXT)   right-click menu (renderFigure)
     %     d = PlotAesthetics.edit(H)                      the editor on component H
     %   The right-click menu also has Design: choose a whole look for every
-    %   plot, or save this plot's look as one (PlotDesign).
+    %   figure, or save this figure's look as one (PlotDesign).
     %
-    %   See also PlotAestheticsDialog, PlotDesign, renderPlot, tagPart, AppPrefs.
+    %   See also PlotAestheticsDialog, PlotDesign, renderFigure, renderChronux, tagPart, AppPrefs.
 
     properties (Constant)
-        PrefGroup = "PlotAesthetics"            % AppPrefs group: one rule set per plot kind
-        ContextKey = "PlotAestheticsContext"    % appdata of renderPlot's target
+        PrefGroup = "PlotAesthetics"            % AppPrefs group: one rule set per kind (a panel type, "figure", a Chronux kind)
+        ContextKey = "PlotAestheticsContext"    % appdata of the target renderFigure / renderChronux drew into
         MenuTag = "PlotAestheticsMenu"
     end
 
@@ -170,7 +173,7 @@ classdef PlotAesthetics
         %% --- components ----------------------------------------------------------
         function T = components(target)
             %components  What is drawn in TARGET, one row per component.
-            %   TARGET is what renderPlot drew into (or its layout or axes).
+            %   TARGET is what renderFigure drew into (or its layout or axes).
             %   Columns: Handles (cell: the objects, e.g. every patch of one
             %   SEM band), Role, Group, Tile (axes number in tile order; 0 =
             %   the whole plot), TileName (the unit, channel or group it
@@ -313,11 +316,6 @@ classdef PlotAesthetics
                 "eventLine"    "Event latency line"
                 "eventRug"     "Event latency rug"
                 "layerNote"    "Layer note"
-                "auxTrace"     "Aux signal (mean)"
-                "auxSem"       "Aux signal error band"
-                "auxImage"     "Aux signal heat map"
-                "auxGroup"     "Aux signal group mark"
-                "auxScale"     "Aux signal scale"
                 "trace"        "Mean trace"
                 "channelTrace" "Channel trace"
                 "trialTrace"   "Trial traces"
@@ -330,9 +328,6 @@ classdef PlotAesthetics
                 "points"       "Epoch points"
                 "meanBar"      "Mean bar"
                 "curve"        "Tuning curve"
-                "behaviorMean" "Mean +/- SEM"
-                "swarm"        "Swarm points"
-                "violin"       "Violin"
                 "image"        "Image"
                 "sites"        "Sites"
                 "emptySites"   "Sites without a value"
@@ -460,7 +455,7 @@ classdef PlotAesthetics
         %% --- editing --------------------------------------------------------------
         function enableEditing(target, context)
             %enableEditing  Right-click any component drawn in TARGET to edit its aesthetics.
-            %   CONTEXT (a struct; renderPlot builds it) is kept on TARGET:
+            %   CONTEXT (a struct; renderFigure builds it) is kept on TARGET:
             %   kind, id, title, root (the layout or axes drawn), target
             %   (TARGET), plotRules,
             %   onRemember (called with the plot's new rules; [] = they cannot
@@ -499,12 +494,12 @@ classdef PlotAesthetics
         end
 
         function d = edit(h)
-            %edit  Open the aesthetics editor on component H of a plot renderPlot drew.
+            %edit  Open the aesthetics editor on component H of a figure renderFigure drew.
             %   Errors (PlotAesthetics:NotEditable) when H is not part of an
             %   editable plot.
             ctx = PlotAesthetics.contextOf(h);
             if isempty(ctx)
-                error('PlotAesthetics:NotEditable', 'This is not part of a plot drawn by renderPlot in a visible figure.');
+                error('PlotAesthetics:NotEditable', 'This is not part of a figure drawn by renderFigure or renderChronux in a visible figure.');
             end
             d = PlotAestheticsDialog(ctx, h);
         end

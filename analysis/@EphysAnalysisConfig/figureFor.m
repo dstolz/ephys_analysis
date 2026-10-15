@@ -28,7 +28,7 @@ function spec = figureFor(obj, id)
 %   A panel of an unknown type keeps its empty options, with aligned and
 %   sharesTime false. Error: EphysAnalysisConfig:NoFigure.
 %
-%   See also EphysAnalysisConfig.plotFor, EphysAnalysisConfig.observeKind,
+%   See also EphysAnalysisConfig.observeKind,
 %   EphysAnalysisConfig.panelTypes.
 
 if isnumeric(id)

@@ -2,9 +2,9 @@ function T = analysisTargets(obj, acfg, idx)
 %analysisTargets  What the Analysis step draws and writes for datasets IDX.
 %   T = pipe.analysisTargets(ACFG, IDX), ACFG the analysis config
 %   (analysisConfig) and IDX indices into Project.Datasets, has one row per
-%   dataset and enabled plot, then per dataset and enabled figure (Note
-%   "figure of <unit | channel | dataset>": a page per observation) --
-%   Step "analysis:<plot or figure id>", Output the
+%   dataset and enabled figure (Note "figure of <unit | channel |
+%   dataset>": a page per observation) -- Step "analysis:<figure id>",
+%   Output the
 %   dataset's figure folder (the analysis config's Export.Folder; "" when
 %   Analysis.Figures is off) -- and, with Analysis.Report, one row per
 %   report: Step "analysis:report", Output its file(s) joined by "; ",
@@ -12,7 +12,7 @@ function T = analysisTargets(obj, acfg, idx)
 %   dataset (Report.PerDataset). Columns: Step, Dataset, Index (into
 %   Project.Datasets), Output, Status ("ready", or "error: figure folder" /
 %   "error: report folder" when a folder pattern cannot be filled, Note then
-%   saying why) and Note (the plot's kind and source and what is written).
+%   saying why) and Note (what the figure is drawn for and what is written).
 %   Each enabled session figure (drawn once across the datasets) is one
 %   row too: Dataset "", Index 0, Output the sessions folder
 %   (Export.SessionsFolder for the first dataset).
@@ -31,7 +31,6 @@ end
 A = obj.Config.Analysis;
 X = acfg.Export;
 ds = obj.Project.Datasets(idx);
-ids = acfg.enabledPlots();
 fids = acfg.enabledFigures();
 
 Step = strings(0, 1); Dataset = strings(0, 1); Index = zeros(0, 1);
@@ -60,12 +59,6 @@ for k = 1:numel(ds)
             st = "error: figure folder";
             why = string(ME.message);
         end
-    end
-    for id = ids
-        spec = acfg.plotFor(id);
-        note = spec.kind + " of " + spec.source + "; " + how;
-        if why ~= ""; note = why; end
-        add("analysis:" + id, d.Name, idx(k), folder, st, note);
     end
     for id = fids
         spec = acfg.figureFor(id);

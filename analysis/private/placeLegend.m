@@ -18,7 +18,7 @@ function lgd = placeLegend(ax, handles, labels, style, tl, auto)
 %   is hosted by a hidden axes of TL, tagged "legendHost" (PlotAesthetics
 %   leaves it out of the tiles), that lists the handles of AX.
 %
-%   See also renderPlot, PlotAesthetics.
+%   See also renderFigure, PlotAesthetics.
 
 loc = string(style.LegendLocation);
 sides = ["north" "south" "east" "west"];

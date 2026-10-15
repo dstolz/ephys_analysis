@@ -11,7 +11,7 @@ function hk = drawTuningPanel(ax, P, look)
 %   one curve per series in the series' color (the layer's color when set)
 %   and the item's line style (the layer's lineStyle, else by order: -,
 %   --, :, -.), markers at the values, with error bars (R.err; Style.ShowSEM),
-%   role "curve", as renderTuning draws a unit's tile. The components' group
+%   role "curve". The components' group
 %   is the series' label, with several items "<item> · <series>" (the item
 %   alone for one series). The legend gets the series (more than one), then
 %   the items (more than one). options.yLim fixes the y axis; with
@@ -22,7 +22,7 @@ function hk = drawTuningPanel(ax, P, look)
 %   (memberLines), the trial groups of "combine" by line style
 %   (figSeriesStyle). HK: figDrawResult's, yName = the rates' unit.
 %
-%   See also renderFigure, renderTuning, tuningCurve, figurePanelRegistry.
+%   See also renderFigure, tuningCurve, figurePanelRegistry.
 
 style = look.style;
 o = look.panel.options;

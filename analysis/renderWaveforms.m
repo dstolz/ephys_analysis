@@ -38,7 +38,7 @@ function h = renderWaveforms(R, target, opts)
 %
 %   H: layout (tiled layout or []), axes.
 %
-%   See also unitWaveforms, renderPlot, renderProbeMap.
+%   See also unitWaveforms, renderFigure, renderProbeMap.
 
 arguments
     R (1,1) struct

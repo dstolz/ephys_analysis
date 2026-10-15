@@ -1,7 +1,7 @@
 function [type, nBoot] = figureErrorType(spec, panel)
 %figureErrorType  The error a figure panel's compute makes for the bands or bars it draws.
-%   [TYPE, NBOOT] = figureErrorType(SPEC, PANEL) is plotErrorType's rule by
-%   panel type, for a figure SPEC (EphysAnalysisConfig.figureFor) and one
+%   [TYPE, NBOOT] = figureErrorType(SPEC, PANEL) is the rule by panel
+%   type, for a figure SPEC (EphysAnalysisConfig.figureFor) and one
 %   of its panels:
 %     psth        SPEC.style.ErrorType ("sem", "std" or "ci95") with
 %                 Style.ShowSEM on
@@ -17,7 +17,7 @@ function [type, nBoot] = figureErrorType(spec, panel)
 %   channels (aggregate "mean") takes the same type for its band across
 %   them.
 %
-%   See also plotErrorType, errorBounds, EphysAnalysisRunner.computeFigure.
+%   See also errorBounds, EphysAnalysisRunner.computeFigure.
 
 arguments
     spec (1,1) struct

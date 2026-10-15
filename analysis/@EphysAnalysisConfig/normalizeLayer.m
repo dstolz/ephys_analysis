@@ -4,7 +4,7 @@ function [L, unknown] = normalizeLayer(in, path)
 %   fields IN leaves out, coerces the rest (see normalizeSection) and drops
 %   unknown fields (their paths, prefixed by PATH, in UNKNOWN). The nested
 %   units (a UnitSelection without its source), event (an EventMark) and
-%   event.sequence (SequenceStep each) are coerced as a plot's are.
+%   event.sequence (SequenceStep each) are coerced as normalizeSection does.
 %
 %   See also EphysAnalysisConfig.normalizePanel, EphysAnalysisConfig.defaults.
 

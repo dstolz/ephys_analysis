@@ -5,7 +5,7 @@ function h = renderFigure(F, spec, target, opts)
 %   a channel or the dataset), as SPEC says (Config.figureFor(id): the spec
 %   F was computed with, its aesthetics free to differ, as when the
 %   aesthetics editor redraws it). TARGET is an axes, uiaxes, figure,
-%   uifigure, panel, tab, grid layout or tiled layout, as renderPlot's:
+%   uifigure, panel, tab, grid layout or tiled layout (renderLayout):
 %   renderers never create figures.
 %
 %   Layout   the arrangement's rows and columns become equal units
@@ -51,7 +51,7 @@ function h = renderFigure(F, spec, target, opts)
 %            time tick labels: figureTimeStack), placed over the panel or
 %            at x, y it sits in the axes (placeNote). Their own looks are
 %            rules after the design's and the user's and before
-%            SPEC.aesthetics, as renderPlot orders them.
+%            SPEC.aesthetics.
 %   Legend   one, east of the panels (Style.LegendLocation, placeLegend):
 %            the trial groups once (as a PSTH panel draws them, else a
 %            continuous one, else a raster's bands), then the panels'
@@ -67,7 +67,7 @@ function h = renderFigure(F, spec, target, opts)
 %            SiteSize. Its XLim, YLim and CLim are not used: the time
 %            panels show the window, and each panel has its own
 %            options.yLim / cLim.
-%   Aesthetics  as renderPlot's, by panel type: the design's (PlotDesign)
+%   Aesthetics  by panel type: the design's (PlotDesign)
 %            common rules on everything; on each panel's axes the design's
 %            rules for its type and the user's remembered rules for that
 %            kind of plot (PlotAesthetics.userRules: a look remembered for
@@ -78,7 +78,7 @@ function h = renderFigure(F, spec, target, opts)
 %            editor on the figure (context kind "figure"; its redraw draws
 %            F again with the new SPEC.aesthetics).
 %
-%   Options (as renderPlot's)
+%   Options
 %     Design          "" (default): the user's design (PlotDesign.current;
 %                     none when UserAesthetics is false); a name; a design
 %     UserAesthetics  the user's design and remembered rules (default true)
@@ -100,7 +100,7 @@ function h = renderFigure(F, spec, target, opts)
 %   Errors: renderFigure:Mismatch (F's panels are not SPEC's).
 %
 %   See also EphysAnalysisRunner.computeFigure, figurePanelRegistry,
-%   EphysAnalysisConfig.figureFor, renderPlot, PlotAesthetics.
+%   EphysAnalysisConfig.figureFor, renderChronux, PlotAesthetics.
 
 arguments
     F (1,1) struct
@@ -287,7 +287,7 @@ end
 PlotDesign.paint(root, design);
 r = kindRules(design, "figure");
 if opts.UserAesthetics; r = [r PlotAesthetics.userRules("figure")]; end
-% a panel's note and overlays: their own looks after the design's and the user's, before the figure's own (as renderPlot)
+% a panel's note and overlays: their own looks after the design's and the user's, before the figure's own
 ownRules = cell(1, np);
 for k = find(drawn)
     ownRules{k} = PlotAesthetics.emptyRules();
@@ -346,6 +346,7 @@ if editable(opts.Editable, target)
         'onRemember', {opts.OnRemember}, 'design', design, 'followsDesign', follows, 'ordinal', ordinal, 'mapField', mapField, ...
         'redraw', @(newRules) renderFigure(F, setfield(spec, 'aesthetics', newRules), target, Design=opts.Design, ...
             UserAesthetics=opts.UserAesthetics, Editable=opts.Editable, OnRemember=opts.OnRemember));
+    ctx.panelTypes = struct('id', sIds, 'type', types);   % each tile's panel type by the id it is tagged with (PlotDesign.capture)
     PlotAesthetics.enableEditing(target, ctx);
 end
 
@@ -718,7 +719,6 @@ end
 
 function [D, follows] = designFor(design, userAesthetics)
 %designFor  The design to draw in, and whether it is the user's choice (a new choice redraws it).
-%   A copy of renderPlot's local designFor.
 follows = false;
 if isstruct(design)
     D = design;
@@ -735,7 +735,6 @@ end
 
 function tf = editable(mode, target)
 %editable  Whether the right-click aesthetics editor goes on: "auto" = in a visible figure.
-%   A copy of renderPlot's local editable.
 if isstring(mode) || ischar(mode)
     if string(mode) ~= "auto"
         error('renderFigure:BadEditable', 'Editable is "auto", true or false.');

@@ -17,7 +17,7 @@ function [res, sessions, Fs] = figureSessionCompute(sources, sessions, spec, opt
 %                        session holds the observation (a session without
 %                        it, or one figureCompute skips, is "skipped" with
 %                        the reason; an error is "error"); FS{k} its F
-%     per facet and trial group (as sessionResults: sessions.facet "none"
+%     per facet and trial group (sessions.facet "none"
 %                        | "subject"; trialGroups "each": a figure per
 %                        trial group label, in first-seen order, at most
 %                        selection.maxGroups), each panel's layers merged
@@ -82,7 +82,7 @@ function [res, sessions, Fs] = figureSessionCompute(sources, sessions, spec, opt
 %   EphysAnalysisRunner:Canceled from CHK.
 %
 %   See also figureSessionObservations, figureCompute, combineSessions,
-%   sessionResults, renderFigure, EphysAnalysisRunner.runSessionFigure.
+%   renderFigure, EphysAnalysisRunner.runSessionFigure.
 
 arguments
     sources cell

@@ -1,34 +1,20 @@
 classdef EphysAnalysisRunner < handle
-    % EphysAnalysisRunner  Draw, export and report an analysis config's plots.
+    % EphysAnalysisRunner  Draw, export and report an analysis config's figures.
     %   r = EphysAnalysisRunner(cfg) finds the config's datasets (an
     %   EphysProject's recordings, or a list of output folders) and runs its
-    %   plots over them. It has no GUI: EphysAnalysisApp drives one for its
+    %   figures over them. It has no GUI: EphysAnalysisApp drives one for its
     %   previews and runs, and EphysAnalysisScript writes out the same steps
     %   as a script.
     %
     %     r = EphysAnalysisRunner(EphysAnalysisConfig.load("am.json"));
-    %     disp(r.plan());          % dataset x plot, and why a plot is skipped
+    %     disp(r.plan());          % dataset x figure, and why a figure is skipped
     %     R = r.run();             % compute, render, export, report
     %
-    %   One plot on one dataset is always the same sequence of public calls
-    %   (see computePlot, runDataset):
-    %     src = loadAnalysisSource(out)
-    %     [E, G] = epochTable(src, spec.ref, Window=, Selection=, Baseline=)
-    %     [st, meta] = selectUnits(src, spec.units, Ref=, Selection=)   (or selectChannels)
-    %     R = spikePSTH / evokedPotential / firingRate (+ tuningCurve) /
-    %         unitSummary + probeMapValues
-    %     per page, one at a time:
-    %       fig = newExportFigure(cfg.Export, R, spec, Page=p); h = renderPlot(R, spec, fig, Page=p)
-    %       exportFigure(fig, <folder>/<plotFileName(...)>, Format=, Dpi=)
-    %       reportImage(fig, report, Title=h.title, Files=)   (HTML report)
-    %       reportPdfPage(fig, report, Files=)                (PDF report)
-    %     addReportFigure(report, spec, R, Files=, Images=, Pages=)
-    %   and then writeHtmlReport / writePdfReport. The app previews a page
-    %   with renderPlotFigures.
-    %
     %   A figure (Config.Figures; one observation's panels) is drawn once
-    %   per observation, a page each; run draws the enabled figures after
-    %   each dataset's plots (runDataset, Figures=), and plan lists them:
+    %   per observation, a page each; run draws the enabled figures on each
+    %   dataset (runDataset, Figures=), and plan lists them. One figure on
+    %   one dataset is always the same sequence of public calls:
+    %     src = loadAnalysisSource(out)
     %     spec = cfg.figureFor(id)
     %     [reason, layerReasons] = figureSkipReason(src, spec)
     %     T = figureObservations(src, spec)          (its units, channels, or the dataset)
@@ -36,26 +22,28 @@ classdef EphysAnalysisRunner < handle
     %       F = r.computeFigure(src, spec, Observation=T(i,:))   (figureCompute)
     %       fig = newExportFigure(cfg.Export, F, spec); h = renderFigure(F, spec, fig)
     %       exportFigure(fig, <folder>/<figureOutputName(...)>, Format=, Dpi=)
-    %     addReportFigure(report, spec, F, Files=, Images=, Pages=, Caption=figureCaption(spec, T))
-    %   computeFigure reads only the observation's data (one unit's spike
-    %   train, one extract column) where a layer follows it, and stops at
-    %   its checkpoints like computePlot while PollFcn is set.
-    %   Plots= and Figures= of run, runDataset and plan: [] (the default)
-    %   = the enabled ones (plan: all of them), string.empty(1, 0) = none,
-    %   else the ids (idList).
+    %       reportImage(fig, report, Title=h.title, Files=)   (HTML report)
+    %       reportPdfPage(fig, report, Files=)                (PDF report)
+    %     addReportFigure(report, spec, F, Files=, Images=, Pages=, Caption=figureCaption(spec, T, Auroc=<figureAurocCalls of each F>))
+    %   and then writeHtmlReport / writePdfReport. computeFigure reads only
+    %   the observation's data (one unit's spike train, one extract column)
+    %   where a layer follows it, and stops at its checkpoints while PollFcn
+    %   is set. Figures= and SessionFigures= of run and plan (Figures= of
+    %   runDataset): [] (the default) = the enabled ones (plan: all of
+    %   them), string.empty(1, 0) = none, else the ids (idList).
     %
     %   Properties
     %     Config        the EphysAnalysisConfig
     %     ProgressFcn   ProgressFcn(fraction, message), called before each
-    %                   dataset and plot; FRACTION is how far the whole run
-    %                   is (dataset j of n spans [(j-1)/n, j/n], its plots
-    %                   share it). cancel() makes the next call throw
-    %                   EphysAnalysisRunner:Canceled
-    %     PollFcn       PollFcn() called at computePlot's checkpoints (between
-    %                   its stages and per unit, epoch or channel inside the
-    %                   long ones); the app's preview sets it to let a Cancel
-    %                   button act while a plot computes. cancel() then makes
-    %                   the next checkpoint throw EphysAnalysisRunner:Canceled.
+    %                   dataset, figure and observation; FRACTION is how far
+    %                   the whole run is (dataset j of n spans [(j-1)/n,
+    %                   j/n], its figures share it). cancel() makes the next
+    %                   call throw EphysAnalysisRunner:Canceled
+    %     PollFcn       PollFcn() called at computeFigure's checkpoints
+    %                   (between its panels and inside the long ones); the
+    %                   app's preview sets it to let a Cancel button act
+    %                   while a figure computes. cancel() then makes the
+    %                   next checkpoint throw EphysAnalysisRunner:Canceled.
     %                   While it is empty (a run, a script) there are no
     %                   checkpoints
     %     LogFcn        LogFcn(message) per line (default: print); [] = quiet
@@ -65,38 +53,24 @@ classdef EphysAnalysisRunner < handle
     %     Outputs       DatasetOutputs per dataset (CacheData=true)
     %     Keys, Names   dataset keys (root-relative, or the folder) and names
     %     Sources       containers.Map key -> loadAnalysisSource struct
-    %     Results       last run: Dataset, Plot (a plot's or a figure's id),
-    %                   Kind ("figure" for a figure), Status (done |
-    %                   skipped | error | canceled), Message, Files, Seconds
+    %     Results       last run: Dataset ("sessions: <label>" for a session
+    %                   figure), Plot (the figure's id), Kind ("figure"),
+    %                   Status (done | skipped | error | canceled), Message,
+    %                   Files, Seconds
     %     Report        the last run's report struct (newAnalysisReport)
     %     ReportFiles   the report files the last run wrote
     %     RunRecordFile the run record the last run wrote: the config, the code
     %                   version, MATLAB, host, user and the Results rows, in
     %                   <report folder>/analysis_runs (see run)
     %
-    %   Session plots (Config.SessionPlots) draw a base plot over several
-    %   datasets: computeSessionPlot computes the base plot on each dataset
-    %   (cachedPlot) and merges the results (sessionResults,
-    %   combineSessions); runSessionPlot exports and reports them; run does
-    %   both after its datasets. sessionData gathers a session plot's data
-    %   (the merged and per-session results, the epoched spikes or signals)
-    %   into one struct for writeAnalysisData or the workspace; run writes it
-    %   with Export.Data.Enabled. Session figures (a figure whose
-    %   sessions.enabled is true) are drawn across the datasets likewise:
-    %   sessionFigureObservations matches the observed unit (site or
-    %   mapping cell), channel or dataset across them, computeSessionFigure
-    %   computes one observation per dataset and merges each layer
-    %   (figureSessionCompute), runSessionFigure exports and reports every
-    %   observation; run does it after the session plots. The per-dataset
-    %   results a session plot needs are kept in a cache:
-    %     ResultCache   containers.Map cacheKey -> struct(R, bytes)
-    %     CacheMaxMB    its size limit (default 512); the oldest entries go
-    %                   first when it is passed
-    %     CacheBytes    its size now
-    %     CacheWanted   the keys runDataset puts in the cache as it computes
-    %                   them (run sets them: the enabled session plots' keys
-    %                   of every dataset it runs), so a session plot reuses
-    %                   the per-dataset run's results
+    %   Session figures (a figure whose sessions.enabled is true) are drawn
+    %   across the datasets, never per dataset: sessionFigureObservations
+    %   matches the observed unit (site or mapping cell), channel or
+    %   dataset across them, computeSessionFigure computes one observation
+    %   per dataset and merges each layer (figureSessionCompute),
+    %   runSessionFigure exports and reports every observation (and, with
+    %   Export.Data.Enabled, writes its data file); run does it after the
+    %   datasets.
     %
     %   See also EphysAnalysisConfig, EphysAnalysisScript, EphysAnalysisApp.
 
@@ -106,8 +80,6 @@ classdef EphysAnalysisRunner < handle
         PollFcn = []
         LogFcn = @(msg) fprintf('%s\n', msg)
         SearchDirs (1,:) string = string.empty(1, 0)
-        CacheMaxMB (1,1) double {mustBeNonnegative} = 512
-        CacheWanted (1,:) string = string.empty(1, 0)
     end
 
     properties (SetAccess = protected)
@@ -121,12 +93,6 @@ classdef EphysAnalysisRunner < handle
         Report = []
         ReportFiles (1,:) string = string.empty(1, 0)
         RunRecordFile (1,1) string = ""   % the run record the last run wrote ("" = none)
-        ResultCache = []                  % containers.Map: cacheKey -> struct('R', R, 'bytes', n)
-        CacheBytes (1,1) double = 0       % the bytes ResultCache holds
-    end
-
-    properties (Hidden, SetAccess = protected)
-        CacheOrder (1,:) string = string.empty(1, 0)   % ResultCache's keys, oldest first
     end
 
     methods
@@ -134,9 +100,7 @@ classdef EphysAnalysisRunner < handle
         outs = datasets(obj)
         src = source(obj, k)
         T = plan(obj, opts)
-        [R, E, G] = computePlot(obj, src, spec, opts)
         F = computeFigure(obj, src, spec, opts)
-        h = renderPlotFigures(obj, R, spec, opts)
         rows = runDataset(obj, k, opts)
         T = run(obj, opts)
         cancel(obj)
@@ -145,12 +109,6 @@ classdef EphysAnalysisRunner < handle
         checkpoint(obj)
         log(obj, fmt, varargin)
         S = sessionTable(obj, idx)
-        R = cachedPlot(obj, k, spec, opts)
-        cachePut(obj, key, R)
-        clearResultCache(obj)
-        [res, sessions, spec, Rs] = computeSessionPlot(obj, sp, idx, opts)
-        rows = runSessionPlot(obj, sp, idx, opts)
-        S = sessionData(obj, sp, idx, opts)
         idx = sessionFigureIndices(obj, spec, idx)
         [T, sessions, sources] = sessionFigureObservations(obj, fig, idx)
         [res, sessions, spec, Fs] = computeSessionFigure(obj, fig, idx, opts)
@@ -170,7 +128,6 @@ classdef EphysAnalysisRunner < handle
             obj.LogFcn = opts.LogFcn;
             obj.SearchDirs = opts.SearchDirs;
             obj.Sources = containers.Map('KeyType', 'char', 'ValueType', 'any');
-            obj.ResultCache = containers.Map('KeyType', 'char', 'ValueType', 'any');
             if opts.Scan
                 obj.datasets();
             end
@@ -210,19 +167,15 @@ classdef EphysAnalysisRunner < handle
         end
 
         function clearSources(obj)
-            %clearSources  Forget the loaded sources, every dataset's cached data and the cached results.
+            %clearSources  Forget the loaded sources and every dataset's cached data.
             if ~isempty(obj.Sources); remove(obj.Sources, keys(obj.Sources)); end
             for k = 1:numel(obj.Outputs); obj.Outputs(k).clearCache(); end
-            if ~isempty(obj.ResultCache); obj.clearResultCache(); end
         end
     end
 
     methods (Static)
-        % --- methods defined in separate files ---
-        key = cacheKey(datasetKey, spec)
-
         function ids = idList(sel, all)
-            %idList  The ids a Plots= / Figures= / SessionPlots= option names.
+            %idList  The ids a Figures= / SessionFigures= option names.
             %   IDS = EphysAnalysisRunner.idList(SEL, ALL): [] (an empty
             %   numeric, the options' default) = ALL() (e.g. the enabled
             %   ones); any empty string (string.empty(1, 0)) = none; else

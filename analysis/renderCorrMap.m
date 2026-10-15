@@ -15,7 +15,7 @@ function h = renderCorrMap(R, target, opts)
 %
 %   H: layout (tiled layout or []), axes, colorbar.
 %
-%   See also unitCorrelation, renderHeatmap, renderPlot.
+%   See also unitCorrelation, renderHeatmap, renderFigure.
 
 arguments
     R (1,1) struct

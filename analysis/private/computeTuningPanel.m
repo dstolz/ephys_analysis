@@ -7,7 +7,7 @@ function P = computeTuningPanel(src, panel, E, G, ctx)
 %   groupBy parameter, else the trials' first numeric one; seriesParam),
 %   columns of E (computeFigure copies them onto the epochs: epochTable's
 %   Columns). Each enabled units / detected layer, resolved for the
-%   observation by figureLayerItems, is, as computePlot's tuning plot,
+%   observation by figureLayerItems, is, as tuningCurve's curve,
 %     [st, meta] = selectUnits(src, units, Ref=CTX.ref, Selection=CTX.selection)
 %     F = firingRate(st, E, Measure=, Baseline=, Normalize=options.baseline.Mode,
 %         Groups=G, Meta=meta)

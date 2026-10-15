@@ -74,8 +74,6 @@
     {"role": "errorBar", "property": "Color", "value": "#d8dee9"},
     {"role": "box", "property": "BoxFaceAlpha", "value": 0.35},
     {"role": "box", "property": "WhiskerLineColor", "value": "#9099a8"},
-    {"role": "swarm", "property": "MarkerFaceAlpha", "value": 0.75},
-    {"role": "violin", "property": "FaceAlpha", "value": 0.35},
     {"role": "emptySites", "property": "Color", "value": "#4c566a"},
     {"role": "sites", "property": "MarkerEdgeColor", "value": "#2e3440"},
     {"role": "siteLabels", "property": "FontName", "value": "Segoe UI, Helvetica Neue, Arial"},

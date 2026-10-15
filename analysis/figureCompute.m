@@ -42,7 +42,7 @@ function F = figureCompute(src, spec, opts)
 %         lacks for one layer or panel (no unit left, no event, no usable
 %         epoch) skip only it
 %   The error each panel draws as a band comes from figureErrorType
-%   (plotErrorType's rule by panel type).
+%   (by panel type).
 %
 %   F fields
 %     kind "figure", id, spec (SPEC), dataset (SRC.name), observation (OBS
@@ -80,7 +80,7 @@ function F = figureCompute(src, spec, opts)
 %   (OBS omitted and the dataset offers none), and epochTable's for the
 %   figure's own epochs.
 %
-%   See also EphysAnalysisRunner.computeFigure, EphysAnalysisRunner.computePlot,
+%   See also EphysAnalysisRunner.computeFigure,
 %   figureObservations, figureSkipReason, figurePanelRegistry,
 %   EphysAnalysisConfig.figureFor, renderFigure.
 

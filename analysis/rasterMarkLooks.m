@@ -8,7 +8,7 @@ function L = rasterMarkLooks(marks, labels)
 %   label no mark has gets EventMark's default marker and size and its
 %   automatic color.
 %
-%   See also rasterMarkLabels, epochEvents, renderRaster.
+%   See also rasterMarkLabels, epochEvents, renderFigure.
 
 def = EphysAnalysisConfig.defaults("EventMark");
 labels = string(labels);

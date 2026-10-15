@@ -16,12 +16,12 @@ function [lat, label] = eventLatency(src, E, ref)
 %
 %   E.g. eventLatency(src, E, eventRef(line="Platform", edge="offset")) is
 %   how long after each epoch's event the animal left the platform;
-%   renderRaster(..., SortBy="event") sorts the rows by it (R.rasterSortEvent,
-%   with fields label and t).
+%   a raster panel with rasterSort "event" sorts its rows by it
+%   (R.rasterSortEvent, with fields label and t).
 %
 %   Errors: resolveEvents:NoLine (a line the recording lacks), eventRef's.
 %
-%   See also epochTable, epochWindow, epochEvents, renderRaster.
+%   See also epochTable, epochWindow, epochEvents, figureCompute.
 
 arguments
     src (1,1) struct

@@ -19,7 +19,7 @@ function X = transferOutputs(obj, opts)
 %                                has ended (a run that fails is not copied)
 %   of the steps behavior:file, artifacts (the cache), sorting (the sort
 %   folder; never the .bin), signals, spikes, export:<format> and
-%   analysis:<plot> / analysis:report of one dataset. The association and
+%   analysis:<figure> / analysis:report of one dataset. The association and
 %   pairing rows of the behavior step, the probe check and the analysis
 %   report over every dataset name nothing to copy. The manifest
 %   (<Name>_manifest.json, in the recording folder) is copied with them,

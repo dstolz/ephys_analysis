@@ -35,7 +35,7 @@ function W = unitWaveforms(src, meta, opts)
 %     maxSpikes  MaxSpikes
 %
 %   See also selectUnits, DatasetOutputs.readWaveforms,
-%   EphysDataset.readPhyWaveforms, renderPSTH, renderRaster, renderTuning.
+%   EphysDataset.readPhyWaveforms, renderWaveforms, renderFigure.
 
 arguments
     src (1,1) struct

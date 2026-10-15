@@ -4,8 +4,8 @@ function test_PipelineAnalysisStep()
 %   (makeAnalysisFixture), with an analysis config saved from
 %   EphysAnalysisConfig: the Analysis section's validation (the analysis
 %   config's own issues, its Source ignored, a missing file, nothing
-%   written, background sorting feeding unit plots); plan rows per dataset
-%   and plot or figure and the report row; a dry run writing nothing; a run writing
+%   written, background sorting feeding unit figures); plan rows per dataset
+%   and figure, a session figure's row and the report row; a dry run writing nothing; a run writing
 %   every dataset's figures, the report over every dataset and the
 %   analysis run record, with progress that only grows; cancel; a "list"
 %   selection with one report per dataset; the compact script's step call;
@@ -46,11 +46,16 @@ acfg.Name = "step test";
 acfg.Source.Root = fullfile(root, 'no_such_root');   % the step runs over the pipeline's datasets instead
 acfg.Defaults.EventRef.line = "Stim";
 acfg.Defaults.Window = struct('mode', "fixed", 'pre', -0.2, 'post', 0.6, 'stop', []);
-acfg = acfg.addPlot(struct('kind', "psth", 'style', struct('MaxTiles', 4)), Id="psth_stim");
-acfg = acfg.addPlot(struct('kind', "evoked", 'source', "LFP", 'window', struct('pre', -0.1, 'post', 0.4)), Id="lfp_stim");
-acfg = acfg.addPlot(struct('kind', "raster", 'source', "detected", 'selection', struct('groupBy', string.empty(1, 0))), ...
-    Id="raster_det");
-acfg = acfg.addFigure("probemap", Id="map_fig");   % a figure (the Figures section): one page per dataset
+acfg = acfg.addFigure("rasterPsth", Id="psth_stim");   % a page per observed unit
+acfg.Figures(1).observe.units.maxUnits = 2;
+acfg = acfg.addFigure("continuous", Id="lfp_stim");   % a page per observed LFP channel
+acfg.Figures(2).observe.channels = [1 2];
+acfg.Figures(2).window = struct('mode', "fixed", 'pre', -0.1, 'post', 0.4, 'stop', []);
+acfg = acfg.addFigure("raster", Id="raster_det");   % detected spikes, a channel each
+acfg.Figures(3).observe.source = "detected";
+acfg.Figures(3).observe.units.maxUnits = 2;
+acfg.Figures(3).panels(1).layers(1).source = "detected";
+acfg = acfg.addFigure("probemap", Id="map_fig");   % one page per dataset
 acfg.Export.Formats = "png";
 acfg.Report.Format = "html";
 anaFile = fullfile(root, 'step_test_analysis.json');
@@ -70,13 +75,26 @@ ai = iss(iss.Step == "analysis", :);
 check(~any(ai.Severity == "error") && any(contains(ai.Message, "The Signals step is off")), ...
     'a good analysis config validates (its own Source, which does not exist, is ignored); Signals off is a warning');
 bad = acfg;
-bad = bad.addPlot(struct('kind', "tuning"), Id="tune_x");   % no param
+bad = bad.addFigure("tuning", Id="tune_x");
+bad.Figures(end).panels(1).options.param = "1x";   % not a trial parameter's name
 badFile = fullfile(root, 'bad_analysis.json');
 bad.save(badFile);
 c2 = cfg; c2.Analysis.ConfigFile = badFile;
 iss = c2.validate();
-check(any(iss.Step == "analysis" & iss.Field == "Plots.tune_x.param" & iss.Severity == "error"), ...
-    'the analysis config''s own errors are the step''s, under Plots.<id>.<field>');
+check(any(iss.Step == "analysis" & iss.Field == "Figures.tune_x.tuning_1.options.param" & iss.Severity == "error"), ...
+    'the analysis config''s own errors are the step''s, under Figures.<id>.<panel>.<field>');
+v1 = struct('schema', "ephys-analysis-config", 'version', 1, 'Defaults', struct('EventRef', struct('line', "Stim")));
+v1.Plots = {struct('kind', "psth", 'id', "old_psth", 'style', struct('MaxTiles', 9), 'bogus', 1), struct('kind', "behavior", 'id', "beh")};
+v1File = fullfile(root, 'v1_analysis.json');
+writeJsonFile(v1File, v1);
+c2.Analysis.ConfigFile = v1File;
+iss = c2.validate();
+lw = iss(iss.Step == "analysis" & iss.Field == "ConfigFile" & iss.Severity == "warning", :);
+check(nnz(contains(lw.Message, "is version 1: open and save it in the analysis app to migrate it once")) == 1 ...
+    && contains(lw.Message(contains(lw.Message, "is version 1")), string(v1File)) ...
+    && ~any(contains(lw.Message, "The analysis config: plot ")) && ~any(contains(lw.Message, "config version 1")) ...
+    && ~any(contains(lw.Message, "Plots: dropped")), ...
+    'a version-1 analysis config: one warning to open and save it in the analysis app, not each migration note');
 c2.Analysis.ConfigFile = fullfile(root, 'nope.json');
 iss = c2.validate();
 check(any(iss.Step == "analysis" & iss.Severity == "error" & contains(iss.Message, "not found")), 'a missing analysis config is an error');
@@ -91,7 +109,7 @@ check(any(iss.Step == "analysis" & iss.Field == "Figures" & iss.Severity == "war
 c2 = cfg; c2.Sorting.Enabled = true; c2.Sorting.PythonExe = "python"; c2.Sorting.Execution = "background";
 iss = c2.validate();
 check(any(iss.Step == "sorting" & iss.Field == "Execution" & iss.Severity == "error"), ...
-    'background sorting cannot feed the analysis''s unit plots in the same run');
+    'background sorting cannot feed the analysis''s unit figures in the same run');
 
 fprintf('\n== 2. plan ==\n');
 pipe = EphysPipeline(cfg);
@@ -104,7 +122,7 @@ check(height(plotRows) == 8 && all(plotRows.Status == "ready") ...
     && isequal(sort(unique(plotRows.Step)).', sort("analysis:" + ["psth_stim" "lfp_stim" "raster_det" "map_fig"])) ...
     && all(plotRows.Output(plotRows.Dataset == F.names(1)) == fullfile(F.folders(1), "analysis")) ...
     && all(startsWith(plotRows.Note(plotRows.Step == "analysis:map_fig"), "figure of dataset")), ...
-    'plan: a row per dataset and plot, and per dataset and figure ("figure of dataset"), each with its figure folder');
+    'plan: a row per dataset and figure (a probe map: "figure of dataset"), each with its figure folder');
 check(nnz(T.Step == "analysis:report") == 1 && T.Dataset(T.Step == "analysis:report") == "" ...
     && T.Output(T.Step == "analysis:report") == rep && contains(T.Note(T.Step == "analysis:report"), "over 2 dataset"), ...
     'plan: one report over every dataset');
@@ -143,11 +161,12 @@ R = pipe.run(Steps="analysis");
 A = R(startsWith(R.Step, "analysis:") & R.Step ~= "analysis:report", :);
 pngs = dir(fullfile(F.folders(1), "analysis", F.names(1) + "_*.png"));
 check(height(A) == 8 && all(A.Status == "done") && all(A.Output ~= "") && numel(pngs) >= 4, ...
-    sprintf('each dataset''s plots are drawn and their figures written (%d done, %d png of the first)', nnz(A.Status == "done"), numel(pngs)));
+    sprintf('each dataset''s figures are drawn and their files written (%d done, %d png of the first)', nnz(A.Status == "done"), numel(pngs)));
 fa = A(A.Step == "analysis:map_fig", :);
+fu = A(A.Step == "analysis:psth_stim" & A.Dataset == F.names(1), :);
 check(height(fa) == 2 && all(fa.Status == "done") && isequal(sort(fa.Dataset).', sort(F.names)) ...
-    && isfile(fullfile(F.folders(1), "analysis", F.names(1) + "_map_fig.png")), ...
-    'the figure runs too: a row per dataset ("analysis:map_fig", done), its page written');
+    && isfile(fullfile(F.folders(1), "analysis", F.names(1) + "_map_fig.png")) && height(fu) == 1 && numel(split(fu.Output, "; ")) == 2, ...
+    'a row per dataset and figure ("analysis:map_fig", done), its pages written: one for the dataset''s probe map, one per observed unit');
 r = R(R.Step == "analysis:report", :);
 check(height(r) == 1 && r.Status == "done" && r.Output == rep && isfile(rep) && contains(fileread(rep), F.names(2)), ...
     'the report over every dataset is written where the plan said');
@@ -156,15 +175,15 @@ check(~isempty(dir(fullfile(fileparts(rep), "analysis_runs", "*_step_test.json")
 ev = events([events.step] == "analysis" & [events.dataset] ~= "");
 frac = arrayfun(@(e) (max(e.index, 1) - 1 + e.done / max(e.total, 1)) / max(e.count, 1), ev);
 check(numel(ev) > 6 && all(diff(frac) >= -1e-9) && abs(frac(end) - 1) < 1e-9 ...
-    && all(ismember(unique([ev.dataset]), F.names)) && any(startsWith([ev.message], "plot ")), ...
+    && all(ismember(unique([ev.dataset]), F.names)) && any(startsWith([ev.message], "figure ")), ...
     'progress goes out as the analysis step, dataset by dataset, and only grows to 1');
 
 fprintf('\n== 5. cancel ==\n');
 nPlotEvents = 0;
     function onCancelEvent(evt)
-        if evt.step == "analysis" && startsWith(evt.message, "plot ")
+        if evt.step == "analysis" && startsWith(evt.message, "figure ")
             nPlotEvents = nPlotEvents + 1;
-            if nPlotEvents == 2; pipe.cancel(); end
+            if nPlotEvents == 4; pipe.cancel(); end   % psth_stim, its 2 observations, then lfp_stim's start
         end
     end
 pipe.ProgressFcn = @onCancelEvent;
@@ -172,7 +191,7 @@ delete(rep);
 R = pipe.run(Steps="analysis");
 A = R(startsWith(R.Step, "analysis:"), :);
 check(any(A.Status == "canceled") && any(A.Status == "done") && A.Status(A.Step == "analysis:report") == "canceled" ...
-    && ~isfile(rep), 'cancel stops before the next plot; the rest and the report are "canceled"');
+    && ~isfile(rep), 'cancel stops before the next figure observation; the rest and the report are "canceled"');
 
 fprintf('\n== 6. a list selection, one report per dataset ==\n');
 per = acfg; per.Report.PerDataset = true;

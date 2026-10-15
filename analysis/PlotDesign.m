@@ -1,10 +1,10 @@
 classdef PlotDesign
     %PlotDesign  Whole looks for the analysis plots: built in, or saved by you.
-    %   A design is one look for every plot renderPlot draws: the ground the
+    %   A design is one look for every figure renderFigure draws: the ground the
     %   plot sits on, the group colors, the colormaps of images, and
     %   aesthetics rules (PlotAesthetics) for its components -- axes, ticks,
     %   axis labels, titles, legends, color bars, lines, marks and fills.
-    %   renderPlot draws with the design you chose (a preference), then your
+    %   renderFigure draws with the design you chose (a preference), then your
     %   rules for the plot's kind, then the plot's own rules, so the later
     %   win. Choosing a design redraws every plot open on screen at once.
     %
@@ -24,7 +24,7 @@ classdef PlotDesign
     %     PlotDesign.remove(NAME)          delete one of yours
     %     n = PlotDesign.import(FILE)      copy a design file into your folder
     %     f = PlotDesign.folder()          your designs folder; PlotDesign.setFolder(F)
-    %   Drawing (renderPlot)
+    %   Drawing (renderFigure)
     %     R = PlotDesign.rulesFor(D, KIND) the rules D gives plots of KIND
     %     PlotDesign.paint(ROOT, D)        the ground behind the plot drawn as ROOT
     %     M = PlotDesign.colormap(SPEC, N) N colors of a colormap name or anchor colors
@@ -41,8 +41,11 @@ classdef PlotDesign
     %     diverging   signed images: correlation map, auROC heat map
     %     rules       PlotAesthetics rules (role, group, property, value) for
     %                 every plot
-    %     kinds       rules for one kind of plot, drawn after the common ones:
-    %                 {"heatmap": [...], "corrmap": [...]}
+    %     kinds       rules for one panel type (or "figure", or a Chronux
+    %                 kind: kindNames), drawn after the common ones:
+    %                 {"heatmap": [...], "corrmap": [...]}; a key that is
+    %                 none of them (a retired plot kind) is dropped with a
+    %                 warning (PlotDesign:UnknownKind)
     %   A color is a name, #rrggbb or [r g b]; a colormap is the name of a
     %   colormap function or a list of colors, spread evenly from the
     %   lowest value to the highest. A FontName may list fallbacks
@@ -50,7 +53,7 @@ classdef PlotDesign
     %   plot's own Appearance settings choose the colors only when its group
     %   colors are "lines" and its heat colors "auto".
     %
-    %   See also PlotAesthetics, renderPlot, PlotAestheticsDialog.
+    %   See also PlotAesthetics, renderFigure, PlotAestheticsDialog.
 
     properties (Constant)
         Schema = "ephys-plot-design"
@@ -58,6 +61,9 @@ classdef PlotDesign
         DefaultName = "Default"
         PrefGroup = "PlotDesign"            % AppPrefs: Design (the chosen name), Folder (yours)
         MenuTag = "PlotDesignMenu"
+        % The result kinds renderChronux draws (the Chronux tab): a design may keep rules for each (kindNames).
+        ChronuxKinds = ["chronuxSpectrum" "chronuxSpecgram" "chronuxCoherence" "chronuxCohgram" ...
+            "chronuxSpikeSpectrum" "chronuxSpikeField" "chronuxUnitCoherence"]
     end
 
     methods (Static)
@@ -182,7 +188,7 @@ classdef PlotDesign
         function D = capture(h, opts)
             %capture  The look of a drawn plot, as a design.
             %   D = PlotDesign.capture(H) takes the plot H belongs to (a
-            %   component of it, or the target renderPlot drew into) and reads
+            %   component of it, or the target renderFigure drew into) and reads
             %   every property the aesthetics editor offers, for every
             %   component: a value all the components of a role share becomes
             %   a rule for that role (every group). The colors the groups are
@@ -191,21 +197,27 @@ classdef PlotDesign
             %   background and an image's colormap its heat or diverging
             %   colors. A color that differs from group to group belongs to
             %   the palette, not a rule. What the plot does not show comes from
-            %   Base (default: the design it was drawn with). From a heat map,
-            %   probe map or correlation map, whose axes are drawn their own
-            %   way, the rules are kept for that kind of plot only (kinds);
-            %   from any other plot, for every plot.
+            %   Base (default: the design it was drawn with). The rules are
+            %   kept for every plot, except those read from a heat map, probe
+            %   map or correlation map, whose axes are drawn their own way:
+            %   those are kept for that panel type only (kinds). Each tile's
+            %   panel type is looked up by the panel id it is tagged with,
+            %   in Spec (the figure spec renderFigure drew: Config.figureFor)
+            %   or, without it, in the editing context renderFigure keeps
+            %   (panelTypes), so a figure's map panels give rules for their
+            %   types and its other panels the common rules.
             %
-            %   Options: Base (a design or a name), Name, Description.
+            %   Options: Base (a design or a name), Name, Description, Spec.
             arguments
                 h
                 opts.Base = []
                 opts.Name (1,1) string = ""
                 opts.Description (1,1) string = ""
+                opts.Spec = []
             end
             ctx = PlotDesign.contextIn(h);
             if isempty(ctx)
-                error('PlotDesign:NoPlot', 'This is not part of a plot drawn by renderPlot.');
+                error('PlotDesign:NoPlot', 'This is not part of a figure drawn by renderFigure or renderChronux.');
             end
             base = opts.Base;
             if isempty(base)
@@ -222,20 +234,40 @@ classdef PlotDesign
 
             T = PlotAesthetics.components(ctx.root);
             T = T(T.Role ~= "" & ~ismember(T.Role, ["overlayLine" "overlayRegion"]), :);   % a plot's overlays are its own, not the design's
-            captured = captureRules(T);
             kind = string(ctx.kind);
-            if ismember(kind, ["heatmap" "corrmap" "probemap"])
-                own = PlotAesthetics.emptyRules();
-                if isfield(D.kinds, kind); own = D.kinds.(kind); end
-                D.kinds.(kind) = PlotAesthetics.mergeRules(own, captured);
-            else
-                D.rules = PlotAesthetics.mergeRules(D.rules, captured);
-                if isfield(D.kinds, kind) && ~isempty(D.kinds.(kind)) && ~isempty(captured)
-                    % The kind's own rules come after the common ones: drop those the capture covers.
-                    own = D.kinds.(kind);
-                    covered = ismember([own.role] + "|" + [own.property], [captured.role] + "|" + [captured.property]);
-                    D.kinds.(kind) = own(~covered);
-                end
+            tileKind = repmat(kind, height(T), 1);   % the kind each component's rules are kept for
+            % a figure: each tile is tagged with its panel's id (tagPart), so its type is the spec's
+            % (Spec=), else the one renderFigure keeps in the editing context (panelTypes)
+            ids = strings(0, 1);
+            types = strings(0, 1);
+            S = opts.Spec;
+            if isstruct(S) && isscalar(S) && isfield(S, 'panels') && ~isempty(S.panels)
+                ids = reshape([S.panels.id], [], 1);
+                types = reshape([S.panels.type], [], 1);
+            elseif isfield(ctx, 'panelTypes') && isstruct(ctx.panelTypes)
+                ids = reshape(string(ctx.panelTypes.id), [], 1);
+                types = reshape(string(ctx.panelTypes.type), [], 1);
+            end
+            if ~isempty(ids)
+                [tf, loc] = ismember(T.TileName, ids);
+                tf = tf & T.Tile > 0;
+                tileKind(tf) = types(loc(tf));
+            end
+            mapKinds = ["heatmap" "corrmap" "probemap"];
+            own = ismember(tileKind, mapKinds);
+            captured = captureRules(T(~own, :));
+            D.rules = PlotAesthetics.mergeRules(D.rules, captured);
+            if isfield(D.kinds, kind) && ~isempty(D.kinds.(kind)) && ~isempty(captured)
+                % The kind's own rules come after the common ones: drop those the capture covers.
+                mine = D.kinds.(kind);
+                covered = ismember([mine.role] + "|" + [mine.property], [captured.role] + "|" + [captured.property]);
+                D.kinds.(kind) = mine(~covered);
+            end
+            for k = reshape(unique(tileKind(own)), 1, [])
+                % a heat map, probe map or correlation map: its axes are drawn their own way
+                mine = PlotAesthetics.emptyRules();
+                if isfield(D.kinds, k); mine = D.kinds.(k); end
+                D.kinds.(k) = PlotAesthetics.mergeRules(mine, captureRules(T(tileKind == k, :)));
             end
 
             [ground, prop] = groundOf(ctx.root);
@@ -412,7 +444,7 @@ classdef PlotDesign
         end
 
         function track(target)
-            %track  Redraw the plot renderPlot drew into TARGET when the design changes (enableEditing).
+            %track  Redraw the figure renderFigure drew into TARGET when the design changes (enableEditing).
             t = PlotDesign.liveTargets();
             if ~any(t == target)
                 setappdata(groot, 'PlotDesignTargets', [t target]);
@@ -468,12 +500,14 @@ classdef PlotDesign
             if isfield(s, 'rules'); D.rules = designRules(s.rules, where + ".rules"); end
             if isfield(s, 'kinds') && ~isempty(s.kinds)
                 if ~isstruct(s.kinds) || ~isscalar(s.kinds)
-                    error('PlotDesign:Bad', '%s.kinds is an object of rule lists by plot kind.', where);
+                    error('PlotDesign:Bad', '%s.kinds is an object of rule lists by kind (a panel type, "figure" or a Chronux kind).', where);
                 end
+                known = PlotDesign.kindNames();
                 for k = string(fieldnames(s.kinds)).'
-                    if ~ismember(k, EphysAnalysisConfig.Kinds)
-                        error('PlotDesign:Bad', '%s.kinds: "%s" is not a plot kind (%s).', where, k, ...
-                            strjoin(EphysAnalysisConfig.Kinds, ", "));
+                    if ~ismember(k, known)   % e.g. a retired plot kind (evoked, behavior): its rules are dropped, the design stays usable
+                        warning('PlotDesign:UnknownKind', '%s.kinds: "%s" is not a panel type, "figure" or a Chronux kind (%s); its rules are dropped.', ...
+                            where, k, strjoin(known, ", "));
+                        continue
                     end
                     D.kinds.(k) = designRules(s.kinds.(k), where + ".kinds." + k);
                 end
@@ -505,6 +539,13 @@ classdef PlotDesign
             D.source = "mine";
             if startsWith(file, PlotDesign.builtinFolder()); D.source = "built-in"; end
             PlotDesign.cache(file, struct('stamp', stamp, 'D', D));
+        end
+
+        function k = kindNames()
+            %kindNames  The kinds a design's rules can be kept for (its kinds' keys): every panel
+            %   type (EphysAnalysisConfig.panelTypes), "figure" (a figure's own rules) and the
+            %   Chronux tab's result kinds (renderChronux).
+            k = [reshape(EphysAnalysisConfig.panelTypes().Type, 1, []), "figure", PlotDesign.ChronuxKinds];
         end
     end
 
@@ -595,7 +636,7 @@ classdef PlotDesign
         end
 
         function t = liveTargets()
-            %liveTargets  The targets of the plots on screen (the ones renderPlot made editable).
+            %liveTargets  The targets of the plots on screen (the ones renderFigure made editable).
             t = getappdata(groot, 'PlotDesignTargets');
             if isempty(t); t = gobjects(1, 0); end
             t = t(isgraphics(t));
@@ -687,7 +728,7 @@ end
 
 function cols = groupColors(T)
 %groupColors  The color each group is drawn in, groups in the order they are drawn.
-roles = ["rate" "rateFill" "trace" "curve" "bar" "points" "box" "swarm" "violin" "behaviorMean"];
+roles = ["rate" "rateFill" "trace" "curve" "bar" "points" "box"];
 T = T(ismember(T.Role, roles) & T.Group ~= "", :);
 cols = zeros(0, 3);
 for g = unique(T.Group, 'stable').'
@@ -695,7 +736,6 @@ for g = unique(T.Group, 'stable').'
     c = [];
     for h = reshape(hs, 1, [])
         order = ["Color" "FaceColor" "BoxFaceColor" "MarkerFaceColor" "CData" "MarkerEdgeColor"];
-        if strcmp(h.Tag, 'behaviorMean'); order = ["MarkerFaceColor" order]; end   % its line is a darker edge
         for nm = order
             if isprop(h, nm)
                 v = get(h, nm);

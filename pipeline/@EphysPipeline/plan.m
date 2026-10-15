@@ -48,11 +48,12 @@ function T = plan(obj, opts)
 %     error: figure folder / report folder
 %                                  an analysis config's folder pattern
 %                                  cannot be filled for this dataset
-%   The Analysis step has a row per dataset and enabled plot
-%   ("analysis:<plot id>", Output its figure folder) and per report
+%   The Analysis step has a row per dataset and enabled figure
+%   ("analysis:<figure id>", Output its figure folder), per session figure
+%   (Dataset "") and per report
 %   ("analysis:report"; Dataset "" for one report over every dataset): see
 %   analysisTargets. What each dataset can draw is known only when it runs
-%   (a plot it cannot have is a "skipped" result row).
+%   (a figure it cannot have is a "skipped" result row).
 %   With Transfer.Enabled, each dataset also has a "transfer" row, Output
 %   the folder its outputs would be copied to (<Destination>/<dataset
 %   key>, or its new version folder): "ready" (not there yet), "exists:

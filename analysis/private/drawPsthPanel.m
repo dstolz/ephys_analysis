@@ -17,12 +17,11 @@ function hk = drawPsthPanel(ax, P, look)
 %   items only the first is filled, the others are outlines, so each stays
 %   visible. The components' group is the trial group's label, with
 %   several items "<item> · <group>" (or the item alone for one group).
-%   options.normalize divides the rates as renderPSTH does
-%   (normalizeRates); options.yLim fixes the y axis. Style.ShowZeroLine
+%   options.normalize divides the rates (normalizeRates); options.yLim fixes the y axis. Style.ShowZeroLine
 %   draws the event's line, Style.ShowStop each group's mean stop latency
 %   (R.stopMean, role "stopLine").
 %   options.stack (with two or more groups) draws one row per group, the
-%   first at the bottom, as renderPSTH's Stack does (drawStack: the row
+%   first at the bottom (drawStack: the row
 %   step options.stackSpacing x the tallest PSTH, the rows' values on the
 %   left axis, their peaks on the right; options.yLim is not used); a
 %   further item is drawn into the same rows as an outline. The groups are
@@ -31,7 +30,7 @@ function hk = drawPsthPanel(ax, P, look)
 %   chance line, role "chanceLine") on a 0-1 axis unless options.yLim says
 %   otherwise, the modulation window shaded (modulationWindow) and the first
 %   item's call per group at the top right (callMarks; a layer's mean: its
-%   units' counts up and down), as renderPSTH draws it; normalize does not
+%   units' counts up and down); normalize does not
 %   apply.
 %   The events layers drawn as marks become latency lines and a rug
 %   (figEventMarks, roles "eventLine" / "eventRug"), and with
@@ -44,7 +43,7 @@ function hk = drawPsthPanel(ax, P, look)
 %   trialGroups "combine" by line style (figSeriesStyle). HK: figDrawResult's,
 %   yName = the rates' unit (a stack: its rows' parameters).
 %
-%   See also renderFigure, renderPSTH, histTrace, drawStack, figurePanelRegistry.
+%   See also renderFigure, histTrace, drawStack, figurePanelRegistry.
 
 style = look.style;
 o = look.panel.options;

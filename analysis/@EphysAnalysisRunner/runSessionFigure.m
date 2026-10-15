@@ -38,7 +38,7 @@ function rows = runSessionFigure(obj, id, idx, opts)
 %   row; EphysAnalysisRunner:Canceled is rethrown.
 %
 %   See also figureSessionCompute, EphysAnalysisRunner.computeSessionFigure,
-%   EphysAnalysisRunner.run, EphysAnalysisRunner.runSessionPlot.
+%   EphysAnalysisRunner.run.
 
 arguments
     obj (1,1) EphysAnalysisRunner

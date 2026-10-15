@@ -14,8 +14,8 @@ function hk = drawContinuousPanel(ax, P, look)
 %                item's line style (the layer's lineStyle, else by order);
 %                y label "Amplitude (<units>)"; options.yLim fixes the axis
 %     "stacked"  every item a row of its own, offset by options.stackSpacing
-%                (NaN: 1.2 x the 90th percentile of the traces' ranges, as
-%                renderEvoked's stack), the rows named on the y axis, the
+%                (NaN: 1.2 x the 90th percentile of the traces' ranges),
+%                the rows named on the y axis, the
 %                groups overlaid in each row; y label "Channel (<step> per
 %                row)"
 %   options.trials "faint" draws each epoch's trace (R.data, at most
@@ -37,7 +37,7 @@ function hk = drawContinuousPanel(ax, P, look)
 %   trial groups of trialGroups "combine" by line style (figSeriesStyle). The legend offers the groups, then
 %   the items when there are several, then the marks.
 %
-%   See also renderFigure, renderEvoked, figurePanelRegistry.
+%   See also renderFigure, evokedPotential, figurePanelRegistry.
 
 style = look.style;
 o = look.panel.options;

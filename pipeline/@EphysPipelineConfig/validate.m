@@ -432,7 +432,7 @@ end
 % The analysis config is read (and checked) only with CheckPaths: without it
 % nothing on disk is looked at.
 An = obj.Analysis;
-analysisUnits = false;   % an enabled plot or figure of the analysis config reads sorted units
+analysisUnits = false;   % an enabled figure of the analysis config reads sorted units
 if An.Enabled
     if strtrim(An.ConfigFile) == ""
         add("analysis", "ConfigFile", "error", "Analysis is enabled but no analysis config is chosen.");
@@ -441,7 +441,14 @@ if An.Enabled
         if isempty(acfg)
             add("analysis", "ConfigFile", "error", msg);
         else
-            for w = acfg.LoadWarnings
+            lw = acfg.LoadWarnings;
+            if ~isempty(lw) && startsWith(lw(1), "config version 1")
+                % a version-1 file is migrated on every load (the pipeline never saves it): one warning, not every note
+                add("analysis", "ConfigFile", "warning", "analysis config " + An.ConfigFile + " is version 1: open and save it " + ...
+                    "in the analysis app to migrate it once.");
+                lw = lw(~startsWith(lw, ["config version 1" "plot " "session plot " "Plots: " "SessionPlots: "]));
+            end
+            for w = lw
                 add("analysis", "ConfigFile", "warning", "The analysis config: " + w);
             end
             % The step runs it over this project: its own Source is replaced.
@@ -452,8 +459,6 @@ if An.Enabled
             for r = 1:height(ai)
                 add("analysis", ai.Section(r) + "." + ai.Field(r), ai.Severity(r), "The analysis config: " + ai.Message(r));
             end
-            on = acfg.Plots([acfg.Plots.enabled]);
-            analysisUnits = any([on.source] == "units");
             for fid = [acfg.enabledFigures() acfg.enabledSessionFigures()]   % a figure observing sorted units, or with a units layer, reads them too (across sessions as well)
                 fs = acfg.figureFor(fid);
                 L = [fs.panels.layers];
@@ -463,7 +468,7 @@ if An.Enabled
         end
     end
     if ~An.Figures && ~An.Report
-        add("analysis", "Figures", "warning", "Neither the figure files nor the report are written: the step only draws the plots.");
+        add("analysis", "Figures", "warning", "Neither the figure files nor the report are written: the step only draws the figures.");
     end
     if ~G.Enabled
         add("analysis", "ConfigFile", "warning", "The Signals step is off; the analysis reads each dataset's existing extract files (signals and events).");

@@ -5,7 +5,7 @@ function h = tagPart(h, role, group, tile)
 %   draws them. tagPart(H, ROLE, GROUP) also records the group, series or
 %   channel label they draw; tagPart(AX, ROLE, "", TILE) names an axes'
 %   tile (its unit or channel) for the aesthetics editor's list. The rules
-%   renderPlot applies find components by role and group.
+%   renderFigure applies find components by role and group.
 arguments
     h
     role (1,1) string

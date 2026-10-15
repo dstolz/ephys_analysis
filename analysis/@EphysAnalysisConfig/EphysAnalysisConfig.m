@@ -2,29 +2,19 @@ classdef EphysAnalysisConfig
     % EphysAnalysisConfig  A set of quick-look figures, described in one value.
     %   An analysis config says which datasets to read, how to align them
     %   (an event reference, an epoch window and a trial selection shared by
-    %   every plot unless a plot overrides them), which plots to draw and
-    %   how to export them and report on them. It has no GUI dependency:
-    %   EphysAnalysisApp edits one, EphysAnalysisRunner runs one, and
-    %   EphysAnalysisScript writes scripts from one. It round-trips through
-    %   JSON exactly (Inf / NaN / empty values included).
+    %   every figure unless a figure or panel overrides them), which figures
+    %   to draw and how to export them and report on them. It has no GUI
+    %   dependency: EphysAnalysisApp edits one, EphysAnalysisRunner runs
+    %   one, and EphysAnalysisScript writes scripts from one. It round-trips
+    %   through JSON exactly (Inf / NaN / empty values included).
     %
     %   Sections (see defaults(section))
     %     Source    Mode "project" (a pipeline project: Root, OutputRoot,
     %               NamePattern, Selection "all"|"list", Datasets keys) or
     %               "folders" (Folders: the output folders themselves)
     %     Defaults  EventRef, Window (EpochWindow) and Selection
-    %               (TrialSelection) used by every plot whose ref / window /
+    %               (TrialSelection) used by every figure whose ref / window /
     %               selection is "default"
-    %     Plots     struct array, one entry per plot (defaults("Plot")): id,
-    %               kind (see Kinds / plotKinds), enabled, source, units,
-    %               channels, ref, window, selection, bins, baseline, layout,
-    %               withRaster, rasterSort, rasterSortEvent, rasterSortOrder,
-    %               rasterByGroup, rasterEvents, histStyle, fill, fillAlpha,
-    %               normalize, stack, stackSpacing, stackRaster, stackRasterEqual,
-    %               stackRasterTrials, maskAfterStop, param,
-    %               seriesParam, yParam, jitter, xScale, value, order,
-    %               metric, correlation, measure, auroc, waveform, aux,
-    %               note, overlays, aesthetics, style
     %     Figures   struct array, one entry per figure (defaults("Figure")):
     %               one observation's panels (a unit, a channel or the
     %               dataset: observe) on a grid with spans (grid), each
@@ -51,7 +41,7 @@ classdef EphysAnalysisConfig
     %               (true: the figure's common options for the fields its
     %               type has, commonFieldsOf), layers, options (the type's
     %               DefaultOptions; panelOptions gives them as drawn), note
-    %               (a Note, as a plot's) and overlays (Overlays drawn on
+    %               (a Note) and overlays (Overlays drawn on
     %               its own axes: their panel is always "all"); a layer
     %               (defaults("Layer")): name, enabled, source, binding,
     %               units, channels, aggregate, event, eventsAs, color,
@@ -59,23 +49,14 @@ classdef EphysAnalysisConfig
     %               namespace of their own (DuplicateFigureId), panel ids
     %               one per figure (DuplicatePanelId); figureFor(id) is the
     %               spec the compute draws. The run draws each enabled
-    %               figure once per observation after each dataset's plots
+    %               figure once per observation on each dataset
     %               (EphysAnalysisRunner.runDataset), a file each named by
     %               figureOutputName ({Plot} its id, {Unit} the observation,
     %               {Group} its trial group per group)
-    %     SessionPlots  struct array, one entry per session plot
-    %               (defaults("SessionPlot")): a base plot (plot, by id)
-    %               drawn over several datasets and merged
-    %               (combineSessions): id, enabled, title, plot, layout,
-    %               datasets ("ticked" | "list"), datasetKeys, facet, series,
-    %               colorOrder, showMembers, error, match, mappingFile,
-    %               minSessions, trialGroups, data, aesthetics. Its ids are
-    %               a namespace of their own (DuplicateSessionPlotId);
-    %               sessionPlotFor(id) is the spec the runner computes
     %     Export    figure files: Formats (png / eps / svg / pdf), Folder and
     %               FilenamePattern with tokens, Dpi, FigureSizeCm;
-    %               SessionsFolder (the session plots' figures) and Data
-    %               (the session plots' .mat data files: Enabled, Folder,
+    %               SessionsFolder (the session figures' files) and Data
+    %               (the session figures' .mat data files: Enabled, Folder,
     %               FilenamePattern, MatVersion)
     %     Report    one HTML and / or multi-page PDF report per run (or per
     %               dataset)
@@ -85,20 +66,29 @@ classdef EphysAnalysisConfig
     %     cfg.Source.Root = "D:\EPHYS";
     %     cfg.Defaults.EventRef.line = "Stim";
     %     cfg.Defaults.Selection.groupBy = "Depth";
-    %     cfg = cfg.addPlot("psth");
-    %     cfg = cfg.addPlot(struct('kind', "evoked", 'source', "LFP"));
     %     cfg = cfg.addFigure("rasterPsth");   % figure_1: a unit's raster over its PSTH
+    %     cfg = cfg.addFigure("continuous");   % figure_2: a channel's LFP
     %     cfg.save("am_quicklook.json");
     %     r = EphysAnalysisRunner(EphysAnalysisConfig.load("am_quicklook.json"));
     %     r.run();
     %
     %   Values are coerced to the type and shape of the default whenever a
     %   section is assigned, so what JSON gives back (a one-element list as a
-    %   scalar, "Inf" as text, a heterogeneous Plots array as a cell) comes
+    %   scalar, "Inf" as text, a heterogeneous Figures array as a cell) comes
     %   out right. Unknown fields are dropped (LoadWarnings lists them after
-    %   load). Plot ids must be unique (EphysAnalysisConfig:DuplicatePlotId);
-    %   a plot without an id gets "<kind>_<n>", a figure "figure_<n>" and a
-    %   figure's panel "<type>_<n>".
+    %   load). Figure ids must be unique (EphysAnalysisConfig:DuplicateFigureId);
+    %   a figure without an id gets "figure_<n>" and a figure's panel
+    %   "<type>_<n>".
+    %
+    %   Version 2 (this one) has no plots: config version 1's Plots and
+    %   SessionPlots sections are migrated once, when a version-1 file is
+    %   loaded (load, fromStruct): every plot becomes a figure of the same id
+    %   and every session plot a session figure (Figure.sessions), each note
+    %   of what could not be carried a LoadWarnings line ("plot psth_1
+    %   migrated to figure psth_1: ..."); save writes version 2. The
+    %   migration lives in private/legacy*.m (legacyMigrate,
+    %   legacyPlotToFigure, legacyNormalizePlot, legacyPlotDefaults,
+    %   legacyPlotKinds) and is used for nothing else.
     %
     %   See also EphysAnalysisRunner, EphysAnalysisScript, EphysAnalysisApp,
     %   EphysAnalysisConfig.defaults, EphysAnalysisConfig.validate.
@@ -108,10 +98,8 @@ classdef EphysAnalysisConfig
         Description (1,1) string = ""
         Source      struct = EphysAnalysisConfig.defaults("Source")
         Defaults    struct = EphysAnalysisConfig.defaults("Defaults")
-        Plots       = EphysAnalysisConfig.emptyPlots()   % struct array; set.Plots also takes a cell (jsondecode)
-        Figures     = EphysAnalysisConfig.emptyFigures() % struct array; set.Figures also takes a cell
-        SessionPlots = EphysAnalysisConfig.emptySessionPlots()   % struct array; set.SessionPlots also takes a cell
-        Export      struct = EphysAnalysisConfig.defaults("Export")
+        Figures     = EphysAnalysisConfig.emptyFigures() % struct array; set.Figures also takes a cell (jsondecode)
+        Export     struct = EphysAnalysisConfig.defaults("Export")
         Report      struct = EphysAnalysisConfig.defaults("Report")
     end
 
@@ -122,9 +110,8 @@ classdef EphysAnalysisConfig
 
     properties (Constant)
         Schema   = "ephys-analysis-config"
-        Version  = 1
+        Version  = 2   % version 1 files (Plots, SessionPlots) are migrated on load (private/legacyMigrate)
         Sections = ["Source" "Defaults" "Export" "Report"]
-        Kinds    = ["psth" "raster" "evoked" "rate" "tuning" "heatmap" "probemap" "corrmap" "behavior" "waveforms"]
         SpikeSources  = ["units" "detected"]
         SignalSources = ["LFP" "MUA" "SPIKE" "AUX"]
         % What a figure layer reads (Layer.source): spike times, a digital / derived line's events, or a signal;
@@ -132,50 +119,36 @@ classdef EphysAnalysisConfig
         FigureSources = ["units" "detected" "events" "LFP" "MUA" "SPIKE" "AUX"]
         % What a figure is drawn for (Figure.observe.kind): auto (resolved by observeKind), a unit, a channel, the dataset.
         ObserveKinds  = ["auto" "unit" "channel" "dataset"]
-        % Where in a unit's tile its waveform box sits (a plot's waveform.location).
+        % Where in a unit's tile its waveform box sits (a panel's waveform.location).
         WaveformLocations = ["northeast" "north" "northwest" "west" "southwest" "south" "southeast" "east"]
-        % What a psth / raster plot's mean aux signal (aux) draws, and where: a panel below or above the unit's
-        % raster / PSTH, or over it on its right y axis.
-        AuxModes      = ["off" "channels" "magnitude"]
-        % The error a plot draws as bands or bars (Style.ErrorType): mean +/- SEM, mean +/- SD, bootstrap 95% CI of the mean.
+        % The error a figure draws as bands or bars (Style.ErrorType): mean +/- SEM, mean +/- SD, bootstrap 95% CI of the mean.
         ErrorTypes    = ["sem" "std" "ci95"]
-        AuxPlacements = ["below" "above" "over"]
-        % How the mean aux signal is drawn (aux.display): lines, one per trace; stacked, a row of its own per trace;
-        % or a heat map, a row per trace in color.
-        AuxDisplays   = ["lines" "stacked" "heatmap"]
-        % What it shows at each sample over the epochs (aux.statistic), and of what (aux.transform): the signal as
-        % recorded, or rectified (its absolute value, taken in each epoch before the statistic).
+        % What a continuous panel shows at each sample over the epochs (options.statistic), and of what
+        % (options.transform): the signal as recorded, or rectified (its absolute value, taken in each epoch before
+        % the statistic).
         AuxStatistics = ["mean" "median"]
         AuxTransforms = ["none" "rectify"]
-        % Its error band (aux.errorType): off, mean +/- SEM, mean +/- SD, bootstrap 95% CI, or the interquartile range.
+        % Its error band (options.errorType): off, mean +/- SEM, mean +/- SD, bootstrap 95% CI, or the interquartile range.
         AuxErrorTypes = ["off" "sem" "std" "ci95" "iqr"]
-        % What its traces are colored by (aux.colorBy): auto (by trial group when several, else by channel), the
-        % trial selection group, or the channel.
-        AuxColorBy    = ["auto" "group" "channel"]
-        % Where a plot's note sits (a plot's note.placement): outside the plot, over it, or at a point.
+        % Where a panel's note sits (note.placement): outside the panel, over it, or at a point.
         NotePlacements = ["below" "above" "right" "left" "northwest" "north" "northeast" "west" "center" "east" ...
             "southwest" "south" "southeast" "custom"]
-        % What a plot's overlays (defaults("Overlay")) choose from: the axes they go on, the layer, a line's style.
-        OverlayPanels     = ["all" "data" "raster"]
+        % What a panel's overlays (defaults("Overlay")) choose from: the layer, a line's style.
         OverlayLayers     = ["over" "under"]
         OverlayLineStyles = ["-" "--" ":" "-."]
-        % Session plots: the base plot kinds they merge (combineSessions), what gets a color (series), how units are
-        % matched across sessions (match), the band across sessions (error), what the data export holds (data),
-        % the base plot's trial groups (trialGroups), the figures per subject (facet) and the colors' order.
-        SessionKinds  = ["psth" "raster" "evoked" "rate" "tuning" "behavior" "heatmap" "waveforms"]
+        % Session figures (Figure.sessions): what gets a color (series), the band across sessions (error), the
+        % figure's trial groups (trialGroups), the figures per subject (facet) and the colors' order.
         SessionSeries = ["session" "subject" "all"]
-        SessionMatches = ["pool" "site" "mapping"]
         SessionErrors = ["sem" "sd" "ci95" "none"]
-        SessionData   = ["results" "epochs" "signals"]
         SessionTrialGroups = ["pool" "each" "combine"]
         SessionFacets = ["none" "subject"]
         SessionColorOrders = ["palette" "sequential"]
-        % Session figures (Figure.sessions): how the observed unit is matched across sessions (no "pool": a figure
-        % observes one matched unit), and the panel types combineSessions does not merge (a session figure holds none).
+        % How the observed unit is matched across sessions (a figure observes one matched unit), and the panel types
+        % combineSessions does not merge (a session figure holds none).
         FigureSessionMatches = ["site" "mapping"]
         FigureSessionUnmerged = ["probemap" "corrmap" "spectrum" "spectrogram" "coherence"]
         % String fields that are lists even when their default has one element.
-        ListFields = ["response" "pairingFlags" "groupBy" "classes" "groups" "Formats" "Datasets" "Folders" "datasetKeys" "data"]
+        ListFields = ["response" "pairingFlags" "groupBy" "classes" "groups" "Formats" "Datasets" "Folders" "datasetKeys"]
     end
 
     methods
@@ -195,17 +168,15 @@ classdef EphysAnalysisConfig
         function obj = set.Defaults(obj, s); obj.Defaults = EphysAnalysisConfig.normalizeSection("Defaults", s); end
         function obj = set.Export(obj, s);   obj.Export   = EphysAnalysisConfig.normalizeSection("Export", s);   end
         function obj = set.Report(obj, s);   obj.Report   = EphysAnalysisConfig.normalizeSection("Report", s);   end
-        function obj = set.Plots(obj, p);    obj.Plots    = EphysAnalysisConfig.normalizePlots(p);               end
         function obj = set.Figures(obj, f);  obj.Figures  = EphysAnalysisConfig.normalizeFigures(f);             end
-        function obj = set.SessionPlots(obj, p); obj.SessionPlots = EphysAnalysisConfig.normalizeSessionPlots(p); end
 
         %% --- struct / JSON --------------------------------------------------
         function s = toStruct(obj)
-            %toStruct  Plain struct (schema, version, name, description, sections, Plots, Figures, SessionPlots).
+            %toStruct  Plain struct (schema, version, name, description, sections, Figures).
             s = struct('schema', EphysAnalysisConfig.Schema, 'version', EphysAnalysisConfig.Version, ...
                 'name', obj.Name, 'description', obj.Description, ...
-                'Source', obj.Source, 'Defaults', obj.Defaults, 'Plots', obj.Plots, 'Figures', obj.Figures, ...
-                'SessionPlots', obj.SessionPlots, 'Export', obj.Export, 'Report', obj.Report);
+                'Source', obj.Source, 'Defaults', obj.Defaults, 'Figures', obj.Figures, ...
+                'Export', obj.Export, 'Report', obj.Report);
         end
 
         function obj = save(obj, file)
@@ -233,99 +204,6 @@ classdef EphysAnalysisConfig
         function tf = isequalConfig(obj, other)
             %isequalConfig  True when two configs hold the same values (NaN == NaN).
             tf = isequaln(obj.toStruct(), other.toStruct());
-        end
-
-        %% --- plots ------------------------------------------------------------
-        function [obj, id] = addPlot(obj, p, opts)
-            %addPlot  Append a plot: a kind ("psth") or a (partial) plot struct.
-            %   [CFG, ID] = cfg.addPlot("rate", Id="rate_platform") returns the
-            %   new config and the plot's id (assigned when not given). A plot
-            %   given without a source reads its kind's first (units; LFP for
-            %   an evoked potential, trials for a behavior plot). A waveforms
-            %   plot given without a waveform shows each unit's mean and
-            %   subsample (waveform.mode "both"); the default, "off", draws nothing.
-            arguments
-                obj (1,1) EphysAnalysisConfig
-                p = "psth"
-                opts.Id (1,1) string = ""
-            end
-            if isstring(p) || ischar(p)
-                p = struct('kind', string(p));
-            end
-            if isstruct(p) && isscalar(p) && isfield(p, 'kind') && ~isfield(p, 'source')
-                K = EphysAnalysisConfig.plotKinds();
-                row = K.Kind == string(p.kind);
-                if any(row); p.source = K.Sources{row}(1); end
-            end
-            if isstruct(p) && isscalar(p) && isfield(p, 'kind') && string(p.kind) == "waveforms" && ~isfield(p, 'waveform')
-                p.waveform = struct('mode', "both");
-            end
-            if opts.Id ~= ""; p.id = opts.Id; end
-            p = EphysAnalysisConfig.normalizePlot(p);
-            if p.id == ""
-                p.id = EphysAnalysisConfig.freeId(p.kind, obj.plotIds());
-            end
-            obj.Plots = [obj.Plots, p];
-            id = p.id;
-        end
-
-        function obj = removePlot(obj, id)
-            %removePlot  Drop the plot with this id (error when there is none).
-            k = obj.plotIndex(id);
-            if k == 0
-                error('EphysAnalysisConfig:NoPlot', 'No plot "%s".', id);
-            end
-            obj.Plots(k) = [];
-        end
-
-        function k = plotIndex(obj, id)
-            %plotIndex  Index of the plot with this id in Plots (0 = none).
-            k = find(obj.plotIds() == string(id), 1);
-            if isempty(k); k = 0; end
-        end
-
-        function ids = plotIds(obj)
-            %plotIds  Ids of every plot, in order (a string row).
-            ids = string.empty(1, 0);
-            if ~isempty(obj.Plots); ids = reshape([obj.Plots.id], 1, []); end
-        end
-
-        function ids = enabledPlots(obj)
-            %enabledPlots  Ids of the enabled plots, in order.
-            if isempty(obj.Plots)
-                ids = string.empty(1, 0);
-            else
-                ids = [obj.Plots([obj.Plots.enabled]).id];
-                if isempty(ids); ids = string.empty(1, 0); end
-            end
-        end
-
-        function spec = plotFor(obj, id)
-            %plotFor  A plot with every "default" resolved: what the runner draws.
-            %   SPEC = cfg.plotFor(ID) (ID a plot id or an index) is the plot
-            %   entry with ref / window / selection taken from Defaults when they
-            %   are "default", units.source set to the plot's source (spike
-            %   kinds), and layout set to the kind's default when "".
-            if isnumeric(id)
-                k = id;
-            else
-                k = obj.plotIndex(id);
-            end
-            if k < 1 || k > numel(obj.Plots)
-                error('EphysAnalysisConfig:NoPlot', 'No plot "%s".', string(id));
-            end
-            spec = obj.Plots(k);
-            if isequal(spec.ref, "default");       spec.ref = obj.Defaults.EventRef;   end
-            if isequal(spec.window, "default");    spec.window = obj.Defaults.Window;  end
-            if isequal(spec.selection, "default"); spec.selection = obj.Defaults.Selection; end
-            u = spec.units;
-            u.source = spec.source;
-            spec.units = orderfields(u, EphysAnalysisConfig.defaults("UnitSelection"));
-            if spec.layout == ""
-                K = EphysAnalysisConfig.plotKinds();
-                row = K.Kind == spec.kind;
-                if any(row); spec.layout = K.DefaultLayout(row); end
-            end
         end
 
         %% --- figures ------------------------------------------------------------
@@ -421,130 +299,12 @@ classdef EphysAnalysisConfig
             if ~isnumeric(id); k = obj.figureIndex(id); end
             tf = k >= 1 && k <= numel(obj.Figures) && obj.Figures(k).sessions.enabled;
         end
-
-        function [obj, id, notes] = convertPlotToFigure(obj, plotId)
-            %convertPlotToFigure  Append a figure that draws what plot PLOTID draws (plotToFigure).
-            %   [CFG, ID, NOTES] = cfg.convertPlotToFigure(PLOTID) returns the
-            %   new config, the figure's id ("<plotId>_fig", "_fig2", ...:
-            %   free among plots and figures) and NOTES, what the figure could not
-            %   carry. The plot stays. Errors: EphysAnalysisConfig:NoPlot,
-            %   EphysAnalysisConfig:NotConvertible (rate, tuning, behavior).
-            arguments
-                obj (1,1) EphysAnalysisConfig
-                plotId (1,1) string
-            end
-            [f, notes] = EphysAnalysisConfig.plotToFigure(obj, plotId);
-            obj.Figures = [obj.Figures, f];
-            id = f.id;
-        end
-
-        %% --- session plots ------------------------------------------------------
-        function [obj, id] = addSessionPlot(obj, sp, opts)
-            %addSessionPlot  Append a session plot: a base plot's id or a (partial) session plot struct.
-            %   [CFG, ID] = cfg.addSessionPlot("psth_stim", Id="psth_days")
-            %   returns the new config and the session plot's id
-            %   ("<plot>_sessions_<n>" when not given).
-            arguments
-                obj (1,1) EphysAnalysisConfig
-                sp = struct()
-                opts.Id (1,1) string = ""
-            end
-            if isstring(sp) || ischar(sp)
-                sp = struct('plot', string(sp));
-            end
-            if opts.Id ~= ""; sp.id = opts.Id; end
-            sp = EphysAnalysisConfig.normalizeSection("SessionPlot", sp);
-            if sp.id == ""
-                sp.id = EphysAnalysisConfig.freeId(sessionIdBase(sp), obj.sessionPlotIds());
-            end
-            obj.SessionPlots = [obj.SessionPlots, sp];
-            id = sp.id;
-        end
-
-        function obj = removeSessionPlot(obj, id)
-            %removeSessionPlot  Drop the session plot with this id (error when there is none).
-            k = obj.sessionPlotIndex(id);
-            if k == 0
-                error('EphysAnalysisConfig:NoSessionPlot', 'No session plot "%s".', id);
-            end
-            obj.SessionPlots(k) = [];
-        end
-
-        function k = sessionPlotIndex(obj, id)
-            %sessionPlotIndex  Index of the session plot with this id in SessionPlots (0 = none).
-            k = find(obj.sessionPlotIds() == string(id), 1);
-            if isempty(k); k = 0; end
-        end
-
-        function ids = sessionPlotIds(obj)
-            %sessionPlotIds  Ids of every session plot, in order (a string row).
-            ids = string.empty(1, 0);
-            if ~isempty(obj.SessionPlots); ids = reshape([obj.SessionPlots.id], 1, []); end
-        end
-
-        function ids = enabledSessionPlots(obj)
-            %enabledSessionPlots  Ids of the enabled session plots, in order.
-            ids = string.empty(1, 0);
-            if ~isempty(obj.SessionPlots)
-                on = obj.SessionPlots([obj.SessionPlots.enabled]);
-                if ~isempty(on); ids = reshape([on.id], 1, []); end
-            end
-        end
-
-        function spec = sessionPlotFor(obj, id)
-            %sessionPlotFor  The effective spec of a session plot: its base plot with the session plot's overrides.
-            %   SPEC = cfg.sessionPlotFor(ID) (a session plot id, an index, or
-            %   a session plot struct, which need not be in the config) is
-            %   plotFor(sp.plot) with enabled = true, id = sp.id, title and
-            %   layout overridden when not "", and with trialGroups "pool"
-            %   the trial groups cleared (selection.groupBy = []; a tuning or
-            %   behavior plot's seriesParam = "" too: the sessions are the
-            %   series); with trialGroups "combine" a psth's histStyle is
-            %   "line" (the sessions x trial groups are told apart by line
-            %   style). SPEC.sessionAesthetics holds sp.aesthetics, the
-            %   session plot's own rules, which renderPlot applies after the
-            %   base plot's (SPEC.aesthetics), so a session figure's
-            %   remembered looks never change the per-dataset figures.
-            %   Errors: EphysAnalysisConfig:NoSessionPlot,
-            %   EphysAnalysisConfig:NoPlot (the base plot does not exist).
-            if isstruct(id)
-                sp = EphysAnalysisConfig.normalizeSection("SessionPlot", id);
-            else
-                if isnumeric(id)
-                    k = id;
-                else
-                    k = obj.sessionPlotIndex(id);
-                end
-                if k < 1 || k > numel(obj.SessionPlots)
-                    error('EphysAnalysisConfig:NoSessionPlot', 'No session plot "%s".', string(id));
-                end
-                sp = obj.SessionPlots(k);
-            end
-            if obj.plotIndex(sp.plot) == 0
-                error('EphysAnalysisConfig:NoPlot', 'Session plot "%s": no base plot "%s".', sp.id, sp.plot);
-            end
-            spec = obj.plotFor(sp.plot);
-            spec.enabled = true;
-            spec.id = sp.id;
-            if sp.title ~= ""; spec.title = sp.title; end
-            if sp.layout ~= ""; spec.layout = sp.layout; end
-            if sp.trialGroups == "pool"
-                spec.selection.groupBy = string.empty(1, 0);
-                if ismember(spec.kind, ["tuning" "behavior"]); spec.seriesParam = ""; end
-            end
-            if sp.trialGroups == "combine" && spec.kind == "psth"
-                spec.histStyle = "line";   % sessions x trial groups are told apart by line style
-            end
-            spec.sessionAesthetics = sp.aesthetics;
-        end
     end
 
     methods (Static)
         % --- methods defined in separate files ---
         s = defaults(section)
         [s, unknown] = normalizeSection(section, in)
-        [p, unknown] = normalizePlot(in, path)
-        T = plotKinds()
         T = sourceCategories()
         T = panelTypes()
         T = figureTemplates()
@@ -558,17 +318,25 @@ classdef EphysAnalysisConfig
         fig = adoptPanelOptions(fig, panelId)
         fig = adoptPanelAlignment(fig, panelId)
         fig = relinkPanels(fig)
-        [fig, notes] = plotToFigure(cfg, plotId)
 
         function obj = fromStruct(s)
             %fromStruct  Build a config from a struct (e.g. decoded JSON).
             %   Missing sections take their defaults; unknown fields are dropped
-            %   and listed in LoadWarnings.
+            %   and listed in LoadWarnings (a version-2 struct holding Plots or
+            %   SessionPlots too: unknown top-level fields). A struct of
+            %   version 1 (its version field 1) is migrated first
+            %   (private/legacyMigrate): its plots become figures and its
+            %   session plots session figures, of the same ids, every note of
+            %   the conversion a LoadWarnings line ("plot <id> migrated to
+            %   figure <id>: ...").
             arguments
                 s (1,1) struct
             end
             obj = EphysAnalysisConfig();
             warn = string.empty(1, 0);
+            if isfield(s, 'version') && isnumeric(s.version) && isscalar(s.version) && s.version == 1
+                [s, warn] = legacyMigrate(s);
+            end
             if isfield(s, 'name');        obj.Name = string(s.name);               end
             if isfield(s, 'description'); obj.Description = string(s.description); end
             for sec = EphysAnalysisConfig.Sections
@@ -580,25 +348,13 @@ classdef EphysAnalysisConfig
                     end
                 end
             end
-            if isfield(s, 'Plots')
-                [obj.Plots, unknown] = EphysAnalysisConfig.normalizePlots(s.Plots);
-                if ~isempty(unknown)
-                    warn(end+1) = "Plots: dropped unknown field(s) " + strjoin(unknown, ", ");
-                end
-            end
             if isfield(s, 'Figures')
                 [obj.Figures, unknown] = EphysAnalysisConfig.normalizeFigures(s.Figures);
                 if ~isempty(unknown)
                     warn(end+1) = "Figures: dropped unknown field(s) " + strjoin(unknown, ", ");
                 end
             end
-            if isfield(s, 'SessionPlots')
-                [obj.SessionPlots, unknown] = EphysAnalysisConfig.normalizeSessionPlots(s.SessionPlots);
-                if ~isempty(unknown)
-                    warn(end+1) = "SessionPlots: dropped unknown field(s) " + strjoin(unknown, ", ");
-                end
-            end
-            known = ["schema" "version" "name" "description" "Plots" "Figures" "SessionPlots" EphysAnalysisConfig.Sections];
+            known = ["schema" "version" "name" "description" "Figures" EphysAnalysisConfig.Sections];
             extra = setdiff(string(fieldnames(s)).', known);
             if ~isempty(extra)
                 warn(end+1) = "dropped unknown top-level field(s) " + strjoin(extra, ", ");
@@ -608,6 +364,10 @@ classdef EphysAnalysisConfig
 
         function obj = load(file)
             %load  Read a config JSON; errors on a wrong schema or version.
+            %   Reads version 2, and version 1 once by migrating it (its plots
+            %   and session plots become figures: fromStruct); any other
+            %   version, or another schema, raises EphysAnalysisConfig:BadSchema.
+            %   save always writes version 2.
             arguments
                 file (1,1) string
             end
@@ -616,85 +376,18 @@ classdef EphysAnalysisConfig
                 error('EphysAnalysisConfig:BadSchema', ...
                     '%s is not an %s file.', file, EphysAnalysisConfig.Schema);
             end
-            if ~isfield(s, 'version') || double(s.version) ~= EphysAnalysisConfig.Version
+            if ~isfield(s, 'version') || ~isnumeric(s.version) || ~isscalar(s.version) ...
+                    || ~ismember(double(s.version), [1 EphysAnalysisConfig.Version])
+                v = "none";
+                if isfield(s, 'version'); v = string(jsonencode(s.version)); end
                 error('EphysAnalysisConfig:BadSchema', ...
-                    '%s has config version %s; this code reads version %d only.', ...
-                    file, string(jsonencode(s.version)), EphysAnalysisConfig.Version);
+                    '%s has config version %s; this code reads version %d (and migrates version 1).', ...
+                    file, v, EphysAnalysisConfig.Version);
             end
             obj = EphysAnalysisConfig.fromStruct(s);
             obj.File = file;
             if ~isempty(obj.LoadWarnings)
                 warning('EphysAnalysisConfig:LoadWarnings', '%s: %s', file, strjoin(obj.LoadWarnings, '; '));
-            end
-        end
-
-        function p = emptyPlots()
-            %emptyPlots  A 1x0 struct array with the plot fields.
-            p = repmat(EphysAnalysisConfig.defaults("Plot"), 1, 0);
-        end
-
-        function [P, unknown] = normalizePlots(v)
-            %normalizePlots  Plots from a struct array, a cell array (jsondecode) or [].
-            %   Every entry is normalized (normalizePlot); entries without an id
-            %   get "<kind>_<n>"; duplicate ids raise
-            %   EphysAnalysisConfig:DuplicatePlotId.
-            P = EphysAnalysisConfig.emptyPlots();
-            unknown = string.empty(1, 0);
-            if isempty(v); return; end
-            if isstruct(v)
-                v = num2cell(v);
-            elseif ~iscell(v)
-                error('EphysAnalysisConfig:BadValue', 'Plots must be a struct array or a cell array of structs.');
-            end
-            for k = 1:numel(v)
-                [p, u] = EphysAnalysisConfig.normalizePlot(v{k}, "Plots(" + k + ")");
-                unknown = [unknown, u]; %#ok<AGROW>
-                P(1, end+1) = p; %#ok<AGROW>
-            end
-            ids = [P.id];
-            [~, first] = unique(ids(ids ~= ""), 'stable');
-            given = ids(ids ~= "");
-            dup = given(setdiff(1:numel(given), first));
-            if ~isempty(dup)
-                error('EphysAnalysisConfig:DuplicatePlotId', 'Plot id "%s" is used more than once.', dup(1));
-            end
-            for k = find(ids == "")
-                P(k).id = EphysAnalysisConfig.freeId(P(k).kind, [P.id]);
-            end
-        end
-
-        function p = emptySessionPlots()
-            %emptySessionPlots  A 1x0 struct array with the session plot fields.
-            p = repmat(EphysAnalysisConfig.defaults("SessionPlot"), 1, 0);
-        end
-
-        function [P, unknown] = normalizeSessionPlots(v)
-            %normalizeSessionPlots  SessionPlots from a struct array, a cell array (jsondecode) or [].
-            %   Every entry is normalized (normalizeSection "SessionPlot");
-            %   entries without an id get "<plot>_sessions_<n>"; duplicate ids
-            %   raise EphysAnalysisConfig:DuplicateSessionPlotId.
-            P = EphysAnalysisConfig.emptySessionPlots();
-            unknown = string.empty(1, 0);
-            if isempty(v); return; end
-            if isstruct(v)
-                v = num2cell(v);
-            elseif ~iscell(v)
-                error('EphysAnalysisConfig:BadValue', 'SessionPlots must be a struct array or a cell array of structs.');
-            end
-            for k = 1:numel(v)
-                [p, u] = EphysAnalysisConfig.normalizeSection("SessionPlot", v{k});
-                unknown = [unknown, replace(u, textBoundary("start") + "SessionPlot.", "SessionPlots(" + k + ").")]; %#ok<AGROW>
-                P(1, end+1) = p; %#ok<AGROW>
-            end
-            ids = [P.id];
-            [~, first] = unique(ids(ids ~= ""), 'stable');
-            given = ids(ids ~= "");
-            dup = given(setdiff(1:numel(given), first));
-            if ~isempty(dup)
-                error('EphysAnalysisConfig:DuplicateSessionPlotId', 'Session plot id "%s" is used more than once.', dup(1));
-            end
-            for k = find(ids == "")
-                P(k).id = EphysAnalysisConfig.freeId(sessionIdBase(P(k)), [P.id]);
             end
         end
 
@@ -865,11 +558,4 @@ classdef EphysAnalysisConfig
             id = kind + "_" + n;
         end
     end
-end
-
-
-function b = sessionIdBase(sp)
-%sessionIdBase  What a session plot's free id starts with: "<plot>_sessions" ("sessions" without a base plot).
-b = "sessions";
-if sp.plot ~= ""; b = sp.plot + "_sessions"; end
 end

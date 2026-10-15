@@ -18,7 +18,7 @@ function [lo, hi] = errorBounds(X, dim, type, nBoot, stat)
 %   LO and HI have X's size with DIM collapsed to 1. Where fewer than 2
 %   values are not NaN they are NaN (no band), as semOf's SEM is.
 %
-%   See also semOf, errorPatch, plotErrorType.
+%   See also semOf, errorPatch, figureErrorType.
 
 if nargin < 4 || isempty(nBoot); nBoot = 1000; end
 if nargin < 5 || isempty(stat); stat = "mean"; end

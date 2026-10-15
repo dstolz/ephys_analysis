@@ -10,10 +10,9 @@ function hMain = histTrace(ax, t, e, m, base, color, look, lw, group, ls)
 %   as a staircase, a line with the area down to BASE under it. Unfilled
 %   bars are the staircase outline, dropping to BASE at each run's ends.
 %   Returns the object a legend shows (the bars' first patch or outline;
-%   the line). Shared by renderPSTH and a figure's PSTH panel
-%   (drawPsthPanel).
+%   the line). Drawn by a figure's PSTH panel (drawPsthPanel).
 %
-%   See also drawPsthPanel, renderPSTH.
+%   See also drawPsthPanel.
 if nargin < 10; ls = "-"; end
 t = t(:); e = e(:); m = m(:);
 ok = isfinite(m);

@@ -1,6 +1,6 @@
 function T = readUnitMapping(file)
 %readUnitMapping  Read a unit-mapping CSV: which unit is the same cell in each dataset.
-%   T = readUnitMapping(FILE) reads the CSV a session plot with match
+%   T = readUnitMapping(FILE) reads the CSV a session figure with match
 %   "mapping" names (combineSessions Mapping=): one row per cell, the first
 %   column "cell" (the cell's name, text), then one column per dataset key
 %   (the Data tab's Key column, e.g. SYNTH-01/260908_103000; names kept as
@@ -21,7 +21,7 @@ function T = readUnitMapping(file)
 %   Errors: readUnitMapping:NoFile (the file does not exist),
 %   readUnitMapping:NoCell (no column "cell").
 %
-%   See also writeUnitMapping, combineSessions, sessionResults.
+%   See also writeUnitMapping, combineSessions, figureSessionObservations.
 arguments
     file (1,1) string
 end

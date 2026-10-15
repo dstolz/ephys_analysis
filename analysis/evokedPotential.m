@@ -67,7 +67,7 @@ function R = evokedPotential(Y, fs, E, opts)
 %   Only the epochs' rows of the used channels are read from Y, so Y (e.g.
 %   the outputs' cached signal) is never copied whole.
 %
-%   See also epochTable, selectChannels, renderEvoked, renderHeatmap.
+%   See also epochTable, selectChannels, renderFigure, renderHeatmap.
 
 arguments
     Y {mustBeNumeric}

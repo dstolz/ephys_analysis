@@ -5,10 +5,10 @@ function callMarks(ax, R, u, colors, style)
 %   settings.marks): an up arrow (modulated upwards), a down arrow or n.s.
 %   per group; U = 0 (a mean over units) gives each group's count of units
 %   called up and down. Nothing without a cutoff or with marks off. Tagged
-%   "modMarks". Shared by renderPSTH and a figure's PSTH panel
+%   "modMarks". Drawn by a figure's PSTH panel
 %   (drawPsthPanel).
 %
-%   See also modulationWindow, renderPSTH, drawPsthPanel.
+%   See also modulationWindow, drawPsthPanel.
 A = R.auroc;
 if A.cutoff == "none" || (isfield(A, 'settings') && ~A.settings.marks); return; end
 nG = size(A.direction, 2);

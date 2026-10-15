@@ -24,7 +24,7 @@ for f = string(fieldnames(in)).'
     if f == "stop" || f == "rasterSortEvent"
         [out.(f), u] = coerceStop(v, path + "." + f);
         unknown = [unknown, u]; %#ok<AGROW>
-    elseif f == "sequence" || f == "rasterEvents" || f == "overlays"
+    elseif f == "sequence" || f == "overlays"
         [out.(f), u] = coerceList(f, v, path + "." + f);
         unknown = [unknown, u]; %#ok<AGROW>
     elseif isstruct(d)
@@ -38,7 +38,7 @@ end
 
 
 function [v, unknown] = coerceStop(v, path)
-%coerceStop  An epoch window's stop, or a plot's rasterSortEvent: [] (none) or an EventRef.
+%coerceStop  An epoch window's stop, or a panel's rasterSortEvent: [] (none) or an EventRef.
 unknown = string.empty(1, 0);
 if isempty(v) || ((isstring(v) || ischar(v)) && any(lower(strtrim(string(v))) == ["" "none"]))
     v = [];
@@ -54,17 +54,14 @@ end
 
 
 function [out, unknown] = coerceList(field, v, path)
-%coerceList  A list of structs: an EventRef's sequence (SequenceStep each), a
-%   plot's raster marks (EventMark each) or its overlays (Overlay each). V
-%   is a struct array, a cell (jsondecode of elements whose fields differ),
-%   one struct or [] (none).
+%coerceList  A list of structs: an EventRef's sequence (SequenceStep each) or
+%   a panel's overlays (Overlay each). V is a struct array, a cell
+%   (jsondecode of elements whose fields differ), one struct or [] (none).
 unknown = string.empty(1, 0);
 if field == "sequence"
     def = EphysAnalysisConfig.defaults("SequenceStep");
-elseif field == "overlays"
-    def = EphysAnalysisConfig.defaults("Overlay");
 else
-    def = EphysAnalysisConfig.defaults("EventMark");
+    def = EphysAnalysisConfig.defaults("Overlay");
 end
 out = repmat(def, 1, 0);
 if isempty(v); return; end

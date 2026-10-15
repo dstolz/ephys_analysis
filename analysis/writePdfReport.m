@@ -1,16 +1,16 @@
 function file = writePdfReport(report, file)
 %writePdfReport  Write a report as one multi-page PDF.
 %   FILE = writePdfReport(REPORT, FILE) writes a title page (the report's
-%   title, when it was made, its datasets and plots), then for each dataset
+%   title, when it was made, its datasets and figures), then for each dataset
 %   (and each addReportSection section, such as "Across sessions") a
 %   summary page (IncludeSummary: a dataset's recording, trials and units;
-%   a section's tables, e.g. "Sessions") and the vector pages of every plot
-%   (each page of a paged grid). The title and summary pages are drawn here; the
-%   plots' pages are those they were added with (addReportFigure: the
-%   reportPdfPage files made from the exported figures, or drawn then), so
-%   no plot is drawn again. The pages are joined in that order with the
+%   a section's tables, e.g. "Sessions") and the vector pages of every figure
+%   (a page per observation). The title and summary pages are drawn here; the
+%   figures' pages are those they were added with (addReportFigure: the
+%   reportPdfPage files made from the pages as they were drawn), so
+%   no figure is drawn again. The pages are joined in that order with the
 %   Apache PDFBox library MATLAB ships (PDFMergerUtility, on its Java class
-%   path); no Report Generator is needed. Plots that failed are listed on
+%   path); no Report Generator is needed. Figures that failed are listed on
 %   their dataset's summary page. A report started for HTML only keeps no
 %   pages: start it with Format "pdf" or "both".
 %
@@ -38,7 +38,7 @@ end
 lines(end+1) = "";
 for d = 1:numel(report.datasets)
     D = report.datasets(d);
-    lines(end+1) = sprintf("%d. %s (%d plot(s))", d, D.name, numel(D.entries)); %#ok<AGROW>
+    lines(end+1) = sprintf("%d. %s (%d figure(s))", d, D.name, numel(D.entries)); %#ok<AGROW>
 end
 parts = page(lines, report.title, 0);
 
@@ -66,7 +66,7 @@ for d = 1:numel(report.datasets)
     for e = D.entries(status == "done")
         if isempty(e.pages)
             error('writePdfReport:NoPages', ...
-                'Plot %s of %s holds no PDF pages: start the report with Format "pdf" or "both".', e.plot, D.name);
+                'Figure %s of %s holds no PDF pages: start the report with Format "pdf" or "both".', e.plot, D.name);
         end
         parts = [parts; e.pages(:)]; %#ok<AGROW>
     end

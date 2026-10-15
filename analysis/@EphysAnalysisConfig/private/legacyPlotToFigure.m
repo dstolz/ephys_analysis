@@ -1,18 +1,23 @@
-function [fig, notes] = plotToFigure(cfg, plotId)
-%plotToFigure  A Figures entry that draws what one plot of the Plots section draws.
-%   [FIG, NOTES] = EphysAnalysisConfig.plotToFigure(CFG, PLOTID) converts
-%   the plot PLOTID of config CFG (its layout resolved by plotFor) into a
-%   figure (normalizeFigure'd; not added: convertPlotToFigure adds it), and
-%   NOTES, a string row of what could not be carried, one sentence each.
-%   Nothing is dropped silently: every setting the plot's kind uses that
-%   the figure cannot hold is a note.
+function [fig, notes] = legacyPlotToFigure(p, defaults, layout)
+%legacyPlotToFigure  The figure that draws what one plot of a version-1 config drew, for its migration only.
+%   [FIG, NOTES] = legacyPlotToFigure(P, DEFAULTS) converts the version-1
+%   plot P (legacyNormalizePlot's; its "default" ref / window / selection
+%   read from DEFAULTS, the config's Defaults section, where the
+%   conversion needs them) into a figure (normalizeFigure'd), and NOTES, a
+%   string row of what could not be carried, one sentence each. Nothing is
+%   dropped silently: every setting the plot's kind uses that the figure
+%   cannot hold is a note. LAYOUT (default "": the plot's own, else its
+%   kind's default) overrides the plot's layout, as a version-1 session
+%   plot's layout did. legacyMigrate calls it for every plot of a
+%   version-1 file's Plots (and every session plot's base plot) and turns
+%   NOTES into load warnings; nothing else uses it.
 %
 %   Figure level
-%     id          "<plotId>_fig", or "<plotId>_fig2", "_fig3", ... when a
-%                 plot or figure has it (case ignored): a figure may not
-%                 share a plot's id, as both name files through {Plot}
-%                 (validate)
-%     enabled, title, aesthetics   the plot's
+%     id          the plot's id
+%     enabled, title   the plot's
+%     aesthetics  the plot's, through legacyLooks (auxTrace / auxSem /
+%                 auxAxes become trace / sem / axes, a note each; a rule
+%                 on a role no figure draws is dropped, a note)
 %     ref, window, selection       the plot's ("default" stays "default")
 %     style       the plot's, with MaxTiles, TileSpacing, XLim, YLim and
 %                 CLim back at their defaults (a figure does not use them):
@@ -68,48 +73,47 @@ function [fig, notes] = plotToFigure(cfg, plotId)
 %                     overlay: per dataset, a fixed units layer with
 %                     aggregate "mean" (the plot's mean over units); param,
 %                     seriesParam
-%   A behavior plot has no panel type: EphysAnalysisConfig:NotConvertible.
-%   Errors: EphysAnalysisConfig:NoPlot.
+%   A behavior plot (no panel type), or a kind version 1 did not have,
+%   raises EphysAnalysisConfig:NotConvertible.
 %
-%   See also EphysAnalysisConfig.convertPlotToFigure, EphysAnalysisConfig.normalizeFigure,
-%   EphysAnalysisConfig.panelTypes, EphysAnalysisConfig.plotFor.
+%   See also legacyMigrate, legacyNormalizePlot, legacyPlotKinds,
+%   EphysAnalysisConfig.normalizeFigure, EphysAnalysisConfig.panelTypes.
 
 arguments
-    cfg (1,1) EphysAnalysisConfig
-    plotId (1,1) string
+    p (1,1) struct
+    defaults (1,1) struct
+    layout (1,1) string = ""
 end
 
-k = cfg.plotIndex(plotId);
-if k == 0
-    error('EphysAnalysisConfig:NoPlot', 'No plot "%s".', plotId);
+K = legacyPlotKinds();
+row = K.Kind == p.kind;
+if ~any(row)
+    error('EphysAnalysisConfig:NotConvertible', 'Plot "%s" is of kind "%s", which config version 1 did not have.', p.id, p.kind);
 end
-p = cfg.Plots(k);          % as written: "default" sentinels kept
-spec = cfg.plotFor(k);     % the layout resolved
-K = EphysAnalysisConfig.plotKinds();
-kindLabel = K.Label(K.Kind == p.kind);
+kindLabel = K.Label(row);
 if p.kind == "behavior"
     error('EphysAnalysisConfig:NotConvertible', ...
         'Plot "%s" is a %s plot (%s): figures have no panel type for it, so it cannot be converted.', ...
         p.id, lower(kindLabel), p.kind);
 end
+% what version 1's plotFor resolved and the conversion reads: the layout, and the trial groups
+spec = struct('layout', layout, 'selection', p.selection);
+if spec.layout == ""; spec.layout = p.layout; end
+if spec.layout == ""; spec.layout = K.DefaultLayout(row); end
+if isequal(spec.selection, "default"); spec.selection = defaults.Selection; end
 notes = string.empty(1, 0);
 spikes = ismember(p.source, EphysAnalysisConfig.SpikeSources);
 
 % --- figure level ---------------------------------------------------------------------------------
 fig = struct();
-used = lower([cfg.plotIds() cfg.figureIds()]);   % a figure's id must not name a plot's files (validate)
-fig.id = p.id + "_fig";
-n = 1;
-while any(used == lower(fig.id))
-    n = n + 1;
-    fig.id = p.id + "_fig" + n;
-end
+fig.id = p.id;
 fig.enabled = p.enabled;
 fig.title = p.title;
 fig.ref = p.ref;
 fig.window = p.window;
 fig.selection = p.selection;
-fig.aesthetics = p.aesthetics;
+[fig.aesthetics, lookNotes] = legacyLooks(p.aesthetics);   % aux roles renamed, retired roles dropped
+for ln = lookNotes; addNote(ln); end
 
 sd = EphysAnalysisConfig.defaults("Style");
 st = p.style;
@@ -353,8 +357,8 @@ fig = EphysAnalysisConfig.normalizeFigure(fig, "Figure");
     function L = markLayers()
         %markLayers  The plot's raster event marks, each an events layer drawn as marks.
         L = cell(1, numel(p.rasterEvents));
-        for i = 1:numel(p.rasterEvents)
-            L{i} = struct('source', "events", 'binding', "fixed", 'event', p.rasterEvents(i), 'eventsAs', "marks");
+        for m = 1:numel(p.rasterEvents)
+            L{m} = struct('source', "events", 'binding', "fixed", 'event', p.rasterEvents(m), 'eventsAs', "marks");
         end
     end
 

@@ -2,7 +2,7 @@ function [reason, layerReasons] = figureSkipReason(src, spec)
 %figureSkipReason  Why a figure, or one of its panels or layers, cannot be computed for a dataset ("" = it can).
 %   [REASON, LAYERREASONS] = figureSkipReason(SRC, SPEC) checks what the
 %   figure SPEC (EphysAnalysisConfig.figureFor) needs against what
-%   loadAnalysisSource found in SRC, with plotSkipReason's rules.
+%   loadAnalysisSource found in SRC.
 %
 %   REASON is the figure's own: "disabled"; what it observes is missing
 %   ("no sorted units", "no detected spikes" for a unit observation, "no
@@ -40,9 +40,9 @@ function [reason, layerReasons] = figureSkipReason(src, spec)
 %   observation or when it runs (EphysAnalysisRunner.computeFigure keeps
 %   such a layer with its reason).
 %
-%   The line checks (private hasLine, missingStepLine) are plotSkipReason's.
+%   The line checks are the private hasLine and missingStepLine.
 %
-%   See also plotSkipReason, figureObservations, EphysAnalysisRunner.computeFigure.
+%   See also figureObservations, EphysAnalysisRunner.computeFigure.
 
 arguments
     src (1,1) struct

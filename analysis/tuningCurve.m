@@ -26,7 +26,7 @@ function R = tuningCurve(rates, x, opts)
 %   seriesParam, labels, meta, units, err (type, lo / hi [nX x nUnits x
 %   nSeries], over "epochs", nBoot), params, created.
 %
-%   See also firingRate, epochTable, renderTuning.
+%   See also firingRate, epochTable, renderFigure.
 
 arguments
     rates {mustBeNumeric}

@@ -2,7 +2,7 @@ function name = figureFileName(pattern, tokens, opts)
 %figureFileName  Fill the {Token} placeholders of a file-name or folder pattern.
 %   NAME = figureFileName(PATTERN, TOKENS) replaces each {Token} of PATTERN
 %   by TOKENS.(Token) (text or a number) for a figure's file name (no
-%   extension): tokens Name (dataset), Plot (plot id), Kind, Group, Unit,
+%   extension): tokens Name (dataset), Plot (figure id), Kind, Group, Unit,
 %   Index (page) and Date (default: today, yyyyMMdd). Each value has every
 %   character outside [A-Za-z0-9_-.] replaced by "_", e.g.
 %     figureFileName("{Name}_{Plot}_{Index}", struct('Name', "SYNTH-01_260918_101500", ...

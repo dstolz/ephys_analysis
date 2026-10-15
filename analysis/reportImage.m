@@ -1,12 +1,12 @@
 function im = reportImage(fig, report, opts)
 %reportImage  One drawn page as the HTML report embeds it.
 %   IM = reportImage(FIG, REPORT, Title=T, Files=F) exports the figure FIG
-%   (one page drawn by renderPlot) the way REPORT (newAnalysisReport)
+%   (one page drawn by renderFigure) the way REPORT (newAnalysisReport)
 %   embeds images: with EmbedFormat "png" a PNG at REPORT.options.Dpi,
 %   base64; with "svg" the SVG text. F lists the files just exported from
 %   FIG (exportFigure): an .svg among them is read instead of printing FIG
 %   again. IM is a struct (format, data, title) for
-%   addReportFigure(..., Images=); T is the PNG's alt text (renderPlot's
+%   addReportFigure(..., Images=); T is the PNG's alt text (renderFigure's
 %   H.title).
 %
 %   The runner and the standalone script make the images from the figures

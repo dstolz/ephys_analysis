@@ -24,7 +24,7 @@ function hk = drawRatePanel(ax, P, look)
 %   alone for one group). options.yLim fixes the y axis. Skipped layers are
 %   noted (figLayerNotes). HK: figDrawResult's, yName = the rates' unit.
 %
-%   See also renderFigure, renderRates, firingRate, figurePanelRegistry.
+%   See also renderFigure, firingRate, figurePanelRegistry.
 
 style = look.style;
 o = look.panel.options;

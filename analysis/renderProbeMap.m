@@ -17,7 +17,7 @@ function h = renderProbeMap(values, probe, target, opts)
 %
 %   H: layout (tiled layout or []), axes, colorbar.
 %
-%   See also probeMapValues, unitSummary, renderPlot.
+%   See also probeMapValues, unitSummary, renderFigure.
 
 arguments
     values

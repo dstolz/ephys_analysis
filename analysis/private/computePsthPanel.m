@@ -5,7 +5,7 @@ function P = computePsthPanel(src, panel, E, G, ctx)
 %   P.layers, one per layer of PANEL (figurePanelLayers), each computed by
 %   figurePointLayer with the panel's bins, measure, baseline (Mode and
 %   Window; Mode "auroc" with options.auroc: auROC curves, R.auroc the
-%   calls, as computePlot's PSTH) and maskAfterStop, and its band's error type (CTX.errorType,
+%   calls) and maskAfterStop, and its band's error type (CTX.errorType,
 %   figureErrorType): units / detected layers and events trains are
 %   spikePSTH results (rate / err [nBins x nUnits x nGroups]; aggregate
 %   "mean" adds R.layerMean), events marks are R.kind "events" (their

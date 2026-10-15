@@ -85,7 +85,7 @@ function R = spikePSTH(spikeTimes, E, opts)
 %   spikePSTH:BadBaseline, spikePSTH:NoneModulated (modulatedOnly and no
 %   unit is), and aurocCurves'.
 %
-%   See also epochTable, selectUnits, firingRate, renderPSTH, renderRaster.
+%   See also epochTable, selectUnits, firingRate, figureCompute, renderFigure.
 
 arguments
     spikeTimes

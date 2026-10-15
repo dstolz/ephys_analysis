@@ -10,16 +10,16 @@ function test_EphysAnalysisFigures()
 %   from jsondecode, unknown fields in LoadWarnings; the grid editors
 %   (placePanel in four directions, removePanel, movePanel, figureCells);
 %   DuplicateFigureId / DuplicatePanelId; every validate rule of the
-%   Figures section, and the Plots style messages unchanged by the
-%   shared checkStyle; a panel's text note and overlays (defaults, an
-%   overlay's panel always "all", a JSON round trip, the plot's validate
-%   rules at the panel's fields).
+%   Figures section ("No figure is enabled." when none is), the style's
+%   messages (checkStyle); a panel's text note and overlays (defaults, an
+%   overlay's panel always "all", a JSON round trip, the validate rules
+%   at the panel's fields).
 %   Compute (7), on makeAnalysisFixture's "clean" dataset:
 %   figureObservations (the filter's units in probe order, a tightened
 %   filter, the LFP channels of a continuous figure, one row for a dataset
 %   figure); computeFigure of the raster + PSTH figure (the first
 %   observation by default, one unit in each layer, the PSTH equal to
-%   computePlot's, Observation= as a row or a struct); an LFP layer
+%   spikePSTH's, Observation= as a row or a struct); an LFP layer
 %   following the unit (its recording channel's column), a fixed AUX layer
 %   with aggregate "mean" (R.layerMean) and an AUX layer following the unit
 %   (skipped with its reason, in figureSkipReason too); a fixed layer of
@@ -29,15 +29,16 @@ function test_EphysAnalysisFigures()
 %   column, the MUA column of the same channel, the units on it); a raster sorted by a
 %   missing parameter skipped while the PSTH under it is computed; a
 %   signal's baseline with no sample in the window skipping its layer;
-%   probemap, corrmap and waveforms as computePlot's; PollFcn checkpoints
+%   probemap and corrmap as the compute functions give them (unitSummary +
+%   probeMapValues, unitCorrelation), waveforms; PollFcn checkpoints
 %   and cancel; figureCompute (no runner) equal to computeFigure, its
 %   Check=; figureOutputName's names and figureCaption; a rate panel and a
-%   tuning panel equal to computePlot's rate / tuning of the unit (the
+%   tuning panel equal to firingRate's / tuningCurve's of the unit (the
 %   tuning parameter from groupBy, else the first numeric one; a series
 %   and the waveform inset; a missing parameter skipping the panel); a
-%   rate layer of three units' mean; an auROC PSTH equal to computePlot's;
+%   rate layer of three units' mean; an auROC PSTH equal to spikePSTH's;
 %   a stacked PSTH; the waveforms' probe layout (a following layer to
-%   ring); one observation faster than computePlot over every unit.
+%   ring); one observation faster than spikePSTH over every unit.
 %   Render (8): figureTiles (relative sizes in quarter steps, spans, the
 %   32-unit cap); a compute and a draw function for every panel type;
 %   every panel type drawn by renderFigure into an axes, a uiaxes, a
@@ -437,7 +438,6 @@ check(isequal(al3.selection.groupBy, "TrialType") && all(arrayfun(@(p) isequal(p
 fprintf('\n== 4. config: a JSON round trip ==\n');
 cfg = EphysAnalysisConfig();
 cfg.Source.Root = root;
-cfg = cfg.addPlot("psth");
 Pc = cell(1, numel(types));
 for t = 1:numel(types)
     Pc{t} = struct('type', types(t), 'row', ceil(t / 2), 'col', 2 - mod(t, 2), 'layers', layerOf(types(t)));
@@ -484,8 +484,9 @@ txt = fileread(f);
 c2 = EphysAnalysisConfig.load(f);
 check(cfg.isequalConfig(c2) && isempty(c2.LoadWarnings), 'a config with figures survives save / load exactly');
 fn = string(fieldnames(cfg.toStruct())).';
-check(find(fn == "Figures") == find(fn == "Plots") + 1 && contains(txt, '"Figures"') && contains(txt, '"rowHeights"'), ...
-    'toStruct writes Figures after Plots');
+check(isequal(fn, ["schema" "version" "name" "description" "Source" "Defaults" "Figures" "Export" "Report"]) ...
+    && contains(txt, '"Figures"') && contains(txt, '"rowHeights"') && ~contains(txt, '"Plots"'), ...
+    'toStruct writes Figures after Defaults (no Plots or SessionPlots)');
 g = c2.Figures(1);
 check(isequal(g.grid.rowHeights, [1 1.5 1 1 1]) && isequal(g.grid.colWidths, [2 1]) && isequal(c2.Figures(2).grid.rowHeights, [1 1.5]) ...
     && isequal(c2.Figures(2).grid.colWidths, []), 'relative sizes come back as rows; [] stays []');
@@ -577,13 +578,13 @@ c4.Figures = v;
 check(iscell(v) && isequal(c4.figureIds(), ["a" "figure_1"]) && c4.Figures(1).panels.id == "raster_1" ...
     && isequal(c4.Figures(2).grid.rowHeights, [1 1.5]) && c4.Figures(2).panels.row == 2, ...
     'a cell Figures from jsondecode (figures with different fields)');
-c5 = EphysAnalysisConfig(struct('schema', EphysAnalysisConfig.Schema, 'version', 1, 'Figures', struct('id', "solo")));
+c5 = EphysAnalysisConfig(struct('schema', EphysAnalysisConfig.Schema, 'version', EphysAnalysisConfig.Version, 'Figures', struct('id', "solo")));
 check(isequal(c5.figureIds(), "solo") && isempty(c5.LoadWarnings), 'one figure as a JSON object (not a list)');
 s = rmfield(cfg.toStruct(), 'Figures');
 fo = fullfile(root, 'no_figures.json');
 writeJsonFile(fo, s, NonFinite="string");
 co = EphysAnalysisConfig.load(fo);
-check(isempty(co.Figures) && isstruct(co.Figures) && isempty(co.LoadWarnings) && isequaln(co.Plots, cfg.Plots), ...
+check(isempty(co.Figures) && isstruct(co.Figures) && isempty(co.LoadWarnings), ...
     'a config file without Figures loads with none and no warning');
 
 fprintf('\n== 5. config: grid editing ==\n');
@@ -679,7 +680,6 @@ check(strcmp(errorId(@() EphysAnalysisConfig.adoptPanelOptions(ap, "zz")), 'Ephy
 fprintf('\n== 6. config: validate ==\n');
 base = EphysAnalysisConfig();
 base.Source.Root = root;
-base = base.addPlot("psth");
 base = base.addFigure();
 check(isempty(figIssues(base)), 'the rasterPsth figure validates clean');
 tc = base;
@@ -693,8 +693,11 @@ nf = EphysAnalysisConfig();
 nf.Source.Root = root;
 nf = nf.addFigure();
 I = nf.validate(CheckPaths=false);
-check(~any(I.Section == "Plots" & I.Field == "enabled" & I.Severity == "error"), ...
-    'the "nothing enabled" rule counts figures: a config of one enabled figure alone has something to run');
+nf.Figures(1).enabled = false;
+I0 = nf.validate(CheckPaths=false);
+check(~any(I.Field == "enabled" & I.Severity == "error") && any(I0.Section == "Figures" & I0.Field == "enabled" ...
+    & I0.Severity == "error" & I0.Message == "No figure is enabled."), ...
+    'the "nothing enabled" rule counts figures: one enabled figure is something to run; none is "No figure is enabled."');
 
 % 1. ids
 b = base.addFigure("psth", Id="Figure_1");
@@ -977,8 +980,8 @@ check(has(b, "ct.continuous_1.common.baseline", "error"), 'a linked signal''s co
 b = base.addFigure("waveforms", Id="wf");
 check(isempty(figIssues(b)), 'a linked waveforms panel takes the common waveform mode "off" as "both"');
 
-% 10. the style, shared with the plots (checkStyle)
-st = base.Plots(1).style;
+% 10. the style (checkStyle)
+st = base.Figures(1).style;
 st.MaxTiles = 0; st.TileSpacing = "wide"; st.LegendLocation = "northeast"; st.LegendOrientation = "diagonal";
 st.ErrorType = "iqr"; st.ErrorResamples = 2.5; st.ErrorFaceAlpha = 1.5; st.ErrorFaceColor = "plaid"; st.ErrorEdgeColor = "nope";
 st.ErrorEdgeStyle = "~"; st.ErrorEdgeWidth = 0; st.FontSize = 0; st.LineWidth = 0; st.SiteSize = 0;
@@ -1000,16 +1003,11 @@ expect = [ ...
     "SiteSize"          "error"   "SiteSize must be positive."
     "Colormap"          "warning" "No colormap function or color ""nope""; the default is used."
     "HeatColormap"      "warning" "No colormap function ""notacolormap""; the default is used."];
-b = base; b.Plots(1).style = st;
-I = b.validate(CheckPaths=false);
-I = I(startsWith(I.Field, "psth_1.style."), :);
-check(isequal(I.Section, repmat("Plots", height(I), 1)) && isequal(I.Field, "psth_1.style." + expect(:, 1)) ...
-    && isequal(I.Severity, expect(:, 2)) && isequal(I.Message, expect(:, 3)), 'a plot''s style messages are unchanged (checkStyle)');
 b = base; b.Figures(1).style = st;
 I = figIssues(b);
 I = I(startsWith(I.Field, "figure_1.style."), :);
 check(isequal(I.Field, "figure_1.style." + expect(:, 1)) && isequal(I.Severity, expect(:, 2)) && isequal(I.Message, expect(:, 3)), ...
-    'a figure''s style is checked as a plot''s');
+    'a figure''s style: every value checked, with these messages');
 b = base; b.Figures(1).style.ErrorType = "ci95";
 b2 = base; b2.Figures(1).style.ErrorType = "ci95"; b2.Figures(1).panels(2).type = "raster";
 check(has(b, "figure_1.style.ErrorType", "error") == ~haveBoot && ~has(b2, "figure_1.style.ErrorType", "error"), ...
@@ -1121,6 +1119,19 @@ cfg = cfg.addFigure("probemap", Id="pm");
 rn = EphysAnalysisRunner(cfg, LogFcn=[]);
 src = rn.source(1);
 spec = cfg.figureFor("rp");
+% the oracles: the compute functions called directly, as a figure's panels call them (Defaults' alignment, every unit)
+D = cfg.Defaults;
+wD = D.Window;
+U0 = EphysAnalysisConfig.defaults("UnitSelection");
+    function [E, G] = epochsOf(baseline, columns)
+        if nargin < 2; columns = string.empty(1, 0); end
+        [E, G] = epochTable(src, D.EventRef, Window=wD, Selection=D.Selection, Baseline=baseline, Columns=columns);
+    end
+    function [st, m] = unitsOf(ids)
+        hUnits = U0;
+        if nargin > 0; hUnits.ids = ids; end
+        [st, m] = selectUnits(src, hUnits, Ref=D.EventRef, Selection=D.Selection);
+    end
 varsObs = ["kind" "label" "unitId" "channel" "column" "shank" "depth" "meta" "group" "groupLabel"];
 
 % observations
@@ -1161,11 +1172,13 @@ check(F1.kind == "figure" && F1.id == "rp" && F1.dataset == src.name && F1.obser
 check(isscalar(L1) && L1.skip == "" && L2.skip == "" && isscalar(L1.R.raster) && size(L2.R.rate, 2) == 1 ...
     && L1.meta.unitId == Tu.unitId(1) && L2.meta.unitId == Tu.unitId(1) && L2.name == shortUnitLabels(Tu.meta{1}.label) ...
     && L2.binding == "observation" && L2.category == "point", 'one unit in each layer''s R: the observed one, named by its label');
-cfg = cfg.addPlot(struct('kind', "psth"), Id="psth_all");
-Rp = rn.computePlot(src, cfg.plotFor("psth_all"));
+[Eo, Go] = epochsOf([]);
+[sto, mo] = unitsOf();
+Rp = spikePSTH(sto, Eo, Window=[wD.pre wD.post], BinSec=0.01, SmoothSec=0.01, Measure="rate", Raster=true, Groups=Go, Meta=mo, ...
+    ErrorType="sem", ErrorResamples=1000);
 u1 = find(Rp.meta.unitId == Tu.unitId(1));
 check(isscalar(u1) && isequaln(L2.R.rate, Rp.rate(:, u1, :)) && isequaln(L2.R.err.lo, Rp.err.lo(:, u1, :)) ...
-    && isequaln(F1.epochs.t0, Rp.epochs.t0), 'the PSTH layer is computePlot''s PSTH of that unit (the same epochs, bins and band)');
+    && isequaln(F1.epochs.t0, Eo.t0), 'the PSTH layer is spikePSTH''s PSTH of that unit over every unit''s epochs (the same epochs, bins and band)');
 F2 = rn.computeFigure(src, spec, Observation=Tu(2, :));
 Fs = rn.computeFigure(src, spec, Observation=struct('kind', "unit", 'unitId', Tu.unitId(2), 'channel', Tu.channel(2)));
 check(F2.observation.unitId == Tu.unitId(2) && F2.panels(2).layers(1).meta.unitId == Tu.unitId(2) ...
@@ -1304,18 +1317,18 @@ Lpm = Fp.panels(1).layers(1);
 if isempty(src.probe)
     check(Fp.panels(1).skip == "no probe map", 'probemap: no probe map in the fixture, the panel says so');
 else
-    cfg = cfg.addPlot(struct('kind', "probemap", 'value', "rate"), Id="pm_plot");
-    Rpm = rn.computePlot(src, cfg.plotFor("pm_plot"));
+    Tsum = unitSummary(src, Source="units", Units=U0, Ref=D.EventRef, Selection=D.Selection);
+    Rpm = probeMapValues(Tsum, src.probe, Value="rate");
     check(Lpm.skip == "" && Lpm.R.kind == "probemap" && isequaln(Lpm.R.value, Rpm.value) && isempty(Fp.epochs) && isempty(Fp.panels(1).groups), ...
-        'probemap: the units'' rates on the probe sites, as computePlot''s probe map; no epochs');
+        'probemap: the units'' rates on the probe sites, as unitSummary + probeMapValues give them; no epochs');
 end
 cfg = cfg.addFigure("corrmap", Id="cm");
 Fcm = rn.computeFigure(src, cfg.figureFor("cm"));
-cfg = cfg.addPlot(struct('kind', "corrmap"), Id="cm_plot");
-Rcm = rn.computePlot(src, cfg.plotFor("cm_plot"));
+Rcm = unitCorrelation(sto, Eo, Metric="mean", Type="pearson", FisherZ=false, BinSec=0.01, SmoothSec=0.01, Baseline=[], ...
+    BaselineMode="none", Groups=Go, Meta=mo);
 Lcm = Fcm.panels(1).layers(1);
 check(Lcm.skip == "" && Lcm.R.kind == "corrmap" && isequaln(Lcm.R.r, Rcm.r) && size(Lcm.R.r, 1) == height(Rcm.meta) && size(Lcm.R.r, 1) >= 2, ...
-    'corrmap: the units'' pairwise correlations, as computePlot''s correlation map');
+    'corrmap: the units'' pairwise correlations, as unitCorrelation gives them');
 cfg = cfg.addFigure("waveforms", Id="wf");
 sw = cfg.figureFor("wf");
 wsw = warning('off', 'unitWaveforms:Templates');
@@ -1388,13 +1401,13 @@ check(startsWith(capU, sprintf("rp: %d observations (sorted units", nU)) && cont
 m3 = min(3, nU);
 cfg = cfg.addFigure("rate", Id="rt");
 Frt = rn.computeFigure(src, cfg.figureFor("rt"), Observation=Tu(1, :));
-cfg = cfg.addPlot(struct('kind', "rate", 'units', struct('ids', Tu.unitId(1))), Id="rate_u1");
-Rrt = rn.computePlot(src, cfg.plotFor("rate_u1"));
+[st1, m1] = unitsOf(Tu.unitId(1));
+Rrt = firingRate(st1, Eo, Measure="rate", Baseline=[], Normalize="none", Groups=Go, Meta=m1, ErrorType="sem", ErrorResamples=1000);
 Lrt = Frt.panels(1).layers(1);
 check(Lrt.skip == "" && Lrt.R.kind == "rate" && size(Lrt.R.meanRate, 1) == 1 && Lrt.meta.unitId == Tu.unitId(1) ...
     && isequaln(Lrt.R.meanRate, Rrt.meanRate) && isequaln(Lrt.R.rate, Rrt.rate) && isequaln(Lrt.R.err.lo, Rrt.err.lo) ...
     && isequal(Lrt.R.groups.label, Rrt.groups.label) && ~Frt.panels(1).sharesTime && istable(Frt.epochs), ...
-    'a rate panel of the observed unit is computePlot''s rate plot of that unit (the same epochs, groups and error)');
+    'a rate panel of the observed unit is firingRate''s rates of that unit (the same epochs, groups and error)');
 fr3 = cfg.Figures(cfg.figureIndex("rt"));
 fr3.id = "rt3";
 fx3 = EphysAnalysisConfig.defaultLayer("rate");
@@ -1410,13 +1423,15 @@ check(Lr3.skip == "" && size(Lr3.R.meanRate, 1) == m3 && isequaln(Lr3.R.layerMea
 cfg = cfg.addFigure("tuning", Id="tc");
 stc = cfg.figureFor("tc");
 Ftc = rn.computeFigure(src, stc, Observation=Tu(1, :));
-cfg = cfg.addPlot(struct('kind', "tuning", 'param', "Depth", 'units', struct('ids', Tu.unitId(1))), Id="tuning_u1");
-Rtc = rn.computePlot(src, cfg.plotFor("tuning_u1"));
+Et = epochsOf([], "Depth");
+Ft = firingRate(st1, Et, Measure="rate", Baseline=[], Normalize="none", Groups=Go, Meta=m1);
+Rtc = tuningCurve(Ft.rate, Et.Depth, Series=[], Param="Depth", SeriesParam="", Meta=m1, Units=Ft.units, ErrorType="sem", ...
+    ErrorResamples=1000);
 Ltc = Ftc.panels(1).layers(1);
 check(Ltc.skip == "" && Ltc.R.kind == "tuning" && Ltc.R.param == "Depth" && stc.panels.options.param == "" ...
     && isequal(Ltc.R.x, Rtc.x) && isequaln(Ltc.R.mean, Rtc.mean) && isequaln(Ltc.R.err.lo, Rtc.err.lo) && isequal(Ltc.R.series, Rtc.series) ...
     && ismember("Depth", string(Ftc.epochs.Properties.VariableNames)), ...
-    'a tuning panel (param "" = the figure''s groupBy, Depth) is computePlot''s tuning curve of that unit');
+    'a tuning panel (param "" = the figure''s groupBy, Depth) is tuningCurve''s curve of that unit (firingRate over Depth)');
 ft2 = cfg.Figures(cfg.figureIndex("tc"));
 ft2.id = "tc2";
 ft2.panels(1).options.seriesParam = "TrialType";
@@ -1446,16 +1461,18 @@ fa4 = cfg.Figures(cfg.figureIndex("rp"));
 fa4.id = "auroc";
 fa4.common.baseline = struct('Mode', "auroc", 'Window', [-0.2 0]);
 cfg = cfg.addFigure(fa4);
-cfg = cfg.addPlot(struct('kind', "psth", 'baseline', struct('Mode', "auroc", 'Window', [-0.2 0]), 'units', struct('ids', Tu.unitId(1))), Id="psth_auroc");
 wa1 = warning('off', 'aurocCall:NoCutoff');
 wa2 = warning('off', 'aurocCall:WideCutoff');
 Fau = rn.computeFigure(src, cfg.figureFor("auroc"), Observation=Tu(1, :));
-Rau = rn.computePlot(src, cfg.plotFor("psth_auroc"));
+[Ea, Ga] = epochsOf([-0.2 0]);
+Rau = spikePSTH(st1, Ea, Window=[wD.pre wD.post], BinSec=0.01, SmoothSec=0.01, Measure="rate", Baseline=[-0.2 0], ...
+    BaselineMode="auroc", Raster=true, Groups=Ga, Meta=m1, Auroc=EphysAnalysisConfig.defaults("Auroc"), ErrorType="sem", ...
+    ErrorResamples=1000);
 warning(wa2); warning(wa1);
 Lau = Fau.panels(2).layers(1);
 check(Lau.skip == "" && isfield(Lau.R, 'auroc') && ~isempty(Lau.R.auroc) && Lau.R.units == "auROC" && isequaln(Lau.R.rate, Rau.rate) ...
     && isequaln(Lau.R.t, Rau.t) && isequal(Lau.R.auroc.direction, Rau.auroc.direction) && isequaln(Lau.R.auroc.mean, Rau.auroc.mean), ...
-    'an auROC PSTH (the common baseline Mode "auroc") is computePlot''s PSTH with the auROC baseline, its calls too');
+    'an auROC PSTH (the common baseline Mode "auroc") is spikePSTH''s PSTH with the auROC baseline, its calls too');
 fs4 = cfg.Figures(cfg.figureIndex("rp"));
 fs4.id = "stacked";
 fs4.panels(2).options.stack = true;
@@ -1658,18 +1675,18 @@ if nU >= 4 && haveBootT
     % bootstrap bands make the per-unit work, not the fixed steps, the bulk of the time
     cfgT = cfg;
     cfgT.Figures(cfgT.figureIndex("rp")).style.ErrorType = "ci95";
-    cfgT = cfgT.addPlot(struct('kind', "psth", 'style', struct('ErrorType', "ci95")), Id="psth_ci");
     specT = cfgT.figureFor("rp");
-    plotT = cfgT.plotFor("psth_ci");
+    allUnits = @() spikePSTH(sto, epochsOf([]), Window=[wD.pre wD.post], BinSec=0.01, SmoothSec=0.01, Measure="rate", ...
+        Raster=true, Groups=Go, Meta=mo, ErrorType="ci95", ErrorResamples=1000);
     rn.computeFigure(src, specT, Observation=Tu(1, :));   % warm both
-    rn.computePlot(src, plotT);
+    allUnits();
     tF = Inf; tP = Inf;
     for rep = 1:3
         tc0 = tic; rn.computeFigure(src, specT, Observation=Tu(1, :)); tF = min(tF, toc(tc0));
-        tc0 = tic; rn.computePlot(src, plotT); tP = min(tP, toc(tc0));
+        tc0 = tic; allUnits(); tP = min(tP, toc(tc0));
     end
     check(tF <= 0.5 * tP, sprintf(['one observation of the raster + PSTH figure (%.3f s) takes at most half the time of ' ...
-        'computePlot''s PSTH of all %d units (%.3f s)'], tF, nU, tP));
+        'the PSTH of all %d units (%.3f s)'], tF, nU, tP));
 else
     fprintf('  (timing check skipped: %d unit(s), bootci %d)\n', nU, haveBootT);
 end
@@ -2091,7 +2108,26 @@ check(isscalar(findall(aa, 'Tag', 'chanceLine')) && isequal(ylim(aa), [0 1]) && 
     && (Lau.R.auroc.cutoff == "none" || (isscalar(findall(aa, 'Tag', 'modWindow')) && isscalar(findall(aa, 'Tag', 'modMarks')))) ...
     && string(aa.YLabel.String) == "auROC", ...
     'an auROC PSTH: on 0-1 from the chance line at 0.5, the modulation window shaded and the unit''s calls marked');
-fau2 = cfg.Figures(cfg.figureIndex("auroc"));
+if Lau.R.auroc.cutoff ~= "none"
+    mk = string(findall(aa, 'Tag', 'modMarks').String);
+    mk = strtrim(split(regexprep(mk, '\\color\[rgb\]\{[^}]*\}', ''), "  "));
+    dirs = Lau.R.auroc.direction(1, :);
+    want = repmat("-", 1, numel(dirs));
+    want(dirs == "increase") = "\uparrow";
+    want(dirs == "decrease") = "\downarrow";
+    want(dirs == "none") = "n.s.";
+    check(isequal(reshape(mk, 1, []), want), ...
+        'an auROC PSTH''s marks: per trial group the unit''s call, an up or down arrow or n.s., in the group''s color');
+end
+acA = figureAurocCalls(Fau);
+capA = figureCaption(cfg.figureFor("auroc"), Tu(1, :), Dataset="d1", Auroc={acA});
+capCalls = "units called over [0 0.5] s by the 95% CI cutoff";
+check(isstruct(acA) && acA.cutoff == Lau.R.auroc.cutoff && acA.nUnits == Lau.R.auroc.nUnits ...
+    && contains(capA, "auROC against the baseline [-0.2 0] s, from the PSTH's bins in 100 ms windows, tiled") ...
+    && (acA.cutoff == "none" || (contains(capA, capCalls) && contains(capA, sprintf("(of %d units)", acA.nUnits)))) ...
+    && ~contains(figureCaption(cfg.figureFor("rp"), Tu(1, :)), "auROC"), ...
+    'an auROC figure''s caption: how the auROC is made, and with the calls (figureAurocCalls) what the cutoff called');
+fau2 =cfg.Figures(cfg.figureIndex("auroc"));
 fau2.id = "aurocStack";
 fau2.panels(2).options.stack = true;
 cfgA = cfg.addFigure(fau2);

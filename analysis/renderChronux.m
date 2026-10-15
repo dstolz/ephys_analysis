@@ -50,7 +50,7 @@ function h = renderChronux(R, target, opts)
 %
 %   H: layout, axes, title, page, pages.
 %
-%   See also chronuxSpectrum, chronuxSpecgram, renderPlot, PlotAesthetics.
+%   See also chronuxSpectrum, chronuxSpecgram, renderFigure, PlotAesthetics.
 arguments
     R (1,1) struct
     target

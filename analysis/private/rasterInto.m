@@ -20,7 +20,7 @@ function rows = rasterInto(ax, R, u, style, colors, sortBy, look)
 %              (marker, size, color; rasterMarkLooks) for the events in
 %              R.rasterEvents (epochEvents), one line object per mark,
 %              tagged "rasterEvent" with its label (e.g. "Trough onset")
-%    into      [] (default) or a stack's rows (renderPSTH StackRaster): a
+%    into      [] (default) or a stack's rows: a
 %              struct with base (1 x nGroups: the bottom of each group's
 %              raster, in AX's y units) and height. Each group's epochs
 %              then fill a band of their own, from its base up, the first
@@ -185,23 +185,23 @@ end
 if sortBy == "event"
     if ~(isfield(R, 'rasterSortEvent') && isstruct(R.rasterSortEvent) && isscalar(R.rasterSortEvent) ...
             && all(isfield(R.rasterSortEvent, {'label', 't'})))
-        error('renderRaster:NoSortEvent', ['The raster sorts by an event''s latency, but the result holds no ' ...
+        error('rasterInto:NoSortEvent', ['The raster sorts by an event''s latency, but the result holds no ' ...
             'R.rasterSortEvent (label, t: eventLatency).']);
     end
     key = R.rasterSortEvent.t(:);
     if numel(key) ~= nE
-        error('renderRaster:NoSortEvent', 'R.rasterSortEvent.t holds %d latencies for %d epochs.', numel(key), nE);
+        error('rasterInto:NoSortEvent', 'R.rasterSortEvent.t holds %d latencies for %d epochs.', numel(key), nE);
     end
     name = "Epoch (by " + string(R.rasterSortEvent.label) + " latency)";
     return
 end
 if ~(isfield(R, 'epochs') && istable(R.epochs) && ismember(sortBy, string(R.epochs.Properties.VariableNames)))
-    error('renderRaster:NoSortColumn', ['The raster sorts by "%s", which is not a column of the epochs ' ...
+    error('rasterInto:NoSortColumn', ['The raster sorts by "%s", which is not a column of the epochs ' ...
         '(R.epochs: epochTable(..., Columns="%s")).'], sortBy, sortBy);
 end
 key = R.epochs.(sortBy);
 if size(key, 1) ~= nE || size(key, 2) ~= 1
-    error('renderRaster:NoSortColumn', 'The epochs'' column "%s" is not one value per epoch.', sortBy);
+    error('rasterInto:NoSortColumn', 'The epochs'' column "%s" is not one value per epoch.', sortBy);
 end
 name = "Epoch (by " + sortBy + ")";
 end

@@ -3,7 +3,7 @@ function P = computeProbeMapPanel(src, panel, E, G, ctx) %#ok<INUSL>
 %   P = computeProbeMapPanel(SRC, PANEL, E, G, CTX) (figurePanelRegistry's
 %   compute for "probemap"; not aligned, so E and G are unused) has
 %   P.layers, one per layer of PANEL (figurePanelLayers). Its first enabled
-%   layer (units / detected) gets, as computePlot's probe map,
+%   layer (units / detected) gets, as probeMapValues' probe map,
 %     T = unitSummary(src, Source=, Units=, Ref=, Selection=)
 %     R = probeMapValues(T, src.probe, Value=options.value)
 %   plus R.dataset; the layer's meta is T. The observed unit (a unit

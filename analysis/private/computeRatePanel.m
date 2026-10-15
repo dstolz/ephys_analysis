@@ -5,7 +5,7 @@ function P = computeRatePanel(src, panel, E, G, ctx)
 %   P.layers, one per layer of PANEL (figurePanelLayers). Each enabled
 %   units / detected layer, resolved for the observation by
 %   figureLayerItems (the observed unit, or the fixed units it names), is,
-%   as computePlot's rate plot,
+%   as firingRate's rates,
 %     [st, meta] = selectUnits(src, units, Ref=CTX.ref, Selection=CTX.selection)
 %     R = firingRate(st, E, Measure=options.measure, Baseline=<the
 %         baseline window, Mode not "none">, Normalize=options.baseline.Mode,

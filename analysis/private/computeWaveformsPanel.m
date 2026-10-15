@@ -4,7 +4,7 @@ function P = computeWaveformsPanel(src, panel, E, G, ctx) %#ok<INUSL>
 %   compute for "waveforms"; not aligned, so E and G are unused) has
 %   P.layers, one per layer of PANEL (figurePanelLayers). Its first enabled
 %   layer (units / detected; the observed unit when it follows the
-%   observation) gets, as computePlot's waveforms plot,
+%   observation) gets, as unitWaveforms' waveforms,
 %     R = struct(kind "waveforms", meta, labels, n, groups (one "all"
 %         row), probe, dataset)
 %     R.waveforms = unitWaveforms(src, meta, Source=, MaxSpikes=

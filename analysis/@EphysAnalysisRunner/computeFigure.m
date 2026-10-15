@@ -5,12 +5,12 @@ function F = computeFigure(obj, src, spec, opts)
 %   figureObservations(SRC, SPEC) (default: the first row) is
 %   figureCompute(SRC, SPEC, Observation=OBS, Check=CHK), which says what F
 %   holds and how each panel is computed. While PollFcn is set (the app's
-%   preview) CHK is the runner's checkpoint, so the compute can be stopped
-%   as computePlot's can: after cancel() the next checkpoint throws
+%   preview) CHK is the runner's checkpoint, so the compute can be stopped:
+%   after cancel() the next checkpoint throws
 %   EphysAnalysisRunner:Canceled. While it is empty (a run) there are no
 %   checkpoints.
 %
-%   See also figureCompute, EphysAnalysisRunner.computePlot, figureObservations,
+%   See also figureCompute, figureObservations,
 %   figureSkipReason, renderFigure.
 
 arguments

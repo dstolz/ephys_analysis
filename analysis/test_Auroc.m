@@ -12,9 +12,9 @@ classdef test_Auroc < matlab.unittest.TestCase
     %   flat units, reproducible by seed; the call pooled over units
     %   measured apart (Call=false, then one aurocCall over them stacked
     %   gives the cutoff, the test's correction and the calls of one
-    %   aurocCurves over them all); spikePSTH's auROC result, its
-    %   modulatedOnly and its caption; renderPSTH and renderHeatmap tag
-    %   what they add. Needs the Statistics and Machine Learning Toolbox
+    %   aurocCurves over them all); spikePSTH's auROC result and its
+    %   modulatedOnly; renderHeatmap tags what it adds (a figure's auROC
+    %   PSTH panel is checked with the figures). Needs the Statistics and Machine Learning Toolbox
     %   (skipped without it, but for the NoToolbox error).
     %
     %   Usage:  runtests("test_Auroc")
@@ -250,28 +250,16 @@ classdef test_Auroc < matlab.unittest.TestCase
             tc.verifyEqual(M.auroc.nUnits, 6, 'the counts stay those of every unit tested');
             tc.verifyError(@() spikePSTH(st([3 6]), E, Window=[-0.5 1], Baseline=[-0.5 0], BaselineMode="auroc", Auroc=a), ...
                 'spikePSTH:NoneModulated', 'two flat units: none modulated');
-            txt = plotCaption(struct('kind', "psth", 'baseline', struct('Mode', "auroc")), R);
-            tc.verifyTrue(contains(txt, "auROC against the baseline [-0.5 0] s, from the PSTH's bins in 100 ms windows, tiled") ...
-                && contains(txt, "by a fixed cutoff (+/-0.2): group 1 2 up, 2 down; group 2 2 up, 2 down (of 6 units)") ...
-                && ~contains(txt, "smooth"), "the caption says how and counts the calls: " + txt);
         end
 
-        function renderersTagWhatTheyAdd(tc)
+        function heatmapTagsWhatItAdds(tc)
+            % (a figure's auROC PSTH panel: test_EphysAnalysisFigures and test_PlotAesthetics)
             tc.assumeTrue(hasStats(), "needs the Statistics and Machine Learning Toolbox");
             [st, E] = fixture(Units=6);
             a = struct('modulationWindow', [0 0.3], 'cutoff', "fixed", 'threshold', 0.2);
             R = spikePSTH(st, E, Window=[-0.5 1], BinSec=0.01, Baseline=[-0.5 0], BaselineMode="auroc", Auroc=a);
             f = figure('Visible', 'off');
             closer = onCleanup(@() close(f));
-            h = renderPSTH(R, f);
-            tc.verifyEqual(ylim(h.axes(1)), [0 1], 'a 0-1 axis');
-            for role = ["chanceLine" "modWindow" "modMarks"]
-                tc.verifyNotEmpty(findall(f, 'Tag', role), "the PSTH draws its " + role);
-            end
-            marks = findall(f, 'Tag', 'modMarks');
-            tc.verifyTrue(any(contains(string(get(marks, 'String')), "\uparrow")) ...
-                && any(contains(string(get(marks, 'String')), "\downarrow")) && any(contains(string(get(marks, 'String')), "n.s.")));
-            clf(f);
             h = renderHeatmap(R, f, Order="modulation");
             tc.verifyEqual(clim(h.axes(1)), [0 1], 'auROC colors on [0 1]');
             tc.verifyEqual(numel(findall(f, 'Tag', 'modMarks')), 8, 'a triangle by each modulated row of both tiles');

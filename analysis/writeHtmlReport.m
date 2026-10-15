@@ -7,15 +7,15 @@ function file = writeHtmlReport(report, file)
 %   (IncludeSummary: every table of the summary struct, under its label --
 %   recording "Recording" (field / value rows, always shown), lines
 %   "Digital lines", trials, units, topRates "Highest rates", sessions
-%   "Sessions", any other by its name -- when it has rows) and every plot
+%   "Sessions", any other by its name -- when it has rows) and every figure
 %   -- its pages embedded as PNG
 %   (data:image/png;base64) or inline SVG, its caption, the parameters it
 %   was drawn with (IncludeParameters, folded) and links to its exported
 %   files -- and the config JSON at the end (IncludeConfig, folded). No
 %   file beside it is needed; opening it needs only a browser.
 %
-%   The images are those each plot was added with (addReportFigure: made
-%   from its exported figures, or drawn then at the report's Dpi in its
+%   The images are those each figure was added with (addReportFigure: made
+%   from its pages as they were drawn, at the report's Dpi in its
 %   EmbedFormat); nothing is drawn here. Every link to an exported file is
 %   relative to FILE's folder (a file:// URL on another drive) and
 %   percent-encoded.
@@ -39,7 +39,7 @@ isSection = arrayfun(@(d) isfield(d, 'kind') && d.kind == "section", report.data
 counts = numel(report.datasets) - nnz(isSection) + " dataset(s), ";
 if any(isSection); counts = counts + nnz(isSection) + " section(s), "; end
 L(end+1) = "<p class=""meta"">Generated <span class=""created"">" + htmlEscape(report.created) + "</span> &middot; " ...
-    + counts + nPlots + " plot(s)</p>";
+    + counts + nPlots + " figure(s)</p>";
 if isfield(report, 'provenance') && isstruct(report.provenance)
     p = report.provenance;
     L(end+1) = "<p class=""meta provenance"">ephys_analysis " + htmlEscape(p.code) + " &middot; MATLAB " ...

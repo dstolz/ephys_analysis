@@ -5,7 +5,7 @@ function reason = missingStepLine(src, ref)
 %   (in SRC.events or the trials' TrialEvents; "Trial" or the trial line:
 %   paired trials or the trial line's events).
 %
-%   See also hasLine, plotSkipReason, figureSkipReason.
+%   See also hasLine, figureSkipReason.
 reason = "";
 for k = 1:numel(ref.sequence)
     ln = ref.sequence(k).line;

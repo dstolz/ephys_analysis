@@ -1,5 +1,5 @@
 function O = drawOverlays(h, overlays)
-%drawOverlays  A plot's overlay graphics: lines and patches in data units (renderPlot).
+%drawOverlays  A panel's overlay graphics: lines and patches in data units (renderFigure).
 %   O = drawOverlays(H, OVERLAYS) draws the enabled entries of OVERLAYS (a
 %   plot's overlays, a struct array of defaults("Overlay")) on the axes a
 %   renderer drew: H.axes (a PSTH's rate panels, a trace, a heat map, ...),
@@ -35,7 +35,7 @@ function O = drawOverlays(h, overlays)
 %   saved from a plot (PlotDesign.capture) leaves the overlays out.
 %
 %   O.handles are the objects drawn; O.rules the overlays' own looks as
-%   aesthetics rules (renderPlot applies them after the design's and the
+%   aesthetics rules (renderFigure applies them after the design's and the
 %   user's, so they win over a design). A color that is not one, an
 %   opacity outside 0-1, a line style or width that is not valid are
 %   replaced by the default's in the drawing (validate reports them); an
@@ -43,7 +43,7 @@ function O = drawOverlays(h, overlays)
 %   is not drawn. Overlays that are disabled draw nothing. A partial overlay
 %   struct is completed from the defaults.
 %
-%   See also renderPlot, drawNote, EphysAnalysisConfig.defaults, PlotAesthetics.
+%   See also renderFigure, drawNote, EphysAnalysisConfig.defaults, PlotAesthetics.
 
 O = struct('handles', gobjects(1, 0), 'rules', PlotAesthetics.emptyRules());
 if isempty(overlays); return; end

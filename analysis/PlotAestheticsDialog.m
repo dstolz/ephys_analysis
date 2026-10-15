@@ -1,7 +1,7 @@
 classdef PlotAestheticsDialog < handle
     %PlotAestheticsDialog  Edit the colors, lines, markers and fonts of a drawn plot.
     %   D = PlotAestheticsDialog(CONTEXT, H) opens a modal window on the plot
-    %   CONTEXT describes, with component H selected. renderPlot keeps a
+    %   CONTEXT describes, with component H selected. renderFigure keeps a
     %   context on the plot's target (PlotAesthetics.enableEditing), so in
     %   practice: right-click any component of a plot and pick "Edit
     %   aesthetics..." (PlotAesthetics.edit(H) does the same).
@@ -32,11 +32,11 @@ classdef PlotAestheticsDialog < handle
     %     T = d.remembered(); d.forget(ROWS)
     %     d.reset(); d.cancel(); d.ok()
     %
-    %   See also PlotAesthetics, renderPlot, EphysAnalysisApp.
+    %   See also PlotAesthetics, renderFigure, EphysAnalysisApp.
 
     properties (SetAccess = private)
         Fig                                 % the dialog's uifigure
-        Context struct                      % from renderPlot (PlotAesthetics.enableEditing)
+        Context struct                      % from renderFigure (PlotAesthetics.enableEditing)
         Components table                    % PlotAesthetics.components of the plot
         Selected (1,1) double = 1           % the row being edited
         ApplyTo (1,1) string = "one"        % "one" | "same" | "role" | "ticked"
@@ -181,8 +181,8 @@ classdef PlotAestheticsDialog < handle
 
         function T = remembered(obj)
             %remembered  The rules remembered now: this plot's, then the user's for its kind.
-            T = rulesTable(obj.PlotRules, "This plot");
-            T = [T; rulesTable(obj.UserRules, "My " + obj.kindLabel() + " plots")];
+            T = rulesTable(obj.PlotRules, "This " + obj.noun());
+            T = [T; rulesTable(obj.UserRules, obj.userWords())];
         end
 
         function forget(obj, rows)
@@ -389,6 +389,7 @@ classdef PlotAestheticsDialog < handle
         function build(obj, visible)
             ctx = obj.Context;
             name = "Plot aesthetics";
+            if obj.noun() == "figure"; name = "Figure aesthetics"; end
             if isfield(ctx, 'title') && ctx.title ~= ""; name = name + ": " + ctx.title; end
             sz = [880 580];
             pos = [100 100 sz];
@@ -658,9 +659,10 @@ classdef PlotAestheticsDialog < handle
 
         function showRemember(obj)
             items = "Every " + obj.kindLabel() + " plot (my preferences)";
+            if obj.noun() == "figure"; items = "Every figure (my preferences)"; end
             data = "user";
             if ~isempty(obj.Context.onRemember)
-                items = ["This plot (saved in the config)" items];
+                items = ["This " + obj.noun() + " (saved in the config)" items];
                 data = ["plot" data];
             elseif obj.Scope == "plot"
                 obj.Scope = "user";
@@ -709,11 +711,28 @@ classdef PlotAestheticsDialog < handle
             end
         end
 
+        function s = noun(obj)
+            %noun  What the context draws: "figure" (renderFigure) or "plot" (renderChronux's kinds).
+            s = "plot";
+            if string(obj.Context.kind) == "figure"; s = "figure"; end
+        end
+
+        function s = userWords(obj)
+            %userWords  Where the user's rules are kept, in words: "My figures", or "My <kind> plots".
+            s = "My " + obj.kindLabel() + " plots";
+            if obj.noun() == "figure"; s = "My figures"; end
+        end
+
         function s = kindLabel(obj)
-            K = EphysAnalysisConfig.plotKinds();
+            %kindLabel  The context's kind in words: a panel type's label, "Figure", or the kind itself.
+            T = EphysAnalysisConfig.panelTypes();
             s = string(obj.Context.kind);
-            j = find(K.Kind == s, 1);
-            if ~isempty(j); s = K.Label(j); end
+            j = find(T.Type == s, 1);
+            if ~isempty(j)
+                s = T.Label(j);
+            elseif s == "figure"
+                s = "Figure";
+            end
         end
 
         function loadChoices(obj)

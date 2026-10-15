@@ -8,7 +8,7 @@ function s = eventRefLabel(ref)
 %   which: "Stim onset then Trough onset within 1 s (aligned to Stim
 %   onset)". Captions, titles, raster-mark legends and the app use it.
 %
-%   See also eventRef, plotCaption, renderPlot.
+%   See also eventRef, figureCaption, renderFigure.
 
 ref = EphysAnalysisConfig.normalizeSection("EventRef", ref);
 s = ref.line + " " + ref.edge;

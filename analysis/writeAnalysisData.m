@@ -1,11 +1,11 @@
 function file = writeAnalysisData(file, S, opts)
-%writeAnalysisData  Save a session plot's data struct (sessionData) as a .mat file.
+%writeAnalysisData  Save a data struct (a session figure's: EphysAnalysisRunner.runSessionFigure) as a .mat file.
 %   FILE = writeAnalysisData(FILE, S, MatVersion="-v7.3", Overwrite=false)
 %   writes the fields of S as the variables of the MAT-file FILE (".mat" is
 %   added when FILE has no extension), so load(FILE) gives S's fields back
-%   and S = load(FILE) the struct: for a sessionData struct the variables
-%   schema, sessionPlot, spec, sessions, results, perSession, epochs,
-%   config, created and provenance. EphysDataset.saveAtomically writes it:
+%   and S = load(FILE) the struct: for a session figure's data the
+%   variables schema, figure, spec, sessions, observations, results,
+%   perSession, config and created. EphysDataset.saveAtomically writes it:
 %   to "~<name>.partial.mat" next to FILE, checked (no save warning, every
 %   field present) and then renamed, so a failed or canceled save never
 %   leaves a complete-looking file. The folder is made when it is not
@@ -17,8 +17,7 @@ function file = writeAnalysisData(file, S, opts)
 %     Overwrite   false (default): writeAnalysisData:Exists when FILE is
 %                 there; true: replace it
 %
-%   See also sessionData, epochLongTable, EphysDataset.saveAtomically,
-%   EphysAnalysisRunner.sessionData.
+%   See also EphysAnalysisRunner.runSessionFigure, EphysDataset.saveAtomically.
 arguments
     file (1,1) string
     S (1,1) struct

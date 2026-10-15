@@ -20,10 +20,10 @@ function step = drawStack(ax, P, R, colors, style, look, show)
 %   tall as the tallest PSTH, just above the highest reach of any row's
 %   PSTH and band; the step is then Spacing x that row's height. AX is
 %   left on its left y axis. Roles: stackBase, sem, rate / rateFill,
-%   stopLine, zeroLine. Shared by renderPSTH (Stack) and a figure's PSTH
-%   panel (drawPsthPanel, options.stack).
+%   stopLine, zeroLine. Drawn by a figure's PSTH panel (drawPsthPanel,
+%   options.stack).
 %
-%   See also renderPSTH, drawPsthPanel, rowLabels, histTrace.
+%   See also drawPsthPanel, rowLabels, histTrace.
 nG = size(P.m, 2);
 tallest = max(P.m, [], 'all');
 if ~(tallest > 0); tallest = max(abs(P.m), [], 'all'); end

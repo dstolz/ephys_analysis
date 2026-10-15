@@ -3,7 +3,7 @@ function P = computeCorrMapPanel(src, panel, E, G, ctx)
 %   P = computeCorrMapPanel(SRC, PANEL, E, G, CTX) (figurePanelRegistry's
 %   compute for "corrmap") has P.layers, one per layer of PANEL
 %   (figurePanelLayers). Its first enabled layer (units / detected) gets,
-%   as computePlot's correlation map,
+%   as unitCorrelation's correlation map,
 %     [st, meta] = selectUnits(src, units, Ref=, Selection=)
 %     R = unitCorrelation(st, E, Metric=options.metric, Type=
 %         options.correlation, FisherZ=, BinSec=, SmoothSec=, Baseline=,

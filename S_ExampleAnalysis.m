@@ -12,14 +12,14 @@
 %     3  the pipeline: plan and run (behavior, signals, spikes, export)
 %     4  the outputs: what was written, and loading it back
 %     5  sorted units: quality metrics and good-unit criteria
-%     6  quick-look analysis: epochs, a PSTH, response statistics
+%     6  quick-look analysis: epochs, a PSTH, figures, response statistics
 %     7  a population summary over every unit
 %   The response tests (6, 7) need the Statistics and Machine Learning
 %   Toolbox; without it, the rest still runs.
 %
 %   See also makeSyntheticProject, EphysProject, EphysDataset, EphysPipeline,
-%   DatasetOutputs, unitQualityPass, epochTable, spikePSTH, responseStats,
-%   populationAnalysis.
+%   DatasetOutputs, unitQualityPass, epochTable, spikePSTH, figureCompute,
+%   renderFigure, responseStats, populationAnalysis.
 
 %% 1. A synthetic project
 here = fileparts(mfilename('fullpath'));
@@ -78,13 +78,31 @@ T.qualityPass = pass;
 T.qualityFails = why;
 disp(T(:, {'label', 'class', 'nSpikes', 'firingRate', 'isiViolationsRatio', 'presenceRatio', 'snr', 'qualityPass'}));
 
-%% 6. Quick-look analysis: epochs around each stimulus, a PSTH, response tests
+%% 6. Quick-look analysis: epochs around each stimulus, a PSTH, figures, response tests
 src = loadAnalysisSource(out);            % events, trials and probe, without loading signals
 E = epochTable(src, eventRef(line="Stim"), Window=epochWindow(pre=-0.2, post=0.5));
 [st, meta] = selectUnits(src, struct('classes', ["su" "mua"]));
-Rp = spikePSTH(st, E, Window=[-0.2 0.5], BinSec=0.01, SmoothSec=0.01, Meta=meta);
-fig = figure('Name', 'PSTH, mean over units');
-renderPSTH(Rp, fig, Layout="overlay");
+Rp = spikePSTH(st, E, Window=[-0.2 0.5], BinSec=0.01, SmoothSec=0.01, Meta=meta);   % the numbers: Rp.rate [bins x units x groups]
+
+% A figure says what to draw for one observation (a unit, a channel or the
+% dataset); figureCompute computes it and renderFigure draws it.
+fcfg = EphysAnalysisConfig();
+fcfg.Defaults.EventRef.line = "Stim";
+fcfg.Defaults.Window = struct('mode', "fixed", 'pre', -0.2, 'post', 0.5, 'stop', []);
+fcfg = fcfg.addFigure("rasterPsth", Id="unit_card");   % a unit's raster over its PSTH
+spec = fcfg.figureFor("unit_card");
+obs = figureObservations(src, spec);      % one row per unit the figure is drawn for
+F = figureCompute(src, spec, Observation=obs(1, :));
+fig = figure('Name', 'Raster and PSTH of one unit');
+renderFigure(F, spec, fig);
+
+meanFig = struct('panels', {{struct('type', "psth", 'layers', struct('source', "units", 'binding', "fixed", ...
+    'units', struct('classes', ["su" "mua"]), 'aggregate', "mean"))}});
+fcfg = fcfg.addFigure(meanFig, Id="mean_psth");   % one PSTH: the mean over the units, drawn for the dataset
+specMean = fcfg.figureFor("mean_psth");
+Fmean = figureCompute(src, specMean);
+figMean = figure('Name', 'PSTH, mean over units');
+renderFigure(Fmean, specMean, figMean);
 
 hasStats = license('test', 'Statistics_Toolbox') && exist('signrank', 'file') > 0;
 Er = responseEpochs(src, eventRef(line="Stim"), [], Baseline=[-0.2 0], Window=[0 0.2], Param="Depth");

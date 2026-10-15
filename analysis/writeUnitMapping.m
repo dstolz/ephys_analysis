@@ -15,7 +15,7 @@ function file = writeUnitMapping(file, T, opts)
 %   Errors: writeUnitMapping:NoCell (T has no variable "cell"),
 %   writeUnitMapping:Exists, writeUnitMapping:CannotWrite.
 %
-%   See also readUnitMapping, combineSessions, sessionResults.
+%   See also readUnitMapping, combineSessions, figureSessionObservations.
 arguments
     file (1,1) string
     T table

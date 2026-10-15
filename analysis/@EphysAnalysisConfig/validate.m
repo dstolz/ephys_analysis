@@ -10,78 +10,19 @@ function issues = validate(obj, opts)
 %     Defaults  the event reference, window and selection are valid (a
 %               filter that does not parse is a warning: it is checked
 %               against each dataset's trials when it runs)
-%     Plots     at least one plot, figure or session plot enabled; ids stay distinct as file names
-%               ({Plot} replaces characters outside A-Z a-z 0-9 _ - . by
-%               "_", and Windows ignores case); kind is one of Kinds; source fits the
-%               kind (units / detected for spike kinds, LFP / MUA / SPIKE /
-%               AUX for signal kinds); layout fits the kind; "between"
-%               windows only for rate / tuning / corrmap, and with a stop
-%               event; tuning names its parameter; groupBy <= 2; BinSec > 0;
-%               pre <= post; baseline mode fits the kind and its window is
-%               [b0 b1] with b0 < b1; psth histStyle, normalize,
-%               fillAlpha (0-1 or NaN), stackSpacing (> 0) and
-%               stackRasterTrials (a whole number >= 1, or Inf); probemap value;
-%               heatmap order ("modulation" with an auROC baseline);
-%               corrmap metric and correlation; a psth / raster's raster
-%               sort direction, its sort event (rasterSort "event": one
-%               given, as an event reference) and event marks (edge,
-%               scope, marker, size, each mark sequence as an event
-%               reference; a color that is not one is a warning); a
-%               behavior plot's
-%               param and yParam ("stop" needs a stop event), xScale, and
-%               violinplot for the violin layout; a baseline Mode "auroc"
-%               (psth and heatmap of spikes) and its auroc settings
-%               (method, windows, whole-bin window and step, modulation
-%               window, cutoff, threshold, test, nResamples, correction,
-%               alpha, modulatedOnly with a cutoff, the toolbox); an
-%               enabled units.response test (test, param, windows,
-%               direction, correction, alpha, test "auroc"'s settings, and
-%               the Statistics and Machine Learning Toolbox it needs);
-%               a waveform mode other than off: its location, scale (0-3)
-%               and maxSpikes, and a warning when the plot draws no unit
-%               tiles (a raster, a PSTH or tuning grid of spikes, a
-%               waveforms plot); its amplitude scale; a waveforms plot's
-%               mode is never off; an aux mode other than off: its
-%               placement (a warning for "over" on a stacked PSTH or for
-%               a heat map, drawn below), display, statistic, transform,
-%               colorBy and errorType (the bootstrap and the quartiles
-%               need the Statistics and Machine Learning Toolbox; a
-%               warning for a band in a heat map, or SEM / SD around a
-%               median), y limits ([] or ascending), overPosition (0 <=
-%               bottom < top <= 1), channels (whole numbers >= 1), baseline and a
-%               baseline window [b0 b1] that overlaps the epoch window,
-%               and a warning when the plot is not a PSTH or raster of
-%               spikes; a note's placement, alignment, rotation,
-%               font size and interpreter (a color that is not one is a
-%               warning); each overlay's shape, axis, finite position (line)
-%               or edges (region, which must differ), panel, layer, line
-%               style and width, opacities (0-1), and colors (one that is
-%               not a color is a warning), a warning for a panel the plot
-%               does not draw and for two overlays with one name; style
-%               values (the error: ErrorType sem / std / ci95, ci95 with
-%               the Statistics and Machine Learning Toolbox where the plot
-%               draws it, whole ErrorResamples >= 1, the bands' opacity
-%               (0-1 or NaN), edge style and width; a face or edge color
-%               that is not one is a warning)
-%     SessionPlots  ids distinct as file names and file-name safe; the base
-%               plot exists, is of a SessionKinds kind and has no auROC
-%               baseline; the layout fits its kind; datasets, facet,
-%               series, colorOrder, error, match, trialGroups and data are
-%               known values; minSessions a whole number >= 1; match
-%               "mapping" needs a mapping file that exists (CheckPaths),
-%               reads and has a cell column (a listed dataset key without a
-%               column is a warning). Warnings: "list" without keys; match
-%               not "pool" for a signal, heatmap, waveforms or behavior
-%               base (ignored); a tuning / behavior base's seriesParam
-%               pooled by trialGroups "pool"; showMembers with series
-%               "session"; "combine" on a PSTH drawn as bars (drawn as
-%               lines); a heatmap base with series other than "all"
-%     Figures   (Field "<figure>.<field>", "<figure>.<panel>.<field>" or
+%     Figures   at least one figure or session figure enabled ("No figure
+%               is enabled.", Field "enabled"); (Field "<figure>.<field>",
+%               "<figure>.<panel>.<field>" or
 %               "<figure>.<panel>.layers(<j>).<field>") ids distinct as file
-%               names (from each other and from the plots' ids: both fill
-%               {Plot}) and file-name safe; the figure's ref, window and
+%               names ({Plot} replaces characters outside A-Z a-z 0-9 _ - .
+%               by "_", and Windows ignores case) and file-name safe; the
+%               figure's ref, window and
 %               selection (groupBy <= 2); observe: kind, source, signal,
-%               channels, maxUnits, no layer following a "dataset" observation, a
+%               channels, maxUnits, on a figure observing units an enabled units.response test (test,
+%               param, windows, direction, correction, alpha, test
+%               "auroc"'s settings, and the Statistics and Machine Learning
+%               Toolbox it needs; each spike layer's units.response alike),
+%               no layer following a "dataset" observation, a
 %               warning when an explicit unit / channel observation has no
 %               following layer, a warning for perGroup while the figure's
 %               selection groups by nothing; grid: whole rows and cols >= 1,
@@ -109,7 +50,10 @@ function issues = validate(obj, opts)
 %               layout, whose further layers ring their units); the
 %               type's options (bins, measure, baseline modes and window
 %               -- "auroc" only on a PSTH or a heat map of spikes, its
-%               auroc settings as a plot's; a signal's baseline, in a
+%               auroc settings (method, windows, whole-bin window and step,
+%               modulation window, cutoff, threshold, test, nResamples,
+%               correction, alpha, modulatedOnly with a cutoff, the
+%               toolbox); a signal's baseline, in a
 %               continuous panel or a heat map of a signal, overlapping
 %               the panel's window --, histStyle, normalize, fillAlpha,
 %               the PSTH's stackSpacing, the raster sort, continuous
@@ -138,16 +82,26 @@ function issues = validate(obj, opts)
 %               bins, measure, baseline Mode and window, auroc, the
 %               waveform settings --, plus an error at
 %               "<figure>.<panel>.common" when its type does not take the
-%               common baseline Mode); each panel's text note and
-%               overlays as a plot's ("<figure>.<panel>.note.<field>",
-%               "<figure>.<panel>.overlays(<k>).<field>"; its overlays are
-%               drawn on its own axes, so no panel warning; two overlays
-%               of one name anywhere in the figure warn); the style, as a plot's; sessions
+%               common baseline Mode); each panel's text note
+%               ("<figure>.<panel>.note.<field>": placement, alignment,
+%               rotation, font size and interpreter; a color that is not
+%               one is a warning) and overlays
+%               ("<figure>.<panel>.overlays(<k>).<field>": shape, axis,
+%               finite position (line) or edges (region, which must
+%               differ), layer, line style and width, opacities (0-1),
+%               colors (one that is not a color is a warning); two
+%               overlays of one name anywhere in the figure warn); the
+%               style (the error: ErrorType sem / std / ci95, ci95 with
+%               the Statistics and Machine Learning Toolbox where a PSTH,
+%               rate or tuning panel draws it, whole ErrorResamples >= 1,
+%               the bands' opacity (0-1 or NaN), edge style and width; a
+%               face or edge color that is not one is a warning); sessions
 %               (a session figure, "<figure>.sessions.<field>"): datasets,
 %               facet, series, colorOrder, error, match (site / mapping)
 %               and trialGroups known values, minSessions a whole number
-%               >= 1, match "mapping" a mapping file as a session plot's
-%               and a unit observation (a channel observation matches by
+%               >= 1, match "mapping" a mapping file that exists
+%               (CheckPaths), reads and has a cell column (a listed dataset
+%               key without a column is a warning) and a unit observation (a channel observation matches by
 %               recording channel, a dataset one needs no match); with
 %               sessions.enabled no probe map, unit
 %               correlation or spectral panel and no auROC baseline
@@ -158,10 +112,9 @@ function issues = validate(obj, opts)
 %               lines); a heat map of trials (not merged: skipped)
 %     Export   formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
 %               folder and file-name patterns use known tokens; a warning
-%               when the files of two enabled plots or figures, or of two
-%               datasets, would get the same names (no {Plot} -- or {Kind}
-%               for plots of different kinds, a figure's being "figure" --
-%               no {Name} / {OutputFolder});
+%               when the files of two enabled figures, or of two datasets,
+%               would get the same names (no {Plot}: every figure's {Kind}
+%               is "figure"; no {Name} / {OutputFolder});
 %               SessionsFolder and Data.Folder (folder patterns; a warning
 %               for {OutputFolder}), Data.FilenamePattern (a file pattern)
 %               and Data.MatVersion (-v7.3 or -v7)
@@ -224,385 +177,12 @@ checkRef(D.EventRef, "Defaults", "EventRef");
 checkWindow(D.Window, "Defaults", "Window");
 checkSelection(D.Selection, "Defaults", "Selection");
 
-% --- Plots -----------------------------------------------------------------------------
-K = EphysAnalysisConfig.plotKinds();
-if (isempty(obj.Plots) || ~any([obj.Plots.enabled])) && isempty(obj.enabledFigures()) && isempty(obj.enabledSessionPlots()) ...
-        && isempty(obj.enabledSessionFigures())
-    add("Plots", "enabled", "error", "No plot, figure or session plot is enabled.");
-end
-ids = obj.plotIds();
-key = lower(regexprep(ids, '[^\w\-\.]', '_'));   % the id as {Plot} writes it (figureFileName), case-blind (Windows)
-for u = unique(key)
-    same = ids(key == u);
-    if numel(same) > 1
-        add("Plots", same(end) + ".id", "error", "Plot ids " + strjoin("""" + same + """", " and ") + ...
-            " name the same files: {Plot} replaces characters outside A-Z a-z 0-9 _ - . by ""_"", and Windows ignores case.");
-    end
-end
-for k = 1:numel(obj.Plots)
-    p = obj.Plots(k);
-    f0 = p.id;
-    if ~ismember(p.kind, EphysAnalysisConfig.Kinds)
-        add("Plots", f0 + ".kind", "error", "Unknown kind """ + p.kind + """ (kinds: " + strjoin(EphysAnalysisConfig.Kinds, ", ") + ").");
-        continue
-    end
-    row = K(K.Kind == p.kind, :);
-    if ~ismember(p.source, row.Sources{1})
-        add("Plots", f0 + ".source", "error", sprintf("A %s plot reads %s, not ""%s"".", p.kind, strjoin(row.Sources{1}, " / "), p.source));
-    end
-    if p.layout ~= "" && ~ismember(p.layout, row.Layouts{1})
-        add("Plots", f0 + ".layout", "error", sprintf("A %s plot has layouts %s, not ""%s"".", p.kind, strjoin(row.Layouts{1}, " / "), p.layout));
-    end
-    if row.Aligned
-        if isstruct(p.ref); checkRef(p.ref, "Plots", f0 + ".ref"); end
-        if isstruct(p.window); checkWindow(p.window, "Plots", f0 + ".window"); end
-        if isstruct(p.selection); checkSelection(p.selection, "Plots", f0 + ".selection"); end
-        w = p.window;
-        if isequal(w, "default"); w = D.Window; end
-        if ~ismember(w.mode, row.WindowModes{1})
-            between = K.Kind(cellfun(@(m) ismember("between", m), K.WindowModes));
-            add("Plots", f0 + ".window", "error", sprintf("A %s plot needs a fixed window (""between"" windows are for %s plots).", ...
-                p.kind, strjoin(between, " / ")));
-        end
-    end
-    if ~ismember(p.measure, ["rate" "count" "probability"])
-        add("Plots", f0 + ".measure", "error", "The measure is rate, count or probability.");
-    end
-    if p.kind == "tuning" && strtrim(p.param) == ""
-        add("Plots", f0 + ".param", "error", "A tuning plot needs param: the trial parameter on its x axis.");
-    end
-    if p.kind == "behavior"
-        if strtrim(p.param) == ""
-            add("Plots", f0 + ".param", "error", "A behavior plot needs param: the trial parameter on its x axis.");
-        end
-        if strtrim(p.yParam) == ""
-            add("Plots", f0 + ".yParam", "error", "A behavior plot needs yParam: a trial parameter (e.g. RespLatency), or ""stop"" for the stop event's latency.");
-        elseif p.yParam == "stop"
-            w = p.window;
-            if isequal(w, "default"); w = D.Window; end
-            if isempty(w.stop)
-                add("Plots", f0 + ".yParam", "error", "yParam ""stop"" plots each epoch's stop-event latency: give the epoch window a stop event.");
-            end
-        end
-        if ~ismember(p.xScale, ["category" "linear"])
-            add("Plots", f0 + ".xScale", "error", "A behavior plot's xScale is category or linear.");
-        end
-        if p.layout == "violin" && ~exist('violinplot', 'file')
-            add("Plots", f0 + ".layout", "error", "The violin layout needs violinplot (MATLAB R2024b or later).");
-        end
-    end
-    if ismember(p.kind, ["psth" "raster"])
-        if ~ismember(p.rasterSortOrder, ["ascending" "descending"])
-            add("Plots", f0 + ".rasterSortOrder", "error", "The raster sort order is ascending or descending.");
-        end
-        if p.rasterSort == "event"
-            if isempty(p.rasterSortEvent)
-                add("Plots", f0 + ".rasterSortEvent", "error", "rasterSort ""event"" sorts the raster by an event's " + ...
-                    "latency from each epoch's event: give rasterSortEvent, e.g. Platform offset.");
-            else
-                checkRef(p.rasterSortEvent, "Plots", f0 + ".rasterSortEvent");
-            end
-        end
-        markers = PlotAesthetics.catalog().Marker.Choices;
-        for q = 1:numel(p.rasterEvents)
-            mk = p.rasterEvents(q);
-            fq = f0 + ".rasterEvents(" + q + ")";
-            checkRef(eventMarkRef(mk), "Plots", fq);
-            if ~ismember(mk.marker, markers)
-                add("Plots", fq + ".marker", "error", "A raster mark's marker is one of " + strjoin(markers, ", ") + ".");
-            end
-            if ~(mk.size > 0 && isfinite(mk.size))
-                add("Plots", fq + ".size", "error", "A raster mark's size must be positive (points).");
-            end
-            if mk.color ~= "" && ~isColor(mk.color)
-                add("Plots", fq + ".color", "warning", "No color """ + mk.color + """; the mark gets its automatic color.");
-            end
-        end
-    end
-    if ismember(p.kind, ["psth" "raster"]) || (p.kind == "heatmap" && ismember(p.source, EphysAnalysisConfig.SpikeSources)) ...
-            || (p.kind == "corrmap" && p.metric == "peak")
-        if ~(p.bins.BinSec > 0); add("Plots", f0 + ".bins.BinSec", "error", "BinSec must be positive."); end
-        if ~(p.bins.SmoothSec >= 0); add("Plots", f0 + ".bins.SmoothSec", "error", "SmoothSec must be >= 0."); end
-    end
-    switch p.kind
-        case {"psth" "raster" "heatmap"}
-            modes = ["none" "subtract" "zscore" "percent"];
-            if p.kind ~= "raster"; modes(end+1) = "auroc"; end
-            if ismember(p.source, EphysAnalysisConfig.SignalSources); modes = ["none" "subtract"]; end
-        case {"rate" "tuning"}
-            modes = ["none" "subtract" "ratio" "zscore"];
-        case {"evoked" "corrmap"}
-            modes = ["none" "subtract"];
-        otherwise
-            modes = "none";
-    end
-    bm = p.baseline;
-    if ~ismember(bm.Mode, modes)
-        add("Plots", f0 + ".baseline.Mode", "error", sprintf("A %s plot's baseline Mode is one of %s, not ""%s"".", p.kind, strjoin(modes, ", "), bm.Mode));
-    elseif bm.Mode ~= "none" && ~(numel(bm.Window) == 2 && bm.Window(2) > bm.Window(1))
-        add("Plots", f0 + ".baseline.Window", "error", "The baseline window must be [b0 b1] with b0 < b1.");
-    end
-    if bm.Mode == "auroc" && ismember(bm.Mode, modes)
-        checkAuroc(p.auroc, p.bins.BinSec, "Plots", f0 + ".auroc", true);
-    end
-    if p.kind == "psth"
-        if ~ismember(p.histStyle, ["bar" "line"])
-            add("Plots", f0 + ".histStyle", "error", "A PSTH is drawn as bar or line.");
-        end
-        if ~ismember(p.normalize, ["none" "unitPeak" "groupPeak" "allPeak"])
-            add("Plots", f0 + ".normalize", "error", "A PSTH's normalize is none, unitPeak, groupPeak or allPeak.");
-        end
-        if ~(isnan(p.fillAlpha) || (p.fillAlpha >= 0 && p.fillAlpha <= 1))
-            add("Plots", f0 + ".fillAlpha", "error", "fillAlpha is an opacity from 0 to 1 (NaN = automatic).");
-        end
-        if ~(p.stackSpacing > 0 && isfinite(p.stackSpacing))
-            add("Plots", f0 + ".stackSpacing", "error", "stackSpacing must be positive (1 = the tallest PSTH reaches the next row).");
-        end
-        if ~(p.stackRasterTrials >= 1 && (isinf(p.stackRasterTrials) || p.stackRasterTrials == round(p.stackRasterTrials)))
-            add("Plots", f0 + ".stackRasterTrials", "error", "stackRasterTrials is a whole number of epochs, 1 or more (Inf = all).");
-        end
-    end
-    if p.kind == "probemap" && ~ismember(p.value, ["rate" "nSpikes" "nUnits"])
-        add("Plots", f0 + ".value", "error", "A probe map shows rate, nSpikes or nUnits.");
-    end
-    if p.kind == "heatmap" && ~ismember(p.order, ["probe" "peak" "modulation"])
-        add("Plots", f0 + ".order", "error", "A heatmap orders its rows by probe (the style's sort options), peak or modulation.");
-    elseif p.kind == "heatmap" && p.order == "modulation" && bm.Mode ~= "auroc"
-        add("Plots", f0 + ".order", "error", "A heatmap's rows go in modulation order only with the auROC baseline (baseline Mode ""auroc"").");
-    end
-    if p.kind == "corrmap"
-        if ~ismember(p.metric, ["mean" "peak"])
-            add("Plots", f0 + ".metric", "error", "A unit correlation map correlates each epoch's mean or peak rate.");
-        end
-        if ~ismember(p.correlation, ["pearson" "spearman"])
-            add("Plots", f0 + ".correlation", "error", "A unit correlation map's correlation is pearson or spearman.");
-        end
-    end
-    if ~(p.units.maxUnits >= 1)
-        add("Plots", f0 + ".units.maxUnits", "error", "maxUnits must be >= 1 (Inf = all).");
-    end
-    rs = p.units.response;
-    if rs.enabled && ismember(p.source, EphysAnalysisConfig.SpikeSources)
-        r0 = f0 + ".units.response";
-        if ~ismember(rs.test, ["evoked" "tuning" "either" "both" "auroc"])
-            add("Plots", r0 + ".test", "error", "The response test is evoked, tuning, either, both or auroc.");
-        elseif rs.test == "auroc"
-            checkAuroc(rs.auroc, rs.auroc.binSec, "Plots", r0 + ".auroc", false);
-        elseif rs.test ~= "evoked" && rs.param == ""
-            add("Plots", r0 + ".param", "error", "The tuning test needs the trial parameter (param).");
-        end
-        for wf = ["baseline" "window"]
-            if ~(numel(rs.(wf)) == 2 && all(isfinite(rs.(wf))) && rs.(wf)(2) > rs.(wf)(1))
-                add("Plots", r0 + "." + wf, "error", "The response test's " + wf + " must be [from to] with from < to (s from the event).");
-            end
-        end
-        if ~ismember(rs.direction, ["any" "excited" "suppressed"])
-            add("Plots", r0 + ".direction", "error", "The response direction is any, excited or suppressed.");
-        end
-        if ~ismember(rs.correction, ["bh" "holm" "bonferroni" "none"])
-            add("Plots", r0 + ".correction", "error", "The correction is bh, holm, bonferroni or none.");
-        end
-        if ~(rs.alpha > 0 && rs.alpha <= 1)
-            add("Plots", r0 + ".alpha", "error", "alpha must be in (0, 1].");
-        end
-        if ~(license('test', 'Statistics_Toolbox') && exist('signrank', 'file'))
-            add("Plots", r0 + ".enabled", "error", "The response test needs the Statistics and Machine Learning Toolbox (signrank, kruskalwallis).");
-        end
-    end
-    wv = p.waveform;
-    w0 = f0 + ".waveform";
-    if ~ismember(wv.ampScale, ["unit" "common"])
-        add("Plots", w0 + ".ampScale", "error", "The waveform amplitude scale is unit or common.");
-    end
-    if ~ismember(wv.mode, ["off" "mean" "subsample" "both"])
-        add("Plots", w0 + ".mode", "error", "The waveform mode is off, mean, subsample or both.");
-    elseif p.kind == "waveforms" && wv.mode == "off"
-        add("Plots", w0 + ".mode", "error", "A waveforms plot shows the mean, a subsample or both: its waveform mode cannot be off.");
-    elseif wv.mode ~= "off"
-        if ~ismember(wv.location, EphysAnalysisConfig.WaveformLocations)
-            add("Plots", w0 + ".location", "error", "The waveform location is one of " + ...
-                strjoin(EphysAnalysisConfig.WaveformLocations, ", ") + ".");
-        end
-        if ~(wv.scale > 0 && wv.scale <= 3)
-            add("Plots", w0 + ".scale", "error", "The waveform scale is above 0 and at most 3 (1 = a third of the tile).");
-        end
-        if ~(wv.maxSpikes >= 1 && wv.maxSpikes == round(wv.maxSpikes))
-            add("Plots", w0 + ".maxSpikes", "error", "maxSpikes is a whole number of spikes, at least 1.");
-        end
-        if ~(ismember(p.source, EphysAnalysisConfig.SpikeSources) && (ismember(p.kind, ["raster" "waveforms"]) || ...
-                (ismember(p.kind, ["psth" "tuning"]) && p.layout ~= "overlay")))
-            add("Plots", w0 + ".mode", "warning", "Unit waveforms are drawn in the tiles of a raster, or of a " + ...
-                "PSTH or tuning grid, of spikes; this plot draws none.");
-        end
-    end
-    aux = p.aux;
-    x0 = f0 + ".aux";
-    if ~ismember(aux.mode, EphysAnalysisConfig.AuxModes)
-        add("Plots", x0 + ".mode", "error", "The aux mode is one of " + strjoin(EphysAnalysisConfig.AuxModes, ", ") + ".");
-    elseif aux.mode ~= "off"
-        if ~(ismember(p.kind, ["psth" "raster"]) && ismember(p.source, EphysAnalysisConfig.SpikeSources))
-            add("Plots", x0 + ".mode", "warning", "The mean aux signal is drawn with the units of a PSTH or raster " + ...
-                "of spikes; this plot draws none.");
-        end
-        if ~ismember(aux.placement, EphysAnalysisConfig.AuxPlacements)
-            add("Plots", x0 + ".placement", "error", "The aux placement is one of " + ...
-                strjoin(EphysAnalysisConfig.AuxPlacements, ", ") + ".");
-        elseif aux.placement == "over" && p.kind == "psth" && p.stack
-            add("Plots", x0 + ".placement", "warning", "A stacked PSTH's right axis labels its rows' peaks: " + ...
-                "the aux signal goes below it instead of over it.");
-        elseif aux.placement == "over" && aux.display == "heatmap"
-            add("Plots", x0 + ".placement", "warning", "A heat map is an image of its own: " + ...
-                "the aux signal goes below the plot instead of over it.");
-        end
-        if ~ismember(aux.display, EphysAnalysisConfig.AuxDisplays)
-            add("Plots", x0 + ".display", "error", "The aux display is one of " + strjoin(EphysAnalysisConfig.AuxDisplays, ", ") + ".");
-        end
-        if ~ismember(aux.statistic, EphysAnalysisConfig.AuxStatistics)
-            add("Plots", x0 + ".statistic", "error", "The aux statistic is one of " + strjoin(EphysAnalysisConfig.AuxStatistics, ", ") + ".");
-        end
-        if ~ismember(aux.transform, EphysAnalysisConfig.AuxTransforms)
-            add("Plots", x0 + ".transform", "error", "The aux transform is one of " + strjoin(EphysAnalysisConfig.AuxTransforms, ", ") + ".");
-        end
-        if ~ismember(aux.colorBy, EphysAnalysisConfig.AuxColorBy)
-            add("Plots", x0 + ".colorBy", "error", "The aux colorBy is one of " + strjoin(EphysAnalysisConfig.AuxColorBy, ", ") + ".");
-        end
-        if ~ismember(aux.errorType, EphysAnalysisConfig.AuxErrorTypes)
-            add("Plots", x0 + ".errorType", "error", "The aux errorType is one of " + strjoin(EphysAnalysisConfig.AuxErrorTypes, ", ") + ...
-                " (off: no band; sem: +/- SEM; std: +/- SD; ci95: bootstrap 95% CI; iqr: 25th to 75th percentile).");
-        elseif aux.errorType == "ci95" && ~(license('test', 'Statistics_Toolbox') && exist('bootci', 'file'))
-            add("Plots", x0 + ".errorType", "error", "The bootstrap 95% CI needs the Statistics and Machine Learning Toolbox (bootci).");
-        elseif aux.errorType == "iqr" && ~(license('test', 'Statistics_Toolbox') && exist('prctile', 'file'))
-            add("Plots", x0 + ".errorType", "error", "The interquartile range needs the Statistics and Machine Learning Toolbox (prctile).");
-        elseif aux.display == "heatmap" && aux.errorType ~= "off"
-            add("Plots", x0 + ".errorType", "warning", "A heat map draws no error band.");
-        elseif aux.statistic == "median" && ismember(aux.errorType, ["sem" "std"])
-            add("Plots", x0 + ".errorType", "warning", "SEM and SD bands are a mean's: with the median they are drawn around it; " + ...
-                "ci95 (the bootstrap CI of the median) or iqr belong to it.");
-        end
-        yl = aux.yLim;
-        if ~(isempty(yl) || (numel(yl) == 2 && all(isfinite(yl)) && yl(2) > yl(1)))
-            add("Plots", x0 + ".yLim", "error", "The aux y limits are [] (from the traces) or [lo hi] with lo < hi, in the signal's units.");
-        end
-        op = aux.overPosition;
-        if ~(numel(op) == 2 && all(isfinite(op)) && op(1) >= 0 && op(2) <= 1 && op(2) > op(1))
-            add("Plots", x0 + ".overPosition", "error", "The aux overPosition is [bottom top], fractions of the plot's height with 0 <= bottom < top <= 1.");
-        end
-        if ~isempty(aux.channels) && ~all(aux.channels >= 1 & aux.channels == round(aux.channels))
-            add("Plots", x0 + ".channels", "error", "The aux channels are columns of the AUX extract: whole numbers, at least 1 ([] = all).");
-        end
-        if ~ismember(aux.baseline, ["none" "subtract"])
-            add("Plots", x0 + ".baseline", "error", "The aux baseline is none or subtract.");
-        elseif aux.baseline == "subtract"
-            bw = aux.baselineWindow;
-            w = p.window;
-            if isequal(w, "default"); w = D.Window; end
-            if ~(numel(bw) == 2 && all(isfinite(bw)) && bw(2) > bw(1))
-                add("Plots", x0 + ".baselineWindow", "error", "The aux baseline window must be [b0 b1] with b0 < b1 (s from the event).");
-            elseif isstruct(w) && (bw(2) < w.pre || bw(1) > w.post)
-                add("Plots", x0 + ".baselineWindow", "error", sprintf("The aux baseline window [%g %g] s must overlap " + ...
-                    "the epoch window [%g %g] s: it is taken from the samples cut for each epoch.", bw(1), bw(2), w.pre, w.post));
-            end
-        end
-    end
-    checkNote(p.note, "Plots", f0 + ".note", "plot");
-    checkOverlays(p.overlays, "Plots", f0, p, strings(1, 0));
-    checkStyle(p.style, "Plots", f0, plotErrorType(p) == "ci95");
-end
-
-% --- SessionPlots -------------------------------------------------------------------------
-sids = obj.sessionPlotIds();
-skey = lower(regexprep(sids, '[^\w\-\.]', '_'));   % the id as {Plot} writes it, case-blind
-for u = unique(skey)
-    same = sids(skey == u);
-    if numel(same) > 1
-        add("SessionPlots", same(end) + ".id", "error", "Session plot ids " + strjoin("""" + same + """", " and ") + ...
-            " name the same files: {Plot} replaces characters outside A-Z a-z 0-9 _ - . by ""_"", and Windows ignores case.");
-    end
-end
-for k = 1:numel(obj.SessionPlots)
-    sp = obj.SessionPlots(k);
-    f0 = sp.id;
-    if ~isempty(regexp(sp.id, '[\\/:*?"<>|]', 'once')) || strtrim(sp.id) == ""
-        add("SessionPlots", f0 + ".id", "error", "A session plot id names its files: no \ / : * ? "" < > |, and not empty.");
-    end
-    enums = struct('datasets', ["ticked" "list"], 'facet', EphysAnalysisConfig.SessionFacets, ...
-        'series', EphysAnalysisConfig.SessionSeries, 'colorOrder', EphysAnalysisConfig.SessionColorOrders, ...
-        'error', EphysAnalysisConfig.SessionErrors, 'match', EphysAnalysisConfig.SessionMatches, ...
-        'trialGroups', EphysAnalysisConfig.SessionTrialGroups);
-    for ef = string(fieldnames(enums)).'
-        if ~ismember(sp.(ef), enums.(ef))
-            add("SessionPlots", f0 + "." + ef, "error", "A session plot's " + ef + " is one of " + strjoin(enums.(ef), ", ") + ...
-                ", not """ + sp.(ef) + """.");
-        end
-    end
-    badData = setdiff(sp.data, EphysAnalysisConfig.SessionData);
-    if ~isempty(badData)
-        add("SessionPlots", f0 + ".data", "error", "A session plot's data holds " + strjoin(EphysAnalysisConfig.SessionData, ", ") + ...
-            ", not " + strjoin("""" + badData + """", ", ") + ".");
-    end
-    if ~(isfinite(sp.minSessions) && sp.minSessions >= 1 && sp.minSessions == round(sp.minSessions))
-        add("SessionPlots", f0 + ".minSessions", "error", "minSessions is a whole number of sessions, at least 1.");
-    end
-    if sp.datasets == "list" && isempty(sp.datasetKeys)
-        add("SessionPlots", f0 + ".datasetKeys", "warning", "datasets is ""list"" but no dataset keys are listed; the session plot draws nothing.");
-    end
-    if sp.showMembers && sp.series == "session"
-        add("SessionPlots", f0 + ".showMembers", "warning", "Each session is its own series already: showMembers draws the sessions " + ...
-            "faintly under a subject's or every session's summary (series subject or all).");
-    end
-    if sp.match == "mapping"
-        if strtrim(sp.mappingFile) == ""
-            add("SessionPlots", f0 + ".mappingFile", "error", "match ""mapping"" needs a mapping file (CSV: a column cell, then one per dataset key).");
-        elseif ~isfile(sp.mappingFile)
-            if opts.CheckPaths
-                add("SessionPlots", f0 + ".mappingFile", "error", "The mapping file does not exist: " + sp.mappingFile);
-            end
-        else
-            checkMapping(sp, f0);
-        end
-    end
-    b = obj.plotIndex(sp.plot);
-    if b == 0
-        add("SessionPlots", f0 + ".plot", "error", "No base plot """ + sp.plot + """ (a session plot draws an existing plot over the sessions).");
-        continue
-    end
-    p = obj.Plots(b);
-    if ~ismember(p.kind, EphysAnalysisConfig.SessionKinds)
-        add("SessionPlots", f0 + ".plot", "error", "A session plot draws a " + strjoin(EphysAnalysisConfig.SessionKinds, ", ") + ...
-            " plot, not a " + p.kind + " plot (""" + p.id + """).");
-        continue
-    end
-    if p.baseline.Mode == "auroc"
-        add("SessionPlots", f0 + ".plot", "error", "The base plot """ + p.id + """ has an auROC baseline: auROC curves are not merged across sessions.");
-    end
-    row = K(K.Kind == p.kind, :);
-    if sp.layout ~= "" && ~ismember(sp.layout, row.Layouts{1})
-        add("SessionPlots", f0 + ".layout", "error", sprintf("A %s plot has layouts %s, not ""%s"".", p.kind, strjoin(row.Layouts{1}, " / "), sp.layout));
-    end
-    isSignal = ismember(p.source, EphysAnalysisConfig.SignalSources);
-    if sp.match ~= "pool" && (isSignal || ismember(p.kind, ["heatmap" "waveforms" "behavior"]))
-        what = "a " + p.kind + " plot's sessions are pooled";
-        if isSignal; what = "signals are matched by recording channel"; end
-        if p.kind == "behavior"; what = "a behavior plot has no units"; end
-        add("SessionPlots", f0 + ".match", "warning", "match """ + sp.match + """ is ignored: " + what + ".");
-    end
-    if ismember(p.kind, ["tuning" "behavior"]) && p.seriesParam ~= "" && sp.trialGroups == "pool"
-        add("SessionPlots", f0 + ".trialGroups", "warning", "The base plot's series (" + p.seriesParam + ") are pooled: " + ...
-            "the sessions are the series (trialGroups each or combine keeps them).");
-    end
-    if sp.trialGroups == "combine" && p.kind == "psth" && p.histStyle == "bar"
-        add("SessionPlots", f0 + ".trialGroups", "warning", "trialGroups ""combine"" tells the trial groups apart by line style: " + ...
-            "the base plot's bars are drawn as lines.");
-    end
-    if p.kind == "heatmap" && sp.series ~= "all"
-        add("SessionPlots", f0 + ".series", "warning", "A heatmap's rows are the session-units (spikes) or the channels " + ...
-            "averaged over every session (signals): series """ + sp.series + """ is ignored.");
-    end
-end
-
 % --- Figures ------------------------------------------------------------------------------
 % Fields: "<figure>.<field>" for the figure's own settings, "<figure>.<panel>.<field>" for a panel's,
 % "<figure>.<panel>.layers(<j>).<field>" for a layer's.
+if isempty(obj.enabledFigures()) && isempty(obj.enabledSessionFigures())
+    add("Figures", "enabled", "error", "No figure is enabled.");
+end
 FT = EphysAnalysisConfig.panelTypes();
 isWhole = @(x) isscalar(x) && isfinite(x) && x >= 1 && x == round(x);
 commonModes = ["none" "subtract" "zscore" "percent" "ratio" "auroc"];   % every baseline Mode some panel type takes
@@ -615,21 +195,6 @@ if numel(fids) > 1
             add("Figures", same(end) + ".id", "error", "Figure ids " + strjoin("""" + same + """", " and ") + ...
                 " name the same files: {Plot} replaces characters outside A-Z a-z 0-9 _ - . by ""_"", and Windows ignores case.");
         end
-    end
-end
-if ~isempty(fids)   % a figure's files are named by {Plot} like a plot's
-    pkey = lower(regexprep(obj.plotIds(), '[^\w\-\.]', '_'));
-    for f = fids(ismember(lower(regexprep(fids, '[^\w\-\.]', '_')), pkey))
-        add("Figures", f + ".id", "error", "Figure id """ + f + """ names the same files as a plot's id: both fill {Plot} " + ...
-            "(characters outside A-Z a-z 0-9 _ - . replaced by ""_"", case ignored).");
-    end
-end
-sfIds = obj.sessionFigureIds();
-if ~isempty(sfIds) && ~isempty(obj.sessionPlotIds())   % both go to Export.SessionsFolder as <facet>_{Plot}, data all_<id>.mat
-    spKey = lower(regexprep(obj.sessionPlotIds(), '[^\w\-\.]', '_'));
-    for f = sfIds(ismember(lower(regexprep(sfIds, '[^\w\-\.]', '_')), spKey))
-        add("Figures", f, "error", "Session figure id """ + f + """ names the same files as a session plot's id: both write " + ...
-            "<facet>_{Plot} into the sessions folder (characters outside A-Z a-z 0-9 _ - . replaced by ""_"", case ignored).");
     end
 end
 for k = 1:numel(obj.Figures)
@@ -667,6 +232,9 @@ for k = 1:numel(obj.Figures)
     end
     if ~(ob.units.maxUnits >= 1)
         add("Figures", f0 + ".observe.units.maxUnits", "error", "maxUnits must be >= 1 (Inf = all).");
+    end
+    if kind == "unit"   % the observed units' filter is read only when the figure observes units
+        checkResponse(ob.units.response, f0 + ".observe.units.response");
     end
     fs = fg.selection;
     if isequal(fs, "default"); fs = D.Selection; end
@@ -771,9 +339,9 @@ for k = 1:numel(obj.Figures)
     for j = 1:numel(fg.panels)
         pj = fg.panels(j);
         p0 = f0 + "." + pj.id;
-        % the panel's text note and overlays, as a plot's (an overlay is drawn on the panel's own axes)
+        % the panel's text note and overlays (an overlay is drawn on the panel's own axes)
         checkNote(pj.note, "Figures", p0 + ".note", "panel");
-        ovNames = checkOverlays(pj.overlays, "Figures", p0, [], ovNames);
+        ovNames = checkOverlays(pj.overlays, "Figures", p0, ovNames);
         trow = FT.Type == pj.type;
         if ~any(trow)
             add("Figures", p0 + ".type", "error", "Unknown panel type """ + pj.type + """ (types: " + strjoin(FT.Type, ", ") + ").");
@@ -870,6 +438,7 @@ for k = 1:numel(obj.Figures)
                             "the one panel: limit units.maxUnits or ids, or aggregate them (mean).");
                     end
                 end
+                checkResponse(L.units.response, l0 + ".units.response");
             end
             if ismember(L.source, EphysAnalysisConfig.SignalSources) && ~isempty(L.channels) && ~all(arrayfun(isWhole, L.channels))
                 add("Figures", l0 + ".channels", "error", "A layer's channels are columns of its extract: whole numbers, at least 1 ([] = all).");
@@ -1080,17 +649,9 @@ if ~(numel(X.FigureSizeCm) == 2 && all(X.FigureSizeCm > 0))
 end
 checkPattern(X.FilenamePattern, "file", "Export", "FilenamePattern");
 checkPattern(X.Folder, "folder", "Export", "Folder");
-on = obj.Plots([obj.Plots.enabled]);
-onKinds = string([on.kind]);
-nFig = numel(obj.enabledFigures());
-if nFig > 0; onKinds = [onKinds repmat("figure", 1, nFig)]; end   % a figure's {Kind} is "figure"
-if numel(onKinds) > 1 && ~contains(X.FilenamePattern, "{Plot}") ...
-        && ~(contains(X.FilenamePattern, "{Kind}") && numel(unique(onKinds)) == numel(onKinds))
-    if nFig > 0
-        add("Export", "FilenamePattern", "warning", sprintf("The file-name pattern has no {Plot}, so the %d enabled plots' and %d enabled figures' files overwrite each other.", numel(on), nFig));
-    else
-        add("Export", "FilenamePattern", "warning", sprintf("The file-name pattern has no {Plot}, so the %d enabled plots' files overwrite each other.", numel(on)));
-    end
+nFig = numel(obj.enabledFigures());   % every figure's {Kind} is "figure": only {Plot} (its id) tells them apart
+if nFig > 1 && ~contains(X.FilenamePattern, "{Plot}")
+    add("Export", "FilenamePattern", "warning", sprintf("The file-name pattern has no {Plot}, so the %d enabled figures' files overwrite each other.", nFig));
 end
 if ~contains(X.Folder, ["{OutputFolder}" "{Name}"]) && ~contains(X.FilenamePattern, "{Name}") ...
         && ~(S.Mode == "folders" && numel(S.Folders) <= 1)
@@ -1098,13 +659,13 @@ if ~contains(X.Folder, ["{OutputFolder}" "{Name}"]) && ~contains(X.FilenamePatte
 end
 checkPattern(X.SessionsFolder, "folder", "Export", "SessionsFolder");
 if contains(X.SessionsFolder, "{OutputFolder}")
-    add("Export", "SessionsFolder", "warning", "{OutputFolder} is one dataset's folder; the session plots' figures go to the first dataset's.");
+    add("Export", "SessionsFolder", "warning", "{OutputFolder} is one dataset's folder; the session figures' files go to the first dataset's.");
 end
 XD = X.Data;
 checkPattern(XD.Folder, "folder", "Export", "Data.Folder");
 checkPattern(XD.FilenamePattern, "file", "Export", "Data.FilenamePattern");
 if contains(XD.Folder, "{OutputFolder}")
-    add("Export", "Data.Folder", "warning", "{OutputFolder} is one dataset's folder; the session plots' data files go to the first dataset's.");
+    add("Export", "Data.Folder", "warning", "{OutputFolder} is one dataset's folder; the session figures' data files go to the first dataset's.");
 end
 if ~ismember(XD.MatVersion, ["-v7.3" "-v7"])
     add("Export", "Data.MatVersion", "error", "MatVersion is -v7.3 or -v7.");
@@ -1340,7 +901,7 @@ issues = table(Section, Field, Severity, Message);
     end
 
     function checkStyle(st, sec, id, drawsCi95)
-        %checkStyle  A plot's or figure's Style; DRAWSCI95: it draws the style's error (plotErrorType) as a bootstrap CI.
+        %checkStyle  A figure's Style; DRAWSCI95: it draws the style's error (figureErrorType) as a bootstrap CI.
         if ~(st.MaxTiles >= 1); add(sec, id + ".style.MaxTiles", "error", "MaxTiles must be >= 1."); end
         if ~ismember(st.TileSpacing, ["loose" "compact" "tight" "none"])
             add(sec, id + ".style.TileSpacing", "error", "TileSpacing is loose, compact, tight or none.");
@@ -1389,7 +950,7 @@ issues = table(Section, Field, Severity, Message);
     end
 
     function checkNote(hNt, hSec, hN0, hWhere)
-        %checkNote  A plot's or a figure panel's text note (drawNote), unless it has no text; HWHERE: "plot" or "panel".
+        %checkNote  A figure panel's text note (drawNote), unless it has no text; HWHERE: what it sits on ("panel").
         if strtrim(hNt.text) == ""; return; end
         if ~ismember(hNt.placement, EphysAnalysisConfig.NotePlacements)
             add(hSec, hN0 + ".placement", "error", "The note placement is one of " + strjoin(EphysAnalysisConfig.NotePlacements, ", ") + ".");
@@ -1409,7 +970,7 @@ issues = table(Section, Field, Severity, Message);
             add(hSec, hN0 + ".rotation", "error", "The note rotation is a number of degrees.");
         end
         if ~(isnan(hNt.fontSize) || (isfinite(hNt.fontSize) && hNt.fontSize > 0))
-            add(hSec, hN0 + ".fontSize", "error", "The note font size is positive (NaN: the plot's).");
+            add(hSec, hN0 + ".fontSize", "error", "The note font size is positive (NaN: the figure's).");
         end
         for hCf = ["color" "background"]
             if hNt.(hCf) ~= "" && ~isColor(hNt.(hCf))
@@ -1418,16 +979,11 @@ issues = table(Section, Field, Severity, Message);
         end
     end
 
-    function hNames = checkOverlays(hOvs, hSec, hF0, hPlot, hNames)
-        %checkOverlays  A plot's or a figure panel's overlays (drawOverlays).
-        %   HPLOT: the plot (its kind and raster say which of its panels an
-        %   overlay's panel names), or [] for a figure panel, whose overlays
-        %   are drawn on its own axes (panel "all", normalizePanel). HNAMES:
-        %   the names met so far (a figure's other panels': an aesthetics
-        %   rule on a name reaches every panel's overlay of that name),
-        %   returned with these added.
-        hWhat = "plot";
-        if ~isstruct(hPlot); hWhat = "figure"; end
+    function hNames = checkOverlays(hOvs, hSec, hF0, hNames)
+        %checkOverlays  A figure panel's overlays (drawOverlays), drawn on its own axes (panel "all", normalizePanel).
+        %   HNAMES: the names met so far (a figure's other panels': an
+        %   aesthetics rule on a name reaches every panel's overlay of that
+        %   name), returned with these added.
         for hQ = 1:numel(hOvs)
             hOv = hOvs(hQ);
             hO0 = hF0 + ".overlays(" + hQ + ")";
@@ -1444,12 +1000,6 @@ issues = table(Section, Field, Severity, Message);
             end
             if ~ismember(hOv.axis, ["x" "y"])
                 add(hSec, hO0 + ".axis", "error", "An overlay's axis is x (vertical line, patch between x values) or y.");
-            end
-            if ~ismember(hOv.panel, EphysAnalysisConfig.OverlayPanels)
-                add(hSec, hO0 + ".panel", "error", "An overlay's panel is one of " + strjoin(EphysAnalysisConfig.OverlayPanels, ", ") + ".");
-            elseif isstruct(hPlot) && ((hOv.panel == "raster" && ~(hPlot.kind == "raster" || (hPlot.kind == "psth" && hPlot.withRaster ...
-                    && ~(hPlot.stack && hPlot.stackRaster)))) || (hOv.panel == "data" && hPlot.kind == "raster"))
-                add(hSec, hO0 + ".panel", "warning", "A " + hPlot.kind + " plot draws no " + hOv.panel + " panel here; this overlay is not drawn.");
             end
             if ~ismember(hOv.layer, EphysAnalysisConfig.OverlayLayers)
                 add(hSec, hO0 + ".layer", "error", "An overlay's layer is over or under the data.");
@@ -1471,7 +1021,7 @@ issues = table(Section, Field, Severity, Message);
                 end
             end
             if strtrim(hOv.name) ~= "" && ismember(strtrim(hOv.name), hNames)
-                add(hSec, hO0 + ".name", "warning", "Another overlay of this " + hWhat + " is also named """ + strtrim(hOv.name) + ...
+                add(hSec, hO0 + ".name", "warning", "Another overlay of this figure is also named """ + strtrim(hOv.name) + ...
                     """; a change in the aesthetics editor reaches both.");
             end
             hNames(end+1) = strtrim(hOv.name); %#ok<AGROW>
@@ -1479,7 +1029,7 @@ issues = table(Section, Field, Severity, Message);
     end
 
     function checkAuroc(a, binSec, sec, field, isPlot)
-        %checkAuroc  A plot's auroc settings (ISPLOT) or a response test's.
+        %checkAuroc  A panel's (or the figure's common) auroc settings (ISPLOT) or a response test's.
         if ~ismember(a.method, ["psth" "epochs"]); add(sec, field + ".method", "error", "The auROC method is psth or epochs."); end
         if ~ismember(a.windows, ["tiled" "sliding"]); add(sec, field + ".windows", "error", "The auROC windows are tiled or sliding."); end
         whole = @(x) binSec > 0 && x / binSec >= 1 - 1e-6 && abs(x / binSec - round(x / binSec)) < 1e-6;
@@ -1524,6 +1074,35 @@ issues = table(Section, Field, Severity, Message);
         end
     end
 
+    function checkResponse(rs, r0)
+        %checkResponse  An enabled unit-response test (UnitSelection.response) at field R0 of the Figures section.
+        if ~rs.enabled; return; end
+        if ~ismember(rs.test, ["evoked" "tuning" "either" "both" "auroc"])
+            add("Figures", r0 + ".test", "error", "The response test is evoked, tuning, either, both or auroc.");
+        elseif rs.test == "auroc"
+            checkAuroc(rs.auroc, rs.auroc.binSec, "Figures", r0 + ".auroc", false);
+        elseif rs.test ~= "evoked" && rs.param == ""
+            add("Figures", r0 + ".param", "error", "The tuning test needs the trial parameter (param).");
+        end
+        for hWf = ["baseline" "window"]
+            if ~(numel(rs.(hWf)) == 2 && all(isfinite(rs.(hWf))) && rs.(hWf)(2) > rs.(hWf)(1))
+                add("Figures", r0 + "." + hWf, "error", "The response test's " + hWf + " must be [from to] with from < to (s from the event).");
+            end
+        end
+        if ~ismember(rs.direction, ["any" "excited" "suppressed"])
+            add("Figures", r0 + ".direction", "error", "The response direction is any, excited or suppressed.");
+        end
+        if ~ismember(rs.correction, ["bh" "holm" "bonferroni" "none"])
+            add("Figures", r0 + ".correction", "error", "The correction is bh, holm, bonferroni or none.");
+        end
+        if ~(rs.alpha > 0 && rs.alpha <= 1)
+            add("Figures", r0 + ".alpha", "error", "alpha must be in (0, 1].");
+        end
+        if ~(license('test', 'Statistics_Toolbox') && exist('signrank', 'file'))
+            add("Figures", r0 + ".enabled", "error", "The response test needs the Statistics and Machine Learning Toolbox (signrank, kruskalwallis).");
+        end
+    end
+
     function checkSelection(s, sec, field)
         try
             trialSelection(s);
@@ -1538,10 +1117,10 @@ issues = table(Section, Field, Severity, Message);
 
     function checkMapping(sp, f0, sec)
         %checkMapping  A unit-mapping CSV: readable, a cell column, a column per listed dataset key.
-        %   Read with readUnitMapping, the reader the run uses (sessionResults,
-        %   figureSessionObservations). SEC: the section the issues go to
-        %   (default "SessionPlots"; a session figure's: "Figures").
-        if nargin < 3; sec = "SessionPlots"; end
+        %   Read with readUnitMapping, the reader the run uses
+        %   (figureSessionObservations). SEC: the section the issues go to
+        %   (default "Figures").
+        if nargin < 3; sec = "Figures"; end
         try
             M = readUnitMapping(sp.mappingFile);
         catch ME

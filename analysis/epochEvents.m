@@ -35,7 +35,7 @@ function M = epochEvents(src, E, opts)
 %   t0Continuous). Errors: epochEvents:NoLine, epochEvents:NoTrials (scope
 %   "trial", or "Trial", without paired trials).
 %
-%   See also epochTable, spikePSTH, renderRaster.
+%   See also epochTable, spikePSTH, figureCompute.
 
 arguments
     src (1,1) struct

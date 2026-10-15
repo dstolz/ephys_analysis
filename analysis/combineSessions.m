@@ -1,7 +1,7 @@
 function R = combineSessions(Rs, sessions, opts)
-%combineSessions  Merge one plot's per-session results into one result of the same kind.
+%combineSessions  Merge one layer's per-session results into one result of the same kind.
 %   R = combineSessions(RS, SESSIONS, Name=Value) merges the results RS (a
-%   cell {1 x nSessions} of computePlot / compute-function results of one
+%   cell {1 x nSessions} of compute-function results (a figure layer's) of one
 %   kind, made with the same effective spec; [] = that session has none)
 %   of the sessions SESSIONS (sessionTable rows, in the same order) into
 %   one result R of the same kind. The series (sessions, subjects or all
@@ -128,7 +128,7 @@ function R = combineSessions(Rs, sessions, opts)
 %                  where it has no data on the tile)
 %     dataset      the subtitle: "3 sessions (SYNTH-01)", "5 sessions, 2
 %                  subjects" or "3 sessions" (+ ", <group>" with Group)
-%     spec         the first result's spec (sessionResults sets it)
+%     spec         the first result's spec
 %     err          type (series session: the results' own type, over
 %                  "epochs", their nBoot; series subject / all: "sem" |
 %                  "std" | "ci95" | "none", over "sessions", nBoot NaN), lo,
@@ -210,7 +210,7 @@ function R = combineSessions(Rs, sessions, opts)
 %   Group), combineSessions:Auroc (an auROC result), combineSessions:Size
 %   (SESSIONS and RS differ in length).
 %
-%   See also sessionResults, sessionTable, EphysAnalysisRunner.computeSessionPlot,
+%   See also figureSessionCompute, sessionTable, EphysAnalysisRunner.computeSessionFigure,
 %   populationAnalysis.
 
 arguments

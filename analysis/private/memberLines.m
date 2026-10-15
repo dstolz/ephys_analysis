@@ -8,8 +8,7 @@ function h = memberLines(ax, x, M, R, colors, style, labels)
 %   (groupLineStyles: "combine" tells the trial groups apart), no marker,
 %   out of the legend. Tagged "memberLine" with its series' label: LABELS
 %   (default R.groups.label; a tuning curve passes R.series). H: the
-%   lines. Shared by renderPSTH, renderEvoked, renderTuning and the
-%   figures' PSTH, continuous and tuning panels.
+%   lines. Shared by the figures' PSTH, continuous and tuning panels.
 %
 %   See also combineSessions, groupLineStyles, paleColor.
 

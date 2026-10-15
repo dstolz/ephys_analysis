@@ -7,10 +7,10 @@ function [labels, name] = rowLabels(R)
 %   n, nTrials). Without any: the group labels, and "Group". A result
 %   merged across sessions (combineSessions: R.sessions) has series, not
 %   trial groups, as its rows: their labels, named by what they are
-%   ("Session", "Subject"; combine: "Session · trial group"). Shared by
-%   renderPSTH and a figure's PSTH panel (drawStack).
+%   ("Session", "Subject"; combine: "Session · trial group"). Used by
+%   a figure's PSTH panel (drawStack).
 %
-%   See also drawStack, renderPSTH, drawPsthPanel.
+%   See also drawStack, drawPsthPanel.
 G = R.groups;
 vars = string(G.Properties.VariableNames);
 if isfield(R, 'sessions') && istable(R.sessions)

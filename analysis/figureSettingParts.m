@@ -10,7 +10,7 @@ function T = figureSettingParts()
 %   A figure's id, title and enabled are never copied. Every part fits
 %   every figure: a figure's fields do not depend on its panels.
 %
-%   See also copyFigureSettings, plotSettingParts.
+%   See also copyFigureSettings.
 rows = {
     "observe",     "Observations",           "observe",                      "What the figure is drawn for: the observation kind, the unit filter, the signal and channels, per trial group"
     "alignment",   "Alignment",              ["ref" "window" "selection"],   "The figure's event reference, epoch window and trial selection"

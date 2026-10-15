@@ -77,10 +77,7 @@ function clearRasterEdge(rax)
 %   into that panel's top one. The bottom is the last epoch (YDir
 %   reverse), or the first otherwise.
 %
-%   A copy of renderPSTH's local clearRasterEdge, so that no existing
-%   renderer changes in phase 1 of the modular figures; phase 2
-%   consolidates the two into one shared helper. Unlike the original it
-%   leaves alone a raster whose tick labels were set by hand: a raster of
+%   It leaves alone a raster whose tick labels were set by hand: a raster of
 %   several blocks names each block at its middle, and every name stays.
 for ra = reshape(rax, 1, [])
     r = ra.YAxis(1);

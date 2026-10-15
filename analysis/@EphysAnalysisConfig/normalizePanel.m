@@ -11,7 +11,7 @@ function [p, unknown] = normalizePanel(in, path)
 %   - common is a logical: true = the panel takes the figure's common
 %     options for its type's common fields (figureFor)
 %   - note is a Note (defaults("Note")) and overlays a list of Overlays
-%     (defaults("Overlay")), as a plot's; an overlay's panel is always
+%     (defaults("Overlay")); an overlay's panel is always
 %     "all" (it is drawn on the panel's own axes)
 %   - options are coerced to the type's DefaultOptions (panelTypes), so a
 %     changed type re-seeds them: fields the type knows keep their values,

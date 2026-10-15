@@ -17,6 +17,13 @@ function txt = figureCaption(spec, T, opts)
 %   counted as an observation). NAME (default "") is left out when
 %   empty. The reports print it under the figure's pages
 %   (addReportFigure Caption=).
+%   A figure with an auROC PSTH or heat map (baseline Mode "auroc") says how
+%   the auROC is made (the baseline window, from the PSTH's bins or each
+%   epoch's count, the window length, tiled or sliding); Auroc=CALLS (one
+%   figureAurocCalls result per observation, a struct array or a cell) adds
+%   what the cutoff called, summed over the observations: "units called
+%   over [0 0.5] s by a fixed cutoff (+/-0.2): Hit 2 up, 1 down; ... (of 6
+%   units)" (none with the cutoff "none").
 %   TXT = figureCaption(SPEC, T, Sessions=S) describes a session figure
 %   drawn for each row of T (figureSessionObservations) across the sessions
 %   S (sessionTable rows; those with status other than "done" are left
@@ -27,7 +34,7 @@ function txt = figureCaption(spec, T, opts)
 %   averaged") and the trial groups' handling ("trial groups pooled", "one
 %   figure per trial group", "trial groups by line style").
 %
-%   See also plotCaption, figureObservations, addReportFigure,
+%   See also figureObservations, addReportFigure,
 %   EphysAnalysisRunner.runDataset.
 
 arguments
@@ -35,6 +42,7 @@ arguments
     T table
     opts.Dataset (1,1) string = ""
     opts.Sessions = []
+    opts.Auroc = []
 end
 
 n = height(T);
@@ -100,6 +108,7 @@ if aligned
     end
     g = spec.selection.groupBy;
     if ~isempty(g); parts(end+1) = "groups by " + strjoin(g, " x "); end
+    parts = [parts aurocText(spec, opts.Auroc)];
 end
 if across
     switch ss.series
@@ -119,6 +128,65 @@ elseif isfield(ob, 'perGroup') && ob.perGroup && isfield(spec.selection, 'groupB
     parts(end+1) = "one figure per trial group";
 end
 txt = strjoin(parts, "; ") + ".";
+end
+
+
+function parts = aurocText(spec, calls)
+%aurocText  How the figure's auROC is made (its first PSTH or heat map panel with baseline Mode "auroc") and, given
+%   the observations' calls (figureAurocCalls), what they found, e.g. "auROC against the baseline [-0.5 0] s, from the
+%   PSTH's bins in 100 ms windows, tiled"; "units called over [0 0.5] s by a fixed cutoff (+/-0.2): Hit 5 up, 2 down;
+%   FA 3 up, 0 down (of 12 units)".
+parts = strings(1, 0);
+P = [];
+for k = 1:numel(spec.panels)
+    o = spec.panels(k).options;
+    if ismember(spec.panels(k).type, ["psth" "heatmap"]) && isfield(o, 'baseline') && isstruct(o.baseline) ...
+            && o.baseline.Mode == "auroc" && isfield(o, 'auroc')
+        P = o;
+        break
+    end
+end
+if isempty(P); return; end
+a = P.auroc;
+from = "the PSTH's bins";
+if a.method == "epochs"; from = "each epoch's spike count"; end
+how = "tiled";
+if a.windows == "sliding"; how = sprintf("sliding every %g ms", 1000 * a.stepSec); end
+parts = sprintf("auROC against the baseline [%g %g] s, from %s in %g ms windows, %s", ...
+    P.baseline.Window(1), P.baseline.Window(2), from, 1000 * a.windowSec, how);
+if iscell(calls); calls = [calls{:}]; end
+if isempty(calls) || ~isstruct(calls) || a.cutoff == "none"; return; end
+calls = reshape(calls, 1, []);
+switch a.cutoff
+    case "ci"
+        v = unique(round([calls.cutoffValue], 3, 'significant'));
+        v = v(isfinite(v));
+        if isscalar(v)
+            by = sprintf("the 95%% CI cutoff (+/-%.3g)", v);
+        else
+            by = "the 95% CI cutoff (each unit's)";
+        end
+    case "fixed"
+        by = sprintf("a fixed cutoff (+/-%g)", a.threshold);
+    otherwise   % "test"
+        corr = upper(a.correction);
+        if a.correction == "none"; corr = "unadjusted"; end
+        by = sprintf("%s p (%s) <= %g", a.test, corr, a.alpha);
+end
+labels = strings(0, 1);
+for c = calls; labels = [labels; c.labels(~ismember(c.labels, labels))]; end %#ok<AGROW>
+up = zeros(numel(labels), 1); down = up;
+for c = calls
+    [~, at] = ismember(c.labels, labels);
+    up(at) = up(at) + c.nIncrease(:);
+    down(at) = down(at) + c.nDecrease(:);
+end
+counts = compose("%d up, %d down", up, down);
+if numel(labels) > 1; counts = labels + " " + counts; end
+txt = sprintf("units called over [%g %g] s by %s: %s (of %d units)", a.modulationWindow(1), a.modulationWindow(2), ...
+    by, strjoin(counts, "; "), sum([calls.nUnits]));
+if a.modulatedOnly; txt = txt + ", only the modulated drawn"; end
+parts(end+1) = txt;
 end
 
 

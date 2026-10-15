@@ -19,7 +19,7 @@ function reason = figureSessionSkipReason(spec, reasons, opts)
 %   A session figure that passes may still draw nothing when it runs (no
 %   unit, site or cell matched across enough sessions).
 %
-%   See also figureSkipReason, sessionPlotSkipReason, EphysAnalysisRunner.plan,
+%   See also figureSkipReason, EphysAnalysisRunner.plan,
 %   figureSessionCompute.
 
 arguments

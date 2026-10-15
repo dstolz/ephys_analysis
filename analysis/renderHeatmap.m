@@ -31,7 +31,7 @@ function h = renderHeatmap(R, target, opts)
 %
 %   H: layout (tiled layout or []), axes, colorbar.
 %
-%   See also spikePSTH, evokedPotential, renderPlot.
+%   See also spikePSTH, evokedPotential, renderFigure.
 
 arguments
     R (1,1) struct

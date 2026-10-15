@@ -10,7 +10,7 @@ function [fig, copied] = copyFigureSettings(fig, from, parts)
 %   [FIG, COPIED] = ... also gives the parts copied (a string row, in
 %   figureSettingParts' order). Error: copyFigureSettings:BadPart.
 %
-%   See also figureSettingParts, copyPlotSettings.
+%   See also figureSettingParts.
 arguments
     fig (1,1) struct
     from (1,1) struct

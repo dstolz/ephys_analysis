@@ -1,5 +1,5 @@
 function N = drawNote(h, note, style)
-%drawNote  A plot's descriptive text: create it, tagged "note" (renderPlot).
+%drawNote  A panel's descriptive text: create it, tagged "note" (renderFigure).
 %   N = drawNote(H, NOTE, STYLE) draws the text of the note settings NOTE
 %   (defaults("Note")) on the plot a renderer drew (H, its result: H.layout
 %   or H.axes), with the plot's STYLE.FontSize unless the note has its own.
@@ -11,12 +11,12 @@ function N = drawNote(h, note, style)
 %
 %   N.text is the text object ([] without a note), N.host the hidden axes,
 %   N.layout the tiled layout, N.rules the note's own looks as aesthetics
-%   rules (renderPlot applies them after the design's and the user's, so the
+%   rules (renderFigure applies them after the design's and the user's, so the
 %   note's settings win over a design). placeNote positions the text once
 %   the rules have been applied. A note an earlier draw left on the same
 %   layout is removed; a note without text draws nothing.
 %
-%   See also placeNote, renderPlot, EphysAnalysisConfig.defaults.
+%   See also placeNote, renderFigure, EphysAnalysisConfig.defaults.
 
 N = struct('text', gobjects(0), 'host', gobjects(0), 'layout', [], 'rules', PlotAesthetics.emptyRules());
 tl = h.layout;

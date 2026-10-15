@@ -1,7 +1,7 @@
 function style = renderStyle(s)
 %renderStyle  A renderer's Style: the config's Style fields, normalized, and the plot design.
 %   STYLE = renderStyle(S) normalizes S like EphysAnalysisConfig's Style
-%   section and keeps S.Design, the design renderPlot draws with
+%   section and keeps S.Design, the design the renderers draw with
 %   (PlotDesign): its group colors (groupPalette), colormaps
 %   (designColormap) and ground (paleColor). Without one, STYLE.Design is
 %   the Default design, which changes nothing.

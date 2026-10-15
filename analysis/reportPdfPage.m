@@ -1,7 +1,7 @@
 function file = reportPdfPage(fig, report, opts)
 %reportPdfPage  One drawn page as the PDF report holds it: a vector PDF file.
 %   FILE = reportPdfPage(FIG, REPORT, Files=F) writes the figure FIG (one
-%   page drawn by renderPlot) as a one-page vector PDF (exportFigure,
+%   page drawn by renderFigure) as a one-page vector PDF (exportFigure,
 %   Format "pdf") into REPORT's page folder (newAnalysisReport; it goes
 %   when the report does) and returns its path, for
 %   addReportFigure(..., Pages=). F lists the files just exported from FIG

@@ -14,7 +14,7 @@ function outs = datasets(obj)
 %                (root-relative folders)
 %     "folders"  DatasetOutputs(folder) for each of Folders; the key is the
 %                folder, the name its last part
-%   Every DatasetOutputs has CacheData=true: a plot's spikes and signals
+%   Every DatasetOutputs has CacheData=true: a figure's spikes and signals
 %   are read once per dataset; runDataset clears them afterwards. Each also
 %   searches r.SearchDirs (a pipeline's step output folders).
 %

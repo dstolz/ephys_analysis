@@ -1,5 +1,5 @@
 function S = sessionTable(names, keys, opts)
-%sessionTable  One row per dataset of a session plot: who, when, and the label it is drawn with.
+%sessionTable  One row per dataset of a session figure: who, when, and the label it is drawn with.
 %   S = sessionTable(NAMES, KEYS, NamePattern=, AcqDates=, Folders=) has one
 %   row per dataset (NAMES and KEYS: string vectors of one length), in the
 %   order given:
@@ -19,7 +19,7 @@ function S = sessionTable(names, keys, opts)
 %   labels are made unique (EphysAnalysisRunner.sessionTable does). Pure: no
 %   I/O. AcqDates and Folders may be one value for every row.
 %
-%   See also combineSessions, sessionResults, subjectAndDate,
+%   See also combineSessions, figureSessionCompute, subjectAndDate,
 %   EphysAnalysisRunner.sessionTable.
 
 arguments

@@ -7,7 +7,7 @@ function S = sessionTable(obj, idx)
 %   their output folders and index the runner's dataset index; sorted by
 %   date, then name, before the labels are made unique.
 %
-%   See also sessionTable, EphysAnalysisRunner.computeSessionPlot.
+%   See also sessionTable, EphysAnalysisRunner.sessionFigureObservations.
 arguments
     obj (1,1) EphysAnalysisRunner
     idx = []

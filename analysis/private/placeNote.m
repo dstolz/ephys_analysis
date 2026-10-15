@@ -1,5 +1,5 @@
 function placeNote(N, note)
-%placeNote  Put a plot's note where its settings say, once its looks are final (renderPlot).
+%placeNote  Put a plot's note where its settings say, once its looks are final (renderFigure).
 %   placeNote(N, NOTE) positions the text drawNote made (N) by NOTE.placement,
 %   .align, .valign and .x / .y, and draws its outline when NOTE.box. It
 %   measures the text as it now is -- after the design's and the user's
@@ -16,7 +16,7 @@ function placeNote(N, note)
 %   is one axes has its text in the axes; below and above go just past the
 %   axes' edge, where its labels are.
 %
-%   See also drawNote, renderPlot.
+%   See also drawNote, renderFigure.
 
 t = N.text;
 if isempty(t) || ~isgraphics(t); return; end

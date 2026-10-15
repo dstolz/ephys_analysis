@@ -1,19 +1,19 @@
 function s = defaults(section)
-%defaults  Default settings of one analysis-config section (schema v1).
+%defaults  Default settings of one analysis-config section (config version 2).
 %   S = EphysAnalysisConfig.defaults(SECTION) is the single source of truth
 %   for field names, types and shapes: normalizeSection coerces every
 %   assigned value to match them, and eventRef / epochWindow /
-%   trialSelection / selectUnits / renderPlot fill what a caller leaves out
-%   from here.
+%   trialSelection / selectUnits / renderFigure fill what a caller leaves
+%   out from here. (Version 1's Plot, SessionPlot and Aux sections live on
+%   only to migrate a version-1 file: private/legacyPlotDefaults.)
 %
-%   Config sections   Source, Defaults, Export, Report, Plot (one entry of
-%                     Plots), SessionPlot (one entry of SessionPlots),
-%                     Figure (one entry of Figures)
+%   Config sections   Source, Defaults, Export, Report, Figure (one entry
+%                     of Figures)
 %   Building blocks   EventRef, SequenceStep (one step of an EventRef's
 %                     sequence), EpochWindow, TrialSelection, UnitSelection,
-%                     Style, Auroc, Waveform, Aux, Note, Overlay (one entry
-%                     of a plot's overlays), EventMark (one entry of a
-%                     plot's rasterEvents: an EventRef and its look);
+%                     Style, Auroc, Waveform, Note, Overlay (one entry of a
+%                     panel's overlays), EventMark (an events layer's event:
+%                     an EventRef and its mark's look);
 %                     a figure's Observe (what it is drawn for),
 %                     FigureSessions (drawn across datasets), FigureCommon (its common options), Panel (one entry
 %                     of its panels; options from panelTypes) and Layer
@@ -133,7 +133,7 @@ switch section
             'StackSpacing', NaN);           % evoked "stack" offset (NaN = automatic)
 
     case "Auroc"
-        % a psth / heatmap plot's or figure panel's baseline Mode "auroc" (aurocCurves; spikePSTH's Auroc)
+        % a psth / heatmap panel's baseline Mode "auroc" (aurocCurves; spikePSTH's Auroc)
         s = struct( ...
             'method',           "psth", ...      % "psth": the trial-averaged PSTH's bins (the paper) | "epochs": each epoch's count
             'windows',          "tiled", ...     % "tiled": back to back, edged at the event | "sliding": one every stepSec
@@ -150,8 +150,8 @@ switch section
             'modulatedOnly',    false);          % keep only the units modulated in some group
 
     case "Waveform"
-        % a psth / raster / tuning plot's unit waveform: a box in each unit's tile (unitWaveforms; renderers' Waveform);
-        % a waveforms plot's settings: mode, maxSpikes, showPP, showCount, scale (the probe glyphs' size), ampScale, showSites, showNames
+        % a psth / raster / tuning panel's unit waveform: a box in the unit's panel (unitWaveforms; waveformInset);
+        % a waveforms panel's settings: mode, maxSpikes, showPP, showCount, scale (the probe glyphs' size), ampScale, showSites, showNames
         s = struct( ...
             'mode',      "off", ...         % "off" | "mean" | "subsample" | "both" (the mean over the subsample)
             'location',  "northeast", ...   % compass point of the tile: north, south, east, west, northeast, northwest, southeast, southwest
@@ -164,26 +164,8 @@ switch section
             'showSites', true, ...          % waveforms plot, probe layout: the probe's sites behind the waveforms
             'showNames', false);            % waveforms plot, probe layout: each unit's name beside its waveform
 
-    case "Aux"
-        % a psth / raster plot of spikes: the mean aux (accelerometer) signal over the plot's epochs, drawn with each
-        % unit's raster and PSTH (auxMean; renderers' Aux)
-        s = struct( ...
-            'mode',           "off", ...       % "off" | "channels" (each channel's mean) | "magnitude" (the mean of each epoch's vector magnitude, sqrt of the sum of squares of the channels)
-            'channels',       [], ...          % columns of the AUX extract ([] = all)
-            'placement',      "below", ...     % "below" | "above" the unit's raster / PSTH (a panel of its own), or "over" it (its right y axis)
-            'display',        "lines", ...     % "lines" (a line per trace) | "stacked" (a row of its own per trace) | "heatmap" (a row per trace, in color; a panel of its own: "over" goes below)
-            'statistic',      "mean", ...      % "mean" | "median" over the epochs, at each sample
-            'transform',      "none", ...      % "none" (as recorded) | "rectify" (each epoch's absolute value, before the statistic)
-            'errorType',      "sem", ...       % the band around each trace, over the epochs: "off" | "sem" | "std" | "ci95" (bootstrap, Style.ErrorResamples) | "iqr" (25th-75th percentile); none in a heat map
-            'colorBy',        "auto", ...      % the traces' colors: "auto" (the trial group's when there are several groups or one channel, else the channel's) | "group" (the trial selection group's) | "channel"
-            'baseline',       "none", ...      % "none" | "subtract": each epoch's mean over baselineWindow, per channel (before the magnitude)
-            'baselineWindow', [-0.2 0], ...    % s from the event
-            'byGroup',        true, ...        % one trace per trial group, in its color (false: one over every epoch)
-            'yLim',           [], ...          % the signal's y limits [lo hi] in its units (V); [] = from the traces (and their bands)
-            'overPosition',   [0 1]);          % placement "over": the part of the plot's height the signal spans, [bottom top] as fractions 0-1
-
     case "Note"
-        % a plot's descriptive text (drawNote): one block of text, placed in or beside the plot
+        % a panel's descriptive text (drawNote): one block of text, placed in or beside the panel ("the plot" below)
         s = struct( ...
             'text',       "", ...           % the words; new lines break the lines ("" = no note)
             'placement',  "below", ...      % outside the plot: below | above | right | left; over it: northwest | north | northeast | west | center | east | southwest | south | southeast; or custom (x, y)
@@ -202,8 +184,8 @@ switch section
             'interpreter', "none");         % "none" (as typed) | "tex" (\mu, x^2, x_i, \bf)
 
     case "EventMark"
-        % one raster event mark (Plot.rasterEvents): an event reference -- usually which "all", often with a sequence --
-        % whose events are marked on each raster row (epochEvents), and its look
+        % an events layer's event (Layer.event): an event reference -- usually which "all", often with a sequence --
+        % whose events are marked on each raster row (epochEvents), or drawn as latency lines or a train, and its look
         s = EphysAnalysisConfig.defaults("EventRef");
         s.which = "all";                % every event in the epoch's window ...
         s.scope = "recording";          % ... in the trials or between them
@@ -212,8 +194,8 @@ switch section
         s.color = "";                   % "" = the mark's automatic color (rasterMarkColor); or a name / #rrggbb
 
     case "Overlay"
-        % one graphic drawn on a plot's axes in data units (drawOverlays): a line across the axis, or a semitransparent
-        % patch between two values; a plot holds any number of them (Plot.overlays), each with its own look
+        % one graphic drawn on a panel's axes in data units (drawOverlays): a line across the axis, or a semitransparent
+        % patch between two values; a panel holds any number of them (Panel.overlays), each with its own look
         s = struct( ...
             'name',      "", ...            % what the list and the aesthetics editor call it ("" = "Overlay <n>")
             'enabled',   true, ...          % unticked, it stays in the config but is not drawn
@@ -222,8 +204,8 @@ switch section
             'value',     0, ...             % line: where it crosses the axis (data units)
             'from',      0, ...             % region: one edge (data units)
             'to',        0.1, ...           % region: the other edge
-            'panel',     "all", ...         % which axes: "all" | "data" (a PSTH's rate panel, a trace, a heat map, ...) | "raster" (a raster's rows)
-            'layer',     "over", ...        % "over" | "under" the plot's data in those axes
+            'panel',     "all", ...         % always "all": a panel's overlays go on its own axes (normalizePanel)
+            'layer',     "over", ...        % "over" | "under" the panel's data
             'color',     "#d62728", ...     % line: color (a name or #rrggbb)
             'alpha',     1, ...             % line: opacity 0-1
             'lineStyle', "--", ...          % line, and a region's outline: "-" | "--" | ":" | "-."
@@ -241,8 +223,8 @@ switch section
             'Dpi',             150, ...
             'FigureSizeCm',    [18 12], ...
             'Overwrite',       true, ...
-            'SessionsFolder',  "{OutputRoot}" + filesep + "analysis" + filesep + "sessions", ...   % session plots' figures (one folder for every dataset: {OutputFolder} is the first dataset's)
-            'Data',            struct( ...                            % session plots' data files (.mat); Overwrite applies
+            'SessionsFolder',  "{OutputRoot}" + filesep + "analysis" + filesep + "sessions", ...   % session figures' files (one folder for every dataset: {OutputFolder} is the first dataset's)
+            'Data',            struct( ...                            % session figures' data files (.mat); Overwrite applies
                 'Enabled',         false, ...
                 'Folder',          "{OutputRoot}" + filesep + "analysis" + filesep + "data", ...
                 'FilenamePattern', "{Name}_{Plot}", ...               % {Name} = "all"
@@ -261,80 +243,6 @@ switch section
             'IncludeSummary',    true, ...
             'IncludeParameters', true, ...
             'IncludeConfig',     true);
-
-    case "Plot"
-        u = EphysAnalysisConfig.defaults("UnitSelection");
-        s = struct( ...
-            'id',            "", ...
-            'kind',          "psth", ...        % one of EphysAnalysisConfig.Kinds
-            'enabled',       true, ...
-            'title',         "", ...            % "" = automatic
-            'source',        "units", ...       % units | detected | LFP | MUA | SPIKE | AUX
-            'units',         rmfield(u, 'source'), ...
-            'channels',      [], ...            % signal channels (LFP / MUA / SPIKE / AUX; [] = all)
-            'ref',           "default", ...     % "default" (Defaults.EventRef) or an EventRef
-            'window',        "default", ...     % "default" (Defaults.Window) or an EpochWindow
-            'selection',     "default", ...     % "default" (Defaults.Selection) or a TrialSelection
-            'bins',          struct('BinSec', 0.01, 'SmoothSec', 0.01), ...  % SmoothSec: Gaussian SD (0 = none)
-            'measure',       "rate", ...        % psth / heatmap of spikes / rate / tuning: "rate" (spikes/s) | "count" (spikes per bin or window) | "probability" (P(spike) per bin, or share of epochs with a spike)
-            'baseline',      struct('Mode', "none", 'Window', [-0.2 0]), ...
-            'auroc',         EphysAnalysisConfig.defaults("Auroc"), ...   % psth / heatmap of spikes, baseline Mode "auroc"
-            'layout',        "", ...            % "" = the kind's default layout
-            'withRaster',    true, ...          % psth
-            'rasterSort',    "", ...            % psth / raster: epochs of a group in time order ("") | by stop latency ("stop") | by rasterSortEvent's latency ("event") | by a trial parameter (its name)
-            'rasterSortEvent', [], ...          % psth / raster, rasterSort "event": [] or an EventRef, e.g. Platform offset, whose latency from each epoch's event sorts the rows (eventLatency)
-            'rasterSortOrder', "ascending", ... % psth / raster: the sort key's direction, "ascending" | "descending" (missing values last)
-            'rasterByGroup', true, ...          % psth / raster: rows by group first, on bands (false: every epoch sorted as one block)
-            'rasterEvents',  repmat(EphysAnalysisConfig.defaults("EventMark"), 1, 0), ...   % psth / raster: marks on each row, EventMark each (epochEvents)
-            'histStyle',     "bar", ...         % psth: "bar" | "line"
-            'fill',          true, ...          % psth: filled bars / area under the line (false: outline / line only)
-            'fillAlpha',     NaN, ...           % psth: fill opacity 0-1 (NaN: 0.5 where groups overlap, else 1)
-            'normalize',     "none", ...        % psth: "none" | "unitPeak" (a unit's PSTHs / its largest peak) | "groupPeak" (each PSTH / its own peak) | "allPeak" (every PSTH / the largest of all)
-            'stack',         false, ...         % psth: one row per group, stacked upwards, instead of overlaid
-            'stackSpacing',  1.1, ...           % psth stack: row step, x the tallest PSTH of the panel (with stackRaster: x a row's height) (< 1 overlaps)
-            'stackRaster',   false, ...         % psth stack with withRaster: each group's raster in its row, just above its PSTH (no raster panel)
-            'stackRasterEqual', false, ...      % stackRaster: every row's ticks one height (that of the row showing the most epochs) instead of each row's epochs filling it
-            'stackRasterTrials', Inf, ...       % stackRaster: the most epochs a row's raster shows, picked evenly over its sort order (Inf = all; the PSTH uses all)
-            'maskAfterStop', false, ...         % psth, raster, heatmap of spikes: drop what follows each epoch's stop event
-            'param',         "", ...            % tuning / behavior: trial parameter on the x axis
-            'seriesParam',   "", ...            % tuning / behavior: one curve (series) per value of this parameter
-            'yParam',        "", ...            % behavior: the y axis: a numeric trial parameter, or "stop" (each epoch's stop latency, ms)
-            'jitter',        true, ...          % behavior "points": spread the points sideways (a fixed, repeatable jitter)
-            'xScale',        "category", ...    % behavior: "category" (the x values evenly spaced) | "linear" (at their values; numeric x)
-            'value',         "rate", ...        % probemap: "rate" | "nSpikes" | "nUnits"
-            'order',         "probe", ...       % heatmap rows: "probe" (the style's SortDepth / SortShank) | "peak" | "modulation" (auROC: the first group's mean in the modulation window)
-            'metric',        "mean", ...        % corrmap: each epoch's "mean" or "peak" (binned) rate
-            'correlation',   "pearson", ...     % corrmap: "pearson" | "spearman"
-            'fisherZ',       false, ...         % corrmap: Fisher's z (atanh r) drawn, and the mean r taken in z
-            'waveform',      EphysAnalysisConfig.defaults("Waveform"), ...   % psth / raster / tuning grids: each unit's waveform in its tile; waveforms: the plot's own settings
-            'aux',           EphysAnalysisConfig.defaults("Aux"), ...        % psth / raster of spikes: the mean aux (accelerometer) signal with each unit's tile
-            'note',         EphysAnalysisConfig.defaults("Note"), ...       % descriptive text on the plot (renderPlot's drawNote)
-            'overlays',      repmat(EphysAnalysisConfig.defaults("Overlay"), 1, 0), ...   % lines and patches drawn on the plot's axes (renderPlot's drawOverlays)
-            'style',         EphysAnalysisConfig.defaults("Style"), ...
-            'aesthetics',   PlotAesthetics.emptyRules());   % remembered looks of components: role, group, property, value (PlotAesthetics)
-
-    case "SessionPlot"
-        % one plot over several sessions (datasets): a base plot (its alignment, units, bins, look) drawn per
-        % dataset and merged (combineSessions); only the cross-session settings live here (sessionPlotFor)
-        s = struct( ...
-            'id',          "", ...                  % its own namespace ("" = "<plot>_sessions_<n>")
-            'enabled',     true, ...
-            'title',       "", ...                  % "" = automatic
-            'plot',        "", ...                  % id of the base plot (its enabled does not gate this one)
-            'layout',      "", ...                  % "" = the base plot's; else one of the kind's layouts
-            'datasets',    "ticked", ...            % "ticked" (the run's datasets) | "list" (datasetKeys)
-            'datasetKeys', string.empty(1,0), ...   % the dataset keys when "list"
-            'facet',       "none", ...              % "none" | "subject" (one figure per subject)
-            'series',      "session", ...           % what gets a color: "session" | "subject" | "all" (sessions within a subject / all averaged)
-            'colorOrder',  "palette", ...           % "palette" | "sequential" (by date)
-            'showMembers', false, ...               % series subject / all: each session drawn faintly under its summary
-            'error',       "sem", ...               % series subject / all: the band across sessions, "sem" | "sd" | "ci95" | "none"
-            'match',       "pool", ...              % spike sources: "pool" | "site" | "mapping" (signals: by recording channel)
-            'mappingFile', "", ...                  % match "mapping": CSV, column cell then one per dataset key holding unit ids
-            'minSessions', 1, ...                   % a tile (site / cell) is kept with data from at least this many sessions
-            'trialGroups', "pool", ...              % the base plot's trial groups: "pool" | "each" (a figure each) | "combine" (line styles)
-            'data',        "results", ...           % what the data export holds: "results" | "epochs" | "signals"
-            'aesthetics',  PlotAesthetics.emptyRules());   % its own remembered looks, applied after the base plot's
 
     case "Layer"
         % one data binding of a figure panel (Panel.layers): a source, and either the observation (the previewed /
@@ -471,5 +379,5 @@ function a = aurocTestDefaults()
 %aurocTestDefaults  UnitSelection.response.auroc: Auroc's settings of the auROC itself and its call, and its own bins.
 a = EphysAnalysisConfig.defaults("Auroc");
 a = rmfield(a, ["modulationWindow" "correction" "alpha" "marks" "modulatedOnly"]);
-a.binSec = 0.01;   % the bins counted (the plot's own bins are not used)
+a.binSec = 0.01;   % the bins counted (the panel's own bins are not used)
 end

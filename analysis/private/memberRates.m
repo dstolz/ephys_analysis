@@ -2,8 +2,8 @@ function M = memberRates(R, norm, p)
 %memberRates  The member sessions' rates (R.members.rate [nBins x nTiles x nMembers]) divided as normalizeRates divided the series.
 %   M = memberRates(R, NORM, P) with NORM the normalize mode and P
 %   normalizeRates' divisor ([] for "none"): a per-series divisor
-%   (groupPeak) divides each member by its series'. Shared by renderPSTH
-%   and drawPsthPanel.
+%   (groupPeak) divides each member by its series'. Used by
+%   drawPsthPanel.
 %
 %   See also normalizeRates, memberLines.
 M = R.members.rate;

@@ -34,7 +34,7 @@ elseif isa(target, 'matlab.ui.Figure')
 elseif isgraphics(target)
     delete(target.Children);
 else
-    error('renderPlot:BadTarget', 'Draw into an axes, a figure, a panel, a tab, a grid layout or a tiled layout.');
+    error('renderLayout:BadTarget', 'Draw into an axes, a figure, a panel, a tab, a grid layout or a tiled layout.');
 end
 tl = tiledlayout(target, nr, nc, 'TileSpacing', char(spacing), 'Padding', char(padding));
 end

@@ -5,7 +5,7 @@ function tf = hasLine(src, ref)
 %   trial line's events; a trial-scoped reference (or "auto" with paired
 %   trials) looks in the trials' TrialEvents, any other in SRC.events.
 %
-%   See also missingStepLine, plotSkipReason, figureSkipReason.
+%   See also missingStepLine, figureSkipReason.
 if ref.line == "Trial" || (src.trialLine ~= "" && ref.line == src.trialLine)
     tf = src.hasTrials || isfield(src.events, src.trialLine);
     return

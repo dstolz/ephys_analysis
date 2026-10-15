@@ -36,7 +36,7 @@ function R = firingRate(spikeTimes, E, opts)
 %   (epochs per group), units, err (type, lo / hi [nUnits x nGroups], over
 %   "epochs", nBoot), params, created.
 %
-%   See also epochTable, selectUnits, tuningCurve, renderRates.
+%   See also epochTable, selectUnits, tuningCurve, renderFigure.
 
 arguments
     spikeTimes

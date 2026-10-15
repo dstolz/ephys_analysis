@@ -125,7 +125,16 @@ function issues = validate(obj, opts)
 %               observation), probemap value, corrmap metric /
 %               correlation, the rate display, the tuning param /
 %               seriesParam (names, not the same one), the waveform
-%               settings, y / color limits; a linked panel's common
+%               settings, y / color limits; the spectral panels'
+%               (spectrum, spectrogram, coherence) options by
+%               chronuxSettings' rules (figureChronuxSettings: tapers,
+%               fpass, err, errP, detrend, scale, spikeFs, the moving
+%               window, the range time base's range and segment, a
+%               spectrogram's baseline Mode and its window inside the
+%               panel's), a coherence panel's two enabled layers (seed,
+%               partner; none a spike layer over time; a warning for a
+%               fixed seed of several items), a spectrogram's signal
+%               layer; a linked panel's common
 %               fields are checked once, in the figure's common options --
 %               bins, measure, baseline Mode and window, auroc, the
 %               waveform settings --, plus an error at
@@ -840,7 +849,8 @@ for k = 1:numel(obj.Figures)
         end
         pw = pj.window;
         if isequal(pw, "default"); pw = fw; end
-        if tr.Aligned && pw.mode == "between" && ~ismember(pj.type, ["corrmap" "rate" "tuning"])
+        onRange = isfield(pj.options, 'timeBase') && pj.options.timeBase == "range";   % a spectral panel on segments of the recording
+        if tr.Aligned && pw.mode == "between" && ~ismember(pj.type, ["corrmap" "rate" "tuning"]) && ~onRange
             add("Figures", p0 + ".window", "error", A + " needs a fixed window (""between"" windows are for unit correlation, " + ...
                 "firing rate and tuning curve panels).");
         end
@@ -1096,6 +1106,8 @@ for k = 1:numel(obj.Figures)
                 checkPanelBaseline(op.baseline, ["none" "subtract"], o0, A, ownField("baseline"), p0);
                 checkFigGroup(op.group, o0);
                 checkFigLim(op.cLim, o0 + ".cLim", "color");
+            case {"spectrum" "spectrogram" "coherence"}
+                checkSpectral(pj, op, pw, Lp(on), o0, p0, find(on));
         end
     end
 
@@ -1296,6 +1308,55 @@ issues = table(Section, Field, Severity, Message);
         %checkFigLim  A panel's y or color limits: [] (automatic) or an ascending pair.
         if ~(isempty(hLim) || (numel(hLim) == 2 && all(isfinite(hLim)) && hLim(2) > hLim(1)))
             add("Figures", hField, "error", "The " + hWhat + " limits are [] (automatic) or [lo hi] with lo < hi.");
+        end
+    end
+
+    function checkSpectral(hP, hOp, hW, hL, hO0, hP0, hIdx)
+        %checkSpectral  A Chronux panel (spectrum, spectrogram, coherence): its options by chronuxSettings' rules, and its layers.
+        %   HL: its enabled layers, HIDX their indices in the panel. The options go through figureChronuxSettings (with
+        %   the panel's fixed window, which a spectrogram's baseline window must lie inside); what chronuxSettings
+        %   throws is reported with its message. A coherence panel takes exactly two enabled layers (the seed, then
+        %   its partner), both signals over time; a spectrogram a signal layer.
+        hRange = isfield(hOp, 'timeBase') && hOp.timeBase == "range";
+        hWin = [];
+        if isstruct(hW) && isfield(hW, 'mode') && hW.mode == "fixed" && isfinite(hW.pre) && isfinite(hW.post) && hW.post > hW.pre
+            hWin = [hW.pre hW.post];
+        end
+        if ~isempty(hWin) || hRange
+            try
+                figureChronuxSettings(hP.type, hOp, hWin);
+            catch hME
+                if ~startsWith(string(hME.identifier), "chronuxSettings:"); rethrow(hME); end
+                add("Figures", hO0, "error", string(hME.message));
+            end
+        end
+        if isfield(hOp, 'yLim'); checkFigLim(hOp.yLim, hO0 + ".yLim", "y"); end
+        if isfield(hOp, 'cLim'); checkFigLim(hOp.cLim, hO0 + ".cLim", "color"); end
+        if isfield(hOp, 'group'); checkFigGroup(hOp.group, hO0); end
+        hSrc = strings(1, 0);
+        if ~isempty(hL); hSrc = [hL.source]; end
+        switch hP.type
+            case "spectrogram"
+                if ~isempty(hL) && ~any(ismember(hSrc, EphysAnalysisConfig.SignalSources))
+                    add("Figures", hP0 + ".layers", "error", "A spectrogram draws a signal layer (LFP, MUA, SPIKE or AUX).");
+                end
+            case "coherence"
+                if numel(hL) ~= 2
+                    add("Figures", hP0 + ".layers", "error", sprintf(['A coherence panel takes exactly two enabled layers, ' ...
+                        'the seed (first) then its partner; it has %d.'], numel(hL)));
+                    return
+                end
+                if hOp.overTime && any(ismember(hSrc, EphysAnalysisConfig.SpikeSources))
+                    add("Figures", hO0 + ".overTime", "error", "A coherogram (over time) takes two signal layers (LFP, MUA, " + ...
+                        "SPIKE, AUX): spike trains give one coherence spectrum.");
+                end
+                hS = hL(1);
+                hMany = (ismember(hS.source, EphysAnalysisConfig.SignalSources) && numel(hS.channels) ~= 1) ...
+                    || (ismember(hS.source, EphysAnalysisConfig.SpikeSources) && numel(hS.units.ids) ~= 1);
+                if hS.binding == "fixed" && hMany
+                    add("Figures", hP0 + ".layers(" + hIdx(1) + ")", "warning", "The seed is its layer's first channel " + ...
+                        "or unit only: fix the seed layer to one.");
+                end
         end
     end
 

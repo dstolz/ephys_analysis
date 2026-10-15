@@ -3,8 +3,9 @@ function onAddPanel(obj, where)
 %   WHERE is "above", "below", "left" or "right": a new row (column) of the
 %   grid next to the selected panel (EphysAnalysisConfig.placePanel); the
 %   first panel of a figure goes to row 1, column 1. The new panel holds the
-%   type's default layer (EphysAnalysisConfig.defaultLayer), so it draws at
-%   once, and is selected.
+%   type's default layer (EphysAnalysisConfig.defaultLayer; a coherence
+%   panel two, its seed and partner: the observed unit and its channel's
+%   LFP), so it draws at once, and is selected.
 arguments
     obj (1,1) EphysAnalysisApp
     where (1,1) string {mustBeMember(where, ["above" "below" "left" "right"])}
@@ -14,7 +15,13 @@ if k < 1 || k > numel(obj.Config.Figures); return; end
 cfg = obj.gatherConfig();
 fig = cfg.Figures(k);
 t = obj.FigureAddType;
-panel = struct('type', t, 'layers', EphysAnalysisConfig.defaultLayer(t));
+L = EphysAnalysisConfig.defaultLayer(t);
+if t == "coherence"   % the seed and its partner: the observed unit with its channel's LFP (figureTemplates' coherence)
+    L2 = L;
+    L2.source = "LFP";
+    L = [L L2];
+end
+panel = struct('type', t, 'layers', L);
 anchor = "";
 j = obj.SelectedPanel;
 if ~isempty(fig.panels) && j >= 1 && j <= numel(fig.panels); anchor = fig.panels(j).id; end

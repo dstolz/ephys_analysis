@@ -2206,6 +2206,59 @@ app.onFigureSectionToggled("options");
 app.onRemoveFigure();
 check(isempty(app.Config.Figures) && isempty(app.FigureList.Items) && app.FigurePreviewState == "idle" && ~shown(FE.id) ...
     && app.RemoveFigureButton.Enable == "off" && nPatches() == 0, 'Remove takes the figure away; the editor and preview are empty');
+% a spectrum panel (Chronux: the bundled copy, on the path for these checks only)
+spPath = "";
+if ~ChronuxDataset.hasChronux() && isfolder(fullfile(repo, 'toolboxes', 'chronux'))
+    spPath = string(genpath(fullfile(repo, 'toolboxes', 'chronux')));
+    addpath(spPath);
+end
+if ~ChronuxDataset.hasChronux()
+    fprintf('  SKIP: Chronux is not on the path: the spectrum panel is not tested\n');
+else
+    app.onAddFigure("blank");
+    check(app.FigurePreviewState ~= "failed", 'a blank figure previews without failing (no axes for the aesthetics editor to read)');
+    FE.addType.Value = "spectrum";
+    FE.addType.ValueChangedFcn(FE.addType, []);
+    app.onAddPanel("below");
+    fs1 = app.Config.Figures(1);
+    spAx = findall(app.FigurePreviewPanel, 'Type', 'axes', 'Tag', 'axes');
+    spTr = findall(app.FigurePreviewPanel, 'Tag', 'trace');
+    spKind = "";
+    if isstruct(app.FigurePreviewResult) && isstruct(app.FigurePreviewResult.panels(1).layers(1).R)
+        spKind = string(app.FigurePreviewResult.panels(1).layers(1).R.kind);
+    end
+    spX = "";
+    if ~isempty(spAx); spX = strjoin(string(spAx(1).XLabel.String), " "); end
+    if app.FigurePreviewState ~= "drawn"   % say why in the check's message
+        spX = strjoin(string(get(findall(app.FigurePreviewPanel, 'Type', 'uilabel'), 'Text')), " | ");
+    end
+    check(isscalar(fs1.panels) && fs1.panels.type == "spectrum" && fs1.panels.layers.source == "units" ...
+        && fs1.panels.layers.binding == "observation" && app.FigurePreviewState == "drawn" && ~isempty(spAx) && ~isempty(spTr) ...
+        && spX == "Frequency (Hz)" && spKind == "chronuxSpikeSpectrum", ...
+        sprintf('a Power spectrum panel added from the drop-down: the observed unit''s spike spectrum, previewed at once (%s, %d axes, %d traces, x "%s", %s)', ...
+        app.FigurePreviewState, numel(spAx), numel(spTr), spX, spKind));
+    check(shown(FE.spTaperMode) && shown(FE.spTW) && shown(FE.spErr) && shown(FE.spScale) && shown(FE.spTimeBase) && shown(FE.spSpikeFs) ...
+        && ~shown(FE.spRangeFrom) && ~shown(FE.spWin) && ~shown(FE.spShowPhase) && ~shown(FE.binMs) && ~shown(FE.baselineMode) ...
+        && shown(FE.yLim) && FE.spTW.Enable == "on" && FE.spW.Enable == "off" ...
+        && app.FigureSections([app.FigureSections.Name] == "options").Title == "Power spectrum options", ...
+        'its options show the Chronux rows: tapers, error, scale, time base, spike rate (no range on epochs, no moving window)');
+    FE.spTW.Value = 2;
+    FE.spK.Value = 3;
+    FE.spFmax.Value = 80;
+    FE.spScale.Value = "linear";
+    FE.spTimeBase.Value = "range";
+    FE.spSegment.Value = 1;
+    app.onConfigChanged("figure");
+    o1 = app.Config.Figures(1).panels.options;
+    R1 = app.FigurePreviewResult.panels.layers.R;
+    check(o1.TW == 2 && o1.K == 3 && isequal(o1.fpass, [0 80]) && o1.scale == "linear" && o1.timeBase == "range" && o1.segmentSec == 1 ...
+        && shown(FE.spRangeFrom) && shown(FE.spSegment) && app.FigurePreviewState == "drawn" && R1.tapers.TW == 2 && R1.tapers.K == 3 ...
+        && max(R1.f) <= 80 && R1.timeBase.mode == "range", ...
+        'its rows reach the config (tapers, frequency range, scale, the range time base) and the preview is computed with them');
+    app.onRemoveFigure();
+    app.onSaveConfig();
+end
+if spPath ~= ""; rmpath(spPath); end
 app.onSaveConfig();
 app.Tabs.SelectedTab = app.TabData;
 

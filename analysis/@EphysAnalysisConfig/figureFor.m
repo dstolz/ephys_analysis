@@ -10,7 +10,9 @@ function spec = figureFor(obj, id)
 %     (resolved) where "default", and two fields added: aligned
 %     (panelTypes().Aligned of its type) and sharesTime (the type shares
 %     time and both its ref and window were "default": it takes the
-%     figure's time axis; a selection of its own does not change that). A
+%     figure's time axis; a selection of its own does not change that; a
+%     coherence panel shares it only over time, options.overTime, on the
+%     aligned time base). A
 %     panel whose selection differs from the figure's computes its own
 %     epochs and groups (figureCompute)
 %   - each panel's options completed against its type's DefaultOptions,
@@ -63,13 +65,17 @@ for j = 1:numel(fig.panels)
     row = T.Type == p.type;
     known = any(row);
     p.aligned = known && T.Aligned(row);
-    p.sharesTime = known && T.SharesTime(row) && isequal(p.ref, "default") && isequal(p.window, "default");
+    linked = isequal(p.ref, "default") && isequal(p.window, "default");
+    p.sharesTime = known && T.SharesTime(row) && linked;
     if isequal(p.ref, "default");    p.ref = spec.ref;       end
     if isequal(p.window, "default"); p.window = spec.window; end
     if isequal(p.selection, "default"); p.selection = spec.selection; end
     if known
         p.options = EphysAnalysisConfig.coerceStruct(T.DefaultOptions{row}, p.options, "options");
         p.options = EphysAnalysisConfig.panelOptions(fig, p);
+        if p.type == "coherence"   % a coherogram over the epochs is drawn over time from the event
+            p.sharesTime = linked && p.options.overTime && p.options.timeBase == "aligned";
+        end
     end
     L = repmat(layer0, 1, 0);
     for i = 1:numel(p.layers)

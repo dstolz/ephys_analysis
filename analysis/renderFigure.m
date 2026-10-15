@@ -19,7 +19,8 @@ function h = renderFigure(F, spec, target, opts)
 %            its middle. SPEC.panels(k).title, when set, titles the panel;
 %            with a title of the figure's own (SPEC.title, which names no
 %            observation), the top-left panel names the observation.
-%   Time     every panel sharing the figure's time axis (sharesTime) shows
+%   Time     every panel sharing the figure's time axis (sharesTime; a
+%            spectrogram, a coherogram on the epochs too) shows
 %            [SPEC.window.pre post] (set on each: no linkaxes);
 %            figureTimeStack labels a column's stack of time panels once,
 %            at its bottom, and drops the inner x tick labels.
@@ -67,7 +68,9 @@ function h = renderFigure(F, spec, target, opts)
 %   H fields
 %     layout  the tiled layout ([] for an axes TARGET)
 %     axes    the panels' axes drawn, in panel order
-%     panels  one per SPEC.panels: id, type, axes (empty when not drawn)
+%     panels  one per SPEC.panels: id, type, axes (empty when not drawn),
+%             extraAxes (a coherence panel's phase axes, drawn under its
+%             magnitude in its tile; dressed with the panel type's looks)
 %     title   the figure's title text
 %   Errors: renderFigure:Mismatch (F's panels are not SPEC's).
 %
@@ -120,11 +123,12 @@ if istable(G) && height(G) > 0; colors = groupPalette(G, style); end
 isTime = false(1, np);
 for k = 1:np
     row = PT.Type == types(k);
-    isTime(k) = any(row) && PT.SharesTime(row);
+    isTime(k) = any(row) && (PT.SharesTime(row) || overEpochs(panels(k)));
 end
 nDraw = np;
 if ~isempty(ax0); nDraw = min(1, np); end
 axs = gobjects(1, np);
+extra = cell(1, np);   % each panel's further axes (a coherence panel's phase)
 hks = cell(1, np);
 for k = 1:nDraw
     p = panels(k);
@@ -169,6 +173,7 @@ for k = 1:nDraw
         hk.legendGroup = false(1, 0);
     end
     axs(k) = ax;
+    if isfield(hk, 'extraAxes'); extra{k} = hk.extraAxes(isgraphics(hk.extraAxes)); end
     hks{k} = hk;
 end
 drawn = isgraphics(axs);
@@ -225,6 +230,9 @@ for k = find(drawn)
     r = kindRules(design, types(k));
     if opts.UserAesthetics && isvarname(types(k)); r = [r PlotAesthetics.userRules(types(k))]; end %#ok<AGROW>
     PlotAesthetics.apply(axs(k), r);
+    for xa = reshape(extra{k}, 1, [])
+        PlotAesthetics.apply(xa, r);
+    end
 end
 PlotDesign.paint(root, design);
 r = kindRules(design, "figure");
@@ -237,9 +245,17 @@ if editable(opts.Editable, target)
         o = panels(k).options;
         aurocMap = aurocMap || (isfield(o, 'baseline') && isstruct(o.baseline) && o.baseline.Mode == "auroc");
     end
+    for k = find(types == "spectrogram")   % a baseline-normalized spectrogram: diverging, centered on no change
+        o = panels(k).options;
+        aurocMap = aurocMap || (isfield(o, 'baseline') && isstruct(o.baseline) && o.baseline.Mode ~= "none");
+    end
+    cohgram = false;
+    for k = find(types == "coherence")
+        cohgram = cohgram || (isfield(panels(k).options, 'overTime') && panels(k).options.overTime);
+    end
     if any(types == "corrmap") || aurocMap
         mapField = "diverging";
-    elseif any(ismember(types, ["heatmap" "probemap"]))
+    elseif any(ismember(types, ["heatmap" "probemap" "spectrogram"])) || cohgram
         mapField = "heat";
     end
     ordinal = istable(G) && ismember('color', G.Properties.VariableNames) && isOrdinalGroups(G);
@@ -250,13 +266,23 @@ if editable(opts.Editable, target)
     PlotAesthetics.enableEditing(target, ctx);
 end
 
-hp = repmat(struct('id', "", 'type', "", 'axes', gobjects(0)), 1, np);
+hp = repmat(struct('id', "", 'type', "", 'axes', gobjects(0), 'extraAxes', gobjects(0)), 1, np);
 for k = 1:np
     hp(k).id = panels(k).id;
     hp(k).type = types(k);
-    if drawn(k); hp(k).axes = axs(k); end
+    if drawn(k)
+        hp(k).axes = axs(k);
+        hp(k).extraAxes = extra{k};
+    end
 end
 h = struct('layout', tl, 'axes', axs(drawn), 'panels', hp, 'title', txt);
+end
+
+
+function tf = overEpochs(p)
+%overEpochs  A coherence panel drawn over time from the event (a coherogram on the aligned time base): a time panel.
+o = p.options;
+tf = p.type == "coherence" && isfield(o, 'overTime') && o.overTime && isfield(o, 'timeBase') && o.timeBase == "aligned";
 end
 
 

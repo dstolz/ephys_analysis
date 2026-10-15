@@ -239,6 +239,9 @@ if isfield(op, 'waveform')
     E.wavePP.Value = wv.showPP;
     E.waveCount.Value = wv.showCount;
 end
+if isfield(op, 'taperMode')   % a spectral panel's Chronux rows
+    applySpectral(E, op);
+end
 
 % layers: the list, the sources Add offers, the layer picked
 nl = numel(p.layers);
@@ -260,6 +263,38 @@ end
 if obj.SelectedLayer >= 1
     applyLayer(obj, E, p.layers(obj.SelectedLayer), p.type, lines, params);
 end
+end
+
+
+function applySpectral(E, op)
+%applySpectral  A spectrum, spectrogram or coherence panel's Chronux rows (the fields its type has).
+E.spTaperMode.Value = char(pickFrom(op.taperMode, string(E.spTaperMode.ItemsData), "TWK"));
+E.spTW.Value = max(eps, op.TW);
+E.spK.Value = max(1, round(op.K));
+E.spW.Value = max(eps, op.W);
+E.spP.Value = max(0, round(op.p));
+E.spPad.Value = min(E.spPad.Limits(2), max(E.spPad.Limits(1), round(op.pad)));
+E.spFmin.Value = max(0, op.fpass(1));
+E.spFmax.Value = max(eps, op.fpass(2));
+E.spDetrend.Value = char(pickFrom(op.detrend, string(E.spDetrend.ItemsData), "constant"));
+if isfield(op, 'timeBase')
+    E.spTimeBase.Value = char(pickFrom(op.timeBase, string(E.spTimeBase.ItemsData), "aligned"));
+    E.spRangeFrom.Value = max(0, op.range(1));
+    E.spRangeTo.Value = max(0, op.range(2));
+    E.spSegment.Value = max(eps, op.segmentSec);
+end
+if isfield(op, 'err')
+    offerItems(E.spErr, ["none" "theoretical" "jackknife"], op.err);
+    E.spErrP.Value = min(1 - eps, max(eps, op.errP));
+end
+if isfield(op, 'scale'); E.spScale.Value = char(pickFrom(op.scale, string(E.spScale.ItemsData), "db")); end
+if isfield(op, 'spikeFs'); E.spSpikeFs.Value = max(eps, op.spikeFs); end
+if isfield(op, 'movingwin')
+    E.spWin.Value = max(eps, op.movingwin(1));
+    E.spStep.Value = max(eps, op.movingwin(2));
+end
+if isfield(op, 'overTime'); E.spOverTime.Value = logical(op.overTime); end
+if isfield(op, 'showPhase'); E.spShowPhase.Value = logical(op.showPhase); end
 end
 
 

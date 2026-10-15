@@ -569,6 +569,7 @@ classdef PlotAesthetics
                 return
             end
             axs = flipud(findall(target, 'Type', 'axes'));
+            if isempty(axs); axs = gobjects(0, 1); return; end   % nothing drawn (a figure without panels): no Tag to read
             axs = axs(~ismember({axs.Tag}, {'legendHost' 'noteHost'}));   % hidden hosts of a legend outside the grid (placeLegend) and of the note (drawNote)
             n = numel(axs);
             tile = inf(n, 2);   % the tile, then the tile within a nested layout (a PSTH's raster and rate panel)

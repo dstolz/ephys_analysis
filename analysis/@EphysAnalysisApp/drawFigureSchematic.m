@@ -101,6 +101,9 @@ switch type
     case "corrmap",    c = [0.965 0.871 0.918];
     case "rate",       c = [0.851 0.937 0.957];
     case "tuning",     c = [0.957 0.906 0.851];
+    case "spectrum",   c = [0.886 0.937 0.875];
+    case "spectrogram", c = [0.976 0.902 0.808];
+    case "coherence",  c = [0.890 0.882 0.965];
     otherwise,         c = [0.92 0.92 0.92];
 end
 end

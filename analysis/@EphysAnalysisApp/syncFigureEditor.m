@@ -44,7 +44,16 @@ function syncFigureEditor(obj)
 %                    rows for trials (and neither row order nor Group
 %                    shown then);
 %                    a rate panel's display; a tuning panel's parameter
-%                    and series; a waveforms panel's layout
+%                    and series; a waveforms panel's layout; a spectral
+%                    panel's Chronux rows (tapers, TW / K or W / p enabled
+%                    by the taper mode, pad, frequency range, detrend; a
+%                    spectrum's and a coherence panel's time base, its range
+%                    and segment on "segments", the error and its p-value,
+%                    the spike rate with a spike layer; the scale of a
+%                    spectrum or spectrogram; a spectrogram's moving window,
+%                    baseline, color limits and group; a coherence panel's
+%                    over-time box, its phase box or, over time, the moving
+%                    window, color limits and group)
 %     Appearance     all rows; the site size with a probe map, the heat
 %                    colors with a heat map, probe map or correlation map
 %   What is enabled: the binding only where a layer may follow the
@@ -140,7 +149,8 @@ optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort
     "maskAfterStop" "histStyle" "fill" "normalize" "contDisplay" "statistic" "errorType" "stackSpacing" "order" ...
     "value" "metric" "correlation" "fisherZ" "yLim" "cLim" "waveMode" "waveLocation" "waveScale" "wavePP" ...
     "optApplyAll" "auMethod" "auWinMs" "auModFrom" "auCutoff" "auTest" "auMarks" "stack" "param" "rateDisplay" "waveLayout" ...
-    "contTrials" "heatRows"];
+    "contTrials" "heatRows" "spTimeBase" "spRangeFrom" "spSegment" "spTaperMode" "spTW" "spW" "spPad" "spFmin" "spErr" ...
+    "spDetrend" "spScale" "spSpikeFs" "spOverTime" "spWin" "spShowPhase"];
 for f = [layerKeys optionKeys]; v.(f) = false; end
 optionsTitle = "Options";
 paligned = false;
@@ -232,8 +242,30 @@ if hasPanel
     if trialHeat; v.group = false; end   % a heat map of trials draws every group
     v.value = t == "probemap";
     v.metric = t == "corrmap"; v.correlation = v.metric; v.fisherZ = v.metric;
-    v.yLim = ismember(t, ["psth" "continuous" "waveforms" "rate" "tuning"]);
-    v.cLim = ismember(t, ["heatmap" "probemap" "corrmap"]);
+    v.yLim = ismember(t, ["psth" "continuous" "waveforms" "rate" "tuning" "spectrum"]);
+    v.cLim = ismember(t, ["heatmap" "probemap" "corrmap" "spectrogram"]);
+    % the spectral panels: the Chronux tab's rows
+    spectral = ismember(t, ["spectrum" "spectrogram" "coherence"]);
+    overTime = t == "coherence" && logical(E.spOverTime.Value);   % a coherogram: an image of one group over time
+    v.spTimeBase = ismember(t, ["spectrum" "coherence"]);
+    ranged = v.spTimeBase && string(E.spTimeBase.Value) == "range";
+    v.spRangeFrom = ranged; v.spSegment = ranged && ~overTime;
+    v.spTaperMode = spectral; v.spTW = spectral; v.spW = spectral; v.spPad = spectral; v.spFmin = spectral; v.spDetrend = spectral;
+    en([E.spTW E.spK], string(E.spTaperMode.Value) == "TWK");
+    en([E.spW E.spP], string(E.spTaperMode.Value) == "Wp");
+    v.spErr = ismember(t, ["spectrum" "coherence"]) && ~overTime;
+    en(E.spErrP, string(E.spErr.Value) ~= "none");
+    v.spScale = ismember(t, ["spectrum" "spectrogram"]);
+    v.spSpikeFs = ismember(t, ["spectrum" "coherence"]) && any(ismember([p.layers.source], spikes));
+    v.spOverTime = t == "coherence";
+    v.spWin = t == "spectrogram" || overTime;
+    v.spShowPhase = t == "coherence" && ~overTime;
+    if t == "coherence"
+        v.yLim = ~overTime;
+        v.cLim = overTime;
+        v.group = overTime;
+    end
+    if t == "spectrogram"; v.baselineMode = true; v.baseFrom = true; end
     v.waveMode = ismember(t, ["raster" "psth" "waveforms" "tuning"]); v.wavePP = v.waveMode;
     v.waveLocation = ismember(t, ["raster" "psth" "tuning"]); v.waveScale = v.waveLocation;
     if v.baselineMode; offerItems(E.baselineMode, ch.BaselineModes); end

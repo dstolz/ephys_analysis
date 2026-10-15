@@ -6,16 +6,22 @@ function ch = figureEditorChoices(type, source, rows)
 %     Sources        the layer sources the panel type draws, in order: those
 %                    of its categories (EphysAnalysisConfig.panelTypes,
 %                    sourceCategories), then "events" on a panel that
-%                    shares the time axis (categoryOf)
+%                    shares the time axis (categoryOf; a spectrum, rate,
+%                    tuning or coherence panel takes none): a spectrum or
+%                    coherence panel units, detected, LFP, MUA, SPIKE, AUX;
+%                    a spectrogram the signals and events
 %     SourceLabels   their names in the app ("units (sorted)", ...)
 %     Bindable       a layer of SOURCE on this type may follow the
 %                    observation (spikes or a signal, on a raster, PSTH,
-%                    continuous, waveforms, rate or tuning panel; spikes on
-%                    a heat map of trials); otherwise it is fixed
+%                    continuous, waveforms, rate, tuning, spectrum,
+%                    spectrogram or coherence panel; spikes on a heat map
+%                    of trials); otherwise it is fixed
 %     BaselineModes  the options.baseline modes the type takes (auroc on a
 %                    PSTH or a heat map of spikes; a heat map of a signal,
 %                    SOURCE a signal: none and subtract only; rate and
-%                    tuning: firingRate's none, subtract, ratio, zscore)
+%                    tuning: firingRate's none, subtract, ratio, zscore; a
+%                    spectrogram chronuxNormalize's none, db, percent,
+%                    zscore, ratio)
 %     WaveModes, WaveLabels  options.waveform.mode: an inset may be off, a
 %                    waveforms panel's waveform not
 %   An unknown TYPE offers no source.
@@ -34,6 +40,7 @@ if any(row)
     for c = T.Categories{row}
         srcs = [srcs S.Sources{S.Category == c}]; %#ok<AGROW>
     end
+    srcs = srcs(srcs ~= "events");   % events only where categoryOf takes them: the time panels
     if T.SharesTime(row); srcs(end+1) = "events"; end
 end
 srcs = unique(srcs, 'stable');
@@ -44,7 +51,7 @@ known = isKey(names, srcs);
 labels(known) = names(srcs(known));
 ch = struct('Sources', srcs, 'SourceLabels', labels, ...
     'Bindable', (ismember(source, [EphysAnalysisConfig.SpikeSources EphysAnalysisConfig.SignalSources]) ...
-        && ismember(type, ["raster" "psth" "continuous" "waveforms" "rate" "tuning"])) ...
+        && ismember(type, ["raster" "psth" "continuous" "waveforms" "rate" "tuning" "spectrum" "spectrogram" "coherence"])) ...
         || (type == "heatmap" && rows == "trials" && ismember(source, EphysAnalysisConfig.SpikeSources)), ...
     'BaselineModes', "none", 'WaveModes', ["off" "mean" "subsample" "both"], ...
     'WaveLabels', ["Off" "Mean" "Subsample" "Mean + subsample"]);
@@ -58,6 +65,8 @@ switch type
         ch.BaselineModes = ["none" "subtract"];
     case {"rate" "tuning"}
         ch.BaselineModes = ["none" "subtract" "ratio" "zscore"];
+    case "spectrogram"   % chronuxNormalize's
+        ch.BaselineModes = ["none" "db" "percent" "zscore" "ratio"];
     case "waveforms"
         ch.WaveModes = ch.WaveModes(2:end);
         ch.WaveLabels = ch.WaveLabels(2:end);

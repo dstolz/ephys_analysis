@@ -25,7 +25,11 @@ function [reason, layerReasons] = figureSkipReason(src, spec)
 %   map ("no probe map"); a tuning panel without paired trials, without a
 %   parameter to tune over (options.param "" with no groupBy parameter and
 %   no numeric trial parameter), or whose param or seriesParam the trials
-%   lack ("no trial parameter X"). A layer's: "no sorted units", "no detected
+%   lack ("no trial parameter X"); a spectrum, spectrogram or coherence
+%   panel without the Chronux toolbox on the path ("Chronux is not on the
+%   path"). A spectrum or coherence panel on timeBase "range" is not
+%   aligned to events: it needs none of the alignment's lines, trials or
+%   parameters. A layer's: "no sorted units", "no detected
 %   spikes", "no <SIGNAL> extract"; events: "no line X" (or of its
 %   sequence), "no paired trials" (trial scope or "Trial"), "no trial
 %   parameter X" (offsetParam); a following layer: "AUX has no recording channel: bind
@@ -65,7 +69,7 @@ aligned = false;
 for k = 1:numel(spec.panels)
     p = spec.panels(k);
     row = PT.Type == p.type;
-    if any(row) && PT.Aligned(row) && ~isempty(p.layers) && any([p.layers.enabled])
+    if any(row) && PT.Aligned(row) && ~onRange(p) && ~isempty(p.layers) && any([p.layers.enabled])
         aligned = true;
     end
 end
@@ -84,7 +88,7 @@ for k = 1:numel(spec.panels)
     else
         psel = sel;   % a panel's own trial selection, else the figure's
         if isfield(p, 'selection') && isstruct(p.selection); psel = p.selection; end
-        own = PT.Aligned(row) && (~isequaln(p.ref, spec.ref) || ~isequaln(p.window, spec.window) || ~isequaln(psel, sel));
+        own = PT.Aligned(row) && ~onRange(p) && (~isequaln(p.ref, spec.ref) || ~isequaln(p.window, spec.window) || ~isequaln(psel, sel));
         if own
             pr = alignReason(src, p.ref, p.window, psel, vars);
         end
@@ -142,7 +146,15 @@ switch p.type
         if isfield(o, 'rows') && o.rows == "trials"; r = sortReason(src, o, vars); end   % its rows sorted as a raster's
     case "probemap"
         if isempty(src.probe); r = "no probe map"; end
+    case {"spectrum" "spectrogram" "coherence"}
+        if ~ChronuxDataset.hasChronux(); r = "Chronux is not on the path"; end
 end
+end
+
+
+function tf = onRange(p)
+%onRange  A spectral panel on the range time base: segments of the recording, not epochs around events.
+tf = isfield(p.options, 'timeBase') && p.options.timeBase == "range";
 end
 
 

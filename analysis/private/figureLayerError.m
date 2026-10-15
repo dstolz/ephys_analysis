@@ -3,9 +3,14 @@ function reason = figureLayerError(ME)
 %   REASON = figureLayerError(ME) is the message of ME when it says the
 %   dataset lacks what a layer or a panel's own epochs need (no unit left
 %   after the selection, no event of a line, no column, no value, no
-%   probe map, a signal's baseline with no sample in the window, ...): the
+%   probe map, a signal's baseline with no sample in the window; for the
+%   Chronux panels no trial or segment left, a pair or field channel not
+%   at hand, a moving window longer than the epoch, a result over its
+%   limit, settings chronuxSettings refuses, ...): the
 %   layer (or the panel) is skipped with it and the
-%   rest of the figure is still computed. Any other error, and above all
+%   rest of the figure is still computed. ChronuxDataset:NoChronux (the
+%   toolbox is not on the MATLAB path) gives "Chronux is not on the path".
+%   Any other error, and above all
 %   EphysAnalysisRunner:Canceled, is rethrown.
 %
 %   See also EphysAnalysisRunner.computeFigure, figureSkipReason.
@@ -15,7 +20,14 @@ skippable = ["selectUnits:NoUnits" "selectUnits:NoDetected" "selectUnits:NoneLef
     "resolveEvents:NoEvents" "resolveEvents:NoLine" "resolveEvents:NoTrials" "resolveEvents:NoParam" "resolveEvents:BadParam" ...
     "epochEvents:NoLine" "epochEvents:NoTrials" "epochTable:NoEpochs" "epochTable:NoColumn" ...
     "probeMapValues:NoProbe" "spikePSTH:BadWindow" "spikePSTH:NoneModulated" "tuningCurve:NoValues" ...
-    "evokedPotential:BadBaseline"];
+    "evokedPotential:BadBaseline" ...
+    "chronuxPairs:BadPair" "chronuxSpikeField:NoField" "chronuxUnitCoherence:BadPair" "chronuxSpecgram:Short" ...
+    "chronuxSpecgram:TooLarge" "chronuxCoherence:Short" "chronuxCoherence:TooLarge" "chronuxTimeBase:NoTrials" ...
+    "chronuxTimeBase:BadValue" "chronuxSettings:BadValue" "chronuxSettings:Baseline"];
+if string(ME.identifier) == "ChronuxDataset:NoChronux"   % the spectral panels: the toolbox, not the data
+    reason = "Chronux is not on the path";
+    return
+end
 if ~ismember(string(ME.identifier), skippable)
     rethrow(ME);
 end

@@ -703,10 +703,11 @@ classdef EphysAnalysisConfig
             %   category of SOURCE (sourceCategories) that panel type TYPE
             %   accepts (panelTypes().Categories): "point", "continuous",
             %   "unit" or "". units / detected are "point" in a
-            %   raster, PSTH, heat map, rate or tuning panel and "unit" in a waveforms panel,
+            %   raster, PSTH, heat map, rate, tuning, spectrum or coherence
+            %   panel and "unit" in a waveforms panel,
             %   probe map or correlation map. An events layer is "point" in
             %   every panel that shares the time axis (raster, psth,
-            %   continuous, heatmap: marks or latency lines), whatever its
+            %   continuous, heatmap, spectrogram: marks or latency lines), whatever its
             %   categories, and "" elsewhere.
             cat = "";
             T = EphysAnalysisConfig.panelTypes();
@@ -783,11 +784,13 @@ classdef EphysAnalysisConfig
             %   baseline; heatmap: bins, measure, baseline, auroc,
             %   maskAfterStop; waveforms: waveform; corrmap: bins,
             %   baseline; rate: measure, baseline; tuning: measure,
-            %   baseline, waveform; probemap: none.
+            %   baseline, waveform; probemap: none. The spectral types
+            %   (spectrum, spectrogram, coherence): none (a spectrogram's
+            %   baseline is chronuxNormalize's, not the figure's).
             f = string.empty(1, 0);
             T = EphysAnalysisConfig.panelTypes();
             row = T.Type == string(type);
-            if ~any(row); return; end
+            if ~any(row) || ismember(string(type), ["spectrum" "spectrogram" "coherence"]); return; end
             names = EphysAnalysisConfig.commonFields();
             f = names(isfield(T.DefaultOptions{row}, cellstr(names)));
         end

@@ -10,7 +10,9 @@ function T = figureTemplates()
 %   rows drawn flush (spacing "none"): raster_1 over psth_1, each with one
 %   units layer following the observed unit. Each panel type has a
 %   template of its own: one panel ("<type>_1") holding
-%   defaultLayer(type). "blank" is an empty 1 x 1 grid.
+%   defaultLayer(type) (a coherence panel two: the observed unit, then the
+%   LFP of its channel, a spike-field coherence). "blank" is an empty 1 x
+%   1 grid.
 %
 %   See also EphysAnalysisConfig.addFigure, EphysAnalysisConfig.panelTypes.
 
@@ -20,7 +22,7 @@ rp = struct();
 rp.grid = struct('rows', 2, 'cols', 1, 'rowHeights', [1 1], 'colWidths', [], 'spacing', "none");
 rp.panels = {panelOf("raster", 1), panelOf("psth", 2)};
 
-order = ["psth" "raster" "continuous" "heatmap" "waveforms" "probemap" "corrmap" "rate" "tuning"];
+order = ["psth" "raster" "continuous" "heatmap" "waveforms" "probemap" "corrmap" "rate" "tuning" "spectrum" "spectrogram" "coherence"];
 n = numel(order) + 2;
 Template = strings(n, 1); Label = strings(n, 1); Description = strings(n, 1); Figure = cell(n, 1);
 Template(1) = "rasterPsth";
@@ -46,7 +48,12 @@ end
 
 
 function p = panelOf(type, row)
-%panelOf  A panel of TYPE in column 1 of ROW, holding the type's default layer.
-p = struct('id', type + "_1", 'type', type, 'row', row, 'col', 1, ...
-    'layers', EphysAnalysisConfig.defaultLayer(type));
+%panelOf  A panel of TYPE in column 1 of ROW, holding the type's default layer (a coherence panel: its seed and partner).
+L = EphysAnalysisConfig.defaultLayer(type);
+if type == "coherence"   % the observed unit with its own channel's LFP: a spike-field coherence
+    L2 = L;
+    L2.source = "LFP";
+    L = [L L2];
+end
+p = struct('id', type + "_1", 'type', type, 'row', row, 'col', 1, 'layers', L);
 end

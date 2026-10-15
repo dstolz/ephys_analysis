@@ -2,7 +2,8 @@ function reg = figurePanelRegistry()
 %figurePanelRegistry  How each figure panel type is computed and drawn.
 %   REG = figurePanelRegistry() is a struct with one field per panel type
 %   of EphysAnalysisConfig.panelTypes() (raster, psth, continuous, heatmap,
-%   waveforms, probemap, corrmap, rate, tuning), each a struct with
+%   waveforms, probemap, corrmap, rate, tuning, spectrum, spectrogram,
+%   coherence), each a struct with
 %     compute  @(src, panel, E, G, ctx) -> P, the panel's result: P.layers,
 %              one entry per layer of the panel (figurePanelLayers: name,
 %              source, binding, category, eventsAs, skip, R, meta). SRC is
@@ -20,15 +21,18 @@ function reg = figurePanelRegistry()
 %              groups' palette, W: the panel's [pre post], spec, panel: the
 %              spec's panel, panelId, isTop, isBottom, epochs, groups,
 %              observation, isTime) and HK figDrawResult's struct: axes,
-%              legendHandles, legendLabels, legendGroup, yName
+%              legendHandles, legendLabels, legendGroup, yName, extraAxes
+%              (a coherence panel's phase axes under its magnitude)
 %   EphysAnalysisRunner.computeFigure and renderFigure dispatch through it
 %   (no switch on the type). The functions live in analysis/private:
 %   computeRasterPanel, computePsthPanel, computeContinuousPanel,
 %   computeHeatmapPanel, computeWaveformsPanel, computeProbeMapPanel,
-%   computeCorrMapPanel, computeRatePanel, computeTuningPanel, and
-%   drawRasterPanel, drawPsthPanel, drawContinuousPanel,
+%   computeCorrMapPanel, computeRatePanel, computeTuningPanel,
+%   computeSpectrumPanel, computeSpectrogramPanel, computeCoherencePanel,
+%   and drawRasterPanel, drawPsthPanel, drawContinuousPanel,
 %   drawHeatmapPanel, drawWaveformsPanel, drawProbeMapPanel,
-%   drawCorrMapPanel, drawRatePanel, drawTuningPanel.
+%   drawCorrMapPanel, drawRatePanel, drawTuningPanel, drawSpectrumPanel,
+%   drawSpectrogramPanel, drawCoherencePanel.
 %
 %   See also EphysAnalysisRunner.computeFigure, renderFigure, EphysAnalysisConfig.panelTypes.
 
@@ -42,6 +46,9 @@ reg.probemap   = entry(@computeProbeMapPanel,   @drawProbeMapPanel);
 reg.corrmap    = entry(@computeCorrMapPanel,    @drawCorrMapPanel);
 reg.rate       = entry(@computeRatePanel,       @drawRatePanel);
 reg.tuning     = entry(@computeTuningPanel,     @drawTuningPanel);
+reg.spectrum   = entry(@computeSpectrumPanel,   @drawSpectrumPanel);
+reg.spectrogram = entry(@computeSpectrogramPanel, @drawSpectrogramPanel);
+reg.coherence  = entry(@computeCoherencePanel,  @drawCoherencePanel);
 end
 
 

@@ -228,6 +228,30 @@ if isfield(op, 'metric')
 end
 if isfield(op, 'yLim'); op.yLim = limits(E.yLim.Value); end
 if isfield(op, 'cLim'); op.cLim = limits(E.cLim.Value); end
+if isfield(op, 'taperMode')   % a spectral panel's Chronux rows
+    op.taperMode = string(E.spTaperMode.Value);
+    op.TW = E.spTW.Value;
+    op.K = E.spK.Value;
+    op.W = E.spW.Value;
+    op.p = E.spP.Value;
+    op.pad = E.spPad.Value;
+    op.fpass = [E.spFmin.Value E.spFmax.Value];
+    op.detrend = string(E.spDetrend.Value);
+end
+if isfield(op, 'timeBase')
+    op.timeBase = string(E.spTimeBase.Value);
+    op.range = [E.spRangeFrom.Value E.spRangeTo.Value];
+    op.segmentSec = E.spSegment.Value;
+end
+if isfield(op, 'err')
+    op.err = string(E.spErr.Value);
+    op.errP = E.spErrP.Value;
+end
+if isfield(op, 'scale'); op.scale = string(E.spScale.Value); end
+if isfield(op, 'spikeFs'); op.spikeFs = E.spSpikeFs.Value; end
+if isfield(op, 'movingwin'); op.movingwin = [E.spWin.Value E.spStep.Value]; end
+if isfield(op, 'overTime'); op.overTime = logical(E.spOverTime.Value); end
+if isfield(op, 'showPhase'); op.showPhase = logical(E.spShowPhase.Value); end
 if own('waveform')
     wv = op.waveform;
     wv.mode = string(E.waveMode.Value);

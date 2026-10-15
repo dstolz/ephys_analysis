@@ -30,11 +30,15 @@ function F = figureCompute(src, spec, opts)
 %     a panel with a selection of its own (Panel.selection): its own
 %         epochTable and its own groups, not matched to G and not cut to
 %         a per-group observation's group
+%     a spectral panel on timeBase "range" takes no epochs (Ep = Gp = []):
+%         it reads segments of the recording
 %     each panel: figurePanelRegistry().(type).compute(src, panel, Ep, Gp,
 %         ctx), every layer resolved for OBS by figureLayerItems and
 %         computed as the panel type says (spikePSTH, epochEvents,
 %         evokedPotential, unitWaveforms, unitSummary + probeMapValues,
-%         unitCorrelation, firingRate, tuningCurve); errors from data the dataset
+%         unitCorrelation, firingRate, tuningCurve, and Chronux's
+%         chronuxSpectrum, chronuxSpikeSpectrum, chronuxSpecgram,
+%         chronuxCoherence, chronuxSpikeField, chronuxUnitCoherence); errors from data the dataset
 %         lacks for one layer or panel (no unit left, no event, no usable
 %         epoch) skip only it
 %   The error each panel draws as a band comes from figureErrorType
@@ -124,18 +128,21 @@ for k = 1:np
     hasOn = ~isempty(p.layers) && any([p.layers.enabled]);
     % a panel skipped for its own reason (e.g. a raster sorted by a parameter the trials lack) needs no epochs,
     % and gives the figure's epochTable none of its sort columns or baseline
-    live(k) = hasOn && PT.Aligned(row) && panelSkip(k) == "";
+    % a spectral panel on the range time base reads segments of the recording, not epochs
+    onRange = isfield(p.options, 'timeBase') && p.options.timeBase == "range";
+    live(k) = hasOn && PT.Aligned(row) && panelSkip(k) == "" && ~onRange;
     ownSel(k) = ~isequaln(selectionOf(p, spec), spec.selection);
     onFig(k) = live(k) && isequaln(p.ref, spec.ref) && isequaln(p.window, spec.window) && ~ownSel(k);
 end
 
 E = [];
 G = [];
+groupGone = "";   % a per-group observation whose group has no epoch here: its panels on the figure's selection are skipped
 if any(live)
     [E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection, ...
-        Baseline=baselineHull(spec.panels(onFig)), Columns=sortColumns(spec.panels(onFig), vars, spec.selection, src));
+        Baseline=figureBaselineHull(spec.panels(onFig)), Columns=sortColumns(spec.panels(onFig), vars, spec.selection, src));
     if isfinite(obs.group) || obs.groupLabel ~= ""   % one figure per trial group: that group's epochs only
-        [E, G] = keepGroup(E, G, obs, spec.id);
+        [E, G, groupGone] = keepGroup(E, G, obs);
     end
     tick(chk);
 end

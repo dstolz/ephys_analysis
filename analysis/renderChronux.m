@@ -123,7 +123,7 @@ end
 
 function [h, n] = drawSpectrum(R, target, d, style, page)
 [~, nC, nG] = size(R.S);
-[Y, lo, hi] = scaled(R.S, R.Slo, R.Shi, d.scale);
+[Y, lo, hi] = chronuxScaled(R.S, R.Slo, R.Shi, d.scale);
 showErr = d.showErr && ~isempty(lo);
 f = R.f;
 colors = groupPalette(R.groups, style);
@@ -238,7 +238,7 @@ if isempty(cl)
         x = Z(:, :, c, g);
         v = [v; x(isfinite(x))]; %#ok<AGROW>
     end
-    cl = autoLimits(v, signed);
+    cl = chronuxAutoLimits(v, signed);
 end
 axs = gobjects(1, numel(idx));
 for j = 1:numel(idx)
@@ -447,32 +447,6 @@ function finishAxes(ax, f, d, style)
 if numel(f) > 1; xlim(ax, f([1 end])); end
 if d.scale == "log"; set(ax, 'YScale', 'log'); end
 styleAxes(ax, style);
-end
-
-
-function [Y, lo, hi] = scaled(S, lo, hi, scale)
-Y = S;
-if scale == "db"
-    Y = 10 * log10(S);
-    if ~isempty(lo); lo = 10 * log10(max(lo, realmin)); hi = 10 * log10(hi); end
-end
-end
-
-
-function cl = autoLimits(v, signed)
-if isempty(v); cl = [0 1]; return; end
-v = sort(v);
-lo = v(max(1, ceil(0.01 * numel(v))));
-hi = v(max(1, ceil(0.99 * numel(v))));
-if signed
-    m = max(abs([lo hi]));
-    if ~(m > 0); m = 1; end
-    cl = [-m m];
-elseif hi > lo
-    cl = [lo hi];
-else
-    cl = lo + [-0.5 0.5];
-end
 end
 
 

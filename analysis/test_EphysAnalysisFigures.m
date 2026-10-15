@@ -56,6 +56,16 @@ function test_EphysAnalysisFigures()
 %   probe layout with the observed unit framed; figureTiles' order past its cap;
 %   Editable, OnRemember and the context's redraw; the editor's colormap;
 %   one observation drawn in under a second.
+%   Spectral (9): the spectral templates and validate's rules (a coherence
+%   panel's two layers, chronuxSettings' errors, a spectrogram's baseline
+%   window, a coherogram of spikes, a range spectrum's window), figureFor's
+%   shared time; with Chronux on the path (toolboxes/chronux, added for the
+%   section; skipped with a note without it) on section 7's fixture: a
+%   spectrum of the observed unit's LFP channel and of the unit, a
+%   spectrogram, coherences LFP x LFP, spike-field and unit-unit, the range
+%   time base, the drawing (dB, a spectrogram on the raster's time axis,
+%   the phase axes, every role known, a coherence in one axes) and the
+%   skip reason with Chronux off the path.
 %
 %   Usage:  test_EphysAnalysisFigures
 
@@ -129,11 +139,17 @@ O = EphysAnalysisConfig.defaults("Observe");
 check(O.kind == "auto" && O.source == "units" && ~isfield(O.units, 'source') && O.signal == "LFP" && isequal(O.channels, []) ...
     && O.datasets == "ticked" && isstring(O.datasetKeys) && isequal(size(O.datasetKeys), [1 0]), 'defaults("Observe")');
 
-check(isequal(T.Type.', types) && isequal(string(T.Properties.VariableNames), ["Type" "Label" "Categories" "Aligned" ...
-    "SharesTime" "OneGroup" "MultiLayer" "DefaultBinding" "Description" "DefaultOptions"]), 'panelTypes: the nine types and the columns');
-check(isequal(T.SharesTime.', [true true true true false false false false false]) && isequal(T.Aligned.', [true true true true false false true true true]) ...
-    && isequal(T.OneGroup.', [false false false true false false true false false]) && isequal(T.MultiLayer.', [true true true false false false false true true]) ...
-    && isequal(T.DefaultBinding.', ["observation" "observation" "observation" "fixed" "observation" "fixed" "fixed" "observation" "observation"]) ...
+spectralTypes = ["spectrum" "spectrogram" "coherence"];
+check(isequal(T.Type.', [types spectralTypes]) && isequal(string(T.Properties.VariableNames), ["Type" "Label" "Categories" "Aligned" ...
+    "SharesTime" "OneGroup" "MultiLayer" "DefaultBinding" "Description" "DefaultOptions"]), 'panelTypes: the twelve types and the columns');
+check(isequal(T.SharesTime.', [true true true true false false false false false false true false]) ...
+    && isequal(T.Aligned.', [true true true true false false true true true true true true]) ...
+    && isequal(T.OneGroup.', [false false false true false false true false false false true false]) ...
+    && isequal(T.MultiLayer.', [true true true false false false false true true true false true]) ...
+    && isequal(T.DefaultBinding.', ["observation" "observation" "observation" "fixed" "observation" "fixed" "fixed" "observation" "observation" ...
+        "observation" "observation" "observation"]) ...
+    && isequal(T.Categories{T.Type == "spectrum"}, ["point" "continuous"]) && isequal(T.Categories{T.Type == "spectrogram"}, "continuous") ...
+    && isequal(T.Categories{T.Type == "coherence"}, ["point" "continuous"]) && isequal(T.Label(10:12).', ["Power spectrum" "Spectrogram" "Coherence"]) ...
     && isequal(T.Categories{T.Type == "rate"}, "point") && isequal(T.Categories{T.Type == "tuning"}, "point") && T.Label(8) == "Firing rate" && T.Label(9) == "Tuning curve" ...
     && isequal(T.Categories{T.Type == "heatmap"}, ["point" "continuous"]), 'panelTypes: aligned, shared time, one group, layers, binding, categories');
 O = T.DefaultOptions;
@@ -192,6 +208,26 @@ check(isequal(EphysAnalysisConfig.commonFields(), ["bins" "measure" "baseline" "
     && isequal(cfo("rate"), ["measure" "baseline"]) && isequal(cfo("tuning"), ["measure" "baseline" "waveform"]) ...
     && isequal(cfo("waveforms"), "waveform") && isequal(cfo("corrmap"), ["bins" "baseline"]) ...
     && isempty(cfo("probemap")) && isempty(cfo("violin")), 'commonFields and commonFieldsOf(type)');
+Osp = T.DefaultOptions{T.Type == "spectrum"};
+Osg = T.DefaultOptions{T.Type == "spectrogram"};
+Och = T.DefaultOptions{T.Type == "coherence"};
+cxs = chronuxSettings();
+check(Osp.timeBase == "aligned" && isequal(Osp.range, [0 Inf]) && Osp.segmentSec == 2 && Osp.taperMode == "TWK" && Osp.TW == cxs.TW ...
+    && Osp.K == cxs.K && Osp.W == cxs.W && Osp.p == cxs.p && Osp.pad == 0 && isequal(Osp.fpass, cxs.fpass) && Osp.err == cxs.err ...
+    && Osp.errP == 0.05 && Osp.detrend == cxs.detrend && Osp.scale == "db" && Osp.spikeFs == 1000 && isequal(Osp.yLim, []) ...
+    && ~isfield(Osg, 'timeBase') && isequal(Osg.movingwin, cxs.movingwin) && Osg.baseline.Mode == "none" && isequal(Osg.baseline.Window, [-0.5 0]) ...
+    && Osg.group == 1 && isequal(Osg.cLim, []) && ~Och.overTime && Och.showPhase && isequal(Och.movingwin, cxs.movingwin) && ~isfield(Och, 'scale') ...
+    && Och.group == 1 && isempty(cfo("spectrum")) && isempty(cfo("spectrogram")) && isempty(cfo("coherence")), ...
+    'the spectral types'' DefaultOptions are chronuxSettings'' defaults (a spectrogram''s baseline a {Mode, Window}); none is a common field');
+check(catOf("LFP", "spectrum") == "continuous" && catOf("units", "spectrum") == "point" && catOf("events", "spectrum") == "" ...
+    && catOf("LFP", "spectrogram") == "continuous" && catOf("units", "spectrogram") == "" && catOf("events", "spectrogram") == "point" ...
+    && catOf("detected", "coherence") == "point" && catOf("AUX", "coherence") == "continuous" && catOf("events", "coherence") == "", ...
+    'categoryOf: spectra and coherence of spikes or signals; a spectrogram of signals with events marks');
+FTs = EphysAnalysisConfig.figureTemplates();
+ctp = FTs.Figure{FTs.Template == "coherence"}.panels{1};
+check(layerOf("spectrum").source == "units" && layerOf("spectrogram").source == "LFP" && layerOf("spectrogram").binding == "observation" ...
+    && numel(ctp.layers) == 2 && isequal([ctp.layers.source], ["units" "LFP"]) && all([ctp.layers.binding] == "observation"), ...
+    'defaultLayer of the spectral types; the coherence template: the observed unit with its channel''s LFP');
 
 fu = EphysAnalysisConfig.normalizeFigure(struct('panels', {{struct('type', "raster", 'layers', layerOf("raster"))}}));
 fc = EphysAnalysisConfig.normalizeFigure(struct('panels', {{struct('type', "continuous", 'layers', layerOf("continuous"))}}));
@@ -206,7 +242,7 @@ check(EphysAnalysisConfig.observeKind(fu) == "unit" && EphysAnalysisConfig.obser
 fprintf('\n== 2. config: addFigure, templates and ids ==\n');
 FT = EphysAnalysisConfig.figureTemplates();
 check(FT.Template(1) == "rasterPsth" && FT.Label(1) == "Raster over PSTH (per unit)" ...
-    && isequal(FT.Template(2:end-1).', ["psth" "raster" "continuous" "heatmap" "waveforms" "probemap" "corrmap" "rate" "tuning"]) ...
+    && isequal(FT.Template(2:end-1).', ["psth" "raster" "continuous" "heatmap" "waveforms" "probemap" "corrmap" "rate" "tuning" spectralTypes]) ...
     && FT.Template(end) == "blank", 'figureTemplates: rasterPsth first, one per type, blank last');
 ct = EphysAnalysisConfig();
 ct = ct.addFigure("rate");
@@ -1714,6 +1750,12 @@ check(numel(tt) == nGtr && numel(mt) == nGtr && all(arrayfun(@(x) nnz(isnan(x.YD
     && PlotAesthetics.roleLabel("trialTrace") == "Trial traces" && tt(1).LineWidth < mt(1).LineWidth ...
     && ~isequal(tt(1).Color, mt(1).Color), ...
     sprintf('trials "faint": one NaN-joined pale line of traces per group (%d epochs in all) under each mean, role trialTrace', nK));
+kids = htr.axes(1).Children;   % top first
+tags = string(get(kids, 'Tag'));
+iT = find(tags == "trialTrace");
+iM = find(ismember(tags, ["trace" "sem"]));
+check(~isempty(iT) && ~isempty(iM) && min(iT) > max(iM), ...
+    'every group''s trial traces lie under every band and mean (drawn first: below them in the axes'' children)');
 ht5 = renderFigure(Ftr5, Ftr5.spec, fig);
 lg5 = findall(fig, 'Type', 'legend');
 check(numel(findall(ht5.axes(1), 'Tag', 'trialTrace')) == nGtr && isempty(findall(ht5.axes(1), 'Tag', 'trace')) ...
@@ -1976,6 +2018,167 @@ for rep = 1:3
 end
 check(tR < 1, sprintf('the raster + PSTH figure of one observation renders in %.3f s (under 1 s)', tR));
 
+%% ============================================================================ spectral
+fprintf('\n== 9. spectral panels (Chronux) ==\n');
+% the config side needs no Chronux: chronuxSettings is the repository's
+cv = EphysAnalysisConfig();
+cv.Source.Root = root;
+cv.Defaults.Window = struct('mode', "fixed", 'pre', -0.2, 'post', 0.8, 'stop', []);
+cv = cv.addFigure("coherence", Id="coh");
+cv = cv.addFigure("spectrogram", Id="sg");
+cv = cv.addFigure("spectrum", Id="sp");
+check(isempty(figIssues(cv)), 'the spectral templates validate clean');
+c1 = cv; c1.Figures(1).panels.layers(2) = [];
+c2 = cv; c2.Figures(1).panels.options.TW = -1;
+c3 = cv; c3.Figures(2).panels.options.baseline = struct('Mode', "db", 'Window', [-0.6 0]);
+c4 = cv; c4.Figures(1).panels.options.overTime = true;
+c5 = cv; c5.Figures(2).panels.options.baseline = struct('Mode', "zscore", 'Window', [-0.2 0]);
+c6 = cv; c6.Figures(3).panels.options.timeBase = "range"; c6.Figures(3).panels.options.segmentSec = 0;
+c7 = cv; c7.Figures(3).panels.options.timeBase = "range"; c7.Figures(3).window = struct('mode', "between", 'pre', 0, 'post', 0, ...
+    'stop', struct('line', "Stim", 'edge', "offset"));
+I2 = figIssues(c2);
+I3 = figIssues(c3);
+I6 = figIssues(c6);
+check(has(c1, "coh.coherence_1.layers", "error") && has(c2, "coh.coherence_1.options", "error") && any(contains(I2.Message, "TW")) ...
+    && has(c3, "sg.spectrogram_1.options", "error") && any(contains(I3.Message, "inside the window")) ...
+    && has(c4, "coh.coherence_1.options.overTime", "error") && isempty(figIssues(c5)) ...
+    && has(c6, "sp.spectrum_1.options", "error") && any(contains(I6.Message, "segmentSec")) ...
+    && ~any(contains(figIssues(c7).Field, "sp.spectrum_1")), ...
+    'validate: a coherence panel''s two layers; chronuxSettings'' errors with their messages (TW, a range segment); a spectrogram''s baseline window inside its window; a coherogram of spikes; a range spectrum needs no fixed window');
+s0 = cv.figureFor("coh");
+s4 = c4.figureFor("coh");
+check(~s0.panels.sharesTime && s4.panels.sharesTime && cv.figureFor("sg").panels.sharesTime && ~cv.figureFor("sp").panels.sharesTime, ...
+    'figureFor: a spectrogram shares the figure''s time axis, a coherence panel only over time, a spectrum never');
+
+% the computes and the drawing need the toolbox: toolboxes/chronux, on the path for this section only
+cxAdded = "";
+if ~ChronuxDataset.hasChronux() && isfolder(fullfile(repo, 'toolboxes', 'chronux'))
+    cxAdded = string(genpath(fullfile(repo, 'toolboxes', 'chronux')));
+    addpath(cxAdded);
+end
+cxBack = onCleanup(@() rmpathQuiet(cxAdded));   % Chronux's findpeaks must not stay ahead of MATLAB's
+if ~ChronuxDataset.hasChronux()
+    fprintf('  SKIP: Chronux is not on the path and toolboxes/chronux is missing: the spectral computes are not tested\n');
+else
+    cs = EphysAnalysisConfig();
+    cs.Source.Root = FX.proj;
+    cs.Defaults.EventRef.line = "Stim";
+    cs.Defaults.Window = struct('mode', "fixed", 'pre', -0.2, 'post', 0.8, 'stop', []);
+    cs.Defaults.Selection.groupBy = "Depth";
+    lfpU = layerOf("continuous");          % LFP following the observed unit: its channel's column
+    unitU = layerOf("raster");             % the observed unit
+    lfpA = lfpU; lfpA.binding = "fixed"; lfpA.channels = 1;
+    lfpB = lfpA; lfpB.channels = [2 3];
+    lfpF = lfpA; lfpF.channels = 2;
+    figS = struct('id', "spectral", 'observe', struct('kind', "unit"), 'grid', struct('rows', 3, 'cols', 2), 'panels', {{ ...
+        struct('id', "ras", 'type', "raster", 'row', 1, 'col', 1, 'layers', unitU), ...
+        struct('id', "spec_lfp", 'type', "spectrum", 'row', 1, 'col', 2, 'layers', lfpU), ...
+        struct('id', "sgram", 'type', "spectrogram", 'row', 2, 'col', 1, 'layers', lfpU), ...
+        struct('id', "spec_unit", 'type', "spectrum", 'row', 2, 'col', 2, 'layers', unitU), ...
+        struct('id', "coh_lfp", 'type', "coherence", 'row', 3, 'col', 1, 'layers', [lfpA lfpB]), ...
+        struct('id', "coh_sf", 'type', "coherence", 'row', 3, 'col', 2, 'layers', [unitU lfpF])}});
+    cs = cs.addFigure(figS);
+    Is = figIssues(cs);
+    check(~any(Is.Severity == "error"), sprintf('a figure of every spectral kind validates (%d issue(s))', height(Is)));
+    rs = EphysAnalysisRunner(cs, LogFcn=[]);
+    srcS = rs.source(1);
+    specS = cs.figureFor("spectral");
+    Ts = figureObservations(srcS, specS);
+    t0 = tic;
+    Fs = rs.computeFigure(srcS, specS, Observation=Ts(1, :));
+    tS = toc(t0);
+    pid = [Fs.panels.id];
+    nG = height(Fs.groups);
+    Ll = Fs.panels(pid == "spec_lfp").layers;
+    Lu = Fs.panels(pid == "spec_unit").layers;
+    Lg = Fs.panels(pid == "sgram").layers;
+    Lc = Fs.panels(pid == "coh_lfp").layers;
+    Lsf = Fs.panels(pid == "coh_sf").layers;
+    Rl = Ll.R; Ru = Lu.R; Rg = Lg.R;
+    check(Ll.skip == "" && Rl.kind == "chronuxSpectrum" && iscolumn(Rl.f) && isequal(size(Rl.S), [numel(Rl.f) 1 nG]) ...
+        && isequal(size(Rl.Slo), size(Rl.S)) && Ll.meta.recordingChannel == Ts.channel(1) && endsWith(Rl.units, "²/Hz") ...
+        && all(Rl.f >= 0 & Rl.f <= 100) && isequal(Rl.groups.label, Fs.groups.label) && all(Rl.nTrials(:) > 0) && Ll.name == "LFP ch " + Ts.channel(1), ...
+        sprintf('a spectrum of the observed unit''s LFP channel ("%s"): f [%d x 1], S [nF x 1 x %d groups], jackknife bars (%.1f s for the figure)', ...
+        Ll.name, numel(Rl.f), nG, tS));
+    check(Lu.skip == "" && Ru.kind == "chronuxSpikeSpectrum" && isequal(size(Ru.S), [numel(Ru.f) 1 nG]) && isequal(size(Ru.rate), [1 nG]) ...
+        && Lu.meta.unitId == Ts.unitId(1) && Ru.units == "spikes/s", 'a spike spectrum of the observed unit, with its mean rate per group');
+    check(Lg.skip == "" && Rg.kind == "chronuxSpecgram" && isequal(size(Rg.S), [numel(Rg.t) numel(Rg.f) 1 nG]) && all(Rg.t > -0.2 & Rg.t < 0.8) ...
+        && Rg.aligned && Lg.meta.recordingChannel == Ts.channel(1), 'a spectrogram of the observed unit''s LFP channel over the epochs');
+    Rc = Lc(1).R;
+    check(all([Lc.skip] == "") && Rc.kind == "chronuxCoherence" && isequal(size(Rc.C), [numel(Rc.f) 2 nG]) && ~isempty(Rc.Clo) ...
+        && all(startsWith(Rc.labels, Lc(1).name + " x LFP ch ")) && isequal(Rc.labels, reshape(Rc.pairs.label, 1, [])) ...
+        && Lc(2).R.kind == "coherencePartner" && all(isfinite(Rc.confC(:))), ...
+        sprintf('a coherence of LFP x LFP (two fixed columns): the seed with each partner column ("%s", ...)', Rc.labels(1)));
+    Rsf = Lsf(1).R;
+    check(all([Lsf.skip] == "") && Rsf.kind == "chronuxSpikeField" && isequal(size(Rsf.C), [numel(Rsf.f) 1 nG]) ...
+        && Rsf.labels == Lsf(1).name + " x " + Lsf(2).name, sprintf('a spike-field coherence: the observed unit x a fixed LFP column ("%s")', Rsf.labels));
+    fixU = unitU; fixU.binding = "fixed"; fixU.units.ids = Ts.unitId(2);
+    cs = cs.addFigure(struct('id', "unitcoh", 'observe', struct('kind', "unit"), ...
+        'panels', {{struct('id', "cu", 'type', "coherence", 'layers', [unitU fixU])}}));
+    Fu = rs.computeFigure(srcS, cs.figureFor("unitcoh"), Observation=Ts(1, :));
+    Luc = Fu.panels.layers;
+    Ruc = Luc(1).R;
+    check(all([Luc.skip] == "") && Ruc.kind == "chronuxUnitCoherence" && isequal(size(Ruc.C), [numel(Ruc.f) 1 nG]) ...
+        && Ruc.labels == Luc(1).name + " x " + Luc(2).name && Luc(2).meta.unitId == Ts.unitId(2), ...
+        sprintf('a unit-unit coherence: the observed unit x a fixed unit ("%s")', Ruc.labels));
+    % the range time base: segments of the recording, whatever the figure's alignment
+    cs = cs.addFigure(struct('id', "ranged", 'observe', struct('kind', "unit"), 'ref', struct('line', "NoSuchLine"), ...
+        'panels', {{struct('id', "sr", 'type', "spectrum", 'layers', lfpU, 'options', struct('timeBase', "range", 'segmentSec', 1))}}));
+    Frg = rs.computeFigure(srcS, cs.figureFor("ranged"), Observation=Ts(1, :));
+    Rr = Frg.panels.layers.R;
+    check(Frg.panels.layers.skip == "" && Rr.timeBase.mode == "range" && height(Rr.groups) == 1 && Rr.nTrials(1) >= 2 ...
+        && isempty(Frg.epochs) && isempty(Rr.epochs) && size(Rr.S, 1) == numel(Rr.f) && size(Rr.S, 2) == 1 && size(Rr.S, 3) == 1, ...
+        sprintf('the range time base: %d one-second segments of the recording, one group, no epochs (the figure''s missing line not needed)', Rr.nTrials(1)));
+
+    % drawing
+    hS = renderFigure(Fs, specS, fig);
+    drawnow;
+    axOf = @(id) hS.panels([hS.panels.id] == id).axes;
+    want = 10 * log10(Rl.S(:, 1, 1));
+    tr = findobj(axOf("spec_lfp"), 'Tag', 'trace');
+    dbOk = any(arrayfun(@(h) numel(h.YData) == numel(want) && max(abs(h.YData(:) - want(:))) < 1e-6, tr));
+    check(dbOk && string(axOf("spec_lfp").XLabel.String) == "Frequency (Hz)" && startsWith(string(axOf("spec_lfp").YLabel.String), "Power (dB re 1 ") ...
+        && ~isempty(findall(axOf("spec_lfp"), 'Tag', 'sem')) && ~isempty(findall(axOf("spec_unit"), 'Tag', 'rateLine')), ...
+        'a spectrum drawn in dB (10 log10 of its power) over its band, x Frequency (Hz); the spike spectrum''s rate line');
+    as = axOf("sgram");
+    ar = axOf("ras");
+    cb = findobj(hS.layout, 'Type', 'colorbar', 'Tag', 'colorbar');
+    check(isequal(xlim(ar), [-0.2 0.8]) && isequal(xlim(as), [-0.2 0.8]) && isempty(ar.XTickLabel) && string(as.XLabel.String) == "Time (s)" ...
+        && ~isempty(findobj(as, 'Tag', 'image')) && string(as.YLabel.String) == "Frequency (Hz)" && any(arrayfun(@(c) strcmp(c.Location, 'east'), cb)), ...
+        'a spectrogram shares the time axis with the raster above it (the raster''s tick labels go), its color bar inside');
+    pxs = hS.panels([hS.panels.id] == "coh_lfp").extraAxes;
+    ac = axOf("coh_lfp");
+    check(isscalar(pxs) && isgraphics(pxs) && isequal(ylim(pxs), [-pi pi]) && ~isempty(findall(pxs, 'Tag', 'phase')) && isequal(ylim(ac), [0 1]) ...
+        && ~isempty(findall(ac, 'Tag', 'confLine')) && numel(findobj(ac, 'Tag', 'channelTrace')) >= 2 && string(getappdata(pxs, 'PlotTile')) == "coh_lfp" ...
+        && string(pxs.XLabel.String) == "Frequency (Hz)" && isa(ac.Parent, 'matlab.graphics.layout.TiledChartLayout') && ac.Parent.Parent == hS.layout, ...
+        'a coherence panel: magnitude 0-1 with its confidence lines, the phase axes under it in the panel''s tile, both tagged with the panel id');
+    C = PlotAesthetics.components(hS.layout);
+    bad = C.Role == "" | ~ismember(C.Role, roles);
+    check(~any(bad), sprintf('every component of the spectral figure is tagged with a known role (%d components%s)', height(C), ...
+        strjoin("; untagged " + C.Type(bad) + " " + C.Role(bad), "")));
+    hu = renderFigure(Fu, Fu.spec, axes(fig));
+    check(isscalar(hu.axes) && isempty(hu.panels.extraAxes) && ~isempty(findobj(hu.axes, 'Tag', 'trace')), ...
+        'a coherence panel drawn into one axes: the magnitude, no phase axes');
+
+    % without Chronux on the path: the spectral panels say so, the others are drawn
+    if cxAdded ~= ""
+        rmpath(cxAdded);
+        [~, LRoff] = figureSkipReason(srcS, specS);
+        Foff = rs.computeFigure(srcS, specS, Observation=Ts(1, :));
+        addpath(cxAdded);
+        spectral = ismember([Foff.panels.type], ["spectrum" "spectrogram" "coherence"]);
+        offOk = all(arrayfun(@(P) P.skip == "Chronux is not on the path" && all([P.layers.skip] == "Chronux is not on the path"), Foff.panels(spectral)));
+        hOff = renderFigure(Foff, specS, fig);
+        notes = findall(hOff.layout, 'Tag', 'layerNote');
+        check(offOk && Foff.panels(pid == "ras").layers.skip == "" && any([LRoff.reason] == "Chronux is not on the path") ...
+            && any(contains(string(get(notes, 'String')), "Chronux is not on the path")), ...
+            'Chronux off the path: every spectral panel is skipped with "Chronux is not on the path" (and says so), the raster is drawn');
+    else
+        fprintf('  SKIP: Chronux was on the path before the suite (not toolboxes/chronux): the check without it is left out\n');
+    end
+end
+rmpathQuiet(cxAdded);
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisFigures:Failures', '%d checks failed.', nFail);
@@ -2007,6 +2210,15 @@ end
 
 function cfg = setFigures(cfg, f)
 cfg.Figures = f;
+end
+
+
+function rmpathQuiet(p)
+%rmpathQuiet  Take the folders P (a path string; "" = none) off the MATLAB path, quietly (also when they are already off).
+if p == ""; return; end
+w = warning('off', 'MATLAB:rmpath:DirNotFound');
+restore = onCleanup(@() warning(w));
+rmpath(char(p));
 end
 
 

@@ -71,10 +71,10 @@ for i = 1:nI
     S(i).R = R;
     S(i).t = R.t(:);
     if trials ~= "off" && isfield(R, 'data') && ~isempty(R.data) && isfield(R, 'trialGroup')
-        if c == 0   % a layer's mean: each epoch's mean over its channels
-            S(i).X = reshape(mean(double(R.data), 2, 'omitnan'), size(R.data, 1), []);
+        if c == 0   % a layer's mean: each epoch's mean over its channels (single, as kept: no double copy)
+            S(i).X = reshape(mean(R.data, 2, 'omitnan'), size(R.data, 1), []);
         else
-            S(i).X = reshape(double(R.data(:, c, :)), size(R.data, 1), []);
+            S(i).X = reshape(R.data(:, c, :), size(R.data, 1), []);
         end
         S(i).xg = R.trialGroup(:);
     end
@@ -109,38 +109,45 @@ end
 band = o.errorType ~= "off";
 hold(ax, 'on');
 lss = strings(1, nI);
-for i = 1:nI
-    j = items(i, 1);
-    R = S(i).R;
-    colors = look.colors;
-    if size(colors, 1) ~= height(R.groups); colors = groupPalette(R.groups, style); end
-    off = -(i - 1) * spacing;
-    nG = size(S(i).m, 2);
-    for g = 1:nG
-        gl = string(R.groups.label(g));
-        [c, ls] = figLayerLook(Ls(j), i, colors(g, :));
-        if stacked; ls = string(Ls(j).lineStyle); if ~ismember(ls, ["-" "--" ":" "-."]); ls = "-"; end; end
-        lss(i) = ls;
-        tg = gl;
-        if nI > 1
-            tg = S(i).name;
-            if nG > 1; tg = S(i).name + " · " + gl; end
-        end
-        only = trials == "only" && ~isempty(S(i).X);   % the traces alone: no band, no mean
-        if band && ~only
-            errorPatch(ax, S(i).t, S(i).lo(:, g) + off, S(i).hi(:, g) + off, c, tg, style);
-        end
-        h1 = gobjects(0);
-        if ~isempty(S(i).X)
-            h1 = trialLines(ax, S(i).t, S(i).X(:, S(i).xg == g) + off, c, trials, ls, style, tg);
-        end
-        if ~only
-            h1 = tagPart(plot(ax, S(i).t, S(i).m(:, g) + off, 'Color', c, 'LineWidth', style.LineWidth, 'LineStyle', ls), S(i).role, tg);
-        end
-        if i == 1 && nG > 1 && ~isempty(h1)
-            hk.legendHandles(end+1) = h1;
-            hk.legendLabels(end+1) = gl;
-            hk.legendGroup(end+1) = true;
+traces = cell(1, nI);   % each item's trial lines, per group: drawn first, so every band and mean lies over every trace
+for pass = 1:2
+    for i = 1:nI
+        j = items(i, 1);
+        R = S(i).R;
+        colors = look.colors;
+        if size(colors, 1) ~= height(R.groups); colors = groupPalette(R.groups, style); end
+        off = -(i - 1) * spacing;
+        nG = size(S(i).m, 2);
+        if pass == 1; traces{i} = gobjects(1, nG); end
+        for g = 1:nG
+            gl = string(R.groups.label(g));
+            [c, ls] = figLayerLook(Ls(j), i, colors(g, :));
+            if stacked; ls = string(Ls(j).lineStyle); if ~ismember(ls, ["-" "--" ":" "-."]); ls = "-"; end; end
+            lss(i) = ls;
+            tg = gl;
+            if nI > 1
+                tg = S(i).name;
+                if nG > 1; tg = S(i).name + " · " + gl; end
+            end
+            if pass == 1
+                if ~isempty(S(i).X)
+                    traces{i}(g) = trialLines(ax, S(i).t, S(i).X(:, S(i).xg == g), off, c, trials, ls, style, tg);
+                end
+                continue
+            end
+            only = trials == "only" && ~isempty(S(i).X);   % the traces alone: no band, no mean
+            if band && ~only
+                errorPatch(ax, S(i).t, S(i).lo(:, g) + off, S(i).hi(:, g) + off, c, tg, style);
+            end
+            h1 = traces{i}(g);
+            if ~only
+                h1 = tagPart(plot(ax, S(i).t, S(i).m(:, g) + off, 'Color', c, 'LineWidth', style.LineWidth, 'LineStyle', ls), S(i).role, tg);
+            end
+            if i == 1 && nG > 1 && isgraphics(h1)
+                hk.legendHandles(end+1) = h1;
+                hk.legendLabels(end+1) = gl;
+                hk.legendGroup(end+1) = true;
+            end
         end
     end
 end
@@ -192,8 +199,10 @@ figLayerNotes(ax, P, look, true);
 end
 
 
-function h = trialLines(ax, t, X, c, mode, ls, style, tg)
-%trialLines  The epochs' traces X [nTime x nEpochs] as one NaN-joined line: pale and thin behind the mean ("faint"), else in C.
+function h = trialLines(ax, t, X, off, c, mode, ls, style, tg)
+%trialLines  The epochs' traces X [nTime x nEpochs] (+ OFF) as one NaN-joined line: pale and thin behind the mean ("faint"), else in C.
+%   X stays in its class (single, as computeContinuousPanel keeps it): the
+%   line's y data is built from it directly, with no double copy.
 lw = max(0.25, 0.5 * style.LineWidth);
 if mode == "faint"
     c = paleColor(c, 0.6, style);
@@ -204,7 +213,9 @@ xx = NaN;
 yy = NaN;
 if k > 0
     xx = repmat([t(:); NaN], k, 1);
-    yy = reshape([X; NaN(1, k)], [], 1);
+    yy = [X; NaN(1, k, 'like', X)];
+    if off ~= 0; yy = yy + cast(off, 'like', X); end
+    yy = reshape(yy, [], 1);
 end
 h = tagPart(line(ax, xx, yy, 'Color', c, 'LineWidth', lw, 'LineStyle', ls), "trialTrace", tg);
 end

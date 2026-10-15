@@ -20,7 +20,9 @@ function F = figureCompute(src, spec, opts)
 %         their tuning curves' parameters (figureTuningParam)
 %         An observation of one trial group (a figureObservations row of
 %         a perGroup figure: group, groupLabel) keeps that group's epochs
-%         only: E's rows of it, G that one row with n recounted
+%         only: E's rows of it, G that one row with n recounted. A group
+%         with no epoch here is no error: F.skip says so and the panels on
+%         the figure's selection are skipped with that reason
 %     a panel with its own ref or window: its own epochTable with the
 %         figure's selection; its groups are matched to G by label (each
 %         epoch's groupIndex then indexes G; a per-group observation
@@ -42,7 +44,8 @@ function F = figureCompute(src, spec, opts)
 %     kind "figure", id, spec (SPEC), dataset (SRC.name), observation (OBS
 %     as a struct: kind, label, unitId, channel, column, shank, depth,
 %     meta, group, groupLabel), epochs (E; [] when no panel is aligned), groups (G; []
-%     likewise), created, and panels (one per SPEC.panels, in order):
+%     likewise), skip ("" or why a per-group observation has no epoch),
+%     created, and panels (one per SPEC.panels, in order):
 %       id, type, sharesTime   as in SPEC
 %       epochs   the panel's own epochs (a table), or [] = F.epochs (and []
 %                for a panel that is not aligned)
@@ -153,7 +156,9 @@ for k = 1:np
     hasOn = ~isempty(p.layers) && any([p.layers.enabled]);
     Ep = [];
     Gp = [];
-    if live(k)
+    if live(k) && ~ownSel(k) && groupGone ~= ""
+        P.skip = groupGone;
+    elseif live(k)
         if onFig(k)
             Gp = G;
             Ep = E;
@@ -195,6 +200,7 @@ F.observation = obs;
 F.epochs = E;
 F.groups = G;
 F.panels = panels;
+F.skip = groupGone;
 F.created = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
 end
 
@@ -256,11 +262,19 @@ end
 end
 
 
-function [E, G] = keepGroup(E, G, obs, id)
+function [E, G, reason] = keepGroup(E, G, obs)
 %keepGroup  The epochs of one trial group (a per-group observation): E's rows of it, G that one row with its n.
+%   A group with no epoch here (gone, or every epoch dropped) is no error:
+%   REASON says so, E keeps no row and G that row (or none) with n 0, and
+%   the caller skips the panels on the figure's selection.
+reason = "";
 g = groupOf(G, obs);
 if isempty(g) || ~any(E.groupIndex == g)
-    error('EphysAnalysisRunner:NoObservation', 'Figure "%s": no epoch of trial group "%s" here.', id, obs.groupLabel);
+    reason = "no epoch of trial group " + obs.groupLabel + " here";
+    E = E([], :);
+    G = G(g, :);
+    G.n = zeros(height(G), 1);
+    return
 end
 E = E(E.groupIndex == g, :);
 E.groupIndex(:) = 1;
@@ -296,7 +310,7 @@ function [Ep, Gp, reason] = panelEpochs(src, spec, p, G, vars, own, obs)
 reason = "";
 sel = selectionOf(p, spec);
 [Ep, Gp] = epochTable(src, p.ref, Window=p.window, Selection=sel, ...
-    Baseline=baselineHull(p), Columns=sortColumns(p, vars, sel, src));
+    Baseline=figureBaselineHull(p), Columns=sortColumns(p, vars, sel, src));
 if own || ~istable(G); return; end
 if isfinite(obs.group) || obs.groupLabel ~= ""
     Ep = Ep(string(Ep.group) == string(G.label(1)), :);
@@ -315,21 +329,6 @@ Ep.groupIndex = at(Ep.groupIndex);
 Gq = G;
 Gq.n = accumarray(Ep.groupIndex(:), 1, [height(G) 1]);
 Gp = Gq;
-end
-
-
-function b = baselineHull(panels)
-%baselineHull  [b0 b1] spanning the baseline windows of PANELS ([] = none): what epochTable must read.
-b = [];
-lo = Inf; hi = -Inf;
-for k = 1:numel(panels)
-    o = panels(k).options;
-    if isfield(o, 'baseline') && isstruct(o.baseline) && o.baseline.Mode ~= "none" && numel(o.baseline.Window) == 2
-        lo = min(lo, o.baseline.Window(1));
-        hi = max(hi, o.baseline.Window(2));
-    end
-end
-if isfinite(lo) && isfinite(hi); b = [lo hi]; end
 end
 
 

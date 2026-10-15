@@ -182,9 +182,9 @@ check(P.common == true && islogical(P.common) && find(fnP == "selection") == fin
     'Panel.selection: "default", after window; Panel.common: true, after it');
 Oc = T.DefaultOptions{T.Type == "continuous"};
 Oh = T.DefaultOptions{T.Type == "heatmap"};
-check(Oc.trials == "off" && isinf(Oc.maxTrials) && Oh.rows == "items" && Oh.rasterSort == "" && isempty(Oh.rasterSortEvent) ...
+check(Oc.trials == "off" && Oc.maxTrials == 100 && Oh.rows == "items" && Oh.rasterSort == "" && isempty(Oh.rasterSortEvent) ...
     && Oh.rasterSortOrder == "ascending" && Oh.rasterByGroup && ~EphysAnalysisConfig.defaults("Observe").perGroup, ...
-    'continuous trials "off", maxTrials Inf; heat map rows "items" with a raster''s sort fields; observe.perGroup false');
+    'continuous trials "off", maxTrials 100; heat map rows "items" with a raster''s sort fields; observe.perGroup false');
 cfo = @EphysAnalysisConfig.commonFieldsOf;
 check(isequal(EphysAnalysisConfig.commonFields(), ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform"]) ...
     && isequal(cfo("raster"), ["maskAfterStop" "waveform"]) && isequal(cfo("psth"), ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform"]) ...
@@ -966,6 +966,11 @@ b2 = b; b2.Figures(2).panels.options.rasterSort = "event";
 check(has(b2, "trialmap.ht.options.rasterSortEvent", "error"), 'a heat map of trials sorted by "event" needs its event (the raster''s rule)');
 b2 = b; b2.Figures(2).panels.options.rows = "items";
 check(has(b2, "trialmap.ht.layers(1).binding", "error"), 'a heat map of items still draws fixed layers only');
+b2 = b; b2.Figures(2).panels.layers.source = "detected";   % the observed units are sorted: the detections on its channel
+b3 = b; b3.Figures(2).observe.kind = "channel";            % every unit on the observed channel
+check(~has(b, "trialmap.ht.layers(1).binding", "error") && has(b2, "trialmap.ht.layers(1).binding", "error") ...
+    && has(b3, "trialmap.ht.layers(1).binding", "error"), ...
+    'a heat map of trials following through a channel (the other spike source, a channel observation): several units, an error');
 b = base; b.Figures(1).panels(2).selection = struct('groupBy', "TrialType");
 check(isempty(figIssues(b)), 'a PSTH with a trial selection of its own validates clean');
 b.Figures(1).panels(2).selection = struct('groupBy', ["A" "B" "C"]);
@@ -1382,6 +1387,16 @@ check(nK > 5 && size(R5.data, 3) == 5 && isequal(R5.trialEpochs, reshape(Rtr.kep
     && isequaln(R5.data, Rtr.data(:, :, pick)) && isequaln(R5.trialGroup, Rtr.trialGroup(pick)) && isequaln(R5.mean, Rtr.mean), ...
     'maxTrials 5: five epochs picked evenly over their order (the mean still over every epoch)');
 check(isempty(F3.panels(3).layers(1).R.data) && ~isfield(F3.panels(3).layers(1).R, 'trialEpochs'), 'trials "off" keeps no traces');
+E300 = Ftr.epochs(repmat((1:height(Ftr.epochs)).', 25, 1), :);   % 300 epochs: the fixture's, 25 times over
+E300.epoch = (1:height(E300)).';
+obsC = struct('kind', "channel", 'unitId', NaN, 'channel', Ttr.channel(1), 'column', Ttr.column(1));
+ctx300 = struct('checkpoint', @() [], 'check', [], 'observation', obsC, 'observe', str.observe, 'errorType', "sem", 'nBoot', 1000);
+lay300 = figurePanelLayers(str.panels(1));
+lay300 = figureSignalLayer(src, str.panels(1).layers(1), lay300(1), E300, Ftr.groups, ctx300, ...
+    Window=[str.window.pre str.window.post], KeepEpochs=true, MaxTrials=str.panels(1).options.maxTrials);
+check(str.panels(1).options.maxTrials == 100 && lay300.skip == "" && size(lay300.R.data, 3) == 100 && numel(lay300.R.trialEpochs) == 100 ...
+    && isa(lay300.R.data, 'single') && size(Rtr.data, 3) == nK, ...
+    'maxTrials defaults to 100: a layer over 300 epochs keeps 100 traces (single); 12 epochs keep all 12');
 
 % a heat map of one unit's trials
 hmL = EphysAnalysisConfig.defaultLayer("heatmap");
@@ -1412,6 +1427,33 @@ for g = reshape(unique(og), 1, [])
 end
 check(okOrder && Rth.trialRowsName == "Epoch (by Depth), descending", ...
     'its rows go as a raster sorts them: by group, then Depth descending');
+check(~isfield(Rth, 'trains'), 'the trains the rows were binned from are not kept in the result');
+fth2 = cfg.Figures(cfg.figureIndex("trialmap"));
+fth2.id = "trialmap2";
+fth2.panels.layers.binding = "fixed";
+fth2.panels.layers.units.ids = Tu.unitId(1:2).';
+fth2.panels.layers.units.classes = string.empty(1, 0);
+cfg = cfg.addFigure(fth2);
+Fth2 = rn.computeFigure(src, cfg.figureFor("trialmap2"));
+check(Fth2.panels.layers(1).skip == "A heat map of trials draws one unit: this layer keeps 2" && isempty(Fth2.panels.layers(1).R), ...
+    'a heat map of trials whose layer keeps two units is skipped, saying so');
+fth3 = cfg.Figures(cfg.figureIndex("trialmap"));
+fth3.id = "trialmap3";
+fth3.window = struct('mode', "fixed", 'pre', -0.2, 'post', 3, 'stop', struct('line', "Stim", 'edge', "offset"));
+fth3.panels.options.maskAfterStop = true;
+fth3.panels.options.rasterSort = "";
+fth3.panels.options.bins.BinSec = 0.037;   % an odd bin: the stops fall inside bins
+cfg = cfg.addFigure(fth3);
+Fth3 = rn.computeFigure(src, cfg.figureFor("trialmap3"), Observation=Tu(1, :));
+R3 = Fth3.panels.layers(1).R;
+stopIn = R3.epochStop(isfinite(R3.epochStop));
+inBin = any(abs(stopIn / 0.037 - round(stopIn / 0.037)) > 1e-6);   % a stop inside a bin: its bin keeps the spikes after it
+okMask = Fth3.panels.layers(1).skip == "" && any(isnan(R3.trialMatrix(:)));
+for g = 1:height(Fth3.groups)
+    gm = mean(R3.trialMatrix(R3.trialGroup == g, :), 1, 'omitnan').';
+    okMask = okMask && isequal(isnan(gm), isnan(R3.rate(:, 1, g))) && max(abs(gm - R3.rate(:, 1, g)), [], 'omitnan') < 1e-12;
+end
+check(okMask && inBin, 'with maskAfterStop (the stop inside a bin) each group''s rows still average to its PSTH, masked bins alike');
 
 % a panel with a trial selection of its own: its own epochs and groups
 fos = cfg.Figures(cfg.figureIndex("rp"));
@@ -1451,6 +1493,34 @@ cfg = cfg.addFigure(fpo);
 Fpo = rn.computeFigure(src, cfg.figureFor("pergroupown"), Observation=Tpg(2, :));
 check(height(Fpo.epochs) == F1.groups.n(g2) && height(Fpo.panels(2).epochs) == height(F1.epochs), ...
     'a panel with a selection of its own is not cut to the observation''s group');
+Fgone = rn.computeFigure(src, spg, Observation=struct('kind', "unit", 'unitId', Tu.unitId(1), 'channel', Tu.channel(1), ...
+    'group', 99, 'groupLabel', "nope"));
+hgone = renderFigure(Fgone, Fgone.spec, figure('Visible', 'off'));
+goneNotes = strjoin(string(get(findall(hgone.layout, 'Tag', 'layerNote'), 'String')), " | ");
+close(ancestor(hgone.layout, 'figure'));
+check(contains(Fgone.skip, "nope") && all([Fgone.panels.skip] == Fgone.skip) && height(Fgone.epochs) == 0 && contains(goneNotes, "nope"), ...
+    'an observation of a trial group with no epoch here is no error: F.skip and its panels say why, and it draws with notes');
+fpb = fpg;
+fpb.id = "pergroupbase";
+fpb.panels(2).common = false;
+fpb.panels(2).options.baseline = struct('Mode', "subtract", 'Window', [-6 -5.9]);   % far back: early epochs lose their baseline
+cfg = cfg.addFigure(fpb);
+spb = cfg.figureFor("pergroupbase");
+Tpb = figureObservations(src, spb);
+try
+    [~, Gb] = epochTable(src, spb.ref, Window=spb.window, Selection=spb.selection, Baseline=[-6 -5.9]);
+    wantG = string(Gb.label(Gb.n > 0));
+catch
+    wantG = strings(0, 1);
+end
+okB = isequal(unique(Tpb.groupLabel, 'stable'), wantG);
+if height(Tpb) > 0
+    for i = find(Tpb.unitId == Tpb.unitId(1)).'   % the first unit's groups
+        okB = okB && rn.computeFigure(src, spb, Observation=Tpb(i, :)).skip == "";
+    end
+end
+check(okB, sprintf('perGroup lists the groups with epochs after the panels'' baseline hull, as compute reads them (%d of %d groups)', ...
+    numel(wantG), height(F1.groups)));
 u1 = figureOutputName("{Unit}", "DS", spg, Tu(1, :), 1, 1);
 gs = regexprep(Tpg.groupLabel(2), '[^\w\-\.]', '_');
 nm1 = figureOutputName("{Name}_{Plot}", "DS", spg, Tpg(2, :), 2, height(Tpg));

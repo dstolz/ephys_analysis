@@ -37,7 +37,8 @@ function T = figureObservations(src, spec)
 %     groupLabel  that group's label ("" = every group)
 %   With SPEC.observe.perGroup and a selection that groups trials
 %   (selection.groupBy), each observation is listed once per trial group
-%   with epochs (epochTable over SPEC.ref / window / selection), the
+%   with epochs (epochTable over SPEC.ref / window / selection, with the
+%   baseline hull of the panels on it, as figureCompute reads them), the
 %   observation's rows together in group order, its label ending in
 %   " · <group label>"; figureCompute then keeps only that group's epochs.
 %   A dataset that lacks the observed source (no sorted units, no
@@ -124,7 +125,7 @@ function T = perGroupRows(src, spec, T)
 sel = spec.selection;
 if ~isstruct(sel) || ~isfield(sel, 'groupBy') || isempty(sel.groupBy); return; end
 try
-    [~, G] = epochTable(src, spec.ref, Window=spec.window, Selection=sel);
+    [~, G] = epochTable(src, spec.ref, Window=spec.window, Selection=sel, Baseline=figureBaselineHull(onFigure(spec)));
 catch ME
     if ismember(string(ME.identifier), ["epochTable:NoEpochs" "resolveEvents:NoEvents"])
         T = T([], :);
@@ -140,6 +141,22 @@ T = T(rows, :);
 T.group = repmat(g(:), n, 1);
 T.groupLabel = repmat(string(G.label(g)), n, 1);
 T.label = T.label + " · " + T.groupLabel;
+end
+
+
+function P = onFigure(spec)
+%onFigure  The panels on the figure's own epochs (figureCompute's): aligned, with an enabled layer, its ref, window and selection.
+PT = EphysAnalysisConfig.panelTypes();
+keep = false(1, numel(spec.panels));
+for k = 1:numel(spec.panels)
+    p = spec.panels(k);
+    row = PT.Type == p.type;
+    sel = spec.selection;
+    if isfield(p, 'selection') && isstruct(p.selection); sel = p.selection; end
+    keep(k) = any(row) && PT.Aligned(row) && ~isempty(p.layers) && any([p.layers.enabled]) ...
+        && isequaln(p.ref, spec.ref) && isequaln(p.window, spec.window) && isequaln(sel, spec.selection);
+end
+P = spec.panels(keep);
 end
 
 

@@ -1545,7 +1545,8 @@ check(~startsWith(app.Fig.Name, "*") && restored, 'a new app restores the Sessio
 app.Tabs.SelectedTab = app.TabData;
 
 fprintf('\n== 5d. the Figures tab ==\n');
-app.FigureAutoPreviewSeconds = Inf;   % 5d-5f: a preview slowed by a loaded machine must not leave the next one out of date (restored after 5f)
+app.FigureAutoPreviewSeconds = Inf;   % 5d-5f: a preview slowed by a loaded machine must not leave the next one out of date
+restoreAutoLimit = onCleanup(@() resetAutoLimit(app));   % restored after 5f, or on a failure on the way
 app.selectTab(app.TabFigures);
 FE = app.FigureEditor;
 FA = app.FigureAlignControls;
@@ -2331,7 +2332,7 @@ check(~app.Config.Figures(kG).enabled && istable(R) && height(R) == numel(gIdx) 
 app.onRemoveFigure();
 app.onSaveConfig();
 app.Tabs.SelectedTab = app.TabData;
-app.FigureAutoPreviewSeconds = app.AutoPreviewSeconds;   % set to Inf for 5d-5f
+clear restoreAutoLimit   % the figure preview's limit back to AutoPreviewSeconds (set to Inf for 5d-5f)
 
 fprintf('\n== 6. close ==\n');
 app.savePreferences();
@@ -2486,6 +2487,12 @@ app.refreshFigurePreview(Force=true);
 setappdata(groot, 'genProbe', struct('generate', string(app.FigureGenerateButton.Enable), 'run', string(app.RunButton.Enable), ...
     'cancel', string(app.CancelButton.Enable), 'preview', string(app.FigurePreviewLabel.Text), 'state', app.FigurePreviewState));
 app.CancelButton.ButtonPushedFcn(app.CancelButton, []);   % the Export tab's Cancel, as a click
+end
+
+
+function resetAutoLimit(app)
+%resetAutoLimit  The figure preview's auto limit back to AutoPreviewSeconds (5d-5f raise it), while the app lives.
+if isvalid(app); app.FigureAutoPreviewSeconds = app.AutoPreviewSeconds; end
 end
 
 

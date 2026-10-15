@@ -6,8 +6,10 @@ function [M, order, grp, name] = figTrialMatrix(R, o)
 %   rasterSortOrder, rasterByGroup):
 %     M      [nEpochs x nBins]: epoch e (a row of R.epochs and
 %            R.epochGroup) in R's bins (R.edges), its spikes counted as
-%            spikePSTH counts them (binCounts' rule: a spike on an edge goes
-%            to the bin that starts there), in R.measure: "rate" count /
+%            spikePSTH counts them (binCounts of the unit's train, R.trains
+%            -- figurePointLayer's KeepTrains -- around R.epochs.t0Continuous;
+%            without R.trains its raster, binned by binCounts' rule: a spike
+%            on an edge goes to the bin that starts there), in R.measure: "rate" count /
 %            BinSec, "count", "probability" 1 where any spike; with
 %            MaskAfterStop NaN in the bins from its stop event on; each
 %            epoch smoothed by SmoothSec (gaussianSmooth, as spikePSTH
@@ -33,7 +35,12 @@ edges = reshape(R.edges, 1, []);
 nB = numel(edges) - 1;
 binSec = R.params.BinSec;
 C = zeros(nB, nE);
-if isfield(R, 'raster') && ~isempty(R.raster)
+if isfield(R, 'trains') && ~isempty(R.trains) && isfield(R, 'epochs') && istable(R.epochs) && height(R.epochs) == nE
+    % the unmasked train, counted as spikePSTH counts it: a bin that starts before the stop keeps its spikes after it
+    tr = R.trains;
+    if iscell(tr); tr = tr{1}; end
+    C = binCounts(tr, R.epochs.t0Continuous, edges);
+elseif isfield(R, 'raster') && ~isempty(R.raster)   % the raster (with MaskAfterStop it lacks the spikes after the stop)
     rel = double(R.raster(1).times(:));
     ep = double(R.raster(1).epoch(:));
     b = discretize(rel + 1e-9, edges);   % [a, b): a spike on an edge in the bin starting there

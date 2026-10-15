@@ -28,7 +28,8 @@ function lay = figurePointLayer(src, L, lay, E, G, ctx, opts)
 %   Options (spikePSTH's): Window [pre post], BinSec, SmoothSec, Measure,
 %   Baseline, BaselineMode, MaskAfterStop, Raster, Auroc (BaselineMode
 %   "auroc": the panel's options.auroc; R.auroc then holds the calls);
-%   Waveform (the panel's options.waveform, [] = none).
+%   Waveform (the panel's options.waveform, [] = none); KeepTrains (false:
+%   true keeps the spike trains in R.trains, for a heat map of trials).
 %
 %   See also EphysAnalysisRunner.computeFigure, figureLayerItems, spikePSTH, epochEvents.
 
@@ -49,6 +50,7 @@ arguments
     opts.Raster (1,1) logical = true
     opts.Waveform = []
     opts.Auroc = struct()
+    opts.KeepTrains (1,1) logical = false
 end
 
 ctx.checkpoint();
@@ -100,6 +102,7 @@ R = spikePSTH(st, E, Window=opts.Window, BinSec=opts.BinSec, SmoothSec=opts.Smoo
     Groups=G, Meta=meta, Auroc=opts.Auroc, Check=ctx.check, ErrorType=ctx.errorType, ErrorResamples=ctx.nBoot);
 R.epochs = E;
 R.dataset = src.name;
+if opts.KeepTrains; R.trains = st; end   % a heat map of trials bins them itself (figTrialMatrix)
 end
 
 

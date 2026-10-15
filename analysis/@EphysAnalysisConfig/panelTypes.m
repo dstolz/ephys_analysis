@@ -43,12 +43,32 @@ function T = panelTypes()
 %   following the observation) rings its units there.
 %   A continuous panel draws each epoch's trace with trials "faint"
 %   (behind the mean, pale and thin) or "only" (no mean), at most
-%   maxTrials epochs picked evenly over their order. A heat map's rows
+%   maxTrials epochs (default 100; Inf = every one) picked evenly over
+%   their order. A heat map's rows
 %   "trials" draw one unit's epochs (a layer following the observation, or
 %   fixed to one unit), binned as its PSTH, sorted as a raster
 %   (rasterSort, rasterSortOrder, rasterByGroup); its group is not used.
 %   Every aligned panel may take a trial selection of its own
 %   (Panel.selection): its own groups, colors and legend.
+%   The spectral types draw Chronux analyses (Chronux must be on the
+%   MATLAB path: toolboxes/chronux; without it they are skipped with
+%   "Chronux is not on the path"). Their options are chronuxSettings'
+%   (figureChronuxSettings builds the settings from them; none is a common
+%   field). A "spectrum" panel draws each layer's power spectra
+%   (chronuxSpectrum of a signal's channels, chronuxSpikeSpectrum of spike
+%   trains), the groups overlaid. A "spectrogram" draws one channel's power
+%   over time and frequency (chronuxSpecgram) for one trial group, on the
+%   figure's time axis; its baseline Modes are chronuxNormalize's (none,
+%   db, percent, zscore, ratio), its Window inside the panel's window. A
+%   "coherence" panel takes exactly two layers, the seed then its partner,
+%   and pairs the seed's first item with each partner item: signal x
+%   signal (chronuxCoherence), spikes x signal or signal x spikes
+%   (chronuxSpikeField) or spikes x spikes (chronuxUnitCoherence); with
+%   overTime (two signal layers) a coherogram over the moving window,
+%   which on the epochs shares the figure's time axis; showPhase draws the
+%   phase under the magnitude. Spectrum and coherence take timeBase "range":
+%   segments of the whole recording clear of its artifact periods, not
+%   the figure's epochs.
 %
 %   See also EphysAnalysisConfig.sourceCategories, EphysAnalysisConfig.categoryOf,
 %   EphysAnalysisConfig.plotKinds, EphysAnalysisConfig.defaultLayer.
@@ -90,7 +110,7 @@ opts.continuous = struct( ...
     'errorType',    "sem", ...          % the band: "off" | "sem" | "std" | "ci95" | "iqr"
     'stackSpacing', NaN, ...            % stacked: the offset between channels (NaN = automatic)
     'trials',       "off", ...          % each epoch's trace: "off" | "faint" (pale and thin, behind the mean) | "only" (the traces, no mean)
-    'maxTrials',    Inf, ...            % trials: at most this many epochs drawn, picked evenly over their order
+    'maxTrials',    100, ...            % trials: at most this many epochs drawn, picked evenly over their order (Inf = every one)
     'yLim',         []);
 opts.heatmap = struct( ...
     'bins',          bins, ...

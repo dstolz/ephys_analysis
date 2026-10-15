@@ -16,7 +16,10 @@ function P = computeHeatmapPanel(src, panel, E, G, ctx)
 %   R.trialMatrix [nEpochs x nBins], R.trialOrder (top row first, sorted
 %   as a raster by rasterSort / rasterSortOrder / rasterByGroup; "event"
 %   by eventLatency of rasterSortEvent), R.trialGroup and R.trialRowsName
-%   (figTrialMatrix); an auROC baseline skips the layer.
+%   (figTrialMatrix: binned from the unit's train, kept for it by
+%   KeepTrains and dropped after); a layer that keeps several units (e.g.
+%   one following the observation through its channel) or an auROC
+%   baseline skips the layer.
 %   Every group is computed; options.group picks the one drawn (rows
 %   "items"), and options.order / cLim are the draw function's. Events marks layers are
 %   computed too (R.kind "events": latency lines over the map); a further
@@ -52,7 +55,7 @@ for j = 1:numel(P.layers)
     else
         P.layers(j) = figurePointLayer(src, L, P.layers(j), E, G, ctx, Window=[w.pre w.post], ...
             BinSec=o.bins.BinSec, SmoothSec=o.bins.SmoothSec, Measure=o.measure, Baseline=b, ...
-            BaselineMode=o.baseline.Mode, MaskAfterStop=o.maskAfterStop, Raster=trials, Auroc=o.auroc);
+            BaselineMode=o.baseline.Mode, MaskAfterStop=o.maskAfterStop, Raster=trials, Auroc=o.auroc, KeepTrains=trials);
         if trials && P.layers(j).skip == ""
             P.layers(j) = trialRows(src, P.layers(j), E, o, ctx);
         end
@@ -65,6 +68,11 @@ function lay = trialRows(src, lay, E, o, ctx)
 %trialRows  A heat map of trials: the layer's first unit's epochs by time (figTrialMatrix), sorted as a raster.
 R = lay.R;
 if ~isstruct(R) || ~isfield(R, 'raster') || isempty(R.raster); return; end
+if numel(R.raster) > 1   % e.g. every unit on an observed channel: a heat map of trials is one unit's
+    lay.skip = "A heat map of trials draws one unit: this layer keeps " + numel(R.raster);
+    lay.R = [];
+    return
+end
 if R.params.BaselineMode == "auroc"
     lay.skip = "A heat map of trials takes no auROC baseline";
     lay.R = [];
@@ -82,5 +90,6 @@ if o.rasterSort == "event" && ~isempty(o.rasterSortEvent)
     end
 end
 [R.trialMatrix, R.trialOrder, R.trialGroup, R.trialRowsName] = figTrialMatrix(R, o);
+if isfield(R, 'trains'); R = rmfield(R, 'trains'); end   % binned: not kept in the result
 lay.R = R;
 end

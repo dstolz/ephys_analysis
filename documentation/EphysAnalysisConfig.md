@@ -1827,18 +1827,30 @@ renderers never create figures. The `Design`, `UserAesthetics`, `Editable` and
   role `trialTrace` ("Trial traces").
 - **Notes and overlays.** A panel's `overlays` are drawn on its axes after its
   layers (`drawOverlays`: every one of them, a panel having no raster / data
-  choice), over or under the data as each says. A panel's `note` is drawn by
+  choice; a coherence panel's x overlays also go on its phase strip, which shares
+  its x axis), over or under the data as each says. A panel's `note` is drawn by
   `drawNote`. Placed `"below"`, `"above"`, `"left"` or `"right"`, it takes a band
   of the panel's tile beside its axes: the tile becomes a small tiled layout of
   its own holding the axes and a hidden axes (Tag `noteHost`) for the text, the
-  band sized for the note's lines at its font size, in twentieths of the tile and
-  never more than half of it. Placed at a compass point, `"center"` or
+  band first estimated from the note's lines and then fitted to the text as
+  drawn (its looks final) and to the axes' tick labels and label on that side,
+  in twentieths of the tile and never more than half of it. The small layout has
+  no padding or spacing, so a band below or above leaves the axes' left edge and
+  width equal to those of a plain tile in the column; a panel with a band left or
+  right is narrower than its column, so it keeps its own time tick labels, and so
+  does the panel above it (the shared time axis is not hidden for that pair). A
+  band note turned a quarter (`|sin(rotation)| > 0.7`) reads along y, and its
+  alignment comes from `valign`: bottom, middle or top is left, center or right
+  at +90, mirrored at -90 (below and above, `align` still places it along the
+  band and `valign` up it; left and right, `valign` places it up the band). Placed at a compass point, `"center"` or
   `"custom"`, the text sits in the panel's axes (`placeNote`), on top of what is
   drawn there. Into a single axes target only the first panel is drawn, and its
   note goes in that axes whatever its placement (a plot in one axes puts a
   note below or above just past the axes' edge). A note in a band is not listed in the right-click
   [aesthetics](EphysAnalysis.md#plot-aesthetics) editor (the band has no tile of
-  its own); a note in the axes and every overlay are listed, by the panel's tile
+  its own, though the panel's axes inside it are: the editor lists tiles nested
+  at any depth in tile order, so a coherence panel's axes inside a note band are
+  listed in their place); a note in the axes and every overlay are listed, by the panel's tile
   and, for an overlay, its name. The note's and the overlays' own looks are
   rules after the design's and the user's and before the figure's own
   `spec.aesthetics` (as `renderPlot` orders them), so a rule of the figure
@@ -2026,7 +2038,8 @@ Errors:
   `yLim` and `cLim` `[]` or ascending;
 - each panel's text note and overlays, by the plots' rules (one function checks both,
   [Plot notes](#plot-notes), [Plot overlays](#plot-overlays)): a note with no text is not
-  checked, else its `placement`, a finite `x` and `y` for `"custom"`, `align`, `valign`,
+  checked (a panel of an unknown `type` has its note and overlays checked all the same),
+  else its `placement`, a finite `x` and `y` for `"custom"` (`0-1 across and up the panel`), `align`, `valign`,
   `interpreter`, a finite `rotation` and a positive (or `NaN`) `fontSize`; an overlay's
   `shape`, a finite `value` (line) or two different finite `from` and `to` (region), `axis`,
   `layer`, `lineStyle`, a positive `lineWidth` and `alpha` / `faceAlpha` from 0 to 1. A
@@ -2062,8 +2075,8 @@ Warnings:
 - a layer's or mark's `color`, or a style color, that is not a color; likewise a
   panel's note `color` or `background` (the design's is kept) and an overlay's `color`,
   `faceColor` or `edgeColor` (its default is kept);
-- two overlays of a panel with the same name (`Another overlay of this panel is also
-  named ...`: a look remembered for the name reaches both).
+- two overlays of a figure with the same name, on one panel or on two (`Another overlay
+  of this figure is also named ...`: a look remembered for the name reaches both).
 
 Whether a dataset can draw the figure (units, signals, lines, trial parameters, a
 probe) is not a config error: `figureSkipReason` says why a figure or a layer is
@@ -2667,7 +2680,8 @@ PSTH's own auROC windows against its own bins; a continuous panel's `trials` and
 layer or auROC baseline and needs its sort event; a panel's own selection checked as the figure's and
 refused on an unaligned type; the `perGroup` warning; a panel's note (placement, alignments, interpreter,
 rotation, font size, a color; a custom place's `x`; no text, no check) and overlays (a line's position, a
-region's edges, axis, layer, line style and width, opacity, a color, a shared name) at
+region's edges, axis, layer, line style and width, opacity, a color, a name shared anywhere in the figure; a
+custom note's message naming the panel; a panel of an unknown type still checked) at
 `<figure>.<panel>.note.<field>` and `.overlays(<k>).<field>`, and an overlay's panel forced to `"all"`
 with no panel warning), a note completed from the defaults by `normalizePanel`, a panel's note and
 two overlays through a save and a load,
@@ -2712,7 +2726,10 @@ per epoch in its order, the group strip, the `Epoch (by ...)` label), a panel on
 figure's title, a panel's note and overlays (a note below a panel in a hidden `noteHost` band of its tile under
 its axes, in its own color; one at `"northeast"` in its axes; a region on the raster and a line on the PSTH, the
 figure's rule winning over the overlay's opacity; every one a tagged component of its panel's tile; the raster
-still sharing the time axis over a note band; into one axes the first panel's note and overlays in it), and the
+still sharing the time axis over a note band; a band below keeping the axes' left edge and width of the plain panel
+under it; a band right of a panel leaving it narrower, so both panels keep their time tick labels; a four-line note at
+14 pt fitting its band; a note turned 90 degrees with `valign` top right-aligned along y at the band's top; into one
+axes the first panel's note and overlays in it), and the
 editing hooks (`Editable`, `OnRemember`, the redraw). Compute (7) also checks `figureCompute`
 against `computeFigure` (equal results, `Check=` called at the checkpoints and
 what it throws stopping the compute), `figureOutputName` (`{Plot}`, `{Unit}`,
@@ -2740,7 +2757,7 @@ a facet per subject with a figure per trial group, a probe map panel (a validate
 error, the panel skipped with its reason, the rest drawn), `figureSessionSkipReason`
 and events drawn as marks skipped across sessions.
 
-`test_plotToFigure`, 41 checks in eight sections (and 6b), on hand-made configs: a PSTH grid with its
+`test_plotToFigure`, 42 checks in eight sections (and 6b), on hand-made configs: a PSTH grid with its
 raster, event marks, waveform inset and aux magnitude, field by field (observe,
 panels, layers, options, common, style, notes); the PSTH variants (without its
 raster, an overlay, stacking and an auROC baseline carried with `stackRaster` as the
@@ -2754,7 +2771,9 @@ behavior, `NoPlot`, the ids
 kept and a plot's own alignment carried, the text note carried to the panel it borders
 (below to the bottom one, above to the top one, else the data panel, saying which) and the
 overlays to the panels they name (an overlay on `"raster"` to the raster, on `"data"` to the
-PSTH, on `"all"` to every panel; one naming a panel the figure lacks a note), `MaxTiles`,
+PSTH, on `"all"` to every panel; one naming a panel the figure lacks a note; a note placed right on a
+three-panel figure with an aux panel going to panel 2, and a `"data"` overlay skipping the raster and the aux panel),
+`MaxTiles`,
 `TileSpacing`, `XLim` and an unused `YLim` as notes, and `convertPlotToFigure`
 appending; every converted figure validates. On the analysis fixture a converted
 PSTH with its raster, Stim offset marks and aux channels computes and renders for

@@ -523,7 +523,7 @@ headers (**▼** / **►**), in this order:
 | Layers (9) | the selected panel's layers: the list with **Add** (a source the type draws), **Remove**, **Up** and **Down**, and the rows of the layer picked (below) |
 | Options (0) | the panel type's own rows, under the type's name (*Raster options*, *PSTH options*, ...; below), with **Common options from the figure** in the header and **Apply to all panels** |
 | Text note | the selected panel's `note`, titled *Text note on psth_1*: the [Plots tab's Text note](#plots-tab) rows, applied to the panel. **Text** (a new line starts a new line; blank draws nothing), **Place** (*Below*, *Above*, *Right of* or *Left of the panel*, which give up a band of the panel's tile beside its axes; nine places *Over the panel*, in its axes; or *At x, y*), **At x, y** (0-1 across and up the panel's axes; on with *At x, y*), **Align** (across and up), **Rotation**, **Font** and its size, **Style** (*Bold*, *Italic*, *Outline*), **Colors** (text and ground) and **Interpreter** (*As typed* or *TeX*). Every row but the text is grayed out until the text has words. In the preview a note over the panel is a component the right-click editor lists; one in a band beside it is not (its looks still apply, and the figure's rules still reach it). No key; collapsed until opened |
-| Overlays | the selected panel's `overlays`, titled *Overlays (2) on psth_1* once it has some: the Plots tab's [Overlays](#plots-tab) rows. A list of the panel's lines and semitransparent patches, with **Add line**, **Add patch**, **Duplicate** (the picked one, look and all, named *name copy*) and **Remove**, and the rows of the one picked: **Name** and **Enabled**; **Draw** (a vertical or horizontal line, a patch between two x or two y values); **At** or **From / to**; the **Layer** (*Over* or *Under the data*); a line's **Color** and opacity, or a patch's **Fill** color and opacity and **Outline**; the **Line** style and width. Unlike a plot's overlay there is no *Show on* row: a panel's overlays are all drawn on its own axes, in its axis' units. No key; collapsed until opened |
+| Overlays | the selected panel's `overlays`, titled *Overlays (2) on psth_1* once it has some: the Plots tab's [Overlays](#plots-tab) rows. A list of the panel's lines and semitransparent patches, with **Add line**, **Add patch**, **Duplicate** (the picked one, look and all, named *name copy*) and **Remove**. A new or duplicated overlay gets a name no overlay of the figure has, on this panel or any other (*Line 1*, *Line 2*, ...: a look remembered for a name reaches every overlay of that name). The rows of the one picked: **Name** and **Enabled**; **Draw** (a vertical or horizontal line, a patch between two x or two y values); **At** or **From / to**; the **Layer** (*Over* or *Under the data*); a line's **Color** and opacity, or a patch's **Fill** color and opacity and **Outline**; the **Line** style and width. Unlike a plot's overlay there is no *Show on* row: a panel's overlays are all drawn on its own axes, in its axis' units. No key; collapsed until opened |
 | Appearance | the figure's `style` (below); no key; collapsed until opened |
 | Looks | how many looks are remembered for the figure (*"1 remembered look(s); right-click the preview to edit."*) and **Forget**, which drops them and redraws; no key; collapsed until opened |
 | Sessions | **Across sessions**, and with it ticked which datasets, how the sessions are colored, the error band, how the observed unit is matched, the minimum sessions and the trial groups: the figure drawn once over several datasets instead of once per dataset ([Sessions in the Figures tab](#sessions-in-the-figures-tab)); no key; collapsed until opened |
@@ -577,8 +577,8 @@ a dashed outline follows the pointer and the place it would go is shaded.
 
 | Drop on | Effect |
 | --- | --- |
-| an empty (dotted) cell | the panel moves there, to that row and column; its spans are clipped to the grid (the status bar says so). Refused, with the reason in the status bar and nothing moved, where it would overlap another panel |
-| the middle of another panel's edge | the outer third of the panel, along the middle third of its top, bottom, left or right edge, shades the edge band: the panel is taken from its place (as **Remove panel** does, closing a row or column it leaves empty) and put *above*, *below*, *left* or *right* of that panel (as **Add panel** does, in a new row or column). The moved panel keeps its id, type, options and layers, and is selected |
+| an empty (dotted) cell | the panel moves there, to that row and column; its spans are clipped to the grid, and the status bar says so (*"Moved psth_1 to row 3, column 1. Its spans became 1 x 1 to fit the grid."*). A cell the panel would not fit in, its clipped spans still overlapping another panel, is not shaded and is no target: releasing there moves nothing and the status bar says why (*"... does not fit at row 2, column 2: it would overlap raster_1. Shrink its spans first, or drop it beside a panel."*) |
+| the middle of another panel's edge | the outer third of the panel, along the middle third of its top, bottom, left or right edge, shades the edge band: the panel is taken from its place (as **Remove panel** does, closing a row or column it leaves empty) and put *above*, *below*, *left* or *right* of that panel (as **Add panel** does, in a new row or column). The moved panel keeps its id, type, options and layers and its place in the figure's panel order (so the draw order, and which panel the legend takes its first entries from, are unchanged), and is selected. Taking it away first drops any row or column no other panel starts in, so a panel that spanned such a row loses that span: with *A* over rows 1-2 beside *C* over *B*, dragging *B* above *C* drops row 2 and *A* spans one row |
 | anywhere else (the panel itself, another panel's middle or corners) | no target: the release only picks the panel |
 
 **Escape**, or a release outside the schematic, cancels the drag, and nothing
@@ -586,7 +586,8 @@ moves (the status bar says *"Drag canceled."*, or *"... released outside the
 arrangement."*); a right or double click only picks the panel, and a release
 over another panel's middle or corner leaves it where it was and says where a panel
 can be dropped. The drag follows the pointer however
-the editor is scrolled, and Escape works on any tab. A move ends like any
+the editor was scrolled before the press (the schematic's scale is read again at
+every move), but not a scroll during the drag; Escape works on any tab. A move ends like any
 structural edit: the schematic, the editor and the preview follow, and the config is
 unsaved. The buttons below still work: a drop beside a panel is a **Remove panel**
 and an **Add panel** in one, and a drop in an empty cell moves a panel where **Move**
@@ -1916,7 +1917,15 @@ The drag runs on the window's pointer callbacks, which the press installs: over
 release moves `raster_1` below it (a second row, the callbacks cleared, the
 schematic and preview redrawn); with a column added, a drop on the empty cell moves
 it there; a release outside the schematic and **Escape** both leave the config
-unchanged and the callbacks cleared.
+unchanged and the callbacks cleared. The drag's scale is checked against the
+schematic's limits over its plot box, read independently, with the press point
+mapping to the pointer. On a 3 x 2 grid with a panel over two rows, a drop on an
+empty cell it would not fit in (rows 2-3 would cover another panel) is not shaded
+and moves nothing, the status bar saying *"psth_1 does not fit at row 2, column 2:
+it would overlap raster_1"*; a drop on the bottom row moves it there with its span
+clipped (*"Its spans became 1 x 1 to fit the grid."*); a release over another
+panel's middle moves nothing and says *"Nothing to drop psth_1 on there"*; and an
+edge drop (below `raster_1`) leaves the panels in their order in the figure.
 
 <!-- wiki
 ## Related

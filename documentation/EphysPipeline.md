@@ -109,7 +109,7 @@ there is no migration. Unknown fields are dropped and listed in
 it is enabled (`Signals.LabelField` and `Signals.LineNames` also when
 `Behavior` is, since they name the trial line). Severity `"error"` stops `run()`. Cross-step rule: a background
 sorting run cannot feed the sorted-unit consumers (`Export.IncludeUnits`, and
-an enabled plot of sorted units in the Analysis step's config) in
+an enabled plot or figure of sorted units in the Analysis step's config, a session figure included) in
 the same run; set `Sorting.Execution = "blocking"` or run Export and Analysis later. When
 that consumer is on, `Project.NamePattern` must be able to label units (a
 `SubjectID` token and `Date` / `Time` tokens with datetime formats); otherwise
@@ -526,7 +526,15 @@ Report=Analysis.Report)` then draws every enabled plot on every dataset:
   `plotSkipReason`), `error` or `canceled`. The analysis config's enabled
   [figures](EphysAnalysisConfig.md#figures) run too, one row per dataset and
   figure in the same form (step `analysis:<figure id>`; the dry run's `Note` reads
-  `figure of <unit | channel | dataset>`);
+  `figure of <unit | channel | dataset>`). The enabled [session
+  figures](EphysAnalysisConfig.md#session-figures) (figures drawn across the
+  datasets) run too, once, after the datasets: step `analysis:<figure id>`,
+  `Dataset` `sessions: <label>` (`sessions: all`, or the subject or trial group),
+  `Output` the files written in the sessions folder. The dry run lists each as one
+  row (step `analysis:<figure id>`, `Dataset` `""`, `Output` the sessions folder
+  for the first dataset, `Note` `figure of a <unit | channel | dataset> across N
+  dataset(s)`, or `across its N listed dataset(s)` with `sessions.datasets "list"`),
+  and the log's counts include them;
 - with `Report`, one `analysis:report` row per report: `Dataset` `""` for one
   report over every dataset, else the dataset (`Report.PerDataset`). After a
   cancel, the report over every dataset is not written (`canceled`).

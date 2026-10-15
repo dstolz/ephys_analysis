@@ -2167,7 +2167,8 @@ it, validation says so.
   `{OutputRoot}\analysis\analysis_report.html`. With both off, the plots are
   only drawn.
 - The targets table lists one row per dataset and enabled plot
-  (`analysis:<plot id>`, with its figure folder) and one row per report
+  (`analysis:<plot id>`, with its figure folder), one row per enabled session
+  figure (`analysis:<figure id>`, no dataset, the sessions folder) and one row per report
   (`analysis:report`; no dataset for one report over every dataset).
   **Run this step** runs `EphysPipeline.runAnalysis`. **Open report** opens
   the report in the browser: the active dataset's own report with

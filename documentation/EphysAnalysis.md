@@ -1530,7 +1530,8 @@ the progress; `runSessionFigure(id)` does one:
   named by `figureOutputName(Export.FilenamePattern, <facet>, ...)`: `{Name}`
   the facet (`all`, or the subject), `{Plot}` the figure's id, `{Unit}`
   `site_ch7`, the mapping's cell, `ch7` or `dataset`, and `_<group>` for
-  `trialGroups "each"` (`all_card_site_ch7.png`).
+  `trialGroups "each"` (`all_card_site_ch7.png`). A name the run has already
+  written (cells that sanitize alike) gets `_2`, `_3`, ..., compared case-blind.
   `Export.Overwrite` off keeps a page whose files all exist.
 - **Data.** With `Export.Data.Enabled` one `.mat` file per session figure,
   `<Data.Folder>\<Data.FilenamePattern>.mat` with `{Name}` `all` and `{Kind}`
@@ -1541,12 +1542,18 @@ the progress; `runSessionFigure(id)` does one:
   `<n> observation(s)`; `skipped` when no observation was drawn, `error` when
   only failures remain, `canceled` for a figure a cancel stopped before it
   ran. The report gets one entry per label, a page per observation, with the
-  caption `figureCaption(spec, T, Sessions=)`. The run record lists the ids as
-  `sessionFigures`.
+  caption `figureCaption(spec, T, Sessions=)` made per facet: `T` the
+  observations that facet's figure drew, `Sessions` the sessions it merged. The
+  run record lists the ids as `sessionFigures`.
+- **Minimum sessions.** `sessions.minSessions` is applied per merged figure and
+  layer: a session that lacks a trial group is *missing* for that group, and a
+  group or observation that fewer than `minSessions` sessions contribute to is
+  skipped (*fewer than N session(s) hold it*), the others drawn.
 
 The pipeline's [Analysis step](EphysPipeline.md#analysis-step) runs an analysis
 config's session figures like its session plots; its dry run lists the datasets'
-figures, not the session figures'.
+figures and one row per enabled session figure (the sessions folder, `Note`
+*figure of a unit across N dataset(s)*), not the session plots.
 
 ### Changing a config in code
 
@@ -1755,7 +1762,8 @@ reason = figureSessionSkipReason(fspec, reasons, Labels=reshape(sessions.label, 
 ```
 
 then, per facet and trial group, `addReportFigure` with `figureCaption(fspec,
-obsT, Sessions=lastSessions)` and, with `Export.Data.Enabled`, the data file
+obsT(E(q).rows, :), Sessions=E(q).F.sessions)` (that facet's observations and
+sessions) and, with `Export.Data.Enabled`, the data file
 (`writeAnalysisData` into `Data.Folder`: `figureSessionCompute`'s merged figures
 and each dataset's own). The sessions are read, skipped and reported as the
 runner does. Not mirrored: cancel, the `Results` rows and the run record.

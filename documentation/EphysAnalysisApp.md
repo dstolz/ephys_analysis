@@ -853,7 +853,7 @@ matching and the merge are under
 | Row | Effect | Config field |
 | --- | --- | --- |
 | **Across sessions (one figure over several datasets)** | ticked, the figure is a session figure: Generate and Run draw it once across the datasets and write it to the sessions folder; the Export tab's Run no longer draws it per dataset | `sessions.enabled` |
-| **Datasets** | *The ticked datasets* (those ticked to run on the Data tab) or *These datasets*, a list of their own | `datasets` |
+| **Datasets** | *The ticked datasets* (those ticked to run on the Data tab) or *These datasets*, a list of their own. **Generate** draws across the listed datasets whether or not they are ticked; the Export tab's **Run** still needs at least one ticked dataset before any session figure runs | `datasets` |
 | **Keys**, **Pick...** | with *These datasets*: the keys (read-only), and the window that picks them from the scanned datasets (**Use**, **Name**, **Subject**, **Date**, **Key**, pre-ticked from the figure's keys: [Picking the datasets](#picking-the-datasets-and-editing-the-mapping)). **OK** writes the keys, and the observation list and the preview follow; **Cancel** changes nothing | `datasetKeys` |
 | **Figures** | *One for all the sessions* or *One per subject* | `facet` |
 | **A color per** | *Session*, *Subject (its sessions averaged)* or *Nothing (all sessions averaged)* | `series` |
@@ -862,7 +862,7 @@ matching and the merge are under
 | **Error band** | with a color per subject or one mean: *mean ± SEM*, *mean ± SD*, *95% CI* (Student's *t*; Statistics and Machine Learning Toolbox, else 1.96 × SEM) or *None* | `error` |
 | **Units matched by** | for a unit observation: *Site* (the unit's recording channel; a session with several units on it draws the first in probe order) or *Mapping* (a table names each cell's units). A channel observation matches by recording channel and the dataset one needs no match, so the row hides | `match` |
 | **Mapping file**, **Browse...**, **Edit...** | with *Mapping*: the CSV, the file dialog and the table editor of the [Sessions tab](#picking-the-datasets-and-editing-the-mapping), here for the figure (its columns are the keys the figure lists, or the ticked datasets'; saving sets the box and sends the preview *Out of date*) | `mappingFile` |
-| **Min. sessions** | an observation is drawn only when at least this many sessions hold it | `minSessions` |
+| **Min. sessions** | an observation is drawn only when at least this many sessions hold it, and each figure of a trial group only when at least this many hold that group | `minSessions` |
 | **Trial groups** | *Pool them (a color per session)*, *A figure per group* or *Combine (a line style per group)* ([trial groups](EphysAnalysisConfig.md#trial-groups-in-a-session-figure)) | `trialGroups` |
 
 A gray note under the rows says what Generate and Run draw it for (*each
@@ -895,8 +895,11 @@ datasets.
   when the observation makes several figures (one per subject, or per trial
   group), picks which of them is drawn. They are all kept, so picking another
   draws it without computing; the pick is kept by its label through the next
-  Preview. A figure that could not be made (too few sessions drew it) is *Cannot
-  draw*, with the reason.
+  Preview. The kept figures are forgotten, and the drop-down hidden, when
+  another figure is selected or this one is edited, so an entry never redraws
+  a result that is no longer current (press **Preview** again). A figure that
+  could not be made (too few sessions drew it, or hold the trial group) is
+  *Cannot draw*, with the reason.
 - The line under the preview reads *"card, site ch 7 -320 µm across sessions: 3
   merged, 1 skipped (SYNTH-02 2026-09-09: no site ch 7  -320 µm here) (4.2 s);
   right-click to change colors, lines and fonts"*. The right-click editor
@@ -909,8 +912,12 @@ datasets.
 `run(SessionFigures=<id>)`, with no per-dataset figures, plots or report: a
 page per matched observation (or per figure of a facet and trial group) into
 `Export.SessionsFolder`, named as a figure's observations are, with `{Name}`
-the facet. The status bar reads *"Generated card across the sessions: 12
-observation(s), 1 figure(s), 24 file(s) in D:\EPHYS\...\sessions"*, followed by
+the facet (a name this run already wrote gets `_2`, `_3`, ...). With *These
+datasets* it draws across the listed ones whether or not they are ticked (it
+says so when none is scanned). The status bar reads *"Generated card across the
+sessions: all: 12 observation(s); 24 file(s) in D:\EPHYS\...\sessions"*, with an
+entry per facet (and trial group), such as *"SYNTH-01: 12 observation(s),
+SYNTH-02: 9 observation(s); 36 file(s) in ..."*, followed by
 *"; not drawn: ..."* with what was skipped or failed and *"; card is off, so it
 was switched on for this run only"* when it was. The Export tab's results table
 gets a row per figure (`Dataset` `sessions: all`, a subject, or a subject and

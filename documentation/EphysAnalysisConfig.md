@@ -2015,7 +2015,7 @@ Warnings:
   (`<panel>.layers(<j>)`): only the first is the seed, so fix the layer to one;
 - an explicit `unit` or `channel` observation with no layer following it (the figure
   is the same for every one);
-- `observe.perGroup` while the figure's selection groups by nothing (`<figure>.observe.perGroup`:
+- `observe.perGroup` while the figure's selection groups by nothing (not for a session figure; `<figure>.observe.perGroup`:
   one figure per observation, as without it);
 - a session figure's warnings ([below](#validating-session-figures)): `datasets "list"` with no
   `datasetKeys`, `showMembers` with `series "session"`, `trialGroups "pool"` over a selection that
@@ -2065,7 +2065,7 @@ session plot's of the same name:
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `enabled` | `false` | `true`: a session figure. False keeps the block and leaves it unused (the figure is drawn per dataset) |
-| `datasets` | `"ticked"` | `"ticked"`: the run's datasets (the Data tab's ticks, or `run(Datasets=)`); `"list"`: the datasets of `datasetKeys` |
+| `datasets` | `"ticked"` | `"ticked"`: the run's datasets (the Data tab's ticks, or `run(Datasets=)`); `"list"`: the datasets of `datasetKeys`, ticked or not: the app's **Generate** draws across the listed ones whatever is ticked (it says so and draws nothing when none is scanned), but the Export tab's **Run** still needs at least one ticked dataset before any session figure runs |
 | `datasetKeys` | `[]` | `"list"`: the datasets' keys (the Data tab's **Key** column, e.g. `SYNTH-01/260908_103000`); a key no dataset has is left out and logged |
 | `facet` | `"none"` | `"none"`: one figure over every session; `"subject"`: one figure per subject (a name pattern without `SubjectID` leaves the sessions in `(no subject)`), in date order |
 | `series` | `"session"` | what gets a color: `"session"`, `"subject"` (its sessions averaged) or `"all"` (one mean over every session) |
@@ -2074,7 +2074,7 @@ session plot's of the same name:
 | `error` | `"sem"` | series `"subject"` / `"all"`: the band across the sessions averaged: `"sem"`, `"sd"`, `"ci95"` or `"none"` (as a [session plot's](#session-plots)) |
 | `match` | `"site"` | unit observations: how the observed unit is found in each session: `"site"` (the units on the same recording channel) or `"mapping"` (a cell of `mappingFile`). There is no `"pool"`: a figure observes one matched unit. A channel observation always matches by recording channel, and the dataset one needs no match |
 | `mappingFile` | `""` | `"mapping"`: the unit-mapping CSV ([format](file-formats.md#unit-mapping-csv)); a column `cell`, then one per dataset key |
-| `minSessions` | `1` | an observation is kept with data from at least this many sessions (a whole number >= 1) |
+| `minSessions` | `1` | an observation is kept with data from at least this many sessions, and each merged figure (a trial group of `"each"`) and layer is drawn only when at least this many sessions contribute to it (a whole number >= 1) |
 | `trialGroups` | `"pool"` | the figure's trial groups (its selection's `groupBy`): `"pool"`, `"each"` or `"combine"` ([below](#trial-groups-in-a-session-figure)) |
 
 `observe.perGroup` is ignored in a session figure: its trial groups follow
@@ -2128,14 +2128,22 @@ without a runner or graphics:
    (the trial-group rules [below](#trial-groups-in-a-session-figure)). A session
    without the observation, or one `figureCompute` skips, is `"skipped"` with the
    reason; one that fails is `"error"`. `sessions` gains `status` and `message`,
-   and `Fs{k}` is session `k`'s own figure.
+   and `Fs{k}` is session `k`'s own figure. (A session that computed but lacks a
+   trial group of the merged figure is marked `"missing"` in that figure's own
+   `sessions`, [below](#merging-a-session-figure).)
 2. **Facets and trial groups.** One merged figure per `sessions.facet` (`"all"` or
    a subject) and, with `trialGroups "each"`, per trial group (labels in
    first-seen order, at most the selection's `maxGroups`): `res` is a struct
    array with `facet`, `group`, `label` (`"all"`, the subject, or
    `"<facet> / <group>"`), `F`, `status` (`done`, `skipped`, `error`) and
-   `message`. A figure with fewer than `max(1, minSessions)` sessions that drew
-   it is `skipped`, its message listing each session left out and why.
+   `message`. `minSessions` (at least 1) is applied **per merged figure and
+   layer**, not once: a figure with fewer sessions that drew it is `skipped`
+   (*fewer than N session(s) draw it*), and so is one that fewer sessions
+   *contribute* to once it is merged, such as a trial group (`"each"`) that only
+   some sessions hold (*fewer than N session(s) hold it*, then the sessions left
+   out and why, and `F.mergeWhy` when no layer could be merged at all). Each layer
+   is merged with `MinSessions` = `max(1, minSessions)`, and one with too few
+   sessions is skipped with `combineSessions:TooFew`.
 3. **Each layer merged** with `combineSessions` (`Series=`, `Error=`,
    `ShowMembers=`, `ColorOrder=` from `sessions`). A layer that holds one unit or
    channel in every session (the observed one, or an events layer drawn as a
@@ -2151,10 +2159,16 @@ dataset's: `panels(k).layers(j).R` is the merged result (`R.sessions`,
 `R.sessionSeries`, `R.members`; `R.groups` are the series), `epochs` and `groups`
 are those of the first merged layer on the figure's selection, and the extra
 fields `sessions` (the facet's rows with `status`, `message` and each session's
-`nEpochs`), `nSessions` (how many were merged), `perSession` (their indices in
-`sessions`), `sessionSeries` and `observation` say how it was made. The title
-reads `<id>: <observation> — <event> (3 sessions, 112 epochs)` and the subtitle
-`3 sessions (SYNTH-01)`; the legend lists the series.
+`nEpochs`, as the first merged layer says: a session that computed but lacks the
+trial group or the observation is `"missing"`, and its epochs are not counted),
+`nSessions` (how many **contributed**, status `"done"`; 0 when no layer merged,
+then `mergeWhy` says why), `mergeWhy`, `perSession` (the facet's indices in the
+sessions table), `sessionSeries` and `observation` say how it was made. The title
+reads `<id>: <observation> — <event> (3 sessions, 112 epochs)`, N being the
+sessions that contributed, and the subtitle `3 sessions (SYNTH-01)`; the legend
+lists the series. A PSTH panel's stacked display (`stack`) is drawn across
+sessions too, and the faint member lines and the line styles of
+`trialGroups "combine"` apply to its stacked rows as to the overlaid ones.
 
 Not merged, each with its reason in the panel (a skipped layer, as for one
 dataset): events drawn as **marks** (*event marks are not drawn across
@@ -2180,7 +2194,7 @@ them, and `figureSessionSpec` applies it to the compute and the render alike:
 | `trialGroups` | Result |
 | --- | --- |
 | `"pool"` (default) | the groups are cleared (the figure's and every panel's `selection.groupBy`, a tuning panel's `seriesParam`): every epoch of a session together, and the series are the sessions (or subjects) |
-| `"each"` | the groups are kept, and one merged figure is made per group, each on its own, matched by label across the sessions (a session without a group contributes nothing to it) |
+| `"each"` | the groups are kept, and one merged figure is made per group, each on its own, matched by label across the sessions. A session without a group is *missing* for that group's figure and contributes nothing to it; a group held by fewer than `minSessions` sessions is skipped (*fewer than N session(s) hold it*) while the other groups are drawn |
 | `"combine"` | every group kept in one figure: a series per session (or subject, or all) and trial group, colored by the session or subject and told apart by line style; a PSTH panel's `histStyle` is drawn as `"line"` even when it is `"bar"` |
 
 #### What a run writes
@@ -2210,15 +2224,19 @@ them, and `figureSessionSpec` applies it to the compute and the render alike:
   observations and the pattern names neither `{Unit}` nor `{Index}`, `_<Unit>`
   is added, and for `trialGroups "each"` `_<group>` after it (a pattern naming
   neither `{Group}` nor `{Index}`): `all_card_site_ch7.png`,
-  `all_card_site_ch12_Depth___0.5.png`. `Export.Overwrite` off keeps a page
-  whose files all exist.
+  `all_card_site_ch12_Depth___0.5.png`. A name this run has already written
+  (two mapping cells that sanitize alike, `A/1` and `A_1`) gets `_2`, `_3`, ...
+  after it, compared case-blind as Windows names files. `Export.Overwrite` off
+  keeps a page whose files all exist.
 - One `Results` row per figure label (facet and trial group), `Dataset`
   `"sessions: <label>"`, `Kind` `figure`, `Message` `<n> observation(s)` (and
   *; not drawn:* with the observations that were not, and why). The status is
   `skipped` when no observation was drawn (the reasons), `error` when only
   failures remain. The run record lists the ids as `sessionFigures`.
 - The report has one entry per label in *Across sessions*, a page per
-  observation, captioned by `figureCaption(spec, T, Sessions=sessions)`:
+  observation, captioned per facet by `figureCaption(spec, T, Sessions=S)` with
+  `T` the observations that facet's figure drew and `S` the sessions that facet
+  merged (not the whole run's):
   *card: site ch 7 across 3 sessions (1 subject); panels: ...*, or *card: 12
   observations (sorted units, matched by site) across 3 sessions (2 subjects);
   ...*, then the alignment and the series (*a color per session*, *a color per
@@ -2246,6 +2264,10 @@ Errors:
 - `datasets`, `facet`, `series`, `colorOrder`, `error`, `match` and
   `trialGroups` known values (also while the figure is not a session figure),
   and `minSessions` a whole number >= 1;
+- a session figure's id (`<figure>`, section `Figures`) that names the same files as
+  a session plot's id once sanitized, case-blind (both write `<facet>_{Plot}` into
+  the sessions folder, and `all_<id>.mat` as their data file); the two lists are
+  otherwise separate namespaces;
 - with `sessions.enabled`: `match "mapping"` on a channel or dataset observation
   (it names units), without a `mappingFile`, or with one that does not exist
   (with `CheckPaths`), cannot be read or has no `cell` column;
@@ -2266,8 +2288,10 @@ Warnings (with `sessions.enabled`):
 - a heat map of trials (`options.rows "trials"`; not merged, the layer is
   skipped).
 
-A config whose only enabled item is a session figure is accepted (*No plot,
-figure or session plot is enabled* counts it).
+The `observe.perGroup` warning (the selection groups by nothing) does not fire
+on a session figure, which ignores `perGroup`. A config whose only enabled item
+is a session figure is accepted (*No plot, figure or session plot is enabled*
+counts it).
 
 ### Converting a plot
 
@@ -2511,8 +2535,8 @@ with 20 units and 16 tiles per page is written as
 | Plots | a `HeatColormap` that is not a colormap function; a `Colormap` that is neither a colormap function nor a color (the default is used); a raster mark's `color` that is not a color (it gets its automatic one); a `waveform` mode on a plot that draws no unit tiles (an overlay, a plot of signals, a kind other than raster / psth / tuning / waveforms); an `aux` mode on a plot other than a psth or raster of spikes; `aux.placement "over"` on a stacked PSTH or with a heat map (drawn below); an `aux.errorType` other than off with a heat map (no band is drawn), or `"sem"` / `"std"` with the median; a note's `color` or `background` that is not a color (left to the design); an overlay's `color`, `faceColor` or `edgeColor` that is not a color (its default is drawn); an overlay's raster or data `panel` on a plot that draws no such panel (nothing is drawn); two overlays of a plot with one `name`; an `ErrorFaceColor` or `ErrorEdgeColor` that is not a color | warning |
 | SessionPlots | the id is not empty, has no `\ / : * ? " < > \|`, and stays distinct from the other session plots' once sanitized (case-blind); `datasets`, `facet`, `series`, `colorOrder`, `error`, `match` and `trialGroups` are known values and `data` holds only `results`, `epochs` and `signals`; `minSessions` a whole number >= 1; `match "mapping"` has a mapping file that exists (with `CheckPaths`), that reads and has a `cell` column; the base plot exists, is a kind that can be merged (`SessionKinds`) and has no auROC baseline; the `layout` fits its kind | error |
 | SessionPlots | `datasets "list"` with no `datasetKeys`; a mapping file with no column for a listed dataset key; `match` other than `"pool"` on a plot of signals, a heatmap, a waveforms or a behavior plot (ignored); a tuning or behavior plot's `seriesParam` with `trialGroups "pool"` (replaced by the sessions); `showMembers` with `series "session"`; `"combine"` on a PSTH drawn as bars (drawn as lines); a heatmap with `series` other than `"all"` (its rows are the session-units, or the channels averaged: ignored) | warning |
-| Figures | the figure id is not empty, file-name safe and distinct once sanitized from the other figures' and from the plots' ids (both fill `{Plot}`: `Figure id "x" names the same files as a plot's id`); the figure's alignment is valid; `observe` (kind, source, signal, channels, `maxUnits`), `sessions` (the known values, `minSessions`; with `sessions.enabled` no probe map, unit correlation or spectral panel, no auROC baseline, a mapping file for `match "mapping"` and a unit observation for it: [rules](#validating-session-figures)) and `grid` (rows, columns, relative sizes, spacing) hold known values; each panel has an id of its own, a known type, a place inside the grid that no other panel overlaps, and its own `ref` / `window` / `selection` only when its type is aligned; the figure's common options (bins, measure, baseline, auROC, waveform), checked once, and a linked panel's type taking the common baseline mode; each enabled layer's source, binding, aggregate, channels, events (`eventsAs`, event reference, marker, size) and line style fit its panel type; a raster has rows, not marks alone; each type's options as drawn (a linked panel's common fields are the common options'); the style ([rules](#validating-figures)) | error |
-| Figures | no panels; cells no panel covers; a panel with no enabled layer, or with several on a type that draws one; an explicit unit or channel observation with no layer following it; a session figure's `datasets "list"` with no keys, `showMembers` with `series "session"`, `trialGroups "pool"` over grouped trials, `"combine"` over PSTH bars, a heat map of trials ([rules](#validating-session-figures)); `observe.perGroup` while the figure's selection groups by nothing; a signal layer following another signal's channel; a waveforms panel in the probe layout whose first layer follows the observation; a fixed raster, PSTH, rate or tuning layer that may keep more than 8 units; a layer, mark or style color that is not a color ([rules](#validating-figures)) | warning |
+| Figures | the figure id is not empty, file-name safe and distinct once sanitized from the other figures' and from the plots' ids (both fill `{Plot}`: `Figure id "x" names the same files as a plot's id`), and, for a session figure, from the session plots' ids (`Session figure id "x" names the same files as a session plot's id`); the figure's alignment is valid; `observe` (kind, source, signal, channels, `maxUnits`), `sessions` (the known values, `minSessions`; with `sessions.enabled` no probe map, unit correlation or spectral panel, no auROC baseline, a mapping file for `match "mapping"` and a unit observation for it: [rules](#validating-session-figures)) and `grid` (rows, columns, relative sizes, spacing) hold known values; each panel has an id of its own, a known type, a place inside the grid that no other panel overlaps, and its own `ref` / `window` / `selection` only when its type is aligned; the figure's common options (bins, measure, baseline, auROC, waveform), checked once, and a linked panel's type taking the common baseline mode; each enabled layer's source, binding, aggregate, channels, events (`eventsAs`, event reference, marker, size) and line style fit its panel type; a raster has rows, not marks alone; each type's options as drawn (a linked panel's common fields are the common options'); the style ([rules](#validating-figures)) | error |
+| Figures | no panels; cells no panel covers; a panel with no enabled layer, or with several on a type that draws one; an explicit unit or channel observation with no layer following it; a session figure's `datasets "list"` with no keys, `showMembers` with `series "session"`, `trialGroups "pool"` over grouped trials, `"combine"` over PSTH bars, a heat map of trials ([rules](#validating-session-figures)); `observe.perGroup` while the figure's selection groups by nothing (not on a session figure); a signal layer following another signal's channel; a waveforms panel in the probe layout whose first layer follows the observation; a fixed raster, PSTH, rate or tuning layer that may keep more than 8 units; a layer, mark or style color that is not a color ([rules](#validating-figures)) | warning |
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi` positive; `FigureSizeCm` two positive numbers; the folder and file-name patterns use known tokens, and the file-name pattern is not empty; `SessionsFolder` and `Data.Folder` are folder patterns, `Data.FilenamePattern` a file-name pattern, and `Data.MatVersion` is `-v7.3` or `-v7` | error |
 | Export | a file-name pattern without `{Plot}` while several plots and figures are enabled (`{Kind}` is enough when the enabled plots and figures all differ in kind, a figure's kind being `figure`); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |
 | Export | `{OutputFolder}` in `SessionsFolder` or `Data.Folder`: it is one dataset's folder, so the session plots' files go to the first dataset's | warning |

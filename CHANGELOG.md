@@ -189,11 +189,13 @@ says how to cut a release.
   with `combineSessions`, so `renderFigure` draws the merged figure as it draws one dataset's. The session
   plots' settings apply: a color per session, per subject (its sessions averaged) or one mean, the error
   band, each session faintly under its summary, colors by date, a figure per subject and a minimum number of
-  sessions; `trialGroups` pools the figure's trial groups (the sessions are the series), makes a figure per
+  sessions (applied per merged trial group and layer, so a group too few sessions hold is skipped);
+  `trialGroups` pools the figure's trial groups (the sessions are the series), makes a figure per
   group or keeps them as line styles. Events drawn as marks, the probe layout's rings and a heat map of
   trials are skipped across sessions (with their reasons); Validate refuses a probe map, unit correlation,
   spectrum, spectrogram or coherence panel and an auROC baseline in one (`plan` and a run skip the figure),
-  and checks the block's values, the mapping file and the warnings above. New functions
+  and checks the block's values, the mapping file, the warnings above and that its id does not name a
+  session plot's files. The pipeline's dry run lists one row per session figure. New functions
   `figureSessionObservations`, `figureSessionCompute`, `figureSessionSpec` and `figureSessionSkipReason`;
   `figureCaption` takes `Sessions=`; `EphysAnalysisConfig` gets `sessionFigureIds`, `enabledSessionFigures`,
   `isSessionFigure`, `FigureSessionMatches` and `FigureSessionUnmerged` (`enabledFigures` leaves session

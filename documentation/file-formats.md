@@ -1345,7 +1345,9 @@ matched by site (`N` its recording channel), the mapping's cell name for
 `dataset` for the dataset. With several observations and a pattern that names
 neither `{Unit}` nor `{Index}`, `_<Unit>` is added (a single observation, such
 as the dataset's, keeps `all_card.png`); `_<trial group>` follows for
-`trialGroups "each"`. The
+`trialGroups "each"`. A name the run has already written (two mapping cells
+that sanitize alike, `A/1` and `A_1`) gets `_2`, `_3`, ... after it, compared
+case-blind, so no page overwrites another. The
 default `{Name}_{Plot}` gives:
 
 ```
@@ -1495,8 +1497,10 @@ and `meta`), with each layer's `R` the merged result of its kind
 series, `R.sessions`, `R.sessionSeries`, `R.members`), plus `observation` (the
 matched observation as a struct, with the trial group's label in `groupLabel`),
 `sessions` (the facet's rows of the sessions table with `status`, `message` and
-`nEpochs`), `nSessions` (how many were merged), `perSession` (their indices in
-the sessions table), `sessionSeries` and `dataset` (*3 sessions (SYNTH-01)*).
+`nEpochs`; a session that computed but lacks the trial group is `missing`),
+`nSessions` (how many contributed), `mergeWhy` (`""`, or why no layer could be
+merged), `perSession` (their indices in the sessions table), `sessionSeries` and
+`dataset` (*3 sessions (SYNTH-01)*).
 A layer that could not be merged has `skip` set and `R = []`.
 
 ## Unit mapping CSV

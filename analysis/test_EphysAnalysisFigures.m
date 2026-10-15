@@ -29,8 +29,13 @@ function test_EphysAnalysisFigures()
 %   signal's baseline with no sample in the window skipping its layer;
 %   probemap, corrmap and waveforms as computePlot's; PollFcn checkpoints
 %   and cancel; figureCompute (no runner) equal to computeFigure, its
-%   Check=; figureOutputName's names and figureCaption; one observation
-%   faster than computePlot over every unit.
+%   Check=; figureOutputName's names and figureCaption; a rate panel and a
+%   tuning panel equal to computePlot's rate / tuning of the unit (the
+%   tuning parameter from groupBy, else the first numeric one; a series
+%   and the waveform inset; a missing parameter skipping the panel); a
+%   rate layer of three units' mean; an auROC PSTH equal to computePlot's;
+%   a stacked PSTH; the waveforms' probe layout (a following layer to
+%   ring); one observation faster than computePlot over every unit.
 %   Render (8): figureTiles (relative sizes in quarter steps, spans, the
 %   32-unit cap); a compute and a draw function for every panel type;
 %   every panel type drawn by renderFigure into an axes, a uiaxes, a
@@ -43,7 +48,12 @@ function test_EphysAnalysisFigures()
 %   latency lines and a rug on a PSTH; a stacked continuous panel of marks
 %   alone; a raster of
 %   five blocks keeping every block's name; a raster over a waveforms
-%   panel keeping its time axis; figureTiles' order past its cap;
+%   panel keeping its time axis; a stacked PSTH (rows, the legend's
+%   groups once, one group overlaid, a second layer in the rows), an
+%   auROC PSTH (0-1, chance line, modulation window, calls; stacked too)
+%   and heat map (diverging, 0-1), rate panels (bars, boxes of two
+%   layers, points), tuning curves (a series, the inset), the waveforms'
+%   probe layout with the observed unit framed; figureTiles' order past its cap;
 %   Editable, OnRemember and the context's redraw; the editor's colormap;
 %   one observation drawn in under a second.
 %
@@ -89,7 +99,7 @@ nPass = 0; nFail = 0;
     end
 
 T = EphysAnalysisConfig.panelTypes();
-types = ["raster" "psth" "continuous" "heatmap" "waveforms" "probemap" "corrmap"];
+types = ["raster" "psth" "continuous" "heatmap" "waveforms" "probemap" "corrmap" "rate" "tuning"];
 place = @EphysAnalysisConfig.placePanel;
 remove = @EphysAnalysisConfig.removePanel;
 move = @EphysAnalysisConfig.movePanel;
@@ -120,18 +130,25 @@ check(O.kind == "auto" && O.source == "units" && ~isfield(O.units, 'source') && 
     && O.datasets == "ticked" && isstring(O.datasetKeys) && isequal(size(O.datasetKeys), [1 0]), 'defaults("Observe")');
 
 check(isequal(T.Type.', types) && isequal(string(T.Properties.VariableNames), ["Type" "Label" "Categories" "Aligned" ...
-    "SharesTime" "OneGroup" "MultiLayer" "DefaultBinding" "Description" "DefaultOptions"]), 'panelTypes: the seven types and the columns');
-check(isequal(T.SharesTime.', [true true true true false false false]) && isequal(T.Aligned.', [true true true true false false true]) ...
-    && isequal(T.OneGroup.', [false false false true false false true]) && isequal(T.MultiLayer.', [true true true false false false false]) ...
-    && isequal(T.DefaultBinding.', ["observation" "observation" "observation" "fixed" "observation" "fixed" "fixed"]) ...
+    "SharesTime" "OneGroup" "MultiLayer" "DefaultBinding" "Description" "DefaultOptions"]), 'panelTypes: the nine types and the columns');
+check(isequal(T.SharesTime.', [true true true true false false false false false]) && isequal(T.Aligned.', [true true true true false false true true true]) ...
+    && isequal(T.OneGroup.', [false false false true false false true false false]) && isequal(T.MultiLayer.', [true true true false false false false true true]) ...
+    && isequal(T.DefaultBinding.', ["observation" "observation" "observation" "fixed" "observation" "fixed" "fixed" "observation" "observation"]) ...
+    && isequal(T.Categories{T.Type == "rate"}, "point") && isequal(T.Categories{T.Type == "tuning"}, "point") && T.Label(8) == "Firing rate" && T.Label(9) == "Tuning curve" ...
     && isequal(T.Categories{T.Type == "heatmap"}, ["point" "continuous"]), 'panelTypes: aligned, shared time, one group, layers, binding, categories');
 O = T.DefaultOptions;
 check(isempty(O{1}.rasterSortEvent) && O{1}.rasterSortOrder == "ascending" && O{1}.waveform.mode == "off" ...
     && O{2}.bins.BinSec == 0.01 && O{2}.histStyle == "bar" && isnan(O{2}.fillAlpha) && isequal(O{2}.yLim, []) ...
     && O{3}.display == "lines" && O{3}.errorType == "sem" && isnan(O{3}.stackSpacing) ...
     && O{4}.order == "probe" && O{4}.group == 1 && O{5}.waveform.mode == "both" ...
-    && O{6}.value == "rate" && O{7}.metric == "mean" && O{7}.correlation == "pearson" && ~O{7}.fisherZ, ...
-    'panelTypes: each type''s DefaultOptions');
+    && O{6}.value == "rate" && O{7}.metric == "mean" && O{7}.correlation == "pearson" && ~O{7}.fisherZ ...
+    && ~O{2}.stack && O{2}.stackSpacing == 1.1 && isequaln(O{2}.auroc, EphysAnalysisConfig.defaults("Auroc")) ...
+    && isequaln(O{4}.auroc, EphysAnalysisConfig.defaults("Auroc")) && O{5}.layout == "grid" ...
+    && isequal(string(fieldnames(O{8})).', ["measure" "baseline" "display" "yLim"]) && O{8}.display == "bar" && O{8}.measure == "rate" ...
+    && O{8}.baseline.Mode == "none" && isequal(O{8}.yLim, []) ...
+    && isequal(string(fieldnames(O{9})).', ["param" "seriesParam" "measure" "baseline" "yLim" "waveform"]) && O{9}.param == "" ...
+    && O{9}.seriesParam == "" && O{9}.waveform.mode == "off", ...
+    'panelTypes: each type''s DefaultOptions (psth stack / auroc, heatmap auroc, waveforms layout, rate, tuning)');
 S = EphysAnalysisConfig.sourceCategories();
 check(isequal(S.Category.', ["point" "continuous" "unit"]) && isequal(S.Sources{1}, ["units" "detected" "events"]) ...
     && isequal(S.Sources{3}, ["units" "detected"]) && isequal(S.Aligned.', [true true false]), 'sourceCategories (no trial category)');
@@ -154,16 +171,18 @@ check(strcmp(errorId(@() layerOf("violin")), 'EphysAnalysisConfig:BadValue') && 
     'defaultLayer of an unknown type (behavior is not a panel type): BadValue');
 C = EphysAnalysisConfig.defaults("FigureCommon");
 fnF = string(fieldnames(F)).';
-check(isequal(string(fieldnames(C)).', ["bins" "measure" "baseline" "maskAfterStop" "waveform"]) && C.bins.BinSec == 0.01 ...
+check(isequal(string(fieldnames(C)).', ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform"]) && C.bins.BinSec == 0.01 ...
+    && isequaln(C.auroc, EphysAnalysisConfig.defaults("Auroc")) ...
     && C.bins.SmoothSec == 0.01 && C.measure == "rate" && C.baseline.Mode == "none" && isequal(C.baseline.Window, [-0.2 0]) ...
     && ~C.maskAfterStop && isequal(C.waveform, EphysAnalysisConfig.defaults("Waveform")) && isequaln(F.common, C) ...
     && find(fnF == "common") == find(fnF == "grid") + 1, 'defaults("FigureCommon"), and Figure.common after grid');
 fnP = string(fieldnames(P)).';
 check(P.common == true && islogical(P.common) && find(fnP == "common") == find(fnP == "window") + 1, 'Panel.common: true, after window');
 cfo = @EphysAnalysisConfig.commonFieldsOf;
-check(isequal(EphysAnalysisConfig.commonFields(), ["bins" "measure" "baseline" "maskAfterStop" "waveform"]) ...
-    && isequal(cfo("raster"), ["maskAfterStop" "waveform"]) && isequal(cfo("psth"), ["bins" "measure" "baseline" "maskAfterStop" "waveform"]) ...
-    && isequal(cfo("continuous"), "baseline") && isequal(cfo("heatmap"), ["bins" "measure" "baseline" "maskAfterStop"]) ...
+check(isequal(EphysAnalysisConfig.commonFields(), ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform"]) ...
+    && isequal(cfo("raster"), ["maskAfterStop" "waveform"]) && isequal(cfo("psth"), ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform"]) ...
+    && isequal(cfo("continuous"), "baseline") && isequal(cfo("heatmap"), ["bins" "measure" "baseline" "auroc" "maskAfterStop"]) ...
+    && isequal(cfo("rate"), ["measure" "baseline"]) && isequal(cfo("tuning"), ["measure" "baseline" "waveform"]) ...
     && isequal(cfo("waveforms"), "waveform") && isequal(cfo("corrmap"), ["bins" "baseline"]) ...
     && isempty(cfo("probemap")) && isempty(cfo("violin")), 'commonFields and commonFieldsOf(type)');
 
@@ -180,8 +199,16 @@ check(EphysAnalysisConfig.observeKind(fu) == "unit" && EphysAnalysisConfig.obser
 fprintf('\n== 2. config: addFigure, templates and ids ==\n');
 FT = EphysAnalysisConfig.figureTemplates();
 check(FT.Template(1) == "rasterPsth" && FT.Label(1) == "Raster over PSTH (per unit)" ...
-    && isequal(FT.Template(2:end-1).', ["psth" "raster" "continuous" "heatmap" "waveforms" "probemap" "corrmap"]) ...
+    && isequal(FT.Template(2:end-1).', ["psth" "raster" "continuous" "heatmap" "waveforms" "probemap" "corrmap" "rate" "tuning"]) ...
     && FT.Template(end) == "blank", 'figureTemplates: rasterPsth first, one per type, blank last');
+ct = EphysAnalysisConfig();
+ct = ct.addFigure("rate");
+ct = ct.addFigure("tuning");
+check(ct.Figures(1).panels.id == "rate_1" && ct.Figures(2).panels.id == "tuning_1" && isscalar(ct.Figures(1).panels.layers) ...
+    && ct.Figures(1).panels.layers.source == "units" && ct.Figures(1).panels.layers.binding == "observation" ...
+    && ct.Figures(2).panels.layers.source == "units" && ct.Figures(2).panels.layers.binding == "observation" ...
+    && FT.Label(FT.Template == "rate") == "Firing rate" && FT.Label(FT.Template == "tuning") == "Tuning curve", ...
+    'the rate and tuning templates: one panel, one units layer following the observed unit');
 cfg = EphysAnalysisConfig();
 [cfg, id1] = cfg.addFigure();
 f1 = cfg.Figures(1);
@@ -281,6 +308,43 @@ cc.Figures(2).common.waveform.mode = "subsample";
 s2 = cc.figureFor("wf");
 check(s.panels.common && s.panels.options.waveform.mode == "both" && s2.panels.options.waveform.mode == "subsample", ...
     'figureFor: a waveforms panel takes the common waveform, its mode "off" drawn as "both"');
+ca = EphysAnalysisConfig();
+ca.Defaults.Selection.groupBy = "Depth";
+ca = ca.addFigure();
+ca = ca.addFigure("heatmap", Id="hm");
+ca = ca.addFigure("rate", Id="rt");
+ca = ca.addFigure("tuning", Id="tc");
+ca.Figures(1).common.baseline = struct('Mode', "auroc", 'Window', [-0.3 0]);
+ca.Figures(1).common.auroc.windowSec = 0.05;
+ca.Figures(1).common.auroc.cutoff = "fixed";
+ca.Figures(1).panels(2).options.stack = true;
+ca.Figures(1).panels(2).options.stackSpacing = 1.4;
+ca.Figures(2).common.baseline.Mode = "auroc";
+ca.Figures(2).common.auroc.modulationWindow = [0 0.2];
+ca.Figures(3).common.measure = "count";
+ca.Figures(3).common.baseline = struct('Mode', "zscore", 'Window', [-0.4 0]);
+ca.Figures(3).panels.options.display = "points";
+ca.Figures(4).panels.options.param = "Depth";
+ca.Figures(4).panels.options.seriesParam = "TrialType";
+ca.Figures(4).common.waveform.mode = "mean";
+s = ca.figureFor(1);
+s2 = ca.figureFor("hm");
+s3 = ca.figureFor("rt");
+s4 = ca.figureFor("tc");
+check(s.panels(2).options.baseline.Mode == "auroc" && s.panels(2).options.auroc.windowSec == 0.05 && s.panels(2).options.auroc.cutoff == "fixed" ...
+    && s.panels(2).options.stack && s.panels(2).options.stackSpacing == 1.4 && ~isfield(s.panels(1).options, 'auroc') ...
+    && s2.panels.options.baseline.Mode == "auroc" && isequal(s2.panels.options.auroc.modulationWindow, [0 0.2]), ...
+    'figureFor: a linked PSTH and heat map take the common auroc settings; the PSTH keeps its own stack options');
+check(s3.panels.aligned && ~s3.panels.sharesTime && s3.panels.options.measure == "count" && s3.panels.options.baseline.Mode == "zscore" ...
+    && s3.panels.options.display == "points" && s3.panels.layers.category == "point" ...
+    && s4.panels.aligned && ~s4.panels.sharesTime && s4.panels.options.param == "Depth" && s4.panels.options.seriesParam == "TrialType" ...
+    && s4.panels.options.waveform.mode == "mean" && s4.observe.kind == "unit", ...
+    'figureFor: rate and tuning panels: aligned, not on the time axis, the common measure / baseline / waveform, their own display / param / series');
+cw = EphysAnalysisConfig();
+cw = cw.addFigure("waveforms");
+cw.Figures(1).panels.options.layout = "probe";
+cw2 = cw; cw2.Figures(1).panels.options.layout = "grid";
+check(cw.figureFor(1).panels.options.layout == "probe" && cw2.figureFor(1).panels.options.layout == "grid", 'figureFor: the waveforms layout');
 
 fprintf('\n== 4. config: a JSON round trip ==\n');
 cfg = EphysAnalysisConfig();
@@ -299,7 +363,8 @@ Pc{1}.options = struct('rasterSort', "event", 'rasterSortEvent', struct('line', 
 fixedUnits = layerOf("psth");
 fixedUnits.binding = "fixed"; fixedUnits.units.ids = [3 5]; fixedUnits.aggregate = "mean"; fixedUnits.color = "#1f77b4"; fixedUnits.lineStyle = "--";
 Pc{2}.layers = [Pc{2}.layers, fixedUnits];
-Pc{2}.options = struct('yLim', [0 50], 'baseline', struct('Mode', "zscore", 'Window', [-0.3 0]));
+Pc{2}.options = struct('yLim', [0 50], 'baseline', struct('Mode', "zscore", 'Window', [-0.3 0]), 'stack', true, 'stackSpacing', 1.3, ...
+    'auroc', struct('windows', "sliding", 'stepSec', 0.02, 'modulationWindow', [0 0.3]));
 Pc{2}.window = struct('mode', "fixed", 'pre', -0.5, 'post', 1);
 aux = layerOf("continuous");
 aux.source = "AUX"; aux.binding = "fixed"; aux.channels = [1 2]; aux.aggregate = "mean";
@@ -310,9 +375,12 @@ Pc{4}.options = struct('cLim', [-1 1], 'group', 2);
 Pc{6}.options = struct('value', "nUnits");
 Pc{7}.ref = struct('line', "Platform");
 Pc{7}.window = struct('mode', "between", 'pre', 0, 'post', 0, 'stop', struct('line', "Platform", 'edge', "offset"));
+Pc{5}.options = struct('layout', "probe");
+Pc{8}.options = struct('display', "points", 'measure', "probability", 'baseline', struct('Mode', "ratio", 'Window', [-0.3 0]));
+Pc{9}.options = struct('param', "Depth", 'seriesParam', "TrialType", 'yLim', [0 20]);
 allTypes = struct('id', "all_types", 'title', "Every panel type", ...
     'observe', struct('kind', "unit", 'datasets', "list", 'datasetKeys', ["S1/a" "S2/b"], 'units', struct('classes', "su", 'maxUnits', 4)), ...
-    'grid', struct('rows', 4, 'cols', 2, 'rowHeights', [1 1.5 1 1], 'colWidths', [2 1], 'spacing', "compact"), ...
+    'grid', struct('rows', 5, 'cols', 2, 'rowHeights', [1 1.5 1 1 1], 'colWidths', [2 1], 'spacing', "compact"), ...
     'panels', {Pc}, 'ref', struct('line', "Stim", 'timeRange', [0 Inf]), 'selection', struct('groupBy', ["Depth" "TrialType"]), ...
     'aesthetics', struct('role', "rate", 'group', "", 'property', "LineWidth", 'value', 2));
 cfg = cfg.addFigure(allTypes);
@@ -327,11 +395,17 @@ fn = string(fieldnames(cfg.toStruct())).';
 check(find(fn == "Figures") == find(fn == "Plots") + 1 && contains(txt, '"Figures"') && contains(txt, '"rowHeights"'), ...
     'toStruct writes Figures after Plots');
 g = c2.Figures(1);
-check(isequal(g.grid.rowHeights, [1 1.5 1 1]) && isequal(g.grid.colWidths, [2 1]) && isequal(c2.Figures(2).grid.rowHeights, [1 1.5]) ...
+check(isequal(g.grid.rowHeights, [1 1.5 1 1 1]) && isequal(g.grid.colWidths, [2 1]) && isequal(c2.Figures(2).grid.rowHeights, [1 1.5]) ...
     && isequal(c2.Figures(2).grid.colWidths, []), 'relative sizes come back as rows; [] stays []');
 check(isequal([g.panels.type], types) && isequal([g.panels.id], types + "_1") && g.panels(3).options.display == "stacked" ...
     && g.panels(6).options.value == "nUnits" && g.panels(4).options.group == 2, ...
     'every panel type, with its options');
+check(g.panels(2).options.stack && g.panels(2).options.stackSpacing == 1.3 && g.panels(2).options.auroc.windows == "sliding" ...
+    && g.panels(2).options.auroc.stepSec == 0.02 && isequal(g.panels(2).options.auroc.modulationWindow, [0 0.3]) ...
+    && g.panels(2).options.auroc.windowSec == 0.1 && g.panels(5).options.layout == "probe" ...
+    && g.panels(8).options.display == "points" && g.panels(8).options.measure == "probability" && g.panels(8).options.baseline.Mode == "ratio" ...
+    && g.panels(9).options.param == "Depth" && g.panels(9).options.seriesParam == "TrialType" && isequal(g.panels(9).options.yLim, [0 20]), ...
+    'the PSTH''s stack and auroc, the waveforms layout, the rate and tuning options');
 e = g.panels(1).layers(2);
 check(e.source == "events" && e.binding == "fixed" && numel(e.event.sequence) == 2 && e.event.sequence(2).relation == "notFollowedBy" ...
     && isinf(e.event.sequence(2).maxGapSec) && e.event.sequence(1).maxGapSec == 1 && e.event.marker == "|" && e.event.color == "#ff0000" ...
@@ -669,9 +743,19 @@ b = ub; b.Figures(1).panels(2).options.bins.BinSec = 0; b.Figures(1).panels(2).o
 check(has(b, o + "bins.BinSec", "error") && has(b, o + "bins.SmoothSec", "error"), 'psth: bins');
 b = ub; b.Figures(1).panels(2).options.measure = "volts";
 check(has(b, o + "measure", "error"), 'psth: measure');
-b = ub; b.Figures(1).panels(2).options.baseline.Mode = "auroc";
+b = ub; b.Figures(1).panels(2).options.baseline.Mode = "ratio";
 b2 = ub; b2.Figures(1).panels(2).options.baseline = struct('Mode', "subtract", 'Window', [0 -1]);
-check(has(b, o + "baseline.Mode", "error") && has(b2, o + "baseline.Window", "error"), 'psth: baseline mode (no auROC) and window');
+check(has(b, o + "baseline.Mode", "error") && has(b2, o + "baseline.Window", "error"), 'psth: baseline mode (no ratio) and window');
+haveAuroc = license('test', 'Statistics_Toolbox') && exist('tiedrank', 'file');
+b = ub; b.Figures(1).panels(2).options.baseline.Mode = "auroc";
+b2 = b; b2.Figures(1).panels(2).options.auroc.windowSec = 0.015; b2.Figures(1).panels(2).options.auroc.cutoff = "maybe";
+b3 = b; b3.Figures(1).panels(2).options.auroc.modulatedOnly = true; b3.Figures(1).panels(2).options.auroc.cutoff = "none";
+check(~has(b, o + "baseline.Mode", "error") && has(b, o + "auroc", "error") == ~haveAuroc && has(b2, o + "auroc.windowSec", "error") ...
+    && has(b2, o + "auroc.cutoff", "error") && has(b3, o + "auroc.modulatedOnly", "error"), ...
+    'psth: the auROC baseline, its settings checked as a plot''s (windows of whole bins, cutoff, modulatedOnly)');
+b = ub; b.Figures(1).panels(2).options.stackSpacing = 0;
+b2 = ub; b2.Figures(1).panels(2).options.stack = true;
+check(has(b, o + "stackSpacing", "error") && isempty(figIssues(b2)), 'psth: stack, and a positive stackSpacing');
 b = base; b.Figures(1).panels(2).options.histStyle = "pie"; b.Figures(1).panels(2).options.normalize = "max";
 b.Figures(1).panels(2).options.fillAlpha = 2; b.Figures(1).panels(2).options.yLim = [1 0];
 check(has(b, o + "histStyle", "error") && has(b, o + "normalize", "error") && has(b, o + "fillAlpha", "error") && has(b, o + "yLim", "error"), ...
@@ -699,11 +783,43 @@ b = base.addFigure("heatmap", Id="hm"); b.Figures(2).panels.options.order = "mod
 b.Figures(2).panels.options.cLim = [2 1];
 o = "hm.heatmap_1.options.";
 check(has(b, o + "order", "error") && has(b, o + "group", "error") && has(b, o + "cLim", "error"), 'heatmap: order, group, cLim');
+b = unlinkFigure(base.addFigure("heatmap", Id="hm"), 2); b.Figures(2).panels.options.baseline.Mode = "auroc"; b.Figures(2).panels.options.order = "modulation";
+b2 = b; b2.Figures(2).panels.layers.source = "LFP";
+b3 = base.addFigure("heatmap", Id="hm"); b3.Figures(2).panels.layers.source = "LFP"; b3.Figures(2).common.baseline.Mode = "auroc";
+check(~has(b, o + "order", "error") && ~has(b, o + "baseline.Mode", "error") && has(b2, o + "baseline.Mode", "error") ...
+    && has(b2, o + "order", "error") && has(b3, "hm.heatmap_1.common", "error"), ...
+    'heatmap: the auROC baseline and modulation order for spikes, not for a signal (own or common)');
 b = unlinkFigure(base.addFigure("heatmap", Id="hm"), 2); b.Figures(2).panels.layers.source = "LFP"; b.Figures(2).panels.options.baseline.Mode = "zscore";
 b2 = unlinkFigure(base.addFigure("heatmap", Id="hm"), 2); b2.Figures(2).panels.options.baseline.Mode = "zscore";
 check(has(b, o + "baseline.Mode", "error") && isempty(figIssues(b2)), 'heatmap: z-score for spikes, not for a signal');
 b = unlinkFigure(base.addFigure("waveforms", Id="wf"), 2); b.Figures(2).panels.options.waveform.mode = "off";
 check(has(b, "wf.waveforms_1.options.waveform.mode", "error"), 'waveforms: the mode is never off');
+b = base.addFigure("waveforms", Id="wf"); b.Figures(2).panels.options.layout = "map";
+b2 = base.addFigure("waveforms", Id="wf"); b2.Figures(2).panels.options.layout = "probe";
+b3 = b2; b3.Figures(2).panels.layers(1).binding = "fixed"; b3.Figures(2).panels.layers(2) = layerOf("waveforms");
+check(has(b, "wf.waveforms_1.options.layout", "error") && has(b2, "wf.waveforms_1.options.layout", "warning") ...
+    && isempty(figIssues(b3)), 'waveforms: layout grid or probe; a probe of the observed unit alone warns; a fixed layer ringing a following one is clean');
+b = unlinkFigure(base.addFigure("rate", Id="rt"), 2);
+b.Figures(2).panels.options = struct('display', "pie", 'measure', "volts", 'baseline', struct('Mode', "percent", 'Window', [-0.2 0]), 'yLim', [3 1]);
+o = "rt.rate_1.options.";
+b2 = base.addFigure("rate", Id="rt"); b2.Figures(2).common.baseline.Mode = "percent";
+b3 = base.addFigure("rate", Id="rt"); b3.Figures(2).common.baseline.Mode = "ratio";
+b4 = base.addFigure("rate", Id="rt"); b4.Figures(2).window = between;
+b5 = base.addFigure("rate", Id="rt"); b5.Figures(2).panels.layers.binding = "fixed";
+check(has(b, o + "display", "error") && has(b, o + "measure", "error") && has(b, o + "baseline.Mode", "error") && has(b, o + "yLim", "error") ...
+    && has(b2, "rt.rate_1.common", "error") && isempty(figIssues(b3)) && isempty(figIssues(b4)) ...
+    && has(b5, "rt.rate_1.layers(1).units.maxUnits", "warning"), ...
+    'rate: display, measure, baseline (firingRate''s modes: ratio, not percent; own or common), yLim; a "between" window; many fixed units warn');
+b = unlinkFigure(base.addFigure("tuning", Id="tc"), 2);
+b.Figures(2).panels.options.param = "Depth"; b.Figures(2).panels.options.seriesParam = "Depth"; b.Figures(2).panels.options.waveform.mode = "huge";
+b2 = base.addFigure("tuning", Id="tc"); b2.Figures(2).panels.options.param = "not a name";
+b3 = base.addFigure("tuning", Id="tc"); b3.Figures(2).panels.options.param = "Depth"; b3.Figures(2).panels.options.seriesParam = "TrialType";
+b3.Figures(2).window = between;
+b4 = base.addFigure("tuning", Id="tc"); b4.Figures(2).common.baseline.Mode = "auroc";
+o = "tc.tuning_1.options.";
+check(has(b, o + "seriesParam", "error") && has(b, o + "waveform.mode", "error") && has(b2, o + "param", "error") ...
+    && isempty(figIssues(b3)) && has(b4, "tc.tuning_1.common", "error"), ...
+    'tuning: param and seriesParam (names, not the same), its waveform inset; a "between" window; no auROC baseline');
 b = base.addFigure("probemap", Id="pm"); b.Figures(2).panels.options.value = "x";
 check(has(b, "pm.probemap_1.options.value", "error"), 'probemap: value');
 b = base.addFigure("corrmap", Id="cm"); b.Figures(2).panels.options.metric = "max"; b.Figures(2).panels.options.correlation = "kendall";
@@ -717,9 +833,18 @@ b = base; b.Figures(1).common.bins.BinSec = 0; b.Figures(1).common.measure = "vo
 b.Figures(1).common.waveform = struct('mode', "mean", 'scale', 5);
 check(has(b, c0 + "bins.BinSec", "error") && has(b, c0 + "measure", "error") && has(b, c0 + "waveform.scale", "error") ...
     && ~has(b, "figure_1.psth_1.options.bins.BinSec", "error"), 'the common block: bins, measure, waveform (once, not per linked panel)');
-b = base; b.Figures(1).common.baseline.Mode = "auroc";
+b = base; b.Figures(1).common.baseline.Mode = "bogus";
 b2 = base; b2.Figures(1).common.baseline = struct('Mode', "subtract", 'Window', [0 -1]);
 check(has(b, c0 + "baseline.Mode", "error") && has(b2, c0 + "baseline.Window", "error"), 'the common block: baseline Mode and window');
+b = base; b.Figures(1).common.baseline.Mode = "auroc";
+b2 = b; b2.Figures(1).common.auroc.windowSec = 0.015;
+check(isempty(figIssues(b)) == haveAuroc && has(b2, c0 + "auroc.windowSec", "error") && ~has(b2, "figure_1.psth_1.options.auroc.windowSec", "error"), ...
+    'the common block: the auROC settings, checked once while the PSTH is linked');
+b3 = unlinkFigure(base, 1); b3.Figures(1).panels(2).options.baseline.Mode = "auroc";
+b3.Figures(1).panels(2).options.bins.BinSec = 0.04;   % its own bins: the 0.1 s auROC windows no longer fit
+check(has(b3, "figure_1.psth_1.options.auroc.windowSec", "error"), 'an unlinked PSTH''s own auROC windows must be whole numbers of its own bins');
+b = base.addFigure("continuous", Id="ct"); b.Figures(2).common.baseline.Mode = "auroc";
+check(has(b, "ct.continuous_1.common", "error"), 'a common auROC baseline a linked continuous panel does not take: an error at the panel''s common');
 b = base.addFigure("continuous", Id="ct"); b.Figures(2).common.baseline.Mode = "zscore";
 I = figIssues(b);
 check(any(I.Field == "ct.continuous_1.common" & I.Severity == "error" & contains(I.Message, """zscore""") ...
@@ -1051,6 +1176,102 @@ check(startsWith(capU, sprintf("rp: %d observations (sorted units", nU)) && cont
     && contains(capU, "groups by Depth") && startsWith(capD, "pm: 1 observation (the dataset); panels: probe map") ...
     && ~contains(capD, "aligned") && endsWith(capD, "."), "figureCaption: " + capU + " / " + capD);
 
+% firing rate and tuning curve panels, an auROC PSTH, a stacked PSTH, the waveforms' probe layout
+m3 = min(3, nU);
+cfg = cfg.addFigure("rate", Id="rt");
+Frt = rn.computeFigure(src, cfg.figureFor("rt"), Observation=Tu(1, :));
+cfg = cfg.addPlot(struct('kind', "rate", 'units', struct('ids', Tu.unitId(1))), Id="rate_u1");
+Rrt = rn.computePlot(src, cfg.plotFor("rate_u1"));
+Lrt = Frt.panels(1).layers(1);
+check(Lrt.skip == "" && Lrt.R.kind == "rate" && size(Lrt.R.meanRate, 1) == 1 && Lrt.meta.unitId == Tu.unitId(1) ...
+    && isequaln(Lrt.R.meanRate, Rrt.meanRate) && isequaln(Lrt.R.rate, Rrt.rate) && isequaln(Lrt.R.err.lo, Rrt.err.lo) ...
+    && isequal(Lrt.R.groups.label, Rrt.groups.label) && ~Frt.panels(1).sharesTime && istable(Frt.epochs), ...
+    'a rate panel of the observed unit is computePlot''s rate plot of that unit (the same epochs, groups and error)');
+fr3 = cfg.Figures(cfg.figureIndex("rt"));
+fr3.id = "rt3";
+fx3 = EphysAnalysisConfig.defaultLayer("rate");
+fx3.binding = "fixed"; fx3.units.ids = Tu.unitId(1:m3).'; fx3.aggregate = "mean";
+fr3.panels(1).layers = [fr3.panels(1).layers fx3];
+fr3.panels(1).options.display = "box";
+cfg = cfg.addFigure(fr3);
+Frt3 = rn.computeFigure(src, cfg.figureFor("rt3"), Observation=Tu(2, :));
+Lr3 = Frt3.panels(1).layers(2);
+check(Lr3.skip == "" && size(Lr3.R.meanRate, 1) == m3 && isequaln(Lr3.R.layerMean.mean, reshape(mean(Lr3.R.meanRate, 1, 'omitnan'), 1, 1, [])) ...
+    && Lr3.R.layerMean.n == m3 && Frt3.panels(1).layers(1).meta.unitId == Tu.unitId(2), ...
+    'a rate panel''s second layer: three fixed units and their mean (R.layerMean over the units'' means)');
+cfg = cfg.addFigure("tuning", Id="tc");
+stc = cfg.figureFor("tc");
+Ftc = rn.computeFigure(src, stc, Observation=Tu(1, :));
+cfg = cfg.addPlot(struct('kind', "tuning", 'param', "Depth", 'units', struct('ids', Tu.unitId(1))), Id="tuning_u1");
+Rtc = rn.computePlot(src, cfg.plotFor("tuning_u1"));
+Ltc = Ftc.panels(1).layers(1);
+check(Ltc.skip == "" && Ltc.R.kind == "tuning" && Ltc.R.param == "Depth" && stc.panels.options.param == "" ...
+    && isequal(Ltc.R.x, Rtc.x) && isequaln(Ltc.R.mean, Rtc.mean) && isequaln(Ltc.R.err.lo, Rtc.err.lo) && isequal(Ltc.R.series, Rtc.series) ...
+    && ismember("Depth", string(Ftc.epochs.Properties.VariableNames)), ...
+    'a tuning panel (param "" = the figure''s groupBy, Depth) is computePlot''s tuning curve of that unit');
+ft2 = cfg.Figures(cfg.figureIndex("tc"));
+ft2.id = "tc2";
+ft2.panels(1).options.seriesParam = "TrialType";
+ft2.panels(1).options.waveform.mode = "mean";
+ft2.panels(1).common = false;
+ft2.selection = struct('groupBy', string.empty(1, 0));
+cfg = cfg.addFigure(ft2);
+wsw = warning('off', 'unitWaveforms:Templates');
+wsn = warning('off', 'unitWaveforms:NoWaveforms');
+Ftc2 = rn.computeFigure(src, cfg.figureFor("tc2"), Observation=Tu(1, :));
+warning(wsn); warning(wsw);
+Lt2 = Ftc2.panels(1).layers(1);
+expParam = figureTuningParamOf(src);
+check(Lt2.skip == "" && Lt2.R.param == expParam && Lt2.R.seriesParam == "TrialType" && height(Lt2.R.groups) >= 1 ...
+    && isfield(Lt2.R, 'waveforms') && isequal(sort(string(Ftc2.epochs.Properties.VariableNames(end-1:end))), sort([expParam "TrialType"])), ...
+    sprintf('a tuning panel without groupBy tunes over the first numeric trial parameter (%s), a series per TrialType, with the waveform inset', expParam));
+fm2 = cfg.Figures(cfg.figureIndex("tc"));
+fm2.id = "tcmiss";
+fm2.panels(1).options.param = "NoSuchParam";
+cfg = cfg.addFigure(fm2);
+Ftm = rn.computeFigure(src, cfg.figureFor("tcmiss"), Observation=Tu(1, :));
+[rm, lrm] = figureSkipReason(src, cfg.figureFor("tcmiss"));
+check(rm == "" && Ftm.panels(1).skip == "no trial parameter NoSuchParam" && Ftm.panels(1).layers(1).skip == "no trial parameter NoSuchParam" ...
+    && isempty(Ftm.panels(1).layers(1).R) && any([lrm.reason] == "no trial parameter NoSuchParam"), ...
+    'a tuning panel over a parameter the trials lack is skipped: "no trial parameter NoSuchParam" (figureSkipReason too)');
+fa4 = cfg.Figures(cfg.figureIndex("rp"));
+fa4.id = "auroc";
+fa4.common.baseline = struct('Mode', "auroc", 'Window', [-0.2 0]);
+cfg = cfg.addFigure(fa4);
+cfg = cfg.addPlot(struct('kind', "psth", 'baseline', struct('Mode', "auroc", 'Window', [-0.2 0]), 'units', struct('ids', Tu.unitId(1))), Id="psth_auroc");
+wa1 = warning('off', 'aurocCall:NoCutoff');
+wa2 = warning('off', 'aurocCall:WideCutoff');
+Fau = rn.computeFigure(src, cfg.figureFor("auroc"), Observation=Tu(1, :));
+Rau = rn.computePlot(src, cfg.plotFor("psth_auroc"));
+warning(wa2); warning(wa1);
+Lau = Fau.panels(2).layers(1);
+check(Lau.skip == "" && isfield(Lau.R, 'auroc') && ~isempty(Lau.R.auroc) && Lau.R.units == "auROC" && isequaln(Lau.R.rate, Rau.rate) ...
+    && isequaln(Lau.R.t, Rau.t) && isequal(Lau.R.auroc.direction, Rau.auroc.direction) && isequaln(Lau.R.auroc.mean, Rau.auroc.mean), ...
+    'an auROC PSTH (the common baseline Mode "auroc") is computePlot''s PSTH with the auROC baseline, its calls too');
+fs4 = cfg.Figures(cfg.figureIndex("rp"));
+fs4.id = "stacked";
+fs4.panels(2).options.stack = true;
+fs4.panels(2).options.stackSpacing = 1.5;
+cfg = cfg.addFigure(fs4);
+Fst = rn.computeFigure(src, cfg.figureFor("stacked"), Observation=Tu(1, :));
+check(Fst.panels(2).layers(1).skip == "" && isequaln(Fst.panels(2).layers(1).R.rate, L2.R.rate) && height(Fst.groups) >= 2, ...
+    sprintf('a stacked PSTH computes as an overlaid one (%d groups; stacking is the draw''s)', height(Fst.groups)));
+fwp = cfg.Figures(cfg.figureIndex("wf"));
+fwp.id = "wfprobe";
+fwp.panels(1).options.layout = "probe";
+fxw = EphysAnalysisConfig.defaultLayer("waveforms");
+fxw.binding = "fixed"; fxw.units.ids = Tu.unitId(1:m3).';
+fwp.panels(1).layers = [fxw EphysAnalysisConfig.defaultLayer("waveforms")];
+cfg = cfg.addFigure(fwp);
+wsw = warning('off', 'unitWaveforms:Templates');
+wsn = warning('off', 'unitWaveforms:NoWaveforms');
+Fwp = rn.computeFigure(src, cfg.figureFor("wfprobe"), Observation=Tu(2, :));
+warning(wsn); warning(wsw);
+Lwp = Fwp.panels(1).layers;
+check(numel(Lwp) == 2 && Lwp(1).skip == "" && Lwp(1).R.kind == "waveforms" && Lwp(1).R.n == m3 && numel(Lwp(1).R.waveforms.mean) == m3 ...
+    && Lwp(2).skip == "" && Lwp(2).R.kind == "ring" && Lwp(2).meta.unitId == Tu.unitId(2) && ~isfield(Lwp(2).R, 'waveforms'), ...
+    'a waveforms panel in the probe layout: its first layer''s units with their waveforms, a following layer naming the unit to ring');
+
 % one observation costs a fraction of every unit
 haveBootT = license('test', 'Statistics_Toolbox') && exist('bootci', 'file');
 if nU >= 4 && haveBootT
@@ -1137,7 +1358,14 @@ rcases = {
     "a panel of one skipped layer",     Fn
     "probe map",                        Fp
     "unit correlation",                 Fcm
-    "unit waveforms",                   Fw};
+    "unit waveforms",                   Fw
+    "firing rate",                      Frt
+    "a rate of a unit and a 3-unit mean (box)", Frt3
+    "tuning curve",                     Ftc
+    "tuning curves per series, inset",  Ftc2
+    "an auROC PSTH",                    Fau
+    "a stacked PSTH",                   Fst
+    "unit waveforms on the probe",      Fwp};
 for k = 1:size(rcases, 1)
     Fk = rcases{k, 2};
     ids = [Fk.panels.id];
@@ -1288,6 +1516,98 @@ check(Fw3.spec.panels([Fw3.spec.panels.id] == "wave").row == 2 && ~isempty(r6.XT
     && ~isempty(axOf("psth_1").XTickLabel) && string(axOf("psth_1").XLabel.String) == "Time (s)", ...
     'a raster over a waveforms panel keeps its tick labels and "Time (s)": the next time panel down is not what sits under it');
 
+% a stacked PSTH, an auROC PSTH, rate and tuning panels, the waveforms' probe layout
+hs = renderFigure(Fst, Fst.spec, fig);
+as = hs.axes(2);
+nGs = height(Fst.groups);
+sb = findall(as, 'Tag', 'stackBase');
+lg = findall(fig, 'Type', 'legend');
+lgs = string(lg(1).String);
+check(numel(as.YAxis) == 2 && numel(sb) == nGs && numel(as.YAxis(1).TickValues) == nGs ...
+    && all(arrayfun(@(g) nnz(lgs == g) == 1, string(Fst.groups.label))) && string(as.YAxis(1).Label.String) == "Depth" ...
+    && isequal(xlim(as), [Fst.spec.window.pre Fst.spec.window.post]) && isempty(findall(as, 'Tag', 'chanceLine')), ...
+    sprintf('a stacked PSTH: %d rows (a baseline each, the groups'' values on the left axis, named Depth), each group once in the legend', nGs));
+fs5 = Fst;   % the PSTH's result cut to one group (figSliceGroup)
+fs5.panels(2).layers(1).R = figSliceGroup(Fst.panels(2).layers(1).R, 1);
+h1g = renderFigure(fs5, fs5.spec, fig);
+check(numel(h1g.axes(2).YAxis) == 1 && isempty(findall(h1g.axes(2), 'Tag', 'stackBase')), 'a stack of one group is drawn overlaid');
+fixedM = EphysAnalysisConfig.defaultLayer("psth");
+fixedM.binding = "fixed"; fixedM.units.ids = Tu.unitId(1:m3).'; fixedM.aggregate = "mean";
+cfgS = cfg;
+k4 = cfgS.figureIndex("stacked");
+cfgS.Figures(k4).panels(2).layers = [cfgS.Figures(k4).panels(2).layers fixedM];
+Fs2 = rn.computeFigure(src, cfgS.figureFor("stacked"), Observation=Tu(1, :));
+hs2 = renderFigure(Fs2, Fs2.spec, fig);
+yl2 = ylim(hs2.axes(2));
+rl2 = findall(hs2.axes(2), 'Tag', 'rate');
+lg = findall(fig, 'Type', 'legend');
+lgs2 = string(lg(1).String);
+check(any(lgs2 == Fs2.panels(2).layers(2).name) && numel(rl2) >= 2 * nGs && yl2(2) > 0, ...
+    'a stacked PSTH with a second layer: its mean drawn into the same rows, named in the legend');
+ha = renderFigure(Fau, Fau.spec, fig);
+aa = ha.axes(2);
+check(isscalar(findall(aa, 'Tag', 'chanceLine')) && isequal(ylim(aa), [0 1]) && ~isempty(findall(aa, '-regexp', 'Tag', '^rate(Fill)?$')) ...
+    && (Lau.R.auroc.cutoff == "none" || (isscalar(findall(aa, 'Tag', 'modWindow')) && isscalar(findall(aa, 'Tag', 'modMarks')))) ...
+    && string(aa.YLabel.String) == "auROC", ...
+    'an auROC PSTH: on 0-1 from the chance line at 0.5, the modulation window shaded and the unit''s calls marked');
+fau2 = cfg.Figures(cfg.figureIndex("auroc"));
+fau2.id = "aurocStack";
+fau2.panels(2).options.stack = true;
+cfgA = cfg.addFigure(fau2);
+wa1 = warning('off', 'aurocCall:NoCutoff');
+wa2 = warning('off', 'aurocCall:WideCutoff');
+Fas = rn.computeFigure(src, cfgA.figureFor("aurocStack"), Observation=Tu(1, :));
+warning(wa2); warning(wa1);
+hAs = renderFigure(Fas, Fas.spec, fig);
+check(numel(findall(hAs.axes(2), 'Tag', 'stackBase')) == nGs && numel(hAs.axes(2).YAxis) == 2, 'an auROC PSTH can be stacked too');
+fhm = cfg.Figures(cfg.figureIndex("hm"));
+fhm.id = "hmAuroc";
+fhm.panels(1).common = false;
+fhm.panels(1).options.baseline = struct('Mode', "auroc", 'Window', [-0.2 0]);
+fhm.panels(1).options.order = "modulation";
+cfgH = cfg.addFigure(fhm);
+wa1 = warning('off', 'aurocCall:NoCutoff');
+wa2 = warning('off', 'aurocCall:WideCutoff');
+Fha = rn.computeFigure(src, cfgH.figureFor("hmAuroc"));
+warning(wa2); warning(wa1);
+feA = figure('Visible', 'off', 'Position', [100 100 700 800]);   % its own: fe1 must start without an editor below
+hha = renderFigure(Fha, Fha.spec, feA, Editable=true);
+ctxA = getappdata(feA, PlotAesthetics.ContextKey);
+im = findall(hha.axes(1), 'Type', 'image');
+check(isfield(Fha.panels(1).layers(1).R, 'auroc') && isscalar(im) && isequal(clim(hha.axes(1)), [0 1]) && ctxA.mapField == "diverging", ...
+    'a heat map of auROCs: on 0-1, its group''s calls kept (figSliceGroup), the editor''s colormap diverging');
+delete(feA);
+hrt = renderFigure(Frt, Frt.spec, fig);
+art = hrt.axes(1);
+bars = findall(art, 'Tag', 'bar');
+check(numel(bars) == height(Frt.groups) && isequal(art.XTick, 1:height(Frt.groups)) && string(art.XLabel.String) == "Depth" ...
+    && string(art.YLabel.String) == Lrt.R.units && ~isempty(findall(art, 'Tag', 'errorBar')), ...
+    'a rate panel: a bar per trial group along x (named by Depth), with error bars, the rate''s unit on y');
+hr3 = renderFigure(Frt3, Frt3.spec, fig);
+lg = findall(fig, 'Type', 'legend');
+lgr = string(lg(1).String);
+check(numel(findall(hr3.axes(1), 'Tag', 'box')) >= 2 && any(lgr == Frt3.panels(1).layers(2).name) ...
+    && any(lgr == Frt3.panels(1).layers(1).name), 'a rate panel of two layers: boxes side by side, each layer in the legend');
+fpts = Frt; fpts.spec.panels(1).options.display = "points";
+hpt = renderFigure(fpts, fpts.spec, fig);
+check(~isempty(findall(hpt.axes(1), 'Tag', 'points')) && ~isempty(findall(hpt.axes(1), 'Tag', 'meanBar')), ...
+    'a rate panel''s points display: each epoch a dot over its mean''s bar');
+htc = renderFigure(Ftc, Ftc.spec, fig);
+atc = htc.axes(1);
+cv = findall(atc, 'Tag', 'curve');
+check(isscalar(cv) && isequal(cv.XData(:), double(Ltc.R.x(:))) && string(atc.XLabel.String) == "Depth" ...
+    && string(atc.YLabel.String) == Ltc.R.units, 'a tuning panel: the curve over Depth''s values, labeled');
+htc2 = renderFigure(Ftc2, Ftc2.spec, fig);
+cv2 = findall(htc2.axes(1), 'Tag', 'curve');
+check(numel(cv2) == height(Lt2.R.groups) && ~isempty(findall(htc2.axes(1), 'Tag', 'waveMean')), ...
+    sprintf('a tuning panel with a series: %d curves, and the unit''s waveform inset', numel(cv2)));
+hwp = renderFigure(Fwp, Fwp.spec, fig);
+awp = hwp.axes(1);
+ring = findall(awp, 'Tag', 'unitDots');
+check(~isempty(findall(awp, 'Tag', 'waveMean')) && startsWith(string(awp.XLabel.String), "x (") ...
+    && (isscalar(ring) || ~all(isfinite(Tu.meta{2}.y))), ...
+    'a waveforms panel in the probe layout: the units at their places, the observed unit framed');
+
 % editing, OnRemember and redraw
 remembered = [];
     function remember(r)
@@ -1337,6 +1657,20 @@ function cfg = unlinkFigure(cfg, k)
 %unlinkFigure  Figure k's panels with their own options (common = false).
 for j = 1:numel(cfg.Figures(k).panels)
     cfg.Figures(k).panels(j).common = false;
+end
+end
+
+
+function p = figureTuningParamOf(src)
+%figureTuningParamOf  The parameter a tuning panel without param or groupBy tunes over: the first numeric one with two values.
+p = "";
+for n = reshape(string(src.paramNames), 1, [])
+    if n == "TrialType" || ~ismember(n, string(src.trials.Properties.VariableNames)); continue; end
+    v = src.trials.(n);
+    if (isnumeric(v) || islogical(v)) && numel(unique(double(v(isfinite(double(v)))))) >= 2
+        p = n;
+        return
+    end
 end
 end
 

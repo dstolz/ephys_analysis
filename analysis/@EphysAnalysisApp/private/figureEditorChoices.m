@@ -8,9 +8,11 @@ function ch = figureEditorChoices(type, source)
 %     SourceLabels   their names in the app ("units (sorted)", ...)
 %     Bindable       a layer of SOURCE on this type may follow the
 %                    observation (spikes or a signal, on a raster, PSTH,
-%                    continuous or waveforms panel); otherwise it is fixed
-%     BaselineModes  the options.baseline modes the type takes (a heat map
-%                    of a signal, SOURCE a signal: none and subtract only)
+%                    continuous, waveforms, rate or tuning panel); otherwise it is fixed
+%     BaselineModes  the options.baseline modes the type takes (auroc on a
+%                    PSTH or a heat map of spikes; a heat map of a signal,
+%                    SOURCE a signal: none and subtract only; rate and
+%                    tuning: firingRate's none, subtract, ratio, zscore)
 %     WaveModes, WaveLabels  options.waveform.mode: an inset may be off, a
 %                    waveforms panel's waveform not
 %   An unknown TYPE offers no source.
@@ -38,17 +40,19 @@ known = isKey(names, srcs);
 labels(known) = names(srcs(known));
 ch = struct('Sources', srcs, 'SourceLabels', labels, ...
     'Bindable', ismember(source, [EphysAnalysisConfig.SpikeSources EphysAnalysisConfig.SignalSources]) ...
-        && ismember(type, ["raster" "psth" "continuous" "waveforms"]), ...
+        && ismember(type, ["raster" "psth" "continuous" "waveforms" "rate" "tuning"]), ...
     'BaselineModes', "none", 'WaveModes', ["off" "mean" "subsample" "both"], ...
     'WaveLabels', ["Off" "Mean" "Subsample" "Mean + subsample"]);
 switch type
     case "psth"
-        ch.BaselineModes = ["none" "subtract" "zscore" "percent"];
+        ch.BaselineModes = ["none" "subtract" "zscore" "percent" "auroc"];
     case "heatmap"
-        ch.BaselineModes = ["none" "subtract" "zscore" "percent"];
+        ch.BaselineModes = ["none" "subtract" "zscore" "percent" "auroc"];
         if ismember(source, EphysAnalysisConfig.SignalSources); ch.BaselineModes = ["none" "subtract"]; end
     case {"continuous" "corrmap"}
         ch.BaselineModes = ["none" "subtract"];
+    case {"rate" "tuning"}
+        ch.BaselineModes = ["none" "subtract" "ratio" "zscore"];
     case "waveforms"
         ch.WaveModes = ch.WaveModes(2:end);
         ch.WaveLabels = ch.WaveLabels(2:end);

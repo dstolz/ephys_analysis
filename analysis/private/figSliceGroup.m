@@ -9,8 +9,10 @@ function R = figSliceGroup(R, g)
 %     one value per group           n, nEpochs, stopMean, meanR: (G)
 %     [nUnits x nGroups]            baselineRate, baselineSD: (:, G)
 %     groups                        its row G
-%   (A figure's panels have no auROC baseline in phase 1, so R.auroc is not
-%   cut.) A G outside 1..nGroups is clipped to it. The epochs (R.epochs,
+%     auroc (an auROC result)       mean, phasic, p, q, direction,
+%                                   modulated: (:, G); nModulated,
+%                                   nIncrease, nDecrease: (G)
+%   A G outside 1..nGroups is clipped to it. The epochs (R.epochs,
 %   R.epochGroup, R.raster) are left as they are.
 %
 %   See also drawHeatmapPanel, drawCorrMapPanel.
@@ -42,6 +44,16 @@ for f = ["baselineRate" "baselineSD"]
     if isfield(R, f) && ismatrix(R.(f)) && size(R.(f), 2) == nG
         R.(f) = R.(f)(:, g);
     end
+end
+if isfield(R, 'auroc') && isstruct(R.auroc) && ~isempty(R.auroc)
+    A = R.auroc;
+    for f = ["mean" "phasic" "p" "q" "direction" "modulated"]
+        if isfield(A, f) && ismatrix(A.(f)) && size(A.(f), 2) == nG; A.(f) = A.(f)(:, g); end
+    end
+    for f = ["nModulated" "nIncrease" "nDecrease"]
+        if isfield(A, f) && numel(A.(f)) == nG; A.(f) = A.(f)(g); end
+    end
+    R.auroc = A;
 end
 R.groups = R.groups(g, :);
 end

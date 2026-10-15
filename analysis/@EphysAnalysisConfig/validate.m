@@ -90,30 +90,40 @@ function issues = validate(obj, opts)
 %               inside the grid, no overlaps, ids of their own (warnings:
 %               no panels, cells no panel covers); a panel's own ref /
 %               window only on aligned types, a "between" window only on a
-%               unit correlation panel; layers: a source the type draws
+%               unit correlation, firing rate or tuning curve panel;
+%               layers: a source the type draws
 %               (categoryOf), the binding ("observation" only for spikes
 %               and signals, never on heatmap / probemap / corrmap; AUX
 %               cannot follow a unit; a warning for a signal following
 %               another signal's channel), aggregate, maxUnits (a
-%               warning above 8 units drawn each in a raster / PSTH),
+%               warning above 8 units drawn each in a raster / PSTH /
+%               rate / tuning panel),
 %               channels, events layers only on time panels, a train only
 %               on raster / psth / heatmap, the mark's event reference,
 %               marker, size and color, a layer's color and line style, a
 %               raster of marks alone (an error: no rows); warnings for a
 %               panel without enabled layers and for several layers on a
-%               one-layer type; the type's options (bins, measure,
-%               baseline modes and window -- a signal's baseline, in a
+%               one-layer type (but a waveforms panel in the probe
+%               layout, whose further layers ring their units); the
+%               type's options (bins, measure, baseline modes and window
+%               -- "auroc" only on a PSTH or a heat map of spikes, its
+%               auroc settings as a plot's; a signal's baseline, in a
 %               continuous panel or a heat map of a signal, overlapping
-%               the panel's window --, histStyle, normalize,
-%               fillAlpha, the raster sort, continuous display /
-%               statistic / transform / errorType and its toolbox,
-%               stackSpacing, heatmap order, group, probemap value, corrmap
-%               metric / correlation, the waveform settings, y / color
-%               limits; a linked panel's common fields are checked once,
-%               in the figure's common options -- bins, measure,
-%               baseline Mode and window, the waveform settings --, plus
-%               an error at "<figure>.<panel>.common" when its type does
-%               not take the common baseline Mode); the style, as a plot's
+%               the panel's window --, histStyle, normalize, fillAlpha,
+%               the PSTH's stackSpacing, the raster sort, continuous
+%               display / statistic / transform / errorType and its
+%               toolbox, stackSpacing, heatmap order ("modulation" only
+%               with the auROC baseline), group, the waveforms layout (a
+%               warning for a probe layout whose first layer follows the
+%               observation), probemap value, corrmap metric /
+%               correlation, the rate display, the tuning param /
+%               seriesParam (names, not the same one), the waveform
+%               settings, y / color limits; a linked panel's common
+%               fields are checked once, in the figure's common options --
+%               bins, measure, baseline Mode and window, auroc, the
+%               waveform settings --, plus an error at
+%               "<figure>.<panel>.common" when its type does not take the
+%               common baseline Mode); the style, as a plot's
 %     Export    formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
 %               folder and file-name patterns use known tokens; a warning
 %               when the files of two enabled plots or figures, or of two
@@ -638,6 +648,7 @@ end
 % "<figure>.<panel>.layers(<j>).<field>" for a layer's.
 FT = EphysAnalysisConfig.panelTypes();
 isWhole = @(x) isscalar(x) && isfinite(x) && x >= 1 && x == round(x);
+commonModes = ["none" "subtract" "zscore" "percent" "ratio" "auroc"];   % every baseline Mode some panel type takes
 fids = obj.figureIds();
 if numel(fids) > 1
     fkey = lower(regexprep(fids, '[^\w\-\.]', '_'));   % the id as {Plot} writes it, case-blind
@@ -714,12 +725,15 @@ for k = 1:numel(obj.Figures)
     cmn = fg.common;
     checkFigBins(cmn.bins, cm0);
     checkFigMeasure(cmn.measure, cm0);
-    if ~ismember(cmn.baseline.Mode, ["none" "subtract" "zscore" "percent"])
-        add("Figures", cm0 + ".baseline.Mode", "error", "The common baseline Mode is one of none, subtract, zscore, percent, not """ + ...
+    if ~ismember(cmn.baseline.Mode, commonModes)
+        add("Figures", cm0 + ".baseline.Mode", "error", "The common baseline Mode is one of " + strjoin(commonModes, ", ") + ", not """ + ...
             cmn.baseline.Mode + """.");
     elseif cmn.baseline.Mode ~= "none" && ~(numel(cmn.baseline.Window) == 2 && all(isfinite(cmn.baseline.Window)) ...
             && cmn.baseline.Window(2) > cmn.baseline.Window(1))
         add("Figures", cm0 + ".baseline.Window", "error", "The baseline window must be [b0 b1] with b0 < b1.");
+    end
+    if cmn.baseline.Mode == "auroc"
+        checkAuroc(cmn.auroc, cmn.bins.BinSec, "Figures", cm0 + ".auroc", true);
     end
     checkFigWaveform(cmn.waveform, cm0 + ".waveform", false);
 
@@ -811,8 +825,9 @@ for k = 1:numel(obj.Figures)
         end
         pw = pj.window;
         if isequal(pw, "default"); pw = fw; end
-        if tr.Aligned && pw.mode == "between" && pj.type ~= "corrmap"
-            add("Figures", p0 + ".window", "error", A + " needs a fixed window (""between"" windows are for unit correlation panels).");
+        if tr.Aligned && pw.mode == "between" && ~ismember(pj.type, ["corrmap" "rate" "tuning"])
+            add("Figures", p0 + ".window", "error", A + " needs a fixed window (""between"" windows are for unit correlation, " + ...
+                "firing rate and tuning curve panels).");
         end
 
         % layers
@@ -821,7 +836,7 @@ for k = 1:numel(obj.Figures)
         if ~isempty(Lp); on = [Lp.enabled]; end
         if ~any(on)
             add("Figures", p0 + ".layers", "warning", "The panel has no enabled layer: it draws nothing.");
-        elseif nnz(on) > 1 && ~tr.MultiLayer
+        elseif nnz(on) > 1 && ~tr.MultiLayer && ~(pj.type == "waveforms" && isfield(pj.options, 'layout') && pj.options.layout == "probe")
             add("Figures", p0 + ".layers", "warning", A + " draws one layer: only the first enabled one is drawn.");
         end
         for i = find(on)
@@ -871,7 +886,7 @@ for k = 1:numel(obj.Figures)
             if ismember(L.source, EphysAnalysisConfig.SpikeSources)
                 if ~(L.units.maxUnits >= 1)
                     add("Figures", l0 + ".units.maxUnits", "error", "maxUnits must be >= 1 (Inf = all).");
-                elseif L.binding == "fixed" && ismember(pj.type, ["raster" "psth"]) && L.aggregate == "each"
+                elseif L.binding == "fixed" && ismember(pj.type, ["raster" "psth" "rate" "tuning"]) && L.aggregate == "each"
                     nU = L.units.maxUnits;
                     if ~isempty(L.units.ids); nU = min(nU, numel(L.units.ids)); end
                     if nU > 8
@@ -939,7 +954,8 @@ for k = 1:numel(obj.Figures)
             case "psth"
                 if ownField("bins"); checkFigBins(op.bins, o0); end
                 if ownField("measure"); checkFigMeasure(op.measure, o0); end
-                checkPanelBaseline(op.baseline, ["none" "subtract" "zscore" "percent"], o0, A, ownField("baseline"), p0);
+                checkPanelBaseline(op.baseline, ["none" "subtract" "zscore" "percent" "auroc"], o0, A, ownField("baseline"), p0);
+                checkPanelAuroc(op, o0, p0, ownField);
                 if ~ismember(op.histStyle, ["bar" "line"])
                     add("Figures", o0 + ".histStyle", "error", "A PSTH is drawn as bar or line.");
                 end
@@ -948,6 +964,9 @@ for k = 1:numel(obj.Figures)
                 end
                 if ~(isnan(op.fillAlpha) || (op.fillAlpha >= 0 && op.fillAlpha <= 1))
                     add("Figures", o0 + ".fillAlpha", "error", "fillAlpha is an opacity from 0 to 1 (NaN = automatic).");
+                end
+                if ~(isscalar(op.stackSpacing) && isfinite(op.stackSpacing) && op.stackSpacing > 0)
+                    add("Figures", o0 + ".stackSpacing", "error", "stackSpacing must be positive (1 = the tallest PSTH reaches the next row).");
                 end
                 checkFigLim(op.yLim, o0 + ".yLim", "y");
                 if ownField("waveform"); checkFigWaveform(op.waveform, o0 + ".waveform", false); end
@@ -979,19 +998,55 @@ for k = 1:numel(obj.Figures)
                 if ~firstSignal
                     if ownField("bins"); checkFigBins(op.bins, o0); end
                     if ownField("measure"); checkFigMeasure(op.measure, o0); end
-                    checkPanelBaseline(op.baseline, ["none" "subtract" "zscore" "percent"], o0, A, ownField("baseline"), p0);
+                    checkPanelBaseline(op.baseline, ["none" "subtract" "zscore" "percent" "auroc"], o0, A, ownField("baseline"), p0);
+                    checkPanelAuroc(op, o0, p0, ownField);
                 else
-                    checkPanelBaseline(op.baseline, ["none" "subtract"], o0, A, ownField("baseline"), p0);
+                    if op.baseline.Mode == "auroc"
+                        bf = o0 + ".baseline.Mode";
+                        if ~ownField("baseline"); bf = p0 + ".common"; end
+                        add("Figures", bf, "error", "The auROC baseline is for spikes: a heat map of a signal takes baseline Mode none or subtract.");
+                    else
+                        checkPanelBaseline(op.baseline, ["none" "subtract"], o0, A, ownField("baseline"), p0);
+                    end
                     checkSignalBaseline(op.baseline, pw, b0);
                 end
-                if ~ismember(op.order, ["probe" "peak"])
-                    add("Figures", o0 + ".order", "error", "A heat map orders its rows by probe (the style's sort options) or peak.");
+                if ~ismember(op.order, ["probe" "peak" "modulation"])
+                    add("Figures", o0 + ".order", "error", "A heat map orders its rows by probe (the style's sort options), peak or modulation.");
+                elseif op.order == "modulation" && (firstSignal || op.baseline.Mode ~= "auroc")
+                    add("Figures", o0 + ".order", "error", "A heat map's rows go in modulation order only with the auROC baseline (baseline Mode ""auroc"").");
                 end
                 checkFigGroup(op.group, o0);
                 checkFigLim(op.cLim, o0 + ".cLim", "color");
             case "waveforms"
                 if ownField("waveform"); checkFigWaveform(op.waveform, o0 + ".waveform", true); end
+                if ~ismember(op.layout, ["grid" "probe"])
+                    add("Figures", o0 + ".layout", "error", "A unit waveforms panel's layout is grid or probe.");
+                elseif op.layout == "probe" && any(on) && Lp(find(on, 1)).binding == "observation"
+                    add("Figures", o0 + ".layout", "warning", "The probe layout draws every unit of the first layer at its " + ...
+                        "place, but that layer follows the observed unit: bind it to fixed units (and ring the observed one with a following layer).");
+                end
                 checkFigLim(op.yLim, o0 + ".yLim", "y");
+            case "rate"
+                if ownField("measure"); checkFigMeasure(op.measure, o0); end
+                checkPanelBaseline(op.baseline, ["none" "subtract" "ratio" "zscore"], o0, A, ownField("baseline"), p0);
+                if ~ismember(op.display, ["bar" "box" "points"])
+                    add("Figures", o0 + ".display", "error", "A firing rate panel's display is bar, box or points.");
+                end
+                checkFigLim(op.yLim, o0 + ".yLim", "y");
+            case "tuning"
+                if ownField("measure"); checkFigMeasure(op.measure, o0); end
+                checkPanelBaseline(op.baseline, ["none" "subtract" "ratio" "zscore"], o0, A, ownField("baseline"), p0);
+                if ~isvarname(op.param) && op.param ~= ""
+                    add("Figures", o0 + ".param", "error", "The tuning parameter """ + op.param + """ is not a trial parameter's name " + ...
+                        "(empty: the figure's first groupBy parameter, else the first numeric one).");
+                end
+                if ~isvarname(op.seriesParam) && op.seriesParam ~= ""
+                    add("Figures", o0 + ".seriesParam", "error", "The series parameter """ + op.seriesParam + """ is not a trial parameter's name (empty: one curve).");
+                elseif op.seriesParam ~= "" && op.seriesParam == op.param
+                    add("Figures", o0 + ".seriesParam", "error", "The series parameter is the tuning parameter itself: pick another, or none.");
+                end
+                checkFigLim(op.yLim, o0 + ".yLim", "y");
+                if ownField("waveform"); checkFigWaveform(op.waveform, o0 + ".waveform", false); end
             case "probemap"
                 if ~ismember(op.value, ["rate" "nSpikes" "nUnits"])
                     add("Figures", o0 + ".value", "error", "A probe map shows rate, nSpikes or nUnits.");
@@ -1012,8 +1067,8 @@ for k = 1:numel(obj.Figures)
         end
     end
 
-    % the style (its error drawn as a bootstrap CI by a PSTH's bands)
-    drawsCi95 = ~isempty(fg.panels) && any([fg.panels.type] == "psth");
+    % the style (its error drawn as a bootstrap CI by a PSTH's bands, a rate panel's bars, a tuning curve's error bars)
+    drawsCi95 = ~isempty(fg.panels) && any(ismember([fg.panels.type], ["psth" "rate" "tuning"]));
     checkStyle(fg.style, "Figures", f0, drawsCi95 && fg.style.ErrorType == "ci95");
 end
 
@@ -1154,10 +1209,22 @@ issues = table(Section, Field, Severity, Message);
         %   A common Mode outside every type's modes, or a bad common window, is the common block's error already.
         if hOwn
             checkFigBaseline(hB, hModes, hO0, hWho);
-        elseif ~ismember(hB.Mode, hModes) && ismember(hB.Mode, ["none" "subtract" "zscore" "percent"])
+        elseif ~ismember(hB.Mode, hModes) && ismember(hB.Mode, commonModes)
             add("Figures", hP0 + ".common", "error", sprintf(['The figure''s common baseline Mode "%s" is not one %s ' ...
                 'takes (%s): untick the panel''s common options, or change the figure''s common baseline.'], ...
                 hB.Mode, lower(extractBefore(hWho, 2)) + extractAfter(hWho, 1), strjoin(hModes, ", ")));
+        end
+    end
+
+    function checkPanelAuroc(hOp, hO0, hP0, hOwnField)
+        %checkPanelAuroc  A PSTH's or a spike heat map's auROC settings, as drawn, under baseline Mode "auroc".
+        %   Checked where the panel holds them (its own auroc) or where its own bins decide the windows' fit;
+        %   a linked panel with the common bins and auroc is checked once, in the common options.
+        if hOp.baseline.Mode ~= "auroc"; return; end
+        if hOwnField("auroc")
+            checkAuroc(hOp.auroc, hOp.bins.BinSec, "Figures", hO0 + ".auroc", true);
+        elseif hOwnField("bins")
+            checkAuroc(hOp.auroc, hOp.bins.BinSec, "Figures", hP0 + ".common.auroc", true);
         end
     end
 

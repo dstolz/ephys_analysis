@@ -99,6 +99,8 @@ switch type
     case "waveforms",  c = [0.925 0.886 0.965];
     case "probemap",   c = [0.949 0.949 0.863];
     case "corrmap",    c = [0.965 0.871 0.918];
+    case "rate",       c = [0.851 0.937 0.957];
+    case "tuning",     c = [0.957 0.906 0.851];
     otherwise,         c = [0.92 0.92 0.92];
 end
 end

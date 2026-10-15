@@ -133,7 +133,7 @@ switch section
             'StackSpacing', NaN);           % evoked "stack" offset (NaN = automatic)
 
     case "Auroc"
-        % a psth / heatmap plot's baseline Mode "auroc" (aurocCurves; spikePSTH's Auroc)
+        % a psth / heatmap plot's or figure panel's baseline Mode "auroc" (aurocCurves; spikePSTH's Auroc)
         s = struct( ...
             'method',           "psth", ...      % "psth": the trial-averaged PSTH's bins (the paper) | "epochs": each epoch's count
             'windows',          "tiled", ...     % "tiled": back to back, edged at the event | "sliding": one every stepSec
@@ -410,10 +410,11 @@ switch section
         % same name mean (panelTypes)
         s = struct( ...
             'bins',          struct('BinSec', 0.01, 'SmoothSec', 0.01), ...   % psth, heatmap, corrmap
-            'measure',       "rate", ...        % psth, heatmap: "rate" | "count" | "probability"
-            'baseline',      struct('Mode', "none", 'Window', [-0.2 0]), ...   % psth, heatmap, continuous, corrmap (continuous / corrmap / a heat map of a signal: none | subtract)
+            'measure',       "rate", ...        % psth, heatmap, rate, tuning: "rate" | "count" | "probability"
+            'baseline',      struct('Mode', "none", 'Window', [-0.2 0]), ...   % psth, heatmap, continuous, corrmap, rate, tuning (each type takes its own Modes: panelTypes)
+            'auroc',         EphysAnalysisConfig.defaults("Auroc"), ...   % psth, heatmap: baseline Mode "auroc"
             'maskAfterStop', false, ...         % raster, psth, heatmap
-            'waveform',      EphysAnalysisConfig.defaults("Waveform"));   % raster / psth: the waveform inset; a waveforms panel: its settings ("off" there = "both")
+            'waveform',      EphysAnalysisConfig.defaults("Waveform"));   % raster / psth / tuning: the waveform inset; a waveforms panel: its settings ("off" there = "both")
 
     otherwise
         error('EphysAnalysisConfig:BadSection', 'Unknown section "%s".', section);

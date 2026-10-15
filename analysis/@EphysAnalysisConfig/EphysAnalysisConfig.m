@@ -34,7 +34,7 @@ classdef EphysAnalysisConfig
     %               enabled, title, observe, grid, common, panels, ref,
     %               window, selection, style, aesthetics. common holds the
     %               options every linked panel takes (commonFields: bins,
-    %               measure, baseline, maskAfterStop, waveform), as a panel
+    %               measure, baseline, auroc, maskAfterStop, waveform), as a panel
     %               whose ref / window are "default" takes the figure's
     %               alignment; adoptPanelOptions, adoptPanelAlignment and
     %               relinkPanels spread one panel's settings or re-link
@@ -699,7 +699,7 @@ classdef EphysAnalysisConfig
             %   category of SOURCE (sourceCategories) that panel type TYPE
             %   accepts (panelTypes().Categories): "point", "continuous",
             %   "unit" or "". units / detected are "point" in a
-            %   raster, PSTH or heat map and "unit" in a waveforms panel,
+            %   raster, PSTH, heat map, rate or tuning panel and "unit" in a waveforms panel,
             %   probe map or correlation map. An events layer is "point" in
             %   every panel that shares the time axis (raster, psth,
             %   continuous, heatmap: marks or latency lines), whatever its
@@ -769,15 +769,17 @@ classdef EphysAnalysisConfig
 
         function f = commonFields()
             %commonFields  The fields of a figure's common options (defaults("FigureCommon")), in order.
-            f = ["bins" "measure" "baseline" "maskAfterStop" "waveform"];
+            f = ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform"];
         end
 
         function f = commonFieldsOf(type)
             %commonFieldsOf  The common fields a panel type has among its options (a string row; none for an unknown type).
             %   raster: maskAfterStop, waveform; psth: bins, measure,
-            %   baseline, maskAfterStop, waveform; continuous: baseline;
-            %   heatmap: bins, measure, baseline, maskAfterStop; waveforms:
-            %   waveform; corrmap: bins, baseline; probemap: none.
+            %   baseline, auroc, maskAfterStop, waveform; continuous:
+            %   baseline; heatmap: bins, measure, baseline, auroc,
+            %   maskAfterStop; waveforms: waveform; corrmap: bins,
+            %   baseline; rate: measure, baseline; tuning: measure,
+            %   baseline, waveform; probemap: none.
             f = string.empty(1, 0);
             T = EphysAnalysisConfig.panelTypes();
             row = T.Type == string(type);

@@ -4,13 +4,14 @@ function P = computePsthPanel(src, panel, E, G, ctx)
 %   compute for "psth"; CTX from EphysAnalysisRunner.computeFigure) has
 %   P.layers, one per layer of PANEL (figurePanelLayers), each computed by
 %   figurePointLayer with the panel's bins, measure, baseline (Mode and
-%   Window) and maskAfterStop, and its band's error type (CTX.errorType,
+%   Window; Mode "auroc" with options.auroc: auROC curves, R.auroc the
+%   calls, as computePlot's PSTH) and maskAfterStop, and its band's error type (CTX.errorType,
 %   figureErrorType): units / detected layers and events trains are
 %   spikePSTH results (rate / err [nBins x nUnits x nGroups]; aggregate
 %   "mean" adds R.layerMean), events marks are R.kind "events" (their
 %   latencies, drawn as lines). The rows of a raster are kept (Raster=true)
 %   when an events-marks layer is drawn. options.normalize, histStyle,
-%   fill and yLim are the draw function's.
+%   fill, stack, stackSpacing and yLim are the draw function's.
 %
 %   See also figurePanelRegistry, figurePointLayer, spikePSTH.
 
@@ -25,6 +26,6 @@ marks = any(on & arrayfun(@(L) L.source == "events" && L.eventsAs == "marks", pa
 for j = find(on)
     P.layers(j) = figurePointLayer(src, panel.layers(j), P.layers(j), E, G, ctx, Window=[w.pre w.post], ...
         BinSec=o.bins.BinSec, SmoothSec=o.bins.SmoothSec, Measure=o.measure, Baseline=b, BaselineMode=o.baseline.Mode, ...
-        MaskAfterStop=o.maskAfterStop, Raster=marks, Waveform=o.waveform);
+        MaskAfterStop=o.maskAfterStop, Raster=marks, Waveform=o.waveform, Auroc=o.auroc);
 end
 end

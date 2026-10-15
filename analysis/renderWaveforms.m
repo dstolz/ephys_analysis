@@ -1,6 +1,7 @@
 function h = renderWaveforms(R, target, opts)
 %renderWaveforms  Draw each unit's waveform: a tile per unit, or at its place on the probe.
-%   H = renderWaveforms(R, TARGET, Layout=, Page=, Waveform=, Style=) draws
+%   H = renderWaveforms(R, TARGET, Layout=, Page=, Waveform=, Style=,
+%   Highlight=) draws
 %   the waveforms of R.waveforms (unitWaveforms) for the units R.meta
 %   (selectUnits' table) as the waveform settings say
 %   (EphysAnalysisConfig.defaults("Waveform")):
@@ -26,7 +27,10 @@ function h = renderWaveforms(R, target, opts)
 %              a glyph centerd on its position (R.meta.x, y), shanks side by
 %              side as in the probe map, the sites in gray behind. In the
 %              common scale a bar says how much amplitude a bar's length is.
-%              Units without a position are left out, and the panel says so
+%              Units without a position are left out, and the panel says so.
+%              Highlight (rows of R.meta; default none) frames those units'
+%              glyphs in red (role "unitDots", group "observed"): a
+%              figure's waveforms panel rings the observed unit so
 %
 %   A result merged across sessions (combineSessions: R.sessions) draws
 %   each unit in its session's color (R.groups through R.meta.session): its
@@ -43,6 +47,7 @@ arguments
     opts.Page (1,1) double {mustBePositive, mustBeInteger} = 1
     opts.Waveform = struct()
     opts.Style = struct()
+    opts.Highlight (1,:) double = []
 end
 
 style = renderStyle(opts.Style);
@@ -58,7 +63,7 @@ for u = 1:nU
     P{u} = unitParts(W, u, wave.mode);
 end
 if opts.Layout == "probe"
-    h = probeLayout(R, W, P, target, wave, style);
+    h = probeLayout(R, W, P, target, wave, style, opts.Highlight);
 else
     h = gridLayout(R, W, P, target, wave, style, opts.Page);
 end
@@ -119,8 +124,8 @@ h = struct('layout', tl, 'axes', axs);
 end
 
 
-function h = probeLayout(R, W, P, target, wave, style)
-%probeLayout  Every unit's waveform as a glyph at its position on the probe.
+function h = probeLayout(R, W, P, target, wave, style, ring)
+%probeLayout  Every unit's waveform as a glyph at its position on the probe; the units RING (rows of R.meta) framed.
 meta = R.meta;
 nU = numel(P);
 [tl, ax] = renderLayout(target, 1, 1, style);
@@ -205,6 +210,12 @@ for s = 1:nL
         M = vertcat(mu{muOf == s});
         tagPart(line(ax, M(:, 1), M(:, 2), 'Color', meanColor, 'LineWidth', max(1, style.LineWidth)), meanRole, group);
     end
+end
+for u = reshape(ring(ring >= 1 & ring <= nU & ring == round(ring)), 1, [])
+    if ~placed(u); continue; end
+    bx = X0(u) + 0.6 * gw * [-1 1 1 -1 -1];
+    by = uy(u) + 0.6 * gh * [-1 -1 1 1 -1];
+    tagPart(line(ax, bx, by, 'Color', [0.85 0.1 0.1], 'LineWidth', 1.5, 'HandleVisibility', 'off'), "unitDots", "observed");
 end
 fs = max(5, style.FontSize - 3);
 if wave.showNames

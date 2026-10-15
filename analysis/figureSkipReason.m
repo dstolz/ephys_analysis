@@ -21,7 +21,10 @@ function [reason, layerReasons] = figureSkipReason(src, spec)
 %   ref / window (as the figure's above); a raster sorted by a
 %   trial parameter the trials lack, or by an event (rasterSort "event")
 %   that names none or whose line is missing; a probe map without a probe
-%   map ("no probe map"). A layer's: "no sorted units", "no detected
+%   map ("no probe map"); a tuning panel without paired trials, without a
+%   parameter to tune over (options.param "" with no groupBy parameter and
+%   no numeric trial parameter), or whose param or seriesParam the trials
+%   lack ("no trial parameter X"). A layer's: "no sorted units", "no detected
 %   spikes", "no <SIGNAL> extract"; events: "no line X" (or of its
 %   sequence), "no paired trials" (trial scope or "Trial"), "no trial
 %   parameter X" (offsetParam); a following layer: "AUX has no recording channel: bind
@@ -83,7 +86,7 @@ for k = 1:numel(spec.panels)
             pr = alignReason(src, p.ref, p.window, sel, vars);
         end
         if pr == ""
-            pr = panelReason(src, p, vars);
+            pr = panelReason(src, p, vars, sel);
         end
     end
     e = struct('panel', p.id, 'layer', 0, 'reason', pr);
@@ -120,11 +123,16 @@ r = paramReason(need, vars);
 end
 
 
-function r = panelReason(src, p, vars)
+function r = panelReason(src, p, vars, sel)
 %panelReason  What a panel's type and options need beyond its alignment.
 r = "";
 o = p.options;
 switch p.type
+    case "tuning"
+        if ~src.hasTrials; r = "no paired trials"; return; end
+        [param, series] = figureTuningParam(o, sel, src);
+        if param == ""; r = "no numeric trial parameter to tune over"; return; end
+        r = paramReason([param series], vars);
     case "raster"
         if o.rasterSort == "event"
             if isempty(o.rasterSortEvent)

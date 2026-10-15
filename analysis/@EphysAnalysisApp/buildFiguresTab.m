@@ -335,17 +335,21 @@ E.cmSmoothMs = uieditfield(S.Body, "numeric", "Value", 10, "Limits", [0 Inf], "V
 place(E.cmSmoothMs, r, 2);
 [S, r] = formRow(S, "cmMeasure", "Measure:");
 E.cmMeasure = uidropdown(S.Body, "Items", ["rate" "count" "probability"], "ValueChangedFcn", cchanged, ...
-    "Tooltip", "PSTH and heat map panels: spikes/s, spikes per bin, or the share of epochs with a spike in the bin.");
+    "Tooltip", "PSTH, heat map, firing rate and tuning panels: spikes/s, spikes per bin (or window), or the share " + ...
+    "of epochs with a spike in the bin (or window).");
 place(E.cmMeasure, r, 2);
 [S, r] = formRow(S, "cmBaselineMode", "Baseline:");
-E.cmBaselineMode = uidropdown(S.Body, "Items", ["none" "subtract" "zscore" "percent"], "ValueChangedFcn", cchanged, ...
-    "Tooltip", "Against the baseline window's value, epoch by epoch (continuous and correlation panels: none or subtract).");
+E.cmBaselineMode = uidropdown(S.Body, "Items", ["none" "subtract" "zscore" "percent" "ratio" "auroc"], "ValueChangedFcn", cchanged, ...
+    "Tooltip", "Against the baseline window's value, epoch by epoch. Each type takes its own: PSTH and heat map of " + ...
+    "spikes none, subtract, zscore, percent or auroc (each window's auROC against the baseline: its settings below); " + ...
+    "firing rate and tuning none, subtract, ratio or zscore; continuous and correlation none or subtract.");
 place(E.cmBaselineMode, r, 2);
 [S, r] = formRow(S, ["cmBaseFrom" "cmBaseTo"], "Baseline (s):");
 bg = subgrid(S.Body, r, {'1x', 'fit', '1x'});
 E.cmBaseFrom = uieditfield(bg, "numeric", "Value", -0.2, "ValueChangedFcn", cchanged, "Tooltip", "Baseline window start (s from the event).");
 uilabel(bg, "Text", "to");
 E.cmBaseTo = uieditfield(bg, "numeric", "Value", 0, "ValueChangedFcn", cchanged, "Tooltip", "Baseline window end (s).");
+[S, E] = aurocRows(S, E, "cmAu", cchanged, true);
 [S, r] = formRow(S, "cmMaskAfterStop", "");
 E.cmMaskAfterStop = uicheckbox(S.Body, "Text", "Mask after the stop event", "ValueChangedFcn", cchanged, ...
     "Tooltip", "Raster, PSTH and heat map panels: drop what follows each epoch's stop event.");
@@ -540,7 +544,7 @@ sec(end+1) = S;
 S = formSection(eg, 11, "options", "Options", Color=tint("options"));
 E.panelCommon = uicheckbox(S.HeaderGrid, "Text", "Common options from the figure", "Value", true, ...
     "ValueChangedFcn", @(~,~) onPanelCommonToggled(obj), ...
-    "Tooltip", "Ticked: the panel takes the figure's Common options (bins, measure, baseline, mask, waveform inset) " + ...
+    "Tooltip", "Ticked: the panel takes the figure's Common options (bins, measure, baseline, auROC, mask, waveform inset) " + ...
     "for those its type has; their rows below show them, locked. Untick to give the panel its own, starting from them.");
 E.panelCommon.Layout.Column = 2;
 [S, r] = formRow(S, "optApplyAll", "", 30);
@@ -560,13 +564,35 @@ E.measure = uidropdown(S.Body, "Items", ["rate" "count" "probability"], "ValueCh
 place(E.measure, r, 2);
 [S, r] = formRow(S, "baselineMode", "Baseline:");
 E.baselineMode = uidropdown(S.Body, "Items", "none", "ValueChangedFcn", changed, ...
-    "Tooltip", "subtract / zscore / percent: against the baseline window's value, epoch by epoch.");
+    "Tooltip", "subtract / zscore / percent / ratio: against the baseline window's value, epoch by epoch. auroc (PSTH, " + ...
+    "heat map of spikes): each window's auROC against the baseline, 0.5 = no change, above = more firing (Cohen et " + ...
+    "al. 2012; Macedo-Lima et al. 2024); its settings below.");
 place(E.baselineMode, r, 2);
 [S, r] = formRow(S, ["baseFrom" "baseTo"], "Baseline (s):");
 bg = subgrid(S.Body, r, {'1x', 'fit', '1x'});
 E.baseFrom = uieditfield(bg, "numeric", "Value", -0.2, "ValueChangedFcn", changed, "Tooltip", "Baseline window start (s from the event).");
 uilabel(bg, "Text", "to");
 E.baseTo = uieditfield(bg, "numeric", "Value", 0, "ValueChangedFcn", changed, "Tooltip", "Baseline window end (s).");
+[S, E] = aurocRows(S, E, "au", changed, true);
+[S, r] = formRow(S, ["param" "seriesParam"], "Parameter:");
+pg2 = subgrid(S.Body, r, {'1x', 'fit', '1x'});
+E.param = uidropdown(pg2, "Editable", "on", "Items", "", "Value", "", "ValueChangedFcn", changed, ...
+    "Tooltip", "The trial parameter on the x axis. Blank: the figure's first group-by parameter, else the first numeric one.");
+uilabel(pg2, "Text", "series:");
+E.seriesParam = uidropdown(pg2, "Editable", "on", "Items", "", "Value", "", "ValueChangedFcn", changed, ...
+    "Tooltip", "One curve per value of this trial parameter (blank: one curve).");
+[S, r] = formRow(S, "rateDisplay", "Display:");
+E.rateDisplay = uidropdown(S.Body, "Items", ["bars (mean, error bar)" "boxes" "points (each epoch)"], ...
+    "ItemsData", ["bar" "box" "points"], "ValueChangedFcn", changed, "Tooltip", "Per trial group along x: the mean " + ...
+    "with its error bar, a box of the epochs' rates, or each epoch's rate as a dot over a bar of their mean (a " + ...
+    "layer's mean over units: of the units' means).");
+place(E.rateDisplay, r, 2);
+[S, r] = formRow(S, "waveLayout", "Layout:");
+E.waveLayout = uidropdown(S.Body, "Items", ["grid (the unit, or several overlaid)" "probe (every unit at its place)"], ...
+    "ItemsData", ["grid" "probe"], "ValueChangedFcn", changed, "Tooltip", "Probe: every unit of the first layer drawn " + ...
+    "at its place on the probe (bind that layer to fixed units); a further layer, e.g. one following the observed " + ...
+    "unit, is framed in red there.");
+place(E.waveLayout, r, 2);
 [S, r] = formRow(S, ["rasterSort" "rasterSortOrder"], "Sort rows by:");
 rsg = subgrid(S.Body, r, {'1x', 110});
 E.rasterSort = uidropdown(rsg, "Editable", "on", "Items", ["" "stop" "event"], "Value", "", "ValueChangedFcn", changed, ...
@@ -608,6 +634,14 @@ E.normalize = uidropdown(S.Body, "Items", ["none" "across groups" "within groups
     "ValueChangedFcn", changed, "Tooltip", "Divide each unit's PSTHs by their largest peak (across groups), each PSTH " + ...
     "by its own (within groups), or every PSTH by the largest of all.");
 place(E.normalize, r, 2);
+[S, r] = formRow(S, ["stack" "psthSpacing"], "Stack:");
+sk = subgrid(S.Body, r, {'fit', 'fit', '1x'});
+E.stack = uicheckbox(sk, "Text", "One row per group", "ValueChangedFcn", changed, "Tooltip", "Each trial group's PSTH " + ...
+    "in a row of its own, the first at the bottom, its value on the left axis and its peak on the right (a single " + ...
+    "group is not stacked). The groups' rasters: a raster panel above it (the plots' stacked rasters are not a figure option).");
+uilabel(sk, "Text", "spacing:");
+E.psthSpacing = uieditfield(sk, "numeric", "Value", 1.1, "Limits", [0 Inf], "LowerLimitInclusive", "off", ...
+    "ValueChangedFcn", changed, "Tooltip", "The row step, x the tallest PSTH (below 1 the rows overlap).");
 [S, r] = formRow(S, "contDisplay", "Display:");
 E.contDisplay = uidropdown(S.Body, "Items", ["lines" "stacked rows"], "ItemsData", ["lines" "stacked"], "ValueChangedFcn", changed, ...
     "Tooltip", "Lines: a trace per channel and group on one axis. Stacked rows: each channel in a row of its own.");
@@ -630,8 +664,9 @@ E.stackSpacing = uieditfield(S.Body, "numeric", "AllowEmpty", "on", "Value", [],
     "Tooltip", "Stacked rows: the offset between channels, in the signal's units (blank: automatic).");
 place(E.stackSpacing, r, 2);
 [S, r] = formRow(S, "order", "Row order:");
-E.order = uidropdown(S.Body, "Items", ["probe" "peak"], "ValueChangedFcn", changed, ...
-    "Tooltip", "probe: the rows follow the sort options (Appearance); peak: by the time of each row's maximum.");
+E.order = uidropdown(S.Body, "Items", ["probe" "peak" "modulation"], "ValueChangedFcn", changed, ...
+    "Tooltip", "probe: the rows follow the sort options (Appearance); peak: by the time of each row's maximum; " + ...
+    "modulation (the auROC baseline): by the mean auROC in the call window, highest first.");
 place(E.order, r, 2);
 [S, r] = formRow(S, "value", "Value:");
 E.value = uidropdown(S.Body, "Items", ["rate" "nSpikes" "nUnits"], "ValueChangedFcn", changed, "Tooltip", "What colors each site.");
@@ -1001,7 +1036,7 @@ end
 function onBindingEdited(obj, evt)
 %onBindingEdited  A layer's binding: a spike layer fixed while it follows an observed unit keeps that unit.
 %   From "Follows the observation" to "Fixed", a units / detected layer of a
-%   raster, PSTH or waveforms panel whose unit ids are blank (all) gets the
+%   raster, PSTH, waveforms, rate or tuning panel whose unit ids are blank (all) gets the
 %   observed unit's id (the picked observation's unitId: a detection's is
 %   its channel) -- or, read from the other spike source, the observed
 %   unit's channel -- so the panel keeps showing what it showed until the
@@ -1019,7 +1054,7 @@ if string(evt.Value) == "fixed" && string(evt.PreviousValue) == "observation" &&
     fig = obj.Config.Figures(k);
     type = fig.panels(j).type;
     src = string(E.layerSource.Value);
-    if ismember(type, ["raster" "psth" "waveforms"]) && ismember(src, EphysAnalysisConfig.SpikeSources) ...
+    if ismember(type, ["raster" "psth" "waveforms" "rate" "tuning"]) && ismember(src, EphysAnalysisConfig.SpikeSources) ...
             && strtrim(string(E.layerIds.Value)) == ""
         if src == fig.observe.source && isfinite(T.unitId(i))
             E.layerIds.Value = char(string(T.unitId(i)));
@@ -1063,8 +1098,15 @@ b.Layout.Column = 2;
 end
 
 
-function [S, E] = aurocRows(S, E, p, changed)
-%aurocRows  The response test's auROC settings' rows in form section S; P prefixes their editor fields (the Plots tab's rows).
+function [S, E] = aurocRows(S, E, p, changed, isPlot)
+%aurocRows  The auROC settings' rows in form section S; P prefixes their editor fields (the Plots tab's rows).
+%   ISPLOT (default false): a PSTH's or heat map's own (baseline Mode
+%   "auroc", the common block's or a panel's), with the call window, the
+%   test's correction and alpha, the marks and modulated units only, as the
+%   Plots tab's Bins & baseline section shows them. Otherwise the response
+%   test's ("auroc"): its own bins; its windows, correction and alpha are
+%   the test's. Each row shows by its first field's key (syncFigureEditor).
+if nargin < 5; isPlot = false; end
 [S, r] = formRow(S, p + "Method", "auROC from:");
 g = subgrid(S.Body, r, {'1x', '1x'});
 E.(p + "Method") = uidropdown(g, "Items", ["PSTH bins" "each epoch"], "ItemsData", ["psth" "epochs"], ...
@@ -1072,32 +1114,65 @@ E.(p + "Method") = uidropdown(g, "Items", ["PSTH bins" "each epoch"], "ItemsData
     "in the baseline. each epoch: each epoch's spike count in the window against the baseline's.");
 E.(p + "Windows") = uidropdown(g, "Items", ["tiled" "sliding"], "ValueChangedFcn", changed, ...
     "Tooltip", "tiled: windows back to back, edged at the event. sliding: a window starts every step.");
+widths = {'fit', '1x', 'fit', '1x'};
+if ~isPlot; widths = [widths {'fit', '1x'}]; end
 [S, r] = formRow(S, p + "WinMs", "auROC (ms):");
-g = subgrid(S.Body, r, {'fit', '1x', 'fit', '1x', 'fit', '1x'});
+g = subgrid(S.Body, r, widths);
 uilabel(g, "Text", "window");
 E.(p + "WinMs") = uieditfield(g, "numeric", "Value", 100, "Limits", [0 Inf], "LowerLimitInclusive", "off", ...
     "ValueChangedFcn", changed, "Tooltip", "The auROC window, ms: a whole number of bins.");
 uilabel(g, "Text", "step");
 E.(p + "StepMs") = uieditfield(g, "numeric", "Value", 10, "Limits", [0 Inf], "LowerLimitInclusive", "off", ...
     "ValueChangedFcn", changed, "Tooltip", "Sliding windows: one starts every step, ms.");
-uilabel(g, "Text", "bin");
-E.(p + "BinMs") = uieditfield(g, "numeric", "Value", 10, "Limits", [0 Inf], "LowerLimitInclusive", "off", ...
-    "ValueChangedFcn", changed, "Tooltip", "The bins the test counts spikes in, ms.");
+if ~isPlot
+    uilabel(g, "Text", "bin");
+    E.(p + "BinMs") = uieditfield(g, "numeric", "Value", 10, "Limits", [0 Inf], "LowerLimitInclusive", "off", ...
+        "ValueChangedFcn", changed, "Tooltip", "The bins the test counts spikes in, ms.");
+end
+if isPlot
+    [S, r] = formRow(S, p + "ModFrom", "Call window (s):");
+    g = subgrid(S.Body, r, {'1x', 'fit', '1x'});
+    E.(p + "ModFrom") = uieditfield(g, "numeric", "Value", 0, "ValueChangedFcn", changed, "Tooltip", ...
+        "The call window's start, s from the event: the auROC windows wholly inside it decide each unit's call.");
+    uilabel(g, "Text", "to");
+    E.(p + "ModTo") = uieditfield(g, "numeric", "Value", 0.5, "ValueChangedFcn", changed, "Tooltip", "The call window's end, s.");
+end
+items = ["95% CI (paper)" "fixed threshold" "per-unit test" "none"];
+data = ["ci" "fixed" "test" "none"];
+if ~isPlot; items = items(1:3); data = data(1:3); end
 [S, r] = formRow(S, p + "Cutoff", "Modulated if:");
 g = subgrid(S.Body, r, {'1x', 'fit', '1x'});
-E.(p + "Cutoff") = uidropdown(g, "Items", ["95% CI (paper)" "fixed threshold" "per-unit test"], "ItemsData", ["ci" "fixed" "test"], ...
-    "ValueChangedFcn", changed, "Tooltip", "95% CI: beyond 0.5 +/- the 95% CI of the units' mean modulation. fixed: " + ...
-    "beyond 0.5 +/- the threshold. per-unit test: the test below, its p adjusted over the units.");
+E.(p + "Cutoff") = uidropdown(g, "Items", items, "ItemsData", data, ...
+    "ValueChangedFcn", changed, "Tooltip", "95% CI: beyond 0.5 +/- the 95% CI of the units' mean modulation (it needs " + ...
+    "many units). fixed: beyond 0.5 +/- the threshold. per-unit test: the test below, its p adjusted over the units. none: no call.");
 uilabel(g, "Text", "+/-");
 E.(p + "Threshold") = uieditfield(g, "numeric", "Value", 0.1, "Limits", [0 0.5], "UpperLimitInclusive", "off", ...
     "ValueChangedFcn", changed, "Tooltip", "fixed threshold: modulated when |mean auROC - 0.5| is above this.");
+widths = {'1x', 'fit', '1x'};
+if isPlot; widths = {'2x', 'fit', '1x', '2x', 'fit', '1x'}; end
 [S, r] = formRow(S, p + "Test", "Unit test:");
-g = subgrid(S.Body, r, {'1x', 'fit', '1x'});
+g = subgrid(S.Body, r, widths);
 E.(p + "Test") = uidropdown(g, "Items", ["bootstrap" "ranksum" "shuffle"], "ValueChangedFcn", changed, ...
     "Tooltip", "bootstrap: resample the epochs. ranksum: the window's values against the baseline's. shuffle: shift each epoch's spikes circularly.");
 uilabel(g, "Text", "n");
 E.(p + "Resamples") = uieditfield(g, "numeric", "Value", 1000, "Limits", [1 Inf], "RoundFractionalValues", "on", ...
     "ValueChangedFcn", changed, "Tooltip", "Bootstrap resamples, or shuffles.");
+if isPlot
+    E.(p + "Correction") = uidropdown(g, "Items", ["BH (FDR)" "Holm" "Bonferroni" "none"], ...
+        "ItemsData", ["bh" "holm" "bonferroni" "none"], "ValueChangedFcn", changed, ...
+        "Tooltip", "How the p values are adjusted over the units and groups (pAdjust).");
+    uilabel(g, "Text", "alpha:");
+    E.(p + "Alpha") = uieditfield(g, "numeric", "Value", 0.05, "Limits", [0 1], "LowerLimitInclusive", "off", ...
+        "ValueChangedFcn", changed, "Tooltip", "Modulated when the adjusted p is at most alpha.");
+    [S, r] = formRow(S, p + "Marks", "Calls:");
+    g = subgrid(S.Body, r, {'fit', 'fit', '1x'});
+    g.ColumnSpacing = 12;
+    E.(p + "Marks") = uicheckbox(g, "Text", "Mark them", "Value", true, "ValueChangedFcn", changed, "Tooltip", ...
+        "PSTH: the unit's call (up, down, n.s., per group) at its top right, and the call window shaded. Heat map: a " + ...
+        "triangle by each modulated row and a bar over the call window.");
+    E.(p + "ModOnly") = uicheckbox(g, "Text", "Modulated units only", "ValueChangedFcn", changed, ...
+        "Tooltip", "Draw only the units called modulated in at least one group.");
+end
 end
 
 

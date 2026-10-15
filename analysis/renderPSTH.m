@@ -406,41 +406,6 @@ end
 end
 
 
-function callMarks(ax, R, u, colors, style)
-%callMarks  Unit U's auROC call in each group, at the top right of AX (the title's line), in the group's color.
-%   An up arrow (modulated upwards), a down arrow or n.s.; U = 0 (the
-%   overlay's mean) gives each group's count of units called up and down.
-A = R.auroc;
-if A.cutoff == "none" || (isfield(A, 'settings') && ~A.settings.marks); return; end
-nG = size(A.direction, 2);
-parts = strings(1, nG);
-for g = 1:nG
-    c = string(sprintf('\\color[rgb]{%.3f,%.3f,%.3f}', colors(g, :)));
-    if u == 0
-        parts(g) = c + sprintf('\\uparrow%d \\downarrow%d', sum(A.direction(:, g) == "increase"), sum(A.direction(:, g) == "decrease"));
-        continue
-    end
-    switch A.direction(u, g)
-        case "increase", parts(g) = c + "\uparrow";
-        case "decrease", parts(g) = c + "\downarrow";
-        case "none",     parts(g) = c + "n.s.";
-        otherwise,       parts(g) = c + "-";
-    end
-end
-tagPart(text(ax, 1, 1, strjoin(parts, "  "), 'Units', 'normalized', 'HorizontalAlignment', 'right', ...
-    'VerticalAlignment', 'bottom', 'Interpreter', 'tex', 'FontSize', style.FontSize, 'Clipping', 'off'), "modMarks");
-end
-
-
-function modulationWindow(ax, R)
-%modulationWindow  Shade the auROC modulation window: the windows that decide each unit's call.
-A = R.auroc;
-if A.cutoff == "none" || (isfield(A, 'settings') && ~A.settings.marks); return; end
-m = A.modulationWindow;
-tagPart(xregion(ax, m(1), m(2), 'FaceColor', [0.5 0.5 0.5], 'FaceAlpha', 0.12, 'HandleVisibility', 'off'), "modWindow");
-end
-
-
 function step = drawPanel(ax, P, R, colors, style, look, show)
 %drawPanel  One rate panel: the groups overlaid, or stacked in rows.
 %   P: m / lo / hi [nBins x nGroups] (what is drawn: the means and their
@@ -507,88 +472,6 @@ end
 end
 
 
-function step = drawStack(ax, P, R, colors, style, look, show)
-%drawStack  One row per group, the first at the bottom, step = Spacing x the tallest PSTH.
-%   Left axis: a tick at each row's baseline, labeled with the group's
-%   value (the groupBy parameters name the axis). Right axis: a tick where
-%   each row peaks, labeled with P.peak (named by P.peakLabel). Rows are drawn top
-%   down, so where they overlap the lower one is in front. With look.raster
-%   (u, sortBy, equal, trials, look: rasterInto's) each row also holds its group's raster,
-%   as tall as the tallest PSTH, just above the highest reach of any row's
-%   PSTH and band; the step is then Spacing x that row's height.
-nG = size(P.m, 2);
-tallest = max(P.m, [], 'all');
-if ~(tallest > 0); tallest = max(abs(P.m), [], 'all'); end
-if ~(tallest > 0); tallest = 1; end
-rowHeight = tallest;
-inRows = isfield(look, 'raster') && ~isempty(look.raster);
-if inRows
-    reach = tallest;
-    if style.ShowSEM; reach = max([reach; P.hi(:)]); end
-    gap = 0.05 * tallest;
-    rasterAt = reach + gap;   % the raster's bottom, from the row's baseline
-    rowHeight = rasterAt + tallest;
-end
-step = look.spacing * rowHeight;
-base = (0:nG-1) * step;
-W = R.edges([1 end]);
-ls = groupLineStyles(R);
-yyaxis(ax, 'left');
-ax.LineStyleOrder = '-';   % a yyaxis side cycles through markers ('o-', '^-', ...) otherwise
-hold(ax, 'on');
-lo = 0;
-hi = base(end) + rowHeight;
-if inRows   % behind the rows' PSTHs
-    rl = look.raster.look;
-    rl.into = struct('base', base + rasterAt, 'height', tallest, 'equal', look.raster.equal, 'trials', look.raster.trials);
-    rasterInto(ax, R, look.raster.u, style, colors, look.raster.sortBy, rl);
-end
-for g = nG:-1:1
-    b = base(g);
-    tagPart(line(ax, W, [b b], 'Color', [0.72 0.72 0.72], 'LineWidth', 0.5, 'HandleVisibility', 'off'), "stackBase", R.groups.label(g));
-    m = P.m(:, g);
-    elo = m; ehi = m;   % how far the row reaches: its band, where it has one
-    if style.ShowSEM
-        errorPatch(ax, R.t, P.lo(:, g) + b, P.hi(:, g) + b, colors(g, :), R.groups.label(g), style);
-        f = isfinite(P.lo(:, g)); elo(f) = P.lo(f, g);
-        f = isfinite(P.hi(:, g)); ehi(f) = P.hi(f, g);
-    end
-    histTrace(ax, R.t, R.edges, m, b, colors(g, :), look, style.LineWidth, R.groups.label(g), ls(g));
-    if style.ShowStop && isfield(R, 'stopMean') && isfinite(R.stopMean(g))
-        tagPart(line(ax, R.stopMean([g g]), b + [0 0.9 * min(step, tallest)], 'LineStyle', '--', 'Color', colors(g, :), ...
-            'HandleVisibility', 'off'), "stopLine", R.groups.label(g));
-    end
-    lo = min([lo; b + elo]);
-    hi = max([hi; b + ehi]);
-end
-if style.ShowZeroLine
-    tagPart(xline(ax, 0, ':', 'Color', [0.3 0.3 0.3], 'HandleVisibility', 'off'), "zeroLine");
-end
-hold(ax, 'off');
-pad = 0.03 * (hi - lo);
-yl = [lo - pad, hi + pad];
-xlim(ax, W);
-flat = style;
-flat.YLim = [];
-styleAxes(ax, flat);
-[labels, name] = rowLabels(R);
-set(ax, 'YTick', base, 'YTickLabel', labels(1:nG), 'TickLabelInterpreter', 'none');
-ylim(ax, yl);
-if show.left; ylabel(ax, name, 'Interpreter', 'none'); end
-
-yyaxis(ax, 'right');
-ylim(ax, yl);
-top = base(:) + max(P.m, [], 1).';
-ok = isfinite(top) & isfinite(P.peak(:));
-[tk, iu] = unique(top(ok));
-txt = compose("%.3g", P.peak(ok));
-set(ax, 'YTick', tk, 'YTickLabel', txt(iu));
-if show.right; ylabel(ax, P.peakLabel, 'Interpreter', 'none'); end
-yyaxis(ax, 'left');
-set(ax.YAxis, 'Color', ax.XAxis.Color);
-end
-
-
 function memberLines(ax, t, M, R, colors, style)
 %memberLines  Each member session (R.members) as a thin pale line, under its series' summary.
 %   M: [nBins x nMembers], the members' values on this panel. Tagged
@@ -610,57 +493,4 @@ if size(p, 3) > 1   % groupPeak: each member by its series' peak
     p = p(:, :, R.members.series);
 end
 M = M ./ p;
-end
-
-
-function [labels, name] = rowLabels(R)
-%rowLabels  Each group's value (its groupBy columns) and the parameter names.
-%   The parameters are the trial selection's groupBy (R.epochs' UserData,
-%   from epochTable); a result without it (put together by hand) takes the
-%   group table's columns other than its bookkeeping (index, label, color,
-%   n, nTrials). Without any: the group labels, and "Group". A result
-%   merged across sessions (combineSessions: R.sessions) has series, not
-%   trial groups, as its rows: their labels, named by what they are
-%   ("Session", "Subject"; combine: "Session · trial group").
-G = R.groups;
-vars = string(G.Properties.VariableNames);
-if isfield(R, 'sessions') && istable(R.sessions)
-    labels = string(G.label);
-    name = "Group";
-    if isfield(R, 'sessionSeries') && isfield(R.sessionSeries, 'mode')
-        switch R.sessionSeries.mode
-            case "session", name = "Session";
-            case "subject", name = "Subject";
-        end
-    end
-    if ismember("lineStyle", vars)
-        if name == "Group"; name = "Trial group"; else; name = name + " · trial group"; end
-    end
-    return
-end
-extra = string.empty(1, 0);
-if isfield(R, 'epochs') && istable(R.epochs) && isfield(R.epochs.Properties.UserData, 'selection')
-    extra = R.epochs.Properties.UserData.selection.groupBy;
-end
-if isempty(extra)
-    extra = setdiff(vars, ["index" "label" "color" "n" "nTrials"], 'stable');
-end
-extra = extra(ismember(extra, vars));
-if isempty(extra)
-    labels = string(G.label);
-    name = "Group";
-    return
-end
-parts = strings(height(G), numel(extra));
-for j = 1:numel(extra)
-    v = G.(extra(j));
-    if isnumeric(v) || islogical(v)
-        parts(:, j) = compose("%.6g", double(v));
-    else
-        parts(:, j) = string(v);
-    end
-end
-parts(ismissing(parts)) = "<missing>";
-labels = join(parts, ", ", 2);
-name = strjoin(extra, ", ");
 end

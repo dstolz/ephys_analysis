@@ -16,7 +16,8 @@ function F = figureCompute(src, spec, opts)
 %         [E, G] = epochTable(src, spec.ref, Window=spec.window,
 %             Selection=spec.selection, Baseline=bFig, Columns=colsFig)
 %         bFig: the hull of the baseline windows of the panels on the
-%         figure's alignment, colsFig: their rasters' sort parameters
+%         figure's alignment, colsFig: their rasters' sort parameters and
+%         their tuning curves' parameters (figureTuningParam)
 %     a panel with its own ref or window: its own epochTable with the
 %         figure's selection; its groups are matched to G by label (each
 %         epoch's groupIndex then indexes G), or the panel is skipped
@@ -24,7 +25,7 @@ function F = figureCompute(src, spec, opts)
 %         ctx), every layer resolved for OBS by figureLayerItems and
 %         computed as the panel type says (spikePSTH, epochEvents,
 %         evokedPotential, unitWaveforms, unitSummary + probeMapValues,
-%         unitCorrelation); errors from data the dataset
+%         unitCorrelation, firingRate, tuningCurve); errors from data the dataset
 %         lacks for one layer or panel (no unit left, no event, no usable
 %         epoch) skip only it
 %   The error each panel draws as a band comes from figureErrorType
@@ -118,7 +119,7 @@ E = [];
 G = [];
 if any(live)
     [E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection, ...
-        Baseline=baselineHull(spec.panels(onFig)), Columns=sortColumns(spec.panels(onFig), vars));
+        Baseline=baselineHull(spec.panels(onFig)), Columns=sortColumns(spec.panels(onFig), vars, spec.selection, src));
     tick(chk);
 end
 
@@ -240,7 +241,7 @@ function [Ep, Gp, reason] = panelEpochs(src, spec, p, G, vars)
 %   Its rasters' sort parameters are copied when the trials have them (VARS).
 reason = "";
 [Ep, Gp] = epochTable(src, p.ref, Window=p.window, Selection=spec.selection, ...
-    Baseline=baselineHull(p), Columns=sortColumns(p, vars));
+    Baseline=baselineHull(p), Columns=sortColumns(p, vars, spec.selection, src));
 if ~istable(G); return; end
 [ok, at] = ismember(Gp.label, G.label);
 if any(~ok & Gp.n > 0)
@@ -269,16 +270,22 @@ if isfinite(lo) && isfinite(hi); b = [lo hi]; end
 end
 
 
-function c = sortColumns(panels, vars)
-%sortColumns  The trial parameters PANELS' rasters sort their epochs by, as epochTable Columns.
-%   Only those the trials have (VARS): a raster sorted by a missing one is
-%   skipped for it (figureSkipReason), never the figure's epochs.
+function c = sortColumns(panels, vars, sel, src)
+%sortColumns  The trial parameters PANELS' rasters sort their epochs by, and their tuning curves' x and series, as epochTable Columns.
+%   Only those the trials have (VARS): a raster sorted by a missing one, or
+%   a tuning curve over one, is skipped for it (figureSkipReason), never
+%   the figure's epochs. SEL (the figure's selection) and SRC resolve a
+%   tuning panel's param "" (figureTuningParam).
 c = string.empty(1, 0);
 for k = 1:numel(panels)
     p = panels(k);
     if p.type == "raster" && isfield(p.options, 'rasterSort') && ~ismember(p.options.rasterSort, ["" "stop" "event"])
         c(end+1) = p.options.rasterSort; %#ok<AGROW>
+    elseif p.type == "tuning" && isfield(p.options, 'param')
+        [x, s] = figureTuningParam(p.options, sel, src);
+        c = [c x s]; %#ok<AGROW>
     end
 end
+c = c(c ~= "");
 c = reshape(unique(c(ismember(c, vars)), 'stable'), 1, []);
 end

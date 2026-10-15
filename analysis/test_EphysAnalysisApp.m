@@ -1948,6 +1948,93 @@ for pair = ["heatmap" "psth"; "probemap" "raster"].'
         sprintf('a %s made a %s: its units layer follows the observation, and the preview draws %g unit', pair(1), pair(2), nShown));
     app.onRemoveFigure();
 end
+% a PSTH's Stack box and auROC rows; firing rate and tuning panels from the Add-panel drop-down
+app.onFigureSelected(1);
+app.onPanelSelected(2);   % the PSTH
+pS = app.Config.Figures(1).panels(2);
+check(pS.type == "psth" && shown(FE.stack) && ~shown(FE.auMethod) && ~shown(FE.cmAuMethod) && ~shown(FE.rateDisplay) ...
+    && ~shown(FE.param) && ~shown(FE.waveLayout) && FE.psthSpacing.Enable == "off", ...
+    'a PSTH shows its Stack row (the spacing off while unticked) and no auROC rows without the auROC baseline');
+FE.stack.Value = true;
+app.onConfigChanged("figure");
+FE.psthSpacing.Value = 1.5;
+app.onConfigChanged("figure");
+oS = app.Config.Figures(1).panels(2).options;
+nRows = numel(findall(app.FigurePreviewPanel, 'Tag', 'stackBase'));
+check(oS.stack && oS.stackSpacing == 1.5 && FE.psthSpacing.Enable == "on" && app.FigurePreviewState == "drawn" ...
+    && nRows == height(app.FigurePreviewResult.groups) * (height(app.FigurePreviewResult.groups) > 1), ...
+    sprintf('the Stack box and its spacing reach the PSTH''s options; the preview stacks its groups (%d rows)', nRows));
+FE.cmBaselineMode.Value = "auroc";
+FE.cmBaselineMode.ValueChangedFcn(FE.cmBaselineMode, []);
+cmShown = shown(FE.cmAuMethod) && shown(FE.cmAuCutoff) && shown(FE.cmAuMarks) && shown(FE.auMethod) && FE.auMethod.Enable == "off" ...
+    && string(FE.baselineMode.Value) == "auroc";
+FE.cmAuWinMs.Value = 50;
+FE.cmAuWinMs.ValueChangedFcn(FE.cmAuWinMs, []);
+FE.cmAuCutoff.Value = "fixed";
+FE.cmAuCutoff.ValueChangedFcn(FE.cmAuCutoff, []);
+spec = app.Config.figureFor(1);
+cm = app.Config.Figures(1).common;
+check(cmShown && cm.baseline.Mode == "auroc" && cm.auroc.windowSec == 0.05 && cm.auroc.cutoff == "fixed" ...
+    && spec.panels(2).options.auroc.windowSec == 0.05 && FE.auWinMs.Value == 50 && FE.cmAuThreshold.Enable == "on" ...
+    && app.FigurePreviewState == "drawn" && isfield(app.FigurePreviewResult.panels(2).layers(1).R, 'auroc'), ...
+    'the common auROC baseline: its rows in Common options, shown locked in the linked PSTH''s; their edits reach the PSTH and the preview');
+FE.panelCommon.Value = false;
+FE.panelCommon.ValueChangedFcn(FE.panelCommon, []);
+FE.auWinMs.Value = 20;
+FE.auModOnly.Value = false;
+app.onConfigChanged("figure");
+oS = app.Config.Figures(1).panels(2).options;
+check(~app.Config.Figures(1).panels(2).common && oS.baseline.Mode == "auroc" && oS.auroc.windowSec == 0.02 && oS.auroc.cutoff == "fixed" ...
+    && app.Config.Figures(1).common.auroc.windowSec == 0.05 && FE.auMethod.Enable == "on" && any(string(FE.baselineMode.Items) == "auroc") ...
+    && app.FigurePreviewState == "drawn", 'unlinked, the PSTH''s own auROC rows reach its options (the common ones unchanged)');
+FE.stack.Value = false;
+app.onConfigChanged("figure");
+FE.alignRelinkAll.ButtonPushedFcn(FE.alignRelinkAll, []);
+FE.cmBaselineMode.Value = "none";
+FE.cmBaselineMode.ValueChangedFcn(FE.cmBaselineMode, []);
+nAx = numel(figAxes());
+check(any(string(FE.addType.ItemsData) == "rate") && any(string(FE.addType.ItemsData) == "tuning") ...
+    && any(string(app.FigureTemplateDropDown.ItemsData) == "rate") && any(string(app.FigureTemplateDropDown.ItemsData) == "tuning") ...
+    && any(string(FE.panelType.ItemsData) == "tuning") && all([app.Config.Figures(1).panels.common]) && app.FigurePreviewState == "drawn", ...
+    'the Add-panel, panel type and template drop-downs offer Firing rate and Tuning curve');
+FE.addType.Value = "rate";
+FE.addType.ValueChangedFcn(FE.addType, struct('Value', "rate"));
+app.onAddPanel("below");
+pr = app.Config.Figures(1).panels(end);
+check(pr.type == "rate" && isscalar(pr.layers) && pr.layers.source == "units" && pr.layers.binding == "observation" ...
+    && app.FigurePreviewState == "drawn" && numel(figAxes()) == nAx + 1 && ~isempty(findall(app.FigurePreviewPanel, 'Tag', 'bar')) ...
+    && shown(FE.rateDisplay) && shown(FE.measure) && shown(FE.baselineMode) && ~shown(FE.binMs) && ~shown(FE.stack) ...
+    && isequal(string(FE.baselineMode.Items), ["none" "subtract" "ratio" "zscore"]) ...
+    && app.FigureSections([app.FigureSections.Name] == "options").Title == "Firing rate options", ...
+    'Firing rate, Below: its units layer follows the unit and a bar per trial group is drawn at once; its own rows shown');
+FE.rateDisplay.Value = "points";
+app.onConfigChanged("figure");
+check(app.Config.Figures(1).panels(end).options.display == "points" && ~isempty(findall(app.FigurePreviewPanel, 'Tag', 'points')) ...
+    && app.FigurePreviewState == "drawn", 'its Display reaches the options and the drawing (points)');
+FE.addType.Value = "tuning";
+FE.addType.ValueChangedFcn(FE.addType, struct('Value', "tuning"));
+app.onAddPanel("below");
+pt = app.Config.Figures(1).panels(end);
+Lt = app.FigurePreviewResult.panels(end).layers(1);
+check(pt.type == "tuning" && pt.layers.binding == "observation" && app.FigurePreviewState == "drawn" && numel(figAxes()) == nAx + 2 ...
+    && Lt.skip == "" && Lt.R.param == "Depth" && ~isempty(findall(app.FigurePreviewPanel, 'Tag', 'curve')) ...
+    && shown(FE.param) && shown(FE.waveMode) && ~shown(FE.rateDisplay) ...
+    && app.FigureSections([app.FigureSections.Name] == "options").Title == "Tuning curve options", ...
+    'Tuning curve, Below: drawn at once over the figure''s group-by parameter (Depth), its Parameter rows shown');
+FE.panelCommon.Value = false;
+FE.panelCommon.ValueChangedFcn(FE.panelCommon, []);
+FE.param.Value = 'Depth';
+FE.seriesParam.Value = 'TrialType';
+app.onConfigChanged("figure");
+ot = app.Config.Figures(1).panels(end).options;
+check(ot.param == "Depth" && ot.seriesParam == "TrialType" && app.FigurePreviewState == "drawn" ...
+    && app.FigurePreviewResult.panels(end).layers(1).R.seriesParam == "TrialType", ...
+    'its Parameter and series reach the options and the drawing');
+app.onRemovePanel();
+app.onPanelSelected(numel(app.Config.Figures(1).panels));
+app.onRemovePanel();
+check(numel(app.Config.Figures(1).panels) == 2 && app.Config.Figures(1).grid.rows == 2 && app.FigurePreviewState == "drawn", ...
+    'the tuning and rate panels removed again');
 % a scan makes the observation list again (the same dataset active)
 app.selectDataset(find(app.Ticked, 1));
 oldT = app.FigureObservations;

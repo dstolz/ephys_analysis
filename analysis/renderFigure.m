@@ -202,7 +202,12 @@ if opts.UserAesthetics; r = [r PlotAesthetics.userRules("figure")]; end
 PlotAesthetics.apply(root, [r specRules]);
 if editable(opts.Editable, target)
     mapField = "";
-    if any(types == "corrmap")
+    aurocMap = false;   % a heat map of auROCs is drawn in the diverging colormap
+    for k = find(types == "heatmap")
+        o = panels(k).options;
+        aurocMap = aurocMap || (isfield(o, 'baseline') && isstruct(o.baseline) && o.baseline.Mode == "auroc");
+    end
+    if any(types == "corrmap") || aurocMap
         mapField = "diverging";
     elseif any(ismember(types, ["heatmap" "probemap"]))
         mapField = "heat";

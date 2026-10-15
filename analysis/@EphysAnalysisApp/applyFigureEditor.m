@@ -94,9 +94,10 @@ c = fig.common;
 E.cmBinMs.Value = max(E.cmBinMs.Limits(1), 1000 * c.bins.BinSec);
 E.cmSmoothMs.Value = max(0, 1000 * c.bins.SmoothSec);
 offerItems(E.cmMeasure, ["rate" "count" "probability"], c.measure);
-offerItems(E.cmBaselineMode, ["none" "subtract" "zscore" "percent"], c.baseline.Mode);
+offerItems(E.cmBaselineMode, ["none" "subtract" "zscore" "percent" "ratio" "auroc"], c.baseline.Mode);
 E.cmBaseFrom.Value = c.baseline.Window(1);
 E.cmBaseTo.Value = c.baseline.Window(2);
+aurocPlotTo(E, "cmAu", c.auroc);
 E.cmMaskAfterStop.Value = logical(c.maskAfterStop);
 wv = c.waveform;
 E.cmWaveMode.Value = char(pickFrom(wv.mode, string(E.cmWaveMode.ItemsData), "off"));
@@ -174,6 +175,13 @@ if isfield(op, 'baseline')
     E.baseFrom.Value = op.baseline.Window(1);
     E.baseTo.Value = op.baseline.Window(2);
 end
+if isfield(op, 'auroc'); aurocPlotTo(E, "au", op.auroc); end
+if isfield(op, 'param')   % a tuning curve's parameters
+    offerItems(E.param, ["" params], op.param);
+    offerItems(E.seriesParam, ["" params], op.seriesParam);
+end
+if p.type == "rate"; E.rateDisplay.Value = char(pickFrom(op.display, string(E.rateDisplay.ItemsData), "bar")); end
+if isfield(op, 'layout'); E.waveLayout.Value = char(pickFrom(op.layout, string(E.waveLayout.ItemsData), "grid")); end
 if isfield(op, 'rasterSort')
     offerItems(E.rasterSort, ["" "stop" "event" params], op.rasterSort);
     offerItems(E.rasterSortOrder, ["ascending" "descending"], op.rasterSortOrder);
@@ -192,6 +200,10 @@ if isfield(op, 'histStyle')
     if isnan(op.fillAlpha); E.fillAlpha.Value = []; else; E.fillAlpha.Value = min(1, max(0, op.fillAlpha)); end
     E.normalize.Value = char(pickFrom(op.normalize, string(E.normalize.ItemsData), "none"));
 end
+if isfield(op, 'stack')
+    E.stack.Value = logical(op.stack);
+    if isfinite(op.stackSpacing) && op.stackSpacing > 0; E.psthSpacing.Value = op.stackSpacing; else; E.psthSpacing.Value = 1.1; end
+end
 if p.type == "continuous"
     E.contDisplay.Value = char(pickFrom(op.display, string(E.contDisplay.ItemsData), "lines"));
     E.statistic.Value = char(pickFrom(op.statistic, string(E.statistic.ItemsData), "mean"));
@@ -199,7 +211,7 @@ if p.type == "continuous"
     E.errorType.Value = char(pickFrom(op.errorType, string(E.errorType.ItemsData), "sem"));
     if isfinite(op.stackSpacing) && op.stackSpacing > 0; E.stackSpacing.Value = op.stackSpacing; else; E.stackSpacing.Value = []; end
 end
-if isfield(op, 'order'); offerItems(E.order, ["probe" "peak"], op.order); end
+if isfield(op, 'order'); offerItems(E.order, ["probe" "peak" "modulation"], op.order); end
 if isfield(op, 'value'); offerItems(E.value, ["rate" "nSpikes" "nUnits"], op.value); end
 if isfield(op, 'metric')
     offerItems(E.metric, ["mean" "peak"], op.metric);
@@ -324,6 +336,28 @@ E.(pre + "Cutoff").Value = char(pickFrom(a.cutoff, string(E.(pre + "Cutoff").Ite
 E.(pre + "Threshold").Value = min(0.499, max(0, a.threshold));
 offerItems(E.(pre + "Test"), ["bootstrap" "ranksum" "shuffle"], a.test);
 E.(pre + "Resamples").Value = max(1, round(a.nResamples));
+end
+
+
+function aurocPlotTo(E, pre, a)
+%aurocPlotTo  Show a PSTH's or heat map's auROC settings A (defaults("Auroc")) in the editor's fields PRE* (aurocRows, ISPLOT).
+E.(pre + "Method").Value = char(pickFrom(a.method, string(E.(pre + "Method").ItemsData), "psth"));
+offerItems(E.(pre + "Windows"), ["tiled" "sliding"], a.windows);
+E.(pre + "WinMs").Value = max(1e-6, 1000 * a.windowSec);
+E.(pre + "StepMs").Value = max(1e-6, 1000 * a.stepSec);
+m = a.modulationWindow;
+if numel(m) == 2
+    E.(pre + "ModFrom").Value = m(1);
+    E.(pre + "ModTo").Value = m(2);
+end
+E.(pre + "Cutoff").Value = char(pickFrom(a.cutoff, string(E.(pre + "Cutoff").ItemsData), "ci"));
+E.(pre + "Threshold").Value = min(0.499, max(0, a.threshold));
+offerItems(E.(pre + "Test"), ["bootstrap" "ranksum" "shuffle"], a.test);
+E.(pre + "Resamples").Value = max(1, round(a.nResamples));
+E.(pre + "Correction").Value = char(pickFrom(a.correction, string(E.(pre + "Correction").ItemsData), "bh"));
+E.(pre + "Alpha").Value = min(1, max(eps, a.alpha));
+E.(pre + "Marks").Value = logical(a.marks);
+E.(pre + "ModOnly").Value = logical(a.modulatedOnly);
 end
 
 

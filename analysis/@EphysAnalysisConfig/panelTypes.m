@@ -3,7 +3,8 @@ function T = panelTypes()
 %   T = EphysAnalysisConfig.panelTypes() has one row per type, the analog
 %   of plotKinds for the panels of a figure (the Figures section):
 %     Type            "raster" | "psth" | "continuous" | "heatmap" |
-%                     "waveforms" | "probemap" | "corrmap"
+%                     "waveforms" | "probemap" | "corrmap" | "rate" |
+%                     "tuning"
 %     Label           name shown in the app
 %     Categories      the source categories its layers draw
 %                     (sourceCategories: point, continuous, unit)
@@ -27,6 +28,20 @@ function T = panelTypes()
 %   automatic, else [lo hi]) live in the options because one figure holds
 %   different axes; a figure's Style.YLim / Style.CLim are not used.
 %
+%   A PSTH or a heat map of spikes takes baseline Mode "auroc" (each bin's
+%   auROC against the baseline window, spikePSTH's BaselineMode "auroc")
+%   with its auroc settings (defaults("Auroc")). A PSTH stacks its groups
+%   in rows with stack (stackSpacing: the row step, x the tallest PSTH);
+%   a raster panel above it draws the rasters (the plot's stackRaster has
+%   no figure counterpart). A rate panel shows each epoch window's rate per
+%   trial group (firingRate), a tuning panel the rate against a trial
+%   parameter (tuningCurve: param, "" = the figure's first groupBy
+%   parameter, else the trials' first numeric one; seriesParam, "" = one
+%   curve). Their baseline Modes are firingRate's: none, subtract, ratio,
+%   zscore. A waveforms panel's layout "probe" draws every unit of its
+%   first layer at its place on the probe; a further layer (e.g. one
+%   following the observation) rings its units there.
+%
 %   See also EphysAnalysisConfig.sourceCategories, EphysAnalysisConfig.categoryOf,
 %   EphysAnalysisConfig.plotKinds, EphysAnalysisConfig.defaultLayer.
 
@@ -35,6 +50,7 @@ baseline = struct('Mode', "none", 'Window', [-0.2 0]);
 waveform = EphysAnalysisConfig.defaults("Waveform");           % raster / psth: the unit's waveform inset ("off" = none)
 waveformsOwn = waveform;
 waveformsOwn.mode = "both";                                    % a waveforms panel: the mean over a subsample
+auroc = EphysAnalysisConfig.defaults("Auroc");                 % psth / heatmap of spikes: baseline Mode "auroc"
 
 opts = struct();
 opts.raster = struct( ...
@@ -47,11 +63,14 @@ opts.raster = struct( ...
 opts.psth = struct( ...
     'bins',          bins, ...
     'measure',       "rate", ...        % "rate" (spikes/s) | "count" | "probability"
-    'baseline',      baseline, ...      % Mode "none" | "subtract" | "zscore" | "percent"
+    'baseline',      baseline, ...      % Mode "none" | "subtract" | "zscore" | "percent" | "auroc"
+    'auroc',         auroc, ...         % baseline Mode "auroc": the auROC's settings
     'histStyle',     "bar", ...         % "bar" | "line"
     'fill',          true, ...          % filled bars / area under the line
     'fillAlpha',     NaN, ...           % fill opacity 0-1 (NaN: 0.5 where groups overlap, else 1)
     'normalize',     "none", ...        % "none" | "unitPeak" | "groupPeak" | "allPeak"
+    'stack',         false, ...         % one row per trial group, stacked upwards, instead of overlaid
+    'stackSpacing',  1.1, ...           % stack: the row step, x the tallest PSTH (< 1 overlaps)
     'maskAfterStop', false, ...
     'yLim',          [], ...            % [] = automatic, else [lo hi]
     'waveform',      waveform);
@@ -66,12 +85,14 @@ opts.continuous = struct( ...
 opts.heatmap = struct( ...
     'bins',          bins, ...
     'measure',       "rate", ...
-    'baseline',      baseline, ...
-    'order',         "probe", ...       % rows: "probe" (the style's SortDepth / SortShank) | "peak"
+    'baseline',      baseline, ...      % spikes: Mode "none" | "subtract" | "zscore" | "percent" | "auroc"; a signal: "none" | "subtract"
+    'auroc',         auroc, ...         % spikes, baseline Mode "auroc": the auROC's settings
+    'order',         "probe", ...       % rows: "probe" (the style's SortDepth / SortShank) | "peak" | "modulation" (auROC: the mean in the modulation window)
     'group',         1, ...             % the trial group drawn
     'cLim',          [], ...
     'maskAfterStop', false);
 opts.waveforms = struct( ...
+    'layout',   "grid", ...             % "grid" (the unit's waveform, or several overlaid) | "probe" (every unit at its place on the probe)
     'waveform', waveformsOwn, ...       % mode "mean" | "subsample" | "both" (never "off")
     'yLim',     []);
 opts.probemap = struct( ...
@@ -85,8 +106,20 @@ opts.corrmap = struct( ...
     'baseline',    baseline, ...        % Mode "none" | "subtract"
     'group',       1, ...
     'cLim',        []);
+opts.rate = struct( ...
+    'measure',  "rate", ...             % "rate" (spikes/s) | "count" (spikes per window) | "probability" (share of epochs with a spike)
+    'baseline', baseline, ...           % Mode "none" | "subtract" | "ratio" | "zscore" (firingRate's Normalize)
+    'display',  "bar", ...              % "bar" (mean, error bar) | "box" | "points" (each epoch, the mean as a bar)
+    'yLim',     []);
+opts.tuning = struct( ...
+    'param',       "", ...              % the x axis: a trial parameter ("" = the figure's first groupBy one, else the first numeric one)
+    'seriesParam', "", ...              % one curve per value of this trial parameter ("" = one curve)
+    'measure',     "rate", ...
+    'baseline',    baseline, ...        % Mode "none" | "subtract" | "ratio" | "zscore"
+    'yLim',        [], ...
+    'waveform',    waveform);           % the unit's waveform inset
 
-%   Type          Label                Categories               Aligned SharesTime OneGroup MultiLayer DefaultBinding  Description
+%   Type         Label                Categories               Aligned SharesTime OneGroup MultiLayer DefaultBinding  Description
 rows = {
     "raster",     "Raster",            "point",                 true,   true,      false,   true,      "observation",  "Spike rasters: a row per epoch, by group; events as marks on the rows or as rows of their own"
     "psth",       "PSTH",              "point",                 true,   true,      false,   true,      "observation",  "Peri-event firing rate, groups overlaid; events as latency lines or as a PSTH of their own"
@@ -95,6 +128,8 @@ rows = {
     "waveforms",  "Unit waveforms",    "unit",                  false,  false,     false,   false,     "observation",  "A unit's mean waveform and a sample of its spikes"
     "probemap",   "Probe map",         "unit",                  false,  false,     false,   false,     "fixed",        "A per-channel value (rate, spikes, units) drawn on the probe sites"
     "corrmap",    "Unit correlation",  "unit",                  true,   false,     true,    false,     "fixed",        "Pairwise correlation of the units' per-epoch rates, one trial group"
+    "rate",       "Firing rate",       "point",                 true,   false,     false,   true,      "observation",  "Each epoch window's firing rate per trial group: bars, boxes or points"
+    "tuning",     "Tuning curve",      "point",                 true,   false,     false,   true,      "observation",  "Firing rate against a trial parameter, one curve per series"
     };
 n = size(rows, 1);
 Type = strings(n, 1); Label = strings(n, 1); DefaultBinding = strings(n, 1); Description = strings(n, 1);

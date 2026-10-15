@@ -26,8 +26,9 @@ function lay = figurePointLayer(src, L, lay, E, G, ctx, opts)
 %   passes through.
 %
 %   Options (spikePSTH's): Window [pre post], BinSec, SmoothSec, Measure,
-%   Baseline, BaselineMode, MaskAfterStop, Raster; Waveform (the panel's
-%   options.waveform, [] = none).
+%   Baseline, BaselineMode, MaskAfterStop, Raster, Auroc (BaselineMode
+%   "auroc": the panel's options.auroc; R.auroc then holds the calls);
+%   Waveform (the panel's options.waveform, [] = none).
 %
 %   See also EphysAnalysisRunner.computeFigure, figureLayerItems, spikePSTH, epochEvents.
 
@@ -47,6 +48,7 @@ arguments
     opts.MaskAfterStop (1,1) logical = false
     opts.Raster (1,1) logical = true
     opts.Waveform = []
+    opts.Auroc = struct()
 end
 
 ctx.checkpoint();
@@ -79,7 +81,7 @@ catch ME
     return
 end
 lay.meta = meta;
-if lay.name == ""; lay.name = unitsName(meta, L); end
+if lay.name == ""; lay.name = figureUnitsName(meta, L); end
 if L.aggregate == "mean"
     lay.R.layerMean = figureLayerMean(lay.R.rate, lay.R.t, ctx.errorType, ctx.nBoot, "units");
 end
@@ -95,7 +97,7 @@ function R = psthOf(src, st, meta, E, G, ctx, opts)
 %psthOf  spikePSTH of the layer's trains over the panel's epochs, with the epochs and the dataset.
 R = spikePSTH(st, E, Window=opts.Window, BinSec=opts.BinSec, SmoothSec=opts.SmoothSec, Measure=opts.Measure, ...
     Baseline=opts.Baseline, BaselineMode=opts.BaselineMode, MaskAfterStop=opts.MaskAfterStop, Raster=opts.Raster, ...
-    Groups=G, Meta=meta, Check=ctx.check, ErrorType=ctx.errorType, ErrorResamples=ctx.nBoot);
+    Groups=G, Meta=meta, Auroc=opts.Auroc, Check=ctx.check, ErrorType=ctx.errorType, ErrorResamples=ctx.nBoot);
 R.epochs = E;
 R.dataset = src.name;
 end
@@ -109,18 +111,4 @@ t = sort((round((t - off) * src.fs) - 1) / src.fs + off);   % row r at r/Fs happ
 st = {t(:)};
 meta = table(label, NaN, "event", NaN, "", NaN, NaN, NaN, numel(t), ...
     'VariableNames', {'label', 'unitId', 'class', 'channel', 'channelName', 'shank', 'x', 'y', 'nSpikes'});
-end
-
-
-function name = unitsName(meta, L)
-%unitsName  A layer's automatic name: the unit's label, or how many units it holds.
-n = height(meta);
-if n == 1
-    name = shortUnitLabels(meta.label);
-    return
-end
-what = "units";
-if L.source == "detected"; what = "detection channels"; end
-name = n + " " + what;
-if L.aggregate == "mean"; name = "mean of " + name; end
 end

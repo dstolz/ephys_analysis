@@ -17,9 +17,10 @@ function syncFigureEditor(obj)
 %                    has its own, Re-link all panels while any panel has
 %                    its own event, window or options
 %     Common options always (the waveform rows enabled when it is not Off,
-%                    the baseline window with a baseline); a linked panel's
+%                    the baseline window with a baseline, the auROC rows
+%                    with the auroc baseline); a linked panel's
 %                    Options rows of its type's common fields (bins,
-%                    measure, baseline, mask, waveform) are locked, showing
+%                    measure, baseline, auROC, mask, waveform) are locked, showing
 %                    the figure's; Options' Apply to all panels when the
 %                    panel has its own common values or another panel of
 %                    its type
@@ -33,7 +34,11 @@ function syncFigureEditor(obj)
 %                    drawn (a mark's look for marks); the color and line
 %                    style but for marks
 %     Options        the panel type's own (titled "<Type> options"); a heat
-%                    map of a signal has no bins or measure
+%                    map of a signal has no bins or measure; a PSTH's or a
+%                    spike heat map's auROC rows with the auroc baseline
+%                    (the test row with a per-unit test); a PSTH's stack;
+%                    a rate panel's display; a tuning panel's parameter
+%                    and series; a waveforms panel's layout
 %     Appearance     all rows; the site size with a probe map, the heat
 %                    colors with a heat map, probe map or correlation map
 %   What is enabled: the binding only where a layer may follow the
@@ -100,6 +105,13 @@ for f = ["id" "title" "enabled" "summary" "observe" "obsDatasets" "obsCount" "sc
 end
 en([E.cmBaseFrom E.cmBaseTo], string(E.cmBaselineMode.Value) ~= "none");
 en([E.cmWaveSpikes E.cmWaveLocation E.cmWaveBox E.cmWaveScale E.cmWavePP E.cmWaveCount], string(E.cmWaveMode.Value) ~= "off");
+cmAuroc = string(E.cmBaselineMode.Value) == "auroc";   % the common auROC settings, with the auROC baseline
+v.cmAuMethod = cmAuroc; v.cmAuWinMs = cmAuroc; v.cmAuModFrom = cmAuroc; v.cmAuCutoff = cmAuroc; v.cmAuMarks = cmAuroc;
+v.cmAuTest = cmAuroc && string(E.cmAuCutoff.Value) == "test";
+en(E.cmAuStepMs, string(E.cmAuWindows.Value) == "sliding");
+en(E.cmAuThreshold, string(E.cmAuCutoff.Value) == "fixed");
+en(E.cmAuResamples, string(E.cmAuTest.Value) ~= "ranksum");
+en([E.cmAuMarks E.cmAuModOnly], string(E.cmAuCutoff.Value) ~= "none");
 % observations
 unit = kind == "unit";
 sorted = unit && fig.observe.source == "units";
@@ -121,7 +133,7 @@ layerKeys = ["layerList" "layerAdd" "layerNote" "layerName" "layerSource" "layer
 optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort" "sortLine" "sortSeqText" "rasterByGroup" ...
     "maskAfterStop" "histStyle" "fill" "normalize" "contDisplay" "statistic" "errorType" "stackSpacing" "order" ...
     "value" "metric" "correlation" "fisherZ" "yLim" "cLim" "waveMode" "waveLocation" "waveScale" "wavePP" ...
-    "optApplyAll"];
+    "optApplyAll" "auMethod" "auWinMs" "auModFrom" "auCutoff" "auTest" "auMarks" "stack" "param" "rateDisplay" "waveLayout"];
 for f = [layerKeys optionKeys]; v.(f) = false; end
 optionsTitle = "Options";
 paligned = false;
@@ -174,7 +186,7 @@ if hasPanel
         v.layerIds = fixed && isSpike; v.layerQuality = v.layerIds; v.layerMaxUnits = v.layerIds;
         v.layerShanks = v.layerIds; v.layerUnitChannels = v.layerIds;
         v.layerChannels = fixed && isSignal;
-        v.layerAggregate = fixed && (isSpike || isSignal) && ismember(t, ["raster" "psth" "continuous"]);
+        v.layerAggregate = fixed && (isSpike || isSignal) && ismember(t, ["raster" "psth" "continuous" "rate" "tuning"]);
         v.evLine = L.source == "events"; v.evEdge = v.evLine; v.evSeqText = v.evLine; v.evDrawAs = v.evLine;
         v.evMarker = marks; v.evColor = marks;
         v.layerColor = ~marks; v.layerLineStyle = ~marks;
@@ -194,8 +206,12 @@ if hasPanel
 
     % options
     v.binMs = t == "psth" || pointHeat || t == "corrmap"; v.smoothMs = v.binMs;
-    v.measure = t == "psth" || pointHeat;
-    v.baselineMode = ismember(t, ["psth" "continuous" "heatmap" "corrmap"]); v.baseFrom = v.baselineMode;
+    v.measure = t == "psth" || pointHeat || ismember(t, ["rate" "tuning"]);
+    v.baselineMode = ismember(t, ["psth" "continuous" "heatmap" "corrmap" "rate" "tuning"]); v.baseFrom = v.baselineMode;
+    v.stack = t == "psth";
+    v.param = t == "tuning";
+    v.rateDisplay = t == "rate";
+    v.waveLayout = t == "waveforms";
     v.rasterSort = t == "raster"; v.sortLine = v.rasterSort; v.sortSeqText = v.rasterSort; v.rasterByGroup = v.rasterSort;
     v.maskAfterStop = ismember(t, ["raster" "psth"]) || pointHeat;
     v.histStyle = t == "psth"; v.fill = v.histStyle; v.normalize = v.histStyle;
@@ -203,12 +219,20 @@ if hasPanel
     v.order = t == "heatmap";
     v.value = t == "probemap";
     v.metric = t == "corrmap"; v.correlation = v.metric; v.fisherZ = v.metric;
-    v.yLim = ismember(t, ["psth" "continuous" "waveforms"]);
+    v.yLim = ismember(t, ["psth" "continuous" "waveforms" "rate" "tuning"]);
     v.cLim = ismember(t, ["heatmap" "probemap" "corrmap"]);
-    v.waveMode = ismember(t, ["raster" "psth" "waveforms"]); v.wavePP = v.waveMode;
-    v.waveLocation = ismember(t, ["raster" "psth"]); v.waveScale = v.waveLocation;
+    v.waveMode = ismember(t, ["raster" "psth" "waveforms" "tuning"]); v.wavePP = v.waveMode;
+    v.waveLocation = ismember(t, ["raster" "psth" "tuning"]); v.waveScale = v.waveLocation;
     if v.baselineMode; offerItems(E.baselineMode, ch.BaselineModes); end
     en([E.baseFrom E.baseTo], string(E.baselineMode.Value) ~= "none");
+    auOn = (t == "psth" || pointHeat) && string(E.baselineMode.Value) == "auroc";   % the panel's auROC settings
+    v.auMethod = auOn; v.auWinMs = auOn; v.auModFrom = auOn; v.auCutoff = auOn; v.auMarks = auOn;
+    v.auTest = auOn && string(E.auCutoff.Value) == "test";
+    en(E.auStepMs, string(E.auWindows.Value) == "sliding");
+    en(E.auThreshold, string(E.auCutoff.Value) == "fixed");
+    en(E.auResamples, string(E.auTest.Value) ~= "ranksum");
+    en([E.auMarks E.auModOnly], string(E.auCutoff.Value) ~= "none");
+    en(E.psthSpacing, E.stack.Value);
     en(E.fillAlpha, E.fill.Value);
     en([E.sortLine E.sortEdge E.sortSeqText E.sortSeqEdit], strtrim(string(E.rasterSort.Value)) == "event");
     en([E.waveSpikes E.waveLocation E.waveBox E.waveScale E.wavePP E.waveCount], string(E.waveMode.Value) ~= "off");
@@ -219,8 +243,12 @@ if hasPanel
     en(E.stackSpacing, string(E.contDisplay.Value) == "stacked");
     % a linked panel's common rows show the figure's Common options, locked
     rowsOf = struct('bins', [E.binMs E.smoothMs], 'measure', E.measure, 'baseline', [E.baselineMode E.baseFrom E.baseTo], ...
-        'maskAfterStop', E.maskAfterStop, 'waveform', [E.waveMode E.waveSpikes E.waveLocation E.waveBox E.waveScale E.wavePP E.waveCount]);
+        'maskAfterStop', E.maskAfterStop, 'waveform', [E.waveMode E.waveSpikes E.waveLocation E.waveBox E.waveScale E.wavePP E.waveCount], ...
+        'auroc', [E.auMethod E.auWindows E.auWinMs E.auStepMs E.auModFrom E.auModTo E.auCutoff E.auThreshold E.auTest ...
+        E.auResamples E.auCorrection E.auAlpha E.auMarks E.auModOnly]);
     cf = EphysAnalysisConfig.commonFieldsOf(t);
+    en([E.measure E.baselineMode E.waveMode E.auMethod E.auWindows E.auWinMs E.auModFrom E.auModTo E.auCutoff E.auTest ...
+        E.auCorrection E.auAlpha], true);   % rows without a rule of their own above: open again once the panel is unlinked
     if p.common
         for f = cf; en(rowsOf.(f), false); end
     end
@@ -231,7 +259,7 @@ if hasPanel
 
     % the panel's own alignment
     modes = "fixed";
-    if t == "corrmap"; modes = ["fixed" "between"]; end
+    if ismember(t, ["corrmap" "rate" "tuning"]); modes = ["fixed" "between"]; end
     setWindowModes(obj.PanelAlignControls.Mode, modes);
     C2 = obj.PanelAlignControls;
     unlinked = paligned && ~E.panelSame.Value;   % linked ("Same as the figure"): the rows show the figure's, locked

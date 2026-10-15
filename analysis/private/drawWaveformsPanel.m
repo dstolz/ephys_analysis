@@ -13,6 +13,11 @@ function hk = drawWaveformsPanel(ax, P, look)
 %                  overlaid in a color of its own (role "waveMean", group =
 %                  the unit's label), the spike time marked, each unit in
 %                  the legend
+%   In the probe layout (options.layout "probe") renderWaveforms draws every
+%   unit of the first layer at its place on the probe (Layout "probe": the
+%   sites behind, the panel's waveform settings), and the units the
+%   further layers name (R.kind "ring", e.g. the observed unit) are framed
+%   in red there (Highlight: role "unitDots", group "observed").
 %   A skipped layer's reason is noted (figLayerNotes). HK: figDrawResult's
 %   (renderWaveforms labels the axes; the overlay's y label is the
 %   amplitude).
@@ -35,6 +40,14 @@ st = style;
 st.XLim = [];
 st.YLim = [];
 if numel(o.yLim) == 2 && o.yLim(2) > o.yLim(1); st.YLim = o.yLim; end
+if isfield(o, 'layout') && o.layout == "probe"   % its y axis is the probe's (um): options.yLim is the grid's
+    st.YLim = [];
+    h = renderWaveforms(R, ax, Layout="probe", Waveform=o.waveform, Style=st, Highlight=ringRows(R, P.layers));
+    hk.axes = h.axes(1);
+    tagPart(hk.axes, "axes", "", look.panelId);
+    figLayerNotes(hk.axes, P, look, true);
+    return
+end
 if nU == 1
     h = renderWaveforms(R, ax, Layout="grid", Waveform=o.waveform, Style=st);
     hk.axes = h.axes(1);
@@ -73,6 +86,18 @@ u = unique(W.units(W.units ~= ""));
 hk.yName = "Amplitude";
 if isscalar(u); hk.yName = "Amplitude (" + ampText(u) + ")"; end
 figLayerNotes(ax, P, look, true);
+end
+
+
+function rows = ringRows(R, layers)
+%ringRows  The rows of R.meta the probe layout's further layers name (R.kind "ring": by unit id and source).
+rows = zeros(1, 0);
+ids = double(R.meta.unitId(:));
+for l = reshape(layers, 1, [])
+    if l.skip ~= "" || ~isstruct(l.R) || ~isfield(l.R, 'kind') || l.R.kind ~= "ring"; continue; end
+    rows = [rows reshape(find(ismember(ids, double(l.R.meta.unitId(:)))), 1, [])]; %#ok<AGROW>
+end
+rows = unique(rows);
 end
 
 

@@ -88,6 +88,7 @@ c.bins.SmoothSec = E.cmSmoothMs.Value / 1000;
 c.measure = string(E.cmMeasure.Value);
 c.baseline.Mode = string(E.cmBaselineMode.Value);
 c.baseline.Window = [E.cmBaseFrom.Value E.cmBaseTo.Value];
+c.auroc = aurocPlotFrom(E, "cmAu", c.auroc);
 c.maskAfterStop = logical(E.cmMaskAfterStop.Value);
 c.waveform.mode = string(E.cmWaveMode.Value);
 c.waveform.maxSpikes = E.cmWaveSpikes.Value;
@@ -160,6 +161,13 @@ if own('baseline')
     op.baseline.Mode = string(E.baselineMode.Value);
     op.baseline.Window = [E.baseFrom.Value E.baseTo.Value];
 end
+if own('auroc'); op.auroc = aurocPlotFrom(E, "au", op.auroc); end
+if isfield(op, 'param')   % a tuning curve's parameters
+    op.param = strtrim(string(E.param.Value));
+    op.seriesParam = strtrim(string(E.seriesParam.Value));
+end
+if p.type == "rate"; op.display = string(E.rateDisplay.Value); end
+if isfield(op, 'layout'); op.layout = string(E.waveLayout.Value); end
 if isfield(op, 'rasterSort')
     op.rasterSort = strtrim(string(E.rasterSort.Value));
     if op.rasterSort == "event"   % else the panel keeps the event it has
@@ -186,6 +194,10 @@ if isfield(op, 'histStyle')
     op.fillAlpha = E.fillAlpha.Value;
     if isempty(op.fillAlpha); op.fillAlpha = NaN; end
     op.normalize = string(E.normalize.Value);
+end
+if isfield(op, 'stack')   % a PSTH's rows (a continuous panel's stackSpacing is its own row)
+    op.stack = logical(E.stack.Value);
+    op.stackSpacing = E.psthSpacing.Value;
 end
 if p.type == "continuous"
     op.display = string(E.contDisplay.Value);
@@ -300,6 +312,24 @@ a.cutoff = string(E.(pre + "Cutoff").Value);
 a.threshold = E.(pre + "Threshold").Value;
 a.test = string(E.(pre + "Test").Value);
 a.nResamples = E.(pre + "Resamples").Value;
+end
+
+
+function a = aurocPlotFrom(E, pre, a)
+%aurocPlotFrom  A PSTH's or heat map's auROC settings A as the editor's fields PRE* show them (aurocRows, ISPLOT).
+a.method = string(E.(pre + "Method").Value);
+a.windows = string(E.(pre + "Windows").Value);
+a.windowSec = E.(pre + "WinMs").Value / 1000;
+a.stepSec = E.(pre + "StepMs").Value / 1000;
+a.modulationWindow = [E.(pre + "ModFrom").Value E.(pre + "ModTo").Value];
+a.cutoff = string(E.(pre + "Cutoff").Value);
+a.threshold = E.(pre + "Threshold").Value;
+a.test = string(E.(pre + "Test").Value);
+a.nResamples = E.(pre + "Resamples").Value;
+a.correction = string(E.(pre + "Correction").Value);
+a.alpha = E.(pre + "Alpha").Value;
+a.marks = logical(E.(pre + "Marks").Value);
+a.modulatedOnly = logical(E.(pre + "ModOnly").Value);
 end
 
 

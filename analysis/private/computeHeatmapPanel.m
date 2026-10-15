@@ -6,7 +6,8 @@ function P = computeHeatmapPanel(src, panel, E, G, ctx)
 %   layer that is not events marks is the map:
 %     units / detected / events train   figurePointLayer: spikePSTH with the
 %         panel's bins, measure, baseline and maskAfterStop (no raster):
-%         R.rate [nBins x nUnits x nGroups]
+%         R.rate [nBins x nUnits x nGroups]; baseline Mode "auroc" (with
+%         options.auroc) gives auROC curves and their calls (R.auroc)
 %     LFP / MUA / SPIKE / AUX           figureSignalLayer: evokedPotential
 %         with the baseline subtracted (Mode other than "none"): R.mean
 %         [nTime x nChannels x nGroups]
@@ -42,7 +43,7 @@ for j = 1:numel(P.layers)
     else
         P.layers(j) = figurePointLayer(src, L, P.layers(j), E, G, ctx, Window=[w.pre w.post], ...
             BinSec=o.bins.BinSec, SmoothSec=o.bins.SmoothSec, Measure=o.measure, Baseline=b, ...
-            BaselineMode=o.baseline.Mode, MaskAfterStop=o.maskAfterStop, Raster=false);
+            BaselineMode=o.baseline.Mode, MaskAfterStop=o.maskAfterStop, Raster=false, Auroc=o.auroc);
     end
 end
 end

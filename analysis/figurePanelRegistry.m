@@ -2,7 +2,7 @@ function reg = figurePanelRegistry()
 %figurePanelRegistry  How each figure panel type is computed and drawn.
 %   REG = figurePanelRegistry() is a struct with one field per panel type
 %   of EphysAnalysisConfig.panelTypes() (raster, psth, continuous, heatmap,
-%   waveforms, probemap, corrmap), each a struct with
+%   waveforms, probemap, corrmap, rate, tuning), each a struct with
 %     compute  @(src, panel, E, G, ctx) -> P, the panel's result: P.layers,
 %              one entry per layer of the panel (figurePanelLayers: name,
 %              source, binding, category, eventsAs, skip, R, meta). SRC is
@@ -25,9 +25,10 @@ function reg = figurePanelRegistry()
 %   (no switch on the type). The functions live in analysis/private:
 %   computeRasterPanel, computePsthPanel, computeContinuousPanel,
 %   computeHeatmapPanel, computeWaveformsPanel, computeProbeMapPanel,
-%   computeCorrMapPanel, and drawRasterPanel, drawPsthPanel,
-%   drawContinuousPanel, drawHeatmapPanel, drawWaveformsPanel,
-%   drawProbeMapPanel, drawCorrMapPanel.
+%   computeCorrMapPanel, computeRatePanel, computeTuningPanel, and
+%   drawRasterPanel, drawPsthPanel, drawContinuousPanel,
+%   drawHeatmapPanel, drawWaveformsPanel, drawProbeMapPanel,
+%   drawCorrMapPanel, drawRatePanel, drawTuningPanel.
 %
 %   See also EphysAnalysisRunner.computeFigure, renderFigure, EphysAnalysisConfig.panelTypes.
 
@@ -39,6 +40,8 @@ reg.heatmap    = entry(@computeHeatmapPanel,    @drawHeatmapPanel);
 reg.waveforms  = entry(@computeWaveformsPanel,  @drawWaveformsPanel);
 reg.probemap   = entry(@computeProbeMapPanel,   @drawProbeMapPanel);
 reg.corrmap    = entry(@computeCorrMapPanel,    @drawCorrMapPanel);
+reg.rate       = entry(@computeRatePanel,       @drawRatePanel);
+reg.tuning     = entry(@computeTuningPanel,     @drawTuningPanel);
 end
 
 

@@ -59,7 +59,10 @@ function test_EphysAnalysisApp()
 %   Re-link all panels, Ctrl+7 / Ctrl+0), a scan listing the
 %   observations again, the previews refusing each other while one
 %   computes, save and reopen, its preferences restored by a new app,
-%   Remove);
+%   Remove); Generate (a figure's files per observation on the ticked
+%   datasets, its rows in the results table, the status bar's counts,
+%   Cancel during it, a figure that is off drawn for that run only) and
+%   the Export tab's Plan and Run listing figures;
 %   closing. The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -2050,6 +2053,79 @@ check(isempty(app.Config.Figures), 'both figures removed');
 app.onSaveConfig();
 app.Tabs.SelectedTab = app.TabData;
 
+fprintf('\n== 5f. Generate a figure; figures on the Export tab ==\n');
+app.selectTab(app.TabFigures);
+check(app.FigureGenerateButton.Enable == "off" && isequal(app.FigureGenerateButton.Layout.Column, 2) ...
+    && isequal(app.FigurePreviewButton.Layout.Column, 1) && isequal(app.FigureGenerateButton.BackgroundColor, app.FigurePreviewButton.BackgroundColor), ...
+    'Generate sits beside Preview, colored as it is, and is off with no figure');
+app.onAddFigure("rasterPsth");
+kG = app.SelectedFigure;
+fid = app.Config.Figures(kG).id;
+gIdx = app.tickedDatasetIndices();
+gSpec = app.Config.figureFor(fid);
+gX = app.gatherConfig().Export;
+want = strings(0, 1);
+nObsWant = 0;
+for kk = gIdx
+    name = app.Runner.Names(kk);
+    Tk = figureObservations(app.Runner.source(kk), gSpec);
+    nObsWant = nObsWant + height(Tk);
+    for i = 1:height(Tk)
+        base = fullfile(outRoot, name, figureOutputName(gX.FilenamePattern, name, gSpec, Tk(i, :), i, height(Tk)));
+        want = [want; reshape(base + "." + gX.Formats, [], 1)]; %#ok<AGROW>
+    end
+end
+check(app.FigureGenerateButton.Enable == "on" && numel(gIdx) == 2 && nObsWant >= 2, ...
+    sprintf('Generate is on with %s selected (%d observation(s) on the %d ticked datasets)', fid, nObsWant, numel(gIdx)));
+R = app.onGenerateFigure();
+T = app.ResultsTable.Data;
+check(istable(R) && height(R) == numel(gIdx) && all(R.Kind == "figure") && all(R.Plot == fid) && all(R.Status == "done") ...
+    && sum(arrayfun(@(s) sscanf(char(s), '%d', 1), R.Message)) == nObsWant && all(isfile(want)) ...
+    && height(T) == height(R) && all(string(T.Kind) == "figure") && all(ismember(["Subject" "Date"], string(T.Properties.VariableNames))), ...
+    sprintf('Generate draws %s for every observation on both datasets: %d file(s) in the Export folder, the results table shows its figure rows', fid, numel(want)));
+check(startsWith(string(app.StatusBar.Text), sprintf("Generated %s: %d observation(s) on %d dataset(s), %d file(s) in ", fid, nObsWant, numel(gIdx), numel(want))) ...
+    && app.OpenFolderButton.Enable == "on" && app.ToolbarFolderTool.Enable == "on" && app.OpenReportButton.Enable == "off" ...
+    && ~app.Running && app.FigureGenerateButton.Enable == "on" && app.RunButton.Enable == "on" && app.CancelButton.Enable == "off" ...
+    && app.Tabs.SelectedTab == app.TabFigures && app.Config.Figures(kG).enabled, ...
+    'the status bar counts observations, datasets and files; Open figure folder is on, no report; the buttons are back');
+% Cancel during a generate
+delete(want{:});
+setappdata(groot, 'genProbe', []);
+tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) cancelGenerate(t, app));
+start(tm);
+Rc = app.onGenerateFigure();
+stop(tm); delete(tm);
+pr = getappdata(groot, 'genProbe');
+rmappdata(groot, 'genProbe');
+check(isstruct(pr) && pr.generate == "off" && pr.run == "off" && pr.cancel == "on" && contains(pr.preview, "A run is going") ...
+    && pr.state ~= "computing", 'while it runs, Generate and Run are off, Cancel is on, and the preview computes nothing');
+check(istable(Rc) && height(Rc) == numel(gIdx) && all(Rc.Status == "canceled") && height(app.ResultsTable.Data) == height(Rc) ...
+    && startsWith(string(app.StatusBar.Text), "Generating " + fid + " was canceled") && ~app.Running && app.FigureGenerateButton.Enable == "on", ...
+    'Cancel during a generate: its rows are canceled, the status bar says so, Generate is on again');
+% the plan and a run from the Export tab
+P = app.onPlan();
+pf = P(P.Kind == "figure", :);
+check(height(pf) == numel(gIdx) && all(pf.Plot == fid) && all(pf.Source == "unit") && all(pf.Enabled) ...
+    && height(app.IssuesTable.Data) == height(P) && contains(string(app.StatusBar.Text), sprintf("and %d of %d figure run(s) will draw", numel(gIdx), numel(gIdx))), ...
+    'Plan lists the figure on each ticked dataset (Kind "figure", Source "unit") and the status bar counts its runs');
+R = app.onRunExport(Plots="psth_1");
+rf = R(R.Kind == "figure", :);
+check(height(rf) == numel(gIdx) && all(rf.Plot == fid) && all(rf.Status == "done") && nnz(R.Plot == "psth_1") == numel(gIdx) ...
+    && all(isfile(want)) && contains(app.RunLabel.Text, sprintf("%d done", height(R))), ...
+    'Run from the Export tab draws the enabled figure too: one figure row per dataset beside the plot''s');
+% a figure that is off is generated all the same, for that run only
+app.selectTab(app.TabFigures);
+FE.enabled.Value = false;
+app.onConfigChanged("figure");
+R = app.onGenerateFigure();
+check(~app.Config.Figures(kG).enabled && istable(R) && height(R) == numel(gIdx) && all(R.Status == "done") ...
+    && contains(string(app.StatusBar.Text), fid + " is off, so it was switched on for this run only") ...
+    && endsWith(string(app.FigureList.Items{kG}), "(off)") && ~app.Runner.Config.Figures(kG).enabled, ...
+    'Generate on a figure that is off draws it (not skipped), says so, and the config keeps it off');
+app.onRemoveFigure();
+app.onSaveConfig();
+app.Tabs.SelectedTab = app.TabData;
+
 fprintf('\n== 6. close ==\n');
 app.savePreferences();
 check(strcmp(AppPrefs.getpref(g, 'LastConfigFile'), cfgFile) && isequal(string(AppPrefs.getpref(g, 'PlotSectionsCollapsed')), "bins"), ...
@@ -2192,6 +2268,17 @@ switch busy
         app.refreshFigurePreview();
         setappdata(groot, 'probeOther', struct('state', app.FigurePreviewState, 'same', isequaln(before, app.FigurePreviewResult)));
 end
+end
+
+
+function cancelGenerate(tm, app)
+%cancelGenerate  Once a Generate's run has started (the runner's Results emptied), note what the app shows, ask for a preview, press Cancel (appdata genProbe).
+if ~app.Running || isempty(app.Runner) || height(app.Runner.Results) > 0; return; end
+stop(tm);
+app.refreshFigurePreview(Force=true);
+setappdata(groot, 'genProbe', struct('generate', string(app.FigureGenerateButton.Enable), 'run', string(app.RunButton.Enable), ...
+    'cancel', string(app.CancelButton.Enable), 'preview', string(app.FigurePreviewLabel.Text), 'state', app.FigurePreviewState));
+app.CancelButton.ButtonPushedFcn(app.CancelButton, []);   % the Export tab's Cancel, as a click
 end
 
 

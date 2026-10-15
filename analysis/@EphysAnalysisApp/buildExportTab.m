@@ -1,5 +1,8 @@
 function buildExportTab(obj)
 %buildExportTab  Export and Report sections; Validate, Plan, Run, results.
+%   The plan and results tables take whatever columns the runner gives:
+%   a figure's rows have Kind "figure" (the Figures tab's Generate fills
+%   the results table too).
 g = uigridlayout(obj.TabExport, [1 2]);
 g.ColumnWidth = {470, '1x'};
 g.Padding = [8 8 8 8];
@@ -91,11 +94,12 @@ right.ColumnWidth = {90, 90, 90, 90, '1x', 'fit'};
 right.Padding = [0 0 0 0];
 obj.ValidateButton = uibutton(right, "Text", "Validate", "ButtonPushedFcn", @(~,~) obj.onValidate());
 place(obj.ValidateButton, 1, 1);
-obj.PlanButton = uibutton(right, "Text", "Plan", "Tooltip", "Which plot runs on which ticked dataset, and why one is skipped.", ...
+obj.PlanButton = uibutton(right, "Text", "Plan", "Tooltip", "Which plot or figure runs on which ticked dataset, and why one is skipped.", ...
     "ButtonPushedFcn", @(~,~) obj.onPlan());
 place(obj.PlanButton, 1, 2);
 obj.RunButton = uibutton(right, "Text", "Run", ...
-    "Tooltip", "Every enabled plot on every ticked dataset: figures and report.", "ButtonPushedFcn", @(~,~) obj.onRunExport());
+    "Tooltip", "Every enabled plot and figure on every ticked dataset: figure files and report. A figure is drawn " + ...
+    "once per observation (the Figures tab's Generate draws one figure alone).", "ButtonPushedFcn", @(~,~) obj.onRunExport());
 place(obj.RunButton, 1, 3);
 obj.CancelButton = uibutton(right, "Text", "Cancel", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onCancelRun());
 place(obj.CancelButton, 1, 4);

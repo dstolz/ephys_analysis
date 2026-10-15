@@ -286,6 +286,7 @@ classdef EphysAnalysisApp < handle
         FigureObsPrevButton    matlab.ui.control.Button
         FigureObsNextButton    matlab.ui.control.Button
         FigurePreviewButton    matlab.ui.control.Button
+        FigureGenerateButton   matlab.ui.control.Button         % Generate: the figure for every observation on the ticked datasets (onGenerateFigure)
         FigureAutoCheckBox     matlab.ui.control.CheckBox       % auto-preview (pref FigureAutoPreview, on by default)
         FigureDesignLabel      matlab.ui.control.Label          % "Design: <name>" (chosen on the Plots tab or the Design menu)
         FigurePreviewPanel     matlab.ui.container.Panel
@@ -609,6 +610,7 @@ classdef EphysAnalysisApp < handle
         autoFigurePreview(obj)
         onFigureAutoPreviewToggled(obj)
         onCancelFigurePreview(obj)
+        R = onGenerateFigure(obj, opts)
         setFigurePreviewState(obj, state, opts)
         rememberFigureAesthetics(obj, id, rules)
 

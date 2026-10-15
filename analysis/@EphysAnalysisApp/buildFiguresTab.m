@@ -35,7 +35,9 @@ function buildFiguresTab(obj)
 %           shows the rows the figure, panel and layer use;
 %           layoutFigureEditor packs them.
 %   Right   the dataset, the observation picked (figureObservations' labels)
-%           with < and > (Page Up / Page Down), Preview, Auto, the design
+%           with < and > (Page Up / Page Down), Preview, Generate (the
+%           figure for every observation on every ticked dataset, into the
+%           Export folder: onGenerateFigure), Auto, the design
 %           every plot is drawn in (chosen on the Plots tab or the Design
 %           menu), the preview panel (refreshFigurePreview: computeFigure
 %           and renderFigure for that one observation), its badge
@@ -50,7 +52,7 @@ PT = EphysAnalysisConfig.panelTypes();
 
 % --- left: the figures ------------------------------------------------------------------------
 lg = uigridlayout(g, [8 2]);
-lg.RowHeight = {22, '1x', 28, 30, 30, 30, 30, 36};
+lg.RowHeight = {22, '1x', 28, 30, 30, 30, 30, 64};
 lg.ColumnWidth = {'1x', '1x'};
 lg.Padding = [0 0 0 0];
 l = uilabel(lg, "Text", "Figures", "FontWeight", "bold");
@@ -82,7 +84,8 @@ obj.CopyFigureButton = uibutton(lg, "Text", "Copy from...", "ButtonPushedFcn", @
     "Tooltip", "Copy another figure's settings onto the selected figure: pick the figure and the parts (observations, " + ...
     "alignment, common options, arrangement and panels, appearance, looks). It keeps its id, title and enabled.");
 place(obj.CopyFigureButton, 7, [1 2]);
-l = uilabel(lg, "Text", "A figure is one observation's panels: a unit's, a channel's or the dataset's.", ...
+l = uilabel(lg, "Text", "A figure is one observation's panels: a unit's, a channel's or the dataset's. " + ...
+    "Generate draws it for each observation; Run (Export tab) draws the enabled ones.", ...
     "WordWrap", "on", "FontColor", gray, "VerticalAlignment", "top");
 place(l, 8, [1 2]);
 
@@ -108,7 +111,7 @@ tint = @(name) hue(order == name, :);
 S = formSection(eg, 1, "general", "");
 [S, r] = formRow(S, "id", "Id:");
 E.id = uieditfield(S.Body, "text", "ValueChangedFcn", @(f, evt) onIdEdited(obj, f, evt), ...
-    "Tooltip", "Unique among the figures; it will name the figure's files.");
+    "Tooltip", "Unique among the figures; it names the figure's files ({Plot} in the Export tab's file names).");
 place(E.id, r, 2);
 [S, r] = formRow(S, "title", "Title:");
 E.title = uieditfield(S.Body, "text", "Placeholder", "automatic", "ValueChangedFcn", changed, ...
@@ -117,7 +120,7 @@ E.title = uieditfield(S.Body, "text", "Placeholder", "automatic", "ValueChangedF
 place(E.title, r, 2);
 [S, r] = formRow(S, "enabled", "");
 E.enabled = uicheckbox(S.Body, "Text", "Enabled", "Value", true, "ValueChangedFcn", changed, ...
-    "Tooltip", "Unticked, the figure stays in the config but is not generated. The preview still draws it.");
+    "Tooltip", "Unticked, the figure stays in the config but Run (Export tab) skips it. Generate and the preview still draw it.");
 place(E.enabled, r, [1 2]);
 [S, r] = formRow(S, "summary", "");
 E.summary = uilabel(S.Body, "Text", "", "FontColor", gray);
@@ -205,8 +208,8 @@ E.obsChannels = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedF
 place(E.obsChannels, r, 2);
 [S, r] = formRow(S, "obsDatasets", "Datasets:");
 E.obsDatasets = uidropdown(S.Body, "Items", ["the ticked datasets" "a list"], "ItemsData", ["ticked" "list"], ...
-    "ValueChangedFcn", changed, "Tooltip", "What Generate (a later release) draws the figure over: the datasets " + ...
-    "ticked to run, or a list of its own (kept in the config; edited in a later release).");
+    "ValueChangedFcn", changed, "Tooltip", "What the figure is drawn over. Generate and Run draw it on the datasets " + ...
+    "ticked to run; a list of its own is kept in the config, but edited and used in a later release.");
 place(E.obsDatasets, r, 2);
 [S, r] = formRow(S, "obsCount", "");
 E.obsCount = uilabel(S.Body, "Text", "", "FontColor", gray);
@@ -777,44 +780,48 @@ obj.FigureSections = sec;
 obj.layoutFigureEditor();
 
 % --- right: the observation picker and the preview ----------------------------------------------
-pg = uigridlayout(g, [4 5]);
+pg = uigridlayout(g, [4 6]);
 pg.RowHeight = {30, 30, '1x', 26};
-pg.ColumnWidth = {100, 'fit', 'fit', '1x', 'fit'};
+pg.ColumnWidth = {100, 100, 'fit', 'fit', '1x', 'fit'};
 pg.Padding = [0 0 0 0];
 obj.FigurePreviewButton = uibutton(pg, "Text", "Preview", ...
     "Tooltip", "Compute and draw the selected figure for the observation picked, on the active dataset. " + ...
     "Orange: the figure changed since it was drawn.", ...
     "ButtonPushedFcn", @(~,~) obj.refreshFigurePreview(Force=true));
 obj.FigurePreviewButton.Layout.Row = [1 2]; obj.FigurePreviewButton.Layout.Column = 1;
+obj.FigureGenerateButton = uibutton(pg, "Text", "Generate", "Enable", "off", ...
+    "Tooltip", "Draw this figure for every observation it selects, on every ticked dataset, into the Export folder", ...
+    "ButtonPushedFcn", @(~,~) obj.onGenerateFigure());
+obj.FigureGenerateButton.Layout.Row = [1 2]; obj.FigureGenerateButton.Layout.Column = 2;
 obj.FigureAutoCheckBox = uicheckbox(pg, "Text", "Auto", "Value", true, ...
     "Tooltip", "Redraw on every change while a preview takes under " + obj.AutoPreviewSeconds + " s (one observation is quick).", ...
     "ValueChangedFcn", @(~,~) obj.onFigureAutoPreviewToggled());
-obj.FigureAutoCheckBox.Layout.Row = 1; obj.FigureAutoCheckBox.Layout.Column = 2;
+obj.FigureAutoCheckBox.Layout.Row = 1; obj.FigureAutoCheckBox.Layout.Column = 3;
 kg = uigridlayout(pg, [1 2], "ColumnWidth", {34, 34}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);
-kg.Layout.Row = 2; kg.Layout.Column = 2;
+kg.Layout.Row = 2; kg.Layout.Column = 3;
 obj.FigureObsPrevButton = uibutton(kg, "Text", "<", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onFigureObservationStep(-1), ...
     "Tooltip", "The previous observation (Page Up).");
 obj.FigureObsNextButton = uibutton(kg, "Text", ">", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onFigureObservationStep(1), ...
     "Tooltip", "The next observation (Page Down).");
 l = uilabel(pg, "Text", "Dataset:");
-l.Layout.Row = 1; l.Layout.Column = 3;
+l.Layout.Row = 1; l.Layout.Column = 4;
 obj.FiguresDatasetDropDown = uidropdown(pg, "Items", "(scan first)", "ItemsData", 0, ...
     "ValueChangedFcn", @(dd, ~) obj.selectDataset(dd.Value), "Tooltip", "The active dataset (the same on every tab).");
-obj.FiguresDatasetDropDown.Layout.Row = 1; obj.FiguresDatasetDropDown.Layout.Column = 4;
+obj.FiguresDatasetDropDown.Layout.Row = 1; obj.FiguresDatasetDropDown.Layout.Column = 5;
 obj.FigureDesignLabel = uilabel(pg, "Text", "Design: " + PlotDesign.currentName(), "FontColor", gray, ...
     "Tooltip", "The design every plot and figure is drawn in: choose it on the Plots tab or in the Design menu.");
-obj.FigureDesignLabel.Layout.Row = 1; obj.FigureDesignLabel.Layout.Column = 5;
+obj.FigureDesignLabel.Layout.Row = 1; obj.FigureDesignLabel.Layout.Column = 6;
 l = uilabel(pg, "Text", "Observation:");
-l.Layout.Row = 2; l.Layout.Column = 3;
+l.Layout.Row = 2; l.Layout.Column = 4;
 obj.FigureObservationDropDown = uidropdown(pg, "Items", "(no observation)", "ItemsData", 0, ...
     "ValueChangedFcn", @(~,~) obj.onFigureObservationChanged(), ...
     "Tooltip", "What the preview draws the figure for: one of the units, channels or the dataset the Observations " + ...
     "section keeps, in probe order. Each figure remembers its pick.");
-obj.FigureObservationDropDown.Layout.Row = 2; obj.FigureObservationDropDown.Layout.Column = [4 5];
+obj.FigureObservationDropDown.Layout.Row = 2; obj.FigureObservationDropDown.Layout.Column = [5 6];
 obj.FigurePreviewPanel = uipanel(pg, "BackgroundColor", "w", "BorderType", "line");
-obj.FigurePreviewPanel.Layout.Row = 3; obj.FigurePreviewPanel.Layout.Column = [1 5];
+obj.FigurePreviewPanel.Layout.Row = 3; obj.FigurePreviewPanel.Layout.Column = [1 6];
 sg = uigridlayout(pg, [1 2], "ColumnWidth", {'fit', '1x'}, "Padding", [0 0 0 0], "ColumnSpacing", 8);
-sg.Layout.Row = 4; sg.Layout.Column = [1 5];
+sg.Layout.Row = 4; sg.Layout.Column = [1 6];
 B.Grid = uigridlayout(sg, [1 2], "ColumnWidth", {18, 'fit'}, "Padding", [6 2 10 2], "ColumnSpacing", 5);
 B.Icon = uiimage(B.Grid, "ScaleMethod", "fit");
 B.Text = uilabel(B.Grid, "FontWeight", "bold");

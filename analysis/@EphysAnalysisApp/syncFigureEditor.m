@@ -55,6 +55,9 @@ onoff = @(tf) matlab.lang.OnOffSwitchState(tf);
 en = @(c, tf) set(c, 'Enable', onoff(tf));
 set([obj.RemoveFigureButton obj.DuplicateFigureButton], 'Enable', onoff(has));
 obj.CopyFigureButton.Enable = onoff(has && nf > 1);
+if ~isempty(obj.FigureGenerateButton)
+    obj.FigureGenerateButton.Enable = onoff(has && ~obj.Running);   % off while a run (or a generate) goes
+end
 obj.UpFigureButton.Enable = onoff(has && k > 1);
 obj.DownFigureButton.Enable = onoff(has && k < nf);
 names = [S.Name];

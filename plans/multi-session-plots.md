@@ -1,5 +1,7 @@
 # Plan: multi-session plots and data export for EphysAnalysisApp
 
+> Historical note (2026-10-15): the plot path this plan describes was retired in favor of figures; the plan is kept as it was written.
+
 ## Context
 
 Every analysis plot today is computed and drawn for one dataset at a time: `loadAnalysisSource` → `EphysAnalysisRunner.computePlot(src, spec)` → `R` → `renderPlot(R, spec, target)`, and `R` is thrown away after each figure (`analysis/@EphysAnalysisRunner/runDataset.m`). The only cross-dataset code is `analysis/populationAnalysis.m` (its own fixed pipeline, CSV/JSON output, not wired into the app). Nothing in `analysis/` writes computed results to a `.mat` file or the workspace.

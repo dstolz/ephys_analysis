@@ -109,7 +109,7 @@ there is no migration. Unknown fields are dropped and listed in
 it is enabled (`Signals.LabelField` and `Signals.LineNames` also when
 `Behavior` is, since they name the trial line). Severity `"error"` stops `run()`. Cross-step rule: a background
 sorting run cannot feed the sorted-unit consumers (`Export.IncludeUnits`, and
-an enabled plot or figure of sorted units in the Analysis step's config, a session figure included) in
+an enabled figure of sorted units in the Analysis step's config, a session figure included: one that observes sorted units or has a `units` layer) in
 the same run; set `Sorting.Execution = "blocking"` or run Export and Analysis later. When
 that consumer is on, `Project.NamePattern` must be able to label units (a
 `SubjectID` token and `Date` / `Time` tokens with datetime formats); otherwise
@@ -145,8 +145,11 @@ there, is not an analysis config, or cannot be read because the analysis
 module is not on the path is an error. The analysis config's own
 `validate()` issues, its `Source` aside (the step replaces it), become rows
 of step `analysis` with `Field` `<Section>.<Field>` of the analysis config
-(`Plots.psth_1.window`, ...), and so do its load warnings. Without
-`CheckPaths` the file is not read. Writing neither the figures nor the
+(`Figures.unit_card.window`, ...), and so do its load warnings, but for a
+version 1 file (one that still holds `Plots` and `SessionPlots`, which are
+migrated to figures every time it is read), whose migration notes give one
+warning: *analysis config <file> is version 1: open and save it in the
+analysis app to migrate it once*. Without `CheckPaths` the file is not read. Writing neither the figures nor the
 report, and the Signals step off, are warnings.
 
 The `Transfer` checks, with `Transfer.Enabled` (step `"transfer"`): no
@@ -360,11 +363,12 @@ With `Transfer.Enabled`, each selected dataset has a `transfer` row, `Output`
 the folder its outputs would go to (`ready` when it is not there yet). The
 row only looks: nothing is created.
 
-The Analysis step has one row per dataset and enabled plot or figure
-(`analysis:<plot or figure id>`, `Output` the figure folder, `""` without `Analysis.Figures`) and one
+The Analysis step has one row per dataset and enabled figure
+(`analysis:<figure id>`, `Output` the figure folder, `""` without `Analysis.Figures`), one
+row per enabled session figure (`Dataset` `""`, `Output` the sessions folder) and one
 per report (`analysis:report`, `Output` its file(s); `Dataset` and `Key` `""`
 for one report over every dataset): `pipe.analysisTargets(acfg, idx)`. Which
-plots a dataset can have is known only when it runs. Its folders and its
+figures a dataset can have is known only when it runs. Its folders and its
 report are shared by design, so they are not `duplicate output`.
 
 The probe row's status is the probe step's own (`EphysPipeline.probeStatus`).
@@ -519,14 +523,14 @@ looks for each dataset's outputs in `outputSearchDirs`. Each dataset's
 outputs are read first (`loadAnalysisSource`): one that cannot be read, or a
 key the scan does not find, is an `analysis` row with status `error`, and
 the others still run. `run(Export=Analysis.Figures,
-Report=Analysis.Report)` then draws every enabled plot on every dataset:
+Report=Analysis.Report)` then draws every enabled
+[figure](EphysAnalysisConfig.md#figures) on every dataset (a version 1 config
+is migrated as it is loaded, so its plots run as figures):
 
-- one row per dataset and plot, step `analysis:<plot id>`: `done` (`Output`
-  the files written), `skipped` (`Message`: why the dataset cannot have it,
-  `plotSkipReason`), `error` or `canceled`. The analysis config's enabled
-  [figures](EphysAnalysisConfig.md#figures) run too, one row per dataset and
-  figure in the same form (step `analysis:<figure id>`; the dry run's `Note` reads
-  `figure of <unit | channel | dataset>`). The enabled [session
+- one row per dataset and figure, step `analysis:<figure id>`: `done` (`Output`
+  the files written, a page per observation), `skipped` (`Message`: why the dataset
+  cannot have it, `figureSkipReason`), `error` or `canceled` (the dry run's `Note`
+  reads `figure of <unit | channel | dataset>`). The enabled [session
   figures](EphysAnalysisConfig.md#session-figures) (figures drawn across the
   datasets) run too, once, after the datasets: step `analysis:<figure id>`,
   `Dataset` `sessions: <label>` (`sessions: all`, or the subject or trial group),
@@ -574,7 +578,7 @@ a dataset whose status is `done`, or `skipped` because the output is there
 already (`Overwrite` off, `Sorting.SkipExisting`), for the steps
 `behavior:file`, `artifacts` (the cache), `sorting` (the sort folder, never
 the `.bin`), `signals`, `spikes`, `export:<format>` and the analysis's
-per-dataset `analysis:<plot>` / `analysis:report`. A `launched` or `queued`
+per-dataset `analysis:<figure>` / `analysis:report`. A `launched` or `queued`
 background sort is copied once its status file says it has finished; one
 that fails or is stopped is not (`skipped`). The dataset's manifest
 (`<Name>_manifest.json`, in its recording folder) goes last and is never
@@ -749,8 +753,8 @@ Artifact detection that Sorting, Signals or Spikes needs (no valid cache)
 reports as that step: it fills the first half of the dataset's share, and the
 sort, the derivation or the spike detection the second. Export reports as `export`, the formats
 sharing each dataset's share (the result rows stay `export:<format>`). Analysis reports as `analysis`:
-reading the config and each dataset's outputs at 0, then the plots
-sharing each dataset's share (`plot <id>`). A
+reading the config and each dataset's outputs at 0, then the figures
+sharing each dataset's share (`figure <id>`). A
 direct `artifactIntervalsFor(d)` reports as `artifacts`, dataset 1 of 1; its
 optional third argument `report(done, total, message)` sends the detection's
 progress elsewhere.
@@ -1032,6 +1036,6 @@ warning, and the rest are still made.
 | [`test_TDTReader.m`](../pipeline/test_TDTReader.m) | TDT Synapse blocks: samples from TEV and SEV, stream choice and gain, epocs and their rows, `Acquisition.TDT`; trials from the epocs of a block without an Epsych2 session, through the behavior step; synthetic TDT recordings and projects |
 | [`test_UnitLabels.m`](../pipeline/test_UnitLabels.m) | `parseNameTokens` formats; `nameIdentity` (literal prefix, non-matching names, pattern, subject and date errors, dates and times with separators), class and id padding, identity columns, peak site and template center, `writeUnitNotes` / `readUnitNotes`, `readSortedUnits` identity errors, `EphysProject` pattern push and `unitIdentities` collisions, `unitTable` (columns, filtering, quality-metric columns, duplicates, files, refreshed notes) |
 | [`test_EpsychSession.m`](../pipeline/test_EpsychSession.m) | synthetic `Data` / `Info` files: `epsychSessionMeta` / `readEpsychSession` (`NotEpsych`, `NotFound`), `findEpsychSessions` (recursive or not, missing folders), `matchEpsychSession` (by prefix, by time within the tolerance, ambiguity, the longest stem); `stitchEpsychSessions` (trials in time order, `TrialIndex` renumbered, missing parameters, the parts under `Info.Stitch`, `OutFile`, and its refusals); two Epsych2 files in one session folder associate neither |
-| [`test_PipelineAnalysisStep.m`](../analysis/test_PipelineAnalysisStep.m) | the Analysis step over a synthetic project: its validation (the analysis config's own issues under `Plots.<id>.<field>`, its `Source` ignored, a missing file, nothing written, background sorting feeding unit plots), plan rows per dataset and plot and the report row, a dry run writing nothing, a run writing every dataset's figures, the report and both run records with progress that only grows, cancel, a `list` selection with one report per dataset, and both scripts (the standalone one carries the analysis config and writes the report again) |
+| [`test_PipelineAnalysisStep.m`](../analysis/test_PipelineAnalysisStep.m) | the Analysis step over a synthetic project: its validation (the analysis config's own issues under `Figures.<id>.<field>`, its `Source` ignored, a missing file, a version 1 config's single migration warning, nothing written, background sorting feeding unit figures), plan rows per dataset and figure, a session figure's row and the report row, a dry run writing nothing, a run writing every dataset's figures, the report and both run records with progress that only grows, cancel, a `list` selection with one report per dataset, and both scripts (the standalone one carries the analysis config and writes the report again) |
 
 Run everything with [`run_all_tests.m`](../pipeline/run_all_tests.m).

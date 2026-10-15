@@ -1,5 +1,7 @@
 # Speed up analysis plotting: the app preview first, then batch runs
 
+> Historical note (2026-10-15): the plot path this plan describes was retired in favor of figures; the plan is kept as it was written.
+
 ## Context
 
 Analysis plots are slow to draw, both in the analysis app's live preview and in batch runs. Nothing has been profiled yet. Reading the code turned up costs that grow with the plot size:

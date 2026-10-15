@@ -18,7 +18,7 @@ for the preprocessing pipeline. It edits **one pipeline config**
 - detect spikes by threshold into a `.mat` (sorted units stay in the sorting
   folder);
 - export Chronux- and FieldTrip-shaped files;
-- run an analysis config (plots, figure files, a report) from the
+- run an analysis config (figures, figure files, a report) from the
   [analysis app](EphysAnalysisApp.md) over the processed datasets;
 - associate Epsych2 behavior sessions;
 - review sorted units and open them in phy;
@@ -186,7 +186,7 @@ copy and what is missing (no behavior file, no sorted units, ...).
 | --- | --- |
 | always | `<Name>_manifest.json`, `<Name>_behavior.mat`, and the smallest extract file (the digital events are in it) |
 | Signal files | the extract files holding LFP, MUA, SPIKE and / or AUX (a file with several is copied once). Default: LFP, MUA and AUX |
-| Detected spikes | `<Name>_spikes.mat`, for plots with Source "detected" |
+| Detected spikes | `<Name>_spikes.mat`, for figures that observe or read detected spikes |
 | Sorted units | *Essential files* (default): spike times, clusters and templates, the channel files, `params.py`, `settings.json` and the `cluster_*.tsv` tables, without the large feature files; *Whole folder*; or *None* |
 | Sorted binary | the `.bin` / `temp_wh.dat` the sort read (large). Without it the unit waveforms are drawn from the templates |
 | Probe file | the probe `.json` the manifest names, put beside the manifest |
@@ -2134,7 +2134,7 @@ use the [analysis app](EphysAnalysisApp.md).
 
 The Analysis step (`Analysis.*`) runs an analysis config made in the
 [analysis app](EphysAnalysisApp.md) over the selected datasets. It draws the
-config's plots, writes their figure files and writes its HTML / PDF report,
+config's figures, writes their figure files and writes its HTML / PDF report,
 as **Run** does in the analysis app. It is the last step, because it reads
 what the others write: each dataset's extract (the events and the signals),
 its spikes file, its sorted units and its behavior file. It needs the
@@ -2151,14 +2151,20 @@ it, validation says so.
   looked for in the Signals / Spikes / Export output folders when those are
   set.
 - **Open in the analysis app** opens the config in
-  [EphysAnalysisApp](EphysAnalysisApp.md), to edit its plots. Save it there,
+  [EphysAnalysisApp](EphysAnalysisApp.md), to edit its figures. Save it there,
   then press **Reload** here. With no config chosen, the button opens the
   analysis app on this project's selected datasets, to make one.
 - The summary under the buttons shows what the config holds: its name and
-  description, the event the plots align to and their window, where its
+  description, the event the figures align to and their window, where its
   figure files and report go, and what its own checks find (red for an
-  error). The table lists its plots (id, kind, source, enabled). The plots
-  themselves are edited in the analysis app.
+  error). The table lists its figures, one row each: **Figure** (its id),
+  **Observe** (what it is drawn for: `unit`, `channel`, `dataset`, or `across
+  sessions` for a session figure), **Panels** (the panel types it holds, in order)
+  and **On** (enabled). The figures themselves are edited in the analysis app. A
+  config saved before version 2 (one that still holds plots) is migrated to figures
+  every time it is read here, and the Run tab's Validate gives one
+  warning, *analysis config <file> is version 1: open and save it in the analysis
+  app to migrate it once*.
 - **Write the figure files** (`Analysis.Figures`) and **Write the report**
   (`Analysis.Report`): the step writes these whatever the analysis config's
   own Export / Report **Enabled** says. Where they go, their formats and
@@ -2166,8 +2172,8 @@ it, validation says so.
   `{OutputFolder}\analysis\{Name}_{Plot}.png` and
   `{OutputRoot}\analysis\analysis_report.html`. With both off, the plots are
   only drawn.
-- The targets table lists one row per dataset and enabled plot
-  (`analysis:<plot id>`, with its figure folder), one row per enabled session
+- The targets table lists one row per dataset and enabled figure
+  (`analysis:<figure id>`, with its figure folder), one row per enabled session
   figure (`analysis:<figure id>`, no dataset, the sessions folder) and one row per report
   (`analysis:report`; no dataset for one report over every dataset).
   **Run this step** runs `EphysPipeline.runAnalysis`. **Open report** opens
@@ -2175,10 +2181,10 @@ it, validation says so.
   `Report.PerDataset`, else the one over every dataset. **Open figures
   folder** shows the active dataset's figure folder.
 
-A plot a dataset cannot have (no sorted units, no paired trials, no LFP
+A figure a dataset cannot have (no sorted units, no paired trials, no LFP
 extract, ...) is a *skipped* result row, with the reason, and the other
-plots still run. A dataset whose outputs cannot be read is an *error* row;
-the others still run. **Cancel** stops before the next plot. After a cancel,
+figures still run. A dataset whose outputs cannot be read is an *error* row;
+the others still run. **Cancel** stops before the next figure observation. After a cancel,
 a report over every dataset is not written. The analysis writes its own run
 record next to the report (`analysis_runs/`), as in the analysis app.
 
@@ -2274,7 +2280,7 @@ step box to the files it writes:
   signal is computed). Export shows its inputs, then one branch per format;
   the *Event epochs* box says whether epochs touching an artifact period are
   dropped or kept, flagged. Analysis shows what it reads, the analysis
-  config's plots and alignment, and its figure files and report.
+  config's figures and alignment, and its figure files and report.
 - **Spikes**: chunking, channels, the erased artifact periods (with
   `ArtifactMode` `"erase"`: *NaN: out of the thresholds, a line across each
   for the filter*), bandpass, threshold, alignment, minimum period, amplitude
@@ -2333,7 +2339,7 @@ it:
 | Signals | the recording; the artifact periods (`BlankArtifacts`) | the signal files, `<Name>_extract_<TYPE>.mat` |
 | Spikes | the recording and the artifact periods (threshold detection; the periods rejected or erased first, unless `ArtifactMode` is none) | `<Name>_spikes.mat` |
 | Export | the signal files; the sorted units (`IncludeUnits`); the spikes file (`IncludeDetected`); the behavior file (epochs around the paired trials) | one file per format |
-| Analysis | the signal files; the behavior file; the sorted units and the spikes file (dashed when no enabled plot of the analysis config reads them) | the figure files (`Figures`), the report (`Report`) |
+| Analysis | the signal files; the behavior file; the sorted units and the spikes file (dashed when no enabled figure of the analysis config reads them) | the figure files (`Figures`), the report (`Report`) |
 | Copy outputs (not a step: the Run tab's **Copy outputs to**) | every file a step writes: the behavior file, the artifact cache, the sort folder, the signal and spikes files, the exports, the figure files (each dashed while the config does not write it) | the copies, in `<folder>\<subject>\<session>` (a new `<session>_v2` when it is there, or as **If it is there** says) |
 
 A read the config leaves off is drawn dashed and gray, and a file the config
@@ -3611,8 +3617,8 @@ resource monitoring (the panel always shown, a sample's figures and colors, n/a 
 exiting and removing its folder when stopped), the Clean up tab's preview (every file listed, a raw
 recording without a copy record kept, nothing deleted, the Keep rows hidden on request, a changed tick box discarding it,
 a Visualize envelope going by default and staying unticked, the Sorting step's box marking its whole folder), a move into the project refused, a move out of it (layout, record, preview again) and the preferences,
-the Analysis tab (an analysis config's summary and plots, the Run checklist box, its plan with and without the
-report, the Diagram naming the config, a missing config shown in red and stopping the plan),
+the Analysis tab (an analysis config's summary and its figures table: Figure, Observe, Panels and On, a session figure observing "across sessions"; the Run checklist box, its plan with and without the
+report, a row per dataset and figure and one for the session figure, the Diagram naming the config, a missing config shown in red and stopping the plan),
 save / reopen and the recent list,
 the Help menu's wiki pages and its issue items (what a bug report and a
 feature request carry, that an unticked section is left out, the percent-encoded

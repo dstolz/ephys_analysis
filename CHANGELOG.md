@@ -950,6 +950,57 @@ says how to cut a release.
 
 ### Changed
 
+- The analysis config is version 2: it holds `Figures` only. A version 1 file is migrated once when it
+  is loaded (`load`, and `fromStruct` for a struct whose version is 1): every plot becomes a figure of
+  the same id, every session plot a session figure (`match "pool"` becomes `"site"`, aux looks are
+  remapped or dropped, a behavior plot is not migrated), and every note is a `LoadWarnings` line, the
+  first reading `config version 1: N of M plot(s) and ... migrated to figures; saving writes version 2`.
+  Saving writes version 2; any other version is `EphysAnalysisConfig:BadSchema`; a version 2 file that
+  still holds `Plots` or `SessionPlots` gets the unknown-field warning. The migration lives in the
+  class's private `legacy*` functions. See [Loading a version 1
+  config](documentation/EphysAnalysisConfig.md#loading-a-version-1-config).
+- "No figure is enabled." replaces the rule that counted plots, figures and session plots (it counts
+  figures and session figures); the `units.response` checks moved to the Figures block, on figures that
+  observe units (`<figure>.observe.units.response.*` and each spike layer's); the `Export` file-name
+  warning counts the enabled figures.
+- `EphysAnalysisRunner`: `run(Datasets=, Figures=, SessionFigures=, Export=, Report=)`, `plan(Datasets=,
+  Figures=, SessionFigures=)` and `runDataset(k, Figures=, ...)` take figures and session figures only.
+  The run record is schema `ephys-analysis-run/2` with `figures` and `sessionFigures` (no `plots` or
+  `sessionPlots`). Reports count "N figure(s)"; `addReportFigure` and `newExportFigure` take figures
+  only; the errors of the shared drawing helpers are `renderLayout:BadTarget`, `rasterInto:NoSortEvent`
+  and `rasterInto:NoSortColumn`. The generated standalone script holds figures and session figures only,
+  and passes each figure's auROC calls to its caption (`Auroc=acalls`).
+- A figure's caption (`figureCaption`) says what an auROC PSTH or heat map's cutoff called, as the plot
+  caption did: `figureCaption(spec, T, Auroc=CALLS)` takes one `figureAurocCalls(F)` result per
+  observation, and the runner and the standalone script pass them.
+- Plot designs and aesthetics are kept per panel type. `PlotDesign.kindNames()` lists the kinds a
+  design's `kinds` and the user's remembered rules can name: every panel type, `"figure"` and the
+  Chronux result kinds; a design key that is none of them (a retired plot kind) is dropped with the
+  warning `PlotDesign:UnknownKind`. `PlotDesign.capture` reads the editing context `renderFigure` keeps (or takes `Spec=`) to tell each tile's panel type: the axes of heat map, probe map, unit correlation and spectrogram panels give rules for those panel types, the rest common rules. The roles of the retired
+  plots (`auxTrace`, `auxSem`, `auxImage`, `auxGroup`, `auxScale`, `behaviorMean`, `swarm`, `violin`)
+  are gone from `PlotAesthetics.roles()` and the built-in designs. The aesthetics dialog reads "Figure
+  aesthetics", "This figure" and "Every figure (my preferences)" for a figure.
+- The pipeline's Analysis step runs figures and session figures only (a plot of a version 1 config runs
+  as the figure it migrates to), and counts them in its logs, plan and dry run. A version 1 analysis
+  config is migrated on every read there, so the pipeline's validation gives one warning, `analysis
+  config <file> is version 1: open and save it in the analysis app to migrate it once`, instead of every
+  note; the sorted-units rule reads the figures (a figure that observes sorted units or has a `units`
+  layer, session figures included). The pipeline app's Analysis tab lists the config's figures (Figure,
+  Observe, Panels, On) and the pipeline diagram's Analysis box reads them.
+- The analysis app's Figures tab has the Design row: the "Design:" list (also the Design menu) and
+  **Save look as design...**, which captures the figure preview's look per panel type from the panels as drawn, as the preview's right-click **Save this look as a design...** does, and refuses while the preview is out of date. Unticking a dataset marks a session figure's preview (datasets "ticked") out of date and rebuilds its observation list. The toolbar's **Preview** shows the Figures tab,
+  lists the selected figure's observations and previews it. Escape cancels a panel drag and Page Up /
+  Page Down step the observation, on the Figures tab only, as Ctrl+digit goes to its sections. The epoch
+  diagram opens for the selected figure by default (modes "figure" and "defaults"). **Open config...**
+  writes every load warning to the Log tab, a version 1 file's migration notes included. The Export tab
+  says "Figure parameters", **Plan** reads "Plan: n of m figure run(s) and n of m session figure run(s)
+  will draw.", **Run** takes the enabled figures and session figures, the unit-mapping editor has no
+  plot target, and the Event sequence window has no mark-list mode.
+- The documentation drops the plot kinds: the config page's Plots, Session plots and Converting a plot
+  sections, the app page's Plots and Sessions tabs and Plot kinds (now Panel types), the Analysis page's
+  session plot, renderer and result-cache text. The shared reference sections (auROC, raster sort and
+  event marks, unit waveforms, aux signals, error bands, panel notes and overlays, stacked PSTHs,
+  waveforms panels) now describe panels and figures.
 - A plot's raster marks, `rasterEvents`, are a list of marks, each an event reference (with or without a
   sequence; `which "all"` and `scope "recording"` by default) with its own `marker`, `size` and `color`
   (`EventMark`). The old `lines`, `edge`, `scope`, `sequences` and one look for all marks are gone: a line's
@@ -1120,6 +1171,28 @@ says how to cut a release.
 
 ### Removed
 
+- Plots and session plots from the analysis config and the whole plot path: the `Plots` and
+  `SessionPlots` sections, their methods (`addPlot`, `removePlot`, `plotFor`, `convertPlotToFigure`,
+  `plotToFigure`, `addSessionPlot`, `sessionPlotFor`, ...), constants (`Kinds`, `AuxModes`,
+  `AuxPlacements`, `AuxDisplays`, `AuxColorBy`, `OverlayPanels`, `SessionKinds`, `SessionMatches`,
+  `SessionData`), defaults (`Plot`, `SessionPlot`, `Aux`) and validate rules; the runner's plot and
+  session-plot paths, `Plots=` and `SessionPlots=` on `run`, `plan` and `runDataset`, `computePlot`,
+  `cachedPlot`, `renderPlotFigures`, `computeSessionPlot`, `runSessionPlot`, `sessionData` and the
+  per-dataset result cache (`ResultCache`, `CacheMaxMB`, `CacheBytes`, `CacheWanted`,
+  `clearResultCache`); the per-kind renderers `renderPlot`, `renderPSTH`, `renderRaster`,
+  `renderEvoked`, `renderRates`, `renderTuning` and `renderBehavior`; and the functions only they used
+  (`plotCaption`, `plotFileName`, `plotSkipReason`, `plotPageCount`, `plotErrorType`,
+  `sessionPlotSkipReason`, `sessionResults`, `sessionData`, `epochData`, `epochLongTable`,
+  `behaviorValues`, `auxMean`, `copyPlotSettings`, `plotSettingParts`). Figures (the `Figures` section,
+  with session figures) are the only plotting path. The behavior plot has no figure counterpart, and a
+  PSTH's aux sub-struct is an AUX layer of a continuous panel. The old session data `.mat` and its epoch
+  tables are gone: a session figure's data file is the only data export. `test_plotToFigure` and
+  `test_copyPlotSettings` are replaced by `test_ConfigMigration` and `test_copyFigureSettings`.
+- The analysis app's Plots and Sessions tabs (it has six tabs now: Data, Alignment, Figures, Export,
+  Chronux, Log), with their editors, previews, **Convert to figure**, **To workspace** and **Save
+  .mat...**, and the plot and session preferences `AutoPreview`, `PlotGroupBy`, `PlotGroupsCollapsed`,
+  `PlotSectionsCollapsed`, `SessionAutoPreview` and `SessionSectionsCollapsed`. The wiki anchors
+  `#plots-tab`, `#sessions-tab` and `#plot-kinds` go with them (the page has Panel types instead).
 - From the synthetic generator: schedules from a real dataset's Epsych2 session
   (`syntheticSessionSchedule`; `makeSyntheticRecording`'s `Session` and `MaxDuration`; the Synthetic
   tab's Timing from, Dataset, Load source, rebuilt-lines table, Trial (ms) and Max (s)); LFP

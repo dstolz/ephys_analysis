@@ -17,13 +17,15 @@ function [fig, notes] = plotToFigure(cfg, plotId)
 %     style       the plot's, with MaxTiles, TileSpacing, XLim, YLim and
 %                 CLim back at their defaults (a figure does not use them):
 %                 YLim goes to the data panel's options.yLim (psth,
-%                 continuous, waveforms) and CLim to its options.cLim
-%                 (heatmap, probemap, corrmap); the others, when set, are
-%                 notes
-%     common      the plot's bins, measure, baseline, maskAfterStop and
-%                 waveform (a PSTH's or raster's inset; a waveforms plot's
-%                 own settings). A baseline the figure's panels do not take
-%                 (auROC; a signal's other than subtract) becomes "none"
+%                 continuous, waveforms, rate, tuning) and CLim to its
+%                 options.cLim (heatmap, probemap, corrmap); the others,
+%                 when set, are notes
+%     common      the plot's bins, measure, baseline, auroc, maskAfterStop
+%                 and waveform (a PSTH's, raster's or tuning curve's inset;
+%                 a waveforms plot's own settings). A baseline the figure's
+%                 panels do not take (a signal's other than subtract)
+%                 becomes "none"; the auROC baseline of a PSTH or heat map
+%                 of spikes is carried with its auroc settings
 %   The plot's source (units / detected) is the layers' source and, for a
 %   figure drawn per unit, observe.source; its unit filter is observe.units
 %   when the figure observes units, else the fixed layer's units.
@@ -33,9 +35,10 @@ function [fig, notes] = plotToFigure(cfg, plotId)
 %                     panel, each with a layer following the unit; the
 %                     raster sort options and rasterEvents (events layers
 %                     drawn as marks) on the raster, histStyle / fill /
-%                     fillAlpha / normalize on the PSTH; the aux signal as
-%                     a continuous panel below (or above the raster) with
-%                     a fixed AUX layer; spacing "none"
+%                     fillAlpha / normalize / stack / stackSpacing on the
+%                     PSTH; the aux signal as a continuous panel below (or
+%                     above the raster) with a fixed AUX layer; spacing
+%                     "none"
 %     psth, overlay   per dataset: one PSTH panel with a fixed units layer
 %                     (the plot's filter) and aggregate "mean"
 %     raster          per unit: one raster panel, events layers, aux
@@ -46,15 +49,22 @@ function [fig, notes] = plotToFigure(cfg, plotId)
 %                     channels, display "stacked"; butterfly: as stack
 %                     with display "lines"
 %     heatmap         per dataset: one heat map of a fixed layer (the units
-%                     filter, or the channels), trial group 1
+%                     filter, or the channels), its order (modulation
+%                     included), trial group 1
 %     probemap        per dataset: one probe map of a fixed layer
 %     corrmap         per dataset: one correlation map of a fixed layer,
 %                     trial group 1
 %     waveforms       grid: per unit, one waveforms panel following the
-%                     unit; probe: per dataset, a fixed layer (the probe
-%                     layout is not available yet)
-%   rate, tuning and behavior plots have no panel type yet:
-%   EphysAnalysisConfig:NotConvertible. Errors: EphysAnalysisConfig:NoPlot.
+%                     unit; probe: per dataset, a fixed layer, options.layout
+%                     "probe"
+%     rate            per unit: one rate panel following the unit, the
+%                     layout (bar / box / points) as its display
+%     tuning          grid: per unit, one tuning panel following the unit;
+%                     overlay: per dataset, a fixed units layer with
+%                     aggregate "mean" (the plot's mean over units); param,
+%                     seriesParam
+%   A behavior plot has no panel type: EphysAnalysisConfig:NotConvertible.
+%   Errors: EphysAnalysisConfig:NoPlot.
 %
 %   See also EphysAnalysisConfig.convertPlotToFigure, EphysAnalysisConfig.normalizeFigure,
 %   EphysAnalysisConfig.panelTypes, EphysAnalysisConfig.plotFor.
@@ -72,9 +82,9 @@ p = cfg.Plots(k);          % as written: "default" sentinels kept
 spec = cfg.plotFor(k);     % the layout resolved
 K = EphysAnalysisConfig.plotKinds();
 kindLabel = K.Label(K.Kind == p.kind);
-if ismember(p.kind, ["rate" "tuning" "behavior"])
+if p.kind == "behavior"
     error('EphysAnalysisConfig:NotConvertible', ...
-        'Plot "%s" is a %s plot (%s): figures have no panel type for it yet, so it cannot be converted.', ...
+        'Plot "%s" is a %s plot (%s): figures have no panel type for it, so it cannot be converted.', ...
         p.id, lower(kindLabel), p.kind);
 end
 notes = string.empty(1, 0);
@@ -122,15 +132,17 @@ cm.measure = p.measure;
 cm.maskAfterStop = p.maskAfterStop;
 cm.waveform = p.waveform;
 cm.baseline = p.baseline;
+cm.auroc = p.auroc;
 if ismember(p.kind, ["evoked" "corrmap"]) || (p.kind == "heatmap" && ~spikes)
     modes = ["none" "subtract"];
+elseif ismember(p.kind, ["rate" "tuning"])
+    modes = ["none" "subtract" "ratio" "zscore"];     % firingRate's Normalize, as the plot used it
+elseif ismember(p.kind, ["psth" "heatmap"])
+    modes = ["none" "subtract" "zscore" "percent" "auroc"];
 else
     modes = ["none" "subtract" "zscore" "percent"];
 end
-if p.baseline.Mode == "auroc"
-    cm.baseline.Mode = "none";
-    addNote("The auROC baseline is not available in figures yet: the baseline became none (its auroc settings are not carried).");
-elseif ~ismember(p.baseline.Mode, modes)
+if ~ismember(p.baseline.Mode, modes)
     cm.baseline.Mode = "none";
     addNote(sprintf("The baseline ""%s"" is not one the figure's %s panel takes (%s): it became none.", p.baseline.Mode, ...
         lower(kindLabel), strjoin(modes, ", ")));
@@ -173,10 +185,8 @@ switch p.kind
             addPanel(panelOf("psth", psthOptions(), {follow}), 1);
             fig.grid = struct('spacing', "none");
         end
-        if p.stack
-            extra = "";
-            if p.stackRaster; extra = " (nor its stackRaster)"; end
-            addNote("PSTH stacking (stack) is not available in figures yet" + extra + ": the groups are overlaid.");
+        if p.stack && p.stackRaster && p.withRaster && spec.layout ~= "overlay"
+            addNote("stackRaster (each group's raster in its PSTH row) is not available: the raster is a panel of its own above the stack.");
         end
         addAux();
     case "raster"
@@ -205,10 +215,6 @@ switch p.kind
         fig.observe = struct('kind', "dataset");
         o = struct('order', p.order, 'group', 1, 'cLim', cLim);
         cUsed = true;
-        if p.order == "modulation"
-            o.order = "probe";
-            addNote("The heat map's modulation order (auROC) is not available: its rows go in probe order.");
-        end
         oneGroupNote("heat map");
         addPanel(panelOf("heatmap", o, {fixedLayer()}), 1);
     case "probemap"
@@ -223,14 +229,33 @@ switch p.kind
         addPanel(panelOf("corrmap", o, {fixedLayer()}), 1);
     case "waveforms"
         yUsed = true;
-        o = struct('yLim', yLim);
+        o = struct('layout', spec.layout, 'yLim', yLim);
         if spec.layout == "probe"
             fig.observe = struct('kind', "dataset");
-            addNote("The probe layout of unit waveforms is not available yet: the units' waveforms are drawn in one panel.");
             addPanel(panelOf("waveforms", o, {fixedLayer()}), 1);
         else
             observeUnits();
             addPanel(panelOf("waveforms", o, {follow}), 1);
+        end
+    case "rate"
+        observeUnits();
+        yUsed = true;
+        o = struct('measure', p.measure, 'baseline', cm.baseline, 'display', spec.layout, 'yLim', yLim);
+        addPanel(panelOf("rate", o, {follow}), 1);
+    case "tuning"
+        yUsed = true;
+        o = struct('param', p.param, 'seriesParam', p.seriesParam, 'measure', p.measure, 'baseline', cm.baseline, 'yLim', yLim);
+        if spec.layout == "overlay"
+            fig.observe = struct('kind', "dataset");
+            if p.waveform.mode ~= "off"
+                cm.waveform.mode = "off";
+                addNote("The waveform inset is not carried: an overlay of several units draws none.");
+            end
+            L = struct('source', p.source, 'binding', "fixed", 'units', p.units, 'aggregate', "mean");
+            addPanel(panelOf("tuning", o, {L}), 1);
+        else
+            observeUnits();
+            addPanel(panelOf("tuning", o, {follow}), 1);
         end
 end
 if ~yUsed
@@ -301,7 +326,8 @@ fig = EphysAnalysisConfig.normalizeFigure(fig, "Figure");
     end
 
     function o = psthOptions()
-        o = struct('histStyle', p.histStyle, 'fill', p.fill, 'fillAlpha', p.fillAlpha, 'normalize', p.normalize, 'yLim', yLim);
+        o = struct('histStyle', p.histStyle, 'fill', p.fill, 'fillAlpha', p.fillAlpha, 'normalize', p.normalize, ...
+            'stack', p.stack, 'stackSpacing', p.stackSpacing, 'yLim', yLim);
         yUsed = true;
     end
 

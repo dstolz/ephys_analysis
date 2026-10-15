@@ -2136,11 +2136,11 @@ check(isscalar(fg) && fg.id == "psth_1_fig" && isequal([fg.panels.type], [want.p
 check(app.FigurePreviewState == "drawn" && numel(figAxes()) == numel(fg.panels) && nPatches() == numel(fg.panels), ...
     'the converted figure is previewed at once, one axes and one schematic patch per panel');
 app.selectTab(app.TabPlots);
-app.onAddPlot("rate");
+app.onAddPlot("behavior");
 kR = app.SelectedPlot;
 app.onConvertPlotToFigure();
 check(isscalar(app.Config.Figures) && app.Tabs.SelectedTab == app.TabPlots && contains(string(app.StatusBar.Text), "cannot be converted"), ...
-    'a rate plot cannot be converted: the status bar says why, the tab stays');
+    'a behavior plot cannot be converted: the status bar says why, the tab stays');
 app.onPlotSelected(kR);
 app.onRemovePlot();
 app.selectTab(app.TabFigures);

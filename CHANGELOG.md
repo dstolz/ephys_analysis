@@ -10,6 +10,22 @@ says how to cut a release.
 
 ### Added
 
+- Adaptive weighted CAR for the derived signals (Khorasani, Shalchyan & Daliri 2019, *Front. Neurosci.*
+  13:350): each channel minus its own Kalman-tracked share of the plain CAR, so an artifact that reaches
+  the channels at different strengths is removed from each. The new `weightedCAR` computes the shared
+  gain once and runs each channel as a scalar loop, in place (about 8 s per channel-hour at 30 kHz).
+  `deriveSignals` (and `toMat`, `intan2matlab`) takes `referenceMethod="weighted"` and `wcarOptions`
+  (Order, Alpha1k, DriftPerSec, Q with NaN = automatic, HighpassHz, Estimate "prior" or "posterior").
+  It applies to the signals `referenceSignals` names, even with `ArtifactConfig.Reference` `"none"`,
+  and is reported as `info.reference.mode` `"wcar"` with `info.reference.wcar`. The sorting `.bin`, spike
+  detection and the viewer keep the common reference. `prepareReference` and `referenceTrace` take
+  `Mode=`. The pipeline config's `Signals` section gets `ReferenceMethod` and the `WCAR_*` fields
+  (checked by `signalOptions` / `validate`, logged as WCAR), and the Signals tab a reference-method drop-down
+  with the WCAR parameters. The Diagram tab draws it on the MUA / SPIKE branches (a *Weighted CAR* box with
+  its parameters; the common-reference box lists those signals as left out), and the overview's Signals box
+  and the Run tab's Signals step name it. See
+  [Adaptive weighted CAR](documentation/EphysDataset.md#adaptive-weighted-car).
+
 - Figures: panels of different types, drawn for one observation, in the analysis config. A new `Figures`
   list holds figures; each is a grid (rows and columns, relative sizes, spans) of panels, each of one of
   seven types (raster, PSTH, continuous signal, heat map, unit waveforms, probe map, unit

@@ -140,6 +140,13 @@ switch section
             'LFP_Reference',      false, ...   % subtract the common reference (the Reference section) from the LFP
             'MUA_Reference',      true, ...    % ... from the MUA
             'SPIKE_Reference',    true, ...    % ... from the SPIKE band
+            'ReferenceMethod',    "common", ...  % "common" (the Reference section) | "weighted" (adaptive weighted CAR, weightedCAR)
+            'WCAR_Order',         1, ...       % weights per channel: the CAR and its previous Order-1 samples
+            'WCAR_Alpha1k',       1, ...       % state transition at 1 kHz, (0, 1]; 1 = random walk
+            'WCAR_DriftPerSec',   1, ...       % process variance per second (larger adapts faster)
+            'WCAR_Q',             NaN, ...     % observation variance uV^2; NaN = automatic
+            'WCAR_HighpassHz',    0.5, ...     % high-pass of the estimation inputs; 0 = none
+            'WCAR_Estimate',      "prior", ... % "prior" | "posterior" weights subtracted
             'LFP_Fs',             1000, ...
             'LFP_HighpassOn',     false, ...
             'LFP_HighpassHz',     1, ...

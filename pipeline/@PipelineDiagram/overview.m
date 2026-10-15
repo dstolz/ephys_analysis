@@ -241,8 +241,13 @@ else
     lines = join(types, " + ") + " + digital events";
 end
 lines(end+1) = ternary(G.BlankArtifacts, "artifact periods erased first", "artifact periods left in");
+wcar = ["LFP" "MUA" "SPIKE"];
+wcar = wcar([G.LFP G.MUA G.SPIKE] & [G.LFP_Reference G.MUA_Reference G.SPIKE_Reference]);
+if G.ReferenceMethod == "weighted" && ~isempty(wcar)
+    lines(end+1) = "weighted CAR: " + join(wcar, " + ");
+end
 signals = step("signals", 2, 1, "Signals", G.Enabled, lines, ...
-    "SigEnableCheckBox,ConvLFPCheckBox,ConvMUACheckBox,ConvSPIKECheckBox,ConvAUXCheckBox");
+    "SigEnableCheckBox,ConvLFPCheckBox,ConvMUACheckBox,ConvSPIKECheckBox,ConvAUXCheckBox,SigRefMethodDropDown");
 if G.SeparateFiles && ~isempty(types)
     file = dsName + G.Suffix + "_<TYPE>.mat";
 else

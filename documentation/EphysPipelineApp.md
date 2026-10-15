@@ -2231,9 +2231,12 @@ step box to the files it writes:
 - **Common reference** (`Reference.Mode`, set on the Artifacts tab): the one box for the
   whole pipeline, since every step subtracts it once from its own read of the
   recording. It lists what leaves it out: the Signals not ticked for it
-  (*not Signals' LFP* by default) and the common-mode artifact detector,
-  which looks for the very mean it subtracts. Dashed *none (as recorded)*
-  when it is off.
+  (*not Signals' LFP* by default), the Signals that take the adaptive
+  weighted CAR instead (*not Signals' MUA / SPIKE: weighted CAR there*, with
+  `Signals.ReferenceMethod` `"weighted"`) and the common-mode artifact
+  detector, which looks for the very mean it subtracts. Dashed *none (as
+  recorded)* when it is off, then still naming the Signals that take the
+  weighted CAR (*on their branch*).
 - **Artifacts**: chunked reading, the detection
   filter, the detector (method, window, threshold), channel coincidence,
   merge / pad, the automatic intervals, and the artifact periods
@@ -2260,8 +2263,10 @@ step box to the files it writes:
   when `Signals.BlankArtifacts` is off) over the LFP (resample, band filter,
   notch), MUA (bandpass, rectify, resample, integrate) and SPIKE (resample,
   bandpass) branches, each of whose first box says whether it takes the
-  common reference (*common CMR referenced*) or not (*as recorded (no common
-  reference)*); the AUX and digital-event branches hang from the read
+  common reference (*common CMR referenced*), the adaptive weighted CAR
+  (*adaptive weighted CAR*, followed by a *Weighted CAR* box with its order,
+  alpha, drift, Q, estimate and high-pass, which opens the WCAR controls) or
+  neither (*as recorded (no common reference)*); the AUX and digital-event branches hang from the read
   beside the channel selection, since neither is referenced or
   channel-selected. The amplifier branches end with bad-channel
   interpolation, the channel remap and the output file. Export and Analysis

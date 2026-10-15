@@ -9,7 +9,9 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %   referenceSignals names (MUA and SPIKE by default; the LFP is taken as
 %   recorded), as the .bin and spike detection take it, and the artifact
 %   periods (artifactIntervals) are erased after it, so every signal derives
-%   from the cleaned recording.
+%   from the cleaned recording. With referenceMethod "weighted" those
+%   signals take the adaptive weighted CAR (weightedCAR, Khorasani et al.
+%   2019) instead, whatever ArtifactConfig.Reference says.
 %   This is the implementation behind INTAN2MATLAB, which is a thin wrapper
 %   around it: option names, processing and outputs are the same.
 %
@@ -51,7 +53,7 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %           invertedLines (the lines whose events are low runs), badChannels
 %           (the interpolation, see below), LFP/MUA/SPIKE sub-structs (Fs,
 %           nSamples, reference: the common reference subtracted from that
-%           signal, "none" | "car" | "cmr"; LFP also bpLoHi, NotchHz,
+%           signal, "none" | "car" | "cmr" | "wcar"; LFP also bpLoHi, NotchHz,
 %           NotchBW and a text description of the filter applied; MUA also
 %           IntegrationHz and bpLoHi) for the requested types, AUX (Fs, nSamples, labels,
 %           units) when present, and importOptions (the options used, with
@@ -64,10 +66,13 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %           geometry column's weights over the kept columns, summing to 1;
 %           zero for a "columns" fill).
 %           INFO.reference: the common reference: mode ("none" | "car" |
-%           "cmr"), channels (the recording channels it was taken over,
-%           referenceChannels) and signals (the derived signals it was
+%           "cmr" | "wcar"), channels (the recording channels it was taken
+%           over, referenceChannels) and signals (the derived signals it was
 %           subtracted from). mode is "none", with no channels or signals,
-%           when it was subtracted from none of them.
+%           when it was subtracted from none of them. With "wcar" it also
+%           holds wcar: weightedCAR's INFO (the parameters, alpha and V per
+%           sample, the weights per column) with Q the value used and QAuto
+%           true when it was worked out (wcarOptions.Q NaN).
 %           INFO.artifacts: the artifactIntervals option, what was erased
 %           before any signal was derived: intervals ([k x 2] [tStart tEnd)
 %           seconds on the recording's continuous clock, merged; zeros(0,2)
@@ -151,6 +156,25 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %                        recording, so with one all channels are read and
 %                        keepAmpChannels picks from them. Reported in
 %                        INFO.reference and INFO.<type>.reference
+%     referenceMethod    "common" | "weighted"  "common"  what the
+%                        referenceSignals take. "common": the dataset's
+%                        ArtifactConfig.Reference, as above. "weighted": the
+%                        adaptive weighted CAR (weightedCAR), each kept
+%                        column minus its own Kalman-tracked share of the
+%                        plain CAR over referenceChannels, even when
+%                        ArtifactConfig.Reference is "none" (the
+%                        ReferenceExclude suggestion then runs as for "car").
+%                        The sorting .bin, spike detection and the viewer
+%                        keep the common reference.
+%     wcarOptions        struct  struct()  weightedCAR's options for
+%                        "weighted": any of Order, Alpha1k, DriftPerSec, Q,
+%                        HighpassHz, Estimate, W0, P0 (missing ones take
+%                        weightedCAR's defaults). Q NaN or missing =
+%                        automatic: the median over the reference channels
+%                        of (1.4826 * MAD(z_i - CAR))^2, the residual
+%                        high-passed at HighpassHz (MAD over at most 2^22
+%                        evenly spaced samples), the paper's q = E[s_i^2]
+%                        for the plain-CAR residual
 %     artifactIntervals  [k x 2] seconds  zeros(0,2)  artifact periods
 %                        (EphysDataset.artifactIntervals: recording-relative,
 %                        half-open) erased in the amplifier data before any
@@ -188,14 +212,20 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %   keepAmpChannels every channel is read, so the kept columns are copied
 %   out of the whole recording once. A SPIKE band taken as recorded next to
 %   a referenced signal cannot overwrite the amplifier data, so it costs one
-%   more copy of the recording.
+%   more copy of the recording. The weighted CAR works in place too, one
+%   column at a time; its gains ([Order x nSamples] double) are held whole.
+%
+%   Weighted CAR and artifact periods: the weights are tracked through the
+%   recording before the periods are erased, so a large artifact can leave
+%   a weight transient that outlasts its erased period by the adaptation
+%   time (longer for smaller DriftPerSec).
 %
 %   Requires the Signal Processing Toolbox (BUTTER, FILTFILT, RESAMPLE);
-%   automatic bad-channel detection also needs ZSCORE (Statistics and
-%   Machine Learning Toolbox).
+%   automatic bad-channel detection also needs ZSCORE, and the weighted CAR
+%   MAD and PRCTILE (Statistics and Machine Learning Toolbox).
 %
 %   See also INTAN2MATLAB, EphysDataset.toMat, EphysDataset.readData,
-%   EphysDataset.channelLayout, EphysDataset.filterContinuous.
+%   EphysDataset.channelLayout, EphysDataset.filterContinuous, weightedCAR.
 
 arguments
     obj (1,1) EphysDataset
@@ -217,6 +247,8 @@ arguments
     opts.invertedLines {mustBeNameList} = []
     opts.probeFile (1,1) string = ""
     opts.referenceSignals (1,:) string = ["MUA" "SPIKE"]
+    opts.referenceMethod (1,1) string {mustBeMember(opts.referenceMethod, ["common" "weighted"])} = "common"
+    opts.wcarOptions (1,1) struct = struct()
     opts.artifactIntervals (:,2) double {mustBeFinite} = zeros(0, 2)
     opts.ProgressFcn = []
 end
@@ -241,6 +273,7 @@ if ~isempty(badRef)
         'Unknown referenceSignals value(s): %s. Use "LFP", "MUA" and/or "SPIKE".', ...
         strjoin(badRef, ', '));
 end
+[wcarArgs, wcarQ] = wcarArguments(opts.wcarOptions);
 if opts.MUA_bpLoHi(1) >= opts.MUA_bpLoHi(2)
     error('EphysDataset:deriveSignals:MUA_bpLoHiOrder', ...
         'MUA_bpLoHi must be [low high] with low < high.');
@@ -300,6 +333,9 @@ end
 % Header metadata: fail fast, before the long read.
 if isfinite(obj.Fs)
     signalRates(opts, has, obj.Fs);
+    if opts.referenceMethod == "weighted"
+        wcarDefaults(wcarArgs, wcarQ, obj.Fs);
+    end
 end
 nKept = numel(opts.keepAmpChannels);
 if nKept == 0; nKept = obj.NumChannels; end
@@ -311,16 +347,24 @@ artifacts = EphysDataset.mergeIntervals(opts.artifactIntervals);
 opts = rmfield(opts, 'artifactIntervals');   % reported in info.artifacts, not importOptions
 
 % The amplifier signals derived, and those the common reference is
-% subtracted from (none when ArtifactConfig.Reference is "none"). The
-% reference is taken over every channel of the recording, so with one the
-% whole recording is read and the kept channels are picked after it.
+% subtracted from (none when ArtifactConfig.Reference is "none", unless the
+% weighted CAR is asked for). The reference is taken over every channel of
+% the recording, so with one the whole recording is read and the kept
+% channels are picked after it.
 ampTypes = ["LFP" "MUA" "SPIKE"];
 ampTypes = ampTypes([has.LFP has.MUA has.SPIKE]);
 refMode = string(EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).Reference);
+if opts.referenceMethod == "weighted"
+    refMode = "wcar";
+end
 refTypes = ampTypes(ismember(ampTypes, opts.referenceSignals));
 if refMode == "none" || isempty(refTypes)
     refMode = "none";
     refTypes = strings(1, 0);
+end
+traceMode = refMode;   % the trace taken over the reference channels
+if refMode == "wcar"
+    traceMode = "car";   % the weighted CAR weighs the plain CAR
 end
 % Up to two passes over the amplifier data: the signals taken as recorded,
 % then, once the reference is subtracted in place, the ones that take it.
@@ -336,13 +380,13 @@ if refMode ~= "none"
         error('EphysDataset:deriveSignals:KeepChannels', ...
             'keepAmpChannels lists channel %d but %s has %d.', max(readKeep), obj.Name, obj.NumChannels);
     end
-    obj.prepareReference();
+    obj.prepareReference(Mode=traceMode);
     readKeep = [];
 end
 
 % Progress steps: one per file read, then one per processing stage.
 nRead  = obj.NumFiles;
-nProc  = (refMode ~= "none") + numel(passes) * ~isempty(artifacts) + has.LFP + lfpFilter + has.MUA + has.SPIKE + ~isempty(opts.badChannels) ...
+nProc  = (refMode ~= "none") + (refMode == "wcar") + numel(passes) * ~isempty(artifacts) + has.LFP + lfpFilter + has.MUA + has.SPIKE + ~isempty(opts.badChannels) ...
     + ~isempty(opts.channelRemap) + 1;   % +1 = digital events
 nSteps = nRead + nProc;
 
@@ -365,14 +409,31 @@ end
 origFs = data.Fs;
 
 % --- the common reference, over every channel; then the kept channels ---
-% One [nSamples x 1] trace, subtracted later from the signals that take it.
+% One [nSamples x 1] trace, subtracted later from the signals that take it
+% (the weighted CAR weighs it per column). The weighted CAR's automatic Q
+% is taken over the reference channels, so before the kept ones are picked.
 ref = struct('mode', refMode, 'channels', zeros(1, 0), 'signals', refTypes);
 R = [];
 if refMode ~= "none"
     ref.channels = obj.referenceChannels();
-    nDone = reportProgress(progressFcn, nDone, nSteps, sprintf('Common %s reference over %d channel(s), for %s', ...
-        upper(refMode), numel(ref.channels), strjoin(refTypes, ", ")));
-    R = referenceRows(obj, AMPSIG);
+    if refMode == "wcar"
+        msg = sprintf(['Adaptive weighted CAR (Khorasani et al. 2019): the plain CAR over %d channel(s), ' ...
+            'for %s'], numel(ref.channels), strjoin(refTypes, ", "));
+    else
+        msg = sprintf('Common %s reference over %d channel(s), for %s', ...
+            upper(refMode), numel(ref.channels), strjoin(refTypes, ", "));
+    end
+    nDone = reportProgress(progressFcn, nDone, nSteps, msg);
+    R = referenceRows(obj, AMPSIG, traceMode);
+    if refMode == "wcar"
+        wcarDef = wcarDefaults(wcarArgs, wcarQ, origFs);
+        wcarAuto = isnan(wcarQ);
+        wcarQSource = "";
+        if wcarAuto
+            wcarQ = wcarAutoQ(obj, AMPSIG, R, ref.channels, wcarDef.HighpassHz, origFs);
+            wcarQSource = ", automatic";
+        end
+    end
     if ~isempty(opts.keepAmpChannels)
         keepCh = opts.keepAmpChannels(:).';
         AMPSIG = AMPSIG(:, keepCh);
@@ -437,7 +498,14 @@ k = blockColumns(nCol);
 for p = 1:numel(passes)
     types = passes(p).types;
     last = p == numel(passes);
-    if passes(p).referenced
+    if passes(p).referenced && refMode == "wcar"
+        nDone = reportProgress(progressFcn, nDone, nSteps, ...
+            sprintf('Weighted CAR: Kalman weights of %d column(s) (Order %d, %s estimate, Q %.4g uV^2%s)', ...
+            nCol, wcarDef.Order, wcarDef.Estimate, wcarQ, wcarQSource));
+        [AMPSIG, ref.wcar] = weightedCAR(AMPSIG, R, wcarArgs{:}, 'Fs', origFs, 'Q', wcarQ);   % in place
+        ref.wcar.QAuto = wcarAuto;
+        R = [];
+    elseif passes(p).referenced
         AMPSIG = subtractRows(AMPSIG, R);
         R = [];
     end
@@ -643,17 +711,75 @@ labels = cellstr(names);
 end
 
 
-function R = referenceRows(obj, X)
-%referenceRows  The common reference of X (referenceTrace), [nRows x 1] in
-%   X's class, a block of rows at a time: each sample is referenced on its
-%   own, so the result is the same as for the whole matrix at once, with a
-%   bounded copy.
+function R = referenceRows(obj, X, mode)
+%referenceRows  The common reference of X (referenceTrace, "car" | "cmr"),
+%   [nRows x 1] in X's class, a block of rows at a time: each sample is
+%   referenced on its own, so the result is the same as for the whole
+%   matrix at once, with a bounded copy.
 nRows = size(X, 1);
 R = zeros(nRows, 1, 'like', X);
 blk = max(1, floor(2^24 / max(1, size(X, 2))));   % about 16M samples per block
 for r0 = 1:blk:nRows
     r = r0:min(nRows, r0 + blk - 1);
-    R(r) = obj.referenceTrace(X(r, :));
+    R(r) = obj.referenceTrace(X(r, :), Mode=mode);
+end
+end
+
+
+function [args, Q] = wcarArguments(wo)
+%wcarArguments  wcarOptions as weightedCAR name-value pairs, Q apart (NaN =
+%   automatic).
+known = ["Order" "Alpha1k" "DriftPerSec" "Q" "HighpassHz" "Estimate" "W0" "P0"];
+f = string(fieldnames(wo)).';
+bad = setdiff(f, known);
+if ~isempty(bad)
+    error('EphysDataset:deriveSignals:wcarOptions', ...
+        'Unknown wcarOptions field(s): %s. Use any of %s.', strjoin(bad, ', '), strjoin(known, ', '));
+end
+Q = NaN;
+if isfield(wo, 'Q')
+    if ~(isnumeric(wo.Q) && isscalar(wo.Q) && (isnan(wo.Q) || wo.Q > 0))
+        error('EphysDataset:deriveSignals:wcarOptions', ...
+            'wcarOptions.Q must be NaN (automatic) or a positive number (uV^2).');
+    end
+    Q = double(wo.Q);
+    wo = rmfield(wo, 'Q');
+end
+args = namedargs2cell(wo);
+end
+
+
+function d = wcarDefaults(args, Q, Fs)
+%wcarDefaults  The weighted CAR's resolved options (weightedCAR's INFO on no
+%   data), which also checks them against the rate Fs before any work.
+if isnan(Q)
+    Q = 1;   % any valid value: the automatic one comes later
+end
+[~, d] = weightedCAR(zeros(0, 1), zeros(0, 1), args{:}, 'Fs', Fs, 'Q', Q);
+end
+
+
+function q = wcarAutoQ(obj, X, R, ch, hpHz, Fs)
+%wcarAutoQ  The weighted CAR's automatic observation variance: the median
+%   over the reference channels CH of the robust variance
+%   (1.4826 * MAD)^2 of the plain-CAR residual X(:, ch) - R, high-passed at
+%   hpHz (0 = none) as weightedCAR high-passes its inputs. The MAD is taken
+%   over at most 2^22 evenly spaced samples.
+nS = size(X, 1);
+rows = 1:max(1, ceil(nS / 2^22)):nS;
+v = zeros(1, numel(ch));
+for j = 1:numel(ch)
+    x = double(X(:, ch(j))) - double(R);
+    if hpHz > 0
+        x = obj.filterContinuous(x, Type="highpass", Cutoff=hpHz, Fs=Fs);
+    end
+    v(j) = (1.4826 * mad(x(rows), 1))^2;
+end
+q = median(v);
+if ~(q > 0)
+    error('EphysDataset:deriveSignals:wcarQ', ...
+        ['The automatic weighted-CAR Q of %s is 0 (the reference channels match their ' ...
+         'average); set wcarOptions.Q.'], obj.Name);
 end
 end
 

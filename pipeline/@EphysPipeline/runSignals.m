@@ -6,7 +6,9 @@ function runSignals(obj, opts)
 %   reference of the Reference section (CAR / CMR; the datasets'
 %   ArtifactConfig) is subtracted, once, from the signals whose
 %   Signals.<TYPE>_Reference is on (MUA and SPIKE by default, not the LFP;
-%   see deriveSignals' referenceSignals). With
+%   see deriveSignals' referenceSignals), or the adaptive weighted CAR
+%   with Signals.ReferenceMethod "weighted" (deriveSignals'
+%   referenceMethod; logged as WCAR). With
 %   Signals.BlankArtifacts the dataset's artifact periods (the manual ones,
 %   plus the automatic detection when Artifacts.ApplyToSignals, as Sorting
 %   and Spikes take them: artifactIntervalsForStep) are erased before any
@@ -52,7 +54,9 @@ for k = 1:n
         end
         if opts.DryRun
             what = "would write " + strjoin(sigOpts.dataTypeOut, "+");
-            if c.Reference.Mode ~= "none" && ~isempty(sigOpts.referenceSignals)
+            if sigOpts.referenceMethod == "weighted" && ~isempty(sigOpts.referenceSignals)
+                what = what + ", " + strjoin(sigOpts.referenceSignals, "+") + " WCAR referenced";
+            elseif c.Reference.Mode ~= "none" && ~isempty(sigOpts.referenceSignals)
                 what = what + ", " + strjoin(sigOpts.referenceSignals, "+") + " " + upper(c.Reference.Mode) + " referenced";
             end
             if G.BlankArtifacts
@@ -78,7 +82,11 @@ for k = 1:n
         if any(sigOpts.dataTypeOut == "AUX") && ~any(contains(r.types, "AUX"))
             obj.log("[signals] %s: no aux (accelerometer) inputs recorded; AUX not written", d.Name);
         end
-        if r.reference.mode ~= "none"
+        if r.reference.mode == "wcar"
+            obj.log("[signals] %s: adaptive weighted CAR (WCAR) over %d channel(s), subtracted from %s (Q %.4g uV^2%s)", ...
+                d.Name, numel(r.reference.channels), strjoin(r.reference.signals, ", "), r.reference.wcar.Q, ...
+                ternary(r.reference.wcar.QAuto, ", automatic", ""));
+        elseif r.reference.mode ~= "none"
             obj.log("[signals] %s: common %s reference over %d channel(s), subtracted from %s", d.Name, ...
                 upper(r.reference.mode), numel(r.reference.channels), strjoin(r.reference.signals, ", "));
         end

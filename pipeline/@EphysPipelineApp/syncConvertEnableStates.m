@@ -8,6 +8,10 @@ function syncConvertEnableStates(obj)
     obj.SigRefLFPCheckBox.Enable   = onOff(lfp);
     obj.SigRefMUACheckBox.Enable   = onOff(mua);
     obj.SigRefSPIKECheckBox.Enable = onOff(spk);
+    wcar = string(obj.SigRefMethodDropDown.Value) == "weighted";
+    set([obj.SigWCAREstimateDropDown, obj.SigWCAROrderField, obj.SigWCARAlphaField, ...
+        obj.SigWCARDriftField, obj.SigWCARHighpassField, obj.SigWCARQAutoCheckBox], 'Enable', onOff(wcar));
+    obj.SigWCARQField.Enable = onOff(wcar && ~obj.SigWCARQAutoCheckBox.Value);
     obj.ConvLFPFsField.Enable = onOff(lfp);
     set([obj.ConvLFPHighpassCheckBox, obj.ConvLFPLowpassCheckBox, ...
         obj.ConvLFPNotchCheckBox], 'Enable', onOff(lfp));

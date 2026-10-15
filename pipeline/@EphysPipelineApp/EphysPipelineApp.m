@@ -601,6 +601,14 @@ classdef EphysPipelineApp < handle
         SigRefLFPCheckBox       matlab.ui.control.CheckBox     % the common reference subtracted from the LFP
         SigRefMUACheckBox       matlab.ui.control.CheckBox     % ... from the MUA
         SigRefSPIKECheckBox     matlab.ui.control.CheckBox     % ... from the SPIKE band
+        SigRefMethodDropDown    matlab.ui.control.DropDown     % Signals.ReferenceMethod: common | weighted (adaptive weighted CAR)
+        SigWCAREstimateDropDown matlab.ui.control.DropDown     % Signals.WCAR_Estimate
+        SigWCAROrderField       matlab.ui.control.NumericEditField
+        SigWCARAlphaField       matlab.ui.control.NumericEditField
+        SigWCARDriftField       matlab.ui.control.NumericEditField
+        SigWCARHighpassField    matlab.ui.control.NumericEditField
+        SigWCARQField           matlab.ui.control.NumericEditField
+        SigWCARQAutoCheckBox    matlab.ui.control.CheckBox     % WCAR_Q NaN = automatic
         ConvLFPFsField          matlab.ui.control.NumericEditField
         ConvLFPHighpassCheckBox matlab.ui.control.CheckBox
         ConvLFPHighpassField    matlab.ui.control.NumericEditField

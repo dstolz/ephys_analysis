@@ -169,6 +169,22 @@ function [Y, events, info] = intan2matlab(RHDroot, options)
 %       events are the low runs: onset = falling edge, offset = last low
 %       sample. Other lines keep the normal polarity (onset = rising edge).
 %
+%   options.referenceMethod    string         "common"
+%       What MUA and SPIKE take as their reference (EphysDataset.
+%       deriveSignals' referenceSignals: MUA and SPIKE, not the LFP).
+%       "common": the dataset's common reference (ArtifactConfig.Reference,
+%       "none" for a folder read here). "weighted": the adaptive weighted
+%       CAR (WEIGHTEDCAR; Khorasani et al. 2019, Front. Neurosci. 13:350),
+%       each channel minus its own Kalman-tracked share of the plain CAR.
+%       INFO.reference reports it (mode "wcar", with the weights in
+%       INFO.reference.wcar).
+%
+%   options.wcarOptions        struct         struct()
+%       WEIGHTEDCAR's options for "weighted": any of Order (1), Alpha1k
+%       (1), DriftPerSec (1), Q (NaN = automatic, the robust variance of
+%       the high-passed plain-CAR residual), HighpassHz (0.5), Estimate
+%       ("prior" | "posterior"), W0 (1) and P0 (1).
+%
 %   options.artifactIntervals  k×2 double s   zeros(0,2)
 %       Artifact periods [tStart tEnd) in seconds from the recording start,
 %       erased (a straight line across each, per channel) before any signal
@@ -199,7 +215,7 @@ function [Y, events, info] = intan2matlab(RHDroot, options)
 %   ------------
 %   Signal Processing Toolbox (BUTTER, FILTFILT, RESAMPLE); ZSCORE
 %   (Statistics and Machine Learning Toolbox) for automatic bad-channel
-%   detection only.
+%   detection, and MAD and PRCTILE (the same toolbox) for the weighted CAR.
 %
 %   See also EPHYSDATASET, EphysDataset.deriveSignals, EphysDataset.toMat,
 %   READ_INTAN_RHD2000_FILE_MODIFIED, RESAMPLE, BUTTER, FILTFILT, FILLMISSING
@@ -223,6 +239,8 @@ arguments
     options.lineNames (1,:) string = string.empty(1,0)
     options.invertedLines (1,:) string = string.empty(1,0)
     options.ProbeFile (1,1) string = ""
+    options.referenceMethod (1,1) string = "common" % "common" | "weighted" (adaptive weighted CAR)
+    options.wcarOptions (1,1) struct = struct()
     options.artifactIntervals (:,2) double = zeros(0, 2)
     options.ProgressFcn = []
 end

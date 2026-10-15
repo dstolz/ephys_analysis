@@ -1,4 +1,4 @@
-function tf = prepareReference(obj)
+function tf = prepareReference(obj, opts)
 %prepareReference  Settle the channels of the common reference before a read.
 %   TF = ds.prepareReference() is called by every streaming entry point
 %   (toBin, artifactIntervals, analyzeArtifacts, noiseLevels, detectSpikes)
@@ -9,6 +9,10 @@ function tf = prepareReference(obj)
 %   set (ReferenceExcludeSource ""), it takes suggestReferenceExclude's
 %   channels, marks them "suggested" and writes the manifest so the choice
 %   can be reviewed (Artifacts tab). TF is true when it did so.
+%
+%   TF = ds.prepareReference(Mode="car") settles them for that reference
+%   whatever ArtifactConfig.Reference says (deriveSignals' weighted CAR,
+%   which weighs the plain CAR, does so when the Reference is "none").
 %
 %   A suggestion that would leave fewer than MinReferenceChannels (5)
 %   channels in the reference is not applied: it warns
@@ -22,9 +26,17 @@ function tf = prepareReference(obj)
 %
 %   See also EphysDataset.suggestReferenceExclude, EphysDataset.applyReference.
 
+arguments
+    obj (1,1) EphysDataset
+    opts.Mode (1,1) string {mustBeMember(opts.Mode, ["" "none" "car" "cmr"])} = ""   % "" = ArtifactConfig.Reference
+end
+
 tf = false;
-acfg = EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig);
-if string(acfg.Reference) == "none"
+mode = opts.Mode;
+if mode == ""
+    mode = string(EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).Reference);
+end
+if mode == "none"
     return
 end
 if obj.ReferenceExcludeSource == ""
@@ -40,7 +52,7 @@ if obj.ReferenceExcludeSource == ""
     end
     obj.ReferenceExclude = bad;
     obj.ReferenceExcludeSource = "suggested";
-    fprintf('Common reference (%s) of %s: %s.\n', upper(acfg.Reference), obj.Name, info.summary);
+    fprintf('Common reference (%s) of %s: %s.\n', upper(mode), obj.Name, info.summary);
     obj.writeManifest();
     tf = true;
 end

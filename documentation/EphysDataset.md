@@ -766,6 +766,111 @@ then dominate the average. A reference over no channel at all is an error
 `reference` (`mode`, `channels`). The pipeline's artifact-interval cache is
 keyed on the reference channels as well as the config.
 
+`prepareReference(Mode=)` and `referenceTrace(X, Mode=)` take a reference
+(`"none"`, `"car"`, `"cmr"`) in place of `ArtifactConfig.Reference`; the
+weighted CAR below uses `Mode="car"`.
+
+### Adaptive weighted CAR
+
+**`[S, info] = weightedCAR(Z, n, Fs=, Q=, Name=Value)`** (a function in
+`pipeline/`, not a method) is the "weighted CAR" of Khorasani, Shalchyan &
+Daliri 2019, "Adaptive Artifact Removal From Intracortical Channels for
+Accurate Decoding of a Force Signal in Freely Moving Rats", *Front. Neurosci.*
+13:350 ([doi:10.3389/fnins.2019.00350](https://doi.org/10.3389/fnins.2019.00350)).
+`deriveSignals` applies it, in place of the common reference, to the signals
+`referenceSignals` names when `referenceMethod` is `"weighted"`. Only there:
+the sorting `.bin`, spike detection, artifact detection and the viewer keep
+none / CAR / CMR, since they read the recording in chunks, in parallel and at
+random, which a stateful filter does not allow without a serial pre-pass.
+
+**Model.** Each channel is `z_i(t) = s_i(t) + w_i(t)' * n(t)`, where `n(t)`
+holds the plain CAR `c(t)` (the mean over `referenceChannels`) and its
+previous `Order - 1` values, `[c(t); c(t-1); ...]`. A Kalman filter tracks
+each channel's weights (the paper's eqs. 6-8):
+
+| | |
+| --- | --- |
+| state | `w(t+1) = alpha * w(t) + lambda`, `lambda ~ N(0, V)` |
+| observation | `z(t) = n(t)' * w(t) + s(t)`, `s ~ N(0, q)` |
+| gain | `K(t) = P⁻(t) n(t) / (n(t)' P⁻(t) n(t) + q)` |
+| update | `w_hat(t) = w⁻(t) + K(t) (z(t) - n(t)' w⁻(t))`, `P(t) = (I - K(t) n(t)') P⁻(t)` |
+| predict | `w⁻(t+1) = alpha * w_hat(t)`, `P⁻(t+1) = alpha² P(t) + V` |
+
+and the output is `s_hat_i = z_i - n' * w_i`. Plain CAR is `w_i = [1; 0 ...]`
+held fixed.
+
+**Shared gain.** With `V`, `q` and `P0` the same for every channel (as in the
+paper: "Parameters V and q were assumed constant for all intracortical
+channels"), `P(t)` and `K(t)` depend on `n` only. They are computed once, and
+each channel then needs only `w <- alpha * (w + K(t) * (z(t) - n(t)' * w))`:
+the per-channel Kalman filter exactly (the test checks it against one written
+out per channel, to 1e-9 of the signal scale), at a fraction of its cost.
+Each column is run as a scalar loop in double, one column at a time, written
+back into `Z` in place; about 8 s per channel-hour at 30 kHz with `Order` 1
+on the workstation.
+
+| Option | Default | Where the default comes from |
+| --- | --- | --- |
+| `Fs` | required | the rate of `Z` and `n` |
+| `Q` | required | the observation variance `q` (µV²), the paper's `q = E[s_i²]`. `deriveSignals` works it out when `wcarOptions.Q` is `NaN` (below) |
+| `Order` | 1 | `M`, 1-16: the weights per channel. The paper does not state it for its recordings; 1 is plain CAR's shape |
+| `Alpha1k` | 1 | `alpha` at 1 kHz, (0, 1]; per sample `alpha = Alpha1k^(1000/Fs)`, so the decay per second does not depend on the rate. The paper's 0.99 was fitted to simulated ground truth, which real data lack; below 1 pulls the weights toward 0 (no reference), and 1 (a random walk) was the more robust in our simulations |
+| `DriftPerSec` | 1 | the process variance per second; `V = DriftPerSec/Fs * I` per sample. The paper gives no value. Larger adapts faster, and absorbs more of the signal the channels share |
+| `HighpassHz` | 0.5 | the paper's lower band edge: a zero-phase 4th-order Butterworth high-pass (second-order sections) of `Z` and `n` before the weights are estimated; 0 = none |
+| `Estimate` | `"prior"` | the weights subtracted at sample `t`: `"prior"`, the prediction `alpha * w_hat(t-1)` made before `z(t)` is seen, or `"posterior"`, the paper's `w_hat(t)` (its Fig. 1 / eq. 8) |
+| `W0` | 1 | the first sample's lag-0 weight (the other lags 0): it starts as plain CAR. Not in the paper |
+| `P0` | 1 | the first sample's weight covariance `P0 * I`. Not in the paper |
+
+The subtracted term uses the high-passed `n` too, so nothing below
+`HighpassHz` is removed and a channel's DC offset never leaks into another
+through time-varying weights.
+
+**Posterior identity.** `z - n' * w_hat(t)` = (innovation) ×
+`q / (n' P⁻ n + q)`. The posterior output therefore scales the whole sample
+down, neural signal included, when the common signal is large: a soft
+blanking that distorts amplitudes. That is why the a-priori estimate is the
+default.
+
+`info`: `Fs`, `Order`, `Alpha1k`, `DriftPerSec`, `Q`, `HighpassHz`,
+`Estimate`, `W0`, `P0`, `alpha` and `V` (per sample) and `weights`, a summary
+per column over time (sampled every 0.1 s): `p5`, `median`, `p95` and
+`final`, each `[Order x nCol]` (row m = lag m-1). Errors: `weightedCAR:Fs`,
+`Q`, `Order`, `Alpha1k`, `DriftPerSec`, `HighpassHz`, `Estimate`, `Initial`,
+`Size`.
+
+**In `deriveSignals`.** `referenceMethod="weighted"` gives `info.reference.mode`
+`"wcar"` (and `info.<TYPE>.reference` `"wcar"`), even when
+`ArtifactConfig.Reference` is `"none"`: `prepareReference(Mode="car")` settles
+the channels (the `ReferenceExclude` suggestion runs as for `"car"`), and
+`n` is `referenceTrace(X, Mode="car")` over every channel, before
+`keepAmpChannels` picks the kept ones. `wcarOptions` (a struct of any of the
+options above but `Fs`) is checked against the header rate before the read.
+With `wcarOptions.Q` `NaN` or absent, `Q` is automatic: the median over the
+reference channels of `(1.4826 * MAD(z_i - c))²`, the residual high-passed at
+`HighpassHz`, the MAD over at most 2^22 evenly spaced samples; the robust
+variance of the plain-CAR residual, the paper's `q = E[s_i²]`.
+`info.reference.wcar` holds `weightedCAR`'s `info`, with the `Q` used and
+`QAuto`. The order is as for CAR: reference first, then the artifact-period
+erase. The weights are tracked through the periods before they are erased, so
+a large artifact can leave a weight transient that outlasts its erased period
+by the adaptation time.
+
+**Caveats.**
+
+- The observation model treats `s_i` as white. LFP is not, so neural signal
+  the channels share with the CAR can be absorbed into the weights. This is
+  one more reason the LFP is taken as recorded by default.
+- The paper's rates are inconsistent: recorded at 10 kHz, but a "4 sample
+  delay (4 ms considering 1 Khz sampling rate)".
+- Evidence base: 3 rats with 16-channel microwire arrays; force-decoding R²
+  rose from 0.33 to 0.44 (LFP + MUA). It was not tested for spike sorting.
+- Results depend strongly on `Alpha1k` and `DriftPerSec`. In our own
+  simulations (16 channels at 1 kHz, mixing U(-1, 1) drifting every 0.5-2 s,
+  motion or burst artifacts, -20 to 0 dB) the weighted CAR beat CAR in every
+  case. With `alpha` 0.99 at 1 kHz and a low `V` it fell behind. The posterior
+  estimate beat the prior on bursts, which is the attenuation above, and R²
+  rewards it.
+
 ### Artifact detection and blanking
 
 **`[mask, intervals, stats] = detectArtifacts(X, Name=Value)`** flags samples
@@ -1839,8 +1944,10 @@ more copy of the recording only for a SPIKE band taken as recorded next to a
 referenced signal). `info.reference` reports it: `mode`, `channels` (the
 channels it was taken over) and `signals` (the signals it was subtracted
 from; `mode` is `"none"` when there are none), and each signal's
-`info.<TYPE>.reference` says `"none"`, `"car"` or `"cmr"`, so a per-type file
-carries its own. With `artifactIntervals` (`[k x 2]` recording-relative seconds, half-open;
+`info.<TYPE>.reference` says `"none"`, `"car"`, `"cmr"` or `"wcar"`, so a
+per-type file carries its own. With `referenceMethod="weighted"` those
+signals take the [adaptive weighted CAR](#adaptive-weighted-car) instead
+(`wcarOptions` sets it). With `artifactIntervals` (`[k x 2]` recording-relative seconds, half-open;
 default none) the samples those periods cover (`artifactSamples`) are replaced
 in the amplifier data, per channel, by a straight line from the mean of the
 1 ms before the period to the mean of the 1 ms after it, before any signal is
@@ -2466,6 +2573,16 @@ common-mode detector under a reference, with `ExcludeChannels` taking no part
 in artifact detection, and the derived signals that take the reference (the
 LFP as recorded by default, `referenceSignals`, `keepAmpChannels`, the
 artifact periods erased after the reference, CMR).
+
+[`test_WeightedCAR.m`](../pipeline/test_WeightedCAR.m) covers `weightedCAR`
+against a Kalman filter written out per channel (Order 1 and 3, both
+estimates), the posterior identity, a paper-style simulation (weighted CAR
+beats CAR, which beats no reference), the weights under uniform mixing, input
+checks, the `HighpassHz` = 0 path and the output class; `deriveSignals` with
+`referenceMethod="weighted"` (the MUA and SPIKE against `weightedCAR` and the
+band filters, the LFP untouched, `keepAmpChannels`, `Reference` `"none"`, the
+automatic `Q`); the `Signals` config fields, their checks, `signalOptions` and
+the dry-run text; and prints a timing (seconds per channel-hour at 30 kHz).
 
 [`test_UnitLabels.m`](../pipeline/test_UnitLabels.m) covers unit labels:
 `parseNameTokens` formats, `nameIdentity`, class and id padding, identity

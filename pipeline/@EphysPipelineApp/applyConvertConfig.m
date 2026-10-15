@@ -25,6 +25,16 @@ obj.SigBlankArtifactsCheckBox.Value = logical(cfg.BlankArtifacts);
 obj.SigRefLFPCheckBox.Value   = logical(cfg.LFP_Reference);
 obj.SigRefMUACheckBox.Value   = logical(cfg.MUA_Reference);
 obj.SigRefSPIKECheckBox.Value = logical(cfg.SPIKE_Reference);
+obj.setDropIfMember(obj.SigRefMethodDropDown, cfg.ReferenceMethod, "Signals.ReferenceMethod");
+obj.setDropIfMember(obj.SigWCAREstimateDropDown, cfg.WCAR_Estimate, "Signals.WCAR_Estimate");
+obj.setControlValue(obj.SigWCAROrderField, cfg.WCAR_Order, "Signals.WCAR_Order");
+obj.setControlValue(obj.SigWCARAlphaField, cfg.WCAR_Alpha1k, "Signals.WCAR_Alpha1k");
+obj.setControlValue(obj.SigWCARDriftField, cfg.WCAR_DriftPerSec, "Signals.WCAR_DriftPerSec");
+obj.setControlValue(obj.SigWCARHighpassField, cfg.WCAR_HighpassHz, "Signals.WCAR_HighpassHz");
+obj.SigWCARQAutoCheckBox.Value = isnan(cfg.WCAR_Q);
+if ~isnan(cfg.WCAR_Q)
+    obj.setControlValue(obj.SigWCARQField, cfg.WCAR_Q, "Signals.WCAR_Q");
+end
 
 obj.setControlValue(obj.ConvLFPFsField, cfg.LFP_Fs, "Signals.LFP_Fs");
 obj.ConvLFPHighpassCheckBox.Value = logical(cfg.LFP_HighpassOn);

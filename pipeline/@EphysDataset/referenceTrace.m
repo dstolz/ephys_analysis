@@ -1,4 +1,4 @@
-function r = referenceTrace(obj, X)
+function r = referenceTrace(obj, X, opts)
 %referenceTrace  The common reference of [nSamples x nChan] data, per sample.
 %   R = ds.referenceTrace(X) returns the [nSamples x 1] reference that
 %   applyReference subtracts from every channel of X (all of the recording's
@@ -8,11 +8,23 @@ function r = referenceTrace(obj, X)
 %   deriveSignals computes it once and subtracts it from the signals that
 %   take it (referenceSignals) only.
 %
+%   R = ds.referenceTrace(X, Mode="car") takes that reference ("none" |
+%   "car" | "cmr") whatever ArtifactConfig.Reference says: deriveSignals'
+%   weighted CAR (weightedCAR) weighs the plain CAR.
+%
 %   See also EphysDataset.applyReference, EphysDataset.referenceChannels.
 
+arguments
+    obj (1,1) EphysDataset
+    X
+    opts.Mode (1,1) string = ""   % "" = ArtifactConfig.Reference
+end
+
 r = [];
-acfg = EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig);
-mode = string(acfg.Reference);
+mode = opts.Mode;
+if mode == ""
+    mode = string(EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).Reference);
+end
 if mode == "none" || isempty(X)
     return
 end

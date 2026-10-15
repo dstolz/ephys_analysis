@@ -301,6 +301,10 @@ if G.Enabled
     if ~ismember(G.MatVersion, ["-v7.3" "-v7"])
         add("signals", "MatVersion", "error", "MatVersion must be -v7.3 or -v7.");
     end
+    if G.ReferenceMethod == "weighted" && ~any([G.LFP G.MUA G.SPIKE] & [G.LFP_Reference G.MUA_Reference G.SPIKE_Reference])
+        add("signals", "ReferenceMethod", "warning", ...
+            "The weighted CAR is chosen, but no ticked signal takes a reference (<TYPE>_Reference); it is not applied.");
+    end
     if G.MUA && ~(G.MUA_Fs > 0); add("signals", "MUA_Fs", "error", "MUA_Fs must be positive."); end
     if G.LFP && ~(G.LFP_Fs > 0); add("signals", "LFP_Fs", "error", "LFP_Fs must be positive."); end
 end

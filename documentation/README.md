@@ -349,9 +349,13 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
 
 - Signal Processing Toolbox (required for filtering, resampling and derived
   signals; also the high-pass on sorted spikes cut from the `.bin` for the
-  Review tab and the analysis plots' unit waveforms, `readPhyWaveforms`).
+  Review tab and the analysis plots' unit waveforms, `readPhyWaveforms`, and
+  the high-pass of the adaptive weighted CAR's estimation inputs,
+  `weightedCAR`).
 - Statistics and Machine Learning Toolbox (`zscore` in automatic
-  derived-signal bad-channel detection; `signrank` and `kruskalwallis` in
+  derived-signal bad-channel detection; `mad` for the adaptive weighted CAR's
+  automatic `Q` and `prctile` for its weight summary, `weightedCAR` and
+  `deriveSignals`' `referenceMethod="weighted"`; `signrank` and `kruskalwallis` in
   the analysis module's response statistics, `responseStats` and the
   *Responsive only* unit selection; `tiedrank`, `tinv` and `ranksum` in its
   auROC, `aurocCurves` and `aurocCall`: the auROC baseline of PSTH and

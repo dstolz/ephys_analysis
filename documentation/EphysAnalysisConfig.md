@@ -1787,7 +1787,7 @@ The app's **Convert to figure** button calls it
 
 ```matlab
 [cfg, id, notes] = cfg.convertPlotToFigure("psth_stim");   % id = "psth_stim_fig"
-disp(notes.')                                              % e.g. "PSTH stacking (stack) is not available in figures yet: ..."
+disp(notes.')                                              % e.g. "The aux magnitude became the mean of the AUX channels."
 any(cfg.validate(CheckPaths=false).Severity == "error")    % false: the figure validates
 ```
 
@@ -1799,8 +1799,8 @@ as both name files through `{Plot}` ([validation](#validating-figures)).
 | --- | --- |
 | `enabled`, `title`, `aesthetics` | the plot's |
 | `ref`, `window`, `selection` | the plot's; `"default"` stays `"default"` |
-| `style` | the plot's, with `MaxTiles`, `TileSpacing`, `XLim`, `YLim` and `CLim` back at their defaults (a figure does not use them). `YLim` goes to the data panel's `options.yLim` and `CLim` to its `options.cLim` |
-| `common` | the plot's `bins`, `measure`, `baseline`, `maskAfterStop` and `waveform`; every panel is linked to them ([Common options](#common-options)) |
+| `style` | the plot's, with `MaxTiles`, `TileSpacing`, `XLim`, `YLim` and `CLim` back at their defaults (a figure does not use them). `YLim` goes to the data panel's `options.yLim` (a PSTH, continuous, waveforms, rate or tuning panel) and `CLim` to its `options.cLim` |
+| `common` | the plot's `bins`, `measure`, `baseline`, `auroc`, `maskAfterStop` and `waveform`; every panel is linked to them ([Common options](#common-options)). The auROC baseline is carried, with its `auroc` settings, for a PSTH or a heat map of spikes; a rate or tuning plot takes only `none`, `subtract`, `ratio` and `zscore`; a mode the panel cannot take becomes `none`, with a note |
 | `observe` | below. The plot's `source` (`units` or `detected`) is the layers' source and, for a figure drawn per unit, `observe.source`; its unit filter is `observe.units` when the figure observes units, else the fixed layer's `units` |
 | `grid` | one column, a row per panel top to bottom; `spacing "none"` (flush) for a unit's raster, PSTH and aux panels |
 
@@ -1809,18 +1809,21 @@ as both name files through `{Plot}` ([validation](#validating-figures)).
 
 | Plot kind and layout | Observe | Panels and layers |
 | --- | --- | --- |
-| `psth`, grid | unit (`source`, the `units` filter) | a raster (when `withRaster`; its sort options; `rasterEvents` as events layers drawn as marks) over a PSTH (`histStyle`, `fill`, `fillAlpha`, `normalize`, `yLim`), each with a layer following the unit; equal heights (with an aux panel, the unit's panels are twice as high as it: 2 : 2 : 1) |
+| `psth`, grid | unit (`source`, the `units` filter) | a raster (when `withRaster`; its sort options; `rasterEvents` as events layers drawn as marks) over a PSTH (`histStyle`, `fill`, `fillAlpha`, `normalize`, `stack`, `stackSpacing`, `yLim`), each with a layer following the unit; equal heights (with an aux panel, the unit's panels are twice as high as it: 2 : 2 : 1) |
 | `psth`, overlay | dataset | one PSTH panel with a fixed `units` layer (the filter) and `aggregate "mean"` |
 | `raster` | unit | a raster panel with the marks layers |
 | `evoked`, grid | channel (`signal` = the plot's `source`, `channels` = the plot's) | one continuous panel following the channel |
 | `evoked`, stack | dataset | a continuous panel with a fixed layer of the channels, `aggregate "each"`, `display "stacked"`, `stackSpacing` = `Style.StackSpacing` |
 | `evoked`, butterfly | dataset | as the stack, `display "lines"` |
-| `heatmap` | dataset | a heat map panel with a fixed layer (the units filter, or the channels), `order`, `group` 1, `cLim` |
+| `heatmap` | dataset | a heat map panel with a fixed layer (the units filter, or the channels), its `order` (modulation included), `group` 1, `cLim` |
 | `probemap` | dataset | a probe map panel with a fixed layer, `value`, `cLim` |
 | `corrmap` | dataset | a correlation map panel with a fixed layer, `metric`, `correlation`, `fisherZ`, `group` 1, `cLim` |
-| `waveforms`, grid | unit | a waveforms panel following the unit; `common.waveform` = the plot's waveform settings |
-| `waveforms`, probe | dataset | a waveforms panel with a fixed layer |
-| `rate`, `tuning`, `behavior` | none | not converted: `EphysAnalysisConfig:NotConvertible` (no panel type draws them yet) |
+| `waveforms`, grid | unit | a waveforms panel with a layer following the unit, `layout "grid"`; `common.waveform` = the plot's waveform settings |
+| `waveforms`, probe | dataset | a waveforms panel with a fixed layer, `layout "probe"` |
+| `rate` | unit | one rate panel with a layer following the unit; `display` = the plot's layout (`bar`, `box` or `points`), `measure`, `baseline`, `YLim` as `yLim` |
+| `tuning`, grid | unit | a tuning panel with a layer following the unit; `param` and `seriesParam` |
+| `tuning`, overlay | dataset | a tuning panel with a fixed `units` layer (the filter), `aggregate "mean"`, the waveform inset off; `param` and `seriesParam` |
+| `behavior` | none | not converted: `EphysAnalysisConfig:NotConvertible` (no panel type draws it yet) |
 
 An unknown plot id is `EphysAnalysisConfig:NoPlot`. A PSTH's or raster's **aux
 signal** (`aux.mode` not `off`) becomes a continuous panel of a fixed `AUX` layer
@@ -1834,26 +1837,26 @@ from the common options and keeps the plot's `maskAfterStop`).
 
 **Notes.** What the figure does not hold gives a note, one sentence each:
 
-- an auROC baseline becomes `none` (its `auroc` settings are not carried);
 - a baseline mode the panel cannot take (`zscore` or `percent` on a continuous or
-  correlation panel or a heat map of a signal) becomes `none`;
+  correlation panel or a heat map of a signal; `auroc` or `percent` on a rate or
+  tuning panel) becomes `none`;
 - the aux magnitude became the mean of the AUX channels;
 - an aux `placement "over"` (on the right y axis) becomes `below`;
 - the aux heat map display becomes `lines`;
 - the aux `colorBy` and `byGroup` are not carried (the panel colors its traces by
   trial group, one trace each);
-- `stack` and `stackRaster` are not carried (the groups are overlaid);
+- `stackRaster` (each group's raster in its PSTH row) is not available: the raster
+  is a panel of its own above the stack (given only when `stack`, `stackRaster`
+  and `withRaster` are all on with the grid layout);
 - an overlay's `withRaster`, event marks and waveform inset are not carried (an
   overlay of several units draws none);
+- a tuning overlay's waveform inset is not carried;
 - event marks of a plot without a raster (`withRaster` off) are not carried;
 - a butterfly's one panel per trial group is not available: the channels are lines
   in one panel;
-- a heat map's `modulation` order (auROC) becomes `probe`;
 - a heat map or correlation map draws one trial group (group 1) when the selection
   groups its trials, where the plot drew one per group: set the panel's group, or
   add a panel per group;
-- the waveforms probe layout is not available: the units' waveforms are drawn in
-  one panel;
 - `MaxTiles`, `TileSpacing` and `XLim` are not used (a figure draws one observation
   per page, takes `grid.spacing` and shows the epoch window), nor are `YLim` and
   `CLim` when no panel of the figure takes them;
@@ -2091,13 +2094,16 @@ what it throws stopping the compute), `figureOutputName` (`{Plot}`, `{Unit}`,
 `{Index}`, the `_<Unit>` suffix, the short labels of units, detections and
 channels) and `figureCaption`.
 
-`test_plotToFigure`, in eight sections, on hand-made configs: a PSTH grid with its
+`test_plotToFigure`, 39 checks in eight sections (and 6b), on hand-made configs: a PSTH grid with its
 raster, event marks, waveform inset and aux magnitude, field by field (observe,
 panels, layers, options, common, style, notes); the PSTH variants (without its
-raster, an overlay, stacking and an auROC baseline as notes, a raster with its aux
-above, and `"over"`); a raster; evoked grid, stack and butterfly; heat maps of
-units and of LFP, a probe map and a correlation map; unit waveforms in a grid and
-on the probe; `NotConvertible` for rate, tuning and behavior, `NoPlot`, the ids
+raster, an overlay, stacking and an auROC baseline carried with `stackRaster` as the
+one note, a raster with its aux above, and `"over"`); a raster; evoked grid, stack
+and butterfly; heat maps of units and of LFP, a probe map and a correlation map;
+unit waveforms in a grid and on the probe; rate (6b: its layouts as the display, the
+measure, a ratio baseline, `YLim`, a `"between"` window) and tuning (a grid, and an
+overlay with its inset as a note, `param` and `seriesParam`); `NotConvertible` for
+behavior, `NoPlot`, the ids
 (`<plot>_fig`, `_fig2`, ... free among plots and figures), `"default"` sentinels
 kept and a plot's own alignment carried, the text note, overlays, `MaxTiles`,
 `TileSpacing`, `XLim` and an unused `YLim` as notes, and `convertPlotToFigure`

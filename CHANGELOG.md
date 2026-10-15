@@ -92,8 +92,9 @@ says how to cut a release.
   what a PSTH, raster, evoked potential, heat map, probe map, unit correlation or unit waveforms plot
   draws (a PSTH's raster, event marks, aux signal and waveform inset become panels and layers; the plot's
   alignment, unit filter, bins, baseline and look carry over) with the notes for what a figure cannot
-  hold yet (auROC baselines, stacking, an overlay's raster, text notes, overlays, ...); rate, tuning and
-  behavior plots raise `EphysAnalysisConfig:NotConvertible`. `convertPlotToFigure` appends it under the
+  hold yet (an overlay's raster, text notes, overlays, ...); rate and tuning plots convert too (only
+  behavior is refused, `EphysAnalysisConfig:NotConvertible`) and stacking, the auROC baseline, the
+  modulation order and the probe layout are carried. `convertPlotToFigure` appends it under the
   id `<plot>_fig` (`_fig2`, ...). The Plots tab gets **Convert to figure** beside **Copy from...**, which
   converts the selected plots, opens the last on the Figures tab and lists the notes in the status bar;
   the Figures tab gets **Copy from...** under the figure list, which copies parts of another figure's

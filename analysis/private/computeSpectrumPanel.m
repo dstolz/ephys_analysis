@@ -21,6 +21,8 @@ function P = computeSpectrumPanel(src, panel, E, G, ctx)
 %   See also figurePanelRegistry, chronuxSpectrum, chronuxSpikeSpectrum, drawSpectrumPanel.
 o = panel.options;
 w = panel.window;
+W = [w.pre w.post];
+if o.timeBase == "range"; W = []; end   % segments of the recording: the panel's window is not used
 P = struct('layers', figurePanelLayers(panel, ctx.skips));
 for j = 1:numel(P.layers)
     if P.layers(j).skip ~= ""; continue; end
@@ -28,11 +30,11 @@ for j = 1:numel(P.layers)
     if lay.skip ~= ""; P.layers(j) = lay; continue; end
     try
         if X.kind == "signal"
-            S = figureChronuxSettings("spectrum", o, [w.pre w.post], "spectrum");
+            S = figureChronuxSettings("spectrum", o, W, "spectrum");
             TB = chronuxTimeBaseOf(src, E, G, panel, Fs=X.D.fs, NRows=X.nRows);
             R = chronuxSpectrum(X.D, TB, S, Check=ctx.check, Dataset=src.name);
         else
-            S = figureChronuxSettings("spectrum", o, [w.pre w.post], "spikeSpectrum");
+            S = figureChronuxSettings("spectrum", o, W, "spikeSpectrum");
             TB = chronuxTimeBaseOf(src, E, G, panel, LastSpike=X.lastSpike);
             R = chronuxSpikeSpectrum(X.SP, TB, S, Check=ctx.check, Dataset=src.name);
         end

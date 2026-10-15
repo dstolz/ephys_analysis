@@ -86,6 +86,7 @@ R = [];
 why = "";
 o = panel.options;
 W = [panel.window.pre panel.window.post];
+if o.timeBase == "range"; W = []; end   % segments of the recording: the panel's window is not used
 seedName = X1.names(1);
 if X1.kind == "signal" && X2.kind == "signal"
     if X1.D.fs ~= X2.D.fs

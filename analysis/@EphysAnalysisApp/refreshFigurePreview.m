@@ -16,9 +16,7 @@ function refreshFigurePreview(obj, opts)
 %   Computing, then Drawing, with a card over the old drawing whose Cancel
 %   (onCancelFigurePreview) stops the compute at its next checkpoint (the
 %   runner polls: Runner.PollFcn); edits made meanwhile leave it Out of
-%   date. Nothing is computed while a run goes or the Plots or Sessions
-%   tab's preview computes (the runner is busy): a drawn preview is then
-%   marked Out of date.
+%   date. Nothing is computed while a run goes (the runner is busy).
 %   A session figure (sessions.enabled) is drawn across the ticked (or
 %   listed) datasets instead: EphysAnalysisRunner.computeSessionFigure for
 %   the matched observation picked (refreshFigureObservations lists
@@ -39,10 +37,6 @@ if ismember(obj.FigurePreviewState, ["computing" "drawing"])
     return
 end
 L = obj.FigurePreviewLabel;
-if ismember(obj.PreviewState, ["computing" "drawing"]) || ismember(obj.SessionPreviewState, ["computing" "drawing"])
-    if obj.FigurePreviewState == "drawn"; obj.setFigurePreviewState("stale"); end   % called from inside another preview (its polling)
-    return
-end
 if obj.Running
     L.Text = "A run is going: preview the figure when it is done.";
     return

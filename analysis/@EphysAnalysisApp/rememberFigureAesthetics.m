@@ -6,7 +6,7 @@ function rememberFigureAesthetics(obj, id, rules)
 %   it is drawn, and the title shows unsaved changes. RULES [] forgets them
 %   (the Looks section's Forget). The editor redraws the preview itself.
 %
-%   See also rememberAesthetics, renderFigure.
+%   See also renderFigure, PlotAesthetics.
 arguments
     obj (1,1) EphysAnalysisApp
     id (1,1) string

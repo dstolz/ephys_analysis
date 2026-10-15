@@ -1,5 +1,5 @@
 function [keys, ok] = pickSessionDatasets(fig, T, keys)
-%pickSessionDatasets  Tick the datasets a session plot draws, in a small modal window over FIG.
+%pickSessionDatasets  Tick the datasets a session figure is drawn across, in a small modal window over FIG.
 %   [KEYS, OK] = pickSessionDatasets(FIG, T, KEYS) shows the scanned
 %   datasets, the rows of T (a sessionTable: key, name, subject, dateText),
 %   in a table with a Use box each, ticked for the keys KEYS already
@@ -10,7 +10,7 @@ function [keys, ok] = pickSessionDatasets(fig, T, keys)
 %   row has are not kept (the window says how many). The window's UserData
 %   holds its controls (Table, All, None, Ok, Cancel) for the tests.
 %
-%   See also onPickSessionDatasets, sessionTable.
+%   See also onPickFigureDatasets, sessionTable.
 ok = false;
 keys = reshape(string(keys), 1, []);
 n = height(T);
@@ -23,10 +23,10 @@ catch
 end
 d = uifigure('Name', 'Pick the datasets', 'Position', pos, 'WindowStyle', 'modal');
 g = uigridlayout(d, [4 1], 'RowHeight', {'fit', '1x', 30, 36}, 'Padding', [12 12 12 12]);
-hint = "Tick the datasets this session plot draws. Key is what the Data tab's Key column shows and what the " + ...
+hint = "Tick the datasets this figure is drawn across. Key is what the Data tab's Key column shows and what the " + ...
     "config keeps.";
 if unknown > 0
-    hint = hint + sprintf(" %d key(s) of the session plot are not among the scanned datasets and are dropped by OK.", unknown);
+    hint = hint + sprintf(" %d key(s) of the figure are not among the scanned datasets and are dropped by OK.", unknown);
 end
 l = uilabel(g, 'Text', hint, 'WordWrap', 'on');
 l.Layout.Row = 1;

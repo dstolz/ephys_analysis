@@ -1,5 +1,5 @@
 function ov = overlayRead(E, ov)
-%overlayRead  Overlay OV with the values of the plot editor's overlay rows.
+%overlayRead  Overlay OV with the values of the figure editor's overlay rows.
 %   A position that is not a number reads as NaN (Validate says so, and
 %   the overlay is not drawn); the fields without a row keep their values.
 kind = split(string(E.ovKind.Value), "|");

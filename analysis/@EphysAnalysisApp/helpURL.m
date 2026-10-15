@@ -11,9 +11,7 @@ if page == "tab"
     switch obj.Tabs.SelectedTab
         case obj.TabData,   page = "Analysis-App#data-tab";
         case obj.TabAlign,  page = "Analysis-App#alignment-tab";
-        case obj.TabPlots,  page = "Analysis-App#plots-tab";
         case obj.TabFigures, page = "Analysis-App#figures-tab";
-        case obj.TabSessions, page = "Analysis-App#sessions-tab";
         case obj.TabExport, page = "Analysis-App#export-tab";
         case obj.TabChronux, page = "Analysis-App#chronux-tab";
         otherwise,          page = "Analysis-App#log-tab";

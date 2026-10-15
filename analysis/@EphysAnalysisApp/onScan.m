@@ -2,8 +2,8 @@ function onScan(obj)
 %onScan  Find the datasets (a new EphysAnalysisRunner) and list them.
 %   In project mode every dataset under the root is listed and the config's
 %   "list" selection only sets the Run ticks. The first ticked dataset
-%   becomes the active one. The Sessions tab's preview is forgotten, and so
-%   are the Figures tab's preview and observation list.
+%   becomes the active one. The Figures tab's preview (a session figure's
+%   too) and observation list are forgotten.
 cfg = obj.gatherConfig();
 scanCfg = cfg;
 scanCfg.Source.Selection = "all";
@@ -27,12 +27,11 @@ else
     obj.Ticked = true(1, n);
 end
 obj.ActiveIdx = 0;
-obj.PreviewResult = [];
 obj.FigurePreviewResult = [];
+obj.FigureSessionResults = [];   % a session figure's last preview was drawn on the old runner's datasets
 obj.ChronuxResult = [];
 obj.ChronuxIndex = [];
 obj.ChronuxFile = "";
-resetSessionPreview(obj, "Press Preview on the Sessions tab to draw a session plot over the datasets found.");
 obj.refreshDatasetsTable();
 names = r.Names;
 if n == 0
@@ -40,7 +39,7 @@ if n == 0
 else
     items = names; data = 1:n;
 end
-set([obj.AlignDatasetDropDown obj.PlotsDatasetDropDown obj.FiguresDatasetDropDown obj.ChronuxDatasetDropDown], 'Items', items, 'ItemsData', data);
+set([obj.AlignDatasetDropDown obj.FiguresDatasetDropDown obj.ChronuxDatasetDropDown], 'Items', items, 'ItemsData', data);
 obj.ScanLabel.Text = sprintf("%d dataset(s) found (%s).", n, ternary(cfg.Source.Mode == "project", ...
     "project " + cfg.Source.Root, "output folders"));
 obj.log("Scan: " + obj.ScanLabel.Text);
@@ -49,7 +48,6 @@ if n > 0
     if isempty(first); first = 1; end
     obj.selectDataset(first);
 end
-obj.syncSessionEditor();   % the sessions the session plot covers; its data buttons
 obj.setStatus(obj.ScanLabel.Text);
 end
 

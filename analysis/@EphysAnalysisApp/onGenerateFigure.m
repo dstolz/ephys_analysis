@@ -3,7 +3,7 @@ function R = onGenerateFigure(obj, opts)
 %   R = onGenerateFigure(obj) is the Figures tab's Generate button: the
 %   figure in the editor (SelectedFigure) alone, run as the Export tab's
 %   Run runs (onRunExport: EphysAnalysisRunner.run with Figures=<id>, no
-%   plots and no session plots, Export on, no report), so the config is
+%   session figures, Export on, no report), so the config is
 %   validated first, the progress dialog, the Export tab's Cancel and the
 %   toolbar's Cancel (onCancelRun) stop it between observations, only one
 %   run goes at a time and the previews compute nothing meanwhile. Its
@@ -34,7 +34,7 @@ if obj.Running
     return
 end
 busy = ["computing" "drawing"];
-if ismember(obj.FigurePreviewState, busy) || ismember(obj.PreviewState, busy) || ismember(obj.SessionPreviewState, busy)
+if ismember(obj.FigurePreviewState, busy)
     obj.setStatus("A preview is computing: generate the figure when it is done (or cancel it).");
     return
 end
@@ -60,11 +60,11 @@ if across && isempty(opts.Datasets) && cfg.Figures(k).sessions.datasets == "list
     end
 end
 if across
-    R = obj.onRunExport(Plots=string.empty(1, 0), Figures=string.empty(1, 0), SessionPlots=string.empty(1, 0), ...
-        SessionFigures=id, Datasets=opts.Datasets, Export=true, Report=false, Config=cfg, Title="Generating " + id);
+    R = obj.onRunExport(Figures=string.empty(1, 0), SessionFigures=id, Datasets=opts.Datasets, ...
+        Export=true, Report=false, Config=cfg, Title="Generating " + id);
 else
-    R = obj.onRunExport(Plots=string.empty(1, 0), Figures=id, SessionPlots=string.empty(1, 0), ...
-        SessionFigures=string.empty(1, 0), Datasets=opts.Datasets, Export=true, Report=false, Config=cfg, Title="Generating " + id);
+    R = obj.onRunExport(Figures=id, SessionFigures=string.empty(1, 0), Datasets=opts.Datasets, ...
+        Export=true, Report=false, Config=cfg, Title="Generating " + id);
 end
 if ~isempty(obj.Runner) && isvalid(obj.Runner)
     obj.Runner.Config = obj.gatherConfig();   % the runner holds the config as the controls show it again

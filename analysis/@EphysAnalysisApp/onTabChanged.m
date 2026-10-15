@@ -4,19 +4,12 @@ switch obj.Tabs.SelectedTab
     case obj.TabData
         msg = "Data: where the datasets are; Scan, tick the ones to run, click one to make it active.";
     case obj.TabAlign
-        msg = "Alignment: the event, window and trial selection every plot uses unless it sets its own.";
+        msg = "Alignment: the event, window and trial selection every figure uses unless it sets its own.";
         obj.refreshAlignPreview();
-    case obj.TabPlots
-        msg = "Plots: add plots, edit them, preview them on the active dataset.";
-        if isempty(obj.PreviewResult) || obj.PreviewState == "stale"; obj.autoPreview(); end
     case obj.TabFigures
         msg = "Figures: design a figure for one unit, channel or the dataset; the preview draws the observation picked above it.";
         obj.refreshFigureObservations();
         if isempty(obj.FigurePreviewResult) || obj.FigurePreviewState == "stale"; obj.autoFigurePreview(); end
-    case obj.TabSessions
-        msg = "Sessions: a plot drawn over several datasets at once; pick its base plot, Add, then Preview over the ticked datasets.";
-        obj.syncSessionEditor();
-        if isempty(obj.SessionPreviewResults) || obj.SessionPreviewState == "stale"; obj.autoSessionPreview(); end
     case obj.TabExport
         msg = "Export: figure files and the report; Validate, Plan, Run over the ticked datasets.";
     case obj.TabChronux

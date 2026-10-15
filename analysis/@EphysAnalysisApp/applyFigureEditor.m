@@ -259,7 +259,7 @@ if isfield(op, 'taperMode')   % a spectral panel's Chronux rows
     applySpectral(E, op);
 end
 
-% its text note and overlays (the Plots tab's rows)
+% its text note and overlays
 applyNote(E, p.note);
 overlayList(E, p.overlays, 1);
 if ~isempty(p.overlays); overlayShow(E, p.overlays(1)); end

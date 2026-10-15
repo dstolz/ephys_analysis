@@ -42,7 +42,7 @@ function [html, summary, model] = overview(cfg, d, opts)
 %   Each box names the control(s) behind it (data-nav), as on the detail
 %   view, so a click in the app opens them (onFlowNavigate). It reads only
 %   CFG, the dataset D and the Analysis step's analysis config (for which
-%   outputs its plots read). SUMMARY is a one-line description
+%   outputs its figures read). SUMMARY is a one-line description
 %   for the tab. MODEL holds the geometry the page draws, for tests:
 %     nodes  id, title, target, rect [x y w h] (the box and the files hung
 %            under it)
@@ -306,12 +306,12 @@ use = analysisUse(cfg);
 if use.file == ""
     lines = "no analysis config chosen";
 else
-    lines = ["runs " + use.file, use.plots];
+    lines = ["runs " + use.file, use.figures];
 end
 % A row of its own, bottom left: of the free cells this crosses the fewest arrows.
 analysis = step("analysis", 4, 0, "Analysis", An.Enabled, lines, "AnaEnableCheckBox,AnaConfigField");
 if An.Figures
-    analysis.outs = pill("out", "Figure files", ["each plot's pages", "as its Export settings say"], "AnaFiguresCheckBox", false);
+    analysis.outs = pill("out", "Figure files", ["each figure's pages", "as its Export settings say"], "AnaFiguresCheckBox", false);
 else
     analysis.outs = pill("off", "Figure files", "not written", "AnaFiguresCheckBox", false);
 end
@@ -345,27 +345,21 @@ end
 
 
 function u = analysisUse(cfg)
-%analysisUse  What the Analysis step's config reads, from its enabled plots:
-%   units / detected (any plot of sorted units / detected spikes; true when
-%   the config cannot be read), the file's name and a line on its plots.
-u = struct('file', "", 'plots', "", 'units', true, 'detected', true);
+%analysisUse  What the Analysis step's config reads, from its enabled figures and session figures:
+%   units / detected (any figure that observes, or has a layer of, sorted
+%   units / detected spikes; true when the config cannot be read), the
+%   file's name and a line on its figures.
+u = struct('file', "", 'figures', "", 'units', true, 'detected', true);
 f = strtrim(cfg.Analysis.ConfigFile);
 if f == ""; return; end
 [~, b, x] = fileparts(f);
 u.file = string(b) + string(x);
 acfg = EphysPipelineConfig.loadAnalysisConfig(f);
 if isempty(acfg)
-    u.plots = ternary(isfile(f), "cannot be read", "not found");
+    u.figures = ternary(isfile(f), "cannot be read", "not found");
     return
 end
-on = acfg.Plots([acfg.Plots.enabled]);
-if isempty(on)
-    u.plots = "no plot enabled";
-else
-    u.plots = sprintf("%d plot(s): %s", numel(on), join(unique([on.kind], "stable"), ", "));
-end
-u.units = any([on.source] == "units");
-u.detected = any([on.source] == "detected");
+[u.units, u.detected, u.figures] = figureUse(acfg);
 end
 
 
@@ -404,9 +398,9 @@ E = [ ...
     edge("sorting", "export", X.IncludeUnits, ternary(X.IncludeUnits, "the sorted units", "off: Export.IncludeUnits is off"), NaN), ...
     edge("spikes", "export", X.IncludeDetected, ternary(X.IncludeDetected, "the detected spikes", "off: Export.IncludeDetected is off")), ...
     edge("behavior", "analysis", true, "the paired trials: alignment, selection, grouping, tuning"), ...
-    edge("signals", "analysis", true, "the extract: the events, and the signals plots of LFP / MUA / SPIKE / AUX read"), ...
-    edge("sorting", "analysis", use.units, ternary(use.units, "the sorted units", "off: no plot of the analysis config reads sorted units")), ...
-    edge("spikes", "analysis", use.detected, ternary(use.detected, "the detected spikes", "off: no plot of the analysis config reads detected spikes"), 3)];
+    edge("signals", "analysis", true, "the extract: the events, and the LFP / MUA / SPIKE / AUX the figures read"), ...
+    edge("sorting", "analysis", use.units, ternary(use.units, "the sorted units", "off: no figure of the analysis config reads sorted units")), ...
+    edge("spikes", "analysis", use.detected, ternary(use.detected, "the detected spikes", "off: no figure of the analysis config reads detected spikes"), 3)];
 
 % Copy outputs reads every file written, each down a lane of its own; the
 % list's order (its ports, left to right) follows where they arrive from.

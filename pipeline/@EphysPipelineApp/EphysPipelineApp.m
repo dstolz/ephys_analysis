@@ -49,9 +49,9 @@ classdef EphysPipelineApp < handle
     %     Signals    derived LFP / MUA / SPIKE / AUX (.mat) settings, plan, Run
     %     Spikes     threshold detection / sorted units (.mat), preview, Run
     %     Export     analysis-toolbox and epoch files (one per format), plan, Run
-    %     Analysis   the Analysis step: an EphysAnalysisApp config (its plots,
+    %     Analysis   the Analysis step: an EphysAnalysisApp config (its figures,
     %                alignment, figure files and report) run over the
-    %                selected datasets; the config's summary and plots, open
+    %                selected datasets; the config's summary and figures, open
     %                it in the analysis app, whether the figure files and the
     %                report are written, plan, Run, open the report or the
     %                figures
@@ -723,7 +723,7 @@ classdef EphysPipelineApp < handle
         AnaOpenAppButton     matlab.ui.control.Button        % open it in EphysAnalysisApp (onOpenAnalysisConfig)
         AnaReloadButton      matlab.ui.control.Button        % read the file again (refreshAnalysisSummary)
         AnaSummaryLabel      matlab.ui.control.Label         % name, alignment, figures, report, checks
-        AnaPlotsTable        matlab.ui.control.Table         % its plots: id, kind, source, enabled
+        AnaFiguresTable      matlab.ui.control.Table         % its figures: id, what each observes (or "across sessions"), panel types, enabled
         AnaFiguresCheckBox   matlab.ui.control.CheckBox      % Analysis.Figures
         AnaReportCheckBox    matlab.ui.control.CheckBox      % Analysis.Report
         AnaTargetsTable      matlab.ui.control.Table         % the step's plan

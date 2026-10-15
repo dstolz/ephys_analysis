@@ -1,9 +1,9 @@
 function refreshDesigns(obj)
-%refreshDesigns  The Design menu and the preview's Design list, from PlotDesign.list.
+%refreshDesigns  The Design menu and the Figures tab's Design list, from PlotDesign.list.
 %   The chosen design is ticked in the menu and shown in the list (its
 %   description as the list's tooltip). Called when the app is built and,
 %   through PlotDesign.listen, whenever a design is chosen, saved, imported
-%   or deleted anywhere (a plot's right-click menu too).
+%   or deleted anywhere (a figure's right-click menu too).
 arguments
     obj (1,1) EphysAnalysisApp
 end
@@ -16,11 +16,8 @@ labels = T.Name;
 mine = T.Source == "mine";
 labels(mine) = labels(mine) + "  (mine)";
 set(obj.DesignDropDown, "Items", labels, "ItemsData", T.Name, "Value", T.Name(k), ...
-    "Tooltip", T.Name(k) + ": " + T.Description(k) + newline + "Choosing a design redraws every plot on screen; " + ...
+    "Tooltip", T.Name(k) + ": " + T.Description(k) + newline + "Choosing a design redraws every figure on screen; " + ...
     "runs draw their figures in it too.");
-if ~isempty(obj.FigureDesignLabel) && isvalid(obj.FigureDesignLabel)
-    obj.FigureDesignLabel.Text = "Design: " + T.Name(k);   % the Figures tab names it; it is chosen here or in the menu
-end
 
 m = obj.DesignMenu;
 delete(m.Children);

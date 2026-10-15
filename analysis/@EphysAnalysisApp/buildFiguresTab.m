@@ -39,8 +39,8 @@ function buildFiguresTab(obj)
 %           draws, Remove, Up, Down, and the rows of the layer picked), the
 %           panel type's Options ("Common options from the figure": its
 %           common rows locked to the figure's; Apply to all panels),
-%           the panel's Text note and Overlays (the Plots tab's rows, for
-%           the selected panel: onAddFigureOverlay, onFigureOverlayPicked),
+%           the panel's Text note and Overlays (for the selected panel:
+%           onAddFigureOverlay, onFigureOverlayPicked),
 %           Appearance, Looks and Sessions (Across sessions: the figure
 %           drawn once over the ticked or picked datasets, its facet, colors,
 %           error band, unit matching with the mapping file's Browse... and
@@ -57,9 +57,10 @@ function buildFiguresTab(obj)
 %   Right   the dataset, the observation picked (figureObservations' labels)
 %           with < and > (Page Up / Page Down), Preview, Generate (the
 %           figure for every observation on every ticked dataset, into the
-%           Export folder: onGenerateFigure), Auto, the design
-%           every plot is drawn in (chosen on the Plots tab or the Design
-%           menu), the preview panel (refreshFigurePreview: computeFigure
+%           Export folder: onGenerateFigure), Auto, the Design row (the
+%           design every figure is drawn in, also in the Design menu:
+%           onDesignChosen; Save look as design...: the preview's look as a
+%           design of yours, onSaveDesign), the preview panel (refreshFigurePreview: computeFigure
 %           and renderFigure for that one observation), its badge
 %           (setFigurePreviewState) and status line.
 g = uigridlayout(obj.TabFigures, [1 3]);
@@ -558,7 +559,7 @@ E.evSeqText = uilabel(sg, "Text", "none");
 setSequenceHolder(E.evSeqText, struct('sequence', repmat(EphysAnalysisConfig.defaults("SequenceStep"), 1, 0), 'alignStep', Inf));
 E.evSeqEdit = uibutton(sg, "Text", "Edit...", "Tooltip", "Events that must (or must not) follow the line's event, " + ...
     "e.g. Stim onset then Trough onset: the first Trough onset after each Stim onset.");
-E.evSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(E.evSeqText, "event", E.evLine, E.evEdge, @() obj.onConfigChanged("figure"));
+E.evSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(E.evSeqText, E.evLine, E.evEdge, @() obj.onConfigChanged("figure"));
 [S, r] = formRow(S, "evDrawAs", "Draw as:");
 E.evDrawAs = uidropdown(S.Body, "Items", ["marks (on the rows / latency lines)" "a spike train of its own"], ...
     "ItemsData", ["marks" "train"], "ValueChangedFcn", changed, "Tooltip", "Marks: a mark at each event on a raster's " + ...
@@ -664,7 +665,7 @@ ssg = subgrid(S.Body, r, {'1x', 70});
 E.sortSeqText = uilabel(ssg, "Text", "none");
 setSequenceHolder(E.sortSeqText, struct('sequence', repmat(EphysAnalysisConfig.defaults("SequenceStep"), 1, 0), 'alignStep', Inf));
 E.sortSeqEdit = uibutton(ssg, "Text", "Edit...", "Tooltip", "Events that must follow the sort event's line.");
-E.sortSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(E.sortSeqText, "event", E.sortLine, E.sortEdge, @() obj.onConfigChanged("figure"));
+E.sortSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(E.sortSeqText, E.sortLine, E.sortEdge, @() obj.onConfigChanged("figure"));
 [S, r] = formRow(S, "rasterByGroup", "");
 E.rasterByGroup = uicheckbox(S.Body, "Text", "Rows by group first (one band per group)", "Value", true, "ValueChangedFcn", changed, ...
     "Tooltip", "Ticked: each group's epochs together on a band of its color. Unticked: every epoch sorted as one block.");
@@ -692,7 +693,7 @@ place(E.normalize, r, 2);
 sk = subgrid(S.Body, r, {'fit', 'fit', '1x'});
 E.stack = uicheckbox(sk, "Text", "One row per group", "ValueChangedFcn", changed, "Tooltip", "Each trial group's PSTH " + ...
     "in a row of its own, the first at the bottom, its value on the left axis and its peak on the right (a single " + ...
-    "group is not stacked). The groups' rasters: a raster panel above it (the plots' stacked rasters are not a figure option).");
+    "group is not stacked). The groups' rasters: a raster panel above it (stacked rasters are not a figure option).");
 uilabel(sk, "Text", "spacing:");
 E.psthSpacing = uieditfield(sk, "numeric", "Value", 1.1, "Limits", [0 Inf], "LowerLimitInclusive", "off", ...
     "ValueChangedFcn", changed, "Tooltip", "The row step, x the tallest PSTH (below 1 the rows overlap).");
@@ -858,7 +859,7 @@ E.wavePP = uicheckbox(wt, "Text", "p-p", "Value", true, "ValueChangedFcn", chang
 E.waveCount = uicheckbox(wt, "Text", "# spikes", "ValueChangedFcn", changed, "Tooltip", "Say how many spikes the unit has.");
 sec(end+1) = S;
 
-% the selected panel's descriptive text (the Plots tab's Text note rows, applied to the panel)
+% the selected panel's descriptive text (its note: drawNote)
 S = formSection(eg, 15, "note", "Text note", Color=tint("note"));
 [S, r] = formRow(S, "annText", "Text:", 78);
 E.annText = uitextarea(S.Body, "Value", "", "ValueChangedFcn", changed, ...
@@ -920,7 +921,7 @@ E.annInterp = uidropdown(S.Body, "Items", ["As typed" "TeX"], "ItemsData", ["non
 place(E.annInterp, r, 2);
 sec(end+1) = S;
 
-% lines and patches on the selected panel's axes: a list, and the rows of the one picked (the Plots tab's Overlays rows)
+% lines and patches on the selected panel's axes: a list, and the rows of the one picked (drawOverlays)
 S = formSection(eg, 16, "overlays", "Overlays", Color=tint("overlays"));
 [S, r] = formRow(S, ["ovList" "ovAddLine"], "Overlays:", 112);
 olg = subgrid(S.Body, r, {'1x', 96});
@@ -997,7 +998,7 @@ E.ovWidth = uispinner(olnG, "Limits", [0.25 12], "Step", 0.25, "Value", 1.5, "Va
     "Tooltip", "Points (a patch's outline).");
 sec(end+1) = S;
 
-% appearance: the figure's style (the Plots tab's rows, but tiles, grid spacing and limits: the arrangement and the panels have those)
+% appearance: the figure's style (no tiles, grid spacing or limits: the arrangement and the panels have those)
 S = formSection(eg, 12, "style", "Appearance", Color=tint("style"));
 [S, r] = formRow(S, "fontSize", "Font size:");
 E.fontSize = uispinner(S.Body, "Limits", [5 24], "Value", 9, "ValueChangedFcn", changed);
@@ -1138,7 +1139,7 @@ E.sesMappingFile = uieditfield(mg, "text", "Placeholder", "a .csv file", "ValueC
     "Tooltip", "A CSV: a column ""cell"", then one column per dataset key holding that dataset's unit id(s) for the cell.");
 E.sesBrowse = uibutton(mg, "Text", "Browse...", "ButtonPushedFcn", @(~,~) obj.onBrowseFigureMapping(), ...
     "Tooltip", "Pick the mapping file.");
-E.sesEdit = uibutton(mg, "Text", "Edit...", "ButtonPushedFcn", @(~,~) obj.onEditUnitMapping(Target="figure"), ...
+E.sesEdit = uibutton(mg, "Text", "Edit...", "ButtonPushedFcn", @(~,~) obj.onEditUnitMapping(), ...
     "Tooltip", "Edit the mapping: a row per cell, a column per dataset.");
 [S, r] = formRow(S, "sesMinSessions", "Min. sessions:");
 E.sesMinSessions = uispinner(S.Body, "Limits", [1 Inf], "Step", 1, "Value", 1, "RoundFractionalValues", "on", ...
@@ -1170,8 +1171,8 @@ obj.FigureSections = sec;
 obj.layoutFigureEditor();
 
 % --- right: the observation picker and the preview ----------------------------------------------
-pg = uigridlayout(g, [4 6]);
-pg.RowHeight = {30, 30, '1x', 26};
+pg = uigridlayout(g, [5 6]);
+pg.RowHeight = {30, 30, 30, '1x', 26};
 pg.ColumnWidth = {100, 100, 'fit', 'fit', '1x', 'fit'};
 pg.Padding = [0 0 0 0];
 obj.FigurePreviewButton = uibutton(pg, "Text", "Preview", ...
@@ -1197,10 +1198,7 @@ l = uilabel(pg, "Text", "Dataset:");
 l.Layout.Row = 1; l.Layout.Column = 4;
 obj.FiguresDatasetDropDown = uidropdown(pg, "Items", "(scan first)", "ItemsData", 0, ...
     "ValueChangedFcn", @(dd, ~) obj.selectDataset(dd.Value), "Tooltip", "The active dataset (the same on every tab).");
-obj.FiguresDatasetDropDown.Layout.Row = 1; obj.FiguresDatasetDropDown.Layout.Column = 5;
-obj.FigureDesignLabel = uilabel(pg, "Text", "Design: " + PlotDesign.currentName(), "FontColor", gray, ...
-    "Tooltip", "The design every plot and figure is drawn in: choose it on the Plots tab or in the Design menu.");
-obj.FigureDesignLabel.Layout.Row = 1; obj.FigureDesignLabel.Layout.Column = 6;
+obj.FiguresDatasetDropDown.Layout.Row = 1; obj.FiguresDatasetDropDown.Layout.Column = [5 6];
 l = uilabel(pg, "Text", "Observation:");
 l.Layout.Row = 2; l.Layout.Column = 4;
 obj.FigureObservationDropDown = uidropdown(pg, "Items", "(no observation)", "ItemsData", 0, ...
@@ -1208,10 +1206,23 @@ obj.FigureObservationDropDown = uidropdown(pg, "Items", "(no observation)", "Ite
     "Tooltip", "What the preview draws the figure for: one of the units, channels or the dataset the Observations " + ...
     "section keeps, in probe order. Each figure remembers its pick.");
 obj.FigureObservationDropDown.Layout.Row = 2; obj.FigureObservationDropDown.Layout.Column = [5 6];
+% the design every figure is drawn in (PlotDesign; also the Design menu), and the preview's look kept as one
+dg = uigridlayout(pg, [1 4], "ColumnWidth", {'fit', 220, 'fit', '1x'}, "Padding", [0 0 0 0], "ColumnSpacing", 8);
+dg.Layout.Row = 3; dg.Layout.Column = [1 6];
+uilabel(dg, "Text", "Design:");
+obj.DesignDropDown = uidropdown(dg, "Items", PlotDesign.DefaultName, "ItemsData", PlotDesign.DefaultName, ...
+    "ValueChangedFcn", @(dd, ~) obj.onDesignChosen(dd.Value), ...
+    "Tooltip", "The look of every figure: its ground, colors, fonts, axes, ticks, lines and marks. " + ...
+    "Choosing one redraws every figure on screen; runs draw their figures in it too.");
+obj.SaveDesignButton = uibutton(dg, "Text", "Save look as design...", "ButtonPushedFcn", @(~,~) obj.onSaveDesign(), ...
+    "Tooltip", "Keep the preview's look -- every property of every component, its ground and its group " + ...
+    "colors -- as a design of your own, to choose for any figure. The axes of heat map, probe map, " + ...
+    "correlation map and spectrogram panels are kept for those panel types only. Preview first if the " + ...
+    "preview is out of date.");
 obj.FigurePreviewPanel = uipanel(pg, "BackgroundColor", "w", "BorderType", "line");
-obj.FigurePreviewPanel.Layout.Row = 3; obj.FigurePreviewPanel.Layout.Column = [1 6];
+obj.FigurePreviewPanel.Layout.Row = 4; obj.FigurePreviewPanel.Layout.Column = [1 6];
 sg = uigridlayout(pg, [1 3], "ColumnWidth", {'fit', '1x', 0}, "Padding", [0 0 0 0], "ColumnSpacing", 8);
-sg.Layout.Row = 4; sg.Layout.Column = [1 6];
+sg.Layout.Row = 5; sg.Layout.Column = [1 6];
 B.Grid = uigridlayout(sg, [1 2], "ColumnWidth", {18, 'fit'}, "Padding", [6 2 10 2], "ColumnSpacing", 5);
 B.Icon = uiimage(B.Grid, "ScaleMethod", "fit");
 B.Text = uilabel(B.Grid, "FontWeight", "bold");
@@ -1498,11 +1509,11 @@ end
 
 
 function [S, E] = aurocRows(S, E, p, changed, isPlot)
-%aurocRows  The auROC settings' rows in form section S; P prefixes their editor fields (the Plots tab's rows).
+%aurocRows  The auROC settings' rows in form section S; P prefixes their editor fields.
 %   ISPLOT (default false): a PSTH's or heat map's own (baseline Mode
 %   "auroc", the common block's or a panel's), with the call window, the
-%   test's correction and alpha, the marks and modulated units only, as the
-%   Plots tab's Bins & baseline section shows them. Otherwise the response
+%   test's correction and alpha, the marks and modulated units only.
+%   Otherwise the response
 %   test's ("auroc"): its own bins; its windows, correction and alpha are
 %   the test's. Each row shows by its first field's key (syncFigureEditor).
 if nargin < 5; isPlot = false; end

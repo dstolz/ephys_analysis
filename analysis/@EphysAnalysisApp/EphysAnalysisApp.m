@@ -2,8 +2,9 @@ classdef EphysAnalysisApp < handle
     %EPHYSANALYSISAPP  GUI for quick-look figures of processed ephys datasets.
     %   EphysAnalysisApp edits one EphysAnalysisConfig and draws it with an
     %   EphysAnalysisRunner. It computes nothing itself: previews, plans and
-    %   runs all go through the runner (computePlot, renderPlotFigures, plan,
-    %   run), so what the app shows is what a generated script writes.
+    %   runs all go through the runner (computeFigure, computeSessionFigure,
+    %   plan, run) and renderFigure, so what the app shows is what a
+    %   generated script writes.
     %
     %   Tabs
     %     Data       where the datasets are: a pipeline project (root + output
@@ -20,32 +21,6 @@ classdef EphysAnalysisApp < handle
     %                two groupBy parameters), with a live count of epochs and
     %                groups on the active dataset; "Epoch Diagram", under
     %                the Epoch window, opens the epoch diagram for them
-    %     Plots      the plots, in a tree grouped by plot type (or by source,
-    %                layout, enabled / off, or not at all: Group by): add
-    %                (psth, raster, evoked, rate, tuning, heatmap, probemap,
-    %                corrmap), remove, duplicate, reorder, enable;
-    %                Ctrl- or Shift-click selects several plots: the editor
-    %                then shows only the options they all have, with the
-    %                first one's values, an edit goes to every one of them
-    %                (only what it changed: spreadPlotEdit), the preview
-    %                draws the first, and a bar over it and a banner in the
-    %                editor say so (showPlotSelection); Remove and Duplicate
-    %                act on them all;
-    %                an editor in collapsible sections (units & channels,
-    %                event reference, epoch window, trial selection, bins &
-    %                baseline, the kind's options, appearance, unit waveform,
-    %                aux signals (a PSTH's or raster's mean accelerometer
-    %                signal below, above or over each unit's panels), text
-    %                note, overlays: any number of lines and
-    %                semitransparent patches on the plot's axes) showing only the
-    %                options the plot uses -- its event / window / selection
-    %                the Alignment tab's while "Use default" is ticked, its own
-    %                once edited -- and a preview on the active dataset
-    %                (auto-preview while a preview takes under 2 s), drawn
-    %                in the design picked above it (PlotDesign), a badge under
-    %                it saying where it is (Computing, Drawn, Out of date,
-    %                Failed ...: setPreviewState). "Epoch Diagram",
-    %                under the epoch window, opens the epoch diagram
     %                (EpochDiagram): a window that stays above the app and
     %                draws, on the active dataset, the digital lines as TTL
     %                traces, each event, window and epoch and what is
@@ -69,32 +44,25 @@ classdef EphysAnalysisApp < handle
     %                the panel's own event and window ("Same as the figure"),
     %                its layers (each follows the observation or is fixed),
     %                the type's options, the panel's text note and overlays,
-    %                appearance and remembered looks,
-    %                showing only the rows the figure, panel and layer use
-    %                (syncFigureEditor); a preview of the observation picked
-    %                in the dataset and observation drop-downs (< and >),
-    %                which computes only that unit's spikes or that
-    %                channel's column (refreshFigurePreview: figureObservations,
-    %                EphysAnalysisRunner.computeFigure, renderFigure; Auto
-    %                while a preview takes under 2 s), with its own badge
-    %                (setFigurePreviewState). Runs, plans, reports and the
-    %                generated scripts draw the enabled figures too: one
-    %                page per observation, after each dataset's plots
-    %                (EphysAnalysisRunner.runDataset)
-    %     Sessions   session plots (buildSessionsTab): one plot of the Plots
-    %                tab (its base plot) computed on several datasets and
-    %                merged (EphysAnalysisRunner.computeSessionPlot,
-    %                combineSessions): add (on a base plot), remove,
-    %                duplicate, reorder; an editor in collapsible sections
-    %                (the datasets, figures per subject, a color per
-    %                session / subject / one mean, color order, sessions
-    %                under a summary, error band; unit matching: pool, site,
-    %                mapping file; the data export, To workspace, Save .mat)
-    %                showing only the rows it uses (syncSessionEditor); a
-    %                preview over the ticked datasets (refreshSessionPreview;
-    %                Auto off by default), its figures (per subject, per
-    %                trial group) and pages, with its own badge
-    %                (setSessionPreviewState)
+    %                appearance and remembered looks, and Sessions (the
+    %                figure drawn once across the ticked or picked datasets:
+    %                a session figure, its facet, colors, error band, unit
+    %                matching by site or mapping file, minimum sessions,
+    %                trial groups), showing only the rows the figure, panel
+    %                and layer use (syncFigureEditor); a preview of the
+    %                observation picked in the dataset and observation
+    %                drop-downs (< and >), which computes only that unit's
+    %                spikes or that channel's column (refreshFigurePreview:
+    %                figureObservations, EphysAnalysisRunner.computeFigure,
+    %                renderFigure; a session figure across its datasets:
+    %                computeSessionFigure; Auto while a preview takes under
+    %                2 s), with its own badge (setFigurePreviewState), drawn
+    %                in the design picked above it (Design, PlotDesign; Save
+    %                look as design...: onSaveDesign). Runs, plans, reports
+    %                and the generated scripts draw the enabled figures: one
+    %                page per observation on each dataset
+    %                (EphysAnalysisRunner.runDataset), then each session
+    %                figure across the datasets (runSessionFigure)
     %     Export     figure formats, folder and file-name pattern, the report
     %                (HTML / PDF), Validate, Plan, Run over the ticked
     %                datasets (cancelable), results, open the report / folder
@@ -111,8 +79,8 @@ classdef EphysAnalysisApp < handle
     %
     %   File menu: New / Open / Open recent / Save / Save As / Generate
     %   script (compact | standalone) / Open pipeline app / Close. Design
-    %   menu: the plot designs (choosing one redraws every plot), save the
-    %   preview's look as a design, import or delete a design, your designs
+    %   menu: the plot designs (choosing one redraws every figure), save the
+    %   figure preview's look as a design, import or delete a design, your designs
     %   folder. Help menu: the wiki page of the tab shown, the documentation
     %   home and the analysis quick start; Report an issue and Request a
     %   feature on GitHub (onReportIssue); About.
@@ -122,24 +90,16 @@ classdef EphysAnalysisApp < handle
     %   Preview; Validate, Plan, Run, Cancel; Open report, Open figure
     %   folder; Open pipeline app; Help for this tab.
     %
-    %   Keys (onKeyPress), on the Plots tab: Ctrl+1 to Ctrl+9 and Ctrl+0 (Cmd on a Mac)
-    %   go to the plot editor's sections (gotoPlotSection); each header
-    %   names its key and has a color of its own. On the Sessions tab
-    %   Ctrl+1 to Ctrl+3 go to the session editor's (gotoSessionSection). On
-    %   the Figures tab Ctrl+1 to Ctrl+9 and Ctrl+0 go to the figure
-    %   editor's (gotoFigureSection).
-    %   Page Up and Page Down flip the shown tab's preview pages; on the
-    %   Figures tab, which has none, they step to the previous and next
-    %   observation (onFigureObservationStep).
+    %   Keys (onKeyPress), on the Figures tab: Ctrl+1 to Ctrl+9 and Ctrl+0
+    %   (Cmd on a Mac) go to the figure editor's sections
+    %   (gotoFigureSection); each header names its key and has a color of
+    %   its own. Page Up and Page Down step to the previous and next
+    %   observation (onFigureObservationStep). Escape cancels a panel drag.
     %
     %   Preferences (getpref group 'EphysAnalysisApp'): FigurePosition,
-    %   LastConfigFile, RecentConfigs, ScriptFolder, AutoPreview,
+    %   LastConfigFile, RecentConfigs, ScriptFolder,
     %   PreviewMaxMB (signal previews of larger extracts wait for the Preview
-    %   button), PlotSectionsCollapsed (the plot editor's collapsed sections),
-    %   PlotGroupBy (how the plot tree groups), PlotGroupsCollapsed (its
-    %   collapsed groups), SessionAutoPreview (the Sessions tab's Auto,
-    %   off by default), SessionSectionsCollapsed (its editor's collapsed
-    %   sections), FigureAutoPreview (the Figures tab's Auto, on by default:
+    %   button), FigureAutoPreview (the Figures tab's Auto, on by default:
     %   one observation is quick), FigureSectionsCollapsed (its editor's
     %   collapsed sections), FigureGroupBy and FigureGroupsCollapsed (how
     %   its figure tree groups, and its collapsed groups),
@@ -165,9 +125,7 @@ classdef EphysAnalysisApp < handle
         Tabs  matlab.ui.container.TabGroup
         TabData    matlab.ui.container.Tab
         TabAlign   matlab.ui.container.Tab
-        TabPlots   matlab.ui.container.Tab
         TabFigures matlab.ui.container.Tab
-        TabSessions matlab.ui.container.Tab
         TabExport  matlab.ui.container.Tab
         TabChronux matlab.ui.container.Tab
         TabLog     matlab.ui.container.Tab
@@ -217,60 +175,6 @@ classdef EphysAnalysisApp < handle
         AlignTrialsTable   matlab.ui.control.Table
         SequenceDialog     matlab.ui.Figure = matlab.ui.Figure.empty   % the Event sequence window (editSequence), when open
 
-        % --- Plots tab ---
-        PlotsTree          matlab.ui.container.Tree         % the plots under groups (plotGroups); a plot's node holds its index in NodeData
-        PlotGroupDropDown  matlab.ui.control.DropDown       % how the tree groups: plot type, source, layout, status, none
-        PlotFilterDropDown matlab.ui.control.DropDown       % which plots the Check / Uncheck / Only buttons act on (refreshPlotFilter)
-        AddKindDropDown    matlab.ui.control.DropDown
-        AddPlotButton      matlab.ui.control.Button
-        RemovePlotButton   matlab.ui.control.Button
-        DuplicatePlotButton matlab.ui.control.Button
-        CopyPlotButton     matlab.ui.control.Button         % Copy from...: another plot's settings onto the selected plots (onCopyPlotSettings)
-        ConvertPlotButton  matlab.ui.control.Button         % Convert to figure: a figure of each selected plot (onConvertPlotToFigure)
-        UpPlotButton       matlab.ui.control.Button
-        DownPlotButton     matlab.ui.control.Button
-        PlotEditorPanel    matlab.ui.container.Panel        % the editor's panel (its title counts the plots selected)
-        PlotEditorGrid     matlab.ui.container.GridLayout   % the editor's column of sections
-        PlotSections struct = struct([])         % the editor's sections (formSection), top to bottom
-        PlotEditor struct = struct()             % plot-editor controls by field
-        PlotAlignControls struct = struct()      % the plot's event / window / selection (buildAlignControls)
-        PlotsDatasetDropDown matlab.ui.control.DropDown
-        DesignDropDown     matlab.ui.control.DropDown   % the plot design (PlotDesign), for every plot
-        SaveDesignButton   matlab.ui.control.Button
-        PreviewPanel       matlab.ui.container.Panel
-        PreviewButton      matlab.ui.control.Button
-        AutoPreviewCheckBox matlab.ui.control.CheckBox
-        PrevPageButton     matlab.ui.control.Button
-        NextPageButton     matlab.ui.control.Button
-        PageLabel          matlab.ui.control.Label
-        PreviewLabel       matlab.ui.control.Label
-        PreviewBadge struct = struct()           % the preview's state badge: Grid, Icon, Text (setPreviewState)
-        PreviewGrid        matlab.ui.container.GridLayout   % the SelectionBar (row 1, 0 px while one plot is selected) over the PreviewPanel
-        SelectionBar struct = struct()           % the bar over the preview while several plots are selected: Grid, Text (showPlotSelection)
-
-        % --- Sessions tab (buildSessionsTab) ---
-        SessionList            matlab.ui.control.ListBox        % "<id>  (<base plot>)"; ItemsData = index into Config.SessionPlots
-        AddSessionBaseDropDown matlab.ui.control.DropDown       % the base plot of a new session plot (kinds in SessionKinds)
-        AddSessionButton       matlab.ui.control.Button
-        RemoveSessionButton    matlab.ui.control.Button
-        DuplicateSessionButton matlab.ui.control.Button
-        UpSessionButton        matlab.ui.control.Button
-        DownSessionButton      matlab.ui.control.Button
-        SessionEditorPanel     matlab.ui.container.Panel        % the editor's panel (its title names the session plot)
-        SessionEditorGrid      matlab.ui.container.GridLayout   % the editor's column of sections
-        SessionSections struct = struct([])      % the editor's sections (formSection): general, sessions, matching, data
-        SessionEditor struct = struct()          % session-editor controls by field
-        SessionCountLabel      matlab.ui.control.Label          % "Sessions: N ticked (...)": what the session plot draws
-        SessionPreviewButton   matlab.ui.control.Button
-        SessionAutoCheckBox    matlab.ui.control.CheckBox       % auto-preview (pref SessionAutoPreview, off by default)
-        SessionGroupDropDown   matlab.ui.control.DropDown       % the figure shown (facet / trial group); ItemsData = index into SessionPreviewResults
-        SessionPrevPageButton  matlab.ui.control.Button
-        SessionNextPageButton  matlab.ui.control.Button
-        SessionPageLabel       matlab.ui.control.Label
-        SessionPreviewLabel    matlab.ui.control.Label
-        SessionPreviewPanel    matlab.ui.container.Panel
-        SessionPreviewBadge struct = struct()    % the session preview's state badge: Grid, Icon, Text (setSessionPreviewState)
-
         % --- Figures tab (buildFiguresTab) ---
         FiguresTree            matlab.ui.container.Tree         % the figures under groups (figureGroups); a figure's node holds its index in NodeData
         FigureGroupDropDown    matlab.ui.control.DropDown       % how the tree groups: what it observes, status, none
@@ -295,7 +199,8 @@ classdef EphysAnalysisApp < handle
         FigurePreviewButton    matlab.ui.control.Button
         FigureGenerateButton   matlab.ui.control.Button         % Generate: the figure for every observation on the ticked datasets (onGenerateFigure)
         FigureAutoCheckBox     matlab.ui.control.CheckBox       % auto-preview (pref FigureAutoPreview, on by default)
-        FigureDesignLabel      matlab.ui.control.Label          % "Design: <name>" (chosen on the Plots tab or the Design menu)
+        DesignDropDown         matlab.ui.control.DropDown       % the design every figure is drawn in (PlotDesign; also the Design menu)
+        SaveDesignButton       matlab.ui.control.Button         % Save look as design...: the figure preview's look (onSaveDesign)
         FigurePreviewPanel     matlab.ui.container.Panel
         FigurePreviewBadge struct = struct()     % the figure preview's state badge: Grid, Icon, Text (setFigurePreviewState)
         FigurePreviewLabel     matlab.ui.control.Label
@@ -353,30 +258,11 @@ classdef EphysAnalysisApp < handle
         ActiveIdx (1,1) double = 0          % the active dataset (index into Runner.Outputs)
         Ticked (1,:) logical = logical.empty(1, 0)   % datasets ticked to run
         DatasetsSort (1,1) struct = TableSort.none()   % the datasets table's header click (a TableSort state), kept as it is filled again
-        SelectedPlot (1,1) double = 0       % the plot in the editor (index into Config.Plots), the one previewed
-        AlsoSelected (1,:) double = zeros(1, 0)   % the other plots selected with it (tree multi-select), in the order picked; edits go to them too
-        ShownPlot struct = struct()         % the plot in the editor as its controls showed it before the edit (spreadPlotEdit)
-        PlotGroupsCollapsed (1,:) string = string.empty(1,0)   % keys of the tree's groups the user collapsed
-        PreviewResult = []                  % last preview's result
-        PreviewPage (1,1) double = 1
-        PreviewPages (1,1) double = 1
-        PreviewSeconds (1,1) double = Inf   % time the last preview took (auto-preview under 2 s)
-        PreviewState (1,1) string = "idle"  % what the preview badge says (setPreviewState)
-        PreviewRedo (1,1) logical = false   % an edit or a Preview press came in while one computed: it ends Out of date
         EpochDiagramWindow = []             % the EpochDiagram window, while open (onShowEpochs)
-        EpochDiagramFor (1,1) string = "plot"   % what it draws: "plot" (the editor's) | "defaults" | "figure" (the Figures tab's)
+        EpochDiagramFor (1,1) string = "figure"   % what it draws: "figure" (the Figures tab's editor) | "defaults" (the Alignment tab's)
         Running (1,1) logical = false
         LastReportFiles (1,:) string = string.empty(1,0)
         LastExportFolder (1,1) string = ""
-
-        SelectedSessionPlot (1,1) double = 0    % the session plot in the editor (index into Config.SessionPlots), the one previewed
-        SessionPreviewResults = []              % the last session preview's figures (computeSessionPlot's RES: facet, group, label, R, status, message)
-        SessionPreviewIndex (1,1) double = 1    % the figure of SessionPreviewResults shown
-        SessionPreviewPage (1,1) double = 1
-        SessionPreviewPages (1,1) double = 1
-        SessionPreviewState (1,1) string = "idle"   % what the session preview's badge says (setSessionPreviewState)
-        SessionPreviewRedo (1,1) logical = false    % an edit or a Preview press came in while one computed: it ends Out of date
-        SessionPreviewSeconds (1,1) double = 0      % time the last session preview took (auto-preview under 2 s)
 
         SelectedFigure (1,1) double = 0     % the figure in the editor (index into Config.Figures), the one previewed
         SelectedPanel (1,1) double = 0      % its panel in the editor (index into its panels; 0 = none)
@@ -441,14 +327,13 @@ classdef EphysAnalysisApp < handle
         buildToolbar(obj)
         buildDataTab(obj)
         buildAlignTab(obj)
-        buildPlotsTab(obj)
         buildExportTab(obj)
         buildLogTab(obj)
         C = buildAlignControls(obj, parents, changed)
         applyAlignControls(obj, C, ref, win, sel)
         [ref, win, sel] = gatherAlignControls(obj, C, ref, win, sel)
         fillAlignItems(obj, C)
-        editSequence(obj, holder, mode, lineCtl, edgeCtl, done)
+        editSequence(obj, holder, lineCtl, edgeCtl, done)
 
         % --- config model ---
         cfg = gatherConfig(obj)
@@ -463,12 +348,6 @@ classdef EphysAnalysisApp < handle
         applyExportSection(obj, X)
         P = gatherReportSection(obj)
         applyReportSection(obj, P)
-        p = gatherPlotEditor(obj)
-        applyPlotEditor(obj)
-        applyPlotEditorDefaults(obj)
-        syncPlotEditor(obj)
-        layoutPlotEditor(obj)
-        refreshPlotList(obj)
 
         % --- file menu ---
         onNewConfig(obj)
@@ -501,45 +380,11 @@ classdef EphysAnalysisApp < handle
         refreshAlignPreview(obj)
         onFilterHelp(obj)
 
-        % --- the epoch diagram (Alignment tab, plot editor) ---
+        % --- the epoch diagram (Alignment tab, figure editor) ---
         onShowEpochs(obj, what)
         refreshEpochDiagram(obj)
 
-        % --- Plots tab ---
-        onAddPlot(obj, kind)
-        onRemovePlot(obj)
-        onDuplicatePlot(obj)
-        onCopyPlotSettings(obj, opts)
-        onMovePlot(obj, step)
-        onPlotSelected(obj, k)
-        onPlotTreeSelected(obj, nodes)
-        ks = selectedPlots(obj)
-        showPlotSelection(obj)
-        onPlotGroupChanged(obj)
-        onPlotGroupToggled(obj, node, collapsed)
-        onPlotCheck(obj, how)
-        onPlotTreeDoubleClicked(obj, evt)
-        setPlotsEnabled(obj, ks, how)
-        ks = plotsOfFilter(obj)
-        refreshPlotFilter(obj)
-        onPlotSectionToggled(obj, name)
-        gotoPlotSection(obj, name)
-        onKeyPress(obj, evt)
-        onOverlayPicked(obj)
-        onAddOverlay(obj, shape)
-        onDuplicateOverlay(obj)
-        onRemoveOverlay(obj)
-        onPlotAlignEdited(obj, part)
-        onPlotDefaultToggled(obj)
-        refreshPreview(obj, opts)
-        setPreviewState(obj, state, opts)
-        onCancelPreview(obj)
-        onPreviewPage(obj, step)
-        rememberAesthetics(obj, id, rules)
-        onAutoPreviewToggled(obj)
-        autoPreview(obj)
-
-        % --- plot designs (Design menu, the preview's Design row) ---
+        % --- plot designs (Design menu, the Figures tab's Design row) ---
         onDesignChosen(obj, name)
         onSaveDesign(obj, name, description)
         onImportDesign(obj, file)
@@ -555,35 +400,6 @@ classdef EphysAnalysisApp < handle
         onOpenReport(obj)
         onOpenExportFolder(obj)
 
-        % --- Sessions tab ---
-        buildSessionsTab(obj)
-        refreshSessionList(obj)
-        sp = gatherSessionEditor(obj)
-        applySessionEditor(obj)
-        syncSessionEditor(obj)
-        layoutSessionEditor(obj)
-        onAddSessionPlot(obj, base)
-        onRemoveSessionPlot(obj)
-        onDuplicateSessionPlot(obj)
-        onMoveSessionPlot(obj, step)
-        onSessionPlotSelected(obj, k)
-        onSessionSectionToggled(obj, name)
-        gotoSessionSection(obj, name)
-        onPickSessionDatasets(obj, opts)
-        onBrowseUnitMapping(obj, file)
-        T = onEditUnitMapping(obj, opts)
-        refreshSessionPreview(obj)
-        state = drawSessionPreview(obj)
-        setSessionPreviewState(obj, state, opts)
-        onCancelSessionPreview(obj)
-        onSessionPreviewPage(obj, step)
-        onSessionGroupChanged(obj, i)
-        rememberSessionAesthetics(obj, id, rules)
-        autoSessionPreview(obj)
-        onSessionAutoPreviewToggled(obj)
-        S = onSessionsToWorkspace(obj, sp, opts)
-        file = onSaveSessionData(obj, sp, opts)
-
         % --- Figures tab ---
         buildFiguresTab(obj)
         refreshFigureList(obj)
@@ -593,7 +409,6 @@ classdef EphysAnalysisApp < handle
         onMoveFigure(obj, step)
         onFigureSelected(obj, k)
         onCopyFigureSettings(obj, opts)
-        onConvertPlotToFigure(obj)
         applyFigureEditor(obj)
         fig = gatherFigureEditor(obj)
         applyFigureEditorDefaults(obj)
@@ -627,6 +442,7 @@ classdef EphysAnalysisApp < handle
         rememberFigureAesthetics(obj, id, rules)
         onPickFigureDatasets(obj, opts)
         onBrowseFigureMapping(obj, file)
+        T = onEditUnitMapping(obj, opts)
         onFigureSessionPicked(obj)
         onFigureTreeSelected(obj, nodes)
         onFigureTreeClicked(obj, evt)
@@ -668,6 +484,7 @@ classdef EphysAnalysisApp < handle
         log(obj, message)
         selectTab(obj, tab)
         onTabChanged(obj)
+        onKeyPress(obj, evt)
         url = helpURL(obj, page)
         onHelp(obj, page)
         onReportIssue(obj, kind)

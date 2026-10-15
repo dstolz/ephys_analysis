@@ -7,15 +7,7 @@ end
 AppPrefs.setpref(g, 'LastConfigFile', char(obj.Config.File));
 AppPrefs.setpref(g, 'RecentConfigs', cellstr(obj.RecentConfigs));
 AppPrefs.setpref(g, 'ScriptFolder', char(obj.ScriptFolder));
-AppPrefs.setpref(g, 'AutoPreview', logical(obj.AutoPreviewCheckBox.Value));
 AppPrefs.setpref(g, 'PreviewMaxMB', obj.PreviewMaxMB);
-AppPrefs.setpref(g, 'PlotGroupBy', char(obj.PlotGroupDropDown.Value));
-AppPrefs.setpref(g, 'PlotGroupsCollapsed', cellstr(obj.PlotGroupsCollapsed));
-S = obj.PlotSections;
-AppPrefs.setpref(g, 'PlotSectionsCollapsed', cellstr([string.empty(1, 0) S(~[S.Expanded]).Name]));
-AppPrefs.setpref(g, 'SessionAutoPreview', logical(obj.SessionAutoCheckBox.Value));
-S = obj.SessionSections;
-AppPrefs.setpref(g, 'SessionSectionsCollapsed', cellstr([string.empty(1, 0) S(~[S.Expanded]).Name]));
 AppPrefs.setpref(g, 'FigureAutoPreview', logical(obj.FigureAutoCheckBox.Value));
 AppPrefs.setpref(g, 'FigureGroupBy', char(obj.FigureGroupDropDown.Value));
 AppPrefs.setpref(g, 'FigureGroupsCollapsed', cellstr(obj.FigureGroupsCollapsed));

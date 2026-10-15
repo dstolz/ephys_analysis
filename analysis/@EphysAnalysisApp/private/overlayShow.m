@@ -1,5 +1,5 @@
 function overlayShow(E, ov)
-%overlayShow  Show overlay OV in the plot editor's overlay rows (overlayRead reads them back).
+%overlayShow  Show overlay OV in the figure editor's overlay rows (overlayRead reads them back).
 %   A value a drop-down does not offer stays listed (a color, an outline)
 %   or falls back to the default (a shape, panel, layer or line style),
 %   and an opacity or width outside its box's limits is held to them.

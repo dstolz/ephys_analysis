@@ -4,15 +4,13 @@ function buildToolbar(obj)
 %   tooltip names the menu item's keyboard shortcut when it has one (Ctrl,
 %   or Cmd on a Mac). Left to right, in groups:
 %     File      New config, Open config, Save config
-%     Look      Scan for datasets (Data tab), Preview the selected plot
-%               (Plots tab; on the Sessions tab, the selected session
-%               plot; on the Figures tab, the selected figure)
+%     Look      Scan for datasets (Data tab), Preview the selected figure
+%               (Figures tab)
 %     Run       Validate config, Plan, Run, Cancel run (Export tab)
 %     Results   Open the last run's report, its figure folder
 %     Tools     Open pipeline app (File menu)
 %     Help      Help for this tab
-%   Preview shows the Plots tab (unless the Sessions tab shows, where it
-%   previews the session plot), and Validate, Plan and Run the Export tab,
+%   Preview shows the Figures tab, and Validate, Plan and Run the Export tab,
 %   where they put what they find. The Run tools follow the Export tab's
 %   buttons: Validate, Plan and Run are off while a run goes, Cancel is on
 %   only then, and the two Results tools come on when a run wrote a report
@@ -28,17 +26,17 @@ addTool(tb, iconDir, "new",  "New config",  "N", @(~,~) obj.onNewConfig());
 addTool(tb, iconDir, "open", "Open config", "O", @(~,~) obj.onOpenConfig());
 addTool(tb, iconDir, "save", "Save config", "S", @(~,~) obj.onSaveConfig());
 
-% --- Look: the datasets and the plot being edited ---
+% --- Look: the datasets and the figure being edited ---
 addTool(tb, iconDir, "scan", "Scan for datasets", "", @(~,~) obj.onScan(), Separator=true);
-addTool(tb, iconDir, "preview", "Preview the selected plot on the active dataset (on the Sessions tab: the " + ...
-    "selected session plot over its datasets; on the Figures tab: the selected figure)", "", @(~,~) preview(obj));
+addTool(tb, iconDir, "preview", "Preview the selected figure (Figures tab): the observation picked on the active " + ...
+    "dataset, or a session figure over its datasets", "", @(~,~) preview(obj));
 
 % --- Run: as the Export tab's buttons ---
 obj.ToolbarValidateTool = addTool(tb, iconDir, "validate", "Validate config", "", ...
     @(~,~) onExportTab(obj, @() obj.onValidate()), Separator=true);
-obj.ToolbarPlanTool = addTool(tb, iconDir, "plan", "Plan: which plot or figure runs on which ticked dataset", "", ...
+obj.ToolbarPlanTool = addTool(tb, iconDir, "plan", "Plan: which figure runs on which ticked dataset", "", ...
     @(~,~) onExportTab(obj, @() obj.onPlan()));
-obj.ToolbarRunTool = addTool(tb, iconDir, "run", "Run the enabled plots and figures on the ticked datasets", "", ...
+obj.ToolbarRunTool = addTool(tb, iconDir, "run", "Run the enabled figures on the ticked datasets", "", ...
     @(~,~) onExportTab(obj, @() obj.onRunExport()));
 obj.ToolbarCancelTool = addTool(tb, iconDir, "cancel", "Cancel run", "", @(~,~) obj.onCancelRun());
 obj.ToolbarCancelTool.Enable = "off";
@@ -60,21 +58,17 @@ end
 
 
 function preview(obj)
-%preview  The Plots tab, then the selected plot drawn as its Preview button draws it.
-%   The tab shows first, so a slow preview is seen computing. Its hint
-%   follows; the auto-preview onTabChanged starts finds the plot drawn.
-%   On the Sessions tab: the session plot, as its Preview button draws it;
-%   on the Figures tab, the figure.
-if obj.Tabs.SelectedTab == obj.TabSessions
-    obj.refreshSessionPreview();
-    return
-end
+%preview  The Figures tab, then the selected figure drawn as its Preview button draws it.
+%   The tab shows first, with the observations listed, so a slow preview is
+%   seen computing. Its hint follows; the auto-preview onTabChanged starts
+%   finds the figure drawn.
 if obj.Tabs.SelectedTab == obj.TabFigures
     obj.refreshFigurePreview(Force=true);
     return
 end
-obj.Tabs.SelectedTab = obj.TabPlots;
-obj.refreshPreview(Force=true);
+obj.Tabs.SelectedTab = obj.TabFigures;
+obj.refreshFigureObservations();
+obj.refreshFigurePreview(Force=true);
 obj.onTabChanged();
 end
 

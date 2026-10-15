@@ -52,7 +52,7 @@ else
         end
     end
 end
-obj.SelectedPlot = 0;
+obj.SelectedFigure = 0;
 obj.applyConfig(cfg, MarkSaved=true);
 obj.onScan();
 end

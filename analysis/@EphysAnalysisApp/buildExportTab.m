@@ -34,7 +34,8 @@ X.Browse = uibutton(xg, "Text", "Browse...", "ButtonPushedFcn", @(~,~) browse(ob
 place(X.Browse, 3, 4);
 lab(xg, "File names:", 4, 1);
 X.FilenamePattern = uieditfield(xg, "text", "ValueChangedFcn", changed, ...
-    "Tooltip", "Tokens: {Name} {Plot} {Kind} {Group} {Unit} {Index} {Date}; a paged plot adds _p<page> unless {Index} or {Unit} is used.");
+    "Tooltip", "Tokens: {Name} {Plot} (the figure's id) {Kind} {Group} {Unit} {Index} {Date}; a figure drawn for " + ...
+    "several observations adds _<Unit> unless {Unit} or {Index} is used.");
 place(X.FilenamePattern, 4, [2 4]);
 lab(xg, "Dpi (png):", 5, 1);
 X.Dpi = uieditfield(xg, "numeric", "Limits", [10 2400], "Value", 150, "ValueChangedFcn", changed);
@@ -83,7 +84,8 @@ P.Dpi = uieditfield(rg, "numeric", "Limits", [10 1200], "Value", 110, "ValueChan
 place(P.Dpi, 5, 4);
 ig = uigridlayout(rg, [1 3]); ig.Padding = [0 0 0 0]; ig.Layout.Row = 6; ig.Layout.Column = [1 4];
 P.IncludeSummary = uicheckbox(ig, "Text", "Summary tables", "ValueChangedFcn", changed);
-P.IncludeParameters = uicheckbox(ig, "Text", "Plot parameters", "ValueChangedFcn", changed);
+P.IncludeParameters = uicheckbox(ig, "Text", "Figure parameters", "ValueChangedFcn", changed, ...
+    "Tooltip", "Each figure's settings, folded under it in the report.");
 P.IncludeConfig = uicheckbox(ig, "Text", "The config", "ValueChangedFcn", changed);
 obj.ReportControls = P;
 
@@ -94,12 +96,13 @@ right.ColumnWidth = {90, 90, 90, 90, '1x', 'fit'};
 right.Padding = [0 0 0 0];
 obj.ValidateButton = uibutton(right, "Text", "Validate", "ButtonPushedFcn", @(~,~) obj.onValidate());
 place(obj.ValidateButton, 1, 1);
-obj.PlanButton = uibutton(right, "Text", "Plan", "Tooltip", "Which plot or figure runs on which ticked dataset, and why one is skipped.", ...
+obj.PlanButton = uibutton(right, "Text", "Plan", "Tooltip", "Which figure runs on which ticked dataset (and each session figure across them), and why one is skipped.", ...
     "ButtonPushedFcn", @(~,~) obj.onPlan());
 place(obj.PlanButton, 1, 2);
 obj.RunButton = uibutton(right, "Text", "Run", ...
-    "Tooltip", "Every enabled plot and figure on every ticked dataset: figure files and report. A figure is drawn " + ...
-    "once per observation (the Figures tab's Generate draws one figure alone).", "ButtonPushedFcn", @(~,~) obj.onRunExport());
+    "Tooltip", "Every enabled figure on every ticked dataset, then every enabled session figure across them: " + ...
+    "figure files and report. A figure is drawn once per observation (the Figures tab's Generate draws one " + ...
+    "figure alone).", "ButtonPushedFcn", @(~,~) obj.onRunExport());
 place(obj.RunButton, 1, 3);
 obj.CancelButton = uibutton(right, "Text", "Cancel", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onCancelRun());
 place(obj.CancelButton, 1, 4);
@@ -113,7 +116,7 @@ og = uigridlayout(right, [1 3], "Padding", [0 0 0 0], "ColumnWidth", {'fit', 'fi
 place(og, 5, [1 6]);
 obj.OpenReportButton = uibutton(og, "Text", "Open report", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onOpenReport());
 obj.OpenFolderButton = uibutton(og, "Text", "Open figure folder", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onOpenExportFolder(), ...
-    "Tooltip", "The first dataset's figure folder of the last run. The session plots' figures go to the sessions folder (Export.SessionsFolder).");
+    "Tooltip", "The first dataset's figure folder of the last run. The session figures' files go to the sessions folder (Export.SessionsFolder).");
 end
 
 

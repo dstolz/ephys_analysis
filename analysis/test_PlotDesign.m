@@ -281,6 +281,51 @@ check(isfield(Dh.kinds, "heatmap") && any([Dh.kinds.heatmap.role] == "axes") && 
     'editing context): its axes rules are kept for heat maps only (kinds.heatmap), the common ones unchanged']);
 Dh2 = PlotDesign.capture(live, Spec=Ch.spec);
 check(isequaln(Dh2.kinds, Dh.kinds) && isequaln(Dh2.rules, Dh.rules), 'capture with Spec= (the app''s Save design) attributes them the same way');
+% panel types attributed per tile: a mixed figure, two heat maps, no map panel, and a redraw in what was captured
+srcD = fx.runner.source(1);
+hmFig = fx.cfg.Figures(fx.cfg.figureIndex("heatmap"));   % as stored (not resolved by figureFor)
+psFig = fx.cfg.Figures(fx.cfg.figureIndex("psth"));
+hmPanel = hmFig.panels(1);
+psPanel = psFig.panels(1);
+mixed = hmFig;
+mixed.id = "mixed";
+mixed.grid.rows = 2; mixed.grid.cols = 1; mixed.grid.rowHeights = []; mixed.grid.colWidths = [];
+hmPanel.row = 1; hmPanel.col = 1; psPanel.row = 2; psPanel.col = 1;
+mixed.panels = [hmPanel psPanel];
+cfgD = fx.cfg.addFigure(mixed);
+mixedSpec = cfgD.figureFor("mixed");
+Tm = figureObservations(srcD, mixedSpec);
+renderFigure(fx.runner.computeFigure(srcD, mixedSpec, Observation=Tm(1, :)), mixedSpec, live, Editable=true, Design="Default");
+Dx = PlotDesign.capture(live);
+roles = @(R) [string.empty(1, 0) R.role];
+check(isfield(Dx.kinds, "heatmap") && any(roles(Dx.kinds.heatmap) == "axes") && ~any(ismember(roles(Dx.kinds.heatmap), ["rate" "rateFill" "sem"])) ...
+    && any(roles(Dx.rules) == "axes") && ~any(ismember(roles(Dx.rules), ["image" "colorbar"])) && ~isfield(Dx.kinds, "psth"), ...
+    'a heat map over a PSTH: the heat map''s axes rules go under kinds.heatmap only, the PSTH''s into the common rules');
+two = mixed;
+two.id = "two_heatmaps";
+hm2 = hmPanel; hm2.id = hmPanel.id + "_b"; hm2.row = 2;
+two.panels = [hmPanel hm2];
+cfgD = fx.cfg.addFigure(two);
+twoSpec = cfgD.figureFor("two_heatmaps");
+T2 = figureObservations(srcD, twoSpec);
+renderFigure(fx.runner.computeFigure(srcD, twoSpec, Observation=T2(1, :)), twoSpec, live, Editable=true, Design="Default");
+D2h = PlotDesign.capture(live);
+check(isfield(D2h.kinds, "heatmap") && any(roles(D2h.kinds.heatmap) == "axes") && ~any(roles(D2h.rules) == "axes"), ...
+    'two heat-map panels: their axes rules under kinds.heatmap, no axes rule among the common ones');
+renderFigure(Cp.F, Cp.spec, live, Editable=true, Design="Default");
+Dn = PlotDesign.capture(live);
+check(isempty(fieldnames(Dn.kinds)) && any(roles(Dn.rules) == "axes"), 'a figure without a map panel adds no kinds: its rules are all common');
+heatSpec = Ch.spec;
+heatSpec.aesthetics = PlotAesthetics.normalizeRules(struct('role', "axes", 'group', "", 'property', "LineWidth", 'value', 2.5));
+renderFigure(Ch.F, heatSpec, live, Editable=true, Design="Default");
+Dk = PlotDesign.capture(live, Name="Heat lines");
+PlotDesign.save(Dk, "Heat lines", Overwrite=true);
+hk = renderFigure(Ch.F, Ch.spec, fig, Design="Heat lines");
+heatWidth = hk.axes(1).LineWidth;   % read before the next drawing replaces it
+hpk = renderFigure(Cp.F, Cp.spec, fig, Design="Heat lines");
+check(isfield(Dk.kinds, "heatmap") && heatWidth == 2.5 && hpk.axes(1).LineWidth ~= 2.5, ...
+    'redrawn in the saved design, a heat map''s axes come back as captured (2.5 wide); a PSTH''s do not take the heat map''s rule');
+PlotDesign.remove("Heat lines");
 if nO > 2
     renderFigure(Co.F, Co.spec, live, Editable=true, Design="Default");
     Do = PlotDesign.capture(live);

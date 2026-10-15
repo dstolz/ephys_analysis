@@ -659,9 +659,9 @@ end
 
 function n = analysisTree(cfg)
 %analysisTree  The Analysis step: the analysis config it runs (read here for
-%   its plots, when it can be), what it reads and the files it writes.
+%   its figures, when it can be), what it reads and the files it writes.
 An = cfg.Analysis;
-fileTarget = "AnaConfigField,AnaPlotsTable";
+fileTarget = "AnaConfigField,AnaFiguresTable";
 f = strtrim(An.ConfigFile);
 acfg = [];
 if f == ""
@@ -672,21 +672,20 @@ else
     if isempty(acfg)
         plots = node("off", "Analysis config", [string(b) + string(x), msg], fileTarget);
     else
-        on = acfg.Plots([acfg.Plots.enabled]);
-        what = "no plot enabled";
-        if ~isempty(on)
-            what = sprintf("%d plot(s): %s", numel(on), join(unique([on.kind], "stable"), ", "));
-        end
+        [~, ~, what] = figureUse(acfg);
         ref = acfg.Defaults.EventRef;
         win = acfg.Defaults.Window;
-        plots = node("op", "Plots of " + string(b) + string(x), [what, ...
+        plots = node("op", "Figures of " + string(b) + string(x), [what, ...
             sprintf("aligned to the %s of %s, [%g %g] s", ref.edge, ref.line, win.pre, win.post)], fileTarget);
     end
 end
 in = ["Signals extract: events and signals", "behavior file: the paired trials"];
-if isempty(acfg) || any([acfg.Plots([acfg.Plots.enabled]).source] == "units"); in(end+1) = "sorted units"; end
-if isempty(acfg) || any([acfg.Plots([acfg.Plots.enabled]).source] == "detected"); in(end+1) = "detected spikes (Spikes file)"; end
-outs = {onOff(An.Figures, "Figure files", "each plot's pages, as the analysis config's Export says", ...
+units = true;
+detected = true;
+if ~isempty(acfg); [units, detected] = figureUse(acfg); end
+if units; in(end+1) = "sorted units"; end
+if detected; in(end+1) = "detected spikes (Spikes file)"; end
+outs = {onOff(An.Figures, "Figure files", "each figure's pages, as the analysis config's Export says", ...
     "off (Write the figure files)", "AnaFiguresCheckBox"), ...
     onOff(An.Report, "Report", "HTML / PDF over the selected datasets, as its Report says", ...
     "off (Write the report)", "AnaReportCheckBox")};

@@ -6,8 +6,7 @@ function onFigureTreeClicked(obj, evt)
 %   (checkIcon), which the tree reports no clicks of, so the click's x is
 %   tested against where MATLAB draws a node's icon: BoxLeft pixels from the
 %   tree's left edge for a top-level node, Indent more per level down
-%   (measured on R2025a; the twisty of a group sits left of its box). The
-%   plot tree's rule (its onPlotTreeClicked), with the same constants.
+%   (measured on R2025a; the twisty of a group sits left of its box).
 BoxLeft = 19;
 Indent = 18;
 Slack = 2;   % pixels either side of the 16-pixel icon still count

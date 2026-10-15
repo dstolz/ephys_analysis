@@ -1,5 +1,5 @@
 function img = checkIcon(state)
-%checkIcon  A 16 x 16 check box for a plot tree node: STATE "on" (ticked), "off" or "mixed" (some plots of a group).
+%checkIcon  A 16 x 16 check box for a figure tree node: STATE "on" (ticked), "off" or "mixed" (some figures of a group).
 %   A truecolor array for a tree node's Icon. The tree is a multi-select
 %   tree, which MATLAB draws without check boxes (only the check-box tree has
 %   them, and it picks one node at a time), so the boxes are icons.

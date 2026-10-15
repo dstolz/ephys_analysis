@@ -7,7 +7,7 @@ function [keys, labels, members] = figureGroups(F, by)
 %   is what its node says, and MEMBERS{g} the indices into F of its
 %   figures, in F's order (the run order). Groups follow a fixed order
 %   (unit, channel, dataset; enabled before off) and only those with a
-%   figure are listed. The figure tree's analog of plotGroups.
+%   figure are listed.
 keys = strings(1, 0);
 labels = strings(1, 0);
 members = {};

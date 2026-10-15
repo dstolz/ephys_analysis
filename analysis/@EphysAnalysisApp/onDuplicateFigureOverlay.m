@@ -2,7 +2,6 @@ function onDuplicateFigureOverlay(obj)
 %onDuplicateFigureOverlay  Copy the overlay picked in the figure editor, with its look, right after it.
 %   The copy is named "<name> copy" (then "<name> copy 2", ...: a name no
 %   overlay of the figure's panels has) and picked.
-%   The Figures tab's copy of onDuplicateOverlay (the Plots tab's).
 E = obj.FigureEditor;
 items = overlayGather(E);
 k = E.ovList.UserData.shown;

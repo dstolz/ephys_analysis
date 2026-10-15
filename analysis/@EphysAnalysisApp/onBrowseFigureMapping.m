@@ -1,7 +1,7 @@
 function onBrowseFigureMapping(obj, file)
 %onBrowseFigureMapping  Pick the selected session figure's unit-mapping file (a .csv).
-%   The Browse... button of the Figures tab's Sessions section, as the
-%   Sessions tab's (onBrowseUnitMapping): a file dialog starting in the
+%   The Browse... button of the Figures tab's Sessions section: a file
+%   dialog starting in the
 %   current file's folder (else the config's). FILE skips the dialog
 %   (scripts, tests). The file goes into the Mapping file box and the
 %   config (onConfigChanged "figure"); it is read when the observations

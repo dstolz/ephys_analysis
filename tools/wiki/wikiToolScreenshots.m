@@ -15,16 +15,20 @@ function files = wikiToolScreenshots(outFolder, opts)
 %     analysis-data-tab.png       EphysAnalysisApp at 1240x800 on P:
 %                           Data tab, first dataset active
 %     analysis-alignment-tab.png  Alignment tab: Stim onset, grouped by Depth
-%     analysis-plots-tab.png      Plots tab: the PSTH and its preview
+%     analysis-figures-tab.png    Figures tab: the unit card (a raster
+%                           over a PSTH) and its preview of the first unit
 %     analysis-export-tab.png     Export tab after Plan and a run of every
-%                           plot on the first dataset
-%     analysis-example-psth.png   the PNGs that run wrote: the PSTH grid,
-%     analysis-example-raster.png the rasters and the unit correlation
-%     analysis-example-corrmap.png
+%                           figure on the first dataset
+%     analysis-example-unit-card.png  the PNGs that run wrote: the first
+%     analysis-example-heatmap.png    unit's card, and the dataset's heat
+%     analysis-example-corrmap.png    map and unit correlation
 %   The analysis config is "Synthetic quick look": the default event (the
-%   first Stim onset of each trial, -0.2 to 0.8 s), grouped by Depth, one
-%   plot of each kind but rate, PNG figures at 100 dpi. The run writes its
-%   figures and report into P (the analysis folders next to the recording).
+%   first Stim onset of each trial, -0.2 to 0.8 s), grouped by Depth, the
+%   figures unit_card (raster over PSTH), tuning, heatmap, probemap,
+%   corrmap (over every epoch) and lfp (a continuous panel), the per-unit
+%   figures (unit_card, tuning) on at most six units, PNG figures at 100
+%   dpi. The run writes its figures and report into P (the analysis
+%   folders next to the recording).
 %   Run it with MATLAB R2025a under -batch (see README.md here):
 %     matlab -batch "addpath('C:\src\ephys_analysis\tools\wiki'); wikiToolScreenshots('C:\temp\shots', Source='C:\temp\src', Project='C:\temp\wiki_shots\synthetic_ephys')"
 %
@@ -47,8 +51,8 @@ arguments
     opts.Project (1,1) string {mustBeFolder}
     opts.Source (1,1) string = string(fileparts(fileparts(fileparts(mfilename('fullpath')))))
     opts.Shots (1,:) string = ["probe-designer.png" "channel-mapper.png" "manifest-viewer.png" ...
-        "analysis-data-tab.png" "analysis-alignment-tab.png" "analysis-plots-tab.png" "analysis-export-tab.png" ...
-        "analysis-example-psth.png" "analysis-example-raster.png" "analysis-example-corrmap.png"]
+        "analysis-data-tab.png" "analysis-alignment-tab.png" "analysis-figures-tab.png" "analysis-export-tab.png" ...
+        "analysis-example-unit-card.png" "analysis-example-heatmap.png" "analysis-example-corrmap.png"]
     opts.Wait (1,1) double {mustBeNonnegative} = 2
 end
 
@@ -100,8 +104,8 @@ if want("manifest-viewer.png")
     delete(v);
 end
 
-analysisShots = ["analysis-data-tab.png" "analysis-alignment-tab.png" "analysis-plots-tab.png" "analysis-export-tab.png" ...
-    "analysis-example-psth.png" "analysis-example-raster.png" "analysis-example-corrmap.png"];
+analysisShots = ["analysis-data-tab.png" "analysis-alignment-tab.png" "analysis-figures-tab.png" "analysis-export-tab.png" ...
+    "analysis-example-unit-card.png" "analysis-example-heatmap.png" "analysis-example-corrmap.png"];
 if any(ismember(analysisShots, opts.Shots))
     a = EphysAnalysisApp(proj);    % a new config over the project, scanned
     closeAnalysis = onCleanup(@() delete(a.Fig));
@@ -111,15 +115,20 @@ if any(ismember(analysisShots, opts.Shots))
     cfg.Defaults.Selection.groupBy = "Depth";
     cfg.Export.Formats = "png";
     cfg.Export.Dpi = 100;
-    six = struct('maxUnits', 6);   % six tiles fit the 18 x 12 cm page
-    cfg = cfg.addPlot(struct('kind', "psth", 'units', six));
-    cfg = cfg.addPlot(struct('kind', "raster", 'units', six));
-    cfg = cfg.addPlot(struct('kind', "tuning", 'param', "Depth"));
-    cfg = cfg.addPlot("heatmap");
-    cfg = cfg.addPlot("probemap");
-    % Over all epochs: a Depth group of two epochs has no correlation.
-    cfg = cfg.addPlot(struct('kind', "corrmap", 'selection', trialSelection()));
-    cfg = cfg.addPlot(struct('kind', "evoked", 'source', "LFP"));
+    T = EphysAnalysisConfig.figureTemplates();
+    ids = struct('rasterPsth', "unit_card", 'tuning', "tuning", 'heatmap', "heatmap", 'probemap', "probemap", ...
+        'corrmap', "corrmap", 'continuous', "lfp");
+    for t = string(fieldnames(ids)).'
+        f = T.Figure{T.Template == t};
+        f.id = ids.(t);
+        if t == "corrmap"
+            f.selection = trialSelection();   % over all epochs: a Depth group of two epochs has no correlation
+        end
+        cfg = cfg.addFigure(f);
+        if ismember(t, ["rasterPsth" "tuning"])   % drawn per unit (the heat map, probe map and corrmap: once for the dataset)
+            cfg.Figures(end).observe.units.maxUnits = 6;   % a few units' pages
+        end
+    end
     a.applyConfig(cfg);
     a.selectDataset(1);
 
@@ -127,19 +136,20 @@ if any(ismember(analysisShots, opts.Shots))
     shot(a.Fig, "analysis-data-tab.png");
     a.selectTab(a.TabAlign);
     shot(a.Fig, "analysis-alignment-tab.png");
-    a.selectTab(a.TabPlots);
-    a.onPlotSelected(1);
-    a.refreshPreview(Force=true);
-    shot(a.Fig, "analysis-plots-tab.png");
+    a.selectTab(a.TabFigures);
+    a.onFigureSelected(1);
+    a.refreshFigureObservations();
+    a.refreshFigurePreview(Force=true);
+    shot(a.Fig, "analysis-figures-tab.png");
     if any(ismember(analysisShots(4:end), opts.Shots))
         a.selectTab(a.TabExport);
         a.onPlan();
         a.onRunExport(Datasets=1);
         shot(a.Fig, "analysis-export-tab.png");
-        for k = ["psth" "raster" "corrmap"]
-            name = "analysis-example-" + k + ".png";
+        for k = ["unit_card" "heatmap" "corrmap"]
+            name = "analysis-example-" + replace(k, "_", "-") + ".png";
             if ~want(name); continue; end
-            F = dir(fullfile(a.LastExportFolder, "*_" + k + "_1*.png"));
+            F = dir(fullfile(a.LastExportFolder, "*_" + k + "*.png"));
             copyfile(fullfile(F(1).folder, F(1).name), fullfile(outFolder, name));
             files(end+1) = fullfile(outFolder, name); %#ok<AGROW>
             fprintf('wrote %s (from %s)\n', files(end), F(1).name);

@@ -1,17 +1,13 @@
 function loadPreferences(obj, openLast)
 %loadPreferences  Restore the app's preferences; OPENLAST: reopen the last config.
 %   Group EphysAnalysisApp: FigurePosition, LastConfigFile, RecentConfigs,
-%   ScriptFolder, AutoPreview, PreviewMaxMB, PlotSectionsCollapsed (the
-%   plot editor's collapsed sections), PlotGroupBy and PlotGroupsCollapsed
-%   (the plot tree's grouping and collapsed groups), SessionAutoPreview
-%   and SessionSectionsCollapsed (the Sessions tab's Auto box, off by
-%   default, and its editor's collapsed sections), FigureAutoPreview and
-%   FigureSectionsCollapsed (the Figures tab's Auto box, on by default, and
-%   its editor's collapsed sections), FigureGroupBy and
-%   FigureGroupsCollapsed (the figure tree's grouping and collapsed
-%   groups), ChronuxCacheFolder,
-%   ChronuxMaxMB, ChronuxSettings and ChronuxSectionsCollapsed (the
-%   Chronux tab's). Everything else is the config.
+%   ScriptFolder, PreviewMaxMB (signal previews of larger extracts wait
+%   for the Preview button), FigureAutoPreview and FigureSectionsCollapsed
+%   (the Figures tab's Auto box, on by default, and its editor's collapsed
+%   sections), FigureGroupBy and FigureGroupsCollapsed (the figure tree's
+%   grouping and collapsed groups), ChronuxCacheFolder, ChronuxMaxMB,
+%   ChronuxSettings and ChronuxSectionsCollapsed (the Chronux tab's).
+%   Everything else is the config.
 if nargin < 2; openLast = true; end
 g = obj.PrefGroup;
 if AppPrefs.ispref(g, 'FigurePosition')
@@ -28,34 +24,9 @@ if AppPrefs.ispref(g, 'FigurePosition')
 end
 if AppPrefs.ispref(g, 'RecentConfigs'); obj.RecentConfigs = reshape(string(AppPrefs.getpref(g, 'RecentConfigs')), 1, []); end
 if AppPrefs.ispref(g, 'ScriptFolder'); obj.ScriptFolder = string(AppPrefs.getpref(g, 'ScriptFolder')); end
-if AppPrefs.ispref(g, 'AutoPreview'); obj.AutoPreviewCheckBox.Value = isequal(AppPrefs.getpref(g, 'AutoPreview'), true); end
 if AppPrefs.ispref(g, 'PreviewMaxMB')
     v = AppPrefs.getpref(g, 'PreviewMaxMB');
     if isnumeric(v) && isscalar(v) && v > 0; obj.PreviewMaxMB = v; end
-end
-if AppPrefs.ispref(g, 'PlotGroupBy')
-    by = string(AppPrefs.getpref(g, 'PlotGroupBy'));
-    if isscalar(by) && ismember(by, string(obj.PlotGroupDropDown.ItemsData))
-        obj.PlotGroupDropDown.Value = by;
-    end
-end
-if AppPrefs.ispref(g, 'PlotGroupsCollapsed')
-    obj.PlotGroupsCollapsed = reshape(string(AppPrefs.getpref(g, 'PlotGroupsCollapsed')), 1, []);
-end
-if AppPrefs.ispref(g, 'PlotSectionsCollapsed')
-    shut = string(AppPrefs.getpref(g, 'PlotSectionsCollapsed'));
-    for i = 1:numel(obj.PlotSections)
-        obj.PlotSections(i).Expanded = ~ismember(obj.PlotSections(i).Name, shut);
-    end
-    obj.layoutPlotEditor();
-end
-if AppPrefs.ispref(g, 'SessionAutoPreview'); obj.SessionAutoCheckBox.Value = isequal(AppPrefs.getpref(g, 'SessionAutoPreview'), true); end
-if AppPrefs.ispref(g, 'SessionSectionsCollapsed')
-    shut = string(AppPrefs.getpref(g, 'SessionSectionsCollapsed'));
-    for i = 1:numel(obj.SessionSections)
-        obj.SessionSections(i).Expanded = ~ismember(obj.SessionSections(i).Name, shut);
-    end
-    obj.layoutSessionEditor();
 end
 if AppPrefs.ispref(g, 'FigureAutoPreview'); obj.FigureAutoCheckBox.Value = isequal(AppPrefs.getpref(g, 'FigureAutoPreview'), true); end
 if AppPrefs.ispref(g, 'FigureGroupBy')

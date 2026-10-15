@@ -1,10 +1,11 @@
 function R = onRunExport(obj, opts)
-%onRunExport  Run the enabled plots and figures on the ticked datasets: figure files and report.
+%onRunExport  Run the enabled figures on the ticked datasets, then the session figures: figure files and report.
 %   Validates first (errors stop it), then EphysAnalysisRunner.run with a
 %   cancelable progress dialog (the Export tab's and the toolbar's Cancel
-%   stop it too: onCancelRun). Plots=, Figures= and Datasets= narrow the
-%   run (the tests use them); by default every enabled plot and figure on
-%   every ticked dataset. SessionPlots=, SessionFigures=, Export= and Report= are run's
+%   stop it too: onCancelRun). Figures= and Datasets= narrow the run (the
+%   tests use them); by default every enabled figure on every ticked
+%   dataset, then every enabled session figure across them.
+%   SessionFigures=, Export= and Report= are run's
 %   ([] = the config's); Config= runs that config instead of the controls'
 %   (gatherConfig) and Title= names the progress dialog: the Figures tab's
 %   Generate (onGenerateFigure) runs one figure that way. One run goes at a
@@ -12,9 +13,7 @@ function R = onRunExport(obj, opts)
 %   the previews compute nothing.
 arguments
     obj (1,1) EphysAnalysisApp
-    opts.Plots = []      % [] = the enabled plots; string.empty(1, 0) = none; else ids
-    opts.Figures = []    % likewise for the figures
-    opts.SessionPlots = []   % likewise for the session plots
+    opts.Figures = []    % [] = the enabled figures; string.empty(1, 0) = none; else ids
     opts.SessionFigures = [] % likewise for the session figures (figures drawn across the datasets)
     opts.Datasets = []
     opts.Export = []     % [] = Export.Enabled
@@ -54,8 +53,8 @@ obj.ToolbarCancelTool.Enable = 'on';
 cleanup = onCleanup(@() finish(obj, dlg));
 t0 = tic;
 try
-    R = r.run(Datasets=idx, Plots=opts.Plots, Figures=opts.Figures, SessionPlots=opts.SessionPlots, ...
-        SessionFigures=opts.SessionFigures, Export=opts.Export, Report=opts.Report);
+    R = r.run(Datasets=idx, Figures=opts.Figures, SessionFigures=opts.SessionFigures, ...
+        Export=opts.Export, Report=opts.Report);
 catch ME
     obj.log("Run failed: " + string(ME.message));
     uialert(obj.Fig, "The run failed:" + newline + string(ME.message), "Run");
@@ -70,8 +69,7 @@ if doExport
     obj.LastExportFolder = figureFileName(cfg.Export.Folder, struct('OutputFolder', r.datasetFolder(idx(1)), ...
         'OutputRoot', r.outputRoot(), 'Root', cfg.Source.Root, 'Name', r.Names(idx(1))), Kind="folder");
 end
-sids = [EphysAnalysisRunner.idList(opts.SessionPlots, @() cfg.enabledSessionPlots()) ...
-    EphysAnalysisRunner.idList(opts.SessionFigures, @() cfg.enabledSessionFigures())];
+sids = EphysAnalysisRunner.idList(opts.SessionFigures, @() cfg.enabledSessionFigures());
 obj.OpenFolderButton.Tooltip = openFolderTip(obj, cfg, idx, sids);
 obj.OpenReportButton.Enable = matlab.lang.OnOffSwitchState(~isempty(obj.LastReportFiles));
 obj.OpenFolderButton.Enable = matlab.lang.OnOffSwitchState(obj.LastExportFolder ~= "" && isfolder(obj.LastExportFolder));
@@ -107,7 +105,7 @@ end
 
 
 function tip = openFolderTip(obj, cfg, idx, sids)
-%openFolderTip  The Open figure folder button's tooltip: the first dataset's folder, and where the session plots' figures went.
+%openFolderTip  The Open figure folder button's tooltip: the first dataset's folder, and where the session figures' files went.
 tip = "The first dataset's figure folder of the last run.";
 if isempty(sids); return; end
 try
@@ -115,8 +113,8 @@ try
     first = r.sessionTable(idx).index(1);
     folder = figureFileName(cfg.Export.SessionsFolder, struct('OutputFolder', r.datasetFolder(first), ...
         'OutputRoot', r.outputRoot(), 'Root', cfg.Source.Root, 'Name', r.Names(first)), Kind="folder");
-    tip = tip + " The session plots' figures are in " + folder + ".";
+    tip = tip + " The session figures' files are in " + folder + ".";
 catch
-    tip = tip + " The session plots' figures are in the sessions folder (Export.SessionsFolder).";
+    tip = tip + " The session figures' files are in the sessions folder (Export.SessionsFolder).";
 end
 end

@@ -352,7 +352,7 @@ if hasPanel
         E.palignNote.Text = typeLabel + " panels are not aligned to events: they use no event or window.";
     end
 
-    % the panel's text note and overlays (the Plots tab's rows; a panel's overlays have no panel row)
+    % the panel's text note and overlays (a panel's overlays have no panel row)
     for f = noteKeys; v.(f) = true; end
     noted = strtrim(strjoin(string(E.annText.Value(:)).', newline)) ~= "";
     en([E.annPlace E.annAlign E.annVAlign E.annRotation E.annFont E.annSize E.annBold E.annItalic E.annBox ...

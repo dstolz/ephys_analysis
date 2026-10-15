@@ -5,8 +5,7 @@ function onAddFigureOverlay(obj, shape)
 %   panel's overlay of that name) and
 %   the defaults of EphysAnalysisConfig.defaults("Overlay"): a dashed red
 %   line at 0, or a gray patch from 0 to 0.1 at 25 % opacity, over the
-%   panel's data. It is picked in the list, its rows ready to edit. The
-%   Figures tab's copy of onAddOverlay (the Plots tab's).
+%   panel's data. It is picked in the list, its rows ready to edit.
 arguments
     obj (1,1) EphysAnalysisApp
     shape (1,1) string {mustBeMember(shape, ["line" "region"])}

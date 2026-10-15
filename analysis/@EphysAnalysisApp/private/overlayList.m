@@ -1,5 +1,5 @@
 function overlayList(E, items, shown)
-%overlayList  Keep the overlays ITEMS in the plot editor's list and pick the K-th (SHOWN).
+%overlayList  Keep the overlays ITEMS in the figure editor's list and pick the K-th (SHOWN).
 %   overlayList(E, ITEMS, SHOWN) stores ITEMS (a 1 x n array of
 %   defaults("Overlay")) and the index of the overlay whose rows the editor
 %   shows in the list's UserData, struct('items', ITEMS, 'shown', SHOWN),

@@ -1,7 +1,7 @@
 function onPickFigureDatasets(obj, opts)
 %onPickFigureDatasets  Pick the datasets the selected session figure is drawn across (Sessions: "These datasets").
-%   The Pick... button of the Figures tab's Sessions section: the window
-%   the Sessions tab's Pick... opens (private/pickSessionDatasets) lists
+%   The Pick... button of the Figures tab's Sessions section: a window
+%   (private/pickSessionDatasets) lists
 %   the scanned datasets by date with their Subject, Date and Key, ticked
 %   for the figure's sessions.datasetKeys; OK writes the ticked datasets'
 %   keys there (the Keys box, the config, onConfigChanged "figure": the
@@ -10,7 +10,7 @@ function onPickFigureDatasets(obj, opts)
 %   Keys=KEYS (a string array; string.empty for none) skips the window and
 %   sets sessions.datasetKeys to KEYS as they are, for scripts and tests.
 %
-%   See also onPickSessionDatasets, figureSessionObservations.
+%   See also figureSessionObservations, sessionTable.
 arguments
     obj (1,1) EphysAnalysisApp
     opts.Keys (1,:) string = string(missing)

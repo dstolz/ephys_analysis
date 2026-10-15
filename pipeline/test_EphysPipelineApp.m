@@ -633,8 +633,10 @@ fprintf('\n== 2b. Analysis tab ==\n');
 if exist('EphysAnalysisConfig', 'class')
     acfgT = EphysAnalysisConfig();
     acfgT.Name = "app step test";
-    acfgT = acfgT.addPlot("psth", Id="psth_a");
-    acfgT = acfgT.addPlot(struct('kind', "evoked", 'source', "LFP"), Id="lfp_a");
+    acfgT = acfgT.addFigure("psth", Id="psth_a");
+    acfgT = acfgT.addFigure("continuous", Id="lfp_a");
+    acfgT = acfgT.addFigure("rasterPsth", Id="psth_days");
+    acfgT.Figures(end).sessions.enabled = true;   % a session figure: drawn once across the datasets
     anaFile = string(fullfile(root, 'app_analysis.json'));
     acfgT.save(anaFile);
     before = app.Config;
@@ -643,11 +645,13 @@ if exist('EphysAnalysisConfig', 'class')
         && tabTip(app, app.TabAnalysis) == "Step disabled.", 'the Analysis tab starts off, with no analysis config');
     app.AnaConfigField.Value = anaFile;
     app.onAnalysisControlsChanged("file");
-    anaPlots = app.AnaPlotsTable.Data;
+    anaFigs = app.AnaFiguresTable.Data;
     check(app.Config.Analysis.ConfigFile == anaFile && contains(app.AnaSummaryLabel.Text, """app step test""") ...
-        && contains(app.AnaSummaryLabel.Text, "Report: HTML") && istable(anaPlots) ...
-        && isequal(anaPlots.Plot.', ["psth_a" "lfp_a"]) && all(anaPlots.On), ...
-        'choosing an analysis config shows its summary and its plots');
+        && contains(app.AnaSummaryLabel.Text, "Report: HTML") && istable(anaFigs) ...
+        && isequal(string(anaFigs.Properties.VariableNames), ["Figure" "Observe" "Panels" "On"]) ...
+        && isequal(anaFigs.Figure.', ["psth_a" "lfp_a" "psth_days"]) && isequal(anaFigs.Observe.', ["unit" "channel" "across sessions"]) ...
+        && isequal(anaFigs.Panels.', ["psth" "continuous" "raster, psth"]) && all(anaFigs.On), ...
+        'choosing an analysis config shows its summary and its figures (Figure, Observe, Panels, On; a session figure "across sessions")');
     app.RunAnalysisCheckBox.Value = true;
     app.RunAnalysisCheckBox.ValueChangedFcn(app.RunAnalysisCheckBox, []);
     check(app.AnaEnableCheckBox.Value && app.Config.Analysis.Enabled && tabTip(app, app.TabAnalysis) ~= "Step disabled." ...
@@ -655,14 +659,50 @@ if exist('EphysAnalysisConfig', 'class')
     app.selectTab(app.TabAnalysis);
     anaPlan = app.AnaTargetsTable.Data;
     check(istable(anaPlan) && nnz(anaPlan.Step == "analysis:psth_a" | anaPlan.Step == "analysis:lfp_a") == 2 ...
-        && nnz(anaPlan.Step == "analysis:report") == 1 && all(anaPlan.Status == "ready"), ...
-        'shown, the tab plans a row per dataset and plot, and the report');
+        && nnz(anaPlan.Step == "analysis:psth_days") == 1 && nnz(anaPlan.Step == "analysis:report") == 1 ...
+        && all(anaPlan.Status == "ready"), ...
+        'shown, the tab plans a row per dataset and figure, one for the session figure, and the report');
     app.AnaReportCheckBox.Value = false;
     app.onAnalysisControlsChanged("output");
     check(~app.Config.Analysis.Report && ~any(app.AnaTargetsTable.Data.Step == "analysis:report") ...
         && contains(app.AnaSummaryLabel.Text, "Report: not written"), 'Write the report off: no report row, and the summary says so');
     app.selectTab(app.TabFlow);
     check(contains(string(app.FlowHTML.HTMLSource), "app_analysis.json"), 'the Diagram shows the analysis config the step runs');
+    % what the step's figures read (PipelineDiagram's figureUse): sorted units / detected spikes, a line on them
+    edgeOn = @(M, f) M.edges([M.edges.from] == f & [M.edges.to] == "analysis").on;
+    cfgP = app.Config;   % its analysis config: psth_a, lfp_a and the session figure psth_days
+    [htmlO, ~, MO] = PipelineDiagram.overview(cfgP);
+    htmlD = PipelineDiagram.detail(cfgP);
+    check(edgeOn(MO, "sorting") && ~edgeOn(MO, "spikes") && contains(htmlO, "3 figure(s): psth, continuous, raster") ...
+        && contains(htmlD, "3 figure(s): psth, continuous, raster") && contains(htmlD, "sorted units"), ...
+        'the Diagram reads the figures, the session figure too: "3 figure(s): psth, continuous, raster", sorted units read, no detected spikes');
+    acfgL = EphysAnalysisConfig();
+    acfgL = acfgL.addFigure("psth", Id="det_layer");   % a fixed layer of detected spikes, the dataset observed
+    acfgL.Figures(1).observe.kind = "dataset";
+    acfgL.Figures(1).panels(1).layers(1).binding = "fixed";
+    acfgL.Figures(1).panels(1).layers(1).source = "detected";
+    fileL = string(fullfile(root, 'app_analysis_det_layer.json'));
+    acfgL.save(fileL);
+    cfgP.Analysis.ConfigFile = fileL;
+    [htmlL, ~, ML] = PipelineDiagram.overview(cfgP);
+    acfgO = EphysAnalysisConfig();
+    acfgO = acfgO.addFigure("continuous", Id="det_obs");   % an LFP layer, each detected unit observed
+    acfgO.Figures(1).observe.kind = "unit";
+    acfgO.Figures(1).observe.source = "detected";
+    fileO = string(fullfile(root, 'app_analysis_det_obs.json'));
+    acfgO.save(fileO);
+    cfgP.Analysis.ConfigFile = fileO;
+    [~, ~, MO2] = PipelineDiagram.overview(cfgP);
+    acfgN = EphysAnalysisConfig();
+    acfgN = acfgN.addFigure("psth", Id="off_a");
+    acfgN.Figures(1).enabled = false;
+    fileN = string(fullfile(root, 'app_analysis_none.json'));
+    acfgN.save(fileN);
+    cfgP.Analysis.ConfigFile = fileN;
+    htmlN = PipelineDiagram.overview(cfgP);
+    check(~edgeOn(ML, "sorting") && edgeOn(ML, "spikes") && contains(htmlL, "1 figure(s): psth") ...
+        && ~edgeOn(MO2, "sorting") && edgeOn(MO2, "spikes") && contains(htmlN, "no figure enabled"), ...
+        'detected spikes are read through a layer''s source or a unit observation''s observe.source; no figure on: "no figure enabled"');
     app.AnaConfigField.Value = fullfile(root, 'nope.json');
     app.onAnalysisControlsChanged("file");
     app.refreshStepPlan("analysis");

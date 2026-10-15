@@ -1,97 +1,58 @@
-function editSequence(obj, holder, mode, lineCtl, edgeCtl, done)
+function editSequence(obj, holder, lineCtl, edgeCtl, done)
 %editSequence  Edit an event sequence in a window of its own.
-%   obj.editSequence(HOLDER, MODE, LINECTL, EDGECTL, DONE) opens the
-%   "Event sequence" window (obj.SequenceDialog) on the sequence the label
-%   HOLDER keeps (setSequenceHolder):
-%     MODE "event"  one event reference's (or stop's) steps: it starts at
-%                   the line and edge of the drop-downs LINECTL / EDGECTL
-%                   (shown, edited in the panel)
-%     MODE "marks"  a plot's raster marks (rasterEvents): a list of
-%                   EventMarks, each with its own start (line, edge, which,
-%                   scope) and steps, and its look (kept as it is: the
-%                   plot editor's "Each mark" table sets it); EDGECTL is
-%                   unused
-%   The steps are a table: Then (followed by / not followed by), Line (a
-%   drop-down of the lines), Edge, n, Within (s) (maxGapSec, Inf = up to the next trial), Min / Max
-%   length (s). "Align to" picks the epoch's event (alignStep). Apply
-%   stores the result in HOLDER and calls DONE(); Cancel drops it. One
-%   window at a time: opening another closes it, and so does showing
-%   other values in HOLDER's panel (closeSequenceDialog). The window's
-%   UserData holds HOLDER (Holder) and its controls (List, Line, Edge,
-%   Which, Scope, Table, Align, Apply, Cancel, ...) for the tests.
+%   obj.editSequence(HOLDER, LINECTL, EDGECTL, DONE) opens the "Event
+%   sequence" window (obj.SequenceDialog) on the sequence the label HOLDER
+%   keeps (setSequenceHolder): one event reference's (or stop's) steps. It
+%   starts at the line and edge of the drop-downs LINECTL / EDGECTL (shown,
+%   edited in the panel). The steps are a table: Then (followed by / not
+%   followed by), Line (a drop-down of the lines), Edge, n, Within (s)
+%   (maxGapSec, Inf = up to the next trial), Min / Max length (s). "Align
+%   to" picks the epoch's event (alignStep). Apply stores the result in
+%   HOLDER and calls DONE(); Cancel drops it. One window at a time: opening
+%   another closes it, and so does showing other values in HOLDER's panel
+%   (closeSequenceDialog). The window's UserData holds HOLDER (Holder) and
+%   its controls (Line, Edge, Table, Align, Apply, Cancel, ...) for the
+%   tests.
 %
 %   See also buildAlignControls, eventRef, eventRefLabel.
 
 if ~isempty(obj.SequenceDialog) && isvalid(obj.SequenceDialog)
     delete(obj.SequenceDialog);
 end
-marks = mode == "marks";
 lines = unique(["Trial" string(lineCtl.Items)], 'stable');
-def = EphysAnalysisConfig.defaults("EventRef");
-if marks
-    def = EphysAnalysisConfig.defaults("EventMark");   % an event reference and its look
-    refs = holder.UserData;
-    if isempty(refs); refs = repmat(def, 1, 0); end
-else
-    r = def;
-    r.line = strtrim(string(lineCtl.Value));
-    r.edge = string(edgeCtl.Value);
-    r.sequence = holder.UserData.sequence;
-    r.alignStep = holder.UserData.alignStep;
-    refs = r;
-end
-cur = min(1, numel(refs));
+r = EphysAnalysisConfig.defaults("EventRef");
+r.line = strtrim(string(lineCtl.Value));
+r.edge = string(edgeCtl.Value);
+r.sequence = holder.UserData.sequence;
+r.alignStep = holder.UserData.alignStep;
+ref = r;
 
 pos = obj.Fig.Position;
-f = uifigure("Name", "Event sequence", "Position", [pos(1) + 120, pos(2) + 120, 720, 470 + 110 * marks]);
+f = uifigure("Name", "Event sequence", "Position", [pos(1) + 120, pos(2) + 120, 720, 470]);
 obj.SequenceDialog = f;
-g = uigridlayout(f, [6 1]);
-g.RowHeight = {110 * marks, 26, '1x', 30, 'fit', 36};
+g = uigridlayout(f, [5 1]);
+g.RowHeight = {26, '1x', 30, 'fit', 36};
 g.Padding = [10 10 10 10];
 
 D = struct('Holder', holder);
-% --- the list of mark sequences ---------------------------------------------------
-lg = uigridlayout(g, [2 2]);
-lg.Layout.Row = 1;
-lg.ColumnWidth = {'1x', 150};
-lg.RowHeight = {'1x', '1x'};
-lg.Padding = [0 0 0 0];
-lg.Visible = matlab.lang.OnOffSwitchState(marks);
-D.List = uilistbox(lg, "Items", {}, "ValueChangedFcn", @(~,~) onPick());
-D.List.Layout.Row = [1 2]; D.List.Layout.Column = 1;
-D.AddSeq = uibutton(lg, "Text", "Add sequence", "ButtonPushedFcn", @(~,~) onAddSeq(), ...
-    "Tooltip", "Mark another event, e.g. Trial offset then Trough onset.");
-D.AddSeq.Layout.Row = 1; D.AddSeq.Layout.Column = 2;
-D.RemoveSeq = uibutton(lg, "Text", "Remove sequence", "ButtonPushedFcn", @(~,~) onRemoveSeq());
-D.RemoveSeq.Layout.Row = 2; D.RemoveSeq.Layout.Column = 2;
-
 % --- the start --------------------------------------------------------------------
-sg = uigridlayout(g, [1 7]);
-sg.Layout.Row = 2;
-sg.ColumnWidth = {70, '1x', 80, 'fit', 80, 'fit', 100};
+sg = uigridlayout(g, [1 3]);
+sg.Layout.Row = 1;
+sg.ColumnWidth = {70, '1x', 80};
 sg.Padding = [0 0 0 0];
 uilabel(sg, "Text", "Starts at:", "FontWeight", "bold");
 D.Line = uidropdown(sg, "Editable", "on", "Items", lines, "Value", lines(1), "ValueChangedFcn", @(~,~) refreshAlign(), ...
     "Tooltip", "The line whose events start the sequence (""Trial"" = the paired trial line).");
 D.Edge = uidropdown(sg, "Items", ["onset" "offset"], "ValueChangedFcn", @(~,~) refreshAlign());
-D.WhichLabel = uilabel(sg, "Text", "which:");
-D.Which = uidropdown(sg, "Items", ["all" "first" "last"], "Value", "all", ...
-    "Tooltip", "Of the start events the sequence follows: every one, or the first / last per trial (trial scope) or in the recording.");
-D.ScopeLabel = uilabel(sg, "Text", "scope:");
-D.Scope = uidropdown(sg, "Items", ["auto" "trial" "recording"], "Value", "auto", ...
-    "Tooltip", "trial: start events inside the trials (each its trial's); recording: every one; auto: trial with paired trials.");
-set([D.WhichLabel D.Which D.ScopeLabel D.Scope], "Visible", matlab.lang.OnOffSwitchState(marks));
-if ~marks
-    set([D.Line D.Edge], "Enable", "off", "Tooltip", "Set in the panel (Line, Edge).");
-end
+set([D.Line D.Edge], "Enable", "off", "Tooltip", "Set in the panel (Line, Edge).");
 
 % --- the steps --------------------------------------------------------------------
 D.Table = uitable(g, "ColumnName", {'Then', 'Line', 'Edge', 'n', 'Within (s)', 'Min length (s)', 'Max length (s)'}, ...
     "ColumnEditable", true, "RowName", {}, "ColumnWidth", {120, '1x', 80, 50, 90, 100, 100}, ...
     "CellEditCallback", @(~,~) refreshAlign(), "CellSelectionCallback", @(~, e) onSelect(e));
-D.Table.Layout.Row = 3;
+D.Table.Layout.Row = 2;
 bg = uigridlayout(g, [1 7]);
-bg.Layout.Row = 4;
+bg.Layout.Row = 3;
 bg.ColumnWidth = {'fit', 'fit', 'fit', 'fit', '1x', 'fit', 260};
 bg.Padding = [0 0 0 0];
 D.AddStep = uibutton(bg, "Text", "Add step", "ButtonPushedFcn", @(~,~) onAddStep(), ...
@@ -109,9 +70,9 @@ D.Hint = uilabel(g, "WordWrap", "on", "FontColor", [0.3 0.3 0.3], "Text", ...
     "none may come. Within (s) limits how long after (Inf: any time), and with paired trials no step looks past " + ...
     "the next trial's onset. An event whose sequence does not complete is left out (and counted). " + ...
     "Lines here: " + strjoin(lines, ", ") + ".");
-D.Hint.Layout.Row = 5;
+D.Hint.Layout.Row = 4;
 ag = uigridlayout(g, [1 3]);
-ag.Layout.Row = 6;
+ag.Layout.Row = 5;
 ag.ColumnWidth = {'1x', 120, 120};
 ag.Padding = [0 0 0 0];
 uilabel(ag, "Text", "");
@@ -124,41 +85,18 @@ selRow = 0;
 show();
 
     function show()
-        %show  Put refs(cur) in the controls (and the list).
-        if marks
-            labels = strings(1, numel(refs));
-            for k = 1:numel(refs); labels(k) = eventRefLabel(refs(k)); end
-            D.List.Items = cellstr(labels);
-            D.List.ItemsData = 1:numel(refs);
-            if cur >= 1; D.List.Value = cur; end
-            onOff = 'off';
-            if cur >= 1; onOff = 'on'; end
-            set([D.Line D.Edge D.Which D.Scope D.Table D.AddStep D.RemoveStep D.Up D.Down D.Align D.RemoveSeq], "Enable", onOff);
-        end
-        if cur < 1
-            D.Table.Data = stepTable(repmat(EphysAnalysisConfig.defaults("SequenceStep"), 1, 0), lines);
-            return
-        end
-        r = refs(cur);
-        setDrop(D.Line, r.line);
-        D.Edge.Value = char(r.edge);
-        if marks
-            setDrop(D.Which, r.which);
-            D.Scope.Value = char(r.scope);
-        end
-        D.Table.Data = stepTable(r.sequence, lines);
-        refreshAlign(r.alignStep);
+        %show  Put the reference in the controls.
+        setDrop(D.Line, ref.line);
+        D.Edge.Value = char(ref.edge);
+        D.Table.Data = stepTable(ref.sequence, lines);
+        refreshAlign(ref.alignStep);
     end
 
     function r = current()
-        %current  refs(cur) as the controls show it.
-        r = refs(cur);
+        %current  The reference as the controls show it.
+        r = ref;
         r.line = strtrim(string(D.Line.Value));
         r.edge = string(D.Edge.Value);
-        if marks
-            r.which = string(D.Which.Value);
-            r.scope = string(D.Scope.Value);
-        end
         r.sequence = tableSteps(D.Table.Data);
         r.alignStep = D.Align.Value;
         if isfinite(r.alignStep) && r.alignStep > numel(r.sequence); r.alignStep = Inf; end
@@ -186,32 +124,6 @@ show();
 
     function onSelect(e)
         if ~isempty(e.Indices); selRow = e.Indices(1, 1); end
-    end
-
-    function onPick()
-        refs(cur) = current();
-        cur = D.List.Value;
-        show();
-    end
-
-    function onAddSeq()
-        if cur >= 1; refs(cur) = current(); end
-        r = def;
-        r.line = "Trial";
-        r.edge = "offset";
-        r.which = "all";
-        r.sequence = EphysAnalysisConfig.defaults("SequenceStep");
-        r.sequence.line = "Trough";
-        refs(end+1) = r;
-        cur = numel(refs);
-        show();
-    end
-
-    function onRemoveSeq()
-        if cur < 1; return; end
-        refs(cur) = [];
-        cur = min(cur, numel(refs));
-        show();
     end
 
     function onAddStep()
@@ -242,15 +154,9 @@ show();
 
     function onApply()
         try
-            if marks
-                if cur >= 1; refs(cur) = current(); end
-                for k = 1:numel(refs); eventRef(eventMarkRef(refs(k))); end   % checked here: a bad step is said now
-                setSequenceHolder(holder, refs);
-            else
-                r = current();
-                eventRef(r);
-                setSequenceHolder(holder, struct('sequence', r.sequence, 'alignStep', r.alignStep));
-            end
+            r = current();
+            eventRef(r);   % checked here: a bad step is said now
+            setSequenceHolder(holder, struct('sequence', r.sequence, 'alignStep', r.alignStep));
         catch ME
             uialert(f, string(ME.message), "Event sequence");
             return

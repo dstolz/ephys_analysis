@@ -28,8 +28,9 @@ function files = wikiScreenshots(outFolder, opts)
 %     app-spikes-tab.png    Spikes tab after its Preview
 %     app-export-tab.png    Export tab with the epochs format ticked
 %     app-analysis-tab.png  Analysis tab: the step on, an analysis config
-%                           like wikiToolScreenshots' (one plot of each
-%                           kind but rate) chosen, its plan (switched off
+%                           like wikiToolScreenshots' (a figure of each
+%                           kind and a session figure) chosen, its figures
+%                           table and its plan (switched off
 %                           again after the shot)
 %     app-diagram-tab.png   Diagram tab, Every parameter view
 %     app-diagram-overview.png  Diagram tab, Data-flow overview view
@@ -267,16 +268,17 @@ if want("app-analysis-tab.png")
     % The step is switched off again, so the run does not draw it.
     a = EphysAnalysisConfig();
     a.Name = "Synthetic quick look";
-    a.Description = "One plot of each kind, grouped by Depth";
+    a.Description = "A figure of each kind, grouped by Depth";
     a.Defaults.Selection.groupBy = "Depth";
     a.Export.Formats = "png";
-    a = a.addPlot("psth");
-    a = a.addPlot("raster");
-    a = a.addPlot(struct('kind', "tuning", 'param', "Depth"));
-    a = a.addPlot("heatmap");
-    a = a.addPlot("probemap");
-    a = a.addPlot("corrmap");
-    a = a.addPlot(struct('kind', "evoked", 'source', "LFP"));
+    a = a.addFigure("rasterPsth", Id="unit_card");
+    a = a.addFigure("tuning", Id="tuning");
+    a = a.addFigure("heatmap", Id="heatmap");
+    a = a.addFigure("probemap", Id="probemap");
+    a = a.addFigure("corrmap", Id="corrmap");
+    a = a.addFigure("continuous", Id="lfp");
+    a = a.addFigure("rasterPsth", Id="unit_days");   % drawn once across the sessions: "across sessions" in the table
+    a.Figures(end).sessions.enabled = true;
     a.save(fullfile(work, "synthetic_quicklook.json"));
     app.AnaEnableCheckBox.Value = true;
     app.onAnalysisControlsChanged("enable");

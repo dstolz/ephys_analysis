@@ -5,7 +5,7 @@ function layoutFigureEditor(obj)
 %   take the editor's first rows, the hidden ones zero-height rows below
 %   them, and a last row the space left (the editor scrolls when they need
 %   more). syncFigureEditor decides what shows; onFigureSectionToggled what
-%   is collapsed. As layoutPlotEditor, on the Figures tab's sections.
+%   is collapsed.
 S = obj.FigureSections;
 n = numel(S);
 h = zeros(1, n);

@@ -9,7 +9,7 @@ g.Padding = [8 8 8 8];
 left = uigridlayout(g, [3 1]);
 left.RowHeight = {22, 'fit', '1x'};
 left.Padding = [0 0 0 0];
-note = uilabel(left, "Text", "Defaults: every plot whose event / window / selection is ""default"" uses these.", ...
+note = uilabel(left, "Text", "Defaults: every figure whose event / window / selection is ""default"" uses these.", ...
     "FontColor", [0.35 0.35 0.35]);
 note.Layout.Row = 1;
 host = uigridlayout(left, [3 1]);

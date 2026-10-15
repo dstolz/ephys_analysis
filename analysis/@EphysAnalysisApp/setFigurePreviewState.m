@@ -1,9 +1,13 @@
 function setFigurePreviewState(obj, state, opts)
 %setFigurePreviewState  Show where the Figures tab's preview is: its badge, and a card over it while busy.
-%   setFigurePreviewState(obj, STATE) is setPreviewState for the figure
-%   preview (FigurePreviewPanel, FigurePreviewBadge, FigurePreviewButton;
-%   the state in FigurePreviewState; the card's Cancel, FigureCancelButton
-%   while it computes, calls onCancelFigurePreview), with the same states:
+%   setFigurePreviewState(obj, STATE) colors the badge left of the
+%   preview's status line (FigurePreviewBadge) and gives it STATE's icon
+%   (analysis/icons/status/<STATE>.svg) and word; the state is kept in
+%   FigurePreviewState. While computing or drawing, a card in the middle
+%   of the preview panel (FigurePreviewPanel) says what (Message=) over
+%   the last figure; while computing it also has a Cancel button
+%   (FigureCancelButton, onCancelFigurePreview). The Preview button turns
+%   orange while stale. The drawing is private/showPreviewState's. States:
 %     idle       no preview (no figure, no scan, no dataset)
 %     computing  computeFigure runs for the observation picked (cancelable)
 %     drawing    renderFigure draws it

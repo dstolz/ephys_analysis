@@ -8,8 +8,7 @@ function autoFigurePreview(obj)
 %   a loaded machine does not leave its previews out of date).
 %   A session figure (sessions.enabled) is not redrawn on an edit: it
 %   computes every session, so it waits for Preview (or a pick in the
-%   observation list), as the Sessions tab's preview does; the status line
-%   says so.
+%   observation list); the status line says so.
 k = obj.SelectedFigure;
 if k >= 1 && k <= numel(obj.Config.Figures) && obj.Config.Figures(k).sessions.enabled
     clearSessionFigurePreview(obj);   % the kept figures were computed before this edit

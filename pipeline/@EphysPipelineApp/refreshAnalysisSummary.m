@@ -2,13 +2,16 @@ function refreshAnalysisSummary(obj)
 %refreshAnalysisSummary  Show what the Analysis step's config holds (Analysis tab).
 %   Reads the analysis config the tab names (EphysPipelineConfig.
 %   loadAnalysisConfig) and shows its name and description, the event its
-%   plots align to and their window, where the figure files and the report
+%   figures align to and their window, where the figure files and the report
 %   go (or that this pipeline does not write them), and what its own checks
 %   find (EphysAnalysisConfig.validate without its source or paths, which
-%   the step replaces and the Run tab's Validate checks); the plots table
-%   lists its plots. When it cannot be read, the reason is shown instead.
+%   the step replaces and the Run tab's Validate checks); the figures
+%   table lists its figures: id, what each is drawn for (a unit, a channel,
+%   the dataset, or "across sessions" for a session figure), its panel
+%   types and whether it is on. When it cannot be read, the reason is
+%   shown instead.
 if isempty(obj.AnaSummaryLabel) || ~isvalid(obj.AnaSummaryLabel); return; end
-obj.AnaPlotsTable.Data = {};
+obj.AnaFiguresTable.Data = {};
 file = string(strtrim(obj.AnaConfigField.Value));
 if file == ""
     obj.AnaSummaryLabel.Text = "No analysis config chosen. Make one with Open in the analysis app, save it " + ...
@@ -27,7 +30,7 @@ name = """" + acfg.Name + """";
 if acfg.Description ~= ""; name = name + ": " + acfg.Description; end
 ref = acfg.Defaults.EventRef;
 win = acfg.Defaults.Window;
-lines = [name, sprintf("Aligned to the %s of %s, window %g to %g s (a plot may set its own).", ...
+lines = [name, sprintf("Aligned to the %s of %s, window %g to %g s (a figure may set its own).", ...
     ref.edge, ref.line, win.pre, win.post)];
 X = acfg.Export;
 if obj.AnaFiguresCheckBox.Value
@@ -58,10 +61,21 @@ else
 end
 obj.AnaSummaryLabel.Text = strjoin(lines, newline);
 
-P = acfg.Plots;
-if ~isempty(P)
-    obj.AnaPlotsTable.Data = table(reshape([P.id], [], 1), reshape([P.kind], [], 1), reshape([P.source], [], 1), ...
-        reshape([P.enabled], [], 1), 'VariableNames', {'Plot', 'Kind', 'Source', 'On'});
+F = acfg.Figures;
+if ~isempty(F)
+    n = numel(F);
+    observe = strings(n, 1);
+    panels = strings(n, 1);
+    for k = 1:n
+        if F(k).sessions.enabled
+            observe(k) = "across sessions";   % drawn once across the datasets (a session figure)
+        else
+            observe(k) = EphysAnalysisConfig.observeKind(F(k));
+        end
+        panels(k) = strjoin(unique([string.empty(1, 0) F(k).panels.type], 'stable'), ", ");
+    end
+    obj.AnaFiguresTable.Data = table(reshape([F.id], [], 1), observe, panels, reshape([F.enabled], [], 1), ...
+        'VariableNames', {'Figure', 'Observe', 'Panels', 'On'});
 end
 end
 

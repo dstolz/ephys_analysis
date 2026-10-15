@@ -2,7 +2,7 @@ function onFigureOverlayPicked(obj)
 %onFigureOverlayPicked  Show the overlay picked in the figure editor's overlay list in the rows below it.
 %   What the rows held for the overlay shown before is kept first
 %   (overlayGather). Picking changes nothing in the config, so the preview
-%   is not redrawn. The Figures tab's copy of onOverlayPicked (the Plots tab's).
+%   is not redrawn.
 E = obj.FigureEditor;
 items = overlayGather(E);
 k = E.ovList.Value;

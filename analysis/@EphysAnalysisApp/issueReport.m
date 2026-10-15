@@ -11,7 +11,7 @@ function body = issueReport(obj, kind, opts)
 %                  installed toolboxes, the version and git commit of this
 %                  code (ephysVersion) and the repository folder (default true)
 %     Config       the working config as the controls hold it now
-%                  (gatherConfig): name, file, source, plots, datasets, and
+%                  (gatherConfig): name, file, source, figures, datasets, and
 %                  the whole config as JSON (default true)
 %     Logs         the tail of the Log tab (default true)
 %     MaxLogLines  lines kept from the end of the log (default 60); a log
@@ -76,13 +76,15 @@ if S.Mode == "project"
 else
     L = [L; kv("Output folders", string(numel(S.Folders)))];
 end
-plots = cfg.Plots;
-if isempty(plots)
-    L = [L; kv("Plots", "none")];
+figs = cfg.Figures;
+if isempty(figs)
+    L = [L; kv("Figures", "none")];
 else
-    on = [plots.enabled];
-    L = [L; kv("Plots", sprintf('%d, %d enabled', numel(plots), nnz(on))); ...
-        kv("Plot kinds", join(unique(string({plots.kind})), ", "))];
+    on = [figs.enabled];
+    across = arrayfun(@(f) f.sessions.enabled, figs);
+    types = arrayfun(@(f) reshape(string([f.panels.type]), 1, []), figs, 'UniformOutput', false);
+    L = [L; kv("Figures", sprintf('%d, %d enabled, %d across sessions', numel(figs), nnz(on), nnz(across))); ...
+        kv("Panel types", join(unique([string.empty(1, 0) types{:}]), ", "))];
 end
 r = obj.Runner;
 if isempty(r) || isempty(r.Keys)

@@ -199,13 +199,14 @@ classdef PlotDesign
             %   the palette, not a rule. What the plot does not show comes from
             %   Base (default: the design it was drawn with). The rules are
             %   kept for every plot, except those read from a heat map, probe
-            %   map or correlation map, whose axes are drawn their own way:
-            %   those are kept for that panel type only (kinds). Each tile's
-            %   panel type is looked up by the panel id it is tagged with,
-            %   in Spec (the figure spec renderFigure drew: Config.figureFor)
-            %   or, without it, in the editing context renderFigure keeps
-            %   (panelTypes), so a figure's map panels give rules for their
-            %   types and its other panels the common rules.
+            %   map, correlation map or spectrogram, whose axes are drawn
+            %   their own way (a colored map): those are kept for that panel
+            %   type only (kinds). Each tile's panel type is looked up by the
+            %   panel id it is tagged with, in Spec when given (a figure
+            %   spec: Config.figureFor), else in the editing context
+            %   renderFigure keeps for the panels it drew (panelTypes), so a
+            %   figure's map panels give rules for their types and its other
+            %   panels the common rules.
             %
             %   Options: Base (a design or a name), Name, Description, Spec.
             arguments
@@ -253,7 +254,7 @@ classdef PlotDesign
                 tf = tf & T.Tile > 0;
                 tileKind(tf) = types(loc(tf));
             end
-            mapKinds = ["heatmap" "corrmap" "probemap"];
+            mapKinds = ["heatmap" "corrmap" "probemap" "spectrogram"];   % the panels drawn as a colored map (image, color bar)
             own = ismember(tileKind, mapKinds);
             captured = captureRules(T(~own, :));
             D.rules = PlotAesthetics.mergeRules(D.rules, captured);
@@ -264,7 +265,7 @@ classdef PlotDesign
                 D.kinds.(kind) = mine(~covered);
             end
             for k = reshape(unique(tileKind(own)), 1, [])
-                % a heat map, probe map or correlation map: its axes are drawn their own way
+                % a heat map, probe map, correlation map or spectrogram: its axes are drawn their own way
                 mine = PlotAesthetics.emptyRules();
                 if isfield(D.kinds, k); mine = D.kinds.(k); end
                 D.kinds.(k) = PlotAesthetics.mergeRules(mine, captureRules(T(tileKind == k, :)));

@@ -7,8 +7,8 @@ function C = buildAlignControls(obj, parents, changed)
 %   C.SelectionGrid), and returns their handles. Every control calls
 %   CHANGED(PART) when edited, PART "ref", "window" or "selection". The
 %   Alignment tab builds one set in three titled panels for the config's
-%   Defaults, the Plots tab another in three sections of its editor for a
-%   plot's own values (applyAlignControls / gatherAlignControls move values
+%   Defaults, the Figures tab two more in sections of its editor for a
+%   figure's and a panel's own values (applyAlignControls / gatherAlignControls move values
 %   in and out; fillAlignItems lists the active dataset's lines and
 %   parameters; syncAlignEnable enables what is in use). "Shift by" (and
 %   the stop's) adds a trial parameter's value to each event (eventRef's
@@ -77,7 +77,7 @@ C.ShiftUnit.Layout.Row = 6; C.ShiftUnit.Layout.Column = 4;
 lab(rg, "Sequence:", 7, 1);
 [C.SeqText, C.SeqEdit] = sequenceRow(rg, 7, "The events that must (or must not) follow each event above, " + ...
     "e.g. Trial offset then Trough onset: the first Trough onset after each trial's end.");
-C.SeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(C.SeqText, "event", C.Line, C.Edge, @() changed("ref"));
+C.SeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(C.SeqText, C.Line, C.Edge, @() changed("ref"));
 
 % --- window ------------------------------------------------------------------------
 wg = uigridlayout(parents(2), [8 4]);
@@ -125,7 +125,7 @@ C.StopShiftUnit.Layout.Row = 6; C.StopShiftUnit.Layout.Column = 4;
 lab(wg, "Stop sequence:", 7, 1);
 [C.StopSeqText, C.StopSeqEdit] = sequenceRow(wg, 7, "The events that must follow the stop line's event, " + ...
     "e.g. RespWindow offset then Trough onset: stop at the first Trough onset after the response window.");
-C.StopSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(C.StopSeqText, "event", C.StopLine, C.StopEdge, @() changed("window"));
+C.StopSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(C.StopSeqText, C.StopLine, C.StopEdge, @() changed("window"));
 C.Diagram = uibutton(wg, "Text", "Epoch Diagram");   % the caller sets its ButtonPushedFcn and tooltip (onShowEpochs)
 C.Diagram.Layout.Row = 8; C.Diagram.Layout.Column = [1 4];
 

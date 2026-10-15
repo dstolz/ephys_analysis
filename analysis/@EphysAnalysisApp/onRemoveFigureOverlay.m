@@ -1,6 +1,5 @@
 function onRemoveFigureOverlay(obj)
 %onRemoveFigureOverlay  Remove the overlay picked in the figure editor from the selected panel; the next one is picked.
-%   The Figures tab's copy of onRemoveOverlay (the Plots tab's).
 E = obj.FigureEditor;
 items = overlayGather(E);
 k = E.ovList.UserData.shown;

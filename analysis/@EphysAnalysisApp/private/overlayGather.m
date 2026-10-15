@@ -1,5 +1,5 @@
 function items = overlayGather(E)
-%overlayGather  The plot's overlays as the editor holds them, the one shown read from its rows.
+%overlayGather  The panel's overlays as the editor holds them, the one shown read from its rows.
 %   ITEMS = overlayGather(E) takes the overlays kept in the list
 %   (overlayList) and replaces the one whose rows are shown by what the
 %   rows hold now (overlayRead); the list keeps the result, so picking

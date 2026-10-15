@@ -10,7 +10,7 @@ function [from, parts, ok] = pickFigureSettings(fig, F, target)
 %   holds its controls (From, Boxes: a struct by part, All, None, Ok,
 %   Cancel) for the tests.
 %
-%   See also onCopyFigureSettings, copyFigureSettings, figureSettingParts, pickPlotSettings.
+%   See also onCopyFigureSettings, copyFigureSettings, figureSettingParts.
 ok = false;
 parts = string.empty(1, 0);
 others = setdiff(1:numel(F), target, 'stable');

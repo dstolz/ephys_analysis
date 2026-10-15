@@ -3,8 +3,8 @@ function applyAlignControls(obj, C, ref, win, sel)
 %   The fields without a control (the stop event's offset, interval length
 %   and time range; the selection's explicit trial rows) are not shown:
 %   gatherAlignControls keeps them from the values it is given. A window
-%   mode the mode box does not offer is added to it (syncPlotEditor offers
-%   a plot's kind its own modes). The sequences go to their summary labels
+%   mode the mode box does not offer is added to it (syncFigureEditor offers
+%   a panel's type its own modes). The sequences go to their summary labels
 %   (setSequenceHolder); an Event sequence window open on them closes.
 closeSequenceDialog(obj, [C.SeqText C.StopSeqText]);
 ref = EphysAnalysisConfig.normalizeSection("EventRef", ref);   % shown as is, checked elsewhere

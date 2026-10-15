@@ -1,50 +1,31 @@
 function test_EphysAnalysisApp()
 %test_EphysAnalysisApp  Headless checks of the analysis GUI over a synthetic project.
 %   Builds the app on a small synthetic project run through the pipeline
-%   and drives it through its own methods: the tabs; the toolbar (its
-%   tools, icons and shortcut tooltips; Preview and Plan from another tab;
-%   its run and results tools following the Export tab's buttons); Scan
-%   filling the datasets table; the active dataset's lines and parameters; grouping by
+%   and drives it through its own methods: the six tabs (Data, Alignment,
+%   Figures, Export, Chronux, Log); the toolbar (its tools, icons and
+%   shortcut tooltips; Preview and Plan from another tab; its run and
+%   results tools following the Export tab's buttons); Scan filling the
+%   datasets table; the active dataset's lines and parameters; grouping by
 %   Depth from the Alignment controls (the epoch count reports the groups);
-%   adding a PSTH and previewing it into the preview panel; the plot designs
-%   (the Design list and menu, choosing one redrawing the preview, saving
-%   the preview's look as a design and deleting it); editing the plot
-%   (bins; an edit in a "Use default" section giving the plot its own event
-%   reference or window, ticking it again going back); the editor showing
-%   only the rows and sections a plot uses (y limits, heat colors, the
-%   alignment sections), graying out the ones its options switch off, and
-%   collapsing a section; the section headers' colors and keys (Ctrl+1 to
-%   Ctrl+9 and Ctrl+0 going to a section; Aux signals has none); the Aux
-%   signals rows of a PSTH (shown for spikes only, grayed out while Off, an
-%   edit reaching the plot and the preview); the error rows (type, band
-%   fill and edge reaching the style and the preview's bands, enabled with
-%   the Error box); the epoch diagram (opened from the plot editor
-%   with the plot's own epochs, redrawn on an edit of pre, epochs dropped
-%   outside the recording, a refused window reported, paging, opened from
-%   the Alignment tab for the defaults, closing with the app); a raster's
-%   sort (by a trial parameter, or by a sort event's latency: its rows
-%   enabled, its line and edge reaching the plot and the preview),
-%   direction, grouping and event marks, an event shifted by a trial parameter, an event sequence and a
-%   mark sequence from the Event sequence window (a bad step refused), and
-%   a behavior plot reaching the config and the preview; several plots
-%   selected at once (Ctrl-click: the first picked in the editor and the
-%   preview, the banner and the bar saying so, only the rows they share,
-%   an edit, an event edit, Use default and a remembered look reaching
-%   each but only as changed; Duplicate and Remove taking them all);
-%   the gather / apply round trip, keeping the fields without a control
-%   (stop-event offset, length and time range, trial rows); save
-%   and reopen; a standalone script from the app's config; a run of one
-%   plot writing its figures and report; the Chronux tab (a dataset
+%   the toolbar's Preview drawing the selected figure on the Figures tab;
+%   the Design row on the Figures tab (the list and menu, a design chosen
+%   redrawing the figure preview, Save look as design from the figure
+%   preview, a heat map figure's axes rules kept for heat maps, deleting a
+%   design); the epoch diagram (opened for the figure by default, redrawn
+%   on an edit of its pre, Use default again, the Alignment tab's defaults,
+%   closing); an event sequence for the figure's own event from the Event
+%   sequence window (a bad step refused); the gather / apply round trip,
+%   keeping the fields without a control (stop-event offset, length and
+%   time range, trial rows); save and reopen; a version-1 config opened
+%   (its plot migrated to a figure, the status bar and the Log saying so);
+%   a standalone script from the app's config; Plan and a run of one
+%   figure writing its pages and the report; the Chronux tab (a dataset
 %   without a Chronux file, Create writing it into the output folder and
 %   showing it, a spectrum over the Alignment tab's epochs per group, Out
 %   of date after an edit of what is computed, a display edit redrawing,
 %   a spectrogram over the whole recording, Save results and Save
 %   figure, the local cache: a file created there and found once the
-%   output folder's is gone); the Sessions tab (Add on a base plot, the
-%   editor's rows and its gather / apply round trip, a preview over both
-%   datasets, Out of date after a base-plot edit, the toolbar's Preview
-%   and Help there, Browse for a mapping file, Remove, its preferences
-%   restored by a new app); the Figures tab (Add from the template, the
+%   output folder's is gone); the Figures tab (Add from the template, the
 %   schematic, the observation picker and its preview of one unit, < and
 %   > and Page Up, a continuous panel added below, an events layer on the
 %   raster, the rows a panel type shows, Ctrl+digit to a section, Out of
@@ -57,9 +38,8 @@ function test_EphysAnalysisApp()
 %   figure Up / Down, no Behavior type or trials source offered, linked
 %   panels' locked alignment and common options (Apply to all panels,
 %   Re-link all panels, Ctrl+7 / Ctrl+0), a scan listing the
-%   observations again, the previews refusing each other while one
-%   computes, save and reopen, its preferences restored by a new app,
-%   Remove); Generate (a figure's files per observation on the ticked
+%   observations again, save and reopen, its preferences restored by a new app,
+%   Remove); Copy from... between figures; Generate (a figure's files per observation on the ticked
 %   datasets, its rows in the results table, the status bar's counts,
 %   Cancel during it, a figure that is off drawn for that run only) and
 %   the Export tab's Plan and Run listing figures; a figure across
@@ -74,7 +54,7 @@ function test_EphysAnalysisApp()
 %   picked and the preview, Add / Duplicate / Remove, another panel's
 %   own) and dragging a panel in the schematic (an edge drop, a move to
 %   an empty cell, a release outside it and Escape canceling);
-%   closing. The app's preferences live in a
+%   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
 %   Usage:  test_EphysAnalysisApp
@@ -111,10 +91,10 @@ check(numel(F.names) == 2, 'two datasets run through the pipeline');
 fprintf('\n== 1. build, open the project, scan ==\n');
 app = EphysAnalysisApp(F.proj);
 appCleanup = onCleanup(@() closeApp(app));
-check(isvalid(app.Fig) && numel(app.Tabs.Children) == 8 && app.Tabs.Children(1) == app.TabData ...
-    && app.Tabs.Children(4) == app.TabFigures && app.Tabs.Children(5) == app.TabSessions ...
-    && app.Tabs.Children(7) == app.TabChronux && app.Tabs.Children(8) == app.TabLog, ...
-    'the app has the Data, Alignment, Plots, Figures, Sessions, Export, Chronux and Log tabs');
+check(isvalid(app.Fig) && numel(app.Tabs.Children) == 6 && app.Tabs.Children(1) == app.TabData ...
+    && app.Tabs.Children(2) == app.TabAlign && app.Tabs.Children(3) == app.TabFigures && app.Tabs.Children(4) == app.TabExport ...
+    && app.Tabs.Children(5) == app.TabChronux && app.Tabs.Children(6) == app.TabLog && ~isprop(app, 'TabPlots') && ~isprop(app, 'TabSessions'), ...
+    'the app has the Data, Alignment, Figures, Export, Chronux and Log tabs');
 T = app.DatasetsTable.Data;
 check(~isempty(app.Runner) && height(T) == 2 && all(T.Run) && isequal(sort(T.Name), sort(F.names(:))) ...
     && all(T.LFP == "✓") && all(T.Behavior == "✓"), 'the project root was scanned: both datasets, ticked, with LFP and behavior');
@@ -240,869 +220,115 @@ check(height(app.AlignTrialsTable.Data) == 12 && ismember("Group", string(app.Al
     'the kept trials are listed with their group');
 check(startsWith(app.Fig.Name, "*"), 'the edit marks the config unsaved');
 
-fprintf('\n== 3. Plots: add, edit, preview ==\n');
-app.selectTab(app.TabPlots);
-app.onAddPlot("psth");
-check(isscalar(app.Config.Plots) && app.SelectedPlot == 1 && app.Config.Plots(1).id == "psth_1" ...
-    && string(app.PlotEditor.kind.Text) == "PSTH" && string(app.PlotsTree.Children(1).Children(1).Text) == "psth_1  (units)", ...
-    'Add psth makes psth_1 and opens it in the editor, under its plot type in the tree');
-app.selectTab(app.TabData);
-clickTool(app, "preview");   % as the Preview button, from another tab
-axs = findall(app.PreviewPanel, 'Type', 'axes');
-check(app.Tabs.SelectedTab == app.TabPlots && ~isempty(axs) && ~isempty(app.PreviewResult) ...
-    && app.PreviewResult.kind == "psth" && isfinite(app.PreviewSeconds), ...
-    sprintf('the toolbar''s Preview shows the Plots tab and draws %d axes into the preview panel', numel(axs)));
-check(app.PreviewState == "drawn" && string(app.PreviewBadge.Text.Text) == "Drawn" ...
-    && endsWith(string(app.PreviewBadge.Icon.ImageSource), "drawn.svg") ...
-    && isempty(findall(app.PreviewPanel, 'Tag', 'previewBusyCard')) && string(app.Fig.Pointer) == "arrow", ...
-    'the badge says Drawn once the preview is drawn; the busy card and the watch pointer are gone');
-app.AutoPreviewCheckBox.Value = false;
-app.autoPreview();   % as after an edit, with Auto off
-stale = app.PreviewState == "stale" && string(app.PreviewBadge.Text.Text) == "Out of date";
-app.AutoPreviewCheckBox.Value = true;
-app.refreshPreview(Force=true);
-check(stale && app.PreviewState == "drawn", 'an edit Auto does not redraw marks the preview Out of date; Preview draws it again');
-blue = app.PreviewButton.BackgroundColor;
-app.setPreviewState("stale");
-orange = app.PreviewButton.BackgroundColor;
-app.setPreviewState("drawn");
-check(~isequal(orange, blue) && isequal(app.PreviewButton.BackgroundColor, blue) ...
-    && app.PreviewButton.Layout.Row(end) - app.PreviewButton.Layout.Row(1) == 1 ...
-    && contains(app.PrevPageButton.Tooltip, "Page Up") && contains(app.NextPageButton.Tooltip, "Page Down"), ...
-    'the Preview button spans two rows and turns orange while the plot is Out of date; the page buttons name their keys');
+fprintf('\n== 3. the Figures tab: the toolbar''s Preview, the Design row, the epoch diagram, an event sequence ==\n');
 pressed = @(k, mods) struct('Key', k, 'Modifier', {mods}, 'Character', '');
-app.onKeyPress(pressed('pagedown', {}));
-app.onKeyPress(pressed('pageup', {}));
-check(app.PreviewPage == 1 && app.PreviewState == "drawn", 'Page Up and Page Down on a single page leave the preview as it is');
-tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(~, ~) app.onCancelPreview());   % a click on the busy card's Cancel
-start(tm);
-app.refreshPreview(Force=true);
-stop(tm); delete(tm);
-check(app.PreviewState == "canceled" && string(app.PreviewBadge.Text.Text) == "Canceled" && isempty(app.PreviewResult) ...
-    && isempty(findall(app.PreviewPanel, 'Tag', 'previewBusyCard')) && string(app.Fig.Pointer) == "arrow" ...
-    && isempty(app.Runner.PollFcn) && ~isfinite(app.PreviewSeconds), ...
-    'Cancel on the busy card stops the preview while it computes: the badge says Canceled, the card and the polling are gone');
-app.onCancelPreview();   % nothing computes: no effect
-app.autoPreview();
-check(app.PreviewState == "canceled", 'a canceled preview is not redrawn by an edit; it waits for Preview');
-app.refreshPreview(Force=true);
-check(app.PreviewState == "drawn" && ~isempty(app.PreviewResult) && ~isempty(findall(app.PreviewPanel, 'Type', 'axes')), ...
-    'Preview after a cancel computes and draws the plot');
-ctx = getappdata(app.PreviewPanel, PlotAesthetics.ContextKey);
-look = struct('role', "rateFill", 'group', "", 'property', "FaceAlpha", 'value', 0.4);
-ctx.onRemember(look);
-check(isstruct(ctx) && ctx.id == "psth_1" && isscalar(app.Config.Plots(1).aesthetics) ...
-    && app.Config.Plots(1).aesthetics.value == 0.4 && isequal(app.Runner.Config.Plots(1).aesthetics, app.Config.Plots(1).aesthetics) ...
-    && startsWith(app.Fig.Name, "*"), ...
-    'the preview is editable (right-click), and rules remembered for the plot go into the config');
-app.rememberAesthetics("psth_1", []);
+app.FigureAutoPreviewSeconds = Inf;   % a preview slowed by a loaded machine must not leave the next one out of date
+restoreAutoLimit3 = onCleanup(@() resetAutoLimit(app));
+app.selectTab(app.TabFigures);
+app.onAddFigure("psth");
+check(isscalar(app.Config.Figures) && app.Config.Figures(1).id == "figure_1" && app.SelectedFigure == 1 ...
+    && app.Config.Figures(1).panels(1).type == "psth", 'Add (the PSTH template) makes figure_1 and opens it in the editor');
+app.selectTab(app.TabData);
+app.FigurePreviewResult = [];
+clickTool(app, "preview");   % as the Preview button, from another tab
+check(app.Tabs.SelectedTab == app.TabFigures && ~isempty(app.FigurePreviewResult) && app.FigurePreviewState == "drawn" ...
+    && ~isempty(findall(app.FigurePreviewPanel, 'Type', 'axes')) && string(app.FigurePreviewBadge.Text.Text) == "Drawn", ...
+    'the toolbar''s Preview shows the Figures tab and draws the selected figure into its preview');
+% the Design row: the list and Save look as design..., over the figure preview
+dd = app.DesignDropDown;
 designs = PlotDesign.list();
-check(numel(app.DesignDropDown.Items) == height(designs) && string(app.DesignDropDown.Value) == "Default" ...
-    && any(string({app.DesignMenu.Children.Text}) == "Tufte"), 'the Design list and menu offer every design, Default chosen');
+check(ancestor(dd, 'uitab') == app.TabFigures && ancestor(app.SaveDesignButton, 'uitab') == app.TabFigures ...
+    && numel(dd.Items) == height(designs) && string(dd.Value) == "Default" && any(string({app.DesignMenu.Children.Text}) == "Tufte"), ...
+    'the Design list and Save look as design... sit on the Figures tab; the list and the Design menu offer every design, Default chosen');
 cfg0 = app.Config.toStruct();
-app.onDesignChosen("Night");
+dd.Value = "Night";
+dd.ValueChangedFcn(dd, []);
 night = PlotDesign.load("Night");
 menuChecked = string({app.DesignMenu.Children(strcmp({app.DesignMenu.Children.Checked}, 'on')).Text});
-check(isequal(app.PreviewPanel.BackgroundColor, night.background) && string(app.DesignDropDown.Value) == "Night" ...
-    && isequal(menuChecked, "Night") && isequaln(app.Config.toStruct(), cfg0), ...
-    sprintf('choosing a design redraws the preview in it at once and ticks it, without touching the config (ground %s, list %s, menu %s)', ...
-    mat2str(app.PreviewPanel.BackgroundColor, 3), string(app.DesignDropDown.Value), strjoin(menuChecked, "|")));
+check(isequal(app.FigurePreviewPanel.BackgroundColor, night.background) && PlotDesign.currentName() == "Night" ...
+    && isequal(menuChecked, "Night") && isequaln(app.Config.toStruct(), cfg0) && app.FigurePreviewState == "drawn", ...
+    sprintf('a design chosen in the list redraws the figure preview in it at once and ticks it in the menu, the config untouched (ground %s, menu %s)', ...
+    mat2str(app.FigurePreviewPanel.BackgroundColor, 3), strjoin(menuChecked, "|")));
+app.setFigurePreviewState("stale");
+app.onSaveDesign("Stale look", "");
+check(~any(PlotDesign.list().Name == "Stale look") && contains(app.StatusBar.Text, "the drawing is out of date"), ...
+    'Save look as design refuses an Out of date preview (its drawing is not the figure any more) and says to preview first');
+app.setFigurePreviewState("drawn");
 app.onSaveDesign("Lab look", "for lab meeting");
 mine = PlotDesign.list();
 k = find(mine.Name == "Lab look");
-check(isscalar(k) && mine.Source(k) == "mine" && PlotDesign.currentName() == "Lab look" ...
-    && string(app.DesignDropDown.Value) == "Lab look" && isequal(app.PreviewPanel.BackgroundColor, night.background), ...
-    'Save look as design keeps the preview''s look as a design of yours and chooses it');
+check(isscalar(k) && mine.Source(k) == "mine" && PlotDesign.currentName() == "Lab look" && string(dd.Value) == "Lab look" ...
+    && isequal(app.FigurePreviewPanel.BackgroundColor, night.background) && contains(app.StatusBar.Text, "Saved design Lab look"), ...
+    'Save look as design keeps the figure preview''s look as a design of yours and chooses it');
+app.onAddFigure("heatmap");
+app.refreshFigurePreview(Force=true);
+heatDrawn = app.FigurePreviewState == "drawn" && ~isempty(findall(app.FigurePreviewPanel, 'Tag', 'image'));
+app.onSaveDesign("Heat look", "");
+Dh = PlotDesign.load("Heat look");
+check(heatDrawn && isfield(Dh.kinds, "heatmap") && any([Dh.kinds.heatmap.role] == "axes"), ...
+    'saved from a heat map figure, the design keeps the heat map''s axes rules for heat maps only (kinds.heatmap)');
+app.onRemoveFigure();
+app.onFigureSelected(1);
+app.onDeleteDesign("Heat look", Confirm=false);
 app.onDeleteDesign("Lab look", Confirm=false);
-check(~any(PlotDesign.list().Name == "Lab look") && string(app.DesignDropDown.Value) == "Default" ...
-    && isequal(app.PreviewPanel.BackgroundColor, [1 1 1]), 'deleting the chosen design goes back to Default');
+app.refreshFigurePreview(Force=true);
+check(~any(ismember(PlotDesign.list().Name, ["Lab look" "Heat look"])) && string(dd.Value) == "Default" ...
+    && isequal(app.FigurePreviewPanel.BackgroundColor, [1 1 1]), 'deleting the chosen design goes back to Default');
 if isfolder(PlotDesign.folder()); rmdir(PlotDesign.folder(), 's'); end
-E = app.PlotEditor;
-A = app.PlotAlignControls;
-check(E.defaultRef.Value && E.defaultWindow.Value && A.Line.Enable == "on" && A.Pre.Enable == "on" ...
-    && A.Filter.Enable == "on" && shown(A.Line) && shown(A.Pre) && shown(A.Filter), ...
-    'the event, window and selection sections are shown and editable while they use the defaults');
-E.binMs.Value = 20;
-app.onConfigChanged("plot");
-A.Line.Value = 'Trial';
-app.onPlotAlignEdited("ref");
-p = app.Config.Plots(1);
-check(p.bins.BinSec == 0.02 && isstruct(p.ref) && p.ref.line == "Trial" && ~E.defaultRef.Value ...
-    && isequal(p.window, "default") && E.defaultWindow.Value && app.Config.Defaults.EventRef.line == "Stim", ...
-    'editing the bins; editing the event line gives the plot its own event reference; the window stays default');
-A.Pre.Value = -0.35;
-app.onPlotAlignEdited("window");
-p = app.Config.Plots(1);
-check(isstruct(p.window) && p.window.pre == -0.35 && ~E.defaultWindow.Value && app.Config.Defaults.Window.pre ~= -0.35, ...
-    'editing the window''s pre gives the plot its own window; the Alignment tab''s is unchanged');
-E.defaultWindow.Value = true;
-app.onPlotDefaultToggled();
-p = app.Config.Plots(1);
-check(isequal(p.window, "default") && A.Pre.Value == app.Config.Defaults.Window.pre && isstruct(p.ref), ...
-    'ticking Use default again goes back to (and shows) the default window');
-check(shown(E.response) && shown(E.respFrom) && shown(E.respParam) && E.respTest.Enable == "off" && E.respFrom.Enable == "off", ...
-    'a spike plot shows the response test, its settings off until Responsive only is ticked');
-E.response.Value = true;
-E.respTest.Value = 'either'; E.respParam.Value = 'Depth'; E.respTo.Value = 0.1; E.respCorrection.Value = 'holm';
-app.onConfigChanged("plot");
-rs = app.Config.Plots(1).units.response;
-on = E.respTest.Enable == "on" && E.respAlpha.Enable == "on";
-E.response.Value = false;
-app.onConfigChanged("plot");
-check(rs.enabled && rs.test == "either" && rs.param == "Depth" && isequal(rs.window, [0 0.1]) && rs.correction == "holm" ...
-    && on && ~app.Config.Plots(1).units.response.enabled && app.Config.Plots(1).units.response.param == "Depth", ...
-    'Responsive only and its settings reach the plot''s units.response; unticking keeps the settings');
-check(shown(E.stack) && shown(E.normalize) && shown(E.fill) && shown(E.fillAlpha) && shown(E.colormap) ...
-    && E.fillAlpha.Enable == "on" && E.stackSpacing.Enable == "off" && ~shown(E.heatColormap) && ~shown(E.param) ...
-    && ~shown(E.value) && ~shown(E.metric) && string(A.Mode.ItemsData) == "fixed", ...
-    ['a PSTH shows stack, normalize, fill, opacity and group colors (spacing waits for Stack), not heat colors ' ...
-    'or other kinds'' rows; its window is fixed']);
-E.legendLoc.Value = 'east'; E.legendOrient.Value = 'horizontal'; E.legendBox.Value = true;
-app.onConfigChanged("plot");
-st = app.Config.Plots(1).style;
-check(shown(E.legendLoc) && shown(E.legendOrient) && shown(E.legendBox) && E.legendLoc.Enable == "on" ...
-    && st.LegendLocation == "east" && st.LegendOrientation == "horizontal" && st.LegendBox, ...
-    'a PSTH offers the legend''s place, orientation and box; they reach the plot''s style');
-E.legendLoc.Value = 'auto'; E.legendOrient.Value = 'auto'; E.legendBox.Value = false;
-app.onConfigChanged("plot");
-E.stack.Value = true; E.normalize.Value = 'groupPeak'; E.fill.Value = false; E.stackSpacing.Value = 0.8;
-E.colormap.Value = 'black'; E.lineWidth.Value = 2;
-app.onConfigChanged("plot");
-p = app.Config.Plots(1);
-check(p.stack && p.normalize == "groupPeak" && ~p.fill && isnan(p.fillAlpha) && p.stackSpacing == 0.8 ...
-    && p.style.Colormap == "black" && p.style.LineWidth == 2 && E.stackSpacing.Enable == "on" && E.fillAlpha.Enable == "off" ...
-    && E.ylim.Enable == "off" && E.legend.Enable == "off" && E.legendLoc.Enable == "off", ...
-    'stack, group-peak normalization, unfilled, spacing 0.8, black, width 2 reach the plot; spacing on, opacity / y limits / legend off');
-app.refreshPreview(Force=true);
-axs = findall(app.PreviewPanel, 'Type', 'axes');
-check(any(arrayfun(@(a) numel(a.YAxis) == 2, axs)) == (nG > 1), 'the preview draws the stack (value and peak axes)');
-app.onAddPlot("evoked");
-check(app.SelectedPlot == 2 && string(E.source.Value) == "LFP" && ~any(string(E.source.Items) == "units") ...
-    && ~shown(E.binMs) && ~shown(E.withRaster) && ~shown(E.stack) && ~shown(E.fill) && ~shown(E.classes.su) && ~shown(E.ids) ...
-    && shown(E.channels) && shown(E.baselineMode) && shown(E.lineWidth), ...
-    'an evoked plot reads LFP and shows its channels and baseline, not the unit, bin or PSTH rows');
-tree = app.PlotsTree;
-check(isequal(string({tree.Children.Text}), ["PSTH  (1)" "Evoked potential  (1)"]) && string(app.PlotGroupDropDown.Value) == "kind" ...
-    && tree.SelectedNodes.NodeData == 2 && string(tree.SelectedNodes.Text) == "evoked_1  (LFP)", ...
-    'the plot tree groups the plots by plot type by default, the selected plot highlighted');
-app.PlotGroupDropDown.Value = 'source';
-app.onPlotGroupChanged();
-check(isequal(string({tree.Children.Text}), ["units  (1)" "LFP  (1)"]) && tree.SelectedNodes.NodeData == 2 ...
-    && string(tree.SelectedNodes.Text) == "evoked_1  (evoked)", 'grouped by source, the groups follow and the selection stays');
-app.onPlotTreeSelected(tree.Children(1).Children(1));
-app.onPlotTreeSelected(tree.Children(2));
-check(app.SelectedPlot == 1 && tree.SelectedNodes.NodeData == 1, ...
-    'picking a plot opens it; picking a group header leaves the plot in the editor');
-app.PlotGroupDropDown.Value = 'none';
-app.onPlotGroupChanged();
-app.onMovePlot(1);
-check(all(arrayfun(@(n) isnumeric(n.NodeData), tree.Children)) && numel(tree.Children) == 2 ...
-    && isequal([app.Config.Plots.id], ["evoked_1" "psth_1"]) && app.SelectedPlot == 2 && tree.SelectedNodes.NodeData == 2, ...
-    'ungrouped, the tree is a flat list and Down moves the plot');
-app.onMovePlot(-1);
-app.PlotGroupDropDown.Value = 'kind';
-app.onPlotGroupChanged();
-app.onMovePlot(1);
-app.onPlotGroupToggled(tree.Children(1), true);
-check(isequal([app.Config.Plots.id], ["psth_1" "evoked_1"]) && app.SelectedPlot == 1 && isequal(app.PlotGroupsCollapsed, "kind:PSTH"), ...
-    'grouped, Down stays within the plot''s group (alone in it: no move); a collapsed group is remembered');
-app.onPlotGroupToggled(tree.Children(1), false);
-app.onPlotSelected(2);
-check(isempty(app.PlotGroupsCollapsed) && app.SelectedPlot == 2, 'expanding it forgets that');
-% the check boxes: a plot's is ticked while it is enabled
-dblclick = @(k) struct('InteractionInformation', struct('Node', plotNode(tree, k)));
-check(all(arrayfun(@(k) string(plotNode(tree, k).UserData) == "on" && ~isempty(plotNode(tree, k).Icon), 1:2)) ...
-    && string(tree.Children(1).UserData) == "on", 'every plot starts enabled, its box (and its group''s) ticked');
-app.onPlotTreeDoubleClicked(dblclick(1));
-check(~app.Config.Plots(1).enabled && app.Config.Plots(2).enabled && string(plotNode(tree, 1).UserData) == "off" ...
-    && string(tree.Children(1).UserData) == "off" && endsWith(string(plotNode(tree, 1).Text), "(off)") && app.SelectedPlot == 2, ...
-    'a double-click unticks a plot: disabled in the config, the box and "(off)" follow, the plot in the editor stays');
-app.onPlotTreeDoubleClicked(dblclick(2));
-check(~app.Config.Plots(2).enabled && ~E.enabled.Value, 'unticking the plot in the editor clears its Enabled box');
-E.enabled.Value = true;
-app.onConfigChanged("plot");
-check(app.Config.Plots(2).enabled && string(plotNode(tree, 2).UserData) == "on", 'ticking Enabled in the editor ticks the tree box');
-app.onPlotTreeDoubleClicked(struct('InteractionInformation', struct('Node', tree.Children(1))));
-check(~app.Config.Plots(1).enabled, 'a double-click on a group header changes no plot');
-app.onPlotCheck("all");
-allOn = all([app.Config.Plots.enabled]);
-app.onPlotCheck("none");
-noneOn = ~any([app.Config.Plots.enabled]);
-app.onPlotCheck("invert");
-check(allOn && noneOn && all([app.Config.Plots.enabled]) && string(tree.Children(1).UserData) == "on", ...
-    'All, None and Invert tick, untick and flip every plot');
-fkeys = string(app.PlotFilterDropDown.ItemsData);
-check(fkeys(1) == "selected" && all(ismember(["kind:PSTH" "kind:Evoked potential" "source:units" "source:LFP"], fkeys)), ...
-    'the drop-down above the tree names the selected plots and each plot type and source in use');
-app.PlotFilterDropDown.Value = 'kind:PSTH';
-app.onPlotCheck("only");
-check(isequal([app.Config.Plots.enabled], [true false]), 'Only ticks the plots of the type named and unticks the rest');
-app.PlotFilterDropDown.Value = 'source:LFP';
-app.onPlotCheck("check");
-check(all([app.Config.Plots.enabled]), 'Check ticks the plots of the source named');
-app.PlotFilterDropDown.Value = 'selected';
-app.onPlotCheck("uncheck");
-check(isequal([app.Config.Plots.enabled], [true false]), 'Uncheck unticks the plots selected (the second)');
-app.PlotGroupDropDown.Value = 'status';
-app.onPlotGroupChanged();
-check(isequal(string({tree.Children.Text}), ["Enabled  (1)" "Off  (1)"]), 'grouped by Enabled / off, the plots sit under their state');
-app.onPlotCheck("all");
-check(isequal(string({tree.Children.Text}), "Enabled  (2)"), 'ticking them all moves them under Enabled');
-app.PlotGroupDropDown.Value = 'kind';
-app.onPlotGroupChanged();
-app.PlotEditor.source.Value = 'LFP';
-app.onConfigChanged("plot");
-app.refreshPreview(Force=true);
-check(~isempty(app.PreviewResult) && app.PreviewResult.kind == "evoked" && ~isempty(findall(app.PreviewPanel, 'Type', 'axes')), ...
-    'the LFP evoked potential previews');
-ylStack = shown(E.ylim);
-E.layout.Value = 'grid'; app.syncPlotEditor();
-ylGrid = shown(E.ylim);
-E.layout.Value = 'stack'; app.syncPlotEditor();
-app.onAddPlot("raster");
-ylRaster = shown(E.ylim);
-app.onRemovePlot();
-check(~ylStack && ylGrid && ~ylRaster && numel(app.Config.Plots) == 2 && app.SelectedPlot == 2, ...
-    'y limits are hidden where they would hide rows (an evoked stack, a raster), shown for an evoked grid');
-app.onAddPlot("probemap");
-sec = app.PlotSections;
-check(~shown(E.defaultRef) && ~shown(A.Line) && ~shown(A.Pre) && ~shown(A.Filter) && ~shown(E.baselineMode) ...
-    && shown(E.value) && shown(E.heatColormap) && ~shown(E.colormap) && ~shown(E.maxTiles), ...
-    'a probe map hides the event, window, selection and baseline; it shows its value and heat colors');
-app.onRemovePlot();
-app.onAddPlot("waveforms");
-wfGrid = shown(E.waveMode) && ~any(string(E.waveMode.ItemsData) == "off") && string(E.waveMode.Value) == "both" ...
-    && ~shown(E.waveLocation) && shown(E.waveAmp) && shown(E.wavePP) && ~shown(E.waveSites) && ~shown(E.waveScale) ...
-    && shown(E.maxTiles) && ~shown(E.defaultRef) && ~shown(E.baselineMode);
-E.layout.Value = 'probe'; E.waveNames.Value = true; E.waveAmp.Value = 'common';
-app.onConfigChanged("plot");
-p = app.Config.Plots(end);
-check(wfGrid && shown(E.waveSites) && shown(E.waveNames) && shown(E.waveScale) && ~shown(E.maxTiles) && p.kind == "waveforms" ...
-    && p.layout == "probe" && p.waveform.mode == "both" && p.waveform.showNames && p.waveform.ampScale == "common", ...
-    'a waveforms plot shows its mode (never Off), amplitude scale and labels; the probe layout adds size, sites and unit names');
-app.refreshPreview(Force=true);
-check(~isempty(app.PreviewResult) && app.PreviewResult.kind == "waveforms" && ~isempty(findall(app.PreviewPanel, 'Tag', 'waveMean')) ...
-    && ~isempty(findall(app.PreviewPanel, 'Tag', 'waveName')), 'the waveforms plot previews on the probe, with the unit names');
-app.onRemovePlot();
-app.onPlotSelected(1);
-check(any(string(E.waveMode.ItemsData) == "off"), 'another kind''s plot offers Off again');
-kAux = find([app.Config.Plots.kind] == "psth" & [app.Config.Plots.source] == "units", 1);
-app.onPlotSelected(kAux);
-auxRows = shown(E.auxMode) && shown(E.auxChannels) && shown(E.auxBaseline) && shown(E.auxByGroup) ...
-    && string(E.auxMode.Value) == "off" && E.auxPlacement.Enable == "off" && E.auxBaseFrom.Enable == "off";
-E.auxMode.Value = 'magnitude'; E.auxPlacement.Value = 'above'; E.auxChannels.Value = '1 2 3';
-E.auxBaseline.Value = true; E.auxBaseFrom.Value = -0.1; E.auxByGroup.Value = false;
-app.onConfigChanged("plot");
-xa = app.Config.Plots(kAux).aux;
-check(~isempty(kAux) && auxRows && xa.mode == "magnitude" && xa.placement == "above" && isequal(xa.channels, [1 2 3]) ...
-    && xa.baseline == "subtract" && isequal(xa.baselineWindow, [-0.1 0]) && ~xa.byGroup ...
-    && E.auxPlacement.Enable == "on" && E.auxBaseFrom.Enable == "on", ...
-    'a PSTH of units shows the Aux signals rows (grayed out while Off); an edit reaches the plot''s aux');
-app.refreshPreview(Force=true);
-check(~isempty(app.PreviewResult) && isfield(app.PreviewResult, 'aux') && ~isempty(findall(app.PreviewPanel, 'Tag', 'auxAxes')) ...
-    && ~isempty(findall(app.PreviewPanel, 'Tag', 'auxTrace')), 'the preview computes the mean aux signal and draws its panels');
-kSig = find(ismember([app.Config.Plots.source], EphysAnalysisConfig.SignalSources), 1);
-if ~isempty(kSig)
-    app.onPlotSelected(kSig);
-    auxHidden = ~shown(E.auxMode) && ~shown(app.PlotSections([app.PlotSections.Name] == "aux").Toggle);
-else
-    auxHidden = false;
-end
-app.onPlotSelected(kAux);
-check(auxHidden && string(E.auxMode.Value) == "magnitude" && string(E.auxPlacement.Value) == "above" ...
-    && string(E.auxChannels.Value) == "1 2 3" && E.auxBaseline.Value && E.auxBaseFrom.Value == -0.1 && ~E.auxByGroup.Value, ...
-    'a plot of signals hides the Aux signals section; selecting the PSTH again shows its aux settings');
-spanOff = E.auxOverFrom.Enable == "off";   % placement "above"
-E.auxPlacement.Value = 'over'; E.auxOverFrom.Value = 0; E.auxOverTo.Value = 0.3; E.auxYLim.Value = '-0.1 0.1';
-app.onConfigChanged("plot");
-xa = app.Config.Plots(kAux).aux;
-check(spanOff && E.auxOverFrom.Enable == "on" && isequal(xa.overPosition, [0 0.3]) && isequal(xa.yLim, [-0.1 0.1]) ...
-    && xa.placement == "over", 'over the plot: its span (0 to 0.3) and y limits reach the plot; the span waits for placement Over');
-E.auxYLim.Value = '0.1 -0.1'; app.onConfigChanged("plot");
-check(isempty(app.Config.Plots(kAux).aux.yLim), 'y limits that are not two ascending values are automatic');
-E.auxPlacement.Value = 'below'; E.auxYLim.Value = '';
-E.auxDisplay.Value = 'heatmap'; E.auxStatistic.Value = 'median'; E.auxTransform.Value = 'rectify';
-E.auxErrType.Value = 'iqr'; E.auxColorBy.Value = 'channel';
-app.onConfigChanged("plot");
-xa = app.Config.Plots(kAux).aux;
-check(shown(E.auxDisplay) && shown(E.auxStatistic) && shown(E.auxErrType) && shown(E.auxColorBy) && xa.display == "heatmap" ...
-    && xa.statistic == "median" && xa.transform == "rectify" && xa.errorType == "iqr" && xa.colorBy == "channel" ...
-    && E.auxErrType.Enable == "off" && E.auxStatistic.Enable == "on", ...
-    'the Aux signals display, statistic, rectify, error band and color-by choices reach the plot''s aux; a heat map takes no band');
-app.refreshPreview(Force=true);
-check(~isempty(findall(app.PreviewPanel, 'Tag', 'auxImage')) && isempty(findall(app.PreviewPanel, 'Tag', 'auxTrace')) ...
-    && app.PreviewResult.aux.statistic == "median" && app.PreviewResult.aux.rectified, ...
-    'the preview computes the median of the rectified signal and draws it as a heat map');
-E.auxDisplay.Value = 'stacked'; E.auxErrType.Value = 'ci95'; app.onConfigChanged("plot");
-check(E.auxErrType.Enable == "on" && E.errResamples.Enable == "on" && E.errFace.Enable == "on", ...
-    'an aux bootstrap band enables the resamples and the band look, whatever the plot''s own Error says');
-E.auxDisplay.Value = 'lines'; E.auxStatistic.Value = 'mean'; E.auxTransform.Value = 'none';
-E.auxErrType.Value = 'sem'; E.auxColorBy.Value = 'auto';
-E.auxMode.Value = 'off'; app.onConfigChanged("plot");
-check(app.Config.Plots(kAux).aux.mode == "off" && E.auxChannels.Enable == "off", 'Off takes the aux signal off the plot');
-E.auxPlacement.Value = 'below'; E.auxChannels.Value = ''; E.auxBaseline.Value = false; E.auxBaseFrom.Value = -0.2;
-E.auxByGroup.Value = true; E.auxYLim.Value = ''; E.auxOverFrom.Value = 0; E.auxOverTo.Value = 1;
-app.onConfigChanged("plot");   % the defaults again, for what follows
-errRows = shown(E.errType) && shown(E.errFace) && shown(E.errEdge) && E.errResamples.Enable == "off" ...
-    && E.errEdgeStyle.Enable == "off" && string(E.showSEM.Text) == "Error";
-E.errType.Value = 'std'; E.errAlpha.Value = 0.3; E.errEdge.Value = 'auto'; E.errEdgeWidth.Value = 1;
-app.onConfigChanged("plot");
-st = app.Config.Plots(kAux).style;
-check(errRows && st.ErrorType == "std" && st.ErrorFaceAlpha == 0.3 && st.ErrorEdgeColor == "auto" && st.ErrorEdgeWidth == 1 ...
-    && st.ErrorFaceColor == "" && E.errEdgeStyle.Enable == "on" && E.errResamples.Enable == "off", ...
-    'a PSTH shows the Error, Band fill and Band edge rows; edits reach its style (auto fill = "", the edge''s style once it has one)');
-app.refreshPreview(Force=true);
-sb = findall(app.PreviewPanel, 'Tag', 'sem');
-check(~isempty(app.PreviewResult) && app.PreviewResult.err.type == "std" && ~isempty(sb) && all([sb.FaceAlpha] == 0.3), ...
-    'the preview computes mean +/- SD and draws the bands in the look set');
-E.errType.Value = 'ci95'; app.syncPlotEditor();
-ciOn = E.errResamples.Enable == "on";
-E.showSEM.Value = false; app.syncPlotEditor();
-check(ciOn && E.errType.Enable == "off" && E.errFace.Enable == "off", 'resamples for the bootstrap CI; the rows wait for the Error box');
-E.showSEM.Value = true; E.errType.Value = 'sem'; E.errAlpha.Value = []; E.errEdge.Value = 'none'; E.errEdgeWidth.Value = 0.5;
-app.onConfigChanged("plot");   % the defaults again
-app.onPlotSelected(1);
-app.onAddPlot("heatmap");
-hideA = ~shown(E.aMethod) && ~shown(E.aCutoff) && any(string(E.baselineMode.Items) == "auroc") && ~shown(E.raMethod);
-E.baselineMode.Value = 'auroc';
-app.onConfigChanged("plot");
-showA = shown(E.aMethod) && shown(E.aWinMs) && shown(E.aModFrom) && shown(E.aCutoff) && shown(E.aMarks) && ~shown(E.aTest) ...
-    && E.smoothMs.Enable == "off" && E.aStepMs.Enable == "off" && E.aThreshold.Enable == "off" ...
-    && any(string(E.order.Items) == "modulation");
-E.aWindows.Value = 'sliding'; E.aWinMs.Value = 50; E.aStepMs.Value = 20; E.aCutoff.Value = 'test';
-E.aModFrom.Value = 0; E.aModTo.Value = 0.3; E.order.Value = 'modulation';
-app.onConfigChanged("plot");
-p = app.Config.Plots(end);
-a = p.auroc;
-check(hideA && showA && shown(E.aTest) && E.aStepMs.Enable == "on" && a.windows == "sliding" && a.windowSec == 0.05 ...
-    && a.stepSec == 0.02 && a.cutoff == "test" && isequal(a.modulationWindow, [0 0.3]) && p.order == "modulation" ...
-    && p.baseline.Mode == "auroc", ['a spike heatmap offers the auROC baseline; choosing it shows its settings ' ...
-    '(smoothing off), and sliding windows, a per-unit test, the call window and the modulation order reach the plot']);
-E.aCutoff.Value = 'fixed'; E.aThreshold.Value = 0.05;
-app.onConfigChanged("plot");
-app.refreshPreview(Force=true);
-R = app.PreviewResult;
-check(~isempty(R) && isfield(R, 'auroc') && isstruct(R.auroc) && R.units == "auROC" ...
-    && ~isempty(findall(app.PreviewPanel, 'Tag', 'modWindow')), 'the auROC heatmap previews, its call window marked');
-E.response.Value = true; E.respTest.Value = 'auroc';
-app.onConfigChanged("plot");
-showR = shown(E.raMethod) && shown(E.raWinMs) && shown(E.raBinMs) && shown(E.raCutoff) && ~shown(E.raTest) ...
-    && ~any(string(E.raCutoff.ItemsData) == "none") && app.Config.Plots(end).units.response.test == "auroc";
-E.aWindows.Value = 'tiled';
-app.applyPlotEditor();
-check(showR && string(E.aWindows.Value) == "sliding" && E.aWinMs.Value == 50 && string(E.respTest.Value) == "auroc", ...
-    'the auROC response test shows its own settings (no "none" cutoff); showing the plot again restores its auROC settings');
-app.onRemovePlot();
-app.onPlotSelected(1);
-app.onPlotSectionToggled("style");
-collapsed = ~shown(E.fontSize) && shown(sec([sec.Name] == "style").Toggle);
-app.onPlotSectionToggled("style");
-check(collapsed && shown(E.fontSize), 'the Appearance section collapses to its header and expands again');
-app.onPlotSectionToggled("bins");
-app.onPlotSelected(1);
-check(app.SelectedPlot == 1 && app.PlotEditor.binMs.Value == 20 && app.PlotEditor.stack.Value ...
-    && string(app.PlotEditor.normalize.Value) == "groupPeak" && isempty(app.PlotEditor.fillAlpha.Value) ...
-    && string(app.PlotEditor.colormap.Value) == "black", 'selecting plot 1 shows its edits');
-check(shown(E.waveMode) && shown(E.waveLocation) && string(E.waveMode.Value) == "off" && E.waveLocation.Enable == "off" ...
-    && E.waveBox.Enable == "off" && string(E.waveLocation.Value) == "northeast" && E.waveBox.Value, ...
-    'a PSTH grid shows the Unit waveform rows: off, north-east, with its axis box; the others wait for a mode');
-E.waveMode.Value = 'both'; E.waveLocation.Value = 'southwest'; E.waveBox.Value = false; E.waveScale.Value = 1.5; E.waveSpikes.Value = 30;
-app.onConfigChanged("plot");
-wv = app.Config.Plots(1).waveform;
-check(wv.mode == "both" && wv.location == "southwest" && ~wv.box && wv.scale == 1.5 && wv.maxSpikes == 30 ...
-    && E.waveLocation.Enable == "on" && E.waveBox.Enable == "on", 'the waveform mode, location, axis box, size and spikes reach the plot');
-app.refreshPreview(Force=true);
-check(isfield(app.PreviewResult, 'waveforms') && ~isempty(findall(app.PreviewPanel, 'Tag', 'waveMean')) ...
-    && isempty(findall(app.PreviewPanel, 'Tag', 'waveBox')), ...
-    'the preview draws each unit''s waveform (the synthetic sort''s templates), without the box');
-E.layout.Value = 'overlay'; app.syncPlotEditor();
-hiddenOverlay = ~shown(E.waveMode);
-E.layout.Value = 'grid'; app.syncPlotEditor();
-E.waveMode.Value = 'off';
-app.onConfigChanged("plot");
-check(hiddenOverlay && app.Config.Plots(1).waveform.mode == "off" && ~app.Config.Plots(1).waveform.box, ...
-    'an overlay hides the waveform rows; Off keeps the other waveform settings');
-
-check(shown(E.annText) && shown(sec([sec.Name] == "note").Toggle) && E.annPlace.Enable == "off" && E.annBold.Enable == "off" ...
-    && string(E.annPlace.Value) == "below" && isempty(E.annSize.Value) && string(E.annFont.Value) == "auto", ...
-    'the Text note section shows for a plot without a note, its settings waiting for some text');
-E.annText.Value = {'Condition A'; 'n = 12'}; E.annPlace.Value = 'custom'; E.annX.Value = 0.2; E.annY.Value = 0.8;
-E.annBold.Value = true; E.annSize.Value = 14; E.annColor.Value = 'red'; E.annAlign.Value = 'center'; E.annRotation.Value = 15;
-app.onConfigChanged("plot");
-nt = app.Config.Plots(1).note;
-check(nt.text == "Condition A" + newline + "n = 12" && nt.placement == "custom" && nt.x == 0.2 && nt.y == 0.8 && nt.bold && ~nt.italic ...
-    && nt.fontSize == 14 && nt.color == "red" && nt.fontName == "" && nt.background == "" && nt.align == "center" && nt.rotation == 15 ...
-    && E.annPlace.Enable == "on" && E.annBold.Enable == "on" && E.annX.Enable == "on", ...
-    'the note''s text, place, alignment, rotation, font and color reach the plot; "auto" and "none" are blank');
-app.refreshPreview(Force=true);
-tx = findall(app.PreviewPanel, 'Type', 'text', 'Tag', 'note');
-check(isscalar(tx) && numel(tx.String) == 2 && tx.FontWeight == "bold" && tx.FontSize == 14 && isequal(tx.Color, [1 0 0]) ...
-    && tx.Rotation == 15 && isequal(tx.Position(1:2), [0.2 0.8]), 'the preview draws the note');
-app.onPlotSelected(1);
-check(isequal(string(E.annText.Value(:)).', ["Condition A" "n = 12"]) && string(E.annPlace.Value) == "custom" && E.annSize.Value == 14 ...
-    && string(E.annColor.Value) == "red" && E.annX.Enable == "on", 'selecting the plot again shows its note');
-E.annPlace.Value = 'below'; app.onConfigChanged("plot");
-check(E.annX.Enable == "off" && E.annY.Enable == "off", 'x and y wait for the place "At x, y"');
-app.onPlotSectionToggled("note");
-collapsed = ~shown(E.annText) && shown(sec([sec.Name] == "note").Toggle);
-app.onPlotSectionToggled("note");
-check(collapsed && shown(E.annText), 'the Text note section collapses to its header and expands again');
-heads = app.PlotSections([app.PlotSections.Name] ~= "general");
-barColors = cell2mat(arrayfun(@(s) s.Toggle.BackgroundColor, heads, 'UniformOutput', false).');
-fontColors = cell2mat(arrayfun(@(s) s.Toggle.FontColor, heads, 'UniformOutput', false).');
-ratios = arrayfun(@(i) wcagRatio(fontColors(i, :), barColors(i, :)), 1:numel(heads));
-satur = max(barColors, [], 2) - min(barColors, [], 2);
-check(numel(heads) == 12 && size(unique(round(barColors, 3), 'rows'), 1) == 12 && all(ratios >= 4.5) ...
-    && all(fontColors(:) == 0) && all(satur > 0.01 & satur < 0.4) ...
-    && isequal([heads.Name], ["units" "ref" "window" "selection" "bins" "kind" "marks" "style" "waveform" "aux" "note" "overlays"]) ...
-    && isequal([heads.Key], [string(1:6) "" "7" "8" "" "9" "0"]) ...
-    && all(arrayfun(@(s) s.Key == "" || endsWith(s.Toggle.Text, modifier + s.Key + ")"), heads)) ...
-    && ~contains(heads([heads.Name] == "aux").Toggle.Text, modifier) && ~contains(heads([heads.Name] == "marks").Toggle.Text, modifier), ...
-    ['each of the twelve section headers has a desaturated bar color of its own with black text; all but Event marks ' ...
-    'and Aux signals name their key (Ctrl+1 to Ctrl+9, Ctrl+0), the keys they had before them']);
-pressed = @(k, mods) struct('Key', k, 'Modifier', {mods}, 'Character', '');
-app.onKeyPress(pressed('5', {'control', 'shift'}));
-app.onKeyPress(pressed('5', {'alt'}));
-app.onKeyPress(pressed('5', {}));
-app.onKeyPress(pressed('6', {'control'}));
-untouched = ~shown(E.binMs);
-app.onKeyPress(pressed('5', {'control'}));
-opened = shown(E.binMs);
-app.onPlotSectionToggled("bins");
-app.onKeyPress(pressed('numpad5', {'command'}));
-openedPad = shown(E.binMs);
-app.onPlotSectionToggled("bins");
-check(untouched && opened && openedPad, ...
-    'Ctrl+5 (or Cmd, or the number pad) opens the collapsed Bins & baseline section; other chords and keys leave it');
-app.onPlotSectionToggled("overlays");
-app.onKeyPress(pressed('0', {'control'}));
-openedOverlays = shown(E.ovList);
-check(openedOverlays, 'Ctrl+0 opens the collapsed Overlays section, the tenth');
-kLfp = find([app.Config.Plots.source] == "LFP", 1);
-if ~isempty(kLfp); app.onPlotSelected(kLfp); end
-app.onKeyPress(pressed('8', {'control'}));
-check(~isempty(kLfp) && ~shown(E.waveMode) && contains(app.StatusBar.Text, "Unit waveform section is not shown"), ...
-    'the key of a section the plot does not show says so in the status bar and moves nothing');
-app.onPlotSelected(1);
-E.annText.Value = {''}; E.annSize.Value = []; app.onConfigChanged("plot");
-app.refreshPreview(Force=true);
-check(app.Config.Plots(1).note.text == "" && isnan(app.Config.Plots(1).note.fontSize) && E.annPlace.Enable == "off" ...
-    && isempty(findall(app.PreviewPanel, 'Tag', 'note')), 'clearing the text takes the note off the plot');
-
-% --- overlays: lines and patches on the plot's axes
-k0 = app.SelectedPlot;
-ovSec = @() app.PlotSections([app.PlotSections.Name] == "overlays");
-check(shown(E.ovList) && shown(ovSec().Toggle) && ~shown(E.ovName) && ~shown(E.ovValue) && ~shown(E.ovFrom) ...
-    && E.ovAddLine.Enable == "on" && E.ovAddRegion.Enable == "on" && E.ovDuplicate.Enable == "off" && E.ovRemove.Enable == "off" ...
-    && string(ovSec().Title) == "Overlays" && isempty(app.Config.Plots(k0).overlays) && isempty(E.ovList.Items), ...
-    'the Overlays section shows for a plot without overlays: the list and its Add buttons, the rows waiting for one');
-app.onAddOverlay("line");
-ovs = app.Config.Plots(k0).overlays;
-check(isscalar(ovs) && ovs.shape == "line" && ovs.axis == "x" && ovs.name == "Line 1" && ovs.layer == "over" && ovs.panel == "all" ...
-    && shown(E.ovName) && shown(E.ovKind) && shown(E.ovValue) && ~shown(E.ovFrom) && shown(E.ovColor) && ~shown(E.ovFill) ...
-    && ~shown(E.ovEdge) && shown(E.ovStyle) && shown(E.ovPanel) && E.ovRemove.Enable == "on" && E.ovDuplicate.Enable == "on" ...
-    && string(ovSec().Title) == "Overlays (1)" && numel(E.ovList.Items) == 1, ...
-    'Add line puts a dashed line at 0 in the list, picked; its rows are a line''s (position, color), not a patch''s');
-E.ovName.Value = 'Stim on'; E.ovValue.Value = '0.25'; E.ovColor.Value = 'blue'; E.ovAlpha.Value = 0.5;
-E.ovStyle.Value = ':'; E.ovWidth.Value = 3; E.ovLayer.Value = 'under'; E.ovPanel.Value = 'data';
-app.onConfigChanged("plot");
-ovs = app.Config.Plots(k0).overlays;
-check(ovs.name == "Stim on" && ovs.value == 0.25 && ovs.color == "blue" && ovs.alpha == 0.5 && ovs.lineStyle == ":" && ovs.lineWidth == 3 ...
-    && ovs.layer == "under" && ovs.panel == "data" && contains(string(E.ovList.Items{1}), "Stim on") ...
-    && contains(string(E.ovList.Items{1}), "x = 0.25"), ...
-    'the line''s name, position, color, opacity, style, width, layer and panel reach the config; the list follows its name and position');
-app.onAddOverlay("region");
-E.ovKind.Value = 'region|y'; E.ovFrom.Value = '5'; E.ovTo.Value = '2'; E.ovFill.Value = 'green'; E.ovFillAlpha.Value = 0.4;
-E.ovEdge.Value = 'black';
-app.onConfigChanged("plot");
-ovs = app.Config.Plots(k0).overlays;
-check(numel(ovs) == 2 && ovs(1).name == "Stim on" && ovs(1).value == 0.25 && ovs(1).color == "blue" ...
-    && ovs(2).name == "Patch 1" && ovs(2).shape == "region" && ovs(2).axis == "y" && ovs(2).from == 5 && ovs(2).to == 2 ...
-    && ovs(2).faceColor == "green" && ovs(2).faceAlpha == 0.4 && ovs(2).edgeColor == "black" ...
-    && shown(E.ovFrom) && ~shown(E.ovValue) && shown(E.ovFill) && shown(E.ovEdge) && ~shown(E.ovColor) ...
-    && E.ovStyle.Enable == "on" && string(ovSec().Title) == "Overlays (2)" && numel(E.ovList.Items) == 2, ...
-    'Add patch adds a second overlay and keeps the first; a patch shows its edges, fill and outline, not a line''s position and color');
-E.ovEdge.Value = 'none';
-app.syncPlotEditor();
-outlineOff = E.ovStyle.Enable == "off" && E.ovWidth.Enable == "off";
-E.ovEdge.Value = 'black';
-app.syncPlotEditor();
-check(outlineOff && E.ovStyle.Enable == "on" && E.ovWidth.Enable == "on", 'a patch''s outline style and width wait for an outline color');
-E.ovList.Value = 1;
-app.onOverlayPicked();
-check(string(E.ovName.Value) == "Stim on" && string(E.ovValue.Value) == "0.25" && string(E.ovColor.Value) == "blue" ...
-    && E.ovWidth.Value == 3 && string(E.ovLayer.Value) == "under" && shown(E.ovValue) && ~shown(E.ovFrom), ...
-    'picking the first overlay shows its rows');
-E.ovList.Value = 2;
-app.onOverlayPicked();
-check(string(E.ovKind.Value) == "region|y" && string(E.ovFrom.Value) == "5" && string(E.ovTo.Value) == "2" ...
-    && string(E.ovFill.Value) == "green" && E.ovFillAlpha.Value == 0.4 && shown(E.ovFrom) && ~shown(E.ovValue), ...
-    'and the second''s: nothing was lost on the way');
-app.refreshPreview(Force=true);
-nRate = numel(findall(app.PreviewPanel, 'Type', 'axes', 'Tag', 'axes'));
-nRas = numel(findall(app.PreviewPanel, 'Type', 'axes', 'Tag', 'rasterAxes'));
-ln = findall(app.PreviewPanel, 'Tag', 'overlayLine');
-rg = findall(app.PreviewPanel, 'Tag', 'overlayRegion');
-check(app.PreviewState == "drawn" && nRate > 0 && numel(ln) == nRate && numel(rg) == nRate + nRas && all([ln.Value] == 0.25) ...
-    && all(arrayfun(@(x) isequal(sort(x.Value), [2 5]), rg)) && all(arrayfun(@(x) isequal(x.Color, [0 0 1]) && x.LineWidth == 3, ln)), ...
-    'the preview draws the line in the data panels and the patch in every panel, as set');
-E.ovList.Value = 1;
-app.onOverlayPicked();
-app.onDuplicateOverlay();
-ovs = app.Config.Plots(k0).overlays;
-check(numel(ovs) == 3 && ovs(2).name == "Stim on copy" && isequal(rmfield(ovs(2), 'name'), rmfield(ovs(1), 'name')) ...
-    && ovs(3).name == "Patch 1" && E.ovList.Value == 2 && string(E.ovName.Value) == "Stim on copy", ...
-    'Duplicate copies the overlay right after itself, look and all, under a name of its own, and picks the copy');
-app.onRemoveOverlay();
-ovs = app.Config.Plots(k0).overlays;
-check(numel(ovs) == 2 && ovs(1).name == "Stim on" && ovs(2).name == "Patch 1" && E.ovList.Value == 2 && string(E.ovName.Value) == "Patch 1", ...
-    'Remove takes the overlay picked and picks the one that took its place');
-if numel(app.Config.Plots) > 1
-    other = find((1:numel(app.Config.Plots)) ~= k0, 1);
-    app.onPlotSelected(other);
-    noneThere = isempty(E.ovList.Items) && ~shown(E.ovName) && string(ovSec().Title) == "Overlays";
-    app.onPlotSelected(k0);
-    check(noneThere && numel(E.ovList.Items) == 2 && E.ovList.Value == 1 && string(E.ovName.Value) == "Stim on" ...
-        && string(ovSec().Title) == "Overlays (2)", 'each plot has its own overlays: another plot''s list is empty, and this one''s is back');
-end
-app.onPlotSectionToggled("overlays");
-collapsed = ~shown(E.ovList) && shown(ovSec().Toggle);
-app.onPlotSectionToggled("overlays");
-check(collapsed && shown(E.ovList), 'the Overlays section collapses to its header and expands again');
-c1 = app.gatherConfig();
-app.applyConfig(c1);
-check(isequal(app.Config.Plots(k0).overlays, c1.Plots(k0).overlays) && numel(E.ovList.Items) == 2, ...
-    'the overlays survive a gather / apply round trip');
-app.onRemoveOverlay();
-app.onRemoveOverlay();
-app.refreshPreview(Force=true);
-check(isempty(app.Config.Plots(k0).overlays) && isempty(E.ovList.Items) && ~shown(E.ovName) && E.ovRemove.Enable == "off" ...
-    && isempty(findall(app.PreviewPanel, 'Tag', 'overlayLine')) && isempty(findall(app.PreviewPanel, 'Tag', 'overlayRegion')), ...
-    'removing the last overlay empties the list and takes them off the preview');
-
-fprintf('\n== 3a. the epoch diagram ==\n');
-A = app.PlotAlignControls;
-check(shown(E.epochs) && E.epochs.Text == "Epoch Diagram" && E.epochs.Parent == app.PlotAlignControls.WindowGrid ...
-    && isvalid(app.AlignEpochsButton) && ancestor(app.AlignEpochsButton, 'uitab') == app.TabAlign ...
-    && app.AlignEpochsButton.Parent == app.AlignControls.WindowGrid, ...
-    'the plot editor and the Alignment tab each offer "Epoch Diagram" under the Epoch window');
-app.onShowEpochs("plot");
+% the epoch diagram of the figure in the editor (its own default mode) and of the defaults
+FE = app.FigureEditor;
+FA = app.FigureAlignControls;
+check(app.EpochDiagramFor == "figure" && shown(FE.epochs) && FE.epochs.Text == "Epoch Diagram" && isvalid(app.AlignEpochsButton) ...
+    && ancestor(app.AlignEpochsButton, 'uitab') == app.TabAlign, ...
+    'the figure editor and the Alignment tab each offer "Epoch Diagram" under the Epoch window; it draws the figure by default');
+app.onShowEpochs();
 d = app.EpochDiagramWindow;
 src = app.Runner.source(app.ActiveIdx);
-spec = app.Config.plotFor(1);
-b = [];
-if spec.baseline.Mode ~= "none"; b = spec.baseline.Window; end
-E0 = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection, Baseline=b);
 check(isa(d, 'EpochDiagram') && d.isOpen() && string(d.Fig.WindowStyle) == "alwaysontop" && d.Message == "" ...
-    && nnz(d.Epochs.kept) == height(E0) && isequal(d.Epochs.t0(d.Epochs.kept), E0.t0) ...
-    && isequal(d.Epochs.number(d.Epochs.kept), (1:height(E0)).') && ~isempty(d.Shown) ...
-    && startsWith(d.Heading, "psth_1 on ") && contains(d.Heading, "its own event"), ...
-    sprintf('the diagram opens above the app with exactly the plot''s %d epochs, numbered as the plot numbers them', height(E0)));
-check(startsWith(d.Lanes(1), "Trials") && contains(d.Lanes(1), "▲ event") && d.Lanes(end) == "Epochs" ...
-    && startsWith(d.Rule(1), "Time 0 is each trial's onset") && contains(d.Summary, "epochs from") ...
-    && ~isempty(findall(d.Fig, 'Type', 'patch')) && ~isempty(findall(d.Fig, 'Type', 'legend')), ...
-    'aligned to the trial line, the trials row carries the ▲ marks and the rule says what time 0 is');
-A.Pre.Value = -0.5;
-app.onPlotAlignEdited("window");
-check(all(abs(d.Epochs.tStart - d.Epochs.t0 + 0.5) < 1e-9) && contains(d.Rule(2), "0.5 s before it"), ...
-    'editing pre redraws the diagram at once: every window starts 0.5 s before its event');
-A.Pre.Value = -100;
-app.onPlotAlignEdited("window");
-check(height(d.Epochs) == height(E0) && ~any(d.Epochs.kept) && all(d.Epochs.reason == "outside the recording") ...
-    && startsWith(d.Summary, "0 epochs") && contains(d.Summary, "outside the recording"), ...
-    'a window reaching before the recording: every event shown, every epoch dropped and saying why');
-A.Pre.Value = 1;
-app.onPlotAlignEdited("window");
-check(startsWith(d.Summary, "No epochs") && contains(d.Message, "pre <= post") && height(d.Epochs) == 0 ...
-    && ~isempty(findall(d.Fig, 'Type', 'line')), 'a window epochTable refuses is reported, and the lines are still drawn');
-E.defaultWindow.Value = true;
-app.onPlotDefaultToggled();
+    && any(d.Epochs.kept) && startsWith(d.Heading, "figure_1 on ") && contains(d.Heading, "the defaults"), ...
+    sprintf('the diagram opens above the app with the figure''s epochs (%d kept)', nnz(d.Epochs.kept)));
+FA.Pre.Value = -0.5;
+app.onFigureAlignEdited("window");
+check(isstruct(app.Config.Figures(1).window) && all(abs(d.Epochs.tStart - d.Epochs.t0 + 0.5) < 1e-9) ...
+    && contains(d.Heading, "its own window"), 'editing the figure''s pre redraws the diagram at once: every window starts 0.5 s before its event');
+FE.defaultWindow.Value = true;
+app.onFigureDefaultToggled();
 W = app.Config.Defaults.Window;
-check(d.Message == "" && all(abs(d.Epochs.tStart - d.Epochs.t0 - W.pre) < 1e-9) && nnz(d.Epochs.kept) == height(E0), ...
+check(~isstruct(app.Config.Figures(1).window) && all(abs(d.Epochs.tStart - d.Epochs.t0 - W.pre) < 1e-9), ...
     'ticking Use default again: the diagram follows the default window');
-d.setCount(3);
-s1 = d.Shown;
-d.page(1);
-s2 = d.Shown;
-d.page(-1);
-check(numel(s1) >= 3 && min(s1) == 1 && min(s2) == max(s1) + 1 && min(d.Shown) == 1, ...
-    'Next and Previous step through the events, Show at a time');
 app.onShowEpochs("defaults");
 Dd = app.Config.Defaults;
 Ed = epochTable(src, Dd.EventRef, Window=Dd.Window, Selection=Dd.Selection);
 check(app.EpochDiagramWindow == d && startsWith(d.Heading, "Defaults") && nnz(d.Epochs.kept) == height(Ed) ...
-    && height(d.Groups) == nG && endsWith(d.Rule(end), "grouped by Depth.") && contains(d.Lanes(2), "Stim  ▲ event"), ...
+    && height(d.Groups) == nG && endsWith(d.Rule(end), "grouped by Depth."), ...
     'from the Alignment tab the same window shows the defaults: Stim onset, grouped by Depth');
 d.close();
-app.onConfigChanged("plot");
+app.onConfigChanged("figure");
 check(~d.isOpen(), 'closing the diagram leaves it closed through later edits');
-
-fprintf('\n== 3b. the raster''s sort and marks, events shifted by a parameter, behavior plots ==\n');
-app.onAddPlot("raster");
-kR = app.SelectedPlot;
-check(shown(E.rasterSort) && shown(E.rasterSortOrder) && shown(E.rasterByGroup) && shown(E.markSeqText) && shown(E.markSeqEdit) ...
-    && shown(E.markTable) && E.markTable.Enable == "off" && height(E.markTable.Data) == 0 && ~shown(E.yParam) && ~shown(E.xScale), ...
-    'a raster shows its sort, direction, grouping and event marks (the table waits for a mark)');
-E.rasterSort.Value = 'Depth'; E.rasterSortOrder.Value = 'descending'; E.rasterByGroup.Value = false;
-app.onConfigChanged("plot");
-E.markSeqEdit.ButtonPushedFcn(E.markSeqEdit, []);
-D = app.SequenceDialog.UserData;
-D.AddSeq.ButtonPushedFcn(D.AddSeq, []);   % a plain line mark: Trough onset, no steps
-D.Line.Value = 'Trough'; D.Edge.Value = 'onset';
-D.Table.Data = D.Table.Data([], :);
-D.AddSeq.ButtonPushedFcn(D.AddSeq, []);   % Trial offset then Trough onset
-D.AddSeq.ButtonPushedFcn(D.AddSeq, []);
-D.Line.Value = 'RespWindow'; D.Edge.Value = 'onset';
-D.Table.Data = D.Table.Data([], :);
-D.Apply.ButtonPushedFcn(D.Apply, []);
-p = app.Config.Plots(kR);
-labels = ["Trough onset" "Trial offset then Trough onset" "RespWindow onset"];
-check(p.rasterSort == "Depth" && p.rasterSortOrder == "descending" && ~p.rasterByGroup && numel(p.rasterEvents) == 3 ...
-    && isequal(rasterMarkLabels(p.rasterEvents), labels) && all([p.rasterEvents.which] == "all") ...
-    && all([p.rasterEvents.marker] == "diamond") && all([p.rasterEvents.color] == ""), ...
-    'the raster''s sort, its direction and grouping, and its marks -- a sequence each, with or without steps -- reach the plot');
-T = E.markTable.Data;
-check(E.markTable.Enable == "on" && isequal(T.Properties.VariableNames, {'Mark', 'Marker', 'Size', 'Color'}) ...
-    && isequal(T.Mark.', labels) && all(T.Size == 4) && all(T.Color == "auto") && all(string(T.Marker) == "diamond"), ...
-    'Each mark lists every mark in order, each in its own look (no Own column)');
-app.refreshPreview(Force=true);
-check(~isempty(app.PreviewResult) && isequal([app.PreviewResult.rasterEvents.label], labels) ...
-    && ~isempty(findall(app.PreviewPanel, 'Tag', 'rasterEvent')), 'the preview marks each of them');
-T.Color(1) = "blue";
-E.markTable.Data = T;
-E.markTable.CellEditCallback(E.markTable, struct('Indices', [1 4], 'NewData', "blue", 'PreviousData', "auto"));
-T = E.markTable.Data;
-T.Marker(3) = "square";
-E.markTable.Data = T;
-E.markTable.CellEditCallback(E.markTable, struct('Indices', [3 2], 'NewData', categorical("square"), 'PreviousData', categorical("diamond")));
-p = app.Config.Plots(kR);
-app.refreshPreview(Force=true);
-drawn = findall(app.PreviewPanel, 'Tag', 'rasterEvent', 'HandleVisibility', 'off');
-trough = drawn(arrayfun(@(x) getappdata(x, 'PlotGroup') == "Trough onset", drawn));
-resp = drawn(arrayfun(@(x) getappdata(x, 'PlotGroup') == "RespWindow onset", drawn));
-check(p.rasterEvents(1).color == "blue" && p.rasterEvents(3).marker == "square" && p.rasterEvents(2).color == "" ...
-    && ~isempty(trough) && all(arrayfun(@(x) isequal(x.Color, [0 0 1]) && string(x.Marker) == "diamond", trough)) ...
-    && ~isempty(resp) && all(arrayfun(@(x) string(x.Marker) == "square" && ~isequal(x.Color, [0 0 1]), resp)), ...
-    "a mark's color or marker changed in Each mark reaches that mark alone, in the plot and the preview:" ...
-    + strjoin(arrayfun(@(x) " " + getappdata(x, 'PlotGroup') + "=" + mat2str(x.Color, 3) + string(x.Marker), drawn(:).'), ""));
-T = E.markTable.Data;
-T.Size(2) = -1;
-E.markTable.Data = T;
-E.markTable.CellEditCallback(E.markTable, struct('Indices', [2 3], 'NewData', -1, 'PreviousData', 4));
-check(E.markTable.Data.Size(2) == 4 && app.Config.Plots(kR).rasterEvents(2).size == 4, 'a size that is not positive is undone');
-E.markSeqEdit.ButtonPushedFcn(E.markSeqEdit, []);
-D = app.SequenceDialog.UserData;
-D.List.Value = 2; D.List.ValueChangedFcn(D.List, []);
-D.RemoveSeq.ButtonPushedFcn(D.RemoveSeq, []);
-D.Apply.ButtonPushedFcn(D.Apply, []);
-p = app.Config.Plots(kR);
-check(isequal(rasterMarkLabels(p.rasterEvents), labels([1 3])) && p.rasterEvents(1).color == "blue" && p.rasterEvents(2).marker == "square" ...
-    && isequal(E.markTable.Data.Mark.', labels([1 3])), ...
-    'removing a sequence in the Event sequence window keeps the other marks'' looks with them');
-check(shown(E.sortLine) && shown(E.sortSeqText) && E.sortLine.Enable == "off" && E.sortSeqEdit.Enable == "off", ...
-    'a raster shows its sort event rows, off while it sorts by a trial parameter');
-E.rasterSort.Value = 'event';
-app.onConfigChanged("plot");
-check(E.sortLine.Enable == "on" && E.sortEdge.Enable == "on" && E.sortSeqEdit.Enable == "on" ...
-    && isempty(app.Config.Plots(kR).rasterSortEvent) && any(string(E.sortLine.Items) == "RespWindow"), ...
-    'sorting by "event" turns the sort event rows on, listing the lines; no line picked yet, the plot has no event');
-E.sortLine.Value = 'RespWindow'; E.sortEdge.Value = 'offset';
-app.onConfigChanged("plot");
-p = app.Config.Plots(kR);
-check(p.rasterSort == "event" && isstruct(p.rasterSortEvent) && p.rasterSortEvent.line == "RespWindow" ...
-    && p.rasterSortEvent.edge == "offset" && isempty(p.rasterSortEvent.sequence), 'the sort event''s line and edge reach the plot');
-app.refreshPreview(Force=true);
-R = app.PreviewResult;
-check(~isempty(R) && isfield(R, 'rasterSortEvent') && R.rasterSortEvent.label == "RespWindow offset" ...
-    && numel(R.rasterSortEvent.t) == height(R.epochs) && any(isfinite(R.rasterSortEvent.t)), ...
-    'the preview sorts the raster by each epoch''s latency to the RespWindow offset');
-E.rasterSort.Value = 'Depth';
-app.onConfigChanged("plot");
-p = app.Config.Plots(kR);
-check(E.sortLine.Enable == "off" && p.rasterSort == "Depth" && p.rasterSortEvent.line == "RespWindow", ...
-    'another sort turns the rows off; the plot keeps its sort event for later');
-A.Line.Value = 'RespWindow';
-A.ShiftParam.Value = 'RespLatency';
-app.onPlotAlignEdited("ref");
-p = app.Config.Plots(kR);
-check(isstruct(p.ref) && p.ref.line == "RespWindow" && p.ref.offsetParam == "RespLatency" && p.ref.offsetParamUnit == "ms" ...
-    && A.ShiftUnit.Enable == "on" && any(string(A.ShiftParam.Items) == "RespLatency"), ...
-    'Shift by (listing the trial parameters) gives the plot its own event: RespWindow onset + RespLatency (ms)');
-app.refreshPreview(Force=true);
-check(~isempty(app.PreviewResult) && app.PreviewResult.epochs.Properties.UserData.nDroppedNoValue == nnz(~isfinite(trials.RespLatency)), ...
-    'the preview aligns to the responses; the trials without one are left out');
-A.Line.Value = 'Trial'; A.Edge.Value = 'offset'; A.ShiftParam.Value = '(none)';
-app.onPlotAlignEdited("ref");
-A.SeqEdit.ButtonPushedFcn(A.SeqEdit, []);
+% an event sequence for the figure's own event (the Event sequence window)
+FA.Line.Value = 'Trial'; FA.Edge.Value = 'offset';
+app.onFigureAlignEdited("ref");
+FA.SeqEdit.ButtonPushedFcn(FA.SeqEdit, []);
 D = app.SequenceDialog.UserData;
 check(isvalid(app.SequenceDialog) && string(D.Line.Value) == "Trial" && string(D.Edge.Value) == "offset" && D.Line.Enable == "off" ...
-    && height(D.Table.Data) == 0 && D.List.Parent.Visible == "off", ...
-    'Edit... opens the Event sequence window at the panel''s line and edge, with no step yet');
+    && height(D.Table.Data) == 0 && ~isfield(D, 'List'), ...
+    'Edit... opens the Event sequence window at the figure''s line and edge, with no step yet (one sequence: no list of marks)');
 D.AddStep.ButtonPushedFcn(D.AddStep, []);
 T = D.Table.Data; T.n(1) = 0; D.Table.Data = T;
 D.Apply.ButtonPushedFcn(D.Apply, []);
-check(isvalid(app.SequenceDialog) && isempty(app.Config.Plots(kR).ref.sequence), 'Apply refuses a bad step (n 0) and keeps the window open');
+check(isvalid(app.SequenceDialog) && isempty(app.Config.Figures(1).ref.sequence), 'Apply refuses a bad step (n 0) and keeps the window open');
 T.n(1) = 1; D.Table.Data = T;
 D.Apply.ButtonPushedFcn(D.Apply, []);
-p = app.Config.Plots(kR);
-check(~(~isempty(app.SequenceDialog) && isvalid(app.SequenceDialog)) && numel(p.ref.sequence) == 1 && p.ref.sequence.line == "Trough" ...
-    && p.ref.sequence.relation == "followedBy" && isinf(p.ref.alignStep) && string(A.SeqText.Text) == "then Trough onset", ...
-    'Apply gives the plot its sequence: Trial offset then Trough onset');
-app.refreshPreview(Force=true);
-src0 = app.Runner.source(app.ActiveIdx);
-Ep = app.PreviewResult.epochs;
-check(~isempty(app.PreviewResult) && all(Ep.t0 > src0.trials.TrialOffset(Ep.trial)) ...
-    && height(Ep) + Ep.Properties.UserData.nDroppedNoSequence <= src0.nTrials, ...
-    'the preview aligns each epoch to the first Trough onset after its trial''s end');
-E.markSeqEdit.ButtonPushedFcn(E.markSeqEdit, []);
-D = app.SequenceDialog.UserData;
-D.AddSeq.ButtonPushedFcn(D.AddSeq, []);
-check(D.List.Parent.Visible == "on" && numel(D.List.Items) == 3 && string(D.List.Items{3}) == "Trial offset then Trough onset", ...
-    'Mark sequences: Add sequence starts at Trial offset then Trough onset');
-D.Apply.ButtonPushedFcn(D.Apply, []);
-p = app.Config.Plots(kR);
-app.refreshPreview(Force=true);
-check(numel(p.rasterEvents) == 3 && p.rasterEvents(3).which == "all" && p.rasterEvents(1).color == "blue" ...
-    && numel(app.PreviewResult.rasterEvents) == 3 && app.PreviewResult.rasterEvents(3).label == "Trial offset then Trough onset", ...
-    'a mark added later reaches the plot after the others, which keep their looks, and the preview marks it');
-app.onRemovePlot();
-app.onAddPlot("behavior");
-check(string(E.source.Value) == "trials" && string(E.kind.Text) == "Behavior" && shown(E.yParam) && shown(E.param) ...
-    && shown(E.seriesParam) && shown(E.xScale) && shown(E.jitter) && ~shown(E.classes.su) && ~shown(E.channels) ...
-    && ~shown(E.binMs) && ~shown(E.baselineMode) && ~shown(E.rasterSort) && ~shown(E.waveMode) && ~shown(E.maxTiles) ...
-    && shown(E.colormap) && shown(E.ylim) && shown(A.Line), ...
-    'a behavior plot reads the trials and shows its y value, parameter, series, x axis and alignment; no unit, bin or baseline rows');
-E.yParam.Value = 'RespLatency'; E.param.Value = 'Depth'; E.jitter.Value = false; E.layout.Value = 'box';
-app.onConfigChanged("plot");
-p = app.Config.Plots(end);
-check(p.yParam == "RespLatency" && p.param == "Depth" && ~p.jitter && p.layout == "box" && E.jitter.Enable == "off", ...
-    'the y value, parameter, jitter and layout reach the plot; the jitter waits for the points layout');
-app.refreshPreview(Force=true);
-check(~isempty(app.PreviewResult) && app.PreviewResult.kind == "behavior" && ~isempty(findall(app.PreviewPanel, 'Tag', 'box')), ...
-    'the behavior plot previews its box plots');
-app.onRemovePlot();
-app.onPlotSelected(1);
+r1 = app.Config.Figures(1).ref;
+check(~(~isempty(app.SequenceDialog) && isvalid(app.SequenceDialog)) && numel(r1.sequence) == 1 && r1.sequence.line == "Trough" ...
+    && r1.sequence.relation == "followedBy" && isinf(r1.alignStep) && string(FA.SeqText.Text) == "then Trough onset", ...
+    'Apply gives the figure its sequence: Trial offset then Trough onset');
+FE.defaultRef.Value = true;
+app.onFigureDefaultToggled();
+check(~isstruct(app.Config.Figures(1).ref), 'Use default again: the figure takes the default event');
+clear restoreAutoLimit3
 
-fprintf('\n== 3c. several plots at once ==\n');
-app.onPlotSectionToggled("bins");   % expanded for this section's checks (collapsed again at its end)
-D0 = app.Config.Defaults;
-app.onAddPlot("psth");
-k2 = app.SelectedPlot;
-E.binMs.Value = 5;
-app.onConfigChanged("plot");
-A.Line.Value = 'Trial';
-app.onPlotAlignEdited("ref");
-app.onAddPlot("psth");
-k3 = app.SelectedPlot;
-app.onAddPlot("raster");
-kR = app.SelectedPlot;
-tree = app.PlotsTree;
-app.onPlotTreeSelected(plotNode(tree, k3));
-app.onPlotTreeSelected([plotNode(tree, k2) plotNode(tree, k3)]);   % Ctrl-click psth_2, above psth_3 in the tree
-check(string(tree.Multiselect) == "on" && app.SelectedPlot == k3 && isequal(app.AlsoSelected, k2) ...
-    && isequal(sort(reshape(arrayfun(@(n) n.NodeData, tree.SelectedNodes), 1, [])), sort([k2 k3])), ...
-    'Ctrl-click selects a second plot in the tree; the first picked (psth_3) stays the one in the editor');
-B = app.SelectionBar;
-check(startsWith(E.note.Text, "2 plots selected: psth_3, psth_2.") && isequal(E.note.BackgroundColor, [1 0.93 0.75]) ...
-    && shown(B.Text) && contains(B.Text.Text, "Previewing psth_3 only") && app.PreviewGrid.RowHeight{1} == 26 ...
-    && contains(app.PlotEditorPanel.Title, "2 selected") && string(E.kind.Text) == "PSTH  (2 plots)", ...
-    'the editor''s banner, its title and a bar over the preview say that two plots are edited together and psth_3 is previewed');
-check(~shown(E.id) && ~shown(E.title) && shown(E.binMs) && shown(E.stack) && shown(A.Line) ...
-    && app.UpPlotButton.Enable == "off" && app.DownPlotButton.Enable == "off" && E.binMs.Value == 10, ...
-    'two PSTHs show the PSTH rows but no id or title, with psth_3''s values; Up / Down are off');
-E.smoothMs.Value = 25;
-app.onConfigChanged("plot");
-p2 = app.Config.Plots(k2); p3 = app.Config.Plots(k3);
-check(p2.bins.SmoothSec == 0.025 && p3.bins.SmoothSec == 0.025 && p2.bins.BinSec == 0.005 && p3.bins.BinSec == 0.01, ...
-    'an edit goes to both plots, and only what it changed: each keeps its own bin');
-A.Edge.Value = 'offset';
-app.onPlotAlignEdited("ref");
-p2 = app.Config.Plots(k2); p3 = app.Config.Plots(k3);
-check(isstruct(p3.ref) && p3.ref.line == D0.EventRef.line && p3.ref.edge == "offset" ...
-    && isstruct(p2.ref) && p2.ref.line == "Trial" && p2.ref.edge == "offset" && isequaln(app.Config.Defaults, D0), ...
-    'editing the event''s edge gives both their own event: each the one it used (default Stim, own Trial) at offset');
-E.defaultRef.Value = true;
-app.onPlotDefaultToggled();
-check(isequal(app.Config.Plots(k2).ref, "default") && isequal(app.Config.Plots(k3).ref, "default"), ...
-    'ticking Use default puts both back on the default event');
-app.refreshPreview(Force=true);
-ctx = getappdata(app.PreviewPanel, PlotAesthetics.ContextKey);
-check(app.PreviewState == "drawn" && ctx.id == "psth_3", 'the preview draws psth_3 alone');
-ctx.onRemember(look);
-hasLook = @(k) isscalar(app.Config.Plots(k).aesthetics) && app.Config.Plots(k).aesthetics.value == 0.4;
-both = hasLook(k2) && hasLook(k3);
-ctx.onRemember([]);
-check(both && isempty(app.Config.Plots(k2).aesthetics) && isempty(app.Config.Plots(k3).aesthetics), ...
-    'a look remembered from the preview goes to both plots; forgetting it there drops it from both');
-app.onPlotTreeSelected([plotNode(tree, k2) plotNode(tree, k3) plotNode(tree, kR)]);
-check(app.SelectedPlot == k3 && startsWith(string(E.kind.Text), "3 plots: PSTH, Raster") && shown(E.binMs) ...
-    && shown(E.rasterSort) && shown(E.fontSize) && ~shown(E.stack) && ~shown(E.withRaster) && ~shown(E.baselineMode) ...
-    && ~shown(E.showSEM) && shown(E.legend) && string(app.PlotSections([app.PlotSections.Name] == "kind").Title) == "Options", ...
-    'adding a raster leaves only the rows a PSTH and a raster share (bins, raster sort, legend), not the PSTH''s own or the baseline');
-ovAll = @(v) all(arrayfun(@(k) isscalar(app.Config.Plots(k).overlays) && app.Config.Plots(k).overlays.value == v, [k2 k3 kR]));
-check(shown(E.ovList) && shown(app.PlotSections([app.PlotSections.Name] == "overlays").Toggle), ...
-    'plots without overlays show the Overlays section: one can be added to all of them');
-app.onAddOverlay("line");
-E.ovValue.Value = '0.2';
-app.onConfigChanged("plot");
-check(ovAll(0.2) && app.Config.Plots(k3).overlays.name == "Line 1" && isempty(app.Config.Plots(1).overlays), ...
-    'an overlay added with three plots selected is added to each of them, and an edit of it reaches each; the others are left alone');
-cx = app.Config; cx.Plots(k2).overlays(1).value = 0.9; app.Config = cx;
-app.syncPlotEditor();
-hidden = ~shown(E.ovList) && ~shown(E.ovName);
-cx.Plots(k2).overlays(1).value = 0.2; app.Config = cx;
-app.syncPlotEditor();
-check(hidden && shown(E.ovList) && shown(E.ovName), ...
-    'plots that hold different overlays hide the section (an edit would give each the first''s list); the same ones show it again');
-app.onRemoveOverlay();
-check(all(arrayfun(@(k) isempty(app.Config.Plots(k).overlays), [k2 k3 kR])), 'Remove takes the overlay off all three');
-E.fontSize.Value = 12;
-app.onConfigChanged("plot");
-check(all(arrayfun(@(k) app.Config.Plots(k).style.FontSize == 12, [k2 k3 kR])) && app.Config.Plots(1).style.FontSize ~= 12, ...
-    'a font size set there reaches all three, not the plots left unselected');
-E.rasterSort.Value = 'event'; E.sortLine.Value = 'RespWindow'; E.sortEdge.Value = 'offset';
-app.onConfigChanged("plot");
-sortsBy = @(k) app.Config.Plots(k).rasterSort == "event" && isstruct(app.Config.Plots(k).rasterSortEvent) ...
-    && app.Config.Plots(k).rasterSortEvent.line == "RespWindow" && app.Config.Plots(k).rasterSortEvent.edge == "offset";
-check(all(arrayfun(sortsBy, [k2 k3 kR])) && isempty(app.Config.Plots(1).rasterSortEvent), ...
-    'sorting the rasters by an event there gives all three that sort event, though none had one');
-n0 = numel(app.Config.Plots);
-app.onDuplicatePlot();
-ks = app.selectedPlots();
-check(numel(app.Config.Plots) == n0 + 3 && numel(ks) == 3 && app.SelectedPlot == k3 + 2 ...
-    && isequal(sort(ks), [k2+1, k3+2, kR+3]) && app.Config.Plots(k3 + 2).style.FontSize == 12, ...
-    'Duplicate copies each selected plot right after itself and selects the copies');
-app.onRemovePlot();
-app.onPlotSelected([k2 k3 kR]);
-app.onRemovePlot();
-check(numel(app.Config.Plots) == n0 - 3 && isequal([app.Config.Plots.id], ["psth_1" "evoked_1"]) ...
-    && isscalar(app.selectedPlots()) && ~shown(B.Text) && app.PlotEditorPanel.Title == "Plot" && shown(E.id), ...
-    'Remove takes every selected plot; one plot left selected, the banner and bar are gone');
-app.onPlotSectionToggled("bins");
-app.onPlotSelected(1);
-% --- Copy from...: another plot's settings onto the selected one, of another type ------------------
-cx = app.Config; p1 = cx.Plots(1); cx.Plots(1).style.FontSize = 13; cx.Plots(1).bins.BinSec = 0.025; app.applyConfig(cx);
-app.onAddPlot("raster");
-kC = app.SelectedPlot;
-idC = app.Config.Plots(kC).id;
-check(app.CopyPlotButton.Enable == "on", 'Copy from... is on with a plot selected and another to copy from');
-answerDialog('Copy plot settings', @copySettingsDialog);
-app.onCopyPlotSettings();
-seen = getappdata(groot, 'copySettingsSeen');
-if isappdata(groot, 'copySettingsSeen'); rmappdata(groot, 'copySettingsSeen'); end
-pC = app.Config.Plots(kC);
-check(isstruct(seen) && ~seen.evokedMarks && seen.evokedStyle && seen.psthMarks && seen.count == "12 part(s) to copy", ...
-    'the window offers only the parts the raster shares with the plot picked (no event marks from an evoked potential)');
-check(pC.id == idC && pC.kind == "raster" && pC.style.FontSize == 13 && pC.bins.BinSec ~= 0.025 && E.fontSize.Value == 13 ...
-    && app.SelectedPlot == kC && contains(string(app.StatusBar.Text), "Copied from psth_1"), ...
-    'Copy gives the raster the PSTH''s ticked parts (its look), not the one unticked (bins); the editor shows them');
-app.onCopyPlotSettings(From="psth_1", Parts="bins");
-check(app.Config.Plots(kC).bins.BinSec == 0.025 && E.binMs.Value == 25, 'From= and Parts= copy without the window (the bins now)');
-app.onRemovePlot();
-cx = app.Config; cx.Plots(1) = p1; app.applyConfig(cx);   % psth_1 as it was
-app.onPlotSelected(1);
-
-fprintf('\n== 4. gather / apply, save / reopen, script ==\n');
+fprintf('\n== 4. gather / apply, save / reopen, a version-1 config, script ==\n');
 c1 = app.gatherConfig();
 app.applyConfig(c1);
 c2 = app.gatherConfig();
@@ -1111,12 +337,12 @@ c3 = c1;
 c3.Defaults.Window.stop = struct('line', "Stim", 'edge', "offset", 'which', "nth", 'n', 2, 'scope', "trial", ...
     'offsetSec', 0.05, 'minDurationSec', 0.01, 'maxDurationSec', 5, 'timeRange', [0 60]);
 c3.Defaults.Selection.trials = [1 3 5];
-c3.Plots(1).window = c3.Defaults.Window;
-c3.Plots(1).selection = c3.Defaults.Selection;
+c3.Figures(1).window = c3.Defaults.Window;
+c3.Figures(1).selection = c3.Defaults.Selection;
 app.applyConfig(c3);
 app.onConfigChanged("defaults");   % an edit re-gathers the config from the controls
 c4 = app.gatherConfig();
-check(c4.isequalConfig(c3) && app.AlignControls.StopN.Value == 2 && app.PlotAlignControls.StopN.Value == 2, ...
+check(c4.isequalConfig(c3) && app.AlignControls.StopN.Value == 2 && app.FigureAlignControls.StopN.Value == 2, ...
     'a re-gather keeps what has no control (the stop event''s offset, length and time range; trial rows) and the stop''s n');
 app.applyConfig(c1);
 outRoot = fullfile(root, 'out');
@@ -1131,40 +357,50 @@ cfgFile = fullfile(root, 'app_analysis.json');
 ok = app.onSaveConfigAs(string(cfgFile));
 check(ok && isfile(cfgFile) && ~startsWith(app.Fig.Name, "*") && app.Config.File == string(cfgFile), 'Save As writes the config and clears the marker');
 app.onNewConfig();
-check(isempty(app.Config.Plots) && app.Config.File == "", 'New config resets to the defaults');
+check(isempty(app.Config.Figures) && app.Config.File == "" && app.SelectedFigure == 0, 'New config resets to the defaults');
+v1File = fullfile(root, 'app_analysis_v1.json');
+writeJsonFile(v1File, struct('schema', "ephys-analysis-config", 'version', 1, 'name', "old quick look", ...
+    'Plots', {{struct('kind', "psth", 'id', "psth_v1")}}));
+ok = app.openConfigFile(v1File);
+logText = strjoin(string(app.LogArea.Value), newline);
+check(ok && isscalar(app.Config.Figures) && app.Config.Figures(1).id == "psth_v1" && app.SelectedFigure == 1 ...
+    && contains(app.StatusBar.Text, "config version 1") && contains(logText, "config version 1") && contains(logText, "migrated"), ...
+    'a version-1 config opens with its plot migrated to a figure of the same id; the status bar and the Log say so');
 ok = app.openConfigFile(cfgFile);
-check(ok && numel(app.Config.Plots) == 2 && app.Config.Plots(1).bins.BinSec == 0.02 && ~isempty(app.Runner) ...
+check(ok && isscalar(app.Config.Figures) && app.Config.Figures(1).id == "figure_1" && app.SelectedFigure == 1 && ~isempty(app.Runner) ...
     && height(app.DatasetsTable.Data) == 2 && any(app.RecentConfigs == string(cfgFile)), ...
-    sprintf('reopening restores the plots and rescans (ok %d, %d plots, BinSec %s, runner %d, %d datasets, recent %d)', ok, ...
-    numel(app.Config.Plots), mat2str(arrayfun(@(q) q.bins.BinSec, app.Config.Plots)), ~isempty(app.Runner), height(app.DatasetsTable.Data), ...
-    any(app.RecentConfigs == string(cfgFile))));
+    'reopening restores the figure, selects it and rescans');
 txt = EphysAnalysisScript.standalone(app.gatherConfig());
-check(contains(txt, "spikePSTH(") && contains(txt, "evokedPotential(") && contains(txt, "spec1.ref.line = ""Trial"";"), ...
-    'a standalone script from the app''s config');
+check(contains(txt, "figureCompute(") && contains(txt, "renderFigure("), 'a standalone script from the app''s config draws its figure');
 scriptFile = fullfile(root, 'run_app_compact.m');
 app.onGenerateScript("compact", string(scriptFile));
 check(isfile(scriptFile) && contains(fileread(scriptFile), "EphysAnalysisConfig.load("), 'Generate script (compact) writes the file');
 
-fprintf('\n== 5. run one plot ==\n');
+fprintf('\n== 5. run one figure ==\n');
 app.selectTab(app.TabExport);
 I = app.onValidate();
 check(~any(I.Severity == "error"), 'the config validates');
 P = app.onPlan();
-check(height(P) == 4 && all(P.Enabled), 'Plan: both plots on both datasets');
+check(height(P) == 2 && all(P.Enabled) && all(P.Plot == "figure_1") && contains(app.StatusBar.Text, "Plan: 2 of 2 figure run(s) will draw"), ...
+    'Plan: the figure on both datasets, counted in the status bar');
 app.selectTab(app.TabData);
 app.IssuesTable.Data = table();
 clickTool(app, "plan");
-check(app.Tabs.SelectedTab == app.TabExport && height(app.IssuesTable.Data) == 4 && all(app.IssuesTable.Data.Enabled), ...
+check(app.Tabs.SelectedTab == app.TabExport && height(app.IssuesTable.Data) == 2 && all(app.IssuesTable.Data.Enabled), ...
     'the toolbar''s Plan shows the Export tab and fills its table as the Plan button does');
-R = app.onRunExport(Plots="psth_1");
-files = dir(fullfile(outRoot, '**', '*psth_1*.png'));
-check(height(R) == 2 && all(R.Status == "done") && numel(files) >= 2 && isfile(fullfile(outRoot, 'analysis_report.html')) ...
-    && app.OpenReportButton.Enable == "on" && contains(app.RunLabel.Text, "2 done"), ...
-    'Run (psth_1): figures for both datasets and the report');
+R = app.onRunExport(Figures="figure_1");
+files = dir(fullfile(outRoot, '**', '*figure_1*.png'));
+check(height(R) == 2 && all(R.Status == "done") && all(R.Kind == "figure") && numel(files) >= 2 ...
+    && isfile(fullfile(outRoot, 'analysis_report.html')) && app.OpenReportButton.Enable == "on" && contains(app.RunLabel.Text, "2 done"), ...
+    'Run (figure_1): its pages for both datasets and the report');
 check(app.ToolbarReportTool.Enable == "on" && app.ToolbarFolderTool.Enable == app.OpenFolderButton.Enable ...
     && app.ToolbarRunTool.Enable == "on" && app.ToolbarPlanTool.Enable == "on" && app.ToolbarCancelTool.Enable == "off", ...
     'after the run the toolbar''s report and figure-folder tools follow the Export tab''s buttons; Run is on again, Cancel off');
-check(any(contains(string(app.LogArea.Value), "psth_1 done")), 'the Log tab has the runner''s lines');
+check(any(contains(string(app.LogArea.Value), "figure_1 done")), 'the Log tab has the runner''s lines');
+app.selectTab(app.TabFigures);
+app.onRemoveFigure();
+app.onSaveConfig();
+app.Tabs.SelectedTab = app.TabData;
 
 fprintf('\n== 5b. the Chronux tab ==\n');
 chronuxPath = "";
@@ -1309,251 +545,6 @@ check(app.ChronuxFileWhere == "cache" && app.ChronuxFile == o2.file && contains(
     'once the output folder''s file is gone, the cache''s is found');
 app.Tabs.SelectedTab = app.TabData;
 if chronuxPath ~= ""; rmpath(chronuxPath); end
-
-fprintf('\n== 5c. the Sessions tab ==\n');
-app.selectTab(app.TabSessions);
-SE = app.SessionEditor;
-check(isempty(app.Config.SessionPlots) && isempty(app.SessionList.Items) && app.SessionPreviewState == "idle" ...
-    && isequal(string(app.AddSessionBaseDropDown.ItemsData), ["psth_1" "evoked_1"]) && app.RemoveSessionButton.Enable == "off" ...
-    && ~shown(SE.id) && shown(SE.note) && endsWith(app.helpURL("tab"), "#sessions-tab") ...
-    && startsWith(string(app.SessionCountLabel.Text), "Sessions: 2 ticked"), ...
-    'the Sessions tab: no session plot yet, the PSTH and the evoked plot offered as bases, two datasets ticked; Help goes to its section');
-app.AddSessionBaseDropDown.Value = "psth_1";
-app.onAddSessionPlot();
-sp = app.Config.SessionPlots;
-check(isscalar(sp) && sp.plot == "psth_1" && sp.id == "psth_1_sessions_1" && app.SelectedSessionPlot == 1 ...
-    && string(app.SessionList.Items{1}) == "psth_1_sessions_1  (psth_1)" && string(SE.id.Value) == sp.id ...
-    && string(SE.plot.Value) == "psth_1" && string(SE.layout.Value) == "base" && startsWith(string(SE.kind.Text), "PSTH") ...
-    && startsWith(app.Fig.Name, "*") && app.RemoveSessionButton.Enable == "on", ...
-    'Add makes psth_1_sessions_1 on the chosen base plot, listed and shown in the editor; the config is unsaved');
-grouped = ~isempty(app.Config.plotFor("psth_1").selection.groupBy);
-check(shown(SE.series) && shown(SE.match) && shown(SE.minSessions) && ~shown(SE.showMembers) && ~shown(SE.error) ...
-    && ~shown(SE.datasetKeys) && ~shown(SE.mappingFile) && shown(SE.trialGroups) == grouped && ~shown(SE.dataSignals) ...
-    && shown(SE.toWorkspace) && SE.toWorkspace.Enable == "on", ...
-    'a PSTH of units shows the matching rows, not the summary''s, the keys, the mapping file or the signals box');
-SE.series.Value = "all";
-SE.error.Value = "sd";
-SE.showMembers.Value = true;
-SE.minSessions.Value = 2;
-SE.title.Value = 'Across days';
-SE.dataEpochs.Value = true;
-SE.match.Value = "mapping";
-app.onConfigChanged("sessions");
-sp = app.Config.SessionPlots(1);
-check(sp.series == "all" && sp.error == "sd" && sp.showMembers && sp.minSessions == 2 && sp.title == "Across days" ...
-    && isequal(sp.data, ["results" "epochs"]) && sp.match == "mapping" && shown(SE.showMembers) && shown(SE.error) ...
-    && shown(SE.mappingFile) && shown(SE.editMapping), ...
-    'edits reach the session plot; one mean shows the faint sessions and the error band, mapping the file row');
-mapFile = string(fullfile(root, 'unit_mapping.csv'));
-writelines(["cell," + strjoin(app.Runner.Keys, ","), "cellA,1,1"], mapFile);
-app.onBrowseUnitMapping(mapFile);
-check(app.Config.SessionPlots(1).mappingFile == mapFile && string(SE.mappingFile.Value) == mapFile, ...
-    'Browse (a file given) puts the mapping file in the editor and the session plot');
-s1 = app.gatherConfig();
-app.applyConfig(s1);
-s2 = app.gatherConfig();
-check(s1.isequalConfig(s2) && isequaln(s1.SessionPlots, s2.SessionPlots) && string(SE.series.Value) == "all" ...
-    && SE.minSessions.Value == 2 && string(SE.mappingFile.Value) == mapFile, ...
-    'gatherConfig -> applyConfig -> gatherConfig keeps the session plot and the editor''s values');
-SE.series.Value = "session";
-SE.match.Value = "pool";
-SE.minSessions.Value = 1;
-app.onConfigChanged("sessions");
-check(~shown(SE.showMembers) && ~shown(SE.error) && ~shown(SE.mappingFile), ...
-    'a color per session and pooled units hide the summary rows and the mapping file again');
-app.refreshSessionPreview();
-res = app.SessionPreviewResults;
-drawn = app.SessionPreviewState == "drawn" && string(app.SessionPreviewBadge.Text.Text) == "Drawn" && isscalar(res) ...
-    && res(1).status == "done";
-if drawn
-    R = res(1).R;
-    drawn = height(R.sessions) == 2 && height(R.groups) == 2;
-end
-nRate = numel(findall(app.SessionPreviewPanel, 'Tag', 'rate'));
-check(drawn && nRate >= 2 && isempty(findall(app.SessionPreviewPanel, 'Tag', 'previewBusyCard')) ...
-    && isempty(app.Runner.PollFcn) && string(app.Fig.Pointer) == "arrow" && app.SessionGroupDropDown.Parent.Visible == "off" ...
-    && contains(string(app.SessionPreviewLabel.Text), "over 2 of 2 session"), ...
-    sprintf('Preview computes psth_1 on both datasets and draws them merged, a color each (%d rate lines); one figure', nRate));
-ctx = getappdata(app.SessionPreviewPanel, PlotAesthetics.ContextKey);
-kP = app.Config.plotIndex("psth_1");
-baseLook = app.Config.Plots(kP).aesthetics;
-ctx.onRemember(look);
-check(isstruct(ctx) && isscalar(app.Config.SessionPlots(1).aesthetics) && app.Config.SessionPlots(1).aesthetics.value == 0.4 ...
-    && isequaln(app.Config.Plots(kP).aesthetics, baseLook) && app.SessionPreviewResults(1).R.spec.sessionAesthetics.value == 0.4, ...
-    'a look remembered from the session preview goes to the session plot, not to its base plot');
-app.onPlotSelected(kP);
-app.PlotEditor.smoothMs.Value = app.PlotEditor.smoothMs.Value + 5;
-app.onConfigChanged("plot");
-check(app.SessionPreviewState == "stale" && string(app.SessionPreviewBadge.Text.Text) == "Out of date" ...
-    && app.Tabs.SelectedTab == app.TabSessions, 'an edit of the base plot leaves the session preview Out of date (Auto is off)');
-clickTool(app, "preview");
-check(app.Tabs.SelectedTab == app.TabSessions && app.SessionPreviewState == "drawn" ...
-    && ~isempty(findall(app.SessionPreviewPanel, 'Tag', 'rate')), ...
-    'the toolbar''s Preview on the Sessions tab previews the session plot there');
-% --- Duplicate, Up, Down ---------------------------------------------------------------------
-app.onDuplicateSessionPlot();
-P = app.Config.SessionPlots;
-origId = P(1).id;
-copyId = P(2).id;
-check(numel(P) == 2 && copyId ~= origId && P(2).plot == P(1).plot && P(2).minSessions == P(1).minSessions && P(2).title == P(1).title ...
-    && app.SelectedSessionPlot == 2 && string(SE.id.Value) == copyId && string(app.SessionList.Items{2}) == copyId + "  (psth_1)" ...
-    && app.UpSessionButton.Enable == "on" && app.DownSessionButton.Enable == "off", ...
-    'Duplicate copies the session plot under a new id, right after it, and selects the copy');
-app.onMoveSessionPlot(-1);
-check(isequal([app.Config.SessionPlots.id], [copyId origId]) && app.SelectedSessionPlot == 1 && string(SE.id.Value) == copyId ...
-    && app.UpSessionButton.Enable == "off" && app.DownSessionButton.Enable == "on" && startsWith(string(app.SessionList.Items{1}), copyId), ...
-    'Up moves the selected session plot up the list, and it stays selected');
-app.onMoveSessionPlot(-1);   % already first: nothing
-app.onMoveSessionPlot(1);
-check(isequal([app.Config.SessionPlots.id], [origId copyId]) && app.SelectedSessionPlot == 2 && string(SE.id.Value) == copyId ...
-    && app.DownSessionButton.Enable == "off", 'Down moves it back; Up on the first and Down on the last change nothing');
-app.onRemoveSessionPlot();
-check(isscalar(app.Config.SessionPlots) && app.Config.SessionPlots(1).id == origId && app.SelectedSessionPlot == 1, ...
-    'Remove takes the copy away');
-
-% --- the figure box: a figure per trial group ---------------------------------------------------
-SE.trialGroups.Value = "each";
-app.onConfigChanged("sessions");
-app.refreshSessionPreview();
-res = app.SessionPreviewResults;
-dd = app.SessionGroupDropDown;
-check(grouped && numel(res) >= 2 && numel(dd.ItemsData) == numel(res) && dd.Parent.Visible == "on" && app.SessionPreviewState == "drawn", ...
-    sprintf('trial groups "a figure per group" on a base plot grouped by Depth: the figure box lists %d figures', numel(res)));
-app.onSessionGroupChanged(2);
-check(app.SessionPreviewIndex == 2 && ~isempty(findall(app.SessionPreviewPanel, 'Tag', 'rate')), ...
-    'picking the second figure draws it from the results already computed');
-SE.trialGroups.Value = "pool";
-app.onConfigChanged("sessions");
-
-% --- Pick datasets ---------------------------------------------------------------------------
-keys = reshape(string(app.Runner.Keys), 1, []);
-SE.datasets.Value = "list";
-app.onConfigChanged("sessions");
-check(app.Config.SessionPlots(1).datasets == "list" && shown(SE.datasetKeys) && shown(SE.pickDatasets) ...
-    && startsWith(string(app.SessionCountLabel.Text), "Sessions: 0 listed"), ...
-    '"These datasets" shows the keys box and Pick..., and no dataset is listed yet');
-app.onPickSessionDatasets(Keys=keys(2));
-check(isequal(app.Config.SessionPlots(1).datasetKeys, keys(2)) && string(SE.datasetKeys.Value) == keys(2) ...
-    && startsWith(string(app.SessionCountLabel.Text), "Sessions: 1 listed"), ...
-    'Pick (keys given) writes datasetKeys into the editor and the config; the sessions line follows');
-tm = answerDialog('Pick the datasets', @(D) press(D, ["All" "Ok"]));
-app.onPickSessionDatasets();
-delete(tm);
-T = app.Runner.sessionTable();
-check(isequal(app.Config.SessionPlots(1).datasetKeys, reshape(T.key, 1, [])) && startsWith(string(app.SessionCountLabel.Text), "Sessions: 2 listed"), ...
-    'the Pick window (answered by a timer): All, then OK, lists both datasets in date order');
-tm = answerDialog('Pick the datasets', @(D) press(D, ["None" "Cancel"]));
-app.onPickSessionDatasets();
-delete(tm);
-check(numel(app.Config.SessionPlots(1).datasetKeys) == 2, 'Cancel in the Pick window changes nothing');
-tm = answerDialog('Pick the datasets', @(D) press(D, ["None" "Ok"]));
-app.onPickSessionDatasets();
-delete(tm);
-check(isempty(app.Config.SessionPlots(1).datasetKeys) && isempty(SE.datasetKeys.Value), 'None, then OK, lists no dataset');
-app.onPickSessionDatasets(Keys=keys);
-
-% --- Edit mapping ------------------------------------------------------------------------------
-oldMap = string(fullfile(root, 'unit_mapping_edit.csv'));
-extra = "OTHER/260101_000000";
-writelines(["cell," + strjoin(keys, ",") + "," + extra, "cellA,1,2,X1", "cellB,3 4,,X2"], oldMap);
-tm = answerDialog('Unit mapping: unit_mapping_edit.csv', @editMappingDialog);
-app.onEditUnitMapping(File=oldMap);
-delete(tm);
-M = readUnitMapping(oldMap);
-check(isequal(string(M.Properties.VariableNames), ["cell" keys extra]) && isequal(string(M.cell), ["cellA"; "cellC"]) ...
-    && isequaln(M.(keys(1)), [5; NaN]) && isequaln(M.(keys(2)), [NaN; 9]) && M.(extra)(1) == "X1" && ismissing(M.(extra)(2)) ...
-    && app.Config.SessionPlots(1).mappingFile == oldMap && string(SE.mappingFile.Value) == oldMap, ...
-    'Edit mapping (the window answered by a timer): edit a field, add a row, remove a row, Save; the other dataset''s column is kept for the cell that stayed');
-noneMap = oldMap + ".new.csv";
-app.onEditUnitMapping(File=noneMap, Table=table(["x"; "y"], [10; NaN], ["3 7"; "8"], 'VariableNames', {'cell', char(keys(1)), char(keys(2))}));
-M2 = readUnitMapping(noneMap);
-check(isequal(string(M2.cell), ["x"; "y"]) && isequaln(M2.(keys(1)), [10; NaN]) && isequal(string(M2.(keys(2))), ["3 7"; "8"]) ...
-    && app.Config.SessionPlots(1).mappingFile == noneMap && string(SE.mappingFile.Value) == noneMap, ...
-    'Edit mapping (a table given) writes it straight away, as readUnitMapping reads it back, and puts the file in the editor');
-delete(noneMap);
-bad = false;
-try
-    app.onEditUnitMapping(File=oldMap, Table=table(["x"; "x"], [1; 2], [3; 4], 'VariableNames', {'cell', char(keys(1)), char(keys(2))}));
-catch ME
-    bad = ME.identifier == "EphysAnalysisApp:UnitMapping";
-end
-check(bad && height(readUnitMapping(oldMap)) == 2, 'a mapping with two cells of one name is refused and the file is left as it was');
-
-% --- a session plot that matches by the mapping ---------------------------------------------------
-pspec = app.Config.sessionPlotFor(app.Config.SessionPlots(1).id);
-ids = cell(1, 2);
-for j = 1:2
-    [~, meta] = selectUnits(app.Runner.source(app.Runner.index(keys(j))), pspec.units, Ref=pspec.ref, Selection=pspec.selection);
-    ids{j} = meta.unitId(1:min(2, height(meta)));
-end
-nCells = min(numel(ids{1}), numel(ids{2}));
-cellNames = "cell" + string(char('A' + (0:nCells - 1)).');
-mapFile = string(fullfile(root, 'unit_mapping_ids.csv'));
-app.onEditUnitMapping(File=mapFile, Table=table(cellNames, ids{1}(1:nCells), ids{2}(1:nCells), 'VariableNames', {'cell', char(keys(1)), char(keys(2))}));
-check(nCells >= 2 && app.Config.SessionPlots(1).mappingFile == mapFile, ...
-    sprintf('a mapping of %d cells, the first units of each dataset, written for the session plot', nCells));
-SE.datasets.Value = "ticked";
-SE.match.Value = "mapping";
-app.onConfigChanged("sessions");
-app.refreshSessionPreview();
-res = app.SessionPreviewResults;
-ok = app.SessionPreviewState == "drawn" && isscalar(res) && res(1).status == "done";
-if ok
-    R = res(1).R;
-    ok = R.tiles.match == "mapping" && isequal(string(R.meta.cell), cellNames) && all(R.tiles.nUnits(:) == 1) && size(R.rate, 2) == nCells;
-end
-check(ok && ~isempty(findall(app.SessionPreviewPanel, 'Tag', 'rate')), ...
-    'a session plot with match "mapping" previews over the fixture with that CSV: a tile per cell, one unit of each dataset on it');
-SE.match.Value = "pool";
-app.onConfigChanged("sessions");
-
-% --- the data buttons -----------------------------------------------------------------------------
-sid = app.Config.SessionPlots(1).id;
-vname = string(matlab.lang.makeValidName("sessions_" + sid));
-S = app.onSessionsToWorkspace(sid, Variable=vname);
-W = evalin('base', char(vname));
-evalin('base', "clear " + vname);
-check(isstruct(S) && isstruct(W) && W.schema == "ephys-analysis-sessions/1" && height(W.sessions) == 2 && ~isempty(W.epochs) ...
-    && W.results(1).R.kind == "psth", 'To workspace puts sessions_<id> in the base workspace: the merged and per-session results, and the epochs');
-dataFile = string(fullfile(root, 'sessions_data.mat'));
-out = app.onSaveSessionData(sid, File=dataFile);
-L = load(dataFile);
-check(out == dataFile && isfield(L, 'schema') && L.schema == "ephys-analysis-sessions/1" && height(L.sessions) == 2 && numel(L.results) == 1, ...
-    'Save .mat (a file given) writes the data; load gives schema, sessions and results');
-
-% --- the Export tab shows the session figures -------------------------------------------------------
-R = app.onRunExport(Plots="psth_1");
-row = find(startsWith(string(R.Dataset), "sessions: "));
-T = app.ResultsTable.Data;
-files = string.empty;
-if isscalar(row)
-    files = split(R.Files(row), "; ");
-    files = files(endsWith(files, ".png"));
-end
-check(isscalar(row) && R.Status(row) == "done" && ~isempty(files) && isfile(files(1)) && contains(files(1), sid) ...
-    && height(T) == height(R) && all(ismember(["Subject" "Date"], string(T.Properties.VariableNames))) ...
-    && T.Subject(string(T.Dataset) == R.Dataset(row)) == "" && T.Date(string(T.Dataset) == R.Dataset(row)) == "", ...
-    'a run with a session plot: a "sessions: ..." row with its figure, and the results table shows it without a subject or date');
-check(~isempty(files) && contains(string(app.OpenFolderButton.Tooltip), string(fileparts(files(1)))), ...
-    'Open figure folder''s tooltip names the sessions folder');
-app.SessionAutoCheckBox.Value = true;
-app.onSessionAutoPreviewToggled();   % keeps the preference; draws now
-app.onSessionSectionToggled("data");
-app.savePreferences();
-saved = isequal(AppPrefs.getpref(g, 'SessionAutoPreview'), true) ...
-    && isequal(string(AppPrefs.getpref(g, 'SessionSectionsCollapsed')), "data");
-check(saved && app.SessionPreviewState == "drawn" && ~app.SessionSections([app.SessionSections.Name] == "data").Expanded, ...
-    'Auto and a collapsed section of the Sessions tab are kept as preferences');
-app.onRemoveSessionPlot();
-check(isempty(app.Config.SessionPlots) && isempty(app.SessionList.Items) && app.SessionPreviewState == "idle" ...
-    && ~shown(SE.id) && app.RemoveSessionButton.Enable == "off", 'Remove takes the session plot away; the editor and preview are empty');
-app.onSaveConfig();
-app2 = EphysAnalysisApp();
-restored = app2.SessionAutoCheckBox.Value && ~app2.SessionSections([app2.SessionSections.Name] == "data").Expanded ...
-    && app2.SessionSections([app2.SessionSections.Name] == "sessions").Expanded;
-closeApp(app2);
-check(~startsWith(app.Fig.Name, "*") && restored, 'a new app restores the Sessions tab''s Auto and collapsed section');
-app.Tabs.SelectedTab = app.TabData;
 
 fprintf('\n== 5d. the Figures tab ==\n');
 app.FigureAutoPreviewSeconds = Inf;   % 5d-5f: a preview slowed by a loaded machine must not leave the next one out of date
@@ -2177,27 +1168,6 @@ app.onScan();
 T1 = figureObservations(app.Runner.source(app.ActiveIdx), app.Config.figureFor(1));
 check(app.ActiveIdx == find(app.Ticked, 1) && istable(app.FigureObservations) && isequal(app.FigureObservations.label, T1.label) ...
     && ~any(app.FigureObservations.label == "stale"), 'Scan lists the observations again on the new runner, even with the same dataset active');
-% the previews refuse each other while one computes (the runner is busy)
-app.refreshPreview(Force=true);
-app.refreshFigurePreview(Force=true);
-setappdata(groot, 'probeOther', []);
-tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) probeOther(t, app, "figure"));
-start(tm);
-app.refreshFigurePreview(Force=true);
-stop(tm); delete(tm);
-r1 = getappdata(groot, 'probeOther');
-check(isstruct(r1) && r1.state == "stale" && r1.same && app.FigurePreviewState == "drawn", ...
-    'asked while the figure preview computes, the Plots preview computes nothing and is marked Out of date');
-app.refreshPreview(Force=true);
-setappdata(groot, 'probeOther', []);
-tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) probeOther(t, app, "plot"));
-start(tm);
-app.refreshPreview(Force=true);
-stop(tm); delete(tm);
-r2 = getappdata(groot, 'probeOther');
-check(isstruct(r2) && r2.state == "stale" && r2.same && app.PreviewState == "drawn", ...
-    'and asked while the Plots preview computes, the figure preview is marked Out of date');
-rmappdata(groot, 'probeOther');
 app.refreshFigurePreview(Force=true);
 % save, reopen, preferences
 app.onFigureSectionToggled("options");
@@ -2274,30 +1244,11 @@ if spPath ~= ""; rmpath(spPath); end
 app.onSaveConfig();
 app.Tabs.SelectedTab = app.TabData;
 
-fprintf('\n== 5e. Convert to figure, Copy from... for figures ==\n');
-app.selectTab(app.TabPlots);
-kP = app.Config.plotIndex("psth_1");
-app.onPlotSelected(kP);
-want = EphysAnalysisConfig.plotToFigure(app.Config, "psth_1");
-check(app.ConvertPlotButton.Enable == "on" && app.CopyFigureButton.Enable == "off", ...
-    'Convert to figure is on with a plot selected; Copy from... under the figures is off with no figure');
-app.onConvertPlotToFigure();
-fg = app.Config.Figures;
-check(isscalar(fg) && fg.id == "psth_1_fig" && isequal([fg.panels.type], [want.panels.type]) && isequaln(fg, want) ...
-    && app.Tabs.SelectedTab == app.TabFigures && app.SelectedFigure == 1 && string(FE.id.Value) == "psth_1_fig" ...
-    && numel(app.Config.Plots) >= 2 && startsWith(string(app.StatusBar.Text), "Converted psth_1 to figure psth_1_fig"), ...
-    sprintf('Convert to figure of psth_1: figure psth_1_fig (%s) on the Figures tab, selected; the plot stays', strjoin([fg.panels.type], " / ")));
-check(app.FigurePreviewState == "drawn" && numel(figAxes()) == numel(fg.panels) && nPatches() == numel(fg.panels), ...
-    'the converted figure is previewed at once, one axes and one schematic patch per panel');
-app.selectTab(app.TabPlots);
-app.onAddPlot("behavior");
-kR = app.SelectedPlot;
-app.onConvertPlotToFigure();
-check(isscalar(app.Config.Figures) && app.Tabs.SelectedTab == app.TabPlots && contains(string(app.StatusBar.Text), "cannot be converted"), ...
-    'a behavior plot cannot be converted: the status bar says why, the tab stays');
-app.onPlotSelected(kR);
-app.onRemovePlot();
+fprintf('\n== 5e. Copy from... for figures ==\n');
 app.selectTab(app.TabFigures);
+app.onAddFigure("rasterPsth");
+want = app.Config.Figures(1);
+check(app.CopyFigureButton.Enable == "off" && want.id == "figure_1", 'Copy from... is off with one figure: there is no other to copy from');
 app.onAddFigure("heatmap");
 cx = app.gatherConfig();
 cx.Figures(2).style.FontSize = 15;
@@ -2305,19 +1256,19 @@ cx.Figures(2).common.bins.BinSec = 0.05;
 app.applyConfig(cx);
 app.onFigureSelected(1);
 check(app.CopyFigureButton.Enable == "on", 'Copy from... is on with a figure selected and another to copy from');
-app.onCopyFigureSettings(From="figure_1", Parts="style");
+app.onCopyFigureSettings(From="figure_2", Parts="style");
 f1 = app.Config.Figures(1);
-check(f1.id == "psth_1_fig" && f1.style.FontSize == 15 && f1.common.bins.BinSec ~= 0.05 && isequal([f1.panels.type], [want.panels.type]) ...
-    && contains(string(app.StatusBar.Text), "Copied from figure_1 onto psth_1_fig: Appearance") && app.FigurePreviewState == "drawn", ...
+check(f1.id == "figure_1" && f1.style.FontSize == 15 && f1.common.bins.BinSec ~= 0.05 && isequal([f1.panels.type], [want.panels.type]) ...
+    && contains(string(app.StatusBar.Text), "Copied from figure_2 onto figure_1: Appearance") && app.FigurePreviewState == "drawn", ...
     'From= and Parts= copy the appearance alone; the panels and common options stay, the preview follows');
 answerDialog('Copy figure settings', @copyFigureDialog);
 app.onCopyFigureSettings();
 seen = getappdata(groot, 'copyFigureSeen');
 if isappdata(groot, 'copyFigureSeen'); rmappdata(groot, 'copyFigureSeen'); end
 f1 = app.Config.Figures(1);
-check(isstruct(seen) && seen.count == "2 part(s) to copy" && seen.from == "figure_1  (1 panels)" ...
-    && f1.id == "psth_1_fig" && isequal([f1.panels.type], "heatmap") && f1.common.bins.BinSec == 0.05 && app.SelectedPanel == 1 ...
-    && nPatches() == 1, 'the window copies the parts ticked (common options, arrangement): psth_1_fig is now the heat map''s panels');
+check(isstruct(seen) && seen.count == "2 part(s) to copy" && seen.from == "figure_2  (1 panels)" ...
+    && f1.id == "figure_1" && isequal([f1.panels.type], "heatmap") && f1.common.bins.BinSec == 0.05 && app.SelectedPanel == 1 ...
+    && nPatches() == 1, 'the window copies the parts ticked (common options, arrangement): figure_1 is now the heat map''s panels');
 app.onRemoveFigure();
 app.onFigureSelected(1);
 app.onRemoveFigure();
@@ -2378,13 +1329,13 @@ check(istable(Rc) && height(Rc) == numel(gIdx) && all(Rc.Status == "canceled") &
 P = app.onPlan();
 pf = P(P.Kind == "figure", :);
 check(height(pf) == numel(gIdx) && all(pf.Plot == fid) && all(pf.Source == "unit") && all(pf.Enabled) ...
-    && height(app.IssuesTable.Data) == height(P) && contains(string(app.StatusBar.Text), sprintf("and %d of %d figure run(s) will draw", numel(gIdx), numel(gIdx))), ...
+    && height(app.IssuesTable.Data) == height(P) && contains(string(app.StatusBar.Text), sprintf("Plan: %d of %d figure run(s) will draw", numel(gIdx), numel(gIdx))), ...
     'Plan lists the figure on each ticked dataset (Kind "figure", Source "unit") and the status bar counts its runs');
-R = app.onRunExport(Plots="psth_1");
+R = app.onRunExport();
 rf = R(R.Kind == "figure", :);
-check(height(rf) == numel(gIdx) && all(rf.Plot == fid) && all(rf.Status == "done") && nnz(R.Plot == "psth_1") == numel(gIdx) ...
+check(height(R) == numel(gIdx) && height(rf) == numel(gIdx) && all(rf.Plot == fid) && all(rf.Status == "done") ...
     && all(isfile(want)) && contains(app.RunLabel.Text, sprintf("%d done", height(R))), ...
-    'Run from the Export tab draws the enabled figure too: one figure row per dataset beside the plot''s');
+    'Run from the Export tab draws the enabled figure: one figure row per dataset');
 % a figure that is off is generated all the same, for that run only
 app.selectTab(app.TabFigures);
 FE.enabled.Value = false;
@@ -2423,9 +1374,9 @@ keysS = reshape(app.Runner.sessionTable(app.tickedDatasetIndices()).key, 1, []);
 mapS = fullfile(tempdir, "app_session_figure_map.csv");
 cleanMap = onCleanup(@() delete(mapS));
 app.onBrowseFigureMapping(mapS);
-TmS = app.onEditUnitMapping(Target="figure", Table=table("cellX", "1", "2", 'VariableNames', ["cell" keysS]));
+TmS = app.onEditUnitMapping(Table=table("cellX", "1", "2", 'VariableNames', ["cell" keysS]));
 check(app.Config.Figures(kS).sessions.mappingFile == mapS && isfile(mapS) && height(TmS) == 1 && string(FE.sesMappingFile.Value) == mapS, ...
-    'Browse... and Edit... (Target "figure") set and write the figure''s mapping file');
+    'Browse... and Edit... set and write the session figure''s mapping file');
 FE.sesMatch.Value = "site";
 FE.sesSeries.Value = "session";
 FE.sesShowMembers.Value = false;
@@ -2461,6 +1412,15 @@ end
 check(app.FigurePreviewState == "drawn" && nRes > 1 && app.FigureSessionDropDown.Visible == "on" ...
     && app.FigureSessionResults.label == app.FigureSessionResults.res(2).label && contains(string(app.FigurePreviewLabel.Text), app.FigureSessionResults.res(2).label), ...
     sprintf('a figure per trial group: the "Figure:" drop-down picks which of the %d is drawn, computing nothing', nRes));
+Tt = app.DatasetsTable.Data;
+Tt.Run(2) = false;
+app.DatasetsTable.Data = Tt;
+app.onDatasetsTableEdited([]);   % a Run tick: the session figure is drawn across the ticked datasets
+check(app.FigurePreviewState == "stale" && isempty(app.FigureSessionResults) && app.FigureSessionDropDown.Visible == "off" ...
+    && nnz(app.Ticked) == 1, 'unticking a dataset forgets the session figure''s drawing (over the old datasets): Out of date, the "Figure:" drop-down cleared');
+Tt.Run(2) = true;
+app.DatasetsTable.Data = Tt;
+app.onDatasetsTableEdited([]);
 FE.sesFacet.Value = "none";
 FE.sesTrialGroups.Value = "pool";
 app.onConfigChanged("figure");
@@ -2484,11 +1444,263 @@ app.onSaveConfig();
 app.Tabs.SelectedTab = app.TabData;
 clear restoreAutoLimit   % the figure preview's limit back to AutoPreviewSeconds (set to Inf for 5d-5f)
 
+fprintf('\n== 5h. the figure tree, a panel''s note and overlays, dragging a panel in the schematic ==\n');
+app.FigureAutoPreviewSeconds = Inf;   % as in 5d-5f: a preview slowed by a loaded machine must not leave the next one out of date
+restoreAutoLimit5h = onCleanup(@() resetAutoLimit(app));
+app.selectTab(app.TabFigures);
+FE = app.FigureEditor;
+ftree = app.FiguresTree;
+while ~isempty(app.Config.Figures)   % start from no figure (5e-5g's are saved)
+    app.onFigureSelected(1);
+    app.onRemoveFigure();
+end
+app.onAddFigure("rasterPsth");
+app.onAddFigure("continuous");
+app.onAddFigure("rasterPsth");
+fid = [app.Config.Figures.id];
+kinds = arrayfun(@(f) EphysAnalysisConfig.observeKind(f), app.Config.Figures);
+groupBy = @(by) setGroupBy(app, by);
+groupBy("observe");
+top = ftree.Children;
+check(isequal(kinds, ["unit" "channel" "unit"]) && numel(top) == 2 && string(top(1).Text) == "Per unit  (2)" ...
+    && string(top(2).Text) == "Per channel  (1)" && isequal([top(1).Children.NodeData], [1 3]) && top(2).Children.NodeData == 2 ...
+    && string(figureNode(ftree, 2).Text) == fid(2) + "  (1 panel)" && string(ftree.SelectedNodes.NodeData) == "3", ...
+    'the tree groups the figures by what they observe (unit, channel), a leaf "<id>  (<n> panels)", the one in the editor selected');
+groupBy("status");
+check(isscalar(ftree.Children) && string(ftree.Children.Text) == "Enabled  (3)" ...
+    && string(figureNode(ftree, 2).Text) == fid(2) + "  (1 panel, per channel)", ...
+    'grouped by status: one Enabled group, each leaf saying what it observes');
+groupBy("none");
+check(numel(ftree.Children) == 3 && all(arrayfun(@(n) isnumeric(n.NodeData), ftree.Children)) ...
+    && string(ftree.Children(1).Text) == fid(1) + "  (2 panels, per unit)", 'grouped by none: a flat list in the run order');
+groupBy("observe");
+app.onFigureTreeSelected(figureNode(ftree, 1));
+check(app.SelectedFigure == 1 && string(FE.id.Value) == fid(1), 'picking a leaf of the tree edits that figure');
+app.onFigureTreeSelected(ftree.Children(2));
+check(app.SelectedFigure == 1 && ftree.SelectedNodes.NodeData == 1, 'picking a group''s header keeps the figure selected');
+% the check boxes: the tree's hit test (a figure's box at level 2, a group's at level 1)
+clickAt = @(node, x) struct('InteractionInformation', struct('Node', node, 'Location', ftree.Position(1:2) + [x 5]));
+leafBox = @(k) clickAt(figureNode(ftree, k), 19 + 18 + 8);
+unitGroup = ftree.Children(1);
+check(all(arrayfun(@(k) string(figureNode(ftree, k).UserData) == "on" && ~isempty(figureNode(ftree, k).Icon), 1:3)) ...
+    && string(unitGroup.UserData) == "on", 'every figure starts enabled: its box (and its group''s) ticked');
+app.onFigureTreeClicked(clickAt(figureNode(ftree, 3), 150));
+check(app.Config.Figures(3).enabled, 'a click on a figure''s name, not its box, changes nothing');
+app.onFigureTreeClicked(leafBox(3));
+check(~app.Config.Figures(3).enabled && app.Config.Figures(1).enabled && string(figureNode(ftree, 3).UserData) == "off" ...
+    && string(ftree.Children(1).UserData) == "mixed" && endsWith(string(figureNode(ftree, 3).Text), "(off)") ...
+    && app.SelectedFigure == 1 && FE.enabled.Value, ...
+    'a click on its box unticks a figure: off in the config, its box empty, its group''s half-filled, "(off)" on it, the editor''s figure unchanged');
+app.onFigureTreeClicked(leafBox(1));
+check(~app.Config.Figures(1).enabled && ~FE.enabled.Value && string(ftree.Children(1).UserData) == "off", ...
+    'unticking the figure in the editor clears its Enabled box; both of the group off: the group''s box empty');
+app.onFigureTreeClicked(clickAt(ftree.Children(1), 19 + 8));
+check(app.Config.Figures(1).enabled && app.Config.Figures(3).enabled && string(ftree.Children(1).UserData) == "on", ...
+    'a click on a group''s box ticks its figures');
+app.onFigureTreeClicked(clickAt(ftree.Children(1), 19 + 8));
+check(~app.Config.Figures(1).enabled && ~app.Config.Figures(3).enabled && app.Config.Figures(2).enabled, ...
+    'and, all ticked, unticks them (the other group''s figure untouched)');
+app.onFigureCheck("all");
+allOn = all([app.Config.Figures.enabled]);
+app.onFigureCheck("invert");
+inverted = ~any([app.Config.Figures.enabled]);
+app.onFigureCheck("none");
+noneOn = ~any([app.Config.Figures.enabled]);
+app.onFigureCheck("all");
+check(allOn && inverted && noneOn && all([app.Config.Figures.enabled]) && contains(app.StatusBar.Text, "3 of 3 figures enabled"), ...
+    'All, Invert and None tick, flip and untick every figure');
+% Up / Down within the group: the unit figures swap, the channel figure between them stays
+app.onFigureSelected(3);
+upOn = app.UpFigureButton.Enable == "on" && app.DownFigureButton.Enable == "off";
+app.onMoveFigure(-1);
+check(upOn && isequal([app.Config.Figures.id], fid([3 2 1])) && app.SelectedFigure == 1 && app.UpFigureButton.Enable == "off" ...
+    && app.DownFigureButton.Enable == "on", 'Up moves a figure past its group''s neighbor, not the other group''s figure between them');
+app.onMoveFigure(1);
+check(isequal([app.Config.Figures.id], fid) && app.SelectedFigure == 3, 'Down moves it back');
+app.onFigureSelected(2);
+check(app.UpFigureButton.Enable == "off" && app.DownFigureButton.Enable == "off", 'a figure alone in its group has no Up or Down');
+groupBy("none");
+app.onFigureSelected(2);
+check(app.UpFigureButton.Enable == "on" && app.DownFigureButton.Enable == "on", 'ungrouped, Up and Down go over the whole list');
+% the preferences: Group by and the collapsed groups, restored by a new app (the selected figure's group is always open)
+groupBy("status");
+app.onFigureSelected(1);
+app.setFiguresEnabled(2, "off");
+offGroup = ftree.Children(2);
+app.onFigureGroupToggled(offGroup, true);
+app.onSaveConfig();
+app2 = EphysAnalysisApp();
+restoredBy = string(app2.FigureGroupDropDown.Value) == "status" && isequal(app2.FigureGroupsCollapsed, "status:Off") ...
+    && numel(app2.FiguresTree.Children) == 2 && app2.SelectedFigure == 1;
+closeApp(app2);
+check(string(offGroup.NodeData) == "status:Off" && restoredBy ...
+    && isequal(string(AppPrefs.getpref(EphysAnalysisApp.PrefGroup, 'FigureGroupBy')), "status"), ...
+    'a new app restores the figure tree''s Group by and its collapsed group (FigureGroupBy, FigureGroupsCollapsed)');
+app.onFigureGroupToggled(offGroup, false);
+app.setFiguresEnabled(2, "on");
+groupBy("observe");
+check(isempty(app.FigureGroupsCollapsed), 'expanding the group forgets it');
+
+% a panel's text note and overlays: the rows apply to the panel picked
+app.onFigureSelected(1);
+app.onPanelSelected(2);   % the PSTH
+for sname = ["note" "overlays"]
+    if ~app.FigureSections([app.FigureSections.Name] == sname).Expanded; app.onFigureSectionToggled(sname); end
+end
+Sn = app.FigureSections([app.FigureSections.Name] == "note");
+check(shown(FE.annText) && shown(FE.ovList) && ~shown(FE.ovName) && Sn.Title == "Text note on psth_1" && Sn.Key == "" ...
+    && FE.annPlace.Enable == "off", 'the Text note and Overlays sections show for the panel picked (no key), the note''s look off without text');
+FE.annText.Value = {'n = 12'};
+FE.annPlace.Value = "northeast";
+FE.annColor.Value = "#ff0000";
+app.onConfigChanged("figure");
+nt = app.Config.Figures(1).panels(2).note;
+noteTx = findall(app.FigurePreviewPanel, 'Type', 'text', 'Tag', 'note');
+check(nt.text == "n = 12" && nt.placement == "northeast" && nt.color == "#ff0000" && FE.annPlace.Enable == "on" ...
+    && app.FigurePreviewState == "drawn" && isscalar(noteTx) && string(noteTx.String) == "n = 12" && isequal(noteTx.Color, [1 0 0]), ...
+    'the note rows reach the selected panel''s note, and the preview draws it on that panel');
+app.onAddFigureOverlay("region");
+FE.ovFrom.Value = '0';
+FE.ovTo.Value = '0.05';
+app.onConfigChanged("figure");
+ov1 = app.Config.Figures(1).panels(2).overlays;
+regs = findall(app.FigurePreviewPanel, 'Tag', 'overlayRegion');
+check(isscalar(ov1) && ov1.shape == "region" && ov1.name == "Patch 1" && ov1.to == 0.05 && ov1.panel == "all" ...
+    && shown(FE.ovFill) && ~shown(FE.ovValue) && isscalar(regs) && app.FigurePreviewState == "drawn" ...
+    && contains(app.FigureSections([app.FigureSections.Name] == "overlays").Title, "Overlays (1) on psth_1"), ...
+    'Add patch: an overlay of the panel, its rows edit it, the preview draws it on the PSTH');
+app.onAddFigureOverlay("line");
+app.onDuplicateFigureOverlay();
+three = numel(app.Config.Figures(1).panels(2).overlays) == 3 && app.Config.Figures(1).panels(2).overlays(3).name == "Line 1 copy";
+app.onRemoveFigureOverlay();
+check(three && numel(app.Config.Figures(1).panels(2).overlays) == 2 && numel(FE.ovList.Items) == 2 && shown(FE.ovValue), ...
+    'Add line, Duplicate and Remove act on the panel''s overlays');
+app.onPanelSelected(1);   % the raster: none of its own
+rasterRows = isempty(FE.ovList.Items) && strtrim(strjoin(string(FE.annText.Value), "")) == "" && ~shown(FE.ovName);
+app.onPanelSelected(2);
+check(rasterRows && numel(FE.ovList.Items) == 2 && string(FE.annText.Value) == "n = 12" ...
+    && numel(app.Config.Figures(1).panels(2).overlays) == 2 && isempty(app.Config.Figures(1).panels(1).overlays), ...
+    'picking another panel shows its own note and overlays; going back loses nothing');
+cfgG = app.gatherConfig();
+check(isequaln(cfgG.Figures(1).panels(2).note, app.Config.Figures(1).panels(2).note) ...
+    && isequaln(cfgG.Figures(1).panels(2).overlays, app.Config.Figures(1).panels(2).overlays), ...
+    'gather after apply gives the panel''s note and overlays back unchanged');
+
+% drag a panel in the schematic: the press installs the window's pointer callbacks; motion shades the target; release applies
+if ~app.FigureSections([app.FigureSections.Name] == "arrangement").Expanded; app.onFigureSectionToggled("arrangement"); end
+app.onFigureSelected(1);
+sch = @() app.FigureSchematic;
+cellOf1 = @(id) arrayfun(@(q) [q.row q.col q.rowSpan q.colSpan], app.Config.Figures(1).panels([app.Config.Figures(1).panels.id] == id), ...
+    'UniformOutput', false);
+qOf = @(id) find([app.Config.Figures(1).panels.id] == id);
+app.Fig.CurrentPoint = [400 300];
+app.onSchematicPress(qOf("raster_1"), struct('IntersectionPoint', [0.5 0.25 0]));
+installed = isa(app.Fig.WindowButtonMotionFcn, 'function_handle') && isa(app.Fig.WindowButtonUpFcn, 'function_handle') ...
+    && ~isempty(app.FigureDrag) && app.SelectedPanel == qOf("raster_1");
+axS = sch();
+unitsS = axS.Units;
+axS.Units = 'pixels';
+ipS = axS.InnerPosition;
+axS.Units = unitsS;
+wantScale = [diff(axS.XLim) / ipS(3), -diff(axS.YLim) / ipS(4)];
+pHalf = app.schematicPixel([0.5 0.25] + [diff(axS.XLim) / 2, diff(axS.YLim) / 2]) - [400 300];
+check(all(abs(app.FigureDrag.scale - wantScale) < 1e-9) && norm(app.schematicPixel([0.5 0.25]) - [400 300]) < 1e-6 ...
+    && norm(pHalf - [ipS(3) / 2, -ipS(4) / 2]) < 1e-6, ...
+    sprintf('the drag''s scale is the schematic''s limits over its plot box (%g x %g px), y down; the press point maps to the pointer', ipS(3), ipS(4)));
+app.Fig.CurrentPoint = app.schematicPixel([0.5 0.92]);   % psth_1's bottom band, in its middle third
+app.Fig.WindowButtonMotionFcn(app.Fig, []);
+T1 = app.FigureDrag.target;
+dragGfx = isscalar(findall(sch(), 'Tag', 'schematicDragOutline')) && isscalar(findall(sch(), 'Tag', 'schematicDropTarget'));
+check(installed && dragGfx && T1.kind == "edge" && T1.where == "below" && T1.anchor == "psth_1", ...
+    'a press on raster_1 starts a drag (the window''s motion and release callbacks); over psth_1''s bottom band the outline follows and "below psth_1" is shaded');
+app.Fig.WindowButtonUpFcn(app.Fig, []);
+check(isempty(app.FigureDrag) && isempty(app.Fig.WindowButtonMotionFcn) && isempty(app.Fig.WindowButtonUpFcn) ...
+    && isequal(cellOf1("psth_1"), {[1 1 1 1]}) && isequal(cellOf1("raster_1"), {[2 1 1 1]}) && app.Config.Figures(1).grid.rows == 2 ...
+    && app.SelectedPanel == qOf("raster_1") && contains(app.StatusBar.Text, "Moved raster_1 below psth_1") && nPatches() == 2 ...
+    && isempty(findall(sch(), 'Tag', 'schematicDragOutline')) && app.FigurePreviewState == "drawn", ...
+    'released there, raster_1 is moved below psth_1 (removePanel, placePanel); the callbacks are cleared, the schematic and preview redrawn');
+app.onPanelSelected(qOf("psth_1"));
+FE.addType.Value = "continuous";
+FE.addType.ValueChangedFcn(FE.addType, []);
+app.onAddPanel("right");   % a column right of psth_1: the cell under it, right of raster_1, stays empty
+emptyCell = EphysAnalysisConfig.figureCells(app.Config.Figures(1));
+app.Fig.CurrentPoint = [400 300];
+app.onSchematicPress(qOf("raster_1"), struct('IntersectionPoint', [0.25 0.75 0]));
+app.Fig.CurrentPoint = app.schematicPixel([0.75 0.75]);
+app.Fig.WindowButtonMotionFcn(app.Fig, []);
+T2 = app.FigureDrag.target;
+app.Fig.WindowButtonUpFcn(app.Fig, []);
+check(isequal(size(emptyCell), [2 2]) && emptyCell(2, 2) == 0 && T2.kind == "cell" && T2.row == 2 && T2.col == 2 ...
+    && isequal(cellOf1("raster_1"), {[2 2 1 1]}) && contains(app.StatusBar.Text, "Moved raster_1 to row 2, column 2") ...
+    && isempty(app.Fig.WindowButtonUpFcn), 'dragged onto the empty cell, raster_1 moves there (its row and column)');
+% cancel: released outside the schematic, or Escape
+before = app.Config.Figures(1);
+app.Fig.CurrentPoint = [400 300];
+app.onSchematicPress(qOf("raster_1"), struct('IntersectionPoint', [0.75 0.75 0]));
+app.Fig.CurrentPoint = app.schematicPixel([0.25 0.75]);
+app.Fig.WindowButtonMotionFcn(app.Fig, []);
+app.Fig.CurrentPoint = app.schematicPixel([1.6 0.5]);
+app.Fig.WindowButtonUpFcn(app.Fig, []);
+check(isequaln(app.Config.Figures(1), before) && isempty(app.FigureDrag) && isempty(app.Fig.WindowButtonUpFcn) ...
+    && contains(app.StatusBar.Text, "released outside") && isempty(findall(sch(), 'Tag', 'schematicDropTarget')), ...
+    'released outside the schematic, the drag is canceled: nothing moves, the callbacks are cleared');
+app.Fig.CurrentPoint = [400 300];
+app.onSchematicPress(qOf("raster_1"), struct('IntersectionPoint', [0.75 0.75 0]));
+app.Fig.CurrentPoint = app.schematicPixel([0.25 0.75]);
+app.Fig.WindowButtonMotionFcn(app.Fig, []);
+shaded = app.FigureDrag.target.kind == "cell";
+app.onKeyPress(pressed('escape', {}));
+check(shaded && isequaln(app.Config.Figures(1), before) && isempty(app.FigureDrag) && isempty(app.Fig.WindowButtonMotionFcn) ...
+    && contains(app.StatusBar.Text, "Drag canceled") && isempty(findall(sch(), 'Tag', 'schematicDragOutline')), ...
+    'Escape cancels a drag over an empty cell: nothing moves, the outline goes');
+% a 3 x 2 grid: psth_1 over rows 1-2 of column 1, continuous_1 at (1, 2), raster_1 at (3, 2); (2, 2) and (3, 1) empty
+cfgD = app.gatherConfig();
+fz = cfgD.Figures(1);
+fz.grid.rows = 3; fz.grid.cols = 2; fz.grid.rowHeights = []; fz.grid.colWidths = [];
+place3 = struct('psth_1', [1 1 2 1], 'continuous_1', [1 2 1 1], 'raster_1', [3 2 1 1]);
+for q = 1:numel(fz.panels)
+    v = place3.(fz.panels(q).id);
+    fz.panels(q).row = v(1); fz.panels(q).col = v(2); fz.panels(q).rowSpan = v(3); fz.panels(q).colSpan = v(4);
+end
+cfgD.Figures(1) = fz;
+app.applyConfig(cfgD);
+before = app.Config.Figures(1);
+dragTo = @(id, from, to) dragPanel(app, qOf(id), from, to);
+T3 = dragTo("psth_1", [0.25 1/3], [0.75 0.5]);   % (2, 2): rows 2-3 would cover raster_1
+check(T3.kind == "none" && isfield(T3, 'why') && isequaln(app.Config.Figures(1), before) ...
+    && contains(app.StatusBar.Text, "psth_1 does not fit at row 2, column 2: it would overlap raster_1") ...
+    && isempty(findall(sch(), 'Tag', 'schematicDropTarget')), ...
+    'an empty cell the panel would not fit in is no target (not shaded): released there, nothing moves and the status bar says why');
+T4 = dragTo("psth_1", [0.25 1/3], [0.25 5/6]);   % (3, 1): its two rows clipped to one
+check(T4.kind == "cell" && isequal(cellOf1("psth_1"), {[3 1 1 1]}) ...
+    && contains(app.StatusBar.Text, "Moved psth_1 to row 3, column 1. Its spans became 1 x 1 to fit the grid."), ...
+    'dropped on the bottom row, a panel over two rows moves there with its span clipped to the grid, and says so');
+before = app.Config.Figures(1);
+T5 = dragTo("psth_1", [0.25 5/6], [0.75 1/6]);   % continuous_1's middle: no edge band
+check(T5.kind == "none" && isequaln(app.Config.Figures(1), before) && contains(app.StatusBar.Text, "Nothing to drop psth_1 on there"), ...
+    'released over another panel''s middle, nothing moves and the status bar says where to drop it');
+order0 = [app.Config.Figures(1).panels.id];
+T6 = dragTo("continuous_1", [0.75 1/6], [0.75 0.95]);   % raster_1's bottom band: below it
+check(T6.kind == "edge" && isequal([app.Config.Figures(1).panels.id], order0) && app.SelectedPanel == qOf("continuous_1") ...
+    && contains(app.StatusBar.Text, "Moved continuous_1 below raster_1"), ...
+    'an edge drop keeps the panel''s place in the figure''s panel order (the draw order and the legend''s first panel)');
+while ~isempty(app.Config.Figures)
+    app.onFigureSelected(1);
+    app.onRemoveFigure();
+end
+app.onSaveConfig();
+app.Tabs.SelectedTab = app.TabData;
+clear restoreAutoLimit5h
+
 fprintf('\n== 6. close ==\n');
 app.savePreferences();
-check(strcmp(AppPrefs.getpref(g, 'LastConfigFile'), cfgFile) && isequal(string(AppPrefs.getpref(g, 'PlotSectionsCollapsed')), "bins"), ...
-    'the last config and the collapsed plot-editor section are remembered');
-app.onShowEpochs("plot");
+shutNow = [string.empty(1, 0) app.FigureSections(~[app.FigureSections.Expanded]).Name];
+check(strcmp(AppPrefs.getpref(g, 'LastConfigFile'), cfgFile) ...
+    && isequal(sort(string(AppPrefs.getpref(g, 'FigureSectionsCollapsed'))), sort(shutNow)) ...
+    && ~any(arrayfun(@(n) AppPrefs.ispref(g, n), ["AutoPreview" "PlotGroupBy" "PlotGroupsCollapsed" "PlotSectionsCollapsed" ...
+    "SessionAutoPreview" "SessionSectionsCollapsed"])), ...
+    'the last config and the figure editor''s collapsed sections are remembered; no plot or session preference is written');
+app.onShowEpochs();
 dz = app.EpochDiagramWindow;
 app.onClose();
 check(~isvalid(app.Fig) && ~dz.isOpen(), 'Close (clean config) closes the window, and the epoch diagram with it');
@@ -2539,40 +1751,6 @@ end
 end
 
 
-function editMappingDialog(D)
-%editMappingDialog  In the Unit mapping window: change cellA's first id, give cellA no id in the second dataset, add cellC (id 9 in the second), remove cellB, Save.
-X = D.Table.Data;
-X{1, 2} = '5';
-X{1, 3} = '';
-D.Table.Data = X;
-press(D, "Add");
-X = D.Table.Data;
-X{3, 1} = 'cellC';
-X{3, 3} = '9';
-D.Table.Data = X;
-D.Table.CellSelectionCallback(D.Table, struct('Indices', [2 1]));
-press(D, ["Remove" "Save"]);
-end
-
-
-function copySettingsDialog(D)
-%copySettingsDialog  In the Copy plot settings window: note what evoked_1 and psth_1 offer, untick Bins, Copy from psth_1.
-from = D.From.ItemsData;
-D.From.Value = from(string(D.From.Items) == "evoked_1  (Evoked potential)");
-D.From.ValueChangedFcn(D.From, []);
-seen = struct('evokedMarks', D.Boxes.marks.Enable == "on", 'evokedStyle', D.Boxes.style.Enable == "on");
-D.From.Value = from(string(D.From.Items) == "psth_1  (PSTH)");
-D.From.ValueChangedFcn(D.From, []);
-seen.psthMarks = D.Boxes.marks.Enable == "on" && D.Boxes.marks.Value;
-D.Boxes.bins.Value = false;
-D.Boxes.bins.ValueChangedFcn(D.Boxes.bins, []);
-lab = findall(ancestor(D.All, 'figure'), 'Type', 'uilabel');
-seen.count = string(lab(contains(string({lab.Text}), "part(s) to copy")).Text);
-setappdata(groot, 'copySettingsSeen', seen);
-press(D, "Ok");
-end
-
-
 function copyFigureDialog(D)
 %copyFigureDialog  In the Copy figure settings window: None, tick Common options and Arrangement, note the count, Copy.
 press(D, "None");
@@ -2588,13 +1766,6 @@ press(D, "Ok");
 end
 
 
-function n = plotNode(tree, k)
-%plotNode  The plot tree's node of plot K.
-n = findall(tree, 'Type', 'uitreenode');
-n = n(arrayfun(@(x) isequal(x.NodeData, k), n));
-end
-
-
 function n = figureNode(tree, k)
 %figureNode  The figure tree's node of figure K (a leaf: its NodeData is K).
 n = findall(tree, 'Type', 'uitreenode');
@@ -2607,40 +1778,6 @@ function setGroupBy(app, by)
 dd = app.FigureGroupDropDown;
 dd.Value = by;
 dd.ValueChangedFcn(dd, []);
-end
-
-
-function r = wcagRatio(a, b)
-%wcagRatio  The WCAG contrast ratio of two RGB colors.
-la = relLuminance(a);
-lb = relLuminance(b);
-r = (max(la, lb) + 0.05) / (min(la, lb) + 0.05);
-end
-
-
-function l = relLuminance(c)
-%relLuminance  The relative luminance of the sRGB color C.
-lin = (c <= 0.04045) .* (c / 12.92) + (c > 0.04045) .* (((c + 0.055) / 1.055) .^ 2.4);
-l = lin(:).' * [0.2126; 0.7152; 0.0722];
-end
-
-
-function probeOther(tm, app, busy)
-%probeOther  While the BUSY preview ("figure" or "plot") computes, ask once for the other one; keep its state then (appdata probeOther).
-switch busy
-    case "figure"
-        if app.FigurePreviewState ~= "computing"; return; end
-        stop(tm);
-        before = app.PreviewResult;
-        app.refreshPreview();
-        setappdata(groot, 'probeOther', struct('state', app.PreviewState, 'same', isequaln(before, app.PreviewResult)));
-    otherwise
-        if app.PreviewState ~= "computing"; return; end
-        stop(tm);
-        before = app.FigurePreviewResult;
-        app.refreshFigurePreview();
-        setappdata(groot, 'probeOther', struct('state', app.FigurePreviewState, 'same', isequaln(before, app.FigurePreviewResult)));
-end
 end
 
 

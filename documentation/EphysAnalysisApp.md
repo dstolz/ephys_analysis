@@ -464,7 +464,13 @@ raster flush above its PSTH above the LFP of the same unit's channel is one
 figure. The tab edits the config's `Figures` list
 ([every field and the model](EphysAnalysisConfig.md#figures)) and previews
 the figure for the observation you pick, reading only that unit's spikes or
-that channel's column, so an edit redraws quickly.
+that channel's column, so an edit redraws quickly. A figure with no panel (the
+*Blank* template) previews without failing, so panels can be added to it one
+by one. The three spectral panel types (*Power spectrum*, *Spectrogram* and
+*Coherence*) call Chronux, which must be on the MATLAB path
+(`toolboxes/chronux`); without it the panel says
+*Chronux is not on the path* and the rest of the figure still draws
+([Spectral panels](EphysAnalysisConfig.md#spectral-panels)).
 
 The preview draws one observation. The Export tab's **Plan** and **Run**
 draw every enabled figure for every observation of every ticked dataset, a
@@ -506,7 +512,7 @@ headers (**▼** / **►**), in this order:
 | --- | --- |
 | Observations (1) | what the figure is drawn for. **Observe**: *auto* (a unit when a layer that follows the observation reads sorted or detected spikes, else a channel when one reads a signal, else the dataset; the row says which it came to), *a unit*, *a channel* or *the dataset* (`observe.kind`). For units: **Spike source** (*units (sorted)* or *detected (per channel)*), unit classes, **Unit ids**, **Good units only**, **Responsive only** with its test, direction, windows and options, **Max units**, **Shanks** and **Channels**: the [Plots tab](#plots-tab)'s Units & channels rows, over the figure's epochs (`observe.units`). For channels: **Signal** (LFP, MUA, SPIKE or AUX) and **Channels** (the extract's columns, blank = all). **Datasets**: *the ticked datasets* or *a list*. Generate and Run draw the figure on the datasets ticked to run; a list of its own is kept in the config (`observe.datasets`) but is not used yet, and the preview uses the active dataset. **Per trial group (one figure per group)** (`observe.perGroup`) draws each observation once per trial group of the figure's trial selection (its **Group by**): the picker lists every observation and group (the observation's label, a middle dot, the group's label), and each figure keeps that group's epochs only, with the group in its title, its caption and its file name (`{Group}`); it needs a **Group by**, and a panel with a trial selection of its own keeps its own groups ([One figure per trial group](EphysAnalysisConfig.md#panel-types)). A count line ends it (*"14 units on subj1_day1."*; with Per trial group, *"14 units x 3 trial groups on subj1_day1."*) |
 | Arrangement (2) | the schematic of the grid, **Add panel** with **Above**, **Below**, **Left** and **Right**, the selected panel's **Row span**, **Column span**, **Row height** and **Column width**, **Spacing**, **Remove panel** and **Move** (below) |
-| Panel (3) | **Type** (a change starts the panel afresh: below), **Title** (blank = none) and **Group shown** (heat map and unit correlation panels: which of the figure's trial groups they draw, 1 = the first; `options.group`; a heat map of trials draws every group, so the row hides) |
+| Panel (3) | **Type** (a change starts the panel afresh: below), **Title** (blank = none) and **Group shown** (heat map, unit correlation and spectrogram panels, and a coherence panel drawn over time: which of the figure's trial groups they draw, 1 = the first; `options.group`; a heat map of trials draws every group, so the row hides) |
 | Event reference (4), Epoch window (5), Trial selection (6) | the figure's alignment: the [Alignment tab](#alignment-tab)'s controls, for this figure (`ref`, `window`, `selection`), each with **Use default** in its header; **Epoch Diagram** sits under the Epoch window. Hidden when every panel of the figure is of a type that is not aligned to events (probe map, unit waveforms) |
 | Common options (7) | the options every linked panel draws: **Bin (ms)** and **Smooth (ms)**, **Measure**, **Baseline** with its window, the auROC rows (with the *auroc* baseline: the **auROC from**, **auROC (ms)**, **Call window**, **Modulated if**, **Unit test** and **Calls** rows), **Mask after the stop event** and the waveform inset (**Waveform** with its spikes, **Inset location**, **Axis box**, **Inset size**, **Label**); a panel takes the ones its type has while its **Common options from the figure** box (Options) is ticked, so one change here reaches all of them (`common`; [Common options](EphysAnalysisConfig.md#common-options)) |
 | Panel alignment (8) | the selected panel's own event reference and epoch window (an aligned type only), with **Same as the figure** in the header, and the panel's trial selection, the [Trial selection](#alignment-tab) rows under the **Trial selection as the figure** box (an aligned type only). **Apply to all panels** and **Re-link all panels** (below) |
@@ -563,7 +569,7 @@ then show it.
 
 | Control | Effect |
 | --- | --- |
-| **Add panel** type, **Above**, **Below**, **Left**, **Right** | adds a panel of the type (the drop-down offers the nine [panel types](EphysAnalysisConfig.md#panel-types), *Firing rate* and *Tuning curve* among them) next to the selected one: *Above* and *Below* make a new row of the grid, as high as the selected panel's row, and the new panel takes the selected panel's columns; *Left* and *Right* make a new column, as wide as its column, and the new panel takes its rows. Panels past the new row (column) move down (right) by one, and those whose span crosses it grow by one. The first panel of a figure goes to row 1, column 1. The new panel holds the type's default layer, so it draws at once, and is selected ([Editing the grid](EphysAnalysisConfig.md#editing-the-grid)) |
+| **Add panel** type, **Above**, **Below**, **Left**, **Right** | adds a panel of the type (the drop-down offers the twelve [panel types](EphysAnalysisConfig.md#panel-types), *Firing rate*, *Tuning curve* and the [spectral panels](EphysAnalysisConfig.md#spectral-panels) *Power spectrum*, *Spectrogram* and *Coherence* among them) next to the selected one: *Above* and *Below* make a new row of the grid, as high as the selected panel's row, and the new panel takes the selected panel's columns; *Left* and *Right* make a new column, as wide as its column, and the new panel takes its rows. Panels past the new row (column) move down (right) by one, and those whose span crosses it grow by one. The first panel of a figure goes to row 1, column 1. The new panel holds the type's default layer, so it draws at once (a *Coherence* panel two, the observed unit and its channel's LFP, a spike-field coherence), and is selected ([Editing the grid](EphysAnalysisConfig.md#editing-the-grid)) |
 | **Row span**, **Column span** | how many rows and columns the panel covers, from its own cell; refused, with the reason in the status bar, past the grid's edge or over another panel (`rowSpan`, `colSpan`) |
 | **Row height**, **Column width** | the relative height of the panel's first row and width of its first column against the others (1 = equal; steps of 0.25). A figure is drawn on a tiled layout of equal tiles, so a size is rounded to quarter steps of the smallest, with at most 32 tiles a side (`grid.rowHeights`, `grid.colWidths`) |
 | **Spacing** | the space between the panels: *loose*, *compact*, *tight* or *none (flush)*, which draws stacked time panels sharing their edges (`grid.spacing`) |
@@ -648,14 +654,20 @@ your own comes first, *(off)* ends an unticked one).
 **Add** adds a layer of the source in the drop-down beside it, which offers
 only what the panel's type draws
 ([source categories](EphysAnalysisConfig.md#source-categories), and *events
-(a line)* on a panel that shares the time axis); the layer is bound as the
+(a line)* only on a panel that shares the time axis: a raster, PSTH, continuous
+signal, heat map or spectrogram, no longer a firing rate, tuning curve, power
+spectrum or coherence panel); the layer is bound as the
 type binds a new one, and fixed where it cannot follow the observation. **Remove**, **Up**
 and **Down** edit the list; the order is the drawing order (the first
 layer's first unit is a raster's top rows). A type that draws one layer
 (heat map, unit waveforms, probe map, unit correlation) says in
 red when it has more: only the first enabled one is drawn (a unit waveforms
 panel in the *probe* layout takes more: the first layer is drawn, the others
-frame their units in red). A *probe* layout whose first layer follows the
+frame their units in red). A *Spectrogram* is a one-layer type too (its first
+signal layer). A *Coherence* panel takes exactly two layers, the seed first and
+its partner second (Validate refuses any other number): the seed's first
+channel or unit is paired with each item of the partner, so *Up* and *Down*
+swap their roles. A *probe* layout whose first layer follows the
 observation draws one unit, and Validate warns: bind the first layer to fixed
 units and add a layer that follows the unit to frame it. The rows below the
 list edit the layer picked:
@@ -678,13 +690,16 @@ list edit the layer picked:
 | --- | --- |
 | Raster | **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*), **Rows by group first**, **Mask after the stop event**, and the waveform inset (**Waveform**, **Inset location**, **Inset size**, **Label**) |
 | PSTH | **Bin**, **Smooth**, **Measure**, **Baseline** (with *auroc*) and its window, the auROC rows (with the *auroc* baseline), **Mask after the stop event**, **PSTH as**, **Fill** and its opacity, **Normalize**, **Stack** (**One row per group** with its **spacing**, the row step in tallest PSTHs), **Y limits** (not used in a stack), and the waveform inset |
-| Continuous signal | **Baseline** and its window, **Display** (*lines* or *stacked rows*), **Signal** (mean or median; as recorded or rectified), **Error band** (off, mean ± SEM, mean ± SD, bootstrap 95% CI or interquartile range), **Stack spacing**, **Trials** (*Off*, *Faint, behind the mean* or *Only the trials*) with **at most** (the most epochs drawn, picked evenly over their order; grayed out while *Off*), **Y limits** |
-| Heat map | **Bin**, **Smooth**, **Measure** and **Mask after the stop event** (a spike layer), **Baseline** (*auroc* for a spike layer, with the auROC rows; the map is then of auROCs in the diverging colormap), **Rows** (*the layer's units or channels*, or *one unit's epochs (trials)*), **Row order** (*probe*, *peak* or *modulation*, the last only with the auROC baseline), **Color limits**; the group drawn is in the Panel section. With *one unit's epochs (trials)* a row is an epoch of one unit, every group at once, sorted as a raster's rows: the raster's **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*) and **Rows by group first** show, **Row order** and **Group shown** hide, and the layer may follow the observation (its Binding row opens for a spike layer; otherwise fix it to one unit). The groups are a color strip along the left edge, the y label names the sort, and the auROC baseline is refused |
+| Continuous signal | **Baseline** and its window, **Display** (*lines* or *stacked rows*), **Signal** (mean or median; as recorded or rectified), **Error band** (off, mean ± SEM, mean ± SD, bootstrap 95% CI or interquartile range), **Stack spacing**, **Trials** (*Off*, *Faint, behind the mean* or *Only the trials*) with **at most** (the most epochs drawn, 100 by default, picked evenly over their order; the traces sit under every band and mean; grayed out while *Off*), **Y limits** |
+| Heat map | **Bin**, **Smooth**, **Measure** and **Mask after the stop event** (a spike layer), **Baseline** (*auroc* for a spike layer, with the auROC rows; the map is then of auROCs in the diverging colormap), **Rows** (*the layer's units or channels*, or *one unit's epochs (trials)*), **Row order** (*probe*, *peak* or *modulation*, the last only with the auROC baseline), **Color limits**; the group drawn is in the Panel section. With *one unit's epochs (trials)* a row is an epoch of one unit, every group at once, sorted as a raster's rows: the raster's **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*) and **Rows by group first** show, **Row order** and **Group shown** hide, and the layer may follow the observation (its Binding row opens for a spike layer; otherwise fix it to one unit). The map is one unit's epochs: a layer that follows the observation through a channel (a channel observation, or the other spike source) keeps every unit on it, which Validate refuses, and a layer that still keeps several is skipped with *A heat map of trials draws one unit: this layer keeps n*. The groups are a color strip along the left edge, the y label names the sort, and the auROC baseline is refused |
 | Unit waveforms | **Layout** (*grid*: the unit, or several overlaid; *probe*: every unit of the first layer at its place on the probe, with the units of a further layer framed in red), **Waveform** (*Mean*, *Subsample* or *Mean + subsample*, and how many spikes), **Label**, **Y limits** |
 | Probe map | **Value** (*rate*, *nSpikes* or *nUnits*), **Color limits** |
 | Unit correlation | **Epoch rate**, **Correlation**, **Fisher z transform**, **Baseline**, **Bin** and **Smooth** (for the *peak* rate), **Color limits** |
 | Firing rate | **Measure**, **Baseline** (*none*, *subtract*, *ratio* or *zscore*) and its window, **Display** (*bars (mean, error bar)*, *boxes* or *points (each epoch)*), **Y limits** |
 | Tuning curve | **Measure**, **Baseline** (as the firing rate panel's) and its window, **Parameter** (the trial parameter on the x axis; blank: the figure's first group-by parameter, else the first numeric one) with **series** (one curve per value of another trial parameter; blank: one curve), **Y limits**, and the waveform inset |
+| Power spectrum | the Chronux rows of the [Chronux tab](#chronux-tab): **Time base** (*the panel's epochs* or *segments of the recording*, with **Range (s)** and **Segment (s)**), **Tapers** (*TW and K* or *W (Hz) and p*, with **TW, K** or **W (Hz), p**), **Pad**, **Frequency range**, **Error** (*none*, *theoretical* or *jackknife*) with its p-value, **Detrend**, **Scale** (*dB*, *log axis* or *linear*), **Spike rate (Hz)** (with a spike layer) and **Y limits** |
+| Spectrogram | **Tapers** (as above), **Pad**, **Frequency range**, **Detrend**, **Scale** (*dB* or *linear*), **Moving window (s)** with its step, **Baseline** (*none*, *db*, *percent*, *zscore* or *ratio*) with **Baseline (s)**, whose window must lie inside the panel's window, and **Color limits**; the group drawn is **Group shown** in the Panel section |
+| Coherence | **Time base** with **Range (s)** and **Segment (s)**, the tapers, **Pad**, **Frequency range**, **Error** with its p-value (*jackknife* gives the band and the confidence level, *theoretical* the level), **Detrend**, **Spike rate (Hz)**, **Show phase (under the magnitude)** and **Y limits** (blank: 0 to 1); **Over time (a coherogram)** swaps the error, phase and y limits for **Moving window (s)** and **Color limits**, adds **Group shown** and, on the panel's epochs, puts the image on the figure's time axis |
 
 **Stack** draws a PSTH panel's trial groups in rows of their own instead of
 overlaid, the first at the bottom, each group's value on the left axis and its
@@ -1694,7 +1709,14 @@ traces behind the mean. On a heat map, **Rows** *one unit's epochs (trials)*
 shows the raster-sort rows, hides **Row order** and **Group shown** and opens
 the layer's Binding; following the unit with a descending sort reaches the
 config and the preview draws an image with a row per epoch; back to *the
-layer's units or channels* the layer is fixed again.
+layer's units or channels* the layer is fixed again. Its spectral block
+(with the bundled Chronux on the path for the checks only; skipped with a note
+without it) starts from a *Blank* figure, which previews without failing, adds a
+*Power spectrum* panel from the drop-down (the observed unit's spike spectrum,
+previewed at once, its x axis *Frequency (Hz)*), checks that the Chronux rows
+show (tapers, error, scale, time base, spike rate) and the range and moving-window
+rows do not, and sets **TW, K**, the frequency range, the scale and the
+*segments of the recording* time base, which reach the config and the preview.
 
 Its section 5e drives **Convert to figure** and the figures' **Copy from...**.
 With a PSTH plot selected **Convert to figure** is on and **Copy from...** under

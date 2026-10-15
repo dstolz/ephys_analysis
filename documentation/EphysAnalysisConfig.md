@@ -1090,7 +1090,8 @@ rows drawn flush (`spacing "none"`): `raster_1` over `psth_1`, each with one
 `units` layer that follows the observation. Each panel type has a template of
 its own (`"psth"`, `"raster"`, `"continuous"`, `"heatmap"`, `"waveforms"`,
 `"probemap"`, `"corrmap"`, `"rate"` for a firing rate panel, `"tuning"` for a
-tuning curve): one panel `<type>_1` holding
+tuning curve, `"spectrum"`, `"spectrogram"` and `"coherence"` for the
+[spectral panels](#spectral-panels)): one panel `<type>_1` holding
 `defaultLayer(type)`, a layer of the first source of the type's first
 [category](#source-categories) (`units`; `LFP` for continuous) bound as the
 type's `DefaultBinding` says, so a new panel draws at once. A new figure takes
@@ -1144,14 +1145,22 @@ it. `"blank"` is an empty 1 x 1 grid.
 | `corrmap` | Unit correlation | unit | yes | no | yes | no | `fixed` |
 | `rate` | Firing rate | point | yes | no | no | yes | `observation` |
 | `tuning` | Tuning curve | point | yes | no | no | yes | `observation` |
+| `spectrum` | Power spectrum | point, continuous | yes | no | no | yes | `observation` |
+| `spectrogram` | Spectrogram | continuous | yes | yes | yes | no | `observation` |
+| `coherence` | Coherence | point, continuous | yes | no | no | yes | `observation` |
 
 - `Categories`: the [source categories](#source-categories) its layers draw.
 - `Aligned`: cut into epochs around events, so the panel's `ref` and `window`
   apply. An unaligned panel (waveforms, probe map) must keep both `"default"`.
 - `SharesTime`: its x axis is time from the event; it takes the figure's time
-  axis ([below](#shared-time-axis)) and the events layers.
+  axis ([below](#shared-time-axis)) and the events layers. A coherence panel
+  does not share it in the table, but `figureFor` sets `sharesTime` for one
+  drawn over time (`options.overTime`) on the aligned base while its `ref` and
+  `window` are the figure's.
 - `OneGroup`: draws one trial group, `options.group` (a 1-based number); a heat
-  map of trials (`rows "trials"`) draws every group and ignores it.
+  map of trials (`rows "trials"`) draws every group and ignores it. A coherogram
+  (a coherence panel's `overTime`) has a `group` too, though the type is not
+  marked.
 - `MultiLayer`: draws every enabled layer. Any other type draws the first
   enabled one (validate warns of more).
 - `DefaultBinding`: what a new layer of the type binds to.
@@ -1187,9 +1196,10 @@ What each draws:
   row per channel). With `options.trials` `"faint"` every epoch's trace is
   drawn too, in the group's color, paler and thinner than the mean, behind it
   and its band; with `"only"` the traces alone, without the mean or its band
-  (they stand for the groups in the legend). At most `options.maxTrials`
-  epochs are drawn, picked evenly over their order (the mean is still over
-  every epoch); with `aggregate "mean"` a trace is the epoch's mean over the
+  (they stand for the groups in the legend). The traces always sit under every
+  band and mean, whatever the layers' order. At most `options.maxTrials`
+  epochs are drawn (100 by default), picked evenly over their order (the mean
+  is still over every epoch); with `aggregate "mean"` a trace is the epoch's mean over the
   layer's channels. The result `R.data` is `[nTime x nChannels x nTrials]`
   (single) with `R.trialEpochs` and `R.trialGroup`, and the traces are the
   aesthetics role `trialTrace` ("Trial traces").
@@ -1204,13 +1214,19 @@ What each draws:
   row per epoch, binned as the PSTH counts them (with the panel's `bins`,
   `measure`, `maskAfterStop` and smoothing; `baseline` `subtract`, `zscore` or
   `percent` taken against the epoch's group, so a group's rows average to its
-  PSTH; the auROC baseline is an error), sorted as a raster sorts its rows
+  PSTH, also under `maskAfterStop`, where a row's bins from its stop event on
+  are `NaN` as the PSTH masks them; the auROC baseline is an error), sorted as a raster sorts its rows
   (`rasterSort`, `rasterSortEvent`, `rasterSortOrder`, `rasterByGroup`), a
   strip of the group's color along the left edge of the axes and the y label
   naming the sort (`Epoch (by Depth), descending`). `order` and `group` are not
   used. The layer is a spike layer (`units`, `detected` or an events train)
   that follows the observation (the only heat map layer that can) or is fixed
-  to one unit (one id, or `maxUnits` 1); a signal layer is an error.
+  to one unit (one id, or `maxUnits` 1); a signal layer is an error. The map is
+  one unit's: a layer that keeps several units (one that follows the
+  observation through a channel, or a layer of the other spike source, which
+  reads every unit on the observed channel) is a validate error, and a layer
+  that still keeps several on a dataset is skipped (`A heat map of trials draws
+  one unit: this layer keeps 2`).
 - `waveforms`: the observed unit's mean waveform and a sample of its spikes
   ([Unit waveforms](#unit-waveforms)); a fixed layer of several units
   overlays their means. With `options.layout "probe"` it draws every unit of
@@ -1250,6 +1266,15 @@ What each draws:
   figure's selection, else the first numeric trial parameter with two or more
   values; the panel is skipped (`no trial parameter X`, or `no numeric trial
   parameter to tune over`) when the trials lack it.
+- `spectrum`: the multitaper power spectrum (Chronux) of each layer's
+  channels or spike trains over the panel's epochs, a trace and a band for
+  every item and trial group, the groups overlaid ([Spectral
+  panels](#spectral-panels)).
+- `spectrogram`: one channel's power over time from the event and frequency, as
+  an image of the trial group `options.group`, on the figure's time axis.
+- `coherence`: the multitaper coherence of a seed layer's first item with each
+  item of a partner layer, its phase in a strip under it; with `overTime` an
+  image of the first pair's coherence over time.
 
 **Per-panel trial selection.** An aligned panel's `selection` may be its own
 [TrialSelection](#trialselection) (`groupBy`, `filter`, `groupOrder`, ...)
@@ -1288,6 +1313,112 @@ units); a plot's
 sub-struct (an AUX layer in a continuous panel does it), `note` and `overlays`.
 A figure draws one observation: several units tiled on one page, as a plot's
 grid does, is not part of it.
+
+### Spectral panels
+
+Three panel types draw the multitaper analyses of
+[Chronux](http://chronux.org) that the app's
+[Chronux tab](EphysAnalysisApp.md#chronux-tab) runs on a dataset's Chronux file
+([Chronux analyses](EphysAnalysis.md#chronux-analyses)); a figure's panels read
+the dataset itself, the observed unit's channel or spikes or the fixed ones the
+layers name, and take the trials from the panel's own epochs. Their options are
+`chronuxSettings`' (`figureChronuxSettings` builds the settings from them, with
+the panel's `[pre post]` window); none of them is a [common
+field](#common-options), and a layer's `aggregate` is not used.
+
+| Type | Layers | Draws |
+| --- | --- | --- |
+| `spectrum` | any number, point (`units`, `detected`) and continuous (`LFP`, `MUA`, `SPIKE`, `AUX`); each may follow the observation | the power spectrum of each layer's channels (`chronuxSpectrum`) or spike trains (`chronuxSpikeSpectrum`, on the `spikeFs` grid, with the mean rate as a dotted line the spectrum tends to at high frequencies): a trace and an error band per item and trial group, the groups overlaid, a layer of several items colored along the sequential colormap with the groups told apart by line style. The x axis is frequency, so it shares no time axis |
+| `spectrogram` | one continuous layer (the first enabled one that is not events marks; a further map layer is skipped, `A spectrogram draws its first enabled layer only`) | `chronuxSpecgram` of the layer's first channel: an image over time from the event and frequency, for the trial group `options.group`, in dB or as is, or against a baseline in the diverging colormap. It shares the figure's time axis (always the aligned time base), takes events layers (latency lines and a rug) and puts its color bar inside the axes when another time panel shares the column |
+| `coherence` | exactly two enabled layers, the seed then its partner | the coherence magnitude (0 to 1) of the seed's first item with each item of the partner layer, a dashed line at the level independent signals stay under, a jackknife band, and with `showPhase` the phase in a strip under it |
+
+**Pairing in a coherence panel.** The pair is the seed layer's first channel or
+unit with each item of the partner layer, labeled `<seed> x <partner>`. A
+partner item that is the seed itself is dropped (an LFP layer following the
+unit's channel, paired with a seed of the same channel, leaves the other
+channels only), and a panel left with nothing is skipped with the reason.
+
+| Seed | Partner | Computed by |
+| --- | --- | --- |
+| signal | signal | `chronuxCoherence` (both signals at one rate) |
+| spikes | signal | `chronuxSpikeField`, one call per partner column, the spikes cut to the field's very samples |
+| signal | spikes | `chronuxSpikeField`, each partner unit with the seed's column |
+| spikes | spikes | `chronuxUnitCoherence` |
+
+The coherence spectra are the seed layer's result (`R.C`, `R.phi`, the
+jackknife bars `R.Clo` and `R.Chi`, `R.confC`, `R.pairs`); the partner layer's
+result is a marker. With `showPhase` the panel's tile holds a 3 x 1 tiled
+layout of its own, the magnitude over two rows and the phase (the angle where
+the coherence is over its level, every frequency without one; -pi to pi) flush
+under it on the one frequency axis; both axes are tagged with the panel's id.
+`renderFigure` returns the phase axes as `h.panels(k).extraAxes` (the magnitude's
+are `axes`). Drawn into a single axes target there is no phase strip.
+With `overTime` the panel is a **coherogram**: an image of the first pair's
+coherence over the moving window (`cohgramc`) for the trial group `options.group`,
+0 to 1 (`cLim`). On the aligned base it shares the figure's time axis
+(`figureFor` sets `sharesTime`), on the range base its x is the
+recording's time. Spike layers cannot be drawn over time (a validate error:
+only the spike-field and unit-unit spectra exist).
+
+**The range time base.** `timeBase "range"` (a spectrum or a coherence panel;
+a spectrogram is always aligned) cuts the recording between `range(1)` and
+`range(2)` (`Inf` = the end), on the continuous clock, into back-to-back
+segments of `segmentSec` (a coherogram: its moving window) that are clear of
+the dataset's artifact periods; the segments are the trials, in one group. The figure's event, window and
+selection are not used: the panel computes no epochs, `figureSkipReason` asks
+for no line, trial or parameter, and its window may even be a `"between"` one.
+
+**Chronux must be on the path.** The bundled copy is `toolboxes/chronux`
+(`addpath(genpath(...))`, as the [README](README.md#dependencies) says; its
+`findpeaks` and `jackknife` shadow MATLAB's, as the README notes). Without it `figureSkipReason` gives the panel the
+reason `Chronux is not on the path` and the rest of the figure still draws.
+Other reasons a spectral panel is skipped are the layer's own (`no LFP
+extract`, `no sorted units`), a moving window longer than the epoch, a result
+over the 2000 MB limit (a constant: a spectrogram or coherogram of many long
+epochs), no trial left on the range base, and settings `chronuxSettings`
+refuses.
+
+| Type | Option | Default | Meaning |
+| --- | --- | --- | --- |
+| `spectrum`, `coherence` | `timeBase` | `"aligned"` | `"aligned"` (the panel's epochs: trial e covers the panel's window around its event, one result per trial group) or `"range"` (segments of the recording, above) |
+| `spectrum`, `coherence` | `range` | `[0 Inf]` | `timeBase "range"`: `[from to]` s on the continuous clock |
+| `spectrum`, `coherence` | `segmentSec` | 2 | `timeBase "range"`: the length of each segment (a trial), s; positive |
+| all three | `taperMode` | `"TWK"` | `"TWK"` (`TW` and `K` as given) or `"Wp"` (the half bandwidth `W` Hz and `p`, over the trial: `TW = W T`, `K = 2 TW - p`) |
+| all three | `TW`, `K` | 3, 5 | `taperMode "TWK"`: the time-bandwidth product and the number of tapers (`K <= 2 TW - 1`) |
+| all three | `W`, `p` | 4, 1 | `taperMode "Wp"` |
+| all three | `pad` | 0 | the FFT padding (-1, 0, 1, ...) |
+| all three | `fpass` | `[0 100]` | `[fmin fmax]` Hz (`fmax` `Inf` = Nyquist) |
+| `spectrum`, `coherence` | `err` | `"jackknife"` | the error bars: `"none"`, `"theoretical"` or `"jackknife"` (a coherence: the jackknife gives the band and the level independent signals stay under, `"theoretical"` the level alone) |
+| `spectrum`, `coherence` | `errP` | 0.05 | the error bars' p (0.05: 95%) |
+| all three | `detrend` | `"constant"` | each trial's trend removed: `"none"`, `"constant"` or `"linear"` |
+| `spectrum`, `spectrogram` | `scale` | `"db"` | `"db"` (10 log10), `"log"` (a log y axis; a spectrogram: dB too) or `"linear"` (as is; a spectrogram baseline then in its own units) |
+| `spectrum`, `coherence` | `spikeFs` | 1000 | spike layers: the time grid the spike trains are analyzed on, Hz |
+| `coherence` | `overTime` | `false` | a coherogram of the first pair (two signal layers) |
+| `spectrogram`, `coherence` | `movingwin` | `[0.5 0.05]` | `[window step]` s (a coherence only with `overTime`) |
+| `spectrogram` | `baseline` | `Mode "none"`, `Window [-0.5 0]` | `Mode` `"none"`, `"db"`, `"percent"`, `"zscore"` or `"ratio"` (`chronuxNormalize`'s) against the power in `Window`, which must lie inside the panel's window |
+| `coherence` | `showPhase` | `true` | the phase strip under the magnitude (not over time) |
+| `spectrum`, `coherence` | `yLim` | `[]` | the power or coherence axis; a coherence `[]` = `[0 1]` |
+| `spectrogram`, `coherence` | `cLim` | `[]` | the color scale; a coherogram `[]` = `[0 1]` |
+| `spectrogram`, `coherence` | `group` | 1 | the trial group drawn (a coherence: with `overTime`) |
+
+`cfg.validate()` checks the options with `chronuxSettings`' own rules and
+reports its message at `<figure>.<panel>.options` (the tapers, `fpass`, `err`
+and `errP`, `detrend`, `scale`, `spikeFs`, the moving window, the range and
+segment, a spectrogram's baseline `Mode` and its `Window` inside the panel's
+window, which must therefore be a fixed one unless the panel is on the range
+base), `yLim` and `cLim` `[]` or ascending, and `group` a whole number. Layers
+are errors at `<figure>.<panel>.layers`: a coherence panel without exactly two
+enabled layers, a spectrogram without a signal layer; `overTime` with a spike
+layer is an error at `<figure>.<panel>.options.overTime`. A coherence panel
+whose fixed seed layer keeps several channels or units warns (only the first
+is the seed). The templates `"spectrum"`, `"spectrogram"` and `"coherence"`
+give a panel with the type's default layer; the coherence one holds two, the
+observed unit and the LFP of its channel (a spike-field coherence).
+
+The converter ([below](#converting-a-plot)) has no spectral plot kinds to
+convert. The generated standalone script runs a figure through `figureCompute`
+and `renderFigure` like any other, so a spectral panel needs Chronux on the
+path of the MATLAB that runs it.
 
 ### Panel options
 
@@ -1328,11 +1459,11 @@ The options named `bins`, `measure`, `baseline`, `auroc`, `maskAfterStop` and
 | `continuous` | `errorType` | `"sem"` | the band over the epochs: `"off"`, `"sem"`, `"std"`, `"ci95"` or `"iqr"`; `"ci95"` and `"iqr"` need the Statistics and Machine Learning Toolbox ([Aux signals](#aux-signals)) |
 | `continuous` | `stackSpacing` | `NaN` | `"stacked"`: the offset between rows; `NaN` = 1.2 x the 90th percentile of the traces' ranges |
 | `continuous` | `trials` | `"off"` | each epoch's trace: `"off"`, `"faint"` (paler and thinner than the mean, behind it and its band) or `"only"` (the traces alone, no mean or band) |
-| `continuous` | `maxTrials` | `Inf` | `trials` other than `"off"`: the most epochs drawn, picked evenly over their order; a whole number >= 1 (`Inf` = every one) |
+| `continuous` | `maxTrials` | 100 | `trials` other than `"off"`: the most epochs drawn, picked evenly over their order; a whole number >= 1 (`Inf` = every one) |
 | `continuous` | `yLim` | `[]` | the amplitude axis |
 | `heatmap` | `bins`, `measure`, `baseline` | as the PSTH's | a spike layer: as the PSTH, `baseline.Mode "auroc"` included; a signal layer: `baseline.Mode` `"none"` or `"subtract"` and `bins`, `measure` unused |
 | `heatmap` | `auroc` | `defaults("Auroc")` | a spike layer, baseline `Mode "auroc"`: the PSTH's `auroc` settings. A signal layer with `"auroc"` is an error |
-| `heatmap` | `rows` | `"items"` | `"items"`: a row per unit or channel of the layer; `"trials"`: a row per epoch of one unit, every trial group (a spike or train layer that follows the observation or is fixed to one unit; no auROC baseline) |
+| `heatmap` | `rows` | `"items"` | `"items"`: a row per unit or channel of the layer; `"trials"`: a row per epoch of one unit, every trial group (a spike or train layer that follows the observation or is fixed to one unit; no auROC baseline). A layer that follows the observation through a channel (a channel observation, or a layer of the other spike source) keeps every unit on it, so validate refuses it; one that still keeps several is skipped at run time |
 | `heatmap` | `order` | `"probe"` | rows `"items"`: `"probe"` (the style's `SortDepth` / `SortShank`), `"peak"` (by the time of each row's maximum) or `"modulation"` (by each unit's mean auROC in the call window, highest first; only with the auROC baseline of a spike layer). Not used for `"trials"` |
 | `heatmap` | `rasterSort` | `""` | rows `"trials"`: the order of the epochs, as a raster's: `""` (trial order), `"stop"`, `"event"` or a trial parameter |
 | `heatmap` | `rasterSortEvent` | `[]` | rows `"trials"`, `rasterSort "event"` (required then): the [event reference](#eventref) whose latency orders the rows |
@@ -1363,6 +1494,7 @@ The options named `bins`, `measure`, `baseline`, `auroc`, `maskAfterStop` and
 | `tuning` | `baseline` | `Mode "none"`, `Window [-0.2 0]` | as the rate panel's |
 | `tuning` | `yLim` | `[]` | the rate axis |
 | `tuning` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | the first unit's waveform in a box in the panel |
+| `spectrum`, `spectrogram`, `coherence` | | | the [Chronux options](#spectral-panels), above; none is a common field |
 
 ### Common options
 
@@ -1396,7 +1528,7 @@ in order):
 | `corrmap` | `bins`, `baseline` |
 | `rate` | `measure`, `baseline` |
 | `tuning` | `measure`, `baseline`, `waveform` |
-| `probemap` | none |
+| `probemap`, `spectrum`, `spectrogram`, `coherence` | none |
 
 - **Linking.** `panel.common` is `true` (linked) or `false` (the panel draws its
   own `options`). Every other option of a linked panel (a PSTH's `histStyle`,
@@ -1458,8 +1590,9 @@ it accepts. `EphysAnalysisConfig.sourceCategories()`:
 `units` and `detected` are in two categories: the panel type decides which
 (`EphysAnalysisConfig.categoryOf(source, type)` is the category the type
 accepts for the source, or `""`). An `events` layer is `point` on every panel
-that shares the time axis (raster, PSTH, continuous, heat map) and nothing
-elsewhere. A heat map takes `point` or `continuous` layers.
+that shares the time axis (raster, PSTH, continuous, heat map, spectrogram) and
+nothing elsewhere (so not on a firing rate, tuning, spectrum or coherence
+panel). A heat map takes `point` or `continuous` layers.
 
 ### What a layer reads
 
@@ -1507,7 +1640,9 @@ A panel shares the figure's time axis when its type does (`SharesTime`) and its
 - A time panel with a `ref` or `window` of its own keeps its own x axis and
   label, and the stack above it is labeled at its own bottom.
 - Events layers go only on the panels of these types, since marks need a time
-  axis.
+  axis. A spectrogram shares it (it is always on the aligned base). A coherogram
+  (a coherence panel with `overTime`) is drawn on the figure's time axis too,
+  but takes no events layers: only the types with `SharesTime` in the table do.
 
 ### Editing the grid
 
@@ -1602,7 +1737,9 @@ map without a probe map, a tuning curve without paired trials, without a
 parameter to tune over (`no numeric trial parameter to tune over`: `param` is
 `""`, the selection has no `groupBy` parameter and no trial parameter is numeric
 with two or more values) or whose `param` or `seriesParam` the trials lack, `no trial parameter
-X`) and a layer's (`no sorted units`, `no <SIGNAL> extract`,
+X`; a spectrum, spectrogram or coherence panel without Chronux on the path,
+`Chronux is not on the path`, though one on the `"range"` time base needs none
+of the alignment's lines, trials or parameters) and a layer's (`no sorted units`, `no <SIGNAL> extract`,
 a missing line, `no paired trials`, a missing trial parameter, `no stop event in
 the window`, a following layer that cannot follow, a source the panel type does
 not draw). A figure that passes may still fail for one observation: `computeFigure`
@@ -1621,7 +1758,7 @@ epochs, `[E, G] = epochTable(src, spec.ref, Window=, Selection=)`, with the hull
 the baseline windows and the raster sort parameters of the panels on the figure's
 alignment, when any panel with an enabled layer is aligned, an observation of one
 trial group (a `perGroup` row) keeping that group's epochs only (`G` one row, `n`
-recounted); a panel with its own `ref` or `window` has its own `epochTable` with the
+recounted; a group with none left is no error, see `F.skip` below); a panel with its own `ref` or `window` has its own `epochTable` with the
 figure's selection (its groups matched to `G` by label, and cut to the observation's
 group likewise); a panel with a `selection` of its own has its own `epochTable` and
 groups, not matched to `G` and not cut to the observation's group; then each panel's
@@ -1632,6 +1769,7 @@ compute through `figurePanelRegistry`.
 | `kind`, `id`, `spec`, `dataset`, `created` | `"figure"`, the figure's id, the spec computed, the dataset's name, a time stamp |
 | `observation` | the observation as a struct (`kind`, `label`, `unitId`, `channel`, `column`, `shank`, `depth`, `meta`, `group`, `groupLabel`) |
 | `epochs`, `groups` | the figure's epochs `E` and trial groups `G` (one group for a per-group observation); `[]` when no panel is aligned |
+| `skip` | `""`, or why a per-group observation has no epoch left (`no epoch of trial group X here`: its group lost every epoch, say to the panels' baselines); the panels on the figure's selection are skipped with it and print it, and the figure still draws, with `epochs` empty and `G` that group with `n` 0 |
 | `panels(k)` | one per panel of the spec, in order: `id`, `type`, `sharesTime`, `epochs` (the panel's own epochs; `[]` = the figure's), `groups` (`[]` for an unaligned panel), `ownSelection` (`true`: its groups are its own selection's, drawn in colors of their own with a legend inside the panel), `skip` (`""` or why the panel is not computed: every layer then carries the reason) and `layers` |
 | `panels(k).layers(j)` | one per layer of the panel, same order: `name` (the layer's, or automatic), `source`, `binding`, `category`, `eventsAs`, `skip` (`""` = computed; `"disabled"`; or a reason), `R` (the result; `[]` when skipped) and `meta` (the units' or channels' table) |
 
@@ -1641,7 +1779,11 @@ are drawn. `R` is the result of the call the plots make: a point layer's
 `epochEvents`; drawn as a train, a one-unit `spikePSTH` result of the line's
 events), a signal layer's `evokedPotential`, a waveforms panel's `unitWaveforms`, a
 probe map's `unitSummary` and `probeMapValues`, a correlation map's
-`unitCorrelation`; `aggregate "mean"` adds `R.layerMean`; a continuous panel's
+`unitCorrelation`, a spectrum's `chronuxSpectrum` (spike trains:
+`chronuxSpikeSpectrum`), a spectrogram's `chronuxSpecgram` and a coherence's
+`chronuxCoherence`, `chronuxSpikeField` or `chronuxUnitCoherence`, the last on
+the seed layer (the partner layer's `R` is a marker of `kind
+"coherencePartner"`); `aggregate "mean"` adds `R.layerMean`; a continuous panel's
 `trials` adds the epochs' traces (`R.data`, `R.trialEpochs`, `R.trialGroup`), and a
 heat map of trials keeps the raster and adds `R.trialMatrix` (epochs by bins),
 `R.trialOrder` (top row first), `R.trialGroup` and `R.trialRowsName`. The band's error type
@@ -1694,7 +1836,9 @@ renderers never create figures. The `Design`, `UserAesthetics`, `Editable` and
 
 `h` holds `layout` (the tiled layout; `[]` for an axes target), `axes` (the panels'
 axes drawn, in panel order), `panels` (one per panel of the spec: `id`, `type`,
-`axes`, empty when not drawn) and `title` (the title text). `renderFigure:Mismatch`
+`axes`, empty when not drawn, and `extraAxes`, the phase axes of a coherence panel
+drawn under its magnitude in its tile, dressed with the type's looks; empty for
+every other panel) and `title` (the title text). `renderFigure:Mismatch`
 when `F`'s panels are not the spec's.
 
 ### A figure in JSON
@@ -1745,7 +1889,7 @@ not drawn: the figure's `common` block is. A file written by hand may leave out 
         "ref": "default", "window": "default", "selection": "default", "common": true,
         "layers": [ { "name": "", "enabled": true, "source": "LFP", "binding": "observation", "aggregate": "each", "...": "..." } ],
         "options": { "baseline": { "Mode": "none", "Window": [-0.2, 0] }, "display": "lines", "statistic": "mean",
-                     "transform": "none", "errorType": "sem", "stackSpacing": "NaN", "trials": "off", "maxTrials": "Inf", "yLim": [] } } ],
+                     "transform": "none", "errorType": "sem", "stackSpacing": "NaN", "trials": "off", "maxTrials": 100, "yLim": [] } } ],
     "style": { "LineWidth": 1.2, "...": "..." }, "aesthetics": [] } ]
 ```
 
@@ -1822,12 +1966,18 @@ Errors:
   `stackSpacing`, `trials` (`off`, `faint` or `only`), `maxTrials` (a whole number
   >= 1, or `Inf`), `yLim`; a heat map's `rows` (`items` or `trials`; with `trials`:
   the map layer a spike or train layer, not a signal, that follows the observation
-  or is fixed to one unit (one id, or `maxUnits` 1), no auROC baseline, and the
+  or is fixed to one unit (one id, or `maxUnits` 1; a layer that follows the
+  observation through a channel, which keeps every unit on it, is refused at
+  `<figure>.<panel>.layers(<j>).binding`), no auROC baseline, and the
   raster's sort rules for `rasterSortOrder` and `rasterSortEvent`), `bins`, `measure`, `baseline` and `auroc` for a
   spike layer (a signal layer with baseline `Mode "auroc"` is an error: spikes only),
   `baseline` for a signal layer, `order` (`probe`, `peak`, or `modulation` only with
   the auROC baseline of a spike layer), a whole `group` >= 1, `cLim`; a waveforms
-  panel's `layout` (`grid` or `probe`); a probe map's `value` and `cLim`; a
+  panel's `layout` (`grid` or `probe`); a spectral panel's options by
+  `chronuxSettings`' rules (at `<figure>.<panel>.options`, with its message), its
+  `yLim`, `cLim` and `group`, a coherence panel's two enabled layers, no spike
+  layer in a coherogram and a spectrogram's signal layer ([Spectral
+  panels](#spectral-panels)); a probe map's `value` and `cLim`; a
   correlation map's `metric`, `correlation`, `bins` (for `peak`), `baseline`, `group`,
   `cLim`; a rate panel's `measure`, `baseline` (`Mode` `none`, `subtract`, `ratio` or
   `zscore`), `display` (`bar`, `box` or `points`) and `yLim`; a tuning panel's `measure`,
@@ -1850,6 +2000,8 @@ Warnings:
 - a waveforms panel in the probe layout whose first enabled layer follows the
   observation (`<panel>.options.layout`): it draws the one unit, not the probe's
   units, so bind it to fixed units and ring the observed unit with a following layer;
+- a coherence panel whose fixed seed layer keeps several channels or units
+  (`<panel>.layers(<j>)`): only the first is the seed, so fix the layer to one;
 - an explicit `unit` or `channel` observation with no layer following it (the figure
   is the same for every one); `datasets "list"` with no `datasetKeys`;
 - `observe.perGroup` while the figure's selection groups by nothing (`<figure>.observe.perGroup`:
@@ -1914,7 +2066,9 @@ as both name files through `{Plot}` ([validation](#validating-figures)).
 | `tuning`, overlay | dataset | a tuning panel with a fixed `units` layer (the filter), `aggregate "mean"`, the waveform inset off; `param` and `seriesParam` |
 | `behavior` | none | not converted: `EphysAnalysisConfig:NotConvertible` (no panel type draws it yet) |
 
-An unknown plot id is `EphysAnalysisConfig:NoPlot`. A PSTH's or raster's **aux
+An unknown plot id is `EphysAnalysisConfig:NoPlot`. No plot kind draws what a
+[spectral panel](#spectral-panels) does (the spectra live in the app's Chronux
+tab, not in `Plots`), so the converter makes none. A PSTH's or raster's **aux
 signal** (`aux.mode` not `off`) becomes a continuous panel of a fixed `AUX` layer
 below the unit's panels (above them for `placement "above"`), half as high as
 each of them: `"channels"` is `aggregate "each"`, `"magnitude"` is
@@ -2133,11 +2287,11 @@ figure alone is enough), a figure id that names a plot's files (`PSTH_1`, `psth 
 beside the plot `psth_1`), and the `{Plot}` warning counting enabled figures
 (their `{Kind}` is `figure`).
 
-`test_EphysAnalysisFigures`, in eight sections. Config (1 to 6): the defaults of
+`test_EphysAnalysisFigures`, in nine sections. Config (1 to 6): the defaults of
 Figure, FigureCommon, Panel, Layer and Observe (`common` after `grid` in a
 figure, `selection` after `window` and `common` after it in a panel; `FigureCommon` with its `auroc` block;
-the continuous `trials` and `maxTrials`, the heat map's `rows` and raster sort fields and `observe.perGroup`);
-`panelTypes` (nine types, with the rate and tuning rows' flags), `sourceCategories`,
+the continuous `trials` and `maxTrials` (100), the heat map's `rows` and raster sort fields and `observe.perGroup`);
+`panelTypes` (twelve types, with the rate, tuning and spectral rows' flags), `sourceCategories`,
 `categoryOf`, `observeKind`, `defaultLayer` (an unknown type is a `BadValue`),
 `commonFields` (six, `auroc` among them) and `commonFieldsOf` (the rate and
 tuning rows); `addFigure`'s templates (the `"rate"` and `"tuning"` ones
@@ -2164,7 +2318,7 @@ panel's `layout` and the probe layout's warning; a rate panel's `display`,
 `measure`, baseline mode and `yLim`; a tuning panel's `seriesParam`, `param`
 and waveform; a `"between"` window on a rate and a tuning panel; an unlinked
 PSTH's own auROC windows against its own bins; a continuous panel's `trials` and
-`maxTrials`; a heat map of trials, which may follow the observation, must hold one unit and no signal
+`maxTrials`; a heat map of trials, which may follow the observation (but not through a channel), must hold one unit and no signal
 layer or auROC baseline and needs its sort event; a panel's own selection checked as the figure's and
 refused on an unaligned type; the `perGroup` warning),
 and the Plots style messages
@@ -2184,10 +2338,14 @@ PSTH equal to `computePlot`'s, a stacked PSTH, the waveforms probe layout with
 a following layer to ring, a layer skipped while its panel is drawn, `PollFcn`
 and cancel, and one observation computed faster than the plot over every unit;
 per-trial continuous traces, every epoch's with their epochs and groups and averaging to the group's
-mean, and `maxTrials` picking evenly; a heat map of trials, each row the raster binned by hand, each
-group's rows averaging to its PSTH, in a raster's sort order; a PSTH on a selection of its own, with its
+mean, and `maxTrials` (default 100) picking evenly; a heat map of trials, each row the raster binned by hand, each
+group's rows averaging to its PSTH, also under `maskAfterStop` with the stop inside a bin, a layer that
+keeps two units skipped with its reason, the trains the rows were binned from not kept in the result, in a raster's
+sort order; a PSTH on a selection of its own, with its
 own epochs and one group beside the raster on the figure's; a per-group observation keeping its group's
-epochs only, equal to that group's PSTH, while a panel with a selection of its own is not cut).
+epochs only, equal to that group's PSTH, while a panel with a selection of its own is not cut, and one
+whose group has lost every epoch drawing with `F.skip` and the panels' notes instead of failing; the
+groups `perGroup` lists agreeing with those compute reads, after the panels' baseline hull).
 Render (8):
 `figureTiles`, a compute and a draw function for every panel type, every type
 drawn into an axes, uiaxes, figure, panel and grid layout with every component
@@ -2206,7 +2364,17 @@ editing hooks (`Editable`, `OnRemember`, the redraw). Compute (7) also checks `f
 against `computeFigure` (equal results, `Check=` called at the checkpoints and
 what it throws stopping the compute), `figureOutputName` (`{Plot}`, `{Unit}`,
 `{Index}`, `{Group}`, the `_<Unit>` and `_<Group>` suffixes, the short labels of units, detections and
-channels) and `figureCaption` (`one figure per trial group`).
+channels) and `figureCaption` (`one figure per trial group`). Render (8) also checks that the trial
+traces of a continuous panel are drawn under each mean. Spectral (9) is in two parts. The config side needs no
+Chronux: the three templates validate clean, and validate refuses a coherence panel with one layer, a
+bad taper (`TW = -1`), a spectrogram baseline window outside the panel's window, a coherogram of spikes
+and a range spectrum with a segment of 0, accepts a `zscore` spectrogram baseline and a `"between"`
+window on the range base, and `figureFor` gives `sharesTime` to a spectrogram and to a coherogram only.
+With Chronux on the path (`toolboxes/chronux`, added for the section; skipped with a note without it) the
+section computes, on section 7's fixture, a spectrum of the observed unit's LFP channel and of the unit, a
+spectrogram, coherences LFP x LFP, spike-field and unit-unit, and the range time base, draws them (dB, a
+spectrogram on the raster's time axis, the phase axes, every role known, a coherence in one axes with no
+phase strip), and checks the skip reason with Chronux off the path.
 
 `test_plotToFigure`, 39 checks in eight sections (and 6b), on hand-made configs: a PSTH grid with its
 raster, event marks, waveform inset and aux magnitude, field by field (observe,

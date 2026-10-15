@@ -396,7 +396,8 @@ files the pipeline exports for it. The analysis app's
 [Chronux tab](EphysAnalysisApp.md#chronux-tab) calls Chronux's `mtspectrumc`,
 `mtspecgramc`, `coherencyc`, `cohgramc`, `mtspectrumpt`, `coherencycpt`,
 `coherencypt` and `getfgrid` on a dataset's Chronux file (it needs Chronux on
-the path to compute). Chronux's own `findpeaks` and `jackknife` shadow
+the path to compute); the analysis [figures](EphysAnalysisConfig.md#spectral-panels)'
+spectral panels (power spectrum, spectrogram, coherence) use it too. Chronux's own `findpeaks` and `jackknife` shadow
 MATLAB's while it is on the path. Producing the files never calls either
 toolbox; `ChronuxDataset.hasChronux` / `FieldTripExport.hasFieldTrip` report
 whether they are on the path, and the FieldTrip export validates its

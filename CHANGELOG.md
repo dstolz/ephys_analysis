@@ -156,7 +156,29 @@ says how to cut a release.
   Options a **Trials** row with **at most**, a heat map's a **Rows** row (the raster sort rows show for
   trials while **Row order** and **Group shown** hide), and the picker lists each unit's groups. The tab's
   auto-preview limit is now the app's `FigureAutoPreviewSeconds` property (2 s) so its tests no longer
-  depend on machine load. See [Figures](documentation/EphysAnalysisConfig.md#figures) and the
+  depend on machine load. `maxTrials` defaults to 100 (`Inf` still draws every epoch), the traces always
+  sit under every band and mean, a heat map of trials keeps one unit (a layer that follows the observation
+  through a channel is a Validate error, and one that still keeps several is skipped), its rows average
+  exactly to the group's PSTH under `maskAfterStop`, and a per-group observation whose group loses every
+  epoch to the panels' baselines draws with notes (`F.skip`) instead of failing. See
+  [Figures](documentation/EphysAnalysisConfig.md#figures) and the
+  [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
+- Figures: spectral panels, three new panel types that draw Chronux analyses of the observed unit or
+  fixed channels and units. *Power spectrum* (`spectrum`) overlays each layer's multitaper spectra
+  (point and continuous layers, groups overlaid); *Spectrogram* (`spectrogram`) draws one channel's power
+  over time from the event and frequency for one trial group on the figure's time axis, optionally against
+  a baseline (`db`, `percent`, `zscore`, `ratio`); *Coherence* (`coherence`) takes exactly two layers, the
+  seed then its partner (signal x signal, spikes x field, spikes x spikes, signal x spikes), with the
+  phase in a strip under the magnitude (`showPhase`; `renderFigure` returns it as `extraAxes`) or, with
+  `overTime`, a coherogram. Their options are `chronuxSettings`' (tapers, `fpass`, `err`, `detrend`,
+  `scale`, `spikeFs`, `movingwin`, and the range time base that cuts the whole recording into segments
+  clear of artifact periods instead of using the figure's epochs); they need Chronux on the path, else the
+  panel is skipped with `Chronux is not on the path` and the rest of the figure draws. The Figures tab
+  adds the Chronux rows to the Options section, a new coherence panel gets the observed unit and its
+  channel's LFP, events layers are offered only on panels that share the time axis (no longer on firing
+  rate, tuning, spectrum or coherence panels), and a blank figure previews without failing. Spectral
+  panels are not in the plot converter (no plot kind draws them). See
+  [Spectral panels](documentation/EphysAnalysisConfig.md#spectral-panels) and the
   [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
 - Kilosort4 parameter details on the Sorting tab. Each parameter's name is a link that opens a modal
   window with its definition, function, impact, tuning and defaults (this pipeline's and Kilosort4

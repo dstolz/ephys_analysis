@@ -9,13 +9,13 @@
 %   selectUnits, epochTable, spikePSTH, unitQualityCriteria.
 
 %% Parameters
-projectRoot = "D:\EPHYS";                % project folder (recordings, or the pipeline's outputs)
-alignLine   = "Trial";                   % digital line the histograms are aligned to ("Trial" = paired trial line)
+projectRoot = "S:/ANALYSIS_BACKUPS/Daniel/EPHYS/OFC/Analysis";                % project folder (recordings, or the pipeline's outputs)
+alignLine   = "Stim";                   % digital line the histograms are aligned to ("Trial" = paired trial line)
 alignEdge   = "onset";                   % "onset" | "offset" of each interval
-windowSec   = [-0.5 1.0];                % [pre post] s around the event
+windowSec   = [-1 1.0];                % [pre post] s around the event
 binSec      = 0.010;                     % bin width, s
 measure     = "rate";                    % "rate" (spikes/s) | "count" (per bin per epoch) | "probability"
-groupBy     = string.empty(1, 0);        % 0-2 trial parameters to split trials by, e.g. "Depth"
+groupBy     = "Depth";        % 0-2 trial parameters to split trials by, e.g. "Depth"
 unitClasses = "su";                      % sorted-unit classes kept: single units
 useQuality  = true;                      % also require the good-unit quality criteria
 criteria    = unitQualityCriteria();     % thresholds (isi violations, presence ratio, amplitude cutoff, ...)
@@ -31,13 +31,12 @@ fprintf('%d dataset(s) in %s\n', P.NumDatasets, projectRoot);
 % Unit selection: classes, plus the quality criteria when useQuality
 usel = EphysAnalysisConfig.defaults("UnitSelection");
 usel.classes = unitClasses;
-q = criteria;
-q.enabled = useQuality;
-usel.quality = q;
+criteria.enabled = useQuality;
+usel.quality = criteria;
 
-ref = eventRef(line=alignLine, edge=alignEdge);
-win = epochWindow(pre=windowSec(1), post=windowSec(2));
-sel = trialSelection(groupBy=groupBy);
+ref = eventRef(line=alignLine, edge=alignEdge);             % define which digital-line event to align each epoch
+win = epochWindow(pre=windowSec(1), post=windowSec(2));     % define epoch window
+sel = trialSelection(groupBy=groupBy,maxGroups=100);        % define how trials should be selected
 
 %% Histograms, one dataset at a time
 units = struct([]);
@@ -74,8 +73,10 @@ for k = 1:P.NumDatasets
     % Epochs around each event, then the histograms
     [E, G] = epochTable(src, ref, Window=win, Selection=sel);
     if height(E) == 0
-        fprintf('  %s: no "%s" events, skipped\n', ds.Name, alignLine);
+        fprintf(2,'  %s: no %s events, skipped\n', ds.Name, alignLine);
         continue
+    elseif height(E) == 1
+        fprintf(2,'  %s: only 1 %s event, skipped\n', ds.Name, alignLine)
     end
     R = spikePSTH(st, E, Window=windowSec, BinSec=binSec, Measure=measure, ...
         Raster=false, Groups=G, Meta=meta);
@@ -119,3 +120,56 @@ Hist.units = units;                      % 1 x nUnits struct
 Hist.created = datetime('now');
 if isempty(units); nDs = 0; else; nDs = numel(unique([units.dataset])); end
 fprintf('%d good single unit(s) from %d dataset(s)\n', numel(units), nDs);
+
+%% Arrange the data to a single response matrix, R
+
+grps = arrayfun(@(a) a.groups,units,'uni',0).';
+ugrps = unique([grps{:}]);
+
+sessionDate = arrayfun(@(a) a.sessionDate, units).';
+uSessionDate = unique(sessionDate);
+sessionNum = 1:numel(uSessionDate);
+
+depth = str2double(extractAfter(ugrps, "Depth = "));
+[depth,i] = sort(depth,'descend');
+ugrps = ugrps(i);
+
+
+nUnits = numel(units);
+
+R = nan(length(Hist.t),length(ugrps),nUnits); % preallocate
+
+for i = 1:nUnits
+    gind = ismember(ugrps,units(i).groups);
+
+    R(:,gind,i) = units(i).rate;
+end
+
+%% Look at data
+
+
+tiledlayout('flow');
+for i = 6:length(sessionNum)
+
+    sind = sessionDate == uSessionDate(i);
+
+    R_mean = mean(R(:,:,sind),3,'omitnan');
+
+    % R_mean = smoothdata(R_mean,1,"gaussian",[2 2]);
+
+    nexttile
+    imagesc(Hist.t,1:length(ugrps),R_mean.')
+
+    yticks(1:length(ugrps));
+    yticklabels(depth);
+    ylabel("depth");
+
+    xlabelf("time re %s",alignLine)
+    xline(0,LineWidth=2,Color = 'w')
+
+    titlef('Session #%d; n = %d',sessionNum(i),sum(sind))
+    colorbar
+end
+
+ax = findobj(gcf,'type','axes');
+set(ax,'clim',[0 60])

@@ -394,8 +394,8 @@ says how to cut a release.
   [Aux signals](documentation/EphysAnalysisConfig.md#aux-signals).
 
 - Check boxes on the analysis app's plot tree: a plot's box is ticked while the plot is enabled
-  (double-click the plot to flip it), a group's is ticked when all its plots are and half-filled when some
-  are. Above the tree, **All**, **None** and **Invert** act on every plot, and a drop-down naming the plots
+  (click the box to flip it), a group's is ticked when all its plots are and half-filled when some
+  are (click it to tick or untick them all). Above the tree, **All**, **None** and **Invert** act on every plot, and a drop-down naming the plots
   selected, or the plots of a plot type, source or layout, with **Check**, **Uncheck** and **Only** (tick
   those and untick the rest). The boxes are icons on the multi-select tree, since MATLAB's check-box tree
   cannot select several nodes for the editor's edit-together.
@@ -1203,6 +1203,11 @@ says how to cut a release.
 
 ### Fixed
 
+- Unit quality criteria failed with `The length of the sorted recording is unknown (no .bin, no recording
+  metadata ...)` (`EphysDataset:unitQuality:NoLength`, from `selectUnits`) on a dataset that holds only the
+  pipeline's outputs, such as a backup share (`S_ExampleSpikeAnalysis` over `S:/ANALYSIS_BACKUPS/...`).
+  `selectUnits` now asks the dataset only when its recording is there; otherwise it takes the length from
+  the source (`fs` x `durationSec`) and leaves SNR unknown, as it does without a dataset.
 - The pipeline app's output-copy progress line could fail with `First input must be a string array or cell
   array of character vectors` (`showTransferProgress`, from `pollTransfers`) when the copies finished
   while it was being drawn: the monitor timer's `pollTransfers` emptied the list of transfers between the

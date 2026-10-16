@@ -93,6 +93,21 @@ movefile(pf + ".off", pf);
 check(sNo.probeFile == "" && sNo.probeSource == "sorting" && isstruct(sNo.probe) && all(isfinite(mdS.y)) ...
     && isequal(mdS(:, ["shank" "x" "y"]), mdP(:, ["shank" "x" "y"])) && isequaln(muS, muP), ...
     'without a probe file the probe map is the sort''s: detections get the same sites, sorted units are unchanged');
+[~, folderName] = fileparts(char(src.folder));    % the pipeline's outputs without the recording (as on a backup share)
+outOnlyDir = fullfile(root, 'outputs_only', folderName);
+copyfile(char(src.folder), outOnlyDir);
+delete(fullfile(outOnlyDir, '*.rhd'));
+dsOut = EphysDataset(outOnlyDir);
+outOnly = dsOut.outputs();
+srcOut = loadAnalysisSource(outOnly, Key=F.keys(1));
+qOut = EphysAnalysisConfig.defaults("UnitSelection").quality;
+qOut.enabled = true;
+qOut.snrMin = 1;
+[~, mq] = selectUnits(srcOut, struct('source', "units", 'classes', string.empty(1,0), 'quality', qOut));
+check(~dsOut.hasRecording() && srcOut.hasUnits, 'the output folder alone is a dataset with no recording');
+check(height(mq) >= 1 && all(ismember(["firingRate" "snr" "qualityPass"], mq.Properties.VariableNames)), ...
+    'quality on a dataset with no recording: the length is the source''s (fs x durationSec), no error');
+check(all(isnan(mq.snr)), 'and no SNR (the noise needs the recording)');
 bare = fullfile(root, 'X-1');                     % an extract alone: no manifest, no behavior
 mkdir(bare);
 Y = struct('LFP', zeros(250, 2, 'single'));

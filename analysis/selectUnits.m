@@ -198,10 +198,11 @@ function U = withQuality(src, q)
 %   sort's length and, when an SNR threshold is set, the recording's noise.
 %   Without it, EphysDataset.unitQualityOf on the recording's length as
 %   SRC knows it (fs x durationSec), and no SNR. Both use the sort
-%   folder's quality_metrics.json when it is current.
+%   folder's quality_metrics.json when it is current. A dataset that holds
+%   only pipeline outputs (no recording) takes the second way.
 out = src.outputs;
 [U, info] = out.readUnits();
-if ~isempty(out.Dataset)
+if ~isempty(out.Dataset) && out.Dataset.hasRecording()
     U = out.Dataset.unitQuality(U, info, Noise=isfinite(q.snrMin));
     return
 end

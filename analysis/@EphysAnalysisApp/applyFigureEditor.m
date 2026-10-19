@@ -142,6 +142,7 @@ if any(row)
     label = PT.Label(row);
 end
 E.panelTitle.Value = char(p.title);
+E.panelBox.Value = char(pickFrom(p.box, string(E.panelBox.ItemsData), "auto"));
 E.selPanel.Text = sprintf("%s  (%s; row %d, column %d)", p.id, label, p.row, p.col);
 E.rowSpan.Value = min(E.rowSpan.Limits(2), max(1, round(p.rowSpan)));
 E.colSpan.Value = min(E.colSpan.Limits(2), max(1, round(p.colSpan)));
@@ -194,6 +195,7 @@ if isfield(op, 'rasterSort')
     setSequenceHolder(E.sortSeqText, struct('sequence', se.sequence, 'alignStep', se.alignStep));
     E.rasterByGroup.Value = op.rasterByGroup;
 end
+if isfield(op, 'yTicks'); E.yTicks.Value = logical(op.yTicks); end
 if isfield(op, 'maskAfterStop'); E.maskAfterStop.Value = op.maskAfterStop; end
 if isfield(op, 'histStyle')
     offerItems(E.histStyle, ["bar" "line"], op.histStyle);

@@ -115,6 +115,7 @@ j = obj.SelectedPanel;
 if j >= 1 && j <= numel(fig.panels)
     p = fig.panels(j);
     p.title = string(E.panelTitle.Value);
+    p.box = string(E.panelBox.Value);
     % the place and sizes only when edited: the controls cannot show every stored value (Validate reports a bad one)
     if E.rowSpan.Value ~= shownSpan(p.rowSpan, E.rowSpan.Limits); p.rowSpan = E.rowSpan.Value; end
     if E.colSpan.Value ~= shownSpan(p.colSpan, E.colSpan.Limits); p.colSpan = E.colSpan.Value; end
@@ -192,6 +193,7 @@ if isfield(op, 'rasterSort')
     op.rasterSortOrder = string(E.rasterSortOrder.Value);
     op.rasterByGroup = logical(E.rasterByGroup.Value);
 end
+if isfield(op, 'yTicks'); op.yTicks = logical(E.yTicks.Value); end
 if own('maskAfterStop'); op.maskAfterStop = logical(E.maskAfterStop.Value); end
 if isfield(op, 'histStyle')
     op.histStyle = string(E.histStyle.Value);

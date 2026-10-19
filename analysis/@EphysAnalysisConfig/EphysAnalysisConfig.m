@@ -34,7 +34,8 @@ classdef EphysAnalysisConfig
     %               panel's alignment or re-link every panel's.
     %               observe.perGroup draws each observation once
     %               per trial group of the figure's selection. A panel
-    %               (defaults("Panel")): id, type, title, row, col,
+    %               (defaults("Panel")): id, type, title, box (the axes'
+    %               box: "auto" = the design's, "on", "off"), row, col,
     %               rowSpan, colSpan, ref, window, selection (its own:
     %               its own groups, colors and legend), layers, options
     %               (the type's DefaultOptions), note

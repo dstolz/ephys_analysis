@@ -219,6 +219,9 @@ check(isequaln(P.note, EphysAnalysisConfig.defaults("Note")) && isstruct(P.overl
     && isequal(fieldnames(P.overlays), fieldnames(EphysAnalysisConfig.defaults("Overlay"))) ...
     && find(fnP == "note") == find(fnP == "options") + 1 && find(fnP == "overlays") == numel(fnP), ...
     'Panel.note: a Note (no text); Panel.overlays: an empty list of Overlays; both after options');
+check(P.box == "auto" && find(fnP == "box") == find(fnP == "title") + 1 && T.DefaultOptions{T.Type == "raster"}.yTicks == false ...
+    && ~isfield(T.DefaultOptions{T.Type == "heatmap"}, 'yTicks'), ...
+    'Panel.box: "auto", after title; the raster''s options.yTicks is false (no other type has it)');
 pn = EphysAnalysisConfig.normalizePanel(struct('type', "psth", 'note', struct('text', "n = 12", 'placement', "northeast"), ...
     'overlays', struct('shape', "region", 'panel', "raster", 'from', 0, 'to', 0.2)));
 check(isscalar(pn.overlays) && pn.overlays.panel == "all" && pn.overlays.shape == "region" && pn.overlays.to == 0.2 ...
@@ -1022,6 +1025,9 @@ nb.text = "n = 12";
 b.Figures(1).panels(2).note = nb;
 b.Figures(1).panels(2).overlays = EphysAnalysisConfig.defaults("Overlay");
 check(isempty(figIssues(b)), 'a panel with a note and an overlay validates clean');
+bx = b; bx.Figures(1).panels(2).box = "on";
+bx2 = b; bx2.Figures(1).panels(2).box = "maybe";
+check(isempty(figIssues(bx)) && has(bx2, "figure_1.psth_1.box", "error"), 'a panel''s box is auto, on or off (anything else is an error)');
 nb.placement = "nowhere"; nb.align = "justify"; nb.valign = "up"; nb.interpreter = "latex"; nb.rotation = NaN;
 nb.fontSize = -1; nb.color = "plaid";
 b2 = b; b2.Figures(1).panels(2).note = nb;
@@ -1804,11 +1810,91 @@ CN = PlotAesthetics.components(hN.layout);
 check(~any(CN.Role == "" | ~ismember(CN.Role, roles)) && any(CN.Role == "note" & CN.TileName == "raster_1") ...
     && any(CN.Role == "overlayRegion" & CN.Group == "window") && any(CN.Role == "overlayLine"), ...
     'the note over a panel and every overlay are tagged components of that panel''s tile');
+% a patch overlay over a raster is seen: its group bands are opaque, and a constant region (xregion) is drawn behind them
+sV = F1.spec;
+oV = EphysAnalysisConfig.defaults("Overlay");
+oV.shape = "region"; oV.from = 0.1; oV.to = 0.3; oV.faceColor = "#00ff00"; oV.faceAlpha = 1; oV.name = "seen";
+oU = oV; oU.from = 0.5; oU.to = 0.7; oU.layer = "under"; oU.name = "hidden";
+oY = oV; oY.axis = "y"; oY.from = 2; oY.to = 5; oY.name = "rows";
+sV.panels(1).overlays = [oV oU oY];
+clf(fig);
+hV = renderFigure(F1, sV, fig);
+drawnow;
+axV = hV.panels(1).axes;
+gV = hV.panels(1).overlays;
+gX = gV(arrayfun(@(g) string(getappdata(g, 'PlotGroup')) == "seen", gV));
+bandsV = findobj(axV, 'Tag', 'rasterBand');
+imgV = print(fig, '-RGBImage', '-r60');
+boxV = figureBox(axV, fig);
+    function px = rasterPixel(xv, yv)   % the pixel at data x XV, and fraction YV down the raster's box
+        xl = xlim(axV);
+        fpx = getpixelposition(fig);   % boxV is in the figure's pixels, the image scaled by the print resolution
+        px = double(squeeze(imgV(max(1, round((1 - (boxV(2) + boxV(4) * (1 - yv)) / fpx(4)) * size(imgV, 1))), ...
+            max(1, round((boxV(1) + boxV(3) * (xv - xl(1)) / diff(xl)) / fpx(3) * size(imgV, 2))), :))).';
+    end
+green = [0 255 0];
+check(isscalar(gX) && isa(gX, 'matlab.graphics.primitive.Patch') && string(gX.Tag) == "overlayRegion" && all(isgraphics(gV)) ...
+    && isequal(sort(unique(gX.XData)).', [0.1 0.3]) && isequal(sort(unique(gX.YData)).', ylim(axV)), ...
+    'a patch overlay is a patch object (a region of the raster, over its whole height), tagged overlayRegion');
+check(max(abs(rasterPixel(0.2, 0.5) - green)) <= 3 && max(abs(rasterPixel(0.2, 0.95) - green)) <= 3 ...
+    && max(abs(rasterPixel(0.6, 0.5) - green)) > 40 && ~isempty(bandsV), ...
+    sprintf('over the raster''s opaque group bands a patch "over" the data shows (pixel %s), one "under" them does not (%s)', ...
+    mat2str(rasterPixel(0.2, 0.5)), mat2str(rasterPixel(0.6, 0.5))));
+xlim(axV, [0.15 0.25]);
+ylim(axV, [3 4]);
+yR = gV(arrayfun(@(g) string(getappdata(g, 'PlotGroup')) == "rows", gV));
+check(isequal(sort(unique(gX.XData)).', [0.15 0.25]) && isequal(sort(unique(gX.YData)).', [3 4]) && isequal(sort(unique(yR.YData)).', [3 4]) ...
+    && isequal(sort(unique(yR.XData)).', [0.15 0.25]), ...
+    'the patches follow the axes'' limits (a region is clamped to them, so it never widens the axes)');
+sV.panels(1).overlays = oV;
+sV.panels(2).overlays = oV;
+clf(fig);
+hV = renderFigure(F1, sV, fig);
+drawnow;
+imgV = print(fig, '-RGBImage', '-r60');
+axV = hV.panels(2).axes;
+boxV = figureBox(axV, fig);
+check(max(abs(rasterPixel(0.2, 0.5) - green)) <= 3 && isa(hV.panels(2).overlays, 'matlab.graphics.primitive.Patch'), ...
+    'a patch overlay on a PSTH panel shows too');
+% a raster has no y tick marks or labels unless options.yTicks; the y label stays
+rY = F1.spec;
+clf(fig);
+hY = renderFigure(F1, rY, fig);
+drawnow;
+axY = hY.panels(1).axes;
+check(rY.panels(1).options.yTicks == false && isempty(axY.YTick) && isempty(axY.YTickLabel) && string(axY.YLabel.String) ~= "", ...
+    'a raster panel hides its y tick marks and labels by default, the y label stays');
+rY.panels(1).options.yTicks = true;
+clf(fig);
+hY = renderFigure(F1, rY, fig);
+drawnow;
+check(numel(hY.panels(1).axes.YTick) >= 2 && numel(hY.panels(1).axes.YTickLabel) >= 2, 'options.yTicks brings the raster''s y ticks back');
+% a panel's box: "on" / "off" win over the design's rule and the figure's own aesthetics; "auto" leaves them
+sBx = F1.spec;
+sBx.panels(1).box = "on";
+sBx.panels(2).box = "auto";
+clf(fig);
+hBx = renderFigure(F1, sBx, fig, Design="Journal", UserAesthetics=false);
+drawnow;
+check(string(hBx.panels(1).axes.Box) == "on" && string(hBx.panels(2).axes.Box) == "off", ...
+    'a panel''s box "on" shows the box a design turns off; "auto" keeps the design''s');
+sBx.panels(1).box = "off";
+sBx.panels(2).box = "on";
+sBx.aesthetics = PlotAesthetics.normalizeRules(struct('role', "axes", 'group', "", 'property', "Box", 'value', "on"));
+clf(fig);
+hBx = renderFigure(F1, sBx, fig, Design="Journal", UserAesthetics=false);
+drawnow;
+check(string(hBx.panels(1).axes.Box) == "off" && string(hBx.panels(2).axes.Box) == "on", ...
+    'a panel''s box "off" and "on" also win over the figure''s own aesthetics rule');
+clf(fig);   % the note-band checks below use the figure drawn with the notes
+hN = renderFigure(F1, sN, fig);
+drawnow;
 xlR = xlim(hN.panels(1).axes);
 check(isequal(xlR, xlim(hN.panels(2).axes)) && isempty(hN.panels(1).axes.XTickLabel), ...
     'with a note band under the PSTH the raster still shares its time axis (no tick labels above the PSTH)');
 % a band below keeps the axes' left edge and width those of the plain panel under it; a band beside them keeps both panels' tick labels
 sB = F1.spec;
+sB.panels(1).options.yTicks = true;   % a nested note tile's inner edge follows its tick labels: with none the raster is a few pixels wider than the PSTH
 nB = EphysAnalysisConfig.defaults("Note");
 nB.text = "a band" + newline + "of two lines";
 nB.placement = "below";

@@ -13,6 +13,12 @@ says how to cut a release.
 - **Open in window** on the Figures tab, under the preview: draws the figure as previewed into a regular MATLAB
   figure window of its own (`onOpenFigureWindow`; named *id: observation (dataset)*, the right-click
   aesthetics editor works there). An out-of-date preview is redrawn first; the window does not follow later edits.
+- Figures: a panel's `box` (`"auto"` = the design's and the remembered looks', `"on"`, `"off"`), a row in the
+  editor's Panel section for every panel type; `"on"` and `"off"` are set last in `renderFigure`, so they win
+  over the design, the remembered looks and the figure's own aesthetics rules. A raster panel's
+  `options.yTicks` (default `false`, the Raster options' *Show y ticks* row): the y axis shows no tick marks or
+  epoch numbers unless it is on; the y label, and the names of a raster of several blocks, stay.
+
 - Adaptive weighted CAR for the derived signals (Khorasani, Shalchyan & Daliri 2019, *Front. Neurosci.*
   13:350): each channel minus its own Kalman-tracked share of the plain CAR, so an artifact that reaches
   the channels at different strengths is removed from each. The new `weightedCAR` computes the shared
@@ -1236,6 +1242,11 @@ says how to cut a release.
   Synthetic tab's probe-gain plot and its PSTH split by parameter.
 
 ### Fixed
+
+- A patch overlay was never seen over a raster panel: `drawOverlays` drew it as an `xregion` / `yregion`,
+  which MATLAB paints behind every opaque patch whatever the draw order, and a raster's group bands are
+  opaque (a PSTH's fills are translucent, so it showed there). A patch is now a patch object spanning the
+  axes' limits, refitted when they change, so "over" and "under" the data mean what they say on every panel.
 
 - Unit quality criteria failed with `The length of the sorted recording is unknown (no .bin, no recording
   metadata ...)` (`EphysDataset:unitQuality:NoLength`, from `selectUnits`) on a dataset that holds only the

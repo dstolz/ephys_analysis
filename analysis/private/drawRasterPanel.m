@@ -15,6 +15,8 @@ function hk = drawRasterPanel(ax, P, look)
 %                       rasterInto's stack mode: each group a band of its
 %                       own (the block as tall as the first), its epochs
 %                       in the same sort; the y axis then names the blocks
+%   The y axis has no tick marks or labels (the epoch numbers) unless
+%   options.yTicks; the names of further blocks stay either way.
 %   The events layers drawn as marks (epochEvents) mark every block's rows
 %   in their EventMark's look (rasterMarkLooks). With options.waveform.mode
 %   on, the first block's unit's waveform is an inset (waveformInset). A
@@ -98,6 +100,8 @@ if nB > 1
     end
     ylim(ax, [0.5 edge]);
     set(ax, 'YTick', centers, 'YTickLabel', cellstr([blocks.name]), 'TickLabelInterpreter', 'none');
+elseif ~o.yTicks
+    set(ax, 'YTick', []);   % one block: no epoch numbers on the y axis (options.yTicks)
 end
 if numel(look.W) == 2 && look.W(2) > look.W(1); xlim(ax, look.W); end
 

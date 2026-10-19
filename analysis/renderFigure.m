@@ -76,7 +76,8 @@ function h = renderFigure(F, spec, target, opts)
 %            (the figure's own), the later winning. In a visible figure
 %            (Editable) a right-click on any component opens the aesthetics
 %            editor on the figure (context kind "figure"; its redraw draws
-%            F again with the new SPEC.aesthetics).
+%            F again with the new SPEC.aesthetics). A panel's box ("on" /
+%            "off"; "auto" leaves the looks' Box) is set last, over all of them.
 %
 %   Options
 %     Design          "" (default): the user's design (PlotDesign.current;
@@ -311,6 +312,9 @@ for k = find(drawn)   % a note in a band beside the axes: that band is no tile, 
     if isempty(bands{k}) || isempty(notes{k}) || isempty(notes{k}.text); continue; end
     bandRules = [design.rules kRules{k} r notes{k}.rules specRules];
     if ~isempty(bandRules); PlotAesthetics.apply(bands{k}, bandRules([bandRules.role] == "note")); end
+end
+for k = find(drawn)   % a panel's own box wins over the design's, the remembered looks' and the figure's rules
+    if panels(k).box ~= "auto"; set([axs(k) reshape(extra{k}, 1, [])], 'Box', char(panels(k).box)); end
 end
 for k = find(drawn)   % the notes go where they belong once their looks are final (their size measured)
     if isempty(notes{k}) || isempty(notes{k}.text); continue; end

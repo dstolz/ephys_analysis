@@ -269,6 +269,7 @@ switch section
             'id',      "", ...                  % unique within the figure ("" = "<type>_<n>")
             'type',    "psth", ...              % one of panelTypes().Type
             'title',   "", ...                  % "" = automatic
+            'box',     "auto", ...              % the axes' box: "auto" (the design's, and the looks remembered for the panel's kind) | "on" | "off" (these win over them)
             'row',     1, ...                   % the top-left cell
             'col',     1, ...
             'rowSpan', 1, ...

@@ -1437,6 +1437,23 @@ cfgG = app.gatherConfig();
 check(isequaln(cfgG.Figures(1).panels(2).note, app.Config.Figures(1).panels(2).note) ...
     && isequaln(cfgG.Figures(1).panels(2).overlays, app.Config.Figures(1).panels(2).overlays), ...
     'gather after apply gives the panel''s note and overlays back unchanged');
+% a panel's Box row (every type) and the raster's Show y ticks row (rasters only)
+app.onPanelSelected(1);
+boxShown = shown(FE.panelBox) && shown(FE.yTicks) && string(FE.panelBox.Value) == "auto" && ~FE.yTicks.Value;
+FE.panelBox.Value = "off";
+FE.yTicks.Value = true;
+app.onConfigChanged("figure");
+pBx = app.Config.Figures(1).panels(1);
+axBx = findall(app.FigurePreviewPanel, 'Tag', 'rasterAxes');
+check(boxShown && pBx.box == "off" && pBx.options.yTicks && app.FigurePreviewState == "drawn" && isscalar(axBx) ...
+    && string(axBx.Box) == "off" && numel(axBx.YTick) >= 2, ...
+    'the Panel section''s Box row and a raster''s Show y ticks row reach the panel, and the preview draws them');
+FE.panelBox.Value = "auto";
+FE.yTicks.Value = false;
+app.onConfigChanged("figure");
+app.onPanelSelected(2);
+check(shown(FE.panelBox) && ~shown(FE.yTicks) && app.Config.Figures(1).panels(1).box == "auto" && ~app.Config.Figures(1).panels(1).options.yTicks, ...
+    'a PSTH panel has the Box row but no y ticks row; both back to their defaults on the raster');
 
 % drag a panel in the schematic: the press installs the window's pointer callbacks; motion shades the target; release applies
 if ~app.FigureSections([app.FigureSections.Name] == "arrangement").Expanded; app.onFigureSectionToggled("arrangement"); end

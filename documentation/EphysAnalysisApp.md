@@ -662,6 +662,23 @@ preferences)* (group `PlotAesthetics`, one rule set per panel type and one for
 and forgets rules. A look remembered for PSTH panels dresses every PSTH panel of
 every figure. See [Plot aesthetics](EphysAnalysis.md#plot-aesthetics).
 
+**Data tips.** Click a point of the preview (a PSTH line, a raster tick, a bar, a
+heat map cell) for a data tip that says what it is, not a bare X and Y: the time
+from the event (*Time from Stim onset: 0.125 s*), the panel's quantity in its unit
+(*Rate: 42.1 Hz*, a z-score, µV, power), a heat map cell's value and its row (the
+unit, channel or epoch), a raster tick's trial and trial group, the unit or channel
+the trace draws, the layer, the panel (*psth_1 (PSTH)*), the observation and the
+dataset. Right-click the preview and pick **Data tip fields...** (also at the end of
+the **Design** menu) to choose what the tips show: a check box per field, grouped as
+*Point* (X value, Y value, Cell value, Row), *Trial* (Trial, Trial group, Trial
+parameters: the trial's values) and *Source* (Unit / channel, Layer, Panel,
+Observation, Dataset, Part: what was drawn), with **All**, **None** (MATLAB's X and Y
+only), **Reset** (the defaults: all but Trial parameters and Part), **Cancel** and
+**OK**. OK keeps the choice as your preference (group `FigureDataTips`) and shows it
+at once on the preview and every other figure on screen; figures drawn after use it
+too. The figures a run draws (invisible, for the files) have no tips; a figure you
+draw yourself with `renderFigure` into a visible window has them.
+
 **Plot designs.** A design is a whole look: the ground behind the figure, the
 group colors, the heat maps' colors, and fonts, axes, ticks, box, grid, lines and
 marks. **Tufte** follows Edward Tufte's data-ink (an off-white page, serif type, no
@@ -989,6 +1006,7 @@ options](EphysAnalysisConfig.md#panel-options)); how the numbers are computed:
 | | **Import a design file...** | copies a design `.json` into your designs folder and picks it |
 | | **Delete one of my designs** | deletes the file of the one picked (asks first); Default is chosen if it was |
 | | **Open my designs folder**, **Keep my designs in...** | opens the folder; or keeps your designs in another, such as one the lab shares |
+| | **Data tip fields...** | what the data tips of every figure show ([Data tips](#figures-tab)): a check box per field; your preference |
 | Help | **Help for this tab** | the wiki page of this app, at the section of the tab shown (`helpURL`) |
 | | **Documentation home**, **Analysis quick start**, **Analysis configs** | the wiki's Home, [Quick start](#quick-start) on this page, the page made from [EphysAnalysisConfig.md](EphysAnalysisConfig.md) |
 | | **Report an issue on GitHub...**, **Request a feature on GitHub...** | compose a GitHub issue from this session and open it prefilled ([Reporting an issue](#reporting-an-issue)) |
@@ -1107,7 +1125,9 @@ The aesthetics editor keeps two more groups: `PlotAesthetics`, your
 remembered rules, one per panel type (`psth`, `raster`, ...), one for `figure` and one per Chronux result kind, and
 `PlotAestheticsDialog`, its **Remember** box and where it last remembered
 (`Remember`, `Scope`). The plot designs keep `PlotDesign`: the design
-chosen (`Design`) and your designs folder when you chose one (`Folder`).
+chosen (`Design`) and your designs folder when you chose one (`Folder`). The data
+tips keep `FigureDataTips`: the fields they show (`Fields`, the keys of
+`FigureDataTips.fields`; missing = the defaults).
 
 ## Why is my figure skipped?
 

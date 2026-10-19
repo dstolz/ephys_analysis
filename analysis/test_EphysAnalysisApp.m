@@ -910,6 +910,16 @@ check(isstruct(ctx) && ctx.kind == "figure" && ctx.id == "figure_1" && isscalar(
     && app.Config.Figures(1).aesthetics.value == 0.4 && isequal(app.Runner.Config.Figures(1).aesthetics, app.Config.Figures(1).aesthetics) ...
     && startsWith(string(FE.looksText.Text), "1 remembered") && FE.looksForget.Enable == "on", ...
     'the figure preview is editable (right-click); rules remembered for the figure go into the config (rememberFigureAesthetics)');
+tipParts = findall(app.FigurePreviewPanel, '-function', @(o) isappdata(o, FigureDataTips.InfoKey));
+tipItems = findall(app.Fig, 'Tag', FigureDataTips.MenuTag);
+tipMenu = findobj(app.DesignMenu.Children, 'flat', 'Tag', 'DataTipFieldsMenu');
+dlg0 = findall(groot, 'Type', 'figure', 'Name', 'Data tip fields');
+if isscalar(tipMenu); tipMenu.MenuSelectedFcn(tipMenu, []); end
+dlg = setdiff(findall(groot, 'Type', 'figure', 'Name', 'Data tip fields'), dlg0);
+check(~isempty(tipParts) && ~isempty(tipItems) && isscalar(tipMenu) && isscalar(dlg) && numel(findall(dlg, 'Type', 'uicheckbox')) == height(FigureDataTips.fields()), ...
+    sprintf(['the figure preview has data tips (%d parts) and "Data tip fields..." on its right-click menus; the Design menu''s ' ...
+    'Data tip fields... opens the dialog, a check box per field'], numel(tipParts)));
+delete(dlg);
 FE.looksForget.ButtonPushedFcn(FE.looksForget, []);
 check(isempty(app.Config.Figures(1).aesthetics) && FE.looksForget.Enable == "off" && app.FigurePreviewState == "drawn", ...
     'Forget drops them and redraws the preview without them');

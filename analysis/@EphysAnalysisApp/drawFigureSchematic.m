@@ -105,6 +105,7 @@ switch type
     case "spectrum",   c = [0.886 0.937 0.875];
     case "spectrogram", c = [0.976 0.902 0.808];
     case "coherence",  c = [0.890 0.882 0.965];
+    case "eventTrace", c = [0.937 0.902 0.886];
     otherwise,         c = [0.92 0.92 0.92];
 end
 end

@@ -359,7 +359,11 @@ from the figure** is ticked (unticked, they open again, whatever baseline modes
 the type offers).
 Rows that another option switches off stay in place, grayed out: the binding
 until the layer's source and the panel's type let it follow the observation,
-*Draw as* a spike train until the panel is a raster, PSTH or heat map, the
+*Draw as* on an event-trace panel (which draws its lines its own way; elsewhere
+it offers a spike train only on a raster, PSTH or heat map), a span's line
+until *Draw as* is a line from onset to offset, an event-trace panel's bar
+outline until bars, its level line until a line, its group bands until a
+sub-row per epoch and its baseline's look until **Draw** is ticked, the
 response test's rows until *Responsive only*, the baseline window until a
 baseline mode, the fill's opacity until *Filled*, the sort event until the
 sort is *event*, the jitter until the *points* display, the waveform's rows
@@ -400,7 +404,7 @@ cannot (it only swaps with a same-shaped neighbor).
 
 | Control | Effect |
 | --- | --- |
-| **Add panel** type, **Above**, **Below**, **Left**, **Right** | adds a panel of the type (the drop-down offers the twelve [panel types](EphysAnalysisConfig.md#panel-types), *Firing rate*, *Tuning curve* and the [spectral panels](EphysAnalysisConfig.md#spectral-panels) *Power spectrum*, *Spectrogram* and *Coherence* among them) next to the selected one: *Above* and *Below* make a new row of the grid, as high as the selected panel's row, and the new panel takes the selected panel's columns; *Left* and *Right* make a new column, as wide as its column, and the new panel takes its rows. Panels past the new row (column) move down (right) by one, and those whose span crosses it grow by one. The first panel of a figure goes to row 1, column 1. The new panel holds the type's default layer, so it draws at once (a *Coherence* panel two, the observed unit and its channel's LFP, a spike-field coherence), and is selected ([Editing the grid](EphysAnalysisConfig.md#editing-the-grid)) |
+| **Add panel** type, **Above**, **Below**, **Left**, **Right** | adds a panel of the type (the drop-down offers the thirteen [panel types](EphysAnalysisConfig.md#panel-types), *Firing rate*, *Tuning curve*, the [spectral panels](EphysAnalysisConfig.md#spectral-panels) *Power spectrum*, *Spectrogram* and *Coherence* and [*Event traces*](EphysAnalysisConfig.md#event-traces) among them) next to the selected one: *Above* and *Below* make a new row of the grid, as high as the selected panel's row, and the new panel takes the selected panel's columns; *Left* and *Right* make a new column, as wide as its column, and the new panel takes its rows. Panels past the new row (column) move down (right) by one, and those whose span crosses it grow by one. The first panel of a figure goes to row 1, column 1. The new panel holds the type's default layer, so it draws at once (a *Coherence* panel two, the observed unit and its channel's LFP, a spike-field coherence), and is selected ([Editing the grid](EphysAnalysisConfig.md#editing-the-grid)) |
 | **Row span**, **Column span** | how many rows and columns the panel covers, from its own cell; refused, with the reason in the status bar, past the grid's edge or over another panel (`rowSpan`, `colSpan`) |
 | **Row height**, **Column width** | the relative height of the panel's first row and width of its first column against the others (1 = equal; steps of 0.25). A figure is drawn on a tiled layout of equal tiles, so a size is rounded to quarter steps of the smallest, with at most 32 tiles a side (`grid.rowHeights`, `grid.colWidths`) |
 | **Spacing** | the space between the panels: *loose*, *compact*, *tight* or *none (flush)*, which draws stacked time panels sharing their edges (`grid.spacing`) |
@@ -511,8 +515,8 @@ list edit the layer picked:
 | fixed units or detected spikes | unit classes (units), **Unit ids**, **Good units only**, **Responsive only**, **Max units**, **Shanks** and **Channels** (the recording channels kept): the Observations rows, for the layer's own units (`units`) |
 | fixed LFP, MUA, SPIKE or AUX | **Channels**: the extract's columns drawn, blank = all (`channels`) |
 | **Aggregate** | a fixed layer of a raster, PSTH, continuous signal, firing rate or tuning curve panel with several units or channels: *each* one on its own, or *their mean* with a band across them (`aggregate`) |
-| events | **Line** and **Edge** (the dataset's lines are listed; one can be typed), **Sequence** with **Edit...** (the *Event sequence* window), **Draw as** (*marks*: a mark at each event on a raster's rows, a line at each trial group's median latency on a PSTH or signal panel; *a spike train of its own*: the events drawn as a unit would be, on a raster, PSTH or heat map only), and for marks the **Marker**, its size and **Mark color** (`event`, `eventsAs`; [Raster event marks](EphysAnalysisConfig.md#raster-event-marks)) |
-| **Color**, **Line style** | *auto*: each trial group's color, and the line style by the layer's order (solid, dashed, dotted, dash-dot); or one color and line style for the layer's traces. Event marks have their own (`color`, `lineStyle`) |
+| events | **Line** and **Edge** (the dataset's lines are listed; one can be typed), **Sequence** with **Edit...** (the *Event sequence* window), **Draw as** (*marks*: a mark at each event on a raster's rows, a line at each trial group's median latency on a PSTH or signal panel; *a spike train of its own*: the events drawn as a unit would be, on a raster, PSTH or heat map only; *a line from onset to offset*: on each raster row a line from each interval's onset to its offset, elsewhere a line per trial group from the median onset to the median offset, near the top; grayed out on an event-trace panel), for marks the **Marker**, its size and **Mark color**, and for a span **Mark color** (the line's color) and **Span line** (its style, width and opacity) (`event`, `eventsAs`; [Raster event marks](EphysAnalysisConfig.md#raster-event-marks)) |
+| **Color**, **Line style** | *auto*: each trial group's color, and the line style by the layer's order (solid, dashed, dotted, dash-dot); or one color and line style for the layer's traces. On an event-trace panel, *auto* is a palette color per line and the panel's level line style. Event marks and spans have their own (`color`, `lineStyle`) |
 
 **Options** are the panel type's rows (`options`; the fields are in
 [Panel options](EphysAnalysisConfig.md#panel-options)):
@@ -521,6 +525,7 @@ list edit the layer picked:
 | --- | --- |
 | Raster | **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*), **Rows by group first**, **Mask after the stop event**, and the waveform inset (**Waveform**, **Inset location**, **Inset size**, **Label**) |
 | PSTH | **Bin**, **Smooth**, **Measure**, **Baseline** (with *auroc*) and its window, the auROC rows (with the *auroc* baseline), **Mask after the stop event**, **PSTH as**, **Fill** and its opacity, **Normalize**, **Stack** (**One row per group** with its **spacing**, the row step in tallest PSTHs), **Y limits** (not used in a stack), and the waveform inset |
+| Event traces | **Draw as** (*solid bars (onset to offset)* or *a logic level (a line)*), **Trials** (*every epoch overlaid in the line's row*, translucent, or *a sub-row per epoch*, by group as a raster's rows, with **group bands**), **Color by** (*line*: the layer's Color, else a palette color; or *trial group*), **Height** (a share of the row) with its **opacity** (blank: 0.3 overlaid, 1 in sub-rows), **Bar outline** and its width (bars), **Level line** style and width (a line; a layer's own Line style wins), **Baseline** (**Draw**, its color) and **Baseline line** (style, width), **Row spacing**. Its layers are events layers only, one line each, a row each ([Event traces](EphysAnalysisConfig.md#event-traces)) |
 | Continuous signal | **Baseline** and its window, **Display** (*lines* or *stacked rows*), **Signal** (mean or median; as recorded or rectified), **Error band** (off, mean ± SEM, mean ± SD, bootstrap 95% CI or interquartile range), **Stack spacing**, **Trials** (*Off*, *Faint, behind the mean* or *Only the trials*) with **at most** (the most epochs drawn, 100 by default, picked evenly over their order; the traces sit under every band and mean; grayed out while *Off*), **Y limits** |
 | Heat map | **Bin**, **Smooth**, **Measure** and **Mask after the stop event** (a spike layer), **Baseline** (*auroc* for a spike layer, with the auROC rows; the map is then of auROCs in the diverging colormap), **Rows** (*the layer's units or channels*, or *one unit's epochs (trials)*), **Row order** (*probe*, *peak* or *modulation*, the last only with the auROC baseline), **Color limits**; the group drawn is in the Panel section. With *one unit's epochs (trials)* a row is an epoch of one unit, every group at once, sorted as a raster's rows: the raster's **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*) and **Rows by group first** show, **Row order** and **Group shown** hide, and the layer may follow the observation (its Binding row opens for a spike layer; otherwise fix it to one unit). The map is one unit's epochs: a layer that follows the observation through a channel (a channel observation, or the other spike source) keeps every unit on it, which Validate refuses, and a layer that still keeps several is skipped with *A heat map of trials draws one unit: this layer keeps n*. The groups are a color strip along the left edge, the y label names the sort, and the auROC baseline is refused |
 | Unit waveforms | **Layout** (*grid*: the unit, or several overlaid; *probe*: every unit of the first layer at its place on the probe, with the units of a further layer framed in red), **Waveform** (*Mean*, *Subsample* or *Mean + subsample*, and how many spikes), **Label**, **Y limits** |
@@ -755,7 +760,7 @@ datasets.
   right-click to change colors, lines and fonts"*. The right-click editor
   works as for any figure.
 - A panel type that cannot be merged (probe map, unit correlation map, power
-  spectrum, spectrogram, coherence) is noted in the preview and the rest of the
+  spectrum, spectrogram, coherence, event traces) is noted in the preview and the rest of the
   figure is drawn; Validate refuses such a figure and Plan and Run skip it as a whole.
 
 **Generate and Run.** **Generate** draws the selected session figure as
@@ -944,7 +949,7 @@ error, and the report files written.
 
 ## Panel types
 
-A figure's panels are of the twelve types of `EphysAnalysisConfig.panelTypes()`;
+A figure's panels are of the thirteen types of `EphysAnalysisConfig.panelTypes()`;
 the Figures tab's **Add panel** drop-down offers all of them, and the Options
 section shows the rows of the selected panel's type
 ([Options](#figures-tab) above).
@@ -961,6 +966,7 @@ section shows the rows of the selected panel's type
 | `rate` (Firing rate) | the rate in each epoch window per trial group: bars, boxes or points |
 | `tuning` (Tuning curve) | the rate against a trial parameter, a curve per series |
 | `spectrum`, `spectrogram`, `coherence` | multitaper power, spectrogram and coherence (Chronux) |
+| `eventTrace` (Event traces) | digital or derived lines as a logic analyzer shows them: a row per line, bars or a logic level from each onset to its offset, epochs overlaid or a sub-row each |
 
 What each draws, its layers and its options are on the config page
 ([Panel types](EphysAnalysisConfig.md#panel-types), [Panel

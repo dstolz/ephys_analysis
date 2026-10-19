@@ -14,9 +14,17 @@ function [hs, labels] = figEventMarks(ax, P, look, groups, colorBy)
 %       (LOOK.W) as a short tick along the top edge of the axes (the top as
 %       seen, whatever YDir), one line object per mark in its color, tagged
 %       "eventRug" with the mark's label
+%   and, for every events layer drawn as a span (R.spans: epochIntervals'),
+%     a span line per trial group in GROUPS from the median onset to the
+%       median offset over the group's epochs (each epoch's first interval
+%       starting at or after 0, else its last one before 0), clipped to the
+%       window, under the rug, each group a level lower, in the layer's
+%       EventMark look (spanStyle, spanWidth, spanAlpha; its color, or
+%       with COLORBY "group" and no color of its own the group's), tagged
+%       "eventSpan" with the layer's label
 %   Call it once the y limits are final: it fixes them (the rug is drawn in
-%   data units inside them). HS: the rugs (the legend's entries), LABELS:
-%   their marks' labels.
+%   data units inside them). HS: the rugs and a span entry per span layer
+%   (the legend's entries), LABELS: their labels.
 %
 %   See also drawPsthPanel, drawContinuousPanel, drawHeatmapPanel, epochEvents.
 hs = gobjects(1, 0);
@@ -32,8 +40,10 @@ for j = idx
     marks = [marks reshape(M, 1, [])]; %#ok<AGROW>
     specs = [specs repmat(Ls(j).event, 1, numel(M))]; %#ok<AGROW>
 end
-if isempty(marks); return; end
-mk = rasterMarkLooks(specs, [marks.label]);
+spans = idx(arrayfun(@(j) isfield(P.layers(j).R, 'spans'), idx));
+if isempty(marks) && isempty(spans); return; end
+mk = [];
+if ~isempty(marks); mk = rasterMarkLooks(specs, [marks.label]); end
 gi = [];
 E = look.epochs;
 if istable(E) && ismember("groupIndex", string(E.Properties.VariableNames)); gi = double(E.groupIndex(:)); end
@@ -74,6 +84,59 @@ for m = 1:numel(marks)
     hs(end+1) = tagPart(line(ax, X(:), Y(:), 'Color', mk(m).color, 'LineWidth', 0.75), "eventRug", ev.label); %#ok<AGROW>
     labels(end+1) = ev.label; %#ok<AGROW>
 end
+
+% the spans: a line per group from its median onset to its median offset, a level each under the rug
+down = 1 - 2 * strcmp(ax.YDir, 'reverse');   % from the top as seen
+top = yl(1 + (down > 0));
+level = 0;
+for q = 1:numel(spans)
+    j = spans(q);
+    S = P.layers(j).R.spans;
+    ev = Ls(j).event;
+    c0 = rasterMarkColor(ev.color, numel(marks) + q);   % after the marks' automatic colors
+    sty = {'LineStyle', char(ev.spanStyle), 'LineWidth', ev.spanWidth, 'HandleVisibility', 'off'};
+    ep = double(S.epoch(:));
+    for gg = reshape(groups, 1, [])
+        sel = true(size(ep));
+        if ~isempty(gi)
+            ok = ep >= 1 & ep <= numel(gi);
+            sel = ok;
+            sel(ok) = gi(ep(ok)) == gg;
+        end
+        [a, b] = spanOf(S.on(sel), S.off(sel), ep(sel));
+        a = max(a, W(1));
+        b = min(b, W(2));
+        if ~(isfinite(a) && isfinite(b) && b >= a); continue; end
+        level = level + 1;
+        y = top - down * (0.06 + 0.035 * level) * diff(yl);
+        c = c0;
+        if colorBy == "group" && ev.color == "" && gg <= size(look.colors, 1); c = look.colors(gg, :); end
+        tagPart(line(ax, [a b], [y y], 'Color', [c ev.spanAlpha], sty{:}), "eventSpan", S.label);
+    end
+    hs(end+1) = tagPart(line(ax, NaN, NaN, 'Color', [c0 ev.spanAlpha], sty{1:4}), "eventSpan", S.label); %#ok<AGROW>
+    labels(end+1) = S.label; %#ok<AGROW>
+end
+end
+
+
+function [a, b] = spanOf(on, off, ep)
+%spanOf  The median onset and median offset over epochs of each epoch's first interval at or after 0 (else its last before 0).
+a = NaN; b = NaN;
+if isempty(on); return; end
+pick = zeros(0, 1);
+for e = reshape(unique(ep), 1, [])
+    k = find(ep == e);
+    after = k(on(k) >= 0);
+    if isempty(after)
+        [~, i] = max(on(k));
+        pick(end+1, 1) = k(i); %#ok<AGROW>
+    else
+        [~, i] = min(on(after));
+        pick(end+1, 1) = after(i); %#ok<AGROW>
+    end
+end
+a = median(on(pick));
+b = median(off(pick));
 end
 
 

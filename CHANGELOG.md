@@ -947,6 +947,27 @@ says how to cut a release.
   section and the remembered looks, only the parts the two types share. Each plot keeps its id, type, title
   and enabled, and a source, epoch window mode or baseline mode its type does not take. New functions
   `copyPlotSettings` and `plotSettingParts`; suite `test_copyPlotSettings`.
+- Event traces: a new figure panel type, `eventTrace` ("Event traces"), draws digital or derived lines as a
+  logic analyzer shows them, on the figure's time axis, so it stacks flush above a raster or a PSTH. Each
+  events layer is one line in a row of its own, named on the y axis; each interval runs from its onset to its
+  offset, clipped at the window's edges. Options: `display` (`"bars"`: solid bars; `"line"`: a logic level that
+  rises at each onset and falls at its offset), `trials` (`"overlay"`, the default: every epoch in the line's
+  row, translucent, so the timing's spread shows; `"rows"`: a sub-row per epoch, in the raster's group order,
+  with `groupBands`), `colorBy` (`"layer"`: the layer's color, else a palette color per line; `"group"`: the
+  trial groups' colors, in the legend), `height`, `alpha`, `edgeColor`, `edgeWidth`, `lineWidth`,
+  `lineStyle`, `showBaseline` with `baselineColor`, `baselineStyle` and `baselineWidth` (through the bars'
+  middle, or at the level's low line) and `rowSpacing`. The parts are the aesthetics roles `eventBar`,
+  `eventLevel`, `eventBaseline` and `eventGroupBand`. Its layers are events layers only (Validate refuses
+  others; `categoryOf` gives `""`), a line whose intervals have no offset after their onset is skipped with
+  the reason, and a session figure cannot hold the panel (`FigureSessionUnmerged`). New template
+  `"eventTrace"`, Figures tab Options rows for it, the private `computeEventTracePanel`,
+  `drawEventTracePanel` and `epochIntervals`. See [Event traces](documentation/EphysAnalysisConfig.md#event-traces).
+- Events layers can be drawn as a span (`eventsAs "span"`, Layers **Draw as** *a line from onset to offset*):
+  on a raster each row gets a line from each interval's onset to its offset, clipped to the window; on a PSTH,
+  continuous signal, heat map or spectrogram panel each trial group gets a line from the median onset to the
+  median offset, near the top. Its look is the layer's EventMark `color` and the new `spanStyle`,
+  `spanWidth` and `spanAlpha` (Layers row **Span line**); role `eventSpan`. See
+  [Spans](documentation/EphysAnalysisConfig.md#raster-event-marks).
 
 ### Changed
 

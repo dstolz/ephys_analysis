@@ -43,7 +43,9 @@ function issues = validate(obj, opts)
 %               rate / tuning panel),
 %               channels, events layers only on time panels, a train only
 %               on raster / psth / heatmap, the mark's event reference,
-%               marker, size and color, a layer's color and line style, a
+%               marker, size and color, a span's style, width and
+%               opacity, events layers only on an event-trace panel, a
+%               layer's color and line style, a
 %               raster of marks alone (an error: no rows); warnings for a
 %               panel without enabled layers and for several layers on a
 %               one-layer type (but a waveforms panel in the probe
@@ -77,7 +79,10 @@ function issues = validate(obj, opts)
 %               panel's), a coherence panel's two enabled layers (seed,
 %               partner; none a spike layer over time; a warning for a
 %               fixed seed of several items), a spectrogram's signal
-%               layer; a linked panel's common
+%               layer; an event-trace panel's display, trials, colorBy,
+%               height, alpha, line styles and positive widths and
+%               rowSpacing (warnings: an edge or baseline color that is
+%               not one); a linked panel's common
 %               fields are checked once, in the figure's common options --
 %               bins, measure, baseline Mode and window, auroc, the
 %               waveform settings --, plus an error at
@@ -351,6 +356,7 @@ for k = 1:numel(obj.Figures)
         label = tr.Label;
         if label ~= "PSTH"; label = lower(label); end
         A = "A " + label + " panel";
+        if startsWith(label, "event"); A = "An " + label + " panel"; end
 
         for af = ["ref" "window" "selection"]
             if ~isstruct(pj.(af)); continue; end
@@ -393,6 +399,11 @@ for k = 1:numel(obj.Figures)
             if isEvents && ~tr.SharesTime
                 add("Figures", l0 + ".source", "error", "Events layers go on panels that share the time axis (raster, PSTH, " + ...
                     "continuous signal, heat map), not on " + lower(A) + ".");
+                continue
+            end
+            if ~isEvents && pj.type == "eventTrace"
+                add("Figures", l0 + ".source", "error", A + " draws events layers only (a digital or derived line each), not " + ...
+                    L.source + ".");
                 continue
             end
             if ~isEvents && EphysAnalysisConfig.categoryOf(L.source, pj.type) == ""
@@ -444,9 +455,9 @@ for k = 1:numel(obj.Figures)
                 add("Figures", l0 + ".channels", "error", "A layer's channels are columns of its extract: whole numbers, at least 1 ([] = all).");
             end
             if isEvents
-                if ~ismember(L.eventsAs, ["marks" "train"])
-                    add("Figures", l0 + ".eventsAs", "error", "An events layer is drawn as marks or as a train.");
-                elseif L.eventsAs == "train" && ~ismember(pj.type, ["raster" "psth" "heatmap"])
+                if ~ismember(L.eventsAs, ["marks" "train" "span"])
+                    add("Figures", l0 + ".eventsAs", "error", "An events layer is drawn as marks, as a train or as a span (onset to offset).");
+                elseif L.eventsAs == "train" && ~ismember(pj.type, ["raster" "psth" "heatmap" "eventTrace"])   % an event-trace panel does not use eventsAs
                     add("Figures", l0 + ".eventsAs", "error", "Events drawn as a train go on a raster, PSTH or heat map panel; " + ...
                         lower(A) + " draws them as latency lines (marks).");
                 end
@@ -462,6 +473,16 @@ for k = 1:numel(obj.Figures)
                 if mk.color ~= "" && ~isColor(mk.color)
                     add("Figures", l0 + ".event.color", "warning", "No color """ + mk.color + """; the mark gets its automatic color.");
                 end
+                if ~ismember(mk.spanStyle, EphysAnalysisConfig.OverlayLineStyles)
+                    add("Figures", l0 + ".event.spanStyle", "error", "A span's line style is one of " + ...
+                        strjoin(EphysAnalysisConfig.OverlayLineStyles, "  ") + ".");
+                end
+                if ~(isscalar(mk.spanWidth) && isfinite(mk.spanWidth) && mk.spanWidth > 0)
+                    add("Figures", l0 + ".event.spanWidth", "error", "A span's line width must be positive (points).");
+                end
+                if ~(isscalar(mk.spanAlpha) && mk.spanAlpha >= 0 && mk.spanAlpha <= 1)
+                    add("Figures", l0 + ".event.spanAlpha", "error", "A span's opacity is from 0 to 1.");
+                end
             end
             if L.color ~= "" && ~isColor(L.color)
                 add("Figures", l0 + ".color", "warning", "No color """ + L.color + """; the layer takes its group's color.");
@@ -473,7 +494,7 @@ for k = 1:numel(obj.Figures)
         end
         if pj.type == "raster" && any(on)
             Lon = Lp(on);
-            if all([Lon.source] == "events" & [Lon.eventsAs] == "marks")
+            if all([Lon.source] == "events" & [Lon.eventsAs] ~= "train")
                 add("Figures", p0 + ".layers", "error", "A raster's marks need rows: add a units, detected or train layer.");
             end
         end
@@ -626,6 +647,8 @@ for k = 1:numel(obj.Figures)
                 checkFigLim(op.cLim, o0 + ".cLim", "color");
             case {"spectrum" "spectrogram" "coherence"}
                 checkSpectral(pj, op, pw, Lp(on), o0, p0, find(on));
+            case "eventTrace"
+                checkEventTrace(op, o0);
         end
     end
 
@@ -724,7 +747,7 @@ issues = table(Section, Field, Severity, Message);
     function checkTrialRows(hL, hOn, hOp, hO0, hP0, hB0)
         %checkTrialRows  A heat map of trials: one unit's epochs (its map layer follows the observation, is one fixed unit or a train), sorted as a raster.
         %   HL the panel's layers, HON the enabled ones' indices, HB0 where its baseline is reported.
-        hI = hOn(~([hL(hOn).source] == "events" & [hL(hOn).eventsAs] == "marks"));
+        hI = hOn(~([hL(hOn).source] == "events" & [hL(hOn).eventsAs] ~= "train"));
         if ~isempty(hI)
             hM = hL(hI(1));
             hF = hP0 + ".layers(" + hI(1) + ")";
@@ -751,6 +774,43 @@ issues = table(Section, Field, Severity, Message);
                 "(a curve over the epochs) does not apply. Take none, subtract, zscore or percent.");
         end
         checkRasterSort(hOp, hO0);
+    end
+
+    function checkEventTrace(hOp, hO0)
+        %checkEventTrace  An event-trace panel's options.
+        hPos = @(x) isscalar(x) && isfinite(x) && x > 0;
+        if ~ismember(hOp.display, ["bars" "line"])
+            add("Figures", hO0 + ".display", "error", "An event-trace panel draws its intervals as bars or a line (a logic level).");
+        end
+        if ~ismember(hOp.trials, ["overlay" "rows"])
+            add("Figures", hO0 + ".trials", "error", "An event-trace panel's trials are overlay (every epoch in the line's row) " + ...
+                "or rows (a sub-row per epoch).");
+        end
+        if ~ismember(hOp.colorBy, ["layer" "group"])
+            add("Figures", hO0 + ".colorBy", "error", "An event-trace panel colors by layer (each line's color) or by group (each trial group's).");
+        end
+        if ~(hPos(hOp.height) && hOp.height <= 1)
+            add("Figures", hO0 + ".height", "error", "height is the bars' share of a row: above 0, at most 1.");
+        end
+        if ~(isnan(hOp.alpha) || (hOp.alpha >= 0 && hOp.alpha <= 1))
+            add("Figures", hO0 + ".alpha", "error", "alpha is an opacity from 0 to 1 (NaN = automatic).");
+        end
+        if ~ismember(lower(hOp.edgeColor), ["none" "auto"]) && ~isColor(hOp.edgeColor)
+            add("Figures", hO0 + ".edgeColor", "warning", "No color """ + hOp.edgeColor + """; the bars get no outline.");
+        end
+        if hOp.baselineColor ~= "" && ~isColor(hOp.baselineColor)
+            add("Figures", hO0 + ".baselineColor", "warning", "No color """ + hOp.baselineColor + """; the baseline is gray.");
+        end
+        for hF = ["lineStyle" "baselineStyle"]
+            if ~ismember(hOp.(hF), EphysAnalysisConfig.OverlayLineStyles)
+                add("Figures", hO0 + "." + hF, "error", hF + " is one of " + strjoin(EphysAnalysisConfig.OverlayLineStyles, "  ") + ".");
+            end
+        end
+        for hF = ["edgeWidth" "lineWidth" "baselineWidth" "rowSpacing"]
+            if ~hPos(hOp.(hF))
+                add("Figures", hO0 + "." + hF, "error", hF + " must be positive.");
+            end
+        end
     end
 
     function checkFigBins(hBins, hO0)

@@ -270,6 +270,25 @@ if isfield(op, 'spikeFs'); op.spikeFs = E.spSpikeFs.Value; end
 if isfield(op, 'movingwin'); op.movingwin = [E.spWin.Value E.spStep.Value]; end
 if isfield(op, 'overTime'); op.overTime = logical(E.spOverTime.Value); end
 if isfield(op, 'showPhase'); op.showPhase = logical(E.spShowPhase.Value); end
+if p.type == "eventTrace"
+    op.display = string(E.etDisplay.Value);
+    op.trials = string(E.etTrials.Value);
+    op.groupBands = logical(E.etGroupBands.Value);
+    op.colorBy = string(E.etColorBy.Value);
+    op.height = E.etHeight.Value;
+    op.alpha = E.etAlpha.Value;
+    if isempty(op.alpha); op.alpha = NaN; end
+    op.edgeColor = strtrim(string(E.etEdge.Value));
+    op.edgeWidth = E.etEdgeWidth.Value;
+    op.lineStyle = string(E.etLineStyle.Value);
+    op.lineWidth = E.etLineWidth.Value;
+    op.showBaseline = logical(E.etBaseline.Value);
+    op.baselineColor = strtrim(string(E.etBaseColor.Value));
+    if lower(op.baselineColor) == "auto"; op.baselineColor = ""; end
+    op.baselineStyle = string(E.etBaseStyle.Value);
+    op.baselineWidth = E.etBaseWidth.Value;
+    op.rowSpacing = E.etRowSpacing.Value;
+end
 if own('waveform')
     wv = op.waveform;
     wv.mode = string(E.waveMode.Value);
@@ -338,6 +357,9 @@ ev.marker = string(E.evMarker.Value);
 ev.size = E.evSize.Value;
 ev.color = strtrim(string(E.evColor.Value));
 if lower(ev.color) == "auto"; ev.color = ""; end
+ev.spanStyle = string(E.evSpanStyle.Value);
+ev.spanWidth = E.evSpanWidth.Value;
+ev.spanAlpha = E.evSpanAlpha.Value;
 L.event = ev;
 L.eventsAs = string(E.evDrawAs.Value);
 L.color = strtrim(string(E.layerColor.Value));

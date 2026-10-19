@@ -258,6 +258,9 @@ end
 if isfield(op, 'taperMode')   % a spectral panel's Chronux rows
     applySpectral(E, op);
 end
+if p.type == "eventTrace"
+    applyEventTrace(E, op);
+end
 
 % its text note and overlays
 applyNote(E, p.note);
@@ -308,6 +311,26 @@ E.annBox.Value = nt.box;
 offerItems(E.annColor, string(E.annColor.Items), pick(nt.color, "auto"));
 offerItems(E.annBackground, string(E.annBackground.Items), pick(nt.background, "none"));
 E.annInterp.Value = char(pickFrom(nt.interpreter, string(E.annInterp.ItemsData), "none"));
+end
+
+
+function applyEventTrace(E, op)
+%applyEventTrace  An event-trace panel's rows.
+E.etDisplay.Value = char(pickFrom(op.display, string(E.etDisplay.ItemsData), "bars"));
+E.etTrials.Value = char(pickFrom(op.trials, string(E.etTrials.ItemsData), "overlay"));
+E.etGroupBands.Value = logical(op.groupBands);
+E.etColorBy.Value = char(pickFrom(op.colorBy, string(E.etColorBy.ItemsData), "layer"));
+E.etHeight.Value = min(E.etHeight.Limits(2), max(E.etHeight.Limits(1), op.height));
+if isfinite(op.alpha); E.etAlpha.Value = min(1, max(0, op.alpha)); else; E.etAlpha.Value = []; end
+offerItems(E.etEdge, string(E.etEdge.Items), pick(op.edgeColor, "none"));
+E.etEdgeWidth.Value = min(E.etEdgeWidth.Limits(2), max(E.etEdgeWidth.Limits(1), op.edgeWidth));
+E.etLineStyle.Value = char(pickFrom(op.lineStyle, string(E.etLineStyle.ItemsData), "-"));
+E.etLineWidth.Value = min(E.etLineWidth.Limits(2), max(E.etLineWidth.Limits(1), op.lineWidth));
+E.etBaseline.Value = logical(op.showBaseline);
+offerItems(E.etBaseColor, string(E.etBaseColor.Items), pick(op.baselineColor, "auto"));
+E.etBaseStyle.Value = char(pickFrom(op.baselineStyle, string(E.etBaseStyle.ItemsData), ":"));
+E.etBaseWidth.Value = min(E.etBaseWidth.Limits(2), max(E.etBaseWidth.Limits(1), op.baselineWidth));
+E.etRowSpacing.Value = max(eps, op.rowSpacing);
 end
 
 
@@ -370,10 +393,13 @@ offerItems(E.evLine, lines, ev.line);
 offerItems(E.evEdge, ["onset" "offset"], ev.edge);
 closeSequenceDialog(obj, E.evSeqText);
 setSequenceHolder(E.evSeqText, struct('sequence', ev.sequence, 'alignStep', ev.alignStep));
-E.evDrawAs.Value = char(pickFrom(L.eventsAs, ["marks" "train"], "marks"));
+drawAsChoices(E.evDrawAs, type, pickFrom(L.eventsAs, ["marks" "train" "span"], "marks"));
 E.evMarker.Value = char(pickFrom(ev.marker, string(E.evMarker.ItemsData), "diamond"));
 E.evSize.Value = min(E.evSize.Limits(2), max(E.evSize.Limits(1), ev.size));
 offerItems(E.evColor, string(E.evColor.Items), pick(ev.color, "auto"));
+E.evSpanStyle.Value = char(pickFrom(ev.spanStyle, string(E.evSpanStyle.ItemsData), "-"));
+E.evSpanWidth.Value = min(E.evSpanWidth.Limits(2), max(E.evSpanWidth.Limits(1), ev.spanWidth));
+E.evSpanAlpha.Value = min(1, max(0, ev.spanAlpha));
 offerItems(E.layerColor, string(E.layerColor.Items), pick(L.color, "auto"));
 E.layerLineStyle.Value = char(pickFrom(pick(L.lineStyle, "auto"), string(E.layerLineStyle.ItemsData), "auto"));
 end

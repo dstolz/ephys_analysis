@@ -204,7 +204,7 @@ switch s
     case "detected"
         if ~src.hasDetected; r = "no detected spikes"; end
     case "events"
-        if L.eventsAs == "train" && ~ismember(p.type, ["raster" "psth" "heatmap"])
+        if L.eventsAs == "train" && ~ismember(p.type, ["raster" "psth" "heatmap" "eventTrace"])   % an event-trace panel does not use eventsAs
             r = "events are drawn as a train only on a raster, PSTH or heat map"; return
         end
         ref = eventMarkRef(L.event);

@@ -3,7 +3,8 @@ function refreshDesigns(obj)
 %   The chosen design is ticked in the menu and shown in the list (its
 %   description as the list's tooltip). Called when the app is built and,
 %   through PlotDesign.listen, whenever a design is chosen, saved, imported
-%   or deleted anywhere (a figure's right-click menu too).
+%   or deleted anywhere (a figure's right-click menu too). The menu ends
+%   with Data tip fields... (DataTipFieldsDialog).
 arguments
     obj (1,1) EphysAnalysisApp
 end
@@ -41,4 +42,7 @@ uimenu(m, "Text", "Open my designs folder", "Separator", "on", "Tooltip", PlotDe
     "MenuSelectedFcn", @(~,~) obj.onDesignsFolder("open"));
 uimenu(m, "Text", "Keep my designs in...", "Tooltip", "Another folder for your designs, such as one the lab shares.", ...
     "MenuSelectedFcn", @(~,~) obj.onDesignsFolder("choose"));
+uimenu(m, "Text", "Data tip fields...", "Separator", "on", "Tag", "DataTipFieldsMenu", ...
+    "Tooltip", "What the data tips of every figure show: quantities, trial, unit or channel, panel, dataset.", ...
+    "MenuSelectedFcn", @(~,~) DataTipFieldsDialog(Parent=obj.Fig));
 end

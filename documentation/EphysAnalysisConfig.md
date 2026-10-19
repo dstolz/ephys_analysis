@@ -1513,11 +1513,11 @@ are `computeFigure`'s.
 
 ### renderFigure
 
-`h = renderFigure(F, spec, target, Design="", UserAesthetics=true, Editable="auto", OnRemember=[])`
+`h = renderFigure(F, spec, target, Design="", UserAesthetics=true, Editable="auto", OnRemember=[], DataTips="auto")`
 draws `F` as `spec` says (the spec `F` was computed with; its `aesthetics` may
 differ, as when the aesthetics editor redraws). `target` is an axes (which draws
 panel 1 only), uiaxes, figure, uifigure, panel, tab, grid layout or tiled layout;
-renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#plot-designs) for this drawing (default: the user's chosen one), `UserAesthetics=false` leaves the user's remembered rules out, `Editable` (`"auto"`: in a visible figure) turns the right-click editing on or off, and `OnRemember` is called with a figure's new rules ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)).
+renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#plot-designs) for this drawing (default: the user's chosen one), `UserAesthetics=false` leaves the user's remembered rules out, `Editable` (`"auto"`: in a visible figure) turns the right-click editing on or off, and `OnRemember` is called with a figure's new rules ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)). `DataTips` (`"auto"`: in a visible figure, as `Editable`; `true` or `false`) gives every part drawn data tips that name what the point is (`FigureDataTips.attach`, below).
 
 - **Layout.** One tiled layout (`TileSpacing` from `grid.spacing`) whose rows and
   columns are the grid expanded into equal tiles, one axes per panel at its cell
@@ -1575,6 +1575,23 @@ renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#
   whole figure the design's and the user's `"figure"` rules and `spec.aesthetics`,
   the later winning (a panel's note and overlays come in between, as the item above says); last of all a panel's `box`, when it is `"on"` or `"off"`, over every one of them. In a visible figure a right-click opens the
   [aesthetics editor](EphysAnalysis.md#plot-aesthetics) on the figure.
+- **Data tips.** With `DataTips` on, `FigureDataTips.attach(F, spec, h)` runs once the
+  figure is drawn: each part's tip names the panel's quantities with their units
+  (a time panel's x as *Time from Stim onset*, in s; the y quantity and the color
+  bar's from the axes' labels: rate in Hz, z-score, µV, power), and from `F` and the
+  part's tags (`tagPart`'s role and group) the trial and trial group of a raster
+  tick, stop dot or mark (found by its times in the panel's raster layers) or of a
+  heat map row of trials, the trial's parameter values, a heat map row's label, the
+  unit, channel or event the part draws, its layer, the panel's id and type, the
+  observation and the dataset. Nothing is computed for it; a new panel type gets
+  these tips without code of its own. A part with a `DataTipTemplate` (lines drawn
+  with `plot`, scatter, bars, error bars, box charts) gets `dataTipTextRow` rows (a
+  row per point only where a point has its own value, as long as the part's data);
+  the others (raster ticks and other `line` objects, images, patches) are written
+  by the figure's data cursor `UpdateFcn` from the same rows. The fields shown are
+  the user's preference (`FigureDataTips.chosen` / `setChosen`, AppPrefs group
+  `FigureDataTips`; `DataTipFieldsDialog`), and `FigureDataTips.refresh` shows a new
+  choice on the figures on screen.
 
 `h` holds `layout` (the tiled layout; `[]` for an axes target), `axes` (the panels'
 axes drawn, in panel order), `panels` (one per panel of the spec: `id`, `type`,
@@ -2463,7 +2480,7 @@ under it; a band right of a panel leaving it narrower, so both panels keep their
 axes the first panel's note and overlays in it; a patch over the raster's opaque bands seen by its pixels, one under
 them not, patches following the limits; a raster's y ticks hidden by default and back with `yTicks`; a panel's `box`
 winning over a design's and the figure's own Box rule), and the
-editing hooks (`Editable`, `OnRemember`, the redraw). Compute (7) also checks `figureCompute`
+editing hooks (`Editable`, `OnRemember`, the redraw), and the data tips (`DataTips`: a PSTH line's rows, a raster tick's trial and group, heat map cells, a bar; the chosen fields followed on refresh; `DataTipFieldsDialog`; the time they add). Compute (7) also checks `figureCompute`
 against `computeFigure` (equal results, `Check=` called at the checkpoints and
 what it throws stopping the compute), `figureOutputName` (`{Plot}`, `{Unit}`,
 `{Index}`, `{Group}`, the `_<Unit>` and `_<Group>` suffixes, the short labels of units, detections and

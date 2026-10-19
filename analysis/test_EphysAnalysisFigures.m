@@ -58,7 +58,11 @@ function test_EphysAnalysisFigures()
 %   layers, points), tuning curves (a series, the inset), the waveforms'
 %   probe layout with the observed unit framed; figureTiles' order past its cap;
 %   Editable, OnRemember and the context's redraw; the editor's colormap;
-%   one observation drawn in under a second; a panel's note (below: in a
+%   one observation drawn in under a second; data tips (FigureDataTips:
+%   a PSTH line's rows, a raster tick's trial and group, a heat map cell's
+%   and a heat map of trials' tips, a bar's rows, the chosen fields a
+%   preference followed on refresh, DataTipFieldsDialog, the time they
+%   add); a panel's note (below: in a
 %   band of its tile; northeast: in its axes) and overlays (on its own
 %   axes), their looks as rules under the figure's own.
 %   Spectral (9): the spectral templates and validate's rules (a coherence
@@ -2420,6 +2424,87 @@ for rep = 1:3
     tR = min(tR, toc(tc0));
 end
 check(tR < 1, sprintf('the raster + PSTH figure of one observation renders in %.3f s (under 1 s)', tR));
+
+% data tips: named quantities, a raster tick's trial, a heat map's rows; the fields a preference
+prefsTips = AppPrefs.useTemporary();
+tipKey = FigureDataTips.InfoKey;
+renderFigure(F1, F1.spec, fe1);
+noTips = isempty(findall(fe1, '-function', @(o) isappdata(o, tipKey)));
+renderFigure(F3, F3.spec, fe1, Editable=true, DataTips=true);
+pl = findall(fe1, '-regexp', 'Tag', '^(trace|channelTrace)$');
+pl = pl(arrayfun(@(o) isprop(o, 'DataTipTemplate') && ~all(isnan(o.XData)), pl));
+labs = strings(1, 0);
+if ~isempty(pl); labs = string({pl(1).DataTipTemplate.DataTipRows.Label}); end
+check(noTips && ~isempty(pl) && any(startsWith(labs, "Time from")) && any(labs == "Trial group") ...
+    && all(ismember(["Panel" "Observation" "Dataset"], labs)) && ~isempty(findall(fe1, 'Tag', FigureDataTips.MenuTag)), ...
+    sprintf('DataTips=true: a continuous trace''s tip rows are %s; the right-click menus have "Data tip fields..."; "auto" in an invisible figure gives none', ...
+    strjoin(labs, " | ")));
+renderFigure(F1, F1.spec, fe1, Editable=true, DataTips=true);
+rf = findall(fe1, '-regexp', 'Tag', '^(rate|rateFill)$');
+rf = rf(arrayfun(@(o) ~all(isnan(o.XData(:))), rf));
+Lrf = strings(0, 1);
+if ~isempty(rf); Lrf = FigureDataTips.tipText(rf(1), 2); end
+check(~isempty(rf) && any(startsWith(Lrf, "Time from")) && any(startsWith(Lrf, "Rate: ")) && any(startsWith(Lrf, "Trial group: ")) ...
+    && any(startsWith(Lrf, "Panel: psth")), sprintf('a PSTH''s tip names the time, the rate in its unit, the group and panel (%s)', strjoin(Lrf, " | ")));
+tk = findall(fe1, 'Tag', 'rasterTicks');
+Ltk = strings(0, 1);
+if ~isempty(tk); Ltk = FigureDataTips.tipText(tk(1), 1); end
+check(~isempty(tk) && any(startsWith(Ltk, "Trial: ")) && any(startsWith(Ltk, "Trial group: ")) && any(startsWith(Ltk, "Time from")) ...
+    && ~any(startsWith(Ltk, "Y")) && any(startsWith(Ltk, "Dataset: ")), ...
+    sprintf('a raster tick''s tip: its trial and trial group, time, dataset (%s)', strjoin(Ltk, " | ")));
+renderFigure(Fh, Fh.spec, fe1, DataTips=true);
+im = findall(fe1, 'Type', 'image');
+Lim = strings(0, 1);
+if ~isempty(im); Lim = FigureDataTips.tipText(im(1), [im(1).XData(1) im(1).YData(1)]); end
+renderFigure(Fth, Fth.spec, fe1, DataTips=true);
+it = findall(fe1, 'Type', 'image');
+Lit = strings(0, 1);
+if ~isempty(it); Lit = FigureDataTips.tipText(it(1), [it(1).XData(1) it(1).YData(1)]); end
+check(~isempty(im) && numel(Lim) >= 4 && any(startsWith(Lim, "Time from")) && ~isempty(it) && any(startsWith(Lit, "Trial: ")), ...
+    sprintf('a heat map cell''s tip: %s; a heat map of trials: %s', strjoin(Lim, " | "), strjoin(Lit, " | ")));
+renderFigure(Frt, Frt.spec, fe1, DataTips=true);
+br = findall(fe1, 'Type', 'bar');
+blabs = strings(1, 0);
+if ~isempty(br); blabs = string({br(1).DataTipTemplate.DataTipRows.Label}); end
+check(~isempty(br) && all(ismember(["Panel" "Dataset"], blabs)), sprintf('a rate panel''s bar: %s', strjoin(blabs, " | ")));
+renderFigure(F3, F3.spec, fe1, DataTips=true);
+FigureDataTips.setChosen(["x" "dataset"]);
+nR = FigureDataTips.refresh(fe1);
+pl = findall(fe1, '-regexp', 'Tag', '^(trace|channelTrace)$');
+pl = pl(arrayfun(@(o) isprop(o, 'DataTipTemplate') && ~all(isnan(o.XData)), pl));
+labs2 = string({pl(1).DataTipTemplate.DataTipRows.Label});
+tk = findall(fe1, 'Tag', 'rasterTicks');
+Ltk2 = FigureDataTips.tipText(tk(1), 1);
+FigureDataTips.setChosen(strings(1, 0));
+FigureDataTips.refresh(fe1);
+labs3 = string({pl(1).DataTipTemplate.DataTipRows.Label});
+check(nR > 0 && numel(labs2) == 2 && startsWith(labs2(1), "Time from") && labs2(2) == "Dataset" && numel(Ltk2) == 2 ...
+    && isequal(labs3, ["X" "Y"]), ...
+    'the chosen fields (a preference) follow on refresh: time and dataset only; none gives MATLAB''s X and Y');
+d = DataTipFieldsDialog(Visible=false);
+nBox = numel(fieldnames(d.Boxes));
+d.reset();
+dflt = d.Chosen;
+d.none();
+d.setField("trial", true);
+d.setField("dataset", true);
+d.ok();
+afterOk = FigureDataTips.chosen();
+d = DataTipFieldsDialog(Visible=false);
+d.all();
+d.cancel();
+check(nBox == height(FigureDataTips.fields()) && isequal(dflt, FigureDataTips.fields().Key(FigureDataTips.fields().Default).') ...
+    && isequal(afterOk, ["trial" "dataset"]) && isequal(FigureDataTips.chosen(), ["trial" "dataset"]) ...
+    && isequal(string({pl(1).DataTipTemplate.DataTipRows.Label}), "Dataset"), ...
+    'DataTipFieldsDialog: a box per field; Reset the defaults; OK keeps the choice and shows it on the figures on screen; Cancel keeps nothing');
+FigureDataTips.setChosen([]);
+tOff = Inf; tOn = Inf;
+for rep = 1:3
+    tc0 = tic; renderFigure(F1, F1.spec, fe1, DataTips=false); drawnow; tOff = min(tOff, toc(tc0));
+    tc0 = tic; renderFigure(F1, F1.spec, fe1, DataTips=true); drawnow; tOn = min(tOn, toc(tc0));
+end
+check(tOn - tOff < 0.25, sprintf('data tips add %.3f s to the raster + PSTH figure (%.3f s without, %.3f s with)', tOn - tOff, tOff, tOn));
+clear prefsTips
 
 %% ============================================================================ spectral
 fprintf('\n== 9. spectral panels (Chronux) ==\n');

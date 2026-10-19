@@ -88,6 +88,10 @@ function h = renderFigure(F, spec, target, opts)
 %                     editor saves them with the figure (the app puts them
 %                     in its config); [] (default): the editor can remember
 %                     them only in the user's preferences
+%     DataTips        "auto" (default: in a visible figure), true or false:
+%                     data tips that name the point's quantities, trial,
+%                     unit or channel, panel and dataset (FigureDataTips;
+%                     the fields are the user's preference)
 %
 %   H fields
 %     layout  the tiled layout ([] for an axes TARGET)
@@ -111,6 +115,7 @@ arguments
     opts.UserAesthetics (1,1) logical = true
     opts.Editable = "auto"
     opts.OnRemember = []
+    opts.DataTips = "auto"
 end
 
 if isfield(F, 'nSessions') && isfield(spec, 'sessions')
@@ -367,6 +372,7 @@ for k = 1:np
     end
 end
 h = struct('layout', tl, 'axes', axs(drawn), 'panels', hp, 'title', txt);
+if editable(opts.DataTips, target); FigureDataTips.attach(F, spec, h); end   % after the right-click menus: it adds its item to them
 end
 
 

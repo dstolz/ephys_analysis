@@ -18,6 +18,15 @@ says how to cut a release.
   over the design, the remembered looks and the figure's own aesthetics rules. A raster panel's
   `options.yTicks` (default `false`, the Raster options' *Show y ticks* row): the y axis shows no tick marks or
   epoch numbers unless it is on; the y label, and the names of a raster of several blocks, stay.
+- Figures: data tips that say what a point is. In a visible figure (the Figures tab's preview, or any
+  window you draw with `renderFigure`) a tip names the panel's quantities with their units (*Time from
+  Stim onset: 0.125 s*, *Rate: 42.1 Hz*), a heat map cell's value and row, a raster tick's trial, trial
+  group and (optionally) trial parameters, the unit or channel, layer, panel, observation and dataset,
+  instead of a bare X and Y. The new `FigureDataTips` reads them from the computed figure and the parts'
+  tags (no compute added; new panel types get them too); `renderFigure` takes `DataTips="auto"`. The new
+  `DataTipFieldsDialog` (right-click **Data tip fields...**, or the app's **Design** menu) picks the
+  fields shown, a preference (group `FigureDataTips`) applied to the figures on screen at once. See
+  [Data tips](documentation/EphysAnalysisApp.md#figures-tab).
 
 - Adaptive weighted CAR for the derived signals (Khorasani, Shalchyan & Daliri 2019, *Front. Neurosci.*
   13:350): each channel minus its own Kalman-tracked share of the plain CAR, so an artifact that reaches

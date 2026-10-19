@@ -1,7 +1,7 @@
 function refreshDatasetLabels(obj, idx)
 %refreshDatasetLabels  The Dataset drop-downs' items: each dataset's name and its number of sorted units.
-%   refreshDatasetLabels(OBJ) labels the datasets of the Alignment,
-%   Figures and Chronux tabs' Dataset drop-downs (the same items on each;
+%   refreshDatasetLabels(OBJ) labels the datasets of the Alignment
+%   and Figures tabs' Dataset drop-downs (the same items on each;
 %   their ItemsData, the datasets' indices, and so the pick, are kept):
 %     "subj1_day1  (14 units)"      a sort whose units have been counted
 %     "subj1_day1"                  a sort not counted yet

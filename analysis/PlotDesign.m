@@ -413,7 +413,8 @@ classdef PlotDesign
         function paint(root, D)
             %paint  Color the ground behind the plot drawn as ROOT with D's background.
             %   The ground is the figure, panel, tab or grid the plot's layout
-            %   sits in (a plot drawn into an axes has none). Its color before
+            %   sits in, or that renderFigure laid its axes out on (a plot
+            %   drawn into an axes has none). Its color before
             %   the first design is remembered and comes back with a design
             %   that has no background.
             [obj, prop] = groundOf(root);
@@ -752,11 +753,16 @@ end
 
 %% --- drawing -----------------------------------------------------------------
 function [obj, prop] = groundOf(root)
-%groundOf  The figure, panel, tab or grid behind the plot's outer layout, and its color property.
+%groundOf  The figure, panel, tab or grid behind the plot's outer layout (or that renderFigure laid its axes out on), and its color property.
 obj = [];
 prop = '';
-if isempty(root) || ~isgraphics(root) || ~isa(root, 'matlab.graphics.layout.TiledChartLayout'); return; end
-p = root.Parent;
+if isempty(root) || ~isgraphics(root); return; end
+p = root;   % renderFigure's root: the container its axes are on
+if isa(root, 'matlab.graphics.layout.TiledChartLayout')
+    p = root.Parent;
+elseif isa(root, 'matlab.graphics.axis.Axes') || isa(root, 'matlab.ui.control.UIAxes')
+    return
+end
 while isa(p, 'matlab.graphics.layout.TiledChartLayout'); p = p.Parent; end
 if isa(p, 'matlab.ui.Figure')
     obj = p; prop = 'Color';

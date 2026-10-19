@@ -27,8 +27,11 @@ function issues = validate(obj, opts)
 %               following layer, a warning for perGroup while the figure's
 %               selection groups by nothing; grid: whole rows and cols >= 1,
 %               rowHeights / colWidths [] or one positive size each,
-%               spacing; panels: a known type, whole row / col / spans
-%               inside the grid, no overlaps, ids of their own (warnings:
+%               spacing, gapUnits, rowGap / colGap >= 0, rowGaps / colGaps
+%               [] or one gap >= 0 between every two rows / columns;
+%               panels: a known type, whole row / col / spans inside the
+%               grid, a size in (0, 1] each way, align and valign, no
+%               overlaps, ids of their own (warnings:
 %               no panels, cells no panel covers); a panel's own ref /
 %               window / selection only on aligned types (its selection
 %               checked as the figure's), a "between" window only on a
@@ -291,8 +294,26 @@ for k = 1:numel(obj.Figures)
                 " (" + nWant + ").");
         end
     end
-    if ~ismember(G.spacing, ["loose" "compact" "tight" "none"])
-        add("Figures", f0 + ".grid.spacing", "error", "The grid's spacing is loose, compact, tight or none.");
+    if ~ismember(G.spacing, EphysAnalysisConfig.GridSpacings)
+        add("Figures", f0 + ".grid.spacing", "error", "The grid's spacing is loose, compact, tight, none or custom.");
+    end
+    if ~ismember(G.gapUnits, EphysAnalysisConfig.GridGapUnits)
+        add("Figures", f0 + ".grid.gapUnits", "error", "The grid's gap units are px or %.");
+    end
+    for gf = ["rowGap" "colGap"]
+        if ~(isscalar(G.(gf)) && isfinite(G.(gf)) && G.(gf) >= 0)
+            add("Figures", f0 + ".grid." + gf, "error", "The grid's " + gf + " is a number, at least 0.");
+        end
+    end
+    for gf = ["rowGaps" "colGaps"]
+        nWant = G.rows - 1;
+        between = "rows";
+        if gf == "colGaps"; nWant = G.cols - 1; between = "columns"; end
+        v = G.(gf);
+        if ~isempty(v) && ~(numel(v) == nWant && all(isfinite(v) & v >= 0))
+            add("Figures", f0 + ".grid." + gf, "error", gf + " is [] (each the one gap) or a gap of at least 0 between " + ...
+                "every two " + between + " (" + max(nWant, 0) + ").");
+        end
     end
     if isempty(fg.panels)
         add("Figures", f0 + ".panels", "warning", "The figure has no panels: it draws nothing.");
@@ -319,6 +340,15 @@ for k = 1:numel(obj.Figures)
         end
         if gridOk && isWhole(pj.col) && isWhole(pj.colSpan) && pj.col + pj.colSpan - 1 > G.cols
             add("Figures", p0 + ".col", "error", sprintf("Panel ""%s"" reaches column %d; the grid has %d.", pj.id, pj.col + pj.colSpan - 1, G.cols));
+        end
+        if ~(numel(pj.size) == 2 && all(isfinite(pj.size) & pj.size > 0 & pj.size <= 1))
+            add("Figures", p0 + ".size", "error", "A panel's size is [width height], each a share of its cell over 0 and at most 1.");
+        end
+        if ~ismember(pj.align, EphysAnalysisConfig.PanelAligns)
+            add("Figures", p0 + ".align", "error", "A panel's align is left, center or right.");
+        end
+        if ~ismember(pj.valign, EphysAnalysisConfig.PanelVAligns)
+            add("Figures", p0 + ".valign", "error", "A panel's valign is top, middle or bottom.");
         end
     end
     if gridOk && placed && ~isempty(fg.panels)

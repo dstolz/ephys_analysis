@@ -12,10 +12,13 @@ function fig = gatherFigureEditor(obj)
 %   selection is its own while "Trial selection as the figure" is
 %   unticked (the selection rows of the Panel alignment section), else
 %   "default". The
-%   panel's spans, its row's height and its column's width are written
-%   only when their spinners differ from what applyFigureEditor showed, so
-%   a value they cannot show is kept as stored; a row height or column
-%   width of 1 keeps equal rows ([] sizes) equal. The Common options rows
+%   panel's spans, its row's height, its column's width and its own size
+%   (% of its cell) are written only when their spinners differ from what
+%   applyFigureEditor showed, so a value they cannot show is kept as
+%   stored; a row height or column width of 1 keeps equal rows ([] sizes)
+%   equal. The figure's gaps beyond the Spacing drop-down (custom's units
+%   and values) are the Spacing window's (figureSpacingDialog), kept here
+%   as they are. The Common options rows
 %   are the figure's common; a linked panel's (common true) common fields
 %   are not read from its Options rows (locked, showing the figure's), and
 %   its common flag is the Options header box's (onPanelCommonToggled).
@@ -144,6 +147,14 @@ if j >= 1 && j <= numel(fig.panels)
     if E.colWidth.Value ~= shownSize(fig.grid.colWidths, p.col)
         fig.grid.colWidths = setSize(fig.grid.colWidths, p.col, fig.grid.cols, E.colWidth.Value);
     end
+    shown = shownShare(p.size);
+    for d = 1:2   % the panel's own size in its cell, % in the editor
+        sp = E.panelWidth;
+        if d == 2; sp = E.panelHeight; end
+        if sp.Value ~= shown(d); p.size(d) = sp.Value / 100; end
+    end
+    p.align = string(E.panelAlign.Value);
+    p.valign = string(E.panelVAlign.Value);
     own = E.panelSame.UserData;
     if ~(islogical(own) && numel(own) == 2); own = [false false]; end
     ownSel = ~E.panelSameSel.Value;   % "Trial selection as the figure" unticked: the panel's own
@@ -357,6 +368,13 @@ end
 function v = shownSpan(span, limits)
 %shownSpan  The span applyFigureEditor shows.
 v = min(limits(2), max(1, round(span)));
+end
+
+
+function v = shownShare(s)
+%shownShare  The panel size applyFigureEditor shows, % of its cell each way (100 for what is not two numbers).
+v = [100 100];
+if numel(s) == 2 && all(isfinite(s)); v = min(100, max(1, 100 * reshape(s, 1, 2))); end
 end
 
 

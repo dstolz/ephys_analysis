@@ -1,7 +1,10 @@
 function drawFigureSchematic(obj)
 %drawFigureSchematic  Draw the selected figure's arrangement in the editor's schematic (FigureSchematic).
 %   The grid in proportion (its rows' relative heights and its columns'
-%   relative widths, [] = equal): one patch per panel, filled with a pale
+%   relative widths, [] = equal; the gaps between them as the spacing
+%   says, px against the export figure's size, at least a sliver): one
+%   patch per panel, at its own size in its cell and where its alignment
+%   puts it there, filled with a pale
 %   color of its type, the selected panel (SelectedPanel) with a dark edge
 %   and its name in bold, each with its type and how many layers it has in
 %   its middle; a press on a panel picks it, and dragging it moves it to
@@ -41,13 +44,14 @@ nc = max(1, round(G.cols));
 cy = edges(G.rowHeights, nr);
 cx = edges(G.colWidths, nc);
 cells = EphysAnalysisConfig.figureCells(fig);
-gap = 0.006;
+[gy, gx] = schematicGaps(G, nr, nc, obj.Config.Export);
 gray = [0.72 0.72 0.72];
 for r = 1:size(cells, 1)
     for c = 1:size(cells, 2)
         if cells(r, c) ~= 0; continue; end
-        x = [cx(c) cx(c+1) cx(c+1) cx(c) cx(c)] + gap * [1 -1 -1 1 1];
-        y = [cy(r) cy(r) cy(r+1) cy(r+1) cy(r)] + gap * [1 1 -1 -1 1];
+        b = inside(cx, cy, gx, gy, c, c, r, r);
+        x = b([1 2 2 1 1]);
+        y = b([3 3 4 4 3]);
         line(ax, x, y, "Color", gray, "LineStyle", ":", "LineWidth", 1, "HitTest", "off", "Tag", "schematicEmpty");
     end
 end
@@ -58,8 +62,13 @@ for q = 1:numel(fig.panels)
     c0 = min(max(round(p.col), 1), nc);
     r1 = min(nr, r0 + max(1, round(p.rowSpan)) - 1);
     c1 = min(nc, c0 + max(1, round(p.colSpan)) - 1);
-    x0 = cx(c0) + gap; x1 = cx(c1 + 1) - gap;
-    y0 = cy(r0) + gap; y1 = cy(r1 + 1) - gap;
+    b = inside(cx, cy, gx, gy, c0, c1, r0, r1);
+    s = [1 1];   % its own size in its cell, where its alignment puts it
+    if numel(p.size) == 2 && all(isfinite(p.size) & p.size > 0); s = min(reshape(p.size, 1, 2), 1); end
+    w = (b(2) - b(1)) * s(1);
+    h = (b(4) - b(3)) * s(2);
+    x0 = b(1) + (b(2) - b(1) - w) * shareOf(p.align, ["left" "center" "right"]); x1 = x0 + w;
+    y0 = b(3) + (b(4) - b(3) - h) * shareOf(p.valign, ["top" "middle" "bottom"]); y1 = y0 + h;   % y runs down
     sel = q == obj.SelectedPanel;
     edge = [0.53 0.53 0.53];
     width = 1;
@@ -87,6 +96,62 @@ function e = edges(sizes, n)
 s = ones(1, n);
 if numel(sizes) == n && all(isfinite(sizes)) && all(sizes > 0); s = reshape(sizes, 1, []); end
 e = [0 cumsum(s) / sum(s)];
+end
+
+
+function [gy, gx] = schematicGaps(G, nr, nc, export)
+%schematicGaps  The gaps between the rows (GY, NR - 1) and columns (GX, NC - 1) in the schematic's units (the grid is 1 x 1).
+%   In proportion: px against the export figure's size (FigureSizeCm, as
+%   newExportFigure makes it), % against the mean row (column); at least
+%   a sliver, so the panels stay apart, and at most a third of a row.
+px = EphysAnalysisConfig.GridSpacingPx;
+i = find(EphysAnalysisConfig.GridSpacings(1:numel(px)) == G.spacing, 1);
+if isempty(i)
+    gy = gapsOf(G.rowGaps, G.rowGap, nr - 1);
+    gx = gapsOf(G.colGaps, G.colGap, nc - 1);
+    pct = G.gapUnits == "%";
+else
+    gy = repmat(px(i), 1, nr - 1);
+    gx = repmat(px(i), 1, nc - 1);
+    pct = false;
+end
+if pct
+    gy = gy / 100 / nr;
+    gx = gx / 100 / nc;
+else
+    cm = [18 12];
+    if isfield(export, 'FigureSizeCm') && numel(export.FigureSizeCm) == 2; cm = export.FigureSizeCm; end
+    cm(2) = max(cm(2), 3.5 * nr + 2);
+    gy = gy / (cm(2) / 2.54 * 96);
+    gx = gx / (cm(1) / 2.54 * 96);
+end
+gy = min(max(gy, 0.008), 1 / (3 * nr));
+gx = min(max(gx, 0.008), 1 / (3 * nc));
+end
+
+
+function g = gapsOf(list, one, n)
+%gapsOf  N gaps: LIST when it has N, else ONE each.
+g = reshape(double(list), 1, []);
+if numel(g) ~= n; g = repmat(double(one), 1, n); end
+end
+
+
+function b = inside(cx, cy, gx, gy, c0, c1, r0, r1)
+%inside  The box [x0 x1 y0 y1] of the cells c0..c1, r0..r1 less half the gap to each neighbor (a sliver at the grid's edge).
+edge = 0.006;
+b = [cx(c0) cx(c1 + 1) cy(r0) cy(r1 + 1)];
+if c0 > 1; b(1) = b(1) + gx(c0 - 1) / 2; else; b(1) = b(1) + edge; end
+if c1 < numel(cx) - 1; b(2) = b(2) - gx(c1) / 2; else; b(2) = b(2) - edge; end
+if r0 > 1; b(3) = b(3) + gy(r0 - 1) / 2; else; b(3) = b(3) + edge; end
+if r1 < numel(cy) - 1; b(4) = b(4) - gy(r1) / 2; else; b(4) = b(4) - edge; end
+end
+
+
+function s = shareOf(v, order)
+%shareOf  0, 0.5 or 1 for the first, second or third of ORDER (0.5 when V is none of them).
+s = (find(string(v) == order, 1) - 1) / 2;
+if isempty(s); s = 0.5; end
 end
 
 

@@ -34,7 +34,9 @@ function test_EphysAnalysisApp()
 %   error, a type change, the gather / apply round trip, a remembered look
 %   and Forget, another config opened, a row height the spinner's old
 %   limits clipped, Remove panel, Duplicate, Add panel above / right /
-%   left, spans (and their refusals), sizes and spacing, Move, layer and
+%   left, spans (and their refusals), sizes and spacing, a panel's own
+%   size and alignment, the Spacing window (custom gaps, one set apart,
+%   a refused value, Apply, a preset and OK), Move, layer and
 %   figure Up / Down, no Behavior type or trials source offered, linked
 %   panels' locked alignment and common options (Apply to all panels,
 %   Re-link all panels, Ctrl+7 / Ctrl+0), a scan listing the
@@ -554,7 +556,7 @@ FE = app.FigureEditor;
 FA = app.FigureAlignControls;
 FP = app.PanelAlignControls;
 figAxes = @() findall(app.FigurePreviewPanel, 'Type', 'axes', '-regexp', 'Tag', '^(axes|rasterAxes)$');
-figTitle = @() strjoin(string(findall(app.FigurePreviewPanel, 'Type', 'tiledlayout').Title.String), " ");
+figTitle = @() strjoin(string(findall(app.FigurePreviewPanel, 'Type', 'axes', 'Tag', 'titleHost').Title.String), " ");
 nPatches = @() numel(findall(app.FigureSchematic, 'Type', 'patch'));
 check(isempty(app.Config.Figures) && isempty(findall(app.FiguresTree, 'Type', 'uitreenode')) && ~shown(FE.id) && shown(FE.summary) ...
     && app.FigurePreviewState == "idle" && endsWith(app.helpURL("tab"), "#figures-tab") && app.RemoveFigureButton.Enable == "off" ...
@@ -997,6 +999,34 @@ app.onConfigChanged("figure");
 G2 = app.Config.Figures(2).grid;
 check(isequal(G2.rowHeights, [1.5 1]) && isequal(G2.colWidths, [1 2 1]) && G2.spacing == "loose", ...
     'Row height, Column width and Spacing reach the grid (its row and column, the others 1)');
+FE.panelWidth.Value = 60;
+FE.panelAlign.Value = "right";
+app.onConfigChanged("figure");
+pS = app.Config.Figures(2).panels(app.SelectedPanel);
+check(isequal(pS.size, [0.6 1]) && pS.align == "right" && pS.valign == "middle" && FE.panelAlign.Enable == "on" ...
+    && FE.panelVAlign.Enable == "off", ...
+    'Panel size and Align reach the selected panel alone (60 % of its cell''s width, at the right); Align up the cell off while 100 % high');
+FE.spacingDialog.ButtonPushedFcn(FE.spacingDialog, []);
+dS = findall(groot, 'Type', 'figure', 'Tag', 'figureSpacingDialog');
+DS = dS.UserData;
+DS.Spacing.Value = "custom"; DS.Spacing.ValueChangedFcn(DS.Spacing, []);
+DS.Units.Value = "px"; DS.Units.ValueChangedFcn(DS.Units, []);
+DS.RowGap.Value = 10; DS.RowGap.ValueChangedFcn(DS.RowGap, []);
+DS.ColGap.Value = 4; DS.ColGap.ValueChangedFcn(DS.ColGap, []);
+TS = DS.Table.Data;
+check(isscalar(dS) && DS.FigureId == "figure_2" && height(TS) == 3 && isequal(TS.Gap, [10; 4; 4]) && DS.Units.Enable == "on", ...
+    'Spacing...: the window lists every gap of the 2 x 3 grid, filled by the one gap between rows and the one between columns');
+DS.Table.CellEditCallback(DS.Table, struct('Indices', [3 2], 'NewData', 16));
+DS.Table.CellEditCallback(DS.Table, struct('Indices', [1 2], 'NewData', -3));
+DS.Apply.ButtonPushedFcn(DS.Apply, []);
+G3 = app.Config.Figures(2).grid;
+check(isvalid(dS) && G3.spacing == "custom" && G3.gapUnits == "px" && G3.rowGap == 10 && isempty(G3.rowGaps) && G3.colGap == 4 ...
+    && isequal(G3.colGaps, [4 16]) && string(FE.spacing.Value) == "custom", ...
+    'Apply: the gaps reach the grid (a gap under 0 refused; the second column gap set apart, the row gap the one value); the window stays');
+DS.Spacing.Value = "compact"; DS.Spacing.ValueChangedFcn(DS.Spacing, []);
+DS.Ok.ButtonPushedFcn(DS.Ok, []);
+G4 = app.Config.Figures(2).grid;
+check(~isvalid(dS) && G4.spacing == "compact" && isequal(G4.colGaps, [4 16]), 'OK: a preset, the custom gaps kept unused; the window closes');
 app.onMovePanel("right");
 check(isequal(cellOf("raster_3"), {[1 3 1 1]}) && isequal(cellOf("raster_2"), {[1 2 1 1]}) && contains(app.StatusBar.Text, "Moved raster_3 right"), ...
     'Move right swaps the panel with its same-shaped neighbor');

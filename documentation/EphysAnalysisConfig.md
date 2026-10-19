@@ -90,7 +90,7 @@ distinct as file names: `{Plot}` replaces every character outside
   "Figures": [
     { "id": "unit_card", "enabled": true, "title": "",
       "observe": { "kind": "auto", "source": "units", "units": { "classes": ["su"], "...": "..." }, "...": "..." },
-      "grid": { "rows": 3, "cols": 1, "rowHeights": [1.5, 1, 1], "colWidths": [], "spacing": "none" },
+      "grid": { "rows": 3, "cols": 1, "rowHeights": [1.5, 1, 1], "colWidths": [], "spacing": "none", "...": "..." },
       "common": { "bins": { "BinSec": 0.01, "SmoothSec": 0.01 }, "measure": "rate", "...": "..." },
       "ref": "default", "window": "default", "selection": "default",
       "sessions": { "enabled": false, "...": "..." },
@@ -616,7 +616,7 @@ words; the other fields are not checked until then.
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `text` | `""` | the words; a new line starts a new line of text |
-| `placement` | `"below"` | outside the panel: `"below"`, `"above"`, `"right"`, `"left"` (the panel's tile gives up a band for the text); over it, in the panel's whole area: `"northwest"`, `"north"`, `"northeast"`, `"west"`, `"center"`, `"east"`, `"southwest"`, `"south"`, `"southeast"`; or `"custom"`, at `x`, `y` |
+| `placement` | `"below"` | outside the panel: `"below"`, `"above"`, `"right"`, `"left"` (the panel's area gives up a band for the text); over it, in the panel's whole area: `"northwest"`, `"north"`, `"northeast"`, `"west"`, `"center"`, `"east"`, `"southwest"`, `"south"`, `"southeast"`; or `"custom"`, at `x`, `y` |
 | `x`, `y` | `0.5`, `0.5` | custom: the text's anchor, 0-1 across (from the left edge) and up (from the bottom edge) the panel's area; may lie outside it |
 | `align` | `"left"` | `"left"`, `"center"` or `"right"`: how the lines line up; below and above the panel, also where the text sits across it; custom, the anchor's side of the text |
 | `valign` | `"middle"` | `"top"`, `"middle"` or `"bottom"`: where the text sits up the panel beside it (right and left); custom, the anchor's place on the text |
@@ -630,7 +630,7 @@ words; the other fields are not checked until then.
 | `interpreter` | `"none"` | `"none"`: every character as typed; `"tex"`: `\mu`, `\pm`, `x^2`, `x_i`, `\bf{...}` |
 
 `renderFigure` draws a panel's note with the panel, as a text of role `note` in a
-hidden axes (`noteHost`) in the panel's tile beside its axes (`drawNote`, `placeNote`; a
+hidden axes (`noteHost`) in the panel's area beside its axes (`drawNote`, `placeNote`; a
 placement over the panel, or a figure drawn into a single axes, carries the text in the
 axes), so a note is a component of the figure the [aesthetics](EphysAnalysis.md#plot-aesthetics)
 editor lists and every [design](EphysAnalysis.md#plot-designs) styles
@@ -766,8 +766,11 @@ give the fields below; every field exists on every entry.
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `rows`, `cols` | 1, 1 | the grid's size; whole numbers >= 1 |
-| `rowHeights`, `colWidths` | `[]` | `[]` = equal; else one positive relative size per row / column, e.g. `[1.5 1 1]`. The drawing is a tiled layout of equal tiles, so a size is rounded to quarter steps of the smallest, and at most 32 tiles are used a side: `[1.5 1 1]` is 3 : 2 : 2 tiles, `[1 1.37]` draws as `[1 1.25]` |
-| `spacing` | `"tight"` | the tiled layout's `TileSpacing`: `"loose"`, `"compact"`, `"tight"` or `"none"` (`"none"` draws stacked time panels flush) |
+| `rowHeights`, `colWidths` | `[]` | `[]` = equal; else one positive relative size per row / column, e.g. `[1.5 1 1]`: the rows' plot areas take exactly these shares (`[1 1.37]` is 1 : 1.37), once the room the labels take and the gaps are set aside ([layout](#renderfigure)). Every panel of a row (column) has its height (width); a panel's own `size` makes it smaller in its cell |
+| `spacing` | `"tight"` | the gap between the panels: the clear space between neighboring panels' labels (tick labels, axis labels, titles). `"loose"`, `"compact"`, `"tight"` or `"none"`: every gap 24, 12, 6 or 0 px (`EphysAnalysisConfig.GridSpacings`, `GridSpacingPx`); 0 makes plot areas flush where no label sits between them, so `"none"` draws stacked time panels flush. `"custom"`: the gaps below |
+| `gapUnits` | `"px"` | `spacing "custom"`: `"px"` (pixels at the size drawn; an export is drawn at its own size) or `"%"`: a row gap a share of the mean row's plot height, a column gap of the mean column's plot width, so the figure keeps its look at any size |
+| `rowGap`, `colGap` | 6, 6 | `spacing "custom"`: the gap between every two rows (vertical) and every two columns (horizontal), in `gapUnits`; numbers >= 0 |
+| `rowGaps`, `colGaps` | `[]` | `spacing "custom"`: `[]` = `rowGap` (`colGap`) each; else one gap >= 0 between every two rows (`rows - 1` values, the first between rows 1 and 2) or columns (`cols - 1`), to set them apart. A preset leaves these four fields stored and unused |
 
 `observe` (what the preview's picker lists and what a run repeats the figure over):
 
@@ -803,12 +806,14 @@ it. `"blank"` is an empty 1 x 1 grid.
 | `title` | `""` | `""` = none, but for the observation's label on the top-left panel under a title of the figure's own |
 | `row`, `col` | 1, 1 | the top-left cell |
 | `rowSpan`, `colSpan` | 1, 1 | the rows and columns it covers |
+| `size` | `[1 1]` | `[width height]`: its share of its cell's plot area, each over 0 and at most 1, so one panel can be narrower or shorter than the others of its column or row (`[0.5 1]`: half as wide) |
+| `align`, `valign` | `"center"`, `"middle"` | where a panel smaller than its cell sits in it: `"left"`, `"center"` or `"right"`; `"top"`, `"middle"` or `"bottom"`. A panel smaller than its cell keeps its own time tick labels ([shared time axis](#shared-time-axis)) |
 | `ref`, `window` | `"default"` | `"default"` = the figure's, or the panel's own [EventRef](#eventref) / [EpochWindow](#epochwindow) (aligned types only). A panel with its own cuts its own epochs, with the figure's selection or its own (next row); with the figure's, its groups must match the figure's by label, or the panel is skipped. It then no longer [shares the time axis](#shared-time-axis) |
 | `selection` | `"default"` | `"default"` = the figure's, or the panel's own [TrialSelection](#trialselection) (aligned types only): its own epochs and groups, [colored apart with a legend inside the panel](#panel-types). Its groups are not matched to the figure's, and a per-group figure does not cut them. A panel with only its own `selection` still shares the time axis, which depends on `ref` and `window` alone |
 | `common` | `true` | `true`: the panel draws the figure's [common options](#common-options) for every common field its type has (`commonFieldsOf`); `false`: all of its own `options` |
 | `layers` | none | the [layers](#layer-fields), a list of any length |
 | `options` | the type's [options](#panel-options) | coerced to the type's, so changing `type` re-seeds them: fields the new type has keep their values, the others are dropped. While `common` is true the type's common fields are stored but not drawn: the figure's are |
-| `note` | `defaults("Note")` | descriptive text on or beside the panel: a [note](#panel-notes) (nothing is drawn until `text` has words), after `options`. `placement` `"below"`, `"above"`, `"right"` or `"left"` gives up a band of the panel's own tile beside its axes; a compass point, `"center"` or `"custom"` (at `x`, `y`, 0-1 across and up the panel's axes) puts the text in the axes |
+| `note` | `defaults("Note")` | descriptive text on or beside the panel: a [note](#panel-notes) (nothing is drawn until `text` has words), after `options`. `placement` `"below"`, `"above"`, `"right"` or `"left"` gives up a band of the panel's own area beside its axes; a compass point, `"center"` or `"custom"` (at `x`, `y`, 0-1 across and up the panel's axes) puts the text in the axes |
 | `overlays` | none | a list of [overlays](#panel-overlays), lines and semitransparent patches drawn on the panel's own axes in data units, the last field of a panel. A panel's overlays are all drawn on its axes, so `panel` is always `"all"`: `normalizePanel` sets it, whatever a file says, and Validate gives no panel warning. Units are the panel's axis' own (seconds from the event on a time panel, a rate on a PSTH's y axis, an epoch number on a raster's rows) |
 
 ### Layer fields
@@ -1040,8 +1045,8 @@ channels only), and a panel left with nothing is skipped with the reason.
 
 The coherence spectra are the seed layer's result (`R.C`, `R.phi`, the
 jackknife bars `R.Clo` and `R.Chi`, `R.confC`, `R.pairs`); the partner layer's
-result is a marker. With `showPhase` the panel's tile holds a 3 x 1 tiled
-layout of its own, the magnitude over two rows and the phase (the angle where
+result is a marker. With `showPhase` the panel's plot area holds two axes, the
+magnitude over its top two thirds and the phase (the angle where
 the coherence is over its level, every frequency without one; -pi to pi) flush
 under it on the one frequency axis; both axes are tagged with the panel's id.
 `renderFigure` returns the phase axes as `h.panels(k).extraAxes` (the magnitude's
@@ -1330,6 +1335,8 @@ A panel shares the figure's time axis when its type does (`SharesTime`) and its
   meets the panel below, unless its ticks name its blocks.
 - A time panel with a `ref` or `window` of its own keeps its own x axis and
   label, and the stack above it is labeled at its own bottom.
+- A panel narrower than its column (a note band left or right of it, or a
+  `size` below 1) keeps its time tick labels, and so does the panel above it.
 - Events layers go only on the panels of these types, since marks need a time
   axis. A spectrogram shares it (it is always on the aligned base). A coherogram
   (a coherence panel with `overTime`) is drawn on the figure's time axis too,
@@ -1343,12 +1350,12 @@ with no graphics; the app's arrangement editor calls the same ones.
 | Call | Does |
 | --- | --- |
 | `cells = EphysAnalysisConfig.figureCells(fig)` | a `rows` x `cols` matrix: 0 for an empty cell, k for a cell that panel k covers. `[cells, overlap] = ...` also lists each pair of overlapping panels once (`[first second]`, an n x 2 matrix); the parts of a panel outside the grid are left out |
-| `fig = EphysAnalysisConfig.placePanel(fig, panel, where, anchorId)` | adds `panel` (a partial panel struct, normalized; a blank id becomes `<type>_<n>`) next to the panel `anchorId`. `where` `"below"`: a new row right after the anchor's last row, its `rowHeights` entry (when given) copied from that row; `"above"`: a new row before the anchor's first row, copying its height; `"right"` and `"left"`: a new column the same way, copying `colWidths`. The panels past the new row (column) move down (right) by one, those whose span crosses it grow by one, and the new panel takes the anchor's columns (rows) and one row (column). The first panel of a figure without panels goes to (1, 1), the grid unchanged, and needs no anchor. Errors: `EphysAnalysisConfig:NoPanel` (no anchor, or none by that id), `EphysAnalysisConfig:DuplicatePanelId` |
-| `fig = EphysAnalysisConfig.removePanel(fig, id)` | removes the panel, then drops every row in which no remaining panel starts and every column likewise: the panels past a dropped row (column) move up (left), the spans that crossed it shrink by one, and its `rowHeights` / `colWidths` entry goes. Removing the last panel leaves a 1 x 1 grid. `EphysAnalysisConfig:NoPanel` for an unknown id |
+| `fig = EphysAnalysisConfig.placePanel(fig, panel, where, anchorId)` | adds `panel` (a partial panel struct, normalized; a blank id becomes `<type>_<n>`) next to the panel `anchorId`. `where` `"below"`: a new row right after the anchor's last row, its `rowHeights` entry (when given) copied from that row; `"above"`: a new row before the anchor's first row, copying its height; `"right"` and `"left"`: a new column the same way, copying `colWidths`. A gap list (`rowGaps` / `colGaps`, when given) gets the gap where the new row (column) goes on both sides of it (at the grid's edge, the outermost gap again). The panels past the new row (column) move down (right) by one, those whose span crosses it grow by one, and the new panel takes the anchor's columns (rows) and one row (column). The first panel of a figure without panels goes to (1, 1), the grid unchanged, and needs no anchor. Errors: `EphysAnalysisConfig:NoPanel` (no anchor, or none by that id), `EphysAnalysisConfig:DuplicatePanelId` |
+| `fig = EphysAnalysisConfig.removePanel(fig, id)` | removes the panel, then drops every row in which no remaining panel starts and every column likewise: the panels past a dropped row (column) move up (left), the spans that crossed it shrink by one, its `rowHeights` / `colWidths` entry goes, and so does a gap list's gap under it (under the last row, the one over it). Removing the last panel leaves a 1 x 1 grid without gap lists. `EphysAnalysisConfig:NoPanel` for an unknown id |
 | `[fig, moved] = EphysAnalysisConfig.movePanel(fig, id, direction)` | swaps the cells (`row`, `col`) of the panel and its neighbor in `direction` (`"up"`, `"down"`, `"left"`, `"right"`) when that neighbor has the same spans and lines up with it (the same column for up and down, the same row for left and right); else `fig` is returned unchanged and `moved` is false |
 
 **Remove undoes Add**: `removePanel(placePanel(fig, p, where, a), p.id)` gives
-back `fig`, relative sizes included. That is why a row in which no panel starts
+back `fig`, relative sizes and gap lists included. That is why a row in which no panel starts
 is dropped even when it was only crossed by a span (a "wholly empty" rule would
 leave a blank cell behind). The price: a blank row or column that was there
 before also closes at the next Remove.
@@ -1495,12 +1502,44 @@ are `computeFigure`'s.
 `h = renderFigure(F, spec, target, Design="", UserAesthetics=true, Editable="auto", OnRemember=[])`
 draws `F` as `spec` says (the spec `F` was computed with; its `aesthetics` may
 differ, as when the aesthetics editor redraws). `target` is an axes (which draws
-panel 1 only), uiaxes, figure, uifigure, panel, tab, grid layout or tiled layout;
+panel 1 only), uiaxes, figure, uifigure, panel, tab or grid layout;
 renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#plot-designs) for this drawing (default: the user's chosen one), `UserAesthetics=false` leaves the user's remembered rules out, `Editable` (`"auto"`: in a visible figure) turns the right-click editing on or off, and `OnRemember` is called with a figure's new rules ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)).
 
-- **Layout.** One tiled layout (`TileSpacing` from `grid.spacing`) whose rows and
-  columns are the grid expanded into equal tiles, one axes per panel at its cell
-  and span.
+- **Layout.** renderFigure lays its panels out itself (not with MATLAB's tiled
+  layout): `target`, emptied (a grid layout gets a borderless panel; `h.layout`),
+  holds one axes per panel, and once everything
+  is drawn and dressed (its looks final) `figureLayout` measures the room each
+  panel's labels take (its axes' `TightInset`, on the sides where tick labels,
+  an axis label, a title or a color bar outside sit: a tick label that only
+  reaches past a corner keeps no neighbor away) and places every axes in pixels
+  (`figureArrange`, pure):
+  - the plot areas of the rows and columns line up across the grid, in the exact
+    proportions of `rowHeights` and `colWidths` (no rounding; `[]` = equal);
+  - between two rows goes the room the tallest labels there take (the bottom
+    labels of the panels ending in the row above, the titles of those starting in
+    the row below) and the **gap**, the clear space between neighboring panels'
+    labels; columns the same with the left and right labels. A gap of 0 makes the
+    plot areas flush where no label sits between them: a time stack whose inner
+    tick labels are dropped. The gaps are `grid.spacing`'s: a preset (`"loose"`
+    24 px, `"compact"` 12, `"tight"` 6, `"none"` 0) or `"custom"` (`rowGap`,
+    `colGap`, or each gap of `rowGaps` / `colGaps`, in px or in % of the mean
+    row's plot height / the mean column's plot width);
+  - a panel whose `size` is below 1 takes that share of its cell's plot area,
+    at its `align` and `valign`; its note's band (below) comes off its area, and
+    a coherence panel's phase strip takes the bottom third of what is left;
+  - the title and dataset subtitle sit in a band over the grid (a hidden axes,
+    Tag `titleHost`, holds them: the editor's `plotTitle` and `plotSubtitle`),
+    the figure's legend in a band beside it (below), and a margin of 6 px goes
+    round it all;
+  - it measures again at the new sizes (an axes' size can change its tick
+    labels) and arranges again when the room changed;
+  - `target` is laid out again whenever it changes size (a listener of its
+    `SizeChanged` event; its `SizeChangedFcn` stays its owner's), so a figure in
+    a panel or window that is resized follows it (the app's preview), and an
+    export figure is laid out at its own size. The axes go straight into a figure,
+    not into a panel of it: `print` writes no SVG of a figure holding UI components.
+  The layout is deterministic: the same figure at the same size is drawn the
+  same, pixel for pixel. Into an axes target only panel 1 is drawn.
 - **Panels.** Each type's draw function (through `figurePanelRegistry`) draws its
   layers; a skipped layer says why in the panel, a panel with nothing to draw says
   so in its middle. Every object carries an aesthetics role, so the editor lists
@@ -1512,15 +1551,14 @@ renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#
   choice; a coherence panel's x overlays also go on its phase strip, which shares
   its x axis), over or under the data as each says. A panel's `note` is drawn by
   `drawNote`. Placed `"below"`, `"above"`, `"left"` or `"right"`, it takes a band
-  of the panel's tile beside its axes: the tile becomes a small tiled layout of
-  its own holding the axes and a hidden axes (Tag `noteHost`) for the text, the
-  band first estimated from the note's lines and then fitted to the text as
-  drawn (its looks final) and to the axes' tick labels and label on that side,
-  in twentieths of the tile and never more than half of it. The small layout has
-  no padding or spacing, so a band below or above leaves the axes' left edge and
-  width equal to those of a plain tile in the column; a panel with a band left or
-  right is narrower than its column, so it keeps its own time tick labels, and so
-  does the panel above it (the shared time axis is not hidden for that pair). A
+  of the panel's area beside its axes: a hidden axes (Tag `noteHost`) holding
+  the text, fitted to the text as drawn (its looks final) and to the axes' tick
+  labels and label on that side, which sit in the band next to the axes, never
+  more than half the panel's area. A band below or above leaves the axes' left
+  edge and width equal to those of a plain panel in the column; a panel with a
+  band left or right is narrower than its column, so it keeps its own time tick
+  labels, and so does the panel above it (the shared time axis is not hidden for
+  that pair). A
   band note turned a quarter (`|sin(rotation)| > 0.7`) reads along y, and its
   alignment comes from `valign`: bottom, middle or top is left, center or right
   at +90, mirrored at -90 (below and above, `align` still places it along the
@@ -1529,9 +1567,8 @@ renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#
   drawn there. Into a single axes target only the first panel is drawn, and its
   note goes in that axes whatever its placement (a note below or above goes just past the axes' edge). A note in a band is not listed in the right-click
   [aesthetics](EphysAnalysis.md#plot-aesthetics) editor (the band has no tile of
-  its own, though the panel's axes inside it are: the editor lists tiles nested
-  at any depth in tile order, so a coherence panel's axes inside a note band are
-  listed in their place); a note in the axes and every overlay are listed, by the panel's tile
+  its own; the editor lists the panels' axes in the order drawn, a coherence
+  panel's phase right after its magnitude); a note in the axes and every overlay are listed, by the panel's tile
   and, for an overlay, its name. The note's and the overlays' own looks are
   rules after the design's and the user's and before the figure's own
   `spec.aesthetics` (in that order), so a rule of the figure
@@ -1543,7 +1580,9 @@ renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#
   dataset as the subtitle. The title of a per-group observation names its group:
   the observation's label ends with it already, and a title of your own gets
   `" · <group>"` appended.
-- **Legend.** One, east of the panels (`Style.LegendLocation`): the trial groups
+- **Legend.** One, in a band east of the panels (`Style.LegendLocation` `"auto"`
+  or `"east"`; `"north"`, `"south"` or `"west"` put the band on that side,
+  `"inside"` puts the legend in a panel): the trial groups
   once, then the layers', units', channels' and marks' entries, each label
   once; no panel keeps a legend of its own but one with a trial selection of its
   own, which lists its own groups and entries in a legend inside it.
@@ -1554,21 +1593,24 @@ renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#
   the later winning (a panel's note and overlays come in between, as the item above says). In a visible figure a right-click opens the
   [aesthetics editor](EphysAnalysis.md#plot-aesthetics) on the figure.
 
-`h` holds `layout` (the tiled layout; `[]` for an axes target), `axes` (the panels'
+`h` holds `layout` (what the figure is laid out on: `target`, or the panel made in a
+grid layout, holding the panels' axes, the hidden axes of the title and the note
+bands and the legend; `[]` for an axes target), `axes` (the panels'
 axes drawn, in panel order), `panels` (one per panel of the spec: `id`, `type`,
 `axes`, empty when not drawn, and `extraAxes`, the phase axes of a coherence panel
-drawn under its magnitude in its tile, dressed with the type's looks; empty for
+drawn under its magnitude, dressed with the type's looks; empty for
 every other panel; `note`, the text object of its note, empty without one; and
 `overlays`, the lines and patches drawn on it) and `title` (the title text).
-`renderFigure:Mismatch` when `F`'s panels are not the spec's.
+`renderFigure:Mismatch` when `F`'s panels are not the spec's, `renderFigure:BadTarget`
+for a target it cannot draw into (a tiled layout, say).
 
 ### A figure in JSON
 
 A raster flush over a PSTH over an LFP panel, all following the unit, with the
 stimulus offset marked on every raster row. The `"..."` stand for the rest of a
 nested block (as in the [JSON example](#json-example) above); the config's
-`Defaults` give the alignment (`"default"`), the three rows are
-1.5 : 1 : 1 and drawn as 3 : 2 : 2 tiles, and the options shown are the types'
+`Defaults` give the alignment (`"default"`), the three rows' plot areas are
+1.5 : 1 : 1, drawn flush (`"none"`), and the options shown are the types'
 defaults. All three panels are linked (`"common": true`), so the raster's and
 PSTH's `maskAfterStop` and `waveform`, the PSTH's `bins`, `measure` and
 `baseline` and the continuous panel's `baseline` stored in their `options` are
@@ -1581,7 +1623,8 @@ not drawn: the figure's `common` block is. A file written by hand may leave out 
                  "units": { "classes": ["su"], "groups": [], "ids": [], "channels": [], "shanks": [], "maxUnits": "Inf",
                             "quality": { "enabled": false, "...": "..." }, "response": { "enabled": false, "...": "..." } },
                  "signal": "LFP", "channels": [], "perGroup": false },
-    "grid": { "rows": 3, "cols": 1, "rowHeights": [1.5, 1, 1], "colWidths": [], "spacing": "none" },
+    "grid": { "rows": 3, "cols": 1, "rowHeights": [1.5, 1, 1], "colWidths": [], "spacing": "none",
+              "gapUnits": "px", "rowGap": 6, "colGap": 6, "rowGaps": [], "colGaps": [] },
     "common": { "bins": { "BinSec": 0.01, "SmoothSec": 0.01 }, "measure": "rate",
                 "baseline": { "Mode": "none", "Window": [-0.2, 0] }, "maskAfterStop": false,
                 "waveform": { "mode": "off", "...": "..." } },
@@ -1622,8 +1665,8 @@ that records the unit's channel. The three panels share the time axis, so only
 the bottom one is labeled. The events layer is `fixed`, as every events layer
 is, and its `event` is an [EventMark](#raster-event-marks). The `sessions` block shown
 is the default, a figure drawn per dataset; ticking `enabled` makes it a
-[session figure](#session-figures). Each panel also holds a `note` and a list of
-`overlays` ([Panel fields](#panel-fields)), left out above: `"note"` is a
+[session figure](#session-figures). Each panel also holds its `size` (`[1, 1]`), `align` (`"center"`) and `valign`
+(`"middle"`), a `note` and a list of `overlays` ([Panel fields](#panel-fields)), left out above: `"note"` is a
 [note](#panel-notes) (`"text": ""` draws nothing) and `"overlays"` a list of [overlays](#panel-overlays), empty by default.
 
 ### Validating figures
@@ -1655,10 +1698,14 @@ Errors:
   `sessions.enabled`, what a figure across sessions cannot hold: the rules
   are under [Session figures](#validating-session-figures);
 - `grid`: `rows` and `cols` whole numbers >= 1; `rowHeights` and `colWidths` `[]` or
-  one finite positive size per row and column; `spacing` `loose`, `compact`, `tight`
-  or `none`;
+  one finite positive size per row and column; `spacing` `loose`, `compact`, `tight`,
+  `none` or `custom`; `gapUnits` `px` or `%`; `rowGap` and `colGap` numbers >= 0;
+  `rowGaps` and `colGaps` `[]` or one gap >= 0 between every two rows (`rows - 1`)
+  and columns (`cols - 1`);
 - panels: an id of their own; `row`, `col`, `rowSpan` and `colSpan` whole numbers
-  >= 1 inside the grid; no two panels overlapping a cell; a known `type`;
+  >= 1 inside the grid; a `size` of two numbers over 0 and at most 1; `align`
+  `left`, `center` or `right` and `valign` `top`, `middle` or `bottom`; no two
+  panels overlapping a cell; a known `type`;
 - a panel's own `ref`, `window` and `selection` only on an aligned type, and valid
   (the selection by the figure's rules, at most 2 `groupBy` parameters, reported at
   `<figure>.<panel>.selection`); a
@@ -2337,7 +2384,7 @@ With the defaults, the figure `unit_card` of dataset `SYNTH-01_260918_101500` wi
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
 | Defaults, Figures | the event reference, window and selection are valid: known values, `n` a whole number >= 1, `0 <= minDurationSec <= maxDurationSec`, `timeRange` ordered, a finite `offsetSec`, `offsetParamUnit` ms or s, each sequence step's relation, line, edge, `n`, positive `maxGapSec` and lengths, an `alignStep` of 0, `Inf` or a followedBy step (the stop's and each raster-mark sequence's too), finite `pre` and `post`, `pre <= post` in a fixed window, a stop event in a `"between"` window, known response words and pairing flags, at most 2 distinct `groupBy` parameters, `maxGroups` and `trials` whole numbers >= 1 | error |
 | Defaults, Figures | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
-| Figures | at least one figure or session figure enabled (`No figure is enabled.`); the figure id is not empty, file-name safe and distinct once sanitized from the other figures' (`{Plot}` fills the files' names, case-blind); the figure's alignment is valid; `observe` (kind, source, signal, channels, `maxUnits`; on a figure that observes units, an enabled `units.response` test at `<figure>.observe.units.response.<field>` and each spike layer's at `<figure>.<panel>.layers(<j>).units.response.<field>`: the test, `param` for tuning / either / both, ordered `baseline` and `window`, direction, correction, `alpha` in (0, 1], the `"auroc"` test's settings and the Statistics and Machine Learning Toolbox the tests need), `sessions` (the known values, `minSessions`; with `sessions.enabled` no probe map, unit correlation or spectral panel, no auROC baseline, a mapping file for `match "mapping"` and a unit observation for it: [rules](#validating-session-figures)) and `grid` (rows, columns, relative sizes, spacing) hold known values; each panel has an id of its own, a known type, a place inside the grid that no other panel overlaps, and its own `ref` / `window` / `selection` only when its type is aligned; the figure's common options (bins, measure, baseline, auROC, waveform), checked once, and a linked panel's type taking the common baseline mode; each enabled layer's source, binding, aggregate, channels, events (`eventsAs`, event reference, marker, size) and line style fit its panel type; a raster has rows, not marks alone; each type's options as drawn (a linked panel's common fields are the common options'); the style ([rules](#validating-figures)) | error |
+| Figures | at least one figure or session figure enabled (`No figure is enabled.`); the figure id is not empty, file-name safe and distinct once sanitized from the other figures' (`{Plot}` fills the files' names, case-blind); the figure's alignment is valid; `observe` (kind, source, signal, channels, `maxUnits`; on a figure that observes units, an enabled `units.response` test at `<figure>.observe.units.response.<field>` and each spike layer's at `<figure>.<panel>.layers(<j>).units.response.<field>`: the test, `param` for tuning / either / both, ordered `baseline` and `window`, direction, correction, `alpha` in (0, 1], the `"auroc"` test's settings and the Statistics and Machine Learning Toolbox the tests need), `sessions` (the known values, `minSessions`; with `sessions.enabled` no probe map, unit correlation or spectral panel, no auROC baseline, a mapping file for `match "mapping"` and a unit observation for it: [rules](#validating-session-figures)) and `grid` (rows, columns, relative sizes, spacing, gap units, gaps) hold known values; each panel has an id of its own, a known type, a place inside the grid that no other panel overlaps, a size in (0, 1] each way and an alignment, and its own `ref` / `window` / `selection` only when its type is aligned; the figure's common options (bins, measure, baseline, auROC, waveform), checked once, and a linked panel's type taking the common baseline mode; each enabled layer's source, binding, aggregate, channels, events (`eventsAs`, event reference, marker, size) and line style fit its panel type; a raster has rows, not marks alone; each type's options as drawn (a linked panel's common fields are the common options'); the style ([rules](#validating-figures)) | error |
 | Figures | no panels; cells no panel covers; a panel with no enabled layer, or with several on a type that draws one; an explicit unit or channel observation with no layer following it; a session figure's `datasets "list"` with no keys, `showMembers` with `series "session"`, `trialGroups "pool"` over grouped trials, `"combine"` over PSTH bars, a heat map of trials ([rules](#validating-session-figures)); `observe.perGroup` while the figure's selection groups by nothing (not on a session figure); a signal layer following another signal's channel; a waveforms panel in the probe layout whose first layer follows the observation; a fixed raster, PSTH, rate or tuning layer that may keep more than 8 units; a layer, mark, style, note or overlay color that is not a color; two overlays of a figure with one name ([rules](#validating-figures)) | warning |
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi` positive; `FigureSizeCm` two positive numbers; the folder and file-name patterns use known tokens, and the file-name pattern is not empty; `SessionsFolder` and `Data.Folder` are folder patterns, `Data.FilenamePattern` a file-name pattern, and `Data.MatVersion` is `-v7.3` or `-v7` | error |
 | Export | a file-name pattern without `{Plot}` while several figures are enabled (every figure's `{Kind}` is `figure`, so only `{Plot}`, the figure's id, tells their files apart); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |
@@ -2433,7 +2480,10 @@ epochs only, equal to that group's PSTH, while a panel with a selection of its o
 whose group has lost every epoch drawing with `F.skip` and the panels' notes instead of failing; the
 groups `perGroup` lists agreeing with those compute reads, after the panels' baseline hull).
 Render (8):
-`figureTiles`, a compute and a draw function for every panel type, every type
+`figureArrange` (exact gaps in px, % and per gap, the presets, rows and columns in exact proportion, spans, a panel's size and
+alignment in its cell, a note band, a phase strip, the title's and legend's bands), the layout drawn (flush with `"none"`, a
+custom gap exact in px and %, rows 1 : 2, a panel half its cell's width keeping its tick labels, the legend east of the
+panels, the title over them, laid out again on a resize), a compute and a draw function for every panel type, every type
 drawn into an axes, uiaxes, figure, panel and grid layout with every component
 tagged, the titles, one time axis down a stack, one legend, skipped layers'
 notes, events as marks, latency lines and a rug, a stacked PSTH (a row and a
@@ -2445,8 +2495,8 @@ inset), the waveforms probe layout with the observed unit framed, faint and only
 `trialTrace` line per group, no mean or band for `only`, the legend's groups), a heat map of trials (a row
 per epoch in its order, the group strip, the `Epoch (by ...)` label), a panel on a selection of its own
 (titled `all trials`, its own legend inside it, the figure's legend the raster's groups), a per-group
-figure's title, a panel's note and overlays (a note below a panel in a hidden `noteHost` band of its tile under
-its axes, in its own color; one at `"northeast"` in its axes; a region on the raster and a line on the PSTH, the
+figure's title, a panel's note and overlays (a note below a panel in a hidden `noteHost` band under
+its axes, as wide, in its own color; one at `"northeast"` in its axes; a region on the raster and a line on the PSTH, the
 figure's rule winning over the overlay's opacity; every one a tagged component of its panel's tile; the raster
 still sharing the time axis over a note band; a band below keeping the axes' left edge and width of the plain panel
 under it; a band right of a panel leaving it narrower, so both panels keep their time tick labels; a four-line note at
@@ -2509,7 +2559,8 @@ with its raster, Stim offset marks and aux channels computing and rendering for 
 
 `test_copyFigureSettings` (no fixture): `figureSettingParts` (the parts `observe`,
 `alignment`, `common`, `arrangement`, `style`, `looks` and `sessions`, each with its fields,
-label and description) and `copyFigureSettings` (each part alone with its fields copied and
+label and description) and `copyFigureSettings` (the arrangement carrying the grid's gaps and a
+panel's own size and alignment; each part alone with its fields copied and
 the rest, the id, title and `enabled` kept; every part by default; two parts copied in the
 table's order; a copy that validates; `copyFigureSettings:BadPart` for an unknown part).
 

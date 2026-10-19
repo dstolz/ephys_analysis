@@ -8,7 +8,8 @@ function [fig, unknown] = normalizeFigure(in, path)
 %     EpochWindow / TrialSelection; an empty value means "default"
 %   - observe, grid and common (the common options,
 %     defaults("FigureCommon")) are coerced to their defaults
-%     (grid.rowHeights and grid.colWidths stay vectors: [] = equal)
+%     (grid.rowHeights and grid.colWidths stay vectors: [] = equal;
+%     grid.rowGaps and grid.colGaps too: [] = rowGap / colGap each)
 %   - panels is a list of panels (a struct array, a cell from jsondecode,
 %     one struct or [] for none), each normalizePanel'd; a panel without
 %     an id gets "<type>_<n>", and two panels with one id raise

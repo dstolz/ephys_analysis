@@ -1,18 +1,25 @@
 function h = renderFigure(F, spec, target, opts)
-%renderFigure  Draw one computed figure: its panels on one tiled layout, with one legend and the figure's title.
+%renderFigure  Draw one computed figure: its panels laid out on its grid, with one legend and the figure's title.
 %   H = renderFigure(F, SPEC, TARGET, Name=Value) draws F, the result of
 %   EphysAnalysisRunner.computeFigure (one observation of a figure: a unit,
 %   a channel or the dataset), as SPEC says (Config.figureFor(id): the spec
 %   F was computed with, its aesthetics free to differ, as when the
 %   aesthetics editor redraws it). TARGET is an axes, uiaxes, figure,
-%   uifigure, panel, tab, grid layout or tiled layout (renderLayout):
-%   renderers never create figures.
+%   uifigure, panel, tab or grid layout: renderers never create figures.
 %
-%   Layout   the arrangement's rows and columns become equal units
-%            (figureTiles: relative sizes in quarter steps of the smallest,
-%            at most 32 units a side), in one tiled layout (TileSpacing =
-%            SPEC.grid.spacing; renderLayout) holding one axes per panel at
-%            its cell and span. An axes TARGET draws panel 1 only.
+%   Layout   its own engine, not MATLAB's tiled layout: TARGET (emptied;
+%            a grid layout gets a panel: figureCanvas) holds one axes per
+%            panel, which figureLayout places in pixels once everything
+%            is drawn and dressed (figureArrange: the plot areas of the
+%            rows and columns line up across the grid, in the exact
+%            proportions of SPEC.grid.rowHeights and colWidths; between
+%            them the room the labels there take and the gap of
+%            SPEC.grid.spacing, the clear space between neighboring panels'
+%            labels: a preset, "none" making a stack's plot areas flush, or
+%            "custom" gaps in px or %; a panel of SPEC.panels(k).size
+%            smaller than its cell sits at its align / valign), and again
+%            whenever TARGET changes size. An axes TARGET draws panel 1
+%            only.
 %   Panels   each panel type's draw function (figurePanelRegistry: no
 %            switch on the type here) draws its layers; a skipped layer
 %            says why in the panel, a panel with nothing to draw says so in
@@ -40,19 +47,20 @@ function h = renderFigure(F, spec, target, opts)
 %   Notes and overlays  each panel's (SPEC.panels(k).note, .overlays, as a
 %            plot's): the overlays drawn on the panel's axes (drawOverlays,
 %            every one on them: a panel has no raster / data choice; a
-%            coherence panel's x overlays on its phase strip too); the
-%            note (drawNote) placed below, above, left or right takes a
-%            band of the panel's tile beside its axes (the tile becomes a
-%            small tiled layout of its own: the axes and a hidden axes,
-%            Tag "noteHost", holding the text; the band is fitted to the
-%            text once its looks are final, at most half the tile; a band
-%            below or above keeps the axes' left edge and width those of
-%            a plain tile; a panel with a band left or right keeps its own
-%            time tick labels: figureTimeStack), placed over the panel or
-%            at x, y it sits in the axes (placeNote). Their own looks are
-%            rules after the design's and the user's and before
-%            SPEC.aesthetics.
-%   Legend   one, east of the panels (Style.LegendLocation, placeLegend):
+%            coherence panel's x overlays on its phase strip too, which
+%            takes the bottom third of its plot area); the note (drawNote)
+%            placed below, above, left or right takes a band of the
+%            panel's area beside its axes (a hidden axes, Tag "noteHost",
+%            holding the text and the panel's labels on that side; fitted
+%            to the text once its looks are final, at most half the area;
+%            a band below or above keeps the axes' left edge and width
+%            those of a plain panel; a panel with a band left or right, or
+%            smaller than its cell, keeps its own time tick labels:
+%            figureTimeStack), placed over the panel or at x, y it sits in
+%            the axes (placeNote). Their own looks are rules after the
+%            design's and the user's and before SPEC.aesthetics.
+%   Legend   one, in a band east of the panels (Style.LegendLocation: or
+%            north, south, west; "inside" in a panel; placeLegend):
 %            the trial groups once (as a PSTH panel draws them, else a
 %            continuous one, else a raster's bands), then the panels'
 %            layer, unit, channel and mark entries, each label once. A
@@ -89,18 +97,23 @@ function h = renderFigure(F, spec, target, opts)
 %                     them only in the user's preferences
 %
 %   H fields
-%     layout  the tiled layout ([] for an axes TARGET)
+%     layout  what the figure is laid out on (TARGET, or the panel made in
+%             a grid layout): its axes, the hidden axes of its title (Tag
+%             "titleHost") and note bands, its legend ([] for an axes
+%             TARGET)
 %     axes    the panels' axes drawn, in panel order
 %     panels  one per SPEC.panels: id, type, axes (empty when not drawn),
 %             extraAxes (a coherence panel's phase axes, drawn under its
-%             magnitude in its tile; dressed with the panel type's looks),
+%             magnitude; dressed with the panel type's looks),
 %             note (its text, empty without one) and overlays (the lines
 %             and patches drawn)
 %     title   the figure's title text
-%   Errors: renderFigure:Mismatch (F's panels are not SPEC's).
+%   Errors: renderFigure:Mismatch (F's panels are not SPEC's),
+%   renderFigure:BadTarget.
 %
 %   See also EphysAnalysisRunner.computeFigure, figurePanelRegistry,
-%   EphysAnalysisConfig.figureFor, renderChronux, PlotAesthetics.
+%   EphysAnalysisConfig.figureFor, figureLayout, renderChronux,
+%   PlotAesthetics.
 
 arguments
     F (1,1) struct
@@ -122,8 +135,6 @@ style = renderStyle(s);
 style.XLim = [];   % the time panels show the window; y and color limits are each panel's options
 style.YLim = [];
 style.CLim = [];
-outer = style;
-outer.TileSpacing = spec.grid.spacing;
 panels = spec.panels;
 np = numel(panels);
 types = strings(1, np);
@@ -137,12 +148,9 @@ if ~isequal(fIds, sIds)
         strjoin(fIds, ", "), strjoin(sIds, ", "));
 end
 
-if np > 0
-    [nr, nc, tileOf, spanOf] = figureTiles(spec.grid, panels);
-else
-    nr = 1; nc = 1; tileOf = zeros(0, 1); spanOf = zeros(0, 2);
-end
-[tl, ax0] = renderLayout(target, nr, nc, outer);
+[canvas, ax0] = figureCanvas(target);
+cells = panelCells(spec.grid, panels);
+if ~isempty(canvas); L0 = firstLayout(canvas, spec.grid, panels, cells, style); end
 PT = EphysAnalysisConfig.panelTypes();
 reg = figurePanelRegistry();
 G = F.groups;
@@ -165,10 +173,13 @@ for k = 1:nDraw
     p = panels(k);
     P = F.panels(k);
     band = [];
-    if isempty(ax0) && besideNote(p)
-        [ax, band] = notedTile(tl, tileOf(k), spanOf(k, :), nr, nc, p.note, style);
-    elseif isempty(ax0)
-        ax = nexttile(tl, tileOf(k), spanOf(k, :));
+    if isempty(ax0)   % the panel's axes at its first place (figureLayout places it once its labels are known)
+        ax = axes(canvas, 'Units', 'pixels', 'Position', L0.panels(k).box);
+        setappdata(ax, 'FigurePanel', p.id);   % a panel of the layout (drawCoherencePanel splits it for its phase)
+        if besideNote(p)
+            band = axes(canvas, 'Units', 'pixels', 'Position', max(L0.panels(k).band, [-Inf -Inf 1 1]), 'Visible', 'off', ...
+                'HitTest', 'off', 'PickableParts', 'none', 'XLim', [0 1], 'YLim', [0 1], 'Tag', 'noteHost');
+        end
     else
         ax = ax0;
     end
@@ -227,8 +238,8 @@ multi = nnz(drawn) > 1;
 if multi; tileTicks(axs(drawn), style); end
 labelSize = [];
 if multi; labelSize = style.FontSize; end
-sided = false(1, np);   % a band left or right of a panel's axes narrows them: no shared time axis with the panel below
-for k = 1:np; sided(k) = isempty(ax0) && sideNote(panels(k)); end
+sided = false(1, np);   % a band left or right of a panel's axes, or a panel smaller than its cell: not the column's width
+for k = 1:np; sided(k) = isempty(ax0) && (sideNote(panels(k)) || any(cells(k).size < 1)); end
 figureTimeStack(axs, panels, isTime, labelSize, sided);
 
 % title: the figure's, or what it shows; the top-left panel names the observation under a title of the figure's own
@@ -251,9 +262,11 @@ elseif grpTxt ~= ""
     txt = txt + " · " + grpTxt;
 end
 sub = string(F.dataset);
-if ~isempty(tl)
-    title(tl, txt, 'FontSize', style.FontSize + 1, 'FontWeight', 'bold', 'Interpreter', 'none');
-    if sub ~= ""; subtitle(tl, sub, 'FontSize', style.FontSize, 'Interpreter', 'none'); end
+th = [];
+if ~isempty(canvas)   % a hidden axes whose title and subtitle are the figure's (PlotAesthetics: plotTitle, plotSubtitle)
+    th = axes(canvas, 'Units', 'pixels', 'Position', [1 1 1 1], 'Visible', 'off', 'HitTest', 'off', 'Tag', 'titleHost');
+    title(th, txt, 'FontSize', style.FontSize + 1, 'FontWeight', 'bold', 'Interpreter', 'none', 'Visible', 'on');
+    if sub ~= ""; subtitle(th, sub, 'FontSize', style.FontSize, 'Interpreter', 'none', 'Visible', 'on'); end
 elseif ~isempty(ax0)
     was = string(ax0.Title.String);
     title(ax0, txt, 'FontSize', style.FontSize + 1, 'FontWeight', 'bold', 'Interpreter', 'none');
@@ -262,15 +275,22 @@ elseif ~isempty(ax0)
 end
 
 % one legend: the groups once, then the layers', units', channels' and marks' entries
+lgd = [];
 if style.Legend && any(drawn)
     [lh, ll] = legendEntries(hks, types, G);
     if ~isempty(lh)
-        placeLegend(legendHost(axs(drawn), tl), lh, ll, style, tl, "east");
+        ls = style;
+        side = legendSide(style);
+        if ~isempty(canvas) && side ~= ""   % in the band beside the panels figureLayout gives it
+            ls.LegendLocation = "none";
+            if string(ls.LegendOrientation) == "auto" && ismember(side, ["north" "south"]); ls.LegendOrientation = "horizontal"; end
+        end
+        lgd = placeLegend(legendHost(axs(drawn), canvas), lh, ll, ls, [], "east");
     end
 end
 
 % aesthetics: the design's common rules, each panel's kind, then the figure's
-root = tl;
+root = canvas;
 if isempty(root); root = ax0; end
 specRules = PlotAesthetics.normalizeRules(spec.aesthetics);
 PlotAesthetics.apply(root, design.rules);
@@ -312,14 +332,12 @@ for k = find(drawn)   % a note in a band beside the axes: that band is no tile, 
     bandRules = [design.rules kRules{k} r notes{k}.rules specRules];
     if ~isempty(bandRules); PlotAesthetics.apply(bands{k}, bandRules([bandRules.role] == "note")); end
 end
-for k = find(drawn)   % the notes go where they belong once their looks are final (their size measured)
-    if isempty(notes{k}) || isempty(notes{k}.text); continue; end
-    if isempty(bands{k})
-        placeNote(notes{k}, panels(k).note);
-    else
-        fitNoteBand(axs(k), bands{k}, notes{k}.text);   % the band fitted to the text as drawn, then the text in its free part
-        placeBandNote(notes{k}.text, panels(k).note, bands{k});
+if isempty(canvas)   % one axes: its note goes where it belongs once its looks are final (its size measured)
+    for k = find(drawn)
+        if ~isempty(notes{k}) && ~isempty(notes{k}.text); placeNote(notes{k}, panels(k).note); end
     end
+else   % the layout, once everything is drawn and dressed: every axes, band, the legend and the title, then the notes
+    figureLayout(canvas, layoutOf(spec, panels, cells, axs, extra, notes, bands, th, lgd, style));
 end
 if editable(opts.Editable, target)
     mapField = "";
@@ -362,217 +380,100 @@ for k = 1:np
         if ~isempty(ovls{k}); hp(k).overlays = ovls{k}.handles; end
     end
 end
-h = struct('layout', tl, 'axes', axs(drawn), 'panels', hp, 'title', txt);
+h = struct('layout', canvas, 'axes', axs(drawn), 'panels', hp, 'title', txt);
 end
 
 
 function tf = besideNote(p)
-%besideNote  The panel has a note placed beside its axes (below, above, left or right): it takes a band of the tile.
+%besideNote  The panel has a note placed beside its axes (below, above, left or right): it takes a band of its area.
 tf = strtrim(string(p.note.text)) ~= "" && ismember(string(p.note.placement), ["below" "above" "left" "right"]);
 end
 
 
 function tf = sideNote(p)
-%sideNote  The panel's note takes a band left or right of its axes: they are narrower than a plain tile's in the column.
+%sideNote  The panel's note takes a band left or right of its axes: they are narrower than a plain panel's in the column.
 tf = besideNote(p) && ismember(string(p.note.placement), ["left" "right"]);
 end
 
 
-function [ax, band] = notedTile(tl, tile, span, nr, nc, note, style)
-%notedTile  A panel's tile as a small tiled layout of its own: the panel's axes and, beside it, a band for its note.
-%   The band (a hidden axes, Tag "noteHost", so the aesthetics editor lists
-%   no tile for it) is below, above, left or right of the axes as the note
-%   is placed, a share of the tile in steps of a twentieth (at most half):
-%   first estimated from the note's lines at its font size, then fitted to
-%   the text as drawn once its looks are final (fitNoteBand). The small
-%   layout has no padding or spacing, so a band below or above leaves the
-%   axes' left edge and width those of a plain tile in the column.
-place = string(note.placement);
-across = ismember(place, ["below" "above"]);
-n = 20;
-b = bandUnits(tl, span, nr, nc, note, style, across, n);
-if across
-    inner = tiledlayout(tl, n, 1, 'TileSpacing', 'none', 'Padding', 'none');
-else
-    inner = tiledlayout(tl, 1, n, 'TileSpacing', 'none', 'Padding', 'none');
-end
-inner.Layout.Tile = tile;
-inner.Layout.TileSpan = span;
-ax = nexttile(inner, 1);
-band = nexttile(inner, n);
-spanBand(ax, band, place, n, b);
-set(band, 'Visible', 'off', 'HitTest', 'off', 'PickableParts', 'none', 'XLim', [0 1], 'YLim', [0 1], 'Tag', 'noteHost');
-setappdata(band, 'NoteBand', struct('n', n, 'b', b, 'place', place, 'free', [0 0 1 1]));
-end
-
-
-function spanBand(holder, band, place, n, b)
-%spanBand  The axes (or the layout holding it) and the band in the small layout: the band B of its N steps, on the note's side.
-switch place
-    case "below"
-        holder.Layout.Tile = 1;      holder.Layout.TileSpan = [n - b 1];
-        band.Layout.Tile = n - b + 1; band.Layout.TileSpan = [b 1];
-    case "above"
-        band.Layout.Tile = 1;        band.Layout.TileSpan = [b 1];
-        holder.Layout.Tile = b + 1;  holder.Layout.TileSpan = [n - b 1];
-    case "left"
-        band.Layout.Tile = 1;        band.Layout.TileSpan = [1 b];
-        holder.Layout.Tile = b + 1;  holder.Layout.TileSpan = [1 n - b];
-    otherwise   % right
-        holder.Layout.Tile = 1;      holder.Layout.TileSpan = [1 n - b];
-        band.Layout.Tile = n - b + 1; band.Layout.TileSpan = [1 b];
+function C = panelCells(grid, panels)
+%panelCells  Each panel's rows and columns (clipped to the grid), its size in its cell and its alignment there.
+nr = max(1, round(double(grid.rows)));
+nc = max(1, round(double(grid.cols)));
+C = struct('r1', {}, 'r2', {}, 'c1', {}, 'c2', {}, 'size', {}, 'align', {}, 'valign', {});
+for k = 1:numel(panels)
+    p = panels(k);
+    r = min(max(1, round(p.row)), nr);
+    c = min(max(1, round(p.col)), nc);
+    s = double(p.size);
+    if ~(numel(s) == 2 && all(isfinite(s) & s > 0)); s = [1 1]; end
+    C(k) = struct('r1', r, 'r2', min(nr, r + max(1, round(p.rowSpan)) - 1), 'c1', c, ...
+        'c2', min(nc, c + max(1, round(p.colSpan)) - 1), 'size', min(reshape(s, 1, 2), 1), ...
+        'align', string(p.align), 'valign', string(p.valign));
 end
 end
 
 
-function b = bandUnits(tl, span, nr, nc, note, style, across, n)
-%bandUnits  How many of the tile's N steps the note's band takes at first: its lines (across: their height; beside: their width) over the tile's size.
-fs = style.FontSize;
-if isfinite(note.fontSize) && note.fontSize > 0; fs = note.fontSize; end
-lines = splitlines(strip(string(note.text), 'right'));
-tall = numel(lines) * fs * 1.3 + 10 + 2.8 * style.FontSize;   % points, with the axes' tick labels and label beside it
-wide = max(strlength(lines)) * fs * 0.6 + 12 + 4 * style.FontSize;
-if abs(sind(note.rotation)) > 0.7; [tall, wide] = deal(wide, tall); end
-room = [576 432];   % the container's size in points (a default when it cannot be read)
+function L = firstLayout(canvas, grid, panels, cells, style)
+%firstLayout  Where the panels' axes and note bands go before anything is drawn: labels and bands estimated from the font size.
+%   figureLayout places them once they are drawn; this is where they are
+%   drawn (a draw function sees a plot of about its final size).
+px = 96 / 72 * style.FontSize;   % the font size in pixels
+sz = [700 500];   % the canvas's size, when it cannot be read yet
 try
-    px = getpixelposition(tl.Parent);
-    if all(px(3:4) > 20); room = px(3:4) * 72 / get(groot, 'ScreenPixelsPerInch'); end
+    p = getpixelposition(canvas);
+    if all(p(3:4) > 40); sz = p(3:4); end
 catch
 end
-if across
-    need = tall;
-    have = room(2) * span(1) / max(nr, 1) * 0.85;
-else
-    need = wide;
-    have = room(1) * span(2) / max(nc, 1) * 0.85;
-end
-b = min(n / 2, max(1, ceil(n * need / max(have, 1))));
-end
-
-
-function fitNoteBand(ax, band, t)
-%fitNoteBand  Size the band to the note as drawn (its looks final) and the axes' labels that reach into it.
-%   The text's extent and the room the axes' tick labels and axis label
-%   take on that side (they are drawn into the band: the small layout has
-%   no spacing) give the band's share of the tile, at most half; the band's
-%   free part (BAND's appdata NoteBand.free, [x0 y0 x1 y1] in its normalized
-%   units) is where placeBandNote puts the text.
-S = getappdata(band, 'NoteBand');
-if isempty(S) || isempty(t) || ~isgraphics(t); return; end
-inner = band.Parent;
-holder = ax;
-while ~isempty(holder.Parent) && holder.Parent ~= inner && isa(holder.Parent, 'matlab.graphics.layout.TiledChartLayout')
-    holder = holder.Parent;   % a coherence panel's pair layout holds its axes
-end
-units = t.Units;
-t.Units = 'points';
-ext = t.Extent;
-t.Units = units;
-fs = ax.FontSize;
-deco = 4;   % points the axes' labels take on the band's side
-switch S.place
-    case "below"
-        if ~isempty(ax.XTickLabel); deco = deco + 1.5 * fs; end
-        if strjoin(string(ax.XLabel.String), "") ~= ""; deco = deco + 1.5 * ax.XLabel.FontSize; end
-    case "above"
-        if strjoin(string(ax.Title.String), "") ~= ""; deco = deco + 1.6 * ax.Title.FontSize; end
-        if strjoin(string(ax.Subtitle.String), "") ~= ""; deco = deco + 1.5 * ax.Subtitle.FontSize; end
-    case "left"
-        lab = string(ax.YTickLabel);
-        if ~isempty(lab); deco = deco + 0.6 * fs * max(strlength(lab)) + 6; end
-        if strjoin(string(ax.YLabel.String), "") ~= ""; deco = deco + 1.6 * ax.YLabel.FontSize; end
-    otherwise
-        if numel(ax.YAxis) > 1; deco = deco + 0.6 * fs * 6 + 1.6 * fs; end   % a right y axis
-end
-across = ismember(S.place, ["below" "above"]);
-need = deco + 12;
-if across; need = need + ext(4); else; need = need + ext(3); end
-bp = sizeIn(band);
-if across; have = bp(2) * S.n / S.b; else; have = bp(1) * S.n / S.b; end
-b = min(S.n / 2, max(1, ceil(S.n * need / max(have, 1))));
-if b ~= S.b
-    spanBand(holder, band, S.place, S.n, b);
-    S.b = b;
-    bp = sizeIn(band);
-end
-dim = bp(1 + across);   % the band's size across it, points
-f = min(0.9, deco / max(dim, 1));   % its share the axes' labels take, next to the axes
-switch S.place
-    case "below", S.free = [0 0 1 1 - f];
-    case "above", S.free = [0 f 1 1];
-    case "left",  S.free = [0 0 1 - f 1];
-    otherwise,    S.free = [f 0 1 1];
-end
-setappdata(band, 'NoteBand', S);
-end
-
-
-function wh = sizeIn(ax)
-%sizeIn  An axes' width and height in points (laid out first when it has not been yet).
-wh = [0 0];
-for attempt = 1:2
-    units = ax.Units;
-    ax.Units = 'points';
-    p = ax.Position;
-    ax.Units = units;
-    wh = p(3:4);
-    if all(wh > 2); return; end
-    if attempt == 1; drawnow limitrate; end
-end
-wh = max(wh, 1);
-end
-
-
-function placeBandNote(t, note, band)
-%placeBandNote  A note in the band beside its panel, in the part the axes' labels leave free (fitNoteBand).
-%   Along the band by its alignment (below / above: align across the
-%   panel; left / right: valign up it), in the middle across it. A note
-%   turned a quarter (|sin(rotation)| > 0.7) reads along y: its horizontal
-%   alignment comes from valign (bottom / middle / top: left / center /
-%   right at +90, mirrored at -90), its vertical alignment is middle, and
-%   valign puts it up the band.
-if isempty(t) || ~isgraphics(t); return; end
-if note.box
-    t.EdgeColor = t.Color;
-    t.LineWidth = 0.75;
-end
-S = getappdata(band, 'NoteBand');
-fr = [0 0 1 1];
-if isstruct(S) && isfield(S, 'free'); fr = S.free; end
-t.Units = 'normalized';
-share = @(v, order) shareOf(v, order);
-alongX = @(s) fr(1) + (fr(3) - fr(1)) * (0.02 + 0.96 * s);
-alongY = @(s) fr(2) + (fr(4) - fr(2)) * (0.02 + 0.96 * s);
-midX = (fr(1) + fr(3)) / 2;
-midY = (fr(2) + fr(4)) / 2;
-across = ismember(string(note.placement), ["below" "above"]);
-sv = share(note.valign, ["bottom" "middle" "top"]);
-if abs(sind(note.rotation)) > 0.7
-    order = ["left" "center" "right"];
-    if sind(note.rotation) < 0; order = flip(order); end
-    t.HorizontalAlignment = char(order(round(2 * sv) + 1));
-    t.VerticalAlignment = 'middle';
-    if across
-        t.Position = [alongX(share(note.align, ["left" "center" "right"])), alongY(sv), 0];
-    else
-        t.Position = [midX, alongY(sv), 0];
+C = struct('r1', {}, 'r2', {}, 'c1', {}, 'c2', {}, 'size', {}, 'align', {}, 'valign', {}, 'inset', {}, ...
+    'band', {}, 'need', {}, 'shares', {});
+for k = 1:numel(panels)
+    c = cells(k);
+    band = "";
+    need = 0;
+    if besideNote(panels(k))
+        note = panels(k).note;
+        fs = style.FontSize;
+        if isfinite(note.fontSize) && note.fontSize > 0; fs = note.fontSize; end
+        lines = splitlines(strip(string(note.text), 'right'));
+        tall = numel(lines) * fs * 1.3;   % points
+        wide = max(strlength(lines)) * fs * 0.6;
+        if abs(sind(note.rotation)) > 0.7; [tall, wide] = deal(wide, tall); end
+        band = string(note.placement);
+        if ismember(band, ["below" "above"])
+            need = 96 / 72 * tall + 3 * px + 12;
+        else
+            need = 96 / 72 * wide + 4.5 * px + 12;
+        end
     end
-elseif across
-    t.Position = [alongX(share(note.align, ["left" "center" "right"])), midY, 0];
-    t.HorizontalAlignment = char(note.align);
-    t.VerticalAlignment = 'middle';
-else
-    t.Position = [midX, alongY(sv), 0];
-    t.HorizontalAlignment = 'center';
-    t.VerticalAlignment = char(note.valign);
+    C(k) = struct('r1', c.r1, 'r2', c.r2, 'c1', c.c1, 'c2', c.c2, 'size', c.size, 'align', c.align, 'valign', c.valign, ...
+        'inset', [4.5 3 0.5 0] * px, 'band', band, 'need', need, 'shares', 1);
 end
+L = figureArrange(sz, grid, C, Top=3 * px, Margin=6);
 end
 
 
-function s = shareOf(v, order)
-%shareOf  0, 0.5 or 1 for the first, second or third of ORDER (0.5 when V is none of them).
-s = (find(string(v) == order, 1) - 1) / 2;
-if isempty(s); s = 0.5; end
+function S = layoutOf(spec, panels, cells, axs, extra, notes, bands, th, lgd, style)
+%layoutOf  What figureLayout lays out: each panel's axes (a coherence panel's phase under its magnitude, a third of it), note and band, the title and the legend.
+P = struct('axes', {}, 'shares', {}, 'r1', {}, 'r2', {}, 'c1', {}, 'c2', {}, 'size', {}, 'align', {}, 'valign', {}, ...
+    'note', {}, 'text', {}, 'band', {});
+for k = 1:numel(panels)
+    c = cells(k);
+    A = [axs(k) reshape(extra{k}, 1, [])];
+    t = [];
+    if ~isempty(notes{k}) && ~isempty(notes{k}.text); t = notes{k}.text; end
+    P(k) = struct('axes', A, 'shares', [2 ones(1, numel(A) - 1)], 'r1', c.r1, 'r2', c.r2, 'c1', c.c1, 'c2', c.c2, ...
+        'size', c.size, 'align', c.align, 'valign', c.valign, 'note', panels(k).note, 'text', t, 'band', bands{k});
+end
+S = struct('grid', spec.grid, 'panels', P, 'title', th, 'legend', lgd, 'side', legendSide(style), 'margin', 6);
+end
+
+
+function side = legendSide(style)
+%legendSide  The side of the panels the figure's legend takes a band on: "north", "south", "east" (auto) or "west"; "" in a panel (inside).
+side = string(style.LegendLocation);
+if side == "auto"; side = "east"; end
+if ~ismember(side, ["north" "south" "east" "west"]); side = ""; end
 end
 
 
@@ -638,20 +539,20 @@ end
 end
 
 
-function host = legendHost(axs, tl)
+function host = legendHost(axs, canvas)
 %legendHost  The axes that holds the figure's legend: the first panel without a legend of its own.
-%   Else, in a tiled layout, a hidden axes of it (tagged "legendHost", left
-%   out of the tiles as placeLegend's are); drawn into one axes, that axes
-%   (its legend is replaced: the draw functions offer their entries up).
+%   Else, on the canvas, a hidden axes (tagged "legendHost", left out of
+%   the tiles as placeLegend's are); drawn into one axes, that axes (its
+%   legend is replaced: the draw functions offer their entries up).
 for ax = reshape(axs, 1, [])
     if isempty(ax.Legend) || ~isvalid(ax.Legend)
         host = ax;
         return
     end
 end
-if ~isempty(tl) && isgraphics(tl)
-    host = axes(tl, 'Visible', 'off', 'HitTest', 'off', 'PickableParts', 'none', 'Tag', 'legendHost');
-    host.Layout.Tile = 1;
+if ~isempty(canvas) && isgraphics(canvas)
+    host = axes(canvas, 'Units', 'pixels', 'Position', [1 1 1 1], 'Visible', 'off', 'HitTest', 'off', ...
+        'PickableParts', 'none', 'Tag', 'legendHost');
 else
     host = axs(1);
 end

@@ -35,7 +35,8 @@ classdef EphysAnalysisConfig
     %               relinkPanels spread one panel's settings or re-link
     %               every panel. observe.perGroup draws each observation once
     %               per trial group of the figure's selection. A panel
-    %               (defaults("Panel")): id, type, title, row, col,
+    %               (defaults("Panel")): id, type, title, box (the axes'
+    %               box: "auto" = the design's, "on", "off"), row, col,
     %               rowSpan, colSpan, ref, window, selection (its own:
     %               its own groups, colors and legend), common
     %               (true: the figure's common options for the fields its

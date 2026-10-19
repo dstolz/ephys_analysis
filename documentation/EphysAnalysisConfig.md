@@ -671,8 +671,11 @@ axis when it is zoomed. A y overlay on a stacked PSTH goes on its left axis.
 A partial overlay (say only `value`) is filled from the defaults.
 
 `renderFigure` draws the overlays after the panel (`drawOverlays`) as
-`xline` / `yline` objects of role `overlayLine` and `xregion` / `yregion`
-objects of role `overlayRegion`, each with its name as its group, so the
+`xline` / `yline` objects of role `overlayLine` and patch objects of role
+`overlayRegion` (not `xregion` / `yregion`: MATLAB draws those behind every
+opaque patch, image or bar whatever the draw order, so a patch never showed over a
+raster's group bands; the patch spans the axes' limits and is refitted when they
+change), each with its name as its group, so the
 [aesthetics](EphysAnalysis.md#plot-aesthetics) editor lists every overlay on
 its own, in every tile it is drawn in. The overlay's own looks win over the
 design's and the user's rules; the figure's own `aesthetics` rules win over them. A patch does not take clicks, so a right-click on the panel reaches the
@@ -801,6 +804,7 @@ it. `"blank"` is an empty 1 x 1 grid.
 | `id` | auto | unique within the figure (`EphysAnalysisConfig:DuplicatePanelId`); blank: `<type>_<n>`. The aesthetics editor names a panel's tile by it |
 | `type` | `"psth"` | one of the [panel types](#panel-types) |
 | `title` | `""` | `""` = none, but for the observation's label on the top-left panel under a title of the figure's own |
+| `box` | `"auto"` | the frame around the panel's axes (and a coherence panel's phase axes): `"auto"` leaves it to the [design](EphysAnalysis.md#plot-designs) (Tufte and Journal turn it off) and to the looks remembered for the panel's kind; `"on"` or `"off"` is the panel's own and wins over all of them, the figure's own `aesthetics` rules included (a right-click edit of a panel's *Box* does not show while `box` is not `"auto"`: set the panel's Box row instead). Validate: `auto`, `on` or `off` |
 | `row`, `col` | 1, 1 | the top-left cell |
 | `rowSpan`, `colSpan` | 1, 1 | the rows and columns it covers |
 | `ref`, `window` | `"default"` | `"default"` = the figure's, or the panel's own [EventRef](#eventref) / [EpochWindow](#epochwindow) (aligned types only). A panel with its own cuts its own epochs, with the figure's selection or its own (next row); with the figure's, its groups must match the figure's by label, or the panel is skipped. It then no longer [shares the time axis](#shared-time-axis) |
@@ -1129,6 +1133,7 @@ The options named `bins`, `measure`, `baseline`, `auroc`, `maskAfterStop` and
 | `raster` | `rasterSortOrder` | `"ascending"` | or `"descending"` |
 | `raster` | `rasterByGroup` | `true` | rows by group first, each group on a band; `false`: every epoch sorted as one block |
 | `raster` | `maskAfterStop` | `false` | drop each epoch's ticks from its stop event on |
+| `raster` | `yTicks` | `false` | show the y axis' tick marks and labels (the epoch numbers); `false` hides them and keeps the y label. A raster of several blocks keeps its blocks' names on the y axis either way. A heat map of trials has no y ticks to show |
 | `raster` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | the first block's unit's waveform in a box in the panel |
 | `psth` | `bins` | `BinSec` 0.01, `SmoothSec` 0.01 | the bin width (bins are whole multiples of `BinSec` from the event) and the Gaussian SD applied to each epoch before averaging, s (0 = no smoothing) |
 | `psth` | `measure` | `"rate"` | `"rate"`, `"count"` or `"probability"` |
@@ -1551,7 +1556,7 @@ renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#
   design's rules for its panel type and the user's remembered rules for that type
   (a look remembered for PSTH panels dresses every PSTH panel), then on the
   whole figure the design's and the user's `"figure"` rules and `spec.aesthetics`,
-  the later winning (a panel's note and overlays come in between, as the item above says). In a visible figure a right-click opens the
+  the later winning (a panel's note and overlays come in between, as the item above says); last of all a panel's `box`, when it is `"on"` or `"off"`, over every one of them. In a visible figure a right-click opens the
   [aesthetics editor](EphysAnalysis.md#plot-aesthetics) on the figure.
 
 `h` holds `layout` (the tiled layout; `[]` for an axes target), `axes` (the panels'
@@ -1590,7 +1595,7 @@ not drawn: the figure's `common` block is. A file written by hand may leave out 
                   "colorOrder": "palette", "showMembers": false, "error": "sem", "match": "site", "mappingFile": "",
                   "minSessions": 1, "trialGroups": "pool" },
     "panels": [
-      { "id": "raster_1", "type": "raster", "title": "", "row": 1, "col": 1, "rowSpan": 1, "colSpan": 1,
+      { "id": "raster_1", "type": "raster", "title": "", "box": "auto", "row": 1, "col": 1, "rowSpan": 1, "colSpan": 1,
         "ref": "default", "window": "default", "selection": "default", "common": true,
         "layers": [
           { "name": "", "enabled": true, "source": "units", "binding": "observation", "aggregate": "each", "...": "..." },
@@ -1600,15 +1605,15 @@ not drawn: the figure's `common` block is. A file written by hand may leave out 
                        "offsetParam": "", "offsetParamUnit": "ms", "sequence": [], "alignStep": "Inf",
                        "marker": "diamond", "size": 4, "color": "" } } ],
         "options": { "rasterSort": "", "rasterSortEvent": [], "rasterSortOrder": "ascending", "rasterByGroup": true,
-                     "maskAfterStop": false, "waveform": { "mode": "off", "...": "..." } } },
-      { "id": "psth_1", "type": "psth", "title": "", "row": 2, "col": 1, "rowSpan": 1, "colSpan": 1,
+                     "maskAfterStop": false, "yTicks": false, "waveform": { "mode": "off", "...": "..." } } },
+      { "id": "psth_1", "type": "psth", "title": "", "box": "auto", "row": 2, "col": 1, "rowSpan": 1, "colSpan": 1,
         "ref": "default", "window": "default", "selection": "default", "common": true,
         "layers": [ { "name": "", "enabled": true, "source": "units", "binding": "observation", "aggregate": "each", "...": "..." } ],
         "options": { "bins": { "BinSec": 0.01, "SmoothSec": 0.01 }, "measure": "rate",
                      "baseline": { "Mode": "none", "Window": [-0.2, 0] }, "histStyle": "bar", "fill": true,
                      "fillAlpha": "NaN", "normalize": "none", "maskAfterStop": false, "yLim": [],
                      "waveform": { "mode": "off", "...": "..." } } },
-      { "id": "continuous_1", "type": "continuous", "title": "", "row": 3, "col": 1, "rowSpan": 1, "colSpan": 1,
+      { "id": "continuous_1", "type": "continuous", "title": "", "box": "auto", "row": 3, "col": 1, "rowSpan": 1, "colSpan": 1,
         "ref": "default", "window": "default", "selection": "default", "common": true,
         "layers": [ { "name": "", "enabled": true, "source": "LFP", "binding": "observation", "aggregate": "each", "...": "..." } ],
         "options": { "baseline": { "Mode": "none", "Window": [-0.2, 0] }, "display": "lines", "statistic": "mean",
@@ -1723,7 +1728,7 @@ Errors:
   panel never `off`; location, `scale` in (0, 3], whole `maxSpikes >= 1`, `ampScale`);
   `yLim` and `cLim` `[]` or ascending;
 - each panel's text note and overlays, by one function's rules ([Panel notes](#panel-notes), [Panel overlays](#panel-overlays)): a note with no text is not
-  checked (a panel of an unknown `type` has its note and overlays checked all the same),
+  checked (a panel of an unknown `type` has its note and overlays checked all the same; `box` is `auto`, `on` or `off`),
   else its `placement`, a finite `x` and `y` for `"custom"` (`0-1 across and up the panel`), `align`, `valign`,
   `interpreter`, a finite `rotation` and a positive (or `NaN`) `fontSize`; an overlay's
   `shape`, a finite `value` (line) or two different finite `from` and `to` (region), `axis`,
@@ -2451,7 +2456,9 @@ figure's rule winning over the overlay's opacity; every one a tagged component o
 still sharing the time axis over a note band; a band below keeping the axes' left edge and width of the plain panel
 under it; a band right of a panel leaving it narrower, so both panels keep their time tick labels; a four-line note at
 14 pt fitting its band; a note turned 90 degrees with `valign` top right-aligned along y at the band's top; into one
-axes the first panel's note and overlays in it), and the
+axes the first panel's note and overlays in it; a patch over the raster's opaque bands seen by its pixels, one under
+them not, patches following the limits; a raster's y ticks hidden by default and back with `yTicks`; a panel's `box`
+winning over a design's and the figure's own Box rule), and the
 editing hooks (`Editable`, `OnRemember`, the redraw). Compute (7) also checks `figureCompute`
 against `computeFigure` (equal results, `Check=` called at the checkpoints and
 what it throws stopping the compute), `figureOutputName` (`{Plot}`, `{Unit}`,

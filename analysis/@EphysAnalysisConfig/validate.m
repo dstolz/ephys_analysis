@@ -342,6 +342,9 @@ for k = 1:numel(obj.Figures)
         % the panel's text note and overlays (an overlay is drawn on the panel's own axes)
         checkNote(pj.note, "Figures", p0 + ".note", "panel");
         ovNames = checkOverlays(pj.overlays, "Figures", p0, ovNames);
+        if ~ismember(pj.box, ["auto" "on" "off"])
+            add("Figures", p0 + ".box", "error", "A panel's box is auto (the design's), on or off.");
+        end
         trow = FT.Type == pj.type;
         if ~any(trow)
             add("Figures", p0 + ".type", "error", "Unknown panel type """ + pj.type + """ (types: " + strjoin(FT.Type, ", ") + ").");

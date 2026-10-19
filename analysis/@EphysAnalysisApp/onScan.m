@@ -37,6 +37,7 @@ else
     items = names; data = 1:n;
 end
 set([obj.AlignDatasetDropDown obj.FiguresDatasetDropDown], 'Items', items, 'ItemsData', data);
+refreshDatasetLabels(obj);   % with what each holds of spikes (the units counted when a dataset was opened)
 obj.ScanLabel.Text = sprintf("%d dataset(s) found (%s).", n, ternary(cfg.Source.Mode == "project", ...
     "project " + cfg.Source.Root, "output folders"));
 obj.log("Scan: " + obj.ScanLabel.Text);

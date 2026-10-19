@@ -1003,6 +1003,14 @@ says how to cut a release.
   new fields; `EphysAnalysisConfig.GridSpacings`, `GridSpacingPx`, `GridGapUnits`, `PanelAligns` and
   `PanelVAligns` list their values. See [grid](documentation/EphysAnalysisConfig.md#figure-grid-and-observe-fields)
   and [the Spacing window](documentation/EphysAnalysisApp.md#figures-tab).
+- The analysis app's Dataset drop-downs (Alignment and Figures tabs) name each dataset with
+  what it holds of spikes: *subj1_day1  (14 units)* once its sorted units have been counted (the first
+  time it is opened in a session, from the units its Data tab reads, so no share is walked for them;
+  until then the name alone), *(detected only)* or *(no sorting)*. The Figures tab's Observation
+  drop-down ends a sorted unit's label in its number of spikes (*su12  ch 7  -320 µm  (5,210 spikes)*)
+  and a detection channel's in its detections; the figure's pick is still remembered by the label
+  without the count. New private `refreshDatasetLabels` and app property `DatasetUnitCounts`. See
+  [the preview's controls](documentation/EphysAnalysisApp.md#figures-tab).
 
 ### Changed
 
@@ -1024,6 +1032,22 @@ says how to cut a release.
   baseline, auROC, mask and waveform go into the options of each migrated panel that has them. See
   [Copying options between panels](documentation/EphysAnalysisConfig.md#copying-options-between-panels)
   and [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
+- A figure's `observe` block names the data it is drawn for in one field, `observe.data` (constant
+  `ObserveData`): `"units"` (each sorted unit), `"detected"` (each channel's detections), `"LFP"`,
+  `"MUA"`, `"SPIKE"`, `"AUX"` (each channel of that extract) or `"dataset"`. It replaces
+  `observe.kind` (with its `"auto"`), `observe.source` and `observe.signal`, and `ObserveKinds`.
+  `observeKind(fig)` now follows `observe.data`, and `figureFor` adds `observe.kind` to the spec;
+  `addFigure` gives a figure without `observe.data` (every template) what its following layers read
+  (new `followedData`: units, else detected, else the first signal, else the dataset). Validate checks
+  `<figure>.observe.data`, and warns on every unit or channel observation no layer follows. The
+  Figures tab's Observations section starts with one **Observe** drop-down of those data types (what
+  the active dataset holds first; a type it lacks marked *(not in <dataset>)* and still selectable),
+  and the rows under it follow the choice; **Spike source** and **Signal** are gone. A new figure in
+  the app observes its template's data when the active dataset holds it, else the first type it holds,
+  and a figure observing the dataset that gets its first following layer (a panel added to a blank
+  figure) observes what that layer reads.
+  See [Figure, grid and observe fields](documentation/EphysAnalysisConfig.md#figure-grid-and-observe-fields).
+
 - The analysis config is version 2: it holds `Figures` only. A version 1 file is migrated once when it
   is loaded (`load`, and `fromStruct` for a struct whose version is 1): every plot becomes a figure of
   the same id, every session plot a session figure (`match "pool"` becomes `"site"`, aux looks are

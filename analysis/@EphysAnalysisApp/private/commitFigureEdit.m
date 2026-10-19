@@ -6,6 +6,22 @@ function commitFigureEdit(obj, cfg, msg)
 %   panel and layer selected: SelectedPanel, SelectedLayer), the
 %   observation picker and the epoch diagram follow, the status bar says
 %   MSG, and the preview is redrawn (Auto) or marked out of date.
+%   A figure observing the dataset whose edit gives it its first layer
+%   that follows the observation (a panel added to a blank figure, a
+%   heat map made a PSTH) observes what that layer reads from then on
+%   (EphysAnalysisConfig.followedData, held by the active dataset:
+%   heldObserveData), since a following layer has nothing to follow in
+%   a dataset figure; an Observe choice of the dataset made while layers
+%   already follow is kept.
+k = obj.SelectedFigure;
+if k >= 1 && k <= numel(cfg.Figures) && k <= numel(obj.Config.Figures) && cfg.Figures(k).id == obj.Config.Figures(k).id ...
+        && cfg.Figures(k).observe.data == "dataset" && EphysAnalysisConfig.followedData(obj.Config.Figures(k)) == "dataset"
+    d = EphysAnalysisConfig.followedData(cfg.Figures(k));
+    if d ~= "dataset"
+        cfg.Figures(k).observe.data = heldObserveData(obj, d);
+        msg = strtrim(msg + " It now observes " + cfg.Figures(k).observe.data + ".");
+    end
+end
 obj.Config = cfg;
 if ~isempty(obj.Runner); obj.Runner.Config = cfg; end
 obj.refreshFigureList();

@@ -3,9 +3,10 @@ function spec = figureFor(obj, id)
 %   SPEC = cfg.figureFor(ID) (ID a figure id or an index) is the Figures
 %   entry with
 %   - ref / window / selection taken from Defaults where "default"
-%   - observe.kind resolved from "auto" (observeKind: "unit", "channel" or
-%     "dataset"), and observe.units.source set to observe.source (a
-%     complete UnitSelection, for selectUnits)
+%   - observe.kind added (observeKind of observe.data: "unit", "channel"
+%     or "dataset"), and observe.units.source set to observe.data for
+%     units or detected (else "units"; a complete UnitSelection, for
+%     selectUnits)
 %   - each panel's ref / window / selection taken from the figure's
 %     (resolved) where "default", and two fields added: aligned
 %     (panelTypes().Aligned of its type) and sharesTime (the type shares
@@ -43,7 +44,8 @@ unitDef = EphysAnalysisConfig.defaults("UnitSelection");
 o = spec.observe;
 o.kind = EphysAnalysisConfig.observeKind(fig);
 u = o.units;
-u.source = o.source;
+u.source = "units";
+if o.kind == "unit"; u.source = o.data; end
 o.units = orderfields(u, unitDef);
 spec.observe = o;
 

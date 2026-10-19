@@ -76,7 +76,7 @@ cfg.Figures(3).panels(1).layers(1).source = "detected";
 cfg = cfg.addFigure("heatmap", Id="heat");
 cfg.Figures(4).panels(1).layers(1).source = "detected";
 cfg = cfg.addFigure("continuous", Id="spike_band");
-cfg.Figures(5).observe.signal = "SPIKE";
+cfg.Figures(5).observe.data = "SPIKE";
 cfg.Figures(5).panels(1).layers(1).source = "SPIKE";
 cfg = cfg.addFigure("rasterPsth", Id="no_line");
 cfg.Figures(6).ref = EphysAnalysisConfig.normalizeSection("EventRef", struct('line', "Nope"));

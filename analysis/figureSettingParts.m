@@ -12,7 +12,7 @@ function T = figureSettingParts()
 %
 %   See also copyFigureSettings.
 rows = {
-    "observe",     "Observations",           "observe",                      "What the figure is drawn for: the observation kind, the unit filter, the signal and channels, per trial group"
+    "observe",     "Observations",           "observe",                      "What the figure is drawn for: the data observed, the unit filter, the channels, per trial group"
     "alignment",   "Alignment",              ["ref" "window" "selection"],   "The figure's event reference, epoch window and trial selection"
     "arrangement", "Arrangement and panels", ["grid" "panels"],              "The grid and every panel, with its type, options, alignment and layers (panel ids kept)"
     "style",       "Appearance",             "style",                        "Line widths, error bands, colors, fonts, legend, sorting and labels"

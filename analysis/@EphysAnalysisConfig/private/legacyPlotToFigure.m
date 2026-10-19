@@ -41,7 +41,7 @@ function [fig, notes] = legacyPlotToFigure(p, defaults, layout)
 %   panels but the raster and the aux signal; all: every panel); an
 %   overlay naming a panel the figure lacks is a note.
 %   The plot's source (units / detected) is the layers' source and, for a
-%   figure drawn per unit, observe.source; its unit filter is observe.units
+%   figure drawn per unit, observe.data; its unit filter is observe.units
 %   when the figure observes units, else the fixed layer's units.
 %
 %   By kind
@@ -56,7 +56,7 @@ function [fig, notes] = legacyPlotToFigure(p, defaults, layout)
 %     psth, overlay   per dataset: one PSTH panel with a fixed units layer
 %                     (the plot's filter) and aggregate "mean"
 %     raster          per unit: one raster panel, events layers, aux
-%     evoked          grid: per channel (observe.signal = the source,
+%     evoked          grid: per channel (observe.data = the source,
 %                     observe.channels = the plot's channels), one
 %                     continuous panel following the channel; stack: per
 %                     dataset, one continuous panel of a fixed layer of the
@@ -164,7 +164,7 @@ follow = struct('source', p.source, 'binding', "observation");
 switch p.kind
     case "psth"
         if spec.layout == "overlay"
-            fig.observe = struct('kind', "dataset");
+            fig.observe = struct('data', "dataset");
             if p.withRaster
                 addNote("The overlay's raster (withRaster) is not carried: an overlay of several units draws none.");
             end
@@ -205,10 +205,10 @@ switch p.kind
     case "evoked"
         o = continuousOptions();
         if spec.layout == "grid"
-            fig.observe = struct('kind', "channel", 'signal', p.source, 'channels', p.channels);
+            fig.observe = struct('data', p.source, 'channels', p.channels);
             addPanel(panelOf("continuous", o, {follow}), 1);
         else
-            fig.observe = struct('kind', "dataset");
+            fig.observe = struct('data', "dataset");
             o.stackSpacing = p.style.StackSpacing;
             if spec.layout == "stack"
                 o.display = "stacked";
@@ -220,17 +220,17 @@ switch p.kind
             addPanel(panelOf("continuous", o, {L}), 1);
         end
     case "heatmap"
-        fig.observe = struct('kind', "dataset");
+        fig.observe = struct('data', "dataset");
         o = struct('order', p.order, 'group', 1, 'cLim', cLim);
         cUsed = true;
         oneGroupNote("heat map");
         addPanel(panelOf("heatmap", o, {fixedLayer()}), 1);
     case "probemap"
-        fig.observe = struct('kind', "dataset");
+        fig.observe = struct('data', "dataset");
         cUsed = true;
         addPanel(panelOf("probemap", struct('value', p.value, 'cLim', cLim), {fixedLayer()}), 1);
     case "corrmap"
-        fig.observe = struct('kind', "dataset");
+        fig.observe = struct('data', "dataset");
         cUsed = true;
         oneGroupNote("correlation map");
         o = struct('metric', p.metric, 'correlation', p.correlation, 'fisherZ', p.fisherZ, 'group', 1, 'cLim', cLim);
@@ -239,7 +239,7 @@ switch p.kind
         yUsed = true;
         o = struct('layout', spec.layout, 'yLim', yLim);
         if spec.layout == "probe"
-            fig.observe = struct('kind', "dataset");
+            fig.observe = struct('data', "dataset");
             addPanel(panelOf("waveforms", o, {fixedLayer()}), 1);
         else
             observeUnits();
@@ -254,7 +254,7 @@ switch p.kind
         yUsed = true;
         o = struct('param', p.param, 'seriesParam', p.seriesParam, 'measure', p.measure, 'baseline', cm.baseline, 'yLim', yLim);
         if spec.layout == "overlay"
-            fig.observe = struct('kind', "dataset");
+            fig.observe = struct('data', "dataset");
             if p.waveform.mode ~= "off"
                 cm.waveform.mode = "off";
                 addNote("The waveform inset is not carried: an overlay of several units draws none.");
@@ -349,7 +349,7 @@ fig = EphysAnalysisConfig.normalizeFigure(fig, "Figure");
 
     function observeUnits()
         %observeUnits  The figure is drawn per unit of the plot's source, through the plot's filter.
-        fig.observe = struct('kind', "unit", 'source', p.source, 'units', p.units);
+        fig.observe = struct('data', p.source, 'units', p.units);
     end
 
     function L = fixedLayer()

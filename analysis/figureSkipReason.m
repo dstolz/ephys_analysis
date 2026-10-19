@@ -55,10 +55,10 @@ if ~spec.enabled; reason = "disabled"; return; end
 ob = spec.observe;
 switch ob.kind
     case "unit"
-        if ob.source == "units" && ~src.hasUnits; reason = "no sorted units"; return; end
-        if ob.source == "detected" && ~src.hasDetected; reason = "no detected spikes"; return; end
+        if ob.data == "units" && ~src.hasUnits; reason = "no sorted units"; return; end
+        if ob.data == "detected" && ~src.hasDetected; reason = "no detected spikes"; return; end
     case "channel"
-        if ~hasSignal(src, ob.signal); reason = "no " + ob.signal + " extract"; return; end
+        if ~hasSignal(src, ob.data); reason = "no " + ob.data + " extract"; return; end
 end
 PT = EphysAnalysisConfig.panelTypes();
 vars = string.empty(1, 0);
@@ -194,7 +194,7 @@ if L.binding == "observation" && (isSpike || isSignal)
     if ob.kind == "dataset"
         r = "no unit or channel observed"; return
     end
-    if s == "AUX" && ~(ob.kind == "channel" && ob.signal == "AUX")
+    if s == "AUX" && ob.data ~= "AUX"
         r = "AUX has no recording channel: bind it to fixed channels"; return
     end
 end

@@ -1,7 +1,8 @@
 function selectDataset(obj, idx)
 %selectDataset  Make dataset IDX the active one: load its source and refresh what shows it.
 %   The previous dataset's cached signals and spikes are freed. The Data
-%   tab's panes, the dataset boxes, the alignment count, the line and
+%   tab's panes, the dataset boxes, the Dataset drop-downs' labels (its
+%   sorted units counted: refreshDatasetLabels), the alignment count, the line and
 %   parameter lists, the epoch diagram (when open), the Figures tab's
 %   observation picker (its pick kept by label) and preview
 %   (autoFigurePreview) follow.
@@ -20,6 +21,7 @@ end
 set([obj.AlignDatasetDropDown obj.FiguresDatasetDropDown], 'Value', idx);
 obj.refreshDatasetsTable();
 obj.refreshDatasetInfo();
+refreshDatasetLabels(obj, idx);
 wasApplying = obj.Applying;
 obj.Applying = true;
 obj.fillAlignItems(obj.AlignControls);

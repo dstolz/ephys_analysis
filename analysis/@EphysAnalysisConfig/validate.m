@@ -17,13 +17,13 @@ function issues = validate(obj, opts)
 %               names ({Plot} replaces characters outside A-Z a-z 0-9 _ - .
 %               by "_", and Windows ignores case) and file-name safe; the
 %               figure's ref, window and
-%               selection (groupBy <= 2); observe: kind, source, signal,
+%               selection (groupBy <= 2); observe: data (ObserveData),
 %               channels, maxUnits, on a figure observing units an enabled units.response test (test,
 %               param, windows, direction, correction, alpha, test
 %               "auroc"'s settings, and the Statistics and Machine Learning
 %               Toolbox it needs; each spike layer's units.response alike),
 %               no layer following a "dataset" observation, a
-%               warning when an explicit unit / channel observation has no
+%               warning when a unit / channel observation has no
 %               following layer, a warning for perGroup while the figure's
 %               selection groups by nothing; grid: whole rows and cols >= 1,
 %               rowHeights / colWidths [] or one positive size each,
@@ -214,18 +214,11 @@ for k = 1:numel(obj.Figures)
     % what it is drawn for
     ob = fg.observe;
     kind = "";
-    if ~ismember(ob.kind, EphysAnalysisConfig.ObserveKinds)
-        add("Figures", f0 + ".observe.kind", "error", "observe.kind is one of " + strjoin(EphysAnalysisConfig.ObserveKinds, ", ") + ...
-            ", not """ + ob.kind + """.");
+    if ~ismember(ob.data, EphysAnalysisConfig.ObserveData)
+        add("Figures", f0 + ".observe.data", "error", "observe.data is one of " + strjoin(EphysAnalysisConfig.ObserveData, ", ") + ...
+            ", not """ + ob.data + """.");
     else
         kind = EphysAnalysisConfig.observeKind(fg);
-    end
-    if ~ismember(ob.source, EphysAnalysisConfig.SpikeSources)
-        add("Figures", f0 + ".observe.source", "error", "The observed units are units (sorted) or detected (one per channel), not """ + ob.source + """.");
-    end
-    if ~ismember(ob.signal, EphysAnalysisConfig.SignalSources)
-        add("Figures", f0 + ".observe.signal", "error", "The observed channels' signal is one of " + strjoin(EphysAnalysisConfig.SignalSources, ", ") + ...
-            ", not """ + ob.signal + """.");
     end
     if ~isempty(ob.channels) && ~all(arrayfun(isWhole, ob.channels))
         add("Figures", f0 + ".observe.channels", "error", "The observed channels are columns of the extract: whole numbers, at least 1 ([] = all).");
@@ -249,10 +242,10 @@ for k = 1:numel(obj.Figures)
         if ~isempty(Lj); nFollow = nFollow + nnz([Lj.enabled] & [Lj.binding] == "observation"); end
     end
     if kind == "dataset" && nFollow > 0
-        add("Figures", f0 + ".observe.kind", "error", "A layer follows the observation, but the figure is drawn for the dataset: " + ...
-            "observe units or channels, or bind the layer to fixed items.");
-    elseif ismember(ob.kind, ["unit" "channel"]) && nFollow == 0
-        add("Figures", f0 + ".observe.kind", "warning", "No layer follows the observation: the figure is the same for every " + ob.kind + ".");
+        add("Figures", f0 + ".observe.data", "error", "A layer follows the observation, but the figure is drawn for the dataset: " + ...
+            "observe units, detections or a signal's channels, or bind the layer to fixed items.");
+    elseif ismember(kind, ["unit" "channel"]) && nFollow == 0
+        add("Figures", f0 + ".observe.data", "warning", "No layer follows the observation: the figure is the same for every " + kind + ".");
     end
 
     % the common options (each linked panel's fit to them is checked with its options)
@@ -411,15 +404,15 @@ for k = 1:numel(obj.Figures)
                     add("Figures", l0 + ".binding", "error", A + " draws fixed layers: bind the layer to fixed units or channels.");
                 elseif kind == "unit" && L.source == "AUX"
                     add("Figures", l0 + ".binding", "error", "AUX has no recording channel to follow the observed unit's: bind it to fixed channels.");
-                elseif kind == "channel" && ismember(L.source, EphysAnalysisConfig.SignalSources) && L.source ~= ob.signal
+                elseif kind == "channel" && ismember(L.source, EphysAnalysisConfig.SignalSources) && L.source ~= ob.data
                     % as figureLayerItems resolves it: AUX records no amplifier channel, either way
                     if L.source == "AUX"
                         add("Figures", l0 + ".binding", "error", "AUX has no recording channel: bind it to fixed channels.");
-                    elseif ob.signal == "AUX"
+                    elseif ob.data == "AUX"
                         add("Figures", l0 + ".binding", "error", "The observed AUX channel has no recording channel for " + ...
                             L.source + " to follow.");
                     else
-                        add("Figures", l0 + ".source", "warning", "This " + L.source + " layer follows a " + ob.signal + " channel: it takes the " + ...
+                        add("Figures", l0 + ".source", "warning", "This " + L.source + " layer follows a " + ob.data + " channel: it takes the " + ...
                             "observed channel's number in its own extract.");
                     end
                 end
@@ -739,7 +732,7 @@ issues = table(Section, Field, Severity, Message);
                         "the observation, or fix it to one unit (one id, or maxUnits 1).");
                 end
             elseif ismember(hM.source, EphysAnalysisConfig.SpikeSources) && hM.binding == "observation" ...
-                    && (kind == "channel" || hM.source ~= ob.source)
+                    && kind ~= "dataset" && hM.source ~= ob.data
                 % it follows the observation through a channel: every unit on it (figureLayerItems), not one
                 add("Figures", hF + ".binding", "error", "A heat map of trials draws one unit's epochs, but this layer " + ...
                     "follows the observation through its channel (every " + hM.source + " unit on it): observe " + ...

@@ -678,7 +678,7 @@ if exist('EphysAnalysisConfig', 'class')
         'the Diagram reads the figures, the session figure too: "3 figure(s): psth, continuous, raster", sorted units read, no detected spikes');
     acfgL = EphysAnalysisConfig();
     acfgL = acfgL.addFigure("psth", Id="det_layer");   % a fixed layer of detected spikes, the dataset observed
-    acfgL.Figures(1).observe.kind = "dataset";
+    acfgL.Figures(1).observe.data = "dataset";
     acfgL.Figures(1).panels(1).layers(1).binding = "fixed";
     acfgL.Figures(1).panels(1).layers(1).source = "detected";
     fileL = string(fullfile(root, 'app_analysis_det_layer.json'));
@@ -687,8 +687,7 @@ if exist('EphysAnalysisConfig', 'class')
     [htmlL, ~, ML] = PipelineDiagram.overview(cfgP);
     acfgO = EphysAnalysisConfig();
     acfgO = acfgO.addFigure("continuous", Id="det_obs");   % an LFP layer, each detected unit observed
-    acfgO.Figures(1).observe.kind = "unit";
-    acfgO.Figures(1).observe.source = "detected";
+    acfgO.Figures(1).observe.data = "detected";
     fileO = string(fullfile(root, 'app_analysis_det_obs.json'));
     acfgO.save(fileO);
     cfgP.Analysis.ConfigFile = fileO;
@@ -702,7 +701,7 @@ if exist('EphysAnalysisConfig', 'class')
     htmlN = PipelineDiagram.overview(cfgP);
     check(~edgeOn(ML, "sorting") && edgeOn(ML, "spikes") && contains(htmlL, "1 figure(s): psth") ...
         && ~edgeOn(MO2, "sorting") && edgeOn(MO2, "spikes") && contains(htmlN, "no figure enabled"), ...
-        'detected spikes are read through a layer''s source or a unit observation''s observe.source; no figure on: "no figure enabled"');
+        'detected spikes are read through a layer''s source or the observed data (observe.data); no figure on: "no figure enabled"');
     app.AnaConfigField.Value = fullfile(root, 'nope.json');
     app.onAnalysisControlsChanged("file");
     app.refreshStepPlan("analysis");

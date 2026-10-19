@@ -45,7 +45,7 @@ keep the result (`cfg = cfg.addFigure(...)`, `cfg = cfg.save(...)`).
 | `Source`, `Defaults`, `Export`, `Report` | sections (structs), coerced on assignment |
 | `Figures` | struct array, one entry per [figure](#figures): one observation's panels (a unit, a channel or the dataset) on a grid. Its ids are unique among figures (`EphysAnalysisConfig:DuplicateFigureId`; a figure's panel ids `EphysAnalysisConfig:DuplicatePanelId`); a cell array (what `jsondecode` gives for figures whose fields differ) is accepted too. A run draws the enabled figures, a page per observation ([Export](#export), [Report](#report)); one with `sessions.enabled` is a [session figure](#session-figures), drawn once across the datasets instead |
 | `File`, `LoadWarnings` | transient: where it was loaded from / saved to; the unknown fields `load` dropped |
-| `Schema`, `Version`, `Sections`, `SpikeSources`, `SignalSources`, `FigureSources`, `ObserveKinds`, `WaveformLocations`, `ErrorTypes`, `ListFields` | constants. `Version` is 2 (a version 1 file is [migrated](#loading-a-version-1-config) on load); `FigureSources`: what a figure's layer reads, `ObserveKinds`: what a figure is drawn for; `Figures` is a list, not one of the four `Sections`. The continuous panels' and notes' choices: `AuxStatistics`, `AuxTransforms`, `AuxErrorTypes`, `NotePlacements`, `OverlayLayers`, `OverlayLineStyles`. The [session figures'](#session-figures): `SessionSeries`, `SessionErrors`, `SessionTrialGroups`, `SessionFacets`, `SessionColorOrders`, `FigureSessionMatches` (`"site"`, `"mapping"`: a figure observes one matched unit, so no pooling) and `FigureSessionUnmerged` (the panel types that cannot be merged across sessions: `probemap`, `corrmap`, `spectrum`, `spectrogram`, `coherence`). There are no plot constants (`Kinds`, `AuxModes`, `AuxPlacements`, `AuxDisplays`, `AuxColorBy`, `OverlayPanels`, `SessionKinds`, `SessionMatches`, `SessionData`): the plots are gone |
+| `Schema`, `Version`, `Sections`, `SpikeSources`, `SignalSources`, `FigureSources`, `ObserveData`, `WaveformLocations`, `ErrorTypes`, `ListFields` | constants. `Version` is 2 (a version 1 file is [migrated](#loading-a-version-1-config) on load); `FigureSources`: what a figure's layer reads, `ObserveData`: what a figure is drawn for (`observe.data`: `units`, `detected`, `LFP`, `MUA`, `SPIKE`, `AUX`, `dataset`); `Figures` is a list, not one of the four `Sections`. The continuous panels' and notes' choices: `AuxStatistics`, `AuxTransforms`, `AuxErrorTypes`, `NotePlacements`, `OverlayLayers`, `OverlayLineStyles`. The [session figures'](#session-figures): `SessionSeries`, `SessionErrors`, `SessionTrialGroups`, `SessionFacets`, `SessionColorOrders`, `FigureSessionMatches` (`"site"`, `"mapping"`: a figure observes one matched unit, so no pooling) and `FigureSessionUnmerged` (the panel types that cannot be merged across sessions: `probemap`, `corrmap`, `spectrum`, `spectrogram`, `coherence`). There are no plot constants (`Kinds`, `AuxModes`, `AuxPlacements`, `AuxDisplays`, `AuxColorBy`, `OverlayPanels`, `SessionKinds`, `SessionMatches`, `SessionData`): the plots are gone |
 | `toStruct()`, `toJson()`, `save(file)` | plain struct; the JSON `save` writes (`Inf` / `-Inf` / `NaN` as `"Inf"` / `"-Inf"` / `"NaN"`) |
 | `EphysAnalysisConfig.load(file)`, `fromStruct(s)` | version 2; a version 1 file (or struct) is [migrated](#loading-a-version-1-config) first. `load` errors `EphysAnalysisConfig:BadSchema` on another schema or any other version |
 | `validate(CheckPaths=true)` | issues table `Section, Field, Severity, Message` ([rules](#validation)) |
@@ -53,7 +53,7 @@ keep the result (`cfg = cfg.addFigure(...)`, `cfg = cfg.save(...)`).
 | `figureFor(idOrIndex)` | a figure with every `"default"` resolved and each panel's type facts and each layer's category added: what the compute draws ([Resolving a figure](#resolving-a-figure)). `EphysAnalysisConfig:NoFigure` for an unknown one |
 | `isequalConfig(other)` | same values (NaN equal) |
 | `defaults(section)`, `normalizeSection(section, s)` | static: the single source of truth for fields, types and shapes |
-| `panelTypes()`, `sourceCategories()`, `figureTemplates()`, `categoryOf(source, type)`, `observeKind(fig)`, `defaultLayer(type)`, `normalizeFigure(f)`, `normalizePanel(p)`, `normalizeLayer(L)` | static: the figures' tables and helpers ([Figures](#figures)). `placePanel`, `removePanel`, `movePanel` and `figureCells` are the [grid editing](#editing-the-grid) |
+| `panelTypes()`, `sourceCategories()`, `figureTemplates()`, `categoryOf(source, type)`, `observeKind(fig)`, `followedData(fig)`, `defaultLayer(type)`, `normalizeFigure(f)`, `normalizePanel(p)`, `normalizeLayer(L)` | static: the figures' tables and helpers ([Figures](#figures)). `placePanel`, `removePanel`, `movePanel` and `figureCells` are the [grid editing](#editing-the-grid) |
 
 Values are coerced to the class and shape of their default on every
 assignment: a one-element list read back from JSON is a list again, `"Inf"`
@@ -89,7 +89,7 @@ distinct as file names: `{Plot}` replaces every character outside
                    "groupBy": "Depth", "groupOrder": "ascending", "maxGroups": 12 } },
   "Figures": [
     { "id": "unit_card", "enabled": true, "title": "",
-      "observe": { "kind": "auto", "source": "units", "units": { "classes": ["su"], "...": "..." }, "...": "..." },
+      "observe": { "data": "units", "units": { "classes": ["su"], "...": "..." }, "...": "..." },
       "grid": { "rows": 3, "cols": 1, "rowHeights": [1.5, 1, 1], "colWidths": [], "spacing": "none" },
       "common": { "bins": { "BinSec": 0.01, "SmoothSec": 0.01 }, "measure": "rate", "...": "..." },
       "ref": "default", "window": "default", "selection": "default",
@@ -307,8 +307,8 @@ trials makes the runner skip the figure on that dataset (*no paired trials*).
 
 ### UnitSelection
 
-A figure's `observe.units` and a fixed layer's `units` (the source is the figure's `observe.source` or the
-layer's `source`). Sorted units
+A figure's `observe.units` and a fixed layer's `units` (the source is the figure's `observe.data`, `units` or
+`detected`, or the layer's `source`). Sorted units
 (`"units"`) come from the sorting folder, threshold detections
 (`"detected"`, one "unit" per channel) from the spikes file; `classes`,
 `groups` and `quality` apply to sorted units only.
@@ -692,8 +692,8 @@ channel, with the stimulus offset marked on every raster row.
 
 A figure is designed for one *observation*: a sorted unit (or a channel's
 detections), a channel of a signal (`LFP`, `MUA`, `SPIKE` or `AUX`), or the
-dataset. Its `observe` block says which kind, and which ones there are: the
-unit filter and the channel list. A panel has a type and one or
+dataset. Its `observe` block says which data (`observe.data`), and which ones
+there are: the unit filter and the channel list. A panel has a type and one or
 more *layers*; a layer is one data source (the units, the detections, an event
 line, a signal's channels). Each layer either **follows the
 observation**, reading the observed unit or the channel it sits on, or is
@@ -773,11 +773,9 @@ give the fields below; every field exists on every entry.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `kind` | `"auto"` | `"unit"`, `"channel"` or `"dataset"`; `"auto"` = a unit when an enabled layer that follows the observation reads spikes (`units`, `detected`), else a channel when one reads a signal (`LFP`, `MUA`, `SPIKE`, `AUX`), else the dataset (`EphysAnalysisConfig.observeKind`) |
-| `source` | `"units"` | unit observations: `"units"` (sorted) or `"detected"` (one per channel) |
-| `units` | [UnitSelection](#unitselection) without `source` | unit observations: the filter that picks the units the figure can be drawn for (classes, quality, response test, ids, channels, shanks, `maxUnits`) |
-| `signal` | `"LFP"` | channel observations: which extract (`"LFP"`, `"MUA"`, `"SPIKE"`, `"AUX"`) |
-| `channels` | `[]` | channel observations: the extract's columns (`[]` = all) |
+| `data` | `"units"` | what one figure is drawn for (`ObserveData`): `"units"` (each sorted unit), `"detected"` (each channel's threshold detections), `"LFP"`, `"MUA"`, `"SPIKE"` or `"AUX"` (each channel of that extract), or `"dataset"` (one figure per dataset). `EphysAnalysisConfig.observeKind(fig)` names its kind: a *unit* for `units` and `detected`, a *channel* for a signal, the *dataset* |
+| `units` | [UnitSelection](#unitselection) without `source` | `units` and `detected`: the filter that picks the units the figure can be drawn for (classes, quality, response test, ids, channels, shanks, `maxUnits`; classes and quality apply to sorted units only) |
+| `channels` | `[]` | a signal: the extract's columns (`[]` = all) |
 | `perGroup` | `false` | `true`: each observation is drawn once per trial group of the figure's selection (its `groupBy`), a figure of that group's epochs ([One figure per trial group](#panel-types)). Validate warns while the selection groups by nothing. A [session figure's](#session-figures) trial groups follow `sessions.trialGroups` instead, and `perGroup` is ignored there |
 
 `addFigure` takes a template's name (`EphysAnalysisConfig.figureTemplates()`) or
@@ -792,7 +790,14 @@ tuning curve, `"spectrum"`, `"spectrogram"` and `"coherence"` for the
 [category](#source-categories) (`units`; `LFP` for continuous) bound as the
 type's `DefaultBinding` says, so a new panel draws at once. A new figure takes
 `defaults("FigureCommon")` as its `common` block, and its panels are linked to
-it. `"blank"` is an empty 1 x 1 grid.
+it. `"blank"` is an empty 1 x 1 grid. A figure given to `addFigure` without an
+`observe.data` (every template) observes what its enabled following layers
+read (`EphysAnalysisConfig.followedData(fig)`): `"units"` when one reads sorted
+units, else `"detected"` when one reads detections, else the signal of the
+first one that reads a signal, else `"dataset"`. So the unit templates observe
+sorted units, `"continuous"` and `"spectrogram"` the LFP channels, and
+`"heatmap"`, `"probemap"`, `"corrmap"` and `"blank"` (fixed layers, or none) the dataset. After that `observe.data`
+is the figure's own: adding or rebinding layers does not change it.
 
 ### Panel fields
 
@@ -1299,9 +1304,9 @@ A layer that **follows the observation** reads (the private
 
 | Layer | Under a unit observation | Under a channel observation |
 | --- | --- | --- |
-| `units` or `detected`, of the observed source (`observe.source`) | that unit alone, whatever its class, with no quality or response filter (it passed `observe.units` already) | the layer's `units` on the observed channel's recording channel (`units.channels` set to it, `units.ids` ignored) |
+| `units` or `detected`, of the observed source (`observe.data`) | that unit alone, whatever its class, with no quality or response filter (it passed `observe.units` already) | the layer's `units` on the observed channel's recording channel (`units.channels` set to it, `units.ids` ignored) |
 | `units` or `detected`, of the other spike source | the layer's `units` on the unit's recording channel | as above |
-| `LFP`, `MUA`, `SPIKE` | the column of the extract whose recording channel is the unit's | the observed column when the layer's signal is the observed one (`observe.signal`), else the column of its own extract that records the same channel (validate warns) |
+| `LFP`, `MUA`, `SPIKE` | the column of the extract whose recording channel is the unit's | the observed column when the layer's signal is the observed one (`observe.data`), else the column of its own extract that records the same channel (validate warns) |
 | `AUX` | skipped: `AUX has no recording channel: bind it to fixed channels` | the observed column when AUX is the observed signal, else skipped with the same reason |
 
 Under a dataset observation there is nothing to follow: a following point or
@@ -1361,8 +1366,9 @@ compute and the render take:
 
 - the figure's `ref`, `window` and `selection` from [`Defaults`](#defaults) where
   `"default"`;
-- `observe.kind` resolved from `"auto"` (`observeKind`), and `observe.units.source`
-  set to `observe.source`, a complete [UnitSelection](#unitselection);
+- `observe.kind` added (`observeKind` of `observe.data`: `"unit"`, `"channel"` or
+  `"dataset"`), and `observe.units.source` set to `observe.data` for `units` or
+  `detected` (else `"units"`), a complete [UnitSelection](#unitselection);
 - each panel's `ref`, `window` and `selection` from the figure's (resolved) where
   `"default"`, and two fields added: `aligned` (its type's `Aligned`) and `sharesTime` (its type
   shares time, and both its `ref` and `window` were `"default"`; its `selection`
@@ -1382,13 +1388,14 @@ false (validate reports the type).
 
 `T = figureObservations(src, spec)` lists what dataset `src` (`runner.source(k)`)
 offers the figure `spec`, one row each: the preview's picker, and the
-observations a run draws a page for. By `spec.observe.kind`:
+observations a run draws a page for. By `spec.observe.kind` (of `observe.data`):
 
-- `"unit"`: the units `observe.units` keeps (`selectUnits`, with the figure's
+- `"unit"`: the sorted units (`units`) or detection channels (`detected`)
+  `observe.units` keeps (`selectUnits`, with the figure's
   `ref` and `selection`; only their table is used, the spike trains stay in the
   outputs' cache);
 - `"channel"`: the columns `observe.channels` names (`[]` = all) of the
-  `observe.signal` extract (`selectChannels`);
+  `observe.data` extract (`selectChannels`);
 - `"dataset"`: one row, the dataset itself.
 
 Units and channels are in probe order (the figure's `SortShank` and `SortDepth`),
@@ -1577,10 +1584,10 @@ not drawn: the figure's `common` block is. A file written by hand may leave out 
 ```json
 "Figures": [
   { "id": "unit_card", "enabled": true, "title": "",
-    "observe": { "kind": "auto", "source": "units",
+    "observe": { "data": "units",
                  "units": { "classes": ["su"], "groups": [], "ids": [], "channels": [], "shanks": [], "maxUnits": "Inf",
                             "quality": { "enabled": false, "...": "..." }, "response": { "enabled": false, "...": "..." } },
-                 "signal": "LFP", "channels": [], "perGroup": false },
+                 "channels": [], "perGroup": false },
     "grid": { "rows": 3, "cols": 1, "rowHeights": [1.5, 1, 1], "colWidths": [], "spacing": "none" },
     "common": { "bins": { "BinSec": 0.01, "SmoothSec": 0.01 }, "measure": "rate",
                 "baseline": { "Mode": "none", "Window": [-0.2, 0] }, "maskAfterStop": false,
@@ -1616,9 +1623,9 @@ not drawn: the figure's `common` block is. A file written by hand may leave out 
     "style": { "LineWidth": 1.2, "...": "..." }, "aesthetics": [] } ]
 ```
 
-`observe.kind "auto"` resolves to a unit here, since the units layers follow the
-observation; the LFP layer follows too, reading the column of the LFP extract
-that records the unit's channel. The three panels share the time axis, so only
+`observe.data "units"` draws it for each sorted unit, which the units layers
+follow; the LFP layer follows too, reading the column of the LFP extract that
+records the unit's channel. The three panels share the time axis, so only
 the bottom one is labeled. The events layer is `fixed`, as every events layer
 is, and its `event` is an [EventMark](#raster-event-marks). The `sessions` block shown
 is the default, a figure drawn per dataset; ticking `enabled` makes it a
@@ -1641,8 +1648,8 @@ Errors:
   files are named with `{Plot}`;
 - the figure's own `ref`, `window` and `selection` are valid, by the
   [Defaults](#defaults)' rules (at most 2 `groupBy` parameters);
-- `observe`: `kind` is `auto`, `unit`, `channel` or `dataset`; `source` is `units` or
-  `detected`; `signal` is `LFP`, `MUA`, `SPIKE` or `AUX`; `channels` are whole
+- `observe`: `data` is one of `ObserveData` (`units`, `detected`, `LFP`, `MUA`,
+  `SPIKE`, `AUX`, `dataset`; `<figure>.observe.data`); `channels` are whole
   numbers >= 1; `units.maxUnits` >= 1; on a figure that observes units, an
   enabled `units.response` test (at `<figure>.observe.units.response.<field>`: the
   test, `param` for a tuning or either / both test, ordered `baseline` and `window`,
@@ -1745,8 +1752,8 @@ Warnings:
   units, so bind it to fixed units and ring the observed unit with a following layer;
 - a coherence panel whose fixed seed layer keeps several channels or units
   (`<panel>.layers(<j>)`): only the first is the seed, so fix the layer to one;
-- an explicit `unit` or `channel` observation with no layer following it (the figure
-  is the same for every one);
+- a unit or channel observation with no layer following it (`<figure>.observe.data`:
+  the figure is the same for every one);
 - `observe.perGroup` while the figure's selection groups by nothing (not for a session figure; `<figure>.observe.perGroup`:
   one figure per observation, as without it);
 - a session figure's warnings ([below](#validating-session-figures)): `datasets "list"` with no
@@ -1826,7 +1833,7 @@ by the observation kind and `match`, one row each:
 | --- | --- | --- |
 | unit, `match "site"` | recording channel that has a kept unit in at least `minSessions` sessions | `site ch 7  -320 µm` (the channel and its probe y). A session with several units on the site **draws the first in probe order**, not their average; `unitIds` lists them all |
 | unit, `match "mapping"` | cell of the mapping file held by at least `minSessions` sessions | the cell's name. A session's ids are looked up in its column (its dataset key) among the units it keeps, and the first of them in probe order is drawn when a cell names several |
-| channel | recording channel of the observed extract (`observe.signal`, `observe.channels`) present in at least `minSessions` sessions; an AUX channel, which has none, by its label | the first session holding it labels it, as `figureObservations` does |
+| channel | recording channel of the observed extract (`observe.data`, `observe.channels`) present in at least `minSessions` sessions; an AUX channel, which has none, by its label | the first session holding it labels it, as `figureObservations` does |
 | dataset | one | `<n> sessions`; no `minSessions` |
 
 Rows follow the first session's probe order, then the channels or cells that
@@ -2111,18 +2118,18 @@ carry (one sentence each), by these rules. The figure keeps the plot's `id`, `en
 | `aesthetics` | the plot's, remapped as [above](#looks-on-retired-roles) |
 | `style` | the plot's, with `MaxTiles`, `TileSpacing`, `XLim`, `YLim` and `CLim` back at their defaults (a figure does not use them). `YLim` goes to the data panel's `options.yLim` (a PSTH, continuous, waveforms, rate or tuning panel) and `CLim` to its `options.cLim` (a heat map, probe map or correlation map); one that no panel of the figure takes is a note |
 | `common` | the plot's `bins`, `measure`, `baseline`, `auroc`, `maskAfterStop` and `waveform`; every panel is linked to them ([Common options](#common-options)). The auROC baseline is carried, with its `auroc` settings, for a PSTH or a heat map of spikes; a rate or tuning plot takes only `none`, `subtract`, `ratio` and `zscore`; a mode the panel cannot take becomes `none`, with a note |
-| `observe` | below. The plot's `source` (`units` or `detected`) is the layers' source and, for a figure drawn per unit, `observe.source`; its unit filter is `observe.units` when the figure observes units, else the fixed layer's `units` |
+| `observe` | below. The plot's `source` (`units` or `detected`) is the layers' source and, for a figure drawn per unit, `observe.data`; its unit filter is `observe.units` when the figure observes units, else the fixed layer's `units` |
 | `grid` | one column, a row per panel top to bottom; `spacing "none"` (flush) for a unit's raster, PSTH and aux panels |
 
 The panels, by plot kind (the second column is what the figure is drawn for,
-`observe.kind`; the third its panels, top to bottom, and their layers):
+`observe.data`'s kind; the third its panels, top to bottom, and their layers):
 
 | Plot kind and layout | Observe | Panels and layers |
 | --- | --- | --- |
-| `psth`, grid | unit (`source`, the `units` filter) | a raster (when `withRaster`; its sort options; `rasterEvents` as events layers drawn as marks) over a PSTH (`histStyle`, `fill`, `fillAlpha`, `normalize`, `stack`, `stackSpacing`, `yLim`), each with a layer following the unit; equal heights (with an aux panel, the unit's panels are twice as high as it: 2 : 2 : 1) |
+| `psth`, grid | unit (`data` = the plot's `source`, the `units` filter) | a raster (when `withRaster`; its sort options; `rasterEvents` as events layers drawn as marks) over a PSTH (`histStyle`, `fill`, `fillAlpha`, `normalize`, `stack`, `stackSpacing`, `yLim`), each with a layer following the unit; equal heights (with an aux panel, the unit's panels are twice as high as it: 2 : 2 : 1) |
 | `psth`, overlay | dataset | one PSTH panel with a fixed `units` layer (the filter) and `aggregate "mean"` |
 | `raster` | unit | a raster panel with the marks layers |
-| `evoked`, grid | channel (`signal` = the plot's `source`, `channels` = the plot's) | one continuous panel following the channel |
+| `evoked`, grid | channel (`data` = the plot's `source`, `channels` = the plot's) | one continuous panel following the channel |
 | `evoked`, stack | dataset | a continuous panel with a fixed layer of the channels, `aggregate "each"`, `display "stacked"`, `stackSpacing` = `Style.StackSpacing` |
 | `evoked`, butterfly | dataset | as the stack, `display "lines"` |
 | `heatmap` | dataset | a heat map panel with a fixed layer (the units filter, or the channels), its `order` (modulation included), `group` 1, `cLim` |
@@ -2337,8 +2344,8 @@ With the defaults, the figure `unit_card` of dataset `SYNTH-01_260918_101500` wi
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
 | Defaults, Figures | the event reference, window and selection are valid: known values, `n` a whole number >= 1, `0 <= minDurationSec <= maxDurationSec`, `timeRange` ordered, a finite `offsetSec`, `offsetParamUnit` ms or s, each sequence step's relation, line, edge, `n`, positive `maxGapSec` and lengths, an `alignStep` of 0, `Inf` or a followedBy step (the stop's and each raster-mark sequence's too), finite `pre` and `post`, `pre <= post` in a fixed window, a stop event in a `"between"` window, known response words and pairing flags, at most 2 distinct `groupBy` parameters, `maxGroups` and `trials` whole numbers >= 1 | error |
 | Defaults, Figures | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
-| Figures | at least one figure or session figure enabled (`No figure is enabled.`); the figure id is not empty, file-name safe and distinct once sanitized from the other figures' (`{Plot}` fills the files' names, case-blind); the figure's alignment is valid; `observe` (kind, source, signal, channels, `maxUnits`; on a figure that observes units, an enabled `units.response` test at `<figure>.observe.units.response.<field>` and each spike layer's at `<figure>.<panel>.layers(<j>).units.response.<field>`: the test, `param` for tuning / either / both, ordered `baseline` and `window`, direction, correction, `alpha` in (0, 1], the `"auroc"` test's settings and the Statistics and Machine Learning Toolbox the tests need), `sessions` (the known values, `minSessions`; with `sessions.enabled` no probe map, unit correlation or spectral panel, no auROC baseline, a mapping file for `match "mapping"` and a unit observation for it: [rules](#validating-session-figures)) and `grid` (rows, columns, relative sizes, spacing) hold known values; each panel has an id of its own, a known type, a place inside the grid that no other panel overlaps, and its own `ref` / `window` / `selection` only when its type is aligned; the figure's common options (bins, measure, baseline, auROC, waveform), checked once, and a linked panel's type taking the common baseline mode; each enabled layer's source, binding, aggregate, channels, events (`eventsAs`, event reference, marker, size) and line style fit its panel type; a raster has rows, not marks alone; each type's options as drawn (a linked panel's common fields are the common options'); the style ([rules](#validating-figures)) | error |
-| Figures | no panels; cells no panel covers; a panel with no enabled layer, or with several on a type that draws one; an explicit unit or channel observation with no layer following it; a session figure's `datasets "list"` with no keys, `showMembers` with `series "session"`, `trialGroups "pool"` over grouped trials, `"combine"` over PSTH bars, a heat map of trials ([rules](#validating-session-figures)); `observe.perGroup` while the figure's selection groups by nothing (not on a session figure); a signal layer following another signal's channel; a waveforms panel in the probe layout whose first layer follows the observation; a fixed raster, PSTH, rate or tuning layer that may keep more than 8 units; a layer, mark, style, note or overlay color that is not a color; two overlays of a figure with one name ([rules](#validating-figures)) | warning |
+| Figures | at least one figure or session figure enabled (`No figure is enabled.`); the figure id is not empty, file-name safe and distinct once sanitized from the other figures' (`{Plot}` fills the files' names, case-blind); the figure's alignment is valid; `observe` (`data`, channels, `maxUnits`; on a figure that observes units, an enabled `units.response` test at `<figure>.observe.units.response.<field>` and each spike layer's at `<figure>.<panel>.layers(<j>).units.response.<field>`: the test, `param` for tuning / either / both, ordered `baseline` and `window`, direction, correction, `alpha` in (0, 1], the `"auroc"` test's settings and the Statistics and Machine Learning Toolbox the tests need), `sessions` (the known values, `minSessions`; with `sessions.enabled` no probe map, unit correlation or spectral panel, no auROC baseline, a mapping file for `match "mapping"` and a unit observation for it: [rules](#validating-session-figures)) and `grid` (rows, columns, relative sizes, spacing) hold known values; each panel has an id of its own, a known type, a place inside the grid that no other panel overlaps, and its own `ref` / `window` / `selection` only when its type is aligned; the figure's common options (bins, measure, baseline, auROC, waveform), checked once, and a linked panel's type taking the common baseline mode; each enabled layer's source, binding, aggregate, channels, events (`eventsAs`, event reference, marker, size) and line style fit its panel type; a raster has rows, not marks alone; each type's options as drawn (a linked panel's common fields are the common options'); the style ([rules](#validating-figures)) | error |
+| Figures | no panels; cells no panel covers; a panel with no enabled layer, or with several on a type that draws one; a unit or channel observation with no layer following it; a session figure's `datasets "list"` with no keys, `showMembers` with `series "session"`, `trialGroups "pool"` over grouped trials, `"combine"` over PSTH bars, a heat map of trials ([rules](#validating-session-figures)); `observe.perGroup` while the figure's selection groups by nothing (not on a session figure); a signal layer following another signal's channel; a waveforms panel in the probe layout whose first layer follows the observation; a fixed raster, PSTH, rate or tuning layer that may keep more than 8 units; a layer, mark, style, note or overlay color that is not a color; two overlays of a figure with one name ([rules](#validating-figures)) | warning |
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi` positive; `FigureSizeCm` two positive numbers; the folder and file-name patterns use known tokens, and the file-name pattern is not empty; `SessionsFolder` and `Data.Folder` are folder patterns, `Data.FilenamePattern` a file-name pattern, and `Data.MatVersion` is `-v7.3` or `-v7` | error |
 | Export | a file-name pattern without `{Plot}` while several figures are enabled (every figure's `{Kind}` is `figure`, so only `{Plot}`, the figure's id, tells their files apart); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |
 | Export | `{OutputFolder}` in `SessionsFolder` or `Data.Folder`: it is one dataset's folder, so the session figures' files go to the first dataset's | warning |
@@ -2373,10 +2380,10 @@ Figure, FigureCommon, Panel, Layer and Observe (`common` after `grid` in a
 figure, `selection` after `window` and `common` after it, then `options`, `note` and `overlays` last in a panel; `FigureCommon` with its `auroc` block;
 the continuous `trials` and `maxTrials` (100), the heat map's `rows` and raster sort fields and `observe.perGroup`);
 `panelTypes` (twelve types, with the rate, tuning and spectral rows' flags), `sourceCategories`,
-`categoryOf`, `observeKind`, `defaultLayer` (an unknown type is a `BadValue`),
+`categoryOf`, `observeKind` (of each `ObserveData` value), `followedData`, `defaultLayer` (an unknown type is a `BadValue`),
 `commonFields` (six, `auroc` among them) and `commonFieldsOf` (the rate and
 tuning rows); `addFigure`'s templates (the `"rate"` and `"tuning"` ones
-included) and ids and `figureFor`'s resolution (the defaults, a panel's
+included), ids and the data each observes (given, or its following layers') and `figureFor`'s resolution (the defaults, a panel's
 own `ref` or `window`, `sharesTime`, `units.source`, the observe kind, options
 completed and re-seeded by a type change, a linked panel taking the common
 bins, baseline, auROC and waveform and an unlinked one its own, a waveforms

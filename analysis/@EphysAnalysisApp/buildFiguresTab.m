@@ -19,8 +19,9 @@ function buildFiguresTab(obj)
 %           Copy from... (onCopyFigureSettings: another figure's settings,
 %           part by part).
 %   Middle  the editor, a column of sections (formSection): Id, Title,
-%           Enabled and a summary, always open; then Observations (what the
-%           figure is drawn for, the unit filter, Per trial group: one
+%           Enabled and a summary, always open; then Observations (the data
+%           the figure is drawn for, the unit filter or the channels, Per
+%           trial group: one
 %           figure per observation and group), Arrangement (the
 %           schematic of the grid, drawFigureSchematic: click a panel to
 %           pick it, or drag it to an empty cell or to an edge of another
@@ -170,17 +171,12 @@ sec = S;
 
 % what the figure is drawn for
 S = formSection(eg, 2, "observations", "Observations", Color=tint("observations"));
-[S, r] = formRow(S, ["observe" "observeResolved"], "Observe:");
-og = subgrid(S.Body, r, {'1x', 'fit'});
-E.observe = uidropdown(og, "Items", ["auto" "a unit" "a channel" "the dataset"], "ItemsData", EphysAnalysisConfig.ObserveKinds, ...
-    "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "What one figure is drawn for, and what the picker " + ...
-    "above the preview lists. auto: a unit when a units or detected layer follows the observation, else a " + ...
-    "channel when a signal layer does, else the dataset.");
-E.observeResolved = uilabel(og, "Text", "", "FontColor", gray);
-[S, r] = formRow(S, "obsSource", "Spike source:");
-E.obsSource = uidropdown(S.Body, "Items", ["units (sorted)" "detected (per channel)"], "ItemsData", EphysAnalysisConfig.SpikeSources, ...
-    "ValueChangedFcn", changed, "Tooltip", "The observed units: sorted units, or each channel's threshold detections.");
-place(E.obsSource, r, 2);
+[S, r] = formRow(S, "observe", "Observe:");
+E.observe = uidropdown(S.Body, "Items", "Sorted units", "ItemsData", "units", "ValueChangedFcn", changed, ...
+    "Tooltip", "The data one figure is drawn for, and what the picker above the preview lists: each sorted " + ...
+    "unit, each channel's detected spikes, each channel of a signal, or the dataset once. What the active " + ...
+    "dataset holds comes first; a type it lacks says so and can still be picked.");   % applyFigureEditor lists them (observeItems)
+place(E.observe, r, 2);
 [S, r] = formRow(S, "obsClasses", "Unit classes:");
 cg = subgrid(S.Body, r, repmat({'fit'}, 1, 4));
 cg.ColumnSpacing = 12;
@@ -239,10 +235,6 @@ place(E.obsShanks, r, 2);
 E.obsUnitChannels = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
     "Tooltip", "The recording channels whose units are observed, e.g. 1:8.");
 place(E.obsUnitChannels, r, 2);
-[S, r] = formRow(S, "obsSignal", "Signal:");
-E.obsSignal = uidropdown(S.Body, "Items", EphysAnalysisConfig.SignalSources, "ValueChangedFcn", changed, ...
-    "Tooltip", "The extract whose channels are observed.");
-place(E.obsSignal, r, 2);
 [S, r] = formRow(S, "obsChannels", "Channels:");
 E.obsChannels = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
     "Tooltip", "The extract's columns observed, e.g. 1 3 5 (blank = all).");
@@ -1466,7 +1458,7 @@ if string(evt.Value) == "fixed" && string(evt.PreviousValue) == "observation" &&
     src = string(E.layerSource.Value);
     if ismember(type, ["raster" "psth" "waveforms" "rate" "tuning"]) && ismember(src, EphysAnalysisConfig.SpikeSources) ...
             && strtrim(string(E.layerIds.Value)) == ""
-        if src == fig.observe.source && isfinite(T.unitId(i))
+        if src == fig.observe.data && isfinite(T.unitId(i))
             E.layerIds.Value = char(string(T.unitId(i)));
             note = "Fixed to unit " + T.unitId(i) + "; edit Unit ids to change it.";
         elseif isfinite(T.channel(i)) && strtrim(string(E.layerUnitChannels.Value)) == ""

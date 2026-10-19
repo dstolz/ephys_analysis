@@ -2,11 +2,11 @@ function syncFigureEditor(obj)
 %syncFigureEditor  Show, enable and list the figure editor's rows for the selected figure, panel and layer.
 %   What shows (rows a section does not use are hidden, and so is a
 %   section left with none: layoutFigureEditor):
-%     Observations   the unit filter for a unit observation (classes and
-%                    quality for sorted units; the response test's rows, its
-%                    auROC rows with the auROC test), the signal and channels
-%                    for a channel observation; "auto" says what it resolves
-%                    to (EphysAnalysisConfig.observeKind)
+%     Observations   under Observe, the unit filter for sorted units or
+%                    detected spikes (classes and quality for sorted units;
+%                    the response test's rows, its auROC rows with the
+%                    auROC test), the channels for a signal, nothing more
+%                    for the dataset
 %     Arrangement    the selected panel's rows once there is one
 %     Panel, Panel alignment, Layers, Options   with a panel selected;
 %                    Group shown for the one-group types (heat map, unit
@@ -119,8 +119,6 @@ spikes = EphysAnalysisConfig.SpikeSources;
 signals = EphysAnalysisConfig.SignalSources;
 plural = @(n, w) sprintf("%d %s%s", n, w, repmat('s', 1, n ~= 1));
 E.summary.Text = plural(fig.grid.rows, "row") + " x " + plural(fig.grid.cols, "column") + ", " + plural(np, "panel") + "; per " + kind;
-E.observeResolved.Text = "";
-if fig.observe.kind == "auto"; E.observeResolved.Text = "(resolves to: " + kind + ")"; end
 aligned = false(1, np);
 for q = 1:np
     row = PT.Type == fig.panels(q).type;
@@ -145,14 +143,14 @@ en(E.cmAuResamples, string(E.cmAuTest.Value) ~= "ranksum");
 en([E.cmAuMarks E.cmAuModOnly], string(E.cmAuCutoff.Value) ~= "none");
 % observations
 unit = kind == "unit";
-sorted = unit && fig.observe.source == "units";
+sorted = fig.observe.data == "units";
 respAuroc = unit && string(E.obsRespTest.Value) == "auroc";
-v.obsSource = unit; v.obsClasses = sorted; v.obsQuality = sorted;
+v.obsClasses = sorted; v.obsQuality = sorted;
 v.obsResponse = unit; v.obsRespBaseFrom = unit; v.obsRespParam = unit;
 v.obsRaMethod = respAuroc; v.obsRaWinMs = respAuroc; v.obsRaCutoff = respAuroc;
 v.obsRaTest = respAuroc && string(E.obsRaCutoff.Value) == "test";
 v.obsIds = unit; v.obsMaxUnits = unit; v.obsShanks = unit; v.obsUnitChannels = unit;
-v.obsSignal = kind == "channel"; v.obsChannels = kind == "channel";
+v.obsChannels = kind == "channel";
 % across sessions: every row once Across sessions is ticked; the keys with "These datasets", the mapping file with
 % match "mapping", the band and the faint sessions when the sessions are averaged (a color per subject, or none)
 ses = logical(E.sesEnabled.Value);
@@ -493,7 +491,7 @@ spike = ismember(L.source, EphysAnalysisConfig.SpikeSources);
 switch kind
     case "unit"
         if spike
-            if ob.source == L.source
+            if ob.data == L.source
                 t = "Draws the observed unit.";
             elseif L.source == "detected"
                 t = "Draws the detections on the observed unit's channel.";
@@ -508,9 +506,9 @@ switch kind
     case "channel"
         if spike
             t = "Draws the observed channel's " + ternary(L.source == "detected", "detections.", "sorted units.");
-        elseif L.source == ob.signal
+        elseif L.source == ob.data
             t = "Draws the observed channel.";
-        elseif L.source == "AUX" || ob.signal == "AUX"
+        elseif L.source == "AUX" || ob.data == "AUX"
             t = "AUX has no recording channel: bind it to fixed channels.";
         else
             t = "Draws the same channel number in the " + L.source + " extract.";

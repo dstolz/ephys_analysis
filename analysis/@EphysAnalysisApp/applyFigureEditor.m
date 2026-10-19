@@ -6,7 +6,9 @@ function applyFigureEditor(obj)
 %   figure's, its type's options, its layers) and the layer's
 %   (SelectedLayer), and the panel's text note and overlays (the first
 %   picked). The line and parameter lists come from the active
-%   dataset. syncFigureEditor then shows the rows they use;
+%   dataset, and so does the Observe list's order: what the dataset
+%   holds first, a type it lacks after the dataset, marked "(not in
+%   <dataset>)". syncFigureEditor then shows the rows they use;
 %   drawFigureSchematic draws the arrangement.
 E = obj.FigureEditor;
 k = obj.SelectedFigure;
@@ -32,8 +34,7 @@ E.enabled.Value = fig.enabled;
 
 % observations
 o = fig.observe;
-E.observe.Value = char(pickFrom(o.kind, EphysAnalysisConfig.ObserveKinds, "auto"));
-E.obsSource.Value = char(pickFrom(o.source, EphysAnalysisConfig.SpikeSources, "units"));
+observeItems(obj, E.observe, o.data);
 u = o.units;
 for c = string(fieldnames(E.obsClasses)).'
     E.obsClasses.(c).Value = ismember(c, u.classes);
@@ -55,7 +56,6 @@ E.obsRespAlpha.Value = min(1, max(eps, rs.alpha));
 aurocTo(E, "obsRa", rs.auroc);
 E.obsShanks.Value = listText(u.shanks);
 E.obsUnitChannels.Value = listText(u.channels);
-offerItems(E.obsSignal, EphysAnalysisConfig.SignalSources, o.signal);
 E.obsChannels.Value = listText(o.channels);
 E.obsPerGroup.Value = logical(o.perGroup);
 
@@ -386,6 +386,43 @@ ref = D.EventRef; win = D.Window; sel = D.Selection;
 if isstruct(fig.ref); ref = fig.ref; end
 if isstruct(fig.window); win = fig.window; end
 if isstruct(fig.selection); sel = fig.selection; end
+end
+
+
+function observeItems(obj, dd, data)
+%observeItems  The Observe drop-down DD: the data types (ObserveData), what the active dataset holds first, DATA picked.
+%   Sorted units, Detected spikes (per channel), each signal (LFP, MUA,
+%   SPIKE, AUX) and The dataset, in that order; a type the active dataset
+%   lacks (its loaded source: observeHeld) goes after
+%   The dataset, marked "(not in <dataset>)", and can still be picked.
+%   Without an active dataset every type is listed plain. A DATA that is
+%   none of them (validate says so) is listed as it is.
+types = EphysAnalysisConfig.ObserveData;
+names = types;
+names(types == "units") = "Sorted units";
+names(types == "detected") = "Detected spikes (per channel)";
+names(types == "dataset") = "The dataset";
+has = true(size(types));
+src = [];
+if ~isempty(obj.Runner) && obj.ActiveIdx >= 1
+    try
+        src = obj.Runner.source(obj.ActiveIdx);   % loaded when it became active (selectDataset)
+    catch
+    end
+end
+if isstruct(src)
+    has = observeHeld(src);
+    names(~has) = names(~has) + " (not in " + src.name + ")";
+end
+ord = [find(has) find(~has)];
+items = names(ord);
+data0 = types(ord);
+if ~ismember(data, data0)
+    items(end+1) = data;
+    data0(end+1) = data;
+end
+dd.ItemsData = [];   % the old values need not be among the new items
+set(dd, "Items", items, "ItemsData", data0, "Value", data);
 end
 
 

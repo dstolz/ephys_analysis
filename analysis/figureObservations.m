@@ -1,16 +1,18 @@
 function T = figureObservations(src, spec)
 %figureObservations  The observations a dataset offers for a figure: its units, its channels, or itself.
 %   T = figureObservations(SRC, SPEC) lists what the figure SPEC
-%   (EphysAnalysisConfig.figureFor: observe.kind resolved) can be drawn
+%   (EphysAnalysisConfig.figureFor: observe.kind added) can be drawn
 %   for on the dataset SRC (loadAnalysisSource), one row each: the preview's
 %   observation picker, and what Generate repeats the figure over. By
-%   SPEC.observe.kind:
-%     "unit"     the units observe.units keeps:
-%                selectUnits(src, observe.units, Ref=spec.ref,
-%                Selection=spec.selection) (only their table is used; the
-%                spike trains stay in the outputs' cache)
+%   SPEC.observe.kind (of observe.data):
+%     "unit"     the sorted units ("units") or detection channels
+%                ("detected") observe.units keeps: selectUnits(src,
+%                observe.units, Ref=spec.ref, Selection=spec.selection)
+%                (only their table is used; the spike trains stay in the
+%                outputs' cache)
 %     "channel"  the columns observe.channels names ([] = all) of the
-%                observe.signal extract: selectChannels' table
+%                observe.data extract (LFP, MUA, SPIKE, AUX):
+%                selectChannels' table
 %     "dataset"  one row, the dataset itself
 %   Units and channels are in probe order (probeOrder with spec.style:
 %   SortShank, SortDepth), so stepping through them walks the probe.
@@ -83,7 +85,7 @@ switch ob.kind
             double(meta.shank), double(meta.y), rowsOf(meta), ...
             'VariableNames', {'kind', 'label', 'unitId', 'channel', 'column', 'shank', 'depth', 'meta'});
     case "channel"
-        sig = upper(ob.signal);
+        sig = upper(ob.data);
         if ~isfield(src.signals, sig) || ~src.signals.(sig); return; end
         [~, ~, meta] = selectChannels(src, sig, Channels=[]);   % every column in order: the cached signal, not copied
         if ~isempty(ob.channels)

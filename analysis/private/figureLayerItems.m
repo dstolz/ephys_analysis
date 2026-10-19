@@ -12,7 +12,7 @@ function it = figureLayerItems(L, obs, observe, chanMeta)
 %   A fixed layer reads what it names: L.units, or L.channels ([] = every
 %   column). A layer following the observation reads
 %     units / detected, under a unit observation
-%       of the observed source (OBSERVE.source): that unit alone (a
+%       of the observed source (OBSERVE.data): that unit alone (a
 %         UnitSelection of its id, every class, no quality or response
 %         filter: the observed unit already passed OBSERVE.units)
 %       of the other spike source: L.units on the observed unit's
@@ -22,7 +22,7 @@ function it = figureLayerItems(L, obs, observe, chanMeta)
 %     LFP / MUA / SPIKE, under a unit observation: the column of the
 %       extract whose recordingChannel is the unit's channel
 %     a signal, under a channel observation: OBS.column when it is the
-%       observed signal (OBSERVE.signal), else the column of its own extract
+%       observed signal (OBSERVE.data), else the column of its own extract
 %       that records the same channel
 %   AUX records no amplifier channel, so an AUX layer can follow only an
 %   observed AUX channel; a dataset observation has nothing to follow.
@@ -68,7 +68,7 @@ rc = obs.channel;   % the observed recording channel (NaN: none, an AUX channel)
 
 if spike
     u = L.units;
-    if obs.kind == "unit" && L.source == observe.source
+    if obs.kind == "unit" && L.source == observe.data
         u = EphysAnalysisConfig.defaults("UnitSelection");
         u.source = L.source;
         u.classes = string.empty(1, 0);   % the observed unit, whatever its class
@@ -86,7 +86,7 @@ if spike
 end
 
 % a signal layer following the observation
-if obs.kind == "channel" && L.source == observe.signal
+if obs.kind == "channel" && L.source == observe.data
     it.columns = obs.column;
     return
 end
@@ -95,7 +95,7 @@ if L.source == "AUX"
     return
 end
 if ~isfinite(rc)
-    if obs.kind == "channel" && observe.signal == "AUX"
+    if obs.kind == "channel" && observe.data == "AUX"
         it.skip = "the observed AUX channel has no recording channel for " + L.source + " to follow";
     else
         it.skip = "the observed " + obs.kind + " has no recording channel";

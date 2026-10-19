@@ -304,7 +304,7 @@ for p = spec.panels
     on = [p.layers.enabled];
     srcs = [srcs p.layers(on).source]; %#ok<AGROW>
 end
-if isfield(spec, 'observe') && spec.observe.kind == "channel"; srcs(end+1) = spec.observe.signal; end
+if isfield(spec, 'observe'); srcs(end+1) = spec.observe.data; end   % an observed signal (kept below)
 srcs = unique(srcs(ismember(srcs, EphysAnalysisConfig.SignalSources)));
 mb = 0;
 for s = srcs

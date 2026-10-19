@@ -2,7 +2,7 @@ function refreshFigureList(obj)
 %refreshFigureList  The figure tree: the figures under groups, as Group by says.
 %   A leaf reads "<id>  (<n> panels)" under groups by what the figures
 %   observe (the group says the rest), else "<id>  (<n> panels, per
-%   <observation kind>)" (observeKind: "auto" says what it draws); disabled
+%   <observation kind>)" (observeKind of its observe.data); disabled
 %   figures add "  (off)" but under groups by status. Each node has a check
 %   box (an icon, checkIcon): a figure's is ticked while it is enabled, a
 %   group's when all its figures are, "mixed" when some. When the groups

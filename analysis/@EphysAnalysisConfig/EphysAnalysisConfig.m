@@ -117,8 +117,9 @@ classdef EphysAnalysisConfig
         % What a figure layer reads (Layer.source): spike times, a digital / derived line's events, or a signal;
         % sourceCategories groups them, panelTypes says which categories each panel type draws.
         FigureSources = ["units" "detected" "events" "LFP" "MUA" "SPIKE" "AUX"]
-        % What a figure is drawn for (Figure.observe.kind): auto (resolved by observeKind), a unit, a channel, the dataset.
-        ObserveKinds  = ["auto" "unit" "channel" "dataset"]
+        % What a figure is drawn for (Figure.observe.data): each sorted unit, each channel's detections, each channel of
+        % a signal's extract, or the dataset once (observeKind: "unit", "channel" or "dataset").
+        ObserveData   = ["units" "detected" "LFP" "MUA" "SPIKE" "AUX" "dataset"]
         % Where in a unit's tile its waveform box sits (a panel's waveform.location).
         WaveformLocations = ["northeast" "north" "northwest" "west" "southwest" "south" "southeast" "east"]
         % The error a figure draws as bands or bars (Style.ErrorType): mean +/- SEM, mean +/- SD, bootstrap 95% CI of the mean.
@@ -217,7 +218,11 @@ classdef EphysAnalysisConfig
             %   unit), one per panel type ("psth", "raster", "continuous",
             %   "heatmap", "waveforms", "probemap", "corrmap":
             %   one panel holding defaultLayer(type)) and "blank" (an
-            %   empty 1 x 1 grid). Errors: EphysAnalysisConfig:BadValue
+            %   empty 1 x 1 grid). A figure that names no observe.data
+            %   (every template) observes what its following layers read
+            %   (followedData: units for the unit templates, LFP for
+            %   continuous and spectrogram, the dataset for a heat map, a
+            %   probe map, a correlation map or a blank figure). Errors: EphysAnalysisConfig:BadValue
             %   (an unknown template), EphysAnalysisConfig:DuplicateFigureId.
             arguments
                 obj (1,1) EphysAnalysisConfig
@@ -235,6 +240,9 @@ classdef EphysAnalysisConfig
             end
             if opts.Id ~= ""; template.id = opts.Id; end
             f = EphysAnalysisConfig.normalizeFigure(template);
+            if ~(isfield(template, 'observe') && isstruct(template.observe) && isfield(template.observe, 'data'))
+                f.observe.data = EphysAnalysisConfig.followedData(f);
+            end
             if f.id == ""
                 f.id = EphysAnalysisConfig.freeId("figure", obj.figureIds());
             end
@@ -460,13 +468,28 @@ classdef EphysAnalysisConfig
 
         function kind = observeKind(fig)
             %observeKind  What a figure is drawn for: "unit", "channel" or "dataset".
-            %   KIND = EphysAnalysisConfig.observeKind(FIG) is
-            %   FIG.observe.kind unless it is "auto"; "auto" is "unit" when
-            %   any enabled layer following the observation reads spikes
-            %   (units / detected), else "channel" when one reads a signal
-            %   (LFP / MUA / SPIKE / AUX), else "dataset".
-            kind = fig.observe.kind;
-            if kind ~= "auto"; return; end
+            %   KIND = EphysAnalysisConfig.observeKind(FIG) follows
+            %   FIG.observe.data: "unit" for units or detected (a sorted
+            %   unit, or a channel's detections), "channel" for a signal
+            %   (LFP / MUA / SPIKE / AUX), "dataset" for the dataset (and
+            %   for a value that is none of ObserveData: validate says so).
+            d = fig.observe.data;
+            if ismember(d, EphysAnalysisConfig.SpikeSources)
+                kind = "unit";
+            elseif ismember(d, EphysAnalysisConfig.SignalSources)
+                kind = "channel";
+            else
+                kind = "dataset";
+            end
+        end
+
+        function d = followedData(fig)
+            %followedData  The data a figure's following layers read: what addFigure observes when not told.
+            %   D = EphysAnalysisConfig.followedData(FIG) is "units" when an
+            %   enabled layer following the observation reads sorted units,
+            %   else "detected" when one reads detections, else the signal
+            %   of the first one that reads a signal (LFP / MUA / SPIKE /
+            %   AUX), else "dataset" (no layer follows).
             srcs = strings(1, 0);
             for k = 1:numel(fig.panels)
                 L = fig.panels(k).layers;
@@ -474,12 +497,15 @@ classdef EphysAnalysisConfig
                 on = [L.enabled] & [L.binding] == "observation";
                 srcs = [srcs, L(on).source]; %#ok<AGROW>
             end
-            if any(ismember(srcs, EphysAnalysisConfig.SpikeSources))
-                kind = "unit";
-            elseif any(ismember(srcs, EphysAnalysisConfig.SignalSources))
-                kind = "channel";
+            sig = srcs(ismember(srcs, EphysAnalysisConfig.SignalSources));
+            if any(srcs == "units")
+                d = "units";
+            elseif any(srcs == "detected")
+                d = "detected";
+            elseif ~isempty(sig)
+                d = sig(1);
             else
-                kind = "dataset";
+                d = "dataset";
             end
         end
 

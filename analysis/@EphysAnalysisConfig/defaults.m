@@ -286,11 +286,9 @@ switch section
         % what a figure is drawn for: what Generate iterates and the preview picker lists
         u = EphysAnalysisConfig.defaults("UnitSelection");
         s = struct( ...
-            'kind',        "auto", ...          % "auto" (a unit when a units / detected layer follows the observation, else a channel when a signal layer does, else the dataset) | "unit" | "channel" | "dataset"
-            'source',      "units", ...         % unit observations: "units" (sorted) | "detected" (one per channel)
-            'units',       rmfield(u, 'source'), ...   % unit observations: the filter
-            'signal',      "LFP", ...           % channel observations: which extract
-            'channels',    [], ...              % channel observations: the extract's columns ([] = all)
+            'data',        "units", ...         % ObserveData: "units" (each sorted unit) | "detected" (each channel's detections) | a signal ("LFP" | "MUA" | "SPIKE" | "AUX": each channel of its extract) | "dataset" (one figure)
+            'units',       rmfield(u, 'source'), ...   % units / detected: the filter
+            'channels',    [], ...              % a signal: the extract's columns ([] = all)
             'perGroup',    false);              % true: each observation drawn once per trial group of the figure's selection (its groupBy)
 
     case "FigureSessions"

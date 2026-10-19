@@ -29,8 +29,7 @@ fig.enabled = logical(E.enabled.Value);
 
 % observations
 o = fig.observe;
-o.kind = string(E.observe.Value);
-o.source = string(E.obsSource.Value);
+o.data = string(E.observe.Value);
 u = o.units;
 u.classes = ticked(E.obsClasses);
 u.ids = parseList(E.obsIds.Value);
@@ -48,7 +47,6 @@ u.response.auroc = aurocFrom(E, "obsRa", u.response.auroc);
 u.shanks = parseList(E.obsShanks.Value);
 u.channels = parseList(E.obsUnitChannels.Value);
 o.units = u;
-o.signal = string(E.obsSignal.Value);
 o.channels = parseList(E.obsChannels.Value);
 o.perGroup = logical(E.obsPerGroup.Value);
 fig.observe = o;

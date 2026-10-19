@@ -17,15 +17,9 @@ function syncFigureEditor(obj)
 %                    "Trial selection as the figure" is ticked; its Apply
 %                    to all panels only while the panel has its own,
 %                    Re-link all panels while any panel has its own
-%                    event, window, selection or options
-%     Common options always (the waveform rows enabled when it is not Off,
-%                    the baseline window with a baseline, the auROC rows
-%                    with the auroc baseline); a linked panel's
-%                    Options rows of its type's common fields (bins,
-%                    measure, baseline, auROC, mask, waveform) are locked, showing
-%                    the figure's; Options' Apply to all panels when the
-%                    panel has its own common values or another panel of
-%                    its type
+%                    event, window or selection; Options' Apply to all
+%                    panels while another panel has one of its shared
+%                    rows (sharedFieldsOf) or is of its type
 %     Event reference, Epoch window, Trial selection   unless every panel
 %                    of the figure is one not aligned to events
 %     Layers         the picked layer's rows by its source and binding:
@@ -130,20 +124,9 @@ end
 
 v = struct();
 for f = ["id" "title" "enabled" "summary" "observe" "sesEnabled" "obsPerGroup" "obsCount" "schematic" "addType" "addWhere" "spacing" ...
-        "fontSize" "lineWidth" "colormap" "sortDepth" "labelDepth" "showSEM" "legendLoc" "errType" "errFace" "errEdge" "looksText" ...
-        "cmNote" "cmBinMs" "cmSmoothMs" "cmMeasure" "cmBaselineMode" "cmBaseFrom" "cmMaskAfterStop" "cmWaveMode" ...
-        "cmWaveLocation" "cmWaveScale" "cmWavePP"]
+        "fontSize" "lineWidth" "colormap" "sortDepth" "labelDepth" "showSEM" "legendLoc" "errType" "errFace" "errEdge" "looksText"]
     v.(f) = true;   % the rows every figure shows
 end
-en([E.cmBaseFrom E.cmBaseTo], string(E.cmBaselineMode.Value) ~= "none");
-en([E.cmWaveSpikes E.cmWaveLocation E.cmWaveBox E.cmWaveScale E.cmWavePP E.cmWaveCount], string(E.cmWaveMode.Value) ~= "off");
-cmAuroc = string(E.cmBaselineMode.Value) == "auroc";   % the common auROC settings, with the auROC baseline
-v.cmAuMethod = cmAuroc; v.cmAuWinMs = cmAuroc; v.cmAuModFrom = cmAuroc; v.cmAuCutoff = cmAuroc; v.cmAuMarks = cmAuroc;
-v.cmAuTest = cmAuroc && string(E.cmAuCutoff.Value) == "test";
-en(E.cmAuStepMs, string(E.cmAuWindows.Value) == "sliding");
-en(E.cmAuThreshold, string(E.cmAuCutoff.Value) == "fixed");
-en(E.cmAuResamples, string(E.cmAuTest.Value) ~= "ranksum");
-en([E.cmAuMarks E.cmAuModOnly], string(E.cmAuCutoff.Value) ~= "none");
 % observations
 unit = kind == "unit";
 sorted = unit && fig.observe.source == "units";
@@ -318,21 +301,15 @@ if hasPanel
     if isstruct(p.window); stop = obj.PanelAlignControls.StopOn.Value; end
     en(E.maskAfterStop, stop);
     en(E.stackSpacing, string(E.contDisplay.Value) == "stacked");
-    % a linked panel's common rows show the figure's Common options, locked
-    rowsOf = struct('bins', [E.binMs E.smoothMs], 'measure', E.measure, 'baseline', [E.baselineMode E.baseFrom E.baseTo], ...
-        'maskAfterStop', E.maskAfterStop, 'waveform', [E.waveMode E.waveSpikes E.waveLocation E.waveBox E.waveScale E.wavePP E.waveCount], ...
-        'auroc', [E.auMethod E.auWindows E.auWinMs E.auStepMs E.auModFrom E.auModTo E.auCutoff E.auThreshold E.auTest ...
-        E.auResamples E.auCorrection E.auAlpha E.auMarks E.auModOnly]);
-    cf = EphysAnalysisConfig.commonFieldsOf(t);
-    en([E.measure E.baselineMode E.waveMode E.auMethod E.auWindows E.auWinMs E.auModFrom E.auModTo E.auCutoff E.auTest ...
-        E.auCorrection E.auAlpha], true);   % rows without a rule of their own above: open again once the panel is unlinked
-    if p.common
-        for f = cf; en(rowsOf.(f), false); end
+    % Apply to all panels: another panel of the type, or one with a row this panel shares (sharedFieldsOf)
+    cf = EphysAnalysisConfig.sharedFieldsOf(t);
+    to = false;
+    for q = [1:j-1, j+1:np]
+        tq = fig.panels(q).type;
+        to = to || tq == t || any(ismember(cf, EphysAnalysisConfig.sharedFieldsOf(tq)));
     end
-    en(E.panelCommon, ~isempty(cf));
-    sameType = nnz([fig.panels.type] == t) > 1;
     v.optApplyAll = known;
-    en(E.optApplyAll, (~p.common && ~isempty(cf)) || sameType);
+    en(E.optApplyAll, to);
 
     % the panel's own alignment
     modes = "fixed";
@@ -380,10 +357,9 @@ if hasPanel
     end
 end
 en(E.removePanel, hasPanel);
-own = false;   % any panel with its own event, window, selection or options: Re-link all panels has something to do
+own = false;   % any panel with its own event, window or selection: Re-link all panels has something to do
 for q = 1:np
-    own = own || isstruct(fig.panels(q).ref) || isstruct(fig.panels(q).window) || isstruct(fig.panels(q).selection) ...
-        || ~fig.panels(q).common;
+    own = own || isstruct(fig.panels(q).ref) || isstruct(fig.panels(q).window) || isstruct(fig.panels(q).selection);
 end
 en(E.alignRelinkAll, own);
 pg = E.palignGrid;

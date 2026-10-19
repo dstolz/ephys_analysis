@@ -52,8 +52,8 @@ function T = panelTypes()
 %   The spectral types draw Chronux analyses (Chronux must be on the
 %   MATLAB path: toolboxes/chronux; without it they are skipped with
 %   "Chronux is not on the path"). Their options are chronuxSettings'
-%   (figureChronuxSettings builds the settings from them; none is a common
-%   field). A "spectrum" panel draws each layer's power spectra
+%   (figureChronuxSettings builds the settings from them; none is a shared
+%   option, sharedFieldsOf). A "spectrum" panel draws each layer's power spectra
 %   (chronuxSpectrum of a signal's channels, chronuxSpikeSpectrum of spike
 %   trains), the groups overlaid. A "spectrogram" draws one channel's power
 %   over time and frequency (chronuxSpecgram) for one trial group, on the
@@ -152,7 +152,7 @@ opts.tuning = struct( ...
     'baseline',    baseline, ...        % Mode "none" | "subtract" | "ratio" | "zscore"
     'yLim',        [], ...
     'waveform',    waveform);           % the unit's waveform inset
-% the Chronux spectral types (chronuxSettings' fields and defaults; none is a common field)
+% the Chronux spectral types (chronuxSettings' fields and defaults; none is a shared option)
 opts.spectrum = struct( ...
     'timeBase',   "aligned", ...        % "aligned" (the panel's epochs) | "range" (segments of the recording, clear of artifact periods)
     'range',      [0 Inf], ...          % range: [from to] s on the continuous clock (to Inf = the end)

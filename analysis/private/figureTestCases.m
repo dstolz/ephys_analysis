@@ -60,7 +60,7 @@ cfg = cfg.addFigure(s);
 haveStats = license('test', 'Statistics_Toolbox') && exist('tiedrank', 'file') == 2;
 if haveStats
     a = f; a.id = "psth_auroc";
-    a.common.baseline = struct('Mode', "auroc", 'Window', [-0.2 0]);
+    a.panels(2).options.baseline = struct('Mode', "auroc", 'Window', [-0.2 0]);
     cfg = cfg.addFigure(a);
 end
 w = cfg.Figures(cfg.figureIndex("waveforms")); w.id = "waveforms_probe";

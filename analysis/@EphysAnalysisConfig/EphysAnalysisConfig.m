@@ -21,26 +21,23 @@ classdef EphysAnalysisConfig
     %               panel of a type (panelTypes) drawing one or more layers,
     %               each layer bound to a source (FigureSources) that either
     %               follows the observation or names fixed items: id,
-    %               enabled, title, observe, grid, common, panels, ref,
+    %               enabled, title, observe, grid, panels, ref,
     %               window, selection, sessions, style, aesthetics.
     %               sessions (defaults("FigureSessions")) with enabled true
     %               makes it a session figure: drawn once across the ticked
     %               (or listed) datasets, each layer merged across them
     %               (figureSessionCompute, EphysAnalysisRunner.runSessionFigure),
-    %               never per dataset. common holds the
-    %               options every linked panel takes (commonFields: bins,
-    %               measure, baseline, auroc, maskAfterStop, waveform), as a panel
-    %               whose ref / window are "default" takes the figure's
-    %               alignment; adoptPanelOptions, adoptPanelAlignment and
-    %               relinkPanels spread one panel's settings or re-link
-    %               every panel. observe.perGroup draws each observation once
+    %               never per dataset. Each panel holds all of its own
+    %               options; adoptPanelOptions copies one panel's to the
+    %               others (sharedFieldsOf: the options several types
+    %               have), adoptPanelAlignment and relinkPanels spread one
+    %               panel's alignment or re-link every panel's.
+    %               observe.perGroup draws each observation once
     %               per trial group of the figure's selection. A panel
     %               (defaults("Panel")): id, type, title, row, col,
     %               rowSpan, colSpan, ref, window, selection (its own:
-    %               its own groups, colors and legend), common
-    %               (true: the figure's common options for the fields its
-    %               type has, commonFieldsOf), layers, options (the type's
-    %               DefaultOptions; panelOptions gives them as drawn), note
+    %               its own groups, colors and legend), layers, options
+    %               (the type's DefaultOptions), note
     %               (a Note) and overlays (Overlays drawn on
     %               its own axes: their panel is always "all"); a layer
     %               (defaults("Layer")): name, enabled, source, binding,
@@ -315,7 +312,7 @@ classdef EphysAnalysisConfig
         fig = placePanel(fig, panel, where, anchorId)
         fig = removePanel(fig, id)
         [fig, moved] = movePanel(fig, id, direction)
-        fig = adoptPanelOptions(fig, panelId)
+        [fig, changed] = adoptPanelOptions(fig, panelId)
         fig = adoptPanelAlignment(fig, panelId)
         fig = relinkPanels(fig)
 
@@ -504,44 +501,27 @@ classdef EphysAnalysisConfig
             L.binding = T.DefaultBinding(row);
         end
 
-        function f = commonFields()
-            %commonFields  The fields of a figure's common options (defaults("FigureCommon")), in order.
-            f = ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform"];
-        end
-
-        function f = commonFieldsOf(type)
-            %commonFieldsOf  The common fields a panel type has among its options (a string row; none for an unknown type).
-            %   raster: maskAfterStop, waveform; psth: bins, measure,
-            %   baseline, auroc, maskAfterStop, waveform; continuous:
-            %   baseline; heatmap: bins, measure, baseline, auroc,
-            %   maskAfterStop; waveforms: waveform; corrmap: bins,
-            %   baseline; rate: measure, baseline; tuning: measure,
-            %   baseline, waveform; probemap: none. The spectral types
+        function f = sharedFieldsOf(type)
+            %sharedFieldsOf  The options a panel type shares with other types (a string row; none for an unknown type).
+            %   Among bins, measure, baseline, auroc, maskAfterStop and
+            %   waveform, in that order, those the type's options have, the
+            %   rows adoptPanelOptions (Apply to all panels) copies across
+            %   types: raster: maskAfterStop, waveform; psth: bins,
+            %   measure, baseline, auroc, maskAfterStop, waveform;
+            %   continuous: baseline; heatmap: bins, measure, baseline,
+            %   auroc, maskAfterStop; corrmap: bins, baseline; rate:
+            %   measure, baseline; tuning: measure, baseline, waveform;
+            %   waveforms and probemap: none (a waveforms panel's waveform
+            %   is its own settings, not an inset). The spectral types
             %   (spectrum, spectrogram, coherence): none (a spectrogram's
-            %   baseline is chronuxNormalize's, not the figure's).
+            %   baseline is chronuxNormalize's).
             f = string.empty(1, 0);
             T = EphysAnalysisConfig.panelTypes();
             row = T.Type == string(type);
             if ~any(row) || ismember(string(type), ["spectrum" "spectrogram" "coherence"]); return; end
-            names = EphysAnalysisConfig.commonFields();
+            names = ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform"];
+            if string(type) == "waveforms"; names(end) = []; end
             f = names(isfield(T.DefaultOptions{row}, cellstr(names)));
-        end
-
-        function op = panelOptions(fig, panel)
-            %panelOptions  A panel's options as drawn: the figure's common values where the panel is linked.
-            %   OP = EphysAnalysisConfig.panelOptions(FIG, PANEL) is
-            %   PANEL.options with, when PANEL.common is true, each field of
-            %   commonFieldsOf(PANEL.type) taken from FIG.common. A
-            %   waveforms panel never draws mode "off": a common waveform
-            %   mode "off" (the insets' default) is "both" there.
-            op = panel.options;
-            if ~panel.common; return; end
-            for f = EphysAnalysisConfig.commonFieldsOf(panel.type)
-                op.(f) = fig.common.(f);
-            end
-            if panel.type == "waveforms" && op.waveform.mode == "off"
-                op.waveform.mode = "both";
-            end
         end
     end
 

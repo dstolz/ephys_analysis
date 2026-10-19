@@ -67,7 +67,7 @@ cfg.Defaults.Window = struct('mode', "fixed", 'pre', -0.2, 'post', 0.8, 'stop', 
 cfg.Defaults.Selection.groupBy = "Depth";
 cfg = cfg.addFigure("rasterPsth", Id="card");
 cfg.Figures(1).observe.units.maxUnits = 2;
-cfg.Figures(1).common.bins = struct('BinSec', 0.02, 'SmoothSec', 0.02);
+cfg.Figures(1).panels(2).options.bins = struct('BinSec', 0.02, 'SmoothSec', 0.02);
 cfg = cfg.addFigure("continuous", Id="lfp");
 cfg.Figures(2).observe.channels = [1 2];
 cfg.Figures(2).window = struct('mode', "fixed", 'pre', -0.1, 'post', 0.4, 'stop', []);

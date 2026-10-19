@@ -308,7 +308,6 @@ check(hasIssue(bad, "pm.probemap_1.type", "error") && ~hasIssue(setFigEnabled(ba
     'a session figure cannot hold a probe map (an error); the same figure per dataset can');
 bad = sfc;
 bad.Figures(1).panels(2).options.baseline = struct('Mode', "auroc", 'Window', [-0.2 0]);
-bad.Figures(1).panels(2).common = false;
 check(hasIssue(bad, "sf.psth_1.baseline.Mode", "error"), 'a session figure cannot hold an auROC baseline');
 bad = sfc.addFigure("continuous", Id="ch");
 bad.Figures(2).sessions.enabled = true;

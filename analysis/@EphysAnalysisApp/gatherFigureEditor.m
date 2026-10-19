@@ -15,10 +15,8 @@ function fig = gatherFigureEditor(obj)
 %   panel's spans, its row's height and its column's width are written
 %   only when their spinners differ from what applyFigureEditor showed, so
 %   a value they cannot show is kept as stored; a row height or column
-%   width of 1 keeps equal rows ([] sizes) equal. The Common options rows
-%   are the figure's common; a linked panel's (common true) common fields
-%   are not read from its Options rows (locked, showing the figure's), and
-%   its common flag is the Options header box's (onPanelCommonToggled).
+%   width of 1 keeps equal rows ([] sizes) equal. The panel's options are
+%   its Options rows', every field of its type.
 %   The panel's text note is its Text note rows', its overlays the
 %   Overlays list's, the one picked read from its rows (overlayGather).
 E = obj.FigureEditor;
@@ -101,24 +99,6 @@ s.ErrorEdgeStyle = string(E.errEdgeStyle.Value);
 s.ErrorEdgeWidth = E.errEdgeWidth.Value;
 fig.style = s;
 
-% the common options every linked panel takes
-c = fig.common;
-c.bins.BinSec = E.cmBinMs.Value / 1000;
-c.bins.SmoothSec = E.cmSmoothMs.Value / 1000;
-c.measure = string(E.cmMeasure.Value);
-c.baseline.Mode = string(E.cmBaselineMode.Value);
-c.baseline.Window = [E.cmBaseFrom.Value E.cmBaseTo.Value];
-c.auroc = aurocPlotFrom(E, "cmAu", c.auroc);
-c.maskAfterStop = logical(E.cmMaskAfterStop.Value);
-c.waveform.mode = string(E.cmWaveMode.Value);
-c.waveform.maxSpikes = E.cmWaveSpikes.Value;
-c.waveform.location = string(E.cmWaveLocation.Value);
-c.waveform.box = logical(E.cmWaveBox.Value);
-c.waveform.scale = E.cmWaveScale.Value;
-c.waveform.showPP = logical(E.cmWavePP.Value);
-c.waveform.showCount = logical(E.cmWaveCount.Value);
-fig.common = c;
-
 % the figure's alignment
 D = obj.Config.Defaults;
 ref = D.EventRef; win = D.Window; sel = D.Selection;
@@ -175,9 +155,7 @@ end
 function op = gatherOptions(E, p)
 %gatherOptions  The panel's options as the Options rows (and Group shown) show them; fields of other types are not there.
 op = p.options;
-linked = string.empty(1, 0);   % a linked panel's common fields: the figure's, their rows locked (an edit there is not taken)
-if p.common; linked = EphysAnalysisConfig.commonFieldsOf(p.type); end
-own = @(f) isfield(op, f) && ~ismember(f, linked);
+own = @(f) isfield(op, f);
 if isfield(op, 'group'); op.group = E.group.Value; end
 if own('bins')
     op.bins.BinSec = E.binMs.Value / 1000;

@@ -1,7 +1,7 @@
 function test_copyFigureSettings()
 %test_copyFigureSettings  Verification suite for copying a figure's settings onto another figure.
-%   figureSettingParts: the parts (observe, alignment, common,
-%   arrangement, style, looks, sessions), each with its fields, label and
+%   figureSettingParts: the parts (observe, alignment, arrangement,
+%   style, looks, sessions), each with its fields, label and
 %   description. copyFigureSettings: each part alone (its fields copied,
 %   the rest and the id, title and enabled kept), every part by default,
 %   two parts (copied in the table's order), a copy that validates, an
@@ -37,11 +37,11 @@ nPass = 0; nFail = 0;
 
 fprintf('\n== 1. figureSettingParts, copyFigureSettings ==\n');
 T = figureSettingParts();
-check(isequal(T.Part.', ["observe" "alignment" "common" "arrangement" "style" "looks" "sessions"]) ...
+check(isequal(T.Part.', ["observe" "alignment" "arrangement" "style" "looks" "sessions"]) ...
     && isequal(T.Fields{T.Part == "alignment"}, ["ref" "window" "selection"]) && isequal(T.Fields{T.Part == "arrangement"}, ["grid" "panels"]) ...
     && isequal(T.Fields{T.Part == "looks"}, "aesthetics") && isequal(T.Fields{T.Part == "sessions"}, "sessions") ...
     && all(T.Label ~= "") && all(T.Description ~= ""), ...
-    'figureSettingParts: observe, alignment (ref, window, selection), common, arrangement (grid, panels), style, looks, sessions');
+    'figureSettingParts: observe, alignment (ref, window, selection), arrangement (grid, panels), style, looks, sessions');
 fc = EphysAnalysisConfig();
 [fc, idA] = fc.addFigure("rasterPsth", Id="a");
 [fc, idB] = fc.addFigure("heatmap", Id="b");
@@ -54,7 +54,6 @@ B.ref = EphysAnalysisConfig.defaults("EventRef");
 B.ref.line = "Stim";
 B.selection = EphysAnalysisConfig.defaults("TrialSelection");
 B.selection.groupBy = "Depth";
-B.common.bins.BinSec = 0.05;
 B.style.FontSize = 14;
 B.sessions.series = "all";   % its sessions block differs, so the "sessions" part shows
 B.aesthetics = PlotAesthetics.normalizeRules(struct('role', "rate", 'group', "", 'property', "LineWidth", 'value', 2));

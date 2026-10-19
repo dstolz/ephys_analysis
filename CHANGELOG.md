@@ -76,8 +76,9 @@ says how to cut a release.
   into the panel; "Apply to all panels" (in Panel alignment and in Options) makes a panel's alignment or
   common options the figure's and links every panel, and "Re-link all panels" links them all again. The
   Behavior panel type was removed from figures (no behavior type or template, no trial source category or
-  trials layer, no `yParam` and `seriesParam` layer fields); the behavior plot kind is unchanged. See
-  [Common options](documentation/EphysAnalysisConfig.md#common-options).
+  trials layer, no `yParam` and `seriesParam` layer fields); the behavior plot kind is unchanged. (The
+  figure-level block was removed again: see Removed.) See
+  [Copying options between panels](documentation/EphysAnalysisConfig.md#copying-options-between-panels).
 - Figures in runs, exports, reports, standalone scripts and the pipeline's Analysis step. A run draws each
   enabled figure once per observation (a unit, a channel or the dataset): `EphysAnalysisRunner.run`,
   `runDataset` and `plan` take `Figures=` beside `Plots=`, both with one convention (`[]` = the enabled
@@ -146,7 +147,7 @@ says how to cut a release.
   Common options (they stayed grayed out). See
   [Panel types](documentation/EphysAnalysisConfig.md#panel-types),
   [Panel options](documentation/EphysAnalysisConfig.md#panel-options) and
-  [Common options](documentation/EphysAnalysisConfig.md#common-options).
+  [Copying options between panels](documentation/EphysAnalysisConfig.md#copying-options-between-panels).
 - Figures: per-trial traces, a trials-by-time heat map, a panel's own trial selection and one figure per
   trial group. A continuous panel's new `trials` option draws every epoch's trace (`"faint"`: in the
   group's color, paler and thinner, behind the mean and its band; `"only"`: the traces alone, standing for
@@ -950,6 +951,21 @@ says how to cut a release.
 
 ### Changed
 
+- Figures: each panel's Options hold all of its own options (bins and smoothing, measure, baseline with its
+  window and auROC settings, mask after the stop event, the waveform inset, and the type's own). "Apply to
+  all panels" (Options) now copies this panel's values of the rows several types share (bins, smoothing,
+  measure, baseline with its window and auROC, mask, waveform inset; `EphysAnalysisConfig.sharedFieldsOf`)
+  to every other panel whose type has them, the baseline only where that type takes the mode, and its
+  other options onto the other panels of its own type; the status bar names each panel that changed and
+  its options, and the panels that kept their baseline. It is on when another panel has one of those rows
+  or is of the same type. `adoptPanelOptions` does this and returns what changed (`[fig, changed]`).
+  "Re-link all panels" (Panel alignment) re-links only the event reference, epoch window and trial
+  selection (`relinkPanels`), and is on while a panel has its own. Validate checks each panel's own
+  options field by field. The figure editor's section keys are Ctrl+1 to Ctrl+9: Panel alignment
+  Ctrl+7, Layers Ctrl+8, Options Ctrl+9 (nothing on Ctrl+0). A version-1 plot's bins, measure,
+  baseline, auROC, mask and waveform go into the options of each migrated panel that has them. See
+  [Copying options between panels](documentation/EphysAnalysisConfig.md#copying-options-between-panels)
+  and [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
 - The analysis config is version 2: it holds `Figures` only. A version 1 file is migrated once when it
   is loaded (`load`, and `fromStruct` for a struct whose version is 1): every plot becomes a figure of
   the same id, every session plot a session figure (`match "pool"` becomes `"site"`, aux looks are
@@ -1171,6 +1187,12 @@ says how to cut a release.
 
 ### Removed
 
+- Figures: the figure-level options block and linked panels: a figure's `common` block,
+  `defaults("FigureCommon")`, a panel's `common` flag, `commonFields`, `commonFieldsOf` (now
+  `sharedFieldsOf`) and `panelOptions`; Validate's `<figure>.common` checks and the
+  `<figure>.<panel>.common` error. In the Figures tab, the Common options section and the Options
+  header's "Common options from the figure" box. Copy from... has six parts (no Common options). A
+  `common` field in a config file is an unknown field, dropped and listed in `LoadWarnings`.
 - Plots and session plots from the analysis config and the whole plot path: the `Plots` and
   `SessionPlots` sections, their methods (`addPlot`, `removePlot`, `plotFor`, `convertPlotToFigure`,
   `plotToFigure`, `addSessionPlot`, `sessionPlotFor`, ...), constants (`Kinds`, `AuxModes`,

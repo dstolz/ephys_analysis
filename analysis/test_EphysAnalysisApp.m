@@ -36,8 +36,8 @@ function test_EphysAnalysisApp()
 %   limits clipped, Remove panel, Duplicate, Add panel above / right /
 %   left, spans (and their refusals), sizes and spacing, Move, layer and
 %   figure Up / Down, no Behavior type or trials source offered, linked
-%   panels' locked alignment and common options (Apply to all panels,
-%   Re-link all panels, Ctrl+7 / Ctrl+0), a scan listing the
+%   panels' locked alignment, a panel's own options (Apply to all
+%   panels, Re-link all panels, Ctrl+7 / Ctrl+9), a scan listing the
 %   observations again, save and reopen, its preferences restored by a new app,
 %   Remove); Copy from... between figures; Generate (a figure's files per observation on the ticked
 %   datasets, its rows in the results table, the status bar's counts,
@@ -621,10 +621,11 @@ collapsed = ~app.FigureSections([app.FigureSections.Name] == "observations").Exp
 app.onKeyPress(pressed('1', {'control'}));
 check(collapsed && app.FigureSections([app.FigureSections.Name] == "observations").Expanded ...
     && app.FigureSections([app.FigureSections.Name] == "observations").Key == "1" ...
-    && app.FigureSections([app.FigureSections.Name] == "common").Key == "7" ...
-    && app.FigureSections([app.FigureSections.Name] == "options").Key == "0" ...
-    && app.FigureSections([app.FigureSections.Name] == "style").Key == "", ...
-    'Ctrl+1 opens the collapsed Observations section; Common options is Ctrl+7, Options Ctrl+0, Appearance has no key');
+    && app.FigureSections([app.FigureSections.Name] == "palign").Key == "7" ...
+    && app.FigureSections([app.FigureSections.Name] == "options").Key == "9" ...
+    && app.FigureSections([app.FigureSections.Name] == "style").Key == "" && ~any([app.FigureSections.Key] == "0") ...
+    && ~any([app.FigureSections.Name] == "common"), ...
+    'Ctrl+1 opens the collapsed Observations section; Panel alignment is Ctrl+7, Options Ctrl+9, Appearance has no key, nothing Ctrl+0');
 % Out of date with Auto off, Cancel
 app.FigureAutoCheckBox.Value = false;
 FE.title.Value = 'Unit card';
@@ -809,24 +810,20 @@ FE.maxTrials.Value = Inf;
 app.onConfigChanged("figure");
 % a type change
 app.onPanelSelected(2);
-lockedBins = FE.panelCommon.Value && FE.binMs.Enable == "off" && FE.histStyle.Enable == "on" ...
-    && FE.binMs.Value == 1000 * app.Config.Figures(1).common.bins.BinSec;
-FE.binMs.Value = 50;
-app.onConfigChanged("figure");   % a locked row: not taken
-ignored = app.Config.Figures(1).panels(2).options.bins.BinSec == 0.01 && app.Config.figureFor(1).panels(2).options.bins.BinSec == 0.01;
-FE.cmBinMs.Value = 20;
-FE.cmBinMs.ValueChangedFcn(FE.cmBinMs, []);
+openBins = FE.binMs.Enable == "on" && FE.histStyle.Enable == "on" && FE.binMs.Value == 10;
+FE.binMs.Value = 20;
+app.onConfigChanged("figure");
 spec = app.Config.figureFor(1);
-check(lockedBins && ignored && app.Config.Figures(1).common.bins.BinSec == 0.02 && spec.panels(2).options.bins.BinSec == 0.02 ...
-    && FE.binMs.Value == 20 && app.FigurePreviewState == "drawn" && app.FigurePreviewResult.spec.panels(2).options.bins.BinSec == 0.02, ...
-    'a linked PSTH''s bins row shows the Common options, locked (an edit there is not taken); a Common options edit reaches it and the preview is computed again');
+check(openBins && app.Config.Figures(1).panels(2).options.bins.BinSec == 0.02 && spec.panels(2).options.bins.BinSec == 0.02 ...
+    && app.FigurePreviewState == "drawn" && app.FigurePreviewResult.spec.panels(2).options.bins.BinSec == 0.02, ...
+    'the PSTH''s bins row is its own: an edit reaches its options and the preview is computed again');
 FE.panelType.Value = "heatmap";
 app.onPanelTypeChanged();
 p2 = app.Config.Figures(1).panels(2);
 check(p2.type == "heatmap" && isscalar(p2.layers) && p2.layers.source == "units" && p2.layers.binding == "fixed" ...
     && app.Config.figureFor(1).panels(2).options.bins.BinSec == 0.02 && isfield(p2.options, 'order') && shown(FE.group) && shown(FE.order) ...
     && contains(app.StatusBar.Text, "is now a heat map") && app.FigurePreviewState == "drawn", ...
-    'a heat map now: its units layer kept but fixed, the common bins it takes, its own rows shown');
+    'a heat map now: its units layer kept but fixed, the PSTH''s bins kept, its own rows shown');
 itemRows = shown(FE.heatRows) && ~shown(FE.rasterSort) && FE.layerBinding.Enable == "off";
 FE.heatRows.Value = "trials";
 app.onConfigChanged("figure");
@@ -867,35 +864,35 @@ L2 = app.Config.Figures(1).panels(2).layers(1);
 check(L2.binding == "observation" && isequal(L2.units.ids, obsId), 'following again, the layer keeps the ids as they are');
 FE.layerIds.Value = '';
 app.onConfigChanged("figure");
-% common options: a panel's own, Apply to all panels, Re-link all panels
+% Apply to all panels (Options), Re-link all panels (Panel alignment)
 app.onPanelSelected(2);   % the PSTH
-FE.panelCommon.Value = false;
-FE.panelCommon.ValueChangedFcn(FE.panelCommon, []);
-p2 = app.Config.Figures(1).panels(2);
-check(~p2.common && p2.options.bins.BinSec == 0.02 && FE.binMs.Enable == "on" && FE.optApplyAll.Enable == "on" ...
-    && FE.alignRelinkAll.Enable == "on", 'unticking Common options from the figure copies the common values into the panel''s own and opens its rows');
-FE.binMs.Value = 30;
+FE.binMs.Value = 10;
+FE.waveMode.Value = "mean";
+FE.baselineMode.Value = "zscore";
 app.onConfigChanged("figure");
-spec = app.Config.figureFor(1);
-check(spec.panels(2).options.bins.BinSec == 0.03 && app.Config.Figures(1).common.bins.BinSec == 0.02 ...
-    && app.FigurePreviewResult.spec.panels(2).options.bins.BinSec == 0.03, 'an edit then changes this panel''s bins only, not the figure''s');
+fg0 = app.Config.Figures(1);
+ids = [fg0.panels.id];
+appliable = FE.optApplyAll.Enable == "on" && FE.alignRelinkAll.Enable == "off";   % own options are no alignment to re-link
 FE.optApplyAll.ButtonPushedFcn(FE.optApplyAll, []);
 fg = app.Config.Figures(1);
-check(fg.common.bins.BinSec == 0.03 && all([fg.panels.common]) && FE.panelCommon.Value && FE.binMs.Enable == "off" ...
-    && contains(app.StatusBar.Text, "common options are now the figure's"), ...
-    'Apply to all panels: the panel''s bins become the Common options and every panel is linked to them');
-FE.panelCommon.Value = false;
-FE.panelCommon.ValueChangedFcn(FE.panelCommon, []);
-unlinked = ~app.Config.Figures(1).panels(2).common;
-FE.alignRelinkAll.ButtonPushedFcn(FE.alignRelinkAll, []);
-check(unlinked && all([app.Config.Figures(1).panels.common]) && FE.panelCommon.Value && contains(app.StatusBar.Text, "common options again"), ...
-    'Re-link all panels links the panel''s options to the Common options again');
+st = string(app.StatusBar.Text);
+check(appliable && fg.panels(1).options.waveform.mode == "mean" && fg.panels(3).options.baseline.Mode == "none" ...
+    && isequaln(fg.panels(3).options, fg0.panels(3).options) && contains(st, ids(1) + " (waveform)") ...
+    && contains(st, ids(3) + " kept their own baseline") && contains(st, """zscore""") && FE.alignRelinkAll.Enable == "off", ...
+    'Apply to all panels: the PSTH''s waveform inset goes to the raster; the continuous panel keeps its baseline (no zscore there); the status bar says so');
+FE.waveMode.Value = "off";
+FE.baselineMode.Value = "none";
+app.onConfigChanged("figure");
+FE.optApplyAll.ButtonPushedFcn(FE.optApplyAll, []);
+FE.optApplyAll.ButtonPushedFcn(FE.optApplyAll, []);   % again: nothing left to copy
+check(app.Config.Figures(1).panels(1).options.waveform.mode == "off" && contains(string(app.StatusBar.Text), "already"), ...
+    'applied back, then once more: the other panels have the PSTH''s options already');
+app.onFigureSectionToggled("palign");
+app.onFigureSectionToggled("options");
 app.onKeyPress(pressed('7', {'control'}));
-toCommon = app.FigureSections([app.FigureSections.Name] == "common").Expanded;
-app.onKeyPress(pressed('0', {'control'}));
-check(toCommon && app.FigureSections([app.FigureSections.Name] == "options").Expanded, 'Ctrl+7 goes to Common options, Ctrl+0 to Options');
-FE.cmBinMs.Value = 10;
-FE.cmBinMs.ValueChangedFcn(FE.cmBinMs, []);
+toPalign = app.FigureSections([app.FigureSections.Name] == "palign").Expanded;
+app.onKeyPress(pressed('9', {'control'}));
+check(toPalign && app.FigureSections([app.FigureSections.Name] == "options").Expanded, 'Ctrl+7 goes to Panel alignment, Ctrl+9 to Options');
 % the gather / apply round trip, a remembered look
 s1 = app.gatherConfig();
 app.applyConfig(s1);
@@ -1044,7 +1041,7 @@ end
 app.onFigureSelected(1);
 app.onPanelSelected(2);   % the PSTH
 pS = app.Config.Figures(1).panels(2);
-check(pS.type == "psth" && shown(FE.stack) && ~shown(FE.auMethod) && ~shown(FE.cmAuMethod) && ~shown(FE.rateDisplay) ...
+check(pS.type == "psth" && shown(FE.stack) && ~shown(FE.auMethod) && ~shown(FE.rateDisplay) ...
     && ~shown(FE.param) && ~shown(FE.waveLayout) && FE.psthSpacing.Enable == "off", ...
     'a PSTH shows its Stack row (the spacing off while unticked) and no auROC rows without the auROC baseline');
 FE.stack.Value = true;
@@ -1056,38 +1053,26 @@ nRows = numel(findall(app.FigurePreviewPanel, 'Tag', 'stackBase'));
 check(oS.stack && oS.stackSpacing == 1.5 && FE.psthSpacing.Enable == "on" && app.FigurePreviewState == "drawn" ...
     && nRows == height(app.FigurePreviewResult.groups) * (height(app.FigurePreviewResult.groups) > 1), ...
     sprintf('the Stack box and its spacing reach the PSTH''s options; the preview stacks its groups (%d rows)', nRows));
-FE.cmBaselineMode.Value = "auroc";
-FE.cmBaselineMode.ValueChangedFcn(FE.cmBaselineMode, []);
-cmShown = shown(FE.cmAuMethod) && shown(FE.cmAuCutoff) && shown(FE.cmAuMarks) && shown(FE.auMethod) && FE.auMethod.Enable == "off" ...
-    && string(FE.baselineMode.Value) == "auroc";
-FE.cmAuWinMs.Value = 50;
-FE.cmAuWinMs.ValueChangedFcn(FE.cmAuWinMs, []);
-FE.cmAuCutoff.Value = "fixed";
-FE.cmAuCutoff.ValueChangedFcn(FE.cmAuCutoff, []);
-spec = app.Config.figureFor(1);
-cm = app.Config.Figures(1).common;
-check(cmShown && cm.baseline.Mode == "auroc" && cm.auroc.windowSec == 0.05 && cm.auroc.cutoff == "fixed" ...
-    && spec.panels(2).options.auroc.windowSec == 0.05 && FE.auWinMs.Value == 50 && FE.cmAuThreshold.Enable == "on" ...
-    && app.FigurePreviewState == "drawn" && isfield(app.FigurePreviewResult.panels(2).layers(1).R, 'auroc'), ...
-    'the common auROC baseline: its rows in Common options, shown locked in the linked PSTH''s; their edits reach the PSTH and the preview');
-FE.panelCommon.Value = false;
-FE.panelCommon.ValueChangedFcn(FE.panelCommon, []);
+FE.baselineMode.Value = "auroc";
+app.onConfigChanged("figure");
+auShown = shown(FE.auMethod) && shown(FE.auCutoff) && shown(FE.auMarks) && FE.auMethod.Enable == "on" ...
+    && any(string(FE.baselineMode.Items) == "auroc");
 FE.auWinMs.Value = 20;
+FE.auCutoff.Value = "fixed";
 FE.auModOnly.Value = false;
 app.onConfigChanged("figure");
 oS = app.Config.Figures(1).panels(2).options;
-check(~app.Config.Figures(1).panels(2).common && oS.baseline.Mode == "auroc" && oS.auroc.windowSec == 0.02 && oS.auroc.cutoff == "fixed" ...
-    && app.Config.Figures(1).common.auroc.windowSec == 0.05 && FE.auMethod.Enable == "on" && any(string(FE.baselineMode.Items) == "auroc") ...
-    && app.FigurePreviewState == "drawn", 'unlinked, the PSTH''s own auROC rows reach its options (the common ones unchanged)');
+check(auShown && oS.baseline.Mode == "auroc" && oS.auroc.windowSec == 0.02 && oS.auroc.cutoff == "fixed" ...
+    && app.Config.figureFor(1).panels(2).options.auroc.windowSec == 0.02 && FE.auThreshold.Enable == "on" ...
+    && app.FigurePreviewState == "drawn" && isfield(app.FigurePreviewResult.panels(2).layers(1).R, 'auroc'), ...
+    'the PSTH''s auROC baseline: its rows show, and their edits reach its options and the preview');
 FE.stack.Value = false;
+FE.baselineMode.Value = "none";
 app.onConfigChanged("figure");
-FE.alignRelinkAll.ButtonPushedFcn(FE.alignRelinkAll, []);
-FE.cmBaselineMode.Value = "none";
-FE.cmBaselineMode.ValueChangedFcn(FE.cmBaselineMode, []);
 nAx = numel(figAxes());
 check(any(string(FE.addType.ItemsData) == "rate") && any(string(FE.addType.ItemsData) == "tuning") ...
     && any(string(app.FigureTemplateDropDown.ItemsData) == "rate") && any(string(app.FigureTemplateDropDown.ItemsData) == "tuning") ...
-    && any(string(FE.panelType.ItemsData) == "tuning") && all([app.Config.Figures(1).panels.common]) && app.FigurePreviewState == "drawn", ...
+    && any(string(FE.panelType.ItemsData) == "tuning") && app.FigurePreviewState == "drawn", ...
     'the Add-panel, panel type and template drop-downs offer Firing rate and Tuning curve');
 FE.addType.Value = "rate";
 FE.addType.ValueChangedFcn(FE.addType, struct('Value', "rate"));
@@ -1113,8 +1098,6 @@ check(pt.type == "tuning" && pt.layers.binding == "observation" && app.FigurePre
     && shown(FE.param) && shown(FE.waveMode) && ~shown(FE.rateDisplay) ...
     && app.FigureSections([app.FigureSections.Name] == "options").Title == "Tuning curve options", ...
     'Tuning curve, Below: drawn at once over the figure''s group-by parameter (Depth), its Parameter rows shown');
-FE.panelCommon.Value = false;
-FE.panelCommon.ValueChangedFcn(FE.panelCommon, []);
 FE.param.Value = 'Depth';
 FE.seriesParam.Value = 'TrialType';
 app.onConfigChanged("figure");
@@ -1252,23 +1235,23 @@ check(app.CopyFigureButton.Enable == "off" && want.id == "figure_1", 'Copy from.
 app.onAddFigure("heatmap");
 cx = app.gatherConfig();
 cx.Figures(2).style.FontSize = 15;
-cx.Figures(2).common.bins.BinSec = 0.05;
+cx.Figures(2).panels(1).options.bins.BinSec = 0.05;
 app.applyConfig(cx);
 app.onFigureSelected(1);
 check(app.CopyFigureButton.Enable == "on", 'Copy from... is on with a figure selected and another to copy from');
 app.onCopyFigureSettings(From="figure_2", Parts="style");
 f1 = app.Config.Figures(1);
-check(f1.id == "figure_1" && f1.style.FontSize == 15 && f1.common.bins.BinSec ~= 0.05 && isequal([f1.panels.type], [want.panels.type]) ...
+check(f1.id == "figure_1" && f1.style.FontSize == 15 && isequal([f1.panels.type], [want.panels.type]) ...
     && contains(string(app.StatusBar.Text), "Copied from figure_2 onto figure_1: Appearance") && app.FigurePreviewState == "drawn", ...
-    'From= and Parts= copy the appearance alone; the panels and common options stay, the preview follows');
+    'From= and Parts= copy the appearance alone; the panels stay, the preview follows');
 answerDialog('Copy figure settings', @copyFigureDialog);
 app.onCopyFigureSettings();
 seen = getappdata(groot, 'copyFigureSeen');
 if isappdata(groot, 'copyFigureSeen'); rmappdata(groot, 'copyFigureSeen'); end
 f1 = app.Config.Figures(1);
 check(isstruct(seen) && seen.count == "2 part(s) to copy" && seen.from == "figure_2  (1 panels)" ...
-    && f1.id == "figure_1" && isequal([f1.panels.type], "heatmap") && f1.common.bins.BinSec == 0.05 && app.SelectedPanel == 1 ...
-    && nPatches() == 1, 'the window copies the parts ticked (common options, arrangement): figure_1 is now the heat map''s panels');
+    && f1.id == "figure_1" && isequal([f1.panels.type], "heatmap") && f1.panels.options.bins.BinSec == 0.05 && app.SelectedPanel == 1 ...
+    && nPatches() == 1, 'the window copies the parts ticked (alignment, arrangement): figure_1 is now the heat map''s panels, their options too');
 app.onRemoveFigure();
 app.onFigureSelected(1);
 app.onRemoveFigure();
@@ -1752,9 +1735,9 @@ end
 
 
 function copyFigureDialog(D)
-%copyFigureDialog  In the Copy figure settings window: None, tick Common options and Arrangement, note the count, Copy.
+%copyFigureDialog  In the Copy figure settings window: None, tick Alignment and Arrangement, note the count, Copy.
 press(D, "None");
-for b = [D.Boxes.common D.Boxes.arrangement]
+for b = [D.Boxes.alignment D.Boxes.arrangement]
     b.Value = true;
     b.ValueChangedFcn(b, []);
 end

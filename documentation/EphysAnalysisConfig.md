@@ -91,12 +91,11 @@ distinct as file names: `{Plot}` replaces every character outside
     { "id": "unit_card", "enabled": true, "title": "",
       "observe": { "kind": "auto", "source": "units", "units": { "classes": ["su"], "...": "..." }, "...": "..." },
       "grid": { "rows": 3, "cols": 1, "rowHeights": [1.5, 1, 1], "colWidths": [], "spacing": "none" },
-      "common": { "bins": { "BinSec": 0.01, "SmoothSec": 0.01 }, "measure": "rate", "...": "..." },
       "ref": "default", "window": "default", "selection": "default",
       "sessions": { "enabled": false, "...": "..." },
-      "panels": [ { "id": "raster_1", "type": "raster", "row": 1, "col": 1, "common": true, "...": "..." },
-                  { "id": "psth_1", "type": "psth", "row": 2, "col": 1, "common": true, "...": "..." },
-                  { "id": "continuous_1", "type": "continuous", "row": 3, "col": 1, "common": true, "...": "..." } ],
+      "panels": [ { "id": "raster_1", "type": "raster", "row": 1, "col": 1, "...": "..." },
+                  { "id": "psth_1", "type": "psth", "row": 2, "col": 1, "...": "..." },
+                  { "id": "continuous_1", "type": "continuous", "row": 3, "col": 1, "...": "..." } ],
       "style": { "...": "..." }, "aesthetics": [] } ],
   "Export": { "Enabled": true, "Formats": ["png", "svg"], "Folder": "{OutputFolder}\\analysis",
               "FilenamePattern": "{Name}_{Plot}", "Dpi": 150, "FigureSizeCm": [18, 12], "Overwrite": true,
@@ -393,8 +392,8 @@ does not apply. A unit with no spike in the window and the baseline over a
 group's epochs has no auROC there (NaN), so it is not called. A PSTH draws
 the auROC from 0.5 on a 0-1 axis, a heatmap colors it on `[0 1]`
 (the panel's `yLim` / `cLim` override them). The
-`auroc` settings (`EphysAnalysisConfig.defaults("Auroc")`; a figure's `common.auroc`, or a
-panel's own `options.auroc`):
+`auroc` settings (`EphysAnalysisConfig.defaults("Auroc")`; a panel's
+`options.auroc`):
 
 | Field | Default | Meaning |
 | --- | --- | --- |
@@ -468,8 +467,8 @@ Trough onset"`). The raster's legend lists them.
 A raster, PSTH or tuning panel of spikes can draw the observed unit's waveform (the
 first unit of its first layer) on its peak channel as a small box in the panel (in
 the rate axes of a PSTH). The `waveform` settings
-(`EphysAnalysisConfig.defaults("Waveform")`; a figure's `common.waveform`, or a panel's
-own `options.waveform`):
+(`EphysAnalysisConfig.defaults("Waveform")`; a panel's
+`options.waveform`):
 
 | Field | Default | Meaning |
 | --- | --- | --- |
@@ -495,9 +494,8 @@ the legend and its parts (`waveBox`, `waveSpikes`, `waveMean`,
 
 A `waveforms` panel is the unit waveforms as a panel of their own: no events, no trials,
 nothing but the units of its layers and their waveforms. It uses the `waveform` settings
-above (the panel's own, or the figure's common ones), with `mode` never `"off"` (validate
-refuses it in the panel's own options; the common block's `"off"` is drawn as `"both"`),
-and these more:
+above (the panel's `options.waveform`), with `mode` never `"off"` (validate refuses
+it), and these more:
 
 | Field | Default | Meaning |
 | --- | --- | --- |
@@ -702,9 +700,9 @@ observed unit's spikes beside fixed AUX channels. The figure has one
 alignment, `ref`, `window` and `selection`, each `"default"` ([`Defaults`](#defaults)) or its own. A panel may override `ref`, `window` and `selection`; a panel on the
 figure's selection shares its group table, palette and legend, and one with a
 selection of its own has [its own](#panel-fields). The bins, measure,
-baseline (with its auROC settings), mask and waveform inset are the figure's
-too, in its `common` block, which every panel linked to it draws
-([Common options](#common-options)).
+baseline (with its auROC settings), mask and waveform inset are each panel's
+own [options](#panel-options); the app's **Apply to all panels** copies one
+panel's to the others ([Copying options between panels](#copying-options-between-panels)).
 
 The preview draws one observation of one dataset: it reads one unit's spikes
 and one extract column, not a page of units, so an edit redraws quickly.
@@ -742,7 +740,7 @@ observation (a site, a cell of a mapping, a channel or the dataset) computed
 on every session and each panel's layers merged, a color per session or
 subject.
 
-`EphysAnalysisConfig.defaults("Figure" | "FigureCommon" | "FigureSessions" | "Observe" | "Panel" | "Layer")`
+`EphysAnalysisConfig.defaults("Figure" | "FigureSessions" | "Observe" | "Panel" | "Layer")`
 give the fields below; every field exists on every entry.
 
 ### Figure, grid and observe fields
@@ -754,7 +752,6 @@ give the fields below; every field exists on every entry.
 | `title` | `""` | `""` = automatic: the id, the observation's label, the aligned event and the epoch count (a dataset figure names no observation, a figure with no aligned panel no event); the dataset is the subtitle. With a title of your own, the top-left panel names the observation |
 | `observe` | below | what the figure is drawn for |
 | `grid` | below | the arrangement of the panels |
-| `common` | `defaults("FigureCommon")` | the options every panel linked to the figure draws: `bins`, `measure`, `baseline`, `auroc`, `maskAfterStop`, `waveform` ([Common options](#common-options)) |
 | `panels` | none | the [panels](#panel-fields), a list of any length |
 | `ref`, `window`, `selection` | `"default"` | `"default"` = [`Defaults`](#defaults), or the figure's own [EventRef](#eventref) / [EpochWindow](#epochwindow) / [TrialSelection](#trialselection). Every aligned panel starts from them |
 | `sessions` | `defaults("FigureSessions")` | the [session figure](#session-figures) settings: with `sessions.enabled` the figure is drawn once across several datasets instead of once per dataset; `sessions.enabled` false keeps the block and leaves it unused. Which datasets, how the observation is matched across them and how the sessions are colored, merged and grouped |
@@ -790,9 +787,8 @@ tuning curve, `"spectrum"`, `"spectrogram"` and `"coherence"` for the
 [spectral panels](#spectral-panels)): one panel `<type>_1` holding
 `defaultLayer(type)`, a layer of the first source of the type's first
 [category](#source-categories) (`units`; `LFP` for continuous) bound as the
-type's `DefaultBinding` says, so a new panel draws at once. A new figure takes
-`defaults("FigureCommon")` as its `common` block, and its panels are linked to
-it. `"blank"` is an empty 1 x 1 grid.
+type's `DefaultBinding` says, so a new panel draws at once, with the type's
+default options. `"blank"` is an empty 1 x 1 grid.
 
 ### Panel fields
 
@@ -805,9 +801,8 @@ it. `"blank"` is an empty 1 x 1 grid.
 | `rowSpan`, `colSpan` | 1, 1 | the rows and columns it covers |
 | `ref`, `window` | `"default"` | `"default"` = the figure's, or the panel's own [EventRef](#eventref) / [EpochWindow](#epochwindow) (aligned types only). A panel with its own cuts its own epochs, with the figure's selection or its own (next row); with the figure's, its groups must match the figure's by label, or the panel is skipped. It then no longer [shares the time axis](#shared-time-axis) |
 | `selection` | `"default"` | `"default"` = the figure's, or the panel's own [TrialSelection](#trialselection) (aligned types only): its own epochs and groups, [colored apart with a legend inside the panel](#panel-types). Its groups are not matched to the figure's, and a per-group figure does not cut them. A panel with only its own `selection` still shares the time axis, which depends on `ref` and `window` alone |
-| `common` | `true` | `true`: the panel draws the figure's [common options](#common-options) for every common field its type has (`commonFieldsOf`); `false`: all of its own `options` |
 | `layers` | none | the [layers](#layer-fields), a list of any length |
-| `options` | the type's [options](#panel-options) | coerced to the type's, so changing `type` re-seeds them: fields the new type has keep their values, the others are dropped. While `common` is true the type's common fields are stored but not drawn: the figure's are |
+| `options` | the type's [options](#panel-options) | all of the options the panel draws, coerced to the type's, so changing `type` re-seeds them: fields the new type has keep their values, the others are dropped |
 | `note` | `defaults("Note")` | descriptive text on or beside the panel: a [note](#panel-notes) (nothing is drawn until `text` has words), after `options`. `placement` `"below"`, `"above"`, `"right"` or `"left"` gives up a band of the panel's own tile beside its axes; a compass point, `"center"` or `"custom"` (at `x`, `y`, 0-1 across and up the panel's axes) puts the text in the axes |
 | `overlays` | none | a list of [overlays](#panel-overlays), lines and semitransparent patches drawn on the panel's own axes in data units, the last field of a panel. A panel's overlays are all drawn on its axes, so `panel` is always `"all"`: `normalizePanel` sets it, whatever a file says, and Validate gives no panel warning. Units are the panel's axis' own (seconds from the event on a time panel, a rate on a PSTH's y axis, an epoch number on a raster's rows) |
 
@@ -1016,8 +1011,8 @@ Three panel types draw the multitaper analyses of
 the dataset itself, the observed unit's channel or spikes or the fixed ones the
 layers name, and take the trials from the panel's own epochs. Their options are
 `chronuxSettings`' (`figureChronuxSettings` builds the settings from them, with
-the panel's `[pre post]` window); none of them is a [common
-field](#common-options), and a layer's `aggregate` is not used.
+the panel's `[pre post]` window); none of them is a [shared
+option](#copying-options-between-panels), and a layer's `aggregate` is not used.
 
 | Type | Layers | Draws |
 | --- | --- | --- |
@@ -1119,8 +1114,8 @@ that is not the type's is dropped on load (and listed in `LoadWarnings`). `yLim`
 `[]` (automatic) or an ascending `[lo hi]` and belong to the panel, because one
 figure holds different axes; the figure's `Style.YLim` and `CLim` are not used.
 The options named `bins`, `measure`, `baseline`, `auroc`, `maskAfterStop` and
-`waveform` are the type's *common fields*: a panel linked to its figure draws the figure's
-[common options](#common-options) for them, whatever its `options` hold.
+`waveform` (an inset) are the ones several types share: **Apply to all panels** copies
+them across types ([Copying options between panels](#copying-options-between-panels)).
 
 | Type | Option | Default | Meaning |
 | --- | --- | --- | --- |
@@ -1185,87 +1180,37 @@ The options named `bins`, `measure`, `baseline`, `auroc`, `maskAfterStop` and
 | `tuning` | `baseline` | `Mode "none"`, `Window [-0.2 0]` | as the rate panel's |
 | `tuning` | `yLim` | `[]` | the rate axis |
 | `tuning` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | the first unit's waveform in a box in the panel |
-| `spectrum`, `spectrogram`, `coherence` | | | the [Chronux options](#spectral-panels), above; none is a common field |
+| `spectrum`, `spectrogram`, `coherence` | | | the [Chronux options](#spectral-panels), above; none is a shared option |
 
-### Common options
+### Copying options between panels
 
-A figure's panels usually agree on the bins, the baseline (with its auROC
-settings) and the waveform inset: a PSTH over a heat map over a unit
-correlation is binned and baselined once, not three times. The figure's `common` block
-(`EphysAnalysisConfig.defaults("FigureCommon")`) holds those options, and a
-panel draws them while its `common` flag is `true` (the default), so one change
-reaches every linked panel.
+Each panel holds all of its own options. Several types share some of them,
+so a PSTH over a heat map over a unit correlation can be binned and
+baselined alike: `EphysAnalysisConfig.sharedFieldsOf(type)` lists the shared
+options a type has, in order:
 
-| Common field | Default | Meaning |
-| --- | --- | --- |
-| `bins` | `BinSec` 0.01, `SmoothSec` 0.01 | as the [panel options](#panel-options)' |
-| `measure` | `"rate"` | `"rate"`, `"count"` or `"probability"` (a PSTH, a heat map, a rate or a tuning panel) |
-| `baseline` | `Mode "none"`, `Window [-0.2 0]` | `Mode` one of `"none"`, `"subtract"`, `"zscore"`, `"percent"`, `"ratio"` and `"auroc"`; each type takes its own: a PSTH and a heat map of spikes `"none"`, `"subtract"`, `"zscore"`, `"percent"` and `"auroc"`; a rate and a tuning panel `"none"`, `"subtract"`, `"ratio"` and `"zscore"`; a continuous or unit correlation panel (and a heat map of a signal) only `"none"` and `"subtract"` |
-| `auroc` | [`defaults("Auroc")`](#auroc) | the [auROC](#auroc) settings, used with baseline `Mode "auroc"` (a PSTH and a heat map of spikes) |
-| `maskAfterStop` | `false` | drop what follows each epoch's stop event |
-| `waveform` | [Waveform](#unit-waveforms), `mode "off"` | the inset of a raster, PSTH or tuning panel; for a waveforms panel its settings, where `mode "off"` is drawn as `"both"` |
-
-A type takes the common fields among its own options
-(`EphysAnalysisConfig.commonFieldsOf(type)`; `commonFields()` lists all six,
-in order):
-
-| Type | Common fields it takes |
+| Type | Shared options |
 | --- | --- |
 | `raster` | `maskAfterStop`, `waveform` |
 | `psth` | `bins`, `measure`, `baseline`, `auroc`, `maskAfterStop`, `waveform` |
 | `continuous` | `baseline` |
 | `heatmap` | `bins`, `measure`, `baseline`, `auroc`, `maskAfterStop` |
-| `waveforms` | `waveform` |
 | `corrmap` | `bins`, `baseline` |
 | `rate` | `measure`, `baseline` |
 | `tuning` | `measure`, `baseline`, `waveform` |
-| `probemap`, `spectrum`, `spectrogram`, `coherence` | none |
-
-- **Linking.** `panel.common` is `true` (linked) or `false` (the panel draws its
-  own `options`). Every other option of a linked panel (a PSTH's `histStyle`,
-  `fill`, `normalize` and `yLim`, a raster's sort, ...) stays its own. The
-  panel's stored values of the common fields are kept but unused while it is
-  linked, so unlinking and relinking loses nothing.
-- **`panelOptions`.** `op = EphysAnalysisConfig.panelOptions(fig, panel)` is the
-  options the panel draws: `panel.options`, and, when `panel.common` is true,
-  each field of `commonFieldsOf(panel.type)` taken from `fig.common`; a waveforms
-  panel's `waveform.mode "off"` becomes `"both"`. `figureFor` resolves every
-  panel's `options` through it, so a spec holds the effective values (and the
-  `common` flag as the link state), and the compute and the render never read
-  `fig.common` themselves.
-- **Loading.** `common` is coerced to its defaults as `observe` and `grid` are,
-  and a panel's `common` is a logical. A hand-written file may leave either out:
-  they keep their defaults (the defaults above, the panel linked).
+| `waveforms`, `probemap`, `spectrum`, `spectrogram`, `coherence` | none (a waveforms panel's `waveform` is its own settings, not an inset; a spectrogram's `baseline` is `chronuxNormalize`'s) |
 
 Three pure functions edit a figure entry as a value (the app's **Apply to all
 panels** and **Re-link all panels** buttons call them):
 
 | Call | Does |
 | --- | --- |
-| `fig = EphysAnalysisConfig.adoptPanelOptions(fig, panelId)` | the panel's values of its type's common fields, as it draws them, become the figure's `common` (nothing changes when the panel is linked: they already are); every panel is then linked (`common = true`); the panel's other options (the type-specific ones) are copied onto the other panels of the same type, and panels of other types keep theirs |
+| `[fig, changed] = EphysAnalysisConfig.adoptPanelOptions(fig, panelId)` | the panel's values of its shared options go to every other panel whose type has them, the `baseline` (with its `auroc`) only where the type takes its `Mode` (a PSTH or a heat map of spikes: `none`, `subtract`, `zscore`, `percent`, `auroc`; a rate or tuning panel: `none`, `subtract`, `ratio`, `zscore`; a continuous, unit correlation or signal heat map panel: `none`, `subtract`); its other options go to the other panels of its own type, and panels of other types keep theirs. `changed` is a struct array, one entry per other panel that changed or kept its baseline: `id`, `fields` (the options whose values changed) and `kept` (`"baseline"` when its type does not take the `Mode`) |
 | `fig = EphysAnalysisConfig.adoptPanelAlignment(fig, panelId)` | the panel's own `ref`, `window` and `selection` (the ones that are structs) become the figure's, a `"default"` part leaving the figure's as it is; every panel's `ref`, `window` and `selection` are then `"default"` |
-| `fig = EphysAnalysisConfig.relinkPanels(fig)` | every panel's `ref`, `window` and `selection` are `"default"` and its `common` is `true`; the panels' own option values stay stored |
+| `fig = EphysAnalysisConfig.relinkPanels(fig)` | every panel's `ref`, `window` and `selection` are `"default"`; the panels' options stay as they are |
 
 Each raises `EphysAnalysisConfig:NoPanel` for an id the figure does not have
 (`relinkPanels` takes none).
-
-`cfg.validate()` checks the common block once, at `<figure>.common`, rather than
-once per linked panel: `bins` (`BinSec > 0`, `SmoothSec >= 0`), `measure`, the
-baseline `Mode` (among the six above) and, with a `Mode` other than `none`, a
-window `[b0 b1]` with `b0 < b1`, the `auroc` settings when the `Mode` is
-`auroc` (at `<figure>.common.auroc`: the method, windows, cutoff,
-call window and so on, its `windowSec` and `stepSec` whole numbers of the
-common bins, and the Statistics and Machine Learning Toolbox it needs), and the
-`waveform` settings (the mode `off` allowed). A linked panel is checked for the
-one thing its type can fail: a common baseline `Mode` the type does not take
-(`zscore`, `percent`, `ratio` or `auroc` on a continuous or unit correlation
-panel or a heat map of a signal; `ratio` on a PSTH or a heat map of spikes;
-`percent` or `auroc` on a rate or tuning panel) is an error at
-`<figure>.<panel>.common`, with the way out: untick the panel's common options
-or change the figure's baseline. A continuous panel's or a signal heat map's
-baseline window must still overlap the panel's window, reported at the panel's
-`common` when the baseline is the figure's. A panel with `common` false is
-checked for its own values, field by field, as before.
 
 ### Source categories
 
@@ -1367,10 +1312,7 @@ compute and the render take:
   `"default"`, and two fields added: `aligned` (its type's `Aligned`) and `sharesTime` (its type
   shares time, and both its `ref` and `window` were `"default"`; its `selection`
   does not matter);
-- each panel's `options` completed against its type's and, where the panel's
-  `common` is true, the figure's [common options](#common-options) put in for the
-  type's common fields (`panelOptions`); `common` stays in the spec as the link
-  state;
+- each panel's `options` completed against its type's;
 - each layer's `category` added (`"point"`, `"continuous"`, `"unit"`, or
   `""` where the type does not draw the source) and its `units.source` set to its
   `source`.
@@ -1569,10 +1511,7 @@ stimulus offset marked on every raster row. The `"..."` stand for the rest of a
 nested block (as in the [JSON example](#json-example) above); the config's
 `Defaults` give the alignment (`"default"`), the three rows are
 1.5 : 1 : 1 and drawn as 3 : 2 : 2 tiles, and the options shown are the types'
-defaults. All three panels are linked (`"common": true`), so the raster's and
-PSTH's `maskAfterStop` and `waveform`, the PSTH's `bins`, `measure` and
-`baseline` and the continuous panel's `baseline` stored in their `options` are
-not drawn: the figure's `common` block is. A file written by hand may leave out any field that keeps its default.
+defaults. A file written by hand may leave out any field that keeps its default.
 
 ```json
 "Figures": [
@@ -1582,16 +1521,13 @@ not drawn: the figure's `common` block is. A file written by hand may leave out 
                             "quality": { "enabled": false, "...": "..." }, "response": { "enabled": false, "...": "..." } },
                  "signal": "LFP", "channels": [], "perGroup": false },
     "grid": { "rows": 3, "cols": 1, "rowHeights": [1.5, 1, 1], "colWidths": [], "spacing": "none" },
-    "common": { "bins": { "BinSec": 0.01, "SmoothSec": 0.01 }, "measure": "rate",
-                "baseline": { "Mode": "none", "Window": [-0.2, 0] }, "maskAfterStop": false,
-                "waveform": { "mode": "off", "...": "..." } },
     "ref": "default", "window": "default", "selection": "default",
     "sessions": { "enabled": false, "datasets": "ticked", "datasetKeys": [], "facet": "none", "series": "session",
                   "colorOrder": "palette", "showMembers": false, "error": "sem", "match": "site", "mappingFile": "",
                   "minSessions": 1, "trialGroups": "pool" },
     "panels": [
       { "id": "raster_1", "type": "raster", "title": "", "row": 1, "col": 1, "rowSpan": 1, "colSpan": 1,
-        "ref": "default", "window": "default", "selection": "default", "common": true,
+        "ref": "default", "window": "default", "selection": "default",
         "layers": [
           { "name": "", "enabled": true, "source": "units", "binding": "observation", "aggregate": "each", "...": "..." },
           { "name": "Stim offset", "enabled": true, "source": "events", "binding": "fixed", "eventsAs": "marks",
@@ -1602,14 +1538,14 @@ not drawn: the figure's `common` block is. A file written by hand may leave out 
         "options": { "rasterSort": "", "rasterSortEvent": [], "rasterSortOrder": "ascending", "rasterByGroup": true,
                      "maskAfterStop": false, "waveform": { "mode": "off", "...": "..." } } },
       { "id": "psth_1", "type": "psth", "title": "", "row": 2, "col": 1, "rowSpan": 1, "colSpan": 1,
-        "ref": "default", "window": "default", "selection": "default", "common": true,
+        "ref": "default", "window": "default", "selection": "default",
         "layers": [ { "name": "", "enabled": true, "source": "units", "binding": "observation", "aggregate": "each", "...": "..." } ],
         "options": { "bins": { "BinSec": 0.01, "SmoothSec": 0.01 }, "measure": "rate",
                      "baseline": { "Mode": "none", "Window": [-0.2, 0] }, "histStyle": "bar", "fill": true,
                      "fillAlpha": "NaN", "normalize": "none", "maskAfterStop": false, "yLim": [],
                      "waveform": { "mode": "off", "...": "..." } } },
       { "id": "continuous_1", "type": "continuous", "title": "", "row": 3, "col": 1, "rowSpan": 1, "colSpan": 1,
-        "ref": "default", "window": "default", "selection": "default", "common": true,
+        "ref": "default", "window": "default", "selection": "default",
         "layers": [ { "name": "", "enabled": true, "source": "LFP", "binding": "observation", "aggregate": "each", "...": "..." } ],
         "options": { "baseline": { "Mode": "none", "Window": [-0.2, 0] }, "display": "lines", "statistic": "mean",
                      "transform": "none", "errorType": "sem", "stackSpacing": "NaN", "trials": "off", "maxTrials": 100, "yLim": [] } } ],
@@ -1677,27 +1613,14 @@ Errors:
   `""`, `-`, `--`, `:` or `-.`;
 - a raster whose enabled layers are all events drawn as marks (`A raster's marks
   need rows: add a units, detected or train layer`);
-- the figure's [common options](#common-options), once: `common.bins`
-  (`BinSec > 0`, `SmoothSec >= 0`), `common.measure`, `common.baseline` (`Mode` one
-  of `none`, `subtract`, `zscore`, `percent`, `ratio`, `auroc`; with another Mode than
-  `none`, a window `[b0 b1]` with `b0 < b1`), `common.auroc` (with the Mode `auroc`:
-  the auROC rules ([auROC](#auroc)), its window and step whole numbers of `common.bins`, and the
-  Statistics and Machine Learning Toolbox) and `common.waveform` (mode, location,
-  `scale` in (0, 3], whole `maxSpikes >= 1`, `ampScale`; `off` allowed). A linked panel
-  (`common` true) is not checked for these fields again, except that its type must
-  take the common baseline `Mode`: a continuous, unit correlation or signal heat map
-  panel with a common `zscore`, `percent`, `ratio` or `auroc`, a PSTH or spike heat
-  map with `ratio`, and a rate or tuning panel with `percent` or `auroc`, is an error
-  at `<figure>.<panel>.common`;
-- options, by type, as drawn (`panelOptions`; the common fields only for a panel with
-  `common` false): a raster's `rasterSortOrder` and, with `rasterSort "event"`, a
+- options, by type: a raster's `rasterSortOrder` and, with `rasterSort "event"`, a
   valid `rasterSortEvent`; a PSTH's `bins` (`BinSec > 0`, `SmoothSec >= 0`),
   `measure`, `baseline` (`Mode` among the type's, a window `[b0 b1]` with `b0 < b1`),
-  `auroc` (with baseline `Mode "auroc"`, as the common ones, against the panel's own
-  bins, at `<figure>.<panel>.options.auroc`), `histStyle`, `normalize`, `fillAlpha`,
+  `auroc` (with baseline `Mode "auroc"`: the auROC rules ([auROC](#auroc)), its window
+  and step whole numbers of the panel's bins, and the Statistics and Machine Learning
+  Toolbox, at `<figure>.<panel>.options.auroc`), `histStyle`, `normalize`, `fillAlpha`,
   a positive `stackSpacing`, `yLim`; a continuous panel's `baseline`
-  (`none` or `subtract`, its window overlapping the panel's window, also when the
-  baseline is the figure's), `display`, `statistic`, `transform`, `errorType` (`ci95`
+  (`none` or `subtract`, its window overlapping the panel's window), `display`, `statistic`, `transform`, `errorType` (`ci95`
   and `iqr` need the Statistics and Machine Learning Toolbox), a positive or `NaN`
   `stackSpacing`, `trials` (`off`, `faint` or `only`), `maxTrials` (a whole number
   >= 1, or `Inf`), `yLim`; a heat map's `rows` (`items` or `trials`; with `trials`:
@@ -2002,7 +1925,7 @@ Errors:
   (with `CheckPaths`), cannot be read or has no `cell` column;
 - with `sessions.enabled`: a probe map, unit correlation, power spectrum,
   spectrogram or coherence panel (`<figure>.<panel>.type`: it is not merged),
-  and an auROC baseline, a panel's own or the figure's common one
+  and an auROC baseline
   (`<figure>.<panel>.baseline.Mode`: auROC curves are not merged).
 
 Warnings (with `sessions.enabled`):
@@ -2110,7 +2033,7 @@ carry (one sentence each), by these rules. The figure keeps the plot's `id`, `en
 | --- | --- |
 | `aesthetics` | the plot's, remapped as [above](#looks-on-retired-roles) |
 | `style` | the plot's, with `MaxTiles`, `TileSpacing`, `XLim`, `YLim` and `CLim` back at their defaults (a figure does not use them). `YLim` goes to the data panel's `options.yLim` (a PSTH, continuous, waveforms, rate or tuning panel) and `CLim` to its `options.cLim` (a heat map, probe map or correlation map); one that no panel of the figure takes is a note |
-| `common` | the plot's `bins`, `measure`, `baseline`, `auroc`, `maskAfterStop` and `waveform`; every panel is linked to them ([Common options](#common-options)). The auROC baseline is carried, with its `auroc` settings, for a PSTH or a heat map of spikes; a rate or tuning plot takes only `none`, `subtract`, `ratio` and `zscore`; a mode the panel cannot take becomes `none`, with a note |
+| panels' `options` | the plot's `bins`, `measure`, `baseline`, `auroc`, `maskAfterStop` and `waveform`, in every panel whose type has them (a waveforms panel's `mode "off"` as `"both"`; but the aux panel and a raster under a PSTH with an inset, below). The auROC baseline is carried, with its `auroc` settings, for a PSTH or a heat map of spikes; a rate or tuning plot takes only `none`, `subtract`, `ratio` and `zscore`; a mode the panel cannot take becomes `none`, with a note |
 | `observe` | below. The plot's `source` (`units` or `detected`) is the layers' source and, for a figure drawn per unit, `observe.source`; its unit filter is `observe.units` when the figure observes units, else the fixed layer's `units` |
 | `grid` | one column, a row per panel top to bottom; `spacing "none"` (flush) for a unit's raster, PSTH and aux panels |
 
@@ -2128,7 +2051,7 @@ The panels, by plot kind (the second column is what the figure is drawn for,
 | `heatmap` | dataset | a heat map panel with a fixed layer (the units filter, or the channels), its `order` (modulation included), `group` 1, `cLim` |
 | `probemap` | dataset | a probe map panel with a fixed layer, `value`, `cLim` |
 | `corrmap` | dataset | a correlation map panel with a fixed layer, `metric`, `correlation`, `fisherZ`, `group` 1, `cLim` |
-| `waveforms`, grid | unit | a waveforms panel with a layer following the unit, `layout "grid"`; `common.waveform` = the plot's waveform settings |
+| `waveforms`, grid | unit | a waveforms panel with a layer following the unit, `layout "grid"`; its `waveform` = the plot's waveform settings |
 | `waveforms`, probe | dataset | a waveforms panel with a fixed layer, `layout "probe"` |
 | `rate` | unit | one rate panel with a layer following the unit; `display` = the plot's layout (`bar`, `box` or `points`), `measure`, `baseline`, `YLim` as `yLim` |
 | `tuning`, grid | unit | a tuning panel with a layer following the unit; `param` and `seriesParam` |
@@ -2140,10 +2063,10 @@ none. A PSTH's or raster's **aux signal** (`aux.mode` not `off`) becomes a conti
 of a fixed `AUX` layer below the unit's panels (above them for `placement "above"`), half
 as high as each of them: `"channels"` is `aggregate "each"`, `"magnitude"` is
 `aggregate "mean"`; the aux `baseline`, `statistic`, `transform`, `errorType` and `yLim`
-become that panel's own options (it is not linked to the common baseline); `channels`
+become that panel's options (not the plot's baseline); `channels`
 and `display` carry over. A PSTH with a waveform inset keeps it in the PSTH panel (the
-raster, which would otherwise draw it too, is unlinked from the common options and keeps
-the plot's `maskAfterStop`).
+raster, which would otherwise draw it too, keeps its inset off and takes only the
+plot's `maskAfterStop`).
 
 **Text note and overlays.** Both go to the panels they belong to (a panel holds its own
 [`note`](#panel-fields) and `overlays`). The plot's **text note** goes whole, with its
@@ -2337,7 +2260,7 @@ With the defaults, the figure `unit_card` of dataset `SYNTH-01_260918_101500` wi
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
 | Defaults, Figures | the event reference, window and selection are valid: known values, `n` a whole number >= 1, `0 <= minDurationSec <= maxDurationSec`, `timeRange` ordered, a finite `offsetSec`, `offsetParamUnit` ms or s, each sequence step's relation, line, edge, `n`, positive `maxGapSec` and lengths, an `alignStep` of 0, `Inf` or a followedBy step (the stop's and each raster-mark sequence's too), finite `pre` and `post`, `pre <= post` in a fixed window, a stop event in a `"between"` window, known response words and pairing flags, at most 2 distinct `groupBy` parameters, `maxGroups` and `trials` whole numbers >= 1 | error |
 | Defaults, Figures | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
-| Figures | at least one figure or session figure enabled (`No figure is enabled.`); the figure id is not empty, file-name safe and distinct once sanitized from the other figures' (`{Plot}` fills the files' names, case-blind); the figure's alignment is valid; `observe` (kind, source, signal, channels, `maxUnits`; on a figure that observes units, an enabled `units.response` test at `<figure>.observe.units.response.<field>` and each spike layer's at `<figure>.<panel>.layers(<j>).units.response.<field>`: the test, `param` for tuning / either / both, ordered `baseline` and `window`, direction, correction, `alpha` in (0, 1], the `"auroc"` test's settings and the Statistics and Machine Learning Toolbox the tests need), `sessions` (the known values, `minSessions`; with `sessions.enabled` no probe map, unit correlation or spectral panel, no auROC baseline, a mapping file for `match "mapping"` and a unit observation for it: [rules](#validating-session-figures)) and `grid` (rows, columns, relative sizes, spacing) hold known values; each panel has an id of its own, a known type, a place inside the grid that no other panel overlaps, and its own `ref` / `window` / `selection` only when its type is aligned; the figure's common options (bins, measure, baseline, auROC, waveform), checked once, and a linked panel's type taking the common baseline mode; each enabled layer's source, binding, aggregate, channels, events (`eventsAs`, event reference, marker, size) and line style fit its panel type; a raster has rows, not marks alone; each type's options as drawn (a linked panel's common fields are the common options'); the style ([rules](#validating-figures)) | error |
+| Figures | at least one figure or session figure enabled (`No figure is enabled.`); the figure id is not empty, file-name safe and distinct once sanitized from the other figures' (`{Plot}` fills the files' names, case-blind); the figure's alignment is valid; `observe` (kind, source, signal, channels, `maxUnits`; on a figure that observes units, an enabled `units.response` test at `<figure>.observe.units.response.<field>` and each spike layer's at `<figure>.<panel>.layers(<j>).units.response.<field>`: the test, `param` for tuning / either / both, ordered `baseline` and `window`, direction, correction, `alpha` in (0, 1], the `"auroc"` test's settings and the Statistics and Machine Learning Toolbox the tests need), `sessions` (the known values, `minSessions`; with `sessions.enabled` no probe map, unit correlation or spectral panel, no auROC baseline, a mapping file for `match "mapping"` and a unit observation for it: [rules](#validating-session-figures)) and `grid` (rows, columns, relative sizes, spacing) hold known values; each panel has an id of its own, a known type, a place inside the grid that no other panel overlaps, and its own `ref` / `window` / `selection` only when its type is aligned; each enabled layer's source, binding, aggregate, channels, events (`eventsAs`, event reference, marker, size) and line style fit its panel type; a raster has rows, not marks alone; each type's options; the style ([rules](#validating-figures)) | error |
 | Figures | no panels; cells no panel covers; a panel with no enabled layer, or with several on a type that draws one; an explicit unit or channel observation with no layer following it; a session figure's `datasets "list"` with no keys, `showMembers` with `series "session"`, `trialGroups "pool"` over grouped trials, `"combine"` over PSTH bars, a heat map of trials ([rules](#validating-session-figures)); `observe.perGroup` while the figure's selection groups by nothing (not on a session figure); a signal layer following another signal's channel; a waveforms panel in the probe layout whose first layer follows the observation; a fixed raster, PSTH, rate or tuning layer that may keep more than 8 units; a layer, mark, style, note or overlay color that is not a color; two overlays of a figure with one name ([rules](#validating-figures)) | warning |
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi` positive; `FigureSizeCm` two positive numbers; the folder and file-name patterns use known tokens, and the file-name pattern is not empty; `SessionsFolder` and `Data.Folder` are folder patterns, `Data.FilenamePattern` a file-name pattern, and `Data.MatVersion` is `-v7.3` or `-v7` | error |
 | Export | a file-name pattern without `{Plot}` while several figures are enabled (every figure's `{Kind}` is `figure`, so only `{Plot}`, the figure's id, tells their files apart); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |
@@ -2369,36 +2292,34 @@ plots and session plots as figures of the same ids, the converter's notes as
 `LoadWarnings`, saved as version 2); and `figureFileName`.
 
 `test_EphysAnalysisFigures`, in ten sections. Config (1 to 6): the defaults of
-Figure, FigureCommon, Panel, Layer and Observe (`common` after `grid` in a
-figure, `selection` after `window` and `common` after it, then `options`, `note` and `overlays` last in a panel; `FigureCommon` with its `auroc` block;
+Figure, Panel, Layer and Observe (no options block in a figure, `panels` after `grid`;
+`selection` after `window`, then `layers`, `options`, `note` and `overlays` last in a panel; `defaults("FigureCommon")` a `BadSection`;
 the continuous `trials` and `maxTrials` (100), the heat map's `rows` and raster sort fields and `observe.perGroup`);
 `panelTypes` (twelve types, with the rate, tuning and spectral rows' flags), `sourceCategories`,
 `categoryOf`, `observeKind`, `defaultLayer` (an unknown type is a `BadValue`),
-`commonFields` (six, `auroc` among them) and `commonFieldsOf` (the rate and
-tuning rows); `addFigure`'s templates (the `"rate"` and `"tuning"` ones
+`sharedFieldsOf` (none for a waveforms panel or a spectral type); `addFigure`'s templates (the `"rate"` and `"tuning"` ones
 included) and ids and `figureFor`'s resolution (the defaults, a panel's
 own `ref` or `window`, `sharesTime`, `units.source`, the observe kind, options
-completed and re-seeded by a type change, a linked panel taking the common
-bins, baseline, auROC and waveform and an unlinked one its own, a waveforms
-panel's common mode `off` drawn as `both`, its `layout`, a panel's `"default"` selection resolved to the
+completed and re-seeded by a type change, each panel's own bins, baseline,
+auROC and waveform, a waveforms panel's own mode `both`, its `layout`, a panel's `"default"` selection resolved to the
 figure's and its own kept, with time still shared); the JSON round trip (every panel type,
 relative sizes, an events layer with a sequence, fixed and following layers, the
-`"default"` sentinels, the common options and a panel's `common = false`, `perGroup`, a panel's own
+`"default"` sentinels, no `"common"` in the file, `perGroup`, a panel's own
 selection, a continuous panel's `trials` and `maxTrials` and a heat map's `rows` and sort, a cell
 `Figures` from `jsondecode`, a config without `Figures`, unknown fields in
-`LoadWarnings`); `adoptPanelOptions`, `adoptPanelAlignment` (a panel's own selection becomes the figure's)
+`LoadWarnings`); `adoptPanelOptions` (the shared options across types, the rest to a panel of the
+same type, a baseline mode the type does not take kept, what changed, and nothing on a second
+call), `adoptPanelAlignment` (a panel's own selection becomes the figure's)
 and `relinkPanels` (their results and `NoPanel`); `placePanel` in four directions, `removePanel`
 (undoing each exactly), `movePanel` and `figureCells`; `DuplicateFigureId` and
 `DuplicatePanelId`; every validate rule of figures (only the known layer sources and
-panel types; the common block's bins, measure, baseline, auROC and waveform
-checked once; a common baseline mode a linked continuous panel does not take,
-and a common auROC baseline a linked continuous one does not; a PSTH's baseline
+panel types; a PSTH's baseline
 mode (no `ratio`), `auroc` windows and positive `stackSpacing`; a heat map's
 `modulation` order and the auROC baseline of a signal layer; a waveforms
 panel's `layout` and the probe layout's warning; a rate panel's `display`,
 `measure`, baseline mode and `yLim`; a tuning panel's `seriesParam`, `param`
-and waveform; a `"between"` window on a rate and a tuning panel; an unlinked
-PSTH's own auROC windows against its own bins; a continuous panel's `trials` and
+and waveform; a `"between"` window on a rate and a tuning panel; a
+PSTH's auROC windows against its bins; a continuous panel's `trials` and
 `maxTrials`; a heat map of trials, which may follow the observation (but not through a channel), must hold one unit and no signal
 layer or auROC baseline and needs its sort event; a panel's own selection checked as the figure's and
 refused on an unaligned type; the `perGroup` warning; a panel's note (placement, alignments, interpreter,
@@ -2481,7 +2402,7 @@ and events drawn as marks skipped across sessions.
 
 `test_ConfigMigration` (replaces `test_plotToFigure`), in ten sections, on hand-made version-1
 configs: a PSTH grid with its raster, event marks, waveform inset and aux magnitude, field by
-field (observe, panels, layers, options, common, style, notes); the PSTH variants (without
+field (observe, panels, layers, options, style, notes); the PSTH variants (without
 its raster, an overlay, stacking and an auROC baseline carried with `stackRaster` as the one
 note, a raster with its aux above, and `"over"`); a raster; evoked grid, stack and
 butterfly; heat maps of units and of LFP, a probe map and a correlation map; unit waveforms
@@ -2508,7 +2429,7 @@ saved as version 2 (version 3 is `BadSchema`), and, on the analysis fixture, a m
 with its raster, Stim offset marks and aux channels computing and rendering for one unit.
 
 `test_copyFigureSettings` (no fixture): `figureSettingParts` (the parts `observe`,
-`alignment`, `common`, `arrangement`, `style`, `looks` and `sessions`, each with its fields,
+`alignment`, `arrangement`, `style`, `looks` and `sessions`, each with its fields,
 label and description) and `copyFigureSettings` (each part alone with its fields copied and
 the rest, the id, title and `enabled` kept; every part by default; two parts copied in the
 table's order; a copy that validates; `copyFigureSettings:BadPart` for an unknown part).

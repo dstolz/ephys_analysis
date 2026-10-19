@@ -25,9 +25,13 @@ function [fig, notes] = legacyPlotToFigure(p, defaults, layout)
 %                 continuous, waveforms, rate, tuning) and CLim to its
 %                 options.cLim (heatmap, probemap, corrmap); the others,
 %                 when set, are notes
-%     common      the plot's bins, measure, baseline, auroc, maskAfterStop
-%                 and waveform (a PSTH's, raster's or tuning curve's inset;
-%                 a waveforms plot's own settings). A baseline the figure's
+%     the plot's bins, measure, baseline, auroc, maskAfterStop and
+%                 waveform (a PSTH's, raster's or tuning curve's inset; a
+%                 waveforms plot's own settings, its mode "off" drawn as
+%                 "both") go into the options of every panel whose type
+%                 has them (but a raster under a PSTH with an inset, which
+%                 keeps its own waveform, and the aux signal's panel,
+%                 which keeps the aux baseline). A baseline the figure's
 %                 panels do not take (a signal's other than subtract)
 %                 becomes "none"; the auROC baseline of a PSTH or heat map
 %                 of spikes is carried with its auroc settings
@@ -135,13 +139,8 @@ for f = ["MaxTiles" "TileSpacing" "XLim" "YLim" "CLim"]
 end
 fig.style = st;
 
-cm = EphysAnalysisConfig.defaults("FigureCommon");
-cm.bins = p.bins;
-cm.measure = p.measure;
-cm.maskAfterStop = p.maskAfterStop;
-cm.waveform = p.waveform;
-cm.baseline = p.baseline;
-cm.auroc = p.auroc;
+cm = struct('bins', p.bins, 'measure', p.measure, 'baseline', p.baseline, 'auroc', p.auroc, ...
+    'maskAfterStop', p.maskAfterStop, 'waveform', p.waveform);   % the plot's options every panel of the figure takes
 if ismember(p.kind, ["evoked" "corrmap"]) || (p.kind == "heatmap" && ~spikes)
     modes = ["none" "subtract"];
 elseif ismember(p.kind, ["rate" "tuning"])
@@ -183,7 +182,7 @@ switch p.kind
             if p.withRaster
                 r = panelOf("raster", rasterOptions(), [{follow}, markLayers()]);
                 if p.waveform.mode ~= "off"   % the inset sits in the PSTH, as the plot drew it
-                    r.common = false;
+                    r.plotOptions = false;
                     r.options.maskAfterStop = p.maskAfterStop;
                 end
                 addPanel(r, 1);
@@ -329,7 +328,16 @@ elseif n > 1
     g.rowHeights = ones(1, n);
 end
 fig.grid = g;
-fig.common = cm;
+T = EphysAnalysisConfig.panelTypes();
+for j = 1:n   % the plot's options, in every panel that takes them
+    if P{j}.plotOptions
+        for f = string(fieldnames(cm)).'
+            if isfield(T.DefaultOptions{T.Type == P{j}.type}, f); P{j}.options.(f) = cm.(f); end
+        end
+        if P{j}.type == "waveforms" && P{j}.options.waveform.mode == "off"; P{j}.options.waveform.mode = "both"; end
+    end
+    P{j} = rmfield(P{j}, 'plotOptions');
+end
 fig.panels = P;
 fig = EphysAnalysisConfig.normalizeFigure(fig, "Figure");
 
@@ -387,7 +395,7 @@ fig = EphysAnalysisConfig.normalizeFigure(fig, "Figure");
     end
 
     function q = panelOf(type, options, layers)
-        q = struct('type', type, 'common', true, 'options', options, 'layers', {layers});
+        q = struct('type', type, 'plotOptions', true, 'options', options, 'layers', {layers});   % plotOptions: takes the plot's bins, baseline, ...
     end
 
     function addPanel(q, h)
@@ -417,7 +425,7 @@ fig = EphysAnalysisConfig.normalizeFigure(fig, "Figure");
             addNote("The aux byGroup off (one trace over every epoch) is not carried: the panel draws one trace per trial group.");
         end
         x = panelOf("continuous", o, {L});
-        x.common = false;   % its own baseline, as the plot's aux had
+        x.plotOptions = false;   % its own baseline, as the plot's aux had
         h = 1;
         heights(:) = 2;   % the unit's panels twice the aux panel's height, as the plot drew them
         if a.placement == "above"

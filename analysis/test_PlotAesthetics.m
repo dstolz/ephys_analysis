@@ -171,7 +171,6 @@ check(strcmp(errorId(@() PlotAesthetics.edit(axes(figure('Visible', 'off')))), '
 fprintf('\n== 5. the editor: live edits, Apply to, Reset, Cancel ==\n');
 fig2 = figure('Visible', 'off', 'Position', [100 100 700 800]);
 spec2 = Cp.spec;
-spec2.panels(2).common = false;
 spec2.panels(2).options.histStyle = "line";
 spec2.panels(2).options.fill = false;
 h = renderFigure(Cp.F, spec2, fig2, Editable=true, OnRemember=@(r) setappdata(0, 'aestheticsGot', r));

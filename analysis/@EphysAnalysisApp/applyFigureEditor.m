@@ -105,24 +105,6 @@ offerItems(E.errEdge, string(E.errEdge.Items), pick(s.ErrorEdgeColor, "none"));
 E.errEdgeStyle.Value = char(pickFrom(s.ErrorEdgeStyle, string(E.errEdgeStyle.ItemsData), "-"));
 E.errEdgeWidth.Value = min(E.errEdgeWidth.Limits(2), max(E.errEdgeWidth.Limits(1), s.ErrorEdgeWidth));
 
-% the common options every linked panel takes
-c = fig.common;
-E.cmBinMs.Value = max(E.cmBinMs.Limits(1), 1000 * c.bins.BinSec);
-E.cmSmoothMs.Value = max(0, 1000 * c.bins.SmoothSec);
-offerItems(E.cmMeasure, ["rate" "count" "probability"], c.measure);
-offerItems(E.cmBaselineMode, ["none" "subtract" "zscore" "percent" "ratio" "auroc"], c.baseline.Mode);
-E.cmBaseFrom.Value = c.baseline.Window(1);
-E.cmBaseTo.Value = c.baseline.Window(2);
-aurocPlotTo(E, "cmAu", c.auroc);
-E.cmMaskAfterStop.Value = logical(c.maskAfterStop);
-wv = c.waveform;
-E.cmWaveMode.Value = char(pickFrom(wv.mode, string(E.cmWaveMode.ItemsData), "off"));
-E.cmWaveSpikes.Value = min(E.cmWaveSpikes.Limits(2), max(E.cmWaveSpikes.Limits(1), round(wv.maxSpikes)));
-E.cmWaveLocation.Value = char(pickFrom(wv.location, string(E.cmWaveLocation.ItemsData), "northeast"));
-E.cmWaveBox.Value = wv.box;
-E.cmWaveScale.Value = min(E.cmWaveScale.Limits(2), max(E.cmWaveScale.Limits(1), wv.scale));
-E.cmWavePP.Value = wv.showPP;
-E.cmWaveCount.Value = wv.showCount;
 n = numel(fig.aesthetics);
 E.looksText.Text = sprintf("%d remembered look(s); right-click the preview to edit.", n);
 E.looksForget.Enable = matlab.lang.OnOffSwitchState(n > 0);
@@ -177,9 +159,8 @@ E.panelSameSel.Value = ~isstruct(p.selection);   % its own trial selection, else
 if isstruct(p.selection); psel = p.selection; end
 obj.applyAlignControls(obj.PanelAlignControls, pref, pwin, psel);
 
-% options: the rows of the panel type's fields, as drawn (a linked panel's common fields: the figure's)
-E.panelCommon.Value = p.common;
-op = EphysAnalysisConfig.panelOptions(fig, p);
+% options: the rows of the panel type's fields
+op = p.options;
 first = "";
 on = [p.layers.enabled];
 if any(on); first = p.layers(find(on, 1)).source; end

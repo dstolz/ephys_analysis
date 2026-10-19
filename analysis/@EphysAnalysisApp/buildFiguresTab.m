@@ -57,12 +57,14 @@ function buildFiguresTab(obj)
 %   Right   the dataset, the observation picked (figureObservations' labels)
 %           with < and > (Page Up / Page Down), Preview, Generate (the
 %           figure for every observation on every ticked dataset, into the
-%           Export folder: onGenerateFigure), Auto, the Design row (the
-%           design every figure is drawn in, also in the Design menu:
-%           onDesignChosen; Save look as design...: the preview's look as a
-%           design of yours, onSaveDesign), the preview panel (refreshFigurePreview: computeFigure
+%           Export folder: onGenerateFigure), Auto, the Design drop-down
+%           right of them (the design every figure is drawn in, also in
+%           the Design menu: onDesignChosen; Save look as design... under
+%           it: the preview's look as a design of yours, onSaveDesign),
+%           the preview panel (refreshFigurePreview: computeFigure
 %           and renderFigure for that one observation), its badge
-%           (setFigurePreviewState) and status line.
+%           (setFigurePreviewState) and status line, with Open in window at its
+%           right (onOpenFigureWindow: the figure in a figure() of its own).
 g = uigridlayout(obj.TabFigures, [1 3]);
 g.ColumnWidth = {285, 470, '1x'};
 g.Padding = [8 8 8 8];
@@ -1171,58 +1173,61 @@ obj.FigureSections = sec;
 obj.layoutFigureEditor();
 
 % --- right: the observation picker and the preview ----------------------------------------------
-pg = uigridlayout(g, [5 6]);
-pg.RowHeight = {30, 30, 30, '1x', 26};
-pg.ColumnWidth = {100, 100, 'fit', 'fit', '1x', 'fit'};
+pg = uigridlayout(g, [4 7]);
+pg.RowHeight = {30, 30, '1x', 30};
+pg.ColumnWidth = {84, 84, 'fit', '1x', 'fit', 125, 0};
+pg.ColumnSpacing = 6;
 pg.Padding = [0 0 0 0];
 obj.FigurePreviewButton = uibutton(pg, "Text", "Preview", ...
     "Tooltip", "Compute and draw the selected figure for the observation picked, on the active dataset. " + ...
     "Orange: the figure changed since it was drawn.", ...
     "ButtonPushedFcn", @(~,~) obj.refreshFigurePreview(Force=true));
-obj.FigurePreviewButton.Layout.Row = [1 2]; obj.FigurePreviewButton.Layout.Column = 1;
+obj.FigurePreviewButton.Layout.Row = 1; obj.FigurePreviewButton.Layout.Column = 1;
 obj.FigureGenerateButton = uibutton(pg, "Text", "Generate", "Enable", "off", ...
     "Tooltip", "Draw this figure for every observation it selects, on every ticked dataset, into the Export folder", ...
     "ButtonPushedFcn", @(~,~) obj.onGenerateFigure());
-obj.FigureGenerateButton.Layout.Row = [1 2]; obj.FigureGenerateButton.Layout.Column = 2;
+obj.FigureGenerateButton.Layout.Row = 1; obj.FigureGenerateButton.Layout.Column = 2;
 obj.FigureAutoCheckBox = uicheckbox(pg, "Text", "Auto", "Value", true, ...
     "Tooltip", "Redraw on every change while a preview takes under " + obj.AutoPreviewSeconds + " s (one observation is quick).", ...
     "ValueChangedFcn", @(~,~) obj.onFigureAutoPreviewToggled());
-obj.FigureAutoCheckBox.Layout.Row = 1; obj.FigureAutoCheckBox.Layout.Column = 3;
+obj.FigureAutoCheckBox.Layout.Row = 2; obj.FigureAutoCheckBox.Layout.Column = 1;
 kg = uigridlayout(pg, [1 2], "ColumnWidth", {34, 34}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);
-kg.Layout.Row = 2; kg.Layout.Column = 3;
+kg.Layout.Row = 2; kg.Layout.Column = 2;
 obj.FigureObsPrevButton = uibutton(kg, "Text", "<", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onFigureObservationStep(-1), ...
     "Tooltip", "The previous observation (Page Up).");
 obj.FigureObsNextButton = uibutton(kg, "Text", ">", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onFigureObservationStep(1), ...
     "Tooltip", "The next observation (Page Down).");
 l = uilabel(pg, "Text", "Dataset:");
-l.Layout.Row = 1; l.Layout.Column = 4;
+l.Layout.Row = 1; l.Layout.Column = 3;
 obj.FiguresDatasetDropDown = uidropdown(pg, "Items", "(scan first)", "ItemsData", 0, ...
     "ValueChangedFcn", @(dd, ~) obj.selectDataset(dd.Value), "Tooltip", "The active dataset (the same on every tab).");
-obj.FiguresDatasetDropDown.Layout.Row = 1; obj.FiguresDatasetDropDown.Layout.Column = [5 6];
+obj.FiguresDatasetDropDown.Layout.Row = 1; obj.FiguresDatasetDropDown.Layout.Column = 4;
 l = uilabel(pg, "Text", "Observation:");
-l.Layout.Row = 2; l.Layout.Column = 4;
+l.Layout.Row = 2; l.Layout.Column = 3;
 obj.FigureObservationDropDown = uidropdown(pg, "Items", "(no observation)", "ItemsData", 0, ...
     "ValueChangedFcn", @(~,~) obj.onFigureObservationChanged(), ...
     "Tooltip", "What the preview draws the figure for: one of the units, channels or the dataset the Observations " + ...
     "section keeps, in probe order. Each figure remembers its pick.");
-obj.FigureObservationDropDown.Layout.Row = 2; obj.FigureObservationDropDown.Layout.Column = [5 6];
-% the design every figure is drawn in (PlotDesign; also the Design menu), and the preview's look kept as one
-dg = uigridlayout(pg, [1 4], "ColumnWidth", {'fit', 220, 'fit', '1x'}, "Padding", [0 0 0 0], "ColumnSpacing", 8);
-dg.Layout.Row = 3; dg.Layout.Column = [1 6];
-uilabel(dg, "Text", "Design:");
-obj.DesignDropDown = uidropdown(dg, "Items", PlotDesign.DefaultName, "ItemsData", PlotDesign.DefaultName, ...
+obj.FigureObservationDropDown.Layout.Row = 2; obj.FigureObservationDropDown.Layout.Column = 4;
+% the design every figure is drawn in (PlotDesign; also the Design menu), right of the Dataset and Observation
+% drop-downs, and the preview's look kept as one
+l = uilabel(pg, "Text", "Design:");
+l.Layout.Row = 1; l.Layout.Column = 5;
+obj.DesignDropDown = uidropdown(pg, "Items", PlotDesign.DefaultName, "ItemsData", PlotDesign.DefaultName, ...
     "ValueChangedFcn", @(dd, ~) obj.onDesignChosen(dd.Value), ...
     "Tooltip", "The look of every figure: its ground, colors, fonts, axes, ticks, lines and marks. " + ...
     "Choosing one redraws every figure on screen; runs draw their figures in it too.");
-obj.SaveDesignButton = uibutton(dg, "Text", "Save look as design...", "ButtonPushedFcn", @(~,~) obj.onSaveDesign(), ...
+obj.DesignDropDown.Layout.Row = 1; obj.DesignDropDown.Layout.Column = [6 7];
+obj.SaveDesignButton = uibutton(pg, "Text", "Save look as design...", "ButtonPushedFcn", @(~,~) obj.onSaveDesign(), ...
     "Tooltip", "Keep the preview's look -- every property of every component, its ground and its group " + ...
     "colors -- as a design of your own, to choose for any figure. The axes of heat map, probe map, " + ...
     "correlation map and spectrogram panels are kept for those panel types only. Preview first if the " + ...
     "preview is out of date.");
+obj.SaveDesignButton.Layout.Row = 2; obj.SaveDesignButton.Layout.Column = [5 7];
 obj.FigurePreviewPanel = uipanel(pg, "BackgroundColor", "w", "BorderType", "line");
-obj.FigurePreviewPanel.Layout.Row = 4; obj.FigurePreviewPanel.Layout.Column = [1 6];
-sg = uigridlayout(pg, [1 3], "ColumnWidth", {'fit', '1x', 0}, "Padding", [0 0 0 0], "ColumnSpacing", 8);
-sg.Layout.Row = 5; sg.Layout.Column = [1 6];
+obj.FigurePreviewPanel.Layout.Row = 3; obj.FigurePreviewPanel.Layout.Column = [1 7];
+sg = uigridlayout(pg, [1 4], "ColumnWidth", {'fit', '1x', 0, 130}, "Padding", [0 0 0 0], "ColumnSpacing", 8);
+sg.Layout.Row = 4; sg.Layout.Column = [1 7];
 B.Grid = uigridlayout(sg, [1 2], "ColumnWidth", {18, 'fit'}, "Padding", [6 2 10 2], "ColumnSpacing", 5);
 B.Icon = uiimage(B.Grid, "ScaleMethod", "fit");
 B.Text = uilabel(B.Grid, "FontWeight", "bold");
@@ -1232,6 +1237,11 @@ obj.FigureSessionDropDown = uidropdown(sg, "Items", "(all)", "ItemsData", 1, "Vi
     "ValueChangedFcn", @(~,~) obj.onFigureSessionPicked(), ...
     "Tooltip", "A figure across sessions makes one figure per subject (Figures: one per subject) or per trial group " + ...
     "(Trial groups: a figure per group): the one the preview shows.");   % its column opens when there are several
+obj.FigureOpenButton = uibutton(sg, "Text", "Open in window", "Enable", "off", ...
+    "Tooltip", "Draw the figure as previewed into a new MATLAB figure window of its own (the right-click editor works there too). " + ...
+    "It is independent of this app: later edits do not follow into it. An out-of-date preview is redrawn first.", ...
+    "ButtonPushedFcn", @(~,~) obj.onOpenFigureWindow());
+obj.FigureOpenButton.Layout.Row = 1; obj.FigureOpenButton.Layout.Column = 4;
 obj.setFigurePreviewState("idle");
 end
 

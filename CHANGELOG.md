@@ -10,6 +10,9 @@ says how to cut a release.
 
 ### Added
 
+- **Open in window** on the Figures tab, under the preview: draws the figure as previewed into a regular MATLAB
+  figure window of its own (`onOpenFigureWindow`; named *id: observation (dataset)*, the right-click
+  aesthetics editor works there). An out-of-date preview is redrawn first; the window does not follow later edits.
 - Adaptive weighted CAR for the derived signals (Khorasani, Shalchyan & Daliri 2019, *Front. Neurosci.*
   13:350): each channel minus its own Kalman-tracked share of the plain CAR, so an artifact that reaches
   the channels at different strengths is removed from each. The new `weightedCAR` computes the shared
@@ -950,6 +953,9 @@ says how to cut a release.
 
 ### Changed
 
+- The Figures tab's **Design** drop-down and **Save look as design...** sit right of the **Dataset** and
+  **Observation** drop-downs; the freed row goes to the preview. **Preview** and **Generate** are one row high,
+  with **Auto** and **<** **>** under them.
 - The analysis config is version 2: it holds `Figures` only. A version 1 file is migrated once when it
   is loaded (`load`, and `fromStruct` for a struct whose version is 1): every plot becomes a figure of
   the same id, every session plot a session figure (`match "pool"` becomes `"site"`, aux looks are

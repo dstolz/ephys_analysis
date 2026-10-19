@@ -27,8 +27,11 @@ function syncFigureEditor(obj)
 %                    unit rows, a fixed signal layer's channels, the
 %                    aggregate on a raster, PSTH or continuous panel; an
 %                    events layer's line, edge, sequence and how it is
-%                    drawn (a mark's look for marks); the color and line
-%                    style but for marks
+%                    drawn (a mark's look for marks, the color and span
+%                    line for a span; Draw as grayed out on an event-trace
+%                    panel, which offers a train only on a raster, PSTH or
+%                    heat map); the color and line style but for marks
+%                    and spans
 %     Options        the panel type's own (titled "<Type> options"); a heat
 %                    map of a signal has no bins or measure; a PSTH's or a
 %                    spike heat map's auROC rows with the auroc baseline
@@ -47,7 +50,10 @@ function syncFigureEditor(obj)
 %                    spectrum or spectrogram; a spectrogram's moving window,
 %                    baseline, color limits and group; a coherence panel's
 %                    over-time box, its phase box or, over time, the moving
-%                    window, color limits and group)
+%                    window, color limits and group); an event-trace
+%                    panel's rows (the bar outline with bars, the level
+%                    line with a line, the group bands with a sub-row per
+%                    epoch, the baseline's look with a baseline)
 %     Text note, Overlays   with a panel selected: the panel's note rows
 %                    (its look enabled with text; x and y with "At x, y")
 %                    and its overlay list with the rows of the overlay
@@ -156,13 +162,14 @@ v.panelType = hasPanel; v.panelTitle = hasPanel; v.panelBox = hasPanel; v.group 
 % layers and options: off unless the panel uses them
 layerKeys = ["layerList" "layerAdd" "layerNote" "layerName" "layerSource" "layerBinding" "layerFollows" "layerClasses" ...
     "layerIds" "layerQuality" "layerMaxUnits" "layerShanks" "layerUnitChannels" "layerChannels" "layerAggregate" "evLine" ...
-    "evEdge" "evSeqText" "evDrawAs" "evMarker" "evColor" "layerColor" "layerLineStyle"];
+    "evEdge" "evSeqText" "evDrawAs" "evMarker" "evColor" "evSpanStyle" "layerColor" "layerLineStyle"];
 optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort" "sortLine" "sortSeqText" "rasterByGroup" "yTicks" ...
     "maskAfterStop" "histStyle" "fill" "normalize" "contDisplay" "statistic" "errorType" "stackSpacing" "order" ...
     "value" "metric" "correlation" "fisherZ" "yLim" "cLim" "waveMode" "waveLocation" "waveScale" "wavePP" ...
     "optApplyAll" "auMethod" "auWinMs" "auModFrom" "auCutoff" "auTest" "auMarks" "stack" "param" "rateDisplay" "waveLayout" ...
     "contTrials" "heatRows" "spTimeBase" "spRangeFrom" "spSegment" "spTaperMode" "spTW" "spW" "spPad" "spFmin" "spErr" ...
-    "spDetrend" "spScale" "spSpikeFs" "spOverTime" "spWin" "spShowPhase"];
+    "spDetrend" "spScale" "spSpikeFs" "spOverTime" "spWin" "spShowPhase" "etDisplay" "etTrials" "etColorBy" "etHeight" ...
+    "etEdge" "etLineStyle" "etBaseline" "etBaseStyle" "etRowSpacing"];
 noteKeys = ["annText" "annPlace" "annX" "annAlign" "annRotation" "annFont" "annBold" "annColor" "annInterp"];
 overlayKeys = ["ovList" "ovName" "ovKind" "ovValue" "ovFrom" "ovLayer" "ovColor" "ovFill" "ovEdge" "ovStyle"];
 for f = [layerKeys optionKeys noteKeys overlayKeys]; v.(f) = false; end
@@ -213,7 +220,9 @@ if hasPanel
         isSpike = ismember(L.source, spikes);
         isSignal = ismember(L.source, signals);
         fixed = L.binding == "fixed";
-        marks = L.source == "events" && L.eventsAs == "marks";
+        onTrace = t == "eventTrace";   % an event-trace panel draws its events layers its own way: no Draw as, marker or span
+        marks = L.source == "events" && L.eventsAs == "marks" && ~onTrace;
+        span = L.source == "events" && L.eventsAs == "span" && ~onTrace;
         v.layerName = true; v.layerSource = true; v.layerBinding = true;
         v.layerFollows = ~fixed && (isSpike || isSignal);
         v.layerClasses = fixed && L.source == "units";
@@ -222,12 +231,13 @@ if hasPanel
         v.layerChannels = fixed && isSignal;
         v.layerAggregate = fixed && (isSpike || isSignal) && ismember(t, ["raster" "psth" "continuous" "rate" "tuning"]);
         v.evLine = L.source == "events"; v.evEdge = v.evLine; v.evSeqText = v.evLine; v.evDrawAs = v.evLine;
-        v.evMarker = marks; v.evColor = marks;
-        v.layerColor = ~marks; v.layerLineStyle = ~marks;
+        v.evMarker = marks; v.evColor = marks || span; v.evSpanStyle = span;
+        v.layerColor = ~(marks || span); v.layerLineStyle = v.layerColor;
         if ~lc.Bindable; E.layerBinding.Value = "fixed"; end
         en(E.layerBinding, lc.Bindable);
         en(E.layerQuality, L.source == "units");
-        en(E.evDrawAs, ismember(t, ["raster" "psth" "heatmap"]));
+        drawAsChoices(E.evDrawAs, t);
+        en(E.evDrawAs, ~onTrace);
         what = "unit";
         if isSignal; what = "channel"; end
         set(E.layerAggregate, "Items", ["each " + what "their mean"], "ItemsData", ["each" "mean"]);
@@ -255,6 +265,14 @@ if hasPanel
     v.histStyle = t == "psth"; v.fill = v.histStyle; v.normalize = v.histStyle;
     v.contDisplay = t == "continuous"; v.statistic = v.contDisplay; v.errorType = v.contDisplay; v.stackSpacing = v.contDisplay;
     v.order = t == "heatmap" && ~trialHeat;
+    et = t == "eventTrace";   % an event-trace panel's rows; those its display or trials do not use stay grayed out
+    v.etDisplay = et; v.etTrials = et; v.etColorBy = et; v.etHeight = et; v.etEdge = et; v.etLineStyle = et;
+    v.etBaseline = et; v.etBaseStyle = et; v.etRowSpacing = et;
+    bars = string(E.etDisplay.Value) == "bars";
+    en([E.etEdge E.etEdgeWidth], bars);
+    en([E.etLineStyle E.etLineWidth], ~bars);
+    en(E.etGroupBands, string(E.etTrials.Value) == "rows");
+    en([E.etBaseColor E.etBaseStyle E.etBaseWidth], E.etBaseline.Value);
     if trialHeat; v.group = false; end   % a heat map of trials draws every group
     v.value = t == "probemap";
     v.metric = t == "corrmap"; v.correlation = v.metric; v.fisherZ = v.metric;

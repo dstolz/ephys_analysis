@@ -897,7 +897,10 @@ Every object a renderer draws is named by its *role* and, where it draws
 one, its *group*: the PSTH line or fill, error band, mean stop line and a
 stack's row baselines, the event line, the auROC's 0.5 line, modulation
 window and call marks, raster ticks, group band, stop dots and event
-marks (`rasterEvent`, one group per line and edge), a mean or channel
+marks (`rasterEvent`, one group per line and edge), an event's span from
+onset to offset (`eventSpan`), an event-trace panel's bars, logic levels,
+baselines and group bands (`eventBar`, `eventLevel`, `eventBaseline`,
+`eventGroupBand`, one group per line, or per trial group), a mean or channel
 trace, bars, error bars, boxes, points and mean bars, a tuning curve, an
 image, probe sites (with and without a value), site and shank labels,
 unit positions, and a unit waveform's box, spikes, mean and amplitude

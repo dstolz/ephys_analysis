@@ -60,8 +60,9 @@ modes = figureEditorChoices(new, first).BaselineModes;
 for f = string(fieldnames(op)).'
     % same names, other meanings: an inset vs a waveforms panel's own waveform; a continuous panel's display (lines |
     % stacked) and stackSpacing (an offset in the signal's units) vs a rate panel's display (bar | box | points) and a
-    % PSTH's stackSpacing (x the tallest PSTH): the new type's defaults
-    if ismember(f, ["waveform" "display" "stackSpacing"]) || ~isfield(p.options, f); continue; end
+    % PSTH's stackSpacing (x the tallest PSTH); a continuous panel's trials (off | faint | only) vs an event-trace
+    % panel's (overlay | rows): the new type's defaults
+    if ismember(f, ["waveform" "display" "stackSpacing" "trials"]) || ~isfield(p.options, f); continue; end
     v = p.options.(f);
     if f == "baseline" && ~ismember(v.Mode, modes); v.Mode = "none"; end
     op.(f) = v;

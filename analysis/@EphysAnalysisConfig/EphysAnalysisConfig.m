@@ -144,7 +144,7 @@ classdef EphysAnalysisConfig
         % How the observed unit is matched across sessions (a figure observes one matched unit), and the panel types
         % combineSessions does not merge (a session figure holds none).
         FigureSessionMatches = ["site" "mapping"]
-        FigureSessionUnmerged = ["probemap" "corrmap" "spectrum" "spectrogram" "coherence"]
+        FigureSessionUnmerged = ["probemap" "corrmap" "spectrum" "spectrogram" "coherence" "eventTrace"]
         % String fields that are lists even when their default has one element.
         ListFields = ["response" "pairingFlags" "groupBy" "classes" "groups" "Formats" "Datasets" "Folders" "datasetKeys"]
     end
@@ -438,7 +438,8 @@ classdef EphysAnalysisConfig
             %   probe map or correlation map. An events layer is "point" in
             %   every panel that shares the time axis (raster, psth,
             %   continuous, heatmap, spectrogram: marks or latency lines), whatever its
-            %   categories, and "" elsewhere.
+            %   categories, and "" elsewhere. An event-trace panel draws
+            %   events layers only: any other source is "" there.
             cat = "";
             T = EphysAnalysisConfig.panelTypes();
             row = T.Type == string(type);
@@ -447,6 +448,7 @@ classdef EphysAnalysisConfig
                 if T.SharesTime(row); cat = "point"; end
                 return
             end
+            if string(type) == "eventTrace"; return; end
             S = EphysAnalysisConfig.sourceCategories();
             for c = T.Categories{row}
                 if ismember(string(source), S.Sources{S.Category == c})
@@ -486,7 +488,8 @@ classdef EphysAnalysisConfig
             %   L = EphysAnalysisConfig.defaultLayer(TYPE) is defaults("Layer")
             %   with the first source of the type's first category (units
             %   for raster / psth / heatmap / waveforms / probemap /
-            %   corrmap, LFP for continuous) and the
+            %   corrmap, LFP for continuous; an events layer, fixed, for
+            %   eventTrace) and the
             %   type's DefaultBinding, so a new panel draws at once.
             %   Error: EphysAnalysisConfig:BadValue (an unknown type).
             T = EphysAnalysisConfig.panelTypes();
@@ -499,6 +502,7 @@ classdef EphysAnalysisConfig
             srcs = S.Sources{S.Category == cats(1)};
             L = EphysAnalysisConfig.defaults("Layer");
             L.source = srcs(1);
+            if string(type) == "eventTrace"; L.source = "events"; end   % its only source
             L.binding = T.DefaultBinding(row);
         end
 

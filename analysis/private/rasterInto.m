@@ -36,6 +36,10 @@ function rows = rasterInto(ax, R, u, style, colors, sortBy, look)
 %   export small. With ShowStop each epoch's stop event is a dot. The axes
 %   are styled (styleAxes) without Style.YLim: that is for rates, and every
 %   row stays in view.
+%   R.rasterSpans (optional: label, epoch, on, off, color, style, width,
+%   alpha) draws a line on each epoch's row from each interval's onset to
+%   its offset, clipped to the window, one line object per span, tagged
+%   "eventSpan" with its label.
 if nargin < 6; sortBy = ""; end
 if nargin < 7; look = struct(); end
 look = rasterLook(look);
@@ -99,6 +103,20 @@ if isfield(R, 'rasterEvents') && ~isempty(R.rasterEvents)
         tagPart(line(ax, ev.t(ok), y(ev.epoch(ok)), 'LineStyle', 'none', 'Marker', mks(m).marker, ...
             'MarkerSize', mks(m).size, 'Color', mks(m).color, 'MarkerFaceColor', mks(m).color, 'HandleVisibility', 'off'), ...
             "rasterEvent", ev.label);
+    end
+end
+if isfield(R, 'rasterSpans')   % a line on each row from each interval's onset to its offset, clipped to the window
+    for m = 1:numel(R.rasterSpans)
+        s = R.rasterSpans(m);
+        x0 = max(s.on(:), W(1));
+        x1 = min(s.off(:), W(2));
+        yy = y(s.epoch(:));
+        ok = x1 >= x0 & isfinite(yy(:));
+        n = nnz(ok);
+        X = [x0(ok) x1(ok) NaN(n, 1)].';
+        Y = [yy(ok) yy(ok) NaN(n, 1)].';
+        tagPart(line(ax, X(:), Y(:), 'Color', [s.color s.alpha], 'LineStyle', char(s.style), 'LineWidth', s.width, ...
+            'HandleVisibility', 'off'), "eventSpan", s.label);
     end
 end
 if style.ShowZeroLine && ~into

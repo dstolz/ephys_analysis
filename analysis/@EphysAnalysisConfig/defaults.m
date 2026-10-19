@@ -192,6 +192,9 @@ switch section
         s.marker = "diamond";           % a line marker (PlotAesthetics' list: o, square, diamond, ^, v, |, ...)
         s.size = 4;                     % marker size, points
         s.color = "";                   % "" = the mark's automatic color (rasterMarkColor); or a name / #rrggbb
+        s.spanStyle = "-";              % eventsAs "span": the onset-to-offset line's style ("-" | "--" | ":" | "-.")
+        s.spanWidth = 1.5;              % ... its width, points
+        s.spanAlpha = 1;                % ... its opacity 0-1
 
     case "Overlay"
         % one graphic drawn on a panel's axes in data units (drawOverlays): a line across the axis, or a semitransparent
@@ -257,7 +260,7 @@ switch section
             'channels',    [], ...              % fixed continuous layers: the extract's columns ([] = all)
             'aggregate',   "each", ...          % several units / channels: "each" (a trace or block each) | "mean" (their mean, a band across them)
             'event',       EphysAnalysisConfig.defaults("EventMark"), ...   % source events: the line, edge, which / scope / sequence, and the mark's look
-            'eventsAs',    "marks", ...         % source events: "marks" (on raster rows; latency lines elsewhere) | "train" (the events as a spike train)
+            'eventsAs',    "marks", ...         % source events: "marks" (on raster rows; latency lines elsewhere) | "train" (the events as a spike train) | "span" (a line from each onset to its offset)
             'color',       "", ...              % "" = the group's color; else a name / #rrggbb for every trace of this layer
             'lineStyle',   "");                 % "" = by layer order (- -- : -.); else one of OverlayLineStyles
 

@@ -162,14 +162,14 @@ check(~FS.enabled && FS.datasets == "ticked" && isstring(FS.datasetKeys) && iseq
     && isequaln(EphysAnalysisConfig.defaults("Figure").sessions, FS), 'defaults("FigureSessions"), the Figure''s sessions block');
 
 spectralTypes = ["spectrum" "spectrogram" "coherence"];
-check(isequal(T.Type.', [types spectralTypes]) && isequal(string(T.Properties.VariableNames), ["Type" "Label" "Categories" "Aligned" ...
-    "SharesTime" "OneGroup" "MultiLayer" "DefaultBinding" "Description" "DefaultOptions"]), 'panelTypes: the twelve types and the columns');
-check(isequal(T.SharesTime.', [true true true true false false false false false false true false]) ...
-    && isequal(T.Aligned.', [true true true true false false true true true true true true]) ...
-    && isequal(T.OneGroup.', [false false false true false false true false false false true false]) ...
-    && isequal(T.MultiLayer.', [true true true false false false false true true true false true]) ...
+check(isequal(T.Type.', [types spectralTypes "eventTrace"]) && isequal(string(T.Properties.VariableNames), ["Type" "Label" "Categories" "Aligned" ...
+    "SharesTime" "OneGroup" "MultiLayer" "DefaultBinding" "Description" "DefaultOptions"]), 'panelTypes: the thirteen types and the columns');
+check(isequal(T.SharesTime.', [true true true true false false false false false false true false true]) ...
+    && isequal(T.Aligned.', [true true true true false false true true true true true true true]) ...
+    && isequal(T.OneGroup.', [false false false true false false true false false false true false false]) ...
+    && isequal(T.MultiLayer.', [true true true false false false false true true true false true true]) ...
     && isequal(T.DefaultBinding.', ["observation" "observation" "observation" "fixed" "observation" "fixed" "fixed" "observation" "observation" ...
-        "observation" "observation" "observation"]) ...
+        "observation" "observation" "observation" "fixed"]) && T.Label(13) == "Event traces" && isequal(T.Categories{13}, "point") ...
     && isequal(T.Categories{T.Type == "spectrum"}, ["point" "continuous"]) && isequal(T.Categories{T.Type == "spectrogram"}, "continuous") ...
     && isequal(T.Categories{T.Type == "coherence"}, ["point" "continuous"]) && isequal(T.Label(10:12).', ["Power spectrum" "Spectrogram" "Coherence"]) ...
     && isequal(T.Categories{T.Type == "rate"}, "point") && isequal(T.Categories{T.Type == "tuning"}, "point") && T.Label(8) == "Firing rate" && T.Label(9) == "Tuning curve" ...
@@ -198,6 +198,20 @@ check(catOf("units", "raster") == "point" && catOf("detected", "waveforms") == "
     'categoryOf: the category a type draws a source in, else ""');
 check(catOf("events", "continuous") == "point" && catOf("events", "heatmap") == "point" && catOf("events", "raster") == "point" ...
     && catOf("events", "waveforms") == "" && catOf("events", "probemap") == "", 'categoryOf: events fit every time panel, and no other');
+Le = layerOf("eventTrace");
+Oe = T.DefaultOptions{T.Type == "eventTrace"};
+check(catOf("events", "eventTrace") == "point" && catOf("units", "eventTrace") == "" && catOf("detected", "eventTrace") == "" ...
+    && catOf("LFP", "eventTrace") == "" && Le.source == "events" && Le.binding == "fixed" && Le.event.line == "Stim" ...
+    && isempty(EphysAnalysisConfig.sharedFieldsOf("eventTrace")), ...
+    'an event-trace panel draws events layers only (its default layer: an events layer, fixed); it shares no option with other types');
+check(isequal(string(fieldnames(Oe)).', ["display" "trials" "colorBy" "height" "alpha" "edgeColor" "edgeWidth" "lineWidth" ...
+    "lineStyle" "showBaseline" "baselineColor" "baselineStyle" "baselineWidth" "rowSpacing" "groupBands"]) && Oe.display == "bars" ...
+    && Oe.trials == "overlay" && Oe.colorBy == "layer" && Oe.height == 0.6 && isnan(Oe.alpha) && Oe.edgeColor == "none" ...
+    && Oe.showBaseline && Oe.baselineColor == "" && Oe.rowSpacing == 1.25 && Oe.groupBands, ...
+    'panelTypes: the event-trace panel''s DefaultOptions (bars, every epoch overlaid, colored per line, a baseline)');
+Em = EphysAnalysisConfig.defaults("EventMark");
+check(Em.spanStyle == "-" && Em.spanWidth == 1.5 && Em.spanAlpha == 1 && ~isfield(eventMarkRef(Em), 'spanStyle') ...
+    && ~isfield(eventMarkRef(Em), 'spanAlpha'), 'EventMark: a span''s look (style, width, opacity), left out of its event reference');
 D1 = layerOf("continuous");
 D2 = layerOf("probemap");
 D3 = layerOf("heatmap");
@@ -273,7 +287,7 @@ check(EphysAnalysisConfig.observeKind(fu) == "unit" && EphysAnalysisConfig.obser
 fprintf('\n== 2. config: addFigure, templates and ids ==\n');
 FT = EphysAnalysisConfig.figureTemplates();
 check(FT.Template(1) == "rasterPsth" && FT.Label(1) == "Raster over PSTH (per unit)" ...
-    && isequal(FT.Template(2:end-1).', ["psth" "raster" "continuous" "heatmap" "waveforms" "probemap" "corrmap" "rate" "tuning" spectralTypes]) ...
+    && isequal(FT.Template(2:end-1).', ["psth" "raster" "continuous" "eventTrace" "heatmap" "waveforms" "probemap" "corrmap" "rate" "tuning" spectralTypes]) ...
     && FT.Template(end) == "blank", 'figureTemplates: rasterPsth first, one per type, blank last');
 ct = EphysAnalysisConfig();
 ct = ct.addFigure("rate");
@@ -806,7 +820,36 @@ b = base.addFigure("continuous", Id="ct"); evT = evL; evT.eventsAs = "train"; b.
 b2 = base.addFigure("continuous", Id="ct"); b2.Figures(2).panels.layers(2) = evL;
 check(has(b, "ct.continuous_1.layers(2).eventsAs", "error") && isempty(figIssues(b2)), 'a train only on raster / psth / heatmap (marks on continuous)');
 b = base; evB = evL; evB.eventsAs = "bogus"; b.Figures(1).panels(1).layers(2) = evB;
-check(has(b, "figure_1.raster_1.layers(2).eventsAs", "error"), 'eventsAs is marks or train');
+check(has(b, "figure_1.raster_1.layers(2).eventsAs", "error"), 'eventsAs is marks, train or span');
+evS = evL; evS.eventsAs = "span";
+b = base; b.Figures(1).panels(1).layers(2) = evS; b.Figures(1).panels(2).layers(2) = evS;
+b2 = base.addFigure("continuous", Id="ct"); b2.Figures(2).panels.layers(2) = evS;
+b3 = base; b3.Figures(1).panels(1).layers(1) = evS;
+check(isempty(figIssues(b)) && isempty(figIssues(b2)) && has(b3, "figure_1.raster_1.layers", "error"), ...
+    'spans validate clean on a raster with rows, a PSTH and a continuous panel; a raster of spans alone has no rows');
+b = base; evS2 = evS; evS2.event.spanStyle = "~"; evS2.event.spanWidth = 0; evS2.event.spanAlpha = 2; b.Figures(1).panels(1).layers(2) = evS2;
+check(has(b, "figure_1.raster_1.layers(2).event.spanStyle", "error") && has(b, "figure_1.raster_1.layers(2).event.spanWidth", "error") ...
+    && has(b, "figure_1.raster_1.layers(2).event.spanAlpha", "error"), 'a span''s line style, width and opacity');
+b = base.addFigure("eventTrace", Id="et");
+b.Figures(2).panels.layers(2) = evT;   % a train: eventsAs is not used on an event-trace panel
+b.Figures(2).panels.layers(3) = layerOf("raster");
+b.Figures(2).panels.layers(3).binding = "fixed";
+I = figIssues(b);
+check(isempty(I(I.Field ~= "et.eventTrace_1.layers(3).source", :)) && any(I.Field == "et.eventTrace_1.layers(3).source" & I.Severity == "error" ...
+    & I.Message == "An event traces panel draws events layers only (a digital or derived line each), not units."), ...
+    'an event-trace panel takes events layers only (a train among them is fine: eventsAs is not used there)');
+b = base.addFigure("eventTrace", Id="et");
+o = b.Figures(2).panels.options;
+o.display = "dots"; o.trials = "all"; o.colorBy = "unit"; o.height = 1.5; o.alpha = 2; o.edgeColor = "plaid"; o.edgeWidth = 0;
+o.lineStyle = "~"; o.baselineColor = "plaid"; o.baselineStyle = ""; o.baselineWidth = -1; o.rowSpacing = 0; o.lineWidth = NaN;
+b.Figures(2).panels.options = o;
+bad = ["display" "trials" "colorBy" "height" "alpha" "edgeWidth" "lineStyle" "baselineStyle" "baselineWidth" "rowSpacing" "lineWidth"];
+check(all(arrayfun(@(f) has(b, "et.eventTrace_1.options." + f, "error"), bad)) && has(b, "et.eventTrace_1.options.edgeColor", "warning") ...
+    && has(b, "et.eventTrace_1.options.baselineColor", "warning"), 'an event-trace panel''s options: ' + strjoin(bad, ", ") + ...
+    ' errors, a color that is not one a warning');
+b = base.addFigure("eventTrace", Id="et"); b.Figures(2).sessions.enabled = true;
+check(has(b, "et.eventTrace_1.type", "error") && endsWith(figureSessionSkipReason(b.figureFor("et"), ""), "eventTrace panel is not merged across sessions"), ...
+    'a session figure cannot hold an event-trace panel (validate, figureSessionSkipReason)');
 b = base; b.Figures(1).panels(1).layers(1) = evL;
 b2 = base; b2.Figures(1).panels(1).layers(1) = evT;
 check(has(b, "figure_1.raster_1.layers", "error") && ~has(b2, "figure_1.raster_1.layers", "error"), 'a raster of marks alone has no rows (a train has)');
@@ -1212,6 +1255,49 @@ check(Lt.skip == "" && Lt.name == "Stim onset" && Lt.R.labels == "Stim onset" &&
 [~, kPk] = max(sum(Lp.R.rate, 3));
 check(Lp.skip == "" && abs(Lp.R.edges(kPk)) < 1e-9 && nnz(abs(M.t) < 1e-9) == nE && nnz(at0) == nE, ...
     'the train''s PSTH of the Stim line peaks in the bin from 0 when aligned to Stim onset, as epochEvents'' latencies of 0 say');
+
+% events as spans, and an event-trace panel (the Stim and Platform lines, a units layer it refuses)
+    function [ep, on, off] = intervalsOf(line, E)
+        % the oracle: every interval of the line overlapping each epoch's window, s from its event
+        iv = double(src.events.(line));
+        ep = zeros(0, 1); on = zeros(0, 1); off = zeros(0, 1);
+        for hE = 1:height(E)
+            hIn = find(iv(:, 1) <= E.tStop(hE) & iv(:, 2) >= E.tStart(hE));
+            ep = [ep; repmat(hE, numel(hIn), 1)]; %#ok<AGROW>
+            on = [on; iv(hIn, 1) - E.t0(hE)]; %#ok<AGROW>
+            off = [off; iv(hIn, 2) - E.t0(hE)]; %#ok<AGROW>
+        end
+    end
+spanL = ev; spanL.eventsAs = "span";
+fSpan = cfg.Figures(cfg.figureIndex("rp"));
+fSpan.id = "spans";
+fSpan.panels(1).layers = [fSpan.panels(1).layers spanL];
+fSpan.panels(2).layers = [fSpan.panels(2).layers spanL];
+cfg = cfg.addFigure(fSpan);
+Fsp = rn.computeFigure(src, cfg.figureFor("spans"), Observation=Tu(1, :));
+Ss = Fsp.panels(1).layers(2);
+[epS, onS, offS] = intervalsOf("Stim", Fsp.epochs);
+check(Ss.skip == "" && Ss.R.kind == "events" && isempty(Ss.R.marks) && isequal(Ss.R.spans.epoch, epS) ...
+    && max(abs(Ss.R.spans.on - onS)) < 1e-9 && max(abs(Ss.R.spans.off - offS)) < 1e-9 ...
+    && Ss.eventsAs == "span" && Ss.name == "Stim onset" && isequaln(Fsp.panels(2).layers(2).R.spans, Ss.R.spans), ...
+    sprintf('events as spans: each epoch''s Stim intervals from onset to offset (%d), the same on the raster and the PSTH', numel(onS)));
+et2 = ev; et2.event.line = "Platform";
+etU = layerOf("raster"); etU.binding = "fixed";
+cfg = cfg.addFigure(struct('panels', {{struct('id', "et", 'type', "eventTrace", 'layers', [ev et2 etU])}}), Id="trace");
+Ftrace = rn.computeFigure(src, cfg.figureFor("trace"));
+Lt1 = Ftrace.panels(1).layers(1);
+Lt2 = Ftrace.panels(1).layers(2);
+[epP, onP, offP] = intervalsOf("Platform", Ftrace.epochs);
+check(Ftrace.panels(1).sharesTime && Lt1.skip == "" && Lt1.R.kind == "eventTrace" && Lt1.name == "Stim" && Lt2.name == "Platform" ...
+    && isequal(Lt2.R.epoch, epP) && max(abs(Lt2.R.on - onP)) < 1e-9 && max(abs(Lt2.R.off - offP)) < 1e-9 ...
+    && Lt1.R.nEpochs == height(Ftrace.epochs) && isequal(size(Lt1.R.window), [height(Ftrace.epochs) 2]) ...
+    && contains(Ftrace.panels(1).layers(3).skip, "does not draw units"), ...
+    sprintf('an event-trace panel: each line''s intervals overlapping each epoch (%d Platform), named by the line; a units layer skipped', numel(onP)));
+srcZ = src;
+srcZ.events.Stim(:, 2) = srcZ.events.Stim(:, 1);   % every interval a single instant
+check(strcmp(errorId(@() epochIntervals(srcZ, Ftrace.epochs, eventMarkRef(ev.event))), 'epochIntervals:NoOffsets') ...
+    && isempty(epochIntervals(src, Ftrace.epochs, struct('line', "Stim", 'which', "all", 'timeRange', [1e6 Inf], 'scope', "recording")).on), ...
+    'a line without an offset after its onsets is refused (epochIntervals:NoOffsets); a reference picking no event gives no interval');
 
 % a panel's own window
 fo = cfg.Figures(cfg.figureIndex("rp"));
@@ -1707,6 +1793,8 @@ rcases = {
     "raster + PSTH",                    F1
     "raster / PSTH / continuous stack", F3
     "events as marks and a train",      Fe
+    "events as spans",                  Fsp
+    "event traces",                     Ftrace
     "PSTH with latency marks",          Fm
     "a layer's mean of three units",    Fa
     "a panel's own window",             Fo
@@ -2061,6 +2149,60 @@ lg = findall(fig, 'Type', 'legend');
 check(~isempty(el) && numel(el) <= height(Fm.groups) && isscalar(er) && string(getappdata(er, 'PlotGroup')) == "Stim offset" ...
     && all(arrayfun(@(x) string(getappdata(x, 'PlotGroup')) == "Stim offset", el)) && any(string(lg(1).String) == "Stim offset"), ...
     sprintf('events marks on a PSTH: %d latency line(s) (one per group) and a rug, in the legend', numel(el)));
+
+% events as spans: a line on every raster row from onset to offset; a line per group on the PSTH, near its top
+hs = renderFigure(Fsp, Fsp.spec, fig);
+Wsp = [Fsp.spec.window.pre Fsp.spec.window.post];
+rs = findall(hs.axes(1), 'Tag', 'eventSpan', 'Type', 'line');
+rs = rs(arrayfun(@(x) any(isfinite(x.XData)), rs));
+inW = min(offS, Wsp(2)) >= max(onS, Wsp(1));
+okR = isscalar(rs) && nnz(isfinite(rs.XData)) == 2 * nnz(inW) && min(rs.XData) >= Wsp(1) - 1e-9 && max(rs.XData) <= Wsp(2) + 1e-9 ...
+    && all(rs.YData(1:3:end) == rs.YData(2:3:end)) && string(getappdata(rs, 'PlotGroup')) == "Stim onset";
+ps = findall(hs.axes(2), 'Tag', 'eventSpan', 'Type', 'line');
+ps = ps(arrayfun(@(x) any(isfinite(x.XData)), ps));
+ylP = ylim(hs.axes(2));
+lg = findall(fig, 'Type', 'legend');
+check(okR && ~isempty(ps) && numel(ps) <= height(Fsp.groups) && all(arrayfun(@(x) x.YData(1) > ylP(1) + 0.8 * diff(ylP), ps)) ...
+    && all(arrayfun(@(x) diff(x.XData) > 0, ps)) && any(string(lg(1).String) == "Stim onset"), ...
+    sprintf('spans: %d raster rows each a horizontal line clipped to the window; %d PSTH line(s) (one per group) near the top; in the legend', ...
+    nnz(inW), numel(ps)));
+
+% an event-trace panel: a row per line, bars clipped to the window, a baseline each; the rows display, by group
+ht = renderFigure(Ftrace, Ftrace.spec, fig);
+axT = ht.axes(1);
+Wt = [Ftrace.spec.window.pre Ftrace.spec.window.post];
+bars = findall(axT, 'Tag', 'eventBar', 'Type', 'patch');
+bars = bars(arrayfun(@(x) ~isempty(x.Faces), bars));
+bl = findall(axT, 'Tag', 'eventBaseline');
+groupsOf = reshape(string(arrayfun(@(x) string(getappdata(x, 'PlotGroup')), bars)), 1, []);
+kept = @(on, off) nnz(min(off, Wt(2)) >= max(on, Wt(1)));
+vx = vertcat(bars.Vertices);
+bPlat = bars(groupsOf == "Platform");
+check(numel(bars) == 2 && isequal(sort(groupsOf), ["Platform" "Stim"]) && size(bPlat.Faces, 1) == kept(onP, offP) ...
+    && min(vx(:, 1)) >= Wt(1) - 1e-9 && max(vx(:, 1)) <= Wt(2) + 1e-9 && abs(bPlat.FaceAlpha - 0.3) < 1e-9 ...
+    && numel(bl) == 2 && isequal(string(axT.YTickLabel).', ["Platform" "Stim"]) && isequal(xlim(axT), Wt) ...
+    && any(contains(string(get(findall(axT, 'Tag', 'layerNote'), 'String')), "does not draw units")), ...
+    sprintf('event traces: a row per line (Stim on top), %d Platform bars clipped to the window, translucent when overlaid, a baseline each; the units layer noted', ...
+    size(bPlat.Faces, 1)));
+long = offP > Wt(2) | onP < Wt(1);
+check(~any(long) || any(abs(vx(:, 1) - Wt(1)) < 1e-9 | abs(vx(:, 1) - Wt(2)) < 1e-9), ...
+    'an interval that starts before or ends after the window is drawn to its edge');
+sTrace = Ftrace.spec;
+sTrace.panels(1).options.display = "line";
+sTrace.panels(1).options.trials = "rows";
+sTrace.panels(1).options.colorBy = "group";
+sTrace.panels(1).options.showBaseline = false;
+ht2 = renderFigure(Ftrace, sTrace, fig);
+lv = findall(ht2.axes(1), 'Tag', 'eventLevel');
+gb = findall(ht2.axes(1), 'Tag', 'eventGroupBand');
+gb = gb(arrayfun(@(x) all(isfinite(x.XData(:))), gb));
+lvGroups = unique(string(arrayfun(@(x) string(getappdata(x, 'PlotGroup')), lv)));
+nGt = height(Ftrace.groups);
+lg = findall(fig, 'Type', 'legend');
+check(~isempty(lv) && numel(lv) <= 2 * nGt && all(ismember(lvGroups, string(Ftrace.groups.label))) && numel(gb) == nGt ...
+    && isempty(findall(ht2.axes(1), 'Tag', 'eventBaseline')) && all(arrayfun(@(x) all(isnan(x.XData(:))), findall(ht2.axes(1), 'Tag', 'eventBar'))) ...
+    && all(ismember(string(Ftrace.groups.label), string(lg(1).String))), ...
+    sprintf('event traces as logic levels, a sub-row per epoch, by group: %d level lines in the groups'' colors, a band per group, no baseline, the groups in the legend', numel(lv)));
 
 % a stacked continuous panel whose only signal layer is skipped still draws its marks
 cfg = cfg.addFigure(struct('panels', {{struct('id', "sig", 'type', "continuous", 'layers', [auxF ev], ...

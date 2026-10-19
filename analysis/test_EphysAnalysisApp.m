@@ -485,6 +485,21 @@ for m = reshape(marks, 1, [])
 end
 check(L.source == "events" && L.binding == "fixed" && L.event.line == "Stim" && L.event.edge == "offset" && L.eventsAs == "marks" ...
     && app.FigurePreviewState == "drawn" && nMarks > 0, sprintf('Stim offset marks are drawn on the raster''s rows (%d marks)', nMarks));
+FE.evDrawAs.Value = "span";
+app.onConfigChanged("figure");
+spanRows = shown(FE.evSpanStyle) && shown(FE.evColor) && ~shown(FE.evMarker) && ~shown(FE.layerColor) && FE.evDrawAs.Enable == "on";
+FE.evSpanStyle.Value = "--";
+FE.evSpanWidth.Value = 3;
+FE.evSpanAlpha.Value = 0.5;
+app.onConfigChanged("figure");
+L = app.Config.Figures(1).panels(1).layers(2);
+spans = findall(app.FigurePreviewPanel, 'Tag', 'eventSpan');
+spans = spans(arrayfun(@(m) any(isfinite(m.XData)), spans));
+check(spanRows && L.eventsAs == "span" && L.event.spanStyle == "--" && L.event.spanWidth == 3 && L.event.spanAlpha == 0.5 ...
+    && app.FigurePreviewState == "drawn" && ~isempty(spans) && all([spans.LineWidth] == 3) && all(string({spans.LineStyle}) == "--"), ...
+    'Draw as a line from onset to offset: the span''s rows show (not the marker), its style, width and opacity reach the config and the raster''s lines');
+FE.evDrawAs.Value = "marks";
+app.onConfigChanged("figure");
 app.onFigureSectionToggled("observations");
 collapsed = ~app.FigureSections([app.FigureSections.Name] == "observations").Expanded;
 app.onKeyPress(pressed('1', {'control'}));
@@ -906,6 +921,24 @@ for pair = ["heatmap" "psth"; "probemap" "raster"].'
         sprintf('a %s made a %s: its units layer follows the observation, and the preview draws %g unit', pair(1), pair(2), nShown));
     app.onRemoveFigure();
 end
+% an event-trace panel: its template, its Options rows (those its display does not use grayed out), the preview
+app.onAddFigure("eventTrace");
+etRows = shown(FE.etDisplay) && shown(FE.etTrials) && shown(FE.etBaseline) && shown(FE.etRowSpacing) && ~shown(FE.binMs) ...
+    && ~shown(FE.yLim) && FE.etEdge.Enable == "on" && FE.etLineStyle.Enable == "off" && FE.etGroupBands.Enable == "off" ...
+    && shown(FE.evLine) && FE.evDrawAs.Enable == "off" && ~shown(FE.evMarker) && shown(FE.layerColor) ...
+    && isequal(string(FE.addSource.ItemsData), "events") && app.FigurePreviewState == "drawn" ...
+    && ~isempty(findall(app.FigurePreviewPanel, 'Tag', 'eventBar'));
+FE.etDisplay.Value = "line";
+FE.etTrials.Value = "rows";
+FE.etAlpha.Value = 0.5;
+FE.etBaseline.Value = false;
+app.onConfigChanged("figure");
+oe = app.Config.Figures(2).panels(1).options;
+check(etRows && oe.display == "line" && oe.trials == "rows" && oe.alpha == 0.5 && ~oe.showBaseline && FE.etLineStyle.Enable == "on" ...
+    && FE.etEdge.Enable == "off" && FE.etGroupBands.Enable == "on" && FE.etBaseColor.Enable == "off" && app.FigurePreviewState == "drawn" ...
+    && ~isempty(findall(app.FigurePreviewPanel, 'Tag', 'eventLevel')) && isempty(findall(app.FigurePreviewPanel, 'Tag', 'eventBaseline')), ...
+    'an event-trace panel: its rows (events layers only, no Draw as), a logic level per epoch''s sub-row reaching the config and the preview');
+app.onRemoveFigure();
 % a PSTH's Stack box and auROC rows; firing rate and tuning panels from the Add-panel drop-down
 app.onFigureSelected(1);
 app.onPanelSelected(2);   % the PSTH

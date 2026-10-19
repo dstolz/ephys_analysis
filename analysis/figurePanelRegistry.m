@@ -3,7 +3,7 @@ function reg = figurePanelRegistry()
 %   REG = figurePanelRegistry() is a struct with one field per panel type
 %   of EphysAnalysisConfig.panelTypes() (raster, psth, continuous, heatmap,
 %   waveforms, probemap, corrmap, rate, tuning, spectrum, spectrogram,
-%   coherence), each a struct with
+%   coherence, eventTrace), each a struct with
 %     compute  @(src, panel, E, G, ctx) -> P, the panel's result: P.layers,
 %              one entry per layer of the panel (figurePanelLayers: name,
 %              source, binding, category, eventsAs, skip, R, meta). SRC is
@@ -29,10 +29,11 @@ function reg = figurePanelRegistry()
 %   computeHeatmapPanel, computeWaveformsPanel, computeProbeMapPanel,
 %   computeCorrMapPanel, computeRatePanel, computeTuningPanel,
 %   computeSpectrumPanel, computeSpectrogramPanel, computeCoherencePanel,
+%   computeEventTracePanel,
 %   and drawRasterPanel, drawPsthPanel, drawContinuousPanel,
 %   drawHeatmapPanel, drawWaveformsPanel, drawProbeMapPanel,
 %   drawCorrMapPanel, drawRatePanel, drawTuningPanel, drawSpectrumPanel,
-%   drawSpectrogramPanel, drawCoherencePanel.
+%   drawSpectrogramPanel, drawCoherencePanel, drawEventTracePanel.
 %
 %   See also EphysAnalysisRunner.computeFigure, renderFigure, EphysAnalysisConfig.panelTypes.
 
@@ -49,6 +50,7 @@ reg.tuning     = entry(@computeTuningPanel,     @drawTuningPanel);
 reg.spectrum   = entry(@computeSpectrumPanel,   @drawSpectrumPanel);
 reg.spectrogram = entry(@computeSpectrogramPanel, @drawSpectrogramPanel);
 reg.coherence  = entry(@computeCoherencePanel,  @drawCoherencePanel);
+reg.eventTrace = entry(@computeEventTracePanel, @drawEventTracePanel);
 end
 
 

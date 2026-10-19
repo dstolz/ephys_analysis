@@ -17,8 +17,8 @@ datasets and merged (a color per session or per subject, or a mean with an
 error band across sessions), with the data behind it saved as a `.mat` file.
 
 It is for quick looks. Multitaper spectra, spectrograms and coherence of a
-dataset's Chronux file are its [Chronux analyses](#chronux-analyses) (the
-app's Chronux tab); anything further belongs in
+dataset's Chronux file are its [Chronux analyses](#chronux-analyses) (scripts
+call them; the Figures tab's [spectral panels](EphysAnalysisConfig.md#spectral-panels) draw the same analyses); anything further belongs in
 [Chronux](ChronuxDataset.md) or [FieldTrip](FieldTripExport.md).
 
 `analysis` depends on `pipeline`: it reads the outputs through
@@ -836,8 +836,8 @@ on the config page describes the layout, titles, legend and look in full.
 
 Four map and waveform drawings are public functions of their own, which the
 figure's heat map, probe map, correlation map and waveforms panels call with an
-axes target and which can be used alone; `renderChronux` draws the Chronux tab's
-results (see [Chronux analyses](#chronux-analyses)):
+axes target and which can be used alone; `renderChronux` draws a Chronux analysis's
+result (see [Chronux analyses](#chronux-analyses)):
 
 | Renderer | Draws |
 | --- | --- |
@@ -996,7 +996,7 @@ keeps it in the figure's `aesthetics`). Unedited figures and runs pay for one
 preference read per page, and a design file is read again only when it
 changed. With no rules, nothing else is done. The kinds the user's rules
 and a design's `kinds` can name are `PlotDesign.kindNames()`: every panel type,
-`"figure"` and the Chronux tab's result kinds (`renderChronux`: `chronuxSpectrum`,
+`"figure"` and the Chronux result kinds (`renderChronux`: `chronuxSpectrum`,
 `chronuxSpecgram`, `chronuxCoherence`, `chronuxCohgram`, `chronuxSpikeSpectrum`,
 `chronuxSpikeField`, `chronuxUnitCoherence`). The aux roles of version 1 (`auxTrace`,
 `auxSem`, `auxImage`, `auxGroup`, `auxScale`) and the behavior plot's
@@ -1591,7 +1591,7 @@ runner does. Not mirrored: cancel, the `Results` rows and the run record.
 
 ## Chronux analyses
 
-The analysis app's [Chronux tab](EphysAnalysisApp.md#chronux-tab) runs
+The analysis functions below run
 [Chronux](http://chronux.org) (bundled in `toolboxes/chronux`; put it on the
 path) on a dataset's Chronux file, `<Name>_chronux.mat`
 ([format](file-formats.md#chronux-export-ephysdatasetexportchronux-the-export-step)).

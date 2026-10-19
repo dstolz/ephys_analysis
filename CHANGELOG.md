@@ -1171,6 +1171,12 @@ says how to cut a release.
 
 ### Removed
 
+- The analysis app's Chronux tab (and its preferences `ChronuxCacheFolder`,
+  `ChronuxMaxMB`, `ChronuxSettings`, `ChronuxSectionsCollapsed`, its wiki
+  section and its test section): the Figures tab's *Power spectrum*,
+  *Spectrogram* and *Coherence* panels compute the same analyses straight from
+  the extracts and units, with no Chronux file. The pipeline's Chronux export
+  (`<Name>_chronux.mat`) and the `chronux*` analysis functions stay.
 - Plots and session plots from the analysis config and the whole plot path: the `Plots` and
   `SessionPlots` sections, their methods (`addPlot`, `removePlot`, `plotFor`, `convertPlotToFigure`,
   `plotToFigure`, `addSessionPlot`, `sessionPlotFor`, ...), constants (`Kinds`, `AuxModes`,

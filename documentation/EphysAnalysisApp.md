@@ -20,11 +20,11 @@ JSON) and draws it with an `EphysAnalysisRunner`
 previews, plans and runs are the runner's `computeFigure`,
 `computeSessionFigure`, `plan` and `run`, so a preview is what a run or a
 [generated script](EphysAnalysis.md#scripts) draws. Its
-[Chronux tab](#chronux-tab) runs multitaper spectra, spectrograms and
-coherence of signals and spike trains (Chronux) on a dataset's Chronux
-file, and writes that file when there is none. For anything further, Chronux and FieldTrip take the files the
-pipeline's [Export step](EphysPipelineApp.md#export) writes. There are six
-tabs: Data, Alignment, Figures, Export, Chronux and Log.
+[spectral panels](EphysAnalysisConfig.md#spectral-panels) (power spectrum,
+spectrogram, coherence) compute multitaper spectra and coherence of signals and
+spike trains straight from the extracts and units, with no Chronux file. For anything further, Chronux and FieldTrip take the files the
+pipeline's [Export step](EphysPipelineApp.md#export) writes. There are five
+tabs: Data, Alignment, Figures, Export and Log.
 
 <!-- wiki: More on those exports: [Analysis toolbox exports](Analysis-Toolbox-Exports). -->
 
@@ -528,7 +528,7 @@ list edit the layer picked:
 | Unit correlation | **Epoch rate**, **Correlation**, **Fisher z transform**, **Baseline**, **Bin** and **Smooth** (for the *peak* rate), **Color limits** |
 | Firing rate | **Measure**, **Baseline** (*none*, *subtract*, *ratio* or *zscore*) and its window, **Display** (*bars (mean, error bar)*, *boxes* or *points (each epoch)*), **Y limits** |
 | Tuning curve | **Measure**, **Baseline** (as the firing rate panel's) and its window, **Parameter** (the trial parameter on the x axis; blank: the figure's first group-by parameter, else the first numeric one) with **series** (one curve per value of another trial parameter; blank: one curve), **Y limits**, and the waveform inset |
-| Power spectrum | the Chronux rows of the [Chronux tab](#chronux-tab): **Time base** (*the panel's epochs* or *segments of the recording*, with **Range (s)** and **Segment (s)**), **Tapers** (*TW and K* or *W (Hz) and p*, with **TW, K** or **W (Hz), p**), **Pad**, **Frequency range**, **Error** (*none*, *theoretical* or *jackknife*) with its p-value, **Detrend**, **Scale** (*dB*, *log axis* or *linear*), **Spike rate (Hz)** (with a spike layer) and **Y limits** |
+| Power spectrum | the Chronux rows: **Time base** (*the panel's epochs* or *segments of the recording*, with **Range (s)** and **Segment (s)**), **Tapers** (*TW and K* or *W (Hz) and p*, with **TW, K** or **W (Hz), p**), **Pad**, **Frequency range**, **Error** (*none*, *theoretical* or *jackknife*) with its p-value, **Detrend**, **Scale** (*dB*, *log axis* or *linear*), **Spike rate (Hz)** (with a spike layer) and **Y limits** |
 | Spectrogram | **Tapers** (as above), **Pad**, **Frequency range**, **Detrend**, **Scale** (*dB* or *linear*), **Moving window (s)** with its step, **Baseline** (*none*, *db*, *percent*, *zscore* or *ratio*) with **Baseline (s)**, whose window must lie inside the panel's window, and **Color limits**; the group drawn is **Group shown** in the Panel section |
 | Coherence | **Time base** with **Range (s)** and **Segment (s)**, the tapers, **Pad**, **Frequency range**, **Error** with its p-value (*jackknife* gives the band and the confidence level, *theoretical* the level), **Detrend**, **Spike rate (Hz)**, **Show phase (under the magnitude)** and **Y limits** (blank: 0 to 1); **Over time (a coherogram)** swaps the error, phase and y limits for **Moving window (s)** and **Color limits**, adds **Group shown** and, on the panel's epochs, puts the image on the figure's time axis |
 
@@ -875,66 +875,6 @@ rows read `sessions: all` (or `sessions: <subject>`, or `sessions: <subject> /
 <trial group>`) in the `Dataset` column, with the Subject and Date blank, and
 list its figure files and, with `Export.Data.Enabled`, its data file.
 
-### Chronux tab
-
-Multitaper spectra and coherence of the active dataset, computed by the
-[Chronux](http://chronux.org) toolbox bundled in `toolboxes/chronux` (put it on
-the MATLAB path; without it the tab can still create the file, but not
-compute). The tab reads the dataset's `<Name>_chronux.mat`
-([Chronux export](file-formats.md#chronux-export-ephysdatasetexportchronux-the-export-step)), never the recording.
-
-**The Chronux file** (left column):
-
-| Control | Meaning |
-| --- | --- |
-| **Active dataset** | the same active dataset as the other tabs' |
-| status | where the file is: *in the output folder* (where the pipeline's Export step writes it, found as [DatasetOutputs](DatasetOutputs.md) finds it), *in the local cache*, or missing. It says when it was made, its signals, sorted units and detection channels, and when it is older than the dataset's extract (recreate it) |
-| **Create Chronux file** / **Recreate** | writes the file from the dataset's extract (the Signals step), its sorted units with their quality metrics, and its threshold detections, as the Export step does (`EphysDataset.exportChronux`, -v7.3). It goes into the dataset's output folder, or into the local cache when that folder cannot be written (a read-only share). When the sort picked for the dataset is not there, it asks before writing the file without units. Off without an extract |
-| **Open folder** | the folder holding the file |
-| **Local cache**, **Choose cache...** | the local folder for files of datasets whose output folder cannot be written: `<cache>/<dataset key>/<Name>_chronux.mat`. Remembered. The output folder's file wins when both exist |
-| **Signal** | the continuous signal analyzed (LFP, MUA, SPIKE, AUX: those the file holds) |
-| **Channels** | the channels analyzed, each its own spectrum; none picked (**All channels**) = all. A coherence in *seed* mode pairs the seed with each of them |
-| **Spikes**, **Spike trains** | the spike analyses' trains: the sorted units or the threshold detections (one per channel), each its own result; none picked (**All spike trains**) = all. Off for the other analyses |
-
-**The analysis** (middle column), in collapsible sections that show only the
-rows the analysis uses:
-
-| Section | Controls |
-| --- | --- |
-| *(top)* | **Analysis**: *Power spectrum* (`mtspectrumc`, averaged over the trials and tapers, with error bars); *Spectrogram* (`mtspecgramc`, a spectrum over each moving window); *Coherence* of two channels (`coherencyc`; **Over time**: `cohgramc`): how consistently they keep their phase at each frequency, 0 to 1, and that phase; *Spike spectrum* of each spike train (`mtspectrumpt`; it tends to the mean rate at high frequencies); *Spike-field coherence* of each spike train with the **Field channel** (`coherencycpt`); *Spike-train coherence* of two trains (`coherencypt`). A coherence's **Pairs**: the **seed** with each other channel (or train) picked, or with its **partner** |
-| **Time base** | **Over**: *epochs around the event* or *a stretch of the recording*. Epochs use the Alignment tab's event reference and trial selection (shown here) with this tab's own **Window** (*pre*, *post*, s: Chronux needs epochs of one length, so a window that runs to a stop event cannot be used; **From Alignment** copies a fixed one), and **One result per trial group**. A stretch is **From / to** (s; blank *to* = the end), cut into back-to-back **Segments** (s), each a trial. A spectrogram over a stretch is one per clear stretch instead. After a compute, a line says how many trials were used and what was left out |
-| **Tapers** | **Give** *TW and K* (Chronux's `[TW K]`) or *the half bandwidth W (Hz) and p*: `TW = W·T`, `K = 2TW − p` over the trial's length T (a spectrogram's moving window). A line says what that comes to (±Hz over T s), and warns when K is above 2TW−1 |
-| **Frequency & errors** | **Frequencies** (`fpass`, Hz; blank = Nyquist), **Padding** (`pad`), **Error bars** (*jackknife*, *theoretical* or *none*, and *p*: 0.05 = 95%; not over time; a coherence's give its confidence level `confC` too), **Detrend** (each trial's mean, line, or nothing, removed before its spectrum), and for the spike analyses the **Finite-size correction** (`fscorr`) and the **grid** (Hz) the trains are taken on (`params.Fs`: its half is the highest frequency) |
-| **Moving window** | a spectrogram's or coherence over time's **Window** and **step** (s) |
-| **Baseline** | an epochs spectrogram: **Normalize** each frequency against its mean power over the baseline **Window** (s from the event): *dB change*, *% change*, *z-score* or *ratio* |
-| **Display** | **Power as** dB, a log axis or linear; **Layout**: a tile per channel, train or pair (groups overlaid) or a tile per group (they overlaid); **Error bars as bands**; **Phase under each coherence** (a tile of its own, where the coherence is over `confC`); **Tiles per page**; **Y limits** (a spectrum's) and **Color limits** (a spectrogram's or coherogram's) |
-
-Nothing that touches an artifact period is used: epochs that touch one are
-left out (`epochTable`), and a stretch is cut into segments only where it is
-clear of them, on the signal's own rows (a spectrogram leaves those times
-blank). Epochs that leave the recording are left out too. The spike
-analyses without a field cut a stretch on the spike clock instead; a
-spike-field coherence cuts each spike train to the very samples of the
-field's trials. A coherence draws its magnitude with a dashed line at
-`confC`, the level two independent signals stay under.
-
-**Compute** (right column) reads only the rows and channels the time base
-needs (at most `ChronuxMaxMB`, 2000 MB by default), runs the analysis and
-draws it. **Cancel** stops it at its next block of rows or channel. Edits to
-what is computed leave the plot *Out of date* (the badge under it) until
-Compute; edits to **Display** redraw it at once. **<** and **>** page
-through the tiles. The plot is drawn in the chosen
-[plot design](#menus), and a right-click on it opens the aesthetics editor,
-as on the Figures tab. **Save figure...** writes the page shown (png, pdf,
-svg, eps; the Export tab's figure size); **Save results...** writes the
-result `R` to a .mat file: the spectra, frequencies (and times), error bars,
-the trials each one averages, the exact Chronux `params` and tapers, the
-settings, the time base and the Chronux file it came from
-([Chronux analyses](EphysAnalysis.md#chronux-analyses)).
-
-The tab is for one dataset at a time: its analyses are not plots of the
-config, so they are not in runs, reports or generated scripts.
-
 ### Log tab
 
 What the scans, previews and runs reported, one time-stamped line each
@@ -1098,10 +1038,6 @@ is in the config.
 | `FigureGroupBy` | how the figure tree groups (`observe`, the default; `status`; `none`) |
 | `FigureGroupsCollapsed` | the figure tree's collapsed groups, by key (`observe:unit`, `status:Off`, ...); the selected figure's group opens whatever is kept |
 | `FigureSectionsCollapsed` | the figure editor's collapsed sections (Text note, Overlays, Appearance, Looks and Sessions start collapsed) |
-| `ChronuxCacheFolder` | the Chronux tab's local cache folder |
-| `ChronuxMaxMB` | the most signal the Chronux tab reads at once, and a spectrogram's largest size (default 2000 MB) |
-| `ChronuxSettings` | the Chronux tab's last settings (`chronuxSettings`) |
-| `ChronuxSectionsCollapsed` | its collapsed sections |
 
 The aesthetics editor keeps two more groups: `PlotAesthetics`, your
 remembered rules, one per panel type (`psth`, `raster`, ...), one for `figure` and one per Chronux result kind, and
@@ -1160,14 +1096,13 @@ results, on the Log tab and in the report.
 | files | `onNewConfig`, `onOpenConfig`, `openConfigFile`, `onSaveConfig`, `onSaveConfigAs`, `onGenerateScript`, `loadPreferences`, `savePreferences` |
 | help | `onHelp`, `helpURL` (the wiki page and anchor of each tab; `tools/wiki/test_gen_pages.py` checks that the page made from this file has them) |
 | issues | `onReportIssue`, `issueReport`, `issueURL`; the dialog, the address and the system lines are `pipeline/IssueReport.m`, shared with EphysPipelineApp |
-| Chronux tab | `buildChronuxTab`, `refreshChronuxTab` and `chronuxFileFor` (the file and what it holds), `syncChronuxControls`, `gatherChronuxSettings` / `applyChronuxSettings`, `onChronuxEdited`, `onChronuxSectionToggled` (and `private/formStack`), `onChronuxCompute`, `chronuxCheck` and `onCancelChronux`, `drawChronux`, `setChronuxState`, `onCreateChronuxExport` (`private/canWriteFolder`, `private/chronuxCachePath`), `onChronuxCacheFolder`, `onSaveChronuxFigure`, `onSaveChronuxResults`; the analyses themselves are `analysis/` functions ([Chronux analyses](EphysAnalysis.md#chronux-analyses)) |
 
 ## Tests
 
 `test_EphysAnalysisApp` builds the app headlessly on the analysis fixture
 (a small synthetic project run through the pipeline) and drives it through
-its methods, in sections 0 to 6: the six tabs (Data, Alignment, Figures,
-Export, Chronux, Log); the toolbar (1b: its tools in groups with their icons,
+its methods, in sections 0 to 6: the five tabs (Data, Alignment, Figures,
+Export, Log); the toolbar (1b: its tools in groups with their icons,
 every menu shortcut named in a tooltip, Preview and Plan clicked from another
 tab, the run and results tools following the Export tab's buttons); the scan;
 opening on a list of datasets (`Datasets=`, as the pipeline app's Tools panel
@@ -1186,14 +1121,7 @@ keeping the fields without a control (the stop event's offset, length and time
 range, trial rows) and the stop's *n*; Save As, New, reopen; a version 1 config
 opened (its plot migrated to a figure, the status bar and the Log saying so);
 and generating scripts. Section 5 is Validate, Plan and a run of one figure
-writing its pages and the report (its lines in the Log tab). Section 5b is the
-Chronux tab (a dataset without a Chronux file, **Create** writing it into the
-output folder and the tab showing it, a spectrum over the Alignment tab's
-epochs per Depth group, *Out of date* after an edit of what is computed, a
-display edit redrawing, a spectrogram over the whole recording, a coherence of
-one pair and a spike-field coherence of every unit, the plot left as it was when
-the tab is shown again, Save results and Save figure, a file created in the
-local cache and found once the output folder's is gone). Sections 5d to 5h are
+writing its pages and the report (its lines in the Log tab). Sections 5d to 5h are
 the Figures tab again, below. Section 6 is the preferences remembered (the last
 config, the collapsed sections of the figure editor; none of the retired plot
 or session preferences is written) and closing. The test keeps the app's

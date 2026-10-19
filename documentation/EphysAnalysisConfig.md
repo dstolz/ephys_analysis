@@ -1010,9 +1010,8 @@ figure per unit, one page each.
 ### Spectral panels
 
 Three panel types draw the multitaper analyses of
-[Chronux](http://chronux.org) that the app's
-[Chronux tab](EphysAnalysisApp.md#chronux-tab) runs on a dataset's Chronux file
-([Chronux analyses](EphysAnalysis.md#chronux-analyses)); a figure's panels read
+[Chronux](http://chronux.org) computed by the
+[Chronux analyses](EphysAnalysis.md#chronux-analyses) functions; a figure's panels read
 the dataset itself, the observed unit's channel or spikes or the fixed ones the
 layers name, and take the trials from the panel's own epochs. Their options are
 `chronuxSettings`' (`figureChronuxSettings` builds the settings from them, with

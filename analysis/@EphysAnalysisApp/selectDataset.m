@@ -4,16 +4,10 @@ function selectDataset(obj, idx)
 %   tab's panes, the dataset boxes, the alignment count, the line and
 %   parameter lists, the epoch diagram (when open), the Figures tab's
 %   observation picker (its pick kept by label) and preview
-%   (autoFigurePreview), and the Chronux tab (another dataset's file and
-%   result are dropped) follow.
+%   (autoFigurePreview) follow.
 if isempty(obj.Runner) || idx < 1 || idx > numel(obj.Runner.Keys); return; end
 if obj.ActiveIdx >= 1 && obj.ActiveIdx ~= idx && obj.ActiveIdx <= numel(obj.Runner.Outputs)
     obj.Runner.Outputs(obj.ActiveIdx).clearCache();
-end
-if obj.ActiveIdx ~= idx
-    obj.ChronuxResult = [];
-    obj.ChronuxIndex = [];
-    obj.ChronuxFile = "";
 end
 obj.ActiveIdx = idx;
 obj.setStatus("Loading " + obj.Runner.Names(idx) + " ...");
@@ -23,7 +17,7 @@ try
 catch ME
     obj.setStatus("Cannot read " + obj.Runner.Names(idx) + ": " + string(ME.message));
 end
-set([obj.AlignDatasetDropDown obj.FiguresDatasetDropDown obj.ChronuxDatasetDropDown], 'Value', idx);
+set([obj.AlignDatasetDropDown obj.FiguresDatasetDropDown], 'Value', idx);
 obj.refreshDatasetsTable();
 obj.refreshDatasetInfo();
 wasApplying = obj.Applying;
@@ -39,6 +33,5 @@ obj.refreshFigureObservations();
 obj.refreshAlignPreview();
 obj.refreshEpochDiagram();
 obj.autoFigurePreview();
-if obj.Tabs.SelectedTab == obj.TabChronux; obj.refreshChronuxTab(); end
 obj.setStatus("Active dataset: " + obj.Runner.Names(idx));
 end

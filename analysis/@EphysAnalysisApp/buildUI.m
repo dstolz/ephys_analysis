@@ -18,7 +18,6 @@ obj.TabData   = uitab(obj.Tabs, "Title", "Data");
 obj.TabAlign  = uitab(obj.Tabs, "Title", "Alignment");
 obj.TabFigures = uitab(obj.Tabs, "Title", "Figures");
 obj.TabExport = uitab(obj.Tabs, "Title", "Export");
-obj.TabChronux = uitab(obj.Tabs, "Title", "Chronux");
 obj.TabLog    = uitab(obj.Tabs, "Title", "Log");
 
 bar = uipanel(outer, "BorderType", "line", "BackgroundColor", [0.96 0.96 0.98]);
@@ -31,7 +30,6 @@ obj.buildDataTab();
 obj.buildAlignTab();
 obj.buildFiguresTab();
 obj.buildExportTab();
-obj.buildChronuxTab();
 obj.buildLogTab();
 styleButtons(obj);
 obj.Tabs.SelectedTab = obj.TabData;
@@ -46,9 +44,9 @@ function styleButtons(obj)
 %   The editors' section headers (formSection) keep their header look.
 b = findall(obj.Fig, "Type", "uibutton", "-or", "Type", "uistatebutton");
 styleButton(b(~strcmp(get(b, "Tag"), "formSectionToggle")));
-styleButton([obj.ScanButton, obj.RunButton, obj.ChronuxComputeButton, ...
-    obj.ChronuxCreateButton, obj.FigurePreviewButton, obj.FigureGenerateButton], "primary");
+styleButton([obj.ScanButton, obj.RunButton, ...
+    obj.FigurePreviewButton, obj.FigureGenerateButton], "primary");
 styleButton([obj.AddFigureButton, obj.FigureEditor.addLayer], "confirm");
-styleButton([obj.CancelButton, obj.ChronuxCancelButton, obj.RemoveFigureButton, obj.FigureEditor.removePanel, ...
+styleButton([obj.CancelButton, obj.RemoveFigureButton, obj.FigureEditor.removePanel, ...
     obj.FigureEditor.removeLayer], "danger");
 end

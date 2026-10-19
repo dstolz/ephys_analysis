@@ -1,8 +1,8 @@
 function test_EphysAnalysisApp()
 %test_EphysAnalysisApp  Headless checks of the analysis GUI over a synthetic project.
 %   Builds the app on a small synthetic project run through the pipeline
-%   and drives it through its own methods: the six tabs (Data, Alignment,
-%   Figures, Export, Chronux, Log); the toolbar (its tools, icons and
+%   and drives it through its own methods: the five tabs (Data, Alignment,
+%   Figures, Export, Log); the toolbar (its tools, icons and
 %   shortcut tooltips; Preview and Plan from another tab; its run and
 %   results tools following the Export tab's buttons); Scan filling the
 %   datasets table; the active dataset's lines and parameters; grouping by
@@ -19,13 +19,7 @@ function test_EphysAnalysisApp()
 %   time range, trial rows); save and reopen; a version-1 config opened
 %   (its plot migrated to a figure, the status bar and the Log saying so);
 %   a standalone script from the app's config; Plan and a run of one
-%   figure writing its pages and the report; the Chronux tab (a dataset
-%   without a Chronux file, Create writing it into the output folder and
-%   showing it, a spectrum over the Alignment tab's epochs per group, Out
-%   of date after an edit of what is computed, a display edit redrawing,
-%   a spectrogram over the whole recording, Save results and Save
-%   figure, the local cache: a file created there and found once the
-%   output folder's is gone); the Figures tab (Add from the template, the
+%   figure writing its pages and the report; the Figures tab (Add from the template, the
 %   schematic, the observation picker and its preview of one unit, < and
 %   > and Page Up, a continuous panel added below, an events layer on the
 %   raster, the rows a panel type shows, Ctrl+digit to a section, Out of
@@ -91,10 +85,10 @@ check(numel(F.names) == 2, 'two datasets run through the pipeline');
 fprintf('\n== 1. build, open the project, scan ==\n');
 app = EphysAnalysisApp(F.proj);
 appCleanup = onCleanup(@() closeApp(app));
-check(isvalid(app.Fig) && numel(app.Tabs.Children) == 6 && app.Tabs.Children(1) == app.TabData ...
+check(isvalid(app.Fig) && numel(app.Tabs.Children) == 5 && app.Tabs.Children(1) == app.TabData ...
     && app.Tabs.Children(2) == app.TabAlign && app.Tabs.Children(3) == app.TabFigures && app.Tabs.Children(4) == app.TabExport ...
-    && app.Tabs.Children(5) == app.TabChronux && app.Tabs.Children(6) == app.TabLog && ~isprop(app, 'TabPlots') && ~isprop(app, 'TabSessions'), ...
-    'the app has the Data, Alignment, Figures, Export, Chronux and Log tabs');
+    && app.Tabs.Children(5) == app.TabLog && ~isprop(app, 'TabChronux') && ~isprop(app, 'TabPlots') && ~isprop(app, 'TabSessions'), ...
+    'the app has the Data, Alignment, Figures, Export and Log tabs');
 T = app.DatasetsTable.Data;
 check(~isempty(app.Runner) && height(T) == 2 && all(T.Run) && isequal(sort(T.Name), sort(F.names(:))) ...
     && all(T.LFP == "✓") && all(T.Behavior == "✓"), 'the project root was scanned: both datasets, ticked, with LFP and behavior');
@@ -401,150 +395,6 @@ app.selectTab(app.TabFigures);
 app.onRemoveFigure();
 app.onSaveConfig();
 app.Tabs.SelectedTab = app.TabData;
-
-fprintf('\n== 5b. the Chronux tab ==\n');
-chronuxPath = "";
-if ~ChronuxDataset.hasChronux()   % the bundled copy, only for this section: its findpeaks shadows MATLAB's
-    chronuxPath = string(genpath(fullfile(repo, 'toolboxes', 'chronux')));
-    addpath(chronuxPath);
-end
-k = app.ActiveIdx;
-out = app.Runner.Outputs(k);
-app.Tabs.SelectedTab = app.TabChronux;
-app.onTabChanged();
-check(app.ChronuxFile == "" && contains(app.ChronuxFileLabel.Text, "No Chronux file") ...
-    && app.ChronuxCreateButton.Enable == "on" && app.ChronuxComputeButton.Enable == "off" ...
-    && endsWith(app.helpURL("tab"), "#chronux-tab"), ...
-    'a dataset without a Chronux file: Create on, Compute off; Help goes to the tab''s section');
-o = app.onCreateChronuxExport(WithoutUnits=false);
-C = app.ChronuxControls;
-check(~isempty(o) && isfile(o.file) && endsWith(o.file, app.Runner.Names(k) + "_chronux.mat") ...
-    && app.ChronuxFileWhere == "output" && contains(app.ChronuxFileLabel.Text, "In the output folder") ...
-    && any(string(C.signal.Items) == "LFP") && numel(C.channels.Items) > 1 && app.ChronuxComputeButton.Enable == "on", ...
-    'Create writes <Name>_chronux.mat into the output folder; the tab shows it, its signals and channels');
-C.channels.Value = [1 2];
-C.pre.Value = -0.2;
-C.post.Value = 0.5;
-C.TW.Value = 2;
-C.K.Value = 3;
-app.onChronuxEdited("compute");
-R = app.onChronuxCompute();
-nGroups = height(R.groups);
-check(~isempty(R) && R.kind == "chronuxSpectrum" && size(R.S, 2) == 2 && nGroups > 1 && size(R.S, 3) == nGroups ...
-    && app.ChronuxState == "drawn" && ~isempty(findobj(app.ChronuxPanel, 'Type', 'axes')) ...
-    && app.ChronuxSaveResultsButton.Enable == "on" && contains(app.ChronuxControls.coverage.Text, "epochs"), ...
-    'Compute: a spectrum of the two channels over the Alignment tab''s epochs, one per Depth group, drawn');
-C.fmax.Value = 80;
-app.onChronuxEdited("compute");
-stale = app.ChronuxState == "stale";
-C.scale.Value = "linear";
-app.onChronuxEdited("display");
-check(stale && app.ChronuxState == "stale" && ~isempty(findobj(app.ChronuxPanel, 'Type', 'axes')), ...
-    'an edit of what is computed leaves the plot Out of date; a display edit redraws it, still Out of date');
-C.analysis.Value = "specgram";
-app.onChronuxEdited("analysis");
-C.timeBase.Value = "range";
-app.onChronuxEdited("timeBase");
-sec = app.ChronuxSections;
-check(sec([sec.Name] == "moving").Visible && ~sec([sec.Name] == "baseline").Visible ...
-    && strcmp(C.from.Parent.Visible, 'on') && strcmp(C.segment.Visible, 'off'), ...
-    'a spectrogram over a stretch shows the moving window, not the baseline or the segments');
-R2 = app.onChronuxCompute();
-check(~isempty(R2) && R2.kind == "chronuxSpecgram" && ~R2.aligned && app.ChronuxState == "drawn" ...
-    && ~isempty(findobj(app.ChronuxPanel, 'Type', 'image')), 'a spectrogram over the whole recording, drawn');
-fr = string(fullfile(root, 'chronux_result.mat'));
-fp = string(fullfile(root, 'chronux_figure.png'));
-app.onSaveChronuxResults(fr);
-app.onSaveChronuxFigure(fp);
-L = load(fr);
-check(isfield(L, 'R') && L.R.kind == "chronuxSpecgram" && isfile(fp), 'Save results writes R; Save figure writes the page');
-nSp = numel(app.ChronuxIndex.sp);
-C.timeBase.Value = "aligned";
-C.analysis.Value = "coherence";
-app.onChronuxEdited("analysis");
-app.onChronuxEdited("timeBase");
-C.channels.Value = [1 2];
-R7 = app.onChronuxCompute();
-check(~isempty(R7) && R7.kind == "chronuxCoherence" && size(R7.C, 2) == 1 && R7.pairs.a == 1 && R7.pairs.b == 2 ...
-    && size(R7.C, 3) > 1 && app.ChronuxState == "drawn" && numel(findall(app.ChronuxPanel, 'Tag', 'phase')) > 0 ...
-    && strcmp(C.seed.Visible, 'on') && strcmp(C.overTime.Visible, 'on') && strcmp(C.partner.Visible, 'off'), ...
-    'Compute: the coherence of the seed channel with the other channel picked, one per Depth group, phase drawn under it');
-C.pairMode.Value = "pair";
-C.partner.Value = C.partner.ItemsData(end);
-app.onChronuxEdited("pairMode");
-R7b = app.onChronuxCompute();
-check(~isempty(R7b) && size(R7b.C, 2) == 1 && R7b.pairs.b == C.partner.ItemsData(end) && strcmp(C.partner.Visible, 'on'), ...
-    'one partner: the seed with a channel that is not picked');
-C.pairMode.Value = "seed";
-C.overTime.Value = true;
-app.onChronuxEdited("analysis");
-R7c = app.onChronuxCompute();
-check(~isempty(R7c) && R7c.kind == "chronuxCohgram" && R7c.aligned && ~isempty(findobj(app.ChronuxPanel, 'Type', 'image')) ...
-    && app.ChronuxSections([app.ChronuxSections.Name] == "moving").Visible, 'over time: a coherogram over the moving window, drawn as an image');
-C.overTime.Value = false;
-C.analysis.Value = "spikeSpectrum";
-app.onChronuxEdited("analysis");
-check(nSp > 1 && numel(C.units.Items) == nSp && numel(C.unitSeed.ItemsData) == nSp && numel(C.fieldChannel.ItemsData) > 1 ...
-    && strcmp(C.units.Visible, 'on') && strcmp(C.signal.Visible, 'off') && strcmp(C.channels.Visible, 'off') ...
-    && strcmp(C.spikeFs.Visible, 'on') && app.ChronuxComputeButton.Enable == "on", ...
-    'a spike analysis lists the file''s sorted units and shows the spike grid, not the signal and its channels');
-R3 = app.onChronuxCompute();
-check(~isempty(R3) && R3.kind == "chronuxSpikeSpectrum" && size(R3.S, 2) == nSp && size(R3.S, 3) > 1 ...
-    && app.ChronuxState == "drawn" && ~isempty(findobj(app.ChronuxPanel, 'Type', 'axes')) ...
-    && ~isempty(findall(app.ChronuxPanel, 'Tag', 'rateLine')), ...
-    'Compute: a spike spectrum of every sorted unit over the Alignment tab''s epochs, one per Depth group, with its mean rates');
-C.units.Value = C.units.ItemsData(1);
-app.onChronuxEdited("compute");
-R3b = app.onChronuxCompute();
-check(~isempty(R3b) && size(R3b.S, 2) == 1 && isequal(R3b.index, 1), 'a unit picked: only its spectrum');
-C.units.Value = {};
-C.analysis.Value = "spikeField";
-app.onChronuxEdited("analysis");
-check(strcmp(C.signal.Visible, 'on') && strcmp(C.channels.Visible, 'off') && strcmp(C.fieldChannel.Visible, 'on'), ...
-    'spike-field coherence shows the signal and its field channel, not the channel list');
-C.fieldChannel.Value = C.fieldChannel.ItemsData(1);
-R4 = app.onChronuxCompute();
-check(~isempty(R4) && R4.kind == "chronuxSpikeField" && size(R4.C, 2) == nSp && R4.settings.fieldChannel == 1 ...
-    && app.ChronuxState == "drawn" && numel(findall(app.ChronuxPanel, 'Tag', 'phase')) > 0, ...
-    'Compute: the units'' coherence with the field channel, its phase drawn under it');
-C.analysis.Value = "unitCoherence";
-app.onChronuxEdited("analysis");
-C.unitSeed.Value = C.unitSeed.ItemsData(1);
-R5 = app.onChronuxCompute();
-check(~isempty(R5) && R5.kind == "chronuxUnitCoherence" && size(R5.C, 2) == nSp - 1 && R5.settings.unitSeed == 1, ...
-    'Compute: the seed unit''s coherence with every other unit');
-C.pairMode.Value = "pair";
-C.unitPartner.Value = C.unitPartner.ItemsData(2);
-app.onChronuxEdited("pairMode");
-R6 = app.onChronuxCompute();
-check(~isempty(R6) && size(R6.C, 2) == 1 && R6.pairs.b == 2 && strcmp(C.unitPartner.Visible, 'on'), ...
-    'one partner: the seed against it alone');
-o3 = app.onCreateChronuxExport(WithoutUnits=true);
-app.onChronuxEdited("analysis");
-check(~isempty(o3) && o3.nUnits == 0 && app.ChronuxComputeButton.Enable == "off" && contains(C.about.Text, "no sorted units") ...
-    && isempty(C.units.Items), ...
-    'a file without units: the spike analyses cannot be computed, and the tab says why');
-C.analysis.Value = "spectrum";
-app.onChronuxEdited("analysis");
-check(app.ChronuxComputeButton.Enable == "on", 'the continuous analyses still can');
-app.onCreateChronuxExport(WithoutUnits=false);
-C.pairMode.Value = "seed";
-C.analysis.Value = "spectrum";
-app.onChronuxEdited("analysis");
-cache = string(fullfile(root, 'chronux cache'));
-app.onChronuxCacheFolder(cache);
-o2 = app.onCreateChronuxExport(Where="cache", WithoutUnits=false);
-check(~isempty(o2) && startsWith(o2.file, cache) && isfile(o2.file) && endsWith(o2.file, app.Runner.Names(k) + "_chronux.mat") ...
-    && string(AppPrefs.getpref(g, 'ChronuxCacheFolder')) == cache, ...
-    'Create into the local cache: <cache>/<key>/<Name>_chronux.mat; the cache folder is remembered');
-check(app.ChronuxFileWhere == "output", 'while the output folder has its file, that one is used');
-delete(o.file);
-out.refresh();
-app.refreshChronuxTab();
-check(app.ChronuxFileWhere == "cache" && app.ChronuxFile == o2.file && contains(app.ChronuxFileLabel.Text, "local cache"), ...
-    'once the output folder''s file is gone, the cache''s is found');
-app.Tabs.SelectedTab = app.TabData;
-if chronuxPath ~= ""; rmpath(chronuxPath); end
 
 fprintf('\n== 5d. the Figures tab ==\n');
 app.FigureAutoPreviewSeconds = Inf;   % 5d-5f: a preview slowed by a loaded machine must not leave the next one out of date

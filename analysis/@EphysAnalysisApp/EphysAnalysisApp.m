@@ -66,15 +66,6 @@ classdef EphysAnalysisApp < handle
     %     Export     figure formats, folder and file-name pattern, the report
     %                (HTML / PDF), Validate, Plan, Run over the ticked
     %                datasets (cancelable), results, open the report / folder
-    %     Chronux    Chronux analyses of the active dataset (buildChronuxTab):
-    %                its <Name>_chronux.mat (found in its output folder or
-    %                the local cache, or created from its extract, units and
-    %                detections: onCreateChronuxExport), the signal and
-    %                channels, the analysis (power spectrum, spectrogram)
-    %                over epochs around the Alignment tab's event or over
-    %                segments of a stretch, its tapers, frequencies, error
-    %                bars, moving window, baseline and display; Compute
-    %                (cancelable), Save figure, Save results
     %     Log        what the runner reported
     %
     %   File menu: New / Open / Open recent / Save / Save As / Generate
@@ -102,11 +93,7 @@ classdef EphysAnalysisApp < handle
     %   button), FigureAutoPreview (the Figures tab's Auto, on by default:
     %   one observation is quick), FigureSectionsCollapsed (its editor's
     %   collapsed sections), FigureGroupBy and FigureGroupsCollapsed (how
-    %   its figure tree groups, and its collapsed groups),
-    %   ChronuxCacheFolder (the local folder for
-    %   Chronux files of datasets whose output folder cannot be written),
-    %   ChronuxMaxMB (the most signal the Chronux tab reads at once),
-    %   ChronuxSettings (its last settings) and ChronuxSectionsCollapsed.
+    %   its figure tree groups, and its collapsed groups).
     %
     %   Usage
     %     EphysAnalysisApp                      % the last config, or defaults
@@ -127,7 +114,6 @@ classdef EphysAnalysisApp < handle
         TabAlign   matlab.ui.container.Tab
         TabFigures matlab.ui.container.Tab
         TabExport  matlab.ui.container.Tab
-        TabChronux matlab.ui.container.Tab
         TabLog     matlab.ui.container.Tab
         FileMenu   matlab.ui.container.Menu
         RecentMenu matlab.ui.container.Menu
@@ -220,27 +206,6 @@ classdef EphysAnalysisApp < handle
         ResultsTable       matlab.ui.control.Table
         RunLabel           matlab.ui.control.Label
 
-        % --- Chronux tab (buildChronuxTab) ---
-        ChronuxDatasetDropDown  matlab.ui.control.DropDown
-        ChronuxFileLabel        matlab.ui.control.Label     % where the Chronux file is, what it holds (refreshChronuxTab)
-        ChronuxCreateButton     matlab.ui.control.Button    % Create / Recreate (onCreateChronuxExport)
-        ChronuxOpenFolderButton matlab.ui.control.Button
-        ChronuxCacheLabel       matlab.ui.control.Label
-        ChronuxCacheButton      matlab.ui.control.Button
-        ChronuxControls struct = struct()        % the tab's settings controls by field
-        ChronuxSections struct = struct([])      % its sections (formSection), top to bottom
-        ChronuxEditorGrid       matlab.ui.container.GridLayout
-        ChronuxComputeButton    matlab.ui.control.Button
-        ChronuxCancelButton     matlab.ui.control.Button
-        ChronuxSaveFigureButton matlab.ui.control.Button
-        ChronuxSaveResultsButton matlab.ui.control.Button
-        ChronuxPrevPageButton   matlab.ui.control.Button
-        ChronuxNextPageButton   matlab.ui.control.Button
-        ChronuxPageLabel        matlab.ui.control.Label
-        ChronuxPanel            matlab.ui.container.Panel   % renderChronux draws here
-        ChronuxBadge struct = struct()           % the plot's state badge: Grid, Icon, Text (setChronuxState)
-        ChronuxStatusLabel      matlab.ui.control.Label
-
         % --- Log tab ---
         LogArea            matlab.ui.control.TextArea
     end
@@ -281,15 +246,6 @@ classdef EphysAnalysisApp < handle
         FigureGroupsCollapsed (1,:) string = string.empty(1,0)   % keys of the figure tree's groups the user collapsed
         FigureDrag = []                     % a panel dragged in the schematic (onSchematicPress): its state, else []
 
-        ChronuxIndex = []                  % loadChronuxExport's index of ChronuxFile
-        ChronuxFile (1,1) string = ""       % the active dataset's Chronux file ("" = none)
-        ChronuxFileWhere (1,1) string = ""  % "output" (its output folder) | "cache" (the local cache)
-        ChronuxResult = []                  % the last Chronux analysis (chronuxSpectrum, chronuxSpecgram)
-        ChronuxState (1,1) string = "idle"  % what the Chronux badge says (setChronuxState)
-        ChronuxPage (1,1) double = 1
-        ChronuxCancelRequested (1,1) logical = false
-        ChronuxCacheFolder (1,1) string = ""   % where Chronux files go when an output folder cannot be written
-        ChronuxMaxMB (1,1) double = 2000    % the most signal the Chronux tab reads at once (and a spectrogram's size)
     end
 
     properties (Constant)
@@ -456,25 +412,6 @@ classdef EphysAnalysisApp < handle
         onSchematicPress(obj, q, evt)
         cancelSchematicDrag(obj, msg)
         p = schematicPixel(obj, xy)
-
-        % --- Chronux tab ---
-        buildChronuxTab(obj)
-        refreshChronuxTab(obj)
-        syncChronuxControls(obj)
-        S = gatherChronuxSettings(obj)
-        applyChronuxSettings(obj, S)
-        onChronuxEdited(obj, what)
-        onChronuxSectionToggled(obj, name)
-        R = onChronuxCompute(obj)
-        onCancelChronux(obj)
-        chronuxCheck(obj)
-        drawChronux(obj)
-        setChronuxState(obj, state, opts)
-        out = onCreateChronuxExport(obj, opts)
-        onChronuxCacheFolder(obj, folder)
-        file = onSaveChronuxFigure(obj, file)
-        file = onSaveChronuxResults(obj, file)
-        [file, where] = chronuxFileFor(obj, k)
 
         % --- app-wide ---
         loadPreferences(obj, openLast)

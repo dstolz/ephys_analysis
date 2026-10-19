@@ -988,6 +988,22 @@ says how to cut a release.
   `spanWidth` and `spanAlpha` (Layers row **Span line**); role `eventSpan`. See
   [Spans](documentation/EphysAnalysisConfig.md#raster-event-marks).
 
+- Figures: a panel can be smaller than its cell, and the gaps between panels can be set one by one. A
+  panel's new `size` (`[width height]`, its share of its cell, default `[1 1]`) with `align` (left, center,
+  right) and `valign` (top, middle, bottom) sizes one panel apart from the others of its row or column
+  (the Figures tab's Arrangement rows **Panel size**, % of the cell, and **Align in cell**). `grid.spacing`
+  takes `"custom"`: `grid.gapUnits` (`"px"`, or `"%"` of the mean row's plot height / column's plot width,
+  so a figure keeps its look at any size), one gap each way (`grid.rowGap`, `grid.colGap`) and, to set gaps
+  apart, the lists `grid.rowGaps` (between rows i and i + 1) and `grid.colGaps`; `placePanel` and
+  `removePanel` keep the lists sized to the grid (Remove still undoes Add). A gap is the clear space
+  between neighboring panels' labels, so labels never collide and 0 is flush. The Arrangement's
+  **Spacing...** opens the new Panel spacing window (`private/figureSpacingDialog`): a preset or custom,
+  px or %, the one gap between rows and between columns, a table of every gap, Apply / OK / Cancel. The
+  schematic draws each panel at its size and alignment and the gaps in proportion. Validate checks the
+  new fields; `EphysAnalysisConfig.GridSpacings`, `GridSpacingPx`, `GridGapUnits`, `PanelAligns` and
+  `PanelVAligns` list their values. See [grid](documentation/EphysAnalysisConfig.md#figure-grid-and-observe-fields)
+  and [the Spacing window](documentation/EphysAnalysisApp.md#figures-tab).
+
 ### Changed
 
 - The Figures tab's **Design** drop-down and **Save look as design...** sit right of the **Dataset** and
@@ -1227,6 +1243,20 @@ says how to cut a release.
 - `.gitignore` covers MATLAB backups and autosaves, test-runner output,
   `.claude/worktrees` and operating-system files.
 
+- `renderFigure` lays a figure out with its own engine instead of MATLAB's tiled layout
+  (`private/figureCanvas`, `figureLayout`, `figureArrange`): one axes per panel placed in pixels, the rows'
+  and columns' plot areas lined up and in the exact proportions of `rowHeights` and `colWidths` (no more
+  quarter steps of the smallest, no 32-tile cap), the room the labels take measured from each axes
+  (`TightInset`, a color bar outside) and the gaps exact; the title and subtitle in a band over the grid
+  (a hidden `titleHost` axes, still the editor's `plotTitle` / `plotSubtitle`), the legend in a band beside
+  it (made where it is placed: `placeLegend`'s new location `"none"`), a note's band and a coherence panel's phase strip in the panel's own area. The target is laid out
+  again whenever it is resized (its `SizeChangedFcn`, chained after the one its owner set), so the app's
+  preview follows the window. `h.layout` is now what the figure is laid out on (the target, or a panel
+  made in a grid layout); a tiled layout is no longer a target (`renderFigure:BadTarget`). The spacing
+  presets are named gaps: loose 24 px, compact 12, tight 6, none 0. A panel smaller than its cell keeps
+  its own time tick labels. `PlotAesthetics.components` lists a figure's title from its `titleHost`, and
+  `PlotDesign` paints the target itself as the figure's ground.
+
 ### Removed
 
 - The analysis app's Chronux tab (and its preferences `ChronuxCacheFolder`,
@@ -1270,6 +1300,9 @@ says how to cut a release.
   over neighboring sites, response shapes, latency jitter, decreasing tuning and per-spike amplitude
   scatter; values drawn at random for NaN; the background rhythms, 1/f noise and line noise; the
   Synthetic tab's probe-gain plot and its PSTH split by parameter.
+
+- `figureTiles` (a figure's grid as equal tiles of a tiled layout), with the quarter-step rule for row
+  heights and column widths.
 
 ### Fixed
 

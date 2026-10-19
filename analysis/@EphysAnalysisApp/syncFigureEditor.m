@@ -7,7 +7,9 @@ function syncFigureEditor(obj)
 %                    auROC rows with the auROC test), the signal and channels
 %                    for a channel observation; "auto" says what it resolves
 %                    to (EphysAnalysisConfig.observeKind)
-%     Arrangement    the selected panel's rows once there is one
+%     Arrangement    the selected panel's rows once there is one (Align in
+%                    cell's drop-downs enabled each way the panel is
+%                    smaller than its cell)
 %     Panel, Panel alignment, Layers, Options   with a panel selected;
 %                    Group shown for the one-group types (heat map, unit
 %                    correlation); Panel alignment's rows grayed out (they
@@ -158,6 +160,9 @@ E.sesNote.Text = sessionNote(fig, kind);
 % arrangement and panel
 v.selPanel = hasPanel; v.noPanel = ~hasPanel;
 v.rowSpan = hasPanel; v.colSpan = hasPanel; v.rowHeight = hasPanel; v.colWidth = hasPanel; v.panelButtons = hasPanel;
+v.panelWidth = hasPanel; v.panelAlign = hasPanel;
+en(E.panelAlign, E.panelWidth.Value < 100);   % where it sits only matters when it is smaller than its cell
+en(E.panelVAlign, E.panelHeight.Value < 100);
 v.panelType = hasPanel; v.panelTitle = hasPanel; v.panelBox = hasPanel; v.group = false;
 % layers and options: off unless the panel uses them
 layerKeys = ["layerList" "layerAdd" "layerNote" "layerName" "layerSource" "layerBinding" "layerFollows" "layerClasses" ...

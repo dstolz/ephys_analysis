@@ -184,13 +184,18 @@ classdef PlotAesthetics
             %   panels) together. Untagged objects are listed on their own with
             %   role "". Titles, axis labels, legends and color bars count
             %   when they show something; a grid's x and y labels (its tiled
-            %   layout's) are the plot's own, tile 0.
+            %   layout's) and a figure's title and subtitle (its hidden
+            %   titleHost axes', renderFigure) are the plot's own, tile 0.
             C = struct('h', {}, 'role', {}, 'group', {}, 'tile', {}, 'name', {});
             for tl = PlotAesthetics.layoutsIn(target)
                 C = addText(C, tl.Title, "plotTitle", 0, "Plot");
                 C = addText(C, tl.Subtitle, "plotSubtitle", 0, "Plot");
                 C = addText(C, tl.XLabel, "xlabel", 0, "Plot");   % a grid's labels, once for every tile
                 C = addText(C, tl.YLabel, "ylabel", 0, "Plot");
+            end
+            for host = reshape(flipud(findall(target, 'Type', 'axes', 'Tag', 'titleHost')), 1, [])
+                C = addText(C, host.Title, "plotTitle", 0, "Plot");   % a figure's title (renderFigure: a hidden axes holds it)
+                C = addText(C, host.Subtitle, "plotSubtitle", 0, "Plot");
             end
             for host = reshape(flipud(findall(target, 'Type', 'axes', 'Tag', 'legendHost')), 1, [])
                 if ~isempty(host.Legend) && isvalid(host.Legend)   % a legend outside the grid belongs to the plot
@@ -570,13 +575,13 @@ classdef PlotAesthetics
             end
             axs = flipud(findall(target, 'Type', 'axes'));
             if isempty(axs); axs = gobjects(0, 1); return; end   % nothing drawn (a figure without panels): no Tag to read
-            axs = axs(~ismember({axs.Tag}, {'legendHost' 'noteHost'}));   % hidden hosts of a legend outside the grid (placeLegend) and of the note (drawNote)
+            axs = axs(~ismember({axs.Tag}, {'legendHost' 'noteHost' 'titleHost'}));   % hidden hosts of a legend outside the grid (placeLegend), of the note (drawNote) and of a figure's title (renderFigure)
             n = numel(axs);
             chains = cell(n, 1);   % the tiles from the outermost layout in: a nested layout's tile, then the tile within it (a PSTH's
             for k = 1:n            % raster and rate panel; a figure panel's axes beside its note's band, in a coherence pair: three deep)
                 L = axs(k).Layout;
                 c = Inf;
-                if isprop(L, 'Tile') && isnumeric(L.Tile)
+                if isscalar(L) && isprop(L, 'Tile') && isnumeric(L.Tile)   % (renderFigure's axes sit in no tiled layout: drawn order)
                     c = L.Tile;
                     p = axs(k).Parent;
                     while isa(p, 'matlab.graphics.layout.TiledChartLayout') && isa(p.Parent, 'matlab.graphics.layout.TiledChartLayout') ...

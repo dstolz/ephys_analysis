@@ -134,7 +134,7 @@ PlotAesthetics.setUserRules("psth", []);
 check(isempty(PlotAesthetics.userRules("psth")) && ~AppPrefs.ispref(PlotAesthetics.PrefGroup, "psth"), 'setUserRules(kind, []) forgets them');
 PlotAesthetics.setUserRules("figure", struct('role', "plotTitle", 'group', "", 'property', "FontSize", 'value', 17));
 h = renderFigure(Cp.F, Cp.spec, fig);
-check(h.layout.Title.FontSize == 17, 'the user''s "figure" rules dress every figure');
+check(findall(h.layout, 'Type', 'axes', 'Tag', 'titleHost').Title.FontSize == 17, 'the user''s "figure" rules dress every figure');
 PlotAesthetics.setUserRules("figure", []);
 w = warning('off', 'PlotAesthetics:BadValue');
 lastwarn('');
@@ -148,8 +148,8 @@ check(~isempty(h.layout) && strcmp(wid, 'PlotAesthetics:BadValue'), 'a value the
 fprintf('\n== 4. the right-click menu ==\n');
 inv = figure('Visible', 'off');   % a new figure, as a run's export is
 renderFigure(Cp.F, Cp.spec, inv);
-check(~isappdata(inv, PlotAesthetics.ContextKey) && isempty(findall(inv, 'Type', 'uicontextmenu')), ...
-    'an invisible figure (a run''s export) gets no menu');
+check(~isappdata(inv, PlotAesthetics.ContextKey) && isempty(findall(inv, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag)), ...
+    'an invisible figure (a run''s export) gets no editor menu (MATLAB''s own legend menu aside)');
 delete(inv);
 h = renderFigure(Cp.F, Cp.spec, fig, Editable=true, OnRemember=@(r) setappdata(0, 'aestheticsGot', r));
 ctx = getappdata(fig, PlotAesthetics.ContextKey);
@@ -219,7 +219,7 @@ check(isstruct(got) && isscalar(got) && got.role == "rate" && got.group == group
 ctx = getappdata(fig2, PlotAesthetics.ContextKey);
 C = PlotAesthetics.components(ctx.root);
 lws = arrayfun(@(r) C.Handles{r}(1).LineWidth, find(C.Role == "rate" & C.Group == groups(1)));
-check(~isequal(ctx.root, h.layout) && all(lws == 3) && numel(ctx.plotRules) == 1, ...
+check(~isvalid(h.axes(1)) && all(lws == 3) && numel(ctx.plotRules) == 1, ...
     'the figure is redrawn with its new rule, and the context knows it');
 d = PlotAestheticsDialog(ctx, C.Handles{find(C.Role == "sem", 1)}, Visible=false);
 d.setApplyTo("role");

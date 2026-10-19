@@ -2,7 +2,8 @@ function applyFigureEditor(obj)
 %applyFigureEditor  Show the selected figure, its selected panel and that panel's selected layer in the editor.
 %   The figure's own rows (id, title, observations, spacing, alignment,
 %   appearance, looks), then the panel's (SelectedPanel: type, title, spans,
-%   its row's height and column's width, its own event and window or the
+%   its row's height and column's width, its size in its cell and its
+%   alignment there, its own event and window or the
 %   figure's, its type's options, its layers) and the layer's
 %   (SelectedLayer), and the panel's text note and overlays (the first
 %   picked). The line and parameter lists come from the active
@@ -148,6 +149,12 @@ E.rowSpan.Value = min(E.rowSpan.Limits(2), max(1, round(p.rowSpan)));
 E.colSpan.Value = min(E.colSpan.Limits(2), max(1, round(p.colSpan)));
 E.rowHeight.Value = sizeOf(fig.grid.rowHeights, p.row);   % as stored: gatherFigureEditor writes it back only when edited
 E.colWidth.Value = sizeOf(fig.grid.colWidths, p.col);
+share = [100 100];   % its own size in its cell, %
+if numel(p.size) == 2 && all(isfinite(p.size)); share = min(100, max(1, 100 * reshape(p.size, 1, 2))); end
+E.panelWidth.Value = share(1);
+E.panelHeight.Value = share(2);
+E.panelAlign.Value = char(pickFrom(p.align, EphysAnalysisConfig.PanelAligns, "center"));
+E.panelVAlign.Value = char(pickFrom(p.valign, EphysAnalysisConfig.PanelVAligns, "middle"));
 own = [isstruct(p.ref) isstruct(p.window)];
 E.panelSame.Value = ~any(own);
 E.panelSame.UserData = own;   % which part the panel has of its own (onPanelAlignEdited, gatherFigureEditor)

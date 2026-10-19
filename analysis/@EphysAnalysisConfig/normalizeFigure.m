@@ -6,8 +6,9 @@ function [fig, unknown] = normalizeFigure(in, path)
 %   - ref, window and selection are the string "default" (the config's
 %     Defaults, see figureFor) or a struct, normalized as an EventRef /
 %     EpochWindow / TrialSelection; an empty value means "default"
-%   - observe and grid are coerced to their defaults (grid.rowHeights and
-%     grid.colWidths stay vectors: [] = equal)
+%   - observe and grid are coerced to their defaults
+%     (grid.rowHeights and grid.colWidths stay vectors: [] = equal;
+%     grid.rowGaps and grid.colGaps too: [] = rowGap / colGap each)
 %   - panels is a list of panels (a struct array, a cell from jsondecode,
 %     one struct or [] for none), each normalizePanel'd; a panel without
 %     an id gets "<type>_<n>", and two panels with one id raise

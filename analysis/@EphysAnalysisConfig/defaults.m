@@ -277,6 +277,9 @@ switch section
             'col',     1, ...
             'rowSpan', 1, ...
             'colSpan', 1, ...
+            'size',    [1 1], ...               % [width height]: its share (0-1) of its cell
+            'align',   "center", ...            % where it sits in its cell when narrower: "left" | "center" | "right"
+            'valign',  "middle", ...            % ... and when shorter: "top" | "middle" | "bottom"
             'ref',     "default", ...           % "default" (the figure's) or an EventRef
             'window',  "default", ...           % "default" (the figure's) or an EpochWindow (own epochs, the figure's selection)
             'selection', "default", ...         % "default" (the figure's) or a TrialSelection (own epochs and groups: its own colors and legend)
@@ -323,9 +326,14 @@ switch section
             'grid',       struct( ...
                 'rows',       1, ...
                 'cols',       1, ...
-                'rowHeights', [], ...           % [] = equal; else one positive relative height per row
+                'rowHeights', [], ...           % [] = equal; else one positive relative height per row (its plot area's, exactly)
                 'colWidths',  [], ...           % [] = equal; else one positive relative width per column
-                'spacing',    "tight"), ...     % TileSpacing: "loose" | "compact" | "tight" | "none" (flush stacked time panels)
+                'spacing',    "tight", ...      % the gap between panels' labels: "loose" | "compact" | "tight" | "none" (flush stacked time panels) | "custom"
+                'gapUnits',   "px", ...         % custom gaps: "px" | "%" (of the mean row's plot height / column's plot width)
+                'rowGap',     6, ...            % custom: the gap between every two rows
+                'colGap',     6, ...            % custom: the gap between every two columns
+                'rowGaps',    [], ...           % custom: [] = rowGap each; else rows - 1 gaps (between rows i and i + 1)
+                'colGaps',    []), ...          % custom: [] = colGap each; else cols - 1 gaps
             'panels',     repmat(EphysAnalysisConfig.defaults("Panel"), 1, 0), ...
             'ref',        "default", ...        % "default" (Defaults.EventRef) or an EventRef
             'window',     "default", ...        % "default" (Defaults.Window) or an EpochWindow

@@ -131,6 +131,14 @@ classdef EphysAnalysisConfig
         % Where a panel's note sits (note.placement): outside the panel, over it, or at a point.
         NotePlacements = ["below" "above" "right" "left" "northwest" "north" "northeast" "west" "center" "east" ...
             "southwest" "south" "southeast" "custom"]
+        % The gap between a figure's panels (grid.spacing): a named gap of GridSpacingPx px (in that order), or custom
+        % (grid.rowGap / colGap, or the lists rowGaps / colGaps, in grid.gapUnits); and where a panel smaller than its
+        % cell sits in it (panel.align, panel.valign).
+        GridSpacings  = ["loose" "compact" "tight" "none" "custom"]
+        GridSpacingPx = [24 12 6 0]
+        GridGapUnits  = ["px" "%"]
+        PanelAligns   = ["left" "center" "right"]
+        PanelVAligns  = ["top" "middle" "bottom"]
         % What a panel's overlays (defaults("Overlay")) choose from: the layer, a line's style.
         OverlayLayers     = ["over" "under"]
         OverlayLineStyles = ["-" "--" ":" "-."]

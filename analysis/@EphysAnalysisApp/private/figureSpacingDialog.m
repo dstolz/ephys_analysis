@@ -155,6 +155,7 @@ sync();
         %apply  The figure the window was opened on takes the gaps; the editor and the preview follow.
         if ~isvalid(obj) || ~isvalid(obj.Fig); delete(d); return; end
         cfg = obj.gatherConfig();
+        id = followedFigureId(obj, id);   % renamed since the window opened (an automatic id that followed an edit)
         q = cfg.figureIndex(id);
         if q < 1
             obj.setStatus("Spacing: there is no figure " + id + " any more.");

@@ -21,7 +21,7 @@ classdef EphysAnalysisConfig
     %               panel of a type (panelTypes) drawing one or more layers,
     %               each layer bound to a source (FigureSources) that either
     %               follows the observation or names fixed items: id,
-    %               enabled, title, observe, grid, panels, ref,
+    %               autoId, enabled, title, observe, grid, panels, ref,
     %               window, selection, sessions, style, aesthetics.
     %               sessions (defaults("FigureSessions")) with enabled true
     %               makes it a session figure: drawn once across the ticked
@@ -64,8 +64,8 @@ classdef EphysAnalysisConfig
     %     cfg.Source.Root = "D:\EPHYS";
     %     cfg.Defaults.EventRef.line = "Stim";
     %     cfg.Defaults.Selection.groupBy = "Depth";
-    %     cfg = cfg.addFigure("rasterPsth");   % figure_1: a unit's raster over its PSTH
-    %     cfg = cfg.addFigure("continuous");   % figure_2: a channel's LFP
+    %     cfg = cfg.addFigure("rasterPsth");   % "Raster+PSTH units": a unit's raster over its PSTH
+    %     cfg = cfg.addFigure("continuous");   % "Continuous LFP": a channel's LFP
     %     cfg.save("am_quicklook.json");
     %     r = EphysAnalysisRunner(EphysAnalysisConfig.load("am_quicklook.json"));
     %     r.run();
@@ -74,9 +74,13 @@ classdef EphysAnalysisConfig
     %   section is assigned, so what JSON gives back (a one-element list as a
     %   scalar, "Inf" as text, a heterogeneous Figures array as a cell) comes
     %   out right. Unknown fields are dropped (LoadWarnings lists them after
-    %   load). Figure ids must be unique (EphysAnalysisConfig:DuplicateFigureId);
-    %   a figure without an id gets "figure_<n>" and a figure's panel
-    %   "<type>_<n>".
+    %   load). Figure ids must be unique (EphysAnalysisConfig:DuplicateFigureId).
+    %   A figure's id is automatic while its autoId is true (a new figure's,
+    %   until an id of the user's own is given): it follows the figure's
+    %   panels and data (autoFigureId: "Raster+PSTH units"), made unique by
+    %   " (2)", " (3)", ... (nextFreeId), whenever Figures is assigned (every
+    %   edit, load). A figure with autoId false and no id gets "figure_<n>";
+    %   a figure's panel without an id gets "<type>_<n>".
     %
     %   Version 2 (this one) has no plots: config version 1's Plots and
     %   SessionPlots sections are migrated once, when a version-1 file is
@@ -217,8 +221,12 @@ classdef EphysAnalysisConfig
         function [obj, id] = addFigure(obj, template, opts)
             %addFigure  Append a figure: a template's name ("rasterPsth") or a (partial) figure struct.
             %   [CFG, ID] = cfg.addFigure("rasterPsth", Id="unit_card")
-            %   returns the new config and the figure's id ("figure_<n>"
-            %   when not given). The templates (figureTemplates):
+            %   returns the new config and the figure's id. An id given
+            %   (Id=, or the struct's id) is the figure's own (autoId
+            %   false); without one the id is automatic (autoId true):
+            %   autoFigureId's, "Raster+PSTH units", or "<that> (n)" when
+            %   another figure has it, and it follows the figure's panels
+            %   and data from then on. The templates (figureTemplates):
             %   "rasterPsth" (the default: a 2 x 1 grid, a raster flush over
             %   a PSTH, each with a units layer following the observed
             %   unit), one per panel type ("psth", "raster", "continuous",
@@ -249,11 +257,37 @@ classdef EphysAnalysisConfig
             if ~(isfield(template, 'observe') && isstruct(template.observe) && isfield(template.observe, 'data'))
                 f.observe.data = EphysAnalysisConfig.followedData(f);
             end
-            if f.id == ""
-                f.id = EphysAnalysisConfig.freeId("figure", obj.figureIds());
+            f.autoId = f.id == "";   % an id given is the figure's own
+            obj.Figures = [obj.Figures, f];   % an automatic id is given here (normalizeFigures)
+            id = obj.Figures(end).id;
+        end
+
+        function [obj, id] = duplicateFigure(obj, from)
+            %duplicateFigure  Copy figure FROM (an id or an index) right after it, as "<base> (n)".
+            %   [CFG, ID] = cfg.duplicateFigure("Raster+PSTH units") inserts
+            %   a copy of the figure, every setting kept, after it and
+            %   returns its id: "<base> (n)" with the smallest n >= 2 that
+            %   no figure has (nextFreeId), where <base> is the figure's
+            %   automatic id (autoFigureId) when its id is automatic, else
+            %   its own id without a " (n)" it ends in ("unit_card (2)"
+            %   copies as "unit_card (3)" while "unit_card (2)" is taken).
+            %   The copy's autoId is the figure's: an automatic copy
+            %   follows its own panels from then on. Error:
+            %   EphysAnalysisConfig:NoFigure.
+            k = from;
+            if ~isnumeric(from); k = obj.figureIndex(from); end
+            if ~(isscalar(k) && k >= 1 && k <= numel(obj.Figures))
+                error('EphysAnalysisConfig:NoFigure', 'No figure "%s".', string(from));
             end
-            obj.Figures = [obj.Figures, f];
-            id = f.id;
+            f = obj.Figures(k);
+            if f.autoId
+                base = EphysAnalysisConfig.autoFigureId(f);
+            else
+                base = regexprep(f.id, ' \(\d+\)$', '');
+            end
+            f.id = EphysAnalysisConfig.nextFreeId(base, obj.figureIds(), Suffix=true);
+            obj.Figures = [obj.Figures(1:k), f, obj.Figures(k+1:end)];
+            id = obj.Figures(k + 1).id;
         end
 
         function obj = removeFigure(obj, id)
@@ -325,6 +359,7 @@ classdef EphysAnalysisConfig
         [fig, unknown] = normalizeFigure(in, path)
         [p, unknown] = normalizePanel(in, path)
         [L, unknown] = normalizeLayer(in, path)
+        id = autoFigureId(fig)
         [cells, overlap] = figureCells(fig)
         fig = placePanel(fig, panel, where, anchorId)
         fig = removePanel(fig, id)
@@ -412,9 +447,16 @@ classdef EphysAnalysisConfig
 
         function [F, unknown] = normalizeFigures(v)
             %normalizeFigures  Figures from a struct array, a cell array (jsondecode) or [].
-            %   Every entry is normalized (normalizeFigure); entries without
-            %   an id get "figure_<n>"; duplicate ids raise
-            %   EphysAnalysisConfig:DuplicateFigureId.
+            %   Every entry is normalized (normalizeFigure); an entry with
+            %   autoId false and no id gets "figure_<n>"; two such entries
+            %   with one id raise EphysAnalysisConfig:DuplicateFigureId.
+            %   Every entry with autoId true gets its automatic id
+            %   (autoFigureId), unique among the figures by the next free
+            %   " (n)" (nextFreeId; ids compared as {Plot} writes them,
+            %   case-blind): an entry keeps the id it has while that is the
+            %   automatic id or "<it> (n)" and no figure before it (or with
+            %   an id of its own) has it, so only the figures whose content
+            %   changed are renamed; the others take the next free id.
             F = EphysAnalysisConfig.emptyFigures();
             unknown = string.empty(1, 0);
             if isempty(v); return; end
@@ -432,14 +474,34 @@ classdef EphysAnalysisConfig
                 F(1, end+1) = f; %#ok<AGROW>
             end
             ids = [F.id];
-            given = ids(ids ~= "");
+            auto = [F.autoId];
+            given = ids(ids ~= "" & ~auto);
             [~, first] = unique(given, 'stable');
             dup = given(setdiff(1:numel(given), first));
             if ~isempty(dup)
                 error('EphysAnalysisConfig:DuplicateFigureId', 'Figure id "%s" is used more than once.', dup(1));
             end
-            for k = find(ids == "")
+            for k = find(ids == "" & ~auto)
                 F(k).id = EphysAnalysisConfig.freeId("figure", [F.id]);
+            end
+            if ~any(auto); return; end
+            key = @(s) lower(regexprep(s, '[^\w\-\.]', '_'));   % the id as {Plot} writes it, case-blind
+            used = key([strings(1, 0) F(~auto).id]);
+            base = strings(1, numel(F));
+            keep = false(1, numel(F));
+            for k = find(auto)   % the ids that still fit their content stay, first come first
+                base(k) = EphysAnalysisConfig.autoFigureId(F(k));
+                cur = F(k).id;
+                fits = cur == base(k) || (startsWith(cur, base(k) + " (") ...
+                    && ~isempty(regexp(extractAfter(cur, strlength(base(k))), '^ \([2-9]\d*\)$|^ \(1\d+\)$', 'once')));
+                if fits && ~ismember(key(cur), used)
+                    keep(k) = true;
+                    used(end+1) = key(cur); %#ok<AGROW>
+                end
+            end
+            for k = find(auto & ~keep)
+                F(k).id = EphysAnalysisConfig.nextFreeId(base(k), used);
+                used(end+1) = key(F(k).id); %#ok<AGROW>
             end
         end
 
@@ -575,6 +637,28 @@ classdef EphysAnalysisConfig
                 n = n + 1;
             end
             id = kind + "_" + n;
+        end
+
+        function id = nextFreeId(base, used, opts)
+            %nextFreeId  BASE, or "BASE (n)" with the smallest free n >= 2: a figure id that names other files than USED.
+            %   ID = EphysAnalysisConfig.nextFreeId(BASE, USED) compares
+            %   the ids as {Plot} writes them (every character outside
+            %   A-Z a-z 0-9 _ - . as "_"), case-blind, as validate does.
+            %   Suffix=true always adds " (n)" (duplicateFigure).
+            arguments
+                base (1,1) string
+                used string = string.empty(1, 0)
+                opts.Suffix (1,1) logical = false
+            end
+            key = @(s) lower(regexprep(s, '[^\w\-\.]', '_'));
+            used = key(reshape(used, 1, []));
+            id = base;
+            if ~opts.Suffix && ~ismember(key(id), used); return; end
+            n = 2;
+            while ismember(key(base + " (" + n + ")"), used)
+                n = n + 1;
+            end
+            id = base + " (" + n + ")";
         end
     end
 end

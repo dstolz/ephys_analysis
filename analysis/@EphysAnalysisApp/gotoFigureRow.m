@@ -83,7 +83,7 @@ if e.Row == 0; what = "The " + S.Title + " section"; end
 switch S.Name
     case {"panel" "palign" "layers" "options" "note" "overlays"}
         if isempty(fig.panels)
-            why = what + " is a panel's: add a panel to the figure first (Arrangement).";
+            why = what + " is a panel's: add a panel to the figure first (Panels: New panel...).";
         elseif ~hasPanel
             why = what + " is a panel's: pick a panel in the schematic (Ctrl+] steps through them).";
         else

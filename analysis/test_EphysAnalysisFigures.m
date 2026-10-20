@@ -149,7 +149,7 @@ layerOf = @EphysAnalysisConfig.defaultLayer;
 %% ============================================================================ config
 fprintf('\n== 1. config: defaults and the tables ==\n');
 F = EphysAnalysisConfig.defaults("Figure");
-check(F.id == "" && F.enabled && F.title == "" && F.observe.data == "units" && isequal(F.ref, "default") ...
+check(F.id == "" && F.autoId && F.enabled && F.title == "" && F.observe.data == "units" && isequal(F.ref, "default") ...
     && isequal(F.window, "default") && isequal(F.selection, "default") && isequaln(F.style, EphysAnalysisConfig.defaults("Style")) ...
     && isempty(F.aesthetics) && isstruct(F.panels) && isempty(F.panels), 'defaults("Figure")');
 check(F.grid.rows == 1 && F.grid.cols == 1 && isequal(F.grid.rowHeights, []) && isequal(F.grid.colWidths, []) ...
@@ -175,8 +175,11 @@ check(~FS.enabled && FS.datasets == "ticked" && isstring(FS.datasetKeys) && iseq
     && isequaln(EphysAnalysisConfig.defaults("Figure").sessions, FS), 'defaults("FigureSessions"), the Figure''s sessions block');
 
 spectralTypes = ["spectrum" "spectrogram" "coherence"];
-check(isequal(T.Type.', [types spectralTypes "eventTrace"]) && isequal(string(T.Properties.VariableNames), ["Type" "Label" "Categories" "Aligned" ...
+check(isequal(T.Type.', [types spectralTypes "eventTrace"]) && isequal(string(T.Properties.VariableNames), ["Type" "Label" "Short" "Categories" "Aligned" ...
     "SharesTime" "OneGroup" "MultiLayer" "DefaultBinding" "Description" "DefaultOptions"]), 'panelTypes: the thirteen types and the columns');
+check(isequal(T.Short.', ["Raster" "PSTH" "Continuous" "Heatmap" "Waveforms" "ProbeMap" "Correlation" "Rate" "Tuning" ...
+    "Spectrum" "Spectrogram" "Coherence" "EventTraces"]) && all(~contains(T.Short, [" " "+"])), ...
+    'panelTypes: a one-word Short name per type (the automatic figure id''s part)');
 check(isequal(T.SharesTime.', [true true true true false false false false false false true false true]) ...
     && isequal(T.Aligned.', [true true true true false false true true true true true true true]) ...
     && isequal(T.OneGroup.', [false false false true false false true false false false true false false]) ...
@@ -321,34 +324,97 @@ check(ct.Figures(1).panels.id == "rate_1" && ct.Figures(2).panels.id == "tuning_
 cfg = EphysAnalysisConfig();
 [cfg, id1] = cfg.addFigure();
 f1 = cfg.Figures(1);
-check(id1 == "figure_1" && f1.grid.rows == 2 && f1.grid.cols == 1 && isequal(f1.grid.rowHeights, [1 1]) && f1.grid.spacing == "none" ...
+check(id1 == "Raster+PSTH units" && f1.autoId && f1.grid.rows == 2 && f1.grid.cols == 1 && isequal(f1.grid.rowHeights, [1 1]) && f1.grid.spacing == "none" ...
     && isequal([f1.panels.id], ["raster_1" "psth_1"]) && isequal([f1.panels.row], [1 2]) && isequal([f1.panels.col], [1 1]), ...
-    'addFigure(): figure_1, raster_1 flush over psth_1 on a 2 x 1 grid');
+    'addFigure(): an automatic id ("Raster+PSTH units"), raster_1 flush over psth_1 on a 2 x 1 grid');
 check(isscalar(f1.panels(1).layers) && isscalar(f1.panels(2).layers) && f1.panels(1).layers.source == "units" ...
     && f1.panels(1).layers.binding == "observation" && f1.panels(2).layers.binding == "observation", ...
     'rasterPsth: each panel one units layer following the observation');
 [cfg, id2] = cfg.addFigure("continuous");
 [cfg, id3] = cfg.addFigure("blank", Id="empty");
 [cfg, id4] = cfg.addFigure(struct('panels', struct('type', "heatmap")));
-check(isequal([id2 id3 id4], ["figure_2" "empty" "figure_3"]) && cfg.Figures(2).panels.id == "continuous_1" ...
-    && cfg.Figures(2).panels.layers.source == "LFP" && isempty(cfg.Figures(3).panels) && cfg.Figures(4).panels.id == "heatmap_1", ...
-    'addFigure: free ids "figure_<n>", a given id, single-type and blank templates, a partial struct gets panel ids');
+check(isequal([id2 id3 id4], ["Continuous LFP" "empty" "Blank dataset"]) && cfg.Figures(2).panels.id == "continuous_1" ...
+    && cfg.Figures(2).panels.layers.source == "LFP" && isempty(cfg.Figures(3).panels) && cfg.Figures(4).panels.id == "heatmap_1" ...
+    && isequal([cfg.Figures.autoId], [true true false true]), ...
+    'addFigure: automatic ids (a heat map panel without layers is not active: "Blank dataset"), a given id is the figure''s own, a partial struct gets panel ids');
 [cfg5, id5] = cfg.addFigure(struct('observe', struct('data', "MUA"), 'panels', struct('type', "raster", 'layers', layerOf("raster"))));
 check(f1.observe.data == "units" && cfg.Figures(2).observe.data == "LFP" && cfg.Figures(3).observe.data == "dataset" ...
     && cfg.Figures(4).observe.data == "dataset" && cfg5.Figures(cfg5.figureIndex(id5)).observe.data == "MUA", ...
     'addFigure observes what the following layers read (units, LFP; the dataset for a blank figure or fixed layers) unless observe.data is given');
 check(strcmp(errorId(@() cfg.addFigure("nope")), 'EphysAnalysisConfig:BadValue'), 'an unknown template: BadValue');
-check(strcmp(errorId(@() cfg.addFigure("psth", Id="figure_1")), 'EphysAnalysisConfig:DuplicateFigureId'), 'a taken id: DuplicateFigureId');
+check(strcmp(errorId(@() cfg.addFigure("psth", Id="empty")), 'EphysAnalysisConfig:DuplicateFigureId'), 'a taken id: DuplicateFigureId');
 cfg.Figures(3).enabled = false;
-check(isequal(cfg.figureIds(), ["figure_1" "figure_2" "empty" "figure_3"]) && cfg.figureIndex("empty") == 3 && cfg.figureIndex("x") == 0 ...
-    && isequal(cfg.enabledFigures(), ["figure_1" "figure_2" "figure_3"]), 'figureIds, figureIndex, enabledFigures');
+check(isequal(cfg.figureIds(), ["Raster+PSTH units" "Continuous LFP" "empty" "Blank dataset"]) && cfg.figureIndex("empty") == 3 && cfg.figureIndex("x") == 0 ...
+    && isequal(cfg.enabledFigures(), ["Raster+PSTH units" "Continuous LFP" "Blank dataset"]), 'figureIds, figureIndex, enabledFigures');
 c2 = cfg.removeFigure("empty");
-check(isequal(c2.figureIds(), ["figure_1" "figure_2" "figure_3"]) && strcmp(errorId(@() cfg.removeFigure("x")), 'EphysAnalysisConfig:NoFigure'), ...
+check(isequal(c2.figureIds(), ["Raster+PSTH units" "Continuous LFP" "Blank dataset"]) && strcmp(errorId(@() cfg.removeFigure("x")), 'EphysAnalysisConfig:NoFigure'), ...
     'removeFigure (NoFigure for an unknown id)');
-c2.Figures = {struct(), struct('id', "figure_1")};
-check(isequal(c2.figureIds(), ["figure_2" "figure_1"]), 'a cell of partial figures gets free ids');
-check(strcmp(errorId(@() setFigures(c2, [cfg.Figures(1) cfg.Figures(1)])), 'EphysAnalysisConfig:DuplicateFigureId'), ...
-    'two figures with one id: DuplicateFigureId');
+c2.Figures = {struct(), struct('id', "figure_1"), struct('autoId', false)};
+check(isequal(c2.figureIds(), ["Blank units" "figure_1" "figure_2"]) && isequal([c2.Figures.autoId], [true false false]), ...
+    'a cell of partial figures: no id -> an automatic id; an id given -> its own; autoId false and no id -> "figure_<n>"');
+
+% automatic ids (autoFigureId): the active panel types in grid order, then the data; " (n)" for uniqueness
+ca = EphysAnalysisConfig();
+[ca, a1] = ca.addFigure("rasterPsth");
+[ca, a2] = ca.addFigure("rasterPsth");
+[ca, a3] = ca.addFigure("coherence");
+[ca, a4] = ca.addFigure("eventTrace");
+fa = ca.Figures(1);
+fa = place(fa, struct('type', "continuous", 'layers', layerOf("continuous")), "below", "psth_1");
+ca.Figures(1) = fa;
+check(isequal([a1 a2 a3 a4], ["Raster+PSTH units" "Raster+PSTH units (2)" "Coherence units+LFP" "EventTraces events"]) ...
+    && ca.Figures(1).id == "Raster+PSTH+Continuous units+LFP" && ca.Figures(2).id == "Raster+PSTH units (2)", ...
+    'autoFigureId: types in grid order joined by +, then observe.data and the layers'' sources; the second gets " (2)", and keeps it when the first is renamed');
+ca.Figures(1).panels(1).layers(1).enabled = false;   % an inactive panel (no enabled layer) is not named
+check(ca.Figures(1).id == "PSTH+Continuous units+LFP", 'a panel with no enabled layer is not in the id');
+fe = ca.Figures(2);
+ev = layerOf("eventTrace");
+fe.panels(1).layers(end+1) = ev;   % marks annotate: not data
+fe.panels(1).layers(end).eventsAs = "train";
+fe.id = "";
+fe.autoId = true;
+ca = ca.addFigure(fe);
+check(ca.Figures(end).id == "Raster+PSTH units+events" && endsWith(EphysAnalysisConfig.autoFigureId(ca.Figures(2)), "units"), ...
+    'events count as data only drawn as a train (or on an event-trace panel), not as marks');
+ca.Figures(2).panels(1).type = "heatmap";
+check(ca.Figures(2).id == "Heatmap+PSTH units" && ca.Figures(2).autoId, 'the id follows a type change');
+ca.Figures(2).observe.data = "MUA";
+check(ca.Figures(2).id == "Heatmap+PSTH MUA+units", 'and observe.data');
+ca.Figures(2).autoId = false;
+ca.Figures(2).panels(1).type = "raster";
+check(ca.Figures(2).id == "Heatmap+PSTH MUA+units", 'autoId false: the id stays whatever the panels');
+ca.Figures(2).id = "mine";
+ca.Figures(2).autoId = true;
+check(ca.Figures(2).id == "Raster+PSTH MUA+units", 'autoId true again: back to the automatic id');
+[ca, d1] = ca.duplicateFigure(2);
+[ca, d2] = ca.duplicateFigure(2);
+check(d1 == "Raster+PSTH MUA+units (2)" && d2 == "Raster+PSTH MUA+units (3)" && isequal(ca.figureIds(), ...
+    ["PSTH+Continuous units+LFP" "Raster+PSTH MUA+units" "Raster+PSTH MUA+units (3)" "Raster+PSTH MUA+units (2)" "Coherence units+LFP" ...
+    "EventTraces events" "Raster+PSTH units+events"]) && ca.Figures(3).autoId, ...
+    'duplicateFigure: right after the figure, "<id> (n)" with the next free n, still automatic');
+ca.Figures(2).autoId = false;   % first: an automatic id would take over an id typed while autoId is true
+ca.Figures(2).id = "unit_card";
+[ca, d3] = ca.duplicateFigure("unit_card");
+[ca, d4] = ca.duplicateFigure("unit_card (2)");
+check(d3 == "unit_card (2)" && d4 == "unit_card (3)" && ~ca.Figures(3).autoId && strcmp(errorId(@() ca.duplicateFigure("x")), ...
+    'EphysAnalysisConfig:NoFigure'), 'an id of one''s own duplicates as "<id> (n)" (a " (n)" it ends in is not doubled), still its own');
+cb = EphysAnalysisConfig();
+cb = cb.addFigure("psth", Id="psth units");   % names the same files as "PSTH units" ({Plot}, case-blind)
+[cb, b1] = cb.addFigure("psth");
+check(b1 == "PSTH units (2)" && EphysAnalysisConfig.nextFreeId("PSTH units", ["PSTH_units" "x"]) == "PSTH units (2)" ...
+    && EphysAnalysisConfig.nextFreeId("a", "b") == "a" && EphysAnalysisConfig.nextFreeId("a", "b", Suffix=true) == "a (2)", ...
+    'an automatic id never names the files another figure names (compared as {Plot} writes them, case-blind)');
+fj2 = string(tempname) + ".json";
+ca.save(fj2);
+cl = EphysAnalysisConfig.load(fj2);
+delete(fj2);
+check(isequal(cl.figureIds(), ca.figureIds()) && isequal([cl.Figures.autoId], [ca.Figures.autoId]), 'automatic ids and autoId survive save / load');
+fOwn = cfg.Figures(1);
+fOwn.autoId = false;
+c3 = setFigures(c2, [cfg.Figures(1) cfg.Figures(1)]);
+check(strcmp(errorId(@() setFigures(c2, [fOwn fOwn])), 'EphysAnalysisConfig:DuplicateFigureId') ...
+    && isequal(c3.figureIds(), ["Raster+PSTH units" "Raster+PSTH units (2)"]), ...
+    'two figures with one id of their own: DuplicateFigureId; two with one automatic id: the second gets " (2)"');
 dupPanels = struct('panels', {{struct('id', "a", 'type', "psth"), struct('id', "a", 'type', "raster")}});
 check(strcmp(errorId(@() setFigures(c2, dupPanels)), 'EphysAnalysisConfig:DuplicatePanelId'), 'two panels with one id: DuplicatePanelId');
 c2.Figures = [];
@@ -362,7 +428,7 @@ cfg.Defaults.Selection.groupBy = "Depth";
 cfg = cfg.addFigure();
 cfg = cfg.addFigure("continuous");
 cfg = cfg.addFigure("probemap");
-s = cfg.figureFor("figure_1");
+s = cfg.figureFor(1);
 check(isequaln(s.ref, cfg.Defaults.EventRef) && isequaln(s.window, cfg.Defaults.Window) && isequaln(s.selection, cfg.Defaults.Selection), ...
     'figureFor: the figure''s "default" ref / window / selection from Defaults');
 check(s.observe.kind == "unit" && s.observe.data == "units" && s.observe.units.source == "units" ...
@@ -383,10 +449,10 @@ s = cfg.figureFor(1);
 check(~s.panels(1).sharesTime && ~s.panels(2).sharesTime && s.panels(2).window.post == 0.3 && s.panels(1).ref.edge == "offset" ...
     && isequaln(s.panels(1).window, s.window) && isequaln(s.panels(2).ref, s.ref), ...
     'a panel''s own ref or window: kept, the other part from the figure, and it no longer shares time');
-s = cfg.figureFor("figure_2");
+s = cfg.figureFor(2);
 check(s.observe.kind == "channel" && s.observe.data == "LFP" && s.panels.layers.category == "continuous" && s.panels.layers.units.source == "LFP", ...
     'figureFor: LFP observed (the continuous template) -> channel observations');
-s = cfg.figureFor("figure_3");
+s = cfg.figureFor(3);
 check(s.observe.kind == "dataset" && ~s.panels.aligned && ~s.panels.sharesTime && s.panels.layers.category == "unit", ...
     'figureFor: a probe map with a fixed layer -> the dataset; not aligned');
 check(strcmp(errorId(@() cfg.figureFor("x")), 'EphysAnalysisConfig:NoFigure') && strcmp(errorId(@() cfg.figureFor(9)), 'EphysAnalysisConfig:NoFigure'), ...
@@ -604,7 +670,7 @@ check(rn4.isequalConfig(rn5) && isempty(rn5.LoadWarnings) && rn5.Figures(1).obse
 v = jsondecode('[{"id": "a", "panels": [{"type": "raster"}]}, {"grid": {"rows": 2, "rowHeights": [1, 1.5]}, "panels": {"type": "psth", "row": 2}}]');
 c4 = EphysAnalysisConfig();
 c4.Figures = v;
-check(iscell(v) && isequal(c4.figureIds(), ["a" "figure_1"]) && c4.Figures(1).panels.id == "raster_1" ...
+check(iscell(v) && isequal(c4.figureIds(), ["a" "Blank units"]) && c4.Figures(1).panels.id == "raster_1" ...
     && isequal(c4.Figures(2).grid.rowHeights, [1 1.5]) && c4.Figures(2).panels.row == 2, ...
     'a cell Figures from jsondecode (figures with different fields)');
 c5 = EphysAnalysisConfig(struct('schema', EphysAnalysisConfig.Schema, 'version', EphysAnalysisConfig.Version, 'Figures', struct('id', "solo")));
@@ -733,7 +799,7 @@ check(strcmp(errorId(@() EphysAnalysisConfig.adoptPanelOptions(ap, "zz")), 'Ephy
 fprintf('\n== 6. config: validate ==\n');
 base = EphysAnalysisConfig();
 base.Source.Root = root;
-base = base.addFigure();
+base = base.addFigure(Id="figure_1");   % an id of its own: the edits below keep it
 check(isempty(figIssues(base)), 'the rasterPsth figure validates clean');
 tc = base;
 for t = FT.Template.'

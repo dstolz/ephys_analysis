@@ -12,24 +12,27 @@ function buildFiguresTab(obj)
 %           dataset; enabled / off; none), each node with a check box that
 %           ticks or unticks the figure, or every figure of a group
 %           (onFigureTreeClicked), All / None / Invert (onFigureCheck);
-%           the template a new one starts from
-%           (EphysAnalysisConfig.figureTemplates, "Raster over PSTH (per
-%           unit)" first) with Add, and Remove, Duplicate, Up, Down (within
-%           its group) and
+%           Add (a blank figure, then the New panel window: onAddFigure),
+%           Remove, Duplicate ("<id> (2)": onDuplicateFigure), Up, Down
+%           (within its group) and
 %           Copy from... (onCopyFigureSettings: another figure's settings,
 %           part by part).
-%   Middle  the editor, a column of sections (formSection): Id, Title,
+%   Middle  the editor, a column of sections (formSection): Id (with
+%           auto: the id follows the panels and data until one is typed:
+%           onIdEdited, onIdAutoToggled), Title,
 %           Enabled and a summary, always open; then Observations (the data
 %           the figure is drawn for, the unit filter or the channels, Per
 %           trial group: one
-%           figure per observation and group), Arrangement (the
+%           figure per observation and group), Panels (the
 %           schematic of the grid, drawFigureSchematic: click a panel to
 %           pick it, or drag it to an empty cell or to an edge of another
-%           panel, onSchematicPress; Add panel above / below / left / right of it; its
+%           panel, onSchematicPress; New panel... (the New panel window:
+%           its type, name, place and key parameters, onNewPanel); its
 %           spans, its row's height and column's width, its own size in its
 %           cell and where it sits there, the spacing with Spacing...
 %           (figureSpacingDialog: the gaps between the panels),
-%           Remove panel, Move), Panel (its type, title, group shown), the
+%           Remove panel, Move), Selected panel (its type, title, box,
+%           group shown), the
 %           figure's Event reference, Epoch window and Trial selection (the
 %           Alignment tab's while "Use default" is ticked; Epoch Diagram),
 %           Panel alignment
@@ -54,8 +57,8 @@ function buildFiguresTab(obj)
 %           header (onFigureSectionToggled). The sections stand under three
 %           supersections, each a dark header that collapses them all
 %           (onFigureSuperToggled): Figure (Observations, Event reference,
-%           Epoch window, Trial selection, Sessions, Arrangement), Panel
-%           (Panel, Panel alignment, Layers, Options, Text note, Overlays;
+%           Epoch window, Trial selection, Sessions, Panels), Panel
+%           (Selected panel, Panel alignment, Layers, Options, Text note, Overlays;
 %           its header names the selected panel) and Look (Appearance,
 %           Looks), built in that order so Tab follows it. Alt+1 to Alt+3
 %           go to a supersection (gotoFigureSuper), Ctrl+1 to Ctrl+9 and
@@ -86,11 +89,12 @@ g.Padding = [8 8 8 8];
 changed = @(~,~) obj.onConfigChanged("figure");
 gray = [0.35 0.35 0.35];
 obj.FigureObservation = containers.Map('KeyType', 'char', 'ValueType', 'any');
+obj.FigureIdRenames = containers.Map('KeyType', 'char', 'ValueType', 'any');
 PT = EphysAnalysisConfig.panelTypes();
 
 % --- left: the figures, a tree under groups ------------------------------------------------------
-lg = uigridlayout(g, [10 2]);
-lg.RowHeight = {22, 28, 30, '1x', 28, 30, 30, 30, 30, 64};
+lg = uigridlayout(g, [9 2]);
+lg.RowHeight = {22, 28, 30, '1x', 30, 30, 30, 30, 64};
 lg.ColumnWidth = {'1x', '1x'};
 lg.Padding = [0 0 0 0];
 l = uilabel(lg, "Text", "Figures  (ticked = enabled)", "FontWeight", "bold");
@@ -118,33 +122,29 @@ obj.FiguresTree = uitree(lg, "Multiselect", "off", "SelectionChangedFcn", @(~, e
     "and preview it. The box on a figure is ticked while it is enabled (Run draws it): click the box to tick or " + ...
     "untick it. A group's box is ticked when all its figures are, half-filled when some are; click it to tick or untick them all.");
 place(obj.FiguresTree, 4, [1 2]);
-FT = EphysAnalysisConfig.figureTemplates();
-obj.FigureTemplateDropDown = uidropdown(lg, "Items", FT.Label, "ItemsData", FT.Template, "Value", FT.Template(1), ...
-    "Tooltip", "What a new figure starts from: a raster over a PSTH of the observed unit, one panel of a type, or a blank grid.");
-place(obj.FigureTemplateDropDown, 5, [1 2]);
-obj.AddFigureButton = uibutton(lg, "Text", "Add", "ButtonPushedFcn", @(~,~) obj.onAddFigure(string(obj.FigureTemplateDropDown.Value)), ...
-    "Tooltip", "Add a figure from the template above, edit it, and preview its first observation.");
-place(obj.AddFigureButton, 6, [1 2]);
+obj.AddFigureButton = uibutton(lg, "Text", "Add", "ButtonPushedFcn", @(~,~) obj.onAddFigure(), ...
+    "Tooltip", "Add a blank figure and pick its first panel in the New panel window (Cancel leaves it blank).");
+place(obj.AddFigureButton, 5, [1 2]);
 obj.RemoveFigureButton = uibutton(lg, "Text", "Remove", "ButtonPushedFcn", @(~,~) obj.onRemoveFigure(), ...
     "Tooltip", "Remove the selected figure from the config.");
-place(obj.RemoveFigureButton, 7, 1);
+place(obj.RemoveFigureButton, 6, 1);
 obj.DuplicateFigureButton = uibutton(lg, "Text", "Duplicate", "ButtonPushedFcn", @(~,~) obj.onDuplicateFigure(), ...
-    "Tooltip", "Copy the selected figure under a new id, right after it; the copy is selected.");
-place(obj.DuplicateFigureButton, 7, 2);
+    "Tooltip", "Copy the selected figure right after it, as ""<id> (2)"" (the next free number); the copy is selected.");
+place(obj.DuplicateFigureButton, 6, 2);
 obj.UpFigureButton = uibutton(lg, "Text", "Up", "ButtonPushedFcn", @(~,~) obj.onMoveFigure(-1), ...
     "Tooltip", "Move the selected figure up its group (the run order).");
-place(obj.UpFigureButton, 8, 1);
+place(obj.UpFigureButton, 7, 1);
 obj.DownFigureButton = uibutton(lg, "Text", "Down", "ButtonPushedFcn", @(~,~) obj.onMoveFigure(1), ...
     "Tooltip", "Move the selected figure down its group (the run order).");
-place(obj.DownFigureButton, 8, 2);
+place(obj.DownFigureButton, 7, 2);
 obj.CopyFigureButton = uibutton(lg, "Text", "Copy from...", "ButtonPushedFcn", @(~,~) obj.onCopyFigureSettings(), ...
     "Tooltip", "Copy another figure's settings onto the selected figure: pick the figure and the parts (observations, " + ...
     "alignment, arrangement and panels, appearance, looks, across sessions). It keeps its id, title and enabled.");
-place(obj.CopyFigureButton, 9, [1 2]);
+place(obj.CopyFigureButton, 8, [1 2]);
 l = uilabel(lg, "Text", "A figure is one observation's panels: a unit's, a channel's or the dataset's. " + ...
     "Generate draws it for each observation; Run (Export tab) draws the enabled ones.", ...
     "WordWrap", "on", "FontColor", gray, "VerticalAlignment", "top");
-place(l, 10, [1 2]);
+place(l, 9, [1 2]);
 
 % --- middle: the search field, its matches and the editor ------------------------------------------
 mc = uigridlayout(g, [3 1], "RowHeight", {30, 0, '1x'}, "Padding", [0 0 0 0], "RowSpacing", 4);
@@ -181,10 +181,15 @@ tint = @(name) hue(order == name, :);
 
 % the figure: always open
 S = formSection(eg, 1, "general", "");
-[S, r] = formRow(S, "id", "Id:");
-E.id = uieditfield(S.Body, "text", "ValueChangedFcn", @(f, evt) onIdEdited(obj, f, evt), ...
-    "Tooltip", "Unique among the figures; it names the figure's files ({Plot} in the Export tab's file names).");
-place(E.id, r, 2);
+[S, r] = formRow(S, ["id" "idAuto"], "Id:");
+ig = subgrid(S.Body, r, {'1x', 'fit'});
+E.id = uieditfield(ig, "text", "ValueChangedFcn", @(f, evt) onIdEdited(obj, f, evt), ...
+    "Tooltip", "Unique among the figures; it names the figure's files ({Plot} in the Export tab's file names). " + ...
+    "Gray while automatic: it follows the active panel types and the data (""Raster+PSTH units""). Typing an id " + ...
+    "makes it yours.");
+E.idAuto = uicheckbox(ig, "Text", "auto", "Value", true, "ValueChangedFcn", @(b, ~) onIdAutoToggled(obj, b), ...
+    "Tooltip", "Ticked: the id follows the figure's active panel types and data (""Raster+PSTH units"", ""Continuous LFP""; " + ...
+    "a "" (2)"" when another figure has it). Typing an id unticks it; tick it to go back to the automatic id.");
 [S, r] = formRow(S, "title", "Title:");
 E.title = uieditfield(S.Body, "text", "Placeholder", "automatic", "ValueChangedFcn", changed, ...
     "Tooltip", "Blank: ""<id>: <observation> — <event> (<n> epochs)"". A title of your own names no " + ...
@@ -373,31 +378,21 @@ E.sesNote = uilabel(S.Body, "Text", "", "FontColor", gray, "WordWrap", "on", "Ve
 place(E.sesNote, r, [1 2]);
 sec(end+1) = S;
 
-% the arrangement: the schematic, placing, sizing and moving panels
-S = formSection(eg, 3, "arrangement", "Arrangement", Color=tint("arrangement"));
+% the panels: the schematic, adding (New panel...), sizing and moving them (the section's key stays "arrangement")
+S = formSection(eg, 3, "arrangement", "Panels", Color=tint("arrangement"));
 [S, r] = formRow(S, "schematic", "", 160);
 E.schematicPanel = uipanel(S.Body, "BorderType", "none", "UserData", false);   % formLayout shows and hides the row's panel
 place(E.schematicPanel, r, [1 2]);   % its axes: drawFigureSchematic makes it while the row is shown (one made or kept at 0 px does not draw)
-[S, r] = formRow(S, "addType", "Add panel:");
-E.addType = uidropdown(S.Body, "Items", PT.Label, "ItemsData", PT.Type, "Value", "continuous", ...
-    "ValueChangedFcn", @(dd, ~) setAddType(obj, dd.Value), ...
-    "Tooltip", "The type of the panel the four buttons below add; it gets the type's default layer, so it draws at once.");
-place(E.addType, r, 2);
-obj.FigureAddType = "continuous";
-[S, r] = formRow(S, "addWhere", "", 30);
-ag = subgrid(S.Body, r, {'1x', '1x', '1x', '1x'});
-where = ["above" "below" "left" "right"];
-for w = where
-    E.("add" + upper(extractBefore(w, 2)) + extractAfter(w, 1)) = uibutton(ag, "Text", upper(extractBefore(w, 2)) + extractAfter(w, 1), ...
-        "ButtonPushedFcn", @(~,~) obj.onAddPanel(w), "Tooltip", "Add a panel of the type above " + w + ...
-        " the selected panel: a new " + ternary(ismember(w, ["above" "below"]), "row", "column") + ...
-        " of the grid. The first panel of a figure goes to row 1, column 1.");
-end
+[S, r] = formRow(S, "newPanel", "", 30);
+E.newPanel = uibutton(S.Body, "Text", "New panel...", "ButtonPushedFcn", @(~,~) obj.onNewPanel(), ...
+    "Tooltip", "Add a panel: pick its type (each shown as a small plot), its name, where it goes next to the " + ...
+    "selected panel (a new row or column) and its key parameters. The first panel goes to row 1, column 1.");
+place(E.newPanel, r, [1 2]);
 [S, r] = formRow(S, "selPanel", "Selected panel:");
 E.selPanel = uilabel(S.Body, "Text", "", "FontWeight", "bold");
 place(E.selPanel, r, 2);
 [S, r] = formRow(S, "noPanel", "");
-E.noPanel = uilabel(S.Body, "Text", "No panel yet: pick a type and press Above, Below, Left or Right.", "FontColor", gray);
+E.noPanel = uilabel(S.Body, "Text", "No panel yet: press New panel... to add one.", "FontColor", gray);
 place(E.noPanel, r, [1 2]);
 [S, r] = formRow(S, "rowSpan", "Row span:");
 E.rowSpan = uispinner(S.Body, "Limits", [1 32], "Step", 1, "Value", 1, "RoundFractionalValues", "on", ...
@@ -463,8 +458,8 @@ sec(end+1) = S;
 
 hPanel = superHeader(eg);   % the Panel supersection's header
 
-% the selected panel
-S = formSection(eg, 4, "panel", "Panel", Color=tint("panel"));
+% the selected panel (the section's key stays "panel")
+S = formSection(eg, 4, "panel", "Selected panel", Color=tint("panel"));
 [S, r] = formRow(S, "panelType", "Type:");
 E.panelType = uidropdown(S.Body, "Items", PT.Label, "ItemsData", PT.Type, "ValueChangedFcn", @(~,~) obj.onPanelTypeChanged(), ...
     "Tooltip", "The panel's type. A change starts its options afresh (keeping what both types share), drops the " + ...
@@ -1328,7 +1323,8 @@ end
 
 
 function onIdEdited(obj, f, evt)
-%onIdEdited  A new figure id: refused when blank or another figure's; the observation picked moves with it.
+%onIdEdited  A figure id typed: refused when blank or another figure's; else it is the figure's own (auto unticked).
+%   The observation picked moves with it (trackFigureIds, in onConfigChanged).
 if obj.Applying; return; end
 k = obj.SelectedFigure;
 if k < 1 || k > numel(obj.Config.Figures); return; end
@@ -1344,12 +1340,24 @@ if id == "" || any(others == id)
     end
     return
 end
-old = char(obj.Config.Figures(k).id);
-if isKey(obj.FigureObservation, old) && ~strcmp(old, char(id))
-    obj.FigureObservation(char(id)) = obj.FigureObservation(old);
-    remove(obj.FigureObservation, old);
-end
+obj.FigureEditor.idAuto.Value = false;   % typed: the id is the user's own from now on
 obj.onConfigChanged("figure");
+obj.setStatus("The figure's id is " + id + ", your own: it no longer follows its panels (tick auto to go back).");
+end
+
+
+function onIdAutoToggled(obj, b)
+%onIdAutoToggled  The Id row's auto box: ticked, the id follows the panels and data again; unticked, the id it shows is kept as the user's own.
+if obj.Applying; return; end
+k = obj.SelectedFigure;
+if k < 1 || k > numel(obj.Config.Figures); return; end
+obj.onConfigChanged("figure");
+id = obj.Config.Figures(k).id;
+if b.Value
+    obj.setStatus("The figure's id follows its panels and data again: " + id + ".");
+else
+    obj.setStatus("The figure's id " + id + " is your own now: it no longer follows its panels.");
+end
 end
 
 
@@ -1395,11 +1403,6 @@ function onGroupByChanged(obj)
 %onGroupByChanged  The figure tree's Group by: regroup it (the selected figure stays); Up and Down follow its new group.
 obj.refreshFigureList();
 obj.syncFigureEditor();
-end
-
-
-function setAddType(obj, t)
-obj.FigureAddType = string(t);
 end
 
 

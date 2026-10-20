@@ -31,17 +31,20 @@ classdef EphysAnalysisApp < handle
     %                grid, designed for ONE observation (a sorted unit, a
     %                channel or the dataset) at a time; a tree of figures
     %                under groups (what they observe, enabled / off, none),
-    %                each with a check box that enables it (add from a
-    %                template, remove, duplicate, reorder within a group) and an
+    %                each with a check box that enables it (add a blank
+    %                figure, remove, duplicate as "<id> (2)", reorder within
+    %                a group); its id follows its panels and data
+    %                ("Raster+PSTH units") until one is typed; and an
     %                editor in collapsible sections under three collapsible
     %                supersections (Figure, Panel, Look), with a search
     %                field that finds a setting by name: the observations (the
-    %                unit filter), the arrangement (a schematic of the grid:
+    %                unit filter), the panels (a schematic of the grid:
     %                drag a panel to an empty cell or beside another one;
-    %                Add panel above / below / left / right of the selected
-    %                one, spans, relative row heights and column widths,
-    %                spacing, Remove, Move), the panel (type, title, group
-    %                shown), the figure's event reference, epoch window and
+    %                New panel... (a window: the type, each shown as a small
+    %                plot, its name, place and key parameters: onNewPanel),
+    %                spans, relative row heights and column widths,
+    %                spacing, Remove, Move), the selected panel (type, title,
+    %                box, group shown), the figure's event reference, epoch window and
     %                trial selection ("Use default" for the Alignment tab's),
     %                the panel's own event and window ("Same as the figure"),
     %                its layers (each follows the observation or is fixed),
@@ -173,7 +176,6 @@ classdef EphysAnalysisApp < handle
         % --- Figures tab (buildFiguresTab) ---
         FiguresTree            matlab.ui.container.Tree         % the figures under groups (figureGroups); a figure's node holds its index in NodeData
         FigureGroupDropDown    matlab.ui.control.DropDown       % how the tree groups: what it observes, status, none
-        FigureTemplateDropDown matlab.ui.control.DropDown       % the template a new figure starts from (figureTemplates)
         AddFigureButton        matlab.ui.control.Button
         RemoveFigureButton     matlab.ui.control.Button
         DuplicateFigureButton  matlab.ui.control.Button
@@ -249,13 +251,13 @@ classdef EphysAnalysisApp < handle
         SelectedLayer (1,1) double = 0      % that panel's layer in the editor (index into its layers; 0 = none)
         FigureObservations = []             % the picker's observations: figureObservations' table on the active dataset
         FigureObservation = []              % the observation each figure last showed: containers.Map, figure id -> its label
+        FigureIdRenames = []                % figures renamed (an automatic id that followed an edit): containers.Map, old id -> new (trackFigureIds)
         FigurePreviewResult = []            % the last figure preview's result (computeFigure's F)
         FigurePreviewSeconds (1,1) double = 0   % time the last figure preview took (auto-preview under AutoPreviewSeconds)
         FigurePreviewWarm (1,1) logical = false % a figure was drawn already: the first one's time (graphics loading) is not counted
         FigureAutoPreviewSeconds (1,1) double = 2   % edits redraw the figure preview while the last one took under this (AutoPreviewSeconds; tests raise it)
         FigurePreviewState (1,1) string = "idle"   % what the figure preview's badge says (setFigurePreviewState)
         FigurePreviewRedo (1,1) logical = false    % an edit or a Preview press came in while one computed: it ends Out of date
-        FigureAddType (1,1) string = "continuous"  % the panel type Add panel adds (the Arrangement's drop-down)
         FigureAddSource (1,1) string = "units"     % the source Add layer adds, when the panel's type draws it
         FigureSessionResults = []           % a session figure's last preview: struct(res (figureSessionCompute's RES), spec, what, label, seconds)
         FigureGroupsCollapsed (1,:) string = string.empty(1,0)   % keys of the figure tree's groups the user collapsed
@@ -407,7 +409,7 @@ classdef EphysAnalysisApp < handle
         onPanelAlignEdited(obj, part)
         onPanelDefaultToggled(obj)
         onPanelSelected(obj, k)
-        onAddPanel(obj, where)
+        onNewPanel(obj, opts)
         onRemovePanel(obj)
         onMovePanel(obj, direction)
         onPanelTypeChanged(obj)

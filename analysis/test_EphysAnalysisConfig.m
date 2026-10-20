@@ -81,18 +81,18 @@ cfg.Defaults.EventRef.maxDurationSec = Inf;
 cfg.Defaults.Selection.groupBy = "Depth";
 cfg.Defaults.Selection.response = "Hit";
 cfg.Defaults.Window = struct('mode', "fixed", 'pre', -0.2, 'post', 0.8, 'stop', struct('line', "Stim", 'edge', "offset"));
-[cfg, id1] = cfg.addFigure("rasterPsth");
-[cfg, id2] = cfg.addFigure("continuous");
+[cfg, id1] = cfg.addFigure("rasterPsth", Id="figure_1");   % ids of their own: the edits below keep them
+[cfg, id2] = cfg.addFigure("continuous", Id="figure_2");
 cfg.Figures(2).observe.channels = [1 3];
 cfg.Figures(2).window = struct('mode', "fixed", 'pre', -0.1, 'post', 0.5);
 [cfg, id3] = cfg.addFigure("rate", Id="rate_platform");
 cfg.Figures(3).ref = struct('line', "Platform", 'scope', "trial");
 cfg.Figures(3).window = struct('mode', "between", 'pre', 0, 'post', 0, 'stop', struct('line', "Platform", 'edge', "offset"));
 cfg.Figures(3).selection = struct('filter', "Hit | Miss", 'groupBy', ["Depth" "TrialType"]);
-[cfg, id4] = cfg.addFigure("probemap");
+[cfg, id4] = cfg.addFigure("probemap", Id="figure_3");
 cfg.Figures(4).enabled = false;
-check(isequal([id1 id2 id3 id4], ["figure_1" "figure_2" "rate_platform" "figure_3"]) && numel(cfg.Figures) == 4, ...
-    'addFigure assigns "figure_<n>" ids and keeps a given one');
+check(isequal([id1 id2 id3 id4], ["figure_1" "figure_2" "rate_platform" "figure_3"]) && numel(cfg.Figures) == 4 ...
+    && ~any([cfg.Figures.autoId]), 'addFigure keeps the ids given, as the figures'' own (autoId false)');
 f = fullfile(root, 'full.json');
 cfg.save(f);
 txt = fileread(f);
@@ -118,7 +118,8 @@ check(strcmp(errorId(@() setFigures(cfg, [cfg.Figures(1) cfg.Figures(1)])), 'Eph
     'two figures with one id: DuplicateFigureId');
 c4 = cfg;
 c4.Figures = {struct('title', "a"), struct('id', "figure_1"), struct('title', "c")};
-check(isequal([c4.Figures.id], ["figure_2" "figure_1" "figure_3"]), 'a cell of partial figures (jsondecode) gets free ids');
+check(isequal([c4.Figures.id], ["Blank units" "figure_1" "Blank units (2)"]) && isequal([c4.Figures.autoId], [true false true]), ...
+    'a cell of partial figures (jsondecode): an id given is kept as its own; the others get automatic ids, made unique');
 c4.Figures = [];
 check(isempty(c4.Figures) && isstruct(c4.Figures), 'Figures = [] empties them');
 check(numel(cfg.removeFigure("figure_2").Figures) == 3 && strcmp(errorId(@() cfg.removeFigure("nope")), 'EphysAnalysisConfig:NoFigure'), ...

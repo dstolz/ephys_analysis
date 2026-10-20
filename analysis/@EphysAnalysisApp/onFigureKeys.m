@@ -16,7 +16,7 @@ a = "Alt";
 if ismac; c = "Cmd"; a = "Option"; end
 K = [ ...
     a + "+1, " + a + "+2, " + a + "+3",  "Go to a supersection of the editor: Figure, Panel, Look (it opens if collapsed; Tab then moves into it)"
-    c + "+1 ... " + c + "+9, " + c + "+0", "Go to a section: Observations 1, Event reference 2, Epoch window 3, Trial selection 4, Arrangement 5, Panel 6, Panel alignment 7, Layers 8, Options 9, Text note 0 (each header names its key)"
+    c + "+1 ... " + c + "+9, " + c + "+0", "Go to a section: Observations 1, Event reference 2, Epoch window 3, Trial selection 4, Panels 5, Selected panel 6, Panel alignment 7, Layers 8, Options 9, Text note 0 (each header names its key)"
     c + "+F",                          "Go to the search field: type part of a setting's name"
     "Enter (searching)",                 "Go to the match picked, else the first: its supersection and section open, the editor scrolls to it, its control takes the focus"
     "Down, Up (searching)",              "Pick another match (the editor shows it); Tab also moves into the list of matches"

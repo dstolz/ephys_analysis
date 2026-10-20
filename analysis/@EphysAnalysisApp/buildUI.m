@@ -46,7 +46,7 @@ b = findall(obj.Fig, "Type", "uibutton", "-or", "Type", "uistatebutton");
 styleButton(b(~strcmp(get(b, "Tag"), "formSectionToggle")));
 styleButton([obj.ScanButton, obj.RunButton, ...
     obj.FigurePreviewButton, obj.FigureGenerateButton], "primary");
-styleButton([obj.AddFigureButton, obj.FigureEditor.addLayer], "confirm");
+styleButton([obj.AddFigureButton, obj.FigureEditor.newPanel, obj.FigureEditor.addLayer], "confirm");
 styleButton([obj.CancelButton, obj.RemoveFigureButton, obj.FigureEditor.removePanel, ...
     obj.FigureEditor.removeLayer], "danger");
 end

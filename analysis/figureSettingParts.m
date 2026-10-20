@@ -7,7 +7,7 @@ function T = figureSettingParts()
 %     Label        name shown in the app
 %     Fields       the Figure fields it copies (a string row)
 %     Description  one line, the window's tooltip
-%   A figure's id, title and enabled are never copied. Every part fits
+%   A figure's id (and autoId), title and enabled are never copied. Every part fits
 %   every figure: a figure's fields do not depend on its panels.
 %
 %   See also copyFigureSettings.

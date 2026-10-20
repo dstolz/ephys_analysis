@@ -364,6 +364,9 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   CI error bands and bars, `Style.ErrorType "ci95"`, `errorBounds`; `tinv`
   for the *t* interval across sessions of a session figure's `error "ci95"`,
   `combineSessions`, which falls back to 1.96 × SEM without the toolbox).
+- Image Processing Toolbox (optional; only `tools/makePanelThumbnails`,
+  which scales the analysis app's New panel pictures down with `imresize`;
+  the app reads the PNGs it wrote, committed under `analysis/icons/panels`).
 - Parallel Computing Toolbox (optional; `Parallel.Enabled` in a pipeline
   config, or `UseParallel=true` on `detectSpikes`, `artifactIntervals` and
   `analyzeArtifacts`). The Visualize tab's envelope builds

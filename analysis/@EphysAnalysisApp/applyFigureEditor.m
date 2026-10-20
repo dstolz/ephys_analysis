@@ -17,7 +17,7 @@ if k < 1 || k > numel(obj.Config.Figures)
     obj.SelectedPanel = 0;
     obj.SelectedLayer = 0;
     obj.FigureEditorPanel.Title = "Figure";
-    E.id.Value = '';
+    showFigureId(obj);
     obj.syncFigureEditor();
     return
 end
@@ -28,8 +28,7 @@ fig = obj.Config.Figures(k);
 np = numel(fig.panels);
 obj.SelectedPanel = min(max(obj.SelectedPanel, 1), np);
 [lines, params] = sourceItems(obj);
-obj.FigureEditorPanel.Title = "Figure: " + fig.id;
-E.id.Value = char(fig.id);
+showFigureId(obj);   % the editor's title too
 E.title.Value = char(fig.title);
 E.enabled.Value = fig.enabled;
 

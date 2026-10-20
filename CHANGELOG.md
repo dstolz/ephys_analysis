@@ -43,6 +43,25 @@ says how to cut a release.
   `DataTipFieldsDialog` (right-click **Data tip fields...**, or the app's **Design** menu) picks the
   fields shown, a preference (group `FigureDataTips`) applied to the figures on screen at once. See
   [Data tips](documentation/EphysAnalysisApp.md#figures-tab).
+- Figures: automatic ids. A figure's new field `autoId` (default `true`) makes its id follow what it holds:
+  its active panel types in grid order, then the data it draws, *Raster+PSTH units*, *Continuous LFP*,
+  *Raster+PSTH+Continuous units+LFP* (`EphysAnalysisConfig.autoFigureId`, over `panelTypes`' new `Short`
+  column), given whenever `Figures` is assigned (every edit, load) and made unique by the next free *(2)*,
+  *(3)* (`nextFreeId`; compared as `{Plot}` writes ids); a figure keeps an id that still fits it, so an edit
+  renames only the figure edited. An id given (`addFigure(..., Id=)`, an id typed in the app) is the
+  figure's own (`autoId` false) and stays. New `cfg.duplicateFigure(id)`: the copy right after it as
+  *&lt;id&gt; (n)*. The app's Id row has an **auto** box (the automatic id in gray; typing unticks it,
+  ticking it goes back), and the app follows an automatic rename in what it keeps by id (the observation
+  picked, the right-click editors' remembered looks, the Spacing window). See
+  [Figure ids](documentation/EphysAnalysisConfig.md#figure-ids).
+- The **New panel** window (Figures tab, **New panel...** in the Panels section, and after **Add**): a tile
+  per panel type, each a small representative plot drawn by the type's real draw function (the new
+  `analysis/icons/panels/<type>.png`, made by the new `tools/makePanelThumbnails`; a placeholder for a
+  type without one), the panel's name and title, its place beside the selected panel and the type's key
+  parameters (what it reads and the binding; a raster's sort, a PSTH's bins and measure, a continuous
+  panel's display and error band, a heat map's rows, an event-trace panel's lines, a spectral panel's
+  frequency range, ...). New `onNewPanel` (Type= and the choices as options for scripts and tests) and
+  `private/newPanelDialog`. See [the New panel window](documentation/EphysAnalysisApp.md#the-new-panel-window).
 
 - Adaptive weighted CAR for the derived signals (Khorasani, Shalchyan & Daliri 2019, *Front. Neurosci.*
   13:350): each channel minus its own Kalman-tracked share of the plain CAR, so an artifact that reaches
@@ -1030,6 +1049,11 @@ says how to cut a release.
 
 ### Changed
 
+- The Figures tab: **Add** makes a blank figure and opens the New panel window for its first panel
+  (Cancel leaves it blank); **Duplicate** names the copy *&lt;id&gt; (2)* (the next free number) instead of
+  `figure_<n>`. The editor's Arrangement section is titled **Panels** and its Panel section **Selected
+  panel** (their keys, `arrangement` and `panel`, and their Ctrl+2 / Ctrl+3 stay). A figure added without an
+  id (`addFigure`) has an automatic id instead of `figure_<n>`.
 - The Figures tab's **Design** drop-down and **Save look as design...** sit right of the **Dataset** and
   **Observation** drop-downs; the freed row goes to the preview. **Preview** and **Generate** are one row high,
   with **Auto** and **<** **>** under them.
@@ -1299,6 +1323,10 @@ says how to cut a release.
 
 ### Removed
 
+- The Figures tab's template drop-down above **Add**, and the Panels section's **Add panel** drop-down with
+  its **Above** / **Below** / **Left** / **Right** buttons (one **New panel...** button and its window
+  instead); the app's `onAddPanel`, `FigureTemplateDropDown` and `FigureAddType`. `figureTemplates` and
+  `addFigure(template)` stay for scripts and tests (`onAddFigure(template)` too).
 - The analysis app's Chronux tab (and its preferences `ChronuxCacheFolder`,
   `ChronuxMaxMB`, `ChronuxSettings`, `ChronuxSectionsCollapsed`, its wiki
   section and its test section): the Figures tab's *Power spectrum*,

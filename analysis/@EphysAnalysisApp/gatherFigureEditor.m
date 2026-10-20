@@ -25,6 +25,7 @@ function fig = gatherFigureEditor(obj)
 E = obj.FigureEditor;
 fig = obj.Config.Figures(obj.SelectedFigure);
 fig.id = strtrim(string(E.id.Value));
+fig.autoId = logical(E.idAuto.Value);   % ticked: the config gives the automatic id (normalizeFigures)
 fig.title = string(E.title.Value);
 fig.enabled = logical(E.enabled.Value);
 

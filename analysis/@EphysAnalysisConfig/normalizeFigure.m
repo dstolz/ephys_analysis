@@ -3,6 +3,10 @@ function [fig, unknown] = normalizeFigure(in, path)
 %   [FIG, UNKNOWN] = EphysAnalysisConfig.normalizeFigure(IN, PATH) fills the
 %   fields IN leaves out, coerces the rest (see normalizeSection) and drops
 %   unknown fields (their paths, prefixed by PATH, in UNKNOWN):
+%   - autoId, when IN does not give it, is true for a blank id and false
+%     for an id IN names (that id is then the figure's own); the
+%     automatic id itself is given when the figure is stored in a config
+%     (normalizeFigures: autoFigureId, unique among the figures)
 %   - ref, window and selection are the string "default" (the config's
 %     Defaults, see figureFor) or a struct, normalized as an EventRef /
 %     EpochWindow / TrialSelection; an empty value means "default"
@@ -38,6 +42,9 @@ if isstruct(in) && ~isempty(in)
     end
 end
 [fig, unknown] = EphysAnalysisConfig.coerceStruct(def, in, path);
+if ~(isstruct(in) && isfield(in, 'autoId'))
+    fig.autoId = fig.id == "";   % an entry that names an id but not autoId keeps that id as its own
+end
 
 for f = string(fieldnames(sentinels)).'
     if ~isfield(held, f); continue; end

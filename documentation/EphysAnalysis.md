@@ -1303,7 +1303,7 @@ writePdfReport(report, "E:\out\stim_report.pdf");
 | `addReportSection(report, name, Summary=)` | starts a section that is not one dataset's (`kind "section"`), such as the runner's *Across sessions*, with its summary tables when `IncludeSummary` (`Summary=struct('sessions', T)`); `addReportFigure` then adds to it. Both writers print each field of a summary under its label (`recording` *Recording*, `lines` *Digital lines*, `trials`, `units`, `topRates` *Highest rates*, `sessions` *Sessions*, any other by its name; a dataset's PDF page keeps to its recording, trials and units) |
 | `reportImage(fig, report, Title=, Files=)` | one drawn page as the HTML report embeds it |
 | `reportPdfPage(fig, report, Files=)` | one drawn page as the PDF report holds it |
-| `writeHtmlReport(report, file)`, `writePdfReport(report, file)` | the files; neither draws a figure again |
+| `writeHtmlReport(report, file)`, `writePdfReport(report, file)` | the files; neither draws a figure again. `ProgressFcn=@(done, total, message)` hears each section (HTML) or page and the joining (PDF), `Writing the report: page 3/12` |
 
 `Images` are the HTML report's pages and `Pages` the PDF report's, both
 made from the figures already drawn and exported:
@@ -1389,7 +1389,7 @@ pipeline's selected datasets instead of `cfg.Source`
 | `clearSources()` | forgets the loaded sources and every dataset's cached data |
 | `cancel()` | the figure observation being drawn finishes; the next `progress()` call throws `EphysAnalysisRunner:Canceled`, and what is left (the rest of that figure's observations too) is `canceled` |
 | `Results`, `Report`, `ReportFiles`, `RunRecordFile` | the last run's results, report struct, report files and run record |
-| `ProgressFcn`, `LogFcn` | `ProgressFcn(fraction, message)` before each dataset, figure and figure observation (the message is `<name>: <id> (<i>/<n>)`), `fraction` how far the whole run is (dataset j of n starts at (j−1)/n and its figures share its 1/n, a figure's observations dividing its share); it may call `cancel()` itself. `LogFcn(message)` per line (default: print; `[]` = quiet) |
+| `ProgressFcn`, `LogFcn` | `ProgressFcn(fraction, message)` before each dataset, figure and figure observation (the message is `<name>: <id> (<i>/<n>)`), `fraction` how far the whole run is (dataset j of n starts at (j−1)/n and its figures share its 1/n, a figure's observations dividing its share; session figures take a share each, and the one report over them all a share after them); it may call `cancel()` itself. Writing a report reports its sections (HTML) and pages (PDF), `Writing the report: page 3/12`, and is never canceled; a per-dataset report reports at its dataset's end. `LogFcn(message)` per line (default: print; `[]` = quiet) |
 | `PollFcn` | `PollFcn()` at `computeFigure`'s checkpoints (between a figure's panels; per unit, group or sixteenth epoch inside `spikePSTH`, `aurocCurves`, `evokedPotential` and `unitWaveforms`, which take it as `Check=`). The app's preview sets it so its Cancel button can act while a figure computes: after `cancel()` the next checkpoint throws `EphysAnalysisRunner:Canceled`. Empty (a run, a script) means no checkpoints. `clearCancel()` forgets an earlier `cancel()` |
 
 - `runDataset(k)` is a thin sequence of public calls per figure, observation by

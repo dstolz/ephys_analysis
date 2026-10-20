@@ -8,7 +8,7 @@ function onScan(obj)
 cfg = obj.gatherConfig();
 scanCfg = cfg;
 scanCfg.Source.Selection = "all";
-obj.setStatus("Scanning ...");
+obj.setStatus("Scanning " + ternary(cfg.Source.Mode == "project", cfg.Source.Root, "the output folders") + " for datasets ...");
 drawnow;
 try
     r = EphysAnalysisRunner(scanCfg, LogFcn=@(m) obj.log(m));

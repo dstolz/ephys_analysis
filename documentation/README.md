@@ -423,7 +423,7 @@ no optional toolbox are needed; tests that need one are skipped (reported as
   `test_BinScale`, `test_ClassdefDeclarations`, `test_CopySessions`,
   `test_DataPathWarnings`, `test_DetectionBenchmark`, `test_LocalCleanup`,
   `test_NWBExport`, `test_OutputTransfer`, `test_PipelineScriptSave`, `test_PlatformSupport`,
-  `test_Provenance`, `test_ReadNewLines`, `test_RepositoryMetadata`,
+  `test_ProgressClock`, `test_Provenance`, `test_ReadNewLines`, `test_RepositoryMetadata`,
   `test_TableSort`, `test_ThresholdScope` and `test_UnitQuality`; in
   `analysis/`, `test_Auroc`, `test_PopulationAnalysis` and
   `test_ResponseStats`. New suites take this form; `test_BinaryReader` is the
@@ -559,6 +559,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_Auroc` (analysis/) | `aucOf`; `aurocCurves` (`"psth"` against a port of the Caras lab's code, `"epochs"`, windows, the stop mask, cutoffs, `aurocCall` over stacked results, silent units, bootstrap / ranksum / shuffle tests); `spikePSTH`'s auROC result; the figure caption's auROC clause; the PSTH and heat map marks (skipped without the toolbox) |
 | `test_PopulationAnalysis` (analysis/) | `populationAnalysis` against the per-dataset calls, the auROC calls pooled over the family, `populationSummary`, the files `writePopulation` writes |
 | `test_ReadNewLines` | `readNewLines` (the run monitor's log tail): whole lines from a byte offset, a partial line left for the next call, CRLF and carriage-return progress lines as a terminal shows them; a missing file or no name reads nothing and keeps the offset |
+| `test_ProgressClock` | `ProgressClock`, the time left both apps show: its words and roundings, no estimate before 1% and 5 s, a steady rate exact, smoothing after an uneven piece, restart, odd fractions |
 | `test_PlatformSupport` | `platformSupport`'s table and its refusal on a platform where a feature is not available (skipped on Windows); `openInSystem`'s error |
 | `test_TableSort` | `TableSort`, the kept sort of the apps' tables: the order by number, text (ignoring case), date, duration, category and logical, ties in the order given, missing values last, cell columns by header, a column the rows lack; the column and direction a header click leaves, an edit ignored; the preference round trip |
 | `test_PipelineScriptSave` | each run saves the config's standalone script in the project root (`Project.SaveScript`), names the run in it, replaces only a script a run saved, none when off or for a dry run; `writeScript` outside a run; the file names |

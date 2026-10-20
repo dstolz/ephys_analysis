@@ -147,7 +147,7 @@ end
 switch cfg.Reference.Mode
     case "car"; ref = "common reference: average (CAR)";
     case "cmr"; ref = "common reference: median (CMR)";
-    case "wcar"; ref = "common reference: adaptive weighted CAR (WCAR)";
+    case "wcar"; ref = "common reference: weighted CAR";   % fits one line of the box
     otherwise;  ref = "no common reference";
 end
 raw = node("rec", "rec", "src", 0, 2, "Raw recording", ...

@@ -5,6 +5,8 @@ function rememberFigureAesthetics(obj, id, rules)
 %   config (Figures(k).aesthetics), so the figure is drawn that way wherever
 %   it is drawn, and the title shows unsaved changes. RULES [] forgets them
 %   (the Looks section's Forget). The editor redraws the preview itself.
+%   The change is a step of the undo history (recordFigureEdit: "Remember
+%   looks", "Forget looks").
 %
 %   See also renderFigure, PlotAesthetics.
 arguments
@@ -20,6 +22,11 @@ if k < 1
     return
 end
 cfg.Figures(k).aesthetics = PlotAesthetics.normalizeRules(rules);
+if isempty(cfg.Figures(k).aesthetics)
+    recordFigureEdit(obj, cfg, "Forget looks");
+else
+    recordFigureEdit(obj, cfg, "Remember looks");
+end
 obj.Config = cfg;
 if ~isempty(obj.Runner)
     obj.Runner.Config = cfg;

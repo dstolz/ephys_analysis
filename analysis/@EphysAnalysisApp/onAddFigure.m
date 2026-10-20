@@ -33,7 +33,7 @@ id = cfg.Figures(end).id;   % an automatic id follows the data observed
 obj.SelectedFigure = numel(cfg.Figures);
 obj.SelectedPanel = 1;
 obj.SelectedLayer = 1;
-obj.applyConfig(cfg);
+obj.applyConfig(cfg, Action="Add figure");
 obj.FigurePreviewResult = [];
 obj.FigurePreviewSeconds = 0;
 if ask

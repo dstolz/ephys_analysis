@@ -14,5 +14,5 @@ p.layers(i) = [];
 fig.panels(j) = p;
 cfg.Figures(k) = fig;
 obj.SelectedLayer = min(i, numel(p.layers));
-commitFigureEdit(obj, cfg, "Removed layer """ + what + """ from " + p.id + ".");
+commitFigureEdit(obj, cfg, "Removed layer """ + what + """ from " + p.id + ".", Action="Remove layer");
 end

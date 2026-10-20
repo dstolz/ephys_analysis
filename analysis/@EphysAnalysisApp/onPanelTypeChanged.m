@@ -82,7 +82,7 @@ if any(PT.Type == old); was = word(PT.Label(PT.Type == old)); end
 msg = p.id + " is now a " + word(PT.Label(row)) + " panel (was a " + was + " panel): options reset";
 if ~isempty(dropped); msg = msg + "; dropped " + strjoin(dropped, ", "); end
 if ~isempty(follows); msg = msg + "; its " + strjoin(follows, " and ") + " layer now follows the observation"; end
-commitFigureEdit(obj, cfg, msg + added + ".");
+commitFigureEdit(obj, cfg, msg + added + ".", Action="Panel type");
 end
 
 

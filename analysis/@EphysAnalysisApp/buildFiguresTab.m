@@ -91,7 +91,7 @@ function buildFiguresTab(obj)
 g = uigridlayout(obj.TabFigures, [1 3]);
 g.ColumnWidth = {285, 470, '1x'};
 g.Padding = [8 8 8 8];
-changed = @(~,~) obj.onConfigChanged("figure");
+changed = @(src, ~) obj.onConfigChanged("figure", src);   % the control names the edit (undo history)
 gray = [0.35 0.35 0.35];
 obj.FigureObservation = containers.Map('KeyType', 'char', 'ValueType', 'any');
 obj.FigureIdRenames = containers.Map('KeyType', 'char', 'ValueType', 'any');
@@ -1470,7 +1470,7 @@ if ~isstruct(p.ref) && ~isstruct(p.window) && ~isstruct(p.selection); return; en
 fig = EphysAnalysisConfig.adoptPanelAlignment(fig, p.id);
 cfg.Figures(k) = fig;
 commitFigureEdit(obj, cfg, sprintf("%s's event, window and trial selection are now the figure's; all %d panels follow them.", ...
-    p.id, numel(fig.panels)));
+    p.id, numel(fig.panels)), Action="Apply alignment to all panels");
 end
 
 
@@ -1500,7 +1500,7 @@ else
 end
 fig.panels(j) = p;
 cfg.Figures(k) = fig;
-commitFigureEdit(obj, cfg, msg);
+commitFigureEdit(obj, cfg, msg, Action="Trial selection as the figure");
 end
 
 
@@ -1518,7 +1518,7 @@ if n == 0; return; end
 fig = EphysAnalysisConfig.relinkPanels(fig);
 cfg.Figures(k) = fig;
 commitFigureEdit(obj, cfg, sprintf("Re-linked %d panel(s): every panel follows the figure's event, window and trial " + ...
-    "selection again.", n));
+    "selection again.", n), Action="Re-link all panels");
 end
 
 
@@ -1551,7 +1551,7 @@ if isempty(went)
     return
 end
 cfg.Figures(k) = fig;
-commitFigureEdit(obj, cfg, msg + ".");
+commitFigureEdit(obj, cfg, msg + ".", Action="Apply options to all panels");
 end
 
 

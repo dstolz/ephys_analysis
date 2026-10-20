@@ -173,7 +173,7 @@ sync();
         cfg.Figures(q).grid = H;
         msg = id + ": spacing " + H.spacing;
         if H.spacing == "custom"; msg = msg + " (" + gapWords(rows, H.rowGap, "row") + ", " + gapWords(cols, H.colGap, "column") + " " + H.gapUnits + ")"; end
-        commitFigureEdit(obj, cfg, msg + ".");
+        commitFigureEdit(obj, cfg, msg + ".", Action="Spacing");
         if closing; delete(d); end
     end
 end

@@ -1,8 +1,10 @@
 function buildMenus(obj)
-%buildMenus  File, Design and Help menus.
+%buildMenus  File, Edit, Design and Help menus.
 %   File: the analysis-config lifecycle (New, Open, Open recent, Save, Save
 %   As), Generate script (compact | standalone), Open pipeline app and
-%   Close. Design: the plot designs and what to do with them (filled by
+%   Close. Edit: Undo (Ctrl+Z) and Redo (Ctrl+Y) of the figure editor's
+%   edits (onUndoRedo), named after the edit and grayed with none, or off
+%   the Figures tab (refreshEditMenu). Design: the plot designs and what to do with them (filled by
 %   refreshDesigns). Help: the wiki page of the tab shown, the Figures
 %   tab's keys (onFigureKeys), the
 %   documentation home and the analysis quick start (helpURL), Report an
@@ -23,6 +25,13 @@ uimenu(gen, "Text", "Standalone (every setting written out)...", "MenuSelectedFc
 uimenu(obj.FileMenu, "Text", "Open pipeline app", "Separator", "on", ...
     "MenuSelectedFcn", @(~,~) obj.onOpenPipelineApp());
 uimenu(obj.FileMenu, "Text", "Close", "Separator", "on", "MenuSelectedFcn", @(~,~) obj.onClose());
+
+obj.EditMenu = uimenu(obj.Fig, "Text", "Edit");
+tip = "The figure editor's edits (Figures tab): its layout, panels, layers, options and the figure list.";
+obj.UndoMenu = uimenu(obj.EditMenu, "Text", "Undo", "Accelerator", "Z", "Enable", "off", "Tooltip", tip, ...
+    "MenuSelectedFcn", @(~,~) obj.onUndoRedo("undo"));
+obj.RedoMenu = uimenu(obj.EditMenu, "Text", "Redo", "Accelerator", "Y", "Enable", "off", "Tooltip", tip + " Also Ctrl+Shift+Z.", ...
+    "MenuSelectedFcn", @(~,~) obj.onUndoRedo("redo"));
 
 obj.DesignMenu = uimenu(obj.Fig, "Text", "Design");
 

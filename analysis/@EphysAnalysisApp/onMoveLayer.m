@@ -17,7 +17,7 @@ p.layers([i t]) = p.layers([t i]);
 fig.panels(j) = p;
 cfg.Figures(k) = fig;
 obj.SelectedLayer = t;
-commitFigureEdit(obj, cfg, "Moved layer """ + layerLabel(p.layers(t)) + """ " + ternary(step < 0, "up", "down") + ".");
+commitFigureEdit(obj, cfg, "Moved layer """ + layerLabel(p.layers(t)) + """ " + ternary(step < 0, "up", "down") + ".", Action="Move layer");
 end
 
 

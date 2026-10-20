@@ -2,15 +2,26 @@ function applyConfig(obj, cfg, opts)
 %applyConfig  Show a config in every control (MarkSaved=true: it is the saved state).
 %   With MarkSaved (a config opened or made new) the Figures tab's drawing
 %   of the last config is dropped and its preview marked Out of date
-%   (autoFigurePreview then draws the new config's figure when it can).
+%   (autoFigurePreview then draws the new config's figure when it can),
+%   and the undo history is cleared. Action=LABEL (the figure list's edits:
+%   "Add figure", "Remove figure") records the change of the figures as a
+%   step of the undo history (recordFigureEdit); without it (Undo and Redo
+%   themselves, onUndoRedo) nothing is recorded.
 arguments
     obj (1,1) EphysAnalysisApp
     cfg (1,1) EphysAnalysisConfig
     opts.MarkSaved (1,1) logical = false
+    opts.Action (1,1) string = ""
 end
 obj.Applying = true;
 restore = onCleanup(@() setApplying(obj, false));
 if ~opts.MarkSaved; trackFigureIds(obj, cfg); end   % an edit: an automatic figure id may follow it
+if opts.MarkSaved
+    obj.FigureHistory = obj.FigureHistory.clear();   % another config: its edits start here
+    refreshEditMenu(obj);
+elseif opts.Action ~= ""
+    recordFigureEdit(obj, cfg, opts.Action);
+end
 obj.Config = cfg;
 obj.ConfigNameField.Value = char(cfg.Name);
 obj.ConfigDescField.Value = char(cfg.Description);

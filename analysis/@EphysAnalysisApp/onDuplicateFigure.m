@@ -11,7 +11,7 @@ from = cfg.Figures(k).id;
 [cfg, id] = cfg.duplicateFigure(k);
 if isKey(obj.FigureObservation, char(from)); obj.FigureObservation(char(id)) = obj.FigureObservation(char(from)); end
 obj.SelectedFigure = k + 1;
-obj.applyConfig(cfg);
+obj.applyConfig(cfg, Action="Duplicate figure");
 obj.setStatus("Duplicated " + from + " as " + id + ".");
 obj.autoFigurePreview();
 end

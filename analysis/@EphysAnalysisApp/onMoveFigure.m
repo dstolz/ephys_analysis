@@ -16,7 +16,7 @@ j = group(i);
 F([k j]) = F([j k]);
 cfg.Figures = F;
 obj.SelectedFigure = j;
-obj.applyConfig(cfg);
+obj.applyConfig(cfg, Action="Move figure");
 obj.setStatus("Moved " + F(j).id + " " + ternary(step < 0, "up", "down") + ".");
 end
 

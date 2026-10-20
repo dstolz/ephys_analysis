@@ -2,9 +2,10 @@ function loadPreferences(obj, openLast)
 %loadPreferences  Restore the app's preferences; OPENLAST: reopen the last config.
 %   Group EphysAnalysisApp: FigurePosition, LastConfigFile, RecentConfigs,
 %   ScriptFolder, PreviewMaxMB (signal previews of larger extracts wait
-%   for the Preview button), FigureAutoPreview and FigureSectionsCollapsed
-%   (the Figures tab's Auto box, on by default, and its editor's collapsed
-%   sections), FigureGroupBy and FigureGroupsCollapsed (the figure tree's
+%   for the Preview button), FigureAutoPreview, FigureSectionsCollapsed and
+%   FigureSupersectionsCollapsed (the Figures tab's Auto box, on by
+%   default, and its editor's collapsed sections and supersections),
+%   FigureGroupBy and FigureGroupsCollapsed (the figure tree's
 %   grouping and collapsed groups).
 %   Everything else is the config.
 if nargin < 2; openLast = true; end
@@ -41,6 +42,13 @@ if AppPrefs.ispref(g, 'FigureSectionsCollapsed')
     shut = string(AppPrefs.getpref(g, 'FigureSectionsCollapsed'));
     for i = 1:numel(obj.FigureSections)
         obj.FigureSections(i).Expanded = ~ismember(obj.FigureSections(i).Name, shut);
+    end
+    obj.layoutFigureEditor();
+end
+if AppPrefs.ispref(g, 'FigureSupersectionsCollapsed')
+    shut = string(AppPrefs.getpref(g, 'FigureSupersectionsCollapsed'));
+    for u = 1:numel(obj.FigureSupers)
+        obj.FigureSupers(u).Expanded = ~ismember(obj.FigureSupers(u).Name, shut);
     end
     obj.layoutFigureEditor();
 end

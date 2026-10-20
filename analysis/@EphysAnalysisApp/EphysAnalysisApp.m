@@ -33,7 +33,9 @@ classdef EphysAnalysisApp < handle
     %                under groups (what they observe, enabled / off, none),
     %                each with a check box that enables it (add from a
     %                template, remove, duplicate, reorder within a group) and an
-    %                editor in collapsible sections: the observations (the
+    %                editor in collapsible sections under three collapsible
+    %                supersections (Figure, Panel, Look), with a search
+    %                field that finds a setting by name: the observations (the
     %                unit filter), the arrangement (a schematic of the grid:
     %                drag a panel to an empty cell or beside another one;
     %                Add panel above / below / left / right of the selected
@@ -81,18 +83,25 @@ classdef EphysAnalysisApp < handle
     %   Preview; Validate, Plan, Run, Cancel; Open report, Open figure
     %   folder; Open pipeline app; Help for this tab.
     %
-    %   Keys (onKeyPress), on the Figures tab: Ctrl+1 to Ctrl+9 and Ctrl+0
-    %   (Cmd on a Mac) go to the figure editor's sections
-    %   (gotoFigureSection); each header names its key and has a color of
-    %   its own. Page Up and Page Down step to the previous and next
-    %   observation (onFigureObservationStep). Escape cancels a panel drag.
+    %   Keys (onKeyPress), on the Figures tab: Alt+1, Alt+2 and Alt+3 go to
+    %   the figure editor's supersections, Figure, Panel and Look
+    %   (gotoFigureSuper); Ctrl+1 to Ctrl+9 and Ctrl+0 (Cmd on a Mac) to its
+    %   sections (gotoFigureSection); each header names its key. Ctrl+F
+    %   goes to the search field (onFigureSearch, gotoFigureRow), F6 and
+    %   Shift+F6 to the next and previous column (focusFigurePane), Ctrl+]
+    %   and Ctrl+[ to the next and previous panel, Ctrl+Alt+arrows to the
+    %   panel above, below, left or right (stepFigurePanel; the preview
+    %   outlines it: markFigurePanel). Page Up and Page Down step to the
+    %   previous and next observation (onFigureObservationStep). Escape
+    %   cancels a panel drag. The "?" button lists them all (onFigureKeys).
     %
     %   Preferences (getpref group 'EphysAnalysisApp'): FigurePosition,
     %   LastConfigFile, RecentConfigs, ScriptFolder,
     %   PreviewMaxMB (signal previews of larger extracts wait for the Preview
     %   button), FigureAutoPreview (the Figures tab's Auto, on by default:
-    %   one observation is quick), FigureSectionsCollapsed (its editor's
-    %   collapsed sections), FigureGroupBy and FigureGroupsCollapsed (how
+    %   one observation is quick), FigureSectionsCollapsed and
+    %   FigureSupersectionsCollapsed (its editor's collapsed sections and
+    %   supersections), FigureGroupBy and FigureGroupsCollapsed (how
     %   its figure tree groups, and its collapsed groups).
     %
     %   Usage
@@ -174,6 +183,10 @@ classdef EphysAnalysisApp < handle
         FigureEditorPanel      matlab.ui.container.Panel        % the editor's panel (its title names the figure)
         FigureEditorGrid       matlab.ui.container.GridLayout   % the editor's column of sections
         FigureSections struct = struct([])       % the editor's sections (formSection), top to bottom
+        FigureSupers struct = struct([])         % the editor's supersections: Name, Title, Sections, Header, Expanded, Key
+        FigureSearchField      matlab.ui.control.EditField      % Find a setting (Ctrl+F): over every row's label (onFigureSearch)
+        FigureSearchList       matlab.ui.control.ListBox        % its matches, "Supersection > Section > Row"; ItemsData = index rows
+        FigureKeysButton       matlab.ui.control.Button         % "?": the Figures tab's keys (onFigureKeys)
         FigureEditor struct = struct()           % figure-editor controls by field
         FigureAlignControls struct = struct()    % the figure's event / window / selection (buildAlignControls)
         PanelAlignControls struct = struct()     % the selected panel's own event / window (buildAlignControls; its selection hidden)
@@ -247,6 +260,13 @@ classdef EphysAnalysisApp < handle
         FigureSessionResults = []           % a session figure's last preview: struct(res (figureSessionCompute's RES), spec, what, label, seconds)
         FigureGroupsCollapsed (1,:) string = string.empty(1,0)   % keys of the figure tree's groups the user collapsed
         FigureDrag = []                     % a panel dragged in the schematic (onSchematicPress): its state, else []
+        FigureSearchIndex struct = struct([])   % the editor's searchable rows, as built (figureSearchIndex)
+        FigureSearchState (1,1) string = ""     % "typing" (the search field), "list" (its matches), "" (Enter, arrows and Escape are left alone)
+        FigureFlash = []                    % the row gotoFigureRow highlights: struct(handles, saved, timer), else []
+        FigurePanelMark = []                % the preview's outline of the selected panel (markFigurePanel): four strips, else []
+        FigurePanelMarkAxes = []            % the preview's axes its listeners follow (re-laid out on a resize)
+        FigurePanelMarkListeners = []       % those listeners (Position PostSet)
+        FigureFocusPane (1,1) double = 0    % the column F6 last went to: 1 the figure list, 2 the editor, 3 the preview
 
     end
 
@@ -374,6 +394,14 @@ classdef EphysAnalysisApp < handle
         layoutFigureEditor(obj)
         onFigureSectionToggled(obj, name)
         gotoFigureSection(obj, name)
+        onFigureSuperToggled(obj, name)
+        gotoFigureSuper(obj, name)
+        onFigureSearch(obj, text)
+        ok = gotoFigureRow(obj, i, opts)
+        stepFigurePanel(obj, how)
+        markFigurePanel(obj)
+        focusFigurePane(obj, step)
+        w = onFigureKeys(obj)
         onFigureAlignEdited(obj, part)
         onFigureDefaultToggled(obj)
         onPanelAlignEdited(obj, part)

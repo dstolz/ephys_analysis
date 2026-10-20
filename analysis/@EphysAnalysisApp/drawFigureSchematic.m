@@ -11,7 +11,8 @@ function drawFigureSchematic(obj)
 %   an empty cell or beside another panel (onSchematicPress). Cells no
 %   panel covers are dotted; an outline goes round the grid.
 %   The axes is a uiaxes in the Arrangement section's first row. One made
-%   or kept while its row is 0 px high (no figure, the section collapsed)
+%   or kept while its row is 0 px high (no figure, the section or its
+%   supersection collapsed)
 %   does not draw again, so while the row is not shown the axes is only
 %   cleared, and it is made afresh when the row shows again
 %   (layoutFigureEditor marks it so: the row's panel's UserData false).
@@ -20,6 +21,8 @@ k = obj.SelectedFigure;
 S = obj.FigureSections;
 i = find([S.Name] == "arrangement", 1);
 shown = k >= 1 && k <= numel(obj.Config.Figures) && ~isempty(i) && S(i).Visible && S(i).Expanded;
+U = obj.FigureSupers;
+if shown && ~isempty(U); shown = U(arrayfun(@(u) ismember("arrangement", u.Sections), U)).Expanded; end   % its supersection open too
 holder = obj.FigureEditor.schematicPanel;
 if ~shown
     if ~isempty(ax) && isvalid(ax); cla(ax); end

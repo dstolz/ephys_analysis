@@ -10,6 +10,22 @@ says how to cut a release.
 
 ### Added
 
+- Figures tab: the editor's fourteen sections stand under three collapsible **supersections**, FIGURE
+  (Observations, Event reference, Epoch window, Trial selection, Sessions, Arrangement), PANEL (Panel,
+  Panel alignment, Layers, Options, Text note, Overlays; its dark header names the selected panel) and LOOK
+  (Appearance, Looks), reached with **Alt+1** to **Alt+3** and remembered (`FigureSupersectionsCollapsed`);
+  the sections are built in that order, so **Tab** follows it, and their keys follow it: Observations
+  Ctrl+1, Event reference 2, Epoch window 3, Trial selection 4, Arrangement 5, Panel 6, Panel alignment 7,
+  Layers 8, Options 9, Text note 0 (a section's key opens its supersection too). A search field over the
+  editor (**Ctrl+F**) finds a setting by its label or tooltip words, listed as *Supersection > Section >
+  Row*; **Enter** or a click opens the supersection and section, scrolls there, focuses the control and
+  highlights it, and a row the figure does not show says why in the status bar (*Bin (ms) is an option of
+  PSTH, heat map and unit correlation panels ...*). The index is read from the rows as built
+  (`figureSearchIndex`), so new rows join it. **Ctrl+]** / **Ctrl+[** step through the figure's panels,
+  **Ctrl+Alt+arrows** move across its grid, **F6** / **Shift+F6** go from column to column, and the preview
+  outlines the selected panel with a blue frame (`markFigurePanel`: preview only, moved without a redraw,
+  following a resize). A **?** button (and **Help → Figures tab keys**) lists every key. See
+  [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
 - **Open in window** on the Figures tab, under the preview: draws the figure as previewed into a regular MATLAB
   figure window of its own (`onOpenFigureWindow`; named *id: observation (dataset)*, the right-click
   aesthetics editor works there). An out-of-date preview is redrawn first; the window does not follow later edits.

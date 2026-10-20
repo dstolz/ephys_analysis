@@ -3,7 +3,8 @@ function buildMenus(obj)
 %   File: the analysis-config lifecycle (New, Open, Open recent, Save, Save
 %   As), Generate script (compact | standalone), Open pipeline app and
 %   Close. Design: the plot designs and what to do with them (filled by
-%   refreshDesigns). Help: the wiki page of the tab shown, the
+%   refreshDesigns). Help: the wiki page of the tab shown, the Figures
+%   tab's keys (onFigureKeys), the
 %   documentation home and the analysis quick start (helpURL), Report an
 %   issue and Request a feature, which file against the repository itself
 %   (onReportIssue), and About (showAbout): the version of the code.
@@ -28,6 +29,8 @@ obj.DesignMenu = uimenu(obj.Fig, "Text", "Design");
 obj.HelpMenu = uimenu(obj.Fig, "Text", "Help");
 uimenu(obj.HelpMenu, "Text", "Help for this tab", "Tooltip", "The wiki page for the tab that is shown.", ...
     "MenuSelectedFcn", @(~,~) obj.onHelp("tab"));
+uimenu(obj.HelpMenu, "Text", "Figures tab keys", "Tooltip", "Every key of the Figures tab, to work it with the keyboard alone.", ...
+    "MenuSelectedFcn", @(~,~) obj.onFigureKeys());
 uimenu(obj.HelpMenu, "Text", "Documentation home", "MenuSelectedFcn", @(~,~) obj.onHelp(""));
 uimenu(obj.HelpMenu, "Text", "Analysis quick start", "Separator", "on", ...
     "MenuSelectedFcn", @(~,~) obj.onHelp("Analysis-App#quick-start"));

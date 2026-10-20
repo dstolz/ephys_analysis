@@ -22,7 +22,13 @@ function test_EphysAnalysisApp()
 %   figure writing its pages and the report; the Figures tab (Add from the template, the
 %   schematic, the observation picker and its preview of one unit, < and
 %   > and Page Up, a continuous panel added below, an events layer on the
-%   raster, the rows a panel type shows, Ctrl+digit to a section, Out of
+%   raster, the rows a panel type shows, Ctrl+digit to a section, the
+%   supersections (their order, collapsing, Alt+digit), the search (a
+%   row's path, a hidden row's reason, a shown row gone to and
+%   highlighted, Down and Escape, a section by its title), the panel keys
+%   (Ctrl+Alt+arrows, Ctrl+[ and Ctrl+]) and the preview's outline of the
+%   selected panel (moved without a redraw, following a resize, not in
+%   Open in window), the keys window, Out of
 %   date with Auto off, Cancel, the figure's own event, a panel's own
 %   window, a tightened unit filter and one nothing passes, a listing
 %   error, a type change, the gather / apply round trip, a remembered look
@@ -554,9 +560,123 @@ check(collapsed && app.FigureSections([app.FigureSections.Name] == "observations
     && app.FigureSections([app.FigureSections.Name] == "observations").Key == "1" ...
     && app.FigureSections([app.FigureSections.Name] == "palign").Key == "7" ...
     && app.FigureSections([app.FigureSections.Name] == "options").Key == "9" ...
-    && app.FigureSections([app.FigureSections.Name] == "style").Key == "" && ~any([app.FigureSections.Key] == "0") ...
+    && app.FigureSections([app.FigureSections.Name] == "ref").Key == "2" ...
+    && app.FigureSections([app.FigureSections.Name] == "arrangement").Key == "5" ...
+    && app.FigureSections([app.FigureSections.Name] == "note").Key == "0" ...
+    && app.FigureSections([app.FigureSections.Name] == "style").Key == "" ...
+    && app.FigureSections([app.FigureSections.Name] == "sessions").Key == "" ...
     && ~any([app.FigureSections.Name] == "common"), ...
-    'Ctrl+1 opens the collapsed Observations section; Panel alignment is Ctrl+7, Options Ctrl+9, Appearance has no key, nothing Ctrl+0');
+    'Ctrl+1 opens the collapsed Observations section; Event reference is Ctrl+2, Arrangement Ctrl+5, Panel alignment Ctrl+7, Options Ctrl+9, Text note Ctrl+0; Appearance and Sessions have no key');
+% the supersections, the search, the panel keys and the preview's outline of the selected panel
+secOf = @(n) app.FigureSections([app.FigureSections.Name] == n);
+U = app.FigureSupers;
+rowOf = @(h) h.Layout.Row;
+check(isequal([U.Name], ["figure" "panel" "look"]) && all(arrayfun(@(u) shown(u.Header), U)) ...
+    && secOf("observations").Super == "figure" && secOf("ref").Super == "figure" && secOf("sessions").Super == "figure" ...
+    && secOf("arrangement").Super == "figure" && secOf("panel").Super == "panel" && secOf("options").Super == "panel" ...
+    && secOf("overlays").Super == "panel" && secOf("style").Super == "look" && secOf("looks").Super == "look" ...
+    && rowOf(U(1).Header) < rowOf(secOf("observations").Grid) && rowOf(secOf("observations").Grid) < rowOf(secOf("ref").Grid) ...
+    && rowOf(secOf("arrangement").Grid) < rowOf(U(2).Header) && rowOf(U(2).Header) < rowOf(secOf("panel").Grid) ...
+    && rowOf(secOf("overlays").Grid) < rowOf(U(3).Header) && rowOf(U(3).Header) < rowOf(secOf("style").Grid) ...
+    && contains(U(1).Header.Text, "FIGURE") && contains(U(1).Header.Text, "Alt+1") && contains(U(2).Header.Text, "raster_1 (Raster)") ...
+    && contains(U(3).Header.Text, "Alt+3"), ...
+    'three supersections head the editor''s sections in order: Figure, Panel (naming the selected panel) and Look, each with its Alt key');
+optionsOpen = secOf("options").Expanded;
+app.onFigureSuperToggled("panel");
+shut = ~app.FigureSupers(2).Expanded && ~shown(FE.panelType) && ~shown(FE.layerList) && startsWith(strtrim(app.FigureSupers(2).Header.Text), "►") ...
+    && shown(app.FigureSupers(2).Header) && shown(FE.observe) && secOf("layers").Expanded;
+app.onKeyPress(pressed('8', {'control'}));
+check(shut && app.FigureSupers(2).Expanded && secOf("layers").Expanded && shown(FE.layerList), ...
+    'collapsing the Panel supersection hides its sections (each keeps its own state); Ctrl+8 opens it again with Layers');
+app.onFigureSuperToggled("panel");
+app.onKeyPress(pressed('2', {'alt'}));
+viaAlt = app.FigureSupers(2).Expanded && shown(FE.panelType);
+app.onKeyPress(pressed('2', {'alt' 'control'}));   % AltGr+2 on Windows: a character, not the key
+check(viaAlt && app.FigureSupers(2).Expanded, 'Alt+2 opens the collapsed Panel supersection; Ctrl+Alt+2 (AltGr) is left alone');
+% the search: by label, listed as "Supersection > Section > Row"; a row the raster does not show says why
+X = app.FigureSearchIndex;
+lb = app.FigureSearchList;
+app.onKeyPress(pressed('f', {'control'}));
+app.FigureSearchField.Value = 'bin';
+app.onFigureSearch("bin");
+check(app.FigureSearchState == "typing" && shown(lb) && X(lb.ItemsData(1)).Label == "Bin (ms)" ...
+    && string(lb.Items{1}) == "Panel > Raster options > Bin (ms)" && numel(X) > 150 ...
+    && any(arrayfun(@(e) e.Label == "Line" && e.Section == "ref", X)) && any(arrayfun(@(e) e.Label == "Use default" && e.Section == "window", X)), ...
+    sprintf('Ctrl+F, "bin": "Panel > Raster options > Bin (ms)" first of %d, though a raster hides it; the alignment rows are found too (%d rows indexed)', ...
+    numel(lb.Items), numel(X)));
+app.onKeyPress(pressed('return', {}));
+check(app.SelectedPanel == 1 && contains(app.StatusBar.Text, "Bin (ms) is an option of PSTH, heat map and unit correlation panels, not of raster panels") ...
+    && app.FigureSearchState == "", 'Enter on a row the raster does not show says why in the status bar, and nothing moves');
+% the panel keys: across the grid and in the panel order; the outline follows without a redraw
+P = app.FigurePreviewPanel;
+ax0 = figAxes();
+[bm, nm] = markBox(P);
+check(app.FigurePreviewState == "drawn" && nm == 4 && boxNear(bm, expectBox(P, "raster_1")), ...
+    'the preview outlines the selected panel (raster_1): a frame of four strips round its axes and labels');
+app.onKeyPress(pressed('downarrow', {'control' 'alt'}));
+[bm, nm] = markBox(P);
+moved = app.SelectedPanel == 2 && nm == 4 && boxNear(bm, expectBox(P, "psth_1")) && numel(figAxes()) == numel(ax0) ...
+    && all(ismember(figAxes(), ax0)) && app.FigurePreviewState == "drawn" && contains(app.FigureSupers(2).Header.Text, "psth_1");
+app.onKeyPress(pressed('downarrow', {'control' 'alt'}));
+third = app.SelectedPanel == 3;
+app.onKeyPress(pressed('downarrow', {'control' 'alt'}));
+check(moved && third && app.SelectedPanel == 3 && contains(app.StatusBar.Text, "No panel below continuous_1"), ...
+    'Ctrl+Alt+Down selects the panel below (psth_1, then continuous_1; none below the last): the outline moves, the preview is not drawn again');
+app.onKeyPress(pressed('leftarrow', {'control' 'alt'}));
+noLeft = app.SelectedPanel == 3 && contains(app.StatusBar.Text, "No panel to the left of continuous_1");
+app.onKeyPress(pressed('uparrow', {'control' 'alt'}));
+up = app.SelectedPanel == 2;
+app.onKeyPress(pressed('leftbracket', {'control'}));
+prev = app.SelectedPanel == 1;
+app.onKeyPress(pressed('leftbracket', {'control'}));
+round1 = app.SelectedPanel == 3;
+app.onKeyPress(pressed('rightbracket', {'control'}));
+check(noLeft && up && prev && round1 && app.SelectedPanel == 1 && contains(app.StatusBar.Text, "panel 1 of 3"), ...
+    'Ctrl+Alt+Left (none), Ctrl+Alt+Up; Ctrl+[ and Ctrl+] step through the panel order, round at the ends');
+% the outline follows the figure laid out again (the preview resized)
+app.onPanelSelected(2);
+pos0 = findPanelAxes(P, "psth_1").Position;
+app.Fig.Position(3) = app.Fig.Position(3) + 160;
+drawnow;
+P.SizeChangedFcn(P, []);   % (MATLAB runs it for a visible figure only)
+[bm, nm] = markBox(P);
+check(nm == 4 && ~isequal(findPanelAxes(P, "psth_1").Position, pos0) && boxNear(bm, expectBox(P, "psth_1")), ...
+    'the preview made wider, the figure is laid out again and the outline follows psth_1''s axes');
+app.Fig.Position(3) = app.Fig.Position(3) - 160;
+drawnow;
+P.SizeChangedFcn(P, []);
+h = app.onOpenFigureWindow();
+check(isgraphics(h) && isempty(findall(h, 'Tag', 'previewPanelMark')) && numel(findall(P, 'Tag', 'previewPanelMark')) == 4, ...
+    'Open in window draws no outline (it is the preview''s, not the figure''s)');
+delete(h);
+% the search goes to a shown row: its supersection and section open, its label highlighted
+if optionsOpen; app.onFigureSectionToggled("options"); end
+app.onFigureSuperToggled("panel");
+app.onFigureSearch("bin");
+iBin = lb.ItemsData(1);
+app.onKeyPress(pressed('return', {}));
+check(app.FigureSupers(2).Expanded && secOf("options").Expanded && shown(FE.binMs) ...
+    && string(app.StatusBar.Text) == "Panel > PSTH options > Bin (ms)" && isequal(X(iBin).Flash.BackgroundColor, [1.00 0.90 0.35]), ...
+    'Enter on Bin (ms) with the PSTH selected opens the Panel supersection and the options, scrolls there and highlights the row');
+app.onFigureSearch("line");
+v1 = lb.Value;
+app.onKeyPress(pressed('downarrow', {}));
+down = lb.Value == lb.ItemsData(2) && v1 == lb.ItemsData(1);
+app.onKeyPress(pressed('escape', {}));
+check(down && ~shown(lb) && app.FigureSearchState == "" && string(app.FigureSearchField.Value) == "", ...
+    'Down picks the next match while typing; Escape clears the search');
+app.onFigureSearch("layers");
+first = X(lb.ItemsData(1));
+app.onFigureSearch("");
+check(first.Row == 0 && first.Section == "layers", 'a section is found by its title ("layers")');
+w = app.onFigureKeys();
+keysT = findall(w, 'Tag', 'keysTable').Data;
+w2 = app.onFigureKeys();
+check(isequal(w, w2) && any(startsWith(keysT.Key, "Alt+1")) && any(keysT.Key == "Ctrl+F") && any(contains(keysT.Key, "Ctrl+Alt+arrows")) ...
+    && any(contains(keysT.Key, "F6")), 'the "?" button lists the tab''s keys in one window (a second press brings it back)');
+delete(w);
+if ~optionsOpen; app.onFigureSectionToggled("options"); end
+app.onPanelSelected(1);
 % Out of date with Auto off, Cancel
 app.FigureAutoCheckBox.Value = false;
 FE.title.Value = 'Unit card';
@@ -1141,6 +1261,7 @@ check(app.ActiveIdx == find(app.Ticked, 1) && istable(app.FigureObservations) &&
 app.refreshFigurePreview(Force=true);
 % save, reopen, preferences
 app.onFigureSectionToggled("options");
+app.onFigureSuperToggled("look");
 app.FigureAutoCheckBox.Value = false;
 app.onFigureAutoPreviewToggled();
 app.onSaveConfig();
@@ -1148,16 +1269,20 @@ app2 = EphysAnalysisApp();
 kept = isscalar(app2.Config.Figures) && isequaln(app2.Config.Figures, app.Config.Figures) && app2.SelectedFigure == 1 ...
     && string(figureNode(app2.FiguresTree, 1).Text) == "figure_1  (2 panels)";
 restored = ~app2.FigureAutoCheckBox.Value && ~app2.FigureSections([app2.FigureSections.Name] == "options").Expanded ...
-    && app2.FigureSections([app2.FigureSections.Name] == "layers").Expanded;
+    && app2.FigureSections([app2.FigureSections.Name] == "layers").Expanded ...
+    && isequal([app2.FigureSupers.Expanded], [true true false]) && ~shown(app2.FigureEditor.fontSize);
 closeApp(app2);
 check(~startsWith(app.Fig.Name, "*") && kept, 'saved and opened again, the config keeps the figure');
-check(restored, 'a new app restores the Figures tab''s Auto and collapsed section');
+check(restored, 'a new app restores the Figures tab''s Auto, collapsed section and collapsed supersection (Look)');
 app.FigureAutoCheckBox.Value = true;
 app.onFigureAutoPreviewToggled();
 app.onFigureSectionToggled("options");
+app.onFigureSuperToggled("look");
 app.onRemoveFigure();
 check(isempty(app.Config.Figures) && isempty(findall(app.FiguresTree, 'Type', 'uitreenode')) && app.FigurePreviewState == "idle" && ~shown(FE.id) ...
-    && app.RemoveFigureButton.Enable == "off" && nPatches() == 0, 'Remove takes the figure away; the editor and preview are empty');
+    && app.RemoveFigureButton.Enable == "off" && nPatches() == 0 && ~any(arrayfun(@(u) shown(u.Header), app.FigureSupers)) ...
+    && isempty(findall(app.FigurePreviewPanel, 'Tag', 'previewPanelMark')), ...
+    'Remove takes the figure away; the editor (its supersection headers too) and preview (its outline too) are empty');
 % a spectrum panel (Chronux: the bundled copy, on the path for these checks only)
 spPath = "";
 if ~ChronuxDataset.hasChronux() && isfolder(fullfile(repo, 'toolboxes', 'chronux'))
@@ -1518,8 +1643,9 @@ for sname = ["note" "overlays"]
     if ~app.FigureSections([app.FigureSections.Name] == sname).Expanded; app.onFigureSectionToggled(sname); end
 end
 Sn = app.FigureSections([app.FigureSections.Name] == "note");
-check(shown(FE.annText) && shown(FE.ovList) && ~shown(FE.ovName) && Sn.Title == "Text note on psth_1" && Sn.Key == "" ...
-    && FE.annPlace.Enable == "off", 'the Text note and Overlays sections show for the panel picked (no key), the note''s look off without text');
+check(shown(FE.annText) && shown(FE.ovList) && ~shown(FE.ovName) && Sn.Title == "Text note on psth_1" && Sn.Key == "0" ...
+    && app.FigureSections([app.FigureSections.Name] == "overlays").Key == "" && FE.annPlace.Enable == "off", ...
+    'the Text note and Overlays sections show for the panel picked (Text note on Ctrl+0, Overlays no key), the note''s look off without text');
 FE.annText.Value = {'n = 12'};
 FE.annPlace.Value = "northeast";
 FE.annColor.Value = "#ff0000";
@@ -1682,11 +1808,13 @@ clear restoreAutoLimit5h
 fprintf('\n== 6. close ==\n');
 app.savePreferences();
 shutNow = [string.empty(1, 0) app.FigureSections(~[app.FigureSections.Expanded]).Name];
+superShut = [string.empty(1, 0) app.FigureSupers(~[app.FigureSupers.Expanded]).Name];
 check(strcmp(AppPrefs.getpref(g, 'LastConfigFile'), cfgFile) ...
     && isequal(sort(string(AppPrefs.getpref(g, 'FigureSectionsCollapsed'))), sort(shutNow)) ...
+    && AppPrefs.ispref(g, 'FigureSupersectionsCollapsed') && isempty(setxor(string(AppPrefs.getpref(g, 'FigureSupersectionsCollapsed')), superShut)) ...
     && ~any(arrayfun(@(n) AppPrefs.ispref(g, n), ["AutoPreview" "PlotGroupBy" "PlotGroupsCollapsed" "PlotSectionsCollapsed" ...
     "SessionAutoPreview" "SessionSectionsCollapsed"])), ...
-    'the last config and the figure editor''s collapsed sections are remembered; no plot or session preference is written');
+    'the last config and the figure editor''s collapsed sections and supersections are remembered; no plot or session preference is written');
 app.onShowEpochs();
 dz = app.EpochDiagramWindow;
 app.onClose();
@@ -1815,6 +1943,41 @@ if isfolder(root)
     catch
     end
 end
+end
+
+
+function [b, n] = markBox(P)
+%markBox  The preview's outline of the selected panel (markFigurePanel): the box its visible strips make, [x0 y0 x1 y1] px, and how many there are.
+M = findall(P, 'Tag', 'previewPanelMark');
+M = M(strcmp(get(M, 'Visible'), 'on'));
+n = numel(M);
+b = [NaN NaN NaN NaN];
+if n == 0; return; end
+p = reshape([M.Position], 4, []).';
+b = [min(p(:, 1)) min(p(:, 2)) max(p(:, 1) + p(:, 3)) max(p(:, 2) + p(:, 4))];
+end
+
+
+function ax = findPanelAxes(P, id)
+%findPanelAxes  The preview's (first) axes of panel ID.
+ax = findall(P, 'Type', 'axes');
+ax = ax(arrayfun(@(a) isappdata(a, 'FigurePanel') && string(getappdata(a, 'FigurePanel')) == id, ax));
+ax = ax(1);
+end
+
+
+function e = expectBox(P, id)
+%expectBox  Where the outline of panel ID belongs: its axes and their labels (TightInset), 7 px out, inside the preview.
+ax = findPanelAxes(P, id);
+p = ax.Position;
+t = ax.TightInset;
+sz = P.InnerPosition(3:4);
+e = [max([p(1) - t(1), p(2) - t(2)] - 7, 1), min([p(1) + p(3) + t(3), p(2) + p(4) + t(4)] + 7, sz)];
+end
+
+
+function tf = boxNear(a, b)
+tf = all(isfinite(a)) && max(abs(a - b)) < 1.5;
 end
 
 

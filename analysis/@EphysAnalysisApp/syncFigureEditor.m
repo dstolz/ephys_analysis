@@ -81,7 +81,8 @@ function syncFigureEditor(obj)
 %   spacing when stacked, the error and legend rows with their boxes, each
 %   Move button when the panel has a same-shaped neighbor that way, and
 %   the list buttons; Up and Down when the figure has a neighbor that way in
-%   its group of the tree. The schematic is redrawn (drawFigureSchematic).
+%   its group of the tree. The schematic is redrawn (drawFigureSchematic),
+%   and the preview outlines the selected panel (markFigurePanel).
 E = obj.FigureEditor;
 S = obj.FigureSections;
 k = obj.SelectedFigure;
@@ -445,6 +446,7 @@ if ~isempty(obj.FiguresDatasetDropDown) && isvalid(obj.FiguresDatasetDropDown)
 end
 obj.layoutFigureEditor();
 obj.drawFigureSchematic();
+obj.markFigurePanel();   % the preview outlines the selected panel
 end
 
 

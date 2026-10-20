@@ -12,7 +12,8 @@ function refreshFigurePreview(obj, opts)
 %   the first figure drawn after the app starts is not counted, since it
 %   also loads the graphics. A right-click on the preview opens the
 %   aesthetics editor; what it remembers for the figure comes back through
-%   rememberFigureAesthetics. The badge (setFigurePreviewState) says
+%   rememberFigureAesthetics. The selected panel is outlined in the
+%   preview (markFigurePanel). The badge (setFigurePreviewState) says
 %   Computing, then Drawing, with a card over the old drawing whose Cancel
 %   (onCancelFigurePreview) stops the compute at its next checkpoint (the
 %   runner polls: Runner.PollFcn); edits made meanwhile leave it Out of
@@ -128,6 +129,7 @@ try
     L.Text = "Drawing " + what + " ...";
     obj.setFigurePreviewState("drawing", Message="Drawing " + what + " ...");
     renderFigure(F, spec, obj.FigurePreviewPanel, OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules));
+    obj.markFigurePanel();   % the selected panel outlined
 catch ME
     if ~isvalid(obj) || ~isvalid(obj.Fig); return; end   % the app was closed while it computed
     obj.FigurePreviewResult = [];
@@ -254,6 +256,7 @@ L.Text = "Drawing " + K.what + " ...";
 obj.setFigurePreviewState("drawing", Message="Drawing " + K.what + " ...");
 try
     renderFigure(F, spec, obj.FigurePreviewPanel, OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules));
+    obj.markFigurePanel();
 catch ME
     if ~isvalid(obj) || ~isvalid(obj.Fig); return; end
     obj.FigurePreviewResult = [];

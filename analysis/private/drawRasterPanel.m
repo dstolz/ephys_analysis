@@ -7,7 +7,7 @@ function hk = drawRasterPanel(ax, P, look)
 %   (units, detected, events drawn as a train: spikePSTH results with
 %   R.raster) give the blocks of rows, each layer's units in probe order:
 %     the first block   rasterInto, as a raster plot draws one unit: a row
-%                       per epoch (first on top), by group on pale bands
+%                       per epoch (first on top), by group
 %                       (options.rasterByGroup), sorted by
 %                       options.rasterSort / rasterSortOrder; the stop
 %                       dots (Style.ShowStop) and the zero line
@@ -15,6 +15,11 @@ function hk = drawRasterPanel(ax, P, look)
 %                       rasterInto's stack mode: each group a band of its
 %                       own (the block as tall as the first), its epochs
 %                       in the same sort; the y axis then names the blocks
+%   The ticks are each group's color, as the PSTH's traces are; a layer's
+%   own color (Color) draws that block's ticks in it, else options.tickColor
+%   draws every tick in one color. options.backColor puts bands behind the
+%   rows: none (the default), each group's pale band ("groups") or one
+%   color for every group (a color also paints the axes behind them).
 %   The y axis has no tick marks or labels (the epoch numbers) unless
 %   options.yTicks; the names of further blocks stay either way.
 %   The events layers drawn as marks (epochEvents) mark every block's rows
@@ -26,7 +31,9 @@ function hk = drawRasterPanel(ax, P, look)
 %   on, the first block's unit's waveform is an inset (waveformInset). A
 %   skipped layer's reason is noted in the panel (figLayerNotes); a panel
 %   with marks but no rows says they need some.
-%   The legend offers the groups (pale band swatches) and the marks.
+%   The legend offers the groups (tick swatches in their colors; with one
+%   color for every tick, the groups' pale bands when there are any) and the
+%   marks.
 %   HK: figDrawResult's, yName = what the rows are and how they are sorted.
 %
 %   See also renderFigure, rasterInto, figurePanelRegistry.
@@ -86,7 +93,9 @@ flat = style;
 flat.XLim = [];
 if ~isempty(ev); R1.rasterEvents = ev; end
 if ~isempty(sp); R1.rasterSpans = sp; end
-rows = rasterInto(ax, R1, blocks(1).u, flat, colors, o.rasterSort, rl);
+rl1 = rl;
+rl1.tickColor = blockTicks(o.tickColor, Ls(blocks(1).j));
+rows = rasterInto(ax, R1, blocks(1).u, flat, colors, o.rasterSort, rl1);
 
 nB = numel(blocks);
 if nB > 1
@@ -109,6 +118,7 @@ if nB > 1
         if ~isempty(ev); Rb.rasterEvents = ev; end
         if ~isempty(sp); Rb.rasterSpans = sp; end
         rb = rl;
+        rb.tickColor = blockTicks(o.tickColor, Ls(blocks(b).j));
         rb.into = struct('base', base, 'height', band, 'equal', false);
         rasterInto(ax, Rb, blocks(b).u, flat, colors, o.rasterSort, rb);
         centers(b) = base0 + numel(present) * band / 2;
@@ -122,25 +132,31 @@ end
 if numel(look.W) == 2 && look.W(2) > look.W(1); xlim(ax, look.W); end
 
 % a background color paints every band alike, and the axes behind them
-hasBack = false;
-if strtrim(string(o.backColor)) ~= ""
+back = strtrim(string(o.backColor));
+if ~ismember(back, ["" "none" "groups"])
     try
-        set(ax, 'Color', validatecolor(strtrim(string(o.backColor))));
-        hasBack = true;
+        set(ax, 'Color', validatecolor(back));
     catch
-        % not a color: the groups' bands (rasterInto ignores it too)
+        % not a color: no bands (rasterInto ignores it too)
     end
 end
 
-% legend: the groups (their bands' look, none with one background for all) and the marks (their markers)
+% legend: the groups (a tick in their color; with one color for every tick, their pale band when the bands show
+% them) and the marks (their markers)
 nG = height(R1.groups);
-if nG > 1 && ~hasBack
-    for g = 1:nG
+oneColor = ~isempty(rl1.tickColor) && isColorSpec(rl1.tickColor);
+shown = 1:nG;   % the groups with an entry
+if nG < 2 || (oneColor && back ~= "groups"); shown = []; end
+for g = shown
+    if oneColor
         hk.legendHandles(end+1) = tagPart(patch(ax, 'XData', NaN, 'YData', NaN, 'FaceColor', paleColor(colors(g, :), 0.82, style), ...
             'EdgeColor', 'none'), "rasterBand", R1.groups.label(g));
-        hk.legendLabels(end+1) = string(R1.groups.label(g));
-        hk.legendGroup(end+1) = true;
+    else
+        hk.legendHandles(end+1) = tagPart(line(ax, NaN, NaN, 'Color', colors(g, :), 'LineWidth', 0.5), ...
+            "rasterTicks", R1.groups.label(g));
     end
+    hk.legendLabels(end+1) = string(R1.groups.label(g));
+    hk.legendGroup(end+1) = true;
 end
 if ~isempty(ev)
     mk = rasterMarkLooks(marks, [ev.label]);
@@ -167,4 +183,24 @@ if wave.mode ~= "off" && isfield(Rw, 'waveforms')
 end
 figLayerNotes(ax, P, look, true);
 hk.yName = rows;
+end
+
+
+function spec = blockTicks(spec, L)
+%blockTicks  The tick color spec of the block of layer L: the layer's own color when it has one, else the panel's (OPTIONS.TICKCOLOR; "" = each group's).
+if isfield(L, 'color') && isColorSpec(L.color); spec = L.color; end
+end
+
+
+function tf = isColorSpec(spec)
+%isColorSpec  Whether SPEC is a color name or hex code ("" and "auto" are not).
+tf = false;
+spec = strtrim(string(spec));
+if ~isscalar(spec) || spec == ""; return; end
+try
+    validatecolor(char(spec));
+    tf = true;
+catch
+    % not a color
+end
 end

@@ -1120,6 +1120,12 @@ says how to cut a release.
 
 ### Changed
 
+- Figures: raster ticks are drawn in each trial group's color, as the PSTH draws its traces (they were black, with
+  the group's color only on a pale band behind its rows): one line object per group, tagged `rasterTicks` with
+  the group's label, so the aesthetics editor and rules reach each group's ticks. `options.tickColor` `""` is
+  the groups' colors (a color: every tick), and a raster layer's own **Color** overrides both. The pale bands
+  are an option, `options.backColor` `"none"` (the default), `"groups"` or one color; the legend swatches are
+  ticks. The designs no longer set the ticks' color (their tick widths stay).
 - The baseline Modes each panel type takes are one list, `EphysAnalysisConfig.baselineModes(type, source)`,
   read by `validate`, the figure editor (`figureEditorChoices`) and `adoptPanelOptions` instead of three copies.
 - A stacked PSTH (**Stack**) draws its first trial group's row on top, as a raster lists its groups, so a

@@ -13,9 +13,9 @@ function rows = rasterInto(ax, R, u, style, colors, sortBy, look)
 %              eventLatency); any other value names a column of R.epochs
 %              (a trial parameter epochTable copied on). Missing values
 %              sort last either way; ties keep the time order
-%    byGroup   true (default): the rows go by group first, each group's on
-%              a pale band of its color; false: every epoch sorted as one
-%              block, each row on its group's color
+%    byGroup   true (default): the rows go by group first; false: every
+%              epoch sorted as one block, each row's ticks in its group's
+%              color
 %    marks     Plot.rasterEvents (EventMark structs): each mark's look
 %              (marker, size, color; rasterMarkLooks) for the events in
 %              R.rasterEvents (epochEvents), one line object per mark,
@@ -32,12 +32,15 @@ function rows = rasterInto(ax, R, u, style, colors, sortBy, look)
 %              drawn); equal (default false): every band's rows one height,
 %              that of the band showing the most epochs, filled from the
 %              bottom (false: each band's rows fill it)
-%    tickColor  "" (default: black) or a color name or hex code: the ticks'
+%    tickColor  "" (default: each group's color, as the PSTH colors its
+%               traces) or a color name or hex code: every tick in that
 %               color
-%    backColor  "" (default: each group's pale color) or a color name or hex
-%               code: every group's band in that color
-%   All ticks are one line object (NaN-separated), so even long rasters
-%   export small. With ShowStop each epoch's stop event is a dot. The axes
+%    backColor  "none" (default: no bands), "groups" (a pale band of each
+%               group's color behind its rows) or a color name or hex code
+%               (every group's band in that color)
+%   Each group's ticks are one line object (NaN-separated), tagged
+%   "rasterTicks" with the group's label, so even long rasters export small.
+%   With ShowStop each epoch's stop event is a dot. The axes
 %   are styled (styleAxes) without Style.YLim: that is for rates, and every
 %   row stays in view.
 %   R.rasterSpans (optional: label, epoch, on, off, color, style, width,
@@ -67,11 +70,13 @@ else
     y = row;
     half = 0.4 * ones(nE, 1);
 end
-tickColor = rasterColor(look.tickColor, [0 0 0]);
-back = rasterColor(look.backColor, []);
+fixed = rasterColor(look.tickColor, []);   % one color for every tick; [] = each group's own
+[back, bands] = rasterBack(look.backColor);   % bands: whether there are any; back: their one color, [] = each group's pale one
 held = ishold(ax);   % a stack goes on drawing in AX after its rasters: leave its hold as found
 hold(ax, 'on');
-for g = 1:height(R.groups)
+bandOf = 1:height(R.groups);
+if ~bands; bandOf = []; end
+for g = bandOf
     rows = sort(row(R.epochGroup == g));
     if isempty(rows); continue; end
     if into   % the group's band: its rows' share of the stack
@@ -94,9 +99,16 @@ ep = R.raster(u).epoch(:);
 if ~isempty(tm)
     rr = y(ep);
     hh = half(ep);
-    X = [tm tm NaN(size(tm))].';
-    Y = [rr - hh rr + hh NaN(size(rr))].';
-    tagPart(line(ax, X(:), Y(:), 'Color', tickColor, 'LineWidth', 0.5), "rasterTicks");
+    gg = R.epochGroup(ep);
+    for g = 1:height(R.groups)   % one line per group, in its color
+        in = gg == g;
+        if ~any(in); continue; end
+        c = colors(g, :);
+        if ~isempty(fixed); c = fixed; end
+        X = [tm(in) tm(in) NaN(nnz(in), 1)].';
+        Y = [rr(in) - hh(in) rr(in) + hh(in) NaN(nnz(in), 1)].';
+        tagPart(line(ax, X(:), Y(:), 'Color', c, 'LineWidth', 0.5), "rasterTicks", R.groups.label(g));
+    end
 end
 if style.ShowStop && any(isfinite(R.epochStop))
     ok = isfinite(R.epochStop) & R.epochStop >= W(1) & R.epochStop <= W(2);
@@ -189,7 +201,7 @@ if ~isfield(look, 'byGroup'); look.byGroup = true; end
 if ~isfield(look, 'marks'); look.marks = []; end
 if ~isfield(look, 'into'); look.into = []; end
 if ~isfield(look, 'tickColor'); look.tickColor = ""; end
-if ~isfield(look, 'backColor'); look.backColor = ""; end
+if ~isfield(look, 'backColor'); look.backColor = "none"; end
 look.order = string(look.order);
 look.byGroup = logical(look.byGroup);
 end
@@ -204,6 +216,19 @@ try
 catch
     % not a color: the default
 end
+end
+
+
+function [c, bands] = rasterBack(spec)
+%rasterBack  The bands' look from LOOK.backColor: BANDS whether any are drawn, C their one color ([] = each group's pale one).
+%   "groups" is the groups' pale bands; a color name or hex code, one color
+%   for every band; "none", "" or a spec that is not a color, no bands.
+spec = strtrim(string(spec));
+c = [];
+bands = spec == "groups";
+if bands || spec == "" || spec == "none"; return; end
+c = rasterColor(spec, []);
+bands = ~isempty(c);
 end
 
 

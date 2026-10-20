@@ -73,8 +73,10 @@ end
 if isnan(obj.Fs) || isempty(obj.PerFile)
     obj.refreshMetadata();
 end
-% Settle the common reference's channels before any chunk is read.
+% Settle the common reference's channels (and the weighted CAR's state)
+% before any chunk is read.
 obj.prepareReference();
+obj.prepareWCAR();
 
 % Resolve detection params (per-call overrides ds.ArtifactConfig).
 cfg = EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig);
@@ -117,7 +119,7 @@ det  = struct('method', method, 'threshold', thr, 'rmsWindowMs', rmsWinMs, ...
 pool = [];
 nWorkers = 1;
 if opts.UseParallel && nChunks > 1
-    [pool, nWorkers] = parallelChunkPool(plan, obj.NumChannels, opts.MaxWorkers, 5, "analyzeArtifacts");
+    [pool, nWorkers] = parallelChunkPool(plan, obj.NumChannels, opts.MaxWorkers, 5 + wcarCopies(obj, plan), "analyzeArtifacts");
 end
 R = mapChunks(@(i) artifactChunk(obj, plan(i), chanOrder, filt, det, Fs), ...
     reshape(string({plan.name}), 1, []), Pool=pool, NumWorkers=nWorkers, ...

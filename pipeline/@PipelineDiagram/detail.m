@@ -204,27 +204,22 @@ function n = referenceNode(cfg)
 %   sample by sample, from its own read of the recording - artifact
 %   detection, the sorting .bin (the sorter's own reference then kept out), spike
 %   detection and the Signals ticked for it (EphysDataset.applyReference /
-%   referenceTrace). What leaves it out is listed, the Signals that take
-%   the adaptive weighted CAR instead (Signals.ReferenceMethod) too.
+%   referenceTrace; for the adaptive weighted CAR, Mode "wcar", the state
+%   prepareWCAR works out). What leaves it out is listed.
 A = cfg.Artifacts;
 G = cfg.Signals;
+R = cfg.Reference;
 target = "ArtRefDropDown,ArtRefLowField,ArtRefHighField";
-switch cfg.Reference.Mode
+switch R.Mode
     case "car"; n = node("op", "Common average reference", "mean of the good channels, subtracted once from each", target);
     case "cmr"; n = node("op", "Common median reference", "median of the good channels, subtracted once from each", target);
+    case "wcar"; n = wcarNode(R, target);
     otherwise;  n = node("off", "Common reference", "none (as recorded)", target);
 end
 types = ["LFP" "MUA" "SPIKE"];
 ticked = [G.LFP G.MUA G.SPIKE];
 referenced = [G.LFP_Reference G.MUA_Reference G.SPIKE_Reference];
-wcar = types(ticked & referenced & G.ReferenceMethod == "weighted");
-if ~isempty(wcar)
-    n.target = n.target + ",SigRefMethodDropDown";
-end
 if n.kind ~= "op"
-    if ~isempty(wcar)
-        n.detail(end+1) = "Signals' " + join(wcar, " / ") + ": weighted CAR (on their branch)";
-    end
     return
 end
 n.target = n.target + ",SigRefLFPCheckBox,SigRefMUACheckBox,SigRefSPIKECheckBox";
@@ -232,9 +227,6 @@ n.detail(end+1) = "as each step reads the recording";
 off = types(ticked & ~referenced);
 if ~isempty(off)
     n.detail(end+1) = "not Signals' " + join(off, " / ");
-end
-if ~isempty(wcar)
-    n.detail(end+1) = "not Signals' " + join(wcar, " / ") + ": weighted CAR there";
 end
 if A.Method == "commonmode"
     n.detail(end+1) = "not the common-mode artifact detector";
@@ -372,15 +364,15 @@ function n = signalsTree(cfg, dsName, downstream)
 %   The channel selection comes first, and the artifact periods are erased
 %   in the amplifier data LFP / MUA / SPIKE derive from. Each of those says
 %   whether it takes the common reference drawn above the steps (taken over
-%   every channel, before the selection), or the adaptive weighted CAR
-%   (Signals.ReferenceMethod "weighted"), drawn on its own branch; AUX and
-%   the digital inputs come from the read as they are.
+%   every channel, before the selection; the adaptive weighted CAR too, run
+%   here over the whole recording); AUX and the digital inputs come from
+%   the read as they are.
 G = cfg.Signals;
 A = cfg.Artifacts;
 types = ["LFP" "MUA" "SPIKE" "AUX"];
 host = types(find([G.LFP G.MUA G.SPIKE G.AUX], 1));
 kids = @(type) downstreamUnder(host, type, downstream);
-stage = @(type, on) ampHead(G, cfg.Reference.Mode, type, on);
+stage = @(type, on) ampHead(cfg.Reference.Mode, type, on);
 
 sel = strings(1, 0);
 if G.KeepChannels ~= ""; sel(end+1) = "keep " + G.KeepChannels; end
@@ -462,14 +454,12 @@ n = step("signals", "Signals", G.Enabled, "", "SigEnableCheckBox", {read});
 end
 
 
-function head = ampHead(G, ref, type, on)
-%ampHead  The first boxes of an amplifier signal's branch: the signal, which
-%   says the reference it takes (ON: its <TYPE>_Reference), then, for the
-%   adaptive weighted CAR, a box of its own.
+function head = ampHead(ref, type, on)
+%ampHead  The first box of an amplifier signal's branch: the signal, which
+%   says the reference it takes (ON: its <TYPE>_Reference).
 target = "Conv" + type + "CheckBox,SigRef" + type + "CheckBox";
-if on && G.ReferenceMethod == "weighted"
-    head = {node("stage", type, ["amplifier", "adaptive weighted CAR"], target + ",SigRefMethodDropDown"), ...
-        wcarNode(G)};
+if on && ref == "wcar"
+    head = {node("stage", type, ["amplifier", "adaptive weighted CAR referenced"], target)};
 elseif on && ref ~= "none"
     head = {node("stage", type, ["amplifier", "common " + upper(ref) + " referenced"], target)};
 else
@@ -478,22 +468,22 @@ end
 end
 
 
-function n = wcarNode(G)
-%wcarNode  The adaptive weighted CAR (weightedCAR) and its parameters.
-if isnan(G.WCAR_Q)
+function n = wcarNode(R, target)
+%wcarNode  The adaptive weighted CAR (Reference.Mode "wcar", weightedCAR) and its parameters.
+if isnan(R.WCAR_Q)
     q = "Q automatic";
 else
-    q = sprintf("Q %g uV^2", G.WCAR_Q);
+    q = sprintf("Q %g uV^2", R.WCAR_Q);
 end
 hp = "no high-pass";
-if G.WCAR_HighpassHz > 0
-    hp = sprintf("weights from > %g Hz", G.WCAR_HighpassHz);
+if R.WCAR_HighpassHz > 0
+    hp = sprintf("weights from > %g Hz", R.WCAR_HighpassHz);
 end
-n = node("op", "Weighted CAR", ["each channel minus its own Kalman-", "tracked share of the plain CAR", ...
-    sprintf("order %d, alpha %g at 1 kHz, drift %g /s", G.WCAR_Order, G.WCAR_Alpha1k, G.WCAR_DriftPerSec), ...
-    q + ", " + G.WCAR_Estimate + " estimate, " + hp], ...
-    "SigRefMethodDropDown,SigWCAROrderField,SigWCARAlphaField,SigWCARDriftField,SigWCARQField," + ...
-    "SigWCARQAutoCheckBox,SigWCARHighpassField,SigWCAREstimateDropDown");
+n = node("op", "Adaptive weighted CAR", ["each channel minus its own Kalman-", "tracked share of the good channels' CAR", ...
+    sprintf("order %d, alpha %g at 1 kHz, drift %g /s", R.WCAR_Order, R.WCAR_Alpha1k, R.WCAR_DriftPerSec), ...
+    q + ", " + R.WCAR_Estimate + " estimate, " + hp], ...
+    target + ",ArtRefWCAROrderField,ArtRefWCARAlphaField,ArtRefWCARDriftField,ArtRefWCARQField," + ...
+    "ArtRefWCARQAutoCheckBox,ArtRefWCARHighpassField,ArtRefWCAREstimateDropDown");
 end
 
 

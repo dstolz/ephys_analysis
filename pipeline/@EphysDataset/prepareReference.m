@@ -5,7 +5,8 @@ function tf = prepareReference(obj, opts)
 %   and by deriveSignals
 %   before it reads, so a reference is never taken over a channel list that
 %   changes mid-run or is worked out again on every parallel worker. When
-%   ArtifactConfig.Reference is "car" / "cmr" and ReferenceExclude was never
+%   ArtifactConfig.Reference is "car" / "cmr" / "wcar" (whose plain CAR is
+%   taken over the same channels) and ReferenceExclude was never
 %   set (ReferenceExcludeSource ""), it takes suggestReferenceExclude's
 %   channels, marks them "suggested" and writes the manifest so the choice
 %   can be reviewed (Artifacts tab). TF is true when it did so.
@@ -13,6 +14,8 @@ function tf = prepareReference(obj, opts)
 %   TF = ds.prepareReference(Mode="car") settles them for that reference
 %   whatever ArtifactConfig.Reference says (deriveSignals' weighted CAR,
 %   which weighs the plain CAR, does so when the Reference is "none").
+%   It settles the channels only: the weighted CAR's state is worked out
+%   by prepareWCAR, which the streaming entry points call after it.
 %
 %   A suggestion that would leave fewer than MinReferenceChannels (5)
 %   channels in the reference is not applied: it warns
@@ -28,7 +31,7 @@ function tf = prepareReference(obj, opts)
 
 arguments
     obj (1,1) EphysDataset
-    opts.Mode (1,1) string {mustBeMember(opts.Mode, ["" "none" "car" "cmr"])} = ""   % "" = ArtifactConfig.Reference
+    opts.Mode (1,1) string {mustBeMember(opts.Mode, ["" "none" "car" "cmr" "wcar"])} = ""   % "" = ArtifactConfig.Reference
 end
 
 tf = false;

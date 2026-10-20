@@ -71,13 +71,13 @@ function result = runKilosort(obj, opts)
 %   once its process exits, so a caller can poll for completion of a
 %   background run (EphysDataset.sortRunState).
 %
-%   The recording is referenced once: when the .bin carries the common
-%   reference (ArtifactConfig.Reference "car" / "cmr", which toBin
-%   subtracts; for a BinFile given, the reference its sidecar records),
-%   settings.json sets do_CAR = false, so Kilosort4 does not subtract its own
-%   (the median across the probe's channels) on top of it, whatever
-%   ExtraSettings says. With Reference "none" Kilosort4's do_CAR is the one
-%   reference, as ExtraSettings leaves it (on by default).
+%   The recording is referenced once: when the .bin carries a reference
+%   (ArtifactConfig.Reference "car" / "cmr", or the weighted CAR "wcar",
+%   which toBin subtracts; for a BinFile given, the reference its sidecar
+%   records), settings.json sets do_CAR = false, so Kilosort4 does not
+%   subtract its own (the median across the probe's channels) on top of it,
+%   whatever ExtraSettings says. With Reference "none" Kilosort4's do_CAR is
+%   the one reference, as ExtraSettings leaves it (on by default).
 %
 %   settings.json also records the .bin's scale, its units per uV
 %   (bin_scale: ds.Scale when this call writes the .bin, else the .bin's
@@ -260,12 +260,12 @@ extraNames = fieldnames(extra);
 for k = 1:numel(extraNames)
     settings.(extraNames{k}) = extra.(extraNames{k});
 end
-% A .bin that carries the common reference is not referenced again:
-% Kilosort4's do_CAR would subtract the median across the probe's channels
-% on top of it.
-if ismember(binRef, ["car" "cmr"])
+% A .bin that carries a reference (CAR, CMR or the weighted CAR) is not
+% referenced again: Kilosort4's do_CAR would subtract the median across the
+% probe's channels on top of it.
+if ismember(binRef, ["car" "cmr" "wcar"])
     if isfield(settings, 'do_CAR') && ~isequal(settings.do_CAR, false)
-        fprintf('do_CAR turned off: the .bin already carries the common %s reference.\n', upper(binRef));
+        fprintf('do_CAR turned off: the .bin already carries the %s reference.\n', referenceName(binRef));
     end
     settings.do_CAR = false;
 end
@@ -322,6 +322,16 @@ end
 
 
 %% ---- local helpers ----------------------------------------------------
+
+function s = referenceName(mode)
+%referenceName  "common CAR", "common CMR" or "weighted CAR" (adaptive) for the log.
+if mode == "wcar"
+    s = "adaptive weighted CAR";
+else
+    s = "common " + upper(mode);
+end
+end
+
 
 function v = firstNonEmpty(varargin)
 v = "";

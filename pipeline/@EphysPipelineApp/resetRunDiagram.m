@@ -101,7 +101,7 @@ else
     w(5) = join(types, " + ") + " .mat";
     wcar = ["LFP" "MUA" "SPIKE"];
     wcar = wcar([G.LFP G.MUA G.SPIKE] & [G.LFP_Reference G.MUA_Reference G.SPIKE_Reference]);
-    if G.ReferenceMethod == "weighted" && ~isempty(wcar)
+    if cfg.Reference.Mode == "wcar" && ~isempty(wcar)
         w(5) = w(5) + ", " + join(wcar, " + ") + " weighted CAR";
     end
 end

@@ -2,7 +2,9 @@ function refreshReferencePanel(obj)
 %refreshReferencePanel  The Artifacts tab's common-reference panel for the
 %   active dataset: its channels left out of the reference, where they came
 %   from, and how many channels the reference is taken over. The bounds and
-%   the Left out field are live only while a reference is chosen.
+%   the Left out field are live only while a reference is chosen, the
+%   weighted CAR's options only while it is (Q while Automatic Q is off),
+%   and shown only then.
 %
 %   See also buildArtifactsTab, onSuggestReferenceExclude, onReferenceExcludeEdited.
 
@@ -10,6 +12,17 @@ if isempty(obj.ArtRefExcludeField) || ~isvalid(obj.ArtRefExcludeField); return; 
 on = string(obj.ArtRefDropDown.Value) ~= "none";
 obj.ArtRefLowField.Enable  = matlab.lang.OnOffSwitchState(on);
 obj.ArtRefHighField.Enable = matlab.lang.OnOffSwitchState(on);
+wcar = string(obj.ArtRefDropDown.Value) == "wcar";
+set([obj.ArtRefWCAREstimateDropDown, obj.ArtRefWCAROrderField, obj.ArtRefWCARAlphaField, ...
+    obj.ArtRefWCARDriftField, obj.ArtRefWCARHighpassField, obj.ArtRefWCARQAutoCheckBox], ...
+    'Enable', matlab.lang.OnOffSwitchState(wcar));
+obj.ArtRefWCARQField.Enable = matlab.lang.OnOffSwitchState(wcar && ~obj.ArtRefWCARQAutoCheckBox.Value);
+wg = obj.ArtRefWCAROrderField.Parent;   % their grid takes no room for the other references
+wg.Visible = matlab.lang.OnOffSwitchState(wcar);
+wg.Parent.RowHeight{wg.Layout.Row} = 0;
+if wcar
+    wg.Parent.RowHeight{wg.Layout.Row} = 'fit';
+end
 
 d = obj.currentDataset();
 hasData = ~isempty(d);
@@ -39,6 +52,10 @@ if ~isnan(d.NumChannels)
             EphysDataset.formatChannelList(d.ExcludeChannels));
     end
     txt = txt + ".";
+end
+if string(obj.ArtRefDropDown.Value) == "wcar"
+    txt = txt + " Weighted CAR: its state is worked out on the first read of the recording " + ...
+        "(once; kept in " + d.Name + "_wcar.mat).";
 end
 obj.ArtRefStatusLabel.Text = txt;
 end

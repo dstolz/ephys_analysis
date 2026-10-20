@@ -351,11 +351,13 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   signals; also the high-pass on sorted spikes cut from the `.bin` for the
   Review tab and the analysis figures' unit waveforms, `readPhyWaveforms`, and
   the high-pass of the adaptive weighted CAR's estimation inputs,
-  `weightedCAR`).
+  `weightedCAR` and `EphysDataset.prepareWCAR`; `butter`'s poles also size
+  the streamed weighted CAR's padding).
 - Statistics and Machine Learning Toolbox (`zscore` in automatic
   derived-signal bad-channel detection; `mad` for the adaptive weighted CAR's
-  automatic `Q` and `prctile` for its weight summary, `weightedCAR` and
-  `deriveSignals`' `referenceMethod="weighted"`; `signrank` and `kruskalwallis` in
+  automatic `Q` and `prctile` for its weight summary, `weightedCAR`,
+  `deriveSignals` and the streamed weighted CAR of `Reference.Mode` `"wcar"`,
+  `prepareWCAR`; `signrank` and `kruskalwallis` in
   the analysis module's response statistics, `responseStats` and the
   *Responsive only* unit selection; `tiedrank`, `tinv` and `ranksum` in its
   auROC, `aurocCurves` and `aurocCall`: the auROC baseline of PSTH and

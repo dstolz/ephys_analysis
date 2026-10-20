@@ -1212,7 +1212,8 @@ referenced signal. The Signals tab picks which derived signals take it.
 
 | Control | Maps to |
 | --- | --- |
-| Reference: *None (as recorded)* / *CAR: common average* / *CMR: common median* | `Reference.Mode` (`"none"` / `"car"` / `"cmr"`), a setting for the whole pipeline: subtract, sample by sample, the mean or median of the good channels from every channel, once, as each step reads the recording - artifact detection, the noise level of the fill, the Kilosort4 `.bin` (Kilosort4's own `do_CAR` is then turned off, so it is not referenced twice), spike detection, the derived signals ticked on the Signals tab (MUA and SPIKE by default, not the LFP), and the Visualize tab's *As the pipeline*. The preview and the viewer show the referenced signal. See [Common reference](EphysDataset.md#common-reference-car--cmr) |
+| Reference: *None (as recorded)* / *CAR: common average* / *CMR: common median* / *WCAR: adaptive weighted CAR* | `Reference.Mode` (`"none"` / `"car"` / `"cmr"` / `"wcar"`), a setting for the whole pipeline: subtract, sample by sample, the mean or median of the good channels from every channel, or each channel's own Kalman-tracked share of their mean (the [adaptive weighted CAR](EphysDataset.md#adaptive-weighted-car), Khorasani et al. 2019), once, as each step reads the recording - artifact detection, the noise level of the fill, the sorting `.bin` (Kilosort4's own `do_CAR`, or a SpikeInterface sorter's own common reference, is then turned off, so it is not referenced twice), spike detection, the derived signals ticked on the Signals tab (MUA and SPIKE by default, not the LFP), and the Visualize tab's *As the pipeline*. The preview and the viewer show the referenced signal. With WCAR the first read of a recording (a preview, the viewer, a run) first works out its state, once (`EphysDataset.prepareWCAR`: a pass over every channel, about 8 s per channel-hour at 30 kHz, and one before it for an automatic Q; the app waits), kept in `<Name>_wcar.mat`. See [Common reference](EphysDataset.md#common-reference-car--cmr) |
+| WCAR order, Alpha at 1 kHz, Drift (/s), High-pass (Hz), Q (uV^2), Automatic Q, Estimate | `Reference.WCAR_Order` (1), `WCAR_Alpha1k` (1), `WCAR_DriftPerSec` (1), `WCAR_HighpassHz` (0.5; each read is padded by the filter's memory, 23 s on either side at 0.5 Hz, 0 = none), `WCAR_Q` (Q, used when *Automatic Q* is off; ticked = `NaN`, the robust variance of the high-passed plain-CAR residual per dataset) and `WCAR_Estimate` (*prior* / *posterior*): the weighted CAR's parameters, on while the reference is WCAR (Q while *Automatic Q* is off). The tooltips say where each default comes from |
 | Good noise (x median): *low* to *high* | `Reference.BadLow`, `BadHigh` (0.3 and 2, Ludwig et al. 2009): a channel whose noise floor lies outside this band, relative to the median across channels, is suggested to stay out of the reference |
 | Left out, **Suggest** | the active dataset's `ReferenceExclude` (written to its manifest): channels kept out of the average, though still referenced. **Suggest** measures each channel's noise floor on a sample of the recording and fills the field (each channel's ratio goes to the log); typing a list marks it set by hand. A list that does not parse changes nothing (an alert says why). A dataset whose list was never set gets the suggestion on its first referenced run or preview. Channels excluded on the Probe tab stay out of the reference too |
 | **Enable automatic detection** | `Artifacts.Enabled`: run automatic detection (manual periods always apply) |
@@ -1566,7 +1567,7 @@ The run (`EphysDataset.runSpikeInterface`, `run_si.py`):
 
 1. the same `.bin` Kilosort4 would sort: the artifact periods erased and the
    common reference applied once. When the `.bin` carries the common
-   reference, the sorter's own is kept out: SpikeInterface's internal sorters
+   reference (CAR, CMR or the weighted CAR), the sorter's own is kept out: SpikeInterface's internal sorters
    (`spykingcircus2`, `tridesclous2`, `lupin`) subtract a median reference on
    32 channels or more, which is skipped, and a `do_CAR` / `car` parameter is
    set false, as Kilosort4's `do_CAR` is. The sorter's other preprocessing
@@ -1887,15 +1888,16 @@ reads these files.
 - **Common reference: LFP / MUA / SPIKE**, the row below it:
   `Signals.LFP_Reference` / `MUA_Reference` / `SPIKE_Reference` (off / on /
   on by default), which signals the common reference (the config's
-  `Reference` section, set in the Artifacts tab's common-reference panel)
-  is subtracted from, once, before they are derived. It suits MUA and SPIKE,
+  `Reference` section, set in the Artifacts tab's common-reference panel:
+  CAR, CMR or the adaptive weighted CAR, which runs here over the whole
+  recording in memory) is subtracted from, once, before they are derived. It suits MUA and SPIKE,
   which it rids of the noise every channel shares; the LFP is usually kept as
   recorded, since the reference would take out the LFP the channels share.
   Each box is on only while its signal is ticked, and nothing is subtracted
   while the reference is *None*. Every file records what its signal took
   (`info.<TYPE>.reference`). The tab's note gives the order: keep channels →
-  common reference (the signals ticked for it; taken over every channel) →
-  erase artifact periods → LFP (resample, then filters) / MUA / SPIKE →
+  common reference, CAR / CMR / WCAR (the signals ticked for it; taken over
+  every channel) → erase artifact periods → LFP (resample, then filters) / MUA / SPIKE →
   interpolate bad channels → remap.
 - **Channels**: label field (`custom` / `native` names for channels, aux
   inputs and digital lines; lines renamed on the Trials tab keep their
@@ -2236,13 +2238,11 @@ step box to the files it writes:
 
 - **Common reference** (`Reference.Mode`, set on the Artifacts tab): the one box for the
   whole pipeline, since every step subtracts it once from its own read of the
-  recording. It lists what leaves it out: the Signals not ticked for it
-  (*not Signals' LFP* by default), the Signals that take the adaptive
-  weighted CAR instead (*not Signals' MUA / SPIKE: weighted CAR there*, with
-  `Signals.ReferenceMethod` `"weighted"`) and the common-mode artifact
-  detector, which looks for the very mean it subtracts. Dashed *none (as
-  recorded)* when it is off, then still naming the Signals that take the
-  weighted CAR (*on their branch*).
+  recording; for `"wcar"` an *Adaptive weighted CAR* box with its order,
+  alpha, drift, Q, estimate and high-pass, which opens the WCAR controls. It
+  lists what leaves it out: the Signals not ticked for it (*not Signals' LFP*
+  by default) and the common-mode artifact detector, which looks for the very
+  mean it subtracts. Dashed *none (as recorded)* when it is off.
 - **Artifacts**: chunked reading, the detection
   filter, the detector (method, window, threshold), channel coincidence,
   merge / pad, the automatic intervals, and the artifact periods
@@ -2269,10 +2269,8 @@ step box to the files it writes:
   when `Signals.BlankArtifacts` is off) over the LFP (resample, band filter,
   notch), MUA (bandpass, rectify, resample, integrate) and SPIKE (resample,
   bandpass) branches, each of whose first box says whether it takes the
-  common reference (*common CMR referenced*), the adaptive weighted CAR
-  (*adaptive weighted CAR*, followed by a *Weighted CAR* box with its order,
-  alpha, drift, Q, estimate and high-pass, which opens the WCAR controls) or
-  neither (*as recorded (no common reference)*); the AUX and digital-event branches hang from the read
+  common reference (*common CMR referenced*, *adaptive weighted CAR
+  referenced*) or not (*as recorded (no common reference)*); the AUX and digital-event branches hang from the read
   beside the channel selection, since neither is referenced or
   channel-selected. The amplifier branches end with bad-channel
   interpolation, the channel remap and the output file. Export and Analysis

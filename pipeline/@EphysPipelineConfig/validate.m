@@ -98,12 +98,32 @@ end
 % --- Reference (always) ----------------------------------------------------------
 % Every step that reads the recording takes it, whichever steps are on.
 R = obj.Reference;
-if ~ismember(R.Mode, ["none" "car" "cmr"])
-    add("reference", "Mode", "error", "Reference.Mode must be ""none"", ""car"" or ""cmr"".");
+if ~ismember(R.Mode, ["none" "car" "cmr" "wcar"])
+    add("reference", "Mode", "error", "Reference.Mode must be ""none"", ""car"", ""cmr"" or ""wcar"".");
 end
 if ~(R.BadLow >= 0 && R.BadHigh > R.BadLow)
     add("reference", "BadLow", "error", ...
         "The reference noise bounds must satisfy 0 <= BadLow < BadHigh.");
+end
+if R.Mode == "wcar"   % the weighted CAR's options (weightedCAR's checks)
+    if ~(R.WCAR_Order >= 1 && R.WCAR_Order <= 16 && R.WCAR_Order == round(R.WCAR_Order))
+        add("reference", "WCAR_Order", "error", "WCAR_Order must be an integer in 1..16.");
+    end
+    if ~(R.WCAR_Alpha1k > 0 && R.WCAR_Alpha1k <= 1)
+        add("reference", "WCAR_Alpha1k", "error", "WCAR_Alpha1k must lie in (0, 1].");
+    end
+    if ~(isfinite(R.WCAR_DriftPerSec) && R.WCAR_DriftPerSec > 0)
+        add("reference", "WCAR_DriftPerSec", "error", "WCAR_DriftPerSec must be finite and positive.");
+    end
+    if ~(isnan(R.WCAR_Q) || (isfinite(R.WCAR_Q) && R.WCAR_Q > 0))
+        add("reference", "WCAR_Q", "error", "WCAR_Q must be NaN (automatic) or a positive number (uV^2).");
+    end
+    if ~(isfinite(R.WCAR_HighpassHz) && R.WCAR_HighpassHz >= 0)
+        add("reference", "WCAR_HighpassHz", "error", "WCAR_HighpassHz must be 0 (none) or positive.");
+    end
+    if ~ismember(R.WCAR_Estimate, ["prior" "posterior"])
+        add("reference", "WCAR_Estimate", "error", "WCAR_Estimate must be ""prior"" or ""posterior"".");
+    end
 end
 
 % --- Behavior --------------------------------------------------------------------
@@ -300,10 +320,6 @@ if G.Enabled
     end
     if ~ismember(G.MatVersion, ["-v7.3" "-v7"])
         add("signals", "MatVersion", "error", "MatVersion must be -v7.3 or -v7.");
-    end
-    if G.ReferenceMethod == "weighted" && ~any([G.LFP G.MUA G.SPIKE] & [G.LFP_Reference G.MUA_Reference G.SPIKE_Reference])
-        add("signals", "ReferenceMethod", "warning", ...
-            "The weighted CAR is chosen, but no ticked signal takes a reference (<TYPE>_Reference); it is not applied.");
     end
     if G.MUA && ~(G.MUA_Fs > 0); add("signals", "MUA_Fs", "error", "MUA_Fs must be positive."); end
     if G.LFP && ~(G.LFP_Fs > 0); add("signals", "LFP_Fs", "error", "LFP_Fs must be positive."); end

@@ -15,10 +15,21 @@ function test_WeightedCAR()
 %     6. deriveSignals(referenceMethod="weighted") on a universal-binary
 %        recording: MUA / SPIKE equal weightedCAR followed by the band
 %        filters, the LFP untouched, keepAmpChannels, Reference "none" (the
-%        suggestion runs) or "cmr" (still the plain CAR), the automatic Q
-%     7. the Signals config fields, their checks, signalOptions and the
-%        runSignals log / dry-run text
-%     8. an informational timing (seconds per channel-hour at 30 kHz)
+%        suggestion runs) or "cmr" (still the plain CAR), the automatic Q;
+%        Reference "wcar" with the dataset's ReferenceWCAR options
+%     7. the Reference section's Mode "wcar" and WCAR_* fields (defaults,
+%        artifactConfig, validate, save / load, a config saved with the
+%        Signals fields), and the runSignals log / dry-run text
+%     8. weightedCAR in pieces (Rows, Initial, StateRows, Output): the
+%        recursion of one run, piece by piece
+%     9. the streamed weighted CAR (Reference "wcar", prepareWCAR): every
+%        chunk and window equals one run over the whole recording, Order
+%        3 / posterior, HighpassHz 0, the state cached and kept for a new
+%        Estimate, the automatic Q of deriveSignals, applyReference
+%        refused, artifactIntervals, the .bin and its sidecar, do_CAR off
+%        in Kilosort4's settings and the reference in SpikeInterface's,
+%        the pipeline's artifact fingerprint
+%    10. an informational timing (seconds per channel-hour at 30 kHz)
 %   Needs the Signal Processing and the Statistics and Machine Learning
 %   Toolboxes; no Intan files or Python.
 %
@@ -211,52 +222,77 @@ dsS = EphysDataset(writeRecording(root, 'wcarsugg', X, Fs));   % ReferenceExclud
 [~, ~, Is] = dsS.deriveSignals('dataTypeOut', "SPIKE", 'referenceMethod', "weighted");
 check(dsS.ReferenceExcludeSource == "suggested" && Is.reference.mode == "wcar", ...
     'with Reference "none" the ReferenceExclude suggestion still runs (as for "car")');
+aW.Reference = "wcar";
+aW.ReferenceWCAR = struct('Order', 2, 'Q', 50, 'Estimate', "posterior");   % partial: the rest default
+dsW.ArtifactConfig = aW;
+[Yr, ~, Ir] = dsW.deriveSignals('dataTypeOut', "SPIKE", 'SPIKE_Fs', Inf);
+[Yq, ~, ~] = dsW.deriveSignals('dataTypeOut', "SPIKE", 'SPIKE_Fs', Inf, 'referenceMethod', "weighted", ...
+    'wcarOptions', struct('Q', 50, 'Estimate', "posterior", 'Order', 2));
+[~, ~, Io2] = dsW.deriveSignals('dataTypeOut', "SPIKE", 'wcarOptions', struct('Q', 70));
+check(isequal(Yr.SPIKE, Yq.SPIKE) && Ir.reference.mode == "wcar" && Ir.reference.wcar.Q == 50 ...
+    && Ir.reference.wcar.Order == 2 && Ir.reference.wcar.Estimate == "posterior" && Ir.reference.wcar.Alpha1k == 1 ...
+    && Io2.reference.wcar.Q == 70 && Io2.reference.wcar.Order == 2, ...
+    'Reference "wcar": the weighted CAR with the dataset''s ReferenceWCAR (missing fields default), wcarOptions over it');
+aW.Reference = "none"; aW.ReferenceWCAR = EphysDataset.defaultWCAR(); dsW.ArtifactConfig = aW;
 
 fprintf('\n== 7. config ==\n');
+R = EphysPipelineConfig.defaults("Reference");
+check(R.Mode == "none" && R.WCAR_Order == 1 && R.WCAR_Alpha1k == 1 && R.WCAR_DriftPerSec == 1 ...
+    && isnan(R.WCAR_Q) && R.WCAR_HighpassHz == 0.5 && R.WCAR_Estimate == "prior", 'Reference defaults: the WCAR_* fields');
 G = EphysPipelineConfig.defaults("Signals");
-check(G.ReferenceMethod == "common" && G.WCAR_Order == 1 && G.WCAR_Alpha1k == 1 && G.WCAR_DriftPerSec == 1 ...
-    && isnan(G.WCAR_Q) && G.WCAR_HighpassHz == 0.5 && G.WCAR_Estimate == "prior", 'defaults');
+check(~isfield(G, 'ReferenceMethod') && ~any(startsWith(string(fieldnames(G)), "WCAR_")), ...
+    'the Signals section has no reference of its own: Reference.Mode is every step''s');
 so = EphysPipelineConfig.signalOptions(G);
-check(so.referenceMethod == "common" && ~isfield(so, 'wcarOptions'), '"common": no wcarOptions');
-G.ReferenceMethod = "weighted"; G.WCAR_Order = 2; G.WCAR_Q = 40; G.WCAR_Estimate = "posterior";
-so = EphysPipelineConfig.signalOptions(G);
-check(so.referenceMethod == "weighted" && isequal(so.wcarOptions, struct('Order', 2, 'Alpha1k', 1, 'DriftPerSec', 1, ...
-    'Q', 40, 'HighpassHz', 0.5, 'Estimate', "posterior")), '"weighted": the WCAR_* fields as wcarOptions');
-errs = struct();
-G3 = G; G3.ReferenceMethod = "median";   errs.ReferenceMethod  = errorId(@() EphysPipelineConfig.signalOptions(G3));
-G3 = G; G3.WCAR_Order = 17;              errs.WCAR_Order       = errorId(@() EphysPipelineConfig.signalOptions(G3));
-G3 = G; G3.WCAR_Alpha1k = 0;             errs.WCAR_Alpha1k     = errorId(@() EphysPipelineConfig.signalOptions(G3));
-G3 = G; G3.WCAR_DriftPerSec = -1;        errs.WCAR_DriftPerSec = errorId(@() EphysPipelineConfig.signalOptions(G3));
-G3 = G; G3.WCAR_Q = 0;                   errs.WCAR_Q           = errorId(@() EphysPipelineConfig.signalOptions(G3));
-G3 = G; G3.WCAR_HighpassHz = -1;         errs.WCAR_HighpassHz  = errorId(@() EphysPipelineConfig.signalOptions(G3));
-G3 = G; G3.WCAR_Estimate = "mean";       errs.WCAR_Estimate    = errorId(@() EphysPipelineConfig.signalOptions(G3));
-allOk = true;
-for fnm = string(fieldnames(errs)).'
-    if ~strcmp(errs.(fnm), "EphysPipelineConfig:Signals" + fnm)
-        allOk = false;
-        fprintf(2, '    %s -> %s\n', fnm, errs.(fnm));
-    end
-end
-check(allOk, 'every WCAR error id is raised');
+check(~isfield(so, 'referenceMethod') && ~isfield(so, 'wcarOptions'), ...
+    'signalOptions sets no reference method: the datasets'' ArtifactConfig decides');
+R.Mode = "wcar"; R.WCAR_Order = 2; R.WCAR_Q = 40; R.WCAR_Estimate = "posterior";
+acfg = EphysPipelineConfig.artifactConfig(EphysPipelineConfig.defaults("Artifacts"), R);
+check(acfg.Reference == "wcar" && isequal(acfg.ReferenceWCAR, struct('Order', 2, 'Alpha1k', 1, 'DriftPerSec', 1, ...
+    'Q', 40, 'HighpassHz', 0.5, 'Estimate', "posterior")), ...
+    'artifactConfig carries Mode and the WCAR_* fields to the datasets (ReferenceWCAR)');
 cfg = EphysPipelineConfig();
 cfg.Project.Root = root;
-cfg.Signals.Enabled = true;
-cfg.Signals.ReferenceMethod = "weighted";
-cfg.Signals.WCAR_Order = 0;
+cfg.Reference.Mode = "wcar";
 iss = cfg.validate(CheckPaths=false);
-check(any(iss.Step == "signals" & iss.Field == "WCAR_Order" & iss.Severity == "error"), 'validate: a bad WCAR_Order is an error');
-cfg.Signals.WCAR_Order = 1;                       % LFP only, and the LFP takes no reference
-iss = cfg.validate(CheckPaths=false);
-check(any(iss.Step == "signals" & iss.Field == "ReferenceMethod" & iss.Severity == "warning") ...
-    && ~any(iss.Step == "signals" & iss.Severity == "error"), 'validate: "weighted" with no referenced signal warns');
-cfg.Signals.MUA = true;
-iss = cfg.validate(CheckPaths=false);
-check(~any(iss.Step == "signals"), 'validate: "weighted" for the MUA passes');
+check(~any(iss.Step == "reference"), 'validate: "wcar" with the defaults passes');
+bad = struct('WCAR_Order', 17, 'WCAR_Alpha1k', 0, 'WCAR_DriftPerSec', -1, 'WCAR_Q', 0, ...
+    'WCAR_HighpassHz', -1, 'WCAR_Estimate', "mean");
+allOk = true;
+for fnm = string(fieldnames(bad)).'
+    c2 = cfg;
+    c2.Reference.(fnm) = bad.(fnm);
+    iss = c2.validate(CheckPaths=false);
+    if ~any(iss.Step == "reference" & iss.Field == fnm & iss.Severity == "error")
+        allOk = false;
+        fprintf(2, '    %s not reported\n', fnm);
+    end
+end
+check(allOk, 'validate: each bad WCAR_* value is an error of the reference');
+c2 = cfg; c2.Reference.Mode = "car"; c2.Reference.WCAR_Order = 17;
+iss = c2.validate(CheckPaths=false);
+check(~any(iss.Step == "reference"), 'validate: the WCAR_* fields are not checked while Mode is not "wcar"');
+cfg.Reference.WCAR_Order = 2;
 cfgFile = fullfile(root, 'wcar_config.json');
 cfg.save(cfgFile);
 cfg2 = EphysPipelineConfig.load(cfgFile);
-check(isequaln(cfg2.Signals, cfg.Signals) && isnan(cfg2.Signals.WCAR_Q), ...
+check(isequaln(cfg2.Reference, cfg.Reference) && isnan(cfg2.Reference.WCAR_Q) && cfg2.Reference.Mode == "wcar", ...
     'the fields survive a JSON save / load round trip (NaN Q included)');
+old = cfg.toStruct();
+old.Reference = rmfield(old.Reference, {'WCAR_Order', 'WCAR_Q'});
+old.Reference.Mode = "car";
+old.Signals.ReferenceMethod = "weighted";
+old.Signals.WCAR_Order = 3;
+old.Signals.WCAR_Q = 25;
+c3 = EphysPipelineConfig.fromStruct(old);
+check(c3.Reference.WCAR_Order == 3 && c3.Reference.WCAR_Q == 25 && c3.Reference.Mode == "car" ...
+    && ~isfield(c3.Signals, 'ReferenceMethod') && ~isfield(c3.Signals, 'WCAR_Order') ...
+    && isscalar(c3.LoadWarnings) && contains(c3.LoadWarnings, "Signals.ReferenceMethod") ...
+    && contains(c3.LoadWarnings, "Reference.Mode (""car"")"), ...
+    ['a config saved with the Signals fields: WCAR_* move to Reference; ReferenceMethod "weighted" is ' ...
+     'reported, not applied (Mode stays "car")']);
+old.Signals.ReferenceMethod = "common";
+c4 = EphysPipelineConfig.fromStruct(old);
+check(isempty(c4.LoadWarnings) && c4.Reference.WCAR_Order == 3, 'ReferenceMethod "common" is dropped without a word');
 
 % runSignals: the dry-run text and the log
 proj = fullfile(root, 'proj');
@@ -265,7 +301,10 @@ mkdir(fileparts(recP));
 movefile(writeRecording(root, 'M1_260101_120000', X(1:Fs, :), Fs), recP);
 cfg.Project.Root = proj;
 cfg.Project.OutputRoot = fullfile(root, 'out');
-cfg.Signals.LFP = false; cfg.Signals.SPIKE = true;
+cfg.Reference.Mode = "wcar";
+cfg.Reference.WCAR_Order = 1;
+cfg.Signals.Enabled = true;
+cfg.Signals.LFP = false; cfg.Signals.MUA = true; cfg.Signals.SPIKE = true;
 pipe = EphysPipeline(cfg);
 logs = strings(0, 1);
 pipe.LogFcn = @(msg) appendLog(msg);
@@ -277,7 +316,179 @@ pipe.runSignals();
 check(all(pipe.Results.Status == "done") && any(contains(logs, "adaptive weighted CAR (WCAR) over 8 channel(s), subtracted from MUA, SPIKE") ...
     & contains(logs, "automatic")), 'the log names the weighted CAR, its channels, signals and automatic Q');
 
-fprintf('\n== 8. timing (informational) ==\n');
+fprintf('\n== 8. weightedCAR in pieces ==\n');
+rng(8);
+Fs = 1000; nS = 6000;
+Z = 5 * randn(nS, 3) + 40 * sin(2*pi*1.6*(0:nS-1).'/Fs) .* [0.5 1 1.5] + [20 -10 5];
+n = mean(Z, 2);
+scale = max(abs(Z), [], 'all');
+for M = [1 3]
+    opt = {'Fs', Fs, 'Q', 25, 'Order', M, 'Alpha1k', 0.99, 'DriftPerSec', 2, 'HighpassHz', 0, 'Estimate', "posterior"};
+    [S1, i1] = weightedCAR(Z, n, opt{:}, 'StateRows', [1 2500 4001]);
+    [A, ia] = weightedCAR(Z, n, opt{:}, 'Rows', [1 2499]);
+    [B, ib] = weightedCAR(Z, n, opt{:}, 'Rows', [2500 nS], 'Initial', ia.final);
+    [~, ic] = weightedCAR(Z, n, opt{:}, 'Rows', [2500 4600], 'Initial', ia.final, 'StateRows', 4001, 'Output', false);
+    st1 = struct('P', i1.states.P(:, :, 3), 'W', i1.states.W(:, :, 3), 'NLag', i1.states.NLag(:, 3));
+    [Cc, ~] = weightedCAR(Z, n, opt{:}, 'Rows', [4001 nS], 'Initial', st1);
+    check(max(abs([A(1:2499, :); B(2500:end, :)] - S1), [], 'all') < 1e-12 * scale ...
+        && isequal(A(2500:end, :), Z(2500:end, :)) && isequal(B(1:2499, :), Z(1:2499, :)) ...
+        && max(abs(Cc(4001:end, :) - S1(4001:end, :)), [], 'all') < 1e-12 * scale ...
+        && max(abs(ic.states.W - i1.states.W(:, :, 3)), [], 'all') < 1e-12 ...
+        && max(abs(ib.final.W - i1.final.W), [], 'all') < 1e-12 && isequal(i1.states.rows, [1 2500 4001]) ...
+        && isequal(i1.states.P(:, :, 1), eye(M)) && isequal(i1.states.W(:, :, 1), repmat([1; zeros(M - 1, 1)], 1, 3)), ...
+        sprintf(['Order %d: two pieces (Initial = the first''s final state), or a piece from a stored state, ' ...
+        'equal one run; the rows outside Rows are left as given'], M));
+end
+check(strcmp(errorId(@() weightedCAR(Z, n, Fs=Fs, Q=1, Rows=[10 nS + 1])), 'weightedCAR:Rows') ...
+    && strcmp(errorId(@() weightedCAR(Z, n, Fs=Fs, Q=1, Rows=[10 20], StateRows=5)), 'weightedCAR:StateRows') ...
+    && strcmp(errorId(@() weightedCAR(Z, n, Fs=Fs, Q=1, Order=2, Initial=struct('P', eye(2), 'W', [1; 0], 'NLag', 0))), 'weightedCAR:Initial'), ...
+    'bad Rows, StateRows and Initial are refused');
+
+fprintf('\n== 9. the streamed weighted CAR (Reference "wcar") ==\n');
+rng(9);
+Fs = 2000; nS = 90 * Fs; nC = 6;      % 90 s: several windows and 90 checkpoints; 23 s of padding at 0.5 Hz
+t = (0:nS-1).' / Fs;
+common = 200 * sin(2*pi*1.6*t) + 40 * randn(nS, 1);
+X = 8 * randn(nS, nC) + common .* linspace(0.4, 1.6, nC) + [50 -30 0 20 10 -5];
+burst = round(Fs * [20 61]);          % two short bursts on two channels, which the reference does not remove
+X(burst(1) + (1:40), [2 4]) = X(burst(1) + (1:40), [2 4]) + [900 600];
+X(burst(2) + (1:40), [1 5]) = X(burst(2) + (1:40), [1 5]) + [700 1100];
+X = double(single(X));                % what the float32 file holds
+dsR = EphysDataset(writeRecording(root, 'wcarstream', X, Fs));
+dsR.OutputDir = fullfile(root, 'wcarout');
+dsR.ReferenceExclude = 3; dsR.ReferenceExcludeSource = "manual";   % one channel out of the CAR
+ch = dsR.referenceChannels();
+aR = dsR.ArtifactConfig;
+aR.Reference = "wcar";
+aR.ReferenceWCAR.Q = 30;
+dsR.ArtifactConfig = aR;
+scale = max(abs(X), [], 'all');
+S = weightedCAR(X, mean(X(:, ch), 2), Fs=Fs, Q=30);   % one run over the whole recording
+st = dsR.prepareWCAR(WindowSamples=30 * Fs);    % two windows: the padding (23 s) makes them 46 s
+cacheFile = fullfile(dsR.outputFolder(), dsR.Name + "_wcar.mat");
+check(isequal(ch, [1 2 4 5 6]) && isstruct(st) && st.Q == 30 && ~st.QAuto && isequal(st.channels, ch) ...
+    && st.grid == Fs && size(st.W, 3) == nS / Fs && st.pad > 20 * Fs && st.window == 46 * Fs && isfile(cacheFile), ...
+    'prepareWCAR: the state every second over the reference channels, in two windows, saved as <Name>_wcar.mat');
+plan = dsR.streamPlan(MaxChunkSamples=round(17.3 * Fs));   % chunks off the checkpoint grid
+C = cell(numel(plan), 1);
+for i = 1:numel(plan)
+    C{i} = dsR.readChunkUV(plan(i));
+end
+Xc = vertcat(C{:});
+check(numel(plan) > 4 && isequal(size(Xc), size(X)) && max(abs(Xc - S), [], 'all') < 1e-9 * scale, ...
+    'readChunkUV: the chunks, each run from its checkpoint, are one run over the whole recording (to 1e-9)');
+w = [0 1; 12345 777; round(44.5 * Fs) 3 * Fs; nS - 100 500; 0 nS];
+ok = true;
+for k = 1:size(w, 1)
+    Y = dsR.readWindowUV(w(k, 1), w(k, 2));
+    m = min(w(k, 2), nS - w(k, 1));
+    ok = ok && isequal(size(Y), [m nC]) && max(abs(Y - S(w(k, 1) + (1:m), :)), [], 'all') < 1e-9 * scale;
+end
+check(ok, 'readWindowUV: any window, the start and the end of the recording included');
+check(isequal(dsR.readWindowUV(100, 50, Reference=false), X(101:150, :)) ...
+    && isequal(dsR.readChunkUV(plan(2), Reference=false), X(plan(2).sampleOffset + (1:plan(2).nSamples), :)), ...
+    'Reference=false still reads as recorded');
+check(strcmp(errorId(@() dsR.applyReference(X(1:10, :))), 'EphysDataset:applyReference:Positional') ...
+    && strcmp(errorId(@() dsR.referenceTrace(X(1:10, :))), 'EphysDataset:applyReference:Positional'), ...
+    'applyReference and referenceTrace refuse the weighted CAR: it depends on where the samples lie');
+
+key = dsR.WCARState.key;
+aR.ReferenceWCAR.Estimate = "posterior";
+dsR.ArtifactConfig = aR;
+stP = dsR.prepareWCAR();
+Sp = weightedCAR(X, mean(X(:, ch), 2), Fs=Fs, Q=30, Estimate="posterior");
+Yp = dsR.readWindowUV(round(30.4 * Fs), 2 * Fs);
+check(dsR.WCARState.key == key && stP.options.Estimate == "posterior" && isequal(stP.W, st.W) ...
+    && max(abs(Yp - Sp(round(30.4 * Fs) + (1:2 * Fs), :)), [], 'all') < 1e-9 * scale, ...
+    'Estimate only changes what is subtracted: the state is kept, the posterior read');
+aR.ReferenceWCAR = struct('Order', 3, 'Alpha1k', 0.99, 'DriftPerSec', 2, 'Q', 30, 'HighpassHz', 0.5, 'Estimate', "posterior");
+dsR.ArtifactConfig = aR;
+S3 = weightedCAR(X, mean(X(:, ch), 2), Fs=Fs, Q=30, Order=3, Alpha1k=0.99, DriftPerSec=2, Estimate="posterior");
+Y3 = dsR.readWindowUV(round(50.2 * Fs), 4 * Fs);
+check(dsR.WCARState.key ~= key && size(dsR.WCARState.NLag, 1) == 2 ...
+    && max(abs(Y3 - S3(round(50.2 * Fs) + (1:4 * Fs), :)), [], 'all') < 1e-9 * scale, ...
+    'Order 3: a new state (new options), its lags carried in the checkpoints');
+aR.ReferenceWCAR = struct('Order', 1, 'Alpha1k', 1, 'DriftPerSec', 1, 'Q', 30, 'HighpassHz', 0, 'Estimate', "prior");
+dsR.ArtifactConfig = aR;
+S0 = weightedCAR(X, mean(X(:, ch), 2), Fs=Fs, Q=30, HighpassHz=0);
+Y0 = dsR.readWindowUV(round(31.7 * Fs), 5 * Fs);
+check(dsR.WCARState.pad == 0 && max(abs(Y0 - S0(round(31.7 * Fs) + (1:5 * Fs), :)), [], 'all') < 1e-12 * scale, ...
+    'HighpassHz 0: no padding, the same to rounding');
+dsN = EphysDataset(dsR.Folder);
+dsN.OutputDir = dsR.OutputDir;
+dsN.ReferenceExclude = 3; dsN.ReferenceExcludeSource = "manual";
+dsN.ArtifactConfig = aR;
+stN = dsN.prepareWCAR();
+check(stN.created == dsR.WCARState.created && isequal(stN.W, dsR.WCARState.W) && stN.seconds == dsR.WCARState.seconds, ...
+    'a new dataset object reads the state from <Name>_wcar.mat instead of working it out');
+dsN.ReferenceExclude = [3 6];
+stN2 = dsN.prepareWCAR();
+check(isequal(stN2.channels, [1 2 4 5]) && stN2.key ~= stN.key, 'other reference channels: a new state');
+
+aR.ReferenceWCAR = EphysDataset.defaultWCAR();   % Q automatic
+dsR.ArtifactConfig = aR;
+stA = dsR.prepareWCAR();
+[~, ~, IA] = dsR.deriveSignals('dataTypeOut', "SPIKE", 'SPIKE_Fs', Inf);
+check(stA.QAuto && IA.reference.mode == "wcar" && IA.reference.wcar.QAuto && abs(stA.Q - IA.reference.wcar.Q) < 1e-5 * stA.Q, ...
+    sprintf(['the automatic Q is deriveSignals''s (the same samples; %.6g vs %.6g, single vs double ' ...
+    'precision)'], stA.Q, IA.reference.wcar.Q));
+SA = weightedCAR(X, mean(X(:, ch), 2), Fs=Fs, Q=stA.Q);
+
+aR.Enabled = true; aR.Method = "rms"; aR.Threshold = 9; aR.MinChannels = 2;
+dsR.ArtifactConfig = aR;
+iv = dsR.artifactIntervals(IncludeManual=false, MaxChunkSamples=round(17.3 * Fs));
+ivRef = zeros(0, 2);
+for i = 1:numel(plan)
+    rows = plan(i).sampleOffset + (1:plan(i).nSamples);
+    [~, ivc] = dsR.detectArtifacts(SA(rows, :), Method="rms", Threshold=9, MinChannels=2, Fs=Fs, ...
+        Channels=setdiff(1:nC, dsR.ExcludeChannels));
+    ivRef = [ivRef; ivc + plan(i).sampleOffset / Fs]; %#ok<AGROW>
+end
+ivRef = EphysDataset.mergeIntervals(ivRef);
+check(~isempty(iv) && isequal(size(iv), size(ivRef)) && max(abs(iv - ivRef), [], 'all') < 1e-9 ...
+    && all(any(iv(:, 1) <= burst / Fs + 0.02 & iv(:, 2) >= burst / Fs, 1)), ...
+    'artifactIntervals detects on the weighted-CAR referenced signal (both bursts found)');
+aR.Enabled = false;
+dsR.ArtifactConfig = aR;
+
+binFile = fullfile(dsR.OutputDir, 'wcar_sort.bin');
+wsClip = warning('off', 'EphysDataset:toBin:Clipping');
+bi = dsR.toBin(BinFile=binFile, ArtifactIntervals=zeros(0, 2));
+warning(wsClip);
+fid = fopen(binFile, 'r'); Bn = fread(fid, [nC Inf], 'int16=>double').'; fclose(fid);
+meta = jsondecode(fileread(bi.metaFile));
+check(strcmp(bi.reference.mode, 'wcar') && isequal(bi.reference.channels, ch) && bi.reference.wcar.Q == stA.Q ...
+    && bi.reference.wcar.QAuto && strcmp(meta.reference.mode, 'wcar') && abs(meta.reference.wcar.Q - stA.Q) < 1e-9 * stA.Q, ...
+    'toBin: its info and sidecar record the weighted CAR, its channels, options and Q');
+check(isequal(size(Bn), size(X)) && max(abs(Bn / bi.scale - SA), [], 'all') <= 0.5 / bi.scale + 1e-6, ...
+    'the .bin holds the weighted-CAR referenced recording (to the int16 rounding)');
+
+probeFile = fullfile(root, 'wcar_probe.json');
+writeJsonFile(probeFile, struct('chanMap', 0:nC-1, 'xc', zeros(1, nC), 'yc', (0:nC-1) * 20, ...
+    'kcoords', zeros(1, nC), 'n_chan', nC));
+dsR.ProbeFile = probeFile;
+dsR.PythonExe = "C:\miniconda3\python.exe";
+rk = dsR.runKilosort(DryRun=true, ExtraSettings=struct('do_CAR', true));
+sk = jsondecode(fileread(rk.settingsPath));
+rb = dsR.runKilosort(DryRun=true, BinFile=binFile);
+sb = jsondecode(fileread(rb.settingsPath));
+check(isfield(sk, 'do_CAR') && isequal(sk.do_CAR, false) && isfield(sb, 'do_CAR') && isequal(sb.do_CAR, false), ...
+    'Kilosort4: do_CAR = false over ExtraSettings, from the config or from a given .bin''s sidecar');
+rs = dsR.runSpikeInterface(Sorter="tridesclous2", DryRun=true);
+ss = readJsonFile(rs.settingsPath);
+check(ss.reference == "wcar", 'SpikeInterface: settings.json names the weighted CAR, so run_si.py keeps the sorter''s own reference out');
+
+cp = EphysPipelineConfig();
+acC = EphysPipelineConfig.artifactConfig(cp.Artifacts, struct('Mode', "car"));
+acC2 = acC; acC2.ReferenceWCAR.DriftPerSec = 5;
+acW = acC; acW.Reference = "wcar";
+acW2 = acW; acW2.ReferenceWCAR.DriftPerSec = 5;
+check(EphysPipeline.artifactFingerprint(acC, dsR) == EphysPipeline.artifactFingerprint(acC2, dsR) ...
+    && EphysPipeline.artifactFingerprint(acW, dsR) ~= EphysPipeline.artifactFingerprint(acW2, dsR) ...
+    && ~contains(EphysPipeline.artifactFingerprint(acC, dsR), "ReferenceWCAR"), ...
+    'the artifact cache: the WCAR options decide only the weighted CAR''s detections (other caches stay valid)');
+
+fprintf('\n== 10. timing (informational) ==\n');
 Fs = 30000; nS = 60 * Fs; nC = 4;
 Z = single(10 * randn(nS, nC) + 30 * randn(nS, 1));
 n = mean(Z, 2);

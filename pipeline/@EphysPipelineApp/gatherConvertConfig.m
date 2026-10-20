@@ -26,16 +26,6 @@ cfg.BlankArtifacts = logical(obj.SigBlankArtifactsCheckBox.Value);
 cfg.LFP_Reference   = logical(obj.SigRefLFPCheckBox.Value);
 cfg.MUA_Reference   = logical(obj.SigRefMUACheckBox.Value);
 cfg.SPIKE_Reference = logical(obj.SigRefSPIKECheckBox.Value);
-cfg.ReferenceMethod  = string(obj.SigRefMethodDropDown.Value);
-cfg.WCAR_Order       = obj.SigWCAROrderField.Value;
-cfg.WCAR_Alpha1k     = obj.SigWCARAlphaField.Value;
-cfg.WCAR_DriftPerSec = obj.SigWCARDriftField.Value;
-cfg.WCAR_HighpassHz  = obj.SigWCARHighpassField.Value;
-cfg.WCAR_Estimate    = string(obj.SigWCAREstimateDropDown.Value);
-cfg.WCAR_Q = NaN;   % automatic
-if ~obj.SigWCARQAutoCheckBox.Value
-    cfg.WCAR_Q = obj.SigWCARQField.Value;
-end
 
 cfg.LFP_Fs            = obj.ConvLFPFsField.Value;
 cfg.LFP_HighpassOn    = logical(obj.ConvLFPHighpassCheckBox.Value);

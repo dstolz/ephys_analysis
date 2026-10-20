@@ -365,12 +365,19 @@ classdef EphysPipelineApp < handle
 
         % --- Artifacts tab ---
         ArtDatasetDropDown  matlab.ui.control.DropDown
-        ArtRefDropDown      matlab.ui.control.DropDown           % common reference (Reference.Mode): none / car / cmr
+        ArtRefDropDown      matlab.ui.control.DropDown           % common reference (Reference.Mode): none / car / cmr / wcar
         ArtRefLowField      matlab.ui.control.NumericEditField   % good-noise band (x median) of the suggestion (Reference.BadLow / BadHigh)
         ArtRefHighField     matlab.ui.control.NumericEditField
         ArtRefExcludeField  matlab.ui.control.EditField          % active dataset's channels left out of the reference
         ArtRefSuggestButton matlab.ui.control.Button
         ArtRefStatusLabel   matlab.ui.control.Label
+        ArtRefWCAREstimateDropDown matlab.ui.control.DropDown    % Reference.WCAR_Estimate (Mode "wcar")
+        ArtRefWCAROrderField       matlab.ui.control.NumericEditField
+        ArtRefWCARAlphaField       matlab.ui.control.NumericEditField
+        ArtRefWCARDriftField       matlab.ui.control.NumericEditField
+        ArtRefWCARHighpassField    matlab.ui.control.NumericEditField
+        ArtRefWCARQField           matlab.ui.control.NumericEditField
+        ArtRefWCARQAutoCheckBox    matlab.ui.control.CheckBox     % WCAR_Q NaN = automatic
         ArtEnableCheckBox   matlab.ui.control.CheckBox
         ArtMethodDropDown   matlab.ui.control.DropDown
         ArtThresholdField   matlab.ui.control.NumericEditField
@@ -601,14 +608,6 @@ classdef EphysPipelineApp < handle
         SigRefLFPCheckBox       matlab.ui.control.CheckBox     % the common reference subtracted from the LFP
         SigRefMUACheckBox       matlab.ui.control.CheckBox     % ... from the MUA
         SigRefSPIKECheckBox     matlab.ui.control.CheckBox     % ... from the SPIKE band
-        SigRefMethodDropDown    matlab.ui.control.DropDown     % Signals.ReferenceMethod: common | weighted (adaptive weighted CAR)
-        SigWCAREstimateDropDown matlab.ui.control.DropDown     % Signals.WCAR_Estimate
-        SigWCAROrderField       matlab.ui.control.NumericEditField
-        SigWCARAlphaField       matlab.ui.control.NumericEditField
-        SigWCARDriftField       matlab.ui.control.NumericEditField
-        SigWCARHighpassField    matlab.ui.control.NumericEditField
-        SigWCARQField           matlab.ui.control.NumericEditField
-        SigWCARQAutoCheckBox    matlab.ui.control.CheckBox     % WCAR_Q NaN = automatic
         ConvLFPFsField          matlab.ui.control.NumericEditField
         ConvLFPHighpassCheckBox matlab.ui.control.CheckBox
         ConvLFPHighpassField    matlab.ui.control.NumericEditField

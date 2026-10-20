@@ -147,6 +147,7 @@ end
 switch cfg.Reference.Mode
     case "car"; ref = "common reference: average (CAR)";
     case "cmr"; ref = "common reference: median (CMR)";
+    case "wcar"; ref = "common reference: adaptive weighted CAR (WCAR)";
     otherwise;  ref = "no common reference";
 end
 raw = node("rec", "rec", "src", 0, 2, "Raw recording", ...
@@ -243,11 +244,11 @@ end
 lines(end+1) = ternary(G.BlankArtifacts, "artifact periods erased first", "artifact periods left in");
 wcar = ["LFP" "MUA" "SPIKE"];
 wcar = wcar([G.LFP G.MUA G.SPIKE] & [G.LFP_Reference G.MUA_Reference G.SPIKE_Reference]);
-if G.ReferenceMethod == "weighted" && ~isempty(wcar)
+if cfg.Reference.Mode == "wcar" && ~isempty(wcar)
     lines(end+1) = "weighted CAR: " + join(wcar, " + ");
 end
 signals = step("signals", 2, 1, "Signals", G.Enabled, lines, ...
-    "SigEnableCheckBox,ConvLFPCheckBox,ConvMUACheckBox,ConvSPIKECheckBox,ConvAUXCheckBox,SigRefMethodDropDown");
+    "SigEnableCheckBox,ConvLFPCheckBox,ConvMUACheckBox,ConvSPIKECheckBox,ConvAUXCheckBox");
 if G.SeparateFiles && ~isempty(types)
     file = dsName + G.Suffix + "_<TYPE>.mat";
 else

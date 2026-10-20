@@ -105,6 +105,9 @@ for k = 1:n
             iv = obj.artifactIntervalsForStep(d, c.Artifacts.ApplyToSorting, ...   % a detection fills the first half
                 @(done, total, msg) obj.progress("sorting", d.Name, k, n, done / max(total, 1), 2, "artifact intervals, " + msg));
         end
+        if ~dry
+            obj.prepareWCARFor(d, @(done, total, msg) obj.progress("sorting", d.Name, k, n, 1, 2, msg));
+        end
         obj.progress("sorting", d.Name, k, n, 1, 2, ternary(dry, "writing run files", "writing the .bin and run files"));
         if si
             res = d.runSpikeInterface(Sorter=S.Sorter, Params=EphysPipelineConfig.siParams(S), ...

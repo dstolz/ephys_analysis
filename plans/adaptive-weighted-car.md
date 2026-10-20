@@ -177,3 +177,23 @@ does.
 - If the benchmark shows the per-sample loop is too slow at 30 kHz, a follow-up adds a MATLAB
   Coder MEX of the per-column loop with the pure-MATLAB version as fallback. It is not part of
   this change.
+
+## Follow-up: the weighted CAR for every read (2026-10-20)
+
+The owner asked for the weighted CAR before artifact detection and Kilosort, with any further CAR
+turned off when Kilosort takes it.
+
+| Question | Answer |
+| --- | --- |
+| How a step chooses it | **One mode for every read**: `Reference.Mode` gains `"wcar"`; artifact detection, the noise level of the fill, the sorting `.bin`, spike detection, the viewer and the derived signals all take it. `Signals.ReferenceMethod` is retired. |
+| Where its parameters live | **The Reference section** (`Reference.WCAR_*`), one set for every step, edited on the Artifacts tab; `Signals.WCAR_*` in a saved config move there on load. |
+
+The chunked, parallel and random-access reads need the filter's state where each read starts:
+`EphysDataset.prepareWCAR` runs it once over the recording (after a pass for an automatic `Q`), keeps
+the state every second (`weightedCAR`'s new `Rows` / `Initial` / `StateRows`), and caches it as
+`<Name>_wcar.mat`. Each read pads its zero-phase high-pass by the filter's memory to 1e-12 (23 s at
+0.5 Hz), so it agrees with one run over the whole recording to about 1e-12 of the signal (exactly
+with `HighpassHz` 0). A numpy port of the MATLAB index arithmetic (two passes, chunks off the grid,
+Order 3 posterior, `HighpassHz` 0) agreed with the whole-recording filter to 1e-9 µV, and to 0 without
+the high-pass, before the MATLAB tests were written. Kilosort4's `do_CAR` and a SpikeInterface
+sorter's own common reference are turned off for a `"wcar"` `.bin`, as for CAR / CMR.

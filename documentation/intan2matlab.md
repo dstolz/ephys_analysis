@@ -44,10 +44,11 @@ out = ds.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "SPIKE"]));
    artifact periods erased again between the referenced levels (step 2
    depends only on the samples outside the periods, so the second fill is
    the referenced recording's own).
-   With `referenceMethod = "weighted"` the referenced signals take the
+   With `ArtifactConfig.Reference` `"wcar"`, or `referenceMethod =
+   "weighted"`, the referenced signals take the
    [adaptive weighted CAR](EphysDataset.md#adaptive-weighted-car)
-   (`weightedCAR`, Khorasani et al. 2019) instead, whatever
-   `ArtifactConfig.Reference` says: the plain CAR over `referenceChannels` is
+   (`weightedCAR`, Khorasani et al. 2019) instead (`"weighted"` whatever
+   `ArtifactConfig.Reference` says): the plain CAR over `referenceChannels` is
    computed the same way (the `ReferenceExclude` suggestion runs as for
    `"car"`), the automatic `Q` over the reference channels before the kept
    ones are picked, and each kept column is replaced, in place, by itself
@@ -137,8 +138,8 @@ the rate actually produced is the one reported in `info.<type>.Fs` and
 | `lineNames` | `[]`: `TrialConfig.LineNames` (`intan2matlab`: none) | `"native=name"` digital-line names overriding `labelField` (e.g. `"DIGITAL-IN-04=InTrial"`, Open Ephys `"TTL4=InTrial"`) |
 | `invertedLines` | `[]`: `TrialConfig.InvertedLines` (`intan2matlab`: none) | digital lines with inverted TTL polarity (on while low): their `events` rows are the low runs, onset = falling edge; `info.invertedLines` lists the lines inverted |
 | `referenceSignals` | `["MUA" "SPIKE"]` | `deriveSignals` / `toMat`: the signals the dataset's common reference (`ArtifactConfig.Reference`; nothing for `"none"`) is subtracted from, any of `"LFP"`, `"MUA"`, `"SPIKE"` (`[]` = none: the recording as stored). The LFP is taken as recorded by default, since the reference takes out the LFP every channel shares (step 1). Reported in `info.reference` and `info.<TYPE>.reference` |
-| `referenceMethod` | `"common"` | `"common"`: the referenced signals take the dataset's common reference, as above. `"weighted"`: the [adaptive weighted CAR](EphysDataset.md#adaptive-weighted-car) (`weightedCAR`; Khorasani, Shalchyan & Daliri 2019, *Front. Neurosci.* 13:350) instead, even with `ArtifactConfig.Reference` `"none"`. Reported as `info.reference.mode` `"wcar"`, with `info.reference.wcar` |
-| `wcarOptions` | `struct()` | `weightedCAR`'s options for `"weighted"`: any of `Order` (1), `Alpha1k` (1), `DriftPerSec` (1), `Q` (`NaN` = automatic: the median over the reference channels of the robust variance `(1.4826·MAD)²` of the high-passed plain-CAR residual), `HighpassHz` (0.5), `Estimate` (`"prior"` or `"posterior"`), `W0` (1) and `P0` (1). An unknown field is an error (`EphysDataset:deriveSignals:wcarOptions`); the values are checked against the header rate before the read |
+| `referenceMethod` | `"common"` | `"common"`: the referenced signals take the dataset's common reference, as above (for `ArtifactConfig.Reference` `"wcar"`, the weighted CAR). `"weighted"`: the [adaptive weighted CAR](EphysDataset.md#adaptive-weighted-car) (`weightedCAR`; Khorasani, Shalchyan & Daliri 2019, *Front. Neurosci.* 13:350) instead, even with `ArtifactConfig.Reference` `"none"`. Reported as `info.reference.mode` `"wcar"`, with `info.reference.wcar` |
+| `wcarOptions` | `struct()` | `weightedCAR`'s options for the weighted CAR, over the dataset's `ArtifactConfig.ReferenceWCAR` (whose defaults are weightedCAR's): any of `Order` (1), `Alpha1k` (1), `DriftPerSec` (1), `Q` (`NaN` = automatic: the median over the reference channels of the robust variance `(1.4826·MAD)²` of the high-passed plain-CAR residual), `HighpassHz` (0.5), `Estimate` (`"prior"` or `"posterior"`), `W0` (1) and `P0` (1). An unknown field is an error (`EphysDataset:deriveSignals:wcarOptions`); the values are checked against the header rate before the read |
 | `artifactIntervals` | `zeros(0,2)` | `[k x 2]` artifact periods, `[tStart tEnd)` seconds from the recording start (half-open, as `EphysDataset.artifactIntervals` gives them), erased before any signal is derived (step 2). Reported in `info.artifacts`, not stored in `info.importOptions` |
 | `ProgressFcn` | `[]` | `ProgressFcn(nDone, nTotal, message)`: one step per file read, one per processing stage (erasing the artifact periods is one), then `(nTotal, nTotal, "Done")`. It may throw to abort. Not stored in `info` |
 

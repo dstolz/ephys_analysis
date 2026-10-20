@@ -350,8 +350,10 @@ end
 if isnan(obj.Fs) || isempty(obj.PerFile)
     obj.refreshMetadata();
 end
-% Settle the common reference's channels before any chunk is read.
+% Settle the common reference's channels (and the weighted CAR's state)
+% before any chunk is read.
 obj.prepareReference();
+obj.prepareWCAR();
 Fs = obj.Fs;
 if isnan(Fs) || Fs <= 0
     error('EphysDataset:detectSpikes:NoFs', ...
@@ -420,7 +422,7 @@ end
 pool = [];
 nWorkers = 1;
 if opts.UseParallel && nChunks > 1
-    [pool, nWorkers] = parallelChunkPool(plan, obj.NumChannels, opts.MaxWorkers, 6, "detectSpikes");
+    [pool, nWorkers] = parallelChunkPool(plan, obj.NumChannels, opts.MaxWorkers, 6 + wcarCopies(obj, plan), "detectSpikes");
 end
 
 % One result per chunk (empty for chunks that held no amplifier data), in

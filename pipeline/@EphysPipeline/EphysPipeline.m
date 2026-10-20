@@ -959,6 +959,7 @@ classdef EphysPipeline < handle
                 end
             end
             if source == ""
+                obj.prepareWCARFor(d, report);   % the weighted CAR's state first (Reference "wcar")
                 cb = @(i, nChunks, name) report(i - 1, nChunks, "detecting: " + string(name));
                 popt = namedargs2cell(EphysPipelineConfig.parallelOptions(obj.Config.Parallel));
                 auto = d.artifactIntervals('IncludeManual', false, 'ProgressFcn', cb, popt{:});
@@ -980,6 +981,25 @@ classdef EphysPipeline < handle
             end
             obj.log("[artifacts] %s: %d interval(s) %s%s, %d manual period(s)%s", d.Name, size(auto, 1), how, ...
                 movedNote, size(d.ManualArtifacts, 1), coverageNote(iv, d));
+        end
+
+        function prepareWCARFor(obj, d, report)
+            %prepareWCARFor  Dataset D's weighted CAR state (Reference.Mode "wcar") before a step reads it.
+            %   EphysDataset.prepareWCAR, with REPORT(done, total, message)
+            %   hearing each window of its passes, so the step that reads
+            %   the recording next shows them as its own progress; logged
+            %   when it is worked out or read from <Name>_wcar.mat. Nothing
+            %   happens for any other reference or when D holds the state.
+            if d.referenceMode() ~= "wcar"
+                return
+            end
+            before = d.WCARState;
+            st = d.prepareWCAR(ProgressFcn=report);
+            if ~isequal(before, d.WCARState)
+                obj.log("[reference] %s: adaptive weighted CAR state over %d channel(s), every %.3g s " + ...
+                    "(Q %.4g uV^2%s; worked out in %.1f s, kept in %s_wcar.mat)", d.Name, numel(st.channels), ...
+                    st.grid / st.Fs, st.Q, autoNote(st.QAuto), st.seconds, d.Name);
+            end
         end
 
         function [iv, source] = artifactIntervalsForStep(obj, d, applyAuto, report)
@@ -1071,6 +1091,9 @@ classdef EphysPipeline < handle
             %   first (EphysDataset.prepareReference).
             acfg = EphysDataset.normalizeArtifactConfig(acfg);
             det = rmfield(acfg, intersect(fieldnames(acfg), {'Fill', 'NoiseBandHz', 'NoiseSeed'}));
+            if string(acfg.Reference) ~= "wcar"   % the weighted CAR's options decide only its own detections
+                det = rmfield(det, 'ReferenceWCAR');
+            end
             referenced = string(acfg.Reference) ~= "none";
             refCh = [];
             if referenced
@@ -1354,4 +1377,11 @@ if share > EphysDataset.MaxSilencedFraction
     s = s + sprintf(" - WARNING: sorting refuses to silence more than %.0f%%; check the artifact settings", ...
         100 * EphysDataset.MaxSilencedFraction);
 end
+end
+
+
+function s = autoNote(tf)
+%autoNote  ", automatic" when TF (an automatic weighted-CAR Q), else "".
+s = "";
+if tf; s = ", automatic"; end
 end

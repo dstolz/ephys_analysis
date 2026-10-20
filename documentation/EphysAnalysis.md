@@ -722,7 +722,7 @@ The pieces are functions of their own:
 | `figureSessionObservations(sources, spec)` | what the figure can be drawn for across the sessions: one row per site, mapping cell, channel or the dataset ([Observations across sessions](EphysAnalysisConfig.md#observations-across-sessions)) |
 | `figureSessionCompute(sources, sessions, spec, Observation=)` | one observation computed on every session and merged: `[res, sessions, Fs]`, a struct array `facet` (`"all"`, or a subject with `facet "subject"`), `group`, `label`, `F` (the merged figure result), `status` (`done`, `skipped` for too few sessions or tiles, `error`) and `message`. The runner, the app's preview and the standalone script all call it, so they draw the same figures ([Merging a session figure](EphysAnalysisConfig.md#merging-a-session-figure)) |
 | `figureSessionSpec(spec)` | the spec each session is computed with (the trial-group rules below) |
-| `figureSessionSkipReason(spec, reasons, Labels=)` | why a session figure cannot be drawn (`""`: it can): *disabled*, *a X panel is not merged across sessions*, *an auROC baseline is not merged across sessions*, *no mapping file* / *mapping file not found*, or *fewer than N session(s) can draw it* with each session's own `figureSkipReason`. `plan` shows it |
+| `figureSessionSkipReason(spec, reasons, Labels=)` | why a session figure cannot be drawn (`""`: it can): *disabled*, *X panels are not merged across sessions* (the type's label: *probe map panels ...*), *an auROC baseline is not merged across sessions*, *no mapping file* / *mapping file not found*, or *fewer than N session(s) can draw it* with each session's own `figureSkipReason`. `plan` shows it |
 | `addReportSection(report, name, Summary=)` | starts a report section that is not one dataset's (`kind "section"`), such as *Across sessions*, with its summary tables; figures added next go into it |
 | `readUnitMapping(file)`, `writeUnitMapping(file, T, Overwrite=)` | the [unit-mapping CSV](file-formats.md#unit-mapping-csv) (`readUnitMapping:NoFile`, `:NoCell`; `writeUnitMapping:NoCell`, `:Exists`, `:CannotWrite`) |
 
@@ -904,8 +904,8 @@ one, its *group*: the PSTH line or fill, error band, mean stop line and a
 stack's row baselines, the event line, the auROC's 0.5 line, modulation
 window and call marks, raster ticks, group band, stop dots and event
 marks (`rasterEvent`, one group per line and edge), an event's span from
-onset to offset (`eventSpan`), an event-trace panel's bars, logic levels,
-baselines and group bands (`eventBar`, `eventLevel`, `eventBaseline`,
+onset to offset (`eventSpan`), an event-trace panel's bars, short bars' ticks,
+logic levels, baselines and group bands (`eventBar`, `eventTick`, `eventLevel`, `eventBaseline`,
 `eventGroupBand`, one group per line, or per trial group), a mean or channel
 trace, bars, error bars, boxes, points and mean bars, a tuning curve, an
 image, probe sites (with and without a value), site and shank labels,

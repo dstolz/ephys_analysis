@@ -19,7 +19,9 @@ function I = epochIntervals(src, E, ref)
 %     window   [nE x 2] each epoch's window, s from its event
 %     nEpochs  height(E)
 %   A reference that picks no event gives no interval (rows stay empty).
-%   Times are on the clock of E.t0, as epochEvents' marks.
+%   An interval whose offset is its onset (zero length) is kept when the
+%   line has longer ones too. Times are on the clock of E.t0, as
+%   epochEvents' marks.
 %   Errors: epochIntervals:NoOffsets (the line has events but none with an
 %   offset after its onset: nothing runs from onset to offset), and
 %   resolveEvents' (resolveEvents:NoLine, resolveEvents:NoTrials, ...).
@@ -62,8 +64,8 @@ if isfinite(src.fs) && src.fs > 0; tol = 0.5 / src.fs; end
 [hit, loc] = ismembertol(raw, iv(:, col), tol, 'DataScale', 1);
 on = iv(loc(hit), 1) + move(hit);
 off = iv(loc(hit), 2) + move(hit);
-ok = isfinite(on) & isfinite(off) & off > on;
-if ~any(ok) && any(hit)
+ok = isfinite(on) & isfinite(off) & off >= on;   % a zero-length interval among others is kept (drawn at a minimum width)
+if ~any(off(ok) > on(ok)) && any(hit)
     error('epochIntervals:NoOffsets', ['%s: line %s has no offset after its onsets (every interval is a ' ...
         'single instant), so nothing runs from onset to offset.'], src.name, name);
 end

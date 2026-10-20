@@ -277,6 +277,7 @@ if p.type == "eventTrace"
     if isempty(op.alpha); op.alpha = NaN; end
     op.edgeColor = strtrim(string(E.etEdge.Value));
     op.edgeWidth = E.etEdgeWidth.Value;
+    op.minWidth = E.etMinWidth.Value;
     op.lineStyle = string(E.etLineStyle.Value);
     op.lineWidth = E.etLineWidth.Value;
     op.showBaseline = logical(E.etBaseline.Value);

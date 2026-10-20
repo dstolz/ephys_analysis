@@ -11,16 +11,23 @@ function hk = drawEventTracePanel(ax, P, look)
 %   and a "between" epoch's own end). The panel's options:
 %     display    "bars": a solid bar from onset to offset, height times the
 %                row high (tagged "eventBar"), its outline edgeColor
-%                ("none" | "auto" = its fill | a color) and edgeWidth;
+%                ("none" | "auto" = its fill | a color) and edgeWidth; a
+%                bar narrower than minWidth points as drawn (the axes'
+%                width over the window when it is drawn; a zero-length
+%                interval too) also gets a vertical tick minWidth wide
+%                through its middle, in its color and opacity (tagged
+%                "eventTick"), so it shows at any size and in exports;
 %                "line": a logic-level trace, low, up at each onset and down
-%                at its offset (tagged "eventLevel"), in lineWidth and
-%                lineStyle (a layer's own lineStyle wins)
+%                at its offset (tagged "eventLevel": a patch edge, so its
+%                opacity is EdgeAlpha, which SVG and PDF keep), in
+%                lineWidth and lineStyle (a layer's own lineStyle wins)
 %     trials     "overlay": every epoch in the line's row, at opacity alpha
 %                (NaN: 0.3), so the spread of the timing shows; "rows": a
-%                sub-row per epoch inside the row, by trial group and then
-%                time, as a raster orders its rows (first on top; alpha
-%                NaN: 1), each group on a pale band of its color while
-%                groupBands (tagged "eventGroupBand")
+%                sub-row per epoch inside the row, in a raster's order
+%                (figEpochOrder of the first layer's result: rasterByGroup,
+%                rasterSort, rasterSortOrder; first on top; alpha NaN: 1),
+%                each run of a group's sub-rows on a pale band of its color
+%                while groupBands (tagged "eventGroupBand")
 %     colorBy    "layer": the layer's color, else a palette color per line
 %                (groupPalette: the plot design's palette); "group": each
 %                epoch in its trial group's color (LOOK.colors), the
@@ -30,7 +37,9 @@ function hk = drawEventTracePanel(ax, P, look)
 %                baselineColor ("" = gray), baselineStyle and baselineWidth
 %                (tagged "eventBaseline")
 %   The parts are tagged with the layer's name as their group ("eventBar",
-%   "eventLevel" colored by group: the group's label). The zero line
+%   "eventTick", "eventLevel" colored by group: the group's label). In a
+%   session figure the groups are its series and the epochs every
+%   session's (combineSessions' eventTrace result). The zero line
 %   follows Style.ShowZeroLine. Skipped layers are noted (figLayerNotes).
 %   HK: figDrawResult's; yName "" (the ticks name the rows).
 %
@@ -53,10 +62,12 @@ if numel(W) ~= 2 || ~(W(2) > W(1))
     W = [min([R1.window(:, 1); 0]) max([R1.window(:, 2); 1])];
 end
 
-% the trial groups: each epoch's, their colors and labels
+% the trial groups (a session figure's series): each epoch's, their colors and labels
 gi = ones(nE, 1);
 Ep = look.epochs;
-if istable(Ep) && height(Ep) == nE && ismember("groupIndex", string(Ep.Properties.VariableNames))
+if isfield(R1, 'epochGroup') && numel(R1.epochGroup) == nE
+    gi = double(R1.epochGroup(:));
+elseif istable(Ep) && height(Ep) == nE && ismember("groupIndex", string(Ep.Properties.VariableNames))
     gi = double(Ep.groupIndex(:));
 end
 G = look.groups;
@@ -71,7 +82,9 @@ end
 if size(colors, 1) < nG; colors = lines(nG); end
 gi(~(gi >= 1 & gi <= nG)) = 1;
 rows = o.trials == "rows";
-[~, ord] = sortrows([gi (1:nE).']);   % the sub-rows: by group, then time, the first on top
+Rs = R1;   % the sub-rows: a raster's order, the first on top
+Rs.epochGroup = gi;
+ord = figEpochOrder(Rs, o);
 slot = zeros(nE, 1);
 slot(ord) = 1:nE;
 alpha = o.alpha;
@@ -95,17 +108,28 @@ if o.baselineColor ~= ""; baseColor = colorOr(o.baselineColor, baseColor); end
 held = ishold(ax);
 hold(ax, 'on');
 
-% rows: each group's sub-rows on a pale band of its color
+% rows: each run of a group's adjacent sub-rows on a pale band of its color (one run per group by group first)
 if rows && o.groupBands && nG > 1 && nE > 0
     for g = 1:nG
-        s = slot(gi == g);
+        s = sort(slot(gi == g));
         if isempty(s); continue; end
-        y1 = centers + 0.5 - (min(s) - 1) / nE;
-        y0 = centers + 0.5 - max(s) / nE;
-        tagPart(patch(ax, 'XData', repmat(reshape(W([1 2 2 1]), 4, 1), 1, nL), 'YData', [y0; y0; y1; y1], ...
+        brk = [0; find(diff(s) > 1); numel(s)];
+        r1 = s(brk(1:end-1) + 1);   % each run's top and bottom sub-row
+        r2 = s(brk(2:end));
+        y1 = reshape(centers + 0.5 - (r1 - 1) / nE, 1, []);   % [runs x lines], flattened
+        y0 = reshape(centers + 0.5 - r2 / nE, 1, []);
+        tagPart(patch(ax, 'XData', repmat(reshape(W([1 2 2 1]), 4, 1), 1, numel(y0)), 'YData', [y0; y0; y1; y1], ...
             'FaceColor', paleColor(colors(g, :), 0.82, style), 'EdgeColor', 'none', 'HandleVisibility', 'off'), ...
             "eventGroupBand", gLabels(g));
     end
+end
+tick = 0;   % display "bars": the widest bar (s) that gets a tick, minWidth points at the axes' width when drawn
+if o.display == "bars" && o.minWidth > 0
+    u = ax.Units;
+    ax.Units = 'points';
+    wPt = ax.InnerPosition(3);
+    ax.Units = u;
+    if wPt > 0; tick = o.minWidth * diff(W) / wPt; end
 end
 
 for r = 1:nL
@@ -168,6 +192,14 @@ for r = 1:nL
             ec = edgeOf(o.edgeColor, fc);
             tagPart(patch(ax, 'Faces', reshape(1:4 * n, 4, n).', 'Vertices', V, 'FaceColor', fc, 'FaceAlpha', alpha, ...
                 'EdgeColor', ec, 'LineWidth', o.edgeWidth, 'HandleVisibility', 'off'), "eventBar", setLabels(q));
+            short = x1(k) - x0(k) < tick;   % narrower than minWidth: a tick through its middle as well
+            if any(short)
+                xm = (x0(k) + x1(k)) / 2;
+                ns = nnz(short);
+                X = [xm(short) xm(short) NaN(ns, 1)].';
+                Y = [yb(short) yt(short) NaN(ns, 1)].';
+                tagPart(strokes(ax, X(:), Y(:), fc, alpha, '-', o.minWidth), "eventTick", setLabels(q));
+            end
         else
             Xc = cell(1, nE); Yc = cell(1, nE);
             for e = reshape(find(inSet & lo <= hi), 1, [])
@@ -178,10 +210,7 @@ for r = 1:nL
             end
             X = [Xc{:}];
             if isempty(X); continue; end
-            c4 = fc;
-            if alpha < 1; c4 = [fc alpha]; end   % a line's fourth color element: its opacity
-            tagPart(line(ax, X, [Yc{:}], 'Color', c4, 'LineStyle', char(ls), 'LineWidth', o.lineWidth, ...
-                'HandleVisibility', 'off'), "eventLevel", setLabels(q));
+            tagPart(strokes(ax, X(:), reshape([Yc{:}], [], 1), fc, alpha, ls, o.lineWidth), "eventLevel", setLabels(q));
         end
     end
 end
@@ -233,6 +262,15 @@ for i = 1:numel(x0)
 end
 X(end+1) = b;
 Y(end+1) = low + (high - low) * up;
+end
+
+
+function h = strokes(ax, X, Y, color, alpha, style, width)
+%strokes  NaN-separated line segments drawn as a patch's edges, so their opacity ALPHA is EdgeAlpha (SVG and PDF keep it).
+%   X and Y end with NaN, so the face does not close back to its start; it
+%   is not filled (FaceColor "none").
+h = patch(ax, 'XData', X, 'YData', Y, 'FaceColor', 'none', 'EdgeColor', color, 'EdgeAlpha', alpha, ...
+    'LineStyle', char(style), 'LineWidth', width, 'HandleVisibility', 'off');
 end
 
 

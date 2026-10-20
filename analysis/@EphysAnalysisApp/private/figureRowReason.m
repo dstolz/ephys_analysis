@@ -116,7 +116,7 @@ T.param = o("tuning", "");
 T.rateDisplay = o("rate", "");
 T.waveLayout = o("waveforms", "");
 for f = ["rasterSort" "sortLine" "sortSeqText" "rasterByGroup"]
-    T.(f) = o(["raster" "heatmap"], "on a heat map, with Rows: one unit's epochs (trials)");
+    T.(f) = o(["raster" "heatmap" "eventTrace"], "on a heat map, with Rows: one unit's epochs (trials)");
 end
 T.yTicks = o("raster", "");
 T.tickColor = T.yTicks;
@@ -125,7 +125,7 @@ T.heatRows = o("heatmap", "");
 for f = ["contTrials" "contDisplay" "statistic" "errorType" "stackSpacing"]; T.(f) = o("continuous", ""); end
 T.maskAfterStop = o(["raster" "psth" "heatmap"], spikesHeat);
 T.order = o("heatmap", "with Rows: the layer's units or channels");
-for f = ["etDisplay" "etTrials" "etColorBy" "etHeight" "etEdge" "etLineStyle" "etBaseline" "etBaseStyle" "etRowSpacing"]
+for f = ["etDisplay" "etTrials" "etColorBy" "etHeight" "etEdge" "etMinWidth" "etLineStyle" "etBaseline" "etBaseStyle" "etRowSpacing"]
     T.(f) = o("eventTrace", "");
 end
 T.value = o("probemap", "");

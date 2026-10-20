@@ -17,17 +17,13 @@ function [M, order, grp, name] = figTrialMatrix(R, o)
 %            "subtract" / "zscore" / "percent" taken against its group's
 %            baseline (R.baselineRate / baselineSD), so the mean of a
 %            group's rows is the group's PSTH
-%     ORDER  the epochs, top row first: rasterInto's order (by group first
-%            with O.rasterByGroup; then O.rasterSort -- "" the epochs' time
-%            order, "stop" their stop latency, "event" R.rasterSortEvent.t,
-%            else that column of R.epochs -- in O.rasterSortOrder, missing
-%            values last, ties in time order)
+%     ORDER  the epochs, top row first, in a raster's order, and NAME the
+%            rows' y label ("Epoch (by Depth), descending"): figEpochOrder's
+%            (by group first with O.rasterByGroup, then O.rasterSort in
+%            O.rasterSortOrder, missing values last, ties in time order)
 %     GRP    each epoch's group (R.epochGroup, a row of R.groups)
-%     NAME   the rows' y label: "Epoch", with the sort ("Epoch (by Depth),
-%            descending")
-%   A sort key R lacks (no sort event, no such column) sorts in time order.
 %
-%   See also computeHeatmapPanel, drawHeatmapPanel, spikePSTH, rasterInto.
+%   See also computeHeatmapPanel, drawHeatmapPanel, spikePSTH, rasterInto, figEpochOrder.
 
 grp = double(R.epochGroup(:));
 nE = numel(grp);
@@ -76,39 +72,5 @@ if ismember(mode, ["subtract" "zscore" "percent"]) && nE > 0
 end
 M = X.';
 
-[key, name] = sortKey(R, string(o.rasterSort), nE);
-dirs = ["ascend" "ascend"];
-if o.rasterSortOrder == "descending"; dirs(1) = "descend"; end
-T = table(key, (1:nE).', 'VariableNames', {'key', 'idx'});
-if o.rasterByGroup
-    T = addvars(T, grp, 'Before', 1, 'NewVariableNames', 'g');
-    dirs = ["ascend" dirs];
-end
-[~, order] = sortrows(T, 1:width(T), cellstr(dirs), 'MissingPlacement', 'last');
-if o.rasterSortOrder == "descending"; name = name + ", descending"; end
-if ~o.rasterByGroup && height(R.groups) > 1; name = name + ", groups mixed"; end
-end
-
-
-function [key, name] = sortKey(R, sortBy, nE)
-%sortKey  Each epoch's sort value and the y label (rasterInto's rules; time order where R lacks the key).
-key = (1:nE).';
-name = "Epoch";
-switch sortBy
-    case ""
-    case "stop"
-        key = R.epochStop(:);
-        name = "Epoch (by stop latency)";
-    case "event"
-        if isfield(R, 'rasterSortEvent') && isstruct(R.rasterSortEvent) && numel(R.rasterSortEvent.t) == nE
-            key = R.rasterSortEvent.t(:);
-            name = "Epoch (by " + string(R.rasterSortEvent.label) + " latency)";
-        end
-    otherwise
-        if isfield(R, 'epochs') && istable(R.epochs) && ismember(sortBy, string(R.epochs.Properties.VariableNames)) ...
-                && size(R.epochs.(sortBy), 1) == nE && size(R.epochs.(sortBy), 2) == 1
-            key = R.epochs.(sortBy);
-            name = "Epoch (by " + sortBy + ")";
-        end
-end
+[order, name] = figEpochOrder(R, o);   % the rows in a raster's order
 end

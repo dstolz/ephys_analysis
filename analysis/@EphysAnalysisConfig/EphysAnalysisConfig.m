@@ -157,7 +157,7 @@ classdef EphysAnalysisConfig
         % How the observed unit is matched across sessions (a figure observes one matched unit), and the panel types
         % combineSessions does not merge (a session figure holds none).
         FigureSessionMatches = ["site" "mapping"]
-        FigureSessionUnmerged = ["probemap" "corrmap" "spectrum" "spectrogram" "coherence" "eventTrace"]
+        FigureSessionUnmerged = ["probemap" "corrmap" "spectrum" "spectrogram" "coherence"]
         % String fields that are lists even when their default has one element.
         ListFields = ["response" "pairingFlags" "groupBy" "classes" "groups" "Formats" "Datasets" "Folders" "datasetKeys"]
     end

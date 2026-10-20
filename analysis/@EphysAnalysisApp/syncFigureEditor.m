@@ -177,7 +177,7 @@ optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort
     "optApplyAll" "auMethod" "auWinMs" "auModFrom" "auCutoff" "auTest" "auMarks" "stack" "param" "rateDisplay" "waveLayout" ...
     "contTrials" "heatRows" "spTimeBase" "spRangeFrom" "spSegment" "spTaperMode" "spTW" "spW" "spPad" "spFmin" "spErr" ...
     "spDetrend" "spScale" "spSpikeFs" "spOverTime" "spWin" "spShowPhase" "etDisplay" "etTrials" "etColorBy" "etHeight" ...
-    "etEdge" "etLineStyle" "etBaseline" "etBaseStyle" "etRowSpacing"];
+    "etEdge" "etMinWidth" "etLineStyle" "etBaseline" "etBaseStyle" "etRowSpacing"];
 noteKeys = ["annText" "annPlace" "annX" "annAlign" "annRotation" "annFont" "annBold" "annColor" "annInterp"];
 overlayKeys = ["ovList" "ovName" "ovKind" "ovValue" "ovFrom" "ovLayer" "ovColor" "ovFill" "ovEdge" "ovStyle"];
 for f = [layerKeys optionKeys noteKeys overlayKeys]; v.(f) = false; end
@@ -266,7 +266,7 @@ if hasPanel
     v.param = t == "tuning";
     v.rateDisplay = t == "rate";
     v.waveLayout = t == "waveforms";
-    v.rasterSort = t == "raster" || trialHeat; v.sortLine = v.rasterSort; v.sortSeqText = v.rasterSort; v.rasterByGroup = v.rasterSort;
+    v.rasterSort = t == "raster" || trialHeat || t == "eventTrace"; v.sortLine = v.rasterSort; v.sortSeqText = v.rasterSort; v.rasterByGroup = v.rasterSort;
     v.yTicks = t == "raster"; v.tickColor = v.yTicks; v.backColor = v.yTicks;
     v.heatRows = t == "heatmap";
     v.contTrials = t == "continuous";
@@ -276,10 +276,10 @@ if hasPanel
     v.contDisplay = t == "continuous"; v.statistic = v.contDisplay; v.errorType = v.contDisplay; v.stackSpacing = v.contDisplay;
     v.order = t == "heatmap" && ~trialHeat;
     et = t == "eventTrace";   % an event-trace panel's rows; those its display or trials do not use stay grayed out
-    v.etDisplay = et; v.etTrials = et; v.etColorBy = et; v.etHeight = et; v.etEdge = et; v.etLineStyle = et;
+    v.etDisplay = et; v.etTrials = et; v.etColorBy = et; v.etHeight = et; v.etEdge = et; v.etMinWidth = et; v.etLineStyle = et;
     v.etBaseline = et; v.etBaseStyle = et; v.etRowSpacing = et;
     bars = string(E.etDisplay.Value) == "bars";
-    en([E.etEdge E.etEdgeWidth], bars);
+    en([E.etEdge E.etEdgeWidth E.etMinWidth], bars);
     en([E.etLineStyle E.etLineWidth], ~bars);
     en(E.etGroupBands, string(E.etTrials.Value) == "rows");
     en([E.etBaseColor E.etBaseStyle E.etBaseWidth], E.etBaseline.Value);
@@ -324,7 +324,9 @@ if hasPanel
     en([E.auMarks E.auModOnly], string(E.auCutoff.Value) ~= "none");
     en(E.psthSpacing, E.stack.Value);
     en(E.fillAlpha, E.fill.Value);
-    en([E.sortLine E.sortEdge E.sortSeqText E.sortSeqEdit], strtrim(string(E.rasterSort.Value)) == "event");
+    sortOn = ~(t == "eventTrace" && string(E.etTrials.Value) ~= "rows");   % an event trace sorts its sub-rows only
+    en([E.rasterSort E.rasterSortOrder E.rasterByGroup], sortOn);
+    en([E.sortLine E.sortEdge E.sortSeqText E.sortSeqEdit], sortOn && strtrim(string(E.rasterSort.Value)) == "event");
     en([E.waveSpikes E.waveLocation E.waveBox E.waveScale E.wavePP E.waveCount], string(E.waveMode.Value) ~= "off");
     en([E.binMs E.smoothMs], t ~= "corrmap" || string(E.metric.Value) == "peak");
     stop = obj.FigureAlignControls.StopOn.Value;
@@ -490,8 +492,12 @@ end
 txt = "Generate and Run draw it once across the datasets, for " + what + ", not per dataset. Auto preview is off for it.";
 bad = intersect(string([fig.panels.type]), EphysAnalysisConfig.FigureSessionUnmerged);
 if isempty(fig.panels); bad = strings(1, 0); end
-if ~isempty(bad)
-    txt = txt + " Not merged across sessions: " + strjoin(bad, ", ") + " panels.";
+if ~isempty(bad)   % by their labels: "probe map, unit correlation panels"
+    PT = EphysAnalysisConfig.panelTypes();
+    words = PT.Label(ismember(PT.Type, bad)).';
+    up = words == upper(words);
+    words(~up) = lower(words(~up));
+    txt = txt + " Not merged across sessions: " + strjoin(words, ", ") + " panels.";
 end
 end
 

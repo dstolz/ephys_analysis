@@ -81,10 +81,15 @@ function T = panelTypes()
 %   a row of its own, its intervals from onset to offset, clipped at the
 %   window's edges, as solid bars or a logic-level trace (display "bars" |
 %   "line"); every epoch overlaid in the row, translucent (trials
-%   "overlay"), or a sub-row per epoch in the raster's group order (trials
-%   "rows"); colored per line (colorBy "layer": the layer's color, else a
-%   palette color) or by trial group; with a baseline per row. It takes
-%   events layers only (categoryOf) and their eventsAs is not used.
+%   "overlay"), or a sub-row per epoch sorted as a raster's rows (trials
+%   "rows": rasterSort, rasterSortOrder, rasterByGroup, as a heat map of
+%   trials sorts them); colored per line (colorBy "layer": the layer's
+%   color, else a palette color) or by trial group; with a baseline per
+%   row. A bar narrower than minWidth points (a zero-length interval too)
+%   also gets a tick minWidth wide through its middle, so it shows at any
+%   size. It takes events layers only (categoryOf) and their eventsAs is
+%   not used. A session figure draws every session's epochs in it, as a
+%   raster does, its series (sessions, subjects or all) as the groups.
 %
 %   See also EphysAnalysisConfig.sourceCategories, EphysAnalysisConfig.categoryOf,
 %   EphysAnalysisConfig.defaultLayer.
@@ -230,12 +235,17 @@ opts.coherence = struct( ...
     'group',      1);                   % over time: the trial group drawn
 opts.eventTrace = struct( ...
     'display',       "bars", ...        % "bars" (solid, onset to offset) | "line" (a logic level: low, up at onset, down at offset)
-    'trials',        "overlay", ...     % "overlay" (every epoch in the line's row, translucent) | "rows" (a sub-row per epoch, by group)
+    'trials',        "overlay", ...     % "overlay" (every epoch in the line's row, translucent) | "rows" (a sub-row per epoch, sorted as a raster)
+    'rasterSort',      "", ...          % trials "rows": the epochs' order, as a raster's ("" | "stop" | "event" | a trial parameter)
+    'rasterSortEvent', [], ...          % trials "rows", rasterSort "event": [] or an EventRef
+    'rasterSortOrder', "ascending", ... % trials "rows": "ascending" | "descending"
+    'rasterByGroup',   true, ...        % trials "rows": by group first (on groupBands), else one block
     'colorBy',       "layer", ...       % "layer" (the layer's color, else a palette color per line) | "group" (the trial group's)
     'height',        0.6, ...           % the bar's / level's height, a share of the row (rows: of the epoch's sub-row)
     'alpha',         NaN, ...           % bars' and traces' opacity 0-1 (NaN: 0.3 overlaid, 1 in rows)
     'edgeColor',     "none", ...        % the bars' outline: "none" | "auto" (the bar's color) | a color
     'edgeWidth',     0.5, ...           % the outline's width, points
+    'minWidth',      1, ...             % display "bars": a bar narrower than this (points; zero length too) also gets a tick this wide (0 = none)
     'lineWidth',     1.5, ...           % display "line": the trace's width, points
     'lineStyle',     "-", ...           % display "line": the trace's style (a layer's own lineStyle wins)
     'showBaseline',  true, ...          % a line along each row: through the bars' middle, or at the trace's low level

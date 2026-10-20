@@ -31,5 +31,5 @@ end
 fig.panels(j) = p;
 cfg.Figures(k) = fig;
 obj.SelectedLayer = numel(p.layers);
-commitFigureEdit(obj, cfg, "Added a " + ch.SourceLabels(ch.Sources == src) + " layer to " + p.id + ".");
+commitFigureEdit(obj, cfg, "Added a " + ch.SourceLabels(ch.Sources == src) + " layer to " + p.id + ".", Action="Add layer");
 end

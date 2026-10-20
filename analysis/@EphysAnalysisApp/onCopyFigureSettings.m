@@ -47,7 +47,7 @@ if ismember("arrangement", copied)
     obj.SelectedPanel = 1;
     obj.SelectedLayer = 1;
 end
-obj.applyConfig(cfg);
+obj.applyConfig(cfg, Action="Copy settings");
 obj.FigurePreviewResult = [];
 obj.FigurePreviewSeconds = 0;
 T = figureSettingParts();

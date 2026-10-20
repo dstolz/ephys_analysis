@@ -74,8 +74,10 @@ classdef EphysAnalysisApp < handle
     %     Log        what the runner reported
     %
     %   File menu: New / Open / Open recent / Save / Save As / Generate
-    %   script (compact | standalone) / Open pipeline app / Close. Design
-    %   menu: the plot designs (choosing one redraws every figure), save the
+    %   script (compact | standalone) / Open pipeline app / Close. Edit
+    %   menu: Undo and Redo of the figure editor's edits (onUndoRedo, over
+    %   FigureEditHistory: Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z, on the Figures
+    %   tab). Design menu: the plot designs (choosing one redraws every figure), save the
     %   figure preview's look as a design, import or delete a design, your designs
     %   folder. Help menu: the wiki page of the tab shown, the documentation
     %   home and the analysis quick start; Report an issue and Request a
@@ -109,7 +111,9 @@ classdef EphysAnalysisApp < handle
     %   panel above, below, left or right (stepFigurePanel; the preview
     %   outlines it: markFigurePanel). Page Up and Page Down step to the
     %   previous and next observation (onFigureObservationStep). Escape
-    %   cancels a panel drag. The "?" button lists them all (onFigureKeys).
+    %   cancels a panel drag. Ctrl+Z undoes the last edit of the figures,
+    %   Ctrl+Y and Ctrl+Shift+Z redo it (onUndoRedo). The "?" button lists
+    %   them all (onFigureKeys).
     %
     %   Preferences (getpref group 'EphysAnalysisApp'): FigurePosition,
     %   LastConfigFile, RecentConfigs, ScriptFolder,
@@ -142,6 +146,9 @@ classdef EphysAnalysisApp < handle
         TabLog     matlab.ui.container.Tab
         FileMenu   matlab.ui.container.Menu
         RecentMenu matlab.ui.container.Menu
+        EditMenu   matlab.ui.container.Menu
+        UndoMenu   matlab.ui.container.Menu   % "Undo <edit>" (refreshEditMenu)
+        RedoMenu   matlab.ui.container.Menu   % "Redo <edit>"
         DesignMenu matlab.ui.container.Menu
         HelpMenu   matlab.ui.container.Menu
         StatusBar  matlab.ui.control.Label
@@ -291,6 +298,7 @@ classdef EphysAnalysisApp < handle
         FigurePanelMarkAxes = []            % the preview's axes its listeners follow (re-laid out on a resize)
         FigurePanelMarkListeners = []       % those listeners (Position PostSet)
         FigureFocusPane (1,1) double = 0    % the column F6 last went to: 1 the figure list, 2 the editor, 3 the preview
+        FigureHistory FigureEditHistory = FigureEditHistory()   % the figure editor's undo and redo (recordFigureEdit, onUndoRedo); cleared by another config
 
     end
 
@@ -340,8 +348,9 @@ classdef EphysAnalysisApp < handle
         % --- config model ---
         cfg = gatherConfig(obj)
         applyConfig(obj, cfg, opts)
-        onConfigChanged(obj, what)
+        onConfigChanged(obj, what, src)
         updateTitle(obj)
+        onUndoRedo(obj, how)
         ok = confirmDiscard(obj)
         S = gatherSourceSection(obj)
         applySourceSection(obj, S)

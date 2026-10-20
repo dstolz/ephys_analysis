@@ -1,4 +1,4 @@
-function onConfigChanged(obj, what)
+function onConfigChanged(obj, what, src)
 %onConfigChanged  A control changed: re-gather the config and refresh what depends on it.
 %   WHAT says which part changed: "name", "source", "ticks", "defaults"
 %   (the Alignment tab), "figure" (the Figures tab's editor) or "export".
@@ -14,9 +14,14 @@ function onConfigChanged(obj, what)
 %   datasets, its observations are matched again and its preview, drawn
 %   over the old datasets, is forgotten and marked out of date
 %   (autoFigurePreview).
+%   A "figure" edit that changes the figures is a step of the undo history
+%   (recordFigureEdit), named after the control SRC it came from (the
+%   editor's controls pass themselves; else the callback object, gcbo:
+%   figureEditLabel), its edits in a burst one step.
 arguments
     obj (1,1) EphysAnalysisApp
     what (1,1) string = ""
+    src = []
 end
 if obj.Applying; return; end
 try
@@ -26,6 +31,10 @@ catch ME
     return
 end
 trackFigureIds(obj, cfg);   % an automatic figure id that follows the edit
+if what == "figure"
+    if isempty(src); src = gcbo; end
+    recordFigureEdit(obj, cfg, figureEditLabel(obj, src), Key=src);
+end
 obj.Config = cfg;
 if ~isempty(obj.Runner)
     obj.Runner.Config = cfg;

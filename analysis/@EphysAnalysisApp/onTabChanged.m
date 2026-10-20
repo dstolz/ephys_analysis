@@ -1,5 +1,5 @@
 function onTabChanged(obj)
-%onTabChanged  Refresh what the shown tab draws; a hint in the status bar.
+%onTabChanged  Refresh what the shown tab draws; a hint in the status bar; the Edit menu (on with the Figures tab).
 switch obj.Tabs.SelectedTab
     case obj.TabData
         msg = "Data: where the datasets are; Scan, tick the ones to run, click one to make it active.";
@@ -16,4 +16,5 @@ switch obj.Tabs.SelectedTab
         msg = "Log: what the scans and runs reported.";
 end
 obj.setStatus(msg);
+refreshEditMenu(obj);   % Undo and Redo act on the Figures tab only
 end

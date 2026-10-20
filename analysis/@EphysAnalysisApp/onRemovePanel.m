@@ -11,5 +11,5 @@ fig = EphysAnalysisConfig.removePanel(fig, id);
 cfg.Figures(k) = fig;
 obj.SelectedPanel = min(j, numel(fig.panels));
 obj.SelectedLayer = 1;
-commitFigureEdit(obj, cfg, "Removed " + id + "; empty rows and columns dropped.");
+commitFigureEdit(obj, cfg, "Removed " + id + "; empty rows and columns dropped.", Action="Remove panel");
 end

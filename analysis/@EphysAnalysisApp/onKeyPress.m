@@ -19,6 +19,9 @@ function onKeyPress(obj, evt)
 %     Page Up, Page Down    the previous and next observation
 %                           (onFigureObservationStep), left alone while a
 %                           preview computes or draws
+%     Ctrl+Shift+Z          redo the last edit undone (onUndoRedo); Ctrl+Z
+%                           and Ctrl+Y are the Edit menu's accelerators,
+%                           not keys of this function
 %   While a search is under way (FigureSearchState: typed in the field, or
 %   a match picked in its list), Enter goes to the match picked (else the
 %   first) with the focus on its control, Down and Up (after typing) pick
@@ -70,6 +73,10 @@ if bare && any(key == ["pageup" "pagedown"])
     if ~ismember(obj.FigurePreviewState, ["computing" "drawing"])
         obj.onFigureObservationStep(1 - 2 * (key == "pageup"));
     end
+    return
+end
+if ctrl && shift && ~alt && key == "z"
+    obj.onUndoRedo("redo");
     return
 end
 if key == "f6" && ~ctrl && ~alt

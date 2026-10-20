@@ -19,5 +19,5 @@ if ~moved
     return
 end
 cfg.Figures(k) = fig;
-commitFigureEdit(obj, cfg, "Moved " + id + " " + direction + ".");
+commitFigureEdit(obj, cfg, "Moved " + id + " " + direction + ".", Action="Move panel");
 end

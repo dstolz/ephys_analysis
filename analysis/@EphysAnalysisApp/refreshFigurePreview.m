@@ -128,7 +128,8 @@ try
     obj.FigurePreviewResult = F;
     L.Text = "Drawing " + what + " ...";
     obj.setFigurePreviewState("drawing", Message="Drawing " + what + " ...");
-    renderFigure(F, spec, obj.FigurePreviewPanel, OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules));
+    renderFigure(F, spec, obj.FigurePreviewPanel, OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules), ...
+        OnGoto=@(role, panel) obj.gotoFigureSetting(spec.id, role, panel));
     obj.markFigurePanel();   % the selected panel outlined
 catch ME
     if ~isvalid(obj) || ~isvalid(obj.Fig); return; end   % the app was closed while it computed
@@ -255,7 +256,8 @@ obj.FigurePreviewResult = F;
 L.Text = "Drawing " + K.what + " ...";
 obj.setFigurePreviewState("drawing", Message="Drawing " + K.what + " ...");
 try
-    renderFigure(F, spec, obj.FigurePreviewPanel, OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules));
+    renderFigure(F, spec, obj.FigurePreviewPanel, OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules), ...
+        OnGoto=@(role, panel) obj.gotoFigureSetting(spec.id, role, panel));
     obj.markFigurePanel();
 catch ME
     if ~isvalid(obj) || ~isvalid(obj.Fig); return; end

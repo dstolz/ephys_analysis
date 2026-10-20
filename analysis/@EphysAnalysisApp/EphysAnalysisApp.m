@@ -400,6 +400,7 @@ classdef EphysAnalysisApp < handle
         gotoFigureSuper(obj, name)
         onFigureSearch(obj, text)
         ok = gotoFigureRow(obj, i, opts)
+        ok = gotoFigureSetting(obj, id, role, panel)
         stepFigurePanel(obj, how)
         markFigurePanel(obj)
         focusFigurePane(obj, step)

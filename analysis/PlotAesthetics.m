@@ -41,6 +41,7 @@ classdef PlotAesthetics
         PrefGroup = "PlotAesthetics"            % AppPrefs group: one rule set per kind (a panel type, "figure", a Chronux kind)
         ContextKey = "PlotAestheticsContext"    % appdata of the target renderFigure / renderChronux drew into
         MenuTag = "PlotAestheticsMenu"
+        GotoTag = "PlotAestheticsGoto"
     end
 
     methods (Static)
@@ -467,7 +468,8 @@ classdef PlotAesthetics
             %enableEditing  Right-click any component drawn in TARGET to edit its aesthetics.
             %   CONTEXT (a struct; renderFigure builds it) is kept on TARGET:
             %   kind, id, title, root (the layout or axes drawn), target
-            %   (TARGET), plotRules,
+            %   (TARGET), plotRules, onGoto (called with a part's role and its
+            %   panel's id by the menu's "Go to setting"; [] or absent: no item),
             %   onRemember (called with the plot's new rules; [] = they cannot
             %   be saved with the plot), redraw (draws the plot again with
             %   given plot rules), design (the PlotDesign drawn in) and
@@ -497,6 +499,9 @@ classdef PlotAesthetics
                 cm = uicontextmenu(fig, 'Tag', PlotAesthetics.MenuTag, 'UserData', o, ...
                     'ContextMenuOpeningFcn', @PlotAesthetics.onMenuOpening);
                 uimenu(cm, 'Text', 'Edit aesthetics...', 'MenuSelectedFcn', @PlotAesthetics.onMenuEdit);
+                if isfield(context, 'onGoto') && ~isempty(context.onGoto)
+                    uimenu(cm, 'Text', 'Go to setting', 'Tag', PlotAesthetics.GotoTag, 'MenuSelectedFcn', @PlotAesthetics.onMenuGoto);
+                end
                 uimenu(cm, 'Text', 'Design', 'Tag', PlotDesign.MenuTag);
                 o.ContextMenu = cm;
             end
@@ -547,6 +552,43 @@ classdef PlotAesthetics
                 PlotDesign.fillMenu(dm, h);
             catch
             end
+        end
+
+        function onMenuGoto(menu, ~)
+            %onMenuGoto  "Go to setting": the editor setting that controls the right-clicked part.
+            h = menu.Parent.UserData;
+            if isempty(h) || ~isvalid(h); return; end
+            ctx = PlotAesthetics.contextOf(h);
+            if isempty(ctx) || ~isfield(ctx, 'onGoto') || isempty(ctx.onGoto); return; end
+            [role, panel] = PlotAesthetics.partOf(h, ctx);
+            try
+                ctx.onGoto(role, panel);
+            catch ME
+                fig = ancestor(h, 'figure');
+                if ~isempty(fig); uialert(fig, ME.message, 'Go to setting'); end
+            end
+        end
+
+        function [role, panel] = partOf(h, ctx)
+            %partOf  The role of the part H is (a layout: the plot's title) and the id of the panel it is in ("" for the figure's own).
+            T = PlotAesthetics.components(ctx.root);
+            role = "";
+            panel = "";
+            k = [];
+            if isa(h, 'matlab.graphics.layout.TiledChartLayout')
+                k = find(T.Role == "plotTitle", 1);
+            else
+                for i = 1:height(T)
+                    if any(arrayfun(@(x) isequal(x, h), T.Handles{i})); k = i; break; end
+                end
+                if isempty(k)
+                    ax = ancestor(h, 'axes');
+                    k = find(ismember(T.Role, ["axes" "rasterAxes"]) & arrayfun(@(c) isequal(T.Handles{c}(1), ax), (1:height(T)).'), 1);
+                end
+            end
+            if isempty(k); return; end
+            role = T.Role(k);
+            if T.Tile(k) > 0; panel = T.TileName(k); end
         end
 
         function onMenuEdit(menu, ~)

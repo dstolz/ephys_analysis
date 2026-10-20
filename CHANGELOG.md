@@ -10,6 +10,13 @@ says how to cut a release.
 
 ### Added
 
+- Figures tab: right-click any part of the preview (or of an **Open in window** figure while the app is
+  open) and pick **Go to setting**. It selects the part's panel, opens the supersection and section that
+  hold the setting that controls it (the error band: **Show > Error**; a raster's stop dots: **Stop marks**;
+  a tile title: **Title**; the legend: **Legend**), scrolls there, puts the keyboard focus in the control
+  and highlights its label; a part with no setting of its own goes to Appearance. `figureRoleSettings`
+  lists each role's candidate rows, the first the panel shows wins, and a row the panel hides says why in
+  the status bar. `renderFigure` takes `OnGoto=` (role, panel id) for the menu item; without it the menu has none.
 - Figures tab: the editor's fourteen sections stand under three collapsible **supersections**, FIGURE
   (Observations, Event reference, Epoch window, Trial selection, Sessions, Arrangement), PANEL (Panel,
   Panel alignment, Layers, Options, Text note, Overlays; its dark header names the selected panel) and LOOK

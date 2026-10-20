@@ -168,6 +168,26 @@ check(isstruct(c2) && isequal(holder, fig), 'a legend finds its figure''s contex
 check(strcmp(errorId(@() PlotAesthetics.edit(axes(figure('Visible', 'off')))), 'PlotAesthetics:NotEditable'), ...
     'edit on something renderFigure did not draw: PlotAesthetics:NotEditable');
 
+% Go to setting: only when the caller says where to go
+check(isempty(findall(fig, 'Type', 'uimenu', 'Tag', PlotAesthetics.GotoTag)), 'no OnGoto: no "Go to setting" item');
+setappdata(0, 'aestheticsGoto', {});
+h = renderFigure(Cp.F, Cp.spec, fig, Editable=true, OnGoto=@(role, panel) setappdata(0, 'aestheticsGoto', {role, panel}));
+C = PlotAesthetics.components(h.layout);
+items = findall(fig, 'Type', 'uimenu', 'Tag', PlotAesthetics.GotoTag);
+check(numel(items) == numel(findall(fig, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag)), 'OnGoto: every component menu has "Go to setting"');
+k = find(C.Role == "tileTitle" & C.Tile > 0, 1);
+PlotAesthetics.onMenuGoto(findobj(C.Handles{k}(1).ContextMenu.Children, 'Tag', PlotAesthetics.GotoTag), []);
+got = getappdata(0, 'aestheticsGoto');
+check(numel(got) == 2 && got{1} == "tileTitle" && got{2} == C.TileName(k), 'it reports the part''s role and its panel''s id');
+k = find(C.Role == "plotTitle", 1);
+PlotAesthetics.onMenuGoto(findobj(C.Handles{k}(1).ContextMenu.Children, 'Tag', PlotAesthetics.GotoTag), []);
+got = getappdata(0, 'aestheticsGoto');
+check(got{1} == "plotTitle" && got{2} == "", 'the figure''s own parts have no panel');
+if isappdata(0, 'aestheticsGoto'); rmappdata(0, 'aestheticsGoto'); end
+R = PlotAesthetics.roles().Role;
+check(all(arrayfun(@(r) ~isempty(figureRoleSettings(r)), R)) && isequal(figureRoleSettings("nonsense"), "@style"), ...
+    'every role has settings to go to; an unknown one goes to Appearance');
+
 fprintf('\n== 5. the editor: live edits, Apply to, Reset, Cancel ==\n');
 fig2 = figure('Visible', 'off', 'Position', [100 100 700 800]);
 spec2 = Cp.spec;

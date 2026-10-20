@@ -778,6 +778,16 @@ the exception: Generate runs it as `run(SessionFigures=<id>)`, once across the
 ticked (or listed) datasets rather than on each, into `Export.SessionsFolder`
 ([Sessions in the Figures tab](#sessions-in-the-figures-tab)).
 
+**Go to setting.** Right-click a part of the preview and pick **Go to setting** to
+find what controls it: the error band goes to **Show > Error**, the stop dots to
+**Stop marks**, a tile's title to the panel's **Title**, the legend to **Legend**,
+the colorbar to **Heat colors**. The part's panel is selected, its supersection and
+section open, the editor scrolls to the row, the control takes the keyboard focus
+and its label is highlighted for a moment. A part with no setting of its own goes
+to the Appearance section; a setting the panel does not show (an option of another
+panel type) is named in the status bar. A figure opened with **Open in window**
+does the same while the app is open.
+
 **Aesthetics.** Right-click any part of the preview (a line, band, bar, text,
 legend or axes) and pick **Edit aesthetics...** to change colors, line styles and
 widths, markers, opacity and fonts in a modal window, *Figure aesthetics*: it

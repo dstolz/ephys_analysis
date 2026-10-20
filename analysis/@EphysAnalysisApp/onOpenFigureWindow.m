@@ -48,7 +48,8 @@ sz = max(round(pos(3:4)), [400 300]);
 name = id + ": " + string(F.observation.label) + " (" + string(F.dataset) + ")";
 h = figure("Name", char(name), "NumberTitle", "off", "Position", [60 60 sz]);
 app = obj;
-renderFigure(F, spec, h, Editable=true, OnRemember=@(rules) rememberIfOpen(app, id, rules));
+renderFigure(F, spec, h, Editable=true, OnRemember=@(rules) rememberIfOpen(app, id, rules), ...
+    OnGoto=@(role, panel) gotoIfOpen(app, id, role, panel));
 obj.setStatus("Opened " + name + " in its own window; it does not follow later edits.");
 end
 
@@ -57,5 +58,13 @@ function rememberIfOpen(app, id, rules)
 %rememberIfOpen  Keep the window's remembered rules in the app's config while the app is open.
 if isvalid(app) && ~isempty(app.Fig) && isvalid(app.Fig)
     app.rememberFigureAesthetics(id, rules);
+end
+end
+
+
+function gotoIfOpen(app, id, role, panel)
+%gotoIfOpen  Go to the figure editor's setting for a part of the window's figure while the app is open.
+if isvalid(app) && ~isempty(app.Fig) && isvalid(app.Fig)
+    app.gotoFigureSetting(id, role, panel);
 end
 end

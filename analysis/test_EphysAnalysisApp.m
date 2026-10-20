@@ -656,6 +656,20 @@ h = app.onOpenFigureWindow();
 check(isgraphics(h) && isempty(findall(h, 'Tag', 'previewPanelMark')) && numel(findall(P, 'Tag', 'previewPanelMark')) == 4, ...
     'Open in window draws no outline (it is the preview''s, not the figure''s)');
 delete(h);
+% right-click "Go to setting": the part's setting, in the panel the part is in
+fid = app.Config.Figures(app.SelectedFigure).id;
+panel0 = app.SelectedPanel;
+styleOpen = secOf("style").Expanded;
+if styleOpen; app.onFigureSectionToggled("style"); end
+okSem = app.gotoFigureSetting(fid, "sem", "psth_1");
+check(okSem && app.SelectedPanel == 2 && secOf("style").Expanded && shown(FE.showSEM), ...
+    'Go to setting on a PSTH''s error band: psth_1 is picked and the Show row of Appearance is open');
+okTitle = app.gotoFigureSetting(fid, "tileTitle", "raster_1");
+okFig = app.gotoFigureSetting(fid, "zeroLine", "");
+check(okTitle && app.SelectedPanel == 1 && okFig, ...
+    'a tile title goes to its panel''s Title row; the event line (t = 0) to the Event reference section');
+app.onPanelSelected(panel0);
+if secOf("style").Expanded ~= styleOpen; app.onFigureSectionToggled("style"); end
 % the search goes to a shown row: its supersection and section open, its label highlighted
 if optionsOpen; app.onFigureSectionToggled("options"); end
 app.onFigureSuperToggled("panel");

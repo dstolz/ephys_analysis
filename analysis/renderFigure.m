@@ -96,6 +96,11 @@ function h = renderFigure(F, spec, target, opts)
 %                     editor saves them with the figure (the app puts them
 %                     in its config); [] (default): the editor can remember
 %                     them only in the user's preferences
+%     OnGoto          called with a right-clicked part's role and its panel's id
+%                     ("" for the figure's own parts) by the menu's "Go to
+%                     setting" (the app goes to the figure editor's setting
+%                     that controls the part: figureRoleSettings); [] (default):
+%                     the menu has no such item
 %     DataTips        "auto" (default: in a visible figure), true or false:
 %                     data tips that name the point's quantities, trial,
 %                     unit or channel, panel and dataset (FigureDataTips;
@@ -128,6 +133,7 @@ arguments
     opts.UserAesthetics (1,1) logical = true
     opts.Editable = "auto"
     opts.OnRemember = []
+    opts.OnGoto = []
     opts.DataTips = "auto"
 end
 
@@ -370,9 +376,9 @@ if editable(opts.Editable, target)
     end
     ordinal = istable(G) && ismember('color', G.Properties.VariableNames) && isOrdinalGroups(G);
     ctx = struct('kind', "figure", 'id', spec.id, 'title', txt, 'root', root, 'target', target, 'plotRules', specRules, ...
-        'onRemember', {opts.OnRemember}, 'design', design, 'followsDesign', follows, 'ordinal', ordinal, 'mapField', mapField, ...
+        'onRemember', {opts.OnRemember}, 'onGoto', {opts.OnGoto}, 'design', design, 'followsDesign', follows, 'ordinal', ordinal, 'mapField', mapField, ...
         'redraw', @(newRules) renderFigure(F, setfield(spec, 'aesthetics', newRules), target, Design=opts.Design, ...
-            UserAesthetics=opts.UserAesthetics, Editable=opts.Editable, OnRemember=opts.OnRemember));
+            UserAesthetics=opts.UserAesthetics, Editable=opts.Editable, OnRemember=opts.OnRemember, OnGoto=opts.OnGoto));
     ctx.panelTypes = struct('id', sIds, 'type', types);   % each tile's panel type by the id it is tagged with (PlotDesign.capture)
     PlotAesthetics.enableEditing(target, ctx);
 end

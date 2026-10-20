@@ -1569,7 +1569,8 @@ F = obj.FigurePreviewResult;
 if obj.FigurePreviewState ~= "drawn" || isempty(F) || F.id ~= id; return; end
 try
     spec = obj.Config.figureFor(k);
-    renderFigure(F, spec, obj.FigurePreviewPanel, OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules));
+    renderFigure(F, spec, obj.FigurePreviewPanel, OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules), ...
+        OnGoto=@(role, panel) obj.gotoFigureSetting(spec.id, role, panel));
 catch
     obj.autoFigurePreview();
 end

@@ -45,7 +45,7 @@ keep the result (`cfg = cfg.addFigure(...)`, `cfg = cfg.save(...)`).
 | `Source`, `Defaults`, `Export`, `Report` | sections (structs), coerced on assignment |
 | `Figures` | struct array, one entry per [figure](#figures): one observation's panels (a unit, a channel or the dataset) on a grid. Its ids are unique among figures (`EphysAnalysisConfig:DuplicateFigureId`; a figure's panel ids `EphysAnalysisConfig:DuplicatePanelId`); a cell array (what `jsondecode` gives for figures whose fields differ) is accepted too. A run draws the enabled figures, a page per observation ([Export](#export), [Report](#report)); one with `sessions.enabled` is a [session figure](#session-figures), drawn once across the datasets instead |
 | `File`, `LoadWarnings` | transient: where it was loaded from / saved to; the unknown fields `load` dropped |
-| `Schema`, `Version`, `Sections`, `SpikeSources`, `SignalSources`, `FigureSources`, `ObserveData`, `WaveformLocations`, `ErrorTypes`, `ListFields` | constants. `Version` is 2 (a version 1 file is [migrated](#loading-a-version-1-config) on load); `FigureSources`: what a figure's layer reads, `ObserveData`: what a figure is drawn for (`observe.data`: `units`, `detected`, `LFP`, `MUA`, `SPIKE`, `AUX`, `dataset`); `Figures` is a list, not one of the four `Sections`. The continuous panels' and notes' choices: `AuxStatistics`, `AuxTransforms`, `AuxErrorTypes`, `NotePlacements`, `OverlayLayers`, `OverlayLineStyles`. The [session figures'](#session-figures): `SessionSeries`, `SessionErrors`, `SessionTrialGroups`, `SessionFacets`, `SessionColorOrders`, `FigureSessionMatches` (`"site"`, `"mapping"`: a figure observes one matched unit, so no pooling) and `FigureSessionUnmerged` (the panel types that cannot be merged across sessions: `probemap`, `corrmap`, `spectrum`, `spectrogram`, `coherence`, `eventTrace`). There are no plot constants (`Kinds`, `AuxModes`, `AuxPlacements`, `AuxDisplays`, `AuxColorBy`, `OverlayPanels`, `SessionKinds`, `SessionMatches`, `SessionData`): the plots are gone |
+| `Schema`, `Version`, `Sections`, `SpikeSources`, `SignalSources`, `FigureSources`, `ObserveData`, `WaveformLocations`, `ErrorTypes`, `ListFields` | constants. `Version` is 2 (a version 1 file is [migrated](#loading-a-version-1-config) on load); `FigureSources`: what a figure's layer reads, `ObserveData`: what a figure is drawn for (`observe.data`: `units`, `detected`, `LFP`, `MUA`, `SPIKE`, `AUX`, `dataset`); `Figures` is a list, not one of the four `Sections`. The continuous panels' and notes' choices: `AuxStatistics`, `AuxTransforms`, `AuxErrorTypes`, `NotePlacements`, `OverlayLayers`, `OverlayLineStyles`. The [session figures'](#session-figures): `SessionSeries`, `SessionErrors`, `SessionTrialGroups`, `SessionFacets`, `SessionColorOrders`, `FigureSessionMatches` (`"site"`, `"mapping"`: a figure observes one matched unit, so no pooling) and `FigureSessionUnmerged` (the panel types that cannot be merged across sessions: `probemap`, `corrmap`, `spectrum`, `spectrogram`, `coherence`). There are no plot constants (`Kinds`, `AuxModes`, `AuxPlacements`, `AuxDisplays`, `AuxColorBy`, `OverlayPanels`, `SessionKinds`, `SessionMatches`, `SessionData`): the plots are gone |
 | `toStruct()`, `toJson()`, `save(file)` | plain struct; the JSON `save` writes (`Inf` / `-Inf` / `NaN` as `"Inf"` / `"-Inf"` / `"NaN"`) |
 | `EphysAnalysisConfig.load(file)`, `fromStruct(s)` | version 2; a version 1 file (or struct) is [migrated](#loading-a-version-1-config) first. `load` errors `EphysAnalysisConfig:BadSchema` on another schema or any other version |
 | `validate(CheckPaths=true)` | issues table `Section, Field, Severity, Message` ([rules](#validation)) |
@@ -966,8 +966,8 @@ What each draws:
   (the median over its epochs) and a rug along the top edge; drawn as a span, a
   line per trial group from the median onset to the median offset near the top;
   drawn as a train, a PSTH of their own. With `options.stack` (and two or more trial groups) the
-  groups are not overlaid but stacked: one row per group, the first at the
-  bottom, each row `stackSpacing` times the tallest PSTH high, the groups'
+  groups are not overlaid but stacked: one row per group, the first on
+  top, each row `stackSpacing` times the tallest PSTH high, the groups'
   values on the left axis and their peaks on the right, as in [Stacked PSTHs](#stacked-psths). A second layer or unit is drawn into the same rows as an outline;
   `yLim` is not used in a stack. The groups' rasters are not a stack option:
   a raster panel above the PSTH shows them. With
@@ -976,7 +976,20 @@ What each draws:
   window shaded and the first unit's call per trial group (up, down or n.s.)
   at the top right (a layer's mean: the counts of its units up and down),
   (see [auROC](#auroc)); `normalize` does not apply to it, and it can be
-  stacked too.
+  stacked too. With `options.display "heatmap"` the first item (the observed
+  unit, or a layer's mean) is drawn as an image instead: a row per trial
+  group, the first on top, labeled with the groups' values (the y label
+  names the group-by parameters), x the PSTH's bins, each bin colored by its
+  rate after `measure`, smoothing, `baseline` and `normalize`. The color
+  scale spans that item's rows only, never other units' (`cLim` fixes it; an
+  auROC is on 0 to 1 with the modulation window as a bar over the image), in
+  `colormap` (`""`: `Style.HeatColormap`, else the design's heat colormap),
+  and a color bar in the measure's unit is its legend, inside the axes when
+  another time panel shares the column (so the time axes line up). The zero
+  line, the stop latencies, events marks and the waveform inset are drawn
+  over it; `histStyle`, `fill`, `fillAlpha`, `stack`, `stackSpacing` and
+  `yLim` are not used, a merged result's member sessions are not drawn, and
+  further items are noted at the bottom left.
 - `continuous`: the epochs' mean of each channel (LFP, MUA, SPIKE or AUX), per
   trial group, with an error band; `options.display` `lines` or `stacked` (a
   row per channel). With `options.trials` `"faint"` every epoch's trace is
@@ -1218,20 +1231,28 @@ and is skipped (`An event-trace panel draws events layers only`); the layer's
 sequence narrow them. Each interval runs from its onset to its offset and
 belongs to every epoch whose window it overlaps; one that starts before or ends
 after the window is drawn to its edge (a `"between"` epoch: to its own end). A
-line whose intervals are all single instants is skipped with the reason; a line
-with no interval in the epochs is an empty row. The result, per layer, is
-`R.kind "eventTrace"` with `line`, `label`, `epoch`, `on`, `off` (s from each
-epoch's event, not clipped), `window` (each epoch's) and `nEpochs`.
+line whose intervals are all single instants is skipped with the reason; a
+single instant (onset = offset) among longer intervals is kept, drawn at the
+`minWidth` below. A line with no interval in the epochs is an empty row. The
+result, per layer, is `R.kind "eventTrace"` with `line`, `label`, `epoch`,
+`on`, `off` (s from each epoch's event, not clipped), `window` (each epoch's),
+`nEpochs`, and what sorts the sub-rows: `epochGroup`, `epochStop`, `groups`,
+`epochs` and, sorted by an event, `rasterSortEvent`.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `display` | `"bars"` | `"bars"`: a solid bar from each onset to its offset; `"line"`: a logic-level trace, low, rising at each onset and falling at its offset |
-| `trials` | `"overlay"` | `"overlay"`: every epoch drawn in the line's row, translucent, so the spread of the timing shows; `"rows"`: a sub-row per epoch inside the line's row, by trial group and then time (as a raster orders its rows), the first on top |
+| `trials` | `"overlay"` | `"overlay"`: every epoch drawn in the line's row, translucent, so the spread of the timing shows; `"rows"`: a sub-row per epoch inside the line's row, sorted as a raster's rows (the four options below; by default by trial group and then time), the first on top |
+| `rasterSort` | `""` | `"rows"`: the epochs' order, as a [raster's](#panel-options) and a heat map of trials': `""` (trial order), `"stop"` (the stop event's latency), `"event"` (`rasterSortEvent`'s latency) or a trial parameter; missing values last |
+| `rasterSortEvent` | `[]` | `"rows"`, `rasterSort "event"`: an EventRef (Validate requires one) |
+| `rasterSortOrder` | `"ascending"` | `"rows"`: `"ascending"` or `"descending"` |
+| `rasterByGroup` | `true` | `"rows"`: by trial group first (each group's sub-rows together, on its band with `groupBands`); `false`: every epoch sorted as one block (a band per run of a group's sub-rows) |
 | `colorBy` | `"layer"` | `"layer"`: each line in its layer's `color`, else a color of the plot design's palette (`groupPalette`); `"group"`: each epoch in its trial group's color, the groups in the figure's legend |
 | `height` | 0.6 | the bars' (or the level's) height, a share of the row (with `"rows"`: of the epoch's sub-row); above 0, at most 1 |
 | `alpha` | `NaN` | the bars' and traces' opacity 0 to 1; `NaN` = 0.3 overlaid, 1 in rows |
 | `edgeColor` | `"none"` | `"bars"`: the outline, `"none"`, `"auto"` (the bar's own color) or a color |
 | `edgeWidth` | 0.5 | the outline's width, points |
+| `minWidth` | 1 | `"bars"`: a bar drawn narrower than this many points (from the axes' width over the window when drawn; a zero-length interval too) also gets a vertical tick this wide through its middle, in its color and opacity, so a short interval shows at any zoom and in exported files; 0 = none |
 | `lineWidth` | 1.5 | `"line"`: the trace's width, points |
 | `lineStyle` | `"-"` | `"line"`: the trace's style (`-`, `--`, `:`, `-.`); a layer's own `lineStyle` wins |
 | `showBaseline` | `true` | a line along each row (each sub-row in `"rows"`): through the middle of the bars, or at the trace's low level |
@@ -1243,14 +1264,19 @@ epoch's event, not clipped), `window` (each epoch's) and `nEpochs`.
 
 The parts are aesthetics roles of their own, so the
 [aesthetics editor](EphysAnalysis.md#plot-aesthetics) and the plot designs
-reach them: `eventBar` (the bars), `eventLevel` (the logic-level traces),
-`eventBaseline` and `eventGroupBand`; each part's group is its line's name
-(colored by group: the group's label). The zero line follows
+reach them: `eventBar` (the bars), `eventTick` (a short bar's tick),
+`eventLevel` (the logic-level traces), `eventBaseline` and `eventGroupBand`;
+each part's group is its line's name (colored by group: the group's label).
+The logic levels and the ticks are patch edges (`FaceColor "none"`, the
+opacity as `EdgeAlpha`), not lines with a four-element color, so an SVG or PDF
+export keeps their opacity (`stroke-opacity`). The zero line follows
 `Style.ShowZeroLine`. None of the options is shared with other panel types ([Copying options between panels](#copying-options-between-panels)).
-An event-trace panel cannot go in a [session figure](#session-figures)
-(`FigureSessionUnmerged`: the lines are one dataset's own timing, not merged
-across sessions); Validate refuses it. The template `"eventTrace"` is one panel
-with one events layer of the `Stim` line.
+In a [session figure](#session-figures) an event-trace panel draws every
+session's epochs, as a raster does (`combineSessions` concatenates them, each
+epoch in its series): `"overlay"` overlays them all, `"rows"` gives each a
+sub-row, and the series (sessions, subjects or all sessions) are its groups
+for `colorBy "group"`, the bands and the sort. The template `"eventTrace"` is
+one panel with one events layer of the `Stim` line.
 
 ### Panel options
 
@@ -1277,6 +1303,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `psth` | `measure` | `"rate"` | `"rate"`, `"count"` or `"probability"` |
 | `psth` | `baseline` | `Mode "none"`, `Window [-0.2 0]` | `Mode` `"none"`, `"subtract"`, `"zscore"`, `"percent"` or `"auroc"` (`"ratio"` is for rate and tuning panels) |
 | `psth` | `auroc` | `defaults("Auroc")` | baseline `Mode "auroc"`: the [auROC](#auroc) settings (`method`, `windows`, `windowSec`, `stepSec`, the call window `modulationWindow`, `cutoff`, `threshold`, `test`, `nResamples`, `correction`, `alpha`, `marks`, `modulatedOnly`). `windowSec` and `stepSec` must be whole numbers of the panel's bins (validate checks them) |
+| `psth` | `display` | `"trace"` | `"trace"` (bars or a line per trial group) or `"heatmap"`: the first item (unit or a layer's mean) as an image, a row per trial group, the first on top, colored by its PSTH on that item's own range, never across units; `histStyle`, `fill`, `fillAlpha`, `stack`, `stackSpacing` and `yLim` are not used then, and further items are noted on the panel |
 | `psth` | `histStyle` | `"bar"` | `"bar"` or `"line"` |
 | `psth` | `fill` | `true` | fill the bars, or the area under the line |
 | `psth` | `fillAlpha` | `NaN` | fill opacity 0-1; `NaN` = 0.5 where groups overlay, else 1 |
@@ -1284,7 +1311,9 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `psth` | `stack` | `false` | `true`: one row per trial group, stacked downwards (the first group on top, as a raster lists them), instead of overlaid; a single group is drawn overlaid |
 | `psth` | `stackSpacing` | 1.1 | `stack`: the step between rows, times the tallest PSTH (below 1 the rows overlap); positive |
 | `psth` | `maskAfterStop` | `false` | drop each epoch's bins from its stop event on |
-| `psth` | `yLim` | `[]` | the rate axis; not used in a stack |
+| `psth` | `yLim` | `[]` | the rate axis; not used in a stack or a heat map |
+| `psth` | `colormap` | `""` | `display "heatmap"`: `""` is the style's `HeatColormap`, else the design's heat colormap (an auROC: its diverging one); or a colormap function (`"turbo"`, `"hot"`, `"blueWhiteRed"`). A name that is no function is a validation warning and takes the default |
+| `psth` | `cLim` | `[]` | `display "heatmap"`: the color limits; `[]` = the drawn item's own range (an auROC: 0 to 1) |
 | `psth` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | the first unit's waveform in a box in the panel |
 | `continuous` | `baseline` | `Mode "none"`, `Window [-0.2 0]` | `Mode` `"none"` or `"subtract"` (each epoch's mean over `Window`, per channel). The window must overlap the panel's window |
 | `continuous` | `display` | `"lines"` | `"lines"` (a trace per channel) or `"stacked"` (a row of its own per channel) |
@@ -1635,7 +1664,7 @@ renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#
   so in its middle. Every object carries an aesthetics role, so the editor lists
   the components, the tiles by panel id; the figure adds the roles `eventLine`,
   `eventRug`, `eventSpan`, `layerNote` and the event-trace panel's `eventBar`,
-  `eventLevel`, `eventBaseline` and `eventGroupBand`, and a continuous panel's per-trial traces are the
+  `eventTick`, `eventLevel`, `eventBaseline` and `eventGroupBand`, and a continuous panel's per-trial traces are the
   role `trialTrace` ("Trial traces").
 - **Notes and overlays.** A panel's `overlays` are drawn on its axes after its
   layers (`drawOverlays`: every one of them, a panel having no raster / data
@@ -1838,7 +1867,8 @@ Errors:
   `auroc` (with baseline `Mode "auroc"`: the auROC rules ([auROC](#auroc)), its window
   and step whole numbers of the panel's bins, and the Statistics and Machine Learning
   Toolbox, at `<figure>.<panel>.options.auroc`), `histStyle`, `normalize`, `fillAlpha`,
-  a positive `stackSpacing`, `yLim`; a continuous panel's `baseline`
+  a positive `stackSpacing`, `display` (`trace` or `heatmap`), `colormap` (a name that
+  is no colormap function is a warning), `cLim`, `yLim`; a continuous panel's `baseline`
   (`none` or `subtract`, its window overlapping the panel's window), `display`, `statistic`, `transform`, `errorType` (`ci95`
   and `iqr` need the Statistics and Machine Learning Toolbox), a positive or `NaN`
   `stackSpacing`, `trials` (`off`, `faint` or `only`), `maxTrials` (a whole number
@@ -1866,7 +1896,9 @@ Errors:
   `yLim` and `cLim` `[]` or ascending; an event-trace panel's `display` (`bars` or
   `line`), `trials` (`overlay` or `rows`), `colorBy` (`layer` or `group`), `height`
   in (0, 1], `alpha` from 0 to 1 or `NaN`, `lineStyle` and `baselineStyle`, and
-  positive `edgeWidth`, `lineWidth`, `baselineWidth` and `rowSpacing` (an
+  positive `edgeWidth`, `lineWidth`, `baselineWidth` and `rowSpacing`, a
+  `minWidth` of 0 or more, and with `trials "rows"` its sort as a raster's
+  (`rasterSortOrder`, a `rasterSortEvent` for `rasterSort "event"`) (an
   `edgeColor` or `baselineColor` that is not a color is a warning);
 - each panel's text note and overlays, by one function's rules ([Panel notes](#panel-notes), [Panel overlays](#panel-overlays)): a note with no text is not
   checked (a panel of an unknown `type` has its note and overlays checked all the same; `box` is `auto`, `on` or `off`),
@@ -2053,9 +2085,10 @@ dataset): events drawn as **marks** (*event marks are not drawn across
 sessions*), the **rings** of a waveforms panel's probe layout (*the probe
 layout's rings are not drawn across sessions*), a **heat map of trials** (*a
 heat map of trials is not merged across sessions*), and a whole panel of a type
-in `EphysAnalysisConfig.FigureSessionUnmerged` (*a probe map panel is not merged
-across sessions*; likewise a unit correlation map, power spectrum, spectrogram,
-coherence or event-trace panel). Events drawn as spans are skipped as marks are. A merge that fails (`combineSessions:TooFew`, `:Bins`,
+in `EphysAnalysisConfig.FigureSessionUnmerged` (*probe map panels are not merged
+across sessions*, the type named by its label; likewise unit correlation, power
+spectrum, spectrogram and coherence panels). An event-trace panel is merged:
+every session's epochs, as a raster's ([Event traces](#event-traces)). Events drawn as spans are skipped as marks are. A merge that fails (`combineSessions:TooFew`, `:Bins`,
 `:TimeBase`, ...) skips that layer with its message, and the rest of the figure
 is drawn. That is what `figureSessionCompute` and so the app's preview do with
 an unmerged panel type. Validate refuses such a figure, though, and so does
@@ -2147,7 +2180,9 @@ Errors:
   (it names units), without a `mappingFile`, or with one that does not exist
   (with `CheckPaths`), cannot be read or has no `cell` column;
 - with `sessions.enabled`: a probe map, unit correlation, power spectrum,
-  spectrogram, coherence or event-trace panel (`<figure>.<panel>.type`: it is not merged),
+  spectrogram or coherence panel (`<figure>.<panel>.type`: *A session figure
+  cannot hold probe map panels: combineSessions does not merge them across
+  sessions.*),
   and an auROC baseline
   (`<figure>.<panel>.baseline.Mode`: auROC curves are not merged).
 
@@ -2483,7 +2518,7 @@ With the defaults, the figure `unit_card` of dataset `SYNTH-01_260918_101500` wi
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
 | Defaults, Figures | the event reference, window and selection are valid: known values, `n` a whole number >= 1, `0 <= minDurationSec <= maxDurationSec`, `timeRange` ordered, a finite `offsetSec`, `offsetParamUnit` ms or s, each sequence step's relation, line, edge, `n`, positive `maxGapSec` and lengths, an `alignStep` of 0, `Inf` or a followedBy step (the stop's and each raster-mark sequence's too), finite `pre` and `post`, `pre <= post` in a fixed window, a stop event in a `"between"` window, known response words and pairing flags, at most 2 distinct `groupBy` parameters, `maxGroups` and `trials` whole numbers >= 1 | error |
 | Defaults, Figures | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
-| Figures | at least one figure or session figure enabled (`No figure is enabled.`); the figure id is not empty, file-name safe and distinct once sanitized from the other figures' (`{Plot}` fills the files' names, case-blind); the figure's alignment is valid; `observe` (`data`, channels, `maxUnits`; on a figure that observes units, an enabled `units.response` test at `<figure>.observe.units.response.<field>` and each spike layer's at `<figure>.<panel>.layers(<j>).units.response.<field>`: the test, `param` for tuning / either / both, ordered `baseline` and `window`, direction, correction, `alpha` in (0, 1], the `"auroc"` test's settings and the Statistics and Machine Learning Toolbox the tests need), `sessions` (the known values, `minSessions`; with `sessions.enabled` no probe map, unit correlation, spectral or event-trace panel, no auROC baseline, a mapping file for `match "mapping"` and a unit observation for it: [rules](#validating-session-figures)) and `grid` (rows, columns, relative sizes, spacing, gap units, gaps) hold known values; each panel has an id of its own, a known type, a place inside the grid that no other panel overlaps, a size in (0, 1] each way and an alignment, and its own `ref` / `window` / `selection` only when its type is aligned; each enabled layer's source, binding, aggregate, channels, events (`eventsAs`, event reference, marker, size, a span's look; only events layers on an event-trace panel) and line style fit its panel type; a raster has rows, not marks or spans alone; each type's options; the style ([rules](#validating-figures)) | error |
+| Figures | at least one figure or session figure enabled (`No figure is enabled.`); the figure id is not empty, file-name safe and distinct once sanitized from the other figures' (`{Plot}` fills the files' names, case-blind); the figure's alignment is valid; `observe` (`data`, channels, `maxUnits`; on a figure that observes units, an enabled `units.response` test at `<figure>.observe.units.response.<field>` and each spike layer's at `<figure>.<panel>.layers(<j>).units.response.<field>`: the test, `param` for tuning / either / both, ordered `baseline` and `window`, direction, correction, `alpha` in (0, 1], the `"auroc"` test's settings and the Statistics and Machine Learning Toolbox the tests need), `sessions` (the known values, `minSessions`; with `sessions.enabled` no probe map, unit correlation or spectral panel, no auROC baseline, a mapping file for `match "mapping"` and a unit observation for it: [rules](#validating-session-figures)) and `grid` (rows, columns, relative sizes, spacing, gap units, gaps) hold known values; each panel has an id of its own, a known type, a place inside the grid that no other panel overlaps, a size in (0, 1] each way and an alignment, and its own `ref` / `window` / `selection` only when its type is aligned; each enabled layer's source, binding, aggregate, channels, events (`eventsAs`, event reference, marker, size, a span's look; only events layers on an event-trace panel) and line style fit its panel type; a raster has rows, not marks or spans alone; each type's options; the style ([rules](#validating-figures)) | error |
 | Figures | no panels; cells no panel covers; a panel with no enabled layer, or with several on a type that draws one; a unit or channel observation with no layer following it; a session figure's `datasets "list"` with no keys, `showMembers` with `series "session"`, `trialGroups "pool"` over grouped trials, `"combine"` over PSTH bars, a heat map of trials ([rules](#validating-session-figures)); `observe.perGroup` while the figure's selection groups by nothing (not on a session figure); a signal layer following another signal's channel; a waveforms panel in the probe layout whose first layer follows the observation; a fixed raster, PSTH, rate or tuning layer that may keep more than 8 units; a layer, mark, style, note or overlay color that is not a color; two overlays of a figure with one name ([rules](#validating-figures)) | warning |
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi` positive; `FigureSizeCm` two positive numbers; the folder and file-name patterns use known tokens, and the file-name pattern is not empty; `SessionsFolder` and `Data.Folder` are folder patterns, `Data.FilenamePattern` a file-name pattern, and `Data.MatVersion` is `-v7.3` or `-v7` | error |
 | Export | a file-name pattern without `{Plot}` while several figures are enabled (every figure's `{Kind}` is `figure`, so only `{Plot}`, the figure's id, tells their files apart); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |

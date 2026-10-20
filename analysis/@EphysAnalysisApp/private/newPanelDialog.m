@@ -19,7 +19,8 @@ function c = newPanelDialog(fig, F, anchor, lines, params)
 %                     panel, which reads its lines
 %     raster          Sort rows by (trial order, the stop event, or one
 %                     of PARAMS)
-%     psth            Bin and Smooth (ms), Measure
+%     psth            Bin and Smooth (ms), Measure, Display (a trace or a
+%                     heat map)
 %     continuous      Display (lines or stacked rows), Error band
 %     heatmap         Rows (the layer's units or channels, or one unit's
 %                     epochs), Bin (ms)
@@ -210,6 +211,9 @@ switch t
             "ItemsData", ["" "stop" params], "Value", "", "Tooltip", "The rows' order within each trial group.")};
     case "psth"
         specs = [specs; binRows(def); measureRow()];
+        specs(end+1, :) = {"Display", "Display:", @(gr) uidropdown(gr, "Items", ["trace (bars or a line per group)" ...
+            "heat map (a row per group)"], "ItemsData", ["trace" "heatmap"], "Value", def.display, ...
+            "Tooltip", "Each trial group's PSTH as bars or a line, or the unit's PSTH as an image with a row per group.")};
     case "continuous"
         specs(end+1, :) = {"Display", "Display:", @(gr) uidropdown(gr, "Items", ["lines" "stacked rows"], ...
             "ItemsData", ["lines" "stacked"], "Value", def.display, "Tooltip", "Overlaid lines, or a row of its own per channel.")};

@@ -72,7 +72,10 @@ function buildFiguresTab(obj)
 %           shows the rows the figure, panel and layer use;
 %           layoutFigureEditor packs them.
 %   Right   the dataset, the observation picked (figureObservations' labels)
-%           with < and > (Page Up / Page Down), Preview, Generate (the
+%           with < and > (Page Up / Page Down), each with its star toggle
+%           (starButton, onStarToggled), the Favorites (buildFavorites: a
+%           filter and every starred dataset, channel and unit, picked to
+%           preview: onFavoritePicked), Preview, Generate (the
 %           figure for every observation on every ticked dataset, into the
 %           Export folder: onGenerateFigure), Auto, Export code at the
 %           row's right (the code that draws the preview, in the editor:
@@ -760,6 +763,12 @@ E.backColor = uidropdown(rcg, "Editable", "on", "Items", ["" "white" "black" "gr
 E.maskAfterStop = uicheckbox(S.Body, "Text", "Mask after the stop event", "ValueChangedFcn", changed, ...
     "Tooltip", "Drop what follows each epoch's stop event (the Epoch window's).");
 place(E.maskAfterStop, r, [1 2]);
+[S, r] = formRow(S, "psthDisplay", "Display:");
+E.psthDisplay = uidropdown(S.Body, "Items", ["trace (bars or a line per group)" "heat map (a row per group)"], ...
+    "ItemsData", ["trace" "heatmap"], "ValueChangedFcn", changed, "Tooltip", "Trace: each trial group's PSTH as bars " + ...
+    "or a line (PSTH as). Heat map: the unit's PSTH as an image, a row per trial group (the first on top), colored by " + ...
+    "its rate on this unit's own range (Colormap, Color limits); with several units or layers, the first is drawn.");
+place(E.psthDisplay, r, 2);
 [S, r] = formRow(S, "histStyle", "PSTH as:");
 E.histStyle = uidropdown(S.Body, "Items", ["bar" "line"], "ValueChangedFcn", changed, "Tooltip", "One bar per bin, or a line through the bin centers.");
 place(E.histStyle, r, 2);
@@ -843,7 +852,7 @@ etg = subgrid(S.Body, r, {'1x', 'fit'});
 E.etTrials = uidropdown(etg, "Items", ["every epoch overlaid in the line's row" "a sub-row per epoch"], "ItemsData", ["overlay" "rows"], ...
     "ValueChangedFcn", changed, "Tooltip", "Overlaid: every epoch drawn in the line's row, translucent, so the " + ...
     "spread of the timing shows. A sub-row per epoch: each epoch in a sub-row of its own inside the line's row, " + ...
-    "by trial group and then time, as a raster orders its rows.");
+    "sorted as a raster's rows (Sort rows by; by default by trial group and then time).");
 E.etGroupBands = uicheckbox(etg, "Text", "group bands", "Value", true, "ValueChangedFcn", changed, ...
     "Tooltip", "A sub-row per epoch: a pale band of each trial group's color behind its sub-rows.");
 [S, r] = formRow(S, "etColorBy", "Color by:");
@@ -865,6 +874,11 @@ E.etEdge = uidropdown(eeg, "Editable", "on", "Items", ["none" "auto" "black" "wh
 uilabel(eeg, "Text", "width");
 E.etEdgeWidth = uispinner(eeg, "Limits", [0.25 12], "Step", 0.25, "Value", 0.5, "ValueChangedFcn", changed, ...
     "Tooltip", "The outline's width, points.");
+[S, r] = formRow(S, "etMinWidth", "Narrowest bar:");
+E.etMinWidth = uispinner(S.Body, "Limits", [0 12], "Step", 0.25, "Value", 1, "ValueChangedFcn", changed, ...
+    "Tooltip", "Points. A bar drawn narrower than this (a zero-length interval too) also gets a tick this wide " + ...
+    "through its middle, in its color, so a short interval shows at any size and in exported files. 0: no tick.");
+place(E.etMinWidth, r, 2);
 [S, r] = formRow(S, ["etLineStyle" "etLineWidth"], "Level line:");
 elg = subgrid(S.Body, r, {'1x', 'fit', 60});
 E.etLineStyle = uidropdown(elg, "Items", ["solid" "dashed" "dotted" "dash-dot"], "ItemsData", EphysAnalysisConfig.OverlayLineStyles, ...
@@ -893,6 +907,11 @@ place(E.etRowSpacing, r, 2);
 E.yLim = uieditfield(S.Body, "text", "Placeholder", "automatic, or lo hi", "ValueChangedFcn", changed, ...
     "Tooltip", "This panel's y axis: two ascending values. Blank: from the data.");
 place(E.yLim, r, 2);
+[S, r] = formRow(S, "panelColormap", "Colormap:");
+E.panelColormap = uidropdown(S.Body, "Editable", "on", "Items", ["auto" "parula" "turbo" "hot" "gray" "jet" "cool" "blueWhiteRed"], ...
+    "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "This panel's colors: auto = Heat colors (Appearance), else " + ...
+    "the design's heat colormap (an auROC: its diverging one); or the name of a colormap function.");
+place(E.panelColormap, r, 2);
 [S, r] = formRow(S, "cLim", "Color limits:");
 E.cLim = uieditfield(S.Body, "text", "Placeholder", "automatic, or lo hi", "ValueChangedFcn", changed, ...
     "Tooltip", "This panel's color scale: two ascending values. Blank: automatic.");
@@ -1261,8 +1280,8 @@ obj.FigureSearchIndex = figureSearchIndex(obj.FigureSections, U);   % the rows a
 
 % --- right: the observation picker and the preview ----------------------------------------------
 % the buttons on a row of their own, so the Dataset and Observation drop-downs keep their width beside Design
-pg = uigridlayout(g, [5 4]);
-pg.RowHeight = {30, 30, 30, '1x', 30};
+pg = uigridlayout(g, [6 4]);
+pg.RowHeight = {30, 30, 30, 30, '1x', 30};
 pg.ColumnWidth = {'fit', '1x', 'fit', 125};
 pg.ColumnSpacing = 6;
 pg.Padding = [0 0 0 0];
@@ -1294,16 +1313,24 @@ obj.FigureCodeButton = uibutton(bg, "Text", "Export code", "Enable", "off", "But
 obj.FigureCodeButton.Layout.Row = 1; obj.FigureCodeButton.Layout.Column = 6;
 l = uilabel(pg, "Text", "Dataset:");
 l.Layout.Row = 2; l.Layout.Column = 1;
-obj.FiguresDatasetDropDown = uidropdown(pg, "Items", "(scan first)", "ItemsData", 0, ...
+sg = uigridlayout(pg, [1 2], "ColumnWidth", {'1x', 34}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);   % the drop-down and its star
+sg.Layout.Row = 2; sg.Layout.Column = 2;
+obj.FiguresDatasetDropDown = uidropdown(sg, "Items", "(scan first)", "ItemsData", 0, ...
     "ValueChangedFcn", @(dd, ~) obj.selectDataset(dd.Value), "Tooltip", "The active dataset (the same on every tab).");
-obj.FiguresDatasetDropDown.Layout.Row = 2; obj.FiguresDatasetDropDown.Layout.Column = 2;
+obj.FiguresDatasetStar = starButton(obj, sg, "dataset");
 l = uilabel(pg, "Text", "Observation:");
 l.Layout.Row = 3; l.Layout.Column = 1;
-obj.FigureObservationDropDown = uidropdown(pg, "Items", "(no observation)", "ItemsData", 0, ...
+sg = uigridlayout(pg, [1 2], "ColumnWidth", {'1x', 34}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);
+sg.Layout.Row = 3; sg.Layout.Column = 2;
+obj.FigureObservationDropDown = uidropdown(sg, "Items", "(no observation)", "ItemsData", 0, ...
     "ValueChangedFcn", @(~,~) obj.onFigureObservationChanged(), ...
     "Tooltip", "What the preview draws the figure for: one of the units, channels or the dataset the Observations " + ...
-    "section keeps, in probe order. Each figure remembers its pick.");
-obj.FigureObservationDropDown.Layout.Row = 3; obj.FigureObservationDropDown.Layout.Column = 2;
+    "section keeps, in probe order. Each figure remembers its pick. ★: starred.");
+obj.FigureObservationStar = starButton(obj, sg, "observation");
+l = uilabel(pg, "Text", "Favorites:");
+l.Layout.Row = 4; l.Layout.Column = 1;
+obj.FigureFavorites = buildFavorites(obj, pg, "FigureFavorites");   % every starred dataset, channel and unit
+obj.FigureFavorites.Grid.Layout.Row = 4; obj.FigureFavorites.Grid.Layout.Column = [2 4];
 % the design every figure is drawn in (PlotDesign; also the Design menu), right of the Dataset and Observation
 % drop-downs, and the preview's look kept as one
 l = uilabel(pg, "Text", "Design:");
@@ -1320,9 +1347,9 @@ obj.SaveDesignButton = uibutton(pg, "Text", "Save look as design...", "ButtonPus
     "preview is out of date.");
 obj.SaveDesignButton.Layout.Row = 3; obj.SaveDesignButton.Layout.Column = [3 4];
 obj.FigurePreviewPanel = uipanel(pg, "BackgroundColor", "w", "BorderType", "line");
-obj.FigurePreviewPanel.Layout.Row = 4; obj.FigurePreviewPanel.Layout.Column = [1 4];
+obj.FigurePreviewPanel.Layout.Row = 5; obj.FigurePreviewPanel.Layout.Column = [1 4];
 sg = uigridlayout(pg, [1 4], "ColumnWidth", {'fit', '1x', 0, 130}, "Padding", [0 0 0 0], "ColumnSpacing", 8);
-sg.Layout.Row = 5; sg.Layout.Column = [1 4];
+sg.Layout.Row = 6; sg.Layout.Column = [1 4];
 B.Grid = uigridlayout(sg, [1 2], "ColumnWidth", {18, 'fit'}, "Padding", [6 2 10 2], "ColumnSpacing", 5);
 B.Icon = uiimage(B.Grid, "ScaleMethod", "fit");
 B.Text = uilabel(B.Grid, "FontWeight", "bold");

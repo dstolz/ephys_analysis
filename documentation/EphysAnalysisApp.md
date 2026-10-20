@@ -123,6 +123,7 @@ copies them.
 | Column | Meaning |
 | --- | --- |
 | **Run** | tick the datasets a run uses. In project mode the ticks are saved in the config: all ticked is `Selection = "all"`, otherwise `"list"` with the ticked keys. In folders mode every folder listed is ticked after a scan and the ticks are not saved |
+| **★** | the dataset is starred: tick it to star the dataset, clear it to unstar it ([Favorites](#favorites)). Written at once beside the data, never into the config |
 | **Name**, **Key** | the dataset's name and key (the root-relative folder, or the output folder in folders mode) |
 | **Subject**, **Date** | the dataset's `SubjectID` from the name pattern, and the day it was recorded (a project's recording start, else the date in the name) |
 | **LFP**, **MUA**, **SPIKE**, **AUX** | ✓ when that signal's extract exists |
@@ -224,7 +225,9 @@ The stop event's offset, interval length and time range, and the selection's
 explicit trial rows, have no controls: they keep the config's values through
 every edit.
 
-On the right, for the active dataset (**Active dataset** picks another):
+On the right, for the active dataset (**Active dataset** picks another, the
+**☆** beside it stars it, and **Favorites** under it goes to any
+[star](#favorites)):
 *"N epochs from M of T trials (scope); groups ..."*, with the events
 dropped for lacking the **Shift by** parameter's value or because their
 **Sequence** did not follow, and the epochs
@@ -517,7 +520,7 @@ right side follows it:
 | **Name** | the panel's id (`<type>_<n>`, the first free, until you type one; another panel of the figure's name is refused with a red line, the window staying open) |
 | **Title** | the panel's own title (blank = none) |
 | **Place** | *Below*, *Above*, *Right of* or *Left of* the selected panel (named); off for a figure's first panel, which goes to row 1, column 1 |
-| **Key parameters** | **Reads** (the first layer's source, among the sources the type draws; a *Coherence* panel's **Seed** and **Partner**) and **Binding** (*Follows the observation* or *Fixed*; fixed and grayed out where the layer cannot follow), for every type but *Event traces*; then the type's own: *Raster* **Sort rows by** (trial order, the stop event or a trial parameter); *PSTH* **Bin (ms)**, **Smooth (ms)**, **Measure**; *Continuous signal* **Display** (lines or stacked rows), **Error band**; *Heat map* **Rows** (the layer's units or channels, or one unit's epochs: the binding then follows the observation), **Bin (ms)**; *Unit waveforms* **Layout**; *Probe map* **Value**; *Unit correlation* **Epoch rate**, **Correlation**; *Firing rate* **Measure**, **Display**; *Tuning curve* **Parameter**, **Series**; *Power spectrum* **Frequency (Hz)**, **Scale**; *Spectrogram* **Frequency (Hz)**, **Moving window (s)**; *Coherence* **Frequency (Hz)**; *Event traces* **Lines** (the active dataset's lines, several picked with Ctrl+click: an events layer and a row each) and **Draw as**. Every other option keeps the type's default and is in the editor's sections |
+| **Key parameters** | **Reads** (the first layer's source, among the sources the type draws; a *Coherence* panel's **Seed** and **Partner**) and **Binding** (*Follows the observation* or *Fixed*; fixed and grayed out where the layer cannot follow), for every type but *Event traces*; then the type's own: *Raster* **Sort rows by** (trial order, the stop event or a trial parameter); *PSTH* **Bin (ms)**, **Smooth (ms)**, **Measure**, **Display** (trace or heat map); *Continuous signal* **Display** (lines or stacked rows), **Error band**; *Heat map* **Rows** (the layer's units or channels, or one unit's epochs: the binding then follows the observation), **Bin (ms)**; *Unit waveforms* **Layout**; *Probe map* **Value**; *Unit correlation* **Epoch rate**, **Correlation**; *Firing rate* **Measure**, **Display**; *Tuning curve* **Parameter**, **Series**; *Power spectrum* **Frequency (Hz)**, **Scale**; *Spectrogram* **Frequency (Hz)**, **Moving window (s)**; *Coherence* **Frequency (Hz)**; *Event traces* **Lines** (the active dataset's lines, several picked with Ctrl+click: an events layer and a row each) and **Draw as**. Every other option keeps the type's default and is in the editor's sections |
 | **OK**, **Cancel** | **OK** adds the panel (`onNewPanel`, `EphysAnalysisConfig.placePanel`) and selects it: the schematic, the editor and the preview follow, a figure that observed the dataset observes what a following layer reads, and an automatic id follows the panel; the status bar says what was added (*"Added psth_1 (PSTH) below raster_1 with units, follows the observation."*). **Cancel**, or closing the window, adds nothing |
 
 **The Spacing window** (**Spacing...**; *Panel spacing: figure_1*) sets the gaps
@@ -625,8 +628,8 @@ list edit the layer picked:
 | Panel type | Rows |
 | --- | --- |
 | Raster | **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*), **Rows by group first**, **Colors** (the ticks' color, and a background for every group in place of the pale group bands; blank = black ticks, group bands), **Show y ticks** (off by default: the y axis has no tick marks or epoch numbers, only its label; `options.yTicks`), **Mask after the stop event**, and the waveform inset (**Waveform**, **Inset location**, **Inset size**, **Label**) |
-| PSTH | **Bin**, **Smooth**, **Measure**, **Baseline** (with *auroc*) and its window, the auROC rows (with the *auroc* baseline), **Mask after the stop event**, **PSTH as**, **Fill** and its opacity, **Normalize**, **Stack** (**One row per group** with its **spacing**, the row step in tallest PSTHs), **Y limits** (not used in a stack), and the waveform inset |
-| Event traces | **Draw as** (*solid bars (onset to offset)* or *a logic level (a line)*), **Trials** (*every epoch overlaid in the line's row*, translucent, or *a sub-row per epoch*, by group as a raster's rows, with **group bands**), **Color by** (*line*: the layer's Color, else a palette color; or *trial group*), **Height** (a share of the row) with its **opacity** (blank: 0.3 overlaid, 1 in sub-rows), **Bar outline** and its width (bars), **Level line** style and width (a line; a layer's own Line style wins), **Baseline** (**Draw**, its color) and **Baseline line** (style, width), **Row spacing**. Its layers are events layers only, one line each, a row each ([Event traces](EphysAnalysisConfig.md#event-traces)) |
+| PSTH | **Bin**, **Smooth**, **Measure**, **Baseline** (with *auroc*) and its window, the auROC rows (with the *auroc* baseline), **Mask after the stop event**, **Display** (*trace* or *heat map*), **PSTH as**, **Fill** and its opacity, **Normalize**, **Stack** (**One row per group** with its **spacing**, the row step in tallest PSTHs), **Y limits** (not used in a stack), and the waveform inset; as a heat map, **Colormap** and **Color limits** instead of **PSTH as**, **Fill**, **Stack** and **Y limits** |
+| Event traces | **Draw as** (*solid bars (onset to offset)* or *a logic level (a line)*), **Trials** (*every epoch overlaid in the line's row*, translucent, or *a sub-row per epoch*, with **group bands**), the sub-rows sorted as a raster's rows by the raster's **Sort rows by** (and its order), **Sort event**, **Sort sequence** and **Rows by group first** (grayed out while overlaid), **Color by** (*line*: the layer's Color, else a palette color; or *trial group*), **Height** (a share of the row) with its **opacity** (blank: 0.3 overlaid, 1 in sub-rows), **Bar outline** and its width (bars), **Narrowest bar** (bars: points; a bar drawn narrower, a zero-length interval too, also gets a tick this wide through its middle; 0: none), **Level line** style and width (a line; a layer's own Line style wins), **Baseline** (**Draw**, its color) and **Baseline line** (style, width), **Row spacing**. Its layers are events layers only, one line each, a row each ([Event traces](EphysAnalysisConfig.md#event-traces)) |
 | Continuous signal | **Baseline** and its window, **Display** (*lines* or *stacked rows*), **Signal** (mean or median; as recorded or rectified), **Error band** (off, mean ± SEM, mean ± SD, bootstrap 95% CI or interquartile range), **Stack spacing**, **Trials** (*Off*, *Faint, behind the mean* or *Only the trials*) with **at most** (the most epochs drawn, 100 by default, picked evenly over their order; the traces sit under every band and mean; grayed out while *Off*), **Y limits** |
 | Heat map | **Bin**, **Smooth**, **Measure** and **Mask after the stop event** (a spike layer), **Baseline** (*auroc* for a spike layer, with the auROC rows; the map is then of auROCs in the diverging colormap), **Rows** (*the layer's units or channels*, or *one unit's epochs (trials)*), **Row order** (*probe*, *peak* or *modulation*, the last only with the auROC baseline), **Color limits**; the group drawn is in the Selected panel section. With *one unit's epochs (trials)* a row is an epoch of one unit, every group at once, sorted as a raster's rows: the raster's **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*) and **Rows by group first** show, **Row order** and **Group shown** hide, and the layer may follow the observation (its Binding row opens for a spike layer; otherwise fix it to one unit). The map is one unit's epochs: a layer that follows the observation through a channel (a channel observation, or the other spike source) keeps every unit on it, which Validate refuses, and a layer that still keeps several is skipped with *A heat map of trials draws one unit: this layer keeps n*. The groups are a color strip along the left edge, the y label names the sort, and the auROC baseline is refused |
 | Unit waveforms | **Layout** (*grid*: the unit, or several overlaid; *probe*: every unit of the first layer at its place on the probe, with the units of a further layer framed in red), **Waveform** (*Mean*, *Subsample* or *Mean + subsample*, and how many spikes), **Label**, **Y limits** |
@@ -642,7 +645,18 @@ list edit the layer picked:
 overlaid, the first on top (as a raster lists them), each group's value on the left axis and its
 peak on the right. A single group is not stacked, a second layer is drawn into
 the rows as an outline, and a raster panel above the PSTH shows the groups'
-rasters. A firing rate
+rasters.
+
+**Display** *heat map* draws a PSTH panel's unit as an image instead: a row
+per trial group, the first on top, labeled with the groups' values, each bin
+colored by its rate (after measure, smoothing, baseline and normalize). The
+colors span that unit's rows only, not the other units', so each unit's
+preview fills the scale; **Color limits** fixes the scale (an auROC is on 0
+to 1) and **Colormap** picks the colors (*auto*: **Heat colors** in
+Appearance, else the design's; or a colormap function's name). A color bar
+in the measure's unit is the legend. With several units or layers the first
+is drawn and the others are noted on the panel. Switch back to *trace* to
+see the bars or lines again; every other option is kept. A firing rate
 panel draws the trial groups along x; a tuning curve draws the parameter's
 values along x, a curve per series with error bars, and takes a
 *between* window in Panel alignment as a unit correlation panel does. A
@@ -678,7 +692,7 @@ It is on when another panel has one of those rows or is of the same type.
 
 **Appearance** is the figure's `style`: font size, line width, site size
 (probe maps), group colors, heat colors (heat map, probe map and unit
-correlation panels), **Sort by** and **Label with** depth and shank (they
+correlation panels, a PSTH drawn as a heat map), **Sort by** and **Label with** depth and shank (they
 order and label the observation picker too), **Show** error, stop marks,
 legend and grid, the legend's place, orientation and box, **Error** (its type
 and the bootstrap's resamples), **Band fill** and **Band edge** ([Error bands](EphysAnalysisConfig.md#error-bands)). It has no tiles per page, grid spacing
@@ -699,6 +713,8 @@ only that unit's spikes or that channel's column are read) and
 | **Open in window** | at the right of the status line under the preview: draws the figure as previewed into a new regular MATLAB figure window (`figure`), named *figure id: observation (dataset)* and the size of the preview, with the right-click aesthetics editor and its Design submenu (what it remembers for the figure reaches the config while the app is open). A drawn preview is used as it is; an *Out of date*, canceled or missing one is previewed first, and the status bar says why when that draws nothing. The window is independent of the app: later edits do not follow into it, and closing the app leaves it. Off with no figure selected |
 | **Generate** | draws the selected figure for every observation it selects, on every ticked dataset, into the Export tab's folder (see **Generate** below). It sits right of **Preview**, in the same colors, and is off with no figure selected |
 | **<**, **>** | the previous and next observation (**Page Up**, **Page Down**: a figure has no pages); off at either end of the list |
+| **☆** / **★** | right of **Dataset**: stars the active dataset. Right of **Observation**: stars what the preview shows -- the sorted unit (with its sort), the channel (a detection channel's star is its channel's) or, for a figure of the dataset, the dataset; off for a figure across sessions. A starred dataset, unit or channel starts with **★** in its drop-down; the pick is still remembered by its label without the mark ([Favorites](#favorites)) |
+| **Favorites** | under **Observation**: a filter field and a drop-down of every starred dataset, channel and unit of the scanned datasets. Picking one makes its dataset active and, when the selected figure observes units (for a unit) or channels or detection channels (for a channel), picks and draws it ([Favorites](#favorites)) |
 | **Export code** | at the right end of the row of **Preview**: opens the code that draws the preview in the MATLAB editor, as a new unsaved script (`EphysAnalysisScript.preview`, [Generated scripts](EphysAnalysis.md#generated-scripts)). It names the active dataset (a figure across sessions: the ticked or listed datasets), writes the figure's settings out as `spec` (`figureFor`'s, every *default* resolved), finds the observation picked again in `figureObservations` (by its unit id or the extract's column; with **Per trial group**, its group too; across sessions, by its label), then calls `figureCompute` (`figureSessionCompute` across sessions, keeping the **Figure:** pick) and `renderFigure` into a figure window the size of the preview, in the design chosen. Run it to draw the figure without the app; change `spec` or pick another row of `obsT` to make it your own. Nothing is computed when you press it, so the preview need not be drawn; the code holds the figure as the editor shows it then, and later edits do not follow into it. Without the desktop's editor (`matlab -batch`) it writes the script to `tempdir` and the status bar names the file. Off with no figure selected |
 | **Preview** | computes now, also for a signal extract above `PreviewMaxMB`, which otherwise waits for it. It is the button at the top left, and turns orange while the figure is *Out of date* |
 | **Auto** | redraw after every edit while a preview takes under 2 s; a slower one says so (*"slow, so edits wait for Preview"*). On by default, because one observation is quick; remembered. It does not apply to a figure across sessions, which computes every session: an edit leaves its preview *Out of date* until **Preview** (or a pick in the observation list) draws it. The first figure drawn after the app starts is not timed, since it also loads the graphics, so that warm-up does not make the edits after it wait. The 2 s is the app's `FigureAutoPreviewSeconds` property (a public property, not a preference; set it on the app object before editing, for example to `Inf` to redraw however long a preview takes, which the app's tests do so a loaded machine cannot leave a preview out of date) |
@@ -782,7 +798,7 @@ ticked (or listed) datasets rather than on each, into `Export.SessionsFolder`
 **Go to setting.** Right-click a part of the preview and pick **Go to setting** to
 find what controls it: the error band goes to **Show > Error**, the stop dots to
 **Stop marks**, a tile's title to the panel's **Title**, the legend to **Legend**,
-the colorbar to **Heat colors**. The part's panel is selected, its supersection and
+the colorbar to **Heat colors** (on a PSTH drawn as a heat map, to its **Colormap**). The part's panel is selected, its supersection and
 section open, the editor scrolls to the row, the control takes the keyboard focus
 and its label is highlighted for a moment. A part with no setting of its own goes
 to the Appearance section; a setting the panel does not show (an option of another
@@ -913,8 +929,10 @@ datasets.
   right-click to change colors, lines and fonts"*. The right-click editor
   works as for any figure.
 - A panel type that cannot be merged (probe map, unit correlation map, power
-  spectrum, spectrogram, coherence, event traces) is noted in the preview and the rest of the
+  spectrum, spectrogram, coherence) is noted in the preview and the rest of the
   figure is drawn; Validate refuses such a figure and Plan and Run skip it as a whole.
+  An event-trace panel is merged: it draws every session's epochs (overlaid, or
+  a sub-row each), the sessions (or subjects) as its groups.
 
 **Generate and Run.** **Generate** draws the selected session figure as
 `run(SessionFigures=<id>)`, with no per-dataset figures or report: a
@@ -1039,6 +1057,48 @@ What the scans, previews and runs reported, one time-stamped line each
 (the last 2000 lines are kept): the datasets found, each figure done with its
 file count and time, the figures skipped with the reason, a version 1 config's migration notes, failures with the
 error, and the report files written.
+
+### Favorites
+
+A plain star (on or off) marks a dataset, a channel or a sorted unit you want
+to find again. Stars are kept **beside the data**, one small file per dataset,
+`<Name>_favorites.json` in its output folder (where its `<Name>_*.mat` outputs
+are; [the file](file-formats.md#favorites-name_favoritesjson)), so they travel
+with the data to the lab's share, another PC or another user, and the config
+holds none. **Scan** reads them; each toggle writes its file at once.
+
+| Where | What it stars |
+| --- | --- |
+| Data tab, **★** column | the dataset of that row |
+| **☆** right of **Dataset** (Alignment and Figures tabs) | the active dataset |
+| **☆** right of **Observation** (Figures tab) | what the preview shows: a sorted unit, a channel (a detection channel is starred as its recording channel, so the star shows on its LFP, MUA and SPIKE channels and on its detections alike), or the dataset for a figure of the dataset |
+
+A unit's star belongs to the **sort** it was set on: the file records the
+sorting folder (relative to the output folder) and the size of its
+`spike_times.npy` with the cluster ids. When the dataset is sorted again --
+into another folder, or over the same one with other spike times -- the old
+stars stay in the file but mark none of the new sort's units, so a star never
+jumps to another unit; curating in phy keeps `spike_times.npy`, so units it
+leaves alone keep their stars (merged or split units get new ids and none).
+
+Starred items start with **★** in the Dataset and Observation drop-downs and
+are ticked in the Data tab's **★** column. **Favorites** (Alignment and Figures
+tabs) lists every star of the scanned datasets, in dataset order: *subj1_day1*,
+*subj1_day1 · channel 5*, *subj1_day1 · unit 12*. Type in the filter field
+left of it to narrow the list as you type (every word must appear, in any
+case: *day2 unit*). Picking an entry makes its dataset active; a unit or
+channel is then picked in the Figures tab's **Observation** list when the
+selected figure observes that kind -- drawn at once on the Figures tab, waiting
+for it from the Alignment tab -- otherwise the status bar says why it is not
+(the figure observes something else, or its Observations filter leaves it out).
+
+A dataset whose output folder cannot be written (a read-only share, a folder
+that is gone) keeps its stars as they were: the toggle goes back and the status
+bar and the Log say why. A favorites file that cannot be read gives no stars
+and is never written over (the Log names it). Reports and data exports carry
+the stars ([Favorites in exports](EphysAnalysis.md#favorites-stars)). Scripts
+read and set them with `DatasetFavorites`. The pipeline app does not show them
+yet.
 
 ## Panel types
 
@@ -1231,8 +1291,8 @@ is noted in its panel and the rest is drawn):
 | no observation | the figure's unit filter or channel list leaves nothing on this dataset | loosen the Observations section |
 
 A [session figure](#sessions-in-the-figures-tab) is skipped, in Plan and the preview, when
-(`figureSessionSkipReason`): it is *disabled*; *a X panel is not merged across
-sessions* (a probe map, unit correlation, power spectrum, spectrogram or coherence);
+(`figureSessionSkipReason`): it is *disabled*; *X panels are not merged across
+sessions* (probe map, unit correlation, power spectrum, spectrogram or coherence);
 *an auROC baseline is not merged across sessions*; with *Mapping*, there is
 *no mapping file* or the *mapping file is not found*; or *fewer than N
 session(s) can draw it*, followed by each session that cannot and its own
@@ -1252,6 +1312,7 @@ results, on the Log tab and in the report.
 | building | `buildUI`, `buildMenus`, `buildToolbar` (its icons in `analysis/icons/toolbar`), `buildDataTab`, `buildAlignTab`, `buildFiguresTab`, `buildExportTab`, `buildLogTab`, `buildAlignControls`; the editor's collapsible sections in `private/` (`formSection`, `formRow`, `formShow`, `formLayout`) |
 | config model | `gatherConfig` / `applyConfig`, `gather*` / `apply*Section`, `gatherAlignControls` / `applyAlignControls`, `gatherFigureEditor` / `applyFigureEditor`, `onConfigChanged`, `updateTitle`, `confirmDiscard` |
 | data | `openSource`, `onScan`, `refreshDatasetsTable`, `selectDataset`, `refreshDatasetInfo` |
+| favorites | `refreshFavorites`, `onStarToggled`, `onFavoritePicked`, `onFavoritesFilter`, `onDatasetsTableEdited` (the ★ column); `private/loadFavorites` (on Scan), `private/starItem`, `private/starButton`, `private/syncStarButtons`, `private/observedItem`, `private/buildFavorites`, `private/fillFavorites`, `private/favoriteMarks`, `private/markObservations`; the files: `analysis/DatasetFavorites.m` |
 | previews | `refreshAlignPreview` (the Alignment tab); the Figures tab's under its row below; `private/showPreviewState` (the badge and the busy card; its icons in `analysis/icons/status`) |
 | epoch diagram | `onShowEpochs`, `refreshEpochDiagram`; the window itself is `analysis/EpochDiagram.m` |
 | Figures tab | `buildFiguresTab`; the tree `refreshFigureList` (over `private/figureGroups`), `onFigureSelected`, `onFigureTreeSelected`, `onFigureTreeClicked` (the check boxes), `onFigureGroupToggled`, `onFigureCheck` (All / None / Invert), `setFiguresEnabled`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure` (Up / Down within a group); the Id row's automatic id `private/showFigureId`, and the renames followed by `private/trackFigureIds` and `private/followedFigureId`; a panel's text note and overlays `onAddFigureOverlay`, `onDuplicateFigureOverlay`, `onRemoveFigureOverlay`, `onFigureOverlayPicked` (the rows are `applyFigureEditor`'s and `gatherFigureEditor`'s); dragging a panel in the schematic `onSchematicPress` (with the pointer callbacks it installs), `cancelSchematicDrag` (also `onKeyPress`'s Escape) and `schematicPixel` (the tests');  the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `gotoFigureSection`, `onFigureSuperToggled`, `gotoFigureSuper` and `onKeyPress` (Alt+1 ... Alt+3, Ctrl+1 ... Ctrl+0, F6: `focusFigurePane`), the search `onFigureSearch` and `gotoFigureRow` (over `private/figureSearchIndex`, `private/figureSearchPath`, `private/figureRowReason`), the keys window `onFigureKeys`, the panel keys `stepFigurePanel` and the preview's outline `markFigurePanel`, `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`, `onPanelSelectionToggled` (the Trial selection as the figure box; local to `buildFiguresTab`); the arrangement `drawFigureSchematic`, `onPanelSelected`, `onNewPanel` (the New panel window `private/newPanelDialog`, its pictures `analysis/icons/panels`, made by `tools/makePanelThumbnails`), `onRemovePanel`, `onMovePanel`, `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `removePanel` and `movePanel`; a structural edit ends in `private/commitFigureEdit`), the Spacing window `private/figureSpacingDialog`; the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`); the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoPreviewToggled`, `onCancelFigurePreview`, `onOpenFigureWindow`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); the Sessions section `onPickFigureDatasets`, `onBrowseFigureMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`), `private/pickSessionDatasets` and `onFigureSessionPicked` (its preview is `refreshFigurePreview`'s session branch over `EphysAnalysisRunner.computeSessionFigure`, its picker `refreshFigureObservations`'s over `sessionFigureObservations`); the Design row `onDesignChosen` and `onSaveDesign` (below); the epoch diagram's figure mode is `onShowEpochs("figure")` (the default; `"defaults"` is the Alignment tab's); the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
@@ -1291,7 +1352,15 @@ range, trial rows) and the stop's *n*; Save As, New, reopen; a version 1 config
 opened (its plot migrated to a figure, the status bar and the Log saying so);
 and generating scripts. Section 5 is Validate, Plan and a run of one figure
 writing its pages and the report (its lines in the Log tab). Sections 5d to 5h are
-the Figures tab again, below. Section 6 is the preferences remembered (the last
+the Figures tab again, below. Section 5i is the [favorites](#favorites): the
+star toggles beside Dataset (writing `<Name>_favorites.json` in the output
+folder) and the observation (a unit, with its sort in the file; an LFP channel; a
+detection channel, starred as its channel; the dataset), the Data tab's **★**
+column, a new scan reading the stars back, the **★** marks in the drop-downs
+(the pick kept by label, **<** and **>** following), the Favorites lists and
+their filter, picking a unit from the Figures and the Alignment tabs, the last
+star removing the file, and an output folder denied writing (`icacls`): no star,
+the toggle back off, the status bar saying why. Section 6 is the preferences remembered (the last
 config, the collapsed sections and supersections of the figure editor; none of the retired plot
 or session preferences is written) and closing. The test keeps the app's
 preferences in a temporary file (`AppPrefs`), so the user's own are never read

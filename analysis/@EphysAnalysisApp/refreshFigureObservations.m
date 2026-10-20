@@ -5,7 +5,8 @@ function refreshFigureObservations(obj, opts)
 %   order) and the picker (FigureObservationDropDown) lists their labels,
 %   a sorted unit's ending in its number of spikes ("  (5,210 spikes)")
 %   and a detection channel's in its number of detections (from the
-%   unit's selectUnits row: nothing more is read). The figure's pick is
+%   unit's selectUnits row: nothing more is read), a starred unit, channel
+%   or dataset's starting with "★ " (favoriteMarks). The figure's pick is
 %   kept by its label without the count (FigureObservation: figure id ->
 %   label), so it survives a filter change or another dataset while that
 %   label is still there; else the first is picked. The list is made again
@@ -97,7 +98,7 @@ if isKey(obj.FigureObservation, id)
 end
 obj.FigureObservation(id) = labels(i);
 dd.ItemsData = [];
-set(dd, "Items", labels + spikeCounts(T, spec.observe.data), "ItemsData", 1:n, "Value", i);
+set(dd, "Items", favoriteMarks(obj, T, spec.observe.data) + labels + spikeCounts(T, spec.observe.data), "ItemsData", 1:n, "Value", i);
 syncSteps(obj);
 end
 
@@ -204,11 +205,12 @@ end
 
 
 function syncSteps(obj)
-%syncSteps  < and > enabled when there is an observation before / after the one picked.
+%syncSteps  < and > enabled when there is an observation before / after the one picked; the star toggle follows the pick.
 dd = obj.FigureObservationDropDown;
 i = dd.Value;
 n = 0;
 if istable(obj.FigureObservations); n = height(obj.FigureObservations); end
 obj.FigureObsPrevButton.Enable = matlab.lang.OnOffSwitchState(n > 0 && i > 1);
 obj.FigureObsNextButton.Enable = matlab.lang.OnOffSwitchState(n > 0 && i < n);
+syncStarButtons(obj);
 end

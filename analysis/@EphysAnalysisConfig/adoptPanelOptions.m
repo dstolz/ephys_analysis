@@ -47,8 +47,11 @@ for j = [1:k-1, k+1:numel(fig.panels)]
         take = string(fieldnames(P.options)).';   % the same type: every option
     end
     kept = string.empty(1, 0);
+    first = "";
+    on = [Q.layers.enabled];
+    if any(on); first = Q.layers(find(on, 1)).source; end
     if ismember("baseline", take) && ismember("baseline", EphysAnalysisConfig.sharedFieldsOf(Q.type)) ...
-            && ~ismember(P.options.baseline.Mode, baselineModes(Q))   % (a spectrogram's baseline is chronuxNormalize's: copied as is)
+            && ~ismember(P.options.baseline.Mode, EphysAnalysisConfig.baselineModes(Q.type, first))   % (a spectrogram's baseline is chronuxNormalize's: copied as is)
         take = setdiff(take, ["baseline" "auroc"], 'stable');
         kept = "baseline";
     end
@@ -63,23 +66,5 @@ for j = [1:k-1, k+1:numel(fig.panels)]
     if ~isempty(fields) || ~isempty(kept)
         changed(end+1) = struct('id', Q.id, 'fields', fields, 'kept', kept); %#ok<AGROW>
     end
-end
-end
-
-
-function modes = baselineModes(Q)
-%baselineModes  The baseline Modes panel Q's type takes (validate's rules; none for a type without a baseline).
-modes = "none";
-first = "";
-on = [Q.layers.enabled];
-if any(on); first = Q.layers(find(on, 1)).source; end
-switch Q.type
-    case {"psth" "heatmap"}
-        modes = ["none" "subtract" "zscore" "percent" "auroc"];
-        if Q.type == "heatmap" && ismember(first, EphysAnalysisConfig.SignalSources); modes = ["none" "subtract"]; end
-    case {"continuous" "corrmap"}
-        modes = ["none" "subtract"];
-    case {"rate" "tuning"}
-        modes = ["none" "subtract" "ratio" "zscore"];
 end
 end

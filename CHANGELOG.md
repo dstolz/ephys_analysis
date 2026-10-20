@@ -10,6 +10,19 @@ says how to cut a release.
 
 ### Added
 
+- Figures: a PSTH panel drawn as a heat map, `options.display` `"trace"` (bars or a line per trial group, the
+  default) or `"heatmap"`: the unit's PSTH as one image, a row per trial group (the first on top, as a raster
+  and a stacked PSTH list them), x the PSTH's bins, colored by its rate after measure, smoothing, baseline and
+  normalize. The color scale spans that unit's rows only, never other units' (`options.cLim` fixes it; an
+  auROC is on 0 to 1, its modulation window a bar over the image), in `options.colormap` (`""`: **Heat
+  colors**, else the design's heat colormap; a name that is no colormap function is a validation warning).
+  The rows are labeled with the groups' values, the y label names the group-by parameters and a color bar in
+  the measure's unit is the scale (inside the axes when the panel shares its column with other time panels,
+  as a heat map's). The zero line, stop latencies, event marks and the waveform inset are drawn over it;
+  with several units or layers the first is drawn and the others are noted on the panel. Session figures,
+  **Export code** and the exports draw it. In the editor, **Display** (PSTH options, and the New panel
+  window) toggles it; a heat map shows **Colormap** and **Color limits** and hides **PSTH as**, **Fill**,
+  **Stack** and **Y limits**. The heat map panel's `inTimeColumn` is now a shared helper.
 - Figures tab: right-click any part of the preview (or of an **Open in window** figure while the app is
   open) and pick **Go to setting**. It selects the part's panel, opens the supersection and section that
   hold the setting that controls it (the error band: **Show > Error**; a raster's stop dots: **Stop marks**;
@@ -1023,10 +1036,22 @@ says how to cut a release.
   `lineStyle`, `showBaseline` with `baselineColor`, `baselineStyle` and `baselineWidth` (through the bars'
   middle, or at the level's low line) and `rowSpacing`. The parts are the aesthetics roles `eventBar`,
   `eventLevel`, `eventBaseline` and `eventGroupBand`. Its layers are events layers only (Validate refuses
-  others; `categoryOf` gives `""`), a line whose intervals have no offset after their onset is skipped with
-  the reason, and a session figure cannot hold the panel (`FigureSessionUnmerged`). New template
+  others; `categoryOf` gives `""`) and a line whose intervals have no offset after their onset is skipped with
+  the reason. New template
   `"eventTrace"`, Figures tab Options rows for it, the private `computeEventTracePanel`,
   `drawEventTracePanel` and `epochIntervals`. See [Event traces](documentation/EphysAnalysisConfig.md#event-traces).
+- Event traces: `trials "rows"` sorts its sub-rows as a raster (and a heat map of trials) sorts its rows,
+  with the raster's options `rasterSort` (`""`, `"stop"`, `"event"` or a trial parameter), `rasterSortEvent`,
+  `rasterSortOrder` and `rasterByGroup` (the defaults keep the order by group, then time), validated as the
+  raster's and offered by the raster's **Sort rows by** rows in the editor (grayed out while overlaid); the
+  order is the private `figEpochOrder`, now shared with `figTrialMatrix`, and the group bands follow each
+  run of a group's sub-rows. In bars, `minWidth` (points, default 1; **Narrowest bar**) gives a bar drawn
+  narrower than that, a zero-length interval among longer ones too (`epochIntervals` now keeps those), a
+  tick that wide through its middle in its color and opacity (aesthetics role `eventTick`), so it shows at
+  any zoom and in SVG / PDF / PNG exports. A session figure now holds an event-trace panel
+  (`FigureSessionUnmerged` drops `eventTrace`): `combineSessions` concatenates every session's intervals and
+  epochs as it does a raster's, so `"overlay"` overlays them all and `"rows"` gives each its sub-row, the
+  series (sessions, subjects or all) as the panel's groups.
 - Events layers can be drawn as a span (`eventsAs "span"`, Layers **Draw as** *a line from onset to offset*):
   on a raster each row gets a line from each interval's onset to its offset, clipped to the window; on a PSTH,
   continuous signal, heat map or spectrogram panel each trial group gets a line from the median onset to the
@@ -1057,9 +1082,26 @@ says how to cut a release.
   and a detection channel's in its detections; the figure's pick is still remembered by the label
   without the count. New private `refreshDatasetLabels` and app property `DatasetUnitCounts`. See
   [the preview's controls](documentation/EphysAnalysisApp.md#figures-tab).
+- **Favorites**: star (on / off) a dataset, a channel or a sorted unit to find it again. The stars are kept
+  beside the data, in `<Name>_favorites.json` in the dataset's output folder, so they travel with it to the
+  lab's share, another PC or another user; Scan reads them and each toggle writes at once. In the analysis
+  app: a **★** column in the Data tab's datasets table, a **☆** toggle beside the Dataset drop-downs
+  (Alignment and Figures tabs) and one beside the Figures tab's Observation drop-down, which stars the unit,
+  channel (a detection channel is starred as its channel) or dataset previewed; starred items start with
+  **★** in those drop-downs. A **Favorites** drop-down on the Alignment and Figures tabs lists every star of
+  the scanned datasets, with a filter field that narrows it as you type; picking an entry makes its dataset
+  active and previews the unit or channel when the selected figure observes that kind. A unit's star is
+  recorded with its sort (the sorting folder and the size of its `spike_times.npy`), so a new sort shows
+  none of the old stars rather than moving them to other units. A read-only output folder leaves the star
+  off and says why in the status bar. Scripts use the new `DatasetFavorites` class. See
+  [Favorites](documentation/EphysAnalysisApp.md#favorites),
+  [the script API](documentation/EphysAnalysis.md#favorites-stars) and
+  [the file](documentation/file-formats.md#favorites-name_favoritesjson).
 
 ### Changed
 
+- The baseline Modes each panel type takes are one list, `EphysAnalysisConfig.baselineModes(type, source)`,
+  read by `validate`, the figure editor (`figureEditorChoices`) and `adoptPanelOptions` instead of three copies.
 - A stacked PSTH (**Stack**) draws its first trial group's row on top, as a raster lists its groups, so a
   raster panel above it runs through the groups and their colors in the same order (it was the first at
   the bottom). **Order** in Trial selection picks which end is on top for both.
@@ -1334,6 +1376,19 @@ says how to cut a release.
   presets are named gaps: loose 24 px, compact 12, tight 6, none 0. A panel smaller than its cell keeps
   its own time tick labels. `PlotAesthetics.components` lists a figure's title from its `titleHost`, and
   `PlotDesign` paints the target itself as the figure's ground.
+- Messages that named a panel type now use its label and need no article: *probe map panels are not merged
+  across sessions* (`figureSessionCompute`, `figureSessionSkipReason`), *event-trace panels do not draw units*
+  (`figureSkipReason`), Validate's *A session figure cannot hold probe map panels: ...* and the Sessions
+  note's list (they read *a eventTrace panel*, *a probemap panel*). New private `panelTypeWords`.
+- An event-trace panel's logic levels are patch edges (`FaceColor "none"`, the opacity as `EdgeAlpha`), not
+  lines given MATLAB's undocumented four-element RGBA color; an SVG export keeps their opacity
+  (`stroke-opacity`), as `test_EphysAnalysisFigures` checks.
+- Reports and data exports carry the stars: `unitSummary` and `populationAnalysis`' `P.units` have a
+  `starred` column per unit, `P.datasets` and `sessionTable` (and so a session figure's data file's
+  `sessions`) one per dataset, and `populationSummary` groups by `"starred"`. A report's datasets carry
+  `starred`: the HTML report marks a starred dataset with a ★ in the contents and over its section, the PDF
+  names it *(starred)*, and the summary's recording table lists **Starred**, the starred channels and
+  units, with a **Starred** column in *Highest rates*.
 
 ### Removed
 
@@ -1385,6 +1440,11 @@ says how to cut a release.
 
 - `figureTiles` (a figure's grid as equal tiles of a tiled layout), with the quarter-step rule for row
   heights and column widths.
+
+- The script route to a Chronux export file: `loadChronuxExport` and `chronuxSpikeTrains` (the figures'
+  spectral panels read the layers themselves, and the Chronux analyses take their blocks); `chronuxPairs` is a
+  local function of `chronuxCoherence` (its error is `chronuxCoherence:BadPair`). The Chronux export
+  (`exportChronux`) and its file format stay; the worked example in the analysis documentation goes.
 
 ### Fixed
 

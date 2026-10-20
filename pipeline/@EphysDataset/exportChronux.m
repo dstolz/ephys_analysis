@@ -36,7 +36,7 @@ function out = exportChronux(obj, opts)
 %     export      provenance: tool, created, dataset, sources, signals,
 %                 eventFs (the recording rate), timeConventions, and layout:
 %                 per signal fs, nSamples, nChan, labels, units and
-%                 sampleRange -- what loadChronuxExport needs to read
+%                 sampleRange -- what is needed to read
 %                 windows of a -v7.3 file's data (h5read) without loading
 %                 the signal whole
 %

@@ -35,7 +35,12 @@ function T = panelTypes()
 %   auROC against the baseline window, spikePSTH's BaselineMode "auroc")
 %   with its auroc settings (defaults("Auroc")). A PSTH stacks its groups
 %   in rows with stack (stackSpacing: the row step, x the tallest PSTH);
-%   a raster panel above it draws the rasters. A rate panel shows each epoch window's rate per
+%   a raster panel above it draws the rasters. A PSTH's display "heatmap"
+%   draws its first item (unit or mean) as an image instead: a row per
+%   trial group, the first on top, colored on that item's own range
+%   (cLim, else its rows' range; an auROC: 0 to 1) in colormap ("" = the
+%   design's heat colormap); histStyle, fill, fillAlpha, stack,
+%   stackSpacing and yLim are not used then. A rate panel shows each epoch window's rate per
 %   trial group (firingRate), a tuning panel the rate against a trial
 %   parameter (tuningCurve: param, "" = the figure's first groupBy
 %   parameter, else the trials' first numeric one; seriesParam, "" = one
@@ -76,10 +81,15 @@ function T = panelTypes()
 %   a row of its own, its intervals from onset to offset, clipped at the
 %   window's edges, as solid bars or a logic-level trace (display "bars" |
 %   "line"); every epoch overlaid in the row, translucent (trials
-%   "overlay"), or a sub-row per epoch in the raster's group order (trials
-%   "rows"); colored per line (colorBy "layer": the layer's color, else a
-%   palette color) or by trial group; with a baseline per row. It takes
-%   events layers only (categoryOf) and their eventsAs is not used.
+%   "overlay"), or a sub-row per epoch sorted as a raster's rows (trials
+%   "rows": rasterSort, rasterSortOrder, rasterByGroup, as a heat map of
+%   trials sorts them); colored per line (colorBy "layer": the layer's
+%   color, else a palette color) or by trial group; with a baseline per
+%   row. A bar narrower than minWidth points (a zero-length interval too)
+%   also gets a tick minWidth wide through its middle, so it shows at any
+%   size. It takes events layers only (categoryOf) and their eventsAs is
+%   not used. A session figure draws every session's epochs in it, as a
+%   raster does, its series (sessions, subjects or all) as the groups.
 %
 %   See also EphysAnalysisConfig.sourceCategories, EphysAnalysisConfig.categoryOf,
 %   EphysAnalysisConfig.defaultLayer.
@@ -107,6 +117,7 @@ opts.psth = struct( ...
     'measure',       "rate", ...        % "rate" (spikes/s) | "count" | "probability"
     'baseline',      baseline, ...      % Mode "none" | "subtract" | "zscore" | "percent" | "auroc"
     'auroc',         auroc, ...         % baseline Mode "auroc": the auROC's settings
+    'display',       "trace", ...       % "trace" (bars or a line per group) | "heatmap" (an image: a row per group, the first on top)
     'histStyle',     "bar", ...         % "bar" | "line"
     'fill',          true, ...          % filled bars / area under the line
     'fillAlpha',     NaN, ...           % fill opacity 0-1 (NaN: 0.5 where groups overlap, else 1)
@@ -115,6 +126,8 @@ opts.psth = struct( ...
     'stackSpacing',  1.1, ...           % stack: the row step, x the tallest PSTH (< 1 overlaps)
     'maskAfterStop', false, ...
     'yLim',          [], ...            % [] = automatic, else [lo hi]
+    'colormap',      "", ...            % display "heatmap": "" (the design's heat colormap, Style.HeatColormap) | a colormap function
+    'cLim',          [], ...            % display "heatmap": [] = the unit's own range (auROC: [0 1]), else [lo hi]
     'waveform',      waveform);
 opts.continuous = struct( ...
     'baseline',     baseline, ...       % Mode "none" | "subtract"
@@ -222,12 +235,17 @@ opts.coherence = struct( ...
     'group',      1);                   % over time: the trial group drawn
 opts.eventTrace = struct( ...
     'display',       "bars", ...        % "bars" (solid, onset to offset) | "line" (a logic level: low, up at onset, down at offset)
-    'trials',        "overlay", ...     % "overlay" (every epoch in the line's row, translucent) | "rows" (a sub-row per epoch, by group)
+    'trials',        "overlay", ...     % "overlay" (every epoch in the line's row, translucent) | "rows" (a sub-row per epoch, sorted as a raster)
+    'rasterSort',      "", ...          % trials "rows": the epochs' order, as a raster's ("" | "stop" | "event" | a trial parameter)
+    'rasterSortEvent', [], ...          % trials "rows", rasterSort "event": [] or an EventRef
+    'rasterSortOrder', "ascending", ... % trials "rows": "ascending" | "descending"
+    'rasterByGroup',   true, ...        % trials "rows": by group first (on groupBands), else one block
     'colorBy',       "layer", ...       % "layer" (the layer's color, else a palette color per line) | "group" (the trial group's)
     'height',        0.6, ...           % the bar's / level's height, a share of the row (rows: of the epoch's sub-row)
     'alpha',         NaN, ...           % bars' and traces' opacity 0-1 (NaN: 0.3 overlaid, 1 in rows)
     'edgeColor',     "none", ...        % the bars' outline: "none" | "auto" (the bar's color) | a color
     'edgeWidth',     0.5, ...           % the outline's width, points
+    'minWidth',      1, ...             % display "bars": a bar narrower than this (points; zero length too) also gets a tick this wide (0 = none)
     'lineWidth',     1.5, ...           % display "line": the trace's width, points
     'lineStyle',     "-", ...           % display "line": the trace's style (a layer's own lineStyle wins)
     'showBaseline',  true, ...          % a line along each row: through the bars' middle, or at the trace's low level
@@ -240,7 +258,7 @@ opts.eventTrace = struct( ...
 %   Type        Label                Short          Categories               Aligned SharesTime OneGroup MultiLayer DefaultBinding  Description
 rows = {
     "raster",     "Raster",            "Raster",      "point",                 true,   true,      false,   true,      "observation",  "Spike rasters: a row per epoch, by group; events as marks on the rows or as rows of their own"
-    "psth",       "PSTH",              "PSTH",        "point",                 true,   true,      false,   true,      "observation",  "Peri-event firing rate, groups overlaid; events as latency lines or as a PSTH of their own"
+    "psth",       "PSTH",              "PSTH",        "point",                 true,   true,      false,   true,      "observation",  "Peri-event firing rate, groups overlaid (or a heat map, a row per group); events as latency lines or as a PSTH of their own"
     "continuous", "Continuous signal", "Continuous",  "continuous",            true,   true,      false,   true,      "observation",  "The epochs' mean of LFP / MUA / SPIKE / AUX channels, with an error band"
     "heatmap",    "Heat map",          "Heatmap",     ["point" "continuous"],  true,   true,      true,    false,     "fixed",        "Units or channels by time in color, one trial group"
     "waveforms",  "Unit waveforms",    "Waveforms",   "unit",                  false,  false,     false,   false,     "observation",  "A unit's mean waveform and a sample of its spikes"

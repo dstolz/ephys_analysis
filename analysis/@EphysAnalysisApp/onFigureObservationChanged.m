@@ -10,5 +10,6 @@ if ~isnumeric(i) || i < 1 || i > height(T); return; end
 obj.FigureObservation(char(obj.Config.Figures(k).id)) = T.label(i);
 obj.FigureObsPrevButton.Enable = matlab.lang.OnOffSwitchState(i > 1);
 obj.FigureObsNextButton.Enable = matlab.lang.OnOffSwitchState(i < height(T));
+syncStarButtons(obj);   % the star toggle shows this one's star
 obj.refreshFigurePreview();
 end

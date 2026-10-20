@@ -90,7 +90,7 @@ switch key
     case "siteSize"
         tail = "is for a figure with a probe map panel.";
     case "heatColormap"
-        tail = "is for a figure with a heat map, probe map or unit correlation panel.";
+        tail = "is for a figure with a heat map, probe map or unit correlation panel, or a PSTH drawn as a heat map.";
     otherwise
         tail = "is not used by this figure, its selected panel or layer.";
 end
@@ -108,12 +108,15 @@ T.smoothMs = T.binMs;
 T.measure = o(["psth" "heatmap" "rate" "tuning"], spikesHeat);
 T.baselineMode = o(["psth" "continuous" "heatmap" "corrmap" "rate" "tuning" "spectrogram"], "");
 T.baseFrom = T.baselineMode;
-for f = ["stack" "histStyle" "fill" "normalize"]; T.(f) = o("psth", ""); end
+T.psthDisplay = o("psth", "");
+T.normalize = o("psth", "");
+for f = ["stack" "histStyle" "fill"]; T.(f) = o("psth", "with Display: trace"); end
+T.panelColormap = o("psth", "with Display: heat map");
 T.param = o("tuning", "");
 T.rateDisplay = o("rate", "");
 T.waveLayout = o("waveforms", "");
 for f = ["rasterSort" "sortLine" "sortSeqText" "rasterByGroup"]
-    T.(f) = o(["raster" "heatmap"], "on a heat map, with Rows: one unit's epochs (trials)");
+    T.(f) = o(["raster" "heatmap" "eventTrace"], "on a heat map, with Rows: one unit's epochs (trials)");
 end
 T.yTicks = o("raster", "");
 T.tickColor = T.yTicks;
@@ -122,13 +125,15 @@ T.heatRows = o("heatmap", "");
 for f = ["contTrials" "contDisplay" "statistic" "errorType" "stackSpacing"]; T.(f) = o("continuous", ""); end
 T.maskAfterStop = o(["raster" "psth" "heatmap"], spikesHeat);
 T.order = o("heatmap", "with Rows: the layer's units or channels");
-for f = ["etDisplay" "etTrials" "etColorBy" "etHeight" "etEdge" "etLineStyle" "etBaseline" "etBaseStyle" "etRowSpacing"]
+for f = ["etDisplay" "etTrials" "etColorBy" "etHeight" "etEdge" "etMinWidth" "etLineStyle" "etBaseline" "etBaseStyle" "etRowSpacing"]
     T.(f) = o("eventTrace", "");
 end
 T.value = o("probemap", "");
 for f = ["metric" "correlation" "fisherZ"]; T.(f) = o("corrmap", ""); end
-T.yLim = o(["psth" "continuous" "waveforms" "rate" "tuning" "spectrum" "coherence"], "on a coherence panel, unless drawn over time");
-T.cLim = o(["heatmap" "probemap" "corrmap" "spectrogram" "coherence"], "on a coherence panel, drawn over time");
+T.yLim = o(["psth" "continuous" "waveforms" "rate" "tuning" "spectrum" "coherence"], ...
+    "on a PSTH with Display: trace, on a coherence panel unless drawn over time");
+T.cLim = o(["psth" "heatmap" "probemap" "corrmap" "spectrogram" "coherence"], ...
+    "on a PSTH with Display: heat map, on a coherence panel drawn over time");
 T.spTimeBase = o(["spectrum" "coherence"], "");
 T.spRangeFrom = o(["spectrum" "coherence"], "with Time base: segments of the recording");
 T.spSegment = o(["spectrum" "coherence"], "with Time base: segments of the recording (a coherence panel not drawn over time)");

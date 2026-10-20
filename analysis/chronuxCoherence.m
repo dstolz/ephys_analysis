@@ -1,7 +1,7 @@
 function R = chronuxCoherence(D, TB, S, opts)
 %chronuxCoherence  Multitaper coherence between pairs of a signal's channels (Chronux coherencyc, cohgramc).
 %   R = chronuxCoherence(D, TB, S, Name=Value): D a block of a signal
-%   (loadChronuxExport) holding the channels of every pair, TB a
+%   (chronuxBlockOf) holding the channels of every pair, TB a
 %   chronuxTimeBase, S chronuxSettings. The pairs are S.seed against
 %   S.partner (pairMode "pair"), or S.seed against every other channel
 %   of S.channels (all when empty; "seed"), all as columns of the
@@ -173,4 +173,36 @@ if mb > maxMB
     error('chronuxCoherence:TooLarge', ['The coherogram would hold %.0f MB (over %g MB): pick fewer pairs, ' ...
         'a shorter range, a larger step or a narrower fpass.'], mb, maxMB);
 end
+end
+
+
+function P = chronuxPairs(S, channels, labels)
+%chronuxPairs  The channel pairs a coherence takes: S.seed with S.partner (pairMode "pair"), or with every other
+% channel of S.channels (all of CHANNELS when empty; "seed"), as a table (a, b the signal's columns, labelA, labelB, label).
+% Errors chronuxCoherence:BadPair when a channel is not at hand, the pair is a channel with itself, or no pair is left.
+channels = reshape(double(channels), 1, []);
+labels = reshape(string(labels), 1, []);
+seed = S.seed;
+if S.pairMode == "pair"
+    others = S.partner;
+else
+    others = S.channels;
+    if isempty(others); others = channels; end
+    others = others(others ~= seed);
+end
+need = [seed others];
+if any(~ismember(need, channels))
+    error('chronuxCoherence:BadPair', 'Channel(s) %s of the pairs are not among those read.', ...
+        strjoin(string(need(~ismember(need, channels))), ", "));
+end
+if isempty(others) || any(others == seed)
+    error('chronuxCoherence:BadPair', 'The coherence needs two different channels: pick a partner other than the seed.');
+end
+n = numel(others);
+a = repmat(seed, n, 1);
+b = others(:);
+name = @(c) labels(arrayfun(@(x) find(channels == x, 1), c));
+labelA = reshape(name(a), [], 1);
+labelB = reshape(name(b), [], 1);
+P = table(a, b, labelA, labelB, labelA + "-" + labelB, 'VariableNames', {'a', 'b', 'labelA', 'labelB', 'label'});
 end

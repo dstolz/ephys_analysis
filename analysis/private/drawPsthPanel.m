@@ -26,6 +26,22 @@ function hk = drawPsthPanel(ax, P, look)
 %   left axis, their peaks on the right; options.yLim is not used); a
 %   further item is drawn into the same rows as an outline. The groups are
 %   still offered to the figure's legend.
+%   options.display "heatmap" draws the first item as an image instead
+%   (drawHeat): a row per trial group, the first on top (as a stack and a
+%   raster list them), x the PSTH's bins, colored by its rate (after
+%   measure, smoothing, baseline and normalize) on that item's own range
+%   (options.cLim, else its rows' min to max; an auROC 0 to 1), never
+%   across units, in options.colormap ("" = the design's heat colormap,
+%   Style.HeatColormap, as a heat map panel's); role "image", the color bar
+%   "colorbar" (in R.units; inside the axes when the panel shares a column
+%   with other time panels: inTimeColumn), y label the rows' parameters
+%   (rowLabels). The zero line and stop latencies are drawn over it, an
+%   auROC's modulation window as a bar along its top; histStyle, fill,
+%   fillAlpha, stack, stackSpacing and yLim are not used, nor a merged
+%   result's member sessions; the groups are not offered to the legend
+%   (the rows are labeled) and the marks' latency lines take the marks'
+%   colors. The further items are noted at the bottom left
+%   (figLayerNotes).
 %   An auROC result (baseline Mode "auroc") is drawn from 0.5 (a dotted
 %   chance line, role "chanceLine") on a 0-1 axis unless options.yLim says
 %   otherwise, the modulation window shaded (modulationWindow) and the first
@@ -41,7 +57,7 @@ function hk = drawPsthPanel(ax, P, look)
 %   each member session (R.members) a pale line under them (memberLines,
 %   divided as the series are: memberRates), and the trial groups of
 %   trialGroups "combine" by line style (figSeriesStyle). HK: figDrawResult's,
-%   yName = the rates' unit (a stack: its rows' parameters).
+%   yName = the rates' unit (a stack or a heat map: its rows' parameters).
 %
 %   See also renderFigure, histTrace, drawStack, figurePanelRegistry.
 
@@ -76,7 +92,7 @@ if auroc; norm = "none"; end   % an auROC is on its own 0-1 scale
 ref = 0;
 if auroc; ref = 0.5; end       % bars from chance
 yName = "";
-D = struct('R', {}, 'm', {}, 'lo', {}, 'hi', {}, 'peak', {}, 'name', {}, 'colors', {}, 'u', {}, 'members', {});
+D = struct('R', {}, 'm', {}, 'lo', {}, 'hi', {}, 'peak', {}, 'name', {}, 'colors', {}, 'u', {}, 'members', {}, 'units', {});
 normed = struct();
 for i = 1:nI
     j = items(i, 1);
@@ -115,11 +131,12 @@ for i = 1:nI
     end
     nG = size(m, 3);
     D(i) = struct('R', R, 'm', reshape(m, [], nG), 'lo', reshape(mlo, [], nG), 'hi', reshape(mhi, [], nG), ...
-        'peak', peak, 'name', name, 'colors', paletteFor(look, R, style), 'u', u, 'members', mm);
+        'peak', peak, 'name', name, 'colors', paletteFor(look, R, style), 'u', u, 'members', mm, 'units', N.units);
 end
 names = strings(1, nI);
 for i = 1:nI; names(i) = D(i).name; end
-stacked = o.stack && nI > 0 && size(D(1).m, 2) > 1;
+heat = o.display == "heatmap" && nI > 0;   % the first item as an image, a row per trial group
+stacked = ~heat && o.stack && nI > 0 && size(D(1).m, 2) > 1;
 
 hl = struct('hist', o.histStyle, 'fill', o.fill, 'alpha', o.fillAlpha, 'stack', stacked, 'spacing', o.stackSpacing, 'raster', []);
 if ~isfinite(hl.alpha)
@@ -128,7 +145,9 @@ if ~isfinite(hl.alpha)
 end
 hl.alpha = min(1, max(0, hl.alpha));
 lss = strings(1, nI);
-if stacked
+if heat
+    yName = drawHeat(ax, D(1), P.layers(items(1, 1)).name, look, o, style);
+elseif stacked
     [yName, lss] = drawRows(ax, D, Ls, items, hl, style, o);
     for g = 1:size(D(1).m, 2)   % the groups, for the figure's legend (the rows are labeled on the axis)
         gl = string(D(1).R.groups.label(g));
@@ -181,7 +200,7 @@ else
     end
     hold(ax, 'off');
 end
-if nI > 1   % the items, by line style (in the group's color when there is one group)
+if nI > 1 && ~heat   % the items, by line style (in the group's color when there is one group)
     for i = 1:nI
         j = items(i, 1);
         c = [0.25 0.25 0.25];
@@ -194,7 +213,7 @@ if nI > 1   % the items, by line style (in the group's color when there is one g
     end
 end
 if numel(look.W) == 2 && look.W(2) > look.W(1); xlim(ax, look.W); end
-if ~stacked
+if ~stacked && ~heat
     flat = style;
     flat.XLim = [];
     flat.YLim = o.yLim;
@@ -205,7 +224,9 @@ if auroc; callMarks(ax, D(1).R, D(1).u, D(1).colors, style); end
 
 nGroups = size(look.colors, 1);
 if nI > 0; nGroups = height(D(1).R.groups); end
-[hm, lm] = figEventMarks(ax, P, look, 1:max(1, nGroups), "group");
+colorBy = "group";
+if heat; colorBy = "mark"; end   % over an image the latency lines take the marks' colors, as a heat map's do
+[hm, lm] = figEventMarks(ax, P, look, 1:max(1, nGroups), colorBy);
 for m = 1:numel(hm)
     hk.legendHandles(end+1) = hm(m);
     hk.legendLabels(end+1) = lm(m);
@@ -213,11 +234,120 @@ for m = 1:numel(hm)
 end
 wave = EphysAnalysisConfig.normalizeSection("Waveform", o.waveform);
 first = find(items(:, 2) > 0, 1);
+if heat; first = find(items(1, 2) > 0, 1); end   % the unit drawn, if the first item is one
 if wave.mode ~= "off" && ~isempty(first) && isfield(P.layers(items(first, 1)).R, 'waveforms')
     waveformInset(ax, P.layers(items(first, 1)).R.waveforms, items(first, 2), wave, style);
 end
+if heat && nI > 1
+    P = heatNotes(P, items, names, Ls);
+end
 figLayerNotes(ax, P, look, true);
 hk.yName = yName;
+end
+
+
+function yName = drawHeat(ax, d, layerName, look, o, style)
+%drawHeat  One item's PSTH as an image: a row per trial group, the first on top, colored on that item's own range.
+%   D is the item (drawPsthPanel's D(1): its rates after measure, smoothing,
+%   baseline and normalize, d.m [nBins x nGroups]). The color limits are
+%   options.cLim, else the range of this item's rows (an auROC: 0 to 1),
+%   never another unit's; the colormap is heatColormap's. The rows are
+%   labeled with the groups' values on the y axis (rowLabels; YNAME: their
+%   parameters); a color bar in the rows' unit (d.units) is the scale, kept
+%   inside the axes when the panel shares a column with other time panels
+%   (inTimeColumn). Over the image: the zero line, each group's mean stop
+%   latency in its row and, for an auROC with a cutoff and its marks on, a
+%   bar along the top over the modulation window (a line: an xregion is
+%   drawn behind an image).
+R = d.R;
+M = d.m.';   % groups x bins: the first group in row 1, on top (YDir reverse)
+nG = size(M, 1);
+auroc = isAuroc(R);
+tagPart(imagesc(ax, R.t(:).', 1:nG, M, 'AlphaData', double(isfinite(M))), "image", layerName);
+tagPart(ax, "axes", "", look.panelId);   % after imagesc, which resets a replaced axes' properties
+set(ax, 'YDir', 'reverse');
+colormap(ax, heatColormap(o, style, auroc));
+v = M(isfinite(M));
+cl = [0 1];
+if ~isempty(v) && ~auroc; cl = [min(v) max(v)]; end
+if cl(2) <= cl(1); cl = cl + [-0.5 0.5]; end
+if numel(o.cLim) == 2 && o.cLim(2) > o.cLim(1); cl = o.cLim; end
+clim(ax, cl);
+hold(ax, 'on');
+if style.ShowZeroLine; tagPart(xline(ax, 0, '--', 'Color', [1 1 1], 'LineWidth', 1, 'HandleVisibility', 'off'), "zeroLine"); end
+if style.ShowStop && isfield(R, 'stopMean')
+    for g = 1:min(nG, numel(R.stopMean))
+        if isfinite(R.stopMean(g))
+            tagPart(line(ax, R.stopMean([g g]), g + [-0.5 0.5], 'LineStyle', '--', 'Color', [1 1 1], 'HandleVisibility', 'off'), ...
+                "stopLine", string(R.groups.label(g)));
+        end
+    end
+end
+if auroc
+    A = R.auroc;
+    if A.cutoff ~= "none" && ~(isfield(A, 'settings') && ~A.settings.marks)
+        tagPart(line(ax, A.modulationWindow, [0.5 0.5], 'Color', [0 0 0], 'LineWidth', 3, 'Clipping', 'off', ...
+            'HandleVisibility', 'off'), "modWindow");
+    end
+end
+hold(ax, 'off');
+st = style;
+st.XLim = [];
+st.YLim = [];
+styleAxes(ax, st);
+grid(ax, 'off');
+xlim(ax, R.edges([1 end]));
+ylim(ax, [0.5 nG + 0.5]);
+[labels, yName] = rowLabels(R);
+if nG <= 40
+    set(ax, 'YTick', 1:nG, 'YTickLabel', labels(1:nG), 'TickLabelInterpreter', 'none');
+end
+cb = tagPart(colorbar(ax), "colorbar");
+cb.Label.String = d.units;
+if look.panel.sharesTime && inTimeColumn(look)
+    cb.Location = 'east';   % beside the axes it would narrow them, out of line with the time panels above and below
+end
+end
+
+
+function cmap = heatColormap(o, style, auroc)
+%heatColormap  A PSTH heat map's colormap: options.colormap, else Style.HeatColormap, else the design's heat colormap.
+%   As a heat map panel picks it (an auROC: the design's diverging colormap
+%   first); a colormap name that is no colormap function takes the default.
+if o.colormap ~= "" && ismember(exist(char(o.colormap)), [2 5]) %#ok<EXIST>
+    try
+        cmap = feval(char(o.colormap), 256);
+        if ismatrix(cmap) && size(cmap, 2) == 3 && size(cmap, 1) >= 2; return; end
+    catch
+    end
+end
+if style.HeatColormap ~= ""
+    cmap = feval(char(style.HeatColormap), 256);
+    return
+end
+maps = "heat";
+if auroc; maps = ["diverging" "heat"]; end   % centered on chance, 0.5
+cmap = designColormap(style, maps, "parula");
+end
+
+
+function P = heatNotes(P, items, names, Ls)
+%heatNotes  P with a note for every item a heat map leaves out (it draws the first only), for figLayerNotes.
+%   A further layer is noted as its own skip; the first layer's further
+%   units as one more entry, "<layer>: N more ...".
+why = "not in the heat map, which draws one item: " + names(1);
+j1 = items(1, 1);
+for j = reshape(unique(items(2:end, 1)), 1, [])
+    if j ~= j1
+        P.layers(j).skip = why;
+        continue
+    end
+    e = P.layers(j);
+    if e.name == "" && j <= numel(Ls); e.name = Ls(j).name; end
+    if e.name == ""; e.name = e.source; end
+    e.skip = sum(items(2:end, 1) == j) + " more " + why;
+    P.layers(end+1) = e;
+end
 end
 
 

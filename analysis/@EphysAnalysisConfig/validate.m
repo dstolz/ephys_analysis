@@ -61,7 +61,9 @@ function issues = validate(obj, opts)
 %               toolbox); a signal's baseline, in a
 %               continuous panel or a heat map of a signal, overlapping
 %               the panel's window --, histStyle, normalize, fillAlpha,
-%               the PSTH's stackSpacing, the raster sort, continuous
+%               the PSTH's stackSpacing, display (trace / heatmap),
+%               colormap (a warning for no colormap function) and color
+%               limits, the raster sort, continuous
 %               display / statistic / transform / errorType and its
 %               toolbox, stackSpacing, trials (off / faint / only) and
 %               maxTrials (whole, >= 1), heatmap rows (items / trials:
@@ -506,9 +508,11 @@ for k = 1:numel(obj.Figures)
         op = pj.options;
         o0 = p0 + ".options";
         firstSignal = false;
+        firstSrc = "";
         if any(on)
             firstOn = Lp(find(on, 1));
-            firstSignal = ismember(firstOn.source, EphysAnalysisConfig.SignalSources);
+            firstSrc = firstOn.source;
+            firstSignal = ismember(firstSrc, EphysAnalysisConfig.SignalSources);
         end
         switch pj.type
             case "raster"
@@ -522,7 +526,7 @@ for k = 1:numel(obj.Figures)
             case "psth"
                 checkFigBins(op.bins, o0);
                 checkFigMeasure(op.measure, o0);
-                checkFigBaseline(op.baseline, ["none" "subtract" "zscore" "percent" "auroc"], o0, A);
+                checkFigBaseline(op.baseline, EphysAnalysisConfig.baselineModes("psth"), o0, A);
                 checkPanelAuroc(op, o0);
                 if ~ismember(op.histStyle, ["bar" "line"])
                     add("Figures", o0 + ".histStyle", "error", "A PSTH is drawn as bar or line.");
@@ -536,10 +540,17 @@ for k = 1:numel(obj.Figures)
                 if ~(isscalar(op.stackSpacing) && isfinite(op.stackSpacing) && op.stackSpacing > 0)
                     add("Figures", o0 + ".stackSpacing", "error", "stackSpacing must be positive (1 = the tallest PSTH reaches the next row).");
                 end
+                if ~ismember(op.display, ["trace" "heatmap"])
+                    add("Figures", o0 + ".display", "error", "A PSTH's display is trace (bars or a line per group) or heatmap (a row per group).");
+                end
+                if op.colormap ~= "" && ~ismember(exist(char(op.colormap)), [2 5]) %#ok<EXIST>
+                    add("Figures", o0 + ".colormap", "warning", "No colormap function """ + op.colormap + """; the heat map takes the design's.");
+                end
+                checkFigLim(op.cLim, o0 + ".cLim", "color");
                 checkFigLim(op.yLim, o0 + ".yLim", "y");
                 checkFigWaveform(op.waveform, o0 + ".waveform", false);
             case "continuous"
-                checkFigBaseline(op.baseline, ["none" "subtract"], o0, A);
+                checkFigBaseline(op.baseline, EphysAnalysisConfig.baselineModes("continuous"), o0, A);
                 checkSignalBaseline(op.baseline, pw, o0);
                 if ~ismember(op.display, ["lines" "stacked"])
                     add("Figures", o0 + ".display", "error", "A continuous signal panel's display is lines or stacked.");
@@ -579,13 +590,13 @@ for k = 1:numel(obj.Figures)
                 if ~firstSignal
                     checkFigBins(op.bins, o0);
                     checkFigMeasure(op.measure, o0);
-                    checkFigBaseline(op.baseline, ["none" "subtract" "zscore" "percent" "auroc"], o0, A);
+                    checkFigBaseline(op.baseline, EphysAnalysisConfig.baselineModes("heatmap", firstSrc), o0, A);
                     checkPanelAuroc(op, o0);
                 else
                     if op.baseline.Mode == "auroc"
                         add("Figures", o0 + ".baseline.Mode", "error", "The auROC baseline is for spikes: a heat map of a signal takes baseline Mode none or subtract.");
                     else
-                        checkFigBaseline(op.baseline, ["none" "subtract"], o0, A);
+                        checkFigBaseline(op.baseline, EphysAnalysisConfig.baselineModes("heatmap", firstSrc), o0, A);
                     end
                     checkSignalBaseline(op.baseline, pw, o0);
                 end
@@ -607,14 +618,14 @@ for k = 1:numel(obj.Figures)
                 checkFigLim(op.yLim, o0 + ".yLim", "y");
             case "rate"
                 checkFigMeasure(op.measure, o0);
-                checkFigBaseline(op.baseline, ["none" "subtract" "ratio" "zscore"], o0, A);
+                checkFigBaseline(op.baseline, EphysAnalysisConfig.baselineModes("rate"), o0, A);
                 if ~ismember(op.display, ["bar" "box" "points"])
                     add("Figures", o0 + ".display", "error", "A firing rate panel's display is bar, box or points.");
                 end
                 checkFigLim(op.yLim, o0 + ".yLim", "y");
             case "tuning"
                 checkFigMeasure(op.measure, o0);
-                checkFigBaseline(op.baseline, ["none" "subtract" "ratio" "zscore"], o0, A);
+                checkFigBaseline(op.baseline, EphysAnalysisConfig.baselineModes("tuning"), o0, A);
                 if ~isvarname(op.param) && op.param ~= ""
                     add("Figures", o0 + ".param", "error", "The tuning parameter """ + op.param + """ is not a trial parameter's name " + ...
                         "(empty: the figure's first groupBy parameter, else the first numeric one).");
@@ -640,7 +651,7 @@ for k = 1:numel(obj.Figures)
                 if ~ismember(op.correlation, ["pearson" "spearman"])
                     add("Figures", o0 + ".correlation", "error", "A unit correlation map's correlation is pearson or spearman.");
                 end
-                checkFigBaseline(op.baseline, ["none" "subtract"], o0, A);
+                checkFigBaseline(op.baseline, EphysAnalysisConfig.baselineModes("corrmap"), o0, A);
                 checkFigGroup(op.group, o0);
                 checkFigLim(op.cLim, o0 + ".cLim", "color");
             case {"spectrum" "spectrogram" "coherence"}
@@ -808,6 +819,12 @@ issues = table(Section, Field, Severity, Message);
             if ~hPos(hOp.(hF))
                 add("Figures", hO0 + "." + hF, "error", hF + " must be positive.");
             end
+        end
+        if ~(isscalar(hOp.minWidth) && isfinite(hOp.minWidth) && hOp.minWidth >= 0)
+            add("Figures", hO0 + ".minWidth", "error", "minWidth is the narrowest a bar is drawn, points: 0 or more (0 = no minimum).");
+        end
+        if hOp.trials == "rows"   % the sub-rows sorted as a raster's rows
+            checkRasterSort(hOp, hO0);
         end
     end
 
@@ -1239,8 +1256,10 @@ issues = table(Section, Field, Severity, Message);
             sxP = sxSpec.panels(sxK);
             sxP0 = f0 + "." + sxP.id;
             if ismember(sxP.type, EphysAnalysisConfig.FigureSessionUnmerged)
-                add("Figures", sxP0 + ".type", "error", "A session figure cannot hold a " + sxP.type + " panel: combineSessions does not " + ...
-                    "merge it across sessions.");
+                sxL = FT.Label(FT.Type == sxP.type);
+                if sxL ~= upper(sxL); sxL = lower(sxL); end
+                add("Figures", sxP0 + ".type", "error", "A session figure cannot hold " + sxL + " panels: combineSessions does not " + ...
+                    "merge them across sessions.");
                 continue
             end
             sxO = sxP.options;

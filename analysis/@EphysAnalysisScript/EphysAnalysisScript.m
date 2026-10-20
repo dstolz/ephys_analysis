@@ -30,7 +30,14 @@ classdef EphysAnalysisScript
     %                                 (writeAnalysisData). It never uses
     %                                 EphysAnalysisRunner, so it documents
     %                                 exactly what a run does.
-    %   Both return the script text; pass File= to write it.
+    %     preview(cfg, id, Datasets=)  one figure for one observation, as the
+    %                                 analysis app's Figures-tab preview draws
+    %                                 it (its Export code button): the
+    %                                 dataset, the figure's spec written out,
+    %                                 the observation, figureCompute (or
+    %                                 figureSessionCompute) and renderFigure
+    %                                 into a figure window.
+    %   Each returns the script text; pass File= to write it.
     %
     %   See also EphysAnalysisConfig, EphysAnalysisRunner, EphysPipelineScript.
 
@@ -223,6 +230,175 @@ classdef EphysAnalysisScript
             end
         end
 
+        function txt = preview(cfg, id, opts)
+            %preview  Script that draws one figure for one observation, as the analysis app's preview does.
+            %   TXT = EphysAnalysisScript.preview(CFG, ID, Datasets=KEY,
+            %   Observation=OBS) for the figure ID of CFG makes the preview's
+            %   calls (refreshFigurePreview) without the runner or the app:
+            %   the dataset KEY (as the runner keys it: the root-relative key
+            %   in project mode, the output folder in folders mode),
+            %   loadAnalysisSource, the figure's spec (figureFor, enabled set,
+            %   written out), figureSkipReason, figureObservations and the row
+            %   OBS is (found again by its unit id, column or kind, and its
+            %   trial group; [] = the first row), figureCompute, then
+            %   renderFigure into a figure() window of Size= px in the design
+            %   Design= ("" = the user's design when the script runs).
+            %   A figure across sessions (sessions.enabled) is drawn over the
+            %   datasets KEY (several): their sessionTable, a source each,
+            %   figureSessionObservations and the row labeled as OBS,
+            %   figureSessionCompute, and the figure of its result labeled
+            %   Entry= ("" = the first: one per subject or trial group).
+            %   Errors: EphysAnalysisScript:NoFigure, EphysAnalysisScript:NoDataset.
+            arguments
+                cfg (1,1) EphysAnalysisConfig
+                id (1,1) string
+                opts.Datasets (1,:) string = string.empty(1, 0)
+                opts.Observation = []
+                opts.Entry (1,1) string = ""
+                opts.Design (1,1) string = ""
+                opts.Size (1,2) double {mustBePositive} = [900 600]
+                opts.File (1,1) string = ""
+            end
+            if cfg.figureIndex(id) == 0
+                error('EphysAnalysisScript:NoFigure', 'The config has no figure "%s".', id);
+            end
+            keys = opts.Datasets;
+            if isempty(keys)
+                error('EphysAnalysisScript:NoDataset', 'The preview script needs the dataset: pass Datasets=.');
+            end
+            lit = @EphysPipelineScript.literal;
+            S = cfg.Source;
+            spec = cfg.figureFor(id);
+            spec.enabled = true;   % a figure that is off is still previewed
+            across = spec.sessions.enabled;
+            if ~across; keys = keys(1); end
+            obs = opts.Observation;
+            what = id;
+            if istable(obs) && height(obs) > 0
+                obs = obs(1, :);
+                what = what + ": " + string(obs.label);
+            end
+            L = strings(0, 1);
+            L(end+1, 1) = "%% Figure " + what;
+            L(end+1, 1) = "% Generated " + string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm')) + " by EphysAnalysisScript.preview.";
+            L(end+1, 1) = "% Draws the figure as the analysis app's preview does, with the analysis";
+            L(end+1, 1) = "% functions themselves: the " + ternary(across, "datasets", "dataset") + ", the figure's settings written out, the";
+            L(end+1, 1) = "% observation, " + ternary(across, "figureSessionCompute", "figureCompute") + " and renderFigure. Change spec (or pick another";
+            L(end+1, 1) = "% row of obsT) and run it again.";
+            L(end+1, 1) = "";
+
+            % --- the dataset(s) --------------------------------------------------------
+            if across
+                L(end+1, 1) = "%% The datasets: the sessions it is drawn across";
+            else
+                L(end+1, 1) = "%% The dataset";
+            end
+            if S.Mode == "project"
+                L(end+1, 1) = "root = " + lit(S.Root) + ";";
+                L(end+1, 1) = "P = EphysProject(root, OutputRoot=" + lit(S.OutputRoot) + ", NamePattern=" + lit(S.NamePattern) + ...
+                    ", ReaderOptions=struct('OpenEphys', struct('Recordings', " + lit(S.Recordings) + ")));";
+            end
+            if ~across
+                if S.Mode == "project"
+                    L(end+1, 1) = "key = " + lit(keys) + ";   % its root-relative key";
+                    L(end+1, 1) = "k = P.findByKey(key);";
+                    L(end+1, 1) = "if k == 0; error('No dataset %s under %s.', key, root); end";
+                    L(end+1, 1) = "outs = P.Datasets(k).outputs('CacheData', true);   % its processed files, loaded on demand";
+                else
+                    L(end+1, 1) = "key = " + lit(keys) + ";   % its output folder";
+                    L(end+1, 1) = "outs = DatasetOutputs(key, CacheData=true);   % its processed files, loaded on demand";
+                end
+                L(end+1, 1) = "src = loadAnalysisSource(outs, Key=key);   % events, trials, what exists; no bulk data";
+            else
+                L(end+1, 1) = "keys = " + lit(keys) + ";   % " + ternary(S.Mode == "project", "root-relative keys", "output folders");
+                L(end+1, 1) = "n = numel(keys);";
+                L(end+1, 1) = "outs = DatasetOutputs.empty(1, 0); names = strings(1, n); folders = strings(1, n); acq = NaT(1, n);";
+                L(end+1, 1) = "for j = 1:n";
+                if S.Mode == "project"
+                    L(end+1, 1) = "    k = P.findByKey(keys(j));";
+                    L(end+1, 1) = "    if k == 0; error('No dataset %s under %s.', keys(j), root); end";
+                    L(end+1, 1) = "    d = P.Datasets(k);";
+                    L(end+1, 1) = "    outs(j) = d.outputs('CacheData', true);";
+                    L(end+1, 1) = "    names(j) = d.Name;";
+                    L(end+1, 1) = "    folders(j) = string(d.outputFolder());";
+                    L(end+1, 1) = "    a = d.AcqDate;   % the recording's own start: the sessions' dates";
+                    L(end+1, 1) = "    if isdatetime(a) && ~isempty(a); acq(j) = a(1); end";
+                else
+                    L(end+1, 1) = "    outs(j) = DatasetOutputs(keys(j), CacheData=true);";
+                    L(end+1, 1) = "    names(j) = outs(j).Name;";
+                    L(end+1, 1) = "    folders(j) = keys(j);   % folders carry no recording date";
+                end
+                L(end+1, 1) = "end";
+                L(end+1, 1) = "sessions = sessionTable(names(:), keys(:), NamePattern=" + lit(S.NamePattern) + ...
+                    ", AcqDates=acq(:), Folders=folders(:), Index=(1:n).', Sort=true);   % by date, then name";
+                L(end+1, 1) = "sessions.status = repmat(""done"", n, 1);";
+                L(end+1, 1) = "sessions.message = strings(n, 1);";
+                L(end+1, 1) = "sources = cell(1, n);   % each session's analysis source, in session order";
+                L(end+1, 1) = "for j = 1:n";
+                L(end+1, 1) = "    q = sessions.index(j);";
+                L(end+1, 1) = "    try";
+                L(end+1, 1) = "        sources{j} = loadAnalysisSource(outs(q), Key=keys(q));";
+                L(end+1, 1) = "    catch ME";
+                L(end+1, 1) = "        sessions.status(j) = ""error""; sessions.message(j) = ""cannot read the dataset: "" + string(ME.message);";
+                L(end+1, 1) = "    end";
+                L(end+1, 1) = "end";
+            end
+            L(end+1, 1) = "";
+
+            % --- the figure's spec -------------------------------------------------------
+            L(end+1, 1) = "%% The figure (every ""default"" resolved, as figureFor gives it)";
+            L = [L; EphysPipelineScript.structLiteral("spec", spec)];
+            L(end+1, 1) = "";
+
+            % --- the observation -----------------------------------------------------------
+            if across
+                L(end+1, 1) = "%% The observation, matched across the sessions";
+                L(end+1, 1) = "obsT = figureSessionObservations(sources, spec);   % the sites, cells or channels enough sessions hold";
+            else
+                L(end+1, 1) = "%% The observation";
+                L(end+1, 1) = "reason = figureSkipReason(src, spec);   % what the dataset lacks for this figure";
+                L(end+1, 1) = "if reason ~= """"; error('%s cannot be drawn for %s: %s.', spec.id, src.name, reason); end";
+                L(end+1, 1) = "obsT = figureObservations(src, spec);   % its units, channels, or the dataset, in probe order";
+            end
+            if istable(obs) && height(obs) > 0
+                L(end+1, 1) = "i = find(" + EphysAnalysisScript.observationTest(obs, across) + ", 1);   % " + string(obs.label);
+                L(end+1, 1) = "if isempty(i); error('The observation previewed is not in obsT: pick one of its rows.'); end";
+            else
+                L(end+1, 1) = "if height(obsT) == 0; error('%s has no observation to draw.', spec.id); end";
+                L(end+1, 1) = "i = 1;   % the first";
+            end
+            L(end+1, 1) = "obs = obsT(i, :);";
+            L(end+1, 1) = "";
+
+            % --- compute and draw --------------------------------------------------------
+            L(end+1, 1) = "%% Compute and draw";
+            if across
+                L(end+1, 1) = "res = figureSessionCompute(sources, sessions, spec, Observation=obs);   % a figure per subject or trial group when spec asks";
+                if opts.Entry ~= ""
+                    L(end+1, 1) = "q = find(string({res.label}) == " + lit(opts.Entry) + ", 1);   % the figure picked under the preview";
+                    L(end+1, 1) = "if isempty(q); q = 1; end";
+                    L(end+1, 1) = "e = res(q);";
+                else
+                    L(end+1, 1) = "e = res(1);";
+                end
+                L(end+1, 1) = "if e.status ~= ""done""; error('%s (%s) is not drawn across the sessions: %s', spec.id, e.label, e.message); end";
+                L(end+1, 1) = "F = e.F;";
+            else
+                L(end+1, 1) = "F = figureCompute(src, spec, Observation=obs);   % that observation's data only";
+            end
+            L(end+1, 1) = "fig = figure(""Name"", spec.id + "": "" + string(F.observation.label) + "" ("" + string(F.dataset) + "")"", ...";
+            L(end+1, 1) = "    ""NumberTitle"", ""off"", ""Position"", [60 60 " + strjoin(string(round(opts.Size)), " ") + "]);";
+            if opts.Design == ""
+                L(end+1, 1) = "h = renderFigure(F, spec, fig);   % in your design (PlotDesign.current); right-click to change the looks";
+            else
+                L(end+1, 1) = "h = renderFigure(F, spec, fig, Design=" + lit(opts.Design) + ");   % the preview's design; right-click to change the looks";
+            end
+            txt = strjoin(L, newline) + newline;
+            if opts.File ~= ""
+                EphysAnalysisScript.write(opts.File, txt);
+            end
+        end
+
         function write(file, txt)
             %write  Write script text to FILE (creating the folder).
             EphysPipelineScript.write(file, txt);
@@ -230,6 +406,24 @@ classdef EphysAnalysisScript
     end
 
     methods (Static, Access = private)
+        function test = observationTest(obs, across)
+            %observationTest  The condition on obsT that finds the observation OBS again: its unit id, column or kind, and trial group.
+            %   Across sessions (and wherever the number is missing) by its label.
+            lit = @EphysPipelineScript.literal;
+            if ~across && obs.kind == "unit" && isfinite(obs.unitId)
+                test = "obsT.unitId == " + lit(obs.unitId);
+            elseif ~across && obs.kind == "channel" && isfinite(obs.column)
+                test = "obsT.column == " + lit(obs.column);
+            elseif ~across && obs.kind == "dataset"
+                test = "obsT.kind == ""dataset""";
+            else
+                test = "obsT.label == " + lit(string(obs.label));
+            end
+            if ~across && isfinite(obs.group)
+                test = test + " & obsT.group == " + lit(obs.group);
+            end
+        end
+
         function L = chunkedLiteral(name, txt)
             %chunkedLiteral  NAME = one long string, written as short pieces joined.
             n = 96;

@@ -40,7 +40,7 @@ usable without the next:
 | Level | What you write | Use it to |
 | --- | --- | --- |
 | [Config + runner](#runner) | load or build an [`EphysAnalysisConfig`](EphysAnalysisConfig.md), run it with `EphysAnalysisRunner` | draw a saved set of figures over many datasets, e.g. after every pipeline run |
-| [Generated scripts](#generated-scripts) | `EphysAnalysisScript.compact` / `.standalone` | reproduce an app session exactly, or see every call a run makes |
+| [Generated scripts](#generated-scripts) | `EphysAnalysisScript.compact` / `.standalone` / `.preview` | reproduce an app session exactly, see every call a run makes, or take one previewed figure into a script of your own |
 | [The functions](#a-worked-script) | `loadAnalysisSource`, `epochTable`, `spikePSTH`, `figureCompute`, `renderFigure`, ... | your own alignment, your own figure layout, or numbers instead of figures |
 
 The app, [`EphysAnalysisApp`](EphysAnalysisApp.md), is a GUI over the runner.
@@ -1488,8 +1488,9 @@ renderFigure(F, spec, figure);              % a run draws each observation into 
 
 <a name="scripts"></a>
 
-Two forms, as [`EphysPipelineScript`](EphysPipeline.md#ephyspipelinescript)
-writes for pipeline configs.
+Two forms of a whole run, as [`EphysPipelineScript`](EphysPipeline.md#ephyspipelinescript)
+writes for pipeline configs, and a third for one previewed figure
+([below](#a-previewed-figure-as-a-script)).
 
 <!-- wiki: The pipeline's own are on [Running pipelines from scripts](Running-Pipelines-from-Scripts). -->
 
@@ -1513,6 +1514,32 @@ The test suite runs a compact and a standalone script of the same config
 into separate roots and requires pixel-identical figures, equal HTML
 reports and the same PDF pages. Run a generated script in a fresh MATLAB
 session with the repository on the path.
+
+### A previewed figure as a script
+
+A third form draws one figure for one observation, as the app's figure
+preview does. The Figures tab's **Export code** button opens it in the editor
+([The preview](EphysAnalysisApp.md)); in code:
+
+```matlab
+txt = EphysAnalysisScript.preview(cfg, "PSTH units", Datasets="subj1/day1", Observation=T(3, :), ...
+    Design="Tufte", Size=[900 600]);                 % File= also writes it
+```
+
+`Datasets=` is the dataset's key as the runner has it (`r.Keys`: the
+root-relative key in project mode, the output folder in folders mode);
+`Observation=` a row of `figureObservations` (`[]`: the script draws the first);
+`Design=` the design it draws in (`""`: yours when it runs). The script loads
+the dataset (`EphysProject` and `findByKey`, or `DatasetOutputs`) and its
+source, writes the figure out as `spec` (`figureFor`, `enabled` set), checks
+`figureSkipReason`, finds the observation again in `figureObservations` (by
+unit id, column or kind, and trial group), then calls `figureCompute` and
+`renderFigure` into a `figure` window of `Size=` px. For a figure across
+sessions, `Datasets=` lists the sessions' keys: the script builds their
+`sessionTable` and sources, finds the observation in
+`figureSessionObservations` by its label, calls `figureSessionCompute` and draws
+the result labeled `Entry=` (one per subject or trial group; `""`: the first).
+It exports nothing and writes no report: it is the preview, not a run.
 
 ### Figures in a standalone script
 

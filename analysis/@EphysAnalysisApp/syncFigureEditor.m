@@ -95,6 +95,7 @@ obj.CopyFigureButton.Enable = onoff(has && nf > 1);
 if ~isempty(obj.FigureGenerateButton)
     obj.FigureGenerateButton.Enable = onoff(has && ~obj.Running);   % off while a run (or a generate) goes
     obj.FigureOpenButton.Enable = onoff(has);
+    obj.FigureCodeButton.Enable = onoff(has);
 end
 [up, down] = groupNeighbors(obj, k);   % Up / Down move a figure within its group of the tree
 obj.UpFigureButton.Enable = onoff(has && up);

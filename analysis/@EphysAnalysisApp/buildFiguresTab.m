@@ -74,7 +74,9 @@ function buildFiguresTab(obj)
 %   Right   the dataset, the observation picked (figureObservations' labels)
 %           with < and > (Page Up / Page Down), Preview, Generate (the
 %           figure for every observation on every ticked dataset, into the
-%           Export folder: onGenerateFigure), Auto, the Design drop-down
+%           Export folder: onGenerateFigure), Auto, Export code at the
+%           row's right (the code that draws the preview, in the editor:
+%           onFigureCode), the Design drop-down
 %           right of them (the design every figure is drawn in, also in
 %           the Design menu: onDesignChosen; Save look as design... under
 %           it: the preview's look as a design of yours, onSaveDesign),
@@ -1264,7 +1266,7 @@ pg.RowHeight = {30, 30, 30, '1x', 30};
 pg.ColumnWidth = {'fit', '1x', 'fit', 125};
 pg.ColumnSpacing = 6;
 pg.Padding = [0 0 0 0];
-bg = uigridlayout(pg, [1 5], "ColumnWidth", {84, 84, 'fit', 72, '1x'}, "ColumnSpacing", 6, "Padding", [0 0 0 0]);
+bg = uigridlayout(pg, [1 6], "ColumnWidth", {84, 84, 'fit', 72, '1x', 'fit'}, "ColumnSpacing", 6, "Padding", [0 0 0 0]);
 bg.Layout.Row = 1; bg.Layout.Column = [1 4];
 obj.FigurePreviewButton = uibutton(bg, "Text", "Preview", ...
     "Tooltip", "Compute and draw the selected figure for the observation picked, on the active dataset. " + ...
@@ -1285,6 +1287,11 @@ obj.FigureObsPrevButton = uibutton(kg, "Text", "<", "Enable", "off", "ButtonPush
     "Tooltip", "The previous observation (Page Up).");
 obj.FigureObsNextButton = uibutton(kg, "Text", ">", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onFigureObservationStep(1), ...
     "Tooltip", "The next observation (Page Down).");
+obj.FigureCodeButton = uibutton(bg, "Text", "Export code", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onFigureCode(), ...
+    "Tooltip", "Open the code that draws this preview in the MATLAB editor, as a new unsaved script: the dataset, " + ...
+    "the figure's settings written out, the observation picked, figureCompute and renderFigure in the design chosen. " + ...
+    "Run it to draw the figure in a window of its own; it does not need the app.");
+obj.FigureCodeButton.Layout.Row = 1; obj.FigureCodeButton.Layout.Column = 6;
 l = uilabel(pg, "Text", "Dataset:");
 l.Layout.Row = 2; l.Layout.Column = 1;
 obj.FiguresDatasetDropDown = uidropdown(pg, "Items", "(scan first)", "ItemsData", 0, ...

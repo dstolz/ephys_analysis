@@ -200,6 +200,7 @@ classdef EphysAnalysisApp < handle
         FigurePreviewButton    matlab.ui.control.Button
         FigureGenerateButton   matlab.ui.control.Button         % Generate: the figure for every observation on the ticked datasets (onGenerateFigure)
         FigureOpenButton       matlab.ui.control.Button         % Open in window: the figure as previewed in a figure() of its own (onOpenFigureWindow)
+        FigureCodeButton       matlab.ui.control.Button         % Export code: the code that draws the preview, in the editor (onFigureCode)
         FigureAutoCheckBox     matlab.ui.control.CheckBox       % auto-preview (pref FigureAutoPreview, on by default)
         DesignDropDown         matlab.ui.control.DropDown       % the design every figure is drawn in (PlotDesign; also the Design menu)
         SaveDesignButton       matlab.ui.control.Button         % Save look as design...: the figure preview's look (onSaveDesign)
@@ -428,6 +429,7 @@ classdef EphysAnalysisApp < handle
         onCancelFigurePreview(obj)
         R = onGenerateFigure(obj, opts)
         h = onOpenFigureWindow(obj)
+        txt = onFigureCode(obj, file)
         setFigurePreviewState(obj, state, opts)
         rememberFigureAesthetics(obj, id, rules)
         onPickFigureDatasets(obj, opts)

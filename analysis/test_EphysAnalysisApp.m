@@ -8,7 +8,8 @@ function test_EphysAnalysisApp()
 %   datasets table; the active dataset's lines and parameters; grouping by
 %   Depth from the Alignment controls (the epoch count reports the groups);
 %   the toolbar's Preview drawing the selected figure on the Figures tab;
-%   the Design row on the Figures tab (the list and menu, a design chosen
+%   Export code (its script, run, computing what the preview computed and
+%   drawing it in a window of its own); the Design row on the Figures tab (the list and menu, a design chosen
 %   redrawing the figure preview, Save look as design from the figure
 %   preview, a heat map figure's axes rules kept for heat maps, deleting a
 %   design); the epoch diagram (opened for the figure by default, redrawn
@@ -51,6 +52,7 @@ function test_EphysAnalysisApp()
 %   sessions (the Sessions section's rows wired to the config, the mapping
 %   file's Browse / Edit, Pick, the picker's matched sites, a preview
 %   across both datasets, no recompute on an edit, the "Figure:" drop-down,
+%   Export code across the sessions (run, the figure picked),
 %   Generate into the sessions folder); the figure tree (grouped by what
 %   the figures observe, by status, flat; a leaf and a header picked; the
 %   check boxes of a figure and of a group, All / None / Invert; Up / Down
@@ -270,6 +272,19 @@ check(isgraphics(hw, 'figure') && numel(findall(groot, 'Type', 'figure')) == nFi
     && app.FigurePreviewState == "drawn", ...
     'Open in window opens a regular figure holding the panels'' axes, named for the figure, the preview untouched');
 delete(hw);
+% Export code, at the right end of the Preview row: the preview's code, which run draws the observation picked as the preview did
+check(app.FigureCodeButton.Parent == app.FigurePreviewButton.Parent && app.FigureCodeButton.Enable == "on" ...
+    && app.FigureCodeButton.Layout.Column == numel(app.FigureCodeButton.Parent.ColumnWidth), ...
+    'Export code sits at the right end of the Preview row, on with a figure selected');
+codeFile = fullfile(root, 'preview_code.m');
+code = app.onFigureCode(string(codeFile));
+[Fc, hc] = runPreviewCode(codeFile);
+closeCode = onCleanup(@() delete(hc(isgraphics(hc))));
+check(isfile(codeFile) && contains(app.StatusBar.Text, codeFile) && contains(code, "src = loadAnalysisSource(outs, Key=key);") ...
+    && contains(code, "F = figureCompute(src, spec, Observation=obs);") && contains(code, "Design=""Default""") ...
+    && sameResult(Fc, app.FigurePreviewResult) && numel(findall(hc, 'Type', 'axes')) == numel(findall(app.FigurePreviewPanel, 'Type', 'axes')), ...
+    'Export code writes the preview''s code: run, it computes the observation picked as the preview did and draws it in a window of its own');
+delete(hc);
 cfg0 = app.Config.toStruct();
 dd.Value = "Night";
 dd.ValueChangedFcn(dd, []);
@@ -1584,6 +1599,14 @@ end
 check(app.FigurePreviewState == "drawn" && nRes > 1 && app.FigureSessionDropDown.Visible == "on" ...
     && app.FigureSessionResults.label == app.FigureSessionResults.res(2).label && contains(string(app.FigurePreviewLabel.Text), app.FigureSessionResults.res(2).label), ...
     sprintf('a figure per trial group: the "Figure:" drop-down picks which of the %d is drawn, computing nothing', nRes));
+codeFileS = fullfile(root, 'preview_sessions.m');
+codeS = app.onFigureCode(string(codeFileS));
+[FcS, hcS] = runPreviewCode(codeFileS);
+closeCodeS = onCleanup(@() delete(hcS(isgraphics(hcS))));
+check(contains(codeS, "res = figureSessionCompute(sources, sessions, spec, Observation=obs);") && all(contains(codeS, app.Runner.Keys)) ...
+    && contains(codeS, """" + app.FigureSessionResults.label + """") && sameResult(FcS, app.FigurePreviewResult) && height(FcS.sessions) == 2, ...
+    'Export code of a figure across sessions: run, the script merges the observation over both datasets and draws the figure picked under the preview');
+delete(hcS);
 Tt = app.DatasetsTable.Data;
 Tt.Run(2) = false;
 app.DatasetsTable.Data = Tt;
@@ -2023,6 +2046,32 @@ while ~isempty(h) && ~isa(h, 'matlab.ui.Figure')
         return
     end
     h = h.Parent;
+end
+end
+
+
+function [F, fig] = runPreviewCode(file) %#ok<STOUT> the script sets them
+%runPreviewCode  Run a script of Export code (EphysAnalysisScript.preview) in a workspace of its own: its figure result and window.
+run(file);
+end
+
+
+function tf = sameResult(a, b)
+%sameResult  Two figure results hold the same data: equal but for when each was made (created) and the shape of an empty value.
+if isstruct(a) && isstruct(b)
+    tf = isequal(size(a), size(b)) && isempty(setxor(fieldnames(a), fieldnames(b)));
+    if ~tf; return; end
+    for k = 1:numel(a)
+        for f = setdiff(string(fieldnames(a)), "created").'
+            tf = tf && sameResult(a(k).(f), b(k).(f));
+        end
+    end
+elseif iscell(a) && iscell(b)
+    tf = isequal(size(a), size(b)) && all(cellfun(@sameResult, a(:), b(:)));
+elseif isempty(a) && isempty(b)
+    tf = true;
+else
+    tf = isequaln(a, b);
 end
 end
 

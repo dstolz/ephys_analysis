@@ -699,6 +699,7 @@ only that unit's spikes or that channel's column are read) and
 | **Open in window** | at the right of the status line under the preview: draws the figure as previewed into a new regular MATLAB figure window (`figure`), named *figure id: observation (dataset)* and the size of the preview, with the right-click aesthetics editor and its Design submenu (what it remembers for the figure reaches the config while the app is open). A drawn preview is used as it is; an *Out of date*, canceled or missing one is previewed first, and the status bar says why when that draws nothing. The window is independent of the app: later edits do not follow into it, and closing the app leaves it. Off with no figure selected |
 | **Generate** | draws the selected figure for every observation it selects, on every ticked dataset, into the Export tab's folder (see **Generate** below). It sits right of **Preview**, in the same colors, and is off with no figure selected |
 | **<**, **>** | the previous and next observation (**Page Up**, **Page Down**: a figure has no pages); off at either end of the list |
+| **Export code** | at the right end of the row of **Preview**: opens the code that draws the preview in the MATLAB editor, as a new unsaved script (`EphysAnalysisScript.preview`, [Generated scripts](EphysAnalysis.md#generated-scripts)). It names the active dataset (a figure across sessions: the ticked or listed datasets), writes the figure's settings out as `spec` (`figureFor`'s, every *default* resolved), finds the observation picked again in `figureObservations` (by its unit id or the extract's column; with **Per trial group**, its group too; across sessions, by its label), then calls `figureCompute` (`figureSessionCompute` across sessions, keeping the **Figure:** pick) and `renderFigure` into a figure window the size of the preview, in the design chosen. Run it to draw the figure without the app; change `spec` or pick another row of `obsT` to make it your own. Nothing is computed when you press it, so the preview need not be drawn; the code holds the figure as the editor shows it then, and later edits do not follow into it. Without the desktop's editor (`matlab -batch`) it writes the script to `tempdir` and the status bar names the file. Off with no figure selected |
 | **Preview** | computes now, also for a signal extract above `PreviewMaxMB`, which otherwise waits for it. It is the button at the top left, and turns orange while the figure is *Out of date* |
 | **Auto** | redraw after every edit while a preview takes under 2 s; a slower one says so (*"slow, so edits wait for Preview"*). On by default, because one observation is quick; remembered. It does not apply to a figure across sessions, which computes every session: an edit leaves its preview *Out of date* until **Preview** (or a pick in the observation list) draws it. The first figure drawn after the app starts is not timed, since it also loads the graphics, so that warm-up does not make the edits after it wait. The 2 s is the app's `FigureAutoPreviewSeconds` property (a public property, not a preference; set it on the app object before editing, for example to `Inf` to redraw however long a preview takes, which the app's tests do so a loaded machine cannot leave a preview out of date) |
 | **Design:** | the look every figure is drawn in (Default, Tufte, Journal, Night, Talk, Gray panel, and yours; the Design menu offers the same): picking one redraws the preview, and every other figure on screen, at once; runs draw their figures in it. It sits right of the **Dataset** drop-down, with **Save look as design...** under it, right of **Observation** |
@@ -1274,7 +1275,10 @@ does); the active dataset's lines and parameters, and its sorted units counted
 in the Dataset drop-downs (the same items on the three tabs); the Help menu's GitHub issue
 and feature request (1c); grouping by Depth from the Alignment controls (2);
 and section 3, the Figures tab: the toolbar's Preview, pressed from another
-tab, showing the Figures tab and drawing the selected figure; the Design row
+tab, showing the Figures tab and drawing the selected figure; **Export code**
+(at the right end of the Preview row: its script, run in a workspace of its
+own, computes the same result as the preview, but for the time it was made,
+and draws the same panels in a window of its own); the Design row
 (the list and the menu, a design chosen redrawing the figure preview without
 touching the config, **Save look as design...** from the figure preview, a
 heat map figure's axes rules kept under the design's heat map kind, deleting a
@@ -1467,7 +1471,9 @@ merged figure (a `nSessions` result over both sessions, the status line *"...
 across sessions: 2 merged"*, the PSTH drawn, the "Figure:" drop-down hidden for
 one figure). An edit (a figure per subject, a figure per trial group) leaves the
 preview *Out of date* with the *press Preview* line; after **Preview** the
-"Figure:" drop-down picks which figure is drawn without computing. **Generate**
+"Figure:" drop-down picks which figure is drawn without computing, and the
+script of **Export code**, run, merges the observation over both datasets and
+gives the figure picked there. **Generate**
 then writes a page per matched site into the sessions folder
 (`<facet>_<id>_site_ch<N>.png`), one `sessions: all` results row, and the status
 bar reads `Generated <id> across the sessions: <n> observation(s), ...`.

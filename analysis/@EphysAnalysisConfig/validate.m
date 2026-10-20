@@ -61,7 +61,9 @@ function issues = validate(obj, opts)
 %               toolbox); a signal's baseline, in a
 %               continuous panel or a heat map of a signal, overlapping
 %               the panel's window --, histStyle, normalize, fillAlpha,
-%               the PSTH's stackSpacing, the raster sort, continuous
+%               the PSTH's stackSpacing, display (trace / heatmap),
+%               colormap (a warning for no colormap function) and color
+%               limits, the raster sort, continuous
 %               display / statistic / transform / errorType and its
 %               toolbox, stackSpacing, trials (off / faint / only) and
 %               maxTrials (whole, >= 1), heatmap rows (items / trials:
@@ -536,6 +538,13 @@ for k = 1:numel(obj.Figures)
                 if ~(isscalar(op.stackSpacing) && isfinite(op.stackSpacing) && op.stackSpacing > 0)
                     add("Figures", o0 + ".stackSpacing", "error", "stackSpacing must be positive (1 = the tallest PSTH reaches the next row).");
                 end
+                if ~ismember(op.display, ["trace" "heatmap"])
+                    add("Figures", o0 + ".display", "error", "A PSTH's display is trace (bars or a line per group) or heatmap (a row per group).");
+                end
+                if op.colormap ~= "" && ~ismember(exist(char(op.colormap)), [2 5]) %#ok<EXIST>
+                    add("Figures", o0 + ".colormap", "warning", "No colormap function """ + op.colormap + """; the heat map takes the design's.");
+                end
+                checkFigLim(op.cLim, o0 + ".cLim", "color");
                 checkFigLim(op.yLim, o0 + ".yLim", "y");
                 checkFigWaveform(op.waveform, o0 + ".waveform", false);
             case "continuous"

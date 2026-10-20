@@ -35,7 +35,12 @@ function T = panelTypes()
 %   auROC against the baseline window, spikePSTH's BaselineMode "auroc")
 %   with its auroc settings (defaults("Auroc")). A PSTH stacks its groups
 %   in rows with stack (stackSpacing: the row step, x the tallest PSTH);
-%   a raster panel above it draws the rasters. A rate panel shows each epoch window's rate per
+%   a raster panel above it draws the rasters. A PSTH's display "heatmap"
+%   draws its first item (unit or mean) as an image instead: a row per
+%   trial group, the first on top, colored on that item's own range
+%   (cLim, else its rows' range; an auROC: 0 to 1) in colormap ("" = the
+%   design's heat colormap); histStyle, fill, fillAlpha, stack,
+%   stackSpacing and yLim are not used then. A rate panel shows each epoch window's rate per
 %   trial group (firingRate), a tuning panel the rate against a trial
 %   parameter (tuningCurve: param, "" = the figure's first groupBy
 %   parameter, else the trials' first numeric one; seriesParam, "" = one
@@ -107,6 +112,7 @@ opts.psth = struct( ...
     'measure',       "rate", ...        % "rate" (spikes/s) | "count" | "probability"
     'baseline',      baseline, ...      % Mode "none" | "subtract" | "zscore" | "percent" | "auroc"
     'auroc',         auroc, ...         % baseline Mode "auroc": the auROC's settings
+    'display',       "trace", ...       % "trace" (bars or a line per group) | "heatmap" (an image: a row per group, the first on top)
     'histStyle',     "bar", ...         % "bar" | "line"
     'fill',          true, ...          % filled bars / area under the line
     'fillAlpha',     NaN, ...           % fill opacity 0-1 (NaN: 0.5 where groups overlap, else 1)
@@ -115,6 +121,8 @@ opts.psth = struct( ...
     'stackSpacing',  1.1, ...           % stack: the row step, x the tallest PSTH (< 1 overlaps)
     'maskAfterStop', false, ...
     'yLim',          [], ...            % [] = automatic, else [lo hi]
+    'colormap',      "", ...            % display "heatmap": "" (the design's heat colormap, Style.HeatColormap) | a colormap function
+    'cLim',          [], ...            % display "heatmap": [] = the unit's own range (auROC: [0 1]), else [lo hi]
     'waveform',      waveform);
 opts.continuous = struct( ...
     'baseline',     baseline, ...       % Mode "none" | "subtract"
@@ -240,7 +248,7 @@ opts.eventTrace = struct( ...
 %   Type        Label                Short          Categories               Aligned SharesTime OneGroup MultiLayer DefaultBinding  Description
 rows = {
     "raster",     "Raster",            "Raster",      "point",                 true,   true,      false,   true,      "observation",  "Spike rasters: a row per epoch, by group; events as marks on the rows or as rows of their own"
-    "psth",       "PSTH",              "PSTH",        "point",                 true,   true,      false,   true,      "observation",  "Peri-event firing rate, groups overlaid; events as latency lines or as a PSTH of their own"
+    "psth",       "PSTH",              "PSTH",        "point",                 true,   true,      false,   true,      "observation",  "Peri-event firing rate, groups overlaid (or a heat map, a row per group); events as latency lines or as a PSTH of their own"
     "continuous", "Continuous signal", "Continuous",  "continuous",            true,   true,      false,   true,      "observation",  "The epochs' mean of LFP / MUA / SPIKE / AUX channels, with an error band"
     "heatmap",    "Heat map",          "Heatmap",     ["point" "continuous"],  true,   true,      true,    false,     "fixed",        "Units or channels by time in color, one trial group"
     "waveforms",  "Unit waveforms",    "Waveforms",   "unit",                  false,  false,     false,   false,     "observation",  "A unit's mean waveform and a sample of its spikes"

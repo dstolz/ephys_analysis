@@ -137,19 +137,3 @@ end
 figLayerNotes(ax, P, look, true);
 hk.yName = R.trialRowsName;
 end
-
-
-function tf = inTimeColumn(look)
-%inTimeColumn  True when another time panel (raster, PSTH, continuous, heat map) shares a column with this one.
-PT = EphysAnalysisConfig.panelTypes();
-p = look.panel;
-tf = false;
-for q = reshape(look.spec.panels, 1, [])
-    row = PT.Type == q.type;
-    if q.id == p.id || ~any(row) || ~PT.SharesTime(row); continue; end
-    if q.col <= p.col + p.colSpan - 1 && p.col <= q.col + q.colSpan - 1
-        tf = true;
-        return
-    end
-end
-end

@@ -1,4 +1,4 @@
-function T = figureObservations(src, spec)
+function [T, why] = figureObservations(src, spec, opts)
 %figureObservations  The observations a dataset offers for a figure: its units, its channels, or itself.
 %   T = figureObservations(SRC, SPEC) lists what the figure SPEC
 %   (EphysAnalysisConfig.figureFor: observe.kind added) can be drawn
@@ -48,16 +48,28 @@ function T = figureObservations(src, spec)
 %   these columns. EphysAnalysisRunner.computeFigure takes a row
 %   (Observation=T(k,:)).
 %
+%   [T, WHY] = figureObservations(SRC, SPEC, Observation=OBS) keeps only
+%   the rows that match one observation picked on another figure (the
+%   app's Unit report): OBS is a struct with kind ("unit" | "channel"),
+%   data (that figure's observe.data), unitId, channel and label. A unit
+%   figure on the same data keeps the unit of that id; otherwise the match
+%   is by recording channel (a unit's channel figures, a channel's units,
+%   a detection's sorted units and back). Every trial group of a match is
+%   kept. A figure of the dataset keeps nothing. When nothing is kept, WHY
+%   says why (else "").
+%
 %   See also EphysAnalysisRunner.computeFigure, figureSkipReason, probeOrder,
 %   selectUnits, selectChannels.
 
 arguments
     src (1,1) struct
     spec (1,1) struct
+    opts.Observation = []   % a struct: only the rows matching it (see above)
 end
 
 ob = spec.observe;
 T = emptyObservations();
+why = "";
 switch ob.kind
     case "unit"
         try
@@ -113,6 +125,9 @@ switch ob.kind
 end
 T.group = NaN(height(T), 1);
 T.groupLabel = strings(height(T), 1);
+if isstruct(opts.Observation)
+    [T, why] = matchObservation(T, ob, opts.Observation);   % before the trial groups: they follow the match
+end
 if height(T) > 0 && isfield(ob, 'perGroup') && ob.perGroup
     T = perGroupRows(src, spec, T);
 end
@@ -143,6 +158,37 @@ T = T(rows, :);
 T.group = repmat(g(:), n, 1);
 T.groupLabel = repmat(string(G.label(g)), n, 1);
 T.label = T.label + " · " + T.groupLabel;
+end
+
+
+function [T, why] = matchObservation(T, ob, obs)
+%matchObservation  The rows of T that match OBS (a unit or channel picked on another figure), and why none did.
+%   A unit figure on OBS's own data: the unit of OBS's id. Any other unit
+%   or channel figure: the rows on OBS's recording channel. A figure of
+%   the dataset: none.
+why = "";
+if ob.kind == "dataset"
+    T = T([], :);
+    why = "it observes the dataset, not one " + obs.kind;
+    return
+end
+if ob.kind == "unit" && obs.kind == "unit" && ob.data == obs.data
+    T = T(T.unitId == obs.unitId, :);
+    if height(T) == 0; why = obs.label + " is not among its units"; end
+    return
+end
+if ~isfinite(obs.channel)
+    T = T([], :);
+    why = obs.label + " has no recording channel to match";
+    return
+end
+T = T(T.channel == obs.channel, :);
+if height(T) == 0
+    what = ob.data + " channel";
+    if ob.kind == "unit"; what = "unit"; end
+    if ob.data == "detected"; what = "detection"; end
+    why = "no " + what + " on channel " + obs.channel + " (" + obs.label + ")";
+end
 end
 
 

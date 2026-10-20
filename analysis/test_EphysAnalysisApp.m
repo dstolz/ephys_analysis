@@ -1909,7 +1909,12 @@ check(pAx.ySide == "left" && pAx.yLabel == "" && pAx.xLabel == "Lag (s)" && app.
     && strcmp(axP.YAxisLocation, 'left') && string(axP.XLabel.String) == "Lag (s)", ...
     'onFigureAxisEdited: the panel''s fields set, the panel selected and its rows following, the preview drawn again');
 app.onFigureAxisEdited(app.Config.Figures(1).id, "psth_1", struct('xLabel', ""));
-check(app.Config.Figures(1).panels(2).xLabel == "", 'a blank label text: the automatic label again');
+check(app.Config.Figures(1).panels(2).xLabel == "" && app.FigureHistory.undoLabel() == "Label text", ...
+    'a blank label text: the automatic label again, a step of its own in the undo history (Undo Label text)');
+app.onFigureAxisEdited(app.Config.Figures(1).id, "psth_1", struct('xSide', "top"));
+app.onUndoRedo("undo");
+check(app.Config.Figures(1).panels(2).xSide == "bottom" && app.FigureHistory.undoLabel() == "Label text" ...
+    && contains(app.StatusBar.Text, "Axis side"), 'Move to top from the label''s menu is undone like an editor edit (Undo Axis side)');
 
 % drag a panel in the schematic: the press installs the window's pointer callbacks; motion shades the target; release applies
 if ~app.FigureSections([app.FigureSections.Name] == "arrangement").Expanded; app.onFigureSectionToggled("arrangement"); end

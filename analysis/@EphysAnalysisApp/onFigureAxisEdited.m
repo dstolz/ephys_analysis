@@ -54,5 +54,7 @@ if k == obj.SelectedFigure && j ~= obj.SelectedPanel
     obj.SelectedPanel = j;   % its rows show the change
     obj.SelectedLayer = 1;
 end
-commitFigureEdit(obj, cfg, id + "." + panel + ": " + strjoin(said, ", ") + ".");
+action = "Axis side";   % the Edit menu's "Undo Axis side"
+if any(isfield(change, ["xLabel" "yLabel"])); action = "Label text"; end
+commitFigureEdit(obj, cfg, id + "." + panel + ": " + strjoin(said, ", ") + ".", Action=action);
 end

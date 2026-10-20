@@ -839,7 +839,8 @@ x label) or **Move to right** / **Move to left** (a y label) puts that axis'
 ticks and label on the other side (`xSide`, `ySide`; a stacked PSTH's y label has
 no side to move to). Each edit goes into the config as the editor's own do: the
 panel is selected, its rows follow and the preview is drawn again (or marked out
-of date). In a figure opened with **Open in window** the
+of date), and it is a step of the Edit menu's undo (**Undo Label text**, **Undo
+Axis side**). In a figure opened with **Open in window** the
 window is drawn again with the edit, and while the app is open the edit reaches
 its config too. A label the time stack hides (an inner panel's) has no menu: set
 it in the panel's rows.

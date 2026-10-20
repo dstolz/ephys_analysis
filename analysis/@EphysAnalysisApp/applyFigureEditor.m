@@ -211,6 +211,8 @@ if isfield(op, 'histStyle')
     if isnan(op.fillAlpha); E.fillAlpha.Value = []; else; E.fillAlpha.Value = min(1, max(0, op.fillAlpha)); end
     E.normalize.Value = char(pickFrom(op.normalize, string(E.normalize.ItemsData), "none"));
 end
+if p.type == "psth"; E.psthDisplay.Value = char(pickFrom(op.display, string(E.psthDisplay.ItemsData), "trace")); end
+if isfield(op, 'colormap'); offerItems(E.panelColormap, string(E.panelColormap.Items), pick(op.colormap, "auto")); end
 if isfield(op, 'stack')
     E.stack.Value = logical(op.stack);
     if isfinite(op.stackSpacing) && op.stackSpacing > 0; E.psthSpacing.Value = op.stackSpacing; else; E.psthSpacing.Value = 1.1; end

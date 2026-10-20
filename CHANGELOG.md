@@ -10,6 +10,19 @@ says how to cut a release.
 
 ### Added
 
+- Figures: a PSTH panel drawn as a heat map, `options.display` `"trace"` (bars or a line per trial group, the
+  default) or `"heatmap"`: the unit's PSTH as one image, a row per trial group (the first on top, as a raster
+  and a stacked PSTH list them), x the PSTH's bins, colored by its rate after measure, smoothing, baseline and
+  normalize. The color scale spans that unit's rows only, never other units' (`options.cLim` fixes it; an
+  auROC is on 0 to 1, its modulation window a bar over the image), in `options.colormap` (`""`: **Heat
+  colors**, else the design's heat colormap; a name that is no colormap function is a validation warning).
+  The rows are labeled with the groups' values, the y label names the group-by parameters and a color bar in
+  the measure's unit is the scale (inside the axes when the panel shares its column with other time panels,
+  as a heat map's). The zero line, stop latencies, event marks and the waveform inset are drawn over it;
+  with several units or layers the first is drawn and the others are noted on the panel. Session figures,
+  **Export code** and the exports draw it. In the editor, **Display** (PSTH options, and the New panel
+  window) toggles it; a heat map shows **Colormap** and **Color limits** and hides **PSTH as**, **Fill**,
+  **Stack** and **Y limits**. The heat map panel's `inTimeColumn` is now a shared helper.
 - Figures tab: right-click any part of the preview (or of an **Open in window** figure while the app is
   open) and pick **Go to setting**. It selects the part's panel, opens the supersection and section that
   hold the setting that controls it (the error band: **Show > Error**; a raster's stop dots: **Stop marks**;

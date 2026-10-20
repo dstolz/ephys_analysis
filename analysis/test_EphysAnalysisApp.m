@@ -1275,6 +1275,27 @@ check(auShown && oS.baseline.Mode == "auroc" && oS.auroc.windowSec == 0.02 && oS
 FE.stack.Value = false;
 FE.baselineMode.Value = "none";
 app.onConfigChanged("figure");
+% a PSTH's Display: a heat map shows its colormap and color limits, hides the trace rows; back to trace
+FE.psthDisplay.Value = "heatmap";
+app.onConfigChanged("figure");
+heatShown = shown(FE.panelColormap) && shown(FE.cLim) && shown(FE.normalize) && ~shown(FE.histStyle) ...
+    && ~shown(FE.fill) && ~shown(FE.stack) && ~shown(FE.yLim);
+FE.panelColormap.Value = "hot";
+FE.cLim.Value = '0 30';
+app.onConfigChanged("figure");
+oH = app.Config.Figures(1).panels(2).options;
+imH = findall(app.FigurePreviewPanel, 'Type', 'image');
+check(heatShown && oH.display == "heatmap" && oH.colormap == "hot" && isequal(oH.cLim, [0 30]) && app.FigurePreviewState == "drawn" ...
+    && isscalar(imH) && isequal(clim(ancestor(imH, 'axes')), [0 30]), ...
+    'a PSTH''s Display "heat map": Colormap and Color limits shown (PSTH as, Fill, Stack, Y limits hidden), reaching the options and the preview''s image');
+FE.psthDisplay.Value = "trace";
+FE.panelColormap.Value = "auto";
+FE.cLim.Value = '';
+app.onConfigChanged("figure");
+oT = app.Config.Figures(1).panels(2).options;
+check(oT.display == "trace" && oT.colormap == "" && isempty(oT.cLim) && shown(FE.histStyle) && shown(FE.stack) && shown(FE.yLim) ...
+    && ~shown(FE.panelColormap) && ~shown(FE.cLim) && isempty(findall(app.FigurePreviewPanel, 'Type', 'image')) ...
+    && app.FigurePreviewState == "drawn", 'back to Display "trace": the trace rows again, the colormap "auto" stored as "", no image');
 nAx = numel(figAxes());
 check(any(string(FE.panelType.ItemsData) == "rate") && any(string(FE.panelType.ItemsData) == "tuning") && app.FigurePreviewState == "drawn", ...
     'the panel type drop-down offers Firing rate and Tuning curve');

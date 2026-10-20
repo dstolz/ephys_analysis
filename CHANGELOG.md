@@ -1559,7 +1559,6 @@ says how to cut a release.
 - Analysis app: a config opened while another config's datasets were listed was scanned with the old Run ticks
   as its selection (they matched the old datasets' count), so a "list" selection came out "all". The scan after
   an open now ticks the opened config's own selection (`scanOpened`).
-
 - A patch overlay was never seen over a raster panel: `drawOverlays` drew it as an `xregion` / `yregion`,
   which MATLAB paints behind every opaque patch whatever the draw order, and a raster's group bands are
   opaque (a PSTH's fills are translucent, so it showed there). A patch is now a patch object spanning the

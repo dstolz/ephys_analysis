@@ -809,6 +809,12 @@ issues = table(Section, Field, Severity, Message);
                 add("Figures", hO0 + "." + hF, "error", hF + " must be positive.");
             end
         end
+        if ~(isscalar(hOp.minWidth) && isfinite(hOp.minWidth) && hOp.minWidth >= 0)
+            add("Figures", hO0 + ".minWidth", "error", "minWidth is the narrowest a bar is drawn, points: 0 or more (0 = no minimum).");
+        end
+        if hOp.trials == "rows"   % the sub-rows sorted as a raster's rows
+            checkRasterSort(hOp, hO0);
+        end
     end
 
     function checkFigBins(hBins, hO0)
@@ -1239,8 +1245,10 @@ issues = table(Section, Field, Severity, Message);
             sxP = sxSpec.panels(sxK);
             sxP0 = f0 + "." + sxP.id;
             if ismember(sxP.type, EphysAnalysisConfig.FigureSessionUnmerged)
-                add("Figures", sxP0 + ".type", "error", "A session figure cannot hold a " + sxP.type + " panel: combineSessions does not " + ...
-                    "merge it across sessions.");
+                sxL = FT.Label(FT.Type == sxP.type);
+                if sxL ~= upper(sxL); sxL = lower(sxL); end
+                add("Figures", sxP0 + ".type", "error", "A session figure cannot hold " + sxL + " panels: combineSessions does not " + ...
+                    "merge them across sessions.");
                 continue
             end
             sxO = sxP.options;

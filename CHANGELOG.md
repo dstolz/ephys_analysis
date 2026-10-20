@@ -1023,10 +1023,22 @@ says how to cut a release.
   `lineStyle`, `showBaseline` with `baselineColor`, `baselineStyle` and `baselineWidth` (through the bars'
   middle, or at the level's low line) and `rowSpacing`. The parts are the aesthetics roles `eventBar`,
   `eventLevel`, `eventBaseline` and `eventGroupBand`. Its layers are events layers only (Validate refuses
-  others; `categoryOf` gives `""`), a line whose intervals have no offset after their onset is skipped with
-  the reason, and a session figure cannot hold the panel (`FigureSessionUnmerged`). New template
+  others; `categoryOf` gives `""`) and a line whose intervals have no offset after their onset is skipped with
+  the reason. New template
   `"eventTrace"`, Figures tab Options rows for it, the private `computeEventTracePanel`,
   `drawEventTracePanel` and `epochIntervals`. See [Event traces](documentation/EphysAnalysisConfig.md#event-traces).
+- Event traces: `trials "rows"` sorts its sub-rows as a raster (and a heat map of trials) sorts its rows,
+  with the raster's options `rasterSort` (`""`, `"stop"`, `"event"` or a trial parameter), `rasterSortEvent`,
+  `rasterSortOrder` and `rasterByGroup` (the defaults keep the order by group, then time), validated as the
+  raster's and offered by the raster's **Sort rows by** rows in the editor (grayed out while overlaid); the
+  order is the private `figEpochOrder`, now shared with `figTrialMatrix`, and the group bands follow each
+  run of a group's sub-rows. In bars, `minWidth` (points, default 1; **Narrowest bar**) gives a bar drawn
+  narrower than that, a zero-length interval among longer ones too (`epochIntervals` now keeps those), a
+  tick that wide through its middle in its color and opacity (aesthetics role `eventTick`), so it shows at
+  any zoom and in SVG / PDF / PNG exports. A session figure now holds an event-trace panel
+  (`FigureSessionUnmerged` drops `eventTrace`): `combineSessions` concatenates every session's intervals and
+  epochs as it does a raster's, so `"overlay"` overlays them all and `"rows"` gives each its sub-row, the
+  series (sessions, subjects or all) as the panel's groups.
 - Events layers can be drawn as a span (`eventsAs "span"`, Layers **Draw as** *a line from onset to offset*):
   on a raster each row gets a line from each interval's onset to its offset, clipped to the window; on a PSTH,
   continuous signal, heat map or spectrogram panel each trial group gets a line from the median onset to the
@@ -1334,6 +1346,13 @@ says how to cut a release.
   presets are named gaps: loose 24 px, compact 12, tight 6, none 0. A panel smaller than its cell keeps
   its own time tick labels. `PlotAesthetics.components` lists a figure's title from its `titleHost`, and
   `PlotDesign` paints the target itself as the figure's ground.
+- Messages that named a panel type now use its label and need no article: *probe map panels are not merged
+  across sessions* (`figureSessionCompute`, `figureSessionSkipReason`), *event-trace panels do not draw units*
+  (`figureSkipReason`), Validate's *A session figure cannot hold probe map panels: ...* and the Sessions
+  note's list (they read *a eventTrace panel*, *a probemap panel*). New private `panelTypeWords`.
+- An event-trace panel's logic levels are patch edges (`FaceColor "none"`, the opacity as `EdgeAlpha`), not
+  lines given MATLAB's undocumented four-element RGBA color; an SVG export keeps their opacity
+  (`stroke-opacity`), as `test_EphysAnalysisFigures` checks.
 
 ### Removed
 

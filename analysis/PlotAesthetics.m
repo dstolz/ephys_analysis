@@ -323,6 +323,7 @@ classdef PlotAesthetics
                 "eventRug"     "Event latency rug"
                 "eventSpan"    "Event span (onset to offset)"
                 "eventBar"     "Event trace bars"
+                "eventTick"    "Event trace ticks (short bars)"
                 "eventLevel"   "Event trace level"
                 "eventBaseline" "Event trace baseline"
                 "eventGroupBand" "Event trace group band"

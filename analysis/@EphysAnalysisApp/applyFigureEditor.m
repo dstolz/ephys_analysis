@@ -315,6 +315,7 @@ E.etHeight.Value = min(E.etHeight.Limits(2), max(E.etHeight.Limits(1), op.height
 if isfinite(op.alpha); E.etAlpha.Value = min(1, max(0, op.alpha)); else; E.etAlpha.Value = []; end
 offerItems(E.etEdge, string(E.etEdge.Items), pick(op.edgeColor, "none"));
 E.etEdgeWidth.Value = min(E.etEdgeWidth.Limits(2), max(E.etEdgeWidth.Limits(1), op.edgeWidth));
+E.etMinWidth.Value = min(E.etMinWidth.Limits(2), max(E.etMinWidth.Limits(1), op.minWidth));
 E.etLineStyle.Value = char(pickFrom(op.lineStyle, string(E.etLineStyle.ItemsData), "-"));
 E.etLineWidth.Value = min(E.etLineWidth.Limits(2), max(E.etLineWidth.Limits(1), op.lineWidth));
 E.etBaseline.Value = logical(op.showBaseline);

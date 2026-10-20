@@ -7,6 +7,8 @@ function S = sessionTable(names, keys, opts)
 %     key       the dataset key (the Data tab's Key column)
 %     name      the dataset name
 %     folder    its output folder (Folders=; "" when not given)
+%     starred   the dataset is starred: its folder's favorites file
+%               (DatasetFavorites); false without a folder
 %     subject   the SubjectID token of NamePattern (subjectAndDate), "" when
 %               unknown
 %     date      datetime: AcqDates (the recording's own start) where given,
@@ -16,8 +18,9 @@ function S = sessionTable(names, keys, opts)
 %     label     "<subject> <dateText>", else the name; made unique with
 %               " (2)", " (3)" in table order
 %   Sort=true orders the rows by date (NaT last), then name, before the
-%   labels are made unique (EphysAnalysisRunner.sessionTable does). Pure: no
-%   I/O. AcqDates and Folders may be one value for every row.
+%   labels are made unique (EphysAnalysisRunner.sessionTable does). The only
+%   I/O is each folder's favorites file (a dataset's star). AcqDates and
+%   Folders may be one value for every row.
 %
 %   See also combineSessions, figureSessionCompute, subjectAndDate,
 %   EphysAnalysisRunner.sessionTable.
@@ -58,7 +61,15 @@ end
 date.Format = 'yyyy-MM-dd HH:mm:ss';
 key = keys;
 name = names;
-S = table(index, key, name, folder, subject, date, dateText);
+starred = false(n, 1);
+for k = reshape(find(folder ~= "" & isfolder(folder)), 1, [])
+    try
+        fav = DatasetFavorites(folder(k), Name=names(k));
+        starred(k) = fav.Dataset;
+    catch   % unreadable: no star
+    end
+end
+S = table(index, key, name, folder, starred, subject, date, dateText);
 if opts.Sort && n > 1
     [~, order] = sortrows(table(S.date, S.name), [1 2], 'ascend', 'MissingPlacement', 'last');
     S = S(order, :);

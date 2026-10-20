@@ -31,6 +31,7 @@ the readers take both. Probe maps are the exception
 
 <outputFolder>/                         = Folder, or OutputDir, or <OutputRoot>/<Name>
 ├─ <Name>_artifacts.json                artifact-interval cache (EphysPipeline)
+├─ <Name>_favorites.json                the stars set on the dataset, its channels and units (DatasetFavorites)
 ├─ <Name>_extract_<TYPE>.mat            derived signals, one file per type (toMat; the Signals step),
 │                                       or <Name>_extract.mat with Signals.SeparateFiles off
 ├─ <Name>_spikes.mat                    detected spikes (spikesToMat; the Spikes step)
@@ -582,6 +583,38 @@ settings (including one written under an earlier schema) is recomputed.
 `EphysPipeline.cachedDetection` compares the same fingerprint without
 detecting (the Visualize tab says whether the last run's periods are those the
 current settings find).
+
+---
+
+## Favorites (`<Name>_favorites.json`)
+
+Path: `<outputFolder>/<Name>_favorites.json`, beside the dataset's outputs, so
+it moves with them. Written by `DatasetFavorites` (the analysis app's star
+toggles: [Favorites](EphysAnalysisApp.md#favorites)) through `writeJsonFile`
+each time a star changes, and deleted when the last star is unset. No file
+means no star.
+
+```json
+{
+  "schema": "ephys-favorites/1",
+  "dataset": "subj1_day1",
+  "starred": true,
+  "channels": [3, 17],
+  "units": [
+    { "sort": "kilosort4", "spikeTimesBytes": 1048576, "ids": [0, 12, 40] }
+  ],
+  "updated": "2026-10-20T14:03:11"
+}
+```
+
+| Field | Contents |
+| --- | --- |
+| `schema` | `"ephys-favorites/1"`; a file of another schema, or one that is not JSON, is not read (no stars; `DatasetFavorites.Problem` says why) and is never written over |
+| `dataset` | the dataset name (informative: the file is found by its name) |
+| `starred` | the dataset itself is starred |
+| `channels` | the starred recording channels, 1-based, ascending. A detection channel is starred as its channel |
+| `units` | one entry per sort that has starred units: `sort`, the sorting (phy) folder relative to the output folder (`/`-separated; its full path when it is elsewhere), `spikeTimesBytes`, the size of its `spike_times.npy` (`null` when it has none), and `ids`, the starred cluster ids ascending. Only the entry whose `sort` (any case) and `spikeTimesBytes` are the sort in use now counts; the others are kept, so a sort that comes back brings its stars back |
+| `updated` | when it was written, `yyyy-MM-ddTHH:mm:ss` local time |
 
 ---
 
@@ -1367,9 +1400,12 @@ default `{Name}_{Plot}` gives:
   (relative to the report's folder, each path segment percent-encoded as
   UTF-8; a `file://` URL on another drive or share) and the figure's parameters
   (folded); figures that were skipped or failed with
-  the reason; the config JSON at the end (folded).
+  the reason; the config JSON at the end (folded). A starred dataset
+  ([favorites](#favorites-name_favoritesjson)) has a ★ after its name in the
+  contents and over its section, and its recording table says **Starred**
+  and lists its starred channels and units.
 - **PDF**: a title page (with the code version, MATLAB and machine), a summary page per dataset (listing skipped and
-  failed figures) and every figure's pages as vector pages
+  failed figures; a starred dataset is named *&lt;name&gt; (starred)* there and on the title page) and every figure's pages as vector pages
   (`exportgraphics(ContentType="vector")`), made from the figures that were
   exported (an exported `.pdf` is reused) and joined in that order with the
   Apache PDFBox library MATLAB ships.
@@ -1406,7 +1442,7 @@ file can be large, since it holds the merged results and each session's own.
 | `schema` | `"ephys-analysis-session-figure/1"` |
 | `figure` | the figure's id |
 | `spec` | the figure's spec (`figureFor`, with `enabled` true): the alignment, panels and `sessions` block every session was computed with |
-| `sessions` | a table, one row per session in date order: `index` (the runner's dataset index), `key`, `name`, `folder`, `subject`, `date`, `dateText`, `label`, `status` (`done`, `skipped`, `error`) and `message`, as of the last observation computed |
+| `sessions` | a table, one row per session in date order: `index` (the runner's dataset index), `key`, `name`, `folder`, `starred` (the dataset's star), `subject`, `date`, `dateText`, `label`, `status` (`done`, `skipped`, `error`) and `message`, as of the last observation computed |
 | `observations` | the table `figureSessionObservations` returned, one row per matched observation: `kind`, `label`, `unitId`, `channel`, `column`, `shank`, `depth`, `meta`, `group`, `groupLabel`, `nSessions`, `unitIds` and `perSession` |
 | `results` | a struct array, one element per observation and figure (facet x trial group): `index` (the row of `observations`), `observation` (its label), `facet`, `group`, `label`, `status` (`done`, `skipped`, `error`), `message` and `F`, the merged figure (`[]` unless `done`) |
 | `perSession` | `{nObs x nSessions}`: row `i`, column `k` is session `k`'s own `figureCompute` result for observation `i` (`[]` where the session did not draw it) |
@@ -1459,4 +1495,4 @@ previous file as it was.
 | Written atomically (temporary file + rename) | Written directly |
 | --- | --- |
 | the six `.mat` outputs (`toMat`, `spikesToMat`, `behaviorToMat`, `exportChronux`, `exportFieldTrip`, `exportEpochs`) and the session figures' data `.mat` (`writeAnalysisData`) via `EphysDataset.saveAtomically`; the unit-mapping CSV (`writeUnitMapping`); the stitched Epsych2 file; the kCSD `.npz`; the `.nwb`; the Visualize envelopes | the `.bin` and its JSON sidecar, `settings.json`, `<Name>_events.mat`, generated scripts, analysis figures and reports |
-| through `writeJsonFile`: the dataset manifest, the artifact cache, `recording.json` (`writeDescriptor`), `openephys-part.json`, probe maps and the derived `_excluded` / `_spaced` probes (`writeProbeMap`), `<probe>.ks4.json`, `<probe>.chanmap.json`, hardware bank entries, pipeline and analysis configs, run records, `quality_metrics.json`, `<Name>_nwbinspector.json`, `<Name>_cleanup.json`, `session_manifest.json`, the scheduled copy's `schedule.json` and `last_run.json`, and the `ks4_status.json` of a run stopped from MATLAB | everything Python writes (`ks4_status.json`, `ks4_run.log`, the sorter output), and the logs appended a line at a time (`copy_schedule.log`) |
+| through `writeJsonFile`: the dataset manifest, the artifact cache, the favorites (`<Name>_favorites.json`), `recording.json` (`writeDescriptor`), `openephys-part.json`, probe maps and the derived `_excluded` / `_spaced` probes (`writeProbeMap`), `<probe>.ks4.json`, `<probe>.chanmap.json`, hardware bank entries, pipeline and analysis configs, run records, `quality_metrics.json`, `<Name>_nwbinspector.json`, `<Name>_cleanup.json`, `session_manifest.json`, the scheduled copy's `schedule.json` and `last_run.json`, and the `ks4_status.json` of a run stopped from MATLAB | everything Python writes (`ks4_status.json`, `ks4_run.log`, the sorter output), and the logs appended a line at a time (`copy_schedule.log`) |

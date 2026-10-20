@@ -71,23 +71,26 @@ function buildFiguresTab(obj)
 %           "?" lists the tab's keys (onFigureKeys). syncFigureEditor
 %           shows the rows the figure, panel and layer use;
 %           layoutFigureEditor packs them.
-%   Right   the dataset, the observation picked (figureObservations' labels)
-%           with < and > (Page Up / Page Down), each with its star toggle
-%           (starButton, onStarToggled), the Favorites (buildFavorites: a
-%           filter and every starred dataset, channel and unit, picked to
-%           preview: onFavoritePicked), Preview, Generate (the
-%           figure for every observation on every ticked dataset, into the
-%           Export folder: onGenerateFigure), Auto, Export code at the
-%           row's right (the code that draws the preview, in the editor:
-%           onFigureCode), the Design drop-down
-%           right of them (the design every figure is drawn in, also in
-%           the Design menu: onDesignChosen; Save look as design... under
-%           it: the preview's look as a design of yours, onSaveDesign),
-%           the preview panel (refreshFigurePreview: computeFigure
-%           and renderFigure for that one observation; the selected panel
-%           outlined there, markFigurePanel), its badge
-%           (setFigurePreviewState) and status line, with Open in window at its
-%           right (onOpenFigureWindow: the figure in a figure() of its own).
+%   Right   a column of buttons at the left of the header: Preview,
+%           Generate (the figure for every observation on every ticked
+%           dataset, into the Export folder: onGenerateFigure), Unit
+%           report (every enabled figure for the observation picked, as
+%           an HTML report in a temporary folder: onUnitReport), and Auto
+%           with < and > (Page Up / Page Down); right of them, row by row,
+%           the dataset, the observation picked (figureObservations'
+%           labels), each with its star toggle (starButton,
+%           onStarToggled), the Favorites (buildFavorites: a filter and
+%           every starred dataset, channel and unit, picked to preview:
+%           onFavoritePicked) and the Design drop-down (the design every
+%           figure is drawn in, also in the Design menu: onDesignChosen)
+%           with Save look as design... (the preview's look as a design
+%           of yours, onSaveDesign); then the preview panel
+%           (refreshFigurePreview: computeFigure and renderFigure for that
+%           one observation; the selected panel outlined there,
+%           markFigurePanel), its badge (setFigurePreviewState) and status
+%           line, with Export code (the code that draws the preview, in
+%           the editor: onFigureCode) and Open in window at its right
+%           (onOpenFigureWindow: the figure in a figure() of its own).
 g = uigridlayout(obj.TabFigures, [1 3]);
 g.ColumnWidth = {285, 470, '1x'};
 g.Padding = [8 8 8 8];
@@ -1279,77 +1282,83 @@ obj.layoutFigureEditor();
 obj.FigureSearchIndex = figureSearchIndex(obj.FigureSections, U);   % the rows as built (formLayout found their controls)
 
 % --- right: the observation picker and the preview ----------------------------------------------
-% the buttons on a row of their own, so the Dataset and Observation drop-downs keep their width beside Design
-pg = uigridlayout(g, [6 4]);
-pg.RowHeight = {30, 30, 30, 30, '1x', 30};
-pg.ColumnWidth = {'fit', '1x', 'fit', 125};
+% the buttons in a column of their own at the left, one a row, so the Dataset, Observation, Favorites and Design
+% rows to their right keep the pane's width
+pg = uigridlayout(g, [7 3]);
+pg.RowHeight = {30, 30, 30, 30, 30, '1x', 30};
+pg.ColumnWidth = {108, 'fit', '1x'};
 pg.ColumnSpacing = 6;
 pg.Padding = [0 0 0 0];
-bg = uigridlayout(pg, [1 6], "ColumnWidth", {84, 84, 'fit', 72, '1x', 'fit'}, "ColumnSpacing", 6, "Padding", [0 0 0 0]);
-bg.Layout.Row = 1; bg.Layout.Column = [1 4];
-obj.FigurePreviewButton = uibutton(bg, "Text", "Preview", ...
+obj.FigurePreviewButton = uibutton(pg, "Text", "Preview", ...
     "Tooltip", "Compute and draw the selected figure for the observation picked, on the active dataset. " + ...
     "Orange: the figure changed since it was drawn.", ...
     "ButtonPushedFcn", @(~,~) obj.refreshFigurePreview(Force=true));
 obj.FigurePreviewButton.Layout.Row = 1; obj.FigurePreviewButton.Layout.Column = 1;
-obj.FigureGenerateButton = uibutton(bg, "Text", "Generate", "Enable", "off", ...
+obj.FigureGenerateButton = uibutton(pg, "Text", "Generate", "Enable", "off", ...
     "Tooltip", "Draw this figure for every observation it selects, on every ticked dataset, into the Export folder", ...
     "ButtonPushedFcn", @(~,~) obj.onGenerateFigure());
-obj.FigureGenerateButton.Layout.Row = 1; obj.FigureGenerateButton.Layout.Column = 2;
-obj.FigureAutoCheckBox = uicheckbox(bg, "Text", "Auto", "Value", true, ...
+obj.FigureGenerateButton.Layout.Row = 2; obj.FigureGenerateButton.Layout.Column = 1;
+obj.FigureUnitReportButton = uibutton(pg, "Text", "Unit report", "Enable", "off", ...
+    "Tooltip", "A spot check: every enabled figure (and this one) drawn for the unit or channel picked only, " + ...
+    "on the active dataset, as an HTML report in a temporary folder that opens in the browser. A figure of " + ...
+    "channels or detections draws what is on the unit's channel; a figure of the dataset, or one with nothing " + ...
+    "there, is listed as left out. No figure files, no session figures; the output folder is not touched.", ...
+    "ButtonPushedFcn", @(~,~) obj.onUnitReport());
+obj.FigureUnitReportButton.Layout.Row = 3; obj.FigureUnitReportButton.Layout.Column = 1;
+obj.FigureAutoCheckBox = uicheckbox(pg, "Text", "Auto", "Value", true, ...
     "Tooltip", "Redraw on every change while a preview takes under " + obj.AutoPreviewSeconds + " s (one observation is quick).", ...
     "ValueChangedFcn", @(~,~) obj.onFigureAutoPreviewToggled());
-obj.FigureAutoCheckBox.Layout.Row = 1; obj.FigureAutoCheckBox.Layout.Column = 3;
-kg = uigridlayout(bg, [1 2], "ColumnWidth", {34, 34}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);
-kg.Layout.Row = 1; kg.Layout.Column = 4;
+obj.FigureAutoCheckBox.Layout.Row = 4; obj.FigureAutoCheckBox.Layout.Column = 1;
+kg = uigridlayout(pg, [1 2], "ColumnWidth", {'1x', '1x'}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);
+kg.Layout.Row = 5; kg.Layout.Column = 1;
 obj.FigureObsPrevButton = uibutton(kg, "Text", "<", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onFigureObservationStep(-1), ...
     "Tooltip", "The previous observation (Page Up).");
 obj.FigureObsNextButton = uibutton(kg, "Text", ">", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onFigureObservationStep(1), ...
     "Tooltip", "The next observation (Page Down).");
-obj.FigureCodeButton = uibutton(bg, "Text", "Export code", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onFigureCode(), ...
-    "Tooltip", "Open the code that draws this preview in the MATLAB editor, as a new unsaved script: the dataset, " + ...
-    "the figure's settings written out, the observation picked, figureCompute and renderFigure in the design chosen. " + ...
-    "Run it to draw the figure in a window of its own; it does not need the app.");
-obj.FigureCodeButton.Layout.Row = 1; obj.FigureCodeButton.Layout.Column = 6;
 l = uilabel(pg, "Text", "Dataset:");
-l.Layout.Row = 2; l.Layout.Column = 1;
+l.Layout.Row = 1; l.Layout.Column = 2;
 sg = uigridlayout(pg, [1 2], "ColumnWidth", {'1x', 34}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);   % the drop-down and its star
-sg.Layout.Row = 2; sg.Layout.Column = 2;
+sg.Layout.Row = 1; sg.Layout.Column = 3;
 obj.FiguresDatasetDropDown = uidropdown(sg, "Items", "(scan first)", "ItemsData", 0, ...
     "ValueChangedFcn", @(dd, ~) obj.selectDataset(dd.Value), "Tooltip", "The active dataset (the same on every tab).");
 obj.FiguresDatasetStar = starButton(obj, sg, "dataset");
 l = uilabel(pg, "Text", "Observation:");
-l.Layout.Row = 3; l.Layout.Column = 1;
+l.Layout.Row = 2; l.Layout.Column = 2;
 sg = uigridlayout(pg, [1 2], "ColumnWidth", {'1x', 34}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);
-sg.Layout.Row = 3; sg.Layout.Column = 2;
+sg.Layout.Row = 2; sg.Layout.Column = 3;
 obj.FigureObservationDropDown = uidropdown(sg, "Items", "(no observation)", "ItemsData", 0, ...
     "ValueChangedFcn", @(~,~) obj.onFigureObservationChanged(), ...
     "Tooltip", "What the preview draws the figure for: one of the units, channels or the dataset the Observations " + ...
     "section keeps, in probe order. Each figure remembers its pick. ★: starred.");
 obj.FigureObservationStar = starButton(obj, sg, "observation");
 l = uilabel(pg, "Text", "Favorites:");
-l.Layout.Row = 4; l.Layout.Column = 1;
+l.Layout.Row = 3; l.Layout.Column = 2;
 obj.FigureFavorites = buildFavorites(obj, pg, "FigureFavorites");   % every starred dataset, channel and unit
-obj.FigureFavorites.Grid.Layout.Row = 4; obj.FigureFavorites.Grid.Layout.Column = [2 4];
-% the design every figure is drawn in (PlotDesign; also the Design menu), right of the Dataset and Observation
-% drop-downs, and the preview's look kept as one
+obj.FigureFavorites.Grid.Layout.Row = 3; obj.FigureFavorites.Grid.Layout.Column = 3;
+% the design every figure is drawn in (PlotDesign; also the Design menu), under the Favorites; the preview's look
+% kept as one, and the preview's code, under it
 l = uilabel(pg, "Text", "Design:");
-l.Layout.Row = 2; l.Layout.Column = 3;
+l.Layout.Row = 4; l.Layout.Column = 2;
 obj.DesignDropDown = uidropdown(pg, "Items", PlotDesign.DefaultName, "ItemsData", PlotDesign.DefaultName, ...
     "ValueChangedFcn", @(dd, ~) obj.onDesignChosen(dd.Value), ...
     "Tooltip", "The look of every figure: its ground, colors, fonts, axes, ticks, lines and marks. " + ...
     "Choosing one redraws every figure on screen; runs draw their figures in it too.");
-obj.DesignDropDown.Layout.Row = 2; obj.DesignDropDown.Layout.Column = 4;
-obj.SaveDesignButton = uibutton(pg, "Text", "Save look as design...", "ButtonPushedFcn", @(~,~) obj.onSaveDesign(), ...
+obj.DesignDropDown.Layout.Row = 4; obj.DesignDropDown.Layout.Column = 3;
+sg = uigridlayout(pg, [1 2], "ColumnWidth", {'1x', '1x'}, "ColumnSpacing", 6, "Padding", [0 0 0 0]);
+sg.Layout.Row = 5; sg.Layout.Column = 3;
+obj.SaveDesignButton = uibutton(sg, "Text", "Save look as design...", "ButtonPushedFcn", @(~,~) obj.onSaveDesign(), ...
     "Tooltip", "Keep the preview's look -- every property of every component, its ground and its group " + ...
     "colors -- as a design of your own, to choose for any figure. The axes of heat map, probe map, " + ...
     "correlation map and spectrogram panels are kept for those panel types only. Preview first if the " + ...
     "preview is out of date.");
-obj.SaveDesignButton.Layout.Row = 3; obj.SaveDesignButton.Layout.Column = [3 4];
+obj.FigureCodeButton = uibutton(sg, "Text", "Export code", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onFigureCode(), ...
+    "Tooltip", "Open the code that draws this preview in the MATLAB editor, as a new unsaved script: the dataset, " + ...
+    "the figure's settings written out, the observation picked, figureCompute and renderFigure in the design chosen. " + ...
+    "Run it to draw the figure in a window of its own; it does not need the app.");
 obj.FigurePreviewPanel = uipanel(pg, "BackgroundColor", "w", "BorderType", "line");
-obj.FigurePreviewPanel.Layout.Row = 5; obj.FigurePreviewPanel.Layout.Column = [1 4];
+obj.FigurePreviewPanel.Layout.Row = 6; obj.FigurePreviewPanel.Layout.Column = [1 3];
 sg = uigridlayout(pg, [1 4], "ColumnWidth", {'fit', '1x', 0, 130}, "Padding", [0 0 0 0], "ColumnSpacing", 8);
-sg.Layout.Row = 6; sg.Layout.Column = [1 4];
+sg.Layout.Row = 7; sg.Layout.Column = [1 3];
 B.Grid = uigridlayout(sg, [1 2], "ColumnWidth", {18, 'fit'}, "Padding", [6 2 10 2], "ColumnSpacing", 5);
 B.Icon = uiimage(B.Grid, "ScaleMethod", "fit");
 B.Text = uilabel(B.Grid, "FontWeight", "bold");

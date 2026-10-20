@@ -8,6 +8,7 @@ function test_EphysAnalysisApp()
 %   datasets table; the active dataset's lines and parameters; grouping by
 %   Depth from the Alignment controls (the epoch count reports the groups);
 %   the toolbar's Preview drawing the selected figure on the Figures tab;
+%   the header's column of buttons and the rows right of them;
 %   Export code (its script, run, computing what the preview computed and
 %   drawing it in a window of its own); the Design row on the Figures tab (the list and menu, a design chosen
 %   redrawing the figure preview, Save look as design from the figure
@@ -47,7 +48,10 @@ function test_EphysAnalysisApp()
 %   observations again, save and reopen, its preferences restored by a new app,
 %   Remove); Copy from... between figures; Generate (a figure's files per observation on the ticked
 %   datasets, its rows in the results table, the status bar's counts,
-%   Cancel during it, a figure that is off drawn for that run only) and
+%   Cancel during it, a figure that is off drawn for that run only), Unit
+%   report (every figure for the unit picked on the active dataset, a
+%   figure of the dataset left out, an HTML report in a temporary folder,
+%   the output folder untouched) and
 %   the Export tab's Plan and Run listing figures; a figure across
 %   sessions (the Sessions section's rows wired to the config, the mapping
 %   file's Browse / Edit, Pick, the picker's matched sites, a preview
@@ -259,18 +263,24 @@ designs = PlotDesign.list();
 check(ancestor(dd, 'uitab') == app.TabFigures && ancestor(app.SaveDesignButton, 'uitab') == app.TabFigures ...
     && numel(dd.Items) == height(designs) && string(dd.Value) == "Default" && any(string({app.DesignMenu.Children.Text}) == "Tufte"), ...
     'the Design list and Save look as design... sit on the Figures tab; the list and the Design menu offer every design, Default chosen');
-% the Design controls sit right of Dataset / Observation (same grid, same rows), each drop-down with its star; Favorites
-% under them; Open in window draws a figure() of its own
+% the buttons in a column at the left (Preview, Generate, Unit report, Auto, < >, a row each); right of them Dataset,
+% Observation (each drop-down with its star), Favorites and Design, then Save look as design... and Export code; the
+% preview under them; Open in window draws a figure() of its own
 pgrid = app.DesignDropDown.Parent;
 dsg = app.FiguresDatasetDropDown.Parent;
 osg = app.FigureObservationDropDown.Parent;
-check(dsg.Parent == pgrid && osg.Parent == pgrid && app.SaveDesignButton.Parent == pgrid ...
-    && app.DesignDropDown.Layout.Row == dsg.Layout.Row && app.SaveDesignButton.Layout.Row == osg.Layout.Row ...
-    && min(app.DesignDropDown.Layout.Column) > max(dsg.Layout.Column) && min(app.SaveDesignButton.Layout.Column) > max(osg.Layout.Column) ...
+btnCol = [app.FigurePreviewButton app.FigureGenerateButton app.FigureUnitReportButton app.FigureAutoCheckBox app.FigureObsPrevButton.Parent];
+btnRows = arrayfun(@(h) h.Layout.Row, btnCol);
+check(all(arrayfun(@(h) h.Parent == pgrid && isequal(h.Layout.Column, 1), btnCol)) && isequal(btnRows, 1:5) ...
+    && app.FigureObsNextButton.Parent == app.FigureObsPrevButton.Parent ...
+    && dsg.Parent == pgrid && osg.Parent == pgrid && app.FigureFavorites.Grid.Parent == pgrid ...
+    && isequal([dsg.Layout.Row osg.Layout.Row app.FigureFavorites.Grid.Layout.Row app.DesignDropDown.Layout.Row], 1:4) ...
+    && all(arrayfun(@(h) min(h.Layout.Column) > 1, [dsg osg app.FigureFavorites.Grid app.DesignDropDown])) ...
+    && app.SaveDesignButton.Parent == app.FigureCodeButton.Parent && app.SaveDesignButton.Parent.Layout.Row == 5 ...
+    && isequal(app.SaveDesignButton.Parent.Layout.Column, app.DesignDropDown.Layout.Column) ...
     && app.FiguresDatasetStar.Parent == dsg && app.FigureObservationStar.Parent == osg ...
-    && app.FigureFavorites.Grid.Parent == pgrid && app.FigureFavorites.Grid.Layout.Row == osg.Layout.Row + 1 ...
-    && app.FigurePreviewPanel.Layout.Row == app.FigureFavorites.Grid.Layout.Row + 1, ...
-    'the Design list sits right of Dataset and Save look as design... right of Observation, in their rows, each drop-down with its star; Favorites under them, the preview under that');
+    && app.FigurePreviewPanel.Layout.Row == 6, ...
+    'the buttons stand in a column at the left, a row each; Dataset, Observation (with their stars), Favorites and Design right of them; Save look as design... and Export code under Design; the preview under that');
 check(app.FigureOpenButton.Enable == "on" && ancestor(app.FigureOpenButton, 'uitab') == app.TabFigures, ...
     'Open in window is on with a figure selected');
 nFigs = numel(findall(groot, 'Type', 'figure'));
@@ -282,10 +292,9 @@ check(isgraphics(hw, 'figure') && numel(findall(groot, 'Type', 'figure')) == nFi
     && app.FigurePreviewState == "drawn", ...
     'Open in window opens a regular figure holding the panels'' axes, named for the figure, the preview untouched');
 delete(hw);
-% Export code, at the right end of the Preview row: the preview's code, which run draws the observation picked as the preview did
-check(app.FigureCodeButton.Parent == app.FigurePreviewButton.Parent && app.FigureCodeButton.Enable == "on" ...
-    && app.FigureCodeButton.Layout.Column == numel(app.FigureCodeButton.Parent.ColumnWidth), ...
-    'Export code sits at the right end of the Preview row, on with a figure selected');
+% Export code, beside Save look as design...: the preview's code, which run draws the observation picked as the preview did
+check(app.FigureCodeButton.Enable == "on" && app.FigureCodeButton.Layout.Column > app.SaveDesignButton.Layout.Column, ...
+    'Export code sits right of Save look as design..., on with a figure selected');
 codeFile = fullfile(root, 'preview_code.m');
 code = app.onFigureCode(string(codeFile));
 [Fc, hc] = runPreviewCode(codeFile);
@@ -1496,9 +1505,10 @@ app.Tabs.SelectedTab = app.TabData;
 
 fprintf('\n== 5f. Generate a figure; figures on the Export tab ==\n');
 app.selectTab(app.TabFigures);
-check(app.FigureGenerateButton.Enable == "off" && isequal(app.FigureGenerateButton.Layout.Column, 2) ...
-    && isequal(app.FigurePreviewButton.Layout.Column, 1) && isequal(app.FigureGenerateButton.BackgroundColor, app.FigurePreviewButton.BackgroundColor), ...
-    'Generate sits beside Preview, colored as it is, and is off with no figure');
+check(app.FigureGenerateButton.Enable == "off" && app.FigureUnitReportButton.Enable == "off" ...
+    && app.FigureGenerateButton.Layout.Row == app.FigurePreviewButton.Layout.Row + 1 ...
+    && isequal(app.FigureGenerateButton.BackgroundColor, app.FigurePreviewButton.BackgroundColor), ...
+    'Generate sits under Preview, colored as it is; it and Unit report are off with no figure');
 app.onAddFigure("rasterPsth");
 kG = app.SelectedFigure;
 fid = app.Config.Figures(kG).id;
@@ -1563,6 +1573,42 @@ check(~app.Config.Figures(kG).enabled && istable(R) && height(R) == numel(gIdx) 
     && contains(string(app.StatusBar.Text), fid + " is off, so it was switched on for this run only") ...
     && endsWith(string(figureNode(app.FiguresTree, kG).Text), "(off)") && ~app.Runner.Config.Figures(kG).enabled, ...
     'Generate on a figure that is off draws it (not skipped), says so, and the config keeps it off');
+% Unit report: every enabled figure (and the selected one, though off) for the unit picked, an HTML report in a
+% temporary folder; a channel figure draws the unit's channel, a figure of the dataset is left out
+app.onAddFigure("continuous");
+app.onAddFigure("heatmap");
+app.onFigureSelected(kG);
+app.FigureObservationDropDown.Value = 2;
+app.onFigureObservationChanged();
+uT = app.FigureObservations;
+uLabel = uT.label(2);
+check(app.FigureUnitReportButton.Enable == "on" && uT.kind(2) == "unit", 'Unit report is on with a unit picked');
+nTicked = numel(app.tickedDatasetIndices());
+[Ru, fu] = app.onUnitReport(Open=false);
+uKinds = arrayfun(@(f) EphysAnalysisConfig.observeKind(f), app.Config.Figures);
+okRows = true;
+for q = 1:numel(app.Config.Figures)
+    rq = Ru(Ru.Plot == app.Config.Figures(q).id, :);
+    if uKinds(q) == "dataset"
+        okRows = okRows && isscalar(rq.Status) && rq.Status == "skipped" && rq.Message == "it observes the dataset, not one unit";
+    elseif q == kG
+        okRows = okRows && isscalar(rq.Status) && rq.Status == "done" && rq.Message == "1 observation(s)";
+    else   % what is on the unit's channel, or why nothing is
+        okRows = okRows && isscalar(rq.Status) && (rq.Status == "done" || rq.Status == "skipped" && startsWith(rq.Message, "no "));
+    end
+end
+check(istable(Ru) && height(Ru) == 3 && all(Ru.Dataset == app.Runner.Names(app.ActiveIdx)) && okRows ...
+    && isfile(fu) && endsWith(fu, "unit_report.html") && startsWith(fu, string(tempdir)) && ~startsWith(fu, string(outRoot)) ...
+    && contains(fileread(fu), fid) && isempty(dir(fullfile(outRoot, '**', 'unit_report*'))) ...
+    && isequal(app.LastReportFiles, fu) && ~app.Config.Figures(kG).enabled && nTicked == numel(app.tickedDatasetIndices()), ...
+    sprintf('Unit report draws the three figures for %s on the active dataset only (the dataset''s figure left out), into a temporary HTML report; the output folder untouched, the figure kept off', uLabel));
+check(startsWith(string(app.StatusBar.Text), "Unit report for " + uLabel + ": ") && contains(string(app.StatusBar.Text), "left out") == any(Ru.Status ~= "done") ...
+    && contains(string(app.StatusBar.Text), fid + " is off, so it was drawn for this report only") ...
+    && ~app.Running && app.FigureUnitReportButton.Enable == "on" && app.FigureGenerateButton.Enable == "on", ...
+    'the status bar names the unit, what was left out, the figure that is off; the buttons are back');
+app.onFigureSelected(3); app.onRemoveFigure();
+app.onFigureSelected(2); app.onRemoveFigure();
+app.onFigureSelected(kG);
 app.onRemoveFigure();
 
 fprintf('\n== 5g. a figure across sessions: the Sessions section, the picker, the preview, Generate ==\n');

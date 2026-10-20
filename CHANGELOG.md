@@ -10,6 +10,15 @@ says how to cut a release.
 
 ### Added
 
+- Figures tab: **Unit report**, a spot check of one unit. It draws every enabled figure of the active dataset
+  (and the selected one, even when off) for the unit or channel picked over the preview only, as an HTML
+  report in a new temporary folder that opens in the browser: no figure files, no session figures, the output
+  folder untouched, cancelable from the progress dialog. A figure of the same data draws the unit itself; a
+  figure of channels or detections draws what is on the unit's recording channel; a figure of the dataset, or
+  one with nothing on that channel, is listed in the report as skipped with the reason, and the status bar
+  says what was left out. Off for a figure across sessions. `EphysAnalysisRunner.run` and `runDataset` take
+  `Observation=`, and `figureObservations(src, spec, Observation=)` returns the matching rows and why none
+  matched.
 - Figures: a PSTH panel drawn as a heat map, `options.display` `"trace"` (bars or a line per trial group, the
   default) or `"heatmap"`: the unit's PSTH as one image, a row per trial group (the first on top, as a raster
   and a stacked PSTH list them), x the PSTH's bins, colored by its rate after measure, smoothing, baseline and
@@ -1120,6 +1129,9 @@ says how to cut a release.
 
 ### Changed
 
+- Figures tab: **Preview**, **Generate**, **Unit report**, **Auto** and **<** **>** stand in a column of their
+  own at the left of the header, a row each; Dataset, Observation, Favorites and Design are rows to their
+  right at the pane's full width, and **Save look as design...** and **Export code** sit under Design.
 - The baseline Modes each panel type takes are one list, `EphysAnalysisConfig.baselineModes(type, source)`,
   read by `validate`, the figure editor (`figureEditorChoices`) and `adoptPanelOptions` instead of three copies.
 - A stacked PSTH (**Stack**) draws its first trial group's row on top, as a raster lists its groups, so a

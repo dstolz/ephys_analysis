@@ -1,7 +1,7 @@
 function R = chronuxSpikeSpectrum(SP, TB, S, opts)
 %chronuxSpikeSpectrum  Multitaper spectra of spike trains over trials (Chronux mtspectrumpt).
 %   R = chronuxSpikeSpectrum(SP, TB, S, Name=Value): SP spike trains
-%   (chronuxSpikeTrains), TB a chronuxTimeBase (made without Fs over a
+%   (chronuxTrainsOf), TB a chronuxTimeBase (made without Fs over a
 %   stretch: segments on the spike clock), S chronuxSettings. Each
 %   train's spikes are cut into TB's trials (chronuxSpikeCut, stamped from
 %   the window's start) and, per group, go to mtspectrumpt with trialave

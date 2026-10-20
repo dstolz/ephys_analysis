@@ -1,7 +1,7 @@
 function R = chronuxSpecgram(D, TB, S, opts)
 %chronuxSpecgram  Multitaper spectrograms of a signal's channels (Chronux mtspecgramc).
 %   R = chronuxSpecgram(D, TB, S, Name=Value): D a block of a signal
-%   (loadChronuxExport), TB a chronuxTimeBase, S chronuxSettings. Each
+%   (chronuxBlockOf), TB a chronuxTimeBase, S chronuxSettings. Each
 %   spectrum is computed over a window S.movingwin(1) s long, stepped by
 %   S.movingwin(2) s (the tapers' T is the window). Pure: no I/O, no
 %   graphics. Needs Chronux on the path.

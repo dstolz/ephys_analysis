@@ -1386,6 +1386,11 @@ says how to cut a release.
 - `figureTiles` (a figure's grid as equal tiles of a tiled layout), with the quarter-step rule for row
   heights and column widths.
 
+- The script route to a Chronux export file: `loadChronuxExport` and `chronuxSpikeTrains` (the figures'
+  spectral panels read the layers themselves, and the Chronux analyses take their blocks); `chronuxPairs` is a
+  local function of `chronuxCoherence` (its error is `chronuxCoherence:BadPair`). The Chronux export
+  (`exportChronux`) and its file format stay; the worked example in the analysis documentation goes.
+
 ### Fixed
 
 - A patch overlay was never seen over a raster panel: `drawOverlays` drew it as an `xregion` / `yregion`,

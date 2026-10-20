@@ -1,30 +1,26 @@
 function test_ChronuxAnalysis()
-%test_ChronuxAnalysis  Verification suite for the Chronux tab's analyses (no recording needed).
-%   Hand-built Chronux files (the shape EphysDataset.exportChronux writes,
-%   with its export.layout index), saved -v7.3 and -v7, check:
-%   chronuxSettings (defaults, overlays, its errors); loadChronuxExport (the
-%   index; rows read by parts equal to the whole signal's, channels in the
-%   order asked, Span, both file versions, TooLarge, NoLayout, the Check
-%   called); chronuxTimeBase (segments clear of the artifact periods' rows,
-%   the seconds accounted for, spike-clock segments, epochs from an
-%   epochTable with its groups); the alignment (a signal whose value is its
-%   row: offset 0 of each trial is the row of its time 0, on a block that
-%   starts past row 1); and, with Chronux on the path: chronuxSpectrum (a
-%   40 Hz sine peaks within the tapers' bandwidth, the error bars bracket
-%   the spectrum, a 10 Hz burst inside an artifact period is not seen over
-%   a stretch, groups and trial counts), chronuxSpecgram (a 30 Hz burst
-%   after each event, a dB baseline near 0 in its window, a stretch's
-%   artifact period left NaN), a Check that throws stops them,
-%   chronuxPairs and chronuxCoherence (a delayed copy of a channel is
-%   coherent at its frequencies with the delay's phase, noise stays under
-%   confC, seed and pair modes, a coherogram NaN over an artifact
-%   period), the spike analyses on spike trains written into the file
-%   (chronuxSpikeTrains; a train modulated at 20 Hz peaks there and its
-%   spectrum's rate is its mean rate, spikes locked to a 40 Hz field are
-%   coherent with it at 40 Hz, two identical trains have a coherence of 1),
-%   and renderChronux (every kind, layout and scale, the phase tiles, into
-%   a classic figure and a uifigure panel, pages, every component's role
-%   known to PlotAesthetics).
+%test_ChronuxAnalysis  Verification suite for the Chronux analyses the figures' spectral panels run (no recording needed).
+%   Signal blocks and spike trains built in the test, in the shape
+%   figureChronuxLayer hands the analyses, check: chronuxSettings
+%   (defaults, overlays, its errors); chronuxTimeBase (segments clear of
+%   the artifact periods' rows, the seconds accounted for, spike-clock
+%   segments, epochs from an epochTable with its groups); the alignment (a
+%   signal whose value is its row: offset 0 of each trial is the row of its
+%   time 0, on a block that starts past row 1); and, with Chronux on the
+%   path: chronuxSpectrum (a 40 Hz sine peaks within the tapers' bandwidth,
+%   the error bars bracket the spectrum, a 10 Hz burst inside an artifact
+%   period is not seen over a stretch, groups and trial counts),
+%   chronuxSpecgram (a 30 Hz burst after each event, a dB baseline near 0 in
+%   its window, a stretch's artifact period left NaN), a Check that throws
+%   stops them, chronuxCoherence (a delayed copy of a channel is coherent at
+%   its frequencies with the delay's phase, noise stays under confC, the
+%   seed and pair modes' pairs and their errors, a coherogram NaN over an
+%   artifact period), the spike analyses on spike trains (a train modulated
+%   at 20 Hz peaks there and its spectrum's rate is its mean rate, spikes
+%   locked to a 40 Hz field are coherent with it at 40 Hz, two identical
+%   trains have a coherence of 1), and renderChronux (every kind, layout and
+%   scale, the phase tiles, into a classic figure and a uifigure panel,
+%   pages, every component's role known to PlotAesthetics).
 %
 %   Usage:  test_ChronuxAnalysis
 
@@ -39,10 +35,6 @@ if ~ChronuxDataset.hasChronux()
     addpath(added);
 end
 pathBack = onCleanup(@() rmpathQuiet(added));   % Chronux's findpeaks must not stay ahead of MATLAB's for other suites
-
-root = fullfile(tempdir, sprintf('ChronuxAnalysis_test_%s', datestr(now, 'yyyymmdd_HHMMSSFFF'))); %#ok<TNOW1,DATST>
-mkdir(root);
-cleanup = onCleanup(@() rmdirQuiet(root));
 
 nPass = 0; nFail = 0;
     function check(cond, msg)
@@ -78,7 +70,7 @@ check(strcmp(errorId(@() chronuxSettings(struct('err', "maybe"))), 'chronuxSetti
 check(strcmp(errorId(@() chronuxSettings(struct('analysis', "specgram", 'baseline', "db", 'baselineWindow', [-2 0]))), ...
     'chronuxSettings:Baseline'), 'a baseline outside the window is refused');
 
-fprintf('\n== 2. a Chronux file, and loadChronuxExport ==\n');
+fprintf('\n== 2. the signal ==\n');
 fs = 1000;
 dur = 120;
 n = dur * fs;
@@ -97,32 +89,10 @@ for e = ev.'
 end
 lag = 5;                                    % rows: channel 4 is channel 1 5 ms later, plus noise
 lfp(:, 4) = [zeros(lag, 1); lfp(1:end-lag, 1)] + randn(n, 1);
-f73 = writeChronux(fullfile(root, 'demo_chronux.mat'), lfp, fs, art, '-v7.3');
-f7 = writeChronux(fullfile(root, 'demo7_chronux.mat'), lfp, fs, art, '-v7');
-X = loadChronuxExport(f73);
-L = X.signals.LFP;
-check(X.hdf5 && L.windowed && L.fs == fs && L.nSamples == n && L.nChan == 4 && isequal(L.labels, ["A1" "A2" "A3" "A4"]) ...
-    && L.units == "microvolts" && isequal(X.artifacts, art) && isfield(X.events, 'Stim'), ...
-    'the index: a -v7.3 file read by parts, the signal''s rate, size, labels and units, the artifacts and events');
-check(~isfield(X.signals, 'MUA') && isempty(X.sp), 'only the signals and spikes the file holds');
-D = loadChronuxExport(f73, Signal="LFP", Rows=[1001 3500], Channels=[3 1], Index=X, BlockRows=700);
+D = blockOf(lfp, fs, [3 1], [1001 3500]);
 check(isequal(size(D.data), [2500 2]) && isequal(D.data, single(lfp(1001:3500, [3 1]))) && D.row0 == 1001 ...
-    && abs(D.t0 - 1) < 1e-12 && isequal(D.labels, ["A3" "A1"]), ...
-    'rows read a block at a time equal the signal''s, the channels in the order asked');
-D7 = loadChronuxExport(f7, Signal="LFP", Rows=[1001 3500], Channels=[3 1]);
-check(~loadChronuxExport(f7).signals.LFP.windowed && isequal(D7.data, D.data), 'a -v7 file is read whole and gives the same rows');
-Ds = loadChronuxExport(f73, Signal="LFP", Span=[2 3], Index=X);
-check(Ds.row0 <= 2001 && Ds.row0 + size(Ds.data, 1) - 1 >= 3001, 'Span reads every row with (k-1)/fs in it');
-nChecks = 0;
-loadChronuxExport(f73, Signal="LFP", Index=X, Channels=2, BlockRows=50000, Check=@() countCheck());
-check(nChecks == 3, 'Check is called after each block of rows');
-check(strcmp(errorId(@() loadChronuxExport(f73, Signal="LFP", Index=X, MaxMB=0.5)), 'loadChronuxExport:TooLarge'), ...
-    'more than MaxMB is refused');
-check(strcmp(errorId(@() loadChronuxExport(f73, Signal="MUA", Index=X)), 'loadChronuxExport:NoSignal'), 'a signal not in the file is refused');
-bare = fullfile(root, 'bare_chronux.mat');
-Sb = struct('LFP', struct('data', 1), 'export', struct('dataset', "bare"), 'sp', []);
-save(bare, '-struct', 'Sb');
-check(strcmp(errorId(@() loadChronuxExport(bare)), 'loadChronuxExport:NoLayout'), 'a file without export.layout is refused');
+    && isequal(D.labels, ["A3" "A1"]) && isequal(rowsOf([2 3], fs, n), [2000 3002]), ...
+    'a block holds the rows and the channels asked, in that order; a span takes the rows (k-1)/fs in it and one more each side');
 
 fprintf('\n== 3. chronuxTimeBase ==\n');
 TB = chronuxTimeBase("range", Range=[10 90], Artifacts=art, Fs=fs, NRows=n, Segment=2);
@@ -152,7 +122,7 @@ TB1 = chronuxTimeBase("aligned", E=E, Groups=G, Window=[-0.5 1], UseGroups=false
 check(height(TB1.groups) == 1 && TB1.groups.n == numel(ev), 'UseGroups=false: every epoch in one group');
 
 fprintf('\n== 4. the alignment ==\n');
-Db = loadChronuxExport(f73, Signal="LFP", Rows=[1501 40000], Channels=2, Index=X);
+Db = blockOf(lfp, fs, 2, [1501 40000]);
 TBr = TBa;
 TBr.starts = [2.1; 5.2345; 20];
 TBr.groupIndex = [1; 1; 1];
@@ -171,7 +141,7 @@ else
     fprintf('\n== 5. chronuxSpectrum ==\n');
     S = chronuxSettings(struct('timeBase', "range", 'segmentSec', 2, 'fpass', [0 100], 'TW', 3, 'K', 5, 'err', "jackknife"));
     TBx = chronuxTimeBase("range", Range=[0 Inf], Artifacts=art, Fs=fs, NRows=n, Segment=2);
-    Dx = loadChronuxExport(f73, Signal="LFP", Channels=[1 3], Span=TBx.span, Index=X);
+    Dx = blockOf(lfp, fs, [1 3], rowsOf(TBx.span, fs, n));
     R = chronuxSpectrum(Dx, TBx, S, Dataset="demo");
     [~, im] = max(R.S(:, 1));
     W = R.tapers.halfBandwidthHz;
@@ -187,7 +157,7 @@ else
     check(isempty(R0.Slo) && max(abs(R0.S(:) - R.S(:)) ./ R.S(:)) < 1e-9 && R0.params.err == 0, ...
         'without error bars: the same spectrum, none');
     Sa = chronuxSettings(struct('window', [0 0.5], 'fpass', [0 100], 'err', "none"));
-    Da = loadChronuxExport(f73, Signal="LFP", Channels=1, Span=TBa.span, Index=X);
+    Da = blockOf(lfp, fs, 1, rowsOf(TBa.span, fs, n));
     TBw = chronuxTimeBase("aligned", E=E, Groups=G, Window=[0 0.5]);
     Ra = chronuxSpectrum(Da, TBw, Sa);
     [~, ia] = max(Ra.S(:, 1, 1));
@@ -200,7 +170,7 @@ else
     Sg = chronuxSettings(struct('analysis', "specgram", 'window', [-1 1.5], 'movingwin', [0.25 0.05], 'fpass', [0 80], ...
         'TW', 2, 'K', 3, 'baseline', "db", 'baselineWindow', [-1 -0.1]));
     TBg = chronuxTimeBase("aligned", E=E, Groups=G, Window=[-1 1.5], UseGroups=false);
-    Dg = loadChronuxExport(f73, Signal="LFP", Channels=1, Span=TBg.span, Index=X);
+    Dg = blockOf(lfp, fs, 1, rowsOf(TBg.span, fs, n));
     Rg = chronuxSpecgram(Dg, TBg, Sg);
     f30 = abs(Rg.f - 30) <= 4;
     post = Rg.t > 0.15 & Rg.t < 0.35;
@@ -213,7 +183,7 @@ else
     check(abs(Rg.t(1) - (-1 + (nW - 1) / 2 / fs)) < 1e-12, 'each window''s time is its center, s from the event');
     Sr = chronuxSettings(struct('analysis', "specgram", 'timeBase', "range", 'range', [20 40], 'movingwin', [0.5 0.25], 'fpass', [0 80]));
     TBq = chronuxTimeBase("range", Range=[20 40], Artifacts=art, Fs=fs, NRows=n, Segment=0.5);
-    Dq = loadChronuxExport(f73, Signal="LFP", Channels=[1 3], Span=TBq.span, Index=X);
+    Dq = blockOf(lfp, fs, [1 3], rowsOf(TBq.span, fs, n));
     Rq = chronuxSpecgram(Dq, TBq, Sr);
     inArt = Rq.t > 30.3 & Rq.t < 31.7;
     out = Rq.t > 22 & Rq.t < 28;
@@ -222,18 +192,17 @@ else
     check(strcmp(errorId(@() chronuxSpecgram(Dq, TBq, Sr, MaxMB=0.001)), 'chronuxSpecgram:TooLarge'), ...
         'a spectrogram over MaxMB is refused');
 
-    fprintf('\n== 8. chronuxPairs, chronuxCoherence ==\n');
+    fprintf('\n== 8. chronuxCoherence ==\n');
     Sc = chronuxSettings(struct('analysis', "coherence", 'timeBase', "range", 'segmentSec', 2, 'fpass', [0 100], ...
-        'pairMode', "seed", 'seed', 1, 'channels', [3 4], 'err', "jackknife"));
-    Dc = loadChronuxExport(f73, Signal="LFP", Channels=[1 3 4], Span=TBx.span, Index=X);
-    Pc = chronuxPairs(Sc, Dc.channels, Dc.labels);
-    check(isequal(Pc.a, [1; 1]) && isequal(Pc.b, [3; 4]) && isequal(Pc.label, ["A1-A3"; "A1-A4"]), ...
-        'seed mode: the seed against every other channel picked');
-    Sp = Sc; Sp.pairMode = "pair"; Sp.partner = 4;
-    check(isequal(chronuxPairs(Sp, Dc.channels, Dc.labels).b, 4), 'pair mode: the seed and its partner');
-    Sp.partner = 1;
-    check(strcmp(errorId(@() chronuxPairs(Sp, Dc.channels, Dc.labels)), 'chronuxPairs:BadPair'), 'a channel with itself is refused');
+        'pairMode', "seed", 'seed', 1, 'channels', [2 3], 'err', "jackknife"));   % the block's columns: A1, A3, A4
+    Dc = blockOf(lfp, fs, [1 3 4], rowsOf(TBx.span, fs, n));
     Rc = chronuxCoherence(Dc, TBx, Sc, Dataset="demo");
+    check(isequal(Rc.pairs.a, [1; 1]) && isequal(Rc.pairs.b, [2; 3]) && isequal(Rc.pairs.label, ["A1-A3"; "A1-A4"]), ...
+        'seed mode: the seed against every other channel picked');
+    Sp = Sc; Sp.pairMode = "pair"; Sp.partner = 1;
+    check(strcmp(errorId(@() chronuxCoherence(Dc, TBx, Sp)), 'chronuxCoherence:BadPair'), 'a channel with itself is refused');
+    Sp.partner = 4;
+    check(strcmp(errorId(@() chronuxCoherence(Dc, TBx, Sp)), 'chronuxCoherence:BadPair'), 'a channel not in the block is refused');
     k40 = abs(Rc.f - 40) == min(abs(Rc.f - 40));
     hiF = Rc.f > 60;
     expect = 2 * pi * 40 * lag / fs;
@@ -243,31 +212,24 @@ else
     check(mean(Rc.C(hiF, 1) < Rc.confC(1)) > 0.9 && isfinite(Rc.confC(1)) && all(Rc.Clo(:) <= Rc.C(:) + 1e-9), ...
         'noise stays under confC; the jackknife bars bracket C');
     Sg2 = chronuxSettings(struct('analysis', "coherence", 'overTime', true, 'timeBase', "range", 'range', [20 40], ...
-        'movingwin', [0.5 0.25], 'fpass', [0 80], 'pairMode', "pair", 'seed', 1, 'partner', 4));
-    Dq4 = loadChronuxExport(f73, Signal="LFP", Channels=[1 4], Span=TBq.span, Index=X);
+        'movingwin', [0.5 0.25], 'fpass', [0 80], 'pairMode', "pair", 'seed', 1, 'partner', 2));
+    Dq4 = blockOf(lfp, fs, [1 4], rowsOf(TBq.span, fs, n));
     Rcg = chronuxCoherence(Dq4, TBq, Sg2);
     check(Rcg.kind == "chronuxCohgram" && all(isnan(Rcg.C(inArt, :)), 'all') && all(isfinite(Rcg.C(out, :)), 'all') ...
-        && size(Rcg.C, 3) == 1, 'over time, a stretch: NaN over the artifact period');
+        && size(Rcg.C, 3) == 1 && isequal(Rcg.pairs.b, 2) && Rcg.pairs.label == "A1-A4", ...
+        'over time, a stretch: NaN over the artifact period; pair mode: the seed and its partner');
 
     fprintf('\n== 9. the spike analyses ==\n');
     lam = 20 * (1 + 0.9 * sin(2 * pi * 20 * t));          % a train modulated at 20 Hz
     t1 = t(rand(n, 1) < lam / fs);
     pk = (1 / 160 : 1 / 40 : dur - 0.1).';                  % the 40 Hz sine's peaks
     t2 = round(pk(rand(numel(pk), 1) < 0.5) * fs) / fs;   % at half the peaks, on the sample grid
-    U = struct('label', ["u1"; "u2"; "u3"], 'class', ["su"; "su"; "mua"]);
-    fsp = writeChronux(fullfile(root, 'spikes_chronux.mat'), lfp, fs, art, '-v7.3', ...
-        struct('times', {t1, t2, t1}), U);
-    Xs = loadChronuxExport(fsp);
-    SP = chronuxSpikeTrains(Xs, "units");
-    check(numel(SP.times) == 3 && isequal(SP.labels, ["u1" "u2" "u3"]) && isequal(SP.class, ["su" "su" "mua"]) ...
-        && isequal(SP.times(2).times, t2), 'chronuxSpikeTrains: the file''s units, labeled');
-    check(strcmp(errorId(@() chronuxSpikeTrains(Xs, "detected")), 'chronuxSpikeTrains:None') ...
-        && strcmp(errorId(@() chronuxSpikeTrains(Xs, "units", 4)), 'chronuxSpikeTrains:BadIndex'), ...
-        'no detections, or a train not in the file, is refused');
+    SPall = struct('times', struct('times', {t1, t2, t1}), 'labels', ["u1" "u2" "u3"], 'index', 1:3, ...
+        'class', ["su" "su" "mua"], 'source', "units");
     TBp = chronuxTimeBase("range", Range=[0 Inf], Artifacts=art, Duration=dur, Segment=2);
     Ss = chronuxSettings(struct('analysis', "spikeSpectrum", 'timeBase', "range", 'fpass', [0 100], 'spikeFs', 1000, ...
         'err', "jackknife"));
-    Rs = chronuxSpikeSpectrum(chronuxSpikeTrains(Xs, "units", 1), TBp, Ss);
+    Rs = chronuxSpikeSpectrum(pickTrains(SPall, 1), TBp, Ss);
     band = Rs.f > 8;
     [~, ip] = max(Rs.S(band, 1));
     fb = Rs.f(band);
@@ -277,19 +239,19 @@ else
     Sf = chronuxSettings(struct('analysis', "spikeField", 'timeBase', "range", 'segmentSec', 2, 'fpass', [0 100], ...
         'fieldChannel', 1, 'err', "theoretical"));
     TBf = chronuxTimeBase("range", Range=[0 Inf], Artifacts=art, Fs=fs, NRows=n, Segment=2);
-    Df = loadChronuxExport(fsp, Signal="LFP", Channels=1, Span=TBf.span, Index=Xs);
-    Rf = chronuxSpikeField(Df, chronuxSpikeTrains(Xs, "units", [1 2]), TBf, Sf);
+    Df = blockOf(lfp, fs, 1, rowsOf(TBf.span, fs, n));
+    Rf = chronuxSpikeField(Df, pickTrains(SPall, [1 2]), TBf, Sf);
     k40 = abs(Rf.f - 40) == min(abs(Rf.f - 40));
     check(Rf.kind == "chronuxSpikeField" && Rf.C(k40, 2) > 0.5 && Rf.C(k40, 2) > Rf.confC(2) ...
         && Rf.C(k40, 1) < Rf.C(k40, 2) && isequal(Rf.pairs.label, ["u1-A1"; "u2-A1"]), ...
         sprintf('spikes locked to the 40 Hz field are coherent with it there (C %.2f; the other train %.2f)', Rf.C(k40, 2), Rf.C(k40, 1)));
     Su = chronuxSettings(struct('analysis', "unitCoherence", 'timeBase', "range", 'fpass', [2 100], 'pairMode', "pair", ...
         'unitSeed', 1, 'unitPartner', 3, 'err', "none"));
-    Ru = chronuxUnitCoherence(chronuxSpikeTrains(Xs, "units", [1 3]), TBp, Su);
+    Ru = chronuxUnitCoherence(pickTrains(SPall, [1 3]), TBp, Su);
     check(Ru.kind == "chronuxUnitCoherence" && min(Ru.C(:)) > 0.99 && isequal(Ru.pairs.label, "u1-u3"), ...
         'two identical trains have a coherence of 1');
     Su.unitPartner = 2;
-    check(strcmp(errorId(@() chronuxUnitCoherence(chronuxSpikeTrains(Xs, "units", [1 3]), TBp, Su)), ...
+    check(strcmp(errorId(@() chronuxUnitCoherence(pickTrains(SPall, [1 3]), TBp, Su)), ...
         'chronuxUnitCoherence:BadPair'), 'a partner not among the trains picked is refused');
 
     fprintf('\n== 7. renderChronux ==\n');
@@ -336,31 +298,28 @@ fprintf('\n================  %d passed, %d failed  ================\n', nPass, n
 if nFail > 0
     error('test_ChronuxAnalysis:Failures', '%d checks failed.', nFail);
 end
-
-    function countCheck()
-        nChecks = nChecks + 1;
-    end
 end
 
 
-function file = writeChronux(file, lfp, fs, art, ver, sp, units)
-%writeChronux  A Chronux file of exportChronux's shape: LFP, events, artifacts, export with its layout (SP, UNITS: sorted units).
-if nargin < 6; sp = []; units = []; end
-n = size(lfp, 1);
-labels = "A" + string(1:size(lfp, 2));
-S = struct();
-S.LFP = struct('data', lfp, 'params', ChronuxDataset.makeParams(fs), 't', (0:n-1) / fs, 'labels', labels, ...
-    'info', struct('fs', fs, 'units', "microvolts"));
-S.sp = sp;
-S.units = units;
-S.spDetected = [];
-S.detected = [];
-S.events = struct('Stim', [(2:3:110).' + 1 / 30000, (2:3:110).' + 0.1]);
-S.artifacts = struct('intervals', art, 'fill', "line", 'nSamples', n);
-S.export = struct('tool', "test", 'created', "2026-10-12 12:00:00", 'dataset', "demo", 'signals', "LFP", ...
-    'layout', struct('LFP', struct('fs', fs, 'nSamples', n, 'nChan', size(lfp, 2), 'labels', labels, ...
-        'units', "microvolts", 'sampleRange', [1 n])), 'eventFs', 30000);
-save(file, '-struct', 'S', ver);
+function D = blockOf(lfp, fs, channels, rows)
+%blockOf  Rows ROWS ([r0 r1]) of the CHANNELS of LFP as the block the Chronux analyses take (figureChronuxLayer's shape).
+D = struct('signal', "LFP", 'data', single(lfp(rows(1):rows(2), channels)), 'fs', fs, 'row0', rows(1), ...
+    'channels', 1:numel(channels), 'labels', "A" + string(channels), 'units', "microvolts");
+end
+
+
+function rows = rowsOf(span, fs, n)
+%rowsOf  The rows a span [t0 t1] (s) needs of a signal of N rows: those with (k-1)/FS in it, and one more each side.
+rows = [max(1, floor(span(1) * fs + 1e-6)), min(n, ceil(span(2) * fs - 1e-6) + 2)];
+end
+
+
+function SP = pickTrains(SP, which)
+%pickTrains  The trains WHICH of SP, keeping their numbers (SP.index).
+SP.times = SP.times(which);
+SP.labels = SP.labels(which);
+SP.class = SP.class(which);
+SP.index = SP.index(which);
 end
 
 
@@ -374,15 +333,5 @@ if p ~= ""
     w = warning('off', 'MATLAB:rmpath:DirNotFound');
     rmpath(p);
     warning(w);
-end
-end
-
-
-function rmdirQuiet(p)
-if isfolder(p)
-    try
-        rmdir(p, 's');
-    catch
-    end
 end
 end

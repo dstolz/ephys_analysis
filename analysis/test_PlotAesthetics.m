@@ -175,14 +175,14 @@ h = renderFigure(Cp.F, Cp.spec, fig, Editable=true, OnGoto=@(role, panel) setapp
 C = PlotAesthetics.components(h.layout);
 items = findall(fig, 'Type', 'uimenu', 'Tag', PlotAesthetics.GotoTag);
 check(numel(items) == numel(findall(fig, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag)), 'OnGoto: every component menu has "Go to setting"');
-k = find(C.Role == "tileTitle" & C.Tile > 0, 1);
+k = find(C.Role ~= "" & C.Tile > 0, 1);
 PlotAesthetics.onMenuGoto(findobj(C.Handles{k}(1).ContextMenu.Children, 'Tag', PlotAesthetics.GotoTag), []);
 got = getappdata(0, 'aestheticsGoto');
-check(numel(got) == 2 && got{1} == "tileTitle" && got{2} == C.TileName(k), 'it reports the part''s role and its panel''s id');
-k = find(C.Role == "plotTitle", 1);
+check(numel(got) == 2 && got{1} == C.Role(k) && got{2} == C.TileName(k), 'it reports the part''s role and its panel''s id');
+k = find(C.Role ~= "" & C.Tile == 0, 1);
 PlotAesthetics.onMenuGoto(findobj(C.Handles{k}(1).ContextMenu.Children, 'Tag', PlotAesthetics.GotoTag), []);
 got = getappdata(0, 'aestheticsGoto');
-check(got{1} == "plotTitle" && got{2} == "", 'the figure''s own parts have no panel');
+check(~isempty(k) && got{1} == C.Role(k) && got{2} == "", 'the figure''s own parts have no panel');
 if isappdata(0, 'aestheticsGoto'); rmappdata(0, 'aestheticsGoto'); end
 R = PlotAesthetics.roles().Role;
 check(all(arrayfun(@(r) ~isempty(figureRoleSettings(r)), R)) && isequal(figureRoleSettings("nonsense"), "@style"), ...

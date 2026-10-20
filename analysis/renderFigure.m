@@ -26,11 +26,20 @@ function h = renderFigure(F, spec, target, opts)
 %            its middle. SPEC.panels(k).title, when set, titles the panel;
 %            with a title of the figure's own (SPEC.title, which names no
 %            observation), the top-left panel names the observation.
+%   Axes     once the type has drawn, the panel's own axis sides and labels
+%            (panelAxes): its x axis' ticks and label on the bottom or the
+%            top (SPEC.panels(k).xSide; a coherence panel's on top of its
+%            magnitude, its phase strip dropping them), its y axis' on the
+%            left or the right (ySide; not a stacked PSTH's, which has one
+%            on each side); xLabel and yLabel, when set, replace the labels
+%            drawn. A color bar outside on the side an axis moves to goes
+%            to the opposite side.
 %   Time     every panel sharing the figure's time axis (sharesTime; a
 %            spectrogram, a coherogram on the epochs too) shows
 %            [SPEC.window.pre post] (set on each: no linkaxes);
 %            figureTimeStack labels a column's stack of time panels once,
-%            at its bottom, and drops the inner x tick labels.
+%            at its bottom (at its top when their x axes are on top), and
+%            drops the inner x tick labels.
 %   Title    SPEC.title, else "<id>: <observation> — <event> (<n> epochs)"
 %            (a dataset figure names no observation; a figure with no
 %            aligned panel no event; a figure merged across sessions,
@@ -101,6 +110,12 @@ function h = renderFigure(F, spec, target, opts)
 %                     setting" (the app goes to the figure editor's setting
 %                     that controls the part: figureRoleSettings); [] (default):
 %                     the menu has no such item
+%     OnAxisEdit      called with a panel's id and the panel fields its axis
+%                     label's right-click menu changed (a struct of xLabel,
+%                     yLabel, xSide or ySide: "Edit label text...", "Move
+%                     to top", ...); the app keeps them in its config and
+%                     draws the figure again. [] (default): the figure is
+%                     drawn again here with them (they are not kept)
 %     DataTips        "auto" (default: in a visible figure), true or false:
 %                     data tips that name the point's quantities, trial,
 %                     unit or channel, panel and dataset (FigureDataTips;
@@ -134,6 +149,7 @@ arguments
     opts.Editable = "auto"
     opts.OnRemember = []
     opts.OnGoto = []
+    opts.OnAxisEdit = []
     opts.DataTips = "auto"
 end
 
@@ -231,6 +247,7 @@ for k = 1:nDraw
     end
     axs(k) = ax;
     if isfield(hk, 'extraAxes'); extra{k} = hk.extraAxes(isgraphics(hk.extraAxes)); end
+    panelAxes([ax reshape(extra{k}, 1, [])], p);   % its own axis sides and labels, over what its type drew
     hks{k} = hk;
     % the panel's overlays on its axes, and its note: in the band beside them, else in them
     ovls{k} = drawOverlays(struct('axes', ax), p.overlays);
@@ -382,8 +399,10 @@ if editable(opts.Editable, target)
     ctx = struct('kind', "figure", 'id', spec.id, 'title', txt, 'root', root, 'target', target, 'plotRules', specRules, ...
         'onRemember', {opts.OnRemember}, 'onGoto', {opts.OnGoto}, 'design', design, 'followsDesign', follows, 'ordinal', ordinal, 'mapField', mapField, ...
         'redraw', @(newRules) renderFigure(F, setfield(spec, 'aesthetics', newRules), target, Design=opts.Design, ...
-            UserAesthetics=opts.UserAesthetics, Editable=opts.Editable, OnRemember=opts.OnRemember, OnGoto=opts.OnGoto));
+            UserAesthetics=opts.UserAesthetics, Editable=opts.Editable, OnRemember=opts.OnRemember, OnGoto=opts.OnGoto, ...
+            OnAxisEdit=opts.OnAxisEdit));
     ctx.panelTypes = struct('id', sIds, 'type', types);   % each tile's panel type by the id it is tagged with (PlotDesign.capture)
+    ctx.onAxisEdit = @(panel, change) axisEdited(F, spec, target, opts, panel, change);   % an axis label's menu (PlotAesthetics)
     PlotAesthetics.enableEditing(target, ctx);
 end
 
@@ -401,6 +420,75 @@ for k = 1:np
 end
 h = struct('layout', canvas, 'axes', axs(drawn), 'panels', hp, 'title', txt);
 if editable(opts.DataTips, target); FigureDataTips.attach(F, spec, h); end   % after the right-click menus: it adds its item to them
+end
+
+
+function panelAxes(A, p)
+%panelAxes  A panel's own axis sides and label texts over what its type drew: P.xSide, ySide, xLabel, yLabel.
+%   A: the panel's axes, top to bottom (a coherence panel's phase strip
+%   under its magnitude). Each one's y axis goes to P.ySide, but a yyaxis'
+%   (a stacked PSTH's: a y axis on each side already). With P.xSide "top"
+%   the first axes' x axis goes on top, with the tick labels and label the
+%   last one had (the axes under it drop theirs). A label of the panel's
+%   own replaces the one drawn: the x label on the axes that shows the x
+%   axis (on a time axis figureTimeStack decides whether it shows), the
+%   first axes' y label (a yyaxis' left one). A color bar outside on the
+%   side an axis moves to goes to the opposite side, out of its labels'
+%   way.
+A = A(isgraphics(A));
+if isempty(A); return; end
+top = A(1);
+if p.ySide == "right"
+    for a = A
+        if isscalar(a.YAxis); a.YAxisLocation = 'right'; end
+    end
+end
+xa = A(end);   % the axes whose x axis shows its tick labels and label
+if p.xSide == "top"
+    top.XAxisLocation = 'top';
+    if numel(A) > 1   % the strip under it told the x axis: the first one tells it now
+        lab = A(end).XLabel;
+        xlabel(top, lab.String, 'Interpreter', lab.Interpreter, 'FontSize', lab.FontSize);
+        top.XTickLabelMode = 'auto';
+        for a = A(2:end)
+            a.XTickLabel = [];
+            a.XLabel.String = '';
+        end
+    end
+    xa = top;
+end
+if p.xLabel ~= ""; xlabel(xa, p.xLabel, 'Interpreter', 'none'); end
+if p.yLabel ~= ""
+    set(top.YAxis(1).Label, 'String', p.yLabel, 'Interpreter', 'none');   % (a yyaxis: its left one)
+end
+for a = A
+    cb = a.Colorbar;
+    if isempty(cb) || ~isvalid(cb); continue; end
+    loc = string(cb.Location);
+    if p.ySide == "right" && loc == "eastoutside"
+        cb.Location = 'westoutside';
+    elseif p.xSide == "top" && loc == "northoutside"
+        cb.Location = 'southoutside';
+    end
+end
+end
+
+
+function axisEdited(F, spec, target, opts, panel, change)
+%axisEdited  An axis label's right-click edit of panel PANEL (CHANGE: its new xLabel, yLabel, xSide or ySide).
+%   OnAxisEdit keeps it (the app: in its config, then it draws the figure
+%   again); without one the figure is drawn again here with it.
+if ~isempty(opts.OnAxisEdit)
+    opts.OnAxisEdit(panel, change);
+    return
+end
+k = find([spec.panels.id] == panel, 1);
+if isempty(k); return; end
+for f = string(fieldnames(change)).'
+    spec.panels(k).(f) = change.(f);
+end
+args = namedargs2cell(opts);
+renderFigure(F, spec, target, args{:});
 end
 
 
@@ -466,8 +554,11 @@ for k = 1:numel(panels)
             need = 96 / 72 * wide + 4.5 * px + 12;
         end
     end
+    ins = [4.5 3 0.5 0] * px;   % [left bottom right top]: the y labels left, the x labels below
+    if panels(k).ySide == "right"; ins([1 3]) = ins([3 1]); end
+    if panels(k).xSide == "top"; ins([2 4]) = ins([4 2]); end
     C(k) = struct('r1', c.r1, 'r2', c.r2, 'c1', c.c1, 'c2', c.c2, 'size', c.size, 'align', c.align, 'valign', c.valign, ...
-        'inset', [4.5 3 0.5 0] * px, 'band', band, 'need', need, 'shares', 1);
+        'inset', ins, 'band', band, 'need', need, 'shares', 1);
 end
 L = figureArrange(sz, grid, C, Top=3 * px, Margin=6);
 end

@@ -886,6 +886,8 @@ follow its id.
 | `type` | `"psth"` | one of the [panel types](#panel-types) |
 | `title` | `""` | `""` = none, but for the observation's label on the top-left panel under a title of the figure's own |
 | `box` | `"auto"` | the frame around the panel's axes (and a coherence panel's phase axes): `"auto"` leaves it to the [design](EphysAnalysis.md#plot-designs) (Tufte and Journal turn it off) and to the looks remembered for the panel's kind; `"on"` or `"off"` is the panel's own and wins over all of them, the figure's own `aesthetics` rules included (a right-click edit of a panel's *Box* does not show while `box` is not `"auto"`: set the panel's Box row instead). Validate: `auto`, `on` or `off` |
+| `xLabel`, `yLabel` | `""`, `""` | the panel's own x and y axis labels, any text (no TeX); `""` = automatic: the label the panel type draws (`"Time (s)"` on a time axis, the rate's unit, `"Frequency (Hz)"`, ...). A stack of time panels tells the time once ([shared time axis](#shared-time-axis)): `xLabel` shows where the panel tells it. On a coherence panel with its phase strip the y label is the magnitude's; on a stacked PSTH, its left axis' |
+| `xSide`, `ySide` | `"bottom"`, `"left"` | where the panel's x axis' ticks and label go, `"bottom"` or `"top"`, and its y axis', `"left"` or `"right"`; drawn once the type has drawn, for every type. A coherence panel's x axis on top goes on its magnitude, its phase strip dropping its tick labels; a stacked PSTH keeps its two y axes (left: the groups, right: the peaks) whatever `ySide` says. A color bar outside on the side an axis moves to goes to the opposite side. Validate: `bottom` or `top`, `left` or `right` |
 | `row`, `col` | 1, 1 | the top-left cell |
 | `rowSpan`, `colSpan` | 1, 1 | the rows and columns it covers |
 | `size` | `[1 1]` | `[width height]`: its share of its cell's plot area, each over 0 and at most 1, so one panel can be narrower or shorter than the others of its column or row (`[0.5 1]`: half as wide) |
@@ -1450,9 +1452,17 @@ A panel shares the figure's time axis when its type does (`SharesTime`) and its
 - Time panels stacked in a column are labeled once. A time panel's x tick labels
   and label are hidden when the panel directly below it, in every column it
   covers, is a time panel with the same limits. Otherwise (nothing below it, a
-  panel with another kind of x axis such as waveforms, or other limits) it keeps its ticks and is labeled `Time (s)`: the bottom of a stack is
+  panel with another kind of x axis such as waveforms, or other limits) it keeps its ticks and is labeled `Time (s)` (its `xLabel`, when set): the bottom of a stack is
   always labeled. A raster also drops its y ticks in its bottom tenth where it
   meets the panel below, unless its ticks name its blocks.
+- A time panel whose x axis is on top (`xSide "top"`) looks up instead: it
+  hides its tick labels and label when the panel directly above it, in every
+  column, is a time panel with the same limits whose x axis is on top too. So a
+  stack with every x axis on top is labeled once, at its top (a raster then
+  drops its y ticks in its top tenth). A panel with its x axis at the bottom
+  over one with its x axis on top hides its own: the lower one tells the time,
+  between them. Axes facing away from each other (the upper one's on top, the
+  lower one's at the bottom) both keep theirs.
 - A time panel with a `ref` or `window` of its own keeps its own x axis and
   label, and the stack above it is labeled at its own bottom.
 - A panel narrower than its column (a note band left or right of it, or a
@@ -1901,7 +1911,8 @@ Errors:
   (`rasterSortOrder`, a `rasterSortEvent` for `rasterSort "event"`) (an
   `edgeColor` or `baselineColor` that is not a color is a warning);
 - each panel's text note and overlays, by one function's rules ([Panel notes](#panel-notes), [Panel overlays](#panel-overlays)): a note with no text is not
-  checked (a panel of an unknown `type` has its note and overlays checked all the same; `box` is `auto`, `on` or `off`),
+  checked (a panel of an unknown `type` has its note and overlays checked all the same; `box` is `auto`, `on` or `off`,
+  `xSide` `bottom` or `top`, `ySide` `left` or `right`),
   else its `placement`, a finite `x` and `y` for `"custom"` (`0-1 across and up the panel`), `align`, `valign`,
   `interpreter`, a finite `rotation` and a positive (or `NaN`) `fontSize`; an overlay's
   `shape`, a finite `value` (line) or two different finite `from` and `to` (region), `axis`,

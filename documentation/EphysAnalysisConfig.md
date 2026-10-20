@@ -966,8 +966,8 @@ What each draws:
   (the median over its epochs) and a rug along the top edge; drawn as a span, a
   line per trial group from the median onset to the median offset near the top;
   drawn as a train, a PSTH of their own. With `options.stack` (and two or more trial groups) the
-  groups are not overlaid but stacked: one row per group, the first at the
-  bottom, each row `stackSpacing` times the tallest PSTH high, the groups'
+  groups are not overlaid but stacked: one row per group, the first on
+  top, each row `stackSpacing` times the tallest PSTH high, the groups'
   values on the left axis and their peaks on the right, as in [Stacked PSTHs](#stacked-psths). A second layer or unit is drawn into the same rows as an outline;
   `yLim` is not used in a stack. The groups' rasters are not a stack option:
   a raster panel above the PSTH shows them. With
@@ -976,7 +976,20 @@ What each draws:
   window shaded and the first unit's call per trial group (up, down or n.s.)
   at the top right (a layer's mean: the counts of its units up and down),
   (see [auROC](#auroc)); `normalize` does not apply to it, and it can be
-  stacked too.
+  stacked too. With `options.display "heatmap"` the first item (the observed
+  unit, or a layer's mean) is drawn as an image instead: a row per trial
+  group, the first on top, labeled with the groups' values (the y label
+  names the group-by parameters), x the PSTH's bins, each bin colored by its
+  rate after `measure`, smoothing, `baseline` and `normalize`. The color
+  scale spans that item's rows only, never other units' (`cLim` fixes it; an
+  auROC is on 0 to 1 with the modulation window as a bar over the image), in
+  `colormap` (`""`: `Style.HeatColormap`, else the design's heat colormap),
+  and a color bar in the measure's unit is its legend, inside the axes when
+  another time panel shares the column (so the time axes line up). The zero
+  line, the stop latencies, events marks and the waveform inset are drawn
+  over it; `histStyle`, `fill`, `fillAlpha`, `stack`, `stackSpacing` and
+  `yLim` are not used, a merged result's member sessions are not drawn, and
+  further items are noted at the bottom left.
 - `continuous`: the epochs' mean of each channel (LFP, MUA, SPIKE or AUX), per
   trial group, with an error band; `options.display` `lines` or `stacked` (a
   row per channel). With `options.trials` `"faint"` every epoch's trace is
@@ -1277,6 +1290,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `psth` | `measure` | `"rate"` | `"rate"`, `"count"` or `"probability"` |
 | `psth` | `baseline` | `Mode "none"`, `Window [-0.2 0]` | `Mode` `"none"`, `"subtract"`, `"zscore"`, `"percent"` or `"auroc"` (`"ratio"` is for rate and tuning panels) |
 | `psth` | `auroc` | `defaults("Auroc")` | baseline `Mode "auroc"`: the [auROC](#auroc) settings (`method`, `windows`, `windowSec`, `stepSec`, the call window `modulationWindow`, `cutoff`, `threshold`, `test`, `nResamples`, `correction`, `alpha`, `marks`, `modulatedOnly`). `windowSec` and `stepSec` must be whole numbers of the panel's bins (validate checks them) |
+| `psth` | `display` | `"trace"` | `"trace"` (bars or a line per trial group) or `"heatmap"`: the first item (unit or a layer's mean) as an image, a row per trial group, the first on top, colored by its PSTH on that item's own range, never across units; `histStyle`, `fill`, `fillAlpha`, `stack`, `stackSpacing` and `yLim` are not used then, and further items are noted on the panel |
 | `psth` | `histStyle` | `"bar"` | `"bar"` or `"line"` |
 | `psth` | `fill` | `true` | fill the bars, or the area under the line |
 | `psth` | `fillAlpha` | `NaN` | fill opacity 0-1; `NaN` = 0.5 where groups overlay, else 1 |
@@ -1284,7 +1298,9 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `psth` | `stack` | `false` | `true`: one row per trial group, stacked downwards (the first group on top, as a raster lists them), instead of overlaid; a single group is drawn overlaid |
 | `psth` | `stackSpacing` | 1.1 | `stack`: the step between rows, times the tallest PSTH (below 1 the rows overlap); positive |
 | `psth` | `maskAfterStop` | `false` | drop each epoch's bins from its stop event on |
-| `psth` | `yLim` | `[]` | the rate axis; not used in a stack |
+| `psth` | `yLim` | `[]` | the rate axis; not used in a stack or a heat map |
+| `psth` | `colormap` | `""` | `display "heatmap"`: `""` is the style's `HeatColormap`, else the design's heat colormap (an auROC: its diverging one); or a colormap function (`"turbo"`, `"hot"`, `"blueWhiteRed"`). A name that is no function is a validation warning and takes the default |
+| `psth` | `cLim` | `[]` | `display "heatmap"`: the color limits; `[]` = the drawn item's own range (an auROC: 0 to 1) |
 | `psth` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | the first unit's waveform in a box in the panel |
 | `continuous` | `baseline` | `Mode "none"`, `Window [-0.2 0]` | `Mode` `"none"` or `"subtract"` (each epoch's mean over `Window`, per channel). The window must overlap the panel's window |
 | `continuous` | `display` | `"lines"` | `"lines"` (a trace per channel) or `"stacked"` (a row of its own per channel) |
@@ -1838,7 +1854,8 @@ Errors:
   `auroc` (with baseline `Mode "auroc"`: the auROC rules ([auROC](#auroc)), its window
   and step whole numbers of the panel's bins, and the Statistics and Machine Learning
   Toolbox, at `<figure>.<panel>.options.auroc`), `histStyle`, `normalize`, `fillAlpha`,
-  a positive `stackSpacing`, `yLim`; a continuous panel's `baseline`
+  a positive `stackSpacing`, `display` (`trace` or `heatmap`), `colormap` (a name that
+  is no colormap function is a warning), `cLim`, `yLim`; a continuous panel's `baseline`
   (`none` or `subtract`, its window overlapping the panel's window), `display`, `statistic`, `transform`, `errorType` (`ci95`
   and `iqr` need the Statistics and Machine Learning Toolbox), a positive or `NaN`
   `stackSpacing`, `trials` (`off`, `faint` or `only`), `maxTrials` (a whole number

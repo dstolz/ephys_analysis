@@ -37,7 +37,9 @@ function syncFigureEditor(obj)
 %     Options        the panel type's own (titled "<Type> options"); a heat
 %                    map of a signal has no bins or measure; a PSTH's or a
 %                    spike heat map's auROC rows with the auroc baseline
-%                    (the test row with a per-unit test); a PSTH's stack;
+%                    (the test row with a per-unit test); a PSTH's display,
+%                    its trace rows (PSTH as, fill, stack, y limits) or,
+%                    drawn as a heat map, its colormap and color limits;
 %                    a continuous panel's trials (and at most, enabled
 %                    unless off); a heat map's rows, its raster sort
 %                    rows for trials (and neither row order nor Group
@@ -63,7 +65,8 @@ function syncFigureEditor(obj)
 %                    fill and outline; the line style and width with a line
 %                    or an outline); titled with the panel's id
 %     Appearance     all rows; the site size with a probe map, the heat
-%                    colors with a heat map, probe map or correlation map
+%                    colors with a heat map, probe map, correlation map or
+%                    a PSTH drawn as a heat map
 %     Sessions       Across sessions; with it ticked every row (the keys
 %                    with "These datasets", Units matched by for a unit
 %                    observation and the mapping file with "mapping", the
@@ -169,8 +172,8 @@ layerKeys = ["layerList" "layerAdd" "layerNote" "layerName" "layerSource" "layer
     "layerIds" "layerQuality" "layerMaxUnits" "layerShanks" "layerUnitChannels" "layerChannels" "layerAggregate" "evLine" ...
     "evEdge" "evSeqText" "evDrawAs" "evMarker" "evColor" "evSpanStyle" "layerColor" "layerLineStyle"];
 optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort" "sortLine" "sortSeqText" "rasterByGroup" "yTicks" "tickColor" "backColor" ...
-    "maskAfterStop" "histStyle" "fill" "normalize" "contDisplay" "statistic" "errorType" "stackSpacing" "order" ...
-    "value" "metric" "correlation" "fisherZ" "yLim" "cLim" "waveMode" "waveLocation" "waveScale" "wavePP" ...
+    "maskAfterStop" "psthDisplay" "histStyle" "fill" "normalize" "contDisplay" "statistic" "errorType" "stackSpacing" "order" ...
+    "value" "metric" "correlation" "fisherZ" "yLim" "cLim" "panelColormap" "waveMode" "waveLocation" "waveScale" "wavePP" ...
     "optApplyAll" "auMethod" "auWinMs" "auModFrom" "auCutoff" "auTest" "auMarks" "stack" "param" "rateDisplay" "waveLayout" ...
     "contTrials" "heatRows" "spTimeBase" "spRangeFrom" "spSegment" "spTaperMode" "spTW" "spW" "spPad" "spFmin" "spErr" ...
     "spDetrend" "spScale" "spSpikeFs" "spOverTime" "spWin" "spShowPhase" "etDisplay" "etTrials" "etColorBy" "etHeight" ...
@@ -257,7 +260,9 @@ if hasPanel
     v.binMs = t == "psth" || pointHeat || t == "corrmap"; v.smoothMs = v.binMs;
     v.measure = t == "psth" || pointHeat || ismember(t, ["rate" "tuning"]);
     v.baselineMode = ismember(t, ["psth" "continuous" "heatmap" "corrmap" "rate" "tuning"]); v.baseFrom = v.baselineMode;
-    v.stack = t == "psth";
+    psthHeat = t == "psth" && string(E.psthDisplay.Value) == "heatmap";   % a PSTH drawn as a heat map: no trace rows
+    v.psthDisplay = t == "psth";
+    v.stack = t == "psth" && ~psthHeat;
     v.param = t == "tuning";
     v.rateDisplay = t == "rate";
     v.waveLayout = t == "waveforms";
@@ -267,7 +272,7 @@ if hasPanel
     v.contTrials = t == "continuous";
     en(E.maxTrials, string(E.contTrials.Value) ~= "off");
     v.maskAfterStop = ismember(t, ["raster" "psth"]) || pointHeat;
-    v.histStyle = t == "psth"; v.fill = v.histStyle; v.normalize = v.histStyle;
+    v.histStyle = t == "psth" && ~psthHeat; v.fill = v.histStyle; v.normalize = t == "psth";
     v.contDisplay = t == "continuous"; v.statistic = v.contDisplay; v.errorType = v.contDisplay; v.stackSpacing = v.contDisplay;
     v.order = t == "heatmap" && ~trialHeat;
     et = t == "eventTrace";   % an event-trace panel's rows; those its display or trials do not use stay grayed out
@@ -281,8 +286,9 @@ if hasPanel
     if trialHeat; v.group = false; end   % a heat map of trials draws every group
     v.value = t == "probemap";
     v.metric = t == "corrmap"; v.correlation = v.metric; v.fisherZ = v.metric;
-    v.yLim = ismember(t, ["psth" "continuous" "waveforms" "rate" "tuning" "spectrum"]);
-    v.cLim = ismember(t, ["heatmap" "probemap" "corrmap" "spectrogram"]);
+    v.yLim = ismember(t, ["psth" "continuous" "waveforms" "rate" "tuning" "spectrum"]) && ~psthHeat;
+    v.cLim = ismember(t, ["heatmap" "probemap" "corrmap" "spectrogram"]) || psthHeat;
+    v.panelColormap = psthHeat;
     % the spectral panels: the Chronux tab's rows
     spectral = ismember(t, ["spectrum" "spectrogram" "coherence"]);
     overTime = t == "coherence" && logical(E.spOverTime.Value);   % a coherogram: an image of one group over time
@@ -396,7 +402,8 @@ S(names == "palign").BodyHeight = note + 30 + hs(1) + hs(2) + 22 + hs(3) + 5 * p
 types = strings(1, 0);
 if np > 0; types = [fig.panels.type]; end
 v.siteSize = any(types == "probemap");
-v.heatColormap = any(ismember(types, ["heatmap" "probemap" "corrmap"]));
+psthHeats = arrayfun(@(q) q.type == "psth" && isfield(q.options, 'display') && q.options.display == "heatmap", fig.panels);
+v.heatColormap = any(ismember(types, ["heatmap" "probemap" "corrmap"])) || any(psthHeats);
 errOn = logical(E.showSEM.Value);
 en(E.errType, errOn);
 en(E.errResamples, errOn && string(E.errType.Value) == "ci95");

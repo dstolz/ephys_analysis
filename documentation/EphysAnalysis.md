@@ -831,7 +831,11 @@ invisible figure with the same code. Its panels share the time axis where
 they can, each type is drawn by its own private function (`drawPsthPanel`,
 `drawRasterPanel`, ...), the figure has one legend east of its panels
 (`Style.LegendLocation` says otherwise) and one title above them, and a panel's
-text note and overlays are drawn with it. The options are `Design`,
+text note and overlays are drawn with it. A PSTH panel draws its trial groups
+as bars or lines, or with `options.display "heatmap"` as an image of the
+unit's PSTH, a row per trial group, colored on that unit's own range (never
+across units; `colormap`, `cLim`: [Panel options](EphysAnalysisConfig.md#panel-options)).
+The options are `Design`,
 `UserAesthetics`, `Editable` and `OnRemember`
 ([Plot aesthetics](#plot-aesthetics)); [`renderFigure`](EphysAnalysisConfig.md#renderfigure)
 on the config page describes the layout, titles, legend and look in full.
@@ -1058,8 +1062,8 @@ like a built-in design is left out. Every field is optional:
 | `palette` | the groups' colors, in order (they repeat past the end) |
 | `single` | the color of a plot with one group |
 | `sequential` | the colors of ordered groups -- a numeric parameter with more than two values, which `selectTrials` colors in order -- and an evoked butterfly's depths |
-| `heat` | heat maps and probe maps |
-| `diverging` | correlation maps and auROC heat maps (centerd) |
+| `heat` | heat maps (a PSTH drawn as one too) and probe maps |
+| `diverging` | correlation maps and auROC heat maps, a PSTH's too (centered) |
 | `rules` | rules (role, group, property, value) for every figure |
 | `kinds` | rules for one panel type (or `"figure"`, or a Chronux kind: `PlotDesign.kindNames()`), after the common ones: `{"heatmap": [...]}`. A key that is none of them (a retired plot kind such as `evoked` or `behavior`) is dropped with the warning `PlotDesign:UnknownKind`, and the design stays usable |
 

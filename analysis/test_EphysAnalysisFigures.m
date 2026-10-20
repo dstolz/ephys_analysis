@@ -193,6 +193,7 @@ check(isequal(T.SharesTime.', [true true true true false false false false false
 O = T.DefaultOptions;
 check(isempty(O{1}.rasterSortEvent) && O{1}.rasterSortOrder == "ascending" && O{1}.waveform.mode == "off" ...
     && O{2}.bins.BinSec == 0.01 && O{2}.histStyle == "bar" && isnan(O{2}.fillAlpha) && isequal(O{2}.yLim, []) ...
+    && O{2}.display == "trace" && O{2}.colormap == "" && isequal(O{2}.cLim, []) ...
     && O{3}.display == "lines" && O{3}.errorType == "sem" && isnan(O{3}.stackSpacing) ...
     && O{4}.order == "probe" && O{4}.group == 1 && O{5}.waveform.mode == "both" ...
     && O{6}.value == "rate" && O{7}.metric == "mean" && O{7}.correlation == "pearson" && ~O{7}.fisherZ ...
@@ -1056,6 +1057,13 @@ b = base; b.Figures(1).panels(2).options.histStyle = "pie"; b.Figures(1).panels(
 b.Figures(1).panels(2).options.fillAlpha = 2; b.Figures(1).panels(2).options.yLim = [1 0];
 check(has(b, o + "histStyle", "error") && has(b, o + "normalize", "error") && has(b, o + "fillAlpha", "error") && has(b, o + "yLim", "error"), ...
     'psth: histStyle, normalize, fillAlpha, yLim');
+b = ub; b.Figures(1).panels(2).options.display = "image"; b.Figures(1).panels(2).options.cLim = [2 1];
+b2 = ub; b2.Figures(1).panels(2).options.colormap = "noSuchColormap";
+b3 = ub; b3.Figures(1).panels(2).options.display = "heatmap"; b3.Figures(1).panels(2).options.colormap = "turbo";
+b3.Figures(1).panels(2).options.cLim = [0 40];
+check(has(b, o + "display", "error") && has(b, o + "cLim", "error") && has(b2, o + "colormap", "warning") ...
+    && ~has(b2, o + "colormap", "error") && isempty(figIssues(b3)), ...
+    'psth: display (trace or heatmap), a colormap that is no function (a warning), cLim');
 b = base.addFigure("continuous", Id="ct");
 b.Figures(2).panels.options = struct('display', "grid", 'statistic', "mode", 'transform', "log", 'errorType', "mad", 'stackSpacing', -1, ...
     'baseline', struct('Mode', "zscore"));
@@ -2565,6 +2573,71 @@ Fas = rn.computeFigure(src, cfgA.figureFor("aurocStack"), Observation=Tu(1, :));
 warning(wa2); warning(wa1);
 hAs = renderFigure(Fas, Fas.spec, fig);
 check(numel(findall(hAs.axes(2), 'Tag', 'stackBase')) == nGs && numel(hAs.axes(2).YAxis) == 2, 'an auROC PSTH can be stacked too');
+% a PSTH drawn as a heat map (display "heatmap"): a row per trial group, colored on the unit's own range
+sh = F1.spec;
+sh.panels(2).options.display = "heatmap";
+hh = renderFigure(F1, sh, fig);
+ah = hh.axes(2);
+imh = findall(ah, 'Type', 'image');
+Rh = F1.panels(2).layers(1).R;
+nGh = height(Rh.groups);
+Mh = reshape(Rh.rate(:, 1, :), [], nGh).';
+cl1 = [min(Mh, [], 'all') max(Mh, [], 'all')];
+[rlh, rnh] = rowLabels(Rh);
+cbh = ah.Colorbar;
+Ch = PlotAesthetics.components(hh.layout);
+check(nGh >= 2 && isscalar(imh) && isequaln(imh.CData, Mh) && isequal(reshape(imh.XData([1 end]), [], 1), reshape(Rh.t([1 end]), [], 1)) && strcmp(ah.YDir, 'reverse') ...
+    && isequal(ah.YTick, 1:nGh) && isequal(reshape(string(ah.YTickLabel), 1, []), reshape(rlh(1:nGh), 1, [])) ...
+    && string(ah.YLabel.String) == rnh && rnh == "Depth" && isequal(clim(ah), cl1) && ~isempty(cbh) ...
+    && string(cbh.Label.String) == Rh.units && string(cbh.Location) == "east" && isempty(findall(ah, '-regexp', 'Tag', '^rate(Fill)?$')) ...
+    && isscalar(findall(ah, 'Tag', 'zeroLine')) && isequal(xlim(ah), [F1.spec.window.pre F1.spec.window.post]) ...
+    && all(Ch.Role ~= "") && all(ismember(Ch.Role, roles)), ...
+    sprintf(['a PSTH as a heat map: one image, a row per trial group (%d) in order, the first on top, labeled with ' ...
+    'Depth''s values; colored on the unit''s own range, its color bar in %s inside the axes (a raster shares its column); ' ...
+    'every part a known role'], nGh, Rh.units));
+F1b = rn.computeFigure(src, spec, Observation=Tu(2, :));
+hh2 = renderFigure(F1b, sh, fig);
+Mh2 = reshape(F1b.panels(2).layers(1).R.rate(:, 1, :), [], nGh).';
+cl2 = [min(Mh2, [], 'all') max(Mh2, [], 'all')];
+check(isequal(clim(hh2.axes(2)), cl2) && ~isequal(cl1, cl2), sprintf(['two units with other rates each fill their own color ' ...
+    'range: [%.3g %.3g] and [%.3g %.3g], never one scale across units'], cl1, cl2));
+sc2 = sh;
+sc2.panels(2).options.colormap = "gray";
+sc2.panels(2).options.cLim = [0 5];
+hc2 = renderFigure(F1, sc2, fig);
+cl3 = clim(hc2.axes(2));
+cm3 = hc2.axes(2).Colormap;
+sc3 = sh;
+sc3.panels(2).options.colormap = "noSuchColormap";
+hc3 = renderFigure(F1, sc3, fig);
+check(isequal(cl3, [0 5]) && isequal(cm3, gray(256)) && ~isequal(hc3.axes(2).Colormap, gray(256)) ...
+    && size(hc3.axes(2).Colormap, 2) == 3, 'a PSTH heat map''s colormap and color limits are honored; a name that is no colormap takes the design''s');
+ex = exportFigure(fig, string(tempname), Format=["png" "svg"]);
+check(numel(ex) == 2 && all(isfile(ex)), 'a PSTH heat map exports (PNG, SVG)');
+for f = reshape(ex(isfile(ex)), 1, []); delete(f); end
+st2 = sh;
+st2.panels(2).options.display = "trace";
+ht2 = renderFigure(F1, st2, fig);
+check(isempty(findall(ht2.axes(2), 'Type', 'image')) && ~isempty(findall(ht2.axes(2), '-regexp', 'Tag', '^rate(Fill)?$')) ...
+    && isempty(ht2.axes(2).Colorbar), 'display back to "trace": the PSTH''s bars, no image or color bar');
+sm = Fs2.spec;
+sm.panels(2).options.display = "heatmap";   % stack stays ticked: not used by a heat map
+hm2 = renderFigure(Fs2, sm, fig);
+im2 = findall(hm2.axes(2), 'Type', 'image');
+nt2 = findall(hm2.axes(2), 'Tag', 'layerNote');
+check(isscalar(im2) && isequaln(im2.CData, reshape(Fs2.panels(2).layers(1).R.rate(:, 1, :), [], nGs).') && isscalar(nt2) ...
+    && contains(strjoin(string(nt2.String), " "), "not in the heat map") && contains(strjoin(string(nt2.String), " "), Fs2.panels(2).layers(2).name) ...
+    && isempty(findall(hm2.axes(2), 'Tag', 'stackBase')), ...
+    'a PSTH heat map of two layers draws the first item; the other is noted at the bottom left; stack is not used');
+sa2 = Fau.spec;
+sa2.panels(2).options.display = "heatmap";
+hA2 = renderFigure(Fau, sa2, fig);
+aA2 = hA2.axes(2);
+mw2 = findall(aA2, 'Tag', 'modWindow');
+check(isequal(clim(aA2), [0 1]) && isempty(findall(aA2, 'Type', 'constantregion')) && string(aA2.Colorbar.Label.String) == "auROC" ...
+    && (Lau.R.auroc.cutoff == "none" || (isscalar(mw2) && isa(mw2, 'matlab.graphics.primitive.Line') ...
+    && isequal(mw2.XData(:), Lau.R.auroc.modulationWindow(:)))), ...
+    'an auROC PSTH as a heat map: on 0-1, the modulation window a bar over the image (a line, not an xregion)');
 fhm = cfg.Figures(cfg.figureIndex("hm"));
 fhm.id = "hmAuroc";
 fhm.panels(1).options.baseline = struct('Mode', "auroc", 'Window', [-0.2 0]);
@@ -3026,6 +3099,16 @@ styles = unique(string(get(findall(fgS, 'Tag', 'rate', 'Type', 'line'), 'LineSty
 check(ismember("lineStyle", string(Rb.groups.Properties.VariableNames)) && height(Rb.groups) > 2 && numel(unique(Rb.groups.base)) == 2 ...
     && numel(styles) >= 2 && figureSessionSpec(sb.figureFor("srp")).panels(2).options.histStyle == "line", ...
     sprintf('trialGroups "combine": %d series (session x group), the groups drawn in %d line styles', height(Rb.groups), numel(styles)));
+sbh = sb.figureFor("srp");
+sbh.panels(2).options.display = "heatmap";
+clf(fgS);
+hbh = renderFigure(resB(1).F, sbh, fgS, Editable=false);
+imb = findall(hbh.axes(2), 'Type', 'image');
+[~, rnb] = rowLabels(Rb);
+Cb = PlotAesthetics.components(hbh.layout);
+check(isscalar(imb) && size(imb.CData, 1) == height(Rb.groups) && string(hbh.axes(2).YLabel.String) == rnb ...
+    && isempty(findall(fgS, 'Tag', 'memberLine')) && all(Cb.Role ~= "") && all(ismember(Cb.Role, roles)), ...
+    sprintf('a merged PSTH as a heat map: a row per series (%d, named "%s"), every part a known role', height(Rb.groups), rnb));
 
 % a continuous figure by channel
 spc = sc.figureFor("sct");

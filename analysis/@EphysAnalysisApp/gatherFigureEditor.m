@@ -214,6 +214,11 @@ if isfield(op, 'histStyle')
     if isempty(op.fillAlpha); op.fillAlpha = NaN; end
     op.normalize = string(E.normalize.Value);
 end
+if p.type == "psth"; op.display = string(E.psthDisplay.Value); end
+if isfield(op, 'colormap')   % "auto": the design's
+    op.colormap = strtrim(string(E.panelColormap.Value));
+    if op.colormap == "auto"; op.colormap = ""; end
+end
 if isfield(op, 'stack')   % a PSTH's rows (a continuous panel's stackSpacing is its own row)
     op.stack = logical(E.stack.Value);
     op.stackSpacing = E.psthSpacing.Value;

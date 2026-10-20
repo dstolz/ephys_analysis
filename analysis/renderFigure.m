@@ -357,7 +357,11 @@ end
 if editable(opts.Editable, target)
     mapField = "";
     aurocMap = false;   % a heat map of auROCs is drawn in the diverging colormap
-    for k = find(types == "heatmap")
+    heat = types == "heatmap";
+    for k = find(types == "psth")   % a PSTH drawn as a heat map
+        heat(k) = isfield(panels(k).options, 'display') && panels(k).options.display == "heatmap";
+    end
+    for k = find(heat)
         o = panels(k).options;
         aurocMap = aurocMap || (isfield(o, 'baseline') && isstruct(o.baseline) && o.baseline.Mode == "auroc");
     end
@@ -371,7 +375,7 @@ if editable(opts.Editable, target)
     end
     if any(types == "corrmap") || aurocMap
         mapField = "diverging";
-    elseif any(ismember(types, ["heatmap" "probemap" "spectrogram"])) || cohgram
+    elseif any(heat) || any(ismember(types, ["probemap" "spectrogram"])) || cohgram
         mapField = "heat";
     end
     ordinal = istable(G) && ismember('color', G.Properties.VariableNames) && isOrdinalGroups(G);

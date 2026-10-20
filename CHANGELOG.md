@@ -1057,6 +1057,21 @@ says how to cut a release.
   and a detection channel's in its detections; the figure's pick is still remembered by the label
   without the count. New private `refreshDatasetLabels` and app property `DatasetUnitCounts`. See
   [the preview's controls](documentation/EphysAnalysisApp.md#figures-tab).
+- **Favorites**: star (on / off) a dataset, a channel or a sorted unit to find it again. The stars are kept
+  beside the data, in `<Name>_favorites.json` in the dataset's output folder, so they travel with it to the
+  lab's share, another PC or another user; Scan reads them and each toggle writes at once. In the analysis
+  app: a **★** column in the Data tab's datasets table, a **☆** toggle beside the Dataset drop-downs
+  (Alignment and Figures tabs) and one beside the Figures tab's Observation drop-down, which stars the unit,
+  channel (a detection channel is starred as its channel) or dataset previewed; starred items start with
+  **★** in those drop-downs. A **Favorites** drop-down on the Alignment and Figures tabs lists every star of
+  the scanned datasets, with a filter field that narrows it as you type; picking an entry makes its dataset
+  active and previews the unit or channel when the selected figure observes that kind. A unit's star is
+  recorded with its sort (the sorting folder and the size of its `spike_times.npy`), so a new sort shows
+  none of the old stars rather than moving them to other units. A read-only output folder leaves the star
+  off and says why in the status bar. Scripts use the new `DatasetFavorites` class. See
+  [Favorites](documentation/EphysAnalysisApp.md#favorites),
+  [the script API](documentation/EphysAnalysis.md#favorites-stars) and
+  [the file](documentation/file-formats.md#favorites-name_favoritesjson).
 
 ### Changed
 
@@ -1334,6 +1349,12 @@ says how to cut a release.
   presets are named gaps: loose 24 px, compact 12, tight 6, none 0. A panel smaller than its cell keeps
   its own time tick labels. `PlotAesthetics.components` lists a figure's title from its `titleHost`, and
   `PlotDesign` paints the target itself as the figure's ground.
+- Reports and data exports carry the stars: `unitSummary` and `populationAnalysis`' `P.units` have a
+  `starred` column per unit, `P.datasets` and `sessionTable` (and so a session figure's data file's
+  `sessions`) one per dataset, and `populationSummary` groups by `"starred"`. A report's datasets carry
+  `starred`: the HTML report marks a starred dataset with a ★ in the contents and over its section, the PDF
+  names it *(starred)*, and the summary's recording table lists **Starred**, the starred channels and
+  units, with a **Starred** column in *Highest rates*.
 
 ### Removed
 

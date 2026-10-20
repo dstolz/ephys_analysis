@@ -1,9 +1,11 @@
 function refreshDatasetsTable(obj)
-%refreshDatasetsTable  One row per dataset: Run tick and what it holds.
+%refreshDatasetsTable  One row per dataset: Run tick, star and what it holds.
 %   Signals, units, detections and behavior come from which files exist;
 %   trials, pairing and duration once the dataset's source has been loaded
 %   (making it active loads it). Subject and Date (the day recorded) come
 %   from the name pattern and, in a project, the recording's own start.
+%   Star (the ★ column, a check box) is the dataset's star (Favorites);
+%   ticking it stars the dataset (onDatasetsTableEdited).
 %
 %   The rows are in the order of the last header click (DatasetsSort), put
 %   there each time the table is filled, so the sort survives a tick or a
@@ -18,6 +20,8 @@ end
 n = numel(r.Keys);
 mark = @(tf) ternary(tf, "✓", "");
 Run = reshape(obj.Ticked, [], 1);
+Star = false(n, 1);
+if numel(obj.Favorites) == n; Star = reshape([obj.Favorites.Dataset], [], 1); end
 Name = reshape(r.Names, [], 1);
 Key = reshape(r.Keys, [], 1);
 acq = NaT(n, 1);
@@ -54,10 +58,10 @@ for k = 1:n
     end
 end
 Idx = (1:n).';
-T = table(Run, Name, Subject, Date, Key, LFP, MUA, SPIKE, AUX, Units, Detected, Behavior, Trials, Pairing, Duration, Idx);
+T = table(Run, Star, Name, Subject, Date, Key, LFP, MUA, SPIKE, AUX, Units, Detected, Behavior, Trials, Pairing, Duration, Idx);
 T = TableSort.apply(T, obj.DatasetsSort);
 obj.DatasetsTable.Data = T;
-obj.DatasetsTable.ColumnEditable = [true false(1, width(T) - 1)];
+obj.DatasetsTable.ColumnEditable = [true true false(1, width(T) - 2)];
 removeStyle(obj.DatasetsTable);
 row = find(T.Idx == obj.ActiveIdx, 1);
 if ~isempty(row)

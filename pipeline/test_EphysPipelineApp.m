@@ -2370,6 +2370,23 @@ R = app.RunResultsTable.Data;
 check(height(R) == 2 && R.Status(2) == "done" && R.Seconds(2) == 5 && R.Message(1) == "" ...
     && pipe.Results.Status(2) == "done", ...
     'a row the monitor restates during the Run reaches the table at once, as the pipeline has it');
+app.resetRunDiagram(["behavior" "spikes"], false);
+app.RunStepClock = ProgressClock(MinSeconds=0);   % an estimate at once, not after 5 s
+app.RunClockStep = "behavior";
+app.onPipelineProgress(ev("behavior", "recA_260101_120000", 1, 2, 0.5, 1, "matching"));
+t1 = string(app.RunTimeLabel.Text);
+app.onPipelineProgress(ev("spikes", "", 0, 1, 0, 1, "starting"));
+t2 = string(app.RunTimeLabel.Text);
+app.RunStepClock = ProgressClock(MinSeconds=0);
+app.onPipelineProgress(ev("spikes", "recA_260101_120000", 1, 1, 0.5, 1, "detecting"));
+t3 = string(app.RunTimeLabel.Text);
+sepDot = " " + string(char(183)) + " ";
+check(startsWith(t1, "a few seconds left in this step, then 1 more step" + sepDot) && endsWith(t1, " s elapsed") ...
+    && ~contains(t2, "left") && endsWith(t2, " s elapsed") && app.RunClockStep == "spikes" ...
+    && startsWith(t3, "a few seconds left in the run" + sepDot), ...
+    sprintf(['the time line: the step''s time left and the steps after it, then the run''s elapsed time; a new ' ...
+    'step starts its own clock (no estimate yet); on the last step the time left is the run''s ("%s" / "%s" / "%s")'], t1, t2, t3));
+app.resetRunDiagram();
 app.Pipe = [];
 app.RunActive = false;
 

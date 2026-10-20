@@ -129,8 +129,15 @@ l = uilabel(right, "Text", "Current:"); l.Layout.Row = 2; l.Layout.Column = 1;
 obj.RunStepBar = makeBar(right, 2);
 obj.RunStepText = uilabel(right, "Text", "", "FontColor", [0.3 0.3 0.3]);
 obj.RunStepText.Layout.Row = 2; obj.RunStepText.Layout.Column = 3;
-obj.RunStepLabel = uilabel(right, "Text", "Idle.", "FontColor", [0.4 0.4 0.4]);
-obj.RunStepLabel.Layout.Row = 3; obj.RunStepLabel.Layout.Column = [1 3];
+% What the step is doing, and on the right the time left and elapsed.
+nowRow = uigridlayout(right, [1 2]);
+nowRow.Layout.Row = 3; nowRow.Layout.Column = [1 3];
+nowRow.RowHeight = {'fit'}; nowRow.ColumnWidth = {'1x', 'fit'};
+nowRow.Padding = [0 0 0 0]; nowRow.ColumnSpacing = 12;
+obj.RunStepLabel = uilabel(nowRow, "Text", "Idle.", "FontColor", [0.4 0.4 0.4]);
+obj.RunStepLabel.Layout.Row = 1; obj.RunStepLabel.Layout.Column = 1;
+obj.RunTimeLabel = uilabel(nowRow, "Text", "", "FontColor", [0.3 0.3 0.3], "HorizontalAlignment", "right");
+obj.RunTimeLabel.Layout.Row = 1; obj.RunTimeLabel.Layout.Column = 2;
 
 l = uilabel(right, "Text", "Issues (Validate)", "FontWeight", "bold"); l.Layout.Row = 4; l.Layout.Column = [1 3];
 obj.RunIssuesTable = uitable(right, "ColumnName", {'Step', 'Field', 'Severity', 'Message'}, ...

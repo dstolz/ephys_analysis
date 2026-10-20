@@ -93,6 +93,7 @@ cleanup = onCleanup(@() finishRun(obj));
 obj.setRunBar(obj.RunOverallBar, 0); obj.setRunBar(obj.RunStepBar, 0);
 obj.RunOverallText.Text = ""; obj.RunStepText.Text = "";
 obj.RunStepLabel.Text = "Starting...";
+obj.RunTimeLabel.Text = ""; obj.RunStepClock = []; obj.RunClockStep = "";
 obj.RunResults = EphysPipeline.emptyResults();
 obj.showRunResults(obj.RunResults);
 obj.setStatus("Running the pipeline...", "");
@@ -124,6 +125,8 @@ n = height(R);
 nErr = nnz(startsWith(R.Status, "error"));
 nCan = nnz(R.Status == "canceled");
 obj.RunStepLabel.Text = sprintf("Finished: %d result(s), %d error(s), %d canceled.", n, nErr, nCan);
+obj.RunTimeLabel.Text = "";   % the diagram says how long it took
+obj.RunStepClock = [];
 obj.setStatus(sprintf("Pipeline finished: %d result(s), %d error(s), %d canceled.", n, nErr, nCan));
 if copyForAnalysis && outcome == "done"
     try

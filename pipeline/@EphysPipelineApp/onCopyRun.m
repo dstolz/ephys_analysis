@@ -69,7 +69,7 @@ function startCopy(obj, rows, sel, destRoot)
 %startCopy  Launch the copy engine and let a timer follow it.
 obj.CopyCancelRequested = false;
 obj.CopyRows = sel;
-obj.CopyStarted = tic;
+obj.CopyClock = ProgressClock();
 obj.CopyRateHistory = zeros(0, 2);
 obj.CopyLiveRow = 0;
 obj.CopyLivePos = 0;

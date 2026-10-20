@@ -2,7 +2,7 @@ function showTransferProgress(obj)
 %showTransferProgress  The Run tab's last row: where the output copies have got to.
 %   Every transfer followed (Transfers) together: the share of their bytes
 %   copied (a SHA-256 check counts as two more reads), the batches done, a
-%   rate and a time left from the bytes of the last 15 s, how many wait
+%   rate from the bytes of the last 15 s and a time left, how many wait
 %   for a background sort, and the batch in flight with what the copy
 %   engine said last. The tooltip adds each destination. Called by the
 %   timer (pollTransfers), so it must be cheap.
@@ -53,9 +53,11 @@ end
 
 
 function s = rateAndLeft(obj, frac, bytes)
-%rateAndLeft  ", 45.0 MB/s, about 3 min left" from the bytes of the last 15 s.
-if isempty(obj.TransferStarted); obj.TransferStarted = tic; end
-elapsed = toc(obj.TransferStarted);
+%rateAndLeft  ", 45.0 MB/s, about 3 min left": the rate from the bytes of the
+%   last 15 s, the time left from the fraction (TransferClock, a ProgressClock).
+if isempty(obj.TransferClock); obj.TransferClock = ProgressClock(); end
+left = obj.TransferClock.update(frac);
+elapsed = obj.TransferClock.Elapsed;
 obj.TransferRateHistory = [obj.TransferRateHistory; elapsed, bytes];
 obj.TransferRateHistory(obj.TransferRateHistory(:, 1) < elapsed - 15, :) = [];
 h = obj.TransferRateHistory;
@@ -63,15 +65,6 @@ s = "";
 if size(h, 1) >= 2 && h(end, 1) - h(1, 1) >= 2 && h(end, 2) > h(1, 2)
     rate = (h(end, 2) - h(1, 2)) / (h(end, 1) - h(1, 1));
     s = ", " + OutputTransfer.bytesText(rate) + "/s";
-    if frac >= 0.01 && frac < 1
-        left = elapsed * (1 - frac) / frac;
-        if left < 60
-            s = s + ", less than a minute left";
-        elseif left < 3600
-            s = s + sprintf(", about %d min left", max(1, round(left / 60)));
-        else
-            s = s + sprintf(", about %d h %d min left", floor(left / 3600), round(mod(left, 3600) / 60));
-        end
-    end
 end
+if left ~= ""; s = s + ", " + left; end
 end

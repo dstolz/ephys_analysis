@@ -459,7 +459,7 @@ table, and closes again when the batch is done:
 | headline | what is being done to which session: `Copying session 2 of 4   SUBJ-ID-1255_260914_101756`, or `Verifying (SHA-256) ...` during the checksum pass and `Stitching ePsych files for ...` while a stitched row is written |
 | bar + percentage | the whole batch, counting the checksum pass as the two extra reads it is (`Verify=hash` makes copying the first third of the work) |
 | detail line | the bytes of the batch that have moved, then the file the engine is on: `4.9 GB of 11.2 GB   amplifier.dat` |
-| rate + time left | measured from the bytes themselves over the last 15 s, and from the fraction and how long it has taken so far. Neither is shown until there is enough of the copy to measure |
+| rate + time left | measured from the bytes themselves over the last 15 s, and from the fraction and how long it has taken so far, smoothed so it counts down steadily (*about 3 min left*, the words every time left in both apps uses). Neither is shown until there is enough of the copy to measure (the time left: 1% and 5 s) |
 | **Result** column | the session being copied shows its own percentage (`copying 42%`, `verifying 42%`), the sessions behind it in the batch show `waiting`, and each becomes `copied` / `already_present` / `failed` when the batch is verified, or `canceled` |
 | **Copy** tab button | goes blue (busy) for as long as a copy is running, so it is visible from whichever tab the app has moved on to |
 
@@ -1212,7 +1212,7 @@ referenced signal. The Signals tab picks which derived signals take it.
 
 | Control | Maps to |
 | --- | --- |
-| Reference: *None (as recorded)* / *CAR: common average* / *CMR: common median* / *WCAR: adaptive weighted CAR* | `Reference.Mode` (`"none"` / `"car"` / `"cmr"` / `"wcar"`), a setting for the whole pipeline: subtract, sample by sample, the mean or median of the good channels from every channel, or each channel's own Kalman-tracked share of their mean (the [adaptive weighted CAR](EphysDataset.md#adaptive-weighted-car), Khorasani et al. 2019), once, as each step reads the recording - artifact detection, the noise level of the fill, the sorting `.bin` (Kilosort4's own `do_CAR`, or a SpikeInterface sorter's own common reference, is then turned off, so it is not referenced twice), spike detection, the derived signals ticked on the Signals tab (MUA and SPIKE by default, not the LFP), and the Visualize tab's *As the pipeline*. The preview and the viewer show the referenced signal. With WCAR the first read of a recording (a preview, the viewer, a run) first works out its state, once (`EphysDataset.prepareWCAR`: a pass over every channel, about 8 s per channel-hour at 30 kHz, and one before it for an automatic Q; the app waits), kept in `<Name>_wcar.mat`. See [Common reference](EphysDataset.md#common-reference-car--cmr) |
+| Reference: *None (as recorded)* / *CAR: common average* / *CMR: common median* / *WCAR: adaptive weighted CAR* | `Reference.Mode` (`"none"` / `"car"` / `"cmr"` / `"wcar"`), a setting for the whole pipeline: subtract, sample by sample, the mean or median of the good channels from every channel, or each channel's own Kalman-tracked share of their mean (the [adaptive weighted CAR](EphysDataset.md#adaptive-weighted-car), Khorasani et al. 2019), once, as each step reads the recording - artifact detection, the noise level of the fill, the sorting `.bin` (Kilosort4's own `do_CAR`, or a SpikeInterface sorter's own common reference, is then turned off, so it is not referenced twice), spike detection, the derived signals ticked on the Signals tab (MUA and SPIKE by default, not the LFP), and the Visualize tab's *As the pipeline*. The preview and the viewer show the referenced signal. With WCAR the first read of a recording (a preview, the viewer, a run) first works out its state, once (`EphysDataset.prepareWCAR`: a pass over every channel, about 8 s per channel-hour at 30 kHz, and one before it for an automatic Q; the app waits, and **Detect / Preview** and the Visualize tab's dialog say which window it is on and the time left, *Weighted CAR: state, window 12/80 · about 40 s left*), kept in `<Name>_wcar.mat`. See [Common reference](EphysDataset.md#common-reference-car--cmr) |
 | WCAR order, Alpha at 1 kHz, Drift (/s), High-pass (Hz), Q (uV^2), Automatic Q, Estimate | `Reference.WCAR_Order` (1), `WCAR_Alpha1k` (1), `WCAR_DriftPerSec` (1), `WCAR_HighpassHz` (0.5; each read is padded by the filter's memory, 23 s on either side at 0.5 Hz, 0 = none), `WCAR_Q` (Q, used when *Automatic Q* is off; ticked = `NaN`, the robust variance of the high-passed plain-CAR residual per dataset) and `WCAR_Estimate` (*prior* / *posterior*): the weighted CAR's parameters, on while the reference is WCAR (Q while *Automatic Q* is off). The tooltips say where each default comes from |
 | Good noise (x median): *low* to *high* | `Reference.BadLow`, `BadHigh` (0.3 and 2, Ludwig et al. 2009): a channel whose noise floor lies outside this band, relative to the median across channels, is suggested to stay out of the reference |
 | Left out, **Suggest** | the active dataset's `ReferenceExclude` (written to its manifest): channels kept out of the average, though still referenced. **Suggest** measures each channel's noise floor on a sample of the recording and fills the field (each channel's ratio goes to the log); typing a list marks it set by hand. A list that does not parse changes nothing (an alert says why). A dataset whose list was never set gets the suggestion on its first referenced run or preview. Channels excluded on the Probe tab stay out of the reference too |
@@ -2497,8 +2497,19 @@ During a run:
 - **Overall** shows how far the step underway is through its datasets
   (`spikes 2/3`: dataset 2 of 3), and **Current** how far it is on the
   dataset in hand. The line under them names the step, the dataset and what
-  is being done. The artifact detection a Sorting, Signals or Spikes step
-  needs reports as that step, and the export formats as one `export` step.
+  is being done, and on its right the time: the step's time left, from how
+  far it is through its datasets, and the run's elapsed time (*about 3 min
+  left in this step, then 2 more steps · 12 min elapsed*). Once the run's
+  last step is under way its time left is the run's (*about 3 min left in
+  the run*); before that the line says how many steps follow, since nothing
+  tells how long they will take. No time left is shown until 1% of the step
+  is done and 5 s have passed. The artifact detection a Sorting, Signals or
+  Spikes step needs reports as that step, and the export formats as one
+  `export` step. With the weighted CAR (Reference WCAR) the windows of its
+  state's passes move the **Current** bar too: in the first half of the
+  artifact detection when it is worked out there, else in the next quarter
+  of a Sorting dataset (after its artifact intervals) or half of what is
+  left of a Spikes dataset.
 - The **Log** gets one timestamped line per event.
 - The results table fills as the Run goes, one row per step and dataset:
   **Step**, **Dataset**, **Subject**, **Date**, **Status**, **Message**, **Output**,

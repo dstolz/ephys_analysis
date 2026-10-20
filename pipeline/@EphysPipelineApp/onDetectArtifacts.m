@@ -6,7 +6,10 @@ function onDetectArtifacts(obj)
 %   (refreshArtChannelTable, from ArtView.summary) and summary label with the
 %   number of samples flagged per channel and the percent of the recording
 %   that would be blanked, then shows the first detected artifact in the
-%   viewer (showArtifactView). Read-only: nothing is written to disk.
+%   viewer (showArtifactView). Read-only: nothing is written to disk but,
+%   with Reference "wcar", the weighted CAR's state (<Name>_wcar.mat), which
+%   is worked out first under the dialog (prepareWCARInDialog). The dialog
+%   says the time left of each.
 %
 %   See also EphysDataset.analyzeArtifacts, buildArtifactsTab, showArtifactView.
 
@@ -32,7 +35,9 @@ dlg = uiprogressdlg(obj.Fig, "Title", "Detecting artifacts", ...
     "Message", "Reading data...", "Value", 0, "Cancelable", "off");
 
 try
-    progress = @(i, n, name) updateProgress(dlg, i, n, name);
+    prepareWCARInDialog(d, dlg);   % a weighted CAR's state first, its windows shown
+    clock = ProgressClock();
+    progress = @(i, n, name) updateProgress(dlg, clock, i, n, name);
     popt = namedargs2cell(EphysPipelineConfig.parallelOptions(obj.Config.Parallel));
     summary = d.analyzeArtifacts('ProgressFcn', progress, popt{:});   % settings from d.ArtifactConfig
 
@@ -68,10 +73,11 @@ end
 end
 
 
-function updateProgress(dlg, i, n, name)
+function updateProgress(dlg, clock, i, n, name)
 if ~isvalid(dlg); return; end
-dlg.Value   = max(0, min(1, (i - 1) / max(n, 1)));
-dlg.Message = sprintf("Chunk %d/%d: %s", i, n, name);
+frac = max(0, min(1, (i - 1) / max(n, 1)));
+dlg.Value   = frac;
+dlg.Message = char(clock.message(sprintf("Chunk %d/%d: %s", i, n, name), frac));
 end
 
 

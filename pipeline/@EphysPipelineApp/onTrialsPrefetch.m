@@ -38,14 +38,15 @@ nNotDone = 0;   % datasets left when Cancel was pressed
 t0 = tic;
 dlg = uiprogressdlg(obj.Fig, "Title", dlgTitle, "Message", "Starting ...", ...
     "Cancelable", "on", "Value", 0);
+clock = ProgressClock();
 for k = 1:n
     drawnow
     if dlg.CancelRequested; nNotDone = n - k + 1; break; end
     d = obj.Project.Datasets(idx(k));
     dlg.Value = (k - 1) / n;
-    dlg.Message = sprintf("%d of %d: %s", k, n, d.Name);
+    dlg.Message = char(clock.message(sprintf("%d of %d: %s", k, n, d.Name), (k - 1) / n));
     try
-        E = d.digitalEvents(ProgressFcn=@(i, nFiles, file) progress(dlg, k, n, d.Name, i, nFiles, file));
+        E = d.digitalEvents(ProgressFcn=@(i, nFiles, file) progress(dlg, clock, k, n, d.Name, i, nFiles, file));
     catch ME
         if strcmp(ME.identifier, 'EphysPipelineApp:PrefetchCanceled')
             nNotDone = n - k + 1;
@@ -116,14 +117,16 @@ end
 end
 
 
-function progress(dlg, k, n, name, i, nFiles, file)
-%progress  Report the file being read; stop when Cancel was pressed.
+function progress(dlg, clock, k, n, name, i, nFiles, file)
+%progress  Report the file being read and the time left; stop when Cancel was pressed.
 drawnow
 if dlg.CancelRequested
     error('EphysPipelineApp:PrefetchCanceled', 'Prefetch canceled.');
 end
-dlg.Value = (k - 1 + (i - 1) / max(nFiles, 1)) / n;
-dlg.Message = sprintf("%d of %d: %s" + newline + "Reading %s (file %d of %d)", k, n, name, file, i, nFiles);
+frac = (k - 1 + (i - 1) / max(nFiles, 1)) / n;
+dlg.Value = frac;
+dlg.Message = char(clock.message(sprintf("%d of %d: %s" + newline + "Reading %s (file %d of %d)", ...
+    k, n, name, file, i, nFiles), frac));
 end
 
 

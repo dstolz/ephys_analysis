@@ -29,9 +29,10 @@ cleanupLog(obj, sprintf("%s %d file(s) from %d dataset(s)%s...", verb(1), height
 dlg = uiprogressdlg(obj.Fig, "Title", "Clean up", "Message", verb(1) + "...", "Value", 0, "Cancelable", "on");
 closeDlg = onCleanup(@() delete(dlg));
 R = rm([], :);
+clock = ProgressClock();
 try
     R = runLocalCleanup(T, Method=method, Destination=dest, IfExists=ifExists, LogFcn=@(m) cleanupLog(obj, m), ...
-        ProgressFcn=@(e) progress(dlg, e, verb(1)), CancelFcn=@() dlg.CancelRequested);
+        ProgressFcn=@(e) progress(dlg, clock, e, verb(1)), CancelFcn=@() dlg.CancelRequested);
 catch ME
     cleanupLog(obj, "Nothing was removed: " + ME.message);
     uialert(obj.Fig, ME.message, "Clean up");
@@ -74,11 +75,13 @@ end
 end
 
 
-function progress(dlg, e, verb)
+function progress(dlg, clock, e, verb)
 if ~isvalid(dlg); return; end
-dlg.Value = min(e.bytesDone / max(e.bytesTotal, 1), 1);
-dlg.Message = sprintf("%s file %d of %d (%s of %s):\n%s", verb, e.index, e.count, ...
-    bytesText(e.bytesDone), bytesText(e.bytesTotal), e.file);
+frac = min(e.bytesDone / max(e.bytesTotal, 1), 1);
+dlg.Value = frac;
+msg = string(sprintf("%s file %d of %d (%s of %s)", verb, e.index, e.count, ...
+    bytesText(e.bytesDone), bytesText(e.bytesTotal)));
+dlg.Message = char(clock.message(msg, frac) + ":" + newline + e.file);
 drawnow limitrate;
 end
 

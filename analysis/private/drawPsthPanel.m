@@ -21,7 +21,7 @@ function hk = drawPsthPanel(ax, P, look)
 %   draws the event's line, Style.ShowStop each group's mean stop latency
 %   (R.stopMean, role "stopLine").
 %   options.stack (with two or more groups) draws one row per group, the
-%   first at the bottom (drawStack: the row
+%   first on top, as a raster lists them (drawStack: the row
 %   step options.stackSpacing x the tallest PSTH, the rows' values on the
 %   left axis, their peaks on the right; options.yLim is not used); a
 %   further item is drawn into the same rows as an outline. The groups are
@@ -241,7 +241,7 @@ if isAuroc(D(1).R)   % behind the rows
     modulationWindow(ax, D(1).R);
     hold(ax, 'off');
 end
-step = drawStack(ax, P1, D(1).R, D(1).colors, style, hl, struct('left', false, 'right', true));   % its line styles: groupLineStyles (combine)
+[~, base] = drawStack(ax, P1, D(1).R, D(1).colors, style, hl, struct('left', false, 'right', true));   % its line styles: groupLineStyles (combine)
 [~, yName] = rowLabels(D(1).R);
 [~, lss(1)] = figLayerLook(Ls(items(1, 1)), 1, D(1).colors(1, :));
 lss(1) = figSeriesStyle(D(1).R, 1, lss(1), Ls(items(1, 1)));
@@ -252,7 +252,7 @@ if hasMembers   % each member session, faint, in its series' row (a result merge
     for i = 1:nI
         if isempty(D(i).members); continue; end
         Mi = D(i).members;
-        off = (double(D(i).R.members.series(:)).' - 1) * step;   % the row of each member's series
+        off = base(double(D(i).R.members.series(:)).');   % the row of each member's series
         memberLines(ax, D(i).R.t, Mi + off, D(i).R, D(i).colors, style);
     end
     hold(ax, 'off');
@@ -266,7 +266,7 @@ out.fill = false;
 for i = 2:nI
     j = items(i, 1);
     for g = 1:min(nG, size(D(i).m, 2))
-        b = (g - 1) * step;
+        b = base(g);
         gl = string(D(i).R.groups.label(g));
         [c, ls] = figLayerLook(Ls(j), i, D(i).colors(g, :));
         ls = figSeriesStyle(D(i).R, g, ls, Ls(j));

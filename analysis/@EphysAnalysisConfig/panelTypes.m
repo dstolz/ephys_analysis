@@ -111,7 +111,7 @@ opts.psth = struct( ...
     'fill',          true, ...          % filled bars / area under the line
     'fillAlpha',     NaN, ...           % fill opacity 0-1 (NaN: 0.5 where groups overlap, else 1)
     'normalize',     "none", ...        % "none" | "unitPeak" | "groupPeak" | "allPeak"
-    'stack',         false, ...         % one row per trial group, stacked upwards, instead of overlaid
+    'stack',         false, ...         % one row per trial group, the first on top, instead of overlaid
     'stackSpacing',  1.1, ...           % stack: the row step, x the tallest PSTH (< 1 overlaps)
     'maskAfterStop', false, ...
     'yLim',          [], ...            % [] = automatic, else [lo hi]

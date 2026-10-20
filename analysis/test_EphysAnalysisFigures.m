@@ -2497,6 +2497,14 @@ check(numel(as.YAxis) == 2 && numel(sb) == nGs && numel(as.YAxis(1).TickValues) 
     && all(arrayfun(@(g) nnz(lgs == g) == 1, string(Fst.groups.label))) && string(as.YAxis(1).Label.String) == "Depth" ...
     && isequal(xlim(as), [Fst.spec.window.pre Fst.spec.window.post]) && isempty(findall(as, 'Tag', 'chanceLine')), ...
     sprintf('a stacked PSTH: %d rows (a baseline each, the groups'' values on the left axis, named Depth), each group once in the legend', nGs));
+sbY = arrayfun(@(h) h.YData(1), sb);
+sbG = arrayfun(@(h) string(getappdata(h, 'PlotGroup')), sb);
+[~, top] = max(sbY);
+[~, bot] = min(sbY);
+lbl = string(as.YAxis(1).TickLabels);
+rl = rowLabels(Fst.panels(2).layers(1).R);
+check(sbG(top) == string(Fst.groups.label(1)) && sbG(bot) == string(Fst.groups.label(end)) && lbl(end) == rl(1), ...
+    'a stacked PSTH lists its groups as a raster does: the first on top, its value the top tick label');
 fs5 = Fst;   % the PSTH's result cut to one group (figSliceGroup)
 fs5.panels(2).layers(1).R = figSliceGroup(Fst.panels(2).layers(1).R, 1);
 h1g = renderFigure(fs5, fs5.spec, fig);

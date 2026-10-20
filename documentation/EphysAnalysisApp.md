@@ -639,7 +639,7 @@ list edit the layer picked:
 | Coherence | **Time base** with **Range (s)** and **Segment (s)**, the tapers, **Pad**, **Frequency range**, **Error** with its p-value (*jackknife* gives the band and the confidence level, *theoretical* the level), **Detrend**, **Spike rate (Hz)**, **Show phase (under the magnitude)** and **Y limits** (blank: 0 to 1); **Over time (a coherogram)** swaps the error, phase and y limits for **Moving window (s)** and **Color limits**, adds **Group shown** and, on the panel's epochs, puts the image on the figure's time axis |
 
 **Stack** draws a PSTH panel's trial groups in rows of their own instead of
-overlaid, the first at the bottom, each group's value on the left axis and its
+overlaid, the first on top (as a raster lists them), each group's value on the left axis and its
 peak on the right. A single group is not stacked, a second layer is drawn into
 the rows as an outline, and a raster panel above the PSTH shows the groups'
 rasters. A firing rate

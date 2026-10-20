@@ -1053,6 +1053,9 @@ says how to cut a release.
 
 ### Changed
 
+- A stacked PSTH (**Stack**) draws its first trial group's row on top, as a raster lists its groups, so a
+  raster panel above it runs through the groups and their colors in the same order (it was the first at
+  the bottom). **Order** in Trial selection picks which end is on top for both.
 - The Figures tab: **Add** makes a blank figure and opens the New panel window for its first panel
   (Cancel leaves it blank); **Duplicate** names the copy *&lt;id&gt; (2)* (the next free number) instead of
   `figure_<n>`. The editor's Arrangement section is titled **Panels** and its Panel section **Selected

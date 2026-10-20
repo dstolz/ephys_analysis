@@ -1281,7 +1281,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `psth` | `fill` | `true` | fill the bars, or the area under the line |
 | `psth` | `fillAlpha` | `NaN` | fill opacity 0-1; `NaN` = 0.5 where groups overlay, else 1 |
 | `psth` | `normalize` | `"none"` | `"none"`, `"unitPeak"`, `"groupPeak"` or `"allPeak"` |
-| `psth` | `stack` | `false` | `true`: one row per trial group, stacked upwards (the first group at the bottom), instead of overlaid; a single group is drawn overlaid |
+| `psth` | `stack` | `false` | `true`: one row per trial group, stacked downwards (the first group on top, as a raster lists them), instead of overlaid; a single group is drawn overlaid |
 | `psth` | `stackSpacing` | 1.1 | `stack`: the step between rows, times the tallest PSTH (below 1 the rows overlap); positive |
 | `psth` | `maskAfterStop` | `false` | drop each epoch's bins from its stop event on |
 | `psth` | `yLim` | `[]` | the rate axis; not used in a stack |

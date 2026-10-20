@@ -28,9 +28,10 @@ function result = runSpikeInterface(obj, opts)
 %   cluster_KSLabel.tsv. The sorter's working folder (si_work) is deleted
 %   once the phy files are written.
 %
-%   The recording is referenced once: when the .bin carries the common
-%   reference (ArtifactConfig.Reference "car" / "cmr"; for a BinFile given,
-%   the reference its sidecar records), run_si.py keeps the sorter from
+%   The recording is referenced once: when the .bin carries a reference
+%   (ArtifactConfig.Reference "car" / "cmr", or the weighted CAR "wcar"; for
+%   a BinFile given, the reference its sidecar records), run_si.py keeps the
+%   sorter from
 %   adding its own: a do_CAR / car parameter is set false, and the
 %   common_reference call of SpikeInterface's internal sorters
 %   (spykingcircus2, tridesclous2, lupin, on 32 channels or more) leaves the
@@ -210,7 +211,7 @@ if isfinite(binScale)
     settings.bin_scale = binScale;             % for readPhyUnits
 end
 if binRef == ""; binRef = "none"; end
-settings.reference = char(binRef);            % "car" / "cmr": the sorter's own reference stays out
+settings.reference = char(binRef);            % "car" / "cmr" / "wcar": the sorter's own reference stays out
 settings.quality   = opts.Quality;             % good-unit criteria for cluster_SILabel.tsv
 settings.n_jobs    = round(nJobs);
 settings.provenance = provenanceForJson(prov);

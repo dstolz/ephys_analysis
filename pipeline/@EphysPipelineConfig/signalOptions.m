@@ -5,11 +5,9 @@ function s = signalOptions(cfg, opts)
 %   signals are set; everything else stays at deriveSignals' defaults.
 %
 %   referenceSignals is always set: the ticked signals among LFP / MUA /
-%   SPIKE whose <TYPE>_Reference is on (the common reference of the
-%   Reference section, which the datasets' ArtifactConfig carries).
-%   referenceMethod is always set too (ReferenceMethod); with "weighted"
-%   wcarOptions holds the WCAR_* fields (Order, Alpha1k, DriftPerSec, Q,
-%   HighpassHz, Estimate) for the adaptive weighted CAR (weightedCAR).
+%   SPIKE whose <TYPE>_Reference is on (the reference of the Reference
+%   section, which the datasets' ArtifactConfig carries: CAR, CMR or, for
+%   Mode "wcar", the adaptive weighted CAR with the WCAR_* options).
 %
 %   KeepChannels, BadList and the manifest exclusions are recording channels
 %   (1-based, in header order); ChannelRemap indexes the kept channels.
@@ -28,8 +26,7 @@ function s = signalOptions(cfg, opts)
 %
 %   Error identifiers (EphysPipelineConfig:Signals*): NoSignals, BadList,
 %   AutoBadNeedsLFP, BadThreshold, LFPNyquist, LFPNotch, Band, IndexList,
-%   FreqList, BadSuffix, ExcludeHandling, ReferenceMethod, WCAR_Order,
-%   WCAR_Alpha1k, WCAR_DriftPerSec, WCAR_Q, WCAR_HighpassHz, WCAR_Estimate.
+%   FreqList, BadSuffix, ExcludeHandling.
 %
 %   See also EphysDataset.deriveSignals, EphysDataset.toMat.
 
@@ -50,13 +47,9 @@ EphysPipelineConfig.validateSuffix(cfg.Suffix);
 
 s = struct();
 s.dataTypeOut = types(sel);
-% The common reference (Reference.Mode) goes to the ticked signals only.
+% The reference (Reference.Mode) goes to the ticked signals only.
 refs = [cfg.LFP_Reference cfg.MUA_Reference cfg.SPIKE_Reference false];
 s.referenceSignals = types(sel & refs);
-s.referenceMethod = wcarMethod(cfg);
-if s.referenceMethod == "weighted"
-    s.wcarOptions = wcarOptions(cfg);
-end
 s.labelField  = string(cfg.LabelField);
 if ~isempty(cfg.LineNames)
     s.lineNames = cfg.LineNames;
@@ -193,42 +186,6 @@ if ~(lohi(1) < lohi(2))
     error('EphysPipelineConfig:SignalsBand', ...
         '%s: low edge (%g Hz) must be below the high edge (%g Hz).', what, lohi(1), lohi(2));
 end
-end
-
-
-function m = wcarMethod(cfg)
-%wcarMethod  ReferenceMethod, checked.
-m = string(cfg.ReferenceMethod);
-if ~(isscalar(m) && ismember(m, ["common" "weighted"]))
-    error('EphysPipelineConfig:SignalsReferenceMethod', ...
-        'ReferenceMethod must be "common" or "weighted".');
-end
-end
-
-
-function w = wcarOptions(cfg)
-%wcarOptions  The WCAR_* fields as deriveSignals' wcarOptions, checked.
-o = cfg.WCAR_Order;
-if ~(isscalar(o) && o >= 1 && o <= 16 && o == round(o))
-    error('EphysPipelineConfig:SignalsWCAR_Order', 'WCAR_Order must be an integer in 1..16.');
-end
-if ~(isscalar(cfg.WCAR_Alpha1k) && cfg.WCAR_Alpha1k > 0 && cfg.WCAR_Alpha1k <= 1)
-    error('EphysPipelineConfig:SignalsWCAR_Alpha1k', 'WCAR_Alpha1k must lie in (0, 1].');
-end
-if ~(isscalar(cfg.WCAR_DriftPerSec) && isfinite(cfg.WCAR_DriftPerSec) && cfg.WCAR_DriftPerSec > 0)
-    error('EphysPipelineConfig:SignalsWCAR_DriftPerSec', 'WCAR_DriftPerSec must be finite and positive.');
-end
-if ~(isscalar(cfg.WCAR_Q) && (isnan(cfg.WCAR_Q) || (isfinite(cfg.WCAR_Q) && cfg.WCAR_Q > 0)))
-    error('EphysPipelineConfig:SignalsWCAR_Q', 'WCAR_Q must be NaN (automatic) or a positive number (uV^2).');
-end
-if ~(isscalar(cfg.WCAR_HighpassHz) && isfinite(cfg.WCAR_HighpassHz) && cfg.WCAR_HighpassHz >= 0)
-    error('EphysPipelineConfig:SignalsWCAR_HighpassHz', 'WCAR_HighpassHz must be 0 (none) or positive.');
-end
-if ~ismember(string(cfg.WCAR_Estimate), ["prior" "posterior"])
-    error('EphysPipelineConfig:SignalsWCAR_Estimate', 'WCAR_Estimate must be "prior" or "posterior".');
-end
-w = struct('Order', o, 'Alpha1k', cfg.WCAR_Alpha1k, 'DriftPerSec', cfg.WCAR_DriftPerSec, ...
-    'Q', cfg.WCAR_Q, 'HighpassHz', cfg.WCAR_HighpassHz, 'Estimate', string(cfg.WCAR_Estimate));
 end
 
 

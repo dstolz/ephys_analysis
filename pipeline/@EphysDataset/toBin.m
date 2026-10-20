@@ -84,8 +84,12 @@ function info = toBin(obj, opts)
 %   filling with zeros) and autoArtifact (struct: enabled, method, threshold,
 %   rmsWindowMs, mergeGapMs, minChannels, padMs, nBlanked, fraction,
 %   pctDuration, nIntervals, channelCounts) and reference (struct: mode -
-%   "none" | "car" | "cmr" - and channels, the 1-based channels the
-%   common reference was taken over; see applyReference).
+%   "none" | "car" | "cmr" | "wcar" - and channels, the 1-based channels the
+%   common reference was taken over, see applyReference; for "wcar" also
+%   wcar: the weighted CAR's options, its Q and whether it was automatic,
+%   see prepareWCAR). runKilosort and runSpikeInterface read the mode from
+%   the sidecar, so a sorter adds no common reference of its own to a .bin
+%   that carries one.
 %
 %   GUARD: every file must have the same amplifier channel count as the first;
 %   a flat int16 .bin cannot represent a mid-dataset channel-count change.
@@ -155,8 +159,10 @@ targets = binFile;
 if opts.WriteMeta; targets(end+1) = metaFile; end
 refuseRecordingFiles(obj, targets, "toBin");
 
-% Settle the common reference's channels before any chunk is read.
+% Settle the common reference's channels (and the weighted CAR's state)
+% before any chunk is read.
 obj.prepareReference();
+obj.prepareWCAR();
 
 % Resolve automatic artifact-blanking config (per-call -> ds.ArtifactConfig).
 % Blanking runs when the Blank option is set OR the dataset config is enabled.
@@ -317,7 +323,11 @@ for i = 1:numel(plan)
 
     if cmDetect
         cm = mean(X(:, recCh(detCols)), 2);   % before the reference removes it
-        X = obj.applyReference(X);
+        if obj.referenceMode() == "wcar"
+            X = obj.readChunkUV(plan(i));   % taken from its state, not sample by sample
+        else
+            X = obj.applyReference(X);
+        end
     end
 
     % Channel reorder/subset
@@ -484,11 +494,19 @@ end
 
 
 function r = referenceInfo(obj)
-%referenceInfo  The common reference the chunks were read with (applyReference).
+%referenceInfo  The common reference the chunks were read with
+%   (applyReference; the weighted CAR's state, prepareWCAR).
 acfg = EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig);
 r = struct('mode', char(acfg.Reference), 'channels', double.empty(1, 0));
 if string(acfg.Reference) ~= "none"
     r.channels = obj.referenceChannels();
+end
+if string(acfg.Reference) == "wcar"
+    st = obj.prepareWCAR();
+    w = st.options;
+    w.Q = st.Q;
+    w.QAuto = st.QAuto;
+    r.wcar = w;
 end
 end
 

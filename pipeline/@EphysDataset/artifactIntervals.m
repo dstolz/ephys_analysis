@@ -100,8 +100,10 @@ end
 if isnan(obj.Fs) || isempty(obj.PerFile)
     obj.refreshMetadata();
 end
-% Settle the common reference's channels before any chunk is read.
+% Settle the common reference's channels (and the weighted CAR's state)
+% before any chunk is read.
 obj.prepareReference();
+obj.prepareWCAR();
 
 % Resolve detection params (per-call overrides ds.ArtifactConfig).
 method   = opts.Method;      if method == "";      method   = acfg.Method;      end
@@ -122,7 +124,7 @@ det  = struct('method', method, 'threshold', thr, 'rmsWindowMs', rmsWinMs, ...
 pool = [];
 nWorkers = 1;
 if opts.UseParallel && nChunks > 1
-    [pool, nWorkers] = parallelChunkPool(plan, obj.NumChannels, opts.MaxWorkers, 5, "artifactIntervals");
+    [pool, nWorkers] = parallelChunkPool(plan, obj.NumChannels, opts.MaxWorkers, 5 + wcarCopies(obj, plan), "artifactIntervals");
 end
 R = mapChunks(@(i) artifactChunk(obj, plan(i), [], filt, det, Fs), ...
     reshape(string({plan.name}), 1, []), Pool=pool, NumWorkers=nWorkers, ...

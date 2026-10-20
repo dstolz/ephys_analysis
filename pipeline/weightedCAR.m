@@ -60,6 +60,28 @@ function [Z, info] = weightedCAR(Z, n, opts)
 %                  is [W0; 0 ...] with covariance P0 * I.
 %     P0           > 0 (default 1): the initial weight variance.
 %
+%   Running a recording in pieces (EphysDataset's streamed weighted CAR)
+%     Rows         [first last] (default all): the rows of Z whose weights
+%                  are tracked and whose output is computed. The rows
+%                  outside are only the high-pass's padding: they are
+%                  filtered with the others and returned unchanged.
+%     Initial      struct with fields P ([Order x Order]), W ([Order x
+%                  nCol]) and NLag ([Order-1 x 1]): the prior state at
+%                  Rows(1), i.e. the covariance, each column's predicted
+%                  weights and the high-passed N of the Order-1 rows before
+%                  it. Replaces W0 / P0 (default struct(): from them, with
+%                  NLag 0, as at a recording's start).
+%     StateRows    rows of Z within Rows, increasing (default none): the
+%                  rows whose prior state INFO.states holds.
+%     Output       true (default); false leaves Z as given (the state alone
+%                  is wanted), so Z is not copied.
+%   INFO.final is the prior state of the row after Rows(2), and
+%   INFO.states the prior states at StateRows, so one piece continues
+%   where the last left off (Initial = INFO.final) or any piece starts at
+%   a stored state: the recursion is the same as one run over the whole.
+%   Only the high-pass depends on the rows given: pad each piece on both
+%   sides by the filter's memory (see EphysDataset.prepareWCAR).
+%
 %   Shared gain: V, q and P0 are the same for every channel (as in the
 %   paper: "Parameters V and q were assumed constant for all intracortical
 %   channels"), so the covariance P(t) and gain K(t) depend on N only. They
@@ -68,9 +90,12 @@ function [Z, info] = weightedCAR(Z, n, opts)
 %   This is the per-channel Kalman filter exactly, at 1/nCol of its cost.
 %
 %   INFO: Fs, Order, Alpha1k, DriftPerSec, Q, HighpassHz, Estimate, W0, P0,
-%   alpha and V (per sample), and weights, a summary per channel over time
+%   alpha and V (per sample), weights, a summary per channel over time
 %   (sampled every 0.1 s): p5, median, p95 and final, each [Order x nCol]
-%   (row m = lag m-1).
+%   (row m = lag m-1), final (struct P, W, NLag: the prior state of the
+%   row after the last one run) and states (struct rows, P [Order x Order
+%   x k], W [Order x nCol x k], NLag [Order-1 x k]: the prior state at
+%   each of StateRows).
 %
 %   Memory: the high-passed N and the gains ([Order x nSamples] double) are
 %   held whole; each column is worked on in double, one at a time.
@@ -78,8 +103,8 @@ function [Z, info] = weightedCAR(Z, n, opts)
 %   Requires the Signal Processing Toolbox (BUTTER, ZP2SOS, FILTFILT) and
 %   the Statistics and Machine Learning Toolbox (PRCTILE).
 %
-%   See also EphysDataset.deriveSignals, EphysDataset.referenceTrace,
-%   EphysDataset.applyReference.
+%   See also EphysDataset.deriveSignals, EphysDataset.prepareWCAR,
+%   EphysDataset.referenceTrace, EphysDataset.applyReference.
 
 arguments
     Z {mustBeFloat, mustBeReal}
@@ -93,6 +118,10 @@ arguments
     opts.Estimate (1,1) string = "prior"
     opts.W0 (1,1) double = 1
     opts.P0 (1,1) double = 1
+    opts.Rows (1,:) double = []
+    opts.Initial (1,1) struct = struct()
+    opts.StateRows (1,:) double = []
+    opts.Output (1,1) logical = true
 end
 
 [nS, nCol] = size(Z);
@@ -102,35 +131,46 @@ alpha = opts.Alpha1k ^ (1000 / opts.Fs);
 v = opts.DriftPerSec / opts.Fs;
 q = opts.Q;
 post = opts.Estimate == "posterior";
+[r1, r2] = runRows(opts.Rows, nS);
+nR = r2 - r1 + 1;
+init = initialState(opts.Initial, opts.W0, opts.P0, M, nCol);
+st = stateRows(opts.StateRows, r1, r2);   % relative to r1
 
-% The common average, high-passed, with M-1 zeros before the first sample
-% (the lags before the recording starts); n(t)'s lag m-1 is nPad(t+M-m).
+% The common average, high-passed over every row given, then the rows run,
+% with the M-1 values before the first of them (the lags: 0 before the
+% recording starts); n(t)'s lag m-1 is nPad(t+M-m).
 hp = highpassSOS(opts.HighpassHz, opts.Fs);
-nPad = [zeros(M - 1, 1); filterHP(double(n(:)), hp)];
-K = gains(nPad, M, alpha, v, q, opts.P0, nS);
+nh = filterHP(double(n(:)), hp);
+nPad = [init.NLag; nh(r1:r2)];
+[K, Pend, Pst] = gains(nPad, M, alpha, v, q, init.P, nR, st);
 kn = [];
 if post   % n(t)' * K(t), the share of the innovation the posterior takes
-    kn = zeros(nS, 1);
+    kn = zeros(nR, 1);
     for m = 1:M
-        kn = kn + nPad((1:nS) + M - m) .* K(m, :).';
+        kn = kn + nPad((1:nR) + M - m) .* K(m, :).';
     end
 end
 
 snapEvery = max(1, round(opts.Fs / 10));
-nSnap = floor(nS / snapEvery);
+nSnap = floor(nR / snapEvery);
 wts = struct('p5', zeros(M, nCol), 'median', zeros(M, nCol), ...
     'p95', zeros(M, nCol), 'final', zeros(M, nCol));
-w0 = [opts.W0; zeros(M - 1, 1)];
+Wst = zeros(M, nCol, numel(st));
 for c = 1:nCol
     z = double(Z(:, c));
     zh = filterHP(z, hp);
+    z = z(r1:r2);
+    zh = zh(r1:r2);
     if M == 1
-        [s, w, snaps] = channelLag0(z, zh, nPad, K, kn, alpha, w0, snapEvery, nSnap);
+        [s, w, snaps, ws] = channelLag0(z, zh, nPad, K, kn, alpha, init.W(:, c), snapEvery, nSnap, st);
     else
-        [s, w, snaps] = channelLags(z, zh, nPad, K, kn, alpha, w0, snapEvery, nSnap);
+        [s, w, snaps, ws] = channelLags(z, zh, nPad, K, kn, alpha, init.W(:, c), snapEvery, nSnap, st);
     end
-    Z(:, c) = s;   % in Z's class
+    if opts.Output
+        Z(r1:r2, c) = s;   % in Z's class
+    end
     wts.final(:, c) = w;
+    Wst(:, c, :) = reshape(ws, M, 1, []);
     if nSnap == 0
         snaps = w;
     end
@@ -140,10 +180,16 @@ for c = 1:nCol
     wts.p95(:, c) = pr(:, 3);
 end
 
+lagSt = zeros(M - 1, numel(st));
+for j = 1:numel(st) * (M > 1)
+    lagSt(:, j) = nPad(st(j) : st(j) + M - 2);   % the M-1 values before row st(j)
+end
 info = struct('Fs', opts.Fs, 'Order', M, 'Alpha1k', opts.Alpha1k, ...
     'DriftPerSec', opts.DriftPerSec, 'Q', q, 'HighpassHz', opts.HighpassHz, ...
     'Estimate', opts.Estimate, 'W0', opts.W0, 'P0', opts.P0, ...
     'alpha', alpha, 'V', v, 'weights', wts);
+info.final = struct('P', Pend, 'W', wts.final, 'NLag', nPad(nR + 1 : end));
+info.states = struct('rows', st + r1 - 1, 'P', Pst, 'W', Wst, 'NLag', lagSt);
 end
 
 
@@ -183,6 +229,55 @@ end
 end
 
 
+function [r1, r2] = runRows(rows, nS)
+%runRows  The first and last row run (Rows option; [] = all).
+if isempty(rows)
+    r1 = 1;
+    r2 = nS;
+    return
+end
+if ~(numel(rows) == 2 && all(rows == round(rows)) && rows(1) >= 1 && rows(2) <= nS && rows(2) >= rows(1) - 1)
+    error('weightedCAR:Rows', 'Rows must be [first last] rows of Z (1..%d), first <= last + 1.', nS);
+end
+r1 = rows(1);
+r2 = rows(2);
+end
+
+
+function S = initialState(init, W0, P0, M, nCol)
+%initialState  The prior state at the first row run: from Initial, else
+%   [W0; 0 ...] for every column with covariance P0 * I and lags 0.
+S = struct('P', P0 * eye(M), 'W', repmat([W0; zeros(M - 1, 1)], 1, nCol), 'NLag', zeros(M - 1, 1));
+if isempty(fieldnames(init))
+    return
+end
+ok = all(isfield(init, {'P', 'W', 'NLag'})) && isnumeric(init.P) && isnumeric(init.W) ...
+    && isnumeric(init.NLag) && isequal(size(init.P), [M M]) && isequal(size(init.W), [M nCol]) ...
+    && numel(init.NLag) == M - 1;
+if ok
+    ok = all(isfinite(init.P), 'all') && all(isfinite(init.W), 'all') && all(isfinite(init.NLag));
+end
+if ~ok
+    error('weightedCAR:Initial', ['Initial must hold finite P [%d x %d], W [%d x %d] and ' ...
+        'NLag (%d values).'], M, M, M, nCol, M - 1);
+end
+S = struct('P', double(init.P), 'W', double(init.W), 'NLag', double(init.NLag(:)));
+end
+
+
+function st = stateRows(rows, r1, r2)
+%stateRows  StateRows relative to the first row run, checked.
+st = zeros(1, 0);
+if isempty(rows)
+    return
+end
+if ~(all(rows == round(rows)) && all(rows >= r1 & rows <= r2) && all(diff(rows) > 0))
+    error('weightedCAR:StateRows', 'StateRows must be increasing rows within Rows (%d..%d).', r1, r2);
+end
+st = rows - r1 + 1;
+end
+
+
 function hp = highpassSOS(cutHz, Fs)
 %highpassSOS  4th-order Butterworth high-pass as second-order sections
 %   (stable far below Fs, as EphysDataset.filterContinuous uses them); []
@@ -203,15 +298,24 @@ end
 end
 
 
-function K = gains(nPad, M, alpha, v, q, P0, nS)
+function [K, P, Pst] = gains(nPad, M, alpha, v, q, P, nS, st)
 %gains  The Kalman gain K(t) = P^- n / (n' P^- n + q), [M x nS], shared by
-%   every channel, with P^-(1) = P0 * I and
-%   P^-(t+1) = alpha^2 * (P^- - K n' P^-) + V.
+%   every channel, with P^-(1) = P (P0 * I at a recording's start) and
+%   P^-(t+1) = alpha^2 * (P^- - K n' P^-) + V. P is returned as P^-(nS+1),
+%   and PST holds P^- at the rows ST.
 K = zeros(M, nS);
+Pst = zeros(M, M, numel(st));
+j = 1;
+next = Inf;
+if ~isempty(st); next = st(1); end
 a2 = alpha^2;
 if M == 1
-    P = P0;
     for t = 1:nS
+        if t == next
+            Pst(j) = P;
+            j = j + 1;
+            if j <= numel(st); next = st(j); else; next = Inf; end
+        end
         nt = nPad(t);
         pn = P * nt;
         k = pn / (nt * pn + q);
@@ -220,9 +324,13 @@ if M == 1
     end
     return
 end
-P = P0 * eye(M);
 V = v * eye(M);
 for t = 1:nS
+    if t == next
+        Pst(:, :, j) = P;
+        j = j + 1;
+        if j <= numel(st); next = st(j); else; next = Inf; end
+    end
     nt = nPad(t + M - 1:-1:t);
     pn = P * nt;
     d = nt.' * pn + q;
@@ -232,15 +340,25 @@ end
 end
 
 
-function [s, w, snaps] = channelLag0(z, zh, nh, K, kn, alpha, w, snapEvery, nSnap)
-%channelLag0  One channel, Order 1: scalar loop (fast under the JIT).
+function [s, w, snaps, ws] = channelLag0(z, zh, nh, K, kn, alpha, w, snapEvery, nSnap, st)
+%channelLag0  One channel, Order 1: scalar loop (fast under the JIT). WS
+%   holds w^- at the rows ST.
 nS = numel(z);
 s = z;
 snaps = zeros(1, nSnap);
+ws = zeros(1, numel(st));
+js = 1;
+next = Inf;
+if ~isempty(st); next = st(1); end
 j = 0;
 c = 0;
 post = ~isempty(kn);
 for t = 1:nS
+    if t == next
+        ws(js) = w;
+        js = js + 1;
+        if js <= numel(st); next = st(js); else; next = Inf; end
+    end
     pred = nh(t) * w;                % n' * w^-(t)
     e = zh(t) - pred;                % innovation
     if post
@@ -259,16 +377,26 @@ end
 end
 
 
-function [s, w, snaps] = channelLags(z, zh, nPad, K, kn, alpha, w, snapEvery, nSnap)
-%channelLags  One channel, Order > 1: the lags as scalar inner loops.
+function [s, w, snaps, ws] = channelLags(z, zh, nPad, K, kn, alpha, w, snapEvery, nSnap, st)
+%channelLags  One channel, Order > 1: the lags as scalar inner loops. WS
+%   holds w^- at the rows ST.
 nS = numel(z);
 M = numel(w);
 s = z;
 snaps = zeros(M, nSnap);
+ws = zeros(M, numel(st));
+js = 1;
+next = Inf;
+if ~isempty(st); next = st(1); end
 j = 0;
 c = 0;
 post = ~isempty(kn);
 for t = 1:nS
+    if t == next
+        ws(:, js) = w;
+        js = js + 1;
+        if js <= numel(st); next = st(js); else; next = Inf; end
+    end
     pred = 0;
     for m = 1:M
         pred = pred + nPad(t + M - m) * w(m);

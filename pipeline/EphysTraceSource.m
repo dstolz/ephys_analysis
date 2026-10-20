@@ -153,19 +153,25 @@ classdef EphysTraceSource < handle
             %key  Text that changes whenever what read() returns may change.
             k = obj.Kind + "|" + obj.File + "|" + obj.SignalType + "|" + obj.Reference;
             if obj.Kind == "recording" && ~isempty(obj.Dataset)
-                [mode, ch] = obj.appliedReference();
+                [mode, ch, wcar] = obj.appliedReference();
                 k = k + "|" + obj.Dataset.Folder + "|" + mode + "|" + strjoin(string(ch), ",");
+                if mode == "wcar"
+                    k = k + "|" + string(jsonencode(wcar));
+                end
             end
         end
 
-        function [mode, ch] = appliedReference(obj)
-            %appliedReference  The common reference read() subtracts: "car" | "cmr" over channels CH, or "none".
+        function [mode, ch, wcar] = appliedReference(obj)
+            %appliedReference  The common reference read() subtracts: "car" | "cmr" | "wcar" over channels CH, or "none".
             %   The recording read "pipeline" takes the dataset's own
             %   (ArtifactConfig.Reference over referenceChannels, as every
             %   step reads it); the other kinds carry theirs in their
-            %   samples, so read() subtracts none.
+            %   samples, so read() subtracts none. WCAR is the weighted
+            %   CAR's options (ArtifactConfig.ReferenceWCAR) for "wcar",
+            %   else [].
             mode = "none";
             ch = double.empty(1, 0);
+            wcar = [];
             if obj.Kind ~= "recording" || obj.Reference ~= "pipeline" || isempty(obj.Dataset)
                 return
             end
@@ -174,6 +180,9 @@ classdef EphysTraceSource < handle
             if string(acfg.Reference) == "none"; return; end
             mode = string(acfg.Reference);
             ch = d.referenceChannels();
+            if mode == "wcar"
+                wcar = acfg.ReferenceWCAR;
+            end
         end
 
         function S = stamp(obj)
@@ -188,7 +197,10 @@ classdef EphysTraceSource < handle
                 case "recording"
                     d = obj.Dataset;
                     S.files = fileStamps(fullfile(d.Folder, d.Files));
-                    [S.reference, S.referenceChannels] = obj.appliedReference();
+                    [S.reference, S.referenceChannels, wcar] = obj.appliedReference();
+                    if S.reference == "wcar"   % only then, so the stamps of the other references stay as they were
+                        S.referenceWCAR = wcar;
+                    end
                 case "bin"
                     S.files = fileStamps(obj.File);
                     S.bin = obj.Bin;

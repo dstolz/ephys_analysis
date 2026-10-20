@@ -9,9 +9,10 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %   referenceSignals names (MUA and SPIKE by default; the LFP is taken as
 %   recorded), as the .bin and spike detection take it, and the artifact
 %   periods (artifactIntervals) are erased after it, so every signal derives
-%   from the cleaned recording. With referenceMethod "weighted" those
-%   signals take the adaptive weighted CAR (weightedCAR, Khorasani et al.
-%   2019) instead, whatever ArtifactConfig.Reference says.
+%   from the cleaned recording. With ArtifactConfig.Reference "wcar" (or
+%   referenceMethod "weighted", whatever ArtifactConfig.Reference says)
+%   those signals take the adaptive weighted CAR (weightedCAR, Khorasani
+%   et al. 2019) instead, run once over the whole recording in memory.
 %   This is the implementation behind INTAN2MATLAB, which is a thin wrapper
 %   around it: option names, processing and outputs are the same.
 %
@@ -158,18 +159,20 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %                        INFO.reference and INFO.<type>.reference
 %     referenceMethod    "common" | "weighted"  "common"  what the
 %                        referenceSignals take. "common": the dataset's
-%                        ArtifactConfig.Reference, as above. "weighted": the
-%                        adaptive weighted CAR (weightedCAR), each kept
-%                        column minus its own Kalman-tracked share of the
-%                        plain CAR over referenceChannels, even when
-%                        ArtifactConfig.Reference is "none" (the
-%                        ReferenceExclude suggestion then runs as for "car").
-%                        The sorting .bin, spike detection and the viewer
-%                        keep the common reference.
-%     wcarOptions        struct  struct()  weightedCAR's options for
-%                        "weighted": any of Order, Alpha1k, DriftPerSec, Q,
-%                        HighpassHz, Estimate, W0, P0 (missing ones take
-%                        weightedCAR's defaults). Q NaN or missing =
+%                        ArtifactConfig.Reference, as above (for "wcar" the
+%                        weighted CAR). "weighted": the adaptive weighted
+%                        CAR (weightedCAR), each kept column minus its own
+%                        Kalman-tracked share of the plain CAR over
+%                        referenceChannels, even when ArtifactConfig.Reference
+%                        is "none" (the ReferenceExclude suggestion then
+%                        runs as for "car") or "car" / "cmr", which the
+%                        sorting .bin, spike detection and the viewer then
+%                        keep.
+%     wcarOptions        struct  struct()  weightedCAR's options for the
+%                        weighted CAR: any of Order, Alpha1k, DriftPerSec, Q,
+%                        HighpassHz, Estimate, W0, P0, over the dataset's
+%                        ArtifactConfig.ReferenceWCAR (missing ones take
+%                        those, then weightedCAR's defaults). Q NaN =
 %                        automatic: the median over the reference channels
 %                        of (1.4826 * MAD(z_i - CAR))^2, the residual
 %                        high-passed at HighpassHz (MAD over at most 2^22
@@ -273,7 +276,13 @@ if ~isempty(badRef)
         'Unknown referenceSignals value(s): %s. Use "LFP", "MUA" and/or "SPIKE".', ...
         strjoin(badRef, ', '));
 end
-[wcarArgs, wcarQ] = wcarArguments(opts.wcarOptions);
+% The weighted CAR's options: the dataset's (ArtifactConfig.ReferenceWCAR,
+% which the streamed reads take too), then those given.
+wcarOpt = EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).ReferenceWCAR;
+for f = string(fieldnames(opts.wcarOptions)).'
+    wcarOpt.(f) = opts.wcarOptions.(f);
+end
+[wcarArgs, wcarQ] = wcarArguments(wcarOpt);
 if opts.MUA_bpLoHi(1) >= opts.MUA_bpLoHi(2)
     error('EphysDataset:deriveSignals:MUA_bpLoHiOrder', ...
         'MUA_bpLoHi must be [low high] with low < high.');
@@ -333,7 +342,7 @@ end
 % Header metadata: fail fast, before the long read.
 if isfinite(obj.Fs)
     signalRates(opts, has, obj.Fs);
-    if opts.referenceMethod == "weighted"
+    if opts.referenceMethod == "weighted" || obj.referenceMode() == "wcar"
         wcarDefaults(wcarArgs, wcarQ, obj.Fs);
     end
 end
@@ -348,7 +357,8 @@ opts = rmfield(opts, 'artifactIntervals');   % reported in info.artifacts, not i
 
 % The amplifier signals derived, and those the common reference is
 % subtracted from (none when ArtifactConfig.Reference is "none", unless the
-% weighted CAR is asked for). The reference is taken over every channel of
+% weighted CAR is asked for). ArtifactConfig.Reference "wcar" is the
+% weighted CAR itself. The reference is taken over every channel of
 % the recording, so with one the whole recording is read and the kept
 % channels are picked after it.
 ampTypes = ["LFP" "MUA" "SPIKE"];

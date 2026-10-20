@@ -9,8 +9,12 @@ function r = referenceTrace(obj, X, opts)
 %   take it (referenceSignals) only.
 %
 %   R = ds.referenceTrace(X, Mode="car") takes that reference ("none" |
-%   "car" | "cmr") whatever ArtifactConfig.Reference says: deriveSignals'
-%   weighted CAR (weightedCAR) weighs the plain CAR.
+%   "car" | "cmr") whatever ArtifactConfig.Reference says: the weighted CAR
+%   (weightedCAR; deriveSignals, prepareWCAR) weighs the plain CAR. The
+%   weighted CAR itself is one trace per channel, and depends on where X
+%   lies in the recording, so "wcar" is refused
+%   (EphysDataset:applyReference:Positional): read it with readChunkUV or
+%   readWindowUV.
 %
 %   See also EphysDataset.applyReference, EphysDataset.referenceChannels.
 
@@ -28,6 +32,11 @@ end
 if mode == "none" || isempty(X)
     return
 end
+if mode == "wcar"
+    error('EphysDataset:applyReference:Positional', ...
+        ['The weighted CAR of %s depends on where the samples lie in the recording; read them ' ...
+         'with readChunkUV or readWindowUV, which take it from its state (prepareWCAR).'], obj.Name);
+end
 
 ch = obj.referenceChannels();
 ch = ch(ch <= size(X, 2));
@@ -43,6 +52,6 @@ switch mode
         r = median(X(:, ch), 2);
     otherwise
         error('EphysDataset:applyReference:BadMode', ...
-            'Unknown Reference "%s" (use "none", "car" or "cmr").', mode);
+            'Unknown Reference "%s" (use "none", "car", "cmr" or "wcar").', mode);
 end
 end

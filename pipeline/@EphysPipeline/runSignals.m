@@ -3,12 +3,13 @@ function runSignals(obj, opts)
 %   The options come from EphysPipelineConfig.signalOptions (with the
 %   dataset's manifest exclusions applied per Signals.ExcludeHandling).
 %   Behavior data is written by the behavior step, not here. The common
-%   reference of the Reference section (CAR / CMR; the datasets'
-%   ArtifactConfig) is subtracted, once, from the signals whose
-%   Signals.<TYPE>_Reference is on (MUA and SPIKE by default, not the LFP;
-%   see deriveSignals' referenceSignals), or the adaptive weighted CAR
-%   with Signals.ReferenceMethod "weighted" (deriveSignals'
-%   referenceMethod; logged as WCAR). With
+%   reference of the Reference section (CAR / CMR, or the adaptive weighted
+%   CAR for Mode "wcar", logged as WCAR; the datasets' ArtifactConfig) is
+%   subtracted, once, from the signals whose Signals.<TYPE>_Reference is on
+%   (MUA and SPIKE by default, not the LFP; see deriveSignals'
+%   referenceSignals). The weighted CAR runs here over the whole recording
+%   in memory (deriveSignals), as the streamed reads of the other steps
+%   give it (prepareWCAR). With
 %   Signals.BlankArtifacts the dataset's artifact periods (the manual ones,
 %   plus the automatic detection when Artifacts.ApplyToSignals, as Sorting
 %   and Spikes take them: artifactIntervalsForStep) are erased before any
@@ -54,9 +55,7 @@ for k = 1:n
         end
         if opts.DryRun
             what = "would write " + strjoin(sigOpts.dataTypeOut, "+");
-            if sigOpts.referenceMethod == "weighted" && ~isempty(sigOpts.referenceSignals)
-                what = what + ", " + strjoin(sigOpts.referenceSignals, "+") + " WCAR referenced";
-            elseif c.Reference.Mode ~= "none" && ~isempty(sigOpts.referenceSignals)
+            if c.Reference.Mode ~= "none" && ~isempty(sigOpts.referenceSignals)
                 what = what + ", " + strjoin(sigOpts.referenceSignals, "+") + " " + upper(c.Reference.Mode) + " referenced";
             end
             if G.BlankArtifacts

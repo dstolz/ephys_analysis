@@ -17,14 +17,34 @@ says how to cut a release.
   `deriveSignals` (and `toMat`, `intan2matlab`) takes `referenceMethod="weighted"` and `wcarOptions`
   (Order, Alpha1k, DriftPerSec, Q with NaN = automatic, HighpassHz, Estimate "prior" or "posterior").
   It applies to the signals `referenceSignals` names, even with `ArtifactConfig.Reference` `"none"`,
-  and is reported as `info.reference.mode` `"wcar"` with `info.reference.wcar`. The sorting `.bin`, spike
-  detection and the viewer keep the common reference. `prepareReference` and `referenceTrace` take
-  `Mode=`. The pipeline config's `Signals` section gets `ReferenceMethod` and the `WCAR_*` fields
-  (checked by `signalOptions` / `validate`, logged as WCAR), and the Signals tab a reference-method drop-down
-  with the WCAR parameters. The Diagram tab draws it on the MUA / SPIKE branches (a *Weighted CAR* box with
-  its parameters; the common-reference box lists those signals as left out), and the overview's Signals box
-  and the Run tab's Signals step name it. See
+  and is reported as `info.reference.mode` `"wcar"` with `info.reference.wcar`. `prepareReference` and
+  `referenceTrace` take `Mode=`. The pipeline config, the app and the Diagram tab take it as a common
+  reference for every step (next bullet). See
   [Adaptive weighted CAR](documentation/EphysDataset.md#adaptive-weighted-car).
+- The adaptive weighted CAR as the common reference of every step: `Reference.Mode` (and
+  `ArtifactConfig.Reference`) `"wcar"`, so artifact detection, the noise level of the artifact fill, the
+  sorting `.bin`, spike detection and the viewer read the weighted-CAR referenced recording, as the derived
+  signals do. Kilosort4's `do_CAR` is then set false and a SpikeInterface sorter's own common reference is
+  kept out (`runKilosort`, `runSpikeInterface`, `run_si.py`; the `.bin` sidecar's `reference.mode`
+  `"wcar"`, with `reference.wcar`), so the recording is referenced once. The filter runs through the
+  recording, so the new `EphysDataset.prepareWCAR` works its state out once per recording (a pass over every
+  channel, about 8 s per channel-hour at 30 kHz, and one before it for an automatic `Q`, the samples
+  `deriveSignals` takes), keeps it every 1 s and saves it as `<Name>_wcar.mat`; `readChunkUV` and
+  `readWindowUV` run the filter from the checkpoint at or before each read, padding the read by the
+  high-pass's memory (23 s on each side at 0.5 Hz), and give what one run over the whole recording gives,
+  to about 1e-12 of the signal (exactly with `HighpassHz` 0), whatever the chunks or workers. The streaming
+  entry points call it before any chunk is read; the pipeline's artifact detection, Sorting and Spikes steps
+  report its passes as their progress and log `[reference]`. `weightedCAR` takes `Rows`, `Initial`,
+  `StateRows` and `Output` and returns `info.final` and `info.states`, to run a recording in pieces.
+  `ArtifactConfig` gets `ReferenceWCAR` (`EphysDataset.defaultWCAR`), which `deriveSignals`' `wcarOptions`
+  now go over; `applyReference` and `referenceTrace` refuse `"wcar"`. The config's `Reference` section gets
+  the `WCAR_*` fields (checked by `validate` with `Mode` `"wcar"`; `EphysPipelineConfig.wcarOptions`), and
+  `Signals.ReferenceMethod` and `Signals.WCAR_*` are retired: a config saved with them loads with the
+  `WCAR_*` fields moved to `Reference`, and `"weighted"` is reported in `LoadWarnings`, not applied. The
+  Artifacts tab's reference drop-down gets *WCAR* and the WCAR parameters (moved from the Signals tab); the
+  Diagram tab draws one *Adaptive weighted CAR* box with its parameters where the common reference goes. The
+  artifact cache's fingerprint takes the WCAR options only with `"wcar"`, so the other caches stay valid.
+  See [Streamed (prepareWCAR)](documentation/EphysDataset.md#streamed-preparewcar).
 
 - Figures: panels of different types, drawn for one observation, in the analysis config. A new `Figures`
   list holds figures; each is a grid (rows and columns, relative sizes, spans) of panels, each of one of

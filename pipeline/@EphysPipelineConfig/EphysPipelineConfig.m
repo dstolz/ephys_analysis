@@ -265,7 +265,7 @@ classdef EphysPipelineConfig
                 s (1,1) struct
             end
             obj = EphysPipelineConfig();
-            warn = string.empty(1, 0);
+            [s, warn] = movedWCARFields(s);
             if isfield(s, 'name');        obj.Name = string(s.name);               end
             if isfield(s, 'description'); obj.Description = string(s.description); end
             for sec = EphysPipelineConfig.Sections
@@ -355,8 +355,9 @@ classdef EphysPipelineConfig
             %   CFG = EphysPipelineConfig.artifactConfig(A, R): the detection
             %   and fill settings of the Artifacts section A, and the common
             %   reference of the Reference section R (Mode, BadLow, BadHigh
-            %   as Reference, ReferenceBadLow, ReferenceBadHigh), which every
-            %   read of the dataset's recording takes.
+            %   as Reference, ReferenceBadLow, ReferenceBadHigh; the WCAR_*
+            %   fields as ReferenceWCAR, wcarOptions), which every read of
+            %   the dataset's recording takes.
             a = EphysPipelineConfig.normalizeSection("Artifacts", a);
             r = EphysPipelineConfig.normalizeSection("Reference", r);
             cfg = EphysDataset.defaultArtifactConfig();
@@ -366,6 +367,20 @@ classdef EphysPipelineConfig
             cfg.Reference        = r.Mode;
             cfg.ReferenceBadLow  = r.BadLow;
             cfg.ReferenceBadHigh = r.BadHigh;
+            cfg.ReferenceWCAR    = EphysPipelineConfig.wcarOptions(r);
+        end
+
+        function w = wcarOptions(r)
+            %wcarOptions  The Reference section's WCAR_* fields as weightedCAR options.
+            %   W = EphysPipelineConfig.wcarOptions(R): struct Order, Alpha1k,
+            %   DriftPerSec, Q (NaN = automatic), HighpassHz, Estimate, the
+            %   datasets' ArtifactConfig.ReferenceWCAR, which Reference.Mode
+            %   "wcar" takes in every step (EphysDataset.prepareWCAR,
+            %   EphysDataset.deriveSignals).
+            r = EphysPipelineConfig.normalizeSection("Reference", r);
+            w = struct('Order', r.WCAR_Order, 'Alpha1k', r.WCAR_Alpha1k, ...
+                'DriftPerSec', r.WCAR_DriftPerSec, 'Q', r.WCAR_Q, ...
+                'HighpassHz', r.WCAR_HighpassHz, 'Estimate', r.WCAR_Estimate);
         end
 
         function h = artifactHandling(cfg)
@@ -636,4 +651,44 @@ classdef EphysPipelineConfig
             end
         end
     end
+end
+
+
+function [s, warn] = movedWCARFields(s)
+%movedWCARFields  A config saved when the weighted CAR was a Signals option.
+%   The Signals section's WCAR_* fields move to the Reference section
+%   (unless it has its own); Signals.ReferenceMethod is retired: the
+%   weighted CAR is Reference.Mode "wcar", which every step takes, so
+%   "weighted" there is reported in WARN (LoadWarnings) and not applied.
+warn = string.empty(1, 0);
+if ~isfield(s, 'Signals') || ~isstruct(s.Signals) || ~isscalar(s.Signals)
+    return
+end
+G = s.Signals;
+f = string(fieldnames(G)).';
+moved = f(startsWith(f, "WCAR_"));
+if ~isempty(moved)
+    if ~isfield(s, 'Reference') || ~isstruct(s.Reference) || ~isscalar(s.Reference)
+        s.Reference = struct();
+    end
+    for k = moved
+        if ~isfield(s.Reference, k)
+            s.Reference.(k) = G.(k);
+        end
+    end
+    G = rmfield(G, cellstr(moved));
+end
+if isfield(G, 'ReferenceMethod')
+    if string(G.ReferenceMethod) == "weighted"
+        mode = "none";
+        if isfield(s, 'Reference') && isstruct(s.Reference) && isfield(s.Reference, 'Mode')
+            mode = string(s.Reference.Mode);
+        end
+        warn(end+1) = "Signals.ReferenceMethod ""weighted"" is retired and not applied: the weighted CAR " + ...
+            "is now Reference.Mode ""wcar"", which every step takes; the signals take Reference.Mode (""" + ...
+            mode + """)";
+    end
+    G = rmfield(G, 'ReferenceMethod');
+end
+s.Signals = G;
 end

@@ -74,6 +74,7 @@ end
 
 if opts.Reference
     obj.prepareReference();
+    obj.prepareWCAR();
 end
 
 plan = obj.streamPlan(Files=opts.Files, MaxChunkSamples=opts.MaxChunkSamples);
@@ -93,7 +94,7 @@ chanOrder = opts.ChannelOrder;
 pool = [];
 nWorkers = 1;
 if opts.UseParallel && nChunks > 1
-    [pool, nWorkers] = parallelChunkPool(plan, obj.NumChannels, opts.MaxWorkers, 5, "noiseLevels");
+    [pool, nWorkers] = parallelChunkPool(plan, obj.NumChannels, opts.MaxWorkers, 5 + wcarCopies(obj, plan) * opts.Reference, "noiseLevels");
 end
 reference = opts.Reference;
 R = mapChunks(@(i) noiseChunk(obj, plan(i), chanOrder, filt, Fs, reference), ...

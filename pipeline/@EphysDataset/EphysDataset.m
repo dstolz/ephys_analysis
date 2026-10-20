@@ -110,7 +110,8 @@ classdef EphysDataset < handle
         ExcludeChannels (1,:) double = double.empty(1,0)
 
         % Channels left out of the common reference (ArtifactConfig.Reference
-        % "car" / "cmr"), 1-based like ExcludeChannels, which are left out
+        % "car" / "cmr", and the plain CAR the weighted CAR "wcar" weighs),
+        % 1-based like ExcludeChannels, which are left out
         % too. The reference is still subtracted from them. Filled by
         % suggestReferenceExclude (the noise-floor rule of Ludwig et al.
         % 2009) or set by hand; saved in the manifest. See
@@ -237,6 +238,12 @@ classdef EphysDataset < handle
         % IntanReader or BinaryReader), chosen by EphysReader.forFolder in
         % discoverFiles. [] when no registered reader recognizes the folder.
         Reader = []
+
+        % The streamed weighted CAR's state checkpoints (prepareWCAR), [] until
+        % a read with ArtifactConfig.Reference "wcar" needs them. Not
+        % transient: a process-pool worker gets them with the dataset, so no
+        % worker works them out again.
+        WCARState = []
     end
 
     properties (Access = private)
@@ -317,6 +324,7 @@ classdef EphysDataset < handle
         r      = referenceTrace(obj, X, opts)
         [bad, info] = suggestReferenceExclude(obj, opts)
         tf     = prepareReference(obj, opts)
+        st     = prepareWCAR(obj, opts)
         ch     = referenceChannels(obj)
         X      = blankArtifacts(obj, X, mask, opts)
         mask   = manualArtifactMask(obj, nSamp, sampleOffset, Fs, iv)
@@ -475,10 +483,11 @@ classdef EphysDataset < handle
 
         function X = readChunkUV(obj, chunk, opts)
             %readChunkUV  One streamPlan chunk as [nSamp x nChan] double microvolts.
-            %   The common reference of ArtifactConfig.Reference (CAR / CMR,
-            %   see applyReference) is subtracted, so every streaming
-            %   consumer - the .bin, artifact detection, noise levels, spike
-            %   detection and the app's views - sees the referenced signal.
+            %   The reference of ArtifactConfig.Reference (CAR / CMR, see
+            %   applyReference; the weighted CAR "wcar", see prepareWCAR) is
+            %   subtracted, so every streaming consumer - the .bin, artifact
+            %   detection, noise levels, spike detection and the app's views
+            %   - sees the referenced signal.
             %   readChunkUV(CHUNK, Reference=false) returns it as recorded.
             arguments
                 obj (1,1) EphysDataset
@@ -486,6 +495,18 @@ classdef EphysDataset < handle
                 opts.Reference (1,1) logical = true
             end
             obj.requireReader('readChunkUV');
+            if opts.Reference && obj.referenceMode() == "wcar"
+                if ~(isfinite(chunk.sampleOffset) && isfinite(chunk.nSamples))
+                    error('EphysDataset:readChunkUV:WCARPosition', ...
+                        ['%s: the weighted CAR needs the chunk''s place in the recording, which the ' ...
+                         'header parse did not give for %s.'], obj.Name, chunk.name);
+                end
+                X = zeros(0, 0);
+                if chunk.nSamples > 0
+                    X = wcarRows(obj, obj.prepareWCAR(), chunk.sampleOffset, chunk.nSamples);
+                end
+                return
+            end
             X = obj.Reader.readChunkUV(chunk);
             if opts.Reference
                 X = obj.applyReference(X);
@@ -502,10 +523,19 @@ classdef EphysDataset < handle
                 opts.Reference (1,1) logical = true
             end
             obj.requireReader('readWindowUV');
+            if opts.Reference && obj.referenceMode() == "wcar"
+                X = wcarRows(obj, obj.prepareWCAR(), sampleOffset, nSamp);
+                return
+            end
             X = obj.Reader.readWindowUV(sampleOffset, nSamp);
             if opts.Reference
                 X = obj.applyReference(X);
             end
+        end
+
+        function mode = referenceMode(obj)
+            %referenceMode  ArtifactConfig.Reference: "none" | "car" | "cmr" | "wcar".
+            mode = string(EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).Reference);
         end
 
         function tf = supportsRandomAccess(obj)
@@ -1272,13 +1302,18 @@ classdef EphysDataset < handle
             %   reference subtracted from every read before anything else
             %   (applyReference): "none", "car" (mean) or "cmr" (median) of
             %   the channels whose noise floor lies within [Low High] times
-            %   the median across channels (suggestReferenceExclude). The
-            %   pipeline sets them from its config's Reference section
-            %   (Mode, BadLow, BadHigh; EphysPipelineConfig.artifactConfig).
+            %   the median across channels (suggestReferenceExclude), or
+            %   "wcar", the adaptive weighted CAR of that mean (weightedCAR,
+            %   Khorasani et al. 2019; streamed with prepareWCAR), with the
+            %   options ReferenceWCAR (Order, Alpha1k, DriftPerSec, Q - NaN =
+            %   automatic -, HighpassHz, Estimate). The pipeline sets them
+            %   from its config's Reference section (Mode, BadLow, BadHigh,
+            %   WCAR_*; EphysPipelineConfig.artifactConfig).
             cfg = struct( ...
-                'Reference',    "none", ...  % "none" | "car" (mean) | "cmr" (median)
+                'Reference',    "none", ...  % "none" | "car" (mean) | "cmr" (median) | "wcar" (weighted CAR)
                 'ReferenceBadLow',  0.3, ... % x median noise: quieter channels are left out of the reference
                 'ReferenceBadHigh', 2, ...   % x median noise: noisier channels are left out of the reference
+                'ReferenceWCAR', EphysDataset.defaultWCAR(), ...  % weightedCAR options for "wcar"
                 'Enabled',      false, ...   % toBin blanks only when true
                 'Method',       "rms", ...   % running-RMS amplitude deviation
                 'Threshold',    9, ...       % robust SDs above per-channel baseline
@@ -1293,6 +1328,15 @@ classdef EphysDataset < handle
                 'Fill',         "noise", ... % "noise" (Gaussian) | "zero"
                 'NoiseBandHz',  300, ...     % Hz; band the noise level is measured in (0 = broadband)
                 'NoiseSeed',    0);          % RNG seed for the fill (NaN = a new draw each run)
+        end
+
+        function w = defaultWCAR()
+            %defaultWCAR  The weighted CAR's options for Reference "wcar" (ArtifactConfig.ReferenceWCAR).
+            %   weightedCAR's defaults: Order 1, Alpha1k 1, DriftPerSec 1,
+            %   HighpassHz 0.5, Estimate "prior"; Q NaN = automatic (see
+            %   prepareWCAR and deriveSignals).
+            w = struct('Order', 1, 'Alpha1k', 1, 'DriftPerSec', 1, 'Q', NaN, ...
+                'HighpassHz', 0.5, 'Estimate', "prior");
         end
 
         function cfg = defaultTrialConfig()
@@ -1366,6 +1410,16 @@ classdef EphysDataset < handle
                     def.(fn{k}) = cfg.(fn{k});
                 end
             end
+            % ReferenceWCAR field by field, so a partial struct keeps the defaults
+            w = EphysDataset.defaultWCAR();
+            if isstruct(def.ReferenceWCAR) && isscalar(def.ReferenceWCAR)
+                for f = string(fieldnames(w)).'
+                    if isfield(def.ReferenceWCAR, f)
+                        w.(f) = def.ReferenceWCAR.(f);
+                    end
+                end
+            end
+            def.ReferenceWCAR = w;
             cfg = def;
         end
 

@@ -24,6 +24,11 @@ function X = applyReference(obj, X)
 %   subtracts and so reads the chunk unreferenced. readData itself returns
 %   the recording as stored.
 %
+%   The weighted CAR ("wcar") is not taken sample by sample: its weights
+%   depend on all the recording before X, so readChunkUV and readWindowUV
+%   take it from its state checkpoints (prepareWCAR) and this refuses it
+%   (EphysDataset:applyReference:Positional).
+%
 %   See also EphysDataset.referenceTrace, EphysDataset.referenceChannels,
 %   EphysDataset.suggestReferenceExclude,
 %   EphysDataset.prepareReference.

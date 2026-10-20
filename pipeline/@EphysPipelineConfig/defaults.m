@@ -52,10 +52,17 @@ switch section
         % The common reference every step subtracts once from its read of the
         % recording (carried onto the datasets' ArtifactConfig).
         a = EphysDataset.defaultArtifactConfig();
+        w = a.ReferenceWCAR;
         s = struct( ...
-            'Mode',    a.Reference, ...         % "none" | "car" | "cmr"
+            'Mode',    a.Reference, ...         % "none" | "car" | "cmr" | "wcar" (adaptive weighted CAR, weightedCAR)
             'BadLow',  a.ReferenceBadLow, ...   % suggested out of the reference below this x median noise
-            'BadHigh', a.ReferenceBadHigh);     % ... and above this
+            'BadHigh', a.ReferenceBadHigh, ...  % ... and above this
+            'WCAR_Order',       w.Order, ...       % "wcar": weights per channel, the CAR and its previous Order-1 samples
+            'WCAR_Alpha1k',     w.Alpha1k, ...     % state transition at 1 kHz, (0, 1]; 1 = random walk
+            'WCAR_DriftPerSec', w.DriftPerSec, ... % process variance per second (larger adapts faster)
+            'WCAR_Q',           w.Q, ...           % observation variance uV^2; NaN = automatic
+            'WCAR_HighpassHz',  w.HighpassHz, ...  % high-pass of the estimation inputs; 0 = none
+            'WCAR_Estimate',    w.Estimate);       % "prior" | "posterior" weights subtracted
 
     case "Behavior"
         s = struct( ...
@@ -137,16 +144,9 @@ switch section
             'SPIKE',              false, ...
             'AUX',                false, ...   % aux (accelerometer) inputs, when recorded
             'BlankArtifacts',     true, ...    % erase the artifact periods before deriving; recorded in every file
-            'LFP_Reference',      false, ...   % subtract the common reference (the Reference section) from the LFP
+            'LFP_Reference',      false, ...   % subtract the reference (the Reference section, the weighted CAR too) from the LFP
             'MUA_Reference',      true, ...    % ... from the MUA
             'SPIKE_Reference',    true, ...    % ... from the SPIKE band
-            'ReferenceMethod',    "common", ...  % "common" (the Reference section) | "weighted" (adaptive weighted CAR, weightedCAR)
-            'WCAR_Order',         1, ...       % weights per channel: the CAR and its previous Order-1 samples
-            'WCAR_Alpha1k',       1, ...       % state transition at 1 kHz, (0, 1]; 1 = random walk
-            'WCAR_DriftPerSec',   1, ...       % process variance per second (larger adapts faster)
-            'WCAR_Q',             NaN, ...     % observation variance uV^2; NaN = automatic
-            'WCAR_HighpassHz',    0.5, ...     % high-pass of the estimation inputs; 0 = none
-            'WCAR_Estimate',      "prior", ... % "prior" | "posterior" weights subtracted
             'LFP_Fs',             1000, ...
             'LFP_HighpassOn',     false, ...
             'LFP_HighpassHz',     1, ...

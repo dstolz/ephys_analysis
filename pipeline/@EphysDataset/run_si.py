@@ -7,7 +7,8 @@ parameters (si_params.json, as edited on the Sorting tab) into the run
 folder, then starts this driver. It
 
   1. reads the .bin Kilosort4 would sort (artifact periods erased, the
-     common reference applied once) with the probe .json attached,
+     common reference - CAR, CMR or the weighted CAR - applied once) with
+     the probe .json attached,
   2. runs spikeinterface.run_sorter on it in <run folder>/si_work, on
      threads (its cluster split and merge pools too), keeping the sorter's
      own common reference out when the .bin already carries one (the
@@ -114,8 +115,9 @@ def read_probe(path):
 def keep_reference_out(sorter, params, mode):
     """Keep the sorter from adding a common reference to a referenced .bin.
 
-    The .bin carries the pipeline's common reference (MODE "car" / "cmr"),
-    so a second one would change the data, as Kilosort4's do_CAR would
+    The .bin carries the pipeline's reference (MODE "car" / "cmr", or the
+    weighted CAR "wcar"), so a second one would change the data, as
+    Kilosort4's do_CAR would
     (runKilosort turns that off). Sorters with a do_CAR / car setting get it
     off; SpikeInterface's internal sorters (spykingcircus2, tridesclous2,
     lupin, ...) call common_reference themselves on 32 channels or more,
@@ -133,12 +135,13 @@ def keep_reference_out(sorter, params, mode):
     if callable(getattr(module, 'common_reference', None)):
         module.common_reference = lambda recording, *args, **kwargs: recording
         done.append('its common_reference skipped')
+    name = 'adaptive weighted CAR' if mode == 'wcar' else 'common %s' % mode.upper()
     if done:
-        print('The .bin carries the common %s reference: %s (%s), so it is referenced once.'
-              % (mode.upper(), sorter, ', '.join(done)), flush=True)
+        print('The .bin carries the %s reference: %s (%s), so it is referenced once.'
+              % (name, sorter, ', '.join(done)), flush=True)
     else:
-        print('The .bin carries the common %s reference; %s has no common reference of its own '
-              'that this driver knows of.' % (mode.upper(), sorter), flush=True)
+        print('The .bin carries the %s reference; %s has no common reference of its own '
+              'that this driver knows of.' % (name, sorter), flush=True)
 
 
 def run_pools_on_threads():
@@ -317,7 +320,7 @@ def main():
         device = device_arg(sys.argv[2:])
         if device:
             print('Device %s: not used by SpikeInterface sorters here.' % device, flush=True)
-        if cfg.get('reference', 'none') in ('car', 'cmr'):
+        if cfg.get('reference', 'none') in ('car', 'cmr', 'wcar'):
             keep_reference_out(sorter, params, cfg['reference'])
 
         # Threads, not processes: on Windows every process pool imports

@@ -54,6 +54,7 @@ for k = 1:n
             if src == "computed"; lo = 0.5; end
             args = {'ArtifactIntervals', iv};
         end
+        obj.prepareWCARFor(d, @(done, total, msg) obj.progress("spikes", d.Name, k, n, lo, 1, msg));
         cb = @(done, total, msg) obj.progress("spikes", d.Name, k, n, lo + (1 - lo) * done / max(total, 1), 1, msg);
         r = d.spikesToMat('File', out, 'DetectOptions', dopt, 'Channels', channels, ...
             'ArtifactMode', K.ArtifactMode, 'MatVersion', K.MatVersion, ...

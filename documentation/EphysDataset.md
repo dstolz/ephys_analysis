@@ -709,13 +709,15 @@ sample by sample, once, as each step reads the recording:
 | `"none"` (default) | none: the recording as stored |
 | `"car"` | common average reference: the mean across the reference channels (Ludwig et al. 2009, *J Neurophysiol* 101:1679) |
 | `"cmr"` | common median reference: their median, which a large spike or artifact on a few channels cannot drag along |
+| `"wcar"` | the [adaptive weighted CAR](#adaptive-weighted-car) (Khorasani et al. 2019): each channel minus its own Kalman-tracked share of their mean, with the options `ArtifactConfig.ReferenceWCAR` (`Order`, `Alpha1k`, `DriftPerSec`, `Q`, `HighpassHz`, `Estimate`; `defaultWCAR()`) |
 
-It is applied in `readChunkUV` and `readWindowUV` (**`X = applyReference(X)`**),
+It is applied in `readChunkUV` and `readWindowUV` (**`X = applyReference(X)`**;
+for `"wcar"` from the weighted CAR's state, [below](#streamed-preparewcar)),
 so artifact detection, `noiseLevels` (the artifact fill), `toBin` (the
 Kilosort4 `.bin`), `detectSpikes` and the app's views all see the referenced
 signal, except the `"commonmode"` artifact detector, which looks for the very
 mean the reference subtracts and so reads each chunk unreferenced. Each sample is referenced on its own, so chunk and window reads agree
-exactly. `readChunkUV(chunk, Reference=false)` and
+exactly. **`mode = referenceMode()`** is `ArtifactConfig.Reference`. `readChunkUV(chunk, Reference=false)` and
 `readWindowUV(offset, n, Reference=false)` return the recording as stored.
 `deriveSignals` computes the same reference (**`r = referenceTrace(X)`**, the
 `[nSamples x 1]` trace `applyReference` subtracts) over the whole recording it
@@ -723,7 +725,9 @@ reads, a block of rows at a time, and subtracts it from the derived signals its
 `referenceSignals` names: MUA and SPIKE by default, while the LFP is taken as
 recorded, since the reference would take out the LFP every channel shares.
 `toBin` writes the reference into the `.bin`, so `runKilosort` turns Kilosort4's
-own `do_CAR` off and the recording is never referenced twice. `readData` itself
+own `do_CAR` off (and `runSpikeInterface` keeps a sorter's own common reference
+out), for `"car"`, `"cmr"` and `"wcar"` alike, and the recording is never
+referenced twice. `readData` itself
 returns the recording as stored.
 
 **`ch = referenceChannels()`**: the channels the reference is taken over,
@@ -763,12 +767,17 @@ then dominate the average. A reference over no channel at all is an error
 (`EphysDataset:applyReference:NoChannels`).
 
 `toBin` records what it used in `info.reference` and in the sidecar's
-`reference` (`mode`, `channels`). The pipeline's artifact-interval cache is
+`reference` (`mode`, `channels`, and for `"wcar"` `wcar`: its options, `Q`
+and `QAuto`). The pipeline's artifact-interval cache is
 keyed on the reference channels as well as the config.
 
 `prepareReference(Mode=)` and `referenceTrace(X, Mode=)` take a reference
 (`"none"`, `"car"`, `"cmr"`) in place of `ArtifactConfig.Reference`; the
-weighted CAR below uses `Mode="car"`.
+weighted CAR below uses `Mode="car"`. `prepareReference` settles the channels
+for `"wcar"` as for `"car"`; `applyReference` and `referenceTrace` refuse
+`"wcar"` (`EphysDataset:applyReference:Positional`): its weights depend on all
+the recording before the samples, so only `readChunkUV` and `readWindowUV`
+take it.
 
 ### Adaptive weighted CAR
 
@@ -777,11 +786,12 @@ weighted CAR below uses `Mode="car"`.
 Daliri 2019, "Adaptive Artifact Removal From Intracortical Channels for
 Accurate Decoding of a Force Signal in Freely Moving Rats", *Front. Neurosci.*
 13:350 ([doi:10.3389/fnins.2019.00350](https://doi.org/10.3389/fnins.2019.00350)).
-`deriveSignals` applies it, in place of the common reference, to the signals
-`referenceSignals` names when `referenceMethod` is `"weighted"`. Only there:
-the sorting `.bin`, spike detection, artifact detection and the viewer keep
-none / CAR / CMR, since they read the recording in chunks, in parallel and at
-random, which a stateful filter does not allow without a serial pre-pass.
+With `ArtifactConfig.Reference` `"wcar"` it is the reference every read
+takes - artifact detection, the noise level of the fill, the sorting `.bin`,
+spike detection, the viewer - [streamed](#streamed-preparewcar) from its
+state, and `deriveSignals` runs it over the whole recording in memory for the
+signals `referenceSignals` names. `deriveSignals(referenceMethod="weighted")`
+applies it to those signals alone, whatever `ArtifactConfig.Reference` says.
 
 **Model.** Each channel is `z_i(t) = s_i(t) + w_i(t)' * n(t)`, where `n(t)`
 holds the plain CAR `c(t)` (the mean over `referenceChannels`) and its
@@ -820,6 +830,16 @@ on the workstation.
 | `Estimate` | `"prior"` | the weights subtracted at sample `t`: `"prior"`, the prediction `alpha * w_hat(t-1)` made before `z(t)` is seen, or `"posterior"`, the paper's `w_hat(t)` (its Fig. 1 / eq. 8) |
 | `W0` | 1 | the first sample's lag-0 weight (the other lags 0): it starts as plain CAR. Not in the paper |
 | `P0` | 1 | the first sample's weight covariance `P0 * I`. Not in the paper |
+| `Rows` | all | `[first last]`: the rows of `Z` run (weights tracked, output written); the others only pad the high-pass and are returned as given |
+| `Initial` | `struct()` | the prior state at `Rows(1)`: `P` (`[Order x Order]`), `W` (`[Order x nCol]`) and `NLag` (the high-passed `n` of the `Order-1` rows before), in place of `W0` / `P0` |
+| `StateRows` | none | increasing rows within `Rows` whose prior state `info.states` returns |
+| `Output` | `true` | `false` leaves `Z` as given (the state alone is wanted), so it is not copied |
+
+With `Rows`, `Initial` and `StateRows` a recording runs in pieces: a piece
+started from `info.final` of the one before, or from a state `info.states`
+gave, gives exactly what one run over the whole gives (the recursion is the
+same; the test checks it to 1e-12). Only the high-pass depends on the rows
+given, which is why `prepareWCAR` pads every piece.
 
 The subtracted term uses the high-passed `n` too, so nothing below
 `HighpassHz` is removed and a channel's DC offset never leaks into another
@@ -834,18 +854,25 @@ default.
 `info`: `Fs`, `Order`, `Alpha1k`, `DriftPerSec`, `Q`, `HighpassHz`,
 `Estimate`, `W0`, `P0`, `alpha` and `V` (per sample) and `weights`, a summary
 per column over time (sampled every 0.1 s): `p5`, `median`, `p95` and
-`final`, each `[Order x nCol]` (row m = lag m-1). Errors: `weightedCAR:Fs`,
-`Q`, `Order`, `Alpha1k`, `DriftPerSec`, `HighpassHz`, `Estimate`, `Initial`,
+`final`, each `[Order x nCol]` (row m = lag m-1); `final` (struct `P`, `W`,
+`NLag`: the prior state of the row after the last one run) and `states`
+(struct `rows`, `P` `[Order x Order x k]`, `W` `[Order x nCol x k]`, `NLag`
+`[Order-1 x k]`: the prior state at each of `StateRows`). Errors:
+`weightedCAR:Fs`, `Q`, `Order`, `Alpha1k`, `DriftPerSec`, `HighpassHz`,
+`Estimate`, `Initial` (also a bad `Initial` struct), `Rows`, `StateRows`,
 `Size`.
 
-**In `deriveSignals`.** `referenceMethod="weighted"` gives `info.reference.mode`
-`"wcar"` (and `info.<TYPE>.reference` `"wcar"`), even when
+**In `deriveSignals`.** `ArtifactConfig.Reference` `"wcar"`, or
+`referenceMethod="weighted"`, gives `info.reference.mode`
+`"wcar"` (and `info.<TYPE>.reference` `"wcar"`); the latter even when
 `ArtifactConfig.Reference` is `"none"`: `prepareReference(Mode="car")` settles
 the channels (the `ReferenceExclude` suggestion runs as for `"car"`), and
 `n` is `referenceTrace(X, Mode="car")` over every channel, before
-`keepAmpChannels` picks the kept ones. `wcarOptions` (a struct of any of the
-options above but `Fs`) is checked against the header rate before the read.
-With `wcarOptions.Q` `NaN` or absent, `Q` is automatic: the median over the
+`keepAmpChannels` picks the kept ones. The options are the dataset's
+`ArtifactConfig.ReferenceWCAR`, the ones the streamed reads take, with
+`wcarOptions` (a struct of any of the options above but `Fs`) over them; they
+are checked against the header rate before the read.
+With `Q` `NaN`, `Q` is automatic: the median over the
 reference channels of `(1.4826 * MAD(z_i - c))²`, the residual high-passed at
 `HighpassHz`, the MAD over at most 2^22 evenly spaced samples; the robust
 variance of the plain-CAR residual, the paper's `q = E[s_i²]`.
@@ -854,6 +881,71 @@ variance of the plain-CAR residual, the paper's `q = E[s_i²]`.
 erase. The weights are tracked through the periods before they are erased, so
 a large artifact can leave a weight transient that outlasts its erased period
 by the adaptation time.
+
+#### Streamed (prepareWCAR)
+
+**`st = prepareWCAR(Name=Value)`** readies the weighted CAR for the streamed
+reads when `ArtifactConfig.Reference` is `"wcar"` (`[]` otherwise).
+`readChunkUV` and `readWindowUV` call it, and the streaming entry points
+(`toBin`, `artifactIntervals`, `analyzeArtifacts`, `noiseLevels`,
+`detectSpikes`) call it after `prepareReference`, before any chunk is read,
+so a process-pool worker gets the state with the dataset (`WCARState` is not
+transient) and never works it out again.
+
+The filter runs through the recording, so a chunk read on its own needs its
+state where the chunk starts. `prepareWCAR` runs it once over the whole
+recording, in order, and keeps the state every `st.grid` samples (1 s; more
+apart when the state of many channels at a high `Order` would pass 8 MB):
+the covariance `P`, every channel's predicted weights `W`, and the
+high-passed CAR of the `Order-1` samples before (`NLag`). A read then runs
+`weightedCAR` from the checkpoint at or before its first sample (`Rows`,
+`Initial`) to its last, so it gives what one run over the whole recording
+gives, whatever the chunks, their order or the workers:
+
+- the recursion is the same, sample for sample;
+- the zero-phase high-pass of the estimation inputs (`HighpassHz`) is taken
+  over the read padded by `st.pad` samples on each side (clipped to the
+  recording): the samples after which the filter's memory has fallen to
+  1e-12, `ceil(ln(1e-12) / ln(r))` for its largest pole radius `r` - 23 s
+  at 0.5 Hz, at any rate. A read therefore agrees with the whole-recording
+  high-pass, and with one run of `weightedCAR` over the whole recording, to
+  about 1e-12 of the signal's size (the test asks 1e-9), far below one ADC
+  step. With `HighpassHz` 0 there is no padding and the agreement is exact.
+
+The cost: every read is padded (a chunk is read with `2 * pad` more samples)
+and runs from its checkpoint (up to one grid step more), and once per
+recording, with `Q` `NaN` (automatic), a first pass works out `Q` as
+`deriveSignals` does (the same samples: the median over the reference
+channels of `(1.4826 * MAD)²` of the high-passed plain-CAR residual, over at
+most 2^22 evenly spaced samples; the two agree to the single precision
+`deriveSignals` reads in), then a second runs the filter over every channel
+(about 8 s per channel-hour at 30 kHz). Each pass reads every sample once: a
+window's padding before it is the end of the last window. The state is kept
+in `WCARState` and saved as `<outputFolder>/<Name>_wcar.mat`, reused while its
+fingerprint holds: the reader, the recording files (names, modified times),
+sample count, rate and channel count, the reference channels, and the options
+but `Estimate` (which only picks what is subtracted, so changing it keeps the
+state). The process pools of the streaming methods count the padded read in
+their memory cap (`parallelChunkPool`).
+
+Options: `Refresh` (work it out again), `Cache` (`true`: read and write
+`<Name>_wcar.mat`), `ProgressFcn(done, total, message)` before each window of
+each pass (it may throw to abort), `WindowSamples` (a pass's window, default
+about 250 MB of double; on the grid and at least twice the padding). `st`:
+`schema`, `key`, `fingerprint`, `Fs`, `nSamples`, `nChannels`, `channels`,
+`grid`, `pad`, `window`, `options` (`Order`, `Alpha1k`, `DriftPerSec`,
+`HighpassHz`, `Estimate`), `Q`, `QAuto`, `P`, `W`, `NLag` (checkpoint `j` is
+the state of 0-based sample `(j-1)*grid`), `seconds` and `created`. It needs
+a reader with random access (`EphysDataset:prepareWCAR:NoRandomAccess`
+otherwise) and the sample count of every file: a `streamPlan` chunk of a file
+the header parse did not see cannot be placed
+(`EphysDataset:readChunkUV:WCARPosition`).
+
+The order is as for CAR: the weights are tracked through the recording
+before the artifact periods are erased (the `.bin`, spike detection's
+`"erase"`, `deriveSignals`), and artifact detection itself runs on the
+weighted-CAR referenced signal, so a large artifact can leave a weight
+transient that outlasts its erased period by the adaptation time.
 
 **Caveats.**
 
@@ -1945,9 +2037,10 @@ referenced signal). `info.reference` reports it: `mode`, `channels` (the
 channels it was taken over) and `signals` (the signals it was subtracted
 from; `mode` is `"none"` when there are none), and each signal's
 `info.<TYPE>.reference` says `"none"`, `"car"`, `"cmr"` or `"wcar"`, so a
-per-type file carries its own. With `referenceMethod="weighted"` those
-signals take the [adaptive weighted CAR](#adaptive-weighted-car) instead
-(`wcarOptions` sets it). With `artifactIntervals` (`[k x 2]` recording-relative seconds, half-open;
+per-type file carries its own. With `ArtifactConfig.Reference` `"wcar"`, or
+`referenceMethod="weighted"`, those signals take the
+[adaptive weighted CAR](#adaptive-weighted-car) instead (`ReferenceWCAR`, with
+`wcarOptions` over it). With `artifactIntervals` (`[k x 2]` recording-relative seconds, half-open;
 default none) the samples those periods cover (`artifactSamples`) are replaced
 in the amplifier data, per channel, by a straight line from the mean of the
 1 ms before the period to the mean of the 1 ms after it, before any signal is
@@ -2581,8 +2674,19 @@ beats CAR, which beats no reference), the weights under uniform mixing, input
 checks, the `HighpassHz` = 0 path and the output class; `deriveSignals` with
 `referenceMethod="weighted"` (the MUA and SPIKE against `weightedCAR` and the
 band filters, the LFP untouched, `keepAmpChannels`, `Reference` `"none"`, the
-automatic `Q`); the `Signals` config fields, their checks, `signalOptions` and
-the dry-run text; and prints a timing (seconds per channel-hour at 30 kHz).
+automatic `Q`) and with `Reference` `"wcar"` (`ReferenceWCAR`, `wcarOptions`
+over it); the `Reference` section's `"wcar"` and `WCAR_*` fields (defaults,
+`artifactConfig`, `validate`, a save / load round trip, a config saved with the
+old `Signals` fields) and the dry-run and log text; `weightedCAR` run in pieces
+(`Rows`, `Initial`, `StateRows`, `Output`) against one run; the streamed weighted
+CAR (`prepareWCAR`: chunks off the checkpoint grid and any window against one
+run over the whole recording, to 1e-9; Order 3 posterior; `HighpassHz` 0 exact;
+the state kept for a new `Estimate`, cached for a new dataset object, worked out
+again for other channels; the automatic `Q` against `deriveSignals`';
+`applyReference` refused; `artifactIntervals` on the referenced signal; the
+`.bin` and its sidecar; `do_CAR` off in Kilosort4's settings and the reference
+in SpikeInterface's; the artifact-cache fingerprint); and prints a timing
+(seconds per channel-hour at 30 kHz).
 
 [`test_UnitLabels.m`](../pipeline/test_UnitLabels.m) covers unit labels:
 `parseNameTokens` formats, `nameIdentity`, class and id padding, identity

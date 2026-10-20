@@ -1,6 +1,6 @@
 function [nChanBin, fsVal, binScale, binRef] = resolveBinMeta(binFile, opts, obj, who)
 %resolveBinMeta  n_chan_bin, fs, units per uV and the common reference
-%   ("none" | "car" | "cmr"; "" = not recorded) of a .bin, from its sidecar.
+%   ("none" | "car" | "cmr" | "wcar"; "" = not recorded) of a .bin, from its sidecar.
 %   OPTS.NChanBin / OPTS.Fs (NaN = not given) win; the dataset's metadata
 %   fills what the sidecar does not say. WHO ("runKilosort",
 %   "runSpikeInterface") names the caller in the warning / error identifiers.

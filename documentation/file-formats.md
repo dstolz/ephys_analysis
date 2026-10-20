@@ -36,8 +36,9 @@ the readers take both. Probe maps are the exception
 ├─ <Name>_spikes.mat                    detected spikes (spikesToMat; the Spikes step)
 ├─ <Name>_behavior.mat                  Epsych2 session data, the only copy (behaviorToMat; the behavior step)
 ├─ <Name>_events.mat                    digital-input events cache (digitalEvents; trial pairing)
+├─ <Name>_wcar.mat                      weighted CAR state cache (prepareWCAR; Reference.Mode "wcar")
 ├─ <Name>_envelope_<what>.dat           min / max envelope of one signal for the Visualize tab (EphysTraceEnvelope):
-│                                       <what> recording, recording_car / _cmr, bin, LFP, MUA, SPIKE or AUX
+│                                       <what> recording, recording_car / _cmr / _wcar, bin, LFP, MUA, SPIKE or AUX
 ├─ <Name>_chronux.mat                   Chronux export (exportChronux; the Export step)
 ├─ <Name>_fieldtrip.mat                 FieldTrip export (exportFieldTrip; the Export step)
 ├─ <Name>_epochs.mat                    event-organized export (exportEpochs; the Export step)
@@ -461,7 +462,8 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   parses (never evaluates) numbers and ranges such as `"1 2 5-8"`,
   `"[1:4 9]"` or `N:S:M`.
 - `reference_exclude` lists the channels (1-based) kept out of the common
-  reference (the pipeline config's `Reference.Mode` `"car"` / `"cmr"`). `source` is
+  reference (the pipeline config's `Reference.Mode` `"car"` / `"cmr"`, and the
+  plain CAR the weighted CAR `"wcar"` weighs). `source` is
   `"suggested"` (by the noise-floor rule, `suggestReferenceExclude`),
   `"manual"` (typed on the Artifacts tab), or `""` (never set: the first
   referenced read suggests it).
@@ -604,6 +606,29 @@ The cache is used while its fingerprint matches, so a recording written again
 is read again. The lines are named (`LabelField`, `LineNames`) after loading,
 so renaming a line never reads the recording again. Delete the file, or call
 `digitalEvents(Refresh=true)`, to read it again anyway.
+
+---
+
+## Weighted CAR state (`<Name>_wcar.mat`)
+
+Path: `<outputFolder>/<Name>_wcar.mat`. Written by `EphysDataset.prepareWCAR`
+with a plain `save` when `ArtifactConfig.Reference` is `"wcar"`: working the
+state out runs the weighted CAR over the whole recording. One variable,
+`wcarState`:
+
+| Field | Contents |
+| --- | --- |
+| `schema` | `"wcar-state/1"` |
+| `key`, `fingerprint` | what the state depends on, as JSON text: the reader, the recording files, sample count, rate and channel count, the reference channels and the options but `Estimate`; the fingerprint adds the files' modified times |
+| `Fs`, `nSamples`, `nChannels`, `channels` | the recording's rate, length and channel count, and the channels the plain CAR is taken over |
+| `grid`, `pad`, `window` | samples between checkpoints (1 s, or more for a large state), the high-pass padding of every read, and the samples of a pass's window |
+| `options`, `Q`, `QAuto` | `Order`, `Alpha1k`, `DriftPerSec`, `HighpassHz`, `Estimate`; the `Q` used (µV²) and whether it was automatic |
+| `P`, `W`, `NLag` | the state at each checkpoint `j` (0-based sample `(j-1)*grid`): `[Order x Order x k]` covariance, `[Order x nChannels x k]` predicted weights, `[Order-1 x k]` high-passed CAR before it |
+| `seconds`, `created` | how long working it out took, and when |
+
+The cache is used while its fingerprint matches; other options or reference
+channels, or a recording written again, work it out again. Delete the file,
+or call `prepareWCAR(Refresh=true)`, to work it out again anyway.
 
 ---
 
@@ -853,7 +878,7 @@ Path: `<outputFolder>/<Name>.json` (`<Name>_ks4.json` beside a
 | `artifact_fill` | `"noise"` or `"zero"`: what replaced the artifact samples |
 | `noise_fill` | `bandHz`, `seed`, `sigma` (per channel, the SD of the fill's noise) and `center` (per channel, the level of a period with no clean sample on either side); `[]` for a zero fill |
 | `auto_artifacts` | `enabled`, `method`, `threshold`, `rmsWindowMs`, `mergeGapMs`, `minChannels`, `padMs`, `nBlanked`, `fraction`, `pctDuration`, `nIntervals`, `channelCounts` |
-| `reference` | `mode` (`"none"`, `"car"` or `"cmr"`) and `channels`, the 1-based channels the common reference was taken over (`[]` for none). `runKilosort` reads `mode` and, for `"car"` / `"cmr"`, sets Kilosort4's `do_CAR = false` |
+| `reference` | `mode` (`"none"`, `"car"`, `"cmr"` or `"wcar"`) and `channels`, the 1-based channels the common reference was taken over (`[]` for none); for `"wcar"` also `wcar`: `Order`, `Alpha1k`, `DriftPerSec`, `HighpassHz`, `Estimate`, `Q` and `QAuto`. `runKilosort` reads `mode` and, for `"car"` / `"cmr"` / `"wcar"`, sets Kilosort4's `do_CAR = false` (`runSpikeInterface` passes it on as `reference`, and `run_si.py` keeps the sorter's own common reference out) |
 | `created` | timestamp |
 | `provenance` | the code and config that wrote it ([Provenance](#provenance), as JSON) |
 
@@ -869,7 +894,7 @@ which still names `ResultsDir` as `results_dir`). A SpikeInterface sorter's
 run (`runSpikeInterface`) has `sorter`, `n_chan_bin`, `fs`, `data_dtype`,
 `filename`, `probe`, `results_dir`, `sorter_params` (`"si_params.json"`, the
 parameters as edited, beside it), `reference` (`"none"` / `"car"` /
-`"cmr"`: what the `.bin` carries), `quality` (the good-unit criteria, `NaN`
+`"cmr"` / `"wcar"`: what the `.bin` carries), `quality` (the good-unit criteria, `NaN`
 as `"NaN"`), `n_jobs`, `bin_scale` and `provenance`; `run_si.py` adds
 `nt0min` once it has written the templates
 ([`run_si.py`](python-drivers.md#run_sipy)). Kilosort4's fields: `n_chan_bin`, `fs`, `data_dtype`

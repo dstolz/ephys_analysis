@@ -10,39 +10,55 @@ Provide a concise summary of the completed tasks and any remaining items that ne
 
 ## TO DO
 
-### EphysAnalysisApp:
-- Move the current "common options" to be specific to each analysis panel.
-- Add keyboard shortcuts to the Figures tab to switch between active panels. Indicate on the plot preview which panel is currently active.
-- Add a search field to the Figures tab to locate specific parameters by name.
-- Add option to show `box` around individual panels.
-- add button to open the current figure in an external MATLAB figure window.
-- make default figure ID smarter based on content, e.g., "PSTH" for a PSTH panel, "Raster" for a Raster panel, etc. When  a user duplicates a figure, then the new figure name should be "PSTH (2)" or "Raster (2)" etc.
-- Include data type(s) and active panel type(s) in teh figure ID
-- add panel option to plot ttl-like event traces (e.g., from digital input channels). The user should be able to select form solid bars represeting the event timing and duration, or a line that rises at onset and falls at offset. Give the user full control over color schemes and aesthetics for these event traces. Include option to draw baselines for events (middle of solid bars or zero line for line traces).
-- Remove the plot default style dropdown that is currently above the "Add" button in the Figures tab. Instead, have the user always work on the panels within the arrangement section. Rename the "Arrangement" section to "Panels". 
-- Replace "Add panel" dropdown with a "New panel" button that opens a dialog to select the type of panel to add. The dialog should also allow the user to specify the name of the new panel and key parameters for the panel. The dialog should include a schematic for each panel type to help the user understand what each panel does. The schematic should be a small representative plot. 
-- Currently, adjusting row height or column width applies to all existing panels within row or column. Add option to adjust row height or column width for individual panels. The user should be able to select a panel and adjust its size independently of other panels in the same row or column.
-- Provide a way to allow the user to manual specify spacing between panels. This may be best in a new dialog that allows the user to specify spacing between panels in both the horizontal and vertical directions. The dialog should allow the user to specify spacing in pixels or as a percentage of the panel size. The dialog should also allow the user to specify different spacing for different rows and columns.
-- Add more info to the Dataset and Observation dropdowns on teh Figures tab. Add number of units to the Dataset dropdown. Add number of spikes to the Observation dropdown.
-- Move the "Design" style dropdown and "Save look as design..." box to the right of the Dataset and Observation dropdowns.
-- Patch overlays do not seem to work on the Raster panels.
-- Add a layer Line style option to plot a line between onset and offset of the selected event with user control over line aesthetics.
-- Allow the user to select different types of observation data based on what exists in the loaded dataset. The user should be able to select Sorted Units, Detected Spikes, MUA, LFP, AUX, and any other data types that may be present in the dataset. The Observation section should update to reflect options for the currently selected data. 
-- Move the Chronux plots as panels in the Figures tab. If Chronux formated files do not exist, prompt the user to create it on demand for the selected dataset. The user should be able to select which observation data type to derive the chronux data from.
-- Group these subsections into collapsible supersections with clear headings to help the user navigate the interface more easily. Bind keys to switch between super sections. The user should be able to navigate the interface using only the keyboard if desired.
-- Improve data tips for plots to show more information about the data point being hovered over, not simply the raw x and y values. Include information about the dataset, observation, and any other relevant metadata. Allow the user to customize what information is shown in the data tips.
-- On raster plots, hide y axis ticks by default.
-  
+_(empty: every item of the 2026-10-19 list is under Done)_
+
 ## Suggested TO DOs --- STOP READING HERE
 _DO NOT PROCESS UNLESS MOVED TO THE TO DO LIST_
 
+- **Check the new Figures-tab keys by hand.** The app tests send made-up key events, since a test MATLAB cannot take the foreground. Confirm on Windows that Alt+1/2/3 (supersections), Ctrl+F (search), Ctrl+] / Ctrl+[ and Ctrl+Alt+arrows (panels), F6 / Shift+F6 (columns) reach the window, that Enter / Up / Down / Escape work while typing in the search field, and that Tab follows the editor's order. Ctrl+Alt+arrows rotate the screen on some Intel graphics drivers (Ctrl+] / Ctrl+[ are the fallback).
+- **Narrow Dataset / Observation drop-downs.** With the Design controls beside them, the two drop-downs are about 90-100 px wide at the default 1280 px window, so names (and the new unit / spike counts) are cut. Widen the preview column or let the Design controls wrap.
+- **Figure file names follow automatic ids.** A figure whose id is automatic ("Raster+PSTH units") is renamed when its content changes, and its `{Plot}` file names with it. Decide whether exports should pin the id (e.g. untick auto on the first Run).
+- **Dataset unit counts before a dataset is opened.** The counts come from the units the Data tab reads when a dataset is opened; a small per-dataset count cache written by the pipeline would show them for every dataset at once.
+- **`modulationWindow.m` uses `xregion`** for the auROC window shading, which MATLAB paints behind opaque patches: the same cause as the raster patch-overlay bug fixed today. Draw it as a patch if it ever has to sit over raster bands.
+- **One list of baseline modes per panel type.** The modes each type takes are written in three places (`validate`, `figureEditorChoices`, `adoptPanelOptions`); one static helper would keep them in step.
+- **Event traces:** sort a trace panel's per-epoch rows as a raster sorts; a minimum drawn width for zero-length intervals in bars mode; event traces in session figures (refused today); the session messages read "a eventTrace panel" (article). Translucent trace lines use MATLAB's undocumented RGBA line color, which SVG export may flatten.
+- **Data tips:** per-trial tips on a continuous panel's trial traces; a heat map of more than 40 rows shows row numbers instead of names in its tips; the figure-wide data-cursor function also gives other plots in the app window (the Alignment preview) a plain X/Y tip; the figure title has no "Data tip fields..." item.
+- **Layout engine:** reading the legend's size costs about 0.25 s per draw (cacheable); a note in a band beside a panel could now be listed in the aesthetics editor; the loose / compact / tight presets are fixed pixel gaps that only roughly match the old tiled-layout spacing.
+- **New panel window:** remember the last type picked; richer thumbnails for the probe map and event traces (`tools/makePanelThumbnails` uses a small fixture).
+- **Search hidden-row reasons** (`private/figureRowReason`) repeat `syncFigureEditor`'s visibility rules: a new option row needs an entry there for a specific message.
+- **Click a panel in the preview to select it** (the outline follows keys and the schematic today).
+- **Chronux file helpers.** With the Chronux tab gone, `loadChronuxExport`, `chronuxPairs` and `chronuxSpikeTrains` serve only scripts and each other. Keep them unless the "analyze a Chronux file by script" route is retired too.
+- **Wiki and screenshots** for the 2026-10-19 Figures-tab changes (supersections, New panel window, Spacing window, event traces, data tips; the Chronux tab page removed).
 - **Real-data checks of the 2026-10-05 batch.** All of it ran on synthetic and test data. Still to see on real recordings: Intan's software notch on a pre-3.0 `.rhd` recorded with the notch on, and the Visualize envelope's build time and disk load on a full 2 h × 64-channel recording on the USB disk. Envelope builds are not paused while a pipeline run reads the same disk.
 - **Let the Sorting step write the `.bin`'s envelope.** `EphysTraceEnvelope.build()` exists. Writing it next to the `.bin` would save the first wide Visualize view of it a full read.
 - **Clean up: NWB files.** `planLocalCleanup`'s `"export"` kind does not remove `<Name>.nwb` or `<Name>_nwbinspector.json`.
 - **The pipeline app's window title** still reads "Ephys preprocessing - <name>" (`buildUI`, `updateTitle`) after the rename to `EphysPipelineApp`.
 - **Wiki screenshots in one run.** On 2026-10-05, `wikiScreenshots` lost the app window at the Run tab shot twice, after the earlier tabs (MATLAB's embedded browser view was killed during `exportapp`). Each shot works on its own, so the shots were taken in two MATLAB runs. The script could open a fresh app window per group of shots.
-- **API pages for the remaining classes.** `AppPrefs`, `TableSort`, `KCSDExport`, `PipelineDiagram`, `PlotAesthetics` and `PlotAestheticsDialog` have no API page: `tools/wiki/gen_api.py` skips classes outside its maps.
+- **API pages for the remaining classes.** `AppPrefs`, `TableSort`, `KCSDExport`, `PipelineDiagram`, `PlotAesthetics` and `PlotAestheticsDialog` have no API page: `tools/wiki/gen_api.py` skips classes outside its maps. (New since: `FigureDataTips`, `DataTipFieldsDialog`.)
 - **`EphysDataset.sortRunProcesses` off Windows.** Its `pgrep` path is untested, and it is not listed in `platformSupport` / `platforms.md`.
 - **The standalone analysis script writes no run record**, so the compact-vs-standalone test cannot compare the runner's `analysis_runs/` record with one.
 
 ## Done
+
+### 2026-10-19: EphysAnalysisApp, Figures tab (branch `todo-figures`)
+
+- **Common options moved to each panel** (c2bf4ef). The figure-level `common` block and the Common options section are gone; each panel's Options hold all its rows. *Apply to all panels* copies the shared rows (bins, measure, baseline, mask, inset) to every panel that has them and the rest to panels of the same type (`sharedFieldsOf`, `adoptPanelOptions`).
+- **Keys to switch panels; the active panel marked on the preview** (9e58e55). Ctrl+] / Ctrl+[ step through the panels, Ctrl+Alt+arrows move across the grid; a blue outline marks the selected panel in the preview only, without a redraw.
+- **Search field for parameters** (9e58e55). *Find a setting by name* (Ctrl+F) over every row, listed as *Supersection > Section > Row*; going there opens, scrolls, focuses and highlights the row, or says why a row is hidden.
+- **Box around individual panels** (412cae2). Panel field `box` (auto / on / off) in the Selected panel section; on and off win over designs and remembered looks.
+- **Open the figure in a MATLAB figure window** (ea6fc4c). *Open in window* under the preview draws the previewed figure into a `figure()` with the right-click editor; it does not follow later edits.
+- **Smarter figure ids; duplicates "(2)"; data and panel types in the id** (9999220). Field `autoId`: the id follows the content ("Raster+PSTH units", "Continuous LFP") until one is typed; Duplicate gives "<id> (2)"; renames are followed by what refers to the figure.
+- **TTL-like event traces panel** (af0ce63). New panel type `eventTrace` (Event traces): a row per event line, bars or a logic-level line, every epoch overlaid (default) or a sub-row per epoch, baselines, full color and line control (and aesthetics roles).
+- **Template drop-down removed; Arrangement renamed Panels** (9999220). Add makes a blank figure and opens the New panel window; the Panel section is now *Selected panel*.
+- **New panel dialog with schematics** (9999220). *New panel...* opens a window with a small real plot of every panel type (`analysis/icons/panels`, `tools/makePanelThumbnails`), the name, title, place and key parameters.
+- **Per-panel size independent of its row / column** (c7812d7). Panel `size` (% of its cell) and `align` / `valign`, drawn by renderFigure's own layout engine (no tiled layout; exact row heights and column widths).
+- **Manual spacing between panels** (c7812d7). `grid.spacing` "custom" with gaps in px or %, one each way or per row / column, set in the new *Panel spacing* window (Spacing...).
+- **Counts in the Dataset and Observation drop-downs** (c699d9b). *subj1_day1  (14 units)*; *su12  ch 7  -320 µm  (5,210 spikes)*.
+- **Design drop-down and Save look as design... beside Dataset / Observation** (ea6fc4c).
+- **Patch overlays on rasters fixed** (412cae2). They were drawn with `xregion` / `yregion`, which MATLAB paints behind the raster's opaque group bands; they are real patches now, kept to the axes' limits.
+- **Events drawn as a line from onset to offset** (af0ce63). Layer *Draw as* "a line from onset to offset" (`eventsAs "span"`): a line per epoch on a raster, a median-onset-to-offset line per group on PSTH, signal and heat map panels, with its own style, width and opacity.
+- **Observation data types** (c699d9b). One *Observe* drop-down (`observe.data`): Sorted units, Detected spikes, LFP, MUA, SPIKE, AUX or The dataset, with what the dataset lacks marked; the rows below follow it ("auto" dropped).
+- **Chronux plots as panels** (0fcf64d). The Power spectrum, Spectrogram and Coherence panels already compute from the extracts and units (the layer's Source picks the data; no Chronux file is needed), so the Chronux tab was removed.
+- **Collapsible supersections with keys; keyboard navigation** (9e58e55). FIGURE / PANEL / LOOK (Alt+1/2/3), section keys Ctrl+1..0, F6 between columns, a keys window (**?**, Help → Figures tab keys).
+- **Richer, customizable data tips** (0a09ce2). Tips name time, rate, trial, group, unit / channel, layer, panel, observation and dataset; *Data tip fields...* picks them (preference).
+- **Raster y ticks hidden by default** (412cae2). Raster option `yTicks` (Show y ticks).

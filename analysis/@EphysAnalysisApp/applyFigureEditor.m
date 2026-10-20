@@ -202,6 +202,8 @@ if isfield(op, 'rasterSort')
     E.rasterByGroup.Value = op.rasterByGroup;
 end
 if isfield(op, 'yTicks'); E.yTicks.Value = logical(op.yTicks); end
+if isfield(op, 'tickColor'); offerItems(E.tickColor, string(E.tickColor.Items), string(op.tickColor)); end
+if isfield(op, 'backColor'); offerItems(E.backColor, string(E.backColor.Items), string(op.backColor)); end
 if isfield(op, 'maskAfterStop'); E.maskAfterStop.Value = op.maskAfterStop; end
 if isfield(op, 'histStyle')
     offerItems(E.histStyle, ["bar" "line"], op.histStyle);

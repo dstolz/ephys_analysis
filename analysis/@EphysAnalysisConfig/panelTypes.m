@@ -98,7 +98,9 @@ opts.raster = struct( ...
     'rasterSortOrder', "ascending", ... % "ascending" | "descending" (missing values last)
     'rasterByGroup',   true, ...        % rows by group first, on bands (false: one block)
     'maskAfterStop',   false, ...       % drop the ticks after each epoch's stop event
-    'yTicks',          false, ...       % show the y axis' tick marks and labels (the epoch numbers; a further block's name stays)
+    'tickColor',       "", ...          % the ticks' color: "" (black) | a color name or hex code
+    'backColor',       "", ...          % the rows' background: "" (each group's pale band) | a color name or hex code (every band)
+    'yTicks',         false, ...       % show the y axis' tick marks and labels (the epoch numbers; a further block's name stays)
     'waveform',        waveform);       % the unit's waveform inset
 opts.psth = struct( ...
     'bins',          bins, ...

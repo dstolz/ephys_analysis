@@ -116,6 +116,8 @@ for f = ["rasterSort" "sortLine" "sortSeqText" "rasterByGroup"]
     T.(f) = o(["raster" "heatmap"], "on a heat map, with Rows: one unit's epochs (trials)");
 end
 T.yTicks = o("raster", "");
+T.tickColor = T.yTicks;
+T.backColor = T.yTicks;
 T.heatRows = o("heatmap", "");
 for f = ["contTrials" "contDisplay" "statistic" "errorType" "stackSpacing"]; T.(f) = o("continuous", ""); end
 T.maskAfterStop = o(["raster" "psth" "heatmap"], spikesHeat);

@@ -32,6 +32,10 @@ function rows = rasterInto(ax, R, u, style, colors, sortBy, look)
 %              drawn); equal (default false): every band's rows one height,
 %              that of the band showing the most epochs, filled from the
 %              bottom (false: each band's rows fill it)
+%    tickColor  "" (default: black) or a color name or hex code: the ticks'
+%               color
+%    backColor  "" (default: each group's pale color) or a color name or hex
+%               code: every group's band in that color
 %   All ticks are one line object (NaN-separated), so even long rasters
 %   export small. With ShowStop each epoch's stop event is a dot. The axes
 %   are styled (styleAxes) without Style.YLim: that is for rates, and every
@@ -63,6 +67,8 @@ else
     y = row;
     half = 0.4 * ones(nE, 1);
 end
+tickColor = rasterColor(look.tickColor, [0 0 0]);
+back = rasterColor(look.backColor, []);
 held = ishold(ax);   % a stack goes on drawing in AX after its rasters: leave its hold as found
 hold(ax, 'on');
 for g = 1:height(R.groups)
@@ -77,8 +83,10 @@ for g = 1:height(R.groups)
         r2 = rows(brk(2:end)) + 0.5;
     end
     nb = numel(r1);
+    face = paleColor(colors(g, :), 0.82, style);
+    if ~isempty(back); face = back; end
     tagPart(patch(ax, 'XData', repmat(reshape(W([1 2 2 1]), 4, 1), 1, nb), 'YData', [r1 r1 r2 r2].', ...
-        'FaceColor', paleColor(colors(g, :), 0.82, style), 'EdgeColor', 'none', 'HandleVisibility', 'off'), ...
+        'FaceColor', face, 'EdgeColor', 'none', 'HandleVisibility', 'off'), ...
         "rasterBand", R.groups.label(g));
 end
 tm = R.raster(u).times(:);
@@ -88,7 +96,7 @@ if ~isempty(tm)
     hh = half(ep);
     X = [tm tm NaN(size(tm))].';
     Y = [rr - hh rr + hh NaN(size(rr))].';
-    tagPart(line(ax, X(:), Y(:), 'Color', [0 0 0], 'LineWidth', 0.5), "rasterTicks");
+    tagPart(line(ax, X(:), Y(:), 'Color', tickColor, 'LineWidth', 0.5), "rasterTicks");
 end
 if style.ShowStop && any(isfinite(R.epochStop))
     ok = isfinite(R.epochStop) & R.epochStop >= W(1) & R.epochStop <= W(2);
@@ -180,8 +188,22 @@ if ~isfield(look, 'order') || look.order == ""; look.order = "ascending"; end
 if ~isfield(look, 'byGroup'); look.byGroup = true; end
 if ~isfield(look, 'marks'); look.marks = []; end
 if ~isfield(look, 'into'); look.into = []; end
+if ~isfield(look, 'tickColor'); look.tickColor = ""; end
+if ~isfield(look, 'backColor'); look.backColor = ""; end
 look.order = string(look.order);
 look.byGroup = logical(look.byGroup);
+end
+
+
+function c = rasterColor(spec, c)
+%rasterColor  The RGB triplet of a color name or hex code; C (the default) for "" or a spec that is not a color.
+spec = strtrim(string(spec));
+if spec == ""; return; end
+try
+    c = validatecolor(spec);
+catch
+    % not a color: the default
+end
 end
 
 

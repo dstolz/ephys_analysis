@@ -34,6 +34,10 @@ says how to cut a release.
   over the design, the remembered looks and the figure's own aesthetics rules. A raster panel's
   `options.yTicks` (default `false`, the Raster options' *Show y ticks* row): the y axis shows no tick marks or
   epoch numbers unless it is on; the y label, and the names of a raster of several blocks, stay.
+- Figures: a raster panel's `options.tickColor` (the ticks' color; `""` = black) and `options.backColor` (a
+  background for every group's band and the axes; `""` = each group's pale band), the Raster options'
+  *Colors* row. A color name or hex code; one that is not a color is a validation warning. With a background
+  the legend lists no groups, since the bands no longer tell them apart.
 - Figures: data tips that say what a point is. In a visible figure (the Figures tab's preview, or any
   window you draw with `renderFigure`) a tip names the panel's quantities with their units (*Time from
   Stim onset: 0.125 s*, *Rate: 42.1 Hz*), a heat map cell's value and row, a raster tick's trial, trial

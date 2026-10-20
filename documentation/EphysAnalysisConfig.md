@@ -1269,6 +1269,8 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `raster` | `rasterSortOrder` | `"ascending"` | or `"descending"` |
 | `raster` | `rasterByGroup` | `true` | rows by group first, each group on a band; `false`: every epoch sorted as one block |
 | `raster` | `maskAfterStop` | `false` | drop each epoch's ticks from its stop event on |
+| `raster` | `tickColor` | `""` | the ticks' color: `""` is black; else a color name or hex code (`"red"`, `"#ff7f0e"`). A name that is not a color is a validation warning and the ticks stay black |
+| `raster` | `backColor` | `""` | the rows' background: `""` is each group's pale band (the groups show); else a color name or hex code, painted on every group's band and on the axes behind them (the legend then lists no groups, as they are not told apart) |
 | `raster` | `yTicks` | `false` | show the y axis' tick marks and labels (the epoch numbers); `false` hides them and keeps the y label. A raster of several blocks keeps its blocks' names on the y axis either way. A heat map of trials has no y ticks to show |
 | `raster` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | the first block's unit's waveform in a box in the panel |
 | `psth` | `bins` | `BinSec` 0.01, `SmoothSec` 0.01 | the bin width (bins are whole multiples of `BinSec` from the event) and the Gaussian SD applied to each epoch before averaging, s (0 = no smoothing) |
@@ -1743,7 +1745,8 @@ defaults. A file written by hand may leave out any field that keeps its default.
                        "offsetParam": "", "offsetParamUnit": "ms", "sequence": [], "alignStep": "Inf",
                        "marker": "diamond", "size": 4, "color": "" } } ],
         "options": { "rasterSort": "", "rasterSortEvent": [], "rasterSortOrder": "ascending", "rasterByGroup": true,
-                     "maskAfterStop": false, "yTicks": false, "waveform": { "mode": "off", "...": "..." } } },
+                     "maskAfterStop": false, "tickColor": "", "backColor": "", "yTicks": false,
+                     "waveform": { "mode": "off", "...": "..." } } },
       { "id": "psth_1", "type": "psth", "title": "", "box": "auto", "row": 2, "col": 1, "rowSpan": 1, "colSpan": 1,
         "ref": "default", "window": "default", "selection": "default",
         "layers": [ { "name": "", "enabled": true, "source": "units", "binding": "observation", "aggregate": "each", "...": "..." } ],

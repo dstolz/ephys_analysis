@@ -2110,6 +2110,26 @@ clf(fig);
 hY = renderFigure(F1, rY, fig);
 drawnow;
 check(numel(hY.panels(1).axes.YTick) >= 2 && numel(hY.panels(1).axes.YTickLabel) >= 2, 'options.yTicks brings the raster''s y ticks back');
+% options.tickColor colors the ticks, options.backColor every band and the axes behind them; blank = black ticks, pale group bands
+rC = F1.spec;
+clf(fig);
+hC = renderFigure(F1, rC, fig);
+drawnow;
+axC = hC.panels(1).axes;
+tk0 = findall(axC, 'Tag', 'rasterTicks').Color;   % values: the redraw deletes these objects
+bd0 = arrayfun(@(b) isequal(b.FaceColor, [16 32 48] / 255), findall(axC, 'Tag', 'rasterBand'));
+rC.panels(1).options.tickColor = "red";
+rC.panels(1).options.backColor = "#102030";
+clf(fig);
+hC = renderFigure(F1, rC, fig);
+drawnow;
+axC = hC.panels(1).axes;
+tk1 = findall(axC, 'Tag', 'rasterTicks');
+bd1 = findall(axC, 'Tag', 'rasterBand');
+check(isequal(tk0, [0 0 0]) && isequal(tk1(1).Color, [1 0 0]) && ~isempty(bd1) ...
+    && all(arrayfun(@(b) isequal(b.FaceColor, [16 32 48] / 255), bd1)) && isequal(axC.Color, [16 32 48] / 255) ...
+    && ~any(bd0), ...
+    'options.tickColor colors the raster ticks, options.backColor every band and the axes');
 % a panel's box: "on" / "off" win over the design's rule and the figure's own aesthetics; "auto" leaves them
 sBx = F1.spec;
 sBx.panels(1).box = "on";

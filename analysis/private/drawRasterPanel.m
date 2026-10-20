@@ -80,7 +80,8 @@ end
 R1 = P.layers(blocks(1).j).R;
 colors = look.colors;
 if size(colors, 1) ~= height(R1.groups); colors = groupPalette(R1.groups, style); end
-rl = struct('order', o.rasterSortOrder, 'byGroup', o.rasterByGroup, 'marks', {marks});
+rl = struct('order', o.rasterSortOrder, 'byGroup', o.rasterByGroup, 'marks', {marks}, ...
+    'tickColor', o.tickColor, 'backColor', o.backColor);
 flat = style;
 flat.XLim = [];
 if ~isempty(ev); R1.rasterEvents = ev; end
@@ -120,9 +121,20 @@ elseif ~o.yTicks
 end
 if numel(look.W) == 2 && look.W(2) > look.W(1); xlim(ax, look.W); end
 
-% legend: the groups (their bands' look) and the marks (their markers)
+% a background color paints every band alike, and the axes behind them
+hasBack = false;
+if strtrim(string(o.backColor)) ~= ""
+    try
+        set(ax, 'Color', validatecolor(strtrim(string(o.backColor))));
+        hasBack = true;
+    catch
+        % not a color: the groups' bands (rasterInto ignores it too)
+    end
+end
+
+% legend: the groups (their bands' look, none with one background for all) and the marks (their markers)
 nG = height(R1.groups);
-if nG > 1
+if nG > 1 && ~hasBack
     for g = 1:nG
         hk.legendHandles(end+1) = tagPart(patch(ax, 'XData', NaN, 'YData', NaN, 'FaceColor', paleColor(colors(g, :), 0.82, style), ...
             'EdgeColor', 'none'), "rasterBand", R1.groups.label(g));

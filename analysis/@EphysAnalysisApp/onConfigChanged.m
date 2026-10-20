@@ -8,7 +8,8 @@ function onConfigChanged(obj, what)
 %   preview (autoFigurePreview) follow. "figure": its list, editor and
 %   schematic, the observation picker (made again when the observe block,
 %   the figure's alignment or its sorting changed), the epoch diagram and
-%   the figure preview follow. "ticks" (a Run tick on the Data tab): when
+%   the figure preview follow, and the Id row shows the figure's id (an
+%   automatic one follows the edit: trackFigureIds, showFigureId). "ticks" (a Run tick on the Data tab): when
 %   the figure in the editor is a session figure drawn across the ticked
 %   datasets, its observations are matched again and its preview, drawn
 %   over the old datasets, is forgotten and marked out of date
@@ -24,6 +25,7 @@ catch ME
     obj.setStatus("Config: " + string(ME.message));
     return
 end
+trackFigureIds(obj, cfg);   % an automatic figure id that follows the edit
 obj.Config = cfg;
 if ~isempty(obj.Runner)
     obj.Runner.Config = cfg;
@@ -43,6 +45,7 @@ switch what
         obj.refreshEpochDiagram();
         obj.autoFigurePreview();
     case "figure"
+        showFigureId(obj);   % an automatic id follows the panels and data
         obj.refreshFigureList();
         obj.syncFigureEditor();
         obj.refreshFigureObservations();   % again only when its observe block, alignment or sorting changed

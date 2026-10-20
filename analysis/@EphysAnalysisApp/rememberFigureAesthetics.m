@@ -13,6 +13,7 @@ arguments
     rules = []
 end
 cfg = obj.Config;
+id = followedFigureId(obj, id);   % renamed since the editor was opened (an automatic id that followed an edit)
 k = cfg.figureIndex(id);
 if k < 1
     obj.setStatus("Figure " + id + " is gone: its aesthetics were not kept.");

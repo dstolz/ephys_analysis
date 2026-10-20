@@ -44,7 +44,7 @@ end
 k = obj.SelectedFigure;
 if k < 1 || k > numel(obj.Config.Figures)
     obj.FigurePreviewResult = [];
-    clearPanel(obj, "No figure: pick a template under the list and press Add.");
+    clearPanel(obj, "No figure: press Add under the list, then pick its first panel.");
     obj.setFigurePreviewState("idle");
     showSessionPicker(obj, []);
     return

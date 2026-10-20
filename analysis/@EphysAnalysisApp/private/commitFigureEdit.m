@@ -12,9 +12,10 @@ function commitFigureEdit(obj, cfg, msg)
 %   (EphysAnalysisConfig.followedData, held by the active dataset:
 %   heldObserveData), since a following layer has nothing to follow in
 %   a dataset figure; an Observe choice of the dataset made while layers
-%   already follow is kept.
+%   already follow is kept. An automatic figure id follows the edit
+%   (EphysAnalysisConfig.autoFigureId); trackFigureIds notes the rename.
 k = obj.SelectedFigure;
-if k >= 1 && k <= numel(cfg.Figures) && k <= numel(obj.Config.Figures) && cfg.Figures(k).id == obj.Config.Figures(k).id ...
+if k >= 1 && k <= numel(cfg.Figures) && numel(cfg.Figures) == numel(obj.Config.Figures) ...   % the same figures (an automatic id may differ)
         && cfg.Figures(k).observe.data == "dataset" && EphysAnalysisConfig.followedData(obj.Config.Figures(k)) == "dataset"
     d = EphysAnalysisConfig.followedData(cfg.Figures(k));
     if d ~= "dataset"
@@ -22,6 +23,7 @@ if k >= 1 && k <= numel(cfg.Figures) && k <= numel(obj.Config.Figures) && cfg.Fi
         msg = strtrim(msg + " It now observes " + cfg.Figures(k).observe.data + ".");
     end
 end
+trackFigureIds(obj, cfg);   % an automatic id that follows the edit
 obj.Config = cfg;
 if ~isempty(obj.Runner); obj.Runner.Config = cfg; end
 obj.refreshFigureList();

@@ -317,7 +317,8 @@ switch section
     case "Figure"
         % one figure (Figures): one observation's panels on a grid; the preview draws one observation, Generate many
         s = struct( ...
-            'id',         "", ...               % unique among figures ("" = "figure_<n>")
+            'id',         "", ...               % unique among figures; with autoId, autoFigureId's ("" and not autoId = "figure_<n>")
+            'autoId',     true, ...             % the id follows the panels and data (autoFigureId) until one of the user's own is typed
             'enabled',    true, ...
             'title',      "", ...               % "" = automatic: "<id>: <observation> - <ref label> (<n> epochs)"
             'observe',    EphysAnalysisConfig.defaults("Observe"), ...

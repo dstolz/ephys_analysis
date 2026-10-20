@@ -49,11 +49,11 @@ keep the result (`cfg = cfg.addFigure(...)`, `cfg = cfg.save(...)`).
 | `toStruct()`, `toJson()`, `save(file)` | plain struct; the JSON `save` writes (`Inf` / `-Inf` / `NaN` as `"Inf"` / `"-Inf"` / `"NaN"`) |
 | `EphysAnalysisConfig.load(file)`, `fromStruct(s)` | version 2; a version 1 file (or struct) is [migrated](#loading-a-version-1-config) first. `load` errors `EphysAnalysisConfig:BadSchema` on another schema or any other version |
 | `validate(CheckPaths=true)` | issues table `Section, Field, Severity, Message` ([rules](#validation)) |
-| `addFigure(templateOrStruct, Id=)`, `removeFigure(id)`, `figureIndex(id)`, `figureIds()`, `enabledFigures()`, `sessionFigureIds()`, `enabledSessionFigures()`, `isSessionFigure(id)` | the figure list. `enabledFigures()` is the enabled figures a run draws per dataset and leaves out the [session figures](#session-figures) (a figure whose `sessions.enabled` is true); `sessionFigureIds()` lists those, enabled or not, `enabledSessionFigures()` the enabled ones (a run draws them across the datasets, after the datasets), and `isSessionFigure(id)` (an id or an index; false for an unknown one) tells. `[cfg, id] = cfg.addFigure("rasterPsth")` (a template's name from `figureTemplates()`, or a partial figure struct) returns the new id too, `"figure_<n>"` when none is given; `removeFigure` of an unknown id is `EphysAnalysisConfig:NoFigure`; `figureIndex` is 0 for one |
+| `addFigure(templateOrStruct, Id=)`, `duplicateFigure(idOrIndex)`, `removeFigure(id)`, `figureIndex(id)`, `figureIds()`, `enabledFigures()`, `sessionFigureIds()`, `enabledSessionFigures()`, `isSessionFigure(id)` | the figure list. `enabledFigures()` is the enabled figures a run draws per dataset and leaves out the [session figures](#session-figures) (a figure whose `sessions.enabled` is true); `sessionFigureIds()` lists those, enabled or not, `enabledSessionFigures()` the enabled ones (a run draws them across the datasets, after the datasets), and `isSessionFigure(id)` (an id or an index; false for an unknown one) tells. `[cfg, id] = cfg.addFigure("rasterPsth")` (a template's name from `figureTemplates()`, or a partial figure struct) returns the new id too: an [automatic id](#figure-ids) (*Raster+PSTH units*) when none is given; `[cfg, id] = cfg.duplicateFigure(id)` copies a figure right after it as *&lt;id&gt; (n)*; `removeFigure` of an unknown id is `EphysAnalysisConfig:NoFigure`; `figureIndex` is 0 for one |
 | `figureFor(idOrIndex)` | a figure with every `"default"` resolved and each panel's type facts and each layer's category added: what the compute draws ([Resolving a figure](#resolving-a-figure)). `EphysAnalysisConfig:NoFigure` for an unknown one |
 | `isequalConfig(other)` | same values (NaN equal) |
 | `defaults(section)`, `normalizeSection(section, s)` | static: the single source of truth for fields, types and shapes |
-| `panelTypes()`, `sourceCategories()`, `figureTemplates()`, `categoryOf(source, type)`, `observeKind(fig)`, `followedData(fig)`, `defaultLayer(type)`, `normalizeFigure(f)`, `normalizePanel(p)`, `normalizeLayer(L)` | static: the figures' tables and helpers ([Figures](#figures)). `placePanel`, `removePanel`, `movePanel` and `figureCells` are the [grid editing](#editing-the-grid) |
+| `panelTypes()`, `sourceCategories()`, `figureTemplates()`, `categoryOf(source, type)`, `observeKind(fig)`, `followedData(fig)`, `autoFigureId(fig)`, `defaultLayer(type)`, `normalizeFigure(f)`, `normalizePanel(p)`, `normalizeLayer(L)` | static: the figures' tables and helpers ([Figures](#figures)). `placePanel`, `removePanel`, `movePanel` and `figureCells` are the [grid editing](#editing-the-grid) |
 
 Values are coerced to the class and shape of their default on every
 assignment: a one-element list read back from JSON is a list again, `"Inf"`
@@ -65,8 +65,11 @@ fields take their defaults. Unknown fields are dropped: `load` lists them in
 `EphysAnalysisConfig:LoadWarnings`. Text where a number belongs is
 `EphysAnalysisConfig:BadValue`.
 
-Figure ids must be unique (`EphysAnalysisConfig:DuplicateFigureId`); a figure
-without one gets `"figure_<n>"`. `validate` also requires them to stay
+Figure ids must be unique (`EphysAnalysisConfig:DuplicateFigureId`). A
+figure's id is [automatic](#figure-ids) while its `autoId` is true (a new
+figure's, until an id of its own is given): *Raster+PSTH units*, following its
+panels and data, *(2)* added when another figure has it. A figure with `autoId`
+false and no id gets `"figure_<n>"`. `validate` also requires them to stay
 distinct as file names: `{Plot}` replaces every character outside
 `A-Z a-z 0-9 _ - .` by `_`, and Windows ignores case, so `"unit card"` or
 `"Unit_Card"` next to `"unit_card"` is an error.
@@ -88,7 +91,7 @@ distinct as file names: `{Plot}` replaces every character outside
     "Selection": { "filter": "", "response": [], "pairingFlags": "ok", "trials": [],
                    "groupBy": "Depth", "groupOrder": "ascending", "maxGroups": 12 } },
   "Figures": [
-    { "id": "unit_card", "enabled": true, "title": "",
+    { "id": "unit_card", "autoId": false, "enabled": true, "title": "",
       "observe": { "data": "units", "units": { "classes": ["su"], "...": "..." }, "...": "..." },
       "grid": { "rows": 3, "cols": 1, "rowHeights": [1.5, 1, 1], "colWidths": [], "spacing": "none", "...": "..." },
       "ref": "default", "window": "default", "selection": "default",
@@ -743,9 +746,10 @@ run and a script all call:
 cfg = EphysAnalysisConfig();
 cfg.Source.Root = "D:\EPHYS";
 cfg.Defaults.EventRef.line = "Stim";
-[cfg, id] = cfg.addFigure("rasterPsth");                    % "figure_1": a unit's raster flush above its PSTH
+[cfg, id] = cfg.addFigure("rasterPsth");                    % "Raster+PSTH units": a unit's raster flush above its PSTH
 lfp = struct('type', "continuous", 'layers', EphysAnalysisConfig.defaultLayer("continuous"));   % follows the unit
 cfg.Figures(1) = EphysAnalysisConfig.placePanel(cfg.Figures(1), lfp, "below", "psth_1");
+id = cfg.Figures(1).id;                                     % the automatic id followed: "Raster+PSTH+Continuous units+LFP"
 spec = cfg.figureFor(id);                                   % every "default" resolved
 runner = EphysAnalysisRunner(cfg);
 src = runner.source(1);                                     % the first dataset, loaded once
@@ -768,7 +772,8 @@ give the fields below; every field exists on every entry.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `id` | auto | unique among figures (`EphysAnalysisConfig:DuplicateFigureId`), file-name safe and distinct once sanitized (`{Plot}` replaces characters outside `A-Z a-z 0-9 _ - .` by `_`, and Windows ignores case: a [validation](#validating-figures) error). Names the exported files (`{Plot}`). Blank: `figure_<n>` |
+| `id` | automatic | unique among figures (`EphysAnalysisConfig:DuplicateFigureId`), file-name safe and distinct once sanitized (`{Plot}` replaces characters outside `A-Z a-z 0-9 _ - .` by `_`, and Windows ignores case: a [validation](#validating-figures) error). Names the exported files (`{Plot}`). With `autoId` the content's ([Figure ids](#figure-ids)); blank with `autoId` false: `figure_<n>` |
+| `autoId` | `true` | the id follows the figure's active panel types and data ([Figure ids](#figure-ids)) whenever the figure is stored (every edit, load); `false`: the id is the user's own and stays. A new figure's is `true` until an id is given (`addFigure(..., Id=)`, a struct with an id, an id typed in the app). An entry that leaves it out (a file written by hand) takes `true` for a blank id and `false` for an id it names |
 | `enabled` | `true` | unticked, it stays in the config: `figureSkipReason` says "disabled", and `computeFigure` still computes it when asked, as the preview does |
 | `title` | `""` | `""` = automatic: the id, the observation's label, the aligned event and the epoch count (a dataset figure names no observation, a figure with no aligned panel no event); the dataset is the subtitle. With a title of your own, the top-left panel names the observation |
 | `observe` | below | what the figure is drawn for |
@@ -800,7 +805,8 @@ give the fields below; every field exists on every entry.
 | `perGroup` | `false` | `true`: each observation is drawn once per trial group of the figure's selection (its `groupBy`), a figure of that group's epochs ([One figure per trial group](#panel-types)). Validate warns while the selection groups by nothing. A [session figure's](#session-figures) trial groups follow `sessions.trialGroups` instead, and `perGroup` is ignored there |
 
 `addFigure` takes a template's name (`EphysAnalysisConfig.figureTemplates()`) or
-a partial figure struct. `"rasterPsth"` (the default) is a 2 x 1 grid of equal
+a partial figure struct; without an id (`Id=` or the struct's) the figure's id is
+[automatic](#figure-ids), with one it is the figure's own (`autoId` false). `"rasterPsth"` (the default) is a 2 x 1 grid of equal
 rows drawn flush (`spacing "none"`): `raster_1` over `psth_1`, each with one
 `units` layer that follows the observation. Each panel type has a template of
 its own (`"psth"`, `"raster"`, `"continuous"`, `"eventTrace"` for [event traces](#event-traces), `"heatmap"`, `"waveforms"`,
@@ -817,7 +823,60 @@ units, else `"detected"` when one reads detections, else the signal of the
 first one that reads a signal, else `"dataset"`. So the unit templates observe
 sorted units, `"continuous"` and `"spectrogram"` the LFP channels, and
 `"heatmap"`, `"probemap"`, `"corrmap"` and `"blank"` (fixed layers, or none) the dataset. After that `observe.data`
-is the figure's own: adding or rebinding layers does not change it.
+is the figure's own: adding or rebinding layers does not change it. The app
+offers no template (its **Add** makes a blank figure and asks for its first
+panel); the templates stay for scripts and tests.
+
+### Figure ids
+
+A figure whose `autoId` is true is named by what it holds,
+`EphysAnalysisConfig.autoFigureId(fig)`: *&lt;types&gt; &lt;data&gt;*.
+
+- *&lt;types&gt;*: the `Short` name ([panel types](#panel-types)) of each active
+  panel's type, a panel with an enabled layer, in grid order (by row, then
+  column), each once, joined by `+`: `Raster+PSTH`. *Blank* when no panel is
+  active.
+- *&lt;data&gt;*: `observe.data` (unless `"dataset"`), then each source the
+  active panels' enabled layers read, in that order, each once, joined by
+  `+`: `units+LFP`. An events layer counts only where it is the data (an
+  [event-trace](#event-traces) panel, or drawn as a spike train,
+  `eventsAs "train"`), not as marks or spans. `dataset` when there is none.
+
+So a raster over a PSTH of the observed unit is *Raster+PSTH units*, the LFP
+panel of the `continuous` template *Continuous LFP*, a raster, a PSTH and the
+unit's LFP below them *Raster+PSTH+Continuous units+LFP*, a heat map of fixed
+units drawn for the dataset *Heatmap units*, the coherence template
+*Coherence units+LFP*, a figure with no panel observing the dataset *Blank
+dataset*. The id uses only letters, digits, `+` and spaces, so it is file-name
+safe; `{Plot}` writes it with `_` for each `+` and space (*Raster_PSTH_units*).
+
+The id is given whenever `Figures` is assigned (`normalizeFigures`: every
+config method, `cfg.Figures(k).panels(2).type = "heatmap"` in a script, `load`),
+so it follows every change of the panels, their layers' sources and enabled,
+and `observe.data`. Ids are unique: an automatic id another figure already
+names (compared as `{Plot}` writes them, case-blind) takes the next free
+*(n)*, from 2: *PSTH units (2)*, *PSTH units (3)*
+(`EphysAnalysisConfig.nextFreeId`). A figure keeps the id it has while that is
+still its automatic id or *&lt;it&gt; (n)* and no figure before it (or with an id of
+its own) has it, so an edit renames only the figure edited: after the first
+*PSTH units* becomes a raster, the second keeps *PSTH units (2)*.
+
+`autoId` false keeps the id whatever the figure holds; setting it true again
+gives the automatic id back. In a script, set `autoId` false before (or with)
+an id of your own: while `autoId` is true, an assigned id is replaced by the
+automatic one.
+
+`cfg.duplicateFigure(id)` copies a figure right after it as *&lt;base&gt; (n)*,
+the smallest free n from 2: the base is its automatic id when `autoId` is true
+(the copy stays automatic), else its own id without a *(n)* it ends in
+(*unit_card (2)* copies as *unit_card (3)*; the copy's id is its own too).
+
+Nothing in a config refers to a figure by its id, so an automatic rename breaks
+no reference: a run (`run(Figures=)`, the Export tab, the pipeline's Analysis
+step) reads the ids when it runs, and a session figure's settings are its own
+`sessions` block. The app follows a rename in what it keeps by id while it is
+open ([the id](EphysAnalysisApp.md#figures-tab)). The figure's file names
+follow its id.
 
 ### Panel fields
 
@@ -858,22 +917,23 @@ is the figure's own: adding or rebinding layers does not change it.
 
 `EphysAnalysisConfig.panelTypes()` is the table of the panel types:
 
-| Type | Label | Categories | Aligned | SharesTime | OneGroup | MultiLayer | DefaultBinding |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `raster` | Raster | point | yes | yes | no | yes | `observation` |
-| `psth` | PSTH | point | yes | yes | no | yes | `observation` |
-| `continuous` | Continuous signal | continuous | yes | yes | no | yes | `observation` |
-| `heatmap` | Heat map | point, continuous | yes | yes | yes | no | `fixed` |
-| `waveforms` | Unit waveforms | unit | no | no | no | no | `observation` |
-| `probemap` | Probe map | unit | no | no | no | no | `fixed` |
-| `corrmap` | Unit correlation | unit | yes | no | yes | no | `fixed` |
-| `rate` | Firing rate | point | yes | no | no | yes | `observation` |
-| `tuning` | Tuning curve | point | yes | no | no | yes | `observation` |
-| `spectrum` | Power spectrum | point, continuous | yes | no | no | yes | `observation` |
-| `spectrogram` | Spectrogram | continuous | yes | yes | yes | no | `observation` |
-| `coherence` | Coherence | point, continuous | yes | no | no | yes | `observation` |
-| `eventTrace` | Event traces | point (events layers only) | yes | yes | no | yes | `fixed` |
+| Type | Label | Short | Categories | Aligned | SharesTime | OneGroup | MultiLayer | DefaultBinding |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `raster` | Raster | Raster | point | yes | yes | no | yes | `observation` |
+| `psth` | PSTH | PSTH | point | yes | yes | no | yes | `observation` |
+| `continuous` | Continuous signal | Continuous | continuous | yes | yes | no | yes | `observation` |
+| `heatmap` | Heat map | Heatmap | point, continuous | yes | yes | yes | no | `fixed` |
+| `waveforms` | Unit waveforms | Waveforms | unit | no | no | no | no | `observation` |
+| `probemap` | Probe map | ProbeMap | unit | no | no | no | no | `fixed` |
+| `corrmap` | Unit correlation | Correlation | unit | yes | no | yes | no | `fixed` |
+| `rate` | Firing rate | Rate | point | yes | no | no | yes | `observation` |
+| `tuning` | Tuning curve | Tuning | point | yes | no | no | yes | `observation` |
+| `spectrum` | Power spectrum | Spectrum | point, continuous | yes | no | no | yes | `observation` |
+| `spectrogram` | Spectrogram | Spectrogram | continuous | yes | yes | yes | no | `observation` |
+| `coherence` | Coherence | Coherence | point, continuous | yes | no | no | yes | `observation` |
+| `eventTrace` | Event traces | EventTraces | point (events layers only) | yes | yes | no | yes | `fixed` |
 
+- `Short`: one word, the type's part of an [automatic figure id](#figure-ids).
 - `Categories`: the [source categories](#source-categories) its layers draw.
 - `Aligned`: cut into epochs around events, so the panel's `ref` and `window`
   apply. An unaligned panel (waveforms, probe map) must keep both `"default"`.
@@ -1661,7 +1721,7 @@ defaults. A file written by hand may leave out any field that keeps its default.
 
 ```json
 "Figures": [
-  { "id": "unit_card", "enabled": true, "title": "",
+  { "id": "unit_card", "autoId": false, "enabled": true, "title": "",
     "observe": { "data": "units",
                  "units": { "classes": ["su"], "groups": [], "ids": [], "channels": [], "shanks": [], "maxUnits": "Inf",
                             "quality": { "enabled": false, "...": "..." }, "response": { "enabled": false, "...": "..." } },
@@ -1721,7 +1781,8 @@ Errors:
 
 - the figure's id is not empty, has none of `\ / : * ? " < > |`, and stays distinct
     from the other figures' once `{Plot}` has sanitized it (case-blind): a figure's
-  files are named with `{Plot}`;
+  files are named with `{Plot}`. An [automatic id](#figure-ids) meets these by
+  construction (`autoId` is coerced to a logical when the config is read);
 - the figure's own `ref`, `window` and `selection` are valid, by the
   [Defaults](#defaults)' rules (at most 2 `groupBy` parameters);
 - `observe`: `data` is one of `ObserveData` (`units`, `detected`, `LFP`, `MUA`,
@@ -2457,7 +2518,11 @@ the continuous `trials` and `maxTrials` (100), the heat map's `rows` and raster 
 `panelTypes` (thirteen types, with the rate, tuning, spectral and event-trace rows' flags and the event-trace options), `sourceCategories`,
 `categoryOf`, `observeKind` (of each `ObserveData` value), `followedData`, `defaultLayer` (an unknown type is a `BadValue`),
 `sharedFieldsOf` (none for a waveforms panel or a spectral type); `addFigure`'s templates (the `"rate"` and `"tuning"` ones
-included), ids and the data each observes (given, or its following layers') and `figureFor`'s resolution (the defaults, a panel's
+included), ids and the data each observes (given, or its following layers'), the [automatic ids](#figure-ids)
+(`Short` per type; grid order, the data after the types, inactive panels and event marks left out; following a type change and
+`observe.data`; kept under `autoId` false and given back when it is true again; *(2)*, *(3)* by the next free number,
+compared as `{Plot}` writes ids, and kept when an earlier figure is renamed; `duplicateFigure` of an automatic id and of one's
+own; the save / load round trip) and `figureFor`'s resolution (the defaults, a panel's
 own `ref` or `window`, `sharesTime`, `units.source`, the observe kind, options
 completed and re-seeded by a type change, each panel's own bins, baseline,
 auROC and waveform, a waveforms panel's own mode `both`, its `layout`, a panel's `"default"` selection resolved to the

@@ -105,7 +105,7 @@ if ~has
         S(i).Visible = names(i) == "general";
     end
     S = formShow(S, "summary", true);
-    E.summary.Text = "Add a figure: pick a template under the list and press Add.";
+    E.summary.Text = "Add a figure: press Add under the list, then pick its first panel.";
     if ~isempty(obj.FiguresDatasetDropDown) && isvalid(obj.FiguresDatasetDropDown); obj.FiguresDatasetDropDown.Enable = "on"; end
     obj.FigureSections = S;
     obj.layoutFigureEditor();
@@ -129,7 +129,7 @@ for q = 1:np
 end
 
 v = struct();
-for f = ["id" "title" "enabled" "summary" "observe" "sesEnabled" "obsPerGroup" "obsCount" "schematic" "addType" "addWhere" "spacing" ...
+for f = ["id" "title" "enabled" "summary" "observe" "sesEnabled" "obsPerGroup" "obsCount" "schematic" "newPanel" "spacing" ...
         "fontSize" "lineWidth" "colormap" "sortDepth" "labelDepth" "showSEM" "legendLoc" "errType" "errFace" "errEdge" "looksText"]
     v.(f) = true;   % the rows every figure shows
 end

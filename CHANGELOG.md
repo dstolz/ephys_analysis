@@ -1060,6 +1060,8 @@ says how to cut a release.
 
 ### Changed
 
+- The baseline Modes each panel type takes are one list, `EphysAnalysisConfig.baselineModes(type, source)`,
+  read by `validate`, the figure editor (`figureEditorChoices`) and `adoptPanelOptions` instead of three copies.
 - A stacked PSTH (**Stack**) draws its first trial group's row on top, as a raster lists its groups, so a
   raster panel above it runs through the groups and their colors in the same order (it was the first at
   the bottom). **Order** in Trial selection picks which end is on top for both.

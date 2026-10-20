@@ -10,6 +10,22 @@ says how to cut a release.
 
 ### Added
 
+- The pipeline app, the analysis app and the channel mapper start behind a small startup window (`AppSplash`,
+  `pipeline/AppSplash.m`): the app's name, its version, the step under way (each tab built, the preferences,
+  the config reopened, the scan with its dataset count, the first dataset loaded) and a progress bar whose
+  steps are weighted by their measured times. The main window is built hidden and shows when it is ready,
+  then the small one closes; on an error both close and the error goes on. On Windows it is a Windows Forms
+  window, which paints without `drawnow` (a uifigure splash's redraws pushed the hidden window to the screen
+  piece by piece and made the start a third slower); elsewhere a uifigure. Alerts raised while the app starts
+  (`uialert` refuses a hidden figure) wait for the main window (`AppSplash.alert`), and the pipeline app's
+  scan reports on the small window instead of its progress dialog. `Splash=false` starts without it, the
+  default under `matlab -batch`. The manifest viewer and the probe designer open in under 3 s and have none.
+- Pipeline app: the startup scans the reopened config's project when its root is there. A root on a network
+  share (a `\\server` path or a mapped network drive) is first looked for in the background
+  (`folderReachable`, `backgroundPool`): one that does not answer within 5 s is not scanned, nor is a root
+  that is gone, and the status bar says why. A sorting queue kept for that root is offered once the window
+  shows. The analysis app checks a config's network root the same way before its scan.
+
 - Figures: a PSTH panel drawn as a heat map, `options.display` `"trace"` (bars or a line per trial group, the
   default) or `"heatmap"`: the unit's PSTH as one image, a row per trial group (the first on top, as a raster
   and a stacked PSTH list them), x the PSTH's bins, colored by its rate after measure, smoothing, baseline and
@@ -1120,6 +1136,13 @@ says how to cut a release.
 
 ### Changed
 
+- Analysis app opened on a folder (a project root, or one dataset's output folder; the pipeline app's **Open
+  analysis app** and its Tools panel open it so): it reopens its last config (`LastConfigFile`) with its
+  figures, the config's source switched to that folder's (`Mode` "project" with `Root`, `OutputRoot`,
+  `NamePattern`, `Recordings` and the selection, or "folders"), then scans. The config is then unsaved and
+  the status bar says so (**Save** writes the new source to its file). With no last config, or one that
+  cannot be read, it makes the `<folder> quick look` config as before. A `.json` source still opens as it is.
+
 - The baseline Modes each panel type takes are one list, `EphysAnalysisConfig.baselineModes(type, source)`,
   read by `validate`, the figure editor (`figureEditorChoices`) and `adoptPanelOptions` instead of three copies.
 - A stacked PSTH (**Stack**) draws its first trial group's row on top, as a raster lists its groups, so a
@@ -1467,6 +1490,12 @@ says how to cut a release.
   (`exportChronux`) and its file format stay; the worked example in the analysis documentation goes.
 
 ### Fixed
+
+- After **New config** (a config with no file yet), both apps wrote an empty `LastConfigFile` at close, so the
+  next launch opened nothing: they now keep the last file opened or saved.
+- Analysis app: a config opened while another config's datasets were listed was scanned with the old Run ticks
+  as its selection (they matched the old datasets' count), so a "list" selection came out "all". The scan after
+  an open now ticks the opened config's own selection (`scanOpened`).
 
 - A patch overlay was never seen over a raster panel: `drawOverlays` drew it as an `xregion` / `yregion`,
   which MATLAB paints behind every opaque patch whatever the draw order, and a raster's group bands are

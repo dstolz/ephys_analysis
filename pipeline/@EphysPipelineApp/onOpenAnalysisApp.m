@@ -7,7 +7,10 @@ function a = onOpenAnalysisApp(obj, idx)
 %   project with datasets IDX selected by their keys (its Source.Selection
 %   "list": only they are ticked to run, the first of them active), or
 %   with every dataset selected ("all") when IDX is every dataset. A = the
-%   app ([] when it did not open).
+%   app ([] when it did not open). On a project the analysis app opens its
+%   own last config again, its source switched to this project and
+%   selection (unsaved), or a new quick look config when it has none
+%   (EphysAnalysisApp.openSource).
 %
 %   The analysis app lives in the repository's analysis folder, which the
 %   pipeline never depends on: without it on the path this only says so.

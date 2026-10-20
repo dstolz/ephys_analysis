@@ -70,20 +70,39 @@ units, no LFP extract, no paired trials, ...): see
 | Call | Opens |
 | --- | --- |
 | `EphysAnalysisApp` | the last config (preference `LastConfigFile`), else the defaults |
-| `EphysAnalysisApp("D:\EPHYS")` | a new config in project mode on that root, scanned |
+| `EphysAnalysisApp("D:\EPHYS")` | the last config with its source switched to project mode on that root, scanned (with no last config, a new quick look config) |
 | `EphysAnalysisApp("D:\EPHYS", OutputRoot="E:\out")` | the same with the project's output root. `NamePattern=` and `Recordings=` (`"concatenate"`, `"separate"`, `"single"`) are taken too |
 | `EphysAnalysisApp("D:\EPHYS", Datasets=["subj1/day1" "subj1/day2"])` | the same with only those datasets selected (root-relative keys; `Source.Selection = "list"`): every dataset is listed, but only these are ticked to run, and the first of them is active; one dataset names the config. The pipeline app's Tools panel opens it this way |
-| `EphysAnalysisApp("D:\out\subj1_day1")` | a folder holding `<Name>_manifest.json` or `<Name>_extract*.mat` is one dataset's output folder: a new config in folders mode with that folder, scanned |
-| `EphysAnalysisApp("am.json")` | that analysis config (its source scanned when it exists) |
+| `EphysAnalysisApp("D:\out\subj1_day1")` | a folder holding `<Name>_manifest.json` or `<Name>_extract*.mat` is one dataset's output folder: the last config with its source switched to folders mode with that folder, scanned (with no last config, a new quick look config) |
+| `EphysAnalysisApp("am.json")` | that analysis config as it is (its source scanned when it exists) |
 | `app = EphysAnalysisApp(...)` | the same, keeping a handle |
+| `EphysAnalysisApp(..., Splash=false)` | the same without the startup window |
 
-The detection is in `openSource`. A new config made from a folder is named
-after it (`<folder> quick look`, or after the one dataset of `Datasets=`)
-and has no figures yet.
+The detection is in `openSource`. Opened on a folder, the app takes its
+last config again (preference `LastConfigFile`), its figures, defaults and
+export settings as they are, and puts the folder's source in place of the
+config's own: the title marks the config unsaved and the status bar says
+so, since **Save** would write the new source to that file (**Save As**
+leaves the file as it was). With no last config, or one that cannot be
+read (the status bar and the Log say why), it makes a new config named
+after the folder (`<folder> quick look`, or after the one dataset of
+`Datasets=`) with no figures yet.
+
+**Startup window.** While the app starts, a small window in the middle of
+the screen shows its name, its version, the step under way (each tab
+built, the preferences, the config opened, the scan, the first dataset
+loaded) and a progress bar; the main window is built hidden and shows when
+it is ready, and alerts raised meanwhile show on it then. `Splash=false`
+starts without the small window, the default under `matlab -batch`. A
+config's project root on a network share that does not answer within 5 s
+is not scanned when the config opens (the status bar says so): **Scan** it
+once it can be reached.
 
 **From the pipeline app.** Its **File → Open analysis app...** opens this
 app on the project root, output root, name pattern and Open Ephys recording
-mode set there; without a project root, on the analysis app's last config.
+mode set there (its Tools panel, on the datasets chosen), with this app's
+last config and figures as above; without a project root, on the last
+config as it is.
 The analysis app's **File → Open pipeline app** goes the other way. The two
 apps share no state: each keeps its own config.
 
@@ -1252,7 +1271,7 @@ is in the config.
 | Preference | Meaning |
 | --- | --- |
 | `FigurePosition` | window position and size |
-| `LastConfigFile` | reopened at launch |
+| `LastConfigFile` | the last config file opened or saved (**New config** leaves it): reopened at launch, and the config the app starts from when opened on a folder |
 | `RecentConfigs` | File → Open recent (8) |
 | `ScriptFolder` | where Generate script offers to save |
 | `PreviewMaxMB` | signal extracts larger than this (default 500 MB) are previewed only with the Preview button. Set it with `AppPrefs.setpref('EphysAnalysisApp', 'PreviewMaxMB', 1000)` before opening the app |

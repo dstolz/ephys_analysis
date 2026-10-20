@@ -1,7 +1,10 @@
 function test_EphysAnalysisApp()
 %test_EphysAnalysisApp  Headless checks of the analysis GUI over a synthetic project.
 %   Builds the app on a small synthetic project run through the pipeline
-%   and drives it through its own methods: the five tabs (Data, Alignment,
+%   and drives it through its own methods: the startup (built hidden behind
+%   the splash, Splash=true and the -batch default without it); opening on
+%   a folder (the last config with its source switched, else a quick look);
+%   LastConfigFile kept after New; the five tabs (Data, Alignment,
 %   Figures, Export, Log); the toolbar (its tools, icons and
 %   shortcut tooltips; Preview and Plan from another tab; its run and
 %   results tools following the Export tab's buttons); Scan filling the
@@ -104,6 +107,9 @@ check(numel(F.names) == 2, 'two datasets run through the pipeline');
 fprintf('\n== 1. build, open the project, scan ==\n');
 app = EphysAnalysisApp(F.proj);
 appCleanup = onCleanup(@() closeApp(app));
+check(app.Fig.Visible == "on" && ~app.Splash.isActive() && app.Splash.Window == "" && isempty(findall(groot, 'Tag', 'AppSplash')) ...
+    && isequal(app.Splash.History.Step.', ["window" "Data" "Alignment" "Figures" "Export" "Log" "finish" "prefs" "scan" "dataset" "show"]), ...
+    'under -batch the app starts without the splash window: built hidden, each tab, the scan and the first dataset a step, then shown');
 check(isvalid(app.Fig) && numel(app.Tabs.Children) == 5 && app.Tabs.Children(1) == app.TabData ...
     && app.Tabs.Children(2) == app.TabAlign && app.Tabs.Children(3) == app.TabFigures && app.Tabs.Children(4) == app.TabExport ...
     && app.Tabs.Children(5) == app.TabLog && ~isprop(app, 'TabChronux') && ~isprop(app, 'TabPlots') && ~isprop(app, 'TabSessions'), ...
@@ -413,6 +419,8 @@ ok = app.onSaveConfigAs(string(cfgFile));
 check(ok && isfile(cfgFile) && ~startsWith(app.Fig.Name, "*") && app.Config.File == string(cfgFile), 'Save As writes the config and clears the marker');
 app.onNewConfig();
 check(isempty(app.Config.Figures) && app.Config.File == "" && app.SelectedFigure == 0, 'New config resets to the defaults');
+app.savePreferences();
+check(strcmp(AppPrefs.getpref(g, 'LastConfigFile'), cfgFile), 'after New (no file yet) the preferences keep the last config file');
 v1File = fullfile(root, 'app_analysis_v1.json');
 writeJsonFile(v1File, struct('schema', "ephys-analysis-config", 'version', 1, 'name', "old quick look", ...
     'Plots', {{struct('kind', "psth", 'id', "psth_v1")}}));
@@ -425,6 +433,32 @@ ok = app.openConfigFile(cfgFile);
 check(ok && isscalar(app.Config.Figures) && app.Config.Figures(1).id == "PSTH units" && app.SelectedFigure == 1 && ~isempty(app.Runner) ...
     && height(app.DatasetsTable.Data) == 2 && any(app.RecentConfigs == string(cfgFile)), ...
     'reopening restores the figure, selects it and rescans');
+% opened on a folder (the pipeline app's Open analysis app): the last config, its source switched
+app.Tabs.SelectedTab = app.TabData;   % no figure preview drawn on each open
+app.openSource(F.proj, Datasets=key1);
+S1 = app.Config.Source;
+check(app.Config.File == string(cfgFile) && isscalar(app.Config.Figures) && app.Config.Figures(1).id == "PSTH units" ...
+    && S1.Mode == "project" && S1.Root == F.proj && S1.Selection == "list" && isequal(S1.Datasets, key1) ...
+    && isequal(app.Ticked, app.Runner.Keys == key1) && startsWith(app.Fig.Name, "*") ...
+    && contains(app.StatusBar.Text, "Opened the last config") && contains(app.StatusBar.Text, "unsaved"), ...
+    ['opened on a project with Datasets= it reopens the last config, its figures kept, the source switched to the project ' ...
+    'and selection (the rows ticked: not the ticks of the config shown before): unsaved, the status bar says so']);
+app.openSource(F.folders(1));
+S1 = app.Config.Source;
+check(app.Config.File == string(cfgFile) && isscalar(app.Config.Figures) && S1.Mode == "folders" ...
+    && isequal(S1.Folders, F.folders(1)) && height(app.DatasetsTable.Data) == 1 && startsWith(app.Fig.Name, "*"), ...
+    'opened on one dataset''s output folder: the same, the source in folders mode');
+badFile = fullfile(root, 'bad_analysis.json');
+writelines("{ not json", badFile);
+AppPrefs.setpref(g, 'LastConfigFile', badFile);
+app.openSource(F.proj);
+[~, projLeaf] = fileparts(F.proj);
+check(app.Config.Name == string(projLeaf) + " quick look" && isempty(app.Config.Figures) && app.Config.File == "" ...
+    && ~startsWith(app.Fig.Name, "*") && contains(app.StatusBar.Text, "could not be read"), ...
+    'a last config that cannot be read: a quick look config instead, and the status bar says why');
+AppPrefs.setpref(g, 'LastConfigFile', cfgFile);
+app.openConfigFile(cfgFile);
+app.Tabs.SelectedTab = app.TabFigures;
 txt = EphysAnalysisScript.standalone(app.gatherConfig());
 check(contains(txt, "figureCompute(") && contains(txt, "renderFigure("), 'a standalone script from the app''s config draws its figure');
 scriptFile = fullfile(root, 'run_app_compact.m');
@@ -1389,7 +1423,11 @@ app.onFigureSuperToggled("look");
 app.FigureAutoCheckBox.Value = false;
 app.onFigureAutoPreviewToggled();
 app.onSaveConfig();
-app2 = EphysAnalysisApp();
+app2 = EphysAnalysisApp(Splash=true);
+H2 = app2.Splash.History;
+check(app2.Splash.Window ~= "" && ~app2.Splash.isOpen() && isempty(findall(groot, 'Tag', 'AppSplash')) ...
+    && app2.Fig.Visible == "on" && all(ismember(["window" "config" "scan" "dataset" "show"], H2.Step)), ...
+    'Splash=true: the splash window shows the steps (the last config opened, its scan, the first dataset) and closes when the window shows');
 kept = isscalar(app2.Config.Figures) && isequaln(app2.Config.Figures, app.Config.Figures) && app2.SelectedFigure == 1 ...
     && string(figureNode(app2.FiguresTree, 1).Text) == app.Config.Figures(1).id + "  (2 panels)";
 restored = ~app2.FigureAutoCheckBox.Value && ~app2.FigureSections([app2.FigureSections.Name] == "options").Expanded ...

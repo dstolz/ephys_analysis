@@ -158,7 +158,8 @@ for i = 6:length(sessionNum)
     % R_mean = smoothdata(R_mean,1,"gaussian",[2 2]);
 
     nexttile
-    imagesc(Hist.t,1:length(ugrps),R_mean.')
+    % imagesc(Hist.t,1:length(ugrps),R_mean.')
+    surf(Hist.t,1:length(ugrps),R_mean.')
 
     yticks(1:length(ugrps));
     yticklabels(depth);
@@ -169,7 +170,11 @@ for i = 6:length(sessionNum)
 
     titlef('Session #%d; n = %d',sessionNum(i),sum(sind))
     colorbar
+
+    shading interp
 end
 
 ax = findobj(gcf,'type','axes');
 set(ax,'clim',[0 60])
+
+linkaxes(ax)

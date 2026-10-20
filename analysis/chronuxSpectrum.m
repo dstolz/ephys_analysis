@@ -1,7 +1,7 @@
 function R = chronuxSpectrum(D, TB, S, opts)
 %chronuxSpectrum  Multitaper power spectra of a signal's channels over trials (Chronux mtspectrumc).
 %   R = chronuxSpectrum(D, TB, S, Name=Value): D a block of a signal
-%   (loadChronuxExport, holding the rows TB.span needs), TB a
+%   (chronuxBlockOf, holding the rows TB.span needs), TB a
 %   chronuxTimeBase, S chronuxSettings. For every column of D and every
 %   group of TB, the group's trials (chronuxCut: S.detrend removed from
 %   each) go to mtspectrumc with trialave = 1: the spectrum averaged over

@@ -3,12 +3,12 @@ function SP = chronuxTrainsOf(st, meta, source, labels)
 %   SP = chronuxTrainsOf(ST, META, SOURCE, LABELS): ST {nU x 1} spike
 %   times on the continuous clock (selectUnits), META their table, SOURCE
 %   "units" or "detected" and LABELS their names (default META.label). SP
-%   has chronuxSpikeTrains' fields: times (a 1 x nU struct array with field
+%   has the fields: times (a 1 x nU struct array with field
 %   times), labels, index = 1:nU (the trains' places in SP: what
 %   S.unitSeed and S.unitPartner name), unitId (META.unitId), class and
 %   source.
 %
-%   See also chronuxSpikeTrains, selectUnits, computeSpectrumPanel.
+%   See also chronuxSpikeSpectrum, selectUnits, computeSpectrumPanel.
 nU = numel(st);
 if nargin < 4 || isempty(labels)
     labels = string(meta.label);

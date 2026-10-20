@@ -15,9 +15,9 @@ function hk = drawCoherencePanel(ax, P, look)
 %     a line    the level independent signals stay under (R.confC), dashed,
 %               role "confLine"
 %   in the group's color (or the seed layer's color and line style). With
-%   options.showPhase, and a tiled layout to draw in, the panel's tile
-%   holds a 3 x 1 tiled layout of its own: the magnitude over two rows, the
-%   phase (role "phase": the angle where the coherence is over its level,
+%   options.showPhase, in a panel of renderFigure's layout, the panel's
+%   axes become two: the magnitude over the top two thirds, the phase
+%   (role "phase": the angle where the coherence is over its level,
 %   every frequency without one; -pi to pi, "Phase (rad)") flush under it
 %   on the one frequency axis. Both axes are tagged with the panel's id;
 %   HK.axes is the magnitude's (renderFigure titles and labels it),
@@ -54,7 +54,7 @@ f = R.f;
 colors = look.colors;
 if size(colors, 1) ~= height(R.groups); colors = groupPalette(R.groups, style); end
 band = ~isempty(R.Clo);
-withPhase = logical(o.showPhase) && isa(ax.Parent, 'matlab.graphics.layout.TiledChartLayout');
+withPhase = logical(o.showPhase) && isappdata(ax, 'FigurePanel');   % a panel of renderFigure's layout, not one axes drawn into
 px = gobjects(0);
 if withPhase
     [ax, px] = splitTile(ax);
@@ -148,17 +148,12 @@ end
 
 
 function [ax, px] = splitTile(ax)
-%splitTile  The panel's tile as a 3 x 1 tiled layout of its own: the magnitude over two rows, the phase flush under it.
-%   (renderChronux's coherencePanels, placed at the panel's tile and span.)
-tl = ax.Parent;
-tile = ax.Layout.Tile;
-span = ax.Layout.TileSpan;
-delete(ax);
-pair = tiledlayout(tl, 3, 1, 'TileSpacing', 'none', 'Padding', 'tight');
-pair.Layout.Tile = tile;
-pair.Layout.TileSpan = span;
-ax = nexttile(pair, 1, [2 1]);
-px = nexttile(pair, 3);
+%splitTile  The panel's axes as two: the magnitude over the top two thirds, the phase flush under it.
+%   (renderFigure's layout keeps them so: a panel's extra axes share its
+%   plot area under its axes, the magnitude two shares to the phase's one.)
+p = ax.Position;
+px = axes(ax.Parent, 'Units', ax.Units, 'Position', [p(1) p(2) p(3) p(4) / 3]);
+ax.Position = [p(1) p(2) + p(4) / 3 p(3) 2 * p(4) / 3];
 hold(px, 'on');
 end
 

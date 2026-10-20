@@ -1,9 +1,10 @@
 function test_copyFigureSettings()
 %test_copyFigureSettings  Verification suite for copying a figure's settings onto another figure.
-%   figureSettingParts: the parts (observe, alignment, common,
-%   arrangement, style, looks, sessions), each with its fields, label and
+%   figureSettingParts: the parts (observe, alignment, arrangement,
+%   style, looks, sessions), each with its fields, label and
 %   description. copyFigureSettings: each part alone (its fields copied,
-%   the rest and the id, title and enabled kept), every part by default,
+%   the rest and the id, title and enabled kept; the arrangement with the
+%   grid's gaps and a panel's own size and alignment), every part by default,
 %   two parts (copied in the table's order), a copy that validates, an
 %   unknown part (copyFigureSettings:BadPart).
 %
@@ -37,27 +38,31 @@ nPass = 0; nFail = 0;
 
 fprintf('\n== 1. figureSettingParts, copyFigureSettings ==\n');
 T = figureSettingParts();
-check(isequal(T.Part.', ["observe" "alignment" "common" "arrangement" "style" "looks" "sessions"]) ...
+check(isequal(T.Part.', ["observe" "alignment" "arrangement" "style" "looks" "sessions"]) ...
     && isequal(T.Fields{T.Part == "alignment"}, ["ref" "window" "selection"]) && isequal(T.Fields{T.Part == "arrangement"}, ["grid" "panels"]) ...
     && isequal(T.Fields{T.Part == "looks"}, "aesthetics") && isequal(T.Fields{T.Part == "sessions"}, "sessions") ...
     && all(T.Label ~= "") && all(T.Description ~= ""), ...
-    'figureSettingParts: observe, alignment (ref, window, selection), common, arrangement (grid, panels), style, looks, sessions');
+    'figureSettingParts: observe, alignment (ref, window, selection), arrangement (grid, panels), style, looks, sessions');
 fc = EphysAnalysisConfig();
 [fc, idA] = fc.addFigure("rasterPsth", Id="a");
 [fc, idB] = fc.addFigure("heatmap", Id="b");
 B = fc.Figures(2);
 B.title = "B's";
 B.enabled = false;
-B.observe.kind = "dataset";
+B.observe.data = "detected";
 B.observe.units.maxUnits = 3;
 B.ref = EphysAnalysisConfig.defaults("EventRef");
 B.ref.line = "Stim";
 B.selection = EphysAnalysisConfig.defaults("TrialSelection");
 B.selection.groupBy = "Depth";
-B.common.bins.BinSec = 0.05;
 B.style.FontSize = 14;
 B.sessions.series = "all";   % its sessions block differs, so the "sessions" part shows
 B.aesthetics = PlotAesthetics.normalizeRules(struct('role', "rate", 'group', "", 'property', "LineWidth", 'value', 2));
+B.grid.spacing = "custom";   % its gaps and its panel's own size and place, which the arrangement carries
+B.grid.gapUnits = "%";
+B.grid.rowGap = 8;
+B.panels(1).size = [0.5 0.8];
+B.panels(1).align = "left";
 fc.Figures(2) = B;
 B = fc.Figures(2);
 A0 = fc.Figures(1);
@@ -71,6 +76,9 @@ for i = 1:numel(parts)
     check(isequal(copied, parts(i)) && same && kept && A.id == idA && A.title == A0.title && A.enabled == A0.enabled, ...
         sprintf('copyFigureSettings "%s": %s from the other figure, the rest and the id, title and enabled kept', parts(i), strjoin(fs, ", ")));
 end
+A = copyFigureSettings(A0, B, "arrangement");
+check(A.grid.spacing == "custom" && A.grid.gapUnits == "%" && A.grid.rowGap == 8 && isequal(A.panels(1).size, [0.5 0.8]) ...
+    && A.panels(1).align == "left", 'arrangement carries the grid''s gaps (custom, in %) and a panel''s own size and alignment');
 [A, copied] = copyFigureSettings(A0, B);
 check(isequal(copied, parts) && isequal([A.panels.id], [B.panels.id]) && A.grid.rows == B.grid.rows && A.id == idA ...
     && A.title == A0.title && A.enabled, 'by default every part copies: the heat map''s grid and panels (their ids) onto the raster + PSTH');

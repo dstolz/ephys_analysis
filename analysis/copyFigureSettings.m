@@ -3,8 +3,9 @@ function [fig, copied] = copyFigureSettings(fig, from, parts)
 %   FIG = copyFigureSettings(FIG, FROM, PARTS) copies FROM's fields of the
 %   parts PARTS (figureSettingParts' Part names, e.g. ["alignment"
 %   "style"]; default: every part) onto FIG and normalizes the result
-%   (EphysAnalysisConfig.normalizeFigure). FIG keeps its id, title and
-%   enabled, and every part not named. "arrangement" copies the grid and
+%   (EphysAnalysisConfig.normalizeFigure). FIG keeps its id (and autoId:
+%   an automatic id follows the panels copied once FIG is stored in a
+%   config), title and enabled, and every part not named. "arrangement" copies the grid and
 %   the panels as they are, panel ids included.
 %
 %   [FIG, COPIED] = ... also gives the parts copied (a string row, in

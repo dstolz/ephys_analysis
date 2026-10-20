@@ -1,8 +1,8 @@
 function R = chronuxSpikeField(D, SP, TB, S, opts)
 %chronuxSpikeField  Spike-field coherence of spike trains with a signal's channel (Chronux coherencycpt).
 %   R = chronuxSpikeField(D, SP, TB, S, Name=Value): D a block of a signal
-%   (loadChronuxExport) holding S.fieldChannel, SP spike trains
-%   (chronuxSpikeTrains), TB a chronuxTimeBase (with the signal's rows
+%   (chronuxBlockOf) holding S.fieldChannel, SP spike trains
+%   (chronuxTrainsOf), TB a chronuxTimeBase (with the signal's rows
 %   over a stretch), S chronuxSettings. The field's trials are cut once
 %   (chronuxCut, S.detrend removed); each train's spikes are cut to the
 %   very same samples -- trial i spans the field's rows r .. r+n-1, so its

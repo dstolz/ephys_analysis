@@ -40,7 +40,7 @@ on `pipeline`; `pipeline` does not depend on it. See [Analysis](EphysAnalysis.md
 | [Platforms](platforms.md) | what runs on Windows, macOS and Linux; `platformSupport`, `openInSystem` |
 | [Analysis](EphysAnalysis.md) | the `analysis` folder: event references, epochs, trial selection and grouping, PSTH / evoked / rate / tuning computations, response statistics, population analysis, figures merged across sessions and their data export, renderers, export, HTML / PDF reports, `EphysAnalysisRunner`, `EphysAnalysisScript` |
 | [EphysAnalysisConfig](EphysAnalysisConfig.md) | the analysis config (JSON `ephys-analysis-config`): every field, panel types, version 1 migration, validation, tokens |
-| [EphysAnalysisApp](EphysAnalysisApp.md) | the analysis GUI: Data, Alignment, Figures, Export, Chronux and Log tabs, preferences, why a figure is skipped |
+| [EphysAnalysisApp](EphysAnalysisApp.md) | the analysis GUI: Data, Alignment, Figures, Export and Log tabs, preferences, why a figure is skipped |
 | [Python drivers](python-drivers.md) | `run_ks4.py`, `probe_tool.py` |
 | [Kilosort4 notes](kilosort4-notes.md) | Kilosort4 parameters its documentation does not settle, worked out from its source: `whitening_range`, and `shank_spacing` (moving the shanks apart for the sort only) |
 | [Files on disk](file-formats.md) | folder layout and every JSON / `.bin` / `.mat` schema |
@@ -366,6 +366,9 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   CI error bands and bars, `Style.ErrorType "ci95"`, `errorBounds`; `tinv`
   for the *t* interval across sessions of a session figure's `error "ci95"`,
   `combineSessions`, which falls back to 1.96 × SEM without the toolbox).
+- Image Processing Toolbox (optional; only `tools/makePanelThumbnails`,
+  which scales the analysis app's New panel pictures down with `imresize`;
+  the app reads the PNGs it wrote, committed under `analysis/icons/panels`).
 - Parallel Computing Toolbox (optional; `Parallel.Enabled` in a pipeline
   config, or `UseParallel=true` on `detectSpikes`, `artifactIntervals` and
   `analyzeArtifacts`). The Visualize tab's envelope builds
@@ -399,11 +402,10 @@ another). See
 repository root puts on the path)
 and [FieldTrip](https://www.fieldtriptoolbox.org/), each only for analyzing the
 files the pipeline exports for it. The analysis app's
-[Chronux tab](EphysAnalysisApp.md#chronux-tab) calls Chronux's `mtspectrumc`,
+[spectral panels](EphysAnalysisConfig.md#spectral-panels) call Chronux's `mtspectrumc`,
 `mtspecgramc`, `coherencyc`, `cohgramc`, `mtspectrumpt`, `coherencycpt`,
-`coherencypt` and `getfgrid` on a dataset's Chronux file (it needs Chronux on
-the path to compute); the analysis [figures](EphysAnalysisConfig.md#spectral-panels)'
-spectral panels (power spectrum, spectrogram, coherence) use it too. Chronux's own `findpeaks` and `jackknife` shadow
+`coherencypt` and `getfgrid` (power spectrum, spectrogram, coherence; they need Chronux on
+the path to compute). Chronux's own `findpeaks` and `jackknife` shadow
 MATLAB's while it is on the path. Producing the files never calls either
 toolbox; `ChronuxDataset.hasChronux` / `FieldTripExport.hasFieldTrip` report
 whether they are on the path, and the FieldTrip export validates its
@@ -542,7 +544,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_ChannelMapper` | the channel mapper: parsing vendor rows, the shipped hardware bank and saving entries, mating (both orientations, GND / REF safety, one-way connectors), the golden chains (H32 + RHD2132 = probeinterface's `H32>RHD2132`; H64LP + RHD2164 = `H64LP_4x16lin_probemap.json`; H16 + the 16-channel RHD2132), two headstages, a dataset's channel numbers, the Kilosort4 export and its sidecar, text output, saved mappings, the site-order templates, and `ChannelMapperApp` headless (selection, orientation, export, mappings, the entry editor, preferences) |
 | `test_SyntheticDataset` | `makeSyntheticProject` / `makeSyntheticRecording`: the written lines, sessions, spikes, aux and artifacts read back; pairing per scenario; the one-file-per-signal and binary layouts; the config through the pipeline; the app's File-menu action and the active dataset across its tabs |
 | `test_SyntheticGenerator` | `SyntheticDesign` (validation, JSON), the built-in design read back from the files (silenced window, evoked potential, aux steps), responses exactly in their window after the edge, evoked potentials peaking halfway through theirs, parameter scaling, `PreviewOnly` = what is written, the app's Synthetic tab |
-| `test_ChronuxAnalysis` (analysis/) | the Chronux tab's analyses: settings, reading a Chronux file by parts, trials from epochs or from segments clear of artifact periods, their alignment, multitaper spectra, spectrograms and coherence of known signals and spike trains, drawing them |
+| `test_ChronuxAnalysis` (analysis/) | the Chronux analyses: settings, reading a Chronux file by parts, trials from epochs or from segments clear of artifact periods, their alignment, multitaper spectra, spectrograms and coherence of known signals and spike trains, drawing them |
 | `test_EphysAnalysisCompute` (analysis/) | compute functions on seeded spike trains and signals, the trial-filter compiler, the renderers the figures share (`renderHeatmap`, `renderProbeMap`, `renderCorrMap`, `renderWaveforms`), error bands, results merged across sessions (`combineSessions` on every kind a figure layer merges) and the session figure data export |
 | `test_PlotAesthetics` (analysis/) | the right-click aesthetics editor on figures (one per panel type and layout): rules, `renderFigure` naming everything it draws, the user's rules for a panel's type then the figure's, the menu, the editor (Apply to, Reset, Cancel, OK, Remember, Forget), the config and the script literal |
 | `test_PlotDesign` (analysis/) | plot designs on figures: the built-in ones (every panel type and layout draws in each), ground, palette, sequential and heat colors, the layering (design, the user's rules for a panel's type, the figure's), choosing one redrawing every figure on screen, capturing a figure's look per panel type, saving, importing and deleting designs, refused files (unknown kinds warn) |
@@ -551,7 +553,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_EphysAnalysisEpochs` (analysis/) | sources, event references, epochs (intervals and their trials, between windows, artifact periods, events shifted by a trial parameter), raster event marks (`epochEvents`), trial selection and grouping, units and detections, `selectUnits`' response and auROC tests, against the synthetic truth |
 | `test_EphysAnalysisConfig` (analysis/) | the analysis config (version 2): JSON round trips, validation (the `units.response` test, "No figure is enabled.", raster options and parameter shifts included), session figures' validation, load warnings and `BadSchema`, a version 1 file migrated on load |
 | `test_EphysAnalysisRunner` (analysis/) | plan, run, exports, HTML / PDF reports (each page drawn once), the run record (`ephys-analysis-run/2`), cancel, a figure per trial group, a failing export closing its page, unit waveforms, session figures (plan, run, the *Across sessions* report section, the data export, cancel), compact vs standalone script equivalence |
-| `test_EphysAnalysisApp` (analysis/) | the analysis GUI, headless: its six tabs, the toolbar, the Figures tab (the figure tree, the editor, the Design row, the preview, Generate, a figure across sessions, dragging a panel), the epoch diagram, a version 1 config opened, the Chronux tab, preferences |
+| `test_EphysAnalysisApp` (analysis/) | the analysis GUI, headless: its five tabs, the toolbar, the Figures tab (the figure tree, the editor, the Design row, the preview, Generate, a figure across sessions, dragging a panel), the epoch diagram, a version 1 config opened, the Chronux tab, preferences |
 | `test_PipelineAnalysisStep` (analysis/) | the pipeline's Analysis step running a saved analysis config over a synthetic project: validation, plan, dry run, figures and report, progress, cancel, a `list` selection with one report per dataset, both scripts |
 | `test_ResponseStats` (analysis/) | `pAdjust` against statsmodels; `responseStats` on known counts against `signrank` / `kruskalwallis` called directly (toolbox tests skipped without it) |
 | `test_Auroc` (analysis/) | `aucOf`; `aurocCurves` (`"psth"` against a port of the Caras lab's code, `"epochs"`, windows, the stop mask, cutoffs, `aurocCall` over stacked results, silent units, bootstrap / ranksum / shuffle tests); `spikePSTH`'s auROC result; the figure caption's auROC clause; the PSTH and heat map marks (skipped without the toolbox) |

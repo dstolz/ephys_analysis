@@ -1,7 +1,7 @@
 function [X, kept, info] = chronuxCut(D, TB, cols, detrendMode)
 %chronuxCut  The trials of time base TB cut out of a signal block D, as Chronux takes them.
 %   [X, KEPT, INFO] = chronuxCut(D, TB, COLS, DETREND): D is a block of a
-%   signal (loadChronuxExport: data, fs, row0), TB a chronuxTimeBase,
+%   signal (chronuxBlockOf: data, fs, row0), TB a chronuxTimeBase,
 %   COLS columns of D.data. X is [nTime x nTrials] double for one column,
 %   [nTime x nTrials x nCols] for several; KEPT the trials of TB kept
 %   (indices into TB.starts). Trial i is rows base(i) + (s0:s1) of the

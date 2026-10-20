@@ -11,6 +11,9 @@ function fig = placePanel(fig, panel, where, anchorId)
 %     "right"  a new column after the anchor's last column (copying its
 %              colWidths entry)
 %     "left"   a new column before the anchor's first column
+%   A gap list (grid.rowGaps / colGaps, when given) gets the gap where the
+%   new row (column) goes on both sides of it (at an edge, the outermost
+%   gap again).
 %   The panels after the new row (column) move down (right) by one; those
 %   whose span crosses it grow by one; the new panel takes the anchor's
 %   columns (rows) and one row (column). removePanel undoes it exactly.
@@ -72,6 +75,7 @@ if ismember(where, ["above" "below"])
         end
     end
     G.rowHeights = insertSize(G.rowHeights, ins, from);
+    G.rowGaps = insertGap(G.rowGaps, ins, G.rows);
     G.rows = G.rows + 1;
     p.row = ins;
     p.col = A.col;
@@ -93,6 +97,7 @@ else
         end
     end
     G.colWidths = insertSize(G.colWidths, ins, from);
+    G.colGaps = insertGap(G.colGaps, ins, G.cols);
     G.cols = G.cols + 1;
     p.col = ins;
     p.row = A.row;
@@ -109,4 +114,14 @@ if isempty(s); return; end
 from = min(max(from, 1), numel(s));
 ins = min(max(ins, 1), numel(s) + 1);
 s = [s(1:ins-1), s(from), s(ins:end)];
+end
+
+
+function g = insertGap(g, ins, n)
+%insertGap  The gaps G between N rows (columns) with a row inserted at index INS: the gap where it goes, twice ([] stays []).
+%   At an edge the outermost gap is copied. G not sized to the grid (N - 1
+%   gaps) is left as it is (Validate reports it).
+if isempty(g) || numel(g) ~= n - 1; return; end
+i = min(max(ins - 1, 1), numel(g));
+g = [g(1:i), g(i:end)];
 end

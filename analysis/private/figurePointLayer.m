@@ -13,6 +13,9 @@ function lay = figurePointLayer(src, L, lay, E, G, ctx, opts)
 %         the layer's units)
 %     events, marks      R = struct(kind "events", marks = epochEvents(src,
 %         E, Sequences=eventMarkRef(L.event)), label, look = L.event)
+%     events, span       R = struct(kind "events", marks = none, spans =
+%         epochIntervals(src, E, eventMarkRef(L.event)): each epoch's
+%         intervals from onset to offset, label, look = L.event)
 %     events, train      the line's events as a spike train: resolveEvents
 %         (eventMarkRef(L.event), every paired trial or the recording),
 %         moved to the continuous clock exactly as epochTable makes
@@ -63,6 +66,9 @@ if L.source == "events"
             [st, meta] = eventTrain(src, ref, label);
             lay.R = psthOf(src, st, meta, E, G, ctx, opts);
             lay.meta = meta;
+        elseif L.eventsAs == "span"
+            lay.R = struct('kind', "events", 'marks', epochEvents(src, E), 'spans', epochIntervals(src, E, ref), ...
+                'label', label, 'look', L.event);
         else
             M = epochEvents(src, E, Sequences=ref);
             lay.R = struct('kind', "events", 'marks', M, 'label', label, 'look', L.event);

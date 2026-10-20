@@ -478,7 +478,7 @@ if An.Enabled
             for fid = [acfg.enabledFigures() acfg.enabledSessionFigures()]   % a figure observing sorted units, or with a units layer, reads them too (across sessions as well)
                 fs = acfg.figureFor(fid);
                 L = [fs.panels.layers];
-                analysisUnits = analysisUnits || (fs.observe.kind == "unit" && fs.observe.source == "units") ...
+                analysisUnits = analysisUnits || fs.observe.data == "units" ...
                     || (~isempty(L) && any([L.enabled] & [L.source] == "units"));
             end
         end

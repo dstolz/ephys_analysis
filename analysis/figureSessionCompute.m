@@ -33,7 +33,9 @@ function [res, sessions, Fs] = figureSessionCompute(sources, sessions, spec, opt
 %                        several (fixed units) pools them (Match "pool"),
 %                        a signal's channels match by recording channel.
 %                        A layer's aggregate "mean" is taken again over the
-%                        merged tiles (figureLayerMean)
+%                        merged tiles (figureLayerMean). An event-trace
+%                        layer holds every session's epochs, as a raster
+%                        does, each in its series
 %   Not merged, with the reason as the layer's (or panel's) skip: events
 %   drawn as marks ("event marks are not drawn across sessions"), the
 %   rings of a waveforms panel's probe layout, a heat map of trials, and
@@ -230,7 +232,7 @@ for k = 1:numel(F0.panels)
     P.groups = [];
     P.ownSelection = false;   % the series are every panel's groups
     if ismember(p.type, unmerged)
-        P.skip = "a " + p.type + " panel is not merged across sessions";
+        P.skip = panelTypeWords(p.type) + " panels are not merged across sessions";
         for j = 1:numel(P.layers)
             if P.layers(j).skip ~= "disabled"; P.layers(j).skip = P.skip; end
             P.layers(j).R = [];

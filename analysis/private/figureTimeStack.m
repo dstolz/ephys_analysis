@@ -17,9 +17,10 @@ function figureTimeStack(axs, panels, isTime, labelSize, sided)
 %   So a stack sharing the figure's time axis is labeled once, at its
 %   bottom, and a panel with a window of its own keeps its own axis.
 %   LABELSIZE ([] = the axes' default) is the x label's font size. SIDED(k)
-%   (default none): panel k's note takes a band left or right of its axes
-%   (renderFigure), so its axes are narrower than the column's: neither it
-%   nor the panel above it drops its time tick labels.
+%   (default none): panel k's axes are narrower than the column's (its note
+%   takes a band left or right of them, or it is smaller than its cell:
+%   renderFigure): neither it nor the panel above it drops its time tick
+%   labels.
 %
 %   See also renderFigure.
 if nargin < 4; labelSize = []; end

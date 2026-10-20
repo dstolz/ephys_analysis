@@ -19,7 +19,7 @@ function [reason, layerReasons] = figureSkipReason(src, spec)
 %   reason ("" = it can be computed): one entry per panel, then one per
 %   enabled layer of it. A panel's own reasons: an unknown type; its own
 %   ref / window / selection (as the figure's above); a raster (or a heat
-%   map of trials) sorted by a
+%   map of trials, or an event trace's sub-rows) sorted by a
 %   trial parameter the trials lack, or by an event (rasterSort "event")
 %   that names none or whose line is missing; a probe map without a probe
 %   map ("no probe map"); a tuning panel without paired trials, without a
@@ -55,10 +55,10 @@ if ~spec.enabled; reason = "disabled"; return; end
 ob = spec.observe;
 switch ob.kind
     case "unit"
-        if ob.source == "units" && ~src.hasUnits; reason = "no sorted units"; return; end
-        if ob.source == "detected" && ~src.hasDetected; reason = "no detected spikes"; return; end
+        if ob.data == "units" && ~src.hasUnits; reason = "no sorted units"; return; end
+        if ob.data == "detected" && ~src.hasDetected; reason = "no detected spikes"; return; end
     case "channel"
-        if ~hasSignal(src, ob.signal); reason = "no " + ob.signal + " extract"; return; end
+        if ~hasSignal(src, ob.data); reason = "no " + ob.data + " extract"; return; end
 end
 PT = EphysAnalysisConfig.panelTypes();
 vars = string.empty(1, 0);
@@ -144,6 +144,8 @@ switch p.type
         r = sortReason(src, o, vars);
     case "heatmap"
         if isfield(o, 'rows') && o.rows == "trials"; r = sortReason(src, o, vars); end   % its rows sorted as a raster's
+    case "eventTrace"
+        if o.trials == "rows"; r = sortReason(src, o, vars); end   % its sub-rows sorted as a raster's
     case "probemap"
         if isempty(src.probe); r = "no probe map"; end
     case {"spectrum" "spectrogram" "coherence"}
@@ -186,7 +188,7 @@ if ~ismember(s, EphysAnalysisConfig.FigureSources)
     r = "unknown layer source " + s; return
 end
 if EphysAnalysisConfig.categoryOf(s, p.type) == ""
-    r = "a " + p.type + " panel does not draw " + s; return
+    r = panelTypeWords(p.type) + " panels do not draw " + s; return
 end
 isSpike = ismember(s, EphysAnalysisConfig.SpikeSources);
 isSignal = ismember(s, EphysAnalysisConfig.SignalSources);
@@ -194,7 +196,7 @@ if L.binding == "observation" && (isSpike || isSignal)
     if ob.kind == "dataset"
         r = "no unit or channel observed"; return
     end
-    if s == "AUX" && ~(ob.kind == "channel" && ob.signal == "AUX")
+    if s == "AUX" && ob.data ~= "AUX"
         r = "AUX has no recording channel: bind it to fixed channels"; return
     end
 end
@@ -204,7 +206,7 @@ switch s
     case "detected"
         if ~src.hasDetected; r = "no detected spikes"; end
     case "events"
-        if L.eventsAs == "train" && ~ismember(p.type, ["raster" "psth" "heatmap"])
+        if L.eventsAs == "train" && ~ismember(p.type, ["raster" "psth" "heatmap" "eventTrace"])   % an event-trace panel does not use eventsAs
             r = "events are drawn as a train only on a raster, PSTH or heat map"; return
         end
         ref = eventMarkRef(L.event);

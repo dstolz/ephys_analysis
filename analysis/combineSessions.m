@@ -21,7 +21,7 @@ function R = combineSessions(Rs, sessions, opts)
 %                  session's units on it averaged; "mapping": one tile per
 %                  row of Mapping. Signal results match channels by
 %                  recording channel; heatmap and waveforms results always
-%                  pool; behavior has no tiles
+%                  pool; behavior and eventTrace have no tiles
 %     Mapping      Match "mapping": a table with a column "cell" (the tile
 %                  names) and one column per session key (SESSIONS.key,
 %                  names kept as they are) holding that session's unit
@@ -35,7 +35,7 @@ function R = combineSessions(Rs, sessions, opts)
 %                  (R.members) to draw faintly under its summary
 %     MinSessions  site / mapping / signal channels: a tile is kept only
 %                  when at least this many sessions have data on it; other
-%                  matchings (and behavior): at least this many sessions
+%                  matchings (and behavior, eventTrace): at least this many sessions
 %                  must have a result (default 1)
 %     ColorOrder   "palette" (default; groupColors(1:n, false)) |
 %                  "sequential" (groupColors(1:n, true): in table order,
@@ -86,7 +86,7 @@ function R = combineSessions(Rs, sessions, opts)
 %                  "session" for waveforms), error (Error), errorNote ("95%
 %                  CI, t" | "1.96 × SEM" for ci95 across sessions, else ""),
 %                  match (the matching used: "pool" | "site" | "mapping" |
-%                  "channel" (signals) | "none" (behavior)), minSessions,
+%                  "channel" (signals) | "none" (behavior, eventTrace)), minSessions,
 %                  group (Group's label, "" for none), trialGroups
 %     epochs       vertcat of each session's epochs (session order) with
 %                  epoch renumbered 1..N and new columns session (the row of
@@ -102,7 +102,7 @@ function R = combineSessions(Rs, sessions, opts)
 %                  session even when Group slices their series
 %     tiles        struct: match, key [nT x 1] ("<sessionKey>|<unitId>" for
 %                  pool, "ch<channel>" for site and signals, the cell for
-%                  mapping, "all" for behavior), units {nT x nSessions} (row
+%                  mapping, "all" for behavior and eventTrace), units {nT x nSessions} (row
 %                  indices into each session's meta, i.e. its result's
 %                  unit / channel columns; [] where the session has none
 %                  there), nUnits [nT x nSessions], labels and meta (as R's),
@@ -199,6 +199,12 @@ function R = combineSessions(Rs, sessions, opts)
 %                  per tile; note joined), n = nT, probe from the first;
 %                  groups = the sessions (series session), so meta.session
 %                  picks a tile's color
+%     eventTrace   no tiles (match "none", as behavior): line, label from
+%                  the first; every session's intervals (epoch offset to
+%                  rows of R.epochs, on, off) and epochs (window [nE x 2],
+%                  epochStop, rasterSortEvent as psth's) concatenated,
+%                  nEpochs their count, epochGroup [nE x 1] each epoch's
+%                  series; nothing averaged
 %
 %   Errors: combineSessions:Kind (results of different kinds),
 %   combineSessions:Bins (PSTH bins differ), combineSessions:TimeBase
@@ -298,7 +304,7 @@ single = mode == "session";
 match = opts.Match;
 if isHeat || isWave; match = "pool"; end
 if rkind == "evoked"; match = "channel"; end
-if rkind == "behavior"; match = "none"; end
+if ismember(rkind, ["behavior" "eventTrace"]); match = "none"; end
 if ismember(match, ["pool" "none"]) && numel(P) < opts.MinSessions
     error('combineSessions:TooFew', '%d session(s) have a result; MinSessions is %d.', numel(P), opts.MinSessions);
 end
@@ -324,6 +330,9 @@ switch rkind
     case "waveforms"
         tiles = tileMap(Rs, P, sessions, "pool", [], opts.MinSessions);
         R = mergeWaveforms(Rs, tiles, info);
+    case "eventTrace"
+        tiles = oneTile(P, nAll);
+        R = mergeEventTrace(Rs, info);
     otherwise
         error('combineSessions:Kind', 'A %s result is not merged across sessions.', rkind);
 end
@@ -657,6 +666,26 @@ end
 end
 
 
+function R = mergeEventTrace(Rs, info)
+%mergeEventTrace  eventTrace: every session's intervals, their epochs offset to rows of the merged epochs.
+P = info.P;
+R1 = Rs{P(1)};
+R = struct();
+R.kind = "eventTrace";
+R.line = R1.line;
+R.label = R1.label;
+R.epoch = concatField(Rs, P, @(r) r.epoch(:), info.off);
+R.on = concatField(Rs, P, @(r) r.on(:));
+R.off = concatField(Rs, P, @(r) r.off(:));
+R.window = cell2mat(cellfun(@(r) r.window, Rs(P).', 'UniformOutput', false));
+R.nEpochs = size(R.window, 1);
+R.epochGroup = info.epochSeries;
+R.epochStop = concatField(Rs, P, @(r) r.epochStop(:));
+se = mergeSortEvent(Rs, P, info.off, R.nEpochs);
+if ~isempty(se); R.rasterSortEvent = se; end
+end
+
+
 %% =====================================================================================
 %  series, tiles, epochs
 %  =====================================================================================
@@ -952,7 +981,7 @@ for j = 1:numel(P)
     % each epoch's series, from its own trial group
     gi = [];
     switch r.kind
-        case "psth", gi = r.epochGroup(:);
+        case {"psth" "eventTrace"}, gi = r.epochGroup(:);
         case "rate", gi = r.groupIndex(:);
         case "evoked", gi = T.groupIndex(:);
     end
@@ -1390,6 +1419,22 @@ switch r.kind
         r.mean = r.mean(:, g); r.sem = r.sem(:, g); r.median = r.median(:, g); r.n = r.n(:, g);
         r = sliceErr(r, @(x) x(:, g));
         r.series = r.series(g); r.seriesValues = r.seriesValues(g);
+    case "eventTrace"
+        keep = r.epochGroup(:) == g;
+        map = zeros(numel(keep), 1);
+        map(keep) = 1:nnz(keep);
+        in = keep(r.epoch);
+        r.epoch = map(r.epoch(in));
+        r.on = r.on(in);
+        r.off = r.off(in);
+        r.window = r.window(keep, :);
+        r.nEpochs = nnz(keep);
+        r.epochGroup = ones(nnz(keep), 1);
+        r.epochStop = r.epochStop(keep);
+        if isfield(r, 'rasterSortEvent') && isstruct(r.rasterSortEvent)
+            r.rasterSortEvent.t = r.rasterSortEvent.t(keep);
+        end
+        r.epochs = sliceEpochs(r.epochs, keep);
 end
 r.groups = G;
 end

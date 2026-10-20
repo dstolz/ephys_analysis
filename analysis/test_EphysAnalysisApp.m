@@ -1,14 +1,15 @@
 function test_EphysAnalysisApp()
 %test_EphysAnalysisApp  Headless checks of the analysis GUI over a synthetic project.
 %   Builds the app on a small synthetic project run through the pipeline
-%   and drives it through its own methods: the six tabs (Data, Alignment,
-%   Figures, Export, Chronux, Log); the toolbar (its tools, icons and
+%   and drives it through its own methods: the five tabs (Data, Alignment,
+%   Figures, Export, Log); the toolbar (its tools, icons and
 %   shortcut tooltips; Preview and Plan from another tab; its run and
 %   results tools following the Export tab's buttons); Scan filling the
 %   datasets table; the active dataset's lines and parameters; grouping by
 %   Depth from the Alignment controls (the epoch count reports the groups);
 %   the toolbar's Preview drawing the selected figure on the Figures tab;
-%   the Design row on the Figures tab (the list and menu, a design chosen
+%   Export code (its script, run, computing what the preview computed and
+%   drawing it in a window of its own); the Design row on the Figures tab (the list and menu, a design chosen
 %   redrawing the figure preview, Save look as design from the figure
 %   preview, a heat map figure's axes rules kept for heat maps, deleting a
 %   design); the epoch diagram (opened for the figure by default, redrawn
@@ -19,25 +20,30 @@ function test_EphysAnalysisApp()
 %   time range, trial rows); save and reopen; a version-1 config opened
 %   (its plot migrated to a figure, the status bar and the Log saying so);
 %   a standalone script from the app's config; Plan and a run of one
-%   figure writing its pages and the report; the Chronux tab (a dataset
-%   without a Chronux file, Create writing it into the output folder and
-%   showing it, a spectrum over the Alignment tab's epochs per group, Out
-%   of date after an edit of what is computed, a display edit redrawing,
-%   a spectrogram over the whole recording, Save results and Save
-%   figure, the local cache: a file created there and found once the
-%   output folder's is gone); the Figures tab (Add from the template, the
+%   figure writing its pages and the report; the Figures tab (a figure from a template, its automatic id, the
 %   schematic, the observation picker and its preview of one unit, < and
 %   > and Page Up, a continuous panel added below, an events layer on the
-%   raster, the rows a panel type shows, Ctrl+digit to a section, Out of
+%   raster, the rows a panel type shows, Ctrl+digit to a section, the
+%   supersections (their order, collapsing, Alt+digit), the search (a
+%   row's path, a hidden row's reason, a shown row gone to and
+%   highlighted, Down and Escape, a section by its title), the panel keys
+%   (Ctrl+Alt+arrows, Ctrl+[ and Ctrl+]) and the preview's outline of the
+%   selected panel (moved without a redraw, following a resize, not in
+%   Open in window), the keys window, Out of
 %   date with Auto off, Cancel, the figure's own event, a panel's own
 %   window, a tightened unit filter and one nothing passes, a listing
 %   error, a type change, the gather / apply round trip, a remembered look
 %   and Forget, another config opened, a row height the spinner's old
-%   limits clipped, Remove panel, Duplicate, Add panel above / right /
-%   left, spans (and their refusals), sizes and spacing, Move, layer and
+%   limits clipped, Remove panel, Duplicate ("<id> (2)"), New panel above / right /
+%   left, Add (a blank figure and the New panel window, answered and
+%   canceled), every panel type at every place, the Id row (an id typed
+%   sticks, auto goes back; references follow an automatic rename),
+%   spans (and their refusals), sizes and spacing, a panel's own
+%   size and alignment, the Spacing window (custom gaps, one set apart,
+%   a refused value, Apply, a preset and OK), Move, layer and
 %   figure Up / Down, no Behavior type or trials source offered, linked
-%   panels' locked alignment and common options (Apply to all panels,
-%   Re-link all panels, Ctrl+7 / Ctrl+0), a scan listing the
+%   panels' locked alignment, a panel's own options (Apply to all
+%   panels, Re-link all panels, Ctrl+7 / Ctrl+9), a scan listing the
 %   observations again, save and reopen, its preferences restored by a new app,
 %   Remove); Copy from... between figures; Generate (a figure's files per observation on the ticked
 %   datasets, its rows in the results table, the status bar's counts,
@@ -46,6 +52,7 @@ function test_EphysAnalysisApp()
 %   sessions (the Sessions section's rows wired to the config, the mapping
 %   file's Browse / Edit, Pick, the picker's matched sites, a preview
 %   across both datasets, no recompute on an edit, the "Figure:" drop-down,
+%   Export code across the sessions (run, the figure picked),
 %   Generate into the sessions folder); the figure tree (grouped by what
 %   the figures observe, by status, flat; a leaf and a header picked; the
 %   check boxes of a figure and of a group, All / None / Invert; Up / Down
@@ -54,6 +61,12 @@ function test_EphysAnalysisApp()
 %   picked and the preview, Add / Duplicate / Remove, another panel's
 %   own) and dragging a panel in the schematic (an edge drop, a move to
 %   an empty cell, a release outside it and Escape canceling);
+%   favorites (the star toggles beside Dataset and the observation, the Data
+%   tab's ★ column, the files beside the data read back by a scan, ★ marks
+%   in the drop-downs, a unit's sort recorded, a detection channel showing
+%   its channel's star, the Favorites lists, their filter, picking a unit
+%   from the Figures and Alignment tabs, the last star removing the file,
+%   a read-only output folder);
 %   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -91,10 +104,10 @@ check(numel(F.names) == 2, 'two datasets run through the pipeline');
 fprintf('\n== 1. build, open the project, scan ==\n');
 app = EphysAnalysisApp(F.proj);
 appCleanup = onCleanup(@() closeApp(app));
-check(isvalid(app.Fig) && numel(app.Tabs.Children) == 6 && app.Tabs.Children(1) == app.TabData ...
+check(isvalid(app.Fig) && numel(app.Tabs.Children) == 5 && app.Tabs.Children(1) == app.TabData ...
     && app.Tabs.Children(2) == app.TabAlign && app.Tabs.Children(3) == app.TabFigures && app.Tabs.Children(4) == app.TabExport ...
-    && app.Tabs.Children(5) == app.TabChronux && app.Tabs.Children(6) == app.TabLog && ~isprop(app, 'TabPlots') && ~isprop(app, 'TabSessions'), ...
-    'the app has the Data, Alignment, Figures, Export, Chronux and Log tabs');
+    && app.Tabs.Children(5) == app.TabLog && ~isprop(app, 'TabChronux') && ~isprop(app, 'TabPlots') && ~isprop(app, 'TabSessions'), ...
+    'the app has the Data, Alignment, Figures, Export and Log tabs');
 T = app.DatasetsTable.Data;
 check(~isempty(app.Runner) && height(T) == 2 && all(T.Run) && isequal(sort(T.Name), sort(F.names(:))) ...
     && all(T.LFP == "✓") && all(T.Behavior == "✓"), 'the project root was scanned: both datasets, ticked, with LFP and behavior');
@@ -108,7 +121,7 @@ app.refreshDatasetsTable();
 T2 = app.DatasetsTable.Data;
 check(isequal(T2.Name, sort(F.names(:), 'descend')) && isequal(T2.Idx, arrayfun(@(n) find(app.Runner.Names == n), T2.Name)), ...
     'a remembered sort orders the rows and each row keeps its dataset''s place in the Runner (Idx)');
-app.onDatasetCellSelection(struct('Indices', [1 2]));
+app.onDatasetCellSelection(struct('Indices', [1 3]));   % the Name cell (Run and ★ before it do not select)
 check(app.Runner.Names(app.ActiveIdx) == T2.Name(1), 'a click goes to the row''s dataset, whatever the sort');
 T2.Run(1) = false;
 app.DatasetsTable.Data = T2;
@@ -125,6 +138,12 @@ app.selectDataset(k);
 check(app.ActiveIdx == k && any(app.LinesTable.Data.Line == "Stim") && any(app.ParamsTable.Data.Parameter == "Depth") ...
     && contains(app.BehaviorLabel.Text, "12 trials") && height(app.UnitsTable.Data) > 0, ...
     'the active dataset shows its lines (Stim), parameters (Depth), trials and units');
+nUk = numel(app.Runner.Outputs(k).load("sorting").unitId);
+dItems = string(app.FiguresDatasetDropDown.Items);
+check(dItems(k) == F.names(1) + sprintf("  (%d units)", nUk) && all(startsWith(dItems, app.Runner.Names)) ...
+    && isequal(dItems, string(app.AlignDatasetDropDown.Items)) ...
+    && isequal(app.FiguresDatasetDropDown.ItemsData, 1:2) && app.FiguresDatasetDropDown.Value == k, ...
+    sprintf('the Dataset drop-downs name each dataset with its sorted units once opened ("%s"); the pick is by index', dItems(k)));
 gItems = string(app.AlignControls.Group1.Items(2:end));
 [~, gOrd] = sort(lower(gItems));
 check(any(string(app.AlignControls.Line.Items) == "Stim") && any(gItems == "Depth") && any(gItems == "RespCode") ...
@@ -226,8 +245,8 @@ app.FigureAutoPreviewSeconds = Inf;   % a preview slowed by a loaded machine mus
 restoreAutoLimit3 = onCleanup(@() resetAutoLimit(app));
 app.selectTab(app.TabFigures);
 app.onAddFigure("psth");
-check(isscalar(app.Config.Figures) && app.Config.Figures(1).id == "figure_1" && app.SelectedFigure == 1 ...
-    && app.Config.Figures(1).panels(1).type == "psth", 'Add (the PSTH template) makes figure_1 and opens it in the editor');
+check(isscalar(app.Config.Figures) && app.Config.Figures(1).id == "PSTH units" && app.Config.Figures(1).autoId && app.SelectedFigure == 1 ...
+    && app.Config.Figures(1).panels(1).type == "psth", 'a figure from the PSTH template: "PSTH units" (an automatic id), opened in the editor');
 app.selectTab(app.TabData);
 app.FigurePreviewResult = [];
 clickTool(app, "preview");   % as the Preview button, from another tab
@@ -240,6 +259,42 @@ designs = PlotDesign.list();
 check(ancestor(dd, 'uitab') == app.TabFigures && ancestor(app.SaveDesignButton, 'uitab') == app.TabFigures ...
     && numel(dd.Items) == height(designs) && string(dd.Value) == "Default" && any(string({app.DesignMenu.Children.Text}) == "Tufte"), ...
     'the Design list and Save look as design... sit on the Figures tab; the list and the Design menu offer every design, Default chosen');
+% the Design controls sit right of Dataset / Observation (same grid, same rows), each drop-down with its star; Favorites
+% under them; Open in window draws a figure() of its own
+pgrid = app.DesignDropDown.Parent;
+dsg = app.FiguresDatasetDropDown.Parent;
+osg = app.FigureObservationDropDown.Parent;
+check(dsg.Parent == pgrid && osg.Parent == pgrid && app.SaveDesignButton.Parent == pgrid ...
+    && app.DesignDropDown.Layout.Row == dsg.Layout.Row && app.SaveDesignButton.Layout.Row == osg.Layout.Row ...
+    && min(app.DesignDropDown.Layout.Column) > max(dsg.Layout.Column) && min(app.SaveDesignButton.Layout.Column) > max(osg.Layout.Column) ...
+    && app.FiguresDatasetStar.Parent == dsg && app.FigureObservationStar.Parent == osg ...
+    && app.FigureFavorites.Grid.Parent == pgrid && app.FigureFavorites.Grid.Layout.Row == osg.Layout.Row + 1 ...
+    && app.FigurePreviewPanel.Layout.Row == app.FigureFavorites.Grid.Layout.Row + 1, ...
+    'the Design list sits right of Dataset and Save look as design... right of Observation, in their rows, each drop-down with its star; Favorites under them, the preview under that');
+check(app.FigureOpenButton.Enable == "on" && ancestor(app.FigureOpenButton, 'uitab') == app.TabFigures, ...
+    'Open in window is on with a figure selected');
+nFigs = numel(findall(groot, 'Type', 'figure'));
+hw = app.onOpenFigureWindow();
+closeWin = onCleanup(@() delete(hw(isgraphics(hw))));
+check(isgraphics(hw, 'figure') && numel(findall(groot, 'Type', 'figure')) == nFigs + 1 ...
+    && startsWith(string(hw.Name), app.Config.Figures(app.SelectedFigure).id + ": ") ...
+    && numel(findall(hw, 'Type', 'axes')) == numel(findall(app.FigurePreviewPanel, 'Type', 'axes')) ...
+    && app.FigurePreviewState == "drawn", ...
+    'Open in window opens a regular figure holding the panels'' axes, named for the figure, the preview untouched');
+delete(hw);
+% Export code, at the right end of the Preview row: the preview's code, which run draws the observation picked as the preview did
+check(app.FigureCodeButton.Parent == app.FigurePreviewButton.Parent && app.FigureCodeButton.Enable == "on" ...
+    && app.FigureCodeButton.Layout.Column == numel(app.FigureCodeButton.Parent.ColumnWidth), ...
+    'Export code sits at the right end of the Preview row, on with a figure selected');
+codeFile = fullfile(root, 'preview_code.m');
+code = app.onFigureCode(string(codeFile));
+[Fc, hc] = runPreviewCode(codeFile);
+closeCode = onCleanup(@() delete(hc(isgraphics(hc))));
+check(isfile(codeFile) && contains(app.StatusBar.Text, codeFile) && contains(code, "src = loadAnalysisSource(outs, Key=key);") ...
+    && contains(code, "F = figureCompute(src, spec, Observation=obs);") && contains(code, "Design=""Default""") ...
+    && sameResult(Fc, app.FigurePreviewResult) && numel(findall(hc, 'Type', 'axes')) == numel(findall(app.FigurePreviewPanel, 'Type', 'axes')), ...
+    'Export code writes the preview''s code: run, it computes the observation picked as the preview did and draws it in a window of its own');
+delete(hc);
 cfg0 = app.Config.toStruct();
 dd.Value = "Night";
 dd.ValueChangedFcn(dd, []);
@@ -285,7 +340,7 @@ app.onShowEpochs();
 d = app.EpochDiagramWindow;
 src = app.Runner.source(app.ActiveIdx);
 check(isa(d, 'EpochDiagram') && d.isOpen() && string(d.Fig.WindowStyle) == "alwaysontop" && d.Message == "" ...
-    && any(d.Epochs.kept) && startsWith(d.Heading, "figure_1 on ") && contains(d.Heading, "the defaults"), ...
+    && any(d.Epochs.kept) && startsWith(d.Heading, "PSTH units on ") && contains(d.Heading, "the defaults"), ...
     sprintf('the diagram opens above the app with the figure''s epochs (%d kept)', nnz(d.Epochs.kept)));
 FA.Pre.Value = -0.5;
 app.onFigureAlignEdited("window");
@@ -367,7 +422,7 @@ check(ok && isscalar(app.Config.Figures) && app.Config.Figures(1).id == "psth_v1
     && contains(app.StatusBar.Text, "config version 1") && contains(logText, "config version 1") && contains(logText, "migrated"), ...
     'a version-1 config opens with its plot migrated to a figure of the same id; the status bar and the Log say so');
 ok = app.openConfigFile(cfgFile);
-check(ok && isscalar(app.Config.Figures) && app.Config.Figures(1).id == "figure_1" && app.SelectedFigure == 1 && ~isempty(app.Runner) ...
+check(ok && isscalar(app.Config.Figures) && app.Config.Figures(1).id == "PSTH units" && app.SelectedFigure == 1 && ~isempty(app.Runner) ...
     && height(app.DatasetsTable.Data) == 2 && any(app.RecentConfigs == string(cfgFile)), ...
     'reopening restores the figure, selects it and rescans');
 txt = EphysAnalysisScript.standalone(app.gatherConfig());
@@ -381,170 +436,26 @@ app.selectTab(app.TabExport);
 I = app.onValidate();
 check(~any(I.Severity == "error"), 'the config validates');
 P = app.onPlan();
-check(height(P) == 2 && all(P.Enabled) && all(P.Plot == "figure_1") && contains(app.StatusBar.Text, "Plan: 2 of 2 figure run(s) will draw"), ...
+check(height(P) == 2 && all(P.Enabled) && all(P.Plot == "PSTH units") && contains(app.StatusBar.Text, "Plan: 2 of 2 figure run(s) will draw"), ...
     'Plan: the figure on both datasets, counted in the status bar');
 app.selectTab(app.TabData);
 app.IssuesTable.Data = table();
 clickTool(app, "plan");
 check(app.Tabs.SelectedTab == app.TabExport && height(app.IssuesTable.Data) == 2 && all(app.IssuesTable.Data.Enabled), ...
     'the toolbar''s Plan shows the Export tab and fills its table as the Plan button does');
-R = app.onRunExport(Figures="figure_1");
-files = dir(fullfile(outRoot, '**', '*figure_1*.png'));
+R = app.onRunExport(Figures="PSTH units");
+files = dir(fullfile(outRoot, '**', '*PSTH_units*.png'));   % {Plot}: the id, file-name safe
 check(height(R) == 2 && all(R.Status == "done") && all(R.Kind == "figure") && numel(files) >= 2 ...
     && isfile(fullfile(outRoot, 'analysis_report.html')) && app.OpenReportButton.Enable == "on" && contains(app.RunLabel.Text, "2 done"), ...
-    'Run (figure_1): its pages for both datasets and the report');
+    'Run (PSTH units): its pages for both datasets and the report');
 check(app.ToolbarReportTool.Enable == "on" && app.ToolbarFolderTool.Enable == app.OpenFolderButton.Enable ...
     && app.ToolbarRunTool.Enable == "on" && app.ToolbarPlanTool.Enable == "on" && app.ToolbarCancelTool.Enable == "off", ...
     'after the run the toolbar''s report and figure-folder tools follow the Export tab''s buttons; Run is on again, Cancel off');
-check(any(contains(string(app.LogArea.Value), "figure_1 done")), 'the Log tab has the runner''s lines');
+check(any(contains(string(app.LogArea.Value), "PSTH units done")), 'the Log tab has the runner''s lines');
 app.selectTab(app.TabFigures);
 app.onRemoveFigure();
 app.onSaveConfig();
 app.Tabs.SelectedTab = app.TabData;
-
-fprintf('\n== 5b. the Chronux tab ==\n');
-chronuxPath = "";
-if ~ChronuxDataset.hasChronux()   % the bundled copy, only for this section: its findpeaks shadows MATLAB's
-    chronuxPath = string(genpath(fullfile(repo, 'toolboxes', 'chronux')));
-    addpath(chronuxPath);
-end
-k = app.ActiveIdx;
-out = app.Runner.Outputs(k);
-app.Tabs.SelectedTab = app.TabChronux;
-app.onTabChanged();
-check(app.ChronuxFile == "" && contains(app.ChronuxFileLabel.Text, "No Chronux file") ...
-    && app.ChronuxCreateButton.Enable == "on" && app.ChronuxComputeButton.Enable == "off" ...
-    && endsWith(app.helpURL("tab"), "#chronux-tab"), ...
-    'a dataset without a Chronux file: Create on, Compute off; Help goes to the tab''s section');
-o = app.onCreateChronuxExport(WithoutUnits=false);
-C = app.ChronuxControls;
-check(~isempty(o) && isfile(o.file) && endsWith(o.file, app.Runner.Names(k) + "_chronux.mat") ...
-    && app.ChronuxFileWhere == "output" && contains(app.ChronuxFileLabel.Text, "In the output folder") ...
-    && any(string(C.signal.Items) == "LFP") && numel(C.channels.Items) > 1 && app.ChronuxComputeButton.Enable == "on", ...
-    'Create writes <Name>_chronux.mat into the output folder; the tab shows it, its signals and channels');
-C.channels.Value = [1 2];
-C.pre.Value = -0.2;
-C.post.Value = 0.5;
-C.TW.Value = 2;
-C.K.Value = 3;
-app.onChronuxEdited("compute");
-R = app.onChronuxCompute();
-nGroups = height(R.groups);
-check(~isempty(R) && R.kind == "chronuxSpectrum" && size(R.S, 2) == 2 && nGroups > 1 && size(R.S, 3) == nGroups ...
-    && app.ChronuxState == "drawn" && ~isempty(findobj(app.ChronuxPanel, 'Type', 'axes')) ...
-    && app.ChronuxSaveResultsButton.Enable == "on" && contains(app.ChronuxControls.coverage.Text, "epochs"), ...
-    'Compute: a spectrum of the two channels over the Alignment tab''s epochs, one per Depth group, drawn');
-C.fmax.Value = 80;
-app.onChronuxEdited("compute");
-stale = app.ChronuxState == "stale";
-C.scale.Value = "linear";
-app.onChronuxEdited("display");
-check(stale && app.ChronuxState == "stale" && ~isempty(findobj(app.ChronuxPanel, 'Type', 'axes')), ...
-    'an edit of what is computed leaves the plot Out of date; a display edit redraws it, still Out of date');
-C.analysis.Value = "specgram";
-app.onChronuxEdited("analysis");
-C.timeBase.Value = "range";
-app.onChronuxEdited("timeBase");
-sec = app.ChronuxSections;
-check(sec([sec.Name] == "moving").Visible && ~sec([sec.Name] == "baseline").Visible ...
-    && strcmp(C.from.Parent.Visible, 'on') && strcmp(C.segment.Visible, 'off'), ...
-    'a spectrogram over a stretch shows the moving window, not the baseline or the segments');
-R2 = app.onChronuxCompute();
-check(~isempty(R2) && R2.kind == "chronuxSpecgram" && ~R2.aligned && app.ChronuxState == "drawn" ...
-    && ~isempty(findobj(app.ChronuxPanel, 'Type', 'image')), 'a spectrogram over the whole recording, drawn');
-fr = string(fullfile(root, 'chronux_result.mat'));
-fp = string(fullfile(root, 'chronux_figure.png'));
-app.onSaveChronuxResults(fr);
-app.onSaveChronuxFigure(fp);
-L = load(fr);
-check(isfield(L, 'R') && L.R.kind == "chronuxSpecgram" && isfile(fp), 'Save results writes R; Save figure writes the page');
-nSp = numel(app.ChronuxIndex.sp);
-C.timeBase.Value = "aligned";
-C.analysis.Value = "coherence";
-app.onChronuxEdited("analysis");
-app.onChronuxEdited("timeBase");
-C.channels.Value = [1 2];
-R7 = app.onChronuxCompute();
-check(~isempty(R7) && R7.kind == "chronuxCoherence" && size(R7.C, 2) == 1 && R7.pairs.a == 1 && R7.pairs.b == 2 ...
-    && size(R7.C, 3) > 1 && app.ChronuxState == "drawn" && numel(findall(app.ChronuxPanel, 'Tag', 'phase')) > 0 ...
-    && strcmp(C.seed.Visible, 'on') && strcmp(C.overTime.Visible, 'on') && strcmp(C.partner.Visible, 'off'), ...
-    'Compute: the coherence of the seed channel with the other channel picked, one per Depth group, phase drawn under it');
-C.pairMode.Value = "pair";
-C.partner.Value = C.partner.ItemsData(end);
-app.onChronuxEdited("pairMode");
-R7b = app.onChronuxCompute();
-check(~isempty(R7b) && size(R7b.C, 2) == 1 && R7b.pairs.b == C.partner.ItemsData(end) && strcmp(C.partner.Visible, 'on'), ...
-    'one partner: the seed with a channel that is not picked');
-C.pairMode.Value = "seed";
-C.overTime.Value = true;
-app.onChronuxEdited("analysis");
-R7c = app.onChronuxCompute();
-check(~isempty(R7c) && R7c.kind == "chronuxCohgram" && R7c.aligned && ~isempty(findobj(app.ChronuxPanel, 'Type', 'image')) ...
-    && app.ChronuxSections([app.ChronuxSections.Name] == "moving").Visible, 'over time: a coherogram over the moving window, drawn as an image');
-C.overTime.Value = false;
-C.analysis.Value = "spikeSpectrum";
-app.onChronuxEdited("analysis");
-check(nSp > 1 && numel(C.units.Items) == nSp && numel(C.unitSeed.ItemsData) == nSp && numel(C.fieldChannel.ItemsData) > 1 ...
-    && strcmp(C.units.Visible, 'on') && strcmp(C.signal.Visible, 'off') && strcmp(C.channels.Visible, 'off') ...
-    && strcmp(C.spikeFs.Visible, 'on') && app.ChronuxComputeButton.Enable == "on", ...
-    'a spike analysis lists the file''s sorted units and shows the spike grid, not the signal and its channels');
-R3 = app.onChronuxCompute();
-check(~isempty(R3) && R3.kind == "chronuxSpikeSpectrum" && size(R3.S, 2) == nSp && size(R3.S, 3) > 1 ...
-    && app.ChronuxState == "drawn" && ~isempty(findobj(app.ChronuxPanel, 'Type', 'axes')) ...
-    && ~isempty(findall(app.ChronuxPanel, 'Tag', 'rateLine')), ...
-    'Compute: a spike spectrum of every sorted unit over the Alignment tab''s epochs, one per Depth group, with its mean rates');
-C.units.Value = C.units.ItemsData(1);
-app.onChronuxEdited("compute");
-R3b = app.onChronuxCompute();
-check(~isempty(R3b) && size(R3b.S, 2) == 1 && isequal(R3b.index, 1), 'a unit picked: only its spectrum');
-C.units.Value = {};
-C.analysis.Value = "spikeField";
-app.onChronuxEdited("analysis");
-check(strcmp(C.signal.Visible, 'on') && strcmp(C.channels.Visible, 'off') && strcmp(C.fieldChannel.Visible, 'on'), ...
-    'spike-field coherence shows the signal and its field channel, not the channel list');
-C.fieldChannel.Value = C.fieldChannel.ItemsData(1);
-R4 = app.onChronuxCompute();
-check(~isempty(R4) && R4.kind == "chronuxSpikeField" && size(R4.C, 2) == nSp && R4.settings.fieldChannel == 1 ...
-    && app.ChronuxState == "drawn" && numel(findall(app.ChronuxPanel, 'Tag', 'phase')) > 0, ...
-    'Compute: the units'' coherence with the field channel, its phase drawn under it');
-C.analysis.Value = "unitCoherence";
-app.onChronuxEdited("analysis");
-C.unitSeed.Value = C.unitSeed.ItemsData(1);
-R5 = app.onChronuxCompute();
-check(~isempty(R5) && R5.kind == "chronuxUnitCoherence" && size(R5.C, 2) == nSp - 1 && R5.settings.unitSeed == 1, ...
-    'Compute: the seed unit''s coherence with every other unit');
-C.pairMode.Value = "pair";
-C.unitPartner.Value = C.unitPartner.ItemsData(2);
-app.onChronuxEdited("pairMode");
-R6 = app.onChronuxCompute();
-check(~isempty(R6) && size(R6.C, 2) == 1 && R6.pairs.b == 2 && strcmp(C.unitPartner.Visible, 'on'), ...
-    'one partner: the seed against it alone');
-o3 = app.onCreateChronuxExport(WithoutUnits=true);
-app.onChronuxEdited("analysis");
-check(~isempty(o3) && o3.nUnits == 0 && app.ChronuxComputeButton.Enable == "off" && contains(C.about.Text, "no sorted units") ...
-    && isempty(C.units.Items), ...
-    'a file without units: the spike analyses cannot be computed, and the tab says why');
-C.analysis.Value = "spectrum";
-app.onChronuxEdited("analysis");
-check(app.ChronuxComputeButton.Enable == "on", 'the continuous analyses still can');
-app.onCreateChronuxExport(WithoutUnits=false);
-C.pairMode.Value = "seed";
-C.analysis.Value = "spectrum";
-app.onChronuxEdited("analysis");
-cache = string(fullfile(root, 'chronux cache'));
-app.onChronuxCacheFolder(cache);
-o2 = app.onCreateChronuxExport(Where="cache", WithoutUnits=false);
-check(~isempty(o2) && startsWith(o2.file, cache) && isfile(o2.file) && endsWith(o2.file, app.Runner.Names(k) + "_chronux.mat") ...
-    && string(AppPrefs.getpref(g, 'ChronuxCacheFolder')) == cache, ...
-    'Create into the local cache: <cache>/<key>/<Name>_chronux.mat; the cache folder is remembered');
-check(app.ChronuxFileWhere == "output", 'while the output folder has its file, that one is used');
-delete(o.file);
-out.refresh();
-app.refreshChronuxTab();
-check(app.ChronuxFileWhere == "cache" && app.ChronuxFile == o2.file && contains(app.ChronuxFileLabel.Text, "local cache"), ...
-    'once the output folder''s file is gone, the cache''s is found');
-app.Tabs.SelectedTab = app.TabData;
-if chronuxPath ~= ""; rmpath(chronuxPath); end
 
 fprintf('\n== 5d. the Figures tab ==\n');
 app.FigureAutoPreviewSeconds = Inf;   % 5d-5f: a preview slowed by a loaded machine must not leave the next one out of date
@@ -554,39 +465,82 @@ FE = app.FigureEditor;
 FA = app.FigureAlignControls;
 FP = app.PanelAlignControls;
 figAxes = @() findall(app.FigurePreviewPanel, 'Type', 'axes', '-regexp', 'Tag', '^(axes|rasterAxes)$');
-figTitle = @() strjoin(string(findall(app.FigurePreviewPanel, 'Type', 'tiledlayout').Title.String), " ");
+figTitle = @() strjoin(string(findall(app.FigurePreviewPanel, 'Type', 'axes', 'Tag', 'titleHost').Title.String), " ");
 nPatches = @() numel(findall(app.FigureSchematic, 'Type', 'patch'));
 check(isempty(app.Config.Figures) && isempty(findall(app.FiguresTree, 'Type', 'uitreenode')) && ~shown(FE.id) && shown(FE.summary) ...
     && app.FigurePreviewState == "idle" && endsWith(app.helpURL("tab"), "#figures-tab") && app.RemoveFigureButton.Enable == "off" ...
-    && string(app.FigureTemplateDropDown.Value) == "rasterPsth", ...
-    'the Figures tab: no figure yet, only a hint in the editor, no preview, "Raster over PSTH" offered first; Help goes to its section');
-app.onAddFigure(string(app.FigureTemplateDropDown.Value));
+    && ~isprop(app, 'FigureTemplateDropDown') && string(app.AddFigureButton.Text) == "Add" ...
+    && app.FigureSections([app.FigureSections.Name] == "arrangement").Title == "Panels" ...
+    && app.FigureSections([app.FigureSections.Name] == "panel").Title == "Selected panel", ...
+    'the Figures tab: no figure yet, only a hint in the editor, no preview, no template drop-down; the Panels and Selected panel sections; Help goes to its section');
+app.onAddFigure("rasterPsth");
 fg = app.Config.Figures;
-check(isscalar(fg) && fg.id == "figure_1" && numel(fg.panels) == 2 && app.SelectedFigure == 1 && app.SelectedPanel == 1 ...
-    && nPatches() == 2 && string(figureNode(app.FiguresTree, 1).Text) == "figure_1  (2 panels)" ...
-    && startsWith(string(figureNode(app.FiguresTree, 1).Parent.Text), "Per unit") && string(FE.id.Value) == "figure_1" ...
-    && startsWith(app.Fig.Name, "*"), ...
-    'Add makes figure_1 from the template: two panels, two patches in the schematic, listed per unit; the config is unsaved');
+check(isscalar(fg) && fg.id == "Raster+PSTH units" && numel(fg.panels) == 2 && app.SelectedFigure == 1 && app.SelectedPanel == 1 ...
+    && nPatches() == 2 && string(figureNode(app.FiguresTree, 1).Text) == "Raster+PSTH units  (2 panels)" ...
+    && startsWith(string(figureNode(app.FiguresTree, 1).Parent.Text), "Per unit") && string(FE.id.Value) == "Raster+PSTH units" ...
+    && FE.idAuto.Value && startsWith(app.Fig.Name, "*"), ...
+    'a figure from the rasterPsth template: "Raster+PSTH units" (auto ticked), two panels, two patches in the schematic, listed per unit; the config is unsaved');
 spec = app.Config.figureFor(1);
 T0 = figureObservations(app.Runner.source(app.ActiveIdx), spec);
 T = app.FigureObservations;
-check(istable(T) && height(T) >= 2 && isequal(T.label, T0.label) && all(T.kind == "unit") ...
-    && isequal(reshape(string(app.FigureObservationDropDown.Items), [], 1), T.label) && app.FigureObservationDropDown.Value == 1 ...
+nSp = cellfun(@(m) m.nSpikes(1), T.meta);
+spikesText = "  (" + regexprep(string(nSp), '(\d)(?=(\d{3})+$)', '$1,') + " spikes)";
+check(istable(T) && height(T) >= 2 && isequal(T.label, T0.label) && all(T.kind == "unit") && all(nSp > 1) ...
+    && isequal(reshape(string(app.FigureObservationDropDown.Items), [], 1), T.label + spikesText) && app.FigureObservationDropDown.Value == 1 ...
     && app.FigurePreviewState == "drawn" && numel(figAxes()) == 2 && app.FigurePreviewResult.observation.label == T.label(1) ...
     && app.FigureObsPrevButton.Enable == "off" && app.FigureObsNextButton.Enable == "on" && contains(figTitle(), T.label(1)), ...
-    sprintf('the picker lists the dataset''s %d units and the preview draws the first at once, in two axes (%s)', height(T), T.label(1)));
+    sprintf('the picker lists the dataset''s %d units, each with its spikes, and the preview draws the first at once, in two axes (%s)', ...
+    height(T), string(app.FigureObservationDropDown.Items{1})));
 app.onFigureObservationStep(1);
 check(app.FigureObservationDropDown.Value == 2 && app.FigurePreviewState == "drawn" && contains(figTitle(), T.label(2)) ...
-    && string(app.FigureObservation('figure_1')) == T.label(2) && app.FigureObsPrevButton.Enable == "on", ...
+    && string(app.FigureObservation('Raster+PSTH units')) == T.label(2) && app.FigureObsPrevButton.Enable == "on", ...
     '> draws the next unit: the title names it, and the figure remembers its pick');
 app.onKeyPress(pressed('pageup', {}));
 check(app.FigureObservationDropDown.Value == 1 && contains(figTitle(), T.label(1)), 'Page Up (<) goes back to the first unit');
+% Observe: the data types, what the active dataset holds first; the rows under it follow the choice
+srcA = app.Runner.source(app.ActiveIdx);
+types = EphysAnalysisConfig.ObserveData;
+held = [srcA.hasUnits srcA.hasDetected arrayfun(@(s) srcA.signals.(s), types(3:6)) true];
+obsItems = string(FE.observe.Items);
+obsData = string(FE.observe.ItemsData);
+check(string(FE.observe.Value) == "units" && obsItems(1) == "Sorted units" && isequal(obsData, [types(held) types(~held)]) ...
+    && all(contains(obsItems(numel(find(held)) + 1:end), "(not in " + srcA.name + ")")) && ~any(contains(obsItems(1:nnz(held)), "(not in")) ...
+    && any(obsItems == "The dataset") && ~shown(FE.obsChannels) && shown(FE.obsClasses.su) && shown(FE.obsQuality) && shown(FE.obsIds), ...
+    sprintf('Observe lists the data types, what %s holds first and plain (%s), a type it lacks marked; sorted units show the unit filter', ...
+    srcA.name, strjoin(obsItems, " | ")));
+FE.observe.Value = "LFP";
+app.onConfigChanged("figure");
+TL = app.FigureObservations;
+check(app.Config.Figures(1).observe.data == "LFP" && istable(TL) && height(TL) >= 1 && all(TL.kind == "channel") ...
+    && all(startsWith(TL.label, "LFP ch ")) && isequal(reshape(string(app.FigureObservationDropDown.Items), [], 1), TL.label) ...
+    && shown(FE.obsChannels) && ~shown(FE.obsClasses.su) && ~shown(FE.obsIds) && ~shown(FE.obsResponse) && ~shown(FE.obsMaxUnits) ...
+    && contains(string(FE.obsCount.Text), "LFP channel"), ...
+    'Observe LFP: the channel rows only, and the picker lists the LFP channels (no counts)');
+if srcA.hasDetected
+    FE.observe.Value = "detected";
+    app.onConfigChanged("figure");
+    TD = app.FigureObservations;
+    check(app.Config.Figures(1).observe.data == "detected" && all(TD.kind == "unit") && all(endsWith(string(app.FigureObservationDropDown.Items), "detections)")) ...
+        && shown(FE.obsIds) && shown(FE.obsUnitChannels) && ~shown(FE.obsClasses.su) && ~shown(FE.obsQuality) && ~shown(FE.obsChannels), ...
+        'Observe detected spikes: the filter without classes or quality, each channel with its number of detections');
+end
+FE.observe.Value = "dataset";
+app.onConfigChanged("figure");
+check(app.Config.Figures(1).observe.data == "dataset" && height(app.FigureObservations) == 1 && app.FigureObservations.kind == "dataset" ...
+    && ~shown(FE.obsChannels) && ~shown(FE.obsClasses.su) && ~shown(FE.obsIds) && ~shown(FE.obsResponse) && shown(FE.obsPerGroup), ...
+    'Observe the dataset: nothing more than Per trial group, one observation');
+FE.observe.Value = "units";
+app.onConfigChanged("figure");
+check(app.Config.Figures(1).observe.data == "units" && height(app.FigureObservations) == height(T) && shown(FE.obsClasses.su), ...
+    'back to sorted units: the units again');
 app.onPanelSelected(2);
-FE.addType.Value = "continuous";
-FE.addType.ValueChangedFcn(FE.addType, []);
-app.onAddPanel("below");
+app.onNewPanel(Type="continuous", Where="below");
 fg = app.Config.Figures(1);
 p3 = fg.panels(end);
+check(fg.id == "Raster+PSTH+Continuous units+LFP" && string(FE.id.Value) == fg.id && string(figureNode(app.FiguresTree, 1).Text) == fg.id + "  (3 panels)" ...
+    && isKey(app.FigureObservation, char(fg.id)) && ~isKey(app.FigureObservation, 'Raster+PSTH units') ...
+    && app.FigureIdRenames('Raster+PSTH units') == fg.id, ...
+    'the automatic id follows the new panel (Continuous, its LFP); the Id row and the tree show it, the observation picked moves with it');
 check(fg.grid.rows == 3 && fg.grid.cols == 1 && p3.type == "continuous" && p3.row == 3 && isscalar(p3.layers) ...
     && p3.layers.source == "LFP" && p3.layers.binding == "observation" && app.SelectedPanel == 3 && nPatches() == 3 ...
     && app.FigurePreviewState == "drawn" && numel(figAxes()) == 3 && contains(app.StatusBar.Text, "below psth_1"), ...
@@ -616,15 +570,159 @@ for m = reshape(marks, 1, [])
 end
 check(L.source == "events" && L.binding == "fixed" && L.event.line == "Stim" && L.event.edge == "offset" && L.eventsAs == "marks" ...
     && app.FigurePreviewState == "drawn" && nMarks > 0, sprintf('Stim offset marks are drawn on the raster''s rows (%d marks)', nMarks));
+FE.evDrawAs.Value = "span";
+app.onConfigChanged("figure");
+spanRows = shown(FE.evSpanStyle) && shown(FE.evColor) && ~shown(FE.evMarker) && ~shown(FE.layerColor) && FE.evDrawAs.Enable == "on";
+FE.evSpanStyle.Value = "--";
+FE.evSpanWidth.Value = 3;
+FE.evSpanAlpha.Value = 0.5;
+app.onConfigChanged("figure");
+L = app.Config.Figures(1).panels(1).layers(2);
+spans = findall(app.FigurePreviewPanel, 'Tag', 'eventSpan');
+spans = spans(arrayfun(@(m) any(isfinite(m.XData)), spans));
+check(spanRows && L.eventsAs == "span" && L.event.spanStyle == "--" && L.event.spanWidth == 3 && L.event.spanAlpha == 0.5 ...
+    && app.FigurePreviewState == "drawn" && ~isempty(spans) && all([spans.LineWidth] == 3) && all(string({spans.LineStyle}) == "--"), ...
+    'Draw as a line from onset to offset: the span''s rows show (not the marker), its style, width and opacity reach the config and the raster''s lines');
+FE.evDrawAs.Value = "marks";
+app.onConfigChanged("figure");
 app.onFigureSectionToggled("observations");
 collapsed = ~app.FigureSections([app.FigureSections.Name] == "observations").Expanded;
 app.onKeyPress(pressed('1', {'control'}));
 check(collapsed && app.FigureSections([app.FigureSections.Name] == "observations").Expanded ...
     && app.FigureSections([app.FigureSections.Name] == "observations").Key == "1" ...
-    && app.FigureSections([app.FigureSections.Name] == "common").Key == "7" ...
-    && app.FigureSections([app.FigureSections.Name] == "options").Key == "0" ...
-    && app.FigureSections([app.FigureSections.Name] == "style").Key == "", ...
-    'Ctrl+1 opens the collapsed Observations section; Common options is Ctrl+7, Options Ctrl+0, Appearance has no key');
+    && app.FigureSections([app.FigureSections.Name] == "palign").Key == "7" ...
+    && app.FigureSections([app.FigureSections.Name] == "options").Key == "9" ...
+    && app.FigureSections([app.FigureSections.Name] == "ref").Key == "2" ...
+    && app.FigureSections([app.FigureSections.Name] == "arrangement").Key == "5" ...
+    && app.FigureSections([app.FigureSections.Name] == "note").Key == "0" ...
+    && app.FigureSections([app.FigureSections.Name] == "style").Key == "" ...
+    && app.FigureSections([app.FigureSections.Name] == "sessions").Key == "" ...
+    && ~any([app.FigureSections.Name] == "common"), ...
+    'Ctrl+1 opens the collapsed Observations section; Event reference is Ctrl+2, Arrangement Ctrl+5, Panel alignment Ctrl+7, Options Ctrl+9, Text note Ctrl+0; Appearance and Sessions have no key');
+% the supersections, the search, the panel keys and the preview's outline of the selected panel
+secOf = @(n) app.FigureSections([app.FigureSections.Name] == n);
+U = app.FigureSupers;
+rowOf = @(h) h.Layout.Row;
+check(isequal([U.Name], ["figure" "panel" "look"]) && all(arrayfun(@(u) shown(u.Header), U)) ...
+    && secOf("observations").Super == "figure" && secOf("ref").Super == "figure" && secOf("sessions").Super == "figure" ...
+    && secOf("arrangement").Super == "figure" && secOf("panel").Super == "panel" && secOf("options").Super == "panel" ...
+    && secOf("overlays").Super == "panel" && secOf("style").Super == "look" && secOf("looks").Super == "look" ...
+    && rowOf(U(1).Header) < rowOf(secOf("observations").Grid) && rowOf(secOf("observations").Grid) < rowOf(secOf("ref").Grid) ...
+    && rowOf(secOf("arrangement").Grid) < rowOf(U(2).Header) && rowOf(U(2).Header) < rowOf(secOf("panel").Grid) ...
+    && rowOf(secOf("overlays").Grid) < rowOf(U(3).Header) && rowOf(U(3).Header) < rowOf(secOf("style").Grid) ...
+    && contains(U(1).Header.Text, "FIGURE") && contains(U(1).Header.Text, "Alt+1") && contains(U(2).Header.Text, "raster_1 (Raster)") ...
+    && contains(U(3).Header.Text, "Alt+3"), ...
+    'three supersections head the editor''s sections in order: Figure, Panel (naming the selected panel) and Look, each with its Alt key');
+optionsOpen = secOf("options").Expanded;
+app.onFigureSuperToggled("panel");
+shut = ~app.FigureSupers(2).Expanded && ~shown(FE.panelType) && ~shown(FE.layerList) && startsWith(strtrim(app.FigureSupers(2).Header.Text), "►") ...
+    && shown(app.FigureSupers(2).Header) && shown(FE.observe) && secOf("layers").Expanded;
+app.onKeyPress(pressed('8', {'control'}));
+check(shut && app.FigureSupers(2).Expanded && secOf("layers").Expanded && shown(FE.layerList), ...
+    'collapsing the Panel supersection hides its sections (each keeps its own state); Ctrl+8 opens it again with Layers');
+app.onFigureSuperToggled("panel");
+app.onKeyPress(pressed('2', {'alt'}));
+viaAlt = app.FigureSupers(2).Expanded && shown(FE.panelType);
+app.onKeyPress(pressed('2', {'alt' 'control'}));   % AltGr+2 on Windows: a character, not the key
+check(viaAlt && app.FigureSupers(2).Expanded, 'Alt+2 opens the collapsed Panel supersection; Ctrl+Alt+2 (AltGr) is left alone');
+% the search: by label, listed as "Supersection > Section > Row"; a row the raster does not show says why
+X = app.FigureSearchIndex;
+lb = app.FigureSearchList;
+app.onKeyPress(pressed('f', {'control'}));
+app.FigureSearchField.Value = 'bin';
+app.onFigureSearch("bin");
+check(app.FigureSearchState == "typing" && shown(lb) && X(lb.ItemsData(1)).Label == "Bin (ms)" ...
+    && string(lb.Items{1}) == "Panel > Raster options > Bin (ms)" && numel(X) > 150 ...
+    && any(arrayfun(@(e) e.Label == "Line" && e.Section == "ref", X)) && any(arrayfun(@(e) e.Label == "Use default" && e.Section == "window", X)), ...
+    sprintf('Ctrl+F, "bin": "Panel > Raster options > Bin (ms)" first of %d, though a raster hides it; the alignment rows are found too (%d rows indexed)', ...
+    numel(lb.Items), numel(X)));
+app.onKeyPress(pressed('return', {}));
+check(app.SelectedPanel == 1 && contains(app.StatusBar.Text, "Bin (ms) is an option of PSTH, heat map and unit correlation panels, not of raster panels") ...
+    && app.FigureSearchState == "", 'Enter on a row the raster does not show says why in the status bar, and nothing moves');
+% the panel keys: across the grid and in the panel order; the outline follows without a redraw
+P = app.FigurePreviewPanel;
+ax0 = figAxes();
+[bm, nm] = markBox(P);
+check(app.FigurePreviewState == "drawn" && nm == 4 && boxNear(bm, expectBox(P, "raster_1")), ...
+    'the preview outlines the selected panel (raster_1): a frame of four strips round its axes and labels');
+app.onKeyPress(pressed('downarrow', {'control' 'alt'}));
+[bm, nm] = markBox(P);
+moved = app.SelectedPanel == 2 && nm == 4 && boxNear(bm, expectBox(P, "psth_1")) && numel(figAxes()) == numel(ax0) ...
+    && all(ismember(figAxes(), ax0)) && app.FigurePreviewState == "drawn" && contains(app.FigureSupers(2).Header.Text, "psth_1");
+app.onKeyPress(pressed('downarrow', {'control' 'alt'}));
+third = app.SelectedPanel == 3;
+app.onKeyPress(pressed('downarrow', {'control' 'alt'}));
+check(moved && third && app.SelectedPanel == 3 && contains(app.StatusBar.Text, "No panel below continuous_1"), ...
+    'Ctrl+Alt+Down selects the panel below (psth_1, then continuous_1; none below the last): the outline moves, the preview is not drawn again');
+app.onKeyPress(pressed('leftarrow', {'control' 'alt'}));
+noLeft = app.SelectedPanel == 3 && contains(app.StatusBar.Text, "No panel to the left of continuous_1");
+app.onKeyPress(pressed('uparrow', {'control' 'alt'}));
+up = app.SelectedPanel == 2;
+app.onKeyPress(pressed('leftbracket', {'control'}));
+prev = app.SelectedPanel == 1;
+app.onKeyPress(pressed('leftbracket', {'control'}));
+round1 = app.SelectedPanel == 3;
+app.onKeyPress(pressed('rightbracket', {'control'}));
+check(noLeft && up && prev && round1 && app.SelectedPanel == 1 && contains(app.StatusBar.Text, "panel 1 of 3"), ...
+    'Ctrl+Alt+Left (none), Ctrl+Alt+Up; Ctrl+[ and Ctrl+] step through the panel order, round at the ends');
+% the outline follows the figure laid out again (the preview resized)
+app.onPanelSelected(2);
+pos0 = findPanelAxes(P, "psth_1").Position;
+app.Fig.Position(3) = app.Fig.Position(3) + 160;
+drawnow;
+P.SizeChangedFcn(P, []);   % (MATLAB runs it for a visible figure only)
+[bm, nm] = markBox(P);
+check(nm == 4 && ~isequal(findPanelAxes(P, "psth_1").Position, pos0) && boxNear(bm, expectBox(P, "psth_1")), ...
+    'the preview made wider, the figure is laid out again and the outline follows psth_1''s axes');
+app.Fig.Position(3) = app.Fig.Position(3) - 160;
+drawnow;
+P.SizeChangedFcn(P, []);
+h = app.onOpenFigureWindow();
+check(isgraphics(h) && isempty(findall(h, 'Tag', 'previewPanelMark')) && numel(findall(P, 'Tag', 'previewPanelMark')) == 4, ...
+    'Open in window draws no outline (it is the preview''s, not the figure''s)');
+delete(h);
+% right-click "Go to setting": the part's setting, in the panel the part is in
+fid = app.Config.Figures(app.SelectedFigure).id;
+panel0 = app.SelectedPanel;
+styleOpen = secOf("style").Expanded;
+if styleOpen; app.onFigureSectionToggled("style"); end
+okSem = app.gotoFigureSetting(fid, "sem", "psth_1");
+check(okSem && app.SelectedPanel == 2 && secOf("style").Expanded && shown(FE.showSEM), ...
+    'Go to setting on a PSTH''s error band: psth_1 is picked and the Show row of Appearance is open');
+okTitle = app.gotoFigureSetting(fid, "tileTitle", "raster_1");
+okFig = app.gotoFigureSetting(fid, "zeroLine", "");
+check(okTitle && app.SelectedPanel == 1 && okFig, ...
+    'a tile title goes to its panel''s Title row; the event line (t = 0) to the Event reference section');
+app.onPanelSelected(panel0);
+if secOf("style").Expanded ~= styleOpen; app.onFigureSectionToggled("style"); end
+% the search goes to a shown row: its supersection and section open, its label highlighted
+if optionsOpen; app.onFigureSectionToggled("options"); end
+app.onFigureSuperToggled("panel");
+app.onFigureSearch("bin");
+iBin = lb.ItemsData(1);
+app.onKeyPress(pressed('return', {}));
+check(app.FigureSupers(2).Expanded && secOf("options").Expanded && shown(FE.binMs) ...
+    && string(app.StatusBar.Text) == "Panel > PSTH options > Bin (ms)" && isequal(X(iBin).Flash.BackgroundColor, [1.00 0.90 0.35]), ...
+    'Enter on Bin (ms) with the PSTH selected opens the Panel supersection and the options, scrolls there and highlights the row');
+app.onFigureSearch("line");
+v1 = lb.Value;
+app.onKeyPress(pressed('downarrow', {}));
+down = lb.Value == lb.ItemsData(2) && v1 == lb.ItemsData(1);
+app.onKeyPress(pressed('escape', {}));
+check(down && ~shown(lb) && app.FigureSearchState == "" && string(app.FigureSearchField.Value) == "", ...
+    'Down picks the next match while typing; Escape clears the search');
+app.onFigureSearch("layers");
+first = X(lb.ItemsData(1));
+app.onFigureSearch("");
+check(first.Row == 0 && first.Section == "layers", 'a section is found by its title ("layers")');
+w = app.onFigureKeys();
+keysT = findall(w, 'Tag', 'keysTable').Data;
+w2 = app.onFigureKeys();
+check(isequal(w, w2) && any(startsWith(keysT.Key, "Alt+1")) && any(keysT.Key == "Ctrl+F") && any(contains(keysT.Key, "Ctrl+Alt+arrows")) ...
+    && any(contains(keysT.Key, "F6")), 'the "?" button lists the tab''s keys in one window (a second press brings it back)');
+delete(w);
+if ~optionsOpen; app.onFigureSectionToggled("options"); end
+app.onPanelSelected(1);
 % Out of date with Auto off, Cancel
 app.FigureAutoCheckBox.Value = false;
 FE.title.Value = 'Unit card';
@@ -744,7 +842,7 @@ app.onConfigChanged("figure");
 Tg = app.FigureObservations;
 nGa = numel(unique(Tg.group));
 check(app.Config.Figures(1).observe.perGroup && nGa >= 2 && height(Tg) == n0 * nGa && all(endsWith(Tg.label, " · " + Tg.groupLabel)) ...
-    && isequal(reshape(string(app.FigureObservationDropDown.Items), [], 1), Tg.label) && app.FigurePreviewState == "drawn" ...
+    && all(startsWith(reshape(string(app.FigureObservationDropDown.Items), [], 1), Tg.label + "  (")) && app.FigurePreviewState == "drawn" ...
     && height(app.FigurePreviewResult.groups) == 1 && app.FigurePreviewResult.observation.groupLabel == Tg.groupLabel(1) ...
     && contains(string(FE.obsCount.Text), "trial groups") && contains(figTitle(), Tg.label(1)), ...
     sprintf('Per trial group lists every unit and group (%d x %d) in the picker; the preview draws the first group''s epochs only', n0, nGa));
@@ -809,24 +907,20 @@ FE.maxTrials.Value = Inf;
 app.onConfigChanged("figure");
 % a type change
 app.onPanelSelected(2);
-lockedBins = FE.panelCommon.Value && FE.binMs.Enable == "off" && FE.histStyle.Enable == "on" ...
-    && FE.binMs.Value == 1000 * app.Config.Figures(1).common.bins.BinSec;
-FE.binMs.Value = 50;
-app.onConfigChanged("figure");   % a locked row: not taken
-ignored = app.Config.Figures(1).panels(2).options.bins.BinSec == 0.01 && app.Config.figureFor(1).panels(2).options.bins.BinSec == 0.01;
-FE.cmBinMs.Value = 20;
-FE.cmBinMs.ValueChangedFcn(FE.cmBinMs, []);
+openBins = FE.binMs.Enable == "on" && FE.histStyle.Enable == "on" && FE.binMs.Value == 10;
+FE.binMs.Value = 20;
+app.onConfigChanged("figure");
 spec = app.Config.figureFor(1);
-check(lockedBins && ignored && app.Config.Figures(1).common.bins.BinSec == 0.02 && spec.panels(2).options.bins.BinSec == 0.02 ...
-    && FE.binMs.Value == 20 && app.FigurePreviewState == "drawn" && app.FigurePreviewResult.spec.panels(2).options.bins.BinSec == 0.02, ...
-    'a linked PSTH''s bins row shows the Common options, locked (an edit there is not taken); a Common options edit reaches it and the preview is computed again');
+check(openBins && app.Config.Figures(1).panels(2).options.bins.BinSec == 0.02 && spec.panels(2).options.bins.BinSec == 0.02 ...
+    && app.FigurePreviewState == "drawn" && app.FigurePreviewResult.spec.panels(2).options.bins.BinSec == 0.02, ...
+    'the PSTH''s bins row is its own: an edit reaches its options and the preview is computed again');
 FE.panelType.Value = "heatmap";
 app.onPanelTypeChanged();
 p2 = app.Config.Figures(1).panels(2);
 check(p2.type == "heatmap" && isscalar(p2.layers) && p2.layers.source == "units" && p2.layers.binding == "fixed" ...
     && app.Config.figureFor(1).panels(2).options.bins.BinSec == 0.02 && isfield(p2.options, 'order') && shown(FE.group) && shown(FE.order) ...
     && contains(app.StatusBar.Text, "is now a heat map") && app.FigurePreviewState == "drawn", ...
-    'a heat map now: its units layer kept but fixed, the common bins it takes, its own rows shown');
+    'a heat map now: its units layer kept but fixed, the PSTH''s bins kept, its own rows shown');
 itemRows = shown(FE.heatRows) && ~shown(FE.rasterSort) && FE.layerBinding.Enable == "off";
 FE.heatRows.Value = "trials";
 app.onConfigChanged("figure");
@@ -867,35 +961,35 @@ L2 = app.Config.Figures(1).panels(2).layers(1);
 check(L2.binding == "observation" && isequal(L2.units.ids, obsId), 'following again, the layer keeps the ids as they are');
 FE.layerIds.Value = '';
 app.onConfigChanged("figure");
-% common options: a panel's own, Apply to all panels, Re-link all panels
+% Apply to all panels (Options), Re-link all panels (Panel alignment)
 app.onPanelSelected(2);   % the PSTH
-FE.panelCommon.Value = false;
-FE.panelCommon.ValueChangedFcn(FE.panelCommon, []);
-p2 = app.Config.Figures(1).panels(2);
-check(~p2.common && p2.options.bins.BinSec == 0.02 && FE.binMs.Enable == "on" && FE.optApplyAll.Enable == "on" ...
-    && FE.alignRelinkAll.Enable == "on", 'unticking Common options from the figure copies the common values into the panel''s own and opens its rows');
-FE.binMs.Value = 30;
+FE.binMs.Value = 10;
+FE.waveMode.Value = "mean";
+FE.baselineMode.Value = "zscore";
 app.onConfigChanged("figure");
-spec = app.Config.figureFor(1);
-check(spec.panels(2).options.bins.BinSec == 0.03 && app.Config.Figures(1).common.bins.BinSec == 0.02 ...
-    && app.FigurePreviewResult.spec.panels(2).options.bins.BinSec == 0.03, 'an edit then changes this panel''s bins only, not the figure''s');
+fg0 = app.Config.Figures(1);
+ids = [fg0.panels.id];
+appliable = FE.optApplyAll.Enable == "on" && FE.alignRelinkAll.Enable == "off";   % own options are no alignment to re-link
 FE.optApplyAll.ButtonPushedFcn(FE.optApplyAll, []);
 fg = app.Config.Figures(1);
-check(fg.common.bins.BinSec == 0.03 && all([fg.panels.common]) && FE.panelCommon.Value && FE.binMs.Enable == "off" ...
-    && contains(app.StatusBar.Text, "common options are now the figure's"), ...
-    'Apply to all panels: the panel''s bins become the Common options and every panel is linked to them');
-FE.panelCommon.Value = false;
-FE.panelCommon.ValueChangedFcn(FE.panelCommon, []);
-unlinked = ~app.Config.Figures(1).panels(2).common;
-FE.alignRelinkAll.ButtonPushedFcn(FE.alignRelinkAll, []);
-check(unlinked && all([app.Config.Figures(1).panels.common]) && FE.panelCommon.Value && contains(app.StatusBar.Text, "common options again"), ...
-    'Re-link all panels links the panel''s options to the Common options again');
+st = string(app.StatusBar.Text);
+check(appliable && fg.panels(1).options.waveform.mode == "mean" && fg.panels(3).options.baseline.Mode == "none" ...
+    && isequaln(fg.panels(3).options, fg0.panels(3).options) && contains(st, ids(1) + " (waveform)") ...
+    && contains(st, ids(3) + " kept their own baseline") && contains(st, """zscore""") && FE.alignRelinkAll.Enable == "off", ...
+    'Apply to all panels: the PSTH''s waveform inset goes to the raster; the continuous panel keeps its baseline (no zscore there); the status bar says so');
+FE.waveMode.Value = "off";
+FE.baselineMode.Value = "none";
+app.onConfigChanged("figure");
+FE.optApplyAll.ButtonPushedFcn(FE.optApplyAll, []);
+FE.optApplyAll.ButtonPushedFcn(FE.optApplyAll, []);   % again: nothing left to copy
+check(app.Config.Figures(1).panels(1).options.waveform.mode == "off" && contains(string(app.StatusBar.Text), "already"), ...
+    'applied back, then once more: the other panels have the PSTH''s options already');
+app.onFigureSectionToggled("palign");
+app.onFigureSectionToggled("options");
 app.onKeyPress(pressed('7', {'control'}));
-toCommon = app.FigureSections([app.FigureSections.Name] == "common").Expanded;
-app.onKeyPress(pressed('0', {'control'}));
-check(toCommon && app.FigureSections([app.FigureSections.Name] == "options").Expanded, 'Ctrl+7 goes to Common options, Ctrl+0 to Options');
-FE.cmBinMs.Value = 10;
-FE.cmBinMs.ValueChangedFcn(FE.cmBinMs, []);
+toPalign = app.FigureSections([app.FigureSections.Name] == "palign").Expanded;
+app.onKeyPress(pressed('9', {'control'}));
+check(toPalign && app.FigureSections([app.FigureSections.Name] == "options").Expanded, 'Ctrl+7 goes to Panel alignment, Ctrl+9 to Options');
 % the gather / apply round trip, a remembered look
 s1 = app.gatherConfig();
 app.applyConfig(s1);
@@ -906,10 +1000,20 @@ app.refreshFigurePreview(Force=true);
 ctx = getappdata(app.FigurePreviewPanel, PlotAesthetics.ContextKey);
 figLook = struct('role', "rateFill", 'group', "", 'property', "FaceAlpha", 'value', 0.4);
 ctx.onRemember(figLook);
-check(isstruct(ctx) && ctx.kind == "figure" && ctx.id == "figure_1" && isscalar(app.Config.Figures(1).aesthetics) ...
+check(isstruct(ctx) && ctx.kind == "figure" && ctx.id == app.Config.Figures(1).id && isscalar(app.Config.Figures(1).aesthetics) ...
     && app.Config.Figures(1).aesthetics.value == 0.4 && isequal(app.Runner.Config.Figures(1).aesthetics, app.Config.Figures(1).aesthetics) ...
     && startsWith(string(FE.looksText.Text), "1 remembered") && FE.looksForget.Enable == "on", ...
     'the figure preview is editable (right-click); rules remembered for the figure go into the config (rememberFigureAesthetics)');
+tipParts = findall(app.FigurePreviewPanel, '-function', @(o) isappdata(o, FigureDataTips.InfoKey));
+tipItems = findall(app.Fig, 'Tag', FigureDataTips.MenuTag);
+tipMenu = findobj(app.DesignMenu.Children, 'flat', 'Tag', 'DataTipFieldsMenu');
+dlg0 = findall(groot, 'Type', 'figure', 'Name', 'Data tip fields');
+if isscalar(tipMenu); tipMenu.MenuSelectedFcn(tipMenu, []); end
+dlg = setdiff(findall(groot, 'Type', 'figure', 'Name', 'Data tip fields'), dlg0);
+check(~isempty(tipParts) && ~isempty(tipItems) && isscalar(tipMenu) && isscalar(dlg) && numel(findall(dlg, 'Type', 'uicheckbox')) == height(FigureDataTips.fields()), ...
+    sprintf(['the figure preview has data tips (%d parts) and "Data tip fields..." on its right-click menus; the Design menu''s ' ...
+    'Data tip fields... opens the dialog, a check box per field'], numel(tipParts)));
+delete(dlg);
 FE.looksForget.ButtonPushedFcn(FE.looksForget, []);
 check(isempty(app.Config.Figures(1).aesthetics) && FE.looksForget.Enable == "off" && app.FigurePreviewState == "drawn", ...
     'Forget drops them and redraws the preview without them');
@@ -951,30 +1055,28 @@ fg = app.Config.Figures(1);
 check(fg.grid.rows == 2 && numel(fg.panels) == 2 && nPatches() == 2 && app.SelectedPanel == 2 && numel(figAxes()) == 2 ...
     && app.FigurePreviewState == "drawn", 'Remove panel takes the continuous panel and its row away');
 app.onDuplicateFigure();
-check(numel(app.Config.Figures) == 2 && app.Config.Figures(2).id == "figure_2" && app.SelectedFigure == 2 ...
-    && isequaln(rmfield(app.Config.Figures(2), 'id'), rmfield(app.Config.Figures(1), 'id')) && string(FE.id.Value) == "figure_2", ...
-    'Duplicate copies the figure as figure_2, right after it, and selects the copy');
+check(numel(app.Config.Figures) == 2 && app.Config.Figures(1).id == "Raster+PSTH units" && app.Config.Figures(2).id == "Raster+PSTH units (2)" ...
+    && app.SelectedFigure == 2 && isequaln(rmfield(app.Config.Figures(2), 'id'), rmfield(app.Config.Figures(1), 'id')) ...
+    && string(FE.id.Value) == "Raster+PSTH units (2)", ...
+    'Duplicate copies the figure as "Raster+PSTH units (2)" (the id followed the panel removed), right after it, and selects the copy');
 app.onRemoveFigure();
-check(isscalar(app.Config.Figures) && app.SelectedFigure == 1 && string(FE.id.Value) == "figure_1", 'Remove takes the copy away');
+check(isscalar(app.Config.Figures) && app.SelectedFigure == 1 && string(FE.id.Value) == "Raster+PSTH units", 'Remove takes the copy away');
 % the arrangement, on a blank figure (Auto off: nothing here needs drawing)
 app.FigureAutoCheckBox.Value = false;
 app.onAddFigure("blank");
-pickType = @(t) FE.addType.ValueChangedFcn(FE.addType, struct('Value', t));
 cellOf = @(id) arrayfun(@(q) [q.row q.col q.rowSpan q.colSpan], app.Config.Figures(2).panels([app.Config.Figures(2).panels.id] == id), ...
     'UniformOutput', false);
 gridOf = @() [app.Config.Figures(2).grid.rows app.Config.Figures(2).grid.cols];
-FE.addType.Value = "psth"; pickType("psth");
-app.onAddPanel("right");
+app.onNewPanel(Type="psth", Where="right");
 check(app.SelectedFigure == 2 && isequal(gridOf(), [1 1]) && isequal(cellOf("psth_1"), {[1 1 1 1]}), ...
-    'a blank figure''s first panel goes to row 1, column 1, whichever button');
-FE.addType.Value = "raster"; pickType("raster");
-app.onAddPanel("above");
+    'a blank figure''s first panel goes to row 1, column 1, whatever the place');
+app.onNewPanel(Type="raster", Where="above");
 check(isequal(gridOf(), [2 1]) && isequal(cellOf("raster_1"), {[1 1 1 1]}) && isequal(cellOf("psth_1"), {[2 1 1 1]}) ...
     && app.Config.Figures(2).panels(app.SelectedPanel).id == "raster_1", 'Above: a row before the selected panel; the new one is selected');
-app.onAddPanel("right");
+app.onNewPanel(Type="raster", Where="right");
 check(isequal(gridOf(), [2 2]) && isequal(cellOf("raster_2"), {[1 2 1 1]}) && isequal(cellOf("psth_1"), {[2 1 1 1]}), ...
     'Right: a column after it, in its row');
-app.onAddPanel("left");
+app.onNewPanel(Type="raster", Where="left");
 check(isequal(gridOf(), [2 3]) && isequal(cellOf("raster_3"), {[1 2 1 1]}) && isequal(cellOf("raster_2"), {[1 3 1 1]}) ...
     && nPatches() == 4, 'Left: a column before it; the panels right of it move over');
 app.onPanelSelected(find([app.Config.Figures(2).panels.id] == "psth_1"));
@@ -997,6 +1099,34 @@ app.onConfigChanged("figure");
 G2 = app.Config.Figures(2).grid;
 check(isequal(G2.rowHeights, [1.5 1]) && isequal(G2.colWidths, [1 2 1]) && G2.spacing == "loose", ...
     'Row height, Column width and Spacing reach the grid (its row and column, the others 1)');
+FE.panelWidth.Value = 60;
+FE.panelAlign.Value = "right";
+app.onConfigChanged("figure");
+pS = app.Config.Figures(2).panels(app.SelectedPanel);
+check(isequal(pS.size, [0.6 1]) && pS.align == "right" && pS.valign == "middle" && FE.panelAlign.Enable == "on" ...
+    && FE.panelVAlign.Enable == "off", ...
+    'Panel size and Align reach the selected panel alone (60 % of its cell''s width, at the right); Align up the cell off while 100 % high');
+FE.spacingDialog.ButtonPushedFcn(FE.spacingDialog, []);
+dS = findall(groot, 'Type', 'figure', 'Tag', 'figureSpacingDialog');
+DS = dS.UserData;
+DS.Spacing.Value = "custom"; DS.Spacing.ValueChangedFcn(DS.Spacing, []);
+DS.Units.Value = "px"; DS.Units.ValueChangedFcn(DS.Units, []);
+DS.RowGap.Value = 10; DS.RowGap.ValueChangedFcn(DS.RowGap, []);
+DS.ColGap.Value = 4; DS.ColGap.ValueChangedFcn(DS.ColGap, []);
+TS = DS.Table.Data;
+check(isscalar(dS) && DS.FigureId == app.Config.Figures(2).id && app.Config.Figures(2).id == "Raster+PSTH units (2)" && height(TS) == 3 && isequal(TS.Gap, [10; 4; 4]) && DS.Units.Enable == "on", ...
+    'Spacing...: the window lists every gap of the 2 x 3 grid, filled by the one gap between rows and the one between columns');
+DS.Table.CellEditCallback(DS.Table, struct('Indices', [3 2], 'NewData', 16));
+DS.Table.CellEditCallback(DS.Table, struct('Indices', [1 2], 'NewData', -3));
+DS.Apply.ButtonPushedFcn(DS.Apply, []);
+G3 = app.Config.Figures(2).grid;
+check(isvalid(dS) && G3.spacing == "custom" && G3.gapUnits == "px" && G3.rowGap == 10 && isempty(G3.rowGaps) && G3.colGap == 4 ...
+    && isequal(G3.colGaps, [4 16]) && string(FE.spacing.Value) == "custom", ...
+    'Apply: the gaps reach the grid (a gap under 0 refused; the second column gap set apart, the row gap the one value); the window stays');
+DS.Spacing.Value = "compact"; DS.Spacing.ValueChangedFcn(DS.Spacing, []);
+DS.Ok.ButtonPushedFcn(DS.Ok, []);
+G4 = app.Config.Figures(2).grid;
+check(~isvalid(dS) && G4.spacing == "compact" && isequal(G4.colGaps, [4 16]), 'OK: a preset, the custom gaps kept unused; the window closes');
 app.onMovePanel("right");
 check(isequal(cellOf("raster_3"), {[1 3 1 1]}) && isequal(cellOf("raster_2"), {[1 2 1 1]}) && contains(app.StatusBar.Text, "Moved raster_3 right"), ...
     'Move right swaps the panel with its same-shaped neighbor');
@@ -1014,18 +1144,83 @@ down = isequal(srcs(), ["units" "events"]) && app.SelectedLayer == 2;
 app.onRemoveLayer();
 check(up && down && isequal(srcs(), "units") && numel(FE.layerList.Items) == 1 && contains(app.StatusBar.Text, "Removed layer"), ...
     'layer Up and Down reorder the panel''s layers, Remove takes the one picked away');
-check(~any(string(FE.addType.ItemsData) == "behavior") && ~any(string(app.FigureTemplateDropDown.ItemsData) == "behavior") ...
-    && ~any(string(FE.panelType.ItemsData) == "behavior") && ~any(string(FE.addSource.ItemsData) == "trials") ...
+check(~any(string(FE.panelType.ItemsData) == "behavior") && ~any(string(FE.addSource.ItemsData) == "trials") ...
     && ~any(string(FE.layerSource.ItemsData) == "trials"), ...
-    'no Behavior panel type or template is offered, and no trials layer source');
+    'no Behavior panel type is offered, and no trials layer source');
+ids0 = [app.Config.Figures.id];
 app.onMoveFigure(-1);
-movedUp = isequal([app.Config.Figures.id], ["figure_2" "figure_1"]) && app.SelectedFigure == 1 && app.UpFigureButton.Enable == "off";
+movedUp = isequal([app.Config.Figures.id], fliplr(ids0)) && app.SelectedFigure == 1 && app.UpFigureButton.Enable == "off";
 app.onMoveFigure(1);
-check(movedUp && isequal([app.Config.Figures.id], ["figure_1" "figure_2"]) && app.SelectedFigure == 2 && app.DownFigureButton.Enable == "off", ...
-    'figure Up and Down reorder the list; the figure stays selected');
+check(movedUp && isequal([app.Config.Figures.id], ids0) && app.SelectedFigure == 2 && app.DownFigureButton.Enable == "off", ...
+    sprintf('figure Up and Down reorder the list (the ids stay: %s); the figure stays selected', strjoin(ids0, " | ")));
 app.onRemoveFigure();
 app.FigureAutoCheckBox.Value = true;
 check(isscalar(app.Config.Figures) && app.SelectedFigure == 1, 'the blank figure removed again');
+% Add: a blank figure, then the New panel window (answered from a timer); every type at every place; the Id row
+app.FigureAutoCheckBox.Value = false;
+PTn = EphysAnalysisConfig.panelTypes();
+answerDialog('New panel', @(D) press(D, "Cancel"));
+app.onAddFigure();
+f2 = app.Config.Figures(end);
+check(numel(app.Config.Figures) == 2 && app.SelectedFigure == 2 && isempty(f2.panels) && f2.id == "Blank dataset" && f2.autoId ...
+    && contains(app.StatusBar.Text, "New panel canceled") && shown(FE.noPanel) && shown(FE.newPanel), ...
+    'Add makes a blank figure ("Blank dataset", an automatic id) and opens the New panel window; Cancel leaves it blank');
+answerDialog('New panel', @newPanelAnswer);
+app.onNewPanel();
+seen = getappdata(groot, 'newPanelSeen');
+if isappdata(groot, 'newPanelSeen'); rmappdata(groot, 'newPanelSeen'); end
+f2 = app.Config.Figures(2);
+check(isstruct(seen) && isequal(sort(seen.types), sort(PTn.Type.')) && all(seen.icons) && isempty(seen.failed) && seen.where == "off" ...
+    && seen.name0 == "continuous_1" && all(ismember(["Source" "Binding" "Display" "ErrorType"], seen.params)) && seen.binding == "on" ...
+    && isscalar(f2.panels) && f2.panels.id == "lfp_a" && f2.panels.title == "Its LFP" && f2.panels.type == "continuous" ...
+    && f2.panels.options.display == "stacked" && f2.panels.layers.source == "LFP" && f2.panels.layers.binding == "observation" ...
+    && f2.observe.data == "LFP" && f2.id == "Continuous LFP" && app.SelectedPanel == 1, ...
+    'New panel...: a tile with its picture per panel type, the name, title, place (the first panel: row 1, column 1) and the type''s key parameters; OK adds it, and the id and Observe follow');
+wh = ["below" "right" "above" "left"];
+bad = strings(1, 0);
+for t = reshape(PTn.Type, 1, [])
+    for w = wh
+        app.onPanelSelected(1);
+        f0 = app.Config.Figures(2);
+        a0 = f0.panels(1);
+        app.onNewPanel(Type=t, Where=w, Options=struct());
+        f = app.Config.Figures(2);
+        p = f.panels(end);
+        a = f.panels(1);
+        placed = (w == "below" && p.row == a.row + a.rowSpan && p.col == a.col) || (w == "right" && p.col == a.col + a.colSpan && p.row == a.row) ...
+            || (w == "above" && p.row + 1 == a.row && p.col == a.col) || (w == "left" && p.col + 1 == a.col && p.row == a.row);
+        if ~(numel(f.panels) == 2 && p.type == t && ~isempty(p.layers) && placed && app.SelectedPanel == 2 && a.id == a0.id ...
+                && f.grid.rows * f.grid.cols == 2)
+            bad(end+1) = t + " " + w; %#ok<AGROW>
+        end
+        app.onRemovePanel();
+    end
+end
+check(isempty(bad) && isscalar(app.Config.Figures(2).panels) && isequal([app.Config.Figures(2).grid.rows app.Config.Figures(2).grid.cols], [1 1]), ...
+    sprintf('New panel adds every panel type (%d) at every place (below, right, above, left of the selected panel), each with its default layer%s', ...
+    height(PTn), strjoin(", not: " + bad, "")));
+check(all(isfile(fullfile(repo, 'analysis', 'icons', 'panels', PTn.Type + ".png"))), ...
+    'every panel type has its picture (analysis/icons/panels, tools/makePanelThumbnails)');
+FE.id.Value = 'lfp_card';
+FE.id.ValueChangedFcn(FE.id, struct('PreviousValue', 'Continuous LFP', 'Value', 'lfp_card'));
+app.onNewPanel(Type="psth", Where="above");
+f2 = app.Config.Figures(2);
+check(f2.id == "lfp_card" && ~f2.autoId && ~FE.idAuto.Value && isequal(FE.id.FontColor, [0 0 0]) && numel(f2.panels) == 2, ...
+    'an id typed is the figure''s own (auto unticked): a panel added leaves it');
+app.FigureObservation('lfp_card') = "picked";
+FE.idAuto.Value = true;
+FE.idAuto.ValueChangedFcn(FE.idAuto, []);
+f2 = app.Config.Figures(2);
+statusAuto = string(app.StatusBar.Text);
+look = struct('role', "trace", 'group', "", 'property', "LineWidth", 'value', 2);
+app.rememberFigureAesthetics("lfp_card", look);   % an editor opened before the rename
+check(f2.id == "PSTH+Continuous LFP+units" && f2.autoId && string(FE.id.Value) == f2.id && contains(statusAuto, "follows") ...
+    && isKey(app.FigureObservation, char(f2.id)) && ~isKey(app.FigureObservation, 'lfp_card') ...
+    && isscalar(app.Config.Figures(2).aesthetics), ...
+    'auto ticked again: the automatic id is back; the observation picked and a look remembered under the old id follow the figure');
+app.onRemoveFigure();
+app.FigureAutoCheckBox.Value = true;
+check(isscalar(app.Config.Figures) && app.SelectedFigure == 1, 'that figure removed again');
 % a panel made from a heat map or a probe map follows the observation: one unit, not all of them
 for pair = ["heatmap" "psth"; "probemap" "raster"].'
     app.onAddFigure(pair(1));
@@ -1040,11 +1235,29 @@ for pair = ["heatmap" "psth"; "probemap" "raster"].'
         sprintf('a %s made a %s: its units layer follows the observation, and the preview draws %g unit', pair(1), pair(2), nShown));
     app.onRemoveFigure();
 end
+% an event-trace panel: its template, its Options rows (those its display does not use grayed out), the preview
+app.onAddFigure("eventTrace");
+etRows = shown(FE.etDisplay) && shown(FE.etTrials) && shown(FE.etBaseline) && shown(FE.etRowSpacing) && ~shown(FE.binMs) ...
+    && ~shown(FE.yLim) && FE.etEdge.Enable == "on" && FE.etLineStyle.Enable == "off" && FE.etGroupBands.Enable == "off" ...
+    && shown(FE.evLine) && FE.evDrawAs.Enable == "off" && ~shown(FE.evMarker) && shown(FE.layerColor) ...
+    && isequal(string(FE.addSource.ItemsData), "events") && app.FigurePreviewState == "drawn" ...
+    && ~isempty(findall(app.FigurePreviewPanel, 'Tag', 'eventBar'));
+FE.etDisplay.Value = "line";
+FE.etTrials.Value = "rows";
+FE.etAlpha.Value = 0.5;
+FE.etBaseline.Value = false;
+app.onConfigChanged("figure");
+oe = app.Config.Figures(2).panels(1).options;
+check(etRows && oe.display == "line" && oe.trials == "rows" && oe.alpha == 0.5 && ~oe.showBaseline && FE.etLineStyle.Enable == "on" ...
+    && FE.etEdge.Enable == "off" && FE.etGroupBands.Enable == "on" && FE.etBaseColor.Enable == "off" && app.FigurePreviewState == "drawn" ...
+    && ~isempty(findall(app.FigurePreviewPanel, 'Tag', 'eventLevel')) && isempty(findall(app.FigurePreviewPanel, 'Tag', 'eventBaseline')), ...
+    'an event-trace panel: its rows (events layers only, no Draw as), a logic level per epoch''s sub-row reaching the config and the preview');
+app.onRemoveFigure();
 % a PSTH's Stack box and auROC rows; firing rate and tuning panels from the Add-panel drop-down
 app.onFigureSelected(1);
 app.onPanelSelected(2);   % the PSTH
 pS = app.Config.Figures(1).panels(2);
-check(pS.type == "psth" && shown(FE.stack) && ~shown(FE.auMethod) && ~shown(FE.cmAuMethod) && ~shown(FE.rateDisplay) ...
+check(pS.type == "psth" && shown(FE.stack) && ~shown(FE.auMethod) && ~shown(FE.rateDisplay) ...
     && ~shown(FE.param) && ~shown(FE.waveLayout) && FE.psthSpacing.Enable == "off", ...
     'a PSTH shows its Stack row (the spacing off while unticked) and no auROC rows without the auROC baseline');
 FE.stack.Value = true;
@@ -1056,42 +1269,47 @@ nRows = numel(findall(app.FigurePreviewPanel, 'Tag', 'stackBase'));
 check(oS.stack && oS.stackSpacing == 1.5 && FE.psthSpacing.Enable == "on" && app.FigurePreviewState == "drawn" ...
     && nRows == height(app.FigurePreviewResult.groups) * (height(app.FigurePreviewResult.groups) > 1), ...
     sprintf('the Stack box and its spacing reach the PSTH''s options; the preview stacks its groups (%d rows)', nRows));
-FE.cmBaselineMode.Value = "auroc";
-FE.cmBaselineMode.ValueChangedFcn(FE.cmBaselineMode, []);
-cmShown = shown(FE.cmAuMethod) && shown(FE.cmAuCutoff) && shown(FE.cmAuMarks) && shown(FE.auMethod) && FE.auMethod.Enable == "off" ...
-    && string(FE.baselineMode.Value) == "auroc";
-FE.cmAuWinMs.Value = 50;
-FE.cmAuWinMs.ValueChangedFcn(FE.cmAuWinMs, []);
-FE.cmAuCutoff.Value = "fixed";
-FE.cmAuCutoff.ValueChangedFcn(FE.cmAuCutoff, []);
-spec = app.Config.figureFor(1);
-cm = app.Config.Figures(1).common;
-check(cmShown && cm.baseline.Mode == "auroc" && cm.auroc.windowSec == 0.05 && cm.auroc.cutoff == "fixed" ...
-    && spec.panels(2).options.auroc.windowSec == 0.05 && FE.auWinMs.Value == 50 && FE.cmAuThreshold.Enable == "on" ...
-    && app.FigurePreviewState == "drawn" && isfield(app.FigurePreviewResult.panels(2).layers(1).R, 'auroc'), ...
-    'the common auROC baseline: its rows in Common options, shown locked in the linked PSTH''s; their edits reach the PSTH and the preview');
-FE.panelCommon.Value = false;
-FE.panelCommon.ValueChangedFcn(FE.panelCommon, []);
+FE.baselineMode.Value = "auroc";
+app.onConfigChanged("figure");
+auShown = shown(FE.auMethod) && shown(FE.auCutoff) && shown(FE.auMarks) && FE.auMethod.Enable == "on" ...
+    && any(string(FE.baselineMode.Items) == "auroc");
 FE.auWinMs.Value = 20;
+FE.auCutoff.Value = "fixed";
 FE.auModOnly.Value = false;
 app.onConfigChanged("figure");
 oS = app.Config.Figures(1).panels(2).options;
-check(~app.Config.Figures(1).panels(2).common && oS.baseline.Mode == "auroc" && oS.auroc.windowSec == 0.02 && oS.auroc.cutoff == "fixed" ...
-    && app.Config.Figures(1).common.auroc.windowSec == 0.05 && FE.auMethod.Enable == "on" && any(string(FE.baselineMode.Items) == "auroc") ...
-    && app.FigurePreviewState == "drawn", 'unlinked, the PSTH''s own auROC rows reach its options (the common ones unchanged)');
+check(auShown && oS.baseline.Mode == "auroc" && oS.auroc.windowSec == 0.02 && oS.auroc.cutoff == "fixed" ...
+    && app.Config.figureFor(1).panels(2).options.auroc.windowSec == 0.02 && FE.auThreshold.Enable == "on" ...
+    && app.FigurePreviewState == "drawn" && isfield(app.FigurePreviewResult.panels(2).layers(1).R, 'auroc'), ...
+    'the PSTH''s auROC baseline: its rows show, and their edits reach its options and the preview');
 FE.stack.Value = false;
+FE.baselineMode.Value = "none";
 app.onConfigChanged("figure");
-FE.alignRelinkAll.ButtonPushedFcn(FE.alignRelinkAll, []);
-FE.cmBaselineMode.Value = "none";
-FE.cmBaselineMode.ValueChangedFcn(FE.cmBaselineMode, []);
+% a PSTH's Display: a heat map shows its colormap and color limits, hides the trace rows; back to trace
+FE.psthDisplay.Value = "heatmap";
+app.onConfigChanged("figure");
+heatShown = shown(FE.panelColormap) && shown(FE.cLim) && shown(FE.normalize) && ~shown(FE.histStyle) ...
+    && ~shown(FE.fill) && ~shown(FE.stack) && ~shown(FE.yLim);
+FE.panelColormap.Value = "hot";
+FE.cLim.Value = '0 30';
+app.onConfigChanged("figure");
+oH = app.Config.Figures(1).panels(2).options;
+imH = findall(app.FigurePreviewPanel, 'Type', 'image');
+check(heatShown && oH.display == "heatmap" && oH.colormap == "hot" && isequal(oH.cLim, [0 30]) && app.FigurePreviewState == "drawn" ...
+    && isscalar(imH) && isequal(clim(ancestor(imH, 'axes')), [0 30]), ...
+    'a PSTH''s Display "heat map": Colormap and Color limits shown (PSTH as, Fill, Stack, Y limits hidden), reaching the options and the preview''s image');
+FE.psthDisplay.Value = "trace";
+FE.panelColormap.Value = "auto";
+FE.cLim.Value = '';
+app.onConfigChanged("figure");
+oT = app.Config.Figures(1).panels(2).options;
+check(oT.display == "trace" && oT.colormap == "" && isempty(oT.cLim) && shown(FE.histStyle) && shown(FE.stack) && shown(FE.yLim) ...
+    && ~shown(FE.panelColormap) && ~shown(FE.cLim) && isempty(findall(app.FigurePreviewPanel, 'Type', 'image')) ...
+    && app.FigurePreviewState == "drawn", 'back to Display "trace": the trace rows again, the colormap "auto" stored as "", no image');
 nAx = numel(figAxes());
-check(any(string(FE.addType.ItemsData) == "rate") && any(string(FE.addType.ItemsData) == "tuning") ...
-    && any(string(app.FigureTemplateDropDown.ItemsData) == "rate") && any(string(app.FigureTemplateDropDown.ItemsData) == "tuning") ...
-    && any(string(FE.panelType.ItemsData) == "tuning") && all([app.Config.Figures(1).panels.common]) && app.FigurePreviewState == "drawn", ...
-    'the Add-panel, panel type and template drop-downs offer Firing rate and Tuning curve');
-FE.addType.Value = "rate";
-FE.addType.ValueChangedFcn(FE.addType, struct('Value', "rate"));
-app.onAddPanel("below");
+check(any(string(FE.panelType.ItemsData) == "rate") && any(string(FE.panelType.ItemsData) == "tuning") && app.FigurePreviewState == "drawn", ...
+    'the panel type drop-down offers Firing rate and Tuning curve');
+app.onNewPanel(Type="rate", Where="below");
 pr = app.Config.Figures(1).panels(end);
 check(pr.type == "rate" && isscalar(pr.layers) && pr.layers.source == "units" && pr.layers.binding == "observation" ...
     && app.FigurePreviewState == "drawn" && numel(figAxes()) == nAx + 1 && ~isempty(findall(app.FigurePreviewPanel, 'Tag', 'bar')) ...
@@ -1103,9 +1321,7 @@ FE.rateDisplay.Value = "points";
 app.onConfigChanged("figure");
 check(app.Config.Figures(1).panels(end).options.display == "points" && ~isempty(findall(app.FigurePreviewPanel, 'Tag', 'points')) ...
     && app.FigurePreviewState == "drawn", 'its Display reaches the options and the drawing (points)');
-FE.addType.Value = "tuning";
-FE.addType.ValueChangedFcn(FE.addType, struct('Value', "tuning"));
-app.onAddPanel("below");
+app.onNewPanel(Type="tuning", Where="below");
 pt = app.Config.Figures(1).panels(end);
 Lt = app.FigurePreviewResult.panels(end).layers(1);
 check(pt.type == "tuning" && pt.layers.binding == "observation" && app.FigurePreviewState == "drawn" && numel(figAxes()) == nAx + 2 ...
@@ -1113,8 +1329,6 @@ check(pt.type == "tuning" && pt.layers.binding == "observation" && app.FigurePre
     && shown(FE.param) && shown(FE.waveMode) && ~shown(FE.rateDisplay) ...
     && app.FigureSections([app.FigureSections.Name] == "options").Title == "Tuning curve options", ...
     'Tuning curve, Below: drawn at once over the figure''s group-by parameter (Depth), its Parameter rows shown');
-FE.panelCommon.Value = false;
-FE.panelCommon.ValueChangedFcn(FE.panelCommon, []);
 FE.param.Value = 'Depth';
 FE.seriesParam.Value = 'TrialType';
 app.onConfigChanged("figure");
@@ -1146,7 +1360,7 @@ o5 = app.Config.Figures(1).panels(kr).options;
 I5 = app.Config.validate(CheckPaths=false);
 check(o1.display == "lines" && isnan(o1.stackSpacing) && o2.display == "bar" && o3.stackSpacing == 1.5 ...
     && isnan(o4.stackSpacing) && o4.display == "lines" && o5.stackSpacing == 1.1 ...
-    && ~any(startsWith(I5.Field, "figure_1." + app.Config.Figures(1).panels(kr).id + ".options") & I5.Severity == "error"), ...
+    && ~any(startsWith(I5.Field, app.Config.Figures(1).id + "." + app.Config.Figures(1).panels(kr).id + ".options") & I5.Severity == "error"), ...
     sprintf(['rate -> continuous -> rate -> PSTH -> continuous -> PSTH: each takes its own display and stackSpacing ' ...
     'defaults, none the other''s (%s %g, %s, %g, %s %g, %g; preview %s)'], o1.display, o1.stackSpacing, o2.display, ...
     o3.stackSpacing, o4.display, o4.stackSpacing, o5.stackSpacing, app.FigurePreviewState));
@@ -1171,23 +1385,28 @@ check(app.ActiveIdx == find(app.Ticked, 1) && istable(app.FigureObservations) &&
 app.refreshFigurePreview(Force=true);
 % save, reopen, preferences
 app.onFigureSectionToggled("options");
+app.onFigureSuperToggled("look");
 app.FigureAutoCheckBox.Value = false;
 app.onFigureAutoPreviewToggled();
 app.onSaveConfig();
 app2 = EphysAnalysisApp();
 kept = isscalar(app2.Config.Figures) && isequaln(app2.Config.Figures, app.Config.Figures) && app2.SelectedFigure == 1 ...
-    && string(figureNode(app2.FiguresTree, 1).Text) == "figure_1  (2 panels)";
+    && string(figureNode(app2.FiguresTree, 1).Text) == app.Config.Figures(1).id + "  (2 panels)";
 restored = ~app2.FigureAutoCheckBox.Value && ~app2.FigureSections([app2.FigureSections.Name] == "options").Expanded ...
-    && app2.FigureSections([app2.FigureSections.Name] == "layers").Expanded;
+    && app2.FigureSections([app2.FigureSections.Name] == "layers").Expanded ...
+    && isequal([app2.FigureSupers.Expanded], [true true false]) && ~shown(app2.FigureEditor.fontSize);
 closeApp(app2);
 check(~startsWith(app.Fig.Name, "*") && kept, 'saved and opened again, the config keeps the figure');
-check(restored, 'a new app restores the Figures tab''s Auto and collapsed section');
+check(restored, 'a new app restores the Figures tab''s Auto, collapsed section and collapsed supersection (Look)');
 app.FigureAutoCheckBox.Value = true;
 app.onFigureAutoPreviewToggled();
 app.onFigureSectionToggled("options");
+app.onFigureSuperToggled("look");
 app.onRemoveFigure();
 check(isempty(app.Config.Figures) && isempty(findall(app.FiguresTree, 'Type', 'uitreenode')) && app.FigurePreviewState == "idle" && ~shown(FE.id) ...
-    && app.RemoveFigureButton.Enable == "off" && nPatches() == 0, 'Remove takes the figure away; the editor and preview are empty');
+    && app.RemoveFigureButton.Enable == "off" && nPatches() == 0 && ~any(arrayfun(@(u) shown(u.Header), app.FigureSupers)) ...
+    && isempty(findall(app.FigurePreviewPanel, 'Tag', 'previewPanelMark')), ...
+    'Remove takes the figure away; the editor (its supersection headers too) and preview (its outline too) are empty');
 % a spectrum panel (Chronux: the bundled copy, on the path for these checks only)
 spPath = "";
 if ~ChronuxDataset.hasChronux() && isfolder(fullfile(repo, 'toolboxes', 'chronux'))
@@ -1199,9 +1418,7 @@ if ~ChronuxDataset.hasChronux()
 else
     app.onAddFigure("blank");
     check(app.FigurePreviewState ~= "failed", 'a blank figure previews without failing (no axes for the aesthetics editor to read)');
-    FE.addType.Value = "spectrum";
-    FE.addType.ValueChangedFcn(FE.addType, []);
-    app.onAddPanel("below");
+    app.onNewPanel(Type="spectrum", Where="below");
     fs1 = app.Config.Figures(1);
     spAx = findall(app.FigurePreviewPanel, 'Type', 'axes', 'Tag', 'axes');
     spTr = findall(app.FigurePreviewPanel, 'Tag', 'trace');
@@ -1248,27 +1465,28 @@ fprintf('\n== 5e. Copy from... for figures ==\n');
 app.selectTab(app.TabFigures);
 app.onAddFigure("rasterPsth");
 want = app.Config.Figures(1);
-check(app.CopyFigureButton.Enable == "off" && want.id == "figure_1", 'Copy from... is off with one figure: there is no other to copy from');
+check(app.CopyFigureButton.Enable == "off" && want.id == "Raster+PSTH units", 'Copy from... is off with one figure: there is no other to copy from');
 app.onAddFigure("heatmap");
 cx = app.gatherConfig();
 cx.Figures(2).style.FontSize = 15;
-cx.Figures(2).common.bins.BinSec = 0.05;
+cx.Figures(2).panels(1).options.bins.BinSec = 0.05;
 app.applyConfig(cx);
 app.onFigureSelected(1);
 check(app.CopyFigureButton.Enable == "on", 'Copy from... is on with a figure selected and another to copy from');
-app.onCopyFigureSettings(From="figure_2", Parts="style");
+hid = app.Config.Figures(2).id;   % "Heatmap units": a fixed units layer, the dataset observed
+app.onCopyFigureSettings(From=hid, Parts="style");
 f1 = app.Config.Figures(1);
-check(f1.id == "figure_1" && f1.style.FontSize == 15 && f1.common.bins.BinSec ~= 0.05 && isequal([f1.panels.type], [want.panels.type]) ...
-    && contains(string(app.StatusBar.Text), "Copied from figure_2 onto figure_1: Appearance") && app.FigurePreviewState == "drawn", ...
-    'From= and Parts= copy the appearance alone; the panels and common options stay, the preview follows');
+check(hid == "Heatmap units" && f1.id == "Raster+PSTH units" && f1.style.FontSize == 15 && isequal([f1.panels.type], [want.panels.type]) ...
+    && contains(string(app.StatusBar.Text), "Copied from Heatmap units onto Raster+PSTH units: Appearance") && app.FigurePreviewState == "drawn", ...
+    'From= and Parts= copy the appearance alone; the panels stay, the preview follows');
 answerDialog('Copy figure settings', @copyFigureDialog);
 app.onCopyFigureSettings();
 seen = getappdata(groot, 'copyFigureSeen');
 if isappdata(groot, 'copyFigureSeen'); rmappdata(groot, 'copyFigureSeen'); end
 f1 = app.Config.Figures(1);
-check(isstruct(seen) && seen.count == "2 part(s) to copy" && seen.from == "figure_2  (1 panels)" ...
-    && f1.id == "figure_1" && isequal([f1.panels.type], "heatmap") && f1.common.bins.BinSec == 0.05 && app.SelectedPanel == 1 ...
-    && nPatches() == 1, 'the window copies the parts ticked (common options, arrangement): figure_1 is now the heat map''s panels');
+check(isstruct(seen) && seen.count == "2 part(s) to copy" && seen.from == "Heatmap units  (1 panels)" ...
+    && f1.id == "Heatmap units (2)" && isequal([f1.panels.type], "heatmap") && f1.panels.options.bins.BinSec == 0.05 && app.SelectedPanel == 1 ...
+    && nPatches() == 1, 'the window copies the parts ticked (alignment, arrangement): the figure is now the heat map''s panels, their options too, and its automatic id follows ("Heatmap units (2)")');
 app.onRemoveFigure();
 app.onFigureSelected(1);
 app.onRemoveFigure();
@@ -1412,6 +1630,14 @@ end
 check(app.FigurePreviewState == "drawn" && nRes > 1 && app.FigureSessionDropDown.Visible == "on" ...
     && app.FigureSessionResults.label == app.FigureSessionResults.res(2).label && contains(string(app.FigurePreviewLabel.Text), app.FigureSessionResults.res(2).label), ...
     sprintf('a figure per trial group: the "Figure:" drop-down picks which of the %d is drawn, computing nothing', nRes));
+codeFileS = fullfile(root, 'preview_sessions.m');
+codeS = app.onFigureCode(string(codeFileS));
+[FcS, hcS] = runPreviewCode(codeFileS);
+closeCodeS = onCleanup(@() delete(hcS(isgraphics(hcS))));
+check(contains(codeS, "res = figureSessionCompute(sources, sessions, spec, Observation=obs);") && all(contains(codeS, app.Runner.Keys)) ...
+    && contains(codeS, """" + app.FigureSessionResults.label + """") && sameResult(FcS, app.FigurePreviewResult) && height(FcS.sessions) == 2, ...
+    'Export code of a figure across sessions: run, the script merges the observation over both datasets and draws the figure picked under the preview');
+delete(hcS);
 Tt = app.DatasetsTable.Data;
 Tt.Run(2) = false;
 app.DatasetsTable.Data = Tt;
@@ -1435,7 +1661,7 @@ folderS = figureFileName(gXS.SessionsFolder, struct('OutputFolder', app.Runner.d
     'Root', app.Config.Source.Root, 'Name', app.Runner.Names(k1S)), Kind="folder");
 wantS = split(RS.Files(1), "; ");
 check(istable(RS) && height(RS) == 1 && RS.Kind == "figure" && RS.Dataset == "sessions: all" && RS.Status == "done" && all(isfile(wantS)) ...
-    && numel(wantS) == height(TS) * numel(gXS.Formats) && all(startsWith(wantS, folderS)) && all(contains(wantS, sid + "_site_ch")) ...
+    && numel(wantS) == height(TS) * numel(gXS.Formats) && all(startsWith(wantS, folderS)) && all(contains(wantS, regexprep(sid, '[^\w\-\.]', '_') + "_site_ch")) ...
     && startsWith(string(app.StatusBar.Text), "Generated " + sid + " across the sessions: all: " + height(TS) + " observation(s); "), ...
     sprintf('Generate on a session figure writes a page per site into the sessions folder (%d), one results row', height(TS)));
 app.onRemoveFigure();
@@ -1548,8 +1774,9 @@ for sname = ["note" "overlays"]
     if ~app.FigureSections([app.FigureSections.Name] == sname).Expanded; app.onFigureSectionToggled(sname); end
 end
 Sn = app.FigureSections([app.FigureSections.Name] == "note");
-check(shown(FE.annText) && shown(FE.ovList) && ~shown(FE.ovName) && Sn.Title == "Text note on psth_1" && Sn.Key == "" ...
-    && FE.annPlace.Enable == "off", 'the Text note and Overlays sections show for the panel picked (no key), the note''s look off without text');
+check(shown(FE.annText) && shown(FE.ovList) && ~shown(FE.ovName) && Sn.Title == "Text note on psth_1" && Sn.Key == "0" ...
+    && app.FigureSections([app.FigureSections.Name] == "overlays").Key == "" && FE.annPlace.Enable == "off", ...
+    'the Text note and Overlays sections show for the panel picked (Text note on Ctrl+0, Overlays no key), the note''s look off without text');
 FE.annText.Value = {'n = 12'};
 FE.annPlace.Value = "northeast";
 FE.annColor.Value = "#ff0000";
@@ -1585,6 +1812,23 @@ cfgG = app.gatherConfig();
 check(isequaln(cfgG.Figures(1).panels(2).note, app.Config.Figures(1).panels(2).note) ...
     && isequaln(cfgG.Figures(1).panels(2).overlays, app.Config.Figures(1).panels(2).overlays), ...
     'gather after apply gives the panel''s note and overlays back unchanged');
+% a panel's Box row (every type) and the raster's Show y ticks row (rasters only)
+app.onPanelSelected(1);
+boxShown = shown(FE.panelBox) && shown(FE.yTicks) && string(FE.panelBox.Value) == "auto" && ~FE.yTicks.Value;
+FE.panelBox.Value = "off";
+FE.yTicks.Value = true;
+app.onConfigChanged("figure");
+pBx = app.Config.Figures(1).panels(1);
+axBx = findall(app.FigurePreviewPanel, 'Tag', 'rasterAxes');
+check(boxShown && pBx.box == "off" && pBx.options.yTicks && app.FigurePreviewState == "drawn" && isscalar(axBx) ...
+    && string(axBx.Box) == "off" && numel(axBx.YTick) >= 2, ...
+    'the Panel section''s Box row and a raster''s Show y ticks row reach the panel, and the preview draws them');
+FE.panelBox.Value = "auto";
+FE.yTicks.Value = false;
+app.onConfigChanged("figure");
+app.onPanelSelected(2);
+check(shown(FE.panelBox) && ~shown(FE.yTicks) && app.Config.Figures(1).panels(1).box == "auto" && ~app.Config.Figures(1).panels(1).options.yTicks, ...
+    'a PSTH panel has the Box row but no y ticks row; both back to their defaults on the raster');
 
 % drag a panel in the schematic: the press installs the window's pointer callbacks; motion shades the target; release applies
 if ~app.FigureSections([app.FigureSections.Name] == "arrangement").Expanded; app.onFigureSectionToggled("arrangement"); end
@@ -1620,9 +1864,7 @@ check(isempty(app.FigureDrag) && isempty(app.Fig.WindowButtonMotionFcn) && isemp
     && isempty(findall(sch(), 'Tag', 'schematicDragOutline')) && app.FigurePreviewState == "drawn", ...
     'released there, raster_1 is moved below psth_1 (removePanel, placePanel); the callbacks are cleared, the schematic and preview redrawn');
 app.onPanelSelected(qOf("psth_1"));
-FE.addType.Value = "continuous";
-FE.addType.ValueChangedFcn(FE.addType, []);
-app.onAddPanel("right");   % a column right of psth_1: the cell under it, right of raster_1, stays empty
+app.onNewPanel(Type="continuous", Where="right");   % a column right of psth_1: the cell under it, right of raster_1, stays empty
 emptyCell = EphysAnalysisConfig.figureCells(app.Config.Figures(1));
 app.Fig.CurrentPoint = [400 300];
 app.onSchematicPress(qOf("raster_1"), struct('IntersectionPoint', [0.25 0.75 0]));
@@ -1692,14 +1934,160 @@ app.onSaveConfig();
 app.Tabs.SelectedTab = app.TabData;
 clear restoreAutoLimit5h
 
+fprintf('\n== 5i. favorites: stars on datasets, units and channels; the Favorites lists ==\n');
+app.FigureAutoPreviewSeconds = Inf;   % as in 5d-5f
+restoreAutoLimit5i = onCleanup(@() resetAutoLimit(app));
+FE = app.FigureEditor;
+kF1 = find(app.Runner.Names == F.names(1));
+kF2 = find(app.Runner.Names == F.names(2));
+app.selectDataset(kF1);
+favDD = app.FigureFavorites.DropDown;
+check(numel(app.Favorites) == 2 && isa(app.Favorites, 'DatasetFavorites') && ~any([app.Favorites.Dataset]) ...
+    && ~any(app.DatasetsTable.Data.Star) && app.FiguresDatasetStar.Enable == "on" && ~app.FiguresDatasetStar.Value ...
+    && string(app.FiguresDatasetStar.Text) == "☆" && startsWith(string(favDD.Items{1}), "(no favorites") ...
+    && isequal(string(app.AlignFavorites.DropDown.Items), string(favDD.Items)), ...
+    'no star yet: the Data tab''s ★ column clear, the star toggles on and empty, the Favorites lists say so');
+app.onStarToggled("dataset", true);
+fav1 = app.Favorites(kF1);
+J1 = jsondecode(fileread(fav1.File));
+check(fav1.Dataset && isfile(fav1.File) && fav1.File == fullfile(app.Runner.datasetFolder(kF1), F.names(1) + "_favorites.json") ...
+    && J1.schema == "ephys-favorites/1" && J1.starred && app.FiguresDatasetStar.Value && app.AlignDatasetStar.Value ...
+    && string(app.FiguresDatasetStar.Text) == "★" && startsWith(string(app.FiguresDatasetDropDown.Items{kF1}), "★ " + F.names(1)) ...
+    && ~startsWith(string(app.FiguresDatasetDropDown.Items{kF2}), "★") && app.DatasetsTable.Data.Star(app.DatasetsTable.Data.Idx == kF1) ...
+    && numel(favDD.Items) == 2 && string(favDD.Items{2}) == F.names(1) && favDD.Value == 0 && contains(app.StatusBar.Text, "Starred " + F.names(1)), ...
+    sprintf('the star beside Dataset stars the active dataset at once: <Name>_favorites.json in its output folder, ★ in the drop-downs, the table and Favorites ("%s")', ...
+    app.StatusBar.Text));
+ticked0 = app.Ticked;
+TD = app.DatasetsTable.Data;
+TD.Star(TD.Idx == kF2) = true;
+app.DatasetsTable.Data = TD;
+app.onDatasetsTableEdited([]);
+check(app.Favorites(kF2).Dataset && isfile(app.Favorites(kF2).File) && isequal(app.Ticked, ticked0) && numel(favDD.Items) == 3, ...
+    'ticking ★ in the Data tab''s table stars that dataset (the Run ticks stay)');
+app.onScan();
+check(numel(app.Favorites) == 2 && all([app.Favorites.Dataset]) && all(app.DatasetsTable.Data.Star) && numel(favDD.Items) == 3, ...
+    'a new scan reads the stars back from the datasets'' files');
+app.selectTab(app.TabFigures);
+app.selectDataset(kF1);
+app.onAddFigure("rasterPsth");
+TU = app.FigureObservations;
+oDD = app.FigureObservationDropDown;
+oDD.Value = 2;
+app.onFigureObservationChanged();
+u2 = TU.unitId(2);
+idF = char(app.Config.Figures(1).id);
+app.onStarToggled("observation", true);
+J1 = jsondecode(fileread(app.Favorites(kF1).File));
+oItems = string(oDD.Items);
+check(app.Favorites(kF1).isStarred("unit", u2) && app.FigureObservationStar.Value && startsWith(oItems(2), "★ " + TU.label(2)) ...
+    && ~startsWith(oItems(1), "★") && oDD.Value == 2 && string(app.FigureObservation(idF)) == TU.label(2) ...
+    && isscalar(J1.units) && J1.units.ids == u2 && string(J1.units.sort) ~= "" && J1.units.spikeTimesBytes > 0, ...
+    sprintf('the star beside the observation stars the unit previewed, with its sort ("%s", %d bytes of spike times); the picker marks it and keeps the pick', ...
+    string(J1.units.sort), J1.units.spikeTimesBytes));
+app.onFigureObservationStep(-1);
+offOther = ~app.FigureObservationStar.Value && app.FigureObservationStar.Enable == "on";
+app.onFigureObservationStep(1);
+check(offOther && app.FigureObservationStar.Value && contains(figTitle(), TU.label(2)), ...
+    '< and > step through the marked list, the star toggle following each unit');
+E = app.FavoriteEntries;
+iu = find(E.level == "unit");
+check(height(E) == 3 && isequal(E.level(E.dataset == kF1), ["dataset"; "unit"]) && isequal(E.level(E.dataset == kF2), "dataset") ...
+    && issorted(E.dataset) && isscalar(iu) && E.label(iu) == F.names(1) + " · unit " + u2 ...
+    && numel(favDD.Items) == 4 && contains(string(favDD.Items{1}), "3 favorites"), ...
+    sprintf('Favorites lists each starred dataset with its units, in dataset order ("%s")', E.label(iu)));
+app.onFavoritesFilter("FigureFavorites", "UNIT " + u2);
+fItems = string(favDD.Items);
+check(numel(fItems) == 2 && fItems(2) == E.label(iu) && contains(fItems(1), "1 of 3") && isequal(favDD.ItemsData, [0 iu]), ...
+    'typing in the filter narrows the Favorites list (every word, any case)');
+app.onFavoritesFilter("FigureFavorites", "no such thing");
+check(numel(favDD.Items) == 1 && contains(string(favDD.Items{1}), "0 of 3"), 'a filter nothing matches leaves only the count');
+app.onFavoritesFilter("FigureFavorites", "");
+app.selectDataset(kF2);
+favDD.Value = iu;
+app.onFavoritePicked("FigureFavorites");
+check(app.ActiveIdx == kF1 && oDD.Value == 2 && app.FigurePreviewState == "drawn" && contains(figTitle(), TU.label(2)) ...
+    && favDD.Value == 0 && app.FigureObservationStar.Value, ...
+    'picking the starred unit in Favorites makes its dataset active and previews that unit');
+app.selectTab(app.TabAlign);
+aDD = app.AlignFavorites.DropDown;
+aDD.Value = find(app.FavoriteEntries.dataset == kF2, 1);
+app.onFavoritePicked("AlignFavorites");
+check(app.ActiveIdx == kF2 && string(app.AlignDatasetDropDown.Value) == string(kF2) && app.AlignDatasetStar.Value && aDD.Value == 0, ...
+    'the Alignment tab''s Favorites: picking a dataset makes it active');
+aDD.Value = find(app.FavoriteEntries.level == "unit", 1);
+app.onFavoritePicked("AlignFavorites");
+check(app.ActiveIdx == kF1 && oDD.Value == 2 && app.FigurePreviewState ~= "computing" && string(app.FigureObservation(idF)) == TU.label(2), ...
+    'picked from the Alignment tab, a starred unit becomes the Figures tab''s pick on its dataset');
+app.selectTab(app.TabFigures);
+FE.observe.Value = "LFP";
+app.onConfigChanged("figure");
+TLf = app.FigureObservations;
+oDD.Value = 1;
+app.onFigureObservationChanged();
+app.onStarToggled("observation", true);
+ch1 = TLf.channel(1);
+check(app.Favorites(kF1).isStarred("channel", ch1) && startsWith(string(oDD.Items{1}), "★ ") && app.FigureObservationStar.Value ...
+    && any(app.FavoriteEntries.label == F.names(1) + " · channel " + ch1), ...
+    sprintf('a figure of LFP channels: the star stars the channel (channel %d), marked in the picker and listed', ch1));
+srcF = app.Runner.source(kF1);
+if srcF.hasDetected
+    FE.observe.Value = "detected";
+    app.onConfigChanged("figure");
+    TDf = app.FigureObservations;
+    oDD.Value = 1;
+    app.onFigureObservationChanged();
+    app.onStarToggled("observation", true);
+    chD = TDf.channel(1);
+    marked = startsWith(string(oDD.Items), "★");
+    check(app.Favorites(kF1).isStarred("channel", chD) && marked(1) && isequal(marked(:), ismember(TDf.channel, app.Favorites(kF1).Channels)), ...
+        sprintf('a detection channel is starred as its channel (channel %d); every detection channel whose channel is starred is marked', chD));
+end
+FE.observe.Value = "dataset";
+app.onConfigChanged("figure");
+check(app.FigureObservationStar.Value && startsWith(string(oDD.Items{1}), "★ "), ...
+    'a figure of the dataset: the observation''s star is the dataset''s');
+app.onStarToggled("observation", false);
+check(~app.Favorites(kF1).Dataset && ~app.FiguresDatasetStar.Value && app.Favorites(kF1).isStarred("unit", u2), ...
+    'unstarring the dataset from there leaves its unit and channel stars');
+FE.observe.Value = "units";
+app.onConfigChanged("figure");
+app.selectDataset(kF2);
+app.onStarToggled("dataset", false);
+fav2 = app.Favorites(kF2);
+check(~fav2.Dataset && ~isfile(fav2.File), 'unstarring the last star removes the file');
+if ispc
+    me = string(getenv('USERNAME'));
+    folder2 = fav2.Folder;
+    [stDeny, outDeny] = system(sprintf('icacls "%s" /deny "%s":(W)', folder2, me));
+    undeny = onCleanup(@() system(sprintf('icacls "%s" /remove:d "%s"', folder2, me)));
+    if stDeny == 0
+        app.onStarToggled("dataset", true);
+        check(~fav2.Dataset && ~isfile(fav2.File) && ~app.FiguresDatasetStar.Value && ~app.DatasetsTable.Data.Star(app.DatasetsTable.Data.Idx == kF2) ...
+            && contains(app.StatusBar.Text, "not starred") && contains(app.StatusBar.Text, "read-only") && isvalid(app.Fig), ...
+            sprintf('an output folder that cannot be written (read-only): no star, the toggle back off, the status bar says why ("%s")', app.StatusBar.Text));
+    else
+        fprintf('  (skipped the read-only folder: icacls could not deny writing: %s)\n', strtrim(outDeny));
+    end
+    clear undeny
+end
+while ~isempty(app.Config.Figures)
+    app.onFigureSelected(1);
+    app.onRemoveFigure();
+end
+app.onSaveConfig();
+app.Tabs.SelectedTab = app.TabData;
+clear restoreAutoLimit5i
+
 fprintf('\n== 6. close ==\n');
 app.savePreferences();
 shutNow = [string.empty(1, 0) app.FigureSections(~[app.FigureSections.Expanded]).Name];
+superShut = [string.empty(1, 0) app.FigureSupers(~[app.FigureSupers.Expanded]).Name];
 check(strcmp(AppPrefs.getpref(g, 'LastConfigFile'), cfgFile) ...
     && isequal(sort(string(AppPrefs.getpref(g, 'FigureSectionsCollapsed'))), sort(shutNow)) ...
+    && AppPrefs.ispref(g, 'FigureSupersectionsCollapsed') && isempty(setxor(string(AppPrefs.getpref(g, 'FigureSupersectionsCollapsed')), superShut)) ...
     && ~any(arrayfun(@(n) AppPrefs.ispref(g, n), ["AutoPreview" "PlotGroupBy" "PlotGroupsCollapsed" "PlotSectionsCollapsed" ...
     "SessionAutoPreview" "SessionSectionsCollapsed"])), ...
-    'the last config and the figure editor''s collapsed sections are remembered; no plot or session preference is written');
+    'the last config and the figure editor''s collapsed sections and supersections are remembered; no plot or session preference is written');
 app.onShowEpochs();
 dz = app.EpochDiagramWindow;
 app.onClose();
@@ -1751,10 +2139,36 @@ end
 end
 
 
+function newPanelAnswer(D)
+%newPanelAnswer  In the New panel window: note its tiles, their pictures, the place and the parameters; pick Continuous signal, name and title it, stacked rows, OK (appdata newPanelSeen).
+types = string(fieldnames(D.Types)).';
+icons = arrayfun(@(t) (ischar(D.Types.(t).Icon) || isstring(D.Types.(t).Icon)) && isfile(string(D.Types.(t).Icon)), types);
+failed = strings(1, 0);
+for t = types   % every type's key parameters build
+    try
+        D.Pick(t);
+        if ~(D.Types.(t).Value && isstruct(D.Params())); failed(end+1) = t; end %#ok<AGROW>
+    catch ME
+        failed(end+1) = t + " (" + ME.message + ")"; %#ok<AGROW>
+    end
+end
+D.Pick("continuous");
+P = D.Params();
+seen = struct('types', types, 'icons', icons, 'where', string(D.Where.Enable), 'params', string(fieldnames(P)).', ...
+    'name0', string(D.Name.Value), 'binding', string(P.Binding.Enable), 'failed', failed);
+D.Name.Value = 'lfp_a';
+D.Name.ValueChangedFcn(D.Name, []);
+D.Title.Value = 'Its LFP';
+P.Display.Value = "stacked";
+setappdata(groot, 'newPanelSeen', seen);
+press(D, "Ok");
+end
+
+
 function copyFigureDialog(D)
-%copyFigureDialog  In the Copy figure settings window: None, tick Common options and Arrangement, note the count, Copy.
+%copyFigureDialog  In the Copy figure settings window: None, tick Alignment and Arrangement, note the count, Copy.
 press(D, "None");
-for b = [D.Boxes.common D.Boxes.arrangement]
+for b = [D.Boxes.alignment D.Boxes.arrangement]
     b.Value = true;
     b.ValueChangedFcn(b, []);
 end
@@ -1811,6 +2225,32 @@ end
 end
 
 
+function [F, fig] = runPreviewCode(file) %#ok<STOUT> the script sets them
+%runPreviewCode  Run a script of Export code (EphysAnalysisScript.preview) in a workspace of its own: its figure result and window.
+run(file);
+end
+
+
+function tf = sameResult(a, b)
+%sameResult  Two figure results hold the same data: equal but for when each was made (created) and the shape of an empty value.
+if isstruct(a) && isstruct(b)
+    tf = isequal(size(a), size(b)) && isempty(setxor(fieldnames(a), fieldnames(b)));
+    if ~tf; return; end
+    for k = 1:numel(a)
+        for f = setdiff(string(fieldnames(a)), "created").'
+            tf = tf && sameResult(a(k).(f), b(k).(f));
+        end
+    end
+elseif iscell(a) && iscell(b)
+    tf = isequal(size(a), size(b)) && all(cellfun(@sameResult, a(:), b(:)));
+elseif isempty(a) && isempty(b)
+    tf = true;
+else
+    tf = isequaln(a, b);
+end
+end
+
+
 function closeApp(app)
 try
     if isvalid(app) && isvalid(app.Fig)
@@ -1828,6 +2268,41 @@ if isfolder(root)
     catch
     end
 end
+end
+
+
+function [b, n] = markBox(P)
+%markBox  The preview's outline of the selected panel (markFigurePanel): the box its visible strips make, [x0 y0 x1 y1] px, and how many there are.
+M = findall(P, 'Tag', 'previewPanelMark');
+M = M(strcmp(get(M, 'Visible'), 'on'));
+n = numel(M);
+b = [NaN NaN NaN NaN];
+if n == 0; return; end
+p = reshape([M.Position], 4, []).';
+b = [min(p(:, 1)) min(p(:, 2)) max(p(:, 1) + p(:, 3)) max(p(:, 2) + p(:, 4))];
+end
+
+
+function ax = findPanelAxes(P, id)
+%findPanelAxes  The preview's (first) axes of panel ID.
+ax = findall(P, 'Type', 'axes');
+ax = ax(arrayfun(@(a) isappdata(a, 'FigurePanel') && string(getappdata(a, 'FigurePanel')) == id, ax));
+ax = ax(1);
+end
+
+
+function e = expectBox(P, id)
+%expectBox  Where the outline of panel ID belongs: its axes and their labels (TightInset), 7 px out, inside the preview.
+ax = findPanelAxes(P, id);
+p = ax.Position;
+t = ax.TightInset;
+sz = P.InnerPosition(3:4);
+e = [max([p(1) - t(1), p(2) - t(2)] - 7, 1), min([p(1) + p(3) + t(3), p(2) + p(4) + t(4)] + 7, sz)];
+end
+
+
+function tf = boxNear(a, b)
+tf = all(isfinite(a)) && max(abs(a - b)) < 1.5;
 end
 
 

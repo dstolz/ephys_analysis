@@ -8,8 +8,9 @@ function reason = figureSessionSkipReason(spec, reasons, opts)
 %     "disabled"
 %     "not a session figure" (sessions.enabled is false: it is drawn per
 %                  dataset)
-%     "a <type> panel is not merged across sessions" (a panel type in
-%                  EphysAnalysisConfig.FigureSessionUnmerged)
+%     "<type> panels are not merged across sessions" (a panel type in
+%                  EphysAnalysisConfig.FigureSessionUnmerged, named as
+%                  panelTypeWords names it: "probe map panels ...")
 %     "an auROC baseline is not merged across sessions"
 %     "no mapping file" / "mapping file not found: F" (a unit observation
 %                  with match "mapping")
@@ -35,7 +36,7 @@ if ~ss.enabled; reason = "not a session figure"; return; end
 for k = 1:numel(spec.panels)
     p = spec.panels(k);
     if ismember(p.type, EphysAnalysisConfig.FigureSessionUnmerged)
-        reason = "a " + p.type + " panel is not merged across sessions";
+        reason = panelTypeWords(p.type) + " panels are not merged across sessions";
         return
     end
     o = p.options;

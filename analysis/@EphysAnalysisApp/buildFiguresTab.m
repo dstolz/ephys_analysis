@@ -12,33 +12,38 @@ function buildFiguresTab(obj)
 %           dataset; enabled / off; none), each node with a check box that
 %           ticks or unticks the figure, or every figure of a group
 %           (onFigureTreeClicked), All / None / Invert (onFigureCheck);
-%           the template a new one starts from
-%           (EphysAnalysisConfig.figureTemplates, "Raster over PSTH (per
-%           unit)" first) with Add, and Remove, Duplicate, Up, Down (within
-%           its group) and
+%           Add (a blank figure, then the New panel window: onAddFigure),
+%           Remove, Duplicate ("<id> (2)": onDuplicateFigure), Up, Down
+%           (within its group) and
 %           Copy from... (onCopyFigureSettings: another figure's settings,
 %           part by part).
-%   Middle  the editor, a column of sections (formSection): Id, Title,
-%           Enabled and a summary, always open; then Observations (what the
-%           figure is drawn for, the unit filter, Per trial group: one
-%           figure per observation and group), Arrangement (the
+%   Middle  the editor, a column of sections (formSection): Id (with
+%           auto: the id follows the panels and data until one is typed:
+%           onIdEdited, onIdAutoToggled), Title,
+%           Enabled and a summary, always open; then Observations (the data
+%           the figure is drawn for, the unit filter or the channels, Per
+%           trial group: one
+%           figure per observation and group), Panels (the
 %           schematic of the grid, drawFigureSchematic: click a panel to
 %           pick it, or drag it to an empty cell or to an edge of another
-%           panel, onSchematicPress; Add panel above / below / left / right of it; its
-%           spans, its row's height and column's width, the spacing,
-%           Remove panel, Move), Panel (its type, title, group shown), the
+%           panel, onSchematicPress; New panel... (the New panel window:
+%           its type, name, place and key parameters, onNewPanel); its
+%           spans, its row's height and column's width, its own size in its
+%           cell and where it sits there, the spacing with Spacing...
+%           (figureSpacingDialog: the gaps between the panels),
+%           Remove panel, Move), Selected panel (its type, title, box,
+%           group shown), the
 %           figure's Event reference, Epoch window and Trial selection (the
 %           Alignment tab's while "Use default" is ticked; Epoch Diagram),
-%           Common options (the figure's bins, measure, baseline, mask and
-%           waveform inset, which every linked panel takes), Panel alignment
+%           Panel alignment
 %           (the panel's own event and window, locked to the figure's while
 %           "Same as the figure" is ticked; its own trial selection, locked
 %           to the figure's while "Trial selection as the figure" is ticked:
 %           onPanelSelectionToggled; Apply to all panels, Re-link all
 %           panels), Layers (the panel's layers, Add a source the type
 %           draws, Remove, Up, Down, and the rows of the layer picked), the
-%           panel type's Options ("Common options from the figure": its
-%           common rows locked to the figure's; Apply to all panels),
+%           panel type's Options (all of the panel's own; Apply to all
+%           panels: applyOptionsToAll),
 %           the panel's Text note and Overlays (for the selected panel:
 %           onAddFigureOverlay, onFigureOverlayPicked),
 %           Appearance, Looks and Sessions (Across sessions: the figure
@@ -49,31 +54,52 @@ function buildFiguresTab(obj)
 %           across the sessions, with a "Figure:" drop-down under it for
 %           one figure per subject or trial group, and the Dataset
 %           drop-down is off). Each section collapses under its colored
-%           header (onFigureSectionToggled); Ctrl+1 to Ctrl+9 and Ctrl+0 go
-%           to the first ten, Observations to Options (gotoFigureSection;
-%           onKeyPress); Text note, Overlays, Appearance, Looks and Sessions have no key. syncFigureEditor
+%           header (onFigureSectionToggled). The sections stand under three
+%           supersections, each a dark header that collapses them all
+%           (onFigureSuperToggled): Figure (Observations, Event reference,
+%           Epoch window, Trial selection, Sessions, Panels), Panel
+%           (Selected panel, Panel alignment, Layers, Options, Text note, Overlays;
+%           its header names the selected panel) and Look (Appearance,
+%           Looks), built in that order so Tab follows it. Alt+1 to Alt+3
+%           go to a supersection (gotoFigureSuper), Ctrl+1 to Ctrl+9 and
+%           Ctrl+0 to the first ten sections, Observations to Text note
+%           (gotoFigureSection; onKeyPress); Sessions, Overlays, Appearance
+%           and Looks have no key. Over the editor, a search field
+%           (Ctrl+F; onFigureSearch) lists the rows whose label (or
+%           tooltip) has the words typed, "Supersection > Section > Row",
+%           in a list under it; Enter or a click goes there (gotoFigureRow),
+%           "?" lists the tab's keys (onFigureKeys). syncFigureEditor
 %           shows the rows the figure, panel and layer use;
 %           layoutFigureEditor packs them.
 %   Right   the dataset, the observation picked (figureObservations' labels)
-%           with < and > (Page Up / Page Down), Preview, Generate (the
+%           with < and > (Page Up / Page Down), each with its star toggle
+%           (starButton, onStarToggled), the Favorites (buildFavorites: a
+%           filter and every starred dataset, channel and unit, picked to
+%           preview: onFavoritePicked), Preview, Generate (the
 %           figure for every observation on every ticked dataset, into the
-%           Export folder: onGenerateFigure), Auto, the Design row (the
-%           design every figure is drawn in, also in the Design menu:
-%           onDesignChosen; Save look as design...: the preview's look as a
-%           design of yours, onSaveDesign), the preview panel (refreshFigurePreview: computeFigure
-%           and renderFigure for that one observation), its badge
-%           (setFigurePreviewState) and status line.
+%           Export folder: onGenerateFigure), Auto, Export code at the
+%           row's right (the code that draws the preview, in the editor:
+%           onFigureCode), the Design drop-down
+%           right of them (the design every figure is drawn in, also in
+%           the Design menu: onDesignChosen; Save look as design... under
+%           it: the preview's look as a design of yours, onSaveDesign),
+%           the preview panel (refreshFigurePreview: computeFigure
+%           and renderFigure for that one observation; the selected panel
+%           outlined there, markFigurePanel), its badge
+%           (setFigurePreviewState) and status line, with Open in window at its
+%           right (onOpenFigureWindow: the figure in a figure() of its own).
 g = uigridlayout(obj.TabFigures, [1 3]);
 g.ColumnWidth = {285, 470, '1x'};
 g.Padding = [8 8 8 8];
 changed = @(~,~) obj.onConfigChanged("figure");
 gray = [0.35 0.35 0.35];
 obj.FigureObservation = containers.Map('KeyType', 'char', 'ValueType', 'any');
+obj.FigureIdRenames = containers.Map('KeyType', 'char', 'ValueType', 'any');
 PT = EphysAnalysisConfig.panelTypes();
 
 % --- left: the figures, a tree under groups ------------------------------------------------------
-lg = uigridlayout(g, [10 2]);
-lg.RowHeight = {22, 28, 30, '1x', 28, 30, 30, 30, 30, 64};
+lg = uigridlayout(g, [9 2]);
+lg.RowHeight = {22, 28, 30, '1x', 30, 30, 30, 30, 64};
 lg.ColumnWidth = {'1x', '1x'};
 lg.Padding = [0 0 0 0];
 l = uilabel(lg, "Text", "Figures  (ticked = enabled)", "FontWeight", "bold");
@@ -101,59 +127,74 @@ obj.FiguresTree = uitree(lg, "Multiselect", "off", "SelectionChangedFcn", @(~, e
     "and preview it. The box on a figure is ticked while it is enabled (Run draws it): click the box to tick or " + ...
     "untick it. A group's box is ticked when all its figures are, half-filled when some are; click it to tick or untick them all.");
 place(obj.FiguresTree, 4, [1 2]);
-FT = EphysAnalysisConfig.figureTemplates();
-obj.FigureTemplateDropDown = uidropdown(lg, "Items", FT.Label, "ItemsData", FT.Template, "Value", FT.Template(1), ...
-    "Tooltip", "What a new figure starts from: a raster over a PSTH of the observed unit, one panel of a type, or a blank grid.");
-place(obj.FigureTemplateDropDown, 5, [1 2]);
-obj.AddFigureButton = uibutton(lg, "Text", "Add", "ButtonPushedFcn", @(~,~) obj.onAddFigure(string(obj.FigureTemplateDropDown.Value)), ...
-    "Tooltip", "Add a figure from the template above, edit it, and preview its first observation.");
-place(obj.AddFigureButton, 6, [1 2]);
+obj.AddFigureButton = uibutton(lg, "Text", "Add", "ButtonPushedFcn", @(~,~) obj.onAddFigure(), ...
+    "Tooltip", "Add a blank figure and pick its first panel in the New panel window (Cancel leaves it blank).");
+place(obj.AddFigureButton, 5, [1 2]);
 obj.RemoveFigureButton = uibutton(lg, "Text", "Remove", "ButtonPushedFcn", @(~,~) obj.onRemoveFigure(), ...
     "Tooltip", "Remove the selected figure from the config.");
-place(obj.RemoveFigureButton, 7, 1);
+place(obj.RemoveFigureButton, 6, 1);
 obj.DuplicateFigureButton = uibutton(lg, "Text", "Duplicate", "ButtonPushedFcn", @(~,~) obj.onDuplicateFigure(), ...
-    "Tooltip", "Copy the selected figure under a new id, right after it; the copy is selected.");
-place(obj.DuplicateFigureButton, 7, 2);
+    "Tooltip", "Copy the selected figure right after it, as ""<id> (2)"" (the next free number); the copy is selected.");
+place(obj.DuplicateFigureButton, 6, 2);
 obj.UpFigureButton = uibutton(lg, "Text", "Up", "ButtonPushedFcn", @(~,~) obj.onMoveFigure(-1), ...
     "Tooltip", "Move the selected figure up its group (the run order).");
-place(obj.UpFigureButton, 8, 1);
+place(obj.UpFigureButton, 7, 1);
 obj.DownFigureButton = uibutton(lg, "Text", "Down", "ButtonPushedFcn", @(~,~) obj.onMoveFigure(1), ...
     "Tooltip", "Move the selected figure down its group (the run order).");
-place(obj.DownFigureButton, 8, 2);
+place(obj.DownFigureButton, 7, 2);
 obj.CopyFigureButton = uibutton(lg, "Text", "Copy from...", "ButtonPushedFcn", @(~,~) obj.onCopyFigureSettings(), ...
     "Tooltip", "Copy another figure's settings onto the selected figure: pick the figure and the parts (observations, " + ...
-    "alignment, common options, arrangement and panels, appearance, looks). It keeps its id, title and enabled.");
-place(obj.CopyFigureButton, 9, [1 2]);
+    "alignment, arrangement and panels, appearance, looks, across sessions). It keeps its id, title and enabled.");
+place(obj.CopyFigureButton, 8, [1 2]);
 l = uilabel(lg, "Text", "A figure is one observation's panels: a unit's, a channel's or the dataset's. " + ...
     "Generate draws it for each observation; Run (Export tab) draws the enabled ones.", ...
     "WordWrap", "on", "FontColor", gray, "VerticalAlignment", "top");
-place(l, 10, [1 2]);
+place(l, 9, [1 2]);
 
-% --- middle: the editor --------------------------------------------------------------------------
-ep = uipanel(g, "Title", "Figure");
+% --- middle: the search field, its matches and the editor ------------------------------------------
+mc = uigridlayout(g, [3 1], "RowHeight", {30, 0, '1x'}, "Padding", [0 0 0 0], "RowSpacing", 4);
+fg0 = uigridlayout(mc, [1 2], "ColumnWidth", {'1x', 34}, "Padding", [0 0 0 0], "ColumnSpacing", 4);
+obj.FigureSearchField = uieditfield(fg0, "text", "Placeholder", "Find a setting by name  (Ctrl+F)", ...
+    "ValueChangingFcn", @(~, evt) obj.onFigureSearch(evt.Value), ...
+    "Tooltip", "Type part of a setting's name (or a word of its tooltip): the matches are listed below as " + ...
+    """Supersection > Section > Row"". Enter goes to the first (Down and Up pick another), as does a click on one: " + ...
+    "its supersection and section open, the editor scrolls to it, and the row is highlighted. Escape clears the search.");
+obj.FigureKeysButton = uibutton(fg0, "Text", "?", "FontWeight", "bold", "ButtonPushedFcn", @(~,~) obj.onFigureKeys(), ...
+    "Tooltip", "The Figures tab's keys: to move between the supersections, sections, columns and panels with the keyboard.");
+obj.FigureSearchList = uilistbox(mc, "Items", {}, "Visible", "off", ...
+    "ValueChangedFcn", @(lb, ~) searchPicked(obj, lb, false), "ClickedFcn", @(lb, evt) searchClicked(obj, lb, evt), ...
+    "Tooltip", "The settings that match. Click one to go there; with the keyboard, the arrows show each and Enter goes there.");
+ep = uipanel(mc, "Title", "Figure");
+ep.Layout.Row = 3;
 obj.FigureEditorPanel = ep;
-eg = uigridlayout(ep, [17 1]);
-eg.RowHeight = [repmat({0}, 1, 16) {'1x'}];
+eg = uigridlayout(ep, [20 1]);
+eg.RowHeight = [repmat({0}, 1, 19) {'1x'}];
 eg.RowSpacing = 6;
 eg.Padding = [4 4 4 4];
 eg.Scrollable = "on";
 obj.FigureEditorGrid = eg;
 E = struct();
 
-% the sections with a header, in order: a header color each (a step along the turbo map) and the keys 1-9, 0
-order = ["observations" "arrangement" "panel" "ref" "window" "selection" "common" "palign" "layers" "options" "note" "overlays" ...
-    "style" "looks" "sessions"];
-keyed = order(1:10);   % Observations Ctrl+1 ... Options Ctrl+0; the panel's note and overlays, Appearance, Looks and Sessions have no key
+% the sections with a header, in order (built so, so Tab follows it): a header color each (a step along the turbo map)
+% and the keys 1-9, 0
+order = ["observations" "ref" "window" "selection" "sessions" "arrangement" "panel" "palign" "layers" "options" "note" ...
+    "overlays" "style" "looks"];
+keyed = order(~ismember(order, ["sessions" "overlays" "style" "looks"]));   % Observations Ctrl+1 ... Options Ctrl+9, Text note Ctrl+0
 hue = turbo(256);
 hue = hue(round(linspace(24, 232, numel(order))), :);
 tint = @(name) hue(order == name, :);
 
 % the figure: always open
 S = formSection(eg, 1, "general", "");
-[S, r] = formRow(S, "id", "Id:");
-E.id = uieditfield(S.Body, "text", "ValueChangedFcn", @(f, evt) onIdEdited(obj, f, evt), ...
-    "Tooltip", "Unique among the figures; it names the figure's files ({Plot} in the Export tab's file names).");
-place(E.id, r, 2);
+[S, r] = formRow(S, ["id" "idAuto"], "Id:");
+ig = subgrid(S.Body, r, {'1x', 'fit'});
+E.id = uieditfield(ig, "text", "ValueChangedFcn", @(f, evt) onIdEdited(obj, f, evt), ...
+    "Tooltip", "Unique among the figures; it names the figure's files ({Plot} in the Export tab's file names). " + ...
+    "Gray while automatic: it follows the active panel types and the data (""Raster+PSTH units""). Typing an id " + ...
+    "makes it yours.");
+E.idAuto = uicheckbox(ig, "Text", "auto", "Value", true, "ValueChangedFcn", @(b, ~) onIdAutoToggled(obj, b), ...
+    "Tooltip", "Ticked: the id follows the figure's active panel types and data (""Raster+PSTH units"", ""Continuous LFP""; " + ...
+    "a "" (2)"" when another figure has it). Typing an id unticks it; tick it to go back to the automatic id.");
 [S, r] = formRow(S, "title", "Title:");
 E.title = uieditfield(S.Body, "text", "Placeholder", "automatic", "ValueChangedFcn", changed, ...
     "Tooltip", "Blank: ""<id>: <observation> — <event> (<n> epochs)"". A title of your own names no " + ...
@@ -167,20 +208,16 @@ place(E.enabled, r, [1 2]);
 E.summary = uilabel(S.Body, "Text", "", "FontColor", gray);
 place(E.summary, r, [1 2]);
 sec = S;
+hFigure = superHeader(eg);   % the Figure supersection's header (each made where its sections start: Tab reaches it first)
 
 % what the figure is drawn for
 S = formSection(eg, 2, "observations", "Observations", Color=tint("observations"));
-[S, r] = formRow(S, ["observe" "observeResolved"], "Observe:");
-og = subgrid(S.Body, r, {'1x', 'fit'});
-E.observe = uidropdown(og, "Items", ["auto" "a unit" "a channel" "the dataset"], "ItemsData", EphysAnalysisConfig.ObserveKinds, ...
-    "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "What one figure is drawn for, and what the picker " + ...
-    "above the preview lists. auto: a unit when a units or detected layer follows the observation, else a " + ...
-    "channel when a signal layer does, else the dataset.");
-E.observeResolved = uilabel(og, "Text", "", "FontColor", gray);
-[S, r] = formRow(S, "obsSource", "Spike source:");
-E.obsSource = uidropdown(S.Body, "Items", ["units (sorted)" "detected (per channel)"], "ItemsData", EphysAnalysisConfig.SpikeSources, ...
-    "ValueChangedFcn", changed, "Tooltip", "The observed units: sorted units, or each channel's threshold detections.");
-place(E.obsSource, r, 2);
+[S, r] = formRow(S, "observe", "Observe:");
+E.observe = uidropdown(S.Body, "Items", "Sorted units", "ItemsData", "units", "ValueChangedFcn", changed, ...
+    "Tooltip", "The data one figure is drawn for, and what the picker above the preview lists: each sorted " + ...
+    "unit, each channel's detected spikes, each channel of a signal, or the dataset once. What the active " + ...
+    "dataset holds comes first; a type it lacks says so and can still be picked.");   % applyFigureEditor lists them (observeItems)
+place(E.observe, r, 2);
 [S, r] = formRow(S, "obsClasses", "Unit classes:");
 cg = subgrid(S.Body, r, repmat({'fit'}, 1, 4));
 cg.ColumnSpacing = 12;
@@ -239,10 +276,6 @@ place(E.obsShanks, r, 2);
 E.obsUnitChannels = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
     "Tooltip", "The recording channels whose units are observed, e.g. 1:8.");
 place(E.obsUnitChannels, r, 2);
-[S, r] = formRow(S, "obsSignal", "Signal:");
-E.obsSignal = uidropdown(S.Body, "Items", EphysAnalysisConfig.SignalSources, "ValueChangedFcn", changed, ...
-    "Tooltip", "The extract whose channels are observed.");
-place(E.obsSignal, r, 2);
 [S, r] = formRow(S, "obsChannels", "Channels:");
 E.obsChannels = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
     "Tooltip", "The extract's columns observed, e.g. 1 3 5 (blank = all).");
@@ -256,89 +289,6 @@ place(E.obsPerGroup, r, [1 2]);
 [S, r] = formRow(S, "obsCount", "");
 E.obsCount = uilabel(S.Body, "Text", "", "FontColor", gray);
 place(E.obsCount, r, [1 2]);
-sec(end+1) = S;
-
-% the arrangement: the schematic, placing, sizing and moving panels
-S = formSection(eg, 3, "arrangement", "Arrangement", Color=tint("arrangement"));
-[S, r] = formRow(S, "schematic", "", 160);
-E.schematicPanel = uipanel(S.Body, "BorderType", "none", "UserData", false);   % formLayout shows and hides the row's panel
-place(E.schematicPanel, r, [1 2]);   % its axes: drawFigureSchematic makes it while the row is shown (one made or kept at 0 px does not draw)
-[S, r] = formRow(S, "addType", "Add panel:");
-E.addType = uidropdown(S.Body, "Items", PT.Label, "ItemsData", PT.Type, "Value", "continuous", ...
-    "ValueChangedFcn", @(dd, ~) setAddType(obj, dd.Value), ...
-    "Tooltip", "The type of the panel the four buttons below add; it gets the type's default layer, so it draws at once.");
-place(E.addType, r, 2);
-obj.FigureAddType = "continuous";
-[S, r] = formRow(S, "addWhere", "", 30);
-ag = subgrid(S.Body, r, {'1x', '1x', '1x', '1x'});
-where = ["above" "below" "left" "right"];
-for w = where
-    E.("add" + upper(extractBefore(w, 2)) + extractAfter(w, 1)) = uibutton(ag, "Text", upper(extractBefore(w, 2)) + extractAfter(w, 1), ...
-        "ButtonPushedFcn", @(~,~) obj.onAddPanel(w), "Tooltip", "Add a panel of the type above " + w + ...
-        " the selected panel: a new " + ternary(ismember(w, ["above" "below"]), "row", "column") + ...
-        " of the grid. The first panel of a figure goes to row 1, column 1.");
-end
-[S, r] = formRow(S, "selPanel", "Selected panel:");
-E.selPanel = uilabel(S.Body, "Text", "", "FontWeight", "bold");
-place(E.selPanel, r, 2);
-[S, r] = formRow(S, "noPanel", "");
-E.noPanel = uilabel(S.Body, "Text", "No panel yet: pick a type and press Above, Below, Left or Right.", "FontColor", gray);
-place(E.noPanel, r, [1 2]);
-[S, r] = formRow(S, "rowSpan", "Row span:");
-E.rowSpan = uispinner(S.Body, "Limits", [1 32], "Step", 1, "Value", 1, "RoundFractionalValues", "on", ...
-    "ValueChangedFcn", @(sp, evt) onSpanEdited(obj, sp, evt, "row"), ...
-    "Tooltip", "How many rows of the grid the selected panel covers, down from its own.");
-place(E.rowSpan, r, 2);
-[S, r] = formRow(S, "colSpan", "Column span:");
-E.colSpan = uispinner(S.Body, "Limits", [1 32], "Step", 1, "Value", 1, "RoundFractionalValues", "on", ...
-    "ValueChangedFcn", @(sp, evt) onSpanEdited(obj, sp, evt, "col"), ...
-    "Tooltip", "How many columns of the grid the selected panel covers, right from its own.");
-place(E.colSpan, r, 2);
-[S, r] = formRow(S, "rowHeight", "Row height:");
-E.rowHeight = uispinner(S.Body, "Limits", [0 Inf], "LowerLimitInclusive", "off", "Step", 0.25, "Value", 1, "ValueDisplayFormat", "%.4gx", ...
-    "ValueChangedFcn", changed, "Tooltip", "The relative height of the selected panel's (first) row, against the " + ...
-    "other rows' (1 each when all are equal). Drawn in quarter steps of the smallest.");
-place(E.rowHeight, r, 2);
-[S, r] = formRow(S, "colWidth", "Column width:");
-E.colWidth = uispinner(S.Body, "Limits", [0 Inf], "LowerLimitInclusive", "off", "Step", 0.25, "Value", 1, "ValueDisplayFormat", "%.4gx", ...
-    "ValueChangedFcn", changed, "Tooltip", "The relative width of the selected panel's (first) column, against the other columns'.");
-place(E.colWidth, r, 2);
-[S, r] = formRow(S, "spacing", "Spacing:");
-E.spacing = uidropdown(S.Body, "Items", ["loose" "compact" "tight" "none (flush)"], "ItemsData", ["loose" "compact" "tight" "none"], ...
-    "ValueChangedFcn", changed, "Tooltip", "The space between the panels. none: flush, so stacked time panels share their edges.");
-place(E.spacing, r, 2);
-[S, r] = formRow(S, "panelButtons", "", 30);
-pb = subgrid(S.Body, r, {'fit', 'fit', 40, 40, 40, 40});
-place(pb, r, [1 2]);
-E.removePanel = uibutton(pb, "Text", "Remove panel", "ButtonPushedFcn", @(~,~) obj.onRemovePanel(), ...
-    "Tooltip", "Remove the selected panel; the rows and columns no panel starts in any more go with it.");
-uilabel(pb, "Text", "  Move:", "HorizontalAlignment", "right");
-dirs = ["up" "down" "left" "right"];
-arrows = ["↑" "↓" "←" "→"];
-for i = 1:4
-    d = dirs(i);
-    E.("move" + upper(extractBefore(d, 2)) + extractAfter(d, 1)) = uibutton(pb, "Text", arrows(i), ...
-        "ButtonPushedFcn", @(~,~) obj.onMovePanel(d), ...
-        "Tooltip", "Swap the selected panel with the panel of the same shape " + ternary(ismember(d, ["up" "down"]), ...
-        ternary(d == "up", "above", "below") + " it", "to its " + d) + ".");
-end
-sec(end+1) = S;
-
-% the selected panel
-S = formSection(eg, 4, "panel", "Panel", Color=tint("panel"));
-[S, r] = formRow(S, "panelType", "Type:");
-E.panelType = uidropdown(S.Body, "Items", PT.Label, "ItemsData", PT.Type, "ValueChangedFcn", @(~,~) obj.onPanelTypeChanged(), ...
-    "Tooltip", "The panel's type. A change starts its options afresh (keeping what both types share), drops the " + ...
-    "layers the new type cannot draw and, when none is left, adds the type's default layer.");
-place(E.panelType, r, 2);
-[S, r] = formRow(S, "panelTitle", "Title:");
-E.panelTitle = uieditfield(S.Body, "text", "Placeholder", "automatic", "ValueChangedFcn", changed, ...
-    "Tooltip", "Blank: none (the top-left panel names the observation under a title of the figure's own).");
-place(E.panelTitle, r, 2);
-[S, r] = formRow(S, "group", "Group shown:");
-E.group = uispinner(S.Body, "Limits", [1 100], "Step", 1, "Value", 1, "RoundFractionalValues", "on", "ValueChangedFcn", changed, ...
-    "Tooltip", "The trial group a heat map or a unit correlation map draws (1 = the first of the figure's groups).");
-place(E.group, r, 2);
 sec(end+1) = S;
 
 % the figure's event reference, window and selection: the Alignment tab's controls
@@ -360,63 +310,179 @@ Ss.BodyHeight = gridHeight(C.SelectionGrid);
 obj.FigureAlignControls = C;
 sec = [sec Sr Sw Ss];
 
-% the figure's common options: every panel with "Common options from the figure" ticked takes those its type has
-cchanged = @(~,~) onCommonEdited(obj);
-S = formSection(eg, 8, "common", "Common options", Color=tint("common"));
-[S, r] = formRow(S, "cmNote", "", 30);
-E.cmNote = uilabel(S.Body, "Text", "Every panel with ""Common options from the figure"" ticked (its Options section) " + ...
-    "takes the ones its type has: a change here reaches all of them.", "FontColor", gray, "WordWrap", "on");
-place(E.cmNote, r, [1 2]);
-[S, r] = formRow(S, "cmBinMs", "Bin (ms):");
-E.cmBinMs = uieditfield(S.Body, "numeric", "Value", 10, "Limits", [0.001 Inf], "ValueChangedFcn", cchanged, ...
-    "Tooltip", "PSTH, heat map and unit correlation panels' bins.");
-place(E.cmBinMs, r, 2);
-[S, r] = formRow(S, "cmSmoothMs", "Smooth (ms):");
-E.cmSmoothMs = uieditfield(S.Body, "numeric", "Value", 10, "Limits", [0 Inf], "ValueChangedFcn", cchanged, ...
-    "Tooltip", "Gaussian SD; 0 = none.");
-place(E.cmSmoothMs, r, 2);
-[S, r] = formRow(S, "cmMeasure", "Measure:");
-E.cmMeasure = uidropdown(S.Body, "Items", ["rate" "count" "probability"], "ValueChangedFcn", cchanged, ...
-    "Tooltip", "PSTH, heat map, firing rate and tuning panels: spikes/s, spikes per bin (or window), or the share " + ...
-    "of epochs with a spike in the bin (or window).");
-place(E.cmMeasure, r, 2);
-[S, r] = formRow(S, "cmBaselineMode", "Baseline:");
-E.cmBaselineMode = uidropdown(S.Body, "Items", ["none" "subtract" "zscore" "percent" "ratio" "auroc"], "ValueChangedFcn", cchanged, ...
-    "Tooltip", "Against the baseline window's value, epoch by epoch. Each type takes its own: PSTH and heat map of " + ...
-    "spikes none, subtract, zscore, percent or auroc (each window's auROC against the baseline: its settings below); " + ...
-    "firing rate and tuning none, subtract, ratio or zscore; continuous and correlation none or subtract.");
-place(E.cmBaselineMode, r, 2);
-[S, r] = formRow(S, ["cmBaseFrom" "cmBaseTo"], "Baseline (s):");
-bg = subgrid(S.Body, r, {'1x', 'fit', '1x'});
-E.cmBaseFrom = uieditfield(bg, "numeric", "Value", -0.2, "ValueChangedFcn", cchanged, "Tooltip", "Baseline window start (s from the event).");
-uilabel(bg, "Text", "to");
-E.cmBaseTo = uieditfield(bg, "numeric", "Value", 0, "ValueChangedFcn", cchanged, "Tooltip", "Baseline window end (s).");
-[S, E] = aurocRows(S, E, "cmAu", cchanged, true);
-[S, r] = formRow(S, "cmMaskAfterStop", "");
-E.cmMaskAfterStop = uicheckbox(S.Body, "Text", "Mask after the stop event", "ValueChangedFcn", cchanged, ...
-    "Tooltip", "Raster, PSTH and heat map panels: drop what follows each epoch's stop event.");
-place(E.cmMaskAfterStop, r, [1 2]);
-[S, r] = formRow(S, ["cmWaveMode" "cmWaveSpikes"], "Waveform:");
-wg = subgrid(S.Body, r, {'1x', 'fit', 70});
-E.cmWaveMode = uidropdown(wg, "Items", ["Off" "Mean" "Subsample" "Mean + subsample"], "ItemsData", ["off" "mean" "subsample" "both"], ...
-    "Value", "off", "ValueChangedFcn", cchanged, "Tooltip", "Raster and PSTH panels' waveform inset (a waveforms " + ...
-    "panel draws Off as Mean + subsample).");
-uilabel(wg, "Text", "spikes:");
-E.cmWaveSpikes = uispinner(wg, "Limits", [1 2000], "Step", 50, "Value", 100, "RoundFractionalValues", "on", "ValueChangedFcn", cchanged, ...
-    "Tooltip", "How many of the unit's spikes the subsample draws.");
-[S, r] = formRow(S, ["cmWaveLocation" "cmWaveBox"], "Inset location:");
-wl = subgrid(S.Body, r, {'1x', 'fit'});
-E.cmWaveLocation = uidropdown(wl, "Items", ["North-east" "North" "North-west" "West" "South-west" "South" "South-east" "East"], ...
-    "ItemsData", EphysAnalysisConfig.WaveformLocations, "Value", "northeast", "ValueChangedFcn", cchanged);
-E.cmWaveBox = uicheckbox(wl, "Text", "Axis box", "Value", true, "ValueChangedFcn", cchanged);
-[S, r] = formRow(S, "cmWaveScale", "Inset size:");
-E.cmWaveScale = uispinner(S.Body, "Limits", [0.25 3], "Step", 0.25, "Value", 1, "ValueDisplayFormat", "%.2gx", "ValueChangedFcn", cchanged);
-place(E.cmWaveScale, r, 2);
-[S, r] = formRow(S, ["cmWavePP" "cmWaveCount"], "Label:");
-wt = subgrid(S.Body, r, {'fit', 'fit', '1x'});
-wt.ColumnSpacing = 12;
-E.cmWavePP = uicheckbox(wt, "Text", "p-p", "Value", true, "ValueChangedFcn", cchanged, "Tooltip", "Show the mean waveform's amplitude.");
-E.cmWaveCount = uicheckbox(wt, "Text", "# spikes", "ValueChangedFcn", cchanged, "Tooltip", "Show the unit's spike count.");
+% across sessions: the figure drawn once over several datasets, each layer merged (figureSessionCompute); no key
+S = formSection(eg, 14, "sessions", "Sessions", Color=tint("sessions"));
+[S, r] = formRow(S, "sesEnabled", "");
+E.sesEnabled = uicheckbox(S.Body, "Text", "Across sessions (one figure over several datasets)", "ValueChangedFcn", changed, ...
+    "Tooltip", "Draw this figure once across the datasets instead of once per dataset: each observation (a site, " + ...
+    "a cell of the mapping, a channel or the dataset) is computed on every session and each panel's layers are " + ...
+    "merged, a color per session (or subject). Generate and Run then write it to the sessions folder.");
+place(E.sesEnabled, r, [1 2]);
+[S, r] = formRow(S, "sesDatasets", "Datasets:");
+E.sesDatasets = uidropdown(S.Body, "Items", ["The ticked datasets" "These datasets"], "ItemsData", ["ticked" "list"], ...
+    "ValueChangedFcn", changed, "Tooltip", "The ticked datasets: those ticked to run on the Data tab. These " + ...
+    "datasets: a list of dataset keys of its own (Pick...).");
+place(E.sesDatasets, r, 2);
+[S, r] = formRow(S, ["sesKeys" "sesPick"], "Keys:");
+dg = subgrid(S.Body, r, {'1x', 70});
+E.sesKeys = uieditfield(dg, "text", "Editable", "off", "Placeholder", "none picked", ...
+    "Tooltip", "The keys of the datasets this figure is drawn across (the Data tab's Key column).");
+E.sesPick = uibutton(dg, "Text", "Pick...", "ButtonPushedFcn", @(~,~) obj.onPickFigureDatasets(), ...
+    "Tooltip", "Tick the datasets to draw, from the scanned ones, with their subject and date.");
+[S, r] = formRow(S, "sesFacet", "Figures:");
+E.sesFacet = uidropdown(S.Body, "Items", ["One for all the sessions" "One per subject"], ...
+    "ItemsData", EphysAnalysisConfig.SessionFacets, "ValueChangedFcn", changed, ...
+    "Tooltip", "One figure over every session, or one per subject with that subject's sessions.");
+place(E.sesFacet, r, 2);
+[S, r] = formRow(S, "sesSeries", "A color per:");
+E.sesSeries = uidropdown(S.Body, "Items", ["Session" "Subject (its sessions averaged)" "Nothing (all sessions averaged)"], ...
+    "ItemsData", EphysAnalysisConfig.SessionSeries, "ValueChangedFcn", changed, ...
+    "Tooltip", "What gets a color: each session; each subject, the mean of its sessions; or one mean over every session.");
+place(E.sesSeries, r, 2);
+[S, r] = formRow(S, "sesColorOrder", "Colors:");
+E.sesColorOrder = uidropdown(S.Body, "Items", ["The design's palette" "By date (sequential)"], ...
+    "ItemsData", EphysAnalysisConfig.SessionColorOrders, "ValueChangedFcn", changed, ...
+    "Tooltip", "The palette's colors in turn, or a sequential map in date order, so the days read as a progression.");
+place(E.sesColorOrder, r, 2);
+[S, r] = formRow(S, "sesShowMembers", "");
+E.sesShowMembers = uicheckbox(S.Body, "Text", "Show each session faintly under its mean", "ValueChangedFcn", changed, ...
+    "Tooltip", "With a color per subject or one mean: each session's own trace, pale, under the mean.");
+place(E.sesShowMembers, r, [1 2]);
+[S, r] = formRow(S, "sesError", "Error band:");
+E.sesError = uidropdown(S.Body, "Items", ["mean ± SEM" "mean ± SD" "95% CI" "None"], ...
+    "ItemsData", EphysAnalysisConfig.SessionErrors, "ValueChangedFcn", changed, ...
+    "Tooltip", "With a color per subject or one mean: the band across the sessions averaged (the 95% CI uses " + ...
+    "Student's t, Statistics and Machine Learning Toolbox; 1.96 SEM without it).");
+place(E.sesError, r, 2);
+[S, r] = formRow(S, "sesMatch", "Units matched by:");
+E.sesMatch = uidropdown(S.Body, "Items", ["Site: the unit's recording channel" "Mapping: a table names each cell's units"], ...
+    "ItemsData", EphysAnalysisConfig.FigureSessionMatches, "ValueChangedFcn", changed, ...
+    "Tooltip", "How the observed unit is found in each session. Site: the units on the same recording channel (the " + ...
+    "first in probe order). Mapping: a cell of the mapping file, each session's unit id from its column.");
+place(E.sesMatch, r, 2);
+[S, r] = formRow(S, ["sesMappingFile" "sesBrowse" "sesEdit"], "Mapping file:");
+mg = subgrid(S.Body, r, {'1x', 76, 58});
+E.sesMappingFile = uieditfield(mg, "text", "Placeholder", "a .csv file", "ValueChangedFcn", changed, ...
+    "Tooltip", "A CSV: a column ""cell"", then one column per dataset key holding that dataset's unit id(s) for the cell.");
+E.sesBrowse = uibutton(mg, "Text", "Browse...", "ButtonPushedFcn", @(~,~) obj.onBrowseFigureMapping(), ...
+    "Tooltip", "Pick the mapping file.");
+E.sesEdit = uibutton(mg, "Text", "Edit...", "ButtonPushedFcn", @(~,~) obj.onEditUnitMapping(), ...
+    "Tooltip", "Edit the mapping: a row per cell, a column per dataset.");
+[S, r] = formRow(S, "sesMinSessions", "Min. sessions:");
+E.sesMinSessions = uispinner(S.Body, "Limits", [1 Inf], "Step", 1, "Value", 1, "RoundFractionalValues", "on", ...
+    "ValueChangedFcn", changed, "Tooltip", "An observation is drawn only when at least this many sessions hold it.");
+place(E.sesMinSessions, r, 2);
+[S, r] = formRow(S, "sesTrialGroups", "Trial groups:");
+E.sesTrialGroups = uidropdown(S.Body, "Items", ["Pool them (a color per session)" "A figure per group" ...
+    "Combine (a line style per group)"], "ItemsData", EphysAnalysisConfig.SessionTrialGroups, "ValueChangedFcn", changed, ...
+    "Tooltip", "The figure's trial groups (its Group by). Pool: every epoch of a session together. A figure per " + ...
+    "group: each group merged across sessions on its own figure. Combine: a color per session, a line style per group.");
+place(E.sesTrialGroups, r, 2);
+[S, r] = formRow(S, "sesNote", "", 44);
+E.sesNote = uilabel(S.Body, "Text", "", "FontColor", gray, "WordWrap", "on", "VerticalAlignment", "top");
+place(E.sesNote, r, [1 2]);
+sec(end+1) = S;
+
+% the panels: the schematic, adding (New panel...), sizing and moving them (the section's key stays "arrangement")
+S = formSection(eg, 3, "arrangement", "Panels", Color=tint("arrangement"));
+[S, r] = formRow(S, "schematic", "", 160);
+E.schematicPanel = uipanel(S.Body, "BorderType", "none", "UserData", false);   % formLayout shows and hides the row's panel
+place(E.schematicPanel, r, [1 2]);   % its axes: drawFigureSchematic makes it while the row is shown (one made or kept at 0 px does not draw)
+[S, r] = formRow(S, "newPanel", "", 30);
+E.newPanel = uibutton(S.Body, "Text", "New panel...", "ButtonPushedFcn", @(~,~) obj.onNewPanel(), ...
+    "Tooltip", "Add a panel: pick its type (each shown as a small plot), its name, where it goes next to the " + ...
+    "selected panel (a new row or column) and its key parameters. The first panel goes to row 1, column 1.");
+place(E.newPanel, r, [1 2]);
+[S, r] = formRow(S, "selPanel", "Selected panel:");
+E.selPanel = uilabel(S.Body, "Text", "", "FontWeight", "bold");
+place(E.selPanel, r, 2);
+[S, r] = formRow(S, "noPanel", "");
+E.noPanel = uilabel(S.Body, "Text", "No panel yet: press New panel... to add one.", "FontColor", gray);
+place(E.noPanel, r, [1 2]);
+[S, r] = formRow(S, "rowSpan", "Row span:");
+E.rowSpan = uispinner(S.Body, "Limits", [1 32], "Step", 1, "Value", 1, "RoundFractionalValues", "on", ...
+    "ValueChangedFcn", @(sp, evt) onSpanEdited(obj, sp, evt, "row"), ...
+    "Tooltip", "How many rows of the grid the selected panel covers, down from its own.");
+place(E.rowSpan, r, 2);
+[S, r] = formRow(S, "colSpan", "Column span:");
+E.colSpan = uispinner(S.Body, "Limits", [1 32], "Step", 1, "Value", 1, "RoundFractionalValues", "on", ...
+    "ValueChangedFcn", @(sp, evt) onSpanEdited(obj, sp, evt, "col"), ...
+    "Tooltip", "How many columns of the grid the selected panel covers, right from its own.");
+place(E.colSpan, r, 2);
+[S, r] = formRow(S, "rowHeight", "Row height:");
+E.rowHeight = uispinner(S.Body, "Limits", [0 Inf], "LowerLimitInclusive", "off", "Step", 0.25, "Value", 1, "ValueDisplayFormat", "%.4gx", ...
+    "ValueChangedFcn", changed, "Tooltip", "The relative height of the selected panel's (first) row, against the " + ...
+    "other rows' (1 each when all are equal): every panel of the row. The rows' plot areas take exactly these shares.");
+place(E.rowHeight, r, 2);
+[S, r] = formRow(S, "colWidth", "Column width:");
+E.colWidth = uispinner(S.Body, "Limits", [0 Inf], "LowerLimitInclusive", "off", "Step", 0.25, "Value", 1, "ValueDisplayFormat", "%.4gx", ...
+    "ValueChangedFcn", changed, "Tooltip", "The relative width of the selected panel's (first) column, against the " + ...
+    "other columns': every panel of the column.");
+place(E.colWidth, r, 2);
+[S, r] = formRow(S, ["panelWidth" "panelHeight"], "Panel size:");
+zg = subgrid(S.Body, r, {'1x', 'fit', '1x', 'fit'});
+E.panelWidth = uispinner(zg, "Limits", [1 100], "Step", 5, "Value", 100, "ValueDisplayFormat", "%.4g %%", ...
+    "ValueChangedFcn", changed, "Tooltip", "The selected panel's width, as a share of its cell's: this panel only, " + ...
+    "not the others of its column. Under 100 %, Align places it in the cell.");
+uilabel(zg, "Text", "wide");
+E.panelHeight = uispinner(zg, "Limits", [1 100], "Step", 5, "Value", 100, "ValueDisplayFormat", "%.4g %%", ...
+    "ValueChangedFcn", changed, "Tooltip", "The selected panel's height, as a share of its cell's: this panel only, " + ...
+    "not the others of its row. Under 100 %, Align places it in the cell.");
+uilabel(zg, "Text", "high");
+[S, r] = formRow(S, ["panelAlign" "panelVAlign"], "Align in cell:");
+ng = subgrid(S.Body, r, {'1x', '1x'});
+E.panelAlign = uidropdown(ng, "Items", EphysAnalysisConfig.PanelAligns, "Value", "center", "ValueChangedFcn", changed, ...
+    "Tooltip", "Where a panel narrower than its cell sits in it.");
+E.panelVAlign = uidropdown(ng, "Items", EphysAnalysisConfig.PanelVAligns, "Value", "middle", "ValueChangedFcn", changed, ...
+    "Tooltip", "Where a panel shorter than its cell sits in it.");
+[S, r] = formRow(S, ["spacing" "spacingDialog"], "Spacing:", 30);
+sg = subgrid(S.Body, r, {'1x', 'fit'});
+E.spacing = uidropdown(sg, "Items", ["loose" "compact" "tight" "none (flush)" "custom"], "ItemsData", EphysAnalysisConfig.GridSpacings, ...
+    "ValueChangedFcn", changed, "Tooltip", "The clear space between neighboring panels' labels: loose, compact, tight " + ...
+    "(24, 12, 6 px), none (flush: stacked time panels share their edges) or custom (Spacing...: px or %, each gap " + ...
+    "between two rows or columns of its own).");
+E.spacingDialog = uibutton(sg, "Text", "Spacing...", "ButtonPushedFcn", @(~,~) figureSpacingDialog(obj), ...
+    "Tooltip", "Set the gaps between the panels: a preset or custom, in px or % of the panels' size, one gap " + ...
+    "between rows and one between columns, or each gap apart. Apply shows it in the preview.");
+[S, r] = formRow(S, "panelButtons", "", 30);
+pb = subgrid(S.Body, r, {'fit', 'fit', 40, 40, 40, 40});
+place(pb, r, [1 2]);
+E.removePanel = uibutton(pb, "Text", "Remove panel", "ButtonPushedFcn", @(~,~) obj.onRemovePanel(), ...
+    "Tooltip", "Remove the selected panel; the rows and columns no panel starts in any more go with it.");
+uilabel(pb, "Text", "  Move:", "HorizontalAlignment", "right");
+dirs = ["up" "down" "left" "right"];
+arrows = ["↑" "↓" "←" "→"];
+for i = 1:4
+    d = dirs(i);
+    E.("move" + upper(extractBefore(d, 2)) + extractAfter(d, 1)) = uibutton(pb, "Text", arrows(i), ...
+        "ButtonPushedFcn", @(~,~) obj.onMovePanel(d), ...
+        "Tooltip", "Swap the selected panel with the panel of the same shape " + ternary(ismember(d, ["up" "down"]), ...
+        ternary(d == "up", "above", "below") + " it", "to its " + d) + ".");
+end
+sec(end+1) = S;
+
+hPanel = superHeader(eg);   % the Panel supersection's header
+
+% the selected panel (the section's key stays "panel")
+S = formSection(eg, 4, "panel", "Selected panel", Color=tint("panel"));
+[S, r] = formRow(S, "panelType", "Type:");
+E.panelType = uidropdown(S.Body, "Items", PT.Label, "ItemsData", PT.Type, "ValueChangedFcn", @(~,~) obj.onPanelTypeChanged(), ...
+    "Tooltip", "The panel's type. A change starts its options afresh (keeping what both types share), drops the " + ...
+    "layers the new type cannot draw and, when none is left, adds the type's default layer.");
+place(E.panelType, r, 2);
+[S, r] = formRow(S, "panelTitle", "Title:");
+E.panelTitle = uieditfield(S.Body, "text", "Placeholder", "automatic", "ValueChangedFcn", changed, ...
+    "Tooltip", "Blank: none (the top-left panel names the observation under a title of the figure's own).");
+place(E.panelTitle, r, 2);
+[S, r] = formRow(S, "panelBox", "Box:");
+E.panelBox = uidropdown(S.Body, "Items", ["auto (the design's)" "on" "off"], "ItemsData", ["auto" "on" "off"], ...
+    "ValueChangedFcn", changed, "Tooltip", "The frame around the panel's axes. auto: the design's (and the looks remembered for " + ...
+    "the panel's kind); on or off: this panel's own, over them.");
+place(E.panelBox, r, 2);
+[S, r] = formRow(S, "group", "Group shown:");
+E.group = uispinner(S.Body, "Limits", [1 100], "Step", 1, "Value", 1, "RoundFractionalValues", "on", "ValueChangedFcn", changed, ...
+    "Tooltip", "The trial group a heat map or a unit correlation map draws (1 = the first of the figure's groups).");
+place(E.group, r, 2);
 sec(end+1) = S;
 
 % the selected panel's own event reference and window
@@ -438,8 +504,8 @@ E.alignApplyAll = uibutton(bg, "Text", "Apply to all panels", "ButtonPushedFcn",
     "Tooltip", "Make this panel's own event, window and trial selection the figure's, and link every panel to them " + ...
     "again (Same as the figure). Only while this panel has its own.");
 E.alignRelinkAll = uibutton(bg, "Text", "Re-link all panels", "ButtonPushedFcn", @(~,~) relinkAll(obj), ...
-    "Tooltip", "Every panel uses the figure's event, window, trial selection and common options again: the panels' " + ...
-    "own event, window and selection are dropped (their own options stay stored, unused).");
+    "Tooltip", "Every panel uses the figure's event, window and trial selection again: the panels' own event, " + ...
+    "window and selection are dropped (their options stay their own). Only while a panel has its own.");
 pr = uipanel(pg, "BorderType", "none");
 pr.Layout.Row = 3;
 pw = uipanel(pg, "BorderType", "none");
@@ -561,10 +627,13 @@ E.evSeqEdit = uibutton(sg, "Text", "Edit...", "Tooltip", "Events that must (or m
     "e.g. Stim onset then Trough onset: the first Trough onset after each Stim onset.");
 E.evSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(E.evSeqText, E.evLine, E.evEdge, @() obj.onConfigChanged("figure"));
 [S, r] = formRow(S, "evDrawAs", "Draw as:");
-E.evDrawAs = uidropdown(S.Body, "Items", ["marks (on the rows / latency lines)" "a spike train of its own"], ...
-    "ItemsData", ["marks" "train"], "ValueChangedFcn", changed, "Tooltip", "Marks: a mark at each event on a raster's " + ...
-    "rows, a line at each group's median latency elsewhere. A train: the events as a spike train, drawn as a unit " + ...
-    "would be (rows of their own in a raster, a PSTH of their own).");
+E.evDrawAs = uidropdown(S.Body, "Items", ["marks (on the rows / latency lines)" "a spike train of its own" ...
+    "a line from onset to offset"], "ItemsData", ["marks" "train" "span"], "ValueChangedFcn", changed, ...
+    "Tooltip", "Marks: a mark at each event on a raster's rows, a line at each group's median latency elsewhere. A " + ...
+    "train: the events as a spike train, drawn as a unit would be (rows of their own in a raster, a PSTH of their " + ...
+    "own). A line from onset to offset: on each raster row a line from each interval's onset to its offset; " + ...
+    "elsewhere a line per trial group from the median onset to the median offset, near the top. An event-trace " + ...
+    "panel draws its lines its own way (its Options).");
 place(E.evDrawAs, r, 2);
 MK = PlotAesthetics.catalog().Marker;
 [S, r] = formRow(S, ["evMarker" "evSize"], "Marker:");
@@ -575,12 +644,22 @@ uilabel(mg, "Text", "size:");
 E.evSize = uispinner(mg, "Limits", [0.5 60], "Step", 1, "Value", 4, "ValueChangedFcn", changed, "Tooltip", "The mark's size, points.");
 [S, r] = formRow(S, "evColor", "Mark color:");
 E.evColor = uidropdown(S.Body, "Editable", "on", "Items", ["auto" "black" "red" "blue" "#ff7f0e" "#9467bd"], "Value", "auto", ...
-    "ValueChangedFcn", changed, "Tooltip", "auto: the mark's automatic color; or a name or #RRGGBB.");
+    "ValueChangedFcn", changed, "Tooltip", "auto: the mark's automatic color; or a name or #RRGGBB. A span's line takes it too.");
 place(E.evColor, r, 2);
+[S, r] = formRow(S, ["evSpanStyle" "evSpanWidth" "evSpanAlpha"], "Span line:");
+spg = subgrid(S.Body, r, {'1x', 'fit', 60, 'fit', 50});
+E.evSpanStyle = uidropdown(spg, "Items", ["solid" "dashed" "dotted" "dash-dot"], "ItemsData", EphysAnalysisConfig.OverlayLineStyles, ...
+    "Value", "-", "ValueChangedFcn", changed, "Tooltip", "The style of the line from each onset to its offset.");
+uilabel(spg, "Text", "width");
+E.evSpanWidth = uispinner(spg, "Limits", [0.25 12], "Step", 0.25, "Value", 1.5, "ValueChangedFcn", changed, ...
+    "Tooltip", "The span line's width, points.");
+uilabel(spg, "Text", "opacity");
+E.evSpanAlpha = uieditfield(spg, "numeric", "Limits", [0 1], "Value", 1, "ValueChangedFcn", changed, ...
+    "Tooltip", "0 (invisible) to 1 (solid).");
 [S, r] = formRow(S, "layerColor", "Color:");
 E.layerColor = uidropdown(S.Body, "Editable", "on", "Items", ["auto" "black" "gray" "red" "blue" "#1f77b4" "#d62728"], ...
-    "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "auto: each trial group's color; or one color (a name or " + ...
-    "#RRGGBB) for every trace of this layer.");
+    "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "auto: each trial group's color (an event-trace panel: a " + ...
+    "palette color per line); or one color (a name or #RRGGBB) for every trace of this layer.");
 place(E.layerColor, r, 2);
 [S, r] = formRow(S, "layerLineStyle", "Line style:");
 E.layerLineStyle = uidropdown(S.Body, "Items", ["auto (by layer order)" "solid" "dashed" "dotted" "dash-dot"], ...
@@ -591,15 +670,11 @@ sec(end+1) = S;
 
 % the panel type's options: every type's rows, shown per type (syncFigureEditor)
 S = formSection(eg, 11, "options", "Options", Color=tint("options"));
-E.panelCommon = uicheckbox(S.HeaderGrid, "Text", "Common options from the figure", "Value", true, ...
-    "ValueChangedFcn", @(~,~) onPanelCommonToggled(obj), ...
-    "Tooltip", "Ticked: the panel takes the figure's Common options (bins, measure, baseline, auROC, mask, waveform inset) " + ...
-    "for those its type has; their rows below show them, locked. Untick to give the panel its own, starting from them.");
-E.panelCommon.Layout.Column = 2;
 [S, r] = formRow(S, "optApplyAll", "", 30);
 E.optApplyAll = uibutton(S.Body, "Text", "Apply to all panels", "ButtonPushedFcn", @(~,~) applyOptionsToAll(obj), ...
-    "Tooltip", "This panel's common values become the figure's Common options and every panel is linked to them " + ...
-    "again; its other options go to the other panels of its type.");
+    "Tooltip", "Copy this panel's bins, smoothing, measure, baseline (with its window and auROC settings), mask and " + ...
+    "waveform inset to every other panel that has those rows (the baseline only where the type takes its mode), " + ...
+    "and its other options to the other panels of its type.");
 place(E.optApplyAll, r, [1 2]);
 [S, r] = formRow(S, "binMs", "Bin (ms):");
 E.binMs = uieditfield(S.Body, "numeric", "Value", 10, "Limits", [0.001 Inf], "ValueChangedFcn", changed);
@@ -670,10 +745,30 @@ E.sortSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(E.sortSeqText, E.sortLin
 E.rasterByGroup = uicheckbox(S.Body, "Text", "Rows by group first (one band per group)", "Value", true, "ValueChangedFcn", changed, ...
     "Tooltip", "Ticked: each group's epochs together on a band of its color. Unticked: every epoch sorted as one block.");
 place(E.rasterByGroup, r, [1 2]);
+[S, r] = formRow(S, "yTicks", "");
+E.yTicks = uicheckbox(S.Body, "Text", "Show y ticks", "ValueChangedFcn", changed, ...
+    "Tooltip", "Ticked: the y axis keeps its tick marks and epoch numbers. Unticked (the default): none; the y label stays, " + ...
+    "and so do the names of a raster's further blocks.");
+place(E.yTicks, r, [1 2]);
+[S, r] = formRow(S, ["tickColor" "backColor"], "Colors:");
+rcg = subgrid(S.Body, r, {'fit', '1x', 'fit', '1x'});
+uilabel(rcg, "Text", "ticks");
+E.tickColor = uidropdown(rcg, "Editable", "on", "Items", ["" "black" "white" "gray" "red" "blue" "#ff7f0e"], "Value", "", ...
+    "ValueChangedFcn", changed, "Tooltip", "The color of the ticks: blank = black; or a color name or #RRGGBB.");
+uilabel(rcg, "Text", "background");
+E.backColor = uidropdown(rcg, "Editable", "on", "Items", ["" "white" "black" "gray" "#f0f0f0" "#fffbe6"], "Value", "", ...
+    "ValueChangedFcn", changed, "Tooltip", "The background behind the rows: blank = each group's pale band (the groups " + ...
+    "show); or a color name or #RRGGBB, the same for every group.");
 [S, r] = formRow(S, "maskAfterStop", "");
 E.maskAfterStop = uicheckbox(S.Body, "Text", "Mask after the stop event", "ValueChangedFcn", changed, ...
     "Tooltip", "Drop what follows each epoch's stop event (the Epoch window's).");
 place(E.maskAfterStop, r, [1 2]);
+[S, r] = formRow(S, "psthDisplay", "Display:");
+E.psthDisplay = uidropdown(S.Body, "Items", ["trace (bars or a line per group)" "heat map (a row per group)"], ...
+    "ItemsData", ["trace" "heatmap"], "ValueChangedFcn", changed, "Tooltip", "Trace: each trial group's PSTH as bars " + ...
+    "or a line (PSTH as). Heat map: the unit's PSTH as an image, a row per trial group (the first on top), colored by " + ...
+    "its rate on this unit's own range (Colormap, Color limits); with several units or layers, the first is drawn.");
+place(E.psthDisplay, r, 2);
 [S, r] = formRow(S, "histStyle", "PSTH as:");
 E.histStyle = uidropdown(S.Body, "Items", ["bar" "line"], "ValueChangedFcn", changed, "Tooltip", "One bar per bin, or a line through the bin centers.");
 place(E.histStyle, r, 2);
@@ -692,7 +787,7 @@ place(E.normalize, r, 2);
 [S, r] = formRow(S, ["stack" "psthSpacing"], "Stack:");
 sk = subgrid(S.Body, r, {'fit', 'fit', '1x'});
 E.stack = uicheckbox(sk, "Text", "One row per group", "ValueChangedFcn", changed, "Tooltip", "Each trial group's PSTH " + ...
-    "in a row of its own, the first at the bottom, its value on the left axis and its peak on the right (a single " + ...
+    "in a row of its own, the first on top (as a raster lists them), its value on the left axis and its peak on the right (a single " + ...
     "group is not stacked). The groups' rasters: a raster panel above it (stacked rasters are not a figure option).");
 uilabel(sk, "Text", "spacing:");
 E.psthSpacing = uieditfield(sk, "numeric", "Value", 1.1, "Limits", [0 Inf], "LowerLimitInclusive", "off", ...
@@ -745,10 +840,78 @@ place(E.correlation, r, 2);
 E.fisherZ = uicheckbox(S.Body, "Text", "Fisher z transform", "ValueChangedFcn", changed, ...
     "Tooltip", "Draw z = atanh(r) instead of r.");
 place(E.fisherZ, r, [1 2]);
+% the event-trace panel: a row per line, its intervals as bars or a logic level
+[S, r] = formRow(S, "etDisplay", "Draw as:");
+E.etDisplay = uidropdown(S.Body, "Items", ["solid bars (onset to offset)" "a logic level (a line)"], "ItemsData", ["bars" "line"], ...
+    "ValueChangedFcn", changed, "Tooltip", "Bars: a solid bar from each onset to its offset. A logic level: a line " + ...
+    "that is low, rises at each onset and falls at its offset. Intervals that start before or end after the window " + ...
+    "are drawn to its edge.");
+place(E.etDisplay, r, 2);
+[S, r] = formRow(S, ["etTrials" "etGroupBands"], "Trials:");
+etg = subgrid(S.Body, r, {'1x', 'fit'});
+E.etTrials = uidropdown(etg, "Items", ["every epoch overlaid in the line's row" "a sub-row per epoch"], "ItemsData", ["overlay" "rows"], ...
+    "ValueChangedFcn", changed, "Tooltip", "Overlaid: every epoch drawn in the line's row, translucent, so the " + ...
+    "spread of the timing shows. A sub-row per epoch: each epoch in a sub-row of its own inside the line's row, " + ...
+    "sorted as a raster's rows (Sort rows by; by default by trial group and then time).");
+E.etGroupBands = uicheckbox(etg, "Text", "group bands", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "A sub-row per epoch: a pale band of each trial group's color behind its sub-rows.");
+[S, r] = formRow(S, "etColorBy", "Color by:");
+E.etColorBy = uidropdown(S.Body, "Items", ["line (the layer's color, else a palette color)" "trial group"], "ItemsData", ["layer" "group"], ...
+    "ValueChangedFcn", changed, "Tooltip", "Line: each line in its layer's Color (Layers), or a color of the " + ...
+    "design's palette. Trial group: each epoch in its group's color, the groups in the legend.");
+place(E.etColorBy, r, 2);
+[S, r] = formRow(S, ["etHeight" "etAlpha"], "Height:");
+ehg = subgrid(S.Body, r, {'1x', 'fit', 60});
+E.etHeight = uispinner(ehg, "Limits", [0.05 1], "Step", 0.05, "Value", 0.6, "ValueChangedFcn", changed, ...
+    "Tooltip", "The bars' (or the level's) height, a share of the line's row (a sub-row per epoch: of the epoch's sub-row).");
+uilabel(ehg, "Text", "opacity:");
+E.etAlpha = uieditfield(ehg, "numeric", "AllowEmpty", "on", "Value", [], "Placeholder", "auto", "Limits", [0 1], ...
+    "ValueChangedFcn", changed, "Tooltip", "The bars' and lines' opacity, 0 to 1 (blank: 0.3 overlaid, 1 in sub-rows).");
+[S, r] = formRow(S, ["etEdge" "etEdgeWidth"], "Bar outline:");
+eeg = subgrid(S.Body, r, {'1x', 'fit', 60});
+E.etEdge = uidropdown(eeg, "Editable", "on", "Items", ["none" "auto" "black" "white" "gray"], "Value", "none", ...
+    "ValueChangedFcn", changed, "Tooltip", "none: no outline; auto: the bar's own color; or a name or #RRGGBB.");
+uilabel(eeg, "Text", "width");
+E.etEdgeWidth = uispinner(eeg, "Limits", [0.25 12], "Step", 0.25, "Value", 0.5, "ValueChangedFcn", changed, ...
+    "Tooltip", "The outline's width, points.");
+[S, r] = formRow(S, "etMinWidth", "Narrowest bar:");
+E.etMinWidth = uispinner(S.Body, "Limits", [0 12], "Step", 0.25, "Value", 1, "ValueChangedFcn", changed, ...
+    "Tooltip", "Points. A bar drawn narrower than this (a zero-length interval too) also gets a tick this wide " + ...
+    "through its middle, in its color, so a short interval shows at any size and in exported files. 0: no tick.");
+place(E.etMinWidth, r, 2);
+[S, r] = formRow(S, ["etLineStyle" "etLineWidth"], "Level line:");
+elg = subgrid(S.Body, r, {'1x', 'fit', 60});
+E.etLineStyle = uidropdown(elg, "Items", ["solid" "dashed" "dotted" "dash-dot"], "ItemsData", EphysAnalysisConfig.OverlayLineStyles, ...
+    "Value", "-", "ValueChangedFcn", changed, "Tooltip", "The logic level's style (a layer's own Line style wins).");
+uilabel(elg, "Text", "width");
+E.etLineWidth = uispinner(elg, "Limits", [0.25 12], "Step", 0.25, "Value", 1.5, "ValueChangedFcn", changed, ...
+    "Tooltip", "The logic level's width, points.");
+[S, r] = formRow(S, ["etBaseline" "etBaseColor"], "Baseline:");
+ebg = subgrid(S.Body, r, {'fit', '1x'});
+E.etBaseline = uicheckbox(ebg, "Text", "Draw", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "A line along each row: through the middle of the bars, or at the logic level's low (zero) level.");
+E.etBaseColor = uidropdown(ebg, "Editable", "on", "Items", ["auto" "gray" "black" "white" "#bbbbbb"], "Value", "auto", ...
+    "ValueChangedFcn", changed, "Tooltip", "auto: gray; or a name or #RRGGBB.");
+[S, r] = formRow(S, ["etBaseStyle" "etBaseWidth"], "Baseline line:");
+ebs = subgrid(S.Body, r, {'1x', 'fit', 60});
+E.etBaseStyle = uidropdown(ebs, "Items", ["solid" "dashed" "dotted" "dash-dot"], "ItemsData", EphysAnalysisConfig.OverlayLineStyles, ...
+    "Value", ":", "ValueChangedFcn", changed, "Tooltip", "The baseline's style.");
+uilabel(ebs, "Text", "width");
+E.etBaseWidth = uispinner(ebs, "Limits", [0.25 12], "Step", 0.25, "Value", 0.5, "ValueChangedFcn", changed, ...
+    "Tooltip", "The baseline's width, points.");
+[S, r] = formRow(S, "etRowSpacing", "Row spacing:");
+E.etRowSpacing = uieditfield(S.Body, "numeric", "Value", 1.25, "Limits", [0 Inf], "LowerLimitInclusive", "off", ...
+    "ValueChangedFcn", changed, "Tooltip", "The step from one line's row to the next, in row heights (1: the rows touch; more leaves a gap).");
+place(E.etRowSpacing, r, 2);
 [S, r] = formRow(S, "yLim", "Y limits:");
 E.yLim = uieditfield(S.Body, "text", "Placeholder", "automatic, or lo hi", "ValueChangedFcn", changed, ...
     "Tooltip", "This panel's y axis: two ascending values. Blank: from the data.");
 place(E.yLim, r, 2);
+[S, r] = formRow(S, "panelColormap", "Colormap:");
+E.panelColormap = uidropdown(S.Body, "Editable", "on", "Items", ["auto" "parula" "turbo" "hot" "gray" "jet" "cool" "blueWhiteRed"], ...
+    "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "This panel's colors: auto = Heat colors (Appearance), else " + ...
+    "the design's heat colormap (an auROC: its diverging one); or the name of a colormap function.");
+place(E.panelColormap, r, 2);
 [S, r] = formRow(S, "cLim", "Color limits:");
 E.cLim = uieditfield(S.Body, "text", "Placeholder", "automatic, or lo hi", "ValueChangedFcn", changed, ...
     "Tooltip", "This panel's color scale: two ascending values. Blank: automatic.");
@@ -998,6 +1161,8 @@ E.ovWidth = uispinner(olnG, "Limits", [0.25 12], "Step", 0.25, "Value", 1.5, "Va
     "Tooltip", "Points (a patch's outline).");
 sec(end+1) = S;
 
+hLook = superHeader(eg);   % the Look supersection's header
+
 % appearance: the figure's style (no tiles, grid spacing or limits: the arrangement and the panels have those)
 S = formSection(eg, 12, "style", "Appearance", Color=tint("style"));
 [S, r] = formRow(S, "fontSize", "Font size:");
@@ -1083,79 +1248,6 @@ E.looksForget = uibutton(kg, "Text", "Forget", "ButtonPushedFcn", @(~,~) onForge
     "Tooltip", "Forget the looks remembered for this figure (colors, lines, fonts set in the right-click editor).");
 sec(end+1) = S;
 
-% across sessions: the figure drawn once over several datasets, each layer merged (figureSessionCompute); no key
-S = formSection(eg, 14, "sessions", "Sessions", Color=tint("sessions"));
-[S, r] = formRow(S, "sesEnabled", "");
-E.sesEnabled = uicheckbox(S.Body, "Text", "Across sessions (one figure over several datasets)", "ValueChangedFcn", changed, ...
-    "Tooltip", "Draw this figure once across the datasets instead of once per dataset: each observation (a site, " + ...
-    "a cell of the mapping, a channel or the dataset) is computed on every session and each panel's layers are " + ...
-    "merged, a color per session (or subject). Generate and Run then write it to the sessions folder.");
-place(E.sesEnabled, r, [1 2]);
-[S, r] = formRow(S, "sesDatasets", "Datasets:");
-E.sesDatasets = uidropdown(S.Body, "Items", ["The ticked datasets" "These datasets"], "ItemsData", ["ticked" "list"], ...
-    "ValueChangedFcn", changed, "Tooltip", "The ticked datasets: those ticked to run on the Data tab. These " + ...
-    "datasets: a list of dataset keys of its own (Pick...).");
-place(E.sesDatasets, r, 2);
-[S, r] = formRow(S, ["sesKeys" "sesPick"], "Keys:");
-dg = subgrid(S.Body, r, {'1x', 70});
-E.sesKeys = uieditfield(dg, "text", "Editable", "off", "Placeholder", "none picked", ...
-    "Tooltip", "The keys of the datasets this figure is drawn across (the Data tab's Key column).");
-E.sesPick = uibutton(dg, "Text", "Pick...", "ButtonPushedFcn", @(~,~) obj.onPickFigureDatasets(), ...
-    "Tooltip", "Tick the datasets to draw, from the scanned ones, with their subject and date.");
-[S, r] = formRow(S, "sesFacet", "Figures:");
-E.sesFacet = uidropdown(S.Body, "Items", ["One for all the sessions" "One per subject"], ...
-    "ItemsData", EphysAnalysisConfig.SessionFacets, "ValueChangedFcn", changed, ...
-    "Tooltip", "One figure over every session, or one per subject with that subject's sessions.");
-place(E.sesFacet, r, 2);
-[S, r] = formRow(S, "sesSeries", "A color per:");
-E.sesSeries = uidropdown(S.Body, "Items", ["Session" "Subject (its sessions averaged)" "Nothing (all sessions averaged)"], ...
-    "ItemsData", EphysAnalysisConfig.SessionSeries, "ValueChangedFcn", changed, ...
-    "Tooltip", "What gets a color: each session; each subject, the mean of its sessions; or one mean over every session.");
-place(E.sesSeries, r, 2);
-[S, r] = formRow(S, "sesColorOrder", "Colors:");
-E.sesColorOrder = uidropdown(S.Body, "Items", ["The design's palette" "By date (sequential)"], ...
-    "ItemsData", EphysAnalysisConfig.SessionColorOrders, "ValueChangedFcn", changed, ...
-    "Tooltip", "The palette's colors in turn, or a sequential map in date order, so the days read as a progression.");
-place(E.sesColorOrder, r, 2);
-[S, r] = formRow(S, "sesShowMembers", "");
-E.sesShowMembers = uicheckbox(S.Body, "Text", "Show each session faintly under its mean", "ValueChangedFcn", changed, ...
-    "Tooltip", "With a color per subject or one mean: each session's own trace, pale, under the mean.");
-place(E.sesShowMembers, r, [1 2]);
-[S, r] = formRow(S, "sesError", "Error band:");
-E.sesError = uidropdown(S.Body, "Items", ["mean ± SEM" "mean ± SD" "95% CI" "None"], ...
-    "ItemsData", EphysAnalysisConfig.SessionErrors, "ValueChangedFcn", changed, ...
-    "Tooltip", "With a color per subject or one mean: the band across the sessions averaged (the 95% CI uses " + ...
-    "Student's t, Statistics and Machine Learning Toolbox; 1.96 SEM without it).");
-place(E.sesError, r, 2);
-[S, r] = formRow(S, "sesMatch", "Units matched by:");
-E.sesMatch = uidropdown(S.Body, "Items", ["Site: the unit's recording channel" "Mapping: a table names each cell's units"], ...
-    "ItemsData", EphysAnalysisConfig.FigureSessionMatches, "ValueChangedFcn", changed, ...
-    "Tooltip", "How the observed unit is found in each session. Site: the units on the same recording channel (the " + ...
-    "first in probe order). Mapping: a cell of the mapping file, each session's unit id from its column.");
-place(E.sesMatch, r, 2);
-[S, r] = formRow(S, ["sesMappingFile" "sesBrowse" "sesEdit"], "Mapping file:");
-mg = subgrid(S.Body, r, {'1x', 76, 58});
-E.sesMappingFile = uieditfield(mg, "text", "Placeholder", "a .csv file", "ValueChangedFcn", changed, ...
-    "Tooltip", "A CSV: a column ""cell"", then one column per dataset key holding that dataset's unit id(s) for the cell.");
-E.sesBrowse = uibutton(mg, "Text", "Browse...", "ButtonPushedFcn", @(~,~) obj.onBrowseFigureMapping(), ...
-    "Tooltip", "Pick the mapping file.");
-E.sesEdit = uibutton(mg, "Text", "Edit...", "ButtonPushedFcn", @(~,~) obj.onEditUnitMapping(), ...
-    "Tooltip", "Edit the mapping: a row per cell, a column per dataset.");
-[S, r] = formRow(S, "sesMinSessions", "Min. sessions:");
-E.sesMinSessions = uispinner(S.Body, "Limits", [1 Inf], "Step", 1, "Value", 1, "RoundFractionalValues", "on", ...
-    "ValueChangedFcn", changed, "Tooltip", "An observation is drawn only when at least this many sessions hold it.");
-place(E.sesMinSessions, r, 2);
-[S, r] = formRow(S, "sesTrialGroups", "Trial groups:");
-E.sesTrialGroups = uidropdown(S.Body, "Items", ["Pool them (a color per session)" "A figure per group" ...
-    "Combine (a line style per group)"], "ItemsData", EphysAnalysisConfig.SessionTrialGroups, "ValueChangedFcn", changed, ...
-    "Tooltip", "The figure's trial groups (its Group by). Pool: every epoch of a session together. A figure per " + ...
-    "group: each group merged across sessions on its own figure. Combine: a color per session, a line style per group.");
-place(E.sesTrialGroups, r, 2);
-[S, r] = formRow(S, "sesNote", "", 44);
-E.sesNote = uilabel(S.Body, "Text", "", "FontColor", gray, "WordWrap", "on", "VerticalAlignment", "top");
-place(E.sesNote, r, [1 2]);
-sec(end+1) = S;
-
 names = [sec.Name];
 for i = 2:numel(sec)
     name = sec(i).Name;
@@ -1166,63 +1258,98 @@ end
 for i = find(ismember(names, ["note" "overlays" "style" "looks" "sessions"]))
     sec(i).Expanded = false;   % collapsed until opened (then kept: FigureSectionsCollapsed)
 end
+% the supersections: each collapses its sections under a dark header, which Alt+1 to Alt+3 go to (onKeyPress)
+U = struct('Name', {"figure" "panel" "look"}, 'Title', {"Figure" "Panel" "Look"}, ...
+    'Sections', {["observations" "ref" "window" "selection" "sessions" "arrangement"], ...
+    ["panel" "palign" "layers" "options" "note" "overlays"], ["style" "looks"]}, ...
+    'Header', {hFigure hPanel hLook}, 'Expanded', true, 'Key', {"1" "2" "3"});
+[sec.Super] = deal("");
+for u = 1:numel(U)
+    name = U(u).Name;
+    U(u).Header.ButtonPushedFcn = @(~,~) obj.onFigureSuperToggled(name);
+    for i = find(ismember(names, U(u).Sections))
+        sec(i).Super = name;
+        sec(i).Grid.Padding = [12 0 0 0];   % indented under its supersection's header
+    end
+end
 obj.FigureEditor = E;
 obj.FigureSections = sec;
+obj.FigureSupers = U;
 obj.layoutFigureEditor();
+obj.FigureSearchIndex = figureSearchIndex(obj.FigureSections, U);   % the rows as built (formLayout found their controls)
 
 % --- right: the observation picker and the preview ----------------------------------------------
-pg = uigridlayout(g, [5 6]);
-pg.RowHeight = {30, 30, 30, '1x', 26};
-pg.ColumnWidth = {100, 100, 'fit', 'fit', '1x', 'fit'};
+% the buttons on a row of their own, so the Dataset and Observation drop-downs keep their width beside Design
+pg = uigridlayout(g, [6 4]);
+pg.RowHeight = {30, 30, 30, 30, '1x', 30};
+pg.ColumnWidth = {'fit', '1x', 'fit', 125};
+pg.ColumnSpacing = 6;
 pg.Padding = [0 0 0 0];
-obj.FigurePreviewButton = uibutton(pg, "Text", "Preview", ...
+bg = uigridlayout(pg, [1 6], "ColumnWidth", {84, 84, 'fit', 72, '1x', 'fit'}, "ColumnSpacing", 6, "Padding", [0 0 0 0]);
+bg.Layout.Row = 1; bg.Layout.Column = [1 4];
+obj.FigurePreviewButton = uibutton(bg, "Text", "Preview", ...
     "Tooltip", "Compute and draw the selected figure for the observation picked, on the active dataset. " + ...
     "Orange: the figure changed since it was drawn.", ...
     "ButtonPushedFcn", @(~,~) obj.refreshFigurePreview(Force=true));
-obj.FigurePreviewButton.Layout.Row = [1 2]; obj.FigurePreviewButton.Layout.Column = 1;
-obj.FigureGenerateButton = uibutton(pg, "Text", "Generate", "Enable", "off", ...
+obj.FigurePreviewButton.Layout.Row = 1; obj.FigurePreviewButton.Layout.Column = 1;
+obj.FigureGenerateButton = uibutton(bg, "Text", "Generate", "Enable", "off", ...
     "Tooltip", "Draw this figure for every observation it selects, on every ticked dataset, into the Export folder", ...
     "ButtonPushedFcn", @(~,~) obj.onGenerateFigure());
-obj.FigureGenerateButton.Layout.Row = [1 2]; obj.FigureGenerateButton.Layout.Column = 2;
-obj.FigureAutoCheckBox = uicheckbox(pg, "Text", "Auto", "Value", true, ...
+obj.FigureGenerateButton.Layout.Row = 1; obj.FigureGenerateButton.Layout.Column = 2;
+obj.FigureAutoCheckBox = uicheckbox(bg, "Text", "Auto", "Value", true, ...
     "Tooltip", "Redraw on every change while a preview takes under " + obj.AutoPreviewSeconds + " s (one observation is quick).", ...
     "ValueChangedFcn", @(~,~) obj.onFigureAutoPreviewToggled());
 obj.FigureAutoCheckBox.Layout.Row = 1; obj.FigureAutoCheckBox.Layout.Column = 3;
-kg = uigridlayout(pg, [1 2], "ColumnWidth", {34, 34}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);
-kg.Layout.Row = 2; kg.Layout.Column = 3;
+kg = uigridlayout(bg, [1 2], "ColumnWidth", {34, 34}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);
+kg.Layout.Row = 1; kg.Layout.Column = 4;
 obj.FigureObsPrevButton = uibutton(kg, "Text", "<", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onFigureObservationStep(-1), ...
     "Tooltip", "The previous observation (Page Up).");
 obj.FigureObsNextButton = uibutton(kg, "Text", ">", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onFigureObservationStep(1), ...
     "Tooltip", "The next observation (Page Down).");
+obj.FigureCodeButton = uibutton(bg, "Text", "Export code", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onFigureCode(), ...
+    "Tooltip", "Open the code that draws this preview in the MATLAB editor, as a new unsaved script: the dataset, " + ...
+    "the figure's settings written out, the observation picked, figureCompute and renderFigure in the design chosen. " + ...
+    "Run it to draw the figure in a window of its own; it does not need the app.");
+obj.FigureCodeButton.Layout.Row = 1; obj.FigureCodeButton.Layout.Column = 6;
 l = uilabel(pg, "Text", "Dataset:");
-l.Layout.Row = 1; l.Layout.Column = 4;
-obj.FiguresDatasetDropDown = uidropdown(pg, "Items", "(scan first)", "ItemsData", 0, ...
+l.Layout.Row = 2; l.Layout.Column = 1;
+sg = uigridlayout(pg, [1 2], "ColumnWidth", {'1x', 34}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);   % the drop-down and its star
+sg.Layout.Row = 2; sg.Layout.Column = 2;
+obj.FiguresDatasetDropDown = uidropdown(sg, "Items", "(scan first)", "ItemsData", 0, ...
     "ValueChangedFcn", @(dd, ~) obj.selectDataset(dd.Value), "Tooltip", "The active dataset (the same on every tab).");
-obj.FiguresDatasetDropDown.Layout.Row = 1; obj.FiguresDatasetDropDown.Layout.Column = [5 6];
+obj.FiguresDatasetStar = starButton(obj, sg, "dataset");
 l = uilabel(pg, "Text", "Observation:");
-l.Layout.Row = 2; l.Layout.Column = 4;
-obj.FigureObservationDropDown = uidropdown(pg, "Items", "(no observation)", "ItemsData", 0, ...
+l.Layout.Row = 3; l.Layout.Column = 1;
+sg = uigridlayout(pg, [1 2], "ColumnWidth", {'1x', 34}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);
+sg.Layout.Row = 3; sg.Layout.Column = 2;
+obj.FigureObservationDropDown = uidropdown(sg, "Items", "(no observation)", "ItemsData", 0, ...
     "ValueChangedFcn", @(~,~) obj.onFigureObservationChanged(), ...
     "Tooltip", "What the preview draws the figure for: one of the units, channels or the dataset the Observations " + ...
-    "section keeps, in probe order. Each figure remembers its pick.");
-obj.FigureObservationDropDown.Layout.Row = 2; obj.FigureObservationDropDown.Layout.Column = [5 6];
-% the design every figure is drawn in (PlotDesign; also the Design menu), and the preview's look kept as one
-dg = uigridlayout(pg, [1 4], "ColumnWidth", {'fit', 220, 'fit', '1x'}, "Padding", [0 0 0 0], "ColumnSpacing", 8);
-dg.Layout.Row = 3; dg.Layout.Column = [1 6];
-uilabel(dg, "Text", "Design:");
-obj.DesignDropDown = uidropdown(dg, "Items", PlotDesign.DefaultName, "ItemsData", PlotDesign.DefaultName, ...
+    "section keeps, in probe order. Each figure remembers its pick. ★: starred.");
+obj.FigureObservationStar = starButton(obj, sg, "observation");
+l = uilabel(pg, "Text", "Favorites:");
+l.Layout.Row = 4; l.Layout.Column = 1;
+obj.FigureFavorites = buildFavorites(obj, pg, "FigureFavorites");   % every starred dataset, channel and unit
+obj.FigureFavorites.Grid.Layout.Row = 4; obj.FigureFavorites.Grid.Layout.Column = [2 4];
+% the design every figure is drawn in (PlotDesign; also the Design menu), right of the Dataset and Observation
+% drop-downs, and the preview's look kept as one
+l = uilabel(pg, "Text", "Design:");
+l.Layout.Row = 2; l.Layout.Column = 3;
+obj.DesignDropDown = uidropdown(pg, "Items", PlotDesign.DefaultName, "ItemsData", PlotDesign.DefaultName, ...
     "ValueChangedFcn", @(dd, ~) obj.onDesignChosen(dd.Value), ...
     "Tooltip", "The look of every figure: its ground, colors, fonts, axes, ticks, lines and marks. " + ...
     "Choosing one redraws every figure on screen; runs draw their figures in it too.");
-obj.SaveDesignButton = uibutton(dg, "Text", "Save look as design...", "ButtonPushedFcn", @(~,~) obj.onSaveDesign(), ...
+obj.DesignDropDown.Layout.Row = 2; obj.DesignDropDown.Layout.Column = 4;
+obj.SaveDesignButton = uibutton(pg, "Text", "Save look as design...", "ButtonPushedFcn", @(~,~) obj.onSaveDesign(), ...
     "Tooltip", "Keep the preview's look -- every property of every component, its ground and its group " + ...
     "colors -- as a design of your own, to choose for any figure. The axes of heat map, probe map, " + ...
     "correlation map and spectrogram panels are kept for those panel types only. Preview first if the " + ...
     "preview is out of date.");
+obj.SaveDesignButton.Layout.Row = 3; obj.SaveDesignButton.Layout.Column = [3 4];
 obj.FigurePreviewPanel = uipanel(pg, "BackgroundColor", "w", "BorderType", "line");
-obj.FigurePreviewPanel.Layout.Row = 4; obj.FigurePreviewPanel.Layout.Column = [1 6];
-sg = uigridlayout(pg, [1 3], "ColumnWidth", {'fit', '1x', 0}, "Padding", [0 0 0 0], "ColumnSpacing", 8);
-sg.Layout.Row = 5; sg.Layout.Column = [1 6];
+obj.FigurePreviewPanel.Layout.Row = 5; obj.FigurePreviewPanel.Layout.Column = [1 4];
+sg = uigridlayout(pg, [1 4], "ColumnWidth", {'fit', '1x', 0, 130}, "Padding", [0 0 0 0], "ColumnSpacing", 8);
+sg.Layout.Row = 6; sg.Layout.Column = [1 4];
 B.Grid = uigridlayout(sg, [1 2], "ColumnWidth", {18, 'fit'}, "Padding", [6 2 10 2], "ColumnSpacing", 5);
 B.Icon = uiimage(B.Grid, "ScaleMethod", "fit");
 B.Text = uilabel(B.Grid, "FontWeight", "bold");
@@ -1232,12 +1359,18 @@ obj.FigureSessionDropDown = uidropdown(sg, "Items", "(all)", "ItemsData", 1, "Vi
     "ValueChangedFcn", @(~,~) obj.onFigureSessionPicked(), ...
     "Tooltip", "A figure across sessions makes one figure per subject (Figures: one per subject) or per trial group " + ...
     "(Trial groups: a figure per group): the one the preview shows.");   % its column opens when there are several
+obj.FigureOpenButton = uibutton(sg, "Text", "Open in window", "Enable", "off", ...
+    "Tooltip", "Draw the figure as previewed into a new MATLAB figure window of its own (the right-click editor works there too). " + ...
+    "It is independent of this app: later edits do not follow into it. An out-of-date preview is redrawn first.", ...
+    "ButtonPushedFcn", @(~,~) obj.onOpenFigureWindow());
+obj.FigureOpenButton.Layout.Row = 1; obj.FigureOpenButton.Layout.Column = 4;
 obj.setFigurePreviewState("idle");
 end
 
 
 function onIdEdited(obj, f, evt)
-%onIdEdited  A new figure id: refused when blank or another figure's; the observation picked moves with it.
+%onIdEdited  A figure id typed: refused when blank or another figure's; else it is the figure's own (auto unticked).
+%   The observation picked moves with it (trackFigureIds, in onConfigChanged).
 if obj.Applying; return; end
 k = obj.SelectedFigure;
 if k < 1 || k > numel(obj.Config.Figures); return; end
@@ -1253,12 +1386,24 @@ if id == "" || any(others == id)
     end
     return
 end
-old = char(obj.Config.Figures(k).id);
-if isKey(obj.FigureObservation, old) && ~strcmp(old, char(id))
-    obj.FigureObservation(char(id)) = obj.FigureObservation(old);
-    remove(obj.FigureObservation, old);
-end
+obj.FigureEditor.idAuto.Value = false;   % typed: the id is the user's own from now on
 obj.onConfigChanged("figure");
+obj.setStatus("The figure's id is " + id + ", your own: it no longer follows its panels (tick auto to go back).");
+end
+
+
+function onIdAutoToggled(obj, b)
+%onIdAutoToggled  The Id row's auto box: ticked, the id follows the panels and data again; unticked, the id it shows is kept as the user's own.
+if obj.Applying; return; end
+k = obj.SelectedFigure;
+if k < 1 || k > numel(obj.Config.Figures); return; end
+obj.onConfigChanged("figure");
+id = obj.Config.Figures(k).id;
+if b.Value
+    obj.setStatus("The figure's id follows its panels and data again: " + id + ".");
+else
+    obj.setStatus("The figure's id " + id + " is your own now: it no longer follows its panels.");
+end
 end
 
 
@@ -1304,11 +1449,6 @@ function onGroupByChanged(obj)
 %onGroupByChanged  The figure tree's Group by: regroup it (the selected figure stays); Up and Down follow its new group.
 obj.refreshFigureList();
 obj.syncFigureEditor();
-end
-
-
-function setAddType(obj, t)
-obj.FigureAddType = string(t);
 end
 
 
@@ -1365,80 +1505,52 @@ end
 
 
 function relinkAll(obj)
-%relinkAll  Every panel of the selected figure takes the figure's event, window, trial selection and common options again (relinkPanels).
+%relinkAll  Every panel of the selected figure takes the figure's event, window and trial selection again (relinkPanels).
 k = obj.SelectedFigure;
 if k < 1 || k > numel(obj.Config.Figures); return; end
 cfg = obj.gatherConfig();
 fig = cfg.Figures(k);
 n = 0;
 for q = 1:numel(fig.panels)
-    n = n + (isstruct(fig.panels(q).ref) || isstruct(fig.panels(q).window) || isstruct(fig.panels(q).selection) ...
-        || ~fig.panels(q).common);
+    n = n + (isstruct(fig.panels(q).ref) || isstruct(fig.panels(q).window) || isstruct(fig.panels(q).selection));
 end
 if n == 0; return; end
 fig = EphysAnalysisConfig.relinkPanels(fig);
 cfg.Figures(k) = fig;
-commitFigureEdit(obj, cfg, sprintf("Re-linked %d panel(s): every panel follows the figure's event, window, trial selection " + ...
-    "and common options again.", n));
-end
-
-
-function onCommonEdited(obj)
-%onCommonEdited  A Common options row: the figure's common values change, and every linked panel's rows show them.
-if obj.Applying; return; end
-obj.onConfigChanged("figure");
-obj.applyFigureEditor();   % the linked panel's Options rows show the new values
-end
-
-
-function onPanelCommonToggled(obj)
-%onPanelCommonToggled  "Common options from the figure": ticked, the panel takes the figure's common values; unticked, a copy of them as its own.
-%   Unticking copies the values the panel draws now (panelOptions: the
-%   figure's common ones) into its options for the common fields its type
-%   has, so its rows start from them; ticking links it again (its own
-%   values stay stored, unused).
-if obj.Applying; return; end
-k = obj.SelectedFigure;
-j = obj.SelectedPanel;
-if k < 1 || k > numel(obj.Config.Figures) || j < 1 || j > numel(obj.Config.Figures(k).panels); return; end
-linked = logical(obj.FigureEditor.panelCommon.Value);
-cfg = obj.gatherConfig();
-fig = cfg.Figures(k);
-p = fig.panels(j);
-if linked
-    p.common = true;
-    msg = p.id + " takes the figure's common options again.";
-else
-    op = EphysAnalysisConfig.panelOptions(fig, p);
-    for f = EphysAnalysisConfig.commonFieldsOf(p.type)
-        p.options.(f) = op.(f);
-    end
-    p.common = false;
-    msg = p.id + " has its own options now, starting from the figure's common ones.";
-end
-fig.panels(j) = p;
-cfg.Figures(k) = fig;
-commitFigureEdit(obj, cfg, msg);
+commitFigureEdit(obj, cfg, sprintf("Re-linked %d panel(s): every panel follows the figure's event, window and trial " + ...
+    "selection again.", n));
 end
 
 
 function applyOptionsToAll(obj)
-%applyOptionsToAll  adoptPanelOptions: the panel's common values become the figure's, every panel is linked, its other options go to the panels of its type.
+%applyOptionsToAll  adoptPanelOptions: the panel's shared rows go to every panel that has them, its other options to the panels of its type.
+%   The status bar names each panel that changed, with its options, and
+%   the panels that kept their baseline because their type does not take
+%   the mode; nothing changes when the others have the values already.
 k = obj.SelectedFigure;
 j = obj.SelectedPanel;
 if k < 1 || k > numel(obj.Config.Figures) || j < 1 || j > numel(obj.Config.Figures(k).panels); return; end
 cfg = obj.gatherConfig();
 fig = cfg.Figures(k);
 p = fig.panels(j);
-same = nnz([fig.panels.type] == p.type) - 1;
-fig = EphysAnalysisConfig.adoptPanelOptions(fig, p.id);
-cfg.Figures(k) = fig;
-msg = p.id + "'s";
-if ~p.common; msg = msg + " common options are now the figure's and every panel is linked to them"; end
-if same > 0
-    if ~p.common; msg = msg + "; its"; end
-    msg = msg + sprintf(" other options went to the %d other %s panel(s)", same, p.type);
+[fig, changed] = EphysAnalysisConfig.adoptPanelOptions(fig, p.id);
+went = strings(1, 0);
+kept = strings(1, 0);
+for c = changed
+    if ~isempty(c.fields); went(end+1) = c.id + " (" + strjoin(c.fields, ", ") + ")"; end %#ok<AGROW>
+    if ~isempty(c.kept); kept(end+1) = c.id; end %#ok<AGROW>
 end
+msg = p.id + "'s options went to " + strjoin(went, ", ");
+if isempty(went); msg = "The other panels have " + p.id + "'s options already"; end
+if ~isempty(kept)
+    msg = msg + "; " + strjoin(kept, ", ") + " kept their own baseline (their type does not take """ + ...
+        p.options.baseline.Mode + """)";
+end
+if isempty(went)
+    obj.setStatus(msg + ".");
+    return
+end
+cfg.Figures(k) = fig;
 commitFigureEdit(obj, cfg, msg + ".");
 end
 
@@ -1466,7 +1578,7 @@ if string(evt.Value) == "fixed" && string(evt.PreviousValue) == "observation" &&
     src = string(E.layerSource.Value);
     if ismember(type, ["raster" "psth" "waveforms" "rate" "tuning"]) && ismember(src, EphysAnalysisConfig.SpikeSources) ...
             && strtrim(string(E.layerIds.Value)) == ""
-        if src == fig.observe.source && isfinite(T.unitId(i))
+        if src == fig.observe.data && isfinite(T.unitId(i))
             E.layerIds.Value = char(string(T.unitId(i)));
             note = "Fixed to unit " + T.unitId(i) + "; edit Unit ids to change it.";
         elseif isfinite(T.channel(i)) && strtrim(string(E.layerUnitChannels.Value)) == ""
@@ -1491,7 +1603,8 @@ F = obj.FigurePreviewResult;
 if obj.FigurePreviewState ~= "drawn" || isempty(F) || F.id ~= id; return; end
 try
     spec = obj.Config.figureFor(k);
-    renderFigure(F, spec, obj.FigurePreviewPanel, OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules));
+    renderFigure(F, spec, obj.FigurePreviewPanel, OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules), ...
+        OnGoto=@(role, panel) obj.gotoFigureSetting(spec.id, role, panel));
 catch
     obj.autoFigurePreview();
 end
@@ -1511,7 +1624,7 @@ end
 function [S, E] = aurocRows(S, E, p, changed, isPlot)
 %aurocRows  The auROC settings' rows in form section S; P prefixes their editor fields.
 %   ISPLOT (default false): a PSTH's or heat map's own (baseline Mode
-%   "auroc", the common block's or a panel's), with the call window, the
+%   "auroc"), with the call window, the
 %   test's correction and alpha, the marks and modulated units only.
 %   Otherwise the response
 %   test's ("auroc"): its own bins; its windows, correction and alpha are
@@ -1583,6 +1696,33 @@ if isPlot
     E.(p + "ModOnly") = uicheckbox(g, "Text", "Modulated units only", "ValueChangedFcn", changed, ...
         "Tooltip", "Draw only the units called modulated in at least one group.");
 end
+end
+
+
+function b = superHeader(eg)
+%superHeader  A supersection's header in the editor's grid: a dark bar that collapses its sections (layoutFigureEditor sets its text and place).
+b = uibutton(eg, "Text", "", "HorizontalAlignment", "left", "FontWeight", "bold", "FontSize", 14, ...
+    "FontColor", [1 1 1], "BackgroundColor", [0.21 0.26 0.35], "Tag", "formSectionToggle", ...
+    "Tooltip", "Show or hide every section under this heading.");
+end
+
+
+function searchPicked(obj, lb, ~)
+%searchPicked  A match picked in the search list (a click, or the arrows): the editor shows it; the focus stays in the list.
+v = lb.Value;
+if ~isnumeric(v) || ~isscalar(v) || v < 1 || isequal(lb.UserData, v); return; end   % (a click went there already)
+lb.UserData = [];
+obj.FigureSearchState = "list";   % Enter now goes into it (onKeyPress)
+obj.gotoFigureRow(v, Focus=false);
+end
+
+
+function searchClicked(obj, lb, evt)
+%searchClicked  A click on a match in the search list: go there, the focus on its control.
+i = evt.InteractionInformation.Item;
+if isempty(i) || ~isnumeric(lb.ItemsData) || i > numel(lb.ItemsData) || lb.ItemsData(i) < 1; return; end
+lb.UserData = lb.ItemsData(i);
+obj.gotoFigureRow(lb.ItemsData(i));
 end
 
 

@@ -2,11 +2,14 @@ function applyFigureEditor(obj)
 %applyFigureEditor  Show the selected figure, its selected panel and that panel's selected layer in the editor.
 %   The figure's own rows (id, title, observations, spacing, alignment,
 %   appearance, looks), then the panel's (SelectedPanel: type, title, spans,
-%   its row's height and column's width, its own event and window or the
+%   its row's height and column's width, its size in its cell and its
+%   alignment there, its own event and window or the
 %   figure's, its type's options, its layers) and the layer's
 %   (SelectedLayer), and the panel's text note and overlays (the first
 %   picked). The line and parameter lists come from the active
-%   dataset. syncFigureEditor then shows the rows they use;
+%   dataset, and so does the Observe list's order: what the dataset
+%   holds first, a type it lacks after the dataset, marked "(not in
+%   <dataset>)". syncFigureEditor then shows the rows they use;
 %   drawFigureSchematic draws the arrangement.
 E = obj.FigureEditor;
 k = obj.SelectedFigure;
@@ -14,7 +17,7 @@ if k < 1 || k > numel(obj.Config.Figures)
     obj.SelectedPanel = 0;
     obj.SelectedLayer = 0;
     obj.FigureEditorPanel.Title = "Figure";
-    E.id.Value = '';
+    showFigureId(obj);
     obj.syncFigureEditor();
     return
 end
@@ -25,15 +28,13 @@ fig = obj.Config.Figures(k);
 np = numel(fig.panels);
 obj.SelectedPanel = min(max(obj.SelectedPanel, 1), np);
 [lines, params] = sourceItems(obj);
-obj.FigureEditorPanel.Title = "Figure: " + fig.id;
-E.id.Value = char(fig.id);
+showFigureId(obj);   % the editor's title too
 E.title.Value = char(fig.title);
 E.enabled.Value = fig.enabled;
 
 % observations
 o = fig.observe;
-E.observe.Value = char(pickFrom(o.kind, EphysAnalysisConfig.ObserveKinds, "auto"));
-E.obsSource.Value = char(pickFrom(o.source, EphysAnalysisConfig.SpikeSources, "units"));
+observeItems(obj, E.observe, o.data);
 u = o.units;
 for c = string(fieldnames(E.obsClasses)).'
     E.obsClasses.(c).Value = ismember(c, u.classes);
@@ -55,7 +56,6 @@ E.obsRespAlpha.Value = min(1, max(eps, rs.alpha));
 aurocTo(E, "obsRa", rs.auroc);
 E.obsShanks.Value = listText(u.shanks);
 E.obsUnitChannels.Value = listText(u.channels);
-offerItems(E.obsSignal, EphysAnalysisConfig.SignalSources, o.signal);
 E.obsChannels.Value = listText(o.channels);
 E.obsPerGroup.Value = logical(o.perGroup);
 
@@ -105,24 +105,6 @@ offerItems(E.errEdge, string(E.errEdge.Items), pick(s.ErrorEdgeColor, "none"));
 E.errEdgeStyle.Value = char(pickFrom(s.ErrorEdgeStyle, string(E.errEdgeStyle.ItemsData), "-"));
 E.errEdgeWidth.Value = min(E.errEdgeWidth.Limits(2), max(E.errEdgeWidth.Limits(1), s.ErrorEdgeWidth));
 
-% the common options every linked panel takes
-c = fig.common;
-E.cmBinMs.Value = max(E.cmBinMs.Limits(1), 1000 * c.bins.BinSec);
-E.cmSmoothMs.Value = max(0, 1000 * c.bins.SmoothSec);
-offerItems(E.cmMeasure, ["rate" "count" "probability"], c.measure);
-offerItems(E.cmBaselineMode, ["none" "subtract" "zscore" "percent" "ratio" "auroc"], c.baseline.Mode);
-E.cmBaseFrom.Value = c.baseline.Window(1);
-E.cmBaseTo.Value = c.baseline.Window(2);
-aurocPlotTo(E, "cmAu", c.auroc);
-E.cmMaskAfterStop.Value = logical(c.maskAfterStop);
-wv = c.waveform;
-E.cmWaveMode.Value = char(pickFrom(wv.mode, string(E.cmWaveMode.ItemsData), "off"));
-E.cmWaveSpikes.Value = min(E.cmWaveSpikes.Limits(2), max(E.cmWaveSpikes.Limits(1), round(wv.maxSpikes)));
-E.cmWaveLocation.Value = char(pickFrom(wv.location, string(E.cmWaveLocation.ItemsData), "northeast"));
-E.cmWaveBox.Value = wv.box;
-E.cmWaveScale.Value = min(E.cmWaveScale.Limits(2), max(E.cmWaveScale.Limits(1), wv.scale));
-E.cmWavePP.Value = wv.showPP;
-E.cmWaveCount.Value = wv.showCount;
 n = numel(fig.aesthetics);
 E.looksText.Text = sprintf("%d remembered look(s); right-click the preview to edit.", n);
 E.looksForget.Enable = matlab.lang.OnOffSwitchState(n > 0);
@@ -160,11 +142,18 @@ if any(row)
     label = PT.Label(row);
 end
 E.panelTitle.Value = char(p.title);
+E.panelBox.Value = char(pickFrom(p.box, string(E.panelBox.ItemsData), "auto"));
 E.selPanel.Text = sprintf("%s  (%s; row %d, column %d)", p.id, label, p.row, p.col);
 E.rowSpan.Value = min(E.rowSpan.Limits(2), max(1, round(p.rowSpan)));
 E.colSpan.Value = min(E.colSpan.Limits(2), max(1, round(p.colSpan)));
 E.rowHeight.Value = sizeOf(fig.grid.rowHeights, p.row);   % as stored: gatherFigureEditor writes it back only when edited
 E.colWidth.Value = sizeOf(fig.grid.colWidths, p.col);
+share = [100 100];   % its own size in its cell, %
+if numel(p.size) == 2 && all(isfinite(p.size)); share = min(100, max(1, 100 * reshape(p.size, 1, 2))); end
+E.panelWidth.Value = share(1);
+E.panelHeight.Value = share(2);
+E.panelAlign.Value = char(pickFrom(p.align, EphysAnalysisConfig.PanelAligns, "center"));
+E.panelVAlign.Value = char(pickFrom(p.valign, EphysAnalysisConfig.PanelVAligns, "middle"));
 own = [isstruct(p.ref) isstruct(p.window)];
 E.panelSame.Value = ~any(own);
 E.panelSame.UserData = own;   % which part the panel has of its own (onPanelAlignEdited, gatherFigureEditor)
@@ -177,9 +166,8 @@ E.panelSameSel.Value = ~isstruct(p.selection);   % its own trial selection, else
 if isstruct(p.selection); psel = p.selection; end
 obj.applyAlignControls(obj.PanelAlignControls, pref, pwin, psel);
 
-% options: the rows of the panel type's fields, as drawn (a linked panel's common fields: the figure's)
-E.panelCommon.Value = p.common;
-op = EphysAnalysisConfig.panelOptions(fig, p);
+% options: the rows of the panel type's fields
+op = p.options;
 first = "";
 on = [p.layers.enabled];
 if any(on); first = p.layers(find(on, 1)).source; end
@@ -213,6 +201,9 @@ if isfield(op, 'rasterSort')
     setSequenceHolder(E.sortSeqText, struct('sequence', se.sequence, 'alignStep', se.alignStep));
     E.rasterByGroup.Value = op.rasterByGroup;
 end
+if isfield(op, 'yTicks'); E.yTicks.Value = logical(op.yTicks); end
+if isfield(op, 'tickColor'); offerItems(E.tickColor, string(E.tickColor.Items), string(op.tickColor)); end
+if isfield(op, 'backColor'); offerItems(E.backColor, string(E.backColor.Items), string(op.backColor)); end
 if isfield(op, 'maskAfterStop'); E.maskAfterStop.Value = op.maskAfterStop; end
 if isfield(op, 'histStyle')
     offerItems(E.histStyle, ["bar" "line"], op.histStyle);
@@ -220,6 +211,8 @@ if isfield(op, 'histStyle')
     if isnan(op.fillAlpha); E.fillAlpha.Value = []; else; E.fillAlpha.Value = min(1, max(0, op.fillAlpha)); end
     E.normalize.Value = char(pickFrom(op.normalize, string(E.normalize.ItemsData), "none"));
 end
+if p.type == "psth"; E.psthDisplay.Value = char(pickFrom(op.display, string(E.psthDisplay.ItemsData), "trace")); end
+if isfield(op, 'colormap'); offerItems(E.panelColormap, string(E.panelColormap.Items), pick(op.colormap, "auto")); end
 if isfield(op, 'stack')
     E.stack.Value = logical(op.stack);
     if isfinite(op.stackSpacing) && op.stackSpacing > 0; E.psthSpacing.Value = op.stackSpacing; else; E.psthSpacing.Value = 1.1; end
@@ -257,6 +250,9 @@ if isfield(op, 'waveform')
 end
 if isfield(op, 'taperMode')   % a spectral panel's Chronux rows
     applySpectral(E, op);
+end
+if p.type == "eventTrace"
+    applyEventTrace(E, op);
 end
 
 % its text note and overlays
@@ -308,6 +304,27 @@ E.annBox.Value = nt.box;
 offerItems(E.annColor, string(E.annColor.Items), pick(nt.color, "auto"));
 offerItems(E.annBackground, string(E.annBackground.Items), pick(nt.background, "none"));
 E.annInterp.Value = char(pickFrom(nt.interpreter, string(E.annInterp.ItemsData), "none"));
+end
+
+
+function applyEventTrace(E, op)
+%applyEventTrace  An event-trace panel's rows.
+E.etDisplay.Value = char(pickFrom(op.display, string(E.etDisplay.ItemsData), "bars"));
+E.etTrials.Value = char(pickFrom(op.trials, string(E.etTrials.ItemsData), "overlay"));
+E.etGroupBands.Value = logical(op.groupBands);
+E.etColorBy.Value = char(pickFrom(op.colorBy, string(E.etColorBy.ItemsData), "layer"));
+E.etHeight.Value = min(E.etHeight.Limits(2), max(E.etHeight.Limits(1), op.height));
+if isfinite(op.alpha); E.etAlpha.Value = min(1, max(0, op.alpha)); else; E.etAlpha.Value = []; end
+offerItems(E.etEdge, string(E.etEdge.Items), pick(op.edgeColor, "none"));
+E.etEdgeWidth.Value = min(E.etEdgeWidth.Limits(2), max(E.etEdgeWidth.Limits(1), op.edgeWidth));
+E.etMinWidth.Value = min(E.etMinWidth.Limits(2), max(E.etMinWidth.Limits(1), op.minWidth));
+E.etLineStyle.Value = char(pickFrom(op.lineStyle, string(E.etLineStyle.ItemsData), "-"));
+E.etLineWidth.Value = min(E.etLineWidth.Limits(2), max(E.etLineWidth.Limits(1), op.lineWidth));
+E.etBaseline.Value = logical(op.showBaseline);
+offerItems(E.etBaseColor, string(E.etBaseColor.Items), pick(op.baselineColor, "auto"));
+E.etBaseStyle.Value = char(pickFrom(op.baselineStyle, string(E.etBaseStyle.ItemsData), ":"));
+E.etBaseWidth.Value = min(E.etBaseWidth.Limits(2), max(E.etBaseWidth.Limits(1), op.baselineWidth));
+E.etRowSpacing.Value = max(eps, op.rowSpacing);
 end
 
 
@@ -370,10 +387,13 @@ offerItems(E.evLine, lines, ev.line);
 offerItems(E.evEdge, ["onset" "offset"], ev.edge);
 closeSequenceDialog(obj, E.evSeqText);
 setSequenceHolder(E.evSeqText, struct('sequence', ev.sequence, 'alignStep', ev.alignStep));
-E.evDrawAs.Value = char(pickFrom(L.eventsAs, ["marks" "train"], "marks"));
+drawAsChoices(E.evDrawAs, type, pickFrom(L.eventsAs, ["marks" "train" "span"], "marks"));
 E.evMarker.Value = char(pickFrom(ev.marker, string(E.evMarker.ItemsData), "diamond"));
 E.evSize.Value = min(E.evSize.Limits(2), max(E.evSize.Limits(1), ev.size));
 offerItems(E.evColor, string(E.evColor.Items), pick(ev.color, "auto"));
+E.evSpanStyle.Value = char(pickFrom(ev.spanStyle, string(E.evSpanStyle.ItemsData), "-"));
+E.evSpanWidth.Value = min(E.evSpanWidth.Limits(2), max(E.evSpanWidth.Limits(1), ev.spanWidth));
+E.evSpanAlpha.Value = min(1, max(0, ev.spanAlpha));
 offerItems(E.layerColor, string(E.layerColor.Items), pick(L.color, "auto"));
 E.layerLineStyle.Value = char(pickFrom(pick(L.lineStyle, "auto"), string(E.layerLineStyle.ItemsData), "auto"));
 end
@@ -386,6 +406,43 @@ ref = D.EventRef; win = D.Window; sel = D.Selection;
 if isstruct(fig.ref); ref = fig.ref; end
 if isstruct(fig.window); win = fig.window; end
 if isstruct(fig.selection); sel = fig.selection; end
+end
+
+
+function observeItems(obj, dd, data)
+%observeItems  The Observe drop-down DD: the data types (ObserveData), what the active dataset holds first, DATA picked.
+%   Sorted units, Detected spikes (per channel), each signal (LFP, MUA,
+%   SPIKE, AUX) and The dataset, in that order; a type the active dataset
+%   lacks (its loaded source: observeHeld) goes after
+%   The dataset, marked "(not in <dataset>)", and can still be picked.
+%   Without an active dataset every type is listed plain. A DATA that is
+%   none of them (validate says so) is listed as it is.
+types = EphysAnalysisConfig.ObserveData;
+names = types;
+names(types == "units") = "Sorted units";
+names(types == "detected") = "Detected spikes (per channel)";
+names(types == "dataset") = "The dataset";
+has = true(size(types));
+src = [];
+if ~isempty(obj.Runner) && obj.ActiveIdx >= 1
+    try
+        src = obj.Runner.source(obj.ActiveIdx);   % loaded when it became active (selectDataset)
+    catch
+    end
+end
+if isstruct(src)
+    has = observeHeld(src);
+    names(~has) = names(~has) + " (not in " + src.name + ")";
+end
+ord = [find(has) find(~has)];
+items = names(ord);
+data0 = types(ord);
+if ~ismember(data, data0)
+    items(end+1) = data;
+    data0(end+1) = data;
+end
+dd.ItemsData = [];   % the old values need not be among the new items
+set(dd, "Items", items, "ItemsData", data0, "Value", data);
 end
 
 

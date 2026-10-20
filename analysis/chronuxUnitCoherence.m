@@ -1,11 +1,11 @@
 function R = chronuxUnitCoherence(SP, TB, S, opts)
 %chronuxUnitCoherence  Coherence between pairs of spike trains (Chronux coherencypt).
 %   R = chronuxUnitCoherence(SP, TB, S, Name=Value): SP spike trains
-%   (chronuxSpikeTrains; SP.index their numbers in the file), TB a
+%   (chronuxTrainsOf; SP.index their numbers), TB a
 %   chronuxTimeBase (made without Fs over a stretch), S chronuxSettings.
 %   The pairs are train S.unitSeed against S.unitPartner (pairMode
 %   "pair"), or against every other train of SP ("seed"), by their
-%   numbers in the file. Both trains' spikes are cut into TB's trials
+%   numbers. Both trains' spikes are cut into TB's trials
 %   (chronuxSpikeCut, stamped from the window's start) and, per group, go
 %   to coherencypt with trialave = 1 on a grid of S.spikeFs Hz: the
 %   coherence magnitude C and phase phi (the angle of the cross-spectrum

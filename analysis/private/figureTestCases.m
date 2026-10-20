@@ -9,7 +9,12 @@ function [C, fx] = figureTestCases(root)
 %     every panel type, its template (addFigure(<type>)): raster, psth,
 %       continuous, heatmap, waveforms, probemap, corrmap, rate, tuning,
 %       spectrum, spectrogram, coherence (the spectral ones need Chronux
-%       on the path; without it their panels are skipped, drawn as notes)
+%       on the path; without it their panels are skipped, drawn as notes),
+%       eventTrace (the Stim line's bars, epochs overlaid)
+%     eventTrace_rows   the Stim and Platform lines as logic levels, a
+%                       sub-row per epoch, colored by trial group
+%     spans             rasterPsth with the Stim line drawn as a span
+%                       (onset to offset) on the raster and the PSTH
 %     rasterPsth        a unit's raster flush over its PSTH
 %     psth_stack        the PSTH's groups stacked in rows
 %     psth_auroc        the auROC baseline (only with the Statistics and
@@ -60,7 +65,7 @@ cfg = cfg.addFigure(s);
 haveStats = license('test', 'Statistics_Toolbox') && exist('tiedrank', 'file') == 2;
 if haveStats
     a = f; a.id = "psth_auroc";
-    a.common.baseline = struct('Mode', "auroc", 'Window', [-0.2 0]);
+    a.panels(2).options.baseline = struct('Mode', "auroc", 'Window', [-0.2 0]);
     cfg = cfg.addFigure(a);
 end
 w = cfg.Figures(cfg.figureIndex("waveforms")); w.id = "waveforms_probe";
@@ -90,6 +95,18 @@ o = cfg.Figures(cfg.figureIndex("rate")); o.id = "ordered";
 o.selection = EphysAnalysisConfig.defaults("TrialSelection");
 o.selection.groupBy = "Depth";
 cfg = cfg.addFigure(o);
+e = cfg.Figures(cfg.figureIndex("eventTrace")); e.id = "eventTrace_rows";   % two lines, a logic level per epoch's sub-row, by group
+e2 = e.panels(1).layers(1); e2.event.line = "Platform";
+e.panels(1).layers = [e.panels(1).layers e2];
+e.panels(1).options.display = "line";
+e.panels(1).options.trials = "rows";
+e.panels(1).options.colorBy = "group";
+cfg = cfg.addFigure(e);
+sp = f; sp.id = "spans";   % Stim from onset to offset on every raster row and as a line per group on the PSTH
+spL = EphysAnalysisConfig.defaultLayer("eventTrace"); spL.eventsAs = "span";
+sp.panels(1).layers = [sp.panels(1).layers spL];
+sp.panels(2).layers = [sp.panels(2).layers spL];
+cfg = cfg.addFigure(sp);
 g = cfg.Figures(cfg.figureIndex("psth")); g.id = "one_group";
 g.selection = EphysAnalysisConfig.defaults("TrialSelection");
 g.selection.groupBy = string.empty(1, 0);

@@ -348,7 +348,8 @@ function c = sortColumns(panels, vars, sel, src)
 c = string.empty(1, 0);
 for k = 1:numel(panels)
     p = panels(k);
-    trialRows = p.type == "heatmap" && isfield(p.options, 'rows') && p.options.rows == "trials";   % sorted as a raster
+    trialRows = (p.type == "heatmap" && isfield(p.options, 'rows') && p.options.rows == "trials") ...
+        || (p.type == "eventTrace" && p.options.trials == "rows");   % sorted as a raster
     if (p.type == "raster" || trialRows) && isfield(p.options, 'rasterSort') && ~ismember(p.options.rasterSort, ["" "stop" "event"])
         c(end+1) = p.options.rasterSort; %#ok<AGROW>
     elseif p.type == "tuning" && isfield(p.options, 'param')

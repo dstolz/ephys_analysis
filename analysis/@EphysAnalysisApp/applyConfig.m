@@ -10,6 +10,7 @@ arguments
 end
 obj.Applying = true;
 restore = onCleanup(@() setApplying(obj, false));
+if ~opts.MarkSaved; trackFigureIds(obj, cfg); end   % an edit: an automatic figure id may follow it
 obj.Config = cfg;
 obj.ConfigNameField.Value = char(cfg.Name);
 obj.ConfigDescField.Value = char(cfg.Description);

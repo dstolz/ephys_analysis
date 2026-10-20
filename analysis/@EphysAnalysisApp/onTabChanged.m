@@ -12,9 +12,6 @@ switch obj.Tabs.SelectedTab
         if isempty(obj.FigurePreviewResult) || obj.FigurePreviewState == "stale"; obj.autoFigurePreview(); end
     case obj.TabExport
         msg = "Export: figure files and the report; Validate, Plan, Run over the ticked datasets.";
-    case obj.TabChronux
-        msg = "Chronux: spectra of the active dataset's Chronux file (create it if missing), over epochs or a stretch.";
-        obj.refreshChronuxTab();
     otherwise
         msg = "Log: what the scans and runs reported.";
 end

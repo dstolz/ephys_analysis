@@ -41,6 +41,7 @@ classdef PlotAesthetics
         PrefGroup = "PlotAesthetics"            % AppPrefs group: one rule set per kind (a panel type, "figure", a Chronux kind)
         ContextKey = "PlotAestheticsContext"    % appdata of the target renderFigure / renderChronux drew into
         MenuTag = "PlotAestheticsMenu"
+        GotoTag = "PlotAestheticsGoto"
     end
 
     methods (Static)
@@ -184,13 +185,18 @@ classdef PlotAesthetics
             %   panels) together. Untagged objects are listed on their own with
             %   role "". Titles, axis labels, legends and color bars count
             %   when they show something; a grid's x and y labels (its tiled
-            %   layout's) are the plot's own, tile 0.
+            %   layout's) and a figure's title and subtitle (its hidden
+            %   titleHost axes', renderFigure) are the plot's own, tile 0.
             C = struct('h', {}, 'role', {}, 'group', {}, 'tile', {}, 'name', {});
             for tl = PlotAesthetics.layoutsIn(target)
                 C = addText(C, tl.Title, "plotTitle", 0, "Plot");
                 C = addText(C, tl.Subtitle, "plotSubtitle", 0, "Plot");
                 C = addText(C, tl.XLabel, "xlabel", 0, "Plot");   % a grid's labels, once for every tile
                 C = addText(C, tl.YLabel, "ylabel", 0, "Plot");
+            end
+            for host = reshape(flipud(findall(target, 'Type', 'axes', 'Tag', 'titleHost')), 1, [])
+                C = addText(C, host.Title, "plotTitle", 0, "Plot");   % a figure's title (renderFigure: a hidden axes holds it)
+                C = addText(C, host.Subtitle, "plotSubtitle", 0, "Plot");
             end
             for host = reshape(flipud(findall(target, 'Type', 'axes', 'Tag', 'legendHost')), 1, [])
                 if ~isempty(host.Legend) && isvalid(host.Legend)   % a legend outside the grid belongs to the plot
@@ -315,6 +321,12 @@ classdef PlotAesthetics
                 "rasterEvent"  "Raster event marks"
                 "eventLine"    "Event latency line"
                 "eventRug"     "Event latency rug"
+                "eventSpan"    "Event span (onset to offset)"
+                "eventBar"     "Event trace bars"
+                "eventTick"    "Event trace ticks (short bars)"
+                "eventLevel"   "Event trace level"
+                "eventBaseline" "Event trace baseline"
+                "eventGroupBand" "Event trace group band"
                 "layerNote"    "Layer note"
                 "trace"        "Mean trace"
                 "channelTrace" "Channel trace"
@@ -457,7 +469,8 @@ classdef PlotAesthetics
             %enableEditing  Right-click any component drawn in TARGET to edit its aesthetics.
             %   CONTEXT (a struct; renderFigure builds it) is kept on TARGET:
             %   kind, id, title, root (the layout or axes drawn), target
-            %   (TARGET), plotRules,
+            %   (TARGET), plotRules, onGoto (called with a part's role and its
+            %   panel's id by the menu's "Go to setting"; [] or absent: no item),
             %   onRemember (called with the plot's new rules; [] = they cannot
             %   be saved with the plot), redraw (draws the plot again with
             %   given plot rules), design (the PlotDesign drawn in) and
@@ -487,6 +500,9 @@ classdef PlotAesthetics
                 cm = uicontextmenu(fig, 'Tag', PlotAesthetics.MenuTag, 'UserData', o, ...
                     'ContextMenuOpeningFcn', @PlotAesthetics.onMenuOpening);
                 uimenu(cm, 'Text', 'Edit aesthetics...', 'MenuSelectedFcn', @PlotAesthetics.onMenuEdit);
+                if isfield(context, 'onGoto') && ~isempty(context.onGoto)
+                    uimenu(cm, 'Text', 'Go to setting', 'Tag', PlotAesthetics.GotoTag, 'MenuSelectedFcn', @PlotAesthetics.onMenuGoto);
+                end
                 uimenu(cm, 'Text', 'Design', 'Tag', PlotDesign.MenuTag);
                 o.ContextMenu = cm;
             end
@@ -539,6 +555,43 @@ classdef PlotAesthetics
             end
         end
 
+        function onMenuGoto(menu, ~)
+            %onMenuGoto  "Go to setting": the editor setting that controls the right-clicked part.
+            h = menu.Parent.UserData;
+            if isempty(h) || ~isvalid(h); return; end
+            ctx = PlotAesthetics.contextOf(h);
+            if isempty(ctx) || ~isfield(ctx, 'onGoto') || isempty(ctx.onGoto); return; end
+            [role, panel] = PlotAesthetics.partOf(h, ctx);
+            try
+                ctx.onGoto(role, panel);
+            catch ME
+                fig = ancestor(h, 'figure');
+                if ~isempty(fig); uialert(fig, ME.message, 'Go to setting'); end
+            end
+        end
+
+        function [role, panel] = partOf(h, ctx)
+            %partOf  The role of the part H is (a layout: the plot's title) and the id of the panel it is in ("" for the figure's own).
+            T = PlotAesthetics.components(ctx.root);
+            role = "";
+            panel = "";
+            k = [];
+            if isa(h, 'matlab.graphics.layout.TiledChartLayout')
+                k = find(T.Role == "plotTitle", 1);
+            else
+                for i = 1:height(T)
+                    if any(arrayfun(@(x) isequal(x, h), T.Handles{i})); k = i; break; end
+                end
+                if isempty(k)
+                    ax = ancestor(h, 'axes');
+                    k = find(ismember(T.Role, ["axes" "rasterAxes"]) & arrayfun(@(c) isequal(T.Handles{c}(1), ax), (1:height(T)).'), 1);
+                end
+            end
+            if isempty(k); return; end
+            role = T.Role(k);
+            if T.Tile(k) > 0; panel = T.TileName(k); end
+        end
+
         function onMenuEdit(menu, ~)
             %onMenuEdit  "Edit aesthetics...": the editor on the right-clicked object.
             h = menu.Parent.UserData;
@@ -565,13 +618,13 @@ classdef PlotAesthetics
             end
             axs = flipud(findall(target, 'Type', 'axes'));
             if isempty(axs); axs = gobjects(0, 1); return; end   % nothing drawn (a figure without panels): no Tag to read
-            axs = axs(~ismember({axs.Tag}, {'legendHost' 'noteHost'}));   % hidden hosts of a legend outside the grid (placeLegend) and of the note (drawNote)
+            axs = axs(~ismember({axs.Tag}, {'legendHost' 'noteHost' 'titleHost'}));   % hidden hosts of a legend outside the grid (placeLegend), of the note (drawNote) and of a figure's title (renderFigure)
             n = numel(axs);
             chains = cell(n, 1);   % the tiles from the outermost layout in: a nested layout's tile, then the tile within it (a PSTH's
             for k = 1:n            % raster and rate panel; a figure panel's axes beside its note's band, in a coherence pair: three deep)
                 L = axs(k).Layout;
                 c = Inf;
-                if isprop(L, 'Tile') && isnumeric(L.Tile)
+                if isscalar(L) && isprop(L, 'Tile') && isnumeric(L.Tile)   % (renderFigure's axes sit in no tiled layout: drawn order)
                     c = L.Tile;
                     p = axs(k).Parent;
                     while isa(p, 'matlab.graphics.layout.TiledChartLayout') && isa(p.Parent, 'matlab.graphics.layout.TiledChartLayout') ...

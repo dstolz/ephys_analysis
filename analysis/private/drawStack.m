@@ -1,8 +1,10 @@
-function step = drawStack(ax, P, R, colors, style, look, show)
-%drawStack  One rate panel's groups in rows, the first at the bottom, step = Spacing x the tallest PSTH.
-%   STEP = drawStack(AX, P, R, COLORS, STYLE, LOOK, SHOW) draws the PSTH of
-%   one unit (or a mean) of the spikePSTH result R, one row per trial
-%   group, into AX:
+function [step, base] = drawStack(ax, P, R, colors, style, look, show)
+%drawStack  One rate panel's groups in rows, the first on top, step = Spacing x the tallest PSTH.
+%   [STEP, BASE] = drawStack(AX, P, R, COLORS, STYLE, LOOK, SHOW) draws the
+%   PSTH of one unit (or a mean) of the spikePSTH result R, one row per
+%   trial group, into AX, the first group's row on top (as a raster lists
+%   its groups, first on top); BASE (1 x nGroups) is each group's row
+%   baseline:
 %     P      m / lo / hi [nBins x nGroups] (the means and their error
 %            bands' edges), peak [nGroups x 1] (the right axis' labels),
 %            peakLabel (its name); optional tallest (the height the step is
@@ -39,20 +41,20 @@ if inRows
     rowHeight = rasterAt + tallest;
 end
 step = look.spacing * rowHeight;
-base = (0:nG-1) * step;
+base = (nG-1:-1:0) * step;   % the first group on top
 W = R.edges([1 end]);
 ls = groupLineStyles(R);
 yyaxis(ax, 'left');
 ax.LineStyleOrder = '-';   % a yyaxis side cycles through markers ('o-', '^-', ...) otherwise
 hold(ax, 'on');
 lo = 0;
-hi = base(end) + rowHeight;
+hi = base(1) + rowHeight;
 if inRows   % behind the rows' PSTHs
     rl = look.raster.look;
     rl.into = struct('base', base + rasterAt, 'height', tallest, 'equal', look.raster.equal, 'trials', look.raster.trials);
     rasterInto(ax, R, look.raster.u, style, colors, look.raster.sortBy, rl);
 end
-for g = nG:-1:1
+for g = 1:nG   % top down
     b = base(g);
     tagPart(line(ax, W, [b b], 'Color', [0.72 0.72 0.72], 'LineWidth', 0.5, 'HandleVisibility', 'off'), "stackBase", R.groups.label(g));
     m = P.m(:, g);
@@ -81,7 +83,7 @@ flat = style;
 flat.YLim = [];
 styleAxes(ax, flat);
 [labels, name] = rowLabels(R);
-set(ax, 'YTick', base, 'YTickLabel', labels(1:nG), 'TickLabelInterpreter', 'none');
+set(ax, 'YTick', fliplr(base), 'YTickLabel', flip(labels(1:nG)), 'TickLabelInterpreter', 'none');
 ylim(ax, yl);
 if show.left; ylabel(ax, name, 'Interpreter', 'none'); end
 

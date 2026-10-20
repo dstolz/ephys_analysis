@@ -90,9 +90,10 @@ function placeInAxes(t, note, place)
 %placeInAxes  The note of a plot that is one axes: normalized to the axes, labels allowed for.
 ax = ancestor(t, 'axes');
 fs = t.FontSize;
+units = ax.Units;
 ax.Units = 'points';
 height = max(ax.Position(4), 50);
-ax.Units = 'normalized';
+ax.Units = units;
 gap = 2.8 * fs / height;   % past the x label
 side = 0.02;
 t.Units = 'normalized';

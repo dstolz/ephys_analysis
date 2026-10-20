@@ -9,7 +9,8 @@ function ch = figureEditorChoices(type, source, rows)
 %                    shares the time axis (categoryOf; a spectrum, rate,
 %                    tuning or coherence panel takes none): a spectrum or
 %                    coherence panel units, detected, LFP, MUA, SPIKE, AUX;
-%                    a spectrogram the signals and events
+%                    a spectrogram the signals and events; an event-trace
+%                    panel events only
 %     SourceLabels   their names in the app ("units (sorted)", ...)
 %     Bindable       a layer of SOURCE on this type may follow the
 %                    observation (spikes or a signal, on a raster, PSTH,
@@ -42,6 +43,7 @@ if any(row)
     end
     srcs = srcs(srcs ~= "events");   % events only where categoryOf takes them: the time panels
     if T.SharesTime(row); srcs(end+1) = "events"; end
+    if type == "eventTrace"; srcs = "events"; end   % its only source (categoryOf)
 end
 srcs = unique(srcs, 'stable');
 names = dictionary(["units" "detected" "events" "LFP" "MUA" "SPIKE" "AUX"], ...
@@ -55,18 +57,8 @@ ch = struct('Sources', srcs, 'SourceLabels', labels, ...
         || (type == "heatmap" && rows == "trials" && ismember(source, EphysAnalysisConfig.SpikeSources)), ...
     'BaselineModes', "none", 'WaveModes', ["off" "mean" "subsample" "both"], ...
     'WaveLabels', ["Off" "Mean" "Subsample" "Mean + subsample"]);
+ch.BaselineModes = EphysAnalysisConfig.baselineModes(type, source);
 switch type
-    case "psth"
-        ch.BaselineModes = ["none" "subtract" "zscore" "percent" "auroc"];
-    case "heatmap"
-        ch.BaselineModes = ["none" "subtract" "zscore" "percent" "auroc"];
-        if ismember(source, EphysAnalysisConfig.SignalSources); ch.BaselineModes = ["none" "subtract"]; end
-    case {"continuous" "corrmap"}
-        ch.BaselineModes = ["none" "subtract"];
-    case {"rate" "tuning"}
-        ch.BaselineModes = ["none" "subtract" "ratio" "zscore"];
-    case "spectrogram"   % chronuxNormalize's
-        ch.BaselineModes = ["none" "db" "percent" "zscore" "ratio"];
     case "waveforms"
         ch.WaveModes = ch.WaveModes(2:end);
         ch.WaveLabels = ch.WaveLabels(2:end);

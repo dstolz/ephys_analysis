@@ -12,7 +12,8 @@ function refreshFigurePreview(obj, opts)
 %   the first figure drawn after the app starts is not counted, since it
 %   also loads the graphics. A right-click on the preview opens the
 %   aesthetics editor; what it remembers for the figure comes back through
-%   rememberFigureAesthetics. The badge (setFigurePreviewState) says
+%   rememberFigureAesthetics. The selected panel is outlined in the
+%   preview (markFigurePanel). The badge (setFigurePreviewState) says
 %   Computing, then Drawing, with a card over the old drawing whose Cancel
 %   (onCancelFigurePreview) stops the compute at its next checkpoint (the
 %   runner polls: Runner.PollFcn); edits made meanwhile leave it Out of
@@ -44,7 +45,7 @@ end
 k = obj.SelectedFigure;
 if k < 1 || k > numel(obj.Config.Figures)
     obj.FigurePreviewResult = [];
-    clearPanel(obj, "No figure: pick a template under the list and press Add.");
+    clearPanel(obj, "No figure: press Add under the list, then pick its first panel.");
     obj.setFigurePreviewState("idle");
     showSessionPicker(obj, []);
     return
@@ -127,7 +128,9 @@ try
     obj.FigurePreviewResult = F;
     L.Text = "Drawing " + what + " ...";
     obj.setFigurePreviewState("drawing", Message="Drawing " + what + " ...");
-    renderFigure(F, spec, obj.FigurePreviewPanel, OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules));
+    renderFigure(F, spec, obj.FigurePreviewPanel, OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules), ...
+        OnGoto=@(role, panel) obj.gotoFigureSetting(spec.id, role, panel));
+    obj.markFigurePanel();   % the selected panel outlined
 catch ME
     if ~isvalid(obj) || ~isvalid(obj.Fig); return; end   % the app was closed while it computed
     obj.FigurePreviewResult = [];
@@ -253,7 +256,9 @@ obj.FigurePreviewResult = F;
 L.Text = "Drawing " + K.what + " ...";
 obj.setFigurePreviewState("drawing", Message="Drawing " + K.what + " ...");
 try
-    renderFigure(F, spec, obj.FigurePreviewPanel, OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules));
+    renderFigure(F, spec, obj.FigurePreviewPanel, OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules), ...
+        OnGoto=@(role, panel) obj.gotoFigureSetting(spec.id, role, panel));
+    obj.markFigurePanel();
 catch ME
     if ~isvalid(obj) || ~isvalid(obj.Fig); return; end
     obj.FigurePreviewResult = [];
@@ -304,7 +309,7 @@ for p = spec.panels
     on = [p.layers.enabled];
     srcs = [srcs p.layers(on).source]; %#ok<AGROW>
 end
-if isfield(spec, 'observe') && spec.observe.kind == "channel"; srcs(end+1) = spec.observe.signal; end
+if isfield(spec, 'observe'); srcs(end+1) = spec.observe.data; end   % an observed signal (kept below)
 srcs = unique(srcs(ismember(srcs, EphysAnalysisConfig.SignalSources)));
 mb = 0;
 for s = srcs

@@ -51,12 +51,12 @@ ob = spec.observe;
 switch ob.kind
     case "unit"
         what = "sorted units";
-        if ob.source == "detected"; what = "threshold detections"; end
-        if isfield(ob, 'units') && isfield(ob.units, 'classes') && ~isempty(ob.units.classes) && ob.source == "units"
+        if ob.data == "detected"; what = "threshold detections"; end
+        if isfield(ob, 'units') && isfield(ob.units, 'classes') && ~isempty(ob.units.classes) && ob.data == "units"
             what = what + ": " + strjoin(ob.units.classes, ", ");
         end
     case "channel"
-        what = ob.signal + " channels";
+        what = ob.data + " channels";
     otherwise
         what = "the dataset";
 end

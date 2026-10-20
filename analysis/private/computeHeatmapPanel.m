@@ -39,7 +39,7 @@ mapped = false;
 for j = 1:numel(P.layers)
     if P.layers(j).skip == "disabled"; continue; end
     L = panel.layers(j);
-    isMarks = L.source == "events" && L.eventsAs == "marks";
+    isMarks = L.source == "events" && L.eventsAs ~= "train";   % marks or spans: lines over the map
     if ~isMarks
         if mapped
             P.layers(j).skip = "A heat map draws its first enabled layer only";

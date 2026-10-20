@@ -57,18 +57,8 @@ ch = struct('Sources', srcs, 'SourceLabels', labels, ...
         || (type == "heatmap" && rows == "trials" && ismember(source, EphysAnalysisConfig.SpikeSources)), ...
     'BaselineModes', "none", 'WaveModes', ["off" "mean" "subsample" "both"], ...
     'WaveLabels', ["Off" "Mean" "Subsample" "Mean + subsample"]);
+ch.BaselineModes = EphysAnalysisConfig.baselineModes(type, source);
 switch type
-    case "psth"
-        ch.BaselineModes = ["none" "subtract" "zscore" "percent" "auroc"];
-    case "heatmap"
-        ch.BaselineModes = ["none" "subtract" "zscore" "percent" "auroc"];
-        if ismember(source, EphysAnalysisConfig.SignalSources); ch.BaselineModes = ["none" "subtract"]; end
-    case {"continuous" "corrmap"}
-        ch.BaselineModes = ["none" "subtract"];
-    case {"rate" "tuning"}
-        ch.BaselineModes = ["none" "subtract" "ratio" "zscore"];
-    case "spectrogram"   % chronuxNormalize's
-        ch.BaselineModes = ["none" "db" "percent" "zscore" "ratio"];
     case "waveforms"
         ch.WaveModes = ch.WaveModes(2:end);
         ch.WaveLabels = ch.WaveLabels(2:end);

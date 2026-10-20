@@ -624,6 +624,40 @@ classdef EphysAnalysisConfig
             if string(type) == "waveforms"; names(end) = []; end
             f = names(isfield(T.DefaultOptions{row}, cellstr(names)));
         end
+
+        function modes = baselineModes(type, source)
+            %baselineModes  The options.baseline Modes a panel type takes (a string row; "none" for a type without a baseline).
+            %   MODES = EphysAnalysisConfig.baselineModes(TYPE, SOURCE): a
+            %   PSTH or a heat map of spikes none, subtract, zscore,
+            %   percent or auroc; a heat map whose first enabled layer
+            %   reads a signal (SOURCE in SignalSources), a continuous
+            %   panel or a unit correlation map none or subtract; a rate or
+            %   tuning panel firingRate's none, subtract, ratio or zscore;
+            %   a spectrogram chronuxNormalize's none, db, percent, zscore
+            %   or ratio (adoptPanelOptions copies that one as is). SOURCE
+            %   (default "") only matters to a heat map.
+            %   One list for validate, the figure editor (figureEditorChoices)
+            %   and adoptPanelOptions.
+            arguments
+                type (1,1) string
+                source (1,1) string = ""
+            end
+            switch type
+                case "psth"
+                    modes = ["none" "subtract" "zscore" "percent" "auroc"];
+                case "heatmap"
+                    modes = ["none" "subtract" "zscore" "percent" "auroc"];
+                    if ismember(source, EphysAnalysisConfig.SignalSources); modes = ["none" "subtract"]; end
+                case {"continuous" "corrmap"}
+                    modes = ["none" "subtract"];
+                case {"rate" "tuning"}
+                    modes = ["none" "subtract" "ratio" "zscore"];
+                case "spectrogram"
+                    modes = ["none" "db" "percent" "zscore" "ratio"];
+                otherwise
+                    modes = "none";
+            end
+        end
     end
 
     methods (Static, Hidden)

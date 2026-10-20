@@ -9,10 +9,11 @@ function h = onOpenFigureWindow(obj)
 %   named "<figure id>: <observation> (<dataset>)", the size of the
 %   preview, drawn by renderFigure (Editable: the right-click aesthetics
 %   editor and its Design submenu work in it, and "remember for this
-%   figure" reaches the app's config while the app is open). The window is
-%   independent of the app: later edits do not follow into it (Preview
-%   and Open again for a new one), and closing the app leaves it as it
-%   is. H is the figure, [] when none was opened.
+%   figure" reaches the app's config while the app is open; so does an
+%   axis label's own text or side, set from its menu, which also draws the
+%   window again). The window is independent of the app: later edits do
+%   not follow into it (Preview and Open again for a new one), and closing
+%   the app leaves it as it is. H is the figure, [] when none was opened.
 %
 %   See also refreshFigurePreview, renderFigure, rememberFigureAesthetics.
 arguments
@@ -47,10 +48,31 @@ pos = getpixelposition(obj.FigurePreviewPanel, true);
 sz = max(round(pos(3:4)), [400 300]);
 name = id + ": " + string(F.observation.label) + " (" + string(F.dataset) + ")";
 h = figure("Name", char(name), "NumberTitle", "off", "Position", [60 60 sz]);
-app = obj;
-renderFigure(F, spec, h, Editable=true, OnRemember=@(rules) rememberIfOpen(app, id, rules), ...
-    OnGoto=@(role, panel) gotoIfOpen(app, id, role, panel));
+drawWindow(obj, id, F, spec, h);
 obj.setStatus("Opened " + name + " in its own window; it does not follow later edits.");
+end
+
+
+function drawWindow(app, id, F, spec, h)
+%drawWindow  Draw the window's figure H: its right-click menus reach the app while it is open.
+renderFigure(F, spec, h, Editable=true, OnRemember=@(rules) rememberIfOpen(app, id, rules), ...
+    OnGoto=@(role, panel) gotoIfOpen(app, id, role, panel), ...
+    OnAxisEdit=@(panel, change) axisEdited(app, id, F, spec, h, panel, change));
+end
+
+
+function axisEdited(app, id, F, spec, h, panel, change)
+%axisEdited  An axis label's menu edit in the window: kept in the app's config while the app is open, and the window drawn again with it.
+if isvalid(app) && ~isempty(app.Fig) && isvalid(app.Fig)
+    app.onFigureAxisEdited(id, panel, change);
+end
+if ~isgraphics(h); return; end
+k = find([spec.panels.id] == panel, 1);
+if isempty(k); return; end
+for f = string(fieldnames(change)).'
+    spec.panels(k).(f) = change.(f);
+end
+drawWindow(app, id, F, spec, h);
 end
 
 

@@ -118,6 +118,10 @@ if j >= 1 && j <= numel(fig.panels)
     p = fig.panels(j);
     p.title = string(E.panelTitle.Value);
     p.box = string(E.panelBox.Value);
+    p.xLabel = strtrim(string(E.panelXLabel.Value));
+    p.yLabel = strtrim(string(E.panelYLabel.Value));
+    p.xSide = string(E.panelXSide.Value);
+    p.ySide = string(E.panelYSide.Value);
     % the place and sizes only when edited: the controls cannot show every stored value (Validate reports a bad one)
     if E.rowSpan.Value ~= shownSpan(p.rowSpan, E.rowSpan.Limits); p.rowSpan = E.rowSpan.Value; end
     if E.colSpan.Value ~= shownSpan(p.colSpan, E.colSpan.Limits); p.colSpan = E.colSpan.Value; end

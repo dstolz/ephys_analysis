@@ -255,6 +255,9 @@ check(isequaln(P.note, EphysAnalysisConfig.defaults("Note")) && isstruct(P.overl
 check(P.box == "auto" && find(fnP == "box") == find(fnP == "title") + 1 && T.DefaultOptions{T.Type == "raster"}.yTicks == false ...
     && ~isfield(T.DefaultOptions{T.Type == "heatmap"}, 'yTicks'), ...
     'Panel.box: "auto", after title; the raster''s options.yTicks is false (no other type has it)');
+check(P.xLabel == "" && P.yLabel == "" && P.xSide == "bottom" && P.ySide == "left" ...
+    && isequal(fnP(find(fnP == "box") + (1:4)), ["xLabel" "yLabel" "xSide" "ySide"]), ...
+    'Panel.xLabel / yLabel: "" (automatic), xSide "bottom", ySide "left", after box');
 pn = EphysAnalysisConfig.normalizePanel(struct('type', "psth", 'note', struct('text', "n = 12", 'placement', "northeast"), ...
     'overlays', struct('shape', "region", 'panel', "raster", 'from', 0, 'to', 0.2)));
 check(isscalar(pn.overlays) && pn.overlays.panel == "all" && pn.overlays.shape == "region" && pn.overlays.to == 0.2 ...
@@ -1235,6 +1238,10 @@ check(isempty(figIssues(b)), 'a panel with a note and an overlay validates clean
 bx = b; bx.Figures(1).panels(2).box = "on";
 bx2 = b; bx2.Figures(1).panels(2).box = "maybe";
 check(isempty(figIssues(bx)) && has(bx2, "figure_1.psth_1.box", "error"), 'a panel''s box is auto, on or off (anything else is an error)');
+bx = b; bx.Figures(1).panels(2).xSide = "top"; bx.Figures(1).panels(2).ySide = "right"; bx.Figures(1).panels(2).xLabel = "Lag (s)";
+bx2 = b; bx2.Figures(1).panels(2).xSide = "left"; bx2.Figures(1).panels(2).ySide = "top";
+check(isempty(figIssues(bx)) && has(bx2, "figure_1.psth_1.xSide", "error") && has(bx2, "figure_1.psth_1.ySide", "error"), ...
+    'a panel''s xSide is bottom or top, its ySide left or right (anything else is an error); a label is any text');
 nb.placement = "nowhere"; nb.align = "justify"; nb.valign = "up"; nb.interpreter = "latex"; nb.rotation = NaN;
 nb.fontSize = -1; nb.color = "plaid";
 b2 = b; b2.Figures(1).panels(2).note = nb;
@@ -2235,6 +2242,41 @@ hBx = renderFigure(F1, sBx, fig, Design="Journal", UserAesthetics=false);
 drawnow;
 check(string(hBx.panels(1).axes.Box) == "off" && string(hBx.panels(2).axes.Box) == "on", ...
     'a panel''s box "off" and "on" also win over the figure''s own aesthetics rule');
+% a panel's axis sides and labels; the time stack (raster over PSTH) tells the time once, on the side its axes take
+xshown = @(ax) ~isempty(ax.XTickLabel) && strjoin(string(ax.XLabel.String), "") ~= "";
+sAx = F1.spec;
+sAx.panels(2).yLabel = "Spikes per second";
+sAx.panels(2).xLabel = "Latency (s)";
+sAx.panels(1).ySide = "right";
+clf(fig);
+hAx = renderFigure(F1, sAx, fig);
+drawnow;
+[ra, pa] = deal(hAx.panels(1).axes, hAx.panels(2).axes);
+check(~xshown(ra) && xshown(pa) && string(pa.XLabel.String) == "Latency (s)" && string(pa.YLabel.String) == "Spikes per second" ...
+    && strcmp(ra.YAxisLocation, 'right') && strcmp(pa.YAxisLocation, 'left') && strcmp(pa.XAxisLocation, 'bottom'), ...
+    'xLabel / yLabel replace the drawn labels (a time axis: where it tells the time); ySide "right" moves that panel''s y axis only');
+sAx = F1.spec;
+[sAx.panels.xSide] = deal("top");
+clf(fig);
+hAx = renderFigure(F1, sAx, fig);
+drawnow;
+[ra, pa] = deal(hAx.panels(1).axes, hAx.panels(2).axes);
+check(strcmp(ra.XAxisLocation, 'top') && strcmp(pa.XAxisLocation, 'top') && xshown(ra) && ~xshown(pa) ...
+    && string(ra.XLabel.String) == "Time (s)", ...
+    'a stack whose x axes are all on top tells the time once, at its top panel');
+sAx.panels(1).xSide = "bottom";   % the raster's at its bottom, on a PSTH whose x axis is on top: the PSTH's tells the time between them
+clf(fig);
+hAx = renderFigure(F1, sAx, fig);
+drawnow;
+check(~xshown(hAx.panels(1).axes) && xshown(hAx.panels(2).axes) && strcmp(hAx.panels(2).axes.XAxisLocation, 'top'), ...
+    'a panel with its x axis at the bottom drops it over a time panel whose x axis is on top (that one tells the time)');
+sAx.panels(1).xSide = "top";
+sAx.panels(2).xSide = "bottom";
+clf(fig);
+hAx = renderFigure(F1, sAx, fig);
+drawnow;
+check(xshown(hAx.panels(1).axes) && xshown(hAx.panels(2).axes), ...
+    'x axes facing away from each other (the top panel''s on top, the bottom one''s at the bottom) both keep their ticks');
 clf(fig);   % the note-band checks below use the figure drawn with the notes
 hN = renderFigure(F1, sN, fig);
 drawnow;

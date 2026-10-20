@@ -352,6 +352,12 @@ for k = 1:numel(obj.Figures)
         if ~ismember(pj.box, ["auto" "on" "off"])
             add("Figures", p0 + ".box", "error", "A panel's box is auto (the design's), on or off.");
         end
+        if ~ismember(pj.xSide, EphysAnalysisConfig.PanelXSides)
+            add("Figures", p0 + ".xSide", "error", "A panel's xSide is bottom or top.");
+        end
+        if ~ismember(pj.ySide, EphysAnalysisConfig.PanelYSides)
+            add("Figures", p0 + ".ySide", "error", "A panel's ySide is left or right.");
+        end
         trow = FT.Type == pj.type;
         if ~any(trow)
             add("Figures", p0 + ".type", "error", "Unknown panel type """ + pj.type + """ (types: " + strjoin(FT.Type, ", ") + ").");

@@ -1881,6 +1881,35 @@ app.onConfigChanged("figure");
 app.onPanelSelected(2);
 check(shown(FE.panelBox) && ~shown(FE.yTicks) && app.Config.Figures(1).panels(1).box == "auto" && ~app.Config.Figures(1).panels(1).options.yTicks, ...
     'a PSTH panel has the Box row but no y ticks row; both back to their defaults on the raster');
+% a panel's X axis and Y axis rows (every type): its own label text and side reach the panel and the preview
+axRows = shown(FE.panelXLabel) && shown(FE.panelXSide) && shown(FE.panelYLabel) && shown(FE.panelYSide) ...
+    && string(FE.panelXSide.Value) == "bottom" && string(FE.panelYSide.Value) == "left" && string(FE.panelYLabel.Value) == "" ...
+    && FE.panelYSide.Enable == "on";
+FE.panelYLabel.Value = "Rate";
+FE.panelYSide.Value = "right";
+app.onConfigChanged("figure");
+pAx = app.Config.Figures(1).panels(2);
+axP = findPanelAxes(app.FigurePreviewPanel, "psth_1");
+check(axRows && pAx.yLabel == "Rate" && pAx.ySide == "right" && pAx.xSide == "bottom" && app.FigurePreviewState == "drawn" ...
+    && strcmp(axP.YAxisLocation, 'right') && string(axP.YLabel.String) == "Rate", ...
+    'the X axis and Y axis rows show for the selected panel; its y label and side reach the panel, and the preview draws them');
+FE.stack.Value = true;
+app.onConfigChanged("figure");
+stackOff = FE.panelYSide.Enable == "off";
+FE.stack.Value = false;
+app.onConfigChanged("figure");
+check(stackOff && FE.panelYSide.Enable == "on", 'a stacked PSTH (a y axis on each side) grays out the Y axis row''s side');
+% an axis label's right-click menu (renderFigure's OnAxisEdit) goes through the editor's path: config, rows, preview
+app.onPanelSelected(1);
+app.onFigureAxisEdited(app.Config.Figures(1).id, "psth_1", struct('ySide', "left", 'yLabel', "", 'xLabel', "Lag (s)"));
+pAx = app.Config.Figures(1).panels(2);
+axP = findPanelAxes(app.FigurePreviewPanel, "psth_1");
+check(pAx.ySide == "left" && pAx.yLabel == "" && pAx.xLabel == "Lag (s)" && app.SelectedPanel == 2 ...
+    && string(FE.panelYSide.Value) == "left" && string(FE.panelYLabel.Value) == "" && string(FE.panelXLabel.Value) == "Lag (s)" ...
+    && strcmp(axP.YAxisLocation, 'left') && string(axP.XLabel.String) == "Lag (s)", ...
+    'onFigureAxisEdited: the panel''s fields set, the panel selected and its rows following, the preview drawn again');
+app.onFigureAxisEdited(app.Config.Figures(1).id, "psth_1", struct('xLabel', ""));
+check(app.Config.Figures(1).panels(2).xLabel == "", 'a blank label text: the automatic label again');
 
 % drag a panel in the schematic: the press installs the window's pointer callbacks; motion shades the target; release applies
 if ~app.FigureSections([app.FigureSections.Name] == "arrangement").Expanded; app.onFigureSectionToggled("arrangement"); end

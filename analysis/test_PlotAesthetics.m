@@ -184,6 +184,88 @@ PlotAesthetics.onMenuGoto(findobj(C.Handles{k}(1).ContextMenu.Children, 'Tag', P
 got = getappdata(0, 'aestheticsGoto');
 check(~isempty(k) && got{1} == C.Role(k) && got{2} == "", 'the figure''s own parts have no panel');
 if isappdata(0, 'aestheticsGoto'); rmappdata(0, 'aestheticsGoto'); end
+rx = figureRoleSettings("xlabel");
+ry = figureRoleSettings("ylabel");
+check(rx(1) == "panelXLabel" && ry(1) == "panelYLabel", 'Go to setting on an x or y label: the panel''s X axis or Y axis row first');
+
+% a panel's x and y labels: "Edit label text..." and "Move to ..." in their menus, through OnAxisEdit
+setappdata(0, 'aestheticsAxis', {});
+h = renderFigure(Cp.F, Cp.spec, fig, Editable=true, OnAxisEdit=@(panel, change) setappdata(0, 'aestheticsAxis', {panel, change}));
+C = PlotAesthetics.components(h.layout);
+kx = find(C.Role == "xlabel" & C.Tile > 0, 1);
+ky = find(C.Role == "ylabel" & C.Tile > 0, 1);
+itemsOf = @(C, k) string({C.Handles{k}(1).ContextMenu.Children.Text});   % (C given: a handle captures it when made)
+check(~isempty(kx) && ~isempty(ky) && all(ismember(["Edit label text..." "Move to top"], itemsOf(C, kx))) ...
+    && all(ismember(["Edit label text..." "Move to right"], itemsOf(C, ky))) && ~any(ismember("Move to right", itemsOf(C, kx))), ...
+    'an x label''s menu edits its text and moves it to the top; a y label''s to the right');
+k = find(ismember(C.Role, ["axes" "rasterAxes" "rate"]) & C.Tile > 0, 1);
+check(~any(ismember(["Edit label text..." "Move to top" "Move to right"], itemsOf(C, k))), 'other parts have no axis items');
+PlotAesthetics.onMenuSide(findobj(C.Handles{kx}(1).ContextMenu.Children, 'Text', 'Move to top'), []);
+got = getappdata(0, 'aestheticsAxis');
+check(numel(got) == 2 && got{1} == C.TileName(kx) && isequal(got{2}, struct('xSide', "top")), ...
+    '"Move to top" hands OnAxisEdit the label''s panel and its new xSide');
+PlotAesthetics.axisEdit(C.Handles{ky}(1), struct('yLabel', "Spikes"));
+got = getappdata(0, 'aestheticsAxis');
+check(numel(got) == 2 && got{1} == C.TileName(ky) && isequal(got{2}, struct('yLabel', "Spikes")), ...
+    'a label''s new text goes to OnAxisEdit for its own panel');
+if isappdata(0, 'aestheticsAxis'); rmappdata(0, 'aestheticsAxis'); end
+h = renderFigure(Cp.F, Cp.spec, fig, Editable=true);   % no OnAxisEdit: the figure is drawn again here with the change
+C = PlotAesthetics.components(h.layout);
+ky = find(C.Role == "ylabel" & C.Tile > 0, 1);
+pid = C.TileName(ky);
+PlotAesthetics.onMenuSide(findobj(C.Handles{ky}(1).ContextMenu.Children, 'Text', 'Move to right'), []);
+PlotAesthetics.axisEdit(findTile(fig, pid).YLabel, struct('yLabel', "Spikes"));
+ax = findTile(fig, pid);
+m = string({ax.YLabel.ContextMenu.Children.Text});
+check(strcmp(ax.YAxisLocation, 'right') && string(ax.YLabel.String) == "Spikes" && ismember("Move to left", m), ...
+    'without OnAxisEdit the figure is drawn again with each change; the moved label''s menu offers the way back');
+Cs = byId("psth_stack");
+h = renderFigure(Cs.F, Cs.spec, fig, Editable=true);
+C = PlotAesthetics.components(h.layout);
+ky = [];
+tr = C.Tile(find(C.Role == "ylabelRight" & C.Tile > 0, 1));   % the stacked PSTH's tile: its right axis names the peaks
+if ~isempty(tr); ky = find(C.Role == "ylabel" & C.Tile == tr, 1); end
+check(~isempty(ky) && ~any(startsWith(itemsOf(C, ky), "Move to")) && ismember("Edit label text...", itemsOf(C, ky)), ...
+    'a stacked PSTH''s y label (a y axis each side) has no side to move to');
+
+% every panel type with its axes on the other sides and labels of its own
+moved = true; why = strings(0, 1);
+for i = 1:numel(cases)
+    s = cases(i).spec;
+    [s.panels.xSide] = deal("top");
+    [s.panels.ySide] = deal("right");
+    [s.panels.xLabel] = deal("The x");
+    [s.panels.yLabel] = deal("The y");
+    try
+        h = renderFigure(cases(i).F, s, fig, UserAesthetics=false);
+        drawnow;
+        for q = 1:numel(h.panels)
+            A = [h.panels(q).axes reshape(h.panels(q).extraAxes, 1, [])];
+            if isempty(A); continue; end
+            lab = strjoin(string(A(1).XLabel.String), "");
+            bad = ~strcmp(A(1).XAxisLocation, 'top') || string(A(1).YAxis(1).Label.String) ~= "The y" ...
+                || any(arrayfun(@(a) isscalar(a.YAxis) && ~strcmp(a.YAxisLocation, 'right'), A)) ...
+                || ~(lab == "The x" || (s.panels(q).sharesTime && lab == "")) ...
+                || any(arrayfun(@(a) ~isempty(a.Colorbar) && string(a.Colorbar.Location) == "eastoutside", A)) ...
+                || (numel(A) > 1 && ~isempty(A(end).XTickLabel));
+            if bad
+                moved = false;
+                why(end+1) = cases(i).id + "." + h.panels(q).id; %#ok<AGROW>
+            end
+        end
+        Cm = PlotAesthetics.components(h.layout);
+        if any(Cm.Role == "" | ~ismember(Cm.Role, roles))
+            moved = false;
+            why(end+1) = cases(i).id + ": untagged"; %#ok<AGROW>
+        end
+    catch ME
+        moved = false;
+        why(end+1) = cases(i).id + ": " + ME.message; %#ok<AGROW>
+    end
+end
+check(moved, "every panel type takes its x axis on top, its y axis on the right (a yyaxis keeps both), its own " + ...
+    "labels (a time stack's inner ones dropped) and its color bar out of their way" + ...
+    ifText(~moved, ": " + strjoin(why, "; ")));
 R = PlotAesthetics.roles().Role;
 check(all(arrayfun(@(r) ~isempty(figureRoleSettings(r)), R)) && isequal(figureRoleSettings("nonsense"), "@style"), ...
     'every role has settings to go to; an unknown one goes to Appearance');
@@ -324,6 +406,15 @@ end
 
 function s = ifText(c, s)
 if ~c; s = ""; end
+end
+
+
+function ax = findTile(fig, panel)
+%findTile  The axes of panel PANEL in the figure renderFigure last drew into FIG (its tagged tile).
+ctx = getappdata(fig, PlotAesthetics.ContextKey);
+C = PlotAesthetics.components(ctx.root);
+k = find(ismember(C.Role, ["axes" "rasterAxes"]) & C.TileName == panel, 1);
+ax = C.Handles{k}(1);
 end
 
 

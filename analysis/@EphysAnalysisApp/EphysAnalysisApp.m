@@ -469,6 +469,7 @@ classdef EphysAnalysisApp < handle
         txt = onFigureCode(obj, file)
         setFigurePreviewState(obj, state, opts)
         rememberFigureAesthetics(obj, id, rules)
+        onFigureAxisEdited(obj, id, panel, change)
         onPickFigureDatasets(obj, opts)
         onBrowseFigureMapping(obj, file)
         T = onEditUnitMapping(obj, opts)

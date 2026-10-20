@@ -67,6 +67,12 @@ function test_EphysAnalysisApp()
 %   its channel's star, the Favorites lists, their filter, picking a unit
 %   from the Figures and Alignment tabs, the last star removing the file,
 %   a read-only output folder);
+%   the Edit menu's Undo and Redo of the figure editor (between File and
+%   Design, grayed off the Figures tab, named after the edit; a burst of
+%   one field one step, an edit outside the figures none, a removed panel
+%   back and selected, Ctrl+Shift+Z, a new edit dropping the redo, the
+%   description kept, the title saved again, cleared by another config;
+%   FigureEditHistory's depth);
 %   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -168,12 +174,12 @@ check(isequal(tags, ["new" "open" "save" "scan" "preview" "validate" "plan" "run
     'the toolbar holds the config, look, run, results, app and help commands in groups, each with its icon');
 if ismac; modifier = "Cmd+"; else; modifier = "Ctrl+"; end
 tips = string({tools.Tooltip});
-menuItems = findall(app.Fig, 'Type', 'uimenu');
+menuItems = findall(app.FileMenu, 'Type', 'uimenu');   % the Edit menu's Undo and Redo are no toolbar commands (5j)
 keyed = menuItems(strlength(string({menuItems.Accelerator})) > 0);
 named = erase(string({keyed.Text}), "...") + " (" + modifier + string({keyed.Accelerator}) + ")";
 check(numel(keyed) == 3 && all(ismember(named, tips)) && nnz(contains(tips, "(" + modifier)) == numel(keyed) ...
     && all(strlength(tips) > 0), ...
-    'every menu shortcut is on the toolbar, named in its tool''s tooltip, and no tooltip names another');
+    'every File menu shortcut is on the toolbar, named in its tool''s tooltip, and no tooltip names another');
 check(app.ToolbarValidateTool.Enable == "on" && app.ToolbarPlanTool.Enable == "on" && app.ToolbarRunTool.Enable == "on" ...
     && app.ToolbarCancelTool.Enable == "off" && app.ToolbarReportTool.Enable == "off" && app.ToolbarFolderTool.Enable == "off", ...
     'before a run: Validate, Plan and Run are on; Cancel, the report and the figure folder off');
@@ -2077,6 +2083,95 @@ end
 app.onSaveConfig();
 app.Tabs.SelectedTab = app.TabData;
 clear restoreAutoLimit5i
+
+fprintf('\n== 5j. Edit menu: undo and redo of the figure editor ==\n');
+app.FigureAutoCheckBox.Value = false;   % no preview drawn: undo is about the config and the editor
+restoreAuto5j = onCleanup(@() set(app.FigureAutoCheckBox, 'Value', true));
+menus =flip(findobj(app.Fig.Children, 'flat', 'Type', 'uimenu'));
+app.selectTab(app.TabData);
+H = app.FigureHistory;
+check(isequal(string({menus.Text}), ["File" "Edit" "Design" "Help"]) && string(app.UndoMenu.Text) == strtrim("Undo " + H.undoLabel()) ...
+    && string(app.UndoMenu.Accelerator) == "Z" && string(app.RedoMenu.Accelerator) == "Y" && app.UndoMenu.Enable == "off", ...
+    sprintf('an Edit menu between File and Design: Undo (Ctrl+Z) names the last edit ("%s"), grayed off the Figures tab', app.UndoMenu.Text));
+app.selectTab(app.TabFigures);
+check(app.UndoMenu.Enable == matlab.lang.OnOffSwitchState(~isempty(H.Undo)) && app.RedoMenu.Enable == "off" && string(app.RedoMenu.Text) == "Redo", ...
+    sprintf('on the Figures tab Undo is on (%d steps of the sections above); Redo is grayed with nothing undone', numel(H.Undo)));
+app.FigureHistory = FigureEditHistory();
+app.onTabChanged();
+check(string(app.UndoMenu.Text) == "Undo" && app.UndoMenu.Enable == "off", 'an empty history: Undo grayed, no edit named');
+clean = @() ~startsWith(string(app.Fig.Name), "*");
+check(clean(), 'the config starts saved');
+app.onAddFigure("rasterPsth");
+FE = app.FigureEditor;
+check(string(app.UndoMenu.Text) == "Undo Add figure" && ~clean(), 'Add (a template): Undo Add figure; the title shows unsaved changes');
+FE.title.Value = 'Undo me';
+FE.title.ValueChangedFcn(FE.title, []);
+FE.title.Value = 'Undo me twice';
+FE.title.ValueChangedFcn(FE.title, []);
+H = app.FigureHistory;
+check(numel(H.Undo) == 2 && string(app.UndoMenu.Text) == "Undo Title" && H.Undo(end).After(1).title == "Undo me twice" ...
+    && H.Undo(end).Before(1).title == "", ...
+    'two edits of the Title field within a second are one step, named after its row: Undo Title');
+desc0 = app.ConfigDescField.Value;
+app.ConfigDescField.Value = 'kept by undo';
+app.ConfigDescField.ValueChangedFcn(app.ConfigDescField, []);
+check(numel(app.FigureHistory.Undo) == 2, 'an edit outside the figures (the description) is no step');
+np0 = numel(app.Config.Figures(1).panels);
+app.onPanelSelected(np0);
+app.onRemovePanel();
+check(numel(app.Config.Figures(1).panels) == np0 - 1 && string(app.UndoMenu.Text) == "Undo Remove panel", ...
+    'Remove panel: Undo Remove panel');
+app.onUndoRedo("undo");
+check(numel(app.Config.Figures(1).panels) == np0 && app.SelectedPanel == np0 && string(app.RedoMenu.Text) == "Redo Remove panel" ...
+    && app.RedoMenu.Enable == "on" && string(app.UndoMenu.Text) == "Undo Title" && contains(app.StatusBar.Text, "Undid ""Remove panel""") ...
+    && string(app.FigureEditor.title.Value) == "Undo me twice", ...
+    'Undo: the panel is back and selected, Redo Remove panel offered, Undo names the step before; the editor shows the figure');
+app.onKeyPress(pressed('z', {'shift' 'control'}));
+check(numel(app.Config.Figures(1).panels) == np0 - 1 && string(app.UndoMenu.Text) == "Undo Remove panel" && app.RedoMenu.Enable == "off", ...
+    'Ctrl+Shift+Z redoes it');
+app.onUndoRedo("undo");
+app.onUndoRedo("undo");
+check(app.Config.Figures(1).title == "" && string(app.FigureEditor.title.Value) == "" && string(app.UndoMenu.Text) == "Undo Add figure" ...
+    && string(app.RedoMenu.Text) == "Redo Title" && string(app.ConfigDescField.Value) == "kept by undo" ...
+    && app.Config.Description == "kept by undo", ...
+    'Undo Title: the field and the config go back; the description edited since stays as it is');
+app.setFiguresEnabled(1, "off");
+check(~app.Config.Figures(1).enabled && string(app.UndoMenu.Text) == "Undo Disable figure" && isempty(app.FigureHistory.Redo) ...
+    && app.RedoMenu.Enable == "off", 'a new edit (a figure disabled in the tree) drops what was undone: Redo grayed');
+app.onUndoRedo("undo");
+app.onUndoRedo("undo");
+check(isempty(app.Config.Figures) && app.SelectedFigure == 0 && app.UndoMenu.Enable == "off" && string(app.RedoMenu.Text) == "Redo Add figure", ...
+    'Undo Add figure: no figure left, nothing more to undo');
+app.onUndoRedo("undo");
+check(contains(app.StatusBar.Text, "Nothing to undo"), 'Undo with nothing to undo says so');
+app.ConfigDescField.Value = desc0;
+app.ConfigDescField.ValueChangedFcn(app.ConfigDescField, []);
+check(clean(), 'the figures undone back to the saved ones (and the description typed back): the title shows the config saved');
+app.onUndoRedo("redo");
+check(numel(app.Config.Figures) == 1 && app.SelectedFigure == 1 && ~clean(), 'Redo Add figure: the figure is back, selected');
+app.applyConfig(app.Config, MarkSaved=true);   % as opening or making a config does
+check(isempty(app.FigureHistory.Undo) && isempty(app.FigureHistory.Redo) && app.UndoMenu.Enable == "off" && app.RedoMenu.Enable == "off", ...
+    'another config (applied as saved): the history is cleared');
+Hx = FigureEditHistory();
+Hx.Depth = 3;
+a = struct('v', 0);
+for v = 1:5
+    b = struct('v', v);
+    Hx = Hx.record(a, b, "step " + v);
+    a = b;
+end
+Hy = Hx.record(a, a, "no change");
+Hz = FigureEditHistory().record(struct('v', 0), struct('v', 1), "typed", Key=1);
+Hz = Hz.record(struct('v', 1), struct('v', 0), "typed", Key=1);
+check(numel(Hx.Undo) == 3 && Hx.undoLabel() == "step 5" && Hx.Undo(1).Label == "step 3" && numel(Hy.Undo) == 3 && isempty(Hz.Undo), ...
+    'FigureEditHistory: past Depth the oldest steps go; no step without a change; a burst typed back to where it started is none');
+while ~isempty(app.Config.Figures)
+    app.onFigureSelected(1);
+    app.onRemoveFigure();
+end
+app.onSaveConfig();
+clear restoreAuto5j
+app.Tabs.SelectedTab = app.TabData;
 
 fprintf('\n== 6. close ==\n');
 app.savePreferences();

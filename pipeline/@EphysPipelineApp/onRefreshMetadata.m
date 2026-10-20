@@ -9,10 +9,11 @@ end
 
 n = obj.Project.NumDatasets;
 dlg = uiprogressdlg(obj.Fig, "Title", "Refreshing metadata", "Value", 0);
+clock = ProgressClock();
 for i = 1:n
     if dlg.CancelRequested; break; end
-    dlg.Value = i / n;
-    dlg.Message = sprintf("%d/%d: %s", i, n, obj.Project.Datasets(i).Name);
+    dlg.Value = (i - 1) / n;
+    dlg.Message = char(clock.message(sprintf("%d/%d: %s", i, n, obj.Project.Datasets(i).Name), (i - 1) / n));
     try
         obj.Project.Datasets(i).refreshMetadata();
     catch ME

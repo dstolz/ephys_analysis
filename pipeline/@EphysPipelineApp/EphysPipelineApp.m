@@ -783,6 +783,7 @@ classdef EphysPipelineApp < handle
         RunStepBar           matlab.ui.container.GridLayout
         RunStepText          matlab.ui.control.Label
         RunStepLabel         matlab.ui.control.Label
+        RunTimeLabel         matlab.ui.control.Label          % the time left and elapsed, beside RunStepLabel (onPipelineProgress)
         RunResultsTable      matlab.ui.control.Table
         RunLogArea           matlab.ui.control.TextArea
         RunKSLabel           matlab.ui.control.Label
@@ -836,6 +837,10 @@ classdef EphysPipelineApp < handle
         % The Run tab diagram's model: phase, times, results so far, one entry
         % per step (resetRunDiagram / updateRunDiagram / finishRunDiagram).
         RunDiagram struct = struct('phase', "idle")
+        % The time left of the step under way (onPipelineProgress): a
+        % ProgressClock started at the step's first event, and that step.
+        RunStepClock = []
+        RunClockStep (1,1) string = ""
         % The resource sampler (resource_monitor.ps1) being shown: its folder
         % ("" = none), launch time and interval, and the timer reading it.
         ResourceMonitor struct = struct('dir', "", 'started', NaT, 'interval', 2)
@@ -859,7 +864,7 @@ classdef EphysPipelineApp < handle
         Transfers OutputTransfer = OutputTransfer.empty(1, 0)
         TransferMonitorTimer = []
         TransferRateHistory (:,2) double = zeros(0, 2)   % [seconds bytes] samples (showTransferProgress)
-        TransferStarted = []                              % tic of the first sample
+        TransferClock = []                                % ProgressClock from the first sample (time left)
 
         % Datasets whose files for the analysis app wait for a background sort to end
         % (AnalysisCopy; copyAnalysisFilesAfterRun): the dataset and the results folder
@@ -935,7 +940,7 @@ classdef EphysPipelineApp < handle
         CopyRows (:,1) double = zeros(0, 1)             % CopySessions rows that job was made from, in order
         CopyMonitorTimer = []                           % timer polling CopyJob (startCopyMonitor)
         CopyCancelRequested (1,1) logical = false       % Cancel copy was pressed; the engine stops at once
-        CopyStarted = []                                % tic when the running batch was launched (rate and time left)
+        CopyClock = []                                  % ProgressClock from when the running batch was launched (rate and time left)
         CopyRateHistory (:,2) double = zeros(0, 2)      % [seconds, bytes] over the last few seconds
         CopyLiveRow (1,1) double = 0                    % CopySessions row the engine is inside (0: none)
         CopyLiveFrac (1,1) double = 0                   % how far through that row it is

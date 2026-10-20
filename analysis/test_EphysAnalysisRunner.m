@@ -140,9 +140,21 @@ made = 0;   % the figures the run creates
     end
 oldCreate = get(groot, 'DefaultFigureCreateFcn');
 set(groot, 'DefaultFigureCreateFcn', @countFigure);
+heardF = zeros(0, 1); heardM = strings(0, 1);   % what ProgressFcn hears
+    function onRunProgress(f, m)
+        heardF(end+1, 1) = f; heardM(end+1, 1) = m;
+    end
+r.ProgressFcn = @onRunProgress;
 R = r.run();
+r.ProgressFcn = [];
 set(groot, 'DefaultFigureCreateFcn', oldCreate);
 check(numel(findall(groot, 'Type', 'figure')) == nFig, 'the run leaves no figure open');
+isRep = startsWith(heardM, "Writing the report: ");
+check(any(heardM == "Writing the report: section 2/2") && any(heardM == "Writing the report: page 3/3") ...
+    && any(startsWith(heardM, "Writing the report: joining")) && all(heardF(isRep) >= 2/3 - 1e-12) ...
+    && all(diff(heardF) >= -1e-12) && heardF(end) == 1 && heardM(end) == "Done", ...
+    sprintf(['ProgressFcn hears the report''s sections and pages in its own last third of the run (two datasets, ' ...
+    'one report), the fraction never going back (%d calls, %d while writing the report)'], numel(heardF), nnz(isRep)));
 done = R(R.Status == "done", :);
 check(height(R) == 2 * nOn && height(done) == 2 * (nOn - 2) && all(R.Kind == "figure") ...
     && all(R.Status(ismember(R.Plot, ["spike_band" "no_line"])) == "skipped") && ~any(R.Plot == "off") ...

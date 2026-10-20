@@ -105,10 +105,12 @@ for k = 1:n
             iv = obj.artifactIntervalsForStep(d, c.Artifacts.ApplyToSorting, ...   % a detection fills the first half
                 @(done, total, msg) obj.progress("sorting", d.Name, k, n, done / max(total, 1), 2, "artifact intervals, " + msg));
         end
+        lo = 1;   % of 2: the artifact intervals fill the first half, then the weighted CAR's state a quarter
         if ~dry
-            obj.prepareWCARFor(d, @(done, total, msg) obj.progress("sorting", d.Name, k, n, 1, 2, msg));
+            lo = 1 + 0.5 * obj.prepareWCARFor(d, @(done, total, msg) obj.progress("sorting", d.Name, k, n, ...
+                1 + done / max(total, 1), 2, msg), [0 0.5]);
         end
-        obj.progress("sorting", d.Name, k, n, 1, 2, ternary(dry, "writing run files", "writing the .bin and run files"));
+        obj.progress("sorting", d.Name, k, n, lo, 2, ternary(dry, "writing run files", "writing the .bin and run files"));
         if si
             res = d.runSpikeInterface(Sorter=S.Sorter, Params=EphysPipelineConfig.siParams(S), ...
                 Quality=S.Quality, NJobs=nJobs, ProbeFile=obj.probeFor(d), ArtifactIntervals=iv, ...
@@ -124,7 +126,7 @@ for k = 1:n
         elseif blocking
             device = "";
             if ~isempty(S.Devices); device = S.Devices(1); end
-            obj.progress("sorting", d.Name, k, n, 1, 2, "running " + what + onDevice(device));
+            obj.progress("sorting", d.Name, k, n, lo, 2, "running " + what + onDevice(device));
             res = d.launchSorting(res, Wait=true, Device=device);
             if res.status == 0
                 obj.log("[sorting] %s: done -> %s%s", d.Name, res.resultsDir, asideNote(res));
@@ -139,8 +141,8 @@ for k = 1:n
             obj.log("[sorting] %s: queued, starts when a %s slot is free -> %s", d.Name, what, res.resultsDir);
             obj.addResult("sorting", d.Name, "queued", "waiting for a free " + what + " slot", res.resultsDir, toc(t0));
         else
-            device = waitForSlot(obj, S, d.Name, k, n, what);
-            obj.progress("sorting", d.Name, k, n, 1, 2, "launching " + what + onDevice(device));
+            device = waitForSlot(obj, S, d.Name, k, n, lo, what);
+            obj.progress("sorting", d.Name, k, n, lo, 2, "launching " + what + onDevice(device));
             res = d.launchSorting(res, Wait=false, Device=device);
             obj.log("[sorting] %s: launched in the background%s -> %s%s", d.Name, onDevice(device), ...
                 res.resultsDir, asideNote(res));
@@ -205,14 +207,15 @@ end
 end
 
 
-function device = waitForSlot(obj, S, name, k, n, what)
+function device = waitForSlot(obj, S, name, k, n, done, what)
 %waitForSlot  Wait for one of the Sorting.MaxConcurrent slots, reporting the
-%   counts (a cancel ends the wait); the device the run is to use. Queued
-%   runs in PriorRuns are not going, so they take no slot.
+%   counts (a cancel ends the wait; DONE of 2 is how far the dataset is);
+%   the device the run is to use. Queued runs in PriorRuns are not going,
+%   so they take no slot.
 runs = [obj.PriorRuns(:); obj.LaunchedRuns(:)];
 runs = runs(~[runs.queued]);
 device = waitForSortingSlot(runs, S.MaxConcurrent, Devices=S.Devices, ...
-    TickFcn=@(nRunning, nFinished) obj.progress("sorting", name, k, n, 1, 2, ...
+    TickFcn=@(nRunning, nFinished) obj.progress("sorting", name, k, n, done, 2, ...
     sprintf("waiting for a free %s slot (%d at a time): %d running, %d finished, %d still to start", ...
     what, S.MaxConcurrent, nRunning, nFinished, obj.SortingWaiting)));
 end

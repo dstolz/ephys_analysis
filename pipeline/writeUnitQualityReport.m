@@ -29,6 +29,9 @@ function file = writeUnitQualityReport(units, file, opts)
 %     WaveformSpikes  spikes per good unit to average, picked at random (the
 %                     same ones each time) (default 100; 0 = the templates,
 %                     no spikes read)
+%     ProgressFcn     ProgressFcn(done, total, message) before each good
+%                     unit's waveform is read ("Mean waveform of unit 12
+%                     (3/40)"), the slow part (default [] = none)
 %
 %   See also EphysDataset.unitQuality, unitQualityPass, unitQualityMetrics,
 %   EphysDataset.readPhyWaveforms.
@@ -39,6 +42,7 @@ arguments
     opts.Criteria (1,1) struct = unitQualityCriteria()
     opts.Title (1,1) string = ""
     opts.WaveformSpikes (1,1) double {mustBeNonnegative, mustBeInteger} = 100
+    opts.ProgressFcn = []
 end
 metrics = ["firingRate" "isiViolationsRatio" "presenceRatio" "amplitudeCutoff" "snr" "driftPtp"];
 if ~all(isfield(units, metrics))
@@ -169,7 +173,7 @@ rows = order(good(order));
 if isempty(rows)
     L(end+1) = "<p class=""meta"">No unit is labeled good.</p>";
 else
-    [WF, note] = meanWaveforms(units, rows, opts.WaveformSpikes);
+    [WF, note] = meanWaveforms(units, rows, opts.WaveformSpikes, opts.ProgressFcn);
     if opts.WaveformSpikes == 0
         about = "Each good unit's Kilosort4 template on its peak channel (WaveformSpikes 0: no spikes read).";
     elseif note == ""
@@ -246,12 +250,13 @@ s = s + "<figcaption>" + esc(name) + sprintf(" (%d of %d units with a value)", n
 end
 
 
-function [WF, note] = meanWaveforms(units, rows, nMax)
+function [WF, note] = meanWaveforms(units, rows, nMax, progressFcn)
 %meanWaveforms  Each unit of ROWS on its peak channel: mean and SD of its spikes, else its template.
 %   Up to NMAX of the unit's spikes are cut from the data the sort read
 %   (EphysDataset.readPhyWaveforms). Once that data cannot be read (the .bin
 %   is gone) every unit from then on gets its template, and NOTE says why;
 %   a unit whose peak channel was not sorted gets its template alone.
+%   PROGRESSFCN(done, total, message), when not [], hears each unit first.
 WF = repmat(struct('timeMs', [], 'mean', [], 'sd', [], 'n', 0, 'units', "", 'from', "none"), numel(rows), 1);
 note = "";
 dir0 = "";
@@ -262,6 +267,9 @@ if nMax > 0 && ~canRead
 end
 for k = 1:numel(rows)
     i = rows(k);
+    if ~isempty(progressFcn)
+        progressFcn(k - 1, numel(rows), sprintf("Mean waveform of unit %d (%d/%d)", units.unitId(i), k, numel(rows)));
+    end
     if canRead
         try
             [w, info] = EphysDataset.readPhyWaveforms(dir0, units.samples{i}, ...

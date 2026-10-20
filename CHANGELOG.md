@@ -1135,6 +1135,26 @@ says how to cut a release.
   [Favorites](documentation/EphysAnalysisApp.md#favorites),
   [the script API](documentation/EphysAnalysis.md#favorites-stars) and
   [the file](documentation/file-formats.md#favorites-name_favoritesjson).
+- Time left for long operations, in the same words in both apps (*about 40 s left*, *about 3 min left*,
+  *about 1 h 20 min left*), from the new `ProgressClock` (pipeline/): the time per fraction so far, shown
+  once 1% is done and 5 s have passed, smoothed so it counts down steadily. The pipeline app's Run tab says,
+  beside the step's message, the step's time left and the run's elapsed time (*about 3 min left in this
+  step, then 2 more steps · 12 min elapsed*; on the run's last step, *about 3 min left in the run*). The
+  analysis app's run dialog (**Run**, and the Figures tab's **Generate**) adds it to its message. The
+  pipeline app's **Detect / Preview** (Artifacts tab), **Refresh metadata**, the trials prefetch, **Clean
+  up** and the Review tab's **QC report** (now counting the good units' waveforms instead of an
+  indeterminate bar) say it too.
+- With the weighted CAR (Reference WCAR) the app no longer waits silently while the state is worked out:
+  **Detect / Preview** and the Visualize tab (*As the pipeline*) work it out first under their dialog,
+  which says the window and the time left (*Weighted CAR: state, window 12/80 · about 40 s left*); the
+  results are the same. In a Run its windows move the step's **Current** bar (Sorting: a quarter of the
+  dataset after its artifact intervals; Spikes: half of what is left; an automatic detection: its first
+  half) instead of holding it still; `EphysPipeline.prepareWCARFor` takes the span and says whether it
+  worked the state out.
+- Writing the analysis report reports its progress (*Writing the report: page 3/12*, sections for the
+  HTML), in a share of the run of its own: `writeHtmlReport` and `writePdfReport` take `ProgressFcn=`, and
+  so does `writeUnitQualityReport` (each good unit's waveform). Selecting a dataset in the analysis app
+  says which one of how many it is loading, and Scan names the root it scans.
 
 ### Changed
 
@@ -1436,6 +1456,9 @@ says how to cut a release.
   `starred`: the HTML report marks a starred dataset with a ★ in the contents and over its section, the PDF
   names it *(starred)*, and the summary's recording table lists **Starred**, the starred channels and
   units, with a **Starred** column in *Highest rates*.
+- The Copy tab's and the Run tab's output-copy time left come from `ProgressClock`, as every other time
+  left: *about 40 s left* instead of *less than a minute left*, smoothed, and the output copies' only once
+  1% is done and 5 s have passed (`CopyStarted` / `TransferStarted` are now `CopyClock` / `TransferClock`).
 
 ### Removed
 

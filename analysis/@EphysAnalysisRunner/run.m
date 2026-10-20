@@ -24,8 +24,10 @@ function T = run(obj, opts)
 %   Report.PerDataset they get a report of their own,
 %   <FileName>_sessions. Progress spans the datasets and the session
 %   figures alike (each one 1 / (nDatasets + nSessionFigures) of the
-%   run); a cancel during the session figures marks it and the rest
-%   "canceled".
+%   run, and the one report over them all a share of its own, after
+%   them); a cancel during the session figures marks it and the rest
+%   "canceled". Writing a report reports its pages ("Writing the report:
+%   page 3/12"), and a per-dataset report's pages at its dataset's end.
 %
 %   The run record (schema "ephys-analysis-run/2") holds the run id,
 %   outcome, start, end and seconds, the datasets, figures and session
@@ -91,7 +93,7 @@ if doReport && ~perDataset
 end
 obj.log("Analysis ""%s"": %d dataset(s) x %d figure(s), %d session figure(s)", cfg.Name, numel(idx), numel(fids), numel(sfids));
 canceled = false;
-nUnits = numel(idx) + numel(sfids);   % the run's progress: a share per dataset and session figure
+nUnits = numel(idx) + numel(sfids) + (doReport && ~perDataset);   % the run's progress: a share per dataset, session figure and the one report
 for j = 1:numel(idx)
     k = idx(j);
     if perDataset; obj.Report = newReport(cfg); end
@@ -116,7 +118,7 @@ for j = 1:numel(idx)
         break
     end
     if perDataset
-        obj.ReportFiles = [obj.ReportFiles writeReports(obj, k)];
+        obj.ReportFiles = [obj.ReportFiles writeReports(obj, k, obj.Names(k), [j j] / nUnits)];
     end
 end
 
@@ -140,11 +142,11 @@ if ~canceled && ~isempty(sfids) && ~isempty(idx)
         end
     end
     if perDataset && ~canceled
-        obj.ReportFiles = [obj.ReportFiles writeReports(obj, idx(1), "sessions")];
+        obj.ReportFiles = [obj.ReportFiles writeReports(obj, idx(1), "sessions", [1 1])];
     end
 end
 if doReport && ~perDataset && ~canceled && ~isempty(idx)
-    obj.ReportFiles = writeReports(obj, idx(1));
+    obj.ReportFiles = writeReports(obj, idx(1), obj.Names(idx(1)), [nUnits - 1, nUnits] / nUnits);
 end
 if ~isempty(idx)
     outcome = "finished";
@@ -226,23 +228,38 @@ report = newAnalysisReport(Title=title, Config=cfg.toStruct(), Export=cfg.Export
 end
 
 
-function files = writeReports(obj, k, name)
+function files = writeReports(obj, k, name, span)
 %writeReports  Write obj.Report as HTML and / or PDF (reportFiles); {OutputFolder} = dataset K's.
-%   NAME (default the dataset's name) is the per-dataset report's suffix:
-%   "sessions" names the session figures' own report <FileName>_sessions.
+%   NAME (the dataset's name for a per-dataset report) is the report's
+%   {Name}: "sessions" names the session figures' own report
+%   <FileName>_sessions. ProgressFcn hears its pages ("Writing the report:
+%   page 3/12") across SPAN, the run's fraction [from to] it has (both
+%   the same: the bar stays); a cancel waits for the report to be written.
 cfg = obj.Config;
-if nargin < 3; name = obj.Names(k); end
 want = EphysAnalysisRunner.reportFiles(cfg, struct('OutputFolder', obj.datasetFolder(k), ...
     'OutputRoot', obj.outputRoot(), 'Root', cfg.Source.Root, 'Name', name));
 files = string.empty(1, 0);
-for f = want
+nf = numel(want);
+for i = 1:nf
+    f = want(i);
+    part = span(1) + (span(2) - span(1)) * [i - 1, i] / nf;
+    report = @(done, total, msg) reportProgress(obj, part(1) + (part(2) - part(1)) * done / max(total, 1), msg);
     if endsWith(f, ".html")
-        files(end+1) = writeHtmlReport(obj.Report, f); %#ok<AGROW>
+        files(end+1) = writeHtmlReport(obj.Report, f, ProgressFcn=report); %#ok<AGROW>
     else
-        files(end+1) = writePdfReport(obj.Report, f); %#ok<AGROW>
+        files(end+1) = writePdfReport(obj.Report, f, ProgressFcn=report); %#ok<AGROW>
     end
 end
 obj.log("Report: %s", strjoin(files, ", "));
+end
+
+
+function reportProgress(obj, fraction, message)
+%reportProgress  ProgressFcn(fraction, message) while a report is written; unlike
+%   progress(), never a cancel: the datasets' pages are drawn, so the report is finished.
+if ~isempty(obj.ProgressFcn)
+    obj.ProgressFcn(fraction, string(message));
+end
 end
 
 

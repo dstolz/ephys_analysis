@@ -19,7 +19,8 @@ function test_WeightedCAR()
 %        Reference "wcar" with the dataset's ReferenceWCAR options
 %     7. the Reference section's Mode "wcar" and WCAR_* fields (defaults,
 %        artifactConfig, validate, save / load, a config saved with the
-%        Signals fields), and the runSignals log / dry-run text
+%        Signals fields), the runSignals log / dry-run text, and the
+%        spikes step's bar moving through the state's windows
 %     8. weightedCAR in pieces (Rows, Initial, StateRows, Output): the
 %        recursion of one run, piece by piece
 %     9. the streamed weighted CAR (Reference "wcar", prepareWCAR): every
@@ -315,6 +316,26 @@ pipe.reset();
 pipe.runSignals();
 check(all(pipe.Results.Status == "done") && any(contains(logs, "adaptive weighted CAR (WCAR) over 8 channel(s), subtracted from MUA, SPIKE") ...
     & contains(logs, "automatic")), 'the log names the weighted CAR, its channels, signals and automatic Q');
+
+% runSpikeDetection: the weighted CAR's windows move the dataset's share of the bar
+kept = dir(fullfile(cfg.Project.OutputRoot, '**', '*_wcar.mat'));
+for k = 1:numel(kept); delete(fullfile(kept(k).folder, kept(k).name)); end
+cfgS = cfg;
+cfgS.Artifacts.Enabled = false;   % no detection, which would work the state out in its own share
+pipeS = EphysPipeline(cfgS);
+heardF = zeros(0, 1); heardM = strings(0, 1);
+    function hearEvt(e); heardF(end+1, 1) = e.done / max(e.total, 1); heardM(end+1, 1) = e.message; end
+pipeS.ProgressFcn = @hearEvt;
+pipeS.runSpikeDetection();
+w = find(startsWith(heardM, "Weighted CAR: "));
+check(all(pipeS.Results.Status == "done") && numel(w) == 2 && isequal(heardF(w), [0; 0.25]) ...
+    && all(diff(heardF(w(1):end)) >= -1e-12) && all(heardF(w(end) + 1:end) >= 0.5 - 1e-12), ...
+    sprintf(['spikes step: the weighted CAR''s two passes go through the first half of the dataset''s bar ' ...
+    '(%s), the detection the second; it never goes back'], mat2str(heardF(w).', 3)));
+nHeard = numel(heardF);
+dS = pipeS.selected();
+again = pipeS.prepareWCARFor(dS(1), @(done, total, msg) hearEvt(struct('done', done, 'total', total, 'message', msg)), [0 1]);
+check(~again && numel(heardF) == nHeard, 'prepareWCARFor with the state held: nothing reported, WORKED false');
 
 fprintf('\n== 8. weightedCAR in pieces ==\n');
 rng(8);

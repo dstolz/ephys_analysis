@@ -959,8 +959,10 @@ classdef EphysPipeline < handle
                 end
             end
             if source == ""
-                obj.prepareWCARFor(d, report);   % the weighted CAR's state first (Reference "wcar")
-                cb = @(i, nChunks, name) report(i - 1, nChunks, "detecting: " + string(name));
+                % The weighted CAR's state first (Reference "wcar"), in the
+                % first half of the detection's progress when it is worked out.
+                lo = 0.5 * obj.prepareWCARFor(d, report, [0 0.5]);
+                cb = @(i, nChunks, name) report(lo + (1 - lo) * (i - 1) / max(nChunks, 1), 1, "detecting: " + string(name));
                 popt = namedargs2cell(EphysPipelineConfig.parallelOptions(obj.Config.Parallel));
                 auto = d.artifactIntervals('IncludeManual', false, 'ProgressFcn', cb, popt{:});
                 source = "computed";
@@ -983,19 +985,29 @@ classdef EphysPipeline < handle
                 movedNote, size(d.ManualArtifacts, 1), coverageNote(iv, d));
         end
 
-        function prepareWCARFor(obj, d, report)
+        function worked = prepareWCARFor(obj, d, report, span)
             %prepareWCARFor  Dataset D's weighted CAR state (Reference.Mode "wcar") before a step reads it.
-            %   EphysDataset.prepareWCAR, with REPORT(done, total, message)
-            %   hearing each window of its passes, so the step that reads
-            %   the recording next shows them as its own progress; logged
-            %   when it is worked out or read from <Name>_wcar.mat. Nothing
-            %   happens for any other reference or when D holds the state.
+            %   WORKED = pipe.prepareWCARFor(D, REPORT, SPAN) is
+            %   EphysDataset.prepareWCAR, with REPORT(fraction, 1, message)
+            %   hearing each window of its passes, FRACTION going through
+            %   SPAN ([lo hi], default [0 1]) of the caller's share, so the
+            %   step that reads the recording next shows them as its own
+            %   progress, its bar moving; logged when it is worked out or
+            %   read from <Name>_wcar.mat. WORKED is true when the state was
+            %   worked out here (its windows reported), so the caller's next
+            %   progress starts after SPAN; false when nothing was done: any
+            %   other reference, D held the state or it was read.
+            if nargin < 4; span = [0 1]; end
+            worked = false;
             if d.referenceMode() ~= "wcar"
                 return
             end
             before = d.WCARState;
-            st = d.prepareWCAR(ProgressFcn=report);
+            t0 = tic;
+            st = d.prepareWCAR(ProgressFcn=@(done, total, msg) ...
+                report(span(1) + (span(2) - span(1)) * done / max(total, 1), 1, msg));
             if ~isequal(before, d.WCARState)
+                worked = toc(t0) >= st.seconds;   % a state read from <Name>_wcar.mat took longer once, when it was worked out
                 obj.log("[reference] %s: adaptive weighted CAR state over %d channel(s), every %.3g s " + ...
                     "(Q %.4g uV^2%s; worked out in %.1f s, kept in %s_wcar.mat)", d.Name, numel(st.channels), ...
                     st.grid / st.Fs, st.Q, autoNote(st.QAuto), st.seconds, d.Name);

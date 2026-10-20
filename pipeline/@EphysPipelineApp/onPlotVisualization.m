@@ -10,8 +10,10 @@ function onPlotVisualization(obj)
 %   those signals, keeping the kind shown before when this dataset has it,
 %   and the viewer draws the window in the Start / Window fields. Nothing
 %   is read beyond that window: the signals are read a window at a time as
-%   you move (EphysTraceViewer), so this is quick for any recording length.
-%   A dataset that was loaded already keeps its view.
+%   you move (EphysTraceViewer), so this is quick for any recording length,
+%   but for the weighted CAR's state (Reference "wcar", shown "As the
+%   pipeline"), worked out once per recording under the dialog
+%   (prepareWCARInDialog). A dataset that was loaded already keeps its view.
 %
 %   Runs when the tab opens or the active dataset changes while it is open
 %   (onTabChanged, selectDataset), and from Reload data, which finds the
@@ -128,6 +130,15 @@ v.Duration = datasetDuration(d, sources, layers);
 v.DefaultWidth = min(2, v.Duration);
 obj.applyVizSettings("all");
 v.setView(t0, w);
+src = v.Source;
+if ~isempty(src) && src.Kind == "recording" && src.Reference == "pipeline"
+    dlg.Message = "Reading " + d.Name + "...";
+    try
+        prepareWCARInDialog(d, dlg);  % a weighted CAR's state, its windows shown, before the first window is read
+    catch
+        % the viewer's read meets the same error and shows it, as without this
+    end
+end
 v.render();                       % now, not after RenderDelay
 
 obj.syncVizDataset();

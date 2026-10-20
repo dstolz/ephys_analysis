@@ -9,7 +9,9 @@ function R = onRunExport(obj, opts)
 %   ([] = the config's); Config= runs that config instead of the controls'
 %   (gatherConfig) and Title= names the progress dialog: the Figures tab's
 %   Generate (onGenerateFigure) runs one figure that way, and Unit report
-%   (onUnitReport) one observation (Observation=, run's). One run goes at a
+%   (onUnitReport) one observation (Observation=, run's). The dialog's
+%   message is the runner's (what it is on, the report's pages) and the
+%   time left (ProgressClock). One run goes at a
 %   time (Running): Run, Plan, Validate and Generate are off meanwhile, and
 %   the previews compute nothing.
 arguments
@@ -46,7 +48,8 @@ end
 r = obj.Runner;
 r.Config = cfg;
 dlg = uiprogressdlg(obj.Fig, "Title", opts.Title, "Message", "Starting ...", "Cancelable", "on");
-r.ProgressFcn = @(f, m) progress(r, dlg, f, m);
+clock = ProgressClock();   % the time left, in the dialog's message
+r.ProgressFcn = @(f, m) progress(r, dlg, clock, f, m);
 obj.Running = true;
 set([obj.RunButton obj.PlanButton obj.ValidateButton obj.FigureGenerateButton obj.FigureUnitReportButton], 'Enable', 'off');
 set([obj.ToolbarRunTool obj.ToolbarPlanTool obj.ToolbarValidateTool], 'Enable', 'off');
@@ -84,10 +87,10 @@ clear cleanup
 end
 
 
-function progress(r, dlg, fraction, message)
+function progress(r, dlg, clock, fraction, message)
 if ~isvalid(dlg); return; end
 dlg.Value = min(max(fraction, 0), 1);
-dlg.Message = char(message);
+dlg.Message = char(clock.message(message, fraction));
 if dlg.CancelRequested; r.cancel(); end
 drawnow limitrate;
 end

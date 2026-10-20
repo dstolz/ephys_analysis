@@ -16,7 +16,6 @@ _(empty: every item of the 2026-10-19 list is under Done)_
 _DO NOT PROCESS UNLESS MOVED TO THE TO DO LIST_
 
 - **Check the new Figures-tab keys by hand.** The app tests send made-up key events, since a test MATLAB cannot take the foreground. Confirm on Windows that Alt+1/2/3 (supersections), Ctrl+F (search), Ctrl+] / Ctrl+[ and Ctrl+Alt+arrows (panels), F6 / Shift+F6 (columns) reach the window, that Enter / Up / Down / Escape work while typing in the search field, and that Tab follows the editor's order. Ctrl+Alt+arrows rotate the screen on some Intel graphics drivers (Ctrl+] / Ctrl+[ are the fallback).
-- **Narrow Dataset / Observation drop-downs.** With the Design controls beside them, the two drop-downs are about 90-100 px wide at the default 1280 px window, so names (and the new unit / spike counts) are cut. Widen the preview column or let the Design controls wrap.
 - **Figure file names follow automatic ids.** A figure whose id is automatic ("Raster+PSTH units") is renamed when its content changes, and its `{Plot}` file names with it. Decide whether exports should pin the id (e.g. untick auto on the first Run).
 - **Dataset unit counts before a dataset is opened.** The counts come from the units the Data tab reads when a dataset is opened; a small per-dataset count cache written by the pipeline would show them for every dataset at once.
 - **`modulationWindow.m` uses `xregion`** for the auROC window shading, which MATLAB paints behind opaque patches: the same cause as the raster patch-overlay bug fixed today. Draw it as a patch if it ever has to sit over raster bands.
@@ -26,7 +25,7 @@ _DO NOT PROCESS UNLESS MOVED TO THE TO DO LIST_
 - **Layout engine:** reading the legend's size costs about 0.25 s per draw (cacheable); a note in a band beside a panel could now be listed in the aesthetics editor; the loose / compact / tight presets are fixed pixel gaps that only roughly match the old tiled-layout spacing.
 - **New panel window:** remember the last type picked; richer thumbnails for the probe map and event traces (`tools/makePanelThumbnails` uses a small fixture).
 - **Search hidden-row reasons** (`private/figureRowReason`) repeat `syncFigureEditor`'s visibility rules: a new option row needs an entry there for a specific message.
-- **Click a panel in the preview to select it** (the outline follows keys and the schematic today).
+- **Click a panel in the preview to select it** (the outline follows keys and the schematic today). The outline's top edge also crosses the figure's subtitle when the selected panel is the top one; inset it, or draw it round the plot area only.
 - **Chronux file helpers.** With the Chronux tab gone, `loadChronuxExport`, `chronuxPairs` and `chronuxSpikeTrains` serve only scripts and each other. Keep them unless the "analyze a Chronux file by script" route is retired too.
 - **Wiki and screenshots** for the 2026-10-19 Figures-tab changes (supersections, New panel window, Spacing window, event traces, data tips; the Chronux tab page removed).
 - **Real-data checks of the 2026-10-05 batch.** All of it ran on synthetic and test data. Still to see on real recordings: Intan's software notch on a pre-3.0 `.rhd` recorded with the notch on, and the Visualize envelope's build time and disk load on a full 2 h × 64-channel recording on the USB disk. Envelope builds are not paused while a pipeline run reads the same disk.
@@ -54,7 +53,7 @@ _DO NOT PROCESS UNLESS MOVED TO THE TO DO LIST_
 - **Per-panel size independent of its row / column** (c7812d7). Panel `size` (% of its cell) and `align` / `valign`, drawn by renderFigure's own layout engine (no tiled layout; exact row heights and column widths).
 - **Manual spacing between panels** (c7812d7). `grid.spacing` "custom" with gaps in px or %, one each way or per row / column, set in the new *Panel spacing* window (Spacing...).
 - **Counts in the Dataset and Observation drop-downs** (c699d9b). *subj1_day1  (14 units)*; *su12  ch 7  -320 µm  (5,210 spikes)*.
-- **Design drop-down and Save look as design... beside Dataset / Observation** (ea6fc4c).
+- **Design drop-down and Save look as design... beside Dataset / Observation** (ea6fc4c; 6193784 put Preview, Generate, Auto and < > on a row of their own so the drop-downs keep their width at the default window size).
 - **Patch overlays on rasters fixed** (412cae2). They were drawn with `xregion` / `yregion`, which MATLAB paints behind the raster's opaque group bands; they are real patches now, kept to the axes' limits.
 - **Events drawn as a line from onset to offset** (af0ce63). Layer *Draw as* "a line from onset to offset" (`eventsAs "span"`): a line per epoch on a raster, a median-onset-to-offset line per group on PSTH, signal and heat map panels, with its own style, width and opacity.
 - **Observation data types** (c699d9b). One *Observe* drop-down (`observe.data`): Sorted units, Detected spikes, LFP, MUA, SPIKE, AUX or The dataset, with what the dataset lacks marked; the rows below follow it ("auto" dropped).

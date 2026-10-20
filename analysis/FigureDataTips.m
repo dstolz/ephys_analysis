@@ -337,7 +337,7 @@ I.const = addConst(I.const, "part", "Part", PlotAesthetics.roleLabel(role));
 
 % per point: a raster part's trials, a heat map of trials' rows
 if ismember(role, ["rasterTicks" "rasterStop" "rasterEvent"])
-    [ep, unitLabel, lay] = rasterEpochs(o, role, C.layers);
+    [ep, unitLabel, lay] = rasterEpochs(o, role, C.layers, group);
     if ~isempty(ep)
         I.point = trialRows(ep, lay, C);
         if unitLabel ~= "" && ~any([I.const.key] == "series")
@@ -509,10 +509,11 @@ C(end+1) = struct('key', key, 'label', string(label), 'text', text);
 end
 
 
-function [S, unitLabel, layName] = rasterEpochs(o, role, layers)
+function [S, unitLabel, layName] = rasterEpochs(o, role, layers, group)
 %rasterEpochs  The epoch of each point of a raster part, found by its times among the panel's raster layers.
 %   A tick line holds three points per spike (x, x, NaN), in the order of
-%   R.raster(u).times; a stop line the epochs' stop latencies in the
+%   R.raster(u).times of the epochs in its group (GROUP, the line's
+%   label; every epoch if it names none); a stop line the epochs' stop latencies in the
 %   window; an event mark's line its events' latencies in the window.
 S = [];
 unitLabel = "";
@@ -526,8 +527,14 @@ for j = 1:numel(layers)
         case "rasterTicks"
             for u = 1:numel(R.raster)
                 t = R.raster(u).times(:);
-                if numel(x) ~= 3 * numel(t) || ~isequal(x(1:3:end), t); continue; end
                 ep = R.raster(u).epoch(:);
+                gi = find(gl == group, 1);
+                if ~isempty(gi)   % one group's ticks
+                    in = groupOf(R, ep) == gi;
+                    t = t(in);
+                    ep = ep(in);
+                end
+                if numel(x) ~= 3 * numel(t) || ~isequal(x(1:3:end), t); continue; end
                 ep3 = reshape(repmat(ep.', 3, 1), [], 1);
                 ep3(3:3:end) = NaN;
                 S = struct('epoch', ep3, 'group', groupOf(R, ep3), 'groupLabels', gl);

@@ -67,7 +67,6 @@
     {"role": "modWindow", "property": "FaceAlpha", "value": 0.08},
     {"role": "modWindow", "property": "Color", "value": "#d8dee9"},
     {"role": "modMarks", "property": "FontName", "value": "Segoe UI, Helvetica Neue, Arial"},
-    {"role": "rasterTicks", "property": "Color", "value": "#d8dee9"},
     {"role": "rasterTicks", "property": "LineWidth", "value": 0.5},
     {"role": "rasterStop", "property": "Color", "value": "#bf616a"},
     {"role": "bar", "property": "EdgeColor", "value": "none"},

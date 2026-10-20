@@ -517,10 +517,11 @@ for k = 1:numel(obj.Figures)
         switch pj.type
             case "raster"
                 checkRasterSort(op, o0);
-                for cf = ["tickColor" "backColor"]
-                    if op.(cf) ~= "" && ~isColor(op.(cf))
-                        add("Figures", o0 + "." + cf, "warning", "No color """ + op.(cf) + """; the raster keeps its default.");
-                    end
+                if op.tickColor ~= "" && ~isColor(op.tickColor)
+                    add("Figures", o0 + ".tickColor", "warning", "No color """ + op.tickColor + """; the ticks keep their groups' colors.");
+                end
+                if ~ismember(op.backColor, ["" "none" "groups"]) && ~isColor(op.backColor)
+                    add("Figures", o0 + ".backColor", "warning", "Not none, groups or a color: """ + op.backColor + """; the raster has no bands.");
                 end
                 checkFigWaveform(op.waveform, o0 + ".waveform", false);
             case "psth"

@@ -1055,8 +1055,8 @@ says how to cut a release.
   panel** (their keys, `arrangement` and `panel`, and their Ctrl+2 / Ctrl+3 stay). A figure added without an
   id (`addFigure`) has an automatic id instead of `figure_<n>`.
 - The Figures tab's **Design** drop-down and **Save look as design...** sit right of the **Dataset** and
-  **Observation** drop-downs; the freed row goes to the preview. **Preview** and **Generate** are one row high,
-  with **Auto** and **<** **>** under them.
+  **Observation** drop-downs, which take a row each under **Preview**, **Generate**, **Auto** and **<** **>**,
+  so they keep their width at the default window size.
 - Figures: each panel's Options hold all of its own options (bins and smoothing, measure, baseline with its
   window and auROC settings, mask after the stop event, the waveform inset, and the type's own). "Apply to
   all panels" (Options) now copies this panel's values of the rows several types share (bins, smoothing,

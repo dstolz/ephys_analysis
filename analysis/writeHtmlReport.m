@@ -11,8 +11,10 @@ function file = writeHtmlReport(report, file)
 %   -- its pages embedded as PNG
 %   (data:image/png;base64) or inline SVG, its caption, the parameters it
 %   was drawn with (IncludeParameters, folded) and links to its exported
-%   files -- and the config JSON at the end (IncludeConfig, folded). No
-%   file beside it is needed; opening it needs only a browser.
+%   files -- and the config JSON at the end (IncludeConfig, folded). A starred
+%   dataset (its starred field: DatasetFavorites) has a ★ after its name,
+%   in the contents and over its section. No file beside it is needed;
+%   opening it needs only a browser.
 %
 %   The images are those each figure was added with (addReportFigure: made
 %   from its pages as they were drawn, at the report's Dpi in its
@@ -50,7 +52,7 @@ end
 L(end+1) = "<nav><h2>Contents</h2><ol>";
 for d = 1:numel(report.datasets)
     D = report.datasets(d);
-    L(end+1) = "<li><a href=""#ds" + d + """>" + htmlEscape(D.name) + "</a><ul>"; %#ok<AGROW>
+    L(end+1) = "<li><a href=""#ds" + d + """>" + htmlEscape(D.name) + "</a>" + starMark(D) + "<ul>"; %#ok<AGROW>
     for k = 1:numel(D.entries)
         e = D.entries(k);
         L(end+1) = "<li><a href=""#ds" + d + "-" + k + """>" + htmlEscape(e.plot) + "</a>" ...
@@ -64,7 +66,7 @@ L(end+1) = "</ol></nav>";
 % --- datasets ------------------------------------------------------------------------
 for d = 1:numel(report.datasets)
     D = report.datasets(d);
-    L(end+1) = "<section id=""ds" + d + """><h2>" + htmlEscape(D.name) + "</h2>"; %#ok<AGROW>
+    L(end+1) = "<section id=""ds" + d + """><h2>" + htmlEscape(D.name) + starMark(D) + "</h2>"; %#ok<AGROW>
     if ~isempty(D.summary)
         S = D.summary;
         L(end+1) = "<div class=""tables"">"; %#ok<AGROW>
@@ -144,6 +146,7 @@ s = join([ ...
     ".cap{color:#1f2328;font-size:12px;margin:6px 0}"
     ".files{font-size:11px;color:#57606a;margin:4px 0}"
     ".bad{color:#cf222e}"
+    ".star{color:#bf8700}"
     ".tables{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start}"
     ".tables>div{background:#fff;border:1px solid #d0d7de;border-radius:8px;padding:8px 10px}"
     "table{border-collapse:collapse;font-size:12px}"
@@ -207,4 +210,11 @@ end
 
 function s = ternary(c, a, b)
 if c; s = a; else; s = b; end
+end
+
+
+function s = starMark(D)
+%starMark  " ★" after a starred dataset's name (its starred field), else "".
+s = "";
+if D.starred; s = " <span class=""star"" title=""starred"">&#9733;</span>"; end
 end

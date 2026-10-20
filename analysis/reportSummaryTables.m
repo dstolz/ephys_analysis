@@ -1,8 +1,10 @@
 function S = reportSummaryTables(src)
 %reportSummaryTables  The tables a report shows at the top of a dataset.
 %   S = reportSummaryTables(SRC) for a dataset SRC (loadAnalysisSource):
-%     recording  Field / Value: name, key, folder, rate, duration, subject,
-%                session start, probe, signals, units, detections, pairing
+%     recording  Field / Value: name, key, starred, folder, rate,
+%                duration, subject, session start, probe, signals, units,
+%                detections, pairing, and the starred channels and units
+%                (DatasetFavorites) when there are any
 %     lines      the digital lines (SRC.lines): Line, Count, Mean duration
 %                (s), First (s), Last (s), Inverted
 %     trials     Trials / Count: all, paired "ok", each response word, each
@@ -11,7 +13,7 @@ function S = reportSummaryTables(src)
 %                shank (empty without units)
 %     topRates   the ten highest-rate units (else detection channels):
 %                Unit (shortened as in the plots), Class, Channel, Shank,
-%                Spikes, Rate (Hz)
+%                Spikes, Rate (Hz), Starred ("yes": unitSummary's starred)
 %   A table that cannot be made (no units, no behavior) is empty.
 %
 %   See also addReportDataset, unitSummary, writeHtmlReport.
@@ -26,6 +28,12 @@ f = strings(0, 1); v = strings(0, 1);
     end
 add("Dataset", src.name);
 if src.key ~= src.name; add("Key", src.key); end
+fav = [];
+try
+    fav = DatasetFavorites(src);   % the stars beside the data (no file: none)
+catch
+end
+if ~isempty(fav); add("Starred", yesNo(fav.Dataset, "")); end
 add("Output folder", src.folder);
 add("Recording rate (Hz)", num(src.fs));
 add("Duration (s)", num(src.durationSec));
@@ -46,6 +54,8 @@ else
 end
 add("Sorted units", yesNo(src.hasUnits, "from the sorting folder"));
 add("Detected spikes", yesNo(src.hasDetected, ""));
+if ~isempty(fav) && ~isempty(fav.Channels); add("Starred channels", strjoin(string(fav.Channels), ", ")); end
+if ~isempty(fav) && ~isempty(fav.UnitIds); add("Starred units", strjoin(string(fav.UnitIds), ", ")); end
 if src.hasBehavior
     p = "trials not paired";
     if src.hasTrials
@@ -121,8 +131,10 @@ if ~isempty(U)
     T = U(o, {'label', 'class', 'channel', 'shank', 'nSpikes', 'rateHz'});
     T.label = shortUnitLabels(T.label);   % without the recording suffix every unit shares
     T.rateHz = round(T.rateHz, 2);
-    S.topRates = renamevars(T, ["label" "class" "channel" "shank" "nSpikes" "rateHz"], ...
-        ["Unit" "Class" "Channel" "Shank" "Spikes" "Rate (Hz)"]);
+    T.starred = repmat("", height(T), 1);
+    T.starred(U.starred(o)) = "yes";
+    S.topRates = renamevars(T, ["label" "class" "channel" "shank" "nSpikes" "rateHz" "starred"], ...
+        ["Unit" "Class" "Channel" "Shank" "Spikes" "Rate (Hz)" "Starred"]);
 end
 end
 

@@ -40,13 +40,37 @@ Installation (MATLAB, conda environments, GPU) is covered in
 ## Launching
 
 ```matlab
-EphysPipelineApp            % open the window
-app = EphysPipelineApp;     % open and keep a handle (app.Config, app.Project, ...)
+EphysPipelineApp                 % open the window
+app = EphysPipelineApp;          % open and keep a handle (app.Config, app.Project, ...)
+EphysPipelineApp(Splash=false)   % no startup window
 ```
 
 The constructor builds the UI, restores preferences, opens the last config
-file if it still exists (else starts from defaults, "Untitled"), and lists the
-probe folder. The app opens on the Project tab.
+file if it still exists (else starts from defaults, "Untitled"), lists the
+probe folder and scans the config's project when its root is there. The app
+opens on the Project tab.
+
+**Startup window.** While the app starts, a small window in the middle of
+the screen shows its name, its version, the step under way (each tab
+built, the preferences, the config opened, the scan's datasets) and a
+progress bar. The main window is built hidden and shows when it is ready;
+the small one then closes. Alerts raised meanwhile (a config that cannot
+be opened, datasets scanned with a problem) show on the main window once it
+is up, and a [sorting queue kept](#queued-sorting-runs) for the scanned
+root is offered then. `Splash=false` starts without the small window; that
+is the default under `matlab -batch` (the test runs). The class is
+`AppSplash` (`pipeline/AppSplash.m`), shared with the analysis app and the
+channel mapper: on Windows a Windows Forms window (it paints without
+`drawnow`, so the hidden main window is not pushed to the screen piece by
+piece), elsewhere a uifigure.
+
+**Startup scan.** The reopened config's project root is scanned as **Scan**
+does, its progress on the startup window. A root that is not there is not
+scanned, and neither is one on a network share (a `\\server` path or a
+mapped network drive) that does not answer within 5 s (`folderReachable`):
+the status bar says which and why, and **Scan** waits for when it can be
+reached. The config reopened is the last file opened or saved: after **New
+config** (no file yet) the next launch still reopens that file.
 
 **New config**, **Open config...**, **Open recent**, **Create synthetic test
 project...** and closing the window ask first when the config has unsaved
@@ -165,8 +189,11 @@ hints there too.
 a separate window for quick-look figures of this project's outputs (PSTHs,
 rasters, evoked potentials, rates, tuning, probe maps). With a project root
 set it opens on that root, output root, name pattern and Open Ephys recording
-mode; otherwise with its own last config. The Project tab's **Tools**
-panel opens it on chosen datasets. It reads the files the pipeline wrote and
+mode, with the analysis app's own last config and its figures, that config's
+source switched to this project (so it is unsaved there, as its status bar
+says); with no last config, on a new quick look config. Without a project
+root it opens its own last config as it is. The Project tab's **Tools**
+panel opens it on chosen datasets the same way. It reads the files the pipeline wrote and
 changes nothing here. It lives in the repository's `analysis` folder: when
 that folder is not on the path, an alert says so.
 
@@ -3487,7 +3514,7 @@ of a config lives here:
 | `FigurePosition` | window position/size (clamped to the screen on restore) |
 | `ProbeFolder`, `PhyCmd`, `ReviewFolder`, `ScriptFolder` | paths |
 | `PythonExe` | the Python exe last set on the Sorting tab, which a new config starts with |
-| `LastConfigFile`, `RecentConfigs` | reopened on launch; the File → Open recent list |
+| `LastConfigFile`, `RecentConfigs` | the last config file opened or saved, reopened (and its project scanned) on launch; **New config** leaves it. The File → Open recent list |
 | `DatasetsColumnOrder` | the Project table's column order (table variable names) |
 | `TableSorts` | the sort of each [sorted table](#sorted-tables): one field per table (`Datasets`, `Trials`, `Review`, `Cleanup`, `ArtSelection`, `Copy`, `RunResults`, `SignalsPlan`, `ExportPlan`, `AnalysisPlan`), each the column last clicked (a table variable name; the header for the Review and Clean up tables) and its direction (`ascend` / `descend`) |
 | `TrialsParamColumns`, `TrialsColumnOrder` | the trial parameters shown in the Trials table, and its column order (table variable names; a parameter column is `Param_<name>`) |

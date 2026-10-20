@@ -120,13 +120,23 @@ classdef EphysAnalysisApp < handle
     %   supersections), FigureGroupBy and FigureGroupsCollapsed (how
     %   its figure tree groups, and its collapsed groups).
     %
+    %   Startup: a small window (AppSplash) shows the app's name, version
+    %   and a progress bar while the window is built hidden, the
+    %   preferences restored, the config opened, its datasets scanned and
+    %   the first one loaded; then the window shows. Splash=false starts
+    %   without it, the default under -batch (the test runs). Opened on a
+    %   project root or an output folder (the pipeline app's Open analysis
+    %   app), the app takes the last config again with its source switched
+    %   to them (openSource).
+    %
     %   Usage
     %     EphysAnalysisApp                      % the last config, or defaults
-    %     EphysAnalysisApp("D:\EPHYS")          % a pipeline project root
+    %     EphysAnalysisApp("D:\EPHYS")          % a pipeline project root, with the last config's figures
     %     EphysAnalysisApp("D:\EPHYS", OutputRoot="E:\out", NamePattern=..., Recordings="separate")
     %     EphysAnalysisApp("D:\EPHYS", Datasets=["subj1/day1" "subj1/day2"])  % only these ticked (root-relative keys)
     %     EphysAnalysisApp("D:\out\subj1_day1") % one dataset's output folder
     %     EphysAnalysisApp("am_quicklook.json") % an analysis config
+    %     EphysAnalysisApp(..., Splash=false)   % no startup window
     %     app = EphysAnalysisApp(...);          % keep a handle
     %
     %   See also EphysAnalysisConfig, EphysAnalysisRunner, EphysAnalysisScript,
@@ -252,6 +262,7 @@ classdef EphysAnalysisApp < handle
         RecentConfigs (1,:) string = string.empty(1,0)
         ScriptFolder (1,1) string = ""
         PreviewMaxMB (1,1) double = 500     % larger signal extracts are previewed only on request
+        Splash AppSplash = AppSplash.empty  % the startup window (AppSplash; isActive while the app starts, closed once it shows)
 
         Runner = []                         % the EphysAnalysisRunner (rebuilt by Scan; owns the caches)
         ScannedSource struct = struct()     % Config.Source when the runner last scanned
@@ -309,14 +320,27 @@ classdef EphysAnalysisApp < handle
                 opts.NamePattern (1,1) string = ""
                 opts.Recordings (1,1) string = ""
                 opts.Datasets (1,:) string = string.empty(1,0)
+                opts.Splash (1,1) logical = ~batchStartupOptionUsed()   % no one watches a -batch run
             end
+            % Behind the startup window (AppSplash) the UI is built hidden;
+            % the window shows at the end. On an error the splash and the
+            % hidden window close and the error goes on.
+            [steps, weights] = startupSteps();
+            obj.Splash = AppSplash("Ephys analysis", steps, weights, Show=opts.Splash);
+            unfinished = onCleanup(@() abandonStartup(obj)); %#ok<NASGU>
+            obj.Splash.step("window", "Building the window ...");
             obj.buildUI();
+            obj.Splash.step("prefs", "Restoring the preferences ...");
             obj.loadPreferences(source == "");
             if source ~= ""
                 obj.openSource(source, OutputRoot=opts.OutputRoot, NamePattern=opts.NamePattern, ...
                     Recordings=opts.Recordings, Datasets=opts.Datasets);
             end
             obj.updateTitle();
+            obj.Splash.step("show", "Drawing the window ...");
+            obj.Fig.Visible = "on";
+            drawnow;
+            obj.Splash.close();
             if nargout == 0
                 clear obj
             end
@@ -490,4 +514,26 @@ classdef EphysAnalysisApp < handle
         body = issueReport(obj, kind, opts)
         [url, truncated] = issueURL(obj, kind, title, body)
     end
+end
+
+
+function [steps, weights] = startupSteps()
+%startupSteps  The constructor's steps on the splash (AppSplash) and the seconds each takes (measured warm).
+%   The tab steps are named by their tabs, in buildUI's order; "scan" and
+%   "dataset" are onScan's (the datasets found, the first one loaded).
+S = { ...
+    "window", 0.2; "Data", 0.34; "Alignment", 0.97; "Figures", 5.4; "Export", 0.29; ...
+    "Log", 0.02; "finish", 0.19; "prefs", 0.44; "config", 6.0; "scan", 5.1; "dataset", 4.9; "show", 0.6};
+steps = [S{:, 1}];
+weights = [S{:, 2}];
+end
+
+
+function abandonStartup(obj)
+%abandonStartup  The constructor's cleanup: when it stopped before the window showed, the hidden window and the splash go.
+if ~isvalid(obj) || ~obj.Splash.isActive(); return; end   % it finished: the splash closed then
+if ~isempty(obj.Fig) && isvalid(obj.Fig)
+    delete(obj.Fig);
+end
+obj.Splash.close();
 end

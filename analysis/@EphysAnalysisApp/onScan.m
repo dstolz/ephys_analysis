@@ -4,11 +4,13 @@ function onScan(obj)
 %   "list" selection only sets the Run ticks. The first ticked dataset
 %   becomes the active one. The Figures tab's preview (a session figure's
 %   too) and observation list are forgotten. Each dataset's stars are read
-%   (loadFavorites) and shown (refreshFavorites).
+%   (loadFavorites) and shown (refreshFavorites). While the app starts the
+%   scan and the first dataset's loading are steps on the splash.
 cfg = obj.gatherConfig();
 scanCfg = cfg;
 scanCfg.Source.Selection = "all";
 obj.setStatus("Scanning ...");
+obj.Splash.step("scan", "Scanning the datasets ...");
 drawnow;
 try
     r = EphysAnalysisRunner(scanCfg, LogFcn=@(m) obj.log(m));
@@ -47,6 +49,7 @@ obj.log("Scan: " + obj.ScanLabel.Text);
 if n > 0
     first = find(obj.Ticked, 1);
     if isempty(first); first = 1; end
+    obj.Splash.step("dataset", "Loading " + names(first) + " ...");
     obj.selectDataset(first);
 end
 obj.setStatus(obj.ScanLabel.Text);

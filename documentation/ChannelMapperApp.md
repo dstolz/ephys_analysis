@@ -42,6 +42,7 @@ ChannelMapperApp(Mapping="H32_A1x32_RHD2132") % open a saved mapping
 | `BankFolder` | the hardware bank. Default: the last one used, else `pipeline/hardware` |
 | `Dataset` | an `EphysDataset`. Its `ChannelNumbers` become the recording rows |
 | `Mapping` | a saved mapping's name, or a mapping or `.chanmap.json` file to open |
+| `Splash` | `true` (default; `false` under `matlab -batch`): a small startup window ([`AppSplash`](EphysPipelineApp.md#launching)) shows the steps while the window is built hidden; it shows when ready |
 
 The window is not modal: several can be open, next to the pipeline app.
 With no mapping given it reopens the chain it showed when it last closed.

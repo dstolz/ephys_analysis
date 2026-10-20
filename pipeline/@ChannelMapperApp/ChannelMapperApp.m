@@ -24,6 +24,9 @@ classdef ChannelMapperApp < handle
     %                 pipeline/hardware)
     %     Dataset     an EphysDataset: recording rows from its ChannelNumbers
     %     Mapping     a saved mapping's id or a mapping / sidecar file to open
+    %     Splash      the startup window (AppSplash) while the window is
+    %                 built hidden and the bank read (default true; false
+    %                 under -batch)
     %
     %   The dialog-free methods (selectProbe, selectPackage, selectHeadstage,
     %   setOrientation, setOffset, setRows, setKCoords, resetKCoords, select,
@@ -92,6 +95,7 @@ classdef ChannelMapperApp < handle
         PathLabel matlab.ui.control.Label
         ProblemsLabel matlab.ui.control.Label
         StatusLabel matlab.ui.control.Label
+        Splash = AppSplash.empty          % the startup window (AppSplash), closed once the window shows
     end
 
     properties (Constant)
@@ -111,6 +115,7 @@ classdef ChannelMapperApp < handle
                 opts.BankFolder (1,1) string = ""
                 opts.Dataset = EphysDataset.empty
                 opts.Mapping (1,1) string = ""
+                opts.Splash (1,1) logical = ~batchStartupOptionUsed()   % no one watches a -batch run
             end
             if ~(isempty(app) || isa(app, 'EphysPipelineApp'))
                 error('ChannelMapperApp:BadParent', 'The parent must be an EphysPipelineApp (or []).');
@@ -126,8 +131,14 @@ classdef ChannelMapperApp < handle
             if folder == ""
                 folder = HardwareBank.defaultFolder();
             end
+            obj.Splash = AppSplash("Channel mapper", ["bank" "window" "chain" "show"], [0.1 0.4 1.0 1.9], ...
+                Show=opts.Splash);   % the steps' seconds, measured warm
+            unfinished = onCleanup(@() abandonStartup(obj)); %#ok<NASGU>
+            obj.Splash.step("bank", "Reading the hardware bank ...");
             obj.Bank = HardwareBank(folder);
+            obj.Splash.step("window", "Building the window ...");
             obj.build();
+            obj.Splash.step("chain", "Opening the last chain ...");
             obj.loadPreferences();
             obj.refreshBank();
             restored = false;
@@ -145,6 +156,10 @@ classdef ChannelMapperApp < handle
             if ~isempty(opts.Dataset) && isa(opts.Dataset, 'EphysDataset') && ~isempty(opts.Dataset.ChannelNumbers)
                 obj.setRows("dataset", opts.Dataset.ChannelNumbers, opts.Dataset.Name);
             end
+            obj.Splash.step("show", "Drawing the window ...");
+            obj.Fig.Visible = "on";
+            drawnow;
+            obj.Splash.close();
             if nargout == 0
                 clear obj
             end
@@ -261,4 +276,14 @@ classdef ChannelMapperApp < handle
         [value, ok] = promptText(fig, titleText, prompt, default)
         [k, ok] = pickFromList(fig, titleText, items, prompt)
     end
+end
+
+
+function abandonStartup(obj)
+%abandonStartup  The constructor's cleanup: when it stopped before the window showed, the hidden window and the splash go.
+if ~isvalid(obj) || ~obj.Splash.isActive(); return; end   % it finished: the splash closed then
+if ~isempty(obj.Fig) && isvalid(obj.Fig)
+    delete(obj.Fig);
+end
+obj.Splash.close();
 end

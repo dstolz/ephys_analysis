@@ -8,12 +8,15 @@ function onScan(obj)
 %   an alert (EphysProject.refresh): a manifest that cannot be read is
 %   neither used nor overwritten. When the app last closed with a
 %   Kilosort4 queue kept for this root, the scan then offers it back
-%   (offerKeptKSQueue).
+%   (offerKeptKSQueue). While the app starts (the constructor's scan of
+%   the last config's project) the progress goes to the splash instead of
+%   a dialog, its alerts wait for the window (AppSplash.alert), and the
+%   constructor offers the kept queue once the window shows.
 
 if obj.refuseWhileRunning("Scan"); return; end
 root = string(obj.RootPathField.Value);
 if root == "" || ~isfolder(root)
-    uialert(obj.Fig, "Select a valid parent directory first.", "Scan");
+    obj.Splash.alert(obj.Fig, "Select a valid parent directory first.", "Scan");
     return
 end
 
@@ -21,9 +24,15 @@ obj.savePreferences();
 obj.ScanButton.Enable = "off";
 cleanup = onCleanup(@() set(obj.ScanButton, "Enable", "on"));
 
-dlg = uiprogressdlg(obj.Fig, "Title", "Scanning", ...
-    "Message", "Discovering recording folders...", "Indeterminate", "on");
-drawnow;
+starting = obj.Splash.isActive();   % the window is hidden: no dialog on it
+if starting
+    dlg = [];
+    obj.Splash.progress(0, "Discovering the recording folders under " + root + " ...");
+else
+    dlg = uiprogressdlg(obj.Fig, "Title", "Scanning", ...
+        "Message", "Discovering recording folders...", "Indeterminate", "on");
+    drawnow;
+end
 
 active = obj.currentDataset();   % found again by folder in the new project
 try
@@ -36,7 +45,7 @@ try
     EphysPipeline.applyConfigToDatasets(obj.Config, P);
 
     if P.NumDatasets == 0
-        close(dlg);
+        closeDialog(dlg);
         obj.Project = P;
         obj.refreshDatasetsTable();
         obj.populateDatasetPickers();
@@ -46,18 +55,23 @@ try
             hint = "Only the root and the folders directly in it were searched: tick Recursive, or pick a different parent folder, and Scan again.";
         end
         obj.setStatus(sprintf("Scan complete: no recordings found under %s.", root), hint);
-        obj.offerKeptKSQueue();
+        if ~starting; obj.offerKeptKSQueue(); end
         return
     end
 
     % Header-only metadata + manifest restore/refresh, one dataset at a time,
     % with progress (EphysProject.refresh is what scripts and the pipeline
     % call too, so the app and headless runs agree on what a scan does).
-    dlg.Indeterminate = "off";
     n = P.NumDatasets;
-    report = P.refresh(ProgressFcn=@(i, n, name) showScanProgress(dlg, i, n, name), ...
-        CancelFcn=@() dlg.CancelRequested);
-    close(dlg);
+    if starting
+        report = P.refresh(ProgressFcn=@(i, n, name) obj.Splash.progress(i / n, ...
+            sprintf("Reading headers %d/%d: %s", i, n, name)));
+    else
+        dlg.Indeterminate = "off";
+        report = P.refresh(ProgressFcn=@(i, n, name) showScanProgress(dlg, i, n, name), ...
+            CancelFcn=@() dlg.CancelRequested);
+        close(dlg);
+    end
 
     nRule = 0;   % datasets that took the probe of a matching probe rule
     if obj.Config.Probe.AutoAssign
@@ -81,17 +95,17 @@ try
         scanMsg = scanMsg + sprintf(" Probe rules assigned a probe to %d.", nRule);
     end
     obj.setStatus(scanMsg, namePatternHint(P, obj.Config.Project.NamePattern));
-    obj.offerKeptKSQueue();
+    if ~starting; obj.offerKeptKSQueue(); end
     bad = report(report.Message ~= "" & report.Message ~= "canceled", :);
     if height(bad) > 0
         obj.setStatus(sprintf("Scanned %s: found %d dataset(s), %d with a problem.", root, n, height(bad)), ...
             "A manifest that cannot be read is left as it is: fix or delete it, then Scan again.");
-        uialert(obj.Fig, strjoin(["These datasets were scanned with a problem:"; ""; bad.Dataset + ": " + bad.Message], newline), ...
+        obj.Splash.alert(obj.Fig, strjoin(["These datasets were scanned with a problem:"; ""; bad.Dataset + ": " + bad.Message], newline), ...
             "Scan", "Icon", "warning");
     end
 catch ME
-    if isvalid(dlg); close(dlg); end
-    uialert(obj.Fig, ME.message, "Scan failed");
+    closeDialog(dlg);
+    obj.Splash.alert(obj.Fig, ME.message, "Scan failed");
     obj.setStatus("Scan failed: " + string(ME.message), ...
         "Check the parent folder path and try Scan again.");
 end
@@ -124,6 +138,12 @@ end
 if all(ok); return; end
 hint = sprintf("%d Open Ephys session name(s) do not match the name pattern; Open Ephys folders match %s.", ...
     nnz(~ok), OpenEphysReader.DefaultNamePattern);
+end
+
+
+function closeDialog(dlg)
+%closeDialog  Close the progress dialog, when there is one (none while the app starts).
+if ~isempty(dlg) && isvalid(dlg); close(dlg); end
 end
 
 

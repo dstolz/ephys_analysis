@@ -10,9 +10,10 @@ function build(obj)
 %   Right: the probe's sites colored by kcoords group and the mated
 %   connector faces, the selected
 %   site's path and the chain's problems. Only grid layouts, so the window
-%   resizes on its own.
+%   resizes on its own. The window is built hidden; the constructor shows
+%   it.
 
-obj.Fig = uifigure('Name', 'Channel mapper', 'Position', [60 60 1440 880], ...
+obj.Fig = uifigure('Name', 'Channel mapper', 'Position', [60 60 1440 880], 'Visible', 'off', ...
     'Tag', 'ChannelMapperApp', 'CloseRequestFcn', @(~, ~) obj.onClose());
 buildMenus(obj);
 

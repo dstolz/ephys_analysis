@@ -10,7 +10,10 @@ function test_EphysPipelineApp()
 %   results table filling as a run goes, the Kilosort4 monitor and queue
 %   (kept at close: the queue offered back per project root, the runs
 %   going followed again at the next launch), the phy launch, a figure
-%   deleted without Close. The app's preferences live in a temporary file
+%   deleted without Close; the startup (the window built hidden behind the
+%   splash, Splash=true and the -batch default without it, the last config
+%   reopened and its project scanned, a root that is gone left unscanned,
+%   LastConfigFile kept after New). The app's preferences live in a temporary file
 %   for the run (AppPrefs.useTemporary), never the user's. Dialogs that would block (uiconfirm)
 %   are never triggered because the config is kept clean before New / Close.
 %
@@ -77,6 +80,32 @@ cfg = cfg.save(cfgFile);
 fprintf('\n== 1. build + open ==\n');
 app = EphysPipelineApp;
 appCleanup = onCleanup(@() closeApp(app));
+drawnow;
+startSteps = ["window" "Copy" "Project" "Trials" "Visualize" "Artifacts" "Probe" "Sorting" "Signals" "Spikes" ...
+    "Export" "Analysis" "Diagram" "Run" "Review" "Synthetic" "Clean up" "finish" "prefs" "probes" "show"];
+check(app.Fig.Visible == "on" && ~app.Splash.isActive() && app.Splash.Window == "" && isempty(findall(groot, 'Tag', 'AppSplash')) ...
+    && isequal(app.Splash.History.Step.', startSteps), ...
+    'under -batch the app starts without the splash window: the window shows once built, each tab a step; no config to reopen or scan');
+check(isequal(app.Tabs.Position(3:4), app.TabHost.InnerPosition(3:4) + [2 26]), ...
+    'built hidden, the tab group still fits its host once the window shows (fitTabGroup)');
+sp = AppSplash("test", ["a" "b" "c"], [1 2 1], Show=false);
+sp.step("a", "first");
+sp.progress(0.5);
+v1 = sp.Value;
+sp.step("b", "second");
+v2 = sp.Value;
+sp.step("elsewhere", "no such step");
+hidden = uifigure("Visible", "off");
+sp.alert(hidden, "Held back.", "Held");
+held = numel(sp.Alerts);
+hidden.Visible = "on";
+sp.close();
+spE = AppSplash.empty;
+spE.step("a", "x"); spE.progress(1);
+check(v1 == 0.125 && v2 == 0.25 && sp.Value == 0.25 && sp.Text == "no such step" && height(sp.History) == 3 ...
+    && held == 1 && isempty(sp.Alerts) && ~sp.isActive() && ~sp.isOpen() && sp.Window == "" && ~spE.isActive(), ...
+    'AppSplash: steps fill the bar by their weights (an unknown step only its text), an alert waits for close, calls on an empty one do nothing');
+delete(hidden);
 check(isvalid(app.Fig) && numel(app.Tabs.Children) == 16 && app.Tabs.Children(1) == app.TabCopy ...
     && app.Tabs.Children(3) == app.TabTrials && app.Tabs.Children(10) == app.TabAnalysis ...
     && app.Tabs.Children(9) == app.TabExport && app.Tabs.Children(end - 1) == app.TabSynthetic ...
@@ -2773,6 +2802,8 @@ c2 = EphysPipelineConfig.load(cfgFile);
 check(c2.Spikes.Threshold == 1500 && c2.Project.Root == string(proj), 'the saved file holds the edit');
 app.onNewConfig();
 check(app.Config.Name == "Untitled" && app.Config.File == "" && ~app.SpkEnableCheckBox.Value, 'New config resets to defaults');
+app.savePreferences();
+check(strcmp(AppPrefs.getpref(g, 'LastConfigFile'), cfgFile), 'after New (no file yet) the preferences keep the last config file');
 ok = app.openConfigFile(cfgFile);
 check(ok && app.Config.Spikes.Threshold == 1500 && any(app.RecentConfigs == string(cfgFile)), 'reopen + recent list');
 check(AppPrefs.ispref(g, 'LastConfigFile') && strcmp(AppPrefs.getpref(g, 'LastConfigFile'), cfgFile), 'the last config file is remembered');
@@ -2786,8 +2817,17 @@ app.ArtViewScaleDropDown.Value = 'manual';
 app.ArtViewLanesField.Value = 150;
 app.TableSorts.Trials = struct('column', "Onset", 'direction', "descend");
 app.savePreferences();
-app2 = EphysPipelineApp;
+app2 = EphysPipelineApp(Splash=true);
 app2Cleanup = onCleanup(@() delete(app2.Fig));
+H2 = app2.Splash.History;
+check(app2.Splash.Window ~= "" && ~app2.Splash.isOpen() && isempty(findall(groot, 'Tag', 'AppSplash')) ...
+    && app2.Fig.Visible == "on" && ~app2.Splash.isActive() && all(ismember(["window" "Clean up" "config" "scan" "show"], H2.Step)) ...
+    && issorted(H2.Seconds) && H2.Step(end) == "show", ...
+    'Splash=true: the splash window shows the steps (the config reopened, its scan) and closes when the window shows');
+check(app2.Config.File == string(cfgFile) && ~isempty(app2.Project) && app2.Project.NumDatasets == 1 ...
+    && height(app2.DatasetsTable.Data) == 1 && contains(app2.StatusBar.Text, "Scanned"), ...
+    'the next launch reopens the last config and scans its project');
+check(isequal(app2.Fig.Position, app.Fig.Position), 'and the window built hidden takes its saved position');
 check(app2.ArtViewContextField.Value == 40 && app2.ArtViewChannelsField.Value == 5 ...
     && ~app2.ArtViewShankColorCheckBox.Value && ~app2.ArtViewShadeButton.Value ...
     && app2.ArtViewScaleDropDown.Value == "manual" && app2.ArtViewLanesField.Value == 150, ...
@@ -3198,7 +3238,14 @@ app.stopKSMonitor();   % the app closes: what it held is gone
 app.KSQueue(:) = [];
 app.KSRuns(:) = [];
 delete(prep1.binFile);   % recM001's .bin goes before the next launch
+cfgGone = cfg;
+cfgGone.Project.Root = fullfile(root, 'gone');   % the next launch does not scan root2 (it would offer the queue at once)
+cfgGoneFile = fullfile(root, 'gone_root.json');
+cfgGone.save(cfgGoneFile);
+AppPrefs.setpref(g, 'LastConfigFile', cfgGoneFile);
 app3 = EphysPipelineApp;   % the next launch
+check(isempty(app3.Project) && contains(app3.StatusBar.Text, "was not scanned: it was not found") ...
+    && any(app3.Splash.History.Step == "scan"), 'a last config whose project root is gone is reopened, not scanned: the status bar says why');
 ksLog3 = strjoin(string(app3.KSLogArea.Value), newline);
 check(isscalar(app3.KSRuns) && app3.KSRuns(1).Name == dM2.Name && ~app3.KSRuns(1).done ...
     && ~isempty(app3.KSMonitorTimer) && strcmp(app3.KSMonitorTimer.Running, 'on') && ~AppPrefs.ispref(g, 'KeptSortingRuns') ...

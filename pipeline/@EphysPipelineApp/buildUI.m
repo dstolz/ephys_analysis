@@ -5,9 +5,11 @@ function buildUI(obj)
 %   tab, colored by the tab's status (see syncTabStrip) with an underline
 %   on the selected one. obj.Tabs.SelectedTab stays the source of truth.
 %   Every button is then styled (styleButtons), the main actions in color.
+%   The figure is built hidden (the constructor shows it), each tab a step
+%   on the startup splash (AppSplash).
 
 pos = [120 90 1240 800];   % default; overridden by the saved preference
-obj.Fig = uifigure("Name", "Ephys preprocessing", "Position", pos);
+obj.Fig = uifigure("Name", "Ephys preprocessing", "Position", pos, "Visible", "off");
 obj.Fig.CloseRequestFcn = @(~,~) obj.onClose();
 obj.Fig.DeleteFcn = @(~,~) obj.stopTimers();   % also when deleted without onClose
 
@@ -55,22 +57,23 @@ obj.TabList = [obj.TabCopy, obj.TabProject, obj.TabTrials, obj.TabProbe, obj.Tab
 buildTabStrip(obj, outer);
 fitTabGroup(obj);
 
-obj.buildCopyTab();
-obj.buildProjectTab();
-obj.buildTrialsTab();
-obj.buildVisualizeTab();     % before Artifacts: the artifact tab links to it
-obj.buildArtifactsTab();
-obj.buildProbeTab();
-obj.buildSortingTab();
-obj.buildSignalsTab();
-obj.buildSpikesTab();
-obj.buildExportTab();
-obj.buildAnalysisTab();
-obj.buildFlowTab();
-obj.buildRunTab();
-obj.buildReviewTab();
-obj.buildSyntheticTab();
-obj.buildCleanupTab();
+obj.Splash.step("Copy", "Building the Copy tab ..."); obj.buildCopyTab();
+obj.Splash.step("Project", "Building the Project tab ..."); obj.buildProjectTab();
+obj.Splash.step("Trials", "Building the Trials tab ..."); obj.buildTrialsTab();
+obj.Splash.step("Visualize", "Building the Visualize tab ..."); obj.buildVisualizeTab();     % before Artifacts: the artifact tab links to it
+obj.Splash.step("Artifacts", "Building the Artifacts tab ..."); obj.buildArtifactsTab();
+obj.Splash.step("Probe", "Building the Probe tab ..."); obj.buildProbeTab();
+obj.Splash.step("Sorting", "Building the Sorting tab ..."); obj.buildSortingTab();
+obj.Splash.step("Signals", "Building the Signals tab ..."); obj.buildSignalsTab();
+obj.Splash.step("Spikes", "Building the Spikes tab ..."); obj.buildSpikesTab();
+obj.Splash.step("Export", "Building the Export tab ..."); obj.buildExportTab();
+obj.Splash.step("Analysis", "Building the Analysis tab ..."); obj.buildAnalysisTab();
+obj.Splash.step("Diagram", "Building the Diagram tab ..."); obj.buildFlowTab();
+obj.Splash.step("Run", "Building the Run tab ..."); obj.buildRunTab();
+obj.Splash.step("Review", "Building the Review tab ..."); obj.buildReviewTab();
+obj.Splash.step("Synthetic", "Building the Synthetic tab ..."); obj.buildSyntheticTab();
+obj.Splash.step("Clean up", "Building the Clean up tab ..."); obj.buildCleanupTab();
+obj.Splash.step("finish", "Laying out the window ...");
 styleButtons(obj);   % before syncTabStrip, which colors the tab strip by status
 
 obj.Tabs.SelectedTab = obj.TabProject;   % the app still opens on Project

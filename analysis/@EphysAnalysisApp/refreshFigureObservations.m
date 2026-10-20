@@ -18,7 +18,8 @@ function refreshFigureObservations(obj, opts)
 %   onScan) -- unless Force is set; an empty list is kept as well. When the
 %   list cannot be made, the picker's UserData.error says why (the preview
 %   shows it). The Observations section's count line follows. < and > are
-%   enabled when there is somewhere to go.
+%   enabled when there is somewhere to go, Unit report when a unit or
+%   channel is picked (unitReportEnable).
 arguments
     obj (1,1) EphysAnalysisApp
     opts.Force (1,1) logical = false
@@ -212,5 +213,6 @@ n = 0;
 if istable(obj.FigureObservations); n = height(obj.FigureObservations); end
 obj.FigureObsPrevButton.Enable = matlab.lang.OnOffSwitchState(n > 0 && i > 1);
 obj.FigureObsNextButton.Enable = matlab.lang.OnOffSwitchState(n > 0 && i < n);
+obj.FigureUnitReportButton.Enable = unitReportEnable(obj);
 syncStarButtons(obj);
 end

@@ -43,6 +43,11 @@ function rows = runDataset(obj, k, opts)
 %   this dataset covers (run passes it): its m figures share it evenly,
 %   figure j reporting progress a + (b - a) * (j-1)/m and its observations
 %   dividing its share (default [0 1]).
+%   Observation= (a struct: kind, data, unitId, channel, label; default
+%   [] = every observation) draws each figure only for the rows that
+%   match it (figureObservations' Observation=): the unit picked, or what
+%   is on its channel. A figure with no match is "skipped", the reason
+%   (e.g. "it observes the dataset, not one unit") its message.
 %
 %   See also EphysAnalysisRunner.run, EphysAnalysisRunner.computeFigure,
 %   renderFigure, figureOutputName.
@@ -54,6 +59,7 @@ arguments
     opts.Export (1,1) logical = true
     opts.Report (1,1) logical = false
     opts.Span (1,2) double = [0 1]
+    opts.Observation = []
 end
 
 cfg = obj.Config;
@@ -88,8 +94,9 @@ for jf = 1:numel(fids)
         reason = figureSkipReason(src, spec);
         T = [];
         if reason == ""
-            T = figureObservations(src, spec);
+            [T, why] = figureObservations(src, spec, Observation=opts.Observation);
             if height(T) == 0; reason = "no observation"; end
+            if height(T) == 0 && why ~= ""; reason = why; end   % Observation= matched nothing: why
         end
         if reason ~= ""
             obj.Results(end+1, :) = {name, spec.id, "figure", "skipped", reason, "", 0};

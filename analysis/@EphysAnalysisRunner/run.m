@@ -42,6 +42,12 @@ function T = run(obj, opts)
 %                     Figures=string.empty(1, 0))
 %     Export          write figure files (default Config.Export.Enabled)
 %     Report          write the report (default Config.Report.Enabled)
+%     Observation     one observation (a struct: kind "unit" | "channel",
+%                     data, unitId, channel, label; default [] = all):
+%                     each figure is drawn only for what matches it
+%                     (runDataset, figureObservations), a figure with
+%                     no match is "skipped" with the reason, and no
+%                     session figure runs (the app's Unit report)
 %
 %   See also EphysAnalysisRunner.runDataset, EphysAnalysisRunner.runSessionFigure,
 %   EphysAnalysisRunner.plan, writeHtmlReport, writePdfReport.
@@ -53,6 +59,7 @@ arguments
     opts.SessionFigures = []
     opts.Export = []
     opts.Report = []
+    opts.Observation = []
 end
 
 cfg = obj.Config;
@@ -66,6 +73,7 @@ if ~isempty(opts.Report); doReport = logical(opts.Report); end
 fids = EphysAnalysisRunner.idList(opts.Figures, @() cfg.enabledFigures());
 fids = fids(~arrayfun(@(f) cfg.isSessionFigure(f), fids));   % session figures are drawn across the datasets, not per dataset
 sfids = EphysAnalysisRunner.idList(opts.SessionFigures, @() cfg.enabledSessionFigures());
+if isstruct(opts.Observation); sfids = string.empty(1, 0); end   % one dataset's observation: no figure across the sessions
 if isempty(opts.Datasets)
     idx = 1:numel(obj.Outputs);
 elseif isnumeric(opts.Datasets)
@@ -90,7 +98,8 @@ for j = 1:numel(idx)
     try
         span = [j - 1, j] / nUnits;   % this dataset's share of the run, which its figures report within
         obj.progress(span(1), "Dataset " + obj.Names(k));
-        obj.runDataset(k, Figures=fids, Export=doExport, Report=doReport, Span=span);   % appends to obj.Results
+        obj.runDataset(k, Figures=fids, Export=doExport, Report=doReport, Span=span, ...
+            Observation=opts.Observation);   % appends to obj.Results
     catch ME
         if ME.identifier ~= "EphysAnalysisRunner:Canceled"; rethrow(ME); end
         canceled = true;

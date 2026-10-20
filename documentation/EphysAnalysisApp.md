@@ -711,14 +711,15 @@ only that unit's spikes or that channel's column are read) and
 | **Dataset** | the active dataset (the same one as on the other tabs, which list it the same way), with what it holds of spikes: *subj1_day1  (14 units)* (its sorted units, counted the first time it is opened in the session: they are read for the Data tab then, so nothing more is read and a share's folders are never walked for the counts; until then the name alone), *(detected only)* (no sort, a spikes file) or *(no sorting)*. Grayed out for a figure across sessions, which is drawn over the ticked (or listed) datasets, not the active one |
 | **Observation** | what the figure is drawn for: the units, channels or dataset the Observations section keeps, in probe order (*su12  ch 7  -320 µm  (5,210 spikes)*: a sorted unit ends in its number of spikes, a detection channel in its number of detections; a signal's channel and the dataset have no count). With **Per trial group** it lists a row for each unit and trial group (the unit's rows together, in group order, the label ending in a middle dot and the group's label, then the unit's count), the preview draws that group's epochs only, and **>** steps from a unit's group to its next one. Each figure remembers its pick until the app closes, by label (without the count), so it stays through a filter change or another dataset while that label is in the list, else the first is picked. Picking one draws it, whether or not Auto is on. For a figure across sessions it lists the sites, cells or channels matched across the sessions, each ending *(across 3 sessions)* ([below](#sessions-in-the-figures-tab)) |
 | **Open in window** | at the right of the status line under the preview: draws the figure as previewed into a new regular MATLAB figure window (`figure`), named *figure id: observation (dataset)* and the size of the preview, with the right-click aesthetics editor and its Design submenu (what it remembers for the figure reaches the config while the app is open). A drawn preview is used as it is; an *Out of date*, canceled or missing one is previewed first, and the status bar says why when that draws nothing. The window is independent of the app: later edits do not follow into it, and closing the app leaves it. Off with no figure selected |
-| **Generate** | draws the selected figure for every observation it selects, on every ticked dataset, into the Export tab's folder (see **Generate** below). It sits right of **Preview**, in the same colors, and is off with no figure selected |
+| **Generate** | draws the selected figure for every observation it selects, on every ticked dataset, into the Export tab's folder (see **Generate** below). It sits under **Preview**, in the same colors, and is off with no figure selected |
+| **Unit report** | a spot check of one unit (or channel): every enabled figure of the active dataset, drawn for the unit or channel picked in **Observation** only, as an HTML report that opens in the browser (see **Unit report** below). It sits under **Generate**; off without a dataset or a unit or channel picked, for a figure of the dataset or across sessions, and while a run goes |
 | **<**, **>** | the previous and next observation (**Page Up**, **Page Down**: a figure has no pages); off at either end of the list |
 | **☆** / **★** | right of **Dataset**: stars the active dataset. Right of **Observation**: stars what the preview shows -- the sorted unit (with its sort), the channel (a detection channel's star is its channel's) or, for a figure of the dataset, the dataset; off for a figure across sessions. A starred dataset, unit or channel starts with **★** in its drop-down; the pick is still remembered by its label without the mark ([Favorites](#favorites)) |
 | **Favorites** | under **Observation**: a filter field and a drop-down of every starred dataset, channel and unit of the scanned datasets. Picking one makes its dataset active and, when the selected figure observes units (for a unit) or channels or detection channels (for a channel), picks and draws it ([Favorites](#favorites)) |
-| **Export code** | at the right end of the row of **Preview**: opens the code that draws the preview in the MATLAB editor, as a new unsaved script (`EphysAnalysisScript.preview`, [Generated scripts](EphysAnalysis.md#generated-scripts)). It names the active dataset (a figure across sessions: the ticked or listed datasets), writes the figure's settings out as `spec` (`figureFor`'s, every *default* resolved), finds the observation picked again in `figureObservations` (by its unit id or the extract's column; with **Per trial group**, its group too; across sessions, by its label), then calls `figureCompute` (`figureSessionCompute` across sessions, keeping the **Figure:** pick) and `renderFigure` into a figure window the size of the preview, in the design chosen. Run it to draw the figure without the app; change `spec` or pick another row of `obsT` to make it your own. Nothing is computed when you press it, so the preview need not be drawn; the code holds the figure as the editor shows it then, and later edits do not follow into it. Without the desktop's editor (`matlab -batch`) it writes the script to `tempdir` and the status bar names the file. Off with no figure selected |
-| **Preview** | computes now, also for a signal extract above `PreviewMaxMB`, which otherwise waits for it. It is the button at the top left, and turns orange while the figure is *Out of date* |
+| **Export code** | under **Design**, right of **Save look as design...**: opens the code that draws the preview in the MATLAB editor, as a new unsaved script (`EphysAnalysisScript.preview`, [Generated scripts](EphysAnalysis.md#generated-scripts)). It names the active dataset (a figure across sessions: the ticked or listed datasets), writes the figure's settings out as `spec` (`figureFor`'s, every *default* resolved), finds the observation picked again in `figureObservations` (by its unit id or the extract's column; with **Per trial group**, its group too; across sessions, by its label), then calls `figureCompute` (`figureSessionCompute` across sessions, keeping the **Figure:** pick) and `renderFigure` into a figure window the size of the preview, in the design chosen. Run it to draw the figure without the app; change `spec` or pick another row of `obsT` to make it your own. Nothing is computed when you press it, so the preview need not be drawn; the code holds the figure as the editor shows it then, and later edits do not follow into it. Without the desktop's editor (`matlab -batch`) it writes the script to `tempdir` and the status bar names the file. Off with no figure selected |
+| **Preview** | computes now, also for a signal extract above `PreviewMaxMB`, which otherwise waits for it. It heads the column of buttons at the left of the header (**Preview**, **Generate**, **Unit report**, **Auto**, **<** **>**, a row each; the Dataset, Observation, Favorites and Design rows sit right of them), and turns orange while the figure is *Out of date* |
 | **Auto** | redraw after every edit while a preview takes under 2 s; a slower one says so (*"slow, so edits wait for Preview"*). On by default, because one observation is quick; remembered. It does not apply to a figure across sessions, which computes every session: an edit leaves its preview *Out of date* until **Preview** (or a pick in the observation list) draws it. The first figure drawn after the app starts is not timed, since it also loads the graphics, so that warm-up does not make the edits after it wait. The 2 s is the app's `FigureAutoPreviewSeconds` property (a public property, not a preference; set it on the app object before editing, for example to `Inf` to redraw however long a preview takes, which the app's tests do so a loaded machine cannot leave a preview out of date) |
-| **Design:** | the look every figure is drawn in (Default, Tufte, Journal, Night, Talk, Gray panel, and yours; the Design menu offers the same): picking one redraws the preview, and every other figure on screen, at once; runs draw their figures in it. It sits right of the **Dataset** drop-down, with **Save look as design...** under it, right of **Observation** |
+| **Design:** | the look every figure is drawn in (Default, Tufte, Journal, Night, Talk, Gray panel, and yours; the Design menu offers the same): picking one redraws the preview, and every other figure on screen, at once; runs draw their figures in it. It sits under **Favorites**, with **Save look as design...** and **Export code** under it |
 | **Save look as design...** | keeps the preview's look -- every property of every component, its ground and its group colors -- as a design of yours, and picks it. The look is read per panel type, from the panels as the preview drew them (not the config, which may have changed since): the rules of a heat map, probe map, unit correlation or spectrogram panel's tile (those axes are drawn their own way) go under the design's `kinds` for that panel type, and those of the figure's other panels are common rules (the same attribution as the preview's right-click **Save this look as a design...**). It saves nothing while the preview is *Out of date* (the status bar says *Preview first: the drawing is out of date*) |
 
 **The selected panel** is outlined in the preview: a blue frame, 3 px wide,
@@ -794,6 +795,29 @@ no dataset ticked it says so and draws nothing. A figure across sessions is
 the exception: Generate runs it as `run(SessionFigures=<id>)`, once across the
 ticked (or listed) datasets rather than on each, into `Export.SessionsFolder`
 ([Sessions in the Figures tab](#sessions-in-the-figures-tab)).
+
+**Unit report** is a spot check: the report for one unit without generating
+the full report. It runs as the Export tab's **Run** does (the same
+validation, progress dialog and **Cancel**, one run at a time), but on the
+active dataset only, for the unit or channel picked over the preview only
+(`run(Observation=)`), with no figure files and no session figures. Each
+enabled figure (and the selected one, even when it is off, for this report
+only) draws what matches the pick: on a figure of the same data, the unit
+itself (with **Per trial group**, each of its groups); on a figure of a
+signal's channels or of detection channels, or of sorted units when a
+detection or a channel is picked, what is on the same recording channel. A
+figure of the dataset, or one with nothing on that channel, is left out: the
+report lists it as skipped with the reason (*"it observes the dataset, not
+one unit"*, *"no LFP channel on channel 7 (...)"*), and so does the status
+bar. The report is HTML whatever **Format** says, titled *<config name>:
+<unit> on <dataset>*, and written to a new temporary folder (`tempname`, its
+run record too), so the output folder is not touched. It opens in the browser
+when it is written; the Export tab's results table then shows its rows and
+**Open report** reopens it until the next run. The status bar reads *"Unit
+report for su12  ch 7  -320 µm: 3 figure(s) drawn; left out: heat (it
+observes the dataset, not one unit). C:\...\unit_report.html"*. With a figure
+across sessions selected the button is off (its observations are matched
+across the datasets): pick a figure drawn per dataset.
 
 **Go to setting.** Right-click a part of the preview and pick **Go to setting** to
 find what controls it: the error band goes to **Show > Error**, the stop dots to
@@ -1336,8 +1360,11 @@ does); the active dataset's lines and parameters, and its sorted units counted
 in the Dataset drop-downs (the same items on the three tabs); the Help menu's GitHub issue
 and feature request (1c); grouping by Depth from the Alignment controls (2);
 and section 3, the Figures tab: the toolbar's Preview, pressed from another
-tab, showing the Figures tab and drawing the selected figure; **Export code**
-(at the right end of the Preview row: its script, run in a workspace of its
+tab, showing the Figures tab and drawing the selected figure; the header (the
+buttons in a column at the left, a row each, and the Dataset, Observation,
+Favorites and Design rows right of them, Save look as design... and Export
+code under Design); **Export code**
+(under Design: its script, run in a workspace of its
 own, computes the same result as the preview, but for the time it was made,
 and draws the same panels in a window of its own); the Design row
 (the list and the menu, a design chosen redrawing the figure preview without
@@ -1504,8 +1531,8 @@ the first figure holds the other figure's panel, its bins included. Converting a
 reports are `test_EphysAnalysisRunner`'s.
 
 Its section 5f drives the Figures tab's **Generate** and the figures on the
-Export tab. With no figure, Generate sits beside Preview in the same colors
-and is off; a figure from the `rasterPsth` template turns it on. `onGenerateFigure`
+Export tab. With no figure, Generate sits under Preview in the same colors
+and is off, as is Unit report; a figure from the `rasterPsth` template turns it on. `onGenerateFigure`
 then draws the figure for every observation on both ticked datasets: one done
 `figure` row per dataset in the results table (the observation counts add up to
 the number `figureObservations` lists), every file `figureOutputName` names in
@@ -1521,7 +1548,16 @@ is on again. **Plan** lists the figure on each ticked dataset (`Kind`
 run(s) will draw*; **Run** draws the figure, a row per dataset, and the label counts them. Last, with the figure
 switched off, Generate still draws it (every row done), the status bar says it
 was switched on for this run only, the tree keeps *(off)* and the runner's
-config keeps it off. The figure is then removed and the config saved.
+config keeps it off. **Unit report** then, with a continuous and a heat map
+figure added and the second unit picked (the button on): three rows, all on
+the active dataset -- the selected figure done with one observation though
+off, a figure of the dataset skipped (*it observes the dataset, not one
+unit*), the continuous one drawn on the unit's channel or skipped with why --
+an HTML report `unit_report.html` under `tempdir`, holding the figure's id,
+nothing written under the output root, **Open report** pointing at it, the
+figure still off and the ticks unchanged; the status bar names the unit, what
+was left out and the figure that is off, and the buttons are back. The
+figures are then removed and the config saved.
 
 Its section 5g drives a figure across sessions on the same two datasets. In
 the Sessions section only **Across sessions** shows until it is ticked, and

@@ -8,7 +8,8 @@ function R = onRunExport(obj, opts)
 %   SessionFigures=, Export= and Report= are run's
 %   ([] = the config's); Config= runs that config instead of the controls'
 %   (gatherConfig) and Title= names the progress dialog: the Figures tab's
-%   Generate (onGenerateFigure) runs one figure that way. One run goes at a
+%   Generate (onGenerateFigure) runs one figure that way, and Unit report
+%   (onUnitReport) one observation (Observation=, run's). One run goes at a
 %   time (Running): Run, Plan, Validate and Generate are off meanwhile, and
 %   the previews compute nothing.
 arguments
@@ -20,6 +21,7 @@ arguments
     opts.Report = []     % [] = Report.Enabled
     opts.Config = []     % an EphysAnalysisConfig to run ([] = gatherConfig)
     opts.Title (1,1) string = "Running the analysis"
+    opts.Observation = [] % run's: one observation only (the Figures tab's Unit report, onUnitReport)
 end
 R = table();
 if obj.Running; return; end
@@ -46,7 +48,7 @@ r.Config = cfg;
 dlg = uiprogressdlg(obj.Fig, "Title", opts.Title, "Message", "Starting ...", "Cancelable", "on");
 r.ProgressFcn = @(f, m) progress(r, dlg, f, m);
 obj.Running = true;
-set([obj.RunButton obj.PlanButton obj.ValidateButton obj.FigureGenerateButton], 'Enable', 'off');
+set([obj.RunButton obj.PlanButton obj.ValidateButton obj.FigureGenerateButton obj.FigureUnitReportButton], 'Enable', 'off');
 set([obj.ToolbarRunTool obj.ToolbarPlanTool obj.ToolbarValidateTool], 'Enable', 'off');
 obj.CancelButton.Enable = 'on';
 obj.ToolbarCancelTool.Enable = 'on';
@@ -54,7 +56,7 @@ cleanup = onCleanup(@() finish(obj, dlg));
 t0 = tic;
 try
     R = r.run(Datasets=idx, Figures=opts.Figures, SessionFigures=opts.SessionFigures, ...
-        Export=opts.Export, Report=opts.Report);
+        Export=opts.Export, Report=opts.Report, Observation=opts.Observation);
 catch ME
     obj.log("Run failed: " + string(ME.message));
     uialert(obj.Fig, "The run failed:" + newline + string(ME.message), "Run");
@@ -99,6 +101,7 @@ if ~isempty(obj.Runner); obj.Runner.ProgressFcn = []; end
 set([obj.RunButton obj.PlanButton obj.ValidateButton], 'Enable', 'on');
 set([obj.ToolbarRunTool obj.ToolbarPlanTool obj.ToolbarValidateTool], 'Enable', 'on');
 obj.FigureGenerateButton.Enable = matlab.lang.OnOffSwitchState(obj.SelectedFigure >= 1 && obj.SelectedFigure <= numel(obj.Config.Figures));
+obj.FigureUnitReportButton.Enable = unitReportEnable(obj);
 obj.CancelButton.Enable = 'off';
 obj.ToolbarCancelTool.Enable = 'off';
 end

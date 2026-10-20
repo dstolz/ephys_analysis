@@ -10,6 +10,21 @@ says how to cut a release.
 
 ### Added
 
+- Figures: each panel's own axis sides and label text, for every panel type. Panel fields `xLabel` and
+  `yLabel` (`""` = automatic, the type's label) replace the labels drawn; `xSide` (`"bottom"` | `"top"`) and
+  `ySide` (`"left"` | `"right"`) put the axis' ticks and label on that side (`renderFigure`'s `panelAxes`,
+  once the type has drawn). A coherence panel's x axis on top goes on its magnitude, its phase strip
+  dropping its tick labels; a stacked PSTH keeps its y axis on each side; a color bar outside on the side
+  an axis moves to goes to the opposite side; the layout reserves the room on the new sides. A stack of
+  time panels still tells the time once: a time panel with its x axis on top hides it under a matching time
+  panel whose x axis is on top too, so a stack with every x axis on top is labeled at its top
+  (`figureTimeStack`; a time label of the panel's own replaces `Time (s)`). Validate checks the sides. In
+  the editor, the Selected panel section's **X axis** and **Y axis** rows (the label, blank = automatic,
+  and the side; the y side grayed out on a stacked PSTH). Right-click a panel's x or y label in the
+  preview, or in an **Open in window** figure, for **Edit label text...** and **Move to top** / **bottom**
+  (x) or **Move to right** / **left** (y): renderFigure's new `OnAxisEdit` hands the edit to the app
+  (`onFigureAxisEdited`), which commits it through the editor's path (`commitFigureEdit`); without one,
+  the figure is drawn again with it. **Go to setting** on a label goes to the new rows.
 - Figures: a PSTH panel drawn as a heat map, `options.display` `"trace"` (bars or a line per trial group, the
   default) or `"heatmap"`: the unit's PSTH as one image, a row per trial group (the first on top, as a raster
   and a stacked PSTH list them), x the PSTH's bins, colored by its rate after measure, smoothing, baseline and

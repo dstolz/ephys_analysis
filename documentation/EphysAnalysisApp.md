@@ -354,7 +354,7 @@ with the key of each in brackets:
 | Sessions | **Across sessions**, and with it ticked which datasets, how the sessions are colored, the error band, how the observed unit is matched, the minimum sessions and the trial groups: the figure drawn once over several datasets instead of once per dataset ([Sessions in the Figures tab](#sessions-in-the-figures-tab)); no key; collapsed until opened. Its place in the Figure supersection, above the Panels section: it decides what the figure is drawn over |
 | Panels (5) | the schematic of the grid, **New panel...** (the [New panel window](#the-new-panel-window)), the selected panel's **Row span**, **Column span**, **Row height**, **Column width**, **Panel size** and **Align in cell**, **Spacing** with **Spacing...**, **Remove panel** and **Move** (below) |
 | **PANEL** (Alt+2) | the sections below, down to Overlays: the selected panel's. Its header names the panel and its type |
-| Selected panel (6) | **Type** (a change starts the panel afresh: below), **Title** (blank = none), **Box** (*auto (the design's)*, *on* or *off*: the frame around the panel's axes; *on* and *off* win over the design, the remembered looks and the figure's own rules; `box`) and **Group shown** (heat map, unit correlation and spectrogram panels, and a coherence panel drawn over time: which of the figure's trial groups they draw, 1 = the first; `options.group`; a heat map of trials draws every group, so the row hides) |
+| Selected panel (6) | **Type** (a change starts the panel afresh: below), **Title** (blank = none), **Box** (*auto (the design's)*, *on* or *off*: the frame around the panel's axes; *on* and *off* win over the design, the remembered looks and the figure's own rules; `box`), **X axis** and **Y axis** (every type: the axis' label, blank = the type's own, and its side, *bottom* or *top*, *left* or *right*; `xLabel`, `yLabel`, `xSide`, `ySide`; the y side grayed out on a stacked PSTH, which has a y axis on each side; a stack of time panels with its x axes on top tells the time once, at its top) and **Group shown** (heat map, unit correlation and spectrogram panels, and a coherence panel drawn over time: which of the figure's trial groups they draw, 1 = the first; `options.group`; a heat map of trials draws every group, so the row hides) |
 | Panel alignment (7) | the selected panel's own event reference and epoch window (an aligned type only), with **Same as the figure** in the header, and the panel's trial selection, the [Trial selection](#alignment-tab) rows under the **Trial selection as the figure** box (an aligned type only). **Apply to all panels** and **Re-link all panels** (below) |
 | Layers (8) | the selected panel's layers: the list with **Add** (a source the type draws), **Remove**, **Up** and **Down**, and the rows of the layer picked (below) |
 | Options (9) | all of the panel's own options: its type's rows, under the type's name (*Raster options*, *PSTH options*, ...; below), and **Apply to all panels** |
@@ -803,7 +803,20 @@ section open, the editor scrolls to the row, the control takes the keyboard focu
 and its label is highlighted for a moment. A part with no setting of its own goes
 to the Appearance section; a setting the panel does not show (an option of another
 panel type) is named in the status bar. A figure opened with **Open in window**
-does the same while the app is open.
+does the same while the app is open. On a panel's x or y label it goes to the
+panel's **X axis** or **Y axis** row.
+
+**Axis labels.** Right-click a panel's x or y label in the preview for two more
+items: **Edit label text...** asks for the panel's own label (blank: the type's
+automatic one; `xLabel`, `yLabel`), and **Move to top** / **Move to bottom** (an
+x label) or **Move to right** / **Move to left** (a y label) puts that axis'
+ticks and label on the other side (`xSide`, `ySide`; a stacked PSTH's y label has
+no side to move to). Each edit goes into the config as the editor's own do: the
+panel is selected, its rows follow and the preview is drawn again (or marked out
+of date). In a figure opened with **Open in window** the
+window is drawn again with the edit, and while the app is open the edit reaches
+its config too. A label the time stack hides (an inner panel's) has no menu: set
+it in the panel's rows.
 
 **Aesthetics.** Right-click any part of the preview (a line, band, bar, text,
 legend or axes) and pick **Edit aesthetics...** to change colors, line styles and

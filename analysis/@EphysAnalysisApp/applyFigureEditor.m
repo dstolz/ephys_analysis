@@ -143,6 +143,10 @@ if any(row)
 end
 E.panelTitle.Value = char(p.title);
 E.panelBox.Value = char(pickFrom(p.box, string(E.panelBox.ItemsData), "auto"));
+E.panelXLabel.Value = char(p.xLabel);
+E.panelYLabel.Value = char(p.yLabel);
+E.panelXSide.Value = char(pickFrom(p.xSide, EphysAnalysisConfig.PanelXSides, "bottom"));
+E.panelYSide.Value = char(pickFrom(p.ySide, EphysAnalysisConfig.PanelYSides, "left"));
 E.selPanel.Text = sprintf("%s  (%s; row %d, column %d)", p.id, label, p.row, p.col);
 E.rowSpan.Value = min(E.rowSpan.Limits(2), max(1, round(p.rowSpan)));
 E.colSpan.Value = min(E.colSpan.Limits(2), max(1, round(p.colSpan)));

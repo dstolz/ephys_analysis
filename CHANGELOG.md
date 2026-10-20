@@ -10,6 +10,15 @@ says how to cut a release.
 
 ### Added
 
+- Analysis app: an **Edit** menu between File and Design with **Undo** (Ctrl+Z) and **Redo** (Ctrl+Y,
+  Ctrl+Shift+Z) of the Figures tab's edits. The items name the edit (**Undo Add panel**, **Undo Bin (ms)**: a
+  control's row label) and are grayed with nothing to undo, or off the Figures tab. Every edit of the figures
+  is a step: the editor's controls, the arrangement, panel types, layers, the figure list (Add, Remove,
+  Duplicate, Up / Down, Copy from..., the tree's check boxes), remembered looks and Pick...; quick edits of one
+  field make one step. Only `Figures` is kept (`FigureEditHistory`, 100 steps), so an undo leaves the source,
+  defaults, export and report settings as they are; the editor goes back to the figure and panel edited, the
+  preview follows, and undoing back to the saved figures clears the title's `*`. A new edit drops the redo
+  steps; opening or starting a config clears the history.
 - Figures: a PSTH panel drawn as a heat map, `options.display` `"trace"` (bars or a line per trial group, the
   default) or `"heatmap"`: the unit's PSTH as one image, a row per trial group (the first on top, as a raster
   and a stacked PSTH list them), x the PSTH's bins, colored by its rate after measure, smoothing, baseline and

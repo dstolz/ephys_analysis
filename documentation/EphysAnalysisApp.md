@@ -428,6 +428,8 @@ below move within them. The **?** button right of the search field (also
 | **Ctrl+Alt+arrows** | the panel above, below, left or right of the selected one: the nearest wholly on that side whose columns (rows) overlap it, the one overlapping most when several are as near; with none there the status bar says so (*No panel below continuous_1.*). A graphics driver that turns the screen with Ctrl+Alt+arrows takes these keys: use Ctrl+] and Ctrl+[ |
 | **Page Up**, **Page Down** | the previous or next observation |
 | **Escape** | cancels a panel drag in the schematic; clears the search |
+| **Ctrl+Z** | undo the last edit of the figures (**Edit → Undo**: [Undo and redo](#undo-and-redo)) |
+| **Ctrl+Y**, **Ctrl+Shift+Z** | redo the last edit undone |
 
 A panel picked with the keys is picked as a click in the schematic picks it:
 the editor shows it, and the preview outlines it (below) without computing or
@@ -862,6 +864,36 @@ the figure's alignment tested too. A figure with no panel aligned to events
 says it has no epochs. The window follows the selected figure and redraws on
 every edit.
 
+#### Undo and redo
+
+**Edit → Undo** (**Ctrl+Z**) takes back the last edit of the figures, and
+**Edit → Redo** (**Ctrl+Y** or **Ctrl+Shift+Z**) does it again. The items
+name the edit: **Undo Add panel**, **Undo Remove figure**, **Undo Move
+panel**, **Undo Spacing**, and for a control of the editor its row's label
+(**Undo Bin (ms)**, **Undo Title**). Every edit of the figures counts: the
+editor's controls, the arrangement (New panel, Remove panel, Move, a drag in
+the schematic, spans, Spacing...), the panel type, the layers, Apply to all
+panels and Re-link all panels, the figure list (Add, Remove, Duplicate, Up /
+Down, Copy from..., the tree's check boxes), a look remembered or forgotten
+from the preview, and Pick... for a session figure. A quick run of edits of
+one field (each under a second after the last) is one step; one typed back
+to where it started is none.
+
+Only the figures are kept (the config's `Figures`), so undoing a figure edit
+leaves the Data tab's source, the Alignment tab's defaults, the Export tab
+and the config's name and description as they are now. The editor goes back
+to the figure, panel and layer the edit was made in (a figure or panel that
+an undo brings back is selected), and the list, the observation picker, the
+epoch diagram and, with Auto on, the preview follow, as after the edit
+itself. Undone back to the figures as saved, the title loses its `*` (when
+nothing else changed). A new edit after an undo drops what was undone; at most
+100 steps are kept. Opening a config or starting a new one clears the
+history; saving keeps it.
+
+The items work with the Figures tab showing: on another tab they are grayed,
+so Ctrl+Z there does nothing in the app. Undo acts on edits entered: a value
+typed in a field becomes a step once Enter, or leaving the field, enters it.
+
 #### Sessions in the Figures tab
 
 The **Sessions** section of the editor (in the FIGURE supersection, above the Arrangement; collapsed until opened, no key)
@@ -1144,6 +1176,8 @@ options](EphysAnalysisConfig.md#panel-options)); how the numbers are computed:
 | | **Generate script → Standalone (every setting written out)...** | a script that needs no config file and never uses the runner ([Scripts](EphysAnalysis.md#scripts)) |
 | | **Open pipeline app** | launches `EphysPipelineApp` |
 | | **Close** | asks about unsaved changes, cancels a run under way, closes |
+| Edit | **Undo** *edit* (Ctrl+Z) | takes back the last edit of the figures ([Undo and redo](#undo-and-redo)); the item names it (**Undo Add panel**, **Undo Bin (ms)**) and is grayed with nothing to undo, or off the Figures tab |
+| | **Redo** *edit* (Ctrl+Y, Ctrl+Shift+Z) | does the last edit undone again; grayed with none |
 | Design | the designs | Default, the built-in designs, then yours (*(mine)*); the one chosen is ticked. Picking one redraws every figure on screen in it ([Plot designs](EphysAnalysis.md#plot-designs)); the Figures tab's **Design:** list is the same choice |
 | | **Save the preview's look as a design...** | asks for a name and a description, saves the Figures tab's figure preview's look in your designs folder (read per panel type) and picks it (asks before replacing one of yours) |
 | | **Import a design file...** | copies a design `.json` into your designs folder and picks it |
@@ -1310,7 +1344,7 @@ results, on the Log tab and in the report.
 | Part | Files |
 | --- | --- |
 | building | `buildUI`, `buildMenus`, `buildToolbar` (its icons in `analysis/icons/toolbar`), `buildDataTab`, `buildAlignTab`, `buildFiguresTab`, `buildExportTab`, `buildLogTab`, `buildAlignControls`; the editor's collapsible sections in `private/` (`formSection`, `formRow`, `formShow`, `formLayout`) |
-| config model | `gatherConfig` / `applyConfig`, `gather*` / `apply*Section`, `gatherAlignControls` / `applyAlignControls`, `gatherFigureEditor` / `applyFigureEditor`, `onConfigChanged`, `updateTitle`, `confirmDiscard` |
+| config model | `gatherConfig` / `applyConfig`, `gather*` / `apply*Section`, `gatherAlignControls` / `applyAlignControls`, `gatherFigureEditor` / `applyFigureEditor`, `onConfigChanged`, `updateTitle`, `confirmDiscard`; the undo history `onUndoRedo` (the Edit menu) over `analysis/FigureEditHistory`, fed by `private/recordFigureEdit` at each path that edits the figures, its labels `private/figureEditLabel`, its menu `private/refreshEditMenu` |
 | data | `openSource`, `onScan`, `refreshDatasetsTable`, `selectDataset`, `refreshDatasetInfo` |
 | favorites | `refreshFavorites`, `onStarToggled`, `onFavoritePicked`, `onFavoritesFilter`, `onDatasetsTableEdited` (the ★ column); `private/loadFavorites` (on Scan), `private/starItem`, `private/starButton`, `private/syncStarButtons`, `private/observedItem`, `private/buildFavorites`, `private/fillFavorites`, `private/favoriteMarks`, `private/markObservations`; the files: `analysis/DatasetFavorites.m` |
 | previews | `refreshAlignPreview` (the Alignment tab); the Figures tab's under its row below; `private/showPreviewState` (the badge and the busy card; its icons in `analysis/icons/status`) |
@@ -1329,7 +1363,7 @@ results, on the Log tab and in the report.
 (a small synthetic project run through the pipeline) and drives it through
 its methods, in sections 0 to 6: the five tabs (Data, Alignment, Figures,
 Export, Log); the toolbar (1b: its tools in groups with their icons,
-every menu shortcut named in a tooltip, Preview and Plan clicked from another
+every File menu shortcut named in a tooltip, Preview and Plan clicked from another
 tab, the run and results tools following the Export tab's buttons); the scan;
 opening on a list of datasets (`Datasets=`, as the pipeline app's Tools panel
 does); the active dataset's lines and parameters, and its sorted units counted
@@ -1360,7 +1394,14 @@ column, a new scan reading the stars back, the **★** marks in the drop-downs
 (the pick kept by label, **<** and **>** following), the Favorites lists and
 their filter, picking a unit from the Figures and the Alignment tabs, the last
 star removing the file, and an output folder denied writing (`icacls`): no star,
-the toggle back off, the status bar saying why. Section 6 is the preferences remembered (the last
+the toggle back off, the status bar saying why. Section 5j is
+[undo and redo](#undo-and-redo): the Edit menu between File and Design, its
+items grayed off the Figures tab and named after the edit (**Undo Add
+figure**, **Undo Title**), two quick edits of one field one step, a
+description edit no step and kept by an undo, a removed panel undone (back
+and selected) and redone with Ctrl+Shift+Z, a new edit dropping the redo, the
+figures undone back to the saved ones leaving the title saved, the history
+cleared by another config, and `FigureEditHistory`'s depth. Section 6 is the preferences remembered (the last
 config, the collapsed sections and supersections of the figure editor; none of the retired plot
 or session preferences is written) and closing. The test keeps the app's
 preferences in a temporary file (`AppPrefs`), so the user's own are never read

@@ -1,10 +1,14 @@
 function savePreferences(obj)
 %savePreferences  Persist the app's preferences (not the config; see loadPreferences).
+%   LastConfigFile is written only for a config with a file: after File >
+%   New the last one saved or opened stays the one the next launch reopens.
 g = obj.PrefGroup;
 if ~isempty(obj.Fig) && isvalid(obj.Fig)
     AppPrefs.setpref(g, 'FigurePosition', obj.Fig.Position);
 end
-AppPrefs.setpref(g, 'LastConfigFile', char(obj.Config.File));
+if obj.Config.File ~= ""
+    AppPrefs.setpref(g, 'LastConfigFile', char(obj.Config.File));
+end
 AppPrefs.setpref(g, 'RecentConfigs', cellstr(obj.RecentConfigs));
 AppPrefs.setpref(g, 'ScriptFolder', char(obj.ScriptFolder));
 AppPrefs.setpref(g, 'PreviewMaxMB', obj.PreviewMaxMB);

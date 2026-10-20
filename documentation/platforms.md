@@ -22,6 +22,8 @@ the machine it runs on:
 | Stopping a sorting run: `EphysDataset.stopSortRun` (`stopSort`) | PowerShell and taskkill on Windows; `pgrep` / `pkill` on macOS and Linux | yes | untested | untested | end the Python process by hand |
 | Opening a folder or file from the apps: `openInSystem` (`openInSystem`) | `winopen` on Windows; `open` on macOS; `xdg-open` on Linux | yes | untested | untested | open it from the file browser |
 | Launching phy from the Review tab (`phy`) | `phy.exe` of the conda env `phy` on Windows; `bin/phy` on macOS and Linux | yes | untested | untested | start phy from a terminal in the sort folder |
+| The apps' startup window: `AppSplash` (`startupWindow`) | a Windows Forms window (.NET) on Windows; a uifigure on macOS and Linux | yes | untested | untested | `Splash=false` starts the apps without it |
+| Not waiting at startup on a project root on a network share that does not answer: `folderReachable` (`networkRoot`) | a `\\server` path or a mapped network drive (.NET `DriveInfo`), looked for in a `backgroundPool` thread | yes | untested | untested | on macOS and Linux only a `//server` path is known as a network one: an unreachable mounted share can hold the startup until the system gives up |
 
 "untested" means the code has a path for that platform that has not been
 run there; a report of how it goes is welcome. The install guide,

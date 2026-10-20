@@ -57,6 +57,7 @@ opened = false;
 if openLast && AppPrefs.ispref(g, 'LastConfigFile')
     f = string(AppPrefs.getpref(g, 'LastConfigFile'));
     if f ~= "" && isfile(f)
+        obj.Splash.step("config", "Opening the config " + f + " ...");
         opened = obj.openConfigFile(f);
     end
 end

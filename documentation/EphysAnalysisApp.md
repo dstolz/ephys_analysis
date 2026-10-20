@@ -123,6 +123,7 @@ copies them.
 | Column | Meaning |
 | --- | --- |
 | **Run** | tick the datasets a run uses. In project mode the ticks are saved in the config: all ticked is `Selection = "all"`, otherwise `"list"` with the ticked keys. In folders mode every folder listed is ticked after a scan and the ticks are not saved |
+| **★** | the dataset is starred: tick it to star the dataset, clear it to unstar it ([Favorites](#favorites)). Written at once beside the data, never into the config |
 | **Name**, **Key** | the dataset's name and key (the root-relative folder, or the output folder in folders mode) |
 | **Subject**, **Date** | the dataset's `SubjectID` from the name pattern, and the day it was recorded (a project's recording start, else the date in the name) |
 | **LFP**, **MUA**, **SPIKE**, **AUX** | ✓ when that signal's extract exists |
@@ -224,7 +225,9 @@ The stop event's offset, interval length and time range, and the selection's
 explicit trial rows, have no controls: they keep the config's values through
 every edit.
 
-On the right, for the active dataset (**Active dataset** picks another):
+On the right, for the active dataset (**Active dataset** picks another, the
+**☆** beside it stars it, and **Favorites** under it goes to any
+[star](#favorites)):
 *"N epochs from M of T trials (scope); groups ..."*, with the events
 dropped for lacking the **Shift by** parameter's value or because their
 **Sequence** did not follow, and the epochs
@@ -710,6 +713,8 @@ only that unit's spikes or that channel's column are read) and
 | **Open in window** | at the right of the status line under the preview: draws the figure as previewed into a new regular MATLAB figure window (`figure`), named *figure id: observation (dataset)* and the size of the preview, with the right-click aesthetics editor and its Design submenu (what it remembers for the figure reaches the config while the app is open). A drawn preview is used as it is; an *Out of date*, canceled or missing one is previewed first, and the status bar says why when that draws nothing. The window is independent of the app: later edits do not follow into it, and closing the app leaves it. Off with no figure selected |
 | **Generate** | draws the selected figure for every observation it selects, on every ticked dataset, into the Export tab's folder (see **Generate** below). It sits right of **Preview**, in the same colors, and is off with no figure selected |
 | **<**, **>** | the previous and next observation (**Page Up**, **Page Down**: a figure has no pages); off at either end of the list |
+| **☆** / **★** | right of **Dataset**: stars the active dataset. Right of **Observation**: stars what the preview shows -- the sorted unit (with its sort), the channel (a detection channel's star is its channel's) or, for a figure of the dataset, the dataset; off for a figure across sessions. A starred dataset, unit or channel starts with **★** in its drop-down; the pick is still remembered by its label without the mark ([Favorites](#favorites)) |
+| **Favorites** | under **Observation**: a filter field and a drop-down of every starred dataset, channel and unit of the scanned datasets. Picking one makes its dataset active and, when the selected figure observes units (for a unit) or channels or detection channels (for a channel), picks and draws it ([Favorites](#favorites)) |
 | **Export code** | at the right end of the row of **Preview**: opens the code that draws the preview in the MATLAB editor, as a new unsaved script (`EphysAnalysisScript.preview`, [Generated scripts](EphysAnalysis.md#generated-scripts)). It names the active dataset (a figure across sessions: the ticked or listed datasets), writes the figure's settings out as `spec` (`figureFor`'s, every *default* resolved), finds the observation picked again in `figureObservations` (by its unit id or the extract's column; with **Per trial group**, its group too; across sessions, by its label), then calls `figureCompute` (`figureSessionCompute` across sessions, keeping the **Figure:** pick) and `renderFigure` into a figure window the size of the preview, in the design chosen. Run it to draw the figure without the app; change `spec` or pick another row of `obsT` to make it your own. Nothing is computed when you press it, so the preview need not be drawn; the code holds the figure as the editor shows it then, and later edits do not follow into it. Without the desktop's editor (`matlab -batch`) it writes the script to `tempdir` and the status bar names the file. Off with no figure selected |
 | **Preview** | computes now, also for a signal extract above `PreviewMaxMB`, which otherwise waits for it. It is the button at the top left, and turns orange while the figure is *Out of date* |
 | **Auto** | redraw after every edit while a preview takes under 2 s; a slower one says so (*"slow, so edits wait for Preview"*). On by default, because one observation is quick; remembered. It does not apply to a figure across sessions, which computes every session: an edit leaves its preview *Out of date* until **Preview** (or a pick in the observation list) draws it. The first figure drawn after the app starts is not timed, since it also loads the graphics, so that warm-up does not make the edits after it wait. The 2 s is the app's `FigureAutoPreviewSeconds` property (a public property, not a preference; set it on the app object before editing, for example to `Inf` to redraw however long a preview takes, which the app's tests do so a loaded machine cannot leave a preview out of date) |
@@ -1053,6 +1058,48 @@ What the scans, previews and runs reported, one time-stamped line each
 file count and time, the figures skipped with the reason, a version 1 config's migration notes, failures with the
 error, and the report files written.
 
+### Favorites
+
+A plain star (on or off) marks a dataset, a channel or a sorted unit you want
+to find again. Stars are kept **beside the data**, one small file per dataset,
+`<Name>_favorites.json` in its output folder (where its `<Name>_*.mat` outputs
+are; [the file](file-formats.md#favorites-name_favoritesjson)), so they travel
+with the data to the lab's share, another PC or another user, and the config
+holds none. **Scan** reads them; each toggle writes its file at once.
+
+| Where | What it stars |
+| --- | --- |
+| Data tab, **★** column | the dataset of that row |
+| **☆** right of **Dataset** (Alignment and Figures tabs) | the active dataset |
+| **☆** right of **Observation** (Figures tab) | what the preview shows: a sorted unit, a channel (a detection channel is starred as its recording channel, so the star shows on its LFP, MUA and SPIKE channels and on its detections alike), or the dataset for a figure of the dataset |
+
+A unit's star belongs to the **sort** it was set on: the file records the
+sorting folder (relative to the output folder) and the size of its
+`spike_times.npy` with the cluster ids. When the dataset is sorted again --
+into another folder, or over the same one with other spike times -- the old
+stars stay in the file but mark none of the new sort's units, so a star never
+jumps to another unit; curating in phy keeps `spike_times.npy`, so units it
+leaves alone keep their stars (merged or split units get new ids and none).
+
+Starred items start with **★** in the Dataset and Observation drop-downs and
+are ticked in the Data tab's **★** column. **Favorites** (Alignment and Figures
+tabs) lists every star of the scanned datasets, in dataset order: *subj1_day1*,
+*subj1_day1 · channel 5*, *subj1_day1 · unit 12*. Type in the filter field
+left of it to narrow the list as you type (every word must appear, in any
+case: *day2 unit*). Picking an entry makes its dataset active; a unit or
+channel is then picked in the Figures tab's **Observation** list when the
+selected figure observes that kind -- drawn at once on the Figures tab, waiting
+for it from the Alignment tab -- otherwise the status bar says why it is not
+(the figure observes something else, or its Observations filter leaves it out).
+
+A dataset whose output folder cannot be written (a read-only share, a folder
+that is gone) keeps its stars as they were: the toggle goes back and the status
+bar and the Log say why. A favorites file that cannot be read gives no stars
+and is never written over (the Log names it). Reports and data exports carry
+the stars ([Favorites in exports](EphysAnalysis.md#favorites-stars)). Scripts
+read and set them with `DatasetFavorites`. The pipeline app does not show them
+yet.
+
 ## Panel types
 
 A figure's panels are of the thirteen types of `EphysAnalysisConfig.panelTypes()`;
@@ -1265,6 +1312,7 @@ results, on the Log tab and in the report.
 | building | `buildUI`, `buildMenus`, `buildToolbar` (its icons in `analysis/icons/toolbar`), `buildDataTab`, `buildAlignTab`, `buildFiguresTab`, `buildExportTab`, `buildLogTab`, `buildAlignControls`; the editor's collapsible sections in `private/` (`formSection`, `formRow`, `formShow`, `formLayout`) |
 | config model | `gatherConfig` / `applyConfig`, `gather*` / `apply*Section`, `gatherAlignControls` / `applyAlignControls`, `gatherFigureEditor` / `applyFigureEditor`, `onConfigChanged`, `updateTitle`, `confirmDiscard` |
 | data | `openSource`, `onScan`, `refreshDatasetsTable`, `selectDataset`, `refreshDatasetInfo` |
+| favorites | `refreshFavorites`, `onStarToggled`, `onFavoritePicked`, `onFavoritesFilter`, `onDatasetsTableEdited` (the ★ column); `private/loadFavorites` (on Scan), `private/starItem`, `private/starButton`, `private/syncStarButtons`, `private/observedItem`, `private/buildFavorites`, `private/fillFavorites`, `private/favoriteMarks`, `private/markObservations`; the files: `analysis/DatasetFavorites.m` |
 | previews | `refreshAlignPreview` (the Alignment tab); the Figures tab's under its row below; `private/showPreviewState` (the badge and the busy card; its icons in `analysis/icons/status`) |
 | epoch diagram | `onShowEpochs`, `refreshEpochDiagram`; the window itself is `analysis/EpochDiagram.m` |
 | Figures tab | `buildFiguresTab`; the tree `refreshFigureList` (over `private/figureGroups`), `onFigureSelected`, `onFigureTreeSelected`, `onFigureTreeClicked` (the check boxes), `onFigureGroupToggled`, `onFigureCheck` (All / None / Invert), `setFiguresEnabled`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure` (Up / Down within a group); the Id row's automatic id `private/showFigureId`, and the renames followed by `private/trackFigureIds` and `private/followedFigureId`; a panel's text note and overlays `onAddFigureOverlay`, `onDuplicateFigureOverlay`, `onRemoveFigureOverlay`, `onFigureOverlayPicked` (the rows are `applyFigureEditor`'s and `gatherFigureEditor`'s); dragging a panel in the schematic `onSchematicPress` (with the pointer callbacks it installs), `cancelSchematicDrag` (also `onKeyPress`'s Escape) and `schematicPixel` (the tests');  the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `gotoFigureSection`, `onFigureSuperToggled`, `gotoFigureSuper` and `onKeyPress` (Alt+1 ... Alt+3, Ctrl+1 ... Ctrl+0, F6: `focusFigurePane`), the search `onFigureSearch` and `gotoFigureRow` (over `private/figureSearchIndex`, `private/figureSearchPath`, `private/figureRowReason`), the keys window `onFigureKeys`, the panel keys `stepFigurePanel` and the preview's outline `markFigurePanel`, `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`, `onPanelSelectionToggled` (the Trial selection as the figure box; local to `buildFiguresTab`); the arrangement `drawFigureSchematic`, `onPanelSelected`, `onNewPanel` (the New panel window `private/newPanelDialog`, its pictures `analysis/icons/panels`, made by `tools/makePanelThumbnails`), `onRemovePanel`, `onMovePanel`, `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `removePanel` and `movePanel`; a structural edit ends in `private/commitFigureEdit`), the Spacing window `private/figureSpacingDialog`; the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`); the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoPreviewToggled`, `onCancelFigurePreview`, `onOpenFigureWindow`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); the Sessions section `onPickFigureDatasets`, `onBrowseFigureMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`), `private/pickSessionDatasets` and `onFigureSessionPicked` (its preview is `refreshFigurePreview`'s session branch over `EphysAnalysisRunner.computeSessionFigure`, its picker `refreshFigureObservations`'s over `sessionFigureObservations`); the Design row `onDesignChosen` and `onSaveDesign` (below); the epoch diagram's figure mode is `onShowEpochs("figure")` (the default; `"defaults"` is the Alignment tab's); the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
@@ -1304,7 +1352,15 @@ range, trial rows) and the stop's *n*; Save As, New, reopen; a version 1 config
 opened (its plot migrated to a figure, the status bar and the Log saying so);
 and generating scripts. Section 5 is Validate, Plan and a run of one figure
 writing its pages and the report (its lines in the Log tab). Sections 5d to 5h are
-the Figures tab again, below. Section 6 is the preferences remembered (the last
+the Figures tab again, below. Section 5i is the [favorites](#favorites): the
+star toggles beside Dataset (writing `<Name>_favorites.json` in the output
+folder) and the observation (a unit, with its sort in the file; an LFP channel; a
+detection channel, starred as its channel; the dataset), the Data tab's **★**
+column, a new scan reading the stars back, the **★** marks in the drop-downs
+(the pick kept by label, **<** and **>** following), the Favorites lists and
+their filter, picking a unit from the Figures and the Alignment tabs, the last
+star removing the file, and an output folder denied writing (`icacls`): no star,
+the toggle back off, the status bar saying why. Section 6 is the preferences remembered (the last
 config, the collapsed sections and supersections of the figure editor; none of the retired plot
 or session preferences is written) and closing. The test keeps the app's
 preferences in a temporary file (`AppPrefs`), so the user's own are never read

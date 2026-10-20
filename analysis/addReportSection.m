@@ -23,5 +23,5 @@ end
 entry = struct('plot', {}, 'kind', {}, 'title', {}, 'caption', {}, 'spec', {}, ...
     'images', {}, 'pages', {}, 'files', {}, 'status', {}, 'message', {});
 report.datasets(end+1) = struct('name', name, 'key', "", 'folder', "", 'summary', summary, 'entries', entry, ...
-    'kind', "section");
+    'kind', "section", 'starred', false);
 end

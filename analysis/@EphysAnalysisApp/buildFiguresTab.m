@@ -72,7 +72,10 @@ function buildFiguresTab(obj)
 %           shows the rows the figure, panel and layer use;
 %           layoutFigureEditor packs them.
 %   Right   the dataset, the observation picked (figureObservations' labels)
-%           with < and > (Page Up / Page Down), Preview, Generate (the
+%           with < and > (Page Up / Page Down), each with its star toggle
+%           (starButton, onStarToggled), the Favorites (buildFavorites: a
+%           filter and every starred dataset, channel and unit, picked to
+%           preview: onFavoritePicked), Preview, Generate (the
 %           figure for every observation on every ticked dataset, into the
 %           Export folder: onGenerateFigure), Auto, Export code at the
 %           row's right (the code that draws the preview, in the editor:
@@ -1277,8 +1280,8 @@ obj.FigureSearchIndex = figureSearchIndex(obj.FigureSections, U);   % the rows a
 
 % --- right: the observation picker and the preview ----------------------------------------------
 % the buttons on a row of their own, so the Dataset and Observation drop-downs keep their width beside Design
-pg = uigridlayout(g, [5 4]);
-pg.RowHeight = {30, 30, 30, '1x', 30};
+pg = uigridlayout(g, [6 4]);
+pg.RowHeight = {30, 30, 30, 30, '1x', 30};
 pg.ColumnWidth = {'fit', '1x', 'fit', 125};
 pg.ColumnSpacing = 6;
 pg.Padding = [0 0 0 0];
@@ -1310,16 +1313,24 @@ obj.FigureCodeButton = uibutton(bg, "Text", "Export code", "Enable", "off", "But
 obj.FigureCodeButton.Layout.Row = 1; obj.FigureCodeButton.Layout.Column = 6;
 l = uilabel(pg, "Text", "Dataset:");
 l.Layout.Row = 2; l.Layout.Column = 1;
-obj.FiguresDatasetDropDown = uidropdown(pg, "Items", "(scan first)", "ItemsData", 0, ...
+sg = uigridlayout(pg, [1 2], "ColumnWidth", {'1x', 34}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);   % the drop-down and its star
+sg.Layout.Row = 2; sg.Layout.Column = 2;
+obj.FiguresDatasetDropDown = uidropdown(sg, "Items", "(scan first)", "ItemsData", 0, ...
     "ValueChangedFcn", @(dd, ~) obj.selectDataset(dd.Value), "Tooltip", "The active dataset (the same on every tab).");
-obj.FiguresDatasetDropDown.Layout.Row = 2; obj.FiguresDatasetDropDown.Layout.Column = 2;
+obj.FiguresDatasetStar = starButton(obj, sg, "dataset");
 l = uilabel(pg, "Text", "Observation:");
 l.Layout.Row = 3; l.Layout.Column = 1;
-obj.FigureObservationDropDown = uidropdown(pg, "Items", "(no observation)", "ItemsData", 0, ...
+sg = uigridlayout(pg, [1 2], "ColumnWidth", {'1x', 34}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);
+sg.Layout.Row = 3; sg.Layout.Column = 2;
+obj.FigureObservationDropDown = uidropdown(sg, "Items", "(no observation)", "ItemsData", 0, ...
     "ValueChangedFcn", @(~,~) obj.onFigureObservationChanged(), ...
     "Tooltip", "What the preview draws the figure for: one of the units, channels or the dataset the Observations " + ...
-    "section keeps, in probe order. Each figure remembers its pick.");
-obj.FigureObservationDropDown.Layout.Row = 3; obj.FigureObservationDropDown.Layout.Column = 2;
+    "section keeps, in probe order. Each figure remembers its pick. ★: starred.");
+obj.FigureObservationStar = starButton(obj, sg, "observation");
+l = uilabel(pg, "Text", "Favorites:");
+l.Layout.Row = 4; l.Layout.Column = 1;
+obj.FigureFavorites = buildFavorites(obj, pg, "FigureFavorites");   % every starred dataset, channel and unit
+obj.FigureFavorites.Grid.Layout.Row = 4; obj.FigureFavorites.Grid.Layout.Column = [2 4];
 % the design every figure is drawn in (PlotDesign; also the Design menu), right of the Dataset and Observation
 % drop-downs, and the preview's look kept as one
 l = uilabel(pg, "Text", "Design:");
@@ -1336,9 +1347,9 @@ obj.SaveDesignButton = uibutton(pg, "Text", "Save look as design...", "ButtonPus
     "preview is out of date.");
 obj.SaveDesignButton.Layout.Row = 3; obj.SaveDesignButton.Layout.Column = [3 4];
 obj.FigurePreviewPanel = uipanel(pg, "BackgroundColor", "w", "BorderType", "line");
-obj.FigurePreviewPanel.Layout.Row = 4; obj.FigurePreviewPanel.Layout.Column = [1 4];
+obj.FigurePreviewPanel.Layout.Row = 5; obj.FigurePreviewPanel.Layout.Column = [1 4];
 sg = uigridlayout(pg, [1 4], "ColumnWidth", {'fit', '1x', 0, 130}, "Padding", [0 0 0 0], "ColumnSpacing", 8);
-sg.Layout.Row = 5; sg.Layout.Column = [1 4];
+sg.Layout.Row = 6; sg.Layout.Column = [1 4];
 B.Grid = uigridlayout(sg, [1 2], "ColumnWidth", {18, 'fit'}, "Padding", [6 2 10 2], "ColumnSpacing", 5);
 B.Icon = uiimage(B.Grid, "ScaleMethod", "fit");
 B.Text = uilabel(B.Grid, "FontWeight", "bold");

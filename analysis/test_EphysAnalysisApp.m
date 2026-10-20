@@ -61,6 +61,12 @@ function test_EphysAnalysisApp()
 %   picked and the preview, Add / Duplicate / Remove, another panel's
 %   own) and dragging a panel in the schematic (an edge drop, a move to
 %   an empty cell, a release outside it and Escape canceling);
+%   favorites (the star toggles beside Dataset and the observation, the Data
+%   tab's ★ column, the files beside the data read back by a scan, ★ marks
+%   in the drop-downs, a unit's sort recorded, a detection channel showing
+%   its channel's star, the Favorites lists, their filter, picking a unit
+%   from the Figures and Alignment tabs, the last star removing the file,
+%   a read-only output folder);
 %   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -115,7 +121,7 @@ app.refreshDatasetsTable();
 T2 = app.DatasetsTable.Data;
 check(isequal(T2.Name, sort(F.names(:), 'descend')) && isequal(T2.Idx, arrayfun(@(n) find(app.Runner.Names == n), T2.Name)), ...
     'a remembered sort orders the rows and each row keeps its dataset''s place in the Runner (Idx)');
-app.onDatasetCellSelection(struct('Indices', [1 2]));
+app.onDatasetCellSelection(struct('Indices', [1 3]));   % the Name cell (Run and ★ before it do not select)
 check(app.Runner.Names(app.ActiveIdx) == T2.Name(1), 'a click goes to the row''s dataset, whatever the sort');
 T2.Run(1) = false;
 app.DatasetsTable.Data = T2;
@@ -253,14 +259,18 @@ designs = PlotDesign.list();
 check(ancestor(dd, 'uitab') == app.TabFigures && ancestor(app.SaveDesignButton, 'uitab') == app.TabFigures ...
     && numel(dd.Items) == height(designs) && string(dd.Value) == "Default" && any(string({app.DesignMenu.Children.Text}) == "Tufte"), ...
     'the Design list and Save look as design... sit on the Figures tab; the list and the Design menu offer every design, Default chosen');
-% the Design controls sit right of Dataset / Observation (same grid, same rows); Open in window draws a figure() of its own
-pgrid = app.FiguresDatasetDropDown.Parent;
-check(app.DesignDropDown.Parent == pgrid && app.SaveDesignButton.Parent == pgrid && app.FigureObservationDropDown.Parent == pgrid ...
-    && app.DesignDropDown.Layout.Row == app.FiguresDatasetDropDown.Layout.Row && app.SaveDesignButton.Layout.Row == app.FigureObservationDropDown.Layout.Row ...
-    && min(app.DesignDropDown.Layout.Column) > max(app.FiguresDatasetDropDown.Layout.Column) ...
-    && min(app.SaveDesignButton.Layout.Column) > max(app.FigureObservationDropDown.Layout.Column) ...
-    && app.FigurePreviewPanel.Layout.Row == 4, ...
-    'the Design list sits right of Dataset and Save look as design... right of Observation, in their rows, the preview under them');
+% the Design controls sit right of Dataset / Observation (same grid, same rows), each drop-down with its star; Favorites
+% under them; Open in window draws a figure() of its own
+pgrid = app.DesignDropDown.Parent;
+dsg = app.FiguresDatasetDropDown.Parent;
+osg = app.FigureObservationDropDown.Parent;
+check(dsg.Parent == pgrid && osg.Parent == pgrid && app.SaveDesignButton.Parent == pgrid ...
+    && app.DesignDropDown.Layout.Row == dsg.Layout.Row && app.SaveDesignButton.Layout.Row == osg.Layout.Row ...
+    && min(app.DesignDropDown.Layout.Column) > max(dsg.Layout.Column) && min(app.SaveDesignButton.Layout.Column) > max(osg.Layout.Column) ...
+    && app.FiguresDatasetStar.Parent == dsg && app.FigureObservationStar.Parent == osg ...
+    && app.FigureFavorites.Grid.Parent == pgrid && app.FigureFavorites.Grid.Layout.Row == osg.Layout.Row + 1 ...
+    && app.FigurePreviewPanel.Layout.Row == app.FigureFavorites.Grid.Layout.Row + 1, ...
+    'the Design list sits right of Dataset and Save look as design... right of Observation, in their rows, each drop-down with its star; Favorites under them, the preview under that');
 check(app.FigureOpenButton.Enable == "on" && ancestor(app.FigureOpenButton, 'uitab') == app.TabFigures, ...
     'Open in window is on with a figure selected');
 nFigs = numel(findall(groot, 'Type', 'figure'));
@@ -1923,6 +1933,150 @@ end
 app.onSaveConfig();
 app.Tabs.SelectedTab = app.TabData;
 clear restoreAutoLimit5h
+
+fprintf('\n== 5i. favorites: stars on datasets, units and channels; the Favorites lists ==\n');
+app.FigureAutoPreviewSeconds = Inf;   % as in 5d-5f
+restoreAutoLimit5i = onCleanup(@() resetAutoLimit(app));
+FE = app.FigureEditor;
+kF1 = find(app.Runner.Names == F.names(1));
+kF2 = find(app.Runner.Names == F.names(2));
+app.selectDataset(kF1);
+favDD = app.FigureFavorites.DropDown;
+check(numel(app.Favorites) == 2 && isa(app.Favorites, 'DatasetFavorites') && ~any([app.Favorites.Dataset]) ...
+    && ~any(app.DatasetsTable.Data.Star) && app.FiguresDatasetStar.Enable == "on" && ~app.FiguresDatasetStar.Value ...
+    && string(app.FiguresDatasetStar.Text) == "☆" && startsWith(string(favDD.Items{1}), "(no favorites") ...
+    && isequal(string(app.AlignFavorites.DropDown.Items), string(favDD.Items)), ...
+    'no star yet: the Data tab''s ★ column clear, the star toggles on and empty, the Favorites lists say so');
+app.onStarToggled("dataset", true);
+fav1 = app.Favorites(kF1);
+J1 = jsondecode(fileread(fav1.File));
+check(fav1.Dataset && isfile(fav1.File) && fav1.File == fullfile(app.Runner.datasetFolder(kF1), F.names(1) + "_favorites.json") ...
+    && J1.schema == "ephys-favorites/1" && J1.starred && app.FiguresDatasetStar.Value && app.AlignDatasetStar.Value ...
+    && string(app.FiguresDatasetStar.Text) == "★" && startsWith(string(app.FiguresDatasetDropDown.Items{kF1}), "★ " + F.names(1)) ...
+    && ~startsWith(string(app.FiguresDatasetDropDown.Items{kF2}), "★") && app.DatasetsTable.Data.Star(app.DatasetsTable.Data.Idx == kF1) ...
+    && numel(favDD.Items) == 2 && string(favDD.Items{2}) == F.names(1) && favDD.Value == 0 && contains(app.StatusBar.Text, "Starred " + F.names(1)), ...
+    sprintf('the star beside Dataset stars the active dataset at once: <Name>_favorites.json in its output folder, ★ in the drop-downs, the table and Favorites ("%s")', ...
+    app.StatusBar.Text));
+ticked0 = app.Ticked;
+TD = app.DatasetsTable.Data;
+TD.Star(TD.Idx == kF2) = true;
+app.DatasetsTable.Data = TD;
+app.onDatasetsTableEdited([]);
+check(app.Favorites(kF2).Dataset && isfile(app.Favorites(kF2).File) && isequal(app.Ticked, ticked0) && numel(favDD.Items) == 3, ...
+    'ticking ★ in the Data tab''s table stars that dataset (the Run ticks stay)');
+app.onScan();
+check(numel(app.Favorites) == 2 && all([app.Favorites.Dataset]) && all(app.DatasetsTable.Data.Star) && numel(favDD.Items) == 3, ...
+    'a new scan reads the stars back from the datasets'' files');
+app.selectTab(app.TabFigures);
+app.selectDataset(kF1);
+app.onAddFigure("rasterPsth");
+TU = app.FigureObservations;
+oDD = app.FigureObservationDropDown;
+oDD.Value = 2;
+app.onFigureObservationChanged();
+u2 = TU.unitId(2);
+idF = char(app.Config.Figures(1).id);
+app.onStarToggled("observation", true);
+J1 = jsondecode(fileread(app.Favorites(kF1).File));
+oItems = string(oDD.Items);
+check(app.Favorites(kF1).isStarred("unit", u2) && app.FigureObservationStar.Value && startsWith(oItems(2), "★ " + TU.label(2)) ...
+    && ~startsWith(oItems(1), "★") && oDD.Value == 2 && string(app.FigureObservation(idF)) == TU.label(2) ...
+    && isscalar(J1.units) && J1.units.ids == u2 && string(J1.units.sort) ~= "" && J1.units.spikeTimesBytes > 0, ...
+    sprintf('the star beside the observation stars the unit previewed, with its sort ("%s", %d bytes of spike times); the picker marks it and keeps the pick', ...
+    string(J1.units.sort), J1.units.spikeTimesBytes));
+app.onFigureObservationStep(-1);
+offOther = ~app.FigureObservationStar.Value && app.FigureObservationStar.Enable == "on";
+app.onFigureObservationStep(1);
+check(offOther && app.FigureObservationStar.Value && contains(figTitle(), TU.label(2)), ...
+    '< and > step through the marked list, the star toggle following each unit');
+E = app.FavoriteEntries;
+iu = find(E.level == "unit");
+check(height(E) == 3 && isequal(E.level(E.dataset == kF1), ["dataset"; "unit"]) && isequal(E.level(E.dataset == kF2), "dataset") ...
+    && issorted(E.dataset) && isscalar(iu) && E.label(iu) == F.names(1) + " · unit " + u2 ...
+    && numel(favDD.Items) == 4 && contains(string(favDD.Items{1}), "3 favorites"), ...
+    sprintf('Favorites lists each starred dataset with its units, in dataset order ("%s")', E.label(iu)));
+app.onFavoritesFilter("FigureFavorites", "UNIT " + u2);
+fItems = string(favDD.Items);
+check(numel(fItems) == 2 && fItems(2) == E.label(iu) && contains(fItems(1), "1 of 3") && isequal(favDD.ItemsData, [0 iu]), ...
+    'typing in the filter narrows the Favorites list (every word, any case)');
+app.onFavoritesFilter("FigureFavorites", "no such thing");
+check(numel(favDD.Items) == 1 && contains(string(favDD.Items{1}), "0 of 3"), 'a filter nothing matches leaves only the count');
+app.onFavoritesFilter("FigureFavorites", "");
+app.selectDataset(kF2);
+favDD.Value = iu;
+app.onFavoritePicked("FigureFavorites");
+check(app.ActiveIdx == kF1 && oDD.Value == 2 && app.FigurePreviewState == "drawn" && contains(figTitle(), TU.label(2)) ...
+    && favDD.Value == 0 && app.FigureObservationStar.Value, ...
+    'picking the starred unit in Favorites makes its dataset active and previews that unit');
+app.selectTab(app.TabAlign);
+aDD = app.AlignFavorites.DropDown;
+aDD.Value = find(app.FavoriteEntries.dataset == kF2, 1);
+app.onFavoritePicked("AlignFavorites");
+check(app.ActiveIdx == kF2 && string(app.AlignDatasetDropDown.Value) == string(kF2) && app.AlignDatasetStar.Value && aDD.Value == 0, ...
+    'the Alignment tab''s Favorites: picking a dataset makes it active');
+aDD.Value = find(app.FavoriteEntries.level == "unit", 1);
+app.onFavoritePicked("AlignFavorites");
+check(app.ActiveIdx == kF1 && oDD.Value == 2 && app.FigurePreviewState ~= "computing" && string(app.FigureObservation(idF)) == TU.label(2), ...
+    'picked from the Alignment tab, a starred unit becomes the Figures tab''s pick on its dataset');
+app.selectTab(app.TabFigures);
+FE.observe.Value = "LFP";
+app.onConfigChanged("figure");
+TLf = app.FigureObservations;
+oDD.Value = 1;
+app.onFigureObservationChanged();
+app.onStarToggled("observation", true);
+ch1 = TLf.channel(1);
+check(app.Favorites(kF1).isStarred("channel", ch1) && startsWith(string(oDD.Items{1}), "★ ") && app.FigureObservationStar.Value ...
+    && any(app.FavoriteEntries.label == F.names(1) + " · channel " + ch1), ...
+    sprintf('a figure of LFP channels: the star stars the channel (channel %d), marked in the picker and listed', ch1));
+srcF = app.Runner.source(kF1);
+if srcF.hasDetected
+    FE.observe.Value = "detected";
+    app.onConfigChanged("figure");
+    TDf = app.FigureObservations;
+    oDD.Value = 1;
+    app.onFigureObservationChanged();
+    app.onStarToggled("observation", true);
+    chD = TDf.channel(1);
+    marked = startsWith(string(oDD.Items), "★");
+    check(app.Favorites(kF1).isStarred("channel", chD) && marked(1) && isequal(marked(:), ismember(TDf.channel, app.Favorites(kF1).Channels)), ...
+        sprintf('a detection channel is starred as its channel (channel %d); every detection channel whose channel is starred is marked', chD));
+end
+FE.observe.Value = "dataset";
+app.onConfigChanged("figure");
+check(app.FigureObservationStar.Value && startsWith(string(oDD.Items{1}), "★ "), ...
+    'a figure of the dataset: the observation''s star is the dataset''s');
+app.onStarToggled("observation", false);
+check(~app.Favorites(kF1).Dataset && ~app.FiguresDatasetStar.Value && app.Favorites(kF1).isStarred("unit", u2), ...
+    'unstarring the dataset from there leaves its unit and channel stars');
+FE.observe.Value = "units";
+app.onConfigChanged("figure");
+app.selectDataset(kF2);
+app.onStarToggled("dataset", false);
+fav2 = app.Favorites(kF2);
+check(~fav2.Dataset && ~isfile(fav2.File), 'unstarring the last star removes the file');
+if ispc
+    me = string(getenv('USERNAME'));
+    folder2 = fav2.Folder;
+    [stDeny, outDeny] = system(sprintf('icacls "%s" /deny "%s":(W)', folder2, me));
+    undeny = onCleanup(@() system(sprintf('icacls "%s" /remove:d "%s"', folder2, me)));
+    if stDeny == 0
+        app.onStarToggled("dataset", true);
+        check(~fav2.Dataset && ~isfile(fav2.File) && ~app.FiguresDatasetStar.Value && ~app.DatasetsTable.Data.Star(app.DatasetsTable.Data.Idx == kF2) ...
+            && contains(app.StatusBar.Text, "not starred") && contains(app.StatusBar.Text, "read-only") && isvalid(app.Fig), ...
+            sprintf('an output folder that cannot be written (read-only): no star, the toggle back off, the status bar says why ("%s")', app.StatusBar.Text));
+    else
+        fprintf('  (skipped the read-only folder: icacls could not deny writing: %s)\n', strtrim(outDeny));
+    end
+    clear undeny
+end
+while ~isempty(app.Config.Figures)
+    app.onFigureSelected(1);
+    app.onRemoveFigure();
+end
+app.onSaveConfig();
+app.Tabs.SelectedTab = app.TabData;
+clear restoreAutoLimit5i
 
 fprintf('\n== 6. close ==\n');
 app.savePreferences();

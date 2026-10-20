@@ -45,7 +45,9 @@ function [P, S, files] = populationAnalysis(source, opts)
 %               selectUnits' columns (label, unitId, class, channel,
 %               channelName, shank, x, y, nSpikes and, with
 %               Units.quality, the quality metrics), rateHz (nSpikes /
-%               durationSec), responseStats' columns (nEpochs, baselineRate,
+%               durationSec), starred (the unit's star on the sort in use,
+%               a detection channel's its channel's: DatasetFavorites),
+%               responseStats' columns (nEpochs, baselineRate,
 %               responseRate, pEvoked, qEvoked, direction, responsive and,
 %               with Param, nLevels, pTuning, qTuning, tuned, bestLevel,
 %               bestRate; q over the family), psthPeak (the highest PSTH
@@ -85,7 +87,8 @@ function [P, S, files] = populationAnalysis(source, opts)
 %               rate [nLevels x nUnits] (mean response rate per level,
 %               spikes/s; NaN where a unit has no epoch of a level), n
 %               (the epochs)
-%     datasets  table: datasetKey, dataset, subject, status ("done" |
+%     datasets  table: datasetKey, dataset, subject, starred (the
+%               dataset's star: DatasetFavorites), status ("done" |
 %               "skipped" | "error"), message, nUnits, nEpochs (the PSTH's),
 %               nTestEpochs, nTestEpochsLeftOut
 %     params    every option as used (ref, window and selection resolved)
@@ -241,9 +244,9 @@ end
 
 % --- per dataset ---------------------------------------------------------------------------
 nD = numel(idx);
-D = table(strings(nD, 1), strings(nD, 1), strings(nD, 1), repmat("error", nD, 1), strings(nD, 1), ...
+D = table(strings(nD, 1), strings(nD, 1), strings(nD, 1), false(nD, 1), repmat("error", nD, 1), strings(nD, 1), ...
     zeros(nD, 1), zeros(nD, 1), zeros(nD, 1), zeros(nD, 1), ...
-    'VariableNames', {'datasetKey', 'dataset', 'subject', 'status', 'message', 'nUnits', 'nEpochs', ...
+    'VariableNames', {'datasetKey', 'dataset', 'subject', 'starred', 'status', 'message', 'nUnits', 'nEpochs', ...
     'nTestEpochs', 'nTestEpochsLeftOut'});
 skipIds = ["selectUnits:NoUnits" "selectUnits:NoDetected" "selectUnits:NoneLeft" "epochTable:NoEpochs" ...
     "resolveEvents:NoEvents" "resolveEvents:NoLine" "responseStats:NoEpochs"];
@@ -260,6 +263,12 @@ for j = 1:nD
     D.datasetKey(j) = runner.Keys(k);
     D.dataset(j) = runner.Names(k);
     say(sprintf('populationAnalysis: %s (%d of %d)', runner.Names(k), j, nD));
+    fav = [];
+    try
+        fav = DatasetFavorites(runner.Outputs(k));   % the stars beside the data (no file: none)
+        D.starred(j) = fav.Dataset;
+    catch
+    end
     try
         src = runner.source(k);
         subject = subjectOf(src, cfg.Source.NamePattern);
@@ -306,6 +315,12 @@ for j = 1:nD
     U = addvars(U, repmat(D.dataset(j), n, 1), repmat(D.datasetKey(j), n, 1), repmat(subject, n, 1), ...
         'Before', 1, 'NewVariableNames', {'dataset', 'datasetKey', 'subject'});
     U.rateHz = double(U.nSpikes) / src.durationSec;
+    U.starred = false(n, 1);
+    if ~isempty(fav) && usel.source == "detected"
+        U.starred = reshape(fav.isStarred("channel", double(meta.channel)), [], 1);
+    elseif ~isempty(fav)
+        U.starred = reshape(fav.isStarred("unit", double(meta.unitId)), [], 1);
+    end
     for c = setdiff(string(T.Properties.VariableNames), ["unit" "label"], 'stable')
         U.(c) = T.(c);
     end

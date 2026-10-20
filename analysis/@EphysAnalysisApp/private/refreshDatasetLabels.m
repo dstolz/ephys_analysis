@@ -7,6 +7,7 @@ function refreshDatasetLabels(obj, idx)
 %     "subj1_day1"                  a sort not counted yet
 %     "subj2_day1  (detected only)" no sort, a spikes file
 %     "subj3_day1  (no sorting)"    neither
+%   and "★ " before a starred dataset (Favorites).
 %   Nothing is read here: whether a dataset has a sort or a spikes file
 %   comes from its loaded source (hasUnits, hasDetected) when it has one,
 %   else from the scan's files (DatasetOutputs.has), and the counts from
@@ -65,6 +66,10 @@ for k = 1:n
     else
         items(k) = items(k) + "  (no sorting)";
     end
+end
+if numel(obj.Favorites) == n
+    starred = [obj.Favorites.Dataset];
+    items(starred) = "★ " + items(starred);
 end
 set([obj.AlignDatasetDropDown obj.FiguresDatasetDropDown], 'Items', items);
 end

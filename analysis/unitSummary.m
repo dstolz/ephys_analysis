@@ -5,10 +5,14 @@ function T = unitSummary(src, opts)
 %   SRC (loadAnalysisSource), chosen by the unit selection USEL (see
 %   selectUnits): label, class, channel, shank, x, y, nSpikes and rateHz =
 %   nSpikes / SRC.durationSec -- the recording's length, not the time of
-%   the last spike (NaN when the duration is unknown). Ref and Selection
-%   are selectUnits' options: the events of a response test in USEL.
+%   the last spike (NaN when the duration is unknown) -- and starred: the
+%   unit's star on the sort in use, a detection channel's its channel's
+%   star (DatasetFavorites: <Name>_favorites.json in the output folder;
+%   false without it). Ref and Selection are selectUnits' options: the
+%   events of a response test in USEL.
 %
-%   See also selectUnits, probeMapValues, reportSummaryTables.
+%   See also selectUnits, probeMapValues, reportSummaryTables,
+%   DatasetFavorites.
 
 arguments
     src (1,1) struct
@@ -25,4 +29,14 @@ usel.source = opts.Source;
 T = meta(:, {'label', 'class', 'channel', 'shank', 'x', 'y'});
 T.nSpikes = cellfun(@numel, st);
 T.rateHz = T.nSpikes / src.durationSec;
+T.starred = false(height(T), 1);
+try
+    fav = DatasetFavorites(src);
+    if opts.Source == "detected"
+        T.starred = reshape(fav.isStarred("channel", double(meta.channel)), [], 1);
+    else
+        T.starred = reshape(fav.isStarred("unit", double(meta.unitId)), [], 1);
+    end
+catch   % a source without outputs: no star
+end
 end

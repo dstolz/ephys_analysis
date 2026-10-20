@@ -12,6 +12,7 @@ function S = populationSummary(P, opts)
 %     responsive, tuned   yes / no / untested
 %     auroc        the auROC's call: increase / decrease / mixed / none /
 %                  uncalled
+%     starred      starred / not starred (P.units.starred: DatasetFavorites)
 %   (GroupBy [] = one group, "all"). Groups go in the order of their
 %   values (numbers ascending, text alphabetically).
 %
@@ -60,7 +61,7 @@ arguments
     opts.ErrorResamples (1,1) double {mustBePositive, mustBeInteger} = 1000
 end
 
-keysAllowed = ["subject" "dataset" "class" "shank" "depth" "direction" "responsive" "tuned" "auroc"];
+keysAllowed = ["subject" "dataset" "class" "shank" "depth" "direction" "responsive" "tuned" "auroc" "starred"];
 by = opts.GroupBy;
 bad = setdiff(by, keysAllowed);
 if ~isempty(bad)
@@ -213,6 +214,10 @@ switch key
         v = string(U.aurocDirection);
         v(v == "" | ismissing(v)) = "uncalled";
         lab = "auROC " + v;
+    case "starred"
+        v = repmat("not starred", height(U), 1);
+        v(U.starred) = "starred";
+        lab = v;
     case {"responsive" "tuned"}
         p = U.pEvoked;
         if key == "tuned"; p = U.pTuning; end

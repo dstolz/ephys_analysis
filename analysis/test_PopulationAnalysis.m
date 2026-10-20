@@ -11,7 +11,10 @@ classdef test_PopulationAnalysis < matlab.unittest.TestCase
     %   unit: the formula over all of them; each dataset: its own cutoff;
     %   with AurocGroupBy every unit x group curve, a row each),
     %   the calls, peaks and summary counts follow, and a test cutoff's p
-    %   are corrected over the family; the files are written; the errors.
+    %   are corrected over the family; the files are written; the errors;
+    %   the stars beside the data (DatasetFavorites) in P.units and
+    %   P.datasets, GroupBy "starred", unitSummary, sessionTable, the
+    %   report's summary tables and the HTML and PDF reports.
     %   Only the correction and auROC tests call the toolbox (skipped
     %   without the Statistics and Machine Learning Toolbox).
     %
@@ -245,6 +248,56 @@ classdef test_PopulationAnalysis < matlab.unittest.TestCase
             tc.verifyTrue(isfield(J, 'provenance') && isfield(J, 'datasets'));
         end
 
+        function starsInExports(tc)
+            r = EphysAnalysisRunner(tc.Config, LogFcn=[]);
+            src = r.source(1);
+            [~, meta] = selectUnits(src, struct());
+            u = meta.unitId(end);
+            ch = meta.channel(1);
+            fav = DatasetFavorites(r.Outputs(1));
+            tc.addTeardown(@() deleteIfThere(fav.File));
+            fav.star("dataset");
+            fav.star("unit", u);
+            fav.star("channel", ch);
+            P = populationAnalysis(tc.Config, Tests=false, LogFcn=[]);
+            tc.verifyEqual(P.datasets.starred, P.datasets.datasetKey == r.Keys(1), 'P.datasets.starred: each dataset''s star');
+            rows = P.units.datasetKey == r.Keys(1);
+            tc.verifyEqual(P.units.starred(rows), meta.unitId == u, 'P.units.starred: the unit''s star on the sort in use');
+            tc.verifyFalse(any(P.units.starred(~rows)), 'no unit of the other dataset is starred');
+            S = populationSummary(P, GroupBy="starred");
+            tc.verifyEqual(S.groups.group, ["not starred"; "starred"]);
+            tc.verifyEqual(S.groups.nUnits(2), 1, 'GroupBy "starred": the starred units on their own');
+            U = unitSummary(src, Source="units");
+            tc.verifyEqual(U.starred, meta.unitId == u, 'unitSummary: each unit''s star');
+            if src.hasDetected
+                Ud = unitSummary(src, Source="detected");
+                tc.verifyEqual(Ud.starred, Ud.channel == ch, 'unitSummary of the detections: each channel''s star');
+            end
+            T = reportSummaryTables(src);
+            rec = T.recording;
+            tc.verifyEqual(rec.Value(rec.Field == "Starred"), "yes");
+            tc.verifyEqual(rec.Value(rec.Field == "Starred units"), string(u));
+            tc.verifyEqual(rec.Value(rec.Field == "Starred channels"), string(ch));
+            tc.verifyTrue(all(ismember(T.topRates.Starred, ["yes" ""])), 'the highest rates table has a Starred column');
+            T2 = reportSummaryTables(r.source(2));
+            tc.verifyEqual(T2.recording.Value(T2.recording.Field == "Starred"), "no");
+            tc.verifyFalse(any(ismember(["Starred units" "Starred channels"], T2.recording.Field)), 'no starred units or channels listed');
+            sessions = r.sessionTable();
+            tc.verifyEqual(sessions.starred, sessions.index == 1, 'sessionTable: each dataset''s star');
+            report = newAnalysisReport(Options=struct('Format', "both"));
+            report = addReportDataset(report, src);
+            report = addReportDataset(report, r.source(2));
+            report = addReportSection(report, "Across sessions");
+            tc.verifyEqual([report.datasets.starred], [true false false], 'the report keeps each dataset''s star');
+            tmp = tc.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+            html = writeHtmlReport(report, fullfile(string(tmp.Folder), "report.html"));
+            txt = string(fileread(html));
+            tc.verifyEqual(count(txt, "class=""star"""), 2, 'the HTML report marks the starred dataset in the contents and over its section');
+            tc.verifyTrue(contains(txt, "<h2>" + src.name + " <span class=""star"""));
+            pdf = writePdfReport(report, fullfile(string(tmp.Folder), "report.pdf"));
+            tc.verifyTrue(isfile(pdf), 'the PDF report is written with the starred dataset named so');
+        end
+
         function errors(tc)
             tc.verifyError(@() populationAnalysis(tc.Config, Units=struct('response', struct('enabled', true)), LogFcn=[]), ...
                 'populationAnalysis:ResponseSelection');
@@ -260,4 +313,9 @@ classdef test_PopulationAnalysis < matlab.unittest.TestCase
             end
         end
     end
+end
+
+
+function deleteIfThere(f)
+if isfile(f); delete(f); end
 end

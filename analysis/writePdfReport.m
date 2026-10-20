@@ -11,8 +11,10 @@ function file = writePdfReport(report, file)
 %   no figure is drawn again. The pages are joined in that order with the
 %   Apache PDFBox library MATLAB ships (PDFMergerUtility, on its Java class
 %   path); no Report Generator is needed. Figures that failed are listed on
-%   their dataset's summary page. A report started for HTML only keeps no
-%   pages: start it with Format "pdf" or "both".
+%   their dataset's summary page. A starred dataset (its starred field:
+%   DatasetFavorites) is named "<name> (starred)" on the title page and its
+%   summary page. A report started for HTML only keeps no pages: start it
+%   with Format "pdf" or "both".
 %
 %   Errors: writePdfReport:NoPages, writePdfReport:Merge.
 %
@@ -38,7 +40,7 @@ end
 lines(end+1) = "";
 for d = 1:numel(report.datasets)
     D = report.datasets(d);
-    lines(end+1) = sprintf("%d. %s (%d figure(s))", d, D.name, numel(D.entries)); %#ok<AGROW>
+    lines(end+1) = sprintf("%d. %s (%d figure(s))", d, D.name + starWord(D), numel(D.entries)); %#ok<AGROW>
 end
 parts = page(lines, report.title, 0);
 
@@ -62,7 +64,7 @@ for d = 1:numel(report.datasets)
     for e = D.entries(status ~= "done")
         L(end+1) = e.plot + ": " + e.status + " - " + e.message; %#ok<AGROW>
     end
-    parts = [parts; page(L, D.name, d)]; %#ok<AGROW>
+    parts = [parts; page(L, D.name + starWord(D), d)]; %#ok<AGROW>
     for e = D.entries(status == "done")
         if isempty(e.pages)
             error('writePdfReport:NoPages', ...
@@ -131,4 +133,11 @@ if isfolder(folder)
     catch
     end
 end
+end
+
+
+function s = starWord(D)
+%starWord  " (starred)" after a starred dataset's name (its starred field), else "".
+s = "";
+if D.starred; s = " (starred)"; end
 end

@@ -81,6 +81,19 @@ classdef EphysAnalysisApp < handle
     %   home and the analysis quick start; Report an issue and Request a
     %   feature on GitHub (onReportIssue); About.
     %
+    %   Favorites: a plain star (on / off) on a dataset, a channel or a sorted
+    %   unit (kept with its sort), written at once into <Name>_favorites.json
+    %   in the dataset's output folder (DatasetFavorites), so the stars
+    %   travel with the data; read on Scan. Star a dataset with the Data
+    %   tab's ★ column or the ★ toggle beside a Dataset drop-down, and the
+    %   unit, channel (a detection channel's) or dataset previewed with the
+    %   toggle beside the observation picker (onStarToggled); starred ones
+    %   are marked ★ in those drop-downs. The Favorites drop-down (Alignment
+    %   and Figures tabs, with a filter that narrows it as you type) lists
+    %   every star of the scanned datasets; picking one goes to it
+    %   (onFavoritePicked). An output folder that cannot be written (a
+    %   read-only share) leaves the star off and the status bar says why.
+    %
     %   Toolbar (buildToolbar): the most used commands as icons, each with
     %   its menu shortcut in the tooltip: New / Open / Save config; Scan,
     %   Preview; Validate, Plan, Run, Cancel; Open report, Open figure
@@ -166,6 +179,8 @@ classdef EphysAnalysisApp < handle
 
         % --- Alignment tab (Config.Defaults) ---
         AlignDatasetDropDown matlab.ui.control.DropDown
+        AlignDatasetStar   matlab.ui.control.StateButton  % stars the active dataset (starButton)
+        AlignFavorites struct = struct()         % the Favorites row: Grid, Filter, DropDown (buildFavorites)
         AlignControls struct = struct()          % buildAlignControls handles
         AlignSummaryLabel  matlab.ui.control.Label
         AlignEpochsButton  matlab.ui.control.Button     % the epoch diagram of the Defaults (onShowEpochs)
@@ -195,6 +210,9 @@ classdef EphysAnalysisApp < handle
         FigureSchematic        matlab.ui.control.UIAxes         % the arrangement's schematic (drawFigureSchematic)
         FiguresDatasetDropDown matlab.ui.control.DropDown       % the active dataset (as on the other tabs)
         FigureObservationDropDown matlab.ui.control.DropDown    % the observation previewed; ItemsData = row of FigureObservations
+        FiguresDatasetStar     matlab.ui.control.StateButton    % stars the active dataset (starButton)
+        FigureObservationStar  matlab.ui.control.StateButton    % stars the observation previewed: its unit, channel or the dataset
+        FigureFavorites struct = struct()        % the Favorites row: Grid, Filter, DropDown (buildFavorites)
         FigureObsPrevButton    matlab.ui.control.Button
         FigureObsNextButton    matlab.ui.control.Button
         FigurePreviewButton    matlab.ui.control.Button
@@ -240,6 +258,8 @@ classdef EphysAnalysisApp < handle
         ActiveIdx (1,1) double = 0          % the active dataset (index into Runner.Outputs)
         Ticked (1,:) logical = logical.empty(1, 0)   % datasets ticked to run
         DatasetsSort (1,1) struct = TableSort.none()   % the datasets table's header click (a TableSort state), kept as it is filled again
+        Favorites = []                      % the scanned datasets' stars: a DatasetFavorites each, in Runner order (read on Scan)
+        FavoriteEntries = []                % the Favorites drop-downs' entries: table dataset, level, id, label (refreshFavorites)
         DatasetUnitCounts = []              % sorted units per dataset, counted when it is opened: containers.Map, "<key>|<sort folder>" -> n (refreshDatasetLabels)
         EpochDiagramWindow = []             % the EpochDiagram window, while open (onShowEpochs)
         EpochDiagramFor (1,1) string = "figure"   % what it draws: "figure" (the Figures tab's editor) | "defaults" (the Alignment tab's)
@@ -356,6 +376,12 @@ classdef EphysAnalysisApp < handle
         selectDataset(obj, idx)
         refreshDatasetInfo(obj)
         idx = tickedDatasetIndices(obj)
+
+        % --- favorites (stars: DatasetFavorites) ---
+        refreshFavorites(obj)
+        onStarToggled(obj, what, tf)
+        onFavoritePicked(obj, which)
+        onFavoritesFilter(obj, which, text)
 
         % --- Alignment tab ---
         refreshAlignPreview(obj)

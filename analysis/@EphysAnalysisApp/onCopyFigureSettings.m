@@ -3,7 +3,8 @@ function onCopyFigureSettings(obj, opts)
 %   The figure list's "Copy from..." button: a modal window
 %   (private/pickFigureSettings) offers the other figures and a box per
 %   part of their settings (figureSettingParts: Observations, Alignment,
-%   Common options, Arrangement and panels, Appearance, Remembered looks).
+%   Arrangement and panels, Appearance, Remembered looks, Across
+%   sessions).
 %   Copy gives the selected figure the ticked parts of the figure picked
 %   (copyFigureSettings); it keeps its id, title and enabled. The editor,
 %   the observation picker and the preview follow; the status bar says

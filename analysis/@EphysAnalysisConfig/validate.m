@@ -17,18 +17,21 @@ function issues = validate(obj, opts)
 %               names ({Plot} replaces characters outside A-Z a-z 0-9 _ - .
 %               by "_", and Windows ignores case) and file-name safe; the
 %               figure's ref, window and
-%               selection (groupBy <= 2); observe: kind, source, signal,
+%               selection (groupBy <= 2); observe: data (ObserveData),
 %               channels, maxUnits, on a figure observing units an enabled units.response test (test,
 %               param, windows, direction, correction, alpha, test
 %               "auroc"'s settings, and the Statistics and Machine Learning
 %               Toolbox it needs; each spike layer's units.response alike),
 %               no layer following a "dataset" observation, a
-%               warning when an explicit unit / channel observation has no
+%               warning when a unit / channel observation has no
 %               following layer, a warning for perGroup while the figure's
 %               selection groups by nothing; grid: whole rows and cols >= 1,
 %               rowHeights / colWidths [] or one positive size each,
-%               spacing; panels: a known type, whole row / col / spans
-%               inside the grid, no overlaps, ids of their own (warnings:
+%               spacing, gapUnits, rowGap / colGap >= 0, rowGaps / colGaps
+%               [] or one gap >= 0 between every two rows / columns;
+%               panels: a known type, whole row / col / spans inside the
+%               grid, a size in (0, 1] each way, align and valign, no
+%               overlaps, ids of their own (warnings:
 %               no panels, cells no panel covers); a panel's own ref /
 %               window / selection only on aligned types (its selection
 %               checked as the figure's), a "between" window only on a
@@ -43,7 +46,9 @@ function issues = validate(obj, opts)
 %               rate / tuning panel),
 %               channels, events layers only on time panels, a train only
 %               on raster / psth / heatmap, the mark's event reference,
-%               marker, size and color, a layer's color and line style, a
+%               marker, size and color, a span's style, width and
+%               opacity, events layers only on an event-trace panel, a
+%               layer's color and line style, a
 %               raster of marks alone (an error: no rows); warnings for a
 %               panel without enabled layers and for several layers on a
 %               one-layer type (but a waveforms panel in the probe
@@ -77,12 +82,10 @@ function issues = validate(obj, opts)
 %               panel's), a coherence panel's two enabled layers (seed,
 %               partner; none a spike layer over time; a warning for a
 %               fixed seed of several items), a spectrogram's signal
-%               layer; a linked panel's common
-%               fields are checked once, in the figure's common options --
-%               bins, measure, baseline Mode and window, auroc, the
-%               waveform settings --, plus an error at
-%               "<figure>.<panel>.common" when its type does not take the
-%               common baseline Mode); each panel's text note
+%               layer; an event-trace panel's display, trials, colorBy,
+%               height, alpha, line styles and positive widths and
+%               rowSpacing, with warnings for an edge or baseline color
+%               that is not one); each panel's text note
 %               ("<figure>.<panel>.note.<field>": placement, alignment,
 %               rotation, font size and interpreter; a color that is not
 %               one is a warning) and overlays
@@ -185,7 +188,6 @@ if isempty(obj.enabledFigures()) && isempty(obj.enabledSessionFigures())
 end
 FT = EphysAnalysisConfig.panelTypes();
 isWhole = @(x) isscalar(x) && isfinite(x) && x >= 1 && x == round(x);
-commonModes = ["none" "subtract" "zscore" "percent" "ratio" "auroc"];   % every baseline Mode some panel type takes
 fids = obj.figureIds();
 if numel(fids) > 1
     fkey = lower(regexprep(fids, '[^\w\-\.]', '_'));   % the id as {Plot} writes it, case-blind
@@ -214,18 +216,11 @@ for k = 1:numel(obj.Figures)
     % what it is drawn for
     ob = fg.observe;
     kind = "";
-    if ~ismember(ob.kind, EphysAnalysisConfig.ObserveKinds)
-        add("Figures", f0 + ".observe.kind", "error", "observe.kind is one of " + strjoin(EphysAnalysisConfig.ObserveKinds, ", ") + ...
-            ", not """ + ob.kind + """.");
+    if ~ismember(ob.data, EphysAnalysisConfig.ObserveData)
+        add("Figures", f0 + ".observe.data", "error", "observe.data is one of " + strjoin(EphysAnalysisConfig.ObserveData, ", ") + ...
+            ", not """ + ob.data + """.");
     else
         kind = EphysAnalysisConfig.observeKind(fg);
-    end
-    if ~ismember(ob.source, EphysAnalysisConfig.SpikeSources)
-        add("Figures", f0 + ".observe.source", "error", "The observed units are units (sorted) or detected (one per channel), not """ + ob.source + """.");
-    end
-    if ~ismember(ob.signal, EphysAnalysisConfig.SignalSources)
-        add("Figures", f0 + ".observe.signal", "error", "The observed channels' signal is one of " + strjoin(EphysAnalysisConfig.SignalSources, ", ") + ...
-            ", not """ + ob.signal + """.");
     end
     if ~isempty(ob.channels) && ~all(arrayfun(isWhole, ob.channels))
         add("Figures", f0 + ".observe.channels", "error", "The observed channels are columns of the extract: whole numbers, at least 1 ([] = all).");
@@ -249,28 +244,11 @@ for k = 1:numel(obj.Figures)
         if ~isempty(Lj); nFollow = nFollow + nnz([Lj.enabled] & [Lj.binding] == "observation"); end
     end
     if kind == "dataset" && nFollow > 0
-        add("Figures", f0 + ".observe.kind", "error", "A layer follows the observation, but the figure is drawn for the dataset: " + ...
-            "observe units or channels, or bind the layer to fixed items.");
-    elseif ismember(ob.kind, ["unit" "channel"]) && nFollow == 0
-        add("Figures", f0 + ".observe.kind", "warning", "No layer follows the observation: the figure is the same for every " + ob.kind + ".");
+        add("Figures", f0 + ".observe.data", "error", "A layer follows the observation, but the figure is drawn for the dataset: " + ...
+            "observe units, detections or a signal's channels, or bind the layer to fixed items.");
+    elseif ismember(kind, ["unit" "channel"]) && nFollow == 0
+        add("Figures", f0 + ".observe.data", "warning", "No layer follows the observation: the figure is the same for every " + kind + ".");
     end
-
-    % the common options (each linked panel's fit to them is checked with its options)
-    cm0 = f0 + ".common";
-    cmn = fg.common;
-    checkFigBins(cmn.bins, cm0);
-    checkFigMeasure(cmn.measure, cm0);
-    if ~ismember(cmn.baseline.Mode, commonModes)
-        add("Figures", cm0 + ".baseline.Mode", "error", "The common baseline Mode is one of " + strjoin(commonModes, ", ") + ", not """ + ...
-            cmn.baseline.Mode + """.");
-    elseif cmn.baseline.Mode ~= "none" && ~(numel(cmn.baseline.Window) == 2 && all(isfinite(cmn.baseline.Window)) ...
-            && cmn.baseline.Window(2) > cmn.baseline.Window(1))
-        add("Figures", cm0 + ".baseline.Window", "error", "The baseline window must be [b0 b1] with b0 < b1.");
-    end
-    if cmn.baseline.Mode == "auroc"
-        checkAuroc(cmn.auroc, cmn.bins.BinSec, "Figures", cm0 + ".auroc", true);
-    end
-    checkFigWaveform(cmn.waveform, cm0 + ".waveform", false);
 
     % the grid
     G = fg.grid;
@@ -291,8 +269,26 @@ for k = 1:numel(obj.Figures)
                 " (" + nWant + ").");
         end
     end
-    if ~ismember(G.spacing, ["loose" "compact" "tight" "none"])
-        add("Figures", f0 + ".grid.spacing", "error", "The grid's spacing is loose, compact, tight or none.");
+    if ~ismember(G.spacing, EphysAnalysisConfig.GridSpacings)
+        add("Figures", f0 + ".grid.spacing", "error", "The grid's spacing is loose, compact, tight, none or custom.");
+    end
+    if ~ismember(G.gapUnits, EphysAnalysisConfig.GridGapUnits)
+        add("Figures", f0 + ".grid.gapUnits", "error", "The grid's gap units are px or %.");
+    end
+    for gf = ["rowGap" "colGap"]
+        if ~(isscalar(G.(gf)) && isfinite(G.(gf)) && G.(gf) >= 0)
+            add("Figures", f0 + ".grid." + gf, "error", "The grid's " + gf + " is a number, at least 0.");
+        end
+    end
+    for gf = ["rowGaps" "colGaps"]
+        nWant = G.rows - 1;
+        between = "rows";
+        if gf == "colGaps"; nWant = G.cols - 1; between = "columns"; end
+        v = G.(gf);
+        if ~isempty(v) && ~(numel(v) == nWant && all(isfinite(v) & v >= 0))
+            add("Figures", f0 + ".grid." + gf, "error", gf + " is [] (each the one gap) or a gap of at least 0 between " + ...
+                "every two " + between + " (" + max(nWant, 0) + ").");
+        end
     end
     if isempty(fg.panels)
         add("Figures", f0 + ".panels", "warning", "The figure has no panels: it draws nothing.");
@@ -320,6 +316,15 @@ for k = 1:numel(obj.Figures)
         if gridOk && isWhole(pj.col) && isWhole(pj.colSpan) && pj.col + pj.colSpan - 1 > G.cols
             add("Figures", p0 + ".col", "error", sprintf("Panel ""%s"" reaches column %d; the grid has %d.", pj.id, pj.col + pj.colSpan - 1, G.cols));
         end
+        if ~(numel(pj.size) == 2 && all(isfinite(pj.size) & pj.size > 0 & pj.size <= 1))
+            add("Figures", p0 + ".size", "error", "A panel's size is [width height], each a share of its cell over 0 and at most 1.");
+        end
+        if ~ismember(pj.align, EphysAnalysisConfig.PanelAligns)
+            add("Figures", p0 + ".align", "error", "A panel's align is left, center or right.");
+        end
+        if ~ismember(pj.valign, EphysAnalysisConfig.PanelVAligns)
+            add("Figures", p0 + ".valign", "error", "A panel's valign is top, middle or bottom.");
+        end
     end
     if gridOk && placed && ~isempty(fg.panels)
         [cells, over] = EphysAnalysisConfig.figureCells(fg);
@@ -342,6 +347,9 @@ for k = 1:numel(obj.Figures)
         % the panel's text note and overlays (an overlay is drawn on the panel's own axes)
         checkNote(pj.note, "Figures", p0 + ".note", "panel");
         ovNames = checkOverlays(pj.overlays, "Figures", p0, ovNames);
+        if ~ismember(pj.box, ["auto" "on" "off"])
+            add("Figures", p0 + ".box", "error", "A panel's box is auto (the design's), on or off.");
+        end
         trow = FT.Type == pj.type;
         if ~any(trow)
             add("Figures", p0 + ".type", "error", "Unknown panel type """ + pj.type + """ (types: " + strjoin(FT.Type, ", ") + ").");
@@ -351,6 +359,7 @@ for k = 1:numel(obj.Figures)
         label = tr.Label;
         if label ~= "PSTH"; label = lower(label); end
         A = "A " + label + " panel";
+        if startsWith(label, "event"); A = "An " + label + " panel"; end
 
         for af = ["ref" "window" "selection"]
             if ~isstruct(pj.(af)); continue; end
@@ -395,6 +404,11 @@ for k = 1:numel(obj.Figures)
                     "continuous signal, heat map), not on " + lower(A) + ".");
                 continue
             end
+            if ~isEvents && pj.type == "eventTrace"
+                add("Figures", l0 + ".source", "error", A + " draws events layers only (a digital or derived line each), not " + ...
+                    L.source + ".");
+                continue
+            end
             if ~isEvents && EphysAnalysisConfig.categoryOf(L.source, pj.type) == ""
                 add("Figures", l0 + ".source", "error", A + " draws " + categoryWords(tr.Categories{1}) + " layers, not " + L.source + ".");
                 continue
@@ -411,15 +425,15 @@ for k = 1:numel(obj.Figures)
                     add("Figures", l0 + ".binding", "error", A + " draws fixed layers: bind the layer to fixed units or channels.");
                 elseif kind == "unit" && L.source == "AUX"
                     add("Figures", l0 + ".binding", "error", "AUX has no recording channel to follow the observed unit's: bind it to fixed channels.");
-                elseif kind == "channel" && ismember(L.source, EphysAnalysisConfig.SignalSources) && L.source ~= ob.signal
+                elseif kind == "channel" && ismember(L.source, EphysAnalysisConfig.SignalSources) && L.source ~= ob.data
                     % as figureLayerItems resolves it: AUX records no amplifier channel, either way
                     if L.source == "AUX"
                         add("Figures", l0 + ".binding", "error", "AUX has no recording channel: bind it to fixed channels.");
-                    elseif ob.signal == "AUX"
+                    elseif ob.data == "AUX"
                         add("Figures", l0 + ".binding", "error", "The observed AUX channel has no recording channel for " + ...
                             L.source + " to follow.");
                     else
-                        add("Figures", l0 + ".source", "warning", "This " + L.source + " layer follows a " + ob.signal + " channel: it takes the " + ...
+                        add("Figures", l0 + ".source", "warning", "This " + L.source + " layer follows a " + ob.data + " channel: it takes the " + ...
                             "observed channel's number in its own extract.");
                     end
                 end
@@ -444,9 +458,9 @@ for k = 1:numel(obj.Figures)
                 add("Figures", l0 + ".channels", "error", "A layer's channels are columns of its extract: whole numbers, at least 1 ([] = all).");
             end
             if isEvents
-                if ~ismember(L.eventsAs, ["marks" "train"])
-                    add("Figures", l0 + ".eventsAs", "error", "An events layer is drawn as marks or as a train.");
-                elseif L.eventsAs == "train" && ~ismember(pj.type, ["raster" "psth" "heatmap"])
+                if ~ismember(L.eventsAs, ["marks" "train" "span"])
+                    add("Figures", l0 + ".eventsAs", "error", "An events layer is drawn as marks, as a train or as a span (onset to offset).");
+                elseif L.eventsAs == "train" && ~ismember(pj.type, ["raster" "psth" "heatmap" "eventTrace"])   % an event-trace panel does not use eventsAs
                     add("Figures", l0 + ".eventsAs", "error", "Events drawn as a train go on a raster, PSTH or heat map panel; " + ...
                         lower(A) + " draws them as latency lines (marks).");
                 end
@@ -462,6 +476,16 @@ for k = 1:numel(obj.Figures)
                 if mk.color ~= "" && ~isColor(mk.color)
                     add("Figures", l0 + ".event.color", "warning", "No color """ + mk.color + """; the mark gets its automatic color.");
                 end
+                if ~ismember(mk.spanStyle, EphysAnalysisConfig.OverlayLineStyles)
+                    add("Figures", l0 + ".event.spanStyle", "error", "A span's line style is one of " + ...
+                        strjoin(EphysAnalysisConfig.OverlayLineStyles, "  ") + ".");
+                end
+                if ~(isscalar(mk.spanWidth) && isfinite(mk.spanWidth) && mk.spanWidth > 0)
+                    add("Figures", l0 + ".event.spanWidth", "error", "A span's line width must be positive (points).");
+                end
+                if ~(isscalar(mk.spanAlpha) && mk.spanAlpha >= 0 && mk.spanAlpha <= 1)
+                    add("Figures", l0 + ".event.spanAlpha", "error", "A span's opacity is from 0 to 1.");
+                end
             end
             if L.color ~= "" && ~isColor(L.color)
                 add("Figures", l0 + ".color", "warning", "No color """ + L.color + """; the layer takes its group's color.");
@@ -473,20 +497,14 @@ for k = 1:numel(obj.Figures)
         end
         if pj.type == "raster" && any(on)
             Lon = Lp(on);
-            if all([Lon.source] == "events" & [Lon.eventsAs] == "marks")
+            if all([Lon.source] == "events" & [Lon.eventsAs] ~= "train")
                 add("Figures", p0 + ".layers", "error", "A raster's marks need rows: add a units, detected or train layer.");
             end
         end
 
-        % options, as drawn (panelOptions): a linked panel's common fields are the figure's common options, checked
-        % above; here only whether its type takes the common baseline
-        linked = strings(1, 0);
-        if pj.common; linked = EphysAnalysisConfig.commonFieldsOf(pj.type); end
-        ownField = @(f) ~any(linked == f);
-        op = EphysAnalysisConfig.panelOptions(fg, pj);
+        % options
+        op = pj.options;
         o0 = p0 + ".options";
-        b0 = o0;                       % where a signal baseline's overlap with the window is reported
-        if ~ownField("baseline"); b0 = p0 + ".common"; end
         firstSignal = false;
         if any(on)
             firstOn = Lp(find(on, 1));
@@ -495,12 +513,17 @@ for k = 1:numel(obj.Figures)
         switch pj.type
             case "raster"
                 checkRasterSort(op, o0);
-                if ownField("waveform"); checkFigWaveform(op.waveform, o0 + ".waveform", false); end
+                for cf = ["tickColor" "backColor"]
+                    if op.(cf) ~= "" && ~isColor(op.(cf))
+                        add("Figures", o0 + "." + cf, "warning", "No color """ + op.(cf) + """; the raster keeps its default.");
+                    end
+                end
+                checkFigWaveform(op.waveform, o0 + ".waveform", false);
             case "psth"
-                if ownField("bins"); checkFigBins(op.bins, o0); end
-                if ownField("measure"); checkFigMeasure(op.measure, o0); end
-                checkPanelBaseline(op.baseline, ["none" "subtract" "zscore" "percent" "auroc"], o0, A, ownField("baseline"), p0);
-                checkPanelAuroc(op, o0, p0, ownField);
+                checkFigBins(op.bins, o0);
+                checkFigMeasure(op.measure, o0);
+                checkFigBaseline(op.baseline, ["none" "subtract" "zscore" "percent" "auroc"], o0, A);
+                checkPanelAuroc(op, o0);
                 if ~ismember(op.histStyle, ["bar" "line"])
                     add("Figures", o0 + ".histStyle", "error", "A PSTH is drawn as bar or line.");
                 end
@@ -514,10 +537,10 @@ for k = 1:numel(obj.Figures)
                     add("Figures", o0 + ".stackSpacing", "error", "stackSpacing must be positive (1 = the tallest PSTH reaches the next row).");
                 end
                 checkFigLim(op.yLim, o0 + ".yLim", "y");
-                if ownField("waveform"); checkFigWaveform(op.waveform, o0 + ".waveform", false); end
+                checkFigWaveform(op.waveform, o0 + ".waveform", false);
             case "continuous"
-                checkPanelBaseline(op.baseline, ["none" "subtract"], o0, A, ownField("baseline"), p0);
-                checkSignalBaseline(op.baseline, pw, b0);
+                checkFigBaseline(op.baseline, ["none" "subtract"], o0, A);
+                checkSignalBaseline(op.baseline, pw, o0);
                 if ~ismember(op.display, ["lines" "stacked"])
                     add("Figures", o0 + ".display", "error", "A continuous signal panel's display is lines or stacked.");
                 end
@@ -551,24 +574,20 @@ for k = 1:numel(obj.Figures)
                     add("Figures", o0 + ".rows", "error", "A heat map's rows are items (the layer's units or channels) or trials " + ...
                         "(one unit's epochs).");
                 elseif op.rows == "trials"
-                    bT = o0 + ".baseline.Mode";
-                    if ~ownField("baseline"); bT = p0 + ".common"; end
-                    checkTrialRows(Lp, find(on), op, o0, p0, bT);
+                    checkTrialRows(Lp, find(on), op, o0, p0, o0 + ".baseline.Mode");
                 end
                 if ~firstSignal
-                    if ownField("bins"); checkFigBins(op.bins, o0); end
-                    if ownField("measure"); checkFigMeasure(op.measure, o0); end
-                    checkPanelBaseline(op.baseline, ["none" "subtract" "zscore" "percent" "auroc"], o0, A, ownField("baseline"), p0);
-                    checkPanelAuroc(op, o0, p0, ownField);
+                    checkFigBins(op.bins, o0);
+                    checkFigMeasure(op.measure, o0);
+                    checkFigBaseline(op.baseline, ["none" "subtract" "zscore" "percent" "auroc"], o0, A);
+                    checkPanelAuroc(op, o0);
                 else
                     if op.baseline.Mode == "auroc"
-                        bf = o0 + ".baseline.Mode";
-                        if ~ownField("baseline"); bf = p0 + ".common"; end
-                        add("Figures", bf, "error", "The auROC baseline is for spikes: a heat map of a signal takes baseline Mode none or subtract.");
+                        add("Figures", o0 + ".baseline.Mode", "error", "The auROC baseline is for spikes: a heat map of a signal takes baseline Mode none or subtract.");
                     else
-                        checkPanelBaseline(op.baseline, ["none" "subtract"], o0, A, ownField("baseline"), p0);
+                        checkFigBaseline(op.baseline, ["none" "subtract"], o0, A);
                     end
-                    checkSignalBaseline(op.baseline, pw, b0);
+                    checkSignalBaseline(op.baseline, pw, o0);
                 end
                 if ~ismember(op.order, ["probe" "peak" "modulation"])
                     add("Figures", o0 + ".order", "error", "A heat map orders its rows by probe (the style's sort options), peak or modulation.");
@@ -578,7 +597,7 @@ for k = 1:numel(obj.Figures)
                 checkFigGroup(op.group, o0);
                 checkFigLim(op.cLim, o0 + ".cLim", "color");
             case "waveforms"
-                if ownField("waveform"); checkFigWaveform(op.waveform, o0 + ".waveform", true); end
+                checkFigWaveform(op.waveform, o0 + ".waveform", true);
                 if ~ismember(op.layout, ["grid" "probe"])
                     add("Figures", o0 + ".layout", "error", "A unit waveforms panel's layout is grid or probe.");
                 elseif op.layout == "probe" && any(on) && Lp(find(on, 1)).binding == "observation"
@@ -587,15 +606,15 @@ for k = 1:numel(obj.Figures)
                 end
                 checkFigLim(op.yLim, o0 + ".yLim", "y");
             case "rate"
-                if ownField("measure"); checkFigMeasure(op.measure, o0); end
-                checkPanelBaseline(op.baseline, ["none" "subtract" "ratio" "zscore"], o0, A, ownField("baseline"), p0);
+                checkFigMeasure(op.measure, o0);
+                checkFigBaseline(op.baseline, ["none" "subtract" "ratio" "zscore"], o0, A);
                 if ~ismember(op.display, ["bar" "box" "points"])
                     add("Figures", o0 + ".display", "error", "A firing rate panel's display is bar, box or points.");
                 end
                 checkFigLim(op.yLim, o0 + ".yLim", "y");
             case "tuning"
-                if ownField("measure"); checkFigMeasure(op.measure, o0); end
-                checkPanelBaseline(op.baseline, ["none" "subtract" "ratio" "zscore"], o0, A, ownField("baseline"), p0);
+                checkFigMeasure(op.measure, o0);
+                checkFigBaseline(op.baseline, ["none" "subtract" "ratio" "zscore"], o0, A);
                 if ~isvarname(op.param) && op.param ~= ""
                     add("Figures", o0 + ".param", "error", "The tuning parameter """ + op.param + """ is not a trial parameter's name " + ...
                         "(empty: the figure's first groupBy parameter, else the first numeric one).");
@@ -606,7 +625,7 @@ for k = 1:numel(obj.Figures)
                     add("Figures", o0 + ".seriesParam", "error", "The series parameter is the tuning parameter itself: pick another, or none.");
                 end
                 checkFigLim(op.yLim, o0 + ".yLim", "y");
-                if ownField("waveform"); checkFigWaveform(op.waveform, o0 + ".waveform", false); end
+                checkFigWaveform(op.waveform, o0 + ".waveform", false);
             case "probemap"
                 if ~ismember(op.value, ["rate" "nSpikes" "nUnits"])
                     add("Figures", o0 + ".value", "error", "A probe map shows rate, nSpikes or nUnits.");
@@ -615,17 +634,19 @@ for k = 1:numel(obj.Figures)
             case "corrmap"
                 if ~ismember(op.metric, ["mean" "peak"])
                     add("Figures", o0 + ".metric", "error", "A unit correlation map correlates each epoch's mean or peak rate.");
-                elseif op.metric == "peak" && ownField("bins")
+                elseif op.metric == "peak"
                     checkFigBins(op.bins, o0);
                 end
                 if ~ismember(op.correlation, ["pearson" "spearman"])
                     add("Figures", o0 + ".correlation", "error", "A unit correlation map's correlation is pearson or spearman.");
                 end
-                checkPanelBaseline(op.baseline, ["none" "subtract"], o0, A, ownField("baseline"), p0);
+                checkFigBaseline(op.baseline, ["none" "subtract"], o0, A);
                 checkFigGroup(op.group, o0);
                 checkFigLim(op.cLim, o0 + ".cLim", "color");
             case {"spectrum" "spectrogram" "coherence"}
                 checkSpectral(pj, op, pw, Lp(on), o0, p0, find(on));
+            case "eventTrace"
+                checkEventTrace(op, o0);
         end
     end
 
@@ -724,7 +745,7 @@ issues = table(Section, Field, Severity, Message);
     function checkTrialRows(hL, hOn, hOp, hO0, hP0, hB0)
         %checkTrialRows  A heat map of trials: one unit's epochs (its map layer follows the observation, is one fixed unit or a train), sorted as a raster.
         %   HL the panel's layers, HON the enabled ones' indices, HB0 where its baseline is reported.
-        hI = hOn(~([hL(hOn).source] == "events" & [hL(hOn).eventsAs] == "marks"));
+        hI = hOn(~([hL(hOn).source] == "events" & [hL(hOn).eventsAs] ~= "train"));
         if ~isempty(hI)
             hM = hL(hI(1));
             hF = hP0 + ".layers(" + hI(1) + ")";
@@ -739,7 +760,7 @@ issues = table(Section, Field, Severity, Message);
                         "the observation, or fix it to one unit (one id, or maxUnits 1).");
                 end
             elseif ismember(hM.source, EphysAnalysisConfig.SpikeSources) && hM.binding == "observation" ...
-                    && (kind == "channel" || hM.source ~= ob.source)
+                    && kind ~= "dataset" && hM.source ~= ob.data
                 % it follows the observation through a channel: every unit on it (figureLayerItems), not one
                 add("Figures", hF + ".binding", "error", "A heat map of trials draws one unit's epochs, but this layer " + ...
                     "follows the observation through its channel (every " + hM.source + " unit on it): observe " + ...
@@ -751,6 +772,43 @@ issues = table(Section, Field, Severity, Message);
                 "(a curve over the epochs) does not apply. Take none, subtract, zscore or percent.");
         end
         checkRasterSort(hOp, hO0);
+    end
+
+    function checkEventTrace(hOp, hO0)
+        %checkEventTrace  An event-trace panel's options.
+        hPos = @(x) isscalar(x) && isfinite(x) && x > 0;
+        if ~ismember(hOp.display, ["bars" "line"])
+            add("Figures", hO0 + ".display", "error", "An event-trace panel draws its intervals as bars or a line (a logic level).");
+        end
+        if ~ismember(hOp.trials, ["overlay" "rows"])
+            add("Figures", hO0 + ".trials", "error", "An event-trace panel's trials are overlay (every epoch in the line's row) " + ...
+                "or rows (a sub-row per epoch).");
+        end
+        if ~ismember(hOp.colorBy, ["layer" "group"])
+            add("Figures", hO0 + ".colorBy", "error", "An event-trace panel colors by layer (each line's color) or by group (each trial group's).");
+        end
+        if ~(hPos(hOp.height) && hOp.height <= 1)
+            add("Figures", hO0 + ".height", "error", "height is the bars' share of a row: above 0, at most 1.");
+        end
+        if ~(isnan(hOp.alpha) || (hOp.alpha >= 0 && hOp.alpha <= 1))
+            add("Figures", hO0 + ".alpha", "error", "alpha is an opacity from 0 to 1 (NaN = automatic).");
+        end
+        if ~ismember(lower(hOp.edgeColor), ["none" "auto"]) && ~isColor(hOp.edgeColor)
+            add("Figures", hO0 + ".edgeColor", "warning", "No color """ + hOp.edgeColor + """; the bars get no outline.");
+        end
+        if hOp.baselineColor ~= "" && ~isColor(hOp.baselineColor)
+            add("Figures", hO0 + ".baselineColor", "warning", "No color """ + hOp.baselineColor + """; the baseline is gray.");
+        end
+        for hF = ["lineStyle" "baselineStyle"]
+            if ~ismember(hOp.(hF), EphysAnalysisConfig.OverlayLineStyles)
+                add("Figures", hO0 + "." + hF, "error", hF + " is one of " + strjoin(EphysAnalysisConfig.OverlayLineStyles, "  ") + ".");
+            end
+        end
+        for hF = ["edgeWidth" "lineWidth" "baselineWidth" "rowSpacing"]
+            if ~hPos(hOp.(hF))
+                add("Figures", hO0 + "." + hF, "error", hF + " must be positive.");
+            end
+        end
     end
 
     function checkFigBins(hBins, hO0)
@@ -790,27 +848,10 @@ issues = table(Section, Field, Severity, Message);
         end
     end
 
-    function checkPanelBaseline(hB, hModes, hO0, hWho, hOwn, hP0)
-        %checkPanelBaseline  A panel's own baseline (checkFigBaseline), or whether its type takes the figure's common one.
-        %   A common Mode outside every type's modes, or a bad common window, is the common block's error already.
-        if hOwn
-            checkFigBaseline(hB, hModes, hO0, hWho);
-        elseif ~ismember(hB.Mode, hModes) && ismember(hB.Mode, commonModes)
-            add("Figures", hP0 + ".common", "error", sprintf(['The figure''s common baseline Mode "%s" is not one %s ' ...
-                'takes (%s): untick the panel''s common options, or change the figure''s common baseline.'], ...
-                hB.Mode, lower(extractBefore(hWho, 2)) + extractAfter(hWho, 1), strjoin(hModes, ", ")));
-        end
-    end
-
-    function checkPanelAuroc(hOp, hO0, hP0, hOwnField)
-        %checkPanelAuroc  A PSTH's or a spike heat map's auROC settings, as drawn, under baseline Mode "auroc".
-        %   Checked where the panel holds them (its own auroc) or where its own bins decide the windows' fit;
-        %   a linked panel with the common bins and auroc is checked once, in the common options.
-        if hOp.baseline.Mode ~= "auroc"; return; end
-        if hOwnField("auroc")
+    function checkPanelAuroc(hOp, hO0)
+        %checkPanelAuroc  A PSTH's or a spike heat map's auROC settings under baseline Mode "auroc", against its bins.
+        if hOp.baseline.Mode == "auroc"
             checkAuroc(hOp.auroc, hOp.bins.BinSec, "Figures", hO0 + ".auroc", true);
-        elseif hOwnField("bins")
-            checkAuroc(hOp.auroc, hOp.bins.BinSec, "Figures", hP0 + ".common.auroc", true);
         end
     end
 
@@ -1029,7 +1070,7 @@ issues = table(Section, Field, Severity, Message);
     end
 
     function checkAuroc(a, binSec, sec, field, isPlot)
-        %checkAuroc  A panel's (or the figure's common) auroc settings (ISPLOT) or a response test's.
+        %checkAuroc  A panel's auroc settings (ISPLOT) or a response test's.
         if ~ismember(a.method, ["psth" "epochs"]); add(sec, field + ".method", "error", "The auROC method is psth or epochs."); end
         if ~ismember(a.windows, ["tiled" "sliding"]); add(sec, field + ".windows", "error", "The auROC windows are tiled or sliding."); end
         whole = @(x) binSec > 0 && x / binSec >= 1 - 1e-6 && abs(x / binSec - round(x / binSec)) < 1e-6;

@@ -1,20 +1,31 @@
-function fig = adoptPanelOptions(fig, panelId)
-%adoptPanelOptions  Apply one panel's options to every panel of its figure.
+function [fig, changed] = adoptPanelOptions(fig, panelId)
+%adoptPanelOptions  Copy one panel's options to the other panels of its figure.
 %   FIG = EphysAnalysisConfig.adoptPanelOptions(FIG, PANELID), for figure
 %   FIG (a Figures entry):
-%   - the panel's values of its type's common fields (commonFieldsOf)
-%     become the figure's common options (FIG.common), as the panel draws
-%     them: its own values when its common is false; when it is true they
-%     are the common values already
-%   - every panel's common is set to true, so each takes those values for
-%     the common fields its type has
-%   - the panel's other option fields (the type-specific ones, e.g. a
-%     PSTH's histStyle, fill, normalize, yLim) are copied onto every other
-%     panel of the same type; panels of other types keep theirs
+%   - the panel's values of the options several types share
+%     (sharedFieldsOf: bins, measure, baseline, auroc, maskAfterStop and
+%     the waveform inset) go to every other panel whose type has them.
+%     The baseline (with its auroc settings) goes only where the type
+%     takes its Mode: a PSTH or a heat map of spikes none, subtract,
+%     zscore, percent or auroc; a rate or tuning panel none, subtract,
+%     ratio or zscore; a continuous, unit correlation or signal heat map
+%     panel none or subtract (a heat map is of a signal when its first
+%     enabled layer reads one). Elsewhere the panel keeps its own
+%   - the panel's other options (the type-specific ones, e.g. a PSTH's
+%     histStyle, fill, normalize, yLim; a waveforms panel's waveform) go
+%     to every other panel of the same type
+%   Panels of other types keep their other options.
+%
+%   [FIG, CHANGED] = ... also says what changed: a struct array, one entry
+%   per other panel whose options changed or that kept its baseline, with
+%     id      the panel's id
+%     fields  the options whose values changed (a string row)
+%     kept    "baseline" when the panel kept its own because its type
+%             does not take the Mode, else empty (a string row)
 %   Error: EphysAnalysisConfig:NoPanel.
 %
-%   See also EphysAnalysisConfig.relinkPanels, EphysAnalysisConfig.adoptPanelAlignment,
-%   EphysAnalysisConfig.commonFieldsOf.
+%   See also EphysAnalysisConfig.sharedFieldsOf, EphysAnalysisConfig.relinkPanels,
+%   EphysAnalysisConfig.adoptPanelAlignment.
 
 arguments
     fig (1,1) struct
@@ -27,18 +38,48 @@ if isempty(k)
     error('EphysAnalysisConfig:NoPanel', 'The figure has no panel "%s".', panelId);
 end
 P = fig.panels(k);
-cf = EphysAnalysisConfig.commonFieldsOf(P.type);
-if ~P.common
-    for f = cf
-        fig.common.(f) = P.options.(f);
+shared = EphysAnalysisConfig.sharedFieldsOf(P.type);
+changed = struct('id', {}, 'fields', {}, 'kept', {});
+for j = [1:k-1, k+1:numel(fig.panels)]
+    Q = fig.panels(j);
+    take = shared(ismember(shared, EphysAnalysisConfig.sharedFieldsOf(Q.type)));
+    if Q.type == P.type
+        take = string(fieldnames(P.options)).';   % the same type: every option
+    end
+    kept = string.empty(1, 0);
+    if ismember("baseline", take) && ismember("baseline", EphysAnalysisConfig.sharedFieldsOf(Q.type)) ...
+            && ~ismember(P.options.baseline.Mode, baselineModes(Q))   % (a spectrogram's baseline is chronuxNormalize's: copied as is)
+        take = setdiff(take, ["baseline" "auroc"], 'stable');
+        kept = "baseline";
+    end
+    fields = string.empty(1, 0);
+    for f = take
+        if ~isequaln(Q.options.(f), P.options.(f))   % (fillAlpha NaN = automatic: equal to NaN)
+            Q.options.(f) = P.options.(f);
+            fields(end+1) = f; %#ok<AGROW>
+        end
+    end
+    fig.panels(j) = Q;
+    if ~isempty(fields) || ~isempty(kept)
+        changed(end+1) = struct('id', Q.id, 'fields', fields, 'kept', kept); %#ok<AGROW>
     end
 end
-own = setdiff(string(fieldnames(P.options)).', cf, 'stable');
-for j = 1:numel(fig.panels)
-    fig.panels(j).common = true;
-    if j == k || fig.panels(j).type ~= P.type; continue; end
-    for f = own
-        fig.panels(j).options.(f) = P.options.(f);
-    end
+end
+
+
+function modes = baselineModes(Q)
+%baselineModes  The baseline Modes panel Q's type takes (validate's rules; none for a type without a baseline).
+modes = "none";
+first = "";
+on = [Q.layers.enabled];
+if any(on); first = Q.layers(find(on, 1)).source; end
+switch Q.type
+    case {"psth" "heatmap"}
+        modes = ["none" "subtract" "zscore" "percent" "auroc"];
+        if Q.type == "heatmap" && ismember(first, EphysAnalysisConfig.SignalSources); modes = ["none" "subtract"]; end
+    case {"continuous" "corrmap"}
+        modes = ["none" "subtract"];
+    case {"rate" "tuning"}
+        modes = ["none" "subtract" "ratio" "zscore"];
 end
 end

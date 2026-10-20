@@ -13,13 +13,6 @@ AppPrefs.setpref(g, 'FigureGroupBy', char(obj.FigureGroupDropDown.Value));
 AppPrefs.setpref(g, 'FigureGroupsCollapsed', cellstr(obj.FigureGroupsCollapsed));
 S = obj.FigureSections;
 AppPrefs.setpref(g, 'FigureSectionsCollapsed', cellstr([string.empty(1, 0) S(~[S.Expanded]).Name]));
-AppPrefs.setpref(g, 'ChronuxCacheFolder', char(obj.ChronuxCacheFolder));
-AppPrefs.setpref(g, 'ChronuxMaxMB', obj.ChronuxMaxMB);
-S = obj.ChronuxSections;
-AppPrefs.setpref(g, 'ChronuxSectionsCollapsed', cellstr([string.empty(1, 0) S(~[S.Expanded]).Name]));
-try
-    AppPrefs.setpref(g, 'ChronuxSettings', obj.gatherChronuxSettings());
-catch
-    % a value that cannot be used: the last good settings stay
-end
+U = obj.FigureSupers;
+AppPrefs.setpref(g, 'FigureSupersectionsCollapsed', cellstr([string.empty(1, 0) U(~[U.Expanded]).Name]));
 end

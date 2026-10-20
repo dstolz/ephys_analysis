@@ -380,7 +380,7 @@ isequal(bi.nBins, ci.nSamples)      % true: bin k starts on sample k
 | Kilosort channel ids | `spikes` reports cluster ids as sorted, not channels; peak channels are in the `units` struct from `EphysDataset.readSortedUnits` (`channel`, 1-based recording channel) |
 | Chronux not required | preparing data never calls Chronux; only your analysis does |
 | Files for later | `EphysDataset.exportChronux` (the pipeline's Export step) writes `<Name>_chronux.mat` with `LFP` / `MUA` / `SPIKE` structs (`data`, `params`, `t`, `labels`) and `sp` built by this class, so the analysis can run on a machine without the recordings; see [file-formats.md](file-formats.md#chronux-export-ephysdatasetexportchronux-the-export-step) |
-| Used by the analysis app | its [Chronux tab](EphysAnalysisApp.md#chronux-tab) cuts the trials of a dataset's Chronux file with `trials` (on a block of rows, `OnsetRule="sample"`) before `mtspectrumc` / `mtspecgramc`; see [Chronux analyses](EphysAnalysis.md#chronux-analyses) |
+| Used by the analysis app | the analysis functions behind the [spectral panels](EphysAnalysisConfig.md#spectral-panels) cut the trials of a dataset's Chronux file with `trials` (on a block of rows, `OnsetRule="sample"`) before `mtspectrumc` / `mtspecgramc`; see [Chronux analyses](EphysAnalysis.md#chronux-analyses) |
 | Event-organized files | `EphysDataset.eventEpochs` / `exportEpochs` (the Export step's `epochs` format) cut the same data into one epoch per event with `trials` and `spikeTrials`, and keep the trial table and the behavior columns alongside; see [EphysDataset](EphysDataset.md#event-organized-epoched-data) |
 
 ## Main error identifiers

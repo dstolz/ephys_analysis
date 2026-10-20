@@ -240,7 +240,6 @@ check(isequal(live.Color, liveGround) && PlotDesign.currentName() == "Default", 
 
 fprintf('\n== 6. capturing a look, saving and listing designs ==\n');
 spec = Cp.spec;
-spec.panels(1).common = false;
 spec.panels(1).options.histStyle = "line";
 spec.aesthetics = PlotAesthetics.normalizeRules(struct('role', "rate", 'group', "", 'property', "LineWidth", 'value', 3));
 renderFigure(Cp.F, spec, live, Editable=true, Design="Tufte");

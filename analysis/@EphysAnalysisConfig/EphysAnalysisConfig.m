@@ -21,26 +21,24 @@ classdef EphysAnalysisConfig
     %               panel of a type (panelTypes) drawing one or more layers,
     %               each layer bound to a source (FigureSources) that either
     %               follows the observation or names fixed items: id,
-    %               enabled, title, observe, grid, common, panels, ref,
+    %               autoId, enabled, title, observe, grid, panels, ref,
     %               window, selection, sessions, style, aesthetics.
     %               sessions (defaults("FigureSessions")) with enabled true
     %               makes it a session figure: drawn once across the ticked
     %               (or listed) datasets, each layer merged across them
     %               (figureSessionCompute, EphysAnalysisRunner.runSessionFigure),
-    %               never per dataset. common holds the
-    %               options every linked panel takes (commonFields: bins,
-    %               measure, baseline, auroc, maskAfterStop, waveform), as a panel
-    %               whose ref / window are "default" takes the figure's
-    %               alignment; adoptPanelOptions, adoptPanelAlignment and
-    %               relinkPanels spread one panel's settings or re-link
-    %               every panel. observe.perGroup draws each observation once
+    %               never per dataset. Each panel holds all of its own
+    %               options; adoptPanelOptions copies one panel's to the
+    %               others (sharedFieldsOf: the options several types
+    %               have), adoptPanelAlignment and relinkPanels spread one
+    %               panel's alignment or re-link every panel's.
+    %               observe.perGroup draws each observation once
     %               per trial group of the figure's selection. A panel
-    %               (defaults("Panel")): id, type, title, row, col,
+    %               (defaults("Panel")): id, type, title, box (the axes'
+    %               box: "auto" = the design's, "on", "off"), row, col,
     %               rowSpan, colSpan, ref, window, selection (its own:
-    %               its own groups, colors and legend), common
-    %               (true: the figure's common options for the fields its
-    %               type has, commonFieldsOf), layers, options (the type's
-    %               DefaultOptions; panelOptions gives them as drawn), note
+    %               its own groups, colors and legend), layers, options
+    %               (the type's DefaultOptions), note
     %               (a Note) and overlays (Overlays drawn on
     %               its own axes: their panel is always "all"); a layer
     %               (defaults("Layer")): name, enabled, source, binding,
@@ -66,8 +64,8 @@ classdef EphysAnalysisConfig
     %     cfg.Source.Root = "D:\EPHYS";
     %     cfg.Defaults.EventRef.line = "Stim";
     %     cfg.Defaults.Selection.groupBy = "Depth";
-    %     cfg = cfg.addFigure("rasterPsth");   % figure_1: a unit's raster over its PSTH
-    %     cfg = cfg.addFigure("continuous");   % figure_2: a channel's LFP
+    %     cfg = cfg.addFigure("rasterPsth");   % "Raster+PSTH units": a unit's raster over its PSTH
+    %     cfg = cfg.addFigure("continuous");   % "Continuous LFP": a channel's LFP
     %     cfg.save("am_quicklook.json");
     %     r = EphysAnalysisRunner(EphysAnalysisConfig.load("am_quicklook.json"));
     %     r.run();
@@ -76,9 +74,13 @@ classdef EphysAnalysisConfig
     %   section is assigned, so what JSON gives back (a one-element list as a
     %   scalar, "Inf" as text, a heterogeneous Figures array as a cell) comes
     %   out right. Unknown fields are dropped (LoadWarnings lists them after
-    %   load). Figure ids must be unique (EphysAnalysisConfig:DuplicateFigureId);
-    %   a figure without an id gets "figure_<n>" and a figure's panel
-    %   "<type>_<n>".
+    %   load). Figure ids must be unique (EphysAnalysisConfig:DuplicateFigureId).
+    %   A figure's id is automatic while its autoId is true (a new figure's,
+    %   until an id of the user's own is given): it follows the figure's
+    %   panels and data (autoFigureId: "Raster+PSTH units"), made unique by
+    %   " (2)", " (3)", ... (nextFreeId), whenever Figures is assigned (every
+    %   edit, load). A figure with autoId false and no id gets "figure_<n>";
+    %   a figure's panel without an id gets "<type>_<n>".
     %
     %   Version 2 (this one) has no plots: config version 1's Plots and
     %   SessionPlots sections are migrated once, when a version-1 file is
@@ -117,8 +119,9 @@ classdef EphysAnalysisConfig
         % What a figure layer reads (Layer.source): spike times, a digital / derived line's events, or a signal;
         % sourceCategories groups them, panelTypes says which categories each panel type draws.
         FigureSources = ["units" "detected" "events" "LFP" "MUA" "SPIKE" "AUX"]
-        % What a figure is drawn for (Figure.observe.kind): auto (resolved by observeKind), a unit, a channel, the dataset.
-        ObserveKinds  = ["auto" "unit" "channel" "dataset"]
+        % What a figure is drawn for (Figure.observe.data): each sorted unit, each channel's detections, each channel of
+        % a signal's extract, or the dataset once (observeKind: "unit", "channel" or "dataset").
+        ObserveData   = ["units" "detected" "LFP" "MUA" "SPIKE" "AUX" "dataset"]
         % Where in a unit's tile its waveform box sits (a panel's waveform.location).
         WaveformLocations = ["northeast" "north" "northwest" "west" "southwest" "south" "southeast" "east"]
         % The error a figure draws as bands or bars (Style.ErrorType): mean +/- SEM, mean +/- SD, bootstrap 95% CI of the mean.
@@ -133,6 +136,14 @@ classdef EphysAnalysisConfig
         % Where a panel's note sits (note.placement): outside the panel, over it, or at a point.
         NotePlacements = ["below" "above" "right" "left" "northwest" "north" "northeast" "west" "center" "east" ...
             "southwest" "south" "southeast" "custom"]
+        % The gap between a figure's panels (grid.spacing): a named gap of GridSpacingPx px (in that order), or custom
+        % (grid.rowGap / colGap, or the lists rowGaps / colGaps, in grid.gapUnits); and where a panel smaller than its
+        % cell sits in it (panel.align, panel.valign).
+        GridSpacings  = ["loose" "compact" "tight" "none" "custom"]
+        GridSpacingPx = [24 12 6 0]
+        GridGapUnits  = ["px" "%"]
+        PanelAligns   = ["left" "center" "right"]
+        PanelVAligns  = ["top" "middle" "bottom"]
         % What a panel's overlays (defaults("Overlay")) choose from: the layer, a line's style.
         OverlayLayers     = ["over" "under"]
         OverlayLineStyles = ["-" "--" ":" "-."]
@@ -146,7 +157,7 @@ classdef EphysAnalysisConfig
         % How the observed unit is matched across sessions (a figure observes one matched unit), and the panel types
         % combineSessions does not merge (a session figure holds none).
         FigureSessionMatches = ["site" "mapping"]
-        FigureSessionUnmerged = ["probemap" "corrmap" "spectrum" "spectrogram" "coherence"]
+        FigureSessionUnmerged = ["probemap" "corrmap" "spectrum" "spectrogram" "coherence" "eventTrace"]
         % String fields that are lists even when their default has one element.
         ListFields = ["response" "pairingFlags" "groupBy" "classes" "groups" "Formats" "Datasets" "Folders" "datasetKeys"]
     end
@@ -210,14 +221,22 @@ classdef EphysAnalysisConfig
         function [obj, id] = addFigure(obj, template, opts)
             %addFigure  Append a figure: a template's name ("rasterPsth") or a (partial) figure struct.
             %   [CFG, ID] = cfg.addFigure("rasterPsth", Id="unit_card")
-            %   returns the new config and the figure's id ("figure_<n>"
-            %   when not given). The templates (figureTemplates):
+            %   returns the new config and the figure's id. An id given
+            %   (Id=, or the struct's id) is the figure's own (autoId
+            %   false); without one the id is automatic (autoId true):
+            %   autoFigureId's, "Raster+PSTH units", or "<that> (n)" when
+            %   another figure has it, and it follows the figure's panels
+            %   and data from then on. The templates (figureTemplates):
             %   "rasterPsth" (the default: a 2 x 1 grid, a raster flush over
             %   a PSTH, each with a units layer following the observed
             %   unit), one per panel type ("psth", "raster", "continuous",
             %   "heatmap", "waveforms", "probemap", "corrmap":
             %   one panel holding defaultLayer(type)) and "blank" (an
-            %   empty 1 x 1 grid). Errors: EphysAnalysisConfig:BadValue
+            %   empty 1 x 1 grid). A figure that names no observe.data
+            %   (every template) observes what its following layers read
+            %   (followedData: units for the unit templates, LFP for
+            %   continuous and spectrogram, the dataset for a heat map, a
+            %   probe map, a correlation map or a blank figure). Errors: EphysAnalysisConfig:BadValue
             %   (an unknown template), EphysAnalysisConfig:DuplicateFigureId.
             arguments
                 obj (1,1) EphysAnalysisConfig
@@ -235,11 +254,40 @@ classdef EphysAnalysisConfig
             end
             if opts.Id ~= ""; template.id = opts.Id; end
             f = EphysAnalysisConfig.normalizeFigure(template);
-            if f.id == ""
-                f.id = EphysAnalysisConfig.freeId("figure", obj.figureIds());
+            if ~(isfield(template, 'observe') && isstruct(template.observe) && isfield(template.observe, 'data'))
+                f.observe.data = EphysAnalysisConfig.followedData(f);
             end
-            obj.Figures = [obj.Figures, f];
-            id = f.id;
+            f.autoId = f.id == "";   % an id given is the figure's own
+            obj.Figures = [obj.Figures, f];   % an automatic id is given here (normalizeFigures)
+            id = obj.Figures(end).id;
+        end
+
+        function [obj, id] = duplicateFigure(obj, from)
+            %duplicateFigure  Copy figure FROM (an id or an index) right after it, as "<base> (n)".
+            %   [CFG, ID] = cfg.duplicateFigure("Raster+PSTH units") inserts
+            %   a copy of the figure, every setting kept, after it and
+            %   returns its id: "<base> (n)" with the smallest n >= 2 that
+            %   no figure has (nextFreeId), where <base> is the figure's
+            %   automatic id (autoFigureId) when its id is automatic, else
+            %   its own id without a " (n)" it ends in ("unit_card (2)"
+            %   copies as "unit_card (3)" while "unit_card (2)" is taken).
+            %   The copy's autoId is the figure's: an automatic copy
+            %   follows its own panels from then on. Error:
+            %   EphysAnalysisConfig:NoFigure.
+            k = from;
+            if ~isnumeric(from); k = obj.figureIndex(from); end
+            if ~(isscalar(k) && k >= 1 && k <= numel(obj.Figures))
+                error('EphysAnalysisConfig:NoFigure', 'No figure "%s".', string(from));
+            end
+            f = obj.Figures(k);
+            if f.autoId
+                base = EphysAnalysisConfig.autoFigureId(f);
+            else
+                base = regexprep(f.id, ' \(\d+\)$', '');
+            end
+            f.id = EphysAnalysisConfig.nextFreeId(base, obj.figureIds(), Suffix=true);
+            obj.Figures = [obj.Figures(1:k), f, obj.Figures(k+1:end)];
+            id = obj.Figures(k + 1).id;
         end
 
         function obj = removeFigure(obj, id)
@@ -311,11 +359,12 @@ classdef EphysAnalysisConfig
         [fig, unknown] = normalizeFigure(in, path)
         [p, unknown] = normalizePanel(in, path)
         [L, unknown] = normalizeLayer(in, path)
+        id = autoFigureId(fig)
         [cells, overlap] = figureCells(fig)
         fig = placePanel(fig, panel, where, anchorId)
         fig = removePanel(fig, id)
         [fig, moved] = movePanel(fig, id, direction)
-        fig = adoptPanelOptions(fig, panelId)
+        [fig, changed] = adoptPanelOptions(fig, panelId)
         fig = adoptPanelAlignment(fig, panelId)
         fig = relinkPanels(fig)
 
@@ -398,9 +447,16 @@ classdef EphysAnalysisConfig
 
         function [F, unknown] = normalizeFigures(v)
             %normalizeFigures  Figures from a struct array, a cell array (jsondecode) or [].
-            %   Every entry is normalized (normalizeFigure); entries without
-            %   an id get "figure_<n>"; duplicate ids raise
-            %   EphysAnalysisConfig:DuplicateFigureId.
+            %   Every entry is normalized (normalizeFigure); an entry with
+            %   autoId false and no id gets "figure_<n>"; two such entries
+            %   with one id raise EphysAnalysisConfig:DuplicateFigureId.
+            %   Every entry with autoId true gets its automatic id
+            %   (autoFigureId), unique among the figures by the next free
+            %   " (n)" (nextFreeId; ids compared as {Plot} writes them,
+            %   case-blind): an entry keeps the id it has while that is the
+            %   automatic id or "<it> (n)" and no figure before it (or with
+            %   an id of its own) has it, so only the figures whose content
+            %   changed are renamed; the others take the next free id.
             F = EphysAnalysisConfig.emptyFigures();
             unknown = string.empty(1, 0);
             if isempty(v); return; end
@@ -418,14 +474,34 @@ classdef EphysAnalysisConfig
                 F(1, end+1) = f; %#ok<AGROW>
             end
             ids = [F.id];
-            given = ids(ids ~= "");
+            auto = [F.autoId];
+            given = ids(ids ~= "" & ~auto);
             [~, first] = unique(given, 'stable');
             dup = given(setdiff(1:numel(given), first));
             if ~isempty(dup)
                 error('EphysAnalysisConfig:DuplicateFigureId', 'Figure id "%s" is used more than once.', dup(1));
             end
-            for k = find(ids == "")
+            for k = find(ids == "" & ~auto)
                 F(k).id = EphysAnalysisConfig.freeId("figure", [F.id]);
+            end
+            if ~any(auto); return; end
+            key = @(s) lower(regexprep(s, '[^\w\-\.]', '_'));   % the id as {Plot} writes it, case-blind
+            used = key([strings(1, 0) F(~auto).id]);
+            base = strings(1, numel(F));
+            keep = false(1, numel(F));
+            for k = find(auto)   % the ids that still fit their content stay, first come first
+                base(k) = EphysAnalysisConfig.autoFigureId(F(k));
+                cur = F(k).id;
+                fits = cur == base(k) || (startsWith(cur, base(k) + " (") ...
+                    && ~isempty(regexp(extractAfter(cur, strlength(base(k))), '^ \([2-9]\d*\)$|^ \(1\d+\)$', 'once')));
+                if fits && ~ismember(key(cur), used)
+                    keep(k) = true;
+                    used(end+1) = key(cur); %#ok<AGROW>
+                end
+            end
+            for k = find(auto & ~keep)
+                F(k).id = EphysAnalysisConfig.nextFreeId(base(k), used);
+                used(end+1) = key(F(k).id); %#ok<AGROW>
             end
         end
 
@@ -440,7 +516,8 @@ classdef EphysAnalysisConfig
             %   probe map or correlation map. An events layer is "point" in
             %   every panel that shares the time axis (raster, psth,
             %   continuous, heatmap, spectrogram: marks or latency lines), whatever its
-            %   categories, and "" elsewhere.
+            %   categories, and "" elsewhere. An event-trace panel draws
+            %   events layers only: any other source is "" there.
             cat = "";
             T = EphysAnalysisConfig.panelTypes();
             row = T.Type == string(type);
@@ -449,6 +526,7 @@ classdef EphysAnalysisConfig
                 if T.SharesTime(row); cat = "point"; end
                 return
             end
+            if string(type) == "eventTrace"; return; end
             S = EphysAnalysisConfig.sourceCategories();
             for c = T.Categories{row}
                 if ismember(string(source), S.Sources{S.Category == c})
@@ -460,13 +538,28 @@ classdef EphysAnalysisConfig
 
         function kind = observeKind(fig)
             %observeKind  What a figure is drawn for: "unit", "channel" or "dataset".
-            %   KIND = EphysAnalysisConfig.observeKind(FIG) is
-            %   FIG.observe.kind unless it is "auto"; "auto" is "unit" when
-            %   any enabled layer following the observation reads spikes
-            %   (units / detected), else "channel" when one reads a signal
-            %   (LFP / MUA / SPIKE / AUX), else "dataset".
-            kind = fig.observe.kind;
-            if kind ~= "auto"; return; end
+            %   KIND = EphysAnalysisConfig.observeKind(FIG) follows
+            %   FIG.observe.data: "unit" for units or detected (a sorted
+            %   unit, or a channel's detections), "channel" for a signal
+            %   (LFP / MUA / SPIKE / AUX), "dataset" for the dataset (and
+            %   for a value that is none of ObserveData: validate says so).
+            d = fig.observe.data;
+            if ismember(d, EphysAnalysisConfig.SpikeSources)
+                kind = "unit";
+            elseif ismember(d, EphysAnalysisConfig.SignalSources)
+                kind = "channel";
+            else
+                kind = "dataset";
+            end
+        end
+
+        function d = followedData(fig)
+            %followedData  The data a figure's following layers read: what addFigure observes when not told.
+            %   D = EphysAnalysisConfig.followedData(FIG) is "units" when an
+            %   enabled layer following the observation reads sorted units,
+            %   else "detected" when one reads detections, else the signal
+            %   of the first one that reads a signal (LFP / MUA / SPIKE /
+            %   AUX), else "dataset" (no layer follows).
             srcs = strings(1, 0);
             for k = 1:numel(fig.panels)
                 L = fig.panels(k).layers;
@@ -474,12 +567,15 @@ classdef EphysAnalysisConfig
                 on = [L.enabled] & [L.binding] == "observation";
                 srcs = [srcs, L(on).source]; %#ok<AGROW>
             end
-            if any(ismember(srcs, EphysAnalysisConfig.SpikeSources))
-                kind = "unit";
-            elseif any(ismember(srcs, EphysAnalysisConfig.SignalSources))
-                kind = "channel";
+            sig = srcs(ismember(srcs, EphysAnalysisConfig.SignalSources));
+            if any(srcs == "units")
+                d = "units";
+            elseif any(srcs == "detected")
+                d = "detected";
+            elseif ~isempty(sig)
+                d = sig(1);
             else
-                kind = "dataset";
+                d = "dataset";
             end
         end
 
@@ -488,7 +584,8 @@ classdef EphysAnalysisConfig
             %   L = EphysAnalysisConfig.defaultLayer(TYPE) is defaults("Layer")
             %   with the first source of the type's first category (units
             %   for raster / psth / heatmap / waveforms / probemap /
-            %   corrmap, LFP for continuous) and the
+            %   corrmap, LFP for continuous; an events layer, fixed, for
+            %   eventTrace) and the
             %   type's DefaultBinding, so a new panel draws at once.
             %   Error: EphysAnalysisConfig:BadValue (an unknown type).
             T = EphysAnalysisConfig.panelTypes();
@@ -501,47 +598,31 @@ classdef EphysAnalysisConfig
             srcs = S.Sources{S.Category == cats(1)};
             L = EphysAnalysisConfig.defaults("Layer");
             L.source = srcs(1);
+            if string(type) == "eventTrace"; L.source = "events"; end   % its only source
             L.binding = T.DefaultBinding(row);
         end
 
-        function f = commonFields()
-            %commonFields  The fields of a figure's common options (defaults("FigureCommon")), in order.
-            f = ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform"];
-        end
-
-        function f = commonFieldsOf(type)
-            %commonFieldsOf  The common fields a panel type has among its options (a string row; none for an unknown type).
-            %   raster: maskAfterStop, waveform; psth: bins, measure,
-            %   baseline, auroc, maskAfterStop, waveform; continuous:
-            %   baseline; heatmap: bins, measure, baseline, auroc,
-            %   maskAfterStop; waveforms: waveform; corrmap: bins,
-            %   baseline; rate: measure, baseline; tuning: measure,
-            %   baseline, waveform; probemap: none. The spectral types
+        function f = sharedFieldsOf(type)
+            %sharedFieldsOf  The options a panel type shares with other types (a string row; none for an unknown type).
+            %   Among bins, measure, baseline, auroc, maskAfterStop and
+            %   waveform, in that order, those the type's options have, the
+            %   rows adoptPanelOptions (Apply to all panels) copies across
+            %   types: raster: maskAfterStop, waveform; psth: bins,
+            %   measure, baseline, auroc, maskAfterStop, waveform;
+            %   continuous: baseline; heatmap: bins, measure, baseline,
+            %   auroc, maskAfterStop; corrmap: bins, baseline; rate:
+            %   measure, baseline; tuning: measure, baseline, waveform;
+            %   waveforms and probemap: none (a waveforms panel's waveform
+            %   is its own settings, not an inset). The spectral types
             %   (spectrum, spectrogram, coherence): none (a spectrogram's
-            %   baseline is chronuxNormalize's, not the figure's).
+            %   baseline is chronuxNormalize's).
             f = string.empty(1, 0);
             T = EphysAnalysisConfig.panelTypes();
             row = T.Type == string(type);
             if ~any(row) || ismember(string(type), ["spectrum" "spectrogram" "coherence"]); return; end
-            names = EphysAnalysisConfig.commonFields();
+            names = ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform"];
+            if string(type) == "waveforms"; names(end) = []; end
             f = names(isfield(T.DefaultOptions{row}, cellstr(names)));
-        end
-
-        function op = panelOptions(fig, panel)
-            %panelOptions  A panel's options as drawn: the figure's common values where the panel is linked.
-            %   OP = EphysAnalysisConfig.panelOptions(FIG, PANEL) is
-            %   PANEL.options with, when PANEL.common is true, each field of
-            %   commonFieldsOf(PANEL.type) taken from FIG.common. A
-            %   waveforms panel never draws mode "off": a common waveform
-            %   mode "off" (the insets' default) is "both" there.
-            op = panel.options;
-            if ~panel.common; return; end
-            for f = EphysAnalysisConfig.commonFieldsOf(panel.type)
-                op.(f) = fig.common.(f);
-            end
-            if panel.type == "waveforms" && op.waveform.mode == "off"
-                op.waveform.mode = "both";
-            end
         end
     end
 
@@ -556,6 +637,28 @@ classdef EphysAnalysisConfig
                 n = n + 1;
             end
             id = kind + "_" + n;
+        end
+
+        function id = nextFreeId(base, used, opts)
+            %nextFreeId  BASE, or "BASE (n)" with the smallest free n >= 2: a figure id that names other files than USED.
+            %   ID = EphysAnalysisConfig.nextFreeId(BASE, USED) compares
+            %   the ids as {Plot} writes them (every character outside
+            %   A-Z a-z 0-9 _ - . as "_"), case-blind, as validate does.
+            %   Suffix=true always adds " (n)" (duplicateFigure).
+            arguments
+                base (1,1) string
+                used string = string.empty(1, 0)
+                opts.Suffix (1,1) logical = false
+            end
+            key = @(s) lower(regexprep(s, '[^\w\-\.]', '_'));
+            used = key(reshape(used, 1, []));
+            id = base;
+            if ~opts.Suffix && ~ismember(key(id), used); return; end
+            n = 2;
+            while ismember(key(base + " (" + n + ")"), used)
+                n = n + 1;
+            end
+            id = base + " (" + n + ")";
         end
     end
 end

@@ -29,9 +29,6 @@ end
 obj.ActiveIdx = 0;
 obj.FigurePreviewResult = [];
 obj.FigureSessionResults = [];   % a session figure's last preview was drawn on the old runner's datasets
-obj.ChronuxResult = [];
-obj.ChronuxIndex = [];
-obj.ChronuxFile = "";
 obj.refreshDatasetsTable();
 names = r.Names;
 if n == 0
@@ -39,7 +36,8 @@ if n == 0
 else
     items = names; data = 1:n;
 end
-set([obj.AlignDatasetDropDown obj.FiguresDatasetDropDown obj.ChronuxDatasetDropDown], 'Items', items, 'ItemsData', data);
+set([obj.AlignDatasetDropDown obj.FiguresDatasetDropDown], 'Items', items, 'ItemsData', data);
+refreshDatasetLabels(obj);   % with what each holds of spikes (the units counted when a dataset was opened)
 obj.ScanLabel.Text = sprintf("%d dataset(s) found (%s).", n, ternary(cfg.Source.Mode == "project", ...
     "project " + cfg.Source.Root, "output folders"));
 obj.log("Scan: " + obj.ScanLabel.Text);

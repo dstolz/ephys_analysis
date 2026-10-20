@@ -31,15 +31,20 @@ classdef EphysAnalysisApp < handle
     %                grid, designed for ONE observation (a sorted unit, a
     %                channel or the dataset) at a time; a tree of figures
     %                under groups (what they observe, enabled / off, none),
-    %                each with a check box that enables it (add from a
-    %                template, remove, duplicate, reorder within a group) and an
-    %                editor in collapsible sections: the observations (the
-    %                unit filter), the arrangement (a schematic of the grid:
+    %                each with a check box that enables it (add a blank
+    %                figure, remove, duplicate as "<id> (2)", reorder within
+    %                a group); its id follows its panels and data
+    %                ("Raster+PSTH units") until one is typed; and an
+    %                editor in collapsible sections under three collapsible
+    %                supersections (Figure, Panel, Look), with a search
+    %                field that finds a setting by name: the observations (the
+    %                unit filter), the panels (a schematic of the grid:
     %                drag a panel to an empty cell or beside another one;
-    %                Add panel above / below / left / right of the selected
-    %                one, spans, relative row heights and column widths,
-    %                spacing, Remove, Move), the panel (type, title, group
-    %                shown), the figure's event reference, epoch window and
+    %                New panel... (a window: the type, each shown as a small
+    %                plot, its name, place and key parameters: onNewPanel),
+    %                spans, relative row heights and column widths,
+    %                spacing, Remove, Move), the selected panel (type, title,
+    %                box, group shown), the figure's event reference, epoch window and
     %                trial selection ("Use default" for the Alignment tab's),
     %                the panel's own event and window ("Same as the figure"),
     %                its layers (each follows the observation or is fixed),
@@ -66,15 +71,6 @@ classdef EphysAnalysisApp < handle
     %     Export     figure formats, folder and file-name pattern, the report
     %                (HTML / PDF), Validate, Plan, Run over the ticked
     %                datasets (cancelable), results, open the report / folder
-    %     Chronux    Chronux analyses of the active dataset (buildChronuxTab):
-    %                its <Name>_chronux.mat (found in its output folder or
-    %                the local cache, or created from its extract, units and
-    %                detections: onCreateChronuxExport), the signal and
-    %                channels, the analysis (power spectrum, spectrogram)
-    %                over epochs around the Alignment tab's event or over
-    %                segments of a stretch, its tapers, frequencies, error
-    %                bars, moving window, baseline and display; Compute
-    %                (cancelable), Save figure, Save results
     %     Log        what the runner reported
     %
     %   File menu: New / Open / Open recent / Save / Save As / Generate
@@ -90,23 +86,26 @@ classdef EphysAnalysisApp < handle
     %   Preview; Validate, Plan, Run, Cancel; Open report, Open figure
     %   folder; Open pipeline app; Help for this tab.
     %
-    %   Keys (onKeyPress), on the Figures tab: Ctrl+1 to Ctrl+9 and Ctrl+0
-    %   (Cmd on a Mac) go to the figure editor's sections
-    %   (gotoFigureSection); each header names its key and has a color of
-    %   its own. Page Up and Page Down step to the previous and next
-    %   observation (onFigureObservationStep). Escape cancels a panel drag.
+    %   Keys (onKeyPress), on the Figures tab: Alt+1, Alt+2 and Alt+3 go to
+    %   the figure editor's supersections, Figure, Panel and Look
+    %   (gotoFigureSuper); Ctrl+1 to Ctrl+9 and Ctrl+0 (Cmd on a Mac) to its
+    %   sections (gotoFigureSection); each header names its key. Ctrl+F
+    %   goes to the search field (onFigureSearch, gotoFigureRow), F6 and
+    %   Shift+F6 to the next and previous column (focusFigurePane), Ctrl+]
+    %   and Ctrl+[ to the next and previous panel, Ctrl+Alt+arrows to the
+    %   panel above, below, left or right (stepFigurePanel; the preview
+    %   outlines it: markFigurePanel). Page Up and Page Down step to the
+    %   previous and next observation (onFigureObservationStep). Escape
+    %   cancels a panel drag. The "?" button lists them all (onFigureKeys).
     %
     %   Preferences (getpref group 'EphysAnalysisApp'): FigurePosition,
     %   LastConfigFile, RecentConfigs, ScriptFolder,
     %   PreviewMaxMB (signal previews of larger extracts wait for the Preview
     %   button), FigureAutoPreview (the Figures tab's Auto, on by default:
-    %   one observation is quick), FigureSectionsCollapsed (its editor's
-    %   collapsed sections), FigureGroupBy and FigureGroupsCollapsed (how
-    %   its figure tree groups, and its collapsed groups),
-    %   ChronuxCacheFolder (the local folder for
-    %   Chronux files of datasets whose output folder cannot be written),
-    %   ChronuxMaxMB (the most signal the Chronux tab reads at once),
-    %   ChronuxSettings (its last settings) and ChronuxSectionsCollapsed.
+    %   one observation is quick), FigureSectionsCollapsed and
+    %   FigureSupersectionsCollapsed (its editor's collapsed sections and
+    %   supersections), FigureGroupBy and FigureGroupsCollapsed (how
+    %   its figure tree groups, and its collapsed groups).
     %
     %   Usage
     %     EphysAnalysisApp                      % the last config, or defaults
@@ -127,7 +126,6 @@ classdef EphysAnalysisApp < handle
         TabAlign   matlab.ui.container.Tab
         TabFigures matlab.ui.container.Tab
         TabExport  matlab.ui.container.Tab
-        TabChronux matlab.ui.container.Tab
         TabLog     matlab.ui.container.Tab
         FileMenu   matlab.ui.container.Menu
         RecentMenu matlab.ui.container.Menu
@@ -178,7 +176,6 @@ classdef EphysAnalysisApp < handle
         % --- Figures tab (buildFiguresTab) ---
         FiguresTree            matlab.ui.container.Tree         % the figures under groups (figureGroups); a figure's node holds its index in NodeData
         FigureGroupDropDown    matlab.ui.control.DropDown       % how the tree groups: what it observes, status, none
-        FigureTemplateDropDown matlab.ui.control.DropDown       % the template a new figure starts from (figureTemplates)
         AddFigureButton        matlab.ui.control.Button
         RemoveFigureButton     matlab.ui.control.Button
         DuplicateFigureButton  matlab.ui.control.Button
@@ -188,6 +185,10 @@ classdef EphysAnalysisApp < handle
         FigureEditorPanel      matlab.ui.container.Panel        % the editor's panel (its title names the figure)
         FigureEditorGrid       matlab.ui.container.GridLayout   % the editor's column of sections
         FigureSections struct = struct([])       % the editor's sections (formSection), top to bottom
+        FigureSupers struct = struct([])         % the editor's supersections: Name, Title, Sections, Header, Expanded, Key
+        FigureSearchField      matlab.ui.control.EditField      % Find a setting (Ctrl+F): over every row's label (onFigureSearch)
+        FigureSearchList       matlab.ui.control.ListBox        % its matches, "Supersection > Section > Row"; ItemsData = index rows
+        FigureKeysButton       matlab.ui.control.Button         % "?": the Figures tab's keys (onFigureKeys)
         FigureEditor struct = struct()           % figure-editor controls by field
         FigureAlignControls struct = struct()    % the figure's event / window / selection (buildAlignControls)
         PanelAlignControls struct = struct()     % the selected panel's own event / window (buildAlignControls; its selection hidden)
@@ -198,6 +199,8 @@ classdef EphysAnalysisApp < handle
         FigureObsNextButton    matlab.ui.control.Button
         FigurePreviewButton    matlab.ui.control.Button
         FigureGenerateButton   matlab.ui.control.Button         % Generate: the figure for every observation on the ticked datasets (onGenerateFigure)
+        FigureOpenButton       matlab.ui.control.Button         % Open in window: the figure as previewed in a figure() of its own (onOpenFigureWindow)
+        FigureCodeButton       matlab.ui.control.Button         % Export code: the code that draws the preview, in the editor (onFigureCode)
         FigureAutoCheckBox     matlab.ui.control.CheckBox       % auto-preview (pref FigureAutoPreview, on by default)
         DesignDropDown         matlab.ui.control.DropDown       % the design every figure is drawn in (PlotDesign; also the Design menu)
         SaveDesignButton       matlab.ui.control.Button         % Save look as design...: the figure preview's look (onSaveDesign)
@@ -220,27 +223,6 @@ classdef EphysAnalysisApp < handle
         ResultsTable       matlab.ui.control.Table
         RunLabel           matlab.ui.control.Label
 
-        % --- Chronux tab (buildChronuxTab) ---
-        ChronuxDatasetDropDown  matlab.ui.control.DropDown
-        ChronuxFileLabel        matlab.ui.control.Label     % where the Chronux file is, what it holds (refreshChronuxTab)
-        ChronuxCreateButton     matlab.ui.control.Button    % Create / Recreate (onCreateChronuxExport)
-        ChronuxOpenFolderButton matlab.ui.control.Button
-        ChronuxCacheLabel       matlab.ui.control.Label
-        ChronuxCacheButton      matlab.ui.control.Button
-        ChronuxControls struct = struct()        % the tab's settings controls by field
-        ChronuxSections struct = struct([])      % its sections (formSection), top to bottom
-        ChronuxEditorGrid       matlab.ui.container.GridLayout
-        ChronuxComputeButton    matlab.ui.control.Button
-        ChronuxCancelButton     matlab.ui.control.Button
-        ChronuxSaveFigureButton matlab.ui.control.Button
-        ChronuxSaveResultsButton matlab.ui.control.Button
-        ChronuxPrevPageButton   matlab.ui.control.Button
-        ChronuxNextPageButton   matlab.ui.control.Button
-        ChronuxPageLabel        matlab.ui.control.Label
-        ChronuxPanel            matlab.ui.container.Panel   % renderChronux draws here
-        ChronuxBadge struct = struct()           % the plot's state badge: Grid, Icon, Text (setChronuxState)
-        ChronuxStatusLabel      matlab.ui.control.Label
-
         % --- Log tab ---
         LogArea            matlab.ui.control.TextArea
     end
@@ -258,6 +240,7 @@ classdef EphysAnalysisApp < handle
         ActiveIdx (1,1) double = 0          % the active dataset (index into Runner.Outputs)
         Ticked (1,:) logical = logical.empty(1, 0)   % datasets ticked to run
         DatasetsSort (1,1) struct = TableSort.none()   % the datasets table's header click (a TableSort state), kept as it is filled again
+        DatasetUnitCounts = []              % sorted units per dataset, counted when it is opened: containers.Map, "<key>|<sort folder>" -> n (refreshDatasetLabels)
         EpochDiagramWindow = []             % the EpochDiagram window, while open (onShowEpochs)
         EpochDiagramFor (1,1) string = "figure"   % what it draws: "figure" (the Figures tab's editor) | "defaults" (the Alignment tab's)
         Running (1,1) logical = false
@@ -269,27 +252,25 @@ classdef EphysAnalysisApp < handle
         SelectedLayer (1,1) double = 0      % that panel's layer in the editor (index into its layers; 0 = none)
         FigureObservations = []             % the picker's observations: figureObservations' table on the active dataset
         FigureObservation = []              % the observation each figure last showed: containers.Map, figure id -> its label
+        FigureIdRenames = []                % figures renamed (an automatic id that followed an edit): containers.Map, old id -> new (trackFigureIds)
         FigurePreviewResult = []            % the last figure preview's result (computeFigure's F)
         FigurePreviewSeconds (1,1) double = 0   % time the last figure preview took (auto-preview under AutoPreviewSeconds)
         FigurePreviewWarm (1,1) logical = false % a figure was drawn already: the first one's time (graphics loading) is not counted
         FigureAutoPreviewSeconds (1,1) double = 2   % edits redraw the figure preview while the last one took under this (AutoPreviewSeconds; tests raise it)
         FigurePreviewState (1,1) string = "idle"   % what the figure preview's badge says (setFigurePreviewState)
         FigurePreviewRedo (1,1) logical = false    % an edit or a Preview press came in while one computed: it ends Out of date
-        FigureAddType (1,1) string = "continuous"  % the panel type Add panel adds (the Arrangement's drop-down)
         FigureAddSource (1,1) string = "units"     % the source Add layer adds, when the panel's type draws it
         FigureSessionResults = []           % a session figure's last preview: struct(res (figureSessionCompute's RES), spec, what, label, seconds)
         FigureGroupsCollapsed (1,:) string = string.empty(1,0)   % keys of the figure tree's groups the user collapsed
         FigureDrag = []                     % a panel dragged in the schematic (onSchematicPress): its state, else []
+        FigureSearchIndex struct = struct([])   % the editor's searchable rows, as built (figureSearchIndex)
+        FigureSearchState (1,1) string = ""     % "typing" (the search field), "list" (its matches), "" (Enter, arrows and Escape are left alone)
+        FigureFlash = []                    % the row gotoFigureRow highlights: struct(handles, saved, timer), else []
+        FigurePanelMark = []                % the preview's outline of the selected panel (markFigurePanel): four strips, else []
+        FigurePanelMarkAxes = []            % the preview's axes its listeners follow (re-laid out on a resize)
+        FigurePanelMarkListeners = []       % those listeners (Position PostSet)
+        FigureFocusPane (1,1) double = 0    % the column F6 last went to: 1 the figure list, 2 the editor, 3 the preview
 
-        ChronuxIndex = []                  % loadChronuxExport's index of ChronuxFile
-        ChronuxFile (1,1) string = ""       % the active dataset's Chronux file ("" = none)
-        ChronuxFileWhere (1,1) string = ""  % "output" (its output folder) | "cache" (the local cache)
-        ChronuxResult = []                  % the last Chronux analysis (chronuxSpectrum, chronuxSpecgram)
-        ChronuxState (1,1) string = "idle"  % what the Chronux badge says (setChronuxState)
-        ChronuxPage (1,1) double = 1
-        ChronuxCancelRequested (1,1) logical = false
-        ChronuxCacheFolder (1,1) string = ""   % where Chronux files go when an output folder cannot be written
-        ChronuxMaxMB (1,1) double = 2000    % the most signal the Chronux tab reads at once (and a spectrogram's size)
     end
 
     properties (Constant)
@@ -416,12 +397,21 @@ classdef EphysAnalysisApp < handle
         layoutFigureEditor(obj)
         onFigureSectionToggled(obj, name)
         gotoFigureSection(obj, name)
+        onFigureSuperToggled(obj, name)
+        gotoFigureSuper(obj, name)
+        onFigureSearch(obj, text)
+        ok = gotoFigureRow(obj, i, opts)
+        ok = gotoFigureSetting(obj, id, role, panel)
+        stepFigurePanel(obj, how)
+        markFigurePanel(obj)
+        focusFigurePane(obj, step)
+        w = onFigureKeys(obj)
         onFigureAlignEdited(obj, part)
         onFigureDefaultToggled(obj)
         onPanelAlignEdited(obj, part)
         onPanelDefaultToggled(obj)
         onPanelSelected(obj, k)
-        onAddPanel(obj, where)
+        onNewPanel(obj, opts)
         onRemovePanel(obj)
         onMovePanel(obj, direction)
         onPanelTypeChanged(obj)
@@ -438,6 +428,8 @@ classdef EphysAnalysisApp < handle
         onFigureAutoPreviewToggled(obj)
         onCancelFigurePreview(obj)
         R = onGenerateFigure(obj, opts)
+        h = onOpenFigureWindow(obj)
+        txt = onFigureCode(obj, file)
         setFigurePreviewState(obj, state, opts)
         rememberFigureAesthetics(obj, id, rules)
         onPickFigureDatasets(obj, opts)
@@ -456,25 +448,6 @@ classdef EphysAnalysisApp < handle
         onSchematicPress(obj, q, evt)
         cancelSchematicDrag(obj, msg)
         p = schematicPixel(obj, xy)
-
-        % --- Chronux tab ---
-        buildChronuxTab(obj)
-        refreshChronuxTab(obj)
-        syncChronuxControls(obj)
-        S = gatherChronuxSettings(obj)
-        applyChronuxSettings(obj, S)
-        onChronuxEdited(obj, what)
-        onChronuxSectionToggled(obj, name)
-        R = onChronuxCompute(obj)
-        onCancelChronux(obj)
-        chronuxCheck(obj)
-        drawChronux(obj)
-        setChronuxState(obj, state, opts)
-        out = onCreateChronuxExport(obj, opts)
-        onChronuxCacheFolder(obj, folder)
-        file = onSaveChronuxFigure(obj, file)
-        file = onSaveChronuxResults(obj, file)
-        [file, where] = chronuxFileFor(obj, k)
 
         % --- app-wide ---
         loadPreferences(obj, openLast)

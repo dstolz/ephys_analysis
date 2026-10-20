@@ -2,9 +2,12 @@ function refreshFigureObservations(obj, opts)
 %refreshFigureObservations  List the selected figure's observations on the active dataset in the picker.
 %   FigureObservations becomes figureObservations(src, spec) (the units the
 %   Observations section keeps, the channels, or the dataset, in probe
-%   order) and the picker (FigureObservationDropDown) lists their labels.
-%   The figure's pick is kept by its label (FigureObservation: figure id
-%   -> label), so it survives a filter change or another dataset while that
+%   order) and the picker (FigureObservationDropDown) lists their labels,
+%   a sorted unit's ending in its number of spikes ("  (5,210 spikes)")
+%   and a detection channel's in its number of detections (from the
+%   unit's selectUnits row: nothing more is read). The figure's pick is
+%   kept by its label without the count (FigureObservation: figure id ->
+%   label), so it survives a filter change or another dataset while that
 %   label is still there; else the first is picked. The list is made again
 %   only when what it depends on changed -- the observe block and what it
 %   resolves to, the figure's event and selection (the response test; with
@@ -62,9 +65,9 @@ kind = spec.observe.kind;
 switch kind
     case "unit"
         what = "unit";
-        if spec.observe.source == "detected"; what = "detection channel"; end
+        if spec.observe.data == "detected"; what = "detection channel"; end
     case "channel"
-        what = spec.observe.signal + " channel";
+        what = spec.observe.data + " channel";
     otherwise
         what = "dataset";
 end
@@ -94,8 +97,27 @@ if isKey(obj.FigureObservation, id)
 end
 obj.FigureObservation(id) = labels(i);
 dd.ItemsData = [];
-set(dd, "Items", labels, "ItemsData", 1:n, "Value", i);
+set(dd, "Items", labels + spikeCounts(T, spec.observe.data), "ItemsData", 1:n, "Value", i);
 syncSteps(obj);
+end
+
+
+function s = spikeCounts(T, data)
+%spikeCounts  What each observation's label ends in: "  (5,210 spikes)" for a sorted unit, detections for a channel's.
+%   From the unit's selectUnits row (its nSpikes); "" for a channel, the
+%   dataset, or a unit whose count is not known.
+s = strings(1, height(T));
+if ~ismember(data, EphysAnalysisConfig.SpikeSources); return; end
+word = "spike";
+if data == "detected"; word = "detection"; end
+for k = 1:height(T)
+    m = T.meta{k};
+    if ~(istable(m) && ismember("nSpikes", string(m.Properties.VariableNames))); continue; end
+    n = double(m.nSpikes(1));
+    if ~isfinite(n); continue; end
+    txt = regexprep(sprintf('%d', round(n)), '(\d)(?=(\d{3})+$)', '$1,');   % thousands separated
+    s(k) = "  (" + txt + " " + word + repmat('s', 1, n ~= 1) + ")";
+end
 end
 
 
@@ -140,7 +162,7 @@ switch spec.observe.kind
         what = "site";
         if spec.sessions.match == "mapping"; what = "cell"; end
     case "channel"
-        what = spec.observe.signal + " channel";
+        what = spec.observe.data + " channel";
     otherwise
         what = "dataset";
 end

@@ -4,8 +4,11 @@ function T = panelTypes()
 %   panels of a figure (the Figures section):
 %     Type            "raster" | "psth" | "continuous" | "heatmap" |
 %                     "waveforms" | "probemap" | "corrmap" | "rate" |
-%                     "tuning" | "spectrum" | "spectrogram" | "coherence"
+%                     "tuning" | "spectrum" | "spectrogram" | "coherence" |
+%                     "eventTrace"
 %     Label           name shown in the app
+%     Short           one word: the type's part of an automatic figure id
+%                     (autoFigureId: "Raster+PSTH units")
 %     Categories      the source categories its layers draw
 %                     (sourceCategories: point, continuous, unit)
 %     Aligned         true when it is cut into epochs around events (its
@@ -52,8 +55,8 @@ function T = panelTypes()
 %   The spectral types draw Chronux analyses (Chronux must be on the
 %   MATLAB path: toolboxes/chronux; without it they are skipped with
 %   "Chronux is not on the path"). Their options are chronuxSettings'
-%   (figureChronuxSettings builds the settings from them; none is a common
-%   field). A "spectrum" panel draws each layer's power spectra
+%   (figureChronuxSettings builds the settings from them; none is a shared
+%   option, sharedFieldsOf). A "spectrum" panel draws each layer's power spectra
 %   (chronuxSpectrum of a signal's channels, chronuxSpikeSpectrum of spike
 %   trains), the groups overlaid. A "spectrogram" draws one channel's power
 %   over time and frequency (chronuxSpecgram) for one trial group, on the
@@ -68,6 +71,15 @@ function T = panelTypes()
 %   phase under the magnitude. Spectrum and coherence take timeBase "range":
 %   segments of the whole recording clear of its artifact periods, not
 %   the figure's epochs.
+%   An "eventTrace" panel draws digital or derived lines as a logic
+%   analyzer does, on the figure's time axis: each events layer (one line)
+%   a row of its own, its intervals from onset to offset, clipped at the
+%   window's edges, as solid bars or a logic-level trace (display "bars" |
+%   "line"); every epoch overlaid in the row, translucent (trials
+%   "overlay"), or a sub-row per epoch in the raster's group order (trials
+%   "rows"); colored per line (colorBy "layer": the layer's color, else a
+%   palette color) or by trial group; with a baseline per row. It takes
+%   events layers only (categoryOf) and their eventsAs is not used.
 %
 %   See also EphysAnalysisConfig.sourceCategories, EphysAnalysisConfig.categoryOf,
 %   EphysAnalysisConfig.defaultLayer.
@@ -86,6 +98,9 @@ opts.raster = struct( ...
     'rasterSortOrder', "ascending", ... % "ascending" | "descending" (missing values last)
     'rasterByGroup',   true, ...        % rows by group first, on bands (false: one block)
     'maskAfterStop',   false, ...       % drop the ticks after each epoch's stop event
+    'tickColor',       "", ...          % the ticks' color: "" (black) | a color name or hex code
+    'backColor',       "", ...          % the rows' background: "" (each group's pale band) | a color name or hex code (every band)
+    'yTicks',         false, ...       % show the y axis' tick marks and labels (the epoch numbers; a further block's name stays)
     'waveform',        waveform);       % the unit's waveform inset
 opts.psth = struct( ...
     'bins',          bins, ...
@@ -96,7 +111,7 @@ opts.psth = struct( ...
     'fill',          true, ...          % filled bars / area under the line
     'fillAlpha',     NaN, ...           % fill opacity 0-1 (NaN: 0.5 where groups overlap, else 1)
     'normalize',     "none", ...        % "none" | "unitPeak" | "groupPeak" | "allPeak"
-    'stack',         false, ...         % one row per trial group, stacked upwards, instead of overlaid
+    'stack',         false, ...         % one row per trial group, the first on top, instead of overlaid
     'stackSpacing',  1.1, ...           % stack: the row step, x the tallest PSTH (< 1 overlaps)
     'maskAfterStop', false, ...
     'yLim',          [], ...            % [] = automatic, else [lo hi]
@@ -152,7 +167,7 @@ opts.tuning = struct( ...
     'baseline',    baseline, ...        % Mode "none" | "subtract" | "ratio" | "zscore"
     'yLim',        [], ...
     'waveform',    waveform);           % the unit's waveform inset
-% the Chronux spectral types (chronuxSettings' fields and defaults; none is a common field)
+% the Chronux spectral types (chronuxSettings' fields and defaults; none is a shared option)
 opts.spectrum = struct( ...
     'timeBase',   "aligned", ...        % "aligned" (the panel's epochs) | "range" (segments of the recording, clear of artifact periods)
     'range',      [0 Inf], ...          % range: [from to] s on the continuous clock (to Inf = the end)
@@ -205,37 +220,55 @@ opts.coherence = struct( ...
     'yLim',       [], ...               % [] = [0 1]
     'cLim',       [], ...               % over time: [] = [0 1]
     'group',      1);                   % over time: the trial group drawn
+opts.eventTrace = struct( ...
+    'display',       "bars", ...        % "bars" (solid, onset to offset) | "line" (a logic level: low, up at onset, down at offset)
+    'trials',        "overlay", ...     % "overlay" (every epoch in the line's row, translucent) | "rows" (a sub-row per epoch, by group)
+    'colorBy',       "layer", ...       % "layer" (the layer's color, else a palette color per line) | "group" (the trial group's)
+    'height',        0.6, ...           % the bar's / level's height, a share of the row (rows: of the epoch's sub-row)
+    'alpha',         NaN, ...           % bars' and traces' opacity 0-1 (NaN: 0.3 overlaid, 1 in rows)
+    'edgeColor',     "none", ...        % the bars' outline: "none" | "auto" (the bar's color) | a color
+    'edgeWidth',     0.5, ...           % the outline's width, points
+    'lineWidth',     1.5, ...           % display "line": the trace's width, points
+    'lineStyle',     "-", ...           % display "line": the trace's style (a layer's own lineStyle wins)
+    'showBaseline',  true, ...          % a line along each row: through the bars' middle, or at the trace's low level
+    'baselineColor', "", ...            % "" = gray; or a color
+    'baselineStyle', ":", ...           % "-" | "--" | ":" | "-."
+    'baselineWidth', 0.5, ...           % points
+    'rowSpacing',    1.25, ...          % the step between the lines' rows, in row heights (1: the rows touch)
+    'groupBands',    true);             % trials "rows": a pale band of each trial group's color behind its sub-rows
 
-%   Type         Label                Categories               Aligned SharesTime OneGroup MultiLayer DefaultBinding  Description
+%   Type        Label                Short          Categories               Aligned SharesTime OneGroup MultiLayer DefaultBinding  Description
 rows = {
-    "raster",     "Raster",            "point",                 true,   true,      false,   true,      "observation",  "Spike rasters: a row per epoch, by group; events as marks on the rows or as rows of their own"
-    "psth",       "PSTH",              "point",                 true,   true,      false,   true,      "observation",  "Peri-event firing rate, groups overlaid; events as latency lines or as a PSTH of their own"
-    "continuous", "Continuous signal", "continuous",            true,   true,      false,   true,      "observation",  "The epochs' mean of LFP / MUA / SPIKE / AUX channels, with an error band"
-    "heatmap",    "Heat map",          ["point" "continuous"],  true,   true,      true,    false,     "fixed",        "Units or channels by time in color, one trial group"
-    "waveforms",  "Unit waveforms",    "unit",                  false,  false,     false,   false,     "observation",  "A unit's mean waveform and a sample of its spikes"
-    "probemap",   "Probe map",         "unit",                  false,  false,     false,   false,     "fixed",        "A per-channel value (rate, spikes, units) drawn on the probe sites"
-    "corrmap",    "Unit correlation",  "unit",                  true,   false,     true,    false,     "fixed",        "Pairwise correlation of the units' per-epoch rates, one trial group"
-    "rate",       "Firing rate",       "point",                 true,   false,     false,   true,      "observation",  "Each epoch window's firing rate per trial group: bars, boxes or points"
-    "tuning",     "Tuning curve",      "point",                 true,   false,     false,   true,      "observation",  "Firing rate against a trial parameter, one curve per series"
-    "spectrum",   "Power spectrum",    ["point" "continuous"],  true,   false,     false,   true,      "observation",  "Multitaper power spectra (Chronux) of channels or spike trains over the epochs, groups overlaid"
-    "spectrogram", "Spectrogram",      "continuous",            true,   true,      true,    false,     "observation",  "A channel's multitaper power over time from the event and frequency (Chronux), one trial group"
-    "coherence",  "Coherence",         ["point" "continuous"],  true,   false,     false,   true,      "observation",  "Multitaper coherence (Chronux) of a seed layer with a partner layer: field-field, spike-field or unit-unit"
+    "raster",     "Raster",            "Raster",      "point",                 true,   true,      false,   true,      "observation",  "Spike rasters: a row per epoch, by group; events as marks on the rows or as rows of their own"
+    "psth",       "PSTH",              "PSTH",        "point",                 true,   true,      false,   true,      "observation",  "Peri-event firing rate, groups overlaid; events as latency lines or as a PSTH of their own"
+    "continuous", "Continuous signal", "Continuous",  "continuous",            true,   true,      false,   true,      "observation",  "The epochs' mean of LFP / MUA / SPIKE / AUX channels, with an error band"
+    "heatmap",    "Heat map",          "Heatmap",     ["point" "continuous"],  true,   true,      true,    false,     "fixed",        "Units or channels by time in color, one trial group"
+    "waveforms",  "Unit waveforms",    "Waveforms",   "unit",                  false,  false,     false,   false,     "observation",  "A unit's mean waveform and a sample of its spikes"
+    "probemap",   "Probe map",         "ProbeMap",    "unit",                  false,  false,     false,   false,     "fixed",        "A per-channel value (rate, spikes, units) drawn on the probe sites"
+    "corrmap",    "Unit correlation",  "Correlation", "unit",                  true,   false,     true,    false,     "fixed",        "Pairwise correlation of the units' per-epoch rates, one trial group"
+    "rate",       "Firing rate",       "Rate",        "point",                 true,   false,     false,   true,      "observation",  "Each epoch window's firing rate per trial group: bars, boxes or points"
+    "tuning",     "Tuning curve",      "Tuning",      "point",                 true,   false,     false,   true,      "observation",  "Firing rate against a trial parameter, one curve per series"
+    "spectrum",   "Power spectrum",    "Spectrum",    ["point" "continuous"],  true,   false,     false,   true,      "observation",  "Multitaper power spectra (Chronux) of channels or spike trains over the epochs, groups overlaid"
+    "spectrogram", "Spectrogram",      "Spectrogram", "continuous",            true,   true,      true,    false,     "observation",  "A channel's multitaper power over time from the event and frequency (Chronux), one trial group"
+    "coherence",  "Coherence",         "Coherence",   ["point" "continuous"],  true,   false,     false,   true,      "observation",  "Multitaper coherence (Chronux) of a seed layer with a partner layer: field-field, spike-field or unit-unit"
+    "eventTrace", "Event traces",      "EventTraces", "point",                 true,   true,      false,   true,      "fixed",        "Digital or derived lines as a logic analyzer shows them: a row per line, a bar (or a level) from each onset to its offset, epochs overlaid or a sub-row each"
     };
 n = size(rows, 1);
-Type = strings(n, 1); Label = strings(n, 1); DefaultBinding = strings(n, 1); Description = strings(n, 1);
+Type = strings(n, 1); Label = strings(n, 1); Short = strings(n, 1); DefaultBinding = strings(n, 1); Description = strings(n, 1);
 Categories = cell(n, 1); DefaultOptions = cell(n, 1);
 Aligned = false(n, 1); SharesTime = false(n, 1); OneGroup = false(n, 1); MultiLayer = false(n, 1);
 for k = 1:n
     Type(k) = rows{k, 1};
     Label(k) = rows{k, 2};
-    Categories{k} = rows{k, 3};
-    Aligned(k) = rows{k, 4};
-    SharesTime(k) = rows{k, 5};
-    OneGroup(k) = rows{k, 6};
-    MultiLayer(k) = rows{k, 7};
-    DefaultBinding(k) = rows{k, 8};
-    Description(k) = rows{k, 9};
+    Short(k) = rows{k, 3};
+    Categories{k} = rows{k, 4};
+    Aligned(k) = rows{k, 5};
+    SharesTime(k) = rows{k, 6};
+    OneGroup(k) = rows{k, 7};
+    MultiLayer(k) = rows{k, 8};
+    DefaultBinding(k) = rows{k, 9};
+    Description(k) = rows{k, 10};
     DefaultOptions{k} = opts.(Type(k));
 end
-T = table(Type, Label, Categories, Aligned, SharesTime, OneGroup, MultiLayer, DefaultBinding, Description, DefaultOptions);
+T = table(Type, Label, Short, Categories, Aligned, SharesTime, OneGroup, MultiLayer, DefaultBinding, Description, DefaultOptions);
 end

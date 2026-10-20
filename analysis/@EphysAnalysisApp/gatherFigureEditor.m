@@ -12,25 +12,26 @@ function fig = gatherFigureEditor(obj)
 %   selection is its own while "Trial selection as the figure" is
 %   unticked (the selection rows of the Panel alignment section), else
 %   "default". The
-%   panel's spans, its row's height and its column's width are written
-%   only when their spinners differ from what applyFigureEditor showed, so
-%   a value they cannot show is kept as stored; a row height or column
-%   width of 1 keeps equal rows ([] sizes) equal. The Common options rows
-%   are the figure's common; a linked panel's (common true) common fields
-%   are not read from its Options rows (locked, showing the figure's), and
-%   its common flag is the Options header box's (onPanelCommonToggled).
+%   panel's spans, its row's height, its column's width and its own size
+%   (% of its cell) are written only when their spinners differ from what
+%   applyFigureEditor showed, so a value they cannot show is kept as
+%   stored; a row height or column width of 1 keeps equal rows ([] sizes)
+%   equal. The figure's gaps beyond the Spacing drop-down (custom's units
+%   and values) are the Spacing window's (figureSpacingDialog), kept here
+%   as they are. The panel's options are its Options rows', every field
+%   of its type.
 %   The panel's text note is its Text note rows', its overlays the
 %   Overlays list's, the one picked read from its rows (overlayGather).
 E = obj.FigureEditor;
 fig = obj.Config.Figures(obj.SelectedFigure);
 fig.id = strtrim(string(E.id.Value));
+fig.autoId = logical(E.idAuto.Value);   % ticked: the config gives the automatic id (normalizeFigures)
 fig.title = string(E.title.Value);
 fig.enabled = logical(E.enabled.Value);
 
 % observations
 o = fig.observe;
-o.kind = string(E.observe.Value);
-o.source = string(E.obsSource.Value);
+o.data = string(E.observe.Value);
 u = o.units;
 u.classes = ticked(E.obsClasses);
 u.ids = parseList(E.obsIds.Value);
@@ -48,7 +49,6 @@ u.response.auroc = aurocFrom(E, "obsRa", u.response.auroc);
 u.shanks = parseList(E.obsShanks.Value);
 u.channels = parseList(E.obsUnitChannels.Value);
 o.units = u;
-o.signal = string(E.obsSignal.Value);
 o.channels = parseList(E.obsChannels.Value);
 o.perGroup = logical(E.obsPerGroup.Value);
 fig.observe = o;
@@ -101,24 +101,6 @@ s.ErrorEdgeStyle = string(E.errEdgeStyle.Value);
 s.ErrorEdgeWidth = E.errEdgeWidth.Value;
 fig.style = s;
 
-% the common options every linked panel takes
-c = fig.common;
-c.bins.BinSec = E.cmBinMs.Value / 1000;
-c.bins.SmoothSec = E.cmSmoothMs.Value / 1000;
-c.measure = string(E.cmMeasure.Value);
-c.baseline.Mode = string(E.cmBaselineMode.Value);
-c.baseline.Window = [E.cmBaseFrom.Value E.cmBaseTo.Value];
-c.auroc = aurocPlotFrom(E, "cmAu", c.auroc);
-c.maskAfterStop = logical(E.cmMaskAfterStop.Value);
-c.waveform.mode = string(E.cmWaveMode.Value);
-c.waveform.maxSpikes = E.cmWaveSpikes.Value;
-c.waveform.location = string(E.cmWaveLocation.Value);
-c.waveform.box = logical(E.cmWaveBox.Value);
-c.waveform.scale = E.cmWaveScale.Value;
-c.waveform.showPP = logical(E.cmWavePP.Value);
-c.waveform.showCount = logical(E.cmWaveCount.Value);
-fig.common = c;
-
 % the figure's alignment
 D = obj.Config.Defaults;
 ref = D.EventRef; win = D.Window; sel = D.Selection;
@@ -135,6 +117,7 @@ j = obj.SelectedPanel;
 if j >= 1 && j <= numel(fig.panels)
     p = fig.panels(j);
     p.title = string(E.panelTitle.Value);
+    p.box = string(E.panelBox.Value);
     % the place and sizes only when edited: the controls cannot show every stored value (Validate reports a bad one)
     if E.rowSpan.Value ~= shownSpan(p.rowSpan, E.rowSpan.Limits); p.rowSpan = E.rowSpan.Value; end
     if E.colSpan.Value ~= shownSpan(p.colSpan, E.colSpan.Limits); p.colSpan = E.colSpan.Value; end
@@ -144,6 +127,14 @@ if j >= 1 && j <= numel(fig.panels)
     if E.colWidth.Value ~= shownSize(fig.grid.colWidths, p.col)
         fig.grid.colWidths = setSize(fig.grid.colWidths, p.col, fig.grid.cols, E.colWidth.Value);
     end
+    shown = shownShare(p.size);
+    for d = 1:2   % the panel's own size in its cell, % in the editor
+        sp = E.panelWidth;
+        if d == 2; sp = E.panelHeight; end
+        if sp.Value ~= shown(d); p.size(d) = sp.Value / 100; end
+    end
+    p.align = string(E.panelAlign.Value);
+    p.valign = string(E.panelVAlign.Value);
     own = E.panelSame.UserData;
     if ~(islogical(own) && numel(own) == 2); own = [false false]; end
     ownSel = ~E.panelSameSel.Value;   % "Trial selection as the figure" unticked: the panel's own
@@ -175,9 +166,7 @@ end
 function op = gatherOptions(E, p)
 %gatherOptions  The panel's options as the Options rows (and Group shown) show them; fields of other types are not there.
 op = p.options;
-linked = string.empty(1, 0);   % a linked panel's common fields: the figure's, their rows locked (an edit there is not taken)
-if p.common; linked = EphysAnalysisConfig.commonFieldsOf(p.type); end
-own = @(f) isfield(op, f) && ~ismember(f, linked);
+own = @(f) isfield(op, f);
 if isfield(op, 'group'); op.group = E.group.Value; end
 if own('bins')
     op.bins.BinSec = E.binMs.Value / 1000;
@@ -214,6 +203,9 @@ if isfield(op, 'rasterSort')
     op.rasterSortOrder = string(E.rasterSortOrder.Value);
     op.rasterByGroup = logical(E.rasterByGroup.Value);
 end
+if isfield(op, 'yTicks'); op.yTicks = logical(E.yTicks.Value); end
+if isfield(op, 'tickColor'); op.tickColor = strtrim(string(E.tickColor.Value)); end
+if isfield(op, 'backColor'); op.backColor = strtrim(string(E.backColor.Value)); end
 if own('maskAfterStop'); op.maskAfterStop = logical(E.maskAfterStop.Value); end
 if isfield(op, 'histStyle')
     op.histStyle = string(E.histStyle.Value);
@@ -270,6 +262,25 @@ if isfield(op, 'spikeFs'); op.spikeFs = E.spSpikeFs.Value; end
 if isfield(op, 'movingwin'); op.movingwin = [E.spWin.Value E.spStep.Value]; end
 if isfield(op, 'overTime'); op.overTime = logical(E.spOverTime.Value); end
 if isfield(op, 'showPhase'); op.showPhase = logical(E.spShowPhase.Value); end
+if p.type == "eventTrace"
+    op.display = string(E.etDisplay.Value);
+    op.trials = string(E.etTrials.Value);
+    op.groupBands = logical(E.etGroupBands.Value);
+    op.colorBy = string(E.etColorBy.Value);
+    op.height = E.etHeight.Value;
+    op.alpha = E.etAlpha.Value;
+    if isempty(op.alpha); op.alpha = NaN; end
+    op.edgeColor = strtrim(string(E.etEdge.Value));
+    op.edgeWidth = E.etEdgeWidth.Value;
+    op.lineStyle = string(E.etLineStyle.Value);
+    op.lineWidth = E.etLineWidth.Value;
+    op.showBaseline = logical(E.etBaseline.Value);
+    op.baselineColor = strtrim(string(E.etBaseColor.Value));
+    if lower(op.baselineColor) == "auto"; op.baselineColor = ""; end
+    op.baselineStyle = string(E.etBaseStyle.Value);
+    op.baselineWidth = E.etBaseWidth.Value;
+    op.rowSpacing = E.etRowSpacing.Value;
+end
 if own('waveform')
     wv = op.waveform;
     wv.mode = string(E.waveMode.Value);
@@ -338,6 +349,9 @@ ev.marker = string(E.evMarker.Value);
 ev.size = E.evSize.Value;
 ev.color = strtrim(string(E.evColor.Value));
 if lower(ev.color) == "auto"; ev.color = ""; end
+ev.spanStyle = string(E.evSpanStyle.Value);
+ev.spanWidth = E.evSpanWidth.Value;
+ev.spanAlpha = E.evSpanAlpha.Value;
 L.event = ev;
 L.eventsAs = string(E.evDrawAs.Value);
 L.color = strtrim(string(E.layerColor.Value));
@@ -357,6 +371,13 @@ end
 function v = shownSpan(span, limits)
 %shownSpan  The span applyFigureEditor shows.
 v = min(limits(2), max(1, round(span)));
+end
+
+
+function v = shownShare(s)
+%shownShare  The panel size applyFigureEditor shows, % of its cell each way (100 for what is not two numbers).
+v = [100 100];
+if numel(s) == 2 && all(isfinite(s)); v = min(100, max(1, 100 * reshape(s, 1, 2))); end
 end
 
 

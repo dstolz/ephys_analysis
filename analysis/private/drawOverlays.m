@@ -11,13 +11,15 @@ function O = drawOverlays(h, overlays)
 %
 %   A line (xline / yline) crosses the whole axis at its value, so over a
 %   raster it crosses every row, and over a PSTH panel its full height. A
-%   region (xregion / yregion) is a patch between its two values, the full
-%   height or width of the axis; the semitransparent fill is its faceAlpha.
-%   Both follow the axes' limits when they change. The values are data
-%   units: seconds from the event on a time axis, a unit's rate on a PSTH's
-%   y axis, a raster's epoch number on its y axis. A stacked PSTH's second
-%   y axis is left alone: a y overlay goes on its left axis. Like any
-%   constant line, an overlay does not widen the axes' automatic limits.
+%   region is a patch object between its two values, the full height or
+%   width of the axis; the semitransparent fill is its faceAlpha. (Not
+%   xregion / yregion: those are drawn behind every opaque patch, image or
+%   bar whatever the draw order, so a region never showed over a raster's
+%   group bands.) Both follow the axes' limits when they change. The values
+%   are data units: seconds from the event on a time axis, a unit's rate on
+%   a PSTH's y axis, a raster's epoch number on its y axis. A stacked PSTH's
+%   second y axis is left alone: a y overlay goes on its left axis. An
+%   overlay does not widen the axes' automatic limits.
 %
 %   The layer says whether an overlay sits "over" the data (drawn after it)
 %   or "under" it (behind its lines, points, bars and bands, which hide it
@@ -122,18 +124,46 @@ if ov.axis == "y" && numel(ax.YAxis) > 1
 end
 restore = onCleanup(@() restoreSide(ax, side)); %#ok<NASGU>
 if ov.shape == "region"
-    if ov.axis == "y"
-        g = yregion(ax, pos(1), pos(2), 'HandleVisibility', 'off');
-    else
-        g = xregion(ax, pos(1), pos(2), 'HandleVisibility', 'off');
-    end
+    g = regionPatch(ax, ov.axis, pos);
 elseif ov.axis == "y"
     g = yline(ax, pos, 'HandleVisibility', 'off');
 else
     g = xline(ax, pos, 'HandleVisibility', 'off');
 end
-if ov.shape == "region"
-    g.PickableParts = 'none';   % a patch over the whole axis would take every right-click from the data under it
+end
+
+
+function g = regionPatch(ax, dim, pos)
+%regionPatch  A patch between POS on the DIM ("x" / "y") axis of AX, across the whole other axis, following the limits.
+%   A real patch, not xregion / yregion: a constant region is drawn behind
+%   every opaque patch, image and bar whatever the draw order, so over a
+%   raster's group bands (or a heat map) it was never seen. Its data are the
+%   limits of the axis it crosses and POS clamped to those of its own, so it
+%   never widens the axes; a listener refits it when either changes.
+g = patch(ax, 'XData', zeros(4, 1), 'YData', zeros(4, 1), 'FaceColor', [0.5 0.5 0.5], 'EdgeColor', 'none', ...
+    'HandleVisibility', 'off', 'PickableParts', 'none');   % a patch over the whole axis would take every right-click from the data under it
+for p = ["XLimInclude" "YLimInclude"]
+    if isprop(g, p); g.(p) = 'off'; end
+end
+y = ax.YAxis(1);   % a yyaxis: the left side, which drawOne made the active one
+fit = @(~, ~) fitRegion(g, ax, y, dim, pos);
+fit();
+setappdata(g, 'OverlayListeners', [addlistener(ax, 'XLim', 'PostSet', fit), addlistener(ax, 'YLim', 'PostSet', fit)]);   % gone with the patch
+end
+
+
+function fitRegion(g, ax, y, dim, pos)
+%fitRegion  Refit the region G to the current limits (a numeric axis; others keep their data).
+if ~isgraphics(g) || ~isgraphics(ax); return; end
+xl = ax.XAxis.Limits;
+yl = y.Limits;
+if ~(isnumeric(xl) && isnumeric(yl)); return; end
+if dim == "y"
+    p = min(max(pos, yl(1)), yl(2));
+    set(g, 'XData', reshape(xl([1 2 2 1]), 4, 1), 'YData', reshape(p([1 1 2 2]), 4, 1));
+else
+    p = min(max(pos, xl(1)), xl(2));
+    set(g, 'XData', reshape(p([1 2 2 1]), 4, 1), 'YData', reshape(yl([1 1 2 2]), 4, 1));
 end
 end
 

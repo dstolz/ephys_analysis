@@ -1,14 +1,17 @@
 function test_EphysAnalysisFigures()
 %test_EphysAnalysisFigures  Verification suite for the analysis config's figures.
 %   Config sections (1-6): the defaults of Figure / Panel / Layer /
-%   Observe; panelTypes, sourceCategories, categoryOf, observeKind and
-%   defaultLayer; addFigure's templates and ids; figureFor's resolution
+%   Observe; panelTypes, sourceCategories, categoryOf, observeKind,
+%   followedData and defaultLayer; addFigure's templates, ids and the
+%   data each observes; figureFor's resolution
 %   (Defaults, panel overrides, sharesTime, units.source, the observe kind,
 %   options completed and re-seeded on a type change); a JSON round trip
-%   with every panel type, relative sizes, an events layer with a sequence,
+%   with every panel type, relative sizes, custom gaps in % and a panel's
+%   own size and alignment, an events layer with a sequence,
 %   fixed and following layers and "default" sentinels, a cell Figures
 %   from jsondecode, unknown fields in LoadWarnings; the grid editors
-%   (placePanel in four directions, removePanel, movePanel, figureCells);
+%   (placePanel in four directions, removePanel, movePanel, figureCells;
+%   the gap lists kept sized to the grid, Remove undoing Add);
 %   DuplicateFigureId / DuplicatePanelId; every validate rule of the
 %   Figures section ("No figure is enabled." when none is), the style's
 %   messages (checkStyle); a panel's text note and overlays (defaults, an
@@ -39,8 +42,14 @@ function test_EphysAnalysisFigures()
 %   rate layer of three units' mean; an auROC PSTH equal to spikePSTH's;
 %   a stacked PSTH; the waveforms' probe layout (a following layer to
 %   ring); one observation faster than spikePSTH over every unit.
-%   Render (8): figureTiles (relative sizes in quarter steps, spans, the
-%   32-unit cap); a compute and a draw function for every panel type;
+%   Render (8): figureArrange (the labels' room and exact gaps between
+%   rows and columns, px, % and per-gap lists, the presets, rows and
+%   columns in exact proportion, spans, a panel's size and alignment in
+%   its cell, a note band, a phase strip, the title's and legend's bands);
+%   renderFigure's layout (flush with "none", an exact custom gap in px
+%   and %, rows 1 : 2, a panel half its cell's width keeping its tick
+%   labels, the legend east of the panels, the title over them, laid out
+%   again when the figure is resized); a compute and a draw function for every panel type;
 %   every panel type drawn by renderFigure into an axes, a uiaxes, a
 %   figure, a uipanel and a grid layout, every component tagged with a
 %   known role and the tiles named by panel; the title (automatic, and the
@@ -56,9 +65,13 @@ function test_EphysAnalysisFigures()
 %   auROC PSTH (0-1, chance line, modulation window, calls; stacked too)
 %   and heat map (diverging, 0-1), rate panels (bars, boxes of two
 %   layers, points), tuning curves (a series, the inset), the waveforms'
-%   probe layout with the observed unit framed; figureTiles' order past its cap;
+%   probe layout with the observed unit framed;
 %   Editable, OnRemember and the context's redraw; the editor's colormap;
-%   one observation drawn in under a second; a panel's note (below: in a
+%   one observation drawn in under a second; data tips (FigureDataTips:
+%   a PSTH line's rows, a raster tick's trial and group, a heat map cell's
+%   and a heat map of trials' tips, a bar's rows, the chosen fields a
+%   preference followed on refresh, DataTipFieldsDialog, the time they
+%   add); a panel's note (below: in a
 %   band of its tile; northeast: in its axes) and overlays (on its own
 %   axes), their looks as rules under the figure's own.
 %   Spectral (9): the spectral templates and validate's rules (a coherence
@@ -136,7 +149,7 @@ layerOf = @EphysAnalysisConfig.defaultLayer;
 %% ============================================================================ config
 fprintf('\n== 1. config: defaults and the tables ==\n');
 F = EphysAnalysisConfig.defaults("Figure");
-check(F.id == "" && F.enabled && F.title == "" && F.observe.kind == "auto" && isequal(F.ref, "default") ...
+check(F.id == "" && F.autoId && F.enabled && F.title == "" && F.observe.data == "units" && isequal(F.ref, "default") ...
     && isequal(F.window, "default") && isequal(F.selection, "default") && isequaln(F.style, EphysAnalysisConfig.defaults("Style")) ...
     && isempty(F.aesthetics) && isstruct(F.panels) && isempty(F.panels), 'defaults("Figure")');
 check(F.grid.rows == 1 && F.grid.cols == 1 && isequal(F.grid.rowHeights, []) && isequal(F.grid.colWidths, []) ...
@@ -153,8 +166,8 @@ check(L.name == "" && L.enabled && L.source == "units" && L.binding == "observat
     && L.aggregate == "each" && isequaln(L.event, EphysAnalysisConfig.defaults("EventMark")) && L.eventsAs == "marks" ...
     && L.color == "" && L.lineStyle == "" && ~isfield(L, 'yParam') && ~isfield(L, 'seriesParam'), 'defaults("Layer")');
 O = EphysAnalysisConfig.defaults("Observe");
-check(O.kind == "auto" && O.source == "units" && ~isfield(O.units, 'source') && O.signal == "LFP" && isequal(O.channels, []) ...
-    && ~isfield(O, 'datasets') && ~isfield(O, 'datasetKeys') && ~O.perGroup, 'defaults("Observe")');
+check(isequal(string(fieldnames(O)).', ["data" "units" "channels" "perGroup"]) && O.data == "units" && ~isfield(O.units, 'source') ...
+    && isequal(O.channels, []) && ~O.perGroup, 'defaults("Observe"): data (sorted units), units, channels, perGroup');
 FS = EphysAnalysisConfig.defaults("FigureSessions");
 check(~FS.enabled && FS.datasets == "ticked" && isstring(FS.datasetKeys) && isequal(size(FS.datasetKeys), [1 0]) ...
     && FS.facet == "none" && FS.series == "session" && FS.colorOrder == "palette" && ~FS.showMembers && FS.error == "sem" ...
@@ -162,14 +175,17 @@ check(~FS.enabled && FS.datasets == "ticked" && isstring(FS.datasetKeys) && iseq
     && isequaln(EphysAnalysisConfig.defaults("Figure").sessions, FS), 'defaults("FigureSessions"), the Figure''s sessions block');
 
 spectralTypes = ["spectrum" "spectrogram" "coherence"];
-check(isequal(T.Type.', [types spectralTypes]) && isequal(string(T.Properties.VariableNames), ["Type" "Label" "Categories" "Aligned" ...
-    "SharesTime" "OneGroup" "MultiLayer" "DefaultBinding" "Description" "DefaultOptions"]), 'panelTypes: the twelve types and the columns');
-check(isequal(T.SharesTime.', [true true true true false false false false false false true false]) ...
-    && isequal(T.Aligned.', [true true true true false false true true true true true true]) ...
-    && isequal(T.OneGroup.', [false false false true false false true false false false true false]) ...
-    && isequal(T.MultiLayer.', [true true true false false false false true true true false true]) ...
+check(isequal(T.Type.', [types spectralTypes "eventTrace"]) && isequal(string(T.Properties.VariableNames), ["Type" "Label" "Short" "Categories" "Aligned" ...
+    "SharesTime" "OneGroup" "MultiLayer" "DefaultBinding" "Description" "DefaultOptions"]), 'panelTypes: the thirteen types and the columns');
+check(isequal(T.Short.', ["Raster" "PSTH" "Continuous" "Heatmap" "Waveforms" "ProbeMap" "Correlation" "Rate" "Tuning" ...
+    "Spectrum" "Spectrogram" "Coherence" "EventTraces"]) && all(~contains(T.Short, [" " "+"])), ...
+    'panelTypes: a one-word Short name per type (the automatic figure id''s part)');
+check(isequal(T.SharesTime.', [true true true true false false false false false false true false true]) ...
+    && isequal(T.Aligned.', [true true true true false false true true true true true true true]) ...
+    && isequal(T.OneGroup.', [false false false true false false true false false false true false false]) ...
+    && isequal(T.MultiLayer.', [true true true false false false false true true true false true true]) ...
     && isequal(T.DefaultBinding.', ["observation" "observation" "observation" "fixed" "observation" "fixed" "fixed" "observation" "observation" ...
-        "observation" "observation" "observation"]) ...
+        "observation" "observation" "observation" "fixed"]) && T.Label(13) == "Event traces" && isequal(T.Categories{13}, "point") ...
     && isequal(T.Categories{T.Type == "spectrum"}, ["point" "continuous"]) && isequal(T.Categories{T.Type == "spectrogram"}, "continuous") ...
     && isequal(T.Categories{T.Type == "coherence"}, ["point" "continuous"]) && isequal(T.Label(10:12).', ["Power spectrum" "Spectrogram" "Coherence"]) ...
     && isequal(T.Categories{T.Type == "rate"}, "point") && isequal(T.Categories{T.Type == "tuning"}, "point") && T.Label(8) == "Firing rate" && T.Label(9) == "Tuning curve" ...
@@ -198,6 +214,20 @@ check(catOf("units", "raster") == "point" && catOf("detected", "waveforms") == "
     'categoryOf: the category a type draws a source in, else ""');
 check(catOf("events", "continuous") == "point" && catOf("events", "heatmap") == "point" && catOf("events", "raster") == "point" ...
     && catOf("events", "waveforms") == "" && catOf("events", "probemap") == "", 'categoryOf: events fit every time panel, and no other');
+Le = layerOf("eventTrace");
+Oe = T.DefaultOptions{T.Type == "eventTrace"};
+check(catOf("events", "eventTrace") == "point" && catOf("units", "eventTrace") == "" && catOf("detected", "eventTrace") == "" ...
+    && catOf("LFP", "eventTrace") == "" && Le.source == "events" && Le.binding == "fixed" && Le.event.line == "Stim" ...
+    && isempty(EphysAnalysisConfig.sharedFieldsOf("eventTrace")), ...
+    'an event-trace panel draws events layers only (its default layer: an events layer, fixed); it shares no option with other types');
+check(isequal(string(fieldnames(Oe)).', ["display" "trials" "colorBy" "height" "alpha" "edgeColor" "edgeWidth" "lineWidth" ...
+    "lineStyle" "showBaseline" "baselineColor" "baselineStyle" "baselineWidth" "rowSpacing" "groupBands"]) && Oe.display == "bars" ...
+    && Oe.trials == "overlay" && Oe.colorBy == "layer" && Oe.height == 0.6 && isnan(Oe.alpha) && Oe.edgeColor == "none" ...
+    && Oe.showBaseline && Oe.baselineColor == "" && Oe.rowSpacing == 1.25 && Oe.groupBands, ...
+    'panelTypes: the event-trace panel''s DefaultOptions (bars, every epoch overlaid, colored per line, a baseline)');
+Em = EphysAnalysisConfig.defaults("EventMark");
+check(Em.spanStyle == "-" && Em.spanWidth == 1.5 && Em.spanAlpha == 1 && ~isfield(eventMarkRef(Em), 'spanStyle') ...
+    && ~isfield(eventMarkRef(Em), 'spanAlpha'), 'EventMark: a span''s look (style, width, opacity), left out of its event reference');
 D1 = layerOf("continuous");
 D2 = layerOf("probemap");
 D3 = layerOf("heatmap");
@@ -207,21 +237,21 @@ check(D1.source == "LFP" && D1.binding == "observation" && D2.source == "units" 
     'defaultLayer: the type''s first source with its default binding');
 check(strcmp(errorId(@() layerOf("violin")), 'EphysAnalysisConfig:BadValue') && strcmp(errorId(@() layerOf("behavior")), 'EphysAnalysisConfig:BadValue'), ...
     'defaultLayer of an unknown type (behavior is not a panel type): BadValue');
-C = EphysAnalysisConfig.defaults("FigureCommon");
 fnF = string(fieldnames(F)).';
-check(isequal(string(fieldnames(C)).', ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform"]) && C.bins.BinSec == 0.01 ...
-    && isequaln(C.auroc, EphysAnalysisConfig.defaults("Auroc")) ...
-    && C.bins.SmoothSec == 0.01 && C.measure == "rate" && C.baseline.Mode == "none" && isequal(C.baseline.Window, [-0.2 0]) ...
-    && ~C.maskAfterStop && isequal(C.waveform, EphysAnalysisConfig.defaults("Waveform")) && isequaln(F.common, C) ...
-    && find(fnF == "common") == find(fnF == "grid") + 1, 'defaults("FigureCommon"), and Figure.common after grid');
+check(~isfield(F, 'common') && find(fnF == "panels") == find(fnF == "grid") + 1 ...
+    && strcmp(errorId(@() EphysAnalysisConfig.defaults("FigureCommon")), 'EphysAnalysisConfig:BadSection'), ...
+    'a figure has no options of its own for its panels: panels right after grid');
 fnP = string(fieldnames(P)).';
-check(P.common == true && islogical(P.common) && find(fnP == "selection") == find(fnP == "window") + 1 ...
-    && find(fnP == "common") == find(fnP == "selection") + 1 && isequal(P.selection, "default"), ...
-    'Panel.selection: "default", after window; Panel.common: true, after it');
+check(~isfield(P, 'common') && find(fnP == "selection") == find(fnP == "window") + 1 ...
+    && find(fnP == "layers") == find(fnP == "selection") + 1 && isequal(P.selection, "default"), ...
+    'Panel.selection: "default", after window, then layers (its options are its own)');
 check(isequaln(P.note, EphysAnalysisConfig.defaults("Note")) && isstruct(P.overlays) && isempty(P.overlays) ...
     && isequal(fieldnames(P.overlays), fieldnames(EphysAnalysisConfig.defaults("Overlay"))) ...
     && find(fnP == "note") == find(fnP == "options") + 1 && find(fnP == "overlays") == numel(fnP), ...
     'Panel.note: a Note (no text); Panel.overlays: an empty list of Overlays; both after options');
+check(P.box == "auto" && find(fnP == "box") == find(fnP == "title") + 1 && T.DefaultOptions{T.Type == "raster"}.yTicks == false ...
+    && ~isfield(T.DefaultOptions{T.Type == "heatmap"}, 'yTicks'), ...
+    'Panel.box: "auto", after title; the raster''s options.yTicks is false (no other type has it)');
 pn = EphysAnalysisConfig.normalizePanel(struct('type', "psth", 'note', struct('text', "n = 12", 'placement', "northeast"), ...
     'overlays', struct('shape', "region", 'panel', "raster", 'from', 0, 'to', 0.2)));
 check(isscalar(pn.overlays) && pn.overlays.panel == "all" && pn.overlays.shape == "region" && pn.overlays.to == 0.2 ...
@@ -232,13 +262,13 @@ Oh = T.DefaultOptions{T.Type == "heatmap"};
 check(Oc.trials == "off" && Oc.maxTrials == 100 && Oh.rows == "items" && Oh.rasterSort == "" && isempty(Oh.rasterSortEvent) ...
     && Oh.rasterSortOrder == "ascending" && Oh.rasterByGroup && ~EphysAnalysisConfig.defaults("Observe").perGroup, ...
     'continuous trials "off", maxTrials 100; heat map rows "items" with a raster''s sort fields; observe.perGroup false');
-cfo = @EphysAnalysisConfig.commonFieldsOf;
-check(isequal(EphysAnalysisConfig.commonFields(), ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform"]) ...
-    && isequal(cfo("raster"), ["maskAfterStop" "waveform"]) && isequal(cfo("psth"), ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform"]) ...
+cfo = @EphysAnalysisConfig.sharedFieldsOf;
+check(isequal(cfo("raster"), ["maskAfterStop" "waveform"]) && isequal(cfo("psth"), ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform"]) ...
     && isequal(cfo("continuous"), "baseline") && isequal(cfo("heatmap"), ["bins" "measure" "baseline" "auroc" "maskAfterStop"]) ...
     && isequal(cfo("rate"), ["measure" "baseline"]) && isequal(cfo("tuning"), ["measure" "baseline" "waveform"]) ...
-    && isequal(cfo("waveforms"), "waveform") && isequal(cfo("corrmap"), ["bins" "baseline"]) ...
-    && isempty(cfo("probemap")) && isempty(cfo("violin")), 'commonFields and commonFieldsOf(type)');
+    && isempty(cfo("waveforms")) && isequal(cfo("corrmap"), ["bins" "baseline"]) ...
+    && isempty(cfo("probemap")) && isempty(cfo("violin")), ...
+    'sharedFieldsOf(type): the options several types share (a waveforms panel''s waveform is its own, not an inset)');
 Osp = T.DefaultOptions{T.Type == "spectrum"};
 Osg = T.DefaultOptions{T.Type == "spectrogram"};
 Och = T.DefaultOptions{T.Type == "coherence"};
@@ -249,7 +279,7 @@ check(Osp.timeBase == "aligned" && isequal(Osp.range, [0 Inf]) && Osp.segmentSec
     && ~isfield(Osg, 'timeBase') && isequal(Osg.movingwin, cxs.movingwin) && Osg.baseline.Mode == "none" && isequal(Osg.baseline.Window, [-0.5 0]) ...
     && Osg.group == 1 && isequal(Osg.cLim, []) && ~Och.overTime && Och.showPhase && isequal(Och.movingwin, cxs.movingwin) && ~isfield(Och, 'scale') ...
     && Och.group == 1 && isempty(cfo("spectrum")) && isempty(cfo("spectrogram")) && isempty(cfo("coherence")), ...
-    'the spectral types'' DefaultOptions are chronuxSettings'' defaults (a spectrogram''s baseline a {Mode, Window}); none is a common field');
+    'the spectral types'' DefaultOptions are chronuxSettings'' defaults (a spectrogram''s baseline a {Mode, Window}); none is a shared option');
 check(catOf("LFP", "spectrum") == "continuous" && catOf("units", "spectrum") == "point" && catOf("events", "spectrum") == "" ...
     && catOf("LFP", "spectrogram") == "continuous" && catOf("units", "spectrogram") == "" && catOf("events", "spectrogram") == "point" ...
     && catOf("detected", "coherence") == "point" && catOf("AUX", "coherence") == "continuous" && catOf("events", "coherence") == "", ...
@@ -264,16 +294,24 @@ fu = EphysAnalysisConfig.normalizeFigure(struct('panels', {{struct('type', "rast
 fc = EphysAnalysisConfig.normalizeFigure(struct('panels', {{struct('type', "continuous", 'layers', layerOf("continuous"))}}));
 fd = EphysAnalysisConfig.normalizeFigure(struct('panels', {{struct('type', "probemap", 'layers', layerOf("probemap"))}}));
 foff = fu; foff.panels(1).layers(1).enabled = false;
-fx = fd; fx.observe.kind = "channel";
-check(EphysAnalysisConfig.observeKind(fu) == "unit" && EphysAnalysisConfig.observeKind(fc) == "channel" ...
-    && EphysAnalysisConfig.observeKind(fd) == "dataset" && EphysAnalysisConfig.observeKind(foff) == "dataset" ...
-    && EphysAnalysisConfig.observeKind(fx) == "channel", ...
-    'observeKind: auto -> unit (a spike layer follows), channel (a signal layer), dataset (none; a disabled layer does not count); explicit kinds kept');
+fdet = fu; fdet.panels(1).layers(1).source = "detected";
+fmua = fc; fmua.panels(1).layers(1).source = "MUA";
+fboth = fc; fboth.panels(1).layers(end+1) = layerOf("raster");
+check(EphysAnalysisConfig.followedData(fu) == "units" && EphysAnalysisConfig.followedData(fdet) == "detected" ...
+    && EphysAnalysisConfig.followedData(fc) == "LFP" && EphysAnalysisConfig.followedData(fmua) == "MUA" ...
+    && EphysAnalysisConfig.followedData(fboth) == "units" && EphysAnalysisConfig.followedData(fd) == "dataset" ...
+    && EphysAnalysisConfig.followedData(foff) == "dataset", ...
+    'followedData: units, detected, the first signal a following layer reads (spikes first), else the dataset (a disabled layer does not count)');
+kindOf = @(d) EphysAnalysisConfig.observeKind(setfield(fd, 'observe', setfield(fd.observe, 'data', d))); %#ok<SFLD>
+check(isequal(EphysAnalysisConfig.ObserveData, ["units" "detected" "LFP" "MUA" "SPIKE" "AUX" "dataset"]) ...
+    && kindOf("units") == "unit" && kindOf("detected") == "unit" && all(arrayfun(@(s) kindOf(s) == "channel", ["LFP" "MUA" "SPIKE" "AUX"])) ...
+    && kindOf("dataset") == "dataset" && kindOf("bogus") == "dataset" && EphysAnalysisConfig.observeKind(fu) == "unit", ...
+    'observeKind follows observe.data: units and detected -> unit, a signal -> channel, the dataset (an unknown value too) -> dataset; the layers do not change it');
 
 fprintf('\n== 2. config: addFigure, templates and ids ==\n');
 FT = EphysAnalysisConfig.figureTemplates();
 check(FT.Template(1) == "rasterPsth" && FT.Label(1) == "Raster over PSTH (per unit)" ...
-    && isequal(FT.Template(2:end-1).', ["psth" "raster" "continuous" "heatmap" "waveforms" "probemap" "corrmap" "rate" "tuning" spectralTypes]) ...
+    && isequal(FT.Template(2:end-1).', ["psth" "raster" "continuous" "eventTrace" "heatmap" "waveforms" "probemap" "corrmap" "rate" "tuning" spectralTypes]) ...
     && FT.Template(end) == "blank", 'figureTemplates: rasterPsth first, one per type, blank last');
 ct = EphysAnalysisConfig();
 ct = ct.addFigure("rate");
@@ -286,30 +324,97 @@ check(ct.Figures(1).panels.id == "rate_1" && ct.Figures(2).panels.id == "tuning_
 cfg = EphysAnalysisConfig();
 [cfg, id1] = cfg.addFigure();
 f1 = cfg.Figures(1);
-check(id1 == "figure_1" && f1.grid.rows == 2 && f1.grid.cols == 1 && isequal(f1.grid.rowHeights, [1 1]) && f1.grid.spacing == "none" ...
+check(id1 == "Raster+PSTH units" && f1.autoId && f1.grid.rows == 2 && f1.grid.cols == 1 && isequal(f1.grid.rowHeights, [1 1]) && f1.grid.spacing == "none" ...
     && isequal([f1.panels.id], ["raster_1" "psth_1"]) && isequal([f1.panels.row], [1 2]) && isequal([f1.panels.col], [1 1]), ...
-    'addFigure(): figure_1, raster_1 flush over psth_1 on a 2 x 1 grid');
+    'addFigure(): an automatic id ("Raster+PSTH units"), raster_1 flush over psth_1 on a 2 x 1 grid');
 check(isscalar(f1.panels(1).layers) && isscalar(f1.panels(2).layers) && f1.panels(1).layers.source == "units" ...
     && f1.panels(1).layers.binding == "observation" && f1.panels(2).layers.binding == "observation", ...
     'rasterPsth: each panel one units layer following the observation');
 [cfg, id2] = cfg.addFigure("continuous");
 [cfg, id3] = cfg.addFigure("blank", Id="empty");
 [cfg, id4] = cfg.addFigure(struct('panels', struct('type', "heatmap")));
-check(isequal([id2 id3 id4], ["figure_2" "empty" "figure_3"]) && cfg.Figures(2).panels.id == "continuous_1" ...
-    && cfg.Figures(2).panels.layers.source == "LFP" && isempty(cfg.Figures(3).panels) && cfg.Figures(4).panels.id == "heatmap_1", ...
-    'addFigure: free ids "figure_<n>", a given id, single-type and blank templates, a partial struct gets panel ids');
+check(isequal([id2 id3 id4], ["Continuous LFP" "empty" "Blank dataset"]) && cfg.Figures(2).panels.id == "continuous_1" ...
+    && cfg.Figures(2).panels.layers.source == "LFP" && isempty(cfg.Figures(3).panels) && cfg.Figures(4).panels.id == "heatmap_1" ...
+    && isequal([cfg.Figures.autoId], [true true false true]), ...
+    'addFigure: automatic ids (a heat map panel without layers is not active: "Blank dataset"), a given id is the figure''s own, a partial struct gets panel ids');
+[cfg5, id5] = cfg.addFigure(struct('observe', struct('data', "MUA"), 'panels', struct('type', "raster", 'layers', layerOf("raster"))));
+check(f1.observe.data == "units" && cfg.Figures(2).observe.data == "LFP" && cfg.Figures(3).observe.data == "dataset" ...
+    && cfg.Figures(4).observe.data == "dataset" && cfg5.Figures(cfg5.figureIndex(id5)).observe.data == "MUA", ...
+    'addFigure observes what the following layers read (units, LFP; the dataset for a blank figure or fixed layers) unless observe.data is given');
 check(strcmp(errorId(@() cfg.addFigure("nope")), 'EphysAnalysisConfig:BadValue'), 'an unknown template: BadValue');
-check(strcmp(errorId(@() cfg.addFigure("psth", Id="figure_1")), 'EphysAnalysisConfig:DuplicateFigureId'), 'a taken id: DuplicateFigureId');
+check(strcmp(errorId(@() cfg.addFigure("psth", Id="empty")), 'EphysAnalysisConfig:DuplicateFigureId'), 'a taken id: DuplicateFigureId');
 cfg.Figures(3).enabled = false;
-check(isequal(cfg.figureIds(), ["figure_1" "figure_2" "empty" "figure_3"]) && cfg.figureIndex("empty") == 3 && cfg.figureIndex("x") == 0 ...
-    && isequal(cfg.enabledFigures(), ["figure_1" "figure_2" "figure_3"]), 'figureIds, figureIndex, enabledFigures');
+check(isequal(cfg.figureIds(), ["Raster+PSTH units" "Continuous LFP" "empty" "Blank dataset"]) && cfg.figureIndex("empty") == 3 && cfg.figureIndex("x") == 0 ...
+    && isequal(cfg.enabledFigures(), ["Raster+PSTH units" "Continuous LFP" "Blank dataset"]), 'figureIds, figureIndex, enabledFigures');
 c2 = cfg.removeFigure("empty");
-check(isequal(c2.figureIds(), ["figure_1" "figure_2" "figure_3"]) && strcmp(errorId(@() cfg.removeFigure("x")), 'EphysAnalysisConfig:NoFigure'), ...
+check(isequal(c2.figureIds(), ["Raster+PSTH units" "Continuous LFP" "Blank dataset"]) && strcmp(errorId(@() cfg.removeFigure("x")), 'EphysAnalysisConfig:NoFigure'), ...
     'removeFigure (NoFigure for an unknown id)');
-c2.Figures = {struct(), struct('id', "figure_1")};
-check(isequal(c2.figureIds(), ["figure_2" "figure_1"]), 'a cell of partial figures gets free ids');
-check(strcmp(errorId(@() setFigures(c2, [cfg.Figures(1) cfg.Figures(1)])), 'EphysAnalysisConfig:DuplicateFigureId'), ...
-    'two figures with one id: DuplicateFigureId');
+c2.Figures = {struct(), struct('id', "figure_1"), struct('autoId', false)};
+check(isequal(c2.figureIds(), ["Blank units" "figure_1" "figure_2"]) && isequal([c2.Figures.autoId], [true false false]), ...
+    'a cell of partial figures: no id -> an automatic id; an id given -> its own; autoId false and no id -> "figure_<n>"');
+
+% automatic ids (autoFigureId): the active panel types in grid order, then the data; " (n)" for uniqueness
+ca = EphysAnalysisConfig();
+[ca, a1] = ca.addFigure("rasterPsth");
+[ca, a2] = ca.addFigure("rasterPsth");
+[ca, a3] = ca.addFigure("coherence");
+[ca, a4] = ca.addFigure("eventTrace");
+fa = ca.Figures(1);
+fa = place(fa, struct('type', "continuous", 'layers', layerOf("continuous")), "below", "psth_1");
+ca.Figures(1) = fa;
+check(isequal([a1 a2 a3 a4], ["Raster+PSTH units" "Raster+PSTH units (2)" "Coherence units+LFP" "EventTraces events"]) ...
+    && ca.Figures(1).id == "Raster+PSTH+Continuous units+LFP" && ca.Figures(2).id == "Raster+PSTH units (2)", ...
+    'autoFigureId: types in grid order joined by +, then observe.data and the layers'' sources; the second gets " (2)", and keeps it when the first is renamed');
+ca.Figures(1).panels(1).layers(1).enabled = false;   % an inactive panel (no enabled layer) is not named
+check(ca.Figures(1).id == "PSTH+Continuous units+LFP", 'a panel with no enabled layer is not in the id');
+fe = ca.Figures(2);
+ev = layerOf("eventTrace");
+fe.panels(1).layers(end+1) = ev;   % marks annotate: not data
+fe.panels(1).layers(end).eventsAs = "train";
+fe.id = "";
+fe.autoId = true;
+ca = ca.addFigure(fe);
+check(ca.Figures(end).id == "Raster+PSTH units+events" && endsWith(EphysAnalysisConfig.autoFigureId(ca.Figures(2)), "units"), ...
+    'events count as data only drawn as a train (or on an event-trace panel), not as marks');
+ca.Figures(2).panels(1).type = "heatmap";
+check(ca.Figures(2).id == "Heatmap+PSTH units" && ca.Figures(2).autoId, 'the id follows a type change');
+ca.Figures(2).observe.data = "MUA";
+check(ca.Figures(2).id == "Heatmap+PSTH MUA+units", 'and observe.data');
+ca.Figures(2).autoId = false;
+ca.Figures(2).panels(1).type = "raster";
+check(ca.Figures(2).id == "Heatmap+PSTH MUA+units", 'autoId false: the id stays whatever the panels');
+ca.Figures(2).id = "mine";
+ca.Figures(2).autoId = true;
+check(ca.Figures(2).id == "Raster+PSTH MUA+units", 'autoId true again: back to the automatic id');
+[ca, d1] = ca.duplicateFigure(2);
+[ca, d2] = ca.duplicateFigure(2);
+check(d1 == "Raster+PSTH MUA+units (2)" && d2 == "Raster+PSTH MUA+units (3)" && isequal(ca.figureIds(), ...
+    ["PSTH+Continuous units+LFP" "Raster+PSTH MUA+units" "Raster+PSTH MUA+units (3)" "Raster+PSTH MUA+units (2)" "Coherence units+LFP" ...
+    "EventTraces events" "Raster+PSTH units+events"]) && ca.Figures(3).autoId, ...
+    'duplicateFigure: right after the figure, "<id> (n)" with the next free n, still automatic');
+ca.Figures(2).autoId = false;   % first: an automatic id would take over an id typed while autoId is true
+ca.Figures(2).id = "unit_card";
+[ca, d3] = ca.duplicateFigure("unit_card");
+[ca, d4] = ca.duplicateFigure("unit_card (2)");
+check(d3 == "unit_card (2)" && d4 == "unit_card (3)" && ~ca.Figures(3).autoId && strcmp(errorId(@() ca.duplicateFigure("x")), ...
+    'EphysAnalysisConfig:NoFigure'), 'an id of one''s own duplicates as "<id> (n)" (a " (n)" it ends in is not doubled), still its own');
+cb = EphysAnalysisConfig();
+cb = cb.addFigure("psth", Id="psth units");   % names the same files as "PSTH units" ({Plot}, case-blind)
+[cb, b1] = cb.addFigure("psth");
+check(b1 == "PSTH units (2)" && EphysAnalysisConfig.nextFreeId("PSTH units", ["PSTH_units" "x"]) == "PSTH units (2)" ...
+    && EphysAnalysisConfig.nextFreeId("a", "b") == "a" && EphysAnalysisConfig.nextFreeId("a", "b", Suffix=true) == "a (2)", ...
+    'an automatic id never names the files another figure names (compared as {Plot} writes them, case-blind)');
+fj2 = string(tempname) + ".json";
+ca.save(fj2);
+cl = EphysAnalysisConfig.load(fj2);
+delete(fj2);
+check(isequal(cl.figureIds(), ca.figureIds()) && isequal([cl.Figures.autoId], [ca.Figures.autoId]), 'automatic ids and autoId survive save / load');
+fOwn = cfg.Figures(1);
+fOwn.autoId = false;
+c3 = setFigures(c2, [cfg.Figures(1) cfg.Figures(1)]);
+check(strcmp(errorId(@() setFigures(c2, [fOwn fOwn])), 'EphysAnalysisConfig:DuplicateFigureId') ...
+    && isequal(c3.figureIds(), ["Raster+PSTH units" "Raster+PSTH units (2)"]), ...
+    'two figures with one id of their own: DuplicateFigureId; two with one automatic id: the second gets " (2)"');
 dupPanels = struct('panels', {{struct('id', "a", 'type', "psth"), struct('id', "a", 'type', "raster")}});
 check(strcmp(errorId(@() setFigures(c2, dupPanels)), 'EphysAnalysisConfig:DuplicatePanelId'), 'two panels with one id: DuplicatePanelId');
 c2.Figures = [];
@@ -323,12 +428,15 @@ cfg.Defaults.Selection.groupBy = "Depth";
 cfg = cfg.addFigure();
 cfg = cfg.addFigure("continuous");
 cfg = cfg.addFigure("probemap");
-s = cfg.figureFor("figure_1");
+s = cfg.figureFor(1);
 check(isequaln(s.ref, cfg.Defaults.EventRef) && isequaln(s.window, cfg.Defaults.Window) && isequaln(s.selection, cfg.Defaults.Selection), ...
     'figureFor: the figure''s "default" ref / window / selection from Defaults');
-check(s.observe.kind == "unit" && s.observe.units.source == "units" ...
+check(s.observe.kind == "unit" && s.observe.data == "units" && s.observe.units.source == "units" ...
     && isequal(fieldnames(s.observe.units), fieldnames(EphysAnalysisConfig.defaults("UnitSelection"))), ...
-    'figureFor: observe.kind auto -> unit, and a complete observe.units (source = observe.source)');
+    'figureFor: observe.kind added (unit for sorted units), and a complete observe.units (source = observe.data)');
+cd0 = cfg; cd0.Figures(1).observe.data = "detected";
+sd0 = cd0.figureFor(1);
+check(sd0.observe.kind == "unit" && sd0.observe.units.source == "detected", 'figureFor: detected -> a unit observation of detections');
 check(all([s.panels.aligned]) && all([s.panels.sharesTime]) && isequaln(s.panels(1).ref, s.ref) && isequaln(s.panels(2).window, s.window), ...
     'figureFor: panels take the figure''s ref and window, aligned and sharing its time');
 Lr = s.panels(1).layers;
@@ -341,10 +449,10 @@ s = cfg.figureFor(1);
 check(~s.panels(1).sharesTime && ~s.panels(2).sharesTime && s.panels(2).window.post == 0.3 && s.panels(1).ref.edge == "offset" ...
     && isequaln(s.panels(1).window, s.window) && isequaln(s.panels(2).ref, s.ref), ...
     'a panel''s own ref or window: kept, the other part from the figure, and it no longer shares time');
-s = cfg.figureFor("figure_2");
-check(s.observe.kind == "channel" && s.panels.layers.category == "continuous" && s.panels.layers.units.source == "LFP", ...
-    'figureFor: a following LFP layer -> channel observations');
-s = cfg.figureFor("figure_3");
+s = cfg.figureFor(2);
+check(s.observe.kind == "channel" && s.observe.data == "LFP" && s.panels.layers.category == "continuous" && s.panels.layers.units.source == "LFP", ...
+    'figureFor: LFP observed (the continuous template) -> channel observations');
+s = cfg.figureFor(3);
 check(s.observe.kind == "dataset" && ~s.panels.aligned && ~s.panels.sharesTime && s.panels.layers.category == "unit", ...
     'figureFor: a probe map with a fixed layer -> the dataset; not aligned');
 check(strcmp(errorId(@() cfg.figureFor("x")), 'EphysAnalysisConfig:NoFigure') && strcmp(errorId(@() cfg.figureFor(9)), 'EphysAnalysisConfig:NoFigure'), ...
@@ -362,45 +470,35 @@ check(isempty(fieldnames(cfg.Figures(1).panels(2).options)) && ~s.panels(2).alig
 cc = EphysAnalysisConfig();
 cc = cc.addFigure();
 cc = cc.addFigure("waveforms", Id="wf");
-cc.Figures(1).common.bins = struct('BinSec', 0.05, 'SmoothSec', 0);
-cc.Figures(1).common.baseline = struct('Mode', "zscore", 'Window', [-0.3 0]);
-cc.Figures(1).common.waveform.mode = "mean";
+cc.Figures(1).panels(1).options.waveform.mode = "mean";
 cc.Figures(1).panels(2).options.histStyle = "line";
-cc.Figures(1).panels(2).options.bins.BinSec = 0.002;
+cc.Figures(1).panels(2).options.bins = struct('BinSec', 0.002, 'SmoothSec', 0);
+cc.Figures(1).panels(2).options.baseline = struct('Mode', "zscore", 'Window', [-0.3 0]);
 s = cc.figureFor(1);
-check(s.panels(2).common && s.panels(2).options.bins.BinSec == 0.05 && s.panels(2).options.bins.SmoothSec == 0 ...
-    && s.panels(2).options.baseline.Mode == "zscore" && s.panels(2).options.histStyle == "line" ...
-    && s.panels(1).options.waveform.mode == "mean" && s.panels(2).options.waveform.mode == "mean" && isequaln(s.common, cc.Figures(1).common), ...
-    'figureFor: a linked PSTH takes the common bins, baseline and waveform, and keeps its own type-specific options');
-cc.Figures(1).panels(2).common = false;
-s = cc.figureFor(1);
-check(~s.panels(2).common && s.panels(2).options.bins.BinSec == 0.002 && s.panels(2).options.baseline.Mode == "none" ...
+check(~isfield(s, 'common') && ~isfield(s.panels, 'common') && s.panels(2).options.bins.BinSec == 0.002 ...
+    && s.panels(2).options.bins.SmoothSec == 0 && s.panels(2).options.baseline.Mode == "zscore" && s.panels(2).options.histStyle == "line" ...
     && s.panels(2).options.waveform.mode == "off" && s.panels(1).options.waveform.mode == "mean", ...
-    'figureFor: an unlinked PSTH keeps its own; the linked raster still takes the common waveform');
-s = cc.figureFor("wf");
-cc.Figures(2).common.waveform.mode = "subsample";
-s2 = cc.figureFor("wf");
-check(s.panels.common && s.panels.options.waveform.mode == "both" && s2.panels.options.waveform.mode == "subsample", ...
-    'figureFor: a waveforms panel takes the common waveform, its mode "off" drawn as "both"');
+    'figureFor: each panel draws its own options (the PSTH''s bins and baseline, the raster''s inset; nothing from the figure)');
+check(cc.figureFor("wf").panels.options.waveform.mode == "both", 'figureFor: a waveforms panel''s own waveform, mode "both" by default');
 ca = EphysAnalysisConfig();
 ca.Defaults.Selection.groupBy = "Depth";
 ca = ca.addFigure();
 ca = ca.addFigure("heatmap", Id="hm");
 ca = ca.addFigure("rate", Id="rt");
 ca = ca.addFigure("tuning", Id="tc");
-ca.Figures(1).common.baseline = struct('Mode', "auroc", 'Window', [-0.3 0]);
-ca.Figures(1).common.auroc.windowSec = 0.05;
-ca.Figures(1).common.auroc.cutoff = "fixed";
+ca.Figures(1).panels(2).options.baseline = struct('Mode', "auroc", 'Window', [-0.3 0]);
+ca.Figures(1).panels(2).options.auroc.windowSec = 0.05;
+ca.Figures(1).panels(2).options.auroc.cutoff = "fixed";
 ca.Figures(1).panels(2).options.stack = true;
 ca.Figures(1).panels(2).options.stackSpacing = 1.4;
-ca.Figures(2).common.baseline.Mode = "auroc";
-ca.Figures(2).common.auroc.modulationWindow = [0 0.2];
-ca.Figures(3).common.measure = "count";
-ca.Figures(3).common.baseline = struct('Mode', "zscore", 'Window', [-0.4 0]);
+ca.Figures(2).panels.options.baseline.Mode = "auroc";
+ca.Figures(2).panels.options.auroc.modulationWindow = [0 0.2];
+ca.Figures(3).panels.options.measure = "count";
+ca.Figures(3).panels.options.baseline = struct('Mode', "zscore", 'Window', [-0.4 0]);
 ca.Figures(3).panels.options.display = "points";
 ca.Figures(4).panels.options.param = "Depth";
 ca.Figures(4).panels.options.seriesParam = "TrialType";
-ca.Figures(4).common.waveform.mode = "mean";
+ca.Figures(4).panels.options.waveform.mode = "mean";
 s = ca.figureFor(1);
 s2 = ca.figureFor("hm");
 s3 = ca.figureFor("rt");
@@ -408,12 +506,12 @@ s4 = ca.figureFor("tc");
 check(s.panels(2).options.baseline.Mode == "auroc" && s.panels(2).options.auroc.windowSec == 0.05 && s.panels(2).options.auroc.cutoff == "fixed" ...
     && s.panels(2).options.stack && s.panels(2).options.stackSpacing == 1.4 && ~isfield(s.panels(1).options, 'auroc') ...
     && s2.panels.options.baseline.Mode == "auroc" && isequal(s2.panels.options.auroc.modulationWindow, [0 0.2]), ...
-    'figureFor: a linked PSTH and heat map take the common auroc settings; the PSTH keeps its own stack options');
+    'figureFor: a PSTH and a heat map with their own auroc settings; the PSTH''s stack options');
 check(s3.panels.aligned && ~s3.panels.sharesTime && s3.panels.options.measure == "count" && s3.panels.options.baseline.Mode == "zscore" ...
     && s3.panels.options.display == "points" && s3.panels.layers.category == "point" ...
     && s4.panels.aligned && ~s4.panels.sharesTime && s4.panels.options.param == "Depth" && s4.panels.options.seriesParam == "TrialType" ...
     && s4.panels.options.waveform.mode == "mean" && s4.observe.kind == "unit", ...
-    'figureFor: rate and tuning panels: aligned, not on the time axis, the common measure / baseline / waveform, their own display / param / series');
+    'figureFor: rate and tuning panels: aligned, not on the time axis, their measure / baseline / waveform, display / param / series');
 cw = EphysAnalysisConfig();
 cw = cw.addFigure("waveforms");
 cw.Figures(1).panels.options.layout = "probe";
@@ -467,12 +565,14 @@ Pc{5}.options = struct('layout', "probe");
 Pc{8}.options = struct('display', "points", 'measure', "probability", 'baseline', struct('Mode', "ratio", 'Window', [-0.3 0]));
 Pc{9}.options = struct('param', "Depth", 'seriesParam', "TrialType", 'yLim', [0 20]);
 Pc{2}.note = struct('text', "Stim at 0" + newline + "n = 12", 'placement', "right", 'color', "#1f77b4", 'fontSize', 8);
+Pc{3}.size = [0.6 0.8]; Pc{3}.align = "left"; Pc{3}.valign = "bottom";
 Pc{2}.overlays = struct('name', {"stim" "window"}, 'shape', {"line" "region"}, 'value', {0 0}, 'from', {0 0.05}, ...
     'to', {0.1 0.25}, 'layer', {"over" "under"}, 'faceAlpha', {0.25 0.4});
 allTypes = struct('id', "all_types", 'title', "Every panel type", ...
-    'observe', struct('kind', "unit", 'units', struct('classes', "su", 'maxUnits', 4)), ...
+    'observe', struct('data', "units", 'units', struct('classes', "su", 'maxUnits', 4)), ...
     'sessions', struct('datasets', "list", 'datasetKeys', ["S1/a" "S2/b"]), ...
-    'grid', struct('rows', 5, 'cols', 2, 'rowHeights', [1 1.5 1 1 1], 'colWidths', [2 1], 'spacing', "compact"), ...
+    'grid', struct('rows', 5, 'cols', 2, 'rowHeights', [1 1.5 1 1 1], 'colWidths', [2 1], 'spacing', "custom", ...
+    'gapUnits', "%", 'colGap', 3, 'rowGaps', [2 4 6 8]), ...
     'panels', {Pc}, 'ref', struct('line', "Stim", 'timeRange', [0 Inf]), 'selection', struct('groupBy', ["Depth" "TrialType"]), ...
     'aesthetics', struct('role', "rate", 'group', "", 'property', "LineWidth", 'value', 2));
 cfg = cfg.addFigure(allTypes);
@@ -490,6 +590,10 @@ check(isequal(fn, ["schema" "version" "name" "description" "Source" "Defaults" "
 g = c2.Figures(1);
 check(isequal(g.grid.rowHeights, [1 1.5 1 1 1]) && isequal(g.grid.colWidths, [2 1]) && isequal(c2.Figures(2).grid.rowHeights, [1 1.5]) ...
     && isequal(c2.Figures(2).grid.colWidths, []), 'relative sizes come back as rows; [] stays []');
+check(g.grid.spacing == "custom" && g.grid.gapUnits == "%" && g.grid.colGap == 3 && isequal(g.grid.rowGaps, [2 4 6 8]) ...
+    && isempty(g.grid.colGaps) && isequal(g.panels(3).size, [0.6 0.8]) && g.panels(3).align == "left" && g.panels(3).valign == "bottom" ...
+    && isequal(g.panels(1).size, [1 1]) && g.panels(1).align == "center" && c2.Figures(2).grid.spacing == "none", ...
+    'custom gaps in % (one each way, the row gaps set apart) and a panel''s own size and alignment survive save / load');
 check(isequal([g.panels.type], types) && isequal([g.panels.id], types + "_1") && g.panels(3).options.display == "stacked" ...
     && g.panels(6).options.value == "nUnits" && g.panels(4).options.group == 2, ...
     'every panel type, with its options');
@@ -538,21 +642,12 @@ check(contains(w, "Figures: dropped unknown field(s)") && contains(w, "Figures(1
     && contains(w, "Figures(1).panels(1).options.baz") && ~contains(w, "top-level"), ...
     'unknown figure, observe, panel, layer and options fields are dropped and listed in LoadWarnings');
 check(c3.isequalConfig(cfg), 'and the rest loads unchanged');
-cj = cfg;
-cj.Figures(1).common = struct('bins', struct('BinSec', 0.02, 'SmoothSec', 0), 'measure', "count", ...
-    'baseline', struct('Mode', "subtract", 'Window', [-0.5 -0.1]), 'maskAfterStop', true, 'waveform', struct('mode', "both", 'scale', 1.5));
-cj.Figures(1).panels(2).common = false;
-fj = fullfile(root, 'common.json');
-cj.save(fj);
-cj2 = EphysAnalysisConfig.load(fj);
-check(cj.isequalConfig(cj2) && isempty(cj2.LoadWarnings) && cj2.Figures(1).common.measure == "count" ...
-    && cj2.Figures(1).common.waveform.scale == 1.5 && ~cj2.Figures(1).panels(2).common && cj2.Figures(1).panels(1).common ...
-    && cj2.Figures(2).panels(1).common && contains(fileread(fj), '"common"'), ...
-    'the common options and a panel''s common = false survive save / load');
+check(~contains(txt, '"common"'), 'the file holds no figure-level options block and no panel link flag: each panel''s options are its own');
+fj = fullfile(root, 'template.json');
 rpt = EphysAnalysisConfig();
 rpt = rpt.addFigure("rasterPsth");
 rpt.save(fj);
-check(rpt.isequalConfig(EphysAnalysisConfig.load(fj)), 'the rasterPsth template round-trips (its panels linked)');
+check(rpt.isequalConfig(EphysAnalysisConfig.load(fj)), 'the rasterPsth template round-trips');
 rn4 = EphysAnalysisConfig();
 rn4 = rn4.addFigure("rasterPsth");
 rn4 = rn4.addFigure("continuous", Id="ct4");
@@ -575,7 +670,7 @@ check(rn4.isequalConfig(rn5) && isempty(rn5.LoadWarnings) && rn5.Figures(1).obse
 v = jsondecode('[{"id": "a", "panels": [{"type": "raster"}]}, {"grid": {"rows": 2, "rowHeights": [1, 1.5]}, "panels": {"type": "psth", "row": 2}}]');
 c4 = EphysAnalysisConfig();
 c4.Figures = v;
-check(iscell(v) && isequal(c4.figureIds(), ["a" "figure_1"]) && c4.Figures(1).panels.id == "raster_1" ...
+check(iscell(v) && isequal(c4.figureIds(), ["a" "Blank units"]) && c4.Figures(1).panels.id == "raster_1" ...
     && isequal(c4.Figures(2).grid.rowHeights, [1 1.5]) && c4.Figures(2).panels.row == 2, ...
     'a cell Figures from jsondecode (figures with different fields)');
 c5 = EphysAnalysisConfig(struct('schema', EphysAnalysisConfig.Schema, 'version', EphysAnalysisConfig.Version, 'Figures', struct('id', "solo")));
@@ -626,6 +721,22 @@ g = place(tb, struct('id', "N", 'type', "psth"), "left", "B1");
 check(g.grid.cols == 3 && isequal(g.grid.colWidths, [1 1 3]) && isequal([g.panels.col], [2 2 3 1]) && g.panels(1).colSpan == 2 ...
     && isequal(cellsOf(g), [0 1 1; 4 2 3]) && isequaln(remove(g, "N"), tb), ...
     'left: a new column before the anchor (a cell left blank); removed, the original');
+tri = EphysAnalysisConfig.normalizeFigure(struct('grid', struct('rows', 3, 'cols', 1, 'spacing', "custom", 'rowGaps', [4 9]), ...
+    'panels', {{struct('id', "A", 'type', "raster", 'row', 1), struct('id', "B", 'type', "psth", 'row', 2), ...
+    struct('id', "C", 'type', "psth", 'row', 3)}}));
+gA = place(tri, struct('id', "N", 'type', "psth"), "below", "A");
+gT = place(tri, struct('id', "N", 'type', "psth"), "above", "A");
+gC = place(tri, struct('id', "N", 'type', "psth"), "below", "C");
+gR = place(tri, struct('id', "N", 'type', "psth"), "right", "B");
+tg = tb; tg.grid.colGaps = 5;
+gB = place(tg, struct('id', "N", 'type', "psth"), "right", "B1");
+check(isequal(gA.grid.rowGaps, [4 4 9]) && isequal(gT.grid.rowGaps, [4 4 9]) && isequal(gC.grid.rowGaps, [4 9 9]) ...
+    && isempty(gR.grid.colGaps) && isequal(gR.grid.rowGaps, [4 9]) && isequal(gB.grid.colGaps, [5 5]) ...
+    && isequaln(remove(gA, "N"), tri) && isequaln(remove(gT, "N"), tri) && isequaln(remove(gC, "N"), tri) ...
+    && isequaln(remove(gR, "N"), tri) && isequaln(remove(gB, "N"), tg), ...
+    'a gap list gets the gap where the new row (column) goes on both sides (at an edge the outer one again); [] stays []; Remove undoes it');
+z = remove(remove(remove(tri, "A"), "B"), "C");
+check(isempty(z.grid.rowGaps) && z.grid.rows == 1, 'removing the last panel drops the gap lists');
 x = remove(lr, "R2");
 check(x.grid.rows == 1 && x.panels(1).rowSpan == 1 && isequal(x.grid.rowHeights, 1) && isequal(cellsOf(x), [1 2]), ...
     'removePanel drops a row no panel starts in, shrinking the span across it');
@@ -651,28 +762,36 @@ ov = EphysAnalysisConfig.normalizeFigure(struct('grid', struct('rows', 1, 'cols'
 check(isequal(cl, [1 1]) && isequal(over, [1 2]), 'figureCells lists overlapping panels once');
 
 % apply to all panels, re-link
-ap = EphysAnalysisConfig.normalizeFigure(struct('grid', struct('rows', 3, 'cols', 1), 'panels', {{ ...
-    struct('id', "p1", 'type', "psth", 'row', 1, 'common', false, 'ref', struct('line', "Platform"), ...
-        'options', struct('bins', struct('BinSec', 0.05), 'baseline', struct('Mode', "zscore"), 'histStyle', "line", 'yLim', [0 9])), ...
-    struct('id', "p2", 'type', "psth", 'row', 2, 'common', false, 'window', struct('mode', "fixed", 'pre', -1, 'post', 2)), ...
-    struct('id', "c1", 'type', "continuous", 'row', 3, 'common', false, 'options', struct('display', "stacked"))}}));
-ad = EphysAnalysisConfig.adoptPanelOptions(ap, "p1");
-check(ad.common.bins.BinSec == 0.05 && ad.common.baseline.Mode == "zscore" && all([ad.panels.common]) ...
-    && ad.panels(2).options.histStyle == "line" && isequal(ad.panels(2).options.yLim, [0 9]) && ad.panels(2).options.bins.BinSec == 0.01 ...
-    && ad.panels(3).options.display == "stacked" && isequaln(ad.panels(3).options, ap.panels(3).options) ...
-    && isequal(ad.panels(1).ref, ap.panels(1).ref), ...
-    'adoptPanelOptions: the panel''s common fields become the figure''s, every panel linked, type-specific options only to same-type panels');
-ad2 = EphysAnalysisConfig.adoptPanelOptions(ad, "c1");
-check(isequaln(ad2.common, ad.common), 'adoptPanelOptions from a linked panel leaves the common options as they are');
+ap = EphysAnalysisConfig.normalizeFigure(struct('grid', struct('rows', 4, 'cols', 1), 'panels', {{ ...
+    struct('id', "p1", 'type', "psth", 'row', 1, 'ref', struct('line', "Platform"), ...
+        'options', struct('bins', struct('BinSec', 0.05), 'baseline', struct('Mode', "zscore"), 'histStyle', "line", 'yLim', [0 9], ...
+        'waveform', struct('mode', "mean"))), ...
+    struct('id', "p2", 'type', "psth", 'row', 2, 'window', struct('mode', "fixed", 'pre', -1, 'post', 2)), ...
+    struct('id', "c1", 'type', "continuous", 'row', 3, 'options', struct('display', "stacked")), ...
+    struct('id', "h1", 'type', "heatmap", 'row', 4, 'options', struct('order', "peak"))}}));
+[ad, chg] = EphysAnalysisConfig.adoptPanelOptions(ap, "p1");
+check(ad.panels(2).options.bins.BinSec == 0.05 && ad.panels(2).options.baseline.Mode == "zscore" && ad.panels(2).options.histStyle == "line" ...
+    && isequal(ad.panels(2).options.yLim, [0 9]) && ad.panels(2).options.waveform.mode == "mean" ...
+    && ad.panels(4).options.bins.BinSec == 0.05 && ad.panels(4).options.baseline.Mode == "zscore" && ad.panels(4).options.order == "peak" ...
+    && isequaln(ad.panels(3).options, ap.panels(3).options) && isequaln(ad.panels(1), ap.panels(1)) ...
+    && isequal(ad.panels(2).window, ap.panels(2).window), ...
+    ['adoptPanelOptions: the shared rows go to every panel that has them (the heat map''s bins and baseline), every option to ' ...
+    'the panel of the same type; the continuous panel keeps its baseline (it takes no zscore)']);
+check(isequal([chg.id], ["p2" "c1" "h1"]) && isempty(setxor(chg(1).fields, ["bins" "baseline" "histStyle" "yLim" "waveform"])) ...
+    && isempty(chg(1).kept) && isempty(chg(2).fields) && chg(2).kept == "baseline" ...
+    && isempty(setxor(chg(3).fields, ["bins" "baseline"])) && isempty(chg(3).kept), ...
+    'adoptPanelOptions says what changed: each panel''s changed options, and the panel that kept its baseline');
+[ad2, chg2] = EphysAnalysisConfig.adoptPanelOptions(ad, "p2");
+check(isequaln(ad2, ad) && isequal([chg2.id], "c1"), 'applied again: nothing changes (the continuous panel still keeps its baseline)');
 al = EphysAnalysisConfig.adoptPanelAlignment(ap, "p1");
 al2 = EphysAnalysisConfig.adoptPanelAlignment(ap, "p2");
-check(isstruct(al.ref) && al.ref.line == "Platform" && isequal(al.window, "default") && isequal([al.panels.ref], ["default" "default" "default"]) ...
-    && isequal([al.panels.window], ["default" "default" "default"]) && isequal(al2.ref, "default") && al2.window.pre == -1 ...
-    && ~any([al.panels.common]), 'adoptPanelAlignment: the panel''s own ref / window become the figure''s; every panel follows it');
+check(isstruct(al.ref) && al.ref.line == "Platform" && isequal(al.window, "default") && all([al.panels.ref] == "default") ...
+    && all([al.panels.window] == "default") && isequal(al2.ref, "default") && al2.window.pre == -1, ...
+    'adoptPanelAlignment: the panel''s own ref / window become the figure''s; every panel follows it');
 rl = EphysAnalysisConfig.relinkPanels(ap);
-check(all([rl.panels.common]) && isequal([rl.panels.ref], ["default" "default" "default"]) ...
-    && isequal([rl.panels.window], ["default" "default" "default"]) && isequaln(rl.common, ap.common) ...
-    && isequaln(rl.panels(1).options, ap.panels(1).options), 'relinkPanels: every panel''s ref, window and options linked again (own values kept)');
+check(all([rl.panels.ref] == "default") && all([rl.panels.window] == "default") ...
+    && all(arrayfun(@(i) isequaln(rl.panels(i).options, ap.panels(i).options), 1:4)), ...
+    'relinkPanels: every panel''s ref, window and selection linked again; the options stay each panel''s own');
 check(strcmp(errorId(@() EphysAnalysisConfig.adoptPanelOptions(ap, "zz")), 'EphysAnalysisConfig:NoPanel') ...
     && strcmp(errorId(@() EphysAnalysisConfig.adoptPanelAlignment(ap, "zz")), 'EphysAnalysisConfig:NoPanel'), ...
     'adoptPanelOptions / adoptPanelAlignment: NoPanel');
@@ -680,7 +799,7 @@ check(strcmp(errorId(@() EphysAnalysisConfig.adoptPanelOptions(ap, "zz")), 'Ephy
 fprintf('\n== 6. config: validate ==\n');
 base = EphysAnalysisConfig();
 base.Source.Root = root;
-base = base.addFigure();
+base = base.addFigure(Id="figure_1");   % an id of its own: the edits below keep it
 check(isempty(figIssues(base)), 'the rasterPsth figure validates clean');
 tc = base;
 for t = FT.Template.'
@@ -706,12 +825,8 @@ b = base.addFigure("psth", Id="a:b");
 check(has(b, "a:b.id", "error"), 'a figure id that is not file-name safe');
 
 % 2. observe
-b = base; b.Figures(1).observe.kind = "bogus";
-check(has(b, "figure_1.observe.kind", "error"), 'observe.kind is a known kind');
-b = base; b.Figures(1).observe.source = "LFP";
-check(has(b, "figure_1.observe.source", "error"), 'observe.source is units or detected');
-b = base; b.Figures(1).observe.signal = "units";
-check(has(b, "figure_1.observe.signal", "error"), 'observe.signal is a signal');
+b = base; b.Figures(1).observe.data = "bogus";
+check(has(b, "figure_1.observe.data", "error"), 'observe.data is one of ObserveData');
 b = base; b.Figures(1).observe.channels = 0.5;
 check(has(b, "figure_1.observe.channels", "error"), 'observe.channels are whole numbers >= 1');
 b = base; b.Figures(1).observe.units.maxUnits = 0;
@@ -720,21 +835,22 @@ b = base; b.Figures(1).sessions.datasets = "some";
 check(has(b, "figure_1.sessions.datasets", "error"), 'sessions.datasets is ticked or list');
 b = base; b.Figures(1).sessions.enabled = true; b.Figures(1).sessions.datasets = "list";
 check(has(b, "figure_1.sessions.datasetKeys", "warning"), 'a session figure''s "list" without dataset keys warns');
-b = base; b.Figures(1).observe.kind = "dataset";
-check(has(b, "figure_1.observe.kind", "error"), 'a layer following a dataset observation');
-b = base.addFigure("probemap", Id="pm"); b.Figures(2).observe.kind = "unit";
-check(has(b, "pm.observe.kind", "warning"), 'a unit observation that no layer follows warns');
-b = base.addFigure("continuous", Id="ct"); b.Figures(2).observe.kind = "channel"; b.Figures(2).observe.signal = "MUA";
+b = base; b.Figures(1).observe.data = "dataset";
+check(has(b, "figure_1.observe.data", "error"), 'a layer following a dataset observation');
+b = base.addFigure("probemap", Id="pm"); b.Figures(2).observe.data = "units";
+check(has(b, "pm.observe.data", "warning") && ~has(base.addFigure("probemap", Id="pm"), "pm.observe.data", "warning"), ...
+    'a unit observation that no layer follows warns (the probe map template observes the dataset: no warning)');
+b = base.addFigure("continuous", Id="ct"); b.Figures(2).observe.data = "MUA";
 check(has(b, "ct.continuous_1.layers(1).source", "warning"), 'an LFP layer following a MUA channel warns (the channel''s number)');
 auxFollow = layerOf("continuous"); auxFollow.source = "AUX";
 b = base; b.Figures(1) = place(b.Figures(1), struct('type', "continuous", 'layers', auxFollow), "below", "psth_1");
 check(has(b, "figure_1.continuous_1.layers(1).binding", "error"), 'AUX cannot follow a unit (no recording channel)');
-b = base.addFigure("continuous", Id="ct"); b.Figures(2).observe.kind = "channel"; b.Figures(2).panels.layers.source = "AUX";
+b = base.addFigure("continuous", Id="ct"); b.Figures(2).panels.layers.source = "AUX";   % it observes LFP
 I = figIssues(b);
 check(any(I.Field == "ct.continuous_1.layers(1).binding" & I.Severity == "error" ...
     & I.Message == "AUX has no recording channel: bind it to fixed channels.") && ~has(b, "ct.continuous_1.layers(1).source", "warning"), ...
     'AUX cannot follow an LFP channel (no recording channel): an error, as the compute skips it');
-b = base.addFigure("continuous", Id="ct"); b.Figures(2).observe.kind = "channel"; b.Figures(2).observe.signal = "AUX";
+b = base.addFigure("continuous", Id="ct"); b.Figures(2).observe.data = "AUX";
 I = figIssues(b);
 check(any(I.Field == "ct.continuous_1.layers(1).binding" & I.Severity == "error" ...
     & I.Message == "The observed AUX channel has no recording channel for LFP to follow.") && ~has(b, "ct.continuous_1.layers(1).source", "warning"), ...
@@ -750,7 +866,29 @@ check(has(b, "figure_1.grid.rowHeights", "error"), 'rowHeights: one per row');
 b = base; b.Figures(1).grid.colWidths = -1;
 check(has(b, "figure_1.grid.colWidths", "error"), 'colWidths: positive');
 b = base; b.Figures(1).grid.spacing = "wide";
-check(has(b, "figure_1.grid.spacing", "error"), 'grid.spacing is loose, compact, tight or none');
+check(has(b, "figure_1.grid.spacing", "error"), 'grid.spacing is loose, compact, tight, none or custom');
+b = base; b.Figures(1).grid.gapUnits = "cm";
+check(has(b, "figure_1.grid.gapUnits", "error"), 'grid.gapUnits is px or %');
+b = base; b.Figures(1).grid.rowGap = -2;
+b2 = base; b2.Figures(1).grid.colGap = NaN;
+check(has(b, "figure_1.grid.rowGap", "error") && has(b2, "figure_1.grid.colGap", "error"), 'grid.rowGap and colGap are numbers >= 0');
+b = base; b.Figures(1).grid.spacing = "custom"; b.Figures(1).grid.rowGaps = [4 5];
+b2 = base; b2.Figures(1).grid.colGaps = 3;
+check(has(b, "figure_1.grid.rowGaps", "error") && has(b2, "figure_1.grid.colGaps", "error"), ...
+    'rowGaps / colGaps: [] or a gap between every two rows / columns (two rows: one gap; one column: none)');
+b = base; b.Figures(1).grid.spacing = "custom"; b.Figures(1).grid.gapUnits = "%"; b.Figures(1).grid.rowGaps = 8;
+check(~any(figIssues(b).Severity == "error"), 'custom gaps in %, the one between the two rows listed: clean');
+b = base; b.Figures(1).panels(1).size = [1.2 1];
+b2 = base; b2.Figures(1).panels(1).size = [0.5 0];
+b3 = base; b3.Figures(1).panels(1).size = 0.5;
+check(has(b, "figure_1.raster_1.size", "error") && has(b2, "figure_1.raster_1.size", "error") && has(b3, "figure_1.raster_1.size", "error"), ...
+    'a panel''s size is [width height], each over 0 and at most 1');
+b = base; b.Figures(1).panels(1).align = "middle";
+b2 = base; b2.Figures(1).panels(1).valign = "center";
+check(has(b, "figure_1.raster_1.align", "error") && has(b2, "figure_1.raster_1.valign", "error"), ...
+    'a panel''s align is left, center or right; its valign top, middle or bottom');
+b = base; b.Figures(1).panels(1).size = [0.5 0.75]; b.Figures(1).panels(1).align = "right"; b.Figures(1).panels(1).valign = "top";
+check(~any(figIssues(b).Severity == "error"), 'a panel half its cell''s width and three quarters its height, at its top right: clean');
 
 % 4. panels
 b = base; b.Figures(1).panels(1).type = "violin";
@@ -817,7 +955,36 @@ b = base.addFigure("continuous", Id="ct"); evT = evL; evT.eventsAs = "train"; b.
 b2 = base.addFigure("continuous", Id="ct"); b2.Figures(2).panels.layers(2) = evL;
 check(has(b, "ct.continuous_1.layers(2).eventsAs", "error") && isempty(figIssues(b2)), 'a train only on raster / psth / heatmap (marks on continuous)');
 b = base; evB = evL; evB.eventsAs = "bogus"; b.Figures(1).panels(1).layers(2) = evB;
-check(has(b, "figure_1.raster_1.layers(2).eventsAs", "error"), 'eventsAs is marks or train');
+check(has(b, "figure_1.raster_1.layers(2).eventsAs", "error"), 'eventsAs is marks, train or span');
+evS = evL; evS.eventsAs = "span";
+b = base; b.Figures(1).panels(1).layers(2) = evS; b.Figures(1).panels(2).layers(2) = evS;
+b2 = base.addFigure("continuous", Id="ct"); b2.Figures(2).panels.layers(2) = evS;
+b3 = base; b3.Figures(1).panels(1).layers(1) = evS;
+check(isempty(figIssues(b)) && isempty(figIssues(b2)) && has(b3, "figure_1.raster_1.layers", "error"), ...
+    'spans validate clean on a raster with rows, a PSTH and a continuous panel; a raster of spans alone has no rows');
+b = base; evS2 = evS; evS2.event.spanStyle = "~"; evS2.event.spanWidth = 0; evS2.event.spanAlpha = 2; b.Figures(1).panels(1).layers(2) = evS2;
+check(has(b, "figure_1.raster_1.layers(2).event.spanStyle", "error") && has(b, "figure_1.raster_1.layers(2).event.spanWidth", "error") ...
+    && has(b, "figure_1.raster_1.layers(2).event.spanAlpha", "error"), 'a span''s line style, width and opacity');
+b = base.addFigure("eventTrace", Id="et");
+b.Figures(2).panels.layers(2) = evT;   % a train: eventsAs is not used on an event-trace panel
+b.Figures(2).panels.layers(3) = layerOf("raster");
+b.Figures(2).panels.layers(3).binding = "fixed";
+I = figIssues(b);
+check(isempty(I(I.Field ~= "et.eventTrace_1.layers(3).source", :)) && any(I.Field == "et.eventTrace_1.layers(3).source" & I.Severity == "error" ...
+    & I.Message == "An event traces panel draws events layers only (a digital or derived line each), not units."), ...
+    'an event-trace panel takes events layers only (a train among them is fine: eventsAs is not used there)');
+b = base.addFigure("eventTrace", Id="et");
+o = b.Figures(2).panels.options;
+o.display = "dots"; o.trials = "all"; o.colorBy = "unit"; o.height = 1.5; o.alpha = 2; o.edgeColor = "plaid"; o.edgeWidth = 0;
+o.lineStyle = "~"; o.baselineColor = "plaid"; o.baselineStyle = ""; o.baselineWidth = -1; o.rowSpacing = 0; o.lineWidth = NaN;
+b.Figures(2).panels.options = o;
+bad = ["display" "trials" "colorBy" "height" "alpha" "edgeWidth" "lineStyle" "baselineStyle" "baselineWidth" "rowSpacing" "lineWidth"];
+check(all(arrayfun(@(f) has(b, "et.eventTrace_1.options." + f, "error"), bad)) && has(b, "et.eventTrace_1.options.edgeColor", "warning") ...
+    && has(b, "et.eventTrace_1.options.baselineColor", "warning"), 'an event-trace panel''s options: ' + strjoin(bad, ", ") + ...
+    ' errors, a color that is not one a warning');
+b = base.addFigure("eventTrace", Id="et"); b.Figures(2).sessions.enabled = true;
+check(has(b, "et.eventTrace_1.type", "error") && endsWith(figureSessionSkipReason(b.figureFor("et"), ""), "eventTrace panel is not merged across sessions"), ...
+    'a session figure cannot hold an event-trace panel (validate, figureSessionSkipReason)');
 b = base; b.Figures(1).panels(1).layers(1) = evL;
 b2 = base; b2.Figures(1).panels(1).layers(1) = evT;
 check(has(b, "figure_1.raster_1.layers", "error") && ~has(b2, "figure_1.raster_1.layers", "error"), 'a raster of marks alone has no rows (a train has)');
@@ -846,8 +1013,8 @@ b2 = base.addFigure("corrmap", Id="cm"); b2.Figures(2).window = between;
 check(has(b, "figure_1.raster_1.window", "error") && has(b, "figure_1.psth_1.window", "error") && isempty(figIssues(b2)), ...
     'a "between" window only on a unit correlation panel');
 
-% 9. options (a panel's own common fields are checked where it is not linked to the figure's common options)
-ub = unlinkFigure(base, 1);
+% 9. options
+ub = base;
 o = "figure_1.raster_1.options.";
 b = base; b.Figures(1).panels(1).options.rasterSortOrder = "up";
 check(has(b, o + "rasterSortOrder", "error"), 'raster: rasterSortOrder');
@@ -881,7 +1048,7 @@ b = base; b.Figures(1).panels(2).options.histStyle = "pie"; b.Figures(1).panels(
 b.Figures(1).panels(2).options.fillAlpha = 2; b.Figures(1).panels(2).options.yLim = [1 0];
 check(has(b, o + "histStyle", "error") && has(b, o + "normalize", "error") && has(b, o + "fillAlpha", "error") && has(b, o + "yLim", "error"), ...
     'psth: histStyle, normalize, fillAlpha, yLim');
-b = unlinkFigure(base.addFigure("continuous", Id="ct"), 2);
+b = base.addFigure("continuous", Id="ct");
 b.Figures(2).panels.options = struct('display', "grid", 'statistic', "mode", 'transform', "log", 'errorType', "mad", 'stackSpacing', -1, ...
     'baseline', struct('Mode', "zscore"));
 o = "ct.continuous_1.options.";
@@ -890,13 +1057,13 @@ check(has(b, o + "display", "error") && has(b, o + "statistic", "error") && has(
 haveBoot = license('test', 'Statistics_Toolbox') && exist('bootci', 'file');
 b = base.addFigure("continuous", Id="ct"); b.Figures(2).panels.options.errorType = "ci95";
 check(has(b, o + "errorType", "error") == ~haveBoot, 'continuous: the bootstrap CI needs the Statistics and Machine Learning Toolbox');
-b = unlinkFigure(base.addFigure("continuous", Id="ct"), 2); b.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [-1 -0.5]);
-b2 = unlinkFigure(base.addFigure("continuous", Id="ct"), 2); b2.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [-0.5 -0.1]);
-b3 = unlinkFigure(base.addFigure("continuous", Id="ct"), 2); b3.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [-0.2 -0.15]);
+b = base.addFigure("continuous", Id="ct"); b.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [-1 -0.5]);
+b2 = base.addFigure("continuous", Id="ct"); b2.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [-0.5 -0.1]);
+b3 = base.addFigure("continuous", Id="ct"); b3.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [-0.2 -0.15]);
 b3.Figures(2).panels.window = struct('mode', "fixed", 'pre', -0.1, 'post', 0.3);
-b4 = unlinkFigure(base.addFigure("heatmap", Id="hm"), 2); b4.Figures(2).panels.layers.source = "LFP";
+b4 = base.addFigure("heatmap", Id="hm"); b4.Figures(2).panels.layers.source = "LFP";
 b4.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [1 2]);
-b5 = unlinkFigure(base.addFigure("heatmap", Id="hm"), 2); b5.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [1 2]);
+b5 = base.addFigure("heatmap", Id="hm"); b5.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [1 2]);
 check(has(b, o + "baseline", "error") && ~has(b2, o + "baseline", "error") && has(b3, o + "baseline", "error") ...
     && has(b4, "hm.heatmap_1.options.baseline", "error") && ~has(b5, "hm.heatmap_1.options.baseline", "error"), ...
     'a signal''s baseline window must overlap the panel''s resolved window (continuous, a heat map of a signal; not of spikes)');
@@ -904,81 +1071,52 @@ b = base.addFigure("heatmap", Id="hm"); b.Figures(2).panels.options.order = "mod
 b.Figures(2).panels.options.cLim = [2 1];
 o = "hm.heatmap_1.options.";
 check(has(b, o + "order", "error") && has(b, o + "group", "error") && has(b, o + "cLim", "error"), 'heatmap: order, group, cLim');
-b = unlinkFigure(base.addFigure("heatmap", Id="hm"), 2); b.Figures(2).panels.options.baseline.Mode = "auroc"; b.Figures(2).panels.options.order = "modulation";
+b = base.addFigure("heatmap", Id="hm"); b.Figures(2).panels.options.baseline.Mode = "auroc"; b.Figures(2).panels.options.order = "modulation";
 b2 = b; b2.Figures(2).panels.layers.source = "LFP";
-b3 = base.addFigure("heatmap", Id="hm"); b3.Figures(2).panels.layers.source = "LFP"; b3.Figures(2).common.baseline.Mode = "auroc";
 check(~has(b, o + "order", "error") && ~has(b, o + "baseline.Mode", "error") && has(b2, o + "baseline.Mode", "error") ...
-    && has(b2, o + "order", "error") && has(b3, "hm.heatmap_1.common", "error"), ...
-    'heatmap: the auROC baseline and modulation order for spikes, not for a signal (own or common)');
-b = unlinkFigure(base.addFigure("heatmap", Id="hm"), 2); b.Figures(2).panels.layers.source = "LFP"; b.Figures(2).panels.options.baseline.Mode = "zscore";
-b2 = unlinkFigure(base.addFigure("heatmap", Id="hm"), 2); b2.Figures(2).panels.options.baseline.Mode = "zscore";
+    && has(b2, o + "order", "error"), 'heatmap: the auROC baseline and modulation order for spikes, not for a signal');
+b = base.addFigure("heatmap", Id="hm"); b.Figures(2).panels.layers.source = "LFP"; b.Figures(2).panels.options.baseline.Mode = "zscore";
+b2 = base.addFigure("heatmap", Id="hm"); b2.Figures(2).panels.options.baseline.Mode = "zscore";
 check(has(b, o + "baseline.Mode", "error") && isempty(figIssues(b2)), 'heatmap: z-score for spikes, not for a signal');
-b = unlinkFigure(base.addFigure("waveforms", Id="wf"), 2); b.Figures(2).panels.options.waveform.mode = "off";
+b = base.addFigure("waveforms", Id="wf"); b.Figures(2).panels.options.waveform.mode = "off";
 check(has(b, "wf.waveforms_1.options.waveform.mode", "error"), 'waveforms: the mode is never off');
 b = base.addFigure("waveforms", Id="wf"); b.Figures(2).panels.options.layout = "map";
 b2 = base.addFigure("waveforms", Id="wf"); b2.Figures(2).panels.options.layout = "probe";
 b3 = b2; b3.Figures(2).panels.layers(1).binding = "fixed"; b3.Figures(2).panels.layers(2) = layerOf("waveforms");
 check(has(b, "wf.waveforms_1.options.layout", "error") && has(b2, "wf.waveforms_1.options.layout", "warning") ...
     && isempty(figIssues(b3)), 'waveforms: layout grid or probe; a probe of the observed unit alone warns; a fixed layer ringing a following one is clean');
-b = unlinkFigure(base.addFigure("rate", Id="rt"), 2);
+b = base.addFigure("rate", Id="rt");
 b.Figures(2).panels.options = struct('display', "pie", 'measure', "volts", 'baseline', struct('Mode', "percent", 'Window', [-0.2 0]), 'yLim', [3 1]);
 o = "rt.rate_1.options.";
-b2 = base.addFigure("rate", Id="rt"); b2.Figures(2).common.baseline.Mode = "percent";
-b3 = base.addFigure("rate", Id="rt"); b3.Figures(2).common.baseline.Mode = "ratio";
+b2 = base.addFigure("rate", Id="rt"); b2.Figures(2).panels.options.baseline.Mode = "percent";
+b3 = base.addFigure("rate", Id="rt"); b3.Figures(2).panels.options.baseline.Mode = "ratio";
 b4 = base.addFigure("rate", Id="rt"); b4.Figures(2).window = between;
 b5 = base.addFigure("rate", Id="rt"); b5.Figures(2).panels.layers.binding = "fixed";
 check(has(b, o + "display", "error") && has(b, o + "measure", "error") && has(b, o + "baseline.Mode", "error") && has(b, o + "yLim", "error") ...
-    && has(b2, "rt.rate_1.common", "error") && isempty(figIssues(b3)) && isempty(figIssues(b4)) ...
+    && has(b2, o + "baseline.Mode", "error") && isempty(figIssues(b3)) && isempty(figIssues(b4)) ...
     && has(b5, "rt.rate_1.layers(1).units.maxUnits", "warning"), ...
-    'rate: display, measure, baseline (firingRate''s modes: ratio, not percent; own or common), yLim; a "between" window; many fixed units warn');
-b = unlinkFigure(base.addFigure("tuning", Id="tc"), 2);
+    'rate: display, measure, baseline (firingRate''s modes: ratio, not percent), yLim; a "between" window; many fixed units warn');
+b = base.addFigure("tuning", Id="tc");
 b.Figures(2).panels.options.param = "Depth"; b.Figures(2).panels.options.seriesParam = "Depth"; b.Figures(2).panels.options.waveform.mode = "huge";
 b2 = base.addFigure("tuning", Id="tc"); b2.Figures(2).panels.options.param = "not a name";
 b3 = base.addFigure("tuning", Id="tc"); b3.Figures(2).panels.options.param = "Depth"; b3.Figures(2).panels.options.seriesParam = "TrialType";
 b3.Figures(2).window = between;
-b4 = base.addFigure("tuning", Id="tc"); b4.Figures(2).common.baseline.Mode = "auroc";
+b4 = base.addFigure("tuning", Id="tc"); b4.Figures(2).panels.options.baseline.Mode = "auroc";
 o = "tc.tuning_1.options.";
 check(has(b, o + "seriesParam", "error") && has(b, o + "waveform.mode", "error") && has(b2, o + "param", "error") ...
-    && isempty(figIssues(b3)) && has(b4, "tc.tuning_1.common", "error"), ...
+    && isempty(figIssues(b3)) && has(b4, o + "baseline.Mode", "error"), ...
     'tuning: param and seriesParam (names, not the same), its waveform inset; a "between" window; no auROC baseline');
 b = base.addFigure("probemap", Id="pm"); b.Figures(2).panels.options.value = "x";
 check(has(b, "pm.probemap_1.options.value", "error"), 'probemap: value');
 b = base.addFigure("corrmap", Id="cm"); b.Figures(2).panels.options.metric = "max"; b.Figures(2).panels.options.correlation = "kendall";
-b2 = unlinkFigure(base.addFigure("corrmap", Id="cm"), 2); b2.Figures(2).panels.options.metric = "peak"; b2.Figures(2).panels.options.bins.BinSec = 0;
+b2 = base.addFigure("corrmap", Id="cm"); b2.Figures(2).panels.options.metric = "peak"; b2.Figures(2).panels.options.bins.BinSec = 0;
 check(has(b, "cm.corrmap_1.options.metric", "error") && has(b, "cm.corrmap_1.options.correlation", "error") ...
     && has(b2, "cm.corrmap_1.options.bins.BinSec", "error"), 'corrmap: metric, correlation, bins of a peak rate');
-
-% 9b. the common options
-c0 = "figure_1.common.";
-b = base; b.Figures(1).common.bins.BinSec = 0; b.Figures(1).common.measure = "volts";
-b.Figures(1).common.waveform = struct('mode', "mean", 'scale', 5);
-check(has(b, c0 + "bins.BinSec", "error") && has(b, c0 + "measure", "error") && has(b, c0 + "waveform.scale", "error") ...
-    && ~has(b, "figure_1.psth_1.options.bins.BinSec", "error"), 'the common block: bins, measure, waveform (once, not per linked panel)');
-b = base; b.Figures(1).common.baseline.Mode = "bogus";
-b2 = base; b2.Figures(1).common.baseline = struct('Mode', "subtract", 'Window', [0 -1]);
-check(has(b, c0 + "baseline.Mode", "error") && has(b2, c0 + "baseline.Window", "error"), 'the common block: baseline Mode and window');
-b = base; b.Figures(1).common.baseline.Mode = "auroc";
-b2 = b; b2.Figures(1).common.auroc.windowSec = 0.015;
-check(isempty(figIssues(b)) == haveAuroc && has(b2, c0 + "auroc.windowSec", "error") && ~has(b2, "figure_1.psth_1.options.auroc.windowSec", "error"), ...
-    'the common block: the auROC settings, checked once while the PSTH is linked');
-b3 = unlinkFigure(base, 1); b3.Figures(1).panels(2).options.baseline.Mode = "auroc";
-b3.Figures(1).panels(2).options.bins.BinSec = 0.04;   % its own bins: the 0.1 s auROC windows no longer fit
-check(has(b3, "figure_1.psth_1.options.auroc.windowSec", "error"), 'an unlinked PSTH''s own auROC windows must be whole numbers of its own bins');
-b = base.addFigure("continuous", Id="ct"); b.Figures(2).common.baseline.Mode = "auroc";
-check(has(b, "ct.continuous_1.common", "error"), 'a common auROC baseline a linked continuous panel does not take: an error at the panel''s common');
-b = base.addFigure("continuous", Id="ct"); b.Figures(2).common.baseline.Mode = "zscore";
-I = figIssues(b);
-check(any(I.Field == "ct.continuous_1.common" & I.Severity == "error" & contains(I.Message, """zscore""") ...
-    & contains(I.Message, "continuous signal panel") & contains(I.Message, "untick")) && ~has(b, "ct.common.baseline.Mode", "error"), ...
-    'a common baseline "zscore" a linked continuous panel does not take: an error at the panel''s common');
-b.Figures(2).panels.common = false;
-check(isempty(figIssues(b)), 'unlinking the panel clears it (its own baseline is "none")');
-b = base; b.Figures(1).common.baseline.Mode = "zscore";
-check(isempty(figIssues(b)), 'a PSTH takes the common z-score');
-b = base.addFigure("continuous", Id="ct"); b.Figures(2).common.baseline = struct('Mode', "subtract", 'Window', [-1 -0.5]);
-check(has(b, "ct.continuous_1.common.baseline", "error"), 'a linked signal''s common baseline must overlap the panel''s window');
+b3 = base; b3.Figures(1).panels(2).options.baseline.Mode = "auroc";
+b3.Figures(1).panels(2).options.bins.BinSec = 0.04;   % its bins: the 0.1 s auROC windows no longer fit
+check(has(b3, "figure_1.psth_1.options.auroc.windowSec", "error"), 'a PSTH''s auROC windows must be whole numbers of its bins');
 b = base.addFigure("waveforms", Id="wf");
-check(isempty(figIssues(b)), 'a linked waveforms panel takes the common waveform mode "off" as "both"');
+check(isempty(figIssues(b)), 'a waveforms panel''s own default waveform (mode "both") validates');
 
 % 10. the style (checkStyle)
 st = base.Figures(1).style;
@@ -1035,14 +1173,14 @@ b2.Figures(2).panels.layers.units.ids = 7;
 check(~has(b2, "trialmap.ht.layers(1).units", "error"), '... one fixed id is fine');
 b2 = b; b2.Figures(2).panels.layers.source = "LFP";
 check(has(b2, "trialmap.ht.options.rows", "error"), 'a heat map of trials of a signal: an error');
-b2 = b; b2.Figures(2).panels.common = false; b2.Figures(2).panels.options.baseline.Mode = "auroc";
+b2 = b; b2.Figures(2).panels.options.baseline.Mode = "auroc";
 check(has(b2, "trialmap.ht.options.baseline.Mode", "error"), 'a heat map of trials takes no auROC baseline');
 b2 = b; b2.Figures(2).panels.options.rasterSort = "event";
 check(has(b2, "trialmap.ht.options.rasterSortEvent", "error"), 'a heat map of trials sorted by "event" needs its event (the raster''s rule)');
 b2 = b; b2.Figures(2).panels.options.rows = "items";
 check(has(b2, "trialmap.ht.layers(1).binding", "error"), 'a heat map of items still draws fixed layers only');
 b2 = b; b2.Figures(2).panels.layers.source = "detected";   % the observed units are sorted: the detections on its channel
-b3 = b; b3.Figures(2).observe.kind = "channel";            % every unit on the observed channel
+b3 = b; b3.Figures(2).observe.data = "LFP";               % every unit on the observed channel
 check(~has(b, "trialmap.ht.layers(1).binding", "error") && has(b2, "trialmap.ht.layers(1).binding", "error") ...
     && has(b3, "trialmap.ht.layers(1).binding", "error"), ...
     'a heat map of trials following through a channel (the other spike source, a channel observation): several units, an error');
@@ -1065,6 +1203,9 @@ nb.text = "n = 12";
 b.Figures(1).panels(2).note = nb;
 b.Figures(1).panels(2).overlays = EphysAnalysisConfig.defaults("Overlay");
 check(isempty(figIssues(b)), 'a panel with a note and an overlay validates clean');
+bx = b; bx.Figures(1).panels(2).box = "on";
+bx2 = b; bx2.Figures(1).panels(2).box = "maybe";
+check(isempty(figIssues(bx)) && has(bx2, "figure_1.psth_1.box", "error"), 'a panel''s box is auto, on or off (anything else is an error)');
 nb.placement = "nowhere"; nb.align = "justify"; nb.valign = "up"; nb.interpreter = "latex"; nb.rotation = NaN;
 nb.fontSize = -1; nb.color = "plaid";
 b2 = b; b2.Figures(1).panels(2).note = nb;
@@ -1250,6 +1391,49 @@ check(Lt.skip == "" && Lt.name == "Stim onset" && Lt.R.labels == "Stim onset" &&
 check(Lp.skip == "" && abs(Lp.R.edges(kPk)) < 1e-9 && nnz(abs(M.t) < 1e-9) == nE && nnz(at0) == nE, ...
     'the train''s PSTH of the Stim line peaks in the bin from 0 when aligned to Stim onset, as epochEvents'' latencies of 0 say');
 
+% events as spans, and an event-trace panel (the Stim and Platform lines, a units layer it refuses)
+    function [ep, on, off] = intervalsOf(line, E)
+        % the oracle: every interval of the line overlapping each epoch's window, s from its event
+        iv = double(src.events.(line));
+        ep = zeros(0, 1); on = zeros(0, 1); off = zeros(0, 1);
+        for hE = 1:height(E)
+            hIn = find(iv(:, 1) <= E.tStop(hE) & iv(:, 2) >= E.tStart(hE));
+            ep = [ep; repmat(hE, numel(hIn), 1)]; %#ok<AGROW>
+            on = [on; iv(hIn, 1) - E.t0(hE)]; %#ok<AGROW>
+            off = [off; iv(hIn, 2) - E.t0(hE)]; %#ok<AGROW>
+        end
+    end
+spanL = ev; spanL.eventsAs = "span";
+fSpan = cfg.Figures(cfg.figureIndex("rp"));
+fSpan.id = "spans";
+fSpan.panels(1).layers = [fSpan.panels(1).layers spanL];
+fSpan.panels(2).layers = [fSpan.panels(2).layers spanL];
+cfg = cfg.addFigure(fSpan);
+Fsp = rn.computeFigure(src, cfg.figureFor("spans"), Observation=Tu(1, :));
+Ss = Fsp.panels(1).layers(2);
+[epS, onS, offS] = intervalsOf("Stim", Fsp.epochs);
+check(Ss.skip == "" && Ss.R.kind == "events" && isempty(Ss.R.marks) && isequal(Ss.R.spans.epoch, epS) ...
+    && max(abs(Ss.R.spans.on - onS)) < 1e-9 && max(abs(Ss.R.spans.off - offS)) < 1e-9 ...
+    && Ss.eventsAs == "span" && Ss.name == "Stim onset" && isequaln(Fsp.panels(2).layers(2).R.spans, Ss.R.spans), ...
+    sprintf('events as spans: each epoch''s Stim intervals from onset to offset (%d), the same on the raster and the PSTH', numel(onS)));
+et2 = ev; et2.event.line = "Platform";
+etU = layerOf("raster"); etU.binding = "fixed";
+cfg = cfg.addFigure(struct('panels', {{struct('id', "et", 'type', "eventTrace", 'layers', [ev et2 etU])}}), Id="trace");
+Ftrace = rn.computeFigure(src, cfg.figureFor("trace"));
+Lt1 = Ftrace.panels(1).layers(1);
+Lt2 = Ftrace.panels(1).layers(2);
+[epP, onP, offP] = intervalsOf("Platform", Ftrace.epochs);
+check(Ftrace.panels(1).sharesTime && Lt1.skip == "" && Lt1.R.kind == "eventTrace" && Lt1.name == "Stim" && Lt2.name == "Platform" ...
+    && isequal(Lt2.R.epoch, epP) && max(abs(Lt2.R.on - onP)) < 1e-9 && max(abs(Lt2.R.off - offP)) < 1e-9 ...
+    && Lt1.R.nEpochs == height(Ftrace.epochs) && isequal(size(Lt1.R.window), [height(Ftrace.epochs) 2]) ...
+    && contains(Ftrace.panels(1).layers(3).skip, "does not draw units"), ...
+    sprintf('an event-trace panel: each line''s intervals overlapping each epoch (%d Platform), named by the line; a units layer skipped', numel(onP)));
+srcZ = src;
+srcZ.events.Stim(:, 2) = srcZ.events.Stim(:, 1);   % every interval a single instant
+check(strcmp(errorId(@() epochIntervals(srcZ, Ftrace.epochs, eventMarkRef(ev.event))), 'epochIntervals:NoOffsets') ...
+    && isempty(epochIntervals(src, Ftrace.epochs, struct('line', "Stim", 'which', "all", 'timeRange', [1e6 Inf], 'scope', "recording")).on), ...
+    'a line without an offset after its onsets is refused (epochIntervals:NoOffsets); a reference picking no event gives no interval');
+
 % a panel's own window
 fo = cfg.Figures(cfg.figureIndex("rp"));
 fo.id = "own";
@@ -1268,7 +1452,7 @@ check(istable(Po.epochs) && ~Po.sharesTime && Fo.panels(1).sharesTime && isempty
 k1 = find(Tc.channel == Tu.channel(1), 1);
 fc = cfg.Figures(cfg.figureIndex("ct"));
 fc.id = "chan";
-fc.observe.kind = "channel";
+fc.observe.data = "LFP";
 muaL = lfpL; muaL.source = "MUA";
 fc.panels(1).layers = [fc.panels(1).layers muaL];
 fc = EphysAnalysisConfig.placePanel(fc, struct('id', "r", 'type', "raster", 'layers', EphysAnalysisConfig.defaultLayer("raster")), ...
@@ -1286,7 +1470,7 @@ check(isscalar(k1) && Fc.observation.kind == "channel" && Fc.observation.column 
 % a panel whose only layer is skipped (an AUX layer following a unit)
 auxOnly = EphysAnalysisConfig.defaultLayer("continuous");
 auxOnly.source = "AUX";
-cfg = cfg.addFigure(struct('observe', struct('kind', "unit"), 'panels', {{struct('id', "auxonly", 'type', "continuous", ...
+cfg = cfg.addFigure(struct('observe', struct('data', "units"), 'panels', {{struct('id', "auxonly", 'type', "continuous", ...
     'layers', auxOnly)}}), Id="auxonly");
 Fn = rn.computeFigure(src, cfg.figureFor("auxonly"), Observation=Tu(1, :));
 check(Fn.panels(1).skip == "" && Fn.panels(1).layers(1).skip == auxMsg && isempty(Fn.panels(1).layers(1).R), ...
@@ -1305,7 +1489,6 @@ check(~ismember("NoSuchSort", string(src.trials.Properties.VariableNames)) && Fr
 fbb = cfg.Figures(cfg.figureIndex("ct"));
 fbb.id = "badbase";
 fbb.panels(1).options.baseline = struct('Mode', "subtract", 'Window', [-1 -0.5]);
-fbb.panels(1).common = false;   % its own baseline, not the figure's common one
 cfg = cfg.addFigure(fbb);
 Fbb = rn.computeFigure(src, cfg.figureFor("badbase"), Observation=Tc(1, :));
 check(Fbb.panels(1).skip == "" && startsWith(Fbb.panels(1).layers(1).skip, "Baseline [") && isempty(Fbb.panels(1).layers(1).R), ...
@@ -1436,7 +1619,6 @@ ft2 = cfg.Figures(cfg.figureIndex("tc"));
 ft2.id = "tc2";
 ft2.panels(1).options.seriesParam = "TrialType";
 ft2.panels(1).options.waveform.mode = "mean";
-ft2.panels(1).common = false;
 ft2.selection = struct('groupBy', string.empty(1, 0));
 cfg = cfg.addFigure(ft2);
 wsw = warning('off', 'unitWaveforms:Templates');
@@ -1459,7 +1641,7 @@ check(rm == "" && Ftm.panels(1).skip == "no trial parameter NoSuchParam" && Ftm.
     'a tuning panel over a parameter the trials lack is skipped: "no trial parameter NoSuchParam" (figureSkipReason too)');
 fa4 = cfg.Figures(cfg.figureIndex("rp"));
 fa4.id = "auroc";
-fa4.common.baseline = struct('Mode', "auroc", 'Window', [-0.2 0]);
+fa4.panels(2).options.baseline = struct('Mode', "auroc", 'Window', [-0.2 0]);
 cfg = cfg.addFigure(fa4);
 wa1 = warning('off', 'aurocCall:NoCutoff');
 wa2 = warning('off', 'aurocCall:WideCutoff');
@@ -1472,7 +1654,7 @@ warning(wa2); warning(wa1);
 Lau = Fau.panels(2).layers(1);
 check(Lau.skip == "" && isfield(Lau.R, 'auroc') && ~isempty(Lau.R.auroc) && Lau.R.units == "auROC" && isequaln(Lau.R.rate, Rau.rate) ...
     && isequaln(Lau.R.t, Rau.t) && isequal(Lau.R.auroc.direction, Rau.auroc.direction) && isequaln(Lau.R.auroc.mean, Rau.auroc.mean), ...
-    'an auROC PSTH (the common baseline Mode "auroc") is spikePSTH''s PSTH with the auROC baseline, its calls too');
+    'an auROC PSTH (its baseline Mode "auroc") is spikePSTH''s PSTH with the auROC baseline, its calls too');
 fs4 = cfg.Figures(cfg.figureIndex("rp"));
 fs4.id = "stacked";
 fs4.panels(2).options.stack = true;
@@ -1540,7 +1722,7 @@ check(str.panels(1).options.maxTrials == 100 && lay300.skip == "" && size(lay300
 % a heat map of one unit's trials
 hmL = EphysAnalysisConfig.defaultLayer("heatmap");
 hmL.binding = "observation";
-fth = struct('panels', {{struct('id', "tm", 'type', "heatmap", 'layers', hmL, 'common', false, 'options', struct('rows', "trials", ...
+fth = struct('panels', {{struct('id', "tm", 'type', "heatmap", 'layers', hmL, 'options', struct('rows', "trials", ...
     'measure', "count", 'bins', struct('BinSec', 0.02, 'SmoothSec', 0), 'rasterSort', "Depth", 'rasterSortOrder', "descending"))}});
 cfg = cfg.addFigure(fth, Id="trialmap");
 sth = cfg.figureFor("trialmap");
@@ -1641,7 +1823,6 @@ check(contains(Fgone.skip, "nope") && all([Fgone.panels.skip] == Fgone.skip) && 
     'an observation of a trial group with no epoch here is no error: F.skip and its panels say why, and it draws with notes');
 fpb = fpg;
 fpb.id = "pergroupbase";
-fpb.panels(2).common = false;
 fpb.panels(2).options.baseline = struct('Mode', "subtract", 'Window', [-6 -5.9]);   % far back: early epochs lose their baseline
 cfg = cfg.addFigure(fpb);
 spb = cfg.figureFor("pergroupbase");
@@ -1692,34 +1873,51 @@ else
 end
 
 %% ============================================================================ render
-fprintf('\n== 8. render: renderFigure, figureTiles, the draw functions ==\n');
-% figureTiles: relative sizes as equal units
-pp = struct('row', {1 2}, 'col', {1 1}, 'rowSpan', {1 1}, 'colSpan', {1 1});
-gr = struct('rows', 2, 'cols', 1, 'rowHeights', [1 2], 'colWidths', [], 'spacing', "none");
-[nr1, nc1, to1, so1] = figureTiles(gr, pp);
-gr.rowHeights = [1 1.5];
-[nr2, ~, to2, so2] = figureTiles(gr, pp);
-gr.rowHeights = [];
-[nr3, ~, to3, so3] = figureTiles(gr, pp);
-check(nr1 == 3 && nc1 == 1 && isequal(to1, [1; 2]) && isequal(so1, [1 1; 2 1]) && nr2 == 5 && isequal(to2, [1; 3]) ...
-    && isequal(so2, [2 1; 3 1]) && nr3 == 2 && isequal(to3, [1; 2]) && isequal(so3, [1 1; 1 1]), ...
-    'figureTiles: rows [1 2] are 3 unit rows (spans 1 and 2), [1 1.5] are 2 + 3 of 5, [] equal');
-pq = struct('row', {1 2 2}, 'col', {1 1 2}, 'rowSpan', {1 1 1}, 'colSpan', {2 1 1});
-gq = struct('rows', 2, 'cols', 2, 'rowHeights', [], 'colWidths', [1 3], 'spacing', "tight");
-[nr4, nc4, to4, so4] = figureTiles(gq, pq);
-gq.colWidths = [1 1.37];
-[~, nc5] = figureTiles(gq, pq);
-gq.colWidths = [1 100];
-[~, nc6, ~, so6] = figureTiles(gq, pq);
-check(nr4 == 2 && nc4 == 4 && isequal(to4, [1; 5; 6]) && isequal(so4, [1 4; 1 1; 1 3]) && nc5 == 9 && nc6 <= 32 ...
-    && so6(2, 2) == 1 && so6(1, 2) == nc6, ...
-    sprintf('figureTiles: column widths [1 3] with a spanning panel; [1 1.37] in quarter steps (%d units); [1 100] capped (%d units)', nc5, nc6));
-hc = [52 47 1 1 1 1 1 1 1 1 1];
-pc = struct('row', num2cell(1:numel(hc)), 'col', 1, 'rowSpan', 1, 'colSpan', 1);
-[nr7, ~, ~, so7] = figureTiles(struct('rows', numel(hc), 'cols', 1, 'rowHeights', hc, 'colWidths', [], 'spacing', "none"), pc);
-[~, oc] = sort(hc);
-check(nr7 <= 32 && all(so7(:, 1) >= 1) && all(diff(so7(oc, 1)) >= 0) && so7(1, 1) >= so7(2, 1), ...
-    sprintf('figureTiles: past the 32-unit cap the sizes keep their order (rows %s as %s units)', mat2str(hc), mat2str(so7(:, 1).')));
+fprintf('\n== 8. render: renderFigure, its layout, the draw functions ==\n');
+% figureArrange: the layout's arithmetic (pure)
+gd = EphysAnalysisConfig.defaults("Figure").grid;
+gd.rows = 2; gd.rowHeights = [1 2]; gd.spacing = "custom"; gd.rowGap = 10;
+ca = [arrangeCell(1, 1, 1, 1, [40 30 0 0]) arrangeCell(2, 2, 1, 1, [40 30 0 15])];
+La = figureArrange([600 400], gd, ca, Margin=6);
+hA = La.rows(:, 2) - La.rows(:, 1);
+check(abs(La.rows(1, 1) - La.rows(2, 2) - (30 + 10 + 15)) < 1e-9 && abs(hA(2) / hA(1) - 2) < 1e-9 && abs(La.rows(1, 2) - 394) < 1e-9 ...
+    && abs(La.rows(2, 1) - 36) < 1e-9 && abs(La.cols(1, 1) - 46) < 1e-9 && abs(La.cols(1, 2) - 594) < 1e-9, ...
+    'figureArrange: between two rows the labels'' room and the gap exactly (30 + 10 + 15 px); the plot heights exactly 1 : 2');
+gd.gapUnits = "%";
+Lp = figureArrange([600 400], gd, ca, Margin=6);
+gp = Lp.rows(1, 1) - Lp.rows(2, 2) - 45;
+check(abs(gp - 0.1 * mean(Lp.rows(:, 2) - Lp.rows(:, 1))) < 1e-9 && abs(Lp.gaps.rows - gp) < 1e-9, ...
+    sprintf('figureArrange: a gap of 10 %% is a tenth of the mean row''s plot height (%.1f px)', gp));
+g3 = gd; g3.rows = 3; g3.rowHeights = []; g3.gapUnits = "px"; g3.rowGaps = [5 20];
+c3 = [arrangeCell(1, 1, 1, 1, [0 0 0 0]) arrangeCell(2, 2, 1, 1, [0 0 0 0]) arrangeCell(3, 3, 1, 1, [0 0 0 0])];
+L3 = figureArrange([300 300], g3, c3, Margin=0);
+g3.spacing = "none";
+Ln = figureArrange([300 300], g3, c3, Margin=0);
+g3.spacing = "loose";
+Ll = figureArrange([300 300], g3, c3, Margin=0);
+check(all(abs(L3.rows(1:2, 1) - L3.rows(2:3, 2) - [5; 20]) < 1e-9) && all(abs(Ln.rows(1:2, 1) - Ln.rows(2:3, 2)) < 1e-9) ...
+    && all(abs(Ll.rows(1:2, 1) - Ll.rows(2:3, 2) - 24) < 1e-9), ...
+    'figureArrange: rowGaps set each gap apart (5, 20 px); "none" is flush and "loose" 24 px (the lists unused)');
+g2 = EphysAnalysisConfig.defaults("Figure").grid;
+g2.rows = 2; g2.cols = 2; g2.colWidths = [1 3]; g2.spacing = "custom"; g2.colGap = 12; g2.rowGap = 0;
+c2 = [arrangeCell(1, 1, 1, 2, [30 0 0 0]) arrangeCell(2, 2, 1, 1, [30 20 0 0]) arrangeCell(2, 2, 2, 2, [25 20 5 0])];
+L2 = figureArrange([500 300], g2, c2, Margin=0);
+w2 = L2.cols(:, 2) - L2.cols(:, 1);
+check(abs(w2(2) / w2(1) - 3) < 1e-9 && abs(L2.cols(2, 1) - L2.cols(1, 2) - 37) < 1e-9 && abs(L2.panels(1).box(1) - L2.cols(1, 1)) < 1e-9 ...
+    && abs(sum(L2.panels(1).box([1 3])) - L2.cols(2, 2)) < 1e-9, ...
+    'figureArrange: columns exactly 1 : 3, the left labels'' room and the gap between them (12 + 25 px); a panel over both spans them');
+g1 = EphysAnalysisConfig.defaults("Figure").grid;
+cs = arrangeCell(1, 1, 1, 1, [0 0 0 0]);
+cs.size = [0.5 0.25]; cs.align = "right"; cs.valign = "top";
+Ls = figureArrange([400 400], g1, cs, Margin=0);
+cb = arrangeCell(1, 1, 1, 1, [0 0 0 0]);
+cb.band = "below"; cb.need = 50; cb.shares = [2 1];
+Lb = figureArrange([400 400], g1, cb, Margin=0, Top=20, Legend=struct('side', "east", 'size', [60 40]));
+Ab = Lb.panels(1).axes;
+check(isequal(Ls.panels(1).box, [200 300 200 100]) && isequal(Lb.panels(1).band, [0 0 332 50]) && isequal(Lb.panels(1).box, [0 50 332 330]) ...
+    && abs(Ab(1, 4) - 220) < 1e-9 && abs(Ab(2, 4) - 110) < 1e-9 && abs(Ab(1, 2) - Ab(2, 2) - Ab(2, 4)) < 1e-9 ...
+    && isequal(Lb.title, [0 380 400 20]) && isequal(Lb.legend, [340 170 60 40]), ...
+    'figureArrange: a panel half as wide, a quarter as high, at its cell''s top right; a band below; a phase strip a third under its axes; the title''s and the legend''s bands');
 
 % the registry
 reg = figurePanelRegistry();
@@ -1747,6 +1945,8 @@ rcases = {
     "raster + PSTH",                    F1
     "raster / PSTH / continuous stack", F3
     "events as marks and a train",      Fe
+    "events as spans",                  Fsp
+    "event traces",                     Ftrace
     "PSTH with latency marks",          Fm
     "a layer's mean of three units",    Fa
     "a panel's own window",             Fo
@@ -1790,7 +1990,7 @@ for k = 1:size(rcases, 1)
                 ok = ok && isempty(h.layout) && isscalar(h.axes) && h.axes == tg;
                 C = PlotAesthetics.components(tg);
             else
-                ok = ok && ~isempty(h.layout) && numel(h.axes) == numel(ids) && string(h.layout.Title.String) == h.title;
+                ok = ok && ~isempty(h.layout) && numel(h.axes) == numel(ids) && figTitle(h) == h.title;
                 C = PlotAesthetics.components(h.layout);
                 named = all(ismember(ids, C.TileName(C.Tile > 0)));
                 if ~named; msgs = msgs + mode + ": tiles " + strjoin(unique(C.TileName(C.Tile > 0)), ", ") + "  "; end
@@ -1835,11 +2035,12 @@ tR = hN.panels(1).note;
 gR = hN.panels(1).overlays;
 gL = hN.panels(2).overlays;
 band = ancestor(tP, 'axes');
+bP = figureBox(band, fig);
+aP = figureBox(hN.panels(2).axes, fig);
 check(isscalar(tP) && isgraphics(tP) && string(tP.String) == "n = 12" && string(tP.Tag) == "note" && isequal(tP.Color, [1 0 0]) ...
-    && string(band.Tag) == "noteHost" && band.Visible == "off" && isa(band.Parent, 'matlab.graphics.layout.TiledChartLayout') ...
-    && band.Parent.Parent == hN.layout && band.Position(2) < hN.panels(2).axes.Position(2) ...
-    && band.Parent == hN.panels(2).axes.Parent, ...
-    'a note below a panel sits in a band of its tile under its axes (a hidden noteHost axes), its own color a rule');
+    && string(band.Tag) == "noteHost" && band.Visible == "off" && band.Parent == hN.layout && bP(2) + bP(4) <= aP(2) + 0.5 ...
+    && abs(bP(1) - aP(1)) < 0.5 && abs(bP(3) - aP(3)) < 0.5, ...
+    'a note below a panel sits in a band under its axes, as wide (a hidden noteHost axes), its own color a rule');
 check(isscalar(tR) && ancestor(tR, 'axes') == hN.panels(1).axes && string(tR.FontWeight) == "bold" && string(tR.String) == "raster note" ...
     && hN.panels(1).axes.Parent == hN.layout, 'a note over a panel (northeast) is in its axes; that panel keeps its plain tile');
 check(isscalar(gR) && string(gR.Tag) == "overlayRegion" && isequal(gR.FaceColor, [0 1 0]) && abs(gR.FaceAlpha - 0.6) < 1e-9 ...
@@ -1850,11 +2051,111 @@ CN = PlotAesthetics.components(hN.layout);
 check(~any(CN.Role == "" | ~ismember(CN.Role, roles)) && any(CN.Role == "note" & CN.TileName == "raster_1") ...
     && any(CN.Role == "overlayRegion" & CN.Group == "window") && any(CN.Role == "overlayLine"), ...
     'the note over a panel and every overlay are tagged components of that panel''s tile');
+% a patch overlay over a raster is seen: its group bands are opaque, and a constant region (xregion) is drawn behind them
+sV = F1.spec;
+oV = EphysAnalysisConfig.defaults("Overlay");
+oV.shape = "region"; oV.from = 0.1; oV.to = 0.3; oV.faceColor = "#00ff00"; oV.faceAlpha = 1; oV.name = "seen";
+oU = oV; oU.from = 0.5; oU.to = 0.7; oU.layer = "under"; oU.name = "hidden";
+oY = oV; oY.axis = "y"; oY.from = 2; oY.to = 5; oY.name = "rows";
+sV.panels(1).overlays = [oV oU oY];
+clf(fig);
+hV = renderFigure(F1, sV, fig);
+drawnow;
+axV = hV.panels(1).axes;
+gV = hV.panels(1).overlays;
+gX = gV(arrayfun(@(g) string(getappdata(g, 'PlotGroup')) == "seen", gV));
+bandsV = findobj(axV, 'Tag', 'rasterBand');
+imgV = print(fig, '-RGBImage', '-r60');
+boxV = figureBox(axV, fig);
+    function px = rasterPixel(xv, yv)   % the pixel at data x XV, and fraction YV down the raster's box
+        xl = xlim(axV);
+        fpx = getpixelposition(fig);   % boxV is in the figure's pixels, the image scaled by the print resolution
+        px = double(squeeze(imgV(max(1, round((1 - (boxV(2) + boxV(4) * (1 - yv)) / fpx(4)) * size(imgV, 1))), ...
+            max(1, round((boxV(1) + boxV(3) * (xv - xl(1)) / diff(xl)) / fpx(3) * size(imgV, 2))), :))).';
+    end
+green = [0 255 0];
+check(isscalar(gX) && isa(gX, 'matlab.graphics.primitive.Patch') && string(gX.Tag) == "overlayRegion" && all(isgraphics(gV)) ...
+    && isequal(sort(unique(gX.XData)).', [0.1 0.3]) && isequal(sort(unique(gX.YData)).', ylim(axV)), ...
+    'a patch overlay is a patch object (a region of the raster, over its whole height), tagged overlayRegion');
+check(max(abs(rasterPixel(0.2, 0.5) - green)) <= 3 && max(abs(rasterPixel(0.2, 0.95) - green)) <= 3 ...
+    && max(abs(rasterPixel(0.6, 0.5) - green)) > 40 && ~isempty(bandsV), ...
+    sprintf('over the raster''s opaque group bands a patch "over" the data shows (pixel %s), one "under" them does not (%s)', ...
+    mat2str(rasterPixel(0.2, 0.5)), mat2str(rasterPixel(0.6, 0.5))));
+xlim(axV, [0.15 0.25]);
+ylim(axV, [3 4]);
+yR = gV(arrayfun(@(g) string(getappdata(g, 'PlotGroup')) == "rows", gV));
+check(isequal(sort(unique(gX.XData)).', [0.15 0.25]) && isequal(sort(unique(gX.YData)).', [3 4]) && isequal(sort(unique(yR.YData)).', [3 4]) ...
+    && isequal(sort(unique(yR.XData)).', [0.15 0.25]), ...
+    'the patches follow the axes'' limits (a region is clamped to them, so it never widens the axes)');
+sV.panels(1).overlays = oV;
+sV.panels(2).overlays = oV;
+clf(fig);
+hV = renderFigure(F1, sV, fig);
+drawnow;
+imgV = print(fig, '-RGBImage', '-r60');
+axV = hV.panels(2).axes;
+boxV = figureBox(axV, fig);
+check(max(abs(rasterPixel(0.2, 0.5) - green)) <= 3 && isa(hV.panels(2).overlays, 'matlab.graphics.primitive.Patch'), ...
+    'a patch overlay on a PSTH panel shows too');
+% a raster has no y tick marks or labels unless options.yTicks; the y label stays
+rY = F1.spec;
+clf(fig);
+hY = renderFigure(F1, rY, fig);
+drawnow;
+axY = hY.panels(1).axes;
+check(rY.panels(1).options.yTicks == false && isempty(axY.YTick) && isempty(axY.YTickLabel) && string(axY.YLabel.String) ~= "", ...
+    'a raster panel hides its y tick marks and labels by default, the y label stays');
+rY.panels(1).options.yTicks = true;
+clf(fig);
+hY = renderFigure(F1, rY, fig);
+drawnow;
+check(numel(hY.panels(1).axes.YTick) >= 2 && numel(hY.panels(1).axes.YTickLabel) >= 2, 'options.yTicks brings the raster''s y ticks back');
+% options.tickColor colors the ticks, options.backColor every band and the axes behind them; blank = black ticks, pale group bands
+rC = F1.spec;
+clf(fig);
+hC = renderFigure(F1, rC, fig);
+drawnow;
+axC = hC.panels(1).axes;
+tk0 = findall(axC, 'Tag', 'rasterTicks').Color;   % values: the redraw deletes these objects
+bd0 = arrayfun(@(b) isequal(b.FaceColor, [16 32 48] / 255), findall(axC, 'Tag', 'rasterBand'));
+rC.panels(1).options.tickColor = "red";
+rC.panels(1).options.backColor = "#102030";
+clf(fig);
+hC = renderFigure(F1, rC, fig);
+drawnow;
+axC = hC.panels(1).axes;
+tk1 = findall(axC, 'Tag', 'rasterTicks');
+bd1 = findall(axC, 'Tag', 'rasterBand');
+check(isequal(tk0, [0 0 0]) && isequal(tk1(1).Color, [1 0 0]) && ~isempty(bd1) ...
+    && all(arrayfun(@(b) isequal(b.FaceColor, [16 32 48] / 255), bd1)) && isequal(axC.Color, [16 32 48] / 255) ...
+    && ~any(bd0), ...
+    'options.tickColor colors the raster ticks, options.backColor every band and the axes');
+% a panel's box: "on" / "off" win over the design's rule and the figure's own aesthetics; "auto" leaves them
+sBx = F1.spec;
+sBx.panels(1).box = "on";
+sBx.panels(2).box = "auto";
+clf(fig);
+hBx = renderFigure(F1, sBx, fig, Design="Journal", UserAesthetics=false);
+drawnow;
+check(string(hBx.panels(1).axes.Box) == "on" && string(hBx.panels(2).axes.Box) == "off", ...
+    'a panel''s box "on" shows the box a design turns off; "auto" keeps the design''s');
+sBx.panels(1).box = "off";
+sBx.panels(2).box = "on";
+sBx.aesthetics = PlotAesthetics.normalizeRules(struct('role', "axes", 'group', "", 'property', "Box", 'value', "on"));
+clf(fig);
+hBx = renderFigure(F1, sBx, fig, Design="Journal", UserAesthetics=false);
+drawnow;
+check(string(hBx.panels(1).axes.Box) == "off" && string(hBx.panels(2).axes.Box) == "on", ...
+    'a panel''s box "off" and "on" also win over the figure''s own aesthetics rule');
+clf(fig);   % the note-band checks below use the figure drawn with the notes
+hN = renderFigure(F1, sN, fig);
+drawnow;
 xlR = xlim(hN.panels(1).axes);
 check(isequal(xlR, xlim(hN.panels(2).axes)) && isempty(hN.panels(1).axes.XTickLabel), ...
     'with a note band under the PSTH the raster still shares its time axis (no tick labels above the PSTH)');
 % a band below keeps the axes' left edge and width those of the plain panel under it; a band beside them keeps both panels' tick labels
 sB = F1.spec;
+sB.panels(1).options.yTicks = true;   % a nested note tile's inner edge follows its tick labels: with none the raster is a few pixels wider than the PSTH
 nB = EphysAnalysisConfig.defaults("Note");
 nB.text = "a band" + newline + "of two lines";
 nB.placement = "below";
@@ -1889,8 +2190,9 @@ tB = hB.panels(2).note;
 bandB = ancestor(tB, 'axes');
 tB.Units = 'normalized';
 eB = tB.Extent;
-SB = getappdata(bandB, 'NoteBand');
-check(eB(2) >= -0.02 && eB(2) + eB(4) <= 1.02 && SB.b > 1, ...
+tB.Units = 'pixels';
+pxB = tB.Extent;
+check(eB(2) >= -0.02 && eB(2) + eB(4) <= 1.02 && bandB.Position(4) > pxB(4), ...
     sprintf('a four-line note below at 14 pt gets a band it fits in (its extent %s of the band)', mat2str(eB, 2)));
 nR = EphysAnalysisConfig.defaults("Note");
 nR.text = "turned";
@@ -1913,15 +2215,71 @@ check(isscalar(hA.panels(1).note) && ancestor(hA.panels(1).note, 'axes') == axN 
 % title and subtitle
 h1 = renderFigure(F1, F1.spec, fig);
 want = "rp: " + F1.observation.label + " — " + eventRefLabel(F1.spec.ref) + " (" + height(F1.epochs) + " epochs)";
-check(h1.title == want && string(h1.layout.Title.String) == want && string(h1.layout.Subtitle.String) == src.name ...
+[t1, s1] = figTitle(h1);
+check(h1.title == want && t1 == want && s1 == src.name ...
     && isequal([h1.panels.type], ["raster" "psth"]) && isequal(h1.panels(2).axes, h1.axes(2)), ...
     sprintf('the title names the figure, the observation, the event and the epochs ("%s"); the dataset is the subtitle', want));
 sT = F1.spec;
 sT.title = "My figure";
 hT = renderFigure(F1, sT, fig);
-check(hT.title == "My figure" && string(hT.layout.Title.String) == "My figure" ...
+check(hT.title == "My figure" && figTitle(hT) == "My figure" ...
     && string(hT.axes(1).Title.String) == F1.observation.label && string(hT.axes(2).Title.String) == "", ...
     'a title of the figure''s own: the top-left panel names the observation');
+
+% the layout: flush, exact gaps in px and %, rows in proportion, a panel's own size, the legend's band, a resize
+sL = F1.spec;
+hL = renderFigure(F1, sL, fig);
+drawnow;
+rA = figureBox(hL.panels(1).axes, fig);
+rB = figureBox(hL.panels(2).axes, fig);
+check(sL.grid.spacing == "none" && abs(rA(2) - rB(2) - rB(4)) < 0.5 && abs(rA(1) - rB(1)) < 0.5 && abs(rA(3) - rB(3)) < 0.5, ...
+    sprintf('spacing "none": the raster sits flush on the PSTH (%.2f px apart), with its left edge and width', rA(2) - rB(2) - rB(4)));
+sL.grid.spacing = "custom"; sL.grid.rowGap = 20; sL.grid.rowHeights = [1 2];
+hL = renderFigure(F1, sL, fig);
+drawnow;
+rA = figureBox(hL.panels(1).axes, fig);
+rB = figureBox(hL.panels(2).axes, fig);
+check(abs(rA(2) - rB(2) - rB(4) - 20) < 0.5 && abs(rB(4) / rA(4) - 2) < 0.01, ...
+    sprintf('a custom 20 px gap between the rows (no label between them: %.2f px between the plot areas); the rows exactly 1 : 2 (%.3f)', ...
+    rA(2) - rB(2) - rB(4), rB(4) / rA(4)));
+sL.grid.gapUnits = "%"; sL.grid.rowGap = 10;
+hL = renderFigure(F1, sL, fig);
+drawnow;
+rA = figureBox(hL.panels(1).axes, fig);
+rB = figureBox(hL.panels(2).axes, fig);
+gL = rA(2) - rB(2) - rB(4);
+check(abs(gL - 0.1 * (rA(4) + rB(4)) / 2) < 0.5, sprintf('a gap of 10 %% is a tenth of the mean row''s plot height (%.1f px)', gL));
+sL.grid.gapUnits = "px"; sL.grid.rowGap = 20; sL.grid.rowHeights = [];
+sL.panels(1).size = [0.5 1]; sL.panels(1).align = "right";
+hL = renderFigure(F1, sL, fig);
+drawnow;
+rA = figureBox(hL.panels(1).axes, fig);
+rB = figureBox(hL.panels(2).axes, fig);
+check(abs(rA(3) - rB(3) / 2) < 0.5 && abs(rA(1) + rA(3) - rB(1) - rB(3)) < 0.5 && ~isempty(hL.panels(1).axes.XTickLabel) ...
+    && string(hL.panels(1).axes.XLabel.String) == "Time (s)", ...
+    'a raster half its cell''s width at its right: that panel only (the PSTH keeps the column''s width), its time tick labels kept');
+sL.panels(1).size = [1 1];
+hL = renderFigure(F1, sL, fig);
+drawnow;
+rA = figureBox(hL.panels(1).axes, fig);
+rB = figureBox(hL.panels(2).axes, fig);
+lgL = findall(fig, 'Type', 'legend');
+lgL(1).Units = 'pixels';
+pg = lgL(1).Position;
+[~, sTitle] = figTitle(hL);
+thL = findall(hL.layout, 'Type', 'axes', 'Tag', 'titleHost');
+check(isscalar(lgL) && pg(1) > max(rA(1) + rA(3), rB(1) + rB(3)) && sTitle == src.name && figureBox(thL, fig) * [0 1 0 0].' >= rA(2) + rA(4) - 0.5 ...
+    && all(ismember(["plotTitle" "plotSubtitle"], PlotAesthetics.components(hL.layout).Role)), ...
+    'the legend in its band east of the panels; the title and subtitle over them (the editor''s plotTitle and plotSubtitle)');
+wB = rB(3);
+fig.Position(3) = fig.Position(3) + 200;
+fig.SizeChangedFcn(fig, []);   % MATLAB runs it for a visible figure only
+rA = figureBox(hL.panels(1).axes, fig);
+rB = figureBox(hL.panels(2).axes, fig);
+fig.Position(3) = fig.Position(3) - 200;
+fig.SizeChangedFcn(fig, []);
+check(abs(rB(3) - wB - 200) < 1 && abs(rA(2) - rB(2) - rB(4) - 20) < 0.5, ...
+    sprintf('the figure 200 px wider is laid out again (its SizeChangedFcn): the PSTH %.1f px wider, the gap still 20 px', rB(3) - wB));
 
 % one time axis down a stack
 h3 = renderFigure(F3, F3.spec, fig);
@@ -2022,9 +2380,63 @@ check(~isempty(el) && numel(el) <= height(Fm.groups) && isscalar(er) && string(g
     && all(arrayfun(@(x) string(getappdata(x, 'PlotGroup')) == "Stim offset", el)) && any(string(lg(1).String) == "Stim offset"), ...
     sprintf('events marks on a PSTH: %d latency line(s) (one per group) and a rug, in the legend', numel(el)));
 
+% events as spans: a line on every raster row from onset to offset; a line per group on the PSTH, near its top
+hs = renderFigure(Fsp, Fsp.spec, fig);
+Wsp = [Fsp.spec.window.pre Fsp.spec.window.post];
+rs = findall(hs.axes(1), 'Tag', 'eventSpan', 'Type', 'line');
+rs = rs(arrayfun(@(x) any(isfinite(x.XData)), rs));
+inW = min(offS, Wsp(2)) >= max(onS, Wsp(1));
+okR = isscalar(rs) && nnz(isfinite(rs.XData)) == 2 * nnz(inW) && min(rs.XData) >= Wsp(1) - 1e-9 && max(rs.XData) <= Wsp(2) + 1e-9 ...
+    && all(rs.YData(1:3:end) == rs.YData(2:3:end)) && string(getappdata(rs, 'PlotGroup')) == "Stim onset";
+ps = findall(hs.axes(2), 'Tag', 'eventSpan', 'Type', 'line');
+ps = ps(arrayfun(@(x) any(isfinite(x.XData)), ps));
+ylP = ylim(hs.axes(2));
+lg = findall(fig, 'Type', 'legend');
+check(okR && ~isempty(ps) && numel(ps) <= height(Fsp.groups) && all(arrayfun(@(x) x.YData(1) > ylP(1) + 0.8 * diff(ylP), ps)) ...
+    && all(arrayfun(@(x) diff(x.XData) > 0, ps)) && any(string(lg(1).String) == "Stim onset"), ...
+    sprintf('spans: %d raster rows each a horizontal line clipped to the window; %d PSTH line(s) (one per group) near the top; in the legend', ...
+    nnz(inW), numel(ps)));
+
+% an event-trace panel: a row per line, bars clipped to the window, a baseline each; the rows display, by group
+ht = renderFigure(Ftrace, Ftrace.spec, fig);
+axT = ht.axes(1);
+Wt = [Ftrace.spec.window.pre Ftrace.spec.window.post];
+bars = findall(axT, 'Tag', 'eventBar', 'Type', 'patch');
+bars = bars(arrayfun(@(x) ~isempty(x.Faces), bars));
+bl = findall(axT, 'Tag', 'eventBaseline');
+groupsOf = reshape(string(arrayfun(@(x) string(getappdata(x, 'PlotGroup')), bars)), 1, []);
+kept = @(on, off) nnz(min(off, Wt(2)) >= max(on, Wt(1)));
+vx = vertcat(bars.Vertices);
+bPlat = bars(groupsOf == "Platform");
+check(numel(bars) == 2 && isequal(sort(groupsOf), ["Platform" "Stim"]) && size(bPlat.Faces, 1) == kept(onP, offP) ...
+    && min(vx(:, 1)) >= Wt(1) - 1e-9 && max(vx(:, 1)) <= Wt(2) + 1e-9 && abs(bPlat.FaceAlpha - 0.3) < 1e-9 ...
+    && numel(bl) == 2 && isequal(string(axT.YTickLabel).', ["Platform" "Stim"]) && isequal(xlim(axT), Wt) ...
+    && any(contains(string(get(findall(axT, 'Tag', 'layerNote'), 'String')), "does not draw units")), ...
+    sprintf('event traces: a row per line (Stim on top), %d Platform bars clipped to the window, translucent when overlaid, a baseline each; the units layer noted', ...
+    size(bPlat.Faces, 1)));
+long = offP > Wt(2) | onP < Wt(1);
+check(~any(long) || any(abs(vx(:, 1) - Wt(1)) < 1e-9 | abs(vx(:, 1) - Wt(2)) < 1e-9), ...
+    'an interval that starts before or ends after the window is drawn to its edge');
+sTrace = Ftrace.spec;
+sTrace.panels(1).options.display = "line";
+sTrace.panels(1).options.trials = "rows";
+sTrace.panels(1).options.colorBy = "group";
+sTrace.panels(1).options.showBaseline = false;
+ht2 = renderFigure(Ftrace, sTrace, fig);
+lv = findall(ht2.axes(1), 'Tag', 'eventLevel');
+gb = findall(ht2.axes(1), 'Tag', 'eventGroupBand');
+gb = gb(arrayfun(@(x) all(isfinite(x.XData(:))), gb));
+lvGroups = unique(string(arrayfun(@(x) string(getappdata(x, 'PlotGroup')), lv)));
+nGt = height(Ftrace.groups);
+lg = findall(fig, 'Type', 'legend');
+check(~isempty(lv) && numel(lv) <= 2 * nGt && all(ismember(lvGroups, string(Ftrace.groups.label))) && numel(gb) == nGt ...
+    && isempty(findall(ht2.axes(1), 'Tag', 'eventBaseline')) && all(arrayfun(@(x) all(isnan(x.XData(:))), findall(ht2.axes(1), 'Tag', 'eventBar'))) ...
+    && all(ismember(string(Ftrace.groups.label), string(lg(1).String))), ...
+    sprintf('event traces as logic levels, a sub-row per epoch, by group: %d level lines in the groups'' colors, a band per group, no baseline, the groups in the legend', numel(lv)));
+
 % a stacked continuous panel whose only signal layer is skipped still draws its marks
-cfg = cfg.addFigure(struct('panels', {{struct('id', "sig", 'type', "continuous", 'layers', [auxF ev], ...
-    'options', struct('display', "stacked"))}}), Id="cmarks");
+cfg = cfg.addFigure(struct('observe', struct('data', "LFP"), 'panels', {{struct('id', "sig", 'type', "continuous", ...
+    'layers', [auxF ev], 'options', struct('display', "stacked"))}}), Id="cmarks");   % the AUX layer cannot follow an LFP channel
 try
     Fk1 = rn.computeFigure(src, cfg.figureFor("cmarks"));
     hk1 = renderFigure(Fk1, Fk1.spec, fig);
@@ -2085,6 +2497,14 @@ check(numel(as.YAxis) == 2 && numel(sb) == nGs && numel(as.YAxis(1).TickValues) 
     && all(arrayfun(@(g) nnz(lgs == g) == 1, string(Fst.groups.label))) && string(as.YAxis(1).Label.String) == "Depth" ...
     && isequal(xlim(as), [Fst.spec.window.pre Fst.spec.window.post]) && isempty(findall(as, 'Tag', 'chanceLine')), ...
     sprintf('a stacked PSTH: %d rows (a baseline each, the groups'' values on the left axis, named Depth), each group once in the legend', nGs));
+sbY = arrayfun(@(h) h.YData(1), sb);
+sbG = arrayfun(@(h) string(getappdata(h, 'PlotGroup')), sb);
+[~, top] = max(sbY);
+[~, bot] = min(sbY);
+lbl = string(as.YAxis(1).TickLabels);
+rl = rowLabels(Fst.panels(2).layers(1).R);
+check(sbG(top) == string(Fst.groups.label(1)) && sbG(bot) == string(Fst.groups.label(end)) && lbl(end) == rl(1), ...
+    'a stacked PSTH lists its groups as a raster does: the first on top, its value the top tick label');
 fs5 = Fst;   % the PSTH's result cut to one group (figSliceGroup)
 fs5.panels(2).layers(1).R = figSliceGroup(Fst.panels(2).layers(1).R, 1);
 h1g = renderFigure(fs5, fs5.spec, fig);
@@ -2139,7 +2559,6 @@ hAs = renderFigure(Fas, Fas.spec, fig);
 check(numel(findall(hAs.axes(2), 'Tag', 'stackBase')) == nGs && numel(hAs.axes(2).YAxis) == 2, 'an auROC PSTH can be stacked too');
 fhm = cfg.Figures(cfg.figureIndex("hm"));
 fhm.id = "hmAuroc";
-fhm.panels(1).common = false;
 fhm.panels(1).options.baseline = struct('Mode', "auroc", 'Window', [-0.2 0]);
 fhm.panels(1).options.order = "modulation";
 cfgH = cfg.addFigure(fhm);
@@ -2220,7 +2639,7 @@ ctx.onRemember(rules);
 ctx.redraw(rules);
 ctx2 = getappdata(fe1, PlotAesthetics.ContextKey);
 tk = findall(fe1, 'Tag', 'rasterTicks');
-check(isequaln(remembered, rules) && isequaln(ctx2.plotRules, rules) && ~isvalid(hE.layout) && ~isempty(tk) && all([tk.LineWidth] == 2), ...
+check(isequaln(remembered, rules) && isequaln(ctx2.plotRules, rules) && ~isvalid(hE.axes(1)) && ~isempty(tk) && all([tk.LineWidth] == 2), ...
     'OnRemember receives the rules; the context''s redraw draws the figure again with them as its own aesthetics');
 renderFigure(Fh, Fh.spec, fe1, Editable=true);
 ctxH = getappdata(fe1, PlotAesthetics.ContextKey);
@@ -2239,6 +2658,87 @@ for rep = 1:3
     tR = min(tR, toc(tc0));
 end
 check(tR < 1, sprintf('the raster + PSTH figure of one observation renders in %.3f s (under 1 s)', tR));
+
+% data tips: named quantities, a raster tick's trial, a heat map's rows; the fields a preference
+prefsTips = AppPrefs.useTemporary();
+tipKey = FigureDataTips.InfoKey;
+renderFigure(F1, F1.spec, fe1);
+noTips = isempty(findall(fe1, '-function', @(o) isappdata(o, tipKey)));
+renderFigure(F3, F3.spec, fe1, Editable=true, DataTips=true);
+pl = findall(fe1, '-regexp', 'Tag', '^(trace|channelTrace)$');
+pl = pl(arrayfun(@(o) isprop(o, 'DataTipTemplate') && ~all(isnan(o.XData)), pl));
+labs = strings(1, 0);
+if ~isempty(pl); labs = string({pl(1).DataTipTemplate.DataTipRows.Label}); end
+check(noTips && ~isempty(pl) && any(startsWith(labs, "Time from")) && any(labs == "Trial group") ...
+    && all(ismember(["Panel" "Observation" "Dataset"], labs)) && ~isempty(findall(fe1, 'Tag', FigureDataTips.MenuTag)), ...
+    sprintf('DataTips=true: a continuous trace''s tip rows are %s; the right-click menus have "Data tip fields..."; "auto" in an invisible figure gives none', ...
+    strjoin(labs, " | ")));
+renderFigure(F1, F1.spec, fe1, Editable=true, DataTips=true);
+rf = findall(fe1, '-regexp', 'Tag', '^(rate|rateFill)$');
+rf = rf(arrayfun(@(o) ~all(isnan(o.XData(:))), rf));
+Lrf = strings(0, 1);
+if ~isempty(rf); Lrf = FigureDataTips.tipText(rf(1), 2); end
+check(~isempty(rf) && any(startsWith(Lrf, "Time from")) && any(startsWith(Lrf, "Rate: ")) && any(startsWith(Lrf, "Trial group: ")) ...
+    && any(startsWith(Lrf, "Panel: psth")), sprintf('a PSTH''s tip names the time, the rate in its unit, the group and panel (%s)', strjoin(Lrf, " | ")));
+tk = findall(fe1, 'Tag', 'rasterTicks');
+Ltk = strings(0, 1);
+if ~isempty(tk); Ltk = FigureDataTips.tipText(tk(1), 1); end
+check(~isempty(tk) && any(startsWith(Ltk, "Trial: ")) && any(startsWith(Ltk, "Trial group: ")) && any(startsWith(Ltk, "Time from")) ...
+    && ~any(startsWith(Ltk, "Y")) && any(startsWith(Ltk, "Dataset: ")), ...
+    sprintf('a raster tick''s tip: its trial and trial group, time, dataset (%s)', strjoin(Ltk, " | ")));
+renderFigure(Fh, Fh.spec, fe1, DataTips=true);
+im = findall(fe1, 'Type', 'image');
+Lim = strings(0, 1);
+if ~isempty(im); Lim = FigureDataTips.tipText(im(1), [im(1).XData(1) im(1).YData(1)]); end
+renderFigure(Fth, Fth.spec, fe1, DataTips=true);
+it = findall(fe1, 'Type', 'image');
+Lit = strings(0, 1);
+if ~isempty(it); Lit = FigureDataTips.tipText(it(1), [it(1).XData(1) it(1).YData(1)]); end
+check(~isempty(im) && numel(Lim) >= 4 && any(startsWith(Lim, "Time from")) && ~isempty(it) && any(startsWith(Lit, "Trial: ")), ...
+    sprintf('a heat map cell''s tip: %s; a heat map of trials: %s', strjoin(Lim, " | "), strjoin(Lit, " | ")));
+renderFigure(Frt, Frt.spec, fe1, DataTips=true);
+br = findall(fe1, 'Type', 'bar');
+blabs = strings(1, 0);
+if ~isempty(br); blabs = string({br(1).DataTipTemplate.DataTipRows.Label}); end
+check(~isempty(br) && all(ismember(["Panel" "Dataset"], blabs)), sprintf('a rate panel''s bar: %s', strjoin(blabs, " | ")));
+renderFigure(F3, F3.spec, fe1, DataTips=true);
+FigureDataTips.setChosen(["x" "dataset"]);
+nR = FigureDataTips.refresh(fe1);
+pl = findall(fe1, '-regexp', 'Tag', '^(trace|channelTrace)$');
+pl = pl(arrayfun(@(o) isprop(o, 'DataTipTemplate') && ~all(isnan(o.XData)), pl));
+labs2 = string({pl(1).DataTipTemplate.DataTipRows.Label});
+tk = findall(fe1, 'Tag', 'rasterTicks');
+Ltk2 = FigureDataTips.tipText(tk(1), 1);
+FigureDataTips.setChosen(strings(1, 0));
+FigureDataTips.refresh(fe1);
+labs3 = string({pl(1).DataTipTemplate.DataTipRows.Label});
+check(nR > 0 && numel(labs2) == 2 && startsWith(labs2(1), "Time from") && labs2(2) == "Dataset" && numel(Ltk2) == 2 ...
+    && isequal(labs3, ["X" "Y"]), ...
+    'the chosen fields (a preference) follow on refresh: time and dataset only; none gives MATLAB''s X and Y');
+d = DataTipFieldsDialog(Visible=false);
+nBox = numel(fieldnames(d.Boxes));
+d.reset();
+dflt = d.Chosen;
+d.none();
+d.setField("trial", true);
+d.setField("dataset", true);
+d.ok();
+afterOk = FigureDataTips.chosen();
+d = DataTipFieldsDialog(Visible=false);
+d.all();
+d.cancel();
+check(nBox == height(FigureDataTips.fields()) && isequal(dflt, FigureDataTips.fields().Key(FigureDataTips.fields().Default).') ...
+    && isequal(afterOk, ["trial" "dataset"]) && isequal(FigureDataTips.chosen(), ["trial" "dataset"]) ...
+    && isequal(string({pl(1).DataTipTemplate.DataTipRows.Label}), "Dataset"), ...
+    'DataTipFieldsDialog: a box per field; Reset the defaults; OK keeps the choice and shows it on the figures on screen; Cancel keeps nothing');
+FigureDataTips.setChosen([]);
+tOff = Inf; tOn = Inf;
+for rep = 1:3
+    tc0 = tic; renderFigure(F1, F1.spec, fe1, DataTips=false); drawnow; tOff = min(tOff, toc(tc0));
+    tc0 = tic; renderFigure(F1, F1.spec, fe1, DataTips=true); drawnow; tOn = min(tOn, toc(tc0));
+end
+check(tOn - tOff < 0.25, sprintf('data tips add %.3f s to the raster + PSTH figure (%.3f s without, %.3f s with)', tOn - tOff, tOff, tOn));
+clear prefsTips
 
 %% ============================================================================ spectral
 fprintf('\n== 9. spectral panels (Chronux) ==\n');
@@ -2292,7 +2792,7 @@ else
     lfpA = lfpU; lfpA.binding = "fixed"; lfpA.channels = 1;
     lfpB = lfpA; lfpB.channels = [2 3];
     lfpF = lfpA; lfpF.channels = 2;
-    figS = struct('id', "spectral", 'observe', struct('kind', "unit"), 'grid', struct('rows', 3, 'cols', 2), 'panels', {{ ...
+    figS = struct('id', "spectral", 'observe', struct('data', "units"), 'grid', struct('rows', 3, 'cols', 2), 'panels', {{ ...
         struct('id', "ras", 'type', "raster", 'row', 1, 'col', 1, 'layers', unitU), ...
         struct('id', "spec_lfp", 'type', "spectrum", 'row', 1, 'col', 2, 'layers', lfpU), ...
         struct('id', "sgram", 'type', "spectrogram", 'row', 2, 'col', 1, 'layers', lfpU), ...
@@ -2335,7 +2835,7 @@ else
     check(all([Lsf.skip] == "") && Rsf.kind == "chronuxSpikeField" && isequal(size(Rsf.C), [numel(Rsf.f) 1 nG]) ...
         && Rsf.labels == Lsf(1).name + " x " + Lsf(2).name, sprintf('a spike-field coherence: the observed unit x a fixed LFP column ("%s")', Rsf.labels));
     fixU = unitU; fixU.binding = "fixed"; fixU.units.ids = Ts.unitId(2);
-    cs = cs.addFigure(struct('id', "unitcoh", 'observe', struct('kind', "unit"), ...
+    cs = cs.addFigure(struct('id', "unitcoh", 'observe', struct('data', "units"), ...
         'panels', {{struct('id', "cu", 'type', "coherence", 'layers', [unitU fixU])}}));
     Fu = rs.computeFigure(srcS, cs.figureFor("unitcoh"), Observation=Ts(1, :));
     Luc = Fu.panels.layers;
@@ -2344,7 +2844,7 @@ else
         && Ruc.labels == Luc(1).name + " x " + Luc(2).name && Luc(2).meta.unitId == Ts.unitId(2), ...
         sprintf('a unit-unit coherence: the observed unit x a fixed unit ("%s")', Ruc.labels));
     % the range time base: segments of the recording, whatever the figure's alignment
-    cs = cs.addFigure(struct('id', "ranged", 'observe', struct('kind', "unit"), 'ref', struct('line', "NoSuchLine"), ...
+    cs = cs.addFigure(struct('id', "ranged", 'observe', struct('data', "units"), 'ref', struct('line', "NoSuchLine"), ...
         'panels', {{struct('id', "sr", 'type', "spectrum", 'layers', lfpU, 'options', struct('timeBase', "range", 'segmentSec', 1))}}));
     Frg = rs.computeFigure(srcS, cs.figureFor("ranged"), Observation=Ts(1, :));
     Rr = Frg.panels.layers.R;
@@ -2353,7 +2853,7 @@ else
         sprintf('the range time base: %d one-second segments of the recording, one group, no epochs (the figure''s missing line not needed)', Rr.nTrials(1)));
     % what validate cannot see skips the layer, not the figure: a baseline with no window centered in it, fpass above Nyquist
     [~, fsL] = selectChannels(srcS, "LFP", Channels=1);
-    cs = cs.addFigure(struct('id', "edges", 'observe', struct('kind', "unit"), 'grid', struct('rows', 3, 'cols', 1), 'panels', {{ ...
+    cs = cs.addFigure(struct('id', "edges", 'observe', struct('data', "units"), 'grid', struct('rows', 3, 'cols', 1), 'panels', {{ ...
         struct('id', "sgb", 'type', "spectrogram", 'row', 1, 'col', 1, 'layers', lfpU, ...
             'options', struct('baseline', struct('Mode', "db", 'Window', [-0.2 -0.1]), 'movingwin', [0.5 0.05])), ...
         struct('id', "spu", 'type', "spectrum", 'row', 2, 'col', 1, 'layers', unitU, 'options', struct('spikeFs', 100, 'fpass', [60 100])), ...
@@ -2367,7 +2867,7 @@ else
         sprintf('a spectrogram baseline no moving window is centered in, and fpass above a layer''s Nyquist (spikeFs 100; %g Hz LFP): validate passes, each layer is skipped with the reason ("%s")', ...
         fsL, sk(1)));
     % a range panel ignores the panel's window: a "between" window of pre = post = 0 does not matter
-    cs = cs.addFigure(struct('id', "rangedBetween", 'observe', struct('kind', "unit"), ...
+    cs = cs.addFigure(struct('id', "rangedBetween", 'observe', struct('data', "units"), ...
         'window', struct('mode', "between", 'pre', 0, 'post', 0, 'stop', struct('line', "Stim", 'edge', "offset")), 'panels', {{ ...
         struct('id', "srb", 'type', "spectrum", 'layers', lfpU, 'options', struct('timeBase', "range", 'segmentSec', 1)), ...
         struct('id', "crb", 'type', "coherence", 'row', 1, 'col', 2, 'layers', [lfpA lfpF], 'options', struct('timeBase', "range", 'segmentSec', 1))}}, ...
@@ -2401,8 +2901,10 @@ else
     ac = axOf("coh_lfp");
     check(isscalar(pxs) && isgraphics(pxs) && isequal(ylim(pxs), [-pi pi]) && ~isempty(findall(pxs, 'Tag', 'phase')) && isequal(ylim(ac), [0 1]) ...
         && ~isempty(findall(ac, 'Tag', 'confLine')) && numel(findobj(ac, 'Tag', 'channelTrace')) >= 2 && string(getappdata(pxs, 'PlotTile')) == "coh_lfp" ...
-        && string(pxs.XLabel.String) == "Frequency (Hz)" && isa(ac.Parent, 'matlab.graphics.layout.TiledChartLayout') && ac.Parent.Parent == hS.layout, ...
-        'a coherence panel: magnitude 0-1 with its confidence lines, the phase axes under it in the panel''s tile, both tagged with the panel id');
+        && string(pxs.XLabel.String) == "Frequency (Hz)" && ac.Parent == hS.layout && pxs.Parent == hS.layout ...
+        && abs(ac.Position(2) - pxs.Position(2) - pxs.Position(4)) < 0.5 && abs(ac.Position(4) - 2 * pxs.Position(4)) < 0.5 ...
+        && abs(ac.Position(1) - pxs.Position(1)) < 0.5 && isempty(ac.XTickLabel), ...
+        'a coherence panel: magnitude 0-1 with its confidence lines, the phase axes flush under it (a third of the panel), both tagged with the panel id');
     C = PlotAesthetics.components(hS.layout);
     bad = C.Role == "" | ~ismember(C.Role, roles);
     check(~any(bad), sprintf('every component of the spectral figure is tagged with a known role (%d components%s)', height(C), ...
@@ -2655,14 +3157,6 @@ end
 end
 
 
-function cfg = unlinkFigure(cfg, k)
-%unlinkFigure  Figure k's panels with their own options (common = false).
-for j = 1:numel(cfg.Figures(k).panels)
-    cfg.Figures(k).panels(j).common = false;
-end
-end
-
-
 function p = figureTuningParamOf(src)
 %figureTuningParamOf  The parameter a tuning panel without param or groupBy tunes over: the first numeric one with two values.
 p = "";
@@ -2701,19 +3195,32 @@ end
 end
 
 
-function r = figureBox(ax, fig)
-%figureBox  An axes' plot box in the figure's pixels, [x y w h], however deeply its tiled layouts nest.
-%   An axes or a layout nested in another layout has its position in the
-%   frame of that layout's outer box; each level up maps it into the next.
-ax.Units = 'normalized';
+function r = figureBox(ax, ~)
+%figureBox  An axes' plot box in its figure's pixels, [x y w h] (renderFigure places it in pixels on what it draws into).
+u = ax.Units;
+ax.Units = 'pixels';
 r = ax.InnerPosition;
-p = ax.Parent;
-while isa(p, 'matlab.graphics.layout.TiledChartLayout') && isa(p.Parent, 'matlab.graphics.layout.TiledChartLayout')
-    p.Units = 'normalized';
-    o = p.OuterPosition;
-    r = [o(1) + r(1) * o(3), o(2) + r(2) * o(4), r(3) * o(3), r(4) * o(4)];
-    p = p.Parent;
+ax.Units = u;
+if ~isa(ax.Parent, 'matlab.ui.Figure')
+    p = getpixelposition(ax.Parent, true);
+    r(1:2) = r(1:2) + p(1:2) - 1;
 end
-fp = getpixelposition(fig);
-r = r .* [fp(3) fp(4) fp(3) fp(4)];
+end
+
+
+function [t, s] = figTitle(h)
+%figTitle  The title and subtitle renderFigure gave a figure drawn on its canvas (its hidden titleHost axes').
+th = findall(h.layout, 'Type', 'axes', 'Tag', 'titleHost');
+t = "";
+s = "";
+if ~isscalar(th); return; end
+t = strjoin(string(th.Title.String), " ");
+s = strjoin(string(th.Subtitle.String), " ");
+end
+
+
+function c = arrangeCell(r1, r2, c1, c2, inset)
+%arrangeCell  A panel's cell for figureArrange: its rows and columns and its labels' room, at its full size, no band, one axes.
+c = struct('r1', r1, 'r2', r2, 'c1', c1, 'c2', c2, 'size', [1 1], 'align', "center", 'valign', "middle", ...
+    'inset', inset, 'band', "", 'need', 0, 'shares', 1);
 end

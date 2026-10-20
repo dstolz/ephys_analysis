@@ -8,8 +8,6 @@ function [p, unknown] = normalizePanel(in, path)
 %     TrialSelection; an empty value means "default"
 %   - layers is a list of layers (a struct array, a cell from jsondecode,
 %     one struct or [] for none), each normalizeLayer'd
-%   - common is a logical: true = the panel takes the figure's common
-%     options for its type's common fields (figureFor)
 %   - note is a Note (defaults("Note")) and overlays a list of Overlays
 %     (defaults("Overlay")); an overlay's panel is always
 %     "all" (it is drawn on the panel's own axes)

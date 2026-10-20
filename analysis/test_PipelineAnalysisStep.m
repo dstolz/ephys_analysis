@@ -52,7 +52,7 @@ acfg = acfg.addFigure("continuous", Id="lfp_stim");   % a page per observed LFP 
 acfg.Figures(2).observe.channels = [1 2];
 acfg.Figures(2).window = struct('mode', "fixed", 'pre', -0.1, 'post', 0.4, 'stop', []);
 acfg = acfg.addFigure("raster", Id="raster_det");   % detected spikes, a channel each
-acfg.Figures(3).observe.source = "detected";
+acfg.Figures(3).observe.data = "detected";
 acfg.Figures(3).observe.units.maxUnits = 2;
 acfg.Figures(3).panels(1).layers(1).source = "detected";
 acfg = acfg.addFigure("probemap", Id="map_fig");   % one page per dataset

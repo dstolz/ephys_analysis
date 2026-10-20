@@ -11,6 +11,9 @@ function lgd = placeLegend(ax, handles, labels, style, tl, auto)
 %     "north" "south" "east" "west"
 %                              outside the whole grid of plots, on that side
 %                              (beside the axes when the plot is one axes)
+%     "none"                   where its caller puts it (Location 'none':
+%                              renderFigure's layout places the figure's
+%                              legend in a band beside the panels)
 %   STYLE.LegendOrientation is "vertical" or "horizontal"; "auto" lays a
 %   legend north or south of the grid out horizontally, any other vertically.
 %   STYLE.LegendBox draws its outline and background. A legend outside the
@@ -34,6 +37,8 @@ lgd = legend(host, handles, cellstr(labels), 'Interpreter', 'none', 'FontSize', 
 lgd.Box = matlab.lang.OnOffSwitchState(style.LegendBox);
 if hosted
     lgd.Layout.Tile = char(loc);
+elseif loc == "none"   % its caller places it (renderFigure's layout)
+    lgd.Location = 'none';
 elseif side
     lgd.Location = char(loc + "outside");
 elseif loc == "inside"

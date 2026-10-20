@@ -3,9 +3,10 @@ function spec = figureFor(obj, id)
 %   SPEC = cfg.figureFor(ID) (ID a figure id or an index) is the Figures
 %   entry with
 %   - ref / window / selection taken from Defaults where "default"
-%   - observe.kind resolved from "auto" (observeKind: "unit", "channel" or
-%     "dataset"), and observe.units.source set to observe.source (a
-%     complete UnitSelection, for selectUnits)
+%   - observe.kind added (observeKind of observe.data: "unit", "channel"
+%     or "dataset"), and observe.units.source set to observe.data for
+%     units or detected (else "units"; a complete UnitSelection, for
+%     selectUnits)
 %   - each panel's ref / window / selection taken from the figure's
 %     (resolved) where "default", and two fields added: aligned
 %     (panelTypes().Aligned of its type) and sharesTime (the type shares
@@ -15,13 +16,7 @@ function spec = figureFor(obj, id)
 %     aligned time base). A
 %     panel whose selection differs from the figure's computes its own
 %     epochs and groups (figureCompute)
-%   - each panel's options completed against its type's DefaultOptions,
-%     and, where the panel's common is true, the figure's common values
-%     put in for every common field its type has (commonFieldsOf, via
-%     panelOptions): bins, measure, baseline, maskAfterStop, waveform. A
-%     waveforms panel never draws mode "off": a common waveform mode
-%     "off" (the insets' default) becomes "both" for it. The panel's
-%     common flag stays in the spec (the link state)
+%   - each panel's options completed against its type's DefaultOptions
 %   - each layer's category added (categoryOf: "point", "continuous",
 %     "unit", or "" where the type does not draw the source) and
 %     its units.source set to its source (a complete UnitSelection)
@@ -49,7 +44,8 @@ unitDef = EphysAnalysisConfig.defaults("UnitSelection");
 o = spec.observe;
 o.kind = EphysAnalysisConfig.observeKind(fig);
 u = o.units;
-u.source = o.source;
+u.source = "units";
+if o.kind == "unit"; u.source = o.data; end
 o.units = orderfields(u, unitDef);
 spec.observe = o;
 
@@ -72,7 +68,6 @@ for j = 1:numel(fig.panels)
     if isequal(p.selection, "default"); p.selection = spec.selection; end
     if known
         p.options = EphysAnalysisConfig.coerceStruct(T.DefaultOptions{row}, p.options, "options");
-        p.options = EphysAnalysisConfig.panelOptions(fig, p);
         if p.type == "coherence"   % a coherogram over the epochs is drawn over time from the event
             p.sharesTime = linked && p.options.overTime && p.options.timeBase == "aligned";
         end

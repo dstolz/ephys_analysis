@@ -134,7 +134,7 @@ PlotAesthetics.setUserRules("psth", []);
 check(isempty(PlotAesthetics.userRules("psth")) && ~AppPrefs.ispref(PlotAesthetics.PrefGroup, "psth"), 'setUserRules(kind, []) forgets them');
 PlotAesthetics.setUserRules("figure", struct('role', "plotTitle", 'group', "", 'property', "FontSize", 'value', 17));
 h = renderFigure(Cp.F, Cp.spec, fig);
-check(h.layout.Title.FontSize == 17, 'the user''s "figure" rules dress every figure');
+check(findall(h.layout, 'Type', 'axes', 'Tag', 'titleHost').Title.FontSize == 17, 'the user''s "figure" rules dress every figure');
 PlotAesthetics.setUserRules("figure", []);
 w = warning('off', 'PlotAesthetics:BadValue');
 lastwarn('');
@@ -148,8 +148,8 @@ check(~isempty(h.layout) && strcmp(wid, 'PlotAesthetics:BadValue'), 'a value the
 fprintf('\n== 4. the right-click menu ==\n');
 inv = figure('Visible', 'off');   % a new figure, as a run's export is
 renderFigure(Cp.F, Cp.spec, inv);
-check(~isappdata(inv, PlotAesthetics.ContextKey) && isempty(findall(inv, 'Type', 'uicontextmenu')), ...
-    'an invisible figure (a run''s export) gets no menu');
+check(~isappdata(inv, PlotAesthetics.ContextKey) && isempty(findall(inv, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag)), ...
+    'an invisible figure (a run''s export) gets no editor menu (MATLAB''s own legend menu aside)');
 delete(inv);
 h = renderFigure(Cp.F, Cp.spec, fig, Editable=true, OnRemember=@(r) setappdata(0, 'aestheticsGot', r));
 ctx = getappdata(fig, PlotAesthetics.ContextKey);
@@ -168,10 +168,29 @@ check(isstruct(c2) && isequal(holder, fig), 'a legend finds its figure''s contex
 check(strcmp(errorId(@() PlotAesthetics.edit(axes(figure('Visible', 'off')))), 'PlotAesthetics:NotEditable'), ...
     'edit on something renderFigure did not draw: PlotAesthetics:NotEditable');
 
+% Go to setting: only when the caller says where to go
+check(isempty(findall(fig, 'Type', 'uimenu', 'Tag', PlotAesthetics.GotoTag)), 'no OnGoto: no "Go to setting" item');
+setappdata(0, 'aestheticsGoto', {});
+h = renderFigure(Cp.F, Cp.spec, fig, Editable=true, OnGoto=@(role, panel) setappdata(0, 'aestheticsGoto', {role, panel}));
+C = PlotAesthetics.components(h.layout);
+items = findall(fig, 'Type', 'uimenu', 'Tag', PlotAesthetics.GotoTag);
+check(numel(items) == numel(findall(fig, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag)), 'OnGoto: every component menu has "Go to setting"');
+k = find(C.Role == "tileTitle" & C.Tile > 0, 1);
+PlotAesthetics.onMenuGoto(findobj(C.Handles{k}(1).ContextMenu.Children, 'Tag', PlotAesthetics.GotoTag), []);
+got = getappdata(0, 'aestheticsGoto');
+check(numel(got) == 2 && got{1} == "tileTitle" && got{2} == C.TileName(k), 'it reports the part''s role and its panel''s id');
+k = find(C.Role == "plotTitle", 1);
+PlotAesthetics.onMenuGoto(findobj(C.Handles{k}(1).ContextMenu.Children, 'Tag', PlotAesthetics.GotoTag), []);
+got = getappdata(0, 'aestheticsGoto');
+check(got{1} == "plotTitle" && got{2} == "", 'the figure''s own parts have no panel');
+if isappdata(0, 'aestheticsGoto'); rmappdata(0, 'aestheticsGoto'); end
+R = PlotAesthetics.roles().Role;
+check(all(arrayfun(@(r) ~isempty(figureRoleSettings(r)), R)) && isequal(figureRoleSettings("nonsense"), "@style"), ...
+    'every role has settings to go to; an unknown one goes to Appearance');
+
 fprintf('\n== 5. the editor: live edits, Apply to, Reset, Cancel ==\n');
 fig2 = figure('Visible', 'off', 'Position', [100 100 700 800]);
 spec2 = Cp.spec;
-spec2.panels(2).common = false;
 spec2.panels(2).options.histStyle = "line";
 spec2.panels(2).options.fill = false;
 h = renderFigure(Cp.F, spec2, fig2, Editable=true, OnRemember=@(r) setappdata(0, 'aestheticsGot', r));
@@ -220,7 +239,7 @@ check(isstruct(got) && isscalar(got) && got.role == "rate" && got.group == group
 ctx = getappdata(fig2, PlotAesthetics.ContextKey);
 C = PlotAesthetics.components(ctx.root);
 lws = arrayfun(@(r) C.Handles{r}(1).LineWidth, find(C.Role == "rate" & C.Group == groups(1)));
-check(~isequal(ctx.root, h.layout) && all(lws == 3) && numel(ctx.plotRules) == 1, ...
+check(~isvalid(h.axes(1)) && all(lws == 3) && numel(ctx.plotRules) == 1, ...
     'the figure is redrawn with its new rule, and the context knows it');
 d = PlotAestheticsDialog(ctx, C.Handles{find(C.Role == "sem", 1)}, Visible=false);
 d.setApplyTo("role");

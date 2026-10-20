@@ -2,12 +2,14 @@ function syncFigureEditor(obj)
 %syncFigureEditor  Show, enable and list the figure editor's rows for the selected figure, panel and layer.
 %   What shows (rows a section does not use are hidden, and so is a
 %   section left with none: layoutFigureEditor):
-%     Observations   the unit filter for a unit observation (classes and
-%                    quality for sorted units; the response test's rows, its
-%                    auROC rows with the auROC test), the signal and channels
-%                    for a channel observation; "auto" says what it resolves
-%                    to (EphysAnalysisConfig.observeKind)
-%     Arrangement    the selected panel's rows once there is one
+%     Observations   under Observe, the unit filter for sorted units or
+%                    detected spikes (classes and quality for sorted units;
+%                    the response test's rows, its auROC rows with the
+%                    auROC test), the channels for a signal, nothing more
+%                    for the dataset
+%     Arrangement    the selected panel's rows once there is one (Align in
+%                    cell's drop-downs enabled each way the panel is
+%                    smaller than its cell)
 %     Panel, Panel alignment, Layers, Options   with a panel selected;
 %                    Group shown for the one-group types (heat map, unit
 %                    correlation); Panel alignment's rows grayed out (they
@@ -17,15 +19,9 @@ function syncFigureEditor(obj)
 %                    "Trial selection as the figure" is ticked; its Apply
 %                    to all panels only while the panel has its own,
 %                    Re-link all panels while any panel has its own
-%                    event, window, selection or options
-%     Common options always (the waveform rows enabled when it is not Off,
-%                    the baseline window with a baseline, the auROC rows
-%                    with the auroc baseline); a linked panel's
-%                    Options rows of its type's common fields (bins,
-%                    measure, baseline, auROC, mask, waveform) are locked, showing
-%                    the figure's; Options' Apply to all panels when the
-%                    panel has its own common values or another panel of
-%                    its type
+%                    event, window or selection; Options' Apply to all
+%                    panels while another panel has one of its shared
+%                    rows (sharedFieldsOf) or is of its type
 %     Event reference, Epoch window, Trial selection   unless every panel
 %                    of the figure is one not aligned to events
 %     Layers         the picked layer's rows by its source and binding:
@@ -33,8 +29,11 @@ function syncFigureEditor(obj)
 %                    unit rows, a fixed signal layer's channels, the
 %                    aggregate on a raster, PSTH or continuous panel; an
 %                    events layer's line, edge, sequence and how it is
-%                    drawn (a mark's look for marks); the color and line
-%                    style but for marks
+%                    drawn (a mark's look for marks, the color and span
+%                    line for a span; Draw as grayed out on an event-trace
+%                    panel, which offers a train only on a raster, PSTH or
+%                    heat map); the color and line style but for marks
+%                    and spans
 %     Options        the panel type's own (titled "<Type> options"); a heat
 %                    map of a signal has no bins or measure; a PSTH's or a
 %                    spike heat map's auROC rows with the auroc baseline
@@ -53,7 +52,10 @@ function syncFigureEditor(obj)
 %                    spectrum or spectrogram; a spectrogram's moving window,
 %                    baseline, color limits and group; a coherence panel's
 %                    over-time box, its phase box or, over time, the moving
-%                    window, color limits and group)
+%                    window, color limits and group); an event-trace
+%                    panel's rows (the bar outline with bars, the level
+%                    line with a line, the group bands with a sub-row per
+%                    epoch, the baseline's look with a baseline)
 %     Text note, Overlays   with a panel selected: the panel's note rows
 %                    (its look enabled with text; x and y with "At x, y")
 %                    and its overlay list with the rows of the overlay
@@ -79,7 +81,8 @@ function syncFigureEditor(obj)
 %   spacing when stacked, the error and legend rows with their boxes, each
 %   Move button when the panel has a same-shaped neighbor that way, and
 %   the list buttons; Up and Down when the figure has a neighbor that way in
-%   its group of the tree. The schematic is redrawn (drawFigureSchematic).
+%   its group of the tree. The schematic is redrawn (drawFigureSchematic),
+%   and the preview outlines the selected panel (markFigurePanel).
 E = obj.FigureEditor;
 S = obj.FigureSections;
 k = obj.SelectedFigure;
@@ -91,6 +94,8 @@ set([obj.RemoveFigureButton obj.DuplicateFigureButton], 'Enable', onoff(has));
 obj.CopyFigureButton.Enable = onoff(has && nf > 1);
 if ~isempty(obj.FigureGenerateButton)
     obj.FigureGenerateButton.Enable = onoff(has && ~obj.Running);   % off while a run (or a generate) goes
+    obj.FigureOpenButton.Enable = onoff(has);
+    obj.FigureCodeButton.Enable = onoff(has);
 end
 [up, down] = groupNeighbors(obj, k);   % Up / Down move a figure within its group of the tree
 obj.UpFigureButton.Enable = onoff(has && up);
@@ -102,7 +107,7 @@ if ~has
         S(i).Visible = names(i) == "general";
     end
     S = formShow(S, "summary", true);
-    E.summary.Text = "Add a figure: pick a template under the list and press Add.";
+    E.summary.Text = "Add a figure: press Add under the list, then pick its first panel.";
     if ~isempty(obj.FiguresDatasetDropDown) && isvalid(obj.FiguresDatasetDropDown); obj.FiguresDatasetDropDown.Enable = "on"; end
     obj.FigureSections = S;
     obj.layoutFigureEditor();
@@ -119,8 +124,6 @@ spikes = EphysAnalysisConfig.SpikeSources;
 signals = EphysAnalysisConfig.SignalSources;
 plural = @(n, w) sprintf("%d %s%s", n, w, repmat('s', 1, n ~= 1));
 E.summary.Text = plural(fig.grid.rows, "row") + " x " + plural(fig.grid.cols, "column") + ", " + plural(np, "panel") + "; per " + kind;
-E.observeResolved.Text = "";
-if fig.observe.kind == "auto"; E.observeResolved.Text = "(resolves to: " + kind + ")"; end
 aligned = false(1, np);
 for q = 1:np
     row = PT.Type == fig.panels(q).type;
@@ -128,31 +131,20 @@ for q = 1:np
 end
 
 v = struct();
-for f = ["id" "title" "enabled" "summary" "observe" "sesEnabled" "obsPerGroup" "obsCount" "schematic" "addType" "addWhere" "spacing" ...
-        "fontSize" "lineWidth" "colormap" "sortDepth" "labelDepth" "showSEM" "legendLoc" "errType" "errFace" "errEdge" "looksText" ...
-        "cmNote" "cmBinMs" "cmSmoothMs" "cmMeasure" "cmBaselineMode" "cmBaseFrom" "cmMaskAfterStop" "cmWaveMode" ...
-        "cmWaveLocation" "cmWaveScale" "cmWavePP"]
+for f = ["id" "title" "enabled" "summary" "observe" "sesEnabled" "obsPerGroup" "obsCount" "schematic" "newPanel" "spacing" ...
+        "fontSize" "lineWidth" "colormap" "sortDepth" "labelDepth" "showSEM" "legendLoc" "errType" "errFace" "errEdge" "looksText"]
     v.(f) = true;   % the rows every figure shows
 end
-en([E.cmBaseFrom E.cmBaseTo], string(E.cmBaselineMode.Value) ~= "none");
-en([E.cmWaveSpikes E.cmWaveLocation E.cmWaveBox E.cmWaveScale E.cmWavePP E.cmWaveCount], string(E.cmWaveMode.Value) ~= "off");
-cmAuroc = string(E.cmBaselineMode.Value) == "auroc";   % the common auROC settings, with the auROC baseline
-v.cmAuMethod = cmAuroc; v.cmAuWinMs = cmAuroc; v.cmAuModFrom = cmAuroc; v.cmAuCutoff = cmAuroc; v.cmAuMarks = cmAuroc;
-v.cmAuTest = cmAuroc && string(E.cmAuCutoff.Value) == "test";
-en(E.cmAuStepMs, string(E.cmAuWindows.Value) == "sliding");
-en(E.cmAuThreshold, string(E.cmAuCutoff.Value) == "fixed");
-en(E.cmAuResamples, string(E.cmAuTest.Value) ~= "ranksum");
-en([E.cmAuMarks E.cmAuModOnly], string(E.cmAuCutoff.Value) ~= "none");
 % observations
 unit = kind == "unit";
-sorted = unit && fig.observe.source == "units";
+sorted = fig.observe.data == "units";
 respAuroc = unit && string(E.obsRespTest.Value) == "auroc";
-v.obsSource = unit; v.obsClasses = sorted; v.obsQuality = sorted;
+v.obsClasses = sorted; v.obsQuality = sorted;
 v.obsResponse = unit; v.obsRespBaseFrom = unit; v.obsRespParam = unit;
 v.obsRaMethod = respAuroc; v.obsRaWinMs = respAuroc; v.obsRaCutoff = respAuroc;
 v.obsRaTest = respAuroc && string(E.obsRaCutoff.Value) == "test";
 v.obsIds = unit; v.obsMaxUnits = unit; v.obsShanks = unit; v.obsUnitChannels = unit;
-v.obsSignal = kind == "channel"; v.obsChannels = kind == "channel";
+v.obsChannels = kind == "channel";
 % across sessions: every row once Across sessions is ticked; the keys with "These datasets", the mapping file with
 % match "mapping", the band and the faint sessions when the sessions are averaged (a color per subject, or none)
 ses = logical(E.sesEnabled.Value);
@@ -168,17 +160,21 @@ E.sesNote.Text = sessionNote(fig, kind);
 % arrangement and panel
 v.selPanel = hasPanel; v.noPanel = ~hasPanel;
 v.rowSpan = hasPanel; v.colSpan = hasPanel; v.rowHeight = hasPanel; v.colWidth = hasPanel; v.panelButtons = hasPanel;
-v.panelType = hasPanel; v.panelTitle = hasPanel; v.group = false;
+v.panelWidth = hasPanel; v.panelAlign = hasPanel;
+en(E.panelAlign, E.panelWidth.Value < 100);   % where it sits only matters when it is smaller than its cell
+en(E.panelVAlign, E.panelHeight.Value < 100);
+v.panelType = hasPanel; v.panelTitle = hasPanel; v.panelBox = hasPanel; v.group = false;
 % layers and options: off unless the panel uses them
 layerKeys = ["layerList" "layerAdd" "layerNote" "layerName" "layerSource" "layerBinding" "layerFollows" "layerClasses" ...
     "layerIds" "layerQuality" "layerMaxUnits" "layerShanks" "layerUnitChannels" "layerChannels" "layerAggregate" "evLine" ...
-    "evEdge" "evSeqText" "evDrawAs" "evMarker" "evColor" "layerColor" "layerLineStyle"];
-optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort" "sortLine" "sortSeqText" "rasterByGroup" ...
+    "evEdge" "evSeqText" "evDrawAs" "evMarker" "evColor" "evSpanStyle" "layerColor" "layerLineStyle"];
+optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort" "sortLine" "sortSeqText" "rasterByGroup" "yTicks" "tickColor" "backColor" ...
     "maskAfterStop" "histStyle" "fill" "normalize" "contDisplay" "statistic" "errorType" "stackSpacing" "order" ...
     "value" "metric" "correlation" "fisherZ" "yLim" "cLim" "waveMode" "waveLocation" "waveScale" "wavePP" ...
     "optApplyAll" "auMethod" "auWinMs" "auModFrom" "auCutoff" "auTest" "auMarks" "stack" "param" "rateDisplay" "waveLayout" ...
     "contTrials" "heatRows" "spTimeBase" "spRangeFrom" "spSegment" "spTaperMode" "spTW" "spW" "spPad" "spFmin" "spErr" ...
-    "spDetrend" "spScale" "spSpikeFs" "spOverTime" "spWin" "spShowPhase"];
+    "spDetrend" "spScale" "spSpikeFs" "spOverTime" "spWin" "spShowPhase" "etDisplay" "etTrials" "etColorBy" "etHeight" ...
+    "etEdge" "etLineStyle" "etBaseline" "etBaseStyle" "etRowSpacing"];
 noteKeys = ["annText" "annPlace" "annX" "annAlign" "annRotation" "annFont" "annBold" "annColor" "annInterp"];
 overlayKeys = ["ovList" "ovName" "ovKind" "ovValue" "ovFrom" "ovLayer" "ovColor" "ovFill" "ovEdge" "ovStyle"];
 for f = [layerKeys optionKeys noteKeys overlayKeys]; v.(f) = false; end
@@ -229,7 +225,9 @@ if hasPanel
         isSpike = ismember(L.source, spikes);
         isSignal = ismember(L.source, signals);
         fixed = L.binding == "fixed";
-        marks = L.source == "events" && L.eventsAs == "marks";
+        onTrace = t == "eventTrace";   % an event-trace panel draws its events layers its own way: no Draw as, marker or span
+        marks = L.source == "events" && L.eventsAs == "marks" && ~onTrace;
+        span = L.source == "events" && L.eventsAs == "span" && ~onTrace;
         v.layerName = true; v.layerSource = true; v.layerBinding = true;
         v.layerFollows = ~fixed && (isSpike || isSignal);
         v.layerClasses = fixed && L.source == "units";
@@ -238,12 +236,13 @@ if hasPanel
         v.layerChannels = fixed && isSignal;
         v.layerAggregate = fixed && (isSpike || isSignal) && ismember(t, ["raster" "psth" "continuous" "rate" "tuning"]);
         v.evLine = L.source == "events"; v.evEdge = v.evLine; v.evSeqText = v.evLine; v.evDrawAs = v.evLine;
-        v.evMarker = marks; v.evColor = marks;
-        v.layerColor = ~marks; v.layerLineStyle = ~marks;
+        v.evMarker = marks; v.evColor = marks || span; v.evSpanStyle = span;
+        v.layerColor = ~(marks || span); v.layerLineStyle = v.layerColor;
         if ~lc.Bindable; E.layerBinding.Value = "fixed"; end
         en(E.layerBinding, lc.Bindable);
         en(E.layerQuality, L.source == "units");
-        en(E.evDrawAs, ismember(t, ["raster" "psth" "heatmap"]));
+        drawAsChoices(E.evDrawAs, t);
+        en(E.evDrawAs, ~onTrace);
         what = "unit";
         if isSignal; what = "channel"; end
         set(E.layerAggregate, "Items", ["each " + what "their mean"], "ItemsData", ["each" "mean"]);
@@ -263,6 +262,7 @@ if hasPanel
     v.rateDisplay = t == "rate";
     v.waveLayout = t == "waveforms";
     v.rasterSort = t == "raster" || trialHeat; v.sortLine = v.rasterSort; v.sortSeqText = v.rasterSort; v.rasterByGroup = v.rasterSort;
+    v.yTicks = t == "raster"; v.tickColor = v.yTicks; v.backColor = v.yTicks;
     v.heatRows = t == "heatmap";
     v.contTrials = t == "continuous";
     en(E.maxTrials, string(E.contTrials.Value) ~= "off");
@@ -270,6 +270,14 @@ if hasPanel
     v.histStyle = t == "psth"; v.fill = v.histStyle; v.normalize = v.histStyle;
     v.contDisplay = t == "continuous"; v.statistic = v.contDisplay; v.errorType = v.contDisplay; v.stackSpacing = v.contDisplay;
     v.order = t == "heatmap" && ~trialHeat;
+    et = t == "eventTrace";   % an event-trace panel's rows; those its display or trials do not use stay grayed out
+    v.etDisplay = et; v.etTrials = et; v.etColorBy = et; v.etHeight = et; v.etEdge = et; v.etLineStyle = et;
+    v.etBaseline = et; v.etBaseStyle = et; v.etRowSpacing = et;
+    bars = string(E.etDisplay.Value) == "bars";
+    en([E.etEdge E.etEdgeWidth], bars);
+    en([E.etLineStyle E.etLineWidth], ~bars);
+    en(E.etGroupBands, string(E.etTrials.Value) == "rows");
+    en([E.etBaseColor E.etBaseStyle E.etBaseWidth], E.etBaseline.Value);
     if trialHeat; v.group = false; end   % a heat map of trials draws every group
     v.value = t == "probemap";
     v.metric = t == "corrmap"; v.correlation = v.metric; v.fisherZ = v.metric;
@@ -317,21 +325,15 @@ if hasPanel
     if isstruct(p.window); stop = obj.PanelAlignControls.StopOn.Value; end
     en(E.maskAfterStop, stop);
     en(E.stackSpacing, string(E.contDisplay.Value) == "stacked");
-    % a linked panel's common rows show the figure's Common options, locked
-    rowsOf = struct('bins', [E.binMs E.smoothMs], 'measure', E.measure, 'baseline', [E.baselineMode E.baseFrom E.baseTo], ...
-        'maskAfterStop', E.maskAfterStop, 'waveform', [E.waveMode E.waveSpikes E.waveLocation E.waveBox E.waveScale E.wavePP E.waveCount], ...
-        'auroc', [E.auMethod E.auWindows E.auWinMs E.auStepMs E.auModFrom E.auModTo E.auCutoff E.auThreshold E.auTest ...
-        E.auResamples E.auCorrection E.auAlpha E.auMarks E.auModOnly]);
-    cf = EphysAnalysisConfig.commonFieldsOf(t);
-    en([E.measure E.baselineMode E.waveMode E.auMethod E.auWindows E.auWinMs E.auModFrom E.auModTo E.auCutoff E.auTest ...
-        E.auCorrection E.auAlpha], true);   % rows without a rule of their own above: open again once the panel is unlinked
-    if p.common
-        for f = cf; en(rowsOf.(f), false); end
+    % Apply to all panels: another panel of the type, or one with a row this panel shares (sharedFieldsOf)
+    cf = EphysAnalysisConfig.sharedFieldsOf(t);
+    to = false;
+    for q = [1:j-1, j+1:np]
+        tq = fig.panels(q).type;
+        to = to || tq == t || any(ismember(cf, EphysAnalysisConfig.sharedFieldsOf(tq)));
     end
-    en(E.panelCommon, ~isempty(cf));
-    sameType = nnz([fig.panels.type] == t) > 1;
     v.optApplyAll = known;
-    en(E.optApplyAll, (~p.common && ~isempty(cf)) || sameType);
+    en(E.optApplyAll, to);
 
     % the panel's own alignment
     modes = "fixed";
@@ -379,10 +381,9 @@ if hasPanel
     end
 end
 en(E.removePanel, hasPanel);
-own = false;   % any panel with its own event, window, selection or options: Re-link all panels has something to do
+own = false;   % any panel with its own event, window or selection: Re-link all panels has something to do
 for q = 1:np
-    own = own || isstruct(fig.panels(q).ref) || isstruct(fig.panels(q).window) || isstruct(fig.panels(q).selection) ...
-        || ~fig.panels(q).common;
+    own = own || isstruct(fig.panels(q).ref) || isstruct(fig.panels(q).window) || isstruct(fig.panels(q).selection);
 end
 en(E.alignRelinkAll, own);
 pg = E.palignGrid;
@@ -446,6 +447,7 @@ if ~isempty(obj.FiguresDatasetDropDown) && isvalid(obj.FiguresDatasetDropDown)
 end
 obj.layoutFigureEditor();
 obj.drawFigureSchematic();
+obj.markFigurePanel();   % the preview outlines the selected panel
 end
 
 
@@ -493,7 +495,7 @@ spike = ismember(L.source, EphysAnalysisConfig.SpikeSources);
 switch kind
     case "unit"
         if spike
-            if ob.source == L.source
+            if ob.data == L.source
                 t = "Draws the observed unit.";
             elseif L.source == "detected"
                 t = "Draws the detections on the observed unit's channel.";
@@ -508,9 +510,9 @@ switch kind
     case "channel"
         if spike
             t = "Draws the observed channel's " + ternary(L.source == "detected", "detections.", "sorted units.");
-        elseif L.source == ob.signal
+        elseif L.source == ob.data
             t = "Draws the observed channel.";
-        elseif L.source == "AUX" || ob.signal == "AUX"
+        elseif L.source == "AUX" || ob.data == "AUX"
             t = "AUX has no recording channel: bind it to fixed channels.";
         else
             t = "Draws the same channel number in the " + L.source + " extract.";

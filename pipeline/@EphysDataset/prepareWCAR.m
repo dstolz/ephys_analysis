@@ -276,7 +276,7 @@ function n = padRows(hpHz, Fs)
 %   after N. 0 without a high-pass.
 n = 0;
 if hpHz > 0
-    [~, p] = butter(4, hpHz / (Fs / 2), 'high');
+    [~, p, ~] = butter(4, hpHz / (Fs / 2), 'high');   % three outputs: zeros, poles, gain (two would be b, a)
     n = ceil(log(1e-12) / log(max(abs(p))));
 end
 end

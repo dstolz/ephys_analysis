@@ -428,7 +428,7 @@ check(isequal(stN2.channels, [1 2 4 5]) && stN2.key ~= stN.key, 'other reference
 aR.ReferenceWCAR = EphysDataset.defaultWCAR();   % Q automatic
 dsR.ArtifactConfig = aR;
 stA = dsR.prepareWCAR();
-[~, ~, IA] = dsR.deriveSignals('dataTypeOut', "SPIKE", 'SPIKE_Fs', Inf);
+[~, ~, IA] = dsR.deriveSignals('dataTypeOut', "SPIKE", 'SPIKE_Fs', Inf, 'SPIKE_bpLoHi', [300 900]);   % under the 2 kHz recording's Nyquist
 check(stA.QAuto && IA.reference.mode == "wcar" && IA.reference.wcar.QAuto && abs(stA.Q - IA.reference.wcar.Q) < 1e-5 * stA.Q, ...
     sprintf(['the automatic Q is deriveSignals''s (the same samples; %.6g vs %.6g, single vs double ' ...
     'precision)'], stA.Q, IA.reference.wcar.Q));

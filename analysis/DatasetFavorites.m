@@ -315,23 +315,9 @@ classdef DatasetFavorites < handle
 
     methods (Access = private)
         function s = sortInUse(obj)
-            %sortInUse  The sort the dataset uses now: its phy folder (relative to Folder when inside it) and spike_times.npy's size.
+            %sortInUse  The sort the dataset uses now (sortIdentity: its phy folder and spike_times.npy's size), looked up once.
             if ~isempty(obj.SortCache); s = obj.SortCache; return; end
-            s = struct('sort', "", 'spikeTimesBytes', NaN);
-            d = "";
-            try
-                if isempty(obj.Outputs); obj.Outputs = DatasetOutputs(obj.Folder, Name=obj.Name); end
-                d = string(obj.Outputs.SortingDir);
-            catch
-            end
-            if ~isempty(d) && isscalar(d) && d ~= ""
-                phy = string(EphysDataset.resolvePhyDir(d));
-                if isfolder(phy)
-                    s.sort = relativeTo(phy, obj.Folder);
-                    b = dir(fullfile(phy, 'spike_times.npy'));
-                    if isscalar(b); s.spikeTimesBytes = b.bytes; end
-                end
-            end
+            [s, obj.Outputs] = sortIdentity(obj.Outputs, obj.Folder, obj.Name);
             obj.SortCache = s;
         end
 
@@ -382,22 +368,6 @@ else
     ids = setdiff(ids, add);
 end
 ids = reshape(ids, 1, []);
-end
-
-
-function r = relativeTo(p, base)
-%relativeTo  P below BASE as "a/b" ("." for BASE itself), else P in full with "/".
-p = strrep(string(p), '\', '/');
-base = strrep(string(base), '\', '/');
-base = regexprep(base, '/+$', '');
-if strcmpi(p, base)
-    r = ".";
-elseif base ~= "" && startsWith(lower(p), lower(base) + "/")
-    r = extractAfter(p, strlength(base) + 1);
-else
-    r = p;
-end
-r = regexprep(r, '/+$', '');
 end
 
 

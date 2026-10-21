@@ -5,7 +5,9 @@ function refreshDatasetsTable(obj)
 %   (making it active loads it). Subject and Date (the day recorded) come
 %   from the name pattern and, in a project, the recording's own start.
 %   Star (the ★ column, a check box) is the dataset's star (Favorites);
-%   ticking it stars the dataset (onDatasetsTableEdited).
+%   ticking it stars the dataset (onDatasetsTableEdited). Note (the ✎
+%   column) shows "✎" when the dataset has a note (Notes); a click on it
+%   opens the notepad (onDatasetNoteClicked).
 %
 %   The rows are in the order of the last header click (DatasetsSort), put
 %   there each time the table is filled, so the sort survives a tick or a
@@ -22,6 +24,8 @@ mark = @(tf) ternary(tf, "✓", "");
 Run = reshape(obj.Ticked, [], 1);
 Star = false(n, 1);
 if numel(obj.Favorites) == n; Star = reshape([obj.Favorites.Dataset], [], 1); end
+Note = strings(n, 1);
+if numel(obj.Notes) == n; Note(arrayfun(@(d) d.hasNote("dataset"), obj.Notes)) = "✎"; end
 Name = reshape(r.Names, [], 1);
 Key = reshape(r.Keys, [], 1);
 acq = NaT(n, 1);
@@ -58,7 +62,7 @@ for k = 1:n
     end
 end
 Idx = (1:n).';
-T = table(Run, Star, Name, Subject, Date, Key, LFP, MUA, SPIKE, AUX, Units, Detected, Behavior, Trials, Pairing, Duration, Idx);
+T = table(Run, Star, Note, Name, Subject, Date, Key, LFP, MUA, SPIKE, AUX, Units, Detected, Behavior, Trials, Pairing, Duration, Idx);
 T = TableSort.apply(T, obj.DatasetsSort);
 obj.DatasetsTable.Data = T;
 obj.DatasetsTable.ColumnEditable = [true true false(1, width(T) - 2)];

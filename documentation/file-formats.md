@@ -32,6 +32,7 @@ the readers take both. Probe maps are the exception
 <outputFolder>/                         = Folder, or OutputDir, or <OutputRoot>/<Name>
 ├─ <Name>_artifacts.json                artifact-interval cache (EphysPipeline)
 ├─ <Name>_favorites.json                the stars set on the dataset, its channels and units (DatasetFavorites)
+├─ <Name>_notes.json                    the notes written on the dataset, its channels and units (DatasetNotes)
 ├─ <Name>_extract_<TYPE>.mat            derived signals, one file per type (toMat; the Signals step),
 │                                       or <Name>_extract.mat with Signals.SeparateFiles off
 ├─ <Name>_spikes.mat                    detected spikes (spikesToMat; the Spikes step)
@@ -687,6 +688,44 @@ means no star.
 | `channels` | the starred recording channels, 1-based, ascending. A detection channel is starred as its channel |
 | `units` | one entry per sort that has starred units: `sort`, the sorting (phy) folder relative to the output folder (`/`-separated; its full path when it is elsewhere), `spikeTimesBytes`, the size of its `spike_times.npy` (`null` when it has none), and `ids`, the starred cluster ids ascending. Only the entry whose `sort` (any case) and `spikeTimesBytes` are the sort in use now counts; the others are kept, so a sort that comes back brings its stars back |
 | `updated` | when it was written, `yyyy-MM-ddTHH:mm:ss` local time |
+
+---
+
+## Notes (`<Name>_notes.json`)
+
+Path: `<outputFolder>/<Name>_notes.json`, beside the dataset's outputs and its
+[stars](#favorites-name_favoritesjson), so it moves with them. Written by
+`DatasetNotes` (the analysis app's notepad:
+[Notes](EphysAnalysisApp.md#notes)) through `writeJsonFile` each time a note
+changes, and deleted when the last note is emptied. No file means no note.
+These are not phy's notes: the "notes" label in `cluster_notes.tsv` (the
+pipeline app's Review tab) is another file.
+
+```json
+{
+  "schema": "ephys-notes/1",
+  "dataset": "subj1_day1",
+  "note": { "text": "good session\nreward line flaky after trial 200", "updated": "2026-10-21T10:02:11" },
+  "channels": [
+    { "id": 17, "text": "noisy after 20 min", "updated": "2026-10-21T10:05:40" }
+  ],
+  "units": [
+    { "sort": "kilosort4", "spikeTimesBytes": 1048576,
+      "notes": [ { "id": 12, "text": "bursty; drifts down", "updated": "2026-10-21T10:07:02" } ] }
+  ],
+  "updated": "2026-10-21T10:07:02"
+}
+```
+
+| Field | Contents |
+| --- | --- |
+| `schema` | `"ephys-notes/1"`; a file of another schema, or one that is not JSON, is not read (no notes; `DatasetNotes.Problem` says why) and is never written over |
+| `dataset` | the dataset name (informative: the file is found by its name) |
+| `note` | the dataset's own note: `text` and `updated`; absent when it has none |
+| `channels` | one note per recording channel, 1-based `id` ascending, with `text` and `updated`. A detection channel's note is its channel's |
+| `units` | one entry per sort that has unit notes: `sort` and `spikeTimesBytes` as in the favorites file (the sorting folder relative to the output folder, and the size of its `spike_times.npy`, `null` when it has none), and `notes`, one per cluster `id` ascending with `text` and `updated`. Only the entry of the sort in use now counts for the units; the others are kept, so a sort that comes back brings its notes back |
+| `text` | the note, any length; line breaks are `\n`, the ends trimmed |
+| `updated` | when the note (or, at the top, the file) was written, `yyyy-MM-ddTHH:mm:ss` local time |
 
 ---
 

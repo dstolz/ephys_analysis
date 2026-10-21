@@ -1225,6 +1225,28 @@ summary tables (`reportSummaryTables`) list **Starred** (yes / no), the
 **Starred channels** and **Starred units**, and a **Starred** column in
 *Highest rates*.
 
+## Notes
+
+Free text on a dataset, a channel or a sorted unit. The analysis app writes
+them in its notepad and searches them ([Notes](EphysAnalysisApp.md#notes));
+scripts use `DatasetNotes`. They live beside the stars, in `<Name>_notes.json`
+in the dataset's output folder ([the file](file-formats.md#notes-name_notesjson)),
+on the same levels and ids as a star, a unit's note recorded with its sort.
+
+```matlab
+notes = DatasetNotes(src);                     % or a DatasetOutputs, or an output folder
+notes.setNote("unit", 12, "bursty; drifts");   % written at once; "" removes it
+[txt, when] = notes.note("unit", 12)           % "" and NaT when there is none
+notes.hasNote("channel", 1:32)                 % one logical per channel
+T = notes.list(AllSorts=true)                  % level, id, label, text, updated, current
+```
+
+`list()` holds the dataset's note, its channels' and the units' of the sort
+in use; `AllSorts=true` adds the notes on units of other sorts (`current`
+false). The errors are the stars': `DatasetNotes:Unreadable`, `:CannotWrite`,
+`:NoSort`, `:BadLevel`, `:BadId`. The last note removed deletes the file.
+Notes are not in the exports or reports.
+
 ## Export and reports
 
 ```matlab
@@ -1712,6 +1734,7 @@ and counted. Each trial's mean is removed before its spectrum unless
 | `test_ResponseStats` | no fixture: `pAdjust` against statsmodels' `multipletests` (`pipeline/testdata/padjust_golden.json` from `tools/golden/padjust_golden.py`; NaN, ties, one value), `responseStats` on hand-made epochs with known counts (rates, p against `signrank` / `kruskalwallis` called directly, direction, correction, the epochs left out, rates for windows of different lengths, the errors). The tests that call the toolbox are skipped without it |
 | `test_Auroc` | no fixture: `aucOf` against counting every pair; the `"psth"` method against a port of the Caras lab's `auROC_response_curve`; the `"epochs"` method against hand counts; tiled and sliding windows, the whole-bin rules and the errors; the stop mask; the 95% CI formula, the fixed cutoff and the wide-cutoff warning; bootstrap, ranksum and shuffle tests on driven, suppressed and flat units (reproducible by seed; ranksum against `ranksum` called directly); a unit silent over a group's epochs has no auROC (NaN) and stays out of the cutoff; units measured apart (`Call=false`) and called in one `aurocCall` get the cutoff, the test's correction and the calls of one `aurocCurves` over them all; `spikePSTH`'s auROC result, `modulatedOnly` and caption; the figure caption's auROC clause (`figureAurocCalls`), the PSTH and heat map marks, tagged. Skipped without the toolbox |
 | `test_DatasetFavorites` | no fixture: `DatasetFavorites` in temporary folders: no file, the round trip of dataset and channel stars, unit stars kept with their sort (a new sort shows none, the old one back shows them), the last star removing the file, an unreadable file, a read-only folder and a folder gone, the three kinds of target, bad levels and ids, and `sessionTable`'s `starred` |
+| `test_DatasetNotes` | no fixture: `DatasetNotes` in temporary folders (no file, the round trip of dataset and channel notes with line breaks, the same text writing nothing, blank text removing a note, unit notes kept with their sort and `list(AllSorts=true)`, the last note removing the file, an unreadable file, a read-only folder and a folder gone, the three kinds of target, bad levels and ids); the notepad `NotePad`, hidden (written on save, before another note opens and on close; a note that cannot be written kept in the box; an unreadable file not editable); the search window `NoteSearch`, hidden (every word over name, item and text, the snippet, Go to and Edit note, new entries keeping the search) |
 | `test_PopulationAnalysis` | the fixture: `populationAnalysis`' units, rates, PSTHs and per-level rates equal the per-dataset calls (the selection's groups pooled); the summary's counts and means add up; the groupings (none, dataset × shank, depth bins); the correction over every unit or each dataset; each unit's auROC equal to `aurocCurves`' over its dataset, the 95% CI cutoff pooled over every unit (the formula over all of them; `Family="dataset"`: each dataset's own) and, with `AurocGroupBy`, over every unit x group curve, the calls, peaks and summary counts that follow, a test cutoff's p corrected over the family, and the auROC columns and cutoff in the files; the files written; the errors; the stars (`DatasetFavorites`) in `P.units`, `P.datasets`, `GroupBy="starred"`, `unitSummary`, `sessionTable`, the report's summary tables and the HTML and PDF reports |
 | `test_PlotAesthetics` | the fixture (`figureTestCases`: a figure per panel type and per layout that matters): rules (decoded JSON, refused properties, merging, colors as text), `renderFigure` tagging everything every figure draws with a known role (a note's and the overlays' parts too), the user's rules for a panel's type and then the figure's own (and `UserAesthetics=false`; a value an object refuses is a warning, the figure still drawn), the right-click menu only in a visible figure or with `Editable=true`, the editor (live edits, Apply to one / same / role / ticked, Reset, Cancel, OK remembering for the figure or the user as `"figure"` rules, Forget and the redraw, unremembered edits put back), the config's `aesthetics` on a figure through JSON, and the script literal of a rule list |
 | `test_PlotDesign` | the fixture: the built-in designs (they load, name known roles and only known kinds -- `PlotDesign.kindNames()` --, give the session roles, and every panel type and layout draws in each without a refused value), what a design does to a figure (ground, palette, single and sequential colors, heat and diverging colormaps, rules for every figure and for one panel type; a figure's own colors win), the layering (design, the user's rules for a panel's type, the figure's), choosing a design (the preference, every figure on screen redrawn, listeners, the right-click Design submenu), capturing a figure's look per panel type (`Spec=` or the editing context) and saving, listing, importing and deleting designs, refused files and names (`PlotDesign:UnknownKind` for a retired plot kind), and the editor offering what designs set |

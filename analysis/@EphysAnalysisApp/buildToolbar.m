@@ -5,7 +5,8 @@ function buildToolbar(obj)
 %   or Cmd on a Mac). Left to right, in groups:
 %     File      New config, Open config, Save config
 %     Look      Scan for datasets (Data tab), Preview the selected figure
-%               (Figures tab)
+%               (Figures tab), Search notes (onSearchNotes: the notes of
+%               every scanned dataset)
 %     Run       Validate config, Plan, Run, Cancel run (Export tab)
 %     Results   Open the last run's report, its figure folder
 %     Tools     Open pipeline app (File menu)
@@ -30,6 +31,8 @@ addTool(tb, iconDir, "save", "Save config", "S", @(~,~) obj.onSaveConfig());
 addTool(tb, iconDir, "scan", "Scan for datasets", "", @(~,~) obj.onScan(), Separator=true);
 addTool(tb, iconDir, "preview", "Preview the selected figure (Figures tab): the observation picked on the active " + ...
     "dataset, or a session figure over its datasets", "", @(~,~) preview(obj));
+addTool(tb, iconDir, "notes", "Search notes: every note on the scanned datasets, their channels and units; " + ...
+    "go to the dataset of the one found", "", @(~,~) obj.onSearchNotes());
 
 % --- Run: as the Export tab's buttons ---
 obj.ToolbarValidateTool = addTool(tb, iconDir, "validate", "Validate config", "", ...

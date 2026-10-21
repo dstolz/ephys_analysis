@@ -66,7 +66,11 @@ function test_EphysAnalysisApp()
 %   in the drop-downs, a unit's sort recorded, a detection channel showing
 %   its channel's star, the Favorites lists, their filter, picking a unit
 %   from the Figures and Alignment tabs, the last star removing the file,
-%   a read-only output folder);
+%   a read-only output folder); notes (the notepad from the note buttons
+%   and the Data tab's ✎ column, following the active dataset and the
+%   observation as it steps, the file beside the data, ✎ marks and yellow
+%   buttons, Search notes with Go to and Edit note, a scan reading them
+%   back);
 %   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -121,7 +125,7 @@ app.refreshDatasetsTable();
 T2 = app.DatasetsTable.Data;
 check(isequal(T2.Name, sort(F.names(:), 'descend')) && isequal(T2.Idx, arrayfun(@(n) find(app.Runner.Names == n), T2.Name)), ...
     'a remembered sort orders the rows and each row keeps its dataset''s place in the Runner (Idx)');
-app.onDatasetCellSelection(struct('Indices', [1 3]));   % the Name cell (Run and ★ before it do not select)
+app.onDatasetCellSelection(struct('Indices', [1 4]));   % the Name cell (Run, ★ and ✎ before it do not select)
 check(app.Runner.Names(app.ActiveIdx) == T2.Name(1), 'a click goes to the row''s dataset, whatever the sort');
 T2.Run(1) = false;
 app.DatasetsTable.Data = T2;
@@ -162,8 +166,8 @@ closeApp(app1);
 fprintf('\n== 1b. Toolbar: the most used commands ==\n');
 tools = flip(app.Toolbar.Children);
 tags = string({tools.Tag});
-check(isequal(tags, ["new" "open" "save" "scan" "preview" "validate" "plan" "run" "cancel" "report" "figurefolder" "pipelineapp" "help"]) ...
-    && isequal(find(logical([tools.Separator])), [4 6 10 12 13]) ...
+check(isequal(tags, ["new" "open" "save" "scan" "preview" "notes" "validate" "plan" "run" "cancel" "report" "figurefolder" "pipelineapp" "help"]) ...
+    && isequal(find(logical([tools.Separator])), [4 7 11 13 14]) ...
     && all(isfile(fullfile(here, 'icons', 'toolbar', tags + ".svg"))), ...
     'the toolbar holds the config, look, run, results, app and help commands in groups, each with its icon');
 if ismac; modifier = "Cmd+"; else; modifier = "Ctrl+"; end
@@ -293,9 +297,10 @@ check(dsg.Parent == pgrid && osg.Parent == pgrid && app.SaveDesignButton.Parent 
     && app.DesignDropDown.Layout.Row == dsg.Layout.Row && app.SaveDesignButton.Layout.Row == osg.Layout.Row ...
     && min(app.DesignDropDown.Layout.Column) > max(dsg.Layout.Column) && min(app.SaveDesignButton.Layout.Column) > max(osg.Layout.Column) ...
     && app.FiguresDatasetStar.Parent == dsg && app.FigureObservationStar.Parent == osg ...
+    && app.FiguresDatasetNote.Parent == dsg && app.FigureObservationNote.Parent == osg && app.AlignDatasetNote.Parent == app.AlignDatasetStar.Parent ...
     && app.FigureFavorites.Grid.Parent == pgrid && app.FigureFavorites.Grid.Layout.Row == osg.Layout.Row + 1 ...
     && app.FigurePreviewPanel.Layout.Row == app.FigureFavorites.Grid.Layout.Row + 1, ...
-    'the Design list sits right of Dataset and Save look as design... right of Observation, in their rows, each drop-down with its star; Favorites under them, the preview under that');
+    'the Design list sits right of Dataset and Save look as design... right of Observation, in their rows, each drop-down with its star and note button; Favorites under them, the preview under that');
 check(app.FigureOpenButton.Enable == "on" && ancestor(app.FigureOpenButton, 'uitab') == app.TabFigures, ...
     'Open in window is on with a figure selected');
 nFigs = numel(findall(groot, 'Type', 'figure'));
@@ -2082,6 +2087,10 @@ app.onFavoritesFilter("FigureFavorites", "no such thing");
 check(numel(favDD.Items) == 1 && contains(string(favDD.Items{1}), "0 of 3"), 'a filter nothing matches leaves only the count');
 app.onFavoritesFilter("FigureFavorites", "");
 app.selectDataset(kF2);
+app.onScan();
+check(app.ActiveIdx == kF1 && oDD.Value == 2 && string(app.FigureObservation(idF)) == TU.label(2) && contains(figTitle(), TU.label(2)), ...
+    'a scan (a config opened) starts on the first starred unit: its dataset active, the unit previewed, not the first dataset');
+app.selectDataset(kF2);
 favDD.Value = iu;
 app.onFavoritePicked("FigureFavorites");
 check(app.ActiveIdx == kF1 && oDD.Value == 2 && app.FigurePreviewState == "drawn" && contains(figTitle(), TU.label(2)) ...
@@ -2156,6 +2165,131 @@ end
 app.onSaveConfig();
 app.Tabs.SelectedTab = app.TabData;
 clear restoreAutoLimit5i
+
+fprintf('\n== 5j. notes: the notepad on datasets, units and channels; the ✎ marks; Search notes ==\n');
+app.FigureAutoPreviewSeconds = Inf;   % as in 5i
+restoreAutoLimit5j = onCleanup(@() resetAutoLimit(app));
+yellow = [1 0.88 0.45];
+app.selectTab(app.TabFigures);
+app.selectDataset(kF1);
+check(numel(app.Notes) == 2 && isa(app.Notes, 'DatasetNotes') && ~any(arrayfun(@(d) d.hasNote("dataset"), app.Notes)) ...
+    && all(app.DatasetsTable.Data.Note == "") && app.FiguresDatasetNote.Enable == "on" && app.AlignDatasetNote.Enable == "on" ...
+    && string(app.FiguresDatasetNote.Text) == "✎" && ~isequal(app.FiguresDatasetNote.BackgroundColor, yellow) && isempty(app.NotePadWindow), ...
+    'no note yet: the Data tab''s ✎ column empty, the note buttons on and plain, no notepad');
+app.onNoteButton("dataset");
+pad = app.NotePadWindow;
+check(isa(pad, 'NotePad') && isvalid(pad) && pad.Item.level == "dataset" && pad.Item.notes == app.Notes(kF1) ...
+    && app.NotePadFollows == "dataset" && pad.TitleLabel.Text == F.names(1) && pad.Text == "", ...
+    'the note button beside Dataset opens the notepad on the active dataset');
+pad.setText(["good day"; "check channel 3"]);
+pad.save();
+notes1 = app.Notes(kF1);
+J1 = jsondecode(fileread(notes1.File));
+TD = app.DatasetsTable.Data;
+check(notes1.note("dataset") == "good day" + newline + "check channel 3" ...
+    && notes1.File == fullfile(app.Runner.datasetFolder(kF1), F.names(1) + "_notes.json") && J1.schema == "ephys-notes/1" ...
+    && isequal(app.FiguresDatasetNote.BackgroundColor, yellow) && isequal(app.AlignDatasetNote.BackgroundColor, yellow) ...
+    && any(contains(string(app.FiguresDatasetNote.Tooltip), "Note: good day")) && TD.Note(TD.Idx == kF1) == "✎" ...
+    && TD.Note(TD.Idx == kF2) == "" && startsWith(string(app.FiguresDatasetDropDown.Items{kF1}), "✎ " + F.names(1)), ...
+    'Save writes <Name>_notes.json in its output folder; the note buttons turn yellow with its first line, ✎ in the Data tab and the Dataset drop-downs');
+app.selectDataset(kF2);
+check(pad.Item.notes == app.Notes(kF2) && pad.Text == "" && app.NotePadFollows == "dataset" ...
+    && ~isequal(app.FiguresDatasetNote.BackgroundColor, yellow), ...
+    'another active dataset: the notepad follows it (no note there), the buttons plain again');
+pad.setText("second dataset");
+app.selectDataset(kF1);
+check(app.Notes(kF2).note("dataset") == "second dataset" && pad.Item.notes == notes1 && pad.Text == "good day" + newline + "check channel 3", ...
+    'moving on writes the note typed, then shows the next dataset''s');
+app.onAddFigure("rasterPsth");
+idF = char(app.Config.Figures(1).id);
+TU = app.FigureObservations;
+oDD = app.FigureObservationDropDown;
+oDD.Value = 2;
+app.onFigureObservationChanged();
+u1 = TU.unitId(1);
+u2 = TU.unitId(2);
+app.onNoteButton("observation");
+check(pad.Item.level == "unit" && pad.Item.id == u2 && app.NotePadFollows == "observation" && contains(pad.TitleLabel.Text, "unit " + u2), ...
+    'the note button beside Observation moves the notepad to the unit previewed');
+pad.setText("bursty");
+pad.save();
+J1 = jsondecode(fileread(notes1.File));
+oItems = string(oDD.Items);
+check(notes1.note("unit", u2) == "bursty" && isscalar(J1.units) && J1.units.notes.id == u2 && J1.units.spikeTimesBytes > 0 ...
+    && contains(oItems(2), "✎ " + TU.label(2)) && ~contains(oItems(1), "✎") && oDD.Value == 2 ...
+    && isequal(app.FigureObservationNote.BackgroundColor, yellow), ...
+    'the unit''s note is written with its sort; ✎ marks it in the observation list, the pick kept; its button is yellow');
+app.onFigureObservationStep(-1);
+check(pad.Item.id == u1 && pad.Text == "" && ~isequal(app.FigureObservationNote.BackgroundColor, yellow), ...
+    '< moves the notepad to the previous unit');
+pad.setText("quiet");
+app.onFigureObservationStep(1);
+check(notes1.note("unit", u1) == "quiet" && pad.Item.id == u2 && pad.Text == "bursty", ...
+    '> writes the note typed and moves the notepad back to the next unit, its note in the box');
+FE.observe.Value = "LFP";
+app.onConfigChanged("figure");
+TLn = app.FigureObservations;
+oDD.Value = 1;
+app.onFigureObservationChanged();
+chN = TLn.channel(1);
+check(pad.Item.level == "channel" && pad.Item.id == chN, sprintf('a figure of LFP channels: the notepad follows the channel (%d)', chN));
+pad.setText("noisy");
+pad.save();
+check(notes1.note("channel", chN) == "noisy" && contains(string(oDD.Items{1}), "✎ "), 'the channel''s note, marked in the picker');
+FE.observe.Value = "units";
+app.onConfigChanged("figure");
+app.onSearchNotes();
+S = app.NoteSearchWindow;
+check(isa(S, 'NoteSearch') && isvalid(S) && height(S.Entries) == 5 && numel(S.Matches) == 5 ...
+    && nnz(S.Entries.dataset == kF1) == 4 && nnz(S.Entries.dataset == kF2) == 1, ...
+    'Search notes (the toolbar) lists every note of the scanned datasets');
+S.search("BURSTY");
+S.pick(1);
+app.selectDataset(kF2);
+S.goTo();
+check(isscalar(S.Matches) && app.ActiveIdx == kF1 && oDD.Value == 2 && string(app.FigureObservation(idF)) == TU.label(2) ...
+    && startsWith(app.StatusBar.Text, "Note: "), ...
+    sprintf('Go to on a unit''s note makes its dataset active and picks the unit in the Figures tab ("%s")', app.StatusBar.Text));
+S.search(F.names(2));
+S.pick(1);
+S.goTo();
+check(isscalar(S.Matches) && S.Table.Data.Item(1) == "dataset" && app.ActiveIdx == kF2, 'Go to on a dataset''s note makes it the active dataset');
+S.search("quiet");
+S.pick(1);
+S.edit();
+check(pad.Item.level == "unit" && pad.Item.id == u1 && pad.Item.notes == notes1 && app.NotePadFollows == "" && pad.Text == "quiet", ...
+    'Edit note opens that note in the notepad, which then stays on it');
+app.selectDataset(kF1);
+check(pad.Item.id == u1 && pad.Item.level == "unit", 'opened from the search, the notepad does not follow the active dataset');
+pad.setText("quiet, then bursts");
+pad.save();
+S.search("bursts");
+check(isscalar(S.Matches) && S.Table.Data.Item(1) == "unit " + u1, 'a note written shows in the open search window at once');
+app.selectTab(app.TabData);
+TD = app.DatasetsTable.Data;
+app.onDatasetNoteClicked(struct('InteractionInformation', struct('Row', find(TD.Idx == kF2), ...
+    'Column', find(TD.Properties.VariableNames == "Note"))));
+check(app.ActiveIdx == kF2 && pad.Item.notes == app.Notes(kF2) && pad.Item.level == "dataset" && pad.Text == "second dataset" ...
+    && app.NotePadFollows == "dataset", 'a click in the Data tab''s ✎ column makes the dataset active and opens its note');
+pad.setText("");
+pad.save();
+TD = app.DatasetsTable.Data;
+check(~app.Notes(kF2).hasNote("dataset") && ~isfile(app.Notes(kF2).File) && TD.Note(TD.Idx == kF2) == "", ...
+    'an emptied note is no note: its file gone (its only note), the ✎ cleared');
+app.onScan();
+TD = app.DatasetsTable.Data;
+check(app.Notes(kF1).note("unit", u2) == "bursty" && app.Notes(kF1).note("channel", chN) == "noisy" && TD.Note(TD.Idx == kF1) == "✎" ...
+    && height(S.Entries) == 4 && isvalid(pad), 'a new scan reads the notes back; the search window lists them again');
+pad.close();
+S.close();
+check(~isvalid(pad) && ~isvalid(S), 'the notepad and the search window close');
+while ~isempty(app.Config.Figures)
+    app.onFigureSelected(1);
+    app.onRemoveFigure();
+end
+app.onSaveConfig();
+app.Tabs.SelectedTab = app.TabData;
+clear restoreAutoLimit5j
 
 fprintf('\n== 6. close ==\n');
 app.savePreferences();

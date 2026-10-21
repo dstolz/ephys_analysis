@@ -6,7 +6,8 @@ function refreshFigureObservations(obj, opts)
 %   a sorted unit's ending in its number of spikes ("  (5,210 spikes)")
 %   and a detection channel's in its number of detections (from the
 %   unit's selectUnits row: nothing more is read), a starred unit, channel
-%   or dataset's starting with "★ " (favoriteMarks). The figure's pick is
+%   or dataset's starting with "★ " (favoriteMarks), one with a note with
+%   "✎ " (noteMarks, after the star's). The figure's pick is
 %   kept by its label without the count (FigureObservation: figure id ->
 %   label), so it survives a filter change or another dataset while that
 %   label is still there; else the first is picked. The list is made again
@@ -98,7 +99,8 @@ if isKey(obj.FigureObservation, id)
 end
 obj.FigureObservation(id) = labels(i);
 dd.ItemsData = [];
-set(dd, "Items", favoriteMarks(obj, T, spec.observe.data) + labels + spikeCounts(T, spec.observe.data), "ItemsData", 1:n, "Value", i);
+set(dd, "Items", favoriteMarks(obj, T, spec.observe.data) + noteMarks(obj, T, spec.observe.data) + labels + ...
+    spikeCounts(T, spec.observe.data), "ItemsData", 1:n, "Value", i);
 syncSteps(obj);
 end
 

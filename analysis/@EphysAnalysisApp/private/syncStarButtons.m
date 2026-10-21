@@ -4,7 +4,11 @@ function syncStarButtons(obj)
 %   observation's while nothing it shows can be starred (observedItem
 %   says why, in its tooltip).
 %
+%   The note buttons beside them follow the same dataset and observation
+%   (syncNoteButtons).
+%
 %   See also starButton, observedItem, onStarToggled.
+syncNoteButtons(obj);
 fav = [];
 if ~isempty(obj.Runner) && obj.ActiveIdx >= 1 && numel(obj.Favorites) >= obj.ActiveIdx
     fav = obj.Favorites(obj.ActiveIdx);

@@ -93,9 +93,21 @@ classdef EphysAnalysisApp < handle
     %   (onFavoritePicked). An output folder that cannot be written (a
     %   read-only share) leaves the star off and the status bar says why.
     %
+    %   Notes: free text on a dataset, a channel or a sorted unit (kept with
+    %   its sort), in <Name>_notes.json in the dataset's output folder
+    %   (DatasetNotes), beside the stars; read on Scan. The ✎ button right
+    %   of each star (and the Data tab's ✎ column) opens a little notepad
+    %   (NotePad, onNoteButton) that stays above the app and follows the
+    %   active dataset or the observation as you step; the note is written
+    %   when you leave its box, save, move on or close it. A button with a
+    %   note is yellow, and the drop-downs mark noted items ✎. Search notes
+    %   (the toolbar) searches every note of the scanned datasets as you
+    %   type and goes to the dataset of the one picked (onSearchNotes,
+    %   NoteSearch, goToNote).
+    %
     %   Toolbar (buildToolbar): the most used commands as icons, each with
     %   its menu shortcut in the tooltip: New / Open / Save config; Scan,
-    %   Preview; Validate, Plan, Run, Cancel; Open report, Open figure
+    %   Preview, Search notes; Validate, Plan, Run, Cancel; Open report, Open figure
     %   folder; Open pipeline app; Help for this tab.
     %
     %   Keys (onKeyPress), on the Figures tab: Alt+1, Alt+2 and Alt+3 go to
@@ -179,6 +191,7 @@ classdef EphysAnalysisApp < handle
         % --- Alignment tab (Config.Defaults) ---
         AlignDatasetDropDown matlab.ui.control.DropDown
         AlignDatasetStar   matlab.ui.control.StateButton  % stars the active dataset (starButton)
+        AlignDatasetNote   matlab.ui.control.Button       % the active dataset's note (noteButton)
         AlignFavorites struct = struct()         % the Favorites row: Grid, Filter, DropDown (buildFavorites)
         AlignControls struct = struct()          % buildAlignControls handles
         AlignSummaryLabel  matlab.ui.control.Label
@@ -212,6 +225,8 @@ classdef EphysAnalysisApp < handle
         FigureObservationDropDown matlab.ui.control.DropDown    % the observation previewed; ItemsData = row of FigureObservations
         FiguresDatasetStar     matlab.ui.control.StateButton    % stars the active dataset (starButton)
         FigureObservationStar  matlab.ui.control.StateButton    % stars the observation previewed: its unit, channel or the dataset
+        FiguresDatasetNote     matlab.ui.control.Button         % the active dataset's note (noteButton)
+        FigureObservationNote  matlab.ui.control.Button         % the note on the observation previewed: its unit, channel or the dataset
         FigureFavorites struct = struct()        % the Favorites row: Grid, Filter, DropDown (buildFavorites)
         FigureObsPrevButton    matlab.ui.control.Button
         FigureObsNextButton    matlab.ui.control.Button
@@ -260,6 +275,10 @@ classdef EphysAnalysisApp < handle
         DatasetsSort (1,1) struct = TableSort.none()   % the datasets table's header click (a TableSort state), kept as it is filled again
         Favorites = []                      % the scanned datasets' stars: a DatasetFavorites each, in Runner order (read on Scan)
         FavoriteEntries = []                % the Favorites drop-downs' entries: table dataset, level, id, label (refreshFavorites)
+        Notes = []                          % the scanned datasets' notes: a DatasetNotes each, in Runner order (read on Scan)
+        NotePadWindow = []                  % the notepad (NotePad), while open (openNotePad)
+        NotePadFollows (1,1) string = ""    % what the notepad follows: "dataset" (the active one), "observation" (the one picked), "" (the note it was opened on)
+        NoteSearchWindow = []               % the Search notes window (NoteSearch), while open (onSearchNotes)
         DatasetUnitCounts = []              % sorted units per dataset, counted when it is opened: containers.Map, "<key>|<sort folder>" -> n (refreshDatasetLabels)
         EpochDiagramWindow = []             % the EpochDiagram window of the Figures tab's figure, while open (onShowEpochs)
         Running (1,1) logical = false
@@ -370,6 +389,7 @@ classdef EphysAnalysisApp < handle
         refreshDatasetsTable(obj)
         onDatasetsTableEdited(obj, evt)
         onDatasetCellSelection(obj, evt)
+        onDatasetNoteClicked(obj, evt)
         onDatasetsSorted(obj, evt)
         clearDatasetsSort(obj)
         selectDataset(obj, idx)
@@ -381,6 +401,11 @@ classdef EphysAnalysisApp < handle
         onStarToggled(obj, what, tf)
         onFavoritePicked(obj, which)
         onFavoritesFilter(obj, which, text)
+
+        % --- notes (DatasetNotes; the notepad NotePad, the Search notes window NoteSearch) ---
+        refreshNotes(obj)
+        onNoteButton(obj, what)
+        onSearchNotes(obj)
 
         % --- Alignment tab ---
         refreshAlignPreview(obj)

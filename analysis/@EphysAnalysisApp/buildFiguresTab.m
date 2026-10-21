@@ -73,7 +73,8 @@ function buildFiguresTab(obj)
 %           layoutFigureEditor packs them.
 %   Right   the dataset, the observation picked (figureObservations' labels)
 %           with < and > (Page Up / Page Down), each with its star toggle
-%           (starButton, onStarToggled), the Favorites (buildFavorites: a
+%           (starButton, onStarToggled) and note button (noteButton: the
+%           NotePad, onNoteButton), the Favorites (buildFavorites: a
 %           filter and every starred dataset, channel and unit, picked to
 %           preview: onFavoritePicked), Preview, Generate (the
 %           figure for every observation on every ticked dataset, into the
@@ -1320,20 +1321,22 @@ obj.FigureCodeButton = uibutton(bg, "Text", "Export code", "Enable", "off", "But
 obj.FigureCodeButton.Layout.Row = 1; obj.FigureCodeButton.Layout.Column = 6;
 l = uilabel(pg, "Text", "Dataset:");
 l.Layout.Row = 2; l.Layout.Column = 1;
-sg = uigridlayout(pg, [1 2], "ColumnWidth", {'1x', 34}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);   % the drop-down and its star
+sg = uigridlayout(pg, [1 3], "ColumnWidth", {'1x', 34, 34}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);   % the drop-down, its star and its note
 sg.Layout.Row = 2; sg.Layout.Column = 2;
 obj.FiguresDatasetDropDown = uidropdown(sg, "Items", "(scan first)", "ItemsData", 0, ...
     "ValueChangedFcn", @(dd, ~) obj.selectDataset(dd.Value), "Tooltip", "The active dataset (the same on every tab).");
 obj.FiguresDatasetStar = starButton(obj, sg, "dataset");
+obj.FiguresDatasetNote = noteButton(obj, sg, "dataset");
 l = uilabel(pg, "Text", "Observation:");
 l.Layout.Row = 3; l.Layout.Column = 1;
-sg = uigridlayout(pg, [1 2], "ColumnWidth", {'1x', 34}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);
+sg = uigridlayout(pg, [1 3], "ColumnWidth", {'1x', 34, 34}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);
 sg.Layout.Row = 3; sg.Layout.Column = 2;
 obj.FigureObservationDropDown = uidropdown(sg, "Items", "(no observation)", "ItemsData", 0, ...
     "ValueChangedFcn", @(~,~) obj.onFigureObservationChanged(), ...
     "Tooltip", "What the preview draws the figure for: one of the units, channels or the dataset the Observations " + ...
-    "section keeps, in probe order. Each figure remembers its pick. ★: starred.");
+    "section keeps, in probe order. Each figure remembers its pick. ★: starred. ✎: has a note.");
 obj.FigureObservationStar = starButton(obj, sg, "observation");
+obj.FigureObservationNote = noteButton(obj, sg, "observation");
 l = uilabel(pg, "Text", "Favorites:");
 l.Layout.Row = 4; l.Layout.Column = 1;
 obj.FigureFavorites = buildFavorites(obj, pg, "FigureFavorites");   % every starred dataset, channel and unit

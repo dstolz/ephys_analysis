@@ -7,7 +7,8 @@ function refreshDatasetLabels(obj, idx)
 %     "subj1_day1"                  a sort not counted yet
 %     "subj2_day1  (detected only)" no sort, a spikes file
 %     "subj3_day1  (no sorting)"    neither
-%   and "★ " before a starred dataset (Favorites).
+%   and "★ " before a starred dataset (Favorites), "✎ " before one with a
+%   note (Notes; after the star: "★ ✎ subj1_day1").
 %   Nothing is read here: whether a dataset has a sort or a spikes file
 %   comes from its loaded source (hasUnits, hasDetected) when it has one,
 %   else from the scan's files (DatasetOutputs.has), and the counts from
@@ -66,6 +67,10 @@ for k = 1:n
     else
         items(k) = items(k) + "  (no sorting)";
     end
+end
+if numel(obj.Notes) == n
+    noted = arrayfun(@(d) d.hasNote("dataset"), obj.Notes);
+    items(noted) = "✎ " + items(noted);
 end
 if numel(obj.Favorites) == n
     starred = [obj.Favorites.Dataset];

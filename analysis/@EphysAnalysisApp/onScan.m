@@ -2,9 +2,12 @@ function onScan(obj)
 %onScan  Find the datasets (a new EphysAnalysisRunner) and list them.
 %   In project mode every dataset under the root is listed and the config's
 %   "list" selection only sets the Run ticks. The first ticked dataset
-%   becomes the active one. The Figures tab's preview (a session figure's
-%   too) and observation list are forgotten. Each dataset's stars are read
-%   (loadFavorites) and shown (refreshFavorites).
+%   becomes the active one -- unless a ticked dataset has a starred unit:
+%   the first such unit is gone to (goToFavorite: its dataset is active and
+%   the unit is picked in the Figures tab's observation list). The Figures tab's preview (a session figure's
+%   too) and observation list are forgotten. Each dataset's stars and
+%   notes are read (loadFavorites, loadNotes) and shown (refreshFavorites,
+%   refreshNotes).
 cfg = obj.gatherConfig();
 scanCfg = cfg;
 scanCfg.Source.Selection = "all";
@@ -20,6 +23,7 @@ end
 r.Config = cfg;
 obj.Runner = r;
 loadFavorites(obj);   % each dataset's <Name>_favorites.json
+loadNotes(obj);       % and <Name>_notes.json
 obj.FigureObservationDropDown.UserData = [];   % the Figures tab's observation list is made again on the new runner's sources
 obj.ScannedSource = cfg.Source;
 n = numel(r.Keys);
@@ -41,13 +45,24 @@ end
 set([obj.AlignDatasetDropDown obj.FiguresDatasetDropDown], 'Items', items, 'ItemsData', data);
 refreshDatasetLabels(obj);   % with what each holds of spikes (the units counted when a dataset was opened)
 obj.refreshFavorites();
+obj.refreshNotes();
 obj.ScanLabel.Text = sprintf("%d dataset(s) found (%s).", n, ternary(cfg.Source.Mode == "project", ...
     "project " + cfg.Source.Root, "output folders"));
 obj.log("Scan: " + obj.ScanLabel.Text);
 if n > 0
-    first = find(obj.Ticked, 1);
-    if isempty(first); first = 1; end
-    obj.selectDataset(first);
+    E = obj.FavoriteEntries;
+    fav = 0;
+    if istable(E)
+        fav = find(E.level == "unit" & ismember(E.dataset, find(obj.Ticked)), 1);   % a starred unit of a ticked dataset first
+        if isempty(fav); fav = 0; end
+    end
+    if fav > 0
+        goToFavorite(obj, E(fav, :));
+    else
+        first = find(obj.Ticked, 1);
+        if isempty(first); first = 1; end
+        obj.selectDataset(first);
+    end
 end
 obj.setStatus(obj.ScanLabel.Text);
 end

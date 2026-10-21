@@ -612,25 +612,58 @@ classdef EphysAnalysisConfig
 
         function f = sharedFieldsOf(type)
             %sharedFieldsOf  The options a panel type shares with other types (a string row; none for an unknown type).
-            %   Among bins, measure, baseline, auroc, maskAfterStop and
-            %   waveform, in that order, those the type's options have, the
-            %   rows adoptPanelOptions (Apply to all panels) copies across
-            %   types: raster: maskAfterStop, waveform; psth: bins,
-            %   measure, baseline, auroc, maskAfterStop, waveform;
-            %   continuous: baseline; heatmap: bins, measure, baseline,
-            %   auroc, maskAfterStop; corrmap: bins, baseline; rate:
-            %   measure, baseline; tuning: measure, baseline, waveform;
+            %   Among bins, measure, baseline, auroc, maskAfterStop,
+            %   waveform, stack and stackSpacing, in that order, those the
+            %   type's options have, the rows adoptPanelOptions (Apply to
+            %   all panels) copies across types: raster: maskAfterStop,
+            %   waveform; psth: bins, measure, baseline, auroc,
+            %   maskAfterStop, waveform, stack, stackSpacing; continuous:
+            %   baseline, stack, stackSpacing; heatmap: bins, measure,
+            %   baseline, auroc, maskAfterStop, stack, stackSpacing;
+            %   corrmap: bins, baseline; rate: measure, baseline; tuning:
+            %   measure, baseline, waveform, stack, stackSpacing;
             %   waveforms and probemap: none (a waveforms panel's waveform
             %   is its own settings, not an inset). The spectral types
-            %   (spectrum, spectrogram, coherence): none (a spectrogram's
-            %   baseline is chronuxNormalize's).
+            %   (spectrum, spectrogram, coherence): stack and stackSpacing
+            %   only (their Chronux settings are their own; a
+            %   spectrogram's baseline is chronuxNormalize's). The stack
+            %   options mean the same on every type (stackModes).
             f = string.empty(1, 0);
             T = EphysAnalysisConfig.panelTypes();
             row = T.Type == string(type);
-            if ~any(row) || ismember(string(type), ["spectrum" "spectrogram" "coherence"]); return; end
-            names = ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform"];
-            if string(type) == "waveforms"; names(end) = []; end
+            if ~any(row); return; end
+            names = ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform" "stack" "stackSpacing"];
+            if string(type) == "waveforms"; names(names == "waveform") = []; end
+            if ismember(string(type), ["spectrum" "spectrogram" "coherence"]); names = ["stack" "stackSpacing"]; end
             f = names(isfield(T.DefaultOptions{row}, cellstr(names)));
+        end
+
+        function modes = stackModes(type)
+            %stackModes  The options.stack values a panel type takes (a string row; empty for a type that does not stack).
+            %   MODES = EphysAnalysisConfig.stackModes(TYPE): "off" (the
+            %   trial groups overlaid, or the one group options.group names)
+            %   and "groups" (a row per trial group, the first on top: its
+            %   stackSpacing the row step x the row height) on a PSTH, heat
+            %   map, tuning curve (a row per series), spectrum, spectrogram
+            %   and coherence panel; a continuous panel also "items" (a row
+            %   per channel or layer mean, the groups overlaid in each).
+            %   None on a raster (it lists its groups in blocks already), a
+            %   firing rate panel (its groups go along x), a waveforms, probe
+            %   map or unit correlation panel (no trial groups over a shared
+            %   axis) or an event-trace panel (a row per line already). One
+            %   list for validate, the figure editor (syncFigureEditor,
+            %   figureRowReason) and adoptPanelOptions.
+            arguments
+                type (1,1) string
+            end
+            switch type
+                case {"psth" "heatmap" "tuning" "spectrum" "spectrogram" "coherence"}
+                    modes = ["off" "groups"];
+                case "continuous"
+                    modes = ["off" "groups" "items"];
+                otherwise
+                    modes = string.empty(1, 0);
+            end
         end
 
         function modes = baselineModes(type, source)

@@ -17,6 +17,14 @@ function hk = drawHeatmapPanel(ax, P, look)
 %   rug (figEventMarks, in the marks' colors). Skipped layers are noted
 %   (figLayerNotes). HK: figDrawResult's (no legend entries but the marks';
 %   renderHeatmap labels the axes).
+%   options.stack "groups" (with two or more groups) draws every group
+%   instead, a block of rows each in one axes (renderHeatmap Stack: the
+%   first on top, the blocks options.stackSpacing x a block's height
+%   apart, every block in the same row order and on one color scale with
+%   one color bar, each block's group color strip at its left edge and its
+%   name on the y axis); the groups are offered to the legend, every
+%   group's latency lines are drawn, options.group is not used and the y
+%   label is "<groups' parameters> (<n> units per block)".
 %   A heat map of trials (options.rows "trials": R.trialMatrix, computed
 %   by computeHeatmapPanel) draws one unit's epochs instead, every group:
 %   a row per epoch in R.trialOrder (an image in the design's heat
@@ -45,12 +53,30 @@ if isfield(R, 'trialMatrix')
     return
 end
 g = min(max(1, round(o.group)), height(R.groups));
+stacked = isfield(o, 'stack') && o.stack == "groups" && height(R.groups) > 1;   % every group: a block of rows each
 st = style;
 st.XLim = [];
 st.YLim = [];
 st.CLim = [];
 if numel(o.cLim) == 2 && o.cLim(2) > o.cLim(1); st.CLim = o.cLim; end
-h = renderHeatmap(figSliceGroup(R, g), ax, Order=o.order, Style=st);
+if stacked
+    g = 1:height(R.groups);
+    h = renderHeatmap(R, ax, Order=o.order, Style=st, Stack=true, Spacing=o.stackSpacing, Colors=look.colors);
+    for q = 1:numel(g)
+        hk.legendHandles(end+1) = h.groupHandles(q);
+        hk.legendLabels(end+1) = string(R.groups.label(q));
+        hk.legendGroup(end+1) = true;
+    end
+    [~, gName] = rowLabels(R);
+    if R.kind == "evoked"
+        nR = size(R.mean, 2); what = "channels";
+    else
+        nR = size(R.rate, 2); what = "units";
+    end
+    hk.yName = sprintf("%s (%d %s per block)", gName, nR, what);
+else
+    h = renderHeatmap(figSliceGroup(R, g), ax, Order=o.order, Style=st);
+end
 ax = h.axes(1);
 hk.axes = ax;
 tagPart(ax, "axes", "", look.panelId);

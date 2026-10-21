@@ -30,8 +30,9 @@ function h = renderFigure(F, spec, target, opts)
 %            (panelAxes): its x axis' ticks and label on the bottom or the
 %            top (SPEC.panels(k).xSide; a coherence panel's on top of its
 %            magnitude, its phase strip dropping them), its y axis' on the
-%            left or the right (ySide; not a stacked PSTH's, which has one
-%            on each side); xLabel and yLabel, when set, replace the labels
+%            left or the right (ySide; not a stacked line panel's -- a
+%            PSTH, continuous, spectrum, coherence or tuning panel with
+%            options.stack -- which has one on each side); xLabel and yLabel, when set, replace the labels
 %            drawn. A color bar outside on the side an axis moves to goes
 %            to the opposite side.
 %   Time     every panel sharing the figure's time axis (sharesTime; a
@@ -447,7 +448,7 @@ function panelAxes(A, p)
 %panelAxes  A panel's own axis sides and label texts over what its type drew: P.xSide, ySide, xLabel, yLabel.
 %   A: the panel's axes, top to bottom (a coherence panel's phase strip
 %   under its magnitude). Each one's y axis goes to P.ySide, but a yyaxis'
-%   (a stacked PSTH's: a y axis on each side already). With P.xSide "top"
+%   (a stacked line panel's: a y axis on each side already). With P.xSide "top"
 %   the first axes' x axis goes on top, with the tick labels and label the
 %   last one had (the axes under it drop theirs). A label of the panel's
 %   own replaces the one drawn: the x label on the axes that shows the x

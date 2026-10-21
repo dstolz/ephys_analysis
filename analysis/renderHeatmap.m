@@ -29,7 +29,21 @@ function h = renderHeatmap(R, target, opts)
 %   The x and y labels and the color bar are the tiled layout's, once for
 %   every tile.
 %
-%   H: layout (tiled layout or []), axes, colorbar.
+%   Stack=true draws every group into one axes instead (TARGET an axes):
+%   a block of rows per group, the first on top (as a raster lists its
+%   groups), the blocks Spacing x a block's height apart (never
+%   overlapping: below 1 counts as 1; stackLayout), every block in the
+%   same row order and on the one color scale; a thin strip of each
+%   group's color (Colors, one row per group; [] = groupPalette) along its
+%   left edge (role "rasterBand") and a gray line between blocks (role
+%   "stackBase"); the y axis names the groups at their blocks' middles
+%   (the row labels are left out), the title names none. An auROC
+%   result's modulation bar sits over the top block, each block's calls
+%   right of its rows. H.groupHandles: a color swatch per group for a
+%   legend (role "rasterBand").
+%
+%   H: layout (tiled layout or []), axes, colorbar (and with Stack,
+%   groupHandles).
 %
 %   See also spikePSTH, evokedPotential, renderFigure.
 
@@ -38,6 +52,9 @@ arguments
     target
     opts.Order (1,1) string {mustBeMember(opts.Order, ["probe" "peak" "modulation"])} = "probe"
     opts.Style = struct()
+    opts.Stack (1,1) logical = false
+    opts.Spacing (1,1) double = 1.1
+    opts.Colors double = []
 end
 
 style = renderStyle(opts.Style);
@@ -76,6 +93,10 @@ if ~(numel(clim0) == 2 && clim0(2) > clim0(1))
     if isempty(v); clim0 = [0 1]; else; clim0 = [min(v) max(v)]; end
     if clim0(2) <= clim0(1); clim0 = clim0 + [-0.5 0.5]; end
     if auroc; clim0 = [0 1]; end
+end
+if opts.Stack
+    h = drawStacked(R, target, V, t, order, session, labels, clim0, auroc, style, opts);
+    return
 end
 [idx, nr, nc] = pageItems(nG, 1, max(nG, 1));
 [tl, ax0] = renderLayout(target, nr, nc, style);
@@ -124,15 +145,81 @@ h = struct('layout', tl, 'axes', axs, 'colorbar', cb);
 end
 
 
-function heatMarks(ax, R, order, g, style)
+function h = drawStacked(R, ax, V, t, order, session, labels, clim0, auroc, style, opts)
+%drawStacked  Every group's rows as a block of one axes, the first on top (renderHeatmap's Stack).
+[~, nR, nG] = size(V);
+if style.HeatColormap == ""
+    maps = "heat";
+    if auroc; maps = ["diverging" "heat"]; end
+    cmap = designColormap(style, maps, "parula");
+else
+    cmap = feval(char(style.HeatColormap), 256);
+end
+colors = opts.Colors;
+if size(colors, 1) ~= nG; colors = groupPalette(R.groups, style); end
+L = stackLayout(zeros(1, nG), repmat(nR, 1, nG), opts.Spacing, Image=true);
+first = @(g) L.n * L.step - L.top(g);   % block g's first row sits just below this (YDir reverse: block 1 on top)
+names = string(R.groups.label);
+gh = gobjects(1, nG);
+for g = 1:nG
+    M = V(:, order, g).';
+    y0 = first(g);
+    hi = tagPart(imagesc(ax, t, y0 + (1:nR), M, 'AlphaData', double(isfinite(M))), "image", names(g));
+    setappdata(hi, 'RowLabels', labels(order));   % its rows' units or channels, for the data tips
+    if g == 1; hold(ax, 'on'); end   % imagesc resets an axes it does not hold
+end
+set(ax, 'YDir', 'reverse');
+colormap(ax, cmap);
+clim(ax, clim0);
+xr = double(t([1 end]));
+if numel(t) > 1; xr = xr(:).' + [-1 1] * median(diff(double(t(:)))) / 2; end
+w = 0.025 * diff(xr);
+for g = 1:nG
+    y0 = first(g);
+    tagPart(patch(ax, xr(1) + [0 w w 0], y0 + [0.5 0.5 nR + 0.5 nR + 0.5], colors(g, :), 'EdgeColor', 'none', ...
+        'HandleVisibility', 'off'), "rasterBand", names(g));
+    gh(g) = tagPart(patch(ax, 'XData', NaN, 'YData', NaN, 'FaceColor', colors(g, :), 'EdgeColor', 'none'), "rasterBand", names(g));
+    if g > 1
+        hb = tagPart(line(ax, xr, (y0 + 0.5) * [1 1], 'Color', [0.72 0.72 0.72], 'LineWidth', 0.5, 'HandleVisibility', 'off'), ...
+            "stackBase", names(g));
+        setappdata(hb, 'StackMap', [y0 1]);
+    end
+    for b = reshape(find(diff(session) ~= 0), 1, [])   % a thin line in the ground's color between sessions
+        tagPart(yline(ax, y0 + b + 0.5, '-', 'Color', paleColor([0 0 0], 1, style), 'LineWidth', 1, 'HandleVisibility', 'off'), ...
+            "sessionDivider", names(g));
+    end
+    if auroc; heatMarks(ax, R, order, g, style, y0, g == 1); end
+end
+if style.ShowZeroLine; tagPart(xline(ax, 0, '--', 'Color', [1 1 1], 'LineWidth', 1), "zeroLine"); end
+hold(ax, 'off');
+styleAxes(ax, style);
+grid(ax, 'off');
+ylim(ax, [first(1) + 0.5, first(nG) + nR + 0.5]);
+mids = arrayfun(first, 1:nG) + (nR + 1) / 2;
+[tk, o] = sort(mids);
+set(ax, 'YTick', tk, 'YTickLabel', cellstr(names(o)), 'TickLabelInterpreter', 'none');
+cb = colorbar(ax);
+cb.Label.String = R.units;
+h = struct('layout', [], 'axes', ax, 'colorbar', cb, 'groupHandles', gh);
+end
+
+
+function heatMarks(ax, R, order, g, style, y0, withBar)
 %heatMarks  Tile G's auROC calls: a bar over the modulation window, a triangle right of each modulated row.
 %   The x axis gains a margin right of the image for the triangles (unless
 %   Style.XLim is set): red up, modulated upwards; blue down, downwards.
+%   Y0 (default 0) shifts the rows (a stacked block's first row is at Y0 +
+%   1); WITHBAR (default true) draws the modulation window's bar over the
+%   rows (a stack: over its top block only).
+if nargin < 6; y0 = 0; end
+if nargin < 7; withBar = true; end
 A = R.auroc;
 if A.cutoff == "none" || (isfield(A, 'settings') && ~A.settings.marks); return; end
 nR = numel(order);
-tagPart(line(ax, A.modulationWindow, [0.5 0.5], 'Color', [0 0 0], 'LineWidth', 3, 'Clipping', 'off', ...
-    'HandleVisibility', 'off'), "modWindow");
+if withBar
+    tagPart(line(ax, A.modulationWindow, y0 + [0.5 0.5], 'Color', [0 0 0], 'LineWidth', 3, 'Clipping', 'off', ...
+        'HandleVisibility', 'off'), "modWindow");
+end
 e = R.edges([1 end]);
 margin = 0.05 * (e(2) - e(1));
 if isempty(style.XLim); xlim(ax, [e(1), e(2) + margin]); end
@@ -144,7 +231,7 @@ colors = [0.85 0.15 0.1; 0.1 0.35 0.85];
 for k = 1:2
     rows = find(d == calls(k));
     if isempty(rows); continue; end
-    tagPart(text(ax, repmat(e(2) + margin / 2, numel(rows), 1), rows, glyphs(k), 'Color', colors(k, :), ...
+    tagPart(text(ax, repmat(e(2) + margin / 2, numel(rows), 1), y0 + rows, glyphs(k), 'Color', colors(k, :), ...
         'FontSize', fs, 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', 'Clipping', 'off', ...
         'Interpreter', 'none'), "modMarks", calls(k));
 end

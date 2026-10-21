@@ -49,8 +49,8 @@ function [fig, notes] = legacyPlotToFigure(p, defaults, layout)
 %                     panel, each with a layer following the unit; the
 %                     raster sort options and rasterEvents (events layers
 %                     drawn as marks) on the raster, histStyle / fill /
-%                     fillAlpha / normalize / stack / stackSpacing on the
-%                     PSTH; the aux signal as a continuous panel below (or
+%                     fillAlpha / normalize / stack (true: "groups") /
+%                     stackSpacing on the PSTH; the aux signal as a continuous panel below (or
 %                     above the raster) with a fixed AUX layer; spacing
 %                     "none"
 %     psth, overlay   per dataset: one PSTH panel with a fixed units layer
@@ -60,8 +60,10 @@ function [fig, notes] = legacyPlotToFigure(p, defaults, layout)
 %                     observe.channels = the plot's channels), one
 %                     continuous panel following the channel; stack: per
 %                     dataset, one continuous panel of a fixed layer of the
-%                     channels, display "stacked"; butterfly: as stack
-%                     with display "lines"
+%                     channels, stack "items" (the style's StackSpacing,
+%                     an offset in the signal's units, is not carried:
+%                     a stack's step is a multiple of its row height);
+%                     butterfly: as stack with stack "off"
 %     heatmap         per dataset: one heat map of a fixed layer (the units
 %                     filter, or the channels), its order (modulation
 %                     included), trial group 1
@@ -209,11 +211,10 @@ switch p.kind
             addPanel(panelOf("continuous", o, {follow}), 1);
         else
             fig.observe = struct('data', "dataset");
-            o.stackSpacing = p.style.StackSpacing;
             if spec.layout == "stack"
-                o.display = "stacked";
+                o.stack = "items";
             else
-                o.display = "lines";
+                o.stack = "off";
                 addNote("The butterfly layout's one panel per group is not available: the channels are drawn as lines in one panel.");
             end
             L = struct('source', p.source, 'binding', "fixed", 'channels', p.channels, 'aggregate', "each");
@@ -376,8 +377,10 @@ fig = EphysAnalysisConfig.normalizeFigure(fig, "Figure");
     end
 
     function o = psthOptions()
+        sk = "off";
+        if p.stack; sk = "groups"; end
         o = struct('histStyle', p.histStyle, 'fill', p.fill, 'fillAlpha', p.fillAlpha, 'normalize', p.normalize, ...
-            'stack', p.stack, 'stackSpacing', p.stackSpacing, 'yLim', yLim);
+            'stack', sk, 'stackSpacing', p.stackSpacing, 'yLim', yLim);
         yUsed = true;
     end
 
@@ -412,10 +415,11 @@ fig = EphysAnalysisConfig.normalizeFigure(fig, "Figure");
             L.aggregate = "mean";
             addNote("The aux magnitude became the mean of the AUX channels.");
         end
-        o = struct('baseline', struct('Mode', a.baseline, 'Window', a.baselineWindow), 'display', a.display, ...
+        sk = "off";   % the aux display: lines, or "stacked" (a row per channel: stack "items")
+        if a.display == "stacked"; sk = "items"; end
+        o = struct('baseline', struct('Mode', a.baseline, 'Window', a.baselineWindow), 'stack', sk, ...
             'statistic', a.statistic, 'transform', a.transform, 'errorType', a.errorType, 'yLim', a.yLim);
         if a.display == "heatmap"
-            o.display = "lines";
             addNote("The aux heat map display is not available in a continuous panel: its channels are drawn as lines.");
         end
         if a.colorBy ~= "auto"

@@ -3,7 +3,9 @@ function onPanelTypeChanged(obj)
 %   Its options start afresh from the new type's (panelTypes'
 %   DefaultOptions), keeping the values both types have (bins, baseline --
 %   its mode when the new type takes it --, measure, the mask, limits, the
-%   group shown); the waveform inset or panel starts afresh. The layers the
+%   group shown, the stack -- its value when the new type takes it,
+%   EphysAnalysisConfig.stackModes -- and its spacing); the waveform inset
+%   or panel starts afresh. The layers the
 %   new type cannot draw are dropped; those kept are fixed where the type
 %   draws only fixed layers, and take the new type's binding (following the
 %   observation on a raster, PSTH, continuous or waveforms panel) where the
@@ -60,13 +62,13 @@ if isempty(i); i = 1; end
 first = L(i).source;
 modes = figureEditorChoices(new, first).BaselineModes;
 for f = string(fieldnames(op)).'
-    % same names, other meanings: an inset vs a waveforms panel's own waveform; a continuous panel's display (lines |
-    % stacked) and stackSpacing (an offset in the signal's units) vs a rate panel's display (bar | box | points), a PSTH's
-    % (trace | heatmap) and its stackSpacing (x the tallest PSTH); a continuous panel's trials (off | faint | only) vs an
-    % event-trace panel's (overlay | rows): the new type's defaults
-    if ismember(f, ["waveform" "display" "stackSpacing" "trials"]) || ~isfield(p.options, f); continue; end
+    % same names, other meanings: an inset vs a waveforms panel's own waveform; a rate panel's display (bar | box |
+    % points) vs a PSTH's (trace | heatmap) or an event trace's (bars | line); a continuous panel's trials (off | faint |
+    % only) vs an event-trace panel's (overlay | rows): the new type's defaults
+    if ismember(f, ["waveform" "display" "trials"]) || ~isfield(p.options, f); continue; end
     v = p.options.(f);
     if f == "baseline" && ~ismember(v.Mode, modes); v.Mode = "none"; end
+    if f == "stack" && ~ismember(v, EphysAnalysisConfig.stackModes(new)); v = op.stack; end   % e.g. a continuous panel's "items"
     op.(f) = v;
 end
 p.options = op;

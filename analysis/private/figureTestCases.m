@@ -20,7 +20,16 @@ function [C, fx] = figureTestCases(root)
 %     psth_auroc        the auROC baseline (only with the Statistics and
 %                       Machine Learning Toolbox)
 %     waveforms_probe   every unit's waveform on the probe
-%     continuous_stack  three LFP channels stacked
+%     continuous_stack  three LFP channels stacked (a row per channel)
+%     continuous_groups the observed channel's groups stacked (a row per
+%                       trial group)
+%     heatmap_stack     the heat map of units, a block per trial group
+%     tuning_stack      a tuning curve against Depth, a row per TrialType
+%                       series
+%     spectrum_stack, spectrogram_stack, coherence_stack, cohgram_stack
+%                       the spectral templates stacked by trial group (a
+%                       coherogram: the coherence over time), skipped to
+%                       notes without Chronux
 %     rate_box          firing rates as boxes
 %     heatmap_trials    a heat map of one unit's trials
 %     notes_overlays    rasterPsth with a note on each panel, a line and a
@@ -60,7 +69,7 @@ cfg = cfg.addFigure("rasterPsth", Id="rasterPsth");
 f = cfg.Figures(cfg.figureIndex("rasterPsth"));
 
 s = f; s.id = "psth_stack";
-s.panels(2).options.stack = true;
+s.panels(2).options.stack = "groups";
 cfg = cfg.addFigure(s);
 haveStats = license('test', 'Statistics_Toolbox') && exist('tiedrank', 'file') == 2;
 if haveStats
@@ -75,8 +84,28 @@ cfg = cfg.addFigure(w);
 c = cfg.Figures(cfg.figureIndex("continuous")); c.id = "continuous_stack";
 c.panels(1).layers(1).binding = "fixed";
 c.panels(1).layers(1).channels = [1 2 3];
-c.panels(1).options.display = "stacked";
+c.panels(1).options.stack = "items";
 cfg = cfg.addFigure(c);
+st = cfg.Figures(cfg.figureIndex("continuous")); st.id = "continuous_groups";
+st.panels(1).options.stack = "groups";
+cfg = cfg.addFigure(st);
+st = cfg.Figures(cfg.figureIndex("heatmap")); st.id = "heatmap_stack";
+st.panels(1).options.stack = "groups";
+cfg = cfg.addFigure(st);
+st = cfg.Figures(cfg.figureIndex("tuning")); st.id = "tuning_stack";
+st.panels(1).options.param = "Depth";
+st.panels(1).options.seriesParam = "TrialType";
+st.panels(1).options.stack = "groups";
+cfg = cfg.addFigure(st);
+for t = ["spectrum" "spectrogram" "coherence"]
+    st = cfg.Figures(cfg.figureIndex(t)); st.id = t + "_stack";
+    st.panels(1).options.stack = "groups";
+    cfg = cfg.addFigure(st);
+end
+st = cfg.Figures(cfg.figureIndex("coherence")); st.id = "cohgram_stack";
+st.panels(1).options.overTime = true;
+st.panels(1).options.stack = "groups";
+cfg = cfg.addFigure(st);
 r = cfg.Figures(cfg.figureIndex("rate")); r.id = "rate_box";
 r.panels(1).options.display = "box";
 cfg = cfg.addFigure(r);

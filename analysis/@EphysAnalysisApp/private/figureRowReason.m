@@ -58,7 +58,7 @@ switch key
         tail = "is a setting of the selected panel: pick one in the schematic.";
     case "group"
         tail = "is an option of heat map, unit correlation and spectrogram panels (and a coherence panel drawn over time); " + ...
-            "a heat map of one unit's epochs draws every group.";
+            "a heat map of one unit's epochs and a stacked panel (Stack: one row per group) draw every group.";
     case {"layerName" "layerSource" "layerBinding"}
         tail = "is a setting of the picked layer: pick one in the Layers list.";
     case "layerFollows"
@@ -110,7 +110,12 @@ T.baselineMode = o(["psth" "continuous" "heatmap" "corrmap" "rate" "tuning" "spe
 T.baseFrom = T.baselineMode;
 T.psthDisplay = o("psth", "");
 T.normalize = o("psth", "");
-for f = ["stack" "histStyle" "fill"]; T.(f) = o("psth", "with Display: trace"); end
+for f = ["histStyle" "fill"]; T.(f) = o("psth", "with Display: trace"); end
+T.stack = o(["psth" "continuous" "heatmap" "tuning" "spectrum" "spectrogram" "coherence"], ...
+    "on a PSTH with Display: trace, on a heat map with Rows: the layer's units or channels (a raster lists its groups " + ...
+    "in blocks already, a firing rate panel puts them along x; a waveforms, probe map, unit correlation or event-trace " + ...
+    "panel has no groups over a shared axis to stack)");
+T.stackSpacing = T.stack;
 T.panelColormap = o("psth", "with Display: heat map");
 T.param = o("tuning", "");
 T.rateDisplay = o("rate", "");
@@ -123,7 +128,7 @@ T.tickColor = T.yTicks;
 T.tickWidth = T.yTicks;
 T.backColor = T.yTicks;
 T.heatRows = o("heatmap", "");
-for f = ["contTrials" "contDisplay" "statistic" "errorType" "stackSpacing"]; T.(f) = o("continuous", ""); end
+for f = ["contTrials" "statistic" "errorType"]; T.(f) = o("continuous", ""); end
 T.maskAfterStop = o(["raster" "psth" "heatmap"], spikesHeat);
 T.order = o("heatmap", "with Rows: the layer's units or channels");
 for f = ["etDisplay" "etTrials" "etColorBy" "etHeight" "etEdge" "etMinWidth" "etLineStyle" "etBaseline" "etBaseStyle" "etRowSpacing"]

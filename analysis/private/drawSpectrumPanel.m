@@ -20,6 +20,15 @@ function hk = drawSpectrumPanel(ax, P, look)
 %   group's label, with several items "<item> · <group>". x: "Frequency
 %   (Hz)" over the frequencies computed; y: "Power (dB re 1 <units>)" or
 %   "Power (<units>)" (units: µV²/Hz, spikes/s), options.yLim fixing it.
+%   options.stack "groups" draws a row per trial group instead, the first
+%   on top (as a raster lists them), every item overlaid in each row (a
+%   layer of several items keeps its colormap, all solid), in the rows of
+%   stackLayout (one scale, the row step options.stackSpacing x the row
+%   height, the tallest row's reach of spectra and bands), a gray line
+%   along each row (stackBaseLines), the rows named by the groups' values
+%   on the left y axis and each row's top on the right (stackAxes); y label
+%   "<groups' parameters> (<height> dB per row)". A log axis holds no
+%   offset rows: scale "log" draws log10 of the power in a stack.
 %   Skipped layers are noted (figLayerNotes). The legend offers the groups
 %   (from a one-item layer), then the items when there are several.
 %
@@ -43,6 +52,44 @@ if nI == 0
     return
 end
 scale = string(o.scale);
+stacked = isfield(o, 'stack') && o.stack == "groups";
+logRows = stacked && scale == "log";   % a log axis holds no offset rows: the stack draws log10 of the power
+% each item's spectra in the scale drawn, and each row's reach (a stack's: a row per trial group)
+Yc = cell(1, nI); loc = cell(1, nI); hic = cell(1, nI);
+nGmax = 0;
+for i = 1:nI
+    R = P.layers(items(i, 1)).R;
+    [Yc{i}, loc{i}, hic{i}] = chronuxScaled(R.S, R.Slo, R.Shi, scale);
+    if logRows
+        Yc{i} = log10(max(Yc{i}, realmin));
+        if ~isempty(loc{i}); loc{i} = log10(max(loc{i}, realmin)); hic{i} = log10(max(hic{i}, realmin)); end
+    end
+    nGmax = max(nGmax, size(R.S, 3));
+end
+L = [];
+rowNames = strings(1, 0);
+groupsName = "Group";
+if stacked
+    [rowNames, groupsName] = rowLabels(P.layers(items(1, 1)).R);
+    rowNames = reshape(string(rowNames), 1, []);
+    rowNames(end+1:nGmax) = "";
+    rowNames = rowNames(1:nGmax);
+    rlo = NaN(1, nGmax);
+    rhi = NaN(1, nGmax);
+    for i = 1:nI
+        c = items(i, 2);
+        bandI = o.err ~= "none" && ~isempty(loc{i});
+        for g = 1:size(Yc{i}, 3)
+            v = Yc{i}(:, c, g);
+            if bandI; v = [v; loc{i}(:, c, g); hic{i}(:, c, g)]; end %#ok<AGROW>
+            v = double(v(isfinite(v)));
+            if isempty(v); continue; end
+            rlo(g) = min([rlo(g); v]);
+            rhi(g) = max([rhi(g); v]);
+        end
+    end
+    L = stackLayout(rlo, rhi, o.stackSpacing);
+end
 hold(ax, 'on');
 f = [];
 units = strings(1, 0);
@@ -53,8 +100,9 @@ for i = 1:nI
     c = items(i, 2);
     R = P.layers(j).R;
     f = R.f;
+    if stacked && i == 1; stackBaseLines(ax, double(f([1 end])), L, rowNames); end
     units(end+1) = string(R.units); %#ok<AGROW>
-    [Y, lo, hi] = chronuxScaled(R.S, R.Slo, R.Shi, scale);
+    Y = Yc{i}; lo = loc{i}; hi = hic{i};
     band = o.err ~= "none" && ~isempty(lo);
     nG = size(R.S, 3);
     nC = size(R.S, 2);
@@ -67,11 +115,14 @@ for i = 1:nI
         cm = cm(round(linspace(1, size(cm, 1) * 0.85, nC)), :);
     end
     for g = 1:nG
+        off = 0; k = 1;
+        if stacked; off = L.offset(g); k = L.scale(g); end
         gl = string(R.groups.label(g));
         if multi
             styles = ["-" "--" ":" "-."];
             col = cm(c, :);
             ls = styles(mod(g - 1, 4) + 1);
+            if stacked; ls = "-"; end   % a row per group: the groups need no line style
             role = "channelTrace";
         else
             [col, ls] = figLayerLook(Ls(j), i, colors(g, :));
@@ -83,11 +134,11 @@ for i = 1:nI
             if nG > 1; tg = names(i) + " · " + gl; end
         end
         if band
-            errorPatch(ax, f, lo(:, c, g), hi(:, c, g), col, tg, style);
+            stackMark(errorPatch(ax, f, k * lo(:, c, g) + off, k * hi(:, c, g) + off, col, tg, style), off, k);
         end
-        h1 = tagPart(plot(ax, f, Y(:, c, g), 'Color', col, 'LineWidth', style.LineWidth, 'LineStyle', ls), role, tg);
+        h1 = stackMark(tagPart(plot(ax, f, k * Y(:, c, g) + off, 'Color', col, 'LineWidth', style.LineWidth, 'LineStyle', ls), role, tg), off, k);
         if isfield(R, 'rate')
-            rateLine(ax, f, R.rate(c, g), scale, col, tg);
+            rateLine(ax, f, R.rate(c, g), scale, col, tg, off, k, logRows);
         end
         if g == 1; legendLook(i, :) = {col, ls}; end
         if ~multi && i == firstSingle(items, P) && nG > 1
@@ -109,19 +160,30 @@ if nI > 1   % the items, by their color and line style
     end
 end
 if numel(f) > 1; xlim(ax, double(f([1 end]).')); end
-if scale == "log"; set(ax, 'YScale', 'log'); end
+if scale == "log" && ~stacked; set(ax, 'YScale', 'log'); end
 flat = style;
 flat.XLim = [];
 flat.YLim = o.yLim;
+if stacked; flat.YLim = []; end
 styleAxes(ax, flat);
 xlabel(ax, "Frequency (Hz)");
 u = unique(units, 'stable');
+uTxt = "";   % the power's unit as drawn
 if isscalar(u)
-    hk.yName = "Power (" + u + ")";
-    if scale == "db"; hk.yName = "Power (dB re 1 " + u + ")"; end
+    uTxt = u;
+    if scale == "db"; uTxt = "dB re 1 " + u; end
+    if logRows; uTxt = "log10 " + u; end
+    hk.yName = "Power (" + uTxt + ")";
 else   % channels and spike trains overlaid: no one unit
     hk.yName = "Power";
-    if scale == "db"; hk.yName = "Power (dB)"; end
+    if scale == "db"; uTxt = "dB"; hk.yName = "Power (dB)"; end
+    if logRows; uTxt = "log10"; hk.yName = "Power (log10)"; end
+end
+if stacked
+    rightName = "Row top";
+    if uTxt ~= ""; rightName = "Row top (" + uTxt + ")"; end
+    stackAxes(ax, L, rowNames, rightName);
+    hk.yName = strip(sprintf("%s (%s %s", groupsName, sprintf('%.3g', L.height), uTxt)) + " per row)";
 end
 figLayerNotes(ax, P, look, true);
 end
@@ -157,10 +219,13 @@ end
 end
 
 
-function rateLine(ax, f, r, scale, color, group)
+function rateLine(ax, f, r, scale, color, group, off, k, logRows)
 %rateLine  A spike spectrum's mean rate, where it tends at high frequencies, in the units drawn (renderChronux's rateMark).
+%   In a stack's row: x K + OFF (LOGROWS: the row draws log10 of the power).
 if ~isfinite(r) || r <= 0 || numel(f) < 2; return; end
 y = r;
 if scale == "db"; y = 10 * log10(r); end
+if logRows; y = log10(r); end
+y = k * y + off;
 tagPart(plot(ax, f([1 end]), [y y], ':', 'Color', color, 'LineWidth', 1, 'HandleVisibility', 'off'), "rateLine", group);
 end

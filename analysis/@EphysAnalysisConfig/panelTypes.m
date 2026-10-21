@@ -33,9 +33,24 @@ function T = panelTypes()
 %
 %   A PSTH or a heat map of spikes takes baseline Mode "auroc" (each bin's
 %   auROC against the baseline window, spikePSTH's BaselineMode "auroc")
-%   with its auroc settings (defaults("Auroc")). A PSTH stacks its groups
-%   in rows with stack (stackSpacing: the row step, x the tallest PSTH);
-%   a raster panel above it draws the rasters. A PSTH's display "heatmap"
+%   with its auroc settings (defaults("Auroc")).
+%   Stacks, one vocabulary for every type that takes them
+%   (EphysAnalysisConfig.stackModes): a PSTH, continuous, heat map (rows
+%   "items"), tuning, spectrum, spectrogram or coherence panel with stack
+%   "groups" draws one row per trial group (a tuning panel's series), the
+%   first on top as a raster lists its groups, instead of the groups
+%   overlaid (a heat map, a spectrogram, a coherogram: instead of the one
+%   group options.group names); a continuous panel's stack "items" draws a
+%   row per channel (or layer mean), the groups overlaid in each.
+%   stackSpacing is the row step as a multiple of the row height, the
+%   tallest row's (1: the rows touch; below 1 they overlap; an image's
+%   rows never overlap). Line rows name their groups on the left axis and
+%   each row's top (a PSTH's peak) on the right; image rows (a
+%   spectrogram's, a coherogram's, a heat map's block of units) share the
+%   time axis and one color scale and color bar, each with its group's
+%   color strip at the left. A raster panel above a stacked PSTH draws
+%   the rasters (a raster lists its groups in blocks already: it takes no
+%   stack). A PSTH's display "heatmap"
 %   draws its first item (unit or mean) as an image instead: a row per
 %   trial group, the first on top, colored on that item's own range
 %   (cLim, else its rows' range; an auROC: 0 to 1) in colormap ("" = the
@@ -124,8 +139,8 @@ opts.psth = struct( ...
     'fill',          true, ...          % filled bars / area under the line
     'fillAlpha',     NaN, ...           % fill opacity 0-1 (NaN: 0.5 where groups overlap, else 1)
     'normalize',     "none", ...        % "none" | "unitPeak" | "groupPeak" | "allPeak"
-    'stack',         false, ...         % one row per trial group, the first on top, instead of overlaid
-    'stackSpacing',  1.1, ...           % stack: the row step, x the tallest PSTH (< 1 overlaps)
+    'stack',         "off", ...         % "off" (the groups overlaid) | "groups" (a row per trial group, the first on top)
+    'stackSpacing',  1.1, ...           % stack: the row step, x the row height (1: the rows touch; < 1 overlaps)
     'maskAfterStop', false, ...
     'yLim',          [], ...            % [] = automatic, else [lo hi]
     'colormap',      "", ...            % display "heatmap": "" (the design's heat colormap, Style.HeatColormap) | a colormap function
@@ -133,11 +148,11 @@ opts.psth = struct( ...
     'waveform',      waveform);
 opts.continuous = struct( ...
     'baseline',     baseline, ...       % Mode "none" | "subtract"
-    'display',      "lines", ...        % "lines" (a trace each) | "stacked" (a row of its own per channel)
     'statistic',    "mean", ...         % "mean" | "median" over the epochs, at each sample
     'transform',    "none", ...         % "none" | "rectify" (each epoch's absolute value, before the statistic) | "magnitude" (a layer's channels as one: their vector magnitude in each epoch, after the baseline)
     'errorType',    "sem", ...          % the band: "off" | "sem" | "std" | "ci95" | "iqr"
-    'stackSpacing', NaN, ...            % stacked: the offset between channels (NaN = automatic)
+    'stack',        "off", ...          % "off" (overlaid) | "groups" (a row per trial group, the items overlaid in it) | "items" (a row per channel or layer mean, the groups overlaid in it)
+    'stackSpacing', 1.1, ...            % stack: the row step, x the row height (1: the rows touch; < 1 overlaps)
     'trials',       "off", ...          % each epoch's trace: "off" | "faint" (pale and thin, behind the mean) | "only" (the traces, no mean)
     'maxTrials',    100, ...            % trials: at most this many epochs drawn, picked evenly over their order (Inf = every one)
     'yLim',         []);
@@ -152,7 +167,9 @@ opts.heatmap = struct( ...
     'rasterSortEvent', [], ...          % rows "trials", rasterSort "event": [] or an EventRef
     'rasterSortOrder', "ascending", ... % rows "trials": "ascending" | "descending"
     'rasterByGroup',   true, ...        % rows "trials": by group first (a color strip at the left), else one block
-    'group',         1, ...             % rows "items": the trial group drawn
+    'group',         1, ...             % rows "items": the trial group drawn (not with stack "groups")
+    'stack',         "off", ...         % rows "items": "off" (one group) | "groups" (a block of rows per trial group, the first on top)
+    'stackSpacing',  1.1, ...           % stack: the block step, x the block's height (an image never overlaps: below 1 counts as 1)
     'cLim',          [], ...
     'maskAfterStop', false);
 opts.waveforms = struct( ...
@@ -178,6 +195,8 @@ opts.rate = struct( ...
 opts.tuning = struct( ...
     'param',       "", ...              % the x axis: a trial parameter ("" = the figure's first groupBy one, else the first numeric one)
     'seriesParam', "", ...              % one curve per value of this trial parameter ("" = one curve)
+    'stack',       "off", ...           % "off" (the series overlaid) | "groups" (a row per series, the first on top)
+    'stackSpacing', 1.1, ...            % stack: the row step, x the row height
     'measure',     "rate", ...
     'baseline',    baseline, ...        % Mode "none" | "subtract" | "ratio" | "zscore"
     'yLim',        [], ...
@@ -199,6 +218,8 @@ opts.spectrum = struct( ...
     'detrend',    "constant", ...       % each trial's "none" | "constant" | "linear" trend removed
     'scale',      "db", ...             % "db" (10 log10) | "log" (a log y axis) | "linear"
     'spikeFs',    1000, ...             % point layers: the spike trains' time grid, Hz
+    'stack',      "off", ...            % "off" (the groups overlaid) | "groups" (a row per trial group, the first on top)
+    'stackSpacing', 1.1, ...            % stack: the row step, x the row height
     'yLim',       []);
 opts.spectrogram = struct( ...
     'taperMode',  "TWK", ...
@@ -214,7 +235,9 @@ opts.spectrogram = struct( ...
     'movingwin',  [0.5 0.05], ...       % [window step] s
     'baseline',   struct('Mode', "none", 'Window', [-0.5 0]), ...   % Mode "none" | "db" | "percent" | "zscore" | "ratio" against Window
     'cLim',       [], ...
-    'group',      1);                   % the trial group drawn
+    'group',      1, ...                % the trial group drawn (not with stack "groups")
+    'stack',      "off", ...            % "off" (one group) | "groups" (an image row per trial group, the first on top, on one time axis)
+    'stackSpacing', 1.1);               % stack: the block step, x the block's height (below 1 counts as 1)
 opts.coherence = struct( ...
     'timeBase',   "aligned", ...
     'range',      [0 Inf], ...
@@ -235,7 +258,9 @@ opts.coherence = struct( ...
     'showPhase',  true, ...             % the phase under the magnitude (not over time)
     'yLim',       [], ...               % [] = [0 1]
     'cLim',       [], ...               % over time: [] = [0 1]
-    'group',      1);                   % over time: the trial group drawn
+    'group',      1, ...                % over time: the trial group drawn (not with stack "groups")
+    'stack',      "off", ...            % "off" (the groups overlaid; over time one group) | "groups" (a row per trial group, the first on top)
+    'stackSpacing', 1.1);               % stack: the row step, x the row height (an image's: below 1 counts as 1)
 opts.eventTrace = struct( ...
     'display',       "bars", ...        % "bars" (solid, onset to offset) | "line" (a logic level: low, up at onset, down at offset)
     'trials',        "overlay", ...     % "overlay" (every epoch in the line's row, translucent) | "rows" (a sub-row per epoch, sorted as a raster)

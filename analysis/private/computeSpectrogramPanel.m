@@ -18,8 +18,8 @@ function P = computeSpectrogramPanel(src, panel, E, G, ctx)
 %   longer than the epoch (chronuxSpecgram:Short, chronuxSpikeSpecgram:Short),
 %   a result over the limit (chronuxSpecgram:TooLarge,
 %   chronuxSpikeSpecgram:TooLarge) or settings chronuxSettings refuses skip the
-%   layer with the reason. options.group, scale and cLim are the draw
-%   function's.
+%   layer with the reason. options.group, stack, stackSpacing, scale and
+%   cLim are the draw function's.
 %
 %   See also figurePanelRegistry, chronuxSpecgram, chronuxSpikeSpecgram, drawSpectrogramPanel.
 maxMB = 2000;   % the result's limit (the Chronux tab's ChronuxMaxMB is the app's own)

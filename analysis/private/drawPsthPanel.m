@@ -20,12 +20,14 @@ function hk = drawPsthPanel(ax, P, look)
 %   options.normalize divides the rates (normalizeRates); options.yLim fixes the y axis. Style.ShowZeroLine
 %   draws the event's line, Style.ShowStop each group's mean stop latency
 %   (R.stopMean, role "stopLine").
-%   options.stack (with two or more groups) draws one row per group, the
-%   first on top, as a raster lists them (drawStack: the row
-%   step options.stackSpacing x the tallest PSTH, the rows' values on the
-%   left axis, their peaks on the right; options.yLim is not used); a
-%   further item is drawn into the same rows as an outline. The groups are
-%   still offered to the figure's legend.
+%   options.stack "groups" (with two or more groups) draws one row per
+%   group, the first on top, as a raster lists them (drawStack in the rows
+%   of a stackLayout: every row from its zero, the row step
+%   options.stackSpacing x the row height, the tallest reach of any row's
+%   PSTH and band; the rows' values on the left axis, their peaks on the
+%   right; options.yLim is not used); a further item is drawn into the
+%   same rows as an outline. The groups are still offered to the figure's
+%   legend.
 %   options.display "heatmap" draws the first item as an image instead
 %   (drawHeat): a row per trial group, the first on top (as a stack and a
 %   raster list them), x the PSTH's bins, colored by its rate (after
@@ -136,9 +138,9 @@ end
 names = strings(1, nI);
 for i = 1:nI; names(i) = D(i).name; end
 heat = o.display == "heatmap" && nI > 0;   % the first item as an image, a row per trial group
-stacked = ~heat && o.stack && nI > 0 && size(D(1).m, 2) > 1;
+stacked = ~heat && o.stack == "groups" && nI > 0 && size(D(1).m, 2) > 1;
 
-hl = struct('hist', o.histStyle, 'fill', o.fill, 'alpha', o.fillAlpha, 'stack', stacked, 'spacing', o.stackSpacing, 'raster', []);
+hl = struct('hist', o.histStyle, 'fill', o.fill, 'alpha', o.fillAlpha, 'stack', stacked);
 if ~isfinite(hl.alpha)
     hl.alpha = 1;
     if nI > 0 && size(D(1).m, 2) > 1 && ~stacked; hl.alpha = 0.5; end
@@ -353,17 +355,28 @@ end
 
 function [yName, lss] = drawRows(ax, D, Ls, items, hl, style, o)
 %drawRows  The stack: the first item's rows by drawStack, every further item drawn into the same rows as an outline.
-%   The step is taken from the tallest PSTH of every item, so each fits its
-%   rows; the y limits of both sides then cover every item's reach.
+%   The rows' layout (stackLayout, Zero: every row from its zero) is
+%   taken from every item's reach in each row (its PSTH, and its band with
+%   Style.ShowSEM), so each fits its rows; the y limits of both sides then
+%   cover every item's reach.
 nI = numel(D);
 nG = size(D(1).m, 2);
 lss = strings(1, nI);
-tallest = -Inf;
+rlo = NaN(1, nG);
+rhi = NaN(1, nG);
 for i = 1:nI
-    tallest = max([tallest; D(i).m(:)]);
+    for g = 1:min(nG, size(D(i).m, 2))
+        v = D(i).m(:, g);
+        if style.ShowSEM; v = [v; D(i).lo(:, g); D(i).hi(:, g)]; end %#ok<AGROW>
+        v = v(isfinite(v));
+        if isempty(v); continue; end
+        rlo(g) = min([rlo(g); v]);
+        rhi(g) = max([rhi(g); v]);
+    end
 end
+hl.layout = stackLayout(rlo, rhi, o.stackSpacing, Zero=true);
 P1 = struct('m', D(1).m, 'lo', D(1).lo, 'hi', D(1).hi, 'peak', D(1).peak, ...
-    'peakLabel', "Peak (" + D(1).R.units + ")", 'tallest', tallest);
+    'peakLabel', "Peak (" + D(1).R.units + ")");
 if o.normalize ~= "none" && ~isAuroc(D(1).R); P1.peakLabel = "Peak (normalized)"; end
 if D(1).u == 0; P1.peak = max(D(1).m, [], 1).'; end
 if isAuroc(D(1).R)   % behind the rows
@@ -381,9 +394,8 @@ if hasMembers   % each member session, faint, in its series' row (a result merge
     hold(ax, 'on');
     for i = 1:nI
         if isempty(D(i).members); continue; end
-        Mi = D(i).members;
-        off = base(double(D(i).R.members.series(:)).');   % the row of each member's series
-        memberLines(ax, D(i).R.t, Mi + off, D(i).R, D(i).colors, style);
+        sr = double(D(i).R.members.series(:)).';   % the row of each member's series
+        memberLines(ax, D(i).R.t, D(i).members .* hl.layout.scale(sr) + base(sr), D(i).R, D(i).colors, style);
     end
     hold(ax, 'off');
 end
@@ -397,17 +409,18 @@ for i = 2:nI
     j = items(i, 1);
     for g = 1:min(nG, size(D(i).m, 2))
         b = base(g);
+        k = hl.layout.scale(g);
         gl = string(D(i).R.groups.label(g));
         [c, ls] = figLayerLook(Ls(j), i, D(i).colors(g, :));
         ls = figSeriesStyle(D(i).R, g, ls, Ls(j));
         lss(i) = ls;
         tg = groupTag(D(i).name, gl, nI, nG);
         if style.ShowSEM
-            errorPatch(ax, D(i).R.t, D(i).lo(:, g) + b, D(i).hi(:, g) + b, c, tg, style);
+            errorPatch(ax, D(i).R.t, k * D(i).lo(:, g) + b, k * D(i).hi(:, g) + b, c, tg, style);
         end
-        histTrace(ax, D(i).R.t, D(i).R.edges, D(i).m(:, g), b, c, out, style.LineWidth, tg, ls);
-        reach = D(i).m(:, g);
-        if style.ShowSEM; reach = [reach; D(i).hi(:, g)]; end %#ok<AGROW>
+        histTrace(ax, D(i).R.t, D(i).R.edges, k * D(i).m(:, g), b, c, out, style.LineWidth, tg, ls);
+        reach = k * D(i).m(:, g);
+        if style.ShowSEM; reach = [reach; k * D(i).hi(:, g)]; end %#ok<AGROW>
         hi = max([hi; b + reach(isfinite(reach))]);
         lo = min([lo; b + reach(isfinite(reach))]);
     end

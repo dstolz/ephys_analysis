@@ -12,8 +12,8 @@ function syncFigureEditor(obj)
 %                    smaller than its cell)
 %     Panel, Panel alignment, Layers, Options   with a panel selected;
 %                    Group shown for the one-group types (heat map, unit
-%                    correlation); the Y axis row's side grayed out on a
-%                    stacked PSTH (a y axis on each side); Panel alignment's rows grayed out (they
+%                    correlation; hidden on a stack); the Y axis row's side grayed out on a
+%                    stacked line panel (a y axis on each side); Panel alignment's rows grayed out (they
 %                    show the figure's) while "Same as the figure" is
 %                    ticked, and, with a note, for a type not aligned to
 %                    events; its trial selection rows grayed out while
@@ -42,8 +42,12 @@ function syncFigureEditor(obj)
 %                    map of a signal has no bins or measure; a PSTH's or a
 %                    spike heat map's auROC rows with the auroc baseline
 %                    (the test row with a per-unit test); a PSTH's display,
-%                    its trace rows (PSTH as, fill, stack, y limits) or,
+%                    its trace rows (PSTH as, fill, y limits) or,
 %                    drawn as a heat map, its colormap and color limits;
+%                    the Stack row on every type that stacks
+%                    (stackModes; not a PSTH drawn as a heat map nor a
+%                    heat map of trials), its spacing grayed out while
+%                    Off;
 %                    a continuous panel's trials (and at most, enabled
 %                    unless off); a heat map's rows, its raster sort
 %                    rows for trials (and neither row order nor Group
@@ -177,7 +181,7 @@ layerKeys = ["layerList" "layerAdd" "layerNote" "layerName" "layerSource" "layer
     "layerIds" "layerQuality" "layerMaxUnits" "layerShanks" "layerUnitChannels" "layerChannels" "layerAggregate" "evLine" ...
     "evEdge" "evSeqText" "evDrawAs" "evMarker" "evColor" "evSpanStyle" "layerColor" "layerLineStyle"];
 optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort" "sortLine" "sortSeqText" "rasterByGroup" "yTicks" "tickColor" "tickWidth" "backColor" ...
-    "maskAfterStop" "psthDisplay" "histStyle" "fill" "normalize" "contDisplay" "statistic" "errorType" "stackSpacing" "order" ...
+    "maskAfterStop" "psthDisplay" "histStyle" "fill" "normalize" "statistic" "errorType" "order" ...
     "value" "metric" "correlation" "fisherZ" "yLim" "cLim" "panelColormap" "waveMode" "waveLocation" "waveScale" "wavePP" ...
     "optApplyAll" "auMethod" "auWinMs" "auModFrom" "auCutoff" "auTest" "auMarks" "stack" "param" "rateDisplay" "waveLayout" ...
     "contTrials" "heatRows" "spTimeBase" "spRangeFrom" "spSegment" "spTaperMode" "spTW" "spW" "spPad" "spFmin" "spErr" ...
@@ -268,7 +272,9 @@ if hasPanel
     v.baselineMode = ismember(t, ["psth" "continuous" "heatmap" "corrmap" "rate" "tuning"]); v.baseFrom = v.baselineMode;
     psthHeat = t == "psth" && string(E.psthDisplay.Value) == "heatmap";   % a PSTH drawn as a heat map: no trace rows
     v.psthDisplay = t == "psth";
-    v.stack = t == "psth" && ~psthHeat;
+    stackNow = string(E.stack.Value);   % the stack, one row for every type that stacks (stackModes)
+    v.stack = ~isempty(EphysAnalysisConfig.stackModes(t)) && ~psthHeat && ~trialHeat;
+    if ~v.stack; stackNow = "off"; end
     v.param = t == "tuning";
     v.rateDisplay = t == "rate";
     v.waveLayout = t == "waveforms";
@@ -279,7 +285,7 @@ if hasPanel
     en(E.maxTrials, string(E.contTrials.Value) ~= "off");
     v.maskAfterStop = ismember(t, ["raster" "psth"]) || pointHeat;
     v.histStyle = t == "psth" && ~psthHeat; v.fill = v.histStyle; v.normalize = t == "psth";
-    v.contDisplay = t == "continuous"; v.statistic = v.contDisplay; v.errorType = v.contDisplay; v.stackSpacing = v.contDisplay;
+    v.statistic = t == "continuous"; v.errorType = v.statistic;
     v.order = t == "heatmap" && ~trialHeat;
     et = t == "eventTrace";   % an event-trace panel's rows; those its display or trials do not use stay grayed out
     v.etDisplay = et; v.etTrials = et; v.etColorBy = et; v.etHeight = et; v.etEdge = et; v.etMinWidth = et; v.etLineStyle = et;
@@ -316,6 +322,7 @@ if hasPanel
         v.cLim = overTime;
         v.group = overTime;
     end
+    if stackNow ~= "off"; v.group = false; end   % a stack draws every group
     if t == "spectrogram"; v.baselineMode = true; v.baseFrom = true; end
     v.waveMode = ismember(t, ["raster" "psth" "waveforms" "tuning"]); v.wavePP = v.waveMode;
     v.waveLocation = ismember(t, ["raster" "psth" "tuning"]); v.waveScale = v.waveLocation;
@@ -328,8 +335,9 @@ if hasPanel
     en(E.auThreshold, string(E.auCutoff.Value) == "fixed");
     en(E.auResamples, string(E.auTest.Value) ~= "ranksum");
     en([E.auMarks E.auModOnly], string(E.auCutoff.Value) ~= "none");
-    en(E.psthSpacing, E.stack.Value);
-    en(E.panelYSide, ~(t == "psth" && ~psthHeat && E.stack.Value));   % a stacked PSTH has a y axis on each side
+    en(E.stackSpacing, stackNow ~= "off");
+    lineStack = stackNow ~= "off" && ismember(t, ["psth" "continuous" "spectrum" "coherence" "tuning"]) && ~overTime;
+    en(E.panelYSide, ~lineStack);   % a stacked line panel has a y axis on each side
     en(E.fillAlpha, E.fill.Value);
     sortOn = ~(t == "eventTrace" && string(E.etTrials.Value) ~= "rows");   % an event trace sorts its sub-rows only
     en([E.rasterSort E.rasterSortOrder E.rasterByGroup], sortOn);
@@ -339,7 +347,6 @@ if hasPanel
     stop = obj.FigureAlignControls.StopOn.Value;
     if isstruct(p.window); stop = obj.PanelAlignControls.StopOn.Value; end
     en(E.maskAfterStop, stop);
-    en(E.stackSpacing, string(E.contDisplay.Value) == "stacked");
     % Apply to all panels: any other panel (every one takes the axis sides; adoptPanelOptions)
     v.optApplyAll = known;
     en(E.optApplyAll, np > 1);

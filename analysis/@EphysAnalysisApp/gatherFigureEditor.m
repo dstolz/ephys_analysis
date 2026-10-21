@@ -226,17 +226,14 @@ if isfield(op, 'colormap')   % "auto": the design's
     op.colormap = strtrim(string(E.panelColormap.Value));
     if op.colormap == "auto"; op.colormap = ""; end
 end
-if isfield(op, 'stack')   % a PSTH's rows (a continuous panel's stackSpacing is its own row)
-    op.stack = logical(E.stack.Value);
-    op.stackSpacing = E.psthSpacing.Value;
+if isfield(op, 'stack')   % the stack, one row for every type that stacks
+    op.stack = string(E.stack.Value);
+    op.stackSpacing = E.stackSpacing.Value;
 end
 if p.type == "continuous"
-    op.display = string(E.contDisplay.Value);
     op.statistic = string(E.statistic.Value);
     op.transform = string(E.transform.Value);
     op.errorType = string(E.errorType.Value);
-    op.stackSpacing = E.stackSpacing.Value;
-    if isempty(op.stackSpacing); op.stackSpacing = NaN; end
     op.trials = string(E.contTrials.Value);
     op.maxTrials = E.maxTrials.Value;
 end

@@ -10,6 +10,20 @@ says how to cut a release.
 
 ### Added
 
+- Stacks for every panel type that draws trial groups over one shared axis, in one vocabulary
+  (`EphysAnalysisConfig.stackModes`): `options.stack` `"off"` | `"groups"` (a row per trial group, the first on
+  top) on a PSTH, continuous, heat map (rows `"items"`: a block of units per group), tuning (a row per series),
+  spectrum, spectrogram and coherence panel, and `"items"` (a row per channel) on a continuous panel;
+  `options.stackSpacing` is the row step times the row height everywhere (default 1.1). Line rows (PSTH,
+  continuous, spectrum, coherence, tuning) share `stackLayout`, `stackBaseLines` and `stackAxes`: a gray line
+  per row, the groups' values on the left axis, each row's top on the right; image rows (spectrogram,
+  coherogram: `drawImageStack`; heat map: `renderHeatmap(..., Stack=true)`) share the time axis and one color
+  bar, each with its group's color strip (role `rasterBand`) and name. The editor's **Stack** row (a drop-down
+  with its spacing) shows on every such type and hides, with the reason, where stacking makes no sense
+  (raster, firing rate, waveforms, probe map, unit correlation, event traces); **Apply to all panels** and a
+  type change carry the stack where the type takes its value. Data tips read stacked traces back through
+  each row's `StackMap`. A raster keeps listing its groups in blocks, so it takes no stack.
+
 - **Undo** and **Redo** tools on the analysis app's toolbar, after the File group (`undo.svg`, `redo.svg`): the Edit
   menu's items, named in their tooltips (*Undo Add panel (Ctrl+Z)*) and on and off with them (`refreshEditMenu` keeps
   both). Every undo step is named now: the event and sort sequence dialogs (*Event sequence*, *Sort sequence*), the
@@ -1309,6 +1323,13 @@ says how to cut a release.
   says which one of how many it is loading, and Scan names the root it scans.
 
 ### Changed
+
+- A PSTH panel's `options.stack` is a string (`"off"` | `"groups"`; it was `true` / `false`), and a continuous
+  panel's `options.display` (`"lines"` | `"stacked"`) is gone: its stack of channels is `options.stack "items"`.
+  A continuous panel's `stackSpacing` is a multiple of the row height (default 1.1), no longer an offset in the
+  signal's units (`NaN` = automatic); a migrated version 1 evoked stack drops its `Style.StackSpacing`. The
+  editor's continuous **Display** and **Stack spacing** rows became the shared **Stack** row; the New panel
+  window's continuous **Display** is its **Stack**. A PSTH stack's row height now covers the bands too.
 
 - The probe map is drawn as a probe: each shank a pale body with a pointed tip behind its sites, named
   *Shank k* under the tip, with an x tick at each shank; sites are circles (filled in the color scale, open

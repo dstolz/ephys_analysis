@@ -3,14 +3,17 @@ function [fig, changed] = adoptPanelOptions(fig, panelId)
 %   FIG = EphysAnalysisConfig.adoptPanelOptions(FIG, PANELID), for figure
 %   FIG (a Figures entry):
 %   - the panel's values of the options several types share
-%     (sharedFieldsOf: bins, measure, baseline, auroc, maskAfterStop and
-%     the waveform inset) go to every other panel whose type has them.
-%     The baseline (with its auroc settings) goes only where the type
-%     takes its Mode: a PSTH or a heat map of spikes none, subtract,
-%     zscore, percent or auroc; a rate or tuning panel none, subtract,
-%     ratio or zscore; a continuous, unit correlation or signal heat map
-%     panel none or subtract (a heat map is of a signal when its first
-%     enabled layer reads one). Elsewhere the panel keeps its own
+%     (sharedFieldsOf: bins, measure, baseline, auroc, maskAfterStop,
+%     the waveform inset, stack and stackSpacing) go to every other
+%     panel whose type has them. The baseline (with its auroc settings)
+%     goes only where the type takes its Mode: a PSTH or a heat map of
+%     spikes none, subtract, zscore, percent or auroc; a rate or tuning
+%     panel none, subtract, ratio or zscore; a continuous, unit
+%     correlation or signal heat map panel none or subtract (a heat map
+%     is of a signal when its first enabled layer reads one). Elsewhere
+%     the panel keeps its own. The stack goes only where the type takes
+%     its value (stackModes: "items" is a continuous panel's alone);
+%     elsewhere the panel keeps its own stack and stackSpacing
 %   - the panel's other options (the type-specific ones, e.g. a PSTH's
 %     histStyle, fill, normalize, yLim; a waveforms panel's waveform) go
 %     to every other panel of the same type
@@ -25,8 +28,9 @@ function [fig, changed] = adoptPanelOptions(fig, panelId)
 %     id      the panel's id
 %     fields  the options (and xSide, ySide) whose values changed (a
 %             string row)
-%     kept    "baseline" when the panel kept its own because its type
-%             does not take the Mode, else empty (a string row)
+%     kept    "baseline" and / or "stack" when the panel kept its own
+%             because its type does not take the value, else empty (a
+%             string row)
 %   Error: EphysAnalysisConfig:NoPanel.
 %
 %   See also EphysAnalysisConfig.sharedFieldsOf, EphysAnalysisConfig.relinkPanels,
@@ -59,6 +63,10 @@ for j = [1:k-1, k+1:numel(fig.panels)]
             && ~ismember(P.options.baseline.Mode, EphysAnalysisConfig.baselineModes(Q.type, first))   % (a spectrogram's baseline is chronuxNormalize's: copied as is)
         take = setdiff(take, ["baseline" "auroc"], 'stable');
         kept = "baseline";
+    end
+    if ismember("stack", take) && Q.type ~= P.type && ~ismember(P.options.stack, EphysAnalysisConfig.stackModes(Q.type))
+        take = setdiff(take, ["stack" "stackSpacing"], 'stable');   % e.g. a continuous panel's "items"
+        kept(end+1) = "stack";
     end
     fields = string.empty(1, 0);
     for f = take

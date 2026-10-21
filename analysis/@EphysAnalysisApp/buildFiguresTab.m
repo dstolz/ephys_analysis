@@ -821,18 +821,20 @@ E.normalize = uidropdown(S.Body, "Items", ["none" "across groups" "within groups
     "ValueChangedFcn", changed, "Tooltip", "Divide each unit's PSTHs by their largest peak (across groups), each PSTH " + ...
     "by its own (within groups), or every PSTH by the largest of all.");
 place(E.normalize, r, 2);
-[S, r] = formRow(S, ["stack" "psthSpacing"], "Stack:");
-sk = subgrid(S.Body, r, {'fit', 'fit', '1x'});
-E.stack = uicheckbox(sk, "Text", "One row per group", "ValueChangedFcn", changed, "Tooltip", "Each trial group's PSTH " + ...
-    "in a row of its own, the first on top (as a raster lists them), its value on the left axis and its peak on the right (a single " + ...
-    "group is not stacked). The groups' rasters: a raster panel above it (stacked rasters are not a figure option).");
+[S, r] = formRow(S, ["stack" "stackSpacing"], "Stack:");
+sk = subgrid(S.Body, r, {'1x', 'fit', 60});
+E.stack = uidropdown(sk, "Items", ["Off (overlaid)" "One row per group" "One row per channel"], "ItemsData", ["off" "groups" "items"], ...
+    "ValueChangedFcn", changed, "Tooltip", "Off: the trial groups overlaid (a heat map, spectrogram or coherogram: the one " + ...
+    "group of Group). One row per group: each trial group in a row of its own, the first on top (as a raster lists " + ...
+    "them), named on the left axis; lines show each row's top (a PSTH's peak) on the right axis, images share the " + ...
+    "time axis and one color bar, each with its group's color strip. One row per channel (a continuous panel): each " + ...
+    "channel in a row of its own, the groups overlaid in it. A raster lists its groups in blocks already, a firing " + ...
+    "rate panel puts them along x, and a waveforms, probe map, unit correlation or event-trace panel has no groups " + ...
+    "over a shared axis: none of them stacks.");
 uilabel(sk, "Text", "spacing:");
-E.psthSpacing = uieditfield(sk, "numeric", "Value", 1.1, "Limits", [0 Inf], "LowerLimitInclusive", "off", ...
-    "ValueChangedFcn", changed, "Tooltip", "The row step, x the tallest PSTH (below 1 the rows overlap).");
-[S, r] = formRow(S, "contDisplay", "Display:");
-E.contDisplay = uidropdown(S.Body, "Items", ["lines" "stacked rows"], "ItemsData", ["lines" "stacked"], "ValueChangedFcn", changed, ...
-    "Tooltip", "Lines: a trace per channel and group on one axis. Stacked rows: each channel in a row of its own.");
-place(E.contDisplay, r, 2);
+E.stackSpacing = uieditfield(sk, "numeric", "Value", 1.1, "Limits", [0 Inf], "LowerLimitInclusive", "off", ...
+    "ValueChangedFcn", changed, "Tooltip", "The row step, x the row height (the tallest row): 1 the rows touch, below 1 " + ...
+    "they overlap (an image row never does: below 1 counts as 1).");
 [S, r] = formRow(S, ["statistic" "transform"], "Signal:");
 tg = subgrid(S.Body, r, {'1x', '1x'});
 E.statistic = uidropdown(tg, "Items", ["Mean" "Median"], "ItemsData", EphysAnalysisConfig.AuxStatistics, "ValueChangedFcn", changed, ...
@@ -847,11 +849,6 @@ E.errorType = uidropdown(S.Body, "Items", ["Off" "mean ± SEM" "mean ± SD" "boo
     "Tooltip", "The band around each trace, over the epochs (the bootstrap and the interquartile range need the " + ...
     "Statistics and Machine Learning Toolbox).");
 place(E.errorType, r, 2);
-[S, r] = formRow(S, "stackSpacing", "Stack spacing:");
-E.stackSpacing = uieditfield(S.Body, "numeric", "AllowEmpty", "on", "Value", [], "Placeholder", "auto", ...
-    "Limits", [0 Inf], "LowerLimitInclusive", "off", "ValueChangedFcn", changed, ...
-    "Tooltip", "Stacked rows: the offset between channels, in the signal's units (blank: automatic).");
-place(E.stackSpacing, r, 2);
 [S, r] = formRow(S, ["contTrials" "maxTrials"], "Trials:");
 tg2 = subgrid(S.Body, r, {'1x', 'fit', 70});
 E.contTrials = uidropdown(tg2, "Items", ["Off" "Faint, behind the mean" "Only the trials"], "ItemsData", ["off" "faint" "only"], ...
@@ -1583,8 +1580,9 @@ function applyOptionsToAll(obj)
 %   Its axis sides (xSide, ySide) go to every other panel; its label texts
 %   stay its own. The status bar names each panel that changed, with its
 %   options and sides, and
-%   the panels that kept their baseline because their type does not take
-%   the mode; nothing changes when the others have the values already.
+%   the panels that kept their baseline or stack because their type does
+%   not take the value; nothing changes when the others have the values
+%   already.
 k = obj.SelectedFigure;
 j = obj.SelectedPanel;
 if k < 1 || k > numel(obj.Config.Figures) || j < 1 || j > numel(obj.Config.Figures(k).panels); return; end
@@ -1594,15 +1592,21 @@ p = fig.panels(j);
 [fig, changed] = EphysAnalysisConfig.adoptPanelOptions(fig, p.id);
 went = strings(1, 0);
 kept = strings(1, 0);
+keptStack = strings(1, 0);
 for c = changed
     if ~isempty(c.fields); went(end+1) = c.id + " (" + strjoin(c.fields, ", ") + ")"; end %#ok<AGROW>
-    if ~isempty(c.kept); kept(end+1) = c.id; end %#ok<AGROW>
+    if ismember("baseline", c.kept); kept(end+1) = c.id; end %#ok<AGROW>
+    if ismember("stack", c.kept); keptStack(end+1) = c.id; end %#ok<AGROW>
 end
 msg = p.id + "'s options went to " + strjoin(went, ", ");
 if isempty(went); msg = "The other panels have " + p.id + "'s options already"; end
 if ~isempty(kept)
     msg = msg + "; " + strjoin(kept, ", ") + " kept their own baseline (their type does not take """ + ...
         p.options.baseline.Mode + """)";
+end
+if ~isempty(keptStack)
+    msg = msg + "; " + strjoin(keptStack, ", ") + " kept their own stack (their type does not take """ + ...
+        p.options.stack + """)";
 end
 if isempty(went)
     obj.setStatus(msg + ".");

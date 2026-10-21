@@ -11,6 +11,13 @@ end
 if obj.Applying; return; end
 box = struct('ref', "defaultRef", 'window', "defaultWindow", 'selection', "defaultSelection");
 obj.FigureEditor.(box.(part)).Value = false;
-obj.onConfigChanged("figure");
+obj.onConfigChanged("figure", "Figure " + lower(partNames(part)));
 obj.applyFigureEditorDefaults();
+end
+
+
+function n = partNames(part)
+%partNames  What an alignment PART is called in an undo step.
+names = ["Event" "Window" "Trial selection"];
+n = names(part == ["ref" "window" "selection"]);
 end

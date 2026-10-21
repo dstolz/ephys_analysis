@@ -100,7 +100,7 @@ catch ME
 end
 obj.log(sprintf("Sessions: unit mapping saved to %s (%d cells, %d datasets).", file, height(T), numel(keys)));
 if file ~= sp.mappingFile; obj.FigureEditor.sesMappingFile.Value = char(file); end
-obj.onConfigChanged("figure");   % the file changed: the matched observations and a drawn preview are out of date
+obj.onConfigChanged("figure", "Edit unit mapping");   % the file changed: the matched observations and a drawn preview are out of date
 obj.setStatus(sprintf("Figures: mapping saved to %s (%d cells).", file, height(T)));
 end
 

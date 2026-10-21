@@ -14,7 +14,7 @@ E = obj.FigureEditor;
 if obj.Applying; return; end
 if part == "selection"
     if E.panelSameSel.Value; return; end
-    obj.onConfigChanged("figure");
+    obj.onConfigChanged("figure", "Panel trial selection");
     return
 end
 if E.panelSame.Value; return; end
@@ -22,5 +22,6 @@ own = E.panelSame.UserData;
 if ~(islogical(own) && numel(own) == 2); own = [false false]; end
 own(part == ["ref" "window"]) = true;
 E.panelSame.UserData = own;
-obj.onConfigChanged("figure");
+names = ["event" "window"];
+obj.onConfigChanged("figure", "Panel " + names(part == ["ref" "window"]));
 end

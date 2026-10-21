@@ -4,6 +4,7 @@ function buildToolbar(obj)
 %   tooltip names the menu item's keyboard shortcut when it has one (Ctrl,
 %   or Cmd on a Mac). Left to right, in groups:
 %     File      New config, Open config, Save config
+%     Edit      Undo, Redo of the figure editor's edits (onUndoRedo)
 %     Look      Scan for datasets (Data tab), Preview the selected figure
 %               (Figures tab), Search notes (onSearchNotes: the notes of
 %               every scanned dataset)
@@ -12,7 +13,10 @@ function buildToolbar(obj)
 %     Tools     Open pipeline app (File menu)
 %     Help      Help for this tab
 %   Preview shows the Figures tab, and Validate, Plan and Run the Export tab,
-%   where they put what they find. The Run tools follow the Export tab's
+%   where they put what they find. Undo and Redo are the Edit menu's items
+%   (refreshEditMenu keeps their tooltips, "Undo Add panel (Ctrl+Z)", and
+%   their on / off the menu's: on with a step to take, on the Figures tab
+%   only). The Run tools follow the Export tab's
 %   buttons: Validate, Plan and Run are off while a run goes, Cancel is on
 %   only then, and the two Results tools come on when a run wrote a report
 %   or figures (onRunExport). Each tool's Tag names its icon,
@@ -26,6 +30,12 @@ obj.Toolbar = tb;
 addTool(tb, iconDir, "new",  "New config",  "N", @(~,~) obj.onNewConfig());
 addTool(tb, iconDir, "open", "Open config", "O", @(~,~) obj.onOpenConfig());
 addTool(tb, iconDir, "save", "Save config", "S", @(~,~) obj.onSaveConfig());
+
+% --- Edit: the figure editor's undo history, as the Edit menu ---
+obj.ToolbarUndoTool = addTool(tb, iconDir, "undo", "Undo", "Z", @(~,~) obj.onUndoRedo("undo"), Separator=true);
+obj.ToolbarRedoTool = addTool(tb, iconDir, "redo", "Redo", "Y", @(~,~) obj.onUndoRedo("redo"));
+obj.ToolbarUndoTool.Enable = "off";
+obj.ToolbarRedoTool.Enable = "off";
 
 % --- Look: the datasets and the figure being edited ---
 addTool(tb, iconDir, "scan", "Scan for datasets", "", @(~,~) obj.onScan(), Separator=true);

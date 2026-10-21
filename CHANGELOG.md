@@ -10,6 +10,13 @@ says how to cut a release.
 
 ### Added
 
+- **Undo** and **Redo** tools on the analysis app's toolbar, after the File group (`undo.svg`, `redo.svg`): the Edit
+  menu's items, named in their tooltips (*Undo Add panel (Ctrl+Z)*) and on and off with them (`refreshEditMenu` keeps
+  both). Every undo step is named now: the event and sort sequence dialogs (*Event sequence*, *Sort sequence*), the
+  overlay buttons (*Add overlay*, *Duplicate overlay*, *Remove overlay*), *Figure id*, *Automatic figure id*, *Panel span*,
+  *Layer binding*, *Unit mapping file*, *Edit unit mapping*, *Pick datasets*, and the alignment edits and toggles
+  (*Figure window*, *Panel event*, *Figure alignment from Defaults*...); `onConfigChanged("figure", "Name")` takes a
+  string as the step's name.
 - **Starred only** for figures (`observe.starred`, a checkbox in the Figures tab's Observations section): the
   preview's picker, < >, Generate, Export runs and scripts keep only the starred units of the sort in use, the
   starred channels (a detection channel by its recording channel) or a starred dataset, read from

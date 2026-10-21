@@ -11,6 +11,6 @@ E.panelSame.UserData = repmat(~linked, 1, 2);
 if ~linked
     obj.applyFigureEditorDefaults();   % the rows show the figure's current values: the panel's own start from them
 end
-obj.onConfigChanged("figure");
+obj.onConfigChanged("figure", "Panel alignment from the figure");
 obj.applyFigureEditorDefaults();
 end

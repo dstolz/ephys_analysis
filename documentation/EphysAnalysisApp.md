@@ -948,7 +948,12 @@ panels and Re-link all panels, the figure list (Add, Remove, Duplicate, Up /
 Down, Copy from..., the tree's check boxes), a look remembered or forgotten
 from the preview, and Pick... for a session figure. A quick run of edits of
 one field (each under a second after the last) is one step; one typed back
-to where it started is none.
+to where it started is none. The toolbar's **Undo** and **Redo** tools do the
+same, with the step in their tooltips. Every path names its step: the dialogs
+and buttons that edit the figure outside a labeled row say what they did
+(**Undo Event sequence**, **Undo Sort sequence**, **Undo Add overlay**,
+**Undo Pick datasets**, **Undo Panel span**, **Undo Figure id**); a plain
+**Undo Edit** is only the last resort.
 
 Only the figures are kept (the config's `Figures`), so undoing a figure edit
 leaves the Data tab's source, the Alignment tab's defaults, the Export tab
@@ -1361,6 +1366,7 @@ item's shortcut, if it has one (Ctrl, or Cmd on a Mac). In groups:
 | Tool | Same as |
 | --- | --- |
 | New config, Open config, Save config | File (Ctrl+N, Ctrl+O, Ctrl+S) |
+| Undo, Redo | Edit → **Undo** (Ctrl+Z) and **Redo** (Ctrl+Y) of the figure editor ([Undo and redo](#undo-and-redo)): the tooltip names the step (**Undo Add panel (Ctrl+Z)**), and a tool is on and off as its menu item, so on the Figures tab with a step to take |
 | Scan for datasets | the Data tab's **Scan** |
 | Search notes | opens the **Search notes** window over the notes of every scanned dataset ([Notes](#notes)) |
 | Preview the selected figure | the Figures tab's **Preview**: shows the Figures tab first and lists the selected figure's observations, then previews the observation picked on the active dataset (a session figure over its datasets) with the preview forced, as **Preview** does; on the Figures tab it only redraws |
@@ -1501,7 +1507,7 @@ results, on the Log tab and in the report.
 its methods, in sections 0 to 6: the startup (1: built hidden, each tab, the
 scan and the first dataset a step of the splash, which `-batch` leaves
 unshown); the five tabs (Data, Alignment, Figures,
-Export, Log); the toolbar (1b: its tools in groups with their icons,
+Export, Log); the toolbar (1b: its tools in groups with their icons, Undo and Redo following the Edit menu (5k),
 every File menu shortcut named in a tooltip, Preview and Plan clicked from another
 tab, the run and results tools following the Export tab's buttons); the scan;
 opening on a list of datasets (`Datasets=`, as the pipeline app's Tools panel

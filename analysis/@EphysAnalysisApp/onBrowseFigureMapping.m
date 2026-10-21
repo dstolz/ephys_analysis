@@ -25,6 +25,6 @@ if file == ""
     file = string(fullfile(p, f));
 end
 obj.FigureEditor.sesMappingFile.Value = char(file);
-obj.onConfigChanged("figure");
+obj.onConfigChanged("figure", "Unit mapping file");
 obj.setStatus("Figures: mapping file " + file + ".");
 end

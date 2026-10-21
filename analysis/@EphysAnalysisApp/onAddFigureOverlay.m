@@ -24,7 +24,7 @@ ov.name = overlayFreeName([items otherOverlays(obj)], stem + " 1", stem);   % a 
 items(1, end+1) = ov;
 overlayList(E, items, numel(items));
 overlayShow(E, ov);
-obj.onConfigChanged("figure");
+obj.onConfigChanged("figure", "Add overlay");
 obj.setStatus("Added the overlay " + ov.name + " to " + obj.Config.Figures(k).panels(j).id + ".");
 end
 

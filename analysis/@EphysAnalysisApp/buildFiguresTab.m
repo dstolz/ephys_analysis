@@ -705,7 +705,8 @@ S = formSection(eg, 11, "options", "Options", Color=tint("options"));
 E.optApplyAll = uibutton(S.Body, "Text", "Apply to all panels", "ButtonPushedFcn", @(~,~) applyOptionsToAll(obj), ...
     "Tooltip", "Copy this panel's bins, smoothing, measure, baseline (with its window and auROC settings), mask and " + ...
     "waveform inset to every other panel that has those rows (the baseline only where the type takes its mode), " + ...
-    "and its other options to the other panels of its type.");
+    "its other options to the other panels of its type, and its X axis and Y axis sides to every other panel " + ...
+    "(not its label texts).");
 place(E.optApplyAll, r, [1 2]);
 [S, r] = formRow(S, "binMs", "Bin (ms):");
 E.binMs = uieditfield(S.Body, "numeric", "Value", 10, "Limits", [0.001 Inf], "ValueChangedFcn", changed);
@@ -1575,7 +1576,9 @@ end
 
 function applyOptionsToAll(obj)
 %applyOptionsToAll  adoptPanelOptions: the panel's shared rows go to every panel that has them, its other options to the panels of its type.
-%   The status bar names each panel that changed, with its options, and
+%   Its axis sides (xSide, ySide) go to every other panel; its label texts
+%   stay its own. The status bar names each panel that changed, with its
+%   options and sides, and
 %   the panels that kept their baseline because their type does not take
 %   the mode; nothing changes when the others have the values already.
 k = obj.SelectedFigure;

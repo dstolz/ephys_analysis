@@ -479,12 +479,20 @@ classdef PlotAesthetics
             %   PlotDesign.track). Every component gets its own context menu
             %   (UserData = the component), since a uifigure does not say which
             %   object was right-clicked; its Design submenu is filled when
-            %   the menu opens. With onAxisEdit (called with a panel's id and
-            %   a struct of the panel fields to set: xLabel, yLabel, xSide,
-            %   ySide; renderFigure's) a panel's x or y label also gets "Edit
-            %   label text..." (blank: the automatic label) and "Move to
-            %   top" / "Move to bottom" (x) or "Move to right" / "Move to
-            %   left" (y; not on a yyaxis, which has a y axis each side).
+            %   the menu opens. With onAxisEdit (called with the ids of the
+            %   panels to change, a string row, and a struct of the panel
+            %   fields to set: xLabel, yLabel, xSide, ySide; renderFigure's)
+            %   a panel's x or y label also gets "Edit label text..."
+            %   (blank: the automatic label), "Move to top" / "Move to
+            %   bottom" (x) or "Move to right" / "Move to left" (y; not on a
+            %   yyaxis, which has a y axis each side) and "Move every
+            %   panel's X axis to top" (... Y axis to right, ...: every
+            %   panel in one call, those of context.panelIds when given,
+            %   else every panel drawn); a panel's axes get the same for
+            %   both of its axes ("Edit X label text...", "Edit Y label
+            %   text...", "Move X axis to top", "Move Y axis to right" and
+            %   the every-panel moves), so a label that shows nothing (a
+            %   time stack's inner one) can still be set.
             fig = ancestor(target, 'figure');
             if isempty(fig); return; end
             setappdata(target, PlotAesthetics.ContextKey, context);
@@ -522,6 +530,8 @@ classdef PlotAesthetics
                 end
                 if axisMenu && ismember(roles(i), ["xlabel" "ylabel"])
                     axisItems(cm, o, roles(i));
+                elseif axisMenu && ismember(roles(i), ["axes" "rasterAxes"])
+                    axesItems(cm, o);
                 end
                 uimenu(cm, 'Text', 'Design', 'Tag', PlotDesign.MenuTag);
                 o.ContextMenu = cm;
@@ -605,21 +615,60 @@ classdef PlotAesthetics
             PlotAesthetics.axisEdit(h, struct(char(lower(axisName) + "Label"), txt));
         end
 
+        function onMenuAxesLabel(menu, ~)
+            %onMenuAxesLabel  "Edit X label text..." / "Edit Y label text..." on a panel's axes (menu UserData: "x" or "y"): the panel's own text for that label.
+            %   The label need not show anything: a time stack's inner
+            %   panel draws no x label, but the text is kept for the panel.
+            ax = menu.Parent.UserData;
+            if isempty(ax) || ~isvalid(ax); return; end
+            ctx = PlotAesthetics.contextOf(ax);
+            if isempty(ctx); return; end
+            [~, panel] = PlotAesthetics.partOf(ax, ctx);
+            if panel == ""; return; end
+            letter = string(menu.UserData);
+            lab = ax.XLabel;
+            if letter == "y"; lab = ax.YAxis(1).Label; end   % (a yyaxis: its left one, as panelAxes sets it)
+            was = strjoin(string(lab.String), " ");
+            [txt, ok] = askLabelText(ancestor(ax, 'figure'), upper(letter), panel, was);
+            if ~ok || txt == was; return; end
+            PlotAesthetics.axisEdit(ax, struct(char(letter + "Label"), txt));
+        end
+
         function onMenuSide(menu, ~)
-            %onMenuSide  "Move to top" / "bottom" / "right" / "left": the right-clicked label's axis to that side (menu UserData: the change).
+            %onMenuSide  "Move to top" / "bottom" / "right" / "left": the right-clicked label's (or axes') axis to that side (menu UserData: the change).
             h = menu.Parent.UserData;
             if isempty(h) || ~isvalid(h); return; end
             PlotAesthetics.axisEdit(h, menu.UserData);
         end
 
-        function axisEdit(h, change)
-            %axisEdit  Set the panel fields CHANGE (xLabel, yLabel, xSide, ySide) of the panel the label H is in, through the context's onAxisEdit.
+        function onMenuSideAll(menu, ~)
+            %onMenuSideAll  "Move every panel's X axis to top" (...): that axis of every panel of the figure to that side, in one edit (menu UserData: the change).
+            h = menu.Parent.UserData;
+            if isempty(h) || ~isvalid(h); return; end
+            PlotAesthetics.axisEdit(h, menu.UserData, true);
+        end
+
+        function axisEdit(h, change, every)
+            %axisEdit  Set the panel fields CHANGE (xLabel, yLabel, xSide, ySide) of the panel the label or axes H is in, through the context's onAxisEdit.
+            %   axisEdit(H, CHANGE, true) sets them on every panel of the
+            %   plot in one call: the context's panelIds when it has them
+            %   (renderFigure's: every panel of the figure), else every
+            %   panel drawn.
+            if nargin < 3; every = false; end
             ctx = PlotAesthetics.contextOf(h);
             if isempty(ctx) || ~isfield(ctx, 'onAxisEdit') || isempty(ctx.onAxisEdit)
                 error('PlotAesthetics:NotEditable', 'This label is not part of a figure whose panels can be edited.');
             end
             [~, panel] = PlotAesthetics.partOf(h, ctx);
             if panel == ""; return; end
+            if every
+                if isfield(ctx, 'panelIds') && ~isempty(ctx.panelIds)
+                    panel = reshape(string(ctx.panelIds), 1, []);
+                else
+                    T = PlotAesthetics.components(ctx.root);
+                    panel = reshape(unique(T.TileName(T.Tile > 0 & ismember(T.Role, ["axes" "rasterAxes"])), 'stable'), 1, []);
+                end
+            end
             try
                 ctx.onAxisEdit(panel, change);
             catch ME
@@ -850,24 +899,43 @@ end
 
 
 function axisItems(cm, h, role)
-%axisItems  A panel's x or y label's own items in its menu CM: its text, and its axis to the other side.
+%axisItems  A panel's x or y label's own items in its menu CM: its text, and its axis (and every panel's) to the other side.
 %   The side is the one the label's axes do not show now; a yyaxis (a y
 %   axis on each side) has no y side to move to.
 uimenu(cm, 'Text', 'Edit label text...', 'Separator', 'on', 'MenuSelectedFcn', @PlotAesthetics.onMenuLabel);
 ax = ancestor(h, 'axes');
 if isempty(ax); return; end
-if role == "xlabel"
+sideItems(cm, ax, extractBefore(role, 2), "Move to ");
+end
+
+
+function axesItems(cm, ax)
+%axesItems  A panel's axes' own items in its menu CM: both labels' text, and each axis (and every panel's) to the other side.
+%   As a label's menu (axisItems) for both axes at once, so a label that
+%   shows nothing (a time stack's inner panel's x label) can be set too.
+uimenu(cm, 'Text', 'Edit X label text...', 'Separator', 'on', 'UserData', "x", 'MenuSelectedFcn', @PlotAesthetics.onMenuAxesLabel);
+uimenu(cm, 'Text', 'Edit Y label text...', 'UserData', "y", 'MenuSelectedFcn', @PlotAesthetics.onMenuAxesLabel);
+sideItems(cm, ax, "x", "Move X axis to ");
+sideItems(cm, ax, "y", "Move Y axis to ");
+end
+
+
+function sideItems(cm, ax, letter, own)
+%sideItems  "<OWN><side>" and "Move every panel's X axis to <side>" (LETTER "x" or "y") in menu CM: the side AX does not show that axis on now.
+%   A yyaxis (a y axis on each side) has no y side to move to: no y items.
+if letter == "x"
     side = "top";
     if strcmp(ax.XAxisLocation, 'top'); side = "bottom"; end
-    change = struct('xSide', side);
 elseif isscalar(ax.YAxis)
     side = "right";
     if strcmp(ax.YAxisLocation, 'right'); side = "left"; end
-    change = struct('ySide', side);
 else
     return
 end
-uimenu(cm, 'Text', char("Move to " + side), 'UserData', change, 'MenuSelectedFcn', @PlotAesthetics.onMenuSide);
+change = struct(char(letter + "Side"), side);
+uimenu(cm, 'Text', char(own + side), 'UserData', change, 'MenuSelectedFcn', @PlotAesthetics.onMenuSide);
+uimenu(cm, 'Text', char("Move every panel's " + upper(letter) + " axis to " + side), 'UserData', change, ...
+    'MenuSelectedFcn', @PlotAesthetics.onMenuSideAll);
 end
 
 

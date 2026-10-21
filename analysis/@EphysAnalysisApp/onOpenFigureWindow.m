@@ -10,7 +10,8 @@ function h = onOpenFigureWindow(obj)
 %   preview, drawn by renderFigure (Editable: the right-click aesthetics
 %   editor and its Design submenu work in it, and "remember for this
 %   figure" reaches the app's config while the app is open; so does an
-%   axis label's own text or side, set from its menu, which also draws the
+%   axis label's own text or side, set from its menu or the panel axes'
+%   (one panel's, or every panel's side at once), which also draws the
 %   window again). The window is independent of the app: later edits do
 %   not follow into it (Preview and Open again for a new one), and closing
 %   the app leaves it as it is. H is the figure, [] when none was opened.
@@ -62,15 +63,17 @@ end
 
 
 function axisEdited(app, id, F, spec, h, panel, change)
-%axisEdited  An axis label's menu edit in the window: kept in the app's config while the app is open, and the window drawn again with it.
+%axisEdited  An axis menu edit of the panels PANEL (ids) in the window: kept in the app's config while the app is open, and the window drawn again with it.
 if isvalid(app) && ~isempty(app.Fig) && isvalid(app.Fig)
     app.onFigureAxisEdited(id, panel, change);
 end
 if ~isgraphics(h); return; end
-k = find([spec.panels.id] == panel, 1);
-if isempty(k); return; end
-for f = string(fieldnames(change)).'
-    spec.panels(k).(f) = change.(f);
+ks = find(ismember([spec.panels.id], panel));
+if isempty(ks); return; end
+for k = ks
+    for f = string(fieldnames(change)).'
+        spec.panels(k).(f) = change.(f);
+    end
 end
 drawWindow(app, id, F, spec, h);
 end

@@ -380,7 +380,7 @@ with the key of each in brackets:
 | Sessions | **Across sessions**, and with it ticked which datasets, how the sessions are colored, the error band, how the observed unit is matched, the minimum sessions and the trial groups: the figure drawn once over several datasets instead of once per dataset ([Sessions in the Figures tab](#sessions-in-the-figures-tab)); no key; collapsed until opened. Its place in the Figure supersection, above the Panels section: it decides what the figure is drawn over |
 | Panels (5) | the schematic of the grid, **New panel...** (the [New panel window](#the-new-panel-window)), the selected panel's **Row span**, **Column span**, **Row height**, **Column width**, **Panel size** and **Align in cell**, **Spacing** with **Spacing...**, **Remove panel** and **Move** (below) |
 | **PANEL** (Alt+2) | the sections below, down to Overlays: the selected panel's. Its header names the panel and its type |
-| Selected panel (6) | **Type** (a change starts the panel afresh: below), **Title** (blank = none), **Box** (*auto (the design's)*, *on* or *off*: the frame around the panel's axes; *on* and *off* win over the design, the remembered looks and the figure's own rules; `box`), **X axis** and **Y axis** (every type: the axis' label, blank = the type's own, and its side, *bottom* or *top*, *left* or *right*; `xLabel`, `yLabel`, `xSide`, `ySide`; the y side grayed out on a stacked PSTH, which has a y axis on each side; a stack of time panels with its x axes on top tells the time once, at its top) and **Group shown** (heat map, unit correlation and spectrogram panels, and a coherence panel drawn over time: which of the figure's trial groups they draw, 1 = the first; `options.group`; a heat map of trials draws every group, so the row hides) |
+| Selected panel (6) | **Type** (a change starts the panel afresh: below), **Title** (blank = none), **Box** (*auto (the design's)*, *on* or *off*: the frame around the panel's axes; *on* and *off* win over the design, the remembered looks and the figure's own rules; `box`), **X axis** and **Y axis** (every type: the axis' label, blank = the type's own, and its side, *bottom* or *top*, *left* or *right*; `xLabel`, `yLabel`, `xSide`, `ySide`; the y side grayed out on a stacked PSTH, which has a y axis on each side; a stack of time panels with its x axes on top tells the time once, at its top; the sides, not the label texts, go to every panel with Options' **Apply to all panels**, or from the right-click menu's **Move every panel's X axis to top** (*Axis labels*, below)) and **Group shown** (heat map, unit correlation and spectrogram panels, and a coherence panel drawn over time: which of the figure's trial groups they draw, 1 = the first; `options.group`; a heat map of trials draws every group, so the row hides) |
 | Panel alignment (7) | the selected panel's own event reference and epoch window (an aligned type only), with **Same as the figure** in the header, and the panel's trial selection, the [Trial selection](#alignment-tab) rows under the **Trial selection as the figure** box (an aligned type only). **Apply to all panels** and **Re-link all panels** (below) |
 | Layers (8) | the selected panel's layers: the list with **Add** (a source the type draws), **Remove**, **Up** and **Down**, and the rows of the layer picked (below) |
 | Options (9) | all of the panel's own options: its type's rows, under the type's name (*Raster options*, *PSTH options*, ...; below), and **Apply to all panels** |
@@ -715,13 +715,17 @@ inset -- to every other panel whose type has them, the baseline only where that
 type takes the mode (a PSTH's *zscore* does not reach a continuous panel, which
 keeps its own); and the panel's other options (a PSTH's *PSTH as*, *Fill*,
 *Normalize* and *Y limits*, a raster's sort, a waveforms panel's waveform, ...)
-onto the other panels of its own type (`adoptPanelOptions`;
+onto the other panels of its own type; and the panel's **X axis** and **Y axis**
+sides onto every other panel, of any type (its label texts stay its own, like its
+title; `adoptPanelOptions`;
 [Copying options between panels](EphysAnalysisConfig.md#copying-options-between-panels)).
-The status bar names each panel that changed and the options it took, and the
-panels that kept their baseline (*"psth_1's options went to raster_1 (waveform),
+The status bar names each panel that changed and the options (and `xSide`,
+`ySide`) it took, and the panels that kept their baseline (*"psth_1's options went to raster_1 (waveform),
 heatmap_1 (bins, baseline); continuous_1 kept their own baseline (their type
 does not take "zscore")."*), or says that the others have the values already.
-It is on when another panel has one of those rows or is of the same type.
+It is on when the figure has another panel. So a stack's time axis goes to the
+top in one step: set the X axis side to *top* on one panel and apply it (or use
+**Move every panel's X axis to top**, below).
 
 **Appearance** is the figure's `style`: font size, line width, site size
 (probe maps), group colors, heat colors (heat map, probe map and unit
@@ -865,7 +869,7 @@ panel type) is named in the status bar. A figure opened with **Open in window**
 does the same while the app is open. On a panel's x or y label it goes to the
 panel's **X axis** or **Y axis** row.
 
-**Axis labels.** Right-click a panel's x or y label in the preview for two more
+**Axis labels.** Right-click a panel's x or y label in the preview for its own
 items: **Edit label text...** asks for the panel's own label (blank: the type's
 automatic one; `xLabel`, `yLabel`), and **Move to top** / **Move to bottom** (an
 x label) or **Move to right** / **Move to left** (a y label) puts that axis'
@@ -875,8 +879,25 @@ panel is selected, its rows follow and the preview is drawn again (or marked out
 of date), and it is a step of the Edit menu's undo (**Undo Label text**, **Undo
 Axis side**). In a figure opened with **Open in window** the
 window is drawn again with the edit, and while the app is open the edit reaches
-its config too. A label the time stack hides (an inner panel's) has no menu: set
-it in the panel's rows.
+its config too.
+
+Each label's menu also has **Move every panel's X axis to top** (or *bottom*;
+**Move every panel's Y axis to right** or *left* on a y label): that axis of every
+panel of the figure goes to that side in one step (**Undo Every panel's axis
+side**); the status bar names the panels that moved, or says they were there
+already. A stack of time panels whose x axes all go on top tells the time once,
+at its top.
+
+The same items are on the menu of a panel's axes itself (right-click the plot
+area, off any line), beside **Edit aesthetics...**, **Go to setting** and
+**Design**: **Edit X label text...**, **Edit Y label text...**, **Move X axis to
+top** / *bottom*, **Move Y axis to right** / *left* (not on a stacked PSTH, which
+has a y axis on each side) and the two every-panel moves. So a label that shows
+nothing can be set too: a label the time stack hides (an inner panel's x label,
+which has no menu of its own) keeps the text you give it, and the status bar says
+the stack does not show it (the panel that tells the time is labeled with its own
+text, *Time (s)* when that is blank). The axes' items work in a figure opened with
+**Open in window** as the labels' do.
 
 **Aesthetics.** Right-click any part of the preview (a line, band, bar, text,
 legend or axes) and pick **Edit aesthetics...** to change colors, line styles and
@@ -1777,7 +1798,12 @@ the raster panel has none of its own, going back to the PSTH loses nothing, and
 The **X axis** and **Y axis** rows set the PSTH's y label and side (the preview
 draws them; the side is grayed out on a stacked PSTH), and `onFigureAxisEdited`
 (the label's right-click menu) sets them through the editor's path, each edit a
-step of the undo history (**Undo Label text**, **Undo Axis side**).
+step of the undo history (**Undo Label text**, **Undo Axis side**). The PSTH's
+axes' own menu holds both labels' text, both sides and the every-panel moves;
+**Move every panel's X axis to top** puts the raster's and the PSTH's x axes on
+top (one time axis, on the raster) as one undo step; the raster's hidden x label
+keeps a text given to it, the status bar saying the stack does not show it; an
+every-panel move that changes nothing says so.
 The drag runs on the window's pointer callbacks, which the press installs: over
 `psth_1`'s bottom band the outline follows and *below psth_1* is shaded, the
 release moves `raster_1` below it (a second row, the callbacks cleared, the

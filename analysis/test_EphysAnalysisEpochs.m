@@ -151,6 +151,15 @@ check(height(Eb) == 10 && ~any(ismember([3 5], Eb.trial)) && Eb.Properties.UserD
 Ek = epochTable(stimA{:}, Artifacts="keep");
 check(height(Ek) == 12 && isequal(find(Ek.artifact), 3) && Ek.Properties.UserData.nDroppedArtifact == 0 ...
     && isequal(Ek.t0, E0.t0), 'Artifacts="keep": every epoch, the one that touches a period flagged');
+Es = epochTable(stimA{:}, Selection=trialSelection(excludeArtifacts=false));
+check(height(Es) == 12 && isequal(find(Es.artifact), 3) && Es.Properties.UserData.nDroppedArtifact == 0, ...
+    'excludeArtifacts=false in the selection: every epoch kept, the one that touches a period flagged');
+Em = epochTable(stimA{:}, Baseline=[-0.3 0], Selection=trialSelection(minArtifactSec=0.0105));
+check(height(Em) == 11 && ~ismember(3, Em.trial) && ismember(5, Em.trial) && Em.Properties.UserData.nDroppedArtifact == 1, ...
+    'minArtifactSec: the 10 ms period under the minimum no longer drops epoch 5; the 11 ms one still drops 3');
+Em2 = epochTable(stimA{:}, Selection=trialSelection(minArtifactSec=0.02), Artifacts="keep");
+check(height(Em2) == 12 && ~any(Em2.artifact), 'minArtifactSec above every period: no epoch is flagged');
+check(strcmp(errorId(@() trialSelection(minArtifactSec=-1)), 'trialSelection:BadValue'), 'a negative minArtifactSec is refused');
 
 fprintf('\n== 3. "Trial" = the trial onsets; recording scope ==\n');
 E = epochTable(src, eventRef(line="Trial"), Window=epochWindow(pre=-0.5, post=1));

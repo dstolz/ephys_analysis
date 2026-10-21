@@ -23,8 +23,9 @@ function [E, G] = epochTable(src, ref, opts)
 %                  and, in "between" mode, has its stop event
 %     artifact     the window, on the continuous clock (shifted by
 %                  t0Continuous - t0), touches one of src.artifacts, the
-%                  periods the Signals step erased (always false with the
-%                  default Artifacts="drop", which leaves those epochs out)
+%                  periods the Signals step erased, at least
+%                  SEL.minArtifactSec long (always false when those epochs
+%                  are left out: SEL.excludeArtifacts and Artifacts="drop")
 %     groupIndex, group   the epoch's group (row / label of G)
 %     <groupBy parameters and Columns>   the trial's values
 %   G is selectTrials' groups table with n replaced by the number of epochs
@@ -52,9 +53,11 @@ function [E, G] = epochTable(src, ref, opts)
 %     Selection    trialSelection (default trialSelection())
 %     Incomplete   "drop" (default): drop epochs that are not complete;
 %                  "keep": keep them (evokedPotential then pads with NaN)
-%     Artifacts    "drop" (default): drop epochs that touch an artifact
-%                  period (src.artifacts), for signal and spike plots
-%                  alike; "keep": keep them, flagged in the artifact column
+%     Artifacts    "drop" (default): drop the epochs that touch an
+%                  artifact period (src.artifacts) when the selection says
+%                  so (SEL.excludeArtifacts), for signal and spike plots
+%                  alike; "keep": keep them whatever the selection says,
+%                  flagged in the artifact column
 %     Baseline     [b0 b1] s from t0 ([] = none, the default): the baseline
 %                  window the compute functions read. Where it reaches
 %                  outside the window, the recording-edge and artifact
@@ -144,9 +147,13 @@ t0Continuous = (round((t0 - off) * src.fs) - 1) / src.fs + off;
 % --- artifact periods: on the continuous clock, as the window shifted there -------
 artifact = false(nEv, 1);
 if isfield(src, 'artifacts') && ~isempty(src.artifacts)
+    art = src.artifacts(src.artifacts(:, 2) - src.artifacts(:, 1) >= sel.minArtifactSec, :);
     clockShift = t0 - t0Continuous;
-    artifact = EphysDataset.overlapsIntervals(readStart - clockShift, readStop - clockShift, src.artifacts);
+    if ~isempty(art)
+        artifact = EphysDataset.overlapsIntervals(readStart - clockShift, readStop - clockShift, art);
+    end
 end
+dropArtifacts = opts.Artifacts == "drop" && sel.excludeArtifacts;
 
 % --- groups ---------------------------------------------------------------------
 groupIndex = ones(nEv, 1);
@@ -164,14 +171,14 @@ if opts.Incomplete == "drop"
 end
 keep = keep & groupIndex > 0;
 nArtifact = nnz(keep & artifact);   % otherwise usable epochs that touch a period
-if opts.Artifacts == "drop"
+if dropArtifacts
     keep = keep & ~artifact;
 end
 if ~any(keep)
     why = strings(0, 1);
     if nNoStop > 0; why(end+1) = sprintf("%d without a stop event", nNoStop); end
     if nEdge > 0;   why(end+1) = sprintf("%d with a window outside the recording", nEdge); end
-    if nArtifact > 0 && opts.Artifacts == "drop"; why(end+1) = sprintf("%d touching an artifact period", nArtifact); end
+    if nArtifact > 0 && dropArtifacts; why(end+1) = sprintf("%d touching an artifact period", nArtifact); end
     if nNoValue > 0; why(end+1) = sprintf("and %d more dropped before: their trial has no %s", nNoValue, ref.offsetParam); end
     if nNoSeq > 0; why(end+1) = sprintf("and %d more dropped before: their sequence did not follow", nNoSeq); end
     error('epochTable:NoEpochs', '%s: none of the %d %s event(s) makes a usable epoch (%s).', ...
@@ -211,7 +218,7 @@ E.Properties.UserData = struct('ref', ref, 'window', win, 'selection', sel, 'sco
     'nEvents', nEv, 'nDroppedNoValue', nNoValue, 'nDroppedNoSequence', nNoSeq, ...
     'nDroppedNoStop', nNoStop * (opts.Incomplete == "drop"), ...
     'nDroppedEdge', nEdge * (opts.Incomplete == "drop"), ...
-    'nDroppedArtifact', nArtifact * (opts.Artifacts == "drop"), 'nTrials', src.nTrials, ...
+    'nDroppedArtifact', nArtifact * dropArtifacts, 'nTrials', src.nTrials, ...
     'nTrialsSelected', nnz(mask), 'dataset', src.name);
 end
 

@@ -57,6 +57,8 @@ sel.pairingFlags = flags;
 sel.groupBy = g;
 sel.groupOrder = string(C.Order.Value);
 sel.maxGroups = C.MaxGroups.Value;
+sel.excludeArtifacts = C.ExcludeArtifacts.Value;
+sel.minArtifactSec = C.MinArtifact.Value;
 end
 
 

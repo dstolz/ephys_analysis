@@ -220,6 +220,7 @@ Trough onset.
 | **Pairing** | keep the trials with these `PairingFlag` values: `ok` (default), `partial`, `cut`, `unpaired`; none ticked keeps every flag |
 | **Group by**, **and** | up to two trial parameters: one group per value, or pair of values |
 | **Order**, **Max groups** | the groups' order (`ascending`, `descending`, `appearance`); more groups than the maximum (12 by default) is an error |
+| **Artifacts**: **Exclude epochs**, **at least (s)** | ticked (default): leave out the epochs whose window (or a panel's baseline) touches an artifact period, the stretches the Signals step erased; unticked: keep them (their signal is the erased stretch). Only periods at least **at least (s)** long count (0 = every one); the [epoch diagram](#epoch-diagram) draws the shorter ones paler |
 
 The stop event's offset, interval length and time range, and the selection's
 explicit trial rows, have no controls: they keep the config's values through
@@ -695,7 +696,8 @@ It is on when another panel has one of those rows or is of the same type.
 (probe maps), group colors, heat colors (heat map, probe map and unit
 correlation panels, a PSTH drawn as a heat map), **Sort by** and **Label with** depth and shank (they
 order and label the observation picker too), **Show** error, stop marks,
-legend and grid, the legend's place, orientation and box, **Error** (its type
+the artifact note (under the title, how many of the drawn epochs touch an
+artifact period when **Artifacts: Exclude epochs** is off), legend and grid, the legend's place, orientation and box, **Error** (its type
 and the bootstrap's resamples), **Band fill** and **Band edge** ([Error bands](EphysAnalysisConfig.md#error-bands)). It has no tiles per page, grid spacing
 or y and color limits: a figure is one observation, the spacing is the
 Panels section's, and each panel has its own y and color limits among its

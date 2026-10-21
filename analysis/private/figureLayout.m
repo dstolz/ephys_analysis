@@ -59,7 +59,7 @@ if any(sz < 40); return; end
 top = 0;
 if ~isempty(S.title) && isgraphics(S.title)
     t = S.title.TightInset;   % (in pixels, as renderFigure made it)
-    if any(strjoin([string(S.title.Title.String) string(S.title.Subtitle.String)], "") ~= ""); top = t(4) + 2; end
+    if written(S.title.Title) || written(S.title.Subtitle); top = t(4) + 2; end   % a text of several lines is a column
 end
 leg = struct('side', "", 'size', [0 0]);
 if ~isempty(S.legend) && isgraphics(S.legend) && S.side ~= ""

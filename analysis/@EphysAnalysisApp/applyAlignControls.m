@@ -53,6 +53,8 @@ setDrop(C.Group1, g(1));
 setDrop(C.Group2, g(2));
 C.Order.Value = char(s.groupOrder);
 C.MaxGroups.Value = s.maxGroups;
+C.ExcludeArtifacts.Value = s.excludeArtifacts;
+C.MinArtifact.Value = s.minArtifactSec;
 syncAlignEnable(C);
 end
 

@@ -29,6 +29,13 @@ function sel = trialSelection(s, opts)
 %                   pair of values)
 %     groupOrder    "ascending" (default) | "descending" | "appearance"
 %     maxGroups     more groups than this is an error (default 12)
+%     excludeArtifacts   true (default): leave out the epochs whose window
+%                   touches an artifact period (src.artifacts, the periods
+%                   the Signals step erased); false: keep them (epochTable
+%                   flags them in its artifact column)
+%     minArtifactSec   only artifact periods at least this long count
+%                   (default 0: every one), for excludeArtifacts and the
+%                   artifact column alike
 %
 %   The filter's syntax is checked here; its names are checked against the
 %   trials when it is applied (selectTrials). Errors: trialSelection:BadValue,
@@ -45,6 +52,8 @@ arguments
     opts.groupBy (1,:) string
     opts.groupOrder (1,1) string
     opts.maxGroups (1,1) double
+    opts.excludeArtifacts (1,1) logical
+    opts.minArtifactSec (1,1) double
 end
 
 if isempty(s)
@@ -84,6 +93,9 @@ if ~ismember(sel.groupOrder, ["ascending" "descending" "appearance"])
 end
 if ~(sel.maxGroups >= 1 && sel.maxGroups == round(sel.maxGroups))
     error('trialSelection:BadValue', 'maxGroups must be a whole number >= 1.');
+end
+if ~(sel.minArtifactSec >= 0)
+    error('trialSelection:BadValue', 'minArtifactSec must be a number of seconds >= 0.');
 end
 if any(~isfinite(sel.trials) | sel.trials < 1 | sel.trials ~= round(sel.trials))
     error('trialSelection:BadValue', 'trials must be whole trial rows >= 1.');

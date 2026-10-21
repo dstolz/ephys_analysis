@@ -89,7 +89,8 @@ distinct as file names: `{Plot}` replaces every character outside
                    "offsetParam": "", "offsetParamUnit": "ms" },
     "Window":    { "mode": "fixed", "pre": -0.2, "post": 0.8, "stop": [] },
     "Selection": { "filter": "", "response": [], "pairingFlags": "ok", "trials": [],
-                   "groupBy": "Depth", "groupOrder": "ascending", "maxGroups": 12 } },
+                   "groupBy": "Depth", "groupOrder": "ascending", "maxGroups": 12,
+                   "excludeArtifacts": true, "minArtifactSec": 0 } },
   "Figures": [
     { "id": "unit_card", "autoId": false, "enabled": true, "title": "",
       "observe": { "data": "units", "units": { "classes": ["su"], "...": "..." }, "...": "..." },
@@ -299,7 +300,10 @@ Which trials take part and how they are grouped, from the paired trials of
 `<Name>_behavior.mat`: a `filter` expression over the trials table,
 `response` words (`Hit`, `Miss`, `CR`, `FA`, ...), `pairingFlags` (`ok`,
 `partial`, `cut`, `unpaired`; `[]` keeps every flag), explicit `trials`,
-and `groupBy` (0-2 trial parameters) with `groupOrder` and `maxGroups`
+`groupBy` (0-2 trial parameters) with `groupOrder` and `maxGroups`, and
+whether the epochs that touch an artifact period are left out
+(`excludeArtifacts`, default true; only periods at least `minArtifactSec`
+long count)
 (fields, filter syntax and group colors:
 [`trialSelection`](EphysAnalysis.md#trialselection-which-trials-in-which-groups)).
 A filter is checked for syntax when the config is validated (a warning)
@@ -340,6 +344,7 @@ A figure's `observe.units` and a fixed layer's `units` (the source is the figure
 | `ErrorEdgeStyle`, `ErrorEdgeWidth` | `"-"`, 0.5 | bands: the outline's line style (`-`, `--`, `:`, `-.`) and width, points |
 | `ShowStop` | `true` | stop-event marks (mean per group; a dot per raster row) |
 | `ShowZeroLine` | `true` | a dotted line at the event |
+| `ShowArtifactNote` | `true` | a line under the figure's title when some of the drawn epochs touch an artifact period, which happens only with the trial selection's `excludeArtifacts` off: *"3 of 40 epochs touch an artifact period"*. When panels with epochs of their own count differently, each count names its panels (*"Epochs that touch an artifact period: 3 of 40 (raster_1, psth_1); 5 of 38 (psth_2)"*). Only the periods the selection counts (at least `minArtifactSec` long) are noted |
 | `Colormap` | `"lines"` | group colors: `"lines"` keeps selectTrials' colors; any colormap name resamples them; a color name or hex code (`"black"`, `"#1f77b4"`) gives every group that color |
 | `HeatColormap` | `""` | heatmaps, probe maps and unit correlations; `""` = parula, or `blueWhiteRed` for corrmap |
 | `FontSize` | 9 | |

@@ -85,7 +85,9 @@ switch section
             'trials',       [], ...                 % explicit trial rows ([] = all)
             'groupBy',      string.empty(1,0), ...  % 0-2 trial parameters
             'groupOrder',   "ascending", ...        % "ascending" | "descending" | "appearance"
-            'maxGroups',    12);
+            'maxGroups',    12, ...
+            'excludeArtifacts', true, ...           % drop the epochs that touch an artifact period
+            'minArtifactSec',   0);                 % ... one at least this long (shorter periods do not count)
 
     case "UnitSelection"
         s = struct( ...
@@ -112,6 +114,7 @@ switch section
             'ErrorEdgeWidth', 0.5, ...          % bands: the edge's width, points
             'ShowStop',     true, ...
             'ShowZeroLine', true, ...
+            'ShowArtifactNote', true, ...       % a note under the title when drawn epochs touch an artifact period (excludeArtifacts off)
             'Colormap',     "lines", ...    % group colors: "lines" keeps selectTrials' colors; a colormap function; or one color ("black", "#1f77b4")
             'HeatColormap', "", ...         % heatmap / probe map / corrmap colors ("" = parula; blueWhiteRed for corrmap)
             'FontSize',     9, ...

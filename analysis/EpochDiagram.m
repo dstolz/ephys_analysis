@@ -25,8 +25,10 @@ classdef EpochDiagram < handle
     %       across the rows and drawn as a bar on the Epochs row, numbered
     %       as the plot numbers its epochs; an epoch the plot drops is gray,
     %       crossed and says why. The baseline (a bar under each epoch),
-    %       the time range searched for the event, the artifact periods and
-    %       the stretches outside the recording show too
+    %       the time range searched for the event, the artifact periods
+    %       (paler: those shorter than the selection's minArtifactSec,
+    %       which do not count) and the stretches outside the recording
+    %       show too
     %     Aligned to the event: the same epochs, one row each, on the time
     %       from their event, with the event's line as each epoch sees it:
     %       what the plot stacks and averages
@@ -45,7 +47,8 @@ classdef EpochDiagram < handle
     %                  (it tests the baseline against the recording's edges
     %                  and artifacts too)
     %     Incomplete   "drop" (default) | "keep", as epochTable
-    %     Artifacts    "drop" (default) | "keep", as epochTable
+    %     Artifacts    "drop" (default: as SEL.excludeArtifacts) | "keep",
+    %                  as epochTable
     %     Title        the heading
     %   A value epochTable refuses (a fixed window with pre > post, a line
     %   the dataset lacks, ...) is reported in red and the lines are drawn
@@ -295,7 +298,8 @@ classdef EpochDiagram < handle
             %   the dataset has paired trials (the "auto" scopes follow it).
             %   One sentence a row, e.g. "Time 0 is the first Stim onset in
             %   each trial." / "Each epoch runs from 0.2 s before it to 0.8 s
-            %   after it." / "Trials kept: pairing ok; grouped by Depth."
+            %   after it." / "Epochs that touch an artifact period are
+            %   dropped." / "Trials kept: pairing ok; grouped by Depth."
             scope = scopeOf(ref.scope, hasTrials);
             s = "Time 0 is " + eventPhrase(ref, scope) + ".";
             if win.mode == "between"
@@ -308,6 +312,13 @@ classdef EpochDiagram < handle
                 if ~isempty(win.stop)
                     s(end+1, 1) = "The stop event, " + stopPhrase(win.stop, hasTrials) + ", is marked on each epoch.";
                 end
+            end
+            if sel.excludeArtifacts
+                a = "Epochs that touch an artifact period";
+                if sel.minArtifactSec > 0; a = a + sprintf(" at least %g s long", sel.minArtifactSec); end
+                s(end+1, 1) = a + " are dropped.";
+            else
+                s(end+1, 1) = "Epochs that touch an artifact period are kept.";
             end
             if hasTrials
                 parts = strings(1, 0);
@@ -373,7 +384,7 @@ classdef EpochDiagram < handle
                 reason(bad & between & isfinite(E.t1) & ~(E.duration > 0)) = "ends before it starts";
                 reason(bad & between & ~isfinite(E.t1)) = "no stop event";
             end
-            if artifacts == "drop"
+            if artifacts == "drop" && obj.Sel.excludeArtifacts
                 reason(reason == "" & E.artifact) = "touches an artifact period";
             end
             E.kept = reason == "";
@@ -672,9 +683,14 @@ classdef EpochDiagram < handle
             end
             if isfield(src, 'artifacts') && ~isempty(src.artifacts)
                 iv = src.artifacts(src.artifacts(:, 2) >= a & src.artifacts(:, 1) <= b, :);
-                if ~isempty(iv)
-                    legH(end+1) = rectPatch(ax, iv, yLo, yHi, obj.ArtifactColor, 0.45);
+                short = iv(:, 2) - iv(:, 1) < obj.Sel.minArtifactSec;
+                if any(~short)
+                    legH(end+1) = rectPatch(ax, iv(~short, :), yLo, yHi, obj.ArtifactColor, 0.45);
                     legS(end+1) = "artifact period";
+                end
+                if any(short)
+                    legH(end+1) = rectPatch(ax, iv(short, :), yLo, yHi, obj.ArtifactColor, 0.15);
+                    legS(end+1) = sprintf("artifact period under %g s (ignored)", obj.Sel.minArtifactSec);
                 end
             end
 

@@ -88,6 +88,7 @@ E.labelDepth.Value = s.LabelDepth;
 E.labelShank.Value = s.LabelShank;
 E.showSEM.Value = s.ShowSEM;
 E.showStop.Value = s.ShowStop;
+E.showArtifactNote.Value = s.ShowArtifactNote;
 E.legend.Value = s.Legend;
 E.grid.Value = s.Grid;
 E.legendLoc.Value = char(pickFrom(s.LegendLocation, string(E.legendLoc.ItemsData), "auto"));

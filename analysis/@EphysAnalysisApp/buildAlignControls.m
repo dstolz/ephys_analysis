@@ -15,9 +15,10 @@ function C = buildAlignControls(obj, parents, changed)
 %   offsetParam, offsetParamUnit). "Sequence" (and "Stop sequence") shows
 %   the steps that must follow the event (eventRef's sequence and
 %   alignStep, kept in C.SeqText / C.StopSeqText's UserData,
-%   setSequenceHolder); Edit... opens editSequence on them. "Epoch
-%   Diagram" (C.Diagram), under the window, is left to the caller to wire
-%   to onShowEpochs.
+%   setSequenceHolder); Edit... opens editSequence on them. "Artifacts"
+%   ticks the selection's excludeArtifacts, its "at least (s)" the
+%   minArtifactSec. "Epoch Diagram" (C.Diagram), under the window, is left
+%   to the caller to wire to onShowEpochs.
 C = struct();
 cbRef = @(~,~) changed("ref");
 cbWin = @(~,~) changed("window");
@@ -130,8 +131,8 @@ C.Diagram = uibutton(wg, "Text", "Epoch Diagram");   % the caller sets its Butto
 C.Diagram.Layout.Row = 8; C.Diagram.Layout.Column = [1 4];
 
 % --- selection -----------------------------------------------------------------------
-sg = uigridlayout(parents(3), [7 4]);
-sg.RowHeight = repmat({22}, 1, 7);
+sg = uigridlayout(parents(3), [8 4]);
+sg.RowHeight = repmat({22}, 1, 8);
 sg.ColumnWidth = {95, '1x', 75, '1x'};
 sg.RowSpacing = 4;
 C.SelectionGrid = sg;
@@ -193,6 +194,17 @@ C.Order.Layout.Row = 7; C.Order.Layout.Column = 2;
 lab(sg, "Max groups:", 7, 3);
 C.MaxGroups = uispinner(sg, "Limits", [1 100], "Value", 12, "RoundFractionalValues", "on", "ValueChangedFcn", cbSel);
 C.MaxGroups.Layout.Row = 7; C.MaxGroups.Layout.Column = 4;
+
+% Artifacts
+lab(sg, "Artifacts:", 8, 1);
+C.ExcludeArtifacts = uicheckbox(sg, "Text", "Exclude epochs", "Value", true, "ValueChangedFcn", cbSel, ...
+    "Tooltip", "Leave out the epochs whose window (or baseline) touches an artifact period, the stretches the " + ...
+    "Signals step erased. Untick to keep them: their signal is the erased (filled) stretch.");
+C.ExcludeArtifacts.Layout.Row = 8; C.ExcludeArtifacts.Layout.Column = 2;
+lab(sg, "at least (s):", 8, 3);
+C.MinArtifact = uieditfield(sg, "numeric", "Value", 0, "Limits", [0 Inf], "ValueChangedFcn", cbSel, ...
+    "Tooltip", "Only artifact periods at least this long exclude an epoch (0 = every one).");
+C.MinArtifact.Layout.Row = 8; C.MinArtifact.Layout.Column = 4;
 syncAlignEnable(C);
 end
 

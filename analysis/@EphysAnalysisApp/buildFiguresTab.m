@@ -1200,13 +1200,16 @@ lag = subgrid(S.Body, r, {'fit', 'fit', '1x'});
 lag.ColumnSpacing = 12;
 E.labelDepth = uicheckbox(lag, "Text", "Depth", "ValueChangedFcn", changed, "Tooltip", "Append each unit's / channel's probe depth to its label.");
 E.labelShank = uicheckbox(lag, "Text", "Shank", "ValueChangedFcn", changed, "Tooltip", "Append each unit's / channel's shank to its label.");
-[S, r] = formRow(S, ["showSEM" "showStop" "legend" "grid"], "Show:");
-shg = subgrid(S.Body, r, repmat({'fit'}, 1, 4));
+[S, r] = formRow(S, ["showSEM" "showStop" "showArtifactNote" "legend" "grid"], "Show:");
+shg = subgrid(S.Body, r, repmat({'fit'}, 1, 5));
 shg.ColumnSpacing = 12;
 E.showSEM = uicheckbox(shg, "Text", "Error", "Value", true, "ValueChangedFcn", changed, ...
     "Tooltip", "Draw the error of the means: bands behind PSTH traces.");
 E.showStop = uicheckbox(shg, "Text", "Stop marks", "Value", true, "ValueChangedFcn", changed, ...
     "Tooltip", "Mark each epoch's stop event (the Epoch window's).");
+E.showArtifactNote = uicheckbox(shg, "Text", "Artifact note", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "Under the title, say how many of the drawn epochs touch an artifact period (kept when the " + ...
+    "trial selection's Artifacts: Exclude epochs is off).");
 E.legend = uicheckbox(shg, "Text", "Legend", "Value", true, "ValueChangedFcn", changed);
 E.grid = uicheckbox(shg, "Text", "Grid", "Value", true, "ValueChangedFcn", changed);
 [S, r] = formRow(S, ["legendLoc" "legendOrient" "legendBox"], "Legend:");

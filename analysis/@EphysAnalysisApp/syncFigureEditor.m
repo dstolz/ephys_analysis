@@ -358,6 +358,7 @@ if hasPanel
     if unlinked; syncAlignEnable(C2); end
     ownSel = paligned && ~E.panelSameSel.Value;   % linked ("Trial selection as the figure"): the figure's, locked
     set(findobj(C2.SelectionGrid, '-property', 'Enable'), 'Enable', onoff(ownSel));
+    if ownSel; en(C2.MinArtifact, C2.ExcludeArtifacts.Value); end
     en(E.panelSame, paligned);
     en(E.panelSameSel, paligned);
     en(E.alignApplyAll, unlinked || ownSel);

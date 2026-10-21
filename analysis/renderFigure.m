@@ -36,7 +36,11 @@ function h = renderFigure(F, spec, target, opts)
 %            aligned panel no event; a figure merged across sessions,
 %            figureSessionCompute, "(<N> sessions, <n> epochs)"); the
 %            dataset as its subtitle ("3 sessions (SYNTH-01)" across
-%            sessions). A merged F draws as one dataset's: its groups are
+%            sessions). With Style.ShowArtifactNote, a line under the
+%            subtitle when drawn epochs touch an artifact period (a
+%            selection with excludeArtifacts off keeps them): "3 of 40
+%            epochs touch an artifact period", by panel when the panels'
+%            epochs differ. A merged F draws as one dataset's: its groups are
 %            the series (sessions, subjects or all; "<series> · <group>"
 %            with trialGroups "combine", told apart by line style), the
 %            draw functions add each member session's pale line
@@ -70,7 +74,7 @@ function h = renderFigure(F, spec, target, opts)
 %            it (placeLegend, "inside"); its title then says its grouping
 %            ("by <parameter>", "all trials") when it is not the figure's.
 %   Style    SPEC.style: FontSize, LineWidth, ShowSEM, the Error* band
-%            look, ShowZeroLine, ShowStop, Grid, Legend*, Colormap,
+%            look, ShowZeroLine, ShowStop, ShowArtifactNote, Grid, Legend*, Colormap,
 %            HeatColormap, SortShank / SortDepth, LabelShank / LabelDepth,
 %            SiteSize. Its XLim, YLim and CLim are not used: the time
 %            panels show the window, and each panel has its own
@@ -274,16 +278,22 @@ elseif grpTxt ~= ""
     txt = txt + " · " + grpTxt;
 end
 sub = string(F.dataset);
+note = "";   % the drawn epochs that touch an artifact period: a line under the subtitle
+if style.ShowArtifactNote; note = artifactNote(F, panels, drawn); end
 th = [];
 if ~isempty(canvas)   % a hidden axes whose title and subtitle are the figure's (PlotAesthetics: plotTitle, plotSubtitle)
     th = axes(canvas, 'Units', 'pixels', 'Position', [1 1 1 1], 'Visible', 'off', 'HitTest', 'off', 'Tag', 'titleHost');
     title(th, txt, 'FontSize', style.FontSize + 1, 'FontWeight', 'bold', 'Interpreter', 'none', 'Visible', 'on');
-    if sub ~= ""; subtitle(th, sub, 'FontSize', style.FontSize, 'Interpreter', 'none', 'Visible', 'on'); end
+    lines = [sub; note];
+    lines = lines(lines ~= "");
+    if ~isempty(lines); subtitle(th, lines, 'FontSize', style.FontSize, 'Interpreter', 'none', 'Visible', 'on'); end
 elseif ~isempty(ax0)
     was = string(ax0.Title.String);
     title(ax0, txt, 'FontSize', style.FontSize + 1, 'FontWeight', 'bold', 'Interpreter', 'none');
     parts = [reshape(was(was ~= ""), 1, []) sub(sub ~= "")];
-    if ~isempty(parts); subtitle(ax0, strjoin(parts, " | "), 'FontSize', style.FontSize, 'Interpreter', 'none'); end
+    lines = note(note ~= "");
+    if ~isempty(parts); lines = [strjoin(parts, " | "); lines]; end
+    if ~isempty(lines); subtitle(ax0, lines, 'FontSize', style.FontSize, 'Interpreter', 'none'); end
 end
 
 % one legend: the groups once, then the layers', units', channels' and marks' entries
@@ -635,6 +645,41 @@ end
 function s = plural(n)
 s = "";
 if n ~= 1; s = "s"; end
+end
+
+
+function t = artifactNote(F, panels, drawn)
+%artifactNote  "<a> of <n> epochs touch an artifact period": the drawn panels' epochs kept with one; "" when none is.
+%   Each drawn panel on epochs counts its own (F.panels(k).epochs), else
+%   the figure's, by their artifact column (epochTable's: only a selection
+%   with excludeArtifacts off keeps such epochs). Panels with one count
+%   share one sentence; when the counts differ, each names its panels:
+%   "Epochs that touch an artifact period: 3 of 40 (raster_1, psth_1);
+%   5 of 38 (psth_2)".
+t = "";
+counts = zeros(0, 2);
+names = strings(0, 1);
+for k = find(drawn)
+    P = F.panels(k);
+    if P.skip ~= "" || ~istable(P.groups) || ~any([P.layers.skip] == ""); continue; end   % not on epochs, or nothing drawn
+    E = P.epochs;
+    if ~istable(E); E = F.epochs; end
+    if ~istable(E) || ~ismember("artifact", string(E.Properties.VariableNames)); continue; end
+    counts(end+1, :) = [nnz(E.artifact) height(E)]; %#ok<AGROW>
+    names(end+1, 1) = panels(k).title; %#ok<AGROW>
+    if names(end) == ""; names(end) = panels(k).id; end
+end
+if ~any(counts(:, 1) > 0); return; end
+[u, ~, j] = unique(counts, 'rows', 'stable');
+if size(u, 1) == 1
+    t = sprintf("%d of %d epochs touch an artifact period", u(1), u(2));
+    return
+end
+parts = strings(1, 0);
+for i = reshape(find(u(:, 1) > 0), 1, [])
+    parts(end+1) = sprintf("%d of %d (%s)", u(i, 1), u(i, 2), strjoin(reshape(names(j == i), 1, []), ", ")); %#ok<AGROW>
+end
+t = "Epochs that touch an artifact period: " + strjoin(parts, "; ");
 end
 
 

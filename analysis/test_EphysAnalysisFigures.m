@@ -53,7 +53,9 @@ function test_EphysAnalysisFigures()
 %   every panel type drawn by renderFigure into an axes, a uiaxes, a
 %   figure, a uipanel and a grid layout, every component tagged with a
 %   known role and the tiles named by panel; the title (automatic, and the
-%   figure's own with the observation on the top-left panel); one time axis
+%   figure's own with the observation on the top-left panel); the artifact
+%   note under it (epochs kept with an artifact period, by panel when the
+%   counts differ, Style.ShowArtifactNote off); one time axis
 %   down a stack (the window on every time panel, tick labels and "Time
 %   (s)" at the bottom only, a panel's own window kept); one legend, each
 %   group once; skipped layers' notes; events marks on a raster and as
@@ -2290,6 +2292,28 @@ hT = renderFigure(F1, sT, fig);
 check(hT.title == "My figure" && figTitle(hT) == "My figure" ...
     && string(hT.axes(1).Title.String) == F1.observation.label && string(hT.axes(2).Title.String) == "", ...
     'a title of the figure''s own: the top-left panel names the observation');
+% epochs kept with an artifact period (excludeArtifacts off): a line under the subtitle, by panel when their counts differ
+cfgA = cfg;
+cfgA.Defaults.Selection.excludeArtifacts = false;
+sA = cfgA.figureFor("rp");
+srcA = src;
+srcA.artifacts = [F1.epochs.t0Continuous(1:2) F1.epochs.t0Continuous(1:2) + 0.005];
+FA = rn.computeFigure(srcA, sA, Observation=Tu(1, :));
+nA = nnz(FA.epochs.artifact);
+wantA = sprintf("%d of %d epochs touch an artifact period", nA, height(FA.epochs));
+[~, sAn] = figTitle(renderFigure(FA, sA, fig));
+sOff = sA;
+sOff.style.ShowArtifactNote = false;
+[~, sOffT] = figTitle(renderFigure(FA, sOff, fig));
+FB = FA;   % the PSTH on epochs of its own, none with an artifact
+FB.panels(2).epochs = FA.epochs;
+FB.panels(2).epochs.artifact(:) = false;
+[~, sB] = figTitle(renderFigure(FB, sA, fig));
+wantB = sprintf("Epochs that touch an artifact period: %d of %d (raster_1)", nA, height(FA.epochs));
+check(nA >= 2 && height(FA.epochs) == height(F1.epochs) && sAn == src.name + " " + wantA && sOffT == src.name ...
+    && sB == src.name + " " + wantB && s1 == src.name, ...
+    sprintf('excludeArtifacts off: "%s" under the dataset; "%s" when a panel''s count differs; none with ShowArtifactNote off or clear epochs', ...
+    wantA, wantB));
 
 % the layout: flush, exact gaps in px and %, rows in proportion, a panel's own size, the legend's band, a resize
 sL = F1.spec;

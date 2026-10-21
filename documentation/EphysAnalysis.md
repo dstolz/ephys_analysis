@@ -144,7 +144,7 @@ analysis needs. **No signal and no spike time is loaded**: `selectUnits` and
 | `fs`, `durationSec` | recording rate and length: the manifest's `metadata.fs` / `duration_s`, else the extract (`info.origFs`, `info.<SIG>.nSamples / Fs`), else the pairing. Rates divide by `durationSec`, never by the time of the last spike. `fs` is also the rate the digital-event rows count at (`t = row/fs`), which `epochTable` uses |
 | `events` | line → `[k x 2]` `[t_on t_off]` s, **polarity applied**, from the extract (the smallest extract file's `events`), plus every derived event of the behavior file |
 | `derivedEvents` | the behavior file's [derived events](EphysPipeline.md#derived-events) (`name`, `line`, `conditions`, `combine`, `expression`, `description`, `intervals`, ...; empty without) |
-| `artifacts` | `[k x 2]` `[tStart tEnd)` s on the continuous clock (row r at `(r − 1)/fs`): the artifact periods the Signals step erased (that file's `info.artifacts.intervals`; `zeros(0,2)` when none). `epochTable` drops the epochs that touch one, for spike figures too. Only these periods count: with `Signals.BlankArtifacts` off (or `Artifacts.ApplyToSignals` off while sorting or detection used the automatic periods) the periods erased before sorting or detection are not here |
+| `artifacts` | `[k x 2]` `[tStart tEnd)` s on the continuous clock (row r at `(r − 1)/fs`): the artifact periods the Signals step erased (that file's `info.artifacts.intervals`; `zeros(0,2)` when none). `epochTable` drops the epochs that touch one, for spike figures too, unless the selection's `excludeArtifacts` is off (only periods of at least its `minArtifactSec` count). Only these periods count: with `Signals.BlankArtifacts` off (or `Artifacts.ApplyToSignals` off while sorting or detection used the automatic periods) the periods erased before sorting or detection are not here |
 | `invertedLines`, `lines` | lines inverted; table `Line, Count, MeanDurationSec, First, Last, Inverted, Derived` (a derived event's description, `""` for a recorded line) |
 | `labels` | amplifier channel labels (`info.labels`) |
 | `signals`, `signalFs` | `LFP / MUA / SPIKE / AUX` → extract present, and its rate |
@@ -255,6 +255,8 @@ epoch's event the animal left the platform; a raster can be sorted by it
 | `groupBy` | none | 0-2 parameters; one group per value (pair of values) |
 | `groupOrder` | `"ascending"` | `"ascending"`, `"descending"` or `"appearance"` |
 | `maxGroups` | 12 | more groups is `selectTrials:TooManyGroups` |
+| `excludeArtifacts` | `true` | leave out the epochs that touch an artifact period (`src.artifacts`); `false` keeps them, flagged in `epochTable`'s `artifact` column |
+| `minArtifactSec` | 0 | only artifact periods at least this long count (for `excludeArtifacts` and the `artifact` column alike) |
 
 Response words are the bits of `RespCode` ([`respCodeBits`](../pipeline/respCodeBits.m)):
 Hit 1, Miss 2, CR 4, FA 8, Abort 16, Reward 32, Punish 64, NoResponse 128, Response 256.
@@ -302,9 +304,11 @@ computed from the row so that it equals the time of a spike in that sample.
 recording and, in `"between"` mode, has its stop event; incomplete epochs are
 dropped unless `Incomplete="keep"`. `artifact` means the window, shifted to
 the continuous clock (by `t0Continuous - t0`), touches one of `src.artifacts`
-(half-open periods: `EphysDataset.overlapsIntervals`); those epochs are
-dropped, for signal and spike figures alike, unless `Artifacts="keep"`,
-which keeps them flagged (so with the default the column is always false).
+at least the selection's `minArtifactSec` long (half-open periods:
+`EphysDataset.overlapsIntervals`); those epochs are dropped, for signal and
+spike figures alike, when the selection's `excludeArtifacts` is on (the
+default), unless `Artifacts="keep"`, which keeps them flagged whatever the
+selection says (so with the defaults the column is always false).
 `Baseline=[b0 b1]` (s from `t0`) widens that test to a baseline window that
 reaches outside `[tStart, tStop]`; the runner passes each panel's baseline.
 `G.n` is the number of epochs per group,

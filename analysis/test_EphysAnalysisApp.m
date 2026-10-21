@@ -233,10 +233,35 @@ app.AlignControls.Group1.Value = 'Depth';
 app.onConfigChanged("defaults");
 [trials, ~] = readEpsychSession(F.truth(1).behaviorFile);
 nG = numel(unique(trials.Depth));
+counts = findall(app.AlignAxes, 'Tag', 'epochCount');
 check(app.Config.Defaults.Selection.groupBy == "Depth" && startsWith(app.AlignSummaryLabel.Text, "12 epochs from 12 of 12 trials") ...
-    && count(app.AlignSummaryLabel.Text, "Depth = ") == nG, sprintf('the epoch count reports %d Depth groups', nG));
+    && ~contains(app.AlignSummaryLabel.Text, "Depth = ") && numel(counts) == nG && sum(str2double(strtrim(string({counts.String})))) == 12, ...
+    sprintf('the epoch count reports %d Depth groups, each bar''s count on top of it', nG));
+app.AlignBarsExcluded.Value = true;
+app.refreshAlignPreview();
+counts = findall(app.AlignAxes, 'Tag', 'epochCount');
+check(numel(findobj(app.AlignAxes, 'Type', 'bar')) == 3 && numel(counts) == nG && ~isempty(app.AlignAxes.Legend), ...
+    'Show the epochs Pairing and Artifacts exclude: kept, Pairing and artifact epochs stacked, with a legend');
+app.AlignBarsExcluded.Value = false;
+C = app.AlignControls;
+C.ExcludeArtifacts.Value = false;
+C.ExcludeArtifacts.ValueChangedFcn(C.ExcludeArtifacts, []);
+check(~app.Config.Defaults.Selection.excludeArtifacts && C.MinArtifact.Enable == "off", ...
+    'unticking Artifacts: Exclude epochs keeps the artifact epochs in the Defaults, and its minimum length is off');
+C.ExcludeArtifacts.Value = true;
+C.MinArtifact.Value = 0.5;
+C.MinArtifact.ValueChangedFcn(C.MinArtifact, []);
+check(app.Config.Defaults.Selection.excludeArtifacts && app.Config.Defaults.Selection.minArtifactSec == 0.5 ...
+    && C.MinArtifact.Enable == "on", 'the artifacts'' minimum length goes to the Defaults');
+C.MinArtifact.Value = 0;
+C.MinArtifact.ValueChangedFcn(C.MinArtifact, []);
 check(height(app.AlignTrialsTable.Data) == 12 && ismember("Group", string(app.AlignTrialsTable.Data.Properties.VariableNames)), ...
     'the kept trials are listed with their group');
+da = app.AlignEpochDiagram;
+check(isa(da, 'EpochDiagram') && da.isOpen() && isempty(da.Fig) && numel(findall(app.TabAlign, 'Type', 'axes')) == 3 ...
+    && ~shown(app.AlignControls.Diagram) && startsWith(da.Heading, "Defaults on ") && nnz(da.Epochs.kept) == 12 ...
+    && height(da.Groups) == nG && endsWith(da.Rule(end), "grouped by Depth."), ...
+    'the Alignment tab draws the defaults'' epoch diagram beside the count (no window, no button): 12 epochs in the Depth groups');
 check(startsWith(app.Fig.Name, "*"), 'the edit marks the config unsaved');
 
 fprintf('\n== 3. the Figures tab: the toolbar''s Preview, the Design row, the epoch diagram, an event sequence ==\n');
@@ -330,12 +355,10 @@ app.refreshFigurePreview(Force=true);
 check(~any(ismember(PlotDesign.list().Name, ["Lab look" "Heat look"])) && string(dd.Value) == "Default" ...
     && isequal(app.FigurePreviewPanel.BackgroundColor, [1 1 1]), 'deleting the chosen design goes back to Default');
 if isfolder(PlotDesign.folder()); rmdir(PlotDesign.folder(), 's'); end
-% the epoch diagram of the figure in the editor (its own default mode) and of the defaults
+% the epoch diagram window of the figure in the editor; the Alignment tab's follows the defaults
 FE = app.FigureEditor;
 FA = app.FigureAlignControls;
-check(app.EpochDiagramFor == "figure" && shown(FE.epochs) && FE.epochs.Text == "Epoch Diagram" && isvalid(app.AlignEpochsButton) ...
-    && ancestor(app.AlignEpochsButton, 'uitab') == app.TabAlign, ...
-    'the figure editor and the Alignment tab each offer "Epoch Diagram" under the Epoch window; it draws the figure by default');
+check(shown(FE.epochs) && FE.epochs.Text == "Epoch Diagram", 'the figure editor offers "Epoch Diagram" under the Epoch window');
 app.onShowEpochs();
 d = app.EpochDiagramWindow;
 src = app.Runner.source(app.ActiveIdx);
@@ -351,12 +374,17 @@ app.onFigureDefaultToggled();
 W = app.Config.Defaults.Window;
 check(~isstruct(app.Config.Figures(1).window) && all(abs(d.Epochs.tStart - d.Epochs.t0 - W.pre) < 1e-9), ...
     'ticking Use default again: the diagram follows the default window');
-app.onShowEpochs("defaults");
+preWas = app.AlignControls.Pre.Value;
+app.AlignControls.Pre.Value = -0.3;
+app.onConfigChanged("defaults");
+da = app.AlignEpochDiagram;
 Dd = app.Config.Defaults;
 Ed = epochTable(src, Dd.EventRef, Window=Dd.Window, Selection=Dd.Selection);
-check(app.EpochDiagramWindow == d && startsWith(d.Heading, "Defaults") && nnz(d.Epochs.kept) == height(Ed) ...
-    && height(d.Groups) == nG && endsWith(d.Rule(end), "grouped by Depth."), ...
-    'from the Alignment tab the same window shows the defaults: Stim onset, grouped by Depth');
+check(all(abs(da.Epochs.tStart - da.Epochs.t0 + 0.3) < 1e-9) && nnz(da.Epochs.kept) == height(Ed) ...
+    && all(abs(d.Epochs.tStart - d.Epochs.t0 + 0.3) < 1e-9) && startsWith(d.Heading, "PSTH units on "), ...
+    'editing the default pre redraws the Alignment tab''s diagram and the window of a figure on the defaults');
+app.AlignControls.Pre.Value = preWas;
+app.onConfigChanged("defaults");
 d.close();
 app.onConfigChanged("figure");
 check(~d.isOpen(), 'closing the diagram leaves it closed through later edits');

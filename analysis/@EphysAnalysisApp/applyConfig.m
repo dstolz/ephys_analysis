@@ -46,6 +46,7 @@ if obj.SelectedFigure < 1 && ~ismember(obj.FigurePreviewState, ["idle" "computin
 elseif opts.MarkSaved && obj.SelectedFigure >= 1
     obj.autoFigurePreview();
 end
+obj.refreshAlignPreview();
 obj.refreshEpochDiagram();
 obj.updateTitle();
 end

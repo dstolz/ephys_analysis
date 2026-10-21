@@ -1,6 +1,7 @@
 classdef EpochDiagram < handle
     %EpochDiagram  A window that draws how epochs are cut from a recording.
-    %   D = EpochDiagram() opens the window; D.update(SRC, REF, WIN, SEL)
+    %   D = EpochDiagram() opens the window (EpochDiagram(Parent=P) draws
+    %   the same in the container P); D.update(SRC, REF, WIN, SEL)
     %   draws how the event reference REF (eventRef), the epoch window WIN
     %   (epochWindow) and the trial selection SEL (trialSelection) cut the
     %   dataset SRC (loadAnalysisSource) into epochs. It goes through
@@ -36,6 +37,10 @@ classdef EpochDiagram < handle
     %       are drawn at a time. The axes zoom and pan (their toolbar)
     %
     %   D = EpochDiagram(Name=Value)
+    %     Parent       a container (a panel, a grid cell): the diagram is
+    %                  drawn in it, not in a window of its own; it goes when
+    %                  the container goes, and Position, Visible,
+    %                  WindowStyle and Owner are ignored
     %     Position     the window's [left bottom width height]
     %     Visible      true (default) | false
     %     WindowStyle  "alwaysontop" (default: it stays above the app, whose
@@ -57,7 +62,7 @@ classdef EpochDiagram < handle
     %   D.clear(MSG) empties it with a message; D.page(STEP) shows the next
     %   (STEP 1) or previous (-1) events; D.showFrom(K) starts at event K;
     %   D.setCount(N) draws N events at a time; D.close() closes it (so does
-    %   its close box); D.isOpen().
+    %   its close box, or empties its container); D.isOpen().
     %
     %   What it drew:
     %     Epochs   every event and its epoch: epochTable's columns with
@@ -85,7 +90,7 @@ classdef EpochDiagram < handle
     %   EphysAnalysisApp.
 
     properties (SetAccess = private)
-        Fig                                     % the window (uifigure)
+        Fig                                     % the window (uifigure); [] when drawn in a Parent
         Heading (1,1) string = ""               % what it shows (update's Title)
         Epochs table = table()                  % every event and its epoch (above)
         Groups table = table()                  % epochTable's groups
@@ -101,7 +106,8 @@ classdef EpochDiagram < handle
 
     properties (Access = private)
         Ui struct = struct()
-        Src = []                                % the dataset (loadAnalysisSource)
+        Root = []                               % its grid: in the window, or in the Parent
+        Src = []                              % the dataset (loadAnalysisSource)
         Ref = []                                % eventRef
         Win = []                                % epochWindow
         Sel = []                                % trialSelection
@@ -128,14 +134,20 @@ classdef EpochDiagram < handle
     methods
         function obj = EpochDiagram(opts)
             arguments
+                opts.Parent = []
                 opts.Position (1,4) double = [200 100 780 720]
                 opts.Visible (1,1) logical = true
                 opts.WindowStyle (1,1) string {mustBeMember(opts.WindowStyle, ["alwaysontop" "normal"])} = "alwaysontop"
                 opts.Owner = []
             end
+            if ~isempty(opts.Parent)
+                build(obj, opts.Parent);
+                obj.clear(obj.NoData);
+                return
+            end
             obj.Fig = uifigure("Name", "How the epochs are cut", "Position", opts.Position, ...
                 "Visible", opts.Visible, "WindowStyle", opts.WindowStyle, "CloseRequestFcn", @(~,~) obj.close());
-            build(obj);
+            build(obj, obj.Fig);
             if ~isempty(opts.Owner) && isvalid(opts.Owner)
                 obj.OwnerListener = listener(opts.Owner, 'ObjectBeingDestroyed', @(~,~) obj.close());
             end
@@ -147,17 +159,19 @@ classdef EpochDiagram < handle
         end
 
         function tf = isOpen(obj)
-            %isOpen  The window is still there.
-            tf = ~isempty(obj.Fig) && isvalid(obj.Fig);
+            %isOpen  The window (or the diagram in its Parent) is still there.
+            tf = ~isempty(obj.Root) && isvalid(obj.Root);
         end
 
         function close(obj)
-            %close  Close the window.
+            %close  Close the window (in a Parent: take the diagram out of it).
             if ~isempty(obj.OwnerListener) && isvalid(obj.OwnerListener)
                 delete(obj.OwnerListener);
             end
-            if obj.isOpen()
+            if ~isempty(obj.Fig) && isvalid(obj.Fig)
                 delete(obj.Fig);
+            elseif obj.isOpen()
+                delete(obj.Root);
             end
         end
 
@@ -340,12 +354,13 @@ classdef EpochDiagram < handle
     end
 
     methods (Access = private)
-        function build(obj)
-            %build  The labels, the two axes and the row of page controls.
-            g = uigridlayout(obj.Fig, [6 1]);
+        function build(obj, parent)
+            %build  The labels, the two axes and the row of page controls, in PARENT.
+            g = uigridlayout(parent, [6 1]);
             g.RowHeight = {22, 'fit', 'fit', '3x', 30, '2x'};
             g.Padding = [12 10 12 10];
             g.RowSpacing = 6;
+            obj.Root = g;
             U = struct();
             U.Title = uilabel(g, "Text", "", "FontWeight", "bold", "FontSize", 14);
             U.Rule = uilabel(g, "Text", "", "WordWrap", "on", "FontSize", 13);
@@ -843,7 +858,8 @@ classdef EpochDiagram < handle
             xlabel(ax, "Time in the recording (s)");
             title(ax, "The recording: where each epoch comes from", 'FontWeight', 'normal', 'Interpreter', 'none');
             if ~isempty(legH)
-                legend(ax, legH, legS, 'Location', 'southoutside', 'NumColumns', min(3, numel(legH)), ...
+                nc = min([3, numel(legH), max(1, floor(ax.InnerPosition(3) / 230))]);   % fewer columns in a narrow container
+                legend(ax, legH, legS, 'Location', 'southoutside', 'NumColumns', nc, ...
                     'Box', 'off', 'Interpreter', 'none', 'FontSize', 9, 'AutoUpdate', 'off');
             end
         end

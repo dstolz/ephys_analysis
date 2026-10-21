@@ -44,7 +44,7 @@ EphysAnalysisApp("D:\EPHYS_synthetic")     % a project root processed by the pip
    datasets table to make it the **active dataset**.
 2. **Alignment**: align to `Stim` onset (first per trial) and set **Group
    by** to `Depth`. The summary on the right counts the epochs in each
-   group.
+   group, and the epoch diagram beside it draws how they are cut.
 3. **Figures**: press **Add** under the figure tree: a blank figure, and the
    **New panel** window to pick its first panel (a *Raster*, say, following
    the observed unit). **New panel...** in the Panels section puts another
@@ -234,10 +234,15 @@ dropped for lacking the **Shift by** parameter's value or because their
 **Sequence** did not follow, and the epochs
 dropped for having no stop event, leaving the recording or touching an
 artifact period (*"; N touch an artifact period"*), or why there are none;
-a bar of epochs per group in the group colors the figures use; and the kept
-trials with their group and number of epochs. **Epoch Diagram**, under
-the Epoch window, opens the [epoch diagram](#epoch-diagram) for these
-defaults.
+a bar of epochs per group in the group colors the figures use, its count on
+top of it; and the kept trials with their group and number of epochs.
+**Show the epochs Pairing and Artifacts exclude** (off by default) counts
+the epochs of every pairing flag, with or without an artifact, and stacks
+on each group's kept epochs those the **Pairing** ticks leave out (gray) and
+those an artifact period excludes (red), with a legend; the count on top is
+then the whole bar. Right of them, the
+[epoch diagram](#epoch-diagram) draws how these defaults cut the active
+dataset into epochs, and follows every edit.
 
 A filter, response, group-by or trial scope needs paired trials: approve
 the pairing on the pipeline app's [Trials tab](EphysPipelineApp.md#trials)
@@ -981,17 +986,20 @@ sends the preview out of date. The format:
 
 ### Epoch diagram
 
-**Epoch Diagram** (under the Epoch window, in the figure editor and on the
-Alignment tab) opens a window that draws how the event reference, epoch
-window and trial selection cut the active dataset into epochs. It gets
-the epochs from `epochTable`, as `figureCompute` does, so they are exactly the
-figure's epochs. The window is not modal: it stays above the app while you
-edit, and redraws on every edit, on a change of figure or of the active
-dataset, and when a config is opened. It opens for the selected figure by
-default (the *figure* mode, `onShowEpochs("figure")`): the figure's own values or
-the defaults, the baseline windows of its panels, and what it drops; a figure with
-no panel aligned to events says it has no epochs. From the Alignment tab it shows
-the defaults (the *defaults* mode). It closes with the app.
+The epoch diagram draws how an event reference, epoch window and trial
+selection cut the active dataset into epochs. It gets the epochs from
+`epochTable`, as `figureCompute` does, so they are exactly the figure's
+epochs. It redraws on every edit, on a change of the active dataset, and
+when a config is opened. It shows in two places:
+
+- the [Alignment tab](#alignment-tab) draws it right of the epoch count,
+  for the defaults;
+- **Epoch Diagram**, under the Epoch window in the figure editor, opens it
+  in a window for the selected figure (`onShowEpochs`): the figure's own
+  values or the defaults, the baseline windows of its panels, and what it
+  drops; a figure with no panel aligned to events says it has no epochs.
+  The window is not modal: it stays above the app while you edit, follows
+  a change of figure, and closes with the app.
 Top to bottom:
 
 | Part | What it shows |
@@ -999,7 +1007,7 @@ Top to bottom:
 | heading | the figure and the dataset, and whether the event, window and selection are the figure's own or the defaults |
 | the rule | in words, e.g. *Time 0 is the first Stim onset in each trial. Each epoch runs from 0.2 s before it to 0.8 s after it. Trials kept: pairing ok; grouped by Depth.* |
 | the count | how many epochs there are, from how many trials. It also gives how many trials the selection leaves out, and how many events are dropped and why: no stop event, outside the recording, or touching an artifact period; and how many were left out before, for lacking the **Shift by** value or because their sequence did not follow. When there are no epochs, the count is red and says why |
-| **The recording** | a stretch of the recording, one row per digital line involved, each drawn as its TTL trace: **Trials** (each trial in its group's color, or blue without groups; the ones the selection leaves out gray), the event's line (**▲ event**) and the stop event's line (**▼ stop**). With an event **Sequence**, every line of it gets a row (*· sequence*), ▲ sits on the step time 0 is aligned to, and ○ marks where the sequence starts, joined to the ▲ by a dotted line. ▲ marks the edge each event is picked at. A line in the event's group color runs through every row at time 0. An event moved by **Offset** or **Shift by** has an arrow from its edge to time 0. The stop event is ▼ with a dotted line. Each epoch's window is shaded across the rows and drawn as a bar on the **Epochs** row, numbered `#1`, `#2`, ... as the figure numbers them. An epoch the figure drops is gray and dashed, with ✕ and the reason. Under each bar is the baseline; on the event's line, the **Time range** searched (yellow); behind everything, the artifact periods (red) and the stretches outside the recording (gray). A legend under the axes names each mark |
+| **The recording** | a stretch of the recording, one row per digital line involved, each drawn as its TTL trace: **Trials** (each trial in its group's color, or blue without groups; the ones the selection leaves out gray), the event's line (**▲ event**) and the stop event's line (**▼ stop**). With an event **Sequence**, every line of it gets a row (*· sequence*), ▲ sits on the step time 0 is aligned to, and ○ marks where the sequence starts, joined to the ▲ by a dotted line. ▲ marks the edge each event is picked at. A line in the event's group color runs through every row at time 0. An event moved by **Offset** or **Shift by** has an arrow from its edge to time 0. The stop event is ▼ with a dotted line. Each epoch's window is shaded across the rows and drawn as a bar on the **Epochs** row, numbered `#1`, `#2`, ... as the figure numbers them. An epoch the figure drops is gray and dashed, with ✕ and the reason. Under each bar is the baseline; on the event's line, the **Time range** searched (yellow); behind everything, the artifact periods (red; paler when shorter than the selection's **at least (s)**, so they exclude nothing) and the stretches outside the recording (gray). A legend under the axes names each mark |
 | **Aligned to the event** | the same epochs, one row each, on the time from their event: the window, the event's line as the epoch sees it, the stop event (▼) and the baseline, with dashed lines at *pre* and *post*. This is what the figure stacks and averages |
 | **◀ Previous**, **Next ▶**, **Show** | step through the events, and set how many to draw at a time (5 by default). The axes' toolbars zoom and pan |
 
@@ -1317,8 +1325,8 @@ results, on the Log tab and in the report.
 | data | `openSource`, `onScan`, `refreshDatasetsTable`, `selectDataset`, `refreshDatasetInfo` |
 | favorites | `refreshFavorites`, `onStarToggled`, `onFavoritePicked`, `onFavoritesFilter`, `onDatasetsTableEdited` (the ★ column); `private/loadFavorites` (on Scan), `private/starItem`, `private/starButton`, `private/syncStarButtons`, `private/observedItem`, `private/buildFavorites`, `private/fillFavorites`, `private/favoriteMarks`, `private/markObservations`; the files: `analysis/DatasetFavorites.m` |
 | previews | `refreshAlignPreview` (the Alignment tab); the Figures tab's under its row below; `private/showPreviewState` (the badge and the busy card; its icons in `analysis/icons/status`) |
-| epoch diagram | `onShowEpochs`, `refreshEpochDiagram`; the window itself is `analysis/EpochDiagram.m` |
-| Figures tab | `buildFiguresTab`; the tree `refreshFigureList` (over `private/figureGroups`), `onFigureSelected`, `onFigureTreeSelected`, `onFigureTreeClicked` (the check boxes), `onFigureGroupToggled`, `onFigureCheck` (All / None / Invert), `setFiguresEnabled`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure` (Up / Down within a group); the Id row's automatic id `private/showFigureId`, and the renames followed by `private/trackFigureIds` and `private/followedFigureId`; a panel's text note and overlays `onAddFigureOverlay`, `onDuplicateFigureOverlay`, `onRemoveFigureOverlay`, `onFigureOverlayPicked` (the rows are `applyFigureEditor`'s and `gatherFigureEditor`'s); dragging a panel in the schematic `onSchematicPress` (with the pointer callbacks it installs), `cancelSchematicDrag` (also `onKeyPress`'s Escape) and `schematicPixel` (the tests');  the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `gotoFigureSection`, `onFigureSuperToggled`, `gotoFigureSuper` and `onKeyPress` (Alt+1 ... Alt+3, Ctrl+1 ... Ctrl+0, F6: `focusFigurePane`), the search `onFigureSearch` and `gotoFigureRow` (over `private/figureSearchIndex`, `private/figureSearchPath`, `private/figureRowReason`), the keys window `onFigureKeys`, the panel keys `stepFigurePanel` and the preview's outline `markFigurePanel`, `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`, `onPanelSelectionToggled` (the Trial selection as the figure box; local to `buildFiguresTab`); the arrangement `drawFigureSchematic`, `onPanelSelected`, `onNewPanel` (the New panel window `private/newPanelDialog`, its pictures `analysis/icons/panels`, made by `tools/makePanelThumbnails`), `onRemovePanel`, `onMovePanel`, `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `removePanel` and `movePanel`; a structural edit ends in `private/commitFigureEdit`), the Spacing window `private/figureSpacingDialog`; the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`); the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoPreviewToggled`, `onCancelFigurePreview`, `onOpenFigureWindow`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); the Sessions section `onPickFigureDatasets`, `onBrowseFigureMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`), `private/pickSessionDatasets` and `onFigureSessionPicked` (its preview is `refreshFigurePreview`'s session branch over `EphysAnalysisRunner.computeSessionFigure`, its picker `refreshFigureObservations`'s over `sessionFigureObservations`); the Design row `onDesignChosen` and `onSaveDesign` (below); the epoch diagram's figure mode is `onShowEpochs("figure")` (the default; `"defaults"` is the Alignment tab's); the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
+| epoch diagram | the window `onShowEpochs`, `refreshEpochDiagram`; the Alignment tab's `refreshAlignPreview`; the diagram itself is `analysis/EpochDiagram.m` (in a window, or `Parent=` a container) |
+| Figures tab | `buildFiguresTab`; the tree `refreshFigureList` (over `private/figureGroups`), `onFigureSelected`, `onFigureTreeSelected`, `onFigureTreeClicked` (the check boxes), `onFigureGroupToggled`, `onFigureCheck` (All / None / Invert), `setFiguresEnabled`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure` (Up / Down within a group); the Id row's automatic id `private/showFigureId`, and the renames followed by `private/trackFigureIds` and `private/followedFigureId`; a panel's text note and overlays `onAddFigureOverlay`, `onDuplicateFigureOverlay`, `onRemoveFigureOverlay`, `onFigureOverlayPicked` (the rows are `applyFigureEditor`'s and `gatherFigureEditor`'s); dragging a panel in the schematic `onSchematicPress` (with the pointer callbacks it installs), `cancelSchematicDrag` (also `onKeyPress`'s Escape) and `schematicPixel` (the tests');  the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `gotoFigureSection`, `onFigureSuperToggled`, `gotoFigureSuper` and `onKeyPress` (Alt+1 ... Alt+3, Ctrl+1 ... Ctrl+0, F6: `focusFigurePane`), the search `onFigureSearch` and `gotoFigureRow` (over `private/figureSearchIndex`, `private/figureSearchPath`, `private/figureRowReason`), the keys window `onFigureKeys`, the panel keys `stepFigurePanel` and the preview's outline `markFigurePanel`, `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`, `onPanelSelectionToggled` (the Trial selection as the figure box; local to `buildFiguresTab`); the arrangement `drawFigureSchematic`, `onPanelSelected`, `onNewPanel` (the New panel window `private/newPanelDialog`, its pictures `analysis/icons/panels`, made by `tools/makePanelThumbnails`), `onRemovePanel`, `onMovePanel`, `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `removePanel` and `movePanel`; a structural edit ends in `private/commitFigureEdit`), the Spacing window `private/figureSpacingDialog`; the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`); the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoPreviewToggled`, `onCancelFigurePreview`, `onOpenFigureWindow`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); the Sessions section `onPickFigureDatasets`, `onBrowseFigureMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`), `private/pickSessionDatasets` and `onFigureSessionPicked` (its preview is `refreshFigurePreview`'s session branch over `EphysAnalysisRunner.computeSessionFigure`, its picker `refreshFigureObservations`'s over `sessionFigureObservations`); the Design row `onDesignChosen` and `onSaveDesign` (below); the epoch diagram window is `onShowEpochs` (the Alignment tab's diagram is `refreshAlignPreview`'s); the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
 | copying figures | `onCopyFigureSettings` (the Figures tab's **Copy from...**: `private/pickFigureSettings`, then `analysis/copyFigureSettings` with `analysis/figureSettingParts`) |
 | plot designs | `refreshDesigns` (the Design menu and list; `PlotDesign.listen` keeps them current), `onDesignChosen`, `onSaveDesign`, `onImportDesign`, `onDeleteDesign`, `onDesignsFolder`; the designs themselves: `PlotDesign`, `analysis/designs` |
 | running | `onValidate`, `onPlan`, `onRunExport`, `onGenerateFigure` (the Figures tab's **Generate**: `onRunExport` for the selected figure alone, then the status bar's text), `onCancelRun` (also stops a Generate) |
@@ -1337,7 +1345,7 @@ tab, the run and results tools following the Export tab's buttons); the scan;
 opening on a list of datasets (`Datasets=`, as the pipeline app's Tools panel
 does); the active dataset's lines and parameters, and its sorted units counted
 in the Dataset drop-downs (the same items on the three tabs); the Help menu's GitHub issue
-and feature request (1c); grouping by Depth from the Alignment controls (2);
+and feature request (1c); grouping by Depth from the Alignment controls, with the tab's epoch diagram (2);
 and section 3, the Figures tab: the toolbar's Preview, pressed from another
 tab, showing the Figures tab and drawing the selected figure; **Export code**
 (at the right end of the Preview row: its script, run in a workspace of its
@@ -1346,8 +1354,8 @@ and draws the same panels in a window of its own); the Design row
 (the list and the menu, a design chosen redrawing the figure preview without
 touching the config, **Save look as design...** from the figure preview, a
 heat map figure's axes rules kept under the design's heat map kind, deleting a
-design); the epoch diagram (opened for the figure by default, redrawn on an
-edit of its pre, *Use default* again, the Alignment tab's defaults, closing);
+design); the epoch diagram window (opened for the figure, redrawn on an
+edit of its pre, *Use default* again, an edit of the defaults, closing);
 and an event sequence for the figure's own event from the Event sequence
 window (a bad step refused). Section 4 is the gather / apply round trip,
 keeping the fields without a control (the stop event's offset, length and time

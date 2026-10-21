@@ -19,12 +19,11 @@ classdef EphysAnalysisApp < handle
     %                between the event and a stop event) and the trial
     %                selection (filter, response words, pairing flags, up to
     %                two groupBy parameters), with a live count of epochs and
-    %                groups on the active dataset; "Epoch Diagram", under
-    %                the Epoch window, opens the epoch diagram for them
-    %                (EpochDiagram): a window that stays above the app and
-    %                draws, on the active dataset, the digital lines as TTL
-    %                traces, each event, window and epoch and what is
-    %                dropped, redrawn on every edit (onShowEpochs)
+    %                groups on the active dataset and, right of them, the
+    %                epoch diagram for them (EpochDiagram in the tab): the
+    %                digital lines as TTL traces, each event, window and
+    %                epoch and what is dropped, redrawn on every edit
+    %                (refreshAlignPreview)
     %     Figures    figures (buildFiguresTab): panels of different types
     %                (raster, PSTH, continuous signal, heat map, unit
     %                waveforms, behavior, probe map, unit correlation) on a
@@ -183,8 +182,9 @@ classdef EphysAnalysisApp < handle
         AlignFavorites struct = struct()         % the Favorites row: Grid, Filter, DropDown (buildFavorites)
         AlignControls struct = struct()          % buildAlignControls handles
         AlignSummaryLabel  matlab.ui.control.Label
-        AlignEpochsButton  matlab.ui.control.Button     % the epoch diagram of the Defaults (onShowEpochs)
+        AlignEpochDiagram = []                   % the epoch diagram of the Defaults, right of the count (EpochDiagram, refreshAlignPreview)
         AlignAxes          matlab.ui.control.UIAxes
+        AlignBarsExcluded  matlab.ui.control.CheckBox   % off: the bars leave out what Pairing and Artifacts exclude; on: stack it on
         AlignTrialsTable   matlab.ui.control.Table
         SequenceDialog     matlab.ui.Figure = matlab.ui.Figure.empty   % the Event sequence window (editSequence), when open
 
@@ -261,8 +261,7 @@ classdef EphysAnalysisApp < handle
         Favorites = []                      % the scanned datasets' stars: a DatasetFavorites each, in Runner order (read on Scan)
         FavoriteEntries = []                % the Favorites drop-downs' entries: table dataset, level, id, label (refreshFavorites)
         DatasetUnitCounts = []              % sorted units per dataset, counted when it is opened: containers.Map, "<key>|<sort folder>" -> n (refreshDatasetLabels)
-        EpochDiagramWindow = []             % the EpochDiagram window, while open (onShowEpochs)
-        EpochDiagramFor (1,1) string = "figure"   % what it draws: "figure" (the Figures tab's editor) | "defaults" (the Alignment tab's)
+        EpochDiagramWindow = []             % the EpochDiagram window of the Figures tab's figure, while open (onShowEpochs)
         Running (1,1) logical = false
         LastReportFiles (1,:) string = string.empty(1,0)
         LastExportFolder (1,1) string = ""
@@ -387,8 +386,8 @@ classdef EphysAnalysisApp < handle
         refreshAlignPreview(obj)
         onFilterHelp(obj)
 
-        % --- the epoch diagram (Alignment tab, figure editor) ---
-        onShowEpochs(obj, what)
+        % --- the epoch diagram window (figure editor; the Alignment tab's is refreshAlignPreview's) ---
+        onShowEpochs(obj)
         refreshEpochDiagram(obj)
 
         % --- plot designs (Design menu, the Figures tab's Design row) ---

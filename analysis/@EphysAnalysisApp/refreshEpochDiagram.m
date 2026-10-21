@@ -1,12 +1,12 @@
 function refreshEpochDiagram(obj)
-%refreshEpochDiagram  Redraw the epoch diagram (onShowEpochs) for what it shows, if it is open.
-%   "figure": the figure in the Figures tab's editor (Config.figureFor),
+%refreshEpochDiagram  Redraw the epoch diagram window (onShowEpochs), if it is open.
+%   It draws the figure in the Figures tab's editor (Config.figureFor),
 %   its own alignment or the defaults, cut as computeFigure cuts the
 %   figure's epochs: the incomplete ones and those that touch an artifact
 %   period dropped, the baseline windows of its panels on its alignment
 %   tested too (their hull); a figure of behavior panels only keeps every
-%   epoch. A figure without an aligned panel says so. "defaults": the
-%   Alignment tab's event, window and selection, as its epoch count.
+%   epoch. A figure without an aligned panel says so. (The Alignment tab's
+%   diagram of the defaults is refreshAlignPreview's.)
 d = obj.EpochDiagramWindow;
 if isempty(d) || ~isvalid(d) || ~d.isOpen(); return; end
 if isempty(obj.Runner) || obj.ActiveIdx < 1
@@ -17,11 +17,6 @@ try
     src = obj.Runner.source(obj.ActiveIdx);
 catch ME
     d.clear("Cannot read " + obj.Runner.Names(obj.ActiveIdx) + ": " + string(ME.message));
-    return
-end
-if obj.EpochDiagramFor == "defaults"
-    D = obj.Config.Defaults;
-    d.update(src, D.EventRef, D.Window, D.Selection, Title="Defaults (Alignment tab) on " + src.name);
     return
 end
 figureEpochs(obj, d, src);

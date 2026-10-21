@@ -1,23 +1,20 @@
-function onShowEpochs(obj, what)
-%onShowEpochs  Open the epoch diagram: how the figure's (or the Defaults') epochs are cut.
-%   onShowEpochs(OBJ, "figure") opens the EpochDiagram window for the
-%   figure in the Figures tab's editor (the "Epoch Diagram" button under
-%   its Epoch window): the figure's event reference, epoch window and trial
-%   selection (its own, or the Alignment tab's where it uses the defaults),
-%   its panels' baseline and what it drops. onShowEpochs(OBJ, "defaults")
-%   opens the window for the Alignment tab's Defaults (that tab's button).
-%   The window shows the active dataset.
+function onShowEpochs(obj)
+%onShowEpochs  Open the epoch diagram window: how the figure's epochs are cut.
+%   onShowEpochs(OBJ) opens the EpochDiagram window for the figure in the
+%   Figures tab's editor (the "Epoch Diagram" button under its Epoch
+%   window): the figure's event reference, epoch window and trial selection
+%   (its own, or the Alignment tab's where it uses the defaults), its
+%   panels' baseline and what it drops. The window shows the active
+%   dataset. (The Alignment tab draws the Defaults' diagram in the tab
+%   itself: refreshAlignPreview.)
 %
 %   The window is not modal: it stays above the app, whose controls keep
 %   working. It is redrawn on every edit, a change of figure or of the
 %   active dataset, and an opened config (refreshEpochDiagram), until it is
-%   closed. It closes with the app. A second press raises the window and
-%   switches it to what that button shows.
+%   closed. It closes with the app. A second press raises the window.
 arguments
     obj (1,1) EphysAnalysisApp
-    what (1,1) string {mustBeMember(what, ["defaults" "figure"])} = "figure"
 end
-obj.EpochDiagramFor = what;
 d = obj.EpochDiagramWindow;
 if isempty(d) || ~isvalid(d) || ~d.isOpen()
     obj.EpochDiagramWindow = EpochDiagram(Position=besideApp(obj.Fig.Position), Owner=obj.Fig);

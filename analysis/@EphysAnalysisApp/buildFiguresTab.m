@@ -300,7 +300,7 @@ E.defaultWindow = defaultBox(obj, Sw, "epoch window");
 E.defaultSelection = defaultBox(obj, Ss, "trial selection");
 C = obj.buildAlignControls([Sr.Body Sw.Body Ss.Body], @(part) obj.onFigureAlignEdited(part));
 E.epochs = C.Diagram;
-E.epochs.ButtonPushedFcn = @(~,~) obj.onShowEpochs("figure");
+E.epochs.ButtonPushedFcn = @(~,~) obj.onShowEpochs();
 E.epochs.Tooltip = "A window, kept above the app, that draws how this figure's event reference, epoch window and " + ...
     "trial selection cut the active dataset into epochs. It follows every edit.";
 set([C.RefGrid C.WindowGrid C.SelectionGrid], 'Padding', [4 2 4 2]);

@@ -1,8 +1,10 @@
 function buildSpikesTab(obj)
 %buildSpikesTab  Spikes step: threshold detection -> .mat.
 %   Edits the config's Spikes section (gatherSpikesSection /
-%   applySpikesSection): detection settings (EphysDataset.detectSpikes) and
-%   output. Sorted units are not read here; they stay in the sorting folder.
+%   applySpikesSection): detection settings (EphysDataset.detectSpikes),
+%   what to do with one spike seen on neighboring sites (Spikes.Coincidence;
+%   Neighbors... opens SpikeNeighborsDialog on the active dataset's probe)
+%   and output. Sorted units are not read here; they stay in the sorting folder.
 %   The right panel previews detection on a short window of the active
 %   dataset and runs the step.
 
@@ -13,7 +15,7 @@ changed = @(~,~) obj.onSpikesControlsChanged();
 
 opt = uipanel(g, "Title", "Spike options (config: Spikes; EphysDataset.spikesToMat)");
 opt.Layout.Column = 1;
-nRows = 23;
+nRows = 26;
 cg = uigridlayout(opt, [nRows 5]);
 cg.Scrollable  = "on";
 cg.RowHeight   = repmat({26}, 1, nRows);
@@ -82,8 +84,12 @@ obj.SpkThreshScopeDropDown.Layout.Row = r; obj.SpkThreshScopeDropDown.Layout.Col
 % --- Events ---
 r = r + 1; sep(cg, "Detection: events", r);
 r = r + 1;
-lab(cg, "Align:", r);
+l = lab(cg, "Align:", r);
+l.Tooltip = "Spikes.Align: the sample that is each event's time and its waveform's center.";
 obj.SpkAlignDropDown = uidropdown(cg, "Items", {'trough', 'peak', 'extremum', 'none'}, "Value", 'trough', ...
+    "Tooltip", "Each event's time and its waveform's center: the trough (default; the lowest sample in the " + ...
+        "align window after the crossing), the peak, the extremum (the larger |x| of the two), or none: the " + ...
+        "threshold crossing itself. Coincident spikes are compared at this sample.", ...
     "ValueChangedFcn", changed);
 obj.SpkAlignDropDown.Layout.Row = r; obj.SpkAlignDropDown.Layout.Column = 2;
 l = lab(cg, "Align window (ms):", r); l.Layout.Column = 3;
@@ -94,18 +100,49 @@ lab(cg, "Min period (ms):", r);
 obj.SpkMinPeriodField = numField0(cg, 1, "Refractory guard: events closer than this are merged.", changed);
 obj.SpkMinPeriodField.Layout.Row = r; obj.SpkMinPeriodField.Layout.Column = 2;
 
+% --- Coincident spikes: one spike seen on several neighboring sites ---
+r = r + 1; sep(cg, "Detection: one spike on neighboring sites", r);
+r = r + 1;
+cg.RowHeight{r} = 30;   % the Neighbors button
+lab(cg, "Coincident spikes:", r);
+obj.SpkCoincModeDropDown = uidropdown(cg, "Items", {'remove copies', 'tag copies', 'off'}, ...
+    "ItemsData", {'remove', 'tag', 'none'}, ...   % starts on the first, remove (a Value here is refused)
+    "Tooltip", "Spikes.Coincidence. One spike is often detected on several neighboring sites. Two events " + ...
+        "are copies of one spike when their sites lie within the radius of each other on the probe and their " + ...
+        "troughs within the jitter. Remove copies: keep the spike once, on the site where its trough is deepest. " + ...
+        "Tag copies: keep them all; the spikes file numbers each spike (info.eventId) and marks its deepest copy " + ...
+        "(info.primary). Off: each channel on its own. Needs the dataset's probe; without one every copy is kept.", ...
+    "ValueChangedFcn", changed);
+obj.SpkCoincModeDropDown.Layout.Row = r; obj.SpkCoincModeDropDown.Layout.Column = 2;
+l = lab(cg, "Site radius (um):", r); l.Layout.Column = 3;
+obj.SpkCoincRadiusField = numField(cg, 50, "Spikes.CoincidenceRadiusUm: sites at most this far apart on " + ...
+    "the probe (xc, yc) are neighbors. Neighbors... shows which they are.", @(~,~) radiusChanged(obj));
+obj.SpkCoincRadiusField.Layout.Row = r; obj.SpkCoincRadiusField.Layout.Column = 4;
+obj.SpkNeighborsButton = uibutton(cg, "Text", "Neighbors...", ...
+    "Tooltip", "The active dataset's probe, with each site's neighbors at this radius.", ...
+    "ButtonPushedFcn", @(~,~) obj.onSpikesNeighbors());
+obj.SpkNeighborsButton.Layout.Row = r; obj.SpkNeighborsButton.Layout.Column = 5;
+r = r + 1;
+lab(cg, "Jitter (ms):", r);
+obj.SpkCoincJitterField = numField0(cg, 0.5, "Spikes.CoincidenceJitterMs: troughs on neighboring sites at " + ...
+    "most this far apart are one spike; further apart, separate spikes.", changed);
+obj.SpkCoincJitterField.Layout.Row = r; obj.SpkCoincJitterField.Layout.Column = 2;
+l = uilabel(cg, "Text", "Same spike: neighbors, troughs within the jitter", "FontColor", [0.4 0.4 0.4]);
+l.Layout.Row = r; l.Layout.Column = [3 5];
+
 % --- Waveforms ---
 r = r + 1; sep(cg, "Detection: waveforms", r);
 r = r + 1;
-obj.SpkWaveformsCheckBox = uicheckbox(cg, "Text", "Save waveforms", "Value", false, ...
-    "Tooltip", "Store one [nSpikes x nWin] block per channel (can be large).", "ValueChangedFcn", changed);
+obj.SpkWaveformsCheckBox = uicheckbox(cg, "Text", "Save waveforms, centered on the trough", "Value", false, ...
+    "Tooltip", "Store one [nSpikes x nWin] block per channel (can be large), each window around the " + ...
+        "event's aligned sample (Align: the trough by default).", "ValueChangedFcn", changed);
 obj.SpkWaveformsCheckBox.Layout.Row = r; obj.SpkWaveformsCheckBox.Layout.Column = [1 2];
 l = lab(cg, "Window (ms):", r); l.Layout.Column = 3;
 obj.SpkWinBeforeField = uieditfield(cg, "numeric", "Value", -0.5, "ValueDisplayFormat", "%.10g", ...
-    "Tooltip", "WindowMs(1): before the event (negative).", "ValueChangedFcn", changed);
+    "Tooltip", "WindowMs(1): before the aligned sample, the trough by default (negative).", "ValueChangedFcn", changed);
 obj.SpkWinBeforeField.Layout.Row = r; obj.SpkWinBeforeField.Layout.Column = 4;
 obj.SpkWinAfterField = uieditfield(cg, "numeric", "Value", 1.5, "ValueDisplayFormat", "%.10g", ...
-    "Tooltip", "WindowMs(2): after the event.", "ValueChangedFcn", changed);
+    "Tooltip", "WindowMs(2): after the aligned sample.", "ValueChangedFcn", changed);
 obj.SpkWinAfterField.Layout.Row = r; obj.SpkWinAfterField.Layout.Column = 5;
 r = r + 1;
 lab(cg, "Waveform source:", r);
@@ -189,8 +226,8 @@ obj.SpkPreviewSecondsField = uieditfield(pp, "numeric", "Value", 10, "Limits", [
 obj.SpkPreviewLabel = uilabel(pp, "Text", "", "FontColor", [0.4 0.4 0.4], "WordWrap", "on");
 l = uilabel(right, "Text", "Preview: per-channel rates and thresholds", "FontWeight", "bold");
 l.Layout.Row = 2; l.Layout.Column = [1 2];
-obj.SpkPreviewTable = uitable(right, "ColumnName", {'Ch', 'Name', 'Threshold (uV)', 'Events', 'Rate (Hz)'}, ...
-    "ColumnWidth", {44, '1x', 110, 80, 90}, "RowName", {});
+obj.SpkPreviewTable = uitable(right, "ColumnName", {'Ch', 'Name', 'Threshold (uV)', 'Events', 'Rate (Hz)', 'Copies'}, ...
+    "ColumnWidth", {44, '1x', 110, 80, 90, 70}, "RowName", {});
 obj.SpkPreviewTable.Layout.Row = 3; obj.SpkPreviewTable.Layout.Column = [1 2];
 makeSortable(obj, obj.SpkPreviewTable);
 obj.RunStepSpikesButton = uibutton(right, "Text", "Run this step", ...
@@ -198,6 +235,16 @@ obj.RunStepSpikesButton = uibutton(right, "Text", "Run this step", ...
 obj.RunStepSpikesButton.Layout.Row = 4; obj.RunStepSpikesButton.Layout.Column = 1;
 
 obj.syncSpikesEnableStates();
+end
+
+
+function radiusChanged(obj)
+%radiusChanged  The radius into the config, and into the Neighbors window when it is open.
+obj.onSpikesControlsChanged();
+dlg = obj.SpkNeighborsDialog;
+if ~isempty(dlg) && isvalid(dlg)
+    dlg.setRadius(obj.SpkCoincRadiusField.Value);
+end
 end
 
 

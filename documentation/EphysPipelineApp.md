@@ -1992,12 +1992,15 @@ sorting folder, where Export and the analysis read them.
 
 Detection streams the whole recording one chunk at a time. For each channel
 it filters the chunk, takes a threshold from the filtered noise, finds the
-threshold crossings, aligns each to its extremum, keeps a minimum period
-between events, drops events above the maximum amplitude and, when asked,
-cuts the waveforms ([Spike detection](EphysDataset.md#spike-detection)). It
-is a detector, not a sorter: a spike seen on several channels is detected
-once on each. Chunk joins are not detection boundaries, so no event is lost
-or counted twice at a join.
+threshold crossings, aligns each to its extremum (the trough by default,
+which is then the event's time and its waveform's center, not the
+crossing), keeps a minimum period between events, drops events above the
+maximum amplitude and, when asked, cuts the waveforms
+([Spike detection](EphysDataset.md#spike-detection)). It is a detector, not
+a sorter, but one spike is often seen on several neighboring sites: by
+default each spike is kept once, on the site where its trough is deepest
+(see **One spike on neighboring sites** below). Chunk joins are not
+detection boundaries, so no event is lost or counted twice at a join.
 
 <!-- wiki: ![The Spikes tab with a detection preview](images/app-spikes-tab.png) -->
 
@@ -2010,10 +2013,13 @@ or counted twice at a join.
   (default) or *the whole recording*, one threshold per channel from a first
   pass over the recording, see
   [detectSpikes](EphysDataset.md#whole-recording-mode); off for *absolute*),
-  **Events** (align `trough` / `peak` / `extremum` / `none` within 1 ms; min
-  period 1 ms, keeping the earlier of two closer events), **Waveforms** (off;
-  window −0.5 to 1.5 ms, source `filtered` / `raw`, edge handling `nan`
-  (pad) / `drop`), **Channels & artifacts** (all / manifest
+  **Events** (align `trough` / `peak` / `extremum` / `none` within 1 ms: the
+  sample that is each event's time and its waveform's center, `none` = the
+  threshold crossing; min period 1 ms, keeping the earlier of two closer
+  events), **One spike on neighboring sites** (below), **Waveforms** (off;
+  the checkbox names the sample the window is centered on, *the trough* by
+  default; window −0.5 to 1.5 ms around it, source `filtered` / `raw`, edge
+  handling `nan` (pad) / `drop`), **Channels & artifacts** (all / manifest
   exclusions / list; **Artifact periods**, `Spikes.ArtifactMode`: *Reject the
   events inside them* (default), *Erase them before detection (the cleaned
   recording)*, whose samples then stay out of the thresholds and are bridged
@@ -2024,10 +2030,30 @@ or counted twice at a join.
   [In a run](#in-a-run)), **Chunking**
   (chunk cap, edge pad; the parallel switch is on the Run tab), **Output**
   (folder, suffix `_spikes`, MAT version, overwrite).
+- **One spike on neighboring sites**: two events are copies of one spike
+  when their sites lie within **Site radius (um)** of each other on the
+  dataset's probe (`Spikes.CoincidenceRadiusUm`, 50 µm; the true distance
+  between the sites' xc / yc) and their troughs within **Jitter (ms)**
+  (`Spikes.CoincidenceJitterMs`, 0.5 ms); events further apart in time are
+  separate spikes. **Coincident spikes** (`Spikes.Coincidence`): *remove
+  copies* (default) keeps each spike once, on the site where its trough is
+  deepest; *tag copies* keeps them all, and the spikes file numbers each
+  spike (`info.eventId`) and marks its deepest copy (`info.primary`); *off*
+  leaves each channel on its own. The probe is the one sorting uses: the
+  dataset's own, a probe rule's or the default probe. Without one, every
+  copy is kept, and the run's result and the plan say so. Detection works
+  through the events from the deepest trough down, so each copy lies within
+  the radius and the jitter of the spike it is a copy of. **Neighbors...**
+  opens the *Spike neighbors* window on the active dataset's probe. It draws
+  the sites at their own x and y, lists each site's neighbors at the radius,
+  and circles the radius around the site you click. Editing the radius
+  there sets the tab's. With *Align* `none`, copies are compared at their
+  crossings, not their troughs (a validation warning).
 - **Dataset** + **Preview**: detects on the first *n* seconds (10 by
   default, the field beside the button) of the active dataset with the tab's
   settings, and lists per channel **Ch**, **Name**, **Threshold (uV)**,
-  **Events** and **Rate (Hz)**, to tune the threshold before a run. It writes
+  **Events**, **Rate (Hz)** and **Copies** (coincident copies removed, or
+  tagged and still counted in Events), to tune the threshold before a run. It writes
   nothing, and neither rejects nor erases the artifact periods, whatever
   *Artifact periods* says. The preview's thresholds are always its window's own; with *the
   whole recording* its label says so.

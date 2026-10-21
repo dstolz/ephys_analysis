@@ -7,4 +7,11 @@ set([obj.SpkWinBeforeField, obj.SpkWinAfterField, obj.SpkWaveSourceDropDown, obj
     'Enable', onOff(obj.SpkWaveformsCheckBox.Value));
 obj.SpkChannelListField.Enable = onOff(string(obj.SpkChannelsDropDown.Value) == "list");
 obj.SpkThreshScopeDropDown.Enable = onOff(string(obj.SpkThreshMethodDropDown.Value) ~= "absolute");
+set([obj.SpkCoincRadiusField, obj.SpkCoincJitterField], 'Enable', onOff(string(obj.SpkCoincModeDropDown.Value) ~= "none"));
+% The waveform window is centered on the sample each event is aligned to.
+switch string(obj.SpkAlignDropDown.Value)
+    case "none"; at = "the threshold crossing";
+    otherwise;   at = "the " + string(obj.SpkAlignDropDown.Value);
+end
+obj.SpkWaveformsCheckBox.Text = "Save waveforms, centered on " + at;
 end

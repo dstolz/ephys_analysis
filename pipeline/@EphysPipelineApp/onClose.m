@@ -72,5 +72,8 @@ end
 if ~isempty(obj.TrialsDerivedDialog) && isvalid(obj.TrialsDerivedDialog)
     delete(obj.TrialsDerivedDialog);
 end
+if ~isempty(obj.SpkNeighborsDialog) && isvalid(obj.SpkNeighborsDialog)
+    delete(obj.SpkNeighborsDialog);
+end
 delete(obj.Fig);
 end

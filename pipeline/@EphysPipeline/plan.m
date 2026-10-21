@@ -223,14 +223,21 @@ for step = steps
 
             case "spikes"
                 out = obj.outputPathFor("spikes", d);
+                note = "";
+                if c.Spikes.Coincidence ~= "none"
+                    probe = obj.probeFor(d);
+                    if probe == "" || ~isfile(probe)
+                        note = "no probe: coincident copies kept";
+                    end
+                end
                 if ~hasFiles
                     add(step, k, out, "no recording files", "");
                 elseif isfile(out) && ~c.Spikes.Overwrite
                     add(step, k, out, "exists: skip", "");
                 elseif isfile(out)
-                    add(step, k, out, "exists: overwrite", "");
+                    add(step, k, out, "exists: overwrite", note);
                 else
-                    add(step, k, out, "ready", "");
+                    add(step, k, out, "ready", note);
                 end
 
             case "export"

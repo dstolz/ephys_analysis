@@ -64,6 +64,33 @@ function [ts, wf, info] = detectSpikes(obj, X, opts)
 %                   reject events whose aligned amplitude exceeds this in
 %                   absolute value (default Inf = keep everything)
 %
+%   Coincident events (one spike seen on several neighboring sites)
+%     Coincidence   "none" (default): every channel on its own | "remove":
+%                   keep each spike once, on the site where it is largest |
+%                   "tag": keep every copy and number them (info.eventId,
+%                   info.primary). Two events are copies of one spike when
+%                   their sites lie within CoincidenceRadiusUm of each other
+%                   and their aligned samples (the troughs, with Align
+%                   "trough") within CoincidenceJitterMs. Going from the
+%                   largest |amplitude| down (the deepest trough first), an
+%                   event no larger one has claimed is the spike's primary
+%                   and claims its copies, so every copy lies within the
+%                   radius and the jitter of its primary.
+%     CoincidenceRadiusUm
+%                   neighbor distance between sites, in um (default 50)
+%     CoincidenceJitterMs
+%                   the most two copies' aligned samples may differ by
+%                   (default 0.5 ms); events further apart are separate
+%                   spikes
+%     SitePositions [nChan x 2] x and y in um of each channel's site, one
+%                   row per column of X (per channel of ChannelOrder in
+%                   whole-recording mode), as EphysDataset.channelLayout
+%                   gives them; NaN = off the probe (never a neighbor).
+%                   Required unless Coincidence is "none".
+%   Coincident events are found after the minimum detection period and the
+%   amplitude ceiling, over the whole recording at once in whole-recording
+%   mode (chunk joins play no part).
+%
 %   Waveforms
 %     Waveforms     [] (default): extract when a second output is requested;
 %                   true: extract even with one output; false: never extract
@@ -220,6 +247,17 @@ function [ts, wf, info] = detectSpikes(obj, X, opts)
 %     nEdgeWindows [1 x nChan] events whose window left the data,
 %     nRejectedAmplitude [1 x nChan] events cut by MaxAmplitudeUV
 %     timeOffset, maxAmplitudeUV
+%     coincidence  mode, radiusUm, jitterMs and jitterSamples (as rounded
+%                  to samples; NaN for "none"), positions [nChan x 2] um,
+%                  neighbors {1 x nChan} (the channels within the radius of
+%                  each) and nCopies [1 x nChan] (events found to be a copy
+%                  of a larger one on a neighbor: removed with "remove",
+%                  kept with "tag"). With "remove", index, amplitude,
+%                  count, rate and nEdgeWindows describe the events kept.
+%     eventId {1 x nChan}, primary {1 x nChan}  ("tag" only) per event: the
+%                  number its spike has (1, 2, ... in time order over every
+%                  channel), shared by the primary and its copies, and true
+%                  for the primary
 %
 %   Whole-recording mode drops rejectedIndex/droppedEdgeIndex (they are
 %   chunk-local) and adds:
@@ -252,6 +290,9 @@ function [ts, wf, info] = detectSpikes(obj, X, opts)
 %     [ts, wf, info] = ds.detectSpikes(ThresholdMethod="absolute", ...
 %         Threshold=60, ChannelOrder=1:16);
 %     ts = ds.detectSpikes(UseParallel=true);                  % chunks on a pool
+%     L  = ds.channelLayout();                                 % each spike once,
+%     ts = ds.detectSpikes(Coincidence="remove", ...           % on its largest site
+%         SitePositions=[L.x; L.y].', CoincidenceJitterMs=0.5);
 %
 %     d  = ds.readData();                                      % one block
 %     ts = ds.detectSpikes(d.amplifier);                       % times only
@@ -266,7 +307,7 @@ function [ts, wf, info] = detectSpikes(obj, X, opts)
 %   FILTFILT, through filterContinuous).
 %
 %   See also EphysDataset.filterContinuous, EphysDataset.detectArtifacts,
-%   EphysDataset.streamPlan, EphysDataset.readData.
+%   EphysDataset.streamPlan, EphysDataset.readData, EphysDataset.channelLayout.
 
 arguments
     obj (1,1) EphysDataset
@@ -284,6 +325,10 @@ arguments
     opts.AlignWindowMs (1,1) double {mustBeNonnegative} = 1
     opts.MinPeriodMs (1,1) double {mustBeNonnegative} = 1
     opts.MaxAmplitudeUV (1,1) double {mustBePositive} = Inf
+    opts.Coincidence (1,1) string {mustBeMember(opts.Coincidence, ["none","remove","tag"])} = "none"
+    opts.CoincidenceRadiusUm (1,1) double {mustBePositive, mustBeFinite} = 50
+    opts.CoincidenceJitterMs (1,1) double {mustBeNonnegative, mustBeFinite} = 0.5
+    opts.SitePositions (:,2) double = zeros(0, 2)
     opts.Waveforms = []          % [] -> extract when a second output is requested
     opts.WindowMs (1,2) double = [-0.5 1.5]
     opts.WaveformSource (1,1) string {mustBeMember(opts.WaveformSource, ...
@@ -325,7 +370,9 @@ if ~isempty(X)
              '(ds.detectSpikes() with no data block).'], ...
             strjoin(given, ', '), ternaryStr(isscalar(given), "ies", "y"));
     end
+    checkSitePositions(opts, size(X, 2));
     [ts, wf, info] = detectBlock(obj, X, opts, doWave);
+    [ts, wf, info] = applyCoincidence(ts, wf, info, opts, doWave);
     return
 end
 
@@ -361,6 +408,12 @@ Fs = obj.Fs;
 if isnan(Fs) || Fs <= 0
     error('EphysDataset:detectSpikes:NoFs', ...
         'Sample rate unknown for %s; run refreshMetadata first.', obj.Folder);
+end
+% The sites must match the channels before the recording is read.
+if ~isempty(opts.ChannelOrder)
+    checkSitePositions(opts, numel(opts.ChannelOrder));
+elseif isfinite(obj.NumChannels)
+    checkSitePositions(opts, obj.NumChannels);
 end
 
 % Options handed to the per-chunk detector. The streaming-only ones are dropped,
@@ -622,6 +675,9 @@ erased = artRuns(artRuns(:, 1) <= nSamplesTotal, :);
 erased(:, 2) = min(erased(:, 2), nSamplesTotal);
 info.artifacts          = struct('intervals', artIv, ...
     'nSamples', sum(erased(:, 2) - erased(:, 1) + 1));
+% Copies of one spike on neighboring sites, over the whole recording at once.
+checkSitePositions(opts, nChan);
+[ts, wf, info] = applyCoincidence(ts, wf, info, opts, doWave);
 
 clear restoreWarning     % restore the warning state before the summary below
 if opts.ThresholdScope == "chunk"
@@ -1025,6 +1081,72 @@ if opts.WindowMs(1) > opts.WindowMs(2)
         'WindowMs must be [before after] with before <= after; got [%g %g].', ...
         opts.WindowMs(1), opts.WindowMs(2));
 end
+end
+
+
+function checkSitePositions(opts, nChan)
+%checkSitePositions  Coincidence needs one site position per channel.
+if opts.Coincidence == "none"
+    return
+end
+if isempty(opts.SitePositions)
+    error('EphysDataset:detectSpikes:NoSitePositions', ...
+        ['Coincidence "%s" needs SitePositions: the [x y] um of each channel''s site ' ...
+         '(EphysDataset.channelLayout), or Coincidence "none".'], opts.Coincidence);
+end
+if size(opts.SitePositions, 1) ~= nChan
+    error('EphysDataset:detectSpikes:SitePositions', ...
+        'SitePositions has %d rows; there are %d channels to detect on.', ...
+        size(opts.SitePositions, 1), nChan);
+end
+end
+
+
+function [ts, wf, info] = applyCoincidence(ts, wf, info, opts, doWave)
+%applyCoincidence  Find (Coincidence) the copies of each spike on neighboring sites.
+%   "remove" drops the copies from TS, WF and INFO's per-event fields, and
+%   recounts count, rate and nEdgeWindows; "tag" keeps them and adds
+%   info.eventId / info.primary. info.coincidence says what was found.
+nChan = numel(ts);
+C = struct('mode', opts.Coincidence, 'radiusUm', opts.CoincidenceRadiusUm, ...
+    'jitterMs', NaN, 'jitterSamples', NaN, 'positions', zeros(0, 2), ...
+    'neighbors', {cell(1, 0)}, 'nCopies', zeros(1, nChan));
+if opts.Coincidence == "none"
+    info.coincidence = C;
+    return
+end
+J = round(opts.CoincidenceJitterMs * 1e-3 * info.fs);
+[primary, eventId, nCopies, neighbors] = coincidentEvents(info.index, info.amplitude, ...
+    opts.SitePositions, opts.CoincidenceRadiusUm, J);
+C.jitterMs = 1e3 * J / info.fs;
+C.jitterSamples = J;
+C.positions = opts.SitePositions;
+C.neighbors = neighbors;
+C.nCopies = nCopies;
+if opts.Coincidence == "tag"
+    info.eventId = eventId;
+    info.primary = primary;
+else
+    w = info.windowSamples;
+    for c = 1:nChan
+        keep = primary{c};
+        if all(keep); continue; end
+        gone = info.index{c}(~keep);
+        if doWave
+            info.nEdgeWindows(c) = info.nEdgeWindows(c) - ...
+                nnz(gone + w(1) < 1 | gone + w(2) > info.nSamples);
+            wf{c} = wf{c}(keep, :);
+        end
+        ts{c} = ts{c}(keep);
+        info.index{c} = info.index{c}(keep);
+        info.amplitude{c} = info.amplitude{c}(keep);
+        info.count(c) = nnz(keep);
+    end
+    if info.durationSec > 0
+        info.rate = info.count / info.durationSec;
+    end
+end
+info.coincidence = C;
 end
 
 

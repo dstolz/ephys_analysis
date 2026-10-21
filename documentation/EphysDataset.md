@@ -1302,7 +1302,8 @@ the same options; `X`, and the files on disk, are never modified.
 
 The pipeline is: band-pass filter → per-channel threshold → threshold crossings
 → align each crossing to its extremum → enforce the minimum detection period →
-optional amplitude ceiling → optional waveform extraction.
+optional amplitude ceiling → optional waveform extraction → optionally, one
+spike's copies on neighboring sites removed or tagged (`Coincidence`).
 
 | Option | Default | Meaning |
 | --- | --- | --- |
@@ -1316,6 +1317,10 @@ optional amplitude ceiling → optional waveform extraction.
 | `AlignWindowMs` | `1` | extremum search window, starting at the crossing |
 | `MinPeriodMs` | `1` | minimum detection period (dead time after a kept event) |
 | `MaxAmplitudeUV` | `Inf` | reject events whose amplitude exceeds this in absolute value |
+| `Coincidence` | `"none"` | one spike seen on neighboring sites: `"remove"` keeps it once, on the site where it is largest; `"tag"` keeps every copy and numbers them (`info.eventId`, `info.primary`); see *Coincident events* below |
+| `CoincidenceRadiusUm` | `50` | sites at most this far apart (µm) are neighbors |
+| `CoincidenceJitterMs` | `0.5` | the most two copies' aligned samples may differ by; further apart, separate spikes |
+| `SitePositions` | `[]` | `[nChan x 2]` x and y in µm of each channel's site (`channelLayout`), one row per column of `X` (per channel of `ChannelOrder`); `NaN` = off the probe; required unless `Coincidence` is `"none"` |
 | `Waveforms` | `[]` | `[]`: waveforms are extracted when a second output is requested; `true` extracts them even with one output; `false` never extracts them |
 | `WindowMs` | `[-0.5 1.5]` | waveform window relative to the aligned sample, `before <= after` |
 | `WaveformSource` | `"filtered"` | or `"raw"` — which trace the snippets are cut from |
@@ -1345,6 +1350,30 @@ that align to one extremum collapse into a single event (the minimum detection
 period is floored at one sample, so exact duplicates are always removed). The
 minimum detection period is then applied greedily, keeping the **earlier** of
 two events closer than `MinPeriodMs`.
+
+**Coincident events.** A detector sees one spike on every site it reaches,
+so neighboring channels report it several times, a sample or two apart.
+With `Coincidence` `"remove"` or `"tag"`, two events are copies of one
+spike when their sites lie within `CoincidenceRadiusUm` of each other (the
+true distance between `SitePositions`, `siteNeighbors`) and their aligned
+samples — the troughs, with `Align` `"trough"` — within
+`CoincidenceJitterMs`. Going from the largest |amplitude| down (the deepest
+trough first; ties: the earlier event, then the lower channel), an event no
+larger one has claimed is the spike's *primary* and claims its copies. So
+every copy lies within the radius and the jitter of its own primary, and a
+chain of overlapping neighbors does not merge distinct spikes. `"remove"`
+drops the copies from `ts`, `wf` and the per-event `info` fields and
+recounts `count`, `rate` and `nEdgeWindows`. `"tag"` keeps them and adds
+`info.eventId` (the spike's number, 1, 2, ... in time order over every
+channel, shared by its copies) and `info.primary` (true for the primary).
+`info.coincidence` holds `mode`, `radiusUm`, `jitterMs` / `jitterSamples`
+(as rounded to samples), `positions`, `neighbors` (the channels within the
+radius of each) and `nCopies` per channel. In whole-recording mode the
+copies are found over the whole recording at once, after the chunks are
+joined, so a spike that straddles a join is handled like any other. The
+detector's default is `"none"`. The pipeline's `Spikes.Coincidence` is
+`"remove"`, and `spikesToMat` takes the sites from the dataset's probe
+(`ProbeFile`).
 
 **Timestamps** are `t = (row − 1)/Fs + TimeOffset`: the convention used by
 `readData`'s `t` vector and by Kilosort/phy sample indices, and one sample
@@ -2178,19 +2207,25 @@ Sorted units are not copied into it; read them from the sorting folder with
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `DetectOptions` | `struct()` | `detectSpikes` options (`Filter`, `Band`, `ThresholdMethod`, `Threshold`, `Waveforms`, `WindowMs`, `MaxChunkSamples`, `UseParallel`, `MaxWorkers`, ...) |
+| `DetectOptions` | `struct()` | `detectSpikes` options (`Filter`, `Band`, `ThresholdMethod`, `Threshold`, `Waveforms`, `WindowMs`, `MaxChunkSamples`, `UseParallel`, `MaxWorkers`, `Coincidence`, ...); not `SitePositions`, which come from `ProbeFile` |
 | `Channels` | `[]` (all) | 1-based recording channels to detect on, in order |
+| `ProbeFile` | `""` (`ProbeFile` property) | the probe the sites `Coincidence` compares come from (`channelLayout`); the pipeline passes `EphysPipeline.probeFor`. With no readable probe every copy is kept, with the warning `EphysDataset:spikesToMat:NoProbe` and a note in `detected.detection.coincidence` |
 | `ArtifactMode` | `"reject"` | what detection does with the artifact periods (`ArtifactIntervals`, else `artifactIntervals()`): `"reject"` detects on the recording as read and drops the events inside a period; `"erase"` erases the periods before detection (`detectSpikes`' `ArtifactIntervals`), so detection runs on the cleaned recording: the erased samples stay out of the thresholds, the band-pass runs a line across them, and no event lies inside a period or comes from an artifact ringing into its neighbors; `"none"` ignores them |
 | `ArtifactIntervals` | computed | `[k x 2]` seconds |
 | `File`, `MatVersion`, `Overwrite`, `ProgressFcn` | as `toMat` | |
 
 Variables: `detected` (`ts`, `wf`, `info`, `channels`, `channelNames`,
 `reference`, the common reference detection ran on (`referenceInfo()`),
-`detection` with the options, `artifactMode`, the intervals applied and
-`nRejectedArtifact` per channel; after an erase, `info.artifacts` holds the
-periods and the number of samples erased), `conversion`. The file is rewritten
+`detection` with the options, `artifactMode`, the intervals applied,
+`nRejectedArtifact` per channel and `coincidence` (`requested`, `probeFile`,
+`note`: why it did not run, `""` when it did); after an erase, `info.artifacts` holds the
+periods and the number of samples erased; `info.coincidence` what ran and
+found), `conversion`. The file is rewritten
 as a whole. `out`: `file`, `bytes`, `seconds`, `nChannels`, `nDetected`,
-`nRejectedArtifact`, `matVersion`.
+`nRejectedArtifact`, `coincidence` (the mode that ran), `nCoincident` (copies
+per channel), `coincidenceNote`, `matVersion`. Copies are found before the
+events in artifact periods are rejected; with `"tag"`, `info.eventId`,
+`info.primary` and `info.coincidence.nCopies` describe the events left.
 
 ### Exports
 

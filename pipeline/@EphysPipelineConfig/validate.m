@@ -340,6 +340,20 @@ if K.Enabled
     if ~ismember(K.ThresholdScope, ["chunk" "recording"])
         add("spikes", "ThresholdScope", "error", "ThresholdScope must be chunk or recording.");
     end
+    if ~ismember(K.Coincidence, ["remove" "tag" "none"])
+        add("spikes", "Coincidence", "error", "Coincidence must be remove, tag or none.");
+    elseif K.Coincidence ~= "none"
+        if ~(isfinite(K.CoincidenceRadiusUm) && K.CoincidenceRadiusUm > 0)
+            add("spikes", "CoincidenceRadiusUm", "error", "CoincidenceRadiusUm must be a positive distance in um.");
+        end
+        if ~(isfinite(K.CoincidenceJitterMs) && K.CoincidenceJitterMs >= 0)
+            add("spikes", "CoincidenceJitterMs", "error", "CoincidenceJitterMs must be 0 or more ms.");
+        end
+        if K.Align == "none"
+            add("spikes", "Coincidence", "warning", ...
+                "Align is none, so coincident spikes are compared at their threshold crossings, not their troughs.");
+        end
+    end
     if ~ismember(K.ArtifactMode, ["reject" "erase" "none"])
         add("spikes", "ArtifactMode", "error", "ArtifactMode must be reject, erase or none.");
     end

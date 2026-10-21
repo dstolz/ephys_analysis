@@ -267,18 +267,7 @@ classdef EphysPipeline < handle
             %   SOURCE is "own", "rule", "default" or "". A rule's probe is
             %   assigned to D (and saved) by checkProbes / assignProbeRules; the
             %   default only with Probe.WriteDefaultToManifest.
-            c = obj.Config.Probe;
-            f = d.ProbeFile;
-            source = "own";
-            if f == "" && c.AutoAssign
-                f = EphysPipeline.probeRule(d, c.RuleSubjects, c.RuleProbes);
-                source = "rule";
-            end
-            if f == ""
-                f = c.DefaultProbeFile;
-                source = "default";
-            end
-            if f == ""; source = ""; end
+            [f, source] = EphysPipeline.resolveProbe(obj.Config.Probe, d);
         end
 
         function run = activeRun(obj, d)
@@ -1244,6 +1233,25 @@ classdef EphysPipeline < handle
                 'resultsDir', string(res.resultsDir), 'logFile', string(res.stdoutLog), ...
                 'logPos', 0, 'done', false, 'device', string(res.device), 'started', started, ...
                 'queued', opts.Queued);
+        end
+
+        function [f, source] = resolveProbe(c, d)
+            %resolveProbe  probeFor from a config's Probe section C, without a pipeline.
+            %   [F, SOURCE] = EphysPipeline.resolveProbe(cfg.Probe, D): D's own
+            %   ProbeFile, else (Probe.AutoAssign) the first probe rule matching
+            %   its subject, else Probe.DefaultProbeFile; SOURCE "own", "rule",
+            %   "default" or "" for none. The app's previews use it.
+            f = d.ProbeFile;
+            source = "own";
+            if f == "" && c.AutoAssign
+                f = EphysPipeline.probeRule(d, c.RuleSubjects, c.RuleProbes);
+                source = "rule";
+            end
+            if f == ""
+                f = c.DefaultProbeFile;
+                source = "default";
+            end
+            if f == ""; source = ""; end
         end
 
         function [probe, rule] = probeRule(d, subjects, probes)

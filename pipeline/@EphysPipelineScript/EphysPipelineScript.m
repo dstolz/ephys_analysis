@@ -385,8 +385,10 @@ classdef EphysPipelineScript
             else
                 L(end+1, 1) = "        extra = {};";
             end
+            L(end+1, 1) = "        probe = d.ProbeFile;   % the sites coincident spikes are compared on";
+            L(end+1, 1) = "        if probe == """"; probe = defaultProbe; end";
             L(end+1, 1) = "        r = d.spikesToMat('File', outFile, 'DetectOptions', detectOptions, ...";
-            L(end+1, 1) = "            'Channels', channels, 'ArtifactMode', spikes.ArtifactMode, ...";
+            L(end+1, 1) = "            'Channels', channels, 'ProbeFile', probe, 'ArtifactMode', spikes.ArtifactMode, ...";
             L(end+1, 1) = "            'MatVersion', spikes.MatVersion, 'Overwrite', spikes.Overwrite, extra{:});";
             L(end+1, 1) = "        d.writeManifest();   % its processing block: how the detections were made";
             L(end+1, 1) = "        fprintf('%s: wrote %s\n', d.Name, r.file);";

@@ -432,6 +432,8 @@ cfg.Sorting.DryRun = false; cfg.Sorting.Enabled = false;
 
 fprintf('\n== 6. spikes step ==\n');
 cfg.Spikes.Filter = false; cfg.Spikes.ThresholdMethod = "absolute"; cfg.Spikes.Threshold = 2000;
+cfgC = cfg;                          % coincident spikes on (the default): checked below
+cfg.Spikes.Coincidence = "none";
 pipe.Config = cfg;
 pipe.reset();
 pipe.runSpikeDetection();
@@ -458,6 +460,17 @@ pipe.Config = cfgP; pipe.reset(); logs = strings(0, 1); pipe.runSpikeDetection()
 M3 = load(pipe.Results.Output(1));
 check(pipe.Results.Status(1) == "done" && M3.detected.detection.options.UseParallel && isequal(M3.detected.ts, tsRef) ...
     && any(contains(logs, "parallel")), 'Parallel.Enabled reaches spikesToMat (one chunk: serial) with the same result');
+cfgC.Spikes.Overwrite = true;
+pipe.Config = cfgC; pipe.reset(); pipe.runSpikeDetection();
+MC = load(pipe.Results.Output(1));
+Lp = d1.channelLayout(ProbeFile=pipe.probeFor(d1));
+[tsC, ~, infoC] = d1.detectSpikes(Filter=false, ThresholdMethod="absolute", Threshold=2000, ...
+    Coincidence="remove", SitePositions=[Lp.x; Lp.y].');
+tsC = cellfun(@(t) t(~any(t >= iv(:, 1).' & t <= iv(:, 2).', 2)), tsC, 'UniformOutput', false);
+check(pipe.Results.Status(1) == "done" && isequal(MC.detected.ts, tsC) && MC.detected.info.coincidence.mode == "remove" ...
+    && MC.detected.detection.coincidence.probeFile == pipe.probeFor(d1) ...
+    && contains(pipe.Results.Message(1), sprintf("%d coincident cop", sum(infoC.coincidence.nCopies))), ...
+    'Spikes.Coincidence (on by default) removes the copies on the dataset''s probe, as detectSpikes does, and the result counts them');
 pipe.Config = cfg;
 
 fprintf('\n== 7. export step (hand-made extract) ==\n');

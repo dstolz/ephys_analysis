@@ -425,7 +425,7 @@ no optional toolbox are needed; tests that need one are skipped (reported as
   `test_DataPathWarnings`, `test_DetectionBenchmark`, `test_LocalCleanup`,
   `test_NWBExport`, `test_OutputTransfer`, `test_PipelineScriptSave`, `test_PlatformSupport`,
   `test_Provenance`, `test_ReadNewLines`, `test_RepositoryMetadata`,
-  `test_TableSort`, `test_ThresholdScope` and `test_UnitQuality`; in
+  `test_SpikeCoincidence`, `test_TableSort`, `test_ThresholdScope` and `test_UnitQuality`; in
   `analysis/`, `test_Auroc`, `test_PopulationAnalysis` and
   `test_ResponseStats`. New suites take this form; `test_BinaryReader` is the
   pattern for converting a function-style one (shared fixtures in
@@ -565,6 +565,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_TableSort` | `TableSort`, the kept sort of the apps' tables: the order by number, text (ignoring case), date, duration, category and logical, ties in the order given, missing values last, cell columns by header, a column the rows lack; the column and direction a header click leaves, an edit ignored; the preference round trip |
 | `test_PipelineScriptSave` | each run saves the config's standalone script in the project root (`Project.SaveScript`), names the run in it, replaces only a script a run saved, none when off or for a dry run; `writeScript` outside a run; the file names |
 | `test_ThresholdScope` | recording-wide detection thresholds: the whole recording's MAD / std / rms / percentile, independent of the chunk size, applied by detection; flat and out-of-range channels; progress over both passes; the spikes file and the config; absolute thresholds the same either way; refused for a data block |
+| `test_SpikeCoincidence` | one spike seen on neighboring sites (`detectSpikes` `Coincidence`): `"remove"` keeps the deepest copy, `"tag"` numbers them; the jitter and radius edges, ties, a site off the probe, waveforms, whole-recording mode across chunk joins, `spikesToMat` with and without a probe, tags after artifact rejection, the config and its validation, `siteNeighbors`, `SpikeNeighborsDialog` |
 | `test_DetectionBenchmark` | (tag `Benchmark`) spike and artifact detection scored against synthetic truth with `benchmarkDetection`: recall, precision, duplicates and noise crossings, artifact recall, coverage and edges, against regression floors ([below](#detection-benchmark)) |
 | `test_NWBExport` | the NWB export: every staged number against the inputs (signals as stored, electrodes on the probe, units, trial and pulse times on the continuous clock, the erased periods, the session start in its time zone) without Python; with a Python that has pynwb and nwbinspector (`NWB_PYTHON`, else `pyenv`), the file read back with `h5read`, nwbinspector's findings and `DatasetOutputs`' `nwb` kind; the errors |
 | `test_UnitQuality` | unit quality metrics: every metric equal to SpikeInterface's own on spike trains rebuilt from the integer generator of [`tools/golden/unit_quality_golden.py`](../tools/golden/unit_quality_golden.py) (golden values in `pipeline/testdata/`); SNR; the criteria; `ds.unitQuality` on a synthetic sort (fields, cache written, read, made stale by phy, SNR with uV templates); `unitTable`; the QC page; exports carrying the metrics; `sortSweep` comparing two sorts and dry-running two variants |

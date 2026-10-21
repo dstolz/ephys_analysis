@@ -5,7 +5,8 @@ function s = defaults(section)
 %   coerces every assigned value to match them.
 %
 %   Continuous-signal defaults mirror EphysDataset.deriveSignals; detection
-%   defaults mirror EphysDataset.detectSpikes; the artifact and reference
+%   defaults mirror EphysDataset.detectSpikes, but for Coincidence, on
+%   ("remove") here, where the step finds each dataset's probe; the artifact and reference
 %   defaults come from EphysDataset.defaultArtifactConfig.
 
 arguments
@@ -185,6 +186,9 @@ switch section
             'AlignWindowMs',   1, ...
             'MinPeriodMs',     1, ...
             'MaxAmplitudeUV',  Inf, ...
+            'Coincidence',     "remove", ...   % one spike on neighboring sites: "remove" the copies (keep the largest) | "tag" them | "none"
+            'CoincidenceRadiusUm', 50, ...     % sites this close on the probe are neighbors
+            'CoincidenceJitterMs', 0.5, ...    % troughs this close in time are one spike
             'Waveforms',       false, ...
             'WindowMs',        [-0.5 1.5], ...
             'WaveformSource',  "filtered", ...

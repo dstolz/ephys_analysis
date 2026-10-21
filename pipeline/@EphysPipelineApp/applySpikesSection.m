@@ -17,6 +17,13 @@ obj.SpkMaxAmpField.Value = numText(obj, K.MaxAmplitudeUV, "Inf");
 obj.setDropIfMember(obj.SpkAlignDropDown, K.Align, "Spikes.Align");
 obj.setControlValue(obj.SpkAlignWindowField, K.AlignWindowMs, "Spikes.AlignWindowMs");
 obj.setControlValue(obj.SpkMinPeriodField, K.MinPeriodMs, "Spikes.MinPeriodMs");
+obj.setDropIfMember(obj.SpkCoincModeDropDown, K.Coincidence, "Spikes.Coincidence");
+obj.setControlValue(obj.SpkCoincRadiusField, K.CoincidenceRadiusUm, "Spikes.CoincidenceRadiusUm");
+obj.setControlValue(obj.SpkCoincJitterField, K.CoincidenceJitterMs, "Spikes.CoincidenceJitterMs");
+dlg = obj.SpkNeighborsDialog;
+if ~isempty(dlg) && isvalid(dlg)
+    dlg.setRadius(obj.SpkCoincRadiusField.Value);
+end
 obj.SpkWaveformsCheckBox.Value = logical(K.Waveforms);
 obj.setControlValue(obj.SpkWinBeforeField, K.WindowMs(1), "Spikes.WindowMs");
 obj.setControlValue(obj.SpkWinAfterField, K.WindowMs(2), "Spikes.WindowMs");

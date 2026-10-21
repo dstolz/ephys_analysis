@@ -2,6 +2,8 @@ function runSpikeDetection(obj, opts)
 %runSpikeDetection  Threshold-detected spikes .mat per dataset (spikesToMat).
 %   Detection options come from EphysPipelineConfig.detectOptions, the
 %   channels from Spikes.Channels (all / manifest exclusions removed / list),
+%   the sites Spikes.Coincidence compares from the dataset's probe
+%   (probeFor; without one every copy is kept and the result says so),
 %   the artifact periods (Spikes.ArtifactMode "reject": the events inside
 %   them dropped; "erase": erased before detection) from the manual periods
 %   plus the cached automatic detection when Artifacts.ApplyToSpikes.
@@ -21,6 +23,8 @@ dopt = EphysPipelineConfig.detectOptions(K, c.Parallel);
 ds = obj.selected(opts.Datasets);
 n = numel(ds);
 if n > 0; obj.logParallel("spikes"); end
+noProbe = warning('off', 'EphysDataset:spikesToMat:NoProbe');   % each result says so instead
+restoreNoProbe = onCleanup(@() warning(noProbe)); %#ok<NASGU>
 
 for k = 1:n
     d = ds(k);
@@ -57,12 +61,22 @@ for k = 1:n
         obj.prepareWCARFor(d, @(done, total, msg) obj.progress("spikes", d.Name, k, n, lo, 1, msg));
         cb = @(done, total, msg) obj.progress("spikes", d.Name, k, n, lo + (1 - lo) * done / max(total, 1), 1, msg);
         r = d.spikesToMat('File', out, 'DetectOptions', dopt, 'Channels', channels, ...
-            'ArtifactMode', K.ArtifactMode, 'MatVersion', K.MatVersion, ...
+            'ProbeFile', obj.probeFor(d), 'ArtifactMode', K.ArtifactMode, 'MatVersion', K.MatVersion, ...
             'Overwrite', K.Overwrite, 'ProgressFcn', cb, 'Provenance', obj.provenance(), args{:});
         d.writeManifest();   % its processing block: how the detections were made
         msg = sprintf("%d detected event(s), %d rejected", sum(r.nDetected), sum(r.nRejectedArtifact));
         if K.ArtifactMode == "erase"
             msg = msg + sprintf(", %d artifact period(s) erased before detection", size(iv, 1));
+        end
+        switch r.coincidence
+            case "remove"
+                msg = msg + sprintf(", %d coincident cop%s removed", sum(r.nCoincident), plural(sum(r.nCoincident)));
+            case "tag"
+                msg = msg + sprintf(", %d coincident cop%s tagged", sum(r.nCoincident), plural(sum(r.nCoincident)));
+            otherwise
+                if r.coincidenceNote ~= ""
+                    msg = msg + ", " + r.coincidenceNote + ": coincident copies kept";
+                end
         end
         obj.log("[spikes] %s: wrote %s (%s)", d.Name, r.file, msg);
         obj.addResult("spikes", d.Name, "done", msg, r.file, toc(t0));
@@ -79,4 +93,9 @@ end
 if obj.CancelRequested
     error('EphysPipeline:Canceled', 'Canceled by user.');
 end
+end
+
+
+function s = plural(n)
+if n == 1; s = "y"; else; s = "ies"; end
 end

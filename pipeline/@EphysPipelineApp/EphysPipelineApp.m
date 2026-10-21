@@ -650,7 +650,11 @@ classdef EphysPipelineApp < handle
         SpkAlignDropDown     matlab.ui.control.DropDown
         SpkAlignWindowField  matlab.ui.control.NumericEditField
         SpkMinPeriodField    matlab.ui.control.NumericEditField
-        SpkWaveformsCheckBox matlab.ui.control.CheckBox
+        SpkCoincModeDropDown matlab.ui.control.DropDown           % Spikes.Coincidence: remove / tag / none
+        SpkCoincRadiusField  matlab.ui.control.NumericEditField   % Spikes.CoincidenceRadiusUm
+        SpkCoincJitterField  matlab.ui.control.NumericEditField   % Spikes.CoincidenceJitterMs
+        SpkNeighborsButton   matlab.ui.control.Button             % opens the SpikeNeighborsDialog
+        SpkWaveformsCheckBox matlab.ui.control.CheckBox           % its text names the sample the window is centered on (Align)
         SpkWinBeforeField    matlab.ui.control.NumericEditField
         SpkWinAfterField     matlab.ui.control.NumericEditField
         SpkWaveSourceDropDown matlab.ui.control.DropDown
@@ -670,6 +674,7 @@ classdef EphysPipelineApp < handle
         SpkPreviewSecondsField matlab.ui.control.NumericEditField
         SpkPreviewLabel      matlab.ui.control.Label
         SpkPreviewTable      matlab.ui.control.Table
+        SpkNeighborsDialog = []                                   % the open SpikeNeighborsDialog ([] when none)
         RunStepSpikesButton  matlab.ui.control.Button
 
         % --- Export tab ---
@@ -1298,6 +1303,7 @@ classdef EphysPipelineApp < handle
         syncSpikesEnableStates(obj)
         onSpikesControlsChanged(obj)
         onSpikesPreview(obj)
+        onSpikesNeighbors(obj)
         onBrowseSpikesOutput(obj)
         onBrowseExportOutput(obj)
         onExportEpochsToWorkspace(obj)

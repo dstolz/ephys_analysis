@@ -1,7 +1,8 @@
 function onSpikesPreview(obj)
 %onSpikesPreview  Detect on the first seconds of the active dataset.
 %   Uses the Spikes-tab settings on a single in-memory block (no streaming
-%   options), and lists per-channel thresholds, counts and rates.
+%   options), and lists per-channel thresholds, counts, rates and the
+%   coincident copies found (on the dataset's probe, EphysPipeline.resolveProbe).
 d = obj.currentDataset();
 if isempty(d)
     uialert(obj.Fig, "Scan a project first.", "Spikes preview");
@@ -32,6 +33,18 @@ try
         if isfield(dopt, f); dopt = rmfield(dopt, f); end
     end
     dopt.Waveforms = false;
+    % Coincident spikes are compared on the dataset's probe, as the step does.
+    probeNote = "";
+    if dopt.Coincidence ~= "none"
+        pf = EphysPipeline.resolveProbe(obj.Config.Probe, d);
+        L = d.channelLayout(ProbeFile=pf);
+        if L.hasProbe
+            dopt.SitePositions = [L.x(ch); L.y(ch)].';
+        else
+            dopt.Coincidence = "none";
+            probeNote = " No probe, so coincident copies are kept.";
+        end
+    end
     args = namedargs2cell(dopt);
     [ts, ~, info] = d.detectSpikes(X, args{:});
     nS = size(X, 1);
@@ -43,13 +56,20 @@ try
     names = strings(1, numel(ch));
     okName = ch <= numel(d.ChannelNames);
     names(okName) = d.ChannelNames(ch(okName));
-    C = cell(numel(ch), 5);
+    copies = info.coincidence.nCopies;
+    C = cell(numel(ch), 6);
     for c = 1:numel(ch)
-        C(c, :) = {ch(c), char(names(c)), round(thr(min(c, numel(thr))), 1), counts(c), round(counts(c) / (nS / d.Fs), 2)};
+        C(c, :) = {ch(c), char(names(c)), round(thr(min(c, numel(thr))), 1), counts(c), ...
+            round(counts(c) / (nS / d.Fs), 2), copies(c)};
     end
     obj.SpkPreviewTable.Data = C;
     txt = sprintf("%s: %.2f s, %d channel(s), %d event(s) (%s, %s).", d.Name, nS / d.Fs, ...
         numel(ch), sum(counts), K.ThresholdMethod, K.Polarity);
+    switch info.coincidence.mode
+        case "remove"; txt = txt + sprintf(" %d coincident copies removed.", sum(copies));
+        case "tag";    txt = txt + sprintf(" %d coincident copies tagged (counted in Events).", sum(copies));
+    end
+    txt = txt + probeNote;
     if K.ThresholdScope == "recording" && K.ThresholdMethod ~= "absolute"
         txt = txt + " Thresholds from this window; the step measures the whole recording.";
     end

@@ -131,8 +131,8 @@ C.Diagram = uibutton(wg, "Text", "Epoch Diagram");   % the caller sets its Butto
 C.Diagram.Layout.Row = 8; C.Diagram.Layout.Column = [1 4];
 
 % --- selection -----------------------------------------------------------------------
-sg = uigridlayout(parents(3), [8 4]);
-sg.RowHeight = repmat({22}, 1, 8);
+sg = uigridlayout(parents(3), [6 4]);
+sg.RowHeight = {22, 120, 66, 22, 22, 22};
 sg.ColumnWidth = {95, '1x', 75, '1x'};
 sg.RowSpacing = 4;
 C.SelectionGrid = sg;
@@ -147,64 +147,46 @@ C.Filter = uieditfield(fg, "text", "Placeholder", "e.g. Depth > 0 & RespLatency 
 C.FilterHelp = uibutton(fg, "Text", "?", "Tooltip", "The trial columns, response words and functions a filter can use.", ...
     "ButtonPushedFcn", @(~,~) obj.onFilterHelp());
 
-% Response codes, in two rows
-lab(sg, "Response:", 2, 1);
-nc = ceil(numel(words) / 2);
-rsp = uigridlayout(sg, [2 nc]);
-rsp.Layout.Row = [2 3]; rsp.Layout.Column = [2 4];
-rsp.ColumnWidth = repmat({'fit'}, 1, nc);
-rsp.Padding = [0 0 0 0]; rsp.RowSpacing = 4; rsp.ColumnSpacing = 8;
-C.Response = struct();
-for i = 1:numel(words)
-    w = words(i);
-    C.Response.(w) = uicheckbox(rsp, "Text", w, "ValueChangedFcn", cbSel, "Tooltip", "Keep trials that are any of the ticked responses.");
-    C.Response.(w).Layout.Row = 1 + floor((i-1) / nc);
-    C.Response.(w).Layout.Column = 1 + mod(i-1, nc);
-end
+% Response codes: a multi-select list (none selected = every response)
+l = lab(sg, "Response:", 2, 1);
+l.VerticalAlignment = "top";
+C.Response = uilistbox(sg, "Items", cellstr(words), "Multiselect", "on", "Value", {}, "ValueChangedFcn", cbSel, ...
+    "Tooltip", "Keep trials that are any of the selected responses (none selected = every response; Ctrl or Shift to select several).");
+C.Response.Layout.Row = 2; C.Response.Layout.Column = [2 4];
 
-% Pairing flags
-lab(sg, "Pairing:", 4, 1);
-flg = uigridlayout(sg, [2 2]);
-flg.Layout.Row = [4 5]; flg.Layout.Column = [2 4];
-flg.Padding = [0 0 0 0]; flg.RowSpacing = 3; flg.ColumnSpacing = 12;
-C.Flags = struct();
-flags = ["ok" "partial" "cut" "unpaired"];
-for i = 1:numel(flags)
-    f = flags(i);
-    row = 1 + mod(i-1, 2);
-    col = 1 + floor((i-1)/2);
-    C.Flags.(f) = uicheckbox(flg, "Text", f, "Value", f == "ok", "ValueChangedFcn", cbSel, ...
-        "Tooltip", "Keep trials with this PairingFlag (none ticked = every flag).");
-    C.Flags.(f).Layout.Row = row;
-    C.Flags.(f).Layout.Column = col;
-end
+% Pairing flags: a multi-select list
+l = lab(sg, "Pairing:", 3, 1);
+l.VerticalAlignment = "top";
+C.Flags = uilistbox(sg, "Items", {'ok', 'partial', 'cut', 'unpaired'}, "Multiselect", "on", "Value", {'ok'}, "ValueChangedFcn", cbSel, ...
+    "Tooltip", "Keep trials with any of the selected PairingFlags (none selected = every flag; Ctrl or Shift to select several).");
+C.Flags.Layout.Row = 3; C.Flags.Layout.Column = [2 4];
 
 % Grouping
-lab(sg, "Group by:", 6, 1);
+lab(sg, "Group by:", 4, 1);
 C.Group1 = uidropdown(sg, "Editable", "on", "Items", "(none)", "Value", "(none)", "ValueChangedFcn", cbSel);
-C.Group1.Layout.Row = 6; C.Group1.Layout.Column = 2;
-lab(sg, "and:", 6, 3);
+C.Group1.Layout.Row = 4; C.Group1.Layout.Column = 2;
+lab(sg, "and:", 4, 3);
 C.Group2 = uidropdown(sg, "Editable", "on", "Items", "(none)", "Value", "(none)", "ValueChangedFcn", cbSel);
-C.Group2.Layout.Row = 6; C.Group2.Layout.Column = 4;
+C.Group2.Layout.Row = 4; C.Group2.Layout.Column = 4;
 
 % Ordering
-lab(sg, "Order:", 7, 1);
+lab(sg, "Order:", 5, 1);
 C.Order = uidropdown(sg, "Items", ["ascending" "descending" "appearance"], "ValueChangedFcn", cbSel);
-C.Order.Layout.Row = 7; C.Order.Layout.Column = 2;
-lab(sg, "Max groups:", 7, 3);
+C.Order.Layout.Row = 5; C.Order.Layout.Column = 2;
+lab(sg, "Max groups:", 5, 3);
 C.MaxGroups = uispinner(sg, "Limits", [1 100], "Value", 12, "RoundFractionalValues", "on", "ValueChangedFcn", cbSel);
-C.MaxGroups.Layout.Row = 7; C.MaxGroups.Layout.Column = 4;
+C.MaxGroups.Layout.Row = 5; C.MaxGroups.Layout.Column = 4;
 
 % Artifacts
-lab(sg, "Artifacts:", 8, 1);
+lab(sg, "Artifacts:", 6, 1);
 C.ExcludeArtifacts = uicheckbox(sg, "Text", "Exclude epochs", "Value", true, "ValueChangedFcn", cbSel, ...
     "Tooltip", "Leave out the epochs whose window (or baseline) touches an artifact period, the stretches the " + ...
     "Signals step erased. Untick to keep them: their signal is the erased (filled) stretch.");
-C.ExcludeArtifacts.Layout.Row = 8; C.ExcludeArtifacts.Layout.Column = 2;
-lab(sg, "at least (s):", 8, 3);
+C.ExcludeArtifacts.Layout.Row = 6; C.ExcludeArtifacts.Layout.Column = 2;
+lab(sg, "at least (s):", 6, 3);
 C.MinArtifact = uieditfield(sg, "numeric", "Value", 0, "Limits", [0 Inf], "ValueChangedFcn", cbSel, ...
     "Tooltip", "Only artifact periods at least this long exclude an epoch (0 = every one).");
-C.MinArtifact.Layout.Row = 8; C.MinArtifact.Layout.Column = 4;
+C.MinArtifact.Layout.Row = 6; C.MinArtifact.Layout.Column = 4;
 syncAlignEnable(C);
 end
 

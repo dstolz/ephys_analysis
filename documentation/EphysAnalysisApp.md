@@ -217,8 +217,8 @@ Trough onset.
 | Control | Meaning |
 | --- | --- |
 | **Filter**, **?** | an expression over the trials table, e.g. `Depth > 0 & RespLatency < 500` or `Hit \| Miss`. **?** lists the trial columns, the response words and the functions a filter may use. The filter is compiled from its own tokens, never passed to `eval` |
-| **Response** | keep the trials that are any of the ticked response words (`Hit`, `Miss`, `CR`, `FA`, `Abort`, `Reward`, `Punish`, `NoResponse`, `Response`: bits of `RespCode`) |
-| **Pairing** | keep the trials with these `PairingFlag` values: `ok` (default), `partial`, `cut`, `unpaired`; none ticked keeps every flag |
+| **Response** | keep the trials that are any of the selected response words, in a list (Ctrl or Shift selects several; none selected keeps every response) (`Hit`, `Miss`, `CR`, `FA`, `Abort`, `Reward`, `Punish`, `NoResponse`, `Response`: bits of `RespCode`) |
+| **Pairing** | keep the trials with the selected `PairingFlag` values, in a list: `ok` (default), `partial`, `cut`, `unpaired`; none selected keeps every flag |
 | **Group by**, **and** | up to two trial parameters: one group per value, or pair of values |
 | **Order**, **Max groups** | the groups' order (`ascending`, `descending`, `appearance`); more groups than the maximum (12 by default) is an error |
 | **Artifacts**: **Exclude epochs**, **at least (s)** | ticked (default): leave out the epochs whose window (or a panel's baseline) touches an artifact period, the stretches the Signals step erased; unticked: keep them (their signal is the erased stretch). Only periods at least **at least (s)** long count (0 = every one); the [epoch diagram](#epoch-diagram) draws the shorter ones paler |
@@ -239,7 +239,7 @@ a bar of epochs per group in the group colors the figures use, its count on
 top of it; and the kept trials with their group and number of epochs.
 **Show the epochs Pairing and Artifacts exclude** (off by default) counts
 the epochs of every pairing flag, with or without an artifact, and stacks
-on each group's kept epochs those the **Pairing** ticks leave out (gray) and
+on each group's kept epochs those the **Pairing** selection leaves out (gray) and
 those an artifact period excludes (red), with a legend; the count on top is
 then the whole bar. Right of them, the
 [epoch diagram](#epoch-diagram) draws how these defaults cut the active

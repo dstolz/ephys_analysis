@@ -42,12 +42,8 @@ if ~isempty(w.stop)
 end
 s = EphysAnalysisConfig.normalizeSection("TrialSelection", sel);
 C.Filter.Value = char(s.filter);
-for w = string(fieldnames(C.Response)).'
-    C.Response.(w).Value = ismember(w, s.response);
-end
-for f = string(fieldnames(C.Flags)).'
-    C.Flags.(f).Value = ismember(f, s.pairingFlags);
-end
+C.Response.Value = cellstr(C.Response.Items(ismember(string(C.Response.Items), s.response)));
+C.Flags.Value = cellstr(C.Flags.Items(ismember(string(C.Flags.Items), s.pairingFlags)));
 g = [s.groupBy "(none)" "(none)"];
 setDrop(C.Group1, g(1));
 setDrop(C.Group2, g(2));

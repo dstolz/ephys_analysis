@@ -16,8 +16,9 @@ function onConfigChanged(obj, what, src)
 %   (autoFigurePreview).
 %   A "figure" edit that changes the figures is a step of the undo history
 %   (recordFigureEdit), named after the control SRC it came from (the
-%   editor's controls pass themselves; else the callback object, gcbo:
-%   figureEditLabel), its edits in a burst one step.
+%   editor's controls pass themselves, else a string names the step, else
+%   the callback object, gcbo: figureEditLabel), its edits in a burst one
+%   step.
 arguments
     obj (1,1) EphysAnalysisApp
     what (1,1) string = ""

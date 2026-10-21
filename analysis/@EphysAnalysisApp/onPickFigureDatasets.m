@@ -38,6 +38,6 @@ cfg.Figures(k).sessions.datasetKeys = reshape(keys, 1, []);   % no control holds
 recordFigureEdit(obj, cfg, "Pick datasets");
 obj.Config = cfg;
 obj.FigureEditor.sesKeys.Value = char(strjoin(keys, ", "));
-obj.onConfigChanged("figure");
+obj.onConfigChanged("figure", "Pick datasets");
 obj.setStatus(sprintf("Figures: %s is drawn across %d dataset(s).", cfg.Figures(k).id, numel(keys)));
 end

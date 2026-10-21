@@ -13,7 +13,7 @@ ov.name = overlayFreeName([items otherOverlays(obj)], base + " copy", base + " c
 items = [items(1:k) ov items(k+1:end)];
 overlayList(E, items, k + 1);
 overlayShow(E, ov);
-obj.onConfigChanged("figure");
+obj.onConfigChanged("figure", "Duplicate overlay");
 obj.setStatus("Copied the overlay " + base + " as " + ov.name + ".");
 end
 

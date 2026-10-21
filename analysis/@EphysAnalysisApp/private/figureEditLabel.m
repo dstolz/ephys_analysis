@@ -3,9 +3,11 @@ function label = figureEditLabel(obj, src)
 %   Read from the editor as built (FigureSearchIndex, as the search reads
 %   it): the entry whose control SRC is, else the form row holding SRC
 %   (an edit field of a From / To pair), else SRC's own text (a check
-%   box), else the title of the section holding it. "Edit" for a SRC
-%   outside the editor (a dialog's OK, a key) or none.
+%   box), else the title of the section holding it. A SRC that is a string
+%   is the name itself (a dialog's OK, a button, a key: the caller names
+%   the step). "Edit" for any other SRC outside the editor, or none.
 label = "Edit";
+if isstring(src) && isscalar(src) && strlength(strtrim(src)) > 0; label = strtrim(src); return; end
 if isempty(src) || ~isscalar(src) || ~isobject(src) || ~isprop(src, 'Parent') || ~isvalid(src); return; end
 chain = gobjects(1, 0);   % SRC and the containers up to the editor's grid
 h = src;

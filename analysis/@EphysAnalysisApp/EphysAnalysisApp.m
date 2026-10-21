@@ -183,6 +183,8 @@ classdef EphysAnalysisApp < handle
         ToolbarRunTool      matlab.ui.container.toolbar.PushTool   % off while a run goes
         ToolbarCancelTool   matlab.ui.container.toolbar.PushTool   % on only while a run goes
         ToolbarReportTool   matlab.ui.container.toolbar.PushTool   % on once a run wrote a report
+        ToolbarUndoTool   matlab.ui.container.toolbar.PushTool   % Undo / Redo as the Edit menu's (refreshEditMenu)
+        ToolbarRedoTool   matlab.ui.container.toolbar.PushTool
         ToolbarFolderTool   matlab.ui.container.toolbar.PushTool   % on once a run wrote figures
 
         % --- Data tab ---

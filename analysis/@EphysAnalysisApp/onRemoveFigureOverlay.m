@@ -10,6 +10,6 @@ items(k) = [];
 k = min(k, numel(items));
 overlayList(E, items, k);
 if k >= 1; overlayShow(E, items(k)); end
-obj.onConfigChanged("figure");
+obj.onConfigChanged("figure", "Remove overlay");
 obj.setStatus("Removed the overlay " + name + ".");
 end

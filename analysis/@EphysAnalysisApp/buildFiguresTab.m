@@ -656,7 +656,7 @@ E.evSeqText = uilabel(sg, "Text", "none");
 setSequenceHolder(E.evSeqText, struct('sequence', repmat(EphysAnalysisConfig.defaults("SequenceStep"), 1, 0), 'alignStep', Inf));
 E.evSeqEdit = uibutton(sg, "Text", "Edit...", "Tooltip", "Events that must (or must not) follow the line's event, " + ...
     "e.g. Stim onset then Trough onset: the first Trough onset after each Stim onset.");
-E.evSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(E.evSeqText, E.evLine, E.evEdge, @() obj.onConfigChanged("figure"));
+E.evSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(E.evSeqText, E.evLine, E.evEdge, @() obj.onConfigChanged("figure", "Event sequence"));
 [S, r] = formRow(S, "evDrawAs", "Draw as:");
 E.evDrawAs = uidropdown(S.Body, "Items", ["marks (on the rows / latency lines)" "a spike train of its own" ...
     "a line from onset to offset"], "ItemsData", ["marks" "train" "span"], "ValueChangedFcn", changed, ...
@@ -771,7 +771,7 @@ ssg = subgrid(S.Body, r, {'1x', 70});
 E.sortSeqText = uilabel(ssg, "Text", "none");
 setSequenceHolder(E.sortSeqText, struct('sequence', repmat(EphysAnalysisConfig.defaults("SequenceStep"), 1, 0), 'alignStep', Inf));
 E.sortSeqEdit = uibutton(ssg, "Text", "Edit...", "Tooltip", "Events that must follow the sort event's line.");
-E.sortSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(E.sortSeqText, E.sortLine, E.sortEdge, @() obj.onConfigChanged("figure"));
+E.sortSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(E.sortSeqText, E.sortLine, E.sortEdge, @() obj.onConfigChanged("figure", "Sort sequence"));
 [S, r] = formRow(S, "rasterByGroup", "");
 E.rasterByGroup = uicheckbox(S.Body, "Text", "Rows by group first", "Value", true, "ValueChangedFcn", changed, ...
     "Tooltip", "Ticked: each group's epochs together. Unticked: every epoch sorted as one block.");
@@ -1438,7 +1438,7 @@ if id == "" || any(others == id)
     return
 end
 obj.FigureEditor.idAuto.Value = false;   % typed: the id is the user's own from now on
-obj.onConfigChanged("figure");
+obj.onConfigChanged("figure", "Figure id");
 obj.setStatus("The figure's id is " + id + ", your own: it no longer follows its panels (tick auto to go back).");
 end
 
@@ -1448,7 +1448,7 @@ function onIdAutoToggled(obj, b)
 if obj.Applying; return; end
 k = obj.SelectedFigure;
 if k < 1 || k > numel(obj.Config.Figures); return; end
-obj.onConfigChanged("figure");
+obj.onConfigChanged("figure", "Automatic figure id");
 id = obj.Config.Figures(k).id;
 if b.Value
     obj.setStatus("The figure's id follows its panels and data again: " + id + ".");
@@ -1491,7 +1491,7 @@ if ~isempty(over)
     obj.setStatus(p.id + " would overlap " + fig.panels(q(1)).id + ".");
     return
 end
-obj.onConfigChanged("figure");
+obj.onConfigChanged("figure", "Panel span");
 obj.setStatus(sprintf("%s spans %d row(s) and %d column(s).", p.id, fig.panels(j).rowSpan, fig.panels(j).colSpan));
 end
 
@@ -1638,7 +1638,7 @@ if string(evt.Value) == "fixed" && string(evt.PreviousValue) == "observation" &&
         end
     end
 end
-obj.onConfigChanged("figure");
+obj.onConfigChanged("figure", "Layer binding");
 if note ~= ""; obj.setStatus(note); end
 end
 

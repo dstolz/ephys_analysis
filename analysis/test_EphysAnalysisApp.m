@@ -258,18 +258,18 @@ end
 if S.sec("1b", "Toolbar: the most used commands")
     tools = flip(app.Toolbar.Children);
     tags = string({tools.Tag});
-    check(isequal(tags, ["new" "open" "save" "scan" "preview" "notes" "validate" "plan" "run" "cancel" "report" "figurefolder" "pipelineapp" "help"]) ...
-        && isequal(find(logical([tools.Separator])), [4 7 11 13 14]) ...
+    check(isequal(tags, ["new" "open" "save" "undo" "redo" "scan" "preview" "notes" "validate" "plan" "run" "cancel" "report" "figurefolder" "pipelineapp" "help"]) ...
+        && isequal(find(logical([tools.Separator])), [4 6 9 13 15 16]) ...
         && all(isfile(fullfile(here, 'icons', 'toolbar', tags + ".svg"))), ...
-        'the toolbar holds the config, look, run, results, app and help commands in groups, each with its icon');
+        'the toolbar holds the config, undo, look, run, results, app and help commands in groups, each with its icon');
     if ismac; modifier = "Cmd+"; else; modifier = "Ctrl+"; end
     tips = string({tools.Tooltip});
-    menuItems = findall(app.FileMenu, 'Type', 'uimenu');   % the Edit menu's Undo and Redo are no toolbar commands (5k)
+    menuItems = findall(app.FileMenu, 'Type', 'uimenu');   % the Edit menu's Undo and Redo are tools of their own (5k)
     keyed = menuItems(strlength(string({menuItems.Accelerator})) > 0);
     named = erase(string({keyed.Text}), "...") + " (" + modifier + string({keyed.Accelerator}) + ")";
-    check(numel(keyed) == 3 && all(ismember(named, tips)) && nnz(contains(tips, "(" + modifier)) == numel(keyed) ...
+    check(numel(keyed) == 3 && all(ismember(named, tips)) && nnz(contains(tips, "(" + modifier)) == numel(keyed) + 2 ...
         && all(strlength(tips) > 0), ...
-        'every File menu shortcut is on the toolbar, named in its tool''s tooltip, and no tooltip names another');
+        'every File menu shortcut is on the toolbar, named in its tool''s tooltip, and no tooltip names another but Undo and Redo''s');
     check(app.ToolbarValidateTool.Enable == "on" && app.ToolbarPlanTool.Enable == "on" && app.ToolbarRunTool.Enable == "on" ...
         && app.ToolbarCancelTool.Enable == "off" && app.ToolbarReportTool.Enable == "off" && app.ToolbarFolderTool.Enable == "off", ...
         'before a run: Validate, Plan and Run are on; Cancel, the report and the figure folder off');
@@ -2788,6 +2788,39 @@ if S.sec("5k", "Edit menu: undo and redo of the figure editor")
     app.applyConfig(app.Config, MarkSaved=true);   % as opening or making a config does
     check(isempty(app.FigureHistory.Undo) && isempty(app.FigureHistory.Redo) && app.UndoMenu.Enable == "off" && app.RedoMenu.Enable == "off", ...
         'another config (applied as saved): the history is cleared');
+    if ismac; modifier = "Cmd+"; else; modifier = "Ctrl+"; end
+    check(app.ToolbarUndoTool.Enable == "off" && app.ToolbarRedoTool.Enable == "off" ...
+        && app.ToolbarUndoTool.Tooltip == "Undo (" + modifier + "Z)" && app.ToolbarRedoTool.Tooltip == "Redo (" + modifier + "Y)", ...
+        'the toolbar''s Undo and Redo are off with the menu items (an empty history); their tooltips name the shortcuts');
+    nf0 = numel(app.Config.Figures);
+    app.onAddFigure("rasterPsth");
+    check(app.ToolbarUndoTool.Enable == "on" && app.ToolbarRedoTool.Enable == "off" ...
+        && app.ToolbarUndoTool.Tooltip == "Undo Add figure (" + modifier + "Z)", 'the Undo tool is on and names the step: Undo Add figure (Ctrl+Z)');
+    app.selectTab(app.TabData);
+    check(app.ToolbarUndoTool.Enable == "off" && app.ToolbarUndoTool.Enable == app.UndoMenu.Enable, 'off the Figures tab the tool is off, as the menu item');
+    app.selectTab(app.TabFigures);
+    app.ToolbarUndoTool.ClickedCallback(app.ToolbarUndoTool, []);
+    check(numel(app.Config.Figures) == nf0 && app.ToolbarUndoTool.Enable == "off" && app.ToolbarRedoTool.Enable == "on" ...
+        && app.ToolbarRedoTool.Tooltip == "Redo Add figure (" + modifier + "Y)", 'the Undo tool takes the figure back; the Redo tool is on, naming it');
+    app.ToolbarRedoTool.ClickedCallback(app.ToolbarRedoTool, []);
+    check(numel(app.Config.Figures) == nf0 + 1 && app.ToolbarRedoTool.Enable == "off" && app.ToolbarRedoTool.Tooltip == "Redo (" + modifier + "Y)", ...
+        'the Redo tool does it again');
+    nameCheck = @(want, why) check(string(app.UndoMenu.Text) == "Undo " + want, why);
+    app.onAddFigureOverlay("line");
+    nameCheck("Add overlay", 'an overlay added from the editor: Undo Add overlay (not Undo Edit)');
+    app.onRemoveFigureOverlay();
+    nameCheck("Remove overlay", 'an overlay removed: Undo Remove overlay');
+    app.onPickFigureDatasets(Keys=["a" "b"]);
+    nameCheck("Pick datasets", 'datasets picked for a session figure: Undo Pick datasets');
+    cfgL = app.Config;
+    cfgL.Figures(app.SelectedFigure).panels(1).window = cfgL.Defaults.Window;   % a panel with a window of its own
+    app.applyConfig(cfgL);
+    app.FigureEditor.alignRelinkAll.ButtonPushedFcn(app.FigureEditor.alignRelinkAll, []);
+    nameCheck("Re-link all panels", 'Re-link all panels: Undo Re-link all panels');
+    app.FigureEditor.title.Value = 'named by its caller';
+    app.onConfigChanged("figure", "Event sequence");   % as the sequence dialog's OK
+    nameCheck("Event sequence", 'a caller naming the step (the event-sequence dialog''s OK): Undo Event sequence, not Undo Edit');
+    app.applyConfig(app.Config, MarkSaved=true);
     Hx = FigureEditHistory();
     Hx.Depth = 3;
     a = struct('v', 0);

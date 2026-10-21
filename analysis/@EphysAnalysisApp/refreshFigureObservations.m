@@ -7,7 +7,9 @@ function refreshFigureObservations(obj, opts)
 %   and a detection channel's in its number of detections (from the
 %   unit's selectUnits row: nothing more is read), a starred unit, channel
 %   or dataset's starting with "★ " (favoriteMarks), one with a note with
-%   "✎ " (noteMarks, after the star's). The figure's pick is
+%   "✎ " (noteMarks, after the star's). With Starred only
+%   (observe.starred) only the starred ones are listed, read from the
+%   stars in memory (Favorites; figureObservations Favorites=). The figure's pick is
 %   kept by its label without the count (FigureObservation: figure id ->
 %   label), so it survives a filter change or another dataset while that
 %   label is still there; else the first is picked. The list is made again
@@ -18,9 +20,13 @@ function refreshFigureObservations(obj, opts)
 %   sort options, the dataset (by its key; a scan forgets the list,
 %   onScan) -- unless Force is set; an empty list is kept as well. When the
 %   list cannot be made, the picker's UserData.error says why (the preview
-%   shows it). The Observations section's count line follows. < and > are
-%   enabled when there is somewhere to go, Unit report when a unit or
-%   channel is picked (unitReportEnable).
+%   shows it). The Observations section's count line follows (ending
+%   ", starred only" with Starred only). < and > are enabled when there is
+%   somewhere to go, Unit report when a unit or channel is picked
+%   (unitReportEnable). A figure across sessions lists its matched
+%   observations (figureSessionObservations), a match starred on any of its
+%   sessions starting with "★ " (favoriteMarks with the sessions' datasets,
+%   kept in the picker's UserData.sessions).
 arguments
     obj (1,1) EphysAnalysisApp
     opts.Force (1,1) logical = false
@@ -53,7 +59,9 @@ if ~opts.Force && isstruct(dd.UserData) && isfield(dd.UserData, 'key') && isequa
 end
 try
     src = obj.Runner.source(obj.ActiveIdx);
-    T = figureObservations(src, spec);
+    fav = [];
+    if numel(obj.Favorites) >= obj.ActiveIdx; fav = obj.Favorites(obj.ActiveIdx); end
+    T = figureObservations(src, spec, Favorites=fav);
 catch ME
     msg = "Cannot list the observations: " + string(ME.message);
     none("(cannot list them)");
@@ -76,7 +84,9 @@ switch kind
 end
 nG = 0;   % per trial group: the observations' groups
 if n > 0 && any(isfinite(T.group)); nG = numel(unique(T.group(isfinite(T.group)))); end
-if kind == "dataset" && nG == 0
+if kind == "dataset" && n == 0 && spec.observe.starred
+    E.obsCount.Text = src.name + " is not starred: no figure (Starred only).";
+elseif kind == "dataset" && nG == 0
     E.obsCount.Text = "The whole dataset: one figure for " + src.name + ".";
 elseif kind == "dataset"
     E.obsCount.Text = sprintf("The whole dataset, once per trial group: %d figures for %s.", n, src.name);
@@ -86,6 +96,7 @@ elseif nG > 0
 else
     E.obsCount.Text = sprintf("%d %s%s on %s.", n, what, repmat('s', 1, n ~= 1), src.name);
 end
+if spec.observe.starred && kind ~= "dataset"; E.obsCount.Text = extractBefore(E.obsCount.Text, strlength(E.obsCount.Text)) + ", starred only."; end
 if n == 0
     none("(no " + kind + " passes the filter)");
     dd.UserData = struct('key', key, 'error', "");   % an empty list is kept too: the filter is not run again until it changes
@@ -158,7 +169,7 @@ catch ME
     return
 end
 obj.FigureObservations = T;
-dd.UserData = struct('key', key, 'error', "");
+dd.UserData = struct('key', key, 'error', "", 'sessions', reshape(S.index, 1, []));   % each session's dataset: the ★ marks (favoriteMarks)
 n = height(T);
 nS = height(S);
 switch spec.observe.kind
@@ -176,9 +187,14 @@ else
     E.obsCount.Text = sprintf("%d %s%s matched across %d session%s (at least %d each).", n, what, repmat('s', 1, n ~= 1), ...
         nS, repmat('s', 1, nS ~= 1), max(1, spec.sessions.minSessions));
 end
+if spec.observe.starred && spec.observe.kind ~= "dataset"
+    E.obsCount.Text = extractBefore(E.obsCount.Text, strlength(E.obsCount.Text)) + ", starred on any session.";
+elseif spec.observe.starred && n == 0
+    E.obsCount.Text = "No dataset of these sessions is starred: no figure (Starred only).";
+end
 if n == 0
     setNone(obj, "(no " + what + " is matched across the sessions)");
-    dd.UserData = struct('key', key, 'error', "");
+    dd.UserData = struct('key', key, 'error', "", 'sessions', reshape(S.index, 1, []));
     return
 end
 labels = reshape(T.label + "  (across " + T.nSessions + " session" + repmat("s", n, 1) + ")", 1, []);
@@ -191,7 +207,7 @@ if isKey(obj.FigureObservation, id)
 end
 obj.FigureObservation(id) = T.label(i);
 dd.ItemsData = [];
-set(dd, "Items", labels, "ItemsData", 1:n, "Value", i);
+set(dd, "Items", favoriteMarks(obj, T, spec.observe.data, reshape(S.index, 1, [])) + labels, "ItemsData", 1:n, "Value", i);
 syncSteps(obj);
 end
 

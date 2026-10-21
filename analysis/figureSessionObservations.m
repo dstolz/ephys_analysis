@@ -31,7 +31,8 @@ function T = figureSessionObservations(sources, spec, opts)
 %
 %   T columns: those of figureObservations (kind, label, unitId (NaN but
 %   for one session), channel, column, shank, depth, meta (the first
-%   holder's row), group NaN, groupLabel ""), plus
+%   holder's row), group NaN, groupLabel "", starred: starred on any of
+%   its sessions -- for a site, any of the units on it), plus
 %     nSessions  how many sessions hold it
 %     unitIds    {1 x 1} cell holding a 1 x nSessions cell: each session's
 %                unit id(s) on it ([] = none; channels and the dataset: [])
@@ -41,6 +42,11 @@ function T = figureSessionObservations(sources, spec, opts)
 %                figureSessionCompute passes row k to figureCompute for
 %                session k
 %   A session without the observed source gives no row and holds none.
+%   With SPEC.observe.starred ("Starred only") the matching is done on
+%   every observation, starred or not, and then only the rows starred on
+%   at least one of their sessions are kept, each still drawn on every
+%   session that holds it: a unit starred on day 1 is followed to day 2
+%   without being starred there too.
 %
 %   Options
 %     Mapping  match "mapping": the unit-mapping table (default: read from
@@ -63,6 +69,7 @@ nS = numel(sources);
 ss = spec.sessions;
 one = spec;
 one.observe.perGroup = false;
+one.observe.starred = false;   % matched on every observation; the stars filter the matches (below)
 per = cell(1, nS);
 for k = 1:nS
     if isempty(sources{k}); continue; end
@@ -80,6 +87,9 @@ switch spec.observe.kind
         T = byChannel(per, proto, ss, "channel");
     otherwise
         T = datasetRow(per, proto, nS);
+end
+if isfield(spec.observe, 'starred') && spec.observe.starred
+    T = T(T.starred, :);
 end
 end
 
@@ -164,11 +174,13 @@ for r = 1:size(rowsOf, 1)
     row = per{k1}(rowsOf{r, k1}(1), :);
     ids = cell(1, nS);
     P = repmat(blankRow(proto), nS, 1);
+    starred = false;
     for k = holders
         O = per{k};
         i = rowsOf{r, k};
         if ismember("unitId", string(O.Properties.VariableNames)) && row.kind == "unit"; ids{k} = reshape(O.unitId(i), 1, []); end
         P(k, :) = presentRow(O(i(1), :), proto);
+        if ismember("starred", string(O.Properties.VariableNames)); starred = starred || any(O.starred(i)); end
     end
     switch how
         case "site"
@@ -182,6 +194,7 @@ for r = 1:size(rowsOf, 1)
     if ismember(how, ["site" "mapping"]) && nS > 1; row.unitId = NaN; end   % each session's unit is its own (unitIds)
     row.group = NaN;
     row.groupLabel = "";
+    row.starred = starred;
     row.nSessions = numel(holders);
     row.unitIds = {ids};
     row.perSession = {P};
@@ -211,15 +224,15 @@ for k = 1:numel(per)
     if ~isempty(per{k}); proto = per{k}([], :); return; end
 end
 proto = table(strings(0, 1), strings(0, 1), zeros(0, 1), zeros(0, 1), zeros(0, 1), zeros(0, 1), zeros(0, 1), cell(0, 1), ...
-    zeros(0, 1), strings(0, 1), ...
-    'VariableNames', {'kind', 'label', 'unitId', 'channel', 'column', 'shank', 'depth', 'meta', 'group', 'groupLabel'});
+    zeros(0, 1), strings(0, 1), false(0, 1), ...
+    'VariableNames', {'kind', 'label', 'unitId', 'channel', 'column', 'shank', 'depth', 'meta', 'group', 'groupLabel', 'starred'});
 end
 
 
 function b = blankRow(proto)
-%blankRow  One row with no observation: kind "", NaN numbers, an empty meta, present false.
-b = table("", "", NaN, NaN, NaN, NaN, NaN, {[]}, NaN, "", false, ...
-    'VariableNames', {'kind', 'label', 'unitId', 'channel', 'column', 'shank', 'depth', 'meta', 'group', 'groupLabel', 'present'});
+%blankRow  One row with no observation: kind "", NaN numbers, an empty meta, starred and present false.
+b = table("", "", NaN, NaN, NaN, NaN, NaN, {[]}, NaN, "", false, false, ...
+    'VariableNames', {'kind', 'label', 'unitId', 'channel', 'column', 'shank', 'depth', 'meta', 'group', 'groupLabel', 'starred', 'present'});
 b = b(:, [intersect(string(proto.Properties.VariableNames), string(b.Properties.VariableNames), 'stable') "present"]);
 end
 

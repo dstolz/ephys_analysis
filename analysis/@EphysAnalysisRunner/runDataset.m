@@ -14,8 +14,9 @@ function rows = runDataset(obj, k, opts)
 %   per observation, one page each:
 %     reason = figureSkipReason(src, spec)   ("" = it can be drawn; else a
 %         "skipped" row and report entry)
-%     T = figureObservations(src, spec)      (none: skipped, "no observation"; a
-%         figure with observe.perGroup: a row per observation and trial group)
+%     T = figureObservations(src, spec)      (none: skipped, "no observation", or
+%         "no starred observation" with observe.starred; a figure with
+%         observe.perGroup: a row per observation and trial group)
 %     for each observation i of n, one figure at a time:
 %       F = r.computeFigure(src, spec, Observation=T(i,:))
 %       fig = newExportFigure(Export, F, spec); h = renderFigure(F, spec, fig)
@@ -95,8 +96,11 @@ for jf = 1:numel(fids)
         T = [];
         if reason == ""
             [T, why] = figureObservations(src, spec, Observation=opts.Observation);
-            if height(T) == 0; reason = "no observation"; end
             if height(T) == 0 && why ~= ""; reason = why; end   % Observation= matched nothing: why
+            if height(T) == 0 && reason == "" && spec.observe.starred && ~isstruct(opts.Observation)
+                reason = "no starred observation";
+            end
+            if height(T) == 0 && reason == ""; reason = "no observation"; end
         end
         if reason ~= ""
             obj.Results(end+1, :) = {name, spec.id, "figure", "skipped", reason, "", 0};

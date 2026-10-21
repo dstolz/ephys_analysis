@@ -10,6 +10,19 @@ says how to cut a release.
 
 ### Added
 
+- **Starred only** for figures (`observe.starred`, a checkbox in the Figures tab's Observations section): the
+  preview's picker, < >, Generate, Export runs and scripts keep only the starred units of the sort in use, the
+  starred channels (a detection channel by its recording channel) or a starred dataset, read from
+  `<Name>_favorites.json` beside the data; a dataset with none is skipped (`no starred observation`). A session
+  figure keeps a match starred on any of its sessions, drawn on all of them. `figureObservations` and
+  `figureSessionObservations` gain a `starred` column (`figureObservations(..., Favorites=)` takes the stars in
+  memory; `DatasetFavorites.observationStarred`), and `figureCaption` says how many observations are starred
+  (*12 observations (sorted units; 3 starred)*) or *starred only*. The Favorites lists label a unit of an opened
+  dataset with its class, channel and depth (*subj1_day1 · unit 12 · su · ch 5 · 850 µm*) and a channel with its
+  depth, from what is already in memory (app property `DatasetUnits` replaces `DatasetUnitCounts`), and a figure
+  across sessions marks its starred matches ★ in the picker. See
+  [Favorites](documentation/EphysAnalysisApp.md#favorites).
+
 - Tests by section, and a local runner. `run_all_tests({'test_EphysAnalysisApp:5i,5j'})` runs only those
   sections of a function-style suite that takes them (`TestSections`: `test_EphysAnalysisApp`,
   `test_EphysPipelineApp`, `test_EphysAnalysisFigures`; a section declares what it needs, and every run

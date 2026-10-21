@@ -33,7 +33,9 @@ classdef EphysAnalysisConfig
     %               have), adoptPanelAlignment and relinkPanels spread one
     %               panel's alignment or re-link every panel's.
     %               observe.perGroup draws each observation once
-    %               per trial group of the figure's selection. A panel
+    %               per trial group of the figure's selection;
+    %               observe.starred keeps only the starred observations
+    %               (DatasetFavorites). A panel
     %               (defaults("Panel")): id, type, title, box (the axes'
     %               box: "auto" = the design's, "on", "off"), xLabel and
     %               yLabel ("" = automatic), xSide ("bottom" | "top") and

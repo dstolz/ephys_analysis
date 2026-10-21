@@ -815,6 +815,7 @@ give the fields below; every field exists on every entry.
 | `data` | `"units"` | what one figure is drawn for (`ObserveData`): `"units"` (each sorted unit), `"detected"` (each channel's threshold detections), `"LFP"`, `"MUA"`, `"SPIKE"` or `"AUX"` (each channel of that extract), or `"dataset"` (one figure per dataset). `EphysAnalysisConfig.observeKind(fig)` names its kind: a *unit* for `units` and `detected`, a *channel* for a signal, the *dataset* |
 | `units` | [UnitSelection](#unitselection) without `source` | `units` and `detected`: the filter that picks the units the figure can be drawn for (classes, quality, response test, ids, channels, shanks, `maxUnits`; classes and quality apply to sorted units only) |
 | `channels` | `[]` | a signal: the extract's columns (`[]` = all) |
+| `starred` | `false` | `true` (*Starred only*): only the starred observations ([favorites](EphysAnalysis.md#favorites-stars), read from `<Name>_favorites.json` beside the data): the starred units of the sort in use, the starred channels (a detection channel by its recording channel), the dataset only when it is starred. Applied after the other filters, everywhere the observations are listed: the preview's picker and **<** **>**, Generate, a run and its scripts. A dataset with no starred observation is skipped with `no starred observation`. A [session figure](#observations-across-sessions) keeps a matched observation starred on any of its sessions, drawn on every session that holds it |
 | `perGroup` | `false` | `true`: each observation is drawn once per trial group of the figure's selection (its `groupBy`), a figure of that group's epochs ([One figure per trial group](#panel-types)). Validate warns while the selection groups by nothing. A [session figure's](#session-figures) trial groups follow `sessions.trialGroups` instead, and `perGroup` is ignored there |
 
 `addFigure` takes a template's name (`EphysAnalysisConfig.figureTemplates()`) or
@@ -1583,6 +1584,7 @@ gives an empty table with the same columns.
 | `meta` | a 1 x 1 cell: the unit's `selectUnits` row, the channel's `selectChannels` row, or a one-row table with the dataset's name |
 | `group` | the trial group the observation is drawn for (a row of the figure's groups, from `epochTable` over its alignment); `NaN` = every group, always so unless `observe.perGroup` |
 | `groupLabel` | that group's label; `""` = every group |
+| `starred` | the observation is starred ([favorites](EphysAnalysis.md#favorites-stars): a sorted unit on the sort in use, a detection channel or a channel by its recording channel, the dataset by its own star). `observe.starred` keeps only these rows; `figureCaption` counts them. `figureObservations(src, spec, Favorites=fav)` takes the stars from a `DatasetFavorites` in memory instead of reading the file |
 
 With `observe.perGroup` and a selection that groups trials (`groupBy`), each
 observation is listed once per trial group that has epochs, an observation's
@@ -1807,7 +1809,7 @@ defaults. A file written by hand may leave out any field that keeps its default.
     "observe": { "data": "units",
                  "units": { "classes": ["su"], "groups": [], "ids": [], "channels": [], "shanks": [], "maxUnits": "Inf",
                             "quality": { "enabled": false, "...": "..." }, "response": { "enabled": false, "...": "..." } },
-                 "channels": [], "perGroup": false },
+                 "channels": [], "starred": false, "perGroup": false },
     "grid": { "rows": 3, "cols": 1, "rowHeights": [1.5, 1, 1], "colWidths": [], "spacing": "none",
               "gapUnits": "px", "rowGap": 6, "colGap": 6, "rowGaps": [], "colGaps": [] },
     "ref": "default", "window": "default", "selection": "default",
@@ -2073,6 +2075,12 @@ session draws its own unit) plus:
 | `nSessions` | how many sessions hold it |
 | `unitIds` | a 1 x 1 cell holding a 1 x nSessions cell: each session's unit ids on it (`[]`: none; always `[]` for channels and the dataset) |
 | `perSession` | a 1 x 1 cell holding a table of nSessions rows: the `figureObservations` row each session draws, with a logical `present` (false, `kind` `""`, where the session has none). `figureSessionCompute` hands row `k` to `figureCompute` for session `k` |
+
+`starred` is true for a match starred on **any** of its sessions (for a site,
+any of the units on it in any session). With `observe.starred` the sessions
+are matched on all their observations first and only then are the starred
+matches kept, each drawn on every session that holds it: a unit starred on
+its first day is followed to the later days without being starred there.
 
 `EphysAnalysisRunner.sessionFigureObservations(fig, idx)` returns
 `[T, sessions, sources]`: the table, the `sessionTable` of the datasets (by
@@ -2513,6 +2521,11 @@ the window and the trial grouping (and `one figure per trial group` for a
 
 > rp: 12 observations (sorted units: su, mua) of RAT1_260918; panels: raster,
 > PSTH; aligned to Stim onset; window [-0.2 0.8] s; groups by Depth.
+
+When some observations are starred the count says how many
+(*12 observations (sorted units: su, mua; 3 starred)*), and a figure with
+`observe.starred` says *starred only*; one observation of a session figure that
+is starred reads *site ch 7 (starred) across 3 sessions*.
 
 The entry links the exported files and, with `IncludeParameters`, folds the
 figure's resolved spec under it. A figure the dataset cannot draw (or that fails)

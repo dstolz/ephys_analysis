@@ -21,8 +21,8 @@ function buildFiguresTab(obj)
 %           auto: the id follows the panels and data until one is typed:
 %           onIdEdited, onIdAutoToggled), Title,
 %           Enabled and a summary, always open; then Observations (the data
-%           the figure is drawn for, the unit filter or the channels, Per
-%           trial group: one
+%           the figure is drawn for, Starred only, the unit filter or the
+%           channels, Per trial group: one
 %           figure per observation and group), Panels (the
 %           schematic of the grid, drawFigureSchematic: click a panel to
 %           pick it, or drag it to an empty cell or to an edge of another
@@ -225,6 +225,13 @@ E.observe = uidropdown(S.Body, "Items", "Sorted units", "ItemsData", "units", "V
     "unit, each channel's detected spikes, each channel of a signal, or the dataset once. What the active " + ...
     "dataset holds comes first; a type it lacks says so and can still be picked.");   % applyFigureEditor lists them (observeItems)
 place(E.observe, r, 2);
+[S, r] = formRow(S, "obsStarred", "Favorites:");
+E.obsStarred = uicheckbox(S.Body, "Text", "Starred only", "ValueChangedFcn", changed, ...
+    "Tooltip", "Observe only what is starred (★): the starred units of the sort in use, the starred channels (a " + ...
+    "detection channel by its channel) or, for a figure of the dataset, a starred dataset. Generate, < > and " + ...
+    "Export runs then draw just the favorites (observe.starred in the config); across sessions, an observation " + ...
+    "starred on any of its sessions.");
+place(E.obsStarred, r, 2);
 [S, r] = formRow(S, "obsClasses", "Unit classes:");
 cg = subgrid(S.Body, r, repmat({'fit'}, 1, 4));
 cg.ColumnSpacing = 12;

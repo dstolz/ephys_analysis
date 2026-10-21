@@ -268,8 +268,8 @@ if S.sec("1", "config: defaults and the tables")
         && L.aggregate == "each" && isequaln(L.event, EphysAnalysisConfig.defaults("EventMark")) && L.eventsAs == "marks" ...
         && L.color == "" && L.lineStyle == "" && ~isfield(L, 'yParam') && ~isfield(L, 'seriesParam'), 'defaults("Layer")');
     O = EphysAnalysisConfig.defaults("Observe");
-    check(isequal(string(fieldnames(O)).', ["data" "units" "channels" "perGroup"]) && O.data == "units" && ~isfield(O.units, 'source') ...
-        && isequal(O.channels, []) && ~O.perGroup, 'defaults("Observe"): data (sorted units), units, channels, perGroup');
+    check(isequal(string(fieldnames(O)).', ["data" "units" "channels" "starred" "perGroup"]) && O.data == "units" && ~isfield(O.units, 'source') ...
+        && isequal(O.channels, []) && ~O.starred && ~O.perGroup, 'defaults("Observe"): data (sorted units), units, channels, starred, perGroup');
     FS = EphysAnalysisConfig.defaults("FigureSessions");
     check(~FS.enabled && FS.datasets == "ticked" && isstring(FS.datasetKeys) && isequal(size(FS.datasetKeys), [1 0]) ...
         && FS.facet == "none" && FS.series == "session" && FS.colorOrder == "palette" && ~FS.showMembers && FS.error == "sem" ...
@@ -1404,7 +1404,7 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
     D = cfg.Defaults;
     wD = D.Window;
     U0 = EphysAnalysisConfig.defaults("UnitSelection");
-    varsObs =["kind" "label" "unitId" "channel" "column" "shank" "depth" "meta" "group" "groupLabel"];
+    varsObs =["kind" "label" "unitId" "channel" "column" "shank" "depth" "meta" "group" "groupLabel" "starred"];
 
     % observations
     Tu = figureObservations(src, spec);
@@ -1432,6 +1432,50 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
     Td = figureObservations(src, sp);
     check(sp.observe.kind == "dataset" && isscalar(Td.kind) && Td.kind == "dataset" && Td.label == src.name && isnan(Td.unitId), ...
         'figureObservations: one row, the dataset, for a dataset figure');
+
+    % the stars (DatasetFavorites beside the data): the starred column, Starred only (observe.starred), the caption
+    favS = DatasetFavorites(src);
+    cleanStars = onCleanup(@() deleteQuiet(favS.File));
+    check(~any(Tu.starred) && ~any(Tc.starred) && ~Td.starred, 'figureObservations: no favorites file, no star');
+    favS.star("unit", Tu.unitId([1 end]));
+    favS.star("channel", Tc.channel(2));
+    sS = spec; sS.observe.starred = true;
+    TuS = figureObservations(src, spec);
+    TuF = figureObservations(src, sS);
+    check(isequal(TuS.starred, ismember(TuS.unitId, Tu.unitId([1 end]))) && height(TuF) == 2 && all(TuF.starred) ...
+        && isequal(TuF.unitId, Tu.unitId([1 end])) && isequal(string(TuF.Properties.VariableNames), varsObs), ...
+        'figureObservations: the starred column marks the starred units; Starred only keeps just them, in probe order');
+    scS = sc; scS.observe.starred = true;
+    TcF = figureObservations(src, scS);
+    check(isscalar(TcF.channel) && TcF.channel == Tc.channel(2) && TcF.starred, 'Starred only on an extract keeps the starred channel');
+    sdet = cfg.figureFor("rp"); sdet.observe.data = "detected"; sdet.observe.kind = "unit"; sdet.observe.units.source = "detected";
+    if src.hasDetected
+        TdA = figureObservations(src, sdet);
+        sdet.observe.starred = true;
+        TdF = figureObservations(src, sdet);
+        check(isequal(TdA.starred, TdA.channel == Tc.channel(2)) && height(TdF) == nnz(TdA.starred) && all(TdF.starred), ...
+            'a detection channel is starred as its recording channel; Starred only keeps those');
+    end
+    spS = sp; spS.observe.starred = true;
+    TdNo = figureObservations(src, spS);
+    favS.star("dataset");
+    TdYes = figureObservations(src, spS);
+    check(height(TdNo) == 0 && isscalar(TdYes.kind) && TdYes.starred, 'Starred only on a dataset figure: the dataset only when it is starred');
+    favMem = DatasetFavorites(src);
+    favMem.star("unit", Tu.unitId(2));   % Favorites= is used as given, not read again
+    TuM = figureObservations(src, sS, Favorites=favMem);
+    check(height(TuM) == 3 && ismember(Tu.unitId(2), TuM.unitId), 'figureObservations Favorites=: the stars given');
+    favMem.star("unit", Tu.unitId(2), false);
+    capS = figureCaption(spec, TuS, Dataset=src.name);
+    capF = figureCaption(sS, TuF);
+    capN = figureCaption(spec, Tu);
+    check(contains(capS, sprintf("%d observations (sorted units", nU)) && contains(capS, "; 2 starred) of " + src.name) ...
+        && startsWith(capF, "rp: 2 observations (sorted units") && contains(capF, "; starred only);") ...
+        && ~contains(capN, "starred"), "figureCaption: the stars counted, Starred only named: " + capS + " / " + capF);
+    favS.star("dataset", [], false);
+    favS.star("unit", Tu.unitId([1 end]), false);
+    favS.star("channel", Tc.channel(2), false);
+    check(~isfile(favS.File), 'the stars taken away again');
 
     % raster + PSTH of one unit
     F1 = rn.computeFigure(src, spec);
@@ -3400,6 +3444,23 @@ if S.sec("10", "session figures: one figure across datasets")
     Tq2 = figureSessionObservations(srcQ, sc2.figureFor("srp"));
     check(~isempty(both) && height(Tq2) == nnz(Tq.nSessions == 2) && all(Tq2.nSessions == 2), 'minSessions 2 keeps the sites both sessions hold');
 
+    % the stars across sessions: a match is starred when it is starred on any of its sessions, and Starred only keeps it whole
+    favQ = DatasetFavorites(srcQ{1});
+    cleanStarsQ = onCleanup(@() deleteQuiet(favQ.File));
+    check(~any(Tq.starred), 'figureSessionObservations: no star, no starred match');
+    favQ.star("unit", Tq.unitIds{both}{1}(1));   % starred on the first session only
+    TqA = figureSessionObservations(srcQ, sp1);
+    spQ = sp1; spQ.observe.starred = true;
+    TqS = figureSessionObservations(srcQ, spQ);
+    check(isequal(TqA.starred, (1:height(TqA)).' == both) && isscalar(TqS.channel) && TqS.channel == Tq.channel(both) ...
+        && TqS.nSessions == 2 && TqS.starred && all(TqS.perSession{1}.present) && ~TqS.perSession{1}.starred(2), ...
+        'a site starred on one session is starred; Starred only keeps it, still drawn on both sessions');
+    capQ = figureCaption(spQ, TqS, Sessions=Sq);
+    capQ2 = figureCaption(sp1, TqA, Sessions=Sq);
+    check(contains(capQ, Tq.label(both) + " (starred) across 2 sessions") && contains(capQ2, "matched by site; 1 starred) across 2 sessions"), ...
+        "figureCaption across sessions: " + capQ + " / " + capQ2);
+    favQ.star("unit", Tq.unitIds{both}{1}(1), false);
+
     % observations by a mapping file
     mapFile = fullfile(sroot, "unit_map.csv");
     P1 = Tq.perSession{both};
@@ -3699,4 +3760,10 @@ function c = arrangeCell(r1, r2, c1, c2, inset)
 %arrangeCell  A panel's cell for figureArrange: its rows and columns and its labels' room, at its full size, no band, one axes.
 c = struct('r1', r1, 'r2', r2, 'c1', c1, 'c2', c2, 'size', [1 1], 'align', "center", 'valign', "middle", ...
     'inset', inset, 'band', "", 'need', 0, 'shares', 1);
+end
+
+
+function deleteQuiet(f)
+%deleteQuiet  Delete file F when it is there.
+if isfile(f); delete(f); end
 end

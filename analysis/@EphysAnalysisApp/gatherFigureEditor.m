@@ -50,6 +50,7 @@ u.shanks = parseList(E.obsShanks.Value);
 u.channels = parseList(E.obsUnitChannels.Value);
 o.units = u;
 o.channels = parseList(E.obsChannels.Value);
+o.starred = logical(E.obsStarred.Value);
 o.perGroup = logical(E.obsPerGroup.Value);
 fig.observe = o;
 

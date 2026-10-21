@@ -57,6 +57,7 @@ aurocTo(E, "obsRa", rs.auroc);
 E.obsShanks.Value = listText(u.shanks);
 E.obsUnitChannels.Value = listText(u.channels);
 E.obsChannels.Value = listText(o.channels);
+E.obsStarred.Value = logical(o.starred);
 E.obsPerGroup.Value = logical(o.perGroup);
 
 % across sessions (the Sessions section)

@@ -2323,10 +2323,19 @@ if S.sec("5i", "favorites: stars on datasets, units and channels; the Favorites 
         '< and > step through the marked list, the star toggle following each unit');
     E = app.FavoriteEntries;
     iu = find(E.level == "unit");
+    mu = TU.meta{2};   % the unit's class, channel and depth: read when its dataset was opened (DatasetUnits)
+    richU = F.names(1) + " · unit " + u2 + " · " + mu.class(1) + " · ch " + mu.channel(1);
+    if isfinite(mu.y(1)); richU = richU + " · " + compose("%g µm", round(mu.y(1))); end
     check(height(E) == 3 && isequal(E.level(E.dataset == kF1), ["dataset"; "unit"]) && isequal(E.level(E.dataset == kF2), "dataset") ...
-        && issorted(E.dataset) && isscalar(iu) && E.label(iu) == F.names(1) + " · unit " + u2 ...
+        && issorted(E.dataset) && isscalar(iu) && E.label(iu) == richU ...
         && numel(favDD.Items) == 4 && contains(string(favDD.Items{1}), "3 favorites"), ...
-        sprintf('Favorites lists each starred dataset with its units, in dataset order ("%s")', E.label(iu)));
+        sprintf('Favorites lists each starred dataset with its units, in dataset order, a unit of an opened dataset with its class, channel and depth ("%s")', E.label(iu)));
+    app.DatasetUnits = [];   % as before its dataset was opened: the short label, nothing read for it
+    app.refreshFavorites();
+    shortU = app.FavoriteEntries.label(iu);
+    app.selectDataset(kF1);   % opening it fills the label in
+    check(shortU == F.names(1) + " · unit " + u2 && app.FavoriteEntries.label(iu) == richU, ...
+        sprintf('a dataset not opened keeps the short label ("%s"); opening it fills the list in', shortU));
     app.onFavoritesFilter("FigureFavorites", "UNIT " + u2);
     fItems = string(favDD.Items);
     check(numel(fItems) == 2 && fItems(2) == E.label(iu) && contains(fItems(1), "1 of 3") && isequal(favDD.ItemsData, [0 iu]), ...
@@ -2362,8 +2371,10 @@ if S.sec("5i", "favorites: stars on datasets, units and channels; the Favorites 
     app.onFigureObservationChanged();
     app.onStarToggled("observation", true);
     ch1 = TLf.channel(1);
+    richC = F.names(1) + " · channel " + ch1;
+    if isfinite(TLf.depth(1)); richC = richC + " · " + compose("%g µm", round(TLf.depth(1))); end
     check(app.Favorites(kF1).isStarred("channel", ch1) && startsWith(string(oDD.Items{1}), "★ ") && app.FigureObservationStar.Value ...
-        && any(app.FavoriteEntries.label == F.names(1) + " · channel " + ch1), ...
+        && any(app.FavoriteEntries.label == richC), ...
         sprintf('a figure of LFP channels: the star stars the channel (channel %d), marked in the picker and listed', ch1));
     srcF = app.Runner.source(kF1);
     if srcF.hasDetected
@@ -2385,7 +2396,42 @@ if S.sec("5i", "favorites: stars on datasets, units and channels; the Favorites 
     app.onStarToggled("observation", false);
     check(~app.Favorites(kF1).Dataset && ~app.FiguresDatasetStar.Value && app.Favorites(kF1).isStarred("unit", u2), ...
         'unstarring the dataset from there leaves its unit and channel stars');
+    FE.obsStarred.Value = true;   % Starred only: the dataset is not starred now
+    app.onConfigChanged("figure");
+    check(app.Config.Figures(1).observe.starred && shown(FE.obsStarred) && isempty(app.FigureObservations) ...
+        && contains(string(FE.obsCount.Text), "not starred"), ...
+        sprintf('Starred only on a figure of an unstarred dataset: no observation, the count line says why ("%s")', FE.obsCount.Text));
     FE.observe.Value = "units";
+    app.onConfigChanged("figure");
+    TS = app.FigureObservations;
+    check(istable(TS) && height(TS) == 1 && TS.unitId == u2 && TS.starred && contains(string(FE.obsCount.Text), "starred only") ...
+        && startsWith(string(oDD.Items{1}), "★ "), ...
+        sprintf('Starred only: the picker lists just the starred unit ("%s")', FE.obsCount.Text));
+    u1 = TU.unitId(1);
+    app.Favorites(kF1).star("unit", u1);
+    app.refreshFavorites();   % as a toggle does: the list is made again
+    n2 = height(app.FigureObservations);
+    app.Favorites(kF1).star("unit", u1, false);
+    app.refreshFavorites();
+    check(n2 == 2 && height(app.FigureObservations) == 1 && app.FigureObservations.unitId == u2, ...
+        'with Starred only a star added or taken away lists the units again');
+    if ismember(kF1, app.tickedDatasetIndices())
+        FE.obsStarred.Value = false;
+        FE.sesEnabled.Value = true;   % across sessions: the site of the starred unit is marked
+        app.onConfigChanged("figure");
+        TM = app.FigureObservations;
+        jM = find(TM.channel == TU.channel(2), 1);
+        mItems = string(oDD.Items);
+        check(~isempty(jM) && TM.starred(jM) && startsWith(mItems(jM), "★ ") && nnz(startsWith(mItems, "★ ")) == nnz(TM.starred), ...
+            'a figure across sessions marks the match starred on any of its sessions (the site of the starred unit)');
+        FE.obsStarred.Value = true;
+        app.onConfigChanged("figure");
+        TM2 = app.FigureObservations;
+        check(height(TM2) == nnz(TM.starred) && all(TM2.starred) && contains(string(FE.obsCount.Text), "starred on any session"), ...
+            sprintf('Starred only across sessions keeps the matches starred on any session ("%s")', FE.obsCount.Text));
+        FE.sesEnabled.Value = false;
+    end
+    FE.obsStarred.Value = false;
     app.onConfigChanged("figure");
     app.selectDataset(kF2);
     app.onStarToggled("dataset", false);

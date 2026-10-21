@@ -1225,6 +1225,13 @@ summary tables (`reportSummaryTables`) list **Starred** (yes / no), the
 **Starred channels** and **Starred units**, and a **Starred** column in
 *Highest rates*.
 
+**In figures.** `figureObservations` and `figureSessionObservations` have a
+`starred` column (`fav.observationStarred(T, data)` for a dataset's own rows;
+across sessions, starred on any session), a figure's `observe.starred`
+(*Starred only*) keeps only those rows
+([observe](EphysAnalysisConfig.md#figures)), and `figureCaption` says how many
+observations are starred, or *starred only*.
+
 ## Notes
 
 Free text on a dataset, a channel or a sorted unit. The analysis app writes

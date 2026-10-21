@@ -14,7 +14,13 @@ function txt = figureCaption(spec, T, opts)
 %   (eventRefLabel), the window ("from <event> to <stop>" for a "between"
 %   window) and the trial grouping, and "one figure per trial group" for a
 %   perGroup figure (T then has a row per observation and group, each
-%   counted as an observation). NAME (default "") is left out when
+%   counted as an observation). The stars follow the count: "starred
+%   only" for a figure that keeps only the starred observations
+%   (observe.starred), else how many of them are starred (T.starred,
+%   figureObservations' and figureSessionObservations' column) when any
+%   are: "12 observations (sorted units: su, mua; 3 starred)"; one
+%   observation of a session figure: "site ch 7 (starred) across 3
+%   sessions". NAME (default "") is left out when
 %   empty. The reports print it under the figure's pages
 %   (addReportFigure Caption=).
 %   A figure with an auROC PSTH or heat map (baseline Mode "auroc") says how
@@ -60,6 +66,14 @@ switch ob.kind
     otherwise
         what = "the dataset";
 end
+nStar = 0;
+if ismember("starred", string(T.Properties.VariableNames)); nStar = nnz(T.starred); end
+starTxt = "";
+if isfield(ob, 'starred') && ob.starred
+    starTxt = "; starred only";
+elseif nStar > 0
+    starTxt = sprintf("; %d starred", nStar);
+end
 head = spec.id;
 if isfield(spec, 'title') && spec.title ~= ""; head = head + " (" + spec.title + ")"; end
 if across
@@ -72,12 +86,14 @@ if across
     ss = spec.sessions;
     if ob.kind == "unit"; what = what + ", matched by " + ss.match; end
     if n == 1
-        first = head + ": " + string(T.label(1)) + " across " + sTxt;
+        star = "";
+        if nStar > 0; star = " (starred)"; end
+        first = head + ": " + string(T.label(1)) + star + " across " + sTxt;
     else
-        first = sprintf("%s: %d observation%s (%s) across %s", head, n, plural(n), what, sTxt);
+        first = sprintf("%s: %d observation%s (%s%s) across %s", head, n, plural(n), what, starTxt, sTxt);
     end
 else
-    first = sprintf("%s: %d observation%s (%s)", head, n, plural(n), what);
+    first = sprintf("%s: %d observation%s (%s%s)", head, n, plural(n), what, starTxt);
 end
 if opts.Dataset ~= ""; first = first + " of " + opts.Dataset; end
 parts = string(first);

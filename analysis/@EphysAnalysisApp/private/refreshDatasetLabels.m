@@ -12,12 +12,14 @@ function refreshDatasetLabels(obj, idx)
 %   Nothing is read here: whether a dataset has a sort or a spikes file
 %   comes from its loaded source (hasUnits, hasDetected) when it has one,
 %   else from the scan's files (DatasetOutputs.has), and the counts from
-%   OBJ.DatasetUnitCounts.
+%   OBJ.DatasetUnits.
 %
-%   refreshDatasetLabels(OBJ, IDX) first counts the sorted units of
+%   refreshDatasetLabels(OBJ, IDX) first takes the sorted units of
 %   dataset IDX, the active one, whose units its Data tab has read already
 %   (DatasetOutputs.load("sorting"), from the outputs' cache), and keeps
-%   the count in DatasetUnitCounts by dataset key and sort folder, so it
+%   them in DatasetUnits by dataset key and sort folder (datasetSortKey):
+%   a table of unitId, class, channel and depth (their probe y, µm), whose
+%   height is the count and which labels the Favorites (listFavorites). It
 %   stays when another dataset is opened and goes stale only when the sort
 %   folder changes. A dataset is counted the first time it is opened, so a
 %   share's folders are never walked for the counts.
@@ -29,16 +31,15 @@ arguments
 end
 r = obj.Runner;
 if isempty(r) || isempty(r.Keys); return; end
-if ~isa(obj.DatasetUnitCounts, 'containers.Map')
-    obj.DatasetUnitCounts = containers.Map('KeyType', 'char', 'ValueType', 'double');
+if ~isa(obj.DatasetUnits, 'containers.Map')
+    obj.DatasetUnits = containers.Map('KeyType', 'char', 'ValueType', 'any');
 end
-counts = obj.DatasetUnitCounts;
+units = obj.DatasetUnits;
 if idx >= 1 && idx <= numel(r.Keys) && isKey(r.Sources, char(r.Keys(idx)))
     src = r.Sources(char(r.Keys(idx)));
     if src.hasUnits
         try
-            U = src.outputs.load("sorting");
-            counts(sortKey(r, idx)) = numel(U.unitId);
+            units(datasetSortKey(r, idx)) = unitTable(src.outputs.load("sorting"));
         catch
         end
     end
@@ -57,9 +58,9 @@ for k = 1:n
         hasD = out.has("spikes");   % the spikes file holds the detections
     end
     if hasU
-        s = sortKey(r, k);
-        if isKey(counts, s)
-            c = counts(s);
+        s = datasetSortKey(r, k);
+        if isKey(units, s)
+            c = height(units(s));
             items(k) = items(k) + sprintf("  (%d unit%s)", c, repmat('s', 1, c ~= 1));
         end
     elseif hasD
@@ -80,9 +81,11 @@ set([obj.AlignDatasetDropDown obj.FiguresDatasetDropDown], 'Items', items);
 end
 
 
-function s = sortKey(r, k)
-%sortKey  Dataset K's key in DatasetUnitCounts: its dataset key and its sort folder.
-d = reshape(string(r.Outputs(k).SortingDir), 1, []);
-if isempty(d); d = ""; end
-s = char(string(r.Keys(k)) + "|" + strjoin(d, ";"));
+function T = unitTable(U)
+%unitTable  The sorted units' unitId, class, channel and depth (their y, µm; NaN when not known) from DatasetOutputs.load("sorting").
+n = numel(U.unitId);
+T = table(double(U.unitId(:)), strings(n, 1), NaN(n, 1), NaN(n, 1), 'VariableNames', {'unitId', 'class', 'channel', 'depth'});
+if isfield(U, 'class'); T.class = string(U.class(:)); end
+if isfield(U, 'channel'); T.channel = double(U.channel(:)); end
+if isfield(U, 'y'); T.depth = double(U.y(:)); end
 end

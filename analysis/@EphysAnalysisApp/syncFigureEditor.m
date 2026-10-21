@@ -2,7 +2,7 @@ function syncFigureEditor(obj)
 %syncFigureEditor  Show, enable and list the figure editor's rows for the selected figure, panel and layer.
 %   What shows (rows a section does not use are hidden, and so is a
 %   section left with none: layoutFigureEditor):
-%     Observations   under Observe, the unit filter for sorted units or
+%     Observations   under Observe, Starred only (always), the unit filter for sorted units or
 %                    detected spikes (classes and quality for sorted units;
 %                    the response test's rows, its auROC rows with the
 %                    auROC test), the channels for a signal, nothing more
@@ -137,7 +137,7 @@ for q = 1:np
 end
 
 v = struct();
-for f = ["id" "title" "enabled" "summary" "observe" "sesEnabled" "obsPerGroup" "obsCount" "schematic" "newPanel" "spacing" ...
+for f = ["id" "title" "enabled" "summary" "observe" "obsStarred" "sesEnabled" "obsPerGroup" "obsCount" "schematic" "newPanel" "spacing" ...
         "fontSize" "lineWidth" "colormap" "sortDepth" "labelDepth" "showSEM" "legendLoc" "errType" "errFace" "errEdge" "looksText"]
     v.(f) = true;   % the rows every figure shows
 end

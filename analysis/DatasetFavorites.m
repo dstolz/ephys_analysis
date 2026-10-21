@@ -53,6 +53,16 @@ classdef DatasetFavorites < handle
     %   Methods
     %     tf = isStarred(LEVEL, IDS)   one logical per id (LEVEL "dataset":
     %                                  IDS is ignored, one logical)
+    %     tf = observationStarred(T, DATA)
+    %                                  one logical per row of T, a
+    %                                  figureObservations table of the
+    %                                  figure observing DATA (its
+    %                                  observe.data): a sorted unit by its
+    %                                  id on the sort in use, a detection
+    %                                  channel (DATA "detected") and a
+    %                                  channel by their recording channel,
+    %                                  the dataset by its own star; a row
+    %                                  of another kind ("": none) is not
     %     star(LEVEL, IDS, TF)         star (TF true, the default) or unstar
     %                                  IDS and write the file at once. When it
     %                                  cannot be written (a read-only share,
@@ -204,6 +214,27 @@ classdef DatasetFavorites < handle
                 case "unit"
                     tf = ismember(ids, obj.UnitIds);
             end
+        end
+
+        function tf = observationStarred(obj, T, data)
+            %observationStarred  Whether each row of T (figureObservations) is starred, for a figure observing DATA.
+            arguments
+                obj (1,1) DatasetFavorites
+                T table
+                data (1,1) string
+            end
+            tf = false(height(T), 1);
+            if height(T) == 0; return; end
+            kind = string(T.kind);
+            tf(kind == "dataset") = obj.Dataset;
+            u = kind == "unit";
+            if data == "detected"
+                tf(u) = ismember(T.channel(u), obj.Channels);
+            elseif any(u)
+                tf(u) = ismember(T.unitId(u), obj.UnitIds);
+            end
+            c = kind == "channel";
+            tf(c) = ismember(T.channel(c), obj.Channels);
         end
 
         function star(obj, level, ids, tf)

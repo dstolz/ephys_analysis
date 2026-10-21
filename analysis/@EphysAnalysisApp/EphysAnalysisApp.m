@@ -281,7 +281,7 @@ classdef EphysAnalysisApp < handle
         NotePadWindow = []                  % the notepad (NotePad), while open (openNotePad)
         NotePadFollows (1,1) string = ""    % what the notepad follows: "dataset" (the active one), "observation" (the one picked), "" (the note it was opened on)
         NoteSearchWindow = []               % the Search notes window (NoteSearch), while open (onSearchNotes)
-        DatasetUnitCounts = []              % sorted units per dataset, counted when it is opened: containers.Map, "<key>|<sort folder>" -> n (refreshDatasetLabels)
+        DatasetUnits = []                   % sorted units per dataset, read when it is opened: containers.Map, "<key>|<sort folder>" -> table unitId, class, channel, depth (refreshDatasetLabels; labels the Favorites)
         EpochDiagramWindow = []             % the EpochDiagram window of the Figures tab's figure, while open (onShowEpochs)
         Running (1,1) logical = false
         LastReportFiles (1,:) string = string.empty(1,0)

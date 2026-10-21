@@ -298,6 +298,7 @@ switch section
             'data',        "units", ...         % ObserveData: "units" (each sorted unit) | "detected" (each channel's detections) | a signal ("LFP" | "MUA" | "SPIKE" | "AUX": each channel of its extract) | "dataset" (one figure)
             'units',       rmfield(u, 'source'), ...   % units / detected: the filter
             'channels',    [], ...              % a signal: the extract's columns ([] = all)
+            'starred',     false, ...           % true: only the starred units, channels or dataset (DatasetFavorites; a session figure: starred on any session)
             'perGroup',    false);              % true: each observation drawn once per trial group of the figure's selection (its groupBy)
 
     case "FigureSessions"

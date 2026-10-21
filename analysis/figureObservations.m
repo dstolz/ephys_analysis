@@ -1,4 +1,4 @@
-function T = figureObservations(src, spec)
+function T = figureObservations(src, spec, opts)
 %figureObservations  The observations a dataset offers for a figure: its units, its channels, or itself.
 %   T = figureObservations(SRC, SPEC) lists what the figure SPEC
 %   (EphysAnalysisConfig.figureFor: observe.kind added) can be drawn
@@ -37,6 +37,12 @@ function T = figureObservations(src, spec)
 %     group     the trial group drawn (a row of epochTable's groups over
 %               the figure's alignment): NaN = every group
 %     groupLabel  that group's label ("" = every group)
+%     starred   the observation is starred (DatasetFavorites of SRC: a
+%               sorted unit on the sort in use, a detection channel or a
+%               channel as its recording channel, the dataset by its own
+%               star); figureCaption counts them
+%   With SPEC.observe.starred only the starred rows are kept ("Starred
+%   only"): no star, no observation.
 %   With SPEC.observe.perGroup and a selection that groups trials
 %   (selection.groupBy), each observation is listed once per trial group
 %   with epochs (epochTable over SPEC.ref / window / selection, with the
@@ -48,12 +54,18 @@ function T = figureObservations(src, spec)
 %   these columns. EphysAnalysisRunner.computeFigure takes a row
 %   (Observation=T(k,:)).
 %
+%   Options
+%     Favorites  the DatasetFavorites of SRC (the app's, in memory); default
+%                [] reads them from SRC's output folder (no file, or a
+%                source without outputs: no star)
+%
 %   See also EphysAnalysisRunner.computeFigure, figureSkipReason, probeOrder,
-%   selectUnits, selectChannels.
+%   selectUnits, selectChannels, DatasetFavorites.
 
 arguments
     src (1,1) struct
     spec (1,1) struct
+    opts.Favorites = []
 end
 
 ob = spec.observe;
@@ -113,6 +125,10 @@ switch ob.kind
 end
 T.group = NaN(height(T), 1);
 T.groupLabel = strings(height(T), 1);
+T.starred = starredRows(src, ob.data, T, opts.Favorites);
+if isfield(ob, 'starred') && ob.starred
+    T = T(T.starred, :);
+end
 if height(T) > 0 && isfield(ob, 'perGroup') && ob.perGroup
     T = perGroupRows(src, spec, T);
 end
@@ -162,10 +178,23 @@ P = spec.panels(keep);
 end
 
 
+function tf = starredRows(src, data, T, fav)
+%starredRows  Whether each row of T is starred: FAV (a DatasetFavorites), else the stars read from SRC's output folder.
+%   A source without outputs, or stars that cannot be read, star nothing.
+tf = false(height(T), 1);
+if height(T) == 0; return; end
+try
+    if isempty(fav); fav = DatasetFavorites(src); end
+    tf = fav.observationStarred(T, data);
+catch   % a source without outputs: no star
+end
+end
+
+
 function T = emptyObservations()
 T = table(strings(0, 1), strings(0, 1), zeros(0, 1), zeros(0, 1), zeros(0, 1), zeros(0, 1), zeros(0, 1), cell(0, 1), ...
-    zeros(0, 1), strings(0, 1), ...
-    'VariableNames', {'kind', 'label', 'unitId', 'channel', 'column', 'shank', 'depth', 'meta', 'group', 'groupLabel'});
+    zeros(0, 1), strings(0, 1), false(0, 1), ...
+    'VariableNames', {'kind', 'label', 'unitId', 'channel', 'column', 'shank', 'depth', 'meta', 'group', 'groupLabel', 'starred'});
 end
 
 

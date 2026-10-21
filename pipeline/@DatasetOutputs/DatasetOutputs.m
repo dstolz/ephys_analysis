@@ -469,8 +469,8 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             %   SortedData=, Probe=) lists what the analysis reads, so a
             %   copy of just these files (into <folder>/<dataset key>) runs
             %   it on another machine. T has one row per file or folder:
-            %   Kind ("manifest", "behavior", "extract", "spikes", "sorting",
-            %   "sorted data", "probe"), Path, Base (the folder the file's
+            %   Kind ("manifest", "behavior", "favorites", "extract", "spikes",
+            %   "sorting", "sorted data", "probe"), Path, Base (the folder the file's
             %   place in the copy is counted from: its path below it is kept;
             %   "" keeps the name only) and Bytes. NOTES says in words what
             %   is missing (no behavior file, no sorted units, ...).
@@ -490,7 +490,8 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             %                 templates are drawn)
             %     Probe       true      the probe .json (probeFile)
             %
-            %   The manifest and <Name>_behavior.mat are always there.
+            %   The manifest, <Name>_behavior.mat and, when it exists,
+            %   <Name>_favorites.json (Kind "favorites") are always there.
             arguments
                 obj (1,1) DatasetOutputs
                 opts.Signals (1,:) string = ["LFP" "MUA" "AUX"]
@@ -523,6 +524,14 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                 end
             else
                 notes(end+1, 1) = "no behavior file (no trials)";
+            end
+
+            for root = roots
+                f = DatasetFavorites.fileFor(root, obj.Name);
+                if isfile(f)
+                    rows(end+1, :) = {"favorites", f, rootOf(f, roots)}; %#ok<AGROW>
+                    break
+                end
             end
 
             files = strings(1, 0);

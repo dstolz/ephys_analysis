@@ -83,6 +83,54 @@ says how to cut a release.
   them. `EphysAnalysisConfig.aggregates(type, source)` is the one list validate and the editor offer; a
   type change sets an aggregate the new type does not take to `"each"`.
 
+- Figures tab: **Unit report**, a spot check of one unit. It draws every enabled figure of the active dataset
+  (and the selected one, even when off) for the unit or channel picked over the preview only, as an HTML
+  report in a new temporary folder that opens in the browser: no figure files, no session figures, the output
+  folder untouched, cancelable from the progress dialog. A figure of the same data draws the unit itself; a
+  figure of channels or detections draws what is on the unit's recording channel; a figure of the dataset, or
+  one with nothing on that channel, is listed in the report as skipped with the reason, and the status bar
+  says what was left out. Off for a figure across sessions. `EphysAnalysisRunner.run` and `runDataset` take
+  `Observation=`, and `figureObservations(src, spec, Observation=)` returns the matching rows and why none
+  matched.
+- Analysis app: an **Edit** menu between File and Design with **Undo** (Ctrl+Z) and **Redo** (Ctrl+Y,
+  Ctrl+Shift+Z) of the Figures tab's edits. The items name the edit (**Undo Add panel**, **Undo Bin (ms)**: a
+  control's row label) and are grayed with nothing to undo, or off the Figures tab. Every edit of the figures
+  is a step: the editor's controls, the arrangement, panel types, layers, the figure list (Add, Remove,
+  Duplicate, Up / Down, Copy from..., the tree's check boxes), remembered looks and Pick...; quick edits of one
+  field make one step. Only `Figures` is kept (`FigureEditHistory`, 100 steps), so an undo leaves the source,
+  defaults, export and report settings as they are; the editor goes back to the figure and panel edited, the
+  preview follows, and undoing back to the saved figures clears the title's `*`. A new edit drops the redo
+  steps; opening or starting a config clears the history.
+- Figures: each panel's own axis sides and label text, for every panel type. Panel fields `xLabel` and
+  `yLabel` (`""` = automatic, the type's label) replace the labels drawn; `xSide` (`"bottom"` | `"top"`) and
+  `ySide` (`"left"` | `"right"`) put the axis' ticks and label on that side (`renderFigure`'s `panelAxes`,
+  once the type has drawn). A coherence panel's x axis on top goes on its magnitude, its phase strip
+  dropping its tick labels; a stacked PSTH keeps its y axis on each side; a color bar outside on the side
+  an axis moves to goes to the opposite side; the layout reserves the room on the new sides. A stack of
+  time panels still tells the time once: a time panel with its x axis on top hides it under a matching time
+  panel whose x axis is on top too, so a stack with every x axis on top is labeled at its top
+  (`figureTimeStack`; a time label of the panel's own replaces `Time (s)`). Validate checks the sides. In
+  the editor, the Selected panel section's **X axis** and **Y axis** rows (the label, blank = automatic,
+  and the side; the y side grayed out on a stacked PSTH). Right-click a panel's x or y label in the
+  preview, or in an **Open in window** figure, for **Edit label text...** and **Move to top** / **bottom**
+  (x) or **Move to right** / **left** (y): renderFigure's new `OnAxisEdit` hands the edit to the app
+  (`onFigureAxisEdited`), which commits it through the editor's path (`commitFigureEdit`); without one,
+  the figure is drawn again with it. **Go to setting** on a label goes to the new rows.
+- The pipeline app, the analysis app and the channel mapper start behind a small startup window (`AppSplash`,
+  `pipeline/AppSplash.m`): the app's name, its version, the step under way (each tab built, the preferences,
+  the config reopened, the scan with its dataset count, the first dataset loaded) and a progress bar whose
+  steps are weighted by their measured times. The main window is built hidden and shows when it is ready,
+  then the small one closes; on an error both close and the error goes on. On Windows it is a Windows Forms
+  window, which paints without `drawnow` (a uifigure splash's redraws pushed the hidden window to the screen
+  piece by piece and made the start a third slower); elsewhere a uifigure. Alerts raised while the app starts
+  (`uialert` refuses a hidden figure) wait for the main window (`AppSplash.alert`), and the pipeline app's
+  scan reports on the small window instead of its progress dialog. `Splash=false` starts without it, the
+  default under `matlab -batch`. The manifest viewer and the probe designer open in under 3 s and have none.
+- Pipeline app: the startup scans the reopened config's project when its root is there. A root on a network
+  share (a `\\server` path or a mapped network drive) is first looked for in the background
+  (`folderReachable`, `backgroundPool`): one that does not answer within 5 s is not scanned, nor is a root
+  that is gone, and the status bar says why. A sorting queue kept for that root is offered once the window
+  shows. The analysis app checks a config's network root the same way before its scan.
 - Figures: a PSTH panel drawn as a heat map, `options.display` `"trace"` (bars or a line per trial group, the
   default) or `"heatmap"`: the unit's PSTH as one image, a row per trial group (the first on top, as a raster
   and a stacked PSTH list them), x the PSTH's bins, colored by its rate after measure, smoothing, baseline and
@@ -1203,6 +1251,26 @@ says how to cut a release.
   [Favorites](documentation/EphysAnalysisApp.md#favorites),
   [the script API](documentation/EphysAnalysis.md#favorites-stars) and
   [the file](documentation/file-formats.md#favorites-name_favoritesjson).
+- Time left for long operations, in the same words in both apps (*about 40 s left*, *about 3 min left*,
+  *about 1 h 20 min left*), from the new `ProgressClock` (pipeline/): the time per fraction so far, shown
+  once 1% is done and 5 s have passed, smoothed so it counts down steadily. The pipeline app's Run tab says,
+  beside the step's message, the step's time left and the run's elapsed time (*about 3 min left in this
+  step, then 2 more steps · 12 min elapsed*; on the run's last step, *about 3 min left in the run*). The
+  analysis app's run dialog (**Run**, and the Figures tab's **Generate**) adds it to its message. The
+  pipeline app's **Detect / Preview** (Artifacts tab), **Refresh metadata**, the trials prefetch, **Clean
+  up** and the Review tab's **QC report** (now counting the good units' waveforms instead of an
+  indeterminate bar) say it too.
+- With the weighted CAR (Reference WCAR) the app no longer waits silently while the state is worked out:
+  **Detect / Preview** and the Visualize tab (*As the pipeline*) work it out first under their dialog,
+  which says the window and the time left (*Weighted CAR: state, window 12/80 · about 40 s left*); the
+  results are the same. In a Run its windows move the step's **Current** bar (Sorting: a quarter of the
+  dataset after its artifact intervals; Spikes: half of what is left; an automatic detection: its first
+  half) instead of holding it still; `EphysPipeline.prepareWCARFor` takes the span and says whether it
+  worked the state out.
+- Writing the analysis report reports its progress (*Writing the report: page 3/12*, sections for the
+  HTML), in a share of the run of its own: `writeHtmlReport` and `writePdfReport` take `ProgressFcn=`, and
+  so does `writeUnitQualityReport` (each good unit's waveform). Selecting a dataset in the analysis app
+  says which one of how many it is loading, and Scan names the root it scans.
 
 ### Changed
 
@@ -1216,6 +1284,24 @@ says how to cut a release.
   darkest heat color still shows, Tufte's a gray one, Gray panel draws white shanks without a grid, and no
   design turns the observed unit's red ring black or white any more.
 
+- Figures tab: **Preview**, **Generate**, **Unit report**, **Auto** and **<** **>** stand in a column of
+  their own at the left of the header, beside the Dataset, Observation and Favorites rows; **Design** and
+  **Save look as design...** sit right of Dataset and Observation, **Export code** left of **Open in window**
+  under the preview. Every one of these buttons has a key, named in its tooltip and in the tab's **?** list
+  (`pressFigureButton`): Ctrl+P Preview, Ctrl+G Generate, Ctrl+U Unit report, Ctrl+T Auto, Ctrl+E Export
+  code, Ctrl+W Open in window (Cmd on a Mac), Page Up / Page Down < and >.
+- Figures: raster ticks are drawn in each trial group's color, as the PSTH draws its traces (they were black, with
+  the group's color only on a pale band behind its rows): one line object per group, tagged `rasterTicks` with
+  the group's label, so the aesthetics editor and rules reach each group's ticks. `options.tickColor` `""` is
+  the groups' colors (a color: every tick), and a raster layer's own **Color** overrides both. The pale bands
+  are an option, `options.backColor` `"none"` (the default), `"groups"` or one color; the legend swatches are
+  ticks. The designs no longer set the ticks' color (their tick widths stay).
+- Analysis app opened on a folder (a project root, or one dataset's output folder; the pipeline app's **Open
+  analysis app** and its Tools panel open it so): it reopens its last config (`LastConfigFile`) with its
+  figures, the config's source switched to that folder's (`Mode` "project" with `Root`, `OutputRoot`,
+  `NamePattern`, `Recordings` and the selection, or "folders"), then scans. The config is then unsaved and
+  the status bar says so (**Save** writes the new source to its file). With no last config, or one that
+  cannot be read, it makes the `<folder> quick look` config as before. A `.json` source still opens as it is.
 - The baseline Modes each panel type takes are one list, `EphysAnalysisConfig.baselineModes(type, source)`,
   read by `validate`, the figure editor (`figureEditorChoices`) and `adoptPanelOptions` instead of three copies.
 - A stacked PSTH (**Stack**) draws its first trial group's row on top, as a raster lists its groups, so a
@@ -1505,6 +1591,9 @@ says how to cut a release.
   `starred`: the HTML report marks a starred dataset with a ★ in the contents and over its section, the PDF
   names it *(starred)*, and the summary's recording table lists **Starred**, the starred channels and
   units, with a **Starred** column in *Highest rates*.
+- The Copy tab's and the Run tab's output-copy time left come from `ProgressClock`, as every other time
+  left: *about 40 s left* instead of *less than a minute left*, smoothed, and the output copies' only once
+  1% is done and 5 s have passed (`CopyStarted` / `TransferStarted` are now `CopyClock` / `TransferClock`).
 
 ### Removed
 
@@ -1571,6 +1660,11 @@ says how to cut a release.
   it is parked above. The waveforms panel's probe layout, which moves a shank only where its glyphs would
   overlap, now moves whole shanks the same way, so it no longer pulls parked sites off their shank.
 
+- After **New config** (a config with no file yet), both apps wrote an empty `LastConfigFile` at close, so the
+  next launch opened nothing: they now keep the last file opened or saved.
+- Analysis app: a config opened while another config's datasets were listed was scanned with the old Run ticks
+  as its selection (they matched the old datasets' count), so a "list" selection came out "all". The scan after
+  an open now ticks the opened config's own selection (`scanOpened`).
 - A patch overlay was never seen over a raster panel: `drawOverlays` drew it as an `xregion` / `yregion`,
   which MATLAB paints behind every opaque patch whatever the draw order, and a raster's group bands are
   opaque (a PSTH's fills are translucent, so it showed there). A patch is now a patch object spanning the

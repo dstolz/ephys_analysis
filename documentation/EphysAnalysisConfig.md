@@ -899,6 +899,8 @@ follow its id.
 | `type` | `"psth"` | one of the [panel types](#panel-types) |
 | `title` | `""` | `""` = none, but for the observation's label on the top-left panel under a title of the figure's own |
 | `box` | `"auto"` | the frame around the panel's axes (and a coherence panel's phase axes): `"auto"` leaves it to the [design](EphysAnalysis.md#plot-designs) (Tufte and Journal turn it off) and to the looks remembered for the panel's kind; `"on"` or `"off"` is the panel's own and wins over all of them, the figure's own `aesthetics` rules included (a right-click edit of a panel's *Box* does not show while `box` is not `"auto"`: set the panel's Box row instead). Validate: `auto`, `on` or `off` |
+| `xLabel`, `yLabel` | `""`, `""` | the panel's own x and y axis labels, any text (no TeX); `""` = automatic: the label the panel type draws (`"Time (s)"` on a time axis, the rate's unit, `"Frequency (Hz)"`, ...). A stack of time panels tells the time once ([shared time axis](#shared-time-axis)): `xLabel` shows where the panel tells it. On a coherence panel with its phase strip the y label is the magnitude's; on a stacked PSTH, its left axis' |
+| `xSide`, `ySide` | `"bottom"`, `"left"` | where the panel's x axis' ticks and label go, `"bottom"` or `"top"`, and its y axis', `"left"` or `"right"`; drawn once the type has drawn, for every type. A coherence panel's x axis on top goes on its magnitude, its phase strip dropping its tick labels; a stacked PSTH keeps its two y axes (left: the groups, right: the peaks) whatever `ySide` says. A color bar outside on the side an axis moves to goes to the opposite side. Validate: `bottom` or `top`, `left` or `right` |
 | `row`, `col` | 1, 1 | the top-left cell |
 | `rowSpan`, `colSpan` | 1, 1 | the rows and columns it covers |
 | `size` | `[1 1]` | `[width height]`: its share of its cell's plot area, each over 0 and at most 1, so one panel can be narrower or shorter than the others of its column or row (`[0.5 1]`: half as wide) |
@@ -965,8 +967,8 @@ follow its id.
 
 What each draws:
 
-- `raster`: a row per epoch, by trial group on pale bands, for the first point
-  layer's first unit. Every further unit or layer goes in a block under it
+- `raster`: a row per epoch, by trial group, each group's ticks in its color (as
+  the PSTH's traces; `backColor` adds bands), for the first point layer's first unit. Every further unit or layer goes in a block under it
   with a small gap, each group a band of its own, and the y axis names the
   blocks. Events layers drawn as marks put a mark on every row of every block,
   drawn as a span a line from each onset to its offset on every row; drawn as a
@@ -1333,10 +1335,10 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `raster` | `rasterSort` | `""` | the order of each group's epochs: `""` (trial order), `"stop"`, `"event"` or a trial parameter |
 | `raster` | `rasterSortEvent` | `[]` | `rasterSort "event"` (required then): the [event reference](#eventref) whose latency orders the rows |
 | `raster` | `rasterSortOrder` | `"ascending"` | or `"descending"` |
-| `raster` | `rasterByGroup` | `true` | rows by group first, each group on a band; `false`: every epoch sorted as one block |
+| `raster` | `rasterByGroup` | `true` | rows by group first; `false`: every epoch sorted as one block |
 | `raster` | `maskAfterStop` | `false` | drop each epoch's ticks from its stop event on |
-| `raster` | `tickColor` | `""` | the ticks' color: `""` is black; else a color name or hex code (`"red"`, `"#ff7f0e"`). A name that is not a color is a validation warning and the ticks stay black |
-| `raster` | `backColor` | `""` | the rows' background: `""` is each group's pale band (the groups show); else a color name or hex code, painted on every group's band and on the axes behind them (the legend then lists no groups, as they are not told apart) |
+| `raster` | `tickColor` | `""` | the ticks' color: `""` is each trial group's color (as the PSTH colors its traces; each group's ticks are one line object, tagged `rasterTicks` with the group's label); else a color name or hex code (`"red"`, `"#ff7f0e"`) for every tick. A raster layer's own `color` overrides it for that layer's block. A name that is not a color is a validation warning and the ticks keep the groups' colors |
+| `raster` | `backColor` | `"none"` | bands behind the rows: `"none"` (the default), `"groups"` (a pale band of each group's color behind its rows; the legend then also names the groups when every tick is one color) or a color name or hex code, painted on every group's band and on the axes behind them. Anything else is a validation warning and no bands |
 | `raster` | `yTicks` | `false` | show the y axis' tick marks and labels (the epoch numbers); `false` hides them and keeps the y label. A raster of several blocks keeps its blocks' names on the y axis either way. A heat map of trials has no y ticks to show |
 | `raster` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | the first block's unit's waveform in a box in the panel |
 | `psth` | `bins` | `BinSec` 0.01, `SmoothSec` 0.01 | the bin width (bins are whole multiples of `BinSec` from the event) and the Gaussian SD applied to each epoch before averaging, s (0 = no smoothing) |
@@ -1490,9 +1492,17 @@ A panel shares the figure's time axis when its type does (`SharesTime`) and its
 - Time panels stacked in a column are labeled once. A time panel's x tick labels
   and label are hidden when the panel directly below it, in every column it
   covers, is a time panel with the same limits. Otherwise (nothing below it, a
-  panel with another kind of x axis such as waveforms, or other limits) it keeps its ticks and is labeled `Time (s)`: the bottom of a stack is
+  panel with another kind of x axis such as waveforms, or other limits) it keeps its ticks and is labeled `Time (s)` (its `xLabel`, when set): the bottom of a stack is
   always labeled. A raster also drops its y ticks in its bottom tenth where it
   meets the panel below, unless its ticks name its blocks.
+- A time panel whose x axis is on top (`xSide "top"`) looks up instead: it
+  hides its tick labels and label when the panel directly above it, in every
+  column, is a time panel with the same limits whose x axis is on top too. So a
+  stack with every x axis on top is labeled once, at its top (a raster then
+  drops its y ticks in its top tenth). A panel with its x axis at the bottom
+  over one with its x axis on top hides its own: the lower one tells the time,
+  between them. Axes facing away from each other (the upper one's on top, the
+  lower one's at the bottom) both keep theirs.
 - A time panel with a `ref` or `window` of its own keeps its own x axis and
   label, and the stack above it is labeled at its own bottom.
 - A panel narrower than its column (a note band left or right of it, or a
@@ -1815,7 +1825,7 @@ defaults. A file written by hand may leave out any field that keeps its default.
                        "offsetParam": "", "offsetParamUnit": "ms", "sequence": [], "alignStep": "Inf",
                        "marker": "diamond", "size": 4, "color": "" } } ],
         "options": { "rasterSort": "", "rasterSortEvent": [], "rasterSortOrder": "ascending", "rasterByGroup": true,
-                     "maskAfterStop": false, "tickColor": "", "backColor": "", "yTicks": false,
+                     "maskAfterStop": false, "tickColor": "", "backColor": "none", "yTicks": false,
                      "waveform": { "mode": "off", "...": "..." } } },
       { "id": "psth_1", "type": "psth", "title": "", "box": "auto", "row": 2, "col": 1, "rowSpan": 1, "colSpan": 1,
         "ref": "default", "window": "default", "selection": "default",
@@ -1943,7 +1953,8 @@ Errors:
   (`rasterSortOrder`, a `rasterSortEvent` for `rasterSort "event"`) (an
   `edgeColor` or `baselineColor` that is not a color is a warning);
 - each panel's text note and overlays, by one function's rules ([Panel notes](#panel-notes), [Panel overlays](#panel-overlays)): a note with no text is not
-  checked (a panel of an unknown `type` has its note and overlays checked all the same; `box` is `auto`, `on` or `off`),
+  checked (a panel of an unknown `type` has its note and overlays checked all the same; `box` is `auto`, `on` or `off`,
+  `xSide` `bottom` or `top`, `ySide` `left` or `right`),
   else its `placement`, a finite `x` and `y` for `"custom"` (`0-1 across and up the panel`), `align`, `valign`,
   `interpreter`, a finite `rotation` and a positive (or `NaN`) `fontSize`; an overlay's
   `shape`, a finite `value` (line) or two different finite `from` and `to` (region), `axis`,

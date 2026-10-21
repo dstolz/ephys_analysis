@@ -356,6 +356,9 @@ if S.sec("1", "config: defaults and the tables")
     check(P.box == "auto" && find(fnP == "box") == find(fnP == "title") + 1 && T.DefaultOptions{T.Type == "raster"}.yTicks == false ...
         && ~isfield(T.DefaultOptions{T.Type == "heatmap"}, 'yTicks'), ...
         'Panel.box: "auto", after title; the raster''s options.yTicks is false (no other type has it)');
+    check(P.xLabel == "" && P.yLabel == "" && P.xSide == "bottom" && P.ySide == "left" ...
+        && isequal(fnP(find(fnP == "box") + (1:4)), ["xLabel" "yLabel" "xSide" "ySide"]), ...
+        'Panel.xLabel / yLabel: "" (automatic), xSide "bottom", ySide "left", after box');
     pn = EphysAnalysisConfig.normalizePanel(struct('type', "psth", 'note', struct('text', "n = 12", 'placement', "northeast"), ...
         'overlays', struct('shape', "region", 'panel', "raster", 'from', 0, 'to', 0.2)));
     check(isscalar(pn.overlays) && pn.overlays.panel == "all" && pn.overlays.shape == "region" && pn.overlays.to == 0.2 ...
@@ -1340,6 +1343,10 @@ if S.sec("6", "config: validate")
     bx = b; bx.Figures(1).panels(2).box = "on";
     bx2 = b; bx2.Figures(1).panels(2).box = "maybe";
     check(isempty(figIssues(bx)) && has(bx2, "figure_1.psth_1.box", "error"), 'a panel''s box is auto, on or off (anything else is an error)');
+    bx = b; bx.Figures(1).panels(2).xSide = "top"; bx.Figures(1).panels(2).ySide = "right"; bx.Figures(1).panels(2).xLabel = "Lag (s)";
+    bx2 = b; bx2.Figures(1).panels(2).xSide = "left"; bx2.Figures(1).panels(2).ySide = "top";
+    check(isempty(figIssues(bx)) && has(bx2, "figure_1.psth_1.xSide", "error") && has(bx2, "figure_1.psth_1.ySide", "error"), ...
+        'a panel''s xSide is bottom or top, its ySide left or right (anything else is an error); a label is any text');
     nb.placement = "nowhere"; nb.align = "justify"; nb.valign = "up"; nb.interpreter = "latex"; nb.rotation = NaN;
     nb.fontSize = -1; nb.color = "plaid";
     b2 = b; b2.Figures(1).panels(2).note = nb;
@@ -2193,13 +2200,14 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     oU = oV; oU.from = 0.5; oU.to = 0.7; oU.layer = "under"; oU.name = "hidden";
     oY = oV; oY.axis = "y"; oY.from = 2; oY.to = 5; oY.name = "rows";
     sV.panels(1).overlays = [oV oU oY];
+    sV.panels(1).options.backColor = "groups";   % the raster's group bands are what hides an "under" region
     clf(fig);
     hV = renderFigure(F1, sV, fig);
     drawnow;
     axV = hV.panels(1).axes;
     gV = hV.panels(1).overlays;
     gX = gV(arrayfun(@(g) string(getappdata(g, 'PlotGroup')) == "seen", gV));
-    bandsV = findobj(axV, 'Tag', 'rasterBand');
+    bandsV = findall(axV, 'Tag', 'rasterBand');
     imgV = print(fig, '-RGBImage', '-r60');
     boxV = figureBox(axV, fig);
     green = [0 255 0];
@@ -2239,26 +2247,66 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     hY = renderFigure(F1, rY, fig);
     drawnow;
     check(numel(hY.panels(1).axes.YTick) >= 2 && numel(hY.panels(1).axes.YTickLabel) >= 2, 'options.yTicks brings the raster''s y ticks back');
-    % options.tickColor colors the ticks, options.backColor every band and the axes behind them; blank = black ticks, pale group bands
+    % the ticks are each group's color (a line per group, tagged with its label), no bands; tickColor makes every tick one
+    % color; backColor "groups" gives each group a pale band, a color one color on every band and the axes behind them
     rC = F1.spec;
     clf(fig);
     hC = renderFigure(F1, rC, fig);
     drawnow;
     axC = hC.panels(1).axes;
-    tk0 = findall(axC, 'Tag', 'rasterTicks').Color;   % values: the redraw deletes these objects
-    bd0 = arrayfun(@(b) isequal(b.FaceColor, [16 32 48] / 255), findall(axC, 'Tag', 'rasterBand'));
+    tkC = rasterTickLines(axC);
+    tk0 = vertcat(tkC.Color);   % values: the redraw deletes these objects
+    lab0 = arrayfun(@(t) string(getappdata(t, 'PlotGroup')), tkC);
+    nBd0 = numel(findall(axC, 'Tag', 'rasterBand'));
+    rC.panels(1).options.backColor = "groups";
+    clf(fig);
+    hC = renderFigure(F1, rC, fig);
+    drawnow;
+    bdG = vertcat(findall(hC.panels(1).axes, 'Tag', 'rasterBand').FaceColor);   % values: the redraw deletes these objects
     rC.panels(1).options.tickColor = "red";
     rC.panels(1).options.backColor = "#102030";
     clf(fig);
     hC = renderFigure(F1, rC, fig);
     drawnow;
     axC = hC.panels(1).axes;
-    tk1 = findall(axC, 'Tag', 'rasterTicks');
+    tk1 = rasterTickLines(axC);
     bd1 = findall(axC, 'Tag', 'rasterBand');
-    check(isequal(tk0, [0 0 0]) && isequal(tk1(1).Color, [1 0 0]) && ~isempty(bd1) ...
-        && all(arrayfun(@(b) isequal(b.FaceColor, [16 32 48] / 255), bd1)) && isequal(axC.Color, [16 32 48] / 255) ...
-        && ~any(bd0), ...
-        'options.tickColor colors the raster ticks, options.backColor every band and the axes');
+    check(numel(tkC) == nnz(F1.groups.n > 0) && isequal(sort(lab0), sort(string(F1.groups.label(F1.groups.n > 0)))) ...
+        && size(unique(tk0, 'rows'), 1) == numel(tkC) && ~any(all(tk0 == 0, 2)) && nBd0 == 0, ...
+        'raster ticks: one line per trial group in the group''s color (as the PSTH''s traces), tagged with the group; no bands by default');
+    check(size(bdG, 1) == numel(tkC) && ~any(all(bdG == [16 32 48] / 255, 2)), ...
+        'options.backColor "groups": a pale band of each group''s color behind its rows');
+    check(numel(tk1) == numel(tkC) && all(arrayfun(@(t) isequal(t.Color, [1 0 0]), tk1)) && ~isempty(bd1) ...
+        && all(arrayfun(@(b) isequal(b.FaceColor, [16 32 48] / 255), bd1)) && isequal(axC.Color, [16 32 48] / 255), ...
+        'options.tickColor colors every raster tick alike, a color for options.backColor every band and the axes');
+    % a layer's own color draws its block's ticks, over the groups' colors
+    rC = F1.spec;
+    rC.panels(1).layers(1).color = "blue";
+    clf(fig);
+    hC = renderFigure(F1, rC, fig);
+    drawnow;
+    tk2 = rasterTickLines(hC.panels(1).axes);
+    check(numel(tk2) == numel(tkC) && all(arrayfun(@(t) isequal(t.Color, [0 0 1]), tk2)), ...
+        'a raster layer''s own color draws its ticks in it, as a PSTH layer''s color draws its traces');
+    % a design keeps the groups' colors (it sets the tick width, not the color); a rule for one group's ticks recolors just them
+    rC = F1.spec;
+    clf(fig);
+    hC = renderFigure(F1, rC, fig, Design="Journal", UserAesthetics=false);
+    drawnow;
+    tkJ = rasterTickLines(hC.panels(1).axes);
+    labJ = arrayfun(@(t) string(getappdata(t, 'PlotGroup')), tkJ);
+    colJ = vertcat(tkJ.Color);
+    rC.aesthetics = PlotAesthetics.normalizeRules(struct('role', "rasterTicks", 'group', labJ(1), 'property', "Color", 'value', [0 1 0]));
+    clf(fig);
+    hC = renderFigure(F1, rC, fig, Design="Journal", UserAesthetics=false);
+    drawnow;
+    tk3 = rasterTickLines(hC.panels(1).axes);
+    lab3 = arrayfun(@(t) string(getappdata(t, 'PlotGroup')), tk3);
+    col3 = vertcat(tk3.Color);
+    own = lab3 == labJ(1);
+    check(size(unique(colJ, 'rows'), 1) == numel(tkJ) && all(col3(own, :) == [0 1 0], 'all') && isequal(col3(~own, :), colJ(labJ ~= labJ(1), :)) ...
+        && all([tk3.LineWidth] == 0.5), ...
+        'a design leaves the raster ticks'' group colors; a rule for one group recolors only that group''s ticks');
     % a panel's box: "on" / "off" win over the design's rule and the figure's own aesthetics; "auto" leaves them
     sBx = F1.spec;
     sBx.panels(1).box = "on";
@@ -2276,6 +2324,41 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     drawnow;
     check(string(hBx.panels(1).axes.Box) == "off" && string(hBx.panels(2).axes.Box) == "on", ...
         'a panel''s box "off" and "on" also win over the figure''s own aesthetics rule');
+    % a panel's axis sides and labels; the time stack (raster over PSTH) tells the time once, on the side its axes take
+    xshown = @(ax) ~isempty(ax.XTickLabel) && strjoin(string(ax.XLabel.String), "") ~= "";
+    sAx = F1.spec;
+    sAx.panels(2).yLabel = "Spikes per second";
+    sAx.panels(2).xLabel = "Latency (s)";
+    sAx.panels(1).ySide = "right";
+    clf(fig);
+    hAx = renderFigure(F1, sAx, fig);
+    drawnow;
+    [ra, pa] = deal(hAx.panels(1).axes, hAx.panels(2).axes);
+    check(~xshown(ra) && xshown(pa) && string(pa.XLabel.String) == "Latency (s)" && string(pa.YLabel.String) == "Spikes per second" ...
+        && strcmp(ra.YAxisLocation, 'right') && strcmp(pa.YAxisLocation, 'left') && strcmp(pa.XAxisLocation, 'bottom'), ...
+        'xLabel / yLabel replace the drawn labels (a time axis: where it tells the time); ySide "right" moves that panel''s y axis only');
+    sAx = F1.spec;
+    [sAx.panels.xSide] = deal("top");
+    clf(fig);
+    hAx = renderFigure(F1, sAx, fig);
+    drawnow;
+    [ra, pa] = deal(hAx.panels(1).axes, hAx.panels(2).axes);
+    check(strcmp(ra.XAxisLocation, 'top') && strcmp(pa.XAxisLocation, 'top') && xshown(ra) && ~xshown(pa) ...
+        && string(ra.XLabel.String) == "Time (s)", ...
+        'a stack whose x axes are all on top tells the time once, at its top panel');
+    sAx.panels(1).xSide = "bottom";   % the raster's at its bottom, on a PSTH whose x axis is on top: the PSTH's tells the time between them
+    clf(fig);
+    hAx = renderFigure(F1, sAx, fig);
+    drawnow;
+    check(~xshown(hAx.panels(1).axes) && xshown(hAx.panels(2).axes) && strcmp(hAx.panels(2).axes.XAxisLocation, 'top'), ...
+        'a panel with its x axis at the bottom drops it over a time panel whose x axis is on top (that one tells the time)');
+    sAx.panels(1).xSide = "top";
+    sAx.panels(2).xSide = "bottom";
+    clf(fig);
+    hAx = renderFigure(F1, sAx, fig);
+    drawnow;
+    check(xshown(hAx.panels(1).axes) && xshown(hAx.panels(2).axes), ...
+        'x axes facing away from each other (the top panel''s on top, the bottom one''s at the bottom) both keep their ticks');
     clf(fig);   % the note-band checks below use the figure drawn with the notes
     hN = renderFigure(F1, sN, fig);
     drawnow;
@@ -2939,7 +3022,7 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     if ~isempty(rf); Lrf = FigureDataTips.tipText(rf(1), 2); end
     check(~isempty(rf) && any(startsWith(Lrf, "Time from")) && any(startsWith(Lrf, "Rate: ")) && any(startsWith(Lrf, "Trial group: ")) ...
         && any(startsWith(Lrf, "Panel: psth")), sprintf('a PSTH''s tip names the time, the rate in its unit, the group and panel (%s)', strjoin(Lrf, " | ")));
-    tk = findall(fe1, 'Tag', 'rasterTicks');
+    tk = rasterTickLines(fe1);
     Ltk = strings(0, 1);
     if ~isempty(tk); Ltk = FigureDataTips.tipText(tk(1), 1); end
     check(~isempty(tk) && any(startsWith(Ltk, "Trial: ")) && any(startsWith(Ltk, "Trial group: ")) && any(startsWith(Ltk, "Time from")) ...
@@ -2966,7 +3049,7 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     pl = findall(fe1, '-regexp', 'Tag', '^(trace|channelTrace)$');
     pl = pl(arrayfun(@(o) isprop(o, 'DataTipTemplate') && ~all(isnan(o.XData)), pl));
     labs2 = string({pl(1).DataTipTemplate.DataTipRows.Label});
-    tk = findall(fe1, 'Tag', 'rasterTicks');
+    tk = rasterTickLines(fe1);
     Ltk2 = FigureDataTips.tipText(tk(1), 1);
     FigureDataTips.setChosen(strings(1, 0));
     FigureDataTips.refresh(fe1);
@@ -3508,6 +3591,13 @@ fprintf('\n================  %d passed, %d failed  ================\n', nPass, n
 if nFail > 0
     error('test_EphysAnalysisFigures:Failures', '%d checks failed.', nFail);
 end
+end
+
+
+function tk = rasterTickLines(h)
+%rasterTickLines  The raster tick lines under H that hold ticks (not the legend's empty swatches).
+tk = findall(h, 'Tag', 'rasterTicks');
+tk = tk(arrayfun(@(t) ~all(isnan(t.XData(:))), tk));
 end
 
 

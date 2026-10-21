@@ -35,7 +35,9 @@ classdef EphysAnalysisConfig
     %               observe.perGroup draws each observation once
     %               per trial group of the figure's selection. A panel
     %               (defaults("Panel")): id, type, title, box (the axes'
-    %               box: "auto" = the design's, "on", "off"), row, col,
+    %               box: "auto" = the design's, "on", "off"), xLabel and
+    %               yLabel ("" = automatic), xSide ("bottom" | "top") and
+    %               ySide ("left" | "right"), row, col,
     %               rowSpan, colSpan, ref, window, selection (its own:
     %               its own groups, colors and legend), layers, options
     %               (the type's DefaultOptions), note
@@ -145,6 +147,9 @@ classdef EphysAnalysisConfig
         GridGapUnits  = ["px" "%"]
         PanelAligns   = ["left" "center" "right"]
         PanelVAligns  = ["top" "middle" "bottom"]
+        % The sides a panel's x and y axes take, their ticks and label (panel.xSide, panel.ySide).
+        PanelXSides   = ["bottom" "top"]
+        PanelYSides   = ["left" "right"]
         % What a panel's overlays (defaults("Overlay")) choose from: the layer, a line's style.
         OverlayLayers     = ["over" "under"]
         OverlayLineStyles = ["-" "--" ":" "-."]

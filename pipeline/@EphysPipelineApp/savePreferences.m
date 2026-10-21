@@ -1,7 +1,9 @@
 function savePreferences(obj)
 %savePreferences  Persist app preferences (not the pipeline config).
 %   See loadPreferences for the list. The config itself is saved through
-%   File > Save; only its file name is remembered here.
+%   File > Save; only its file name is remembered here, and only a file:
+%   after File > New (no file yet) the last one saved or opened stays the
+%   one the next launch reopens.
 
 g = obj.PrefGroup;
 if isvalid(obj.Fig)
@@ -12,7 +14,9 @@ AppPrefs.setpref(g, 'PhyCmd',        char(obj.PhyCmdField.Value));
 AppPrefs.setpref(g, 'ReviewFolder',  char(obj.ReviewFolderField.Value));
 AppPrefs.setpref(g, 'ScriptFolder',  char(obj.ScriptFolder));
 AppPrefs.setpref(g, 'RecentConfigs', cellstr(obj.RecentConfigs));
-AppPrefs.setpref(g, 'LastConfigFile', char(obj.Config.File));
+if obj.Config.File ~= ""
+    AppPrefs.setpref(g, 'LastConfigFile', char(obj.Config.File));
+end
 py = strtrim(string(obj.PythonExeField.Value));
 if py ~= "" && isfile(py); AppPrefs.setpref(g, 'PythonExe', char(py)); end   % defaultPythonExe
 order = obj.DatasetsColumnOrder;

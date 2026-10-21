@@ -1,13 +1,17 @@
 function test_EphysAnalysisApp(opts)
 %test_EphysAnalysisApp  Headless checks of the analysis GUI over a synthetic project.
 %   Builds the app on a small synthetic project run through the pipeline
-%   and drives it through its own methods: the five tabs (Data, Alignment,
+%   and drives it through its own methods: the startup (built hidden behind
+%   the splash, Splash=true and the -batch default without it); opening on
+%   a folder (the last config with its source switched, else a quick look);
+%   LastConfigFile kept after New; the five tabs (Data, Alignment,
 %   Figures, Export, Log); the toolbar (its tools, icons and
 %   shortcut tooltips; Preview and Plan from another tab; its run and
 %   results tools following the Export tab's buttons); Scan filling the
 %   datasets table; the active dataset's lines and parameters; grouping by
 %   Depth from the Alignment controls (the epoch count reports the groups);
 %   the toolbar's Preview drawing the selected figure on the Figures tab;
+%   the header's column of buttons and the rows right of them;
 %   Export code (its script, run, computing what the preview computed and
 %   drawing it in a window of its own); the Design row on the Figures tab (the list and menu, a design chosen
 %   redrawing the figure preview, Save look as design from the figure
@@ -47,7 +51,10 @@ function test_EphysAnalysisApp(opts)
 %   observations again, save and reopen, its preferences restored by a new app,
 %   Remove); Copy from... between figures; Generate (a figure's files per observation on the ticked
 %   datasets, its rows in the results table, the status bar's counts,
-%   Cancel during it, a figure that is off drawn for that run only) and
+%   Cancel during it, a figure that is off drawn for that run only), Unit
+%   report (every figure for the unit picked on the active dataset, a
+%   figure of the dataset left out, an HTML report in a temporary folder,
+%   the output folder untouched) and
 %   the Export tab's Plan and Run listing figures; a figure across
 %   sessions (the Sessions section's rows wired to the config, the mapping
 %   file's Browse / Edit, Pick, the picker's matched sites, a preview
@@ -70,7 +77,12 @@ function test_EphysAnalysisApp(opts)
 %   and the Data tab's ✎ column, following the active dataset and the
 %   observation as it steps, the file beside the data, ✎ marks and yellow
 %   buttons, Search notes with Go to and Edit note, a scan reading them
-%   back);
+%   back); the Edit menu's Undo and Redo of the figure editor (between
+%   File and Design, grayed off the Figures tab, named after the edit; a
+%   burst of one field one step, an edit outside the figures none, a
+%   removed panel back and selected, Ctrl+Shift+Z, a new edit dropping the
+%   redo, the description kept, the title saved again, cleared by another
+%   config; FigureEditHistory's depth);
 %   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -184,6 +196,9 @@ timing = onCleanup(@() S.done()); %#ok<NASGU> the sections' times, even after a 
     end
 
 if S.sec("1", "build, open the project, scan")
+    check(app.Fig.Visible == "on" && ~app.Splash.isActive() && app.Splash.Window == "" && isempty(findall(groot, 'Tag', 'AppSplash')) ...
+        && isequal(app.Splash.History.Step.', ["window" "Data" "Alignment" "Figures" "Export" "Log" "finish" "prefs" "scan" "dataset" "show"]), ...
+        'under -batch the app starts without the splash window: built hidden, each tab, the scan and the first dataset a step, then shown');
     check(isvalid(app.Fig) && numel(app.Tabs.Children) == 5 && app.Tabs.Children(1) == app.TabData ...
         && app.Tabs.Children(2) == app.TabAlign && app.Tabs.Children(3) == app.TabFigures && app.Tabs.Children(4) == app.TabExport ...
         && app.Tabs.Children(5) == app.TabLog && ~isprop(app, 'TabChronux') && ~isprop(app, 'TabPlots') && ~isprop(app, 'TabSessions'), ...
@@ -249,12 +264,12 @@ if S.sec("1b", "Toolbar: the most used commands")
         'the toolbar holds the config, look, run, results, app and help commands in groups, each with its icon');
     if ismac; modifier = "Cmd+"; else; modifier = "Ctrl+"; end
     tips = string({tools.Tooltip});
-    menuItems = findall(app.Fig, 'Type', 'uimenu');
+    menuItems = findall(app.FileMenu, 'Type', 'uimenu');   % the Edit menu's Undo and Redo are no toolbar commands (5k)
     keyed = menuItems(strlength(string({menuItems.Accelerator})) > 0);
     named = erase(string({keyed.Text}), "...") + " (" + modifier + string({keyed.Accelerator}) + ")";
     check(numel(keyed) == 3 && all(ismember(named, tips)) && nnz(contains(tips, "(" + modifier)) == numel(keyed) ...
         && all(strlength(tips) > 0), ...
-        'every menu shortcut is on the toolbar, named in its tool''s tooltip, and no tooltip names another');
+        'every File menu shortcut is on the toolbar, named in its tool''s tooltip, and no tooltip names another');
     check(app.ToolbarValidateTool.Enable == "on" && app.ToolbarPlanTool.Enable == "on" && app.ToolbarRunTool.Enable == "on" ...
         && app.ToolbarCancelTool.Enable == "off" && app.ToolbarReportTool.Enable == "off" && app.ToolbarFolderTool.Enable == "off", ...
         'before a run: Validate, Plan and Run are on; Cancel, the report and the figure folder off');
@@ -380,6 +395,14 @@ if S.sec("3", "the Figures tab: the toolbar's Preview, the Design row, the epoch
         && app.FigureFavorites.Grid.Parent == pgrid && app.FigureFavorites.Grid.Layout.Row == osg.Layout.Row + 1 ...
         && app.FigurePreviewPanel.Layout.Row == app.FigureFavorites.Grid.Layout.Row + 1, ...
         'the Design list sits right of Dataset and Save look as design... right of Observation, in their rows, each drop-down with its star and note button; Favorites under them, the preview under that');
+    % the buttons in a column of their own left of those rows: Preview, Generate, Unit report, Auto, < > (a row each)
+    bgrid = app.FigurePreviewButton.Parent;
+    btnCol = [app.FigurePreviewButton app.FigureGenerateButton app.FigureUnitReportButton app.FigureAutoCheckBox app.FigureObsPrevButton.Parent];
+    check(bgrid.Parent == pgrid && isequal(bgrid.Layout.Column, 1) && isequal(bgrid.Layout.Row, [dsg.Layout.Row app.FigureFavorites.Grid.Layout.Row]) ...
+        && all(arrayfun(@(h) h.Parent == bgrid, btnCol)) && isequal(arrayfun(@(h) h.Layout.Row, btnCol), 1:5) ...
+        && app.FigureObsNextButton.Parent == app.FigureObsPrevButton.Parent ...
+        && all(arrayfun(@(h) min(h.Layout.Column) > 1, [dsg osg app.FigureFavorites.Grid])), ...
+        'the buttons stand in a column at the left, a row each (Preview, Generate, Unit report, Auto, < >), beside the Dataset, Observation and Favorites rows');
     check(app.FigureOpenButton.Enable == "on" && ancestor(app.FigureOpenButton, 'uitab') == app.TabFigures, ...
         'Open in window is on with a figure selected');
     nFigs = numel(findall(groot, 'Type', 'figure'));
@@ -396,7 +419,7 @@ if S.sec("3", "the Figures tab: the toolbar's Preview, the Design row, the epoch
         && app.FigureCodeButton.Layout.Column == app.FigureOpenButton.Layout.Column - 1, ...
         'Export code sits left of Open in window under the preview, on with a figure selected');
     % every button of the preview has its key in its tooltip, and the key presses it: Ctrl+W opens the window, Ctrl+T toggles Auto, Ctrl+P previews
-    btnKeys = {app.FigurePreviewButton "+P"; app.FigureGenerateButton "+G"; app.FigureAutoCheckBox "+T"; app.FigureCodeButton "+E"; ...
+    btnKeys = {app.FigurePreviewButton "+P"; app.FigureGenerateButton "+G"; app.FigureUnitReportButton "+U"; app.FigureAutoCheckBox "+T"; app.FigureCodeButton "+E"; ...
         app.FigureOpenButton "+W"; app.FigureObsPrevButton "Page Up"; app.FigureObsNextButton "Page Down"};
     inTip = cellfun(@(h, k) contains(string(h.Tooltip), k), btnKeys(:, 1), btnKeys(:, 2));
     check(all(inTip), 'every button of the preview names its key in its tooltip');
@@ -544,6 +567,8 @@ if S.sec("4", "gather / apply, save / reopen, a version-1 config, script")
     check(ok && isfile(cfgFile) && ~startsWith(app.Fig.Name, "*") && app.Config.File == string(cfgFile), 'Save As writes the config and clears the marker');
     app.onNewConfig();
     check(isempty(app.Config.Figures) && app.Config.File == "" && app.SelectedFigure == 0, 'New config resets to the defaults');
+    app.savePreferences();
+    check(strcmp(AppPrefs.getpref(g, 'LastConfigFile'), cfgFile), 'after New (no file yet) the preferences keep the last config file');
     v1File = fullfile(root, 'app_analysis_v1.json');
     writeJsonFile(v1File, struct('schema', "ephys-analysis-config", 'version', 1, 'name', "old quick look", ...
         'Plots', {{struct('kind', "psth", 'id', "psth_v1")}}));
@@ -556,6 +581,34 @@ if S.sec("4", "gather / apply, save / reopen, a version-1 config, script")
     check(ok && isscalar(app.Config.Figures) && app.Config.Figures(1).id == "PSTH units" && app.SelectedFigure == 1 && ~isempty(app.Runner) ...
         && height(app.DatasetsTable.Data) == 2 && any(app.RecentConfigs == string(cfgFile)), ...
         'reopening restores the figure, selects it and rescans');
+    % opened on a folder (the pipeline app's Open analysis app): the last config, its source switched
+    key1 = app.Runner.Keys(kF1);
+    tab0 = app.Tabs.SelectedTab;
+    app.Tabs.SelectedTab = app.TabData;   % no figure preview drawn on each open
+    app.openSource(F.proj, Datasets=key1);
+    S1 = app.Config.Source;
+    check(app.Config.File == string(cfgFile) && isscalar(app.Config.Figures) && app.Config.Figures(1).id == "PSTH units" ...
+        && S1.Mode == "project" && S1.Root == F.proj && S1.Selection == "list" && isequal(S1.Datasets, key1) ...
+        && isequal(app.Ticked, app.Runner.Keys == key1) && startsWith(app.Fig.Name, "*") ...
+        && contains(app.StatusBar.Text, "Opened the last config") && contains(app.StatusBar.Text, "unsaved"), ...
+        ['opened on a project with Datasets= it reopens the last config, its figures kept, the source switched to the project ' ...
+        'and selection (the rows ticked: not the ticks of the config shown before): unsaved, the status bar says so']);
+    app.openSource(F.folders(1));
+    S1 = app.Config.Source;
+    check(app.Config.File == string(cfgFile) && isscalar(app.Config.Figures) && S1.Mode == "folders" ...
+        && isequal(S1.Folders, F.folders(1)) && height(app.DatasetsTable.Data) == 1 && startsWith(app.Fig.Name, "*"), ...
+        'opened on one dataset''s output folder: the same, the source in folders mode');
+    badFile = fullfile(root, 'bad_analysis.json');
+    writelines("{ not json", badFile);
+    AppPrefs.setpref(g, 'LastConfigFile', badFile);
+    app.openSource(F.proj);
+    [~, projLeaf] = fileparts(F.proj);
+    check(app.Config.Name == string(projLeaf) + " quick look" && isempty(app.Config.Figures) && app.Config.File == "" ...
+        && ~startsWith(app.Fig.Name, "*") && contains(app.StatusBar.Text, "could not be read"), ...
+        'a last config that cannot be read: a quick look config instead, and the status bar says why');
+    AppPrefs.setpref(g, 'LastConfigFile', cfgFile);
+    app.openConfigFile(cfgFile);
+    app.Tabs.SelectedTab = tab0;
     txt = EphysAnalysisScript.standalone(app.gatherConfig());
     check(contains(txt, "figureCompute(") && contains(txt, "renderFigure("), 'a standalone script from the app''s config draws its figure');
     scriptFile = fullfile(root, 'run_app_compact.m');
@@ -1650,7 +1703,11 @@ if S.sec("5d.saveprefs", "save, reopen; the preferences restored by a new app; R
     app.FigureAutoCheckBox.Value = false;
     app.onFigureAutoPreviewToggled();
     app.onSaveConfig();
-    app2 = EphysAnalysisApp();
+    app2 = EphysAnalysisApp(Splash=true);
+    H2 = app2.Splash.History;
+    check(app2.Splash.Window ~= "" && ~app2.Splash.isOpen() && isempty(findall(groot, 'Tag', 'AppSplash')) ...
+        && app2.Fig.Visible == "on" && all(ismember(["window" "config" "scan" "dataset" "show"], H2.Step)), ...
+        'Splash=true: the splash window shows the steps (the last config opened, its scan, the first dataset) and closes when the window shows');
     kept = isscalar(app2.Config.Figures) && isequaln(app2.Config.Figures, app.Config.Figures) && app2.SelectedFigure == 1 ...
         && string(figureNode(app2.FiguresTree, 1).Text) == app.Config.Figures(1).id + "  (2 panels)";
     restored = ~app2.FigureAutoCheckBox.Value && ~app2.FigureSections([app2.FigureSections.Name] == "options").Expanded ...
@@ -1818,14 +1875,21 @@ if S.sec("5f", "Generate a figure; figures on the Export tab")
     app.FigureAutoCheckBox.Value = true;   % the automatic preview, as 5d leaves it
     app.selectTab(app.TabFigures);
     bcol = app.FigurePreviewButton.Parent;   % the column of buttons, left of the Dataset, Observation and Favorites rows
-    check(app.FigureGenerateButton.Enable == "off" && app.FigureGenerateButton.Parent == bcol && app.FigureAutoCheckBox.Parent == bcol ...
-        && isequal(app.FigurePreviewButton.Layout.Row, 1) && isequal(app.FigureGenerateButton.Layout.Row, 2) ...
+    check(app.FigureGenerateButton.Enable == "off" && app.FigureUnitReportButton.Enable == "off" ...
+        && app.FigureGenerateButton.Parent == bcol && app.FigureUnitReportButton.Parent == bcol && app.FigureAutoCheckBox.Parent == bcol ...
+        && isequal(app.FigurePreviewButton.Layout.Row, 1) && isequal(app.FigureGenerateButton.Layout.Row, 2) && isequal(app.FigureUnitReportButton.Layout.Row, 3) ...
         && isequal(app.FigureGenerateButton.BackgroundColor, app.FigurePreviewButton.BackgroundColor) ...
         && app.FigureObsPrevButton.Parent == app.FigureObsNextButton.Parent && app.FigureObsPrevButton.Parent.Parent == bcol ...
         && app.FigureObsPrevButton.Layout.Row == 1 && app.FigureObsNextButton.Layout.Row == 1 ...
         && bcol.Parent == app.FiguresDatasetDropDown.Parent.Parent && max(bcol.Layout.Column) < min(app.FiguresDatasetDropDown.Parent.Layout.Column) ...
         && isequal(bcol.Layout.Row, [1 3]), ...
-        'Preview, Generate (colored as it is, off with no figure), Auto and < > (on one row) form a column left of Dataset, Observation and Favorites');
+        ['Preview, Generate (colored as it is, under Preview), Unit report (under Generate; both off with no figure), Auto and < > ' ...
+        '(on one row) form a column left of Dataset, Observation and Favorites']);
+    mods = {'control'};
+    if ismac; mods = {'command'}; end
+    report0 = app.LastReportFiles;
+    app.onKeyPress(pressed('u', mods));
+    check(isequal(app.LastReportFiles, report0) && ~app.Running, 'Ctrl+U does nothing while Unit report is off');
     app.onAddFigure("rasterPsth");
     kG = app.SelectedFigure;
     fid = app.Config.Figures(kG).id;
@@ -1890,6 +1954,42 @@ if S.sec("5f", "Generate a figure; figures on the Export tab")
         && contains(string(app.StatusBar.Text), fid + " is off, so it was switched on for this run only") ...
         && endsWith(string(figureNode(app.FiguresTree, kG).Text), "(off)") && ~app.Runner.Config.Figures(kG).enabled, ...
         'Generate on a figure that is off draws it (not skipped), says so, and the config keeps it off');
+    % Unit report: every enabled figure (and the selected one, though off) for the unit picked, an HTML report in a
+    % temporary folder; a channel figure draws the unit's channel, a figure of the dataset is left out
+    app.onAddFigure("continuous");
+    app.onAddFigure("heatmap");
+    app.onFigureSelected(kG);
+    app.FigureObservationDropDown.Value = 2;
+    app.onFigureObservationChanged();
+    uT = app.FigureObservations;
+    uLabel = uT.label(2);
+    check(app.FigureUnitReportButton.Enable == "on" && uT.kind(2) == "unit", 'Unit report is on with a unit picked');
+    nTicked = numel(app.tickedDatasetIndices());
+    [Ru, fu] = app.onUnitReport(Open=false);
+    uKinds = arrayfun(@(f) EphysAnalysisConfig.observeKind(f), app.Config.Figures);
+    okRows = true;
+    for q = 1:numel(app.Config.Figures)
+        rq = Ru(Ru.Plot == app.Config.Figures(q).id, :);
+        if uKinds(q) == "dataset"
+            okRows = okRows && isscalar(rq.Status) && rq.Status == "skipped" && rq.Message == "it observes the dataset, not one unit";
+        elseif q == kG
+            okRows = okRows && isscalar(rq.Status) && rq.Status == "done" && rq.Message == "1 observation(s)";
+        else   % what is on the unit's channel, or why nothing is
+            okRows = okRows && isscalar(rq.Status) && (rq.Status == "done" || rq.Status == "skipped" && startsWith(rq.Message, "no "));
+        end
+    end
+    check(istable(Ru) && height(Ru) == 3 && all(Ru.Dataset == app.Runner.Names(app.ActiveIdx)) && okRows ...
+        && isfile(fu) && endsWith(fu, "unit_report.html") && startsWith(fu, string(tempdir)) && ~startsWith(fu, string(outRoot)) ...
+        && contains(fileread(fu), fid) && isempty(dir(fullfile(outRoot, '**', 'unit_report*'))) ...
+        && isequal(app.LastReportFiles, fu) && ~app.Config.Figures(kG).enabled && nTicked == numel(app.tickedDatasetIndices()), ...
+        sprintf('Unit report draws the three figures for %s on the active dataset only (the dataset''s figure left out), into a temporary HTML report; the output folder untouched, the figure kept off', uLabel));
+    check(startsWith(string(app.StatusBar.Text), "Unit report for " + uLabel + ": ") && contains(string(app.StatusBar.Text), "left out") == any(Ru.Status ~= "done") ...
+        && contains(string(app.StatusBar.Text), fid + " is off, so it was drawn for this report only") ...
+        && ~app.Running && app.FigureUnitReportButton.Enable == "on" && app.FigureGenerateButton.Enable == "on", ...
+        'the status bar names the unit, what was left out, the figure that is off; the buttons are back');
+    app.onFigureSelected(3); app.onRemoveFigure();
+    app.onFigureSelected(2); app.onRemoveFigure();
+    app.onFigureSelected(kG);
     app.onRemoveFigure();
     clear restoreAutoLimit
 end
@@ -2163,6 +2263,40 @@ if S.sec("5h", "the figure tree, a panel's note and overlays, dragging a panel i
     app.onPanelSelected(2);
     check(shown(FE.panelBox) && ~shown(FE.yTicks) && app.Config.Figures(1).panels(1).box == "auto" && ~app.Config.Figures(1).panels(1).options.yTicks, ...
         'a PSTH panel has the Box row but no y ticks row; both back to their defaults on the raster');
+    % a panel's X axis and Y axis rows (every type): its own label text and side reach the panel and the preview
+    axRows = shown(FE.panelXLabel) && shown(FE.panelXSide) && shown(FE.panelYLabel) && shown(FE.panelYSide) ...
+        && string(FE.panelXSide.Value) == "bottom" && string(FE.panelYSide.Value) == "left" && string(FE.panelYLabel.Value) == "" ...
+        && FE.panelYSide.Enable == "on";
+    FE.panelYLabel.Value = "Rate";
+    FE.panelYSide.Value = "right";
+    app.onConfigChanged("figure");
+    pAx = app.Config.Figures(1).panels(2);
+    axP = findPanelAxes(app.FigurePreviewPanel, "psth_1");
+    check(axRows && pAx.yLabel == "Rate" && pAx.ySide == "right" && pAx.xSide == "bottom" && app.FigurePreviewState == "drawn" ...
+        && strcmp(axP.YAxisLocation, 'right') && string(axP.YLabel.String) == "Rate", ...
+        'the X axis and Y axis rows show for the selected panel; its y label and side reach the panel, and the preview draws them');
+    FE.stack.Value = true;
+    app.onConfigChanged("figure");
+    stackOff = FE.panelYSide.Enable == "off";
+    FE.stack.Value = false;
+    app.onConfigChanged("figure");
+    check(stackOff && FE.panelYSide.Enable == "on", 'a stacked PSTH (a y axis on each side) grays out the Y axis row''s side');
+    % an axis label's right-click menu (renderFigure's OnAxisEdit) goes through the editor's path: config, rows, preview
+    app.onPanelSelected(1);
+    app.onFigureAxisEdited(app.Config.Figures(1).id, "psth_1", struct('ySide', "left", 'yLabel', "", 'xLabel', "Lag (s)"));
+    pAx = app.Config.Figures(1).panels(2);
+    axP = findPanelAxes(app.FigurePreviewPanel, "psth_1");
+    check(pAx.ySide == "left" && pAx.yLabel == "" && pAx.xLabel == "Lag (s)" && app.SelectedPanel == 2 ...
+        && string(FE.panelYSide.Value) == "left" && string(FE.panelYLabel.Value) == "" && string(FE.panelXLabel.Value) == "Lag (s)" ...
+        && strcmp(axP.YAxisLocation, 'left') && string(axP.XLabel.String) == "Lag (s)", ...
+        'onFigureAxisEdited: the panel''s fields set, the panel selected and its rows following, the preview drawn again');
+    app.onFigureAxisEdited(app.Config.Figures(1).id, "psth_1", struct('xLabel', ""));
+    check(app.Config.Figures(1).panels(2).xLabel == "" && app.FigureHistory.undoLabel() == "Label text", ...
+        'a blank label text: the automatic label again, a step of its own in the undo history (Undo Label text)');
+    app.onFigureAxisEdited(app.Config.Figures(1).id, "psth_1", struct('xSide', "top"));
+    app.onUndoRedo("undo");
+    check(app.Config.Figures(1).panels(2).xSide == "bottom" && app.FigureHistory.undoLabel() == "Label text" ...
+        && contains(app.StatusBar.Text, "Axis side"), 'Move to top from the label''s menu is undone like an editor edit (Undo Axis side)');
 
     % drag a panel in the schematic: the press installs the window's pointer callbacks; motion shades the target; release applies
     if ~app.FigureSections([app.FigureSections.Name] == "arrangement").Expanded; app.onFigureSectionToggled("arrangement"); end
@@ -2536,6 +2670,95 @@ if S.sec("5j", "notes: the notepad on datasets, units and channels; the ✎ mark
     app.onSaveConfig();
     app.Tabs.SelectedTab = app.TabData;
     clear restoreAutoLimit5j
+end
+
+if S.sec("5k", "Edit menu: undo and redo of the figure editor")
+    savedConfig();
+    noFigures();
+    app.onSaveConfig();   % the saved figures: none, which undoing every edit below comes back to
+    app.FigureAutoCheckBox.Value = false;   % no preview drawn: undo is about the config and the editor
+    restoreAuto5k = onCleanup(@() set(app.FigureAutoCheckBox, 'Value', true));
+    menus = flip(findobj(app.Fig.Children, 'flat', 'Type', 'uimenu'));
+    app.selectTab(app.TabData);
+    H = app.FigureHistory;
+    check(isequal(string({menus.Text}), ["File" "Edit" "Design" "Help"]) && string(app.UndoMenu.Text) == strtrim("Undo " + H.undoLabel()) ...
+        && string(app.UndoMenu.Accelerator) == "Z" && string(app.RedoMenu.Accelerator) == "Y" && app.UndoMenu.Enable == "off", ...
+        sprintf('an Edit menu between File and Design: Undo (Ctrl+Z) names the last edit ("%s"), grayed off the Figures tab', app.UndoMenu.Text));
+    app.selectTab(app.TabFigures);
+    check(app.UndoMenu.Enable == matlab.lang.OnOffSwitchState(~isempty(H.Undo)) && app.RedoMenu.Enable == "off" && string(app.RedoMenu.Text) == "Redo", ...
+        sprintf('on the Figures tab Undo is on (%d steps of the sections above); Redo is grayed with nothing undone', numel(H.Undo)));
+    app.FigureHistory = FigureEditHistory();
+    app.onTabChanged();
+    check(string(app.UndoMenu.Text) == "Undo" && app.UndoMenu.Enable == "off", 'an empty history: Undo grayed, no edit named');
+    clean = @() ~startsWith(string(app.Fig.Name), "*");
+    check(clean(), 'the config starts saved');
+    app.onAddFigure("rasterPsth");
+    check(string(app.UndoMenu.Text) == "Undo Add figure" && ~clean(), 'Add (a template): Undo Add figure; the title shows unsaved changes');
+    FE.title.Value = 'Undo me';
+    FE.title.ValueChangedFcn(FE.title, []);
+    FE.title.Value = 'Undo me twice';
+    FE.title.ValueChangedFcn(FE.title, []);
+    H = app.FigureHistory;
+    check(numel(H.Undo) == 2 && string(app.UndoMenu.Text) == "Undo Title" && H.Undo(end).After(1).title == "Undo me twice" ...
+        && H.Undo(end).Before(1).title == "", ...
+        'two edits of the Title field within a second are one step, named after its row: Undo Title');
+    desc0 = app.ConfigDescField.Value;
+    app.ConfigDescField.Value = 'kept by undo';
+    app.ConfigDescField.ValueChangedFcn(app.ConfigDescField, []);
+    check(numel(app.FigureHistory.Undo) == 2, 'an edit outside the figures (the description) is no step');
+    np0 = numel(app.Config.Figures(1).panels);
+    app.onPanelSelected(np0);
+    app.onRemovePanel();
+    check(numel(app.Config.Figures(1).panels) == np0 - 1 && string(app.UndoMenu.Text) == "Undo Remove panel", ...
+        'Remove panel: Undo Remove panel');
+    app.onUndoRedo("undo");
+    check(numel(app.Config.Figures(1).panels) == np0 && app.SelectedPanel == np0 && string(app.RedoMenu.Text) == "Redo Remove panel" ...
+        && app.RedoMenu.Enable == "on" && string(app.UndoMenu.Text) == "Undo Title" && contains(app.StatusBar.Text, "Undid ""Remove panel""") ...
+        && string(app.FigureEditor.title.Value) == "Undo me twice", ...
+        'Undo: the panel is back and selected, Redo Remove panel offered, Undo names the step before; the editor shows the figure');
+    app.onKeyPress(pressed('z', {'shift' 'control'}));
+    check(numel(app.Config.Figures(1).panels) == np0 - 1 && string(app.UndoMenu.Text) == "Undo Remove panel" && app.RedoMenu.Enable == "off", ...
+        'Ctrl+Shift+Z redoes it');
+    app.onUndoRedo("undo");
+    app.onUndoRedo("undo");
+    check(app.Config.Figures(1).title == "" && string(app.FigureEditor.title.Value) == "" && string(app.UndoMenu.Text) == "Undo Add figure" ...
+        && string(app.RedoMenu.Text) == "Redo Title" && string(app.ConfigDescField.Value) == "kept by undo" ...
+        && app.Config.Description == "kept by undo", ...
+        'Undo Title: the field and the config go back; the description edited since stays as it is');
+    app.setFiguresEnabled(1, "off");
+    check(~app.Config.Figures(1).enabled && string(app.UndoMenu.Text) == "Undo Disable figure" && isempty(app.FigureHistory.Redo) ...
+        && app.RedoMenu.Enable == "off", 'a new edit (a figure disabled in the tree) drops what was undone: Redo grayed');
+    app.onUndoRedo("undo");
+    app.onUndoRedo("undo");
+    check(isempty(app.Config.Figures) && app.SelectedFigure == 0 && app.UndoMenu.Enable == "off" && string(app.RedoMenu.Text) == "Redo Add figure", ...
+        'Undo Add figure: no figure left, nothing more to undo');
+    app.onUndoRedo("undo");
+    check(contains(app.StatusBar.Text, "Nothing to undo"), 'Undo with nothing to undo says so');
+    app.ConfigDescField.Value = desc0;
+    app.ConfigDescField.ValueChangedFcn(app.ConfigDescField, []);
+    check(clean(), 'the figures undone back to the saved ones (and the description typed back): the title shows the config saved');
+    app.onUndoRedo("redo");
+    check(numel(app.Config.Figures) == 1 && app.SelectedFigure == 1 && ~clean(), 'Redo Add figure: the figure is back, selected');
+    app.applyConfig(app.Config, MarkSaved=true);   % as opening or making a config does
+    check(isempty(app.FigureHistory.Undo) && isempty(app.FigureHistory.Redo) && app.UndoMenu.Enable == "off" && app.RedoMenu.Enable == "off", ...
+        'another config (applied as saved): the history is cleared');
+    Hx = FigureEditHistory();
+    Hx.Depth = 3;
+    a = struct('v', 0);
+    for v = 1:5
+        b = struct('v', v);
+        Hx = Hx.record(a, b, "step " + v);
+        a = b;
+    end
+    Hy = Hx.record(a, a, "no change");
+    Hz = FigureEditHistory().record(struct('v', 0), struct('v', 1), "typed", Key=1);
+    Hz = Hz.record(struct('v', 1), struct('v', 0), "typed", Key=1);
+    check(numel(Hx.Undo) == 3 && Hx.undoLabel() == "step 5" && Hx.Undo(1).Label == "step 3" && numel(Hy.Undo) == 3 && isempty(Hz.Undo), ...
+        'FigureEditHistory: past Depth the oldest steps go; no step without a change; a burst typed back to where it started is none');
+    noFigures();
+    app.onSaveConfig();
+    clear restoreAuto5k
+    app.Tabs.SelectedTab = app.TabData;
 end
 
 if S.sec("6", "close")

@@ -58,8 +58,12 @@ for k = 1:n
             if src == "computed"; lo = 0.5; end
             args = {'ArtifactIntervals', iv};
         end
-        obj.prepareWCARFor(d, @(done, total, msg) obj.progress("spikes", d.Name, k, n, lo, 1, msg));
-        cb = @(done, total, msg) obj.progress("spikes", d.Name, k, n, lo + (1 - lo) * done / max(total, 1), 1, msg);
+        % The weighted CAR's state, when it is worked out here, takes half of what is left.
+        span = [lo, (1 + lo) / 2];
+        if obj.prepareWCARFor(d, @(done, total, msg) obj.progress("spikes", d.Name, k, n, done / max(total, 1), 1, msg), span)
+            lo = span(2);
+        end
+        cb =@(done, total, msg) obj.progress("spikes", d.Name, k, n, lo + (1 - lo) * done / max(total, 1), 1, msg);
         r = d.spikesToMat('File', out, 'DetectOptions', dopt, 'Channels', channels, ...
             'ProbeFile', obj.probeFor(d), 'ArtifactMode', K.ArtifactMode, 'MatVersion', K.MatVersion, ...
             'Overwrite', K.Overwrite, 'ProgressFcn', cb, 'Provenance', obj.provenance(), args{:});

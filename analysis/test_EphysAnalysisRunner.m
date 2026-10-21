@@ -20,7 +20,10 @@ function test_EphysAnalysisRunner()
 %   export closing its page in the runner and the standalone script; unit
 %   waveforms (templates without the sorted .bin, spikes cut from a
 %   planted one and cached, detections' saved waveforms); one figure per
-%   trial group (perGroup); a report per dataset (PerDataset); and a
+%   trial group (perGroup); a report per dataset (PerDataset); one
+%   observation (run(Observation=): the unit on its own figure, its
+%   channel on the LFP one, the dataset's figures skipped and said so;
+%   figureObservations' match of a channel and of every trial group); and a
 %   session figure (the card across both datasets): one plan row, a page
 %   per matched site in the sessions folder, the "Across sessions" report
 %   entry with its caption (and its own <FileName>_sessions report with
@@ -137,9 +140,21 @@ made = 0;   % the figures the run creates
     end
 oldCreate = get(groot, 'DefaultFigureCreateFcn');
 set(groot, 'DefaultFigureCreateFcn', @countFigure);
+heardF = zeros(0, 1); heardM = strings(0, 1);   % what ProgressFcn hears
+    function onRunProgress(f, m)
+        heardF(end+1, 1) = f; heardM(end+1, 1) = m;
+    end
+r.ProgressFcn = @onRunProgress;
 R = r.run();
+r.ProgressFcn = [];
 set(groot, 'DefaultFigureCreateFcn', oldCreate);
 check(numel(findall(groot, 'Type', 'figure')) == nFig, 'the run leaves no figure open');
+isRep = startsWith(heardM, "Writing the report: ");
+check(any(heardM == "Writing the report: section 2/2") && any(heardM == "Writing the report: page 3/3") ...
+    && any(startsWith(heardM, "Writing the report: joining")) && all(heardF(isRep) >= 2/3 - 1e-12) ...
+    && all(diff(heardF) >= -1e-12) && heardF(end) == 1 && heardM(end) == "Done", ...
+    sprintf(['ProgressFcn hears the report''s sections and pages in its own last third of the run (two datasets, ' ...
+    'one report), the fraction never going back (%d calls, %d while writing the report)'], numel(heardF), nnz(isRep)));
 done = R(R.Status == "done", :);
 check(height(R) == 2 * nOn && height(done) == 2 * (nOn - 2) && all(R.Kind == "figure") ...
     && all(R.Status(ismember(R.Plot, ["spike_band" "no_line"])) == "skipped") && ~any(R.Plot == "off") ...
@@ -416,6 +431,37 @@ RPd = rPd.run();
 wantPd = arrayfun(@(n) string(fullfile(outPd, n, "analysis_report_" + regexprep(n, '[^\w\-\.]', '_') + ".html")), names);
 check(height(RPd) == 2 && all(RPd.Status == "done") && isequal(sort(rPd.ReportFiles), sort(wantPd)) && all(isfile(wantPd)), ...
     'Report.PerDataset: one report per dataset, <Folder>/<FileName>_<Name>.html');
+
+fprintf('\n== 8b. one observation: run(Observation=), figureObservations(Observation=) ==\n');
+u = obsCard{1}(1, :);   % the first unit of dataset 1
+obU = struct('kind', "unit", 'data', "units", 'unitId', u.unitId, 'channel', u.channel, 'label', u.label);
+cfgOb = cfg;
+cfgOb.Report.Format = "html";
+cfgOb.Report.Folder = fullfile(root, 'outObs');
+rOb = EphysAnalysisRunner(cfgOb, LogFcn=[]);
+ROb = rOb.run(Datasets=1, Export=false, Report=true, Observation=obU);
+rowOf = @(id) ROb(ROb.Plot == id, :);
+lfpR = rowOf("lfp");
+if ismember(u.channel, cfg.Figures(2).observe.channels)
+    lfpOk = lfpR.Status == "done" && lfpR.Message == "1 observation(s)";
+else
+    lfpOk = lfpR.Status == "skipped" && startsWith(lfpR.Message, "no LFP channel on channel " + u.channel);
+end
+html = fileread(rOb.ReportFiles(1));
+check(height(ROb) == nOn && all(ROb.Dataset == names(1)) && rowOf("card").Status == "done" && rowOf("card").Message == "1 observation(s)" ...
+    && lfpOk && rowOf("map").Status == "skipped" && rowOf("map").Message == "it observes the dataset, not one unit" ...
+    && isscalar(rOb.ReportFiles) && endsWith(rOb.ReportFiles, ".html") && startsWith(rOb.ReportFiles, cfgOb.Report.Folder) ...
+    && contains(html, "it observes the dataset, not one unit") && startsWith(rOb.RunRecordFile, cfgOb.Report.Folder), ...
+    sprintf('run(Observation=<a unit>): the unit alone on its figure, its channel on the LFP figure (%s), a figure of the dataset skipped and said so in the report', lfpR.Message));
+Tg = figureObservations(r.source(1), cfgPg.figureFor("card"), Observation=obU);
+check(height(Tg) == nGpg && all(Tg.unitId == u.unitId), 'a figure per trial group keeps every group of the unit matched');
+Tl = figureObservations(r.source(1), cfg.figureFor("lfp"));
+obC = struct('kind', "channel", 'data', "LFP", 'unitId', NaN, 'channel', Tl.channel(1), 'label', Tl.label(1));
+[Tu, why] = figureObservations(r.source(1), cfg.figureFor("card"), Observation=obC);
+[Tc, whyC] = figureObservations(r.source(1), cfg.figureFor("lfp"), Observation=obC);
+check(all(Tu.channel == obC.channel) && (height(Tu) > 0 || startsWith(why, "no unit on channel " + obC.channel)) ...
+    && height(Tc) == 1 && Tc.channel == obC.channel && whyC == "", ...
+    'a channel picked: the units on that channel (or why none), the channel itself on a channel figure');
 
 fprintf('\n== 9. session figures: plan, run, export, report, data file, run record, cancel, standalone script ==\n');
 outG = fullfile(root, 'outSesFig');

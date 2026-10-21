@@ -5,7 +5,8 @@ function onPickFigureDatasets(obj, opts)
 %   the scanned datasets by date with their Subject, Date and Key, ticked
 %   for the figure's sessions.datasetKeys; OK writes the ticked datasets'
 %   keys there (the Keys box, the config, onConfigChanged "figure": the
-%   picker and the preview follow). Cancel changes nothing.
+%   picker and the preview follow; a step of the undo history,
+%   recordFigureEdit). Cancel changes nothing.
 %
 %   Keys=KEYS (a string array; string.empty for none) skips the window and
 %   sets sessions.datasetKeys to KEYS as they are, for scripts and tests.
@@ -34,6 +35,7 @@ else
 end
 cfg = obj.Config;
 cfg.Figures(k).sessions.datasetKeys = reshape(keys, 1, []);   % no control holds the keys: gatherFigureEditor keeps the config's
+recordFigureEdit(obj, cfg, "Pick datasets");
 obj.Config = cfg;
 obj.FigureEditor.sesKeys.Value = char(strjoin(keys, ", "));
 obj.onConfigChanged("figure");

@@ -788,6 +788,7 @@ classdef EphysPipelineApp < handle
         RunStepBar           matlab.ui.container.GridLayout
         RunStepText          matlab.ui.control.Label
         RunStepLabel         matlab.ui.control.Label
+        RunTimeLabel         matlab.ui.control.Label          % the time left and elapsed, beside RunStepLabel (onPipelineProgress)
         RunResultsTable      matlab.ui.control.Table
         RunLogArea           matlab.ui.control.TextArea
         RunKSLabel           matlab.ui.control.Label
@@ -841,6 +842,10 @@ classdef EphysPipelineApp < handle
         % The Run tab diagram's model: phase, times, results so far, one entry
         % per step (resetRunDiagram / updateRunDiagram / finishRunDiagram).
         RunDiagram struct = struct('phase', "idle")
+        % The time left of the step under way (onPipelineProgress): a
+        % ProgressClock started at the step's first event, and that step.
+        RunStepClock = []
+        RunClockStep (1,1) string = ""
         % The resource sampler (resource_monitor.ps1) being shown: its folder
         % ("" = none), launch time and interval, and the timer reading it.
         ResourceMonitor struct = struct('dir', "", 'started', NaT, 'interval', 2)
@@ -864,7 +869,7 @@ classdef EphysPipelineApp < handle
         Transfers OutputTransfer = OutputTransfer.empty(1, 0)
         TransferMonitorTimer = []
         TransferRateHistory (:,2) double = zeros(0, 2)   % [seconds bytes] samples (showTransferProgress)
-        TransferStarted = []                              % tic of the first sample
+        TransferClock = []                                % ProgressClock from the first sample (time left)
 
         % Datasets whose files for the analysis app wait for a background sort to end
         % (AnalysisCopy; copyAnalysisFilesAfterRun): the dataset and the results folder
@@ -940,7 +945,7 @@ classdef EphysPipelineApp < handle
         CopyRows (:,1) double = zeros(0, 1)             % CopySessions rows that job was made from, in order
         CopyMonitorTimer = []                           % timer polling CopyJob (startCopyMonitor)
         CopyCancelRequested (1,1) logical = false       % Cancel copy was pressed; the engine stops at once
-        CopyStarted = []                                % tic when the running batch was launched (rate and time left)
+        CopyClock = []                                  % ProgressClock from when the running batch was launched (rate and time left)
         CopyRateHistory (:,2) double = zeros(0, 2)      % [seconds, bytes] over the last few seconds
         CopyLiveRow (1,1) double = 0                    % CopySessions row the engine is inside (0: none)
         CopyLiveFrac (1,1) double = 0                   % how far through that row it is
@@ -973,6 +978,9 @@ classdef EphysPipelineApp < handle
         % --- the last run error (Help > Report an issue sends it; issueReport) ---
         LastError MException = MException.empty(0, 1)   % what a run stopped on ([] when none)
         LastErrorTime (1,1) datetime = NaT              % when it was caught
+
+        % --- startup ---
+        Splash AppSplash = AppSplash.empty   % the startup window (AppSplash; isActive while the app starts, closed once it shows)
     end
 
     properties (Constant)
@@ -982,15 +990,33 @@ classdef EphysPipelineApp < handle
     end
 
     methods
-        function obj = EphysPipelineApp()
-            % Construct, build the UI, restore preferences and the last config,
-            % and follow again the Kilosort4 runs going when the app last closed.
+        function obj = EphysPipelineApp(opts)
+            % Construct behind the startup window (AppSplash): build the UI
+            % hidden, restore preferences and the last config, scan its
+            % project (startupScan), follow again the Kilosort4 runs going
+            % when the app last closed; then show the window. On an error
+            % the splash and the hidden window close and the error goes on.
+            arguments
+                opts.Splash (1,1) logical = ~batchStartupOptionUsed()   % no one watches a -batch run
+            end
+            [steps, weights] = startupSteps();
+            obj.Splash = AppSplash("Ephys preprocessing", steps, weights, Show=opts.Splash);
+            unfinished = onCleanup(@() abandonStartup(obj)); %#ok<NASGU>
+            obj.Splash.step("window", "Building the window ...");
             obj.buildUI();
+            obj.Splash.step("prefs", "Restoring the preferences ...");
             obj.loadPreferences();
+            obj.Splash.step("probes", "Reading the probe library ...");
             obj.refreshCopySchedule(Fill=true);
             obj.refreshProbeList();
             obj.updateTitle();
             obj.followKeptKSRuns();
+            scanned = startupScan(obj);   % last: what it says stays in the status bar
+            obj.Splash.step("show", "Drawing the window ...");
+            obj.Fig.Visible = "on";
+            drawnow;
+            obj.Splash.close();
+            if scanned; obj.offerKeptKSQueue(); end   % it may ask: after the window shows
 
             if nargout == 0
                 clear obj
@@ -1400,4 +1426,50 @@ classdef EphysPipelineApp < handle
         % --- methods defined in separate files ---
         result = runProbeToolWith(pythonExe, condaEnv, varargin)
     end
+end
+
+
+function [steps, weights] = startupSteps()
+%startupSteps  The constructor's steps on the splash (AppSplash) and the seconds each takes (measured warm).
+%   The tab steps are named by their tabs, in buildUI's order. Most of the
+%   time goes where the hidden window's parts are first laid out: in
+%   styleButtons ("finish") and when it shows. "scan" is a one-dataset
+%   project's.
+S = { ...
+    "window", 0.67; "Copy", 0.66; "Project", 0.71; "Trials", 0.76; "Visualize", 1.33; ...
+    "Artifacts", 1.05; "Probe", 0.26; "Sorting", 0.92; "Signals", 0.46; "Spikes", 0.35; ...
+    "Export", 0.37; "Analysis", 0.14; "Diagram", 0.08; "Run", 0.48; "Review", 0.38; ...
+    "Synthetic", 0.54; "Clean up", 0.29; "finish", 7.7; "prefs", 0.3; "config", 0.8; ...
+    "probes", 0.27; "scan", 1.1; "show", 7.0};
+steps = [S{:, 1}];
+weights = [S{:, 2}];
+end
+
+
+function scanned = startupScan(obj)
+%startupScan  Scan the project of the config just opened, when its root is there.
+%   The scan reports on the splash (onScan). A root that is not there, or
+%   on a network share that does not answer within 5 s (folderReachable),
+%   is not scanned: the status bar says so, and Scan is left to the user.
+scanned = false;
+root = strtrim(string(obj.RootPathField.Value));
+if root == ""; return; end
+obj.Splash.step("scan", "Looking for the project " + root + " ...");
+[ok, why] = folderReachable(root, 5);
+if ~ok
+    obj.setStatus("The project " + root + " was not scanned: " + why + ".", "Scan once it can be reached.");
+    return
+end
+obj.onScan();
+scanned = ~isempty(obj.Project);
+end
+
+
+function abandonStartup(obj)
+%abandonStartup  The constructor's cleanup: when it stopped before the window showed, the hidden window and the splash go.
+if ~isvalid(obj) || ~obj.Splash.isActive(); return; end   % it finished: the splash closed then
+if ~isempty(obj.Fig) && isvalid(obj.Fig)
+    delete(obj.Fig);
+end
+obj.Splash.close();
 end

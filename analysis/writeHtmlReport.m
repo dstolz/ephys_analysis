@@ -1,4 +1,4 @@
-function file = writeHtmlReport(report, file)
+function file = writeHtmlReport(report, file, opts)
 %writeHtmlReport  Write a report as one self-contained HTML file.
 %   FILE = writeHtmlReport(REPORT, FILE) writes the report built with
 %   newAnalysisReport / addReportDataset / addReportFigure: a title, a table
@@ -22,11 +22,16 @@ function file = writeHtmlReport(report, file)
 %   relative to FILE's folder (a file:// URL on another drive) and
 %   percent-encoded.
 %
+%   writeHtmlReport(..., ProgressFcn=F) calls F(done, total, message)
+%   before each dataset's (or section's) part ("Writing the report: section
+%   3/12"): a report of many figures embeds many images.
+%
 %   See also writePdfReport, newAnalysisReport, EphysAnalysisRunner.run.
 
 arguments
     report (1,1) struct
     file (1,1) string
+    opts.ProgressFcn = []
 end
 
 folder = fileparts(file);
@@ -64,7 +69,11 @@ if report.options.IncludeConfig; L(end+1) = "<li><a href=""#config"">Config</a><
 L(end+1) = "</ol></nav>";
 
 % --- datasets ------------------------------------------------------------------------
-for d = 1:numel(report.datasets)
+nSections = numel(report.datasets);
+for d = 1:nSections
+    if ~isempty(opts.ProgressFcn)
+        opts.ProgressFcn(d - 1, nSections, sprintf("Writing the report: section %d/%d", d, nSections));
+    end
     D = report.datasets(d);
     L(end+1) = "<section id=""ds" + d + """><h2>" + htmlEscape(D.name) + starMark(D) + "</h2>"; %#ok<AGROW>
     if ~isempty(D.summary)

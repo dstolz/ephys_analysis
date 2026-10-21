@@ -276,6 +276,10 @@ switch section
             'type',    "psth", ...              % one of panelTypes().Type
             'title',   "", ...                  % "" = automatic
             'box',     "auto", ...              % the axes' box: "auto" (the design's, and the looks remembered for the panel's kind) | "on" | "off" (these win over them)
+            'xLabel',  "", ...                  % the x axis' label: "" = automatic (the type's, "Time (s)" on a time axis)
+            'yLabel',  "", ...                  % the y axis' label: "" = automatic
+            'xSide',   "bottom", ...            % where the x axis' ticks and label go: "bottom" | "top"
+            'ySide',   "left", ...              % ... and the y axis': "left" | "right" (not a stacked PSTH's: it has one on each side)
             'row',     1, ...                   % the top-left cell
             'col',     1, ...
             'rowSpan', 1, ...

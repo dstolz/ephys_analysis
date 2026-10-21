@@ -75,7 +75,6 @@
     {"role": "modWindow", "property": "FaceAlpha", "value": 0.5},
     {"role": "modWindow", "property": "Color", "value": "#1a1a1a"},
     {"role": "modMarks", "property": "FontName", "value": "Arial, Helvetica"},
-    {"role": "rasterTicks", "property": "Color", "value": "#1a1a1a"},
     {"role": "rasterStop", "property": "Color", "value": "#F8766D"},
     {"role": "bar", "property": "EdgeColor", "value": "none"},
     {"role": "errorBar", "property": "Color", "value": "#333333"},

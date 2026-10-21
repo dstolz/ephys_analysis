@@ -353,6 +353,12 @@ for k = 1:numel(obj.Figures)
         if ~ismember(pj.box, ["auto" "on" "off"])
             add("Figures", p0 + ".box", "error", "A panel's box is auto (the design's), on or off.");
         end
+        if ~ismember(pj.xSide, EphysAnalysisConfig.PanelXSides)
+            add("Figures", p0 + ".xSide", "error", "A panel's xSide is bottom or top.");
+        end
+        if ~ismember(pj.ySide, EphysAnalysisConfig.PanelYSides)
+            add("Figures", p0 + ".ySide", "error", "A panel's ySide is left or right.");
+        end
         trow = FT.Type == pj.type;
         if ~any(trow)
             add("Figures", p0 + ".type", "error", "Unknown panel type """ + pj.type + """ (types: " + strjoin(FT.Type, ", ") + ").");
@@ -525,10 +531,11 @@ for k = 1:numel(obj.Figures)
         switch pj.type
             case "raster"
                 checkRasterSort(op, o0);
-                for cf = ["tickColor" "backColor"]
-                    if op.(cf) ~= "" && ~isColor(op.(cf))
-                        add("Figures", o0 + "." + cf, "warning", "No color """ + op.(cf) + """; the raster keeps its default.");
-                    end
+                if op.tickColor ~= "" && ~isColor(op.tickColor)
+                    add("Figures", o0 + ".tickColor", "warning", "No color """ + op.tickColor + """; the ticks keep their groups' colors.");
+                end
+                if ~ismember(op.backColor, ["" "none" "groups"]) && ~isColor(op.backColor)
+                    add("Figures", o0 + ".backColor", "warning", "Not none, groups or a color: """ + op.backColor + """; the raster has no bands.");
                 end
                 checkFigWaveform(op.waveform, o0 + ".waveform", false);
             case "psth"

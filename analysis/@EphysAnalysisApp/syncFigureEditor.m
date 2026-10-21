@@ -12,7 +12,8 @@ function syncFigureEditor(obj)
 %                    smaller than its cell)
 %     Panel, Panel alignment, Layers, Options   with a panel selected;
 %                    Group shown for the one-group types (heat map, unit
-%                    correlation); Panel alignment's rows grayed out (they
+%                    correlation); the Y axis row's side grayed out on a
+%                    stacked PSTH (a y axis on each side); Panel alignment's rows grayed out (they
 %                    show the figure's) while "Same as the figure" is
 %                    ticked, and, with a note, for a type not aligned to
 %                    events; its trial selection rows grayed out while
@@ -169,7 +170,8 @@ v.rowSpan = hasPanel; v.colSpan = hasPanel; v.rowHeight = hasPanel; v.colWidth =
 v.panelWidth = hasPanel; v.panelAlign = hasPanel;
 en(E.panelAlign, E.panelWidth.Value < 100);   % where it sits only matters when it is smaller than its cell
 en(E.panelVAlign, E.panelHeight.Value < 100);
-v.panelType = hasPanel; v.panelTitle = hasPanel; v.panelBox = hasPanel; v.group = false;
+v.panelType = hasPanel; v.panelTitle = hasPanel; v.panelBox = hasPanel; v.panelXLabel = hasPanel; v.panelYLabel = hasPanel;
+v.group = false;
 % layers and options: off unless the panel uses them
 layerKeys = ["layerList" "layerAdd" "layerNote" "layerName" "layerSource" "layerBinding" "layerFollows" "layerClasses" ...
     "layerIds" "layerQuality" "layerMaxUnits" "layerShanks" "layerUnitChannels" "layerChannels" "layerAggregate" "evLine" ...
@@ -327,6 +329,7 @@ if hasPanel
     en(E.auResamples, string(E.auTest.Value) ~= "ranksum");
     en([E.auMarks E.auModOnly], string(E.auCutoff.Value) ~= "none");
     en(E.psthSpacing, E.stack.Value);
+    en(E.panelYSide, ~(t == "psth" && ~psthHeat && E.stack.Value));   % a stacked PSTH has a y axis on each side
     en(E.fillAlpha, E.fill.Value);
     sortOn = ~(t == "eventTrace" && string(E.etTrials.Value) ~= "rows");   % an event trace sorts its sub-rows only
     en([E.rasterSort E.rasterSortOrder E.rasterByGroup], sortOn);

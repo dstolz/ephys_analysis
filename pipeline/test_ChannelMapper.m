@@ -334,6 +334,9 @@ copyfile(hwFolder, gb);
 m = ChannelMapperApp(BankFolder=gb);
 check(isvalid(m.Fig) && m.MappingName == "H32_A1x32_RHD2132" && isempty(m.App), ...
     "standalone, with no remembered chain it opens the bank's first mapping");
+check(m.Fig.Visible == "on" && ~m.Splash.isActive() && m.Splash.Window == "" ...
+    && isequal(m.Splash.History.Step.', ["bank" "window" "chain" "show"]), ...
+    "built hidden and shown at the end; under -batch without the splash window");
 m.selectProbe("generic/linear32");
 m.selectPackage("neuronexus/H32");
 m.selectHeadstage("intan/RHD2132-32ch");

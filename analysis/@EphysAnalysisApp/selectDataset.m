@@ -5,18 +5,21 @@ function selectDataset(obj, idx)
 %   sorted units counted: refreshDatasetLabels), its star toggles, the alignment count, the line and
 %   parameter lists, the epoch diagram (when open), the Figures tab's
 %   observation picker (its pick kept by label) and preview
-%   (autoFigurePreview) follow.
+%   (autoFigurePreview) follow. The status bar says what it is loading
+%   ("Loading <name> (dataset 3/12): its files ...").
 if isempty(obj.Runner) || idx < 1 || idx > numel(obj.Runner.Keys); return; end
 if obj.ActiveIdx >= 1 && obj.ActiveIdx ~= idx && obj.ActiveIdx <= numel(obj.Runner.Outputs)
     obj.Runner.Outputs(obj.ActiveIdx).clearCache();
 end
 obj.ActiveIdx = idx;
-obj.setStatus("Loading " + obj.Runner.Names(idx) + " ...");
+name = obj.Runner.Names(idx);
+obj.setStatus(sprintf("Loading %s (dataset %d/%d): its files ...", name, idx, numel(obj.Runner.Keys)));
 drawnow limitrate;
 try
     obj.Runner.source(idx);
+    obj.setStatus("Loading " + name + ": its units, lines and observations ...");
 catch ME
-    obj.setStatus("Cannot read " + obj.Runner.Names(idx) + ": " + string(ME.message));
+    obj.setStatus("Cannot read " + name + ": " + string(ME.message));
 end
 set([obj.AlignDatasetDropDown obj.FiguresDatasetDropDown], 'Value', idx);
 obj.refreshDatasetsTable();
@@ -36,5 +39,5 @@ obj.refreshFigureObservations();
 obj.refreshAlignPreview();
 obj.refreshEpochDiagram();
 obj.autoFigurePreview();
-obj.setStatus("Active dataset: " + obj.Runner.Names(idx));
+obj.setStatus("Active dataset: " + name);
 end

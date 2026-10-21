@@ -166,6 +166,14 @@ classdef test_UnitQuality < matlab.unittest.TestCase
             html = string(fileread(writeUnitQualityReport(units, "", WaveformSpikes=3)));
             tc.verifyTrue(~contains(html, "templates are drawn") && count(html, " 3 spikes &middot;") == nnz(good), ...
                 "with the sorted data: the mean of WaveformSpikes of each good unit's spikes");
+            heard = zeros(0, 2);
+            writeUnitQualityReport(units, "", WaveformSpikes=3, ProgressFcn=@(done, total, msg) hear(done, total, msg));
+            tc.verifyEqual(heard, [(0:nnz(good) - 1).', repmat(nnz(good), nnz(good), 1)], ...
+                "ProgressFcn hears each good unit before its waveform is read");
+            function hear(done, total, msg)
+                heard(end+1, :) = [done total];
+                tc.verifyTrue(startsWith(msg, "Mean waveform of unit "), msg);
+            end
             html = string(fileread(writeUnitQualityReport(units, "", WaveformSpikes=0)));
             tc.verifyEqual(count(html, "&middot; template"), nnz(good), "WaveformSpikes 0: the templates");
             delete(dat);

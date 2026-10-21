@@ -188,7 +188,7 @@ cfg.Figures(k) = fig;
 obj.SelectedPanel = qi;
 msg = sprintf("Moved %s to row %d, column %d.", D.id, T.row, T.col);
 if clipped; msg = msg + sprintf(" Its spans became %d x %d to fit the grid.", rs, cs); end
-commitFigureEdit(obj, cfg, msg);
+commitFigureEdit(obj, cfg, msg, Action="Move panel");
 end
 
 
@@ -212,7 +212,7 @@ n = numel(fig.panels);
 fig.panels = fig.panels([1:qi-1, n, qi:n-1]);   % placePanel appended it: back to its place in the panel order
 cfg.Figures(k) = fig;
 obj.SelectedPanel = qi;
-commitFigureEdit(obj, cfg, "Moved " + p.id + " " + T.where + " " + T.anchor + ".");
+commitFigureEdit(obj, cfg, "Moved " + p.id + " " + T.where + " " + T.anchor + ".", Action="Move panel");
 end
 
 

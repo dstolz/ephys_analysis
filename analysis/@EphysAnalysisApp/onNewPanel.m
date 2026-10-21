@@ -102,7 +102,7 @@ if anchor == ""
 else
     at = opts.Where + " " + anchor;
 end
-commitFigureEdit(obj, cfg, "Added " + p.id + " (" + PT.Label(row) + ") " + at + " with " + layerLabel(p.layers(1)) + ".");
+commitFigureEdit(obj, cfg, "Added " + p.id + " (" + PT.Label(row) + ") " + at + " with " + layerLabel(p.layers(1)) + ".", Action="Add panel");
 end
 
 

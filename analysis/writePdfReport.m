@@ -1,4 +1,4 @@
-function file = writePdfReport(report, file)
+function file = writePdfReport(report, file, opts)
 %writePdfReport  Write a report as one multi-page PDF.
 %   FILE = writePdfReport(REPORT, FILE) writes a title page (the report's
 %   title, when it was made, its datasets and figures), then for each dataset
@@ -16,6 +16,10 @@ function file = writePdfReport(report, file)
 %   summary page. A report started for HTML only keeps no pages: start it
 %   with Format "pdf" or "both".
 %
+%   writePdfReport(..., ProgressFcn=F) calls F(done, total, message)
+%   before each page it draws ("Writing the report: page 3/12") and before
+%   the pages are joined.
+%
 %   Errors: writePdfReport:NoPages, writePdfReport:Merge.
 %
 %   See also writeHtmlReport, newAnalysisReport, reportPdfPage, exportFigure.
@@ -23,6 +27,7 @@ function file = writePdfReport(report, file)
 arguments
     report (1,1) struct
     file (1,1) string
+    opts.ProgressFcn = []
 end
 
 folder = fileparts(file);
@@ -42,9 +47,12 @@ for d = 1:numel(report.datasets)
     D = report.datasets(d);
     lines(end+1) = sprintf("%d. %s (%d figure(s))", d, D.name + starWord(D), numel(D.entries)); %#ok<AGROW>
 end
+nPages = numel(report.datasets) + 1;   % the title page and a summary page per dataset; joining them is the last step
+say(0, sprintf("Writing the report: page 1/%d", nPages));
 parts = page(lines, report.title, 0);
 
 for d = 1:numel(report.datasets)
+    say(d, sprintf("Writing the report: page %d/%d", d + 1, nPages));
     D = report.datasets(d);
     L = strings(0, 1);
     if ~isempty(D.summary)
@@ -73,7 +81,15 @@ for d = 1:numel(report.datasets)
         parts = [parts; e.pages(:)]; %#ok<AGROW>
     end
 end
+say(nPages, sprintf("Writing the report: joining %d page file(s)", numel(parts)));
 mergePages(parts, file);
+
+    function say(done, msg)
+        %say  ProgressFcn(done, of the pages and the joining, MSG).
+        if ~isempty(opts.ProgressFcn)
+            opts.ProgressFcn(done, nPages + 1, msg);
+        end
+    end
 
     function f = page(txt, heading, k)
         %page  One page of text, drawn and written as a one-page PDF.

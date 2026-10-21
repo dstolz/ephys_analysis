@@ -11,7 +11,7 @@ prev = X.BatchFcn;
 X.BatchFcn = @(b) batchChanged(obj, X, b, prev);
 if isempty(obj.Transfers)
     obj.TransferRateHistory = zeros(0, 2);
-    obj.TransferStarted = [];
+    obj.TransferClock = [];
 end
 obj.Transfers(end+1) = X;
 obj.RunTransferStopButton.Enable = "on";

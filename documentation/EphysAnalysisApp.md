@@ -70,20 +70,39 @@ units, no LFP extract, no paired trials, ...): see
 | Call | Opens |
 | --- | --- |
 | `EphysAnalysisApp` | the last config (preference `LastConfigFile`), else the defaults |
-| `EphysAnalysisApp("D:\EPHYS")` | a new config in project mode on that root, scanned |
+| `EphysAnalysisApp("D:\EPHYS")` | the last config with its source switched to project mode on that root, scanned (with no last config, a new quick look config) |
 | `EphysAnalysisApp("D:\EPHYS", OutputRoot="E:\out")` | the same with the project's output root. `NamePattern=` and `Recordings=` (`"concatenate"`, `"separate"`, `"single"`) are taken too |
 | `EphysAnalysisApp("D:\EPHYS", Datasets=["subj1/day1" "subj1/day2"])` | the same with only those datasets selected (root-relative keys; `Source.Selection = "list"`): every dataset is listed, but only these are ticked to run, and the first of them is active; one dataset names the config. The pipeline app's Tools panel opens it this way |
-| `EphysAnalysisApp("D:\out\subj1_day1")` | a folder holding `<Name>_manifest.json` or `<Name>_extract*.mat` is one dataset's output folder: a new config in folders mode with that folder, scanned |
-| `EphysAnalysisApp("am.json")` | that analysis config (its source scanned when it exists) |
+| `EphysAnalysisApp("D:\out\subj1_day1")` | a folder holding `<Name>_manifest.json` or `<Name>_extract*.mat` is one dataset's output folder: the last config with its source switched to folders mode with that folder, scanned (with no last config, a new quick look config) |
+| `EphysAnalysisApp("am.json")` | that analysis config as it is (its source scanned when it exists) |
 | `app = EphysAnalysisApp(...)` | the same, keeping a handle |
+| `EphysAnalysisApp(..., Splash=false)` | the same without the startup window |
 
-The detection is in `openSource`. A new config made from a folder is named
-after it (`<folder> quick look`, or after the one dataset of `Datasets=`)
-and has no figures yet.
+The detection is in `openSource`. Opened on a folder, the app takes its
+last config again (preference `LastConfigFile`), its figures, defaults and
+export settings as they are, and puts the folder's source in place of the
+config's own: the title marks the config unsaved and the status bar says
+so, since **Save** would write the new source to that file (**Save As**
+leaves the file as it was). With no last config, or one that cannot be
+read (the status bar and the Log say why), it makes a new config named
+after the folder (`<folder> quick look`, or after the one dataset of
+`Datasets=`) with no figures yet.
+
+**Startup window.** While the app starts, a small window in the middle of
+the screen shows its name, its version, the step under way (each tab
+built, the preferences, the config opened, the scan, the first dataset
+loaded) and a progress bar; the main window is built hidden and shows when
+it is ready, and alerts raised meanwhile show on it then. `Splash=false`
+starts without the small window, the default under `matlab -batch`. A
+config's project root on a network share that does not answer within 5 s
+is not scanned when the config opens (the status bar says so): **Scan** it
+once it can be reached.
 
 **From the pipeline app.** Its **File → Open analysis app...** opens this
 app on the project root, output root, name pattern and Open Ephys recording
-mode set there; without a project root, on the analysis app's last config.
+mode set there (its Tools panel, on the datasets chosen), with this app's
+last config and figures as above; without a project root, on the last
+config as it is.
 The analysis app's **File → Open pipeline app** goes the other way. The two
 apps share no state: each keeps its own config.
 
@@ -361,7 +380,7 @@ with the key of each in brackets:
 | Sessions | **Across sessions**, and with it ticked which datasets, how the sessions are colored, the error band, how the observed unit is matched, the minimum sessions and the trial groups: the figure drawn once over several datasets instead of once per dataset ([Sessions in the Figures tab](#sessions-in-the-figures-tab)); no key; collapsed until opened. Its place in the Figure supersection, above the Panels section: it decides what the figure is drawn over |
 | Panels (5) | the schematic of the grid, **New panel...** (the [New panel window](#the-new-panel-window)), the selected panel's **Row span**, **Column span**, **Row height**, **Column width**, **Panel size** and **Align in cell**, **Spacing** with **Spacing...**, **Remove panel** and **Move** (below) |
 | **PANEL** (Alt+2) | the sections below, down to Overlays: the selected panel's. Its header names the panel and its type |
-| Selected panel (6) | **Type** (a change starts the panel afresh: below), **Title** (blank = none), **Box** (*auto (the design's)*, *on* or *off*: the frame around the panel's axes; *on* and *off* win over the design, the remembered looks and the figure's own rules; `box`) and **Group shown** (heat map, unit correlation and spectrogram panels, and a coherence panel drawn over time: which of the figure's trial groups they draw, 1 = the first; `options.group`; a heat map of trials draws every group, so the row hides) |
+| Selected panel (6) | **Type** (a change starts the panel afresh: below), **Title** (blank = none), **Box** (*auto (the design's)*, *on* or *off*: the frame around the panel's axes; *on* and *off* win over the design, the remembered looks and the figure's own rules; `box`), **X axis** and **Y axis** (every type: the axis' label, blank = the type's own, and its side, *bottom* or *top*, *left* or *right*; `xLabel`, `yLabel`, `xSide`, `ySide`; the y side grayed out on a stacked PSTH, which has a y axis on each side; a stack of time panels with its x axes on top tells the time once, at its top) and **Group shown** (heat map, unit correlation and spectrogram panels, and a coherence panel drawn over time: which of the figure's trial groups they draw, 1 = the first; `options.group`; a heat map of trials draws every group, so the row hides) |
 | Panel alignment (7) | the selected panel's own event reference and epoch window (an aligned type only), with **Same as the figure** in the header, and the panel's trial selection, the [Trial selection](#alignment-tab) rows under the **Trial selection as the figure** box (an aligned type only). **Apply to all panels** and **Re-link all panels** (below) |
 | Layers (8) | the selected panel's layers: the list with **Add** (a source the type draws), **Remove**, **Up** and **Down**, and the rows of the layer picked (below) |
 | Options (9) | all of the panel's own options: its type's rows, under the type's name (*Raster options*, *PSTH options*, ...; below), and **Apply to all panels** |
@@ -435,9 +454,12 @@ below move within them. The **?** button right of the search field (also
 | **Ctrl+Alt+arrows** | the panel above, below, left or right of the selected one: the nearest wholly on that side whose columns (rows) overlap it, the one overlapping most when several are as near; with none there the status bar says so (*No panel below continuous_1.*). A graphics driver that turns the screen with Ctrl+Alt+arrows takes these keys: use Ctrl+] and Ctrl+[ |
 | **Page Up**, **Page Down** | the previous or next observation (**<**, **>**) |
 | **Ctrl+P**, **Ctrl+G** | **Preview**, **Generate** |
+| **Ctrl+U** | **Unit report** |
 | **Ctrl+T** | **Auto**, ticked or unticked |
 | **Ctrl+E**, **Ctrl+W** | **Export code**, **Open in window** |
 | **Escape** | cancels a panel drag in the schematic; clears the search |
+| **Ctrl+Z** | undo the last edit of the figures (**Edit → Undo**: [Undo and redo](#undo-and-redo)) |
+| **Ctrl+Y**, **Ctrl+Shift+Z** | redo the last edit undone |
 
 A panel picked with the keys is picked as a click in the schematic picks it:
 the editor shows it, and the preview outlines it (below) without computing or
@@ -638,7 +660,7 @@ list edit the layer picked:
 
 | Panel type | Rows |
 | --- | --- |
-| Raster | **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*), **Rows by group first**, **Colors** (the ticks' color, and a background for every group in place of the pale group bands; blank = black ticks, group bands), **Show y ticks** (off by default: the y axis has no tick marks or epoch numbers, only its label; `options.yTicks`), **Mask after the stop event**, and the waveform inset (**Waveform**, **Inset location**, **Inset size**, **Label**) |
+| Raster | **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*), **Rows by group first**, **Colors** (the ticks' color: blank = each trial group's color, as the PSTH colors its traces, or one color for every tick, which a layer's own **Color** overrides; and **bands** behind the rows: *none* (the default), *groups* (a pale band of each group's color) or one color for every group), **Show y ticks** (off by default: the y axis has no tick marks or epoch numbers, only its label; `options.yTicks`), **Mask after the stop event**, and the waveform inset (**Waveform**, **Inset location**, **Inset size**, **Label**) |
 | PSTH | **Bin**, **Smooth**, **Measure**, **Baseline** (with *auroc*) and its window, the auROC rows (with the *auroc* baseline), **Mask after the stop event**, **Display** (*trace* or *heat map*), **PSTH as**, **Fill** and its opacity, **Normalize**, **Stack** (**One row per group** with its **spacing**, the row step in tallest PSTHs), **Y limits** (not used in a stack), and the waveform inset; as a heat map, **Colormap** and **Color limits** instead of **PSTH as**, **Fill**, **Stack** and **Y limits** |
 | Event traces | **Draw as** (*solid bars (onset to offset)* or *a logic level (a line)*), **Trials** (*every epoch overlaid in the line's row*, translucent, or *a sub-row per epoch*, with **group bands**), the sub-rows sorted as a raster's rows by the raster's **Sort rows by** (and its order), **Sort event**, **Sort sequence** and **Rows by group first** (grayed out while overlaid), **Color by** (*line*: the layer's Color, else a palette color; or *trial group*), **Height** (a share of the row) with its **opacity** (blank: 0.3 overlaid, 1 in sub-rows), **Bar outline** and its width (bars), **Narrowest bar** (bars: points; a bar drawn narrower, a zero-length interval too, also gets a tick this wide through its middle; 0: none), **Level line** style and width (a line; a layer's own Line style wins), **Baseline** (**Draw**, its color) and **Baseline line** (style, width), **Row spacing**. Its layers are events layers only, one line each, a row each ([Event traces](EphysAnalysisConfig.md#event-traces)) |
 | Continuous signal | **Baseline** and its window, **Display** (*lines* or *stacked rows*), **Signal** (mean or median; as recorded, rectified, or *Vector magnitude*: the layer's channels as one trace, √(x² + y² + z²) in each epoch after the baseline, e.g. a 3-axis accelerometer's AUX channels with Baseline *subtract*), **Error band** (off, mean ± SEM, mean ± SD, bootstrap 95% CI or interquartile range), **Stack spacing**, **Trials** (*Off*, *Faint, behind the mean* or *Only the trials*) with **at most** (the most epochs drawn, 100 by default, picked evenly over their order; the traces sit under every band and mean; grayed out while *Off*), **Y limits** |
@@ -724,12 +746,13 @@ only that unit's spikes or that channel's column are read) and
 | **Observation** | what the figure is drawn for: the units, channels or dataset the Observations section keeps, in probe order (*su12  ch 7  -320 µm  (5,210 spikes)*: a sorted unit ends in its number of spikes, a detection channel in its number of detections; a signal's channel and the dataset have no count). With **Per trial group** it lists a row for each unit and trial group (the unit's rows together, in group order, the label ending in a middle dot and the group's label, then the unit's count), the preview draws that group's epochs only, and **>** steps from a unit's group to its next one. Each figure remembers its pick until the app closes, by label (without the count), so it stays through a filter change or another dataset while that label is in the list, else the first is picked. Picking one draws it, whether or not Auto is on. For a figure across sessions it lists the sites, cells or channels matched across the sessions, each ending *(across 3 sessions)* ([below](#sessions-in-the-figures-tab)) |
 | **Open in window** | (**Ctrl+W**) at the right of the status line under the preview, right of **Export code**: draws the figure as previewed into a new regular MATLAB figure window (`figure`), named *figure id: observation (dataset)* and the size of the preview, with the right-click aesthetics editor and its Design submenu (what it remembers for the figure reaches the config while the app is open). A drawn preview is used as it is; an *Out of date*, canceled or missing one is previewed first, and the status bar says why when that draws nothing. The window is independent of the app: later edits do not follow into it, and closing the app leaves it. Off with no figure selected |
 | **Generate** | (**Ctrl+G**) draws the selected figure for every observation it selects, on every ticked dataset, into the Export tab's folder (see **Generate** below). It sits under **Preview**, in the same colors, and is off with no figure selected |
+| **Unit report** | (**Ctrl+U**) a spot check of one unit (or channel): every enabled figure of the active dataset, drawn for the unit or channel picked in **Observation** only, as an HTML report that opens in the browser (see **Unit report** below). It sits under **Generate**; off without a dataset or a unit or channel picked, for a figure of the dataset or across sessions, and while a run goes |
 | **<**, **>** | the previous and next observation (**Page Up**, **Page Down**: a figure has no pages), side by side at the bottom of the column of buttons; off at either end of the list |
 | **☆** / **★** | right of **Dataset**: stars the active dataset. Right of **Observation**: stars what the preview shows -- the sorted unit (with its sort), the channel (a detection channel's star is its channel's) or, for a figure of the dataset, the dataset; off for a figure across sessions. A starred dataset, unit or channel starts with **★** in its drop-down; the pick is still remembered by its label without the mark ([Favorites](#favorites)) |
 | **✎** | right of each star: opens the notepad on the same thing, the active dataset or what the preview shows, and the notepad then follows it as you pick or step. Yellow when it has a note (its first line in the tooltip); a dataset, unit or channel with a note shows **✎** in its drop-down, after any **★** ([Notes](#notes)) |
 | **Favorites** | under **Observation**: a filter field and a drop-down of every starred dataset, channel and unit of the scanned datasets. Picking one makes its dataset active and, when the selected figure observes units (for a unit) or channels or detection channels (for a channel), picks and draws it ([Favorites](#favorites)) |
 | **Export code** | (**Ctrl+E**) left of **Open in window**, at the right of the status line under the preview: opens the code that draws the preview in the MATLAB editor, as a new unsaved script (`EphysAnalysisScript.preview`, [Generated scripts](EphysAnalysis.md#generated-scripts)). It names the active dataset (a figure across sessions: the ticked or listed datasets), writes the figure's settings out as `spec` (`figureFor`'s, every *default* resolved), finds the observation picked again in `figureObservations` (by its unit id or the extract's column; with **Per trial group**, its group too; across sessions, by its label), then calls `figureCompute` (`figureSessionCompute` across sessions, keeping the **Figure:** pick) and `renderFigure` into a figure window the size of the preview, in the design chosen. Run it to draw the figure without the app; change `spec` or pick another row of `obsT` to make it your own. Nothing is computed when you press it, so the preview need not be drawn; the code holds the figure as the editor shows it then, and later edits do not follow into it. Without the desktop's editor (`matlab -batch`) it writes the script to `tempdir` and the status bar names the file. Off with no figure selected |
-| **Preview** | (**Ctrl+P**) computes now, also for a signal extract above `PreviewMaxMB`, which otherwise waits for it. It is the button at the top left, heading a column of buttons (**Preview**, **Generate**, **Auto**, **<** **>**) left of **Dataset**, **Observation** and **Favorites**, and turns orange while the figure is *Out of date* |
+| **Preview** | (**Ctrl+P**) computes now, also for a signal extract above `PreviewMaxMB`, which otherwise waits for it. It is the button at the top left, heading a column of buttons (**Preview**, **Generate**, **Unit report**, **Auto**, **<** **>**) left of **Dataset**, **Observation** and **Favorites**, and turns orange while the figure is *Out of date* |
 | **Auto** | (**Ctrl+T**) redraw after every edit while a preview takes under 2 s; a slower one says so (*"slow, so edits wait for Preview"*). On by default, because one observation is quick; remembered. It does not apply to a figure across sessions, which computes every session: an edit leaves its preview *Out of date* until **Preview** (or a pick in the observation list) draws it. The first figure drawn after the app starts is not timed, since it also loads the graphics, so that warm-up does not make the edits after it wait. The 2 s is the app's `FigureAutoPreviewSeconds` property (a public property, not a preference; set it on the app object before editing, for example to `Inf` to redraw however long a preview takes, which the app's tests do so a loaded machine cannot leave a preview out of date) |
 | **Design:** | the look every figure is drawn in (Default, Tufte, Journal, Night, Talk, Gray panel, and yours; the Design menu offers the same): picking one redraws the preview, and every other figure on screen, at once; runs draw their figures in it. It sits right of the **Dataset** drop-down, with **Save look as design...** under it, right of **Observation** |
 | **Save look as design...** | keeps the preview's look -- every property of every component, its ground and its group colors -- as a design of yours, and picks it. The look is read per panel type, from the panels as the preview drew them (not the config, which may have changed since): the rules of a heat map, probe map, unit correlation or spectrogram panel's tile (those axes are drawn their own way) go under the design's `kinds` for that panel type, and those of the figure's other panels are common rules (the same attribution as the preview's right-click **Save this look as a design...**). It saves nothing while the preview is *Out of date* (the status bar says *Preview first: the drawing is out of date*) |
@@ -808,6 +831,29 @@ the exception: Generate runs it as `run(SessionFigures=<id>)`, once across the
 ticked (or listed) datasets rather than on each, into `Export.SessionsFolder`
 ([Sessions in the Figures tab](#sessions-in-the-figures-tab)).
 
+**Unit report** is a spot check: the report for one unit without generating
+the full report. It runs as the Export tab's **Run** does (the same
+validation, progress dialog and **Cancel**, one run at a time), but on the
+active dataset only, for the unit or channel picked over the preview only
+(`run(Observation=)`), with no figure files and no session figures. Each
+enabled figure (and the selected one, even when it is off, for this report
+only) draws what matches the pick: on a figure of the same data, the unit
+itself (with **Per trial group**, each of its groups); on a figure of a
+signal's channels or of detection channels, or of sorted units when a
+detection or a channel is picked, what is on the same recording channel. A
+figure of the dataset, or one with nothing on that channel, is left out: the
+report lists it as skipped with the reason (*"it observes the dataset, not
+one unit"*, *"no LFP channel on channel 7 (...)"*), and so does the status
+bar. The report is HTML whatever **Format** says, titled *<config name>:
+<unit> on <dataset>*, and written to a new temporary folder (`tempname`, its
+run record too), so the output folder is not touched. It opens in the browser
+when it is written; the Export tab's results table then shows its rows and
+**Open report** reopens it until the next run. The status bar reads *"Unit
+report for su12  ch 7  -320 µm: 3 figure(s) drawn; left out: heat (it
+observes the dataset, not one unit). C:\...\unit_report.html"*. With a figure
+across sessions selected the button is off (its observations are matched
+across the datasets): pick a figure drawn per dataset.
+
 **Go to setting.** Right-click a part of the preview and pick **Go to setting** to
 find what controls it: the error band goes to **Show > Error**, the stop dots to
 **Stop marks**, a tile's title to the panel's **Title**, the legend to **Legend**,
@@ -816,7 +862,21 @@ section open, the editor scrolls to the row, the control takes the keyboard focu
 and its label is highlighted for a moment. A part with no setting of its own goes
 to the Appearance section; a setting the panel does not show (an option of another
 panel type) is named in the status bar. A figure opened with **Open in window**
-does the same while the app is open.
+does the same while the app is open. On a panel's x or y label it goes to the
+panel's **X axis** or **Y axis** row.
+
+**Axis labels.** Right-click a panel's x or y label in the preview for two more
+items: **Edit label text...** asks for the panel's own label (blank: the type's
+automatic one; `xLabel`, `yLabel`), and **Move to top** / **Move to bottom** (an
+x label) or **Move to right** / **Move to left** (a y label) puts that axis'
+ticks and label on the other side (`xSide`, `ySide`; a stacked PSTH's y label has
+no side to move to). Each edit goes into the config as the editor's own do: the
+panel is selected, its rows follow and the preview is drawn again (or marked out
+of date), and it is a step of the Edit menu's undo (**Undo Label text**, **Undo
+Axis side**). In a figure opened with **Open in window** the
+window is drawn again with the edit, and while the app is open the edit reaches
+its config too. A label the time stack hides (an inner panel's) has no menu: set
+it in the panel's rows.
 
 **Aesthetics.** Right-click any part of the preview (a line, band, bar, text,
 legend or axes) and pick **Edit aesthetics...** to change colors, line styles and
@@ -874,6 +934,36 @@ touch an artifact period dropped and the baseline windows of the panels on
 the figure's alignment tested too. A figure with no panel aligned to events
 says it has no epochs. The window follows the selected figure and redraws on
 every edit.
+
+#### Undo and redo
+
+**Edit → Undo** (**Ctrl+Z**) takes back the last edit of the figures, and
+**Edit → Redo** (**Ctrl+Y** or **Ctrl+Shift+Z**) does it again. The items
+name the edit: **Undo Add panel**, **Undo Remove figure**, **Undo Move
+panel**, **Undo Spacing**, and for a control of the editor its row's label
+(**Undo Bin (ms)**, **Undo Title**). Every edit of the figures counts: the
+editor's controls, the arrangement (New panel, Remove panel, Move, a drag in
+the schematic, spans, Spacing...), the panel type, the layers, Apply to all
+panels and Re-link all panels, the figure list (Add, Remove, Duplicate, Up /
+Down, Copy from..., the tree's check boxes), a look remembered or forgotten
+from the preview, and Pick... for a session figure. A quick run of edits of
+one field (each under a second after the last) is one step; one typed back
+to where it started is none.
+
+Only the figures are kept (the config's `Figures`), so undoing a figure edit
+leaves the Data tab's source, the Alignment tab's defaults, the Export tab
+and the config's name and description as they are now. The editor goes back
+to the figure, panel and layer the edit was made in (a figure or panel that
+an undo brings back is selected), and the list, the observation picker, the
+epoch diagram and, with Auto on, the preview follow, as after the edit
+itself. Undone back to the figures as saved, the title loses its `*` (when
+nothing else changed). A new edit after an undo drops what was undone; at most
+100 steps are kept. Opening a config or starting a new one clears the
+history; saving keeps it.
+
+The items work with the Figures tab showing: on another tab they are grayed,
+so Ctrl+Z there does nothing in the app. Undo acts on edits entered: a value
+typed in a field becomes a step once Enter, or leaving the field, enters it.
 
 #### Sessions in the Figures tab
 
@@ -1053,7 +1143,7 @@ drawn, so you can see why. Examples: a fixed window with *pre* after
 | --- | --- |
 | **Validate** | lists the config's issues (Section, Field, Severity, Message) in the table; errors stop a run |
 | **Plan** | one row per ticked dataset and [figure](#figures-tab) (Dataset, Subject, Date, Plot, Kind, Source, Enabled, Reason): `Plot` its id, Kind `figure`, Source what it is drawn for (`unit`, `channel` or `dataset`), Enabled whether it will run, and the Reason, why not ([skip reasons](#why-is-my-figure-skipped): no sorted units, no LFP extract, no line X, ...); then one row per [session figure](#sessions-in-the-figures-tab) (Dataset `sessions: all`, or `sessions: <subject>`; a figure with *Across sessions* ticked is listed there and not per dataset). Every figure is listed, enabled or not. Cheap: no signals or spikes are loaded, so a unit filter or channel list that leaves nothing to draw shows only when the figure runs. The status bar counts the rows that will draw: *"Plan: 4 of 6 figure run(s) and 2 of 2 session figure run(s) will draw."* (a row whose Dataset starts `sessions: ` is a session figure run; the session part is left out when the plan lists none) |
-| **Run** | validates, then runs every enabled figure on every ticked dataset, and then every enabled [session figure](#sessions-in-the-figures-tab) over them, with a cancelable progress dialog: compute, export, report. A figure is drawn once per observation (a unit, a channel or the dataset), a page each, and the dialog names the observation (`<dataset>: <figure> (3/12)`). A failing figure is an error row and the rest still run. The Figures tab's **Generate** is this run for one figure alone, with no report ([Figures tab](#figures-tab)); its rows land in this table |
+| **Run** | validates, then runs every enabled figure on every ticked dataset, and then every enabled [session figure](#sessions-in-the-figures-tab) over them, with a cancelable progress dialog: compute, export, report. A figure is drawn once per observation (a unit, a channel or the dataset), a page each, and the dialog names the observation (`<dataset>: <figure> (3/12)`) and, once 1% of the run is done and 5 s have passed, the time left (`<dataset>: <figure> (3/12) · about 4 min left`); writing the report shows its sections and pages (*Writing the report: page 3/12*) in a share of the run of its own. A failing figure is an error row and the rest still run. The Figures tab's **Generate** is this run for one figure alone, with no report ([Figures tab](#figures-tab)); its rows land in this table |
 | **Cancel** | stops before the next figure observation; what is left (the rest of that figure's observations too) is *canceled*. It also stops a Generate, which is a run |
 | **Open report**, **Open figure folder** | after a run: the report files written, and the first dataset's figure folder. After a run with session figures the button's tooltip names the sessions folder (`Export.SessionsFolder`) too; the button itself still opens the first dataset's folder |
 
@@ -1211,6 +1301,8 @@ options](EphysAnalysisConfig.md#panel-options)); how the numbers are computed:
 | | **Generate script → Standalone (every setting written out)...** | a script that needs no config file and never uses the runner ([Scripts](EphysAnalysis.md#scripts)) |
 | | **Open pipeline app** | launches `EphysPipelineApp` |
 | | **Close** | asks about unsaved changes, cancels a run under way, closes |
+| Edit | **Undo** *edit* (Ctrl+Z) | takes back the last edit of the figures ([Undo and redo](#undo-and-redo)); the item names it (**Undo Add panel**, **Undo Bin (ms)**) and is grayed with nothing to undo, or off the Figures tab |
+| | **Redo** *edit* (Ctrl+Y, Ctrl+Shift+Z) | does the last edit undone again; grayed with none |
 | Design | the designs | Default, the built-in designs, then yours (*(mine)*); the one chosen is ticked. Picking one redraws every figure on screen in it ([Plot designs](EphysAnalysis.md#plot-designs)); the Figures tab's **Design:** list is the same choice |
 | | **Save the preview's look as a design...** | asks for a name and a description, saves the Figures tab's figure preview's look in your designs folder (read per panel type) and picks it (asks before replacing one of yours) |
 | | **Import a design file...** | copies a design `.json` into your designs folder and picks it |
@@ -1320,7 +1412,7 @@ is in the config.
 | Preference | Meaning |
 | --- | --- |
 | `FigurePosition` | window position and size |
-| `LastConfigFile` | reopened at launch |
+| `LastConfigFile` | the last config file opened or saved (**New config** leaves it): reopened at launch, and the config the app starts from when opened on a folder |
 | `RecentConfigs` | File → Open recent (8) |
 | `ScriptFolder` | where Generate script offers to save |
 | `PreviewMaxMB` | signal extracts larger than this (default 500 MB) are previewed only with the Preview button. Set it with `AppPrefs.setpref('EphysAnalysisApp', 'PreviewMaxMB', 1000)` before opening the app |
@@ -1378,7 +1470,7 @@ results, on the Log tab and in the report.
 | Part | Files |
 | --- | --- |
 | building | `buildUI`, `buildMenus`, `buildToolbar` (its icons in `analysis/icons/toolbar`), `buildDataTab`, `buildAlignTab`, `buildFiguresTab`, `buildExportTab`, `buildLogTab`, `buildAlignControls`; the editor's collapsible sections in `private/` (`formSection`, `formRow`, `formShow`, `formLayout`) |
-| config model | `gatherConfig` / `applyConfig`, `gather*` / `apply*Section`, `gatherAlignControls` / `applyAlignControls`, `gatherFigureEditor` / `applyFigureEditor`, `onConfigChanged`, `updateTitle`, `confirmDiscard` |
+| config model | `gatherConfig` / `applyConfig`, `gather*` / `apply*Section`, `gatherAlignControls` / `applyAlignControls`, `gatherFigureEditor` / `applyFigureEditor`, `onConfigChanged`, `updateTitle`, `confirmDiscard`; the undo history `onUndoRedo` (the Edit menu) over `analysis/FigureEditHistory`, fed by `private/recordFigureEdit` at each path that edits the figures, its labels `private/figureEditLabel`, its menu `private/refreshEditMenu` |
 | data | `openSource`, `onScan`, `refreshDatasetsTable`, `selectDataset`, `refreshDatasetInfo` |
 | favorites | `refreshFavorites`, `onStarToggled`, `onFavoritePicked`, `onFavoritesFilter`, `onDatasetsTableEdited` (the ★ column); `private/loadFavorites` (on Scan), `private/starItem`, `private/starButton`, `private/syncStarButtons`, `private/observedItem`, `private/buildFavorites`, `private/fillFavorites`, `private/favoriteMarks`, `private/markObservations`; the files: `analysis/DatasetFavorites.m` |
 | notes | `refreshNotes`, `onNoteButton`, `onSearchNotes`, `onDatasetNoteClicked` (the ✎ column); `private/loadNotes` (on Scan), `private/noteButton`, `private/noteTip`, `private/syncNoteButtons` (from `syncStarButtons`; the notepad follows here), `private/openNotePad`, `private/noteMarks`, `private/noteEntries`, `private/goToNote` (over `goToFavorite`); the notepad `analysis/NotePad.m`, the search window `analysis/NoteSearch.m`, the files `analysis/DatasetNotes.m` (the sort a unit's note and star record: `analysis/private/sortIdentity.m`) |
@@ -1396,17 +1488,23 @@ results, on the Log tab and in the report.
 
 `test_EphysAnalysisApp` builds the app headlessly on the analysis fixture
 (a small synthetic project run through the pipeline) and drives it through
-its methods, in sections 0 to 6: the five tabs (Data, Alignment, Figures,
+its methods, in sections 0 to 6: the startup (1: built hidden, each tab, the
+scan and the first dataset a step of the splash, which `-batch` leaves
+unshown); the five tabs (Data, Alignment, Figures,
 Export, Log); the toolbar (1b: its tools in groups with their icons,
-every menu shortcut named in a tooltip, Preview and Plan clicked from another
+every File menu shortcut named in a tooltip, Preview and Plan clicked from another
 tab, the run and results tools following the Export tab's buttons); the scan;
 opening on a list of datasets (`Datasets=`, as the pipeline app's Tools panel
 does); the active dataset's lines and parameters, and its sorted units counted
 in the Dataset drop-downs (the same items on the three tabs); the Help menu's GitHub issue
 and feature request (1c); grouping by Depth from the Alignment controls, with the tab's epoch diagram (2);
 and section 3, the Figures tab: the toolbar's Preview, pressed from another
-tab, showing the Figures tab and drawing the selected figure; **Export code**
-(at the right end of the Preview row: its script, run in a workspace of its
+tab, showing the Figures tab and drawing the selected figure; the header (the
+buttons in a column at the left, a row each -- Preview, Generate, Unit report,
+Auto, **<** **>** -- beside the Dataset, Observation and Favorites rows, Design
+and Save look as design... right of Dataset and Observation; every button's
+key named in its tooltip, and Ctrl+W, Ctrl+T and Ctrl+P pressing theirs); **Export code**
+(left of Open in window under the preview: its script, run in a workspace of its
 own, computes the same result as the preview, but for the time it was made,
 and draws the same panels in a window of its own); the Design row
 (the list and the menu, a design chosen redrawing the figure preview without
@@ -1417,9 +1515,11 @@ edit of its pre, *Use default* again, an edit of the defaults, closing);
 and an event sequence for the figure's own event from the Event sequence
 window (a bad step refused). Section 4 is the gather / apply round trip,
 keeping the fields without a control (the stop event's offset, length and time
-range, trial rows) and the stop's *n*; Save As, New, reopen; a version 1 config
-opened (its plot migrated to a figure, the status bar and the Log saying so);
-and generating scripts. Section 5 is Validate, Plan and a run of one figure
+range, trial rows) and the stop's *n*; Save As, New (`LastConfigFile` kept),
+reopen; a version 1 config opened (its plot migrated to a figure, the status
+bar and the Log saying so); opened on a folder (a project with `Datasets=`, one
+output folder: the last config, its source switched, unsaved; a quick look
+when the last config cannot be read); and generating scripts. Section 5 is Validate, Plan and a run of one figure
 writing its pages and the report (its lines in the Log tab). Sections 5d to 5h are
 the Figures tab again, below. Section 5i is the [favorites](#favorites): the
 star toggles beside Dataset (writing `<Name>_favorites.json` in the output
@@ -1437,7 +1537,14 @@ following **<** and **>**, an LFP channel's note, the yellow buttons and **✎**
 marks, **Search notes** with **Go to** on a unit's and a dataset's note and
 **Edit note** (the notepad then staying), a note written showing in the open
 search at once, the Data tab's **✎** column, an emptied note removing the file,
-and a scan reading the notes back. Section 6 is the preferences remembered (the last
+and a scan reading the notes back. Section 5k is
+[undo and redo](#undo-and-redo): the Edit menu between File and Design, its
+items grayed off the Figures tab and named after the edit (**Undo Add
+figure**, **Undo Title**), two quick edits of one field one step, a
+description edit no step and kept by an undo, a removed panel undone (back
+and selected) and redone with Ctrl+Shift+Z, a new edit dropping the redo, the
+figures undone back to the saved ones leaving the title saved, the history
+cleared by another config, and `FigureEditHistory`'s depth. Section 6 is the preferences remembered (the last
 config, the collapsed sections and supersections of the figure editor; none of the retired plot
 or session preferences is written) and closing. The test keeps the app's
 preferences in a temporary file (`AppPrefs`), so the user's own are never read
@@ -1581,8 +1688,8 @@ the first figure holds the other figure's panel, its bins included. Converting a
 reports are `test_EphysAnalysisRunner`'s.
 
 Its section 5f drives the Figures tab's **Generate** and the figures on the
-Export tab. With no figure, Generate sits beside Preview in the same colors
-and is off; a figure from the `rasterPsth` template turns it on. `onGenerateFigure`
+Export tab. With no figure, Generate sits under Preview in the same colors
+and is off, as is Unit report under it (Ctrl+U then does nothing); a figure from the `rasterPsth` template turns it on. `onGenerateFigure`
 then draws the figure for every observation on both ticked datasets: one done
 `figure` row per dataset in the results table (the observation counts add up to
 the number `figureObservations` lists), every file `figureOutputName` names in
@@ -1598,7 +1705,16 @@ is on again. **Plan** lists the figure on each ticked dataset (`Kind`
 run(s) will draw*; **Run** draws the figure, a row per dataset, and the label counts them. Last, with the figure
 switched off, Generate still draws it (every row done), the status bar says it
 was switched on for this run only, the tree keeps *(off)* and the runner's
-config keeps it off. The figure is then removed and the config saved.
+config keeps it off. **Unit report** then, with a continuous and a heat map
+figure added and the second unit picked (the button on): three rows, all on
+the active dataset -- the selected figure done with one observation though
+off, a figure of the dataset skipped (*it observes the dataset, not one
+unit*), the continuous one drawn on the unit's channel or skipped with why --
+an HTML report `unit_report.html` under `tempdir`, holding the figure's id,
+nothing written under the output root, **Open report** pointing at it, the
+figure still off and the ticks unchanged; the status bar names the unit, what
+was left out and the figure that is off, and the buttons are back. The
+figures are then removed and the config saved.
 
 Its section 5g drives a figure across sessions on the same two datasets. In
 the Sessions section only **Across sessions** shows until it is ticked, and
@@ -1645,6 +1761,10 @@ and the preview draws it (a `note` text in that color); **Add patch**, its edges
 `panel` `"all"`), the preview draws the patch, and the section titles count them;
 the raster panel has none of its own, going back to the PSTH loses nothing, and
 `gatherConfig` after the apply gives the panel's note and overlays back unchanged.
+The **X axis** and **Y axis** rows set the PSTH's y label and side (the preview
+draws them; the side is grayed out on a stacked PSTH), and `onFigureAxisEdited`
+(the label's right-click menu) sets them through the editor's path, each edit a
+step of the undo history (**Undo Label text**, **Undo Axis side**).
 The drag runs on the window's pointer callbacks, which the press installs: over
 `psth_1`'s bottom band the outline follows and *below psth_1* is shaded, the
 release moves `raster_1` below it (a second row, the callbacks cleared, the

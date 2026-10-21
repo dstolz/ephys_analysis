@@ -54,7 +54,7 @@ switch key
     case "sesMappingFile"
         tail = "shows when the units are matched by a mapping file (Units matched by: Mapping).";
     case {"selPanel" "rowSpan" "colSpan" "rowHeight" "colWidth" "panelButtons" "panelWidth" "panelAlign" "panelType" ...
-            "panelTitle" "panelBox"}
+            "panelTitle" "panelBox" "panelXLabel" "panelXSide" "panelYLabel" "panelYSide"}
         tail = "is a setting of the selected panel: pick one in the schematic.";
     case "group"
         tail = "is an option of heat map, unit correlation and spectrogram panels (and a coherence panel drawn over time); " + ...

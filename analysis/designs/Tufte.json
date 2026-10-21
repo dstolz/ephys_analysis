@@ -75,7 +75,6 @@
     {"role": "modWindow", "property": "FaceAlpha", "value": 0.07},
     {"role": "modWindow", "property": "Color", "value": "#555555"},
     {"role": "modMarks", "property": "FontName", "value": "Palatino Linotype, Palatino, Book Antiqua, Georgia"},
-    {"role": "rasterTicks", "property": "Color", "value": "#333333"},
     {"role": "rasterTicks", "property": "LineWidth", "value": 0.5},
     {"role": "rasterStop", "property": "Color", "value": "#e15759"},
     {"role": "rasterStop", "property": "MarkerSize", "value": 5},

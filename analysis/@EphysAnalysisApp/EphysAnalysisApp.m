@@ -73,8 +73,10 @@ classdef EphysAnalysisApp < handle
     %     Log        what the runner reported
     %
     %   File menu: New / Open / Open recent / Save / Save As / Generate
-    %   script (compact | standalone) / Open pipeline app / Close. Design
-    %   menu: the plot designs (choosing one redraws every figure), save the
+    %   script (compact | standalone) / Open pipeline app / Close. Edit
+    %   menu: Undo and Redo of the figure editor's edits (onUndoRedo, over
+    %   FigureEditHistory: Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z, on the Figures
+    %   tab). Design menu: the plot designs (choosing one redraws every figure), save the
     %   figure preview's look as a design, import or delete a design, your designs
     %   folder. Help menu: the wiki page of the tab shown, the documentation
     %   home and the analysis quick start; Report an issue and Request a
@@ -120,9 +122,11 @@ classdef EphysAnalysisApp < handle
     %   panel above, below, left or right (stepFigurePanel; the preview
     %   outlines it: markFigurePanel). Page Up and Page Down step to the
     %   previous and next observation (onFigureObservationStep). Ctrl+P,
-    %   Ctrl+G, Ctrl+T, Ctrl+E and Ctrl+W press Preview, Generate, Auto,
-    %   Export code and Open in window (pressFigureButton). Escape
-    %   cancels a panel drag. The "?" button lists them all (onFigureKeys).
+    %   Ctrl+G, Ctrl+U, Ctrl+T, Ctrl+E and Ctrl+W press Preview, Generate,
+    %   Unit report, Auto, Export code and Open in window
+    %   (pressFigureButton). Escape cancels a panel drag. Ctrl+Z undoes
+    %   the last edit of the figures, Ctrl+Y and Ctrl+Shift+Z redo it
+    %   (onUndoRedo). The "?" button lists them all (onFigureKeys).
     %
     %   Preferences (getpref group 'EphysAnalysisApp'): FigurePosition,
     %   LastConfigFile, RecentConfigs, ScriptFolder,
@@ -133,13 +137,23 @@ classdef EphysAnalysisApp < handle
     %   supersections), FigureGroupBy and FigureGroupsCollapsed (how
     %   its figure tree groups, and its collapsed groups).
     %
+    %   Startup: a small window (AppSplash) shows the app's name, version
+    %   and a progress bar while the window is built hidden, the
+    %   preferences restored, the config opened, its datasets scanned and
+    %   the first one loaded; then the window shows. Splash=false starts
+    %   without it, the default under -batch (the test runs). Opened on a
+    %   project root or an output folder (the pipeline app's Open analysis
+    %   app), the app takes the last config again with its source switched
+    %   to them (openSource).
+    %
     %   Usage
     %     EphysAnalysisApp                      % the last config, or defaults
-    %     EphysAnalysisApp("D:\EPHYS")          % a pipeline project root
+    %     EphysAnalysisApp("D:\EPHYS")          % a pipeline project root, with the last config's figures
     %     EphysAnalysisApp("D:\EPHYS", OutputRoot="E:\out", NamePattern=..., Recordings="separate")
     %     EphysAnalysisApp("D:\EPHYS", Datasets=["subj1/day1" "subj1/day2"])  % only these ticked (root-relative keys)
     %     EphysAnalysisApp("D:\out\subj1_day1") % one dataset's output folder
     %     EphysAnalysisApp("am_quicklook.json") % an analysis config
+    %     EphysAnalysisApp(..., Splash=false)   % no startup window
     %     app = EphysAnalysisApp(...);          % keep a handle
     %
     %   See also EphysAnalysisConfig, EphysAnalysisRunner, EphysAnalysisScript,
@@ -155,6 +169,9 @@ classdef EphysAnalysisApp < handle
         TabLog     matlab.ui.container.Tab
         FileMenu   matlab.ui.container.Menu
         RecentMenu matlab.ui.container.Menu
+        EditMenu   matlab.ui.container.Menu
+        UndoMenu   matlab.ui.container.Menu   % "Undo <edit>" (refreshEditMenu)
+        RedoMenu   matlab.ui.container.Menu   % "Redo <edit>"
         DesignMenu matlab.ui.container.Menu
         HelpMenu   matlab.ui.container.Menu
         StatusBar  matlab.ui.control.Label
@@ -234,6 +251,7 @@ classdef EphysAnalysisApp < handle
         FigureObsNextButton    matlab.ui.control.Button
         FigurePreviewButton    matlab.ui.control.Button
         FigureGenerateButton   matlab.ui.control.Button         % Generate: the figure for every observation on the ticked datasets (onGenerateFigure)
+        FigureUnitReportButton matlab.ui.control.Button         % Unit report: every enabled figure for the observation picked, a temporary HTML report (onUnitReport)
         FigureOpenButton       matlab.ui.control.Button         % Open in window: the figure as previewed in a figure() of its own (onOpenFigureWindow)
         FigureCodeButton       matlab.ui.control.Button         % Export code: the code that draws the preview, in the editor (onFigureCode)
         FigureAutoCheckBox     matlab.ui.control.CheckBox       % auto-preview (pref FigureAutoPreview, on by default)
@@ -269,6 +287,7 @@ classdef EphysAnalysisApp < handle
         RecentConfigs (1,:) string = string.empty(1,0)
         ScriptFolder (1,1) string = ""
         PreviewMaxMB (1,1) double = 500     % larger signal extracts are previewed only on request
+        Splash AppSplash = AppSplash.empty  % the startup window (AppSplash; isActive while the app starts, closed once it shows)
 
         Runner = []                         % the EphysAnalysisRunner (rebuilt by Scan; owns the caches)
         ScannedSource struct = struct()     % Config.Source when the runner last scanned
@@ -310,6 +329,7 @@ classdef EphysAnalysisApp < handle
         FigurePanelMarkAxes = []            % the preview's axes its listeners follow (re-laid out on a resize)
         FigurePanelMarkListeners = []       % those listeners (Position PostSet)
         FigureFocusPane (1,1) double = 0    % the column F6 last went to: 1 the figure list, 2 the editor, 3 the preview
+        FigureHistory FigureEditHistory = FigureEditHistory()   % the figure editor's undo and redo (recordFigureEdit, onUndoRedo); cleared by another config
 
     end
 
@@ -329,14 +349,27 @@ classdef EphysAnalysisApp < handle
                 opts.NamePattern (1,1) string = ""
                 opts.Recordings (1,1) string = ""
                 opts.Datasets (1,:) string = string.empty(1,0)
+                opts.Splash (1,1) logical = ~batchStartupOptionUsed()   % no one watches a -batch run
             end
+            % Behind the startup window (AppSplash) the UI is built hidden;
+            % the window shows at the end. On an error the splash and the
+            % hidden window close and the error goes on.
+            [steps, weights] = startupSteps();
+            obj.Splash = AppSplash("Ephys analysis", steps, weights, Show=opts.Splash);
+            unfinished = onCleanup(@() abandonStartup(obj)); %#ok<NASGU>
+            obj.Splash.step("window", "Building the window ...");
             obj.buildUI();
+            obj.Splash.step("prefs", "Restoring the preferences ...");
             obj.loadPreferences(source == "");
             if source ~= ""
                 obj.openSource(source, OutputRoot=opts.OutputRoot, NamePattern=opts.NamePattern, ...
                     Recordings=opts.Recordings, Datasets=opts.Datasets);
             end
             obj.updateTitle();
+            obj.Splash.step("show", "Drawing the window ...");
+            obj.Fig.Visible = "on";
+            drawnow;
+            obj.Splash.close();
             if nargout == 0
                 clear obj
             end
@@ -359,8 +392,9 @@ classdef EphysAnalysisApp < handle
         % --- config model ---
         cfg = gatherConfig(obj)
         applyConfig(obj, cfg, opts)
-        onConfigChanged(obj, what)
+        onConfigChanged(obj, what, src)
         updateTitle(obj)
+        onUndoRedo(obj, how)
         ok = confirmDiscard(obj)
         S = gatherSourceSection(obj)
         applySourceSection(obj, S)
@@ -481,10 +515,12 @@ classdef EphysAnalysisApp < handle
         onFigureAutoPreviewToggled(obj)
         onCancelFigurePreview(obj)
         R = onGenerateFigure(obj, opts)
+        [R, file] = onUnitReport(obj, opts)
         h = onOpenFigureWindow(obj)
         txt = onFigureCode(obj, file)
         setFigurePreviewState(obj, state, opts)
         rememberFigureAesthetics(obj, id, rules)
+        onFigureAxisEdited(obj, id, panel, change)
         onPickFigureDatasets(obj, opts)
         onBrowseFigureMapping(obj, file)
         T = onEditUnitMapping(obj, opts)
@@ -517,4 +553,26 @@ classdef EphysAnalysisApp < handle
         body = issueReport(obj, kind, opts)
         [url, truncated] = issueURL(obj, kind, title, body)
     end
+end
+
+
+function [steps, weights] = startupSteps()
+%startupSteps  The constructor's steps on the splash (AppSplash) and the seconds each takes (measured warm).
+%   The tab steps are named by their tabs, in buildUI's order; "scan" and
+%   "dataset" are onScan's (the datasets found, the first one loaded).
+S = { ...
+    "window", 0.2; "Data", 0.34; "Alignment", 0.97; "Figures", 5.4; "Export", 0.29; ...
+    "Log", 0.02; "finish", 0.19; "prefs", 0.44; "config", 6.0; "scan", 5.1; "dataset", 4.9; "show", 0.6};
+steps = [S{:, 1}];
+weights = [S{:, 2}];
+end
+
+
+function abandonStartup(obj)
+%abandonStartup  The constructor's cleanup: when it stopped before the window showed, the hidden window and the splash go.
+if ~isvalid(obj) || ~obj.Splash.isActive(); return; end   % it finished: the splash closed then
+if ~isempty(obj.Fig) && isvalid(obj.Fig)
+    delete(obj.Fig);
+end
+obj.Splash.close();
 end

@@ -519,9 +519,16 @@ SPIKE, and Spikes erases them before detection (`Spikes.ArtifactMode`
 
 **Weighted CAR state.** With `Reference.Mode` `"wcar"`, an automatic
 detection, the Sorting step (before its `.bin`) and the Spikes step first call
-`prepareWCARFor(d, report)`: `EphysDataset.prepareWCAR` with the step's
-progress, so its passes show as the step's own (`Weighted CAR: automatic Q,
-window i/n`, then `Weighted CAR: state, window i/n`). When the state is worked
+`worked = prepareWCARFor(d, report, span)`: `EphysDataset.prepareWCAR` with
+the step's progress, so its passes show as the step's own (`Weighted CAR:
+automatic Q, window i/n`, then `Weighted CAR: state, window i/n`), the
+fraction `report(fraction, 1, message)` hears going through `span` (`[lo hi]`
+of the dataset's share, default `[0 1]`), so the bar moves: an automatic
+detection's first half, a quarter of a Sorting dataset after its artifact
+intervals, half of what is left of a Spikes dataset. `worked` is true when the
+state was worked out there, and the caller's progress then goes on after
+`span`; it is false when the dataset held the state or read it (nothing
+reported), and the caller's progress goes on from where it was. When the state is worked
 out or read from `<Name>_wcar.mat` the log says `[reference] <Name>: adaptive
 weighted CAR state over N channel(s), every 1 s (Q <q> uV^2, automatic; worked
 out in <s> s, kept in <Name>_wcar.mat)`. Nothing happens for another
@@ -772,7 +779,11 @@ after `cancel()` it sends none, and the step records its datasets as
 `canceled` instead. Every step also reports each dataset as it begins it.
 Artifact detection that Sorting, Signals or Spikes needs (no valid cache)
 reports as that step: it fills the first half of the dataset's share, and the
-sort, the derivation or the spike detection the second. Export reports as `export`, the formats
+sort, the derivation or the spike detection the second. The weighted CAR's
+state reports within the dataset's share too (see *Weighted CAR state*). The
+app turns these fractions into a time left with `ProgressClock` (pipeline/,
+`update(fraction)` gives *about 3 min left*, after 1% and 5 s, smoothed), which
+every time left in both apps uses. Export reports as `export`, the formats
 sharing each dataset's share (the result rows stay `export:<format>`). Analysis reports as `analysis`:
 reading the config and each dataset's outputs at 0, then the figures
 sharing each dataset's share (`figure <id>`). A

@@ -77,7 +77,6 @@
     {"role": "sessionDivider", "property": "LineWidth", "value": 1.5},
     {"role": "modWindow", "property": "Color", "value": "#111111"},
     {"role": "modMarks", "property": "FontSize", "value": 13},
-    {"role": "rasterTicks", "property": "Color", "value": "#111111"},
     {"role": "rasterTicks", "property": "LineWidth", "value": 1.25},
     {"role": "rasterStop", "property": "MarkerSize", "value": 12},
     {"role": "bar", "property": "EdgeColor", "value": "none"},

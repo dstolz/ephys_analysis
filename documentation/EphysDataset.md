@@ -2027,7 +2027,9 @@ mean, with its SD as a band, of up to `WaveformSpikes` (default 100) of the
 unit's spikes on its peak channel, cut from the sorted `.bin` as
 `readPhyWaveforms` cuts them; when that file is gone the unit's template is
 drawn, and the page says why (`WaveformSpikes=0` draws the templates without
-reading). One HTML file with one small inline script, no external files.
+reading; `ProgressFcn=@(done, total, message)` hears each good unit first, as
+the Review tab's **QC report** dialog counts them with the time left). One
+HTML file with one small inline script, no external files.
 
 **Comparing sorter settings.** [`sortSweep(ds, variants)`](../pipeline/sortSweep.m)
 sorts the dataset once per variant (`struct('name', ..., 'settings', ...)`,

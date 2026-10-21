@@ -28,11 +28,14 @@ K = [ ...
     c + "+" + a + "+arrows",           "Select the panel above, below, left or right of the selected one"
     "Page Up, Page Down",                "Preview the previous or next observation (the < and > buttons)"
     c + "+P, " + c + "+G",              "Preview, Generate (the buttons at the left of the Dataset, Observation and Favorites rows)"
+    c + "+U",                           "Unit report: every enabled figure for the observation picked, in the browser"
     c + "+T",                           "Auto: tick or untick it"
     c + "+E, " + c + "+W",              "Export code, Open in window (the buttons under the preview)"
     "Escape (dragging a panel)",         "Cancel the drag in the schematic"
+    c + "+Z",                          "Undo the last edit of the figures: the layout, a panel, a layer, an option, the figure list (the Edit menu names it)"
+    c + "+Y, " + c + "+Shift+Z",       "Redo the last edit undone"
     c + "+N, " + c + "+O, " + c + "+S", "New, open, save the config (the File menu)"];
-w = uifigure('Name', 'Figures tab keys', 'Tag', 'EphysFigureKeys', 'Position', [obj.Fig.Position(1:2) + [80 80] 720 520], ...
+w = uifigure('Name', 'Figures tab keys', 'Tag', 'EphysFigureKeys', 'Position', [obj.Fig.Position(1:2) + [80 80] 720 590], ...
     'WindowStyle', 'alwaysontop');
 g = uigridlayout(w, [3 1], 'RowHeight', {'fit', '1x', 30});
 uilabel(g, 'Text', "With the Figures tab showing. The search, the sections and the panels are also reached with the mouse: " + ...

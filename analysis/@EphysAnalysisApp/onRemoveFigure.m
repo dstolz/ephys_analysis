@@ -9,7 +9,7 @@ if isKey(obj.FigureObservation, char(id)); remove(obj.FigureObservation, char(id
 obj.SelectedFigure = min(k, numel(cfg.Figures));
 obj.SelectedPanel = 1;
 obj.SelectedLayer = 1;
-obj.applyConfig(cfg);
+obj.applyConfig(cfg, Action="Remove figure");
 obj.FigurePreviewResult = [];
 obj.FigurePreviewSeconds = 0;
 obj.setStatus("Removed " + id + ".");

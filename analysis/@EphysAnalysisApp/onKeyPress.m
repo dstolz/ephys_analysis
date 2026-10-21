@@ -20,10 +20,14 @@ function onKeyPress(obj, evt)
 %                           (onFigureObservationStep), left alone while a
 %                           preview computes or draws
 %     Ctrl+P, Ctrl+G        Preview, Generate
+%     Ctrl+U                Unit report
 %     Ctrl+T                Auto on or off
 %     Ctrl+E, Ctrl+W        Export code, Open in window
 %                           (pressFigureButton: each does what its button
 %                           does, and nothing while the button is off)
+%     Ctrl+Shift+Z          redo the last edit undone (onUndoRedo); Ctrl+Z
+%                           and Ctrl+Y are the Edit menu's accelerators,
+%                           not keys of this function
 %   While a search is under way (FigureSearchState: typed in the field, or
 %   a match picked in its list), Enter goes to the match picked (else the
 %   first) with the focus on its control, Down and Up (after typing) pick
@@ -77,6 +81,10 @@ if bare && any(key == ["pageup" "pagedown"])
     end
     return
 end
+if ctrl && shift && ~alt && key == "z"
+    obj.onUndoRedo("redo");
+    return
+end
 if key == "f6" && ~ctrl && ~alt
     obj.focusFigurePane(1 - 2 * shift);
     return
@@ -104,7 +112,7 @@ if ismember(key, ["leftbracket" "bracketleft" "["]) || isequal(evt.Character, '[
     obj.stepFigurePanel("previous");
     return
 end
-if any(key == ["p" "g" "t" "e" "w"])
+if any(key == ["p" "g" "u" "t" "e" "w"])
     obj.pressFigureButton(key);
     return
 end

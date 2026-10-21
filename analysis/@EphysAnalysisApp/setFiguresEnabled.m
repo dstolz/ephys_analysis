@@ -4,7 +4,8 @@ function setFiguresEnabled(obj, ks, how)
 %   it is). The editor's edits so far are in the config first
 %   (gatherConfig); the tree, the editor's Enabled box (for the figure in
 %   it) and the title follow. The preview is not redrawn: a figure's being
-%   enabled changes the run, not what it draws.
+%   enabled changes the run, not what it draws. A change is a step of the
+%   undo history (recordFigureEdit: "Enable figure", "Disable figures").
 arguments
     obj (1,1) EphysAnalysisApp
     ks (1,:) double
@@ -26,6 +27,14 @@ switch how
 end
 for k = find(now ~= was)
     cfg.Figures(k).enabled = now(k);
+end
+changed = now(now ~= was);
+if ~isempty(changed)
+    words = ["Disable" "Enable"];
+    label = words(changed(1) + 1);
+    if any(changed ~= changed(1)); label = "Enable / disable"; end
+    nouns = ["figure" "figures"];
+    recordFigureEdit(obj, cfg, label + " " + nouns(1 + (numel(changed) > 1)));
 end
 obj.Config = cfg;
 if ~isempty(obj.Runner)

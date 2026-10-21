@@ -58,10 +58,12 @@ function s = rateAndLeft(obj, frac, info)
 %rateAndLeft  How fast the bytes are moving and how long the batch has left.
 %   The rate comes from the bytes themselves over the last few seconds, so a
 %   pause shows as a slower rate; the time left comes from the fraction, which
-%   already counts the checksum pass as the two extra reads it is. Neither is
-%   shown until there is enough of the copy to measure.
-if isempty(obj.CopyStarted); obj.CopyStarted = tic; end
-elapsed = toc(obj.CopyStarted);   % seconds, as a double: the history is a plain [s bytes] matrix
+%   already counts the checksum pass as the two extra reads it is (CopyClock,
+%   a ProgressClock). Neither is shown until there is enough of the copy to
+%   measure.
+if isempty(obj.CopyClock); obj.CopyClock = ProgressClock(); end
+left = obj.CopyClock.update(frac);
+elapsed = obj.CopyClock.Elapsed;   % seconds: the history is a plain [s bytes] matrix
 obj.CopyRateHistory = [obj.CopyRateHistory; elapsed, info.Bytes(1)];
 obj.CopyRateHistory(obj.CopyRateHistory(:, 1) < elapsed - 15, :) = [];
 s = "";
@@ -69,21 +71,7 @@ h = obj.CopyRateHistory;
 if size(h, 1) >= 2 && h(end, 1) - h(1, 1) >= 2 && h(end, 2) > h(1, 2)
     s = bytesText((h(end, 2) - h(1, 2)) / (h(end, 1) - h(1, 1))) + "/s";
 end
-if frac >= 0.01 && frac < 1 && elapsed >= 5
-    left = elapsed * (1 - frac) / frac;
-    s = strtrim(s + "   " + leftText(left));
-end
-end
-
-
-function s = leftText(secs)
-if secs < 60
-    s = "less than a minute left";
-elseif secs < 3600
-    s = sprintf("about %d min left", max(1, round(secs / 60)));
-else
-    s = sprintf("about %d h %d min left", floor(secs / 3600), round(mod(secs, 3600) / 60));
-end
+s = strtrim(s + "   " + left);
 end
 
 

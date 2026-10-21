@@ -7,11 +7,13 @@ function onScan(obj)
 %   the unit is picked in the Figures tab's observation list). The Figures tab's preview (a session figure's
 %   too) and observation list are forgotten. Each dataset's stars and
 %   notes are read (loadFavorites, loadNotes) and shown (refreshFavorites,
-%   refreshNotes).
+%   refreshNotes). While the app starts the scan and the first dataset's
+%   loading are steps on the splash.
 cfg = obj.gatherConfig();
 scanCfg = cfg;
 scanCfg.Source.Selection = "all";
-obj.setStatus("Scanning ...");
+obj.setStatus("Scanning " + ternary(cfg.Source.Mode == "project", cfg.Source.Root, "the output folders") + " for datasets ...");
+obj.Splash.step("scan", "Scanning the datasets ...");
 drawnow;
 try
     r = EphysAnalysisRunner(scanCfg, LogFcn=@(m) obj.log(m));
@@ -57,10 +59,12 @@ if n > 0
         if isempty(fav); fav = 0; end
     end
     if fav > 0
+        obj.Splash.step("dataset", "Loading " + names(E.dataset(fav)) + " ...");
         goToFavorite(obj, E(fav, :));
     else
         first = find(obj.Ticked, 1);
         if isempty(first); first = 1; end
+        obj.Splash.step("dataset", "Loading " + names(first) + " ...");
         obj.selectDataset(first);
     end
 end

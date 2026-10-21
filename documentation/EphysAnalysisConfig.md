@@ -564,7 +564,7 @@ columns, 1 = its first input, `[]` = all). The panel's options are the continuou
 | `baseline` | `Mode "subtract"`: each epoch's mean over `Window` is subtracted from each channel first; `"none"`: as recorded. Without a baseline the three axes of an accelerometer include their static offsets and gravity; with `"subtract"` they are the change from each epoch's baseline. The window must overlap the panel's window (the samples cut for each epoch) |
 | `display` | `"lines"`: a trace per channel (and trial group); `"stacked"`: every trace in a row of its own, on one amplitude scale |
 | `statistic` | what is drawn at each sample over a group's epochs: `"mean"` or `"median"` |
-| `transform` | `"none"`: the signal as recorded (after the baseline); `"rectify"`: each epoch's absolute value at every sample, before the statistic |
+| `transform` | `"none"`: the signal as recorded (after the baseline); `"rectify"`: each epoch's absolute value at every sample, before the statistic; `"magnitude"`: the layer's channels as one trace, their vector magnitude √(x² + y² + z² …) at every sample of each epoch, after the baseline and before the statistic (the mean of the magnitudes, not the magnitude of the means). For a 3-axis accelerometer, fix the AUX layer to its three channels and set `baseline` to `"subtract"`, so each axis's offset (gravity) comes out first |
 | `errorType` | the band over the epochs, chosen for this panel alone (not by `Style.ShowSEM` / `Style.ErrorType`): `"off"`; `"sem"`: statistic +/- SEM; `"std"`: +/- SD; `"ci95"`: the bootstrap 95% CI (of the median for `"median"`; `Style.ErrorResamples` resamples); `"iqr"`: the 25th to 75th percentile of the epochs (`"ci95"` and `"iqr"` need the Statistics and Machine Learning Toolbox; `"sem"` and `"std"` with the median are drawn around the median, and validate warns) |
 | `trials` | `"faint"` or `"only"`: each epoch's own trace as well, or alone |
 | `yLim` | the signal's y limits in its units (V); `[]` = from the traces (and their bands) |
@@ -578,6 +578,12 @@ extract skips the layer with its reason (enable AUX in the pipeline's Signals st
 panel below a raster and a PSTH shares their time axis; set `grid.spacing` `"none"` to
 draw the three flush (a figure of a unit's panels and a fixed AUX panel is the usual
 one), and give it half their height with `rowHeights`.
+
+The [spectral panels](#spectral-panels) take a fixed AUX layer too: a power
+spectrum or a spectrogram of each axis, or a coherence of the observed unit (or
+an LFP channel) with each axis. With the layer's `aggregate "magnitude"` the axes
+are one item, the accelerometer's vector magnitude, each axis's 2 s running mean
+taken out first.
 
 The traces take the trial groups' colors (or the layer's `color`) and each channel a
 line style (the layer's `lineStyle`, else by order: `-`, `--`, `:`, `-.`); the bands are
@@ -909,7 +915,7 @@ follow its id.
 | `binding` | `"observation"` | `"observation"`: follows the previewed or generated unit or channel ([what a layer reads](#what-a-layer-reads)); `"fixed"`: reads what `units`, `channels` or `event` name. Events layers are always fixed |
 | `units` | [UnitSelection](#unitselection) without `source` | fixed point and unit layers: which units (it may keep several). A layer following the observation uses it only for the other spike source, on the observed channel. `source` is taken from the layer's |
 | `channels` | `[]` | fixed signal layers: the extract's columns (`[]` = all) |
-| `aggregate` | `"each"` | several units or channels in one layer: `"each"` (one trace or block per item) or `"mean"` (their mean, with a band across them: a PSTH overlay, the aux magnitude's mean) |
+| `aggregate` | `"each"` | several units or channels in one layer: `"each"` (one trace or block per item) or `"mean"` (their mean, with a band across them: a PSTH overlay, the aux magnitude's mean) on a raster, PSTH, continuous, rate or tuning panel; `"each"` or `"magnitude"` (the channels as one item, their vector magnitude, each channel's 2 s running mean out first: an accelerometer's movement) for a fixed signal layer of a spectrum, spectrogram or coherence panel ([Spectral panels](#spectral-panels)); `EphysAnalysisConfig.aggregates(type, source)` lists them |
 | `event` | [EventMark](#raster-event-marks) | source `events`: the line, edge, which / scope / [sequence](#event-sequences) and the mark's look (`marker`, `size`, `color`, and a span's `spanStyle`, `spanWidth`, `spanAlpha`) |
 | `eventsAs` | `"marks"` | source `events`: `"marks"` (a mark on every raster row; a latency line and a rug on a PSTH, signal or heat map panel), `"train"` (the events as a spike train of their own: rows in a raster, a PSTH, a heat map row) or `"span"` (a line from each onset to its offset on every raster row; a line per trial group from the median onset to the median offset elsewhere: [Spans](#raster-event-marks)). Not used on an [event-trace panel](#event-traces) |
 | `color` | `""` | `""` = the trial group's color (an event-trace panel: a palette color per line); else a name or `#rrggbb` for every trace of the layer |
@@ -931,7 +937,7 @@ follow its id.
 | `rate` | Firing rate | Rate | point | yes | no | no | yes | `observation` |
 | `tuning` | Tuning curve | Tuning | point | yes | no | no | yes | `observation` |
 | `spectrum` | Power spectrum | Spectrum | point, continuous | yes | no | no | yes | `observation` |
-| `spectrogram` | Spectrogram | Spectrogram | continuous | yes | yes | yes | no | `observation` |
+| `spectrogram` | Spectrogram | Spectrogram | continuous, point | yes | yes | yes | no | `observation` |
 | `coherence` | Coherence | Coherence | point, continuous | yes | no | no | yes | `observation` |
 | `eventTrace` | Event traces | EventTraces | point (events layers only) | yes | yes | no | yes | `fixed` |
 
@@ -1071,11 +1077,12 @@ What each draws:
   channels or spike trains over the panel's epochs, a trace and a band for
   every item and trial group, the groups overlaid ([Spectral
   panels](#spectral-panels)).
-- `spectrogram`: one channel's power over time from the event and frequency, as
-  an image of the trial group `options.group`, on the figure's time axis.
+- `spectrogram`: one channel's or unit's power over time from the event and
+  frequency, as an image of the trial group `options.group`, on the figure's
+  time axis.
 - `coherence`: the multitaper coherence of a seed layer's first item with each
-  item of a partner layer, its phase in a strip under it; with `overTime` an
-  image of the first pair's coherence over time.
+  item of a partner layer (channels or spike trains), its phase in a strip
+  under it; with `overTime` an image of the first pair's coherence over time.
 - `eventTrace`: digital or derived lines as a logic analyzer shows them, a row
   per events layer, each interval from its onset to its offset ([Event
   traces](#event-traces)).
@@ -1124,12 +1131,14 @@ the dataset itself, the observed unit's channel or spikes or the fixed ones the
 layers name, and take the trials from the panel's own epochs. Their options are
 `chronuxSettings`' (`figureChronuxSettings` builds the settings from them, with
 the panel's `[pre post]` window); none of them is a [shared
-option](#copying-options-between-panels), and a layer's `aggregate` is not used.
+option](#copying-options-between-panels). A fixed signal layer's `aggregate`
+is `"each"` (an item per channel) or `"magnitude"`: its channels as one item, their
+vector magnitude (*Accelerometer magnitude* below); a spike layer's is not used.
 
 | Type | Layers | Draws |
 | --- | --- | --- |
 | `spectrum` | any number, point (`units`, `detected`) and continuous (`LFP`, `MUA`, `SPIKE`, `AUX`); each may follow the observation | the power spectrum of each layer's channels (`chronuxSpectrum`) or spike trains (`chronuxSpikeSpectrum`, on the `spikeFs` grid, with the mean rate as a dotted line the spectrum tends to at high frequencies): a trace and an error band per item and trial group, the groups overlaid, a layer of several items colored along the sequential colormap with the groups told apart by line style. The x axis is frequency, so it shares no time axis |
-| `spectrogram` | one continuous layer (the first enabled one that is not events marks; a further map layer is skipped, `A spectrogram draws its first enabled layer only`) | `chronuxSpecgram` of the layer's first channel: an image over time from the event and frequency, for the trial group `options.group`, in dB or as is, or against a baseline in the diverging colormap. It shares the figure's time axis (always the aligned time base), takes events layers (latency lines and a rug) and puts its color bar inside the axes when another time panel shares the column |
+| `spectrogram` | one continuous or point layer (`LFP`, `MUA`, `SPIKE`, `AUX`, `units`, `detected`: the first enabled one that is not events marks; a further map layer is skipped, `A spectrogram draws its first enabled layer only`); it may follow the observation | `chronuxSpecgram` of the layer's first channel, or `chronuxSpikeSpecgram` of its first spike train (on the `spikeFs` grid, in spikes/s): an image over time from the event and frequency, for the trial group `options.group`, in dB or as is, or against a baseline in the diverging colormap. It shares the figure's time axis (always the aligned time base), takes events layers (latency lines and a rug) and puts its color bar inside the axes when another time panel shares the column |
 | `coherence` | exactly two enabled layers, the seed then its partner | the coherence magnitude (0 to 1) of the seed's first item with each item of the partner layer, a dashed line at the level independent signals stay under, a jackknife band, and with `showPhase` the phase in a strip under it |
 
 **Pairing in a coherence panel.** The pair is the seed layer's first channel or
@@ -1140,10 +1149,30 @@ channels only), and a panel left with nothing is skipped with the reason.
 
 | Seed | Partner | Computed by |
 | --- | --- | --- |
-| signal | signal | `chronuxCoherence` (both signals at one rate) |
+| signal | signal | `chronuxCoherence`; two signals at different rates (AUX is at its own rate, e.g. an Intan headstage's amplifier rate / 4, the LFP at `LFP_Fs`) are taken at the slower one's: the faster columns are resampled (`resample`, with its anti-aliasing filter; row k stays at (k-1)/fs) |
 | spikes | signal | `chronuxSpikeField`, one call per partner column, the spikes cut to the field's very samples |
 | signal | spikes | `chronuxSpikeField`, each partner unit with the seed's column |
 | spikes | spikes | `chronuxUnitCoherence` |
+
+**Accelerometer magnitude.** A fixed signal layer with `aggregate "magnitude"`
+is one item, the vector magnitude of its channels, so a coherence panel can pair
+units (or an LFP channel) with how much the animal moves, whatever the direction.
+Each channel first loses its static part, its centered running mean over 2 s
+(for an accelerometer axis: the input's offset and gravity's share, so the
+animal's posture drops out; the dynamic body acceleration of VeDBA), then
+`sqrt(x² + y² + z² ...)` is taken at every sample of the whole recording, before
+the trials are cut and detrended. The item is named `magnitude of 3 AUX
+channels`, a pair `u12 x magnitude of 3 AUX channels`. A magnitude is never
+negative, so a movement at one frequency along an axis shows at twice it:
+for the axes' own rhythm, pair with the axes (`aggregate "each"`). The same
+layer draws one power spectrum or one spectrogram on those panels. For
+example, the observed unit with a 3-axis accelerometer's magnitude:
+
+```json
+{ "id": "move", "type": "coherence", "layers": [
+    { "source": "units", "binding": "observation" },
+    { "source": "AUX", "binding": "fixed", "channels": [1, 2, 3], "aggregate": "magnitude" } ] }
+```
 
 The coherence spectra are the seed layer's result (`R.C`, `R.phi`, the
 jackknife bars `R.Clo` and `R.Chi`, `R.confC`, `R.pairs`); the partner layer's
@@ -1154,11 +1183,15 @@ under it on the one frequency axis; both axes are tagged with the panel's id.
 `renderFigure` returns the phase axes as `h.panels(k).extraAxes` (the magnitude's
 are `axes`). Drawn into a single axes target there is no phase strip.
 With `overTime` the panel is a **coherogram**: an image of the first pair's
-coherence over the moving window (`cohgramc`) for the trial group `options.group`,
-0 to 1 (`cLim`). On the aligned base it shares the figure's time axis
-(`figureFor` sets `sharesTime`), on the range base its x is the
-recording's time. Spike layers cannot be drawn over time (a validate error:
-only the spike-field and unit-unit spectra exist).
+coherence over the moving window for the trial group `options.group`, 0 to 1
+(`cLim`), of any pairing above: signal x signal (`cohgramc`), spikes x signal
+or signal x spikes (`chronuxSpikeField` with `overTime`: `cohgramcpt`, the
+spikes on the field's samples) or spikes x spikes (`chronuxUnitCoherence`
+with `overTime`: `coherencypt` window by window on the `spikeFs` grid). On
+the aligned base it shares the figure's time axis (`figureFor` sets
+`sharesTime`), on the range base its x is the recording's time (each stretch
+clear of artifact periods is one trial, its windows on one time grid, blank
+in between).
 
 **The range time base.** `timeBase "range"` (a spectrum or a coherence panel;
 a spectrogram is always aligned) cuts the recording between `range(1)` and
@@ -1192,8 +1225,8 @@ refuses.
 | `spectrum`, `coherence` | `errP` | 0.05 | the error bars' p (0.05: 95%) |
 | all three | `detrend` | `"constant"` | each trial's trend removed: `"none"`, `"constant"` or `"linear"` |
 | `spectrum`, `spectrogram` | `scale` | `"db"` | `"db"` (10 log10), `"log"` (a log y axis; a spectrogram: dB too) or `"linear"` (as is; a spectrogram baseline then in its own units) |
-| `spectrum`, `coherence` | `spikeFs` | 1000 | spike layers: the time grid the spike trains are analyzed on, Hz |
-| `coherence` | `overTime` | `false` | a coherogram of the first pair (two signal layers) |
+| all three | `spikeFs` | 1000 | spike layers: the time grid the spike trains are analyzed on, Hz |
+| `coherence` | `overTime` | `false` | a coherogram of the first pair (signals or spike trains) |
 | `spectrogram`, `coherence` | `movingwin` | `[0.5 0.05]` | `[window step]` s (a coherence only with `overTime`) |
 | `spectrogram` | `baseline` | `Mode "none"`, `Window [-0.5 0]` | `Mode` `"none"`, `"db"`, `"percent"`, `"zscore"` or `"ratio"` (`chronuxNormalize`'s) against the power in `Window`, which must lie inside the panel's window |
 | `coherence` | `showPhase` | `true` | the phase strip under the magnitude (not over time) |
@@ -1208,8 +1241,8 @@ segment, a spectrogram's baseline `Mode` and its `Window` inside the panel's
 window, which must therefore be a fixed one unless the panel is on the range
 base), `yLim` and `cLim` `[]` or ascending, and `group` a whole number. Layers
 are errors at `<figure>.<panel>.layers`: a coherence panel without exactly two
-enabled layers, a spectrogram without a signal layer; `overTime` with a spike
-layer is an error at `<figure>.<panel>.options.overTime`. A coherence panel
+enabled layers, a spectrogram without a signal or spike layer (events marks
+only). A coherence panel
 whose fixed seed layer keeps several channels or units warns (only the first
 is the seed). The templates `"spectrum"`, `"spectrogram"` and `"coherence"`
 give a panel with the type's default layer; the coherence one holds two, the
@@ -1320,7 +1353,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `continuous` | `baseline` | `Mode "none"`, `Window [-0.2 0]` | `Mode` `"none"` or `"subtract"` (each epoch's mean over `Window`, per channel). The window must overlap the panel's window |
 | `continuous` | `display` | `"lines"` | `"lines"` (a trace per channel) or `"stacked"` (a row of its own per channel) |
 | `continuous` | `statistic` | `"mean"` | `"mean"` or `"median"` over the epochs at each sample |
-| `continuous` | `transform` | `"none"` | `"none"` or `"rectify"` (each epoch's absolute value, before the statistic) |
+| `continuous` | `transform` | `"none"` | `"none"`, `"rectify"` (each epoch's absolute value, before the statistic) or `"magnitude"` (the layer's channels as one: their vector magnitude in each epoch, after the baseline) |
 | `continuous` | `errorType` | `"sem"` | the band over the epochs: `"off"`, `"sem"`, `"std"`, `"ci95"` or `"iqr"`; `"ci95"` and `"iqr"` need the Statistics and Machine Learning Toolbox ([Aux signals](#aux-signals)) |
 | `continuous` | `stackSpacing` | `NaN` | `"stacked"`: the offset between rows; `NaN` = 1.2 x the 90th percentile of the traces' ranges |
 | `continuous` | `trials` | `"off"` | each epoch's trace: `"off"`, `"faint"` (paler and thinner than the mean, behind it and its band) or `"only"` (the traces alone, no mean or band) |
@@ -1598,7 +1631,8 @@ are drawn. `R` is the result of the compute call a layer makes: a point layer's
 events), a signal layer's `evokedPotential`, a waveforms panel's `unitWaveforms`, a
 probe map's `unitSummary` and `probeMapValues`, a correlation map's
 `unitCorrelation`, a spectrum's `chronuxSpectrum` (spike trains:
-`chronuxSpikeSpectrum`), a spectrogram's `chronuxSpecgram` and a coherence's
+`chronuxSpikeSpectrum`), a spectrogram's `chronuxSpecgram` (a spike train:
+`chronuxSpikeSpecgram`) and a coherence's
 `chronuxCoherence`, `chronuxSpikeField` or `chronuxUnitCoherence`, the last on
 the seed layer (the partner layer's `R` is a marker of `kind
 "coherencePartner"`); `aggregate "mean"` adds `R.layerMean`; a continuous panel's
@@ -1852,7 +1886,8 @@ Errors:
   `observation` only for `units`, `detected` and the signals, never on a heat map
   (but for the spike layer of a heat map of trials), probe map or unit correlation
   panel, and AUX never following a unit
-  observation; `aggregate` `each` or `mean`; `units.maxUnits` >= 1; `channels`
+  observation; `aggregate` `each` or `mean`, or `magnitude` on a fixed signal
+  layer of a spectrum, spectrogram or coherence panel; `units.maxUnits` >= 1; `channels`
   whole numbers >= 1; an events layer's `eventsAs` `marks`, `train` or `span`
   (`train` only on a raster, PSTH or heat map; not checked on an event-trace
   panel, which does not use it), the mark's event reference, a
@@ -1885,8 +1920,8 @@ Errors:
   the auROC baseline of a spike layer), a whole `group` >= 1, `cLim`; a waveforms
   panel's `layout` (`grid` or `probe`); a spectral panel's options by
   `chronuxSettings`' rules (at `<figure>.<panel>.options`, with its message), its
-  `yLim`, `cLim` and `group`, a coherence panel's two enabled layers, no spike
-  layer in a coherogram and a spectrogram's signal layer ([Spectral
+  `yLim`, `cLim` and `group`, a coherence panel's two enabled layers and a
+  spectrogram's signal or spike layer ([Spectral
   panels](#spectral-panels)); a probe map's `value` and `cLim`; a
   correlation map's `metric`, `correlation`, `bins` (for `peak`), `baseline`, `group`,
   `cLim`; a rate panel's `measure`, `baseline` (`Mode` `none`, `subtract`, `ratio` or
@@ -2649,9 +2684,10 @@ what it throws stopping the compute), `figureOutputName` (`{Plot}`, `{Unit}`,
 channels) and `figureCaption` (`one figure per trial group`). Render (8) also checks that the trial
 traces of a continuous panel are drawn under each mean. Spectral (9) is in two parts. The config side needs no
 Chronux: the three templates validate clean, and validate refuses a coherence panel with one layer, a
-bad taper (`TW = -1`), a spectrogram baseline window outside the panel's window, a coherogram of spikes
-and a range spectrum with a segment of 0, accepts a `zscore` spectrogram baseline and a `"between"`
-window on the range base, and `figureFor` gives `sharesTime` to a spectrogram and to a coherogram only.
+bad taper (`TW = -1`), a spectrogram baseline window outside the panel's window, a spectrogram of
+events marks only and a range spectrum with a segment of 0, accepts a coherogram of spikes, a spectrogram
+of units, a `zscore` spectrogram baseline and a `"between"` window on the range base, and `figureFor`
+gives `sharesTime` to a spectrogram and to a coherogram only.
 With Chronux on the path (`toolboxes/chronux`, added for the section; skipped with a note without it) the
 section computes, on section 7's fixture, a spectrum of the observed unit's LFP channel and of the unit, a
 spectrogram, coherences LFP x LFP, spike-field and unit-unit, and the range time base, draws them (dB, a

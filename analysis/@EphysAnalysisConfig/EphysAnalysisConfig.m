@@ -127,10 +127,11 @@ classdef EphysAnalysisConfig
         % The error a figure draws as bands or bars (Style.ErrorType): mean +/- SEM, mean +/- SD, bootstrap 95% CI of the mean.
         ErrorTypes    = ["sem" "std" "ci95"]
         % What a continuous panel shows at each sample over the epochs (options.statistic), and of what
-        % (options.transform): the signal as recorded, or rectified (its absolute value, taken in each epoch before
-        % the statistic).
+        % (options.transform): the signal as recorded, rectified (its absolute value, taken in each epoch before
+        % the statistic), or the vector magnitude of each layer's channels (sqrt of their sum of squares at every
+        % sample of each epoch, after the baseline: one trace, e.g. of a 3-axis accelerometer's channels).
         AuxStatistics = ["mean" "median"]
-        AuxTransforms = ["none" "rectify"]
+        AuxTransforms = ["none" "rectify" "magnitude"]
         % Its error band (options.errorType): off, mean +/- SEM, mean +/- SD, bootstrap 95% CI, or the interquartile range.
         AuxErrorTypes = ["off" "sem" "std" "ci95" "iqr"]
         % Where a panel's note sits (note.placement): outside the panel, over it, or at a point.
@@ -511,8 +512,8 @@ classdef EphysAnalysisConfig
             %   category of SOURCE (sourceCategories) that panel type TYPE
             %   accepts (panelTypes().Categories): "point", "continuous",
             %   "unit" or "". units / detected are "point" in a
-            %   raster, PSTH, heat map, rate, tuning, spectrum or coherence
-            %   panel and "unit" in a waveforms panel,
+            %   raster, PSTH, heat map, rate, tuning, spectrum, spectrogram or
+            %   coherence panel and "unit" in a waveforms panel,
             %   probe map or correlation map. An events layer is "point" in
             %   every panel that shares the time axis (raster, psth,
             %   continuous, heatmap, spectrogram: marks or latency lines), whatever its
@@ -656,6 +657,30 @@ classdef EphysAnalysisConfig
                     modes = ["none" "db" "percent" "zscore" "ratio"];
                 otherwise
                     modes = "none";
+            end
+        end
+
+        function a = aggregates(type, source)
+            %aggregates  How a panel type draws a fixed layer's several items (a string row of Layer.aggregate values).
+            %   A = EphysAnalysisConfig.aggregates(TYPE, SOURCE): a raster,
+            %   PSTH, continuous, rate or tuning panel "each" (an item each)
+            %   or "mean" (their mean, a band across them); a spectrum,
+            %   spectrogram or coherence panel, SOURCE a signal (SignalSources),
+            %   "each" or "magnitude" (the channels as one: their vector
+            %   magnitude, each channel's static part out first, as
+            %   figureChronuxLayer reads it, e.g. a 3-axis accelerometer's
+            %   AUX channels); any other "each". One list for validate and
+            %   the figure editor (figureEditorChoices).
+            arguments
+                type (1,1) string
+                source (1,1) string = ""
+            end
+            if ismember(type, ["raster" "psth" "continuous" "rate" "tuning"])
+                a = ["each" "mean"];
+            elseif ismember(type, ["spectrum" "spectrogram" "coherence"]) && ismember(source, EphysAnalysisConfig.SignalSources)
+                a = ["each" "magnitude"];
+            else
+                a = "each";
             end
         end
     end

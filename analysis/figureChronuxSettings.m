@@ -4,8 +4,9 @@ function S = figureChronuxSettings(type, op, W, analysis)
 %   of a panel of TYPE ("spectrum", "spectrogram" or "coherence";
 %   panelTypes().DefaultOptions) on chronuxSettings() and checks them
 %   there: S.analysis = ANALYSIS (default: "spectrum", "specgram" or
-%   "coherence" by TYPE; the compute passes "spikeSpectrum", "spikeField"
-%   or "unitCoherence" for spike layers), S.window = W ([pre post] s, the
+%   "coherence" by TYPE; the compute passes "spikeSpectrum",
+%   "spikeSpecgram", "spikeField" or "unitCoherence" for spike layers),
+%   S.window = W ([pre post] s, the
 %   panel's window; [] keeps the default), and from OP: timeBase, range,
 %   segmentSec, taperMode, TW, K, W, p, pad, fpass, err, errP, detrend,
 %   spikeFs, movingwin, overTime, the baseline (OP.baseline.Mode and

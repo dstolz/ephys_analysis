@@ -352,7 +352,8 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   Review tab and the analysis figures' unit waveforms, `readPhyWaveforms`, and
   the high-pass of the adaptive weighted CAR's estimation inputs,
   `weightedCAR` and `EphysDataset.prepareWCAR`; `butter`'s poles also size
-  the streamed weighted CAR's padding).
+  the streamed weighted CAR's padding; `resample` for a coherence panel's
+  two signals at different rates, e.g. AUX and LFP, `computeCoherencePanel`).
 - Statistics and Machine Learning Toolbox (`zscore` in automatic
   derived-signal bad-channel detection; `mad` for the adaptive weighted CAR's
   automatic `Q` and `prctile` for its weight summary, `weightedCAR`,
@@ -404,7 +405,7 @@ and [FieldTrip](https://www.fieldtriptoolbox.org/), each only for analyzing the
 files the pipeline exports for it. The analysis app's
 [spectral panels](EphysAnalysisConfig.md#spectral-panels) call Chronux's `mtspectrumc`,
 `mtspecgramc`, `coherencyc`, `cohgramc`, `mtspectrumpt`, `coherencycpt`,
-`coherencypt` and `getfgrid` (power spectrum, spectrogram, coherence; they need Chronux on
+`cohgramcpt`, `coherencypt`, `dpsschk` and `getfgrid` (power spectrum, spectrogram, coherence; they need Chronux on
 the path to compute). Chronux's own `findpeaks` and `jackknife` shadow
 MATLAB's while it is on the path. Producing the files never calls either
 toolbox; `ChronuxDataset.hasChronux` / `FieldTripExport.hasFieldTrip` report

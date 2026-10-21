@@ -140,7 +140,7 @@ T.spSegment = o(["spectrum" "coherence"], "with Time base: segments of the recor
 for f = ["spTaperMode" "spTW" "spW" "spPad" "spFmin" "spDetrend"]; T.(f) = o(["spectrum" "spectrogram" "coherence"], ""); end
 T.spErr = o(["spectrum" "coherence"], "on a coherence panel, unless drawn over time");
 T.spScale = o(["spectrum" "spectrogram"], "");
-T.spSpikeFs = o(["spectrum" "coherence"], "with a spike layer");
+T.spSpikeFs = o(["spectrum" "spectrogram" "coherence"], "with a spike layer");
 T.spOverTime = o("coherence", "");
 T.spWin = o(["spectrogram" "coherence"], "on a coherence panel, drawn over time");
 T.spShowPhase = o("coherence", "unless drawn over time");

@@ -63,15 +63,16 @@ function T = panelTypes()
 %   (figureChronuxSettings builds the settings from them; none is a shared
 %   option, sharedFieldsOf). A "spectrum" panel draws each layer's power spectra
 %   (chronuxSpectrum of a signal's channels, chronuxSpikeSpectrum of spike
-%   trains), the groups overlaid. A "spectrogram" draws one channel's power
-%   over time and frequency (chronuxSpecgram) for one trial group, on the
+%   trains), the groups overlaid. A "spectrogram" draws one channel's or
+%   unit's power over time and frequency (chronuxSpecgram of a signal,
+%   chronuxSpikeSpecgram of a spike train) for one trial group, on the
 %   figure's time axis; its baseline Modes are chronuxNormalize's (none,
 %   db, percent, zscore, ratio), its Window inside the panel's window. A
 %   "coherence" panel takes exactly two layers, the seed then its partner,
 %   and pairs the seed's first item with each partner item: signal x
 %   signal (chronuxCoherence), spikes x signal or signal x spikes
 %   (chronuxSpikeField) or spikes x spikes (chronuxUnitCoherence); with
-%   overTime (two signal layers) a coherogram over the moving window,
+%   overTime a coherogram over the moving window,
 %   which on the epochs shares the figure's time axis; showPhase draws the
 %   phase under the magnitude. Spectrum and coherence take timeBase "range":
 %   segments of the whole recording clear of its artifact periods, not
@@ -133,7 +134,7 @@ opts.continuous = struct( ...
     'baseline',     baseline, ...       % Mode "none" | "subtract"
     'display',      "lines", ...        % "lines" (a trace each) | "stacked" (a row of its own per channel)
     'statistic',    "mean", ...         % "mean" | "median" over the epochs, at each sample
-    'transform',    "none", ...         % "none" | "rectify" (each epoch's absolute value, before the statistic)
+    'transform',    "none", ...         % "none" | "rectify" (each epoch's absolute value, before the statistic) | "magnitude" (a layer's channels as one: their vector magnitude in each epoch, after the baseline)
     'errorType',    "sem", ...          % the band: "off" | "sem" | "std" | "ci95" | "iqr"
     'stackSpacing', NaN, ...            % stacked: the offset between channels (NaN = automatic)
     'trials',       "off", ...          % each epoch's trace: "off" | "faint" (pale and thin, behind the mean) | "only" (the traces, no mean)
@@ -208,6 +209,7 @@ opts.spectrogram = struct( ...
     'fpass',      [0 100], ...
     'detrend',    "constant", ...
     'scale',      "db", ...             % "db" and "log": the power in dB; "linear": as is (a baseline: in its own units)
+    'spikeFs',    1000, ...             % a point layer: the spike train's time grid, Hz
     'movingwin',  [0.5 0.05], ...       % [window step] s
     'baseline',   struct('Mode', "none", 'Window', [-0.5 0]), ...   % Mode "none" | "db" | "percent" | "zscore" | "ratio" against Window
     'cLim',       [], ...
@@ -227,7 +229,7 @@ opts.coherence = struct( ...
     'errP',       0.05, ...
     'detrend',    "constant", ...
     'spikeFs',    1000, ...
-    'overTime',   false, ...            % a coherogram (cohgramc) over the moving window: an image over time
+    'overTime',   false, ...            % a coherogram over the moving window: an image over time
     'movingwin',  [0.5 0.05], ...
     'showPhase',  true, ...             % the phase under the magnitude (not over time)
     'yLim',       [], ...               % [] = [0 1]
@@ -267,7 +269,7 @@ rows = {
     "rate",       "Firing rate",       "Rate",        "point",                 true,   false,     false,   true,      "observation",  "Each epoch window's firing rate per trial group: bars, boxes or points"
     "tuning",     "Tuning curve",      "Tuning",      "point",                 true,   false,     false,   true,      "observation",  "Firing rate against a trial parameter, one curve per series"
     "spectrum",   "Power spectrum",    "Spectrum",    ["point" "continuous"],  true,   false,     false,   true,      "observation",  "Multitaper power spectra (Chronux) of channels or spike trains over the epochs, groups overlaid"
-    "spectrogram", "Spectrogram",      "Spectrogram", "continuous",            true,   true,      true,    false,     "observation",  "A channel's multitaper power over time from the event and frequency (Chronux), one trial group"
+    "spectrogram", "Spectrogram",      "Spectrogram", ["continuous" "point"],  true,   true,      true,    false,     "observation",  "A channel's or a unit's multitaper power over time from the event and frequency (Chronux), one trial group"
     "coherence",  "Coherence",         "Coherence",   ["point" "continuous"],  true,   false,     false,   true,      "observation",  "Multitaper coherence (Chronux) of a seed layer with a partner layer: field-field, spike-field or unit-unit"
     "eventTrace", "Event traces",      "EventTraces", "point",                 true,   true,      false,   true,      "fixed",        "Digital or derived lines as a logic analyzer shows them: a row per line, a bar (or a level) from each onset to its offset, epochs overlaid or a sub-row each"
     };

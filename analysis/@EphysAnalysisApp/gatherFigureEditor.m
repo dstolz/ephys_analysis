@@ -153,7 +153,7 @@ if j >= 1 && j <= numel(fig.panels)
     if i >= 1 && i <= numel(p.layers)
         rows = "items";
         if isfield(p.options, 'rows'); rows = p.options.rows; end
-        p.layers(i) = gatherLayer(E, p.layers(i), p.type, rows);
+        p.layers(i) = gatherLayer(E, p.layers(i), p.type, rows, fig.observe.data);
     end
     p.note = gatherNote(E, p.note);
     p.overlays = overlayGather(E);   % the list's, the one picked read from its rows
@@ -327,14 +327,14 @@ nt.interpreter = string(E.annInterp.Value);
 end
 
 
-function L = gatherLayer(E, L, type, rows)
-%gatherLayer  Layer L of a panel of TYPE (a heat map's options.rows ROWS) as the Layers rows show it.
+function L = gatherLayer(E, L, type, rows, observed)
+%gatherLayer  Layer L of a panel of TYPE (a heat map's options.rows ROWS) in a figure observing OBSERVED, as the Layers rows show it.
 L.name = strtrim(string(E.layerName.Value));
 L.enabled = logical(E.layerEnabled.Value);
 L.source = string(E.layerSource.Value);
 L.binding = string(E.layerBinding.Value);
-ch = figureEditorChoices(type, L.source, rows);
-if ~ch.Bindable; L.binding = "fixed"; end   % events, and the types that draw fixed layers
+ch = figureEditorChoices(type, L.source, rows, Observed=observed);
+if ~ch.Bindable; L.binding = "fixed"; end   % events, AUX under units, and the types that draw fixed layers
 u = L.units;
 u.classes = ticked(E.layerClasses);
 u.ids = parseList(E.layerIds.Value);
@@ -346,6 +346,9 @@ u.channels = parseList(E.layerUnitChannels.Value);
 L.units = u;
 L.channels = parseList(E.layerChannels.Value);
 L.aggregate = string(E.layerAggregate.Value);
+if ~ismember(L.aggregate, ch.Aggregates) || (L.aggregate == "magnitude" && L.binding ~= "fixed")
+    L.aggregate = "each";   % only what the type offers the source; a magnitude makes fixed channels one
+end
 ev = L.event;
 ev.line = strtrim(string(E.evLine.Value));
 ev.edge = string(E.evEdge.Value);

@@ -18,7 +18,11 @@ function test_ChronuxAnalysis()
 %   artifact period), the spike analyses on spike trains (a train modulated
 %   at 20 Hz peaks there and its spectrum's rate is its mean rate, spikes
 %   locked to a 40 Hz field are coherent with it at 40 Hz, two identical
-%   trains have a coherence of 1), and renderChronux (every kind, layout and
+%   trains have a coherence of 1; chronuxSpikeSpecgram: firing modulated
+%   at 30 Hz after each event stands out over the baseline, on the signal
+%   spectrogram's window centers, its refusals; the spike-field and
+%   unit-unit coherograms over epochs and over a stretch, NaN over its
+%   artifact period), and renderChronux (every kind, layout and
 %   scale, the phase tiles, into a classic figure and a uifigure panel,
 %   pages, every component's role known to PlotAesthetics).
 %
@@ -253,6 +257,55 @@ else
     Su.unitPartner = 2;
     check(strcmp(errorId(@() chronuxUnitCoherence(pickTrains(SPall, [1 3]), TBp, Su)), ...
         'chronuxUnitCoherence:BadPair'), 'a partner not among the trains picked is refused');
+    lam4 = 80 * ones(n, 1);
+    for e = ev.'
+        on = t >= e & t < e + 0.5;
+        lam4(on) = 80 * (1 + 0.9 * sin(2 * pi * 30 * t(on)));   % firing modulated at 30 Hz after each event
+    end
+    SP4 = struct('times', struct('times', t(rand(n, 1) < lam4 / fs)), 'labels', "u4", 'index', 1, 'class', "su", 'source', "units");
+    Sk = chronuxSettings(struct('analysis', "spikeSpecgram", 'window', [-1 1.5], 'movingwin', [0.25 0.05], 'fpass', [0 80], ...
+        'TW', 2, 'K', 3, 'spikeFs', fs, 'baseline', "db", 'baselineWindow', [-1 -0.1]));
+    Rk = chronuxSpikeSpecgram(SP4, TBg, Sk);
+    fk = abs(Rk.f - 30) <= 4;
+    check(Rk.kind == "chronuxSpikeSpecgram" && isequal(size(Rk.S), [numel(Rk.t) numel(Rk.f)]) && max(abs(Rk.t - Rg.t)) < 1e-12 ...
+        && mean(Rk.S(post, fk), 'all') > mean(Rk.S(pre, fk), 'all') + 3 && abs(mean(Rk.S(inBase, :), 'all')) < 1 ...
+        && Rk.baseline.units == "dB change" && abs(Rk.rate - 80) < 4, ...
+        sprintf(['a spike spectrogram: firing modulated at 30 Hz after each event stands out over the baseline (%+.1f dB), ' ...
+        'on the signal spectrogram''s window centers'], mean(Rk.S(post, fk), 'all') - mean(Rk.S(pre, fk), 'all')));
+    Sk.movingwin = [3 0.05];
+    check(strcmp(errorId(@() chronuxSpikeSpecgram(SP4, TBg, Sk)), 'chronuxSpikeSpecgram:Short') ...
+        && strcmp(errorId(@() chronuxSpikeSpecgram(SP4, TBp, Sk)), 'chronuxSpikeSpecgram:Aligned'), ...
+        'a spike spectrogram: a window longer than the epoch, and a stretch of the recording, are refused');
+    nW = round(0.5 * fs);
+    Sfo = chronuxSettings(struct('analysis', "spikeField", 'overTime', true, 'window', [-1 1.5], 'movingwin', [0.5 0.1], ...
+        'fpass', [0 80], 'fieldChannel', 1));
+    Rfo = chronuxSpikeField(Dg, pickTrains(SPall, [1 2]), TBg, Sfo);
+    k40 = abs(Rfo.f - 40) == min(abs(Rfo.f - 40));
+    check(Rfo.kind == "chronuxCohgram" && Rfo.aligned && isequal(size(Rfo.C), [numel(Rfo.t) numel(Rfo.f) 2]) ...
+        && abs(Rfo.t(1) - (-1 + (nW - 1) / 2 / fs)) < 1e-12 && mean(Rfo.C(:, k40, 2)) > 0.5 && mean(Rfo.C(:, k40, 1)) < mean(Rfo.C(:, k40, 2)), ...
+        sprintf('a spike-field coherogram over the epochs: the locked train is coherent with the field at 40 Hz in every window (mean C %.2f; the other %.2f)', ...
+        mean(Rfo.C(:, k40, 2)), mean(Rfo.C(:, k40, 1))));
+    Sfr = chronuxSettings(struct('analysis', "spikeField", 'overTime', true, 'timeBase', "range", 'range', [20 40], ...
+        'movingwin', [0.5 0.25], 'fpass', [0 80], 'fieldChannel', 1));
+    Rfr = chronuxSpikeField(blockOf(lfp, fs, 1, rowsOf(TBq.span, fs, n)), pickTrains(SPall, 2), TBq, Sfr);
+    inArtF = Rfr.t > 30.3 & Rfr.t < 31.7;
+    outF = Rfr.t > 22 & Rfr.t < 28;
+    k40 = abs(Rfr.f - 40) == min(abs(Rfr.f - 40));
+    check(Rfr.kind == "chronuxCohgram" && ~Rfr.aligned && all(isnan(Rfr.C(inArtF, :)), 'all') && all(isfinite(Rfr.C(outF, :)), 'all') ...
+        && mean(Rfr.C(outF, k40)) > 0.5, 'a spike-field coherogram over a stretch: NaN over the artifact period, coherent at 40 Hz elsewhere');
+    Suo = chronuxSettings(struct('analysis', "unitCoherence", 'overTime', true, 'window', [-1 1.5], 'movingwin', [0.5 0.1], ...
+        'fpass', [2 100], 'pairMode', "pair", 'unitSeed', 1, 'unitPartner', 3));
+    Ruo = chronuxUnitCoherence(pickTrains(SPall, [1 3]), TBg, Suo);
+    check(Ruo.kind == "chronuxCohgram" && Ruo.aligned && isequal(size(Ruo.C), [numel(Ruo.t) numel(Ruo.f)]) ...
+        && abs(Ruo.t(1) - (-1 + (nW - 1) / 2 / fs)) < 1e-12 && min(Ruo.C(:)) > 0.99, ...
+        'a unit-unit coherogram over the epochs: two identical trains have a coherence of 1 in every window');
+    Suo.timeBase = "range"; Suo.range = [20 40]; Suo.movingwin = [0.5 0.25];
+    TBpr = chronuxTimeBase("range", Range=[20 40], Artifacts=art, Duration=dur, Segment=0.5);
+    Rur = chronuxUnitCoherence(pickTrains(SPall, [1 3]), TBpr, Suo);
+    inArtU = Rur.t > 30.3 & Rur.t < 31.7;
+    outU = Rur.t > 22 & Rur.t < 28;
+    check(~Rur.aligned && all(isnan(Rur.C(inArtU, :)), 'all') && all(Rur.C(outU, :) > 0.99, 'all'), ...
+        'a unit-unit coherogram over a stretch: NaN over the artifact period, 1 elsewhere');
 
     fprintf('\n== 7. renderChronux ==\n');
     fig = figure('Visible', 'off');
@@ -262,7 +315,8 @@ else
     cases = {R, struct('layout', "grid", 'scale', "db"); R, struct('layout', "overlay", 'scale', "log"); ...
         Ra, struct('layout', "grid", 'scale', "linear"); Rg, struct(); Rq, struct('scale', "linear"); ...
         Rc, struct('layout', "grid", 'showPhase', true); Rc, struct('layout', "overlay"); Rcg, struct(); ...
-        Rs, struct('scale', "db"); Rf, struct('showPhase', true); Ru, struct('showPhase', false)};
+        Rs, struct('scale', "db"); Rf, struct('showPhase', true); Ru, struct('showPhase', false); Rk, struct(); ...
+        Rfo, struct(); Ruo, struct()};
     for i = 1:size(cases, 1)
         Ri = cases{i, 1};
         d = Ri.settings.display;

@@ -2,7 +2,7 @@ function h = renderChronux(R, target, opts)
 %renderChronux  Draw a Chronux analysis (the analysis app's Chronux tab).
 %   H = renderChronux(R, TARGET, Name=Value) draws R from chronuxSpectrum,
 %   chronuxSpecgram, chronuxCoherence, chronuxSpikeSpectrum,
-%   chronuxSpikeField or chronuxUnitCoherence into TARGET (an axes, uiaxes,
+%   chronuxSpikeSpecgram, chronuxSpikeField or chronuxUnitCoherence into TARGET (an axes, uiaxes,
 %   figure, uifigure, panel, tab, grid or tiled layout; never a new
 %   figure), as its display settings say (chronuxSettings' display):
 %     chronuxSpectrum  layout "grid": a tile per channel, the groups
@@ -20,6 +20,7 @@ function h = renderChronux(R, target, opts)
 %                      one in its own units on a diverging colormap
 %                      centered on no change. One color scale for the
 %                      page (clim, else from its tiles), the event at 0
+%     chronuxSpikeSpecgram  the same, a spike train in place of a channel
 %     chronuxCoherence, chronuxSpikeField, chronuxUnitCoherence
 %                      layout "grid": a tile per pair, the groups overlaid,
 %                      the coherence magnitude 0 to 1 with its jackknife
@@ -30,7 +31,8 @@ function h = renderChronux(R, target, opts)
 %                      -pi to pi, at the frequencies where the coherence
 %                      is over that level (every frequency without one)
 %     chronuxCohgram   a tile per pair and group: the coherence over time
-%                      and frequency as an image, 0 to 1 (clim)
+%                      and frequency as an image, 0 to 1 (clim); of
+%                      signals, a spike train and a field, or two trains
 %   maxTiles tiles a page; H.pages says how many pages there are.
 %
 %   Everything drawn is named for the aesthetics editor (tagPart), drawn
@@ -76,7 +78,7 @@ switch R.kind
     case {"chronuxSpectrum" "chronuxSpikeSpectrum"}
         [h, n] = drawSpectrum(R, target, d, style, page);
         mapField = "";
-    case "chronuxSpecgram"
+    case {"chronuxSpecgram" "chronuxSpikeSpecgram"}
         [h, n, mapField] = drawSpecgram(R, target, d, style, page);
     case {"chronuxCoherence" "chronuxSpikeField" "chronuxUnitCoherence"}
         [h, n] = drawCoherence(R, target, d, style, page);
@@ -457,6 +459,7 @@ switch R.kind
     case "chronuxCoherence", what = "Coherence";
     case "chronuxCohgram", what = "Coherogram";
     case "chronuxSpikeSpectrum", what = "Spike spectrum";
+    case "chronuxSpikeSpecgram", what = "Spike spectrogram";
     case "chronuxSpikeField", what = "Spike-field coherence";
     case "chronuxUnitCoherence", what = "Unit-unit coherence";
 end

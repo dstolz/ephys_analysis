@@ -41,7 +41,8 @@ function issues = validate(obj, opts)
 %               and signals, never on heatmap / probemap / corrmap but a
 %               heat map of trials' spike layer; AUX
 %               cannot follow a unit; a warning for a signal following
-%               another signal's channel), aggregate, maxUnits (a
+%               another signal's channel), aggregate ("magnitude" only
+%               where aggregates() offers it, on a fixed layer), maxUnits (a
 %               warning above 8 units drawn each in a raster / PSTH /
 %               rate / tuning panel),
 %               channels, events layers only on time panels, a train only
@@ -82,9 +83,9 @@ function issues = validate(obj, opts)
 %               window, the range time base's range and segment, a
 %               spectrogram's baseline Mode and its window inside the
 %               panel's), a coherence panel's two enabled layers (seed,
-%               partner; none a spike layer over time; a warning for a
-%               fixed seed of several items), a spectrogram's signal
-%               layer; an event-trace panel's display, trials, colorBy,
+%               partner; a warning for a fixed seed of several items), a
+%               spectrogram's signal or spike layer; an event-trace
+%               panel's display, trials, colorBy,
 %               height, alpha, line styles and positive widths and
 %               rowSpacing, with warnings for an edge or baseline color
 %               that is not one); each panel's text note
@@ -440,8 +441,15 @@ for k = 1:numel(obj.Figures)
                     end
                 end
             end
-            if ~ismember(L.aggregate, ["each" "mean"])
-                add("Figures", l0 + ".aggregate", "error", "A layer's aggregate is each (a trace or block per item) or mean.");
+            if ~ismember(L.aggregate, ["each" "mean" "magnitude"])
+                add("Figures", l0 + ".aggregate", "error", "A layer's aggregate is each (a trace or block per item), mean " + ...
+                    "or magnitude (a spectral panel's signal channels as one).");
+            elseif L.aggregate == "magnitude" && ~ismember("magnitude", EphysAnalysisConfig.aggregates(pj.type, L.source))
+                add("Figures", l0 + ".aggregate", "error", "The magnitude aggregate (the channels' vector magnitude) is for a " + ...
+                    "signal layer (LFP, MUA, SPIKE, AUX) of a spectrum, spectrogram or coherence panel.");
+            elseif L.aggregate == "magnitude" && L.binding == "observation"
+                add("Figures", l0 + ".binding", "error", "A magnitude layer makes its fixed channels one: bind it to fixed " + ...
+                    "channels (none listed = every one).");
             end
             if ismember(L.source, EphysAnalysisConfig.SpikeSources)
                 if ~(L.units.maxUnits >= 1)
@@ -884,7 +892,7 @@ issues = table(Section, Field, Severity, Message);
         %   HL: its enabled layers, HIDX their indices in the panel. The options go through figureChronuxSettings (with
         %   the panel's fixed window, which a spectrogram's baseline window must lie inside); what chronuxSettings
         %   throws is reported with its message. A coherence panel takes exactly two enabled layers (the seed, then
-        %   its partner), both signals over time; a spectrogram a signal layer.
+        %   its partner); a spectrogram a signal or spike layer.
         hRange = isfield(hOp, 'timeBase') && hOp.timeBase == "range";
         hWin = [];
         if isstruct(hW) && isfield(hW, 'mode') && hW.mode == "fixed" && isfinite(hW.pre) && isfinite(hW.post) && hW.post > hW.pre
@@ -905,8 +913,9 @@ issues = table(Section, Field, Severity, Message);
         if ~isempty(hL); hSrc = [hL.source]; end
         switch hP.type
             case "spectrogram"
-                if ~isempty(hL) && ~any(ismember(hSrc, EphysAnalysisConfig.SignalSources))
-                    add("Figures", hP0 + ".layers", "error", "A spectrogram draws a signal layer (LFP, MUA, SPIKE or AUX).");
+                if ~isempty(hL) && ~any(ismember(hSrc, [EphysAnalysisConfig.SignalSources EphysAnalysisConfig.SpikeSources]))
+                    add("Figures", hP0 + ".layers", "error", "A spectrogram draws a signal or spike layer (LFP, MUA, SPIKE, " + ...
+                        "AUX, units or detected).");
                 end
             case "coherence"
                 if numel(hL) ~= 2
@@ -914,12 +923,9 @@ issues = table(Section, Field, Severity, Message);
                         'the seed (first) then its partner; it has %d.'], numel(hL)));
                     return
                 end
-                if hOp.overTime && any(ismember(hSrc, EphysAnalysisConfig.SpikeSources))
-                    add("Figures", hO0 + ".overTime", "error", "A coherogram (over time) takes two signal layers (LFP, MUA, " + ...
-                        "SPIKE, AUX): spike trains give one coherence spectrum.");
-                end
                 hS = hL(1);
-                hMany = (ismember(hS.source, EphysAnalysisConfig.SignalSources) && numel(hS.channels) ~= 1) ...
+                hMany = (ismember(hS.source, EphysAnalysisConfig.SignalSources) && numel(hS.channels) ~= 1 ...
+                    && hS.aggregate ~= "magnitude") ...   % a magnitude is one item, whatever its channels
                     || (ismember(hS.source, EphysAnalysisConfig.SpikeSources) && numel(hS.units.ids) ~= 1);
                 if hS.binding == "fixed" && hMany
                     add("Figures", hP0 + ".layers(" + hIdx(1) + ")", "warning", "The seed is its layer's first channel " + ...

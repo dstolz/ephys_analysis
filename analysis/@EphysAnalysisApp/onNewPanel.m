@@ -83,7 +83,7 @@ rows = "items";
 if isfield(opts.Options, 'rows'); rows = string(opts.Options.rows); end
 for q = 1:numel(L)
     if opts.Binding ~= ""; L(q).binding = opts.Binding; end
-    if ~figureEditorChoices(t, L(q).source, rows).Bindable; L(q).binding = "fixed"; end
+    if ~figureEditorChoices(t, L(q).source, rows, Observed=fig.observe.data).Bindable; L(q).binding = "fixed"; end
 end
 panel = struct('id', opts.Id, 'type', t, 'title', opts.Title, 'layers', L, ...
     'options', mergeOptions(PT.DefaultOptions{row}, opts.Options));

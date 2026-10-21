@@ -381,7 +381,7 @@ E.layerMaxUnits.Value = char(string(u.maxUnits));
 E.layerShanks.Value = listText(u.shanks);
 E.layerUnitChannels.Value = listText(u.channels);
 E.layerChannels.Value = listText(L.channels);
-E.layerAggregate.Value = char(pickFrom(L.aggregate, ["each" "mean"], "each"));
+setChoices(E.layerAggregate, ch.AggregateLabels, ch.Aggregates, pickFrom(L.aggregate, ch.Aggregates, "each"));
 ev = L.event;
 offerItems(E.evLine, lines, ev.line);
 offerItems(E.evEdge, ["onset" "offset"], ev.edge);

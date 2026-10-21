@@ -146,7 +146,7 @@ if isvalid(d); delete(d); end
         typeLabel.Text = T.Label(row);
         descLabel.Text = T.Description(row);
         if ~typed; nameField.Value = EphysAnalysisConfig.freeId(t, taken); end
-        P = buildParams(pp, t, T.DefaultOptions{row}, T.DefaultBinding(row), lines, params);
+        P = buildParams(pp, t, T.DefaultOptions{row}, T.DefaultBinding(row), lines, params, F.observe.data);
         msg.Text = "Pick a type; every other setting can be changed in the editor later.";
         msg.FontColor = gray;
     end
@@ -180,8 +180,9 @@ if isvalid(d); delete(d); end
 end
 
 
-function P = buildParams(pp, t, def, binding, lines, params)
+function P = buildParams(pp, t, def, binding, lines, params, observed)
 %buildParams  Make the key parameters of panel type T in the panel PP (its children replaced): a struct of controls by name.
+%   OBSERVED: the figure's observe.data (what a layer may follow).
 delete(pp.Children);
 P = struct();
 specs = {};   % {name, label, maker}: a row each
@@ -286,12 +287,12 @@ for r = 1:m
     P.(specs{r, 1}) = h;
 end
 if isfield(P, 'Binding')   % fixed where the layer cannot follow
-    follow = @() syncBinding(P, t);
+    follow = @() syncBinding(P, t, observed);
     P.Source.ValueChangedFcn = @(~, ~) follow();
     if isfield(P, 'Rows')
-        P.Rows.ValueChangedFcn = @(~, ~) rowsChanged(P, t);
+        P.Rows.ValueChangedFcn = @(~, ~) rowsChanged(P, t, observed);
     end
-    syncBinding(P, t);
+    syncBinding(P, t, observed);
 end
 if isfield(P, 'WinSec')   % a pair of fields: the window and its step
     kids = P.WinSec.Children;
@@ -340,20 +341,20 @@ uieditfield(h, "numeric", "Value", v(2), "Tag", "second", "Tooltip", tip);
 end
 
 
-function syncBinding(P, t)
-%syncBinding  The binding open where the first layer's source may follow the observation on type T, else fixed.
+function syncBinding(P, t, observed)
+%syncBinding  The binding open where the first layer's source may follow the observation (OBSERVED) on type T, else fixed.
 rows = "items";
 if isfield(P, 'Rows'); rows = string(P.Rows.Value); end
-ok = figureEditorChoices(t, string(P.Source.Value), rows).Bindable;
+ok = figureEditorChoices(t, string(P.Source.Value), rows, Observed=observed).Bindable;
 if ~ok; P.Binding.Value = "fixed"; end
 P.Binding.Enable = matlab.lang.OnOffSwitchState(ok);
 end
 
 
-function rowsChanged(P, t)
+function rowsChanged(P, t, observed)
 %rowsChanged  A heat map of one unit's epochs follows the observation by default (a fixed layer keeps every unit).
 if string(P.Rows.Value) == "trials"; P.Binding.Value = "observation"; end
-syncBinding(P, t);
+syncBinding(P, t, observed);
 end
 
 

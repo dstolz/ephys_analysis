@@ -7,7 +7,8 @@ function P = computeContinuousPanel(src, panel, E, G, ctx)
 %         layer's columns (the observed unit's channel, the observed
 %         channel, or the fixed channels) with the panel's baseline (Mode
 %         "subtract": each epoch's mean over its Window), transform
-%         ("rectify"), statistic and error type (options.errorType, "sem"
+%         ("rectify"; "magnitude": the layer's channels as one, their
+%         vector magnitude), statistic and error type (options.errorType, "sem"
 %         when "off"): R.mean / err [nTime x nChannels x nGroups];
 %         aggregate "mean" adds R.layerMean. With options.trials "faint"
 %         or "only" the epochs' traces are kept too (KeepEpochs): R.data
@@ -32,7 +33,7 @@ for j = 1:numel(P.layers)
         P.layers(j) = figurePointLayer(src, L, P.layers(j), E, G, ctx, Window=[w.pre w.post], Raster=false);
     else
         P.layers(j) = figureSignalLayer(src, L, P.layers(j), E, G, ctx, Window=[w.pre w.post], Baseline=b, ...
-            Rectify=o.transform == "rectify", Statistic=o.statistic, KeepEpochs=o.trials ~= "off", MaxTrials=o.maxTrials);
+            Rectify=o.transform == "rectify", Magnitude=o.transform == "magnitude", Statistic=o.statistic, KeepEpochs=o.trials ~= "off", MaxTrials=o.maxTrials);
     end
 end
 end

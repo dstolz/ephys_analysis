@@ -2,7 +2,7 @@ function onAddLayer(obj)
 %onAddLayer  Add a layer of the source picked beside Add (FigureAddSource) to the selected panel, and pick it.
 %   Only the sources the panel's type draws are offered. The layer is bound
 %   as the type binds a new one (its DefaultBinding), and fixed where it
-%   cannot follow the observation (events, a heat map's, ...). An
+%   cannot follow the observation (events, a heat map's, AUX under units, ...). An
 %   events layer starts as marks of every Stim onset in the epoch (the
 %   EventMark defaults); pick its line and edge below.
 k = obj.SelectedFigure;
@@ -22,7 +22,7 @@ L = EphysAnalysisConfig.defaults("Layer");
 L.source = src;
 PT = EphysAnalysisConfig.panelTypes();
 L.binding = PT.DefaultBinding(PT.Type == p.type);
-if ~figureEditorChoices(p.type, src).Bindable; L.binding = "fixed"; end
+if ~figureEditorChoices(p.type, src, Observed=fig.observe.data).Bindable; L.binding = "fixed"; end
 if isempty(p.layers)
     p.layers = L;
 else

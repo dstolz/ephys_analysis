@@ -10,7 +10,7 @@ function lay = figureSignalLayer(src, L, lay, E, G, ctx, opts)
 %   channel, or the fixed L.channels); then
 %     R = evokedPotential(Y, fs, E, Window=, Channels=cols, Baseline=,
 %         Groups=G, Meta=metaAll(cols,:), Units=, Check=CTX.check,
-%         Rectify=, Statistic=, ErrorType=CTX.errorType, ErrorResamples=)
+%         Rectify=, Magnitude=, Statistic=, ErrorType=CTX.errorType, ErrorResamples=)
 %   reads only those columns' epochs. aggregate "mean" adds R.layerMean
 %   (figureLayerMean: the mean over the channels, a band across them). R
 %   also gets epochs (E) and dataset. A missing extract, a channel it
@@ -18,7 +18,8 @@ function lay = figureSignalLayer(src, L, lay, E, G, ctx, opts)
 %   the reason; EphysAnalysisRunner:Canceled passes through.
 %
 %   Options: Window [pre post], Baseline ([] or [b0 b1]: subtract each
-%   epoch's mean over it), Rectify, Statistic ("mean" | "median"),
+%   epoch's mean over it), Rectify, Magnitude (the columns as one: their
+%   vector magnitude in each epoch, R.mean one column), Statistic ("mean" | "median"),
 %   KeepEpochs (false: true keeps the epochs' traces, as averaged --
 %   baseline and rectification applied -- in R.data [nTime x nChannels x
 %   nTrials] single, with R.trialEpochs (their epoch numbers) and
@@ -38,6 +39,7 @@ arguments
     opts.Window (1,2) double
     opts.Baseline double = []
     opts.Rectify (1,1) logical = false
+    opts.Magnitude (1,1) logical = false
     opts.Statistic (1,1) string = "mean"
     opts.KeepEpochs (1,1) logical = false
     opts.MaxTrials (1,1) double = Inf
@@ -63,7 +65,7 @@ metaC = metaAll(cols, :);
 ctx.checkpoint();
 try
     R = evokedPotential(Y, fs, E, Window=opts.Window, Channels=cols, Baseline=opts.Baseline, Groups=G, Meta=metaC, ...
-        Units=metaC.units(1), Check=ctx.check, Rectify=opts.Rectify, Statistic=opts.Statistic, ...
+        Units=metaC.units(1), Check=ctx.check, Rectify=opts.Rectify, Magnitude=opts.Magnitude, Statistic=opts.Statistic, ...
         ErrorType=ctx.errorType, ErrorResamples=ctx.nBoot, KeepEpochs=opts.KeepEpochs);
 catch ME
     lay.skip = figureLayerError(ME);   % e.g. a baseline with no sample in the window; a cancel passes through
@@ -95,6 +97,8 @@ if lay.name == ""
         else
             lay.name = L.source + " " + metaC.label(1);
         end
+    elseif opts.Magnitude
+        lay.name = "magnitude of " + numel(cols) + " " + L.source + " channels";
     elseif L.aggregate == "mean"
         lay.name = "mean of " + numel(cols) + " " + L.source + " channels";
     else

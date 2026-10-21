@@ -4,30 +4,35 @@ function P = computeCoherencePanel(src, panel, E, G, ctx)
 %   compute for "coherence"; CTX from EphysAnalysisRunner.computeFigure) has
 %   P.layers, one per layer of PANEL (figurePanelLayers). It takes exactly
 %   two enabled layers, the first the seed, the second its partner, each
-%   read by figureChronuxLayer; the seed's first item (channel or unit) is
-%   paired with each item of the partner (an item that is the seed itself
-%   is left out), with the settings figureChronuxSettings builds from the
-%   panel's options over the trials of chronuxTimeBaseOf (the panel's
-%   epochs and groups, or with timeBase "range" segments of the recording):
+%   read by figureChronuxLayer (a signal layer with aggregate "magnitude":
+%   one item, its channels' vector magnitude, e.g. an accelerometer's);
+%   the seed's first item (channel, magnitude or unit) is paired with each
+%   item of the partner (an item that is the seed itself is left out),
+%   with the settings figureChronuxSettings builds from the panel's
+%   options over the trials of chronuxTimeBaseOf (the panel's epochs and
+%   groups, or with timeBase "range" segments of the recording):
 %     signal x signal   chronuxCoherence (pairMode "seed": the seed's column
-%                       with each partner column; both signals at one
-%                       rate); options.overTime: a coherogram (cohgramc)
-%                       over the moving window, at most 2000 MB
+%                       with each partner column; signals at two rates, as
+%                       AUX and LFP are, at the slower one's: the faster
+%                       resampled, resample's anti-aliasing filter)
 %     spikes x signal   chronuxSpikeField: the seed unit with each partner
 %                       column (one call per column)
 %     signal x spikes   chronuxSpikeField: each partner unit with the seed's
 %                       column
 %     spikes x spikes   chronuxUnitCoherence: the seed unit with each
 %                       partner unit
+%   options.overTime: each of them a coherogram over the moving window
+%   instead (cohgramc, cohgramcpt, coherencypt window by window), at most
+%   2000 MB.
 %   The result goes to the seed layer's R (C, phi [nF x nPairs x nGroups],
 %   Clo / Chi, confC, pairs, labels, nTrials, groups; a coherogram's t and
 %   C [nT x nF x nPairs x nGroups]) with its pairs labeled "<seed> x
 %   <partner>" (R.pairs.label, R.labels, R.names), layer, partnerLayer,
 %   epochs and dataset; the partner layer's R is a marker (kind
 %   "coherencePartner", seedLayer). Any other number of enabled layers, a
-%   skipped one, a spike layer over time, signals at two rates, a partner
-%   that is only the seed, a missing Chronux or settings chronuxSettings
-%   refuses skip both layers with the reason.
+%   skipped one, rates no resample ratio matches, a partner that is only
+%   the seed, a missing Chronux or settings chronuxSettings refuses skip
+%   both layers with the reason.
 %
 %   See also figurePanelRegistry, chronuxCoherence, chronuxSpikeField,
 %   chronuxUnitCoherence, drawCoherencePanel.
@@ -88,32 +93,32 @@ o = panel.options;
 W = [panel.window.pre panel.window.post];
 if o.timeBase == "range"; W = []; end   % segments of the recording: the panel's window is not used
 seedName = X1.names(1);
+seg = [];
+if o.overTime; seg = o.movingwin(1); end   % a coherogram's segments: its moving window
 if X1.kind == "signal" && X2.kind == "signal"
-    if X1.D.fs ~= X2.D.fs
-        why = sprintf("the seed's %s and the partner's %s are at different rates (%g and %g Hz)", ...
-            X1.source, X2.source, X1.D.fs, X2.D.fs);
-        return
-    end
-    keep = ~(X2.source == X1.source & X2.cols == X1.cols(1));
+    keep = X2.keys ~= X1.keys(1);
     if ~any(keep); why = "the partner is the seed's channel itself: pick another"; return; end
-    n = min(X1.nRows, X2.nRows);
+    a = X1.D.data(:, 1);
+    b = X2.D.data(:, keep);
+    fs = X1.D.fs;
+    if X2.D.fs ~= fs
+        ctx.checkpoint();
+        [a, b, fs, why] = atOneRate(a, fs, b, X2.D.fs, X1.source, X2.source);
+        if why ~= ""; return; end
+    end
+    n = min(size(a, 1), size(b, 1));
     names = [seedName X2.names(keep)];
     sig = X1.source;
     if X2.source ~= X1.source; sig = X1.source + "/" + X2.source; end
-    D = chronuxBlockOf([X1.D.data(1:n, 1) X2.D.data(1:n, keep)], X1.D.fs, [], sig, names);
+    D = chronuxBlockOf([a(1:n) b(1:n, :)], fs, [], sig, names);
     D.units = X1.D.units;
     S = figureChronuxSettings("coherence", o, W, "coherence");
     S.pairMode = "seed";
     S.seed = 1;
     S.channels = zeros(1, 0);
-    seg = [];
-    if S.overTime; seg = S.movingwin(1); end
     TB = chronuxTimeBaseOf(src, E, G, panel, Fs=D.fs, NRows=n, Segment=seg);
     R = chronuxCoherence(D, TB, S, Check=ctx.check, MaxMB=maxMB, Dataset=src.name);
     partners = names(2:end);
-elseif o.overTime
-    why = "A coherogram (over time) takes two signal layers: spike trains give one coherence spectrum";
-    return
 elseif X1.kind == "spikes" && X2.kind == "spikes"
     keep = ~(X2.source == X1.source & X2.unitIds == X1.unitIds(1));
     if ~any(keep); why = "the partner is the seed unit itself: pick another"; return; end
@@ -123,17 +128,17 @@ elseif X1.kind == "spikes" && X2.kind == "spikes"
     S = figureChronuxSettings("coherence", o, W, "unitCoherence");
     S.pairMode = "seed";
     S.unitSeed = 1;
-    TB = chronuxTimeBaseOf(src, E, G, panel, LastSpike=max(X1.lastSpike, X2.lastSpike));
-    R = chronuxUnitCoherence(SP, TB, S, Check=ctx.check, Dataset=src.name);
+    TB = chronuxTimeBaseOf(src, E, G, panel, LastSpike=max(X1.lastSpike, X2.lastSpike), Segment=seg);
+    R = chronuxUnitCoherence(SP, TB, S, Check=ctx.check, MaxMB=maxMB, Dataset=src.name);
     partners = X2.names(keep);
 elseif X1.kind == "spikes"   % the seed unit with each partner column
     S = figureChronuxSettings("coherence", o, W, "spikeField");
-    TB = chronuxTimeBaseOf(src, E, G, panel, Fs=X2.D.fs, NRows=X2.nRows);
+    TB = chronuxTimeBaseOf(src, E, G, panel, Fs=X2.D.fs, NRows=X2.nRows, Segment=seg);
     SP = oneTrain(X1.SP);
     Rs = cell(1, numel(X2.names));
     for c = 1:numel(X2.names)
         S.fieldChannel = c;
-        Rs{c} = chronuxSpikeField(X2.D, SP, TB, S, Check=ctx.check, Dataset=src.name);
+        Rs{c} = chronuxSpikeField(X2.D, SP, TB, S, Check=ctx.check, MaxMB=maxMB, Dataset=src.name);
     end
     R = catPairs(Rs);
     partners = X2.names;
@@ -144,14 +149,37 @@ else   % each partner unit with the seed's column
     D.labels = D.labels(1);
     S = figureChronuxSettings("coherence", o, W, "spikeField");
     S.fieldChannel = 1;
-    TB = chronuxTimeBaseOf(src, E, G, panel, Fs=D.fs, NRows=X1.nRows);
-    R = chronuxSpikeField(D, X2.SP, TB, S, Check=ctx.check, Dataset=src.name);
+    TB = chronuxTimeBaseOf(src, E, G, panel, Fs=D.fs, NRows=X1.nRows, Segment=seg);
+    R = chronuxSpikeField(D, X2.SP, TB, S, Check=ctx.check, MaxMB=maxMB, Dataset=src.name);
     partners = X2.names;
 end
 lab = reshape(seedName + " x " + reshape(partners, 1, []), [], 1);
 R.pairs.label = lab;
 R.labels = reshape(lab, 1, []);
 R.names = R.labels;
+end
+
+
+function [a, b, fs, why] = atOneRate(a, fsA, b, fsB, srcA, srcB)
+%atOneRate  The seed's column A (at fsA) and the partner's columns B (at fsB) at the slower rate FS: the faster resampled.
+%   Row k stays at (k-1)/fs (resample keeps the first sample's time). The
+%   factors are rat's within 1e-9 of the ratio, at most 2^18 each
+%   (resample's filter has 20 x max(p, q) + 1 taps); rates no such ratio
+%   matches give WHY.
+why = "";
+fs = min(fsA, fsB);
+r = fs / max(fsA, fsB);
+[p, q] = rat(r, 1e-9 * r);
+if max(p, q) > 2^18 || abs(max(fsA, fsB) * p / q - fs) > 1e-9 * fs
+    why = sprintf("the seed's %s and the partner's %s are at rates no resample ratio matches (%g and %g Hz)", ...
+        srcA, srcB, fsA, fsB);
+    return
+end
+if fsA > fsB
+    a = single(resample(double(a), p, q));
+else
+    b = single(resample(double(b), p, q));
+end
 end
 
 
@@ -169,8 +197,9 @@ function R = catPairs(Rs)
 %catPairs  Spike-field results of one train with several field channels as one result, a pair per channel.
 R = Rs{1};
 if numel(Rs) < 2; return; end
+pd = 2 + (R.kind == "chronuxCohgram");   % the pairs' dimension: a coherogram's C is [nT x nF x nP x nG]
 for f = ["C" "phi" "Clo" "Chi" "phistd"]
-    if ~isempty(R.(f)); R.(f) = catField(Rs, f, 2); end
+    if ~isempty(R.(f)); R.(f) = catField(Rs, f, pd); end
 end
 for f = ["confC" "nTrials" "zerosp"]
     R.(f) = catField(Rs, f, 1);

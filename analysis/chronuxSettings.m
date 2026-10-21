@@ -5,7 +5,8 @@ function S = chronuxSettings(s)
 %   the result. What is analyzed:
 %     analysis      "spectrum" (mtspectrumc) | "specgram" (mtspecgramc) |
 %                   "coherence" (coherencyc; cohgramc when overTime) |
-%                   "spikeSpectrum" (mtspectrumpt) | "spikeField"
+%                   "spikeSpectrum" (mtspectrumpt) | "spikeSpecgram"
+%                   (mtspectrumpt over the moving window) | "spikeField"
 %                   (coherencycpt) | "unitCoherence" (coherencypt)
 %     signal        the continuous signal: "LFP" (default) | "MUA" |
 %                   "SPIKE" | "AUX"
@@ -43,10 +44,10 @@ function S = chronuxSettings(s)
 %     errP          their p (0.05: 95%)
 %     fscorr        spike analyses: the finite-size correction
 %     spikeFs       spike analyses: the rate of the time grid (Hz)
-%     movingwin     spectrogram, coherence over time: [window step] s
+%     movingwin     spectrograms, coherence over time: [window step] s
 %     detrend       each trial's "none" | "constant" (default: its mean
 %                   removed) | "linear" trend removed before the spectra
-%     baseline      aligned spectrogram: "none" | "db" | "percent" |
+%     baseline      aligned spectrograms: "none" | "db" | "percent" |
 %                   "zscore" | "ratio" against baselineWindow
 %     baselineWindow  [b0 b1] s from the event
 %   How it is drawn (display): scale ("db" | "log" | "linear"), layout
@@ -122,7 +123,7 @@ end
 
 
 function S = check(S)
-S.analysis = member(S.analysis, "analysis", ["spectrum" "specgram" "coherence" "spikeSpectrum" "spikeField" "unitCoherence"]);
+S.analysis = member(S.analysis, "analysis", ["spectrum" "specgram" "coherence" "spikeSpectrum" "spikeSpecgram" "spikeField" "unitCoherence"]);
 S.signal = member(S.signal, "signal", ["LFP" "MUA" "SPIKE" "AUX"]);
 S.channels = whole(S.channels, "channels");
 S.pairMode = member(S.pairMode, "pairMode", ["seed" "pair"]);
@@ -169,7 +170,7 @@ end
 S.detrend = member(S.detrend, "detrend", ["none" "constant" "linear"]);
 S.baseline = member(S.baseline, "baseline", ["none" "db" "percent" "zscore" "ratio"]);
 S.baselineWindow = span(S.baselineWindow, "baselineWindow");
-if S.baseline ~= "none" && S.analysis == "specgram" && S.timeBase == "aligned"
+if S.baseline ~= "none" && ismember(S.analysis, ["specgram" "spikeSpecgram"]) && S.timeBase == "aligned"
     if diff(S.baselineWindow) <= 0
         error('chronuxSettings:BadValue', 'The baseline window needs its end after its start.');
     end

@@ -63,7 +63,7 @@ classdef PlotDesign
         MenuTag = "PlotDesignMenu"
         % The result kinds renderChronux draws (the Chronux tab): a design may keep rules for each (kindNames).
         ChronuxKinds = ["chronuxSpectrum" "chronuxSpecgram" "chronuxCoherence" "chronuxCohgram" ...
-            "chronuxSpikeSpectrum" "chronuxSpikeField" "chronuxUnitCoherence"]
+            "chronuxSpikeSpectrum" "chronuxSpikeSpecgram" "chronuxSpikeField" "chronuxUnitCoherence"]
     end
 
     methods (Static)

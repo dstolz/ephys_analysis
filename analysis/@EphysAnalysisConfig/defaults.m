@@ -258,7 +258,7 @@ switch section
             'binding',     "observation", ...   % "observation" (the observed unit / channel) | "fixed" (units / channels / event); events are always fixed
             'units',       rmfield(u, 'source'), ...   % fixed point / unit layers: which units (may keep several)
             'channels',    [], ...              % fixed continuous layers: the extract's columns ([] = all)
-            'aggregate',   "each", ...          % several units / channels: "each" (a trace or block each) | "mean" (their mean, a band across them)
+            'aggregate',   "each", ...          % several units / channels: "each" (a trace or block each) | "mean" (their mean, a band across them) | "magnitude" (a spectral panel's signal: the channels as one, their vector magnitude; aggregates())
             'event',       EphysAnalysisConfig.defaults("EventMark"), ...   % source events: the line, edge, which / scope / sequence, and the mark's look
             'eventsAs',    "marks", ...         % source events: "marks" (on raster rows; latency lines elsewhere) | "train" (the events as a spike train) | "span" (a line from each onset to its offset)
             'color',       "", ...              % "" = the group's color; else a name / #rrggbb for every trace of this layer

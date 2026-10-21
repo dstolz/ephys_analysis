@@ -1,22 +1,32 @@
-function ch = figureEditorChoices(type, source, rows)
+function ch = figureEditorChoices(type, source, rows, opts)
 %figureEditorChoices  What the figure editor's drop-downs offer a panel of TYPE whose first layer reads SOURCE.
-%   CH = figureEditorChoices(TYPE, SOURCE, ROWS) has (ROWS, default
-%   "items": a heat map's options.rows; "trials" lets its spike layer
-%   follow the observation)
+%   CH = figureEditorChoices(TYPE, SOURCE, ROWS, Observed=DATA) has (ROWS,
+%   default "items": a heat map's options.rows; "trials" lets its spike
+%   layer follow the observation; DATA, default "": the figure's
+%   observe.data, "" for any)
 %     Sources        the layer sources the panel type draws, in order: those
 %                    of its categories (EphysAnalysisConfig.panelTypes,
 %                    sourceCategories), then "events" on a panel that
 %                    shares the time axis (categoryOf; a spectrum, rate,
 %                    tuning or coherence panel takes none): a spectrum or
 %                    coherence panel units, detected, LFP, MUA, SPIKE, AUX;
-%                    a spectrogram the signals and events; an event-trace
-%                    panel events only
+%                    a spectrogram the signals, units, detected and events;
+%                    an event-trace panel events only
 %     SourceLabels   their names in the app ("units (sorted)", ...)
 %     Bindable       a layer of SOURCE on this type may follow the
 %                    observation (spikes or a signal, on a raster, PSTH,
 %                    continuous, waveforms, rate, tuning, spectrum,
 %                    spectrogram or coherence panel; spikes on a heat map
-%                    of trials); otherwise it is fixed
+%                    of trials); otherwise it is fixed. AUX records no
+%                    amplifier channel (figureLayerItems): under a figure
+%                    observing units or another signal an AUX layer is
+%                    fixed, and under one observing AUX so is every other
+%     Aggregates, AggregateLabels  how a fixed layer of SOURCE draws its
+%                    items (EphysAnalysisConfig.aggregates): "each unit" or
+%                    "each channel" and "their mean" on a raster, PSTH,
+%                    continuous, rate or tuning panel; "each channel" and
+%                    "their vector magnitude" for a signal on a spectral
+%                    panel; else "each" alone (no choice to offer)
 %     BaselineModes  the options.baseline modes the type takes (auroc on a
 %                    PSTH or a heat map of spikes; a heat map of a signal,
 %                    SOURCE a signal: none and subtract only; rate and
@@ -32,6 +42,7 @@ arguments
     type (1,1) string
     source (1,1) string = ""
     rows (1,1) string = "items"
+    opts.Observed (1,1) string = ""
 end
 T = EphysAnalysisConfig.panelTypes();
 S = EphysAnalysisConfig.sourceCategories();
@@ -57,7 +68,16 @@ ch = struct('Sources', srcs, 'SourceLabels', labels, ...
         || (type == "heatmap" && rows == "trials" && ismember(source, EphysAnalysisConfig.SpikeSources)), ...
     'BaselineModes', "none", 'WaveModes', ["off" "mean" "subsample" "both"], ...
     'WaveLabels', ["Off" "Mean" "Subsample" "Mean + subsample"]);
+if ismember(opts.Observed, [EphysAnalysisConfig.SpikeSources EphysAnalysisConfig.SignalSources]) ...
+        && (source == "AUX") ~= (opts.Observed == "AUX")
+    ch.Bindable = false;   % nothing to follow: AUX has no recording channel
+end
 ch.BaselineModes = EphysAnalysisConfig.baselineModes(type, source);
+ch.Aggregates = EphysAnalysisConfig.aggregates(type, source);
+what = "unit";
+if ismember(source, EphysAnalysisConfig.SignalSources); what = "channel"; end
+words = dictionary(["each" "mean" "magnitude"], ["each " + what "their mean" "their vector magnitude"]);
+ch.AggregateLabels = words(ch.Aggregates);
 switch type
     case "waveforms"
         ch.WaveModes = ch.WaveModes(2:end);

@@ -1,10 +1,10 @@
 function hk = drawSpectrogramPanel(ax, P, look)
-%drawSpectrogramPanel  Draw a figure's spectrogram panel: one channel's power over time and frequency, one trial group.
+%drawSpectrogramPanel  Draw a figure's spectrogram panel: one channel's or unit's power over time and frequency, one trial group.
 %   HK = drawSpectrogramPanel(AX, P, LOOK) draws the panel result P
 %   (F.panels(k) of EphysAnalysisRunner.computeFigure) into the axes AX,
 %   as renderFigure asks (LOOK: style, colors, W, spec, panel, panelId,
 %   isTop, isBottom, epochs, groups, observation, isTime). Its map layer
-%   (chronuxSpecgram: computeSpectrogramPanel) is drawn for the trial group
+%   (chronuxSpecgram or chronuxSpikeSpecgram: computeSpectrogramPanel) is drawn for the trial group
 %   options.group (clipped to the groups there are) as an image over time
 %   from the event (x, the panel's window) and frequency (y), role "image",
 %   as renderChronux draws a spectrogram: the power in dB (options.scale
@@ -24,7 +24,8 @@ function hk = drawSpectrogramPanel(ax, P, look)
 style = look.style;
 o = look.panel.options;
 hk = figDrawResult(ax);
-j = find(arrayfun(@(l) l.skip == "" && isstruct(l.R) && isfield(l.R, 'kind') && l.R.kind == "chronuxSpecgram", P.layers), 1);
+j = find(arrayfun(@(l) l.skip == "" && isstruct(l.R) && isfield(l.R, 'kind') ...
+    && ismember(l.R.kind, ["chronuxSpecgram" "chronuxSpikeSpecgram"]), P.layers), 1);
 if isempty(j)
     tagPart(ax, "axes", "", look.panelId);
     figLayerNotes(ax, P, look, false);

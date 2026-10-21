@@ -550,6 +550,22 @@ check(string(FE.panelType.Value) == "continuous" && shown(FE.contDisplay) && sho
     && FE.layerBinding.Enable == "on" && contains(string(FE.layerFollows.Text), "own LFP channel") ...
     && app.FigureSections([app.FigureSections.Name] == "options").Title == "Continuous signal options", ...
     'the editor shows the continuous panel''s rows only: its options, its layer following the unit');
+FE.addSource.Value = "AUX";
+FE.addSource.ValueChangedFcn(FE.addSource, []);
+app.onAddLayer();
+L = app.Config.Figures(1).panels(3).layers(end);
+check(L.source == "AUX" && L.binding == "fixed" && isempty(L.channels) && FE.layerBinding.Enable == "off" ...
+    && string(FE.layerBinding.Value) == "fixed" && shown(FE.layerChannels) && ~shown(FE.layerFollows), ...
+    'an AUX layer beside the unit''s LFP is fixed (AUX has no recording channel to follow), every AUX channel');
+FE.layerSource.Value = "LFP";
+app.onConfigChanged("figure");
+FE.layerBinding.Value = "observation";
+app.onConfigChanged("figure");
+FE.layerSource.Value = "AUX";
+app.onConfigChanged("figure");
+check(app.Config.Figures(1).panels(3).layers(end).binding == "fixed" && FE.layerBinding.Enable == "off", ...
+    'a following LFP layer switched to AUX turns fixed');
+app.onRemoveLayer();
 app.onPanelSelected(1);
 check(shown(FE.rasterSort) && shown(FE.waveMode) && ~shown(FE.contDisplay) && ~shown(FE.binMs) && FE.panelSame.Enable == "on", ...
     'a raster shows its own rows instead');
@@ -1454,6 +1470,41 @@ else
         && shown(FE.spRangeFrom) && shown(FE.spSegment) && app.FigurePreviewState == "drawn" && R1.tapers.TW == 2 && R1.tapers.K == 3 ...
         && max(R1.f) <= 80 && R1.timeBase.mode == "range", ...
         'its rows reach the config (tapers, frequency range, scale, the range time base) and the preview is computed with them');
+    FE.addSource.Value = "AUX";
+    FE.addSource.ValueChangedFcn(FE.addSource, []);
+    app.onAddLayer();
+    FE.layerBinding.Value = "fixed";
+    app.onConfigChanged("figure");
+    aggOffered = string(FE.layerAggregate.ItemsData);
+    FE.layerAggregate.Value = "magnitude";
+    app.onConfigChanged("figure");
+    La = app.Config.Figures(1).panels.layers(end);
+    Ra = app.FigurePreviewResult.panels.layers(end).R;
+    listed = string(FE.layerList.Items);
+    check(isequal(aggOffered, ["each" "magnitude"]) && shown(FE.layerAggregate) && La.source == "AUX" && La.aggregate == "magnitude" ...
+        && app.FigurePreviewState == "drawn" && isstruct(Ra) && isequal(Ra.names, "magnitude of 3 AUX channels") ...
+        && endsWith(listed(end), "(magnitude)"), ...
+        'a fixed AUX layer on a spectrum panel: Aggregate offers each channel or their vector magnitude, which reaches the config, the Layers list and the preview');
+    FE.layerSource.Value = "units";
+    app.onConfigChanged("figure");
+    check(app.Config.Figures(1).panels.layers(end).aggregate == "each" && ~shown(FE.layerAggregate), ...
+        'the layer switched to units there: no Aggregate row, and the magnitude goes back to each');
+    app.onRemoveLayer();   % the spectrum panel's one layer again
+    app.onNewPanel(Type="spectrogram", Where="below");
+    sgSrc = string(FE.layerSource.ItemsData);
+    FE.layerSource.Value = "units";
+    app.onConfigChanged("figure");
+    ps = app.Config.Figures(1).panels;
+    k2 = find([ps.type] == "spectrogram", 1);
+    sgKind = "";
+    if isstruct(app.FigurePreviewResult) && isstruct(app.FigurePreviewResult.panels(k2).layers(1).R)
+        sgKind = string(app.FigurePreviewResult.panels(k2).layers(1).R.kind);
+    end
+    check(isscalar(k2) && isequal(sgSrc, ["LFP" "MUA" "SPIKE" "AUX" "units" "detected" "events"]) && ps(k2).layers(1).source == "units" ...
+        && ps(k2).layers(1).binding == "observation" && app.FigurePreviewState == "drawn" && sgKind == "chronuxSpikeSpecgram" ...
+        && shown(FE.spSpikeFs) && shown(FE.spWin), ...
+        sprintf(['a Spectrogram panel offers sorted units and detected spikes after the signals; switched to units, it previews ' ...
+        'the observed unit''s spike spectrogram, with the spike rate row (%s, %s)'], app.FigurePreviewState, sgKind));
     app.onRemoveFigure();
     app.onSaveConfig();
 end

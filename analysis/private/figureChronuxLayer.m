@@ -8,7 +8,15 @@ function [X, lay] = figureChronuxLayer(src, L, lay, ctx)
 %         layer's columns copied: X.kind "signal", X.D (chronuxBlockOf: the
 %         whole recording of those columns, D.channels = 1:n), X.cols (the
 %         extract's columns), X.nRows, X.names ("LFP ch 12": the recording
-%         channel, else the column's label)
+%         channel, else the column's label), X.keys (what each item is,
+%         "LFP:12" by column: an item of two layers is the same signal
+%         when its key is). With L.aggregate "magnitude" the columns are one
+%         item, their vector magnitude: each column less its running mean
+%         over MagnitudeStaticSec (2 s, centered: the static part, e.g. an
+%         accelerometer axis's offset and gravity, as VeDBA takes it), then
+%         sqrt of the sum of squares at every sample; X.D has that one
+%         column, X.names(1) and the automatic layer name "magnitude of 3
+%         AUX channels", X.keys(1) "AUX:|1 2 3|"
 %     units / detected   selectUnits(src, units, Ref=CTX.ref,
 %         Selection=CTX.selection): X.kind "spikes", X.SP (chronuxTrainsOf,
 %         SP.index = 1:n), X.unitIds, X.names (shortUnitLabels), X.lastSpike
@@ -18,7 +26,7 @@ function [X, lay] = figureChronuxLayer(src, L, lay, ctx)
 %   See also computeSpectrumPanel, computeSpectrogramPanel, computeCoherencePanel,
 %   figureLayerItems, chronuxBlockOf, chronuxTrainsOf.
 X = struct('kind', "", 'D', [], 'SP', [], 'cols', zeros(1, 0), 'unitIds', zeros(1, 0), 'nRows', NaN, ...
-    'names', strings(1, 0), 'lastSpike', NaN, 'source', L.source);
+    'names', strings(1, 0), 'keys', strings(1, 0), 'lastSpike', NaN, 'source', L.source);
 ctx.checkpoint();
 if ismember(L.source, EphysAnalysisConfig.SignalSources)
     try
@@ -48,11 +56,22 @@ if ismember(L.source, EphysAnalysisConfig.SignalSources)
         end
     end
     X.kind = "signal";
-    X.D = chronuxBlockOf(Y(:, cols), fs, metaC, L.source, names);
     X.cols = cols;
     X.nRows = size(Y, 1);
-    X.names = names;
     lay.meta = metaC;
+    if L.aggregate == "magnitude"
+        name = "magnitude of " + numel(cols) + " " + L.source + " channel";
+        if ~isscalar(cols); name = name + "s"; end
+        ctx.checkpoint();
+        X.D = chronuxBlockOf(magnitudeOf(Y, cols, fs), fs, metaC(1, :), L.source, name);
+        X.names = name;
+        X.keys = L.source + ":|" + strjoin(string(cols), " ") + "|";
+        if lay.name == ""; lay.name = name; end
+        return
+    end
+    X.D = chronuxBlockOf(Y(:, cols), fs, metaC, L.source, names);
+    X.names = names;
+    X.keys = L.source + ":" + string(cols);
     if lay.name == ""
         if isscalar(cols)
             lay.name = names(1);
@@ -82,4 +101,20 @@ end
 X.lastSpike = last;
 lay.meta = meta;
 if lay.name == ""; lay.name = figureUnitsName(meta, L); end
+end
+
+
+function m = magnitudeOf(Y, cols, fs)
+%magnitudeOf  The vector magnitude of columns COLS of Y [nRows x 1] single, each column's running mean out first.
+%   A column at a time in double (one copy of a column at most): its
+%   centered running mean over MagnitudeStaticSec, an odd number of rows
+%   (shrinking at the ends), is its static part.
+MagnitudeStaticSec = 2;
+w = 2 * floor(MagnitudeStaticSec * fs / 2) + 1;
+m = zeros(size(Y, 1), 1);
+for c = cols
+    x = double(Y(:, c));
+    m = m + (x - movmean(x, w)) .^ 2;
+end
+m = single(sqrt(m));
 end

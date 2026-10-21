@@ -10,6 +10,26 @@ says how to cut a release.
 
 ### Added
 
+- Figures: sorted units and detected spikes in every spectral panel. A spectrogram panel now reads a spike
+  layer too (**Reads** offers *units (sorted)* and *detected spikes* after the signals): `chronuxSpikeSpecgram`
+  steps `mtspectrumpt` over the moving window on one window grid per epoch (Chronux's `mtspecgrampt` spans
+  the first to the last spike, so its times would change from group to group), at `options.spikeFs` (new for
+  spectrograms, the editor's **Spike rate (Hz)** row), with the same baselines, image and color bar as a
+  signal's. A coherence panel drawn **Over time** now takes spike layers (it was a validation error):
+  spike-field coherograms (`chronuxSpikeField` with `overTime`, Chronux's `cohgramcpt` on the field's samples)
+  and unit-unit coherograms (`chronuxUnitCoherence` with `overTime`, `coherencypt` window by window), over
+  the epochs or over a stretch of the recording, drawn as the signal coherogram is.
+
+- Figures: an accelerometer's movement in the spectral panels. A fixed signal layer of a spectrum,
+  spectrogram or coherence panel takes `aggregate` `"magnitude"` (the editor's **Aggregate** row, *their
+  vector magnitude*): its channels become one item, sqrt(x² + y² + z²) at every sample, each channel's
+  centered 2 s running mean taken out first (an axis's offset and gravity, the dynamic acceleration of
+  VeDBA), so a coherence panel pairs the observed unit (or an LFP channel) with how much the animal moves,
+  `u12 x magnitude of 3 AUX channels`. A coherence of two signals at different rates (AUX is at its own rate,
+  the LFP at `LFP_Fs`) resamples the faster one to the slower one's rate (`resample`) instead of refusing
+  them. `EphysAnalysisConfig.aggregates(type, source)` is the one list validate and the editor offer; a
+  type change sets an aggregate the new type does not take to `"each"`.
+
 - Figures: a PSTH panel drawn as a heat map, `options.display` `"trace"` (bars or a line per trial group, the
   default) or `"heatmap"`: the unit's PSTH as one image, a row per trial group (the first on top, as a raster
   and a stacked PSTH list them), x the PSTH's bins, colored by its rate after measure, smoothing, baseline and

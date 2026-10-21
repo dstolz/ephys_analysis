@@ -38,7 +38,8 @@ function F = figureCompute(src, spec, opts)
 %         evokedPotential, unitWaveforms, unitSummary + probeMapValues,
 %         unitCorrelation, firingRate, tuningCurve, and Chronux's
 %         chronuxSpectrum, chronuxSpikeSpectrum, chronuxSpecgram,
-%         chronuxCoherence, chronuxSpikeField, chronuxUnitCoherence); errors from data the dataset
+%         chronuxSpikeSpecgram, chronuxCoherence, chronuxSpikeField,
+%         chronuxUnitCoherence); errors from data the dataset
 %         lacks for one layer or panel (no unit left, no event, no usable
 %         epoch) skip only it
 %   The error each panel draws as a band comes from figureErrorType

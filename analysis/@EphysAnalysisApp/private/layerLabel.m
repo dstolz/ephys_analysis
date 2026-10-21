@@ -4,7 +4,9 @@ function t = layerLabel(L)
 %     events    "events: Stim offset (marks)" (its event's eventRefLabel,
 %               and drawn as marks or a train)
 %     fixed     "units, fixed: ids 3 5 (mean)", "LFP, fixed: ch 3 5" or
-%               "..., fixed: all"; the mean when it averages them
+%               "..., fixed: all"; the mean when it averages them, the
+%               magnitude when a signal's are one ("AUX, fixed: ch 1 2 3
+%               (magnitude)")
 %     following "units, follows the observation"
 %   Its name, when it has one, comes first in quotes; "  (off)" ends a
 %   layer that is not enabled.
@@ -26,6 +28,7 @@ switch L.source
             end
             t = L.source + ", fixed: " + what;
             if L.aggregate == "mean"; t = t + " (mean)"; end
+            if L.aggregate == "magnitude" && ismember(L.source, EphysAnalysisConfig.SignalSources); t = t + " (magnitude)"; end
         end
 end
 if L.name ~= ""; t = """" + L.name + """  " + t; end

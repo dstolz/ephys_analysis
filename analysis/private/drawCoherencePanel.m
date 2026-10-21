@@ -22,7 +22,7 @@ function hk = drawCoherencePanel(ax, P, look)
 %   on the one frequency axis. Both axes are tagged with the panel's id;
 %   HK.axes is the magnitude's (renderFigure titles and labels it),
 %   HK.extraAxes the phase's. Drawn into a single axes there is no phase.
-%   A coherogram (R.kind "chronuxCohgram", options.overTime) is an image
+%   A coherogram (R.kind "chronuxCohgram", options.overTime; of signals or spike trains) is an image
 %   of the first pair's coherence over time and frequency for the trial
 %   group options.group, 0 to 1 (options.cLim) in the heat colormap, with
 %   a color bar ("Coherence") and the event's line; on the epochs it

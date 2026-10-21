@@ -27,7 +27,10 @@ function syncFigureEditor(obj)
 %     Layers         the picked layer's rows by its source and binding:
 %                    what a following layer draws; a fixed spike layer's
 %                    unit rows, a fixed signal layer's channels, the
-%                    aggregate on a raster, PSTH or continuous panel; an
+%                    aggregate where the type offers a choice
+%                    (figureEditorChoices: each or their mean on a raster,
+%                    PSTH, continuous, rate or tuning panel; each or their
+%                    vector magnitude for a signal on a spectral panel); an
 %                    events layer's line, edge, sequence and how it is
 %                    drawn (a mark's look for marks, the color and span
 %                    line for a span; Draw as grayed out on an event-trace
@@ -49,7 +52,7 @@ function syncFigureEditor(obj)
 %                    panel's Chronux rows (tapers, TW / K or W / p enabled
 %                    by the taper mode, pad, frequency range, detrend; a
 %                    spectrum's and a coherence panel's time base, its range
-%                    and segment on "segments", the error and its p-value,
+%                    and segment on "segments", the error and its p-value;
 %                    the spike rate with a spike layer; the scale of a
 %                    spectrum or spectrogram; a spectrogram's moving window,
 %                    baseline, color limits and group; a coherence panel's
@@ -224,7 +227,7 @@ if hasPanel
     i = obj.SelectedLayer;
     if i >= 1 && i <= nl
         L = p.layers(i);
-        lc = figureEditorChoices(t, L.source, rowsNow);
+        lc = figureEditorChoices(t, L.source, rowsNow, Observed=fig.observe.data);
         isSpike = ismember(L.source, spikes);
         isSignal = ismember(L.source, signals);
         fixed = L.binding == "fixed";
@@ -237,7 +240,7 @@ if hasPanel
         v.layerIds = fixed && isSpike; v.layerQuality = v.layerIds; v.layerMaxUnits = v.layerIds;
         v.layerShanks = v.layerIds; v.layerUnitChannels = v.layerIds;
         v.layerChannels = fixed && isSignal;
-        v.layerAggregate = fixed && (isSpike || isSignal) && ismember(t, ["raster" "psth" "continuous" "rate" "tuning"]);
+        v.layerAggregate = fixed && (isSpike || isSignal) && numel(lc.Aggregates) > 1;
         v.evLine = L.source == "events"; v.evEdge = v.evLine; v.evSeqText = v.evLine; v.evDrawAs = v.evLine;
         v.evMarker = marks; v.evColor = marks || span; v.evSpanStyle = span;
         v.layerColor = ~(marks || span); v.layerLineStyle = v.layerColor;
@@ -246,9 +249,10 @@ if hasPanel
         en(E.layerQuality, L.source == "units");
         drawAsChoices(E.evDrawAs, t);
         en(E.evDrawAs, ~onTrace);
-        what = "unit";
-        if isSignal; what = "channel"; end
-        set(E.layerAggregate, "Items", ["each " + what "their mean"], "ItemsData", ["each" "mean"]);
+        was = string(E.layerAggregate.Value);
+        E.layerAggregate.ItemsData = [];   % the lists may change length: the value is put back when the type offers it
+        set(E.layerAggregate, "Items", lc.AggregateLabels, "ItemsData", lc.Aggregates);
+        if ismember(was, lc.Aggregates); E.layerAggregate.Value = was; end
         E.layerFollows.Text = followsText(L, kind, fig.observe);
     end
     en([E.removeLayer], i >= 1 && i <= nl);
@@ -301,7 +305,7 @@ if hasPanel
     v.spErr = ismember(t, ["spectrum" "coherence"]) && ~overTime;
     en(E.spErrP, string(E.spErr.Value) ~= "none");
     v.spScale = ismember(t, ["spectrum" "spectrogram"]);
-    v.spSpikeFs = ismember(t, ["spectrum" "coherence"]) && any(ismember([p.layers.source], spikes));
+    v.spSpikeFs = spectral && any(ismember([p.layers.source], spikes));
     v.spOverTime = t == "coherence";
     v.spWin = t == "spectrogram" || overTime;
     v.spShowPhase = t == "coherence" && ~overTime;

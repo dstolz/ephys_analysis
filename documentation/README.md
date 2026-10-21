@@ -443,7 +443,37 @@ the run ([`AppPrefs`](../pipeline/AppPrefs.m)), so the tests never read or
 change your own and two MATLABs can run them at once. It writes a JUnit XML
 report (`JUnit=`), an HTML or Cobertura code-coverage report of `pipeline/`
 and `analysis/` (`Coverage=` / `CoverageXML=`), and can run a subset by name
-or by tag (`Tag=`).
+or by tag (`Tag=`), leave tests out by tag (`ExcludeTag=`: `Slow` marks the
+tests that start other processes for a minute or more, such as the copy
+schedule's Task Scheduler run, the real SpikeInterface sort and the parallel
+pool, `Benchmark` the detection benchmark; CI runs them all) and write the
+results table to a file (`ResultsCSV=`).
+
+A function-style suite that takes sections
+([`TestSections`](../pipeline/TestSections.m): `test_EphysAnalysisApp`,
+`test_EphysPipelineApp`, `test_EphysAnalysisFigures`) can be cut down to the
+sections a change touches: `run_all_tests({'test_EphysAnalysisApp:5i,5j'})`
+runs its fixture and those sections, with the ones they declare they need
+(`5d` also selects every `5d.*`), and `test_EphysAnalysisApp(Sections="5i")`
+does the same directly. `TestSections.list(file)` lists a suite's section
+ids. Every run prints how long each section took
+(`[test_EphysAnalysisApp 5d.add: 12.3 s]`) and, at the end, the slowest, so
+a slow section is seen at once.
+
+Locally, [`tools/Run-Tests.ps1`](../tools/Run-Tests.ps1) (PowerShell) runs
+suites or sections in a hidden MATLAB with a log, leaves out the `Slow` and
+`Benchmark` tests unless `-IncludeSlow`, keeps every suite's seconds in
+`%LOCALAPPDATA%\ephys_analysis\test_timings.csv` (and every section's in
+`section_timings.csv`) so it can say how long a run will take, and never runs
+more than two test MATLABs on the machine at once (slots, each with its own
+preferences folder). `tools\Run-Tests.ps1 -Select` runs what
+`python .github/scripts/select_suites.py --worktree --sections --why --expect`
+prints for the uncommitted change: the suites, or the sections of a suite,
+the change reaches, why, and the expected seconds. `-Each` runs every section
+of a suite alone, to check that each can. A cold `matlab -batch` start costs
+about 9 s (measured 2026-10-21 on the owner's workstation), so there is no
+persistent test session; what makes a run slow is the machine's load (close
+other MATLABs when less than about 4 GB of RAM is free) and the sections run.
 
 GitHub Actions runs the tests ([`matlab-tests.yml`](../.github/workflows/matlab-tests.yml)):
 every suite on each push to `main`, and on a pull request the suites its
@@ -496,8 +526,17 @@ cd C:\src\ephys_analysis\pipeline
 run_all_tests                                  % every suite; errors if any test fails
 run_all_tests(["test_EphysPipeline" "test_BinaryReader"])   % some suites
 run_all_tests(JUnit="results\junit.xml", Coverage="results\coverage")
+run_all_tests({'test_EphysAnalysisApp:5i,5j'})   % two sections of a suite, after its fixture
+run_all_tests({'test_CopySessions'}, ExcludeTag="Slow")
 test_EphysPipeline                             % a function-style suite on its own
+test_EphysAnalysisApp(Sections="5d.psth")      % one section (and what it needs) directly
 runtests("test_BinaryReader")                  % a TestCase suite on its own
+```
+
+```powershell
+tools\Run-Tests.ps1 -Select                    # the suites and sections the uncommitted change reaches
+tools\Run-Tests.ps1 test_EphysAnalysisApp:5i test_PlotDesign
+tools\Run-Tests.ps1 test_EphysAnalysisApp -Each   # every section alone
 ```
 
 An app opened by hand while a suite runs in the same MATLAB uses the

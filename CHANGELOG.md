@@ -10,6 +10,18 @@ says how to cut a release.
 
 ### Added
 
+- Tests by section, and a local runner. `run_all_tests({'test_EphysAnalysisApp:5i,5j'})` runs only those
+  sections of a function-style suite that takes them (`TestSections`: `test_EphysAnalysisApp`,
+  `test_EphysPipelineApp`, `test_EphysAnalysisFigures`; a section declares what it needs, and every run
+  prints each section's seconds), `ExcludeTag=` leaves tests out by tag (`Slow`: the copy schedule's Task
+  Scheduler run, the real SpikeInterface sort, the process pool; `Benchmark`) and `ResultsCSV=` writes the
+  results table. `tools\Run-Tests.ps1` runs suites or sections in a hidden MATLAB with a log, two test
+  MATLABs at most, a timing ledger under `%LOCALAPPDATA%\ephys_analysis`, `-Each` (every section alone) and
+  `-Select`, which runs what `.github/scripts/select_suites.py --worktree --sections --why --expect` prints
+  for the uncommitted change (the selector now takes a working tree, names sections, says why and how long).
+  The analysis app suite's Figures-tab sections draw the preview only where a check reads it instead of after
+  every edit. See [Tests](documentation/README.md#tests).
+
 - `removeLineNoise`: removes mains interference (`LineHz`, 60 Hz by default, and its `Harmonics`) by
   subtracting sinusoids refitted in every Hann window (`WindowSec`, 2 s, half overlapping) instead of
   filtering. The frequency is tracked window by window within `MaxDeviationHz` (0.25 Hz) of `LineHz`, from

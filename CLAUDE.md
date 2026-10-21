@@ -21,10 +21,20 @@ The whole suite takes about 25 minutes, so test only what a change touched,
 unless the owner says otherwise.
 
 - Run only the suites that cover the code you changed, by name:
-  `run_all_tests({'test_A','test_B'})`. To find them, grep the `test_*.m`
-  files in `pipeline/` and `analysis/` for the changed class, method or
-  function. When a signature, a classdef declaration or a UI builder
-  changed, also run the suites that call it or build the app.
+  `run_all_tests({'test_A','test_B'})`. To find them, run
+  `python .github/scripts/select_suites.py --worktree --sections --why --expect`:
+  it names the suites, or the sections of a suite, the uncommitted change
+  reaches, why, and the expected seconds. When a signature, a classdef
+  declaration or a UI builder changed, also run the suites that call it or
+  build the app.
+- When a suite takes sections (`test_EphysAnalysisApp`, `test_EphysPipelineApp`,
+  `test_EphysAnalysisFigures`), run only the sections the change touches:
+  `run_all_tests({'test_EphysAnalysisApp:5i'})`. Its fixture and what the
+  sections declare they need run with them.
+- Run suites through `tools\Run-Tests.ps1` (PowerShell): `-Select` runs what
+  the selector prints; it logs, records every run's seconds, keeps to two test
+  MATLABs on the machine, and leaves out the tests tagged `Slow` and
+  `Benchmark` (CI runs them; `-IncludeSlow` does too).
 - Test once, when the change is finished, not after each edit. While fixing
   failures, rerun only the suites that failed.
 - Never run the whole suite (bare `run_all_tests`) unless the owner asks for

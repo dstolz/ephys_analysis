@@ -1133,6 +1133,16 @@ says how to cut a release.
 
 ### Changed
 
+- The probe map is drawn as a probe: each shank a pale body with a pointed tip behind its sites, named
+  *Shank k* under the tip, with an x tick at each shank; sites are circles (filled in the color scale, open
+  without a value), channel numbers on each site's outer side, the units' positions dark dots ringed in the
+  ground's color, the color bar named for the value (*Firing rate (Hz)*, *Spikes*, *Units*). A units-per-site
+  map draws a site with no unit as one without a value, with a color step per count. The axes have no box
+  unless the design or the panel's **Box** gives one. The built-in designs follow: Talk's unit dots are no
+  longer 16 pt blobs (its sites are larger, its observed ring 20 pt), Night's sites have a light edge so the
+  darkest heat color still shows, Tufte's a gray one, Gray panel draws white shanks without a grid, and no
+  design turns the observed unit's red ring black or white any more.
+
 - The baseline Modes each panel type takes are one list, `EphysAnalysisConfig.baselineModes(type, source)`,
   read by `validate`, the figure editor (`figureEditorChoices`) and `adoptPanelOptions` instead of three copies.
 - A stacked PSTH (**Stack**) draws its first trial group's row on top, as a raster lists its groups, so a
@@ -1480,6 +1490,13 @@ says how to cut a release.
   (`exportChronux`) and its file format stay; the worked example in the analysis documentation goes.
 
 ### Fixed
+
+- The probe map moved sites sideways by `kcoords` group: a Kilosort map that parks a site on a group of its
+  own (H64LP_4x16lin parks two per shank, on groups 5 to 12) had those sites spread out to the right of the
+  probe, under a row of overlapping *Shank 5* ... *Shank 12* labels. Every site is now drawn at its own x
+  (`xc`), and a shank is the sites a wide gap in x apart (`probeColumns`), so a parked site sits on the shank
+  it is parked above. The waveforms panel's probe layout, which moves a shank only where its glyphs would
+  overlap, now moves whole shanks the same way, so it no longer pulls parked sites off their shank.
 
 - A patch overlay was never seen over a raster panel: `drawOverlays` drew it as an `xregion` / `yregion`,
   which MATLAB paints behind every opaque patch whatever the draw order, and a raster's group bands are

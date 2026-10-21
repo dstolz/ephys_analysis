@@ -81,11 +81,12 @@
     {"role": "errorBar", "property": "Color", "value": "#333333"},
     {"role": "box", "property": "WhiskerLineColor", "value": "#333333"},
     {"role": "box", "property": "BoxFaceAlpha", "value": 0.4},
+    {"role": "probeShank", "property": "FaceColor", "value": "#ffffff"},
+    {"role": "probeShank", "property": "EdgeColor", "value": "#bdbdbd"},
     {"role": "emptySites", "property": "Color", "value": "#bdbdbd"},
     {"role": "sites", "property": "MarkerEdgeColor", "value": "#ffffff"},
     {"role": "siteLabels", "property": "FontName", "value": "Arial, Helvetica"},
     {"role": "shankLabels", "property": "FontName", "value": "Arial, Helvetica"},
-    {"role": "unitDots", "property": "Color", "value": "#1a1a1a"},
     {"role": "waveBox", "property": "EdgeColor", "value": "#bdbdbd"},
     {"role": "waveLabel", "property": "FontName", "value": "Arial, Helvetica"},
     {"role": "note", "property": "FontName", "value": "Arial, Helvetica"},
@@ -98,6 +99,10 @@
       {"role": "zeroLine", "property": "Color", "value": "#ffffff"}
     ],
     "corrmap": [
+      {"role": "axes", "property": "XGrid", "value": "off"},
+      {"role": "axes", "property": "YGrid", "value": "off"}
+    ],
+    "probemap": [
       {"role": "axes", "property": "XGrid", "value": "off"},
       {"role": "axes", "property": "YGrid", "value": "off"}
     ]

@@ -34,10 +34,10 @@ h = renderProbeMap(R, [], ax, Style=st);
 ax = h.axes(1);
 hk.axes = ax;
 tagPart(ax, "axes", "", look.panelId);
-[x, y] = observedAt(ax, R, look.observation);
+[x, y] = observedAt(R, look.observation);
 if isfinite(x) && isfinite(y)
     hold(ax, 'on');
-    tagPart(plot(ax, x, y, 'o', 'MarkerSize', max(10, 1.6 * style.SiteSize), 'LineWidth', 1.5, 'Color', [0.85 0.1 0.1], ...
+    tagPart(plot(ax, x, y, 'o', 'MarkerSize', max(10, 1.7 * style.SiteSize), 'LineWidth', 2, 'Color', [0.85 0.1 0.1], ...
         'HandleVisibility', 'off'), "unitDots", "observed");
     hold(ax, 'off');
 end
@@ -45,36 +45,22 @@ figLayerNotes(ax, P, look, true);
 end
 
 
-function [x, y] = observedAt(ax, R, obs)
-%observedAt  Where the observation is drawn on the map: the unit's dot, else its channel's site (NaN: nowhere).
+function [x, y] = observedAt(R, obs)
+%observedAt  Where the observation is on the map: the unit's own position, else its channel's site (NaN: nowhere).
 x = NaN; y = NaN;
 if ~isstruct(obs) || ~isfield(obs, 'kind') || ~ismember(obs.kind, ["unit" "channel"]); return; end
 if obs.kind == "unit" && isfield(R, 'table') && istable(R.table) && ismember("unitId", string(R.table.Properties.VariableNames)) ...
         && ~isempty(R.unitX)
     row = find(R.table.unitId == obs.unitId, 1);
-    dots = findobj(ax, 'Tag', 'unitDots');
-    if ~isempty(row) && isscalar(dots)
-        placed = isfinite(R.unitX(:)) & isfinite(R.unitY(:));
-        if placed(row)
-            k = nnz(placed(1:row));
-            if k <= numel(dots.XData)
-                x = dots.XData(k);
-                y = dots.YData(k);
-                return
-            end
-        end
+    if ~isempty(row) && isfinite(R.unitX(row)) && isfinite(R.unitY(row))
+        x = R.unitX(row);
+        y = R.unitY(row);
+        return
     end
 end
 if ~isfinite(obs.channel); return; end
-% the site of the observed recording channel, where renderProbeMap drew it (its shanks may be shifted sideways)
-fin = isfinite(R.value(:));
-X = NaN(numel(fin), 1);
-s = findobj(ax, 'Tag', 'sites');
-e = findobj(ax, 'Tag', 'emptySites');
-if isscalar(s) && numel(s.XData) == nnz(fin); X(fin) = s.XData(:); end
-if isscalar(e) && numel(e.XData) == nnz(~fin); X(~fin) = e.XData(:); end
-k = find(R.channel(:) == obs.channel, 1);
+k = find(R.channel(:) == obs.channel, 1);   % the site of the observed recording channel
 if isempty(k); return; end
-x = X(k);
+x = R.x(k);
 y = R.y(k);
 end

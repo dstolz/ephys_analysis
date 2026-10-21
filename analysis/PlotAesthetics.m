@@ -341,6 +341,7 @@ classdef PlotAesthetics
                 "meanBar"      "Mean bar"
                 "curve"        "Tuning curve"
                 "image"        "Image"
+                "probeShank"   "Probe shank"
                 "sites"        "Sites"
                 "emptySites"   "Sites without a value"
                 "siteLabels"   "Site labels"

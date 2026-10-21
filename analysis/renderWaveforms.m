@@ -24,8 +24,10 @@ function h = renderWaveforms(R, target, opts)
 %              the other grids; time (ms from the spike) against amplitude,
 %              with the spike's time marked; a label in the tile's corner
 %     "probe"  one panel, the probe's x and y (um): each unit's waveform as
-%              a glyph centerd on its position (R.meta.x, y), shanks side by
-%              side as in the probe map, the sites in gray behind. In the
+%              a glyph centered on its position (R.meta.x, y), the sites in
+%              gray behind, each where the probe map puts it, except that
+%              a shank (probeColumns) is moved sideways where its glyphs
+%              would overlap the one beside it. In the
 %              common scale a bar says how much amplitude a bar's length is.
 %              Units without a position are left out, and the panel says so.
 %              Highlight (rows of R.meta; default none) frames those units'
@@ -151,12 +153,21 @@ if isempty(span) || ~(span > 0); span = 100; end
 gh = wave.scale * max(30, span / 12);   % a glyph: this tall, 1.6 times as wide (um)
 gw = 1.6 * gh;
 
-% One axis for every shank: shift a shank sideways only where its glyphs would overlap the one before.
-shanks = unique([sk; shank(placed)]).';
-xoff = zeros(numel(shanks), 1);
+% One axis for every shank (probeColumns: a site parked on a kcoords group of its own stays on its shank):
+% shift a shank sideways only where its glyphs would overlap the one before.
+uc = zeros(nU, 1);
+if isempty(sx)
+    [uc(placed), S] = probeColumns(ux(placed), shank(placed));
+    sc = zeros(0, 1);
+else
+    [sc, S, uc] = probeColumns(sx, sk, ux);
+    uc(~placed) = 0;
+end
+nCol = numel(S.center);
+xoff = zeros(nCol, 1);
 edge = -Inf;
-for j = 1:numel(shanks)
-    xs = [sx(sk == shanks(j)); ux(placed & shank == shanks(j))];
+for j = 1:nCol
+    xs = [sx(sc == j); ux(placed & uc == j)];
     if isempty(xs); continue; end
     lo = min(xs) - gw / 2;
     if lo <= edge + gw / 4 - 1e-9
@@ -164,13 +175,13 @@ for j = 1:numel(shanks)
     end
     edge = max(xs) + gw / 2 + xoff(j);
 end
-shift = @(s) shankShift(s, shanks, xoff);
+shift = @(c) columnShift(c, xoff);
 
 hold(ax, 'on');
 if wave.showSites && ~isempty(sx)
-    tagPart(plot(ax, sx + shift(sk), sy, 's', 'MarkerSize', 3, 'Color', [0.8 0.8 0.8]), "waveSites");
+    tagPart(plot(ax, sx + shift(sc), sy, 's', 'MarkerSize', 3, 'Color', [0.8 0.8 0.8]), "waveSites");
 end
-X0 = ux + shift(shank);
+X0 = ux + shift(uc);
 L = sessionLooks(R, style);
 nL = max(1, numel(L.label));   % one spikes line and one means line per session (one in all without sessions)
 spk = cell(0, 1); mu = cell(0, 1); spkOf = zeros(0, 1); muOf = zeros(0, 1);
@@ -228,15 +239,15 @@ if wave.showNames
             'VerticalAlignment', 'bottom', 'Interpreter', 'none', 'Clipping', 'on'), "waveName");
     end
 end
-allX = [X0(placed); sx + shift(sk)];
+allX = [X0(placed); sx + shift(sc)];
 allY = [uy(placed); sy];
 if isempty(allX); allX = [0; 1]; allY = [0; 1]; end
-if numel(shanks) > 1
+if nCol > 1
     top = max(allY) + gh / 2;
-    for j = 1:numel(shanks)
-        xs = [sx(sk == shanks(j)); ux(placed & shank == shanks(j))] + xoff(j);
+    for j = 1:nCol
+        xs = [sx(sc == j); ux(placed & uc == j)] + xoff(j);
         if isempty(xs); continue; end
-        tagPart(text(ax, mean([min(xs) max(xs)]), top + 0.1 * gh, sprintf('Shank %d', shanks(j)), ...
+        tagPart(text(ax, mean([min(xs) max(xs)]), top + 0.1 * gh, sprintf('Shank %d', S.shank(j)), ...
             'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', 'FontSize', style.FontSize), "shankLabels");
     end
     allY = [allY; top + 1.5 * gh];
@@ -301,11 +312,11 @@ group = L.label(g);
 end
 
 
-function d = shankShift(s, shanks, xoff)
-%shankShift  The sideways shift of each shank in S (none for one the panel does not draw).
-d = zeros(numel(s), 1);
-[tf, loc] = ismember(s(:), shanks);
-d(tf) = xoff(loc(tf));
+function d = columnShift(c, xoff)
+%columnShift  The sideways shift of the shank (probeColumns' column) of each point in C (none for column 0).
+c = c(:);
+d = zeros(numel(c), 1);
+d(c >= 1) = xoff(c(c >= 1));
 end
 
 

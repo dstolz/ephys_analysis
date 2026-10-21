@@ -90,7 +90,6 @@
     {"role": "shankLabels", "property": "FontName", "value": "Arial, Helvetica"},
     {"role": "shankLabels", "property": "FontWeight", "value": "bold"},
     {"role": "shankLabels", "property": "Color", "value": "#000000"},
-    {"role": "unitDots", "property": "Color", "value": "#000000"},
     {"role": "waveBox", "property": "EdgeColor", "value": "#bfbfbf"},
     {"role": "waveMean", "property": "Color", "value": "#000000"},
     {"role": "waveLabel", "property": "FontName", "value": "Arial, Helvetica"},

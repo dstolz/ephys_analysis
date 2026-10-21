@@ -532,8 +532,10 @@ The panel's `options.layout`:
   (`showPP`, `showCount`) in the corner. `ampScale "common"` gives every unit the same
   amplitude axis.
 - `"probe"`: every unit of the first enabled layer at its place on the probe (µm), each
-  waveform a glyph centered on its position (`meta.x`, `y`), shanks side by side as in the
-  probe map; a further layer's units are framed in red. `scale` sizes the glyphs (1 =
+  waveform a glyph centered on its position (`meta.x`, `y`), every site where the probe
+  map puts it; a shank is moved sideways only where its glyphs would overlap the one
+  beside it (a site parked on a `kcoords` group of its own stays with the shank it sits
+  on); a further layer's units are framed in red. `scale` sizes the glyphs (1 =
   about a twelfth of the probe's length, at least 30 µm); with `ampScale "common"` the
   largest unit fills a glyph's height, the others are in proportion, and a scale bar
   names the amplitude it spans. A unit without a position is left out, and the panel says

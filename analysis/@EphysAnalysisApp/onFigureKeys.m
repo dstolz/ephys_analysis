@@ -26,10 +26,13 @@ K = [ ...
     "Space, Enter (on a header)",        "Collapse or expand that supersection or section"
     c + "+], " + c + "+[",             "Select the next or previous panel of the figure (round at the ends); the preview outlines it"
     c + "+" + a + "+arrows",           "Select the panel above, below, left or right of the selected one"
-    "Page Up, Page Down",                "Preview the previous or next observation"
+    "Page Up, Page Down",                "Preview the previous or next observation (the < and > buttons)"
+    c + "+P, " + c + "+G",              "Preview, Generate (the buttons at the left of the Dataset, Observation and Favorites rows)"
+    c + "+T",                           "Auto: tick or untick it"
+    c + "+E, " + c + "+W",              "Export code, Open in window (the buttons under the preview)"
     "Escape (dragging a panel)",         "Cancel the drag in the schematic"
     c + "+N, " + c + "+O, " + c + "+S", "New, open, save the config (the File menu)"];
-w = uifigure('Name', 'Figures tab keys', 'Tag', 'EphysFigureKeys', 'Position', [obj.Fig.Position(1:2) + [80 80] 720 470], ...
+w = uifigure('Name', 'Figures tab keys', 'Tag', 'EphysFigureKeys', 'Position', [obj.Fig.Position(1:2) + [80 80] 720 520], ...
     'WindowStyle', 'alwaysontop');
 g = uigridlayout(w, [3 1], 'RowHeight', {'fit', '1x', 30});
 uilabel(g, 'Text', "With the Figures tab showing. The search, the sections and the panels are also reached with the mouse: " + ...

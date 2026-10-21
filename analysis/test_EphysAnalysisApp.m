@@ -391,10 +391,31 @@ if S.sec("3", "the Figures tab: the toolbar's Preview, the Design row, the epoch
         && app.FigurePreviewState == "drawn", ...
         'Open in window opens a regular figure holding the panels'' axes, named for the figure, the preview untouched');
     delete(hw);
-    % Export code, at the right end of the Preview row: the preview's code, which run draws the observation picked as the preview did
-    check(app.FigureCodeButton.Parent == app.FigurePreviewButton.Parent && app.FigureCodeButton.Enable == "on" ...
-        && app.FigureCodeButton.Layout.Column == numel(app.FigureCodeButton.Parent.ColumnWidth), ...
-        'Export code sits at the right end of the Preview row, on with a figure selected');
+    % Export code, left of Open in window under the preview: the preview's code, which run draws the observation picked as the preview did
+    check(app.FigureCodeButton.Parent == app.FigureOpenButton.Parent && app.FigureCodeButton.Enable == "on" ...
+        && app.FigureCodeButton.Layout.Column == app.FigureOpenButton.Layout.Column - 1, ...
+        'Export code sits left of Open in window under the preview, on with a figure selected');
+    % every button of the preview has its key in its tooltip, and the key presses it: Ctrl+W opens the window, Ctrl+T toggles Auto, Ctrl+P previews
+    btnKeys = {app.FigurePreviewButton "+P"; app.FigureGenerateButton "+G"; app.FigureAutoCheckBox "+T"; app.FigureCodeButton "+E"; ...
+        app.FigureOpenButton "+W"; app.FigureObsPrevButton "Page Up"; app.FigureObsNextButton "Page Down"};
+    inTip = cellfun(@(h, k) contains(string(h.Tooltip), k), btnKeys(:, 1), btnKeys(:, 2));
+    check(all(inTip), 'every button of the preview names its key in its tooltip');
+    nFigs = numel(findall(groot, 'Type', 'figure'));
+    figs0 = findall(groot, 'Type', 'figure');
+    mods = {'control'};
+    if ismac; mods = {'command'}; end
+    app.onKeyPress(pressed('w', mods));
+    figs1 = findall(groot, 'Type', 'figure');
+    check(numel(figs1) == nFigs + 1, 'Ctrl+W opens the figure in a window of its own, as Open in window does');
+    delete(setdiff(figs1, figs0));
+    auto0 = app.FigureAutoCheckBox.Value;
+    app.onKeyPress(pressed('t', mods));
+    check(app.FigureAutoCheckBox.Value == ~auto0, 'Ctrl+T toggles Auto');
+    app.onKeyPress(pressed('t', mods));
+    check(app.FigureAutoCheckBox.Value == auto0, 'Ctrl+T toggles Auto back');
+    app.setFigurePreviewState("stale");
+    app.onKeyPress(pressed('p', mods));
+    check(app.FigurePreviewState == "drawn", 'Ctrl+P previews, as Preview does');
     codeFile = fullfile(root, 'preview_code.m');
     code = app.onFigureCode(string(codeFile));
     [Fc, hc] = runPreviewCode(codeFile);
@@ -1796,9 +1817,15 @@ if S.sec("5f", "Generate a figure; figures on the Export tab")
     restoreAutoLimit = onCleanup(@() resetAutoLimit(app));
     app.FigureAutoCheckBox.Value = true;   % the automatic preview, as 5d leaves it
     app.selectTab(app.TabFigures);
-    check(app.FigureGenerateButton.Enable == "off" && isequal(app.FigureGenerateButton.Layout.Column, 2) ...
-        && isequal(app.FigurePreviewButton.Layout.Column, 1) && isequal(app.FigureGenerateButton.BackgroundColor, app.FigurePreviewButton.BackgroundColor), ...
-        'Generate sits beside Preview, colored as it is, and is off with no figure');
+    bcol = app.FigurePreviewButton.Parent;   % the column of buttons, left of the Dataset, Observation and Favorites rows
+    check(app.FigureGenerateButton.Enable == "off" && app.FigureGenerateButton.Parent == bcol && app.FigureAutoCheckBox.Parent == bcol ...
+        && isequal(app.FigurePreviewButton.Layout.Row, 1) && isequal(app.FigureGenerateButton.Layout.Row, 2) ...
+        && isequal(app.FigureGenerateButton.BackgroundColor, app.FigurePreviewButton.BackgroundColor) ...
+        && app.FigureObsPrevButton.Parent == app.FigureObsNextButton.Parent && app.FigureObsPrevButton.Parent.Parent == bcol ...
+        && app.FigureObsPrevButton.Layout.Row == 1 && app.FigureObsNextButton.Layout.Row == 1 ...
+        && bcol.Parent == app.FiguresDatasetDropDown.Parent.Parent && max(bcol.Layout.Column) < min(app.FiguresDatasetDropDown.Parent.Layout.Column) ...
+        && isequal(bcol.Layout.Row, [1 3]), ...
+        'Preview, Generate (colored as it is, off with no figure), Auto and < > (on one row) form a column left of Dataset, Observation and Favorites');
     app.onAddFigure("rasterPsth");
     kG = app.SelectedFigure;
     fid = app.Config.Figures(kG).id;

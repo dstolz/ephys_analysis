@@ -19,6 +19,11 @@ function onKeyPress(obj, evt)
 %     Page Up, Page Down    the previous and next observation
 %                           (onFigureObservationStep), left alone while a
 %                           preview computes or draws
+%     Ctrl+P, Ctrl+G        Preview, Generate
+%     Ctrl+T                Auto on or off
+%     Ctrl+E, Ctrl+W        Export code, Open in window
+%                           (pressFigureButton: each does what its button
+%                           does, and nothing while the button is off)
 %   While a search is under way (FigureSearchState: typed in the field, or
 %   a match picked in its list), Enter goes to the match picked (else the
 %   first) with the focus on its control, Down and Up (after typing) pick
@@ -97,6 +102,10 @@ if ismember(key, ["rightbracket" "bracketright" "]"]) || isequal(evt.Character, 
 end
 if ismember(key, ["leftbracket" "bracketleft" "["]) || isequal(evt.Character, '[')
     obj.stepFigurePanel("previous");
+    return
+end
+if any(key == ["p" "g" "t" "e" "w"])
+    obj.pressFigureButton(key);
     return
 end
 if ~isDigit; return; end

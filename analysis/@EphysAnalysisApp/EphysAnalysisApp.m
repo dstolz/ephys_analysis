@@ -119,7 +119,9 @@ classdef EphysAnalysisApp < handle
     %   and Ctrl+[ to the next and previous panel, Ctrl+Alt+arrows to the
     %   panel above, below, left or right (stepFigurePanel; the preview
     %   outlines it: markFigurePanel). Page Up and Page Down step to the
-    %   previous and next observation (onFigureObservationStep). Escape
+    %   previous and next observation (onFigureObservationStep). Ctrl+P,
+    %   Ctrl+G, Ctrl+T, Ctrl+E and Ctrl+W press Preview, Generate, Auto,
+    %   Export code and Open in window (pressFigureButton). Escape
     %   cancels a panel drag. The "?" button lists them all (onFigureKeys).
     %
     %   Preferences (getpref group 'EphysAnalysisApp'): FigurePosition,
@@ -455,6 +457,7 @@ classdef EphysAnalysisApp < handle
         stepFigurePanel(obj, how)
         markFigurePanel(obj)
         focusFigurePane(obj, step)
+        pressFigureButton(obj, key)
         w = onFigureKeys(obj)
         onFigureAlignEdited(obj, part)
         onFigureDefaultToggled(obj)

@@ -211,6 +211,8 @@ if isfield(op, 'yTicks'); E.yTicks.Value = logical(op.yTicks); end
 if isfield(op, 'tickColor'); offerItems(E.tickColor, string(E.tickColor.Items), string(op.tickColor)); end
 if isfield(op, 'tickWidth'); E.tickWidth.Value = min(E.tickWidth.Limits(2), max(E.tickWidth.Limits(1), op.tickWidth)); end
 if isfield(op, 'backColor'); offerItems(E.backColor, string(E.backColor.Items), string(op.backColor)); end
+if isfield(op, 'firstSpike'); E.firstSpike.Text = latencySummary(op.firstSpike, "firstSpike"); end   % its window: latencyDialog
+if isfield(op, 'latencyBox'); E.latencyBox.Text = latencySummary(op.latencyBox, "latencyBox"); end
 if isfield(op, 'maskAfterStop'); E.maskAfterStop.Value = op.maskAfterStop; end
 if isfield(op, 'histStyle')
     offerItems(E.histStyle, ["bar" "line"], op.histStyle);

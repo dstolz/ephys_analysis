@@ -82,7 +82,11 @@ function test_EphysAnalysisApp(opts)
 %   burst of one field one step, an edit outside the figures none, a
 %   removed panel back and selected, Ctrl+Shift+Z, a new edit dropping the
 %   redo, the description kept, the title saved again, cleared by another
-%   config; FigureEditHistory's depth);
+%   config; FigureEditHistory's depth); the first-spike latency windows
+%   (a raster's First spike row and a PSTH's Latency box row, each button
+%   opening its modal window, OK as one named undo step, the row's summary,
+%   a window ending before it starts refused, Cancel, the preview drawing
+%   the marks and the boxes);
 %   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -2879,6 +2883,84 @@ if S.sec("5k", "Edit menu: undo and redo of the figure editor")
     app.Tabs.SelectedTab = app.TabData;
 end
 
+if S.sec("5l", "a raster's First-spike latency... and a PSTH's Latency box plot... windows: OK as one named step, Cancel, a refused window, the preview")
+    noFigures();
+    groupedBy("Depth");
+    app.selectTab(app.TabFigures);
+    app.FigureAutoCheckBox.Value = false;   % no redraw per edit: the preview is drawn once, at the end
+    restoreAuto5l = onCleanup(@() autoBoxOn(app));
+    app.onAddFigure("rasterPsth");
+    app.onPanelSelected(1);   % the raster
+    check(shown(FE.firstSpike) && shown(FE.firstSpikeDialog) && ~shown(FE.latencyBox) && string(FE.firstSpike.Text) == "off", ...
+        'a raster shows its First spike row ("off" beside its button), not the PSTH''s Latency box row');
+    FE.firstSpikeDialog.ButtonPushedFcn(FE.firstSpikeDialog, []);
+    dF = findall(groot, 'Type', 'figure', 'Tag', 'latencyDialog');
+    DF = dF.UserData;
+    grayed = DF.Marker.Enable == "off" && DF.MinMs.Enable == "off" && DF.Enabled.Enable == "on";
+    modal = string(dF.WindowStyle) == "modal";
+    DF.Enabled.Value = true;
+    DF.Enabled.ValueChangedFcn(DF.Enabled, []);
+    DF.MinMs.Value = 5;
+    DF.MaxMs.Value = 50;
+    DF.Marker.Value = "diamond";
+    DF.Size.Value = 6;
+    DF.Color.Value = "red";
+    DF.Filled.Value = true;
+    nU5l = numel(app.FigureHistory.Undo);
+    DF.Ok.ButtonPushedFcn(DF.Ok, []);
+    fsO = app.Config.Figures(1).panels(1).options.firstSpike;
+    check(isscalar(dF) && DF.Kind == "firstSpike" && DF.PanelId == "raster_1" && modal && grayed ...
+        && ~isvalid(dF) && fsO.enabled && abs(fsO.minSec - 0.005) < 1e-12 && abs(fsO.maxSec - 0.05) < 1e-12 && fsO.marker == "diamond" ...
+        && fsO.size == 6 && fsO.color == "red" && fsO.filled && numel(app.FigureHistory.Undo) == nU5l + 1 ...
+        && string(app.UndoMenu.Text) == "Undo First-spike latency" && string(FE.firstSpike.Text) == "on, 5-50 ms, ◆ red", ...
+        sprintf(['First-spike latency...: a modal window, its rows grayed while off; OK gives the raster the window (5-50 ms) ' ...
+        'and the look as one step, "Undo First-spike latency", and the row says "%s"'], FE.firstSpike.Text));
+    app.onUndoRedo("undo");
+    undone = ~app.Config.Figures(1).panels(1).options.firstSpike.enabled && string(FE.firstSpike.Text) == "off";
+    app.onUndoRedo("redo");
+    check(undone && app.Config.Figures(1).panels(1).options.firstSpike.enabled && string(FE.firstSpike.Text) == "on, 5-50 ms, ◆ red", ...
+        'Undo takes the marks off again in one step, Redo puts them back');
+    FE.firstSpikeDialog.ButtonPushedFcn(FE.firstSpikeDialog, []);
+    dF = findall(groot, 'Type', 'figure', 'Tag', 'latencyDialog');
+    DF = dF.UserData;
+    shownBack = DF.Enabled.Value && DF.MinMs.Value == 5 && DF.MaxMs.Value == 50 && string(DF.Marker.Value) == "diamond";
+    DF.MinMs.Value = 80;
+    DF.Ok.ButtonPushedFcn(DF.Ok, []);
+    refused = isvalid(dF) && contains(DF.Note.Text, "before it starts") && app.Config.Figures(1).panels(1).options.firstSpike.minSec == 0.005;
+    DF.Cancel.ButtonPushedFcn(DF.Cancel, []);
+    check(shownBack && refused && ~isvalid(dF) && app.Config.Figures(1).panels(1).options.firstSpike.minSec == 0.005 ...
+        && numel(app.FigureHistory.Undo) == nU5l + 1, ...
+        'the window opens on the panel''s settings; a window ending before it starts is refused (said, the window kept); Cancel changes nothing');
+    app.onPanelSelected(2);   % the PSTH
+    check(shown(FE.latencyBox) && shown(FE.latencyBoxDialog) && ~shown(FE.firstSpike) && string(FE.latencyBox.Text) == "off", ...
+        'a PSTH shows its Latency box row, not the raster''s First spike row');
+    FE.latencyBoxDialog.ButtonPushedFcn(FE.latencyBoxDialog, []);
+    dB = findall(groot, 'Type', 'figure', 'Tag', 'latencyDialog');
+    DB = dB.UserData;
+    DB.Enabled.Value = true;
+    DB.Enabled.ValueChangedFcn(DB.Enabled, []);
+    DB.MaxMs.Value = [];
+    DB.LineStyle.Value = "--";
+    DB.LineWidth.Value = 1.5;
+    DB.BoxHeight.Value = 0.2;
+    DB.FillAlpha.Value = 0.5;
+    DB.OutlierMarker.Value = "x";
+    DB.Ok.ButtonPushedFcn(DB.Ok, []);
+    lbO = app.Config.Figures(1).panels(2).options.latencyBox;
+    check(DB.Kind == "latencyBox" && ~isvalid(dB) && lbO.enabled && lbO.minSec == 0 && lbO.maxSec == Inf && lbO.lineStyle == "--" ...
+        && lbO.lineWidth == 1.5 && abs(lbO.boxHeight - 0.2) < 1e-12 && lbO.fillAlpha == 0.5 && lbO.outlierMarker == "x" ...
+        && string(app.UndoMenu.Text) == "Undo Latency box plot" && string(FE.latencyBox.Text) == "on, 0 ms-end, groups --", ...
+        sprintf('Latency box plot...: OK gives the PSTH its box plot (to the window''s end) as one step, "Undo Latency box plot"; the row says "%s"', ...
+        FE.latencyBox.Text));
+    app.refreshFigurePreview(Force=true);
+    mkP = findall(app.FigurePreviewPanel, 'Tag', 'firstSpike');
+    bxP = findall(app.FigurePreviewPanel, 'Tag', 'latencyBox');
+    check(app.FigurePreviewState == "drawn" && any(arrayfun(@(h) any(isfinite(h.XData)), mkP)) && ~isempty(bxP), ...
+        sprintf('the preview draws the first-spike marks (%d lines) and the latency boxes (%d)', numel(mkP), numel(bxP)));
+    noFigures();
+    clear restoreAuto5l
+end
+
 if S.sec("6", "close")
     savedConfig();
     app.savePreferences();
@@ -3012,6 +3094,12 @@ end
 function resetAutoLimit(app)
 %resetAutoLimit  The figure preview's auto limit back to AutoPreviewSeconds (5d-5f raise it), while the app lives.
 if isvalid(app); app.FigureAutoPreviewSeconds = app.AutoPreviewSeconds; end
+end
+
+
+function autoBoxOn(app)
+%autoBoxOn  Auto ticked again, if the app is still there (a section's cleanup).
+if isvalid(app) && isvalid(app.FigureAutoCheckBox); app.FigureAutoCheckBox.Value = true; end
 end
 
 

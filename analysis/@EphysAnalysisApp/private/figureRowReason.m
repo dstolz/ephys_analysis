@@ -122,6 +122,8 @@ T.yTicks = o("raster", "");
 T.tickColor = T.yTicks;
 T.tickWidth = T.yTicks;
 T.backColor = T.yTicks;
+T.firstSpike = T.yTicks;
+T.latencyBox = o("psth", "with Display: trace");
 T.heatRows = o("heatmap", "");
 for f = ["contTrials" "contDisplay" "statistic" "errorType" "stackSpacing"]; T.(f) = o("continuous", ""); end
 T.maskAfterStop = o(["raster" "psth" "heatmap"], spikesHeat);

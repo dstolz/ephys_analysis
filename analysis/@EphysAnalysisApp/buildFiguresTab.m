@@ -43,7 +43,9 @@ function buildFiguresTab(obj)
 %           panels), Layers (the panel's layers, Add a source the type
 %           draws, Remove, Up, Down, and the rows of the layer picked), the
 %           panel type's Options (all of the panel's own; Apply to all
-%           panels: applyOptionsToAll),
+%           panels: applyOptionsToAll; a raster's First spike row and a
+%           PSTH's Latency box row each show a summary beside a button that
+%           opens their modal window: latencyDialog),
 %           the panel's Text note and Overlays (for the selected panel:
 %           onAddFigureOverlay, onFigureOverlayPicked),
 %           Appearance, Looks and Sessions (Across sessions: the figure
@@ -796,6 +798,13 @@ E.backColor = uidropdown(rcg, "Editable", "on", "Items", ["none" "groups" "white
 E.tickWidth = uispinner(S.Body, "Limits", [0 12], "Step", 0.25, "Value", 0, "ValueChangedFcn", changed, ...
     "Tooltip", "The ticks' line width in points; 0 = the plot design's width.");
 place(E.tickWidth, r, 2);
+[S, r] = formRow(S, ["firstSpike" "firstSpikeDialog"], "First spike:", 30);
+fsg = subgrid(S.Body, r, {'1x', 'fit'});
+E.firstSpike = uilabel(fsg, "Text", "off", "Tooltip", "The first-spike latency marks: on or off, the latency window " + ...
+    "(ms from the event; end = the window's end) and the mark.");
+E.firstSpikeDialog = uibutton(fsg, "Text", "First-spike latency...", "ButtonPushedFcn", @(~,~) latencyDialog(obj, "firstSpike"), ...
+    "Tooltip", "Mark each epoch's first spike in a latency window (its minimum and maximum, ms from the event) on " + ...
+    "its row, over the ticks: the marker, its size and color (each group's or one), filled or not.");
 [S, r] = formRow(S, "maskAfterStop", "");
 E.maskAfterStop = uicheckbox(S.Body, "Text", "Mask after the stop event", "ValueChangedFcn", changed, ...
     "Tooltip", "Drop what follows each epoch's stop event (the Epoch window's).");
@@ -829,6 +838,14 @@ E.stack = uicheckbox(sk, "Text", "One row per group", "ValueChangedFcn", changed
 uilabel(sk, "Text", "spacing:");
 E.psthSpacing = uieditfield(sk, "numeric", "Value", 1.1, "Limits", [0 Inf], "LowerLimitInclusive", "off", ...
     "ValueChangedFcn", changed, "Tooltip", "The row step, x the tallest PSTH (below 1 the rows overlap).");
+[S, r] = formRow(S, ["latencyBox" "latencyBoxDialog"], "Latency box:", 30);
+lbg = subgrid(S.Body, r, {'1x', 'fit'});
+E.latencyBox = uilabel(lbg, "Text", "off", "Tooltip", "The box plot of the first-spike latencies: on or off, the latency " + ...
+    "window (ms from the event; end = the window's end) and its color.");
+E.latencyBoxDialog = uibutton(lbg, "Text", "Latency box plot...", "ButtonPushedFcn", @(~,~) latencyDialog(obj, "latencyBox"), ...
+    "Tooltip", "A box plot of each epoch's first-spike latency per trial group (median, quartiles, whiskers to 1.5 " + ...
+    "IQR, outliers) in a band above the traces (stacked: in each row): the latency window, color, line, box height, " + ...
+    "fill and outliers.");
 [S, r] = formRow(S, "contDisplay", "Display:");
 E.contDisplay = uidropdown(S.Body, "Items", ["lines" "stacked rows"], "ItemsData", ["lines" "stacked"], "ValueChangedFcn", changed, ...
     "Tooltip", "Lines: a trace per channel and group on one axis. Stacked rows: each channel in a row of its own.");

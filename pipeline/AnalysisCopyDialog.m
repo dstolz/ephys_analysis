@@ -16,8 +16,9 @@ classdef AnalysisCopyDialog < handle
     %   spikes, the sorted units (the files the readers use, or the whole
     %   sorting folder), the sorted binary the unit waveforms are cut from
     %   (large; templates are drawn without it), and the probe .json (put
-    %   beside the manifest, where the copy finds it). The manifest and
-    %   <Name>_behavior.mat are always copied. The datasets table lists
+    %   beside the manifest, where the copy finds it). The manifest,
+    %   <Name>_behavior.mat and <Name>_favorites.json (when there is one)
+    %   are always copied. The datasets table lists
     %   each dataset's files and size, and what is missing; untick a row to
     %   leave a dataset out. Settings are remembered (AppPrefs group
     %   AnalysisCopyDialog).

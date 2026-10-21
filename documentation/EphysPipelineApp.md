@@ -211,7 +211,7 @@ copy and what is missing (no behavior file, no sorted units, ...).
 
 | Choice | Copies |
 | --- | --- |
-| always | `<Name>_manifest.json`, `<Name>_behavior.mat`, and the smallest extract file (the digital events are in it) |
+| always | `<Name>_manifest.json`, `<Name>_behavior.mat`, `<Name>_favorites.json` (when the dataset has stars), and the smallest extract file (the digital events are in it) |
 | Signal files | the extract files holding LFP, MUA, SPIKE and / or AUX (a file with several is copied once). Default: LFP, MUA and AUX |
 | Detected spikes | `<Name>_spikes.mat`, for figures that observe or read detected spikes |
 | Sorted units | *Essential files* (default): spike times, clusters and templates, the channel files, `params.py`, `settings.json` and the `cluster_*.tsv` tables, without the large feature files; *Whole folder*; or *None* |

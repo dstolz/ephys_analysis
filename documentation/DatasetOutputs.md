@@ -148,7 +148,7 @@ Displaying the object shows the paths only. It never loads data.
 analyze the dataset, for copying it to another machine (the pipeline app's
 [Copy files for the analysis app](EphysPipelineApp.md#copying-files-for-the-analysis-app)
 does). `T` has a row per file or folder: `Kind` (`manifest`, `behavior`,
-`extract`, `spikes`, `sorting`, `sorted data`, `probe`), `Path`, `Base` (the
+`favorites`, `extract`, `spikes`, `sorting`, `sorted data`, `probe`), `Path`, `Base` (the
 folder its place in a copy is counted from: the path below it is kept; `""`
 keeps the name only, as the probe file does) and `Bytes`. `notes` says what
 is missing.
@@ -161,7 +161,7 @@ is missing.
 | `SortedData` | `false` | the binary `params.py` names (where `readPhyWaveforms` looks for it) |
 | `Probe` | `true` | `probeFile()` |
 
-The manifest and `<Name>_behavior.mat` are always listed.
+The manifest, `<Name>_behavior.mat` and, when it exists, `<Name>_favorites.json` are always listed.
 
 ## Example: a batch analysis script
 

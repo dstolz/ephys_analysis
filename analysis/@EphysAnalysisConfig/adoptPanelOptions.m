@@ -1,5 +1,5 @@
 function [fig, changed] = adoptPanelOptions(fig, panelId)
-%adoptPanelOptions  Copy one panel's options to the other panels of its figure.
+%adoptPanelOptions  Copy one panel's options and axis sides to the other panels of its figure.
 %   FIG = EphysAnalysisConfig.adoptPanelOptions(FIG, PANELID), for figure
 %   FIG (a Figures entry):
 %   - the panel's values of the options several types share
@@ -15,11 +15,16 @@ function [fig, changed] = adoptPanelOptions(fig, panelId)
 %     histStyle, fill, normalize, yLim; a waveforms panel's waveform) go
 %     to every other panel of the same type
 %   Panels of other types keep their other options.
+%   - the panel's axis sides (xSide, ySide: layout, not options) go to
+%     every other panel; its label texts (xLabel, yLabel), like its title,
+%     stay each panel's own
 %
 %   [FIG, CHANGED] = ... also says what changed: a struct array, one entry
-%   per other panel whose options changed or that kept its baseline, with
+%   per other panel whose options or sides changed or that kept its
+%   baseline, with
 %     id      the panel's id
-%     fields  the options whose values changed (a string row)
+%     fields  the options (and xSide, ySide) whose values changed (a
+%             string row)
 %     kept    "baseline" when the panel kept its own because its type
 %             does not take the Mode, else empty (a string row)
 %   Error: EphysAnalysisConfig:NoPanel.
@@ -59,6 +64,12 @@ for j = [1:k-1, k+1:numel(fig.panels)]
     for f = take
         if ~isequaln(Q.options.(f), P.options.(f))   % (fillAlpha NaN = automatic: equal to NaN)
             Q.options.(f) = P.options.(f);
+            fields(end+1) = f; %#ok<AGROW>
+        end
+    end
+    for f = ["xSide" "ySide"]   % the axis sides, every panel's (a stacked PSTH, a y axis each side, keeps its ySide unused)
+        if Q.(f) ~= P.(f)
+            Q.(f) = P.(f);
             fields(end+1) = f; %#ok<AGROW>
         end
     end

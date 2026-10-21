@@ -30,7 +30,7 @@ classdef EphysAnalysisConfig
     %               never per dataset. Each panel holds all of its own
     %               options; adoptPanelOptions copies one panel's to the
     %               others (sharedFieldsOf: the options several types
-    %               have), adoptPanelAlignment and relinkPanels spread one
+    %               have), with its axis sides, adoptPanelAlignment and relinkPanels spread one
     %               panel's alignment or re-link every panel's.
     %               observe.perGroup draws each observation once
     %               per trial group of the figure's selection;

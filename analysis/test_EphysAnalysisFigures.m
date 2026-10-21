@@ -901,6 +901,13 @@ if S.sec("5", "config: grid editing")
         'adoptPanelOptions says what changed: each panel''s changed options, and the panel that kept its baseline');
     [ad2, chg2] = EphysAnalysisConfig.adoptPanelOptions(ad, "p2");
     check(isequaln(ad2, ad) && isequal([chg2.id], "c1"), 'applied again: nothing changes (the continuous panel still keeps its baseline)');
+    apS = ap;
+    apS.panels(1).xSide = "top"; apS.panels(1).ySide = "right"; apS.panels(1).xLabel = "Lag (s)"; apS.panels(1).yLabel = "Rate";
+    [adS, chgS] = EphysAnalysisConfig.adoptPanelOptions(apS, "p1");
+    check(all([adS.panels.xSide] == "top") && all([adS.panels.ySide] == "right") && all([adS.panels(2:4).xLabel] == "") ...
+        && all([adS.panels(2:4).yLabel] == "") && adS.panels(1).xLabel == "Lag (s)" && isequal([chgS.id], ["p2" "c1" "h1"]) ...
+        && all(arrayfun(@(c) all(ismember(["xSide" "ySide"], c.fields)), chgS)) && isequaln(adS.panels(3).options, ap.panels(3).options), ...
+        'adoptPanelOptions: the axis sides go to every panel, of any type (listed with the changed fields); the label texts stay the panel''s own');
     al = EphysAnalysisConfig.adoptPanelAlignment(ap, "p1");
     al2 = EphysAnalysisConfig.adoptPanelAlignment(ap, "p2");
     check(isstruct(al.ref) && al.ref.line == "Platform" && isequal(al.window, "default") && all([al.panels.ref] == "default") ...

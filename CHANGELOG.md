@@ -21,6 +21,18 @@ says how to cut a release.
   `""`), as `options.backColor` does; the editor's ticks drop-down lists *groups* instead of a blank item. A new
   `options.tickWidth` (the Raster options' *Tick width* row; points, `0` = the plot design's width) sets the
   ticks' line width over the design's; Apply to all panels copies it with the other raster options.
+- Axis sides for every panel at once, and axis edits from a panel's axes. Options' **Apply to all panels**
+  (`EphysAnalysisConfig.adoptPanelOptions`) now also copies the panel's axis sides (`xSide`, `ySide`) to every
+  other panel, of any type, and lists them with the changed fields; the label texts (`xLabel`, `yLabel`) stay
+  each panel's own, like its title, and the button is on whenever the figure has another panel. An axis
+  label's right-click menu gains **Move every panel's X axis to top** / *bottom* (**... Y axis to right** /
+  *left*), one undoable step (*Every panel's axis side*), so a stack of time panels takes its one time axis to
+  the top at once. The right-click menu of a panel's axes itself (the plot area) gains **Edit X label
+  text...**, **Edit Y label text...**, **Move X axis to top**, **Move Y axis to right** and the every-panel
+  moves, in the preview and in an **Open in window** figure, so a label the time stack hides can be set too
+  (the status bar says the stack does not show it). renderFigure's `OnAxisEdit` (and
+  `EphysAnalysisApp.onFigureAxisEdited`) now takes a string row of panel ids. See
+  [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
 - **Starred only** for figures (`observe.starred`, a checkbox in the Figures tab's Observations section): the
   preview's picker, < >, Generate, Export runs and scripts keep only the starred units of the sort in use, the
   starred channels (a detection channel by its recording channel) or a starred dataset, read from

@@ -114,12 +114,16 @@ function h = renderFigure(F, spec, target, opts)
 %                     setting" (the app goes to the figure editor's setting
 %                     that controls the part: figureRoleSettings); [] (default):
 %                     the menu has no such item
-%     OnAxisEdit      called with a panel's id and the panel fields its axis
-%                     label's right-click menu changed (a struct of xLabel,
+%     OnAxisEdit      called with the ids of the panels to change (a string
+%                     row: the right-clicked one, or every panel of the
+%                     figure for "Move every panel's X axis to top", ...)
+%                     and the panel fields the right-click menu of an axis
+%                     label or a panel's axes changed (a struct of xLabel,
 %                     yLabel, xSide or ySide: "Edit label text...", "Move
-%                     to top", ...); the app keeps them in its config and
-%                     draws the figure again. [] (default): the figure is
-%                     drawn again here with them (they are not kept)
+%                     to top", "Edit X label text...", ...); the app keeps
+%                     them in its config and draws the figure again. []
+%                     (default): the figure is drawn again here with them
+%                     (they are not kept)
 %     DataTips        "auto" (default: in a visible figure), true or false:
 %                     data tips that name the point's quantities, trial,
 %                     unit or channel, panel and dataset (FigureDataTips;
@@ -417,7 +421,8 @@ if editable(opts.Editable, target)
             UserAesthetics=opts.UserAesthetics, Editable=opts.Editable, OnRemember=opts.OnRemember, OnGoto=opts.OnGoto, ...
             OnAxisEdit=opts.OnAxisEdit));
     ctx.panelTypes = struct('id', sIds, 'type', types);   % each tile's panel type by the id it is tagged with (PlotDesign.capture)
-    ctx.onAxisEdit = @(panel, change) axisEdited(F, spec, target, opts, panel, change);   % an axis label's menu (PlotAesthetics)
+    ctx.panelIds = sIds;   % "Move every panel's X axis to top": every panel of the figure
+    ctx.onAxisEdit = @(panel, change) axisEdited(F, spec, target, opts, panel, change);   % an axis label's or axes' menu (PlotAesthetics)
     PlotAesthetics.enableEditing(target, ctx);
 end
 
@@ -490,17 +495,19 @@ end
 
 
 function axisEdited(F, spec, target, opts, panel, change)
-%axisEdited  An axis label's right-click edit of panel PANEL (CHANGE: its new xLabel, yLabel, xSide or ySide).
+%axisEdited  A right-click axis edit of the panels PANEL (ids; CHANGE: their new xLabel, yLabel, xSide or ySide).
 %   OnAxisEdit keeps it (the app: in its config, then it draws the figure
 %   again); without one the figure is drawn again here with it.
 if ~isempty(opts.OnAxisEdit)
     opts.OnAxisEdit(panel, change);
     return
 end
-k = find([spec.panels.id] == panel, 1);
-if isempty(k); return; end
-for f = string(fieldnames(change)).'
-    spec.panels(k).(f) = change.(f);
+ks = find(ismember([spec.panels.id], panel));
+if isempty(ks); return; end
+for k = ks
+    for f = string(fieldnames(change)).'
+        spec.panels(k).(f) = change.(f);
+    end
 end
 args = namedargs2cell(opts);
 renderFigure(F, spec, target, args{:});

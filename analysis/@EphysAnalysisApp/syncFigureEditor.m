@@ -21,8 +21,8 @@ function syncFigureEditor(obj)
 %                    to all panels only while the panel has its own,
 %                    Re-link all panels while any panel has its own
 %                    event, window or selection; Options' Apply to all
-%                    panels while another panel has one of its shared
-%                    rows (sharedFieldsOf) or is of its type
+%                    panels while the figure has another panel (every
+%                    one takes the axis sides)
 %     Event reference, Epoch window, Trial selection   unless every panel
 %                    of the figure is one not aligned to events
 %     Layers         the picked layer's rows by its source and binding:
@@ -340,15 +340,9 @@ if hasPanel
     if isstruct(p.window); stop = obj.PanelAlignControls.StopOn.Value; end
     en(E.maskAfterStop, stop);
     en(E.stackSpacing, string(E.contDisplay.Value) == "stacked");
-    % Apply to all panels: another panel of the type, or one with a row this panel shares (sharedFieldsOf)
-    cf = EphysAnalysisConfig.sharedFieldsOf(t);
-    to = false;
-    for q = [1:j-1, j+1:np]
-        tq = fig.panels(q).type;
-        to = to || tq == t || any(ismember(cf, EphysAnalysisConfig.sharedFieldsOf(tq)));
-    end
+    % Apply to all panels: any other panel (every one takes the axis sides; adoptPanelOptions)
     v.optApplyAll = known;
-    en(E.optApplyAll, to);
+    en(E.optApplyAll, np > 1);
 
     % the panel's own alignment
     modes = "fixed";

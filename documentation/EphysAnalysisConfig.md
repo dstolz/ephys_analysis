@@ -1427,7 +1427,7 @@ panels** and **Re-link all panels** buttons call them):
 
 | Call | Does |
 | --- | --- |
-| `[fig, changed] = EphysAnalysisConfig.adoptPanelOptions(fig, panelId)` | the panel's values of its shared options go to every other panel whose type has them, the `baseline` (with its `auroc`) only where the type takes its `Mode` (a PSTH or a heat map of spikes: `none`, `subtract`, `zscore`, `percent`, `auroc`; a rate or tuning panel: `none`, `subtract`, `ratio`, `zscore`; a continuous, unit correlation or signal heat map panel: `none`, `subtract`); its other options go to the other panels of its own type, and panels of other types keep theirs. `changed` is a struct array, one entry per other panel that changed or kept its baseline: `id`, `fields` (the options whose values changed) and `kept` (`"baseline"` when its type does not take the `Mode`) |
+| `[fig, changed] = EphysAnalysisConfig.adoptPanelOptions(fig, panelId)` | the panel's values of its shared options go to every other panel whose type has them, the `baseline` (with its `auroc`) only where the type takes its `Mode` (a PSTH or a heat map of spikes: `none`, `subtract`, `zscore`, `percent`, `auroc`; a rate or tuning panel: `none`, `subtract`, `ratio`, `zscore`; a continuous, unit correlation or signal heat map panel: `none`, `subtract`); its other options go to the other panels of its own type, and panels of other types keep theirs; its axis sides (`xSide`, `ySide`) go to every other panel, while its label texts (`xLabel`, `yLabel`), like its `title`, stay its own. `changed` is a struct array, one entry per other panel that changed or kept its baseline: `id`, `fields` (the options, and `xSide` / `ySide`, whose values changed) and `kept` (`"baseline"` when its type does not take the `Mode`) |
 | `fig = EphysAnalysisConfig.adoptPanelAlignment(fig, panelId)` | the panel's own `ref`, `window` and `selection` (the ones that are structs) become the figure's, a `"default"` part leaving the figure's as it is; every panel's `ref`, `window` and `selection` are then `"default"` |
 | `fig = EphysAnalysisConfig.relinkPanels(fig)` | every panel's `ref`, `window` and `selection` are `"default"`; the panels' options stay as they are |
 
@@ -2638,7 +2638,7 @@ selection, a continuous panel's `trials` and `maxTrials` and a heat map's `rows`
 `Figures` from `jsondecode`, a config without `Figures`, unknown fields in
 `LoadWarnings`); `adoptPanelOptions` (the shared options across types, the rest to a panel of the
 same type, a baseline mode the type does not take kept, what changed, and nothing on a second
-call), `adoptPanelAlignment` (a panel's own selection becomes the figure's)
+call; the axis sides to every panel, the label texts not), `adoptPanelAlignment` (a panel's own selection becomes the figure's)
 and `relinkPanels` (their results and `NoPanel`); `placePanel` in four directions, `removePanel`
 (undoing each exactly), `movePanel` and `figureCells`; `DuplicateFigureId` and
 `DuplicatePanelId`; every validate rule of figures (only the known layer sources and

@@ -9,7 +9,7 @@ function sel = trialSelection(s, opts)
 %                   "Depth > 0 & RespLatency < 500" or "Hit | Miss". Column
 %                   names are used as they are (text columns compare with
 %                   == "text"); the response words of respCodeBits (Hit,
-%                   Miss, CR, FA, Reward, Punish, NoResponse, Response)
+%                   Miss, CR, FA, Abort, Reward, Punish, NoResponse, Response)
 %                   stand for bitand(RespCode, bit) > 0 unless a column has
 %                   that name; a single "=" means "=="; the functions abs,
 %                   round, floor, ceil, fix, mod, rem, min, max, isnan,

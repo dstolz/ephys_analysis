@@ -57,7 +57,7 @@ for k = 1:N
     offS(k)  = stimS(k) + rwDelayS + rwDurS + postS;
     t = offS(k) + itiS(k);
 end
-% Responses: epsych-like bit mask (Hit 1, Miss 2, CR 4, FA 8, Reward 32,
+% Responses: epsych-like bit mask (Hit 1, Miss 2, CR 4, FA 8, Abort 16, Reward 32,
 % Punish 64, NoResponse 128, Response 256, TrialType0 1024, TrialType1 2048).
 responded = false(N, 1); latencyMs = NaN(N, 1); respCode = zeros(N, 1);
 for k = 1:N

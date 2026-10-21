@@ -257,7 +257,7 @@ epoch's event the animal left the platform; a raster can be sorted by it
 | `maxGroups` | 12 | more groups is `selectTrials:TooManyGroups` |
 
 Response words are the bits of `RespCode` ([`respCodeBits`](../pipeline/respCodeBits.m)):
-Hit 1, Miss 2, CR 4, FA 8, Reward 32, Punish 64, NoResponse 128, Response 256.
+Hit 1, Miss 2, CR 4, FA 8, Abort 16, Reward 32, Punish 64, NoResponse 128, Response 256.
 
 **Filters** are compiled from an allow-list and never passed to `eval`:
 column names become `T.("name")`; response words `bitand(RespCode, bit) > 0`

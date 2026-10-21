@@ -146,7 +146,7 @@ C.Filter = uieditfield(fg, "text", "Placeholder", "e.g. Depth > 0 & RespLatency 
 C.FilterHelp = uibutton(fg, "Text", "?", "Tooltip", "The trial columns, response words and functions a filter can use.", ...
     "ButtonPushedFcn", @(~,~) obj.onFilterHelp());
 
-% Response codes, four to a row
+% Response codes, in two rows
 lab(sg, "Response:", 2, 1);
 nc = ceil(numel(words) / 2);
 rsp = uigridlayout(sg, [2 nc]);

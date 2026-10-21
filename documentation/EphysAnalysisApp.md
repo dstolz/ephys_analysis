@@ -216,7 +216,7 @@ Trough onset.
 | Control | Meaning |
 | --- | --- |
 | **Filter**, **?** | an expression over the trials table, e.g. `Depth > 0 & RespLatency < 500` or `Hit \| Miss`. **?** lists the trial columns, the response words and the functions a filter may use. The filter is compiled from its own tokens, never passed to `eval` |
-| **Response** | keep the trials that are any of the ticked response words (`Hit`, `Miss`, `CR`, `FA`, `Reward`, `Punish`, `NoResponse`, `Response`: bits of `RespCode`) |
+| **Response** | keep the trials that are any of the ticked response words (`Hit`, `Miss`, `CR`, `FA`, `Abort`, `Reward`, `Punish`, `NoResponse`, `Response`: bits of `RespCode`) |
 | **Pairing** | keep the trials with these `PairingFlag` values: `ok` (default), `partial`, `cut`, `unpaired`; none ticked keeps every flag |
 | **Group by**, **and** | up to two trial parameters: one group per value, or pair of values |
 | **Order**, **Max groups** | the groups' order (`ascending`, `descending`, `appearance`); more groups than the maximum (12 by default) is an error |

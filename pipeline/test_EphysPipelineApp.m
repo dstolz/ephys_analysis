@@ -2740,9 +2740,11 @@ t0 = tic;
 while toc(t0) < 20 && ~isempty(app.KSRuns); pause(0.25); end
 stop(safety); delete(safety);
 app.RunKSQueueCheckBox.Value = false;
-% Stop runs... ends a run that is going: a stand-in that would take ~30 s.
+% Stop runs... ends a run that is going: a stand-in that would take ~5 min.
+% Its own "done" would overwrite the "canceled" status, so it must outlast
+% the stop (whose process search alone took 30 s on a hosted runner).
 slowPython = fullfile(root, 'slow_python.cmd');
-writelines(["@echo off"; "ping -n 31 127.0.0.1 > nul"
+writelines(["@echo off"; "ping -n 301 127.0.0.1 > nul"
     "echo {""state"": ""done""}> ""%~dp1ks4_status.json"""], slowPython, LineEnding="\r\n");
 app.PythonExeField.Value = slowPython;
 app.onConfigChanged();
@@ -2756,10 +2758,12 @@ t0 = tic;
 while toc(t0) < 10 && ~isempty(app.KSRuns); pause(0.25); end
 R = app.RunResultsTable.Data;
 ksLog = strjoin(string(app.KSLogArea.Value), newline);
-check(isempty(app.KSRuns) && any(R.Step == "sorting" & R.Status == "canceled" & R.Message == "stopped before it finished") ...
-    && contains(ksLog, "[stopped] recA_260101_120000 - Kilosort4 stopped by the user") ...
-    && strcmp(app.RunKSStopRunsButton.Enable, 'off'), ...
-    'stopKSRuns ended the run: logged, its row canceled, the button off again');
+% Separate checks, and the rows in the message, so a failure says what it saw.
+check(isempty(app.KSRuns), sprintf('stopKSRuns ended the run within 10 s (%d still followed)', numel(app.KSRuns)));
+check(any(R.Step == "sorting" & R.Status == "canceled" & R.Message == "stopped before it finished"), ...
+    char("stopKSRuns turned its row canceled (rows: " + strjoin(R.Status + " """ + R.Message + """", "; ") + ")"));
+check(contains(ksLog, "[stopped] recA_260101_120000 - Kilosort4 stopped by the user"), 'stopKSRuns logged the run as [stopped]');
+check(strcmp(app.RunKSStopRunsButton.Enable, 'off'), 'Stop runs... is off again once the run is stopped');
 app.PythonExeField.Value = '';
 app.onConfigChanged();
 app.Project.Datasets(1).ProbeFile = "";

@@ -10,6 +10,47 @@ says how to cut a release.
 
 ### Added
 
+- `removeLineNoise`: removes mains interference (`LineHz`, 60 Hz by default, and its `Harmonics`) by
+  subtracting sinusoids refitted in every Hann window (`WindowSec`, 2 s, half overlapping) instead of
+  filtering. The frequency is tracked window by window within `MaxDeviationHz` (0.25 Hz) of `LineHz`, from
+  all channels together, and steadied by a running median (`SmoothWindows`); `Tracking` `"global"` /
+  `"fixed"` and `PerChannel` are the alternatives. Amplitude and phase are each channel's own, and `Gate`
+  (`"soft"`) scales each fit by its SNR over the background beside it, so a line-free channel or a broadband
+  transient is left alone. It also takes `Exclude` rows, leaves `NaN` alone, and runs in pieces (`FirstRow`,
+  `info.MarginRows`) with the same result as one run. It needs no toolbox and takes about 2 min per
+  64-channel hour at 30 kHz. Not yet wired into a step. See
+  [Line noise](documentation/EphysDataset.md#line-noise-removelinenoise).
+
+- Spikes: one spike seen on neighboring sites, kept once. A detector reports a spike on every site it reaches;
+  `detectSpikes` now takes `Coincidence` (`"remove"`, `"tag"`, `"none"`), `CoincidenceRadiusUm` (50 µm),
+  `CoincidenceJitterMs` (0.5 ms) and `SitePositions`. Events on sites within the radius of each other (the true
+  distance on the probe, `siteNeighbors`) whose troughs lie within the jitter are copies of one spike. Going
+  from the deepest trough down, each spike keeps its largest copy (`"remove"`), or every copy is kept and
+  numbered (`"tag"`: `info.eventId`, `info.primary`). Copies are found over the whole recording at once, so
+  chunk joins play no part. The Spikes step has it on (`Spikes.Coincidence` `"remove"`). `spikesToMat` takes
+  the sites from the dataset's probe (`ProbeFile`; the pipeline passes `probeFor`), and without one it keeps
+  every copy with a warning; the run's result, the plan and `detected.detection.coincidence` say so. The
+  Spikes tab has a **One spike on neighboring sites** section (mode, site radius, jitter), a **Copies**
+  column in the preview, and **Neighbors...**, which opens a window (`SpikeNeighborsDialog`) drawing the
+  active dataset's probe with each site's neighbors at the radius. The tab now says what Align decides: the
+  sample that is each event's time and its waveform's center (*Save waveforms, centered on the trough*). See
+  [Spikes](documentation/EphysPipelineApp.md#spikes) and [detectSpikes](documentation/EphysDataset.md#spike-detection).
+
+- Analysis app: notes on a dataset, a channel or a sorted unit, kept beside the data in
+  `<Name>_notes.json` in each dataset's output folder (the new `DatasetNotes` class), beside the stars. A
+  **✎** button right of each star (Dataset on the Alignment and Figures tabs, Observation on the Figures tab)
+  and a **✎** column in the Data tab open a little notepad (`NotePad`) that stays above the app and follows
+  the active dataset or the observation as you pick and step, so you can write a line on each unit in turn;
+  the note is written when you leave its box, save (Ctrl+S), move on or close it. Buttons with a note turn
+  yellow with its first line in the tooltip, and noted items show **✎** in the drop-downs. **Search notes**
+  on the toolbar (`NoteSearch`) searches every note of the scanned datasets as you type (every word, any
+  case, over the dataset name, the item and the text); **Go to** or a double-click opens the note's dataset
+  and picks its unit or channel for the preview, **Edit note** opens it in the notepad. A unit's note is
+  recorded with its sort as a star is (`sortIdentity`, now shared by `DatasetFavorites`), so a new sort
+  shows none of the old notes, which the search still finds. These are not phy's `cluster_notes.tsv` notes.
+  See [Notes](documentation/EphysAnalysisApp.md#notes), [the script API](documentation/EphysAnalysis.md#notes)
+  and [the file](documentation/file-formats.md#notes-name_notesjson).
+
 - Figures: sorted units and detected spikes in every spectral panel. A spectrogram panel now reads a spike
   layer too (**Reads** offers *units (sorted)* and *detected spikes* after the signals): `chronuxSpikeSpecgram`
   steps `mtspectrumpt` over the moving window on one window grid per epoch (Chronux's `mtspecgrampt` spans

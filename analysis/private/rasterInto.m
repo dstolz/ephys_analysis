@@ -32,7 +32,7 @@ function rows = rasterInto(ax, R, u, style, colors, sortBy, look)
 %              drawn); equal (default false): every band's rows one height,
 %              that of the band showing the most epochs, filled from the
 %              bottom (false: each band's rows fill it)
-%    tickColor  "" (default: each group's color, as the PSTH colors its
+%    tickColor  "groups" (default: each group's color, as the PSTH colors its
 %               traces) or a color name or hex code: every tick in that
 %               color
 %    backColor  "none" (default: no bands), "groups" (a pale band of each
@@ -200,7 +200,7 @@ if ~isfield(look, 'order') || look.order == ""; look.order = "ascending"; end
 if ~isfield(look, 'byGroup'); look.byGroup = true; end
 if ~isfield(look, 'marks'); look.marks = []; end
 if ~isfield(look, 'into'); look.into = []; end
-if ~isfield(look, 'tickColor'); look.tickColor = ""; end
+if ~isfield(look, 'tickColor'); look.tickColor = "groups"; end
 if ~isfield(look, 'backColor'); look.backColor = "none"; end
 look.order = string(look.order);
 look.byGroup = logical(look.byGroup);
@@ -208,9 +208,9 @@ end
 
 
 function c = rasterColor(spec, c)
-%rasterColor  The RGB triplet of a color name or hex code; C (the default) for "" or a spec that is not a color.
+%rasterColor  The RGB triplet of a color name or hex code; C (the default) for "groups" or a spec that is not a color.
 spec = strtrim(string(spec));
-if spec == ""; return; end
+if spec == "groups"; return; end
 try
     c = validatecolor(spec);
 catch

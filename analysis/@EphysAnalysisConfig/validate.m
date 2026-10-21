@@ -531,8 +531,11 @@ for k = 1:numel(obj.Figures)
         switch pj.type
             case "raster"
                 checkRasterSort(op, o0);
-                if op.tickColor ~= "" && ~isColor(op.tickColor)
-                    add("Figures", o0 + ".tickColor", "warning", "No color """ + op.tickColor + """; the ticks keep their groups' colors.");
+                if op.tickColor ~= "groups" && ~isColor(op.tickColor)
+                    add("Figures", o0 + ".tickColor", "warning", "Not groups or a color: """ + op.tickColor + """; the ticks keep their groups' colors.");
+                end
+                if ~(isnumeric(op.tickWidth) && isscalar(op.tickWidth) && isfinite(op.tickWidth) && op.tickWidth >= 0)
+                    add("Figures", o0 + ".tickWidth", "error", "tickWidth is a line width in points, 0 or more (0 = the plot design's).");
                 end
                 if ~ismember(op.backColor, ["" "none" "groups"]) && ~isColor(op.backColor)
                     add("Figures", o0 + ".backColor", "warning", "Not none, groups or a color: """ + op.backColor + """; the raster has no bands.");

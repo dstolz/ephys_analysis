@@ -17,7 +17,8 @@ function hk = drawRasterPanel(ax, P, look)
 %                       in the same sort; the y axis then names the blocks
 %   The ticks are each group's color, as the PSTH's traces are; a layer's
 %   own color (Color) draws that block's ticks in it, else options.tickColor
-%   draws every tick in one color. options.backColor puts bands behind the
+%   draws every tick in one color ("groups": each group's). options.tickWidth
+%   (points; 0: the design's) is applied by renderFigure, over the design. options.backColor puts bands behind the
 %   rows: none (the default), each group's pale band ("groups") or one
 %   color for every group (a color also paints the axes behind them).
 %   The y axis has no tick marks or labels (the epoch numbers) unless
@@ -187,7 +188,7 @@ end
 
 
 function spec = blockTicks(spec, L)
-%blockTicks  The tick color spec of the block of layer L: the layer's own color when it has one, else the panel's (OPTIONS.TICKCOLOR; "" = each group's).
+%blockTicks  The tick color spec of the block of layer L: the layer's own color when it has one, else the panel's (OPTIONS.TICKCOLOR; "groups" = each group's).
 if isfield(L, 'color') && isColorSpec(L.color); spec = L.color; end
 end
 

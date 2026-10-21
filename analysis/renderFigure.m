@@ -337,6 +337,11 @@ kRules = cell(1, np);
 for k = find(drawn)
     r = kindRules(design, types(k));
     if opts.UserAesthetics && isvarname(types(k)); r = [r PlotAesthetics.userRules(types(k))]; end %#ok<AGROW>
+    if types(k) == "raster" && isfield(panels(k).options, 'tickWidth') && panels(k).options.tickWidth > 0
+        % the panel's tick width wins over the design's and the user's kind rules (the figure's own rules still win)
+        r = [r PlotAesthetics.normalizeRules(struct('role', "rasterTicks", 'group', "", 'property', "LineWidth", ...
+            'value', panels(k).options.tickWidth))]; %#ok<AGROW>
+    end
     PlotAesthetics.apply(axs(k), r);
     for xa = reshape(extra{k}, 1, [])
         PlotAesthetics.apply(xa, r);

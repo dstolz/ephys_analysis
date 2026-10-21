@@ -120,6 +120,7 @@ for f = ["rasterSort" "sortLine" "sortSeqText" "rasterByGroup"]
 end
 T.yTicks = o("raster", "");
 T.tickColor = T.yTicks;
+T.tickWidth = T.yTicks;
 T.backColor = T.yTicks;
 T.heatRows = o("heatmap", "");
 for f = ["contTrials" "contDisplay" "statistic" "errorType" "stackSpacing"]; T.(f) = o("continuous", ""); end

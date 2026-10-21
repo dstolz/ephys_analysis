@@ -635,13 +635,20 @@ check(all(iva(:,2) >= iva(:,1)), 'auto intervals are well-formed');
 check(max(iva(:,2)) <= dsi.Duration + 1e-6, 'auto intervals lie within the recording');
 % The same intervals come back from the process pool (or from the serial
 % fall-back when no pool can be used); MaxWorkers=1 is serial and says so.
-ivaP = dsi.artifactIntervals(UseParallel=true);
-check(isequal(ivaP, iva), 'artifactIntervals(UseParallel=true) == serial (traditional files)');
-lastwarn('');
-ivaS = dsi.artifactIntervals(UseParallel=true, MaxWorkers=1);
-[~, wid] = lastwarn;
-check(isequal(ivaS, iva) && strcmp(wid, 'EphysDataset:artifactIntervals:SerialFallback'), ...
-    'MaxWorkers=1 falls back to serial with a warning');
+% The pool's start is tagged Slow: run_all_tests' ExcludeTag="Slow" skips
+% every UseParallel check of this suite (CI runs them).
+slowPool = LegacySuiteTest.isExcluded("Slow");
+if slowPool
+    fprintf('  (skipped: the process pool is tagged Slow and left out)\n');
+else
+    ivaP = dsi.artifactIntervals(UseParallel=true);
+    check(isequal(ivaP, iva), 'artifactIntervals(UseParallel=true) == serial (traditional files)');
+    lastwarn('');
+    ivaS = dsi.artifactIntervals(UseParallel=true, MaxWorkers=1);
+    [~, wid] = lastwarn;
+    check(isequal(ivaS, iva) && strcmp(wid, 'EphysDataset:artifactIntervals:SerialFallback'), ...
+        'MaxWorkers=1 falls back to serial with a warning');
+end
 % Bounds moved by hand (ArtifactAdjustments): the detection alone stays as
 % found; with the manual part a moved detection takes its new bounds.
 auto = dsi.artifactIntervals(IncludeManual=false);
@@ -987,6 +994,9 @@ check(nProg == 6, 'ProgressFcn called once per chunk');
 % a warning where no pool is available). info.options records the call
 % itself (UseParallel, MaxWorkers), so it is left out of the comparison.
 noOpts = @(i) rmfield(i, 'options');
+if slowPool
+    fprintf('  (skipped: the process pool is tagged Slow and left out)\n');
+else
 [tsPar, wfPar, iPar] = dsSpk.detectSpikes('MaxChunkSamples', 2000, absArgs{:}, ...
     'UseParallel', true);
 check(isequal(tsPar, tsStr) && isequaln(wfPar, wfStr), ...
@@ -1032,6 +1042,7 @@ if ~isempty(pl)
     check(isempty(pl.FevalQueue.QueuedFutures) && isempty(pl.FevalQueue.RunningFutures), ...
         'canceling leaves no future queued or running on the pool');
 end
+end
 % artifactIntervals / analyzeArtifacts over the same six split chunks give the
 % same intervals and summary from the pool.
 dsSpk.ArtifactConfig.Enabled = true;
@@ -1039,12 +1050,14 @@ dsSpk.ArtifactConfig.Method = "microvolts";
 dsSpk.ArtifactConfig.Threshold = 100;
 dsSpk.ArtifactConfig.MinChannels = 1;
 ivSer = dsSpk.artifactIntervals(MaxChunkSamples=2000);
-ivPar = dsSpk.artifactIntervals(MaxChunkSamples=2000, UseParallel=true);
-check(~isempty(ivSer) && isequal(ivSer, ivPar), 'artifactIntervals over 6 split chunks: parallel == serial');
 smSer = dsSpk.analyzeArtifacts(MaxChunkSamples=2000);
-smPar = dsSpk.analyzeArtifacts(MaxChunkSamples=2000, UseParallel=true);
-check(isequaln(smSer, smPar) && smSer.nSamples == nSampRec && numel(smSer.files) == 6, ...
-    'analyzeArtifacts over 6 split chunks: parallel == serial, MaxChunkSamples honoured');
+if ~slowPool
+    ivPar = dsSpk.artifactIntervals(MaxChunkSamples=2000, UseParallel=true);
+    check(~isempty(ivSer) && isequal(ivSer, ivPar), 'artifactIntervals over 6 split chunks: parallel == serial');
+    smPar = dsSpk.analyzeArtifacts(MaxChunkSamples=2000, UseParallel=true);
+    check(isequaln(smSer, smPar) && smSer.nSamples == nSampRec && numel(smSer.files) == 6, ...
+        'analyzeArtifacts over 6 split chunks: parallel == serial, MaxChunkSamples honored');
+end
 check(size(smSer.intervals, 1) == smSer.nIntervals && all(smSer.intervals(:, 2) > smSer.intervals(:, 1)) ...
     && isequal(mergeTouching(smSer.intervals), ivSer), ...
     'analyzeArtifacts returns every detected interval, recording-relative; artifactIntervals joins those that touch across chunks');

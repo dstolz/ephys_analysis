@@ -308,10 +308,14 @@ else
 end
 
 fprintf('\n== 8. a real sort: tridesclous2 on a synthetic recording ==\n');
-py = findSIPython(true);
-if py == ""
-    fprintf('  (skipped: no Python with spikeinterface found)\n');
+py = "";
+if LegacySuiteTest.isExcluded("Slow")   % minutes of sorting: run_all_tests' ExcludeTag="Slow" leaves it out
+    fprintf('  (skipped: the real sort is tagged Slow and left out)\n');
 else
+    py = findSIPython(true);
+    if py == ""; fprintf('  (skipped: no Python with spikeinterface found)\n'); end
+end
+if py ~= ""
     syn = fullfile(root, 'syn', 'SYN-01_260101_120000');
     T = makeSyntheticRecording(syn, Format="binary", NumChannels=32, NumTrials=4, SortedOutput=false, ...
         WriteProbe=true, Artifacts=false);

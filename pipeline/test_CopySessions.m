@@ -1538,10 +1538,15 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifyEqual(CopySchedule.uncPath(letter + "/a/b"), strip(remote, "right", "\") + "\a\b");
         end
 
+    end
+
+    methods (Test, TestTags = {'Slow'})
         function scheduleRunsAsAWindowsTask(tc)
             % End to end: save creates the task, Run now has Windows start
             % MATLAB in the background, the run copies today's session and
-            % reports, and remove takes the task away again.
+            % reports, and remove takes the task away again. Tagged Slow (a
+            % second MATLAB, polled for up to 5 min): run_all_tests'
+            % ExcludeTag="Slow" leaves it out; CI runs it.
             tc.assumeTrue(ispc, "Task Scheduler needs Windows");
             tc.assumeNotEqual(string(getenv("RUNNER_ENVIRONMENT")), "github-hosted", ...
                 "on a GitHub-hosted runner the MATLAB that Task Scheduler starts exits before running any code " + ...
@@ -1583,7 +1588,9 @@ classdef test_CopySessions < matlab.unittest.TestCase
             tc.verifyEmpty(st.Settings);
             tc.verifyNotEmpty(st.LastRun, "the last run's summary is kept");
         end
+    end
 
+    methods (Test)
         function appSchedulesACopy(tc)
             % The Copy tab's Scheduled copy panel: Save with the tab's roots
             % and the Subject ID, the status line, Remove.

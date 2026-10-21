@@ -1379,6 +1379,15 @@ if S.sec("6", "config: validate")
     b8 = b; b8.Figures(1).panels(1).overlays = o4; b8.Figures(1).panels(2).overlays = o4;
     check(has(b8, "figure_1.psth_1.overlays(1).name", "warning") && ~has(b8, "figure_1.raster_1.overlays(1).name", "warning"), ...
         'two panels'' overlays of one name warn (one aesthetics rule on the name reaches both)');
+    bR = base; kR = find([bR.Figures(1).panels.type] == "raster", 1);
+    bRg = bR; bRg.Figures(1).panels(kR).options.tickColor = "groups";
+    bRb = bR; bRb.Figures(1).panels(kR).options.tickColor = "";
+    bRw = bR; bRw.Figures(1).panels(kR).options.tickWidth = 2;
+    bRn = bR; bRn.Figures(1).panels(kR).options.tickWidth = -1;
+    check(bR.Figures(1).panels(kR).options.tickColor == "groups" && bR.Figures(1).panels(kR).options.tickWidth == 0 ...
+        && ~has(bRg, "figure_1.raster_1.options.tickColor", "warning") && has(bRb, "figure_1.raster_1.options.tickColor", "warning") ...
+        && ~has(bRw, "figure_1.raster_1.options.tickWidth", "error") && has(bRn, "figure_1.raster_1.options.tickWidth", "error"), ...
+        'a raster''s tickColor is "groups" or a color (default "groups"), its tickWidth 0 (the design''s) or a width in points');
     I9 = figIssues(b4);
     I9 = I9(I9.Field == n0 + "x", :);
     b10 = b2; b10.Figures(1).panels(2).type = "bogus";
@@ -2351,6 +2360,34 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     check(size(unique(colJ, 'rows'), 1) == numel(tkJ) && all(col3(own, :) == [0 1 0], 'all') && isequal(col3(~own, :), colJ(labJ ~= labJ(1), :)) ...
         && all([tk3.LineWidth] == 0.5), ...
         'a design leaves the raster ticks'' group colors; a rule for one group recolors only that group''s ticks');
+    % tickWidth: 0 follows the design's tick width; a width wins over it (and over the user's kind rules), not over the figure's own rules
+    rW = F1.spec;
+    clf(fig);
+    hW = renderFigure(F1, rW, fig, Design="Talk", UserAesthetics=false);
+    drawnow;
+    tkT = rasterTickLines(hW.panels(1).axes);
+    wT = [tkT.LineWidth];   % values: the redraw deletes these objects
+    rW.panels(1).options.tickWidth = 3;
+    clf(fig);
+    hW = renderFigure(F1, rW, fig, Design="Talk", UserAesthetics=false);
+    drawnow;
+    wW = [rasterTickLines(hW.panels(1).axes).LineWidth];
+    rW.aesthetics = PlotAesthetics.normalizeRules(struct('role', "rasterTicks", 'group', "", 'property', "LineWidth", 'value', 2));
+    clf(fig);
+    hW = renderFigure(F1, rW, fig, Design="Talk", UserAesthetics=false);
+    drawnow;
+    wF = [rasterTickLines(hW.panels(1).axes).LineWidth];
+    rW.panels(1).options.tickColor = "red";
+    rW.aesthetics = PlotAesthetics.emptyRules();
+    clf(fig);
+    hW = renderFigure(F1, rW, fig, Design="Talk", UserAesthetics=false);
+    drawnow;
+    tkR = rasterTickLines(hW.panels(1).axes);
+    wR = [tkR.LineWidth];
+    cR = vertcat(tkR.Color);
+    check(all(wT == 1.25) && numel(wW) == numel(wT) && all(wW == 3) && all(wF == 2) ...
+        && all(wR == 3) && all(cR == [1 0 0], 'all'), ...
+        'options.tickWidth 0 leaves the design''s tick width (Talk 1.25), a width overrides it, the figure''s own rules override that, and it goes with a tickColor');
     % a panel's box: "on" / "off" win over the design's rule and the figure's own aesthetics; "auto" leaves them
     sBx = F1.spec;
     sBx.panels(1).box = "on";

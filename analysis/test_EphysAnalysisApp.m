@@ -2257,6 +2257,16 @@ if S.sec("5h", "the figure tree, a panel's note and overlays, dragging a panel i
     check(boxShown && pBx.box == "off" && pBx.options.yTicks && app.FigurePreviewState == "drawn" && isscalar(axBx) ...
         && string(axBx.Box) == "off" && numel(axBx.YTick) >= 2, ...
         'the Panel section''s Box row and a raster''s Show y ticks row reach the panel, and the preview draws them');
+    % the ticks' drop-down lists "groups" (stored as is) and the Tick width row reaches the ticks
+    groupsShown = string(FE.tickColor.Value) == "groups" && string(FE.tickColor.Items(1)) == "groups" && FE.tickWidth.Value == 0 ...
+        && pBx.options.tickColor == "groups";
+    FE.tickWidth.Value = 2.5;
+    app.onConfigChanged("figure");
+    tkW = findall(app.FigurePreviewPanel, 'Tag', 'rasterTicks');
+    tkW = tkW(arrayfun(@(t) any(isfinite(t.XData)), tkW));
+    check(groupsShown && app.Config.Figures(1).panels(1).options.tickWidth == 2.5 && ~isempty(tkW) && all([tkW.LineWidth] == 2.5), ...
+        'a raster''s Colors row shows "groups" for the groups'' colors; the Tick width row reaches the panel and the preview''s ticks');
+    FE.tickWidth.Value = 0;
     FE.panelBox.Value = "auto";
     FE.yTicks.Value = false;
     app.onConfigChanged("figure");

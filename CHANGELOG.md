@@ -10,6 +10,10 @@ says how to cut a release.
 
 ### Added
 
+- Figures: a raster panel's `options.tickColor` takes `"groups"` (each trial group's color, the default; it was
+  `""`), as `options.backColor` does; the editor's ticks drop-down lists *groups* instead of a blank item. A new
+  `options.tickWidth` (the Raster options' *Tick width* row; points, `0` = the plot design's width) sets the
+  ticks' line width over the design's; Apply to all panels copies it with the other raster options.
 - **Starred only** for figures (`observe.starred`, a checkbox in the Figures tab's Observations section): the
   preview's picker, < >, Generate, Export runs and scripts keep only the starred units of the sort in use, the
   starred channels (a detection channel by its recording channel) or a starred dataset, read from

@@ -1338,7 +1338,8 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `raster` | `rasterSortOrder` | `"ascending"` | or `"descending"` |
 | `raster` | `rasterByGroup` | `true` | rows by group first; `false`: every epoch sorted as one block |
 | `raster` | `maskAfterStop` | `false` | drop each epoch's ticks from its stop event on |
-| `raster` | `tickColor` | `""` | the ticks' color: `""` is each trial group's color (as the PSTH colors its traces; each group's ticks are one line object, tagged `rasterTicks` with the group's label); else a color name or hex code (`"red"`, `"#ff7f0e"`) for every tick. A raster layer's own `color` overrides it for that layer's block. A name that is not a color is a validation warning and the ticks keep the groups' colors |
+| `raster` | `tickColor` | `"groups"` | the ticks' color: `"groups"` is each trial group's color (as the PSTH colors its traces; each group's ticks are one line object, tagged `rasterTicks` with the group's label); else a color name or hex code (`"red"`, `"#ff7f0e"`) for every tick. A raster layer's own `color` overrides it for that layer's block. A name that is not a color is a validation warning and the ticks keep the groups' colors |
+| `raster` | `tickWidth` | `0` | the ticks' line width, points; `0` is the plot design's width (`rasterTicks` `LineWidth`). A value above 0 wins over the design's and the user's per-kind rules (the figure's own aesthetics rules still win); not a width of 0 or more is a validation error |
 | `raster` | `backColor` | `"none"` | bands behind the rows: `"none"` (the default), `"groups"` (a pale band of each group's color behind its rows; the legend then also names the groups when every tick is one color) or a color name or hex code, painted on every group's band and on the axes behind them. Anything else is a validation warning and no bands |
 | `raster` | `yTicks` | `false` | show the y axis' tick marks and labels (the epoch numbers); `false` hides them and keeps the y label. A raster of several blocks keeps its blocks' names on the y axis either way. A heat map of trials has no y ticks to show |
 | `raster` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | the first block's unit's waveform in a box in the panel |
@@ -1827,7 +1828,7 @@ defaults. A file written by hand may leave out any field that keeps its default.
                        "offsetParam": "", "offsetParamUnit": "ms", "sequence": [], "alignStep": "Inf",
                        "marker": "diamond", "size": 4, "color": "" } } ],
         "options": { "rasterSort": "", "rasterSortEvent": [], "rasterSortOrder": "ascending", "rasterByGroup": true,
-                     "maskAfterStop": false, "tickColor": "", "backColor": "none", "yTicks": false,
+                     "maskAfterStop": false, "tickColor": "groups", "tickWidth": 0, "backColor": "none", "yTicks": false,
                      "waveform": { "mode": "off", "...": "..." } } },
       { "id": "psth_1", "type": "psth", "title": "", "box": "auto", "row": 2, "col": 1, "rowSpan": 1, "colSpan": 1,
         "ref": "default", "window": "default", "selection": "default",

@@ -426,7 +426,7 @@ no optional toolbox are needed; tests that need one are skipped (reported as
   `test_NWBExport`, `test_OutputTransfer`, `test_PipelineScriptSave`, `test_PlatformSupport`,
   `test_ProgressClock`, `test_Provenance`, `test_ReadNewLines`, `test_RepositoryMetadata`,
   `test_SpikeCoincidence`, `test_TableSort`, `test_ThresholdScope` and `test_UnitQuality`; in
-  `analysis/`, `test_Auroc`, `test_PopulationAnalysis` and
+  `analysis/`, `test_Auroc`, `test_FirstSpikeLatency`, `test_PopulationAnalysis` and
   `test_ResponseStats`. New suites take this form; `test_BinaryReader` is the
   pattern for converting a function-style one (shared fixtures in
   `TestClassSetup`, one test method per section, each `check(cond, msg)` as
@@ -598,6 +598,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_PipelineAnalysisStep` (analysis/) | the pipeline's Analysis step running a saved analysis config over a synthetic project: validation, plan, dry run, figures and report, progress, cancel, a `list` selection with one report per dataset, both scripts |
 | `test_ResponseStats` (analysis/) | `pAdjust` against statsmodels; `responseStats` on known counts against `signrank` / `kruskalwallis` called directly (toolbox tests skipped without it) |
 | `test_Auroc` (analysis/) | `aucOf`; `aurocCurves` (`"psth"` against a port of the Caras lab's code, `"epochs"`, windows, the stop mask, cutoffs, `aurocCall` over stacked results, silent units, bootstrap / ranksum / shuffle tests); `spikePSTH`'s auROC result; the figure caption's auROC clause; the PSTH and heat map marks (skipped without the toolbox) |
+| `test_FirstSpikeLatency` (analysis/) | `firstSpikeLatency` on planted spike trains (known latencies, both window ends included, none NaN, groups, the stop mask, the errors) and the latency box plot's statistics against `prctile` and Tukey's fences |
 | `test_PopulationAnalysis` (analysis/) | `populationAnalysis` against the per-dataset calls, the auROC calls pooled over the family, `populationSummary`, the files `writePopulation` writes |
 | `test_ReadNewLines` | `readNewLines` (the run monitor's log tail): whole lines from a byte offset, a partial line left for the next call, CRLF and carriage-return progress lines as a terminal shows them; a missing file or no name reads nothing and keeps the offset |
 | `test_ProgressClock` | `ProgressClock`, the time left both apps show: its words and roundings, no estimate before 1% and 5 s, a steady rate exact, smoothing after an uneven piece, restart, odd fractions |

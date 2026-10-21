@@ -660,8 +660,8 @@ list edit the layer picked:
 
 | Panel type | Rows |
 | --- | --- |
-| Raster | **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*), **Rows by group first**, **Colors** (the ticks' color: *groups* = each trial group's color, as the PSTH colors its traces, or one color for every tick, which a layer's own **Color** overrides; and **bands** behind the rows: *none* (the default), *groups* (a pale band of each group's color) or one color for every group), **Tick width** (points; 0 = the plot design's width; `options.tickWidth`), **Show y ticks** (off by default: the y axis has no tick marks or epoch numbers, only its label; `options.yTicks`), **Mask after the stop event**, and the waveform inset (**Waveform**, **Inset location**, **Inset size**, **Label**) |
-| PSTH | **Bin**, **Smooth**, **Measure**, **Baseline** (with *auroc*) and its window, the auROC rows (with the *auroc* baseline), **Mask after the stop event**, **Display** (*trace* or *heat map*), **PSTH as**, **Fill** and its opacity, **Normalize**, **Stack** (**One row per group** with its **spacing**, the row step in tallest PSTHs), **Y limits** (not used in a stack), and the waveform inset; as a heat map, **Colormap** and **Color limits** instead of **PSTH as**, **Fill**, **Stack** and **Y limits** |
+| Raster | **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*), **Rows by group first**, **Colors** (the ticks' color: *groups* = each trial group's color, as the PSTH colors its traces, or one color for every tick, which a layer's own **Color** overrides; and **bands** behind the rows: *none* (the default), *groups* (a pale band of each group's color) or one color for every group), **Tick width** (points; 0 = the plot design's width; `options.tickWidth`), **First spike** (a summary beside **First-spike latency...**, below), **Show y ticks** (off by default: the y axis has no tick marks or epoch numbers, only its label; `options.yTicks`), **Mask after the stop event**, and the waveform inset (**Waveform**, **Inset location**, **Inset size**, **Label**) |
+| PSTH | **Bin**, **Smooth**, **Measure**, **Baseline** (with *auroc*) and its window, the auROC rows (with the *auroc* baseline), **Mask after the stop event**, **Display** (*trace* or *heat map*), **PSTH as**, **Fill** and its opacity, **Normalize**, **Stack** (**One row per group** with its **spacing**, the row step in tallest PSTHs), **Latency box** (a summary beside **Latency box plot...**, below), **Y limits** (not used in a stack), and the waveform inset; as a heat map, **Colormap** and **Color limits** instead of **PSTH as**, **Fill**, **Stack**, **Latency box** and **Y limits** |
 | Event traces | **Draw as** (*solid bars (onset to offset)* or *a logic level (a line)*), **Trials** (*every epoch overlaid in the line's row*, translucent, or *a sub-row per epoch*, with **group bands**), the sub-rows sorted as a raster's rows by the raster's **Sort rows by** (and its order), **Sort event**, **Sort sequence** and **Rows by group first** (grayed out while overlaid), **Color by** (*line*: the layer's Color, else a palette color; or *trial group*), **Height** (a share of the row) with its **opacity** (blank: 0.3 overlaid, 1 in sub-rows), **Bar outline** and its width (bars), **Narrowest bar** (bars: points; a bar drawn narrower, a zero-length interval too, also gets a tick this wide through its middle; 0: none), **Level line** style and width (a line; a layer's own Line style wins), **Baseline** (**Draw**, its color) and **Baseline line** (style, width), **Row spacing**. Its layers are events layers only, one line each, a row each ([Event traces](EphysAnalysisConfig.md#event-traces)) |
 | Continuous signal | **Baseline** and its window, **Display** (*lines* or *stacked rows*), **Signal** (mean or median; as recorded, rectified, or *Vector magnitude*: the layer's channels as one trace, √(x² + y² + z²) in each epoch after the baseline, e.g. a 3-axis accelerometer's AUX channels with Baseline *subtract*), **Error band** (off, mean ± SEM, mean ± SD, bootstrap 95% CI or interquartile range), **Stack spacing**, **Trials** (*Off*, *Faint, behind the mean* or *Only the trials*) with **at most** (the most epochs drawn, 100 by default, picked evenly over their order; the traces sit under every band and mean; grayed out while *Off*), **Y limits** |
 | Heat map | **Bin**, **Smooth**, **Measure** and **Mask after the stop event** (a spike layer), **Baseline** (*auroc* for a spike layer, with the auROC rows; the map is then of auROCs in the diverging colormap), **Rows** (*the layer's units or channels*, or *one unit's epochs (trials)*), **Row order** (*probe*, *peak* or *modulation*, the last only with the auROC baseline), **Color limits**; the group drawn is in the Selected panel section. With *one unit's epochs (trials)* a row is an epoch of one unit, every group at once, sorted as a raster's rows: the raster's **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*) and **Rows by group first** show, **Row order** and **Group shown** hide, and the layer may follow the observation (its Binding row opens for a spike layer; otherwise fix it to one unit). The map is one unit's epochs: a layer that follows the observation through a channel (a channel observation, or the other spike source) keeps every unit on it, which Validate refuses, and a layer that still keeps several is skipped with *A heat map of trials draws one unit: this layer keeps n*. The groups are a color strip along the left edge, the y label names the sort, and the auROC baseline is refused |
@@ -679,6 +679,27 @@ overlaid, the first on top (as a raster lists them), each group's value on the l
 peak on the right. A single group is not stacked, a second layer is drawn into
 the rows as an outline, and a raster panel above the PSTH shows the groups'
 rasters.
+
+**First-spike latency...** (a raster's **First spike** row) and **Latency box
+plot...** (a PSTH's **Latency box** row) open a modal window on the selected
+panel's [first-spike latency](EphysAnalysisConfig.md#first-spike-latency)
+settings; the row beside each button sums them up (*off*, or e.g. *on, 5-50 ms,
+◆ red*; *end* is the window's end). Both windows have the on box (*Mark each
+epoch's first spike*, *Draw the box plot of the first-spike latencies*), **Detect
+from** and **to** (the latency window in ms from the aligned event, both ends
+included; **to** blank: the panel's window's end) and the look: the raster's
+**Marker** and its size, **Color** (*groups*: each trial group's color, or a
+color name or #RRGGBB) and **Filled**; the PSTH's **Color**, **Line** (style and
+width of the box's outline and whiskers), **Box height** (each box's lane, a
+share of the PSTH's height), **Fill opacity** and **Outliers** (marker and size;
+*none* hides them). The rows under the on box are grayed while it is off. **OK**
+gives the panel the settings as one edit, named in the Edit menu (*Undo
+First-spike latency*, *Undo Latency box plot*); a window that ends before it
+starts is refused, said in the window, which stays open. **Cancel** changes
+nothing. The raster then marks each epoch's first spike on its row, over the
+ticks, in every block; the PSTH draws a box plot of the latencies per trial
+group in a band above its traces, or with **Stack** in each row. **Apply to all
+panels** takes them to the other panels of the same type.
 
 **Display** *heat map* draws a PSTH panel's unit as an image instead: a row
 per trial group, the first on top, labeled with the groups' values, each bin
@@ -1584,7 +1605,14 @@ figure**, **Undo Title**), two quick edits of one field one step, a
 description edit no step and kept by an undo, a removed panel undone (back
 and selected) and redone with Ctrl+Shift+Z, a new edit dropping the redo, the
 figures undone back to the saved ones leaving the title saved, the history
-cleared by another config, and `FigureEditHistory`'s depth. Section 6 is the preferences remembered (the last
+cleared by another config, and `FigureEditHistory`'s depth. Section 5l is the
+first-spike latency windows: a raster's **First spike** row (not a PSTH's) and a
+PSTH's **Latency box** row, **First-spike latency...** opening a modal window with
+its rows grayed while off, **OK** giving the raster its window and look as one
+step (*Undo First-spike latency*, undone and redone), the row's summary, the
+window opening on the panel's settings, a window ending before it starts refused,
+**Cancel** changing nothing, **Latency box plot...** likewise (*Undo Latency box
+plot*), and the preview drawing the marks and the boxes. Section 6 is the preferences remembered (the last
 config, the collapsed sections and supersections of the figure editor; none of the retired plot
 or session preferences is written) and closing. The test keeps the app's
 preferences in a temporary file (`AppPrefs`), so the user's own are never read

@@ -10,6 +10,23 @@ says how to cut a release.
 
 ### Added
 
+- First-spike latency on raster and PSTH panels. `firstSpikeLatency(R, Units=, MinSec=, MaxSec=)` finds each
+  epoch's first spike at or after `MinSec` and at or before `MaxSec` (both included, s from the aligned event;
+  NaN where none; `MaxSec` `Inf` = the window's end) in a `spikePSTH` result's raster rows, the very spikes the
+  raster draws. A raster's new `options.firstSpike` (`defaults("FirstSpike")`: `enabled`, `minSec`, `maxSec`,
+  `marker`, `size`, `color` "groups" or a color, `filled`) marks each epoch's first spike on its row, over the
+  ticks, whatever the sort, `rasterByGroup` or a further block's band (role `firstSpike`, "First spike" in the
+  legend, a data tip naming the trial). A PSTH's new `options.latencyBox` (`defaults("LatencyBox")`: `enabled`,
+  `minSec`, `maxSec`, `color`, `lineStyle`, `lineWidth`, `boxHeight`, `fillAlpha`, `outlierMarker`,
+  `outlierSize`) draws a box plot of the latencies per trial group (quartiles by `prctile`, the median,
+  Tukey's whiskers, outliers) in a band of its own above the traces, or with `stack` in each row above its
+  PSTH (roles `latencyBox`, `latencyMedian`, `latencyWhisker`, `latencyOutlier`; a data tip with the statistics
+  and n); such a PSTH keeps its raster's rows. Both are off by default, validated while on, named in the
+  figure's caption and drawn on rows merged across sessions. In the analysis app the raster's **First spike**
+  row and the PSTH's **Latency box** row show a summary beside **First-spike latency...** and **Latency box
+  plot...**, which open a modal window whose OK is one undo step (*First-spike latency*, *Latency box plot*).
+  New suite `test_FirstSpikeLatency`. See
+  [First-spike latency](documentation/EphysAnalysisConfig.md#first-spike-latency).
 - **Undo** and **Redo** tools on the analysis app's toolbar, after the File group (`undo.svg`, `redo.svg`): the Edit
   menu's items, named in their tooltips (*Undo Add panel (Ctrl+Z)*) and on and off with them (`refreshEditMenu` keeps
   both). Every undo step is named now: the event and sort sequence dialogs (*Event sequence*, *Sort sequence*), the

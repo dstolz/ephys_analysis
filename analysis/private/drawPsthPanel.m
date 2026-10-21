@@ -48,6 +48,25 @@ function hk = drawPsthPanel(ax, P, look)
 %   item's call per group at the top right (callMarks; a layer's mean: its
 %   units' counts up and down); normalize does not
 %   apply.
+%   options.latencyBox (enabled; not with display "heatmap") draws a box
+%   plot of the first item's first-spike latencies (firstSpikeLatency over
+%   its raster rows: each epoch's first spike at or after minSec and at or
+%   before maxSec; a layer's mean pools its units' epochs) per trial group,
+%   along the time axis (latencyBoxStats: the box from the first to the
+%   third quartile, a line at the median, whiskers to the most extreme
+%   values within 1.5 IQR of the box, the values beyond as outliers), in
+%   the group's color or one color, outlined in lineStyle / lineWidth, the
+%   box filled at fillAlpha. Overlaid, the boxes sit in a band of their own
+%   above the traces: the y range grows by a small gap and a lane of
+%   boxHeight x its height per group (the first group's on top), so they
+%   never cover a trace (nor options.yLim's range), and the y ticks stay on
+%   the traces' range. Stacked, each row holds its group's box in a lane
+%   above its PSTH's reach (with its band), the row step grown to take it.
+%   Roles "latencyBox", "latencyMedian", "latencyWhisker", "latencyOutlier"
+%   (the group's label); each part carries its statistics (appdata
+%   LatencyStats: n, nEpochs, q, whiskers, nOutliers, window) for its data
+%   tip. A PSTH without raster rows (computed before the box was turned on)
+%   says so in its notes.
 %   The events layers drawn as marks become latency lines and a rug
 %   (figEventMarks, roles "eventLine" / "eventRug"), and with
 %   options.waveform.mode on the first unit's waveform is an inset. Skipped
@@ -137,6 +156,16 @@ names = strings(1, nI);
 for i = 1:nI; names(i) = D(i).name; end
 heat = o.display == "heatmap" && nI > 0;   % the first item as an image, a row per trial group
 stacked = ~heat && o.stack && nI > 0 && size(D(1).m, 2) > 1;
+lb = EphysAnalysisConfig.defaults("LatencyBox");   % none on a spec without it
+if isfield(o, 'latencyBox'); lb = EphysAnalysisConfig.normalizeSection("LatencyBox", o.latencyBox); end
+boxes = [];   % the first item's first-spike latencies per trial group, as box plot statistics (latencyBoxes)
+if lb.enabled && ~heat && nI > 0
+    [boxes, why] = latencyBoxes(D(1), items(1, 2), lb);
+    if why ~= ""
+        P.layers(end+1) = P.layers(items(1, 1));
+        P.layers(end).skip = why;
+    end
+end
 
 hl = struct('hist', o.histStyle, 'fill', o.fill, 'alpha', o.fillAlpha, 'stack', stacked, 'spacing', o.stackSpacing, 'raster', []);
 if ~isfinite(hl.alpha)
@@ -148,7 +177,7 @@ lss = strings(1, nI);
 if heat
     yName = drawHeat(ax, D(1), P.layers(items(1, 1)).name, look, o, style);
 elseif stacked
-    [yName, lss] = drawRows(ax, D, Ls, items, hl, style, o);
+    [yName, lss] = drawRows(ax, D, Ls, items, hl, style, o, boxes, lb, hasMarks);
     for g = 1:size(D(1).m, 2)   % the groups, for the figure's legend (the rows are labeled on the axis)
         gl = string(D(1).R.groups.label(g));
         hk.legendHandles(end+1) = tagPart(line(ax, NaN, NaN, 'Color', D(1).colors(g, :), 'LineWidth', style.LineWidth), "rate", gl);
@@ -227,6 +256,9 @@ if nI > 0; nGroups = height(D(1).R.groups); end
 colorBy = "group";
 if heat; colorBy = "mark"; end   % over an image the latency lines take the marks' colors, as a heat map's do
 [hm, lm] = figEventMarks(ax, P, look, 1:max(1, nGroups), colorBy);
+if ~isempty(boxes) && ~stacked   % above the traces, the rug and the spans: a band of their own
+    boxBand(ax, boxes, lb, style);
+end
 for m = 1:numel(hm)
     hk.legendHandles(end+1) = hm(m);
     hk.legendLabels(end+1) = lm(m);
@@ -351,16 +383,37 @@ end
 end
 
 
-function [yName, lss] = drawRows(ax, D, Ls, items, hl, style, o)
+function [yName, lss] = drawRows(ax, D, Ls, items, hl, style, o, boxes, lb, hasMarks)
 %drawRows  The stack: the first item's rows by drawStack, every further item drawn into the same rows as an outline.
 %   The step is taken from the tallest PSTH of every item, so each fits its
-%   rows; the y limits of both sides then cover every item's reach.
+%   rows; the y limits of both sides then cover every item's reach. With
+%   BOXES (latencyBoxes: a box per group) each row also takes a lane above
+%   its PSTH's reach (every item's, with its band), LB.boxHeight x that
+%   reach high, after a small gap: the step is taken from reach, gap and
+%   lane together (drawStack's tallest), and each group's box is drawn in
+%   its row's lane; with HASMARKS the top grows a little more, so the
+%   marks' rug along the top edge (figEventMarks) stays clear of the top
+%   row's box.
 nI = numel(D);
 nG = size(D(1).m, 2);
 lss = strings(1, nI);
 tallest = -Inf;
 for i = 1:nI
     tallest = max([tallest; D(i).m(:)]);
+end
+lane = 0;
+boxAt = 0;
+if ~isempty(boxes)
+    reach = tallest;
+    for i = 1:nI
+        r = D(i).m(:);
+        if style.ShowSEM; r = [r; D(i).hi(:)]; end %#ok<AGROW>
+        reach = max([reach; r(isfinite(r))]);
+    end
+    if ~(reach > 0); reach = 1; end
+    lane = lb.boxHeight * reach;
+    boxAt = 1.05 * reach;   % the lane's bottom, from the row's baseline: a gap above the reach
+    tallest = boxAt + lane;
 end
 P1 = struct('m', D(1).m, 'lo', D(1).lo, 'hi', D(1).hi, 'peak', D(1).peak, ...
     'peakLabel', "Peak (" + D(1).R.units + ")", 'tallest', tallest);
@@ -386,6 +439,21 @@ if hasMembers   % each member session, faint, in its series' row (a result merge
         memberLines(ax, D(i).R.t, Mi + off, D(i).R, D(i).colors, style);
     end
     hold(ax, 'off');
+end
+if lane > 0   % each group's box in its row's lane, above the row's reach
+    hold(ax, 'on');
+    for g = 1:min(nG, numel(boxes))
+        drawBox(ax, boxes(g), base(g) + boxAt + lane / 2, 0.35 * lane, lb, style);
+    end
+    hold(ax, 'off');
+    if hasMarks   % room for the marks' rug along the top edge, clear of the top row's box
+        yl = ylim(ax);
+        yl(2) = yl(2) + 0.08 * diff(yl);
+        ylim(ax, yl);
+        yyaxis(ax, 'right');
+        ylim(ax, yl);
+        yyaxis(ax, 'left');
+    end
 end
 if nI < 2; return; end
 yl = ylim(ax);
@@ -420,6 +488,111 @@ if hi > yl(2) || lo < yl(1)
     ylim(ax, yl);
     yyaxis(ax, 'left');
 end
+end
+
+
+function [B, why] = latencyBoxes(d, u, lb)
+%latencyBoxes  The first item's first-spike latencies per trial group, as box plot statistics (one entry per group).
+%   D is the item (drawPsthPanel's D(1)), U its unit (0: the layer's mean,
+%   every unit of the layer pooled: one latency per unit and epoch). Each
+%   entry: latencyBoxStats' fields, plus label (the group's), color (the
+%   group's, or LB.color when it is one), nEpochs (the group's epochs x
+%   units) and window (the window searched). B is empty, and WHY says why,
+%   when the result holds no raster rows or the window is not one.
+B = [];
+why = "";
+R = d.R;
+units = u;
+if u == 0 && isfield(R, 'raster'); units = 1:numel(R.raster); end
+try
+    L = firstSpikeLatency(R, Units=units, MinSec=lb.minSec, MaxSec=max(lb.minSec, lb.maxSec));
+catch ME
+    switch ME.identifier
+        case "firstSpikeLatency:NoRaster"
+            why = "no latency box plot: the PSTH holds no raster rows (preview it again)";
+        case "firstSpikeLatency:BadWindow"
+            why = "no latency box plot: its window needs minSec <= maxSec";
+        otherwise
+            rethrow(ME);
+    end
+    return
+end
+nG = size(d.m, 2);
+fixed = [];
+c = strtrim(string(lb.color));
+if c ~= "groups"
+    try
+        fixed = validatecolor(char(c));
+    catch
+        % not a color: the groups' (validate warns)
+    end
+end
+for g = 1:nG
+    in = L.epochGroup == g;
+    S = latencyBoxStats(L.lat(in, :));
+    S.label = string(R.groups.label(g));
+    S.color = d.colors(min(g, size(d.colors, 1)), :);
+    if ~isempty(fixed); S.color = fixed; end
+    S.nEpochs = nnz(in) * numel(units);
+    S.window = L.window;
+    if isempty(B); B = S; else; B(g) = S; end
+end
+end
+
+
+function boxBand(ax, boxes, lb, style)
+%boxBand  The overlaid PSTH's box plots in a band of their own above its y range: a lane per group, the first on top.
+%   The y limits grow by a gap (4% of the range) and a lane of
+%   LB.boxHeight x the range per box; the y ticks stay those of the range
+%   the traces use.
+yl = ylim(ax);
+range = diff(yl);
+if ~(range > 0); range = 1; end
+yt = ax.YTick;
+lane = lb.boxHeight * range;
+top = yl(2) + 0.04 * range + numel(boxes) * lane;
+ylim(ax, [yl(1) top]);
+set(ax, 'YTick', yt(yt <= yl(2) + 1e-9 * range));
+hold(ax, 'on');
+for g = 1:numel(boxes)
+    drawBox(ax, boxes(g), top - (g - 0.5) * lane, 0.35 * lane, lb, style);
+end
+hold(ax, 'off');
+end
+
+
+function drawBox(ax, B, yc, hh, lb, style)
+%drawBox  One horizontal box plot along the time axis at height YC, the box 2 x HH high.
+%   The box from the first to the third quartile (role "latencyBox"), the
+%   median (a line twice as wide: "latencyMedian", in a pale shade of the
+%   color over a fill above half opacity), the whiskers with their caps
+%   ("latencyWhisker") and the outliers ("latencyOutlier"), every part in
+%   B.color, tagged with B.label and carrying its statistics (appdata
+%   LatencyStats). Nothing for a group with no latency.
+if B.n == 0; return; end
+c = B.color;
+tg = B.label;
+q = B.q;
+w = B.whiskers;
+ls = char(lb.lineStyle);
+lw = lb.lineWidth;
+stats = struct('n', B.n, 'nEpochs', B.nEpochs, 'q', q, 'whiskers', w, 'nOutliers', numel(B.outliers), 'window', B.window);
+mc = c;
+if lb.fillAlpha > 0.5; mc = paleColor(c, 0.75, style); end
+h = gobjects(1, 0);
+h(end+1) = tagPart(patch(ax, 'XData', q([1 3 3 1]), 'YData', yc + hh * [-1 -1 1 1], 'FaceColor', c, 'FaceAlpha', lb.fillAlpha, ...
+    'EdgeColor', c, 'LineStyle', ls, 'LineWidth', lw, 'HandleVisibility', 'off'), "latencyBox", tg);
+h(end+1) = tagPart(line(ax, q([2 2]), yc + hh * [-1 1], 'Color', mc, 'LineWidth', 2 * lw, 'HandleVisibility', 'off'), ...
+    "latencyMedian", tg);
+cap = hh / 2;
+X = [w(1) q(1) NaN q(3) w(2) NaN w(1) w(1) NaN w(2) w(2)];
+Y = [yc yc NaN yc yc NaN yc - cap yc + cap NaN yc - cap yc + cap];
+h(end+1) = tagPart(line(ax, X, Y, 'Color', c, 'LineStyle', ls, 'LineWidth', lw, 'HandleVisibility', 'off'), "latencyWhisker", tg);
+if ~isempty(B.outliers) && lb.outlierMarker ~= "none"
+    h(end+1) = tagPart(line(ax, B.outliers, repmat(yc, numel(B.outliers), 1), 'LineStyle', 'none', ...
+        'Marker', char(lb.outlierMarker), 'MarkerSize', lb.outlierSize, 'Color', c, 'HandleVisibility', 'off'), "latencyOutlier", tg);
+end
+for k = 1:numel(h); setappdata(h(k), 'LatencyStats', stats); end
 end
 
 

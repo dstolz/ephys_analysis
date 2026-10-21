@@ -35,7 +35,11 @@ function T = panelTypes()
 %   auROC against the baseline window, spikePSTH's BaselineMode "auroc")
 %   with its auroc settings (defaults("Auroc")). A PSTH stacks its groups
 %   in rows with stack (stackSpacing: the row step, x the tallest PSTH);
-%   a raster panel above it draws the rasters. A PSTH's display "heatmap"
+%   a raster panel above it draws the rasters. A raster's firstSpike
+%   (defaults("FirstSpike")) marks each epoch's first spike in a latency
+%   window, a PSTH's latencyBox (defaults("LatencyBox")) draws a box plot
+%   of those latencies per trial group in a band above its traces (in each
+%   row when stacked); both read firstSpikeLatency. A PSTH's display "heatmap"
 %   draws its first item (unit or mean) as an image instead: a row per
 %   trial group, the first on top, colored on that item's own range
 %   (cLim, else its rows' range; an auROC: 0 to 1) in colormap ("" = the
@@ -100,7 +104,9 @@ baseline = struct('Mode', "none", 'Window', [-0.2 0]);
 waveform = EphysAnalysisConfig.defaults("Waveform");           % raster / psth: the unit's waveform inset ("off" = none)
 waveformsOwn = waveform;
 waveformsOwn.mode = "both";                                    % a waveforms panel: the mean over a subsample
-auroc = EphysAnalysisConfig.defaults("Auroc");                 % psth / heatmap of spikes: baseline Mode "auroc"
+firstSpike = EphysAnalysisConfig.defaults("FirstSpike");       % raster: the first-spike latency marks (enabled false = none)
+latencyBox = EphysAnalysisConfig.defaults("LatencyBox");       % psth: the box plot of the first-spike latencies (enabled false = none)
+auroc = EphysAnalysisConfig.defaults("Auroc");                % psth / heatmap of spikes: baseline Mode "auroc"
 
 opts = struct();
 opts.raster = struct( ...
@@ -113,6 +119,7 @@ opts.raster = struct( ...
     'tickWidth',       0, ...           % the ticks' line width, points (0: the plot design's)
     'backColor',       "none", ...      % bands behind the rows: "none" | "groups" (each group's pale band) | a color name or hex code (every band)
     'yTicks',         false, ...       % show the y axis' tick marks and labels (the epoch numbers; a further block's name stays)
+    'firstSpike',      firstSpike, ...  % a mark on each epoch's first spike in [minSec, maxSec]: marker, size, color, filled
     'waveform',        waveform);       % the unit's waveform inset
 opts.psth = struct( ...
     'bins',          bins, ...
@@ -126,6 +133,7 @@ opts.psth = struct( ...
     'normalize',     "none", ...        % "none" | "unitPeak" | "groupPeak" | "allPeak"
     'stack',         false, ...         % one row per trial group, the first on top, instead of overlaid
     'stackSpacing',  1.1, ...           % stack: the row step, x the tallest PSTH (< 1 overlaps)
+    'latencyBox',    latencyBox, ...    % a box plot of the first-spike latencies per trial group, in a band above the traces (stack: in each row)
     'maskAfterStop', false, ...
     'yLim',          [], ...            % [] = automatic, else [lo hi]
     'colormap',      "", ...            % display "heatmap": "" (the design's heat colormap, Style.HeatColormap) | a colormap function

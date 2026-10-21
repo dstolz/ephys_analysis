@@ -11,9 +11,11 @@ function s = defaults(section)
 %                     of Figures)
 %   Building blocks   EventRef, SequenceStep (one step of an EventRef's
 %                     sequence), EpochWindow, TrialSelection, UnitSelection,
-%                     Style, Auroc, Waveform, Note, Overlay (one entry of a
-%                     panel's overlays), EventMark (an events layer's event:
-%                     an EventRef and its mark's look);
+%                     Style, Auroc, Waveform, FirstSpike (a raster's
+%                     first-spike latency marks), LatencyBox (a PSTH's box
+%                     plot of the first-spike latencies), Note, Overlay (one
+%                     entry of a panel's overlays), EventMark (an events
+%                     layer's event: an EventRef and its mark's look);
 %                     a figure's Observe (what it is drawn for),
 %                     FigureSessions (drawn across datasets), Panel (one entry
 %                     of its panels; options from panelTypes) and Layer
@@ -166,6 +168,32 @@ switch section
             'ampScale',  "unit", ...        % waveforms plot: "unit" (each waveform fills its own tile / glyph) | "common" (one amplitude scale for all units of the same kind of value)
             'showSites', true, ...          % waveforms plot, probe layout: the probe's sites behind the waveforms
             'showNames', false);            % waveforms plot, probe layout: each unit's name beside its waveform
+
+    case "FirstSpike"
+        % a raster panel's first-spike latency: a mark on each epoch's first spike in [minSec, maxSec] (firstSpikeLatency; rasterInto)
+        s = struct( ...
+            'enabled', false, ...           % mark each epoch's first spike
+            'minSec',  0, ...               % the earliest latency, s from the event (included)
+            'maxSec',  Inf, ...             % the latest, s (included; Inf = the panel's window's end)
+            'marker',  "o", ...             % a line marker (PlotAesthetics' list: o, square, diamond, ^, v, |, ...)
+            'size',    5, ...               % marker size, points
+            'color',   "groups", ...        % "groups" (each trial group's color) | a color name or hex code
+            'filled',  false);              % a filled marker (false: its outline only, the tick showing through)
+
+    case "LatencyBox"
+        % a PSTH panel's box plot of the first-spike latencies (firstSpikeLatency; drawPsthPanel): a box per trial group in a band
+        % of its own above the traces (a stacked PSTH: in each row, above its trace)
+        s = struct( ...
+            'enabled',       false, ...     % draw the box plot
+            'minSec',        0, ...         % the earliest latency, s from the event (included)
+            'maxSec',        Inf, ...       % the latest, s (included; Inf = the panel's window's end)
+            'color',         "groups", ...  % "groups" (each trial group's color) | a color name or hex code
+            'lineStyle',     "-", ...       % the box's outline and whiskers: "-" | "--" | ":" | "-."
+            'lineWidth',     1, ...         % points
+            'boxHeight',     0.1, ...       % each box's lane, a share of the PSTH's height (0.02 to 0.5)
+            'fillAlpha',     0.3, ...       % the box's fill opacity 0-1 (0: an outline)
+            'outlierMarker', "o", ...       % the outliers' marker (PlotAesthetics' list; "none": not drawn)
+            'outlierSize',   3);            % points
 
     case "Note"
         % a panel's descriptive text (drawNote): one block of text, placed in or beside the panel ("the plot" below)

@@ -30,6 +30,12 @@ function txt = figureCaption(spec, T, opts)
 %   what the cutoff called, summed over the observations: "units called
 %   over [0 0.5] s by a fixed cutoff (+/-0.2): Hit 2 up, 1 down; ... (of 6
 %   units)" (none with the cutoff "none").
+%   A raster with its first-spike marks on (options.firstSpike) and a PSTH
+%   with its latency box plot on (options.latencyBox) say so with their
+%   latency window: "each epoch's first spike in [0 50] ms marked on the
+%   raster"; "a box plot of the first-spike latencies in [0 to the window's
+%   end] per trial group over the PSTH (median, quartiles, whiskers to 1.5
+%   IQR, outliers)".
 %   TXT = figureCaption(SPEC, T, Sessions=S) describes a session figure
 %   drawn for each row of T (figureSessionObservations) across the sessions
 %   S (sessionTable rows; those with status other than "done" are left
@@ -124,7 +130,7 @@ if aligned
     end
     g = spec.selection.groupBy;
     if ~isempty(g); parts(end+1) = "groups by " + strjoin(g, " x "); end
-    parts = [parts aurocText(spec, opts.Auroc)];
+    parts = [parts aurocText(spec, opts.Auroc) latencyText(spec)];
 end
 if across
     switch ss.series
@@ -203,6 +209,38 @@ txt = sprintf("units called over [%g %g] s by %s: %s (of %d units)", a.modulatio
     by, strjoin(counts, "; "), sum([calls.nUnits]));
 if a.modulatedOnly; txt = txt + ", only the modulated drawn"; end
 parts(end+1) = txt;
+end
+
+
+function parts = latencyText(spec)
+%latencyText  The first-spike latency a figure's raster marks and its PSTH's box plot draws, with each one's window (the first panel of each type with it on).
+parts = strings(1, 0);
+did = strings(1, 0);
+for k = 1:numel(spec.panels)
+    p = spec.panels(k);
+    o = p.options;
+    if p.type == "raster" && ~ismember("raster", did) && isfield(o, 'firstSpike') && isstruct(o.firstSpike) && o.firstSpike.enabled
+        parts(end+1) = "each epoch's first spike in " + windowText(o.firstSpike) + " marked on the raster"; %#ok<AGROW>
+        did(end+1) = "raster"; %#ok<AGROW>
+    elseif p.type == "psth" && ~ismember("psth", did) && isfield(o, 'latencyBox') && isstruct(o.latencyBox) ...
+            && o.latencyBox.enabled && o.display ~= "heatmap"
+        where = "over the PSTH";
+        if o.stack; where = "in each row of the PSTH"; end
+        parts(end+1) = "a box plot of the first-spike latencies in " + windowText(o.latencyBox) + " per trial group " + where + ...
+            " (median, quartiles, whiskers to 1.5 IQR, outliers)"; %#ok<AGROW>
+        did(end+1) = "psth"; %#ok<AGROW>
+    end
+end
+end
+
+
+function s = windowText(L)
+%windowText  A latency window in ms: "[0 50] ms", "[5 ms to the window's end]".
+if isfinite(L.maxSec)
+    s = sprintf("[%g %g] ms", 1000 * L.minSec, 1000 * L.maxSec);
+else
+    s = sprintf("[%g ms to the window's end]", 1000 * L.minSec);
+end
 end
 
 

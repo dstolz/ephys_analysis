@@ -13,10 +13,16 @@ classdef LegacySuiteTest < matlab.unittest.TestCase
     %   chooses. A suite run on its own (test_EphysDataset) behaves as
     %   before.
     %
+    %   run_all_tests also hands over, for the run, the sections it was
+    %   asked for per suite ("test_X:5i,5j", see TestSections; the suite is
+    %   then called as test_X(Sections=...)) and the tags it excludes
+    %   (ExcludeTag=): a suite's slow block asks
+    %   LegacySuiteTest.isExcluded("Slow") and skips itself.
+    %
     %   New suites are matlab.unittest.TestCase classes (test_BinaryReader
     %   is the pattern to follow); run_all_tests runs those directly.
     %
-    %   See also run_all_tests, findTestSuites.
+    %   See also run_all_tests, TestSections, findTestSuites.
 
     properties (TestParameter)
         Suite = findTestSuites(Kind="function", As="parameter")
@@ -26,7 +32,54 @@ classdef LegacySuiteTest < matlab.unittest.TestCase
         function runSuite(testCase, Suite)
             LegacySuiteTest.current(testCase);
             restore = onCleanup(@() LegacySuiteTest.current([])); %#ok<NASGU>
-            feval(Suite);
+            secs = LegacySuiteTest.sectionsFor(Suite);
+            if isempty(secs)
+                feval(Suite);
+            else
+                feval(Suite, "Sections", secs);
+            end
+        end
+    end
+
+    methods (Static)
+        function out = sections(map)
+            %sections  The sections run_all_tests chose, a struct array (Suite, Sections); sections(MAP) sets it.
+            persistent chosen
+            if isempty(chosen); chosen = struct('Suite', {}, 'Sections', {}); end
+            if nargin; chosen = map; end
+            out = chosen;
+        end
+
+        function secs = sectionsFor(suite)
+            %sectionsFor  The sections chosen for SUITE (empty = every section).
+            map = LegacySuiteTest.sections();
+            secs = string.empty(1, 0);
+            k = find(string({map.Suite}) == string(suite), 1);
+            if ~isempty(k); secs = reshape(string(map(k).Sections), 1, []); end
+        end
+
+        function out = excluded(tags)
+            %excluded  The tags run_all_tests excludes (ExcludeTag=); excluded(TAGS) sets them.
+            persistent chosen
+            if isempty(chosen); chosen = string.empty(1, 0); end
+            if nargin; chosen = reshape(string(tags), 1, []); end
+            out = chosen;
+        end
+
+        function tf = isExcluded(tag)
+            %isExcluded  True when TAG is excluded: by run_all_tests' ExcludeTag, or, for a suite run on
+            %   its own, by the environment variable EPHYS_TEST_EXCLUDE (tags separated by commas).
+            tags = LegacySuiteTest.excluded();
+            if isempty(tags)
+                tags = strtrim(split(string(getenv('EPHYS_TEST_EXCLUDE')), ","));
+            end
+            tf = any(tags == string(tag));
+        end
+
+        function reset()
+            %reset  Forget the sections and the excluded tags (the end of a run_all_tests run).
+            LegacySuiteTest.sections(struct('Suite', {}, 'Sections', {}));
+            LegacySuiteTest.excluded(string.empty(1, 0));
         end
     end
 

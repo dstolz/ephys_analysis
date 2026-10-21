@@ -64,7 +64,12 @@ function issues = validate(obj, opts)
 %               the panel's window --, histStyle, normalize, fillAlpha,
 %               the PSTH's stackSpacing, display (trace / heatmap),
 %               colormap (a warning for no colormap function) and color
-%               limits, the raster sort, continuous
+%               limits, the raster sort, a raster's first-spike marks
+%               and a PSTH's latency box plot while enabled (the latency
+%               window: minSec <= maxSec, a warning when it misses the
+%               panel's window; marker, size, color -- a warning for not
+%               groups or a color --, the box's line style and width,
+%               boxHeight 0.02-0.5, fillAlpha, the outliers), continuous
 %               display / statistic / transform / errorType and its
 %               toolbox, stackSpacing, trials (off / faint / only) and
 %               maxTrials (whole, >= 1), heatmap rows (items / trials:
@@ -540,6 +545,7 @@ for k = 1:numel(obj.Figures)
                 if ~ismember(op.backColor, ["" "none" "groups"]) && ~isColor(op.backColor)
                     add("Figures", o0 + ".backColor", "warning", "Not none, groups or a color: """ + op.backColor + """; the raster has no bands.");
                 end
+                checkLatency(op.firstSpike, o0 + ".firstSpike", pw, false);
                 checkFigWaveform(op.waveform, o0 + ".waveform", false);
             case "psth"
                 checkFigBins(op.bins, o0);
@@ -566,6 +572,7 @@ for k = 1:numel(obj.Figures)
                 end
                 checkFigLim(op.cLim, o0 + ".cLim", "color");
                 checkFigLim(op.yLim, o0 + ".yLim", "y");
+                checkLatency(op.latencyBox, o0 + ".latencyBox", pw, true);
                 checkFigWaveform(op.waveform, o0 + ".waveform", false);
             case "continuous"
                 checkFigBaseline(op.baseline, EphysAnalysisConfig.baselineModes("continuous"), o0, A);
@@ -971,6 +978,55 @@ issues = table(Section, Field, Severity, Message);
             if ~(hW.maxSpikes >= 1 && hW.maxSpikes == round(hW.maxSpikes))
                 add("Figures", hW0 + ".maxSpikes", "error", "maxSpikes is a whole number of spikes, at least 1.");
             end
+        end
+    end
+
+    function checkLatency(hL, hL0, hW, hBox)
+        %checkLatency  A raster's first-spike marks (firstSpike) or, HBOX, a PSTH's latency box plot (latencyBox), against the panel's window HW.
+        %   Checked only while enabled: the window (minSec <= maxSec, both
+        %   numbers; a window that misses the panel's [pre post] warns, as
+        %   no spike can be found there), the color ("groups" or a color:
+        %   else a warning, and the groups' colors are used), the marker and
+        %   its size, and the box's line, lane height, opacity and outliers.
+        if ~hL.enabled; return; end
+        markers = PlotAesthetics.catalog().Marker.Choices;
+        if isnan(hL.minSec) || isnan(hL.maxSec) || ~(hL.minSec <= hL.maxSec) || hL.minSec == Inf || hL.maxSec == -Inf
+            add("Figures", hL0 + ".minSec", "error", sprintf(['The first-spike latency window [%g %g] s needs minSec <= ' ...
+                'maxSec (maxSec Inf = the window''s end).'], hL.minSec, hL.maxSec));
+        elseif isstruct(hW) && isfinite(hW.pre) && isfinite(hW.post) && (hL.minSec >= hW.post || hL.maxSec < hW.pre)
+            add("Figures", hL0 + ".minSec", "warning", sprintf(['The first-spike latency window [%g %g] s misses the ' ...
+                'panel''s window [%g %g] s: no first spike can be found.'], hL.minSec, hL.maxSec, hW.pre, hW.post));
+        end
+        if hL.color ~= "groups" && ~isColor(hL.color)
+            add("Figures", hL0 + ".color", "warning", "Not groups or a color: """ + hL.color + """; the groups' colors are used.");
+        end
+        if ~hBox
+            if ~ismember(hL.marker, markers(2:end))
+                add("Figures", hL0 + ".marker", "error", "The first-spike marker is one of " + strjoin(markers(2:end), ", ") + ".");
+            end
+            if ~(isfinite(hL.size) && hL.size > 0)
+                add("Figures", hL0 + ".size", "error", "The first-spike marker's size is above 0 points.");
+            end
+            return
+        end
+        if ~ismember(hL.lineStyle, EphysAnalysisConfig.OverlayLineStyles)
+            add("Figures", hL0 + ".lineStyle", "error", "The box's line style is one of " + ...
+                strjoin(EphysAnalysisConfig.OverlayLineStyles, ", ") + ".");
+        end
+        if ~(isfinite(hL.lineWidth) && hL.lineWidth > 0)
+            add("Figures", hL0 + ".lineWidth", "error", "The box's line width is above 0 points.");
+        end
+        if ~(hL.boxHeight >= 0.02 && hL.boxHeight <= 0.5)
+            add("Figures", hL0 + ".boxHeight", "error", "boxHeight, each box's lane as a share of the PSTH's height, is from 0.02 to 0.5.");
+        end
+        if ~(hL.fillAlpha >= 0 && hL.fillAlpha <= 1)
+            add("Figures", hL0 + ".fillAlpha", "error", "The box's fillAlpha is an opacity from 0 to 1.");
+        end
+        if ~ismember(hL.outlierMarker, markers)
+            add("Figures", hL0 + ".outlierMarker", "error", "The outliers' marker is one of " + strjoin(markers, ", ") + ".");
+        end
+        if ~(isfinite(hL.outlierSize) && hL.outlierSize > 0)
+            add("Figures", hL0 + ".outlierSize", "error", "The outliers' size is above 0 points.");
         end
     end
 

@@ -28,13 +28,18 @@ function hk = drawRasterPanel(ax, P, look)
 %   (eventsAs "span") draw a line on every row from each interval's onset
 %   to its offset (rasterInto's rasterSpans: the EventMark's color, else
 %   the next automatic mark color, its spanStyle, spanWidth and spanAlpha;
-%   role "eventSpan"). With options.waveform.mode
+%   role "eventSpan"). options.firstSpike (enabled) marks each epoch's
+%   first spike at or after its minSec and at or before its maxSec
+%   (firstSpikeLatency of that block's unit) on the epoch's row in every
+%   block, over the ticks, wherever the sort, rasterByGroup or a further
+%   block's band put the row (rasterInto; role "firstSpike", one line per
+%   group). With options.waveform.mode
 %   on, the first block's unit's waveform is an inset (waveformInset). A
 %   skipped layer's reason is noted in the panel (figLayerNotes); a panel
 %   with marks but no rows says they need some.
 %   The legend offers the groups (tick swatches in their colors; with one
-%   color for every tick, the groups' pale bands when there are any) and the
-%   marks.
+%   color for every tick, the groups' pale bands when there are any), the
+%   marks and the first-spike marks ("First spike").
 %   HK: figDrawResult's, yName = what the rows are and how they are sorted.
 %
 %   See also renderFigure, rasterInto, figurePanelRegistry.
@@ -88,8 +93,10 @@ end
 R1 = P.layers(blocks(1).j).R;
 colors = look.colors;
 if size(colors, 1) ~= height(R1.groups); colors = groupPalette(R1.groups, style); end
+fs = EphysAnalysisConfig.defaults("FirstSpike");   % none on a spec without it
+if isfield(o, 'firstSpike'); fs = EphysAnalysisConfig.normalizeSection("FirstSpike", o.firstSpike); end
 rl = struct('order', o.rasterSortOrder, 'byGroup', o.rasterByGroup, 'marks', {marks}, ...
-    'tickColor', o.tickColor, 'backColor', o.backColor);
+    'tickColor', o.tickColor, 'backColor', o.backColor, 'firstSpike', fs);
 flat = style;
 flat.XLim = [];
 if ~isempty(ev); R1.rasterEvents = ev; end
@@ -168,6 +175,17 @@ if ~isempty(ev)
         hk.legendLabels(end+1) = ev(m).label;
         hk.legendGroup(end+1) = false;
     end
+end
+if fs.enabled && ~isempty(findall(ax, 'Tag', 'firstSpike'))   % the first-spike marks: one entry, in their one color (else gray)
+    c = [0.25 0.25 0.25];
+    if nG == 1; c = colors(1, :); end
+    if isColorSpec(fs.color); c = validatecolor(char(fs.color)); end
+    face = 'none';
+    if fs.filled; face = c; end
+    hk.legendHandles(end+1) = tagPart(line(ax, NaN, NaN, 'LineStyle', 'none', 'Marker', char(fs.marker), 'MarkerSize', fs.size, ...
+        'Color', c, 'MarkerFaceColor', face), "firstSpike");
+    hk.legendLabels(end+1) = "First spike";
+    hk.legendGroup(end+1) = false;
 end
 for m = 1:numel(sp)
     if any(hk.legendLabels(~hk.legendGroup) == sp(m).label); continue; end

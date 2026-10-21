@@ -36,6 +36,11 @@ function [C, fx] = figureTestCases(root)
 %                       drawn faintly under the mean (member lines)
 %     sessions_heatmap  the heat map of units across the two sessions
 %                       (session dividers)
+%     first_spike       rasterPsth with the raster's first-spike marks and
+%                       the PSTH's latency box plot (options.firstSpike,
+%                       options.latencyBox)
+%     sessions_first_spike  first_spike as a session figure (a color per
+%                       session): the marks and boxes on the merged rows
 %   FX: the fixture (makeAnalysisFixture's struct) with cfg (the config)
 %   and runner (its EphysAnalysisRunner) and src (the dataset's source).
 %   Used by test_PlotAesthetics and test_PlotDesign.
@@ -121,6 +126,13 @@ x.sessions.series = "all";
 x.sessions.showMembers = true;
 cfg = cfg.addFigure(x);
 x = cfg.Figures(cfg.figureIndex("heatmap")); x.id = "sessions_heatmap";   % each session's units, a divider between sessions
+x.sessions.enabled = true;
+cfg = cfg.addFigure(x);
+x = f; x.id = "first_spike";   % a mark on each epoch's first spike, a box plot of the latencies over the PSTH
+x.panels(1).options.firstSpike = struct('enabled', true, 'maxSec', 0.3);
+x.panels(2).options.latencyBox = struct('enabled', true, 'maxSec', 0.3);
+cfg = cfg.addFigure(x);
+x.id = "sessions_first_spike";   % the same on the rows merged across the two sessions
 x.sessions.enabled = true;
 cfg = cfg.addFigure(x);
 

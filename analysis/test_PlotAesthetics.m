@@ -3,10 +3,13 @@ function test_PlotAesthetics()
 %   On makeAnalysisFixture's "clean" dataset (figureTestCases: one figure
 %   per panel type and per layout that matters -- a stack, the auROC
 %   baseline, waveforms on the probe, stacked signals, boxes, a heat map
-%   of trials, notes and overlays, ordered groups, one group). Checks the
+%   of trials, notes and overlays, ordered groups, one group, first-spike
+%   marks and a latency box plot). Checks the
 %   rules (normalizeRules, mergeRules, colors as text), that renderFigure
 %   tags everything every figure draws with a known role (the parts of a
-%   note and of the overlays too, listed by the editor), that it applies
+%   note and of the overlays too, listed by the editor; the first-spike
+%   marks and the box plot's parts on one dataset and on rows merged
+%   across sessions), that it applies
 %   the user's rules for a panel's type and then the figure's own (and
 %   UserAesthetics=false skips the user's; a refused value only warns),
 %   the right-click menu (only in a visible figure, or with
@@ -99,6 +102,20 @@ for i = 1:numel(cases)
 end
 check(allTagged, "every component of every panel type and layout has a known role (" + strjoin([cases.id], ", ") + ")" ...
     + ifText(~allTagged, " (" + strjoin(untagged, "; ") + ")"));
+okFS = true;
+whyFS = strings(0, 1);
+for Ck = [byId("first_spike") byId("sessions_first_spike")]
+    h = renderFigure(Ck.F, Ck.spec, fig, UserAesthetics=false);
+    C = PlotAesthetics.components(h.layout);
+    need = ["firstSpike" "latencyBox" "latencyMedian" "latencyWhisker"];
+    miss = need(~ismember(need, C.Role));
+    if ~isempty(miss)
+        okFS = false;
+        whyFS(end+1) = Ck.id + ": no " + strjoin(miss, ", "); %#ok<AGROW>
+    end
+end
+check(okFS, "the first-spike marks and the latency box plot are components of their own roles, on one dataset and on " + ...
+    "rows merged across sessions" + ifText(~okFS, " (" + strjoin(whyFS, "; ") + ")"));
 Cn = byId("notes_overlays");
 h = renderFigure(Cn.F, Cn.spec, fig, UserAesthetics=false);
 C = PlotAesthetics.components(h.layout);

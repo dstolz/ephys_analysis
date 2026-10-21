@@ -41,7 +41,9 @@ function test_EphysAnalysisFigures(opts)
 %   and the waveform inset; a missing parameter skipping the panel); a
 %   rate layer of three units' mean; an auROC PSTH equal to spikePSTH's;
 %   a stacked PSTH; the waveforms' probe layout (a following layer to
-%   ring); one observation faster than spikePSTH over every unit.
+%   ring); one observation faster than spikePSTH over every unit; the
+%   first-spike latency (a PSTH with latencyBox keeping the raster's rows,
+%   firstSpikeLatency against the unit's own train, the caption).
 %   Render (8): figureArrange (the labels' room and exact gaps between
 %   rows and columns, px, % and per-gap lists, the presets, rows and
 %   columns in exact proportion, spans, a panel's size and alignment in
@@ -75,7 +77,11 @@ function test_EphysAnalysisFigures(opts)
 %   preference followed on refresh, DataTipFieldsDialog, the time they
 %   add); a panel's note (below: in a
 %   band of its tile; northeast: in its axes) and overlays (on its own
-%   axes), their looks as rules under the figure's own.
+%   axes), their looks as rules under the figure's own; the first-spike
+%   marks on their epochs' ticks (by group, descending with the groups
+%   mixed, five blocks; their look and legend entry) and the PSTH's
+%   latency box plot (prctile's quartiles, Tukey's whiskers, a band above
+%   the traces; stacked, one box per row above its PSTH).
 %   Spectral (9): the spectral templates and validate's rules (a coherence
 %   panel's two layers, chronuxSettings' errors, a spectrogram's baseline
 %   window, a coherogram of spikes and a spectrogram of units valid, a
@@ -1395,6 +1401,29 @@ if S.sec("6", "config: validate")
         && ~has(bRg, "figure_1.raster_1.options.tickColor", "warning") && has(bRb, "figure_1.raster_1.options.tickColor", "warning") ...
         && ~has(bRw, "figure_1.raster_1.options.tickWidth", "error") && has(bRn, "figure_1.raster_1.options.tickWidth", "error"), ...
         'a raster''s tickColor is "groups" or a color (default "groups"), its tickWidth 0 (the design''s) or a width in points');
+    kP = find([bR.Figures(1).panels.type] == "psth", 1);
+    bF = bR; bF.Figures(1).panels(kR).options.firstSpike.enabled = true;
+    bF.Figures(1).panels(kP).options.latencyBox.enabled = true;
+    bFw = bF; bFw.Figures(1).panels(kR).options.firstSpike.minSec = 0.2; bFw.Figures(1).panels(kR).options.firstSpike.maxSec = 0.1;
+    bFo = bF; bFo.Figures(1).panels(kR).options.firstSpike.minSec = 10;
+    bFc = bF; bFc.Figures(1).panels(kR).options.firstSpike.color = "nocolor";
+    bFm = bF; bFm.Figures(1).panels(kR).options.firstSpike.marker = "blob";
+    bFh = bF; bFh.Figures(1).panels(kP).options.latencyBox.boxHeight = 0.9;
+    bFs = bF; bFs.Figures(1).panels(kP).options.latencyBox.lineStyle = "~";
+    bFa = bF; bFa.Figures(1).panels(kP).options.latencyBox.fillAlpha = 2;
+    bFx = bF; bFx.Figures(1).panels(kP).options.latencyBox.outlierMarker = "none";
+    bFoff = bR; bFoff.Figures(1).panels(kP).options.latencyBox.boxHeight = 0.9;   % off: not checked
+    oF = bR.Figures(1).panels(kR).options.firstSpike;
+    oB = bR.Figures(1).panels(kP).options.latencyBox;
+    rF = "figure_1.raster_1.options.firstSpike.";
+    pB = "figure_1.psth_1.options.latencyBox.";
+    check(~oF.enabled && oF.minSec == 0 && oF.maxSec == Inf && oF.marker == "o" && oF.color == "groups" && ~oB.enabled ...
+        && oB.maxSec == Inf && oB.boxHeight == 0.1 && isempty(figIssues(bF)) && has(bFw, rF + "minSec", "error") ...
+        && has(bFo, rF + "minSec", "warning") && ~has(bFo, rF + "minSec", "error") && has(bFc, rF + "color", "warning") ...
+        && has(bFm, rF + "marker", "error") && has(bFh, pB + "boxHeight", "error") && has(bFs, pB + "lineStyle", "error") ...
+        && has(bFa, pB + "fillAlpha", "error") && isempty(figIssues(bFx)) && isempty(figIssues(bFoff)), ...
+        ['a raster''s firstSpike and a PSTH''s latencyBox: off by default (0 to the window''s end, groups); checked while on: ' ...
+        'minSec <= maxSec, a window past the panel''s warns, a color, a marker, boxHeight 0.02-0.5, line style, fillAlpha']);
     I9 = figIssues(b4);
     I9 = I9(I9.Field == n0 + "x", :);
     b10 = b2; b10.Figures(1).panels(2).type = "bogus";
@@ -1868,6 +1897,43 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
     Fst = rn.computeFigure(src, cfg.figureFor("stacked"), Observation=Tu(1, :));
     check(Fst.panels(2).layers(1).skip == "" && isequaln(Fst.panels(2).layers(1).R.rate, L2.R.rate) && height(Fst.groups) >= 2, ...
         sprintf('a stacked PSTH computes as an overlaid one (%d groups; stacking is the draw''s)', height(Fst.groups)));
+    % first-spike latency: the raster's marks and the PSTH's box plot read the raster's rows (a PSTH keeps them for its box)
+    ffs = cfg.Figures(cfg.figureIndex("rp"));
+    ffs.id = "fsl";
+    ffs.panels(1).options.firstSpike = struct('enabled', true, 'minSec', 0.005, 'maxSec', 0.3);
+    ffs.panels(2).options.latencyBox = struct('enabled', true, 'minSec', 0.005, 'maxSec', 0.3);
+    cfg = cfg.addFigure(ffs);
+    Ffs = rn.computeFigure(src, cfg.figureFor("fsl"), Observation=Tu(1, :));
+    ffsS = cfg.Figures(cfg.figureIndex("fsl"));
+    ffsS.id = "fslstack";
+    ffsS.panels(2).options.stack = true;
+    cfg = cfg.addFigure(ffsS);
+    FfsS = rn.computeFigure(src, cfg.figureFor("fslstack"), Observation=Tu(1, :));
+    Rfr = Ffs.panels(1).layers(1).R;
+    Rfp = Ffs.panels(2).layers(1).R;
+    Lfs = firstSpikeLatency(Rfr, MinSec=0.005, MaxSec=0.3);
+    stF = unitsOf(Tu.unitId(1));
+    EF = Rfr.epochs;
+    wantF = NaN(height(EF), 1);   % the oracle: from the spike train itself, s from each epoch's event on the spikes' clock
+    for eF = 1:height(EF)
+        dF = stF{1} - EF.t0Continuous(eF);
+        dF = dF(dF >= 0.005 - 1e-9 & dF <= 0.3 + 1e-9);
+        if ~isempty(dF); wantF(eF) = min(dF); end
+    end
+    check(Ffs.panels(1).layers(1).skip == "" && isequal(Rfp.raster, Rfr.raster) && ~isempty(Rfp.raster(1).times) ...
+        && all(arrayfun(@(r) isempty(r.times), L2.R.raster)) && isequaln(Rfp.rate, L2.R.rate) && isequal(size(Lfs.lat), [height(EF) 1]) ...
+        && isequal(isnan(Lfs.lat), isnan(wantF)) && max(abs(Lfs.lat - wantF), [], 'omitnan') < 1e-12 && nnz(isfinite(wantF)) >= 2 ...
+        && isequal(Lfs.n, accumarray(EF.groupIndex(isfinite(wantF)), 1, [height(Ffs.groups) 1])) ...
+        && isequaln(FfsS.panels(2).layers(1).R.raster, Rfp.raster), ...
+        sprintf(['first-spike latency (5 to 300 ms): the PSTH keeps the raster''s rows for its box plot (one without it, ' ...
+        'none), its rates unchanged; firstSpikeLatency of the raster equals the first spike in the window from the ' ...
+        'unit''s own train (%d of %d epochs)'], nnz(isfinite(wantF)), height(EF)));
+    capF = figureCaption(cfg.figureFor("fsl"), Tu);
+    capS = figureCaption(cfg.figureFor("fslstack"), Tu);
+    check(contains(capF, "each epoch's first spike in [5 300] ms marked on the raster") ...
+        && contains(capF, "a box plot of the first-spike latencies in [5 300] ms per trial group over the PSTH") ...
+        && contains(capS, "per trial group in each row of the PSTH") && ~contains(figureCaption(spec, Tu), "first spike"), ...
+        "figureCaption names the first-spike marks and the latency box plot with their window: " + capF);
     fwp = cfg.Figures(cfg.figureIndex("wf"));
     fwp.id = "wfprobe";
     fwp.panels(1).options.layout = "probe";
@@ -2164,6 +2230,8 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
         "tuning curves per series, inset",  Ftc2
         "an auROC PSTH",                    Fau
         "a stacked PSTH",                   Fst
+        "first-spike marks, a latency box plot", Ffs
+        "a stacked PSTH's latency boxes",   FfsS
         "unit waveforms on the probe",      Fwp
         "continuous trials, faint",         Ftr
         "continuous trials only, 5 of them", Ftr5
@@ -2890,6 +2958,103 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     lgs2 = string(lg(1).String);
     check(any(lgs2 == Fs2.panels(2).layers(2).name) && numel(rl2) >= 2 * nGs && yl2(2) > 0, ...
         'a stacked PSTH with a second layer: its mean drawn into the same rows, named in the legend');
+
+    % first-spike latency: a mark on each epoch's first spike, on that epoch's tick, whatever the rows' order
+    Rfr = Ffs.panels(1).layers(1).R;
+    Lfr = firstSpikeLatency(Rfr, MinSec=0.005, MaxSec=0.3);
+    sF = Ffs.spec;
+    hF = renderFigure(Ffs, sF, fig);
+    [okF, nF, epF] = marksOnTicks(hF.axes(1), Lfr.lat);
+    lgF = findall(fig, 'Type', 'legend');
+    lgF = string(lgF(1).String);   % before the redraw deletes it
+    sF.panels(1).options.rasterByGroup = false;
+    sF.panels(1).options.rasterSortOrder = "descending";
+    sF.panels(1).options.firstSpike.marker = "square";
+    sF.panels(1).options.firstSpike.color = "red";
+    sF.panels(1).options.firstSpike.filled = true;
+    sF.panels(1).options.firstSpike.size = 7;
+    hF2 = renderFigure(Ffs, sF, fig);
+    [okF2, nF2] = marksOnTicks(hF2.axes(1), Lfr.lat);
+    mk2 = findall(hF2.axes(1), 'Tag', 'firstSpike');
+    mk2 = mk2(arrayfun(@(h) any(isfinite(h.XData)), mk2));
+    look2 = all(arrayfun(@(h) strcmp(h.Marker, 'square') && h.MarkerSize == 7 && isequal(h.Color, [1 0 0]) ...
+        && isequal(h.MarkerFaceColor, [1 0 0]), mk2));
+    yAll = cell2mat(arrayfun(@(h) h.YData(:), mk2, 'UniformOutput', false));
+    check(okF && okF2 && nF == nnz(isfinite(Lfr.lat)) && nF2 == nF && isequal(sort(epF), find(isfinite(Lfr.lat))) && look2 ...
+        && any(lgF == "First spike") && numel(unique(yAll)) == nF, ...
+        sprintf(['first-spike marks: one per epoch with a spike in [5 300] ms (%d), at its latency on that epoch''s tick, by ' ...
+        'group and time, then descending with the groups mixed; marker, size, color and fill from the options; "First spike" ' ...
+        'in the legend'], nF));
+    sF5 = F5.spec;   % the five blocks: the further blocks' bands (rasterInto's stack mode) carry their own marks
+    sF5.panels(1).options.firstSpike = EphysAnalysisConfig.normalizeSection("FirstSpike", struct('enabled', true, 'maxSec', 0.3));
+    hF5 = renderFigure(F5, sF5, fig);
+    want5 = 0;
+    for jF = 1:numel(F5.panels(1).layers)
+        RF = F5.panels(1).layers(jF).R;
+        if F5.panels(1).layers(jF).skip ~= "" || ~isfield(RF, 'raster') || isempty(RF.raster); continue; end
+        LF = firstSpikeLatency(RF, MaxSec=0.3);
+        want5 = want5 + nnz(isfinite(LF.lat));
+    end
+    [ok5, n5] = marksOnTicks(hF5.axes(1), []);
+    check(ok5 && n5 == want5 && n5 > nF, sprintf(['first-spike marks in a raster of several blocks: every block''s ' ...
+        'unit marked on its own ticks (%d marks)'], n5));
+    % a PSTH's box plot: prctile's statistics per group, in a band above the traces
+    Rfp = Ffs.panels(2).layers(1).R;
+    Lfp = firstSpikeLatency(Rfp, MinSec=0.005, MaxSec=0.3);
+    hF = renderFigure(Ffs, Ffs.spec, fig);   % drawn again: the redraws above replaced its axes
+    ap = hF.axes(2);
+    okB = true;
+    nBox = 0;
+    for gB = 1:height(Ffs.groups)
+        glF = string(Ffs.groups.label(gB));
+        vF = Lfp.lat(Lfp.epochGroup == gB);
+        vF = vF(isfinite(vF));
+        bxF = findall(ap, 'Tag', 'latencyBox', '-function', @(h) string(getappdata(h, 'PlotGroup')) == glF);
+        mdF = findall(ap, 'Tag', 'latencyMedian', '-function', @(h) string(getappdata(h, 'PlotGroup')) == glF);
+        wkF = findall(ap, 'Tag', 'latencyWhisker', '-function', @(h) string(getappdata(h, 'PlotGroup')) == glF);
+        if isempty(vF); okB = okB && isempty(bxF); continue; end
+        nBox = nBox + 1;
+        qF = prctile(vF, [25 50 75]);
+        iqF = qF(3) - qF(1);
+        inF = vF >= qF(1) - 1.5 * iqF & vF <= qF(3) + 1.5 * iqF;
+        stB = getappdata(bxF, 'LatencyStats');
+        okB = okB && isscalar(bxF) && isscalar(mdF) && isscalar(wkF) && max(abs(sort(unique(bxF.XData(:))).' - qF([1 3]))) < 1e-12 ...
+            && all(abs(mdF.XData - qF(2)) < 1e-12) && abs(min(wkF.XData) - min(vF(inF))) < 1e-12 && abs(max(wkF.XData) - max(vF(inF))) < 1e-12 ...
+            && stB.n == numel(vF) && stB.nEpochs == nnz(Lfp.epochGroup == gB);
+    end
+    trF = [findall(ap, 'Tag', 'rate'); findall(ap, 'Tag', 'rateFill'); findall(ap, 'Tag', 'sem')];
+    yTr = cell2mat(arrayfun(@(h) reshape(h.YData, [], 1), trF, 'UniformOutput', false));
+    yTr = yTr(isfinite(yTr));
+    bxAll = findall(ap, '-regexp', 'Tag', '^latency');
+    yBx = cell2mat(arrayfun(@(h) reshape(h.YData, [], 1), bxAll, 'UniformOutput', false));
+    yBx = yBx(isfinite(yBx));
+    ylp = ylim(ap);
+    check(okB && nBox >= 1 && min(yBx) > max(yTr) && max(yBx) <= ylp(2) && all(ap.YTick < min(yBx)), ...
+        sprintf(['a PSTH''s latency box plot: one box per group with a first spike (%d), its box, median and whiskers ' ...
+        'prctile''s quartiles and Tukey''s 1.5 IQR, in a band above every trace, the y ticks under it'], nBox));
+    % stacked: one box per row, in that row's lane above its PSTH, under the next row up
+    hS = renderFigure(FfsS, FfsS.spec, fig);
+    aS = hS.axes(2);
+    sbS = findall(aS, 'Tag', 'stackBase');
+    baseOf = containers.Map(arrayfun(@(h) char(string(getappdata(h, 'PlotGroup'))), sbS, 'UniformOutput', false), ...
+        arrayfun(@(h) h.YData(1), sbS, 'UniformOutput', false));
+    bases = sort(cell2mat(values(baseOf)));
+    okS = true;
+    nS = 0;
+    for gB = 1:height(FfsS.groups)
+        glF = char(string(FfsS.groups.label(gB)));
+        bxF = findall(aS, 'Tag', 'latencyBox', '-function', @(h) string(getappdata(h, 'PlotGroup')) == glF);
+        if isempty(bxF); continue; end
+        nS = nS + 1;
+        b0 = baseOf(glF);
+        above = bases(bases > b0 + 1e-9);
+        trgF = findall(aS, '-regexp', 'Tag', '^(rate|rateFill|sem)$', '-function', @(h) string(getappdata(h, 'PlotGroup')) == glF);
+        ygF = cell2mat(arrayfun(@(h) reshape(h.YData, [], 1), trgF, 'UniformOutput', false));
+        ygF = ygF(isfinite(ygF));
+        okS = okS && isscalar(bxF) && min(bxF.YData) > max(ygF) && (isempty(above) || max(bxF.YData) < min(above));
+    end
+    check(okS && nS == nBox && numel(sbS) == height(FfsS.groups), sprintf(['a stacked PSTH''s latency boxes: one per row ' ...
+        '(%d), each above its own PSTH and under the next row up'], nS));
     ha = renderFigure(Fau, Fau.spec, fig);
     aa = ha.axes(2);
     check(isscalar(findall(aa, 'Tag', 'chanceLine')) && isequal(ylim(aa), [0 1]) && ~isempty(findall(aa, '-regexp', 'Tag', '^rate(Fill)?$')) ...
@@ -3695,6 +3860,35 @@ end
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisFigures:Failures', '%d checks failed.', nFail);
+end
+end
+
+
+function [ok, n, ep] = marksOnTicks(ax, lat)
+%marksOnTicks  Every first-spike mark in AX sits on a tick of its row: a tick at its x whose middle is at its y.
+%   N: the marks; EP: their epochs (appdata PlotEpochs, every mark line's); with LAT (a column, [] = not checked) each mark's
+%   x is LAT of its epoch.
+mk = findall(ax, 'Tag', 'firstSpike');
+mk = mk(arrayfun(@(h) any(isfinite(h.XData)), mk));
+tk = rasterTickLines(ax);
+TX = zeros(0, 1); TY = zeros(0, 1);
+for t = reshape(tk, 1, [])
+    TX = [TX; reshape(t.XData(1:3:end), [], 1)]; %#ok<AGROW>
+    TY = [TY; reshape((t.YData(1:3:end) + t.YData(2:3:end)) / 2, [], 1)]; %#ok<AGROW>
+end
+ok = ~isempty(mk);
+n = 0;
+ep = zeros(0, 1);
+for h = reshape(mk, 1, [])
+    x = h.XData(:);
+    y = h.YData(:);
+    e = reshape(getappdata(h, 'PlotEpochs'), [], 1);
+    n = n + numel(x);
+    ep = [ep; e]; %#ok<AGROW>
+    for i = 1:numel(x)
+        ok = ok && any(abs(TX - x(i)) < 1e-12 & abs(TY - y(i)) < 1e-9);
+    end
+    if ~isempty(lat); ok = ok && numel(e) == numel(x) && max(abs(lat(e) - x)) < 1e-12; end
 end
 end
 

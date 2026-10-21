@@ -174,13 +174,14 @@ edits them.
 ## Building blocks
 
 `EphysAnalysisConfig.defaults("EventRef" | "EpochWindow" | "TrialSelection" |
-"UnitSelection" | "Style" | "Auroc" | "Waveform" | "EventMark" | "Note" | "Overlay")`. The first three are described with their
+"UnitSelection" | "Style" | "Auroc" | "Waveform" | "FirstSpike" | "LatencyBox" | "EventMark" | "Note" | "Overlay")`. The first three are described with their
 constructors (`eventRef`, `epochWindow`, `trialSelection`, which build and
 check one in a script) on the [Analysis page](EphysAnalysis.md#event-reference-window-selection);
 what they mean in a config follows. The sections after [Style](#style) describe
 the settings that figures and their panels share: stacked PSTHs, the auROC
-baseline, a raster's sort and event marks, unit waveforms, aux signals, error
-bands, and a panel's notes and overlays.
+baseline, a raster's sort and event marks, the first-spike latency (a raster's
+marks, a PSTH's box plot), unit waveforms, aux signals, error bands, and a
+panel's notes and overlays.
 
 ### EventRef
 
@@ -487,6 +488,63 @@ event's `color`, `spanStyle`, `spanWidth` and `spanAlpha`, is the aesthetics rol
 `eventSpan` (group: the label), and the legend lists it. A line whose intervals
 all end where they start (single instants) has nothing to span: the layer is
 skipped with that reason. The private `epochIntervals` finds the intervals.
+
+### First-spike latency
+
+Each epoch's **first-spike latency** is the time, from the epoch's aligned event,
+of its first spike at or after `minSec` and at or before `maxSec` (both ends
+included, to the sample); an epoch with no spike in that window has none (NaN).
+`firstSpikeLatency(R, Units=, MinSec=, MaxSec=)` ([Analysis
+page](EphysAnalysis.md#compute)) finds it in a spikePSTH result's raster rows: the
+very spike times the raster draws, on the clock of each epoch's event (a spike in
+the event's own sample is at 0), with the stop mask when the panel masks after
+the stop event, and only the epochs the panel draws (those an artifact period
+dropped are not there). The window is clipped to the panel's: `maxSec` `Inf`
+(the default) means the window's end. Two panel options use it, each with its
+own window:
+
+- a **raster**'s `options.firstSpike` (`EphysAnalysisConfig.defaults("FirstSpike")`)
+  puts a mark on each epoch's first spike, on that epoch's row -- wherever the
+  sort, `rasterByGroup` or a further block's band put the row -- over the ticks,
+  in every block (each block's own unit). Aesthetics role `firstSpike`, a line
+  per trial group (group: its label); the legend lists "First spike"; a mark's
+  data tip names its trial.
+- a **PSTH**'s `options.latencyBox` (`EphysAnalysisConfig.defaults("LatencyBox")`)
+  draws a horizontal box plot of those latencies along the time axis, one box
+  per trial group: the box from the first to the third quartile, a line at the
+  median (`prctile`, MATLAB's own), whiskers to the most extreme latencies
+  within 1.5 IQR of the box (Tukey) and the latencies beyond them as outliers.
+  It reads the first item (the observed unit; a layer's mean pools its units'
+  epochs, one latency per unit and epoch). Overlaid, the boxes sit in a band
+  of their own above the traces: the y range grows by a small gap and a lane
+  of `boxHeight` times its height per group (the first group's on top), so no
+  box covers a trace (`yLim`'s range included), and the y ticks stay on the
+  traces' range. With `stack` each row holds its group's box in a lane above
+  its PSTH's reach (with its band), and the row step grows to take it. Roles
+  `latencyBox`, `latencyMedian`, `latencyWhisker` and `latencyOutlier` (group:
+  the trial group); each part's data tip gives the median, the quartiles, the
+  whiskers, the outliers and n (the epochs with a first spike, of the group's).
+  Not drawn with `display "heatmap"`. A PSTH with it on keeps its raster's rows
+  (spikePSTH's `Raster`), which the box reads.
+
+| Field | `FirstSpike` default | `LatencyBox` default | Meaning |
+| --- | --- | --- | --- |
+| `enabled` | `false` | `false` | draw the marks / the box plot |
+| `minSec` | 0 | 0 | the earliest latency, s from the event (included; negative: before it) |
+| `maxSec` | `Inf` | `Inf` | the latest, s (included); `Inf`: the panel's window's end |
+| `color` | `"groups"` | `"groups"` | `"groups"`: each trial group's color; or a color name or `#rrggbb` for every one |
+| `marker`, `size` | `"o"`, 5 | | the mark: a line marker the aesthetics editor knows (as an [event mark](#raster-event-marks)'s), its size in points |
+| `filled` | `false` | | a filled mark; `false`: its outline, the tick showing through |
+| `lineStyle`, `lineWidth` | | `"-"`, 1 | the box's outline and whiskers (`-`, `--`, `:`, `-.`; points); the median is twice as wide |
+| `boxHeight` | | 0.1 | each box's lane, a share of the PSTH's height (0.02 to 0.5) |
+| `fillAlpha` | | 0.3 | the box's fill opacity, 0 (an outline) to 1 (the median then pale) |
+| `outlierMarker`, `outlierSize` | | `"o"`, 3 | the outliers' marker (`"none"`: not drawn) and size |
+
+They are checked only while `enabled` ([Validating figures](#validating-figures)).
+The figure's caption names them with their window. The analysis app edits them in
+a window of their own: the raster's **First-spike latency...** and the PSTH's
+**Latency box plot...** ([Figures tab](EphysAnalysisApp.md#figures-tab)). In a
+[session figure](#session-figures) they read the rows merged across the sessions.
 
 ### Unit waveforms
 
@@ -973,7 +1031,8 @@ What each draws:
   with a small gap, each group a band of its own, and the y axis names the
   blocks. Events layers drawn as marks put a mark on every row of every block,
   drawn as a span a line from each onset to its offset on every row; drawn as a
-  train they are blocks of rows of their own.
+  train they are blocks of rows of their own. `options.firstSpike` marks each
+  epoch's first spike in its window ([First-spike latency](#first-spike-latency)).
 - `psth`: the peri-event rate per trial group: a band and a trace for every
   layer and unit, each unit in a line style of its own (`-`, `--`, `:`, `-.`,
   or the layer's `lineStyle`); with several only the first is filled.
@@ -986,7 +1045,9 @@ What each draws:
   top, each row `stackSpacing` times the tallest PSTH high, the groups'
   values on the left axis and their peaks on the right, as in [Stacked PSTHs](#stacked-psths). A second layer or unit is drawn into the same rows as an outline;
   `yLim` is not used in a stack. The groups' rasters are not a stack option:
-  a raster panel above the PSTH shows them. With
+  a raster panel above the PSTH shows them. `options.latencyBox` adds a box
+  plot of the first-spike latencies per group, in a band above the traces or,
+  stacked, in each row ([First-spike latency](#first-spike-latency)). With
   baseline `Mode "auroc"` the curves are auROCs, drawn from 0.5 (a dotted
   chance line) on a 0-1 axis unless `yLim` says otherwise, the modulation
   window shaded and the first unit's call per trial group (up, down or n.s.)
@@ -1342,6 +1403,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `raster` | `tickWidth` | `0` | the ticks' line width, points; `0` is the plot design's width (`rasterTicks` `LineWidth`). A value above 0 wins over the design's and the user's per-kind rules (the figure's own aesthetics rules still win); not a width of 0 or more is a validation error |
 | `raster` | `backColor` | `"none"` | bands behind the rows: `"none"` (the default), `"groups"` (a pale band of each group's color behind its rows; the legend then also names the groups when every tick is one color) or a color name or hex code, painted on every group's band and on the axes behind them. Anything else is a validation warning and no bands |
 | `raster` | `yTicks` | `false` | show the y axis' tick marks and labels (the epoch numbers); `false` hides them and keeps the y label. A raster of several blocks keeps its blocks' names on the y axis either way. A heat map of trials has no y ticks to show |
+| `raster` | `firstSpike` | [FirstSpike](#first-spike-latency), `enabled false` | a mark on each epoch's first spike in `[minSec, maxSec]` (default 0 to the window's end), on its row; its `marker`, `size`, `color` (`"groups"` or a color) and `filled` |
 | `raster` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | the first block's unit's waveform in a box in the panel |
 | `psth` | `bins` | `BinSec` 0.01, `SmoothSec` 0.01 | the bin width (bins are whole multiples of `BinSec` from the event) and the Gaussian SD applied to each epoch before averaging, s (0 = no smoothing) |
 | `psth` | `measure` | `"rate"` | `"rate"`, `"count"` or `"probability"` |
@@ -1354,6 +1416,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `psth` | `normalize` | `"none"` | `"none"`, `"unitPeak"`, `"groupPeak"` or `"allPeak"` |
 | `psth` | `stack` | `false` | `true`: one row per trial group, stacked downwards (the first group on top, as a raster lists them), instead of overlaid; a single group is drawn overlaid |
 | `psth` | `stackSpacing` | 1.1 | `stack`: the step between rows, times the tallest PSTH (below 1 the rows overlap); positive |
+| `psth` | `latencyBox` | [LatencyBox](#first-spike-latency), `enabled false` | a box plot of the first-spike latencies in `[minSec, maxSec]` per trial group, in a band above the traces (`stack`: in each row); `color`, `lineStyle`, `lineWidth`, `boxHeight`, `fillAlpha`, `outlierMarker`, `outlierSize`. Not with `display "heatmap"` |
 | `psth` | `maskAfterStop` | `false` | drop each epoch's bins from its stop event on |
 | `psth` | `yLim` | `[]` | the rate axis; not used in a stack or a heat map |
 | `psth` | `colormap` | `""` | `display "heatmap"`: `""` is the style's `HeatColormap`, else the design's heat colormap (an auROC: its diverging one); or a colormap function (`"turbo"`, `"hot"`, `"blueWhiteRed"`). A name that is no function is a validation warning and takes the default |
@@ -1829,6 +1892,7 @@ defaults. A file written by hand may leave out any field that keeps its default.
                        "marker": "diamond", "size": 4, "color": "" } } ],
         "options": { "rasterSort": "", "rasterSortEvent": [], "rasterSortOrder": "ascending", "rasterByGroup": true,
                      "maskAfterStop": false, "tickColor": "groups", "tickWidth": 0, "backColor": "none", "yTicks": false,
+                     "firstSpike": { "enabled": false, "minSec": 0, "maxSec": "Inf", "...": "..." },
                      "waveform": { "mode": "off", "...": "..." } } },
       { "id": "psth_1", "type": "psth", "title": "", "box": "auto", "row": 2, "col": 1, "rowSpan": 1, "colSpan": 1,
         "ref": "default", "window": "default", "selection": "default",
@@ -1836,6 +1900,7 @@ defaults. A file written by hand may leave out any field that keeps its default.
         "options": { "bins": { "BinSec": 0.01, "SmoothSec": 0.01 }, "measure": "rate",
                      "baseline": { "Mode": "none", "Window": [-0.2, 0] }, "histStyle": "bar", "fill": true,
                      "fillAlpha": "NaN", "normalize": "none", "maskAfterStop": false, "yLim": [],
+                     "latencyBox": { "enabled": false, "minSec": 0, "maxSec": "Inf", "...": "..." },
                      "waveform": { "mode": "off", "...": "..." } } },
       { "id": "continuous_1", "type": "continuous", "title": "", "box": "auto", "row": 3, "col": 1, "rowSpan": 1, "colSpan": 1,
         "ref": "default", "window": "default", "selection": "default",
@@ -1917,7 +1982,12 @@ Errors:
 - a raster whose enabled layers are all events drawn as marks or spans (`A raster's marks
   need rows: add a units, detected or train layer`);
 - options, by type: a raster's `rasterSortOrder` and, with `rasterSort "event"`, a
-  valid `rasterSortEvent`; a PSTH's `bins` (`BinSec > 0`, `SmoothSec >= 0`),
+  valid `rasterSortEvent`; a raster's `firstSpike` and a PSTH's `latencyBox` while
+  `enabled` (`minSec <= maxSec`, at `.minSec`; the marker and a positive size;
+  the box's `lineStyle`, a positive `lineWidth`, `boxHeight` from 0.02 to 0.5,
+  `fillAlpha` from 0 to 1, the outliers' marker and a positive size; a window that
+  misses the panel's window, or a `color` that is not `groups` or a color, is a
+  warning); a PSTH's `bins` (`BinSec > 0`, `SmoothSec >= 0`),
   `measure`, `baseline` (`Mode` among the type's, a window `[b0 b1]` with `b0 < b1`),
   `auroc` (with baseline `Mode "auroc"`: the auROC rules ([auROC](#auroc)), its window
   and step whole numbers of the panel's bins, and the Statistics and Machine Learning
@@ -2643,7 +2713,9 @@ and `relinkPanels` (their results and `NoPanel`); `placePanel` in four direction
 (undoing each exactly), `movePanel` and `figureCells`; `DuplicateFigureId` and
 `DuplicatePanelId`; every validate rule of figures (only the known layer sources and
 panel types; a PSTH's baseline
-mode (no `ratio`), `auroc` windows and positive `stackSpacing`; a heat map's
+mode (no `ratio`), `auroc` windows and positive `stackSpacing`; a raster's `firstSpike` and a PSTH's
+`latencyBox` (off by default; while on, the window, a color, the marker, the box's height, line style and
+opacity); a heat map's
 `modulation` order and the auROC baseline of a signal layer; a waveforms
 panel's `layout` and the probe layout's warning; a rate panel's `display`,
 `measure`, baseline mode and `yLim`; a tuning panel's `seriesParam`, `param`
@@ -2681,7 +2753,10 @@ sort order; a PSTH on a selection of its own, with its
 own epochs and one group beside the raster on the figure's; a per-group observation keeping its group's
 epochs only, equal to that group's PSTH, while a panel with a selection of its own is not cut, and one
 whose group has lost every epoch drawing with `F.skip` and the panels' notes instead of failing; the
-groups `perGroup` lists agreeing with those compute reads, after the panels' baseline hull).
+groups `perGroup` lists agreeing with those compute reads, after the panels' baseline hull; the
+first-spike latency: a PSTH with `latencyBox` on keeping the raster's rows, its rates unchanged, and
+`firstSpikeLatency` of the raster equal to the first spike in the window taken from the unit's own
+train, the caption naming the marks and the box plot with their window).
 Render (8):
 `figureArrange` (exact gaps in px, % and per gap, the presets, rows and columns in exact proportion, spans, a panel's size and
 alignment in its cell, a note band, a phase strip, the title's and legend's bands), the layout drawn (flush with `"none"`, a
@@ -2706,7 +2781,12 @@ under it; a band right of a panel leaving it narrower, so both panels keep their
 14 pt fitting its band; a note turned 90 degrees with `valign` top right-aligned along y at the band's top; into one
 axes the first panel's note and overlays in it; a patch over the raster's opaque bands seen by its pixels, one under
 them not, patches following the limits; a raster's y ticks hidden by default and back with `yTicks`; a panel's `box`
-winning over a design's and the figure's own Box rule), and the
+winning over a design's and the figure's own Box rule; the first-spike marks, one per epoch with a spike in
+the window, each at its latency on a tick of its own row, by group and time and then descending with the groups
+mixed, in the options' marker, size, color and fill, "First spike" in the legend, and in a raster of five blocks
+on every block's own ticks; the PSTH's latency box plot, each group's box, median and whiskers `prctile`'s
+quartiles and Tukey's 1.5 IQR, in a band above every trace with the y ticks under it, and stacked one box per
+row above its own PSTH and under the next row up), and the
 editing hooks (`Editable`, `OnRemember`, the redraw), and the data tips (`DataTips`: a PSTH line's rows, a raster tick's trial and group, heat map cells, a bar; the chosen fields followed on refresh; `DataTipFieldsDialog`; the time they add). Compute (7) also checks `figureCompute`
 against `computeFigure` (equal results, `Check=` called at the checkpoints and
 what it throws stopping the compute), `figureOutputName` (`{Plot}`, `{Unit}`,

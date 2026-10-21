@@ -13,9 +13,12 @@ classdef FigureDataTips
     %   Fields (FigureDataTips.fields: Key, Label, Section, Default, Description)
     %     Point   x, y (the axes' quantities and units; a time panel's x
     %             is the time from its event), value (a heat map cell's or
-    %             a probe site's, in its color bar's unit), row (a heat map
-    %             row's label: unit, channel or epoch)
-    %     Trial   trial (a raster tick's, stop dot's or mark's trial, a
+    %             a probe site's, in its color bar's unit; a PSTH's latency
+    %             box plot part: its median, quartiles, whiskers, outliers
+    %             and n), row (a heat map row's label: unit, channel or
+    %             epoch)
+    %     Trial   trial (a raster tick's, stop dot's, first-spike mark's or
+    %             mark's trial, a
     %             heat map row of trials'), trialGroup (that trial's group,
     %             or the trace's), parameters (the trial's parameter values)
     %     Source  series (the unit, channel or event a trace draws), layer,
@@ -299,8 +302,11 @@ if inset || (C.type == "waveforms" && strjoin(string(ax.XLabel.String), "") ~= "
     I.showX = false;
     I.showY = false;
 end
-if ismember(role, ["rasterTicks" "rasterStop" "rasterEvent" "rasterBand" "stackBase"]) || strcmp(ax.Tag, 'rasterAxes')
+if ismember(role, ["rasterTicks" "rasterStop" "rasterEvent" "rasterBand" "stackBase" "firstSpike"]) || strcmp(ax.Tag, 'rasterAxes')
     I.showY = false;   % rows, not a quantity: the trial says it
+end
+if startsWith(role, "latency")   % a PSTH's latency box plot: its height is a lane, not a rate
+    I.showY = false;
 end
 if I.kind == "image"
     I.showY = false;
@@ -334,9 +340,12 @@ I.const = addConst(I.const, "panel", "Panel", C.panel);
 I.const = addConst(I.const, "observation", "Observation", C.src.observation);
 I.const = addConst(I.const, "dataset", "Dataset", C.src.dataset);
 I.const = addConst(I.const, "part", "Part", PlotAesthetics.roleLabel(role));
+if isappdata(o, 'LatencyStats')   % a latency box plot's part: its statistics, in the Cell value field
+    I.const = addConst(I.const, "value", "First-spike latency", latencyText(getappdata(o, 'LatencyStats')));
+end
 
 % per point: a raster part's trials, a heat map of trials' rows
-if ismember(role, ["rasterTicks" "rasterStop" "rasterEvent"])
+if ismember(role, ["rasterTicks" "rasterStop" "rasterEvent" "firstSpike"])
     [ep, unitLabel, lay] = rasterEpochs(o, role, C.layers, group);
     if ~isempty(ep)
         I.point = trialRows(ep, lay, C);
@@ -514,7 +523,8 @@ function [S, unitLabel, layName] = rasterEpochs(o, role, layers, group)
 %   A tick line holds three points per spike (x, x, NaN), in the order of
 %   R.raster(u).times of the epochs in its group (GROUP, the line's
 %   label; every epoch if it names none); a stop line the epochs' stop latencies in the
-%   window; an event mark's line its events' latencies in the window.
+%   window; an event mark's line its events' latencies in the window; a
+%   first-spike line its epochs in appdata PlotEpochs (rasterInto).
 S = [];
 unitLabel = "";
 layName = "";
@@ -543,6 +553,13 @@ for j = 1:numel(layers)
                 layName = string(layers(j).name);
                 return
             end
+        case "firstSpike"
+            ep = [];
+            if isappdata(o, 'PlotEpochs'); ep = double(reshape(getappdata(o, 'PlotEpochs'), [], 1)); end
+            if numel(ep) ~= numel(x) || any(ep < 1 | ep > numel(R.epochGroup)); continue; end
+            S = struct('epoch', ep, 'group', groupOf(R, ep), 'groupLabels', gl);
+            layName = string(layers(j).name);
+            return
         case "rasterStop"
             if ~isfield(R, 'epochStop'); continue; end
             W = R.edges([1 end]);
@@ -570,6 +587,16 @@ for j = 1:numel(layers)
             end
     end
 end
+end
+
+
+function s = latencyText(S)
+%latencyText  A latency box plot's statistics as one line: "median 12.5 ms, quartiles 8-20 ms, whiskers 4-31 ms, 2 outliers; n = 37 of 40 epochs".
+ms = @(v) string(sprintf('%.3g', 1000 * v));
+s = "median " + ms(S.q(2)) + " ms, quartiles " + ms(S.q(1)) + "-" + ms(S.q(3)) + " ms, whiskers " + ms(S.whiskers(1)) + ...
+    "-" + ms(S.whiskers(2)) + " ms";
+if S.nOutliers > 0; s = s + sprintf(", %d outlier%s", S.nOutliers, repmat('s', 1, S.nOutliers ~= 1)); end
+s = s + sprintf("; n = %d of %d epochs", S.n, S.nEpochs);
 end
 
 

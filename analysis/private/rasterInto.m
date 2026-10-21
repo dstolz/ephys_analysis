@@ -38,6 +38,15 @@ function rows = rasterInto(ax, R, u, style, colors, sortBy, look)
 %    backColor  "none" (default: no bands), "groups" (a pale band of each
 %               group's color behind its rows) or a color name or hex code
 %               (every group's band in that color)
+%    firstSpike [] (default: none) or defaults("FirstSpike") (a raster
+%               panel's options.firstSpike): with enabled, a mark on each
+%               epoch's first spike at or after minSec and at or before
+%               maxSec (firstSpikeLatency of unit U), on that epoch's row
+%               wherever the sort, the groups or a stack's band put it,
+%               over the ticks; in its marker and size, filled or not,
+%               each group's color ("groups") or one color. One line
+%               object per group, tagged "firstSpike" with the group's
+%               label, its epochs in appdata PlotEpochs (the data tips')
 %   Each group's ticks are one line object (NaN-separated), tagged
 %   "rasterTicks" with the group's label, so even long rasters export small.
 %   With ShowStop each epoch's stop event is a dot. The axes
@@ -109,6 +118,9 @@ if ~isempty(tm)
         Y = [rr(in) - hh(in) rr(in) + hh(in) NaN(nnz(in), 1)].';
         tagPart(line(ax, X(:), Y(:), 'Color', c, 'LineWidth', 0.5), "rasterTicks", R.groups.label(g));
     end
+end
+if isstruct(look.firstSpike) && look.firstSpike.enabled && look.firstSpike.minSec <= look.firstSpike.maxSec
+    firstSpikeMarks(ax, R, u, y, colors, look.firstSpike);
 end
 if style.ShowStop && any(isfinite(R.epochStop))
     ok = isfinite(R.epochStop) & R.epochStop >= W(1) & R.epochStop <= W(2);
@@ -202,8 +214,31 @@ if ~isfield(look, 'marks'); look.marks = []; end
 if ~isfield(look, 'into'); look.into = []; end
 if ~isfield(look, 'tickColor'); look.tickColor = "groups"; end
 if ~isfield(look, 'backColor'); look.backColor = "none"; end
+if ~isfield(look, 'firstSpike'); look.firstSpike = []; end
 look.order = string(look.order);
 look.byGroup = logical(look.byGroup);
+end
+
+
+function firstSpikeMarks(ax, R, u, y, colors, fs)
+%firstSpikeMarks  A mark on each epoch's first spike in [fs.minSec, fs.maxSec] (firstSpikeLatency), on its row Y, a line per group.
+%   An epoch with no spike in the window, or not drawn (Y NaN: left out of
+%   a stack's band), has none.
+L = firstSpikeLatency(R, Units=u, MinSec=fs.minSec, MaxSec=fs.maxSec);
+lat = L.lat(:, 1);
+fixed = rasterColor(fs.color, []);
+grp = R.epochGroup(:);
+for g = 1:height(R.groups)
+    ep = find(grp == g & isfinite(lat) & isfinite(y(:)));
+    if isempty(ep); continue; end
+    c = colors(g, :);
+    if ~isempty(fixed); c = fixed; end
+    face = 'none';
+    if fs.filled; face = c; end
+    h = tagPart(line(ax, lat(ep), y(ep), 'LineStyle', 'none', 'Marker', char(fs.marker), 'MarkerSize', fs.size, ...
+        'Color', c, 'MarkerFaceColor', face, 'HandleVisibility', 'off'), "firstSpike", string(R.groups.label(g)));
+    setappdata(h, 'PlotEpochs', ep);
+end
 end
 
 

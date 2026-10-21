@@ -462,6 +462,12 @@ obC = struct('kind', "channel", 'data', "LFP", 'unitId', NaN, 'channel', Tl.chan
 check(all(Tu.channel == obC.channel) && (height(Tu) > 0 || startsWith(why, "no unit on channel " + obC.channel)) ...
     && height(Tc) == 1 && Tc.channel == obC.channel && whyC == "", ...
     'a channel picked: the units on that channel (or why none), the channel itself on a channel figure');
+specSt = cfg.figureFor("card");
+specSt.observe.starred = true;   % Starred only, and no star in the fixture
+Tst = figureObservations(r.source(1), specSt);
+[Tso, whySo] = figureObservations(r.source(1), specSt, Observation=obU);
+check(height(Tst) == 0 && height(Tso) == 1 && Tso.unitId == u.unitId && ~Tso.starred && whySo == "", ...
+    'Starred only keeps no unstarred unit, but the one observation picked (Observation=) is drawn, starred or not');
 
 fprintf('\n== 9. session figures: plan, run, export, report, data file, run record, cancel, standalone script ==\n');
 outG = fullfile(root, 'outSesFig');

@@ -104,6 +104,7 @@ for k = 1:n
                 otherwise
                     error('EphysPipeline:BadFormat', 'Unknown export format "%s".', fmt);
             end
+            d.writeManifest();   % its processing block: how the file was made
             try
                 obj.progress("export", d.Name, k, n, j, nFmt, fmt + ": done");
             catch

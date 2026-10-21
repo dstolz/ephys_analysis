@@ -231,6 +231,20 @@ classdef EphysDataset < handle
         % manifest's artifacts block; [] (written as null) until a config
         % has been applied.
         ArtifactHandling = []
+
+        % How each output was made, as its writer recorded it while writing
+        % it: artifacts (the automatic artifact detection, artifactIntervals),
+        % bin (toBin), sorting (runKilosort, runSpikeInterface), signals
+        % (toMat), spikes (spikesToMat), behavior (behaviorToMat) and the
+        % exports (chronux, fieldtrip, epochs, kcsd, nwb), each [] until
+        % written. Every record names its file, when and in which pipeline
+        % run it was written, every option it was made with
+        % (processingRecord) and what was worked out on the way (the common
+        % reference applied, referenceRecord; the artifact periods erased;
+        % the inputs read). Saved to and restored from the manifest's
+        % processing block, so it describes the outputs on disk, not the
+        % config as it stands. See processingManifest.
+        Processing (1,1) struct = EphysDataset.emptyProcessing()
     end
 
     properties (SetAccess = protected)
@@ -903,7 +917,8 @@ classdef EphysDataset < handle
 
         function m = manifestStruct(obj)
             %manifestStruct  Snapshot of this dataset (metadata, probe, channel
-            %   exclusions, .bin and Kilosort4 output state) ready for jsonencode.
+            %   exclusions, .bin and Kilosort4 output state, how each output
+            %   was made) ready for jsonencode.
             %   The kilosort block describes the run in sortRunDir() (the
             %   dataset's Sorter: Kilosort4 or a SpikeInterface sorter)
             %   (DatasetTracker.kilosortRunAt, as the GUI tables do). The
@@ -963,6 +978,10 @@ classdef EphysDataset < handle
 
             m.bin =struct('file', obj.BinFile, 'exists', isfile(obj.BinFile));
 
+            % How each output was made: the reference and settings its
+            % writer applied (Processing).
+            m.processing = obj.processingManifest();
+
             ks = struct('sorter', obj.Sorter, 'has_results', false, 'results_dir', "", ...
                 'num_units', NaN, 'state', "");
             run = DatasetTracker.kilosortRunAt(obj.sortRunDir());
@@ -1014,7 +1033,8 @@ classdef EphysDataset < handle
             %   on-disk manifest (if present) so a re-scan recovers prior work:
             %   probe file, channel exclusions, manual artifact periods, the
             %   detected artifacts' bounds moved by hand, an
-            %   explicit ("manual") sorting folder and the behavior file. The
+            %   explicit ("manual") sorting folder, the behavior file and the
+            %   records of how each output was made (Processing). The
             %   probe, sorting folder and behavior file are restored as
             %   recorded even while they are not there (an unplugged disk, a
             %   share that is down): the steps then report them missing rather
@@ -1098,6 +1118,17 @@ classdef EphysDataset < handle
             if isfield(m, 'behavior') && isstruct(m.behavior) && isfield(m.behavior, 'pairing')
                 obj.TrialPairing = EphysDataset.normalizeTrialPairing(m.behavior.pairing);
             end
+            if isfield(m, 'processing') && isstruct(m.processing) && isscalar(m.processing)
+                p = EphysDataset.emptyProcessing();
+                for k = string(fieldnames(p)).'
+                    if isfield(m.processing, k) && isstruct(m.processing.(k)) && isscalar(m.processing.(k))
+                        r = m.processing.(k);
+                        if isfield(r, 'exists'); r = rmfield(r, 'exists'); end   % worked out at each write
+                        p.(k) = r;
+                    end
+                end
+                obj.Processing = p;
+            end
             tf = true;
         end
 
@@ -1135,6 +1166,82 @@ classdef EphysDataset < handle
             if isstruct(obj.ArtifactHandling)
                 s.handling = obj.ArtifactHandling;
             end
+        end
+
+        function s = processingManifest(obj)
+            %processingManifest  Manifest block: how each output was made (Processing).
+            %   Every record as its writer made it ([] for one not written
+            %   yet), each that names a file with exists: whether its file
+            %   (signals: every one of its files; sorting: its results
+            %   folder) is there now.
+            s = obj.Processing;
+            for k = string(fieldnames(s)).'
+                r = s.(k);
+                if ~isstruct(r) || ~isscalar(r); s.(k) = []; continue; end
+                if isfield(r, 'files')
+                    f = string(r.files);
+                    r.exists = ~isempty(f) && all(isfile(f));
+                elseif isfield(r, 'file')
+                    r.exists = isfile(string(r.file));
+                elseif isfield(r, 'results_dir')
+                    r.exists = isfolder(string(r.results_dir));
+                end
+                s.(k) = r;
+            end
+        end
+
+        function r = referenceInfo(obj)
+            %referenceInfo  The common reference the dataset's streamed reads subtract.
+            %   R = ds.referenceInfo(): mode ("none" | "car" | "cmr" | "wcar",
+            %   ArtifactConfig.Reference), channels (the 1-based channels it
+            %   is taken over, referenceChannels; none for "none") and, for
+            %   "wcar", wcar: the weighted CAR's options with Q (the value
+            %   used) and QAuto (true when it was worked out), from
+            %   prepareWCAR. What readChunkUV and readWindowUV subtract, so
+            %   what toBin's .bin and spikesToMat's detections carry.
+            mode = obj.referenceMode();
+            r = struct('mode', char(mode), 'channels', double.empty(1, 0));
+            if mode ~= "none"
+                r.channels = obj.referenceChannels();
+            end
+            if mode == "wcar"
+                st = obj.prepareWCAR();
+                w = st.options;
+                w.Q = st.Q;
+                w.QAuto = st.QAuto;
+                r.wcar = w;
+            end
+        end
+
+        function recordDetection(obj, settings, auto, ref, opts)
+            %recordDetection  Note in Processing.artifacts how the automatic artifact detection ran.
+            %   ds.recordDetection(SETTINGS, AUTO, REF, Name=Value): SETTINGS
+            %   the detector settings as run (detectionSettings, with any
+            %   per-call overrides), AUTO the [k x 2] periods it found, REF
+            %   the common reference the detection read through
+            %   (referenceInfo). Options: File (the interval cache it is kept
+            %   in, "" for none), Created (when it was found; default now),
+            %   RunId (the pipeline run). artifactIntervals calls it, and
+            %   EphysPipeline.artifactIntervalsFor for a detection read
+            %   from its cache.
+            arguments
+                obj (1,1) EphysDataset
+                settings (1,1) struct
+                auto (:,2) double
+                ref (1,1) struct
+                opts.File (1,1) string = ""
+                opts.Created (1,1) string = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'))
+                opts.RunId (1,1) string = ""
+            end
+            key = "file";
+            if opts.File == ""; key = ""; end
+            r = EphysDataset.processingRecord(key, opts.File, struct('runId', opts.RunId), settings);
+            r.created = opts.Created;
+            r.reference = EphysDataset.referenceRecord(ref);
+            r.channels = EphysDataset.formatChannelList(setdiff(1:obj.NumChannels, obj.ExcludeChannels));
+            r.detected = size(auto, 1);
+            r.detected_s = sum(auto(:, 2) - auto(:, 1));
+            obj.Processing.artifacts = r;
         end
 
         function s = behaviorManifest(obj)
@@ -1916,6 +2023,95 @@ classdef EphysDataset < handle
                 end
             end
             s = strjoin(parts, ",");
+        end
+
+        function p = emptyProcessing()
+            %emptyProcessing  Processing before anything is written: a []
+            %   per kind - artifacts (the automatic artifact detection),
+            %   bin, sorting, signals, spikes, behavior and the exports
+            %   chronux, fieldtrip, epochs, kcsd and nwb.
+            p = struct('artifacts', [], 'bin', [], 'sorting', [], 'signals', [], 'spikes', [], ...
+                'behavior', [], 'chronux', [], 'fieldtrip', [], 'epochs', [], 'kcsd', [], 'nwb', []);
+        end
+
+        function r = processingRecord(fileKey, file, prov, options)
+            %processingRecord  The head of a Processing record.
+            %   R = EphysDataset.processingRecord(FILEKEY, FILE, PROV, OPTIONS):
+            %   FILE under FILEKEY ("file", "files" for a list, "results_dir"
+            %   for a folder, or "" for none), created (now), run_id
+            %   (PROV.runId: the pipeline run, "" outside one) and options:
+            %   every setting the output was made with, as run (optionsRecord).
+            %   The writer adds what it worked out (the reference applied, the
+            %   artifact periods erased, the inputs read, ...).
+            r = struct();
+            if fileKey == "files"
+                r.files = cellstr(string(file));   % a JSON list, also of one
+            elseif fileKey ~= ""
+                r.(fileKey) = string(file);
+            end
+            r.created = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
+            r.run_id = string(prov.runId);
+            r.options = EphysDataset.optionsRecord(options);
+        end
+
+        function o = optionsRecord(o)
+            %optionsRecord  Options as the manifest's processing block holds them.
+            %   O = EphysDataset.optionsRecord(O): every field of the options
+            %   struct O but ProgressFcn and Provenance, which are no settings.
+            %   A value that is data rather than a setting - over 64 kB in
+            %   memory (an extract passed in, a units table, event times), a
+            %   table, a function handle or another object - becomes a note
+            %   of its class and size, "<struct 1x1>"; a nested struct is
+            %   treated the same way, field by field. Non-finite numbers are
+            %   written "Inf" / "-Inf" / "NaN" (stringifyNonFinite), as a
+            %   config file holds them, so NaN ("automatic") and Inf ("no
+            %   limit") read back as they were.
+            if ~isstruct(o) || ~isscalar(o)
+                o = struct();
+                return
+            end
+            drop = intersect(fieldnames(o), {'ProgressFcn', 'Provenance'});
+            if ~isempty(drop); o = rmfield(o, drop); end
+            for f = string(fieldnames(o)).'
+                v = o.(f);
+                w = whos('v');
+                if w.bytes > 65536 || istable(v) || istimetable(v) || isa(v, 'function_handle') ...
+                        || (isobject(v) && ~isstring(v) && ~isdatetime(v) && ~iscategorical(v))
+                    o.(f) = "<" + class(v) + " " + strjoin(string(size(v)), "x") + ">";
+                elseif isstruct(v) && isscalar(v)
+                    o.(f) = EphysDataset.optionsRecord(v);
+                end
+            end
+            o = stringifyNonFinite(o);
+        end
+
+        function o = detectionSettings(acfg)
+            %detectionSettings  The fields of an ArtifactConfig that decide
+            %   which periods the automatic detection finds: all but the fill
+            %   (Fill, NoiseBandHz, NoiseSeed), which says how they are erased.
+            o = EphysDataset.normalizeArtifactConfig(acfg);
+            o = rmfield(o, {'Fill', 'NoiseBandHz', 'NoiseSeed'});
+        end
+
+        function r = referenceRecord(ref)
+            %referenceRecord  A common reference as the manifest's processing block gives it.
+            %   R = EphysDataset.referenceRecord(REF), REF as referenceInfo or
+            %   deriveSignals' INFO.reference: mode, channels as a compact
+            %   list (formatChannelList), signals when REF names them (the
+            %   derived signals it was subtracted from) and, for "wcar",
+            %   wcar: Order, Alpha1k, DriftPerSec, HighpassHz, Estimate, Q
+            %   (the value used) and QAuto (true when it was worked out).
+            r = struct('mode', string(ref.mode), 'channels', EphysDataset.formatChannelList(ref.channels));
+            if isfield(ref, 'signals')
+                r.signals = cellstr(string(ref.signals));   % a JSON list, also of one
+            end
+            if r.mode == "wcar" && isfield(ref, 'wcar')
+                r.wcar = struct();
+                for f = ["Order" "Alpha1k" "DriftPerSec" "HighpassHz" "Estimate" "Q" "QAuto"]
+                    if isfield(ref.wcar, f); r.wcar.(f) = ref.wcar.(f); end
+                end
+                r.wcar = stringifyNonFinite(r.wcar);   % Q "NaN": automatic, not worked out
+            end
         end
     end
 

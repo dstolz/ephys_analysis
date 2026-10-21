@@ -78,6 +78,7 @@ for k = 1:n
         r = d.toMat(File=obj.outputPathFor("signals:base", d), SeparateFiles=G.SeparateFiles, ...
             SignalOptions=sigOpts, MatVersion=G.MatVersion, ...
             Overwrite=G.Overwrite, ProgressFcn=cb, Provenance=obj.provenance());
+        d.writeManifest();   % its processing block: how the signals were made
         if any(sigOpts.dataTypeOut == "AUX") && ~any(contains(r.types, "AUX"))
             obj.log("[signals] %s: no aux (accelerometer) inputs recorded; AUX not written", d.Name);
         end

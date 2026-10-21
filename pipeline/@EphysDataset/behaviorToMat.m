@@ -35,6 +35,10 @@ function out = behaviorToMat(obj, opts)
 %   that could not be made, see behaviorStruct) and extractFiles (the
 %   extract files whose events were rewritten).
 %
+%   ds.Processing.behavior records how the file was made (the options, the
+%   pairing, TrialConfig with the derived events' definitions) for the
+%   manifest's processing block.
+%
 %   See also EphysDataset.behaviorStruct, EphysDataset.readBehavior,
 %   DatasetOutputs.
 
@@ -94,4 +98,19 @@ out = struct('file', file, 'bytes', d.bytes, 'seconds', toc(t0), ...
 out.derivedEvents = reshape(string({S.behavior.derivedEvents.name}), 1, []);
 out.derivedFailed = reshape(string({S.behavior.derivedEventsFailed.message}), 1, []);
 out.extractFiles = xf;
+
+% How the file was made, for the manifest (Processing): the options, the
+% pairing taken (its large per-trial columns noted, not copied), the trial
+% and line settings (TrialConfig, the derived events' definitions with it)
+% and what came of them.
+r = EphysDataset.processingRecord("file", file, prov, rmfield(opts, 'Pairing'));
+r.source = obj.BehaviorFile;   % "" for a TDT block's epocs
+r.pairing = [];
+if isstruct(opts.Pairing) && isscalar(opts.Pairing); r.pairing = EphysDataset.optionsRecord(opts.Pairing); end
+r.trial_config = EphysDataset.optionsRecord(obj.TrialConfig);
+r.n_trials = out.nTrials;
+r.derived_events = cellstr(out.derivedEvents);
+r.derived_failed = cellstr(out.derivedFailed);
+r.extract_files = cellstr(xf);
+obj.Processing.behavior = r;
 end

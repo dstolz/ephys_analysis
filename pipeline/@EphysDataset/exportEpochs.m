@@ -49,6 +49,9 @@ function out = exportEpochs(obj, opts)
 %   nDetectedChannels, eventSource, eventName, window, nArtifact (epochs
 %   that touch an artifact period), artifacts (Artifacts), sources.
 %
+%   ds.Processing.epochs records how the file was made (every option, the
+%   inputs read, the epochs cut) for the manifest's processing block.
+%
 %   See also EphysDataset.eventEpochs, EphysDataset.exportChronux,
 %   EphysDataset.exportFieldTrip, ChronuxDataset.trials.
 
@@ -112,4 +115,13 @@ out = struct('file', file, 'bytes', d.bytes, 'seconds', toc(t0), ...
     'eventSource', epochs.meta.eventSource, 'eventName', epochs.meta.eventName, ...
     'window', epochs.meta.window, 'nArtifact', epochs.meta.nArtifact, ...
     'artifacts', epochs.meta.artifacts, 'sources', epochs.meta.sources);
+
+% How the file was made, for the manifest (Processing): every option, the
+% inputs read and the epochs cut.
+r = EphysDataset.processingRecord("file", file, prov, opts);
+r.sources = EphysDataset.optionsRecord(epochs.meta.sources);
+r.event_name = string(epochs.meta.eventName);
+r.n_epochs = epochs.meta.nEpochs;
+r.n_artifact = epochs.meta.nArtifact;
+obj.Processing.epochs = r;
 end

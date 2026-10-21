@@ -68,6 +68,9 @@ function out = exportChronux(obj, opts)
 %     Overwrite  false (default): error if File exists
 %     MatVersion "-v7.3" (default) | "-v7"
 %
+%   ds.Processing.chronux records how the file was made (every option, the
+%   inputs read) for the manifest's processing block.
+%
 %   See also ChronuxDataset, EphysDataset.exportFieldTrip, EphysDataset.toMat,
 %   EphysDataset.spikesToMat, EphysDataset.readSortedUnits.
 
@@ -150,4 +153,9 @@ d = dir(file);
 out = struct('file', file, 'bytes', d.bytes, 'seconds', toc(t0), ...
     'signals', in.signals, 'nUnits', numel(S.sp), ...
     'nDetectedChannels', numel(S.spDetected), 'sources', in.sources);
+
+% How the file was made, for the manifest (Processing): every option and the inputs read.
+r = EphysDataset.processingRecord("file", file, prov, opts);
+r.sources = EphysDataset.optionsRecord(in.sources);
+obj.Processing.chronux = r;
 end

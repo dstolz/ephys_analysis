@@ -242,6 +242,9 @@ function [ts, wf, info] = detectSpikes(obj, X, opts)
 %     files   the chunk names, in the order read
 %     artifacts  the ArtifactIntervals erased: intervals (merged; zeros(0,2)
 %             for none) and nSamples (recording samples set to NaN)
+%     options  every option as run (but ProgressFcn and ArtifactIntervals),
+%             with Fs and EdgePadMs as resolved; Threshold NaN is the
+%             method's default, thresholdInput the value it stood for
 %
 %   Examples
 %   --------
@@ -612,6 +615,9 @@ info.edgePadSamples     = pad;
 info.edgePadMs          = 1e3 * pad / Fs;
 info.chunks             = chunkInfo;
 info.files              = string({plan.name});
+info.options            = rmfield(opts, {'ProgressFcn', 'ArtifactIntervals'});   % every option as run
+info.options.Fs         = Fs;
+info.options.EdgePadMs  = info.edgePadMs;
 erased = artRuns(artRuns(:, 1) <= nSamplesTotal, :);
 erased(:, 2) = min(erased(:, 2), nSamplesTotal);
 info.artifacts          = struct('intervals', artIv, ...

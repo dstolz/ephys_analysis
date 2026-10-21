@@ -78,6 +78,9 @@ function result = runKilosort(obj, opts)
 %   subtract its own (the median across the probe's channels) on top of it,
 %   whatever ExtraSettings says. With Reference "none" Kilosort4's do_CAR is
 %   the one reference, as ExtraSettings leaves it (on by default).
+%   ds.Processing.sorting records which applies (bin_reference,
+%   own_reference) for the manifest's processing block; a dry run, or a
+%   run in a ResultsDir given (sortSweep's variants), records nothing.
 %
 %   settings.json also records the .bin's scale, its units per uV
 %   (bin_scale: ds.Scale when this call writes the .bin, else the .bin's
@@ -197,6 +200,7 @@ end
 % Absolute paths (KS4 + system() want absolute, double-quoted paths)
 binFile   = absPath(binFile);
 probeFile = absPath(probeFile);
+givenProbe = string(probeFile);   % before the exclusions and spacing derive their own
 
 % n_chan_bin and fs: opts -> .bin JSON sidecar -> dataset metadata. The
 % .bin's units per uV: ds.Scale when toBin writes it here, else the sidecar.
@@ -314,6 +318,21 @@ if opts.DryRun
     fprintf('[DryRun] Wrote %s and %s\n', settingsPath, scriptPath);
     fprintf('[DryRun] Command: %s\n', command);
     return
+end
+% How the dataset's sort was set up, for the manifest (Processing): every
+% setting Kilosort4 gets (settings.json), the probe given, the .bin's
+% reference ("" = unknown: a BinFile given without a readable sidecar) and
+% whether Kilosort4 adds its own (do_CAR, on unless set off). A run in a
+% ResultsDir of the caller's (a sortSweep variant) is not it.
+if opts.ResultsDir == ""
+    r = EphysDataset.processingRecord("results_dir", resultsDir, prov, rmfield(settings, 'provenance'));
+    r.sorter = "kilosort4";
+    r.probe_file = givenProbe;
+    r.bin_file = string(binFile);
+    r.bin_reference = string(binRef);
+    r.own_reference = ~isfield(settings, 'do_CAR') || ~isequal(settings.do_CAR, false);
+    r.exclude_channels = EphysDataset.formatChannelList(excludeCh);
+    obj.Processing.sorting = r;
 end
 if opts.Launch
     result = obj.launchSorting(result, Wait=opts.Wait, Device=opts.Device);

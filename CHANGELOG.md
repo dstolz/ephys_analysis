@@ -23,6 +23,19 @@ says how to cut a release.
   **Export code** and the exports draw it. In the editor, **Display** (PSTH options, and the New panel
   window) toggles it; a heat map shows **Colormap** and **Color limits** and hides **PSTH as**, **Fill**,
   **Stack** and **Y limits**. The heat map panel's `inTimeColumn` is now a shared helper.
+- The dataset manifest holds every processing detail: a `processing` block with a record per output, made
+  by its writer as it writes it (`EphysDataset.Processing`, restored by `applyManifest`): `artifacts` (the
+  automatic detection), `bin`, `sorting`, `signals`, `spikes`, `behavior` and each export (`chronux`,
+  `fieldtrip`, `epochs`, `kcsd`, `nwb`). Each names its file, when and in which pipeline run it was written,
+  and every option it was made with, defaults and worked-out values included (`processingRecord`,
+  `optionsRecord`: the sorter's whole settings.json, deriveSignals' `importOptions`, detectSpikes' options
+  as run, which it now returns in `info.options`, ...), plus what was worked out on the way: the common
+  reference applied (CAR, CMR or the weighted CAR, the channels it was taken over, the weighted CAR's
+  settings and Q, the signals it was subtracted from), whether a sorter added its own (Kilosort4's
+  `do_CAR`), the probe given, the artifact periods erased, the inputs an export read. The pipeline, the
+  generated scripts and the Trials tab write the manifest after each detection and output. The spikes file
+  records the reference detection ran on (`detected.reference`, `EphysDataset.referenceInfo`). The manifest
+  viewer lists it all in a **Processing** section, with a warning for a sort referenced twice.
 - Figures tab: right-click any part of the preview (or of an **Open in window** figure while the app is
   open) and pick **Go to setting**. It selects the part's panel, opens the supersection and section that
   hold the setting that controls it (the error band: **Show > Error**; a raster's stop dots: **Stop marks**;

@@ -467,6 +467,7 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | `NamePattern` | `EphysDataset.DefaultNamePattern` = `"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"` | [`parseNameTokens`](../pipeline/parseNameTokens.m) pattern that splits `Name` into the tokens labeling sorted units. Pushed from `EphysProject.NamePattern` / the config's `Project.NamePattern` |
 | `DatasetKey` | `""` | folder relative to the project root, saved with every unit (`""` = the absolute folder). Pushed by `EphysProject` and the pipeline |
 | `TrialPairing` | `struct([])` | the recorded pairing (manifest `behavior.pairing`): `status` (`"unreviewed"` / `"approved"`), `auto_approved` (approved by `autoApproveTrialPairing`, not by a review), `cut_trials` and `cut_intervals` (`[start end]` counts dropped before the in-order pairing), `fingerprint`, `trial_line`, `summary`, `updated` |
+| `Processing` | `emptyProcessing()` | every detail of how each output was made, as its writer recorded it when it wrote it: `artifacts` (`artifactIntervals`), `bin` (`toBin`), `sorting` (`runKilosort`, `runSpikeInterface`), `signals` (`toMat`), `spikes` (`spikesToMat`), `behavior` (`behaviorToMat`), `chronux`, `fieldtrip`, `epochs`, `kcsd`, `nwb` (the exports), each `[]` until written. Saved to and restored from the manifest's `processing` block ([Dataset manifest](#dataset-manifest)) |
 
 ### Dependent
 
@@ -766,10 +767,13 @@ worked out again on every read. A list set by hand
 then dominate the average. A reference over no channel at all is an error
 (`EphysDataset:applyReference:NoChannels`).
 
-`toBin` records what it used in `info.reference` and in the sidecar's
-`reference` (`mode`, `channels`, and for `"wcar"` `wcar`: its options, `Q`
-and `QAuto`). The pipeline's artifact-interval cache is
-keyed on the reference channels as well as the config.
+**`r = referenceInfo()`** is the reference the streamed reads subtract:
+`mode`, `channels`, and for `"wcar"` `wcar` (its options, `Q` and `QAuto`).
+`toBin` records it in `info.reference` and in the sidecar's `reference`,
+`spikesToMat` in `detected.reference`, and both, with `toMat` and the sorters,
+in the manifest's [processing block](#dataset-manifest). The pipeline's
+artifact-interval cache is keyed on the reference channels as well as the
+config.
 
 `prepareReference(Mode=)` and `referenceTrace(X, Mode=)` take a reference
 (`"none"`, `"car"`, `"cmr"`) in place of `ArtifactConfig.Reference`; the
@@ -1372,7 +1376,9 @@ Whole-recording mode drops `rejectedIndex` / `droppedEdgeIndex` (they are
 chunk-local) and adds `source` (`"recording"`), `thresholdScope` (`"chunk"` or
 `"recording"`), `noiseEstimate` (above; `[]` per chunk), `edgePadMs` /
 `edgePadSamples`, `chunks` (a struct array of `name`,
-`sampleOffset`, `nSamples` for the chunks read) and `files`.
+`sampleOffset`, `nSamples` for the chunks read), `files` and `options` (every
+option as run, but `ProgressFcn` and `ArtifactIntervals`, with `Fs` and
+`EdgePadMs` resolved; what `spikesToMat` records in the manifest).
 
 ```matlab
 ts = ds.detectSpikes();                                  % whole recording
@@ -2101,6 +2107,7 @@ Sorted units are not copied into it; read them from the sorting folder with
 | `File`, `MatVersion`, `Overwrite`, `ProgressFcn` | as `toMat` | |
 
 Variables: `detected` (`ts`, `wf`, `info`, `channels`, `channelNames`,
+`reference`, the common reference detection ran on (`referenceInfo()`),
 `detection` with the options, `artifactMode`, the intervals applied and
 `nRejectedArtifact` per channel; after an erase, `info.artifacts` holds the
 periods and the number of samples erased), `conversion`. The file is rewritten
@@ -2435,9 +2442,31 @@ is in [file-formats.md](file-formats.md#dataset-manifest).
 - `manifestStruct()` builds the snapshot: metadata, reader, probe, exclusions,
   manual artifact periods, `.bin` state, the Kilosort4 run in `kilosortDir()`
   (`DatasetTracker.kilosortRunAt`), the sorted-output association
-  (`sortingStruct()`), the behavior association (`behaviorManifest()`). The
+  (`sortingStruct()`), how each output was made (`processingManifest()`,
+  from `Processing`), the behavior association (`behaviorManifest()`). The
   associations (probe, sorting, behavior) are written as recorded, with
   `exists` saying whether their file or folder is there now.
+- Every detail of how each output was made is recorded by its writer as it
+  writes it, in `Processing` ([schema](file-formats.md#dataset-manifest)):
+  `artifactIntervals` when it detects (`artifacts`, through
+  **`recordDetection(settings, auto, ref)`**), `toBin` writing `BinFile`
+  (`bin`), `runKilosort` / `runSpikeInterface` in the dataset's own run
+  folder, not in a dry run (`sorting`: settings.json, the probe given, the
+  `.bin`'s reference and whether the sorter adds its own), `toMat`
+  (`signals`), `spikesToMat` (`spikes`), `behaviorToMat` (`behavior`) and
+  the exports (`chronux`, `fieldtrip`, `epochs`, `kcsd`, `nwb`). Each record
+  is built by **`r = EphysDataset.processingRecord(fileKey, file, prov,
+  options)`** (static): the file, `created`, `run_id`, and `options`, every
+  option as run, through **`EphysDataset.optionsRecord(o)`**, which leaves
+  out `ProgressFcn` and `Provenance`, notes a value of over 64 kB (data, not
+  a setting) by its class and size, and writes non-finite numbers as
+  strings. The writer adds what it worked out: the reference
+  (**`EphysDataset.referenceRecord(ref)`**, a compact form of
+  `referenceInfo()` or `deriveSignals`' `info.reference`), the artifact
+  periods erased, the inputs read. **`EphysDataset.detectionSettings(acfg)`**
+  gives the fields of an `ArtifactConfig` that decide a detection. The
+  records reach the file at the next `writeManifest`, which the pipeline
+  calls after each detection and each output.
 - `tf = writeManifest()` writes it atomically (`writeJsonFile`); `tf` is true
   when it did. A manifest file it cannot read (not JSON, or an unknown schema
   such as a newer version's) is never replaced: it warns
@@ -2449,7 +2478,7 @@ is in [file-formats.md](file-formats.md#dataset-manifest).
   `ExcludeChannels`, `ReferenceExclude` with its `ReferenceExcludeSource`
   (`reference_exclude`), `ManualArtifacts`, `ArtifactAdjustments`
   (`artifact_adjustments`), a manual `SortingDir`,
-  `BehaviorFile` and `TrialPairing`. The probe, sorting folder and behavior
+  `BehaviorFile`, `TrialPairing` and `Processing`. The probe, sorting folder and behavior
   file are restored as recorded even while they are not there (an unplugged
   disk, a share that is down): the steps then report them missing rather than
   use something else, and the next `writeManifest` keeps them. `why` says why
@@ -2460,7 +2489,9 @@ is in [file-formats.md](file-formats.md#dataset-manifest).
   artifacts, and `ArtifactHandling`: how sorting, spikes and signals treat
   the periods) is written by `artifactsManifest()` and not read back.
   `ArtifactConfig` is not stored
-  here; they belong to the [pipeline config](EphysPipeline.md). Schema `/1`
+  here; it belongs to the [pipeline config](EphysPipeline.md). The
+  `processing` records say what was applied to each output, and are never
+  applied back. Schema `/1`
   manifests (probe + exclusions only) are still read.
 - `[m, why] = EphysDataset.readManifest(file)` (static) decodes a manifest, or
   says why it cannot be used (`"missing"`, `"not valid JSON"`,

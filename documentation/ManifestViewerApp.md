@@ -46,7 +46,7 @@ in the status line.
 
 | Tab | Shows |
 | --- | --- |
-| **Summary** | every field, grouped by section (General, Recording, Probe, Channels, Manual artifacts, Artifacts, Binary, Kilosort run, Sorting, Behavior, Other). Fields the viewer does not know are listed under Other, one row per leaf. The **Check** column is worked out when the file is loaded (see below) |
+| **Summary** | every field, grouped by section (General, Recording, Probe, Channels, Manual artifacts, Artifacts, Binary, Kilosort run, Sorting, Processing, Behavior, Other). Fields the viewer does not know are listed under Other, one row per leaf. The **Check** column is worked out when the file is loaded (see below) |
 | **Timeline & probe** | the recording span with the manual artifact periods in red. A marker above each period keeps short ones visible. The behavior session start is drawn as a line when it falls inside the recording, and given in the title otherwise. Below it is the probe geometry from `probe.file`, else the default probe. The excluded channels (`chanMap + 1`) are marked ✕ and the channels left out of the common reference are circled |
 | **Tree** | the decoded JSON as an expandable tree |
 | **JSON** | the file's text |
@@ -66,6 +66,17 @@ for a warning:
   recording's channel count. The reference exclusion also gives its `source`
   (suggested, set by hand, or never set);
 - artifact periods that end before they start or fall outside the recording;
+- how each output was made (the `processing` block): for the artifact
+  detection, the sorting `.bin`, the sort, the signals, the spikes, the
+  behavior file and each export, its file checked on disk now, when and in
+  which pipeline run it was written, the common reference applied in words
+  (CAR, CMR or the weighted CAR, the channels it was taken over, the
+  weighted CAR's order and Q, the signals it was subtracted from), then
+  every option it was made with and every other field of the record, a row
+  each (*Signals options.LFP_Fs*). A sort whose sorter added its own
+  reference (Kilosort4's `do_CAR`) on top of a referenced `.bin` is a
+  warning ("referenced twice"), as is a `.bin` whose reference is unknown.
+  The kinds without a record are named in one *Not recorded* row;
 - the trial pairing status. `unreviewed` is a warning, and `approved` also
   says whether it was automatic. A pairing record that
   `EphysDataset.normalizeTrialPairing` rejects, and the dataset therefore

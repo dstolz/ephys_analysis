@@ -68,6 +68,7 @@ try
     P.status = rec.status;
     P.autoApproved = rec.auto_approved;
     obj.behaviorToMat(File=file, Overwrite=true, Pairing=P);
+    obj.writeManifest();   % its processing block: how the file was made
 catch ME
     warning('EphysDataset:setTrialPairing:BehaviorFile', ...
         'The trial pairing of %s is recorded in the manifest, but %s could not be rewritten: %s', ...

@@ -17,8 +17,11 @@ classdef ManifestViewerApp < handle
 %                       file was written?), probe vs recording channel
 %                       counts, excluded and reference-excluded channels and
 %                       artifact periods out of range, the trial pairing
-%                       status, and when the behavior session started
-%                       relative to the recording
+%                       status, when the behavior session started
+%                       relative to the recording, and how each output was
+%                       made (Processing: per record its file, run, the
+%                       common reference applied, a sort referenced twice,
+%                       and every option it was made with)
 %     Timeline & probe  the recording span with its manual artifact periods
 %                       (and the behavior start), and the probe geometry
 %                       with the excluded and reference-excluded channels
@@ -676,6 +679,63 @@ if isfield(m, 'sorting') && isstruct(m.sorting)
     R = addRow(R, S, "Updated", txtOf(getf(so, 'updated', "")));
 end
 
+if isfield(m, 'processing') && isstruct(m.processing) && isscalar(m.processing)
+    % One group of rows per record: its file checked now, when and in which
+    % run it was written, the reference in words, then every other field
+    % (the options as run first), one row per leaf.
+    S = "Processing";
+    labels = struct('artifacts', "Artifact detection", 'bin', "Sorting .bin", 'sorting', "Sort", ...
+        'signals', "Signals", 'spikes', "Spikes", 'behavior', "Behavior file", 'chronux', "Chronux export", ...
+        'fieldtrip', "FieldTrip export", 'epochs', "Epochs export", 'kcsd', "kCSD export", 'nwb', "NWB export");
+    shown = ["file" "files" "results_dir" "exists" "created" "run_id" "reference" "bin_reference" "own_reference"];
+    missingKinds = strings(1, 0);
+    for k = string(fieldnames(m.processing)).'
+        r = m.processing.(k);
+        lab = k;
+        if isfield(labels, k); lab = labels.(k); end
+        if ~(isstruct(r) && isscalar(r))
+            missingKinds(end+1) = lab; %#ok<AGROW>
+            continue
+        end
+        was = getf(r, 'exists', []);
+        if isfield(r, 'files')
+            f = string(r.files);
+            lv = "ok"; ck = "found";
+            if isempty(f) || ~all(isfile(f))
+                lv = "missing"; ck = sprintf('%d of %d not found', nnz(~isfile(f)), numel(f));
+            end
+            R = addRow(R, S, lab + " files", strjoin(f, ", "), lv, ck);
+        elseif isfield(r, 'file')
+            [lv, ck] = pathCheck(txtOf(r.file), "file", was);
+            R = addRow(R, S, lab + " file", txtOf(r.file), lv, ck);
+        elseif isfield(r, 'results_dir')
+            [lv, ck] = pathCheck(txtOf(r.results_dir), "folder", was);
+            R = addRow(R, S, lab + " folder", txtOf(r.results_dir), lv, ck);
+        end
+        run = txtOf(getf(r, 'run_id', ""));
+        R = addRow(R, S, lab + " written", txtOf(getf(r, 'created', "")), "", ...
+            ternary(run == "", "outside a pipeline run", "pipeline run " + run));
+        if isfield(r, 'bin_reference')
+            [v, lv, ck] = sortReferenceText(r);
+            R = addRow(R, S, lab + " reference", v, lv, ck);
+        elseif isfield(r, 'reference')
+            R = addRow(R, S, lab + " reference", referenceText(r.reference));
+        end
+        rest = setdiff(string(fieldnames(r)).', shown, 'stable');
+        rest = [intersect("options", rest), setdiff(rest, "options", 'stable')];   % the options first
+        for f = rest
+            if isstruct(r.(f)) && isscalar(r.(f))
+                R = addFlat(R, S, lab + " " + f, r.(f));
+            else
+                R = addRow(R, S, lab + " " + f, fmtValue(r.(f)));
+            end
+        end
+    end
+    if ~isempty(missingKinds)
+        R = addRow(R, S, "Not recorded", strjoin(missingKinds, ", "), "", "not written yet");
+    end
+end
+
 if isfield(m, 'behavior') && isstruct(m.behavior)
     S = "Behavior";
     b = m.behavior;
@@ -713,7 +773,7 @@ end
 
 known = ["schema" "name" "folder" "recording_format" "reader" "updated" "metadata" "probe" ...
     "exclude_channels" "reference_exclude" "manual_artifacts" "artifact_adjustments" "artifacts" "bin" "kilosort" ...
-    "sorting" "behavior"];
+    "sorting" "processing" "behavior"];
 other = setdiff(string(fieldnames(m)).', known, 'stable');
 for f = other
     if isstruct(m.(f)) && isscalar(m.(f))
@@ -813,6 +873,56 @@ elseif d < days(2)
     s = sprintf('%.1f h ago', hours(d));
 else
     s = sprintf('%d days ago', floor(days(d)));
+end
+end
+
+function s = referenceText(ref)
+% A processing record's common reference in words: the mode, the channels it
+% was taken over, the weighted CAR's order and Q, and the derived signals it
+% was subtracted from.
+mode = txtOf(getf(ref, 'mode', ""));
+ch = txtOf(getf(ref, 'channels', ""));
+switch mode
+    case "none"
+        s = "none";
+    case {"car" "cmr"}
+        s = upper(mode) + " over channels " + ch;
+    case "wcar"
+        s = "weighted CAR over channels " + ch;
+        w = getf(ref, 'wcar', []);
+        if isstruct(w) && isscalar(w)
+            s = s + sprintf(' (Order %s, Q %.4g µV²%s)', fmtNum(numOf(getf(w, 'Order', NaN)), ""), ...
+                numOf(getf(w, 'Q', NaN)), ternary(isequal(getf(w, 'QAuto', false), true), ", automatic", ""));
+        end
+    otherwise
+        s = mode;
+end
+sig = getf(ref, 'signals', []);
+if (iscell(sig) || isstring(sig) || ischar(sig)) && ~isempty(sig) && mode ~= "none"
+    s = s + ", subtracted from " + strjoin(string(sig), ", ");
+end
+end
+
+function [s, level, check] = sortReferenceText(r)
+% The reference a sort saw: the .bin's, and the sorter's own on top of it
+% (Kilosort4's do_CAR). Both is a warning, as is a .bin whose is unknown.
+br = txtOf(getf(r, 'bin_reference', ""));
+sorter = txtOf(getf(r, 'sorter', ""));
+level = ""; check = "";
+if br == ""
+    s = "unknown in the .bin";
+    level = "warn"; check = "the .bin had no readable sidecar";
+else
+    s = upper(br) + " in the .bin";
+end
+if isequal(getf(r, 'own_reference', false), true)
+    s = s + "; " + ternary(sorter == "kilosort4", "Kilosort4's do_CAR (median across channels)", ...
+        sorter + "'s own, if it has one");
+    if ismember(br, ["car" "cmr" "wcar"])
+        level = "warn"; check = "referenced twice";
+    end
+else
+    s = s + "; none of the sorter's own";
 end
 end
 
@@ -952,6 +1062,7 @@ elseif islogical(v) && isscalar(v)
 elseif isnumeric(v) && isscalar(v)
     s = string(num2str(double(v), 10));
 elseif (isnumeric(v) || islogical(v)) && numel(v) <= 24
+    if isvector(v); v = reshape(v, 1, []); end   % jsondecode gives a list as a column
     s = string(mat2str(double(v), 6));
 elseif isnumeric(v) || islogical(v)
     s = sprintf('[%s %s]', strjoin(string(size(v)), 'x'), class(v));

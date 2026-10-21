@@ -21,6 +21,10 @@ function out = toMat(obj, opts)
 %   in an existing extract (writeExtractEvents).
 %   AUX (the accelerometer inputs) is written only when the recording has
 %   them: a requested AUX that is absent gets no _AUX file.
+%   ds.Processing.signals records how the signals were made (every option as
+%   run, the reference and the signals it was subtracted from, the channels
+%   interpolated, the artifact periods erased) for the manifest's
+%   processing block.
 %
 %   The file is written to "~<name>.partial.mat" next to the target and
 %   renamed only after save() finishes without warnings and every variable is
@@ -168,6 +172,7 @@ if ~isempty(obj.Manifest) && isa(obj.Manifest, 'Manifest')
         struct('file', files, 'dataTypeOut', info.importOptions.dataTypeOut, ...
         'bytes', out.bytes));
 end
+obj.Processing.signals = signalsRecord(files, info, opts, prov);   % how they were made, for the manifest
 
 if ~isempty(opts.ProgressFcn)
     try
@@ -178,6 +183,30 @@ if ~isempty(opts.ProgressFcn)
         % finished conversion into a reported failure.
     end
 end
+end
+
+
+function r = signalsRecord(files, info, opts, prov)
+%signalsRecord  How the derived signals were made, for the manifest
+%   (Processing.signals): the files, every deriveSignals option as run
+%   (info.importOptions: the rates produced, the filters, the channels kept
+%   and interpolated, the line names, ...) with toMat's own, the signal
+%   types written, the common reference and the signals it was subtracted
+%   from, the LFP filters as designed, how the bad channels were filled and
+%   the artifact periods erased.
+o = info.importOptions;
+o.MatVersion = opts.MatVersion;
+o.SeparateFiles = opts.SeparateFiles;
+r = EphysDataset.processingRecord("files", files, prov, o);
+types = ["LFP" "MUA" "SPIKE" "AUX"];
+r.types = cellstr(types(isfield(info, cellstr(types))));
+r.orig_fs = info.origFs;
+r.reference = EphysDataset.referenceRecord(info.reference);
+if isfield(info, 'LFP'); r.lfp_filter = string(info.LFP.filter); end
+r.bad_channels = struct('channels', EphysDataset.formatChannelList(info.badChannels.channels), ...
+    'method', {cellstr(string(info.badChannels.method))});
+r.artifacts = struct('periods', size(info.artifacts.intervals, 1), ...
+    'erased_s', info.artifacts.nSamples / info.origFs, 'fill', string(info.artifacts.fill));
 end
 
 

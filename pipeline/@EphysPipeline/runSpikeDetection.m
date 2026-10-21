@@ -59,6 +59,7 @@ for k = 1:n
         r = d.spikesToMat('File', out, 'DetectOptions', dopt, 'Channels', channels, ...
             'ArtifactMode', K.ArtifactMode, 'MatVersion', K.MatVersion, ...
             'Overwrite', K.Overwrite, 'ProgressFcn', cb, 'Provenance', obj.provenance(), args{:});
+        d.writeManifest();   % its processing block: how the detections were made
         msg = sprintf("%d detected event(s), %d rejected", sum(r.nDetected), sum(r.nRejectedArtifact));
         if K.ArtifactMode == "erase"
             msg = msg + sprintf(", %d artifact period(s) erased before detection", size(iv, 1));

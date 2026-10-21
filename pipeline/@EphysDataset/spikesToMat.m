@@ -16,11 +16,18 @@ function out = spikesToMat(obj, opts)
 %                 recording-relative), wf {1 x nChan} [nSpikes x nWin] uV or
 %                 [] when waveforms were not requested, info (detectSpikes'
 %                 info, filtered to the kept events), channels (1-based
-%                 recording channels, in order), channelNames, and detection
-%                 (the options used, artifactMode, the artifact intervals
-%                 applied and nRejectedArtifact per channel; with "erase"
-%                 info.artifacts says how many samples were erased)
+%                 recording channels, in order), channelNames, reference
+%                 (the common reference detection ran on, as
+%                 EphysDataset.referenceInfo gives it: mode, channels, and
+%                 wcar for the weighted CAR) and detection (the options
+%                 used, artifactMode, the artifact intervals applied and
+%                 nRejectedArtifact per channel; with "erase" info.artifacts
+%                 says how many samples were erased)
 %     conversion  provenance (tool, created, dataset, sourceFolder, ...)
+%
+%   ds.Processing.spikes records how the detections were made (every option
+%   as run, the reference, the channels, the artifact handling) for the
+%   manifest's processing block.
 %
 %   Options
 %   -------
@@ -162,6 +169,7 @@ detected.wf           = wf;
 detected.info         = info;
 detected.channels     = channels;
 detected.channelNames = channelNamesFor(obj, channels);
+detected.reference    = obj.referenceInfo();   % the common reference detection ran on
 detected.detection    = struct( ...
     'options',           opts.DetectOptions, ...
     'artifactMode',      opts.ArtifactMode, ...
@@ -199,6 +207,22 @@ if ~isempty(obj.Manifest) && isa(obj.Manifest, 'Manifest')
     obj.Manifest.add("spikesToMat", "Wrote spikes .mat", ...
         struct('file', file, 'bytes', out.bytes));
 end
+% How the detections were made, for the manifest (Processing): every
+% detectSpikes option as run, spikesToMat's own, the reference, the
+% threshold each method stood for and the artifact periods.
+o = info.options;
+o.ArtifactMode = opts.ArtifactMode;
+o.MatVersion = opts.MatVersion;
+r = EphysDataset.processingRecord("file", file, prov, o);
+r.reference = EphysDataset.referenceRecord(detected.reference);
+r.channels = EphysDataset.formatChannelList(channels);
+r.threshold_input = [];   % the multiplier (or uV) Threshold stood for
+if isfield(info, 'thresholdInput'); r.threshold_input = info.thresholdInput; end
+erased = 0;
+if isfield(info, 'artifacts') && isfield(info.artifacts, 'nSamples'); erased = info.artifacts.nSamples / obj.Fs; end
+r.artifacts = struct('mode', opts.ArtifactMode, 'periods', size(iv, 1), ...
+    'rejected', sum(nRej), 'erased_s', erased);
+obj.Processing.spikes = r;
 try
     progress(opts.ProgressFcn, nSteps, nSteps, "Done");
 catch

@@ -22,7 +22,10 @@ function iv = artifactIntervals(obj, opts)
 %   global (recording-relative). The result does not depend on UseParallel.
 %   ExcludeChannels take no part in the detection: a dead or broken site
 %   (which after a common reference also carries the reference's inverse)
-%   must not erase a period on every channel.
+%   must not erase a period on every channel. A detection is recorded in
+%   ds.Processing.artifacts (recordDetection: the settings as run, the
+%   reference read through, what it found) for the manifest's processing
+%   block.
 %
 %   Options (auto-detection params; each omitted option falls back to
 %   ds.ArtifactConfig)
@@ -144,6 +147,22 @@ for i = 1:nChunks
     end
     offsetSamp = offsetSamp + r.nSamples;
 end
+% How the detection ran, for the manifest (Processing.artifacts).
+s = EphysDataset.detectionSettings(acfg);
+s.Enabled = true;
+s.Method = method;
+s.Threshold = thr;
+s.RmsWindowMs = rmsWinMs;
+s.MergeGapMs = mergeGap;
+s.MinChannels = minCh;
+s.PadMs = padMs;
+s.Filter = useFilter;
+s.FilterType = fType;
+s.FilterCutoff = fCut;
+s.FilterOrder = fOrd;
+s.Files = opts.Files;
+s.MaxChunkSamples = opts.MaxChunkSamples;
+obj.recordDetection(s, auto, obj.referenceInfo());
 if opts.IncludeManual
     auto = obj.adjustArtifacts(auto);   % the bounds moved by hand, before any merge
 end

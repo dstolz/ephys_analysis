@@ -41,6 +41,9 @@ function out = exportFieldTrip(obj, opts)
 %                ft_datatype_raw / ft_datatype_spike on the structures and
 %                record the outcome (warn on failure); no-op otherwise
 %
+%   ds.Processing.fieldtrip records how the file was made (every option, the
+%   inputs read) for the manifest's processing block.
+%
 %   See also FieldTripExport, EphysDataset.exportChronux, EphysDataset.toMat,
 %   EphysDataset.spikesToMat, EphysDataset.readSortedUnits.
 
@@ -138,4 +141,9 @@ d = dir(file);
 out = struct('file', file, 'bytes', d.bytes, 'seconds', toc(t0), ...
     'signals', in.signals, 'nUnits', S.export.nUnits, ...
     'nEvents', numel(S.event), 'validation', validation, 'sources', in.sources);
+
+% How the file was made, for the manifest (Processing): every option and the inputs read.
+r = EphysDataset.processingRecord("file", file, prov, opts);
+r.sources = EphysDataset.optionsRecord(in.sources);
+obj.Processing.fieldtrip = r;
 end

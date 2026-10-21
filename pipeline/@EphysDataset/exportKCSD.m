@@ -69,6 +69,9 @@ function out = exportKCSD(obj, opts)
 %   The .npz is written as "~<name>.partial.npz" next to File and renamed
 %   into place once complete.
 %
+%   ds.Processing.kcsd records how the file was made (every option, the
+%   inputs read, the probe) for the manifest's processing block.
+%
 %   See also KCSDExport, writeNPZ, EphysDataset.channelLayout,
 %   EphysDataset.exportChronux, EphysDataset.exportFieldTrip.
 
@@ -199,6 +202,14 @@ out = struct('file', file, 'bytes', d.bytes, 'seconds', toc(t0), 'signals', "LFP
     'nElectrodes', numel(el.column), 'dim', el.dim, 'nExcluded', height(el.excluded), ...
     'excluded', el.excluded, 'nEvents', numel(ev.line), 'probeFile', probeFile, ...
     'sources', provenance);
+
+% How the file was made, for the manifest (Processing): every option, the
+% inputs read and the probe.
+r = EphysDataset.processingRecord("file", file, prov, opts);
+r.sources = EphysDataset.optionsRecord(provenance);
+r.probe_file = string(probeFile);
+r.dim = el.dim;
+obj.Processing.kcsd = r;
 end
 
 

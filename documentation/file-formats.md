@@ -425,6 +425,31 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
                        "noise_band_hz": <Hz, 0 = broadband>, "noise_seed": <n or null> }
   },
   "bin":      { "file": <BinFile path>, "exists": <true|false> },
+  "processing": {          how each output was made: every record is [] until written, else
+                           { <file>, "created", "run_id", "options": { every option as run }, ..., "exists" }
+    "artifacts": { "file" (the interval cache, when kept), "options": <the detector settings>,
+                   "reference": <ref>, "channels": <compact list detected on>, "detected": <n>, "detected_s": <s> },
+    "bin":       { "file", "options": <toBin's>, "reference": <ref>, "filter": "none" | "<type> <cutoff> Hz, order <n>",
+                   "artifacts": { "listed", "detected", "erased_s", "fill" }, "noise_fill": [] | { "bandHz", "seed",
+                   "sigma": [...], "center": [...] }, "n_clipped" },
+    "sorting":   { "results_dir", "options": <settings.json, and sorter_params for a SpikeInterface sorter>,
+                   "sorter", "probe_file", "bin_file",
+                   "bin_reference": "none" | "car" | "cmr" | "wcar" | "",   "" = unknown
+                   "own_reference": <bool>,   the sorter's own common reference on top (Kilosort4's do_CAR)
+                   "exclude_channels": <compact list> },
+    "signals":   { "files": [<paths>], "options": <deriveSignals' importOptions, MatVersion, SeparateFiles>,
+                   "types": [<written>], "orig_fs", "reference": <ref, with "signals">, "lfp_filter": <text>,
+                   "bad_channels": { "channels", "method": [...] }, "artifacts": { "periods", "erased_s", "fill" } },
+    "spikes":    { "file", "options": <detectSpikes' as run, ArtifactMode, MatVersion>, "reference": <ref>,
+                   "channels": <compact list>, "threshold_input": <what Threshold stood for>,
+                   "artifacts": { "mode", "periods", "rejected", "erased_s" } },
+    "behavior":  { "file", "options", "source": <Epsych2 file or "">, "pairing": [] | {...},
+                   "trial_config": <TrialConfig>, "n_trials", "derived_events", "derived_failed", "extract_files" },
+    "chronux", "fieldtrip":  { "file", "options", "sources": <the inputs read> },
+    "epochs":    { "file", "options", "sources", "event_name", "n_epochs", "n_artifact" },
+    "kcsd":      { "file", "options", "sources", "probe_file", "dim" },
+    "nwb":       { "file", "options", "sources", "probe_file", "versions": <the Python packages> }
+  },
   "kilosort": { "sorter": "kilosort4" | <SpikeInterface sorter>, "has_results": <bool>,
                 "results_dir": <path or "">, "num_units": <n or null>, "state": <string> },
   "sorting":  { "results_dir": <SortingDir as recorded, else the folder holding params.py, or "">,
@@ -494,13 +519,58 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   erases them before detection (`"erased"`); Signals erases them before
   deriving. The manifest is rewritten after each detection, so `detected`
   follows it; `applyManifest()` does not read this block.
+- `processing` holds every detail of how each output on disk was made,
+  where `artifacts.handling` gives the config as it stands. Each record is
+  made by the output's writer as it writes it (`EphysDataset.Processing`):
+  `artifacts` by `artifactIntervals` when it detects (or
+  `EphysPipeline.artifactIntervalsFor` when it reads the detection from its
+  cache), `bin` by `toBin` writing the dataset's `BinFile`, `sorting` by
+  `runKilosort` / `runSpikeInterface` when they set the dataset's sort up
+  (not in a dry run, nor in a `ResultsDir` of the caller's such as
+  `sortSweep`'s), `signals` by `toMat`, `spikes` by `spikesToMat`,
+  `behavior` by `behaviorToMat`, and the exports by `exportChronux`,
+  `exportFieldTrip`, `exportEpochs`, `exportKCSD` and `exportNWB`; `[]`
+  until that output is written. `created` is when it was written and
+  `run_id` the pipeline run that wrote it (`""` for a writer called on its
+  own; [Provenance](#provenance) has the run's whole config). `exists` says
+  whether the file (`signals`: all of `files`; `sorting`: `results_dir`) is
+  there now.
+- `options` is every option the writer ran with, the defaults and the
+  values it worked out included (`EphysDataset.optionsRecord`): toBin's
+  scale, dtype, filter, detection and fill settings; settings.json, which
+  carries every sorter parameter (with a SpikeInterface sorter's own
+  `si_params.json` as `sorter_params`); deriveSignals' `importOptions` (the
+  rates, bands, notch, reference choices, channels kept and interpolated,
+  line names); detectSpikes' options with `Fs` and `EdgePadMs` resolved
+  (`Threshold` `"NaN"` is the method's default; `threshold_input` is what it
+  stood for); the exports' and the behavior file's options. Non-finite
+  numbers are written `"Inf"` / `"-Inf"` / `"NaN"`, as a config file holds
+  them (`"NaN"`: automatic; `"Inf"`: no limit). A value that is data rather
+  than a setting (over 64 kB: an extract passed in, a units table, a
+  pairing's per-trial columns) is a note of its class and size, such as
+  `"<struct 1x1>"`.
+- `<ref>` is the common reference applied: `{ "mode": "none" | "car" |
+  "cmr" | "wcar", "channels": <compact list of the channels it was taken
+  over>, "wcar": { "Order", "Alpha1k", "DriftPerSec", "HighpassHz",
+  "Estimate", "Q", "QAuto" } }` (`wcar` for the weighted CAR only: `Q` is
+  the value used, `QAuto` true when it was worked out; for a detection read
+  from the cache, `Q` is as configured, `"NaN"` when automatic); the
+  `signals` record adds `"signals": [...]`, the derived signals it was
+  subtracted from. A sort sees the `.bin`'s reference (`bin_reference`), and
+  Kilosort4's `do_CAR` or a SpikeInterface sorter's own only when the `.bin`
+  has none (`own_reference`).
+- The pipeline writes the manifest after each detection and each output it
+  writes (and so do the generated scripts and the Trials tab's **Write
+  behavior .mat**); a writer called on its own leaves that to its caller.
 - `applyManifest()` restores `probe.file`, `exclude_channels`,
   `reference_exclude`, `manual_artifacts`, `artifact_adjustments`, a `"manual"`
-  `sorting.results_dir`, `behavior.file` and `behavior.pairing`, the
+  `sorting.results_dir`, `behavior.file`, `behavior.pairing` and the
+  `processing` records, the
   associations as recorded even while their file or folder is not there (the
   steps then report them missing rather than use something else).
   Detector and step settings are **not** stored here; they are
-  in the pipeline config. The header metadata is always read again from the
+  in the pipeline config, and the `processing` records are never applied
+  back. The header metadata is always read again from the
   recording. A scan then associates the one Epsych2 session file at the top
   of the recording folder when no behavior file is recorded
   (`associateFolderBehavior`; several such files: none, with a warning).
@@ -1046,7 +1116,7 @@ is rewritten as a whole. Sorted units are not in it; they stay in the sorting fo
 
 | Variable | Contents |
 | --- | --- |
-| `detected` | `ts {1 x nChan}` spike times (s, `(index-1)/Fs`, recording-relative); `wf {1 x nChan}` `[nSpikes x nWin]` µV or `[]`; `info` (`detectSpikes` info filtered to the kept events); `channels` (1-based recording channels); `channelNames`; `detection` (options used, `artifactMode` (`"reject"`, `"erase"` or `"none"`), artifact intervals applied, `nRejectedArtifact` per channel; after an erase `info.artifacts` gives the periods and the samples erased) |
+| `detected` | `ts {1 x nChan}` spike times (s, `(index-1)/Fs`, recording-relative); `wf {1 x nChan}` `[nSpikes x nWin]` µV or `[]`; `info` (`detectSpikes` info filtered to the kept events); `channels` (1-based recording channels); `channelNames`; `reference` (the common reference detection ran on: `mode`, `channels`, and `wcar` for the weighted CAR, as in the [`.bin` sidecar](#bin-json-sidecar)); `detection` (options used, `artifactMode` (`"reject"`, `"erase"` or `"none"`), artifact intervals applied, `nRejectedArtifact` per channel; after an erase `info.artifacts` gives the periods and the samples erased) |
 | `conversion` | `tool`, `created`, `dataset`, `sourceFolder`, `recordingFormat`, `fs`, `matFileVersion`, `matlabVersion`, `provenance` ([Provenance](#provenance)) |
 
 ## Behavior `.mat` (`EphysDataset.behaviorToMat`; the behavior step)

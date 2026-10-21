@@ -109,6 +109,10 @@ function out = exportNWB(obj, opts)
 %   :NoStartTime, :BadTimeZone, :NoBehavior, :Python (the driver failed:
 %   its message), and resolveExportInputs'.
 %
+%   ds.Processing.nwb records how the file was made (every option, the
+%   inputs read, the probe, the Python packages) for the manifest's
+%   processing block.
+%
 %   See also EphysDataset.exportChronux, EphysDataset.exportFieldTrip,
 %   EphysDataset.exportKCSD, writeNPZ, ephysProvenance.
 
@@ -536,6 +540,14 @@ out = struct('file', string(file), 'bytes', d.bytes, 'seconds', toc(t0), 'signal
     'versions', R.versions, 'sources', sources, 'command', string(command), 'stage', "");
 if opts.KeepStaging; out.stage = string(stage); end
 if ~isempty(trials); out.nTrials = trials.count; end
+
+% How the file was made, for the manifest (Processing): every option, the
+% inputs read, the probe and the Python packages that wrote it.
+r = EphysDataset.processingRecord("file", file, prov, opts);
+r.sources = EphysDataset.optionsRecord(sources);
+r.probe_file = string(probeFile);
+r.versions = R.versions;
+obj.Processing.nwb = r;
 end
 
 

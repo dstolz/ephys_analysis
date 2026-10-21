@@ -7,6 +7,7 @@ if isempty(P) || isempty(d); return; end
 file = fullfile(d.outputFolder(), d.Name + "_behavior.mat");   % EphysPipeline.outputPathFor("behavior")
 try
     r = d.behaviorToMat(File=file, Overwrite=true, Pairing=P);
+    d.writeManifest();   % its processing block: how the file was made
     obj.setStatus(sprintf("Trials: wrote %s (%d trials, pairing %s).", r.file, r.nTrials, P.status));
 catch ME
     obj.setStatus("Trials: could not write the behavior file: " + string(ME.message));

@@ -89,7 +89,10 @@ function info = toBin(obj, opts)
 %   wcar: the weighted CAR's options, its Q and whether it was automatic,
 %   see prepareWCAR). runKilosort and runSpikeInterface read the mode from
 %   the sidecar, so a sorter adds no common reference of its own to a .bin
-%   that carries one.
+%   that carries one. Writing ds.BinFile, ds.Processing.bin records how the
+%   .bin was made (every option as resolved, the reference, the artifact
+%   periods erased and the fill's noise levels) for the manifest's
+%   processing block.
 %
 %   GUARD: every file must have the same amplifier channel count as the first;
 %   a flat int16 .bin cannot represent a mid-dataset channel-count change.
@@ -284,6 +287,7 @@ nSamples  = 0;
 nClipped  = 0;
 nManualBlanked = 0;   % samples zeroed by manual artifact periods
 nAutoBlanked   = 0;   % samples zeroed by automatic artifact detection
+nErased        = 0;   % samples erased by either (each counted once)
 nAutoIntervals = 0;   % contiguous auto-artifact intervals (summed per file)
 autoChanCounts = [];  % [1 x nChanOut] per-channel exceedance counts
 artWinMsUsed   = NaN; % resolved running-RMS window (ms), for reporting
@@ -382,6 +386,7 @@ for i = 1:numel(plan)
     end
     if any(erase)
         X = obj.blankArtifacts(X, erase, fillArgs{:}, Context=fillCtx);
+        nErased = nErased + nnz(erase);
     end
     if ~isempty(noiseFill)
         fillCtx = fillContext(fillCtx, X, erase, edgeRows);
@@ -437,7 +442,7 @@ info.autoArtifact = struct( ...
     'nIntervals',    nAutoIntervals, ...
     'channelCounts', autoChanCounts);
 info.nBytes    = d.bytes;
-info.reference = referenceInfo(obj);
+info.reference = obj.referenceInfo();
 
 filled = ternary(artFill == "noise", "noise-filled", "zeroed");
 if doBlank
@@ -488,25 +493,46 @@ if ~isempty(obj.Manifest) && isa(obj.Manifest, 'Manifest')
         'manualBlanked', nManualBlanked));
 end
 
+% How the dataset's .bin was made, for the manifest (Processing); a .bin
+% written elsewhere (BinFile) is the caller's.
+if EphysDataset.pathKey(binFile) == EphysDataset.pathKey(obj.BinFile)
+    o = rmfield(opts, {'BinFile', 'WriteMeta', 'NoiseLevels', 'ArtifactIntervals'});   % the file; data
+    o.Scale = scale;   % each as resolved
+    o.ScaleSource = scaleSource;
+    o.Dtype = dtype;
+    o.Blank = doBlank;   % the automatic detection ran while writing
+    o.ArtifactMethod = artMethod;
+    o.ArtifactThreshold = artThr;
+    o.ArtifactRmsWindowMs = artWinMs;
+    if ~isnan(artWinMsUsed); o.ArtifactRmsWindowMs = artWinMsUsed; end   % "auto" as resolved
+    o.ArtifactMergeGapMs = artGapMs;
+    o.ArtifactMinChannels = artMinCh;
+    o.ArtifactPadMs = artPadMs;
+    o.ArtifactFill = artFill;
+    o.NoiseBandHz = noiseBand;
+    o.NoiseSeed = noiseSeed;
+    r = EphysDataset.processingRecord("file", binFile, prov, o);
+    r.reference = EphysDataset.referenceRecord(info.reference);
+    r.filter = filterNote(opts);
+    r.artifacts = struct('listed', size(listIv, 1), 'detected', nAutoIntervals, ...
+        'erased_s', nErased / Fs, 'fill', string(artFill));
+    r.noise_fill = [];   % the levels the fill was drawn at
+    if ~isempty(noiseFill); r.noise_fill = EphysDataset.optionsRecord(noiseFill); end
+    r.n_clipped = nClipped;
+    obj.Processing.bin = r;
+end
+
 fprintf('Done. %.2f MB written (%s, little-endian); n_chan_bin=%d, fs=%g\n', ...
     info.nBytes/1e6, info.dtype, info.nChan, info.fs);
 end
 
 
-function r = referenceInfo(obj)
-%referenceInfo  The common reference the chunks were read with
-%   (applyReference; the weighted CAR's state, prepareWCAR).
-acfg = EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig);
-r = struct('mode', char(acfg.Reference), 'channels', double.empty(1, 0));
-if string(acfg.Reference) ~= "none"
-    r.channels = obj.referenceChannels();
-end
-if string(acfg.Reference) == "wcar"
-    st = obj.prepareWCAR();
-    w = st.options;
-    w.Q = st.Q;
-    w.QAuto = st.QAuto;
-    r.wcar = w;
+function s = filterNote(opts)
+%filterNote  The write filter in words ("none" when off), for the manifest.
+s = "none";
+if opts.Filter
+    s = sprintf("%s %s Hz, order %d", opts.FilterType, ...
+        strjoin(compose("%g", opts.FilterCutoff), "-"), opts.FilterOrder);
 end
 end
 

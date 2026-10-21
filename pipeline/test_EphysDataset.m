@@ -984,29 +984,32 @@ dsSpk.detectSpikes('MaxChunkSamples', 2000, absArgs{:}, 'ProgressFcn', @progTick
 check(nProg == 6, 'ProgressFcn called once per chunk');
 
 % UseParallel must give exactly the serial result (or fall back to serial with
-% a warning where no pool is available).
+% a warning where no pool is available). info.options records the call
+% itself (UseParallel, MaxWorkers), so it is left out of the comparison.
+noOpts = @(i) rmfield(i, 'options');
 [tsPar, wfPar, iPar] = dsSpk.detectSpikes('MaxChunkSamples', 2000, absArgs{:}, ...
     'UseParallel', true);
 check(isequal(tsPar, tsStr) && isequaln(wfPar, wfStr), ...
     'UseParallel timestamps and waveforms == serial (split format)');
-check(isequaln(iPar, iStr), 'UseParallel info == serial (split format)');
+check(isequaln(noOpts(iPar), noOpts(iStr)) && iPar.options.UseParallel && ~iStr.options.UseParallel, ...
+    'UseParallel info == serial (split format); info.options records the call');
 [~, ~, iParDef] = dsSpk.detectSpikes(MaxChunkSamples=2000, Threshold=8, UseParallel=true);
-check(isequaln(iParDef, iDef), 'UseParallel == serial with band-pass + MAD thresholds');
+check(isequaln(noOpts(iParDef), noOpts(iDef)), 'UseParallel == serial with band-pass + MAD thresholds');
 [~, wfSerT, iSerT] = ds.detectSpikes(Filter=false, ThresholdMethod="percentile", ...
     Threshold=99, Waveforms=true);
 [~, wfParT, iParT] = ds.detectSpikes(Filter=false, ThresholdMethod="percentile", ...
     Threshold=99, Waveforms=true, UseParallel=true);
-check(isequaln(iParT, iSerT) && isequaln(wfParT, wfSerT) && numel(iParT.chunks) == 2, ...
+check(isequaln(noOpts(iParT), noOpts(iSerT)) && isequaln(wfParT, wfSerT) && numel(iParT.chunks) == 2, ...
     'UseParallel == serial across traditional *.rhd files');
 
 % MaxWorkers caps the chunks in flight without changing the result; 1 means
 % serial (with the fall-back warning), whether or not a pool is available.
 [~, ~, iPar2] = dsSpk.detectSpikes('MaxChunkSamples', 2000, absArgs{:}, 'UseParallel', true, 'MaxWorkers', 2);
-check(isequaln(iPar2, iStr), 'MaxWorkers=2 gives the serial result');
+check(isequaln(noOpts(iPar2), noOpts(iStr)), 'MaxWorkers=2 gives the serial result');
 lastwarn('');
 [~, ~, iOne] = dsSpk.detectSpikes('MaxChunkSamples', 2000, absArgs{:}, 'UseParallel', true, 'MaxWorkers', 1);
 [~, wid] = lastwarn;
-check(strcmp(wid, 'EphysDataset:detectSpikes:SerialFallback') && isequaln(iOne, iStr), ...
+check(strcmp(wid, 'EphysDataset:detectSpikes:SerialFallback') && isequaln(noOpts(iOne), noOpts(iStr)), ...
     'MaxWorkers=1 falls back to serial with a warning and the same result');
 nProg = 0;
 dsSpk.detectSpikes('MaxChunkSamples', 2000, absArgs{:}, 'ProgressFcn', @progTick, 'UseParallel', true);

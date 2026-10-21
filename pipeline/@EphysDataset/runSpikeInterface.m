@@ -36,6 +36,9 @@ function result = runSpikeInterface(obj, opts)
 %   common_reference call of SpikeInterface's internal sorters
 %   (spykingcircus2, tridesclous2, lupin, on 32 channels or more) leaves the
 %   recording as it is. With Reference "none" the sorter's own is the one.
+%   ds.Processing.sorting records which applies (bin_reference,
+%   own_reference) for the manifest's processing block; a dry run, or a
+%   run in a ResultsDir given, records nothing.
 %
 %   RESULT = ds.runSpikeInterface(opts) with name-value options:
 %     Sorter         SpikeInterface sorter name (default ds.Sorter);
@@ -164,6 +167,7 @@ end
 
 binFile   = absPath(binFile);
 probeFile = absPath(probeFile);
+givenProbe = string(probeFile);   % before the exclusions derive their own
 [nChanBin, fsVal, binScale, binRef] = resolveBinMeta(binFile, opts, obj, "runSpikeInterface");
 if ~binGiven
     binScale = obj.binScale();   % what toBin used above
@@ -265,6 +269,27 @@ if opts.DryRun
     fprintf('[DryRun] Wrote %s, %s and %s\n', settingsPath, paramsFile, scriptPath);
     fprintf('[DryRun] Command: %s\n', command);
     return
+end
+% How the dataset's sort was set up, for the manifest (Processing): every
+% setting run_si.py gets (settings.json) with the sorter's own parameters
+% (si_params.json), the probe given, the .bin's reference, and whether the
+% sorter adds its own (only on an unreferenced .bin, and only a sorter
+% that has one). A run in a ResultsDir of the caller's is not it.
+if opts.ResultsDir == ""
+    o = rmfield(settings, 'provenance');
+    try
+        o.sorter_params = jsondecode(char(paramsText));
+    catch
+        o.sorter_params = string(paramsText);   % as given, when it is no JSON
+    end
+    r = EphysDataset.processingRecord("results_dir", resultsDir, prov, o);
+    r.sorter = string(sorter);
+    r.probe_file = givenProbe;
+    r.bin_file = string(binFile);
+    r.bin_reference = binRef;
+    r.own_reference = binRef == "none";
+    r.exclude_channels = EphysDataset.formatChannelList(excludeCh);
+    obj.Processing.sorting = r;
 end
 if opts.Launch
     result = obj.launchSorting(result, Wait=opts.Wait, Device=opts.Device);

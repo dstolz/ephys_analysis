@@ -779,6 +779,7 @@ classdef EphysPipeline < handle
                 if c.WriteFile
                     try
                         r = d.behaviorToMat(File=out, Overwrite=true, Pairing=P, Provenance=obj.provenance());
+                        d.writeManifest();   % its processing block: how the file was made
                         msg = sprintf("%d trials", r.nTrials);
                         if ~isempty(r.derivedEvents)
                             msg = msg + "; derived events " + strjoin(r.derivedEvents, ", ");
@@ -956,6 +957,20 @@ classdef EphysPipeline < handle
                     auto = double(reshape(c.intervals, [], 2));
                     source = "cache";
                     how = "from cache";
+                    % The detection the steps take, for the manifest: the
+                    % settings the fingerprint holds, the reference as
+                    % configured (its channels settled above).
+                    ref = struct('mode', char(acfg.Reference), 'channels', double.empty(1, 0));
+                    if string(acfg.Reference) ~= "none"; ref.channels = d.referenceChannels(); end
+                    if string(acfg.Reference) == "wcar"
+                        ref.wcar = acfg.ReferenceWCAR;
+                        ref.wcar.QAuto = isnan(acfg.ReferenceWCAR.Q);
+                    end
+                    created = "";
+                    if isfield(c, 'created'); created = string(c.created); end
+                    d.recordDetection(EphysDataset.detectionSettings(acfg), auto, ref, ...
+                        File=cacheFile, Created=created);
+                    d.writeManifest();
                 end
             end
             if source == ""
@@ -965,12 +980,15 @@ classdef EphysPipeline < handle
                 auto = d.artifactIntervals('IncludeManual', false, 'ProgressFcn', cb, popt{:});
                 source = "computed";
                 how = "computed";
+                recorded = isstruct(d.Processing.artifacts);   % by artifactIntervals, when it detected
+                if recorded; d.Processing.artifacts.run_id = string(obj.provenance().runId); end
                 if a.CacheIntervals
                     writeJsonFile(cacheFile, struct('schema', schema, 'dataset', d.Name, ...
                         'fingerprint', fp, 'intervals', auto, 'nIntervals', size(auto, 1), ...
                         'created', string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'))));
-                    d.writeManifest();   % its artifacts block now counts this detection
+                    if recorded; d.Processing.artifacts.file = string(cacheFile); end
                 end
+                d.writeManifest();   % its artifacts and processing blocks now hold this detection
             end
             obj.Detections(key) = auto;
             [adj, moved] = d.adjustArtifacts(auto);

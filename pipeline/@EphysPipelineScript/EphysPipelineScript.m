@@ -229,6 +229,7 @@ classdef EphysPipelineScript
             if B.WriteFile
                 L(end+1, 1) = "    try   % <outputFolder>/<Name>_behavior.mat, the one copy of the behavior data";
                 L(end+1, 1) = "        r = d.behaviorToMat(Overwrite=true, Pairing=pairing);";
+                L(end+1, 1) = "        d.writeManifest();   % its processing block: how the file was made";
                 L(end+1, 1) = "        fprintf('%s: wrote %s\n', d.Name, r.file);";
                 L(end+1, 1) = "    catch ME";
                 L(end+1, 1) = "        fprintf(2, '%s: behavior file FAILED: %s\n', d.Name, ME.message);";
@@ -355,6 +356,7 @@ classdef EphysPipelineScript
                 end
             end
             L(end+1, 1) = "        r = d.toMat(File=outFile, SeparateFiles=signals.SeparateFiles, SignalOptions=sigOpts, MatVersion=signals.MatVersion, Overwrite=signals.Overwrite);";
+            L(end+1, 1) = "        d.writeManifest();   % its processing block: how the signals were made";
             L(end+1, 1) = "        fprintf('%s: wrote %s\n', d.Name, strjoin(r.file, ', '));";
             L(end+1, 1) = "    catch ME";
             L(end+1, 1) = "        fprintf(2, '%s: signals FAILED: %s\n', d.Name, ME.message);";
@@ -386,6 +388,7 @@ classdef EphysPipelineScript
             L(end+1, 1) = "        r = d.spikesToMat('File', outFile, 'DetectOptions', detectOptions, ...";
             L(end+1, 1) = "            'Channels', channels, 'ArtifactMode', spikes.ArtifactMode, ...";
             L(end+1, 1) = "            'MatVersion', spikes.MatVersion, 'Overwrite', spikes.Overwrite, extra{:});";
+            L(end+1, 1) = "        d.writeManifest();   % its processing block: how the detections were made";
             L(end+1, 1) = "        fprintf('%s: wrote %s\n', d.Name, r.file);";
             L(end+1, 1) = "    catch ME";
             L(end+1, 1) = "        fprintf(2, '%s: spikes FAILED: %s\n', d.Name, ME.message);";
@@ -538,6 +541,7 @@ classdef EphysPipelineScript
             L(end+1, 1) = "                otherwise";
             L(end+1, 1) = "                    error('Unknown export format ""%s"".', fmt);";
             L(end+1, 1) = "            end";
+            L(end+1, 1) = "            d.writeManifest();   % its processing block: how the file was made";
             L(end+1, 1) = "            fprintf('%s: wrote %s\n', d.Name, r.file);";
             L(end+1, 1) = "        catch ME";
             L(end+1, 1) = "            fprintf(2, '%s: export (%s) FAILED: %s\n', d.Name, fmt, ME.message);";

@@ -700,6 +700,84 @@ about 3x faster, so it is used there.
 
 Every cutoff must be below Nyquist. Requires the Signal Processing Toolbox.
 
+### Line noise (removeLineNoise)
+
+**`[Y, info] = removeLineNoise(X, Fs=, Name=Value)`** (a function in
+`pipeline/`, not yet a step or a `deriveSignals` option) subtracts mains
+interference from `[nSamples x nChan]` data: sinusoids at the line frequency
+and its harmonics, refitted in every window. It does not filter, so the signal
+beside the line keeps its phase and a transient does not ring as it does
+through the LFP's Butterworth notch (`LFP_NotchHz`).
+
+1. Windows of `WindowSec`, half overlapping, Hann-weighted. All sums run over
+   blocks of whole line cycles, made in one pass over `X`. The harmonics and
+   their mirror images fall on the nulls of a whole-cycle sum, so each
+   harmonic is measured apart from the others.
+2. **Frequency.** In each window, the fundamental within `LineHz ±
+   MaxDeviationHz` at which the line power is largest. The power is summed
+   over the harmonics and the channels, each term divided by its own
+   background. A window whose peak does not stand clear of the noise takes its
+   neighbors' frequency, and a running median over `SmoothWindows` windows
+   steadies the track.
+3. **Amplitude and phase**, per channel: the Hann-weighted projection onto each
+   harmonic at that frequency. The background is the same projection 3–6
+   frequency resolutions away, where the Hann taper has nulls, so a strong line
+   does not raise it. A window with part of its data missing borrows the
+   nearest whole window's background. `Gate` scales each fit by its SNR (line
+   over background).
+4. The fits are crossfaded window to window with the Hann taper (the weights
+   sum to 1) and subtracted.
+
+**Channels.** Channels recorded together see one mains frequency, so it is
+estimated from all of them at once. The channels with the most line set it,
+and a quiet channel never searches its own neural signal for a frequency.
+Amplitude and phase are always per channel, so no channel is given another
+channel's sinusoid. What is subtracted is the projection of the channel's own
+signal, and with the default soft gate only as far as its line stands out of
+its own background. A line-free channel keeps its signal, and a broadband
+transient (no larger at the line than beside it) is not taken for line.
+`PerChannel=true` gives each channel its own frequency, for channels not
+recorded together.
+
+| Option | Default | |
+| --- | --- | --- |
+| `Fs` | required | Hz |
+| `LineHz` | `60` | the nominal line frequency (50 in Europe) |
+| `Harmonics` | `1:3` | the harmonics removed (1 = `LineHz`); each below Nyquist |
+| `WindowSec` | `2` | the fit window, stepping by half. Longer: finer estimates and a narrower band taken (about `2/WindowSec` Hz per harmonic), slower amplitude tracking. Rounded to whole blocks |
+| `MaxDeviationHz` | `0.25` | how far the fundamental may be from `LineHz`; 0 = `LineHz` exactly |
+| `Tracking` | `"window"` | a frequency per window; `"global"` one for all of `X` (short or quiet data); `"fixed"` `LineHz` |
+| `SmoothWindows` | `5` | odd: the running median over the trusted windows' frequencies |
+| `PerChannel` | `false` | each channel's own frequency (slower; weak on a quiet channel) |
+| `Gate` | `"soft"` | each fit times `max(0, 1 - 1/SNR)`; `"hard"`: whole where SNR ≥ `MinSNR`, else none; `"none"`: always whole |
+| `MinSNR` | `6` | dB, the hard gate's threshold |
+| `Exclude` | none | `[k x 2]` rows of `X` left out of every fit (artifact periods); the line is still subtracted there, from the windows around them |
+| `FirstRow` | `1` | the recording row of `X`'s first row, for running a recording in pieces |
+
+`NaN` or `Inf` samples stay as they are and take no part in any fit. `Y` has
+`X`'s class (single or double). Called as `X = removeLineNoise(X, ...)`, `X`
+is overwritten in place.
+
+**In pieces.** Windows and blocks lie on the recording's own grid. A piece read
+with `info.MarginRows` extra rows on either side, and its `FirstRow`, gives
+between the margins what one run over the whole recording gives (`Tracking`
+`"window"` or `"fixed"`).
+
+`info` holds the options as used (`WindowSec`, `HopSec`, `BlockSamples`), and
+per window: `time` (the center, `(row-1)/Fs`), `frequency` (Hz, `[nWin x 1]`
+or `[nWin x nChan]`), `trusted`, `fitted` (`[nWin x nChan]`), and `amplitude`
+(the peak amplitude subtracted) and `snr` (dB), each `[nWin x nChan x
+nHarmonics]`.
+
+**Accuracy and speed.** The whole-cycle nulls sit at the nominal harmonics, so a
+line `d` Hz off `LineHz` leaks at about `d/LineHz`. A steady line is removed
+to about -80 dB on `LineHz` and -55 dB 0.1 Hz off. In recordings the limit is
+the noise and the line's own changes within a window: a line whose amplitude
+swings 30% over 7 s is removed to about 31 dB with 2 s windows, and to 40 dB
+with 1 s. The work is one pass over `X` to sum the blocks and one to subtract,
+in double a few hundred MB at a time; the search and fits use the block sums.
+That is about 2 min per 64-channel hour at 30 kHz. Needs no toolbox.
+
 ### Common reference (CAR / CMR)
 
 `ArtifactConfig.Reference` subtracts one global reference from every channel,
@@ -2718,6 +2796,23 @@ again for other channels; the automatic `Q` against `deriveSignals`';
 `.bin` and its sidecar; `do_CAR` off in Kilosort4's settings and the reference
 in SpikeInterface's; the artifact-cache fingerprint); and prints a timing
 (seconds per channel-hour at 30 kHz).
+
+[`test_RemoveLineNoise.m`](../pipeline/test_RemoveLineNoise.m) covers
+`removeLineNoise`:
+
+- a steady line removed to 50 dB, ends included, at 1 kHz, 30 kHz and
+  24414.0625 Hz
+- a drifting line: the track within 0.005 Hz, better than `Tracking`
+  `"fixed"`, and `"global"`
+- line-free channels kept by each gate, with nothing added to them
+- a broadband transient not taken for line, and `Exclude`
+- `NaN` samples
+- three pieces against one run (`"window"`, `"fixed"`, `PerChannel`, short
+  windows)
+- `PerChannel` with a different line on each channel
+- output class, `info`, and the input checks
+
+It also prints a timing (minutes per 64-channel hour at 30 kHz).
 
 [`test_UnitLabels.m`](../pipeline/test_UnitLabels.m) covers unit labels:
 `parseNameTokens` formats, `nameIdentity`, class and id padding, identity

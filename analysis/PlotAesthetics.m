@@ -32,6 +32,7 @@ classdef PlotAesthetics
     %   Editing
     %     PlotAesthetics.enableEditing(TARGET, CONTEXT)   right-click menu (renderFigure)
     %     d = PlotAesthetics.edit(H)                      the editor on component H
+    %     cm = PlotAesthetics.menuOf(H)                   H's right-click menu, every item made
     %   The right-click menu also has Design: choose a whole look for every
     %   figure, or save this figure's look as one (PlotDesign).
     %
@@ -42,6 +43,7 @@ classdef PlotAesthetics
         ContextKey = "PlotAestheticsContext"    % appdata of the target renderFigure / renderChronux drew into
         MenuTag = "PlotAestheticsMenu"
         GotoTag = "PlotAestheticsGoto"
+        ItemsKey = "PlotAestheticsItems"        % appdata of a right-click menu whose further items are made when it opens (fillMenu)
     end
 
     methods (Static)
@@ -499,6 +501,15 @@ classdef PlotAesthetics
             %   text...", "Move X axis to top", "Move Y axis to right" and
             %   the every-panel moves), so a label that shows nothing (a
             %   time stack's inner one) can still be set.
+            %   Each menu is made with its first item, "Edit aesthetics...",
+            %   alone; the others are made when it first opens (fillMenu,
+            %   from its ContextMenuOpeningFcn; what they will be is its
+            %   appdata ItemsKey), since every menu item is a web component
+            %   a uifigure draws: made at once they took most of a
+            %   preview's drawing time. menuOf(H) makes them without
+            %   opening it. A component that has a menu made for it with
+            %   the same onGoto and onAxisEdit (a part renderFigure kept
+            %   from its last drawing: Reuse) keeps it.
             fig = ancestor(target, 'figure');
             if isempty(fig); return; end
             setappdata(target, PlotAesthetics.ContextKey, context);
@@ -519,30 +530,94 @@ classdef PlotAesthetics
             objs = objs(keep);
             roles = roles(keep);
             axisMenu = isfield(context, 'onAxisEdit') && ~isempty(context.onAxisEdit);
+            goto = isfield(context, 'onGoto') && ~isempty(context.onGoto);
+            flags = [goto axisMenu];   % what a menu's items are made for
             old = findall(fig, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag);
+            has = false(1, numel(objs));   % an object that keeps its menu: one made for it alike (a part renderFigure kept, Reuse)
             for k = 1:numel(old)
-                if ~isgraphics(old(k).UserData) || any(old(k).UserData == objs)
-                    delete(old(k));   % its object was redrawn away, or is given a fresh menu below
+                o = old(k).UserData;
+                if ~isgraphics(o)
+                    delete(old(k));   % its object was redrawn away
+                    continue
+                end
+                i = find(o == objs, 1);
+                if isempty(i); continue; end   % another plot's
+                if isequal(o.ContextMenu, old(k)) && isequal(getappdata(old(k), 'PlotAestheticsFlags'), flags)
+                    has(i) = true;
+                else
+                    delete(old(k));   % it is given a fresh menu below
                 end
             end
-            % One menu per object: a uifigure's opening event does not say which object was right-clicked.
-            for i = 1:numel(objs)
+            % One menu per object: on a graphics canvas the opening event does not say which object was
+            % right-clicked (it has no ContextObject). Its further items wait until it opens (fillMenu).
+            for i = find(~has)
                 o = objs(i);
                 cm = uicontextmenu(fig, 'Tag', PlotAesthetics.MenuTag, 'UserData', o, ...
                     'ContextMenuOpeningFcn', @PlotAesthetics.onMenuOpening);
                 uimenu(cm, 'Text', 'Edit aesthetics...', 'MenuSelectedFcn', @PlotAesthetics.onMenuEdit);
-                if isfield(context, 'onGoto') && ~isempty(context.onGoto)
-                    uimenu(cm, 'Text', 'Go to setting', 'Tag', PlotAesthetics.GotoTag, 'MenuSelectedFcn', @PlotAesthetics.onMenuGoto);
-                end
-                if axisMenu && ismember(roles(i), ["xlabel" "ylabel"])
-                    axisItems(cm, o, roles(i));
-                elseif axisMenu && ismember(roles(i), ["axes" "rasterAxes"])
-                    axesItems(cm, o);
-                end
-                uimenu(cm, 'Text', 'Design', 'Tag', PlotDesign.MenuTag);
+                axisRole = "";   % a panel's label or axes: its axis items
+                if axisMenu && ismember(roles(i), ["xlabel" "ylabel" "axes" "rasterAxes"]); axisRole = roles(i); end
+                setappdata(cm, PlotAesthetics.ItemsKey, struct('goto', goto, 'axis', axisRole, 'more', {{}}));
+                setappdata(cm, 'PlotAestheticsFlags', flags);
                 o.ContextMenu = cm;
             end
             PlotDesign.track(target);
+        end
+
+        function cm = menuOf(h)
+            %menuOf  The right-click menu enableEditing gave component H, with every item made (fillMenu); [] when it has none.
+            cm = [];
+            if ~isprop(h, 'ContextMenu') || isempty(h.ContextMenu) || ~isvalid(h.ContextMenu); return; end
+            cm = h.ContextMenu;
+            PlotAesthetics.fillMenu(cm);
+        end
+
+        function fillMenu(cm)
+            %fillMenu  Make the items of a right-click menu of enableEditing's that wait until it opens (once).
+            %   After "Edit aesthetics...": the items others asked for
+            %   (addMenuItem: FigureDataTips' "Data tip fields..."), "Go to
+            %   setting" (with the context's onGoto), a panel's x or y
+            %   label's or axes' own items (with onAxisEdit) and the Design
+            %   submenu (filled each time the menu opens: onMenuOpening).
+            if isempty(cm) || ~isvalid(cm) || ~isappdata(cm, PlotAesthetics.ItemsKey); return; end
+            S = getappdata(cm, PlotAesthetics.ItemsKey);
+            rmappdata(cm, PlotAesthetics.ItemsKey);
+            o = cm.UserData;
+            for f = reshape(S.more, 1, [])
+                f{1}(cm);
+            end
+            if S.goto
+                uimenu(cm, 'Text', 'Go to setting', 'Tag', PlotAesthetics.GotoTag, 'MenuSelectedFcn', @PlotAesthetics.onMenuGoto);
+            end
+            if ismember(S.axis, ["xlabel" "ylabel"]) && isgraphics(o)
+                axisItems(cm, o, S.axis);
+            elseif ismember(S.axis, ["axes" "rasterAxes"]) && isgraphics(o)
+                axesItems(cm, o);
+            end
+            uimenu(cm, 'Text', 'Design', 'Tag', PlotDesign.MenuTag);
+        end
+
+        function addMenuItem(cm, make)
+            %addMenuItem  Have MAKE(CM) add items to a right-click menu of enableEditing's, just after "Edit aesthetics...".
+            %   While the menu's further items wait (fillMenu) they are made
+            %   with them, first; in a menu whose items are made already,
+            %   now, and moved up to just after "Edit aesthetics...".
+            if isappdata(cm, PlotAesthetics.ItemsKey)
+                S = getappdata(cm, PlotAesthetics.ItemsKey);
+                S.more{end+1} = make;
+                setappdata(cm, PlotAesthetics.ItemsKey, S);
+                return
+            end
+            was = cm.Children;
+            make(cm);
+            kids = cm.Children;   % newest first
+            isOld = arrayfun(@(c) any(c == was), kids);
+            added = kids(~isOld);
+            edit = findobj(was, 'flat', 'Text', 'Edit aesthetics...');
+            if isempty(added) || isempty(edit); return; end
+            kids = kids(isOld);
+            i = find(kids == edit(1), 1);
+            cm.Children = [kids(1:i-1); added; kids(i:end)];
         end
 
         function d = edit(h)
@@ -581,7 +656,8 @@ classdef PlotAesthetics
 
     methods (Static, Hidden)
         function onMenuOpening(cm, ~)
-            %onMenuOpening  Fill the Design submenu: every design (the chosen one ticked), then save.
+            %onMenuOpening  Make the menu's waiting items (fillMenu), then fill the Design submenu: every design (the chosen one ticked), then save.
+            PlotAesthetics.fillMenu(cm);
             dm = findobj(cm.Children, 'flat', 'Tag', PlotDesign.MenuTag);
             h = cm.UserData;
             if isempty(dm) || isempty(h) || ~isvalid(h); return; end

@@ -226,6 +226,7 @@ check(strcmp(errorId(@() PlotDesign.use("Plaid")), 'PlotDesign:Unknown') && Plot
     'use: an unknown design is refused and nothing changes');
 cm = findall(live, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag);
 cm = cm(1);
+PlotAesthetics.fillMenu(cm);   % (its items are made when it opens)
 dm = findobj(cm.Children, 'flat', 'Tag', PlotDesign.MenuTag);
 PlotAesthetics.onMenuOpening(cm, []);
 items = flipud(dm.Children);

@@ -954,6 +954,13 @@ the page's shape at its true size on screen (96 dpi; scaled down to fit when it 
 larger than the screen). The y range a run shares (*Y limits: Shared by batch*) is
 still measured on a 700 x 800 px page.
 
+An edit draws only what it changed: what an earlier preview computed on the
+same data is taken again (an edit of the looks -- titles, labels, places,
+notes, colors, fonts, the grid -- computes nothing; an edit of one panel's data
+computes that panel), and the panels the edit leaves as they were stay drawn,
+the others drawn again around them (`EphysAnalysisRunner.computeFigure`
+`Reuse=true`, `renderFigure` `Reuse=true`). A scan forgets what was computed.
+
 The line under the preview names the figure, the observation, the dataset and
 the time taken (*"figure_1, su12  ch 7  -320 µm on subj1_day1 (0.4 s);
 right-click to change colors, lines and fonts"*), or says why the figure

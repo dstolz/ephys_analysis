@@ -43,7 +43,11 @@ function test_EphysAnalysisFigures(opts)
 %   a stacked PSTH; the waveforms' probe layout (a following layer to
 %   ring); one observation faster than spikePSTH over every unit; the
 %   first-spike latency (a PSTH with latencyBox keeping the raster's rows,
-%   firstSpikeLatency against the unit's own train, the caption).
+%   firstSpikeLatency against the unit's own train, the caption);
+%   figureCompute's Reuse (the same spec: every step taken again; a look
+%   edit: nothing computed; the PSTH's bins: that panel only, as from
+%   scratch; another observation: its panels) and the runner's
+%   FigureCache (computeFigure Reuse=true; clearSources forgets it).
 %   Render (8): figureArrange (the labels' room and exact gaps between
 %   rows and columns, px, % and per-gap lists, the presets, rows and
 %   columns in exact proportion, spans, a panel's size and alignment in
@@ -71,6 +75,9 @@ function test_EphysAnalysisFigures(opts)
 %   layers with the inset's place, size and time span, points), tuning curves (a series, the inset), the waveforms'
 %   probe layout with the observed unit framed;
 %   Editable, OnRemember and the context's redraw; the editor's colormap;
+%   renderFigure Reuse (an edit of two panels draws those again, the
+%   third kept with its menu, the drawing as a whole one; a title of the
+%   figure's own draws every panel);
 %   one observation drawn in under a second; data tips (FigureDataTips:
 %   a PSTH line's rows, a raster tick's trial and group, a heat map cell's
 %   and a heat map of trials' tips, a bar's rows, the chosen fields a
@@ -1593,6 +1600,42 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
     Fs = rn.computeFigure(src, spec, Observation=struct('kind', "unit", 'unitId', Tu.unitId(2), 'channel', Tu.channel(2)));
     check(F2.observation.unitId == Tu.unitId(2) && F2.panels(2).layers(1).meta.unitId == Tu.unitId(2) ...
         && isequaln(Fs.panels(2).layers(1).R.rate, F2.panels(2).layers(1).R.rate), 'Observation= picks another unit (a table row or a struct)');
+
+    % what an earlier compute made is taken again (Reuse): a look edit computes nothing, a data edit its panel only
+    [Fr1, K1] = figureCompute(src, spec, Observation=Tu(1, :));
+    [Fr2, K2] = figureCompute(src, spec, Observation=Tu(1, :), Reuse=K1);
+    sl = spec;   % looks only: the titles, the grid, a font, a tick color, a layer's color, a note
+    sl.title = "Looks"; sl.grid.spacing = "loose"; sl.style.FontSize = 13; sl.panels(1).title = "Rows";
+    sl.panels(1).options.tickColor = "red"; sl.panels(2).layers(1).color = "#ff0000"; sl.panels(2).note.text = "a note";
+    [Fr3, K3] = figureCompute(src, sl, Observation=Tu(1, :), Reuse=K2);
+    sd = spec;   % the PSTH's bins
+    sd.panels(2).options.bins.BinSec = 0.02;
+    [Fr4, K4] = figureCompute(src, sd, Observation=Tu(1, :), Reuse=[K3 K2]);
+    Fr5 = figureCompute(src, sd, Observation=Tu(1, :));
+    [~, K6] = figureCompute(src, spec, Observation=Tu(2, :), Reuse=K2);
+    made = @(K) sort(unique([K([K.from] == 0).kind]));
+    check(~isempty(K1) && all([K1.from] == 0) && isequal(sort(unique([K1.kind])), ["epochs" "panel" "skip"]) ...
+        && all([K2.from] > 0) && isequaln(Fr2.panels, Fr1.panels) && isequaln(Fr2.epochs, Fr1.epochs) && isequaln(Fr2.groups, Fr1.groups), ...
+        'figureCompute Reuse: the same spec and observation take every step again (skip reasons, epochs, each panel), the same result');
+    check(all([K3.from] > 0) && isequaln(Fr3.panels, Fr1.panels) && isequaln(Fr3.spec, sl), ...
+        'an edit of the looks only (titles, grid, font, a tick or layer color, a note) computes nothing again');
+    check(isequal(made(K4), ["panel" "skip"]) && nnz([K4.from] == 0 & [K4.kind] == "panel") == 1 && isequaln(Fr4.panels(1), Fr1.panels(1)) ...
+        && isequaln(noCreated(Fr4.panels(2)), noCreated(Fr5.panels(2))) && ~isequaln(noCreated(Fr4.panels(2)), noCreated(Fr1.panels(2))), ...
+        'an edit of the PSTH''s bins computes that panel (and the skip reasons) again, as a compute from scratch; the raster is taken again');
+    check(isequal(made(K6), "panel") && nnz([K6.from] == 0) == 2, 'another observation computes its panels again, on the epochs kept');
+    rnC = EphysAnalysisRunner(cfg, LogFcn=[]);
+    srcC = rnC.source(1);
+    FC1 = rnC.computeFigure(srcC, spec, Observation=Tu(1, :), Reuse=true);
+    nC = numel(rnC.FigureCache);
+    FC2 = rnC.computeFigure(srcC, sl, Observation=Tu(1, :), Reuse=true);
+    nC2 = numel(rnC.FigureCache);
+    rnC.computeFigure(srcC, spec, Observation=Tu(1, :));   % a run's compute: nothing kept
+    nC3 = numel(rnC.FigureCache);
+    rnC.clearSources();
+    check(nC == numel(K1) && nC2 == nC && nC3 == nC && isempty(rnC.FigureCache) && isequaln(FC2.panels, FC1.panels) ...
+        && isequaln(arrayfun(@noCreated, FC1.panels, 'UniformOutput', false), arrayfun(@noCreated, Fr1.panels, 'UniformOutput', false)) && rnC.FigureCacheMB > 0, ...
+        sprintf(['computeFigure Reuse=true keeps what it computed in FigureCache (%d entries) and takes it again for a look edit; ' ...
+        'a compute without Reuse keeps nothing; clearSources forgets it'], nC));
 
     % a continuous panel: LFP following the unit, AUX fixed, AUX following (skipped)
     lfpL = EphysAnalysisConfig.defaultLayer("continuous");
@@ -3436,6 +3479,40 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     ctxC = getappdata(fe1, PlotAesthetics.ContextKey);
     check(ctxH.mapField == "heat" && ctxC.mapField == "diverging", 'the editor''s colormap: "heat" for a heat map, "diverging" for a correlation map');
 
+    % Reuse: an edit of one panel draws that panel again, the others kept; the figure as a whole drawing makes it
+    drawTargets();
+    delete(ufig.Children);
+    pA = uipanel(ufig, 'Units', 'pixels', 'Position', [1 1 690 790], 'BorderType', 'none');
+    pB = uipanel(ufig, 'Units', 'pixels', 'Position', [1 1 690 790], 'BorderType', 'none', 'Visible', 'off');
+    s3 = F3.spec;
+    renderFigure(F3, s3, pA, Reuse=true, Editable=true, DataTips=true);
+    D0 = getappdata(pA, 'FigureDrawing');
+    m0 = D0.axes(1).ContextMenu;
+    s3b = s3;
+    s3b.panels(2).options.histStyle = "line";   % the PSTH's look
+    s3b.panels(3).title = "Signals";            % the continuous panel's title
+    hR = renderFigure(F3, s3b, pA, Reuse=true, Editable=true, DataTips=true);
+    D1 = getappdata(pA, 'FigureDrawing');
+    renderFigure(F3, s3b, pB, Editable=true, DataTips=true);
+    drawnow;
+    [same1, why1] = sameDrawing(pA, pB);
+    keptR = D1.axes(1) == D0.axes(1) && ~any(D1.axes(2:3) == D0.axes(2:3));
+    tipsR = ~isempty(findall(D1.axes(2), '-function', @(o) isappdata(o, FigureDataTips.InfoKey)));
+    check(keptR && same1 && isequal(D1.axes(1).ContextMenu, m0) && tipsR && isequal(hR.axes, D1.axes) && figTitle(hR) == hR.title, ...
+        sprintf(['renderFigure Reuse: an edit of two panels draws those again and keeps the raster (its menu too), the drawing ' ...
+        'the same as a whole one (%s)'], why1));
+    s3c = s3b;
+    s3c.title = "Own title";   % a title of the figure's own: the top-left panel names the observation, every panel is drawn
+    renderFigure(F3, s3c, pA, Reuse=true);
+    D2 = getappdata(pA, 'FigureDrawing');
+    renderFigure(F3, s3c, pB);
+    drawnow;
+    [same2, why2] = sameDrawing(pA, pB);
+    renderFigure(F3, s3c, pA);   % without Reuse: nothing kept for next time
+    check(~any(D2.axes == D1.axes) && same2 && ~isappdata(pA, 'FigureDrawing'), ...
+        sprintf('a change that reaches every panel (a title of the figure''s own) draws them all; a drawing without Reuse keeps nothing (%s)', why2));
+    delete([pA pB]);
+
     % one observation draws fast
     renderFigure(F1, F1.spec, fig);
     drawnow;
@@ -3458,6 +3535,7 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     pl = pl(arrayfun(@(o) isprop(o, 'DataTipTemplate') && ~all(isnan(o.XData)), pl));
     labs = strings(1, 0);
     if ~isempty(pl); labs = string({pl(1).DataTipTemplate.DataTipRows.Label}); end
+    arrayfun(@PlotAesthetics.fillMenu, findall(fe1, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag));   % (their items are made when they open)
     check(noTips && ~isempty(pl) && any(startsWith(labs, "Time from")) && any(labs == "Trial group") ...
         && all(ismember(["Panel" "Observation" "Dataset"], labs)) && ~isempty(findall(fe1, 'Tag', FigureDataTips.MenuTag)), ...
         sprintf('DataTips=true: a continuous trace''s tip rows are %s; the right-click menus have "Data tip fields..."; "auto" in an invisible figure gives none', ...
@@ -4489,6 +4567,71 @@ end
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisFigures:Failures', '%d checks failed.', nFail);
+end
+end
+
+
+function P = noCreated(P)
+%noCreated  A panel result without its layers' creation times (a compute made at another second).
+for j = 1:numel(P.layers)
+    if isstruct(P.layers(j).R) && isfield(P.layers(j).R, 'created'); P.layers(j).R = rmfield(P.layers(j).R, 'created'); end
+end
+end
+
+
+function [ok, why] = sameDrawing(A, B)
+%sameDrawing  Two drawings of renderFigure alike: every axes in order (place, limits, ticks, labels, children), the legends and color bars.
+%   A color bar kept from an earlier drawing may sit within a pixel of a
+%   new one.
+why = "the same";
+a = flipud(findall(A, 'Type', 'axes'));
+b = flipud(findall(B, 'Type', 'axes'));
+ok = numel(a) == numel(b);
+if ~ok; why = sprintf('%d vs %d axes', numel(a), numel(b)); return; end
+props = {'Position', 'XLim', 'YLim', 'XTick', 'YTick', 'XTickLabel', 'YTickLabel', 'FontSize', 'Visible', 'Tag', ...
+    'XAxisLocation', 'YAxisLocation', 'Color', 'Box'};
+for i = 1:numel(a)
+    for p = props
+        va = get(a(i), p{1});
+        vb = get(b(i), p{1});
+        if isnumeric(va)
+            same = isequal(size(va), size(vb)) && all(abs(va(:) - vb(:)) < 1e-6 | (isnan(va(:)) & isnan(vb(:))));
+        else
+            same = isequal(va, vb);
+        end
+        if ~same; ok = false; why = sprintf('axes %d (%s): %s', i, a(i).Tag, p{1}); return; end
+    end
+    for t = {'Title', 'XLabel', 'YLabel'}
+        if ~isequal(string(a(i).(t{1}).String), string(b(i).(t{1}).String)) || ~isequal(a(i).(t{1}).FontSize, b(i).(t{1}).FontSize)
+            ok = false; why = sprintf('axes %d: %s', i, t{1}); return
+        end
+    end
+    ka = allchild(a(i));
+    kb = allchild(b(i));
+    if numel(ka) ~= numel(kb); ok = false; why = sprintf('axes %d: %d vs %d children', i, numel(ka), numel(kb)); return; end
+    for j = 1:numel(ka)
+        if ~strcmp(class(ka(j)), class(kb(j))) || ~strcmp(ka(j).Tag, kb(j).Tag)
+            ok = false; why = sprintf('axes %d: child %d', i, j); return
+        end
+        for p = {'Color', 'LineWidth', 'FaceColor', 'XData', 'YData', 'Visible', 'LineStyle'}
+            if isprop(ka(j), p{1}) && ~isequaln(get(ka(j), p{1}), get(kb(j), p{1}))
+                ok = false; why = sprintf('axes %d: child %d (%s) %s', i, j, ka(j).Tag, p{1}); return
+            end
+        end
+    end
+end
+la = findall(A, 'Type', 'legend');
+lb = findall(B, 'Type', 'legend');
+if numel(la) ~= numel(lb); ok = false; why = "the legends"; return; end
+for i = 1:numel(la)
+    if ~isequal(la(i).String, lb(i).String) || any(abs(la(i).Position - lb(i).Position) > 1e-6); ok = false; why = "legend " + i; return; end
+end
+ca = findall(A, 'Type', 'colorbar');
+cb = findall(B, 'Type', 'colorbar');
+if numel(ca) ~= numel(cb); ok = false; why = "the color bars"; return; end
+px = getpixelposition(A);
+for i = 1:numel(ca)
+    if any(abs(ca(i).Position - cb(i).Position) .* px([3 4 3 4]) > 1); ok = false; why = "color bar " + i; return; end
 end
 end
 

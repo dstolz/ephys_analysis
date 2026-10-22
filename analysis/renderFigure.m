@@ -145,6 +145,25 @@ function h = renderFigure(F, spec, target, opts)
 %                     array of id, lim, n): a panel of that id with
 %                     options.yLimMode "batch" draws at lim; [] (default) =
 %                     none, each such panel takes its own range
+%     Reuse           false (default) or true (the app's preview): TARGET (a
+%                     figure, panel or tab) keeps what was drawn (appdata
+%                     FigureDrawing), and the next drawing with Reuse keeps
+%                     the panels of the last one that would be drawn alike:
+%                     the same result (F.panels(k)), panel spec, group colors
+%                     and batch range, while what every panel depends on is
+%                     the same too (F but its panels, SPEC but its panels'
+%                     contents, every panel's place, sides, time axis and
+%                     note, the style, the design, the remembered looks, the
+%                     size of TARGET). Only the other panels are drawn
+%                     again; the kept ones go back to where a new panel
+%                     starts and everything drawn across the panels (tick
+%                     sizes, the time stack, the legend, the title, the
+%                     looks, the layout) is done again over all of them, so
+%                     the figure is the one a whole drawing makes. A time
+%                     panel drawn again whose x limits are not the figure's
+%                     window (it could change its neighbors' time axis)
+%                     draws everything; so does any other change. Kept
+%                     parts keep their right-click menus and data tips.
 %
 %   H fields
 %     layout  what the figure is laid out on (TARGET, or the panel made in
@@ -181,6 +200,7 @@ arguments
     opts.OnSelect = []
     opts.DataTips = "auto"
     opts.BatchYLim = []
+    opts.Reuse (1,1) logical = false
 end
 
 if isfield(F, 'nSessions') && isfield(spec, 'sessions')
@@ -206,19 +226,38 @@ if ~isequal(fIds, sIds)
         strjoin(fIds, ", "), strjoin(sIds, ", "));
 end
 
-[canvas, ax0] = figureCanvas(target);
-cells = panelCells(spec.grid, panels);
-if ~isempty(canvas); L0 = firstLayout(canvas, spec.grid, panels, cells, style); end
 PT = EphysAnalysisConfig.panelTypes();
 reg = figurePanelRegistry();
 G = F.groups;
 colors = zeros(0, 3);
 if istable(G) && height(G) > 0; colors = groupPalette(G, style); end
 isTime = false(1, np);
+own = false(1, np);         % a panel with a trial selection of its own
+colorsOf = cell(1, np);     % each panel's group colors: such a panel colors its own groups
 for k = 1:np
     row = PT.Type == types(k);
     isTime(k) = any(row) && (PT.SharesTime(row) || overEpochs(panels(k)));
+    P = F.panels(k);
+    own(k) = isfield(P, 'ownSelection') && P.ownSelection && istable(P.groups) && height(P.groups) > 0;
+    colorsOf{k} = colors;
+    if own(k); colorsOf{k} = groupPalette(P.groups, style); end
 end
+cells = panelCells(spec.grid, panels);
+kept = false(1, np);   % the panels whose drawing is kept from the last one (Reuse)
+prior = [];
+if opts.Reuse
+    keys = drawingKeys(F, spec, style, design, opts, colorsOf, isTime, target);
+    prior = priorDrawing(target, keys);
+    if ~isempty(prior); kept = prior.same; end
+end
+if any(kept)
+    canvas = target;
+    ax0 = [];
+    keepOnly(canvas, prior, kept);   % the rest of the last drawing goes
+else
+    [canvas, ax0] = figureCanvas(target);
+end
+if ~isempty(canvas); L0 = firstLayout(canvas, spec.grid, panels, cells, style); end
 nDraw = np;
 if ~isempty(ax0); nDraw = min(1, np); end
 axs = gobjects(1, np);
@@ -231,6 +270,18 @@ yExt = NaN(np, 2);     % each panel's y extent (a panel with yLimMode), for a ru
 for k = 1:nDraw
     p = panels(k);
     P = F.panels(k);
+    if kept(k)   % drawn alike before (Reuse): its parts, back where they were before the layout placed them
+        axs(k) = prior.axes(k);
+        [extra{k}, hks{k}, notes{k}, bands{k}, ovls{k}] = deal(prior.extra{k}, prior.hks{k}, prior.notes{k}, prior.bands{k}, prior.ovls{k});
+        yExt(k, :) = prior.yExt(k, :);
+        A = prior.parts{k};
+        for i = 1:numel(A)
+            set(A(i), 'Units', 'pixels', 'Position', prior.pos{k}(i, :));
+            cb = A(i).Colorbar;
+            if ~isempty(cb) && isvalid(cb); cb.Location = cb.Location; end   % placed from its axes again, as a new one is
+        end
+        continue
+    end
     band = [];
     if isempty(ax0)   % the panel's axes at its first place (figureLayout places it once its labels are known)
         ax = axes(canvas, 'Units', 'pixels', 'Position', L0.panels(k).box);
@@ -242,10 +293,7 @@ for k = 1:nDraw
     else
         ax = ax0;
     end
-    own = isfield(P, 'ownSelection') && P.ownSelection && istable(P.groups) && height(P.groups) > 0;
-    colorsK = colors;   % a panel with a selection of its own colors its own groups
-    if own; colorsK = groupPalette(P.groups, style); end
-    look = lookFor(F, spec, p, P, style, colorsK, isTime(k));
+    look = lookFor(F, spec, p, P, style, colorsOf{k}, isTime(k));
     look.batchYLim = batchFor(opts.BatchYLim, p.id);
     if isfield(reg, p.type)
         hk = reg.(p.type).draw(ax, P, look);
@@ -262,9 +310,9 @@ for k = 1:nDraw
     end
     if hk.yName ~= ""; ylabel(ax, hk.yName, 'Interpreter', 'none'); end
     ttl = p.title;
-    if own; ttl = groupingTitle(ttl, p, spec); end
+    if own(k); ttl = groupingTitle(ttl, p, spec); end
     if ttl ~= ""; title(ax, ttl, 'FontWeight', 'normal', 'Interpreter', 'none'); end
-    if own   % its groups are not the figure's: a legend of its own, inside it; the figure's legend serves the others
+    if own(k)   % its groups are not the figure's: a legend of its own, inside it; the figure's legend serves the others
         if style.Legend
             v = isgraphics(hk.legendHandles);
             if any(v)
@@ -296,6 +344,28 @@ for k = 1:nDraw
     notes{k} = drawNote(struct('layout', [], 'axes', host), p.note, style);
 end
 drawn = isgraphics(axs);
+if opts.Reuse && ~isempty(canvas)   % each panel's parts where they are before the layout places them (Reuse keeps them)
+    parts = cell(1, np);
+    pos = cell(1, np);
+    for k = find(drawn)
+        A = axs(k);   % in the order a drawing makes them: its axes, its note band, its further axes
+        if ~isempty(bands{k}) && isgraphics(bands{k}); A = [A bands{k}]; end %#ok<AGROW>
+        A = [A reshape(extra{k}, 1, [])]; %#ok<AGROW>
+        parts{k} = A;
+        q = get(A, 'Position');
+        if ~iscell(q); q = {q}; end
+        pos{k} = vertcat(q{:});
+    end
+    if any(kept)   % the kept axes are older: every panel's axes in panel order again (the aesthetics editor numbers its tiles so)
+        A = reshape([parts{:}], [], 1);
+        kids = canvas.Children;   % newest first
+        at = arrayfun(@(c) any(c == A), kids);
+        if nnz(at) == numel(A) && ~isequal(kids(at), flipud(A))
+            kids(at) = flipud(A);
+            canvas.Children = kids;
+        end
+    end
+end
 multi = nnz(drawn) > 1;
 if multi; tileTicks(axs(drawn), style); end
 labelSize = [];
@@ -471,7 +541,20 @@ for k = 1:np
     end
 end
 h = struct('layout', canvas, 'axes', axs(drawn), 'panels', hp, 'title', txt);
-if editable(opts.DataTips, target); FigureDataTips.attach(F, spec, h); end   % after the right-click menus: it adds its item to them
+if editable(opts.DataTips, target)   % after the right-click menus: it adds its item to them
+    hT = h;
+    for k = find(kept)   % a kept panel's parts have theirs
+        hT.panels(k).axes = gobjects(0);
+        hT.panels(k).extraAxes = gobjects(0);
+    end
+    FigureDataTips.attach(F, spec, hT);
+end
+if opts.Reuse && ~isempty(canvas) && isequal(canvas, target)   % what the next drawing with Reuse can keep
+    setappdata(target, drawingAppdata(), struct('keys', keys, 'axes', axs, 'extra', {extra}, 'hks', {hks}, 'notes', {notes}, ...
+        'bands', {bands}, 'ovls', {ovls}, 'yExt', yExt, 'parts', {parts}, 'pos', {pos}, 'legend', lgd, 'title', th));
+elseif isappdata(target, drawingAppdata())
+    rmappdata(target, drawingAppdata());
+end
 end
 
 
@@ -579,6 +662,117 @@ lim = [];
 if isempty(B) || ~isstruct(B) || ~isfield(B, 'id'); return; end
 k = find([B.id] == id, 1);
 if ~isempty(k); lim = B(k).lim; end
+end
+
+
+function k = drawingAppdata()
+%drawingAppdata  The appdata of a target that keeps its last drawing for the next one (Reuse).
+k = 'FigureDrawing';
+end
+
+
+function K = drawingKeys(F, spec, style, design, opts, colorsOf, isTime, target)
+%drawingKeys  What a drawing depends on (Reuse): global (what every panel's does) and each panel's own.
+%   global  F but its panels and creation time; SPEC but its panels and
+%           its id (its title only as there being one: the top-left panel
+%           then names the observation); each panel's id, type, place,
+%           sides, time axis and note (the time stack, the layout and the
+%           draw functions' inTimeColumn read them across panels); the
+%           style, the design, the user's remembered looks of the panels'
+%           kinds and of "figure"; BatchYLim; editing and data tips on;
+%           TARGET's size in pixels
+%   panels  each one's result (F.panels(k)), spec, group colors, time
+%           axis and batch range
+%   ownTime  each panel on a time axis whose x limits are not the
+%           figure's window (its own window, or one from event to event)
+P = spec.panels;
+np = numel(P);
+place = struct('id', {}, 'type', {}, 'cell', {}, 'align', {}, 'xSide', {}, 'ySide', {}, 'sharesTime', {}, 'note', {});
+for k = 1:np
+    place(k) = struct('id', P(k).id, 'type', P(k).type, 'cell', {[P(k).row P(k).col P(k).rowSpan P(k).colSpan ...
+        reshape(double(P(k).size), 1, [])]}, 'align', string(P(k).align) + "|" + string(P(k).valign), 'xSide', P(k).xSide, ...
+        'ySide', P(k).ySide, 'sharesTime', P(k).sharesTime, 'note', P(k).note);
+end
+Fg = rmfield(F, intersect({'panels' 'created' 'spec'}, fieldnames(F)));
+Sg = rmfield(spec, intersect({'panels' 'id' 'autoId' 'enabled' 'title'}, fieldnames(spec)));
+Sg.titled = spec.title ~= "";
+rules = struct();
+if opts.UserAesthetics
+    for t = unique([string([P.type]) "figure"])
+        if isvarname(t); rules.(t) = PlotAesthetics.userRules(t); end
+    end
+end
+sz = [0 0];
+try
+    q = getpixelposition(target);
+    sz = q(3:4);
+catch
+end
+K = struct();
+K.global = struct('F', Fg, 'spec', Sg, 'place', place, 'style', style, 'design', design, 'rules', rules, ...
+    'batch', {opts.BatchYLim}, 'editable', editable(opts.Editable, target), 'tips', editable(opts.DataTips, target), 'size', sz);
+K.panels = cell(1, np);
+K.ownTime = false(1, np);
+for k = 1:np
+    K.panels{k} = struct('P', F.panels(k), 'p', P(k), 'colors', colorsOf{k}, 'isTime', isTime(k), ...
+        'batch', {batchFor(opts.BatchYLim, P(k).id)});
+    K.ownTime(k) = isTime(k) && ~(P(k).sharesTime && ~isempty(fixedWindow(P(k).window)));
+end
+end
+
+
+function prior = priorDrawing(target, keys)
+%priorDrawing  TARGET's last drawing (Reuse) with same(k) true for each panel that would be drawn alike now; [] = draw everything.
+%   Only a figure, panel or tab (its own canvas) keeps one. Everything is
+%   drawn when the global key differs, when the panels differ in number,
+%   or when a time panel with x limits of its own is drawn again (its
+%   neighbors' time axis could change: figureTimeStack).
+prior = [];
+if ~(isa(target, 'matlab.ui.Figure') || isa(target, 'matlab.ui.container.Panel') || isa(target, 'matlab.ui.container.Tab')) ...
+        || ~isappdata(target, drawingAppdata())
+    return
+end
+D = getappdata(target, drawingAppdata());
+np = numel(keys.panels);
+if ~isstruct(D) || numel(D.keys.panels) ~= np || ~isequaln(D.keys.global, keys.global); return; end
+same = false(1, np);
+for k = 1:np
+    same(k) = isgraphics(D.axes(k)) && all(isgraphics(D.parts{k})) && isequaln(D.keys.panels{k}, keys.panels{k});
+end
+if any(~same & keys.ownTime); return; end
+prior = D;
+prior.same = same;
+end
+
+
+function keepOnly(canvas, prior, kept)
+%keepOnly  Delete what CANVAS holds but the kept panels' parts: their axes, further axes, note bands, and their color bars and own legends.
+%   The figure's legend (on a panel's axes, or a hidden host) and title go:
+%   they are made again.
+keep = gobjects(1, 0);
+for k = find(kept)
+    for a = reshape(prior.parts{k}, 1, [])
+        keep = [keep a]; %#ok<AGROW>
+        if isprop(a, 'Colorbar') && ~isempty(a.Colorbar) && isvalid(a.Colorbar); keep = [keep a.Colorbar]; end %#ok<AGROW>
+        if isprop(a, 'Legend') && ~isempty(a.Legend) && isvalid(a.Legend) && ~isequal(a.Legend, prior.legend)
+            keep = [keep a.Legend]; %#ok<AGROW>
+        end
+    end
+end
+if ~isempty(prior.legend) && isgraphics(prior.legend); delete(prior.legend); end
+gone = canvas.Children;
+gone = gone(arrayfun(@(g) ~any(g == keep), gone));
+delete(gone);
+end
+
+
+function W = fixedWindow(w)
+%fixedWindow  [pre post] of a fixed epoch window W, [] for any other (between events, or none).
+W = [];
+if isstruct(w) && all(isfield(w, {'pre' 'post'})) && (~isfield(w, 'mode') || w.mode == "fixed")
+    W = double([w.pre w.post]);
+    if ~(numel(W) == 2 && all(isfinite(W)) && W(2) > W(1)); W = []; end
+end
 end
 
 
@@ -699,12 +893,7 @@ end
 
 function look = lookFor(F, spec, p, P, style, colors, isTime)
 %lookFor  What a panel's draw function is given besides its result (figurePanelRegistry's LOOK).
-W = [];
-w = p.window;
-if isstruct(w) && all(isfield(w, {'pre' 'post'})) && (~isfield(w, 'mode') || w.mode == "fixed")
-    W = double([w.pre w.post]);
-    if ~(numel(W) == 2 && all(isfinite(W)) && W(2) > W(1)); W = []; end
-end
+W = fixedWindow(p.window);
 look = struct('style', style, 'colors', colors, 'W', W, 'spec', spec, 'panel', p, 'panelId', p.id, ...
     'isTop', p.row == 1, 'isBottom', p.row + p.rowSpan - 1 >= spec.grid.rows, 'epochs', [], 'groups', [], ...
     'observation', F.observation, 'isTime', isTime);

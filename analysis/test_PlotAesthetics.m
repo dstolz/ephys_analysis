@@ -13,7 +13,8 @@ function test_PlotAesthetics()
 %   the user's rules for a panel's type and then the figure's own (and
 %   UserAesthetics=false skips the user's; a refused value only warns),
 %   the right-click menu (only in a visible figure, or with
-%   Editable=true), the editor (PlotAestheticsDialog: live edits, Apply to
+%   Editable=true; made with "Edit aesthetics..." alone, its other items
+%   when it opens: menuOf, fillMenu), the editor (PlotAestheticsDialog: live edits, Apply to
 %   one / same / role / ticked, Reset, Cancel, OK remembering for the
 %   figure or the user -- as "figure" rules --, forgetting, edits put back
 %   after a redraw), the config's aesthetics field on a figure (JSON round
@@ -176,6 +177,14 @@ withMenu = cellfun(@(x) all(arrayfun(@(o) ~isprop(o, 'ContextMenu') || (isa(o.Co
     && isequal(o.ContextMenu.UserData, o)), x)), C.Handles);
 check(~isempty(cms) && isstruct(ctx) && ctx.kind == "figure" && ctx.id == Cp.spec.id && isequal(ctx.root, h.layout) && all(withMenu), ...
     'Editable=true: every component has a menu that knows it; the context (kind "figure", the figure''s id, root) is kept on the target');
+first = arrayfun(@(cm) numel(cm.Children) == 1 && string(cm.Children.Text) == "Edit aesthetics..." ...
+    && isappdata(cm, PlotAesthetics.ItemsKey), cms);
+cm1 = PlotAesthetics.menuOf(C.Handles{find(C.Role == "axes" & C.Tile > 0, 1)}(1));
+n1 = numel(cm1.Children);
+PlotAesthetics.fillMenu(cm1);
+check(all(first) && n1 > 1 && numel(cm1.Children) == n1 && ~isappdata(cm1, PlotAesthetics.ItemsKey) ...
+    && ~isempty(findobj(cm1.Children, 'flat', 'Tag', PlotDesign.MenuTag)) && string(cm1.Children(end).Text) == "Edit aesthetics...", ...
+    'each menu is made with "Edit aesthetics..." alone; its other items are made once, when it opens (menuOf / fillMenu), after it');
 renderFigure(Cp.F, Cp.spec, fig, Editable=true);
 check(numel(findall(fig, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag)) == numel(cms), 'redrawing leaves no stale menus');
 C = PlotAesthetics.components(getappdata(fig, PlotAesthetics.ContextKey).root);
@@ -190,14 +199,16 @@ check(isempty(findall(fig, 'Type', 'uimenu', 'Tag', PlotAesthetics.GotoTag)), 'n
 setappdata(0, 'aestheticsGoto', {});
 h = renderFigure(Cp.F, Cp.spec, fig, Editable=true, OnGoto=@(role, panel) setappdata(0, 'aestheticsGoto', {role, panel}));
 C = PlotAesthetics.components(h.layout);
+cms = findall(fig, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag);
+arrayfun(@PlotAesthetics.fillMenu, cms);   % (made when each opens)
 items = findall(fig, 'Type', 'uimenu', 'Tag', PlotAesthetics.GotoTag);
-check(numel(items) == numel(findall(fig, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag)), 'OnGoto: every component menu has "Go to setting"');
+check(numel(items) == numel(cms), 'OnGoto: every component menu has "Go to setting"');
 k = find(C.Role ~= "" & C.Tile > 0, 1);
-PlotAesthetics.onMenuGoto(findobj(C.Handles{k}(1).ContextMenu.Children, 'Tag', PlotAesthetics.GotoTag), []);
+PlotAesthetics.onMenuGoto(findobj(PlotAesthetics.menuOf(C.Handles{k}(1)).Children, 'Tag', PlotAesthetics.GotoTag), []);
 got = getappdata(0, 'aestheticsGoto');
 check(numel(got) == 2 && got{1} == C.Role(k) && got{2} == C.TileName(k), 'it reports the part''s role and its panel''s id');
 k = find(C.Role ~= "" & C.Tile == 0, 1);
-PlotAesthetics.onMenuGoto(findobj(C.Handles{k}(1).ContextMenu.Children, 'Tag', PlotAesthetics.GotoTag), []);
+PlotAesthetics.onMenuGoto(findobj(PlotAesthetics.menuOf(C.Handles{k}(1)).Children, 'Tag', PlotAesthetics.GotoTag), []);
 got = getappdata(0, 'aestheticsGoto');
 check(~isempty(k) && got{1} == C.Role(k) && got{2} == "", 'the figure''s own parts have no panel');
 if isappdata(0, 'aestheticsGoto'); rmappdata(0, 'aestheticsGoto'); end
@@ -211,7 +222,7 @@ h = renderFigure(Cp.F, Cp.spec, fig, Editable=true, OnAxisEdit=@(panel, change) 
 C = PlotAesthetics.components(h.layout);
 kx = find(C.Role == "xlabel" & C.Tile > 0, 1);
 ky = find(C.Role == "ylabel" & C.Tile > 0, 1);
-itemsOf = @(C, k) string({C.Handles{k}(1).ContextMenu.Children.Text});   % (C given: a handle captures it when made)
+itemsOf = @(C, k) string({PlotAesthetics.menuOf(C.Handles{k}(1)).Children.Text});   % (C given: a handle captures it when made)
 check(~isempty(kx) && ~isempty(ky) && all(ismember(["Edit label text..." "Move to top"], itemsOf(C, kx))) ...
     && all(ismember(["Edit label text..." "Move to right"], itemsOf(C, ky))) && ~any(ismember("Move to right", itemsOf(C, kx))), ...
     'an x label''s menu edits its text and moves it to the top; a y label''s to the right');
@@ -225,15 +236,15 @@ check(~isempty(ka) && all(ismember(["Edit X label text..." "Edit Y label text...
     "Move every panel's X axis to top" "Move every panel's Y axis to right" "Edit aesthetics..."], itemsOf(C, ka))) ...
     && ~any(ismember(["Edit label text..." "Move to top"], itemsOf(C, ka))), ...
     'a panel''s axes: both labels'' text, both sides, the every-panel moves, beside its aesthetics');
-PlotAesthetics.onMenuSide(findobj(C.Handles{kx}(1).ContextMenu.Children, 'Text', 'Move to top'), []);
+PlotAesthetics.onMenuSide(findobj(PlotAesthetics.menuOf(C.Handles{kx}(1)).Children, 'Text', 'Move to top'), []);
 got = getappdata(0, 'aestheticsAxis');
 check(numel(got) == 2 && got{1} == C.TileName(kx) && isequal(got{2}, struct('xSide', "top")), ...
     '"Move to top" hands OnAxisEdit the label''s panel and its new xSide');
-PlotAesthetics.onMenuSide(findobj(C.Handles{ka}(1).ContextMenu.Children, 'Text', 'Move Y axis to right'), []);
+PlotAesthetics.onMenuSide(findobj(PlotAesthetics.menuOf(C.Handles{ka}(1)).Children, 'Text', 'Move Y axis to right'), []);
 got = getappdata(0, 'aestheticsAxis');
 check(numel(got) == 2 && got{1} == C.TileName(ka) && isequal(got{2}, struct('ySide', "right")), ...
     '"Move Y axis to right" on the axes hands OnAxisEdit the axes'' panel and its new ySide');
-PlotAesthetics.onMenuSideAll(findobj(C.Handles{ka}(1).ContextMenu.Children, 'Text', "Move every panel's X axis to top"), []);
+PlotAesthetics.onMenuSideAll(findobj(PlotAesthetics.menuOf(C.Handles{ka}(1)).Children, 'Text', "Move every panel's X axis to top"), []);
 got = getappdata(0, 'aestheticsAxis');
 check(numel(got) == 2 && isequal(got{1}, [Cp.spec.panels.id]) && isequal(got{2}, struct('xSide', "top")), ...
     '"Move every panel''s X axis to top" hands OnAxisEdit every panel of the figure at once');
@@ -246,10 +257,10 @@ h = renderFigure(Cp.F, Cp.spec, fig, Editable=true);   % no OnAxisEdit: the figu
 C = PlotAesthetics.components(h.layout);
 ky = find(C.Role == "ylabel" & C.Tile > 0, 1);
 pid = C.TileName(ky);
-PlotAesthetics.onMenuSide(findobj(C.Handles{ky}(1).ContextMenu.Children, 'Text', 'Move to right'), []);
+PlotAesthetics.onMenuSide(findobj(PlotAesthetics.menuOf(C.Handles{ky}(1)).Children, 'Text', 'Move to right'), []);
 PlotAesthetics.axisEdit(findTile(fig, pid).YLabel, struct('yLabel', "Spikes"));
 ax = findTile(fig, pid);
-m = string({ax.YLabel.ContextMenu.Children.Text});
+m = string({PlotAesthetics.menuOf(ax.YLabel).Children.Text});
 check(strcmp(ax.YAxisLocation, 'right') && string(ax.YLabel.String) == "Spikes" && ismember("Move to left", m), ...
     'without OnAxisEdit the figure is drawn again with each change; the moved label''s menu offers the way back');
 Cs = byId("psth_stack");

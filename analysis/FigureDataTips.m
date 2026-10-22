@@ -849,20 +849,23 @@ end
 
 function addMenus(fig, axs)
 %addMenus  "Data tip fields..." on the right-click menus of the drawn panels' parts (PlotAesthetics' menus), after "Edit aesthetics...".
+%   Made with the menu's other waiting items when it first opens
+%   (PlotAesthetics.addMenuItem); a menu given it already (appdata MenuTag)
+%   is left as it is.
 menus = findall(fig, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag);
 axs = axs(isgraphics(axs));
 for cm = reshape(menus, 1, [])
     o = cm.UserData;
-    if isempty(o) || ~isgraphics(o) || ~isempty(findobj(cm.Children, 'flat', 'Tag', FigureDataTips.MenuTag)); continue; end
+    if isempty(o) || ~isgraphics(o) || isappdata(cm, FigureDataTips.MenuTag); continue; end
     a = ancestor(o, 'axes');
     if ~isempty(a) && ~any(a == axs) && ~isa(o, 'matlab.graphics.layout.TiledChartLayout'); continue; end
-    m = uimenu(cm, 'Text', 'Data tip fields...', 'Tag', FigureDataTips.MenuTag, 'MenuSelectedFcn', @FigureDataTips.onMenu);
-    edit = findobj(cm.Children, 'flat', 'Text', 'Edit aesthetics...');
-    if ~isempty(edit)
-        kids = cm.Children;   % newest first: put it just after the editor's item
-        kids(kids == m) = [];
-        i = find(kids == edit(1), 1);
-        cm.Children = [kids(1:i-1); m; kids(i:end)];
-    end
+    setappdata(cm, FigureDataTips.MenuTag, true);
+    PlotAesthetics.addMenuItem(cm, @tipMenuItem);
 end
+end
+
+
+function tipMenuItem(cm)
+%tipMenuItem  "Data tip fields..." in the right-click menu CM.
+uimenu(cm, 'Text', 'Data tip fields...', 'Tag', FigureDataTips.MenuTag, 'MenuSelectedFcn', @FigureDataTips.onMenu);
 end

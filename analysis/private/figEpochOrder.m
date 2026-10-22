@@ -36,10 +36,11 @@ end
 [key, name] = sortKey(R, string(o.rasterSort), nE, u, win);
 dirs = ["ascend" "ascend"];
 if o.rasterSortOrder == "descending"; dirs(1) = "descend"; end
-T = table(key, (1:nE).', 'VariableNames', {'key', 'idx'});
-if o.rasterByGroup
-    T = addvars(T, grp, 'Before', 1, 'NewVariableNames', 'g');
+if o.rasterByGroup   % (the table made at once: addvars took a quarter of a raster's drawing)
+    T = table(grp, key, (1:nE).', 'VariableNames', {'g', 'key', 'idx'});
     dirs = ["ascend" dirs];
+else
+    T = table(key, (1:nE).', 'VariableNames', {'key', 'idx'});
 end
 [~, order] = sortrows(T, 1:width(T), cellstr(dirs), 'MissingPlacement', 'last');
 if o.rasterSortOrder == "descending"; name = name + ", descending"; end

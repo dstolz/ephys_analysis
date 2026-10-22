@@ -37,6 +37,7 @@ end
 obj.ActiveIdx = 0;
 obj.FigurePreviewResult = [];
 obj.FigureSessionResults = [];   % a session figure's last preview was drawn on the old runner's datasets
+obj.FigurePreviewGeneration = obj.FigurePreviewGeneration + 1;   % every figure's kept preview is out of date (figureViewKey)
 obj.refreshDatasetsTable();
 names = r.Names;
 if n == 0

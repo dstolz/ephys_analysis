@@ -16,7 +16,17 @@ function buildFiguresTab(obj)
 %           Remove, Duplicate ("<id> (2)": onDuplicateFigure), Up, Down
 %           (within its group) and
 %           Copy from... (onCopyFigureSettings: another figure's settings,
-%           part by part).
+%           part by part). The tree drives the preview: the figure picked
+%           there is the one the editor and the preview show (its own
+%           container, syncFigureView), and a figure selected any other way
+%           (Favorites, Go to setting, Undo, Add, Duplicate, Remove, a
+%           config opened) is selected in the tree. Its nodes are marked
+%           (markFigureTree): the figure shown in bold; a preview out of
+%           date (its figure, the defaults it uses, the dataset or the
+%           observation changed since it was drawn, or it waits for
+%           Preview) amber and italic, a failed one red, one not drawn (not
+%           shown yet, dropped from the kept ones, or the dataset cannot
+%           draw it) gray.
 %   Middle  the editor, a column of sections (formSection): Id (with
 %           auto: the id follows the panels and data until one is typed:
 %           onIdEdited, onIdAutoToggled), Title,
@@ -85,10 +95,20 @@ function buildFiguresTab(obj)
 %           drop-down is right of the dataset (the design every figure is
 %           drawn in, also in the Design menu: onDesignChosen; Save look as
 %           design... under it: the preview's look as a design of yours,
-%           onSaveDesign). Under them the preview panel
+%           onSaveDesign). Under them the preview
 %           (refreshFigurePreview: computeFigure and renderFigure for that
 %           one observation; the selected panel outlined there,
-%           markFigurePanel), its badge (setFigurePreviewState) and status
+%           markFigurePanel): a container per figure (FigurePreviewHost,
+%           one cell; syncFigureView shows the selected figure's,
+%           FigurePreviewPanel, and hides the others: a tab group's strip
+%           cannot be hidden reliably), so a figure keeps its drawing,
+%           badge and status line when another is shown and comes back
+%           without being computed or drawn again, unless it is out of date
+%           (previewFigureView); the MaxFigureViews (8) shown last are
+%           kept, the rest drawn again when shown. The editor too comes
+%           back as the figure left it: its sections open or collapsed,
+%           its scroll, its panel and layer (saveFigureEditorState). The
+%           preview's badge (setFigurePreviewState) and status
 %           line, with Export code (the code that draws the preview, in
 %           the editor: onFigureCode) and Open in window (onOpenFigureWindow:
 %           the figure in a figure() of its own) at its right. Every button
@@ -132,7 +152,9 @@ obj.FiguresTree = uitree(lg, "Multiselect", "off", "SelectionChangedFcn", @(~, e
     "ClickedFcn", @(~, evt) obj.onFigureTreeClicked(evt), ...
     "Tooltip", "Each figure is one observation's panels: a unit's, a channel's or the dataset's. Click one to edit " + ...
     "and preview it. The box on a figure is ticked while it is enabled (Run draws it): click the box to tick or " + ...
-    "untick it. A group's box is ticked when all its figures are, half-filled when some are; click it to tick or untick them all.");
+    "untick it. A group's box is ticked when all its figures are, half-filled when some are; click it to tick or untick them all. " + ...
+    "Bold: the figure shown. Amber italic: its preview is out of date; red: it failed; gray: not drawn yet. Each " + ...
+    "figure keeps its preview, so coming back to one shows it at once.");
 place(obj.FiguresTree, 4, [1 2]);
 obj.AddFigureButton = uibutton(lg, "Text", "Add", "ButtonPushedFcn", @(~,~) obj.onAddFigure(), ...
     "Tooltip", "Add a blank figure and pick its first panel in the New panel window (Cancel leaves it blank).");
@@ -1396,8 +1418,16 @@ obj.SaveDesignButton = uibutton(pg, "Text", "Save look as design...", "ButtonPus
     "correlation map and spectrogram panels are kept for those panel types only. Preview first if the " + ...
     "preview is out of date.");
 obj.SaveDesignButton.Layout.Row = 2; obj.SaveDesignButton.Layout.Column = [4 5];
-obj.FigurePreviewPanel = uipanel(pg, "BackgroundColor", "w", "BorderType", "line");
-obj.FigurePreviewPanel.Layout.Row = 4; obj.FigurePreviewPanel.Layout.Column = [1 5];
+% the previews: a container per figure, all in this one cell, the selected figure's shown (syncFigureView); the
+% first, "", is shown while no figure is selected
+obj.FigurePreviewHost = uigridlayout(pg, [1 1], "Padding", [0 0 0 0]);
+obj.FigurePreviewHost.Layout.Row = 4; obj.FigurePreviewHost.Layout.Column = [1 5];
+obj.FigureEditorStates = containers.Map('KeyType', 'char', 'ValueType', 'any');
+v = newFigureView(obj, "");
+v.Panel.Visible = "on";
+obj.FigureViews = v;
+obj.FigureViewId = "";
+obj.FigurePreviewPanel = v.Panel;
 % the status line: badge, text, the session pick (opens when there are several), Export code, Open in window
 sg = uigridlayout(pg, [1 5], "ColumnWidth", {'fit', '1x', 0, 105, 130}, "Padding", [0 0 0 0], "ColumnSpacing", 8);
 sg.Layout.Row = 5; sg.Layout.Column = [1 5];

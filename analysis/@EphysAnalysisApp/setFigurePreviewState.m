@@ -7,7 +7,10 @@ function setFigurePreviewState(obj, state, opts)
 %   of the preview panel (FigurePreviewPanel) says what (Message=) over
 %   the last figure; while computing it also has a Cancel button
 %   (FigureCancelButton, onCancelFigurePreview). The Preview button turns
-%   orange while stale. The drawing is private/showPreviewState's. States:
+%   orange while stale. The drawing is private/showPreviewState's. The
+%   state is the shown figure's (each figure's container keeps its own:
+%   syncFigureView), and the figure tree's marks follow it
+%   (markFigureTree). States:
 %     idle       no preview (no figure, no scan, no dataset)
 %     computing  computeFigure runs for the observation picked (cancelable)
 %     drawing    renderFigure draws it
@@ -40,4 +43,5 @@ showPreviewState(obj, P, state, Message=opts.Message);
 obj.FigureCancelButton = matlab.ui.control.Button.empty;
 card = findobj(obj.FigurePreviewPanel.Children, "flat", "Tag", "previewBusyCard");
 if ~isempty(card) && state == "computing"; obj.FigureCancelButton = card.UserData.Cancel; end
+markFigureTree(obj);   % the tree marks the figure's preview as the badge says
 end

@@ -83,6 +83,14 @@ function test_EphysAnalysisApp(opts)
 %   removed panel back and selected, Ctrl+Shift+Z, a new edit dropping the
 %   redo, the description kept, the title saved again, cleared by another
 %   config; FigureEditHistory's depth);
+%   each figure's own preview container (a switch back shows its drawing
+%   again, the same axes, without drawing it; the tree selecting the
+%   figure shown and marking it bold, a preview out of date after an edit
+%   of its figure only, after another dataset every one, current again
+%   when the dataset comes back; the editor's sections and panel as each
+%   figure left them; Remove freeing the container; the cap dropping the
+%   least recently shown; Undo / Redo of an Add keeping the tree, the
+%   containers and the selection together);
 %   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -393,8 +401,9 @@ if S.sec("3", "the Figures tab: the toolbar's Preview, the Design row, the epoch
         && app.FiguresDatasetStar.Parent == dsg && app.FigureObservationStar.Parent == osg ...
         && app.FiguresDatasetNote.Parent == dsg && app.FigureObservationNote.Parent == osg && app.AlignDatasetNote.Parent == app.AlignDatasetStar.Parent ...
         && app.FigureFavorites.Grid.Parent == pgrid && app.FigureFavorites.Grid.Layout.Row == osg.Layout.Row + 1 ...
-        && app.FigurePreviewPanel.Layout.Row == app.FigureFavorites.Grid.Layout.Row + 1, ...
-        'the Design list sits right of Dataset and Save look as design... right of Observation, in their rows, each drop-down with its star and note button; Favorites under them, the preview under that');
+        && app.FigurePreviewHost.Parent == pgrid && app.FigurePreviewPanel.Parent == app.FigurePreviewHost ...
+        && app.FigurePreviewHost.Layout.Row == app.FigureFavorites.Grid.Layout.Row + 1, ...
+        'the Design list sits right of Dataset and Save look as design... right of Observation, in their rows, each drop-down with its star and note button; Favorites under them, the preview (the figures'' containers) under that');
     % the buttons in a column of their own left of those rows: Preview, Generate, Unit report, Auto, < > (a row each)
     bgrid = app.FigurePreviewButton.Parent;
     btnCol = [app.FigurePreviewButton app.FigureGenerateButton app.FigureUnitReportButton app.FigureAutoCheckBox app.FigureObsPrevButton.Parent];
@@ -2876,6 +2885,110 @@ if S.sec("5k", "Edit menu: undo and redo of the figure editor")
     noFigures();
     app.onSaveConfig();
     clear restoreAuto5k
+    app.Tabs.SelectedTab = app.TabData;
+end
+
+if S.sec("5l", "each figure's own preview container: kept drawings, the tree's marks, the editor's state, the cap, Remove, Undo / Redo")
+    noFigures();
+    app.selectTab(app.TabFigures);
+    app.FigureAutoCheckBox.Value = true;
+    app.FigureAutoPreviewSeconds = Inf;   % Auto draws every figure shown here, however loaded the machine
+    restore5l = onCleanup(@() resetAutoLimit(app));
+    tree = app.FiguresTree;
+    lookOf = @(k) app.FigureTreeMarks.look([app.FigureTreeMarks.nodes.NodeData] == k);
+    app.onAddFigure("rasterPsth");
+    P1 = app.FigurePreviewPanel;
+    ax1 = figAxes();
+    app.onAddFigure("psth");
+    P2 = app.FigurePreviewPanel;
+    ax2 = figAxes();
+    check(app.FigurePreviewState == "drawn" && P2 ~= P1 && P1.Parent == app.FigurePreviewHost && P2.Parent == app.FigurePreviewHost ...
+        && P1.Visible == "off" && P2.Visible == "on" && numel(ax1) == 2 && all(isvalid(ax1)) && isscalar(ax2) ...
+        && isequal(sort([app.FigureViews.Id]), sort(["" app.Config.figureIds()])), ...
+        'a figure added gets a container of its own in the preview''s cell: the first one''s drawing stays, hidden, in its own');
+    t0 = tic;
+    app.onFigureSelected(1);
+    drawnow;
+    tSwitch = toc(t0);
+    check(app.FigurePreviewPanel == P1 && P1.Visible == "on" && P2.Visible == "off" && isequal(figAxes(), ax1) && all(isvalid(ax2)) ...
+        && app.FigurePreviewState == "drawn" && app.FigurePreviewResult.id == app.Config.Figures(1).id ...
+        && contains(string(app.FigurePreviewLabel.Text), app.Config.Figures(1).id), ...
+        sprintf('back to the first figure: its own drawing shows again (the same axes, not drawn again), its badge and status line too (%.2f s)', tSwitch));
+    st = tree.StyleConfigurations;
+    check(isequal(tree.SelectedNodes, figureNode(tree, 1)) && isequal(app.FigureTreeMarks.current, [app.FigureTreeMarks.nodes.NodeData] == 1) ...
+        && all(app.FigureTreeMarks.look == "fresh") && height(st) == 1 && st.Style(1).FontWeight == "bold" ...
+        && isequal(st.TargetIndex{1}, figureNode(tree, 1)), ...
+        'the tree selects the figure shown and marks it bold; both previews are current, so nothing else is marked');
+    app.FigureAutoCheckBox.Value = false;
+    FE.title.Value = 'Kept apart';
+    app.onConfigChanged("figure", FE.title);
+    check(app.FigurePreviewState == "stale" && lookOf(1) == "stale" && lookOf(2) == "fresh" ...
+        && any(arrayfun(@(i) any(tree.StyleConfigurations.TargetIndex{i} == figureNode(tree, 1)) ...
+        && tree.StyleConfigurations.Style(i).FontAngle == "italic", 1:height(tree.StyleConfigurations))), ...
+        'an edit of the first figure (Auto off) marks its preview out of date in the tree (amber italic), not the other figure''s');
+    app.onFigureSelected(2);
+    check(app.FigurePreviewPanel == P2 && isequal(figAxes(), ax2) && app.FigurePreviewState == "drawn" && lookOf(1) == "stale" && lookOf(2) == "fresh", ...
+        'the other figure is current: shown as kept, with Auto off too; the first stays marked');
+    app.onFigureSelected(1);
+    check(app.FigurePreviewState == "stale" && isequal(figAxes(), ax1), 'back on the first: still Out of date, its old drawing kept');
+    app.refreshFigurePreview(Force=true);
+    check(app.FigurePreviewState == "drawn" && lookOf(1) == "fresh" && app.FigurePreviewPanel == P1, 'Preview draws it again in its own container: current');
+    FE.title.Value = '';
+    app.onConfigChanged("figure", FE.title);
+    app.refreshFigurePreview(Force=true);
+    a0 = app.ActiveIdx;   % (an earlier section may leave either dataset active)
+    app.selectDataset(kF1 + kF2 - a0);
+    check(lookOf(1) == "stale" && lookOf(2) == "stale", 'another dataset: every figure''s preview is out of date');
+    app.selectDataset(a0);
+    check(lookOf(2) == "fresh", 'the dataset back: the hidden figure''s kept drawing is current again');
+    app.refreshFigurePreview(Force=true);
+
+    % the editor as each figure left it
+    opt = @() app.FigureSections([app.FigureSections.Name] == "options").Expanded;
+    if ~opt(); app.onFigureSectionToggled("options"); end
+    app.onPanelSelected(2);
+    app.onFigureSectionToggled("options");   % figure 1: Options collapsed, panel 2
+    app.onFigureSelected(2);
+    check(app.SelectedPanel == 1, 'the second figure: its own panel (its first), not the first figure''s panel 2');
+    if ~opt(); app.onFigureSectionToggled("options"); end   % figure 2: Options open
+    app.onFigureSelected(1);
+    check(app.SelectedPanel == 2 && ~opt() && isKey(app.FigureEditorStates, char(app.Config.Figures(2).id)), ...
+        'back to the first: its panel 2 and its Options collapsed, as it left them');
+    ax1 = figAxes();
+    s1 = app.FigureEditorStates(char(app.Config.Figures(2).id));
+    app.onFigureSelected(2);
+    check(app.SelectedPanel == 1 && opt() && isfield(s1, 'Scroll') && (isempty(s1.Scroll) || numel(s1.Scroll) == 2), ...
+        'and the second: its Options open again (its scroll kept too)');
+
+    % Remove frees the container; the cap
+    app.onRemoveFigure();
+    check(~isvalid(P2) && numel(app.FigureViews) == 2 && app.FigureViewId == app.Config.Figures(1).id && app.FigurePreviewPanel == P1 ...
+        && isequal(figAxes(), ax1) && ~isKey(app.FigureEditorStates, 'PSTH units'), ...
+        'Remove frees the figure''s container and its editor state; the figure taking its place shows its kept drawing');
+    for i = 1:app.MaxFigureViews
+        app.onAddFigure("psth");   % (Auto off: shown, not drawn)
+    end
+    check(numel(app.FigureViews) == app.MaxFigureViews + 1 && ~isvalid(P1) && all(isvalid([app.FigureViews.Panel])) ...
+        && lookOf(1) == "none" && numel(findall(app.FigurePreviewHost, 'Type', 'uipanel', '-depth', 1)) == app.MaxFigureViews + 1, ...
+        sprintf('past %d containers the one shown least recently goes (the first figure''s): the tree marks it not drawn', app.MaxFigureViews));
+    app.FigureAutoCheckBox.Value = true;
+    app.onFigureSelected(1);
+    check(app.FigurePreviewState == "drawn" && numel(figAxes()) == 2 && lookOf(1) == "fresh", 'shown again, it is drawn again (Auto)');
+
+    % Undo and Redo across figures keep the tree, the containers and the selection together
+    n0 = numel(app.Config.Figures);
+    app.onUndoRedo("undo");   % the last Add
+    synced = @() isequal(tree.SelectedNodes.NodeData, app.SelectedFigure) && app.FigureViewId == app.Config.Figures(app.SelectedFigure).id ...
+        && all(ismember([app.FigureViews.Id], ["" app.Config.figureIds()])) && app.FigurePreviewPanel.Visible == "on" ...
+        && nnz(arrayfun(@(p) p.Visible == "on", [app.FigureViews.Panel])) == 1 && isequal(app.FigureTreeMarks.current, [app.FigureTreeMarks.nodes.NodeData] == app.SelectedFigure);
+    check(numel(app.Config.Figures) == n0 - 1 && synced(), 'Undo of an Add: the figure and its container go; the tree, the container shown and the bold node agree');
+    app.onUndoRedo("redo");
+    check(numel(app.Config.Figures) == n0 && app.SelectedFigure == n0 && synced(), 'Redo: the figure back and selected, in a container of its own');
+    noFigures();
+    check(numel(app.FigureViews) == 1 && app.FigureViews.Id == "" && app.FigurePreviewPanel.Visible == "on", ...
+        'every figure removed: only the empty container is left');
+    clear restore5l
+    app.FigureAutoCheckBox.Value = false;
     app.Tabs.SelectedTab = app.TabData;
 end
 

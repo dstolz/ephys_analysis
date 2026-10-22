@@ -7,7 +7,9 @@ function trackFigureIds(obj, cfg)
 %   automatic id that followed an edit of the figure's panels or data
 %   (EphysAnalysisConfig.autoFigureId), or an id typed. Then
 %   - the observation the figure last showed (FigureObservation, by id)
-%     moves to its new id;
+%     moves to its new id, and so do its preview container (FigureViews,
+%     FigureViewId: syncFigureView) and the editor state it left
+%     (FigureEditorStates);
 %   - FigureIdRenames maps the old id to the new one, for what holds a
 %     figure's id while it lives: the right-click editor of the preview
 %     and of a figure window (rememberFigureAesthetics) and the Spacing
@@ -32,5 +34,18 @@ for k = find(old ~= new)
         obj.FigureObservation(to) = obj.FigureObservation(from);
         remove(obj.FigureObservation, from);
     end
+    if isa(obj.FigureEditorStates, 'containers.Map') && isKey(obj.FigureEditorStates, from)
+        obj.FigureEditorStates(to) = obj.FigureEditorStates(from);
+        remove(obj.FigureEditorStates, from);
+    end
+    if ~isempty(obj.FigureViews)
+        left = [obj.FigureViews.Id] == new(k) & new(k) ~= obj.FigureViewId;   % a container still kept for a figure gone with that id
+        for v = find(left); delete(obj.FigureViews(v).Panel); end
+        obj.FigureViews(left) = [];
+        for v = find([obj.FigureViews.Id] == old(k))
+            obj.FigureViews(v).Id = new(k);   % (its drawing is then out of date: the key holds the id)
+        end
+    end
+    if obj.FigureViewId == old(k); obj.FigureViewId = new(k); end
 end
 end

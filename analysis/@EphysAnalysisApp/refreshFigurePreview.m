@@ -29,6 +29,14 @@ function refreshFigurePreview(obj, opts)
 %   sessions were merged and skipped. The active dataset is not used. Redraw
 %   (onFigureSessionPicked) draws another of the kept figures without
 %   computing.
+%   It draws into the selected figure's own container (FigurePreviewPanel,
+%   syncFigureView: shown first when it is not yet), and keeps the key it
+%   drew with (FigurePreviewDrawn: figureViewKey, so the tree and a switch
+%   back can tell whether the drawing is still current). The selection can
+%   move while it computes (the tree, a favorite, Undo): the figure that
+%   computes stays shown until it is drawn into its own container, then the
+%   selected figure's is shown (syncFigureView) and drawn when out of date
+%   (previewFigureView).
 arguments
     obj (1,1) EphysAnalysisApp
     opts.Force (1,1) logical = false
@@ -38,6 +46,15 @@ if ismember(obj.FigurePreviewState, ["computing" "drawing"])
     obj.FigurePreviewRedo = true;
     return
 end
+obj.syncFigureView();   % the selected figure's container (it already shows, but for a selection made without the tree)
+previewNow(obj, opts);
+if ~isvalid(obj) || isempty(obj.Fig) || ~isvalid(obj.Fig); return; end   % the app was closed while it computed
+if obj.syncFigureView(); previewFigureView(obj); end   % the selection moved meanwhile: its figure now
+end
+
+
+function previewNow(obj, opts)
+%previewNow  The preview of the selected figure, in its container (refreshFigurePreview's work).
 L = obj.FigurePreviewLabel;
 if obj.Running
     L.Text = "A run is going: preview the figure when it is done.";
@@ -105,6 +122,7 @@ if ~istable(T) || height(T) == 0 || ~isnumeric(i) || i < 1 || i > height(T)
     return
 end
 obs = T(i, :);
+drawnKey = figureViewKey(obj, k);   % what it is drawn from (FigurePreviewDrawn once drawn)
 if ~opts.Force
     mb = signalMB(spec, src);
     if mb > obj.PreviewMaxMB
@@ -158,6 +176,7 @@ if ~obj.FigurePreviewWarm   % the first figure drawn also loads the graphics: it
     obj.FigurePreviewSeconds = 0;
     obj.FigurePreviewWarm = true;
 end
+obj.FigurePreviewDrawn = drawnKey;
 obj.setFigurePreviewState("drawn");
 if obj.FigurePreviewRedo; obj.setFigurePreviewState("stale"); end
 L.Text = sprintf("%s, %s on %s (%.1f s); right-click to change colors, lines and fonts", spec.id, obs.label, src.name, secs);
@@ -192,6 +211,7 @@ if ~istable(T) || height(T) == 0 || ~isnumeric(i) || i < 1 || i > height(T)
     return
 end
 obs = T(i, :);
+drawnKey = figureViewKey(obj, obj.SelectedFigure);
 what = spec.id + " (" + obs.label + ")";
 L.Text = "Computing " + what + " across " + obs.nSessions + " session(s) ...";
 rn = obj.Runner;
@@ -231,7 +251,7 @@ if isstruct(obj.FigureSessionResults) && isfield(obj.FigureSessionResults, 'labe
     q = find(labels == obj.FigureSessionResults.label, 1);
     if ~isempty(q); j = q; end
 end
-obj.FigureSessionResults = struct('res', res, 'spec', spec, 'what', what, 'label', labels(j), 'seconds', toc(t0));
+obj.FigureSessionResults = struct('res', res, 'spec', spec, 'what', what, 'label', labels(j), 'seconds', toc(t0), 'key', drawnKey);
 showSessionPicker(obj, labels, j);
 drawSessionEntry(obj, toc(t0));
 end
@@ -271,6 +291,7 @@ catch ME
     return
 end
 if secs > 0; obj.FigurePreviewSeconds = secs; end
+obj.FigurePreviewDrawn = K.key;
 obj.setFigurePreviewState("drawn");
 if obj.FigurePreviewRedo; obj.setFigurePreviewState("stale"); end
 S = F.sessions;
@@ -284,23 +305,6 @@ end
 if numel(K.res) > 1; txt = txt + " — " + e.label; end
 if secs > 0; txt = txt + sprintf(" (%.1f s)", secs); end
 L.Text = txt + "; right-click to change colors, lines and fonts";
-end
-
-
-function showSessionPicker(obj, labels, j)
-%showSessionPicker  The "Figure:" drop-down under the preview: shown with LABELS when a session figure makes several.
-dd = obj.FigureSessionDropDown;
-if isempty(dd) || ~isvalid(dd); return; end
-g = dd.Parent;
-if numel(labels) > 1
-    dd.ItemsData = [];
-    set(dd, "Items", "Figure: " + labels, "ItemsData", 1:numel(labels), "Value", j, "Visible", "on");
-    g.ColumnWidth{3} = 230;
-else
-    dd.ItemsData = [];
-    set(dd, "Items", "(all)", "ItemsData", 1, "Value", 1, "Visible", "off");
-    g.ColumnWidth{3} = 0;
-end
 end
 
 

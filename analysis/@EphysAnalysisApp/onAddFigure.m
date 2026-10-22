@@ -8,7 +8,9 @@ function onAddFigure(obj, template)
 %   onAddFigure(OBJ, TEMPLATE) adds a figure from TEMPLATE (a
 %   figureTemplates name, or a partial figure struct) without the
 %   window, for scripts and tests; the app offers no template.
-%   The new figure is selected with its first panel and layer; the picker
+%   The new figure is selected with its first panel and layer (the editor
+%   state of the figure left is kept for it: saveFigureEditorState) and
+%   shown in a preview container of its own (syncFigureView); the picker
 %   lists its observations on the active dataset and, with Auto on, the
 %   first one is drawn at once. It observes what its following layers
 %   read (addFigure: EphysAnalysisConfig.followedData) when the active
@@ -30,12 +32,11 @@ catch ME
 end
 cfg.Figures(end).observe.data = heldObserveData(obj, cfg.Figures(end).observe.data);
 id = cfg.Figures(end).id;   % an automatic id follows the data observed
+saveFigureEditorState(obj);   % the editor as the figure left had it
 obj.SelectedFigure = numel(cfg.Figures);
 obj.SelectedPanel = 1;
 obj.SelectedLayer = 1;
-obj.applyConfig(cfg, Action="Add figure");
-obj.FigurePreviewResult = [];
-obj.FigurePreviewSeconds = 0;
+obj.applyConfig(cfg, Action="Add figure");   % its own container, not drawn yet (syncFigureView)
 if ask
     obj.setStatus("Added " + id + ", a blank figure: pick its first panel.");
     obj.autoFigurePreview();

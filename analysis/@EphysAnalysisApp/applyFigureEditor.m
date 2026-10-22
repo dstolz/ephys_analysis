@@ -4,7 +4,7 @@ function applyFigureEditor(obj)
 %   appearance, looks), then the panel's (SelectedPanel: type, title, spans,
 %   its row's height and column's width, its size in its cell and its
 %   alignment there, its own event and window or the
-%   figure's, its type's options, its layers) and the layer's
+%   figure's, its type's options, its unit waveform, its layers) and the layer's
 %   (SelectedLayer), and the panel's text note and overlays (the first
 %   picked). The line and parameter lists come from the active
 %   dataset, and so does the Observe list's order: what the dataset
@@ -250,11 +250,23 @@ if isfield(op, 'waveform')
     if p.type == "waveforms"; fallback = "both"; end
     setChoices(E.waveMode, ch.WaveLabels, ch.WaveModes, pickFrom(wv.mode, ch.WaveModes, fallback));
     E.waveSpikes.Value = min(E.waveSpikes.Limits(2), max(E.waveSpikes.Limits(1), round(wv.maxSpikes)));
+    span = [-Inf Inf];   % the time span: a blank field is the cut's edge
+    if numel(wv.timeMs) == 2; span = wv.timeMs; end
+    if ~isfinite(span(2)); E.waveTo.Value = []; else; E.waveTo.Value = span(2); end
+    if ~isfinite(span(1)); E.waveFrom.Value = []; else; E.waveFrom.Value = span(1); end
+    setChoices(E.waveAmp, ch.WaveAmpLabels, ch.WaveAmps, pickFrom(wv.ampScale, ch.WaveAmps, "unit"));
+    lim = [-100 100];   % the fixed range's fields: its limits, else a start for typing
+    if numel(wv.ampLim) == 2; lim = wv.ampLim; end
+    E.waveAmpLo.Value = lim(1);
+    E.waveAmpHi.Value = lim(2);
+    E.waveWidth.Value = min(E.waveWidth.Limits(2), max(E.waveWidth.Limits(1), wv.width));
+    E.waveHeight.Value = min(E.waveHeight.Limits(2), max(E.waveHeight.Limits(1), wv.height));
     E.waveLocation.Value = char(pickFrom(wv.location, string(E.waveLocation.ItemsData), "northeast"));
     E.waveBox.Value = wv.box;
-    E.waveScale.Value = min(E.waveScale.Limits(2), max(E.waveScale.Limits(1), wv.scale));
     E.wavePP.Value = wv.showPP;
     E.waveCount.Value = wv.showCount;
+    E.waveSites.Value = wv.showSites;
+    E.waveNames.Value = wv.showNames;
 end
 if isfield(op, 'taperMode')   % a spectral panel's Chronux rows
     applySpectral(E, op);

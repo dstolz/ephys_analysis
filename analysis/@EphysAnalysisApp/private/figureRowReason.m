@@ -7,7 +7,9 @@ function why = figureRowReason(label, key, type)
 %   the Sessions rows by Across sessions, the selected panel's rows, the
 %   picked layer's by its source and binding, the Options rows by the
 %   panel's type (an option of the selected type that is still hidden says
-%   what else it needs), the overlay rows by the overlay picked, the
+%   what else it needs), the Waveform rows by the panel's type
+%   (waveformNote: why a type draws no waveform; an inset's place, a
+%   probe layout's glyphs), the overlay rows by the overlay picked, the
 %   Appearance rows by the figure's panel types. A key it does not know
 %   gets a plain "is not used by this figure, its selected panel or layer".
 %
@@ -18,6 +20,10 @@ arguments
     type (1,1) string = ""
 end
 % the Options rows: the panel types that show each, and what more a row needs on one of them
+if startsWith(key, "wave") && key ~= "waveLayout"   % the Waveform section's rows
+    why = waveReason(label, key, type);
+    return
+end
 T = optionTypes();
 if isfield(T, key)
     o = T.(key);
@@ -168,14 +174,37 @@ T.spSpikeFs = o(["spectrum" "spectrogram" "coherence"], "with a spike layer");
 T.spOverTime = o("coherence", "");
 T.spWin = o(["spectrogram" "coherence"], "on a coherence panel, drawn over time");
 T.spShowPhase = o("coherence", "unless drawn over time");
-T.waveMode = o(["raster" "psth" "waveforms" "tuning"], "");
-T.wavePP = T.waveMode;
-T.waveLocation = o(["raster" "psth" "tuning"], "");
-T.waveScale = T.waveLocation;
 for f = ["auMethod" "auWinMs" "auModFrom" "auCutoff" "auMarks"]
     T.(f) = o(["psth" "heatmap"], "with the auroc baseline (a heat map of spikes)");
 end
 T.auTest = o(["psth" "heatmap"], "with the auroc baseline and the per-unit test cutoff");
+end
+
+
+function why = waveReason(label, key, type)
+%waveReason  Why the Waveform section hides a row: no panel, a type that draws no waveform, or a row this type's waveform does not use.
+inset = "raster, PSTH, firing rate or tuning curve";   % EphysAnalysisConfig.WaveformInsetTypes
+if type == ""
+    why = label + " is a setting of the selected panel's unit waveform (Waveform): pick a raster, PSTH, firing " + ...
+        "rate, tuning curve or unit waveforms panel.";
+    return
+end
+[note, draws] = waveformNote(type);
+if ~draws
+    why = label + " is not used: " + note;
+    return
+end
+switch key
+    case {"waveLocation" "waveBox"}
+        why = label + " places an inset, on a " + inset + " panel: a unit waveforms panel's waveform is the panel itself.";
+    case {"waveWidth" "waveHeight"}
+        why = label + " sizes an inset (" + inset + " panels) or the glyphs of a unit waveforms panel in the probe " + ...
+            "layout: in the grid layout the waveform fills its panel.";
+    case {"waveSites" "waveNames"}
+        why = label + " is for a unit waveforms panel in the probe layout (Options: Layout).";
+    otherwise
+        why = label + " is not used by this panel's waveform.";
+end
 end
 
 

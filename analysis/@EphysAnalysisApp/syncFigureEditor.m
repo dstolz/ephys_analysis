@@ -67,6 +67,14 @@ function syncFigureEditor(obj)
 %                    panel's rows (the bar outline with bars, the level
 %                    line with a line, the group bands with a sub-row per
 %                    epoch, the baseline's look with a baseline)
+%     Waveform       with a panel whose type draws spikes (its sources
+%                    hold units or detected: figureEditorChoices), titled
+%                    with the panel's id: a note (waveformNote: what it
+%                    sets, or why the type draws no waveform), then, where
+%                    the type draws one, Show, Spikes drawn, Time (x),
+%                    Amplitude (y) and Label; Size and Inset location on a
+%                    raster, PSTH, rate or tuning panel (an inset), Size and
+%                    On the probe on a waveforms panel in the probe layout
 %     Text note, Overlays   with a panel selected: the panel's note rows
 %                    (its look enabled with text; x and y with "At x, y")
 %                    and its overlay list with the rows of the overlay
@@ -88,7 +96,8 @@ function syncFigureEditor(obj)
 %   the train only on a raster, PSTH or heat map, the response test's rows
 %   with Responsive only, the baseline window with a baseline, the fill
 %   opacity when filled, the sort event with "event", the
-%   waveform's rows when it is not Off, the bins of a unit
+%   waveform's rows when it is not Off (its range's fields with the fixed
+%   amplitude), the bins of a unit
 %   correlation for its peak rate, the mask with a stop event, the stack
 %   spacing when stacked, the error and legend rows with their boxes, each
 %   Move button when the panel has a same-shaped neighbor that way, and
@@ -185,14 +194,16 @@ layerKeys = ["layerList" "layerAdd" "layerNote" "layerName" "layerSource" "layer
 optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort" "sortLine" "sortSeqText" "rasterByGroup" "yTicks" "tickColor" "tickWidth" "backColor" ...
     "firstSpike" "latencyBox" ...
     "maskAfterStop" "psthDisplay" "histStyle" "fill" "normalize" "statistic" "errorType" "order" ...
-    "value" "metric" "correlation" "fisherZ" "yLim" "cLim" "panelColormap" "waveMode" "waveLocation" "waveScale" "wavePP" ...
+    "value" "metric" "correlation" "fisherZ" "yLim" "cLim" "panelColormap" ...
     "optApplyAll" "auMethod" "auWinMs" "auModFrom" "auCutoff" "auTest" "auMarks" "stack" "param" "rateDisplay" "waveLayout" ...
     "contTrials" "heatRows" "spTimeBase" "spRangeFrom" "spSegment" "spTaperMode" "spTW" "spW" "spPad" "spFmin" "spErr" ...
     "spDetrend" "spScale" "spSpikeFs" "spOverTime" "spWin" "spShowPhase" "etDisplay" "etTrials" "etColorBy" "etHeight" ...
     "etEdge" "etMinWidth" "etLineStyle" "etBaseline" "etBaseStyle" "etRowSpacing"];
+waveKeys = ["waveNote" "waveMode" "waveSpikes" "waveFrom" "waveAmp" "waveWidth" "waveLocation" "wavePP" "waveSites"];
 noteKeys = ["annText" "annPlace" "annX" "annAlign" "annRotation" "annFont" "annBold" "annColor" "annInterp"];
 overlayKeys = ["ovList" "ovName" "ovKind" "ovValue" "ovFrom" "ovLayer" "ovColor" "ovFill" "ovEdge" "ovStyle"];
-for f = [layerKeys optionKeys noteKeys overlayKeys]; v.(f) = false; end
+for f = [layerKeys optionKeys waveKeys noteKeys overlayKeys]; v.(f) = false; end
+waveSpiky = false;   % the panel's layers may be spikes: the Waveform section shows
 optionsTitle = "Options";
 paligned = false;
 nOv = 0;
@@ -329,8 +340,6 @@ if hasPanel
     end
     if stackNow ~= "off"; v.group = false; end   % a stack draws every group
     if t == "spectrogram"; v.baselineMode = true; v.baseFrom = true; end
-    v.waveMode = ismember(t, ["raster" "psth" "waveforms" "tuning"]); v.wavePP = v.waveMode;
-    v.waveLocation = ismember(t, ["raster" "psth" "tuning"]); v.waveScale = v.waveLocation;
     if v.baselineMode; offerItems(E.baselineMode, ch.BaselineModes); end
     en([E.baseFrom E.baseTo], string(E.baselineMode.Value) ~= "none");
     auOn = (t == "psth" || pointHeat) && string(E.baselineMode.Value) == "auroc";   % the panel's auROC settings
@@ -348,7 +357,6 @@ if hasPanel
     sortOn = ~(t == "eventTrace" && string(E.etTrials.Value) ~= "rows");   % an event trace sorts its sub-rows only
     en([E.rasterSort E.rasterSortOrder E.rasterByGroup], sortOn);
     en([E.sortLine E.sortEdge E.sortSeqText E.sortSeqEdit], sortOn && strtrim(string(E.rasterSort.Value)) == "event");
-    en([E.waveSpikes E.waveLocation E.waveBox E.waveScale E.wavePP E.waveCount], string(E.waveMode.Value) ~= "off");
     en([E.binMs E.smoothMs], t ~= "corrmap" || string(E.metric.Value) == "peak");
     stop = obj.FigureAlignControls.StopOn.Value;
     if isstruct(p.window); stop = obj.PanelAlignControls.StopOn.Value; end
@@ -356,6 +364,20 @@ if hasPanel
     % Apply to all panels: any other panel (every one takes the axis sides; adoptPanelOptions)
     v.optApplyAll = known;
     en(E.optApplyAll, np > 1);
+
+    % the unit waveform: its section for every type whose layers may be spikes, its rows where the type draws one
+    waveSpiky = any(ismember(ch.Sources, spikes));
+    [waveText, draws] = waveformNote(t, string(E.waveLayout.Value));
+    E.waveNote.Text = waveText;
+    inset = ismember(t, EphysAnalysisConfig.WaveformInsetTypes);
+    probe = t == "waveforms" && string(E.waveLayout.Value) == "probe";
+    v.waveNote = waveSpiky;
+    v.waveMode = draws; v.waveSpikes = draws; v.waveFrom = draws; v.waveAmp = draws; v.wavePP = draws;
+    v.waveWidth = inset || probe; v.waveLocation = inset; v.waveSites = probe;
+    waveOn = string(E.waveMode.Value) ~= "off";
+    en([E.waveSpikes E.waveFrom E.waveTo E.waveAmp E.waveWidth E.waveHeight E.waveLocation E.waveBox E.wavePP E.waveCount ...
+        E.waveSites E.waveNames], waveOn);
+    en([E.waveAmpLo E.waveAmpHi], waveOn && string(E.waveAmp.Value) == "fixed");
 
     % the panel's own alignment
     modes = "fixed";
@@ -446,6 +468,8 @@ for i = 1:numel(S)
     switch names(i)
         case {"panel" "palign" "layers" "options" "note" "overlays"}
             S(i).Visible = hasPanel;
+        case "waveform"
+            S(i).Visible = hasPanel && waveSpiky;
         case {"ref" "window" "selection"}
             S(i).Visible = np == 0 || any(aligned);
         otherwise
@@ -455,7 +479,9 @@ end
 S(names == "options").Title = optionsTitle;
 S(names == "note").Title = "Text note";
 S(names == "overlays").Title = "Overlays";
+S(names == "waveform").Title = "Waveform";
 if hasPanel
+    S(names == "waveform").Title = "Waveform on " + fig.panels(j).id;
     S(names == "note").Title = "Text note on " + fig.panels(j).id;
     S(names == "overlays").Title = "Overlays on " + fig.panels(j).id;
     if nOv > 0; S(names == "overlays").Title = "Overlays (" + nOv + ") on " + fig.panels(j).id; end

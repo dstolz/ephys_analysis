@@ -1221,6 +1221,12 @@ if S.sec("5d.type", "a type change: the PSTH's bins, a heat map and its rows, ba
         && app.Config.figureFor(1).panels(2).options.bins.BinSec == 0.02 && isfield(p2.options, 'order') && shown(FE.group) && shown(FE.order) ...
         && contains(app.StatusBar.Text, "is now a heat map") && app.FigurePreviewState == "drawn", ...
         'a heat map now: its units layer kept but fixed, the PSTH''s bins kept, its own rows shown');
+    Xs = app.FigureSearchIndex;
+    iWave = find(arrayfun(@(e) ~isempty(e.Keys) && e.Keys(1) == "waveMode", Xs), 1);
+    wentWave = app.gotoFigureRow(iWave, Focus=false);
+    check(app.FigureSections([app.FigureSections.Name] == "waveform").Visible && shown(FE.waveNote) && ~shown(FE.waveMode) ...
+        && contains(FE.waveNote.Text, "no waveform inset") && ~wentWave && contains(app.StatusBar.Text, "no waveform inset"), ...
+        'a heat map of spikes shows the Waveform section with a note on why it draws no inset (the search says so too), no rows');
     itemRows = shown(FE.heatRows) && ~shown(FE.rasterSort) && FE.layerBinding.Enable == "off";
     FE.heatRows.Value = "trials";
     app.onConfigChanged("figure");
@@ -1684,6 +1690,26 @@ if S.sec("5d.psth", "a PSTH's Stack row, auROC rows, Display and Y limits mode; 
     app.onConfigChanged("figure");
     check(app.Config.Figures(1).panels(end).options.display == "points" && ~isempty(findall(app.FigurePreviewPanel, 'Tag', 'points')) ...
         && app.FigurePreviewState == "drawn", 'its Display reaches the options and the drawing (points)');
+    % the Waveform section: its own, under Panel, for every panel type of spikes; the rate panel's inset from its rows
+    secW = app.FigureSections([app.FigureSections.Name] == "waveform");
+    check(secW.Visible && secW.Super == "panel" && secW.Key == "" && startsWith(secW.Title, "Waveform on ") && shown(FE.waveNote) ...
+        && shown(FE.waveMode) && shown(FE.waveFrom) && shown(FE.waveAmp) && shown(FE.waveWidth) && shown(FE.waveLocation) ...
+        && ~shown(FE.waveSites) && FE.waveFrom.Enable == "off" && isequal(string(FE.waveAmp.ItemsData), ["unit" "fixed"]), ...
+        'a rate panel''s Waveform section (in Panel, no key): its note, Show, Time, Amplitude, Size and place rows, grayed while Off');
+    FE.waveMode.Value = "mean";
+    FE.waveFrom.Value = -0.5;
+    FE.waveAmp.Value = "fixed";
+    FE.waveAmpLo.Value = -200;
+    FE.waveAmpHi.Value = 80;
+    FE.waveWidth.Value = 1.5;
+    app.onConfigChanged("figure");
+    wr = app.Config.Figures(1).panels(end).options.waveform;
+    check(wr.mode == "mean" && isequal(wr.timeMs, [-0.5 Inf]) && wr.ampScale == "fixed" && isequal(wr.ampLim, [-200 80]) && wr.width == 1.5 ...
+        && FE.waveAmpLo.Enable == "on" && FE.waveSpikes.Enable == "on" && app.FigurePreviewState == "drawn" ...
+        && isfield(app.FigurePreviewResult.panels(end).layers(1).R, 'waveforms'), ...
+        'its rows reach options.waveform (a blank end: Inf; the fixed range, its fields open) and the preview reads the waveforms');
+    FE.waveMode.Value = "off";
+    app.onConfigChanged("figure");
     app.onNewPanel(Type="tuning", Where="below");
     pt = app.Config.Figures(1).panels(end);
     Lt = app.FigurePreviewResult.panels(end).layers(1);
@@ -1709,6 +1735,7 @@ if S.sec("5d.psth", "a PSTH's Stack row, auROC rows, Display and Y limits mode; 
     FE.panelType.Value = "continuous";
     app.onPanelTypeChanged();
     o1 = app.Config.Figures(1).panels(kr).options;
+    check(~app.FigureSections([app.FigureSections.Name] == "waveform").Visible, 'a continuous panel (no spikes) has no Waveform section');
     FE.panelType.Value = "rate";
     app.onPanelTypeChanged();
     o2 = app.Config.Figures(1).panels(kr).options;

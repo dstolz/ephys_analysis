@@ -14,7 +14,11 @@ function refreshFigurePreview(obj, opts)
 %   aesthetics editor; what it remembers for the figure comes back through
 %   rememberFigureAesthetics, an axis label's own text or side (its menu)
 %   through onFigureAxisEdited. The selected panel is outlined in the
-%   preview (markFigurePanel). The badge (setFigurePreviewState) says
+%   preview (markFigurePanel), and a Ctrl+Click on a panel selects it and
+%   goes to its section of the editor (onFigurePanelClicked). The
+%   preview is the shape of the figure's export page (fitFigureViews:
+%   Size in the editor, else the Export tab's), its fonts and lines
+%   scaled to it (previewSpec). The badge (setFigurePreviewState) says
 %   Computing, then Drawing, with a card over the old drawing whose Cancel
 %   (onCancelFigurePreview) stops the compute at its next checkpoint (the
 %   runner polls: Runner.PollFcn); edits made meanwhile leave it Out of
@@ -50,6 +54,7 @@ if ismember(obj.FigurePreviewState, ["computing" "drawing"])
     return
 end
 obj.syncFigureView();   % the selected figure's container (it already shows, but for a selection made without the tree)
+obj.fitFigureViews();   % in the shape of its export page, which the drawing is scaled to (previewSpec)
 previewNow(obj, opts);
 if ~isvalid(obj) || isempty(obj.Fig) || ~isvalid(obj.Fig); return; end   % the app was closed while it computed
 if obj.syncFigureView(); previewFigureView(obj); end   % the selection moved meanwhile: its figure now
@@ -150,9 +155,10 @@ try
     obj.FigurePreviewResult = F;
     L.Text = "Drawing " + what + " ...";
     obj.setFigurePreviewState("drawing", Message="Drawing " + what + " ...");
-    renderFigure(F, spec, obj.FigurePreviewPanel, OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules), ...
+    renderFigure(F, previewSpec(obj, spec), obj.FigurePreviewPanel, OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules), ...
         OnGoto=@(role, panel) obj.gotoFigureSetting(spec.id, role, panel), ...
-        OnAxisEdit=@(panel, change) obj.onFigureAxisEdited(spec.id, panel, change));
+        OnAxisEdit=@(panel, change) obj.onFigureAxisEdited(spec.id, panel, change), ...
+        OnSelect=@(panel, ctrl) obj.onFigurePanelClicked(spec.id, panel, ctrl, false));
     obj.markFigurePanel();   % the selected panel outlined
 catch ME
     if ~isvalid(obj) || ~isvalid(obj.Fig); return; end   % the app was closed while it computed
@@ -282,9 +288,10 @@ obj.FigurePreviewResult = F;
 L.Text = "Drawing " + K.what + " ...";
 obj.setFigurePreviewState("drawing", Message="Drawing " + K.what + " ...");
 try
-    renderFigure(F, spec, obj.FigurePreviewPanel, OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules), ...
+    renderFigure(F, previewSpec(obj, spec), obj.FigurePreviewPanel, OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules), ...
         OnGoto=@(role, panel) obj.gotoFigureSetting(spec.id, role, panel), ...
-        OnAxisEdit=@(panel, change) obj.onFigureAxisEdited(spec.id, panel, change));
+        OnAxisEdit=@(panel, change) obj.onFigureAxisEdited(spec.id, panel, change), ...
+        OnSelect=@(panel, ctrl) obj.onFigurePanelClicked(spec.id, panel, ctrl, false));
     obj.markFigurePanel();
 catch ME
     if ~isvalid(obj) || ~isvalid(obj.Fig); return; end

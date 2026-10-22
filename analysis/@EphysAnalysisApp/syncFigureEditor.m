@@ -154,7 +154,7 @@ for q = 1:np
 end
 
 v = struct();
-for f = ["id" "title" "enabled" "summary" "observe" "obsStarred" "sesEnabled" "obsPerGroup" "obsCount" "schematic" "newPanel" "spacing" ...
+for f = ["id" "title" "size" "sizeWidth" "enabled" "summary" "observe" "obsStarred" "sesEnabled" "obsPerGroup" "obsCount" "schematic" "newPanel" "spacing" ...
         "fontSize" "lineWidth" "colormap" "sortDepth" "labelDepth" "showSEM" "legendLoc" "errType" "errFace" "errEdge" "looksText"]
     v.(f) = true;   % the rows every figure shows
 end

@@ -944,6 +944,7 @@ give the fields below; every field exists on every entry.
 | `autoId` | `true` | the id follows the figure's active panel types and data ([Figure ids](#figure-ids)) whenever the figure is stored (every edit, load); `false`: the id is the user's own and stays. A new figure's is `true` until an id is given (`addFigure(..., Id=)`, a struct with an id, an id typed in the app). An entry that leaves it out (a file written by hand) takes `true` for a blank id and `false` for an id it names |
 | `enabled` | `true` | unticked, it stays in the config: `figureSkipReason` says "disabled", and `computeFigure` still computes it when asked, as the preview does |
 | `title` | `""` | `""` = automatic: the id, the observation's label, the aligned event and the epoch count (a dataset figure names no observation, a figure with no aligned panel no event); the dataset is the subtitle. With a title of your own, the top-left panel names the observation |
+| `size` | below | the page the figure is exported on, and the shape of its preview |
 | `observe` | below | what the figure is drawn for |
 | `grid` | below | the arrangement of the panels |
 | `panels` | none | the [panels](#panel-fields), a list of any length |
@@ -951,6 +952,15 @@ give the fields below; every field exists on every entry.
 | `sessions` | `defaults("FigureSessions")` | the [session figure](#session-figures) settings: with `sessions.enabled` the figure is drawn once across several datasets instead of once per dataset; `sessions.enabled` false keeps the block and leaves it unused. Which datasets, how the observation is matched across them and how the sessions are colored, merged and grouped |
 | `style` | [Style](#style) | the figure's look: fonts, line widths, error bands, legend, colors and probe sorting apply. `XLim`, `YLim`, `CLim`, `MaxTiles` and `TileSpacing` are not used: the time panels show the window, each panel has its own `options.yLim` / `cLim`, and the spacing is `grid.spacing` |
 | `aesthetics` | none | remembered looks of the figure's components, a list of rules `{role, group, property, value}` ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)) |
+
+`size` (the page the figure is exported on, `figureExportSize` ([Export and reports](EphysAnalysis.md#export-and-reports)); the app's **Size** row, which also shapes the preview):
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `source` | `"export"` | `"export"`: the Export section's `FigureSizeCm`, made taller by 3.5 cm for each row of the grid plus 2 cm for the title and x label, never below `FigureSizeCm(2)`; `"own"`: `width` x `height` in `units` as they are |
+| `width`, `height` | 18, 12 | `source "own"`: the page, in `units` (> 0); kept, unused, while `source` is `"export"` |
+| `units` | `"cm"` | `"px"` (pixels of the exported PNG, so inches at the Export `Dpi`), `"in"` or `"cm"` (`FigureSizeUnits`); also the units the app shows the Export size in |
+| `lock` | `false` | the app keeps the aspect ratio when one side is edited (a setting of the editor; the page is `width` x `height`) |
 
 `grid`:
 
@@ -1843,7 +1853,7 @@ are `computeFigure`'s.
 draws `F` as `spec` says (the spec `F` was computed with; its `aesthetics` may
 differ, as when the aesthetics editor redraws). `target` is an axes (which draws
 panel 1 only), uiaxes, figure, uifigure, panel, tab or grid layout;
-renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#plot-designs) for this drawing (default: the user's chosen one), `UserAesthetics=false` leaves the user's remembered rules out, `Editable` (`"auto"`: in a visible figure) turns the right-click editing on or off, and `OnRemember` is called with a figure's new rules ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)). `DataTips` (`"auto"`: in a visible figure, as `Editable`; `true` or `false`) gives every part drawn data tips that name what the point is (`FigureDataTips.attach`, below).
+renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#plot-designs) for this drawing (default: the user's chosen one), `UserAesthetics=false` leaves the user's remembered rules out, `Editable` (`"auto"`: in a visible figure) turns the right-click editing on or off, and `OnRemember` is called with a figure's new rules ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)). `OnSelect` is called with a panel's id and whether Ctrl was down when a drawn panel (its axes, labels and what is drawn in them) is clicked with Ctrl or the right button; the app selects that panel in its editor on a Ctrl+Click. `DataTips` (`"auto"`: in a visible figure, as `Editable`; `true` or `false`) gives every part drawn data tips that name what the point is (`FigureDataTips.attach`, below).
 
 - **Layout.** renderFigure lays its panels out itself (not with MATLAB's tiled
   layout): `target`, emptied (a grid layout gets a borderless panel; `h.layout`),

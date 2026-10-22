@@ -20,6 +20,25 @@ says how to cut a release.
   entries. Figures tab: **Sort rows by** offers *latency*, new **Trial count** row. See
   [First-spike latency](documentation/EphysAnalysisConfig.md#first-spike-latency) and
   [Trial counts](documentation/EphysAnalysisConfig.md#trial-counts).
+- Figures tab: **a figure's page size.** A figure has a `size` (`defaults("Figure").size`: `source`
+  `"export"` -- the Export tab's `FigureSizeCm`, taller for the rows as before -- or `"own"`, `width` x `height`
+  in `units` `"px"` (pixels of the exported PNG, at the Export `Dpi`), `"in"` or `"cm"`, and `lock`, the editor's
+  aspect-ratio lock). `figureExportSize(Export, F, spec)` gives the page in cm and `newExportFigure` draws every
+  export on it (runs, Generate, Export preview, generated scripts). The editor's new **Size** row under **Title**
+  is an editable drop-down (*Export tab size*, *700 x 800 px*, journal 1, 1.5 and 2 column, *Slide 16:9*,
+  *Square*, *Fit preview*, or a typed `6 x 4 in`, `1200x800 px`, `15 x 10 cm`) with **Width x height**, a
+  units box and **Lock ratio**. The preview is now the shape of the page, as large as fits and centered (the
+  gray round it), with its fonts and lines scaled to the page, so it represents the export; a size edit is one
+  undo step (*Size*) that shapes the preview and draws it again from the figure it holds, without computing.
+  **Open in window** opens a figure of the page's shape at its true size. New functions `figureExportSize`,
+  `figureSizePresets`, `figureSizeParse`, `figureSizeText`, `figureSizeConvert`; tests in `test_EphysAnalysisFigures`
+  section 13 and `test_EphysAnalysisApp` section 5o. See
+  [The page a figure is exported on](documentation/EphysAnalysisApp.md#the-page-a-figure-is-exported-on).
+- Figures tab: **Ctrl+Click a panel** in the preview (or an **Open in window** figure) selects it in the figure
+  editor and scrolls to its **Selected panel** section (`renderFigure(..., OnSelect=)`,
+  `EphysAnalysisApp.onFigurePanelClicked`). A Ctrl+Click reports the same button as a right-click, so it is told
+  by the Ctrl key; the right-click menu is unchanged, and picking a panel is no edit (no undo step, no
+  **Apply to figures** although Ctrl is held).
 - First-spike latency on raster and PSTH panels. `firstSpikeLatency(R, Units=, MinSec=, MaxSec=)` finds each
   epoch's first spike at or after `MinSec` and at or before `MaxSec` (both included, s from the aligned event;
   NaN where none; `MaxSec` `Inf` = the window's end) in a `spikePSTH` result's raster rows, the very spikes the

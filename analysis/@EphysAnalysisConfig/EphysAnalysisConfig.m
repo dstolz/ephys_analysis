@@ -160,6 +160,9 @@ classdef EphysAnalysisConfig
         GridSpacings  = ["loose" "compact" "tight" "none" "custom"]
         GridSpacingPx = [24 12 6 0]
         GridGapUnits  = ["px" "%"]
+        % A figure's page when exported (size.source, size.units): the Export section's size, or its own, in px (at the Export dpi), in or cm.
+        FigureSizeSources = ["export" "own"]
+        FigureSizeUnits   = ["px" "in" "cm"]
         PanelAligns   = ["left" "center" "right"]
         PanelVAligns  = ["top" "middle" "bottom"]
         % The sides a panel's x and y axes take, their ticks and label (panel.xSide, panel.ySide).

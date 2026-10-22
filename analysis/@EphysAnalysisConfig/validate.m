@@ -1407,7 +1407,7 @@ end
 function tf = isColor(name)
 %isColor  True for a color name or hex code (groupPalette gives every group that color).
 try
-    validatecolor(name);
+    namedColor(name);
     tf = true;
 catch
     tf = false;

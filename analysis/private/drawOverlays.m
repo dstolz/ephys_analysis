@@ -230,12 +230,12 @@ end
 function c = colorOf(name, fallback)
 %colorOf  The color a name or #rrggbb gives as an RGB row; the FALLBACK's when it is neither ("none" is no color).
 try
-    c = validatecolor(strtrim(string(name)));
+    c = namedColor(name);
 catch
     if lower(strtrim(string(fallback))) == "none"
         c = "none";
     else
-        c = validatecolor(fallback);
+        c = namedColor(fallback);
     end
 end
 end

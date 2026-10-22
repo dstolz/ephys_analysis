@@ -277,7 +277,7 @@ end
 function c = colorOr(name, fallback)
 %colorOr  The color NAME (a name or #rrggbb), else FALLBACK.
 try
-    c = validatecolor(char(name));
+    c = namedColor(name);
 catch
     c = fallback;
 end

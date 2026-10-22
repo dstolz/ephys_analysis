@@ -449,6 +449,7 @@ if S.sec("3", "the Figures tab: the toolbar's Preview, the Design row, the epoch
         'Export code sits left of Open in window under the preview, on with a figure selected');
     % every button of the preview has its key in its tooltip, and the key presses it: Ctrl+W opens the window, Ctrl+T toggles Auto, Ctrl+P previews
     btnKeys = {app.FigurePreviewButton "+P"; app.FigureGenerateButton "+G"; app.FigureUnitReportButton "+U"; app.FigureAutoCheckBox "+T"; app.FigureCodeButton "+E"; ...
+        app.FigureExportPreviewButton "+K"; ...
         app.FigureOpenButton "+W"; app.FigureObsPrevButton "Page Up"; app.FigureObsNextButton "Page Down"};
     inTip = cellfun(@(h, k) contains(string(h.Tooltip), k), btnKeys(:, 1), btnKeys(:, 2));
     check(all(inTip), 'every button of the preview names its key in its tooltip');
@@ -2051,7 +2052,41 @@ if S.sec("5f", "Generate a figure; figures on the Export tab")
     app.onFigureSelected(3); app.onRemoveFigure();
     app.onFigureSelected(2); app.onRemoveFigure();
     app.onFigureSelected(kG);
+    % Export preview: the observation picked, written as a run writes it, into the preview folder (not the figure folder)
+    app.ExportPreviewFolder = fullfile(root, 'export_preview');
+    check(app.ExportPreviewButton.Enable == "on" && app.FigureExportPreviewButton.Enable == "on" ...
+        && app.ExportPreviewButton.Parent == app.RunButton.Parent && app.ExportPreviewButton.Layout.Column == app.RunButton.Layout.Column - 1 ...
+        && app.FigureExportPreviewButton.Parent == app.FigureCodeButton.Parent ...
+        && app.FigureExportPreviewButton.Layout.Column == app.FigureCodeButton.Layout.Column - 1, ...
+        'Export preview is on with a figure selected: left of Run on the Export tab, left of Export code under the preview');
+    app.ExportControls.svg.Value = true;
+    app.onConfigChanged("export");
+    TP = app.FigureObservations;
+    iP = app.FigureObservationDropDown.Value;
+    nameP = app.Runner.Names(app.ActiveIdx);
+    baseP = figureOutputName(gX.FilenamePattern, nameP, gSpec, TP(iP, :), iP, height(TP));
+    filesP = app.onExportPreview();
+    WP = app.ExportPreviewWindow;
+    infoP = join(string(findall(WP, 'Type', 'uilabel').Text), " ");
+    check(isequal(sort(filesP), sort(fullfile(app.ExportPreviewFolder, baseP) + "." + ["png" "svg"])) && all(isfile(filesP)) ...
+        && isvalid(WP) && contains(string(WP.Name), fid) && isscalar(findall(WP, 'Type', 'uiimage')) ...
+        && contains(infoP, "60 dpi") && contains(infoP, fullfile(outRoot, nameP)) && ~isfile(fullfile(outRoot, nameP, baseP) + ".svg"), ...
+        sprintf('Export preview writes %s (png, svg) as a run names it into the preview folder, none into the figure folder, and shows it', baseP));
+    app.ExportControls.png.Value = false;
+    app.onConfigChanged("export");
+    mods = {'control'};
+    if ismac; mods = {'command'}; end
+    app.onKeyPress(pressed('k', mods));
+    check(isfile(fullfile(app.ExportPreviewFolder, baseP) + ".svg") && ~isfile(fullfile(app.ExportPreviewFolder, baseP) + ".png") ...
+        && isfile(fullfile(app.ExportPreviewFolder, "view", baseP) + ".png") && app.ExportPreviewWindow == WP ...
+        && contains(string(app.StatusBar.Text), "1 file(s)"), ...
+        'Ctrl+K with png unticked: the svg alone, the PNG shown written apart, the last preview''s png gone, the same window');
+    delete(WP);
+    app.ExportControls.png.Value = true;
+    app.ExportControls.svg.Value = false;
+    app.onConfigChanged("export");
     app.onRemoveFigure();
+    check(app.ExportPreviewButton.Enable == "off" && app.FigureExportPreviewButton.Enable == "off", 'Export preview is off with no figure');
     clear restoreAutoLimit
 end
 
@@ -2149,6 +2184,12 @@ if S.sec("5g", "a figure across sessions: the Sessions section, the picker, the 
     app.onFigureSessionPicked();   % the drop-down after an edit: the kept figures are gone, nothing old is drawn as current
     check(isempty(app.FigureSessionResults) && app.FigureSessionDropDown.Visible == "off" && app.FigurePreviewState ~= "drawn", ...
         'an edit forgets the kept figures and hides the "Figure:" drop-down; picking then draws nothing old');
+    % Export preview: the site picked, written into the preview folder
+    app.ExportPreviewFolder = fullfile(root, 'export_preview');
+    filesS = app.onExportPreview();
+    check(~isempty(filesS) && all(isfile(filesS)) && all(startsWith(filesS, app.ExportPreviewFolder)) ...
+        && contains(string(app.ExportPreviewWindow.Name), sid), 'Export preview of a session figure writes the site picked into the preview folder');
+    delete(app.ExportPreviewWindow);
     % Generate draws it across the datasets into the sessions folder
     gXS = app.gatherConfig().Export;
     RS = app.onGenerateFigure();
@@ -2160,6 +2201,8 @@ if S.sec("5g", "a figure across sessions: the Sessions section, the picker, the 
         && numel(wantS) == height(TS) * numel(gXS.Formats) && all(startsWith(wantS, folderS)) && all(contains(wantS, regexprep(sid, '[^\w\-\.]', '_') + "_site_ch")) ...
         && startsWith(string(app.StatusBar.Text), "Generated " + sid + " across the sessions: all: " + height(TS) + " observation(s); "), ...
         sprintf('Generate on a session figure writes a page per site into the sessions folder (%d), one results row', height(TS)));
+    [~, nmS, extS] = fileparts(filesS(1));
+    check(any(endsWith(wantS, filesep + nmS + extS)), sprintf('Generate writes a file of the name Export preview gave (%s)', nmS + extS));
     app.onRemoveFigure();
     clear cleanMap
     app.onSaveConfig();

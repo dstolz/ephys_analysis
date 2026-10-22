@@ -6,7 +6,7 @@ function c = rasterMarkColor(color, m)
 color = string(color);
 if color ~= ""
     try
-        c = validatecolor(color);
+        c = namedColor(color);
         return
     catch
         % not a color (validate warns): the automatic colors

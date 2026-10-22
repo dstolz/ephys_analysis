@@ -262,6 +262,7 @@ classdef EphysAnalysisApp < handle
         FigureUnitReportButton matlab.ui.control.Button         % Unit report: every enabled figure for the observation picked, a temporary HTML report (onUnitReport)
         FigureOpenButton       matlab.ui.control.Button         % Open in window: the figure as previewed in a figure() of its own (onOpenFigureWindow)
         FigureCodeButton       matlab.ui.control.Button         % Export code: the code that draws the preview, in the editor (onFigureCode)
+        FigureExportPreviewButton matlab.ui.control.Button      % Export preview: the observation picked written as a run writes it (onExportPreview)
         FigureAutoCheckBox     matlab.ui.control.CheckBox       % auto-preview (pref FigureAutoPreview, on by default)
         DesignDropDown         matlab.ui.control.DropDown       % the design every figure is drawn in (PlotDesign; also the Design menu)
         SaveDesignButton       matlab.ui.control.Button         % Save look as design...: the figure preview's look (onSaveDesign)
@@ -278,6 +279,7 @@ classdef EphysAnalysisApp < handle
         ValidateButton     matlab.ui.control.Button
         PlanButton         matlab.ui.control.Button
         RunButton          matlab.ui.control.Button
+        ExportPreviewButton matlab.ui.control.Button     % Export preview, as the Figures tab's (onExportPreview)
         CancelButton       matlab.ui.control.Button
         OpenReportButton   matlab.ui.control.Button
         OpenFolderButton   matlab.ui.control.Button
@@ -311,6 +313,8 @@ classdef EphysAnalysisApp < handle
         NoteSearchWindow = []               % the Search notes window (NoteSearch), while open (onSearchNotes)
         DatasetUnits = []                   % sorted units per dataset, read when it is opened: containers.Map, "<key>|<sort folder>" -> table unitId, class, channel, depth (refreshDatasetLabels; labels the Favorites)
         EpochDiagramWindow = []             % the EpochDiagram window of the Figures tab's figure, while open (onShowEpochs)
+        ExportPreviewWindow = []            % the Export preview window, while open (onExportPreview)
+        ExportPreviewFolder (1,1) string = string(fullfile(tempdir, "ephys_export_preview"))   % where Export preview writes (emptied each time; tests move it)
         Running (1,1) logical = false
         LastReportFiles (1,:) string = string.empty(1,0)
         LastExportFolder (1,1) string = ""
@@ -543,6 +547,7 @@ classdef EphysAnalysisApp < handle
         R = onGenerateFigure(obj, opts)
         [R, file] = onUnitReport(obj, opts)
         h = onOpenFigureWindow(obj)
+        files = onExportPreview(obj)
         txt = onFigureCode(obj, file)
         setFigurePreviewState(obj, state, opts)
         rememberFigureAesthetics(obj, id, rules)

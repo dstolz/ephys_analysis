@@ -247,7 +247,7 @@ function c = rasterColor(spec, c)
 spec = strtrim(string(spec));
 if spec == "groups"; return; end
 try
-    c = validatecolor(spec);
+    c = namedColor(spec);
 catch
     % not a color: the default
 end

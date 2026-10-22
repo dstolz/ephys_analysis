@@ -3015,6 +3015,12 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
         sprintf(['first-spike marks: one per epoch with a spike in [5 300] ms (%d), at its latency on that epoch''s tick, by ' ...
         'group and time, then descending with the groups mixed; marker, size, color and fill from the options; "First spike" ' ...
         'in the legend'], nF));
+    sF.panels(1).options.firstSpike.color = "gray";   % a name validatecolor lacks, which the editor's list offers
+    hFg = renderFigure(Ffs, sF, fig);
+    mkG = findall(hFg.axes(1), 'Tag', 'firstSpike');
+    mkG = mkG(arrayfun(@(h) any(isfinite(h.XData)), mkG));
+    check(~isempty(mkG) && all(arrayfun(@(h) isequal(h.Color, [0.5 0.5 0.5]), mkG)), ...
+        'first-spike marks in "gray" are gray, not their group''s color');
     sF5 = F5.spec;   % the five blocks: the further blocks' bands (rasterInto's stack mode) carry their own marks
     sF5.panels(1).options.firstSpike = EphysAnalysisConfig.normalizeSection("FirstSpike", struct('enabled', true, 'maxSec', 0.3));
     hF5 = renderFigure(F5, sF5, fig);

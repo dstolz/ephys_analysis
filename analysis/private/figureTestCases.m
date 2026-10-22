@@ -50,6 +50,9 @@ function [C, fx] = figureTestCases(root)
 %                       options.latencyBox)
 %     sessions_first_spike  first_spike as a session figure (a color per
 %                       session): the marks and boxes on the merged rows
+%     trial_counts      rasterPsth with the raster sorted by first-spike
+%                       latency (rasterSort "latency") and the PSTH's
+%                       trial counts as text (options.trialCount)
 %   FX: the fixture (makeAnalysisFixture's struct) with cfg (the config)
 %   and runner (its EphysAnalysisRunner) and src (the dataset's source).
 %   Used by test_PlotAesthetics and test_PlotDesign.
@@ -163,6 +166,10 @@ x.panels(2).options.latencyBox = struct('enabled', true, 'maxSec', 0.3);
 cfg = cfg.addFigure(x);
 x.id = "sessions_first_spike";   % the same on the rows merged across the two sessions
 x.sessions.enabled = true;
+cfg = cfg.addFigure(x);
+x = f; x.id = "trial_counts";   % the raster sorted by its first spike's latency, the PSTH's "n = 24" per group
+x.panels(1).options.rasterSort = "latency";
+x.panels(2).options.trialCount = "text";
 cfg = cfg.addFigure(x);
 
 rn = EphysAnalysisRunner(cfg, LogFcn=[]);

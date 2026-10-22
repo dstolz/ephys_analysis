@@ -10,9 +10,15 @@ function rows = rasterInto(ax, R, u, style, colors, sortBy, look)
 %              order, so "descending" turns it over; "stop" sorts them by
 %              their stop event's latency (R.epochStop); "event" by their
 %              latency to the event of R.rasterSortEvent (label, t:
-%              eventLatency); any other value names a column of R.epochs
-%              (a trial parameter epochTable copied on). Missing values
-%              sort last either way; ties keep the time order
+%              eventLatency); "latency" by their first spike's latency
+%              (firstSpikeLatency of unit U, in the window of
+%              look.firstSpike's minSec and maxSec -- on or off -- else from
+%              the event to the window's end); any other value names a
+%              column of R.epochs (a trial parameter epochTable copied on).
+%              Missing values (an epoch with no first spike) sort last
+%              either way; ties keep the time order. The order is
+%              figEpochOrder's, which the heat map of trials shares; a key
+%              the result lacks sorts in time order
 %    byGroup   true (default): the rows go by group first; false: every
 %              epoch sorted as one block, each row's ticks in its group's
 %              color
@@ -60,15 +66,9 @@ if nargin < 6; sortBy = ""; end
 if nargin < 7; look = struct(); end
 look = rasterLook(look);
 nE = numel(R.epochGroup);
-[key, name] = rasterSortKey(R, sortBy, nE);
-dirs = ["ascend" "ascend"];
-if look.order == "descending"; dirs(1) = "descend"; end
-T = table(key, (1:nE).', 'VariableNames', {'key', 'idx'});
-if look.byGroup
-    T = addvars(T, R.epochGroup(:), 'Before', 1, 'NewVariableNames', 'g');
-    dirs = ["ascend" dirs];
-end
-[~, order] = sortrows(T, 1:width(T), cellstr(dirs), 'MissingPlacement', 'last');
+so = struct('rasterSort', strtrim(string(sortBy)), 'rasterSortOrder', look.order, 'rasterByGroup', look.byGroup, ...
+    'firstSpike', look.firstSpike);
+[order, name] = figEpochOrder(R, so, u);   % the rows' order, shared with the heat map of trials and the event traces
 row = zeros(nE, 1);
 row(order) = 1:nE;
 W = R.edges([1 end]);
@@ -155,7 +155,6 @@ if style.ShowZeroLine && ~into
     tagPart(xline(ax, 0, ':', 'Color', [0.3 0.3 0.3], 'HandleVisibility', 'off'), "zeroLine");
 end
 if ~held; hold(ax, 'off'); end
-if look.order == "descending"; name = name + ", descending"; end
 if into
     rows = name;
     return
@@ -163,7 +162,6 @@ end
 set(ax, 'YDir', 'reverse');
 xlim(ax, W);
 ylim(ax, [0.5 max(1, nE) + 0.5]);
-if ~look.byGroup && height(R.groups) > 1; name = name + ", groups mixed"; end
 rows = name;
 style.YLim = [];
 styleAxes(ax, style);
@@ -264,44 +262,4 @@ bands = spec == "groups";
 if bands || spec == "" || spec == "none"; return; end
 c = rasterColor(spec, []);
 bands = ~isempty(c);
-end
-
-
-function [key, name] = rasterSortKey(R, sortBy, nE)
-%rasterSortKey  Each epoch's sort value and the raster's y label.
-%   "" gives the epoch index (time order), "stop" R.epochStop, "event"
-%   R.rasterSortEvent.t, any other name that column of R.epochs.
-sortBy = strtrim(string(sortBy));
-name = "Epoch";
-if sortBy == ""
-    key = (1:nE).';
-    return
-end
-if sortBy == "stop"
-    key = R.epochStop(:);
-    name = "Epoch (by stop latency)";
-    return
-end
-if sortBy == "event"
-    if ~(isfield(R, 'rasterSortEvent') && isstruct(R.rasterSortEvent) && isscalar(R.rasterSortEvent) ...
-            && all(isfield(R.rasterSortEvent, {'label', 't'})))
-        error('rasterInto:NoSortEvent', ['The raster sorts by an event''s latency, but the result holds no ' ...
-            'R.rasterSortEvent (label, t: eventLatency).']);
-    end
-    key = R.rasterSortEvent.t(:);
-    if numel(key) ~= nE
-        error('rasterInto:NoSortEvent', 'R.rasterSortEvent.t holds %d latencies for %d epochs.', numel(key), nE);
-    end
-    name = "Epoch (by " + string(R.rasterSortEvent.label) + " latency)";
-    return
-end
-if ~(isfield(R, 'epochs') && istable(R.epochs) && ismember(sortBy, string(R.epochs.Properties.VariableNames)))
-    error('rasterInto:NoSortColumn', ['The raster sorts by "%s", which is not a column of the epochs ' ...
-        '(R.epochs: epochTable(..., Columns="%s")).'], sortBy, sortBy);
-end
-key = R.epochs.(sortBy);
-if size(key, 1) ~= nE || size(key, 2) ~= 1
-    error('rasterInto:NoSortColumn', 'The epochs'' column "%s" is not one value per epoch.', sortBy);
-end
-name = "Epoch (by " + sortBy + ")";
 end

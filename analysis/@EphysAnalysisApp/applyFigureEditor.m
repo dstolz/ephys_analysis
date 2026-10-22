@@ -197,7 +197,9 @@ end
 if p.type == "rate"; E.rateDisplay.Value = char(pickFrom(op.display, string(E.rateDisplay.ItemsData), "bar")); end
 if isfield(op, 'layout'); E.waveLayout.Value = char(pickFrom(op.layout, string(E.waveLayout.ItemsData), "grid")); end
 if isfield(op, 'rasterSort')
-    offerItems(E.rasterSort, ["" "stop" "event" params], op.rasterSort);
+    sorts = ["" "stop" "event" "latency" params];
+    if p.type == "eventTrace"; sorts(sorts == "latency") = []; end   % no spikes to take a latency from
+    offerItems(E.rasterSort, sorts, op.rasterSort);
     offerItems(E.rasterSortOrder, ["ascending" "descending"], op.rasterSortOrder);
     se = op.rasterSortEvent;   % none: a blank line to pick
     if isempty(se); se = EphysAnalysisConfig.defaults("EventRef"); se.line = ""; end
@@ -213,6 +215,7 @@ if isfield(op, 'tickWidth'); E.tickWidth.Value = min(E.tickWidth.Limits(2), max(
 if isfield(op, 'backColor'); offerItems(E.backColor, string(E.backColor.Items), string(op.backColor)); end
 if isfield(op, 'firstSpike'); E.firstSpike.Text = latencySummary(op.firstSpike, "firstSpike"); end   % its window: latencyDialog
 if isfield(op, 'latencyBox'); E.latencyBox.Text = latencySummary(op.latencyBox, "latencyBox"); end
+if isfield(op, 'trialCount'); E.trialCount.Value = char(pickFrom(op.trialCount, string(E.trialCount.ItemsData), "off")); end
 if isfield(op, 'maskAfterStop'); E.maskAfterStop.Value = op.maskAfterStop; end
 if isfield(op, 'histStyle')
     offerItems(E.histStyle, ["bar" "line"], op.histStyle);

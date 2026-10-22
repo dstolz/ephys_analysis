@@ -76,6 +76,15 @@ function hk = drawPsthPanel(ax, P, look)
 %   LatencyStats: n, nEpochs, q, whiskers, nOutliers, window) for its data
 %   tip. A PSTH without raster rows (computed before the box was turned on)
 %   says so in its notes.
+%   options.trialCount says how many trials each group has (the epochs
+%   the PSTH averages; R.nEpochs): "text" writes "n = 24" per group in the
+%   group's color (role "trialCount", the group's label) in the top left
+%   corner of the axes, the first group on top; stacked, at the right end
+%   of each row's range; as a heat map, at the right end of each row.
+%   "legend" appends " (n = 24)" to the group's legend entry (a heat map:
+%   to its row's label); with one group, which has no legend entry, it
+%   writes the text. The counts are read at draw time from the result, so
+%   they follow the selection, the grouping and the artifact periods.
 %   The events layers drawn as marks become latency lines and a rug
 %   (figEventMarks, roles "eventLine" / "eventRug"), and with
 %   options.waveform.mode on the first unit's waveform is an inset. Skipped
@@ -178,6 +187,13 @@ if lb.enabled && ~heat && nI > 0
     end
 end
 
+cnt = struct('mode', "off", 'n', []);   % options.trialCount: each group's trials, as text or in its legend entry
+if isfield(o, 'trialCount') && string(o.trialCount) ~= "off" && nI > 0
+    cnt.n = trialCounts(D(1).R);
+    cnt.mode = string(o.trialCount);
+    if cnt.mode == "legend" && numel(cnt.n) < 2 && ~heat; cnt.mode = "text"; end   % one group has no legend entry
+end
+
 hl = struct('hist', o.histStyle, 'fill', o.fill, 'alpha', o.fillAlpha, 'stack', stacked);
 if ~isfinite(hl.alpha)
     hl.alpha = 1;
@@ -186,13 +202,13 @@ end
 hl.alpha = min(1, max(0, hl.alpha));
 lss = strings(1, nI);
 if heat
-    yName = drawHeat(ax, D(1), P.layers(items(1, 1)).name, look, o, style);
+    yName = drawHeat(ax, D(1), P.layers(items(1, 1)).name, look, o, style, cnt);
 elseif stacked
-    [yName, lss, hk.yExtent] = drawRows(ax, D, Ls, items, hl, style, o, look, boxes, lb, hasMarks);
+    [yName, lss, hk.yExtent] = drawRows(ax, D, Ls, items, hl, style, o, look, boxes, lb, hasMarks, cnt);
     for g = 1:size(D(1).m, 2)   % the groups, for the figure's legend (the rows are labeled on the axis)
         gl = string(D(1).R.groups.label(g));
         hk.legendHandles(end+1) = tagPart(line(ax, NaN, NaN, 'Color', D(1).colors(g, :), 'LineWidth', style.LineWidth), "rate", gl);
-        hk.legendLabels(end+1) = gl;
+        hk.legendLabels(end+1) = countLabel(gl, cnt, g);
         hk.legendGroup(end+1) = true;
     end
 else
@@ -218,7 +234,7 @@ else
             h1 = histTrace(ax, D(i).R.t, D(i).R.edges, D(i).m(:, g) - ref, ref, c, hli, style.LineWidth, tg, ls);
             if i == 1 && nG > 1
                 hk.legendHandles(end+1) = h1;
-                hk.legendLabels(end+1) = gl;
+                hk.legendLabels(end+1) = countLabel(gl, cnt, g);
                 hk.legendGroup(end+1) = true;
             end
         end
@@ -239,6 +255,9 @@ else
         end
     end
     hold(ax, 'off');
+    if cnt.mode == "text"
+        countTexts(ax, cnt.n, D(1).R.groups.label, D(1).colors, style);
+    end
 end
 if nI > 1 && ~heat   % the items, by line style (in the group's color when there is one group)
     for i = 1:nI
@@ -291,7 +310,7 @@ hk.yName = yName;
 end
 
 
-function yName = drawHeat(ax, d, layerName, look, o, style)
+function yName = drawHeat(ax, d, layerName, look, o, style, cnt)
 %drawHeat  One item's PSTH as an image: a row per trial group, the first on top, colored on that item's own range.
 %   D is the item (drawPsthPanel's D(1): its rates after measure, smoothing,
 %   baseline and normalize, d.m [nBins x nGroups]). The color limits are
@@ -303,7 +322,8 @@ function yName = drawHeat(ax, d, layerName, look, o, style)
 %   (inTimeColumn). Over the image: the zero line, each group's mean stop
 %   latency in its row and, for an auROC with a cutoff and its marks on, a
 %   bar along the top over the modulation window (a line: an xregion is
-%   drawn behind an image).
+%   drawn behind an image). CNT (trialCount): "text" writes each row's
+%   trials at its right end, "legend" adds them to its label.
 R = d.R;
 M = d.m.';   % groups x bins: the first group in row 1, on top (YDir reverse)
 nG = size(M, 1);
@@ -344,6 +364,16 @@ grid(ax, 'off');
 xlim(ax, R.edges([1 end]));
 ylim(ax, [0.5 nG + 0.5]);
 [labels, yName] = rowLabels(R);
+if cnt.mode == "legend"
+    for g = 1:min(nG, numel(cnt.n)); labels(g) = countLabel(labels(g), cnt, g); end
+elseif cnt.mode == "text"
+    W = R.edges([1 end]);
+    for g = 1:min(nG, numel(cnt.n))
+        tagPart(text(ax, W(2), g, countText(cnt.n(g)) + " ", 'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', ...
+            'Color', d.colors(min(g, size(d.colors, 1)), :), 'BackgroundColor', get(ax, 'Color'), 'Margin', 1, ...
+            'FontSize', style.FontSize, 'Clipping', 'on', 'HitTest', 'off'), "trialCount", string(R.groups.label(g)));
+    end
+end
 if nG <= 40
     set(ax, 'YTick', 1:nG, 'YTickLabel', labels(1:nG), 'TickLabelInterpreter', 'none');
 end
@@ -396,7 +426,7 @@ end
 end
 
 
-function [yName, lss, ext] = drawRows(ax, D, Ls, items, hl, style, o, look, boxes, lb, hasMarks)
+function [yName, lss, ext] = drawRows(ax, D, Ls, items, hl, style, o, look, boxes, lb, hasMarks, cnt)
 %drawRows  The stack: the first item's rows by drawStack, every further item drawn into the same rows as an outline.
 %   The rows' layout (stackLayout, Zero: every row from its zero; Mode and
 %   Limits the panel's yLimMode: panelYLimits) is taken from every item's
@@ -409,7 +439,8 @@ function [yName, lss, ext] = drawRows(ax, D, Ls, items, hl, style, o, look, boxe
 %   values in every yLimMode, the step taken from range, gap and lane
 %   together; each group's box is drawn in its row's lane. With HASMARKS
 %   the top grows a little more, so the marks' rug along the top edge
-%   (figEventMarks) stays clear of the top row's box.
+%   (figEventMarks) stays clear of the top row's box. CNT (trialCount):
+%   "text" writes each row's trials at the right end of its range.
 nI = numel(D);
 nG = size(D(1).m, 2);
 lss = strings(1, nI);
@@ -444,6 +475,16 @@ end
 [~, lss(1)] = figLayerLook(Ls(items(1, 1)), 1, D(1).colors(1, :));
 lss(1) = figSeriesStyle(D(1).R, 1, lss(1), Ls(items(1, 1)));
 yyaxis(ax, 'left');
+if cnt.mode == "text"   % each row's trials, at the right end of its range
+    W = D(1).R.edges([1 end]);
+    hold(ax, 'on');
+    for g = 1:min(nG, numel(cnt.n))
+        tagPart(text(ax, W(2), hl.layout.top(g), countText(cnt.n(g)) + " ", 'HorizontalAlignment', 'right', ...
+            'VerticalAlignment', 'top', 'Color', D(1).colors(min(g, size(D(1).colors, 1)), :), 'FontSize', style.FontSize, ...
+            'Clipping', 'on', 'HitTest', 'off'), "trialCount", string(D(1).R.groups.label(g)));
+    end
+    hold(ax, 'off');
+end
 hasMembers = any(arrayfun(@(d) ~isempty(d.members), D));
 if hasMembers   % each member session, faint, in its series' row (a result merged across sessions, ShowMembers)
     hold(ax, 'on');
@@ -610,6 +651,44 @@ if ~isempty(B.outliers) && lb.outlierMarker ~= "none"
         'Marker', char(lb.outlierMarker), 'MarkerSize', lb.outlierSize, 'Color', c, 'HandleVisibility', 'off'), "latencyOutlier", tg);
 end
 for k = 1:numel(h); setappdata(h(k), 'LatencyStats', stats); end
+end
+
+
+function n = trialCounts(R)
+%trialCounts  The trials each group of a spikePSTH result has, [nGroups x 1]: R.nEpochs, else counted from R.epochGroup.
+nG = height(R.groups);
+if isfield(R, 'nEpochs') && numel(R.nEpochs) == nG
+    n = double(R.nEpochs(:));
+else
+    g = double(R.epochGroup(:));
+    n = accumarray(g(g >= 1 & g <= nG), 1, [nG 1]);
+end
+end
+
+
+function s = countText(n)
+%countText  A group's trials as text: "n = 24".
+s = "n = " + string(n);
+end
+
+
+function label = countLabel(label, cnt, g)
+%countLabel  A group's legend entry (or row label) with its trials, "<group> (n = 24)", when trialCount is "legend".
+label = string(label);
+if cnt.mode == "legend" && g <= numel(cnt.n)
+    label = label + " (" + countText(cnt.n(g)) + ")";
+end
+end
+
+
+function countTexts(ax, n, labels, colors, style)
+%countTexts  Each group's trials, "n = 24" in the group's color, down the axes' top left corner, the first group on top.
+%   One text object per group, tagged "trialCount" with the group's label.
+for g = 1:numel(n)
+    tagPart(text(ax, 0.02, 0.97 - (g - 1) * 0.085, countText(n(g)), 'Units', 'normalized', 'HorizontalAlignment', 'left', ...
+        'VerticalAlignment', 'top', 'Color', colors(min(g, size(colors, 1)), :), 'FontSize', style.FontSize, 'Clipping', 'on', 'HitTest', 'off'), ...
+        "trialCount", string(labels(g)));
+end
 end
 
 

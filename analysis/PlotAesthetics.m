@@ -324,6 +324,7 @@ classdef PlotAesthetics
                 "latencyMedian" "Latency box median"
                 "latencyWhisker" "Latency box whiskers"
                 "latencyOutlier" "Latency box outliers"
+                "trialCount"   "Trial count (n = 24)"
                 "eventLine"    "Event latency line"
                 "eventRug"     "Event latency rug"
                 "eventSpan"    "Event span (onset to offset)"

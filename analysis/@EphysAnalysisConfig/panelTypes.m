@@ -69,7 +69,15 @@ function T = panelTypes()
 %   (defaults("LatencyBox")) draws a box plot of those latencies per
 %   trial group in a band above its traces (in each row when stacked,
 %   outside every row's y range whatever its yLimMode); both read
-%   firstSpikeLatency. A PSTH's display "heatmap"
+%   firstSpikeLatency. A rasterSort "latency" (a raster, a heat map of
+%   trials; an event trace has no spikes: time order) orders the epochs by
+%   their first spike's latency (a raster: in firstSpike's window, else
+%   from the event to the window's end; epochs with no spike last).
+%   A PSTH's trialCount says how many trials each group holds: "text"
+%   writes "n = 24" per group in the group's color (a stack: at the right
+%   end of each row; a heat map: beside each row), "legend" appends
+%   "(n = 24)" to the group's legend entry (a heat map: to its row label).
+%   A PSTH's display "heatmap"
 %   draws its first item (unit or mean) as an image instead: a row per
 %   trial group, the first on top, colored on that item's own range
 %   (cLim, else its rows' range; an auROC: 0 to 1) in colormap ("" = the
@@ -140,7 +148,7 @@ auroc = EphysAnalysisConfig.defaults("Auroc");                % psth / heatmap o
 
 opts = struct();
 opts.raster = struct( ...
-    'rasterSort',      "", ...          % "" (trial order) | "stop" | "event" (rasterSortEvent's latency) | a trial parameter
+    'rasterSort',      "", ...          % "" (trial order) | "stop" | "event" (rasterSortEvent's latency) | "latency" (first-spike latency, firstSpike's window) | a trial parameter
     'rasterSortEvent', [], ...          % rasterSort "event": [] or an EventRef
     'rasterSortOrder', "ascending", ... % "ascending" | "descending" (missing values last)
     'rasterByGroup',   true, ...        % rows by group first (false: one block)
@@ -164,6 +172,7 @@ opts.psth = struct( ...
     'stack',         "off", ...         % "off" (the groups overlaid) | "groups" (a row per trial group, the first on top)
     'stackSpacing',  1.1, ...           % stack: the row step, x the row height (1: the rows touch; < 1 overlaps)
     'latencyBox',    latencyBox, ...    % a box plot of the first-spike latencies per trial group, in a band above the traces (stack "groups": in each row)
+    'trialCount',    "off", ...         % the trials in each group: "off" | "text" ("n = 24" per group, in its color) | "legend" (the legend entries read "<group> (n = 24)")
     'maskAfterStop', false, ...
     'yLimMode',      "auto", ...  % "auto" (each axis, each stacked row, fits itself) | "rows" (a stack's rows share one scale) | "batch" (one range for every observation of a run) | "fixed" (yLim)
     'yLim',          [], ...            % yLimMode "fixed": [lo hi]
@@ -188,7 +197,7 @@ opts.heatmap = struct( ...
     'auroc',         auroc, ...         % spikes, baseline Mode "auroc": the auROC's settings
     'rows',          "items", ...       % "items" (the layer's units or channels) | "trials" (one row per epoch of one unit)
     'order',         "probe", ...       % rows "items": "probe" (the style's SortDepth / SortShank) | "peak" | "modulation" (auROC: the mean in the modulation window)
-    'rasterSort',      "", ...          % rows "trials": the epochs' order, as a raster's ("" | "stop" | "event" | a trial parameter)
+    'rasterSort',      "", ...          % rows "trials": the epochs' order, as a raster's ("" | "stop" | "event" | "latency" | a trial parameter)
     'rasterSortEvent', [], ...          % rows "trials", rasterSort "event": [] or an EventRef
     'rasterSortOrder', "ascending", ... % rows "trials": "ascending" | "descending"
     'rasterByGroup',   true, ...        % rows "trials": by group first (a color strip at the left), else one block
@@ -294,7 +303,7 @@ opts.coherence = struct( ...
 opts.eventTrace = struct( ...
     'display',       "bars", ...        % "bars" (solid, onset to offset) | "line" (a logic level: low, up at onset, down at offset)
     'trials',        "overlay", ...     % "overlay" (every epoch in the line's row, translucent) | "rows" (a sub-row per epoch, sorted as a raster)
-    'rasterSort',      "", ...          % trials "rows": the epochs' order, as a raster's ("" | "stop" | "event" | a trial parameter)
+    'rasterSort',      "", ...          % trials "rows": the epochs' order, as a raster's ("" | "stop" | "event" | "latency" | a trial parameter)
     'rasterSortEvent', [], ...          % trials "rows", rasterSort "event": [] or an EventRef
     'rasterSortOrder', "ascending", ... % trials "rows": "ascending" | "descending"
     'rasterByGroup',   true, ...        % trials "rows": by group first (on groupBands), else one block

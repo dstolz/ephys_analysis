@@ -10,6 +10,16 @@ says how to cut a release.
 
 ### Added
 
+- Sort rasters by first-spike latency, and show the trials in each PSTH group. `rasterSort "latency"` orders a
+  raster's rows (and a heat map of trials') by each epoch's first spike, within the groups, ascending or
+  descending, epochs with no spike in the window last; a raster reads its `firstSpike` window, else the event to
+  the window's end. `rasterInto` now takes its order from `figEpochOrder`, which the heat map of trials and the
+  event traces already used (a sort key the result lacks sorts in time order instead of erroring). A PSTH's new
+  `options.trialCount` (`"off"` | `"text"` | `"legend"`) writes `n = 24` per group in the group's color (role
+  `trialCount`; stacked: at each row's right end; heat map: beside each row) or appends ` (n = 24)` to the legend
+  entries. Figures tab: **Sort rows by** offers *latency*, new **Trial count** row. See
+  [First-spike latency](documentation/EphysAnalysisConfig.md#first-spike-latency) and
+  [Trial counts](documentation/EphysAnalysisConfig.md#trial-counts).
 - First-spike latency on raster and PSTH panels. `firstSpikeLatency(R, Units=, MinSec=, MaxSec=)` finds each
   epoch's first spike at or after `MinSec` and at or before `MaxSec` (both included, s from the aligned event;
   NaN where none; `MaxSec` `Inf` = the window's end) in a `spikePSTH` result's raster rows, the very spikes the

@@ -3057,6 +3057,23 @@ if S.sec("5l", "a raster's First-spike latency... and a PSTH's Latency box plot.
     bxP = findall(app.FigurePreviewPanel, 'Tag', 'latencyBox');
     check(app.FigurePreviewState == "drawn" && any(arrayfun(@(h) any(isfinite(h.XData)), mkP)) && ~isempty(bxP), ...
         sprintf('the preview draws the first-spike marks (%d lines) and the latency boxes (%d)', numel(mkP), numel(bxP)));
+    % the PSTH's Trial count row and the raster's Sort rows by "latency"
+    shownTc = shown(FE.trialCount) && string(FE.trialCount.Value) == "off";
+    FE.trialCount.Value = "text";
+    app.onConfigChanged("figure", FE.trialCount);
+    app.refreshFigurePreview(Force=true);
+    txP = findall(app.FigurePreviewPanel, 'Tag', 'trialCount');
+    check(shownTc && app.Config.Figures(1).panels(2).options.trialCount == "text" && string(app.UndoMenu.Text) == "Undo Trial count" ...
+        && app.FigurePreviewState == "drawn" && numel(txP) == height(app.FigurePreviewResult.groups), ...
+        sprintf('Trial count: text gives the PSTH "n = <trials>" per group (%d) as one named step', numel(txP)));
+    app.onPanelSelected(1);   % the raster
+    offered = any(string(FE.rasterSort.Items) == "latency");
+    FE.rasterSort.Value = "latency";
+    app.onConfigChanged("figure", FE.rasterSort);
+    app.refreshFigurePreview(Force=true);
+    check(offered && ~shown(FE.trialCount) && app.Config.Figures(1).panels(1).options.rasterSort == "latency" ...
+        && app.FigurePreviewState == "drawn", ...
+        'a raster''s Sort rows by offers "latency" and keeps it; the Trial count row is the PSTH''s alone');
     noFigures();
     clear restoreAuto5l
 end

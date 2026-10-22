@@ -17,8 +17,8 @@ function c = newPanelDialog(fig, F, anchor, lines, params)
 %                     binding (follows the observation or fixed; fixed
 %                     where the layer cannot follow), but an event-trace
 %                     panel, which reads its lines
-%     raster          Sort rows by (trial order, the stop event, or one
-%                     of PARAMS)
+%     raster          Sort rows by (trial order, the stop event, the
+%                     first-spike latency, or one of PARAMS)
 %     psth            Bin and Smooth (ms), Measure, Display (a trace or a
 %                     heat map)
 %     continuous      Stack (off, a row per group or per channel), Error
@@ -209,8 +209,8 @@ if t ~= "eventTrace" && ~isempty(srcs)
 end
 switch t
     case "raster"
-        specs(end+1, :) = {"Sort", "Sort rows by:", @(gr) uidropdown(gr, "Items", ["trial order" "the stop event" params], ...
-            "ItemsData", ["" "stop" params], "Value", "", "Tooltip", "The rows' order within each trial group.")};
+        specs(end+1, :) = {"Sort", "Sort rows by:", @(gr) uidropdown(gr, "Items", ["trial order" "the stop event" "first-spike latency" params], ...
+            "ItemsData", ["" "stop" "latency" params], "Value", "", "Tooltip", "The rows' order within each trial group.")};
     case "psth"
         specs = [specs; binRows(def); measureRow()];
         specs(end+1, :) = {"Display", "Display:", @(gr) uidropdown(gr, "Items", ["trace (bars or a line per group)" ...

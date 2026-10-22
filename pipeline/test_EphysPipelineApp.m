@@ -11,7 +11,8 @@ function test_EphysPipelineApp(opts)
 %   (kept at close: the queue offered back per project root, the runs
 %   going followed again at the next launch), the phy launch, a figure
 %   deleted without Close; the startup (the window built hidden behind the
-%   splash, Splash=true and the -batch default without it, the last config
+%   splash, Splash=true and the -batch default without it, the tabs but
+%   Project laid out when first shown, the last config
 %   reopened and its project scanned, a root that is gone left unscanned,
 %   LastConfigFile kept after New). The app's preferences live in a temporary file
 %   for the run (AppPrefs.useTemporary), never the user's. Dialogs that would block (uiconfirm)
@@ -95,6 +96,8 @@ appCleanup = onCleanup(@() closeApp(app));
 drawnow;
 startHistory = app.Splash.History;   % the startup, checked in section 1 (before the config below is opened)
 startShown = app.Fig.Visible == "on" && ~app.Splash.isActive() && app.Splash.Window == "" && isempty(findall(groot, 'Tag', 'AppSplash'));
+hiddenIn = @(t) all(string({t.Children.Visible}) == "off");
+startHidden = arrayfun(hiddenIn, app.TabList);   % each tab's contents hidden (revealTab), checked in section 1
 ok = app.openConfigFile(cfgFile);
 loaded = app.Config;                       % the config as opened, put back after the every-branch charts (1a, 1a2)
 allOn = loaded;
@@ -201,6 +204,13 @@ if S.sec("1", "build + open")
         "Export" "Analysis" "Diagram" "Run" "Review" "Synthetic" "Clean up" "finish" "prefs" "probes" "show"];
     check(startShown && isequal(startHistory.Step.', startSteps), ...
         'under -batch the app starts without the splash window: the window shows once built, each tab a step; no config to reopen or scan');
+    wasShown = app.Tabs.SelectedTab;
+    hiddenBefore = hiddenIn(app.TabSorting);
+    app.selectTab(app.TabSorting);
+    revealed = hiddenBefore && ~hiddenIn(app.TabSorting);
+    app.selectTab(wasShown);
+    check(isequal(startHidden, app.TabList ~= app.TabProject) && revealed, ...
+        'the window shows with the Project tab''s contents alone; another tab''s show when it is first shown (revealTab)');
     check(isequal(app.Tabs.Position(3:4), app.TabHost.InnerPosition(3:4) + [2 26]), ...
         'built hidden, the tab group still fits its host once the window shows (fitTabGroup)');
     sp = AppSplash("test", ["a" "b" "c"], [1 2 1], Show=false);

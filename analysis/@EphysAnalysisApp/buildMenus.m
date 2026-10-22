@@ -1,8 +1,10 @@
 function buildMenus(obj)
 %buildMenus  File, Edit, Design and Help menus.
 %   File: the analysis-config lifecycle (New, Open, Open recent, Save, Save
-%   As), Generate script (compact | standalone), Open pipeline app and
-%   Close. Edit: Undo (Ctrl+Z) and Redo (Ctrl+Y) of the figure editor's
+%   As), Generate selected figure (Ctrl+G: the Figures tab's figure for
+%   every observation on the ticked datasets, into the Export folder:
+%   onGenerateFigure; off with no figure and while a run goes), Generate
+%   script (compact | standalone), Open pipeline app and Close. Edit: Undo (Ctrl+Z) and Redo (Ctrl+Y) of the figure editor's
 %   edits (onUndoRedo), named after the edit and grayed with none, or off
 %   the Figures tab (refreshEditMenu). Design: the plot designs and what to do with them (filled by
 %   refreshDesigns). Help: the wiki page of the tab shown, the Figures
@@ -19,7 +21,11 @@ uimenu(obj.RecentMenu, "Text", "(none)", "Enable", "off");
 uimenu(obj.FileMenu, "Text", "Save config", "Accelerator", "S", "Separator", "on", ...
     "MenuSelectedFcn", @(~,~) obj.onSaveConfig());
 uimenu(obj.FileMenu, "Text", "Save config as...", "MenuSelectedFcn", @(~,~) obj.onSaveConfigAs());
-gen = uimenu(obj.FileMenu, "Text", "Generate script", "Separator", "on");
+obj.GenerateFigureMenu = uimenu(obj.FileMenu, "Text", "Generate selected figure", "Accelerator", "G", "Separator", "on", ...
+    "Enable", "off", "Tooltip", "Draw the Figures tab's selected figure for every observation it selects, on every " + ...
+    "ticked dataset, into the Export folder (a session figure: once across the datasets, into the sessions folder).", ...
+    "MenuSelectedFcn", @(~,~) obj.onGenerateFigure());
+gen = uimenu(obj.FileMenu, "Text", "Generate script");
 uimenu(gen, "Text", "Compact (loads the saved config)...", "MenuSelectedFcn", @(~,~) obj.onGenerateScript("compact"));
 uimenu(gen, "Text", "Standalone (every setting written out)...", "MenuSelectedFcn", @(~,~) obj.onGenerateScript("standalone"));
 uimenu(obj.FileMenu, "Text", "Open pipeline app", "Separator", "on", ...

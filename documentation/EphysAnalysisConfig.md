@@ -421,8 +421,8 @@ tuning, spectrum, coherence) takes `options.yLimMode`, one vocabulary
 | `"batch"` | one range for every observation of a run of the figure | every row on that one range |
 | `"fixed"` | `yLim` (`[lo hi]`, required) | every row's range is `yLim` |
 
-**Batch.** A run of the figure (the Export tab's **Run**, the Figures tab's
-**Generate**: `EphysAnalysisRunner.run`) measures a figure with a `"batch"`
+**Batch.** A run of the figure (the Export tab's **Run**, the app's
+**Generate selected figure**: `EphysAnalysisRunner.run`) measures a figure with a `"batch"`
 panel before drawing it: every observation it draws, on every dataset of the
 run, is computed and drawn hidden (`figureYExtents`: the panel's y extent, its
 axes' automatic limits or a stack's reach), and the union of them
@@ -865,8 +865,8 @@ A run draws the same figure for every observation it selects, one page each:
 [report](#report), the generated scripts and the pipeline's Analysis step run
 them too, and the [validation](#validation) rule that something must be enabled
 counts an enabled figure. The app starts that run two ways: the Export tab's
-**Run** draws the enabled figures (and session figures), and the Figures tab's
-**Generate** draws the selected figure alone, enabled or not, on every ticked
+**Run** draws the enabled figures (and session figures), and the File menu's
+**Generate selected figure** draws the Figures tab's selected figure alone, enabled or not, on every ticked
 dataset. The pieces are the config below, `figureObservations`,
 `figureCompute` (`EphysAnalysisRunner.computeFigure` wraps it) and
 `renderFigure`, which the app's [Figures tab](EphysAnalysisApp.md#figures-tab), a
@@ -2168,7 +2168,7 @@ R = r.run(SessionFigures=id, Figures=string.empty(1, 0));   % or every site of i
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `enabled` | `false` | `true`: a session figure. False keeps the block and leaves it unused (the figure is drawn per dataset) |
-| `datasets` | `"ticked"` | `"ticked"`: the run's datasets (the Data tab's ticks, or `run(Datasets=)`); `"list"`: the datasets of `datasetKeys`, ticked or not: the app's **Generate** draws across the listed ones whatever is ticked (it says so and draws nothing when none is scanned), but the Export tab's **Run** still needs at least one ticked dataset before any session figure runs |
+| `datasets` | `"ticked"` | `"ticked"`: the run's datasets (the Data tab's ticks, or `run(Datasets=)`); `"list"`: the datasets of `datasetKeys`, ticked or not: the app's **Generate selected figure** draws across the listed ones whatever is ticked (it says so and draws nothing when none is scanned), but the Export tab's **Run** still needs at least one ticked dataset before any session figure runs |
 | `datasetKeys` | `[]` | `"list"`: the datasets' keys (the Data tab's **Key** column, e.g. `SYNTH-01/260908_103000`); a key no dataset has is left out and logged |
 | `facet` | `"none"` | `"none"`: one figure over every session; `"subject"`: one figure per subject (a name pattern without `SubjectID` leaves the sessions in `(no subject)`), in date order |
 | `series` | `"session"` | what gets a color: `"session"`, `"subject"` (its sessions averaged) or `"all"` (one mean over every session) |

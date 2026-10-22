@@ -19,7 +19,9 @@ function onKeyPress(obj, evt)
 %     Page Up, Page Down    the previous and next observation
 %                           (onFigureObservationStep), left alone while a
 %                           preview computes or draws
-%     Ctrl+P, Ctrl+G        Preview, Generate
+%     Ctrl+P, Ctrl+R        Preview, Redraw All (Ctrl+G, Generate
+%                           selected figure, is the File menu's
+%                           accelerator, not a key of this function)
 %     Ctrl+U                Unit report
 %     Ctrl+T                Auto on or off
 %     Ctrl+K                Export preview
@@ -124,7 +126,7 @@ if ismember(key, ["leftbracket" "bracketleft" "["]) || isequal(evt.Character, '[
     obj.stepFigurePanel("previous");
     return
 end
-if any(key == ["p" "g" "u" "t" "k" "e" "w"])
+if any(key == ["p" "r" "u" "t" "k" "e" "w"])
     obj.pressFigureButton(key);
     return
 end

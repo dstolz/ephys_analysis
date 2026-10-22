@@ -78,7 +78,8 @@ classdef EphysAnalysisApp < handle
     %     Log        what the runner reported
     %
     %   File menu: New / Open / Open recent / Save / Save As / Generate
-    %   script (compact | standalone) / Open pipeline app / Close. Edit
+    %   selected figure (Ctrl+G: onGenerateFigure) / Generate script
+    %   (compact | standalone) / Open pipeline app / Close. Edit
     %   menu: Undo and Redo of the figure editor's edits (onUndoRedo, over
     %   FigureEditHistory: Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z, on the Figures
     %   tab). Design menu: the plot designs (choosing one redraws every figure), save the
@@ -127,8 +128,8 @@ classdef EphysAnalysisApp < handle
     %   panel above, below, left or right (stepFigurePanel; the preview
     %   outlines it: markFigurePanel). Page Up and Page Down step to the
     %   previous and next observation (onFigureObservationStep). Ctrl+P,
-    %   Ctrl+G, Ctrl+U, Ctrl+T, Ctrl+E and Ctrl+W press Preview, Generate,
-    %   Unit report, Auto, Export code and Open in window
+    %   Ctrl+R, Ctrl+U, Ctrl+T, Ctrl+E and Ctrl+W press Preview, Redraw
+    %   All, Unit report, Auto, Export code and Open in window
     %   (pressFigureButton). Escape cancels a panel drag. Ctrl+Z undoes
     %   the last edit of the figures, Ctrl+Y and Ctrl+Shift+Z redo it
     %   (onUndoRedo). The "?" button lists them all (onFigureKeys).
@@ -173,6 +174,7 @@ classdef EphysAnalysisApp < handle
         TabExport  matlab.ui.container.Tab
         TabLog     matlab.ui.container.Tab
         FileMenu   matlab.ui.container.Menu
+        GenerateFigureMenu matlab.ui.container.Menu   % "Generate selected figure" (Ctrl+G: onGenerateFigure); off with no figure or while a run goes
         RecentMenu matlab.ui.container.Menu
         EditMenu   matlab.ui.container.Menu
         UndoMenu   matlab.ui.container.Menu   % "Undo <edit>" (refreshEditMenu)
@@ -258,7 +260,7 @@ classdef EphysAnalysisApp < handle
         FigureObsPrevButton    matlab.ui.control.Button
         FigureObsNextButton    matlab.ui.control.Button
         FigurePreviewButton    matlab.ui.control.Button
-        FigureGenerateButton   matlab.ui.control.Button         % Generate: the figure for every observation on the ticked datasets (onGenerateFigure)
+        FigureRedrawAllButton  matlab.ui.control.Button         % Redraw All: every enabled figure's preview drawn again where out of date (onRedrawAllFigures)
         FigureUnitReportButton matlab.ui.control.Button         % Unit report: every enabled figure for the observation picked, a temporary HTML report (onUnitReport)
         FigureOpenButton       matlab.ui.control.Button         % Open in window: the figure as previewed in a figure() of its own (onOpenFigureWindow)
         FigureCodeButton       matlab.ui.control.Button         % Export code: the code that draws the preview, in the editor (onFigureCode)
@@ -316,6 +318,8 @@ classdef EphysAnalysisApp < handle
         ExportPreviewWindow = []            % the Export preview window, while open (onExportPreview)
         ExportPreviewFolder (1,1) string = string(fullfile(tempdir, "ephys_export_preview"))   % where Export preview writes (emptied each time; tests move it)
         Running (1,1) logical = false
+        FigureRedrawing (1,1) logical = false       % Redraw All goes (onRedrawAllFigures): the toolbar's Cancel stops it
+        FigureRedrawCanceled (1,1) logical = false  % ... and Cancel was pressed (onCancelRun): it stops after the figure drawing
         LastReportFiles (1,:) string = string.empty(1,0)
         LastExportFolder (1,1) string = ""
 
@@ -545,6 +549,7 @@ classdef EphysAnalysisApp < handle
         onFigureAutoPreviewToggled(obj)
         onCancelFigurePreview(obj)
         R = onGenerateFigure(obj, opts)
+        S = onRedrawAllFigures(obj)
         [R, file] = onUnitReport(obj, opts)
         h = onOpenFigureWindow(obj)
         files = onExportPreview(obj)

@@ -293,11 +293,13 @@ page each, exported and reported ([Export tab](#export-tab)), and so do the
 generated scripts and the pipeline's Analysis step; Validate counts an enabled
 figure as something to run, so a config that holds figures and nothing else is
 accepted, and checks the figures themselves
-([Validating figures](EphysAnalysisConfig.md#validating-figures)). The tab's
-**Generate** draws the selected figure alone, from here (below).
+([Validating figures](EphysAnalysisConfig.md#validating-figures)).
+**File → Generate selected figure** (**Ctrl+G**) draws the selected figure
+alone, from here (below), and the tab's **Redraw All** brings every enabled
+figure's preview up to date.
 A figure can be drawn **across several datasets** instead of once per
 dataset: tick **Across sessions** in its Sessions section ([below](#sessions-in-the-figures-tab)),
-and Generate and Run draw it once over the ticked (or listed) datasets, a
+and Generate selected figure and Run draw it once over the ticked (or listed) datasets, a
 page per matched site, cell or channel, and the preview does the same.
 **File → Save config**
 keeps the figures, and **Help → Help for this tab** opens this section.
@@ -316,7 +318,7 @@ figure unless the groups are by status. Within a group the figures keep the
 run order. A group collapses under its header (which are collapsed is
 remembered), and the selected figure's group is always open: it opens when the
 selection moves to a figure in it and when the tree is rebuilt. A gray hint
-under the buttons says that Generate draws the figure for each observation and
+under the buttons says that File → Generate selected figure draws the figure for each observation and
 that Run (Export tab) draws the enabled ones.
 
 Every node has a check box, ticked while the figure is **Enabled** (`enabled`)
@@ -374,7 +376,7 @@ editor at once and in the preview once the running one is drawn.
 observation, the event and the epoch count; a title of your own names no
 observation, so the top-left panel names it; `title`), **Enabled** (a
 disabled figure stays in the config and is still drawn by the preview and by
-**Generate**, but the Export tab's **Run** skips it; `enabled`) and a gray summary (*"2 rows x 1
+**Generate selected figure**, but the Export tab's **Run** and **Redraw All** skip it; `enabled`) and a gray summary (*"2 rows x 1
 column, 2 panels; per unit"*).
 
 **The id.** A new figure's id is *automatic* (**auto** ticked, the id in
@@ -483,7 +485,8 @@ below move within them. The **?** button right of the search field (also
 | **Ctrl+]**, **Ctrl+[** | the next or previous panel of the figure, in its panel order (round at the ends) |
 | **Ctrl+Alt+arrows** | the panel above, below, left or right of the selected one: the nearest wholly on that side whose columns (rows) overlap it, the one overlapping most when several are as near; with none there the status bar says so (*No panel below continuous_1.*). A graphics driver that turns the screen with Ctrl+Alt+arrows takes these keys: use Ctrl+] and Ctrl+[ |
 | **Page Up**, **Page Down** | the previous or next observation (**<**, **>**) |
-| **Ctrl+P**, **Ctrl+G** | **Preview**, **Generate** |
+| **Ctrl+P**, **Ctrl+R** | **Preview**, **Redraw All** |
+| **Ctrl+G** | **File → Generate selected figure** (the menu's accelerator, on any tab) |
 | **Ctrl+U** | **Unit report** |
 | **Ctrl+T** | **Auto**, ticked or unticked |
 | **Ctrl+K** | **Export preview** |
@@ -710,7 +713,7 @@ list edit the layer picked:
 **Y limits** (every panel with a y axis of values) is a drop-down beside the
 limits' field, which is open only for *Fixed*: *Auto* (the axis fits the data;
 in a stack each row fits itself), *Shared by rows* (a stack's rows on one
-scale), *Shared by batch* (every observation of a **Generate** or Export
+scale), *Shared by batch* (every observation of a **Generate selected figure** or Export
 **Run** of the figure on one range, the union over the run's datasets: the
 preview draws its own range, and its status line says so) or *Fixed* (the two
 values typed: `yLimMode`, `yLim`; [Y limits](EphysAnalysisConfig.md#y-limits)).
@@ -819,15 +822,15 @@ only that unit's spikes or that channel's column are read) and
 | **Dataset** | the active dataset (the same one as on the other tabs, which list it the same way), with what it holds of spikes: *subj1_day1  (14 units)* (its sorted units, counted the first time it is opened in the session: they are read for the Data tab then, so nothing more is read and a share's folders are never walked for the counts; until then the name alone), *(detected only)* (no sort, a spikes file) or *(no sorting)*. Grayed out for a figure across sessions, which is drawn over the ticked (or listed) datasets, not the active one |
 | **Observation** | what the figure is drawn for: the units, channels or dataset the Observations section keeps, in probe order (*su12  ch 7  -320 µm  (5,210 spikes)*: a sorted unit ends in its number of spikes, a detection channel in its number of detections; a signal's channel and the dataset have no count). With **Per trial group** it lists a row for each unit and trial group (the unit's rows together, in group order, the label ending in a middle dot and the group's label, then the unit's count), the preview draws that group's epochs only, and **>** steps from a unit's group to its next one. Each figure remembers its pick until the app closes, by label (without the count), so it stays through a filter change or another dataset while that label is in the list, else the first is picked. Picking one draws it, whether or not Auto is on. For a figure across sessions it lists the sites, cells or channels matched across the sessions, each ending *(across 3 sessions)* ([below](#sessions-in-the-figures-tab)) |
 | **Open in window** | (**Ctrl+W**) at the right of the status line under the preview, right of **Export code**: draws the figure as previewed into a new regular MATLAB figure window (`figure`), named *figure id: observation (dataset)* and the size of the preview, with the right-click aesthetics editor and its Design submenu (what it remembers for the figure reaches the config while the app is open). A drawn preview is used as it is; an *Out of date*, canceled or missing one is previewed first, and the status bar says why when that draws nothing. The window is independent of the app: later edits do not follow into it, and closing the app leaves it. Off with no figure selected |
-| **Generate** | (**Ctrl+G**) draws the selected figure for every observation it selects, on every ticked dataset, into the Export tab's folder (see **Generate** below). It sits under **Preview**, in the same colors, and is off with no figure selected |
-| **Unit report** | (**Ctrl+U**) a spot check of one unit (or channel): every enabled figure of the active dataset, drawn for the unit or channel picked in **Observation** only, as an HTML report that opens in the browser (see **Unit report** below). It sits under **Generate**; off without a dataset or a unit or channel picked, for a figure of the dataset or across sessions, and while a run goes |
+| **Redraw All** | (**Ctrl+R**) computes and draws again the preview of every enabled figure (and the shown one, enabled or not), each for its own observation on the active dataset, so that every figure's kept preview is current after an edit of the defaults, a dataset or a scan (see **Redraw All** below). It sits under **Preview**, in the same colors, and is off with no figure selected, while a run goes and while it goes itself. Writing the selected figure's files for every observation is **File → Generate selected figure** (**Ctrl+G**, see **Generate selected figure** below) |
+| **Unit report** | (**Ctrl+U**) a spot check of one unit (or channel): every enabled figure of the active dataset, drawn for the unit or channel picked in **Observation** only, as an HTML report that opens in the browser (see **Unit report** below). It sits under **Redraw All**; off without a dataset or a unit or channel picked, for a figure of the dataset or across sessions, and while a run goes |
 | **<**, **>** | the previous and next observation (**Page Up**, **Page Down**: a figure has no pages), side by side at the bottom of the column of buttons; off at either end of the list |
 | **☆** / **★** | right of **Dataset**: stars the active dataset. Right of **Observation**: stars what the preview shows -- the sorted unit (with its sort), the channel (a detection channel's star is its channel's) or, for a figure of the dataset, the dataset; off for a figure across sessions. A starred dataset, unit or channel starts with **★** in its drop-down; the pick is still remembered by its label without the mark ([Favorites](#favorites)) |
 | **✎** | right of each star: opens the notepad on the same thing, the active dataset or what the preview shows, and the notepad then follows it as you pick or step. Yellow when it has a note (its first line in the tooltip); a dataset, unit or channel with a note shows **✎** in its drop-down, after any **★** ([Notes](#notes)) |
 | **Favorites** | under **Observation**: a filter field and a drop-down of every starred dataset, channel and unit of the scanned datasets. Picking one makes its dataset active and, when the selected figure observes units (for a unit) or channels or detection channels (for a channel), picks and draws it ([Favorites](#favorites)) |
 | **Export code** | (**Ctrl+E**) left of **Open in window**, at the right of the status line under the preview: opens the code that draws the preview in the MATLAB editor, as a new unsaved script (`EphysAnalysisScript.preview`, [Generated scripts](EphysAnalysis.md#generated-scripts)). It names the active dataset (a figure across sessions: the ticked or listed datasets), writes the figure's settings out as `spec` (`figureFor`'s, every *default* resolved), finds the observation picked again in `figureObservations` (by its unit id or the extract's column; with **Per trial group**, its group too; across sessions, by its label), then calls `figureCompute` (`figureSessionCompute` across sessions, keeping the **Figure:** pick) and `renderFigure` into a figure window the size of the preview, in the design chosen. Run it to draw the figure without the app; change `spec` or pick another row of `obsT` to make it your own. Nothing is computed when you press it, so the preview need not be drawn; the code holds the figure as the editor shows it then, and later edits do not follow into it. Without the desktop's editor (`matlab -batch`) it writes the script to `tempdir` and the status bar names the file. Off with no figure selected |
 | **Export preview** | (**Ctrl+K**) left of **Export code**, at the right of the status line under the preview; the Export tab has it too, between **Plan** and **Run**. A spot check of the [Export tab](#export-tab)'s settings before a run: the selected figure, for the observation picked (a figure across sessions: the **Figure:** pick too), drawn as a run draws it -- the page at the export size, in the design chosen -- and written in each format ticked, at its dpi, under the name the file-name pattern gives it, but into a preview folder (`ExportPreviewFolder`, `tempdir\ephys_export_preview`, emptied each time), never the figure folder. The Export controls count as they are, saved or not, and **Write figure files** need not be ticked. An *Out of date* preview is computed first. The *Export preview* window shows the PNG as written (one at the dpi is written for it alone when png is not ticked), under the files' names, the page's size in cm, the dpi and the pixels, and the folder a run writes them to (and whether files are there already: kept or replaced, as **Overwrite existing** says); **Open the files** opens each in its own program, **Open the folder** the preview folder. One window, reused by the next preview. Off with no figure selected and while a run goes |
-| **Preview** | (**Ctrl+P**) computes now, also for a signal extract above `PreviewMaxMB`, which otherwise waits for it. It is the button at the top left, heading a column of buttons (**Preview**, **Generate**, **Unit report**, **Auto**, **<** **>**) left of **Dataset**, **Observation** and **Favorites**, and turns orange while the figure is *Out of date* |
+| **Preview** | (**Ctrl+P**) computes now, also for a signal extract above `PreviewMaxMB`, which otherwise waits for it. It is the button at the top left, heading a column of buttons (**Preview**, **Redraw All**, **Unit report**, **Auto**, **<** **>**) left of **Dataset**, **Observation** and **Favorites**, and turns orange while the figure is *Out of date* |
 | **Auto** | (**Ctrl+T**) redraw after every edit while a preview takes under 2 s; a slower one says so (*"slow, so edits wait for Preview"*). On by default, because one observation is quick; remembered. It does not apply to a figure across sessions, which computes every session: an edit leaves its preview *Out of date* until **Preview** (or a pick in the observation list) draws it. The first figure drawn after the app starts is not timed, since it also loads the graphics, so that warm-up does not make the edits after it wait. The 2 s is the app's `FigureAutoPreviewSeconds` property (a public property, not a preference; set it on the app object before editing, for example to `Inf` to redraw however long a preview takes, which the app's tests do so a loaded machine cannot leave a preview out of date) |
 | **Design:** | the look every figure is drawn in (Default, Tufte, Journal, Night, Talk, Gray panel, and yours; the Design menu offers the same): picking one redraws the preview, and every other figure on screen, at once; runs draw their figures in it. It sits right of the **Dataset** drop-down, with **Save look as design...** under it, right of **Observation** |
 | **Save look as design...** | keeps the preview's look -- every property of every component, its ground and its group colors -- as a design of yours, and picks it. The look is read per panel type, from the panels as the preview drew them (not the config, which may have changed since): the rules of a heat map, probe map, unit correlation or spectrogram panel's tile (those axes are drawn their own way) go under the design's `kinds` for that panel type, and those of the figure's other panels are common rules (the same attribution as the preview's right-click **Save this look as a design...**). It saves nothing while the preview is *Out of date* (the status bar says *Preview first: the drawing is out of date*) |
@@ -839,7 +842,7 @@ another panel is picked (in the schematic, with **Ctrl+]** / **Ctrl+[** or
 **Ctrl+Alt+arrows**), with nothing computed or drawn again, follows the figure
 when it is laid out again (the window resized), and is hidden while the
 preview shows another figure or an older drawing without that panel. It
-belongs to the app, not the figure: **Open in window**, Generate, Run and the
+belongs to the app, not the figure: **Open in window**, Generate selected figure, Run and the
 exports never have it, and the aesthetics editor, **Save look as design...**
 and the data tips do not see it. A redraw by the aesthetics editor leaves it
 out until the next pick or preview.
@@ -872,11 +875,30 @@ channel's work; reading an extract finishes first, and drawing cannot be
 stopped. Edits made while it computes do not start a second preview; they
 leave the one that finishes *Out of date*. Closing the app stops it too.
 A preview and a run share the runner's computing and refuse each other (see
-**Generate** below). The toolbar's **Preview** shows this tab first, lists the
+**Generate selected figure** below). The toolbar's **Preview** shows this tab first, lists the
 selected figure's observations and previews it with **Preview** pressed (so a
 slow preview is seen computing), whichever tab was showing.
 
-**Generate** draws the selected figure once per observation on every dataset
+**Redraw All** (**Ctrl+R**) makes every enabled figure's preview current in
+one press: the shown figure first, then the others in the list's order, each
+selected in turn (the editor and the observation picker follow it) and
+computed for its own observation as **Preview** computes it (a large signal
+extract is read too). A figure whose kept preview is still current (the tree
+shows it plain, not *Out of date*) is left as it is, nothing computed, so a
+second press costs next to nothing. The status bar counts it (*"Redrawing 3
+of 7: figure_3 ..."*) and then sums it up (*"Redraw All: 4 drawn, 2 already
+current, 1 not drawn (figure_5: the preview says why) (6.2 s)"*); the shown
+figure is selected again at the end. Changing the **Design** needs no Redraw
+All: it redraws every drawn preview in place. At most eight previews are kept
+(`MaxFigureViews`), so with more enabled figures it draws the shown one and
+those shown most recently (then the list's order) up to eight, and the status
+bar adds *"; 2 more enabled figure(s) are drawn when shown (8 previews are
+kept)"*. The toolbar's **Cancel** (and the Export tab's, or the card's
+**Cancel** over the preview) stops it: the figure computing is canceled and no
+other is drawn (*"Redraw All canceled: ..."*); picking another figure
+meanwhile stops it too, and that figure stays shown.
+
+**Generate selected figure** (**File** menu, **Ctrl+G**) draws the selected figure once per observation on every dataset
 ticked on the Data tab, as the Export tab's **Run** would for this figure
 alone: the same validation (errors in the config stop it, and the table on the
 Export tab lists them), the same progress dialog and the same files, in the
@@ -887,9 +909,9 @@ off (its **Enabled** box unticked) is drawn all the same, for that run only:
 the config keeps it off and the status bar says so. **Cancel** on the
 progress dialog, the Export tab's **Cancel** and the toolbar's **Cancel run**
 stop it before the next observation; the observations left are *canceled*. One
-run goes at a time: while Generate runs, Validate, Plan, Run, Generate and
+run goes at a time: while Generate runs, Validate, Plan, Run, Generate selected figure, Redraw All and
 Export preview are off, and the previews compute nothing and mark a drawn preview *Out of date*;
-a preview that is computing makes Generate wait too (the status bar says so).
+a preview that is computing (or Redraw All going) makes Generate wait too (the status bar says so).
 When it ends, the Export tab's results table holds the
 figure's rows (one per dataset, `Kind` `figure`, `<n> observation(s)` as the
 `Message`, every file in `Files`), **Open figure folder** (also the
@@ -902,7 +924,7 @@ when the datasets' folders differ), or *"Generating figure_1 was canceled:
 observation, ...), *"; n dataset(s) failed (the Export tab's results say
 why)"* and *"; figure_1 is off, so it was switched on for this run only"*. With
 no dataset ticked it says so and draws nothing. A figure across sessions is
-the exception: Generate runs it as `run(SessionFigures=<id>)`, once across the
+the exception: Generate selected figure runs it as `run(SessionFigures=<id>)`, once across the
 ticked (or listed) datasets rather than on each, into `Export.SessionsFolder`
 ([Sessions in the Figures tab](#sessions-in-the-figures-tab)).
 
@@ -1115,7 +1137,7 @@ matching and the merge are under
 | Row | Effect | Config field |
 | --- | --- | --- |
 | **Across sessions (one figure over several datasets)** | ticked, the figure is a session figure: Generate and Run draw it once across the datasets and write it to the sessions folder; the Export tab's Run no longer draws it per dataset | `sessions.enabled` |
-| **Datasets** | *The ticked datasets* (those ticked to run on the Data tab) or *These datasets*, a list of their own. **Generate** draws across the listed datasets whether or not they are ticked; the Export tab's **Run** still needs at least one ticked dataset before any session figure runs | `datasets` |
+| **Datasets** | *The ticked datasets* (those ticked to run on the Data tab) or *These datasets*, a list of their own. **Generate selected figure** draws across the listed datasets whether or not they are ticked; the Export tab's **Run** still needs at least one ticked dataset before any session figure runs | `datasets` |
 | **Keys**, **Pick...** | with *These datasets*: the keys (read-only), and the window that picks them from the scanned datasets (**Use**, **Name**, **Subject**, **Date**, **Key**, pre-ticked from the figure's keys: [Picking the datasets](#picking-the-datasets-and-editing-the-mapping)). **OK** writes the keys, and the observation list and the preview follow; **Cancel** changes nothing | `datasetKeys` |
 | **Figures** | *One for all the sessions* or *One per subject* | `facet` |
 | **A color per** | *Session*, *Subject (its sessions averaged)* or *Nothing (all sessions averaged)* | `series` |
@@ -1175,7 +1197,7 @@ datasets.
   An event-trace panel is merged: it draws every session's epochs (overlaid, or
   a sub-row each), the sessions (or subjects) as its groups.
 
-**Generate and Run.** **Generate** draws the selected session figure as
+**Generate and Run.** **File → Generate selected figure** draws the selected session figure as
 `run(SessionFigures=<id>)`, with no per-dataset figures or report: a
 page per matched observation (or per figure of a facet and trial group) into
 `Export.SessionsFolder`, named as a figure's observations are, with `{Name}`
@@ -1282,8 +1304,8 @@ drawn, so you can see why. Examples: a fixed window with *pre* after
 | **Validate** | lists the config's issues (Section, Field, Severity, Message) in the table; errors stop a run |
 | **Plan** | one row per ticked dataset and [figure](#figures-tab) (Dataset, Subject, Date, Plot, Kind, Source, Enabled, Reason): `Plot` its id, Kind `figure`, Source what it is drawn for (`unit`, `channel` or `dataset`), Enabled whether it will run, and the Reason, why not ([skip reasons](#why-is-my-figure-skipped): no sorted units, no LFP extract, no line X, ...); then one row per [session figure](#sessions-in-the-figures-tab) (Dataset `sessions: all`, or `sessions: <subject>`; a figure with *Across sessions* ticked is listed there and not per dataset). Every figure is listed, enabled or not. Cheap: no signals or spikes are loaded, so a unit filter or channel list that leaves nothing to draw shows only when the figure runs. The status bar counts the rows that will draw: *"Plan: 4 of 6 figure run(s) and 2 of 2 session figure run(s) will draw."* (a row whose Dataset starts `sessions: ` is a session figure run; the session part is left out when the plan lists none) |
 | **Export preview** | the Figures tab's selected figure, for the observation picked there, written as **Run** writes it (size, formats, dpi, file name) into a preview folder and shown in a window: a spot check of these settings before a run, without writing to the figure folder ([Figures tab](#figures-tab), **Export preview**) |
-| **Run** | validates, then runs every enabled figure on every ticked dataset, and then every enabled [session figure](#sessions-in-the-figures-tab) over them, with a cancelable progress dialog: compute, export, report. A figure is drawn once per observation (a unit, a channel or the dataset), a page each, and the dialog names the observation (`<dataset>: <figure> (3/12)`) and, once 1% of the run is done and 5 s have passed, the time left (`<dataset>: <figure> (3/12) · about 4 min left`); writing the report shows its sections and pages (*Writing the report: page 3/12*) in a share of the run of its own. A failing figure is an error row and the rest still run. The Figures tab's **Generate** is this run for one figure alone, with no report ([Figures tab](#figures-tab)); its rows land in this table |
-| **Cancel** | stops before the next figure observation; what is left (the rest of that figure's observations too) is *canceled*. It also stops a Generate, which is a run |
+| **Run** | validates, then runs every enabled figure on every ticked dataset, and then every enabled [session figure](#sessions-in-the-figures-tab) over them, with a cancelable progress dialog: compute, export, report. A figure is drawn once per observation (a unit, a channel or the dataset), a page each, and the dialog names the observation (`<dataset>: <figure> (3/12)`) and, once 1% of the run is done and 5 s have passed, the time left (`<dataset>: <figure> (3/12) · about 4 min left`); writing the report shows its sections and pages (*Writing the report: page 3/12*) in a share of the run of its own. A failing figure is an error row and the rest still run. **File → Generate selected figure** is this run for one figure alone, with no report ([Figures tab](#figures-tab)); its rows land in this table |
+| **Cancel** | stops before the next figure observation; what is left (the rest of that figure's observations too) is *canceled*. It also stops a Generate selected figure, which is a run, and the Figures tab's **Redraw All** |
 | **Open report**, **Open figure folder** | after a run: the report files written, and the first dataset's figure folder. After a run with session figures the button's tooltip names the sessions folder (`Export.SessionsFolder`) too; the button itself still opens the first dataset's folder |
 
 The results table has one row per dataset and figure: `Dataset`, `Subject`,
@@ -1505,13 +1527,13 @@ item's shortcut, if it has one (Ctrl, or Cmd on a Mac). In groups:
 | Scan for datasets | the Data tab's **Scan** |
 | Search notes | opens the **Search notes** window over the notes of every scanned dataset ([Notes](#notes)) |
 | Preview the selected figure | the Figures tab's **Preview**: shows the Figures tab first and lists the selected figure's observations, then previews the observation picked on the active dataset (a session figure over its datasets) with the preview forced, as **Preview** does; on the Figures tab it only redraws |
-| Validate config, Plan, Run, Cancel run | the Export tab's buttons; Validate, Plan and Run show the Export tab first, where they list what they find. Cancel run also stops the Figures tab's **Generate** |
+| Validate config, Plan, Run, Cancel run | the Export tab's buttons; Validate, Plan and Run show the Export tab first, where they list what they find. Cancel run also stops **File → Generate selected figure** and the Figures tab's **Redraw All** |
 | Open the last run's report, Open the last run's figure folder | the Export tab's **Open report** and **Open figure folder** |
 | Open pipeline app | File → **Open pipeline app** |
 | Help for this tab | Help → **Help for this tab** |
 
-Validate, Plan and Run are off while a run goes (a Generate included), and
-Cancel run is on only then, as on the Export tab; the report and figure-folder tools come on when
+Validate, Plan and Run are off while a run goes (a Generate selected figure included), and
+Cancel run is on only then (and while Redraw All goes), as on the Export tab; the report and figure-folder tools come on when
 a run has written a report or figures. The icons are
 `analysis/icons/toolbar/<Tag>.svg`.
 
@@ -1591,7 +1613,7 @@ is noted in its panel and the rest is drawn):
 
 | Reason | Cause | Fix |
 | --- | --- | --- |
-| disabled | the figure's **Enabled** box is off (Generate and the preview still draw it) | tick it |
+| disabled | the figure's **Enabled** box is off (Generate selected figure and the preview still draw it) | tick it |
 | no sorted units | the sorting folder holds no sorted units | sort the dataset, or associate its sorted-output folder ([Sorting](EphysPipelineApp.md#sorting)) |
 | no detected spikes | the spikes file has no threshold detections | run the Spikes step ([Spikes](EphysPipelineApp.md#spikes)) |
 | no LFP extract (MUA, SPIKE, AUX) | the Signals step did not write that signal | enable it in the pipeline's Signals step and run it ([Signals](EphysPipelineApp.md#signals)) |
@@ -1633,7 +1655,7 @@ results, on the Log tab and in the report.
 | copying figures | `onCopyFigureSettings` (the Figures tab's **Copy from...**: `private/pickFigureSettings`, then `analysis/copyFigureSettings` with `analysis/figureSettingParts`) |
 | one edit to other figures | `onApplyToFigures` (Ctrl held: `onKeyPress` / `onKeyRelease` and `onConfigChanged`; Edit → Apply last change: the undo history), its window `private/applyToFiguresDialog`, over `EphysAnalysisConfig.figureEditChanges`, `changeTargets`, `panelTakes` and `applyChanges` |
 | plot designs | `refreshDesigns` (the Design menu and list; `PlotDesign.listen` keeps them current), `onDesignChosen`, `onSaveDesign`, `onImportDesign`, `onDeleteDesign`, `onDesignsFolder`; the designs themselves: `PlotDesign`, `analysis/designs` |
-| running | `onValidate`, `onPlan`, `onRunExport`, `onGenerateFigure` (the Figures tab's **Generate**: `onRunExport` for the selected figure alone, then the status bar's text), `onCancelRun` (also stops a Generate) |
+| running | `onValidate`, `onPlan`, `onRunExport`, `onGenerateFigure` (**File → Generate selected figure**: `onRunExport` for the selected figure alone, then the status bar's text), `onCancelRun` (also stops a Generate and Redraw All) |
 | files | `onNewConfig`, `onOpenConfig`, `openConfigFile`, `onSaveConfig`, `onSaveConfigAs`, `onGenerateScript`, `loadPreferences`, `savePreferences` |
 | help | `onHelp`, `helpURL` (the wiki page and anchor of each tab; `tools/wiki/test_gen_pages.py` checks that the page made from this file has them) |
 | issues | `onReportIssue`, `issueReport`, `issueURL`; the dialog, the address and the system lines are `pipeline/IssueReport.m`, shared with EphysPipelineApp |
@@ -1654,7 +1676,7 @@ in the Dataset drop-downs (the same items on the three tabs); the Help menu's Gi
 and feature request (1c); grouping by Depth from the Alignment controls, with the tab's epoch diagram (2);
 and section 3, the Figures tab: the toolbar's Preview, pressed from another
 tab, showing the Figures tab and drawing the selected figure; the header (the
-buttons in a column at the left, a row each -- Preview, Generate, Unit report,
+buttons in a column at the left, a row each -- Preview, Redraw All, Unit report,
 Auto, **<** **>** -- beside the Dataset, Observation and Favorites rows, Design
 and Save look as design... right of Dataset and Observation; every button's
 key named in its tooltip, and Ctrl+W, Ctrl+T and Ctrl+P pressing theirs); **Export code**
@@ -1716,7 +1738,10 @@ of one figure marks only its preview out of date, another dataset marks every
 one and the dataset back makes the hidden one current again, the editor's
 sections and panel come back as each figure left them, Remove frees the
 container, the cap drops the container shown least recently (the figure drawn
-again when shown), and Undo and Redo of an Add keep the tree, the containers
+again when shown), Redraw All draws the enabled figures out of date up to the
+cap (the shown one kept, the one shown least recently left, the status bar
+saying so), Ctrl+R then finds every one current, and the toolbar's Cancel
+stops it while it computes, and Undo and Redo of an Add keep the tree, the containers
 and the selection together. Section 5n is
 [Apply to figures](#apply-a-change-to-other-figures): a PSTH's Stack edited
 with Ctrl held opens the window with the other figures' PSTH and continuous
@@ -1869,9 +1894,10 @@ the first figure holds the other figure's panel, its bins included. Converting a
 ([Tests](EphysAnalysisConfig.md#tests)); figures in plans, runs, exports and
 reports are `test_EphysAnalysisRunner`'s.
 
-Its section 5f drives the Figures tab's **Generate** and the figures on the
-Export tab. With no figure, Generate sits under Preview in the same colors
-and is off, as is Unit report under it (Ctrl+U then does nothing); a figure from the `rasterPsth` template turns it on. `onGenerateFigure`
+Its section 5f drives **File → Generate selected figure** and the figures on the
+Export tab. With no figure, Redraw All sits under Preview in the same colors
+and is off, as are Unit report under it (Ctrl+U then does nothing) and the
+File menu's Generate selected figure (accelerator G); a figure from the `rasterPsth` template turns them on. `onGenerateFigure`
 then draws the figure for every observation on both ticked datasets: one done
 `figure` row per dataset in the results table (the observation counts add up to
 the number `figureObservations` lists), every file `figureOutputName` names in
@@ -1879,7 +1905,7 @@ the Export folder, the status bar `Generated <id>: <n> observation(s) on <m>
 dataset(s), <k> file(s) in ...`, **Open figure folder** and the toolbar's on, **Open
 report** off, the buttons back, the tab unchanged and the figure still enabled.
 A timer cancels a Generate while it draws (the files are deleted first):
-Generate and Run are off, Cancel is on and the preview computes nothing (its
+Generate, Redraw All and Run are off, Cancel is on and the preview computes nothing (its
 status says a run is going) while it runs, and afterwards every row is
 *canceled*, the status bar says `Generating <id> was canceled`, and Generate
 is on again. **Plan** lists the figure on each ticked dataset (`Kind`
@@ -1917,7 +1943,7 @@ one figure). An edit (a figure per subject, a figure per trial group) leaves the
 preview *Out of date* with the *press Preview* line; after **Preview** the
 "Figure:" drop-down picks which figure is drawn without computing, and the
 script of **Export code**, run, merges the observation over both datasets and
-gives the figure picked there. **Generate**
+gives the figure picked there. **Generate selected figure**
 then writes a page per matched site into the sessions folder
 (`<facet>_<id>_site_ch<N>.png`), one `sessions: all` results row, and the status
 bar reads `Generated <id> across the sessions: <n> observation(s), ...`.

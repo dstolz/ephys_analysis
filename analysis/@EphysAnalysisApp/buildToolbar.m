@@ -51,7 +51,7 @@ obj.ToolbarPlanTool = addTool(tb, iconDir, "plan", "Plan: which figure runs on w
     @(~,~) onExportTab(obj, @() obj.onPlan()));
 obj.ToolbarRunTool = addTool(tb, iconDir, "run", "Run the enabled figures on the ticked datasets", "", ...
     @(~,~) onExportTab(obj, @() obj.onRunExport()));
-obj.ToolbarCancelTool = addTool(tb, iconDir, "cancel", "Cancel run", "", @(~,~) obj.onCancelRun());
+obj.ToolbarCancelTool = addTool(tb, iconDir, "cancel", "Cancel the run (or Redraw All)", "", @(~,~) obj.onCancelRun());
 obj.ToolbarCancelTool.Enable = "off";
 
 % --- Results: the last run's files ---

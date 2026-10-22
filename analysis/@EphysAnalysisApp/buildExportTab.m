@@ -1,7 +1,7 @@
 function buildExportTab(obj)
 %buildExportTab  Export and Report sections; Validate, Plan, Export preview, Run, results.
 %   The plan and results tables take whatever columns the runner gives:
-%   a figure's rows have Kind "figure" (the Figures tab's Generate fills
+%   a figure's rows have Kind "figure" (File > Generate selected figure fills
 %   the results table too). Export preview (onExportPreview, as on the
 %   Figures tab) writes the Figures tab's figure for the observation
 %   picked there as Run would, into a preview folder, and shows it.
@@ -109,7 +109,7 @@ obj.ExportPreviewButton = uibutton(right, "Text", "Export preview", "Enable", "o
 place(obj.ExportPreviewButton, 1, 3);
 obj.RunButton = uibutton(right, "Text", "Run", ...
     "Tooltip", "Every enabled figure on every ticked dataset, then every enabled session figure across them: " + ...
-    "figure files and report. A figure is drawn once per observation (the Figures tab's Generate draws one " + ...
+    "figure files and report. A figure is drawn once per observation (File > Generate selected figure draws one " + ...
     "figure alone).", "ButtonPushedFcn", @(~,~) obj.onRunExport());
 place(obj.RunButton, 1, 4);
 obj.CancelButton = uibutton(right, "Text", "Cancel", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onCancelRun());

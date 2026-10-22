@@ -104,8 +104,9 @@ onoff = @(tf) matlab.lang.OnOffSwitchState(tf);
 en = @(c, tf) set(c, 'Enable', onoff(tf));
 set([obj.RemoveFigureButton obj.DuplicateFigureButton], 'Enable', onoff(has));
 obj.CopyFigureButton.Enable = onoff(has && nf > 1);
-if ~isempty(obj.FigureGenerateButton)
-    obj.FigureGenerateButton.Enable = onoff(has && ~obj.Running);   % off while a run (or a generate) goes
+if ~isempty(obj.FigureRedrawAllButton)
+    obj.FigureRedrawAllButton.Enable = onoff(has && ~obj.Running && ~obj.FigureRedrawing);   % off while a run (or a generate, or itself) goes
+    if ~isempty(obj.GenerateFigureMenu); obj.GenerateFigureMenu.Enable = onoff(has && ~obj.Running); end
     set([obj.FigureExportPreviewButton obj.ExportPreviewButton], 'Enable', onoff(has && ~obj.Running));
     obj.FigureOpenButton.Enable = onoff(has);
     obj.FigureCodeButton.Enable = onoff(has);
@@ -504,7 +505,7 @@ switch kind
     otherwise
         what = "the datasets together";
 end
-txt = "Generate and Run draw it once across the datasets, for " + what + ", not per dataset. Auto preview is off for it.";
+txt = "Generate selected figure and Run draw it once across the datasets, for " + what + ", not per dataset. Auto preview is off for it.";
 bad = intersect(string([fig.panels.type]), EphysAnalysisConfig.FigureSessionUnmerged);
 if isempty(fig.panels); bad = strings(1, 0); end
 if ~isempty(bad)   % by their labels: "probe map, unit correlation panels"

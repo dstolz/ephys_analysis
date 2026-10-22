@@ -1,6 +1,7 @@
 function R = onGenerateFigure(obj, opts)
 %onGenerateFigure  Draw the selected figure for every observation it selects, on every ticked dataset, into the Export folder.
-%   R = onGenerateFigure(obj) is the Figures tab's Generate button: the
+%   R = onGenerateFigure(obj) is the File menu's Generate selected figure
+%   (Ctrl+G; GenerateFigureMenu): the
 %   figure in the editor (SelectedFigure) alone, run as the Export tab's
 %   Run runs (onRunExport: EphysAnalysisRunner.run with Figures=<id>, no
 %   session figures, Export on, no report), so the config is
@@ -34,7 +35,7 @@ if obj.Running
     return
 end
 busy = ["computing" "drawing"];
-if ismember(obj.FigurePreviewState, busy)
+if ismember(obj.FigurePreviewState, busy) || obj.FigureRedrawing
     obj.setStatus("A preview is computing: generate the figure when it is done (or cancel it).");
     return
 end

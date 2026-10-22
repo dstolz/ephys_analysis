@@ -103,7 +103,7 @@ has = k >= 1 && k <= nf;
 onoff = @(tf) matlab.lang.OnOffSwitchState(tf);
 en = @(c, tf) set(c, 'Enable', onoff(tf));
 set([obj.RemoveFigureButton obj.DuplicateFigureButton], 'Enable', onoff(has));
-obj.CopyFigureButton.Enable = onoff(has && nf > 1);
+obj.CopyFigureButton.Enable = onoff(has);   % (with one figure: into a design)
 if ~isempty(obj.FigureGenerateButton)
     obj.FigureGenerateButton.Enable = onoff(has && ~obj.Running);   % off while a run (or a generate) goes
     set([obj.FigureExportPreviewButton obj.ExportPreviewButton], 'Enable', onoff(has && ~obj.Running));

@@ -234,7 +234,7 @@ classdef EphysAnalysisApp < handle
         AddFigureButton        matlab.ui.control.Button
         RemoveFigureButton     matlab.ui.control.Button
         DuplicateFigureButton  matlab.ui.control.Button
-        CopyFigureButton       matlab.ui.control.Button         % Copy from...: another figure's settings onto the selected one (onCopyFigureSettings)
+        CopyFigureButton       matlab.ui.control.Button         % Copy settings...: a figure's settings onto other figures or into a design (onCopyFigureSettings)
         UpFigureButton         matlab.ui.control.Button
         DownFigureButton       matlab.ui.control.Button
         FigureEditorPanel      matlab.ui.container.Panel        % the editor's panel (its title names the figure)
@@ -354,6 +354,8 @@ classdef EphysAnalysisApp < handle
         ApplyTicked (1,:) string = string.empty(1, 0)   % Apply to figures: the targets ticked when last shown ("<figure id>" or "<figure id>/<panel id>")
         ApplySeen (1,:) string = string.empty(1, 0)     % ... and every target it has shown (one not seen yet is ticked)
         ApplyReplot (1,1) logical = false   % ... and its "Replot the changed figures now" box
+        CopyUnticked (1,:) string = string.empty(1, 0)  % Copy settings: the settings left unticked last time (figureSettingItems' Generic keys; the rest start ticked)
+        CopyTargets (1,:) string = string.empty(1, 0)   % ... and the ids of the figures ticked to copy onto
 
     end
 

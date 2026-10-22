@@ -49,7 +49,7 @@ function test_EphysAnalysisApp(opts)
 %   panels' locked alignment, a panel's own options (Apply to all
 %   panels, Re-link all panels, Ctrl+7 / Ctrl+9), a scan listing the
 %   observations again, save and reopen, its preferences restored by a new app,
-%   Remove); Copy from... between figures; Generate (a figure's files per observation on the ticked
+%   Remove); Copy settings... between figures and into a design; Generate (a figure's files per observation on the ticked
 %   datasets, its rows in the results table, the status bar's counts,
 %   Cancel during it, a figure that is off drawn for that run only), Unit
 %   report (every figure for the unit picked on the active dataset, a
@@ -1888,41 +1888,76 @@ if S.sec("5d.spectrum", "a spectrum panel and a spectrogram panel (Chronux: the 
     app.Tabs.SelectedTab = app.TabData;
 end
 
-if S.sec("5e", "Copy from... for figures")
+if S.sec("5e", "Copy settings... for figures: one setting, one figure onto another (out of date, not drawn), the window (From, the tree, Find, the figures ticked), Undo, into a design")
     savedConfig();
     noFigures();
     app.FigureAutoPreviewSeconds = Inf;   % a preview slowed by a loaded machine must not leave the next one out of date
     restoreAutoLimit = onCleanup(@() resetAutoLimit(app));
     app.FigureAutoCheckBox.Value = true;   % the automatic preview, as 5d leaves it
     app.selectTab(app.TabFigures);
+    app.CopyUnticked = string.empty(1, 0);
+    app.CopyTargets = string.empty(1, 0);
+    lookOf = @(k) app.FigureTreeMarks.look([app.FigureTreeMarks.nodes.NodeData] == k);
     app.onAddFigure("rasterPsth");
     want = app.Config.Figures(1);
-    check(app.CopyFigureButton.Enable == "off" && want.id == "Raster+PSTH units", 'Copy from... is off with one figure: there is no other to copy from');
+    check(app.CopyFigureButton.Enable == "on" && string(app.CopyFigureButton.Text) == "Copy settings..." && want.id == "Raster+PSTH units", ...
+        'Copy settings... is on with one figure (its look can go into a design)');
     app.onAddFigure("heatmap");
+    app.onAddFigure("psth");
     cx = app.gatherConfig();
     cx.Figures(2).style.FontSize = 15;
     cx.Figures(2).panels(1).options.bins.BinSec = 0.05;
     app.applyConfig(cx);
+    ids = app.Config.figureIds();
     app.onFigureSelected(1);
-    check(app.CopyFigureButton.Enable == "on", 'Copy from... is on with a figure selected and another to copy from');
-    hid = app.Config.Figures(2).id;   % "Heatmap units": a fixed units layer, the dataset observed
-    app.onCopyFigureSettings(From=hid, Parts="style");
+    hid = ids(2);   % "Heatmap units": a fixed units layer, the dataset observed
+    app.onCopyFigureSettings(From=hid, Settings="style.FontSize");
     f1 = app.Config.Figures(1);
     check(hid == "Heatmap units" && f1.id == "Raster+PSTH units" && f1.style.FontSize == 15 && isequal([f1.panels.type], [want.panels.type]) ...
-        && contains(string(app.StatusBar.Text), "Copied from Heatmap units onto Raster+PSTH units: Appearance") && app.FigurePreviewState == "drawn", ...
-        'From= and Parts= copy the appearance alone; the panels stay, the preview follows');
+        && f1.style.LineWidth == want.style.LineWidth && contains(string(app.StatusBar.Text), "Copied 1 setting(s) from Heatmap units onto Raster+PSTH units") ...
+        && app.FigureHistory.undoLabel() == "Copy settings from Heatmap units to Raster+PSTH units" && app.FigurePreviewState == "drawn", ...
+        'From= and Settings= copy the font size alone onto the figure selected (the panels and the rest stay), one step of Undo; the preview follows');
+
+    % one figure onto another not shown: its kept preview marked out of date, nothing drawn
+    app.onFigureSelected(3);   % drawn (Auto) and kept
+    app.onFigureSelected(1);
+    fresh3 = lookOf(3) == "fresh";
+    app.onCopyFigureSettings(Settings="style.FontSize", To=ids(2:3));
+    F = app.Config.Figures;
+    check(fresh3 && F(3).style.FontSize == 15 && lookOf(3) == "stale" && lookOf(1) == "fresh" && app.FigurePreviewState == "drawn" ...
+        && app.FigureHistory.undoLabel() == "Copy settings from Raster+PSTH units to PSTH units" && contains(string(app.StatusBar.Text), "onto PSTH units."), ...
+        ['the figure shown onto two: the heat map has the font size already, the PSTH figure takes it; its kept preview is marked out ' ...
+        'of date, nothing is drawn']);
+    app.onUndoRedo("undo");
+    check(app.Config.Figures(3).style.FontSize ~= 15 && app.Config.Figures(1).style.FontSize == 15, 'Undo takes the copy back, one step');
+
+    % the window: From the heat map, None, the alignment and the layout ticked, Find, onto the figure selected
     answerDialog('Copy figure settings', @copyFigureDialog);
     app.onCopyFigureSettings();
     seen = getappdata(groot, 'copyFigureSeen');
     if isappdata(groot, 'copyFigureSeen'); rmappdata(groot, 'copyFigureSeen'); end
     f1 = app.Config.Figures(1);
-    check(isstruct(seen) && seen.count == "2 part(s) to copy" && seen.from == "Heatmap units  (1 panels)" ...
+    check(isstruct(seen) && seen.count == "4 setting(s) onto 1 figure(s)" && isequal(seen.targets, "Raster+PSTH units  (2 panels), shown") ...
+        && isequal(seen.found, "Font size = 15") && seen.from == "Heatmap units  (1 panels)" ...
         && f1.id == "Heatmap units (2)" && isequal([f1.panels.type], "heatmap") && f1.panels.options.bins.BinSec == 0.05 && app.SelectedPanel == 1 ...
-        && nPatches() == 1, 'the window copies the parts ticked (alignment, arrangement): the figure is now the heat map''s panels, their options too, and its automatic id follows ("Heatmap units (2)")');
-    app.onRemoveFigure();
-    app.onFigureSelected(1);
-    app.onRemoveFigure();
-    check(isempty(app.Config.Figures), 'both figures removed');
+        && nPatches() == 1 && f1.style.FontSize == 15, ...
+        ['the window: From the heat map ticks the figure selected; Find shows the font size alone; the alignment and the layout ticked ' ...
+        'copy the heat map''s panels, their options too, and the automatic id follows ("Heatmap units (2)")']);
+    check(ismember("style.FontSize", app.CopyUnticked) && ~ismember("alignment.ref", app.CopyUnticked) && isequal(app.CopyTargets, "Heatmap units (2)"), ...
+        'the ticks are remembered for the next time: the settings left unticked, the figure ticked (by the id it follows)');
+
+    % into a design
+    cx = app.gatherConfig();
+    cx.Figures(1).style.Colormap = "turbo";
+    app.applyConfig(cx);
+    app.onCopyFigureSettings(Design="Copied look");
+    Dc = PlotDesign.load("Copied look");
+    check(Dc.source == "mine" && Dc.sequential == "turbo" && isequal(size(Dc.palette), [7 3]) && PlotDesign.currentName() ~= "Copied look" ...
+        && contains(string(app.StatusBar.Text), "into design Copied look"), ...
+        'Design= copies the figure''s look (its group colors) into a new design of yours, not chosen');
+    app.onDeleteDesign("Copied look", Confirm=false);
+    noFigures();
+    check(isempty(app.Config.Figures), 'every figure removed');
     app.onSaveConfig();
     app.Tabs.SelectedTab = app.TabData;
     clear restoreAutoLimit
@@ -3342,15 +3377,22 @@ end
 
 
 function copyFigureDialog(D)
-%copyFigureDialog  In the Copy figure settings window: None, tick Alignment and Arrangement, note the count, Copy.
+%copyFigureDialog  In the Copy figure settings window: From the second figure, None, tick the Alignment part and the layout, Find "font", note the count, Copy.
+D.From.Value = 2;
+D.From.ValueChangedFcn(D.From, []);
+targets = string({D.Targets.CheckedNodes.Text});
 press(D, "None");
-for b = [D.Boxes.alignment D.Boxes.arrangement]
-    b.Value = true;
-    b.ValueChangedFcn(b, []);
-end
-lab = findall(ancestor(D.All, 'figure'), 'Type', 'uilabel');
-seen = struct('count', string(lab(contains(string({lab.Text}), "part(s) to copy")).Text), ...
-    'from', string(D.From.Items{D.From.ItemsData == D.From.Value}));
+nodes = findall(D.Settings, 'Type', 'uitreenode');
+align = nodes(string({nodes.Text}) == "Alignment");
+layout = nodes(startsWith(string({nodes.Text}), "Grid and panels"));
+D.Settings.CheckedNodes = [align; align.Children; layout];
+D.Settings.CheckedNodesChangedFcn(D.Settings, []);
+D.Find.ValueChangingFcn(D.Find, struct('Value', 'font'));
+nodes = findall(D.Settings, 'Type', 'uitreenode');
+found = string({nodes(arrayfun(@(n) isnumeric(n.NodeData) && isscalar(n.NodeData), nodes)).Text});
+D.Find.ValueChangingFcn(D.Find, struct('Value', ''));
+seen = struct('count', string(D.Count.Text), 'from', string(D.From.Items{D.From.ItemsData == D.From.Value}), ...
+    'targets', targets, 'found', found);
 setappdata(groot, 'copyFigureSeen', seen);
 press(D, "Ok");
 end

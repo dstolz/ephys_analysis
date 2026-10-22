@@ -334,6 +334,7 @@ classdef EphysAnalysisApp < handle
         FigurePreviewGeneration (1,1) double = 0   % a scan adds one: every preview drawn before is out of date (figureViewKey)
         FigureTreeMarks = []                % the figure tree's marks as applied (markFigureTree): nodes, look, current
         FigureEditorStates = []             % the editor as each figure left it: containers.Map, figure id -> its sections, scroll, panel and layer (saveFigureEditorState)
+        FigurePickers = []                  % each figure's last observation list: containers.Map, figure id -> the picker's items, key and table (keepFigurePicker)
         FigurePreviewWarm (1,1) logical = false % a figure was drawn already: the first one's time (graphics loading) is not counted
         FigureAutoPreviewSeconds (1,1) double = 2   % edits redraw the figure preview while the last one took under this (AutoPreviewSeconds; tests raise it)
         FigurePreviewState (1,1) string = "idle"   % what the figure preview's badge says (setFigurePreviewState)

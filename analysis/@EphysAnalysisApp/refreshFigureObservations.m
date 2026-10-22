@@ -18,7 +18,10 @@ function refreshFigureObservations(obj, opts)
 %   Per trial group, the groups: one row per observation and group, and
 %   the window too), the
 %   sort options, the dataset (by its key; a scan forgets the list,
-%   onScan) -- unless Force is set; an empty list is kept as well. When the
+%   onScan) -- unless Force is set; an empty list is kept as well. Each
+%   figure keeps the last list made for it (keepFigurePicker), so a figure
+%   shown again with the same key takes its own back (takeFigurePicker)
+%   instead of listing it again. When the
 %   list cannot be made, the picker's UserData.error says why (the preview
 %   shows it). The Observations section's count line follows (ending
 %   ", starred only" with Starred only). < and > are enabled when there is
@@ -57,6 +60,10 @@ if spec.observe.perGroup; key.window = spec.window; end   % one row per trial gr
 if ~opts.Force && isstruct(dd.UserData) && isfield(dd.UserData, 'key') && isequaln(dd.UserData.key, key)
     return
 end
+if ~opts.Force && takeFigurePicker(obj, key)   % the figure's own list, kept when it was last shown
+    syncSteps(obj);
+    return
+end
 try
     src = obj.Runner.source(obj.ActiveIdx);
     fav = [];
@@ -67,6 +74,7 @@ catch ME
     none("(cannot list them)");
     E.obsCount.Text = msg;
     dd.UserData = struct('key', key, 'error', msg);   % kept, so the preview can say why
+    keepFigurePicker(obj);
     return
 end
 obj.FigureObservations = T;
@@ -100,6 +108,7 @@ if spec.observe.starred && kind ~= "dataset"; E.obsCount.Text = extractBefore(E.
 if n == 0
     none("(no " + kind + " passes the filter)");
     dd.UserData = struct('key', key, 'error', "");   % an empty list is kept too: the filter is not run again until it changes
+    keepFigurePicker(obj);
     return
 end
 labels = reshape(T.label, 1, []);
@@ -113,6 +122,7 @@ obj.FigureObservation(id) = labels(i);
 dd.ItemsData = [];
 set(dd, "Items", favoriteMarks(obj, T, spec.observe.data) + noteMarks(obj, T, spec.observe.data) + labels + ...
     spikeCounts(T, spec.observe.data), "ItemsData", 1:n, "Value", i);
+keepFigurePicker(obj);
 syncSteps(obj);
 end
 
@@ -153,6 +163,10 @@ key = struct('id', spec.id, 'datasets', reshape(obj.Runner.Keys(idx), 1, []), 'o
 if ~force && isstruct(dd.UserData) && isfield(dd.UserData, 'key') && isequaln(dd.UserData.key, key)
     return
 end
+if ~force && takeFigurePicker(obj, key)   % the figure's own list, kept when it was last shown
+    syncSteps(obj);
+    return
+end
 if isempty(idx)
     setNone(obj, "(no dataset to draw it across)");
     E.obsCount.Text = "Tick datasets on the Data tab (or pick them in the Sessions section) to draw the figure across.";
@@ -166,6 +180,7 @@ catch ME
     setNone(obj, "(cannot list them)");
     E.obsCount.Text = msg;
     dd.UserData = struct('key', key, 'error', msg);
+    keepFigurePicker(obj);
     return
 end
 obj.FigureObservations = T;
@@ -195,6 +210,7 @@ end
 if n == 0
     setNone(obj, "(no " + what + " is matched across the sessions)");
     dd.UserData = struct('key', key, 'error', "", 'sessions', reshape(S.index, 1, []));
+    keepFigurePicker(obj);
     return
 end
 labels = reshape(T.label + "  (across " + T.nSessions + " session" + repmat("s", n, 1) + ")", 1, []);
@@ -208,6 +224,7 @@ end
 obj.FigureObservation(id) = T.label(i);
 dd.ItemsData = [];
 set(dd, "Items", favoriteMarks(obj, T, spec.observe.data, reshape(S.index, 1, [])) + labels, "ItemsData", 1:n, "Value", i);
+keepFigurePicker(obj);
 syncSteps(obj);
 end
 

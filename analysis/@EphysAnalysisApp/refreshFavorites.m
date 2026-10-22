@@ -17,6 +17,7 @@ function refreshFavorites(obj)
 %
 %   See also DatasetFavorites, listFavorites, onStarToggled, onFavoritePicked, onScan.
 r = obj.Runner;
+forgetFigurePickers(obj);   % the other figures' kept lists hold the old marks (the selected one's is kept again below)
 listFavorites(obj);
 if ~isempty(r) && ~isempty(r.Keys)
     obj.refreshDatasetsTable();

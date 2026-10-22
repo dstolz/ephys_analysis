@@ -9,6 +9,7 @@ function refreshNotes(obj)
 %
 %   See also DatasetNotes, onNoteButton, onSearchNotes, onScan.
 r = obj.Runner;
+forgetFigurePickers(obj);   % the other figures' kept lists hold the old marks (markObservations keeps the selected one's again)
 if ~isempty(r) && ~isempty(r.Keys)
     obj.refreshDatasetsTable();
     refreshDatasetLabels(obj);

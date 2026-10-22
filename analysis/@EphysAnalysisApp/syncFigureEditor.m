@@ -259,9 +259,12 @@ if hasPanel
         drawAsChoices(E.evDrawAs, t);
         en(E.evDrawAs, ~onTrace);
         was = string(E.layerAggregate.Value);
-        E.layerAggregate.ItemsData = [];   % the lists may change length: the value is put back when the type offers it
-        set(E.layerAggregate, "Items", lc.AggregateLabels, "ItemsData", lc.Aggregates);
-        if ismember(was, lc.Aggregates); E.layerAggregate.Value = was; end
+        if ~isequal(string(E.layerAggregate.Items), reshape(string(lc.AggregateLabels), 1, [])) ...
+                || ~isequal(string(E.layerAggregate.ItemsData), reshape(string(lc.Aggregates), 1, []))   % (set only when they change)
+            E.layerAggregate.ItemsData = [];   % the lists may change length: the value is put back when the type offers it
+            set(E.layerAggregate, "Items", lc.AggregateLabels, "ItemsData", lc.Aggregates);
+            if ismember(was, lc.Aggregates); E.layerAggregate.Value = was; end
+        end
         E.layerFollows.Text = followsText(L, kind, fig.observe);
     end
     en([E.removeLayer], i >= 1 && i <= nl);

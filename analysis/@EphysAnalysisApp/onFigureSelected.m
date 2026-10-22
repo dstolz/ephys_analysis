@@ -5,7 +5,8 @@ function onFigureSelected(obj, k)
 %   sections open or collapsed, its scroll, its panel and layer; a figure
 %   not shown before gets its first panel and layer, the sections as they
 %   are. The picker lists its observations (the one it last showed, when
-%   still there). The tree selects it and the preview shows its own
+%   still there): the list it kept when its key is the same
+%   (takeFigurePicker), else made again. The tree selects it and the preview shows its own
 %   container (refreshFigureList, syncFigureView): the drawing it kept
 %   when it is still current, else it is drawn again (Auto) or marked Out
 %   of date (previewFigureView). While another preview computes, the

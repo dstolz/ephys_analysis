@@ -15,6 +15,7 @@ for v = reshape(obj.FigureViews, 1, [])
 end
 obj.FigureViews = struct([]);
 if isa(obj.FigureEditorStates, 'containers.Map') && obj.FigureEditorStates.Count > 0; remove(obj.FigureEditorStates, keys(obj.FigureEditorStates)); end
+forgetFigurePickers(obj);   % (the observation lists the figures kept)
 v = newFigureView(obj, "");
 v.Panel.Visible = 'on';
 obj.FigureViews = v;

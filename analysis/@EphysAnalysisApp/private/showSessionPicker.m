@@ -9,10 +9,14 @@ g = dd.Parent;
 if numel(labels) > 1
     dd.ItemsData = [];
     set(dd, "Items", "Figure: " + labels, "ItemsData", 1:numel(labels), "Value", j, "Visible", "on");
-    g.ColumnWidth{3} = 230;
+    w = 230;
 else
-    dd.ItemsData = [];
-    set(dd, "Items", "(all)", "ItemsData", 1, "Value", 1, "Visible", "off");
-    g.ColumnWidth{3} = 0;
+    if ~isequal(string(dd.Items), "(all)")   % (as it is on most switches: left alone)
+        dd.ItemsData = [];
+        set(dd, "Items", "(all)", "ItemsData", 1, "Value", 1);
+    end
+    dd.Visible = "off";
+    w = 0;
 end
+if ~isequal(g.ColumnWidth{3}, w); g.ColumnWidth{3} = w; end
 end

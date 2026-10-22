@@ -21,7 +21,9 @@ if obj.Config.Figures(k).sessions.enabled
     u = dd.UserData;
     if ~(isstruct(u) && isfield(u, 'sessions')); return; end
     dd.Items = favoriteMarks(obj, T, data, u.sessions) + items;
+    keepFigurePicker(obj);
     return
 end
 dd.Items = favoriteMarks(obj, T, data) + noteMarks(obj, T, data) + items;
+keepFigurePicker(obj);   % the figure's kept list with the new marks
 end

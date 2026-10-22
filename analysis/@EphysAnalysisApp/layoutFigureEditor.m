@@ -11,7 +11,8 @@ function layoutFigureEditor(obj)
 %   zero-height rows below it (out of sight, and skipped by Tab), and a
 %   last row the space left (the editor scrolls when they need more).
 %   syncFigureEditor decides what shows; onFigureSectionToggled and
-%   onFigureSuperToggled what is collapsed.
+%   onFigureSuperToggled what is collapsed. Only what changed is set (a
+%   row's Layout.Row costs as much when it is the same: formLayout).
 S = obj.FigureSections;
 U = obj.FigureSupers;
 n = numel(S);
@@ -36,19 +37,21 @@ for u = 1:numel(U)
         end
         h(in) = 0;
     end
-    U(u).Header.Text = superText(obj, U(u), any(h(in) > 0) || ~U(u).Expanded);
+    t = superText(obj, U(u), any(h(in) > 0) || ~U(u).Expanded);
+    if ~isequal(string(U(u).Header.Text), t); U(u).Header.Text = t; end
     items = [items {U(u).Header} {S(in).Grid}]; %#ok<AGROW>
     hs = [hs 30 * has h(in)]; %#ok<AGROW>
 end
 on = hs > 0;
 order = [find(on) find(~on)];
 for i = 1:numel(order)
-    items{order(i)}.Layout.Row = i;
+    if ~isequal(items{order(i)}.Layout.Row, i); items{order(i)}.Layout.Row = i; end
 end
 for u = 1:numel(U)
     U(u).Header.Visible = matlab.lang.OnOffSwitchState(has);
 end
-obj.FigureEditorGrid.RowHeight = [num2cell([hs(on) zeros(1, nnz(~on))]) {'1x'}];
+rh = [num2cell([hs(on) zeros(1, nnz(~on))]) {'1x'}];
+if ~isequal(obj.FigureEditorGrid.RowHeight, rh); obj.FigureEditorGrid.RowHeight = rh; end
 obj.FigureSections = S;
 i = find(names == "arrangement", 1);
 if ~isempty(i) && ~(h(i) > 0 && S(i).Expanded) && isfield(obj.FigureEditor, 'schematicPanel')

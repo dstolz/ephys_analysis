@@ -55,7 +55,13 @@ function buildFiguresTab(obj)
 %           panel type's Options (all of the panel's own; Apply to all
 %           panels: applyOptionsToAll; a raster's First spike row and a
 %           PSTH's Latency box row each show a summary beside a button that
-%           opens their modal window: latencyDialog),
+%           opens their modal window: latencyDialog), its Waveform
+%           (the unit's waveform: an inset on a raster, PSTH, firing rate
+%           or tuning curve panel, the panel itself on a unit waveforms
+%           panel; what it shows, its x and y scales, size, place and
+%           label; shown for every type whose layers may be spikes, with
+%           a note on what it sets or why the type draws none:
+%           waveformSection, waveformNote),
 %           the panel's Text note and Overlays (for the selected panel:
 %           onAddFigureOverlay, onFigureOverlayPicked),
 %           Appearance, Looks and Sessions (Across sessions: the figure
@@ -70,13 +76,13 @@ function buildFiguresTab(obj)
 %           supersections, each a dark header that collapses them all
 %           (onFigureSuperToggled): Figure (Observations, Event reference,
 %           Epoch window, Trial selection, Sessions, Panels), Panel
-%           (Selected panel, Panel alignment, Layers, Options, Text note, Overlays;
+%           (Selected panel, Panel alignment, Layers, Options, Waveform, Text note, Overlays;
 %           its header names the selected panel) and Look (Appearance,
 %           Looks), built in that order so Tab follows it. Alt+1 to Alt+3
 %           go to a supersection (gotoFigureSuper), Ctrl+1 to Ctrl+9 and
 %           Ctrl+0 to the first ten sections, Observations to Text note
-%           (gotoFigureSection; onKeyPress); Sessions, Overlays, Appearance
-%           and Looks have no key. Over the editor, a search field
+%           (gotoFigureSection; onKeyPress); Sessions, Waveform, Overlays,
+%           Appearance and Looks have no key. Over the editor, a search field
 %           (Ctrl+F; onFigureSearch) lists the rows whose label (or
 %           tooltip) has the words typed, "Supersection > Section > Row",
 %           in a list under it; Enter or a click goes there (gotoFigureRow),
@@ -733,7 +739,7 @@ S = formSection(eg, 11, "options", "Options", Color=tint("options"));
 [S, r] = formRow(S, "optApplyAll", "", 30);
 E.optApplyAll = uibutton(S.Body, "Text", "Apply to all panels", "ButtonPushedFcn", @(~,~) applyOptionsToAll(obj), ...
     "Tooltip", "Copy this panel's bins, smoothing, measure, baseline (with its window and auROC settings), mask and " + ...
-    "waveform inset to every other panel that has those rows (the baseline only where the type takes its mode), " + ...
+    "waveform inset (the Waveform section) to every other panel that has those rows (the baseline only where the type takes its mode), " + ...
     "its other options to the other panels of its type, and its X axis and Y axis sides to every other panel " + ...
     "(not its label texts).");
 place(E.optApplyAll, r, [1 2]);
@@ -1083,29 +1089,10 @@ E.spStep = uieditfield(mw, "numeric", "Value", 0.05, "Limits", [0 Inf], "LowerLi
 E.spShowPhase = uicheckbox(S.Body, "Text", "Show phase (under the magnitude)", "Value", true, "ValueChangedFcn", changed, ...
     "Tooltip", "The phase at the frequencies where the coherence is over its confidence level, in a strip under it.");
 place(E.spShowPhase, r, [1 2]);
-[S, r] = formRow(S, ["waveMode" "waveSpikes"], "Waveform:");
-wg = subgrid(S.Body, r, {'1x', 'fit', 70});
-E.waveMode = uidropdown(wg, "Items", ["Off" "Mean" "Subsample" "Mean + subsample"], "ItemsData", ["off" "mean" "subsample" "both"], ...
-    "Value", "off", "ValueChangedFcn", changed, "Tooltip", "The unit's waveform on its peak channel: its mean, a " + ...
-    "subsample of its spikes, or both. A raster or PSTH draws it as an inset.");
-uilabel(wg, "Text", "spikes:");
-E.waveSpikes = uispinner(wg, "Limits", [1 2000], "Step", 50, "Value", 100, "RoundFractionalValues", "on", "ValueChangedFcn", changed, ...
-    "Tooltip", "How many of the unit's spikes the subsample draws.");
-[S, r] = formRow(S, ["waveLocation" "waveBox"], "Inset location:");
-wl = subgrid(S.Body, r, {'1x', 'fit'});
-E.waveLocation = uidropdown(wl, "Items", ["North-east" "North" "North-west" "West" "South-west" "South" "South-east" "East"], ...
-    "ItemsData", EphysAnalysisConfig.WaveformLocations, "Value", "northeast", "ValueChangedFcn", changed, ...
-    "Tooltip", "Where in the panel the inset sits.");
-E.waveBox = uicheckbox(wl, "Text", "Axis box", "Value", true, "ValueChangedFcn", changed, "Tooltip", "The inset's outline and pale ground.");
-[S, r] = formRow(S, "waveScale", "Inset size:");
-E.waveScale = uispinner(S.Body, "Limits", [0.25 3], "Step", 0.25, "Value", 1, "ValueDisplayFormat", "%.2gx", "ValueChangedFcn", changed, ...
-    "Tooltip", "The inset's size, a factor of its default (a third of the panel's width and height).");
-place(E.waveScale, r, 2);
-[S, r] = formRow(S, ["wavePP" "waveCount"], "Label:");
-wt = subgrid(S.Body, r, {'fit', 'fit', '1x'});
-wt.ColumnSpacing = 12;
-E.wavePP = uicheckbox(wt, "Text", "p-p", "Value", true, "ValueChangedFcn", changed, "Tooltip", "Say the mean waveform's peak-to-peak amplitude.");
-E.waveCount = uicheckbox(wt, "Text", "# spikes", "ValueChangedFcn", changed, "Tooltip", "Say how many spikes the unit has.");
+sec(end+1) = S;
+
+% the selected panel's unit waveform: its own section, for every type whose layers may be spikes (waveformSection)
+[S, E] = waveformSection(eg, E, changed, (tint("options") + tint("note")) / 2);   % its hue between its neighbors'
 sec(end+1) = S;
 
 % the selected panel's descriptive text (its note: drawNote)
@@ -1350,7 +1337,7 @@ end
 % the supersections: each collapses its sections under a dark header, which Alt+1 to Alt+3 go to (onKeyPress)
 U = struct('Name', {"figure" "panel" "look"}, 'Title', {"Figure" "Panel" "Look"}, ...
     'Sections', {["observations" "ref" "window" "selection" "sessions" "arrangement"], ...
-    ["panel" "palign" "layers" "options" "note" "overlays"], ["style" "looks"]}, ...
+    ["panel" "palign" "layers" "options" "waveform" "note" "overlays"], ["style" "looks"]}, ...
     'Header', {hFigure hPanel hLook}, 'Expanded', true, 'Key', {"1" "2" "3"});
 [sec.Super] = deal("");
 for u = 1:numel(U)
@@ -1832,6 +1819,88 @@ if isPlot
     E.(p + "ModOnly") = uicheckbox(g, "Text", "Modulated units only", "ValueChangedFcn", changed, ...
         "Tooltip", "Draw only the units called modulated in at least one group.");
 end
+end
+
+
+function [S, E] = waveformSection(eg, E, changed, color)
+%waveformSection  The Waveform section: the selected panel's unit waveform (options.waveform), its rows in E.
+%   An inset on a raster, PSTH, firing rate or tuning curve panel, the
+%   panel itself on a unit waveforms panel. syncFigureEditor shows it for
+%   every type whose layers may be spikes, with a note (waveformNote) on
+%   what it sets there or why the type draws none, and the rows the type
+%   uses: what is shown and how many spikes; the x scale (the time span,
+%   ms from the spike) and the y scale (each unit's range, one for the
+%   units drawn, or a fixed range); the size of an inset or of a probe
+%   layout's glyphs; an inset's place and box; the label; a probe layout's
+%   sites and names. It has no key (the search finds its rows).
+gray = [0.35 0.35 0.35];
+S = formSection(eg, 17, "waveform", "Waveform", Color=color);
+[S, r] = formRow(S, "waveNote", "", 46);
+E.waveNote = uilabel(S.Body, "Text", "", "FontColor", gray, "WordWrap", "on", "VerticalAlignment", "top");
+place(E.waveNote, r, [1 2]);
+[S, r] = formRow(S, "waveMode", "Show:");
+E.waveMode = uidropdown(S.Body, "Items", ["Off" "Mean" "Individual spikes" "Mean + individual spikes"], ...
+    "ItemsData", ["off" "mean" "subsample" "both"], "Value", "off", "ValueChangedFcn", changed, ...
+    "Tooltip", "The unit's waveform on its peak channel: its mean, its individual spikes (thin, pale), or both. " + ...
+    "Off: none. A unit whose spikes cannot be read draws its template as the mean, and says so.");
+place(E.waveMode, r, 2);
+[S, r] = formRow(S, "waveSpikes", "Spikes drawn:");
+E.waveSpikes = uispinner(S.Body, "Limits", [1 2000], "Step", 50, "Value", 100, "RoundFractionalValues", "on", ...
+    "ValueChangedFcn", changed, "Tooltip", "How many of the unit's spikes are drawn one by one, picked at random " + ...
+    "(the same ones each time); a sorted unit's mean is over them.");
+place(E.waveSpikes, r, 2);
+[S, r] = formRow(S, ["waveFrom" "waveTo"], "Time (x, ms):");
+tg = subgrid(S.Body, r, {'1x', 'fit', '1x'});
+E.waveFrom = uieditfield(tg, "numeric", "AllowEmpty", "on", "Value", [], "Placeholder", "start", ...
+    "ValueChangedFcn", changed, "Tooltip", "The x scale: where the waveform drawn starts, ms from the spike " + ...
+    "(negative: before it). Blank: the start of the cut.");
+uilabel(tg, "Text", "to");
+E.waveTo = uieditfield(tg, "numeric", "AllowEmpty", "on", "Value", [], "Placeholder", "end", ...
+    "ValueChangedFcn", changed, "Tooltip", "Where the waveform drawn ends, ms from the spike. Blank: the end of " + ...
+    "the cut. A span that misses the waveform draws all of it.");
+[S, r] = formRow(S, ["waveAmp" "waveAmpLo" "waveAmpHi"], "Amplitude (y):");
+ag = subgrid(S.Body, r, {'1x', 56, 'fit', 56});
+E.waveAmp = uidropdown(ag, "Items", ["Each unit's own range" "Fixed range"], "ItemsData", ["unit" "fixed"], ...
+    "Value", "unit", "ValueChangedFcn", changed, "Tooltip", "The y scale. Each unit's own: its waveform fills " + ...
+    "the height. One range for the units drawn (a unit waveforms panel): their sizes can be compared, with a " + ...
+    "scale bar on the probe. Fixed: the range typed at the right, in the waveform's units (µV), the same for " + ...
+    "every observation; what lies beyond it is cut at its edge.");
+E.waveAmpLo = uieditfield(ag, "numeric", "Value", -100, "ValueChangedFcn", changed, ...
+    "Tooltip", "The fixed range's bottom, in the waveform's units (µV).");
+uilabel(ag, "Text", "to");
+E.waveAmpHi = uieditfield(ag, "numeric", "Value", 100, "ValueChangedFcn", changed, ...
+    "Tooltip", "The fixed range's top, in the waveform's units (µV).");
+[S, r] = formRow(S, ["waveWidth" "waveHeight"], "Size:");
+zg = subgrid(S.Body, r, {'fit', '1x', 'fit', '1x'});
+uilabel(zg, "Text", "width");
+E.waveWidth = uispinner(zg, "Limits", [0.25 3], "Step", 0.25, "Value", 1, "ValueDisplayFormat", "%.2gx", ...
+    "ValueChangedFcn", changed, "Tooltip", "The inset's width, a factor of its default (a third of the panel's " + ...
+    "width); on the probe, each glyph's.");
+uilabel(zg, "Text", "height");
+E.waveHeight = uispinner(zg, "Limits", [0.25 3], "Step", 0.25, "Value", 1, "ValueDisplayFormat", "%.2gx", ...
+    "ValueChangedFcn", changed, "Tooltip", "The inset's height, a factor of its default (a third of the panel's " + ...
+    "height); on the probe, each glyph's.");
+[S, r] = formRow(S, ["waveLocation" "waveBox"], "Inset location:");
+wl = subgrid(S.Body, r, {'1x', 'fit'});
+E.waveLocation = uidropdown(wl, "Items", ["North-east" "North" "North-west" "West" "South-west" "South" "South-east" "East"], ...
+    "ItemsData", EphysAnalysisConfig.WaveformLocations, "Value", "northeast", "ValueChangedFcn", changed, ...
+    "Tooltip", "Where in the panel the inset sits.");
+E.waveBox = uicheckbox(wl, "Text", "Axis box", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "The inset's outline and pale ground.");
+[S, r] = formRow(S, ["wavePP" "waveCount"], "Label:");
+wt = subgrid(S.Body, r, {'fit', 'fit', '1x'});
+wt.ColumnSpacing = 12;
+E.wavePP = uicheckbox(wt, "Text", "Peak-to-peak", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "Say the mean waveform's peak-to-peak amplitude (over the whole cut).");
+E.waveCount = uicheckbox(wt, "Text", "Spike count", "ValueChangedFcn", changed, ...
+    "Tooltip", "Say how many spikes the unit has in the whole recording.");
+[S, r] = formRow(S, ["waveSites" "waveNames"], "On the probe:");
+pg = subgrid(S.Body, r, {'fit', 'fit', '1x'});
+pg.ColumnSpacing = 12;
+E.waveSites = uicheckbox(pg, "Text", "Sites", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "The probe's sites in gray behind the waveforms.");
+E.waveNames = uicheckbox(pg, "Text", "Unit names", "ValueChangedFcn", changed, ...
+    "Tooltip", "Each unit's name (and its label) beside its waveform.");
 end
 
 

@@ -19,7 +19,9 @@ function fig = gatherFigureEditor(obj)
 %   equal. The figure's gaps beyond the Spacing drop-down (custom's units
 %   and values) are the Spacing window's (figureSpacingDialog), kept here
 %   as they are. The panel's options are its Options rows', every field
-%   of its type.
+%   of its type, but its waveform: the Waveform section's rows (the time
+%   span [] while both its fields are blank, ampLim only with the fixed
+%   scale).
 %   The panel's text note is its Text note rows', its overlays the
 %   Overlays list's, the one picked read from its rows (overlayGather).
 E = obj.FigureEditor;
@@ -296,15 +298,32 @@ if own('waveform')
     wv = op.waveform;
     wv.mode = string(E.waveMode.Value);
     wv.maxSpikes = E.waveSpikes.Value;
+    wv.timeMs = spanOf(E.waveFrom.Value, E.waveTo.Value);
+    wv.ampScale = string(E.waveAmp.Value);
+    wv.ampLim = [];   % only with the fixed scale: the fields keep their values meanwhile
+    if wv.ampScale == "fixed"; wv.ampLim = [E.waveAmpLo.Value E.waveAmpHi.Value]; end
+    wv.width = E.waveWidth.Value;
+    wv.height = E.waveHeight.Value;
+    wv.location = string(E.waveLocation.Value);
+    wv.box = logical(E.waveBox.Value);
     wv.showPP = logical(E.wavePP.Value);
     wv.showCount = logical(E.waveCount.Value);
-    if p.type ~= "waveforms"   % an inset's place and size
-        wv.location = string(E.waveLocation.Value);
-        wv.box = logical(E.waveBox.Value);
-        wv.scale = E.waveScale.Value;
-    end
+    wv.showSites = logical(E.waveSites.Value);
+    wv.showNames = logical(E.waveNames.Value);
     op.waveform = wv;
 end
+end
+
+
+function span = spanOf(from, to)
+%spanOf  A waveform's time span from its two fields: [] when both are blank, else [from to] (a blank one: -Inf or Inf).
+if isempty(from) && isempty(to)
+    span = [];
+    return
+end
+if isempty(from); from = -Inf; end
+if isempty(to); to = Inf; end
+span = [from to];
 end
 
 

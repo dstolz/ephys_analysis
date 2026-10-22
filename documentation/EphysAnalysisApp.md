@@ -416,18 +416,19 @@ with the key of each in brackets:
 | Panel alignment (7) | the selected panel's own event reference and epoch window (an aligned type only), with **Same as the figure** in the header, and the panel's trial selection, the [Trial selection](#alignment-tab) rows under the **Trial selection as the figure** box (an aligned type only). **Apply to all panels** and **Re-link all panels** (below) |
 | Layers (8) | the selected panel's layers: the list with **Add** (a source the type draws), **Remove**, **Up** and **Down**, and the rows of the layer picked (below) |
 | Options (9) | all of the panel's own options: its type's rows, under the type's name (*Raster options*, *PSTH options*, ...; below), and **Apply to all panels** |
+| Waveform | the selected panel's unit waveform (`options.waveform`), titled *Waveform on psth_1*: the inset of a raster, PSTH, firing rate or tuning curve panel, or the drawing of a unit waveforms panel ([The Waveform section](#the-waveform-section), below). Shown for every panel type whose layers may be spikes; on a heat map, probe map, unit correlation or spectral panel it holds only a note saying why that type draws no waveform. No key |
 | Text note (0) | the selected panel's `note`, titled *Text note on psth_1*: a block of descriptive text on the panel ([Panel notes](EphysAnalysisConfig.md#panel-notes)). **Text** (a new line starts a new line; blank draws nothing), **Place** (*Below*, *Above*, *Right of* or *Left of the panel*, which give up a band of the panel's tile beside its axes; nine places *Over the panel*, in its axes; or *At x, y*), **At x, y** (0-1 across and up the panel's axes; on with *At x, y*), **Align** (across and up), **Rotation**, **Font** and its size, **Style** (*Bold*, *Italic*, *Outline*), **Colors** (text and ground) and **Interpreter** (*As typed* or *TeX*). Every row but the text is grayed out until the text has words. In the preview a note over the panel is a component the right-click editor lists; one in a band beside it is not (its looks still apply, and the figure's rules still reach it). Collapsed until opened |
 | Overlays | the selected panel's `overlays`, titled *Overlays (2) on psth_1* once it has some ([Panel overlays](EphysAnalysisConfig.md#panel-overlays)). A list of the panel's lines and semitransparent patches, with **Add line**, **Add patch**, **Duplicate** (the picked one, look and all, named *name copy*) and **Remove**. A new or duplicated overlay gets a name no overlay of the figure has, on this panel or any other (*Line 1*, *Line 2*, ...: a look remembered for a name reaches every overlay of that name). The rows of the one picked: **Name** and **Enabled**; **Draw** (a vertical or horizontal line, a patch between two x or two y values); **At** or **From / to**; the **Layer** (*Over* or *Under the data*); a line's **Color** and opacity, or a patch's **Fill** color and opacity and **Outline**; the **Line** style and width. There is no *Show on* row: a panel's overlays are all drawn on its own axes, in its axis' units. No key; collapsed until opened |
 | **LOOK** (Alt+3) | the two sections below: how the figure looks |
 | Appearance | the figure's `style` (below); no key; collapsed until opened |
 | Looks | how many looks are remembered for the figure (*"1 remembered look(s); right-click the preview to edit."*) and **Forget**, which drops them and redraws; no key; collapsed until opened |
 
-Each of the fourteen headed sections has a title color of its own (steps along
-`turbo`) and the first ten a key: **Ctrl+1** to **Ctrl+9** and **Ctrl+0**
+Each of the fifteen headed sections has a title color of its own (steps along
+`turbo`; Waveform's lies between Options' and Text note's) and ten a key: **Ctrl+1** to **Ctrl+9** and **Ctrl+0**
 (**Cmd** on a Mac; the number pad too) go to the section of that number, in
 the order above: Observations is 1, Event reference 2, Epoch window 3, Trial
 selection 4, Panels 5, Selected panel 6, Panel alignment 7, Layers 8, Options 9
-and Text note 0. Sessions, Overlays, Appearance and Looks have no key (the
+and Text note 0. Sessions, Waveform, Overlays, Appearance and Looks have no key (the
 search finds them). The key opens the section, and its supersection, if
 collapsed, scrolls the editor to it and puts the keyboard focus on its
 header. **Alt+1**, **Alt+2** and **Alt+3** (**Option** on a Mac) go the same
@@ -503,8 +504,8 @@ drawing the figure again.
 
 **What shows.** Only what the figure, the selected panel and the picked layer
 use is shown (`syncFigureEditor`). The Observations rows follow the data
-the figure observes; the sections from Selected panel to Options, and Text note and
-Overlays, need a panel picked; Panel alignment is grayed out, with a note, for a type that is not
+the figure observes; the sections from Selected panel to Options, and Waveform, Text note and
+Overlays, need a panel picked (Waveform one whose type draws spikes); Panel alignment is grayed out, with a note, for a type that is not
 aligned to events, and its trial selection rows are too while **Trial selection
 as the figure** is ticked; a layer's rows follow its source and binding; the
 Options rows follow the panel's type. A section left with no row is hidden.
@@ -612,7 +613,9 @@ column's) gap away ([Editing the grid](EphysAnalysisConfig.md#editing-the-grid))
 the new type's ([Panel options](EphysAnalysisConfig.md#panel-options)),
 keeping the values both types have (bins, the baseline when the new type
 takes its mode, measure, the mask after the stop event, y and color limits,
-the group shown); the waveform inset or panel starts over. It drops the
+the group shown, and the waveform inset from a raster, PSTH, firing rate or
+tuning curve panel to another of them); a unit waveforms panel's waveform, or
+an inset from or to one, starts over. It drops the
 layers the new type cannot draw (a unit waveforms panel draws no LFP layer), makes the
 layers it keeps fixed where the new type draws only fixed ones, and adds the
 type's default layer when none is left. A type that is not aligned to events
@@ -696,19 +699,52 @@ list edit the layer picked:
 
 | Panel type | Rows |
 | --- | --- |
-| Raster | **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*), **Rows by group first**, **Colors** (the ticks' color: *groups* = each trial group's color, as the PSTH colors its traces, or one color for every tick, which a layer's own **Color** overrides; and **bands** behind the rows: *none* (the default), *groups* (a pale band of each group's color) or one color for every group), **Tick width** (points; 0 = the plot design's width; `options.tickWidth`), **First spike** (a summary beside **First-spike latency...**, below), **Show y ticks** (off by default: the y axis has no tick marks or epoch numbers, only its label; `options.yTicks`), **Mask after the stop event**, and the waveform inset (**Waveform**, **Inset location**, **Inset size**, **Label**) |
-| PSTH | **Bin**, **Smooth**, **Measure**, **Baseline** (with *auroc*) and its window, the auROC rows (with the *auroc* baseline), **Mask after the stop event**, **Display** (*trace* or *heat map*), **PSTH as**, **Fill** and its opacity, **Normalize**, **Stack** (*Off (overlaid)* or *One row per group*, with its **spacing**, the row step in row heights), **Latency box** (a summary beside **Latency box plot...**, below), **Y limits** (the mode, and in a stack the rows' scale), and the waveform inset; as a heat map, **Colormap** and **Color limits** instead of **PSTH as**, **Fill**, **Stack**, **Latency box** and **Y limits** |
+| Raster | **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*), **Rows by group first**, **Colors** (the ticks' color: *groups* = each trial group's color, as the PSTH colors its traces, or one color for every tick, which a layer's own **Color** overrides; and **bands** behind the rows: *none* (the default), *groups* (a pale band of each group's color) or one color for every group), **Tick width** (points; 0 = the plot design's width; `options.tickWidth`), **First spike** (a summary beside **First-spike latency...**, below), **Show y ticks** (off by default: the y axis has no tick marks or epoch numbers, only its label; `options.yTicks`), **Mask after the stop event** (its waveform inset: the [Waveform section](#the-waveform-section)) |
+| PSTH | **Bin**, **Smooth**, **Measure**, **Baseline** (with *auroc*) and its window, the auROC rows (with the *auroc* baseline), **Mask after the stop event**, **Display** (*trace* or *heat map*), **PSTH as**, **Fill** and its opacity, **Normalize**, **Stack** (*Off (overlaid)* or *One row per group*, with its **spacing**, the row step in row heights), **Latency box** (a summary beside **Latency box plot...**, below), **Y limits** (the mode, and in a stack the rows' scale; its waveform inset: the [Waveform section](#the-waveform-section)); as a heat map, **Colormap** and **Color limits** instead of **PSTH as**, **Fill**, **Stack**, **Latency box** and **Y limits** |
 | Event traces | **Draw as** (*solid bars (onset to offset)* or *a logic level (a line)*), **Trials** (*every epoch overlaid in the line's row*, translucent, or *a sub-row per epoch*, with **group bands**), the sub-rows sorted as a raster's rows by the raster's **Sort rows by** (and its order), **Sort event**, **Sort sequence** and **Rows by group first** (grayed out while overlaid), **Color by** (*line*: the layer's Color, else a palette color; or *trial group*), **Height** (a share of the row) with its **opacity** (blank: 0.3 overlaid, 1 in sub-rows), **Bar outline** and its width (bars), **Narrowest bar** (bars: points; a bar drawn narrower, a zero-length interval too, also gets a tick this wide through its middle; 0: none), **Level line** style and width (a line; a layer's own Line style wins), **Baseline** (**Draw**, its color) and **Baseline line** (style, width), **Row spacing**. Its layers are events layers only, one line each, a row each ([Event traces](EphysAnalysisConfig.md#event-traces)) |
 | Continuous signal | **Baseline** and its window, **Stack** (*Off (overlaid)*, *One row per group* or *One row per channel*, with its **spacing**), **Signal** (mean or median; as recorded, rectified, or *Vector magnitude*: the layer's channels as one trace, √(x² + y² + z²) in each epoch after the baseline, e.g. a 3-axis accelerometer's AUX channels with Baseline *subtract*), **Error band** (off, mean ± SEM, mean ± SD, bootstrap 95% CI or interquartile range), **Trials** (*Off*, *Faint, behind the mean* or *Only the trials*) with **at most** (the most epochs drawn, 100 by default, picked evenly over their order; the traces sit under every band and mean; grayed out while *Off*), **Y limits** |
 | Heat map | **Bin**, **Smooth**, **Measure** and **Mask after the stop event** (a spike layer), **Baseline** (*auroc* for a spike layer, with the auROC rows; the map is then of auROCs in the diverging colormap), **Rows** (*the layer's units or channels*, or *one unit's epochs (trials)*), **Row order** (*probe*, *peak* or *modulation*, the last only with the auROC baseline), **Stack** (*One image row per group*: a block of rows per group, **Group shown** hidden), **Color limits**; the group drawn is in the Selected panel section. With *one unit's epochs (trials)* a row is an epoch of one unit, every group at once, sorted as a raster's rows: the raster's **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*) and **Rows by group first** show, **Row order** and **Group shown** hide, and the layer may follow the observation (its Binding row opens for a spike layer; otherwise fix it to one unit). The map is one unit's epochs: a layer that follows the observation through a channel (a channel observation, or the other spike source) keeps every unit on it, which Validate refuses, and a layer that still keeps several is skipped with *A heat map of trials draws one unit: this layer keeps n*. The groups are a color strip along the left edge, the y label names the sort, and the auROC baseline is refused |
-| Unit waveforms | **Layout** (*grid*: the unit, or several overlaid; *probe*: every unit of the first layer at its place on the probe, with the units of a further layer framed in red), **Waveform** (*Mean*, *Subsample* or *Mean + subsample*, and how many spikes), **Label**, **Y limits** |
+| Unit waveforms | **Layout** (*grid*: the unit, or several overlaid; *probe*: every unit of the first layer at its place on the probe, with the units of a further layer framed in red), **Y limits** (what is drawn, its scales and label: the [Waveform section](#the-waveform-section)) |
 | Probe map | **Value** (*rate*, *nSpikes* or *nUnits*), **Color limits** |
 | Unit correlation | **Epoch rate**, **Correlation**, **Fisher z transform**, **Baseline**, **Bin** and **Smooth** (for the *peak* rate), **Color limits** |
-| Firing rate | **Measure**, **Baseline** (*none*, *subtract*, *ratio* or *zscore*) and its window, **Display** (*bars (mean, error bar)*, *boxes* or *points (each epoch)*), **Y limits** |
-| Tuning curve | **Measure**, **Baseline** (as the firing rate panel's) and its window, **Parameter** (the trial parameter on the x axis; blank: the figure's first group-by parameter, else the first numeric one) with **series** (one curve per value of another trial parameter; blank: one curve), **Stack** (*One row per series*), **Y limits**, and the waveform inset |
+| Firing rate | **Measure**, **Baseline** (*none*, *subtract*, *ratio* or *zscore*) and its window, **Display** (*bars (mean, error bar)*, *boxes* or *points (each epoch)*), **Y limits** (its waveform inset: the [Waveform section](#the-waveform-section)) |
+| Tuning curve | **Measure**, **Baseline** (as the firing rate panel's) and its window, **Parameter** (the trial parameter on the x axis; blank: the figure's first group-by parameter, else the first numeric one) with **series** (one curve per value of another trial parameter; blank: one curve), **Stack** (*One row per series*), **Y limits** (its waveform inset: the [Waveform section](#the-waveform-section)) |
 | Power spectrum | the Chronux rows: **Time base** (*the panel's epochs* or *segments of the recording*, with **Range (s)** and **Segment (s)**), **Tapers** (*TW and K* or *W (Hz) and p*, with **TW, K** or **W (Hz), p**), **Pad**, **Frequency range**, **Error** (*none*, *theoretical* or *jackknife*) with its p-value, **Detrend**, **Scale** (*dB*, *log axis* or *linear*), **Spike rate (Hz)** (with a spike layer), **Stack** (*One row per group*) and **Y limits** |
 | Spectrogram | **Tapers** (as above), **Pad**, **Frequency range**, **Detrend**, **Scale** (*dB* or *linear*), **Spike rate (Hz)** (with a spike layer), **Moving window (s)** with its step, **Baseline** (*none*, *db*, *percent*, *zscore* or *ratio*) with **Baseline (s)**, whose window must lie inside the panel's window, **Stack** (*One image row per group*, **Group shown** hidden) and **Color limits**; the group drawn is **Group shown** in the Selected panel section |
 | Coherence | **Time base** with **Range (s)** and **Segment (s)**, the tapers, **Pad**, **Frequency range**, **Error** with its p-value (*jackknife* gives the band and the confidence level, *theoretical* the level), **Detrend**, **Spike rate (Hz)**, **Show phase (under the magnitude)**, **Stack** (*One row per group*: the magnitude's rows, or over time an image row each) and **Y limits** (blank: 0 to 1); **Over time (a coherogram)** swaps the error, phase and y limits for **Moving window (s)** and **Color limits**, adds **Group shown** and, on the panel's epochs, puts the image on the figure's time axis; it takes spike layers as well as signals (spike-field and unit-unit coherograms). Its two layers may be signals at different rates (an AUX layer and an LFP layer): the faster one is resampled to the slower one's rate |
+
+#### The Waveform section
+
+The **Waveform** section (in the PANEL supersection, under Options) holds the
+selected panel's unit waveform, `options.waveform`
+([Panel options](EphysAnalysisConfig.md#panel-options)): on a raster, PSTH,
+firing rate or tuning curve panel an inset, the panel's first unit's waveform
+on its peak channel drawn in a corner of the panel, in the panel's data units
+as the Review tab draws it (a layer drawn as its units' mean has none); on a
+unit waveforms panel the panel itself. It shows for every panel type whose
+layers may be spikes, titled with the panel's id, and starts with a note on
+what it sets there. A heat map, probe map, unit correlation or spectral panel
+draws no waveform: the section holds only the note, which says why and
+suggests a Unit waveforms panel beside it (the search, asked for one of its
+rows, says the same). A panel of signals or events only (continuous, event
+traces) has no Waveform section.
+
+| Row | What it sets |
+| --- | --- |
+| Show | *Off* (no inset; a unit waveforms panel cannot be off), *Mean*, *Individual spikes* (thin, pale) or *Mean + individual spikes* (`mode`: `off`, `mean`, `subsample`, `both`). A unit whose spikes cannot be read draws its template as the mean, and says so |
+| Spikes drawn | how many of the unit's spikes are drawn one by one, at random but the same each time; a sorted unit's mean is over them, so it counts for *Mean* too (`maxSpikes`) |
+| Time (x, ms) | the x scale: the span drawn, from and to, ms from the spike; a blank field is the cut's edge, both blank the whole cut (`timeMs`: `[]`, or `[from to]` with `-Inf` / `Inf`). A span that misses the waveform draws all of it |
+| Amplitude (y) | the y scale: *Each unit's own range* (the waveform fills its box or tile), *One range for the units drawn* (a unit waveforms panel: the units' sizes can be compared, with a scale bar on the probe), or *Fixed range* with the range at its right in the waveform's units, µV for most (`ampScale`: `unit`, `common`, `fixed`; `ampLim`); a fixed range is the same for every observation, and an inset or probe glyph cuts what lies beyond it at its edge. On a unit waveforms panel in the grid layout the panel's own **Y limits** (Options), when not *Auto*, win |
+| Size | the inset's **width** and **height**, each a factor of its default, a third of the panel's (0.25 to 3); on a unit waveforms panel in the probe layout each glyph's (`width`, `height`) |
+| Inset location | where the inset sits (a compass point; `location`) and **Axis box** (its outline and pale ground; `box`): an inset only |
+| Label | **Peak-to-peak** (the mean's, over the whole cut; `showPP`) and **Spike count** (the unit's spikes in the whole recording; `showCount`) |
+| On the probe | **Sites** (the probe's sites behind the waveforms; `showSites`) and **Unit names** (`showNames`): a unit waveforms panel in the probe layout only |
+
+Every row but **Show** is grayed out while it is *Off*. **Apply to all panels**
+(Options) copies the inset to every raster, PSTH, firing rate and tuning
+curve panel of the figure, and a type change from one of these to another
+keeps it. The inset's mean and spikes take their colors and line widths from
+the right-click editor's looks (`waveMean`, `waveSpikes`).
 
 **Y limits** (every panel with a y axis of values) is a drop-down beside the
 limits' field, which is open only for *Fixed*: *Auto* (the axis fits the data;
@@ -1813,7 +1849,8 @@ own options leave **Re-link all panels** off; Ctrl+7 and Ctrl+9 go to Panel
 alignment and Options. *Max units* shrinks the picker and *Inf*
 restores it. Changing a PSTH panel to a heat map keeps its units layer
 (fixed) and the shared bins, shows the heat map's rows and says so in the
-status bar, and changing it back lets the layer follow the unit again. A PSTH
+status bar, shows its Waveform section with only the note on why a heat map
+draws no inset (the search, asked for *Show*, says the same), and changing it back lets the layer follow the unit again. A PSTH
 shows its **Stack** row (*Off* or *One row per group*, the spacing grayed out
 while *Off*) and no auROC rows without the auROC baseline; *One row per group*
 and the spacing reach the panel's options and the preview stacks its groups (a
@@ -1823,10 +1860,15 @@ auROC curves (the result holds `auroc`). The panel-type drop-down offers
 *Firing rate* and *Tuning curve*; a *Firing rate*
 panel added **Below** follows the unit, draws its bars at once and shows its
 rows only (*Display*, *Measure*, *Baseline* with the rate modes, no bins or
-stack), and *Display* *points* reaches the options and the drawing. A *Tuning
+stack), and *Display* *points* reaches the options and the drawing. Its
+Waveform section (in Panel, no key) shows its note, Show, Time, Amplitude,
+Size and place rows, grayed out while *Off*; *Mean*, a time span from -0.5 ms
+(a blank end: `Inf`), a fixed range and a width reach `options.waveform` and
+the preview reads the waveforms. A
+continuous panel (no spikes) has no Waveform section. A *Tuning
 curve* panel added **Below** draws at once over the figure's group-by parameter
-(*Depth* on the fixture) and shows its **Parameter** rows and the waveform
-inset; its **Parameter** and **series** reach the options and the
+(*Depth* on the fixture) and shows its **Parameter** rows and the Waveform
+section's; its **Parameter** and **series** reach the options and the
 drawing. Both are removed again with **Remove panel**. The gather / apply
 round trip keeps the figure and the panel picked; a look
 remembered from the preview's editor lands in the figure's `aesthetics` (and

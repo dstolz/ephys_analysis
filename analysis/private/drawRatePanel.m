@@ -23,7 +23,9 @@ function hk = drawRatePanel(ax, P, look)
 %   trial group's label, with several items "<item> · <group>" (the item
 %   alone for one group). options.yLimMode sets the y axis (panelYLimits:
 %   "fixed" at options.yLim, "batch" at the run's range; "auto" and
-%   "rows" from the data: its groups share the axis). Skipped layers are
+%   "rows" from the data: its groups share the axis). With
+%   options.waveform.mode on, the first unit's waveform is an inset
+%   (waveformInset; a layer's mean has none). Skipped layers are
 %   noted (figLayerNotes). HK: figDrawResult's, yName = the rates' unit.
 %
 %   See also renderFigure, firingRate, figurePanelRegistry.
@@ -142,6 +144,11 @@ flat.XLim = [];
 [~, flat.YLim] = panelYLimits(look);
 styleAxes(ax, flat);
 if axName ~= "Group"; xlabel(ax, axName, 'Interpreter', 'none'); end
+wave = EphysAnalysisConfig.normalizeSection("Waveform", o.waveform);
+first = find(items(:, 2) > 0, 1);
+if wave.mode ~= "off" && ~isempty(first) && isfield(P.layers(items(first, 1)).R, 'waveforms')
+    waveformInset(ax, P.layers(items(first, 1)).R.waveforms, items(first, 2), wave, style);
+end
 figLayerNotes(ax, P, look, true);
 hk.yName = R0.units;
 end

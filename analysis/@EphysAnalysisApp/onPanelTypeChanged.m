@@ -4,8 +4,10 @@ function onPanelTypeChanged(obj)
 %   DefaultOptions), keeping the values both types have (bins, baseline --
 %   its mode when the new type takes it --, measure, the mask, limits, the
 %   group shown, the stack -- its value when the new type takes it,
-%   EphysAnalysisConfig.stackModes -- and its spacing); the waveform inset
-%   or panel starts afresh. The layers the
+%   EphysAnalysisConfig.stackModes -- and its spacing, and the waveform
+%   inset from one type that draws one to another,
+%   EphysAnalysisConfig.WaveformInsetTypes); a waveforms panel's own
+%   waveform, or an inset from or to one, starts afresh. The layers the
 %   new type cannot draw are dropped; those kept are fixed where the type
 %   draws only fixed layers, and take the new type's binding (following the
 %   observation on a raster, PSTH, continuous or waveforms panel) where the
@@ -65,7 +67,8 @@ for f = string(fieldnames(op)).'
     % same names, other meanings: an inset vs a waveforms panel's own waveform; a rate panel's display (bar | box |
     % points) vs a PSTH's (trace | heatmap) or an event trace's (bars | line); a continuous panel's trials (off | faint |
     % only) vs an event-trace panel's (overlay | rows): the new type's defaults
-    if ismember(f, ["waveform" "display" "trials"]) || ~isfield(p.options, f); continue; end
+    insets = all(ismember([old new], EphysAnalysisConfig.WaveformInsetTypes));   % an inset stays an inset
+    if ismember(f, ["display" "trials"]) || (f == "waveform" && ~insets) || ~isfield(p.options, f); continue; end
     v = p.options.(f);
     if f == "baseline" && ~ismember(v.Mode, modes); v.Mode = "none"; end
     if f == "stack" && ~ismember(v, EphysAnalysisConfig.stackModes(new)); v = op.stack; end   % e.g. a continuous panel's "items"

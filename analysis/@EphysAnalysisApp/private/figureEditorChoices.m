@@ -34,7 +34,11 @@ function ch = figureEditorChoices(type, source, rows, opts)
 %                    spectrogram chronuxNormalize's none, db, percent,
 %                    zscore, ratio)
 %     WaveModes, WaveLabels  options.waveform.mode: an inset may be off, a
-%                    waveforms panel's waveform not
+%                    waveforms panel's waveform not ("subsample" reads
+%                    "Individual spikes")
+%     WaveAmps, WaveAmpLabels  options.waveform.ampScale: each unit's own
+%                    range or a fixed one; a waveforms panel also one
+%                    common to its units (an inset draws one unit)
 %   An unknown TYPE offers no source.
 %
 %   See also EphysAnalysisConfig.panelTypes, EphysAnalysisConfig.categoryOf.
@@ -67,7 +71,8 @@ ch = struct('Sources', srcs, 'SourceLabels', labels, ...
         && ismember(type, ["raster" "psth" "continuous" "waveforms" "rate" "tuning" "spectrum" "spectrogram" "coherence"])) ...
         || (type == "heatmap" && rows == "trials" && ismember(source, EphysAnalysisConfig.SpikeSources)), ...
     'BaselineModes', "none", 'WaveModes', ["off" "mean" "subsample" "both"], ...
-    'WaveLabels', ["Off" "Mean" "Subsample" "Mean + subsample"]);
+    'WaveLabels', ["Off" "Mean" "Individual spikes" "Mean + individual spikes"], ...
+    'WaveAmps', ["unit" "fixed"], 'WaveAmpLabels', ["Each unit's own range" "Fixed range"]);
 if ismember(opts.Observed, [EphysAnalysisConfig.SpikeSources EphysAnalysisConfig.SignalSources]) ...
         && (source == "AUX") ~= (opts.Observed == "AUX")
     ch.Bindable = false;   % nothing to follow: AUX has no recording channel
@@ -82,5 +87,7 @@ switch type
     case "waveforms"
         ch.WaveModes = ch.WaveModes(2:end);
         ch.WaveLabels = ch.WaveLabels(2:end);
+        ch.WaveAmps = EphysAnalysisConfig.WaveformAmpScales;
+        ch.WaveAmpLabels = ["Each unit's own range" "One range for the units drawn" "Fixed range"];
 end
 end

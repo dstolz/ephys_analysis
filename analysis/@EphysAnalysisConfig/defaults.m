@@ -155,19 +155,23 @@ switch section
             'modulatedOnly',    false);          % keep only the units modulated in some group
 
     case "Waveform"
-        % a psth / raster / tuning panel's unit waveform: a box in the unit's panel (unitWaveforms; waveformInset);
-        % a waveforms panel's settings: mode, maxSpikes, showPP, showCount, scale (the probe glyphs' size), ampScale, showSites, showNames
+        % a panel's unit waveform (the figure editor's Waveform section): an inset in a raster / psth / rate / tuning
+        % panel (EphysAnalysisConfig.WaveformInsetTypes; unitWaveforms, waveformInset), or a waveforms panel's own
+        % (renderWaveforms: location and box unused; width and height size its probe glyphs)
         s = struct( ...
-            'mode',      "off", ...         % "off" | "mean" | "subsample" | "both" (the mean over the subsample)
-            'location',  "northeast", ...   % compass point of the tile: north, south, east, west, northeast, northwest, southeast, southwest
-            'box',       true, ...          % the box's outline and pale ground (false: the waveform alone)
-            'showPP',    true, ...          % the mean's peak-to-peak amplitude in the box's label
-            'showCount', false, ...         % the unit's total spike count, in the box's label
-            'scale',     1, ...             % size: 1 = a third of the tile's width and height (at most 3)
-            'maxSpikes', 100, ...           % the subsample: spikes per unit, at random (the same each time); a sorted unit's mean is over them
-            'ampScale',  "unit", ...        % waveforms plot: "unit" (each waveform fills its own tile / glyph) | "common" (one amplitude scale for all units of the same kind of value)
-            'showSites', true, ...          % waveforms plot, probe layout: the probe's sites behind the waveforms
-            'showNames', false);            % waveforms plot, probe layout: each unit's name beside its waveform
+            'mode',      "off", ...         % "off" | "mean" | "subsample" (individual spikes) | "both" (the mean over the spikes)
+            'maxSpikes', 100, ...           % the individual spikes: per unit, at random (the same each time); a sorted unit's mean is over them
+            'timeMs',    [], ...            % x: the span drawn, [from to] ms from the spike (-Inf / Inf: the cut's edge); [] = the whole cut
+            'width',     1, ...             % x: an inset's width, 1 = a third of the tile's (at most 3); a probe glyph's, 1 = its default
+            'ampScale',  "unit", ...        % y: "unit" (each fills its box / tile / glyph) | "common" (one scale for the units drawn together) | "fixed" (ampLim)
+            'ampLim',    [], ...            % y, ampScale "fixed": [lo hi] in the waveform's units (unitWaveforms' units: uV for most)
+            'height',    1, ...             % y: an inset's height, 1 = a third of the tile's (at most 3); a probe glyph's, 1 = its default
+            'location',  "northeast", ...   % an inset's compass point of the tile: north, south, east, west, northeast, northwest, southeast, southwest
+            'box',       true, ...          % an inset's outline and pale ground (false: the waveform alone)
+            'showPP',    true, ...          % the mean's peak-to-peak amplitude in the label
+            'showCount', false, ...         % the unit's total spike count, in the label
+            'showSites', true, ...          % waveforms panel, probe layout: the probe's sites behind the waveforms
+            'showNames', false);            % waveforms panel, probe layout: each unit's name beside its waveform
 
     case "FirstSpike"
         % a raster panel's first-spike latency: a mark on each epoch's first spike in [minSec, maxSec] (firstSpikeLatency; rasterInto)

@@ -132,6 +132,12 @@ classdef EphysAnalysisConfig
         ObserveData   = ["units" "detected" "LFP" "MUA" "SPIKE" "AUX" "dataset"]
         % Where in a unit's tile its waveform box sits (a panel's waveform.location).
         WaveformLocations = ["northeast" "north" "northwest" "west" "southwest" "south" "southeast" "east"]
+        % The panel types that draw the unit's waveform as an inset (options.waveform, mode not "off"); a waveforms
+        % panel's waveform is the panel itself.
+        WaveformInsetTypes = ["raster" "psth" "rate" "tuning"]
+        % How a waveform's amplitude axis is scaled (options.waveform.ampScale): each unit its own range, one range for
+        % the units drawn together, or the range ampLim.
+        WaveformAmpScales = ["unit" "common" "fixed"]
         % The error a figure draws as bands or bars (Style.ErrorType): mean +/- SEM, mean +/- SD, bootstrap 95% CI of the mean.
         ErrorTypes    = ["sem" "std" "ci95"]
         % What a continuous panel shows at each sample over the epochs (options.statistic), and of what
@@ -632,7 +638,7 @@ classdef EphysAnalysisConfig
             %   yLimMode; continuous: baseline, stack, stackSpacing,
             %   yLimMode; heatmap: bins, measure, baseline, auroc,
             %   maskAfterStop, stack, stackSpacing; corrmap: bins,
-            %   baseline; rate: measure, baseline, yLimMode; tuning:
+            %   baseline; rate: measure, baseline, waveform, yLimMode; tuning:
             %   measure, baseline, waveform, stack, stackSpacing, yLimMode;
             %   waveforms: yLimMode (its waveform is its own settings, not
             %   an inset); probemap: none. The spectral types (spectrum,

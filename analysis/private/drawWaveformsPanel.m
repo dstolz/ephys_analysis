@@ -14,7 +14,9 @@ function hk = drawWaveformsPanel(ax, P, look)
 %     several      (a fixed layer of several units) every unit's mean
 %                  overlaid in a color of its own (role "waveMean", group =
 %                  the unit's label), the spike time marked, each unit in
-%                  the legend
+%                  the legend; the waveform's time span (timeMs) and, with
+%                  ampScale "fixed", its ampLim as the y limits (the
+%                  panel's own y limits, yLimMode not "auto", win)
 %   In the probe layout (options.layout "probe") renderWaveforms draws every
 %   unit of the first layer at its place on the probe (Layout "probe": the
 %   sites behind, the panel's waveform settings), and the units the
@@ -76,15 +78,17 @@ if ~isempty(ser)
 end
 hold(ax, 'on');
 drew = false;
+wave = EphysAnalysisConfig.normalizeSection("Waveform", o.waveform);
 for u = reshape(order, 1, [])
     if u > numel(W.mean) || isempty(W.mean{u}); continue; end
+    [t, m] = waveformSpan(W.timeMs{u}(:), W.mean{u}(:), [], wave.timeMs);
     if isempty(ser)
-        hk.legendHandles(end+1) = tagPart(line(ax, W.timeMs{u}(:), W.mean{u}(:), 'Color', C(u, :), ...
+        hk.legendHandles(end+1) = tagPart(line(ax, t, m, 'Color', C(u, :), ...
             'LineWidth', max(1, style.LineWidth)), "waveMean", names(u));
         hk.legendLabels(end+1) = names(u);
         hk.legendGroup(end+1) = false;
     else   % a "trace" in its series' color, the series listed once (as the plot's session looks)
-        h1 = tagPart(line(ax, W.timeMs{u}(:), W.mean{u}(:), 'Color', C(u, :), 'LineWidth', max(1, style.LineWidth)), ...
+        h1 = tagPart(line(ax, t, m, 'Color', C(u, :), 'LineWidth', max(1, style.LineWidth)), ...
             "trace", serLabel(ser(u)));
         if ~any(hk.legendLabels == serLabel(ser(u)))
             hk.legendHandles(end+1) = h1;
@@ -103,6 +107,9 @@ if ~drew
     return
 end
 axis(ax, 'tight');
+if wave.ampScale == "fixed" && numel(wave.ampLim) == 2 && wave.ampLim(2) > wave.ampLim(1)
+    ylim(ax, wave.ampLim);
+end
 styleAxes(ax, st);
 xlabel(ax, 'Time (ms)');
 u = unique(W.units(W.units ~= ""));

@@ -10,7 +10,8 @@ function ok = gotoFigureRow(obj, i, opts)
 %   says why (figureRowReason: "Bin (ms) is an option of PSTH, heat map
 %   and unit correlation panels: pick such a panel."), as does a section
 %   the figure does not show (no panel picked; no panel aligned to
-%   events). OK is true when it went there.
+%   events; the Waveform section on a panel whose data cannot be spikes:
+%   waveformNote). OK is true when it went there.
 %
 %   Focus=false leaves the keyboard focus where it is (a match picked in
 %   the search list with the arrows: the editor shows it while the list
@@ -48,7 +49,7 @@ hasPanel = obj.SelectedPanel >= 1 && obj.SelectedPanel <= numel(fig.panels);
 type = "";
 if hasPanel; type = fig.panels(obj.SelectedPanel).type; end
 if ~(S.Visible && (isempty(S.Heights) || any(S.Shown)))   % the section is not shown for this figure
-    obj.setStatus(sectionReason(e, S, fig, hasPanel));
+    obj.setStatus(sectionReason(e, S, fig, hasPanel, type));
     return
 end
 if e.Row > 0 && ~S.Shown(e.Row)
@@ -76,16 +77,18 @@ ok = true;
 end
 
 
-function why = sectionReason(e, S, fig, hasPanel)
+function why = sectionReason(e, S, fig, hasPanel, type)
 %sectionReason  Why a section is not shown, in a sentence that names the setting looked for.
 what = e.Label;
 if e.Row == 0; what = "The " + S.Title + " section"; end
 switch S.Name
-    case {"panel" "palign" "layers" "options" "note" "overlays"}
+    case {"panel" "palign" "layers" "options" "waveform" "note" "overlays"}
         if isempty(fig.panels)
             why = what + " is a panel's: add a panel to the figure first (Panels: New panel...).";
         elseif ~hasPanel
             why = what + " is a panel's: pick a panel in the schematic (Ctrl+] steps through them).";
+        elseif S.Name == "waveform"
+            why = what + " is not used: " + waveformNote(type);
         else
             why = what + " is not shown for this panel.";
         end

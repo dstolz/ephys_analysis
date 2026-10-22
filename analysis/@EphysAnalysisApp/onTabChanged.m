@@ -1,5 +1,8 @@
 function onTabChanged(obj)
 %onTabChanged  Refresh what the shown tab draws; a hint in the status bar; the Edit menu (on with the Figures tab).
+%   A tab shown for the first time is laid out now (revealTab: the startup
+%   leaves the tabs it does not show hidden).
+revealTab(obj, obj.Tabs.SelectedTab);
 switch obj.Tabs.SelectedTab
     case obj.TabData
         msg = "Data: where the datasets are; Scan, tick the ones to run, click one to make it active.";

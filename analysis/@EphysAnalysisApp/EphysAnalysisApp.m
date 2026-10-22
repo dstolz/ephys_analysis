@@ -146,10 +146,14 @@ classdef EphysAnalysisApp < handle
     %   and a progress bar while the window is built hidden, the
     %   preferences restored, the config opened, its datasets scanned and
     %   the first one loaded; then the window shows. Splash=false starts
-    %   without it, the default under -batch (the test runs). Opened on a
-    %   project root or an output folder (the pipeline app's Open analysis
-    %   app), the app takes the last config again with its source switched
-    %   to them (openSource).
+    %   without it, the default under -batch (the test runs). The hidden
+    %   window is laid out once, when it shows (setStatus paints nothing
+    %   meanwhile), with the Data tab's contents alone: each other tab is
+    %   laid out the first time it shows (revealTab, onTabChanged), and
+    %   the Alignment tab's epoch count is drawn then (refreshAlignPreview).
+    %   Opened on a project root or an output folder (the pipeline app's
+    %   Open analysis app), the app takes the last config again with its
+    %   source switched to them (openSource).
     %
     %   Usage
     %     EphysAnalysisApp                      % the last config, or defaults
@@ -592,9 +596,11 @@ function [steps, weights] = startupSteps()
 %startupSteps  The constructor's steps on the splash (AppSplash) and the seconds each takes (measured warm).
 %   The tab steps are named by their tabs, in buildUI's order; "scan" and
 %   "dataset" are onScan's (the datasets found, the first one loaded).
+%   "show" is the longest: the hidden window is laid out then, in one go
+%   (setStatus paints nothing while the app starts; revealTab).
 S = { ...
-    "window", 0.2; "Data", 0.34; "Alignment", 0.97; "Figures", 5.4; "Export", 0.29; ...
-    "Log", 0.02; "finish", 0.19; "prefs", 0.44; "config", 6.0; "scan", 5.1; "dataset", 4.9; "show", 0.6};
+    "window", 0.2; "Data", 0.34; "Alignment", 0.97; "Figures", 4.6; "Export", 0.2; ...
+    "Log", 0.02; "finish", 0.14; "prefs", 0.06; "config", 1.25; "scan", 2.0; "dataset", 0.86; "show", 6.2};
 steps = [S{:, 1}];
 weights = [S{:, 2}];
 end

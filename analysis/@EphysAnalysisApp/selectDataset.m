@@ -15,8 +15,7 @@ if obj.ActiveIdx >= 1 && obj.ActiveIdx ~= idx && obj.ActiveIdx <= numel(obj.Runn
 end
 obj.ActiveIdx = idx;
 name = obj.Runner.Names(idx);
-obj.setStatus(sprintf("Loading %s (dataset %d/%d): its files ...", name, idx, numel(obj.Runner.Keys)));
-drawnow limitrate;
+obj.setStatus(sprintf("Loading %s (dataset %d/%d): its files ...", name, idx, numel(obj.Runner.Keys)));   % (painted: setStatus)
 try
     obj.Runner.source(idx);
     obj.setStatus("Loading " + name + ": its units, lines and observations ...");

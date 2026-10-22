@@ -2,7 +2,8 @@ function test_EphysAnalysisApp(opts)
 %test_EphysAnalysisApp  Headless checks of the analysis GUI over a synthetic project.
 %   Builds the app on a small synthetic project run through the pipeline
 %   and drives it through its own methods: the startup (built hidden behind
-%   the splash, Splash=true and the -batch default without it); opening on
+%   the splash, Splash=true and the -batch default without it; the tabs but
+%   Data, and the Alignment tab's epoch count, waiting to be shown); opening on
 %   a folder (the last config with its source switched, else a quick look);
 %   LastConfigFile kept after New; the five tabs (Data, Alignment,
 %   Figures, Export, Log); the toolbar (its tools, icons and
@@ -227,6 +228,16 @@ if S.sec("1", "build, open the project, scan")
     check(app.Fig.Visible == "on" && ~app.Splash.isActive() && app.Splash.Window == "" && isempty(findall(groot, 'Tag', 'AppSplash')) ...
         && isequal(app.Splash.History.Step.', ["window" "Data" "Alignment" "Figures" "Export" "Log" "finish" "prefs" "scan" "dataset" "show"]), ...
         'under -batch the app starts without the splash window: built hidden, each tab, the scan and the first dataset a step, then shown');
+    hiddenIn = @(t) all(string({t.Children.Visible}) == "off");
+    check(~hiddenIn(app.TabData) && hiddenIn(app.TabAlign) && hiddenIn(app.TabFigures) && hiddenIn(app.TabExport) ...
+        && hiddenIn(app.TabLog) && startsWith(app.AlignSummaryLabel.Text, "Scan and pick"), ...
+        'the window shows with the Data tab''s contents alone; the other tabs'' wait, and so does the Alignment tab''s epoch count');
+    app.selectTab(app.TabAlign);
+    alignShown = ~hiddenIn(app.TabAlign) && ~startsWith(app.AlignSummaryLabel.Text, "Scan and pick");
+    app.selectTab(app.TabFigures);
+    check(alignShown && ~hiddenIn(app.TabFigures) && hiddenIn(app.TabExport), ...
+        'a tab''s contents show when it is first shown (revealTab), the Alignment tab''s epoch count drawn then');
+    app.selectTab(app.TabData);
     check(isvalid(app.Fig) && numel(app.Tabs.Children) == 5 && app.Tabs.Children(1) == app.TabData ...
         && app.Tabs.Children(2) == app.TabAlign && app.Tabs.Children(3) == app.TabFigures && app.Tabs.Children(4) == app.TabExport ...
         && app.Tabs.Children(5) == app.TabLog && ~isprop(app, 'TabChronux') && ~isprop(app, 'TabPlots') && ~isprop(app, 'TabSessions'), ...

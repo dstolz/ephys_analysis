@@ -9,7 +9,9 @@ function [S, h] = formLayout(S)
 %   its header: "(Ctrl+1)", "(Cmd+1)" on a Mac.
 %
 %   The first call finds each row's controls (the body's children in that
-%   row); rows are addressed by that first order from then on.
+%   row); rows are addressed by that first order from then on. Only what
+%   changes is set: a set of a UI component's property costs as much when
+%   its value stays, and the editor lays out every section on each edit.
 %
 %   See also formSection, formRow, formShow.
 header = 26 * ~isempty(S.Toggle);
@@ -24,14 +26,14 @@ if isForm
     on = S.Shown;
     order = [find(on) find(~on)];
     for i = 1:numel(order)
-        items = S.Items{order(i)};
-        for c = items
-            c.Layout.Row = i;
+        vis = matlab.lang.OnOffSwitchState(on(order(i)));
+        for c = S.Items{order(i)}
+            if ~isequal(c.Layout.Row, i); c.Layout.Row = i; end
+            if c.Visible ~= vis; c.Visible = vis; end
         end
-        set(items, 'Visible', matlab.lang.OnOffSwitchState(on(order(i))));
     end
     n = nnz(on);
-    S.Body.RowHeight = num2cell([S.Heights(on) zeros(1, nnz(~on))]);
+    setChanged(S.Body, 'RowHeight', num2cell([S.Heights(on) zeros(1, nnz(~on))]));
     body = sum(S.Heights(on)) + max(0, n - 1) * S.Body.RowSpacing + S.Body.Padding(2) + S.Body.Padding(4);
     visible = S.Visible && n > 0;
 else
@@ -42,23 +44,34 @@ open = S.Expanded || header == 0;
 if header > 0
     arrow = "▼";
     if ~S.Expanded; arrow = "►"; end
-    S.Toggle.Text = arrow + "  " + S.Title;
-    S.Toggle.Tooltip = "Show or hide this section.";
+    headText = arrow + "  " + S.Title;
+    tip = "Show or hide this section.";
     if S.Key ~= ""
         if ismac; chord = "Cmd+" + S.Key; else; chord = "Ctrl+" + S.Key; end
-        S.Toggle.Text = S.Toggle.Text + "   (" + chord + ")";
-        S.Toggle.Tooltip = S.Toggle.Tooltip + " " + chord + " goes to it, opening it if collapsed.";
+        headText = headText + "   (" + chord + ")";
+        tip = tip + " " + chord + " goes to it, opening it if collapsed.";
     end
+    setChanged(S.Toggle, 'Text', headText);
+    setChanged(S.Toggle, 'Tooltip', tip);
 end
-S.Body.Visible = matlab.lang.OnOffSwitchState(open);
-S.Grid.Visible = matlab.lang.OnOffSwitchState(visible);
+setChanged(S.Body, 'Visible', matlab.lang.OnOffSwitchState(open));
+setChanged(S.Grid, 'Visible', matlab.lang.OnOffSwitchState(visible));
 if open
-    S.Grid.RowHeight = {header, body};
-    S.Grid.RowSpacing = 4 * (header > 0);
-    h = header + S.Grid.RowSpacing + body;
+    spacing = 4 * (header > 0);
+    setChanged(S.Grid, 'RowHeight', {header, body});
+    setChanged(S.Grid, 'RowSpacing', spacing);
+    h = header + spacing + body;
 else
-    S.Grid.RowHeight = {header, 0};
+    setChanged(S.Grid, 'RowHeight', {header, 0});
     h = header;
 end
 h = h * visible;
+end
+
+
+function setChanged(h, prop, v)
+%setChanged  Set property PROP of H to V unless it holds V already (a set costs as much when nothing changes).
+if ~isequal(h.(prop), v)
+    h.(prop) = v;
+end
 end

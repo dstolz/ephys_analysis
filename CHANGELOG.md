@@ -1365,6 +1365,18 @@ says how to cut a release.
 
 ### Changed
 
+- Faster app startup. MATLAB spends most of an app's start making the window's components and their views, so
+  the analysis and pipeline apps no longer paint the hidden window while they start (`setStatus`, `onScan` and
+  `selectDataset` skip `drawnow` while the splash is active): it is laid out once, when it shows. Every tab
+  but the one the app opens on (Data, Project) keeps its contents hidden until it is first shown (`revealTab`
+  in `onTabChanged`), so that layout covers one tab; the analysis app's Figures tab, three quarters of its
+  components, is laid out on its first visit instead. The analysis app also leaves the Alignment tab's epoch
+  count and diagram until that tab shows, restores the figure editor's collapsed sections without laying it
+  out twice more (`applyConfig` does), and `formLayout` sets only the properties that change (a set costs as
+  much when the value stays). On the synthetic test project, with the last config's three figures reopened
+  and scanned, the analysis app's warm start went from about 28-31 s to 17-19 s on a loaded machine (cold 68
+  s to 49 s); the first visit of the Figures tab takes about 6 s more. The pipeline app's warm start on that
+  project went from about 23-25 s to 17-21 s (cold 58 s to 51 s); a tab's first visit takes about 2-3 s more.
 - A PSTH panel's `options.stack` is a string (`"off"` | `"groups"`; it was `true` / `false`), and a continuous
   panel's `options.display` (`"lines"` | `"stacked"`) is gone: its stack of channels is `options.stack "items"`.
   A continuous panel's `stackSpacing` is a multiple of the row height (default 1.1), no longer an offset in the

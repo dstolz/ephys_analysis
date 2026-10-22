@@ -27,6 +27,19 @@ says how to cut a release.
   plot...**, which open a modal window whose OK is one undo step (*First-spike latency*, *Latency box plot*).
   New suite `test_FirstSpikeLatency`. See
   [First-spike latency](documentation/EphysAnalysisConfig.md#first-spike-latency).
+- Figures tab: **each figure keeps its own preview.** The preview has a container per figure (`syncFigureView`;
+  uipanels stacked in one cell, the shown one visible, since a tab group's strip cannot be hidden reliably), so a
+  figure switched away from keeps its drawing, badge, status line and *Figure:* pick, and switching back shows it
+  without computing or drawing it again unless it is out of date (`figureViewKey`: its figure with the defaults it
+  uses, the active dataset or the ticked ones, its observation and a scan count; then it is drawn as after an edit).
+  The eight figures shown last keep theirs (`EphysAnalysisApp.MaxFigureViews`), Remove frees a figure's container and
+  another config drops them all. The tree drives it and marks it (`markFigureTree`): the figure shown bold, a preview
+  out of date amber and italic, a failed one red, one not drawn gray; an edit marks only its own figure. The editor
+  comes back as each figure left it: its sections and supersections open or collapsed, its scroll, its panel and
+  layer (`saveFigureEditorState`, `restoreFigureEditorState`). A switch between drawn figures took about 2.5 s on the
+  synthetic test project (a compute and a draw each time) and now about 1.6 s, the editor's own refresh being most
+  of what is left. While a preview computes, another figure selected shows in the editor at once and in the preview
+  when that one is drawn.
 - **Undo** and **Redo** tools on the analysis app's toolbar, after the File group (`undo.svg`, `redo.svg`): the Edit
   menu's items, named in their tooltips (*Undo Add panel (Ctrl+Z)*) and on and off with them (`refreshEditMenu` keeps
   both). Every undo step is named now: the event and sort sequence dialogs (*Event sequence*, *Sort sequence*), the

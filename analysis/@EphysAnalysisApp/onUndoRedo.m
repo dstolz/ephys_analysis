@@ -9,6 +9,10 @@ function onUndoRedo(obj, how)
 %   removed one undone, is selected) and shows it through applyConfig, which
 %   records nothing; the list, the observation picker, the epoch diagram
 %   and the preview follow as after an edit (autoFigurePreview), and the
+%   tree selects the figure: another figure than the one shown comes back
+%   with its sections and scroll as it left them (restoreFigureEditorState)
+%   and its own preview container (syncFigureView), redrawn only when its
+%   kept drawing is not the figure as restored (previewFigureView); the
 %   title's "*" goes when the figures are back as saved. The status bar
 %   names the edit (Undid "Add panel".); with nothing to undo or redo it
 %   says so.
@@ -38,11 +42,18 @@ else
 end
 cfg.Figures = to;
 sel = cameBack(to, from, step.Selection);
+was = obj.FigureViewId;
+saveFigureEditorState(obj);   % the editor as the figure shown had it
 obj.SelectedFigure = sel(1);
 obj.SelectedPanel = sel(2);
 obj.SelectedLayer = sel(3);
-obj.applyConfig(cfg);   % clamps the selection to the figures restored
-if obj.SelectedFigure >= 1; obj.autoFigurePreview(); end
+S = [];
+if sel(1) >= 1 && sel(1) <= numel(to) && to(sel(1)).id ~= was
+    S = restoreFigureEditorState(obj, to(sel(1)).id, Selection=false);   % another figure: its sections as it left them
+end
+obj.applyConfig(cfg);   % clamps the selection to the figures restored; its container shown (syncFigureView)
+scrollFigureEditor(obj, S);
+if obj.SelectedFigure >= 1; previewFigureView(obj, Switched=obj.FigureViewId ~= was); end   % redrawn unless its kept drawing is the figure as restored
 refreshEditMenu(obj);
 obj.setStatus(done + " """ + step.Label + """.");
 end

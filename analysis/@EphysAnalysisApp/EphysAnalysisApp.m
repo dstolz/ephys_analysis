@@ -62,7 +62,12 @@ classdef EphysAnalysisApp < handle
     %                computeSessionFigure; Auto while a preview takes under
     %                2 s), with its own badge (setFigurePreviewState), drawn
     %                in the design picked above it (Design, PlotDesign; Save
-    %                look as design...: onSaveDesign). Runs, plans, reports
+    %                look as design...: onSaveDesign); each figure keeps its
+    %                preview in a container of its own (syncFigureView: a
+    %                switch back shows it without drawing it again, up to
+    %                MaxFigureViews kept) and the editor as it left it, and
+    %                the tree marks the figure shown and the previews out of
+    %                date (markFigureTree). Runs, plans, reports
     %                and the generated scripts draw the enabled figures: one
     %                page per observation on each dataset
     %                (EphysAnalysisRunner.runDataset), then each session
@@ -259,7 +264,8 @@ classdef EphysAnalysisApp < handle
         FigureAutoCheckBox     matlab.ui.control.CheckBox       % auto-preview (pref FigureAutoPreview, on by default)
         DesignDropDown         matlab.ui.control.DropDown       % the design every figure is drawn in (PlotDesign; also the Design menu)
         SaveDesignButton       matlab.ui.control.Button         % Save look as design...: the figure preview's look (onSaveDesign)
-        FigurePreviewPanel     matlab.ui.container.Panel
+        FigurePreviewPanel     matlab.ui.container.Panel        % the shown figure's own preview container (syncFigureView: one per figure, in FigurePreviewHost)
+        FigurePreviewHost      matlab.ui.container.GridLayout   % the preview's cell: every figure's container stacked in it, the shown one visible
         FigurePreviewBadge struct = struct()     % the figure preview's state badge: Grid, Icon, Text (setFigurePreviewState)
         FigurePreviewLabel     matlab.ui.control.Label
         FigureCancelButton     matlab.ui.control.Button         % the busy card's Cancel while the figure preview computes (else empty)
@@ -314,8 +320,15 @@ classdef EphysAnalysisApp < handle
         FigureObservations = []             % the picker's observations: figureObservations' table on the active dataset
         FigureObservation = []              % the observation each figure last showed: containers.Map, figure id -> its label
         FigureIdRenames = []                % figures renamed (an automatic id that followed an edit): containers.Map, old id -> new (trackFigureIds)
-        FigurePreviewResult = []            % the last figure preview's result (computeFigure's F)
-        FigurePreviewSeconds (1,1) double = 0   % time the last figure preview took (auto-preview under AutoPreviewSeconds)
+        FigurePreviewResult = []            % the shown figure's last preview result (computeFigure's F)
+        FigurePreviewDrawn = []             % what the shown figure's preview was drawn from (figureViewKey), once drawn
+        FigurePreviewSeconds (1,1) double = 0   % time the shown figure's last preview took (auto-preview under AutoPreviewSeconds)
+        FigureViews struct = struct([])     % one preview container per figure kept (syncFigureView): Id, Panel, State, Result, Drawn, Seconds, Sessions, Label, Used; "" = none selected
+        FigureViewId (1,1) string = ""      % the figure whose container shows: its State, Result, ... are the FigurePreview* properties meanwhile
+        FigureViewTick (1,1) double = 0     % counts the containers shown (FigureViews.Used: the least recently used goes over MaxFigureViews)
+        FigurePreviewGeneration (1,1) double = 0   % a scan adds one: every preview drawn before is out of date (figureViewKey)
+        FigureTreeMarks = []                % the figure tree's marks as applied (markFigureTree): nodes, look, current
+        FigureEditorStates = []             % the editor as each figure left it: containers.Map, figure id -> its sections, scroll, panel and layer (saveFigureEditorState)
         FigurePreviewWarm (1,1) logical = false % a figure was drawn already: the first one's time (graphics loading) is not counted
         FigureAutoPreviewSeconds (1,1) double = 2   % edits redraw the figure preview while the last one took under this (AutoPreviewSeconds; tests raise it)
         FigurePreviewState (1,1) string = "idle"   % what the figure preview's badge says (setFigurePreviewState)
@@ -340,6 +353,10 @@ classdef EphysAnalysisApp < handle
         WikiURL = "https://github.com/dstolz/ephys_analysis/wiki"
         RepoURL = "https://github.com/dstolz/ephys_analysis"        % the repository the issue items file against
         AutoPreviewSeconds = 2
+        % the figure previews kept drawn (syncFigureView): each holds its computed result and its graphics, so a
+        % switch back shows it at once; beyond this many the least recently shown one is dropped (drawn again when
+        % it is shown). A constant, not a preference: about what eight heavy figures cost in memory and handles.
+        MaxFigureViews = 8
     end
 
     methods
@@ -513,6 +530,7 @@ classdef EphysAnalysisApp < handle
         onFigureObservationChanged(obj)
         onFigureObservationStep(obj, step)
         refreshFigurePreview(obj, opts)
+        switched = syncFigureView(obj)
         autoFigurePreview(obj)
         onFigureAutoPreviewToggled(obj)
         onCancelFigurePreview(obj)

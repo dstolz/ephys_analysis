@@ -1,9 +1,10 @@
 function applyConfig(obj, cfg, opts)
 %applyConfig  Show a config in every control (MarkSaved=true: it is the saved state).
-%   With MarkSaved (a config opened or made new) the Figures tab's drawing
-%   of the last config is dropped and its preview marked Out of date
-%   (autoFigurePreview then draws the new config's figure when it can),
-%   and the undo history is cleared. Action=LABEL (the figure list's edits:
+%   With MarkSaved (a config opened or made new) the Figures tab's drawings
+%   of the last config are dropped, every figure's container and the
+%   editor states the figures left with them (clearFigureViews), and the
+%   preview marked Out of date (autoFigurePreview then draws the new
+%   config's figure when it can), and the undo history is cleared. Action=LABEL (the figure list's edits:
 %   "Add figure", "Remove figure") records the change of the figures as a
 %   step of the undo history (recordFigureEdit); without it (Undo and Redo
 %   themselves, onUndoRedo) nothing is recorded.
@@ -16,9 +17,11 @@ end
 obj.Applying = true;
 restore = onCleanup(@() setApplying(obj, false));
 if ~opts.MarkSaved; trackFigureIds(obj, cfg); end   % an edit: an automatic figure id may follow it
+drawn = ~ismember(obj.FigurePreviewState, ["idle" "computing" "drawing"]);   % a preview of the last config shows
 if opts.MarkSaved
     obj.FigureHistory = obj.FigureHistory.clear();   % another config: its edits start here
     refreshEditMenu(obj);
+    if ~ismember(obj.FigurePreviewState, ["computing" "drawing"]); clearFigureViews(obj); end   % its figures' containers and editor states (ids may repeat)
 elseif opts.Action ~= ""
     recordFigureEdit(obj, cfg, opts.Action);
 end
@@ -49,8 +52,8 @@ if ~isempty(obj.Runner)
     end
 end
 obj.refreshFigureObservations();
-if opts.MarkSaved && ~ismember(obj.FigurePreviewState, ["idle" "computing" "drawing"])
-    forgetFigurePreview(obj);   % another config: its figure is not the one drawn
+if opts.MarkSaved && drawn && ~ismember(obj.FigurePreviewState, ["computing" "drawing"])
+    forgetFigurePreview(obj);   % another config: its figure is not the one drawn (its container says so)
 end
 if obj.SelectedFigure < 1 && ~ismember(obj.FigurePreviewState, ["idle" "computing" "drawing"])
     obj.refreshFigurePreview();   % no figure left to show: the preview empties
@@ -70,7 +73,9 @@ end
 
 function forgetFigurePreview(obj)
 %forgetFigurePreview  Drop the Figures tab's drawing of the last config: its result, its look editor; Out of date.
+%   (The shown container is the new config's figure's, clearFigureViews having dropped the others.)
 obj.FigurePreviewResult = [];
+obj.FigurePreviewDrawn = [];
 obj.FigurePreviewSeconds = 0;
 P = obj.FigurePreviewPanel;
 delete(P.Children);

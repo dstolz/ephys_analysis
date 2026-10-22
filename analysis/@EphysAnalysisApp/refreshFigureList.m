@@ -10,7 +10,11 @@ function refreshFigureList(obj)
 %   and the selection are updated (this runs on every edit); otherwise the
 %   tree is rebuilt, the groups the user collapsed (FigureGroupsCollapsed)
 %   staying collapsed. The selected figure (SelectedFigure) is the tree's
-%   selection, its group expanded, scrolled to.
+%   selection, its group expanded, scrolled to. The preview then shows
+%   the selected figure's own container (syncFigureView: the tree drives
+%   it), and the nodes are marked: the figure shown in bold, each
+%   figure's preview out of date, failed or not drawn by its color
+%   (markFigureTree).
 F = obj.Config.Figures;
 tree = obj.FiguresTree;
 by = string(obj.FigureGroupDropDown.Value);
@@ -61,10 +65,11 @@ leaves = leafNodes(tree);
 k = obj.SelectedFigure;
 if isempty(leaves) || k < 1 || k > numel(F)
     tree.SelectedNodes = [];
+    showView(obj);
     return
 end
 want = leaves([leaves.NodeData] == k);
-if isempty(want); return; end
+if isempty(want); showView(obj); return; end
 if isempty(tree.SelectedNodes) || ~isequal(tree.SelectedNodes(1).NodeData, k)
     tree.SelectedNodes = want;
     if isa(want.Parent, 'matlab.ui.container.TreeNode')
@@ -73,6 +78,14 @@ if isempty(tree.SelectedNodes) || ~isequal(tree.SelectedNodes(1).NodeData, k)
     end
     scroll(tree, want);
 end
+showView(obj);
+end
+
+
+function showView(obj)
+%showView  The selected figure's preview container shown (syncFigureView), the nodes marked (markFigureTree).
+obj.syncFigureView();
+markFigureTree(obj);
 end
 
 

@@ -145,14 +145,14 @@ t0 = tic;
 rn.PollFcn = @() drawnow("limitrate");
 polling = onCleanup(@() stopPolling(rn));
 try
-    F = rn.computeFigure(src, spec, Observation=obs);
+    F = rn.computeFigure(src, spec, Observation=obs, Reuse=true);   % what an earlier preview computed on the same data is taken again (a look-only edit computes nothing)
     rn.PollFcn = [];
     obj.FigurePreviewResult = F;
     L.Text = "Drawing " + what + " ...";
     obj.setFigurePreviewState("drawing", Message="Drawing " + what + " ...");
     renderFigure(F, spec, obj.FigurePreviewPanel, OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules), ...
         OnGoto=@(role, panel) obj.gotoFigureSetting(spec.id, role, panel), ...
-        OnAxisEdit=@(panel, change) obj.onFigureAxisEdited(spec.id, panel, change));
+        OnAxisEdit=@(panel, change) obj.onFigureAxisEdited(spec.id, panel, change), Reuse=true);   % only the panels that changed drawn again
     obj.markFigurePanel();   % the selected panel outlined
 catch ME
     if ~isvalid(obj) || ~isvalid(obj.Fig); return; end   % the app was closed while it computed

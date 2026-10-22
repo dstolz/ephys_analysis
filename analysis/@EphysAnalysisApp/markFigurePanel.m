@@ -102,7 +102,10 @@ end
 
 function placeAgain(obj, ax)
 %placeAgain  An axes of the preview moved (figureLayout): the frame follows it when it is the selected panel's.
-if ~isvalid(obj) || ~isvalid(ax) || isempty(obj.FigurePanelMark); return; end
+%   Not while the preview is drawn: renderFigure keeps the axes of panels
+%   an edit left alone (Reuse) and moves them, and the frame is drawn
+%   once it is done (refreshFigurePreview).
+if ~isvalid(obj) || ~isvalid(ax) || isempty(obj.FigurePanelMark) || obj.FigurePreviewState == "drawing"; return; end
 P = obj.FigurePreviewPanel;
 A = selectedAxes(obj, P);
 if any(A == ax); obj.markFigurePanel(); end

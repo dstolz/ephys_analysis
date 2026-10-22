@@ -1365,6 +1365,19 @@ says how to cut a release.
 
 ### Changed
 
+- Figures tab: **an edit redraws only what it changed.** What an earlier preview computed on the same data is
+  taken again: `figureCompute(..., Reuse=K0)` returns `[F, K]` and reuses each step (skip reasons, epochs, each
+  panel's layers) whose inputs are the same, keyed by `figureDataSpec` (the spec without what only the drawing
+  reads), so an edit of the looks computes nothing and an edit of one panel computes that panel;
+  `EphysAnalysisRunner.computeFigure(..., Reuse=true)` keeps them in `FigureCache` (up to `FigureCacheMB`,
+  forgotten by `clearSources`). `renderFigure(..., Reuse=true)` keeps the panels of the target's last drawing
+  that would be drawn alike and draws only the others, redoing the legend, title, looks and layout over all of
+  them. The right-click menus are made with **Edit aesthetics...** alone and get their other items when they
+  first open (`PlotAesthetics.fillMenu`, `menuOf`, `addMenuItem`; "Data tip fields..." too): made at once, the
+  menu items took most of a preview's drawing time. On a synthetic dataset of 200 trials (compute, draw and
+  paint, medians) an edit of one panel's looks went from 1.3 s to 0.6 s on a raster + PSTH and from 3.7 s to
+  0.9 s on a six-panel figure; another observation (all computed and drawn) from 1.9 s to 1.2 s and from
+  4.1 s to 2.7 s.
 - A PSTH panel's `options.stack` is a string (`"off"` | `"groups"`; it was `true` / `false`), and a continuous
   panel's `options.display` (`"lines"` | `"stacked"`) is gone: its stack of channels is `options.stack "items"`.
   A continuous panel's `stackSpacing` is a multiple of the row height (default 1.1), no longer an offset in the

@@ -1798,11 +1798,11 @@ are `computeFigure`'s.
 
 ### renderFigure
 
-`h = renderFigure(F, spec, target, Design="", UserAesthetics=true, Editable="auto", OnRemember=[], DataTips="auto")`
+`h = renderFigure(F, spec, target, Design="", UserAesthetics=true, Editable="auto", OnRemember=[], DataTips="auto", Reuse=false)`
 draws `F` as `spec` says (the spec `F` was computed with; its `aesthetics` may
 differ, as when the aesthetics editor redraws). `target` is an axes (which draws
 panel 1 only), uiaxes, figure, uifigure, panel, tab or grid layout;
-renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#plot-designs) for this drawing (default: the user's chosen one), `UserAesthetics=false` leaves the user's remembered rules out, `Editable` (`"auto"`: in a visible figure) turns the right-click editing on or off, and `OnRemember` is called with a figure's new rules ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)). `DataTips` (`"auto"`: in a visible figure, as `Editable`; `true` or `false`) gives every part drawn data tips that name what the point is (`FigureDataTips.attach`, below).
+renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#plot-designs) for this drawing (default: the user's chosen one), `UserAesthetics=false` leaves the user's remembered rules out, `Editable` (`"auto"`: in a visible figure) turns the right-click editing on or off, and `OnRemember` is called with a figure's new rules ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)). `DataTips` (`"auto"`: in a visible figure, as `Editable`; `true` or `false`) gives every part drawn data tips that name what the point is (`FigureDataTips.attach`, below). `Reuse=true` (the app's preview) keeps the panels of the target's last drawing that would be drawn alike and draws only the others, the figure the same as a whole drawing ([Render](EphysAnalysis.md#render) says when a panel is kept).
 
 - **Layout.** renderFigure lays its panels out itself (not with MATLAB's tiled
   layout): `target`, emptied (a grid layout gets a borderless panel; `h.layout`),

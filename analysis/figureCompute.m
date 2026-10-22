@@ -1,4 +1,4 @@
-function F = figureCompute(src, spec, opts)
+function [F, K] = figureCompute(src, spec, opts)
 %figureCompute  Compute one figure for one observation of one dataset: every panel's layers, no graphics.
 %   F = figureCompute(SRC, SPEC, Observation=OBS, Check=CHK) with SRC from
 %   loadAnalysisSource (EphysAnalysisRunner.source), SPEC from
@@ -71,7 +71,25 @@ function F = figureCompute(src, spec, opts)
 %
 %   It is pure: no runner, no graphics, nothing kept between calls, so a
 %   standalone script (EphysAnalysisScript.standalone) calls it as the
-%   runner does. CHK (default [] = none) is a checkpoint: called with no
+%   runner does. What it may reuse is handed to it:
+%   [F, K] = figureCompute(..., Reuse=K0) also returns K, what this compute
+%   found or made (a struct row: kind "skip" | "epochs" | "panel", dataset
+%   (SRC.key | SRC.folder), key, value, bytes, from: the index of the entry
+%   of K0 it came from, 0 = made now), and takes from K0 (an earlier call's
+%   K, or many of them joined: EphysAnalysisRunner.computeFigure keeps
+%   them for the app's preview) every step whose inputs are the same:
+%     skip    figureSkipReason's reasons, keyed by the figure's data spec
+%     epochs  epochTable's E and G, keyed by its inputs (the figure's, or
+%             a panel's own)
+%     panel   a panel's computed layers, keyed by its data spec, its epochs
+%             and groups, the observation, Observe, its selection and the
+%             error its band takes (figureErrorType)
+%   A data spec (figureDataSpec) leaves out what only the drawing reads
+%   (titles, places, labels, notes, overlays, the grid, the aesthetics, a
+%   layer's color and line style, the style but its error settings, the
+%   options figureDataSpec lists): an edit of those reuses every step, an
+%   edit of one panel's data computes that panel only. With no Reuse and
+%   one output nothing is keyed. CHK (default [] = none) is a checkpoint: called with no
 %   arguments between the steps, panels and layers, and passed as Check=
 %   into spikePSTH, evokedPotential and unitWaveforms, so whatever it
 %   throws stops the compute there (EphysAnalysisRunner.computeFigure
@@ -90,13 +108,27 @@ arguments
     spec (1,1) struct
     opts.Observation = []
     opts.Check = []
+    opts.Reuse = []
 end
 
 chk = opts.Check;   % the checkpoint the long steps call ([] = none)
 tick(chk);
 asked = spec;
 asked.enabled = true;   % a disabled figure is still computed when asked (the preview)
-[reason, LR] = figureSkipReason(src, asked);
+C = struct('on', nargout > 1 || ~isempty(opts.Reuse), 'pool', opts.Reuse, 'dataset', "", ...
+    'K', struct('kind', {}, 'dataset', {}, 'key', {}, 'value', {}, 'bytes', {}, 'from', {}));   % what is reused and kept
+if C.on
+    C.dataset = string(src.key) + "|" + string(src.folder);
+    dataSpec = figureDataSpec(asked);
+    [hit, v, C] = reuse(C, "skip", dataSpec);
+end
+if C.on && hit
+    reason = v{1};
+    LR = v{2};
+else
+    [reason, LR] = figureSkipReason(src, asked);
+    if C.on; C = keep(C, "skip", dataSpec, {reason, LR}); end
+end
 if reason ~= ""
     error('EphysAnalysisRunner:FigureSkipped', 'Figure "%s" cannot be computed for %s: %s.', spec.id, src.name, reason);
 end
@@ -140,8 +172,8 @@ E = [];
 G = [];
 groupGone = "";   % a per-group observation whose group has no epoch here: its panels on the figure's selection are skipped
 if any(live)
-    [E, G] = epochTable(src, spec.ref, Window=spec.window, Selection=spec.selection, ...
-        Baseline=figureBaselineHull(spec.panels(onFig)), Columns=sortColumns(spec.panels(onFig), vars, spec.selection, src));
+    [E, G, C] = epochsOf(C, src, spec.ref, spec.window, spec.selection, ...
+        figureBaselineHull(spec.panels(onFig)), sortColumns(spec.panels(onFig), vars, spec.selection, src));
     if isfinite(obs.group) || obs.groupLabel ~= ""   % one figure per trial group: that group's epochs only
         [E, G, groupGone] = keepGroup(E, G, obs);
     end
@@ -172,7 +204,7 @@ for k = 1:np
             Ep = E;
         else
             try
-                [Ep, Gp, P.skip] = panelEpochs(src, spec, p, G, vars, ownSel(k), obs);
+                [Ep, Gp, P.skip, C] = panelEpochs(C, src, spec, p, G, vars, ownSel(k), obs);
                 P.epochs = Ep;
             catch ME
                 % what figureSkipReason cannot see beforehand: no event, or no usable epoch, for this panel
@@ -191,13 +223,24 @@ for k = 1:np
         panels(k) = P;
         continue
     end
-    ctx = struct('check', [], 'checkpoint', @() tick(chk), 'observation', obs, 'observe', spec.observe, ...
-        'ref', p.ref, 'window', p.window, 'selection', selectionOf(p, spec), 'style', spec.style, 'spec', spec, 'skips', skips);
-    ctx.check = chk;
-    R = reg.(p.type).compute(src, p, Ep, Gp, ctx);
-    P.layers = R.layers;
+    hit = false;
+    if C.on   % the same data as a panel computed before (its looks may differ): its layers again
+        [eType, nBoot] = figureErrorType(spec, p);
+        key = struct('panel', {rmfield(dataSpec.panels(k), 'id')}, 'epochs', {Ep}, 'groups', {Gp}, 'observation', {obs}, ...
+            'observe', {spec.observe}, 'selection', {selectionOf(p, spec)}, 'errorType', eType, 'nBoot', nBoot, 'skips', {skips});
+        [hit, P.layers, C] = reuse(C, "panel", key);
+    end
+    if ~hit
+        ctx = struct('check', [], 'checkpoint', @() tick(chk), 'observation', obs, 'observe', spec.observe, ...
+            'ref', p.ref, 'window', p.window, 'selection', selectionOf(p, spec), 'style', spec.style, 'spec', spec, 'skips', skips);
+        ctx.check = chk;
+        R = reg.(p.type).compute(src, p, Ep, Gp, ctx);
+        P.layers = R.layers;
+        if C.on; C = keep(C, "panel", key, P.layers); end
+    end
     panels(k) = P;
 end
+K = C.K;
 
 F = struct();
 F.kind = "figure";
@@ -308,17 +351,16 @@ end
 end
 
 
-function [Ep, Gp, reason] = panelEpochs(src, spec, p, G, vars, own, obs)
+function [Ep, Gp, reason, C] = panelEpochs(C, src, spec, p, G, vars, own, obs)
 %panelEpochs  A panel's own epochs (its ref / window / selection), its groups those of G unless the selection is its own.
 %   Its rasters' sort parameters are copied when the trials have them
 %   (VARS). With a selection of its own (OWN) the panel keeps its own
 %   groups, whatever the figure's. On the figure's selection its groups
 %   are matched to G by label; a per-group observation (OBS.groupLabel)
-%   keeps that group's epochs only.
+%   keeps that group's epochs only. C: what is reused and kept (epochsOf).
 reason = "";
 sel = selectionOf(p, spec);
-[Ep, Gp] = epochTable(src, p.ref, Window=p.window, Selection=sel, ...
-    Baseline=figureBaselineHull(p), Columns=sortColumns(p, vars, sel, src));
+[Ep, Gp, C] = epochsOf(C, src, p.ref, p.window, sel, figureBaselineHull(p), sortColumns(p, vars, sel, src));
 if own || ~istable(G); return; end
 if isfinite(obs.group) || obs.groupLabel ~= ""
     Ep = Ep(string(Ep.group) == string(G.label(1)), :);
@@ -337,6 +379,51 @@ Ep.groupIndex = at(Ep.groupIndex);
 Gq = G;
 Gq.n = accumarray(Ep.groupIndex(:), 1, [height(G) 1]);
 Gp = Gq;
+end
+
+
+function [E, G, C] = epochsOf(C, src, ref, win, sel, base, cols)
+%epochsOf  epochTable's epochs and groups for these inputs, the ones kept when C holds them (C.on: reuse).
+if C.on
+    key = struct('ref', {ref}, 'window', {win}, 'selection', {sel}, 'baseline', {base}, 'columns', {cols});
+    [hit, v, C] = reuse(C, "epochs", key);
+    if hit
+        E = v{1};
+        G = v{2};
+        return
+    end
+end
+[E, G] = epochTable(src, ref, Window=win, Selection=sel, Baseline=base, Columns=cols);
+if C.on; C = keep(C, "epochs", key, {E, G}); end
+end
+
+
+function [hit, v, C] = reuse(C, kind, key)
+%reuse  The value of the entry of C.pool (Reuse) of this KIND, dataset and KEY, noted in C.K; HIT false when none.
+hit = false;
+v = [];
+for i = 1:numel(C.K)   % made or found already in this compute (two panels on the same data)
+    if C.K(i).kind == kind && isequaln(C.K(i).key, key)
+        hit = true;
+        v = C.K(i).value;
+        return
+    end
+end
+P = C.pool;
+for i = 1:numel(P)
+    if P(i).kind ~= kind || P(i).dataset ~= C.dataset || ~isequaln(P(i).key, key); continue; end
+    hit = true;
+    v = P(i).value;
+    C.K(end+1) = struct('kind', kind, 'dataset', C.dataset, 'key', {key}, 'value', {v}, 'bytes', P(i).bytes, 'from', i);
+    return
+end
+end
+
+
+function C = keep(C, kind, key, v)
+%keep  Note in C.K what was computed now: its KIND, KEY and value V (and its size).
+w = whos('v');
+C.K(end+1) = struct('kind', kind, 'dataset', C.dataset, 'key', {key}, 'value', {v}, 'bytes', w.bytes, 'from', 0);
 end
 
 

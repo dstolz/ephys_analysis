@@ -113,10 +113,12 @@ classdef EphysAnalysisRunner < handle
     properties (Hidden, SetAccess = protected)
         BatchCache = []                  % containers.Map 'k|figure|i' -> F: figures computed while measuring, for their pages
         BatchCacheUsedMB (1,1) double = 0
+        FigureCache = struct('kind', {}, 'dataset', {}, 'key', {}, 'value', {}, 'bytes', {}, 'from', {})   % what the preview's computes found or made (computeFigure Reuse), the most recent first
     end
 
     properties (Constant, Hidden)
         BatchCacheMB = 512               % the most computed figures batchYLimits keeps for the drawing pass, MB
+        FigureCacheMB = 256              % the most FigureCache keeps, MB
     end
 
     methods
@@ -221,9 +223,24 @@ classdef EphysAnalysisRunner < handle
         end
 
         function clearSources(obj)
-            %clearSources  Forget the loaded sources and every dataset's cached data.
+            %clearSources  Forget the loaded sources, every dataset's cached data and what the preview's computes kept (FigureCache).
             if ~isempty(obj.Sources); remove(obj.Sources, keys(obj.Sources)); end
             for k = 1:numel(obj.Outputs); obj.Outputs(k).clearCache(); end
+            obj.FigureCache = obj.FigureCache([]);
+        end
+
+        function keepFigureCache(obj, K)
+            %keepFigureCache  Keep what a compute found or made (figureCompute's K) first in FigureCache, the rest after it, up to FigureCacheMB.
+            %   An entry K took from FigureCache (K.from) moves to the front;
+            %   the oldest go once the entries pass FigureCacheMB.
+            C = obj.FigureCache;
+            old = true(1, numel(C));
+            old([K([K.from] > 0).from]) = false;
+            C = [reshape(K, 1, []) C(old)];
+            for i = 1:numel(C); C(i).from = 0; end
+            n = find(cumsum([C.bytes]) > obj.FigureCacheMB * 2^20, 1);
+            if ~isempty(n); C = C(1:max(numel(K), n - 1)); end
+            obj.FigureCache = C;
         end
     end
 

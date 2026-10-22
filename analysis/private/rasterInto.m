@@ -63,10 +63,11 @@ nE = numel(R.epochGroup);
 [key, name] = rasterSortKey(R, sortBy, nE);
 dirs = ["ascend" "ascend"];
 if look.order == "descending"; dirs(1) = "descend"; end
-T = table(key, (1:nE).', 'VariableNames', {'key', 'idx'});
-if look.byGroup
-    T = addvars(T, R.epochGroup(:), 'Before', 1, 'NewVariableNames', 'g');
+if look.byGroup   % (the table made at once: addvars took a quarter of the raster's drawing)
+    T = table(R.epochGroup(:), key, (1:nE).', 'VariableNames', {'g', 'key', 'idx'});
     dirs = ["ascend" dirs];
+else
+    T = table(key, (1:nE).', 'VariableNames', {'key', 'idx'});
 end
 [~, order] = sortrows(T, 1:width(T), cellstr(dirs), 'MissingPlacement', 'last');
 row = zeros(nE, 1);

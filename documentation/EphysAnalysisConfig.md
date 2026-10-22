@@ -607,19 +607,26 @@ a window of their own: the raster's **First-spike latency...** and the PSTH's
 
 ### Unit waveforms
 
-A raster, PSTH or tuning panel of spikes can draw the observed unit's waveform (the
+A raster, PSTH, firing rate or tuning panel of spikes
+(`EphysAnalysisConfig.WaveformInsetTypes`) can draw the observed unit's waveform (the
 first unit of its first layer) on its peak channel as a small box in the panel (in
 the rate axes of a PSTH). The `waveform` settings
 (`EphysAnalysisConfig.defaults("Waveform")`; a panel's
-`options.waveform`):
+`options.waveform`; the app's **Waveform** section,
+[The Waveform section](EphysAnalysisApp.md#the-waveform-section)):
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `mode` | `"off"` | `"mean"`, `"subsample"` (the spikes read, thin and pale), `"both"` (the mean over the spikes), or `"off"` |
+| `mode` | `"off"` | `"mean"`, `"subsample"` (the individual spikes read, thin and pale), `"both"` (the mean over the spikes), or `"off"` |
+| `maxSpikes` | 100 | the spikes drawn per unit, picked at random (the same ones each run) |
+| `timeMs` | `[]` | the x scale: the span drawn, `[from to]` ms from the spike (`-Inf` / `Inf`: the cut's edge); `[]` = the whole cut. A span holding fewer than two samples draws the whole cut |
+| `width` | 1 | the box's width: 1 = a third of the panel's; at most 3 |
+| `ampScale` | `"unit"` | the y scale: `"unit"` (the waveform fills the box), `"common"` (a waveforms panel: below; in a box the same as `"unit"`, which draws one unit) or `"fixed"` (`ampLim`; what lies beyond it is drawn at its edge) |
+| `ampLim` | `[]` | `ampScale "fixed"`: `[lo hi]`, in the waveform's units (`unitWaveforms`' `units`: µV for detections and most sorts) |
+| `height` | 1 | the box's height: 1 = a third of the panel's; at most 3 |
 | `location` | `"northeast"` | where in the tile: `"northeast"`, `"north"`, `"northwest"`, `"west"`, `"southwest"`, `"south"`, `"southeast"`, `"east"` (north is the top edge as seen, also on a raster's reversed axis) |
 | `box` | `true` | the axis box: an outline on a pale ground; `false` draws the waveform alone |
-| `scale` | 1 | the box's size: 1 = a third of the panel's width and height; at most 3 |
-| `maxSpikes` | 100 | the spikes drawn per unit, picked at random (the same ones each run) |
+| `showPP`, `showCount` | `true`, `false` | the label: the mean's peak-to-peak amplitude (over the whole cut, whatever `timeMs` draws), the unit's spike count |
 
 The waveforms come from `unitWaveforms` ([Analysis page](EphysAnalysis.md#unit-waveforms)):
 for sorted units, `maxSpikes` of the unit's spikes cut from the sorted
@@ -628,7 +635,7 @@ and their mean; when the `.bin` is not there, the unit's template is
 drawn as its mean, labeled "(template)", and a warning says why. For
 detections, the waveforms the spikes file keeps (the Spikes step's
 `Waveforms` option; none without it, and a warning) and the mean of them
-all. Each box is on its own amplitude scale; its label gives the mean's
+all. Each box is on its own amplitude scale unless `ampScale` is `"fixed"`; its label gives the mean's
 peak-to-peak amplitude. The box keeps the tile's limits, stays out of
 the legend and its parts (`waveBox`, `waveSpikes`, `waveMean`,
 `waveLabel`) take [aesthetics](EphysAnalysis.md#plot-aesthetics) like any other.
@@ -638,12 +645,12 @@ the legend and its parts (`waveBox`, `waveSpikes`, `waveMean`,
 A `waveforms` panel is the unit waveforms as a panel of their own: no events, no trials,
 nothing but the units of its layers and their waveforms. It uses the `waveform` settings
 above (the panel's `options.waveform`), with `mode` never `"off"` (validate refuses
-it), and these more:
+it); `location` and `box` are not used, `width` and `height` size the probe layout's
+glyphs, and these mean more:
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `showPP`, `showCount` | `true`, `false` | the label: the mean's peak-to-peak amplitude, the unit's spike count |
-| `ampScale` | `"unit"` | `"unit"`: each waveform fills its tile or glyph; `"common"`: one amplitude scale for every unit whose values are of the same kind (all µV, say), so sizes compare. Units of another kind (a template beside spikes) keep their own |
+| `ampScale` | `"unit"` | `"unit"`: each waveform fills its tile or glyph; `"common"`: one amplitude scale for every unit whose values are of the same kind (all µV, say), so sizes compare. Units of another kind (a template beside spikes) keep their own; `"fixed"`: `ampLim` for every unit (the grid's y limits; a glyph cut at its edge) |
 | `showSites` | `true` | probe layout: the probe's sites in gray behind the waveforms |
 | `showNames` | `false` | probe layout: each unit's name beside its waveform (with the p-p amplitude and spike count when `showPP` / `showCount`) |
 
@@ -651,16 +658,18 @@ The panel's `options.layout`:
 
 - `"grid"` (default): the observed unit's waveform, or the means of a fixed layer's units
   overlaid: time from the spike (ms) against amplitude, the spike's time dotted, a label
-  (`showPP`, `showCount`) in the corner. `ampScale "common"` gives every unit the same
-  amplitude axis.
+  (`showPP`, `showCount`) in the corner, over the span `timeMs`. `ampScale "common"` gives every unit the same
+  amplitude axis, `"fixed"` the axis `ampLim` (the panel's `yLimMode` other than `"auto"`
+  wins: its `yLim`).
 - `"probe"`: every unit of the first enabled layer at its place on the probe (µm), each
   waveform a glyph centered on its position (`meta.x`, `y`), every site where the probe
   map puts it; a shank is moved sideways only where its glyphs would overlap the one
   beside it (a site parked on a `kcoords` group of its own stays with the shank it sits
-  on); a further layer's units are framed in red. `scale` sizes the glyphs (1 =
-  about a twelfth of the probe's length, at least 30 µm); with `ampScale "common"` the
+  on); a further layer's units are framed in red. `height` sizes the glyphs (1 =
+  about a twelfth of the probe's length, at least 30 µm) and `width` their width (1 =
+  1.6 times that); with `ampScale "common"` the
   largest unit fills a glyph's height, the others are in proportion, and a scale bar
-  names the amplitude it spans. A unit without a position is left out, and the panel says
+  names the amplitude it spans; with `"fixed"` `ampLim` fills it, and the bar too. A unit without a position is left out, and the panel says
   so. A dataset without a probe map skips the panel ("no probe map"). Bind the first layer
   to fixed units: validate warns when it follows the observation (it then draws the one
   unit).
@@ -1185,8 +1194,9 @@ What each draws:
   item; several items (more layers, or a fixed layer of several units drawn
   `each`) sit side by side in each group's slot, each in a color of its own
   (the layer's `color` when set) and named in the legend. `aggregate "mean"`
-  draws the mean over a layer's units, with the error bar across the units. A
-  rate panel does not share the time axis, and its `window` may be a
+  draws the mean over a layer's units, with the error bar across the units.
+  `options.waveform.mode` other than `"off"` puts the first unit's waveform in an
+  inset. A rate panel does not share the time axis, and its `window` may be a
   `"between"` window.
 - `tuning`: a tuning curve panel for the observed unit:
   the rate against a trial parameter (`tuningCurve`), x being the parameter's
@@ -1504,7 +1514,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `heatmap` | `cLim` | `[]` | the color scale |
 | `heatmap` | `maskAfterStop` | `false` | spike layers: as the PSTH's |
 | `waveforms` | `layout` | `"grid"` | `"grid"`: the observed unit's waveform, or the means of a fixed layer's units overlaid; `"probe"`: every unit of the first enabled layer at its place on the probe, a further layer's units framed in red (bind the first layer to fixed units: validate warns when it follows the observation, which draws one glyph). Several enabled layers are not a warning in the probe layout |
-| `waveforms` | `waveform` | [Waveform](#unit-waveforms), `mode "both"` | `mode` `"mean"`, `"subsample"` or `"both"` (never `"off"`), `maxSpikes` (the spikes drawn), `ampScale`, and `showPP` / `showCount` (the label). `scale` (the glyphs' size), `showSites` and `showNames` are for the probe layout |
+| `waveforms` | `waveform` | [Waveform](#unit-waveforms), `mode "both"` | `mode` `"mean"`, `"subsample"` or `"both"` (never `"off"`), `maxSpikes` (the spikes drawn), `timeMs`, `ampScale` and `ampLim`, and `showPP` / `showCount` (the label). `width` and `height` (the glyphs' size), `showSites` and `showNames` are for the probe layout |
 | `waveforms` | `yLimMode`, `yLim` | `"auto"`, `[]` | the amplitude axis ([Y limits](#y-limits); not the probe layout's) |
 | `probemap` | `value` | `"rate"` | `"rate"`, `"nSpikes"` or `"nUnits"` |
 | `probemap` | `cLim` | `[]` | the color scale |
@@ -1519,6 +1529,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `rate` | `baseline` | `Mode "none"`, `Window [-0.2 0]` | `Mode` `"none"`, `"subtract"`, `"ratio"` or `"zscore"`, as `firingRate`'s `Normalize`: `"subtract"` (that epoch's baseline value), `"ratio"` (over the unit's mean baseline) or `"zscore"` (against the baseline's mean and SD over all epochs) |
 | `rate` | `display` | `"bar"` | `"bar"` (the mean, with an error bar), `"box"` or `"points"` (each epoch's rate, over a bar of their mean) |
 | `rate` | `yLimMode`, `yLim` | `"auto"`, `[]` | the rate axis ([Y limits](#y-limits)) |
+| `rate` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | the first unit's waveform in a box in the panel |
 | `tuning` | `param` | `""` | the x axis, a trial parameter; `""` = the figure's first `groupBy` parameter, else the first numeric trial parameter with two or more values |
 | `tuning` | `seriesParam` | `""` | one curve per value of this trial parameter; `""` = one curve; not the same as `param` |
 | `tuning` | `stack`, `stackSpacing` | `"off"`, 1.1 | `"groups"`: a row per series, the first on top ([Stacks](#stacks)) |
@@ -1543,7 +1554,7 @@ options a type has, in order:
 | `continuous` | `baseline`, `stack`, `stackSpacing` |
 | `heatmap` | `bins`, `measure`, `baseline`, `auroc`, `maskAfterStop`, `stack`, `stackSpacing` |
 | `corrmap` | `bins`, `baseline` |
-| `rate` | `measure`, `baseline` |
+| `rate` | `measure`, `baseline`, `waveform` |
 | `tuning` | `measure`, `baseline`, `waveform`, `stack`, `stackSpacing` |
 | `spectrum`, `spectrogram`, `coherence` | `stack`, `stackSpacing` (a spectrogram's `baseline` is `chronuxNormalize`'s) |
 | `waveforms`, `probemap`, `eventTrace` | none (a waveforms panel's `waveform` is its own settings, not an inset) |
@@ -2079,8 +2090,10 @@ Errors:
   `zscore`), `display` (`bar`, `box` or `points`) and `yLim`; a tuning panel's `measure`,
   `baseline` (as a rate panel's), `param` and `seriesParam` (each empty or a trial
   parameter's name, and not the same one), `yLim` and `waveform`; the `waveform`
-  settings of a raster, PSTH, tuning or waveforms panel (mode, and for a waveforms
-  panel never `off`; location, `scale` in (0, 3], whole `maxSpikes >= 1`, `ampScale`);
+  settings of a raster, PSTH, rate, tuning or waveforms panel (mode, and for a waveforms
+  panel never `off`; `ampScale` `unit`, `common` or `fixed`; while drawn: location,
+  `width` and `height` in (0, 3], whole `maxSpikes >= 1`, `timeMs` `[]` or ascending
+  (`-Inf` / `Inf` allowed), and with `fixed` an ascending `ampLim`);
   `yLim` and `cLim` `[]` or ascending; `yLimMode` one of `auto`, `rows`, `batch`,
   `fixed`, and `fixed` with a `yLim`; on every type that stacks ([Stacks](#stacks))
   a `stack` the type takes (`stackModes`: `off` or `groups`, a continuous panel's

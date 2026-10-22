@@ -474,9 +474,23 @@ ok = ok && all(abs((min(mx) + max(mx)) / 2 - [0 8 200]) < 1e-9);          % cent
 ok = ok && all(all(abs(my(1:end-1, :) - meta.y.') <= gh / 2 + 1e-9));
 check(ok && string(ax.XLabel.String) == "x (µm)" && isempty(part(ax, "waveName")) && isempty(part(ax, "waveScale")), ...
     'probe: one panel; every unit''s spikes and mean as a glyph at its position (within 30 um of its y), the probe''s sites behind');
-h = renderWaveforms(Rw, fig11, Layout="probe", Waveform=struct('mode', "mean", 'scale', 2));
+h = renderWaveforms(Rw, fig11, Layout="probe", Waveform=struct('mode', "mean", 'height', 2, 'width', 0.5));
+my = reshape(part(h.axes, "waveMean").YData, [], 3); mx = reshape(part(h.axes, "waveMean").XData, [], 3);
+check(all(abs((max(my) - min(my)) - 2 * gh) < 1e-9) && all(abs((max(mx) - min(mx)) - 0.5 * 1.6 * gh) < 1e-9), ...
+    'height 2 doubles the glyphs'' height, width 0.5 halves their width; "unit" scale fills each glyph''s height');
+h = renderWaveforms(Rw, fig11, Layout="probe", Waveform=struct('mode', "mean", 'ampScale', "fixed", 'ampLim', [-100 50]));
 my = reshape(part(h.axes, "waveMean").YData, [], 3);
-check(all(abs((max(my) - min(my)) - 2 * gh) < 1e-9), 'scale 2 doubles the glyphs; "unit" scale fills each glyph''s height');
+check(all(max(my) - min(my) <= gh + 1e-9) && abs(max(my(:, 3)) - min(my(:, 3)) - gh) < 1e-9 && numel(part(h.axes, "waveScale")) == 2, ...
+    'probe, "fixed" amplitude: every glyph on the range [-100 50] uV (the largest clipped at the glyph''s height), with a scale bar');
+h = renderWaveforms(Rw, fig11, Waveform=struct('mode', "both", 'timeMs', [-0.2 0.6], 'ampScale', "fixed", 'ampLim', [-300 100]));
+in = tms(tms >= -0.2 & tms <= 0.6);
+check(all(arrayfun(@(a) isequal(a.XLim, [min(in) max(in)]) && numel(part(a, "waveMean").XData) == numel(in) ...
+    && abs(a.YLim(1) + 300 + 0.08 * 400) < 1e-9 && abs(a.YLim(2) - 100 - 0.08 * 400) < 1e-9, h.axes)), ...
+    'grid: the time span [-0.2 0.6] ms is the x axis (only its samples drawn); "fixed" amplitude: every tile''s y limits are the range (padded)');
+h = renderWaveforms(Rw, fig11, Waveform=struct('mode', "mean", 'timeMs', [5 9]));
+check(isequal(h.axes(1).XLim, [min(tms) max(tms)]), 'a time span that misses the waveform draws all of it');
+h = renderWaveforms(Rw, fig11, Waveform=struct('mode', "mean", 'timeMs', [-Inf 0]));
+check(isequal(h.axes(1).XLim, [min(tms) max(tms(tms <= 0))]), 'a span''s -Inf is the cut''s start');
 h = renderWaveforms(Rw, fig11, Layout="probe", Waveform=struct('mode', "mean", 'ampScale', "common"));
 my = reshape(part(h.axes, "waveMean").YData, [], 3);
 hgt = max(my) - min(my);

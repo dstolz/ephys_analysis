@@ -82,6 +82,12 @@ function T = panelTypes()
 %   zscore. A waveforms panel's layout "probe" draws every unit of its
 %   first layer at its place on the probe; a further layer (e.g. one
 %   following the observation) rings its units there.
+%   A raster, PSTH, rate or tuning panel's waveform (defaults("Waveform"),
+%   EphysAnalysisConfig.WaveformInsetTypes) with a mode other than "off"
+%   draws its first unit's waveform as an inset (waveformInset): its time
+%   span (timeMs), width and height, amplitude scale (ampScale, ampLim),
+%   place, box and label; a waveforms panel's waveform is the panel's own
+%   drawing (its mode never "off"; width and height size its probe glyphs).
 %   A continuous panel draws each epoch's trace with trials "faint"
 %   (behind the mean, pale and thin) or "only" (no mean), at most
 %   maxTrials epochs (default 100; Inf = every one) picked evenly over
@@ -131,7 +137,7 @@ function T = panelTypes()
 
 bins = struct('BinSec', 0.01, 'SmoothSec', 0.01);              % SmoothSec: Gaussian SD (0 = none)
 baseline = struct('Mode', "none", 'Window', [-0.2 0]);
-waveform = EphysAnalysisConfig.defaults("Waveform");           % raster / psth: the unit's waveform inset ("off" = none)
+waveform = EphysAnalysisConfig.defaults("Waveform");           % raster / psth / rate / tuning: the unit's waveform inset ("off" = none)
 waveformsOwn = waveform;
 waveformsOwn.mode = "both";                                    % a waveforms panel: the mean over a subsample
 firstSpike = EphysAnalysisConfig.defaults("FirstSpike");       % raster: the first-spike latency marks (enabled false = none)
@@ -218,7 +224,8 @@ opts.rate = struct( ...
     'baseline', baseline, ...           % Mode "none" | "subtract" | "ratio" | "zscore" (firingRate's Normalize)
     'display',  "bar", ...              % "bar" (mean, error bar) | "box" | "points" (each epoch, the mean as a bar)
     'yLimMode', "auto", ...  % as a PSTH's (EphysAnalysisConfig.YLimModes)
-    'yLim',     []);
+    'yLim',     [], ...
+    'waveform', waveform);              % the unit's waveform inset
 opts.tuning = struct( ...
     'param',       "", ...              % the x axis: a trial parameter ("" = the figure's first groupBy one, else the first numeric one)
     'seriesParam', "", ...              % one curve per value of this trial parameter ("" = one curve)

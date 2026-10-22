@@ -2,13 +2,19 @@ function waveformInset(ax, W, u, opt, style)
 %waveformInset  Unit U's waveform as a box at a compass point of AX.
 %   waveformInset(AX, W, U, OPT, STYLE) draws unit U of W (unitWaveforms)
 %   as OPT says (a plot's waveform settings, defaults("Waveform")): its mean
-%   (dark red) and / or its spikes (thin, pale blue), on the box's own
-%   amplitude scale, with the mean's peak-to-peak amplitude at the top. The
-%   box is a third of AX's width and height times OPT.scale, at
+%   (dark red) and / or its spikes (thin, pale blue), with the mean's
+%   peak-to-peak amplitude at the top. The box is a third of AX's width
+%   times OPT.width and a third of its height times OPT.height, at
 %   OPT.location (northeast: the top right corner), placed in data units on
-%   the limits AX has now, which it keeps (any axis direction or scale);
-%   with OPT.showPP / OPT.showCount the label says the p-p amplitude / the
-%   unit's total number of spikes (W.total, not just those drawn); with OPT.box it has an outline and a pale ground. A template (no spikes
+%   the limits AX has now, which it keeps (any axis direction or scale).
+%   Its x scale: the samples in OPT.timeMs ([from to] ms from the spike;
+%   [] = the whole cut: waveformSpan) span the box's width. Its y scale:
+%   the waveform's own range (OPT.ampScale "unit"; "common" is the same
+%   for the one unit an inset draws) or OPT.ampLim (OPT.ampScale "fixed",
+%   in the waveform's units; what lies beyond it is drawn at its edge).
+%   With OPT.showPP / OPT.showCount the label says the p-p amplitude / the
+%   unit's total number of spikes (W.total, not just those drawn); with
+%   OPT.box it has an outline and a pale ground. A template (no spikes
 %   read) is drawn as the mean whatever the mode, and says so. Nothing is
 %   drawn for mode "off" or a unit without a waveform. The parts are tagged
 %   waveBox, waveSpikes, waveMean and waveLabel, and kept out of legends.
@@ -19,6 +25,8 @@ end
 m = W.mean{u}(:);
 t = W.timeMs{u}(:);
 S = W.spikes{u};
+pp = max(m) - min(m);               % the unit's, whatever span is drawn
+[t, m, S] = waveformSpan(t, m, S, opt.timeMs);
 template = W.from(u) == "template";
 showSpikes = ismember(opt.mode, ["subsample" "both"]) && ~isempty(S) && ~template;
 showMean = ismember(opt.mode, ["mean" "both"]) || ~showSpikes;
@@ -28,14 +36,15 @@ xl = xlim(ax);
 yl = ylim(ax);
 xlim(ax, xl);                       % drawing it moves nothing
 ylim(ax, yl);
-f = min(opt.scale / 3, 0.9);
+fw = min(opt.width / 3, 0.9);       % the box's width and height, fractions of the axes'
+fh = min(opt.height / 3, 0.9);
 pad = 0.03;
 A = struct('north', [0.5 1], 'northeast', [1 1], 'east', [1 0.5], 'southeast', [1 0], ...
     'south', [0.5 0], 'southwest', [0 0], 'west', [0 0.5], 'northwest', [0 1]);
 a = A.northeast;
 if isfield(A, opt.location); a = A.(opt.location); end
-x0 = pad + a(1) * (1 - 2 * pad - f);
-y0 = pad + a(2) * (1 - 2 * pad - f);
+x0 = pad + a(1) * (1 - 2 * pad - fw);
+y0 = pad + a(2) * (1 - 2 * pad - fh);
 X = @(fx) toData(fx, xl, ax.XScale, ax.XDir);
 Y = @(fy) toData(fy, yl, ax.YScale, ax.YDir);
 
@@ -44,16 +53,20 @@ V = m;
 if showSpikes; V = [m S]; end
 lo = min(V(:));
 hi = max(V(:));
+if opt.ampScale == "fixed" && numel(opt.ampLim) == 2 && opt.ampLim(2) > opt.ampLim(1)
+    lo = opt.ampLim(1);
+    hi = opt.ampLim(2);
+end
 if ~(hi > lo); lo = lo - 1; hi = hi + 1; end
 span = max(t) - min(t);
 if ~(span > 0); span = 1; end
-xw = X(x0 + f * (0.05 + 0.9 * (t - min(t)) / span));
-yOf = @(v) Y(y0 + f * (0.05 + 0.70 * (v - lo) / (hi - lo)));
+xw = X(x0 + fw * (0.05 + 0.9 * (t - min(t)) / span));
+yOf = @(v) Y(y0 + fh * (0.05 + 0.70 * (min(max(v, lo), hi) - lo) / (hi - lo)));   % a fixed scale's beyond: at its edge
 
 held = ishold(ax);
 hold(ax, 'on');
 if opt.box
-    tagPart(patch(ax, X(x0 + [0 f f 0]), Y(y0 + [0 0 f f]), paleColor([1 1 1], 1, style), 'FaceAlpha', 0.85, ...
+    tagPart(patch(ax, X(x0 + [0 fw fw 0]), Y(y0 + [0 0 fh fh]), paleColor([1 1 1], 1, style), 'FaceAlpha', 0.85, ...
         'EdgeColor', [0.6 0.6 0.6], 'HandleVisibility', 'off'), "waveBox");
 end
 if showSpikes
@@ -67,7 +80,7 @@ if showMean
 end
 parts = strings(1, 0);
 if opt.showPP
-    parts(end+1) = sprintf("%.3g %s p-p", max(m) - min(m), unitText(W.units(u)));
+    parts(end+1) = sprintf("%.3g %s p-p", pp, unitText(W.units(u)));
 end
 if opt.showCount && ~template && ~isempty(S)
     parts(end+1) = sprintf("%d spikes", max(W.total(u), size(S, 2)));
@@ -75,7 +88,7 @@ end
 if template; parts(end+1) = "(template)"; end
 txt = strjoin(parts, ", ");
 if txt ~= ""
-    tagPart(text(ax, X(x0 + 0.05 * f), Y(y0 + 0.97 * f), txt, 'FontSize', max(6, style.FontSize - 2), ...
+    tagPart(text(ax, X(x0 + 0.05 * fw), Y(y0 + 0.97 * fh), txt, 'FontSize', max(6, style.FontSize - 2), ...
         'Color', [0.3 0.3 0.3], 'VerticalAlignment', 'top', 'Interpreter', 'none', 'Clipping', 'on', ...
         'HandleVisibility', 'off'), "waveLabel");
 end

@@ -9,14 +9,20 @@ function h = renderWaveforms(R, target, opts)
 %                unit's spikes, thin) or "both"; "off" is read as "both". A
 %                template (no spikes read) is drawn as the mean whatever the
 %                mode, and says so
-%     ampScale   "unit": each waveform fills its tile / glyph; "common": one
-%                amplitude scale for all units whose values are of the same
-%                kind (R.waveforms.units), so their sizes can be compared
-%     showPP, showCount   the mean's peak-to-peak amplitude, the unit's
-%                number of spikes, in the label
-%     scale, showSites, showNames   the probe layout's glyph size (1 = about
-%                a twelfth of the probe's length), the probe's sites behind
-%                the glyphs, each unit's name (and label) beside its glyph
+%     timeMs     the x scale: the span drawn, [from to] ms from the spike
+%                (-Inf / Inf: the cut's edge; [] = the whole cut:
+%                waveformSpan)
+%     ampScale   the y scale: "unit": each waveform fills its tile / glyph;
+%                "common": one amplitude scale for all units whose values
+%                are of the same kind (R.waveforms.units), so their sizes
+%                can be compared; "fixed": ampLim ([lo hi], in the
+%                waveforms' units) for every unit (a glyph clips at it)
+%     showPP, showCount   the mean's peak-to-peak amplitude (over the
+%                whole cut), the unit's number of spikes, in the label
+%     width, height   the probe layout's glyph size: 1 = its default (about
+%                a twelfth of the probe's length tall, 1.6 times as wide)
+%     showSites, showNames   the probe's sites behind the glyphs, each
+%                unit's name (and label) beside its glyph
 %
 %   Layout
 %     "grid"   (default) one tile per unit (MaxTiles per page), titled by
@@ -28,7 +34,7 @@ function h = renderWaveforms(R, target, opts)
 %              gray behind, each where the probe map puts it, except that
 %              a shank (probeColumns) is moved sideways where its glyphs
 %              would overlap the one beside it. In the
-%              common scale a bar says how much amplitude a bar's length is.
+%              common or fixed scale a bar says how much amplitude a bar's length is.
 %              Units without a position are left out, and the panel says so.
 %              Highlight (rows of R.meta; default none) frames those units'
 %              glyphs in red (role "unitDots", group "observed"): a
@@ -62,7 +68,7 @@ W = R.waveforms;
 nU = height(R.meta);
 P = cell(nU, 1);
 for u = 1:nU
-    P{u} = unitParts(W, u, wave.mode);
+    P{u} = unitParts(W, u, wave.mode, wave.timeMs);
 end
 if opts.Layout == "probe"
     h = probeLayout(R, W, P, target, wave, style, opts.Highlight);
@@ -91,6 +97,9 @@ for j = 1:numel(idx)
     if p.has
         if wave.ampScale == "common"
             [lo, hi] = commonRange(W, P, W.units(u));
+        elseif wave.ampScale == "fixed" && numel(wave.ampLim) == 2
+            lo = wave.ampLim(1);
+            hi = wave.ampLim(2);
         else
             [lo, hi] = valueRange(p);
         end
@@ -150,8 +159,8 @@ if isstruct(pr) && all(isfield(pr, {'chanMap', 'xc', 'yc'}))
 end
 span = max([sy; uy(placed)]) - min([sy; uy(placed)]);
 if isempty(span) || ~(span > 0); span = 100; end
-gh = wave.scale * max(30, span / 12);   % a glyph: this tall, 1.6 times as wide (um)
-gw = 1.6 * gh;
+gh = wave.height * max(30, span / 12);   % a glyph: this tall, 1.6 times as wide by default (um)
+gw = 1.6 * wave.width * max(30, span / 12);
 
 % One axis for every shank (probeColumns: a site parked on a kcoords group of its own stays on its shank):
 % shift a shank sideways only where its glyphs would overlap the one before.
@@ -186,6 +195,7 @@ L = sessionLooks(R, style);
 nL = max(1, numel(L.label));   % one spikes line and one means line per session (one in all without sessions)
 spk = cell(0, 1); mu = cell(0, 1); spkOf = zeros(0, 1); muOf = zeros(0, 1);
 common = zeros(nU, 1);
+fixed = wave.ampScale == "fixed" && numel(wave.ampLim) == 2 && wave.ampLim(2) > wave.ampLim(1);
 for u = find(placed).'
     p = P{u};
     [lo, hi] = valueRange(p);
@@ -193,12 +203,18 @@ for u = find(placed).'
     if wave.ampScale == "common"
         common(u) = commonSpan(W, P, W.units(u));
         span1 = common(u);
+    elseif fixed
+        lo = wave.ampLim(1);
+        hi = wave.ampLim(2);
+        common(u) = hi - lo;
+        span1 = common(u);
     end
     if ~(span1 > 0); span1 = 1; end
     tspan = max(p.t) - min(p.t);
     if ~(tspan > 0); tspan = 1; end
     gx = X0(u) + gw * ((p.t - min(p.t)) / tspan - 0.5);
     at = @(v) uy(u) + gh * (v - (lo + hi) / 2) / span1;
+    if fixed; at = @(v) uy(u) + gh * (min(max(v, lo), hi) - (lo + hi) / 2) / span1; end   % clipped at the fixed range
     sk1 = 1;
     if ~isempty(L.session); sk1 = L.session(u); end
     if p.spikes
@@ -254,7 +270,7 @@ if nCol > 1
 end
 xlim(ax, [min(allX) - gw, max(allX) + gw]);
 ylim(ax, [min(allY) - gh, max(allY) + gh]);
-if wave.ampScale == "common" && any(common > 0)
+if ismember(wave.ampScale, ["common" "fixed"]) && any(common > 0)
     sb = scaleBar(ax, W, common, gh);
     if ~isempty(sb); tagPart(sb.line, "waveScale"); tagPart(sb.text, "waveScale"); end
 end
@@ -341,15 +357,14 @@ b = struct('line', line(ax, [x0 x0], [y0 y0 + gh * amp / span], 'Color', [0.2 0.
 end
 
 
-function p = unitParts(W, u, mode)
-%unitParts  What to draw for unit U: its mean, spikes and time, and which of them the mode shows.
-p = struct('has', false, 'm', [], 't', [], 'S', [], 'spikes', false, 'mean', false, 'template', false);
+function p = unitParts(W, u, mode, timeMs)
+%unitParts  What to draw for unit U: its mean, spikes and time (in the span TIMEMS), and which of them the mode shows.
+p = struct('has', false, 'm', [], 't', [], 'S', [], 'spikes', false, 'mean', false, 'template', false, 'pp', NaN);
 if u > numel(W.mean) || isempty(W.mean{u}); return; end
 p.has = true;
-p.m = W.mean{u}(:);
-p.t = W.timeMs{u}(:);
+p.pp = max(W.mean{u}) - min(W.mean{u});   % the unit's, whatever span is drawn
+[p.t, p.m, p.S] = waveformSpan(W.timeMs{u}(:), W.mean{u}(:), W.spikes{u}, timeMs);
 p.template = W.from(u) == "template";
-p.S = W.spikes{u};
 p.spikes = ismember(mode, ["subsample" "both"]) && ~isempty(p.S) && ~p.template;
 p.mean = ismember(mode, ["mean" "both"]) || ~p.spikes;
 if ~p.spikes; p.S = []; end
@@ -392,7 +407,7 @@ function txt = labelText(W, u, p, wave)
 %labelText  The unit's label: peak-to-peak amplitude, spike count, template.
 parts = strings(1, 0);
 if wave.showPP
-    parts(end+1) = sprintf("%.3g %s p-p", max(p.m) - min(p.m), unitText(W.units(u)));
+    parts(end+1) = sprintf("%.3g %s p-p", p.pp, unitText(W.units(u)));
 end
 if wave.showCount && ~p.template && ~isempty(p.S)
     total = size(p.S, 2);

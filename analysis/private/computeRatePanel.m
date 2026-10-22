@@ -14,9 +14,11 @@ function P = computeRatePanel(src, panel, E, G, ctx)
 %   error figureErrorType gives a rate panel: the style's with ShowSEM and
 %   display "bar", else "sem"), with R.epochs (E) and R.dataset; aggregate
 %   "mean" adds R.layerMean (figureLayerMean over the units' means: mean,
-%   lo, hi [1 x 1 x nGroups]). E may be "between" epochs (each its own
-%   length). options.display and yLim are the draw function's. Data the
-%   dataset lacks skips the layer with the reason (figureLayerError).
+%   lo, hi [1 x 1 x nGroups]); options.waveform.mode other than "off"
+%   adds R.waveforms (unitWaveforms of the layer's units, the inset). E
+%   may be "between" epochs (each its own length). options.display and
+%   yLim are the draw function's. Data the dataset lacks skips the layer
+%   with the reason (figureLayerError).
 %
 %   See also figurePanelRegistry, drawRatePanel, firingRate.
 
@@ -44,6 +46,11 @@ for j = find(arrayfun(@(l) l.skip == "", P.layers))
     if L.aggregate == "mean"
         [nU, nG] = size(R.meanRate);
         R.layerMean = figureLayerMean(reshape(R.meanRate, 1, nU, nG), [], ctx.errorType, ctx.nBoot, "units");
+    end
+    wf = o.waveform;
+    if isstruct(wf) && wf.mode ~= "off"
+        ctx.checkpoint();
+        R.waveforms = unitWaveforms(src, meta, Source=L.source, MaxSpikes=wf.maxSpikes, Check=ctx.check);
     end
     lay.R = R;
     lay.meta = meta;

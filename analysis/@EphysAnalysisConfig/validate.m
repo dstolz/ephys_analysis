@@ -81,7 +81,10 @@ function issues = validate(obj, opts)
 %               observation), probemap value, corrmap metric /
 %               correlation, the rate display, the tuning param /
 %               seriesParam (names, not the same one), the waveform
-%               settings, y / color limits, the stack (stackModes:
+%               settings (a raster's, PSTH's, rate's or tuning panel's
+%               inset, a waveforms panel's own: mode; while drawn its
+%               location, width and height, maxSpikes, time span, and
+%               ampLim with the fixed amplitude scale), y / color limits, the stack (stackModes:
 %               off, groups, a continuous panel's items; a warning on a
 %               heat map of trials, which does not use it) and a
 %               positive stackSpacing on every type that stacks, the
@@ -644,6 +647,7 @@ for k = 1:numel(obj.Figures)
                     add("Figures", o0 + ".display", "error", "A firing rate panel's display is bar, box or points.");
                 end
                 checkFigLim(op.yLim, o0 + ".yLim", "y");
+                checkFigWaveform(op.waveform, o0 + ".waveform", false);
             case "tuning"
                 checkFigMeasure(op.measure, o0);
                 checkFigBaseline(op.baseline, EphysAnalysisConfig.baselineModes("tuning"), o0, A);
@@ -985,9 +989,10 @@ issues = table(Section, Field, Severity, Message);
     end
 
     function checkFigWaveform(hW, hW0, hOwn)
-        %checkFigWaveform  A raster / PSTH panel's waveform inset, or (HOWN) a waveforms panel's settings.
-        if ~ismember(hW.ampScale, ["unit" "common"])
-            add("Figures", hW0 + ".ampScale", "error", "The waveform amplitude scale is unit or common.");
+        %checkFigWaveform  A raster / PSTH / rate / tuning panel's waveform inset, or (HOWN) a waveforms panel's settings.
+        %   Its mode always; while drawn, its place, size, spikes, time span and amplitude scale (ampLim with "fixed").
+        if ~ismember(hW.ampScale, EphysAnalysisConfig.WaveformAmpScales)
+            add("Figures", hW0 + ".ampScale", "error", "The waveform amplitude scale is unit, common or fixed.");
         end
         if ~ismember(hW.mode, ["off" "mean" "subsample" "both"])
             add("Figures", hW0 + ".mode", "error", "The waveform mode is off, mean, subsample or both.");
@@ -998,11 +1003,21 @@ issues = table(Section, Field, Severity, Message);
                 add("Figures", hW0 + ".location", "error", "The waveform location is one of " + ...
                     strjoin(EphysAnalysisConfig.WaveformLocations, ", ") + ".");
             end
-            if ~(hW.scale > 0 && hW.scale <= 3)
-                add("Figures", hW0 + ".scale", "error", "The waveform scale is above 0 and at most 3 (1 = a third of the tile).");
+            for hF = ["width" "height"]
+                if ~(hW.(hF) > 0 && hW.(hF) <= 3)
+                    add("Figures", hW0 + "." + hF, "error", "The waveform's " + hF + " is above 0 and at most 3 (1 = its default: " + ...
+                        "an inset a third of the tile's).");
+                end
             end
             if ~(hW.maxSpikes >= 1 && hW.maxSpikes == round(hW.maxSpikes))
                 add("Figures", hW0 + ".maxSpikes", "error", "maxSpikes is a whole number of spikes, at least 1.");
+            end
+            if ~(isempty(hW.timeMs) || (numel(hW.timeMs) == 2 && ~any(isnan(hW.timeMs)) && hW.timeMs(2) > hW.timeMs(1)))
+                add("Figures", hW0 + ".timeMs", "error", "The waveform's time span is [] (the whole cut) or [from to] ms " + ...
+                    "from the spike with from < to (-Inf / Inf: the cut's edge).");
+            end
+            if hW.ampScale == "fixed" && ~(numel(hW.ampLim) == 2 && all(isfinite(hW.ampLim)) && hW.ampLim(2) > hW.ampLim(1))
+                add("Figures", hW0 + ".ampLim", "error", "A fixed waveform amplitude scale needs ampLim, [lo hi] with lo < hi.");
             end
         end
     end

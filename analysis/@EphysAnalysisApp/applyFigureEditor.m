@@ -31,6 +31,8 @@ obj.SelectedPanel = min(max(obj.SelectedPanel, 1), np);
 showFigureId(obj);   % the editor's title too
 E.title.Value = char(fig.title);
 E.enabled.Value = fig.enabled;
+obj.showFigureSize();
+obj.fitFigureViews();   % the preview in the shape of this figure's page
 
 % observations
 o = fig.observe;

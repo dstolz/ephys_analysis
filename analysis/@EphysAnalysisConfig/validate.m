@@ -25,7 +25,8 @@ function issues = validate(obj, opts)
 %               no layer following a "dataset" observation, a
 %               warning when a unit / channel observation has no
 %               following layer, a warning for perGroup while the figure's
-%               selection groups by nothing; grid: whole rows and cols >= 1,
+%               selection groups by nothing; size: source and units, an own
+%               width and height above 0; grid: whole rows and cols >= 1,
 %               rowHeights / colWidths [] or one positive size each,
 %               spacing, gapUnits, rowGap / colGap >= 0, rowGaps / colGaps
 %               [] or one gap >= 0 between every two rows / columns;
@@ -225,6 +226,18 @@ for k = 1:numel(obj.Figures)
     if isstruct(fg.selection); checkSelection(fg.selection, "Figures", f0 + ".selection"); end
     fw = fg.window;
     if isequal(fw, "default"); fw = D.Window; end
+
+    % its page
+    zs = fg.size;
+    if ~ismember(zs.source, EphysAnalysisConfig.FigureSizeSources)
+        add("Figures", f0 + ".size.source", "error", "size.source is export or own.");
+    end
+    if ~ismember(zs.units, EphysAnalysisConfig.FigureSizeUnits)
+        add("Figures", f0 + ".size.units", "error", "size.units is px, in or cm.");
+    end
+    if zs.source == "own" && ~(isscalar(zs.width) && isscalar(zs.height) && isfinite(zs.width) && isfinite(zs.height) && zs.width > 0 && zs.height > 0)
+        add("Figures", f0 + ".size", "error", "An own size needs a width and a height above 0.");
+    end
 
     % what it is drawn for
     ob = fg.observe;

@@ -267,7 +267,7 @@ classdef EphysAnalysisApp < handle
         DesignDropDown         matlab.ui.control.DropDown       % the design every figure is drawn in (PlotDesign; also the Design menu)
         SaveDesignButton       matlab.ui.control.Button         % Save look as design...: the figure preview's look (onSaveDesign)
         FigurePreviewPanel     matlab.ui.container.Panel        % the shown figure's own preview container (syncFigureView: one per figure, in FigurePreviewHost)
-        FigurePreviewHost      matlab.ui.container.GridLayout   % the preview's cell: every figure's container stacked in it, the shown one visible
+        FigurePreviewHost      matlab.ui.container.Panel        % the preview's cell: every figure's container stacked in it (fitFigureViews: shaped like its figure's export page), the shown one visible
         FigurePreviewBadge struct = struct()     % the figure preview's state badge: Grid, Icon, Text (setFigurePreviewState)
         FigurePreviewLabel     matlab.ui.control.Label
         FigureCancelButton     matlab.ui.control.Button         % the busy card's Cancel while the figure preview computes (else empty)
@@ -547,6 +547,11 @@ classdef EphysAnalysisApp < handle
         R = onGenerateFigure(obj, opts)
         [R, file] = onUnitReport(obj, opts)
         h = onOpenFigureWindow(obj)
+        onFigureSizeEdited(obj, part)
+        showFigureSize(obj, z)
+        fitFigureViews(obj)
+        ok = redrawFigurePreview(obj)
+        onFigurePanelClicked(obj, id, panel, ctrl, fromWindow)
         files = onExportPreview(obj)
         txt = onFigureCode(obj, file)
         setFigurePreviewState(obj, state, opts)

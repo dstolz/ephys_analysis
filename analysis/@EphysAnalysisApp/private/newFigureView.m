@@ -1,8 +1,9 @@
 function v = newFigureView(obj, id)
 %newFigureView  A figure's preview container, not drawn yet: an entry of FigureViews (syncFigureView).
 %   V = newFigureView(OBJ, ID) makes a hidden uipanel in FigurePreviewHost,
-%   in its one cell (every container is stacked there), saying it is not
-%   drawn yet, and returns its entry:
+%   stacked there with the others and shaped like its figure's export page
+%   (figureViewBox; fitFigureViews keeps it so), saying it is not drawn
+%   yet, and returns its entry:
 %     Id        the figure's id (trackFigureIds follows a rename); "" for
 %               the container shown while no figure is selected
 %     Panel     the container: renderFigure draws in it, the busy card
@@ -16,9 +17,9 @@ function v = newFigureView(obj, id)
 %     Label     the status line under the preview while it shows
 %     Used      when it was last shown (FigureViewTick; the cap drops the
 %               least recently used)
-P = uipanel(obj.FigurePreviewHost, "BackgroundColor", "w", "BorderType", "line", "Visible", "off");
-P.Layout.Row = 1;
-P.Layout.Column = 1;
+P = uipanel(obj.FigurePreviewHost, "BackgroundColor", "w", "BorderType", "line", "Visible", "off", "Units", "pixels");
+box = figureViewBox(obj, string(id));
+if ~isempty(box); P.Position = box; end
 if id == ""
     msg = "Add a figure, scan and pick a dataset to preview.";
 else

@@ -1272,9 +1272,12 @@ close(fig)
   figure; `exportFigure` raises `exportFigure:UIFigure` for a uifigure there.
   `newExportFigure(exportSection, F, spec)` sizes it for a
   [figure's](#figures) page (`F` from `figureCompute`, `spec` from
-  `figureFor`): 3.5 cm for each row of the arrangement plus 2 cm for the title
-  and x label, never below `FigureSizeCm(2)`. The runner, both reports and
-  the generated scripts call it so.
+  `figureFor`; `figureExportSize` gives the page): the figure's own
+  [`size`](EphysAnalysisConfig.md#figure-grid-and-observe-fields) when `spec.size.source` is
+  `"own"` (px at the Export `Dpi`, in or cm), else 3.5 cm for each row of the
+  arrangement plus 2 cm for the title and x label, never below
+  `FigureSizeCm(2)`. The runner, both reports and the generated scripts call
+  it so.
 - `files = exportFigure(fig, fileBase, Format=, Dpi=, Append=)`: `png` via
   `exportgraphics(Resolution=)`, `pdf` / `eps` via
   `exportgraphics(ContentType="vector")` (`Append` adds PDF pages), `svg` via

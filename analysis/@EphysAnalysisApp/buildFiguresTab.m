@@ -29,7 +29,10 @@ function buildFiguresTab(obj)
 %           draw it) gray.
 %   Middle  the editor, a column of sections (formSection): Id (with
 %           auto: the id follows the panels and data until one is typed:
-%           onIdEdited, onIdAutoToggled), Title,
+%           onIdEdited, onIdAutoToggled), Title, Size (the page it is
+%           exported on: a drop-down of suggestions you can type in, the
+%           width and height in px, in or cm with a lock for the aspect
+%           ratio: onFigureSizeEdited; the preview is shaped like it),
 %           Enabled and a summary, always open; then Observations (the data
 %           the figure is drawn for, Starred only, the unit filter or the
 %           channels, Per trial group: one
@@ -234,6 +237,26 @@ E.title = uieditfield(S.Body, "text", "Placeholder", "automatic", "ValueChangedF
     "Tooltip", "Blank: ""<id>: <observation> — <event> (<n> epochs)"". A title of your own names no " + ...
     "observation, so the top-left panel names it.");
 place(E.title, r, 2);
+[S, r] = formRow(S, "size", "Size:");
+E.sizePreset = uidropdown(S.Body, "Editable", "on", "Items", cellstr(figureSizePresets().Label), "Value", "Export tab size", ...
+    "ValueChangedFcn", @(~, ~) obj.onFigureSizeEdited("preset"), ...
+    "Tooltip", "The page the figure is exported on, and the shape of the preview. Pick a suggestion or type " + ...
+    """6 x 4 in"", ""1200 x 800 px"" (pixels of the PNG, at the Export dpi) or ""15 x 10 cm"". Export tab size: " + ...
+    "the Export tab's Width and Height, taller when the rows need it. Fit preview: the preview area's shape and size now.");
+place(E.sizePreset, r, 2);
+[S, r] = formRow(S, ["sizeWidth" "sizeHeight" "sizeUnits" "sizeLock"], "Width x height:");
+zg = subgrid(S.Body, r, {'1x', 'fit', '1x', 56, 'fit'});
+E.sizeWidth = uieditfield(zg, "numeric", "Limits", [0 Inf], "LowerLimitInclusive", "off", "ValueDisplayFormat", "%.5g", "Value", 18, ...
+    "ValueChangedFcn", @(~, ~) obj.onFigureSizeEdited("width"), ...
+    "Tooltip", "The page's width, in the units at the right. Editing it gives the figure a size of its own (""Export tab size"" is left).");
+uilabel(zg, "Text", "x");
+E.sizeHeight = uieditfield(zg, "numeric", "Limits", [0 Inf], "LowerLimitInclusive", "off", "ValueDisplayFormat", "%.5g", "Value", 12, ...
+    "ValueChangedFcn", @(~, ~) obj.onFigureSizeEdited("height"), ...
+    "Tooltip", "The page's height, in the units at the right.");
+E.sizeUnits = uidropdown(zg, "Items", ["px" "in" "cm"], "Value", "cm", "ValueChangedFcn", @(~, ~) obj.onFigureSizeEdited("units"), ...
+    "Tooltip", "px: pixels of the exported PNG, so inches at the Export tab's dpi. Changing the units keeps the page the same size.");
+E.sizeLock = uicheckbox(zg, "Text", "Lock ratio", "ValueChangedFcn", @(~, ~) obj.onFigureSizeEdited("lock"), ...
+    "Tooltip", "Keep the aspect ratio: editing the width changes the height with it, and the other way round.");
 [S, r] = formRow(S, "enabled", "");
 E.enabled = uicheckbox(S.Body, "Text", "Enabled", "Value", true, "ValueChangedFcn", changed, ...
     "Tooltip", "Unticked, the figure stays in the config but Run (Export tab) skips it. Generate and the preview still draw it.");
@@ -1443,7 +1466,8 @@ obj.SaveDesignButton = uibutton(pg, "Text", "Save look as design...", "ButtonPus
 obj.SaveDesignButton.Layout.Row = 2; obj.SaveDesignButton.Layout.Column = [4 5];
 % the previews: a container per figure, all in this one cell, the selected figure's shown (syncFigureView); the
 % first, "", is shown while no figure is selected
-obj.FigurePreviewHost = uigridlayout(pg, [1 1], "Padding", [0 0 0 0]);
+obj.FigurePreviewHost = uipanel(pg, "BorderType", "none", "BackgroundColor", [0.88 0.88 0.88], "AutoResizeChildren", "off", ...
+    "SizeChangedFcn", @(~, ~) obj.fitFigureViews());   % each container is shaped like its figure's export page and centered in it (fitFigureViews)
 obj.FigurePreviewHost.Layout.Row = 4; obj.FigurePreviewHost.Layout.Column = [1 5];
 obj.FigureEditorStates = containers.Map('KeyType', 'char', 'ValueType', 'any');
 v = newFigureView(obj, "");

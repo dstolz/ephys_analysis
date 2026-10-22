@@ -134,8 +134,12 @@ function test_EphysAnalysisFigures(opts)
 %   targets that have it already, an alignment from the Defaults),
 %   panelTakes' rules (stack, baseline, a type's own option) and
 %   applyChanges to the rows picked.
+%   Figure size (13): the default size, figureExportSize and newExportFigure (the
+%   Export size taller for the rows, an own size in px at the dpi, in and cm),
+%   figureSizeConvert, the suggestions and typed sizes (figureSizeParse,
+%   figureSizeText), validate's size rules and a JSON round trip.
 %
-%   The sections run on their own after the setup (TestSections): 1-6 and 12 need
+%   The sections run on their own after the setup (TestSections): 1-6, 12 and 13 need
 %   no data, 7, 9 and 11 build the "clean" fixture once (fixtureA), 8 needs
 %   7's results (declared), 10 builds its own two-dataset fixture.
 %
@@ -4273,6 +4277,100 @@ if S.sec("12", "config: one edit given to other figures (figureEditChanges, chan
         && isstruct(G7(2).ref) && G7(2).ref.edge == "offset" && isequaln(rmfield(G7(2).ref, 'edge'), rmfield(D.EventRef, 'edge')) ...
         && isequal(G7(3).ref, "default"), ...
         'one field of a figure''s own event reference: a figure using the Defaults'' shows theirs, and takes it as its own, the Defaults'' with the field changed');
+end
+
+if S.sec("13", "figure size: the page a figure is exported on (figureExportSize, newExportFigure, the suggestions and typed sizes, validate, JSON)")
+    cz = EphysAnalysisConfig();
+    cz = cz.addFigure("rasterPsth", Id="rp");
+    cz = cz.addFigure("psth", Id="p");
+    sz0 = EphysAnalysisConfig.defaults("Figure").size;
+    check(isequal(sz0, struct('source', "export", 'width', 18, 'height', 12, 'units', "cm", 'lock', false)) && isequal(cz.Figures(1).size, sz0), ...
+        'a figure''s size defaults to the Export tab''s (source export), 18 x 12 cm kept for an own size');
+    X = cz.Export;
+    fp = cz.figureFor(1);
+    check(all(abs(figureExportSize(X, [], fp) - [18 12]) < 1e-12) && all(abs(figureExportSize(X) - [18 12]) < 1e-12), ...
+        'source export: the Export size (a 2-row figure fits in 12 cm)');
+    fp.grid.rows = 5;
+    check(all(abs(figureExportSize(X, [], fp) - [18 19.5]) < 1e-12), 'source export: taller for the rows, 3.5 cm each plus 2');
+    fp.size = struct('source', "own", 'width', 1200, 'height', 800, 'units', "px", 'lock', false);
+    X.Dpi = 150;
+    check(all(abs(figureExportSize(X, [], fp) - [1200 800] / 150 * 2.54) < 1e-12), 'source own, px: pixels of the PNG at the Export dpi (rows do not matter)');
+    X.Dpi = 300;
+    check(all(abs(figureExportSize(X, [], fp) - [1200 800] / 300 * 2.54) < 1e-12), 'px follow the dpi');
+    fp.size.units = "in";
+    fp.size.width = 7;
+    fp.size.height = 4.5;
+    check(all(abs(figureExportSize(X, [], fp) - [7 4.5] * 2.54) < 1e-12), 'source own, in');
+    fp.size.units = "cm";
+    check(all(abs(figureExportSize(X, [], fp) - [7 4.5]) < 1e-12), 'source own, cm');
+    fz = newExportFigure(X, [], fp);
+    posz = fz.Position(3:4);
+    papz = fz.PaperSize;
+    close(fz);
+    check(all(abs(posz - [7 4.5]) < 1e-9) && all(abs(papz - [7 4.5]) < 1e-9), 'newExportFigure draws the export page at the own size');
+    fz = newExportFigure(cz.Export, [], cz.figureFor(1));
+    posz = fz.Position(3:4);
+    close(fz);
+    check(all(abs(posz - [18 12]) < 1e-9), 'newExportFigure without an own size: the Export size');
+
+    % the units, the suggestions and what is typed
+    check(abs(figureSizeConvert(2.54, "cm", "in") - 1) < 1e-12 && abs(figureSizeConvert(150, "px", "in", 150) - 1) < 1e-12 ...
+        && abs(figureSizeConvert(1, "in", "px", 300) - 300) < 1e-12 && isequal(figureSizeConvert([1 2], "cm", "cm"), [1 2]), ...
+        'figureSizeConvert: cm, in and px (a pixel is 1 / dpi inch)');
+    T = figureSizePresets();
+    check(T.Label(1) == "Export tab size" && T.Label(end) == "Fit preview" && all(isnan(T.Width([1 end]))) && all(isfinite(T.Width(2:end - 1))) ...
+        && all(ismember(T.Units(2:end - 1), EphysAnalysisConfig.FigureSizeUnits)) && numel(unique(T.Label)) == height(T), ...
+        'the suggestions: Export tab size first, Fit preview last, the rest with a size in px, in or cm');
+    ok = true;
+    for i = 2:height(T) - 1
+        [s, good] = figureSizeParse(T.Label(i));
+        ok = ok && good && s.width == T.Width(i) && s.height == T.Height(i) && s.units == T.Units(i) ...
+            && figureSizeText(s.width, s.height, s.units) == T.Label(i);
+    end
+    check(ok, 'every suggestion parses to its size, and figureSizeText gives its label back');
+    [s1, g1] = figureSizeParse("6 x 4 in");
+    [s2, g2] = figureSizeParse("1200x800 px");
+    [s3, g3] = figureSizeParse("15 X 10", "in");
+    [s4, g4] = figureSizeParse("150 x 100 mm");
+    [s5, g5] = figureSizeParse("  3.5*2.25 inches ");
+    [s6, g6] = figureSizeParse("8 x 5");
+    check(g1 && isequal(s1, struct('width', 6, 'height', 4, 'units', "in")) && g2 && s2.width == 1200 && s2.units == "px" ...
+        && g3 && s3.units == "in" && g4 && abs(s4.width - 15) < 1e-12 && s4.units == "cm" && g5 && s5.width == 3.5 && s5.height == 2.25 && s5.units == "in" ...
+        && g6 && s6.units == "cm", ...
+        'typed sizes: "6 x 4 in", "1200x800 px", a capital X, mm (kept in cm), inches, no unit = the units given (cm)');
+    bad = ["" "abc" "6 x" "x 4 in" "0 x 4 in" "6 x 4 furlongs" "Export tab size" "Fit preview"];
+    nbad = 0;
+    for b = bad
+        [~, g] = figureSizeParse(b);
+        nbad = nbad + ~g;
+    end
+    check(nbad == numel(bad) && figureSizeText(7.25, 4.5, "in") == "7.25 x 4.5 in", ...
+        'text that is no size (and the two labels without one) is not read; figureSizeText of a size with no suggestion');
+
+    % validate, normalize, JSON
+    cv = cz;
+    cv.Source.Root = root;
+    cv.Figures(1).size = struct('source', "own", 'width', 7, 'height', 4.5, 'units', "in", 'lock', true);
+    check(~has(cv, "rp.size", "error") && ~has(cv, "rp.size.units", "error") && ~has(cv, "rp.size.source", "error"), 'an own size in inches validates');
+    cb = cv;
+    cb.Figures(1).size.width = 0;
+    cb2 = cv;
+    cb2.Figures(1).size.units = "mm";
+    cb3 = cv;
+    cb3.Figures(1).size.source = "fixed";
+    check(has(cb, "rp.size", "error") && has(cb2, "rp.size.units", "error") && has(cb3, "rp.size.source", "error"), ...
+        'a size of 0, units mm and a source "fixed" are errors');
+    cb4 = cv;
+    cb4.Figures(1).size.source = "export";
+    cb4.Figures(1).size.width = 0;
+    check(~has(cb4, "rp.size", "error"), 'the own width and height are not checked while the source is export');
+    fj = [tempname '.json'];
+    cv.save(fj);
+    cl = EphysAnalysisConfig.load(fj);
+    delete(fj);
+    check(isequal(cl.Figures(1).size, cv.Figures(1).size) && isequal(cl.Figures(2).size, sz0), 'the size round-trips through JSON; a figure without one keeps the default');
+    pk = EphysAnalysisConfig.figureEditChanges(cv.Figures(1), cz.Figures(1), 0);
+    check(any([pk.path] == "size.source") && any([pk.path] == "size.width"), 'a size edit is a change another figure can take (Apply to figures)');
 end
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);

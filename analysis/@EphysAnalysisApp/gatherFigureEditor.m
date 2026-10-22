@@ -22,12 +22,25 @@ function fig = gatherFigureEditor(obj)
 %   of its type.
 %   The panel's text note is its Text note rows', its overlays the
 %   Overlays list's, the one picked read from its rows (overlayGather).
+%   The figure's size is the Size rows': "Export tab size" in the drop-down
+%   is size.source "export" (the own width and height kept as stored),
+%   anything else an own size of the Width and Height fields (the drop-down
+%   and the fields agree: onFigureSizeEdited keeps them so).
 E = obj.FigureEditor;
 fig = obj.Config.Figures(obj.SelectedFigure);
 fig.id = strtrim(string(E.id.Value));
 fig.autoId = logical(E.idAuto.Value);   % ticked: the config gives the automatic id (normalizeFigures)
 fig.title = string(E.title.Value);
 fig.enabled = logical(E.enabled.Value);
+fig.size.units = string(E.sizeUnits.Value);   % (an Export tab size keeps the own size's numbers, which it does not use)
+fig.size.lock = logical(E.sizeLock.Value);
+if lower(strtrim(string(E.sizePreset.Value))) ~= lower(figureSizePresets().Label(1))
+    fig.size.source = "own";
+    fig.size.width = E.sizeWidth.Value;
+    fig.size.height = E.sizeHeight.Value;
+else
+    fig.size.source = "export";
+end
 
 % observations
 o = fig.observe;

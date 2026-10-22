@@ -99,6 +99,11 @@ function test_EphysAnalysisApp(opts)
 %   figure left them; Remove freeing the container; the cap dropping the
 %   least recently shown; Undo / Redo of an Add keeping the tree, the
 %   containers and the selection together);
+%   a figure's Size (the editable drop-down and its suggestions, an own
+%   size in px, in or cm, Lock ratio, Fit preview, a text no size refused;
+%   the preview the shape of the page and drawn again without computing,
+%   the export page that size, the Export tab's size followed, Undo) and a
+%   Ctrl+Click on a drawn panel selecting it in the editor (no edit);
 %   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -926,14 +931,16 @@ if S.sec("5d.outline", "the panel keys across the grid and in the panel order; t
     % the outline follows the figure laid out again (the preview resized)
     app.onPanelSelected(2);
     pos0 = findPanelAxes(P, "psth_1").Position;
-    app.Fig.Position(3) = app.Fig.Position(3) + 160;
+    app.Fig.Position(3:4) = app.Fig.Position(3:4) + [160 120];   % (the preview is the shape of its page: it grows with whichever side limits it)
     drawnow;
+    app.fitFigureViews();   % (the preview host's SizeChangedFcn: MATLAB runs it for a visible figure only)
     P.SizeChangedFcn(P, []);   % (MATLAB runs it for a visible figure only)
     [bm, nm] = markBox(P);
     check(nm == 4 && ~isequal(findPanelAxes(P, "psth_1").Position, pos0) && boxNear(bm, expectBox(P, "psth_1")), ...
-        'the preview made wider, the figure is laid out again and the outline follows psth_1''s axes');
-    app.Fig.Position(3) = app.Fig.Position(3) - 160;
+        'the preview made larger, the figure is laid out again and the outline follows psth_1''s axes');
+    app.Fig.Position(3:4) = app.Fig.Position(3:4) - [160 120];
     drawnow;
+    app.fitFigureViews();
     P.SizeChangedFcn(P, []);
     h = app.onOpenFigureWindow();
     check(isgraphics(h) && isempty(findall(h, 'Tag', 'previewPanelMark')) && numel(findall(P, 'Tag', 'previewPanelMark')) == 4, ...
@@ -3142,7 +3149,7 @@ if S.sec("5m", "each figure's own preview container: kept drawings, the tree's m
         app.onAddFigure("psth");   % (Auto off: shown, not drawn)
     end
     check(numel(app.FigureViews) == app.MaxFigureViews + 1 && ~isvalid(P1) && all(isvalid([app.FigureViews.Panel])) ...
-        && lookOf(1) == "none" && numel(findall(app.FigurePreviewHost, 'Type', 'uipanel', '-depth', 1)) == app.MaxFigureViews + 1, ...
+        && lookOf(1) == "none" && numel(app.FigurePreviewHost.Children) == app.MaxFigureViews + 1, ...
         sprintf('past %d containers the one shown least recently goes (the first figure''s): the tree marks it not drawn', app.MaxFigureViews));
     app.FigureAutoCheckBox.Value = true;
     app.onFigureSelected(1);
@@ -3248,6 +3255,132 @@ if S.sec("5n", "Apply to figures: an edit made with Ctrl held given to other fig
     app.onConfigChanged("figure", FE.title);
     noFigures();
     clear restore5n
+    app.FigureAutoCheckBox.Value = false;
+    app.Tabs.SelectedTab = app.TabData;
+end
+
+if S.sec("5o", "Size: the page a figure is exported on, the preview shaped like it, redrawn without computing; Ctrl+Click on a panel selects it")
+    noFigures();
+    app.selectTab(app.TabFigures);
+    app.FigureAutoCheckBox.Value = true;
+    app.FigureAutoPreviewSeconds = Inf;   % Auto draws every figure shown here, however loaded the machine
+    restore5o = onCleanup(@() resetAutoLimit(app));
+    app.onAddFigure("rasterPsth");
+    app.onAddFigure("psth");
+    ids = app.Config.figureIds();
+    app.onFigureSelected(1);
+    app.onPanelSelected(1);
+    app.refreshFigurePreview(Force=true);
+    P = app.FigurePreviewPanel;
+    shape = @() P.Position(3) / P.Position(4);
+    cm0 = figureExportSize(app.Config.Export, [], app.Config.figureFor(1));
+    check(app.FigurePreviewState == "drawn" && app.Config.Figures(1).size.source == "export" && string(FE.sizePreset.Value) == "Export tab size" ...
+        && abs(shape() - cm0(1) / cm0(2)) < 0.03 && all(abs([FE.sizeWidth.Value FE.sizeHeight.Value] - cm0) < 0.01) && string(FE.sizeUnits.Value) == "cm", ...
+        'a new figure follows the Export tab''s size: the editor shows it in cm, the preview is the shape of that page');
+
+    % an own size typed: one undo step, the preview shaped like it and drawn again without computing
+    app.FigurePreviewResult.marker = 1;   % computeFigure's result has none: it is still there when nothing was computed again
+    FE.sizePreset.Value = '1200 x 800 px';
+    FE.sizePreset.ValueChangedFcn(FE.sizePreset, []);
+    z = app.Config.Figures(1).size;
+    check(z.source == "own" && z.width == 1200 && z.height == 800 && z.units == "px" && string(FE.sizePreset.Value) == "1200 x 800 px" ...
+        && FE.sizeWidth.Value == 1200 && FE.sizeHeight.Value == 800 && string(FE.sizeUnits.Value) == "px", ...
+        'a size typed in the drop-down ("1200 x 800 px") is the figure''s own: the rows show it');
+    check(abs(shape() - 1.5) < 0.03 && app.FigurePreviewState == "drawn" && isfield(app.FigurePreviewResult, 'marker') ...
+        && contains(app.FigureHistory.undoLabel(), "Size"), ...
+        'the preview is 3:2 now and drawn again from the figure it held (nothing computed again); the edit is one step named Size');
+    spec = app.Config.figureFor(1);
+    fx = newExportFigure(app.Config.Export, app.FigurePreviewResult, spec);
+    cmx = fx.Position(3:4);
+    close(fx);
+    check(all(abs(cmx - [1200 800] / app.Config.Export.Dpi * 2.54) < 1e-6) && all(abs(figureExportSize(app.Config.Export, [], spec) - cmx) < 1e-9), ...
+        'the export page is that size: 1200 x 800 px at the Export dpi');
+    other = figureExportSize(app.Config.Export, [], app.Config.figureFor(2));
+    check(app.Config.Figures(2).size.source == "export" && all(abs(other - [18 12]) < 1e-9), 'another figure keeps the Export tab''s size');
+
+    % the lock, the units
+    FE.sizeLock.Value = true;
+    FE.sizeLock.ValueChangedFcn(FE.sizeLock, []);
+    FE.sizeWidth.Value = 600;
+    FE.sizeWidth.ValueChangedFcn(FE.sizeWidth, []);
+    check(app.Config.Figures(1).size.lock && FE.sizeHeight.Value == 400 && app.Config.Figures(1).size.height == 400, ...
+        'Lock ratio: a width of 600 gives a height of 400 (3:2 kept)');
+    FE.sizeUnits.Value = 'in';
+    FE.sizeUnits.ValueChangedFcn(FE.sizeUnits, []);
+    z = app.Config.Figures(1).size;
+    check(z.units == "in" && abs(z.width - 4) < 1e-9 && abs(z.height - 8 / 3) < 1e-3 && abs(shape() - 1.5) < 0.03, ...
+        'the units changed to in: 600 x 400 px at 150 dpi is 4 x 2.667 in, the same page');
+    FE.sizeHeight.Value = 3;
+    FE.sizeHeight.ValueChangedFcn(FE.sizeHeight, []);
+    check(abs(app.Config.Figures(1).size.width - 4.5) < 0.01 && abs(shape() - 1.5) < 0.03, 'locked, a height of 3 in gives a width of 4.5 in (to the thousandth the editor keeps)');
+    FE.sizeLock.Value = false;
+    FE.sizeLock.ValueChangedFcn(FE.sizeLock, []);
+
+    % suggestions, Fit preview, a text that cannot be read, the Export tab size again
+    FE.sizePreset.Value = 'Journal 2 column (7 x 4.5 in)';
+    FE.sizePreset.ValueChangedFcn(FE.sizePreset, []);
+    z = app.Config.Figures(1).size;
+    check(z.source == "own" && z.width == 7 && z.height == 4.5 && z.units == "in" && abs(shape() - 7 / 4.5) < 0.03, 'a suggestion: Journal 2 column is 7 x 4.5 in');
+    FE.sizePreset.Value = '15 x 10';
+    FE.sizePreset.ValueChangedFcn(FE.sizePreset, []);
+    z = app.Config.Figures(1).size;
+    check(z.width == 15 && z.height == 10 && z.units == "in", 'no unit typed: the units shown (in)');
+    before = app.Config.Figures(1).size;
+    FE.sizePreset.Value = 'not a size';
+    FE.sizePreset.ValueChangedFcn(FE.sizePreset, []);
+    check(isequal(app.Config.Figures(1).size, before) && string(FE.sizePreset.Value) == "15 x 10 in" && contains(string(app.StatusBar.Text), "Size not read"), ...
+        'text that is no size is refused: the status bar says so, the rows go back');
+    FE.sizePreset.Value = 'Fit preview';
+    FE.sizePreset.ValueChangedFcn(FE.sizePreset, []);
+    z = app.Config.Figures(1).size;
+    pane = app.FigurePreviewHost.InnerPosition(3:4) - 8;
+    check(z.source == "own" && z.units == "in" && abs(z.width * 96 - pane(1)) < 0.5 && abs(z.height * 96 - pane(2)) < 0.5, ...
+        'Fit preview: the preview area''s shape and size as it is');
+    FE.sizePreset.Value = 'Export tab size';
+    FE.sizePreset.ValueChangedFcn(FE.sizePreset, []);
+    check(app.Config.Figures(1).size.source == "export" && abs(shape() - cm0(1) / cm0(2)) < 0.03, 'Export tab size again: the Export tab''s page');
+
+    % the Export tab's size reaches the figures that follow it; Undo takes a size edit back
+    app.ExportControls.Width.Value = 24;
+    app.ExportControls.Height.Value = 12;
+    app.onConfigChanged("export");
+    check(abs(shape() - 2) < 0.03 && abs(FE.sizeWidth.Value - 24 / 2.54) < 2e-3, 'a wider Export tab size: the preview and the editor (in inches here) follow');
+    app.ExportControls.Width.Value = 18;
+    app.onConfigChanged("export");
+    FE.sizePreset.Value = '700 x 800 px';
+    FE.sizePreset.ValueChangedFcn(FE.sizePreset, []);
+    app.onUndoRedo("undo");
+    check(app.Config.Figures(1).size.source == "export" && abs(shape() - cm0(1) / cm0(2)) < 0.03 && string(FE.sizePreset.Value) == "Export tab size", ...
+        'Undo takes the size back: the rows and the preview''s shape');
+
+    % Ctrl+Click on a panel of the preview selects it and goes to its section; it is no edit
+    app.onPanelSelected(1);
+    if secOf("panel").Expanded; app.onFigureSectionToggled("panel"); end
+    app.refreshFigurePreview(Force=true);
+    P = app.FigurePreviewPanel;
+    ax = findPanelAxes(P, "psth_1");
+    ln = findall(ax, 'Type', 'line');
+    label0 = app.FigureHistory.undoLabel();
+    check(~isempty(ax.ButtonDownFcn) && (isempty(ln) || all(arrayfun(@(l) ~isempty(l.ButtonDownFcn), ln))), ...
+        'the panels'' axes and what is drawn in them take a click (a line passes none to its axes)');
+    ax.ButtonDownFcn(ax, []);   % a plain click: the figure reports no Ctrl
+    check(app.SelectedPanel == 1, 'a click without Ctrl selects nothing');
+    app.onFigurePanelClicked(ids(1), "psth_1", false, false);
+    check(app.SelectedPanel == 1, 'a right-click (no Ctrl seen) is left to its menu');
+    app.onKeyPress(pressed('control', {'control'}));
+    app.onFigurePanelClicked(ids(1), "psth_1", true, false);
+    check(app.SelectedPanel == 2 && secOf("panel").Expanded && app.FigureHistory.undoLabel() == label0, ...
+        'Ctrl+Click on psth_1 selects it and opens the Selected panel section; no undo step, and no Apply to figures although Ctrl is held');
+    app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));
+    app.onPanelSelected(1);
+    h = app.onOpenFigureWindow();
+    axw = findall(h, 'Type', 'axes', '-regexp', 'Tag', '^(axes|rasterAxes)$');
+    app.onFigurePanelClicked(ids(1), "psth_1", true, true);
+    check(~isempty(axw) && all(arrayfun(@(a) ~isempty(a.ButtonDownFcn), axw)) && app.SelectedPanel == 2 && app.Tabs.SelectedTab == app.TabFigures, ...
+        'a Ctrl+Click in Open in window selects the panel in the app''s editor too');
+    delete(h);
+    noFigures();
+    clear restore5o
     app.FigureAutoCheckBox.Value = false;
     app.Tabs.SelectedTab = app.TabData;
 end

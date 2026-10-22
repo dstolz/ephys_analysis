@@ -6,13 +6,17 @@ function h = onOpenFigureWindow(obj)
 %   with; otherwise (out of date, canceled, not yet drawn) it first
 %   previews as the Preview button does (refreshFigurePreview, Force), and
 %   opens the window only if that draws. The window is a regular figure()
-%   named "<figure id>: <observation> (<dataset>)", the size of the
-%   preview, drawn by renderFigure (Editable: the right-click aesthetics
+%   named "<figure id>: <observation> (<dataset>)", the shape of the
+%   figure's export page (figureExportSize) at its true size on screen
+%   (96 dpi; scaled down to fit when it is larger than the screen), drawn
+%   by renderFigure (Editable: the right-click aesthetics
 %   editor and its Design submenu work in it, and "remember for this
 %   figure" reaches the app's config while the app is open; so does an
 %   axis label's own text or side, set from its menu or the panel axes'
 %   (one panel's, or every panel's side at once), which also draws the
-%   window again). The window is independent of the app: later edits do
+%   window again; a Ctrl+Click on a panel selects it in the app's
+%   figure editor, bringing the app forward: onFigurePanelClicked). The
+%   window is independent of the app: later edits do
 %   not follow into it (Preview and Open again for a new one), and closing
 %   the app leaves it as it is. H is the figure, [] when none was opened.
 %
@@ -45,8 +49,10 @@ else
     spec = obj.Config.figureFor(k);
     spec.enabled = true;
 end
-pos = getpixelposition(obj.FigurePreviewPanel, true);
-sz = max(round(pos(3:4)), [400 300]);
+cm = figureExportSize(obj.Config.Export, [], spec);
+sz = cm / 2.54 * 96;   % the page at its true size on screen, scaled down to fit
+scr = get(groot, 'ScreenSize');
+sz = max(round(sz * min(1, min(0.9 * scr(3:4) ./ sz))), 100);
 name = id + ": " + string(F.observation.label) + " (" + string(F.dataset) + ")";
 h = figure("Name", char(name), "NumberTitle", "off", "Position", [60 60 sz]);
 drawWindow(obj, id, F, spec, h);
@@ -56,9 +62,11 @@ end
 
 function drawWindow(app, id, F, spec, h)
 %drawWindow  Draw the window's figure H: its right-click menus reach the app while it is open.
-renderFigure(F, spec, h, Editable=true, OnRemember=@(rules) rememberIfOpen(app, id, rules), ...
+pos = getpixelposition(h);
+renderFigure(F, previewSpec(app, spec, pos(3)), h, Editable=true, OnRemember=@(rules) rememberIfOpen(app, id, rules), ...
     OnGoto=@(role, panel) gotoIfOpen(app, id, role, panel), ...
-    OnAxisEdit=@(panel, change) axisEdited(app, id, F, spec, h, panel, change));
+    OnAxisEdit=@(panel, change) axisEdited(app, id, F, spec, h, panel, change), ...
+    OnSelect=@(panel, ctrl) selectIfOpen(app, id, panel, ctrl));
 end
 
 
@@ -83,6 +91,14 @@ function rememberIfOpen(app, id, rules)
 %rememberIfOpen  Keep the window's remembered rules in the app's config while the app is open.
 if isvalid(app) && ~isempty(app.Fig) && isvalid(app.Fig)
     app.rememberFigureAesthetics(id, rules);
+end
+end
+
+
+function selectIfOpen(app, id, panel, ctrl)
+%selectIfOpen  Select the Ctrl+Clicked panel in the figure editor while the app is open.
+if isvalid(app) && ~isempty(app.Fig) && isvalid(app.Fig)
+    app.onFigurePanelClicked(id, panel, ctrl, true);
 end
 end
 

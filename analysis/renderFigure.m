@@ -127,6 +127,16 @@ function h = renderFigure(F, spec, target, opts)
 %                     them in its config and draws the figure again. []
 %                     (default): the figure is drawn again here with them
 %                     (they are not kept)
+%     OnSelect        called with a panel's id and whether Ctrl (Cmd on a
+%                     Mac) was down when the panel is clicked with Ctrl or
+%                     the "alt" button (a Ctrl+Click reports "alt", as a
+%                     right-click does, so the caller tells them apart:
+%                     the figure's CurrentModifier is the second argument,
+%                     and the app also has its own record of the key). On
+%                     the panel's axes, labels and anything drawn in them;
+%                     the app makes the panel the selected one of its
+%                     figure editor. [] (default): the panels take no such
+%                     click
 %     DataTips        "auto" (default: in a visible figure), true or false:
 %                     data tips that name the point's quantities, trial,
 %                     unit or channel, panel and dataset (FigureDataTips;
@@ -168,6 +178,7 @@ arguments
     opts.OnRemember = []
     opts.OnGoto = []
     opts.OnAxisEdit = []
+    opts.OnSelect = []
     opts.DataTips = "auto"
     opts.BatchYLim = []
 end
@@ -433,11 +444,17 @@ if editable(opts.Editable, target)
         'onRemember', {opts.OnRemember}, 'onGoto', {opts.OnGoto}, 'design', design, 'followsDesign', follows, 'ordinal', ordinal, 'mapField', mapField, ...
         'redraw', @(newRules) renderFigure(F, setfield(spec, 'aesthetics', newRules), target, Design=opts.Design, ...
             UserAesthetics=opts.UserAesthetics, Editable=opts.Editable, OnRemember=opts.OnRemember, OnGoto=opts.OnGoto, ...
-            OnAxisEdit=opts.OnAxisEdit, BatchYLim=opts.BatchYLim));
+            OnAxisEdit=opts.OnAxisEdit, OnSelect=opts.OnSelect, BatchYLim=opts.BatchYLim));
     ctx.panelTypes = struct('id', sIds, 'type', types);   % each tile's panel type by the id it is tagged with (PlotDesign.capture)
     ctx.panelIds = sIds;   % "Move every panel's X axis to top": every panel of the figure
     ctx.onAxisEdit = @(panel, change) axisEdited(F, spec, target, opts, panel, change);   % an axis label's or axes' menu (PlotAesthetics)
     PlotAesthetics.enableEditing(target, ctx);
+end
+
+if ~isempty(opts.OnSelect)
+    for k = find(drawn)
+        pickable([axs(k) reshape(extra{k}, 1, [])], @(ctrl) opts.OnSelect(panels(k).id, ctrl));
+    end
 end
 
 hp = repmat(struct('id', "", 'type', "", 'axes', gobjects(0), 'extraAxes', gobjects(0), 'note', gobjects(0), ...
@@ -455,6 +472,33 @@ for k = 1:np
 end
 h = struct('layout', canvas, 'axes', axs(drawn), 'panels', hp, 'title', txt);
 if editable(opts.DataTips, target); FigureDataTips.attach(F, spec, h); end   % after the right-click menus: it adds its item to them
+end
+
+
+function pickable(axs, fcn)
+%pickable  A Ctrl+Click (or right-click) on AXS or anything drawn in them calls FCN(CTRL): CTRL is whether Ctrl was down.
+%   A plain click and a double click do not. A click goes to the object under the pointer only (a line does not
+%   pass it to its axes), so each one that has no ButtonDownFcn of its own
+%   gets the callback; the axes themselves take it over their whole area.
+for ax = reshape(axs, 1, [])
+    ax.PickableParts = 'all';
+    for o = reshape(findall(ax, '-property', 'ButtonDownFcn'), 1, [])
+        if isempty(o.ButtonDownFcn); o.ButtonDownFcn = @(src, ~) ctrlClicked(src, fcn); end
+    end
+end
+end
+
+
+function ctrlClicked(src, fcn)
+%ctrlClicked  Call FCN(CTRL) when the click on SRC was a Ctrl+Click or a right-click, CTRL telling whether Ctrl (Cmd) was down.
+fig = ancestor(src, 'figure');
+if isempty(fig); return; end
+try
+    ctrl = any(ismember(fig.CurrentModifier, {'control', 'command'}));
+catch
+    ctrl = false;
+end
+if ~strcmp(fig.SelectionType, 'open') && (ctrl || strcmp(fig.SelectionType, 'alt')); fcn(ctrl); end   % (Ctrl+Click reports 'alt', as a right-click does)
 end
 
 

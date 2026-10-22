@@ -2912,11 +2912,17 @@ saved as version 2 (version 3 is `BadSchema`), and, on the analysis fixture, a m
 with its raster, Stim offset marks and aux channels computing and rendering for one unit.
 
 `test_copyFigureSettings` (no fixture): `figureSettingParts` (the parts `observe`,
-`alignment`, `arrangement`, `style`, `looks` and `sessions`, each with its fields,
-label and description) and `copyFigureSettings` (the arrangement carrying the grid's gaps and a
-panel's own size and alignment; each part alone with its fields copied and
-the rest, the id, title and `enabled` kept; every part by default; two parts copied in the
-table's order; a copy that validates; `copyFigureSettings:BadPart` for an unknown part).
+`alignment`, `arrangement`, `panel`, `style`, `looks` and `sessions`, each with its
+label and description), `figureSettingItems` (a raster + PSTH figure's settings, each
+with its part, groups, paths, value, generic key and whether a design holds it; the
+Style fields a figure does not use left out), `copyFigureSettings` (one setting with
+the rest of its part kept; a part; a panel's options to the panel of its type only, a
+continuous panel not taking a PSTH's fixed y limits; one figure onto two; the layout;
+remembered looks one by one; panels matched by id, then type; a copy that changes
+nothing; every setting by default with the id, title and `enabled` kept, and it
+validates; `BadSetting`, `BadFigure`; the time of every setting onto ten figures) and
+`figureLookToDesign` (a colormap's name, the heat colors and the looks into a design;
+one color; what a design does not hold left out; `BadSetting`).
 
 `test_EphysAnalysisRunner`, in ten sections (0 to 9), runs figures through the runner on a
 small synthetic project: `plan` rows (Kind `figure`, Source `unit`, `channel` or `dataset`,

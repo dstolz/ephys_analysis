@@ -469,6 +469,7 @@ syncAlignEnable(obj.FigureAlignControls);
 if ~isempty(obj.FiguresDatasetDropDown) && isvalid(obj.FiguresDatasetDropDown)
     obj.FiguresDatasetDropDown.Enable = onoff(~ses);   % a session figure is drawn across the datasets, not on the active one
 end
+syncColorSwatches(E.swatch);   % each color field's swatch: its color, enabled with it
 obj.layoutFigureEditor();
 obj.drawFigureSchematic();
 obj.markFigurePanel();   % the preview outlines the selected panel

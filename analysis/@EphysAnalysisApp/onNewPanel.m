@@ -6,7 +6,11 @@ function onNewPanel(obj, opts)
 %   representative plot, the panel's name and title, where it goes
 %   (above, below, left or right of the selected panel; the first panel
 %   of a figure goes to row 1, column 1) and the type's key parameters.
-%   OK adds the panel and selects it; Cancel adds nothing.
+%   OK adds the panel and selects it; Cancel adds nothing. The window
+%   and the panel start from the options last set on a panel of the type
+%   (rememberedPanelOptions: a preference, rememberPanelOptions), over the
+%   type's defaults; the status bar says so. Edit > Reset panel options
+%   to defaults gives a panel the defaults (onResetPanelOptions).
 %
 %   Type=TYPE skips the window, for scripts and tests, with the same
 %   choices as name-value pairs: Where ("below"), Id ("" = "<type>_<n>"),
@@ -16,7 +20,9 @@ function onNewPanel(obj, opts)
 %   cannot follow the observation), Lines (an event-trace panel: one
 %   events layer per line) and Options (a partial options struct of the
 %   type, merged into its defaults: struct('bins', struct('BinSec',
-%   0.02))).
+%   0.02))) and Remembered (false: the type's defaults; true: the options
+%   remembered for the type over them, as the window starts from, under
+%   Options).
 %
 %   The panel is placed by EphysAnalysisConfig.placePanel (a new row or
 %   column next to the selected panel) and holds the type's default
@@ -39,6 +45,7 @@ arguments
     opts.Binding (1,1) string {mustBeMember(opts.Binding, ["" "observation" "fixed"])} = ""
     opts.Lines (1,:) string = string.empty(1, 0)
     opts.Options (1,1) struct = struct()
+    opts.Remembered (1,1) logical = false
 end
 k = obj.SelectedFigure;
 if k < 1 || k > numel(obj.Config.Figures)
@@ -50,17 +57,26 @@ fig = cfg.Figures(k);
 anchor = "";
 j = obj.SelectedPanel;
 if ~isempty(fig.panels) && j >= 1 && j <= numel(fig.panels); anchor = fig.panels(j).id; end
+PT = EphysAnalysisConfig.panelTypes();
+remembered = opts.Remembered;
+params = string.empty(1, 0);
 if opts.Type == ""
     [lines, params] = datasetItems(obj);
-    c = newPanelDialog(obj.Fig, fig, anchor, lines, params);
+    start = struct();   % each type's options as the window starts from them: the remembered over the defaults
+    for i = 1:height(PT)
+        start.(PT.Type(i)) = mergeOptions(PT.DefaultOptions{i}, rememberedPanelOptions(obj, PT.Type(i), params));
+    end
+    c = newPanelDialog(obj.Fig, fig, anchor, lines, params, start);
     if isvalid(obj.Fig); figure(obj.Fig); end
     if isempty(c)
         obj.setStatus("New panel canceled: " + fig.id + " is unchanged.");
         return
     end
     opts = c;
+    remembered = true;
+elseif remembered
+    [~, params] = datasetItems(obj);
 end
-PT = EphysAnalysisConfig.panelTypes();
 row = PT.Type == opts.Type;
 if ~any(row)
     obj.setStatus("New panel: unknown panel type """ + opts.Type + """.");
@@ -85,8 +101,10 @@ for q = 1:numel(L)
     if opts.Binding ~= ""; L(q).binding = opts.Binding; end
     if ~figureEditorChoices(t, L(q).source, rows, Observed=fig.observe.data).Bindable; L(q).binding = "fixed"; end
 end
+mem = struct();
+if remembered; mem = rememberedPanelOptions(obj, t, params); end
 panel = struct('id', opts.Id, 'type', t, 'title', opts.Title, 'layers', L, ...
-    'options', mergeOptions(PT.DefaultOptions{row}, opts.Options));
+    'options', mergeOptions(mergeOptions(PT.DefaultOptions{row}, mem), opts.Options));
 try
     fig = EphysAnalysisConfig.placePanel(fig, panel, opts.Where, anchor);
 catch ME
@@ -102,7 +120,12 @@ if anchor == ""
 else
     at = opts.Where + " " + anchor;
 end
-commitFigureEdit(obj, cfg, "Added " + p.id + " (" + PT.Label(row) + ") " + at + " with " + layerLabel(p.layers(1)) + ".", Action="Add panel");
+how = "";
+if ~isempty(fieldnames(mem))
+    how = " Its options start from those last set on a " + PT.Label(row) + " panel (" + strjoin(string(fieldnames(mem)).', ", ") + ...
+        "; Edit > Reset panel options to defaults).";
+end
+commitFigureEdit(obj, cfg, "Added " + p.id + " (" + PT.Label(row) + ") " + at + " with " + layerLabel(p.layers(1)) + "." + how, Action="Add panel");
 end
 
 

@@ -123,10 +123,11 @@ end
 
 function c = interactive(h)
 %interactive  The controls of H that take the keyboard focus (edit fields, drop-downs, spinners, check boxes, buttons, lists).
-keep = arrayfun(@(x) isa(x, 'matlab.ui.control.EditField') || isa(x, 'matlab.ui.control.NumericEditField') ...
+%   A color field's swatch (colorSwatch) is not one: the row goes to its field.
+keep = arrayfun(@(x) ~strcmp(x.Tag, 'colorSwatch') && (isa(x, 'matlab.ui.control.EditField') || isa(x, 'matlab.ui.control.NumericEditField') ...
     || isa(x, 'matlab.ui.control.DropDown') || isa(x, 'matlab.ui.control.Spinner') || isa(x, 'matlab.ui.control.CheckBox') ...
     || isa(x, 'matlab.ui.control.Button') || isa(x, 'matlab.ui.control.StateButton') || isa(x, 'matlab.ui.control.ListBox') ...
-    || isa(x, 'matlab.ui.control.TextArea'), h);
+    || isa(x, 'matlab.ui.control.TextArea')), h);
 c = h(keep);
 end
 

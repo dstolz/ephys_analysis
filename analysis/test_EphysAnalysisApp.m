@@ -98,7 +98,16 @@ function test_EphysAnalysisApp(opts)
 %   when the dataset comes back; the editor's sections and panel as each
 %   figure left them; Remove freeing the container; the cap dropping the
 %   least recently shown; Undo / Redo of an Add keeping the tree, the
-%   containers and the selection together);
+%   containers and the selection together); remembered panel options (a
+%   new panel, from a script with Remembered or from the New panel window,
+%   starting from the options last set on a panel of its type, an existing
+%   panel left alone, a trial parameter the dataset lacks and a value of
+%   the wrong class not pre-filled, Edit > Reset panel options to defaults
+%   as one undo step forgetting its type's, the preference written, Forget)
+%   and the color fields' swatches (one beside every color field, the
+%   chooser in the tests' place: a color picked as one named step, Cancel,
+%   a color typed and Undo followed by the swatch, the search going to the
+%   field; the First-spike latency window's);
 %   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -3252,6 +3261,120 @@ if S.sec("5n", "Apply to figures: an edit made with Ctrl held given to other fig
     app.Tabs.SelectedTab = app.TabData;
 end
 
+if S.sec("5o", "remembered panel options: a new panel starts from the last set, Reset panel options, Forget, the preference; the color fields' swatches (the chooser replaced)")
+    noFigures();
+    app.selectTab(app.TabFigures);
+    app.FigureAutoCheckBox.Value = false;   % nothing here needs drawing
+    restoreAuto5o = onCleanup(@() autoBoxOn(app));
+    restorePicker5o = onCleanup(@() pickerBack(app));
+    app.onForgetPanelOptions();
+    forgotten = isempty(fieldnames(app.PanelOptions));
+    app.onAddFigure("rasterPsth");
+    app.onPanelSelected(1);   % the raster
+    FE.tickWidth.Value = 2;
+    FE.tickWidth.ValueChangedFcn(FE.tickWidth, []);
+    app.onPanelSelected(2);   % the PSTH
+    FE.stackSpacing.Value = 1.5;
+    FE.stackSpacing.ValueChangedFcn(FE.stackSpacing, []);
+    FE.yLimMode.Value = "rows";
+    FE.yLimMode.ValueChangedFcn(FE.yLimMode, []);
+    FE.measure.Value = "count";
+    FE.measure.ValueChangedFcn(FE.measure, []);
+    M = app.PanelOptions;
+    check(forgotten && isfield(M, 'raster') && isequal(fieldnames(M.raster), {'tickWidth'}) && M.raster.tickWidth == 2 ...
+        && isfield(M, 'psth') && isempty(setxor(string(fieldnames(M.psth)), ["stackSpacing" "yLimMode" "measure"])) ...
+        && M.psth.stackSpacing == 1.5 && M.psth.yLimMode == "rows" && M.psth.measure == "count", ...
+        'the options set on a panel are remembered by type, only those set (the raster''s tick width; the PSTH''s stack spacing, Y limits mode, measure)');
+    app.onNewPanel(Type="psth", Where="right", Remembered=true);
+    pR = app.Config.Figures(1).panels(end);
+    msgR = string(app.StatusBar.Text);
+    app.onNewPanel(Type="psth", Where="right");
+    pD = app.Config.Figures(1).panels(end);
+    app.onNewPanel(Type="raster", Where="below", Remembered=true);
+    rR = app.Config.Figures(1).panels(end);
+    PT5o = EphysAnalysisConfig.panelTypes();
+    defPsth = PT5o.DefaultOptions{PT5o.Type == "psth"};
+    check(pR.options.stackSpacing == 1.5 && pR.options.yLimMode == "rows" && pR.options.measure == "count" && contains(msgR, "last set on a PSTH panel") ...
+        && isequaln(pD.options, defPsth) && rR.options.tickWidth == 2 && app.Config.Figures(1).panels(1).options.tickWidth == 2, ...
+        'a new panel made with Remembered starts from them (the status bar says so); without, from the type''s defaults');
+    app.PanelOptions.raster.rasterSort = "noSuchParameter";   % a trial parameter this dataset has not
+    app.PanelOptions.psth.histStyle = 5;                       % the wrong class: preferences of older code
+    app.onNewPanel(Type="raster", Where="below", Remembered=true);
+    rS = app.Config.Figures(1).panels(end);
+    app.onNewPanel(Type="psth", Where="below", Remembered=true);
+    pS = app.Config.Figures(1).panels(end);
+    check(rS.options.rasterSort == "" && rS.options.tickWidth == 2 && pS.options.histStyle == defPsth.histStyle && pS.options.stackSpacing == 1.5, ...
+        'a remembered sort by a trial parameter the active dataset lacks, and a value of the wrong class, are not pre-filled');
+    app.PanelOptions.raster = rmfield(app.PanelOptions.raster, 'rasterSort');
+    app.PanelOptions.psth = rmfield(app.PanelOptions.psth, 'histStyle');
+    answerDialog('New panel', @rememberedAnswer);
+    app.onNewPanel();
+    seen5o = getappdata(groot, 'rememberedSeen');
+    if isappdata(groot, 'rememberedSeen'); rmappdata(groot, 'rememberedSeen'); end
+    pW = app.Config.Figures(1).panels(end);
+    check(isequal(seen5o, "count") && pW.type == "psth" && pW.options.measure == "count" && pW.options.stackSpacing == 1.5 ...
+        && pW.options.yLimMode == "rows", ...
+        'the New panel window starts the PSTH''s Measure at the remembered "count"; the panel takes the other remembered options too');
+    nU5o = numel(app.FigureHistory.Undo);
+    app.onResetPanelOptions();
+    pZ = app.Config.Figures(1).panels(app.SelectedPanel);
+    check(pZ.id == pW.id && isequaln(pZ.options, defPsth) && numel(app.FigureHistory.Undo) == nU5o + 1 ...
+        && string(app.UndoMenu.Text) == "Undo Reset panel options" && ~isfield(app.PanelOptions, 'psth') && isfield(app.PanelOptions, 'raster'), ...
+        'Edit > Reset panel options to defaults: the selected panel''s type''s defaults as one named step; that type''s remembered options forgotten, not the others''');
+    app.onUndoRedo("undo");
+    check(app.Config.Figures(1).panels(app.SelectedPanel).options.measure == "count", 'Undo gives the panel its options back');
+    app.savePreferences();
+    P5o = AppPrefs.getpref(g, 'PanelOptions');
+    app.onForgetPanelOptions();
+    check(isstruct(P5o) && isfield(P5o, 'raster') && P5o.raster.tickWidth == 2 && isempty(fieldnames(app.PanelOptions)) ...
+        && isempty(fieldnames(AppPrefs.getpref(g, 'PanelOptions'))) && contains(string(app.StatusBar.Text), "Forgot"), ...
+        'the remembered options are a preference (PanelOptions); Edit > Forget remembered panel options empties it and writes it');
+
+    % the color fields' swatches, the chooser in the tests' place (uisetcolor is modal)
+    names5o = string(fieldnames(FE.swatch)).';
+    wrapped = arrayfun(@(f) isvalid(FE.swatch.(f)) && FE.swatch.(f).Tag == "colorSwatch" && FE.swatch.(f).UserData == FE.(f) ...
+        && FE.swatch.(f).Parent == FE.(f).Parent, names5o);
+    toSwatch = arrayfun(@(e) isprop(e.Target, 'Tag') && strcmp(e.Target.Tag, 'colorSwatch'), app.FigureSearchIndex);
+    check(numel(names5o) >= 14 && all(wrapped) && ~any(toSwatch) && all(ismember(["tickColor" "layerColor" "ovColor" "errFace"], names5o)), ...
+        sprintf('every color field of the editor (%d) has a swatch beside it; the search goes to the field, not the swatch', numel(names5o)));
+    app.onPanelSelected(1);   % the raster
+    b5o = FE.swatch.tickColor;
+    plain = string(b5o.Text) == "..." && b5o.Enable == "on" && shown(FE.tickColor);
+    app.ColorPicker = @(c, t) [1 0 0];
+    nU5o = numel(app.FigureHistory.Undo);
+    b5o.ButtonPushedFcn(b5o, []);
+    check(plain && app.Config.Figures(1).panels(1).options.tickColor == "#ff0000" && string(FE.tickColor.Value) == "#ff0000" ...
+        && numel(app.FigureHistory.Undo) == nU5o + 1 && string(app.UndoMenu.Text) ~= "Undo Edit" && isequal(b5o.BackgroundColor, [1 0 0]) ...
+        && string(b5o.Text) == "", ...
+        sprintf('a color picked with the ticks'' swatch ("groups": a plain button) is the field''s, as #rrggbb, one named step (%s); the swatch shows it', ...
+        app.UndoMenu.Text));
+    app.ColorPicker = @(c, t) 0;   % Cancel
+    b5o.ButtonPushedFcn(b5o, []);
+    canceled = numel(app.FigureHistory.Undo) == nU5o + 1 && app.Config.Figures(1).panels(1).options.tickColor == "#ff0000";
+    FE.tickColor.Value = 'blue';
+    FE.tickColor.ValueChangedFcn(FE.tickColor, []);
+    typed = isequal(b5o.BackgroundColor, [0 0 1]) && app.Config.Figures(1).panels(1).options.tickColor == "blue";
+    app.onUndoRedo("undo");
+    check(canceled && typed && string(FE.tickColor.Value) == "#ff0000" && isequal(b5o.BackgroundColor, [1 0 0]), ...
+        'Cancel changes nothing; a color typed still works and the swatch follows it, and Undo');
+    app.ColorPicker = @(c, t) [0 0 1];
+    FE.firstSpikeDialog.ButtonPushedFcn(FE.firstSpikeDialog, []);
+    d5o = findall(groot, 'Type', 'figure', 'Tag', 'latencyDialog');
+    D5o = d5o.UserData;
+    grayedSwatch = D5o.ColorSwatch.Enable == "off";
+    D5o.Enabled.Value = true;
+    D5o.Enabled.ValueChangedFcn(D5o.Enabled, []);
+    D5o.ColorSwatch.ButtonPushedFcn(D5o.ColorSwatch, []);
+    inField = string(D5o.Color.Value) == "#0000ff" && isequal(D5o.ColorSwatch.BackgroundColor, [0 0 1]);
+    D5o.Ok.ButtonPushedFcn(D5o.Ok, []);
+    check(grayedSwatch && inField && ~isvalid(d5o) && app.Config.Figures(1).panels(1).options.firstSpike.color == "#0000ff", ...
+        'the First-spike latency window''s Color has a swatch too (grayed while off): the color picked goes into its field, and OK gives it the panel');
+    noFigures();
+    app.onForgetPanelOptions();
+    clear restoreAuto5o restorePicker5o
+    app.Tabs.SelectedTab = app.TabData;
+end
+
 if S.sec("6", "close")
     savedConfig();
     app.savePreferences();
@@ -3337,6 +3460,21 @@ D.Name.ValueChangedFcn(D.Name, []);
 D.Title.Value = 'Its LFP';
 P.Stack.Value = "items";
 setappdata(groot, 'newPanelSeen', seen);
+press(D, "Ok");
+end
+
+
+function pickerBack(app)
+%pickerBack  The color chooser back to uisetcolor, if the app is still there (a section's cleanup).
+if isvalid(app); app.ColorPicker = @uisetcolor; end
+end
+
+
+function rememberedAnswer(D)
+%rememberedAnswer  In the New panel window: pick PSTH, note its Measure (appdata rememberedSeen), OK.
+D.Pick("psth");
+P = D.Params();
+setappdata(groot, 'rememberedSeen', string(P.Measure.Value));
 press(D, "Ok");
 end
 

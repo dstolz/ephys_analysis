@@ -1375,6 +1375,18 @@ says how to cut a release.
 
 ### Changed
 
+- Figures tab: a switch between figures is faster. Each figure keeps its observation list (`FigurePickers`:
+  `keepFigurePicker`, `takeFigurePicker`), so a figure shown again takes its own list, count line and pick back
+  instead of running `figureObservations`, unless what the list is made from changed (its observe block, event,
+  selection or sorting, the dataset or the ticked ones); a scan, another config and a star or note set or cleared
+  forget the kept lists (`forgetFigurePickers`). The editor sets only what changes: `formLayout` and
+  `layoutFigureEditor` compare a control's `Layout.Row`, the row heights and the headers before setting them
+  (setting `Layout.Row` to the same row costs as much as a move) and a hidden row keeps its own place below the
+  shown ones; the drop-downs' lists (`setChoices`, the Observe list, Stack, the aggregate, the *Figure:* picker) are
+  set only when they differ; the editor is scrolled back only when its scroll differs, so the switch waits for one
+  redraw, not two. Property updates sent to the view per switch: about 390 before, 65 now. A switch between two
+  drawn figures on the synthetic test project, timed side by side with the old code on a loaded machine: 3.0 s and
+  3.5 s median before, 2.2 s and 2.6 s now.
 - A PSTH panel's `options.stack` is a string (`"off"` | `"groups"`; it was `true` / `false`), and a continuous
   panel's `options.display` (`"lines"` | `"stacked"`) is gone: its stack of channels is `options.stack "items"`.
   A continuous panel's `stackSpacing` is a multiple of the row height (default 1.1), no longer an offset in the

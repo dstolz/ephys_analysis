@@ -26,8 +26,10 @@ for i = 1:numel(modes)
 end
 v = string(v);
 if ~ismember(v, modes); v = "off"; end
-dd.ItemsData = [];
-dd.Items = labels;
-dd.ItemsData = modes;
+if ~isequal(string(dd.Items), reshape(labels, 1, [])) || ~isequal(string(dd.ItemsData), reshape(modes, 1, []))   % (set only when they change)
+    dd.ItemsData = [];
+    dd.Items = labels;
+    dd.ItemsData = modes;
+end
 dd.Value = v;
 end

@@ -27,6 +27,7 @@ obj.Runner = r;
 loadFavorites(obj);   % each dataset's <Name>_favorites.json
 loadNotes(obj);       % and <Name>_notes.json
 obj.FigureObservationDropDown.UserData = [];   % the Figures tab's observation list is made again on the new runner's sources
+forgetFigurePickers(obj);   % and each figure's kept one
 obj.ScannedSource = cfg.Source;
 n = numel(r.Keys);
 if cfg.Source.Mode == "project" && cfg.Source.Selection == "list"

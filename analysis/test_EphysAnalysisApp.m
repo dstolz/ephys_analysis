@@ -96,10 +96,13 @@ function test_EphysAnalysisApp(opts)
 %   figure shown and marking it bold, a preview out of date after an edit
 %   of its figure only, after another dataset every one, current again
 %   when the dataset comes back; the editor's sections and panel as each
-%   figure left them; Remove freeing the container; the cap dropping the
-%   least recently shown; Redraw All drawing the enabled figures out of
-%   date up to the cap, Ctrl+R finding them current, the toolbar's Cancel
-%   stopping it; Undo / Redo of an Add keeping the tree, the
+%   figure left them; the observation list each figure kept (shown back
+%   with its pick and not listed again, the others' forgotten by a star,
+%   listed again after an edit of its filter); Remove freeing the
+%   container; the cap dropping the least recently shown; Redraw All
+%   drawing the enabled figures out of date up to the cap, Ctrl+R finding
+%   them current, the toolbar's Cancel stopping it; Undo / Redo of an Add
+%   keeping the tree, the
 %   containers and the selection together);
 %   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
@@ -3108,7 +3111,7 @@ if S.sec("5l", "a raster's First-spike latency... and a PSTH's Latency box plot.
     clear restoreAuto5l
 end
 
-if S.sec("5m", "each figure's own preview container: kept drawings, the tree's marks, the editor's state, the cap, Redraw All and its Cancel, Remove, Undo / Redo")
+if S.sec("5m", "each figure's own preview container: kept drawings, the tree's marks, the editor's state, the observation lists, the cap, Redraw All and its Cancel, Remove, Undo / Redo")
     noFigures();
     app.selectTab(app.TabFigures);
     app.FigureAutoCheckBox.Value = true;
@@ -3179,6 +3182,42 @@ if S.sec("5m", "each figure's own preview container: kept drawings, the tree's m
     app.onFigureSelected(2);
     check(app.SelectedPanel == 1 && opt() && isfield(s1, 'Scroll') && (isempty(s1.Scroll) || numel(s1.Scroll) == 2), ...
         'and the second: its Options open again (its scroll kept too)');
+
+    % the observation picker as each figure left it (keepFigurePicker): a switch back lists nothing again
+    dd = app.FigureObservationDropDown;
+    id1 = char(app.Config.Figures(1).id);
+    id2 = char(app.Config.Figures(2).id);
+    app.onFigureSelected(1);
+    if numel(dd.ItemsData) > 1; dd.Value = 2; app.onFigureObservationChanged(); end
+    pick1 = dd.Value;
+    items1 = dd.Items;
+    app.onFigureSelected(2);
+    P = app.FigurePickers(id1);
+    P.Count = "kept list";   % a mark: the count line says it only when the kept list is taken back
+    app.FigurePickers(id1) = P;
+    app.onFigureSelected(1);
+    check(isKey(app.FigurePickers, id2) && string(FE.obsCount.Text) == "kept list" && isequal(dd.Items, items1) && dd.Value == pick1 ...
+        && string(app.FigureObservation(id1)) == app.FigureObservations.label(pick1), ...
+        'back to the first figure: its own observation list, as it left it (its pick too), without listing it again');
+    app.refreshFavorites();
+    P = struct('Count', "");
+    if isKey(app.FigurePickers, id1); P = app.FigurePickers(id1); end
+    check(~isKey(app.FigurePickers, id2) && P.Count == "kept list", ...
+        'a star set or cleared forgets the other figures'' lists (their marks may be old); the one shown is kept with its marks');
+    ax1 = figAxes();
+    app.onFigureSelected(2);
+    nAll = height(app.FigureObservations);
+    FE.obsMaxUnits.Value = '1';
+    app.onConfigChanged("figure", FE.obsMaxUnits);
+    id2 = char(app.Config.Figures(2).id);
+    app.onFigureSelected(1);
+    app.onFigureSelected(2);
+    P = app.FigurePickers(id2);
+    check(nAll > 1 && height(app.FigureObservations) == 1 && numel(dd.Items) == 1 && P.UserData.key.observe.units.maxUnits == 1, ...
+        'an edit of the figure''s unit filter lists it again, and that list is the one kept for it');
+    FE.obsMaxUnits.Value = 'Inf';
+    app.onConfigChanged("figure", FE.obsMaxUnits);
+    check(height(app.FigureObservations) == nAll, 'the filter back: every unit listed again');
 
     % Remove frees the container; the cap
     app.onRemoveFigure();

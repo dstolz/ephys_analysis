@@ -464,8 +464,11 @@ if ~ismember(data, data0)
     items(end+1) = data;
     data0(end+1) = data;
 end
-dd.ItemsData = [];   % the old values need not be among the new items
-set(dd, "Items", items, "ItemsData", data0, "Value", data);
+if ~isequal(string(dd.Items), items) || ~isequal(string(dd.ItemsData), data0)   % (set only when they change)
+    dd.ItemsData = [];   % the old values need not be among the new items
+    set(dd, "Items", items, "ItemsData", data0);
+end
+dd.Value = data;
 end
 
 
@@ -530,9 +533,12 @@ end
 
 function setChoices(dd, labels, data, v)
 %setChoices  Give drop-down DD these labels and values, and show V.
-dd.ItemsData = [];
-dd.Items = labels;
-dd.ItemsData = data;
+%   The lists are set only when they change (a switch of figure keeps most).
+if ~isequal(string(dd.Items), reshape(string(labels), 1, [])) || ~isequal(string(dd.ItemsData), reshape(string(data), 1, []))
+    dd.ItemsData = [];
+    dd.Items = labels;
+    dd.ItemsData = data;
+end
 dd.Value = v;
 end
 

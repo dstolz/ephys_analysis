@@ -2,7 +2,9 @@ function [S, h] = formLayout(S)
 %formLayout  Pack a section's shown rows to the top and size it.
 %   [S, H] = formLayout(S) gives the section's shown rows (S.Shown) the
 %   first rows of its body and the hidden ones zero-height rows below them,
-%   out of sight, so hidden rows leave no gaps; sets the header's arrow and
+%   out of sight, so hidden rows leave no gaps (the body has twice the
+%   form's N rows: hidden row R sits in row N + R, so a row that stays
+%   hidden is not moved again); sets the header's arrow and
 %   title; and returns the section's height H in pixels: 0 when it is hidden
 %   (S.Visible false, or a form with no row shown), the header's alone when
 %   it is collapsed. A section with a key (S.Key, "1" to "9" or "0") names it in
@@ -10,6 +12,12 @@ function [S, h] = formLayout(S)
 %
 %   The first call finds each row's controls (the body's children in that
 %   row); rows are addressed by that first order from then on.
+%
+%   Only what changed is set: a control's Layout.Row, the grids' row
+%   heights and the header's text are compared first. Setting a control's
+%   Layout.Row to the row it has costs as much as a move (the view takes a
+%   new layout object), and the figure editor has hundreds of controls,
+%   laid out again on every switch of figure, panel or layer.
 %
 %   See also formSection, formRow, formShow.
 header = 26 * ~isempty(S.Toggle);
@@ -22,16 +30,18 @@ if isForm
         end
     end
     on = S.Shown;
-    order = [find(on) find(~on)];
-    for i = 1:numel(order)
-        items = S.Items{order(i)};
+    N = numel(on);
+    at = N + (1:N);   % a hidden row's place: its own, below every shown one
+    at(on) = 1:nnz(on);
+    for r = 1:N
+        items = S.Items{r};
         for c = items
-            c.Layout.Row = i;
+            if ~isequal(c.Layout.Row, at(r)); c.Layout.Row = at(r); end
         end
-        set(items, 'Visible', matlab.lang.OnOffSwitchState(on(order(i))));
+        set(items, 'Visible', matlab.lang.OnOffSwitchState(on(r)));
     end
     n = nnz(on);
-    S.Body.RowHeight = num2cell([S.Heights(on) zeros(1, nnz(~on))]);
+    setIfChanged(S.Body, 'RowHeight', num2cell([S.Heights(on) zeros(1, 2 * N - n)]));
     body = sum(S.Heights(on)) + max(0, n - 1) * S.Body.RowSpacing + S.Body.Padding(2) + S.Body.Padding(4);
     visible = S.Visible && n > 0;
 else
@@ -42,23 +52,31 @@ open = S.Expanded || header == 0;
 if header > 0
     arrow = "▼";
     if ~S.Expanded; arrow = "►"; end
-    S.Toggle.Text = arrow + "  " + S.Title;
-    S.Toggle.Tooltip = "Show or hide this section.";
+    text = arrow + "  " + S.Title;
+    tip = "Show or hide this section.";
     if S.Key ~= ""
         if ismac; chord = "Cmd+" + S.Key; else; chord = "Ctrl+" + S.Key; end
-        S.Toggle.Text = S.Toggle.Text + "   (" + chord + ")";
-        S.Toggle.Tooltip = S.Toggle.Tooltip + " " + chord + " goes to it, opening it if collapsed.";
+        text = text + "   (" + chord + ")";
+        tip = tip + " " + chord + " goes to it, opening it if collapsed.";
     end
+    setIfChanged(S.Toggle, 'Text', char(text));
+    setIfChanged(S.Toggle, 'Tooltip', char(tip));
 end
 S.Body.Visible = matlab.lang.OnOffSwitchState(open);
 S.Grid.Visible = matlab.lang.OnOffSwitchState(visible);
 if open
-    S.Grid.RowHeight = {header, body};
+    setIfChanged(S.Grid, 'RowHeight', {header, body});
     S.Grid.RowSpacing = 4 * (header > 0);
     h = header + S.Grid.RowSpacing + body;
 else
-    S.Grid.RowHeight = {header, 0};
+    setIfChanged(S.Grid, 'RowHeight', {header, 0});
     h = header;
 end
 h = h * visible;
+end
+
+
+function setIfChanged(h, prop, v)
+%setIfChanged  Set H.(PROP) to V only when it is not V already.
+if ~isequal(h.(prop), v); h.(prop) = v; end
 end

@@ -1445,6 +1445,7 @@ obj.SaveDesignButton.Layout.Row = 2; obj.SaveDesignButton.Layout.Column = [4 5];
 obj.FigurePreviewHost = uigridlayout(pg, [1 1], "Padding", [0 0 0 0]);
 obj.FigurePreviewHost.Layout.Row = 4; obj.FigurePreviewHost.Layout.Column = [1 5];
 obj.FigureEditorStates = containers.Map('KeyType', 'char', 'ValueType', 'any');
+obj.FigurePickers = containers.Map('KeyType', 'char', 'ValueType', 'any');
 v = newFigureView(obj, "");
 v.Panel.Visible = "on";
 obj.FigureViews = v;

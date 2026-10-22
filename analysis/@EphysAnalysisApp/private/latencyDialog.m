@@ -16,15 +16,18 @@ function d = latencyDialog(obj, kind)
 %   name or #RRGGBB) and Filled. A box plot's: Color, Line (LineStyle,
 %   LineWidth: the box's outline and whiskers), Box height (BoxHeight:
 %   each box's lane, a share of the PSTH's height), Fill opacity
-%   (FillAlpha) and Outliers (OutlierMarker, OutlierSize). The rows under
-%   the on box are grayed while it is off.
+%   (FillAlpha) and Outliers (OutlierMarker, OutlierSize). The Color field
+%   has a swatch at its right (ColorSwatch: colorSwatch) that opens the
+%   color chooser (the app's ColorPicker, uisetcolor) and writes the color
+%   picked into the field as #rrggbb. The rows under the on box are grayed
+%   while it is off.
 %   OK gives the panel the settings (the window opened on it, by its
 %   figure's and its own id) as one edit, named in the undo history
 %   ("First-spike latency", "Latency box plot": commitFigureEdit), and
 %   closes the window; a window that ends before it starts is refused,
 %   said in the window's note, and the window stays. Cancel closes it,
 %   changing nothing. The window's UserData holds its controls (above,
-%   with Kind, FigureId, PanelId, Note, Ok, Cancel) for the tests.
+%   with ColorSwatch, Kind, FigureId, PanelId, Note, Ok, Cancel) for the tests.
 %   Nothing opens, and the status line says why, without a panel of the
 %   KIND's type selected.
 %
@@ -92,9 +95,11 @@ if isfinite(L.maxSec); D.MaxMs.Value = 1000 * L.maxSec; else; D.MaxMs.Value = []
 uilabel(wg, 'Text', 'ms');
 colors = ["groups" "black" "red" "blue" "white" "gray" "#d62728" "#ff7f0e"];
 colorTip = "groups: each trial group's color (as its ticks and traces); or a color name or #RRGGBB for all.";
+pickColor = @(c, t) feval(obj.ColorPicker, c, t);   % the swatch's chooser (colorSwatch: uisetcolor, or the tests')
 if box
     cg = row("Color:", {'1x'});
     D.Color = uidropdown(cg, 'Editable', 'on', 'Items', unique([string(L.color) colors], 'stable'), 'Value', L.color, 'Tooltip', colorTip);
+    D.ColorSwatch = colorSwatch(D.Color, Picker=pickColor);
     lg = row("Line:", {'1x', 'fit', 70});
     D.LineStyle = uidropdown(lg, 'Items', ["solid" "dashed" "dotted" "dash-dot"], 'ItemsData', EphysAnalysisConfig.OverlayLineStyles, ...
         'Value', pick(L.lineStyle, EphysAnalysisConfig.OverlayLineStyles, "-"), 'Tooltip', "The box's outline and whiskers.");
@@ -123,6 +128,7 @@ else
     D.Size = uispinner(mg, 'Limits', [0.5 60], 'Step', 1, 'Value', min(60, max(0.5, L.size)), 'Tooltip', "The mark's size, points.");
     cg = row("Color:", {'1x'});
     D.Color = uidropdown(cg, 'Editable', 'on', 'Items', unique([string(L.color) colors], 'stable'), 'Value', L.color, 'Tooltip', colorTip);
+    D.ColorSwatch = colorSwatch(D.Color, Picker=pickColor);
     fg = row("", {'1x'});
     D.Filled = uicheckbox(fg, 'Text', 'Filled', 'Value', L.filled, 'Tooltip', ...
         "Filled: a solid mark. Unticked: its outline only, the tick showing through.");

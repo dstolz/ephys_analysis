@@ -45,9 +45,10 @@ end
 
 function styleButtons(obj)
 %styleButtons  Every button a size up; the main actions in color (styleButton).
-%   The editors' section headers (formSection) keep their header look.
+%   The editors' section headers (formSection) keep their header look, and
+%   the color fields' swatches (colorSwatch) their color.
 b = findall(obj.Fig, "Type", "uibutton", "-or", "Type", "uistatebutton");
-styleButton(b(~strcmp(get(b, "Tag"), "formSectionToggle")));
+styleButton(b(~ismember(string(get(b, "Tag")), ["formSectionToggle" "colorSwatch"])));
 styleButton([obj.ScanButton, obj.RunButton, ...
     obj.FigurePreviewButton, obj.FigureRedrawAllButton], "primary");
 styleButton([obj.AddFigureButton, obj.FigureEditor.newPanel, obj.FigureEditor.addLayer], "confirm");

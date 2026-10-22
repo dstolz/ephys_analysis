@@ -89,7 +89,13 @@ function buildFiguresTab(obj)
 %           (Ctrl+F; onFigureSearch) lists the rows whose label (or
 %           tooltip) has the words typed, "Supersection > Section > Row",
 %           in a list under it; Enter or a click goes there (gotoFigureRow),
-%           "?" lists the tab's keys (onFigureKeys). syncFigureEditor
+%           "?" lists the tab's keys (onFigureKeys). Every color field
+%           (a mark's, a layer's, the ticks', bands', bars' outline,
+%           baseline's, text's, ground's, an overlay's line, fill and
+%           outline, the group colors, the error band's fill and edge) has
+%           a swatch at its right (colorSwatch, E.swatch by field name)
+%           that opens the color chooser (uisetcolor: ColorPicker); the
+%           color picked is one named edit, as if typed. syncFigureEditor
 %           shows the rows the figure, panel and layer use;
 %           layoutFigureEditor packs them.
 %   Right   a column of buttons at the left -- Preview, Redraw All
@@ -1378,6 +1384,13 @@ for u = 1:numel(U)
         sec(i).Super = name;
         sec(i).Grid.Padding = [12 0 0 0];   % indented under its supersection's header
     end
+end
+% a swatch beside each color field that opens the color chooser (colorSwatch; the ColorPicker read when pressed)
+pickColor = @(c, t) feval(obj.ColorPicker, c, t);
+E.swatch = struct();
+for f = ["evColor" "layerColor" "tickColor" "backColor" "etEdge" "etBaseColor" "annColor" "annBackground" ...
+        "ovColor" "ovFill" "ovEdge" "colormap" "errFace" "errEdge"]
+    E.swatch.(f) = colorSwatch(E.(f), Picker=pickColor);
 end
 obj.FigureEditor = E;
 obj.FigureSections = sec;

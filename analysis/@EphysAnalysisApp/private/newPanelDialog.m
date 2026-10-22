@@ -1,4 +1,4 @@
-function c = newPanelDialog(fig, F, anchor, lines, params)
+function c = newPanelDialog(fig, F, anchor, lines, params, start)
 %newPanelDialog  Pick a new panel's type, name, place and key parameters in a modal window over FIG.
 %   C = newPanelDialog(FIG, F, ANCHOR, LINES, PARAMS) shows the New panel
 %   window for the figure entry F, whose selected panel is ANCHOR (its
@@ -38,6 +38,11 @@ function c = newPanelDialog(fig, F, anchor, lines, params)
 %   Id, Title, Source, Partner, Binding, Lines and Options (the partial
 %   options the parameters set); a name another panel of F has is refused
 %   with a red line instead. Cancel, or closing the window, returns [].
+%   C = newPanelDialog(..., START): the parameters of each type start from
+%   START.(<type>), its options (onNewPanel: the options remembered for
+%   the type over its defaults); without it, from the type's defaults. A
+%   sort, parameter or series START names that PARAMS has not starts
+%   blank.
 %   The window's UserData holds its controls for the tests: Types (the
 %   tiles, a struct by type), Pick (a function: Pick(TYPE) picks a
 %   type), Name, Title, Where, Params (a function returning the current
@@ -49,6 +54,7 @@ function c = newPanelDialog(fig, F, anchor, lines, params)
 %   See also onNewPanel, EphysAnalysisConfig.panelTypes, figureEditorChoices.
 T = EphysAnalysisConfig.panelTypes();
 n = height(T);
+if nargin < 6; start = struct(); end
 c = [];
 taken = string.empty(1, 0);
 if ~isempty(F.panels); taken = [F.panels.id]; end
@@ -147,7 +153,9 @@ if isvalid(d); delete(d); end
         typeLabel.Text = T.Label(row);
         descLabel.Text = T.Description(row);
         if ~typed; nameField.Value = EphysAnalysisConfig.freeId(t, taken); end
-        P = buildParams(pp, t, T.DefaultOptions{row}, T.DefaultBinding(row), lines, params, F.observe.data);
+        def = T.DefaultOptions{row};
+        if isfield(start, t); def = start.(t); end
+        P = buildParams(pp, t, def, T.DefaultBinding(row), lines, params, F.observe.data);
         msg.Text = "Pick a type; every other setting can be changed in the editor later.";
         msg.FontColor = gray;
     end
@@ -210,9 +218,10 @@ end
 switch t
     case "raster"
         specs(end+1, :) = {"Sort", "Sort rows by:", @(gr) uidropdown(gr, "Items", ["trial order" "the stop event" "first-spike latency" params], ...
-            "ItemsData", ["" "stop" "latency" params], "Value", "", "Tooltip", "The rows' order within each trial group.")};
+            "ItemsData", ["" "stop" "latency" params], "Value", among(def.rasterSort, ["" "stop" "latency" params]), ...
+            "Tooltip", "The rows' order within each trial group.")};
     case "psth"
-        specs = [specs; binRows(def); measureRow()];
+        specs = [specs; binRows(def); measureRow(def)];
         specs(end+1, :) = {"Display", "Display:", @(gr) uidropdown(gr, "Items", ["trace (bars or a line per group)" ...
             "heat map (a row per group)"], "ItemsData", ["trace" "heatmap"], "Value", def.display, ...
             "Tooltip", "Each trial group's PSTH as bars or a line, or the unit's PSTH as an image with a row per group.")};
@@ -240,13 +249,15 @@ switch t
         specs(end+1, :) = {"Correlation", "Correlation:", @(gr) uidropdown(gr, "Items", ["pearson" "spearman"], ...
             "Value", def.correlation, "Tooltip", "The correlation between two units' per-epoch rates.")};
     case "rate"
-        specs = [specs; measureRow()];
+        specs = [specs; measureRow(def)];
         specs(end+1, :) = {"Display", "Display:", @(gr) uidropdown(gr, "Items", ["bars (mean, error bar)" "boxes" "points (each epoch)"], ...
             "ItemsData", ["bar" "box" "points"], "Value", def.display, "Tooltip", "How each trial group's rates are drawn.")};
     case "tuning"
-        specs(end+1, :) = {"Param", "Parameter:", @(gr) uidropdown(gr, "Editable", "on", "Items", ["" params], "Value", "", ...
+        specs(end+1, :) = {"Param", "Parameter:", @(gr) uidropdown(gr, "Editable", "on", "Items", ["" params], ...
+            "Value", among(def.param, ["" params]), ...
             "Tooltip", "The trial parameter on the x axis (blank: the figure's first group-by parameter, else the first numeric one).")};
-        specs(end+1, :) = {"Series", "Series:", @(gr) uidropdown(gr, "Editable", "on", "Items", ["" params], "Value", "", ...
+        specs(end+1, :) = {"Series", "Series:", @(gr) uidropdown(gr, "Editable", "on", "Items", ["" params], ...
+            "Value", among(def.seriesParam, ["" params]), ...
             "Tooltip", "One curve per value of this trial parameter (blank: one curve).")};
     case "spectrum"
         specs = [specs; freqRow(def)];
@@ -321,10 +332,18 @@ end
 end
 
 
-function row = measureRow()
-%measureRow  Measure: rate, count or probability.
+function row = measureRow(def)
+%measureRow  Measure: rate, count or probability (DEF's measure).
 row = {"Measure", "Measure:", @(gr) uidropdown(gr, "Items", ["rate (spikes/s)" "count" "probability"], ...
-    "ItemsData", ["rate" "count" "probability"], "Value", "rate", "Tooltip", "What the panel shows of the spikes.")};
+    "ItemsData", ["rate" "count" "probability"], "Value", among(def.measure, ["rate" "count" "probability"]), ...
+    "Tooltip", "What the panel shows of the spikes.")};
+end
+
+
+function v = among(v, allowed)
+%among  V when ALLOWED has it, else ALLOWED's first (a remembered value the dataset or the list lacks).
+v = string(v);
+if ~(isscalar(v) && ismember(v, allowed)); v = allowed(1); end
 end
 
 

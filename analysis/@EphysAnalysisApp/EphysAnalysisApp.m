@@ -82,7 +82,10 @@ classdef EphysAnalysisApp < handle
     %   (compact | standalone) / Open pipeline app / Close. Edit
     %   menu: Undo and Redo of the figure editor's edits (onUndoRedo, over
     %   FigureEditHistory: Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z, on the Figures
-    %   tab). Design menu: the plot designs (choosing one redraws every figure), save the
+    %   tab); Reset panel options to defaults (onResetPanelOptions) and
+    %   Forget remembered panel options (onForgetPanelOptions): a new panel
+    %   starts from the options last set on a panel of its type (a
+    %   preference: rememberPanelOptions). Design menu: the plot designs (choosing one redraws every figure), save the
     %   figure preview's look as a design, import or delete a design, your designs
     %   folder. Help menu: the wiki page of the tab shown, the documentation
     %   home and the analysis quick start; Report an issue and Request a
@@ -361,6 +364,8 @@ classdef EphysAnalysisApp < handle
         ApplyReplot (1,1) logical = false   % ... and its "Replot the changed figures now" box
         CopyUnticked (1,:) string = string.empty(1, 0)  % Copy settings: the settings left unticked last time (figureSettingItems' Generic keys; the rest start ticked)
         CopyTargets (1,:) string = string.empty(1, 0)   % ... and the ids of the figures ticked to copy onto
+        PanelOptions (1,1) struct = struct()   % the panel options last set, by panel type (rememberPanelOptions): a new panel starts from them (a preference)
+        ColorPicker (1,1) function_handle = @uisetcolor   % the color fields' swatches' chooser, RGB = F(RGB0, TITLE) (colorSwatch); the tests replace it
 
     end
 
@@ -538,6 +543,8 @@ classdef EphysAnalysisApp < handle
         onRemovePanel(obj)
         onMovePanel(obj, direction)
         onPanelTypeChanged(obj)
+        onResetPanelOptions(obj)
+        onForgetPanelOptions(obj)
         drawFigureSchematic(obj)
         onLayerSelected(obj, j)
         onAddLayer(obj)

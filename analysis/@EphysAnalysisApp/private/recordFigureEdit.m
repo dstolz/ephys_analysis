@@ -11,13 +11,16 @@ function recordFigureEdit(obj, cfg, label, opts)
 %   they were is not one. Key=KEY (the control) lets a burst of edits
 %   from one control be one step. Undo and Redo (onUndoRedo) record
 %   nothing: they apply through applyConfig without Action. The Edit menu
-%   follows (refreshEditMenu).
+%   follows (refreshEditMenu). The options the edit set on the selected
+%   figure's panels are remembered for new panels of their types
+%   (rememberPanelOptions: a preference, not the config).
 arguments
     obj (1,1) EphysAnalysisApp
     cfg (1,1) EphysAnalysisConfig
     label (1,1) string
     opts.Key = []
 end
+rememberPanelOptions(obj, obj.Config.Figures, cfg.Figures);   % a new panel of the type starts from them
 obj.FigureHistory = obj.FigureHistory.record(obj.Config.Figures, cfg.Figures, label, Key=opts.Key, ...
     Selection=[obj.SelectedFigure obj.SelectedPanel obj.SelectedLayer]);
 refreshEditMenu(obj);

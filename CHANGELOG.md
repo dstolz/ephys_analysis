@@ -39,6 +39,20 @@ says how to cut a release.
   `EphysAnalysisApp.onFigurePanelClicked`). A Ctrl+Click reports the same button as a right-click, so it is told
   by the Ctrl key; the right-click menu is unchanged, and picking a panel is no edit (no undo step, no
   **Apply to figures** although Ctrl is held).
+- Analysis app: **remembered panel options.** The options you set on a panel are remembered per panel type, a
+  preference (`PanelOptions`), not the config: a new panel (New panel..., and so a figure's first from Add) starts
+  from them over the type's defaults, the New panel window's key parameters too; panels you have, and configs, are
+  never changed by them. Options naming one dataset's or figure's things are left out (a sort by an event, the
+  group shown, a recording range); a sort, tuning parameter or series by a trial parameter is pre-filled only where
+  the active dataset has it. **Edit > Reset panel options to defaults** (the selected panel, one undo step, and its
+  type's remembered options forgotten) and **Edit > Forget remembered panel options**. `onNewPanel(Type=...)` takes
+  `Remembered=true` for the same. See
+  [Remembered panel options](documentation/EphysAnalysisApp.md#remembered-panel-options).
+- Analysis app: **a color swatch beside every color field** of the Figures editor and of the First-spike latency and
+  Latency box plot windows; it shows the field's color and opens the color chooser (`uisetcolor`), the color picked
+  written as `#rrggbb`, one named undo step. Names, codes and words such as *groups* can still be typed
+  (`private/colorSwatch`; the app's `ColorPicker` property is the chooser). See
+  [Picking a color](documentation/EphysAnalysisApp.md#picking-a-color).
 - First-spike latency on raster and PSTH panels. `firstSpikeLatency(R, Units=, MinSec=, MaxSec=)` finds each
   epoch's first spike at or after `MinSec` and at or before `MaxSec` (both included, s from the aligned event;
   NaN where none; `MaxSec` `Inf` = the window's end) in a `spikePSTH` result's raster rows, the very spikes the

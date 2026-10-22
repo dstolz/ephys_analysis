@@ -601,6 +601,11 @@ right side follows it:
 | **Key parameters** | **Reads** (the first layer's source, among the sources the type draws; a *Coherence* panel's **Seed** and **Partner**) and **Binding** (*Follows the observation* or *Fixed*; fixed and grayed out where the layer cannot follow), for every type but *Event traces*; then the type's own: *Raster* **Sort rows by** (trial order, the stop event or a trial parameter); *PSTH* **Bin (ms)**, **Smooth (ms)**, **Measure**, **Display** (trace or heat map); *Continuous signal* **Display** (lines or stacked rows), **Error band**; *Heat map* **Rows** (the layer's units or channels, or one unit's epochs: the binding then follows the observation), **Bin (ms)**; *Unit waveforms* **Layout**; *Probe map* **Value**; *Unit correlation* **Epoch rate**, **Correlation**; *Firing rate* **Measure**, **Display**; *Tuning curve* **Parameter**, **Series**; *Power spectrum* **Frequency (Hz)**, **Scale**; *Spectrogram* **Frequency (Hz)**, **Moving window (s)**; *Coherence* **Frequency (Hz)**; *Event traces* **Lines** (the active dataset's lines, several picked with Ctrl+click: an events layer and a row each) and **Draw as**. Every other option keeps the type's default and is in the editor's sections |
 | **OK**, **Cancel** | **OK** adds the panel (`onNewPanel`, `EphysAnalysisConfig.placePanel`) and selects it: the schematic, the editor and the preview follow, a figure that observed the dataset observes what a following layer reads, and an automatic id follows the panel; the status bar says what was added (*"Added psth_1 (PSTH) below raster_1 with units, follows the observation."*). **Cancel**, or closing the window, adds nothing |
 
+The key parameters, and the panel's other options, start from the
+[options you last set on a panel of the type](#remembered-panel-options)
+rather than the type's defaults, when you have set some; the status bar
+then names them.
+
 **The Spacing window** (**Spacing...**; *Panel spacing: figure_1*) sets the gaps
 between the selected figure's panels. A gap is the clear space between
 neighboring panels' labels: 0 makes them touch, so stacked time panels whose
@@ -786,7 +791,7 @@ epoch's first spike*, *Draw the box plot of the first-spike latencies*), **Detec
 from** and **to** (the latency window in ms from the aligned event, both ends
 included; **to** blank: the panel's window's end) and the look: the raster's
 **Marker** and its size, **Color** (*groups*: each trial group's color, or a
-color name or #RRGGBB) and **Filled**; the PSTH's **Color**, **Line** (style and
+color name or #RRGGBB; its swatch opens the [color chooser](#picking-a-color)) and **Filled**; the PSTH's **Color**, **Line** (style and
 width of the box's outline and whiskers), **Box height** (each box's lane, a
 share of the PSTH's height), **Fill opacity** and **Outliers** (marker and size;
 *none* hides them). The rows under the on box are grayed while it is off. **OK**
@@ -1269,6 +1274,62 @@ figures ticked are ticked again.
 to figures' `changeTargets` and `applyChanges`, and
 `analysis/figureLookToDesign` puts a figure's look into a design.
 
+<a name="remembered-panel-options"></a>
+
+#### Remembered panel options
+
+The app remembers the options you set on a panel, per panel type: a PSTH's
+**Y limits** *Shared by rows*, its stack spacing, a raster's **Tick width**,
+every option of the Options section (and the first-spike and latency box
+windows). A new panel of that type starts from them, over the type's
+defaults: one from **New panel...** (its window's key parameters show them)
+and so the first panel of a figure from **Add**. They are a preference of
+yours, kept with the app's (`PanelOptions`), not part of any config: the
+panels you have keep their options, and a config opened elsewhere is drawn
+as saved. Only what you set is remembered (the other options keep the
+type's defaults), and only by editing a panel: a panel added, removed or
+given another type, Undo and Redo remember nothing, and a panel whose type
+changes (**Type**) keeps its own values, not the remembered ones (it is not
+new).
+
+Options that name things of one dataset or one figure are left out: a
+raster's sort by an event (and that event), the trial group shown (**Group
+shown**) and a spectrum's or coherence's recording range. A sort by a trial
+parameter (**Sort rows by**) and a tuning curve's **Parameter** and
+**Series** are remembered, but a new panel takes them only when the active
+dataset has that parameter; elsewhere they start blank. A remembered value
+the type no longer has, or of another kind (a preference written by older
+code), is not used.
+
+**Edit → Reset panel options to defaults** gives the selected panel its
+type's default options (its layers, place, title and note stay), as one
+step of the undo history (*Undo Reset panel options*), and forgets what is
+remembered for its type, so the next new panel of the type starts from the
+defaults too. **Edit → Forget remembered panel options** forgets every
+type's at once; it changes no panel. A script's `onNewPanel(Type=...)` uses
+the type's defaults unless it passes `Remembered=true`.
+
+<a name="picking-a-color"></a>
+
+#### Picking a color
+
+Every color field of the editor has a swatch at its right: a layer's
+**Color** and an event's **Mark color**, a raster's **Colors** (ticks,
+bands), an event-trace panel's **Bar outline** and **Baseline**, a text
+note's **Colors** (text, ground), an overlay's **Color**, **Fill** and
+**Outline**, the Appearance's **Group colors** and the error band's **Band
+fill** and **Band edge**, and the **Color** of the First-spike latency and
+Latency box plot windows. The swatch shows the field's color (a word such as
+*groups*, *auto* or *none*, which names no one color, shows *...*) and is
+grayed with the field. Click it to open MATLAB's color chooser
+(`uisetcolor`) on that color: the color picked goes into the field as
+`#rrggbb`, as if typed, one step of the undo history named after the row
+(*Undo Colors*); Cancel changes nothing. The field still takes a name
+(*red*, *gray*), a code or a word typed. The swatch is `private/colorSwatch`
+(`syncColorSwatches` keeps it in step); the chooser is the app's
+`ColorPicker` property (`@uisetcolor`; the tests put a function of their
+own in its place, as the chooser is modal).
+
 #### Sessions in the Figures tab
 
 The **Sessions** section of the editor (in the FIGURE supersection, above the Arrangement; collapsed until opened, no key)
@@ -1619,6 +1680,8 @@ options](EphysAnalysisConfig.md#panel-options)); how the numbers are computed:
 | Edit | **Undo** *edit* (Ctrl+Z) | takes back the last edit of the figures ([Undo and redo](#undo-and-redo)); the item names it (**Undo Add panel**, **Undo Bin (ms)**) and is grayed with nothing to undo, or off the Figures tab |
 | | **Redo** *edit* (Ctrl+Y, Ctrl+Shift+Z) | does the last edit undone again; grayed with none |
 | | **Apply last change to figures...** (Ctrl+Shift+A) | offers the last edit of the figures to the other figures or panels that can take it ([Apply a change to other figures](#apply-a-change-to-other-figures)); on with Undo |
+| | **Reset panel options to defaults** | the selected panel takes its type's default options, as one undo step, and the options remembered for its type are forgotten ([Remembered panel options](#remembered-panel-options)) |
+| | **Forget remembered panel options** | new panels start from their types' defaults again; no panel changes |
 | Design | the designs | Default, the built-in designs, then yours (*(mine)*); the one chosen is ticked. Picking one redraws every figure on screen in it ([Plot designs](EphysAnalysis.md#plot-designs)); the Figures tab's **Design:** list is the same choice |
 | | **Save the preview's look as a design...** | asks for a name and a description, saves the Figures tab's figure preview's look in your designs folder (read per panel type) and picks it (asks before replacing one of yours) |
 | | **Import a design file...** | copies a design `.json` into your designs folder and picks it |
@@ -1740,6 +1803,7 @@ is in the config.
 | `FigureSupersectionsCollapsed` | the figure editor's collapsed supersections (`figure`, `panel`, `look`; all start open) |
 | `ApplyTicked`, `ApplySeen` | **Apply to figures**: the figures and panels ticked when it was last shown, and every one it has listed (`<figure id>`, `<figure id>/<panel id>`; one never listed is ticked) |
 | `ApplyReplot` | **Apply to figures**: its **Replot the changed figures now** box (off by default) |
+| `PanelOptions` | the options last set on a panel of each type, a struct by type (`psth`, `raster`, ...) of the options set: what a new panel starts from ([Remembered panel options](#remembered-panel-options)) |
 
 The aesthetics editor keeps two more groups: `PlotAesthetics`, your
 remembered rules, one per panel type (`psth`, `raster`, ...), one for `figure` and one per Chronux result kind, and
@@ -1797,6 +1861,7 @@ results, on the Log tab and in the report.
 | epoch diagram | the window `onShowEpochs`, `refreshEpochDiagram`; the Alignment tab's `refreshAlignPreview`; the diagram itself is `analysis/EpochDiagram.m` (in a window, or `Parent=` a container) |
 | Figures tab | `buildFiguresTab`; the tree `refreshFigureList` (over `private/figureGroups`), `onFigureSelected`, `onFigureTreeSelected`, `onFigureTreeClicked` (the check boxes), `onFigureGroupToggled`, `onFigureCheck` (All / None / Invert), `setFiguresEnabled`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure` (Up / Down within a group); the Id row's automatic id `private/showFigureId`, and the renames followed by `private/trackFigureIds` and `private/followedFigureId`; a panel's text note and overlays `onAddFigureOverlay`, `onDuplicateFigureOverlay`, `onRemoveFigureOverlay`, `onFigureOverlayPicked` (the rows are `applyFigureEditor`'s and `gatherFigureEditor`'s); dragging a panel in the schematic `onSchematicPress` (with the pointer callbacks it installs), `cancelSchematicDrag` (also `onKeyPress`'s Escape) and `schematicPixel` (the tests');  the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `gotoFigureSection`, `onFigureSuperToggled`, `gotoFigureSuper` and `onKeyPress` (Alt+1 ... Alt+3, Ctrl+1 ... Ctrl+0, F6: `focusFigurePane`), the search `onFigureSearch` and `gotoFigureRow` (over `private/figureSearchIndex`, `private/figureSearchPath`, `private/figureRowReason`), the keys window `onFigureKeys`, the panel keys `stepFigurePanel` and the preview's outline `markFigurePanel`, `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`, `onPanelSelectionToggled` (the Trial selection as the figure box; local to `buildFiguresTab`); the arrangement `drawFigureSchematic`, `onPanelSelected`, `onNewPanel` (the New panel window `private/newPanelDialog`, its pictures `analysis/icons/panels`, made by `tools/makePanelThumbnails`), `onRemovePanel`, `onMovePanel`, `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `removePanel` and `movePanel`; a structural edit ends in `private/commitFigureEdit`), the Spacing window `private/figureSpacingDialog`; the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`); the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoPreviewToggled`, `onCancelFigurePreview`, `onOpenFigureWindow`, the page size `onFigureSizeEdited`, `showFigureSize`, `fitFigureViews` (over `private/figureViewBox`), `redrawFigurePreview` and `private/previewSpec` (over `figureExportSize`, `figureSizePresets`, `figureSizeParse`, `figureSizeText`, `figureSizeConvert`), a Ctrl+Click on a panel `onFigurePanelClicked`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); each figure's own preview container `syncFigureView` (`private/newFigureView`, `private/previewFigureView`, `private/figureViewKey`, `private/figureViewFresh`, `private/clearFigureViews`, `private/showSessionPicker`), the tree's marks `private/markFigureTree`, the editor as each figure left it `private/saveFigureEditorState`, `private/restoreFigureEditorState`, `private/scrollFigureEditor`, its observation list `private/keepFigurePicker`, `private/takeFigurePicker`, `private/forgetFigurePickers`; the Sessions section `onPickFigureDatasets`, `onBrowseFigureMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`), `private/pickSessionDatasets` and `onFigureSessionPicked` (its preview is `refreshFigurePreview`'s session branch over `EphysAnalysisRunner.computeSessionFigure`, its picker `refreshFigureObservations`'s over `sessionFigureObservations`); the Design row `onDesignChosen` and `onSaveDesign` (below); the epoch diagram window is `onShowEpochs` (the Alignment tab's diagram is `refreshAlignPreview`'s); the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
 | copying figures | `onCopyFigureSettings` (the Figures tab's **Copy settings...**: `private/copySettingsDialog`, then `analysis/copyFigureSettings` over `analysis/figureSettingItems` and `analysis/figureSettingParts`, or `analysis/figureLookToDesign` into a design) |
+| remembered panel options, color swatches | `private/rememberPanelOptions` (called by `private/recordFigureEdit`), `private/rememberedPanelOptions` (read by `onNewPanel` and the New panel window), `onResetPanelOptions`, `onForgetPanelOptions`; `private/colorSwatch`, `private/syncColorSwatches` (`buildFiguresTab`, `syncFigureEditor`, `private/latencyDialog`) |
 | one edit to other figures | `onApplyToFigures` (Ctrl held: `onKeyPress` / `onKeyRelease` and `onConfigChanged`; Edit → Apply last change: the undo history), its window `private/applyToFiguresDialog`, over `EphysAnalysisConfig.figureEditChanges`, `changeTargets`, `panelTakes` and `applyChanges` |
 | plot designs | `refreshDesigns` (the Design menu and list; `PlotDesign.listen` keeps them current), `onDesignChosen`, `onSaveDesign`, `onImportDesign`, `onDeleteDesign`, `onDesignsFolder`; the designs themselves: `PlotDesign`, `analysis/designs` |
 | running | `onValidate`, `onPlan`, `onRunExport`, `onGenerateFigure` (**File → Generate selected figure**: `onRunExport` for the selected figure alone, then the status bar's text), `onCancelRun` (also stops a Generate and Redraw All) |
@@ -1900,7 +1965,20 @@ the ticks; Edit → Apply last change offers the same edit again (the panel
 that has it gray, the ticks as left; All ticks the one that can change) and
 Replot draws the figures changed; a figure setting (Font size) lists the
 figures, and Cancel leaves it to its own; Ctrl+Shift+A and Undo; a title
-edited with Ctrl opens no window. Section 6 is the preferences remembered (the last
+edited with Ctrl opens no window. Section 5o is
+a figure's page size and Ctrl+Click on a panel. Section 5p is
+[remembered panel options](#remembered-panel-options) and the
+[color swatches](#picking-a-color): the options set on a raster and a PSTH
+remembered by type, only those set; a new panel made with `Remembered=true`
+starting from them and one without from the defaults; a remembered sort by
+a trial parameter the dataset lacks and a value of the wrong class not
+taken; the New panel window's Measure starting at the remembered value;
+Reset panel options to defaults as one named step forgetting its type's
+only, and Undo; the preference written and Forget emptying it; a swatch
+beside each color field, the search going to the field; a color picked
+(the chooser replaced by a function) as one named step, Cancel, a color
+typed and Undo followed by the swatch; and the First-spike latency
+window's swatch. Section 6 is the preferences remembered (the last
 config, the collapsed sections and supersections of the figure editor; none of the retired plot
 or session preferences is written) and closing. The test keeps the app's
 preferences in a temporary file (`AppPrefs`), so the user's own are never read

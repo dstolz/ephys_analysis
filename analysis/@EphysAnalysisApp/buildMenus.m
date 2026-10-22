@@ -6,7 +6,9 @@ function buildMenus(obj)
 %   onGenerateFigure; off with no figure and while a run goes), Generate
 %   script (compact | standalone), Open pipeline app and Close. Edit: Undo (Ctrl+Z) and Redo (Ctrl+Y) of the figure editor's
 %   edits (onUndoRedo), named after the edit and grayed with none, or off
-%   the Figures tab (refreshEditMenu). Design: the plot designs and what to do with them (filled by
+%   the Figures tab (refreshEditMenu); Apply last change to figures...;
+%   Reset panel options to defaults (onResetPanelOptions) and Forget
+%   remembered panel options (onForgetPanelOptions). Design: the plot designs and what to do with them (filled by
 %   refreshDesigns). Help: the wiki page of the tab shown, the Figures
 %   tab's keys (onFigureKeys), the
 %   documentation home and the analysis quick start (helpURL), Report an
@@ -41,6 +43,12 @@ obj.RedoMenu = uimenu(obj.EditMenu, "Text", "Redo", "Accelerator", "Y", "Enable"
 obj.ApplyMenu = uimenu(obj.EditMenu, "Text", "Apply last change to figures...    Ctrl+Shift+A", "Separator", "on", "Enable", "off", ...
     "Tooltip", "Give the last edit of the figure editor to other figures or panels, picked in a list (or hold Ctrl while you edit).", ...
     "MenuSelectedFcn", @(~,~) obj.onApplyToFigures());
+uimenu(obj.EditMenu, "Text", "Reset panel options to defaults", "Separator", "on", ...
+    "Tooltip", "Give the selected panel its type's default options, and forget the options remembered for new panels of that type.", ...
+    "MenuSelectedFcn", @(~,~) obj.onResetPanelOptions());
+uimenu(obj.EditMenu, "Text", "Forget remembered panel options", ...
+    "Tooltip", "New panels start from the options last set on a panel of their type: forget them all, so they start from the defaults.", ...
+    "MenuSelectedFcn", @(~,~) obj.onForgetPanelOptions());
 
 obj.DesignMenu = uimenu(obj.Fig, "Text", "Design");
 

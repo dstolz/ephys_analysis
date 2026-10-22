@@ -1,7 +1,8 @@
 function onPanelTypeChanged(obj)
 %onPanelTypeChanged  The selected panel takes the type picked in the Panel section.
 %   Its options start afresh from the new type's (panelTypes'
-%   DefaultOptions), keeping the values both types have (bins, baseline --
+%   DefaultOptions; not the options remembered for new panels,
+%   rememberPanelOptions: the panel is not new), keeping the values both types have (bins, baseline --
 %   its mode when the new type takes it --, measure, the mask, limits, the
 %   group shown, the stack -- its value when the new type takes it,
 %   EphysAnalysisConfig.stackModes -- and its spacing, and the waveform

@@ -1314,6 +1314,7 @@ if S.sec("5d.look", "the gather / apply round trip, a remembered look and Forget
         && startsWith(string(FE.looksText.Text), "1 remembered") && FE.looksForget.Enable == "on", ...
         'the figure preview is editable (right-click); rules remembered for the figure go into the config (rememberFigureAesthetics)');
     tipParts = findall(app.FigurePreviewPanel, '-function', @(o) isappdata(o, FigureDataTips.InfoKey));
+    arrayfun(@PlotAesthetics.fillMenu, findall(app.Fig, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag));   % (made when each opens)
     tipItems = findall(app.Fig, 'Tag', FigureDataTips.MenuTag);
     tipMenu = findobj(app.DesignMenu.Children, 'flat', 'Tag', 'DataTipFieldsMenu');
     dlg0 = findall(groot, 'Type', 'figure', 'Name', 'Data tip fields');
@@ -2414,9 +2415,9 @@ if S.sec("5h", "the figure tree, a panel's note and overlays, dragging a panel i
     % the panel axes' own right-click menu: both labels' text and both sides, the panel's and every panel's
     axP = findPanelAxes(app.FigurePreviewPanel, "psth_1");
     axR = findPanelAxes(app.FigurePreviewPanel, "raster_1");
-    mP = string({axP.ContextMenu.Children.Text});
+    mP = string({PlotAesthetics.menuOf(axP).Children.Text});
     hiddenR = isempty(axR.XTickLabel) && strjoin(string(axR.XLabel.String), "") == "";   % the stack tells the time on the PSTH under it
-    allTop = findobj(axP.ContextMenu.Children, 'flat', 'Text', "Move every panel's X axis to top");
+    allTop = findobj(PlotAesthetics.menuOf(axP).Children, 'flat', 'Text', "Move every panel's X axis to top");
     allTop.MenuSelectedFcn(allTop, []);
     fgT = app.Config.Figures(1);
     axP = findPanelAxes(app.FigurePreviewPanel, "psth_1");

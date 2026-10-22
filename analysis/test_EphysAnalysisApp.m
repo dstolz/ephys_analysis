@@ -3318,7 +3318,7 @@ if S.sec("5o", "remembered panel options: a new panel starts from the last set, 
     nU5o = numel(app.FigureHistory.Undo);
     app.onResetPanelOptions();
     pZ = app.Config.Figures(1).panels(app.SelectedPanel);
-    check(pZ.id == pW.id && isequaln(pZ.options, defPsth) && numel(app.FigureHistory.Undo) == nU5o + 1 ...
+    check(pZ.id == pW.id && isequaln(pZ.options, defPsth) && (numel(app.FigureHistory.Undo) == nU5o + 1 || nU5o == app.FigureHistory.Depth) ...
         && string(app.UndoMenu.Text) == "Undo Reset panel options" && ~isfield(app.PanelOptions, 'psth') && isfield(app.PanelOptions, 'raster'), ...
         'Edit > Reset panel options to defaults: the selected panel''s type''s defaults as one named step; that type''s remembered options forgotten, not the others''');
     app.onUndoRedo("undo");
@@ -3341,16 +3341,19 @@ if S.sec("5o", "remembered panel options: a new panel starts from the last set, 
     b5o = FE.swatch.tickColor;
     plain = string(b5o.Text) == "..." && b5o.Enable == "on" && shown(FE.tickColor);
     app.ColorPicker = @(c, t) [1 0 0];
-    nU5o = numel(app.FigureHistory.Undo);
     b5o.ButtonPushedFcn(b5o, []);
-    check(plain && app.Config.Figures(1).panels(1).options.tickColor == "#ff0000" && string(FE.tickColor.Value) == "#ff0000" ...
-        && numel(app.FigureHistory.Undo) == nU5o + 1 && string(app.UndoMenu.Text) ~= "Undo Edit" && isequal(b5o.BackgroundColor, [1 0 0]) ...
-        && string(b5o.Text) == "", ...
+    picked = app.Config.Figures(1).panels(1).options.tickColor == "#ff0000" && string(FE.tickColor.Value) == "#ff0000" ...
+        && isequal(b5o.BackgroundColor, [1 0 0]) && string(b5o.Text) == "" && string(app.UndoMenu.Text) ~= "Undo Edit";
+    app.onUndoRedo("undo");   % one step: the ticks' groups again (the history may be at its Depth: counts do not tell)
+    undone = app.Config.Figures(1).panels(1).options.tickColor == "groups" && string(b5o.Text) == "...";
+    app.onUndoRedo("redo");
+    nU5o = numel(app.FigureHistory.Undo);
+    check(plain && picked && undone && app.Config.Figures(1).panels(1).options.tickColor == "#ff0000", ...
         sprintf('a color picked with the ticks'' swatch ("groups": a plain button) is the field''s, as #rrggbb, one named step (%s); the swatch shows it', ...
         app.UndoMenu.Text));
     app.ColorPicker = @(c, t) 0;   % Cancel
     b5o.ButtonPushedFcn(b5o, []);
-    canceled = numel(app.FigureHistory.Undo) == nU5o + 1 && app.Config.Figures(1).panels(1).options.tickColor == "#ff0000";
+    canceled = numel(app.FigureHistory.Undo) == nU5o && isempty(app.FigureHistory.Redo) && app.Config.Figures(1).panels(1).options.tickColor == "#ff0000";
     FE.tickColor.Value = 'blue';
     FE.tickColor.ValueChangedFcn(FE.tickColor, []);
     typed = isequal(b5o.BackgroundColor, [0 0 1]) && app.Config.Figures(1).panels(1).options.tickColor == "blue";

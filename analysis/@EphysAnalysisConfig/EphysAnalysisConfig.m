@@ -32,6 +32,10 @@ classdef EphysAnalysisConfig
     %               others (sharedFieldsOf: the options several types
     %               have), with its axis sides, adoptPanelAlignment and relinkPanels spread one
     %               panel's alignment or re-link every panel's.
+    %               figureEditChanges names what an edit of a figure
+    %               changed, changeTargets the other figures and panels
+    %               that can take it (panelTakes: the rule both use) and
+    %               applyChanges gives it to those picked.
     %               observe.perGroup draws each observation once
     %               per trial group of the figure's selection;
     %               observe.starred keeps only the starred observations
@@ -376,6 +380,10 @@ classdef EphysAnalysisConfig
         fig = removePanel(fig, id)
         [fig, moved] = movePanel(fig, id, direction)
         [fig, changed] = adoptPanelOptions(fig, panelId)
+        [tf, kept] = panelTakes(P, Q, path)
+        changes = figureEditChanges(before, after, panel)
+        T = changeTargets(F, D, k, j, changes)
+        F = applyChanges(F, D, T, changes)
         fig = adoptPanelAlignment(fig, panelId)
         fig = relinkPanels(fig)
 

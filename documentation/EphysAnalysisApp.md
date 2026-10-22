@@ -490,6 +490,8 @@ below move within them. The **?** button right of the search field (also
 | **Escape** | cancels a panel drag in the schematic; clears the search |
 | **Ctrl+Z** | undo the last edit of the figures (**Edit → Undo**: [Undo and redo](#undo-and-redo)) |
 | **Ctrl+Y**, **Ctrl+Shift+Z** | redo the last edit undone |
+| **Ctrl** held while you edit | the edit is made, then **Apply to figures** offers it to the other figures ([Apply a change to other figures](#apply-a-change-to-other-figures)) |
+| **Ctrl+Shift+A** | the same for the last edit (**Edit → Apply last change to figures...**) |
 
 A panel picked with the keys is picked as a click in the schematic picks it:
 the editor shows it, and the preview outlines it (below) without computing or
@@ -1058,6 +1060,47 @@ The items work with the Figures tab showing: on another tab they are grayed,
 so Ctrl+Z there does nothing in the app. Undo acts on edits entered: a value
 typed in a field becomes a step once Enter, or leaving the field, enters it.
 
+#### Apply a change to other figures
+
+An edit of the editor changes the figure (and panel) it is made in, nothing
+else. Hold **Ctrl** (**Cmd** on a Mac) while you make it, for example while
+you pick *One row per group* in a PSTH's **Stack**, and the edit is made and
+then the **Apply to figures** window opens: the other figures, or panels,
+that can take the change, each with its value now, as the control shows it
+(*Off (overlaid)*). Tick the ones to change and press **Apply**.
+
+| Part | What it does |
+| --- | --- |
+| the table | one row per figure for a figure's setting (Appearance, Observations, the figure's event, window and selection, Sessions, the spacing); one row per panel for a panel's (an Option, the box, the axis sides, the panel's own alignment, the text note's look), with the panel's id and type. Only those that can take it are listed: a panel whose type has the option and takes the value (a stack of *One row per channel* only on continuous panels; a baseline mode only where the type offers it; a type's own option, a PSTH's **PSTH as**, only on panels of that type), the selected figure's other panels too. A row that has the value already is gray, marked *(has it)*, and cannot be ticked |
+| **All**, **None** | tick every row that can change, or none; the count says how many will |
+| **Replot the changed figures now** | unticked (the default), nothing is drawn again: the changed figures, and the one shown, are marked out of date in the tree (amber), and each is drawn when you show it or press Preview. Ticked, the figure shown and the changed figures that have a kept drawing are drawn again at once, one after the other (each shown in turn, then the figure you were on); a session figure still waits for Preview |
+| **Apply** | gives the ticked rows the value, as one step of the undo history (**Undo Stack to 3 panels**), its own apart from the edit itself; the status bar names each panel or figure changed |
+| **Cancel** | the edit stays with its own figure, which is drawn as after any edit |
+
+The ticks are remembered for the next time, with the Replot box (and kept
+with the app's preferences): a figure or panel ticked last time is ticked
+again, one unticked stays unticked, and one never listed before is ticked.
+
+What stays with each figure is never offered: its id, title and enabled, a
+panel's title, axis label texts, place and size, its layers, overlays and
+note text, the grid's rows, columns and their sizes, and the looks
+remembered from the preview. An edit of one of those made with Ctrl held
+opens no window; the status bar says it stays with its figure. A field of an
+event reference, window or selection given to a figure (or panel) that uses
+the Defaults' (or its figure's) makes it its own, the one it used with that
+field changed, as editing the row in that figure would.
+
+**Edit → Apply last change to figures...** (**Ctrl+Shift+A**) opens the same
+window for the last edit of the figures, so you can decide after the edit,
+for a value typed in a field, or to give an edit already applied to more
+figures (an Apply is skipped back over to the edit it gave). It says so on
+the status bar when that edit was changed again since.
+
+`onApplyToFigures` does it: `EphysAnalysisConfig.figureEditChanges` names
+what the edit changed, `changeTargets` lists the figures and panels that can
+take it (`panelTakes`, the rule **Apply to all panels** follows too) and
+`applyChanges` gives it to those ticked.
+
 #### Sessions in the Figures tab
 
 The **Sessions** section of the editor (in the FIGURE supersection, above the Arrangement; collapsed until opened, no key)
@@ -1406,6 +1449,7 @@ options](EphysAnalysisConfig.md#panel-options)); how the numbers are computed:
 | | **Close** | asks about unsaved changes, cancels a run under way, closes |
 | Edit | **Undo** *edit* (Ctrl+Z) | takes back the last edit of the figures ([Undo and redo](#undo-and-redo)); the item names it (**Undo Add panel**, **Undo Bin (ms)**) and is grayed with nothing to undo, or off the Figures tab |
 | | **Redo** *edit* (Ctrl+Y, Ctrl+Shift+Z) | does the last edit undone again; grayed with none |
+| | **Apply last change to figures...** (Ctrl+Shift+A) | offers the last edit of the figures to the other figures or panels that can take it ([Apply a change to other figures](#apply-a-change-to-other-figures)); on with Undo |
 | Design | the designs | Default, the built-in designs, then yours (*(mine)*); the one chosen is ticked. Picking one redraws every figure on screen in it ([Plot designs](EphysAnalysis.md#plot-designs)); the Figures tab's **Design:** list is the same choice |
 | | **Save the preview's look as a design...** | asks for a name and a description, saves the Figures tab's figure preview's look in your designs folder (read per panel type) and picks it (asks before replacing one of yours) |
 | | **Import a design file...** | copies a design `.json` into your designs folder and picks it |
@@ -1525,6 +1569,8 @@ is in the config.
 | `FigureGroupsCollapsed` | the figure tree's collapsed groups, by key (`observe:unit`, `status:Off`, ...); the selected figure's group opens whatever is kept |
 | `FigureSectionsCollapsed` | the figure editor's collapsed sections (Text note, Overlays, Appearance, Looks and Sessions start collapsed) |
 | `FigureSupersectionsCollapsed` | the figure editor's collapsed supersections (`figure`, `panel`, `look`; all start open) |
+| `ApplyTicked`, `ApplySeen` | **Apply to figures**: the figures and panels ticked when it was last shown, and every one it has listed (`<figure id>`, `<figure id>/<panel id>`; one never listed is ticked) |
+| `ApplyReplot` | **Apply to figures**: its **Replot the changed figures now** box (off by default) |
 
 The aesthetics editor keeps two more groups: `PlotAesthetics`, your
 remembered rules, one per panel type (`psth`, `raster`, ...), one for `figure` and one per Chronux result kind, and
@@ -1582,6 +1628,7 @@ results, on the Log tab and in the report.
 | epoch diagram | the window `onShowEpochs`, `refreshEpochDiagram`; the Alignment tab's `refreshAlignPreview`; the diagram itself is `analysis/EpochDiagram.m` (in a window, or `Parent=` a container) |
 | Figures tab | `buildFiguresTab`; the tree `refreshFigureList` (over `private/figureGroups`), `onFigureSelected`, `onFigureTreeSelected`, `onFigureTreeClicked` (the check boxes), `onFigureGroupToggled`, `onFigureCheck` (All / None / Invert), `setFiguresEnabled`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure` (Up / Down within a group); the Id row's automatic id `private/showFigureId`, and the renames followed by `private/trackFigureIds` and `private/followedFigureId`; a panel's text note and overlays `onAddFigureOverlay`, `onDuplicateFigureOverlay`, `onRemoveFigureOverlay`, `onFigureOverlayPicked` (the rows are `applyFigureEditor`'s and `gatherFigureEditor`'s); dragging a panel in the schematic `onSchematicPress` (with the pointer callbacks it installs), `cancelSchematicDrag` (also `onKeyPress`'s Escape) and `schematicPixel` (the tests');  the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `gotoFigureSection`, `onFigureSuperToggled`, `gotoFigureSuper` and `onKeyPress` (Alt+1 ... Alt+3, Ctrl+1 ... Ctrl+0, F6: `focusFigurePane`), the search `onFigureSearch` and `gotoFigureRow` (over `private/figureSearchIndex`, `private/figureSearchPath`, `private/figureRowReason`), the keys window `onFigureKeys`, the panel keys `stepFigurePanel` and the preview's outline `markFigurePanel`, `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`, `onPanelSelectionToggled` (the Trial selection as the figure box; local to `buildFiguresTab`); the arrangement `drawFigureSchematic`, `onPanelSelected`, `onNewPanel` (the New panel window `private/newPanelDialog`, its pictures `analysis/icons/panels`, made by `tools/makePanelThumbnails`), `onRemovePanel`, `onMovePanel`, `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `removePanel` and `movePanel`; a structural edit ends in `private/commitFigureEdit`), the Spacing window `private/figureSpacingDialog`; the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`); the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoPreviewToggled`, `onCancelFigurePreview`, `onOpenFigureWindow`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); each figure's own preview container `syncFigureView` (`private/newFigureView`, `private/previewFigureView`, `private/figureViewKey`, `private/figureViewFresh`, `private/clearFigureViews`, `private/showSessionPicker`), the tree's marks `private/markFigureTree`, the editor as each figure left it `private/saveFigureEditorState`, `private/restoreFigureEditorState`, `private/scrollFigureEditor`; the Sessions section `onPickFigureDatasets`, `onBrowseFigureMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`), `private/pickSessionDatasets` and `onFigureSessionPicked` (its preview is `refreshFigurePreview`'s session branch over `EphysAnalysisRunner.computeSessionFigure`, its picker `refreshFigureObservations`'s over `sessionFigureObservations`); the Design row `onDesignChosen` and `onSaveDesign` (below); the epoch diagram window is `onShowEpochs` (the Alignment tab's diagram is `refreshAlignPreview`'s); the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
 | copying figures | `onCopyFigureSettings` (the Figures tab's **Copy from...**: `private/pickFigureSettings`, then `analysis/copyFigureSettings` with `analysis/figureSettingParts`) |
+| one edit to other figures | `onApplyToFigures` (Ctrl held: `onKeyPress` / `onKeyRelease` and `onConfigChanged`; Edit → Apply last change: the undo history), its window `private/applyToFiguresDialog`, over `EphysAnalysisConfig.figureEditChanges`, `changeTargets`, `panelTakes` and `applyChanges` |
 | plot designs | `refreshDesigns` (the Design menu and list; `PlotDesign.listen` keeps them current), `onDesignChosen`, `onSaveDesign`, `onImportDesign`, `onDeleteDesign`, `onDesignsFolder`; the designs themselves: `PlotDesign`, `analysis/designs` |
 | running | `onValidate`, `onPlan`, `onRunExport`, `onGenerateFigure` (the Figures tab's **Generate**: `onRunExport` for the selected figure alone, then the status bar's text), `onCancelRun` (also stops a Generate) |
 | files | `onNewConfig`, `onOpenConfig`, `openConfigFile`, `onSaveConfig`, `onSaveConfigAs`, `onGenerateScript`, `loadPreferences`, `savePreferences` |
@@ -1667,7 +1714,16 @@ one and the dataset back makes the hidden one current again, the editor's
 sections and panel come back as each figure left them, Remove frees the
 container, the cap drops the container shown least recently (the figure drawn
 again when shown), and Undo and Redo of an Add keep the tree, the containers
-and the selection together. Section 6 is the preferences remembered (the last
+and the selection together. Section 5n is
+[Apply to figures](#apply-a-change-to-other-figures): a PSTH's Stack edited
+with Ctrl held opens the window with the other figures' PSTH and continuous
+panels (not the raster), all ticked the first time; Apply gives it to the one
+ticked as a step of its own, draws nothing again (with Auto on) and remembers
+the ticks; Edit → Apply last change offers the same edit again (the panel
+that has it gray, the ticks as left; All ticks the one that can change) and
+Replot draws the figures changed; a figure setting (Font size) lists the
+figures, and Cancel leaves it to its own; Ctrl+Shift+A and Undo; a title
+edited with Ctrl opens no window. Section 6 is the preferences remembered (the last
 config, the collapsed sections and supersections of the figure editor; none of the retired plot
 or session preferences is written) and closing. The test keeps the app's
 preferences in a temporary file (`AppPrefs`), so the user's own are never read

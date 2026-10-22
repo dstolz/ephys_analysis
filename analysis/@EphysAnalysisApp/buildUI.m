@@ -37,6 +37,7 @@ obj.Splash.step("finish", "Laying out the window ...");
 styleButtons(obj);
 obj.Tabs.SelectedTab = obj.TabData;
 obj.Fig.WindowKeyPressFcn = @(~, evt) obj.onKeyPress(evt);   % Ctrl+1 ... Ctrl+9, Ctrl+0: the figure editor's sections
+obj.Fig.WindowKeyReleaseFcn = @(~, evt) obj.onKeyRelease(evt);   % Ctrl let go: an edit applies to its figure only again
 obj.refreshDesigns();
 PlotDesign.listen(obj.Fig, @() obj.refreshDesigns());   % a design chosen anywhere (a figure's right-click menu too)
 end

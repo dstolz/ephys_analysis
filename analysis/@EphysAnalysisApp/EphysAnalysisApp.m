@@ -177,6 +177,7 @@ classdef EphysAnalysisApp < handle
         EditMenu   matlab.ui.container.Menu
         UndoMenu   matlab.ui.container.Menu   % "Undo <edit>" (refreshEditMenu)
         RedoMenu   matlab.ui.container.Menu   % "Redo <edit>"
+        ApplyMenu  matlab.ui.container.Menu   % "Apply last change to figures..." (onApplyToFigures; refreshEditMenu)
         DesignMenu matlab.ui.container.Menu
         HelpMenu   matlab.ui.container.Menu
         StatusBar  matlab.ui.control.Label
@@ -345,6 +346,10 @@ classdef EphysAnalysisApp < handle
         FigurePanelMarkListeners = []       % those listeners (Position PostSet)
         FigureFocusPane (1,1) double = 0    % the column F6 last went to: 1 the figure list, 2 the editor, 3 the preview
         FigureHistory FigureEditHistory = FigureEditHistory()   % the figure editor's undo and redo (recordFigureEdit, onUndoRedo); cleared by another config
+        CtrlHeld (1,1) logical = false      % Ctrl (Cmd) is down (onKeyPress, onKeyRelease): an editor edit made with it opens Apply to figures (onApplyToFigures)
+        ApplyTicked (1,:) string = string.empty(1, 0)   % Apply to figures: the targets ticked when last shown ("<figure id>" or "<figure id>/<panel id>")
+        ApplySeen (1,:) string = string.empty(1, 0)     % ... and every target it has shown (one not seen yet is ticked)
+        ApplyReplot (1,1) logical = false   % ... and its "Replot the changed figures now" box
 
     end
 
@@ -495,6 +500,7 @@ classdef EphysAnalysisApp < handle
         onMoveFigure(obj, step)
         onFigureSelected(obj, k)
         onCopyFigureSettings(obj, opts)
+        onApplyToFigures(obj, opts)
         applyFigureEditor(obj)
         fig = gatherFigureEditor(obj)
         applyFigureEditorDefaults(obj)
@@ -567,6 +573,7 @@ classdef EphysAnalysisApp < handle
         selectTab(obj, tab)
         onTabChanged(obj)
         onKeyPress(obj, evt)
+        onKeyRelease(obj, evt)
         url = helpURL(obj, page)
         onHelp(obj, page)
         onReportIssue(obj, kind)

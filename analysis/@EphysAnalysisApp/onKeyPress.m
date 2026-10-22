@@ -28,6 +28,12 @@ function onKeyPress(obj, evt)
 %     Ctrl+Shift+Z          redo the last edit undone (onUndoRedo); Ctrl+Z
 %                           and Ctrl+Y are the Edit menu's accelerators,
 %                           not keys of this function
+%     Ctrl+Shift+A          apply the last edit to other figures (the Edit
+%                           menu's item: onApplyToFigures)
+%   Any key with Ctrl (Cmd) down, Ctrl itself too, on any tab, notes it
+%   held (CtrlHeld, until onKeyRelease sees it let go, or a key comes
+%   without it): an edit of the figure editor made meanwhile opens Apply
+%   to figures (onConfigChanged).
 %   While a search is under way (FigureSearchState: typed in the field, or
 %   a match picked in its list), Enter goes to the match picked (else the
 %   first) with the focus on its control, Down and Up (after typing) pick
@@ -37,6 +43,7 @@ function onKeyPress(obj, evt)
 %   these is left alone (AltGr is Ctrl+Alt on Windows: a digit or a letter
 %   with it is a character, not a key of the app's).
 key = string(evt.Key);
+obj.CtrlHeld = any(ismember([key string(evt.Modifier)], ["control" "command"]));
 if key == "escape" && ~isempty(obj.FigureDrag)
     obj.cancelSchematicDrag();   % a panel dragged in the Figures tab's schematic stays where it was
     return
@@ -83,6 +90,10 @@ if bare && any(key == ["pageup" "pagedown"])
 end
 if ctrl && shift && ~alt && key == "z"
     obj.onUndoRedo("redo");
+    return
+end
+if ctrl && shift && ~alt && key == "a"
+    obj.onApplyToFigures();
     return
 end
 if key == "f6" && ~ctrl && ~alt

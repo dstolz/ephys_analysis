@@ -36,7 +36,9 @@ function [fig, changed] = adoptPanelOptions(fig, panelId)
 %             (a string row)
 %   Error: EphysAnalysisConfig:NoPanel.
 %
-%   See also EphysAnalysisConfig.sharedFieldsOf, EphysAnalysisConfig.relinkPanels,
+%   Whether a panel takes a value is panelTakes' rule.
+%
+%   See also EphysAnalysisConfig.sharedFieldsOf, EphysAnalysisConfig.panelTakes, EphysAnalysisConfig.relinkPanels,
 %   EphysAnalysisConfig.adoptPanelAlignment.
 
 arguments
@@ -59,24 +61,13 @@ for j = [1:k-1, k+1:numel(fig.panels)]
         take = string(fieldnames(P.options)).';   % the same type: every option
     end
     kept = string.empty(1, 0);
-    first = "";
-    on = [Q.layers.enabled];
-    if any(on); first = Q.layers(find(on, 1)).source; end
-    if ismember("baseline", take) && ismember("baseline", EphysAnalysisConfig.sharedFieldsOf(Q.type)) ...
-            && ~ismember(P.options.baseline.Mode, EphysAnalysisConfig.baselineModes(Q.type, first))   % (a spectrogram's baseline is chronuxNormalize's: copied as is)
-        take = setdiff(take, ["baseline" "auroc"], 'stable');
-        kept = "baseline";
-    end
-    if ismember("stack", take) && Q.type ~= P.type && ~ismember(P.options.stack, EphysAnalysisConfig.stackModes(Q.type))
-        take = setdiff(take, ["stack" "stackSpacing"], 'stable');   % e.g. a continuous panel's "items"
-        kept(end+1) = "stack";
-    end
-    if ismember("yLimMode", take) && Q.type ~= P.type && P.options.yLimMode == "fixed" && isempty(Q.options.yLim)
-        take = setdiff(take, "yLimMode", 'stable');   % "fixed" with no yLim of its own (the limits are in the type's units)
-        kept(end+1) = "yLimMode";
-    end
     fields = string.empty(1, 0);
     for f = take
+        [ok, why] = EphysAnalysisConfig.panelTakes(P, Q, f);   % the baseline, stack and Y limits mode its type takes
+        if ~ok
+            if why ~= "" && ~ismember(why, kept); kept(end+1) = why; end %#ok<AGROW>
+            continue
+        end
         if ~isequaln(Q.options.(f), P.options.(f))   % (fillAlpha NaN = automatic: equal to NaN)
             Q.options.(f) = P.options.(f);
             fields(end+1) = f; %#ok<AGROW>

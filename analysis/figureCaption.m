@@ -45,6 +45,9 @@ function txt = figureCaption(spec, T, opts)
 %   and the series ("a color per session", "per subject", "all sessions
 %   averaged") and the trial groups' handling ("trial groups pooled", "one
 %   figure per trial group", "trial groups by line style").
+%   A figure with a panel whose options.yLimMode is "batch" adds "y shared
+%   across <N> observations" (YShared=N, the run's count: figureBatchYLim's
+%   n), or "y shared across the run's observations" without it.
 %
 %   See also figureObservations, addReportFigure,
 %   EphysAnalysisRunner.runDataset.
@@ -55,6 +58,7 @@ arguments
     opts.Dataset (1,1) string = ""
     opts.Sessions = []
     opts.Auroc = []
+    opts.YShared (1,1) double = NaN
 end
 
 n = height(T);
@@ -149,6 +153,13 @@ if across
 elseif isfield(ob, 'perGroup') && ob.perGroup && isfield(spec.selection, 'groupBy') && ~isempty(spec.selection.groupBy)
     parts(end+1) = "one figure per trial group";
 end
+if ~isempty(figureBatchPanels(spec))
+    if isfinite(opts.YShared) && opts.YShared > 0
+        parts(end+1) = sprintf("y shared across %d observation%s", opts.YShared, plural(opts.YShared));
+    else
+        parts(end+1) = "y shared across the run's observations";
+    end
+end
 txt = strjoin(parts, "; ") + ".";
 end
 
@@ -225,7 +236,7 @@ for k = 1:numel(spec.panels)
     elseif p.type == "psth" && ~ismember("psth", did) && isfield(o, 'latencyBox') && isstruct(o.latencyBox) ...
             && o.latencyBox.enabled && o.display ~= "heatmap"
         where = "over the PSTH";
-        if o.stack; where = "in each row of the PSTH"; end
+        if isfield(o, 'stack') && o.stack == "groups"; where = "in each row of the PSTH"; end
         parts(end+1) = "a box plot of the first-spike latencies in " + windowText(o.latencyBox) + " per trial group " + where + ...
             " (median, quartiles, whiskers to 1.5 IQR, outliers)"; %#ok<AGROW>
         did(end+1) = "psth"; %#ok<AGROW>

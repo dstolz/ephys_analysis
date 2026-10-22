@@ -281,7 +281,7 @@ role = string(o.Tag);
 group = "";
 if isappdata(o, 'PlotGroup'); group = string(getappdata(o, 'PlotGroup')); end
 I = struct('kind', "xy", 'template', isprop(o, 'DataTipTemplate'), 'box', isa(o, 'matlab.graphics.chart.primitive.BoxChart'), ...
-    'x', qty("", ""), 'showX', true, 'y', qty("", ""), 'showY', true, 'yOffset', 0, 'value', qty("", ""), 'showValue', false, ...
+    'x', qty("", ""), 'showX', true, 'y', qty("", ""), 'showY', true, 'yOffset', 0, 'yScale', 1, 'value', qty("", ""), 'showValue', false, ...
     'rowName', "Row", 'rowLabels', strings(0, 1), 'const', repmat(struct('key', "", 'label', "", 'text', ""), 1, 0), ...
     'point', repmat(struct('key', "", 'label', "", 'value', []), 1, 0), 'rowPoint', repmat(struct('key', "", 'label', "", 'value', []), 1, 0));
 if isa(o, 'matlab.graphics.primitive.Image') || isa(o, 'matlab.graphics.primitive.Surface'); I.kind = "image"; end
@@ -319,7 +319,7 @@ elseif isa(o, 'matlab.graphics.chart.primitive.Scatter') && numel(o.CData) == nu
     I.showValue = true;
     I.value = unitOnly(colorbarQty(ax), C.type);
 end
-I.yOffset = stackOffset(o, ax, group, I);
+[I.yOffset, I.yScale] = stackOffset(o, ax, group, I);
 
 % the source: series and trial group from the part's group, its layer, the panel, observation, dataset
 [series, tg] = splitGroup(group, C.groups, role);
@@ -429,9 +429,14 @@ end
 
 
 function L = imageRowLabels(o, ax)
-%imageRowLabels  An image's row labels from its y tick labels, when there is one per row.
+%imageRowLabels  An image's row labels: its own (appdata 'RowLabels', a stacked heat map's block), else its y tick labels, when there is one per row.
 L = strings(0, 1);
 n = size(o.CData, 1);
+if isappdata(o, 'RowLabels')
+    L = reshape(string(getappdata(o, 'RowLabels')), [], 1);
+    if numel(L) == n; return; end
+    L = strings(0, 1);
+end
 y = o.YData;
 if n < 1 || numel(y) < 1; return; end
 yc = linspace(y(1), y(end), n);
@@ -447,15 +452,32 @@ end
 end
 
 
-function off = stackOffset(o, ax, group, I)
-%stackOffset  A trace drawn in a stack's row (a stacked PSTH or continuous panel): the row's base, taken off its y.
+function [off, k] = stackOffset(o, ax, group, I)
+%stackOffset  A trace drawn in a stack's row (any stacked panel): how its row maps values onto the axis, taken off its y.
+%   OFF and K: the row's value 0 on the axis and its axis units per value
+%   (y = OFF + K x value): the part's own appdata 'StackMap' ([offset
+%   scale], stackMark), else the row line's (role "stackBase") whose
+%   group ends the part's group (its 'StackMap', stackBaseLines and
+%   drawStack set it, else its y). A part in no stack: 0 and 1.
 off = 0;
+k = 1;
 if I.kind == "image" || ~I.showY || ~isprop(o, 'YData'); return; end
+if isappdata(o, 'StackMap')   % the part says where its row maps it (stackMark)
+    m = getappdata(o, 'StackMap');
+    off = m(1);
+    if numel(m) > 1 && isfinite(m(2)) && m(2) > 0; k = m(2); end
+    return
+end
 kids = allchild(ax);
 bases = kids(strcmp(get(kids, 'Tag'), 'stackBase'));
 for b = reshape(bases, 1, [])
     if isappdata(b, 'PlotGroup') && string(getappdata(b, 'PlotGroup')) ~= "" && endsWith(group, string(getappdata(b, 'PlotGroup')))
         off = b.YData(1);
+        if isappdata(b, 'StackMap')
+            m = getappdata(b, 'StackMap');
+            off = m(1);
+            if numel(m) > 1 && isfinite(m(2)) && m(2) > 0; k = m(2); end
+        end
         return
     end
 end
@@ -699,10 +721,10 @@ for r = R
         case "x"
             rows = [rows dataTipTextRow(char(r.label), 'XData', numFormat(r.unit))]; %#ok<AGROW>
         case "y"
-            if I.yOffset == 0
+            if I.yOffset == 0 && I.yScale == 1
                 rows = [rows dataTipTextRow(char(r.label), 'YData', numFormat(r.unit))]; %#ok<AGROW>
             else
-                rows = [rows dataTipTextRow(char(r.label), reshape(o.YData, 1, []) - I.yOffset, numFormat(r.unit))]; %#ok<AGROW>
+                rows = [rows dataTipTextRow(char(r.label), (reshape(o.YData, 1, []) - I.yOffset) / I.yScale, numFormat(r.unit))]; %#ok<AGROW>
             end
         case "value"
             rows = [rows dataTipTextRow(char(r.label), 'CData', numFormat(r.unit))]; %#ok<AGROW>
@@ -760,7 +782,7 @@ switch r.kind
             i = idx(1);
             switch r.kind
                 case "x", v = o.XData(i);
-                case "y", v = o.YData(i) - I.yOffset;
+                case "y", v = (o.YData(i) - I.yOffset) / I.yScale;
                 otherwise, v = double(o.CData(min(i, numel(o.CData))));
             end
         end

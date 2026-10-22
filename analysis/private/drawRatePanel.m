@@ -21,7 +21,9 @@ function hk = drawRatePanel(ax, P, look)
 %   group's slot, each in a color of its own (the layer's color when set),
 %   and are named in the figure's legend. The components' group is the
 %   trial group's label, with several items "<item> · <group>" (the item
-%   alone for one group). options.yLim fixes the y axis. Skipped layers are
+%   alone for one group). options.yLimMode sets the y axis (panelYLimits:
+%   "fixed" at options.yLim, "batch" at the run's range; "auto" and
+%   "rows" from the data: its groups share the axis). Skipped layers are
 %   noted (figLayerNotes). HK: figDrawResult's, yName = the rates' unit.
 %
 %   See also renderFigure, firingRate, figurePanelRegistry.
@@ -137,7 +139,7 @@ if nG > 8; ax.XTickLabelRotation = 45; end
 xlim(ax, [0.4 nG + 0.6]);
 flat = style;
 flat.XLim = [];
-flat.YLim = o.yLim;
+[~, flat.YLim] = panelYLimits(look);
 styleAxes(ax, flat);
 if axName ~= "Group"; xlabel(ax, axName, 'Interpreter', 'none'); end
 figLayerNotes(ax, P, look, true);

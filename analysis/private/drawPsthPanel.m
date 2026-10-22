@@ -17,15 +17,21 @@ function hk = drawPsthPanel(ax, P, look)
 %   items only the first is filled, the others are outlines, so each stays
 %   visible. The components' group is the trial group's label, with
 %   several items "<item> · <group>" (or the item alone for one group).
-%   options.normalize divides the rates (normalizeRates); options.yLim fixes the y axis. Style.ShowZeroLine
+%   options.normalize divides the rates (normalizeRates); options.yLimMode
+%   (panelYLimits) sets the y axis: "fixed" at options.yLim, "batch" at
+%   the run's range, else from the data. Style.ShowZeroLine
 %   draws the event's line, Style.ShowStop each group's mean stop latency
 %   (R.stopMean, role "stopLine").
-%   options.stack (with two or more groups) draws one row per group, the
-%   first on top, as a raster lists them (drawStack: the row
-%   step options.stackSpacing x the tallest PSTH, the rows' values on the
-%   left axis, their peaks on the right; options.yLim is not used); a
-%   further item is drawn into the same rows as an outline. The groups are
-%   still offered to the figure's legend.
+%   options.stack "groups" (with two or more groups) draws one row per
+%   group, the first on top, as a raster lists them (drawStack in the rows
+%   of a stackLayout: every row from its zero, the row step
+%   options.stackSpacing x the row height; options.yLimMode "auto" scales
+%   each row to its own reach, "rows" puts every row on one scale (the
+%   tallest reach of any row's PSTH and band), "batch" on the run's range
+%   and "fixed" on options.yLim; the rows' values on the left axis, their
+%   peaks on the right); a further item is drawn into the same rows as an
+%   outline. The groups are still offered to the figure's
+%   legend.
 %   options.display "heatmap" draws the first item as an image instead
 %   (drawHeat): a row per trial group, the first on top (as a stack and a
 %   raster list them), x the PSTH's bins, colored by its rate (after
@@ -60,8 +66,11 @@ function hk = drawPsthPanel(ax, P, look)
 %   above the traces: the y range grows by a small gap and a lane of
 %   boxHeight x its height per group (the first group's on top), so they
 %   never cover a trace (nor options.yLim's range), and the y ticks stay on
-%   the traces' range. Stacked, each row holds its group's box in a lane
-%   above its PSTH's reach (with its band), the row step grown to take it.
+%   the traces' range (whatever options.yLimMode sets it to; HK.yExtent is
+%   the traces' range, not the band's). Stacked, each row holds its group's
+%   box in a lane above its range (stackLayout's Above), the row step grown
+%   to take it, so the box stays outside the row's values in every
+%   yLimMode.
 %   Roles "latencyBox", "latencyMedian", "latencyWhisker", "latencyOutlier"
 %   (the group's label); each part carries its statistics (appdata
 %   LatencyStats: n, nEpochs, q, whiskers, nOutliers, window) for its data
@@ -76,7 +85,9 @@ function hk = drawPsthPanel(ax, P, look)
 %   each member session (R.members) a pale line under them (memberLines,
 %   divided as the series are: memberRates), and the trial groups of
 %   trialGroups "combine" by line style (figSeriesStyle). HK: figDrawResult's,
-%   yName = the rates' unit (a stack or a heat map: its rows' parameters).
+%   yName = the rates' unit (a stack or a heat map: its rows' parameters),
+%   yExtent a stack's reach in the rates' units (every row's, from 0), for
+%   a run's batch range.
 %
 %   See also renderFigure, histTrace, drawStack, figurePanelRegistry.
 
@@ -155,7 +166,7 @@ end
 names = strings(1, nI);
 for i = 1:nI; names(i) = D(i).name; end
 heat = o.display == "heatmap" && nI > 0;   % the first item as an image, a row per trial group
-stacked = ~heat && o.stack && nI > 0 && size(D(1).m, 2) > 1;
+stacked = ~heat && o.stack == "groups" && nI > 0 && size(D(1).m, 2) > 1;
 lb = EphysAnalysisConfig.defaults("LatencyBox");   % none on a spec without it
 if isfield(o, 'latencyBox'); lb = EphysAnalysisConfig.normalizeSection("LatencyBox", o.latencyBox); end
 boxes = [];   % the first item's first-spike latencies per trial group, as box plot statistics (latencyBoxes)
@@ -167,7 +178,7 @@ if lb.enabled && ~heat && nI > 0
     end
 end
 
-hl = struct('hist', o.histStyle, 'fill', o.fill, 'alpha', o.fillAlpha, 'stack', stacked, 'spacing', o.stackSpacing, 'raster', []);
+hl = struct('hist', o.histStyle, 'fill', o.fill, 'alpha', o.fillAlpha, 'stack', stacked);
 if ~isfinite(hl.alpha)
     hl.alpha = 1;
     if nI > 0 && size(D(1).m, 2) > 1 && ~stacked; hl.alpha = 0.5; end
@@ -177,7 +188,7 @@ lss = strings(1, nI);
 if heat
     yName = drawHeat(ax, D(1), P.layers(items(1, 1)).name, look, o, style);
 elseif stacked
-    [yName, lss] = drawRows(ax, D, Ls, items, hl, style, o, boxes, lb, hasMarks);
+    [yName, lss, hk.yExtent] = drawRows(ax, D, Ls, items, hl, style, o, look, boxes, lb, hasMarks);
     for g = 1:size(D(1).m, 2)   % the groups, for the figure's legend (the rows are labeled on the axis)
         gl = string(D(1).R.groups.label(g));
         hk.legendHandles(end+1) = tagPart(line(ax, NaN, NaN, 'Color', D(1).colors(g, :), 'LineWidth', style.LineWidth), "rate", gl);
@@ -243,11 +254,12 @@ if nI > 1 && ~heat   % the items, by line style (in the group's color when there
 end
 if numel(look.W) == 2 && look.W(2) > look.W(1); xlim(ax, look.W); end
 if ~stacked && ~heat
+    [~, yl] = panelYLimits(look);   % "fixed": yLim; "batch": the run's range; else the data's (an auROC: 0 to 1)
     flat = style;
     flat.XLim = [];
-    flat.YLim = o.yLim;
+    flat.YLim = yl;
     styleAxes(ax, flat);
-    if auroc && isempty(o.yLim); ylim(ax, [0 1]); end
+    if auroc && isempty(yl); ylim(ax, [0 1]); end
 end
 if auroc; callMarks(ax, D(1).R, D(1).u, D(1).colors, style); end
 
@@ -257,6 +269,7 @@ colorBy = "group";
 if heat; colorBy = "mark"; end   % over an image the latency lines take the marks' colors, as a heat map's do
 [hm, lm] = figEventMarks(ax, P, look, 1:max(1, nGroups), colorBy);
 if ~isempty(boxes) && ~stacked   % above the traces, the rug and the spans: a band of their own
+    hk.yExtent = ylim(ax);   % the traces' range (a run's batch range measures it, not the band)
     boxBand(ax, boxes, lb, style);
 end
 for m = 1:numel(hm)
@@ -383,40 +396,42 @@ end
 end
 
 
-function [yName, lss] = drawRows(ax, D, Ls, items, hl, style, o, boxes, lb, hasMarks)
+function [yName, lss, ext] = drawRows(ax, D, Ls, items, hl, style, o, look, boxes, lb, hasMarks)
 %drawRows  The stack: the first item's rows by drawStack, every further item drawn into the same rows as an outline.
-%   The step is taken from the tallest PSTH of every item, so each fits its
-%   rows; the y limits of both sides then cover every item's reach. With
-%   BOXES (latencyBoxes: a box per group) each row also takes a lane above
-%   its PSTH's reach (every item's, with its band), LB.boxHeight x that
-%   reach high, after a small gap: the step is taken from reach, gap and
-%   lane together (drawStack's tallest), and each group's box is drawn in
-%   its row's lane; with HASMARKS the top grows a little more, so the
-%   marks' rug along the top edge (figEventMarks) stays clear of the top
-%   row's box.
+%   The rows' layout (stackLayout, Zero: every row from its zero; Mode and
+%   Limits the panel's yLimMode: panelYLimits) is taken from every item's
+%   reach in each row (its PSTH, and its band with Style.ShowSEM), so each
+%   fits its rows; the y limits of both sides then cover every item's
+%   reach. EXT: the rows' reach in the rates' units, [lo hi] (from 0), not
+%   the latency lanes. With BOXES (latencyBoxes: a box per group) each row
+%   also takes a lane above its range (stackLayout's Above: a gap of 0.05
+%   and LB.boxHeight x the row height), so the box stays outside the row's
+%   values in every yLimMode, the step taken from range, gap and lane
+%   together; each group's box is drawn in its row's lane. With HASMARKS
+%   the top grows a little more, so the marks' rug along the top edge
+%   (figEventMarks) stays clear of the top row's box.
 nI = numel(D);
 nG = size(D(1).m, 2);
 lss = strings(1, nI);
-tallest = -Inf;
+rlo = NaN(1, nG);
+rhi = NaN(1, nG);
 for i = 1:nI
-    tallest = max([tallest; D(i).m(:)]);
-end
-lane = 0;
-boxAt = 0;
-if ~isempty(boxes)
-    reach = tallest;
-    for i = 1:nI
-        r = D(i).m(:);
-        if style.ShowSEM; r = [r; D(i).hi(:)]; end %#ok<AGROW>
-        reach = max([reach; r(isfinite(r))]);
+    for g = 1:min(nG, size(D(i).m, 2))
+        v = D(i).m(:, g);
+        if style.ShowSEM; v = [v; D(i).lo(:, g); D(i).hi(:, g)]; end %#ok<AGROW>
+        v = v(isfinite(v));
+        if isempty(v); continue; end
+        rlo(g) = min([rlo(g); v]);
+        rhi(g) = max([rhi(g); v]);
     end
-    if ~(reach > 0); reach = 1; end
-    lane = lb.boxHeight * reach;
-    boxAt = 1.05 * reach;   % the lane's bottom, from the row's baseline: a gap above the reach
-    tallest = boxAt + lane;
 end
+above = 0;   % the latency lanes: a gap and a lane above each row's range
+if ~isempty(boxes); above = 0.05 + lb.boxHeight; end
+[ymode, ylimits] = panelYLimits(look);
+hl.layout = stackLayout(rlo, rhi, o.stackSpacing, Zero=true, Mode=ymode, Limits=ylimits, Above=above);
+ext = [min([0 rlo]) max([0 rhi])];
 P1 = struct('m', D(1).m, 'lo', D(1).lo, 'hi', D(1).hi, 'peak', D(1).peak, ...
-    'peakLabel', "Peak (" + D(1).R.units + ")", 'tallest', tallest);
+    'peakLabel', "Peak (" + D(1).R.units + ")");
 if o.normalize ~= "none" && ~isAuroc(D(1).R); P1.peakLabel = "Peak (normalized)"; end
 if D(1).u == 0; P1.peak = max(D(1).m, [], 1).'; end
 if isAuroc(D(1).R)   % behind the rows
@@ -434,16 +449,17 @@ if hasMembers   % each member session, faint, in its series' row (a result merge
     hold(ax, 'on');
     for i = 1:nI
         if isempty(D(i).members); continue; end
-        Mi = D(i).members;
-        off = base(double(D(i).R.members.series(:)).');   % the row of each member's series
-        memberLines(ax, D(i).R.t, Mi + off, D(i).R, D(i).colors, style);
+        sr = double(D(i).R.members.series(:)).';   % the row of each member's series
+        memberLines(ax, D(i).R.t, D(i).members .* hl.layout.scale(sr) + base(sr), D(i).R, D(i).colors, style);
     end
     hold(ax, 'off');
 end
-if lane > 0   % each group's box in its row's lane, above the row's reach
+if ~isempty(boxes)   % each group's box in its row's lane, above the row's range
+    Ly = hl.layout;
+    lane = lb.boxHeight * Ly.height;
     hold(ax, 'on');
     for g = 1:min(nG, numel(boxes))
-        drawBox(ax, boxes(g), base(g) + boxAt + lane / 2, 0.35 * lane, lb, style);
+        drawBox(ax, boxes(g), Ly.top(g) + 0.05 * Ly.height + lane / 2, 0.35 * lane, lb, style);
     end
     hold(ax, 'off');
     if hasMarks   % room for the marks' rug along the top edge, clear of the top row's box
@@ -465,17 +481,18 @@ for i = 2:nI
     j = items(i, 1);
     for g = 1:min(nG, size(D(i).m, 2))
         b = base(g);
+        k = hl.layout.scale(g);
         gl = string(D(i).R.groups.label(g));
         [c, ls] = figLayerLook(Ls(j), i, D(i).colors(g, :));
         ls = figSeriesStyle(D(i).R, g, ls, Ls(j));
         lss(i) = ls;
         tg = groupTag(D(i).name, gl, nI, nG);
         if style.ShowSEM
-            errorPatch(ax, D(i).R.t, D(i).lo(:, g) + b, D(i).hi(:, g) + b, c, tg, style);
+            errorPatch(ax, D(i).R.t, k * D(i).lo(:, g) + b, k * D(i).hi(:, g) + b, c, tg, style);
         end
-        histTrace(ax, D(i).R.t, D(i).R.edges, D(i).m(:, g), b, c, out, style.LineWidth, tg, ls);
-        reach = D(i).m(:, g);
-        if style.ShowSEM; reach = [reach; D(i).hi(:, g)]; end %#ok<AGROW>
+        histTrace(ax, D(i).R.t, D(i).R.edges, k * D(i).m(:, g), b, c, out, style.LineWidth, tg, ls);
+        reach = k * D(i).m(:, g);
+        if style.ShowSEM; reach = [reach; k * D(i).hi(:, g)]; end %#ok<AGROW>
         hi = max([hi; b + reach(isfinite(reach))]);
         lo = min([lo; b + reach(isfinite(reach))]);
     end

@@ -27,6 +27,8 @@ if isfield(T, key)
         why = why + ".";
     elseif type == ""
         why = why + ": pick such a panel.";
+    elseif ismember(key, ["stack" "stackSpacing"])   % why a type does not stack
+        why = why + ", not of " + typeList(type) + " panels: " + noStack(type);
     else
         why = why + ", not of " + typeList(type) + " panels: pick such a panel.";
     end
@@ -58,7 +60,7 @@ switch key
         tail = "is a setting of the selected panel: pick one in the schematic.";
     case "group"
         tail = "is an option of heat map, unit correlation and spectrogram panels (and a coherence panel drawn over time); " + ...
-            "a heat map of one unit's epochs draws every group.";
+            "a heat map of one unit's epochs and a stacked panel (Stack: one row per group) draw every group.";
     case {"layerName" "layerSource" "layerBinding"}
         tail = "is a setting of the picked layer: pick one in the Layers list.";
     case "layerFollows"
@@ -98,6 +100,19 @@ why = label + " " + tail;
 end
 
 
+function s = noStack(type)
+%noStack  Why a panel type takes no stack, in a sentence's tail.
+switch type
+    case "raster", s = "a raster lists its groups in blocks already.";
+    case "rate", s = "a firing rate panel puts its groups along x.";
+    case "eventTrace", s = "an event-trace panel has a row per line already.";
+    case "corrmap", s = "a unit correlation map is a units-by-units matrix (draw a panel per group with Group shown).";
+    case {"waveforms" "probemap"}, s = "it has no trial groups to stack.";
+    otherwise, s = "pick such a panel.";
+end
+end
+
+
 function T = optionTypes()
 %optionTypes  The Options rows syncFigureEditor shows by panel type: the types, and what more the row needs on them ("" = nothing).
 o = @(types, needs) struct('types', types, 'needs', needs);
@@ -110,7 +125,12 @@ T.baselineMode = o(["psth" "continuous" "heatmap" "corrmap" "rate" "tuning" "spe
 T.baseFrom = T.baselineMode;
 T.psthDisplay = o("psth", "");
 T.normalize = o("psth", "");
-for f = ["stack" "histStyle" "fill"]; T.(f) = o("psth", "with Display: trace"); end
+for f = ["histStyle" "fill"]; T.(f) = o("psth", "with Display: trace"); end
+T.stack = o(["psth" "continuous" "heatmap" "tuning" "spectrum" "spectrogram" "coherence"], ...
+    "on a PSTH with Display: trace, on a heat map with Rows: the layer's units or channels (a raster lists its groups " + ...
+    "in blocks already, a firing rate panel puts them along x; a waveforms, probe map, unit correlation or event-trace " + ...
+    "panel has no groups over a shared axis to stack)");
+T.stackSpacing = T.stack;
 T.panelColormap = o("psth", "with Display: heat map");
 T.param = o("tuning", "");
 T.rateDisplay = o("rate", "");
@@ -125,7 +145,7 @@ T.backColor = T.yTicks;
 T.firstSpike = T.yTicks;
 T.latencyBox = o("psth", "with Display: trace");
 T.heatRows = o("heatmap", "");
-for f = ["contTrials" "contDisplay" "statistic" "errorType" "stackSpacing"]; T.(f) = o("continuous", ""); end
+for f = ["contTrials" "statistic" "errorType"]; T.(f) = o("continuous", ""); end
 T.maskAfterStop = o(["raster" "psth" "heatmap"], spikesHeat);
 T.order = o("heatmap", "with Rows: the layer's units or channels");
 for f = ["etDisplay" "etTrials" "etColorBy" "etHeight" "etEdge" "etMinWidth" "etLineStyle" "etBaseline" "etBaseStyle" "etRowSpacing"]
@@ -134,7 +154,8 @@ end
 T.value = o("probemap", "");
 for f = ["metric" "correlation" "fisherZ"]; T.(f) = o("corrmap", ""); end
 T.yLim = o(["psth" "continuous" "waveforms" "rate" "tuning" "spectrum" "coherence"], ...
-    "on a PSTH with Display: trace, on a coherence panel unless drawn over time");
+    "on a PSTH with Display: trace, on a coherence panel unless drawn over time (an image's scale is its Color limits)");
+T.yLimMode = T.yLim;
 T.cLim = o(["psth" "heatmap" "probemap" "corrmap" "spectrogram" "coherence"], ...
     "on a PSTH with Display: heat map, on a coherence panel drawn over time");
 T.spTimeBase = o(["spectrum" "coherence"], "");

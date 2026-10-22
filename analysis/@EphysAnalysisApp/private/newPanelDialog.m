@@ -21,7 +21,8 @@ function c = newPanelDialog(fig, F, anchor, lines, params)
 %                     of PARAMS)
 %     psth            Bin and Smooth (ms), Measure, Display (a trace or a
 %                     heat map)
-%     continuous      Display (lines or stacked rows), Error band
+%     continuous      Stack (off, a row per group or per channel), Error
+%                     band
 %     heatmap         Rows (the layer's units or channels, or one unit's
 %                     epochs), Bin (ms)
 %     waveforms       Layout (grid or probe)
@@ -216,8 +217,9 @@ switch t
             "heat map (a row per group)"], "ItemsData", ["trace" "heatmap"], "Value", def.display, ...
             "Tooltip", "Each trial group's PSTH as bars or a line, or the unit's PSTH as an image with a row per group.")};
     case "continuous"
-        specs(end+1, :) = {"Display", "Display:", @(gr) uidropdown(gr, "Items", ["lines" "stacked rows"], ...
-            "ItemsData", ["lines" "stacked"], "Value", def.display, "Tooltip", "Overlaid lines, or a row of its own per channel.")};
+        specs(end+1, :) = {"Stack", "Stack:", @(gr) uidropdown(gr, "Items", ["Off (overlaid)" "One row per group" ...
+            "One row per channel"], "ItemsData", ["off" "groups" "items"], "Value", def.stack, ...
+            "Tooltip", "Overlaid lines, a row of its own per trial group, or a row of its own per channel.")};
         specs(end+1, :) = {"ErrorType", "Error band:", @(gr) uidropdown(gr, "Items", ["off" "mean ± SEM" "mean ± SD" ...
             "bootstrap 95% CI" "interquartile range"], "ItemsData", EphysAnalysisConfig.AuxErrorTypes, "Value", def.errorType, ...
             "Tooltip", "The band around the epochs' mean.")};
@@ -376,6 +378,7 @@ if isfield(P, 'BinMs'); o.bins.BinSec = P.BinMs.Value / 1000; end
 if isfield(P, 'SmoothMs'); o.bins.SmoothSec = P.SmoothMs.Value / 1000; end
 if isfield(P, 'Measure'); o.measure = string(P.Measure.Value); end
 if isfield(P, 'Display'); o.display = string(P.Display.Value); end
+if isfield(P, 'Stack'); o.stack = string(P.Stack.Value); end
 if isfield(P, 'ErrorType'); o.errorType = string(P.ErrorType.Value); end
 if isfield(P, 'Rows'); o.rows = string(P.Rows.Value); end
 if isfield(P, 'Layout'); o.layout = string(P.Layout.Value); end

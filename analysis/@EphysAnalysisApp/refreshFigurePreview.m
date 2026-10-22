@@ -26,7 +26,10 @@ function refreshFigurePreview(obj, opts)
 %   FigureSessionResults; the "Figure:" drop-down under the preview
 %   (FigureSessionDropDown, shown when there are several: one per subject
 %   or trial group) picks the one drawn, and the status line says how many
-%   sessions were merged and skipped. The active dataset is not used. Redraw
+%   sessions were merged and skipped. The active dataset is not used. A
+%   panel with Y limits "Shared by batch" (yLimMode "batch") is drawn on its
+%   own range, the one observation not knowing the run's: the status line
+%   says the run shares it. Redraw
 %   (onFigureSessionPicked) draws another of the kept figures without
 %   computing.
 %   It draws into the selected figure's own container (FigurePreviewPanel,
@@ -183,6 +186,7 @@ L.Text = sprintf("%s, %s on %s (%.1f s); right-click to change colors, lines and
 if obj.FigurePreviewSeconds >= obj.FigureAutoPreviewSeconds && obj.FigureAutoCheckBox.Value
     L.Text = L.Text + ": slow, so edits wait for Preview";
 end
+L.Text = L.Text + batchNote(spec);
 end
 
 
@@ -304,7 +308,16 @@ if nOther > 0
 end
 if numel(K.res) > 1; txt = txt + " — " + e.label; end
 if secs > 0; txt = txt + sprintf(" (%.1f s)", secs); end
-L.Text = txt + "; right-click to change colors, lines and fonts";
+L.Text = txt + "; right-click to change colors, lines and fonts" + batchNote(spec);
+end
+
+
+function t = batchNote(spec)
+%batchNote  The status line's word on panels whose y range a run shares (yLimMode "batch"): the preview draws its own.
+t = "";
+ids = figureBatchPanels(spec);
+if isempty(ids); return; end
+t = "; Y limits of " + strjoin(ids, ", ") + " are shared by every observation when generated (here this one's own range)";
 end
 
 

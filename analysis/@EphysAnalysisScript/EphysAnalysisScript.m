@@ -17,7 +17,14 @@ classdef EphysAnalysisScript
     %                                 renderFigure, exportFigure
     %                                 (figureOutputName), reportImage and
     %                                 reportPdfPage, the report entry with
-    %                                 figureCaption. After the datasets, a
+    %                                 figureCaption. A figure with a
+    %                                 panel of yLimMode "batch" is measured
+    %                                 first over every dataset
+    %                                 (figureYExtents, figureBatchYLim:
+    %                                 batchYLim<k>) and drawn at that range
+    %                                 (renderFigure BatchYLim=), a session
+    %                                 figure over its observations, as the
+    %                                 runner does. After the datasets, a
     %                                 "Session figures" block per enabled
     %                                 session figure (sfspec<j>):
     %                                 sessionTable, a source per session,
@@ -191,6 +198,28 @@ classdef EphysAnalysisScript
             end
             L(end+1, 1) = "";
 
+            % --- shared y ranges ---------------------------------------------------------
+            drawsAny = X.Enabled || withImages || withPages;
+            batchFig = false(1, numel(fids));
+            for k = 1:numel(fids)
+                batchFig(k) = drawsAny && ~isempty(figureBatchPanels(cfg.figureFor(fids(k))));
+                if ~batchFig(k); continue; end
+                L(end+1, 1) = "%% Shared y range of " + fids(k) + " (yLimMode ""batch""): every observation on every dataset measured first";
+                L(end+1, 1) = "yext = {};";
+                L(end+1, 1) = "for k = 1:numel(outs)";
+                L(end+1, 1) = "    src = loadAnalysisSource(outs(k), Key=keys(k));";
+                L(end+1, 1) = "    if figureSkipReason(src, fspec" + k + ") == """"";
+                L(end+1, 1) = "        obsT = figureObservations(src, fspec" + k + ");";
+                L(end+1, 1) = "        for i = 1:height(obsT)   % each observation drawn hidden: its y extent";
+                L(end+1, 1) = "            yext{end+1} = figureYExtents(figureCompute(src, fspec" + k + ", Observation=obsT(i, :)), fspec" + k + "); %#ok<SAGROW>";
+                L(end+1, 1) = "        end";
+                L(end+1, 1) = "    end";
+                L(end+1, 1) = "    src.outputs.clearCache();";
+                L(end+1, 1) = "end";
+                L(end+1, 1) = "batchYLim" + k + " = figureBatchYLim(yext);   % the union: every page of " + fids(k) + " on one scale";
+                L(end+1, 1) = "";
+            end
+
             % --- run -------------------------------------------------------------------
             L(end+1, 1) = "%% Run: every figure on every dataset";
             L(end+1, 1) = "for k = 1:numel(outs)";
@@ -205,7 +234,7 @@ classdef EphysAnalysisScript
             L(end+1, 1) = "    folder = figureFileName(exportOpts.Folder, struct('OutputFolder', folders(k), 'OutputRoot', outputRoot, ...";
             L(end+1, 1) = "        'Root', root, 'Name', name), Kind=""folder"");";
             for k = 1:numel(fids)
-                L = [L; EphysAnalysisScript.figureLines(fids(k), k, X.Enabled, doReport, withImages, withPages)]; %#ok<AGROW>
+                L = [L; EphysAnalysisScript.figureLines(fids(k), k, X.Enabled, doReport, withImages, withPages, batchFig(k))]; %#ok<AGROW>
             end
             L(end+1, 1) = "    src.outputs.clearCache();   % free this dataset's spikes and signals";
             if doReport && P.PerDataset
@@ -538,6 +567,24 @@ classdef EphysAnalysisScript
                 C(end+1, 1) = "results = struct('index', {}, 'observation', {}, 'facet', {}, 'group', {}, 'label', {}, 'status', {}, 'message', {}, 'F', {});";
                 C(end+1, 1) = "perSession = cell(nObs, height(sessions));   % each dataset's own figure, per observation";
             end
+            batch = (doExport || withImages || withPages) && ~isempty(figureBatchPanels(cfg.figureFor(id)));
+            bArg = "";
+            yArg = "";
+            if batch   % yLimMode "batch": every observation measured first (runSessionFigure holds them; here they are computed again)
+                C(end+1, 1) = "yext = {};   % yLimMode ""batch"": every observation measured first, then drawn at the union of their y extents";
+                C(end+1, 1) = "for i = 1:nObs";
+                C(end+1, 1) = "    try";
+                C(end+1, 1) = "        res = figureSessionCompute(sources, sessions, fspec, Observation=obsT(i, :));";
+                C(end+1, 1) = "        for e = reshape(res, 1, [])";
+                C(end+1, 1) = "            if e.status == ""done""; yext{end+1} = figureYExtents(e.F, fspec); end %#ok<SAGROW>";
+                C(end+1, 1) = "        end";
+                C(end+1, 1) = "    catch";
+                C(end+1, 1) = "    end";
+                C(end+1, 1) = "end";
+                C(end+1, 1) = "batchYLim = figureBatchYLim(yext);";
+                bArg = ", BatchYLim=batchYLim";
+                yArg = ", YShared=max([batchYLim.n])";
+            end
             C(end+1, 1) = "lastSessions = sessions;";
             C(end+1, 1) = "for i = 1:nObs";
             C(end+1, 1) = "    try";
@@ -603,9 +650,9 @@ classdef EphysAnalysisScript
                 D(end+1, 1) = "fig = newExportFigure(exportOpts, e.F, fspec);";
                 D(end+1, 1) = "closer = onCleanup(@() close(fig));   % closes the page on a failure too";
                 if withImages
-                    D(end+1, 1) = "h = renderFigure(e.F, fspec, fig);";
+                    D(end+1, 1) = "h = renderFigure(e.F, fspec, fig" + bArg + ");";
                 else
-                    D(end+1, 1) = "renderFigure(e.F, fspec, fig);";
+                    D(end+1, 1) = "renderFigure(e.F, fspec, fig" + bArg + ");";
                 end
                 D(end+1, 1) = "written = strings(1, 0);";
                 if doExport
@@ -656,7 +703,7 @@ classdef EphysAnalysisScript
                 drawn = "Files=E(q).files";
                 if withImages; drawn = drawn + ", Images=E(q).images"; end
                 if withPages; drawn = drawn + ", Pages=E(q).pages"; end
-                C(end+1, 1) = "    report = addReportFigure(report, rspec, E(q).F, " + drawn + ", Caption=figureCaption(fspec, obsT(E(q).rows, :), Sessions=E(q).F.sessions));";
+                C(end+1, 1) = "    report = addReportFigure(report, rspec, E(q).F, " + drawn + ", Caption=figureCaption(fspec, obsT(E(q).rows, :), Sessions=E(q).F.sessions" + yArg + "));";
             end
             C(end+1, 1) = "    fprintf('sessions: %s: %s done (%d observation(s), %d file(s))\n', E(q).label, fspec.id, E(q).done, numel(E(q).files));";
             C(end+1, 1) = "end";
@@ -685,10 +732,19 @@ classdef EphysAnalysisScript
             B = regexprep(B, '^\s+$', '');
         end
 
-        function L = figureLines(id, k, doExport, doReport, withImages, withPages)
+        function L = figureLines(id, k, doExport, doReport, withImages, withPages, batch)
             %figureLines  One figure on one dataset, a page per observation, as EphysAnalysisRunner.runDataset draws it.
             %   The figure's spec is fspec<K> (written above); figureCompute is
             %   what the runner's computeFigure calls, without its checkpoints.
+            %   BATCH (default false): its "batch" panels are drawn at
+            %   batchYLim<K> (measured above), its caption says so.
+            if nargin < 7; batch = false; end
+            bArg = "";
+            yArg = "";
+            if batch
+                bArg = ", BatchYLim=batchYLim" + k;
+                yArg = ", YShared=max([batchYLim" + k + ".n])";
+            end
             B = strings(0, 1);
             B(end+1, 1) = "";
             B(end+1, 1) = "% --- " + id + " (figure) ---";
@@ -730,9 +786,9 @@ classdef EphysAnalysisScript
                 B(end+1, 1) = "            fig = newExportFigure(exportOpts, fres, fspec);   % a page grows with the arrangement's rows";
                 B(end+1, 1) = "            closer = onCleanup(@() close(fig));   % closes the page on a failure too";
                 if withImages
-                    B(end+1, 1) = "            h = renderFigure(fres, fspec, fig);";
+                    B(end+1, 1) = "            h = renderFigure(fres, fspec, fig" + bArg + ");";
                 else
-                    B(end+1, 1) = "            renderFigure(fres, fspec, fig);";
+                    B(end+1, 1) = "            renderFigure(fres, fspec, fig" + bArg + ");";
                 end
                 B(end+1, 1) = "            written = strings(1, 0);";
                 if doExport
@@ -754,7 +810,7 @@ classdef EphysAnalysisScript
                 drawn = "Files=files";
                 if withImages; drawn = drawn + ", Images=images"; end
                 if withPages; drawn = drawn + ", Pages=pages"; end
-                B(end+1, 1) = "        report = addReportFigure(report, fspecKind, fres, " + drawn + ", Caption=figureCaption(fspec, obsT, Dataset=name, Auroc=acalls));";
+                B(end+1, 1) = "        report = addReportFigure(report, fspecKind, fres, " + drawn + ", Caption=figureCaption(fspec, obsT, Dataset=name, Auroc=acalls" + yArg + "));";
             end
             B(end+1, 1) = "        fprintf('%s: %s done (%d observation(s), %d file(s))\n', name, fspec.id, nObs, numel(files));";
             B(end+1, 1) = "    catch ME";

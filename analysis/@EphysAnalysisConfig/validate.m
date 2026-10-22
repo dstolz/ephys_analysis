@@ -62,7 +62,7 @@ function issues = validate(obj, opts)
 %               toolbox); a signal's baseline, in a
 %               continuous panel or a heat map of a signal, overlapping
 %               the panel's window --, histStyle, normalize, fillAlpha,
-%               the PSTH's stackSpacing, display (trace / heatmap),
+%               a PSTH's display (trace / heatmap),
 %               colormap (a warning for no colormap function) and color
 %               limits, the raster sort, a raster's first-spike marks
 %               and a PSTH's latency box plot while enabled (the latency
@@ -70,8 +70,8 @@ function issues = validate(obj, opts)
 %               panel's window; marker, size, color -- a warning for not
 %               groups or a color --, the box's line style and width,
 %               boxHeight 0.02-0.5, fillAlpha, the outliers), continuous
-%               display / statistic / transform / errorType and its
-%               toolbox, stackSpacing, trials (off / faint / only) and
+%               statistic / transform / errorType and its
+%               toolbox, trials (off / faint / only) and
 %               maxTrials (whole, >= 1), heatmap rows (items / trials:
 %               one unit's epochs -- a spike or train layer, following
 %               the observation or fixed to one unit, no auROC baseline,
@@ -81,7 +81,12 @@ function issues = validate(obj, opts)
 %               observation), probemap value, corrmap metric /
 %               correlation, the rate display, the tuning param /
 %               seriesParam (names, not the same one), the waveform
-%               settings, y / color limits; the spectral panels'
+%               settings, y / color limits, the stack (stackModes:
+%               off, groups, a continuous panel's items; a warning on a
+%               heat map of trials, which does not use it) and a
+%               positive stackSpacing on every type that stacks, the
+%               yLimMode (YLimModes; "fixed" needs a yLim) on every type
+%               with y limits; the spectral panels'
 %               (spectrum, spectrogram, coherence) options by
 %               chronuxSettings' rules (figureChronuxSettings: tapers,
 %               fpass, err, errP, detrend, scale, spikeFs, the moving
@@ -561,9 +566,6 @@ for k = 1:numel(obj.Figures)
                 if ~(isnan(op.fillAlpha) || (op.fillAlpha >= 0 && op.fillAlpha <= 1))
                     add("Figures", o0 + ".fillAlpha", "error", "fillAlpha is an opacity from 0 to 1 (NaN = automatic).");
                 end
-                if ~(isscalar(op.stackSpacing) && isfinite(op.stackSpacing) && op.stackSpacing > 0)
-                    add("Figures", o0 + ".stackSpacing", "error", "stackSpacing must be positive (1 = the tallest PSTH reaches the next row).");
-                end
                 if ~ismember(op.display, ["trace" "heatmap"])
                     add("Figures", o0 + ".display", "error", "A PSTH's display is trace (bars or a line per group) or heatmap (a row per group).");
                 end
@@ -577,9 +579,6 @@ for k = 1:numel(obj.Figures)
             case "continuous"
                 checkFigBaseline(op.baseline, EphysAnalysisConfig.baselineModes("continuous"), o0, A);
                 checkSignalBaseline(op.baseline, pw, o0);
-                if ~ismember(op.display, ["lines" "stacked"])
-                    add("Figures", o0 + ".display", "error", "A continuous signal panel's display is lines or stacked.");
-                end
                 if ~ismember(op.statistic, EphysAnalysisConfig.AuxStatistics)
                     add("Figures", o0 + ".statistic", "error", "The statistic is one of " + strjoin(EphysAnalysisConfig.AuxStatistics, ", ") + ".");
                 end
@@ -593,9 +592,6 @@ for k = 1:numel(obj.Figures)
                     add("Figures", o0 + ".errorType", "error", "The bootstrap 95% CI needs the Statistics and Machine Learning Toolbox (bootci).");
                 elseif op.errorType == "iqr" && ~(license('test', 'Statistics_Toolbox') && exist('prctile', 'file'))
                     add("Figures", o0 + ".errorType", "error", "The interquartile range needs the Statistics and Machine Learning Toolbox (prctile).");
-                end
-                if ~(isnan(op.stackSpacing) || (isfinite(op.stackSpacing) && op.stackSpacing > 0))
-                    add("Figures", o0 + ".stackSpacing", "error", "stackSpacing is positive (NaN = automatic).");
                 end
                 if ~ismember(op.trials, ["off" "faint" "only"])
                     add("Figures", o0 + ".trials", "error", "A continuous signal panel's trials are off, faint (each epoch's trace " + ...
@@ -684,6 +680,8 @@ for k = 1:numel(obj.Figures)
             case "eventTrace"
                 checkEventTrace(op, o0);
         end
+        if isfield(op, 'stack'); checkStack(pj.type, op, o0); end
+        if isfield(op, 'yLimMode'); checkYLimMode(op, o0); end
     end
 
     % the style (its error drawn as a bootstrap CI by a PSTH's bands, a rate panel's bars, a tuning curve's error bars)
@@ -894,6 +892,34 @@ issues = table(Section, Field, Severity, Message);
         %checkPanelAuroc  A PSTH's or a spike heat map's auROC settings under baseline Mode "auroc", against its bins.
         if hOp.baseline.Mode == "auroc"
             checkAuroc(hOp.auroc, hOp.bins.BinSec, "Figures", hO0 + ".auroc", true);
+        end
+    end
+
+    function checkStack(hType, hOp, hO0)
+        %checkStack  A panel's stack and stackSpacing: one vocabulary for every type that stacks (stackModes).
+        hModes = EphysAnalysisConfig.stackModes(hType);
+        hWho = "A " + hType + " panel";
+        if ~ismember(hOp.stack, hModes)
+            add("Figures", hO0 + ".stack", "error", sprintf("%s's stack is one of %s, not ""%s"" (off: overlaid; groups: a row " + ...
+                "per trial group; items: a continuous panel's row per channel).", hWho, strjoin(hModes, ", "), hOp.stack));
+        elseif hType == "heatmap" && hOp.stack ~= "off" && isfield(hOp, 'rows') && hOp.rows == "trials"
+            add("Figures", hO0 + ".stack", "warning", "A heat map of one unit's epochs draws every trial group in blocks " + ...
+                "already (rasterByGroup): its stack is not used.");
+        end
+        if ~(isscalar(hOp.stackSpacing) && isfinite(hOp.stackSpacing) && hOp.stackSpacing > 0)
+            add("Figures", hO0 + ".stackSpacing", "error", "stackSpacing must be positive: the row step x the row height " + ...
+                "(1: the rows touch; below 1 they overlap).");
+        end
+    end
+
+    function checkYLimMode(hOp, hO0)
+        %checkYLimMode  A panel's yLimMode: one of YLimModes; "fixed" needs its yLim.
+        if ~ismember(hOp.yLimMode, EphysAnalysisConfig.YLimModes)
+            add("Figures", hO0 + ".yLimMode", "error", "yLimMode is auto (each axis or stacked row fits itself), rows (a " + ...
+                "stack's rows share one scale), batch (one range for every observation of a run) or fixed (yLim), not """ + ...
+                hOp.yLimMode + """.");
+        elseif hOp.yLimMode == "fixed" && isempty(hOp.yLim)
+            add("Figures", hO0 + ".yLim", "error", "yLimMode fixed draws the y axis at yLim: give [lo hi] with lo < hi.");
         end
     end
 

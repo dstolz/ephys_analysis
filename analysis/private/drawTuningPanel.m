@@ -14,13 +14,24 @@ function hk = drawTuningPanel(ax, P, look)
 %   role "curve". The components' group
 %   is the series' label, with several items "<item> · <series>" (the item
 %   alone for one series). The legend gets the series (more than one), then
-%   the items (more than one). options.yLim fixes the y axis; with
+%   the items (more than one). options.yLimMode sets the y axis
+%   (panelYLimits: "fixed" at options.yLim, "batch" at the run's range);
+%   with
 %   options.waveform.mode on the first unit's waveform is an inset. Skipped
 %   layers are noted (figLayerNotes). A result merged across sessions
 %   (figureSessionCompute) draws its series (the sessions, subjects or all)
 %   as the curves, each member session (R.members) a pale line under them
 %   (memberLines), the trial groups of "combine" by line style
-%   (figSeriesStyle). HK: figDrawResult's, yName = the rates' unit.
+%   (figSeriesStyle). options.stack "groups" (with two or more series)
+%   draws a row per series instead, the first on top, every item in each
+%   row, in the rows of stackLayout (one scale, the row step
+%   options.stackSpacing x the row height, the tallest row's reach of
+%   curves and error bars; each row on its own scale with
+%   options.yLimMode "auto", else one), a gray line along each row
+%   (stackBaseLines), the rows named by their series on the left y axis
+%   and each row's top on the right (stackAxes); y label "<series
+%   parameter> (<height> <units> per row)" (stackYName). HK:
+%   figDrawResult's, yName = the rates' unit, yExtent a stack's reach.
 %
 %   See also renderFigure, tuningCurve, figurePanelRegistry.
 
@@ -48,17 +59,15 @@ if nI == 0
 end
 
 R0 = P.layers(items(1, 1)).R;
-hold(ax, 'on');
-lss = strings(1, nI);
+% each item's curves [nX x nSeries]: mean and error edges, its name and x
+C = struct('xv', {}, 'm', {}, 'lo', {}, 'hi', {}, 'M', {});
 names = strings(1, nI);
-xAll = [];
 for i = 1:nI
     j = items(i, 1);
     u = items(i, 2);
     R = P.layers(j).R;
     [nX, ~, nS] = size(R.mean);
     if R.xIsNumeric; xv = double(R.x(:)); else; xv = (1:nX).'; end
-    xAll = [xAll; xv]; %#ok<AGROW>
     if u == 0
         M = R.layerMean;
         m = reshape(M.mean, nX, nS); lo = reshape(M.lo, nX, nS); hi = reshape(M.hi, nX, nS);
@@ -70,7 +79,7 @@ for i = 1:nI
         names(i) = nm(u);
         if size(R.mean, 2) == 1 && P.layers(j).name ~= ""; names(i) = P.layers(j).name; end
     end
-    colors = groupPalette(R.groups, style);
+    Mm = [];
     if isfield(R, 'members') && isstruct(R.members) && isfield(R.members, 'mean') && ~isempty(R.members.mean)
         Mm = R.members.mean;   % [nX x nTiles x nMembers]: the member sessions (merged across sessions, ShowMembers)
         if u == 0
@@ -78,9 +87,62 @@ for i = 1:nI
         else
             Mm = reshape(Mm(:, u, :), nX, []);
         end
-        memberLines(ax, xv, Mm, R, colors, style, R.series);
+    end
+    C(i) = struct('xv', xv, 'm', m, 'lo', lo, 'hi', hi, 'M', Mm);
+end
+% a stack: a row per series, the first on top, every item in each
+nSmax = 0;
+for i = 1:nI; nSmax = max(nSmax, size(C(i).m, 2)); end
+stacked = isfield(o, 'stack') && o.stack == "groups" && nSmax > 1;
+L = [];
+rowNames = strings(1, 0);
+if stacked
+    rowNames = reshape(string(R0.series), 1, []);
+    rowNames(end+1:nSmax) = "";
+    rowNames = rowNames(1:nSmax);
+    rlo = NaN(1, nSmax);
+    rhi = NaN(1, nSmax);
+    for i = 1:nI
+        for k = 1:size(C(i).m, 2)
+            v = C(i).m(:, k);
+            if style.ShowSEM; v = [v; C(i).lo(:, k); C(i).hi(:, k)]; end %#ok<AGROW>
+            v = double(v(isfinite(v)));
+            if isempty(v); continue; end
+            rlo(k) = min([rlo(k); v]);
+            rhi(k) = max([rhi(k); v]);
+        end
+    end
+    [ymode, ylimits] = panelYLimits(look);
+    L = stackLayout(rlo, rhi, o.stackSpacing, Mode=ymode, Limits=ylimits);
+    hk.yExtent = [min(rlo) max(rhi)];
+end
+hold(ax, 'on');
+lss = strings(1, nI);
+xAll = [];
+for i = 1:nI
+    j = items(i, 1);
+    R = P.layers(j).R;
+    xv = C(i).xv;
+    m = C(i).m; lo = C(i).lo; hi = C(i).hi;
+    nS = size(m, 2);
+    xAll = [xAll; xv]; %#ok<AGROW>
+    if stacked && i == 1 && numel(xv) > 0
+        xr = [min(xv) max(xv)];
+        if xr(2) > xr(1); xr = xr + [-1 1] * 0.08 * diff(xr); end
+        stackBaseLines(ax, xr, L, rowNames);
+    end
+    colors = groupPalette(R.groups, style);
+    if ~isempty(C(i).M)
+        if stacked
+            sr = double(R.members.series(:)).';
+            memberLines(ax, xv, C(i).M .* L.scale(sr) + L.offset(sr), R, colors, style, R.series);
+        else
+            memberLines(ax, xv, C(i).M, R, colors, style, R.series);
+        end
     end
     for k = 1:nS
+        off = 0; sc = 1;
+        if stacked; off = L.offset(k); sc = L.scale(k); end
         sl = string(R.series(k));
         [c, ls] = figLayerLook(Ls(j), i, colors(k, :));
         ls = figSeriesStyle(R, k, ls, Ls(j));
@@ -91,13 +153,13 @@ for i = 1:nI
             if nS > 1; tg = names(i) + " · " + sl; end
         end
         if style.ShowSEM
-            h = errorbar(ax, xv, m(:, k), m(:, k) - lo(:, k), hi(:, k) - m(:, k), 'o', 'LineStyle', ls, 'Color', c, ...
+            h = errorbar(ax, xv, sc * m(:, k) + off, sc * (m(:, k) - lo(:, k)), sc * (hi(:, k) - m(:, k)), 'o', 'LineStyle', ls, 'Color', c, ...
                 'LineWidth', style.LineWidth, 'MarkerSize', 4, 'MarkerFaceColor', c, 'CapSize', 3);
         else
-            h = plot(ax, xv, m(:, k), 'o', 'LineStyle', ls, 'Color', c, 'LineWidth', style.LineWidth, ...
+            h = plot(ax, xv, sc * m(:, k) + off, 'o', 'LineStyle', ls, 'Color', c, 'LineWidth', style.LineWidth, ...
                 'MarkerSize', 4, 'MarkerFaceColor', c);
         end
-        tagPart(h, "curve", tg);
+        stackMark(tagPart(h, "curve", tg), off, sc);
         if i == 1 && nS > 1
             hk.legendHandles(end+1) = h;
             hk.legendLabels(end+1) = sl;
@@ -129,9 +191,15 @@ if numel(unique(xAll)) > 1
 end
 flat = style;
 flat.XLim = [];
-flat.YLim = o.yLim;
+[~, flat.YLim] = panelYLimits(look);
+if stacked; flat.YLim = []; end
 styleAxes(ax, flat);
 xlabel(ax, R0.param, 'Interpreter', 'none');
+if stacked
+    rightName = "Row top";
+    if R0.units ~= ""; rightName = "Row top (" + R0.units + ")"; end
+    stackAxes(ax, L, rowNames, rightName);
+end
 wave = EphysAnalysisConfig.normalizeSection("Waveform", o.waveform);
 first = find(items(:, 2) > 0, 1);
 if wave.mode ~= "off" && ~isempty(first) && isfield(P.layers(items(first, 1)).R, 'waveforms')
@@ -139,4 +207,9 @@ if wave.mode ~= "off" && ~isempty(first) && isfield(P.layers(items(first, 1)).R,
 end
 figLayerNotes(ax, P, look, true);
 hk.yName = R0.units;
+if stacked
+    what = "Series";
+    if isfield(R0, 'seriesParam') && string(R0.seriesParam) ~= ""; what = string(R0.seriesParam); end
+    hk.yName = stackYName(what, L, R0.units);
+end
 end

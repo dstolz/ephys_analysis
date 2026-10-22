@@ -36,6 +36,12 @@ function rows = runSessionFigure(obj, id, idx, opts)
 %   ({nObs x nSessions}: each dataset's own figure), config and created;
 %   the file is added to the first row's Files. A failure is an "error"
 %   row; EphysAnalysisRunner:Canceled is rethrown.
+%   A panel with options.yLimMode "batch" shares one y range over the
+%   figure's every matched observation: they are all computed first (held
+%   for their pages, as Export.Data holds them), measured (figureYExtents,
+%   figureBatchYLim; appended to r.BatchYLim) and then drawn at the union
+%   (renderFigure BatchYLim=), each caption saying "y shared across <n>
+%   observations".
 %
 %   See also figureSessionCompute, EphysAnalysisRunner.computeSessionFigure,
 %   EphysAnalysisRunner.run.
@@ -100,15 +106,36 @@ usedNames = strings(1, 0);   % the file names written in this run: a sanitized n
 results = struct('index', {}, 'observation', {}, 'facet', {}, 'group', {}, 'label', {}, 'status', {}, 'message', {}, 'F', {});
 perSession = cell(nObs * withData, height(sessions));
 lastSessions = sessions;
+% "batch" panels: every observation computed and measured first, then drawn at the union of their y extents
+BY = [];
+pre = {};
+if ~isempty(figureBatchPanels(spec)) && ((opts.Export) || withImages || withPages)
+    pre = cell(nObs, 4);
+    ext = cell(1, 0);
+    for i = 1:nObs
+        obj.progress(opts.Span(1), sprintf("sessions: %s y range (%d/%d)", id, i, nObs));   % cancel() stops here
+        t1 = tic;
+        [res, lastSessions, Fs] = computeOne(sources, sessions, spec, T(i, :));
+        pre(i, :) = {res, lastSessions, Fs, toc(t1)};
+        for e = reshape(res, 1, [])
+            if e.status == "done"; ext{end+1} = figureYExtents(e.F, spec); end %#ok<AGROW>
+        end
+    end
+    Bf = figureBatchYLim(ext);
+    BY = struct('figure', cell(1, 0), 'id', cell(1, 0), 'lim', cell(1, 0), 'n', cell(1, 0));
+    for b = Bf; BY(end+1) = struct('figure', id, 'id', b.id, 'lim', b.lim, 'n', b.n); end %#ok<AGROW>
+    obj.BatchYLim = [obj.BatchYLim BY];
+end
+nShared = NaN;
+if ~isempty(BY); nShared = max([BY.n]); end
 for i = 1:nObs
     obj.progress(opts.Span(1) + diff(opts.Span) * (i - 1) / nObs, sprintf("sessions: %s (%d/%d)", id, i, nObs));   % cancel() stops here
     t1 = tic;
-    try
-        [res, lastSessions, Fs] = figureSessionCompute(sources, sessions, spec, Observation=T(i, :));
-    catch ME
-        if ME.identifier == "EphysAnalysisRunner:Canceled"; rethrow(ME); end
-        res = struct('facet', "all", 'group', "", 'label', "all", 'F', [], 'status', "error", 'message', string(ME.message));
-        Fs = cell(1, height(sessions));
+    if ~isempty(pre)   % computed while measuring
+        [res, lastSessions, Fs] = pre{i, 1:3};
+        pre(i, 1:3) = {[], [], []};
+    else
+        [res, lastSessions, Fs] = computeOne(sources, sessions, spec, T(i, :));
     end
     if withData; perSession(i, :) = Fs; end
     for e = reshape(res, 1, [])
@@ -139,7 +166,7 @@ for i = 1:nObs
             if (opts.Export && ~kept) || withImages || withPages
                 fig = newExportFigure(X, e.F, spec);
                 closer = onCleanup(@() close(fig));   % closes the page on a failure too
-                h = renderFigure(e.F, spec, fig);
+                h = renderFigure(e.F, spec, fig, BatchYLim=BY);
                 written = string.empty(1, 0);
                 if opts.Export && ~kept
                     written = exportFigure(fig, base, Format=X.Formats, Dpi=X.Dpi);
@@ -181,7 +208,7 @@ for q = 1:numel(E)
     if ~isempty(E(q).why); msg = msg + "; not drawn: " + strjoin(E(q).why, "; "); end
     if opts.Report
         obj.Report = addReportFigure(obj.Report, rspec, E(q).F, Files=E(q).files, Images=E(q).images, Pages=E(q).pages, ...
-            Caption=figureCaption(spec, T(E(q).rows, :), Sessions=E(q).F.sessions));   % this figure's observations and its facet's sessions
+            Caption=figureCaption(spec, T(E(q).rows, :), Sessions=E(q).F.sessions, YShared=nShared));   % this figure's observations and its facet's sessions
     end
     obj.Results(end+1, :) = {label, id, "figure", "done", msg, strjoin(E(q).files, "; "), E(q).seconds};
     obj.log("%s: %s done (%d observation(s), %d file(s), %.1f s)", label, id, E(q).done, numel(E(q).files), E(q).seconds);
@@ -206,6 +233,19 @@ if withData && any([E.done] > 0)
     end
 end
 rows = obj.Results(first:end, :);
+end
+
+
+function [res, lastSessions, Fs] = computeOne(sources, sessions, spec, row)
+%computeOne  One observation across the sessions (figureSessionCompute); a failure is one "error" result.
+lastSessions = sessions;
+try
+    [res, lastSessions, Fs] = figureSessionCompute(sources, sessions, spec, Observation=row);
+catch ME
+    if ME.identifier == "EphysAnalysisRunner:Canceled"; rethrow(ME); end
+    res = struct('facet', "all", 'group', "", 'label', "all", 'F', [], 'status', "error", 'message', string(ME.message));
+    Fs = cell(1, height(sessions));
+end
 end
 
 

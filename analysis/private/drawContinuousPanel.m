@@ -6,18 +6,33 @@ function hk = drawContinuousPanel(ax, P, look)
 %   isTop, isBottom, epochs, groups, observation, isTime). Each signal
 %   layer (LFP, MUA, SPIKE, AUX: an evokedPotential result) gives its
 %   items: each channel in probe order, or with aggregate "mean" the mean
-%   over its channels (R.layerMean, its band across them). options.display:
-%     "lines"    every item and trial group a trace (role "trace"; a channel
-%                of a layer that draws several, "channelTrace") over its
-%                band (options.errorType not "off": R.err, errorPatch, role
-%                "sem"), in the group's color (or the layer's) and the
-%                item's line style (the layer's lineStyle, else by order);
-%                y label "Amplitude (<units>)"; options.yLim fixes the axis
-%     "stacked"  every item a row of its own, offset by options.stackSpacing
-%                (NaN: 1.2 x the 90th percentile of the traces' ranges),
-%                the rows named on the y axis, the
-%                groups overlaid in each row; y label "Channel (<step> per
-%                row)"
+%   over its channels (R.layerMean, its band across them). Every item and
+%   trial group is a trace (role "trace"; a channel of a layer that draws
+%   several, "channelTrace") over its band (options.errorType not "off":
+%   R.err, errorPatch, role "sem"), in the group's color (or the layer's)
+%   and the item's line style (the layer's lineStyle, else by order).
+%   options.stack:
+%     "off"      every trace on one axis, y label "Amplitude (<units>)";
+%                options.yLimMode sets it (panelYLimits: "fixed" at
+%                options.yLim, "batch" at the run's range, else from the
+%                traces)
+%     "items"    every item a row of its own, the groups overlaid in each
+%                row (the layer's lineStyle, else solid), the rows named on
+%                the left y axis
+%     "groups"   every trial group a row of its own, the first on top (as
+%                a raster lists them), the items overlaid in each row by
+%                line style, the rows named by the groups' values
+%                (rowLabels)
+%   A stack's rows go where stackLayout puts them, the row step
+%   options.stackSpacing x the row height (the tallest row's reach: its
+%   means and bands, or with trials "only" its traces): each row scaled to
+%   its own reach (options.yLimMode "auto"), or every row on one scale
+%   ("rows": the reach of them all; "batch": the run's range; "fixed":
+%   options.yLim), a gray line along each row (stackBaseLines), each row's
+%   top value on the right y axis (stackAxes); y label "Channel (<height>
+%   <units> per row)" on one scale, "Channel (each row on its own scale)"
+%   else (stackYName; a stack of groups: the groups' parameters). HK.yExtent:
+%   a stack's reach in the signal's units, for a run's batch range.
 %   options.trials "faint" draws each epoch's trace (R.data, at most
 %   options.maxTrials of them: computeContinuousPanel) of every item and
 %   group as one NaN-joined line (role "trialTrace") in the group's color
@@ -104,21 +119,51 @@ for i = 1:nI
     end
 end
 
-stacked = o.display == "stacked" && nI > 0;   % marks alone (every signal layer skipped): a plain axis for them
-spacing = 0;
-if stacked
-    spacing = o.stackSpacing;
-    if ~(isfinite(spacing) && spacing > 0)
-        rng1 = zeros(1, 0);
-        for i = 1:nI
-            rng1 = [rng1 max(S(i).m, [], 1) - min(S(i).m, [], 1)]; %#ok<AGROW>
-        end
-        spacing = 1.2 * pct90(rng1(isfinite(rng1)));
-        if ~(isfinite(spacing) && spacing > 0); spacing = 1; end
-    end
-end
+stack = "off";   % marks alone (every signal layer skipped): a plain axis for them
+if nI > 0 && isfield(o, 'stack'); stack = string(o.stack); end
+stacked = stack ~= "off";
 band = o.errorType ~= "off";
+nGmax = 0;
+for i = 1:nI; nGmax = max(nGmax, size(S(i).m, 2)); end
+rowOf = @(i, g) 1;   % the row item I's group G is drawn in
+rowNames = strings(1, 0);
+groupsName = "Group";
+L = [];
+if stacked
+    if stack == "items"
+        rowOf = @(i, g) i;
+        rowNames = [S.name];
+    else   % "groups": a row per trial group, the items overlaid in it
+        rowOf = @(i, g) g;
+        [rowNames, groupsName] = rowLabels(S(1).R);
+        rowNames = reshape(string(rowNames), 1, []);
+        rowNames(end+1:nGmax) = "";
+        rowNames = rowNames(1:nGmax);
+    end
+    nR = numel(rowNames);
+    rlo = NaN(1, nR);   % each row's reach: its means and bands (with trials "only": its traces)
+    rhi = NaN(1, nR);
+    for i = 1:nI
+        for g = 1:size(S(i).m, 2)
+            r = rowOf(i, g);
+            if trials == "only" && ~isempty(S(i).X)
+                v = S(i).X(:, S(i).xg == g);
+            else
+                v = S(i).m(:, g);
+                if band; v = [v; S(i).lo(:, g); S(i).hi(:, g)]; end %#ok<AGROW>
+            end
+            v = double(v(isfinite(v)));
+            if isempty(v); continue; end
+            rlo(r) = min([rlo(r); v]);
+            rhi(r) = max([rhi(r); v]);
+        end
+    end
+    [ymode, ylimits] = panelYLimits(look);
+    L = stackLayout(rlo, rhi, o.stackSpacing, Mode=ymode, Limits=ylimits);
+    hk.yExtent = [min(rlo) max(rhi)];
+end
 hold(ax, 'on');
+if stacked; stackBaseLines(ax, S(1).t([1 end]), L, rowNames); end
 lss = strings(1, nI);
 traces = cell(1, nI);   % each item's trial lines, per group: drawn first, so every band and mean lies over every trace
 for pass = 1:2
@@ -127,16 +172,22 @@ for pass = 1:2
         R = S(i).R;
         colors = look.colors;
         if size(colors, 1) ~= height(R.groups); colors = groupPalette(R.groups, style); end
-        off = -(i - 1) * spacing;
         nG = size(S(i).m, 2);
         if pass == 1; traces{i} = gobjects(1, nG); end
-        if pass == 2 && ~isempty(S(i).M)   % each member session, faint, under its series
-            memberLines(ax, S(i).t, S(i).M + off, R, colors, style);
+        if pass == 2 && ~isempty(S(i).M)   % each member session, faint, under its series (in its row)
+            if stacked
+                sr = arrayfun(@(g) rowOf(i, g), double(R.members.series(:)).');
+                memberLines(ax, S(i).t, S(i).M .* L.scale(sr) + L.offset(sr), R, colors, style);
+            else
+                memberLines(ax, S(i).t, S(i).M, R, colors, style);
+            end
         end
         for g = 1:nG
+            off = 0; k = 1;
+            if stacked; off = L.offset(rowOf(i, g)); k = L.scale(rowOf(i, g)); end
             gl = string(R.groups.label(g));
             [c, ls] = figLayerLook(Ls(j), i, colors(g, :));
-            if stacked; ls = string(Ls(j).lineStyle); if ~ismember(ls, ["-" "--" ":" "-."]); ls = "-"; end; end
+            if stack == "items"; ls = string(Ls(j).lineStyle); if ~ismember(ls, ["-" "--" ":" "-."]); ls = "-"; end; end
             ls = figSeriesStyle(R, g, ls, Ls(j));
             lss(i) = ls;
             tg = gl;
@@ -146,17 +197,17 @@ for pass = 1:2
             end
             if pass == 1
                 if ~isempty(S(i).X)
-                    traces{i}(g) = trialLines(ax, S(i).t, S(i).X(:, S(i).xg == g), off, c, trials, ls, style, tg);
+                    traces{i}(g) = stackMark(trialLines(ax, S(i).t, S(i).X(:, S(i).xg == g), off, k, c, trials, ls, style, tg), off, k);
                 end
                 continue
             end
             only = trials == "only" && ~isempty(S(i).X);   % the traces alone: no band, no mean
             if band && ~only
-                errorPatch(ax, S(i).t, S(i).lo(:, g) + off, S(i).hi(:, g) + off, c, tg, style);
+                stackMark(errorPatch(ax, S(i).t, k * S(i).lo(:, g) + off, k * S(i).hi(:, g) + off, c, tg, style), off, k);
             end
             h1 = traces{i}(g);
             if ~only
-                h1 = tagPart(plot(ax, S(i).t, S(i).m(:, g) + off, 'Color', c, 'LineWidth', style.LineWidth, 'LineStyle', ls), S(i).role, tg);
+                h1 = stackMark(tagPart(plot(ax, S(i).t, k * S(i).m(:, g) + off, 'Color', c, 'LineWidth', style.LineWidth, 'LineStyle', ls), S(i).role, tg), off, k);
             end
             if i == 1 && nG > 1 && isgraphics(h1)
                 hk.legendHandles(end+1) = h1;
@@ -166,7 +217,7 @@ for pass = 1:2
         end
     end
 end
-if nI > 1 && ~stacked   % the items, by line style (stacked: named on the y axis)
+if nI > 1 && stack ~= "items"   % the items, by line style (a row per item: named on the y axis)
     for i = 1:nI
         j = items(i, 1);
         colors = look.colors;
@@ -192,12 +243,14 @@ units = "";
 if nI > 0; units = unitText(S(1).R.units); end
 if stacked
     styleAxes(ax, flat);
-    offs = -(0:nI-1) * spacing;
-    set(ax, 'YTick', fliplr(offs), 'YTickLabel', cellstr(fliplr([S.name])), 'TickLabelInterpreter', 'none');
-    ylim(ax, [offs(end) - spacing, spacing]);
-    hk.yName = sprintf("Channel (%s %s per row)", sprintf('%.3g', spacing), units);
+    rightName = "Row top";
+    if units ~= ""; rightName = "Row top (" + units + ")"; end
+    stackAxes(ax, L, rowNames, rightName);
+    what = "Channel";
+    if stack == "groups"; what = groupsName; end
+    hk.yName = stackYName(what, L, units);
 else
-    flat.YLim = o.yLim;
+    [~, flat.YLim] = panelYLimits(look);
     styleAxes(ax, flat);
     if units ~= ""; hk.yName = "Amplitude (" + units + ")"; end
 end
@@ -214,8 +267,8 @@ figLayerNotes(ax, P, look, true);
 end
 
 
-function h = trialLines(ax, t, X, off, c, mode, ls, style, tg)
-%trialLines  The epochs' traces X [nTime x nEpochs] (+ OFF) as one NaN-joined line: pale and thin behind the mean ("faint"), else in C.
+function h = trialLines(ax, t, X, off, k, c, mode, ls, style, tg)
+%trialLines  The epochs' traces X [nTime x nEpochs] (x K + OFF: a stack's row) as one NaN-joined line: pale and thin behind the mean ("faint"), else in C.
 %   X stays in its class (single, as computeContinuousPanel keeps it): the
 %   line's y data is built from it directly, with no double copy.
 lw = max(0.25, 0.5 * style.LineWidth);
@@ -229,6 +282,7 @@ yy = NaN;
 if k > 0
     xx = repmat([t(:); NaN], k, 1);
     yy = [X; NaN(1, k, 'like', X)];
+    if k ~= 1; yy = yy * cast(k, 'like', X); end
     if off ~= 0; yy = yy + cast(off, 'like', X); end
     yy = reshape(yy, [], 1);
 end
@@ -259,10 +313,3 @@ function s = unitText(u)
 s = replace(string(u), "uV", "µV");
 end
 
-
-function v = pct90(x)
-%pct90  90th percentile (nearest rank) without the Statistics Toolbox.
-x = sort(x(:));
-if isempty(x); v = NaN; return; end
-v = x(max(1, ceil(0.9 * numel(x))));
-end

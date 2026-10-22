@@ -16,7 +16,7 @@ function P = computeContinuousPanel(src, panel, E, G, ctx)
 %         most options.maxTrials epochs picked evenly over their order
 %     events (marks)            figurePointLayer: R.kind "events", the
 %         marks' latencies (drawn as lines)
-%   options.display, stackSpacing and yLim are the draw function's.
+%   options.stack, stackSpacing and yLim are the draw function's.
 %
 %   See also figurePanelRegistry, figureSignalLayer, evokedPotential.
 

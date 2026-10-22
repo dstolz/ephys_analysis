@@ -29,17 +29,47 @@ function T = panelTypes()
 %
 %   Per-panel y and color limits (options.yLim, options.cLim: [] =
 %   automatic, else [lo hi]) live in the options because one figure holds
-%   different axes; a figure's Style.YLim / Style.CLim are not used.
+%   different axes; a figure's Style.YLim / Style.CLim are not used. Every
+%   type with a y axis of values (PSTH, continuous, waveforms, rate,
+%   tuning, spectrum, coherence) takes options.yLimMode, one vocabulary
+%   (EphysAnalysisConfig.YLimModes):
+%     "auto"   (default) each axis fits its data (the type's own: an auROC
+%              and a coherence 0 to 1); in a stack each row fits itself,
+%              scaled to its own reach (its top named on the right axis)
+%     "rows"   a stack's rows share one scale, the reach of them all (an
+%              axis without rows: as "auto", its groups share it already)
+%     "batch"  one range for every observation of a run of the figure
+%              (EphysAnalysisRunner.run: Generate, Export): the union of
+%              their extents (figureYExtents, figureBatchYLim), a stack's
+%              rows on that one scale; drawn alone (the preview) a panel
+%              takes its own range, as "rows"
+%     "fixed"  options.yLim ([lo hi]; a stack: every row's range)
 %
 %   A PSTH or a heat map of spikes takes baseline Mode "auroc" (each bin's
 %   auROC against the baseline window, spikePSTH's BaselineMode "auroc")
-%   with its auroc settings (defaults("Auroc")). A PSTH stacks its groups
-%   in rows with stack (stackSpacing: the row step, x the tallest PSTH);
-%   a raster panel above it draws the rasters. A raster's firstSpike
-%   (defaults("FirstSpike")) marks each epoch's first spike in a latency
-%   window, a PSTH's latencyBox (defaults("LatencyBox")) draws a box plot
-%   of those latencies per trial group in a band above its traces (in each
-%   row when stacked); both read firstSpikeLatency. A PSTH's display "heatmap"
+%   with its auroc settings (defaults("Auroc")).
+%   Stacks, one vocabulary for every type that takes them
+%   (EphysAnalysisConfig.stackModes): a PSTH, continuous, heat map (rows
+%   "items"), tuning, spectrum, spectrogram or coherence panel with stack
+%   "groups" draws one row per trial group (a tuning panel's series), the
+%   first on top as a raster lists its groups, instead of the groups
+%   overlaid (a heat map, a spectrogram, a coherogram: instead of the one
+%   group options.group names); a continuous panel's stack "items" draws a
+%   row per channel (or layer mean), the groups overlaid in each.
+%   stackSpacing is the row step as a multiple of the row height, the
+%   tallest row's (1: the rows touch; below 1 they overlap; an image's
+%   rows never overlap). Line rows name their groups on the left axis and
+%   each row's top (a PSTH's peak) on the right; image rows (a
+%   spectrogram's, a coherogram's, a heat map's block of units) share the
+%   time axis and one color scale and color bar, each with its group's
+%   color strip at the left. A raster panel above a stacked PSTH draws
+%   the rasters (a raster lists its groups in blocks already: it takes no
+%   stack). A raster's firstSpike (defaults("FirstSpike")) marks each
+%   epoch's first spike in a latency window, a PSTH's latencyBox
+%   (defaults("LatencyBox")) draws a box plot of those latencies per
+%   trial group in a band above its traces (in each row when stacked,
+%   outside every row's y range whatever its yLimMode); both read
+%   firstSpikeLatency. A PSTH's display "heatmap"
 %   draws its first item (unit or mean) as an image instead: a row per
 %   trial group, the first on top, colored on that item's own range
 %   (cLim, else its rows' range; an auROC: 0 to 1) in colormap ("" = the
@@ -131,23 +161,25 @@ opts.psth = struct( ...
     'fill',          true, ...          % filled bars / area under the line
     'fillAlpha',     NaN, ...           % fill opacity 0-1 (NaN: 0.5 where groups overlap, else 1)
     'normalize',     "none", ...        % "none" | "unitPeak" | "groupPeak" | "allPeak"
-    'stack',         false, ...         % one row per trial group, the first on top, instead of overlaid
-    'stackSpacing',  1.1, ...           % stack: the row step, x the tallest PSTH (< 1 overlaps)
-    'latencyBox',    latencyBox, ...    % a box plot of the first-spike latencies per trial group, in a band above the traces (stack: in each row)
+    'stack',         "off", ...         % "off" (the groups overlaid) | "groups" (a row per trial group, the first on top)
+    'stackSpacing',  1.1, ...           % stack: the row step, x the row height (1: the rows touch; < 1 overlaps)
+    'latencyBox',    latencyBox, ...    % a box plot of the first-spike latencies per trial group, in a band above the traces (stack "groups": in each row)
     'maskAfterStop', false, ...
-    'yLim',          [], ...            % [] = automatic, else [lo hi]
+    'yLimMode',      "auto", ...  % "auto" (each axis, each stacked row, fits itself) | "rows" (a stack's rows share one scale) | "batch" (one range for every observation of a run) | "fixed" (yLim)
+    'yLim',          [], ...            % yLimMode "fixed": [lo hi]
     'colormap',      "", ...            % display "heatmap": "" (the design's heat colormap, Style.HeatColormap) | a colormap function
     'cLim',          [], ...            % display "heatmap": [] = the unit's own range (auROC: [0 1]), else [lo hi]
     'waveform',      waveform);
 opts.continuous = struct( ...
     'baseline',     baseline, ...       % Mode "none" | "subtract"
-    'display',      "lines", ...        % "lines" (a trace each) | "stacked" (a row of its own per channel)
     'statistic',    "mean", ...         % "mean" | "median" over the epochs, at each sample
     'transform',    "none", ...         % "none" | "rectify" (each epoch's absolute value, before the statistic) | "magnitude" (a layer's channels as one: their vector magnitude in each epoch, after the baseline)
     'errorType',    "sem", ...          % the band: "off" | "sem" | "std" | "ci95" | "iqr"
-    'stackSpacing', NaN, ...            % stacked: the offset between channels (NaN = automatic)
+    'stack',        "off", ...          % "off" (overlaid) | "groups" (a row per trial group, the items overlaid in it) | "items" (a row per channel or layer mean, the groups overlaid in it)
+    'stackSpacing', 1.1, ...            % stack: the row step, x the row height (1: the rows touch; < 1 overlaps)
     'trials',       "off", ...          % each epoch's trace: "off" | "faint" (pale and thin, behind the mean) | "only" (the traces, no mean)
     'maxTrials',    100, ...            % trials: at most this many epochs drawn, picked evenly over their order (Inf = every one)
+    'yLimMode',     "auto", ...  % as a PSTH's (EphysAnalysisConfig.YLimModes)
     'yLim',         []);
 opts.heatmap = struct( ...
     'bins',          bins, ...
@@ -160,12 +192,15 @@ opts.heatmap = struct( ...
     'rasterSortEvent', [], ...          % rows "trials", rasterSort "event": [] or an EventRef
     'rasterSortOrder', "ascending", ... % rows "trials": "ascending" | "descending"
     'rasterByGroup',   true, ...        % rows "trials": by group first (a color strip at the left), else one block
-    'group',         1, ...             % rows "items": the trial group drawn
+    'group',         1, ...             % rows "items": the trial group drawn (not with stack "groups")
+    'stack',         "off", ...         % rows "items": "off" (one group) | "groups" (a block of rows per trial group, the first on top)
+    'stackSpacing',  1.1, ...           % stack: the block step, x the block's height (an image never overlaps: below 1 counts as 1)
     'cLim',          [], ...
     'maskAfterStop', false);
 opts.waveforms = struct( ...
     'layout',   "grid", ...             % "grid" (the unit's waveform, or several overlaid) | "probe" (every unit at its place on the probe)
     'waveform', waveformsOwn, ...       % mode "mean" | "subsample" | "both" (never "off")
+    'yLimMode', "auto", ...  % as a PSTH's (EphysAnalysisConfig.YLimModes)
     'yLim',     []);
 opts.probemap = struct( ...
     'value', "rate", ...                % "rate" | "nSpikes" | "nUnits"
@@ -182,12 +217,16 @@ opts.rate = struct( ...
     'measure',  "rate", ...             % "rate" (spikes/s) | "count" (spikes per window) | "probability" (share of epochs with a spike)
     'baseline', baseline, ...           % Mode "none" | "subtract" | "ratio" | "zscore" (firingRate's Normalize)
     'display',  "bar", ...              % "bar" (mean, error bar) | "box" | "points" (each epoch, the mean as a bar)
+    'yLimMode', "auto", ...  % as a PSTH's (EphysAnalysisConfig.YLimModes)
     'yLim',     []);
 opts.tuning = struct( ...
     'param',       "", ...              % the x axis: a trial parameter ("" = the figure's first groupBy one, else the first numeric one)
     'seriesParam', "", ...              % one curve per value of this trial parameter ("" = one curve)
+    'stack',       "off", ...           % "off" (the series overlaid) | "groups" (a row per series, the first on top)
+    'stackSpacing', 1.1, ...            % stack: the row step, x the row height
     'measure',     "rate", ...
     'baseline',    baseline, ...        % Mode "none" | "subtract" | "ratio" | "zscore"
+    'yLimMode',    "auto", ...  % as a PSTH's (EphysAnalysisConfig.YLimModes)
     'yLim',        [], ...
     'waveform',    waveform);           % the unit's waveform inset
 % the Chronux spectral types (chronuxSettings' fields and defaults; none is a shared option)
@@ -207,6 +246,9 @@ opts.spectrum = struct( ...
     'detrend',    "constant", ...       % each trial's "none" | "constant" | "linear" trend removed
     'scale',      "db", ...             % "db" (10 log10) | "log" (a log y axis) | "linear"
     'spikeFs',    1000, ...             % point layers: the spike trains' time grid, Hz
+    'stack',      "off", ...            % "off" (the groups overlaid) | "groups" (a row per trial group, the first on top)
+    'stackSpacing', 1.1, ...            % stack: the row step, x the row height
+    'yLimMode',   "auto", ...  % as a PSTH's (EphysAnalysisConfig.YLimModes)
     'yLim',       []);
 opts.spectrogram = struct( ...
     'taperMode',  "TWK", ...
@@ -222,7 +264,9 @@ opts.spectrogram = struct( ...
     'movingwin',  [0.5 0.05], ...       % [window step] s
     'baseline',   struct('Mode', "none", 'Window', [-0.5 0]), ...   % Mode "none" | "db" | "percent" | "zscore" | "ratio" against Window
     'cLim',       [], ...
-    'group',      1);                   % the trial group drawn
+    'group',      1, ...                % the trial group drawn (not with stack "groups")
+    'stack',      "off", ...            % "off" (one group) | "groups" (an image row per trial group, the first on top, on one time axis)
+    'stackSpacing', 1.1);               % stack: the block step, x the block's height (below 1 counts as 1)
 opts.coherence = struct( ...
     'timeBase',   "aligned", ...
     'range',      [0 Inf], ...
@@ -241,9 +285,12 @@ opts.coherence = struct( ...
     'overTime',   false, ...            % a coherogram over the moving window: an image over time
     'movingwin',  [0.5 0.05], ...
     'showPhase',  true, ...             % the phase under the magnitude (not over time)
+    'yLimMode',   "auto", ...  % as a PSTH's (EphysAnalysisConfig.YLimModes)
     'yLim',       [], ...               % [] = [0 1]
     'cLim',       [], ...               % over time: [] = [0 1]
-    'group',      1);                   % over time: the trial group drawn
+    'group',      1, ...                % over time: the trial group drawn (not with stack "groups")
+    'stack',      "off", ...            % "off" (the groups overlaid; over time one group) | "groups" (a row per trial group, the first on top)
+    'stackSpacing', 1.1);               % stack: the row step, x the row height (an image's: below 1 counts as 1)
 opts.eventTrace = struct( ...
     'display',       "bars", ...        % "bars" (solid, onset to offset) | "line" (a logic level: low, up at onset, down at offset)
     'trials',        "overlay", ...     % "overlay" (every epoch in the line's row, translucent) | "rows" (a sub-row per epoch, sorted as a raster)

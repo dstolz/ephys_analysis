@@ -19,8 +19,8 @@ says how to cut a release.
   legend, a data tip naming the trial). A PSTH's new `options.latencyBox` (`defaults("LatencyBox")`: `enabled`,
   `minSec`, `maxSec`, `color`, `lineStyle`, `lineWidth`, `boxHeight`, `fillAlpha`, `outlierMarker`,
   `outlierSize`) draws a box plot of the latencies per trial group (quartiles by `prctile`, the median,
-  Tukey's whiskers, outliers) in a band of its own above the traces, or with `stack` in each row above its
-  PSTH (roles `latencyBox`, `latencyMedian`, `latencyWhisker`, `latencyOutlier`; a data tip with the statistics
+  Tukey's whiskers, outliers) in a band of its own above the traces, or with `stack "groups"` in a lane above
+  each row's range (outside the traces in every `yLimMode`) (roles `latencyBox`, `latencyMedian`, `latencyWhisker`, `latencyOutlier`; a data tip with the statistics
   and n); such a PSTH keeps its raster's rows. Both are off by default, validated while on, named in the
   figure's caption and drawn on rows merged across sessions. In the analysis app the raster's **First spike**
   row and the PSTH's **Latency box** row show a summary beside **First-spike latency...** and **Latency box
@@ -40,6 +40,31 @@ says how to cut a release.
   synthetic test project (a compute and a draw each time) and now about 1.6 s, the editor's own refresh being most
   of what is left. While a preview computes, another figure selected shows in the editor at once and in the preview
   when that one is drawn.
+- Automatic y limits, one option on every panel type with `yLim` (PSTH, continuous, waveforms, rate, tuning,
+  spectrum, coherence): `options.yLimMode` `"auto"` (each axis fits its data; in a stack each row fits itself,
+  its top on the right axis) | `"rows"` (a stack's rows share one scale) | `"batch"` (one range for every
+  observation of a run) | `"fixed"` (`yLim`). A run (`EphysAnalysisRunner.run`: Export **Run**, Figures
+  **Generate**) measures a batch figure's every observation on every dataset first (`batchYLimits`,
+  `figureYExtents`, `figureBatchYLim`; computed figures kept for their pages up to 512 MB) and draws every page at
+  the union (`renderFigure(..., BatchYLim=)`, `r.BatchYLim`); session figures measure their matched observations;
+  the standalone script writes the same measuring pass. Captions say `y shared across <n> observations`; the
+  preview draws its own range and its status line says the run shares it. The editor's **Y limits** row is a
+  drop-down (*Auto*, *Shared by rows*, *Shared by batch*, *Fixed*) beside the limits' field, open only for
+  *Fixed*; Apply to all panels copies the mode. A migrated version 1 plot's `YLim` becomes `yLimMode "fixed"`.
+- Stacks for every panel type that draws trial groups over one shared axis, in one vocabulary
+  (`EphysAnalysisConfig.stackModes`): `options.stack` `"off"` | `"groups"` (a row per trial group, the first on
+  top) on a PSTH, continuous, heat map (rows `"items"`: a block of units per group), tuning (a row per series),
+  spectrum, spectrogram and coherence panel, and `"items"` (a row per channel) on a continuous panel;
+  `options.stackSpacing` is the row step times the row height everywhere (default 1.1). Line rows (PSTH,
+  continuous, spectrum, coherence, tuning) share `stackLayout`, `stackBaseLines` and `stackAxes`: a gray line
+  per row, the groups' values on the left axis, each row's top on the right; image rows (spectrogram,
+  coherogram: `drawImageStack`; heat map: `renderHeatmap(..., Stack=true)`) share the time axis and one color
+  bar, each with its group's color strip (role `rasterBand`) and name. The editor's **Stack** row (a drop-down
+  with its spacing) shows on every such type and hides, with the reason, where stacking makes no sense
+  (raster, firing rate, waveforms, probe map, unit correlation, event traces); **Apply to all panels** and a
+  type change carry the stack where the type takes its value. Data tips read stacked traces back through
+  each row's `StackMap`. A raster keeps listing its groups in blocks, so it takes no stack.
+
 - **Undo** and **Redo** tools on the analysis app's toolbar, after the File group (`undo.svg`, `redo.svg`): the Edit
   menu's items, named in their tooltips (*Undo Add panel (Ctrl+Z)*) and on and off with them (`refreshEditMenu` keeps
   both). Every undo step is named now: the event and sort sequence dialogs (*Event sequence*, *Sort sequence*), the
@@ -1339,6 +1364,15 @@ says how to cut a release.
   says which one of how many it is loading, and Scan names the root it scans.
 
 ### Changed
+
+- A PSTH panel's `options.stack` is a string (`"off"` | `"groups"`; it was `true` / `false`), and a continuous
+  panel's `options.display` (`"lines"` | `"stacked"`) is gone: its stack of channels is `options.stack "items"`.
+  A continuous panel's `stackSpacing` is a multiple of the row height (default 1.1), no longer an offset in the
+  signal's units (`NaN` = automatic); a migrated version 1 evoked stack drops its `Style.StackSpacing`. The
+  editor's continuous **Display** and **Stack spacing** rows became the shared **Stack** row; the New panel
+  window's continuous **Display** is its **Stack**. A PSTH stack's row height now covers the bands too.
+- A panel's `yLim` is used only with `yLimMode "fixed"`; with the default `"auto"` a stacked panel scales each
+  row to itself (pick *Shared by rows* for the earlier one-scale stack).
 
 - The probe map is drawn as a probe: each shank a pale body with a pointed tip behind its sites, named
   *Shank k* under the tip, with an x tick at each shank; sites are circles (filled in the color scale, open

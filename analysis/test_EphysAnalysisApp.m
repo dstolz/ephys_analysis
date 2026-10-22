@@ -754,7 +754,8 @@ if S.sec("5d.layers", "a continuous panel below (drawn at once); its layers: AUX
         && app.FigurePreviewState == "drawn" && numel(figAxes()) == 3 && contains(app.StatusBar.Text, "below psth_1"), ...
         'Continuous signal, Below: a 3 x 1 stack whose new panel''s LFP layer follows the observed unit, drawn at once');
     app.FigureAutoCheckBox.Value = false;   % Auto off again: no redraw per edit
-    check(string(FE.panelType.Value) == "continuous" && shown(FE.contDisplay) && shown(FE.errorType) && shown(FE.layerFollows) ...
+    check(string(FE.panelType.Value) == "continuous" && shown(FE.stack) && shown(FE.errorType) && shown(FE.layerFollows) ...
+        && isequal(string(FE.stack.ItemsData), ["off" "groups" "items"]) ...
         && ~shown(FE.binMs) && ~shown(FE.histStyle) && ~shown(FE.rasterSort) && ~shown(FE.evLine) && ~shown(FE.group) ...
         && FE.layerBinding.Enable == "on" && contains(string(FE.layerFollows.Text), "own LFP channel") ...
         && app.FigureSections([app.FigureSections.Name] == "options").Title == "Continuous signal options", ...
@@ -776,8 +777,12 @@ if S.sec("5d.layers", "a continuous panel below (drawn at once); its layers: AUX
         'a following LFP layer switched to AUX turns fixed');
     app.onRemoveLayer();
     app.onPanelSelected(1);
-    check(shown(FE.rasterSort) && shown(FE.waveMode) && ~shown(FE.contDisplay) && ~shown(FE.binMs) && FE.panelSame.Enable == "on", ...
-        'a raster shows its own rows instead');
+    Xs = app.FigureSearchIndex;
+    iStack = find(arrayfun(@(e) ~isempty(e.Keys) && e.Keys(1) == "stack", Xs), 1);
+    wentStack = app.gotoFigureRow(iStack, Focus=false);
+    check(shown(FE.rasterSort) && shown(FE.waveMode) && ~shown(FE.stack) && ~shown(FE.binMs) && FE.panelSame.Enable == "on" ...
+        && ~wentStack && contains(app.StatusBar.Text, "lists its groups in blocks"), ...
+        'a raster shows its own rows instead (no Stack row: a raster lists its groups in blocks already, the reason says)');
     FE.addSource.Value = "events";
     FE.addSource.ValueChangedFcn(FE.addSource, []);
     app.onAddLayer();
@@ -1469,9 +1474,9 @@ if S.sec("5d.newpanel", "Add: a blank figure, then the New panel window (answere
     if isappdata(groot, 'newPanelSeen'); rmappdata(groot, 'newPanelSeen'); end
     f2 = app.Config.Figures(2);
     check(isstruct(seen) && isequal(sort(seen.types), sort(PTn.Type.')) && all(seen.icons) && isempty(seen.failed) && seen.where == "off" ...
-        && seen.name0 == "continuous_1" && all(ismember(["Source" "Binding" "Display" "ErrorType"], seen.params)) && seen.binding == "on" ...
+        && seen.name0 == "continuous_1" && all(ismember(["Source" "Binding" "Stack" "ErrorType"], seen.params)) && seen.binding == "on" ...
         && isscalar(f2.panels) && f2.panels.id == "lfp_a" && f2.panels.title == "Its LFP" && f2.panels.type == "continuous" ...
-        && f2.panels.options.display == "stacked" && f2.panels.layers.source == "LFP" && f2.panels.layers.binding == "observation" ...
+        && f2.panels.options.stack == "items" && f2.panels.layers.source == "LFP" && f2.panels.layers.binding == "observation" ...
         && f2.observe.data == "LFP" && f2.id == "Continuous LFP" && app.SelectedPanel == 1, ...
         'New panel...: a tile with its picture per panel type, the name, title, place (the first panel: row 1, column 1) and the type''s key parameters; OK adds it, and the id and Observe follow');
     wh = ["below" "right" "above" "left"];
@@ -1562,7 +1567,7 @@ if S.sec("5d.eventtrace", "an event-trace panel: its template, its Options rows 
     app.onRemoveFigure();
 end
 
-if S.sec("5d.psth", "a PSTH's Stack box, auROC rows and Display; Firing rate and Tuning curve panels (drawn at once); a type change's display and stackSpacing")
+if S.sec("5d.psth", "a PSTH's Stack row, auROC rows, Display and Y limits mode; Firing rate and Tuning curve panels (drawn at once); a type change's display and stack")
     app.FigureAutoCheckBox.Value = false;   % no redraw per edit (as 5d.add leaves it)
     groupedBy("Depth");
     app.FigureAutoPreviewSeconds = Inf;   % Auto is on for the panels added: a preview slowed by a loaded machine must not leave them out of date
@@ -1571,18 +1576,19 @@ if S.sec("5d.psth", "a PSTH's Stack box, auROC rows and Display; Firing rate and
     app.onPanelSelected(2);   % the PSTH
     pS = app.Config.Figures(1).panels(2);
     check(pS.type == "psth" && shown(FE.stack) && ~shown(FE.auMethod) && ~shown(FE.rateDisplay) ...
-        && ~shown(FE.param) && ~shown(FE.waveLayout) && FE.psthSpacing.Enable == "off", ...
-        'a PSTH shows its Stack row (the spacing off while unticked) and no auROC rows without the auROC baseline');
-    FE.stack.Value = true;
+        && ~shown(FE.param) && ~shown(FE.waveLayout) && FE.stackSpacing.Enable == "off" ...
+        && isequal(string(FE.stack.ItemsData), ["off" "groups"]), ...
+        'a PSTH shows its Stack row (off or a row per group; the spacing off while Off) and no auROC rows without the auROC baseline');
+    FE.stack.Value = "groups";
     app.onConfigChanged("figure");
-    FE.psthSpacing.Value = 1.5;
+    FE.stackSpacing.Value = 1.5;
     app.onConfigChanged("figure");
     app.refreshFigurePreview(Force=true);
     oS = app.Config.Figures(1).panels(2).options;
     nRows = numel(findall(app.FigurePreviewPanel, 'Tag', 'stackBase'));
-    check(oS.stack && oS.stackSpacing == 1.5 && FE.psthSpacing.Enable == "on" && app.FigurePreviewState == "drawn" ...
+    check(oS.stack == "groups" && oS.stackSpacing == 1.5 && FE.stackSpacing.Enable == "on" && app.FigurePreviewState == "drawn" ...
         && nRows == height(app.FigurePreviewResult.groups) * (height(app.FigurePreviewResult.groups) > 1), ...
-        sprintf('the Stack box and its spacing reach the PSTH''s options; the preview stacks its groups (%d rows)', nRows));
+        sprintf('the Stack row and its spacing reach the PSTH''s options; the preview stacks its groups (%d rows)', nRows));
     FE.baselineMode.Value = "auroc";
     app.onConfigChanged("figure");
     auShown = shown(FE.auMethod) && shown(FE.auCutoff) && shown(FE.auMarks) && FE.auMethod.Enable == "on" ...
@@ -1597,7 +1603,7 @@ if S.sec("5d.psth", "a PSTH's Stack box, auROC rows and Display; Firing rate and
         && app.Config.figureFor(1).panels(2).options.auroc.windowSec == 0.02 && FE.auThreshold.Enable == "on" ...
         && app.FigurePreviewState == "drawn" && isfield(app.FigurePreviewResult.panels(2).layers(1).R, 'auroc'), ...
         'the PSTH''s auROC baseline: its rows show, and their edits reach its options and the preview');
-    FE.stack.Value = false;
+    FE.stack.Value = "off";
     FE.baselineMode.Value = "none";
     app.onConfigChanged("figure");
     % a PSTH's Display: a heat map shows its colormap and color limits, hides the trace rows; back to trace
@@ -1623,6 +1629,28 @@ if S.sec("5d.psth", "a PSTH's Stack box, auROC rows and Display; Firing rate and
     check(oT.display == "trace" && oT.colormap == "" && isempty(oT.cLim) && shown(FE.histStyle) && shown(FE.stack) && shown(FE.yLim) ...
         && ~shown(FE.panelColormap) && ~shown(FE.cLim) && isempty(findall(app.FigurePreviewPanel, 'Type', 'image')) ...
         && app.FigurePreviewState == "drawn", 'back to Display "trace": the trace rows again, the colormap "auto" stored as "", no image');
+    % the Y limits row: the mode drop-down, its lo-hi field only for Fixed
+    yOff = FE.yLim.Enable == "off" && string(FE.yLimMode.Value) == "auto" && isequal(string(FE.yLimMode.ItemsData), EphysAnalysisConfig.YLimModes);
+    FE.yLimMode.Value = "fixed";
+    app.onConfigChanged("figure");
+    yOn = FE.yLim.Enable == "on";
+    FE.yLim.Value = '0 40';
+    app.onConfigChanged("figure");
+    app.refreshFigurePreview(Force=true);
+    oY = app.Config.Figures(1).panels(2).options;
+    axY = findPanelAxes(app.FigurePreviewPanel, app.Config.Figures(1).panels(2).id);
+    check(yOff && yOn && oY.yLimMode == "fixed" && isequal(oY.yLim, [0 40]) && app.FigurePreviewState == "drawn" && isequal(ylim(axY), [0 40]), ...
+        'Y limits: Auto by default (the lo-hi field grayed out); Fixed opens it, and the limits reach the options and the preview''s axis');
+    FE.yLimMode.Value = "batch";
+    app.onConfigChanged("figure");
+    app.refreshFigurePreview(Force=true);
+    check(app.Config.Figures(1).panels(2).options.yLimMode == "batch" && FE.yLim.Enable == "off" ...
+        && contains(string(app.FigurePreviewLabel.Text), "shared by every observation when generated"), ...
+        'Shared by batch reaches the options; the preview draws its own range and its status line says the run shares it');
+    FE.yLimMode.Value = "auto";
+    FE.yLim.Value = '';
+    app.onConfigChanged("figure");
+    app.refreshFigurePreview(Force=true);
     nAx = numel(figAxes());
     check(any(string(FE.panelType.ItemsData) == "rate") && any(string(FE.panelType.ItemsData) == "tuning") && app.FigurePreviewState == "drawn", ...
         'the panel type drop-down offers Firing rate and Tuning curve');
@@ -1657,7 +1685,8 @@ if S.sec("5d.psth", "a PSTH's Stack box, auROC rows and Display; Firing rate and
         && app.FigurePreviewResult.panels(end).layers(1).R.seriesParam == "TrialType", ...
         sprintf('its Parameter and series reach the options and the drawing (%s / %s; preview %s: %s)', ot.param, ot.seriesParam, ...
         app.FigurePreviewState, string(app.FigurePreviewLabel.Text)));
-    % a type change takes the new type's display and stackSpacing: the names mean other things on continuous, rate and PSTH panels
+    % a type change takes the new type's display (it means other things on rate and PSTH panels; a continuous panel has none);
+    % the stack and its spacing mean the same everywhere: carried, but a value the new type does not take
     kr = numel(app.Config.Figures(1).panels) - 1;   % the rate panel (its display "points")
     app.onPanelSelected(kr);
     FE.panelType.Value = "continuous";
@@ -1668,22 +1697,25 @@ if S.sec("5d.psth", "a PSTH's Stack box, auROC rows and Display; Firing rate and
     o2 = app.Config.Figures(1).panels(kr).options;
     FE.panelType.Value = "psth";
     app.onPanelTypeChanged();
-    FE.psthSpacing.Value = 1.5;
+    FE.stackSpacing.Value = 1.5;
     app.onConfigChanged("figure");
     o3 = app.Config.Figures(1).panels(kr).options;
     FE.panelType.Value = "continuous";
     app.onPanelTypeChanged();
+    FE.stack.Value = "items";
+    app.onConfigChanged("figure");
     o4 = app.Config.Figures(1).panels(kr).options;
     FE.panelType.Value = "psth";
     app.onPanelTypeChanged();
     o5 = app.Config.Figures(1).panels(kr).options;
     I5 = app.Config.validate(CheckPaths=false);
-    check(o1.display == "lines" && isnan(o1.stackSpacing) && o2.display == "bar" && o3.stackSpacing == 1.5 ...
-        && isnan(o4.stackSpacing) && o4.display == "lines" && o5.stackSpacing == 1.1 ...
+    check(~isfield(o1, 'display') && o1.stack == "off" && o1.stackSpacing == 1.1 && o2.display == "bar" && ~isfield(o2, 'stack') ...
+        && o3.stackSpacing == 1.5 && o4.stackSpacing == 1.5 && o4.stack == "items" && o5.stackSpacing == 1.5 && o5.stack == "off" ...
+        && o5.display == "trace" ...
         && ~any(startsWith(I5.Field, app.Config.Figures(1).id + "." + app.Config.Figures(1).panels(kr).id + ".options") & I5.Severity == "error"), ...
-        sprintf(['rate -> continuous -> rate -> PSTH -> continuous -> PSTH: each takes its own display and stackSpacing ' ...
-        'defaults, none the other''s (%s %g, %s, %g, %s %g, %g; preview %s)'], o1.display, o1.stackSpacing, o2.display, ...
-        o3.stackSpacing, o4.display, o4.stackSpacing, o5.stackSpacing, app.FigurePreviewState));
+        sprintf(['rate -> continuous -> rate -> PSTH -> continuous -> PSTH: each takes its own display; the stack spacing is carried, a ' ...
+        'continuous panel''s "items" is not (a PSTH takes off or groups) (%g, %s, %g, %s %g, %s %g; preview %s)'], o1.stackSpacing, ...
+        o2.display, o3.stackSpacing, o4.stack, o4.stackSpacing, o5.stack, o5.stackSpacing, app.FigurePreviewState));
     FE.panelType.Value = "rate";
     app.onPanelTypeChanged();
     app.onPanelSelected(numel(app.Config.Figures(1).panels));
@@ -2298,10 +2330,10 @@ if S.sec("5h", "the figure tree, a panel's note and overlays, dragging a panel i
     check(axRows && pAx.yLabel == "Rate" && pAx.ySide == "right" && pAx.xSide == "bottom" && app.FigurePreviewState == "drawn" ...
         && strcmp(axP.YAxisLocation, 'right') && string(axP.YLabel.String) == "Rate", ...
         'the X axis and Y axis rows show for the selected panel; its y label and side reach the panel, and the preview draws them');
-    FE.stack.Value = true;
+    FE.stack.Value = "groups";
     app.onConfigChanged("figure");
     stackOff = FE.panelYSide.Enable == "off";
-    FE.stack.Value = false;
+    FE.stack.Value = "off";
     app.onConfigChanged("figure");
     check(stackOff && FE.panelYSide.Enable == "on", 'a stacked PSTH (a y axis on each side) grays out the Y axis row''s side');
     % an axis label's right-click menu (renderFigure's OnAxisEdit) goes through the editor's path: config, rows, preview
@@ -3157,7 +3189,7 @@ seen = struct('types', types, 'icons', icons, 'where', string(D.Where.Enable), '
 D.Name.Value = 'lfp_a';
 D.Name.ValueChangedFcn(D.Name, []);
 D.Title.Value = 'Its LFP';
-P.Display.Value = "stacked";
+P.Stack.Value = "items";
 setappdata(groot, 'newPanelSeen', seen);
 press(D, "Ok");
 end

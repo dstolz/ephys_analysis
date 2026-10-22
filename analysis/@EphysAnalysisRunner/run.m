@@ -29,6 +29,13 @@ function T = run(obj, opts)
 %   "canceled". Writing a report reports its pages ("Writing the report:
 %   page 3/12"), and a per-dataset report's pages at its dataset's end.
 %
+%   A figure with a panel whose options.yLimMode is "batch" (and the run
+%   draws: Export or Report) is measured before the datasets: every
+%   observation of it on every dataset of the run (batchYLimits), so its
+%   pages share one y range across the whole run (r.BatchYLim; passed to
+%   runDataset, whose caption says "y shared across <n> observations").
+%   A session figure measures its own observations (runSessionFigure).
+%
 %   The run record (schema "ephys-analysis-run/2") holds the run id,
 %   outcome, start, end and seconds, the datasets, figures and session
 %   figures, the report files, the Results rows, the code and machine
@@ -93,6 +100,28 @@ if doReport && ~perDataset
 end
 obj.log("Analysis ""%s"": %d dataset(s) x %d figure(s), %d session figure(s)", cfg.Name, numel(idx), numel(fids), numel(sfids));
 canceled = false;
+obj.BatchYLim = struct('figure', cell(1, 0), 'id', cell(1, 0), 'lim', cell(1, 0), 'n', cell(1, 0));
+obj.clearBatchCache();
+cacheBack = onCleanup(@() obj.clearBatchCache());   % the figures kept while measuring go with the run
+if (doExport || doReport) && ~isempty(idx)   % "batch" panels: one y range over the run's every observation, measured first
+    for id = fids
+        try
+            spec = cfg.figureFor(id);
+            if isempty(figureBatchPanels(spec)); continue; end
+            obj.BatchYLim = [obj.BatchYLim obj.batchYLimits(idx, spec, Observation=opts.Observation)];
+        catch ME
+            if ME.identifier ~= "EphysAnalysisRunner:Canceled"; rethrow(ME); end
+            canceled = true;
+            break
+        end
+    end
+end
+if canceled
+    for kk = idx; cancelDataset(obj, obj.Names(kk), fids); end
+    cancelSessionFigures(obj, sfids);
+    obj.log("Canceled.");
+    idx = idx([]);
+end
 nUnits = numel(idx) + numel(sfids) + (doReport && ~perDataset);   % the run's progress: a share per dataset, session figure and the one report
 for j = 1:numel(idx)
     k = idx(j);
@@ -101,7 +130,7 @@ for j = 1:numel(idx)
         span = [j - 1, j] / nUnits;   % this dataset's share of the run, which its figures report within
         obj.progress(span(1), "Dataset " + obj.Names(k));
         obj.runDataset(k, Figures=fids, Export=doExport, Report=doReport, Span=span, ...
-            Observation=opts.Observation);   % appends to obj.Results
+            Observation=opts.Observation, BatchYLim=obj.BatchYLim);   % appends to obj.Results
     catch ME
         if ME.identifier ~= "EphysAnalysisRunner:Canceled"; rethrow(ME); end
         canceled = true;

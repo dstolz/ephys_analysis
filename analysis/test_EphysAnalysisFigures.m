@@ -109,10 +109,28 @@ function test_EphysAnalysisFigures(opts)
 %   minSessions per trial group ("each": a group one session holds is
 %   skipped at 2, drawn from that session at 1); site matching with session
 %   2's unit renamed and split in two on the site (plantUnits).
+%   Stacks (11): stackModes (the types that stack, a continuous panel's
+%   items), every stacking type's defaults, validate's stack rules and
+%   Apply to all panels' (a stack a type does not take is kept); on the
+%   "clean" fixture every stacking type drawn (PSTH, continuous by groups
+%   and by channels, heat map, tuning; with Chronux the spectrum,
+%   spectrogram, coherence and coherogram): a row per group, the first on
+%   top, named on the y axis, the groups in the legend, every part a known
+%   role, line rows on a yyaxis with a StackMap'd row line each, image
+%   rows an image each with its color strip and one color bar; a
+%   continuous stack's traces read back through their StackMap. Y limits:
+%   yLimMode on every type with yLim (YLimModes, validate, Apply to all
+%   panels keeping a "fixed" mode from a panel without limits), the modes
+%   on a continuous stack (auto: each row its own scale; rows: one; batch
+%   without a range: as rows; fixed and batch: their range per row) and a
+%   PSTH's axis, figureBatchYLim's union; a run (EphysAnalysisRunner.run)
+%   of a figure with a batch panel: r.BatchYLim the union of every
+%   observation's own extent, each page drawn at it, the caption and the
+%   standalone script saying so.
 %
 %   The sections run on their own after the setup (TestSections): 1-6 need
-%   no data, 7 and 9 build the "clean" fixture once (fixtureA), 8 needs 7's
-%   results (declared), 10 builds its own two-dataset fixture.
+%   no data, 7, 9 and 11 build the "clean" fixture once (fixtureA), 8 needs
+%   7's results (declared), 10 builds its own two-dataset fixture.
 %
 %   Usage:  test_EphysAnalysisFigures
 %           test_EphysAnalysisFigures(Sections="8")          % 8 pulls 7 in
@@ -301,14 +319,14 @@ if S.sec("1", "config: defaults and the tables")
     check(isempty(O{1}.rasterSortEvent) && O{1}.rasterSortOrder == "ascending" && O{1}.waveform.mode == "off" ...
         && O{2}.bins.BinSec == 0.01 && O{2}.histStyle == "bar" && isnan(O{2}.fillAlpha) && isequal(O{2}.yLim, []) ...
         && O{2}.display == "trace" && O{2}.colormap == "" && isequal(O{2}.cLim, []) ...
-        && O{3}.display == "lines" && O{3}.errorType == "sem" && isnan(O{3}.stackSpacing) ...
+        && O{3}.stack == "off" && O{3}.errorType == "sem" && O{3}.stackSpacing == 1.1 ...
         && O{4}.order == "probe" && O{4}.group == 1 && O{5}.waveform.mode == "both" ...
         && O{6}.value == "rate" && O{7}.metric == "mean" && O{7}.correlation == "pearson" && ~O{7}.fisherZ ...
-        && ~O{2}.stack && O{2}.stackSpacing == 1.1 && isequaln(O{2}.auroc, EphysAnalysisConfig.defaults("Auroc")) ...
+        && O{2}.stack == "off" && O{2}.stackSpacing == 1.1 && isequaln(O{2}.auroc, EphysAnalysisConfig.defaults("Auroc")) ...
         && isequaln(O{4}.auroc, EphysAnalysisConfig.defaults("Auroc")) && O{5}.layout == "grid" ...
-        && isequal(string(fieldnames(O{8})).', ["measure" "baseline" "display" "yLim"]) && O{8}.display == "bar" && O{8}.measure == "rate" ...
+        && isequal(string(fieldnames(O{8})).', ["measure" "baseline" "display" "yLimMode" "yLim"]) && O{8}.display == "bar" && O{8}.measure == "rate" ...
         && O{8}.baseline.Mode == "none" && isequal(O{8}.yLim, []) ...
-        && isequal(string(fieldnames(O{9})).', ["param" "seriesParam" "measure" "baseline" "yLim" "waveform"]) && O{9}.param == "" ...
+        && isequal(string(fieldnames(O{9})).', ["param" "seriesParam" "stack" "stackSpacing" "measure" "baseline" "yLimMode" "yLim" "waveform"]) && O{9}.param == "" ...
         && O{9}.seriesParam == "" && O{9}.waveform.mode == "off", ...
         'panelTypes: each type''s DefaultOptions (psth stack / auroc, heatmap auroc, waveforms layout, rate, tuning)');
     srcCat = EphysAnalysisConfig.sourceCategories();
@@ -376,12 +394,14 @@ if S.sec("1", "config: defaults and the tables")
         && Oh.rasterSortOrder == "ascending" && Oh.rasterByGroup && ~EphysAnalysisConfig.defaults("Observe").perGroup, ...
         'continuous trials "off", maxTrials 100; heat map rows "items" with a raster''s sort fields; observe.perGroup false');
     cfo = @EphysAnalysisConfig.sharedFieldsOf;
-    check(isequal(cfo("raster"), ["maskAfterStop" "waveform"]) && isequal(cfo("psth"), ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform"]) ...
-        && isequal(cfo("continuous"), "baseline") && isequal(cfo("heatmap"), ["bins" "measure" "baseline" "auroc" "maskAfterStop"]) ...
-        && isequal(cfo("rate"), ["measure" "baseline"]) && isequal(cfo("tuning"), ["measure" "baseline" "waveform"]) ...
-        && isempty(cfo("waveforms")) && isequal(cfo("corrmap"), ["bins" "baseline"]) ...
+    stk = ["stack" "stackSpacing"];
+    check(isequal(cfo("raster"), ["maskAfterStop" "waveform"]) && isequal(cfo("psth"), ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform" stk "yLimMode"]) ...
+        && isequal(cfo("continuous"), ["baseline" stk "yLimMode"]) && isequal(cfo("heatmap"), ["bins" "measure" "baseline" "auroc" "maskAfterStop" stk]) ...
+        && isequal(cfo("rate"), ["measure" "baseline" "yLimMode"]) && isequal(cfo("tuning"), ["measure" "baseline" "waveform" stk "yLimMode"]) ...
+        && isequal(cfo("waveforms"), "yLimMode") && isequal(cfo("corrmap"), ["bins" "baseline"]) && isequal(cfo("spectrogram"), stk) ...
+        && isequal(cfo("spectrum"), [stk "yLimMode"]) ...
         && isempty(cfo("probemap")) && isempty(cfo("violin")), ...
-        'sharedFieldsOf(type): the options several types share (a waveforms panel''s waveform is its own, not an inset)');
+        'sharedFieldsOf(type): the options several types share (a waveforms panel''s waveform is its own, not an inset; the spectral types share the stack alone)');
     cbm = @EphysAnalysisConfig.baselineModes;
     check(isequal(cbm("psth"), ["none" "subtract" "zscore" "percent" "auroc"]) && isequal(cbm("heatmap"), cbm("psth")) ...
         && isequal(cbm("heatmap", "units"), cbm("psth")) && isequal(cbm("heatmap", "LFP"), ["none" "subtract"]) ...
@@ -399,8 +419,9 @@ if S.sec("1", "config: defaults and the tables")
         && Osp.errP == 0.05 && Osp.detrend == cxs.detrend && Osp.scale == "db" && Osp.spikeFs == 1000 && isequal(Osp.yLim, []) ...
         && ~isfield(Osg, 'timeBase') && isequal(Osg.movingwin, cxs.movingwin) && Osg.baseline.Mode == "none" && isequal(Osg.baseline.Window, [-0.5 0]) ...
         && Osg.group == 1 && isequal(Osg.cLim, []) && ~Och.overTime && Och.showPhase && isequal(Och.movingwin, cxs.movingwin) && ~isfield(Och, 'scale') ...
-        && Och.group == 1 && isempty(cfo("spectrum")) && isempty(cfo("spectrogram")) && isempty(cfo("coherence")), ...
-        'the spectral types'' DefaultOptions are chronuxSettings'' defaults (a spectrogram''s baseline a {Mode, Window}); none is a shared option');
+        && Och.group == 1 && isequal(cfo("spectrum"), ["stack" "stackSpacing" "yLimMode"]) && isequal(cfo("spectrogram"), ["stack" "stackSpacing"]) ...
+        && isequal(cfo("coherence"), ["stack" "stackSpacing" "yLimMode"]), ...
+        'the spectral types'' DefaultOptions are chronuxSettings'' defaults (a spectrogram''s baseline a {Mode, Window}); none but the stack and yLimMode is a shared option');
     check(catOf("LFP", "spectrum") == "continuous" && catOf("units", "spectrum") == "point" && catOf("events", "spectrum") == "" ...
         && catOf("LFP", "spectrogram") == "continuous" && catOf("units", "spectrogram") == "point" && catOf("events", "spectrogram") == "point" ...
         && catOf("detected", "coherence") == "point" && catOf("AUX", "coherence") == "continuous" && catOf("events", "coherence") == "", ...
@@ -611,7 +632,7 @@ if S.sec("3", "config: figureFor")
     ca.Figures(1).panels(2).options.baseline = struct('Mode', "auroc", 'Window', [-0.3 0]);
     ca.Figures(1).panels(2).options.auroc.windowSec = 0.05;
     ca.Figures(1).panels(2).options.auroc.cutoff = "fixed";
-    ca.Figures(1).panels(2).options.stack = true;
+    ca.Figures(1).panels(2).options.stack = "groups";
     ca.Figures(1).panels(2).options.stackSpacing = 1.4;
     ca.Figures(2).panels.options.baseline.Mode = "auroc";
     ca.Figures(2).panels.options.auroc.modulationWindow = [0 0.2];
@@ -626,7 +647,7 @@ if S.sec("3", "config: figureFor")
     s3 = ca.figureFor("rt");
     s4 = ca.figureFor("tc");
     check(s.panels(2).options.baseline.Mode == "auroc" && s.panels(2).options.auroc.windowSec == 0.05 && s.panels(2).options.auroc.cutoff == "fixed" ...
-        && s.panels(2).options.stack && s.panels(2).options.stackSpacing == 1.4 && ~isfield(s.panels(1).options, 'auroc') ...
+        && s.panels(2).options.stack == "groups" && s.panels(2).options.stackSpacing == 1.4 && ~isfield(s.panels(1).options, 'auroc') ...
         && s2.panels.options.baseline.Mode == "auroc" && isequal(s2.panels.options.auroc.modulationWindow, [0 0.2]), ...
         'figureFor: a PSTH and a heat map with their own auroc settings; the PSTH''s stack options');
     check(s3.panels.aligned && ~s3.panels.sharesTime && s3.panels.options.measure == "count" && s3.panels.options.baseline.Mode == "zscore" ...
@@ -672,13 +693,13 @@ if S.sec("4", "config: a JSON round trip")
     fixedUnits = layerOf("psth");
     fixedUnits.binding = "fixed"; fixedUnits.units.ids = [3 5]; fixedUnits.aggregate = "mean"; fixedUnits.color = "#1f77b4"; fixedUnits.lineStyle = "--";
     Pc{2}.layers = [Pc{2}.layers, fixedUnits];
-    Pc{2}.options = struct('yLim', [0 50], 'baseline', struct('Mode', "zscore", 'Window', [-0.3 0]), 'stack', true, 'stackSpacing', 1.3, ...
+    Pc{2}.options = struct('yLim', [0 50], 'baseline', struct('Mode', "zscore", 'Window', [-0.3 0]), 'stack', "groups", 'stackSpacing', 1.3, ...
         'auroc', struct('windows', "sliding", 'stepSec', 0.02, 'modulationWindow', [0 0.3]));
     Pc{2}.window = struct('mode', "fixed", 'pre', -0.5, 'post', 1);
     aux = layerOf("continuous");
     aux.source = "AUX"; aux.binding = "fixed"; aux.channels = [1 2]; aux.aggregate = "mean";
     Pc{3}.layers = [Pc{3}.layers, aux];
-    Pc{3}.options = struct('errorType', "std", 'display', "stacked");
+    Pc{3}.options = struct('errorType', "std", 'stack', "items");
     Pc{4}.layers.source = "LFP"; Pc{4}.layers.channels = [1 2 3];
     Pc{4}.options = struct('cLim', [-1 1], 'group', 2);
     Pc{6}.options = struct('value', "nUnits");
@@ -717,10 +738,10 @@ if S.sec("4", "config: a JSON round trip")
         && isempty(g.grid.colGaps) && isequal(g.panels(3).size, [0.6 0.8]) && g.panels(3).align == "left" && g.panels(3).valign == "bottom" ...
         && isequal(g.panels(1).size, [1 1]) && g.panels(1).align == "center" && c2.Figures(2).grid.spacing == "none", ...
         'custom gaps in % (one each way, the row gaps set apart) and a panel''s own size and alignment survive save / load');
-    check(isequal([g.panels.type], types) && isequal([g.panels.id], types + "_1") && g.panels(3).options.display == "stacked" ...
+    check(isequal([g.panels.type], types) && isequal([g.panels.id], types + "_1") && g.panels(3).options.stack == "items" ...
         && g.panels(6).options.value == "nUnits" && g.panels(4).options.group == 2, ...
         'every panel type, with its options');
-    check(g.panels(2).options.stack && g.panels(2).options.stackSpacing == 1.3 && g.panels(2).options.auroc.windows == "sliding" ...
+    check(g.panels(2).options.stack == "groups" && g.panels(2).options.stackSpacing == 1.3 && g.panels(2).options.auroc.windows == "sliding" ...
         && g.panels(2).options.auroc.stepSec == 0.02 && isequal(g.panels(2).options.auroc.modulationWindow, [0 0.3]) ...
         && g.panels(2).options.auroc.windowSec == 0.1 && g.panels(5).options.layout == "probe" ...
         && g.panels(8).options.display == "points" && g.panels(8).options.measure == "probability" && g.panels(8).options.baseline.Mode == "ratio" ...
@@ -891,7 +912,7 @@ if S.sec("5", "config: grid editing")
             'options', struct('bins', struct('BinSec', 0.05), 'baseline', struct('Mode', "zscore"), 'histStyle', "line", 'yLim', [0 9], ...
             'waveform', struct('mode', "mean"))), ...
         struct('id', "p2", 'type', "psth", 'row', 2, 'window', struct('mode', "fixed", 'pre', -1, 'post', 2)), ...
-        struct('id', "c1", 'type', "continuous", 'row', 3, 'options', struct('display', "stacked")), ...
+        struct('id', "c1", 'type', "continuous", 'row', 3, 'options', struct('statistic', "median")), ...
         struct('id', "h1", 'type', "heatmap", 'row', 4, 'options', struct('order', "peak"))}}));
     [ad, chg] = EphysAnalysisConfig.adoptPanelOptions(ap, "p1");
     check(ad.panels(2).options.bins.BinSec == 0.05 && ad.panels(2).options.baseline.Mode == "zscore" && ad.panels(2).options.histStyle == "line" ...
@@ -1185,8 +1206,10 @@ if S.sec("6", "config: validate")
         && has(b2, o + "auroc.cutoff", "error") && has(b3, o + "auroc.modulatedOnly", "error"), ...
         'psth: the auROC baseline, its settings checked as a plot''s (windows of whole bins, cutoff, modulatedOnly)');
     b = ub; b.Figures(1).panels(2).options.stackSpacing = 0;
-    b2 = ub; b2.Figures(1).panels(2).options.stack = true;
-    check(has(b, o + "stackSpacing", "error") && isempty(figIssues(b2)), 'psth: stack, and a positive stackSpacing');
+    b2 = ub; b2.Figures(1).panels(2).options.stack = "groups";
+    b3 = ub; b3.Figures(1).panels(2).options.stack = "true";
+    check(has(b, o + "stackSpacing", "error") && isempty(figIssues(b2)) && has(b3, o + "stack", "error"), ...
+        'psth: stack (off or groups), and a positive stackSpacing');
     b = base; b.Figures(1).panels(2).options.histStyle = "pie"; b.Figures(1).panels(2).options.normalize = "max";
     b.Figures(1).panels(2).options.fillAlpha = 2; b.Figures(1).panels(2).options.yLim = [1 0];
     check(has(b, o + "histStyle", "error") && has(b, o + "normalize", "error") && has(b, o + "fillAlpha", "error") && has(b, o + "yLim", "error"), ...
@@ -1199,11 +1222,11 @@ if S.sec("6", "config: validate")
         && ~has(b2, o + "colormap", "error") && isempty(figIssues(b3)), ...
         'psth: display (trace or heatmap), a colormap that is no function (a warning), cLim');
     b = base.addFigure("continuous", Id="ct");
-    b.Figures(2).panels.options = struct('display', "grid", 'statistic', "mode", 'transform', "log", 'errorType', "mad", 'stackSpacing', -1, ...
+    b.Figures(2).panels.options = struct('stack', "rows", 'statistic', "mode", 'transform', "log", 'errorType', "mad", 'stackSpacing', -1, ...
         'baseline', struct('Mode', "zscore"));
     o = "ct.continuous_1.options.";
-    check(has(b, o + "display", "error") && has(b, o + "statistic", "error") && has(b, o + "transform", "error") && has(b, o + "errorType", "error") ...
-        && has(b, o + "stackSpacing", "error") && has(b, o + "baseline.Mode", "error"), 'continuous: display, statistic, transform, errorType, stackSpacing, baseline');
+    check(has(b, o + "stack", "error") && has(b, o + "statistic", "error") && has(b, o + "transform", "error") && has(b, o + "errorType", "error") ...
+        && has(b, o + "stackSpacing", "error") && has(b, o + "baseline.Mode", "error"), 'continuous: stack, statistic, transform, errorType, stackSpacing, baseline');
     haveBoot = license('test', 'Statistics_Toolbox') && exist('bootci', 'file');
     b = base.addFigure("continuous", Id="ct"); b.Figures(2).panels.options.errorType = "ci95";
     check(has(b, o + "errorType", "error") == ~haveBoot, 'continuous: the bootstrap CI needs the Statistics and Machine Learning Toolbox');
@@ -1891,7 +1914,7 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
         'an auROC PSTH (its baseline Mode "auroc") is spikePSTH''s PSTH with the auROC baseline, its calls too');
     fs4 = cfg.Figures(cfg.figureIndex("rp"));
     fs4.id = "stacked";
-    fs4.panels(2).options.stack = true;
+    fs4.panels(2).options.stack = "groups";
     fs4.panels(2).options.stackSpacing = 1.5;
     cfg = cfg.addFigure(fs4);
     Fst = rn.computeFigure(src, cfg.figureFor("stacked"), Observation=Tu(1, :));
@@ -1906,7 +1929,7 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
     Ffs = rn.computeFigure(src, cfg.figureFor("fsl"), Observation=Tu(1, :));
     ffsS = cfg.Figures(cfg.figureIndex("fsl"));
     ffsS.id = "fslstack";
-    ffsS.panels(2).options.stack = true;
+    ffsS.panels(2).options.stack = "groups";
     cfg = cfg.addFigure(ffsS);
     FfsS = rn.computeFigure(src, cfg.figureFor("fslstack"), Observation=Tu(1, :));
     Rfr = Ffs.panels(1).layers(1).R;
@@ -2872,7 +2895,7 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
 
     % a stacked continuous panel whose only signal layer is skipped still draws its marks
     cfg = cfg.addFigure(struct('observe', struct('data', "LFP"), 'panels', {{struct('id', "sig", 'type', "continuous", ...
-        'layers', [auxF ev], 'options', struct('display', "stacked"))}}), Id="cmarks");   % the AUX layer cannot follow an LFP channel
+        'layers', [auxF ev], 'options', struct('stack', "items"))}}), Id="cmarks");   % the AUX layer cannot follow an LFP channel
     try
         Fk1 = rn.computeFigure(src, cfg.figureFor("cmarks"));
         hk1 = renderFigure(Fk1, Fk1.spec, fig);
@@ -3055,6 +3078,47 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     end
     check(okS && nS == nBox && numel(sbS) == height(FfsS.groups), sprintf(['a stacked PSTH''s latency boxes: one per row ' ...
         '(%d), each above its own PSTH and under the next row up'], nS));
+    % with the y limits: the band stays outside the traces' range in every yLimMode, and the panel's yExtent is the traces'
+    okY = true;
+    for ym = ["auto" "rows" "fixed" "batch"]
+        sY = FfsS.spec;
+        sY.panels(2).options.yLimMode = ym;
+        sY.panels(2).options.yLim = [0 5];
+        hY = renderFigure(FfsS, sY, fig, BatchYLim=struct('id', sY.panels(2).id, 'lim', [0 7], 'n', 2));
+        aY = hY.panels(2).axes;
+        sbY = findall(aY, 'Tag', 'stackBase');
+        for h = reshape(sbY, 1, [])
+            glY = string(getappdata(h, 'PlotGroup'));
+            mp = getappdata(h, 'StackMap');
+            bxY = findall(aY, 'Tag', 'latencyBox', '-function', @(x) string(getappdata(x, 'PlotGroup')) == glY);
+            if isempty(bxY); continue; end
+            topY = NaN;   % the row's top value on the axis: its range's top in a shared mode, its reach (any group's trace) in auto
+            switch ym
+                case "fixed", topY = mp(1) + mp(2) * 5;
+                case "batch", topY = mp(1) + mp(2) * 7;
+                otherwise
+                    trY = findall(aY, '-regexp', 'Tag', '^(rate|rateFill|sem)$', '-function', @(x) string(getappdata(x, 'PlotGroup')) == glY);
+                    yv = cell2mat(arrayfun(@(x) reshape(x.YData, [], 1), trY, 'UniformOutput', false));
+                    topY = max(yv(isfinite(yv)));
+            end
+            above = sort(arrayfun(@(x) x.YData(1), sbY));
+            above = above(above > mp(1) + 1e-9);
+            okY = okY && min(bxY.YData) > topY && (isempty(above) || max(bxY.YData) < min(above));
+        end
+    end
+    sO = Ffs.spec;
+    sO.panels(2).options.yLimMode = "fixed";
+    sO.panels(2).options.yLim = [0 10];
+    hO = renderFigure(Ffs, sO, fig);
+    bxO = findall(hO.panels(2).axes, '-regexp', 'Tag', '^latency');
+    yO = cell2mat(arrayfun(@(h) reshape(h.YData, [], 1), bxO, 'UniformOutput', false));
+    eO = figureYExtents(Ffs, setfield(sO, 'panels', setfield(sO.panels, {2}, 'options', ...
+        setfield(sO.panels(2).options, 'yLimMode', "batch"))));   %#ok<SFLD>
+    hA = renderFigure(Ffs, Ffs.spec, fig);
+    check(okY && min(yO(isfinite(yO))) > 10 && isequal(hO.panels(2).yExtent, [0 10]) ...
+        && isscalar(eO) && eO.lim(2) < max(ylim(hA.panels(2).axes)), ...
+        ['the latency boxes stay outside the traces'' range in every yLimMode (stacked: above each row''s top, under the next ' ...
+        'row; overlaid fixed: above yLim), and the panel''s yExtent (a run''s batch range) is the traces'' range, not the band']);
     ha = renderFigure(Fau, Fau.spec, fig);
     aa = ha.axes(2);
     check(isscalar(findall(aa, 'Tag', 'chanceLine')) && isequal(ylim(aa), [0 1]) && ~isempty(findall(aa, '-regexp', 'Tag', '^rate(Fill)?$')) ...
@@ -3082,7 +3146,7 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
         'an auROC figure''s caption: how the auROC is made, and with the calls (figureAurocCalls) what the cutoff called');
     fau2 =cfg.Figures(cfg.figureIndex("auroc"));
     fau2.id = "aurocStack";
-    fau2.panels(2).options.stack = true;
+    fau2.panels(2).options.stack = "groups";
     cfgA = cfg.addFigure(fau2);
     wa1 = warning('off', 'aurocCall:NoCutoff');
     wa2 = warning('off', 'aurocCall:WideCutoff');
@@ -3855,6 +3919,275 @@ if S.sec("10", "session figures: one figure across datasets")
         && FsP{1}.panels(2).layers(1).meta.unitId == u1 && isequaln(Rp.rate(:, 1, 2), FsP{2}.panels(2).layers(1).R.rate), ...
         'the merged PSTH has one tile: session 1''s unit and session 2''s own (another id), the merged meta keeps session 1''s id');
     clear closeS
+end
+
+%% ============================================================================ stacks
+if S.sec("11", "stacks and y limits: every panel type that stacks, one vocabulary; yLimMode auto / rows / batch / fixed")
+    % the vocabulary: which types stack, how validate and adoptPanelOptions treat it
+    sm = @EphysAnalysisConfig.stackModes;
+    check(isequal(sm("psth"), ["off" "groups"]) && isequal(sm("continuous"), ["off" "groups" "items"]) ...
+        && isequal(sm("heatmap"), sm("psth")) && isequal(sm("tuning"), sm("psth")) && isequal(sm("spectrum"), sm("psth")) ...
+        && isequal(sm("spectrogram"), sm("psth")) && isequal(sm("coherence"), sm("psth")) ...
+        && all(arrayfun(@(t) isempty(sm(t)), ["raster" "rate" "waveforms" "probemap" "corrmap" "eventTrace"])), ...
+        'stackModes: PSTH, continuous (also items), heat map, tuning and the spectral types stack; raster, rate, waveforms, probe map, unit correlation and event traces do not');
+    PTk = EphysAnalysisConfig.panelTypes();
+    okDef = true;
+    for t = reshape(PTk.Type, 1, [])
+        o0 = PTk.DefaultOptions{PTk.Type == t};
+        okDef = okDef && isfield(o0, 'stack') == ~isempty(sm(t));
+        if isfield(o0, 'stack'); okDef = okDef && o0.stack == "off" && o0.stackSpacing == 1.1; end
+    end
+    check(okDef && ~isfield(PTk.DefaultOptions{PTk.Type == "continuous"}, 'display'), ...
+        'every type that stacks has stack "off" and stackSpacing 1.1 by default, no other type has them; a continuous panel has no display');
+    cv = EphysAnalysisConfig();
+    cv.Source.Root = root;
+    cv.Defaults.Window = struct('mode', "fixed", 'pre', -0.2, 'post', 0.8, 'stop', []);
+    cv = cv.addFigure("psth", Id="p");
+    cv = cv.addFigure("heatmap", Id="h");
+    cv = cv.addFigure("spectrum", Id="s");
+    v1 = cv; v1.Figures(1).panels.options.stack = "items";
+    v2 = cv; v2.Figures(2).panels.options.rows = "trials"; v2.Figures(2).panels.layers(1).binding = "observation";
+    v2.Figures(2).panels.options.stack = "groups";
+    v3 = cv; v3.Figures(3).panels.options.stackSpacing = 0;
+    v4 = cv; v4.Figures(3).panels.options.stack = "groups"; v4.Figures(3).panels.options.stackSpacing = 0.8;
+    check(has(v1, "p.psth_1.options.stack", "error") && has(v2, "h.heatmap_1.options.stack", "warning") ...
+        && has(v3, "s.spectrum_1.options.stackSpacing", "error") && ~any(startsWith(figIssues(v4).Field, "s.")), ...
+        'validate: a stack the type does not take (items on a PSTH), a heat map of trials'' stack (a warning: not used), a positive stackSpacing (below 1 overlaps: fine)');
+    ap = EphysAnalysisConfig.normalizeFigure(struct('grid', struct('rows', 3, 'cols', 1), 'panels', {{ ...
+        struct('id', "p1", 'type', "psth", 'row', 1, 'options', struct('stack', "groups", 'stackSpacing', 1.4)), ...
+        struct('id', "c1", 'type', "continuous", 'row', 2, 'options', struct('stack', "items")), ...
+        struct('id', "r1", 'type', "rate", 'row', 3)}}));
+    [ad, chg] = EphysAnalysisConfig.adoptPanelOptions(ap, "p1");
+    [ad2, chg2] = EphysAnalysisConfig.adoptPanelOptions(ap, "c1");
+    check(ad.panels(2).options.stack == "groups" && ad.panels(2).options.stackSpacing == 1.4 && ~isfield(ad.panels(3).options, 'stack') ...
+        && isempty(setxor(chg([chg.id] == "c1").fields, ["stack" "stackSpacing"])) ...
+        && ad2.panels(1).options.stack == "groups" && ad2.panels(1).options.stackSpacing == 1.4 && ismember("stack", chg2([chg2.id] == "p1").kept), ...
+        'Apply to all panels: a PSTH''s stack goes to a continuous panel; a continuous panel''s "items" does not go to a PSTH, which keeps its own (kept "stack")');
+
+    % the drawing, on section 7's "clean" dataset: every stacking type, its rows, their order, labels and roles
+    fixtureA();
+    drawTargets();
+    ck = EphysAnalysisConfig();
+    ck.Source.Root = FX.proj;
+    ck.Defaults.EventRef.line = "Stim";
+    ck.Defaults.Window = struct('mode', "fixed", 'pre', -0.2, 'post', 0.8, 'stop', []);
+    ck.Defaults.Selection.groupBy = "Depth";
+    ck = ck.addFigure("psth", Id="k_psth");
+    ck.Figures(end).panels(1).options.stack = "groups";
+    ck = ck.addFigure("continuous", Id="k_cgroups");
+    ck.Figures(end).panels(1).options.stack = "groups";
+    ck = ck.addFigure("continuous", Id="k_citems");
+    ck.Figures(end).panels(1).layers(1).binding = "fixed";
+    ck.Figures(end).panels(1).layers(1).channels = [1 2 3];
+    ck.Figures(end).panels(1).options.stack = "items";
+    ck = ck.addFigure("heatmap", Id="k_heat");
+    ck.Figures(end).panels(1).options.stack = "groups";
+    ck = ck.addFigure("tuning", Id="k_tuning");
+    ck.Figures(end).selection = EphysAnalysisConfig.defaults("TrialSelection");
+    ck.Figures(end).selection.groupBy = "TrialType";
+    ck.Figures(end).panels(1).options.param = "Depth";
+    ck.Figures(end).panels(1).options.seriesParam = "TrialType";
+    ck.Figures(end).panels(1).options.stack = "groups";
+    kIds = ["k_psth" "k_cgroups" "k_citems" "k_heat" "k_tuning"];
+    cxAdded = "";
+    if ~ChronuxDataset.hasChronux() && isfolder(fullfile(repo, 'toolboxes', 'chronux'))
+        cxAdded = string(genpath(fullfile(repo, 'toolboxes', 'chronux')));
+        addpath(cxAdded);
+    end
+    cxBack = onCleanup(@() rmpathQuiet(cxAdded));
+    if ChronuxDataset.hasChronux()
+        for t = ["spectrum" "spectrogram" "coherence"]
+            ck = ck.addFigure(t, Id="k_" + t);
+            ck.Figures(end).panels(1).options.stack = "groups";
+            kIds(end+1) = "k_" + t; %#ok<AGROW>
+        end
+        ck = ck.addFigure("coherence", Id="k_cohgram");
+        ck.Figures(end).panels(1).options.overTime = true;
+        ck.Figures(end).panels(1).options.stack = "groups";
+        kIds(end+1) = "k_cohgram";
+    else
+        fprintf('  SKIP: Chronux is not on the path: the spectral stacks are not drawn\n');
+    end
+    Ik = figIssues(ck);
+    check(~any(Ik.Severity == "error"), sprintf('the stacked figures validate (%d issue(s))', height(Ik)));
+    rk = EphysAnalysisRunner(ck, LogFcn=[]);
+    srcK = rk.source(1);
+    images = ["k_heat" "k_spectrogram" "k_cohgram"];
+    why = strings(1, 0);
+    for id = kIds
+        try
+            spK = ck.figureFor(id);
+            Tk = figureObservations(srcK, spK);
+            Fk = rk.computeFigure(srcK, spK, Observation=Tk(1, :));
+            hk = renderFigure(Fk, spK, fig);
+            ax = hk.panels(1).axes;
+            R = Fk.panels(1).layers(find([Fk.panels(1).layers.skip] == "", 1)).R;
+            if id == "k_tuning"
+                nRow = numel(R.series); first = string(R.series(1)); names = string(R.series);
+            elseif id == "k_citems"
+                nRow = size(R.mean, 2); first = ""; names = strings(1, 0);
+            else
+                nRow = height(R.groups); first = string(R.groups.label(1)); names = string(R.groups.label);
+            end
+            Cm = PlotAesthetics.components(hk.layout);
+            sb = findall(ax, 'Tag', 'stackBase');
+            lg = findall(fig, 'Type', 'legend');
+            lgs = strings(1, 0);
+            if ~isempty(lg); lgs = string(lg(1).String); end
+            if ismember(id, images)
+                im = findall(ax, 'Tag', 'image');
+                gIm = arrayfun(@(x) string(getappdata(x, 'PlotGroup')), im);
+                yIm = arrayfun(@(x) mean(x.YData), im);
+                [~, topI] = max(yIm);
+                if strcmp(ax.YDir, 'reverse'); [~, topI] = min(yIm); end
+                ok = numel(im) == nRow && gIm(topI) == first && numel(findall(ax, 'Tag', 'rasterBand', 'Type', 'patch')) >= nRow ...
+                    && numel(findall(fig, 'Type', 'colorbar')) == 1 && numel(ax.YTick) == nRow ...
+                    && all(ismember(names, lgs));
+            else
+                yb = arrayfun(@(x) x.YData(1), sb);
+                gb = arrayfun(@(x) string(getappdata(x, 'PlotGroup')), sb);
+                [~, topB] = max(yb);
+                ok = numel(ax.YAxis) == 2 && numel(sb) == nRow && numel(ax.YAxis(1).TickValues) == nRow ...
+                    && (first == "" || gb(topB) == first || id == "k_cgroups" || id == "k_psth") ...
+                    && all(arrayfun(@(x) isappdata(x, 'StackMap'), sb));
+                if id ~= "k_citems"; ok = ok && all(ismember(names, lgs)); end
+            end
+            ok = ok && ~any(Cm.Role == "" | ~ismember(Cm.Role, roles));
+            if ~ok; why(end+1) = id; end %#ok<AGROW>
+        catch ME
+            why(end+1) = id + ": " + ME.message; %#ok<AGROW>
+        end
+    end
+    failTxt = "";
+    if ~isempty(why); failTxt = ": failed " + strjoin(why, "; "); end
+    check(isempty(why), sprintf(['every stacking type draws a row per group (a continuous panel''s items: per channel), the first ' ...
+        'on top, named on the y axis, its groups in the legend, every part a known role: line rows a yyaxis with a row line each ' ...
+        '(StackMap), image rows an image each with its color strip and one color bar (%s)%s'], strjoin(kIds, ", "), ...
+        failTxt));
+    % the order and labels of a stack of groups: the first group's row on top, its value the top tick label
+    spP = ck.figureFor("k_psth");
+    TkP = figureObservations(srcK, spP);
+    FkP = rk.computeFigure(srcK, spP, Observation=TkP(1, :));
+    spC = ck.figureFor("k_cgroups");
+    TkC = figureObservations(srcK, spC);
+FkC = rk.computeFigure(srcK, spC, Observation=TkC(1, :));
+    hC = renderFigure(FkC, spC, fig);
+    axC = hC.panels(1).axes;
+    RC = FkC.panels(1).layers(1).R;
+    rlC = rowLabels(RC);
+    sbC = findall(axC, 'Tag', 'stackBase');
+    [~, iTop] = max(arrayfun(@(x) x.YData(1), sbC));
+    lblC = string(axC.YAxis(1).TickLabels);
+    mC = findall(axC, 'Tag', 'trace');
+    gm = arrayfun(@(x) string(getappdata(x, 'PlotGroup')), mC);
+    m1 = mC(gm == string(RC.groups.label(1)));
+    k1 = getappdata(m1(1), 'StackMap');
+    check(string(getappdata(sbC(iTop), 'PlotGroup')) == rlC(1) && lblC(end) == rlC(1) && numel(axC.YAxis) == 2 ...
+        && max(abs((m1(1).YData(:) - k1(1)) / k1(2) - double(RC.mean(:, 1, 1)))) < 1e-6 ...
+        && contains(string(axC.YAxis(1).Label.String), "own scale"), ...
+        'a continuous stack of groups: the first group on top (its value the top tick label), each trace its own values through its row''s StackMap, "... (each row on its own scale)" on the y axis (yLimMode auto)');
+    hP = renderFigure(FkP, spP, fig);
+    check(numel(hP.panels(1).axes.YAxis) == 2 && numel(findall(hP.panels(1).axes, 'Tag', 'stackBase')) == height(FkP.groups), ...
+        'a PSTH stack of groups: a row each, a y axis on each side');
+
+    % y limits: one yLimMode on every type with yLim; auto / rows / fixed / batch on a stack and an axis
+    okY = true;
+    for t = reshape(PTk.Type, 1, [])
+        o0 = PTk.DefaultOptions{PTk.Type == t};
+        okY = okY && isfield(o0, 'yLimMode') == isfield(o0, 'yLim');
+        if isfield(o0, 'yLimMode'); okY = okY && o0.yLimMode == "auto"; end
+    end
+    check(okY && isequal(EphysAnalysisConfig.YLimModes, ["auto" "rows" "batch" "fixed"]) ...
+        && ismember("yLimMode", EphysAnalysisConfig.sharedFieldsOf("continuous")) && ~ismember("yLim", EphysAnalysisConfig.sharedFieldsOf("rate")), ...
+        'every type with yLim has yLimMode "auto" by default (YLimModes); it is a shared option, yLim itself is not');
+    y1 = cv; y1.Figures(1).panels.options.yLimMode = "free";
+    y2 = cv; y2.Figures(1).panels.options.yLimMode = "fixed";
+    y3 = y2; y3.Figures(1).panels.options.yLim = [0 40];
+    y4 = cv; y4.Figures(3).panels.options.yLimMode = "batch";
+    check(has(y1, "p.psth_1.options.yLimMode", "error") && has(y2, "p.psth_1.options.yLim", "error") ...
+        && ~any(startsWith(figIssues(y3).Field, "p.")) && ~any(startsWith(figIssues(y4).Field, "s.")), ...
+        'validate: yLimMode one of YLimModes; "fixed" needs its yLim; "batch" on a spectrum is fine');
+    ay = EphysAnalysisConfig.normalizeFigure(struct('grid', struct('rows', 2, 'cols', 1), 'panels', {{ ...
+        struct('id', "p1", 'type', "psth", 'row', 1, 'options', struct('yLimMode', "fixed", 'yLim', [0 30])), ...
+        struct('id', "c1", 'type', "continuous", 'row', 2)}}));
+    [ady, chy] = EphysAnalysisConfig.adoptPanelOptions(ay, "p1");
+    ay2 = ay; ay2.panels(1).options.yLimMode = "batch";
+    ady2 = EphysAnalysisConfig.adoptPanelOptions(ay2, "p1");
+    check(ady.panels(2).options.yLimMode == "auto" && isempty(ady.panels(2).options.yLim) && ismember("yLimMode", chy.kept) ...
+        && ady2.panels(2).options.yLimMode == "batch", ...
+        'Apply to all panels: yLimMode goes to a panel of another type, but "fixed" not to one without limits of its own (kept); yLim stays the type''s');
+
+    % the modes on a continuous stack of groups (each row's StackMap) and on a PSTH's axis
+    mapsOf = @(ax) cell2mat(arrayfun(@(x) getappdata(x, 'StackMap'), findall(ax, 'Tag', 'stackBase'), 'UniformOutput', false));
+    yMode = @(sp, m, lim) setfield(sp, 'panels', setfield(sp.panels, 'options', ...
+        setfield(setfield(sp.panels.options, 'yLimMode', m), 'yLim', lim))); %#ok<SFLD>
+    hA = renderFigure(FkC, yMode(spC, "auto", []), fig);
+    mA = mapsOf(hA.panels(1).axes);
+    yA = string(hA.panels(1).axes.YAxis(1).Label.String);
+    extC = hA.panels(1).yExtent;
+    hR = renderFigure(FkC, yMode(spC, "rows", []), fig);
+    mR = mapsOf(hR.panels(1).axes);
+    hB0 = renderFigure(FkC, yMode(spC, "batch", []), fig);
+    mB0 = mapsOf(hB0.panels(1).axes);
+    hF = renderFigure(FkC, yMode(spC, "fixed", [-500 500]), fig);
+    LF = hF.panels(1).axes.YAxis(1).Label.String;
+    hB = renderFigure(FkC, yMode(spC, "batch", []), fig, BatchYLim=struct('id', spC.panels.id, 'lim', [-400 400], 'n', 7));
+    LB = hB.panels(1).axes.YAxis(1).Label.String;
+    check(numel(unique(round(mA(:, 2), 9))) > 1 && contains(yA, "own scale") && all(mR(:, 2) == 1) ...
+        && isequal(mB0, mR) && contains(string(LF), "1e+03") && contains(string(LB), "800") ...
+        && all(isfinite(extC)) && extC(2) > extC(1), ...
+        ['a continuous stack: Auto scales each row to itself ("each row on its own scale"), Shared by rows puts every row on one ' ...
+        'scale, Batch without a run''s range is as rows, Fixed spans yLim per row (1e+03 µV per row), Batch with BatchYLim its range (800); ' ...
+        'its yExtent is the rows'' reach in µV']);
+    spPf = spP; spPf.panels.options.yLimMode = "fixed"; spPf.panels.options.yLim = [0 77]; spPf.panels.options.stack = "off";
+    hPf = renderFigure(FkP, spPf, fig);
+    ylF = ylim(hPf.panels(1).axes);
+    spPb = spPf; spPb.panels.options.yLimMode = "batch";
+    hPb = renderFigure(FkP, spPb, fig, BatchYLim=struct('id', spPb.panels.id, 'lim', [-3 66], 'n', 2));
+    ylB = ylim(hPb.panels(1).axes);
+    hPa = renderFigure(FkP, setfield(spPf, 'panels', setfield(spPf.panels, 'options', setfield(spPf.panels.options, 'yLimMode', "auto"))), fig); %#ok<SFLD>
+    check(isequal(ylF, [0 77]) && isequal(ylB, [-3 66]) && ~isequal(ylim(hPa.panels(1).axes), [0 77]) ...
+        && all(isfinite(hPa.panels(1).yExtent)) && diff(hPa.panels(1).yExtent) > 0, ...
+        'an overlaid PSTH: Fixed at yLim, Batch at the run''s range, Auto from the data (its yExtent the axis'' limits as drawn)');
+    Bu = figureBatchYLim({struct('id', "a", 'lim', [0 5]), struct('id', {"a" "b"}, 'lim', {[-1 3] [NaN NaN]}), struct('id', "a", 'lim', [2 9])});
+    check(isequal([Bu.id], ["a" "b"]) && isequal(Bu(1).lim, [-1 9]) && Bu(1).n == 3 && all(isnan(Bu(2).lim)) && Bu(2).n == 0 ...
+        && isequal(figureBatchPanels(spPb), spPb.panels.id) && isempty(figureBatchPanels(spPf)), ...
+        'figureBatchYLim: the union of the observations'' extents per panel, how many gave one; figureBatchPanels lists the batch panels');
+
+    % a run (EphysAnalysisRunner.run: Generate and Export): every observation of the run on one range
+    cb = ck;
+    kb = cb.figureIndex("k_psth");
+    cb.Figures(kb).panels.options.stack = "off";
+    cb.Figures(kb).panels.options.yLimMode = "batch";
+    cb.Export.Folder = string(fullfile(root, "batch_out"));
+    cb.Export.Formats = "png";
+    rb = EphysAnalysisRunner(cb, LogFcn=[]);
+    Rb = rb.run(Figures="k_psth", Export=true, Report=false);
+    spB = cb.figureFor("k_psth");
+    srcB = rb.source(1);
+    TB = figureObservations(srcB, spB);
+    own = zeros(0, 2);
+    drawn = zeros(0, 2);
+    for i = 1:height(TB)
+        FB = rb.computeFigure(srcB, spB, Observation=TB(i, :));
+        Ei = figureYExtents(FB, spB);
+        own(end+1, :) = Ei.lim; %#ok<AGROW>
+        hBi = renderFigure(FB, spB, fig, BatchYLim=rb.BatchYLim);
+        drawn(end+1, :) = ylim(hBi.panels(1).axes); %#ok<AGROW>
+    end
+    BB = rb.BatchYLim;
+    check(all(Rb.Status == "done") && isscalar(BB) && BB.figure == "k_psth" && BB.n == height(TB) ...
+        && isequal(BB.lim, [min(own(:, 1)) max(own(:, 2))]) && size(unique(drawn, 'rows'), 1) == 1 && isequal(drawn(1, :), BB.lim) ...
+        && size(unique(own, 'rows'), 1) > 1 && isempty(rb.BatchCache), ...
+        sprintf(['a run of a figure with Y limits shared by batch measures every observation first: r.BatchYLim is the union of ' ...
+        'their own extents (%d observations, [%g %g]), and every page drawn with it has that one y range; the figures kept ' ...
+        'while measuring are gone after the run'], height(TB), BB.lim));
+    capB = figureCaption(spB, TB, YShared=BB.n);
+    txtB = EphysAnalysisScript.standalone(cb);
+    check(contains(capB, sprintf("y shared across %d observations", BB.n)) && contains(figureCaption(spB, TB), "y shared across the run's observations") ...
+        && ~contains(figureCaption(spP, TB), "y shared") && contains(txtB, "figureBatchYLim(yext)") && contains(txtB, "BatchYLim=batchYLim"), ...
+        'the caption says the y range is shared across the run''s observations; the standalone script measures them first and draws with BatchYLim');
+    clear cxBack
 end
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);

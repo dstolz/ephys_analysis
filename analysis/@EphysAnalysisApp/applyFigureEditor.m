@@ -222,16 +222,14 @@ if isfield(op, 'histStyle')
 end
 if p.type == "psth"; E.psthDisplay.Value = char(pickFrom(op.display, string(E.psthDisplay.ItemsData), "trace")); end
 if isfield(op, 'colormap'); offerItems(E.panelColormap, string(E.panelColormap.Items), pick(op.colormap, "auto")); end
-if isfield(op, 'stack')
-    E.stack.Value = logical(op.stack);
-    if isfinite(op.stackSpacing) && op.stackSpacing > 0; E.psthSpacing.Value = op.stackSpacing; else; E.psthSpacing.Value = 1.1; end
+if isfield(op, 'stack')   % the type's stack values (stackModes)
+    stackChoices(E.stack, p.type, op.stack);
+    if isfinite(op.stackSpacing) && op.stackSpacing > 0; E.stackSpacing.Value = op.stackSpacing; else; E.stackSpacing.Value = 1.1; end
 end
 if p.type == "continuous"
-    E.contDisplay.Value = char(pickFrom(op.display, string(E.contDisplay.ItemsData), "lines"));
     E.statistic.Value = char(pickFrom(op.statistic, string(E.statistic.ItemsData), "mean"));
     E.transform.Value = char(pickFrom(op.transform, string(E.transform.ItemsData), "none"));
     E.errorType.Value = char(pickFrom(op.errorType, string(E.errorType.ItemsData), "sem"));
-    if isfinite(op.stackSpacing) && op.stackSpacing > 0; E.stackSpacing.Value = op.stackSpacing; else; E.stackSpacing.Value = []; end
     E.contTrials.Value = char(pickFrom(op.trials, string(E.contTrials.ItemsData), "off"));
     E.maxTrials.Value = max(1, op.maxTrials);
 end
@@ -244,6 +242,7 @@ if isfield(op, 'metric')
     E.fisherZ.Value = logical(op.fisherZ);
 end
 if isfield(op, 'yLim'); E.yLim.Value = listText(op.yLim); end
+if isfield(op, 'yLimMode'); E.yLimMode.Value = char(pickFrom(op.yLimMode, EphysAnalysisConfig.YLimModes, "auto")); end
 if isfield(op, 'cLim'); E.cLim.Value = listText(op.cLim); end
 if isfield(op, 'waveform')
     wv = op.waveform;

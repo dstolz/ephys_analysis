@@ -18,6 +18,14 @@ function hk = drawSpectrogramPanel(ax, P, look)
 %   column (so the time axes line up, as a heat map's). With several groups
 %   the title names the group and its epochs. The events layers drawn as
 %   marks become latency lines of the group and a rug (figEventMarks).
+%   options.stack "groups" draws every trial group instead, an image row
+%   each (drawImageStack: the first on top, on the one time axis, its
+%   color strip at the left and its name on the y axis, the block step
+%   options.stackSpacing x a block's height, never overlapping), on one
+%   color scale (options.cLim, else every group's 1st to 99th percentile)
+%   with one color bar, the groups offered to the legend, every group's
+%   latency lines; options.group is not used then, and the y label is
+%   "<groups' parameters> (<f1>-<f2> Hz per row)".
 %   Skipped layers are noted (figLayerNotes). HK.yName "Frequency (Hz)".
 %
 %   See also renderFigure, renderChronux, computeSpectrogramPanel, figurePanelRegistry.
@@ -34,18 +42,21 @@ end
 R = P.layers(j).R;
 nG = size(R.S, 4);
 g = min(max(1, round(o.group)), nG);
+stacked = isfield(o, 'stack') && o.stack == "groups";   % every group: an image row each, the first on top
+gs = g;
+if stacked; gs = 1:nG; end
 normalized = R.baseline.mode ~= "none";
 if normalized
-    Z = R.S(:, :, 1, g);
+    Z = R.S(:, :, 1, gs);
     units = R.baseline.units;
     signed = R.baseline.mode ~= "ratio";
     if R.baseline.mode == "ratio"; Z = log2(Z); units = "log2 ratio"; signed = true; end
 elseif o.scale == "linear"
-    Z = R.S(:, :, 1, g);
+    Z = R.S(:, :, 1, gs);
     units = R.units;
     signed = false;
 else
-    Z = 10 * log10(R.S(:, :, 1, g));
+    Z = 10 * log10(R.S(:, :, 1, gs));
     units = "dB re 1 " + R.units;
     signed = false;
 end
@@ -54,15 +65,28 @@ if signed
 else
     cmap = designColormap(style, "heat", "parula");
 end
-x = Z.';
+Z = permute(Z, [2 1 4 3]);   % [nF x nT x groups drawn]
 name = P.layers(j).name;
-tagPart(imagesc(ax, R.t, R.f, x, 'AlphaData', double(isfinite(x))), "image", name);
+if stacked
+    colors = look.colors;
+    if size(colors, 1) ~= nG; colors = groupPalette(R.groups, style); end
+    [rowNames, gName] = rowLabels(R);
+    rowNames = reshape(string(rowNames), 1, []);
+    [~, hLeg] = drawImageStack(ax, R.t, R.f, Z, rowNames(1:nG), colors, o.stackSpacing);
+    for q = 1:nG
+        hk.legendHandles(end+1) = hLeg(q);
+        hk.legendLabels(end+1) = string(R.groups.label(q));
+        hk.legendGroup(end+1) = true;
+    end
+else
+    tagPart(imagesc(ax, R.t, R.f, Z, 'AlphaData', double(isfinite(Z))), "image", name);
+end
 tagPart(ax, "axes", "", look.panelId);   % after imagesc, which resets a replaced axes' properties
 set(ax, 'YDir', 'normal', 'Layer', 'top');
 colormap(ax, cmap);
 cl = o.cLim;
 if ~(numel(cl) == 2 && cl(2) > cl(1))
-    v = x(isfinite(x));
+    v = Z(isfinite(Z));
     cl = chronuxAutoLimits(v, signed);
 end
 clim(ax, cl);
@@ -83,16 +107,16 @@ if numel(W) == 2 && W(2) > W(1)
 elseif numel(R.t) > 1
     xlim(ax, double(R.t([1 end]).'));
 end
-if numel(R.f) > 1; ylim(ax, double(R.f([1 end]).')); end
+if numel(R.f) > 1 && ~stacked; ylim(ax, double(R.f([1 end]).')); end
 cb = tagPart(colorbar(ax), "colorbar");
 cb.Label.String = units;
 if look.panel.sharesTime && inTimeColumn(look)
     cb.Location = 'east';   % beside the axes it would narrow them, out of line with the time panels above and below
 end
-if nG > 1
+if nG > 1 && ~stacked
     title(ax, sprintf('%s (n = %d)', string(R.groups.label(g)), R.nTrials(1, g)), 'FontWeight', 'normal', 'Interpreter', 'none');
 end
-[hm, lm] = figEventMarks(ax, P, look, g, "mark");
+[hm, lm] = figEventMarks(ax, P, look, gs, "mark");
 for m = 1:numel(hm)
     hk.legendHandles(end+1) = hm(m);
     hk.legendLabels(end+1) = lm(m);
@@ -100,6 +124,7 @@ for m = 1:numel(hm)
 end
 figLayerNotes(ax, P, look, true);
 hk.yName = "Frequency (Hz)";
+if stacked; hk.yName = sprintf("%s (%.3g-%.3g Hz per row)", gName, R.f(1), R.f(end)); end
 end
 
 

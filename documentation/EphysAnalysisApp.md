@@ -410,7 +410,7 @@ with the key of each in brackets:
 | Sessions | **Across sessions**, and with it ticked which datasets, how the sessions are colored, the error band, how the observed unit is matched, the minimum sessions and the trial groups: the figure drawn once over several datasets instead of once per dataset ([Sessions in the Figures tab](#sessions-in-the-figures-tab)); no key; collapsed until opened. Its place in the Figure supersection, above the Panels section: it decides what the figure is drawn over |
 | Panels (5) | the schematic of the grid, **New panel...** (the [New panel window](#the-new-panel-window)), the selected panel's **Row span**, **Column span**, **Row height**, **Column width**, **Panel size** and **Align in cell**, **Spacing** with **Spacing...**, **Remove panel** and **Move** (below) |
 | **PANEL** (Alt+2) | the sections below, down to Overlays: the selected panel's. Its header names the panel and its type |
-| Selected panel (6) | **Type** (a change starts the panel afresh: below), **Title** (blank = none), **Box** (*auto (the design's)*, *on* or *off*: the frame around the panel's axes; *on* and *off* win over the design, the remembered looks and the figure's own rules; `box`), **X axis** and **Y axis** (every type: the axis' label, blank = the type's own, and its side, *bottom* or *top*, *left* or *right*; `xLabel`, `yLabel`, `xSide`, `ySide`; the y side grayed out on a stacked PSTH, which has a y axis on each side; a stack of time panels with its x axes on top tells the time once, at its top; the sides, not the label texts, go to every panel with Options' **Apply to all panels**, or from the right-click menu's **Move every panel's X axis to top** (*Axis labels*, below)) and **Group shown** (heat map, unit correlation and spectrogram panels, and a coherence panel drawn over time: which of the figure's trial groups they draw, 1 = the first; `options.group`; a heat map of trials draws every group, so the row hides) |
+| Selected panel (6) | **Type** (a change starts the panel afresh: below), **Title** (blank = none), **Box** (*auto (the design's)*, *on* or *off*: the frame around the panel's axes; *on* and *off* win over the design, the remembered looks and the figure's own rules; `box`), **X axis** and **Y axis** (every type: the axis' label, blank = the type's own, and its side, *bottom* or *top*, *left* or *right*; `xLabel`, `yLabel`, `xSide`, `ySide`; the y side grayed out on a stacked line panel (PSTH, continuous, spectrum, coherence, tuning), which has a y axis on each side; a stack of time panels with its x axes on top tells the time once, at its top; the sides, not the label texts, go to every panel with Options' **Apply to all panels**, or from the right-click menu's **Move every panel's X axis to top** (*Axis labels*, below)) and **Group shown** (heat map, unit correlation and spectrogram panels, and a coherence panel drawn over time: which of the figure's trial groups they draw, 1 = the first; `options.group`; a heat map of trials and a stacked panel draw every group, so the row hides) |
 | Panel alignment (7) | the selected panel's own event reference and epoch window (an aligned type only), with **Same as the figure** in the header, and the panel's trial selection, the [Trial selection](#alignment-tab) rows under the **Trial selection as the figure** box (an aligned type only). **Apply to all panels** and **Re-link all panels** (below) |
 | Layers (8) | the selected panel's layers: the list with **Add** (a source the type draws), **Remove**, **Up** and **Down**, and the rows of the layer picked (below) |
 | Options (9) | all of the panel's own options: its type's rows, under the type's name (*Raster options*, *PSTH options*, ...; below), and **Apply to all panels** |
@@ -516,8 +516,8 @@ response test's rows until *Responsive only*, the baseline window until a
 baseline mode, the fill's opacity until *Filled*, the sort event until the
 sort is *event*, the jitter until the *points* display, the waveform's rows
 until its mode is not *Off*, a unit correlation's bins until its *peak*
-rate, the mask until the window has a stop event, the stack spacing until
-*stacked rows*, a PSTH's stack spacing until **One row per group**, the auROC
+rate, the mask until the window has a stop event, the stack spacing while
+**Stack** is *Off*, the auROC
 step until *sliding* windows, its threshold until the *fixed threshold* cutoff,
 its resamples until the test is not *ranksum*, its **Calls** boxes until a
 cutoff, and the error and legend rows until their boxes. The auROC rows show only
@@ -691,24 +691,40 @@ list edit the layer picked:
 | Panel type | Rows |
 | --- | --- |
 | Raster | **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*), **Rows by group first**, **Colors** (the ticks' color: *groups* = each trial group's color, as the PSTH colors its traces, or one color for every tick, which a layer's own **Color** overrides; and **bands** behind the rows: *none* (the default), *groups* (a pale band of each group's color) or one color for every group), **Tick width** (points; 0 = the plot design's width; `options.tickWidth`), **First spike** (a summary beside **First-spike latency...**, below), **Show y ticks** (off by default: the y axis has no tick marks or epoch numbers, only its label; `options.yTicks`), **Mask after the stop event**, and the waveform inset (**Waveform**, **Inset location**, **Inset size**, **Label**) |
-| PSTH | **Bin**, **Smooth**, **Measure**, **Baseline** (with *auroc*) and its window, the auROC rows (with the *auroc* baseline), **Mask after the stop event**, **Display** (*trace* or *heat map*), **PSTH as**, **Fill** and its opacity, **Normalize**, **Stack** (**One row per group** with its **spacing**, the row step in tallest PSTHs), **Latency box** (a summary beside **Latency box plot...**, below), **Y limits** (not used in a stack), and the waveform inset; as a heat map, **Colormap** and **Color limits** instead of **PSTH as**, **Fill**, **Stack**, **Latency box** and **Y limits** |
+| PSTH | **Bin**, **Smooth**, **Measure**, **Baseline** (with *auroc*) and its window, the auROC rows (with the *auroc* baseline), **Mask after the stop event**, **Display** (*trace* or *heat map*), **PSTH as**, **Fill** and its opacity, **Normalize**, **Stack** (*Off (overlaid)* or *One row per group*, with its **spacing**, the row step in row heights), **Latency box** (a summary beside **Latency box plot...**, below), **Y limits** (the mode, and in a stack the rows' scale), and the waveform inset; as a heat map, **Colormap** and **Color limits** instead of **PSTH as**, **Fill**, **Stack**, **Latency box** and **Y limits** |
 | Event traces | **Draw as** (*solid bars (onset to offset)* or *a logic level (a line)*), **Trials** (*every epoch overlaid in the line's row*, translucent, or *a sub-row per epoch*, with **group bands**), the sub-rows sorted as a raster's rows by the raster's **Sort rows by** (and its order), **Sort event**, **Sort sequence** and **Rows by group first** (grayed out while overlaid), **Color by** (*line*: the layer's Color, else a palette color; or *trial group*), **Height** (a share of the row) with its **opacity** (blank: 0.3 overlaid, 1 in sub-rows), **Bar outline** and its width (bars), **Narrowest bar** (bars: points; a bar drawn narrower, a zero-length interval too, also gets a tick this wide through its middle; 0: none), **Level line** style and width (a line; a layer's own Line style wins), **Baseline** (**Draw**, its color) and **Baseline line** (style, width), **Row spacing**. Its layers are events layers only, one line each, a row each ([Event traces](EphysAnalysisConfig.md#event-traces)) |
-| Continuous signal | **Baseline** and its window, **Display** (*lines* or *stacked rows*), **Signal** (mean or median; as recorded, rectified, or *Vector magnitude*: the layer's channels as one trace, √(x² + y² + z²) in each epoch after the baseline, e.g. a 3-axis accelerometer's AUX channels with Baseline *subtract*), **Error band** (off, mean ± SEM, mean ± SD, bootstrap 95% CI or interquartile range), **Stack spacing**, **Trials** (*Off*, *Faint, behind the mean* or *Only the trials*) with **at most** (the most epochs drawn, 100 by default, picked evenly over their order; the traces sit under every band and mean; grayed out while *Off*), **Y limits** |
-| Heat map | **Bin**, **Smooth**, **Measure** and **Mask after the stop event** (a spike layer), **Baseline** (*auroc* for a spike layer, with the auROC rows; the map is then of auROCs in the diverging colormap), **Rows** (*the layer's units or channels*, or *one unit's epochs (trials)*), **Row order** (*probe*, *peak* or *modulation*, the last only with the auROC baseline), **Color limits**; the group drawn is in the Selected panel section. With *one unit's epochs (trials)* a row is an epoch of one unit, every group at once, sorted as a raster's rows: the raster's **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*) and **Rows by group first** show, **Row order** and **Group shown** hide, and the layer may follow the observation (its Binding row opens for a spike layer; otherwise fix it to one unit). The map is one unit's epochs: a layer that follows the observation through a channel (a channel observation, or the other spike source) keeps every unit on it, which Validate refuses, and a layer that still keeps several is skipped with *A heat map of trials draws one unit: this layer keeps n*. The groups are a color strip along the left edge, the y label names the sort, and the auROC baseline is refused |
+| Continuous signal | **Baseline** and its window, **Stack** (*Off (overlaid)*, *One row per group* or *One row per channel*, with its **spacing**), **Signal** (mean or median; as recorded, rectified, or *Vector magnitude*: the layer's channels as one trace, √(x² + y² + z²) in each epoch after the baseline, e.g. a 3-axis accelerometer's AUX channels with Baseline *subtract*), **Error band** (off, mean ± SEM, mean ± SD, bootstrap 95% CI or interquartile range), **Trials** (*Off*, *Faint, behind the mean* or *Only the trials*) with **at most** (the most epochs drawn, 100 by default, picked evenly over their order; the traces sit under every band and mean; grayed out while *Off*), **Y limits** |
+| Heat map | **Bin**, **Smooth**, **Measure** and **Mask after the stop event** (a spike layer), **Baseline** (*auroc* for a spike layer, with the auROC rows; the map is then of auROCs in the diverging colormap), **Rows** (*the layer's units or channels*, or *one unit's epochs (trials)*), **Row order** (*probe*, *peak* or *modulation*, the last only with the auROC baseline), **Stack** (*One image row per group*: a block of rows per group, **Group shown** hidden), **Color limits**; the group drawn is in the Selected panel section. With *one unit's epochs (trials)* a row is an epoch of one unit, every group at once, sorted as a raster's rows: the raster's **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*) and **Rows by group first** show, **Row order** and **Group shown** hide, and the layer may follow the observation (its Binding row opens for a spike layer; otherwise fix it to one unit). The map is one unit's epochs: a layer that follows the observation through a channel (a channel observation, or the other spike source) keeps every unit on it, which Validate refuses, and a layer that still keeps several is skipped with *A heat map of trials draws one unit: this layer keeps n*. The groups are a color strip along the left edge, the y label names the sort, and the auROC baseline is refused |
 | Unit waveforms | **Layout** (*grid*: the unit, or several overlaid; *probe*: every unit of the first layer at its place on the probe, with the units of a further layer framed in red), **Waveform** (*Mean*, *Subsample* or *Mean + subsample*, and how many spikes), **Label**, **Y limits** |
 | Probe map | **Value** (*rate*, *nSpikes* or *nUnits*), **Color limits** |
 | Unit correlation | **Epoch rate**, **Correlation**, **Fisher z transform**, **Baseline**, **Bin** and **Smooth** (for the *peak* rate), **Color limits** |
 | Firing rate | **Measure**, **Baseline** (*none*, *subtract*, *ratio* or *zscore*) and its window, **Display** (*bars (mean, error bar)*, *boxes* or *points (each epoch)*), **Y limits** |
-| Tuning curve | **Measure**, **Baseline** (as the firing rate panel's) and its window, **Parameter** (the trial parameter on the x axis; blank: the figure's first group-by parameter, else the first numeric one) with **series** (one curve per value of another trial parameter; blank: one curve), **Y limits**, and the waveform inset |
-| Power spectrum | the Chronux rows: **Time base** (*the panel's epochs* or *segments of the recording*, with **Range (s)** and **Segment (s)**), **Tapers** (*TW and K* or *W (Hz) and p*, with **TW, K** or **W (Hz), p**), **Pad**, **Frequency range**, **Error** (*none*, *theoretical* or *jackknife*) with its p-value, **Detrend**, **Scale** (*dB*, *log axis* or *linear*), **Spike rate (Hz)** (with a spike layer) and **Y limits** |
-| Spectrogram | **Tapers** (as above), **Pad**, **Frequency range**, **Detrend**, **Scale** (*dB* or *linear*), **Spike rate (Hz)** (with a spike layer), **Moving window (s)** with its step, **Baseline** (*none*, *db*, *percent*, *zscore* or *ratio*) with **Baseline (s)**, whose window must lie inside the panel's window, and **Color limits**; the group drawn is **Group shown** in the Selected panel section |
-| Coherence | **Time base** with **Range (s)** and **Segment (s)**, the tapers, **Pad**, **Frequency range**, **Error** with its p-value (*jackknife* gives the band and the confidence level, *theoretical* the level), **Detrend**, **Spike rate (Hz)**, **Show phase (under the magnitude)** and **Y limits** (blank: 0 to 1); **Over time (a coherogram)** swaps the error, phase and y limits for **Moving window (s)** and **Color limits**, adds **Group shown** and, on the panel's epochs, puts the image on the figure's time axis; it takes spike layers as well as signals (spike-field and unit-unit coherograms). Its two layers may be signals at different rates (an AUX layer and an LFP layer): the faster one is resampled to the slower one's rate |
+| Tuning curve | **Measure**, **Baseline** (as the firing rate panel's) and its window, **Parameter** (the trial parameter on the x axis; blank: the figure's first group-by parameter, else the first numeric one) with **series** (one curve per value of another trial parameter; blank: one curve), **Stack** (*One row per series*), **Y limits**, and the waveform inset |
+| Power spectrum | the Chronux rows: **Time base** (*the panel's epochs* or *segments of the recording*, with **Range (s)** and **Segment (s)**), **Tapers** (*TW and K* or *W (Hz) and p*, with **TW, K** or **W (Hz), p**), **Pad**, **Frequency range**, **Error** (*none*, *theoretical* or *jackknife*) with its p-value, **Detrend**, **Scale** (*dB*, *log axis* or *linear*), **Spike rate (Hz)** (with a spike layer), **Stack** (*One row per group*) and **Y limits** |
+| Spectrogram | **Tapers** (as above), **Pad**, **Frequency range**, **Detrend**, **Scale** (*dB* or *linear*), **Spike rate (Hz)** (with a spike layer), **Moving window (s)** with its step, **Baseline** (*none*, *db*, *percent*, *zscore* or *ratio*) with **Baseline (s)**, whose window must lie inside the panel's window, **Stack** (*One image row per group*, **Group shown** hidden) and **Color limits**; the group drawn is **Group shown** in the Selected panel section |
+| Coherence | **Time base** with **Range (s)** and **Segment (s)**, the tapers, **Pad**, **Frequency range**, **Error** with its p-value (*jackknife* gives the band and the confidence level, *theoretical* the level), **Detrend**, **Spike rate (Hz)**, **Show phase (under the magnitude)**, **Stack** (*One row per group*: the magnitude's rows, or over time an image row each) and **Y limits** (blank: 0 to 1); **Over time (a coherogram)** swaps the error, phase and y limits for **Moving window (s)** and **Color limits**, adds **Group shown** and, on the panel's epochs, puts the image on the figure's time axis; it takes spike layers as well as signals (spike-field and unit-unit coherograms). Its two layers may be signals at different rates (an AUX layer and an LFP layer): the faster one is resampled to the slower one's rate |
 
-**Stack** draws a PSTH panel's trial groups in rows of their own instead of
-overlaid, the first on top (as a raster lists them), each group's value on the left axis and its
-peak on the right. A single group is not stacked, a second layer is drawn into
-the rows as an outline, and a raster panel above the PSTH shows the groups'
-rasters.
+**Y limits** (every panel with a y axis of values) is a drop-down beside the
+limits' field, which is open only for *Fixed*: *Auto* (the axis fits the data;
+in a stack each row fits itself), *Shared by rows* (a stack's rows on one
+scale), *Shared by batch* (every observation of a **Generate** or Export
+**Run** of the figure on one range, the union over the run's datasets: the
+preview draws its own range, and its status line says so) or *Fixed* (the two
+values typed: `yLimMode`, `yLim`; [Y limits](EphysAnalysisConfig.md#y-limits)).
+
+**Stack** draws a panel's trial groups in rows of their own instead of
+overlaid, the first on top (as a raster lists them): a PSTH's, a continuous
+panel's (or its channels: *One row per channel*), a heat map's, a tuning
+curve's series, a spectrum's, a spectrogram's and a coherence panel's. Line rows
+name their groups on the left axis and each row's top (a PSTH's peak) on the
+right, so their **Y axis** side grays out; image rows (heat map, spectrogram,
+coherogram) share the time axis and one color bar, each with its group's color
+strip, and **Group shown** hides. The **spacing** is the row step in row heights
+(1: the rows touch). A single group is not stacked, a second layer is drawn into
+the rows, and a raster panel above a PSTH shows the groups' rasters. A raster
+(its groups are blocks already), a firing rate panel (its groups along x), and
+waveforms, probe map, unit correlation and event-trace panels show no **Stack**
+row; going to it from the search says why ([Stacks](EphysAnalysisConfig.md#stacks)).
 
 **First-spike latency...** (a raster's **First spike** row) and **Latency box
 plot...** (a PSTH's **Latency box** row) open a modal window on the selected
@@ -924,7 +940,7 @@ panel's **X axis** or **Y axis** row.
 items: **Edit label text...** asks for the panel's own label (blank: the type's
 automatic one; `xLabel`, `yLabel`), and **Move to top** / **Move to bottom** (an
 x label) or **Move to right** / **Move to left** (a y label) puts that axis'
-ticks and label on the other side (`xSide`, `ySide`; a stacked PSTH's y label has
+ticks and label on the other side (`xSide`, `ySide`; a stacked line panel's y label has
 no side to move to). Each edit goes into the config as the editor's own do: the
 panel is selected, its rows follow and the preview is drawn again (or marked out
 of date), and it is a step of the Edit menu's undo (**Undo Label text**, **Undo
@@ -942,7 +958,7 @@ at its top.
 The same items are on the menu of a panel's axes itself (right-click the plot
 area, off any line), beside **Edit aesthetics...**, **Go to setting** and
 **Design**: **Edit X label text...**, **Edit Y label text...**, **Move X axis to
-top** / *bottom*, **Move Y axis to right** / *left* (not on a stacked PSTH, which
+top** / *bottom*, **Move Y axis to right** / *left* (not on a stacked line panel, which
 has a y axis on each side) and the two every-panel moves. So a label that shows
 nothing can be set too: a label the time stack hides (an inner panel's x label,
 which has no menu of its own) keeps the text you give it, and the status bar says
@@ -1714,10 +1730,10 @@ alignment and Options. *Max units* shrinks the picker and *Inf*
 restores it. Changing a PSTH panel to a heat map keeps its units layer
 (fixed) and the shared bins, shows the heat map's rows and says so in the
 status bar, and changing it back lets the layer follow the unit again. A PSTH
-shows its **Stack** row (the spacing grayed out while unticked) and no auROC
-rows without the auROC baseline; ticking **One row per group** and setting the
-spacing reach the panel's options and the preview stacks its groups (a row
-baseline per group). Choosing the PSTH's *auroc* baseline shows its auROC rows;
+shows its **Stack** row (*Off* or *One row per group*, the spacing grayed out
+while *Off*) and no auROC rows without the auROC baseline; *One row per group*
+and the spacing reach the panel's options and the preview stacks its groups (a
+row baseline per group). Choosing the PSTH's *auroc* baseline shows its auROC rows;
 editing the window and the cutoff reaches its options and the preview draws
 auROC curves (the result holds `auroc`). The panel-type drop-down offers
 *Firing rate* and *Tuning curve*; a *Firing rate*

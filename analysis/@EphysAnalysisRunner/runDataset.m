@@ -44,6 +44,12 @@ function rows = runDataset(obj, k, opts)
 %   this dataset covers (run passes it): its m figures share it evenly,
 %   figure j reporting progress a + (b - a) * (j-1)/m and its observations
 %   dividing its share (default [0 1]).
+%   A figure with a panel whose options.yLimMode is "batch" draws it at
+%   the run's shared range: BatchYLim= (run's batchYLimits rows: figure,
+%   id, lim, n), else (runDataset alone) this dataset's own, measured
+%   first (batchYLimits); a figure computed while measuring is drawn
+%   without computing it again (takeBatchFigure). Its caption says "y
+%   shared across <n> observations" (figureCaption YShared=).
 %   Observation= (a struct: kind, data, unitId, channel, label; default
 %   [] = every observation) draws each figure only for the rows that
 %   match it (figureObservations' Observation=): the unit picked, or what
@@ -61,6 +67,7 @@ arguments
     opts.Report (1,1) logical = false
     opts.Span (1,2) double = [0 1]
     opts.Observation = []
+    opts.BatchYLim = []
 end
 
 cfg = obj.Config;
@@ -111,6 +118,17 @@ for jf = 1:numel(fids)
             continue
         end
         nObs = height(T);
+        BY = [];   % the "batch" panels' shared y range
+        if ~isempty(figureBatchPanels(spec)) && (opts.Export || withImages || withPages)
+            B = opts.BatchYLim;
+            if isstruct(B) && ~isempty(B) && any([B.figure] == spec.id)
+                BY = B([B.figure] == spec.id);
+            else   % runDataset alone: this dataset's observations
+                BY = obj.batchYLimits(k, spec, Observation=opts.Observation, Fraction=opts.Span(1) + diff(opts.Span) * at / nAll);
+            end
+        end
+        nShared = NaN;
+        if ~isempty(BY); nShared = max([BY.n]); end
         files = string.empty(1, 0);
         images = cell(1, 0);
         pages = strings(1, 0);
@@ -124,13 +142,14 @@ for jf = 1:numel(fids)
             kept = opts.Export && ~X.Overwrite && all(isfile(want));   % its files exist: not written again
             if kept; files = [files want]; end %#ok<AGROW>
             if kept && ~withImages && ~withPages; continue; end   % ... nor computed, unless the report needs the page
-            F = obj.computeFigure(src, spec, Observation=T(i, :));
+            F = obj.takeBatchFigure(k, spec.id, i);   % computed while measuring the batch range, else now
+            if isempty(F); F = obj.computeFigure(src, spec, Observation=T(i, :)); end
             ac = figureAurocCalls(F);
             if ~isempty(ac); calls{end+1} = ac; end %#ok<AGROW>
             if ~opts.Export && ~withImages && ~withPages; continue; end   % computed only
             fig = newExportFigure(X, F, spec);
             closer = onCleanup(@() close(fig));   % closes the page on a failure too
-            h = renderFigure(F, spec, fig);
+            h = renderFigure(F, spec, fig, BatchYLim=BY);
             written = string.empty(1, 0);
             if opts.Export && ~kept
                 written = exportFigure(fig, base, Format=X.Formats, Dpi=X.Dpi);
@@ -147,8 +166,9 @@ for jf = 1:numel(fids)
         if opts.Report
             if isempty(F); F = struct('kind', "figure"); end
             obj.Report = addReportFigure(obj.Report, rspec, F, Files=files, Images=images, Pages=pages, ...
-                Caption=figureCaption(spec, T, Dataset=name, Auroc=calls));
+                Caption=figureCaption(spec, T, Dataset=name, Auroc=calls, YShared=nShared));
         end
+        obj.clearBatchCache(k, spec.id);
         obj.Results(end+1, :) = {name, spec.id, "figure", "done", sprintf("%d observation(s)", nObs), strjoin(files, "; "), toc(t0)};
         obj.log("%s: %s done (%d observation(s), %d file(s), %.1f s)", name, spec.id, nObs, numel(files), toc(t0));
     catch ME

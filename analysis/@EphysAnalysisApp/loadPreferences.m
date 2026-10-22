@@ -6,7 +6,8 @@ function loadPreferences(obj, openLast)
 %   FigureSupersectionsCollapsed (the Figures tab's Auto box, on by
 %   default, and its editor's collapsed sections and supersections),
 %   FigureGroupBy and FigureGroupsCollapsed (the figure tree's
-%   grouping and collapsed groups).
+%   grouping and collapsed groups), ApplyTicked, ApplySeen and ApplyReplot
+%   (Apply to figures' ticks and its Replot box: onApplyToFigures).
 %   Everything else is the config.
 if nargin < 2; openLast = true; end
 g = obj.PrefGroup;
@@ -38,6 +39,9 @@ end
 if AppPrefs.ispref(g, 'FigureGroupsCollapsed')
     obj.FigureGroupsCollapsed = reshape(string(AppPrefs.getpref(g, 'FigureGroupsCollapsed')), 1, []);
 end
+if AppPrefs.ispref(g, 'ApplyTicked'); obj.ApplyTicked = reshape(string(AppPrefs.getpref(g, 'ApplyTicked')), 1, []); end
+if AppPrefs.ispref(g, 'ApplySeen'); obj.ApplySeen = reshape(string(AppPrefs.getpref(g, 'ApplySeen')), 1, []); end
+if AppPrefs.ispref(g, 'ApplyReplot'); obj.ApplyReplot = isequal(AppPrefs.getpref(g, 'ApplyReplot'), true); end
 if AppPrefs.ispref(g, 'FigureSectionsCollapsed')
     shut = string(AppPrefs.getpref(g, 'FigureSectionsCollapsed'));
     for i = 1:numel(obj.FigureSections)

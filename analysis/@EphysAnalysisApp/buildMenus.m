@@ -32,6 +32,9 @@ obj.UndoMenu = uimenu(obj.EditMenu, "Text", "Undo", "Accelerator", "Z", "Enable"
     "MenuSelectedFcn", @(~,~) obj.onUndoRedo("undo"));
 obj.RedoMenu = uimenu(obj.EditMenu, "Text", "Redo", "Accelerator", "Y", "Enable", "off", "Tooltip", tip + " Also Ctrl+Shift+Z.", ...
     "MenuSelectedFcn", @(~,~) obj.onUndoRedo("redo"));
+obj.ApplyMenu = uimenu(obj.EditMenu, "Text", "Apply last change to figures...    Ctrl+Shift+A", "Separator", "on", "Enable", "off", ...
+    "Tooltip", "Give the last edit of the figure editor to other figures or panels, picked in a list (or hold Ctrl while you edit).", ...
+    "MenuSelectedFcn", @(~,~) obj.onApplyToFigures());
 
 obj.DesignMenu = uimenu(obj.Fig, "Text", "Design");
 

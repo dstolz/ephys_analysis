@@ -127,8 +127,15 @@ function test_EphysAnalysisFigures(opts)
 %   of a figure with a batch panel: r.BatchYLim the union of every
 %   observation's own extent, each page drawn at it, the caption and the
 %   standalone script saying so.
+%   One edit to other figures (12): figureEditChanges (a panel option,
+%   figure settings, nothing for an id, title, place, layer or note text,
+%   one field of an own event reference), changeTargets (the panels whose
+%   type takes the value, a row per figure for figure settings, the
+%   targets that have it already, an alignment from the Defaults),
+%   panelTakes' rules (stack, baseline, a type's own option) and
+%   applyChanges to the rows picked.
 %
-%   The sections run on their own after the setup (TestSections): 1-6 need
+%   The sections run on their own after the setup (TestSections): 1-6 and 12 need
 %   no data, 7, 9 and 11 build the "clean" fixture once (fixtureA), 8 needs
 %   7's results (declared), 10 builds its own two-dataset fixture.
 %
@@ -4188,6 +4195,78 @@ FkC = rk.computeFigure(srcK, spC, Observation=TkC(1, :));
         && ~contains(figureCaption(spP, TB), "y shared") && contains(txtB, "figureBatchYLim(yext)") && contains(txtB, "BatchYLim=batchYLim"), ...
         'the caption says the y range is shared across the run''s observations; the standalone script measures them first and draws with BatchYLim');
     clear cxBack
+end
+
+if S.sec("12", "config: one edit given to other figures (figureEditChanges, changeTargets, applyChanges, panelTakes)")
+    ca = EphysAnalysisConfig();
+    ca = ca.addFigure("rasterPsth", Id="rp");
+    ca = ca.addFigure("psth", Id="p");
+    ca = ca.addFigure("continuous", Id="c");
+    ca = ca.addFigure("rate", Id="r");
+    D = ca.Defaults;
+    F0 = ca.Figures;
+    F1 = F0;
+    F1(1).panels(2).options.stack = "groups";
+    C = EphysAnalysisConfig.figureEditChanges(F0(1), F1(1), 2);
+    ca.Figures = F1;
+    T = EphysAnalysisConfig.changeTargets(ca.Figures, D, 1, 2, C);
+    check(isscalar(C) && C.scope == "panel" && C.path == "options.stack" && C.value == "groups" ...
+        && isequal(string({T.figureId}), ["p" "c"]) && all([T.panel] == 1) && ~any([T.same]) && isequal(T(1).current, {"off"}) ...
+        && isequal(string({T.panelType}), ["psth" "continuous"]), ...
+        'a PSTH''s stack edited: one change, options.stack; the other figures'' PSTH and continuous panels can take it, "off" now (not the raster beside it, not a rate panel: no stack)');
+    G = EphysAnalysisConfig.applyChanges(ca.Figures, D, T(2), C);
+    check(G(3).panels(1).options.stack == "groups" && G(2).panels(1).options.stack == "off" && isequaln(G([1 2 4]), ca.Figures([1 2 4])), ...
+        'applyChanges gives it to the row picked only (the continuous panel)');
+    F2 = ca.Figures;
+    F2(3).panels(1).options.stack = "items";
+    C2 = EphysAnalysisConfig.figureEditChanges(ca.Figures(3), F2(3), 1);
+    T2 = EphysAnalysisConfig.changeTargets(F2, D, 3, 1, C2);
+    [tf1, k1] = EphysAnalysisConfig.panelTakes(F2(3).panels(1), F2(2).panels(1), "stack");
+    [tf2, k2] = EphysAnalysisConfig.panelTakes(F2(2).panels(1), F2(1).panels(1), "stack");
+    Pz = F2(2).panels(1);
+    Pz.options.baseline.Mode = "zscore";
+    [tf3, k3] = EphysAnalysisConfig.panelTakes(Pz, F2(3).panels(1), "baseline.Mode");
+    tf4 = EphysAnalysisConfig.panelTakes(Pz, F2(3).panels(1), "baseline.Window");
+    tf5 = EphysAnalysisConfig.panelTakes(Pz, F2(1).panels(2), "histStyle");
+    tf6 = EphysAnalysisConfig.panelTakes(Pz, F2(3).panels(1), "histStyle");
+    check(isempty(T2) && ~tf1 && k1 == "stack" && ~tf2 && k2 == "" && ~tf3 && k3 == "baseline" && tf4 && tf5 && ~tf6, ...
+        ['panelTakes: a continuous panel''s "items" goes to no other type (kept "stack"); a raster has no stack; a zscore ' ...
+        'baseline does not go to a continuous panel, its window does; a PSTH''s own options go to PSTHs only']);
+    F3 = ca.Figures;
+    F3(2).panels(1).options.stack = "groups";
+    T3 = EphysAnalysisConfig.changeTargets(F3, D, 2, 1, EphysAnalysisConfig.figureEditChanges(ca.Figures(2), F3(2), 1));
+    check(isequal(string({T3.figureId}), ["rp" "c"]) && isequal([T3.same], [true false]), 'a target with the value already is marked same');
+    F4 = ca.Figures;
+    F4(2).style.FontSize = 15;
+    F4(2).grid.spacing = "loose";
+    C4 = EphysAnalysisConfig.figureEditChanges(ca.Figures(2), F4(2), 1);
+    T4 = EphysAnalysisConfig.changeTargets(F4, D, 2, 1, C4);
+    G4 = EphysAnalysisConfig.applyChanges(F4, D, T4, C4);
+    check(isequal(sort([C4.path]), sort(["style.FontSize" "grid.spacing"])) && all([C4.scope] == "figure") ...
+        && isequal(string({T4.figureId}), ["rp" "c" "r"]) && all([T4.panel] == 0) ...
+        && all(arrayfun(@(f) f.style.FontSize == 15 && f.grid.spacing == "loose", G4)), ...
+        'figure settings (font size, spacing): every other figure is a row, one per figure; applied, every figure has them');
+    F5 = ca.Figures;
+    F5(1).title = "t";
+    F5(1).id = "rp2";
+    F5(1).panels(2).title = "x";
+    F5(1).panels(2).layers(1).enabled = false;
+    F5(1).panels(2).note.text = "n";
+    F5(1).panels(2).row = 3;
+    check(isempty(EphysAnalysisConfig.figureEditChanges(ca.Figures(1), F5(1), 2)), ...
+        'a figure''s id and title, a panel''s title, place, layers and note text are each one''s own: no change to give');
+    F6 = ca.Figures;
+    F6(1).ref = D.EventRef;
+    ca.Figures = F6;
+    F7 = ca.Figures;
+    F7(1).ref.edge = "offset";
+    C7 = EphysAnalysisConfig.figureEditChanges(ca.Figures(1), F7(1), 1);
+    T7 = EphysAnalysisConfig.changeTargets(F7, D, 1, 1, C7);
+    G7 = EphysAnalysisConfig.applyChanges(F7, D, T7(1), C7);
+    check(isscalar(C7) && C7.path == "ref.edge" && numel(T7) == 3 && isequal(T7(1).current, {D.EventRef.edge}) ...
+        && isstruct(G7(2).ref) && G7(2).ref.edge == "offset" && isequaln(rmfield(G7(2).ref, 'edge'), rmfield(D.EventRef, 'edge')) ...
+        && isequal(G7(3).ref, "default"), ...
+        'one field of a figure''s own event reference: a figure using the Defaults'' shows theirs, and takes it as its own, the Defaults'' with the field changed');
 end
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);

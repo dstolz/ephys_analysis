@@ -82,7 +82,11 @@ function test_EphysAnalysisApp(opts)
 %   burst of one field one step, an edit outside the figures none, a
 %   removed panel back and selected, Ctrl+Shift+Z, a new edit dropping the
 %   redo, the description kept, the title saved again, cleared by another
-%   config; FigureEditHistory's depth); the first-spike latency windows
+%   config; FigureEditHistory's depth); Apply to figures (an edit made with
+%   Ctrl held offered to the other figures' panels that take it, the
+%   window's rows, All, the ticks remembered, nothing drawn again unless
+%   Replot, Edit > Apply last change, Ctrl+Shift+A, Cancel, Undo, an edit
+%   that stays with its figure opening none); the first-spike latency windows
 %   (a raster's First spike row and a PSTH's Latency box row, each button
 %   opening its modal window, OK as one named undo step, the row's summary,
 %   a window ending before it starts refused, Cancel, the preview drawing
@@ -205,6 +209,18 @@ timing = onCleanup(@() S.done()); %#ok<NASGU> the sections' times, even after a 
             app.onFigureSelected(1);
             app.onRemoveFigure();
         end
+    end
+
+applyRows = [];    % the Apply to figures window's rows as it opened (answerApply)
+applyCount = "";   % its count after All
+    function answerApply(D, want, replot, accept)
+        %answerApply  Answer Apply to figures: its rows noted (applyRows), All pressed (applyCount), WANT ticked, Replot REPLOT, then Apply (ACCEPT) or Cancel.
+        applyRows = D.Table.Data;
+        press(D, "All");
+        applyCount = string(D.Count.Text);
+        D.Table.Data.Apply = reshape(logical(want), [], 1);
+        D.Replot.Value = replot;
+        if accept; press(D, "Ok"); else; press(D, "Cancel"); end
     end
 
 if S.sec("1", "build, open the project, scan")
@@ -3102,6 +3118,93 @@ if S.sec("5m", "each figure's own preview container: kept drawings, the tree's m
     check(numel(app.FigureViews) == 1 && app.FigureViews.Id == "" && app.FigurePreviewPanel.Visible == "on", ...
         'every figure removed: only the empty container is left');
     clear restore5m
+    app.FigureAutoCheckBox.Value = false;
+    app.Tabs.SelectedTab = app.TabData;
+end
+
+if S.sec("5n", "Apply to figures: an edit made with Ctrl held given to other figures, the window, its ticks remembered, Edit > Apply last change, Replot, Cancel, Undo")
+    noFigures();
+    app.selectTab(app.TabFigures);
+    app.FigureAutoCheckBox.Value = true;
+    app.FigureAutoPreviewSeconds = Inf;   % Auto draws every figure shown here, however loaded the machine
+    restore5n = onCleanup(@() resetAutoLimit(app));
+    app.ApplyTicked = string.empty(1, 0);
+    app.ApplySeen = string.empty(1, 0);
+    app.ApplyReplot = false;
+    lookOf = @(k) app.FigureTreeMarks.look([app.FigureTreeMarks.nodes.NodeData] == k);
+    app.onAddFigure("rasterPsth");
+    app.onAddFigure("psth");
+    app.onAddFigure("continuous");
+    ids = app.Config.figureIds();
+    app.onFigureSelected(1);
+    app.onPanelSelected(2);   % the PSTH under the raster
+    app.onKeyPress(pressed('control', {'control'}));
+    held = app.CtrlHeld;
+    FE.stack.Value = "groups";
+    applyRows = [];
+    answerDialog("Apply to figures", @(D) answerApply(D, [true false], false, true));
+    FE.stack.ValueChangedFcn(FE.stack, []);
+    F1 = app.Config.Figures;
+    check(held && ~app.CtrlHeld && istable(applyRows) && isequal(string(applyRows.Figure).', ids(2:3)) ...
+        && isequal(string(applyRows.Panel).', ["psth_1  (psth)" "continuous_1  (continuous)"]) ...
+        && isequal(string(applyRows.Now).', ["Off (overlaid)" "Off (overlaid)"]) && all(applyRows.Apply) && applyCount == "2 of 2 will change", ...
+        ['with Ctrl held the Stack edit opens Apply to figures: the other figures'' PSTH and continuous panels (not the raster), ' ...
+        'each "Off (overlaid)" now, all ticked the first time']);
+    check(F1(1).panels(2).options.stack == "groups" && F1(2).panels(1).options.stack == "groups" && F1(3).panels(1).options.stack == "off" ...
+        && app.FigureHistory.undoLabel() == "Stack to 1 panel" && contains(string(app.StatusBar.Text), "psth_1 in " + ids(2)) ...
+        && app.ApplyMenu.Enable == "on", ...
+        'Apply gives it to the panel ticked only, a step of the undo history of its own; the status bar names it');
+    check(app.FigurePreviewState == "stale" && lookOf(1) == "stale" && lookOf(2) == "stale", ...
+        'nothing is drawn again, with Auto on: the figure shown and the one changed are marked out of date');
+    check(ismember(ids(2) + "/psth_1", app.ApplyTicked) && ismember(ids(3) + "/continuous_1", app.ApplySeen) ...
+        && ~ismember(ids(3) + "/continuous_1", app.ApplyTicked), 'the ticks are remembered');
+
+    % Edit > Apply last change: the same edit (not the step that gave it), the ticks as left, Replot
+    applyRows = [];
+    answerDialog("Apply to figures", @(D) answerApply(D, [true true], true, true));
+    app.onApplyToFigures();
+    F2 = app.Config.Figures;
+    check(istable(applyRows) && isequal(applyRows.Apply.', [false false]) && isequal(string(applyRows.Now).', ["One row per group  (has it)" "Off (overlaid)"]) ...
+        && applyCount == "1 of 1 will change" && F2(3).panels(1).options.stack == "groups", ...
+        ['Apply last change offers the Stack edit again: the panel that has it gray and unticked, the other unticked as left; ' ...
+        'All ticks the one that can change; applied']);
+    check(app.SelectedFigure == 1 && lookOf(1) == "fresh" && lookOf(3) == "fresh" && lookOf(2) == "stale" && app.ApplyReplot, ...
+        'Replot draws the figure shown and the one changed again (the one changed before stays out of date), back on the figure shown; the box is remembered');
+
+    % a figure setting, canceled: the edit stays with its figure, drawn as after any edit
+    app.ApplyReplot = false;
+    app.onKeyPress(pressed('control', {'control'}));
+    FE.fontSize.Value = 14;
+    applyRows = [];
+    answerDialog("Apply to figures", @(D) answerApply(D, [true false], false, false));
+    FE.fontSize.ValueChangedFcn(FE.fontSize, []);
+    F3 = app.Config.Figures;
+    check(istable(applyRows) && ~ismember("Panel", applyRows.Properties.VariableNames) && isequal(string(applyRows.Figure).', ids(2:3)) ...
+        && F3(1).style.FontSize == 14 && all([F3(2).style.FontSize F3(3).style.FontSize] ~= 14) && app.FigurePreviewState == "drawn", ...
+        'a figure setting (Font size) lists the other figures, no panel column; Cancel leaves it to its figure, drawn again (Auto)');
+
+    % Ctrl+Shift+A, then Undo
+    answerDialog("Apply to figures", @(D) answerApply(D, [true false], false, true));
+    app.onKeyPress(pressed('a', {'control' 'shift'}));
+    F4 = app.Config.Figures;
+    app.onUndoRedo("undo");
+    check(F4(2).style.FontSize == 14 && F4(3).style.FontSize ~= 14 && app.Config.Figures(2).style.FontSize ~= 14 ...
+        && app.Config.Figures(1).style.FontSize == 14, 'Ctrl+Shift+A gives the font size to the figure ticked; Undo takes that back only');
+
+    % an edit that stays with its figure: no window
+    applyRows = [];
+    tm = answerDialog("Apply to figures", @(D) answerApply(D, false(1, 0), false, false));
+    app.onKeyPress(pressed('control', {'control'}));
+    FE.title.Value = 'Own title';
+    FE.title.ValueChangedFcn(FE.title, []);
+    stop(tm);
+    delete(tm);
+    check(isempty(applyRows) && contains(string(app.StatusBar.Text), "stays with its figure") && app.Config.Figures(1).title == "Own title", ...
+        'a title edited with Ctrl held opens no window: the status bar says it stays with its figure');
+    FE.title.Value = '';
+    app.onConfigChanged("figure", FE.title);
+    noFigures();
+    clear restore5n
     app.FigureAutoCheckBox.Value = false;
     app.Tabs.SelectedTab = app.TabData;
 end

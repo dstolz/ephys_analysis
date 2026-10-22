@@ -18,7 +18,10 @@ function onConfigChanged(obj, what, src)
 %   (recordFigureEdit), named after the control SRC it came from (the
 %   editor's controls pass themselves, else a string names the step, else
 %   the callback object, gcbo: figureEditLabel), its edits in a burst one
-%   step.
+%   step. Made with Ctrl (Cmd) held (CtrlHeld: onKeyPress), an editor
+%   control's edit also opens Apply to figures (onApplyToFigures: the
+%   other figures and panels that can take it) and the preview waits for
+%   its answer instead of redrawing.
 arguments
     obj (1,1) EphysAnalysisApp
     what (1,1) string = ""
@@ -32,8 +35,11 @@ catch ME
     return
 end
 trackFigureIds(obj, cfg);   % an automatic figure id that follows the edit
+spread = false;
 if what == "figure"
     if isempty(src); src = gcbo; end
+    spread = obj.CtrlHeld && ~isempty(src) && ~isstring(src) && ~ischar(src);   % an editor control used with Ctrl down
+    before = obj.Config.Figures;
     recordFigureEdit(obj, cfg, figureEditLabel(obj, src), Key=src);
 end
 obj.Config = cfg;
@@ -60,7 +66,12 @@ switch what
         obj.syncFigureEditor();
         obj.refreshFigureObservations();   % again only when its observe block, alignment or sorting changed
         obj.refreshEpochDiagram();
-        obj.autoFigurePreview();
+        if spread
+            obj.CtrlHeld = false;   % its release goes to the window that opens, not to the app
+            obj.onApplyToFigures(Before=before, Control=src);   % the preview waits for its answer
+        else
+            obj.autoFigurePreview();
+        end
     case "ticks"
         k = obj.SelectedFigure;
         if k >= 1 && k <= numel(cfg.Figures) && cfg.Figures(k).sessions.enabled && cfg.Figures(k).sessions.datasets == "ticked"

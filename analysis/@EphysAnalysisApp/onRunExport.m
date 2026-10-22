@@ -11,9 +11,9 @@ function R = onRunExport(obj, opts)
 %   Generate (onGenerateFigure) runs one figure that way, and Unit report
 %   (onUnitReport) one observation (Observation=, run's). The dialog's
 %   message is the runner's (what it is on, the report's pages) and the
-%   time left (ProgressClock). One run goes at a
-%   time (Running): Run, Plan, Validate and Generate are off meanwhile, and
-%   the previews compute nothing.
+%   time left (ProgressClock). One run goes at a time (Running): Run,
+%   Plan, Validate, Generate, Unit report and Export preview are off
+%   meanwhile, and the previews compute nothing.
 arguments
     obj (1,1) EphysAnalysisApp
     opts.Figures = []    % [] = the enabled figures; string.empty(1, 0) = none; else ids
@@ -51,7 +51,8 @@ dlg = uiprogressdlg(obj.Fig, "Title", opts.Title, "Message", "Starting ...", "Ca
 clock = ProgressClock();   % the time left, in the dialog's message
 r.ProgressFcn = @(f, m) progress(r, dlg, clock, f, m);
 obj.Running = true;
-set([obj.RunButton obj.PlanButton obj.ValidateButton obj.FigureGenerateButton obj.FigureUnitReportButton], 'Enable', 'off');
+set([obj.RunButton obj.PlanButton obj.ValidateButton obj.FigureGenerateButton obj.FigureUnitReportButton ...
+    obj.FigureExportPreviewButton obj.ExportPreviewButton], 'Enable', 'off');
 set([obj.ToolbarRunTool obj.ToolbarPlanTool obj.ToolbarValidateTool], 'Enable', 'off');
 obj.CancelButton.Enable = 'on';
 obj.ToolbarCancelTool.Enable = 'on';
@@ -103,7 +104,8 @@ obj.Running = false;
 if ~isempty(obj.Runner); obj.Runner.ProgressFcn = []; end
 set([obj.RunButton obj.PlanButton obj.ValidateButton], 'Enable', 'on');
 set([obj.ToolbarRunTool obj.ToolbarPlanTool obj.ToolbarValidateTool], 'Enable', 'on');
-obj.FigureGenerateButton.Enable = matlab.lang.OnOffSwitchState(obj.SelectedFigure >= 1 && obj.SelectedFigure <= numel(obj.Config.Figures));
+has = matlab.lang.OnOffSwitchState(obj.SelectedFigure >= 1 && obj.SelectedFigure <= numel(obj.Config.Figures));
+set([obj.FigureGenerateButton obj.FigureExportPreviewButton obj.ExportPreviewButton], 'Enable', has);
 obj.FigureUnitReportButton.Enable = unitReportEnable(obj);
 obj.CancelButton.Enable = 'off';
 obj.ToolbarCancelTool.Enable = 'off';

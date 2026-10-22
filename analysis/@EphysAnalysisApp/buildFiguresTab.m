@@ -111,12 +111,15 @@ function buildFiguresTab(obj)
 %           back as the figure left it: its sections open or collapsed,
 %           its scroll, its panel and layer (saveFigureEditorState). The
 %           preview's badge (setFigurePreviewState) and status
-%           line, with Export code (the code that draws the preview, in
-%           the editor: onFigureCode) and Open in window (onOpenFigureWindow:
-%           the figure in a figure() of its own) at its right. Every button
-%           has a key, named in its tooltip (onKeyPress): Ctrl+P Preview,
-%           Ctrl+G Generate, Ctrl+U Unit report, Ctrl+T Auto, Page Up /
-%           Page Down < and >, Ctrl+E Export code, Ctrl+W Open in window.
+%           line, with Export preview (the observation picked, written
+%           as a run writes it into a preview folder and shown:
+%           onExportPreview, also on the Export tab), Export code (the code
+%           that draws the preview, in the editor: onFigureCode) and Open
+%           in window (onOpenFigureWindow: the figure in a figure() of its
+%           own) at its right. Every button has a key, named in its tooltip
+%           (onKeyPress): Ctrl+P Preview, Ctrl+G Generate, Ctrl+U Unit
+%           report, Ctrl+T Auto, Page Up / Page Down < and >, Ctrl+K Export
+%           preview, Ctrl+E Export code, Ctrl+W Open in window.
 g = uigridlayout(obj.TabFigures, [1 3]);
 g.ColumnWidth = {285, 560, '1x'};
 g.Padding = [8 8 8 8];
@@ -1448,8 +1451,8 @@ v.Panel.Visible = "on";
 obj.FigureViews = v;
 obj.FigureViewId = "";
 obj.FigurePreviewPanel = v.Panel;
-% the status line: badge, text, the session pick (opens when there are several), Export code, Open in window
-sg = uigridlayout(pg, [1 5], "ColumnWidth", {'fit', '1x', 0, 105, 130}, "Padding", [0 0 0 0], "ColumnSpacing", 8);
+% the status line: badge, text, the session pick (opens when there are several), Export preview, Export code, Open in window
+sg = uigridlayout(pg, [1 6], "ColumnWidth", {'fit', '1x', 0, 120, 105, 130}, "Padding", [0 0 0 0], "ColumnSpacing", 8);
 sg.Layout.Row = 5; sg.Layout.Column = [1 5];
 B.Grid = uigridlayout(sg, [1 2], "ColumnWidth", {18, 'fit'}, "Padding", [6 2 10 2], "ColumnSpacing", 5);
 B.Icon = uiimage(B.Grid, "ScaleMethod", "fit");
@@ -1460,16 +1463,21 @@ obj.FigureSessionDropDown = uidropdown(sg, "Items", "(all)", "ItemsData", 1, "Vi
     "ValueChangedFcn", @(~,~) obj.onFigureSessionPicked(), ...
     "Tooltip", "A figure across sessions makes one figure per subject (Figures: one per subject) or per trial group " + ...
     "(Trial groups: a figure per group): the one the preview shows.");   % its column opens when there are several
+obj.FigureExportPreviewButton = uibutton(sg, "Text", "Export preview", "Enable", "off", ...
+    "Tooltip", "Spot-check the Export tab's settings: this figure for the observation picked, drawn and written as a " + ...
+    "run writes it (size, formats, dpi, file name) into a preview folder -- not the figure folder -- and shown in a " + ...
+    "window. (" + cmdKey + "+K)", "ButtonPushedFcn", @(~,~) obj.onExportPreview());
+obj.FigureExportPreviewButton.Layout.Row = 1; obj.FigureExportPreviewButton.Layout.Column = 4;
 obj.FigureCodeButton = uibutton(sg, "Text", "Export code", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onFigureCode(), ...
     "Tooltip", "Open the code that draws this preview in the MATLAB editor, as a new unsaved script: the dataset, " + ...
     "the figure's settings written out, the observation picked, figureCompute and renderFigure in the design chosen. " + ...
     "Run it to draw the figure in a window of its own; it does not need the app. (" + cmdKey + "+E)");
-obj.FigureCodeButton.Layout.Row = 1; obj.FigureCodeButton.Layout.Column = 4;
+obj.FigureCodeButton.Layout.Row = 1; obj.FigureCodeButton.Layout.Column = 5;
 obj.FigureOpenButton = uibutton(sg, "Text", "Open in window", "Enable", "off", ...
     "Tooltip", "Draw the figure as previewed into a new MATLAB figure window of its own (the right-click editor works there too). " + ...
     "It is independent of this app: later edits do not follow into it. An out-of-date preview is redrawn first. (" + cmdKey + "+W)", ...
     "ButtonPushedFcn", @(~,~) obj.onOpenFigureWindow());
-obj.FigureOpenButton.Layout.Row = 1; obj.FigureOpenButton.Layout.Column = 5;
+obj.FigureOpenButton.Layout.Row = 1; obj.FigureOpenButton.Layout.Column = 6;
 obj.setFigurePreviewState("idle");
 end
 

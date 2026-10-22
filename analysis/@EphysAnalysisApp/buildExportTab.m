@@ -1,8 +1,10 @@
 function buildExportTab(obj)
-%buildExportTab  Export and Report sections; Validate, Plan, Run, results.
+%buildExportTab  Export and Report sections; Validate, Plan, Export preview, Run, results.
 %   The plan and results tables take whatever columns the runner gives:
 %   a figure's rows have Kind "figure" (the Figures tab's Generate fills
-%   the results table too).
+%   the results table too). Export preview (onExportPreview, as on the
+%   Figures tab) writes the Figures tab's figure for the observation
+%   picked there as Run would, into a preview folder, and shows it.
 g = uigridlayout(obj.TabExport, [1 2]);
 g.ColumnWidth = {470, '1x'};
 g.Padding = [8 8 8 8];
@@ -92,20 +94,26 @@ obj.ReportControls = P;
 % --- run ------------------------------------------------------------------------
 right = uigridlayout(g, [5 6]);
 right.RowHeight = {30, '1x', 22, '1x', 30};
-right.ColumnWidth = {90, 90, 90, 90, '1x', 'fit'};
+right.ColumnWidth = {90, 90, 120, 90, 90, '1x'};
 right.Padding = [0 0 0 0];
 obj.ValidateButton = uibutton(right, "Text", "Validate", "ButtonPushedFcn", @(~,~) obj.onValidate());
 place(obj.ValidateButton, 1, 1);
 obj.PlanButton = uibutton(right, "Text", "Plan", "Tooltip", "Which figure runs on which ticked dataset (and each session figure across them), and why one is skipped.", ...
     "ButtonPushedFcn", @(~,~) obj.onPlan());
 place(obj.PlanButton, 1, 2);
+obj.ExportPreviewButton = uibutton(right, "Text", "Export preview", "Enable", "off", ...
+    "Tooltip", "Spot-check these settings before a run: the figure selected on the Figures tab, for the observation " + ...
+    "picked over its preview, drawn and written as Run writes it (size, formats, dpi, file name) into a preview " + ...
+    "folder -- not the figure folder -- and shown in a window. Also on the Figures tab, under the preview.", ...
+    "ButtonPushedFcn", @(~,~) obj.onExportPreview());
+place(obj.ExportPreviewButton, 1, 3);
 obj.RunButton = uibutton(right, "Text", "Run", ...
     "Tooltip", "Every enabled figure on every ticked dataset, then every enabled session figure across them: " + ...
     "figure files and report. A figure is drawn once per observation (the Figures tab's Generate draws one " + ...
     "figure alone).", "ButtonPushedFcn", @(~,~) obj.onRunExport());
-place(obj.RunButton, 1, 3);
+place(obj.RunButton, 1, 4);
 obj.CancelButton = uibutton(right, "Text", "Cancel", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onCancelRun());
-place(obj.CancelButton, 1, 4);
+place(obj.CancelButton, 1, 5);
 obj.IssuesTable = uitable(right, "RowName", {}, "ColumnWidth", 'auto', "ColumnSortable", true);
 place(obj.IssuesTable, 2, [1 6]);
 obj.RunLabel = uilabel(right, "Text", "Results", "FontWeight", "bold");

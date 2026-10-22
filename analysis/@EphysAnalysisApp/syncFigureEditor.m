@@ -106,6 +106,7 @@ set([obj.RemoveFigureButton obj.DuplicateFigureButton], 'Enable', onoff(has));
 obj.CopyFigureButton.Enable = onoff(has && nf > 1);
 if ~isempty(obj.FigureGenerateButton)
     obj.FigureGenerateButton.Enable = onoff(has && ~obj.Running);   % off while a run (or a generate) goes
+    set([obj.FigureExportPreviewButton obj.ExportPreviewButton], 'Enable', onoff(has && ~obj.Running));
     obj.FigureOpenButton.Enable = onoff(has);
     obj.FigureCodeButton.Enable = onoff(has);
 end

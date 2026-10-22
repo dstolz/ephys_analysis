@@ -22,6 +22,7 @@ function onKeyPress(obj, evt)
 %     Ctrl+P, Ctrl+G        Preview, Generate
 %     Ctrl+U                Unit report
 %     Ctrl+T                Auto on or off
+%     Ctrl+K                Export preview
 %     Ctrl+E, Ctrl+W        Export code, Open in window
 %                           (pressFigureButton: each does what its button
 %                           does, and nothing while the button is off)
@@ -112,7 +113,7 @@ if ismember(key, ["leftbracket" "bracketleft" "["]) || isequal(evt.Character, '[
     obj.stepFigurePanel("previous");
     return
 end
-if any(key == ["p" "g" "u" "t" "e" "w"])
+if any(key == ["p" "g" "u" "t" "k" "e" "w"])
     obj.pressFigureButton(key);
     return
 end

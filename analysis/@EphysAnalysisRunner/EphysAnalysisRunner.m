@@ -266,5 +266,32 @@ classdef EphysAnalysisRunner < handle
             if ismember(P.Format, ["html" "both"]); files(end+1) = base + ".html"; end
             if ismember(P.Format, ["pdf" "both"]); files(end+1) = base + ".pdf"; end
         end
+
+        function f = sessionOutputName(pattern, spec, row, facet, group, i, n)
+            %sessionOutputName  The file name (no extension) of a session figure's observation.
+            %   F = EphysAnalysisRunner.sessionOutputName(PATTERN, SPEC, ROW,
+            %   FACET, GROUP, I, N): figureOutputName for observation I of N
+            %   (ROW, a row of sessionFigureObservations' table) of the
+            %   session figure SPEC, {Name} the FACET's label and {Group}
+            %   GROUP. Its {Unit}: "site_ch<N>" (units matched by site), the
+            %   mapping's cell, "ch<N>" or "dataset". runSessionFigure adds
+            %   "_2", "_3", ... when two observations' names meet.
+            switch string(row.kind)
+                case "unit"
+                    if spec.sessions.match == "mapping"
+                        unit = string(row.label);
+                    else
+                        unit = "site_ch" + row.channel;
+                    end
+                case "channel"
+                    unit = "ch" + row.channel;
+                    if ~isfinite(row.channel); unit = string(row.label); end
+                otherwise
+                    unit = "dataset";
+            end
+            obs = struct('kind', row.kind, 'label', row.label, 'unitId', NaN, 'channel', row.channel, 'column', row.column, ...
+                'meta', table(unit, "", 'VariableNames', {'label', 'class'}), 'groupLabel', group);
+            f = figureOutputName(pattern, facet, spec, obs, i, n);
+        end
     end
 end

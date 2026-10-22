@@ -155,9 +155,7 @@ for i = 1:nObs
             continue
         end
         try
-            nameObs = struct('kind', T.kind(i), 'label', T.label(i), 'unitId', NaN, 'channel', T.channel(i), 'column', T.column(i), ...
-                'meta', table(fileLabel(T(i, :), spec), "", 'VariableNames', {'label', 'class'}), 'groupLabel', e.group);
-            fname = figureOutputName(X.FilenamePattern, e.facet, spec, nameObs, i, nObs);
+            fname = EphysAnalysisRunner.sessionOutputName(X.FilenamePattern, spec, T(i, :), e.facet, e.group, i, nObs);
             [fname, usedNames] = uniqueName(fname, usedNames);   % e.g. cells "A/1" and "A_1" both sanitize to A_1
             base = fullfile(folder, fname);
             want = base + "." + X.Formats;
@@ -258,24 +256,6 @@ while any(lower(used) == lower(name))
     name = base + "_" + k;
 end
 used(end+1) = name;
-end
-
-
-function s = fileLabel(row, spec)
-%fileLabel  The {Unit} of a session figure's observation: "site_ch7", the mapping's cell, "ch7", "dataset".
-switch string(row.kind)
-    case "unit"
-        if spec.sessions.match == "mapping"
-            s = string(row.label);
-        else
-            s = "site_ch" + row.channel;
-        end
-    case "channel"
-        s = "ch" + row.channel;
-        if ~isfinite(row.channel); s = string(row.label); end
-    otherwise
-        s = "dataset";
-end
 end
 
 

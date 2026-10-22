@@ -27,7 +27,8 @@ function T = figureSettingItems(fig)
 %   Observations: each field of observe. Alignment: ref, window,
 %   selection. Arrangement: "layout" (the grid's rows, columns, sizes and
 %   per-gap lists, with every panel: the panels are the grid's) and
-%   "spacing" (the spacing and the custom gaps). Panel settings, per panel:
+%   "spacing" (the spacing and the custom gaps) and "page" (the figure's
+%   page size, figureExportSize). Panel settings, per panel:
 %   Axes and limits (box, axis sides, yLimMode, yLim, cLim, yTicks,
 %   scale), Colors and lines, Display and stacks, Marks and insets (first
 %   spike, latency box, waveform), Data and analysis (every other option),
@@ -62,6 +63,7 @@ add("arrangement", strings(1, 0), "layout", "Grid and panels (types, places, opt
     sprintf('%d x %d: %s', g.rows, g.cols, panelList(fig.panels)));
 add("arrangement", strings(1, 0), "spacing", "Spacing between panels", "figure", 0, ...
     ["grid.spacing" "grid.gapUnits" "grid.rowGap" "grid.colGap"], false, spacingText(g));
+add("arrangement", strings(1, 0), "page", "Page size (export and preview)", "figure", 0, "size", false, pageText(fig.size));
 % Panel settings
 types = EphysAnalysisConfig.panelTypes();
 for j = 1:numel(fig.panels)
@@ -233,6 +235,10 @@ else
 end
 end
 
+
+function t = pageText(s)
+if s.source == "export"; t = "the Export tab's size"; else; t = figureSizeText(s.width, s.height, s.units); end
+end
 
 function t = spacingText(g)
 t = string(g.spacing);

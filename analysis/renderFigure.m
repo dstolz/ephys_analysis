@@ -88,7 +88,9 @@ function h = renderFigure(F, spec, target, opts)
 %            HeatColormap, SortShank / SortDepth, LabelShank / LabelDepth,
 %            SiteSize. Its XLim, YLim and CLim are not used: the time
 %            panels show the window, and each panel has its own
-%            options.yLim / cLim.
+%            options.yLimMode / yLim / cLim (panelYLimits: a panel with
+%            yLimMode "batch" takes the range BatchYLim gives it, else
+%            its own).
 %   Aesthetics  by panel type: the design's (PlotDesign)
 %            common rules on everything; on each panel's axes the design's
 %            rules for its type and the user's remembered rules for that
@@ -129,6 +131,10 @@ function h = renderFigure(F, spec, target, opts)
 %                     data tips that name the point's quantities, trial,
 %                     unit or channel, panel and dataset (FigureDataTips;
 %                     the fields are the user's preference)
+%     BatchYLim       a run's shared y ranges (figureBatchYLim: a struct
+%                     array of id, lim, n): a panel of that id with
+%                     options.yLimMode "batch" draws at lim; [] (default) =
+%                     none, each such panel takes its own range
 %
 %   H fields
 %     layout  what the figure is laid out on (TARGET, or the panel made in
@@ -139,8 +145,11 @@ function h = renderFigure(F, spec, target, opts)
 %     panels  one per SPEC.panels: id, type, axes (empty when not drawn),
 %             extraAxes (a coherence panel's phase axes, drawn under its
 %             magnitude; dressed with the panel type's looks),
-%             note (its text, empty without one) and overlays (the lines
-%             and patches drawn)
+%             note (its text, empty without one), overlays (the lines
+%             and patches drawn) and yExtent (a panel with yLimMode: its
+%             y extent in its values' units, [lo hi], the draw function's
+%             (a stack's rows) else its axes' y limits as drawn; [NaN NaN]
+%             otherwise), which figureYExtents reads for a run's range
 %     title   the figure's title text
 %   Errors: renderFigure:Mismatch (F's panels are not SPEC's),
 %   renderFigure:BadTarget.
@@ -160,6 +169,7 @@ arguments
     opts.OnGoto = []
     opts.OnAxisEdit = []
     opts.DataTips = "auto"
+    opts.BatchYLim = []
 end
 
 if isfield(F, 'nSessions') && isfield(spec, 'sessions')
@@ -206,6 +216,7 @@ hks = cell(1, np);
 notes = cell(1, np);   % each panel's note (drawNote's N) and the band that holds it beside the axes ([] = in the axes)
 bands = cell(1, np);
 ovls = cell(1, np);    % each panel's overlays (drawOverlays' O)
+yExt = NaN(np, 2);     % each panel's y extent (a panel with yLimMode), for a run's batch range
 for k = 1:nDraw
     p = panels(k);
     P = F.panels(k);
@@ -224,6 +235,7 @@ for k = 1:nDraw
     colorsK = colors;   % a panel with a selection of its own colors its own groups
     if own; colorsK = groupPalette(P.groups, style); end
     look = lookFor(F, spec, p, P, style, colorsK, isTime(k));
+    look.batchYLim = batchFor(opts.BatchYLim, p.id);
     if isfield(reg, p.type)
         hk = reg.(p.type).draw(ax, P, look);
     else
@@ -255,6 +267,7 @@ for k = 1:nDraw
         hk.legendGroup = false(1, 0);
     end
     axs(k) = ax;
+    yExt(k, :) = extentOf(hk, ax, p);
     if isfield(hk, 'extraAxes'); extra{k} = hk.extraAxes(isgraphics(hk.extraAxes)); end
     panelAxes([ax reshape(extra{k}, 1, [])], p);   % its own axis sides and labels, over what its type drew
     hks{k} = hk;
@@ -420,7 +433,7 @@ if editable(opts.Editable, target)
         'onRemember', {opts.OnRemember}, 'onGoto', {opts.OnGoto}, 'design', design, 'followsDesign', follows, 'ordinal', ordinal, 'mapField', mapField, ...
         'redraw', @(newRules) renderFigure(F, setfield(spec, 'aesthetics', newRules), target, Design=opts.Design, ...
             UserAesthetics=opts.UserAesthetics, Editable=opts.Editable, OnRemember=opts.OnRemember, OnGoto=opts.OnGoto, ...
-            OnAxisEdit=opts.OnAxisEdit));
+            OnAxisEdit=opts.OnAxisEdit, BatchYLim=opts.BatchYLim));
     ctx.panelTypes = struct('id', sIds, 'type', types);   % each tile's panel type by the id it is tagged with (PlotDesign.capture)
     ctx.panelIds = sIds;   % "Move every panel's X axis to top": every panel of the figure
     ctx.onAxisEdit = @(panel, change) axisEdited(F, spec, target, opts, panel, change);   % an axis label's or axes' menu (PlotAesthetics)
@@ -428,10 +441,11 @@ if editable(opts.Editable, target)
 end
 
 hp = repmat(struct('id', "", 'type', "", 'axes', gobjects(0), 'extraAxes', gobjects(0), 'note', gobjects(0), ...
-    'overlays', gobjects(1, 0)), 1, np);
+    'overlays', gobjects(1, 0), 'yExtent', [NaN NaN]), 1, np);
 for k = 1:np
     hp(k).id = panels(k).id;
     hp(k).type = types(k);
+    hp(k).yExtent = yExt(k, :);
     if drawn(k)
         hp(k).axes = axs(k);
         hp(k).extraAxes = extra{k};
@@ -512,6 +526,27 @@ for k = ks
 end
 args = namedargs2cell(opts);
 renderFigure(F, spec, target, args{:});
+end
+
+
+function lim = batchFor(B, id)
+%batchFor  The run's shared y range for panel ID (BatchYLim: id, lim), [] when it has none.
+lim = [];
+if isempty(B) || ~isstruct(B) || ~isfield(B, 'id'); return; end
+k = find([B.id] == id, 1);
+if ~isempty(k); lim = B(k).lim; end
+end
+
+
+function e = extentOf(hk, ax, p)
+%extentOf  A panel's y extent as drawn (yLimMode panels only): the draw function's yExtent, else its axes' y limits.
+e = [NaN NaN];
+if ~isfield(p.options, 'yLimMode'); return; end
+if isfield(hk, 'yExtent') && numel(hk.yExtent) == 2 && all(isfinite(hk.yExtent))
+    e = double(reshape(hk.yExtent, 1, 2));
+elseif isgraphics(ax) && isscalar(ax.YAxis)
+    e = double(ylim(ax));
+end
 end
 
 

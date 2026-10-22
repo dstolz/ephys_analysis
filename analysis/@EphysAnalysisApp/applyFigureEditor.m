@@ -240,6 +240,7 @@ if isfield(op, 'metric')
     E.fisherZ.Value = logical(op.fisherZ);
 end
 if isfield(op, 'yLim'); E.yLim.Value = listText(op.yLim); end
+if isfield(op, 'yLimMode'); E.yLimMode.Value = char(pickFrom(op.yLimMode, EphysAnalysisConfig.YLimModes, "auto")); end
 if isfield(op, 'cLim'); E.cLim.Value = listText(op.cLim); end
 if isfield(op, 'waveform')
     wv = op.waveform;

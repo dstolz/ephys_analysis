@@ -17,16 +17,20 @@ function hk = drawPsthPanel(ax, P, look)
 %   items only the first is filled, the others are outlines, so each stays
 %   visible. The components' group is the trial group's label, with
 %   several items "<item> · <group>" (or the item alone for one group).
-%   options.normalize divides the rates (normalizeRates); options.yLim fixes the y axis. Style.ShowZeroLine
+%   options.normalize divides the rates (normalizeRates); options.yLimMode
+%   (panelYLimits) sets the y axis: "fixed" at options.yLim, "batch" at
+%   the run's range, else from the data. Style.ShowZeroLine
 %   draws the event's line, Style.ShowStop each group's mean stop latency
 %   (R.stopMean, role "stopLine").
 %   options.stack "groups" (with two or more groups) draws one row per
 %   group, the first on top, as a raster lists them (drawStack in the rows
 %   of a stackLayout: every row from its zero, the row step
-%   options.stackSpacing x the row height, the tallest reach of any row's
-%   PSTH and band; the rows' values on the left axis, their peaks on the
-%   right; options.yLim is not used); a further item is drawn into the
-%   same rows as an outline. The groups are still offered to the figure's
+%   options.stackSpacing x the row height; options.yLimMode "auto" scales
+%   each row to its own reach, "rows" puts every row on one scale (the
+%   tallest reach of any row's PSTH and band), "batch" on the run's range
+%   and "fixed" on options.yLim; the rows' values on the left axis, their
+%   peaks on the right); a further item is drawn into the same rows as an
+%   outline. The groups are still offered to the figure's
 %   legend.
 %   options.display "heatmap" draws the first item as an image instead
 %   (drawHeat): a row per trial group, the first on top (as a stack and a
@@ -59,7 +63,9 @@ function hk = drawPsthPanel(ax, P, look)
 %   each member session (R.members) a pale line under them (memberLines,
 %   divided as the series are: memberRates), and the trial groups of
 %   trialGroups "combine" by line style (figSeriesStyle). HK: figDrawResult's,
-%   yName = the rates' unit (a stack or a heat map: its rows' parameters).
+%   yName = the rates' unit (a stack or a heat map: its rows' parameters),
+%   yExtent a stack's reach in the rates' units (every row's, from 0), for
+%   a run's batch range.
 %
 %   See also renderFigure, histTrace, drawStack, figurePanelRegistry.
 
@@ -150,7 +156,7 @@ lss = strings(1, nI);
 if heat
     yName = drawHeat(ax, D(1), P.layers(items(1, 1)).name, look, o, style);
 elseif stacked
-    [yName, lss] = drawRows(ax, D, Ls, items, hl, style, o);
+    [yName, lss, hk.yExtent] = drawRows(ax, D, Ls, items, hl, style, o, look);
     for g = 1:size(D(1).m, 2)   % the groups, for the figure's legend (the rows are labeled on the axis)
         gl = string(D(1).R.groups.label(g));
         hk.legendHandles(end+1) = tagPart(line(ax, NaN, NaN, 'Color', D(1).colors(g, :), 'LineWidth', style.LineWidth), "rate", gl);
@@ -216,11 +222,12 @@ if nI > 1 && ~heat   % the items, by line style (in the group's color when there
 end
 if numel(look.W) == 2 && look.W(2) > look.W(1); xlim(ax, look.W); end
 if ~stacked && ~heat
+    [~, yl] = panelYLimits(look);   % "fixed": yLim; "batch": the run's range; else the data's (an auROC: 0 to 1)
     flat = style;
     flat.XLim = [];
-    flat.YLim = o.yLim;
+    flat.YLim = yl;
     styleAxes(ax, flat);
-    if auroc && isempty(o.yLim); ylim(ax, [0 1]); end
+    if auroc && isempty(yl); ylim(ax, [0 1]); end
 end
 if auroc; callMarks(ax, D(1).R, D(1).u, D(1).colors, style); end
 
@@ -353,12 +360,13 @@ end
 end
 
 
-function [yName, lss] = drawRows(ax, D, Ls, items, hl, style, o)
+function [yName, lss, ext] = drawRows(ax, D, Ls, items, hl, style, o, look)
 %drawRows  The stack: the first item's rows by drawStack, every further item drawn into the same rows as an outline.
-%   The rows' layout (stackLayout, Zero: every row from its zero) is
-%   taken from every item's reach in each row (its PSTH, and its band with
-%   Style.ShowSEM), so each fits its rows; the y limits of both sides then
-%   cover every item's reach.
+%   The rows' layout (stackLayout, Zero: every row from its zero; Mode and
+%   Limits the panel's yLimMode: panelYLimits) is taken from every item's
+%   reach in each row (its PSTH, and its band with Style.ShowSEM), so each
+%   fits its rows; the y limits of both sides then cover every item's
+%   reach. EXT: the rows' reach in the rates' units, [lo hi] (from 0).
 nI = numel(D);
 nG = size(D(1).m, 2);
 lss = strings(1, nI);
@@ -374,7 +382,9 @@ for i = 1:nI
         rhi(g) = max([rhi(g); v]);
     end
 end
-hl.layout = stackLayout(rlo, rhi, o.stackSpacing, Zero=true);
+[ymode, ylimits] = panelYLimits(look);
+hl.layout = stackLayout(rlo, rhi, o.stackSpacing, Zero=true, Mode=ymode, Limits=ylimits);
+ext = [min([0 rlo]) max([0 rhi])];
 P1 = struct('m', D(1).m, 'lo', D(1).lo, 'hi', D(1).hi, 'peak', D(1).peak, ...
     'peakLabel', "Peak (" + D(1).R.units + ")");
 if o.normalize ~= "none" && ~isAuroc(D(1).R); P1.peakLabel = "Peak (normalized)"; end

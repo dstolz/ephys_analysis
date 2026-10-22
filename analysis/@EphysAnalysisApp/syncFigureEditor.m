@@ -42,7 +42,8 @@ function syncFigureEditor(obj)
 %                    map of a signal has no bins or measure; a PSTH's or a
 %                    spike heat map's auROC rows with the auroc baseline
 %                    (the test row with a per-unit test); a PSTH's display,
-%                    its trace rows (PSTH as, fill, y limits) or,
+%                    its trace rows (PSTH as, fill, y limits: the mode
+%                    drop-down, its lo-hi field enabled only for Fixed) or,
 %                    drawn as a heat map, its colormap and color limits;
 %                    the Stack row on every type that stacks
 %                    (stackModes; not a PSTH drawn as a heat map nor a
@@ -336,6 +337,7 @@ if hasPanel
     en(E.auResamples, string(E.auTest.Value) ~= "ranksum");
     en([E.auMarks E.auModOnly], string(E.auCutoff.Value) ~= "none");
     en(E.stackSpacing, stackNow ~= "off");
+    en(E.yLim, string(E.yLimMode.Value) == "fixed");   % the limits are typed only for Fixed
     lineStack = stackNow ~= "off" && ismember(t, ["psth" "continuous" "spectrum" "coherence" "tuning"]) && ~overTime;
     en(E.panelYSide, ~lineStack);   % a stacked line panel has a y axis on each side
     en(E.fillAlpha, E.fill.Value);

@@ -19,12 +19,15 @@ function hk = drawSpectrumPanel(ax, P, look)
 %   trial groups by line style. The components' group is the trial
 %   group's label, with several items "<item> · <group>". x: "Frequency
 %   (Hz)" over the frequencies computed; y: "Power (dB re 1 <units>)" or
-%   "Power (<units>)" (units: µV²/Hz, spikes/s), options.yLim fixing it.
+%   "Power (<units>)" (units: µV²/Hz, spikes/s), options.yLimMode setting
+%   it (panelYLimits: "fixed" at options.yLim, "batch" at the run's range,
+%   else from the data).
 %   options.stack "groups" draws a row per trial group instead, the first
 %   on top (as a raster lists them), every item overlaid in each row (a
 %   layer of several items keeps its colormap, all solid), in the rows of
-%   stackLayout (one scale, the row step options.stackSpacing x the row
-%   height, the tallest row's reach of spectra and bands), a gray line
+%   stackLayout (the row step options.stackSpacing x the row height, the
+%   tallest row's reach of spectra and bands; each row on its own scale
+%   with options.yLimMode "auto", else one: stackYName), a gray line
 %   along each row (stackBaseLines), the rows named by the groups' values
 %   on the left y axis and each row's top on the right (stackAxes); y label
 %   "<groups' parameters> (<height> dB per row)". A log axis holds no
@@ -88,7 +91,9 @@ if stacked
             rhi(g) = max([rhi(g); v]);
         end
     end
-    L = stackLayout(rlo, rhi, o.stackSpacing);
+    [ymode, ylimits] = panelYLimits(look);
+    L = stackLayout(rlo, rhi, o.stackSpacing, Mode=ymode, Limits=ylimits);
+    hk.yExtent = [min(rlo) max(rhi)];
 end
 hold(ax, 'on');
 f = [];
@@ -163,7 +168,7 @@ if numel(f) > 1; xlim(ax, double(f([1 end]).')); end
 if scale == "log" && ~stacked; set(ax, 'YScale', 'log'); end
 flat = style;
 flat.XLim = [];
-flat.YLim = o.yLim;
+[~, flat.YLim] = panelYLimits(look);
 if stacked; flat.YLim = []; end
 styleAxes(ax, flat);
 xlabel(ax, "Frequency (Hz)");
@@ -183,7 +188,7 @@ if stacked
     rightName = "Row top";
     if uTxt ~= ""; rightName = "Row top (" + uTxt + ")"; end
     stackAxes(ax, L, rowNames, rightName);
-    hk.yName = strip(sprintf("%s (%s %s", groupsName, sprintf('%.3g', L.height), uTxt)) + " per row)";
+    hk.yName = stackYName(groupsName, L, uTxt);
 end
 figLayerNotes(ax, P, look, true);
 end

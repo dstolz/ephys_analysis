@@ -939,10 +939,16 @@ E.etBaseWidth = uispinner(ebs, "Limits", [0.25 12], "Step", 0.25, "Value", 0.5, 
 E.etRowSpacing = uieditfield(S.Body, "numeric", "Value", 1.25, "Limits", [0 Inf], "LowerLimitInclusive", "off", ...
     "ValueChangedFcn", changed, "Tooltip", "The step from one line's row to the next, in row heights (1: the rows touch; more leaves a gap).");
 place(E.etRowSpacing, r, 2);
-[S, r] = formRow(S, "yLim", "Y limits:");
-E.yLim = uieditfield(S.Body, "text", "Placeholder", "automatic, or lo hi", "ValueChangedFcn", changed, ...
-    "Tooltip", "This panel's y axis: two ascending values. Blank: from the data.");
-place(E.yLim, r, 2);
+[S, r] = formRow(S, ["yLim" "yLimMode"], "Y limits:");
+yg = subgrid(S.Body, r, {'1x', '1x'});
+E.yLimMode = uidropdown(yg, "Items", ["Auto" "Shared by rows" "Shared by batch" "Fixed"], ...
+    "ItemsData", EphysAnalysisConfig.YLimModes, "ValueChangedFcn", changed, "Tooltip", "Auto: the axis fits this " + ...
+    "panel's data (in a stack each row fits itself, its top on the right axis). Shared by rows: a stack's rows share " + ...
+    "one scale (overlaid groups share the one axis already). Shared by batch: every observation of a Generate or " + ...
+    "Export run of this figure on one range, the union over the run's datasets (the preview draws its own range). " + ...
+    "Fixed: the limits typed beside it.");
+E.yLim = uieditfield(yg, "text", "Placeholder", "lo hi", "ValueChangedFcn", changed, ...
+    "Tooltip", "Fixed: the y axis' two ascending values (a stack: every row's range).");
 [S, r] = formRow(S, "panelColormap", "Colormap:");
 E.panelColormap = uidropdown(S.Body, "Editable", "on", "Items", ["auto" "parula" "turbo" "hot" "gray" "jet" "cool" "blueWhiteRed"], ...
     "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "This panel's colors: auto = Heat colors (Appearance), else " + ...
@@ -1580,8 +1586,9 @@ function applyOptionsToAll(obj)
 %   Its axis sides (xSide, ySide) go to every other panel; its label texts
 %   stay its own. The status bar names each panel that changed, with its
 %   options and sides, and
-%   the panels that kept their baseline or stack because their type does
-%   not take the value; nothing changes when the others have the values
+%   the panels that kept their baseline, stack or Y limits mode because
+%   their type does not take the value (a fixed mode: they have no limits
+%   of their own); nothing changes when the others have the values
 %   already.
 k = obj.SelectedFigure;
 j = obj.SelectedPanel;
@@ -1593,10 +1600,12 @@ p = fig.panels(j);
 went = strings(1, 0);
 kept = strings(1, 0);
 keptStack = strings(1, 0);
+keptY = strings(1, 0);
 for c = changed
     if ~isempty(c.fields); went(end+1) = c.id + " (" + strjoin(c.fields, ", ") + ")"; end %#ok<AGROW>
     if ismember("baseline", c.kept); kept(end+1) = c.id; end %#ok<AGROW>
     if ismember("stack", c.kept); keptStack(end+1) = c.id; end %#ok<AGROW>
+    if ismember("yLimMode", c.kept); keptY(end+1) = c.id; end %#ok<AGROW>
 end
 msg = p.id + "'s options went to " + strjoin(went, ", ");
 if isempty(went); msg = "The other panels have " + p.id + "'s options already"; end
@@ -1607,6 +1616,10 @@ end
 if ~isempty(keptStack)
     msg = msg + "; " + strjoin(keptStack, ", ") + " kept their own stack (their type does not take """ + ...
         p.options.stack + """)";
+end
+if ~isempty(keptY)
+    msg = msg + "; " + strjoin(keptY, ", ") + " kept their own Y limits mode (fixed limits are in each type's units: " + ...
+        "they have none of their own)";
 end
 if isempty(went)
     obj.setStatus(msg + ".");

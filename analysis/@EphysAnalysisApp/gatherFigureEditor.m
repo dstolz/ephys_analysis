@@ -246,6 +246,7 @@ if isfield(op, 'metric')
     op.fisherZ = logical(E.fisherZ.Value);
 end
 if isfield(op, 'yLim'); op.yLim = limits(E.yLim.Value); end
+if isfield(op, 'yLimMode'); op.yLimMode = string(E.yLimMode.Value); end
 if isfield(op, 'cLim'); op.cLim = limits(E.cLim.Value); end
 if isfield(op, 'taperMode')   % a spectral panel's Chronux rows
     op.taperMode = string(E.spTaperMode.Value);

@@ -8,7 +8,9 @@ function hk = drawWaveformsPanel(ax, P, look)
 %   unitWaveforms) holds
 %     one unit     drawn by renderWaveforms into AX (grid layout, the
 %                  panel's options.waveform: mean, spikes or both, the
-%                  label; Style.YLim = options.yLim)
+%                  label; Style.YLim: options.yLimMode's limits,
+%                  panelYLimits: "fixed" options.yLim, "batch" the run's
+%                  range)
 %     several      (a fixed layer of several units) every unit's mean
 %                  overlaid in a color of its own (role "waveMean", group =
 %                  the unit's label), the spike time marked, each unit in
@@ -45,8 +47,7 @@ W = R.waveforms;
 nU = height(R.meta);
 st = style;
 st.XLim = [];
-st.YLim = [];
-if numel(o.yLim) == 2 && o.yLim(2) > o.yLim(1); st.YLim = o.yLim; end
+[~, st.YLim] = panelYLimits(look);
 if isfield(o, 'layout') && o.layout == "probe"   % its y axis is the probe's (um): options.yLim is the grid's
     st.YLim = [];
     h = renderWaveforms(R, ax, Layout="probe", Waveform=o.waveform, Style=st, Highlight=ringRows(R, P.layers, P.layers(j).source));

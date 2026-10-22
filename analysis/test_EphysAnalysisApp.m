@@ -1554,7 +1554,7 @@ if S.sec("5d.eventtrace", "an event-trace panel: its template, its Options rows 
     app.onRemoveFigure();
 end
 
-if S.sec("5d.psth", "a PSTH's Stack row, auROC rows and Display; Firing rate and Tuning curve panels (drawn at once); a type change's display and stack")
+if S.sec("5d.psth", "a PSTH's Stack row, auROC rows, Display and Y limits mode; Firing rate and Tuning curve panels (drawn at once); a type change's display and stack")
     app.FigureAutoCheckBox.Value = false;   % no redraw per edit (as 5d.add leaves it)
     groupedBy("Depth");
     app.FigureAutoPreviewSeconds = Inf;   % Auto is on for the panels added: a preview slowed by a loaded machine must not leave them out of date
@@ -1616,6 +1616,28 @@ if S.sec("5d.psth", "a PSTH's Stack row, auROC rows and Display; Firing rate and
     check(oT.display == "trace" && oT.colormap == "" && isempty(oT.cLim) && shown(FE.histStyle) && shown(FE.stack) && shown(FE.yLim) ...
         && ~shown(FE.panelColormap) && ~shown(FE.cLim) && isempty(findall(app.FigurePreviewPanel, 'Type', 'image')) ...
         && app.FigurePreviewState == "drawn", 'back to Display "trace": the trace rows again, the colormap "auto" stored as "", no image');
+    % the Y limits row: the mode drop-down, its lo-hi field only for Fixed
+    yOff = FE.yLim.Enable == "off" && string(FE.yLimMode.Value) == "auto" && isequal(string(FE.yLimMode.ItemsData), EphysAnalysisConfig.YLimModes);
+    FE.yLimMode.Value = "fixed";
+    app.onConfigChanged("figure");
+    yOn = FE.yLim.Enable == "on";
+    FE.yLim.Value = '0 40';
+    app.onConfigChanged("figure");
+    app.refreshFigurePreview(Force=true);
+    oY = app.Config.Figures(1).panels(2).options;
+    axY = findPanelAxes(app.FigurePreviewPanel, app.Config.Figures(1).panels(2).id);
+    check(yOff && yOn && oY.yLimMode == "fixed" && isequal(oY.yLim, [0 40]) && app.FigurePreviewState == "drawn" && isequal(ylim(axY), [0 40]), ...
+        'Y limits: Auto by default (the lo-hi field grayed out); Fixed opens it, and the limits reach the options and the preview''s axis');
+    FE.yLimMode.Value = "batch";
+    app.onConfigChanged("figure");
+    app.refreshFigurePreview(Force=true);
+    check(app.Config.Figures(1).panels(2).options.yLimMode == "batch" && FE.yLim.Enable == "off" ...
+        && contains(string(app.FigurePreviewLabel.Text), "shared by every observation when generated"), ...
+        'Shared by batch reaches the options; the preview draws its own range and its status line says the run shares it');
+    FE.yLimMode.Value = "auto";
+    FE.yLim.Value = '';
+    app.onConfigChanged("figure");
+    app.refreshFigurePreview(Force=true);
     nAx = numel(figAxes());
     check(any(string(FE.panelType.ItemsData) == "rate") && any(string(FE.panelType.ItemsData) == "tuning") && app.FigurePreviewState == "drawn", ...
         'the panel type drop-down offers Firing rate and Tuning curve');

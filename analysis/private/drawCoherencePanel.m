@@ -8,7 +8,8 @@ function hk = drawCoherencePanel(ax, P, look)
 %   computeCoherencePanel) holds one pair per partner item, labeled
 %   "<seed> x <partner>". As renderChronux draws a pair:
 %     a band    the jackknife bars (R.Clo / R.Chi), errorPatch, role "sem"
-%     a trace   the coherence magnitude, 0 to 1 (options.yLim, else [0 1]),
+%     a trace   the coherence magnitude, 0 to 1 (options.yLimMode "fixed":
+%               options.yLim; "batch": the run's range),
 %               role "trace"; several pairs: colored along the design's
 %               sequential colormap (role "channelTrace"), the trial groups
 %               by line style
@@ -24,11 +25,12 @@ function hk = drawCoherencePanel(ax, P, look)
 %   HK.extraAxes the phase's. Drawn into a single axes there is no phase.
 %   options.stack "groups" draws the magnitude as a row per trial group
 %   instead, the first on top, every pair overlaid in each row (in its
-%   color, solid), in the rows of stackLayout (one scale, the row step
-%   options.stackSpacing x the row height, the tallest row's reach), a
-%   gray line along each row (stackBaseLines), the rows named on the left
-%   y axis and each row's top on the right (stackAxes; options.yLim is not
-%   used); the phase strip stays overlaid.
+%   color, solid), in the rows of stackLayout (the row step
+%   options.stackSpacing x the row height, the tallest row's reach; each
+%   row on its own scale with options.yLimMode "auto", else one), a gray
+%   line along each row (stackBaseLines), the rows named on the left y
+%   axis and each row's top on the right (stackAxes); the phase strip
+%   stays overlaid. HK.yExtent: a stack's reach, for a run's batch range.
 %   A coherogram (R.kind "chronuxCohgram", options.overTime; of signals or spike trains) is an image
 %   of the first pair's coherence over time and frequency for the trial
 %   group options.group, 0 to 1 (options.cLim) in the heat colormap, with
@@ -91,7 +93,9 @@ if stacked
         v = double(v(isfinite(v)));
         if ~isempty(v); rlo(g) = min(v); rhi(g) = max(v); end
     end
-    L = stackLayout(rlo, rhi, o.stackSpacing);
+    [ymode, ylimits] = panelYLimits(look);
+    L = stackLayout(rlo, rhi, o.stackSpacing, Mode=ymode, Limits=ylimits);
+    hk.yExtent = [min(rlo) max(rhi)];
 end
 hold(ax, 'on');
 if stacked; stackBaseLines(ax, double(f([1 end])), L, rowNames); end
@@ -153,15 +157,16 @@ elseif nG == 1   % one pair, one group: the pair names the trace
 end
 flat = style;
 flat.XLim = [];
-flat.YLim = o.yLim;
+[~, yl] = panelYLimits(look);
+flat.YLim = yl;
 if stacked; flat.YLim = []; end
 styleAxes(ax, flat);
-if isempty(o.yLim) && ~stacked; ylim(ax, [0 1]); end
+if isempty(yl) && ~stacked; ylim(ax, [0 1]); end
 if numel(f) > 1; xlim(ax, double(f([1 end]).')); end
 hk.yName = "Coherence";
 if stacked
     stackAxes(ax, L, rowNames, "Row top (coherence)");
-    hk.yName = sprintf("%s (%.3g coherence per row)", groupsName, L.height);
+    hk.yName = stackYName(groupsName, L, "coherence");
 end
 if ~isempty(px)
     tagPart(px, "axes", "", look.panelId);

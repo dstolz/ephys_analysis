@@ -39,6 +39,9 @@ function txt = figureCaption(spec, T, opts)
 %   and the series ("a color per session", "per subject", "all sessions
 %   averaged") and the trial groups' handling ("trial groups pooled", "one
 %   figure per trial group", "trial groups by line style").
+%   A figure with a panel whose options.yLimMode is "batch" adds "y shared
+%   across <N> observations" (YShared=N, the run's count: figureBatchYLim's
+%   n), or "y shared across the run's observations" without it.
 %
 %   See also figureObservations, addReportFigure,
 %   EphysAnalysisRunner.runDataset.
@@ -49,6 +52,7 @@ arguments
     opts.Dataset (1,1) string = ""
     opts.Sessions = []
     opts.Auroc = []
+    opts.YShared (1,1) double = NaN
 end
 
 n = height(T);
@@ -142,6 +146,13 @@ if across
     if ss.facet == "subject"; parts(end+1) = "one figure per subject"; end
 elseif isfield(ob, 'perGroup') && ob.perGroup && isfield(spec.selection, 'groupBy') && ~isempty(spec.selection.groupBy)
     parts(end+1) = "one figure per trial group";
+end
+if ~isempty(figureBatchPanels(spec))
+    if isfinite(opts.YShared) && opts.YShared > 0
+        parts(end+1) = sprintf("y shared across %d observation%s", opts.YShared, plural(opts.YShared));
+    else
+        parts(end+1) = "y shared across the run's observations";
+    end
 end
 txt = strjoin(parts, "; ") + ".";
 end

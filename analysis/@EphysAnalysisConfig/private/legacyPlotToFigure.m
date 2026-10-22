@@ -398,6 +398,7 @@ fig = EphysAnalysisConfig.normalizeFigure(fig, "Figure");
     end
 
     function q = panelOf(type, options, layers)
+        if isfield(options, 'yLim') && numel(options.yLim) == 2; options.yLimMode = "fixed"; end   % a plot's YLim: the panel's fixed limits
         q = struct('type', type, 'plotOptions', true, 'options', options, 'layers', {layers});   % plotOptions: takes the plot's bins, baseline, ...
     end
 

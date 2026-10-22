@@ -94,6 +94,9 @@ cfg = cfg.addFigure("rasterPsth", Id="unit_card");    % a unit's raster flush ov
 spec = cfg.figureFor("unit_card");                    % every "default" resolved
 obs = figureObservations(src, spec);                  % one row per unit the figure is drawn for
 F = figureCompute(src, spec, Observation=obs(1, :));  % no graphics
+% (a panel with yLimMode "batch" shares one y range over a run: measure every
+%  observation with figureYExtents, merge with figureBatchYLim, then
+%  renderFigure(F, spec, fig, BatchYLim=B), as EphysAnalysisRunner.run does)
 fig = newExportFigure(struct('FigureSizeCm', [18 12]), F, spec);
 renderFigure(F, spec, fig);
 exportFigure(fig, "D:\out\unit_card_su1", Format=["png" "svg"], Dpi=150);

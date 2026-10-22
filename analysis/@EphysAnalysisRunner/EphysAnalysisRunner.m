@@ -62,6 +62,20 @@ classdef EphysAnalysisRunner < handle
     %     RunRecordFile the run record the last run wrote: the config, the code
     %                   version, MATLAB, host, user and the Results rows, in
     %                   <report folder>/analysis_runs (see run)
+    %     BatchYLim     the last run's shared y ranges: a struct row (figure,
+    %                   id, lim, n) per panel with options.yLimMode "batch"
+    %                   (batchYLimits: lim the union of the y extents of the
+    %                   run's every observation of that figure, n how many;
+    %                   a session figure's over its matched observations)
+    %
+    %   A figure with a panel whose options.yLimMode is "batch" is measured
+    %   first: run() computes and draws (hidden) every observation of the
+    %   run on every dataset (batchYLimits: figureYExtents, figureBatchYLim)
+    %   and then draws each page at the union (renderFigure BatchYLim=), so
+    %   every observation of the run is on one scale; a figure computed
+    %   while measuring is kept for its page while the kept ones stay under
+    %   BatchCacheMB, else computed again. runDataset alone measures its own
+    %   dataset.
     %
     %   Session figures (a figure whose sessions.enabled is true) are drawn
     %   across the datasets, never per dataset: sessionFigureObservations
@@ -93,6 +107,16 @@ classdef EphysAnalysisRunner < handle
         Report = []
         ReportFiles (1,:) string = string.empty(1, 0)
         RunRecordFile (1,1) string = ""   % the run record the last run wrote ("" = none)
+        BatchYLim = struct('figure', cell(1, 0), 'id', cell(1, 0), 'lim', cell(1, 0), 'n', cell(1, 0))   % the last run's shared y ranges
+    end
+
+    properties (Hidden, SetAccess = protected)
+        BatchCache = []                  % containers.Map 'k|figure|i' -> F: figures computed while measuring, for their pages
+        BatchCacheUsedMB (1,1) double = 0
+    end
+
+    properties (Constant, Hidden)
+        BatchCacheMB = 512               % the most computed figures batchYLimits keeps for the drawing pass, MB
     end
 
     methods
@@ -113,6 +137,7 @@ classdef EphysAnalysisRunner < handle
         [T, sessions, sources] = sessionFigureObservations(obj, fig, idx)
         [res, sessions, spec, Fs] = computeSessionFigure(obj, fig, idx, opts)
         rows = runSessionFigure(obj, id, idx, opts)
+        B = batchYLimits(obj, idx, spec, opts)
 
         function obj = EphysAnalysisRunner(cfg, opts)
             %EphysAnalysisRunner  Find the config's datasets (Scan=false: later, with datasets()).
@@ -163,6 +188,35 @@ classdef EphysAnalysisRunner < handle
                 f = string(out.Dataset.outputFolder());
             else
                 f = out.Folder;
+            end
+        end
+
+        function F = takeBatchFigure(obj, k, id, i)
+            %takeBatchFigure  The figure batchYLimits kept for dataset K, figure ID, observation I (and forget it); [] = none.
+            F = [];
+            key = sprintf('%d|%s|%d', k, id, i);
+            if isempty(obj.BatchCache) || ~isKey(obj.BatchCache, key); return; end
+            F = obj.BatchCache(key);
+            w = whos('F');
+            obj.BatchCacheUsedMB = max(0, obj.BatchCacheUsedMB - w.bytes / 2^20);
+            remove(obj.BatchCache, key);
+        end
+
+        function clearBatchCache(obj, k, id)
+            %clearBatchCache  Forget the figures batchYLimits kept: every one, or those of dataset K and figure ID.
+            if isempty(obj.BatchCache); return; end
+            if nargin < 2
+                obj.BatchCache = [];
+                obj.BatchCacheUsedMB = 0;
+                return
+            end
+            stale = keys(obj.BatchCache);
+            stale = stale(startsWith(stale, sprintf('%d|%s|', k, id)));
+            for s = stale
+                F = obj.BatchCache(s{1}); %#ok<NASGU>
+                w = whos('F');
+                obj.BatchCacheUsedMB = max(0, obj.BatchCacheUsedMB - w.bytes / 2^20);
+                remove(obj.BatchCache, s{1});
             end
         end
 

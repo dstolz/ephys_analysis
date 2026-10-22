@@ -14,7 +14,9 @@ function hk = drawTuningPanel(ax, P, look)
 %   role "curve". The components' group
 %   is the series' label, with several items "<item> · <series>" (the item
 %   alone for one series). The legend gets the series (more than one), then
-%   the items (more than one). options.yLim fixes the y axis; with
+%   the items (more than one). options.yLimMode sets the y axis
+%   (panelYLimits: "fixed" at options.yLim, "batch" at the run's range);
+%   with
 %   options.waveform.mode on the first unit's waveform is an inset. Skipped
 %   layers are noted (figLayerNotes). A result merged across sessions
 %   (figureSessionCompute) draws its series (the sessions, subjects or all)
@@ -24,11 +26,12 @@ function hk = drawTuningPanel(ax, P, look)
 %   draws a row per series instead, the first on top, every item in each
 %   row, in the rows of stackLayout (one scale, the row step
 %   options.stackSpacing x the row height, the tallest row's reach of
-%   curves and error bars), a gray line along each row (stackBaseLines),
-%   the rows named by their series on the left y axis and each row's top
-%   on the right (stackAxes; options.yLim is not used); y label "<series
-%   parameter> (<height> <units> per row)". HK: figDrawResult's, yName =
-%   the rates' unit.
+%   curves and error bars; each row on its own scale with
+%   options.yLimMode "auto", else one), a gray line along each row
+%   (stackBaseLines), the rows named by their series on the left y axis
+%   and each row's top on the right (stackAxes); y label "<series
+%   parameter> (<height> <units> per row)" (stackYName). HK:
+%   figDrawResult's, yName = the rates' unit, yExtent a stack's reach.
 %
 %   See also renderFigure, tuningCurve, figurePanelRegistry.
 
@@ -109,7 +112,9 @@ if stacked
             rhi(k) = max([rhi(k); v]);
         end
     end
-    L = stackLayout(rlo, rhi, o.stackSpacing);
+    [ymode, ylimits] = panelYLimits(look);
+    L = stackLayout(rlo, rhi, o.stackSpacing, Mode=ymode, Limits=ylimits);
+    hk.yExtent = [min(rlo) max(rhi)];
 end
 hold(ax, 'on');
 lss = strings(1, nI);
@@ -186,7 +191,7 @@ if numel(unique(xAll)) > 1
 end
 flat = style;
 flat.XLim = [];
-flat.YLim = o.yLim;
+[~, flat.YLim] = panelYLimits(look);
 if stacked; flat.YLim = []; end
 styleAxes(ax, flat);
 xlabel(ax, R0.param, 'Interpreter', 'none');
@@ -205,6 +210,6 @@ hk.yName = R0.units;
 if stacked
     what = "Series";
     if isfield(R0, 'seriesParam') && string(R0.seriesParam) ~= ""; what = string(R0.seriesParam); end
-    hk.yName = strip(sprintf("%s (%s %s", what, sprintf('%.3g', L.height), R0.units)) + " per row)";
+    hk.yName = stackYName(what, L, R0.units);
 end
 end

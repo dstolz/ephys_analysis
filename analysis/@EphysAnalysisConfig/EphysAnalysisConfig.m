@@ -138,6 +138,9 @@ classdef EphysAnalysisConfig
         AuxTransforms = ["none" "rectify" "magnitude"]
         % Its error band (options.errorType): off, mean +/- SEM, mean +/- SD, bootstrap 95% CI, or the interquartile range.
         AuxErrorTypes = ["off" "sem" "std" "ci95" "iqr"]
+        % A panel's y limits (options.yLimMode, every type with options.yLim): each axis or stacked row fits itself, a
+        % stack's rows share one scale, one range for every observation of a run, or options.yLim (panelTypes).
+        YLimModes = ["auto" "rows" "batch" "fixed"]
         % Where a panel's note sits (note.placement): outside the panel, over it, or at a point.
         NotePlacements = ["below" "above" "right" "left" "northwest" "north" "northeast" "west" "center" "east" ...
             "southwest" "south" "southeast" "custom"]
@@ -613,28 +616,31 @@ classdef EphysAnalysisConfig
         function f = sharedFieldsOf(type)
             %sharedFieldsOf  The options a panel type shares with other types (a string row; none for an unknown type).
             %   Among bins, measure, baseline, auroc, maskAfterStop,
-            %   waveform, stack and stackSpacing, in that order, those the
-            %   type's options have, the rows adoptPanelOptions (Apply to
-            %   all panels) copies across types: raster: maskAfterStop,
-            %   waveform; psth: bins, measure, baseline, auroc,
-            %   maskAfterStop, waveform, stack, stackSpacing; continuous:
-            %   baseline, stack, stackSpacing; heatmap: bins, measure,
-            %   baseline, auroc, maskAfterStop, stack, stackSpacing;
-            %   corrmap: bins, baseline; rate: measure, baseline; tuning:
-            %   measure, baseline, waveform, stack, stackSpacing;
-            %   waveforms and probemap: none (a waveforms panel's waveform
-            %   is its own settings, not an inset). The spectral types
-            %   (spectrum, spectrogram, coherence): stack and stackSpacing
-            %   only (their Chronux settings are their own; a
-            %   spectrogram's baseline is chronuxNormalize's). The stack
-            %   options mean the same on every type (stackModes).
+            %   waveform, stack, stackSpacing and yLimMode, in that order,
+            %   those the type's options have, the rows adoptPanelOptions
+            %   (Apply to all panels) copies across types: raster:
+            %   maskAfterStop, waveform; psth: bins, measure, baseline,
+            %   auroc, maskAfterStop, waveform, stack, stackSpacing,
+            %   yLimMode; continuous: baseline, stack, stackSpacing,
+            %   yLimMode; heatmap: bins, measure, baseline, auroc,
+            %   maskAfterStop, stack, stackSpacing; corrmap: bins,
+            %   baseline; rate: measure, baseline, yLimMode; tuning:
+            %   measure, baseline, waveform, stack, stackSpacing, yLimMode;
+            %   waveforms: yLimMode (its waveform is its own settings, not
+            %   an inset); probemap: none. The spectral types (spectrum,
+            %   spectrogram, coherence): stack, stackSpacing and (spectrum,
+            %   coherence) yLimMode only (their Chronux settings are their
+            %   own; a spectrogram's baseline is chronuxNormalize's). The
+            %   stack options and yLimMode mean the same on every type
+            %   (stackModes, YLimModes); yLim itself (in the type's units)
+            %   goes only to panels of the same type.
             f = string.empty(1, 0);
             T = EphysAnalysisConfig.panelTypes();
             row = T.Type == string(type);
             if ~any(row); return; end
-            names = ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform" "stack" "stackSpacing"];
+            names = ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform" "stack" "stackSpacing" "yLimMode"];
             if string(type) == "waveforms"; names(names == "waveform") = []; end
-            if ismember(string(type), ["spectrum" "spectrogram" "coherence"]); names = ["stack" "stackSpacing"]; end
+            if ismember(string(type), ["spectrum" "spectrogram" "coherence"]); names = ["stack" "stackSpacing" "yLimMode"]; end
             f = names(isfield(T.DefaultOptions{row}, cellstr(names)));
         end
 

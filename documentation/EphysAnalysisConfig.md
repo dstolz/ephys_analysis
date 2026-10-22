@@ -178,7 +178,7 @@ edits them.
 constructors (`eventRef`, `epochWindow`, `trialSelection`, which build and
 check one in a script) on the [Analysis page](EphysAnalysis.md#event-reference-window-selection);
 what they mean in a config follows. The sections after [Style](#style) describe
-the settings that figures and their panels share: stacks, the auROC
+the settings that figures and their panels share: stacks, y limits, the auROC
 baseline, a raster's sort and event marks, unit waveforms, aux signals, error
 bands, and a panel's notes and overlays.
 
@@ -391,7 +391,8 @@ groups), on the panel's one x axis. One vocabulary serves every such type
   `groupBy` parameters, the parameters naming the axis), each row's top value
   (a PSTH: its peak, also when `normalize` scaled the rows) on the right axis.
   A stacked line panel has a y axis on each side, so its `ySide` is not used;
-  its `yLim` is not used either (all rows share one scale). Each group's mean
+  its rows' scale is its `yLimMode` ([Y limits](#y-limits): by default each row
+  fits itself, *rows* puts them on one scale). Each group's mean
   stop event is a dashed mark in its own row; a second layer or unit is drawn
   into the same rows (a PSTH's as an outline).
 - **Image rows** (heat map, spectrogram, coherogram): every group's image in a
@@ -404,6 +405,41 @@ groups), on the panel's one x axis. One vocabulary serves every such type
   type takes them; a value a type does not take (a continuous panel's `"items"`)
   is kept out, that panel keeping its own. A panel type change keeps them where
   the new type takes the value.
+
+### Y limits
+
+Every panel type with a y axis of values (PSTH, continuous, waveforms, rate,
+tuning, spectrum, coherence) takes `options.yLimMode`, one vocabulary
+(`EphysAnalysisConfig.YLimModes`), with `options.yLim` the limits it uses when
+`"fixed"`:
+
+| `yLimMode` | Overlaid groups (one axis) | Stacked rows ([Stacks](#stacks)) |
+| --- | --- | --- |
+| `"auto"` (default) | the axis fits the data (the type's own range: an auROC and a coherence 0 to 1) | each row fits itself: scaled to its own reach, its top value on the right axis; y label `... (each row on its own scale)` |
+| `"rows"` | as `"auto"` (the groups share the one axis already) | every row on one scale, the reach of them all; y label `... (<height> <unit> per row)` |
+| `"batch"` | one range for every observation of a run of the figure | every row on that one range |
+| `"fixed"` | `yLim` (`[lo hi]`, required) | every row's range is `yLim` |
+
+**Batch.** A run of the figure (the Export tab's **Run**, the Figures tab's
+**Generate**: `EphysAnalysisRunner.run`) measures a figure with a `"batch"`
+panel before drawing it: every observation it draws, on every dataset of the
+run, is computed and drawn hidden (`figureYExtents`: the panel's y extent, its
+axes' automatic limits or a stack's reach), and the union of them
+(`figureBatchYLim`, kept in `r.BatchYLim`: figure, panel id, `lim`, `n`) is the
+range every page is drawn at (`renderFigure(..., BatchYLim=)`), so each unit or
+channel is on the same scale across the whole run. A figure computed while
+measuring is kept for its page while the kept ones stay under 512 MB, else it
+is computed again. `runDataset` called alone measures its own dataset; a
+session figure measures its matched observations (`runSessionFigure`). The
+report's caption says `y shared across <n> observations` (`figureCaption`
+`YShared=`). Drawn alone (the app's preview, `renderFigure` without
+`BatchYLim`) a batch panel takes its own range, as `"rows"`, and the preview's
+status line says the run shares it. Panels of the same figure are not put on
+one scale with each other: they hold different units, channels or
+quantities. **Apply to all panels** copies `yLimMode` to every panel that has
+one (`yLim`, in the type's units, only to panels of the same type; a
+`"fixed"` mode is kept out of a panel with no `yLim` of its own). Validate:
+`yLimMode` one of the four; `"fixed"` needs `yLim`.
 
 ### auROC
 
@@ -591,7 +627,7 @@ columns, 1 = its first input, `[]` = all). The panel's options are the continuou
 | `transform` | `"none"`: the signal as recorded (after the baseline); `"rectify"`: each epoch's absolute value at every sample, before the statistic; `"magnitude"`: the layer's channels as one trace, their vector magnitude √(x² + y² + z² …) at every sample of each epoch, after the baseline and before the statistic (the mean of the magnitudes, not the magnitude of the means). For a 3-axis accelerometer, fix the AUX layer to its three channels and set `baseline` to `"subtract"`, so each axis's offset (gravity) comes out first |
 | `errorType` | the band over the epochs, chosen for this panel alone (not by `Style.ShowSEM` / `Style.ErrorType`): `"off"`; `"sem"`: statistic +/- SEM; `"std"`: +/- SD; `"ci95"`: the bootstrap 95% CI (of the median for `"median"`; `Style.ErrorResamples` resamples); `"iqr"`: the 25th to 75th percentile of the epochs (`"ci95"` and `"iqr"` need the Statistics and Machine Learning Toolbox; `"sem"` and `"std"` with the median are drawn around the median, and validate warns) |
 | `trials` | `"faint"` or `"only"`: each epoch's own trace as well, or alone |
-| `yLim` | the signal's y limits in its units (V); `[]` = from the traces (and their bands) |
+| `yLimMode`, `yLim` | the signal's y limits in its units (V): `"auto"` from the traces (and their bands), `"fixed"` at `yLim`, `"batch"` one range over a run ([Y limits](#y-limits)) |
 
 The samples are cut with `evokedPotential`, as an LFP's are: offset 0 is the AUX sample
 nearest the one that produced the event, at the AUX extract's own rate (Intan: a quarter
@@ -1004,7 +1040,7 @@ What each draws:
   groups are not overlaid but stacked: one row per group, the first on
   top, the row step `stackSpacing` times the row height, the groups'
   values on the left axis and their peaks on the right, as in [Stacks](#stacks). A second layer or unit is drawn into the same rows as an outline;
-  `yLim` is not used in a stack. The groups' rasters are not a stack option:
+  `yLimMode` sets the rows' scale in a stack ([Y limits](#y-limits)). The groups' rasters are not a stack option:
   a raster panel above the PSTH shows them. With
   baseline `Mode "auroc"` the curves are auROCs, drawn from 0.5 (a dotted
   chance line) on a 0-1 axis unless `yLim` says otherwise, the modulation
@@ -1257,7 +1293,7 @@ refuses.
 | `spectrogram`, `coherence` | `movingwin` | `[0.5 0.05]` | `[window step]` s (a coherence only with `overTime`) |
 | `spectrogram` | `baseline` | `Mode "none"`, `Window [-0.5 0]` | `Mode` `"none"`, `"db"`, `"percent"`, `"zscore"` or `"ratio"` (`chronuxNormalize`'s) against the power in `Window`, which must lie inside the panel's window |
 | `coherence` | `showPhase` | `true` | the phase strip under the magnitude (not over time) |
-| `spectrum`, `coherence` | `yLim` | `[]` | the power or coherence axis; a coherence `[]` = `[0 1]` |
+| `spectrum`, `coherence` | `yLimMode`, `yLim` | `"auto"`, `[]` | the power or coherence axis ([Y limits](#y-limits)); a coherence's automatic axis is `[0 1]` |
 | `spectrogram`, `coherence` | `cLim` | `[]` | the color scale; a coherogram `[]` = `[0 1]` |
 | `spectrogram`, `coherence` | `group` | 1 | the trial group drawn (a coherence: with `overTime`); not used in a stack |
 | all three | `stack`, `stackSpacing` | `"off"`, 1.1 | `"groups"`: a row per trial group, the first on top: line rows for a spectrum or coherence, image rows for a spectrogram or coherogram ([Stacks](#stacks)) |
@@ -1375,7 +1411,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `psth` | `stack` | `"off"` | `"groups"`: one row per trial group, stacked downwards (the first group on top, as a raster lists them), instead of overlaid; a single group is drawn overlaid ([Stacks](#stacks)) |
 | `psth` | `stackSpacing` | 1.1 | `stack`: the step between rows, times the row height (below 1 the rows overlap); positive |
 | `psth` | `maskAfterStop` | `false` | drop each epoch's bins from its stop event on |
-| `psth` | `yLim` | `[]` | the rate axis; not used in a stack or a heat map |
+| `psth` | `yLimMode`, `yLim` | `"auto"`, `[]` | the rate axis ([Y limits](#y-limits): auto, rows, batch or fixed at `yLim`); in a stack the rows' scale; not used by a heat map |
 | `psth` | `colormap` | `""` | `display "heatmap"`: `""` is the style's `HeatColormap`, else the design's heat colormap (an auROC: its diverging one); or a colormap function (`"turbo"`, `"hot"`, `"blueWhiteRed"`). A name that is no function is a validation warning and takes the default |
 | `psth` | `cLim` | `[]` | `display "heatmap"`: the color limits; `[]` = the drawn item's own range (an auROC: 0 to 1) |
 | `psth` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | the first unit's waveform in a box in the panel |
@@ -1387,7 +1423,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `continuous` | `stackSpacing` | 1.1 | `stack`: the step between rows, times the row height; positive |
 | `continuous` | `trials` | `"off"` | each epoch's trace: `"off"`, `"faint"` (paler and thinner than the mean, behind it and its band) or `"only"` (the traces alone, no mean or band) |
 | `continuous` | `maxTrials` | 100 | `trials` other than `"off"`: the most epochs drawn, picked evenly over their order; a whole number >= 1 (`Inf` = every one) |
-| `continuous` | `yLim` | `[]` | the amplitude axis |
+| `continuous` | `yLimMode`, `yLim` | `"auto"`, `[]` | the amplitude axis, or a stack's rows' scale ([Y limits](#y-limits)) |
 | `heatmap` | `bins`, `measure`, `baseline` | as the PSTH's | a spike layer: as the PSTH, `baseline.Mode "auroc"` included; a signal layer: `baseline.Mode` `"none"` or `"subtract"` and `bins`, `measure` unused |
 | `heatmap` | `auroc` | `defaults("Auroc")` | a spike layer, baseline `Mode "auroc"`: the PSTH's `auroc` settings. A signal layer with `"auroc"` is an error |
 | `heatmap` | `rows` | `"items"` | `"items"`: a row per unit or channel of the layer; `"trials"`: a row per epoch of one unit, every trial group (a spike or train layer that follows the observation or is fixed to one unit; no auROC baseline). A layer that follows the observation through a channel (a channel observation, or a layer of the other spike source) keeps every unit on it, so validate refuses it; one that still keeps several is skipped at run time |
@@ -1402,7 +1438,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `heatmap` | `maskAfterStop` | `false` | spike layers: as the PSTH's |
 | `waveforms` | `layout` | `"grid"` | `"grid"`: the observed unit's waveform, or the means of a fixed layer's units overlaid; `"probe"`: every unit of the first enabled layer at its place on the probe, a further layer's units framed in red (bind the first layer to fixed units: validate warns when it follows the observation, which draws one glyph). Several enabled layers are not a warning in the probe layout |
 | `waveforms` | `waveform` | [Waveform](#unit-waveforms), `mode "both"` | `mode` `"mean"`, `"subsample"` or `"both"` (never `"off"`), `maxSpikes` (the spikes drawn), `ampScale`, and `showPP` / `showCount` (the label). `scale` (the glyphs' size), `showSites` and `showNames` are for the probe layout |
-| `waveforms` | `yLim` | `[]` | the amplitude axis |
+| `waveforms` | `yLimMode`, `yLim` | `"auto"`, `[]` | the amplitude axis ([Y limits](#y-limits); not the probe layout's) |
 | `probemap` | `value` | `"rate"` | `"rate"`, `"nSpikes"` or `"nUnits"` |
 | `probemap` | `cLim` | `[]` | the color scale |
 | `corrmap` | `metric` | `"mean"` | each epoch's `"mean"` rate over its window, or its `"peak"` binned rate |
@@ -1415,13 +1451,13 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `rate` | `measure` | `"rate"` | `"rate"` (spikes/s), `"count"` (spikes per window) or `"probability"` (the share of epochs with a spike) |
 | `rate` | `baseline` | `Mode "none"`, `Window [-0.2 0]` | `Mode` `"none"`, `"subtract"`, `"ratio"` or `"zscore"`, as `firingRate`'s `Normalize`: `"subtract"` (that epoch's baseline value), `"ratio"` (over the unit's mean baseline) or `"zscore"` (against the baseline's mean and SD over all epochs) |
 | `rate` | `display` | `"bar"` | `"bar"` (the mean, with an error bar), `"box"` or `"points"` (each epoch's rate, over a bar of their mean) |
-| `rate` | `yLim` | `[]` | the rate axis |
+| `rate` | `yLimMode`, `yLim` | `"auto"`, `[]` | the rate axis ([Y limits](#y-limits)) |
 | `tuning` | `param` | `""` | the x axis, a trial parameter; `""` = the figure's first `groupBy` parameter, else the first numeric trial parameter with two or more values |
 | `tuning` | `seriesParam` | `""` | one curve per value of this trial parameter; `""` = one curve; not the same as `param` |
 | `tuning` | `stack`, `stackSpacing` | `"off"`, 1.1 | `"groups"`: a row per series, the first on top ([Stacks](#stacks)) |
 | `tuning` | `measure` | `"rate"` | as the rate panel's |
 | `tuning` | `baseline` | `Mode "none"`, `Window [-0.2 0]` | as the rate panel's |
-| `tuning` | `yLim` | `[]` | the rate axis |
+| `tuning` | `yLimMode`, `yLim` | `"auto"`, `[]` | the rate axis, or a stack's rows' scale ([Y limits](#y-limits)) |
 | `tuning` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | the first unit's waveform in a box in the panel |
 | `spectrum`, `spectrogram`, `coherence` | | | the [Chronux options](#spectral-panels), above; none but `stack` and `stackSpacing` is a shared option |
 | `eventTrace` | | | the [event-trace options](#event-traces), above; none is a shared option |
@@ -1971,7 +2007,8 @@ Errors:
   parameter's name, and not the same one), `yLim` and `waveform`; the `waveform`
   settings of a raster, PSTH, tuning or waveforms panel (mode, and for a waveforms
   panel never `off`; location, `scale` in (0, 3], whole `maxSpikes >= 1`, `ampScale`);
-  `yLim` and `cLim` `[]` or ascending; on every type that stacks ([Stacks](#stacks))
+  `yLim` and `cLim` `[]` or ascending; `yLimMode` one of `auto`, `rows`, `batch`,
+  `fixed`, and `fixed` with a `yLim`; on every type that stacks ([Stacks](#stacks))
   a `stack` the type takes (`stackModes`: `off` or `groups`, a continuous panel's
   `items` too) and a positive `stackSpacing` (a heat map of trials' `stack` other
   than `off` is a warning: not used); an event-trace panel's `display` (`bars` or

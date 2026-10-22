@@ -13,7 +13,9 @@ function hk = drawContinuousPanel(ax, P, look)
 %   and the item's line style (the layer's lineStyle, else by order).
 %   options.stack:
 %     "off"      every trace on one axis, y label "Amplitude (<units>)";
-%                options.yLim fixes the axis
+%                options.yLimMode sets it (panelYLimits: "fixed" at
+%                options.yLim, "batch" at the run's range, else from the
+%                traces)
 %     "items"    every item a row of its own, the groups overlaid in each
 %                row (the layer's lineStyle, else solid), the rows named on
 %                the left y axis
@@ -21,12 +23,16 @@ function hk = drawContinuousPanel(ax, P, look)
 %                a raster lists them), the items overlaid in each row by
 %                line style, the rows named by the groups' values
 %                (rowLabels)
-%   A stack's rows go where stackLayout puts them: one scale for all, the
-%   row step options.stackSpacing x the row height (the tallest row's
-%   reach: its means and bands, or with trials "only" its traces), a gray
-%   line along each row (stackBaseLines), each row's top value on the
-%   right y axis (stackAxes); y label "Channel (<height> <units> per row)"
-%   (a stack of groups: the groups' parameters).
+%   A stack's rows go where stackLayout puts them, the row step
+%   options.stackSpacing x the row height (the tallest row's reach: its
+%   means and bands, or with trials "only" its traces): each row scaled to
+%   its own reach (options.yLimMode "auto"), or every row on one scale
+%   ("rows": the reach of them all; "batch": the run's range; "fixed":
+%   options.yLim), a gray line along each row (stackBaseLines), each row's
+%   top value on the right y axis (stackAxes); y label "Channel (<height>
+%   <units> per row)" on one scale, "Channel (each row on its own scale)"
+%   else (stackYName; a stack of groups: the groups' parameters). HK.yExtent:
+%   a stack's reach in the signal's units, for a run's batch range.
 %   options.trials "faint" draws each epoch's trace (R.data, at most
 %   options.maxTrials of them: computeContinuousPanel) of every item and
 %   group as one NaN-joined line (role "trialTrace") in the group's color
@@ -152,7 +158,9 @@ if stacked
             rhi(r) = max([rhi(r); v]);
         end
     end
-    L = stackLayout(rlo, rhi, o.stackSpacing);
+    [ymode, ylimits] = panelYLimits(look);
+    L = stackLayout(rlo, rhi, o.stackSpacing, Mode=ymode, Limits=ylimits);
+    hk.yExtent = [min(rlo) max(rhi)];
 end
 hold(ax, 'on');
 if stacked; stackBaseLines(ax, S(1).t([1 end]), L, rowNames); end
@@ -240,9 +248,9 @@ if stacked
     stackAxes(ax, L, rowNames, rightName);
     what = "Channel";
     if stack == "groups"; what = groupsName; end
-    hk.yName = strip(sprintf("%s (%s %s", what, sprintf('%.3g', L.height), units)) + " per row)";
+    hk.yName = stackYName(what, L, units);
 else
-    flat.YLim = o.yLim;
+    [~, flat.YLim] = panelYLimits(look);
     styleAxes(ax, flat);
     if units ~= ""; hk.yName = "Amplitude (" + units + ")"; end
 end

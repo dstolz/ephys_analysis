@@ -79,7 +79,9 @@ function issues = validate(obj, opts)
 %               settings, y / color limits, the stack (stackModes:
 %               off, groups, a continuous panel's items; a warning on a
 %               heat map of trials, which does not use it) and a
-%               positive stackSpacing on every type that stacks; the spectral panels'
+%               positive stackSpacing on every type that stacks, the
+%               yLimMode (YLimModes; "fixed" needs a yLim) on every type
+%               with y limits; the spectral panels'
 %               (spectrum, spectrogram, coherence) options by
 %               chronuxSettings' rules (figureChronuxSettings: tapers,
 %               fpass, err, errP, detrend, scale, spikeFs, the moving
@@ -672,6 +674,7 @@ for k = 1:numel(obj.Figures)
                 checkEventTrace(op, o0);
         end
         if isfield(op, 'stack'); checkStack(pj.type, op, o0); end
+        if isfield(op, 'yLimMode'); checkYLimMode(op, o0); end
     end
 
     % the style (its error drawn as a bootstrap CI by a PSTH's bands, a rate panel's bars, a tuning curve's error bars)
@@ -899,6 +902,17 @@ issues = table(Section, Field, Severity, Message);
         if ~(isscalar(hOp.stackSpacing) && isfinite(hOp.stackSpacing) && hOp.stackSpacing > 0)
             add("Figures", hO0 + ".stackSpacing", "error", "stackSpacing must be positive: the row step x the row height " + ...
                 "(1: the rows touch; below 1 they overlap).");
+        end
+    end
+
+    function checkYLimMode(hOp, hO0)
+        %checkYLimMode  A panel's yLimMode: one of YLimModes; "fixed" needs its yLim.
+        if ~ismember(hOp.yLimMode, EphysAnalysisConfig.YLimModes)
+            add("Figures", hO0 + ".yLimMode", "error", "yLimMode is auto (each axis or stacked row fits itself), rows (a " + ...
+                "stack's rows share one scale), batch (one range for every observation of a run) or fixed (yLim), not """ + ...
+                hOp.yLimMode + """.");
+        elseif hOp.yLimMode == "fixed" && isempty(hOp.yLim)
+            add("Figures", hO0 + ".yLim", "error", "yLimMode fixed draws the y axis at yLim: give [lo hi] with lo < hi.");
         end
     end
 

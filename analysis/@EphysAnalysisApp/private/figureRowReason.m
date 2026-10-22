@@ -27,6 +27,8 @@ if isfield(T, key)
         why = why + ".";
     elseif type == ""
         why = why + ": pick such a panel.";
+    elseif ismember(key, ["stack" "stackSpacing"])   % why a type does not stack
+        why = why + ", not of " + typeList(type) + " panels: " + noStack(type);
     else
         why = why + ", not of " + typeList(type) + " panels: pick such a panel.";
     end
@@ -98,6 +100,19 @@ why = label + " " + tail;
 end
 
 
+function s = noStack(type)
+%noStack  Why a panel type takes no stack, in a sentence's tail.
+switch type
+    case "raster", s = "a raster lists its groups in blocks already.";
+    case "rate", s = "a firing rate panel puts its groups along x.";
+    case "eventTrace", s = "an event-trace panel has a row per line already.";
+    case "corrmap", s = "a unit correlation map is a units-by-units matrix (draw a panel per group with Group shown).";
+    case {"waveforms" "probemap"}, s = "it has no trial groups to stack.";
+    otherwise, s = "pick such a panel.";
+end
+end
+
+
 function T = optionTypes()
 %optionTypes  The Options rows syncFigureEditor shows by panel type: the types, and what more the row needs on them ("" = nothing).
 o = @(types, needs) struct('types', types, 'needs', needs);
@@ -137,7 +152,8 @@ end
 T.value = o("probemap", "");
 for f = ["metric" "correlation" "fisherZ"]; T.(f) = o("corrmap", ""); end
 T.yLim = o(["psth" "continuous" "waveforms" "rate" "tuning" "spectrum" "coherence"], ...
-    "on a PSTH with Display: trace, on a coherence panel unless drawn over time");
+    "on a PSTH with Display: trace, on a coherence panel unless drawn over time (an image's scale is its Color limits)");
+T.yLimMode = T.yLim;
 T.cLim = o(["psth" "heatmap" "probemap" "corrmap" "spectrogram" "coherence"], ...
     "on a PSTH with Display: heat map, on a coherence panel drawn over time");
 T.spTimeBase = o(["spectrum" "coherence"], "");

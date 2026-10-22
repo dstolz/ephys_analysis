@@ -4,8 +4,10 @@ function [fig, changed] = adoptPanelOptions(fig, panelId)
 %   FIG (a Figures entry):
 %   - the panel's values of the options several types share
 %     (sharedFieldsOf: bins, measure, baseline, auroc, maskAfterStop,
-%     the waveform inset, stack and stackSpacing) go to every other
-%     panel whose type has them. The baseline (with its auroc settings)
+%     the waveform inset, stack, stackSpacing and yLimMode) go to every
+%     other panel whose type has them (yLim, in the type's units, only to
+%     the panels of its type: a panel of another type taking "fixed" keeps
+%     its own yLim; one with no yLim keeps its own yLimMode instead). The baseline (with its auroc settings)
 %     goes only where the type takes its Mode: a PSTH or a heat map of
 %     spikes none, subtract, zscore, percent or auroc; a rate or tuning
 %     panel none, subtract, ratio or zscore; a continuous, unit
@@ -28,9 +30,10 @@ function [fig, changed] = adoptPanelOptions(fig, panelId)
 %     id      the panel's id
 %     fields  the options (and xSide, ySide) whose values changed (a
 %             string row)
-%     kept    "baseline" and / or "stack" when the panel kept its own
-%             because its type does not take the value, else empty (a
-%             string row)
+%     kept    "baseline", "stack" and / or "yLimMode" when the panel
+%             kept its own because its type does not take the value (a
+%             "fixed" yLimMode: it has no yLim of its own), else empty
+%             (a string row)
 %   Error: EphysAnalysisConfig:NoPanel.
 %
 %   See also EphysAnalysisConfig.sharedFieldsOf, EphysAnalysisConfig.relinkPanels,
@@ -67,6 +70,10 @@ for j = [1:k-1, k+1:numel(fig.panels)]
     if ismember("stack", take) && Q.type ~= P.type && ~ismember(P.options.stack, EphysAnalysisConfig.stackModes(Q.type))
         take = setdiff(take, ["stack" "stackSpacing"], 'stable');   % e.g. a continuous panel's "items"
         kept(end+1) = "stack";
+    end
+    if ismember("yLimMode", take) && Q.type ~= P.type && P.options.yLimMode == "fixed" && isempty(Q.options.yLim)
+        take = setdiff(take, "yLimMode", 'stable');   % "fixed" with no yLim of its own (the limits are in the type's units)
+        kept(end+1) = "yLimMode";
     end
     fields = string.empty(1, 0);
     for f = take

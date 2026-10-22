@@ -29,7 +29,21 @@ function T = panelTypes()
 %
 %   Per-panel y and color limits (options.yLim, options.cLim: [] =
 %   automatic, else [lo hi]) live in the options because one figure holds
-%   different axes; a figure's Style.YLim / Style.CLim are not used.
+%   different axes; a figure's Style.YLim / Style.CLim are not used. Every
+%   type with a y axis of values (PSTH, continuous, waveforms, rate,
+%   tuning, spectrum, coherence) takes options.yLimMode, one vocabulary
+%   (EphysAnalysisConfig.YLimModes):
+%     "auto"   (default) each axis fits its data (the type's own: an auROC
+%              and a coherence 0 to 1); in a stack each row fits itself,
+%              scaled to its own reach (its top named on the right axis)
+%     "rows"   a stack's rows share one scale, the reach of them all (an
+%              axis without rows: as "auto", its groups share it already)
+%     "batch"  one range for every observation of a run of the figure
+%              (EphysAnalysisRunner.run: Generate, Export): the union of
+%              their extents (figureYExtents, figureBatchYLim), a stack's
+%              rows on that one scale; drawn alone (the preview) a panel
+%              takes its own range, as "rows"
+%     "fixed"  options.yLim ([lo hi]; a stack: every row's range)
 %
 %   A PSTH or a heat map of spikes takes baseline Mode "auroc" (each bin's
 %   auROC against the baseline window, spikePSTH's BaselineMode "auroc")
@@ -142,7 +156,8 @@ opts.psth = struct( ...
     'stack',         "off", ...         % "off" (the groups overlaid) | "groups" (a row per trial group, the first on top)
     'stackSpacing',  1.1, ...           % stack: the row step, x the row height (1: the rows touch; < 1 overlaps)
     'maskAfterStop', false, ...
-    'yLim',          [], ...            % [] = automatic, else [lo hi]
+    'yLimMode',      "auto", ...  % "auto" (each axis, each stacked row, fits itself) | "rows" (a stack's rows share one scale) | "batch" (one range for every observation of a run) | "fixed" (yLim)
+    'yLim',          [], ...            % yLimMode "fixed": [lo hi]
     'colormap',      "", ...            % display "heatmap": "" (the design's heat colormap, Style.HeatColormap) | a colormap function
     'cLim',          [], ...            % display "heatmap": [] = the unit's own range (auROC: [0 1]), else [lo hi]
     'waveform',      waveform);
@@ -155,6 +170,7 @@ opts.continuous = struct( ...
     'stackSpacing', 1.1, ...            % stack: the row step, x the row height (1: the rows touch; < 1 overlaps)
     'trials',       "off", ...          % each epoch's trace: "off" | "faint" (pale and thin, behind the mean) | "only" (the traces, no mean)
     'maxTrials',    100, ...            % trials: at most this many epochs drawn, picked evenly over their order (Inf = every one)
+    'yLimMode',     "auto", ...  % as a PSTH's (EphysAnalysisConfig.YLimModes)
     'yLim',         []);
 opts.heatmap = struct( ...
     'bins',          bins, ...
@@ -175,6 +191,7 @@ opts.heatmap = struct( ...
 opts.waveforms = struct( ...
     'layout',   "grid", ...             % "grid" (the unit's waveform, or several overlaid) | "probe" (every unit at its place on the probe)
     'waveform', waveformsOwn, ...       % mode "mean" | "subsample" | "both" (never "off")
+    'yLimMode', "auto", ...  % as a PSTH's (EphysAnalysisConfig.YLimModes)
     'yLim',     []);
 opts.probemap = struct( ...
     'value', "rate", ...                % "rate" | "nSpikes" | "nUnits"
@@ -191,6 +208,7 @@ opts.rate = struct( ...
     'measure',  "rate", ...             % "rate" (spikes/s) | "count" (spikes per window) | "probability" (share of epochs with a spike)
     'baseline', baseline, ...           % Mode "none" | "subtract" | "ratio" | "zscore" (firingRate's Normalize)
     'display',  "bar", ...              % "bar" (mean, error bar) | "box" | "points" (each epoch, the mean as a bar)
+    'yLimMode', "auto", ...  % as a PSTH's (EphysAnalysisConfig.YLimModes)
     'yLim',     []);
 opts.tuning = struct( ...
     'param',       "", ...              % the x axis: a trial parameter ("" = the figure's first groupBy one, else the first numeric one)
@@ -199,6 +217,7 @@ opts.tuning = struct( ...
     'stackSpacing', 1.1, ...            % stack: the row step, x the row height
     'measure',     "rate", ...
     'baseline',    baseline, ...        % Mode "none" | "subtract" | "ratio" | "zscore"
+    'yLimMode',    "auto", ...  % as a PSTH's (EphysAnalysisConfig.YLimModes)
     'yLim',        [], ...
     'waveform',    waveform);           % the unit's waveform inset
 % the Chronux spectral types (chronuxSettings' fields and defaults; none is a shared option)
@@ -220,6 +239,7 @@ opts.spectrum = struct( ...
     'spikeFs',    1000, ...             % point layers: the spike trains' time grid, Hz
     'stack',      "off", ...            % "off" (the groups overlaid) | "groups" (a row per trial group, the first on top)
     'stackSpacing', 1.1, ...            % stack: the row step, x the row height
+    'yLimMode',   "auto", ...  % as a PSTH's (EphysAnalysisConfig.YLimModes)
     'yLim',       []);
 opts.spectrogram = struct( ...
     'taperMode',  "TWK", ...
@@ -256,6 +276,7 @@ opts.coherence = struct( ...
     'overTime',   false, ...            % a coherogram over the moving window: an image over time
     'movingwin',  [0.5 0.05], ...
     'showPhase',  true, ...             % the phase under the magnitude (not over time)
+    'yLimMode',   "auto", ...  % as a PSTH's (EphysAnalysisConfig.YLimModes)
     'yLim',       [], ...               % [] = [0 1]
     'cLim',       [], ...               % over time: [] = [0 1]
     'group',      1, ...                % over time: the trial group drawn (not with stack "groups")

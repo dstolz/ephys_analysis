@@ -10,6 +10,17 @@ says how to cut a release.
 
 ### Added
 
+- Automatic y limits, one option on every panel type with `yLim` (PSTH, continuous, waveforms, rate, tuning,
+  spectrum, coherence): `options.yLimMode` `"auto"` (each axis fits its data; in a stack each row fits itself,
+  its top on the right axis) | `"rows"` (a stack's rows share one scale) | `"batch"` (one range for every
+  observation of a run) | `"fixed"` (`yLim`). A run (`EphysAnalysisRunner.run`: Export **Run**, Figures
+  **Generate**) measures a batch figure's every observation on every dataset first (`batchYLimits`,
+  `figureYExtents`, `figureBatchYLim`; computed figures kept for their pages up to 512 MB) and draws every page at
+  the union (`renderFigure(..., BatchYLim=)`, `r.BatchYLim`); session figures measure their matched observations;
+  the standalone script writes the same measuring pass. Captions say `y shared across <n> observations`; the
+  preview draws its own range and its status line says the run shares it. The editor's **Y limits** row is a
+  drop-down (*Auto*, *Shared by rows*, *Shared by batch*, *Fixed*) beside the limits' field, open only for
+  *Fixed*; Apply to all panels copies the mode. A migrated version 1 plot's `YLim` becomes `yLimMode "fixed"`.
 - Stacks for every panel type that draws trial groups over one shared axis, in one vocabulary
   (`EphysAnalysisConfig.stackModes`): `options.stack` `"off"` | `"groups"` (a row per trial group, the first on
   top) on a PSTH, continuous, heat map (rows `"items"`: a block of units per group), tuning (a row per series),
@@ -1330,6 +1341,8 @@ says how to cut a release.
   signal's units (`NaN` = automatic); a migrated version 1 evoked stack drops its `Style.StackSpacing`. The
   editor's continuous **Display** and **Stack spacing** rows became the shared **Stack** row; the New panel
   window's continuous **Display** is its **Stack**. A PSTH stack's row height now covers the bands too.
+- A panel's `yLim` is used only with `yLimMode "fixed"`; with the default `"auto"` a stacked panel scales each
+  row to itself (pick *Shared by rows* for the earlier one-scale stack).
 
 - The probe map is drawn as a probe: each shank a pale body with a pointed tip behind its sites, named
   *Shank k* under the tip, with an x tick at each shank; sites are circles (filled in the color scale, open

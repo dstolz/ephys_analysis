@@ -378,7 +378,7 @@ is drawn.
 | **Add** | adds a blank figure (one empty cell, observing the dataset) with an automatic id (*Blank dataset*), selects it and opens the [New panel window](#the-new-panel-window) on it: **OK** adds its first panel, which its id and its **Observe** choice then follow (*PSTH units*); **Cancel** leaves it blank, to fill with **New panel...** later. The app offers no template (scripts still have `addFigure`'s, [EphysAnalysisConfig](EphysAnalysisConfig.md#figure-ids)) |
 | **Remove**, **Duplicate** | removes the selected figure; copies it, with its remembered looks and its observation, right after it as *&lt;id&gt; (2)* (the next free number: *PSTH units (3)* when *(2)* is taken), and selects the copy. An automatic id copies as automatic (the copy's id follows its own panels from then on), an id of your own as your own; a *(n)* the id ends in is not doubled (*unit_card (2)* copies as *unit_card (3)*) |
 | **Up**, **Down** | swaps it with its neighbor in its group of the tree (the whole list when ungrouped), which shows as one step and moves it in the config's run order; a figure of another group between the two keeps its place. Off for a figure with no neighbor in its group |
-| **Copy from...** | under the list, on with a figure selected and another to copy from: copies another figure's settings onto the selected one, part by part. A window asks which figure (**From**, by id) and which of six parts, one box each, all ticked at first (**All**, **None**): *Observations* (`observe`: the data observed, unit filter, channels, per trial group), *Alignment* (`ref`, `window`, `selection`), *Arrangement and panels* (`grid` and every panel with its type, options, own alignment and layers; the other figure's panel ids are copied too), *Appearance* (`style`), *Remembered looks* (`aesthetics`) and *Across sessions* (`sessions`: which datasets, the figures, colors, error band, matching and trial groups of a [session figure](#sessions-in-the-figures-tab); the whole block, the **Across sessions** box, the dataset keys and the mapping file's path included). The figure keeps its id (an automatic one follows the panels copied), title and enabled, and every part not ticked. The editor, the observation picker and the preview follow (after the arrangement the first panel and layer are selected), and the status bar says what was copied (`copyFigureSettings`, `figureSettingParts`) |
+| **Copy settings...** | under the list, on with a figure selected: copies a figure's settings, one by one, onto other figures (one or many) or into a plot design ([Copy settings to other figures or a design](#copy-settings-to-other-figures-or-a-design)). Each figure copied onto keeps its id (an automatic one follows), title and enabled, and every setting left unticked |
 
 **The editor.** On top, always open: **Id** with **auto** beside it (unique among figures; it names the figure's files, `{Plot}`; `id`, `autoId`; below), **Title** (blank = automatic: the id, the
 observation, the event and the epoch count; a title of your own names no
@@ -401,7 +401,7 @@ refused. What refers to a figure by its id follows an automatic rename: the
 observation it last showed, the right-click editor of its preview or of its
 **Open in window** figure (looks remembered there reach it), and the Spacing
 window opened on it; runs, the Export tab, the pipeline's Analysis step and
-**Copy from...** read the ids when they run, and the tree and the editor hold
+**Copy settings...** read the ids when they run, and the tree and the editor hold
 the figure itself, so none of them can point at a stale id. The figure's file
 names (`{Plot}`) follow the id.
 
@@ -1156,7 +1156,7 @@ panel**, **Undo Spacing**, and for a control of the editor its row's label
 editor's controls, the arrangement (New panel, Remove panel, Move, a drag in
 the schematic, spans, Spacing...), the panel type, the layers, Apply to all
 panels and Re-link all panels, the figure list (Add, Remove, Duplicate, Up /
-Down, Copy from..., the tree's check boxes), a look remembered or forgotten
+Down, Copy settings..., the tree's check boxes), a look remembered or forgotten
 from the preview, and Pick... for a session figure. A quick run of edits of
 one field (each under a second after the last) is one step; one typed back
 to where it started is none. The toolbar's **Undo** and **Redo** tools do the
@@ -1221,6 +1221,53 @@ the status bar when that edit was changed again since.
 what the edit changed, `changeTargets` lists the figures and panels that can
 take it (`panelTakes`, the rule **Apply to all panels** follows too) and
 `applyChanges` gives it to those ticked.
+
+#### Copy settings to other figures or a design
+
+**Copy settings...** under the figure list copies a figure's settings, as
+many or as few as you tick, onto other figures, or its look into a plot
+design. Where [Apply to figures](#apply-a-change-to-other-figures) gives one
+edit to others, this gives a figure's settings as they are now.
+
+| Part | What it does |
+| --- | --- |
+| **From** | the figure copied from, any of them (the one selected first), by id and panel count. Another one lists its settings and the other figures |
+| **Copy to** | *The figures ticked* (the list at the right), a design of yours (*Design: Lab look*) or *A new design*, named in **New design's name** (one of yours of that name is replaced) |
+| the settings | a tree of check boxes, one per setting, each with its value now (*Font size = 9*), under the parts: *Observations* (each field: the data observed, the unit filter, the channels, starred only, once per trial group), *Alignment* (event reference, epoch window, trial selection), *Arrangement and panels* (*Grid and panels*: the grid with every panel, its type, options, own alignment and layers, panel ids too; *Spacing between panels*: the spacing and custom gaps), *Panel settings* (per panel of the figure, its settings in groups: *Axes and limits*, the box, axis sides, y-limits mode, y and color limits, y ticks, scale; *Colors and lines*; *Display and stacks*; *Marks and insets*, first spike, latency box, unit waveform; *Data and analysis*, every other option; *Size and alignment*, its size and place in its cell, its own event, window and selection, its note's look), *Appearance* (the Style fields in groups: *Lines and error bands*, *Colors*, *Text and legend*, *Marks*, *Sorting and labels*), *Remembered looks* (each look, one by one) and *Across sessions* (each field). Ticking a part or a group ticks everything under it. Into a design only what a design holds is shown: the group colors (unless *lines*), the heat colors (when set) and each remembered look |
+| **Find** | shows only the settings whose name, group or value holds the text (*limits*, *color*); the ticks of those it hides stay, and copy |
+| **All**, **None**, **Expand**, **Collapse** | tick every setting shown or none; open or shut every part and group |
+| **Copy onto** | a check box per other figure (the one selected is marked *shown*), with **All** and **None**: one or many. The count says how many settings go onto how many figures |
+| **Copy** | gives the figures ticked the settings ticked, as one step of the undo history (**Undo Copy settings from PSTH units to 3 figures**); the status bar names them. Only the figure shown is drawn again, when it changed, as after any edit (Auto); the other figures changed are marked out of date in the tree (amber) and drawn when you show them |
+
+A setting goes where it fits. The figure's settings go to each figure as
+they are (an event reference the figure uses from the Defaults becomes its
+own when one field of it is copied, as with Apply to figures). A remembered
+look is added to the figure's own, replacing the look it covers. A panel's
+setting goes to the panels of each figure that take it, as Apply to figures
+decides it (an option the panel's type has and takes the value of: a PSTH's
+y limits only to PSTHs; *fixed* y limits to another type only when it has
+limits of its own): a panel takes the settings of the panel copied from
+with its id and type, else of the first panel of its type, else of the
+first panel that gives it one. With *Grid and panels* ticked too, the
+panels are copied first and the panel settings then have nothing left to
+change.
+
+Into a design, the figure's group colors become the design's (a colormap's
+name: its sequential colors and a palette of 7 sampled from it; one color:
+its single color and palette), its heat colors the design's heat colors,
+and each remembered look ticked a rule of the design's, for every plot. A
+new design starts from the design chosen now. Nothing is drawn again unless
+it is the design chosen; choose it in the Design list to draw in it.
+
+The ticks are remembered while the app is open: a setting left unticked
+starts unticked next time (a panel's setting by its panel type), and the
+figures ticked are ticked again.
+
+`onCopyFigureSettings` does it, with the window `private/copySettingsDialog`:
+`analysis/figureSettingItems` lists a figure's settings (under
+`figureSettingParts`), `analysis/copyFigureSettings` copies them over Apply
+to figures' `changeTargets` and `applyChanges`, and
+`analysis/figureLookToDesign` puts a figure's look into a design.
 
 #### Sessions in the Figures tab
 
@@ -1749,7 +1796,7 @@ results, on the Log tab and in the report.
 | previews | `refreshAlignPreview` (the Alignment tab); the Figures tab's under its row below; `private/showPreviewState` (the badge and the busy card; its icons in `analysis/icons/status`) |
 | epoch diagram | the window `onShowEpochs`, `refreshEpochDiagram`; the Alignment tab's `refreshAlignPreview`; the diagram itself is `analysis/EpochDiagram.m` (in a window, or `Parent=` a container) |
 | Figures tab | `buildFiguresTab`; the tree `refreshFigureList` (over `private/figureGroups`), `onFigureSelected`, `onFigureTreeSelected`, `onFigureTreeClicked` (the check boxes), `onFigureGroupToggled`, `onFigureCheck` (All / None / Invert), `setFiguresEnabled`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure` (Up / Down within a group); the Id row's automatic id `private/showFigureId`, and the renames followed by `private/trackFigureIds` and `private/followedFigureId`; a panel's text note and overlays `onAddFigureOverlay`, `onDuplicateFigureOverlay`, `onRemoveFigureOverlay`, `onFigureOverlayPicked` (the rows are `applyFigureEditor`'s and `gatherFigureEditor`'s); dragging a panel in the schematic `onSchematicPress` (with the pointer callbacks it installs), `cancelSchematicDrag` (also `onKeyPress`'s Escape) and `schematicPixel` (the tests');  the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `gotoFigureSection`, `onFigureSuperToggled`, `gotoFigureSuper` and `onKeyPress` (Alt+1 ... Alt+3, Ctrl+1 ... Ctrl+0, F6: `focusFigurePane`), the search `onFigureSearch` and `gotoFigureRow` (over `private/figureSearchIndex`, `private/figureSearchPath`, `private/figureRowReason`), the keys window `onFigureKeys`, the panel keys `stepFigurePanel` and the preview's outline `markFigurePanel`, `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`, `onPanelSelectionToggled` (the Trial selection as the figure box; local to `buildFiguresTab`); the arrangement `drawFigureSchematic`, `onPanelSelected`, `onNewPanel` (the New panel window `private/newPanelDialog`, its pictures `analysis/icons/panels`, made by `tools/makePanelThumbnails`), `onRemovePanel`, `onMovePanel`, `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `removePanel` and `movePanel`; a structural edit ends in `private/commitFigureEdit`), the Spacing window `private/figureSpacingDialog`; the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`); the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoPreviewToggled`, `onCancelFigurePreview`, `onOpenFigureWindow`, the page size `onFigureSizeEdited`, `showFigureSize`, `fitFigureViews` (over `private/figureViewBox`), `redrawFigurePreview` and `private/previewSpec` (over `figureExportSize`, `figureSizePresets`, `figureSizeParse`, `figureSizeText`, `figureSizeConvert`), a Ctrl+Click on a panel `onFigurePanelClicked`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); each figure's own preview container `syncFigureView` (`private/newFigureView`, `private/previewFigureView`, `private/figureViewKey`, `private/figureViewFresh`, `private/clearFigureViews`, `private/showSessionPicker`), the tree's marks `private/markFigureTree`, the editor as each figure left it `private/saveFigureEditorState`, `private/restoreFigureEditorState`, `private/scrollFigureEditor`, its observation list `private/keepFigurePicker`, `private/takeFigurePicker`, `private/forgetFigurePickers`; the Sessions section `onPickFigureDatasets`, `onBrowseFigureMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`), `private/pickSessionDatasets` and `onFigureSessionPicked` (its preview is `refreshFigurePreview`'s session branch over `EphysAnalysisRunner.computeSessionFigure`, its picker `refreshFigureObservations`'s over `sessionFigureObservations`); the Design row `onDesignChosen` and `onSaveDesign` (below); the epoch diagram window is `onShowEpochs` (the Alignment tab's diagram is `refreshAlignPreview`'s); the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
-| copying figures | `onCopyFigureSettings` (the Figures tab's **Copy from...**: `private/pickFigureSettings`, then `analysis/copyFigureSettings` with `analysis/figureSettingParts`) |
+| copying figures | `onCopyFigureSettings` (the Figures tab's **Copy settings...**: `private/copySettingsDialog`, then `analysis/copyFigureSettings` over `analysis/figureSettingItems` and `analysis/figureSettingParts`, or `analysis/figureLookToDesign` into a design) |
 | one edit to other figures | `onApplyToFigures` (Ctrl held: `onKeyPress` / `onKeyRelease` and `onConfigChanged`; Edit → Apply last change: the undo history), its window `private/applyToFiguresDialog`, over `EphysAnalysisConfig.figureEditChanges`, `changeTargets`, `panelTakes` and `applyChanges` |
 | plot designs | `refreshDesigns` (the Design menu and list; `PlotDesign.listen` keeps them current), `onDesignChosen`, `onSaveDesign`, `onImportDesign`, `onDeleteDesign`, `onDesignsFolder`; the designs themselves: `PlotDesign`, `analysis/designs` |
 | running | `onValidate`, `onPlan`, `onRunExport`, `onGenerateFigure` (**File → Generate selected figure**: `onRunExport` for the selected figure alone, then the status bar's text), `onCancelRun` (also stops a Generate and Redraw All) |
@@ -1993,12 +2040,18 @@ show (tapers, error, scale, time base, spike rate) and the range and moving-wind
 rows do not, and sets **TW, K**, the frequency range, the scale and the
 *segments of the recording* time base, which reach the config and the preview.
 
-Its section 5e drives the figures' **Copy from...**. With one figure it is off
-(there is no other to copy from). With a second figure, **Copy from...** is on;
-`From=` and `Parts="style"` copy the appearance alone (the panels stay, the
-status bar names the part and the preview follows), and the window, answered
-from a timer, copies the parts ticked (alignment and arrangement), after which
-the first figure holds the other figure's panel, its bins included. Converting a version 1 config's plots is `test_ConfigMigration`
+Its section 5e drives the figures' **Copy settings...**. It is on with one
+figure. With three, `From=` and `Settings="style.FontSize"` copy the font size
+alone onto the figure selected (the panels and the rest stay, one undo step,
+the preview follows); `To=` copies from the figure shown onto two others, one
+of which has the value already: the other's kept preview is marked out of
+date and nothing is drawn, and Undo takes it back. The window, answered from
+a timer, picks the heat map figure in **From** (the figure selected is then
+ticked to copy onto), ticks the Alignment part and *Grid and panels* after
+**None**, shows the font size alone for **Find** *font*, and copies: the first
+figure holds the heat map's panel, its bins included, its automatic id
+follows, and the ticks are remembered. `Design=` copies the figure's group
+colors into a new design of yours. Converting a version 1 config's plots is `test_ConfigMigration`
 ([Tests](EphysAnalysisConfig.md#tests)); figures in plans, runs, exports and
 reports are `test_EphysAnalysisRunner`'s.
 

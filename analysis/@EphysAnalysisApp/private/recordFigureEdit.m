@@ -3,8 +3,9 @@ function recordFigureEdit(obj, cfg, label, opts)
 %   Called just before obj.Config = CFG by each path that edits the
 %   figures: onConfigChanged (an editor control), commitFigureEdit (a
 %   structural edit), applyConfig with Action= (the figure list's Add,
-%   Remove, Duplicate, Up / Down, Copy from...), setFiguresEnabled,
-%   rememberFigureAesthetics and onPickFigureDatasets. The step holds
+%   Remove, Duplicate, Up / Down), setFiguresEnabled,
+%   rememberFigureAesthetics, onPickFigureDatasets, onApplyToFigures and
+%   onCopyFigureSettings (Copy settings...). The step holds
 %   obj.Config.Figures and CFG.Figures and the figure, panel and layer
 %   selected (FigureEditHistory.record); an edit that leaves the figures as
 %   they were is not one. Key=KEY (the control) lets a burst of edits

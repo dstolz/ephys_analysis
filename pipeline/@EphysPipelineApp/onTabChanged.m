@@ -1,5 +1,8 @@
 function onTabChanged(obj)
 %onTabChanged  Refresh the tab strip, the status hint and per-tab previews on tab change.
+%   A tab shown for the first time is laid out now (revealTab: the startup
+%   leaves the tabs it does not show hidden).
+revealTab(obj, obj.Tabs.SelectedTab);
 obj.syncTabStrip();
 obj.clearFlowHighlight();   % a control marked by a Diagram click stays marked only while its tab is shown
 if obj.Tabs.SelectedTab ~= obj.TabArtifacts && obj.ArtView.mark.on

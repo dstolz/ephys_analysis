@@ -1432,15 +1432,15 @@ end
 function [steps, weights] = startupSteps()
 %startupSteps  The constructor's steps on the splash (AppSplash) and the seconds each takes (measured warm).
 %   The tab steps are named by their tabs, in buildUI's order. Most of the
-%   time goes where the hidden window's parts are first laid out: in
-%   styleButtons ("finish") and when it shows. "scan" is a one-dataset
-%   project's.
+%   time goes where the hidden window is laid out, in one go when it shows
+%   (setStatus paints nothing while the app starts; the tabs but Project
+%   wait to be shown: revealTab). "scan" is a one-dataset project's.
 S = { ...
     "window", 0.67; "Copy", 0.66; "Project", 0.71; "Trials", 0.76; "Visualize", 1.33; ...
     "Artifacts", 1.05; "Probe", 0.26; "Sorting", 0.92; "Signals", 0.46; "Spikes", 0.35; ...
     "Export", 0.37; "Analysis", 0.14; "Diagram", 0.08; "Run", 0.48; "Review", 0.38; ...
-    "Synthetic", 0.54; "Clean up", 0.29; "finish", 7.7; "prefs", 0.3; "config", 0.8; ...
-    "probes", 0.27; "scan", 1.1; "show", 7.0};
+    "Synthetic", 0.54; "Clean up", 0.29; "finish", 0.25; "prefs", 0.3; "config", 0.8; ...
+    "probes", 0.27; "scan", 1.1; "show", 7.3};
 steps = [S{:, 1}];
 weights = [S{:, 2}];
 end

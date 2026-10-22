@@ -93,7 +93,12 @@ the screen shows its name, its version, the step under way (each tab
 built, the preferences, the config opened, the scan, the first dataset
 loaded) and a progress bar; the main window is built hidden and shows when
 it is ready, and alerts raised meanwhile show on it then. `Splash=false`
-starts without the small window, the default under `matlab -batch`. A
+starts without the small window, the default under `matlab -batch`. Most of
+a start is MATLAB making the window's components (the Figures tab holds
+three quarters of them), so the hidden window is laid out once, when it
+shows, with the Data tab's contents alone: each other tab is laid out the
+first time it is shown (the Figures tab takes a few seconds then), and the
+Alignment tab's epoch count and diagram are drawn then too. A
 config's project root on a network share that does not answer within 5 s
 is not scanned when the config opens (the status bar says so): **Scan** it
 once it can be reached.

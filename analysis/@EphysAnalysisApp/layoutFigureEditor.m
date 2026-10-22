@@ -45,7 +45,7 @@ end
 on = hs > 0;
 order = [find(on) find(~on)];
 for i = 1:numel(order)
-    if ~isequal(items{order(i)}.Layout.Row, i); items{order(i)}.Layout.Row = i; end
+    if ~isequal(items{order(i)}.Layout.Row, i); items{order(i)}.Layout.Row = i; end   % (only a change: formLayout)
 end
 for u = 1:numel(U)
     U(u).Header.Visible = matlab.lang.OnOffSwitchState(has);

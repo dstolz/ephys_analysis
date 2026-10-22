@@ -13,8 +13,9 @@ function [S, h] = formLayout(S)
 %   The first call finds each row's controls (the body's children in that
 %   row); rows are addressed by that first order from then on.
 %
-%   Only what changed is set: a control's Layout.Row, the grids' row
-%   heights and the header's text are compared first. Setting a control's
+%   Only what changed is set: a control's Layout.Row and Visible, the
+%   grids' row heights and spacing and the header's text are compared
+%   first (a set costs as much when the value stays). Setting a control's
 %   Layout.Row to the row it has costs as much as a move (the view takes a
 %   new layout object), and the figure editor has hundreds of controls,
 %   laid out again on every switch of figure, panel or layer.
@@ -34,14 +35,14 @@ if isForm
     at = N + (1:N);   % a hidden row's place: its own, below every shown one
     at(on) = 1:nnz(on);
     for r = 1:N
-        items = S.Items{r};
-        for c = items
+        vis = matlab.lang.OnOffSwitchState(on(r));
+        for c = S.Items{r}
             if ~isequal(c.Layout.Row, at(r)); c.Layout.Row = at(r); end
+            if c.Visible ~= vis; c.Visible = vis; end
         end
-        set(items, 'Visible', matlab.lang.OnOffSwitchState(on(r)));
     end
     n = nnz(on);
-    setIfChanged(S.Body, 'RowHeight', num2cell([S.Heights(on) zeros(1, 2 * N - n)]));
+    setChanged(S.Body, 'RowHeight', num2cell([S.Heights(on) zeros(1, 2 * N - n)]));
     body = sum(S.Heights(on)) + max(0, n - 1) * S.Body.RowSpacing + S.Body.Padding(2) + S.Body.Padding(4);
     visible = S.Visible && n > 0;
 else
@@ -52,31 +53,34 @@ open = S.Expanded || header == 0;
 if header > 0
     arrow = "▼";
     if ~S.Expanded; arrow = "►"; end
-    text = arrow + "  " + S.Title;
+    headText = arrow + "  " + S.Title;
     tip = "Show or hide this section.";
     if S.Key ~= ""
         if ismac; chord = "Cmd+" + S.Key; else; chord = "Ctrl+" + S.Key; end
-        text = text + "   (" + chord + ")";
+        headText = headText + "   (" + chord + ")";
         tip = tip + " " + chord + " goes to it, opening it if collapsed.";
     end
-    setIfChanged(S.Toggle, 'Text', char(text));
-    setIfChanged(S.Toggle, 'Tooltip', char(tip));
+    setChanged(S.Toggle, 'Text', headText);
+    setChanged(S.Toggle, 'Tooltip', tip);
 end
-S.Body.Visible = matlab.lang.OnOffSwitchState(open);
-S.Grid.Visible = matlab.lang.OnOffSwitchState(visible);
+setChanged(S.Body, 'Visible', matlab.lang.OnOffSwitchState(open));
+setChanged(S.Grid, 'Visible', matlab.lang.OnOffSwitchState(visible));
 if open
-    setIfChanged(S.Grid, 'RowHeight', {header, body});
-    S.Grid.RowSpacing = 4 * (header > 0);
-    h = header + S.Grid.RowSpacing + body;
+    spacing = 4 * (header > 0);
+    setChanged(S.Grid, 'RowHeight', {header, body});
+    setChanged(S.Grid, 'RowSpacing', spacing);
+    h = header + spacing + body;
 else
-    setIfChanged(S.Grid, 'RowHeight', {header, 0});
+    setChanged(S.Grid, 'RowHeight', {header, 0});
     h = header;
 end
 h = h * visible;
 end
 
 
-function setIfChanged(h, prop, v)
-%setIfChanged  Set H.(PROP) to V only when it is not V already.
-if ~isequal(h.(prop), v); h.(prop) = v; end
+function setChanged(h, prop, v)
+%setChanged  Set property PROP of H to V unless it holds V already (a set costs as much when nothing changes).
+if ~isequal(h.(prop), v)
+    h.(prop) = v;
+end
 end

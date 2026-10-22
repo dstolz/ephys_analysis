@@ -6,7 +6,10 @@ function buildUI(obj)
 %   on the selected one. obj.Tabs.SelectedTab stays the source of truth.
 %   Every button is then styled (styleButtons), the main actions in color.
 %   The figure is built hidden (the constructor shows it), each tab a step
-%   on the startup splash (AppSplash).
+%   on the startup splash (AppSplash). The tabs but Project have their
+%   contents hidden (revealTab), so the window laid out when it shows is
+%   the Project tab's alone; each other tab is laid out when first shown
+%   (onTabChanged).
 
 pos = [120 90 1240 800];   % default; overridden by the saved preference
 obj.Fig = uifigure("Name", "Ephys preprocessing", "Position", pos, "Visible", "off");
@@ -77,6 +80,9 @@ obj.Splash.step("finish", "Laying out the window ...");
 styleButtons(obj);   % before syncTabStrip, which colors the tab strip by status
 
 obj.Tabs.SelectedTab = obj.TabProject;   % the app still opens on Project
+for t = obj.TabList(obj.TabList ~= obj.TabProject)
+    revealTab(obj, t, true);   % laid out when first shown (onTabChanged): the window shows sooner
+end
 obj.syncTabStrip();
 obj.onTabChanged();
 end

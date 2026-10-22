@@ -48,19 +48,18 @@ if AppPrefs.ispref(g, 'PanelOptions')
     v = AppPrefs.getpref(g, 'PanelOptions');
     if isstruct(v) && isscalar(v); obj.PanelOptions = v; end   % checked against each type when a panel takes them (rememberedPanelOptions)
 end
+% (the editor is laid out with them by applyConfig below: syncFigureEditor, layoutFigureEditor)
 if AppPrefs.ispref(g, 'FigureSectionsCollapsed')
     shut = string(AppPrefs.getpref(g, 'FigureSectionsCollapsed'));
     for i = 1:numel(obj.FigureSections)
         obj.FigureSections(i).Expanded = ~ismember(obj.FigureSections(i).Name, shut);
     end
-    obj.layoutFigureEditor();
 end
 if AppPrefs.ispref(g, 'FigureSupersectionsCollapsed')
     shut = string(AppPrefs.getpref(g, 'FigureSupersectionsCollapsed'));
     for u = 1:numel(obj.FigureSupers)
         obj.FigureSupers(u).Expanded = ~ismember(obj.FigureSupers(u).Name, shut);
     end
-    obj.layoutFigureEditor();
 end
 obj.refreshRecentMenu();
 opened = false;

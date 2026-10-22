@@ -62,7 +62,10 @@ is the default under `matlab -batch` (the test runs). The class is
 `AppSplash` (`pipeline/AppSplash.m`), shared with the analysis app and the
 channel mapper: on Windows a Windows Forms window (it paints without
 `drawnow`, so the hidden main window is not pushed to the screen piece by
-piece), elsewhere a uifigure.
+piece), elsewhere a uifigure. Most of a start is MATLAB making the window's
+components, so the hidden window is laid out once, when it shows (the
+status bar is not painted before), with the Project tab's contents alone:
+each other tab is laid out the first time it is shown.
 
 **Startup scan.** The reopened config's project root is scanned as **Scan**
 does, its progress on the startup window. A root that is not there is not

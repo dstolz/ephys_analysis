@@ -8,6 +8,8 @@ function refreshAlignPreview(obj)
 %   artifacts or not, the excluded ones stacked on the kept (barsWithExcluded).
 %   An alignment that gives no epoch shows why. The epoch diagram beside
 %   them (AlignEpochDiagram) draws how the Defaults cut the dataset.
+%   While the app starts (AppSplash) on another tab nothing is drawn:
+%   onTabChanged draws it when the Alignment tab first shows.
 ax = obj.AlignAxes;
 L = obj.AlignSummaryLabel;
 d = obj.AlignEpochDiagram;
@@ -15,6 +17,9 @@ if isempty(obj.Runner) || obj.ActiveIdx < 1
     L.Text = "Scan and pick a dataset to see its epochs.";
     d.clear("Scan and pick a dataset to see how its epochs are cut.");
     return
+end
+if obj.Splash.isActive() && obj.Tabs.SelectedTab ~= obj.TabAlign
+    return   % the app is starting on another tab: drawn when the Alignment tab first shows (onTabChanged)
 end
 cla(ax);
 legend(ax, 'off');

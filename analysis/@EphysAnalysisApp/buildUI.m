@@ -3,7 +3,9 @@ function buildUI(obj)
 %   button styled (styleButtons), the main actions in color; the figure's
 %   key presses (onKeyPress) once the tabs are there. The figure is built
 %   hidden (the constructor shows it), each tab a step on the startup
-%   splash (AppSplash).
+%   splash (AppSplash). The tabs but Data have their contents hidden
+%   (revealTab), so the window laid out when it shows is the Data tab's
+%   alone; each other tab is laid out when first shown (onTabChanged).
 obj.Fig = uifigure("Name", "Ephys analysis", "Position", [140 80 1280 820], "Visible", "off");
 obj.Fig.CloseRequestFcn = @(~,~) obj.onClose();
 obj.buildMenus();
@@ -36,6 +38,9 @@ obj.Splash.step("Log", "Building the Log tab ..."); obj.buildLogTab();
 obj.Splash.step("finish", "Laying out the window ...");
 styleButtons(obj);
 obj.Tabs.SelectedTab = obj.TabData;
+for t = [obj.TabAlign obj.TabFigures obj.TabExport obj.TabLog]
+    revealTab(obj, t, true);   % laid out when first shown (onTabChanged): the window shows sooner
+end
 obj.Fig.WindowKeyPressFcn = @(~, evt) obj.onKeyPress(evt);   % Ctrl+1 ... Ctrl+9, Ctrl+0: the figure editor's sections
 obj.Fig.WindowKeyReleaseFcn = @(~, evt) obj.onKeyRelease(evt);   % Ctrl let go: an edit applies to its figure only again
 obj.refreshDesigns();

@@ -14,7 +14,7 @@ scanCfg = cfg;
 scanCfg.Source.Selection = "all";
 obj.setStatus("Scanning " + ternary(cfg.Source.Mode == "project", cfg.Source.Root, "the output folders") + " for datasets ...");
 obj.Splash.step("scan", "Scanning the datasets ...");
-drawnow;
+if ~obj.Splash.isActive(); drawnow; end   % the hidden window is laid out once, when it shows (setStatus)
 try
     r = EphysAnalysisRunner(scanCfg, LogFcn=@(m) obj.log(m));
 catch ME

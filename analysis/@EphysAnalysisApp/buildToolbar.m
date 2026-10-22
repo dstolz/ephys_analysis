@@ -80,6 +80,7 @@ if obj.Tabs.SelectedTab == obj.TabFigures
     return
 end
 obj.Tabs.SelectedTab = obj.TabFigures;
+revealTab(obj, obj.TabFigures);   % its contents shown before the preview draws (onTabChanged comes after it)
 obj.refreshFigureObservations();
 obj.refreshFigurePreview(Force=true);
 obj.onTabChanged();

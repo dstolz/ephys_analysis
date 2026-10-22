@@ -1462,6 +1462,13 @@ if S.sec("6", "config: validate")
         && has(bFa, pB + "fillAlpha", "error") && isempty(figIssues(bFx)) && isempty(figIssues(bFoff)), ...
         ['a raster''s firstSpike and a PSTH''s latencyBox: off by default (0 to the window''s end, groups); checked while on: ' ...
         'minSec <= maxSec, a window past the panel''s warns, a color, a marker, boxHeight 0.02-0.5, line style, fillAlpha']);
+    bTc = bR; bTc.Figures(1).panels(kP).options.trialCount = "text";
+    bTl = bR; bTl.Figures(1).panels(kP).options.trialCount = "legend";
+    bTx = bR; bTx.Figures(1).panels(kP).options.trialCount = "all";
+    bSl = bR; bSl.Figures(1).panels(kR).options.rasterSort = "latency";
+    check(bR.Figures(1).panels(kP).options.trialCount == "off" && isempty(figIssues(bTc)) && isempty(figIssues(bTl)) ...
+        && has(bTx, "figure_1.psth_1.options.trialCount", "error") && isempty(figIssues(bSl)), ...
+        'a PSTH''s trialCount is off, text or legend (off by default); a raster may sort by latency');
     I9 = figIssues(b4);
     I9 = I9(I9.Field == n0 + "x", :);
     b10 = b2; b10.Figures(1).panels(2).type = "bogus";
@@ -3147,6 +3154,88 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
         && isscalar(eO) && eO.lim(2) < max(ylim(hA.panels(2).axes)), ...
         ['the latency boxes stay outside the traces'' range in every yLimMode (stacked: above each row''s top, under the next ' ...
         'row; overlaid fixed: above yLim), and the panel''s yExtent (a run''s batch range) is the traces'' range, not the band']);
+    % rasterSort "latency": the rows by the first spike's latency in firstSpike's window, epochs without one last, within the groups
+    sL = Ffs.spec;
+    sL.panels(1).options.rasterSort = "latency";
+    hL = renderFigure(Ffs, sL, fig);
+    [okL, nL] = marksOnTicks(hL.axes(1), Lfr.lat);
+    oL = struct('rasterSort', "latency", 'rasterSortOrder', "ascending", 'rasterByGroup', true, ...
+        'firstSpike', sL.panels(1).options.firstSpike);
+    [ordL, nameL] = figEpochOrder(Rfr, oL, 1);
+    rowL = zeros(size(ordL)); rowL(ordL) = 1:numel(ordL);
+    okRowL = true;   % each mark on its epoch's row in that order
+    for h = reshape(findall(hL.axes(1), 'Tag', 'firstSpike'), 1, [])
+        eL = reshape(getappdata(h, 'PlotEpochs'), [], 1);
+        if ~isempty(eL); okRowL = okRowL && isequal(h.YData(:), rowL(eL)); end
+    end
+    okOrdL = issorted(Rfr.epochGroup(ordL));
+    for gL = reshape(unique(Rfr.epochGroup), 1, [])
+        vL = Lfr.lat(ordL(Rfr.epochGroup(ordL) == gL));
+        kL = find(isnan(vL), 1);
+        okOrdL = okOrdL && issorted(vL(~isnan(vL))) && (isempty(kL) || all(isnan(vL(kL:end))));
+    end
+    oLd = oL; oLd.rasterSortOrder = "descending"; oLd.rasterByGroup = false;
+    [ordD, nameD] = figEpochOrder(Rfr, oLd, 1);
+    vD = Lfr.lat(ordD);
+    nanD = find(isnan(vD), 1);
+    oLw = oL; oLw.firstSpike.minSec = 0.1;   % the window moves the key
+    Lw = firstSpikeLatency(Rfr, MinSec=0.1, MaxSec=0.3);
+    [ordW, ~] = figEpochOrder(Rfr, oLw, 1);
+    [~, wantW] = sortrows([Rfr.epochGroup(:) Lw.lat(:) (1:numel(ordW)).'], [1 2 3]);
+    Rno = rmfield(Rfr, 'raster');   % no raster rows: time order, as for any key a result lacks
+    ordN = figEpochOrder(Rno, oL, 1);
+    [~, wantN] = sort(Rno.epochGroup(:));
+    check(okL && okRowL && okOrdL && nL == nnz(isfinite(Lfr.lat)) && nameL == "Epoch (by first-spike latency)" ...
+        && issorted(vD(1:(min([nanD numel(vD) + 1]) - 1)), 'descend') && (isempty(nanD) || all(isnan(vD(nanD:end)))) ...
+        && nameD == "Epoch (by first-spike latency), descending, groups mixed" && isequal(ordW(:), wantW(:)) ...
+        && isequal(ordN(:), wantN(:)), ...
+        ['a raster sorted by rasterSort "latency": within each group ascending by the first spike''s latency in firstSpike''s ' ...
+        'window with the epochs without one last, the marks on their epochs'' rows; descending with the groups mixed; ' ...
+        'the window moves the key; a result without raster rows keeps the time order']);
+    % the PSTH's trial counts: "n = 24" per group in the plot, in the legend entries, at the rows' right ends, beside a heat map's rows
+    nEp = double(Rfp.nEpochs(:));
+    glC = string(Ffs.groups.label);
+    sC = Ffs.spec;
+    sC.panels(2).options.trialCount = "text";
+    hC = renderFigure(Ffs, sC, fig);
+    txC = findall(hC.panels(2).axes, 'Tag', 'trialCount');
+    okTx = numel(txC) == height(Ffs.groups);
+    for gC = 1:height(Ffs.groups)
+        tC = findall(txC, '-function', @(h) string(getappdata(h, 'PlotGroup')) == glC(gC));
+        okTx = okTx && isscalar(tC) && string(tC.String) == "n = " + nEp(gC);
+    end
+    sC.panels(2).options.trialCount = "legend";
+    hC = renderFigure(Ffs, sC, fig);
+    lgC = findall(fig, 'Type', 'legend');
+    lgC = string(lgC(1).String);
+    okLg = isempty(findall(hC.panels(2).axes, 'Tag', 'trialCount')) && all(ismember(glC + " (n = " + nEp + ")", lgC));
+    sC = FfsS.spec;
+    sC.panels(2).options.trialCount = "text";
+    hC = renderFigure(FfsS, sC, fig);
+    aC = hC.panels(2).axes;
+    txS = findall(aC, 'Tag', 'trialCount');
+    okSt = numel(txS) == height(FfsS.groups);
+    for gC = 1:height(FfsS.groups)   % at the right end of the group's row, above its baseline
+        tC = findall(txS, '-function', @(h) string(getappdata(h, 'PlotGroup')) == string(FfsS.groups.label(gC)));
+        bC = findall(aC, 'Tag', 'stackBase', '-function', @(h) string(getappdata(h, 'PlotGroup')) == string(FfsS.groups.label(gC)));
+        okSt = okSt && isscalar(tC) && isscalar(bC) && tC.Position(2) > bC.YData(1) ...
+            && abs(tC.Position(1) - FfsS.panels(2).layers(1).R.edges(end)) < 1e-9 && strtrim(string(tC.String)) == "n = " + nEp(gC);   % padded by a space
+    end
+    sC = Ffs.spec;
+    sC.panels(2).options.display = "heatmap";
+    sC.panels(2).options.trialCount = "text";
+    hC = renderFigure(Ffs, sC, fig);
+    txH = findall(hC.panels(2).axes, 'Tag', 'trialCount');
+    okHt = numel(txH) == height(Ffs.groups) && isequal(sort(arrayfun(@(h) h.Position(2), txH)).', 1:height(Ffs.groups));
+    sC.panels(2).options.trialCount = "legend";
+    hC = renderFigure(Ffs, sC, fig);
+    ylC = string(hC.panels(2).axes.YTickLabel);
+    okHl = isempty(findall(hC.panels(2).axes, 'Tag', 'trialCount')) && all(endsWith(ylC(:), ")")) && all(contains(ylC(:), "(n = "));
+    check(okTx && okLg && all(nEp > 0), ...
+        ['a PSTH''s trialCount: text "n = <trials>" per group, tagged with the group; "legend" appends it to the legend ' ...
+        'entries instead']);
+    check(okSt, 'a stacked PSTH''s trialCount: the text at the right end of each row, above its baseline');
+    check(okHt && okHl, 'a PSTH heat map''s trialCount: the text beside each row (text), or in the row''s label (legend)');
     ha = renderFigure(Fau, Fau.spec, fig);
     aa = ha.axes(2);
     check(isscalar(findall(aa, 'Tag', 'chanceLine')) && isequal(ylim(aa), [0 1]) && ~isempty(findall(aa, '-regexp', 'Tag', '^rate(Fill)?$')) ...

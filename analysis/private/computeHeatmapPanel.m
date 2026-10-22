@@ -15,7 +15,8 @@ function P = computeHeatmapPanel(src, panel, E, G, ctx)
 %   raster (Raster=true) and its first unit's epochs become the rows:
 %   R.trialMatrix [nEpochs x nBins], R.trialOrder (top row first, sorted
 %   as a raster by rasterSort / rasterSortOrder / rasterByGroup; "event"
-%   by eventLatency of rasterSortEvent), R.trialGroup and R.trialRowsName
+%   by eventLatency of rasterSortEvent, "latency" by the unit's first-spike
+%   latency), R.trialGroup and R.trialRowsName
 %   (figTrialMatrix: binned from the unit's train, kept for it by
 %   KeepTrains and dropped after); a layer that keeps several units (e.g.
 %   one following the observation through its channel) or an auROC

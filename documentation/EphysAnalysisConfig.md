@@ -585,6 +585,17 @@ own window:
   whiskers, the outliers and n (the epochs with a first spike, of the group's).
   Not drawn with `display "heatmap"`. A PSTH with it on keeps its raster's rows
   (spikePSTH's `Raster`), which the box reads.
+- **`rasterSort "latency"`** orders the rows of a raster (and of a heat map of
+  trials) by each epoch's first-spike latency, ascending or, with
+  `rasterSortOrder "descending"`, descending, within each trial group (or across
+  them with `rasterByGroup false`). A raster reads the window of its `firstSpike`
+  (`minSec`, `maxSec`) whether or not the marks are on; a heat map of trials, and
+  a raster without that window set, from the event to the window's end. An epoch
+  with no first spike in the window sorts last in either direction, ties keep
+  the time order, and the y label reads "Epoch (by first-spike latency)".
+  Turning it off is setting the sort back to `""`. The order is the one
+  `figEpochOrder` gives every raster-like display, so the first-spike marks stay
+  on their epochs' rows.
 
 | Field | `FirstSpike` default | `LatencyBox` default | Meaning |
 | --- | --- | --- | --- |
@@ -604,6 +615,24 @@ The figure's caption names them with their window. The analysis app edits them i
 a window of their own: the raster's **First-spike latency...** and the PSTH's
 **Latency box plot...** ([Figures tab](EphysAnalysisApp.md#figures-tab)). In a
 [session figure](#session-figures) they read the rows merged across the sessions.
+
+### Trial counts
+
+A PSTH panel's `options.trialCount` says how many trials each trial group has, the
+epochs its rate averages (`R.nEpochs`; in a [session figure](#session-figures), the
+series' epochs summed over the sessions), read when the figure is drawn, so it
+follows the selection, the grouping and the artifact periods:
+
+| Value | Overlaid | Stacked (`stack "groups"`) | `display "heatmap"` |
+| --- | --- | --- | --- |
+| `"off"` (default) | | | |
+| `"text"` | `n = 24` per group, in the group's color, down the top left corner of the axes, the first group on top | at the right end of each row's range | at the right end of each row |
+| `"legend"` | the group's legend entry reads `<group> (n = 24)`; a single group has no legend entry and gets the text | the same | in the row's y tick label |
+
+Role `trialCount` (group: the trial group's label), one text object per group, which
+the aesthetics editor can restyle or hide; the right-click menu goes to **Trial count**
+in the PSTH's options. The Figures tab's **Trial count** row is a drop-down of the three
+values.
 
 ### Unit waveforms
 
@@ -1417,7 +1446,7 @@ result, per layer, is `R.kind "eventTrace"` with `line`, `label`, `epoch`,
 | --- | --- | --- |
 | `display` | `"bars"` | `"bars"`: a solid bar from each onset to its offset; `"line"`: a logic-level trace, low, rising at each onset and falling at its offset |
 | `trials` | `"overlay"` | `"overlay"`: every epoch drawn in the line's row, translucent, so the spread of the timing shows; `"rows"`: a sub-row per epoch inside the line's row, sorted as a raster's rows (the four options below; by default by trial group and then time), the first on top |
-| `rasterSort` | `""` | `"rows"`: the epochs' order, as a [raster's](#panel-options) and a heat map of trials': `""` (trial order), `"stop"` (the stop event's latency), `"event"` (`rasterSortEvent`'s latency) or a trial parameter; missing values last |
+| `rasterSort` | `""` | `"rows"`: the epochs' order, as a [raster's](#panel-options) and a heat map of trials': `""` (trial order), `"stop"` (the stop event's latency), `"event"` (`rasterSortEvent`'s latency) or a trial parameter; missing values last (`"latency"` has no spikes to read here: time order, and Validate warns) |
 | `rasterSortEvent` | `[]` | `"rows"`, `rasterSort "event"`: an EventRef (Validate requires one) |
 | `rasterSortOrder` | `"ascending"` | `"rows"`: `"ascending"` or `"descending"` |
 | `rasterByGroup` | `true` | `"rows"`: by trial group first (each group's sub-rows together, on its band with `groupBands`); `false`: every epoch sorted as one block (a band per run of a group's sub-rows) |
@@ -1464,7 +1493,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 
 | Type | Option | Default | Meaning |
 | --- | --- | --- | --- |
-| `raster` | `rasterSort` | `""` | the order of each group's epochs: `""` (trial order), `"stop"`, `"event"` or a trial parameter |
+| `raster` | `rasterSort` | `""` | the order of each group's epochs: `""` (trial order), `"stop"`, `"event"`, `"latency"` ([first spike](#first-spike-latency)) or a trial parameter |
 | `raster` | `rasterSortEvent` | `[]` | `rasterSort "event"` (required then): the [event reference](#eventref) whose latency orders the rows |
 | `raster` | `rasterSortOrder` | `"ascending"` | or `"descending"` |
 | `raster` | `rasterByGroup` | `true` | rows by group first; `false`: every epoch sorted as one block |
@@ -1487,6 +1516,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `psth` | `stack` | `"off"` | `"groups"`: one row per trial group, stacked downwards (the first group on top, as a raster lists them), instead of overlaid; a single group is drawn overlaid ([Stacks](#stacks)) |
 | `psth` | `stackSpacing` | 1.1 | `stack`: the step between rows, times the row height (below 1 the rows overlap); positive |
 | `psth` | `latencyBox` | [LatencyBox](#first-spike-latency), `enabled false` | a box plot of the first-spike latencies in `[minSec, maxSec]` per trial group, in a band above the traces (`stack "groups"`: in a lane above each row); `color`, `lineStyle`, `lineWidth`, `boxHeight`, `fillAlpha`, `outlierMarker`, `outlierSize`. Not with `display "heatmap"` |
+| `psth` | `trialCount` | `"off"` | the trials each group has ([Trial counts](#trial-counts)): `"text"` writes `n = 24` per group in the group's color, `"legend"` appends ` (n = 24)` to the group's legend entry |
 | `psth` | `maskAfterStop` | `false` | drop each epoch's bins from its stop event on |
 | `psth` | `yLimMode`, `yLim` | `"auto"`, `[]` | the rate axis ([Y limits](#y-limits): auto, rows, batch or fixed at `yLim`); in a stack the rows' scale; not used by a heat map |
 | `psth` | `colormap` | `""` | `display "heatmap"`: `""` is the style's `HeatColormap`, else the design's heat colormap (an auROC: its diverging one); or a colormap function (`"turbo"`, `"hot"`, `"blueWhiteRed"`). A name that is no function is a validation warning and takes the default |
@@ -1505,7 +1535,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `heatmap` | `auroc` | `defaults("Auroc")` | a spike layer, baseline `Mode "auroc"`: the PSTH's `auroc` settings. A signal layer with `"auroc"` is an error |
 | `heatmap` | `rows` | `"items"` | `"items"`: a row per unit or channel of the layer; `"trials"`: a row per epoch of one unit, every trial group (a spike or train layer that follows the observation or is fixed to one unit; no auROC baseline). A layer that follows the observation through a channel (a channel observation, or a layer of the other spike source) keeps every unit on it, so validate refuses it; one that still keeps several is skipped at run time |
 | `heatmap` | `order` | `"probe"` | rows `"items"`: `"probe"` (the style's `SortDepth` / `SortShank`), `"peak"` (by the time of each row's maximum) or `"modulation"` (by each unit's mean auROC in the call window, highest first; only with the auROC baseline of a spike layer). Not used for `"trials"` |
-| `heatmap` | `rasterSort` | `""` | rows `"trials"`: the order of the epochs, as a raster's: `""` (trial order), `"stop"`, `"event"` or a trial parameter |
+| `heatmap` | `rasterSort` | `""` | rows `"trials"`: the order of the epochs, as a raster's: `""` (trial order), `"stop"`, `"event"`, `"latency"` (the unit's first-spike latency, from the event to the window's end) or a trial parameter |
 | `heatmap` | `rasterSortEvent` | `[]` | rows `"trials"`, `rasterSort "event"` (required then): the [event reference](#eventref) whose latency orders the rows |
 | `heatmap` | `rasterSortOrder` | `"ascending"` | rows `"trials"`: or `"descending"` |
 | `heatmap` | `rasterByGroup` | `true` | rows `"trials"`: epochs by group first, else one block |
@@ -1974,7 +2004,7 @@ defaults. A file written by hand may leave out any field that keeps its default.
         "options": { "bins": { "BinSec": 0.01, "SmoothSec": 0.01 }, "measure": "rate",
                      "baseline": { "Mode": "none", "Window": [-0.2, 0] }, "histStyle": "bar", "fill": true,
                      "fillAlpha": "NaN", "normalize": "none", "maskAfterStop": false, "yLim": [],
-                     "latencyBox": { "enabled": false, "minSec": 0, "maxSec": "Inf", "...": "..." },
+                     "latencyBox": { "enabled": false, "minSec": 0, "maxSec": "Inf", "...": "..." }, "trialCount": "off",
                      "waveform": { "mode": "off", "...": "..." } } },
       { "id": "continuous_1", "type": "continuous", "title": "", "box": "auto", "row": 3, "col": 1, "rowSpan": 1, "colSpan": 1,
         "ref": "default", "window": "default", "selection": "default",
@@ -2056,7 +2086,8 @@ Errors:
 - a raster whose enabled layers are all events drawn as marks or spans (`A raster's marks
   need rows: add a units, detected or train layer`);
 - options, by type: a raster's `rasterSortOrder` and, with `rasterSort "event"`, a
-  valid `rasterSortEvent`; a raster's `firstSpike` and a PSTH's `latencyBox` while
+  valid `rasterSortEvent`; a PSTH's `trialCount` (`off`, `text` or `legend`); an
+  event trace's sub-rows with `rasterSort "latency"` (a warning: no spikes); a raster's `firstSpike` and a PSTH's `latencyBox` while
   `enabled` (`minSec <= maxSec`, at `.minSec`; the marker and a positive size;
   the box's `lineStyle`, a positive `lineWidth`, `boxHeight` from 0.02 to 0.5,
   `fillAlpha` from 0 to 1, the outliers' marker and a positive size; a window that

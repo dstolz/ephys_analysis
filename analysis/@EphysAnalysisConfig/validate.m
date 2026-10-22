@@ -578,6 +578,9 @@ for k = 1:numel(obj.Figures)
                 checkFigLim(op.cLim, o0 + ".cLim", "color");
                 checkFigLim(op.yLim, o0 + ".yLim", "y");
                 checkLatency(op.latencyBox, o0 + ".latencyBox", pw, true);
+                if ~ismember(op.trialCount, ["off" "text" "legend"])
+                    add("Figures", o0 + ".trialCount", "error", "A PSTH's trialCount is off, text (n = 24 per group) or legend (in the legend entries).");
+                end
                 checkFigWaveform(op.waveform, o0 + ".waveform", false);
             case "continuous"
                 checkFigBaseline(op.baseline, EphysAnalysisConfig.baselineModes("continuous"), o0, A);
@@ -852,6 +855,10 @@ issues = table(Section, Field, Severity, Message);
         end
         if hOp.trials == "rows"   % the sub-rows sorted as a raster's rows
             checkRasterSort(hOp, hO0);
+            if hOp.rasterSort == "latency"
+                add("Figures", hO0 + ".rasterSort", "warning", "An event trace has no spikes to take a first-spike latency from: " + ...
+                    "the sub-rows stay in time order.");
+            end
         end
     end
 

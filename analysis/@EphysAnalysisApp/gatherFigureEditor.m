@@ -211,6 +211,7 @@ if isfield(op, 'rasterSort')
     op.rasterSortOrder = string(E.rasterSortOrder.Value);
     op.rasterByGroup = logical(E.rasterByGroup.Value);
 end
+if isfield(op, 'trialCount'); op.trialCount = string(E.trialCount.Value); end
 if isfield(op, 'yTicks'); op.yTicks = logical(E.yTicks.Value); end
 if isfield(op, 'tickColor'); op.tickColor = strtrim(string(E.tickColor.Value)); end
 if isfield(op, 'tickWidth'); op.tickWidth = E.tickWidth.Value; end

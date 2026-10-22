@@ -173,7 +173,7 @@ if o.rasterSort == "event"
     end
     r = lineReason(src, ref);
     if r == ""; r = paramReason(ref.offsetParam, vars); end
-elseif ~ismember(o.rasterSort, ["" "stop"])
+elseif ~ismember(o.rasterSort, ["" "stop" "latency"])
     if ~src.hasTrials; r = "no paired trials"; return; end
     r = paramReason(o.rasterSort, vars);
 end

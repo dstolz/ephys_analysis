@@ -13,7 +13,7 @@ styles = ["-" "--" ":" "-."];
 color = groupColor;
 if isfield(L, 'color') && strtrim(string(L.color)) ~= ""
     try
-        color = validatecolor(char(strtrim(string(L.color))));
+        color = namedColor(L.color);
     catch
         % not a color (validate says so): the group's
     end

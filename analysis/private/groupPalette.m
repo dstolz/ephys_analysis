@@ -30,7 +30,7 @@ if strcmpi(name, "lines")
 end
 if ~ismember(exist(name), [2 5]) %#ok<EXIST>
     try
-        C = repmat(validatecolor(name), height(G), 1);
+        C = repmat(namedColor(name), height(G), 1);
     catch
     end
     return

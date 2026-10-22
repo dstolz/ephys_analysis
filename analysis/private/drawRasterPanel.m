@@ -143,7 +143,7 @@ if numel(look.W) == 2 && look.W(2) > look.W(1); xlim(ax, look.W); end
 back = strtrim(string(o.backColor));
 if ~ismember(back, ["" "none" "groups"])
     try
-        set(ax, 'Color', validatecolor(back));
+        set(ax, 'Color', namedColor(back));
     catch
         % not a color: no bands (rasterInto ignores it too)
     end
@@ -179,7 +179,7 @@ end
 if fs.enabled && ~isempty(findall(ax, 'Tag', 'firstSpike'))   % the first-spike marks: one entry, in their one color (else gray)
     c = [0.25 0.25 0.25];
     if nG == 1; c = colors(1, :); end
-    if isColorSpec(fs.color); c = validatecolor(char(fs.color)); end
+    if isColorSpec(fs.color); c = namedColor(fs.color); end
     face = 'none';
     if fs.filled; face = c; end
     hk.legendHandles(end+1) = tagPart(line(ax, NaN, NaN, 'LineStyle', 'none', 'Marker', char(fs.marker), 'MarkerSize', fs.size, ...
@@ -217,7 +217,7 @@ tf = false;
 spec = strtrim(string(spec));
 if ~isscalar(spec) || spec == ""; return; end
 try
-    validatecolor(char(spec));
+    namedColor(spec);
     tf = true;
 catch
     % not a color

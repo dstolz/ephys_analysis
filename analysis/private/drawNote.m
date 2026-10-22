@@ -95,7 +95,7 @@ c = [];
 name = strtrim(string(name));
 if name == ""; return; end
 try
-    c = validatecolor(name);
+    c = namedColor(name);
 catch
     c = [];
 end

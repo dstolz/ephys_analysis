@@ -99,7 +99,7 @@ end
 function c = colorOr(name, fallback)
 %colorOr  The RGB row of a color name or #rrggbb; FALLBACK when it is neither.
 try
-    c = validatecolor(char(name));
+    c = namedColor(name);
 catch
     c = fallback;
 end

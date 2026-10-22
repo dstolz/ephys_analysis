@@ -539,7 +539,7 @@ fixed = [];
 c = strtrim(string(lb.color));
 if c ~= "groups"
     try
-        fixed = validatecolor(char(c));
+        fixed = namedColor(c);
     catch
         % not a color: the groups' (validate warns)
     end

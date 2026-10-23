@@ -503,12 +503,30 @@ if S.sec("3", "the Figures tab: the toolbar's Preview, the Design row, the epoch
     check(app.FigurePreviewState == "drawn", 'Ctrl+P previews, as Preview does');
     codeFile = fullfile(root, 'preview_code.m');
     code = app.onFigureCode(string(codeFile));
-    [Fc, hc] = runPreviewCode(codeFile);
+    [Fc, hc, Dc] = runPreviewCode(codeFile);
     closeCode = onCleanup(@() delete(hc(isgraphics(hc))));
     check(isfile(codeFile) && contains(app.StatusBar.Text, codeFile) && contains(code, "src = loadAnalysisSource(outs, Key=key);") ...
         && contains(code, "F = figureCompute(src, spec, Observation=obs);") && contains(code, "Design=""Default""") ...
         && sameResult(Fc, app.FigurePreviewResult) && numel(findall(hc, 'Type', 'axes')) == numel(findall(app.FigurePreviewPanel, 'Type', 'axes')), ...
         'Export code writes the preview''s code: run, it computes the observation picked as the preview did and draws it in a window of its own');
+    % ... and the data before it: every event and spike train, each cut into the preview's epochs
+    srcD = app.Runner.source(app.ActiveIdx);
+    okData = all(isfield(Dc, ["events" "lineNames" "trials" "spikes" "units" "E" "G" "spikesIn" "onsets" "offsets"]));
+    if okData
+        nE = height(Dc.E);
+        Mo = epochEvents(srcD, Dc.E, Lines=Dc.lineNames(1), Edge="onset");
+        okData = isequal(Dc.lineNames, string(fieldnames(srcD.events)).') && isequaln(Dc.trials, srcD.trials) ...
+            && isequal(size(Dc.spikesIn), [nE numel(Dc.spikes)]) && height(Dc.units) == numel(Dc.spikes) ...
+            && isequal(Dc.spikesIn, epochSpikes(Dc.spikes, Dc.E)) && isequal(vertcat(Dc.onsets.(Dc.lineNames(1)){:}), Mo.t) ...
+            && isequal(fieldnames(Dc.offsets), fieldnames(Dc.onsets)) && numel(Dc.offsets.(Dc.lineNames(1))) == nE ...
+            && (~istable(Fc.epochs) || isequaln(Fc.epochs.t0, Dc.E.t0(ismember(Dc.E.group, Fc.epochs.group))));
+        if Fc.observation.kind == "unit"
+            u = find(Dc.units.unitId == Fc.observation.unitId);
+            okData = okData && isscalar(u) && Dc.units.observed(u) && nnz(Dc.units.observed) <= height(Dc.units);
+        end
+    end
+    check(okData && contains(code, "[E, G] = figureEpochs(src, spec);") && contains(code, "spikesIn = epochSpikes(spikes, E);"), ...
+        'Export code loads the data first: every event line and spike train, the trials, the preview''s epochs (figureEpochs) and each unit''s spikes and each line''s events in them');
     delete(hc);
     cfg0 = app.Config.toStruct();
     dd.Value = "Night";
@@ -2261,11 +2279,19 @@ if S.sec("5g", "a figure across sessions: the Sessions section, the picker, the 
         sprintf('a figure per trial group: the "Figure:" drop-down picks which of the %d is drawn, computing nothing', nRes));
     codeFileS = fullfile(root, 'preview_sessions.m');
     codeS = app.onFigureCode(string(codeFileS));
-    [FcS, hcS] = runPreviewCode(codeFileS);
+    [FcS, hcS, DcS] = runPreviewCode(codeFileS);
     closeCodeS = onCleanup(@() delete(hcS(isgraphics(hcS))));
     check(contains(codeS, "res = figureSessionCompute(sources, sessions, spec, Observation=obs);") && all(contains(codeS, app.Runner.Keys)) ...
         && contains(codeS, """" + app.FigureSessionResults.label + """") && sameResult(FcS, app.FigurePreviewResult) && height(FcS.sessions) == 2, ...
         'Export code of a figure across sessions: run, the script merges the observation over both datasets and draws the figure picked under the preview');
+    okS = isfield(DcS, 'data') && numel(DcS.data) == 2;
+    for jS = 1:2 * okS
+        dj = DcS.data(jS);
+        okS = okS && dj.session == DcS.sessions.label(jS) && dj.name == string(DcS.sources{jS}.name) ...
+            && isequaln(dj.E, figureEpochs(DcS.sources{jS}, DcS.spec)) && isequal(dj.spikesIn, epochSpikes(dj.spikes, dj.E)) ...
+            && isequal(fieldnames(dj.onsets), cellstr(dj.lineNames(:)));
+    end
+    check(okS, 'Export code across sessions loads each session''s data in the preview''s epochs too, as data(j) in session order');
     delete(hcS);
     Tt = app.DatasetsTable.Data;
     Tt.Run(2) = false;
@@ -3864,9 +3890,13 @@ end
 end
 
 
-function [F, fig] = runPreviewCode(file) %#ok<STOUT> the script sets them
-%runPreviewCode  Run a script of Export code (EphysAnalysisScript.preview) in a workspace of its own: its figure result and window.
+function [F, fig, D] = runPreviewCode(file) %#ok<STOUT> the script sets them
+%runPreviewCode  Run a script of Export code (EphysAnalysisScript.preview) in a workspace of its own: its figure result and window, and D, every variable it left.
 run(file);
+D = struct();
+for v = string(who).'
+    if ~ismember(v, ["file" "F" "fig" "D"]); D.(v) = eval(v); end
+end
 end
 
 

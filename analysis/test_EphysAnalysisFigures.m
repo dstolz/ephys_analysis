@@ -1623,6 +1623,17 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
         && isequaln(noCreated(Fr4.panels(2)), noCreated(Fr5.panels(2))) && ~isequaln(noCreated(Fr4.panels(2)), noCreated(Fr1.panels(2))), ...
         'an edit of the PSTH''s bins computes that panel (and the skip reasons) again, as a compute from scratch; the raster is taken again');
     check(isequal(made(K6), "panel") && nnz([K6.from] == 0) == 2, 'another observation computes its panels again, on the epochs kept');
+    % the figure's own epochs, as the Export code script takes them: figureCompute's
+    [Ee, Ge] = figureEpochs(src, spec);
+    sb = spec;   % a PSTH baseline reaching before the recording for the first event, a raster sorted by a trial parameter
+    sb.panels(2).options.baseline.Mode = "subtract";
+    sb.panels(2).options.baseline.Window = [-(min(Ee.t0) + 0.005) 0];
+    sb.panels(1).options.rasterSort = "Depth";
+    Fb = figureCompute(src, sb, Observation=Tu(1, :));
+    [Eb, Gb] = figureEpochs(src, sb);
+    check(isequaln(Ee, Fr1.epochs) && isequaln(Ge, Fr1.groups) && isequaln(Eb, Fb.epochs) && isequaln(Gb, Fb.groups) ...
+        && height(Eb) == height(Ee) - 1 && ismember("Depth", string(Eb.Properties.VariableNames)), ...
+        'figureEpochs: the figure''s epochs and groups as figureCompute aligns them (a panel''s baseline drops the epoch it takes out of the recording, a raster''s sort parameter is copied)');
     rnC = EphysAnalysisRunner(cfg, LogFcn=[]);
     srcC = rnC.source(1);
     FC1 = rnC.computeFigure(srcC, spec, Observation=Tu(1, :), Reuse=true);

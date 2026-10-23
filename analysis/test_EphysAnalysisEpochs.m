@@ -15,7 +15,8 @@ function test_EphysAnalysisEpochs()
 %   errors), eventLatency (a stop event's latency, Platform offset after
 %   each Stim onset, its label and errors), selectUnits for sorted units (from the spikes file
 %   and, cached, from the sorting folder) and detections, a spike in the
-%   event's own sample at 0, the error identifiers and the fallback to
+%   event's own sample at 0, epochSpikes (the raster's times, each
+%   epoch's own window), the error identifiers and the fallback to
 %   recording scope without behavior.
 %
 %   Usage:  test_EphysAnalysisEpochs
@@ -423,6 +424,23 @@ E = epochTable(sa, eventRef(line="AtSpike", which="all", scope="recording"), Win
 Rs = spikePSTH(st(1), E, Window=[-0.01 0.01], BinSec=0.01);
 check(height(E) == 5 && nnz(Rs.raster(1).times == 0) == 5 && isequal(sort(Rs.raster(1).epoch(Rs.raster(1).times == 0)), (1:5).'), ...
     'a spike in the event''s own sample is at exactly 0 (epochTable''s t0Continuous, spikePSTH)');
+Se = epochSpikes(st(1:2), E);
+Rs2 = spikePSTH(st(1:2), E, Window=[-0.01 0.02], BinSec=0.01);   % past the window's end: its spikes kept, then cut at 0.01
+sameAsRaster = true;
+for u = 1:2
+    for e = 1:height(E)
+        r = Rs2.raster(u).times(Rs2.raster(u).epoch == e);
+        sameAsRaster = sameAsRaster && isequal(Se{e, u}, reshape(r(r <= 0.01 + 1e-9), [], 1));   % (a raster without a spike is [])
+    end
+end
+check(isequal(size(Se), [5 2]) && sameAsRaster && all(cellfun(@(x) any(x == 0), Se(:, 1))), ...
+    'epochSpikes: each unit''s spikes in each epoch''s window, s from t0Continuous, the raster''s times (a spike in the event''s sample at 0)');
+Eg = E;
+Eg.tStop(2) = Eg.t0(2);   % a window ending at its event (as "between" epochs differ in length): no spike after 0
+Eg.tStart(3) = NaN;       % a window that is not finite: none
+Sg = epochSpikes(st{1}, Eg);
+check(size(Sg, 2) == 1 && all(Sg{2} <= 0) && any(Sg{2} == 0) && isempty(Sg{3}) && isequal(Sg{1}, Se{1, 1}), ...
+    'epochSpikes: each epoch''s own window (both ends in), one vector as one unit, nothing in a window that is not finite');
 srcS = src;
 out = src.outputs;
 U0 = out.readUnits();

@@ -270,7 +270,7 @@ classdef EphysAnalysisApp < handle
         FigureRedrawAllButton  matlab.ui.control.Button         % Redraw All: every enabled figure's preview drawn again where out of date (onRedrawAllFigures)
         FigureUnitReportButton matlab.ui.control.Button         % Unit report: every enabled figure for the observation picked, a temporary HTML report (onUnitReport)
         FigureOpenButton       matlab.ui.control.Button         % Open in window: the figure as previewed in a figure() of its own (onOpenFigureWindow)
-        FigureCodeButton       matlab.ui.control.Button         % Export code: the code that draws the preview, in the editor (onFigureCode)
+        FigureCodeButton       matlab.ui.control.Button         % Export code: the code behind the preview (its data in its epochs, the drawing), in the editor (onFigureCode)
         FigureExportPreviewButton matlab.ui.control.Button      % Export preview: the observation picked written as a run writes it (onExportPreview)
         FigureAutoCheckBox     matlab.ui.control.CheckBox       % auto-preview (pref FigureAutoPreview, on by default)
         DesignDropDown         matlab.ui.control.DropDown       % the design every figure is drawn in (PlotDesign; also the Design menu)

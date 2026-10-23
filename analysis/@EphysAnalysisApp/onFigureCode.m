@@ -1,12 +1,14 @@
 function txt = onFigureCode(obj, file)
-%onFigureCode  The code that draws the figure preview, opened in the MATLAB editor.
+%onFigureCode  The code behind the figure preview -- its data in its epochs, and the drawing -- opened in the MATLAB editor.
 %   TXT = onFigureCode(obj) is the Figures tab's "Export code" button, at
 %   the right of the row over the Dataset drop-down: the script of
 %   EphysAnalysisScript.preview for the selected figure, the active dataset
 %   (a figure across sessions: the ticked or listed datasets, as the
 %   preview draws it), the observation picked (and the "Figure:" pick under
 %   the preview), the design chosen and the preview's size, opened as a
-%   new, unsaved document in the MATLAB editor. It draws the figure in a
+%   new, unsaved document in the MATLAB editor. It loads every event and
+%   spike train and cuts them into the preview's epochs as plain variables
+%   (figureEpochs, epochSpikes, epochEvents), then draws the figure in a
 %   window of its own as the preview draws it, through the analysis
 %   functions (figureCompute, renderFigure), not the app or the runner.
 %   Nothing is computed here, so the preview need not be drawn. With FILE,
@@ -72,10 +74,10 @@ if file == "" && ~batchStartupOptionUsed   % (under -batch the editor API answer
 end
 if editor
     matlab.desktop.editor.newDocument(char(txt));
-    obj.setStatus("The code that draws " + fg.id + " is in the editor, unsaved: run it to draw the figure in a window of its own.");
+    obj.setStatus("The code behind " + fg.id + " is in the editor, unsaved: run it to load the data in the preview's epochs and draw the figure in a window of its own.");
     return
 end
 if file == ""; file = string(fullfile(tempdir, matlab.lang.makeValidName("preview_" + fg.id) + ".m")); end
 EphysAnalysisScript.write(file, txt);
-obj.setStatus("Wrote the code that draws " + fg.id + " to " + file + ".");
+obj.setStatus("Wrote the code behind " + fg.id + " (its data in the preview's epochs, and the drawing) to " + file + ".");
 end

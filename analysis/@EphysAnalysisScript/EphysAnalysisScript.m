@@ -41,7 +41,11 @@ classdef EphysAnalysisScript
     %                                 analysis app's Figures-tab preview draws
     %                                 it (its Export code button): the
     %                                 dataset, the figure's spec written out,
-    %                                 the observation, figureCompute (or
+    %                                 the observation, the data in the
+    %                                 preview's epochs as plain variables
+    %                                 (every event and spike train, the
+    %                                 trials, figureEpochs, epochSpikes,
+    %                                 epochEvents), then figureCompute (or
     %                                 figureSessionCompute) and renderFigure
     %                                 into a figure window.
     %   Each returns the script text; pass File= to write it.
@@ -269,13 +273,24 @@ classdef EphysAnalysisScript
             %   loadAnalysisSource, the figure's spec (figureFor, enabled set,
             %   written out), figureSkipReason, figureObservations and the row
             %   OBS is (found again by its unit id, column or kind, and its
-            %   trial group; [] = the first row), figureCompute, then
-            %   renderFigure into a figure() window of Size= px in the design
-            %   Design= ("" = the user's design when the script runs).
+            %   trial group; [] = the first row), then the data in the
+            %   figure's epochs as plain variables (dataLines): every event
+            %   line (events, lineNames), the trials, the artifact periods,
+            %   every spike train of the figure's source (spikes, units;
+            %   units.observed: those the figure is drawn for), the epochs
+            %   and trial groups the preview draws (E, G: figureEpochs, every
+            %   group), each unit's spikes in each epoch (spikesIn:
+            %   epochSpikes), each line's onsets and offsets in each epoch
+            %   (onsets, offsets: epochEvents) and, for a figure of channels,
+            %   its signal cut into the epochs (signalIn, signalTime,
+            %   channels, fs), then figureCompute and renderFigure into a
+            %   figure() window of Size= px in the design Design= ("" = the
+            %   user's design when the script runs).
             %   A figure across sessions (sessions.enabled) is drawn over the
             %   datasets KEY (several): their sessionTable, a source each,
-            %   figureSessionObservations and the row labeled as OBS,
-            %   figureSessionCompute, and the figure of its result labeled
+            %   figureSessionObservations and the row labeled as OBS, the data
+            %   of each session as data(j) (the variables above, without
+            %   units.observed), figureSessionCompute, and the figure of its result labeled
             %   Entry= ("" = the first: one per subject or trial group).
             %   Errors: EphysAnalysisScript:NoFigure, EphysAnalysisScript:NoDataset.
             arguments
@@ -310,10 +325,12 @@ classdef EphysAnalysisScript
             L = strings(0, 1);
             L(end+1, 1) = "%% Figure " + what;
             L(end+1, 1) = "% Generated " + string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm')) + " by EphysAnalysisScript.preview.";
-            L(end+1, 1) = "% Draws the figure as the analysis app's preview does, with the analysis";
-            L(end+1, 1) = "% functions themselves: the " + ternary(across, "datasets", "dataset") + ", the figure's settings written out, the";
-            L(end+1, 1) = "% observation, " + ternary(across, "figureSessionCompute", "figureCompute") + " and renderFigure. Change spec (or pick another";
-            L(end+1, 1) = "% row of obsT) and run it again.";
+            L(end+1, 1) = "% Loads the " + ternary(across, "datasets", "dataset") + " and arranges the data in the epochs the analysis";
+            L(end+1, 1) = "% app's preview draws -- every event, every spike train, the trials, each";
+            L(end+1, 1) = "% unit's spikes and each line's events in every epoch -- as plain variables";
+            L(end+1, 1) = "% to analyze" + ternary(across, " (data(j): session j)", "") + ". Then it draws the figure as the preview does, with the";
+            L(end+1, 1) = "% analysis functions themselves: " + ternary(across, "figureSessionCompute", "figureCompute") + " and renderFigure. Change";
+            L(end+1, 1) = "% spec (or pick another row of obsT) and run it again.";
             L(end+1, 1) = "";
 
             % --- the dataset(s) --------------------------------------------------------
@@ -399,6 +416,10 @@ classdef EphysAnalysisScript
             L(end+1, 1) = "obs = obsT(i, :);";
             L(end+1, 1) = "";
 
+            % --- the data, in the preview's epochs ------------------------------------------
+            L = [L; EphysAnalysisScript.dataLines(spec, across)];
+            L(end+1, 1) = "";
+
             % --- compute and draw --------------------------------------------------------
             L(end+1, 1) = "%% Compute and draw";
             if across
@@ -451,6 +472,89 @@ classdef EphysAnalysisScript
             if ~across && isfinite(obs.group)
                 test = test + " & obsT.group == " + lit(obs.group);
             end
+        end
+
+        function L = dataLines(spec, across)
+            %dataLines  The preview script's data section: the dataset's events, trials and spike trains, each cut into the figure's epochs.
+            %   For one dataset (src, obsT) plain variables: events, lineNames,
+            %   trials, artifacts, spikes and units (every unit of the figure's
+            %   source, units.observed marking those the figure is drawn for;
+            %   a figure of channels or of the dataset: every sorted unit, else
+            %   every detection channel), the figure's epochs E and groups G
+            %   (figureEpochs), spikesIn (epochSpikes), onsets and offsets
+            %   (epochEvents) and, for a figure of channels, its signal cut
+            %   into the epochs (selectChannels, evokedPotential: signalIn,
+            %   signalTime, channels). ACROSS: the same per session (sources,
+            %   sessions), kept as data(j).
+            lit = @EphysPipelineScript.literal;
+            ob = spec.observe;
+            B = strings(0, 1);
+            B(end+1, 1) = "events = src.events;   % every digital line and derived event: [onset offset] s, a row per interval";
+            B(end+1, 1) = "lineNames = string(fieldnames(events)).';";
+            B(end+1, 1) = "trials = src.trials;   % a row per trial: its parameters, TrialOnset / TrialOffset s (none without behavior)";
+            B(end+1, 1) = "artifacts = src.artifacts;   % [start stop) s: the periods the Signals step erased";
+            if ob.kind == "unit"
+                what = ternary(ob.units.source == "detected", "detection channel", "sorted unit, whatever its class");
+                B(end+1, 1) = "[spikes, units] = selectUnits(src, struct('source', " + lit(ob.units.source) + ...
+                    ", 'classes', string.empty(1, 0)));   % every " + what + ": spikes{u} s; units a row each";
+                if ~across
+                    B(end+1, 1) = "units.observed = ismember(units.unitId, obsT.unitId);   % those the figure is drawn for (spec.observe.units)";
+                end
+            else
+                B(end+1, 1) = "spikes = cell(0, 1); units = table();   % every sorted unit, else every detection channel: spikes{u} s; units a row each";
+                B(end+1, 1) = "if src.hasUnits";
+                B(end+1, 1) = "    [spikes, units] = selectUnits(src, struct('source', ""units"", 'classes', string.empty(1, 0)));";
+                B(end+1, 1) = "elseif src.hasDetected";
+                B(end+1, 1) = "    [spikes, units] = selectUnits(src, struct('source', ""detected""));";
+                B(end+1, 1) = "end";
+            end
+            B(end+1, 1) = "[E, G] = figureEpochs(src, spec);   % the preview's epochs, a row each: t0, t0Continuous, tStart, tStop, trial, groupIndex, group";
+            if ~across && ob.perGroup
+                B(end+1, 1) = "% (every trial group's: the preview draws obs.groupLabel's, E.group == obs.groupLabel)";
+            end
+            B(end+1, 1) = "spikesIn = epochSpikes(spikes, E);   % {epoch, unit}: the unit's spikes in the epoch's window, s from its event";
+            B(end+1, 1) = "M = epochEvents(src, E, Lines=lineNames, Edge=""both"");   % each line's onsets, then its offsets, in every window";
+            B(end+1, 1) = "onsets = struct(); offsets = struct();   % onsets.(line){e}: the line's onsets in epoch e, s from its event";
+            B(end+1, 1) = "for q = 1:numel(lineNames)";
+            B(end+1, 1) = "    onsets.(lineNames(q)) = accumarray(M(2*q - 1).epoch, M(2*q - 1).t, [height(E) 1], @(x) {x}, {zeros(0, 1)});";
+            B(end+1, 1) = "    offsets.(lineNames(q)) = accumarray(M(2*q).epoch, M(2*q).t, [height(E) 1], @(x) {x}, {zeros(0, 1)});";
+            B(end+1, 1) = "end";
+            keep = ["events" "lineNames" "trials" "artifacts" "spikes" "units" "E" "G" "spikesIn" "onsets" "offsets"];
+            if ob.kind == "channel"
+                sig = upper(ob.data);
+                B(end+1, 1) = "[Y, fs, channels] = selectChannels(src, " + lit(sig) + ", Channels=spec.observe.channels);   % the figure's " + ...
+                    sig + " channels: Y(k, :) at (k-1)/fs s";
+                B(end+1, 1) = "R = evokedPotential(Y, fs, E, Window=[min(E.tStart - E.t0) max(E.tStop - E.t0)], KeepEpochs=true, Incomplete=""nan"", Meta=channels);";
+                B(end+1, 1) = "signalIn = R.data;   % [time x channel x epoch], single: NaN outside the recording";
+                B(end+1, 1) = "signalTime = R.t;    % s from each epoch's event";
+                B(end+1, 1) = "clear Y R";
+                keep = [keep "channels" "fs" "signalIn" "signalTime"];
+            end
+            if ~across
+                L = ["%% The data, in the epochs the preview draws"
+                    "% Times are s of the recording: the events on their clock (t = row/Fs), the spikes and"
+                    "% signals on the continuous clock (row k at (k-1)/Fs), where E.t0Continuous is each event."
+                    B];
+                return
+            end
+            L = ["%% The data of each session, in the epochs the preview draws"
+                "% data(j) is session j's (sessions(j, :)), as one dataset's script holds it. Times are s of"
+                "% the recording: the events on their clock (t = row/Fs), the spikes and signals on the"
+                "% continuous clock (row k at (k-1)/Fs), where E.t0Continuous is each event."
+                "data = repmat(cell2struct(cell(" + (numel(keep) + 2) + ", 1), cellstr(" + lit(["session" "name" keep]) + "), 1), 1, n);   % empty where a session has none"
+                "for j = 1:n"
+                "    src = sources{j};"
+                "    if isempty(src); continue; end"
+                "    try"
+                "        " + B
+                "    catch ME"
+                "        fprintf(2, '%s: no data in the figure''s epochs: %s\n', sessions.label(j), ME.message);"
+                "        continue"
+                "    end"
+                "    d = struct('session', sessions.label(j), 'name', string(src.name));"];
+            L = [L; "    d." + keep.' + " = " + keep.' + ";"];
+            L(end+1, 1) = "    data(j) = d;";
+            L(end+1, 1) = "end";
         end
 
         function L = chunkedLiteral(name, txt)

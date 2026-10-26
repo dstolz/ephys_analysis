@@ -318,9 +318,11 @@ places, and all of them always show the same one:
 - the **Dataset menu** (the active dataset is checked). It lists the datasets
   ticked in the Project table, including ticked rows the token filters hide;
   every dataset, ticked or not, is under its **All datasets** submenu;
-- a **Dataset** box on the Trials, Probe, Artifacts, Sorting, Spikes,
-  Visualize and Review tabs. It lists the same ticked datasets (every dataset
+- a **Dataset** box on the Trials, Probe, Artifacts, Sorting, Spikes and
+  Visualize tabs. It lists the same ticked datasets (every dataset
   when none is ticked), plus the active dataset if it is not ticked;
+- a click on a row of the Review tab's **Datasets** table, which lists the
+  same datasets with the state of their sorts (see [Review](#review));
 - a click on a row of the **Project table** (the active row is bold on light
   blue; no row is highlighted while the token filters hide it, but it stays
   active).
@@ -2976,7 +2978,30 @@ dataset whose name does not match `Project.NamePattern`, is read with
 
 <!-- wiki: ![The Review tab with a unit selected](images/app-review-tab.png) -->
 
-- **Dataset**: the active dataset. Its own sorted output loads when the tab
+- **Datasets** (across the top, beside the loaded sort's **Summary**): one
+  row per dataset the other tabs' **Dataset** boxes list (the ticked
+  datasets, every one when none is ticked, and the active one), the active
+  dataset's row selected. A click on a row makes that dataset active, here
+  and on every other tab. Its columns show where each dataset's sorting
+  stands, so you can see which have been curated without opening them:
+
+  | Column | Shows |
+  |---|---|
+  | Dataset | its name |
+  | Sorter | the sorter of the sort in use (the run's `settings.json`, else the folder's name); `missing` for a pinned folder that is not there, `-` for none |
+  | Units, Good, MUA | the sort's clusters, and how many are labeled good and mua: phy's labels once curated (`cluster_group.tsv`), else the sorter's (`cluster_KSLabel.tsv`, `cluster_SILabel.tsv`), as the units table shows them |
+  | phy saved | when phy last saved there (`cluster_info.tsv`, which phy writes on every save, else its `cluster_group.tsv`); `opened` when phy opened the sort but saved nothing; blank when phy has not touched it |
+  | Sorts | how many sorts the **Sort** list has, filled in once the tab has shown the dataset (counting them walks its output folder) |
+
+  A header click sorts the rows and is kept, like the other
+  [sorted tables](#sorted-tables); it never changes which dataset a click
+  picks. The project may be on a slow share, so each dataset's sort is read
+  once, and only while the tab is open (until then a row shows its name
+  alone); a row is read again when its sort in use changes, when the tab
+  shows that dataset or is opened again on it (so a save in phy shows),
+  after **Open in phy** and **Use this sort**, when a sorting run starts or
+  ends, and every row after a scan.
+- The active dataset's own sorted output loads when the tab
   opens and whenever the active dataset changes while it is open: the
   folder pinned with **Use folder...** on the Sorting tab, else the run
   folder of the config's **Sorter** (`kilosort4`, or `si_<sorter>`), else
@@ -3008,7 +3033,7 @@ dataset whose name does not match `Project.NamePattern`, is read with
   folder or a `kilosort4` folder (the folder itself, else its `kilosort4`
   subfolder); one that is not among the dataset's sorts is added to
   **Sort** as **other**. **Open folder in explorer**, **Open in phy** (green, **Open in phy (curated)**, for a sort curated in phy).
-- **Summary**: the dataset key and label form (or the folder and why labels
+- **Summary** (beside the Datasets table; it scrolls): the dataset key and label form (or the folder and why labels
   are short), the sorter and where the groups come from (curated in phy,
   Kilosort4's `KSLabel`, or a SpikeInterface sort's `SILabel`: good / mua by
   the good-unit criteria), Fs, the sorted time (**Sorted:** its length and
@@ -3508,14 +3533,14 @@ each app writes only its own report.
 ## Sorted tables
 
 Every table that lists things sorts on a header click: the Project, Trials,
-Review units, Clean up, Copy, Run results and Artifacts Selection tables, the
+Review Datasets and units, Clean up, Copy, Run results and Artifacts Selection tables, the
 plan tables of the Signals, Export and Analysis tabs, and the issue, preview,
 probe, line, artifact and channel tables. (The tables that are settings to
 edit, where the row order is the setting, do not: the probe rules, the
 synthetic design, the probe designer and the channel mapper.) A uitable sorts
 only what it shows, and the app fills a table again whenever its data changes
 (another dataset, a reload, an edit, a new preview). So for the Project, Trials,
-Review units, Clean up, Copy, Run results, Selection and plan tables the app keeps the click itself, the column and the direction the rows
+Review Datasets and units, Clean up, Copy, Run results, Selection and plan tables the app keeps the click itself, the column and the direction the rows
 show ([`TableSort`](../pipeline/TableSort.m)), puts every new set of rows in
 that order, and saves it as the `TableSorts` preference at once: the sort
 holds for every dataset and the next session. Right-click one of them for
@@ -3556,7 +3581,7 @@ of a config lives here:
 | `PythonExe` | the Python exe last set on the Sorting tab, which a new config starts with |
 | `LastConfigFile`, `RecentConfigs` | the last config file opened or saved, reopened (and its project scanned) on launch; **New config** leaves it. The File → Open recent list |
 | `DatasetsColumnOrder` | the Project table's column order (table variable names) |
-| `TableSorts` | the sort of each [sorted table](#sorted-tables): one field per table (`Datasets`, `Trials`, `Review`, `Cleanup`, `ArtSelection`, `Copy`, `RunResults`, `SignalsPlan`, `ExportPlan`, `AnalysisPlan`), each the column last clicked (a table variable name; the header for the Review and Clean up tables) and its direction (`ascend` / `descend`) |
+| `TableSorts` | the sort of each [sorted table](#sorted-tables): one field per table (`Datasets`, `Trials`, `Review`, `ReviewDatasets`, `Cleanup`, `ArtSelection`, `Copy`, `RunResults`, `SignalsPlan`, `ExportPlan`, `AnalysisPlan`), each the column last clicked (a table variable name; the header for the Review, Review Datasets and Clean up tables) and its direction (`ascend` / `descend`) |
 | `TrialsParamColumns`, `TrialsColumnOrder` | the trial parameters shown in the Trials table, and its column order (table variable names; a parameter column is `Param_<name>`) |
 | `TrialsLabelParams` | the trial parameters written as trial labels in the Trials plot |
 | `VizOptions` | the Visualize tab's display settings |
@@ -3651,7 +3676,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `onPlotVisualization.m`, `applyVizSettings.m`, `onVizControlsChanged.m`, `onVizViewChanged.m`, `onVizInput.m`, `onVizButtonDown/Up.m`, `refreshVizShading.m`, `vizDetectedIntervals.m`, `updateVizArtStatus.m`, `syncVizDataset.m`, `loadVizEvents.m`, `onVizReadEvents.m`, `showVizHelp.m`; `pipeline/EphysTraceViewer.m`, `pipeline/EphysTraceSource.m`, `pipeline/EphysTraceEnvelope.m` | Visualize tab: loading the active dataset's signals and spikes, the controls, the wheel / keys / drags, the shading (`vizDetectedIntervals`: the Artifacts preview's intervals the plot shades, or why none; `updateVizArtStatus`: their counts, and whether the last run's match the current settings); the digital-input events and Read events; the "?" window of mouse and key controls; the viewer, the windowed sources behind it and their envelopes (min / max cached on disk, built in the background) |
 | `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `flowOverviewHTML.m`, `onFlowViewChanged.m`, `onFlowLayoutChanged.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m` | Diagram tab: the page in the view picked, drawn by [`PipelineDiagram`](../pipeline/@PipelineDiagram/PipelineDiagram.m), a plain class the app calls (`detail`: every parameter; `overview`: the data flow, laid out and routed there; `zoomFrame`: the zoom and pan, kept per view by the app), save / open, a box's click |
 | `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`, `refreshCopySchedule.m`, `onCopyScheduleSave.m`, `onCopyScheduleRemove.m`, `onCopyScheduleRunNow.m`, `onCopyScheduleLog.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m`, `pipeline/CopySchedule.m` | Copy tab, the pairing / stitching / copy functions it calls, the detached copy engine, and the scheduled copy (its Windows task and what each run does) |
-| `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m`, `showReviewSorts.m`, `onReviewSortChanged.m`, `onReviewUseSort.m`, `private/reviewSorts.m`, `private/sorterOfSort.m`, `showReviewUnits.m` | Review tab (`reviewSorts`: the active dataset's sorts and the one to show; `showReviewSorts`: the Sort list and whether Use this sort is on; `onReviewUseSort`: the sort shown made the dataset's own; `showReviewUnits`: the units table in its sort, the selected unit's row kept) |
+| `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m`, `showReviewSorts.m`, `onReviewSortChanged.m`, `onReviewUseSort.m`, `private/reviewSorts.m`, `private/sorterOfSort.m`, `showReviewUnits.m`, `refreshReviewDatasets.m`, `onReviewDatasetSelected.m` | Review tab (`refreshReviewDatasets`: the Datasets table, each dataset's sort read once and kept; `onReviewDatasetSelected`: a row click makes its dataset active; `reviewSorts`: the active dataset's sorts and the one to show; `showReviewSorts`: the Sort list and whether Use this sort is on; `onReviewUseSort`: the sort shown made the dataset's own; `showReviewUnits`: the units table in its sort, the selected unit's row kept) |
 | `buildSyntheticTab.m`, `onSynthPreview.m`, `renderSynthPreview.m`, `onSynthGenerate.m`, `generateSynthetic.m`, `onSynthDesign.m`, `onSynthControlsChanged.m`, `syncSynthControls.m`, `gather/applySynthDesign.m`, `synthColumns.m`, `synthSourceLists.m`, `synthGeneratorArgs.m`, `synthOutputRoot.m`, `synthOutputFolder.m`; `pipeline/SyntheticDesign.m`, `pipeline/syntheticModel.m`, `pipeline/syntheticTaskSchedule.m`, `pipeline/makeSyntheticRecording.m` | Synthetic tab (`generateSynthetic`: Generate without its questions; `synthGeneratorArgs`: the options Preview and Generate share) and the generator |
 | `buildCleanupTab.m`, `onCleanupPreview.m`, `onCleanupRun.m`, `runCleanup.m`, `onCleanupMethodChanged.m`, `onCleanupBrowseDest.m`, `onCleanupSettingsChanged.m`, `refreshCleanupScope.m`, `refreshCleanupTable.m`, `refreshCleanupMove.m`, `private/cleanupMoveSentence.m`; `pipeline/planLocalCleanup.m`, `pipeline/cleanupMoveTargets.m`, `pipeline/runLocalCleanup.m` | Clean up tab and the functions that decide and remove |
 | `load/savePreferences.m` | preferences |

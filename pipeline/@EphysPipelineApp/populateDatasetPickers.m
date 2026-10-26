@@ -4,7 +4,9 @@ function populateDatasetPickers(obj)
 %   top of the menu and in every tab's Dataset box are listed again
 %   (refreshDatasetMenu, refreshDatasetPickers), since the datasets changed. The active dataset
 %   stays active when it still exists (else the first one does), and the
-%   views of per-dataset results are reset, since the datasets were rebuilt.
+%   views of per-dataset results are reset, since the datasets were rebuilt,
+%   and the Review tab's Datasets table reads every dataset's sort again.
+obj.ReviewDatasetStats(:) = [];
 delete(obj.DatasetMenuItems(isvalid(obj.DatasetMenuItems)));
 obj.DatasetMenuItems = matlab.ui.container.Menu.empty(1, 0);
 

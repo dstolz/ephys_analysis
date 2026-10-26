@@ -7,7 +7,9 @@ function refreshDatasetsTable(obj)
 %   Star (the ★ column, a check box) is the dataset's star (Favorites);
 %   ticking it stars the dataset (onDatasetsTableEdited). Note (the ✎
 %   column) shows "✎" when the dataset has a note (Notes); a click on it
-%   opens the notepad (onDatasetNoteClicked).
+%   opens the notepad (onDatasetNoteClicked). Tags (after Key, read only)
+%   are the dataset's tags, ", "-joined: its source's once loaded, else the
+%   manifest's (outputTags, read once per dataset, not a whole source).
 %
 %   The rows are in the order of the last header click (DatasetsSort), put
 %   there each time the table is filled, so the sort survives a tick or a
@@ -37,6 +39,7 @@ if ~isempty(r.Project)
 end
 [Subject, Date] = subjectAndDate(Name, string(r.Config.Source.NamePattern), acq);
 [LFP, MUA, SPIKE, AUX, Units, Detected, Behavior, Trials, Pairing] = deal(strings(n, 1));
+Tags = strings(n, 1);
 Duration = NaN(n, 1);
 for k = 1:n
     out = r.Outputs(k);
@@ -56,13 +59,15 @@ for k = 1:n
             Pairing(k) = "not paired";
         end
         Duration(k) = round(src.durationSec, 1);
+        Tags(k) = TagSet.toText(src.tags, TagSet.DisplayDelimiter);
     else
         Units(k) = mark(out.has("sorting"));   % the spikes file holds detections only
         Detected(k) = mark(out.has("spikes"));
+        Tags(k) = TagSet.toText(outputTags(out), TagSet.DisplayDelimiter);   % the manifest, read once (CacheData)
     end
 end
 Idx = (1:n).';
-T = table(Run, Star, Note, Name, Subject, Date, Key, LFP, MUA, SPIKE, AUX, Units, Detected, Behavior, Trials, Pairing, Duration, Idx);
+T = table(Run, Star, Note, Name, Subject, Date, Key, Tags, LFP, MUA, SPIKE, AUX, Units, Detected, Behavior, Trials, Pairing, Duration, Idx);
 T = TableSort.apply(T, obj.DatasetsSort);
 obj.DatasetsTable.Data = T;
 obj.DatasetsTable.ColumnEditable = [true true false(1, width(T) - 2)];

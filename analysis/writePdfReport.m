@@ -45,7 +45,7 @@ end
 lines(end+1) = "";
 for d = 1:numel(report.datasets)
     D = report.datasets(d);
-    lines(end+1) = sprintf("%d. %s (%d figure(s))", d, D.name + starWord(D), numel(D.entries)); %#ok<AGROW>
+    lines(end+1) = sprintf("%d. %s (%d figure(s))", d, D.name + starWord(D), numel(D.entries)) + tagsWord(D); %#ok<AGROW>
 end
 nPages = numel(report.datasets) + 1;   % the title page and a summary page per dataset; joining them is the last step
 say(0, sprintf("Writing the report: page 1/%d", nPages));
@@ -156,4 +156,11 @@ function s = starWord(D)
 %starWord  " (starred)" after a starred dataset's name (its starred field), else "".
 s = "";
 if D.starred; s = " (starred)"; end
+end
+
+
+function s = tagsWord(D)
+%tagsWord  " [draft, pilot]" after a dataset's line (its tags field), else "".
+s = "";
+if ~isempty(D.tags); s = " [" + TagSet.toText(D.tags, TagSet.DisplayDelimiter) + "]"; end
 end

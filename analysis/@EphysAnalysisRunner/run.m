@@ -203,8 +203,8 @@ end
 function T = sessionsSummary(obj, idx)
 %sessionsSummary  The "Across sessions" section's table: the run's sessions by date.
 S = obj.sessionTable(idx);
-T = table(S.label, S.subject, S.dateText, S.name, S.key, ...
-    'VariableNames', {'Session', 'Subject', 'Date', 'Dataset', 'Key'});
+T = table(S.label, S.subject, S.dateText, S.name, S.key, S.tags, ...
+    'VariableNames', {'Session', 'Subject', 'Date', 'Dataset', 'Key', 'Tags'});
 end
 
 

@@ -50,8 +50,12 @@ labels = [{'Select', 'Name'}, cellstr(shown), ...
           {'Key', 'Acq date', 'Ch', 'Fs (Hz)', 'Dur (min)', 'Format', 'Probe', 'Exclude', 'Sorting', 'Behavior', 'Tags', ''}];
 editable = [true, false(1, 13 + nTok)];
 sortable = [true(1, 13 + nTok), false];
+% No '1x' column: a weighted column gets only what the others leave, which a
+% 1280 px window leaves none of (a column a few pixels wide). Every column
+% fits its contents, Tags is fixed so an empty cell is still easy to click,
+% and the table scrolls sideways when the window is narrower than the columns.
 widths = [{64, 'fit'}, repmat({'fit'}, 1, nTok), ...
-          {'1x', 118, 44, 76, 86, 'fit', 'fit', 90, 'fit', '1x', '1x', 1}];
+          {'fit', 118, 44, 76, 86, 'fit', 'fit', 90, 'fit', 'fit', 140, 1}];
 
 prev = obj.DatasetsTable.Data;
 order = displayedColumnOrder(obj, prev);

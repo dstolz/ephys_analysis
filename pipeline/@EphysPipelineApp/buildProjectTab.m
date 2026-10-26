@@ -84,38 +84,40 @@ obj.NameTokenGrid = uigridlayout(top, [1 1]);
 obj.NameTokenGrid.Layout.Row = 4; obj.NameTokenGrid.Layout.Column = [3 7];
 obj.NameTokenGrid.RowHeight = {'fit'};
 obj.NameTokenGrid.Padding   = [0 0 0 0];
-obj.NameTokenStatusLabel = uilabel(top, "Text", "", "FontColor", [0.4 0.4 0.4]);
-obj.NameTokenStatusLabel.Layout.Row = 4; obj.NameTokenStatusLabel.Layout.Column = 8;
 
 % --- row 2: table toolbar ----------------------------------------------------
-tb = uigridlayout(g, [1 7]);
+% Two rows, so a 1280 px window holds it all: Datasets, All / None, Tags...
+% and the token filters on top; under the token filters the tag filter, then
+% the names-match / "showing k of n" label and the scan status on its right.
+tb = uigridlayout(g, [2 7]);
 tb.Layout.Row = 2;
-tb.RowHeight   = {30};
-tb.ColumnWidth = {'fit', 60, 60, 80, 'fit', 'fit', '1x'};
+tb.RowHeight   = {30, 30};
+tb.ColumnWidth = {'fit', 60, 60, 80, 'fit', '3x', '2x'};
 tb.Padding     = [0 0 0 0];
+tb.RowSpacing  = 6;
 lbl = uilabel(tb, "Text", "Datasets", "FontWeight", "bold");
-lbl.Layout.Column = 1;
+lbl.Layout.Row = 1; lbl.Layout.Column = 1;
 obj.SelectAllButton = uibutton(tb, "Text", "All", "Tooltip", "Tick every shown dataset", ...
     "ButtonPushedFcn", @(~,~) obj.onSelectDatasets("all"));
-obj.SelectAllButton.Layout.Column = 2;
+obj.SelectAllButton.Layout.Row = 1; obj.SelectAllButton.Layout.Column = 2;
 obj.SelectNoneButton = uibutton(tb, "Text", "None", "Tooltip", "Untick every dataset, shown or filtered out (= run all)", ...
     "ButtonPushedFcn", @(~,~) obj.onSelectDatasets("none"));
-obj.SelectNoneButton.Layout.Column = 3;
+obj.SelectNoneButton.Layout.Row = 1; obj.SelectNoneButton.Layout.Column = 3;
 % Tags...: the ticked datasets' tags (bulk when two or more), else the active one's.
 obj.TagsButton = uibutton(tb, "Text", "Tags...", ...
     "Tooltip", "Tag the ticked datasets (the active one when none is ticked). A click on a Tags cell tags that dataset.", ...
     "ButtonPushedFcn", @(~,~) obj.onEditTags());
-obj.TagsButton.Layout.Column = 4;
+obj.TagsButton.Layout.Row = 1; obj.TagsButton.Layout.Column = 4;
 % One filter dropdown per name-pattern token (see syncTokenFilters).
 obj.NameTokenFilterGrid = uigridlayout(tb, [1 1]);
-obj.NameTokenFilterGrid.Layout.Column = 5;
+obj.NameTokenFilterGrid.Layout.Row = 1; obj.NameTokenFilterGrid.Layout.Column = [5 7];
 obj.NameTokenFilterGrid.RowHeight = {'fit'};
 obj.NameTokenFilterGrid.ColumnWidth = {'fit'};
 obj.NameTokenFilterGrid.Padding   = [12 0 0 0];
 % The tag filter: tags picked or typed (any / all of them) AND a search over
 % the tags; refreshDatasetsTable applies it and lists the tags in use.
 tf = uigridlayout(tb, [1 4]);
-tf.Layout.Column = 6;
+tf.Layout.Row = 2; tf.Layout.Column = 5;
 tf.RowHeight   = {'fit'};
 tf.ColumnWidth = {'fit', 140, 70, 110};
 tf.Padding     = [12 0 0 0];
@@ -130,9 +132,12 @@ obj.TagFilterModeDropDown = uidropdown(tf, "Items", {'any of', 'all of'}, "Items
 obj.TagSearchField = uieditfield(tf, "text", "Placeholder", "search tags", ...
     "Tooltip", "Show only datasets with a tag containing this text (ignoring case).", ...
     "ValueChangedFcn", @(~,~) obj.refreshDatasetsTable());
+% How many names match the pattern (or its error), and what the filters show.
+obj.NameTokenStatusLabel = uilabel(tb, "Text", "", "FontColor", [0.4 0.4 0.4]);
+obj.NameTokenStatusLabel.Layout.Row = 2; obj.NameTokenStatusLabel.Layout.Column = 6;
 obj.ScanStatusLabel = uilabel(tb, "Text", "No datasets scanned yet.", "FontColor", [0.4 0.4 0.4], ...
     "HorizontalAlignment", "right");
-obj.ScanStatusLabel.Layout.Column = 7;
+obj.ScanStatusLabel.Layout.Row = 2; obj.ScanStatusLabel.Layout.Column = 7;
 
 % --- row 3: datasets table, and the Tools panel beside it --------------------
 % Columns (headers, widths, the trailing hidden "DatasetIdx" that maps a row

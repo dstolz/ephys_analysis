@@ -329,7 +329,7 @@ classdef TagDialog < handle
             ng = uigridlayout(g, [1 3]);
             ng.Layout.Row = 5;
             ng.Padding = [0 0 0 0];
-            ng.ColumnWidth = {'fit', '1x', 'fit'};
+            ng.ColumnWidth = {'fit', '1x', 100};    % Add as prominent as its neighbors
             ng.RowHeight = {30};
             uilabel(ng, "Text", "New tag:");
             c.NewTag = uieditfield(ng, "text", "Placeholder", "e.g. pilot, draft", ...

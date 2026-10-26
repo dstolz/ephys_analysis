@@ -26,6 +26,7 @@ classdef EphysPipelineApp < handle
     %                (CopySchedule); the tab saves it and shows its last run
     %     Project    config name, project root / output root, dataset table
     %                (the Select column is the config's dataset selection),
+    %                dataset tags (a Tags column, Tags..., a tag filter),
     %                a Tools panel that opens the active or the ticked
     %                datasets in the manifest viewer, the analysis app, phy
     %                or the file browser, Epsych2 behavior associations
@@ -169,6 +170,7 @@ classdef EphysPipelineApp < handle
         DatasetAllMenu     matlab.ui.container.Menu   % "All datasets" submenu
         DatasetMenuItems   matlab.ui.container.Menu   % its items, one per dataset (index = dataset index)
         DatasetManifestItem matlab.ui.container.Menu  % bottom of the menu: View manifest (onViewManifest)
+        DatasetTagsItem    matlab.ui.container.Menu   % under it: Tags... (onEditTags)
         RunMenu            matlab.ui.container.Menu
         HelpMenu           matlab.ui.container.Menu   % wiki pages (helpURL, onHelp) + the issue items (onReportIssue)
 
@@ -275,6 +277,13 @@ classdef EphysPipelineApp < handle
         NameTokenFilterGrid  matlab.ui.container.GridLayout
         NameTokenFilters  matlab.ui.control.DropDown   % one per pattern token: row filter (UserData = token name)
         DatasetsTable     matlab.ui.control.Table
+        % Dataset tags (TagSet): the dialog (onEditTags) and the table's tag filter
+        TagsButton            matlab.ui.control.Button     % Tags...: the ticked datasets, the active one when none is ticked
+        TagFilterDropDown     matlab.ui.control.DropDown   % editable: '(any)', a tag, or several typed, comma-separated
+        TagFilterModeDropDown matlab.ui.control.DropDown   % ItemsData "any" | "all": of the tags picked
+        TagSearchField        matlab.ui.control.EditField  % text any tag of a shown dataset contains
+        TagDialog = []                                     % the open TagDialog ([] when none)
+        TagPolicy (1,1) string = "all"                     % the bulk policy last chosen this session ("all" | "skip")
         ScanStatusLabel   matlab.ui.control.Label
         % Tools panel (beside the table): open datasets in other programs (onOpenTool)
         ToolsScopeDropDown  matlab.ui.control.DropDown   % ItemsData "active" | "ticked" (toolTargets)
@@ -1167,6 +1176,8 @@ classdef EphysPipelineApp < handle
         syncTokenFilters(obj, tokenNames, values)
         idx = tickedDatasetIndices(obj)
         onDatasetCellSelection(obj, evt)
+        onDatasetsTableClicked(obj, evt)
+        onEditTags(obj, idx)
         onRefreshMetadata(obj)
         onSelectDatasets(obj, mode)
         onBrowseRoot(obj)

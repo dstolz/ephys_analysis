@@ -8,14 +8,18 @@ function refreshDatasetsTable(obj, opts)
 %   is baked into the table variables (see orderColumns), so it survives
 %   rebuilds that change the column set. A header click's sort is kept too:
 %   the rows are put in its order on every rebuild (tableSort "Datasets"),
-%   and rows map to datasets through DatasetIdx. The token filters above
-%   the table hide rows; ticks on hidden rows are kept in
-%   HiddenSelectedKeys.
+%   and rows map to datasets through DatasetIdx. The token filters and the
+%   tag filter above the table hide rows; ticks on hidden rows are kept in
+%   HiddenSelectedKeys. The tag filter keeps the datasets that hold any
+%   (or all) of the tags picked or typed AND have a tag containing the
+%   search text (TagSet.matches, TagSet.search); a typed term that is no
+%   valid tag matches nothing, and an empty filter passes every row.
 %
 %   refreshDatasetsTable(Datasets=IDX) only recomputes the cells of the
 %   datasets IDX (indices into Project.Datasets) in the rows the table
 %   shows (the Kilosort4 monitor, as a run starts or ends); it rebuilds the
-%   whole table when the table does not hold those datasets' rows. The
+%   whole table when the table does not hold those datasets' rows, or
+%   while the tag filter is on (a tag edit may show or hide a row). The
 %   Behavior column reads each Epsych2 session file's summary once, and
 %   again only when the file changes (EpsychMetaCache).
 %
@@ -37,13 +41,13 @@ nTok = numel(shown);
 
 % Natural column layout: variable, header, editable, sortable, width.
 vars   = ["Select", "Name", tokenVars, "Key", "AcqDate", "NumChannels", "Fs", ...
-          "DurationMin", "Format", "Probe", "Exclude", "Sorting", "Behavior", "DatasetIdx"];
+          "DurationMin", "Format", "Probe", "Exclude", "Sorting", "Behavior", "Tags", "DatasetIdx"];
 labels = [{'Select', 'Name'}, cellstr(shown), ...
-          {'Key', 'Acq date', 'Ch', 'Fs (Hz)', 'Dur (min)', 'Format', 'Probe', 'Exclude', 'Sorting', 'Behavior', ''}];
-editable = [true, false(1, 12 + nTok)];
-sortable = [true(1, 12 + nTok), false];
+          {'Key', 'Acq date', 'Ch', 'Fs (Hz)', 'Dur (min)', 'Format', 'Probe', 'Exclude', 'Sorting', 'Behavior', 'Tags', ''}];
+editable = [true, false(1, 13 + nTok)];
+sortable = [true(1, 13 + nTok), false];
 widths = [{64, 'fit'}, repmat({'fit'}, 1, nTok), ...
-          {'1x', 118, 44, 76, 86, 'fit', 'fit', 90, 'fit', '1x', 1}];
+          {'1x', 118, 44, 76, 86, 'fit', 'fit', 90, 'fit', '1x', '1x', 1}];
 
 prev = obj.DatasetsTable.Data;
 order = displayedColumnOrder(obj, prev);
@@ -67,7 +71,7 @@ end
 
 Name = strings(n, 1); AcqDate = strings(n, 1); NumChannels = zeros(n, 1); Fs = zeros(n, 1);
 DurationMin = zeros(n, 1); Format = strings(n, 1); Probe = strings(n, 1); Exclude = strings(n, 1);
-Sorting = strings(n, 1); Behavior = strings(n, 1);
+Sorting = strings(n, 1); Behavior = strings(n, 1); Tags = strings(n, 1);
 AllTokens = repmat("-", n, numel(tokenNames));   % every pattern token (the filters use all)
 nMatched = 0;
 
@@ -83,7 +87,7 @@ for i = 1:n
     c = datasetCells(obj, d);
     Name(i) = c.Name; AcqDate(i) = c.AcqDate; NumChannels(i) = c.NumChannels; Fs(i) = c.Fs;
     DurationMin(i) = c.DurationMin; Format(i) = c.Format; Probe(i) = c.Probe;
-    Exclude(i) = c.Exclude; Sorting(i) = c.Sorting; Behavior(i) = c.Behavior;
+    Exclude(i) = c.Exclude; Sorting(i) = c.Sorting; Behavior(i) = c.Behavior; Tags(i) = c.Tags;
 end
 
 % Token filters: rebuild the dropdowns when the tokens change, refresh their
@@ -98,12 +102,21 @@ for k = 1:numel(obj.NameTokenFilters)
     col = AllTokens(:, tokenNames == string(obj.NameTokenFilters(k).UserData));
     keep = keep & matchesAny(col, terms);
 end
+% Tag filter: its list follows the tags in use; it counts as one filter.
+sets = cell(1, n);
+for i = 1:n
+    sets{i} = obj.Project.Datasets(i).Tags;
+end
+syncTagFilterItems(obj, sets);
+[tagKeep, tagActive] = tagFilter(obj, sets);
+keep = keep & tagKeep;
+nActive = nActive + tagActive;
 
 [~, loc] = ismember(shown, tokenNames);
 DatasetIdx = (1:n)';
 T = [table(Select, Name), array2table(AllTokens(:, loc), 'VariableNames', cellstr(tokenVars)), ...
     table(Key, AcqDate, NumChannels, Fs, DurationMin, Format, ...
-    Probe, Exclude, Sorting, Behavior, DatasetIdx)];
+    Probe, Exclude, Sorting, Behavior, Tags, DatasetIdx)];
 T.Properties.VariableNames = cellstr(vars);
 obj.HiddenSelectedKeys = reshape(Key(~keep & Select), 1, []);
 T = T(keep, :);
@@ -149,12 +162,17 @@ end
 
 function done = refreshRows(obj, idx)
 %refreshRows  Recompute the cells of datasets IDX in the rows the table shows.
-%   False (nothing done) when the table does not hold this project's rows.
+%   False (nothing done) when the table does not hold this project's rows,
+%   or while the tag filter is on (a tag edit may show or hide a row).
 T = obj.DatasetsTable.Data;
 done = false;
 if isempty(obj.Project) || ~istable(T) || ~all(ismember({'Key', 'DatasetIdx'}, T.Properties.VariableNames))
     return
 end
+sets = arrayfun(@(d) d.Tags, obj.Project.Datasets, 'UniformOutput', false);
+[~, tagActive] = tagFilter(obj, sets);
+if tagActive; return; end
+syncTagFilterItems(obj, sets);   % a tag edit may add or drop one
 for i = idx(idx >= 1 & idx <= obj.Project.NumDatasets)
     r = find(T.DatasetIdx == i, 1);
     if isempty(r); continue; end   % hidden by the token filters: the next rebuild has it
@@ -174,10 +192,10 @@ end
 
 function c = datasetCells(obj, d)
 %datasetCells  The cells of dataset D's row that come from its metadata,
-%   probe, exclusions, sorted output and Epsych2 session.
+%   probe, exclusions, sorted output, Epsych2 session and tags.
 c = struct('Name', d.Name, 'AcqDate', "", 'NumChannels', d.NumChannels, 'Fs', d.Fs, ...
     'DurationMin', 0, 'Format', d.RecordingFormat, 'Probe', "-", 'Exclude', "-", ...
-    'Sorting', "-", 'Behavior', "-");
+    'Sorting', "-", 'Behavior', "-", 'Tags', TagSet.toText(d.Tags, TagSet.DisplayDelimiter));
 if ~isnat(d.AcqDate)
     c.AcqDate = string(datetime(d.AcqDate, 'Format', 'yyyy-MM-dd HH:mm'));
 end
@@ -296,6 +314,37 @@ function terms = filterTerms(value)
 %filterTerms  Comma-separated filter text -> terms ("" / "(any)" = none).
 terms = strtrim(split(string(value), ","));
 terms = terms(terms ~= "" & terms ~= "(any)");
+end
+
+
+function syncTagFilterItems(obj, sets)
+%syncTagFilterItems  The tag filter lists '(any)' and every tag in use
+%   (SETS, one per dataset); a typed value is kept by the editable dropdown.
+dd = obj.TagFilterDropDown;
+if isempty(dd) || ~isvalid(dd); return; end
+v = dd.Value;
+dd.Items = [{'(any)'}, TagSet.vocabulary(sets)];
+dd.Value = v;
+end
+
+
+function [keep, active] = tagFilter(obj, sets)
+%tagFilter  Which datasets (SETS, one tag set each) the tag filter keeps.
+%   KEEP (n x 1): holding any / all of the tags picked or typed, and a tag
+%   containing the search text. A typed term that is no valid tag is passed
+%   on as typed, so it matches nothing. ACTIVE: either part is set.
+keep = true(numel(sets), 1);
+active = false;
+dd = obj.TagFilterDropDown;
+if isempty(dd) || ~isvalid(dd); return; end
+txt = string(dd.Value);
+if txt == "(any)"; txt = ""; end
+[tags, bad] = TagSet.fromText(txt, TagSet.EntryDelimiter);
+selected = [reshape(tags, 1, []), reshape(bad, 1, [])];
+search = strtrim(string(obj.TagSearchField.Value));
+active = ~isempty(selected) || search ~= "";
+keep = reshape(TagSet.matches(sets, selected, string(obj.TagFilterModeDropDown.Value)), [], 1) ...
+    & reshape(TagSet.search(sets, search), [], 1);
 end
 
 

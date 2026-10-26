@@ -732,12 +732,12 @@ if S.sec("3", "scan, selection, plan")
         && contains(T.Sorting(1), "manual"), 'scan fills the table with keys and the sorting association');
     check(~T.Select(1) && app.Config.Project.Selection == "all", 'no ticks = every dataset');
     check(numel(app.DatasetTickedItems) == 1 && string(app.DatasetTickedItems.Text) == "(no datasets ticked)" ...
-        && numel(app.DatasetMenuItems) == 1 && isequal(app.DatasetMenu.Children(1:2), [app.DatasetManifestItem; app.DatasetAllMenu]), ...
-        'the Dataset menu lists no datasets while none is ticked; All datasets lists every one; View manifest at the bottom');
+        && numel(app.DatasetMenuItems) == 1 && isequal(app.DatasetMenu.Children(1:3), [app.DatasetTagsItem; app.DatasetManifestItem; app.DatasetAllMenu]), ...
+        'the Dataset menu lists no datasets while none is ticked; All datasets lists every one; View manifest and Tags at the bottom');
     app.onSelectDatasets("all");
     check(app.Config.Project.Selection == "list" && isequal(app.Config.Project.Datasets, "recA_260101_120000"), 'ticking rows selects by key');
     check(numel(app.DatasetTickedItems) == 1 && isequal(app.DatasetTickedItems.UserData, 1) && app.DatasetTickedItems.Checked ...
-        && isequal(app.DatasetMenu.Children(1:2), [app.DatasetManifestItem; app.DatasetAllMenu]), ...
+        && isequal(app.DatasetMenu.Children(1:3), [app.DatasetTagsItem; app.DatasetManifestItem; app.DatasetAllMenu]), ...
         'a ticked dataset is listed above All datasets, checked when active');
     check(all(arrayfun(@(dd) isequal(dd.ItemsData, {1}) && isequal(dd.Value, 1), app.DatasetPickers)), ...
         'every tab''s Dataset box lists the ticked datasets');
@@ -1554,6 +1554,140 @@ if S.sec("3a2", "recursive scan")
     app.onScan();
     check(app.RecursiveCheckBox.Value && app.Config.Project.Recursive && app.Project.Recursive, ...
         'applying the section restores Recursive');
+end
+
+if S.sec("3e", "Project tab: Tags column, dialog, filter")
+    % A second recording beside recA for the bulk edits; removed at the end.
+    fB = fullfile(proj, 'recB_260102_120000'); mkdir(fB);
+    writeSyntheticRHD(fullfile(fB, 'recB.rhd'), ampRaw, digRaw, Fs, spb);
+    app.onScan();
+    nameA = "recA_260101_120000"; nameB = "recB_260102_120000";
+    dsOf = @(name) app.Project.Datasets([app.Project.Datasets.Name] == name);
+    iOf = @(name) find([app.Project.Datasets.Name] == name);
+    tagsOf = @(name) dsOf(name).Tags;
+    fileTags = @(name) manifestTags(dsOf(name));
+    cellOf = @(name) app.DatasetsTable.Data.Tags(app.DatasetsTable.Data.Name == name);
+    click = @(row, col) app.DatasetsTable.ClickedFcn(app.DatasetsTable, ...
+        struct('InteractionInformation', struct('Row', row, 'Column', col)));
+    T = app.DatasetsTable.Data;
+    tagsCol = find(strcmp(T.Properties.VariableNames, 'Tags'));
+    check(app.Project.NumDatasets == 2 && isscalar(tagsCol) && string(app.DatasetsTable.ColumnName{tagsCol}) == "Tags" ...
+        && tagsCol == width(T) - 1 && app.DatasetsTable.ColumnSortable(tagsCol) && ~app.DatasetsTable.ColumnEditable(tagsCol) ...
+        && all(T.Tags == "") && isempty(tagsOf(nameA)) && isempty(app.TagDialog), ...
+        'the Project table has a read-only, sortable Tags column before DatasetIdx, empty before any tag');
+    check(isequal(app.TagsButton.BackgroundColor, app.ScanButton.BackgroundColor) && app.TagsButton.Text == "Tags..." ...
+        && isequal(app.TagFilterDropDown.Items, {'(any)'}), 'Tags... is a primary (colored) button; the tag filter lists no tags yet');
+
+    % A click on a Tags cell: that dataset alone, made active (single mode).
+    cfg0 = app.Config.toStruct(); title0 = string(app.Fig.Name);
+    click(find(T.Name == nameB), find(strcmp(T.Properties.VariableNames, 'Name')));
+    check(isempty(app.TagDialog), 'a click on another column opens no tag dialog');
+    click(find(T.Name == nameB), tagsCol);
+    dlg = app.TagDialog;
+    check(isa(dlg, 'TagDialog') && isvalid(dlg.Fig) && dlg.Mode == "set" && app.SelectedDatasetIdx == iOf(nameB), ...
+        'a click on a Tags cell makes its dataset active and opens the dialog on it alone');
+    app.onEditTags(iOf(nameA));
+    check(app.TagDialog == dlg, 'a second dialog is refused while one is open');
+    dlg.addTyped("Pilot , draft");
+    dlg.ok();
+    check(~isvalid(dlg.Fig) && isequal(tagsOf(nameB), {'draft', 'pilot'}) && isequal(fileTags(nameB), {'draft', 'pilot'}) ...
+        && cellOf(nameB) == "draft, pilot" && isempty(tagsOf(nameA)) ...
+        && contains(app.StatusBar.Text, "Tagged " + nameB + ": draft, pilot."), ...
+        'OK stores the set, writes the manifest and updates the cell');
+    check(isequaln(app.Config.toStruct(), cfg0) && string(app.Fig.Name) == title0, 'a tag edit does not mark the config unsaved');
+    app.DatasetTagsItem.MenuSelectedFcn(app.DatasetTagsItem, []);
+    dlg = app.TagDialog;
+    check(dlg.Mode == "set" && isequal(dlg.Pending, {'draft', 'pilot'}), ...
+        'Dataset > Tags... with nothing ticked edits the active dataset');
+    dlg.cancel();
+
+    % Tags... on two ticked datasets: bulk mode.
+    app.onSelectDatasets("all");
+    cfg0 = app.Config.toStruct(); title0 = string(app.Fig.Name);
+    app.TagsButton.ButtonPushedFcn(app.TagsButton, []);
+    dlg = app.TagDialog;
+    check(isvalid(dlg.Fig) && dlg.Mode == "add" && dlg.Policy == "all", 'Tags... with two rows ticked opens bulk mode');
+    dlg.addTyped("shared");
+    dlg.ok();
+    check(isequal(tagsOf(nameA), {'shared'}) && isequal(fileTags(nameB), {'draft', 'pilot', 'shared'}) ...
+        && cellOf(nameA) == "shared" && contains(app.StatusBar.Text, "Tagged 2 datasets: added shared.") ...
+        && isequaln(app.Config.toStruct(), cfg0) && string(app.Fig.Name) == title0, ...
+        'Add reaches both ticked datasets and their manifests; the config stays as it was');
+
+    % recA full (12 tags): Add over the limit, policy "all" then "skip".
+    dsA = dsOf(nameA);
+    dsA.Tags = [{'shared'}, cellstr("t" + compose("%02d", (1:11)'))'];
+    dsA.writeManifest();
+    full = dsA.Tags;
+    app.TagsButton.ButtonPushedFcn(app.TagsButton, []);
+    dlg = app.TagDialog;
+    dlg.addTyped("extra");
+    dlg.ok();
+    check(isvalid(dlg.Fig) && contains(dlg.ErrorText, nameA) && contains(dlg.ErrorText, "13 tags, 1 over the limit of 12") ...
+        && isequal(fileTags(nameB), {'draft', 'pilot', 'shared'}) && isequal(fileTags(nameA), full), ...
+        'policy "all": a dataset over the limit cancels the whole edit, nothing is written');
+    dlg.setPolicy("skip");
+    dlg.ok();
+    check(isvalid(dlg.Fig) && dlg.OKText == "Apply to 1", 'policy "skip" first lists the dataset it will leave out');
+    dlg.ok();
+    check(isequal(fileTags(nameB), {'draft', 'extra', 'pilot', 'shared'}) && isequal(fileTags(nameA), full) ...
+        && contains(app.StatusBar.Text, "Added extra to 1 of 2 datasets; skipped 1 over the tag limit.") ...
+        && contains(app.StatusHint.Text, nameA + " (13 tags, 1 over the limit of 12)") && app.TagPolicy == "skip", ...
+        'then writes the other; the status names the skipped dataset and why; the policy is remembered');
+    app.onEditTags();
+    dlg = app.TagDialog;
+    check(dlg.Policy == "skip", 'the next dialog starts from the policy last chosen');
+    dlg.setMode("remove");
+    dlg.pick({'extra'});
+    dlg.ok();
+    check(isequal(fileTags(nameB), {'draft', 'pilot', 'shared'}) && isequal(tagsOf(nameA), full) ...
+        && contains(app.StatusBar.Text, "Removed extra from 2 datasets."), 'Remove from all takes a tag off every ticked dataset');
+
+    % The filter: the tags in use, any / all of them AND the search.
+    filt = @(v, mode, search) setFilter(app, v, mode, search);
+    shownNames = @() sort(app.DatasetsTable.Data.Name).';
+    check(isequal(app.TagFilterDropDown.Items, [{'(any)'}, TagSet.union(full, {'draft', 'pilot'})]), ...
+        'the filter lists every tag in use');
+    filt('pilot', 'any', '');
+    check(isequal(shownNames(), nameB) && isequal(app.HiddenSelectedKeys, app.Project.datasetKey(iOf(nameA))) ...
+        && isequal(app.tickedDatasetIndices(), sort([iOf(nameA) iOf(nameB)])) ...
+        && contains(app.NameTokenStatusLabel.Text, "showing 1 of 2 (1 ticked hidden)"), ...
+        'a tag hides the datasets without it; their ticks survive');
+    filt('pilot, t01', 'any', '');
+    n1 = numel(shownNames());
+    filt('pilot, t01', 'all', '');
+    n2 = height(app.DatasetsTable.Data);
+    filt('shared, pilot', 'all', '');
+    check(n1 == 2 && n2 == 0 && isequal(shownNames(), nameB), 'any of / all of the tags typed');
+    filt('Bad tag!', 'any', '');
+    check(height(app.DatasetsTable.Data) == 0, 'a typed term that is no valid tag matches nothing');
+    filt('(any)', 'any', 'T0');
+    check(isequal(shownNames(), nameA), 'the search keeps the datasets with a tag containing the text (ignoring case)');
+    filt('shared', 'all', 'pil');
+    check(isequal(shownNames(), nameB), 'the tags and the search are AND-combined');
+    filt('(any)', 'any', '');
+    check(height(app.DatasetsTable.Data) == 2 && isempty(app.HiddenSelectedKeys) && all(app.DatasetsTable.Data.Select) ...
+        && ~contains(app.NameTokenStatusLabel.Text, "showing"), 'an empty filter shows every dataset, ticks back');
+
+    % The column sorts; a rescan keeps the tags.
+    app.TableSorts.Datasets = struct('column', "Tags", 'direction', "descend");
+    app.refreshDatasetsTable();
+    check(isequal(app.DatasetsTable.Data.Tags, sort(app.DatasetsTable.Data.Tags, 'descend')), 'a sort on Tags orders the rows');
+    app.clearTableSort("Datasets");
+    app.onScan();
+    check(isequal(tagsOf(nameA), full) && isequal(tagsOf(nameB), {'draft', 'pilot', 'shared'}) ...
+        && cellOf(nameB) == "draft, pilot, shared", 'a rescan keeps the tags');
+
+    % Back to the fixture: one dataset, no tags, nothing ticked.
+    app.onSelectDatasets("none");
+    for name = [nameA nameB]
+        dd = dsOf(name); dd.Tags = {}; dd.writeManifest();
+    end
+    app.TagPolicy = "all";
+    rmdir(fB, 's');
+    app.onScan();
+    app.selectDataset(1);
+    check(app.Project.NumDatasets == 1 && all(app.DatasetsTable.Data.Tags == ""), 'the second recording removed again');
 end
 
 if S.sec("3b1", "Project tab: source settings (Open Ephys, TDT)")
@@ -3542,6 +3676,22 @@ function clickTool(app, tag)
 %clickTool  Run the toolbar tool TAG's callback as a click would.
 t = findobj(app.Toolbar.Children, 'flat', 'Tag', tag);
 t.ClickedCallback(t, []);
+end
+
+
+function t = manifestTags(d)
+%manifestTags  The tags in dataset D's manifest file, as a tag set.
+m = readJsonFile(d.manifestFile());
+t = TagSet.canon(m.tags);
+end
+
+
+function setFilter(app, value, mode, search)
+%setFilter  Set the Project table's tag filter as the user would, then apply it.
+app.TagFilterDropDown.Value = value;
+app.TagFilterModeDropDown.Value = mode;
+app.TagSearchField.Value = search;
+app.refreshDatasetsTable();
 end
 
 

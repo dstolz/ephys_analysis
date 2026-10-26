@@ -29,9 +29,9 @@ else
     end
 end
 
-% New items land below "All datasets" and "View manifest...": move those
-% back to the bottom (Children lists the menu bottom-up).
-obj.DatasetMenu.Children = [obj.DatasetManifestItem; obj.DatasetAllMenu; flipud(obj.DatasetTickedItems(:))];
+% New items land below "All datasets", "View manifest..." and "Tags...": move
+% those back to the bottom (Children lists the menu bottom-up).
+obj.DatasetMenu.Children = [obj.DatasetTagsItem; obj.DatasetManifestItem; obj.DatasetAllMenu; flipud(obj.DatasetTickedItems(:))];
 
 obj.refreshDatasetPickers();
 obj.syncToolsPanel();

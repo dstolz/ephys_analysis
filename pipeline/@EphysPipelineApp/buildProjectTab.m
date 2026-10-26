@@ -1,6 +1,7 @@
 function buildProjectTab(obj)
 %buildProjectTab  Config name, project root / output root, name pattern,
-%   dataset table, selection helpers, the Tools panel beside the table (the
+%   dataset table, selection helpers, the dataset tags (Tags..., a click on
+%   a Tags cell: onEditTags; the tag filter), the Tools panel beside the table (the
 %   datasets in the manifest viewer, the analysis app, phy or the file
 %   browser), the Source settings panel under it (the reader options of the
 %   active dataset's recording system: Open Ephys, TDT; see
@@ -87,10 +88,10 @@ obj.NameTokenStatusLabel = uilabel(top, "Text", "", "FontColor", [0.4 0.4 0.4]);
 obj.NameTokenStatusLabel.Layout.Row = 4; obj.NameTokenStatusLabel.Layout.Column = 8;
 
 % --- row 2: table toolbar ----------------------------------------------------
-tb = uigridlayout(g, [1 5]);
+tb = uigridlayout(g, [1 7]);
 tb.Layout.Row = 2;
 tb.RowHeight   = {30};
-tb.ColumnWidth = {'fit', 60, 60, 'fit', '1x'};
+tb.ColumnWidth = {'fit', 60, 60, 80, 'fit', 'fit', '1x'};
 tb.Padding     = [0 0 0 0];
 lbl = uilabel(tb, "Text", "Datasets", "FontWeight", "bold");
 lbl.Layout.Column = 1;
@@ -100,15 +101,38 @@ obj.SelectAllButton.Layout.Column = 2;
 obj.SelectNoneButton = uibutton(tb, "Text", "None", "Tooltip", "Untick every dataset, shown or filtered out (= run all)", ...
     "ButtonPushedFcn", @(~,~) obj.onSelectDatasets("none"));
 obj.SelectNoneButton.Layout.Column = 3;
+% Tags...: the ticked datasets' tags (bulk when two or more), else the active one's.
+obj.TagsButton = uibutton(tb, "Text", "Tags...", ...
+    "Tooltip", "Tag the ticked datasets (the active one when none is ticked). A click on a Tags cell tags that dataset.", ...
+    "ButtonPushedFcn", @(~,~) obj.onEditTags());
+obj.TagsButton.Layout.Column = 4;
 % One filter dropdown per name-pattern token (see syncTokenFilters).
 obj.NameTokenFilterGrid = uigridlayout(tb, [1 1]);
-obj.NameTokenFilterGrid.Layout.Column = 4;
+obj.NameTokenFilterGrid.Layout.Column = 5;
 obj.NameTokenFilterGrid.RowHeight = {'fit'};
 obj.NameTokenFilterGrid.ColumnWidth = {'fit'};
 obj.NameTokenFilterGrid.Padding   = [12 0 0 0];
+% The tag filter: tags picked or typed (any / all of them) AND a search over
+% the tags; refreshDatasetsTable applies it and lists the tags in use.
+tf = uigridlayout(tb, [1 4]);
+tf.Layout.Column = 6;
+tf.RowHeight   = {'fit'};
+tf.ColumnWidth = {'fit', 140, 70, 110};
+tf.Padding     = [12 0 0 0];
+uilabel(tf, "Text", "Tags:", "Tooltip", ...
+    "Show only datasets with these tags (any or all of them) and a tag containing the search text.");
+obj.TagFilterDropDown = uidropdown(tf, "Items", {'(any)'}, "Editable", "on", "Value", '(any)', ...
+    "Tooltip", "Filter by tag: pick one, or type several separated by commas. A term that is no tag in use matches nothing.", ...
+    "ValueChangedFcn", @(~,~) obj.refreshDatasetsTable());
+obj.TagFilterModeDropDown = uidropdown(tf, "Items", {'any of', 'all of'}, "ItemsData", {'any', 'all'}, ...
+    "Value", 'any', "Tooltip", "any of: a dataset with at least one of the tags; all of: with every one", ...
+    "ValueChangedFcn", @(~,~) obj.refreshDatasetsTable());
+obj.TagSearchField = uieditfield(tf, "text", "Placeholder", "search tags", ...
+    "Tooltip", "Show only datasets with a tag containing this text (ignoring case).", ...
+    "ValueChangedFcn", @(~,~) obj.refreshDatasetsTable());
 obj.ScanStatusLabel = uilabel(tb, "Text", "No datasets scanned yet.", "FontColor", [0.4 0.4 0.4], ...
     "HorizontalAlignment", "right");
-obj.ScanStatusLabel.Layout.Column = 5;
+obj.ScanStatusLabel.Layout.Column = 7;
 
 % --- row 3: datasets table, and the Tools panel beside it --------------------
 % Columns (headers, widths, the trailing hidden "DatasetIdx" that maps a row
@@ -125,6 +149,8 @@ obj.DatasetsTable.Layout.Row = 1; obj.DatasetsTable.Layout.Column = 1;
 buildToolsPanel(obj, mid);
 % Clicking a row makes its dataset the active one (highlighted; see selectDataset).
 obj.DatasetsTable.CellSelectionCallback = @(~,evt) obj.onDatasetCellSelection(evt);
+% Every click (a cell selected already too): one on a Tags cell opens the tag dialog.
+obj.DatasetsTable.ClickedFcn = @(~,evt) obj.onDatasetsTableClicked(evt);
 % Select is the only editable column: a tick changes the selection and the Dataset menu.
 obj.DatasetsTable.CellEditCallback = @(~,~) ticksEdited(obj);
 obj.DatasetsTable.DisplayDataChangedFcn = @(~, evt) obj.onTableSorted("Datasets", evt);

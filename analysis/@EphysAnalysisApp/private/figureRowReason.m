@@ -4,6 +4,7 @@ function why = figureRowReason(label, key, type)
 %   listed, KEY its first formRow key (syncFigureEditor's names), TYPE the
 %   selected panel's type ("" = none). The reasons follow what
 %   syncFigureEditor shows: the Observations rows by the data observed,
+%   the First-spike latency rows by the figure's panels and the method,
 %   the Sessions rows by Across sessions, the selected panel's rows, the
 %   picked layer's by its source and binding, the Options rows by the
 %   panel's type (an option of the selected type that is still hidden says
@@ -57,6 +58,14 @@ switch key
         tail = "shows once Across sessions is ticked (Sessions).";
     case "sesKeys"
         tail = "shows with Across sessions ticked and Datasets: These datasets.";
+    case {"latNote" "latMethod" "latFrom" "latBaseline" "latCusum" "latCusumSD"}
+        tail = "is the figure's first-spike latency: it shows while the figure has a raster, PSTH or heat map panel.";
+    case "latRate"
+        tail = "is for the Poisson methods: pick Poisson surprise or Baseline Poisson count as the Method (First-spike latency).";
+    case "latSurprise"
+        tail = "is for the Poisson surprise method: pick it as the Method (First-spike latency).";
+    case "latAlpha"
+        tail = "is for the Baseline Poisson count method: pick it as the Method (First-spike latency).";
     case "sesMatch"
         tail = "is for a figure of units drawn across sessions.";
     case "sesMappingFile"
@@ -150,6 +159,7 @@ T.tickWidth = T.yTicks;
 T.backColor = T.yTicks;
 T.firstSpike = T.yTicks;
 T.latencyBox = o("psth", "with Display: trace");
+T.onsetLine = o(["raster" "psth"], "");
 T.trialCount = o("psth", "");
 T.heatRows = o("heatmap", "");
 for f = ["contTrials" "statistic" "errorType"]; T.(f) = o("continuous", ""); end

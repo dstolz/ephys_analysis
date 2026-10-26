@@ -25,6 +25,12 @@ function syncFigureEditor(obj)
 %                    one takes the axis sides)
 %     Event reference, Epoch window, Trial selection   unless every panel
 %                    of the figure is one not aligned to events
+%     First-spike latency   while the figure has a raster, PSTH or heat
+%                    map panel: a note naming the panels that read it,
+%                    Method, Detect, Baseline (its window's fields enabled
+%                    with "Window"), the onset's rows; Baseline rate with a
+%                    Poisson method, Burst with "surprise", Alpha with
+%                    "poisson"
 %     Layers         the picked layer's rows by its source and binding:
 %                    what a following layer draws; a fixed spike layer's
 %                    unit rows, a fixed signal layer's channels, the
@@ -180,6 +186,20 @@ v.sesNote = ses;
 en([E.sesShowMembers E.sesError], string(E.sesSeries.Value) ~= "session");
 v.obsPerGroup = ~ses;   % a session figure's trial groups follow its Trial groups
 E.sesNote.Text = sessionNote(fig, kind);
+% the first-spike latency: the figure's block, while it has a panel that can read it (a raster, PSTH or heat map); the
+% rate with a Poisson method, the burst's rows with "surprise", alpha with "poisson"; the baseline window's fields with
+% "Window"
+types0 = strings(1, 0);
+if np > 0; types0 = [fig.panels.type]; end
+latOn = any(ismember(types0, ["raster" "psth" "heatmap"]));
+method = string(E.latMethod.Value);
+v.latNote = latOn; v.latMethod = latOn; v.latFrom = latOn; v.latBaseline = latOn;
+v.latRate = latOn && method ~= "first";
+v.latSurprise = latOn && method == "surprise";
+v.latAlpha = latOn && method == "poisson";
+v.latCusum = latOn; v.latCusumSD = latOn;
+en([E.latBaseFrom E.latBaseTo], string(E.latBaseline.Value) == "window");
+E.latNote.Text = latencyNote(fig);
 % arrangement and panel
 v.selPanel = hasPanel; v.noPanel = ~hasPanel;
 v.rowSpan = hasPanel; v.colSpan = hasPanel; v.rowHeight = hasPanel; v.colWidth = hasPanel; v.panelButtons = hasPanel;
@@ -193,7 +213,7 @@ layerKeys = ["layerList" "layerAdd" "layerNote" "layerName" "layerSource" "layer
     "layerIds" "layerQuality" "layerMaxUnits" "layerShanks" "layerUnitChannels" "layerChannels" "layerAggregate" "evLine" ...
     "evEdge" "evSeqText" "evDrawAs" "evMarker" "evColor" "evSpanStyle" "layerColor" "layerLineStyle"];
 optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort" "sortLine" "sortSeqText" "rasterByGroup" "yTicks" "tickColor" "tickWidth" "backColor" ...
-    "firstSpike" "latencyBox" "trialCount" ...
+    "firstSpike" "latencyBox" "onsetLine" "trialCount" ...
     "maskAfterStop" "psthDisplay" "histStyle" "fill" "normalize" "statistic" "errorType" "order" ...
     "value" "metric" "correlation" "fisherZ" "yLim" "cLim" "panelColormap" ...
     "optApplyAll" "auMethod" "auWinMs" "auModFrom" "auCutoff" "auTest" "auMarks" "stack" "param" "rateDisplay" "waveLayout" ...
@@ -300,6 +320,7 @@ if hasPanel
     v.yTicks = t == "raster"; v.tickColor = v.yTicks; v.tickWidth = v.yTicks; v.backColor = v.yTicks;
     v.firstSpike = t == "raster";
     v.latencyBox = t == "psth" && ~psthHeat;
+    v.onsetLine = ismember(t, ["raster" "psth"]);
     v.trialCount = t == "psth";
     v.heatRows = t == "heatmap";
     v.contTrials = t == "continuous";
@@ -477,6 +498,8 @@ for i = 1:numel(S)
             S(i).Visible = hasPanel && waveSpiky;
         case {"ref" "window" "selection"}
             S(i).Visible = np == 0 || any(aligned);
+        case "latency"
+            S(i).Visible = latOn;
         otherwise
             S(i).Visible = true;
     end
@@ -518,6 +541,36 @@ group = members{cellfun(@(m) any(m == k), members)};
 i = find(group == k);
 up = i > 1;
 down = i < numel(group);
+end
+
+
+function s = latencyNote(fig)
+%latencyNote  The First-spike latency section's note: one block for the figure, and the panels that read it (and what for).
+parts = strings(1, 0);
+for q = 1:numel(fig.panels)
+    p = fig.panels(q);
+    o = p.options;
+    what = strings(1, 0);
+    sortLat = isfield(o, 'rasterSort') && o.rasterSort == "latency";
+    switch p.type
+        case "raster"
+            if o.firstSpike.enabled; what(end+1) = "marks"; end %#ok<AGROW>
+            if sortLat; what(end+1) = "sort"; end %#ok<AGROW>
+        case "psth"
+            if o.latencyBox.enabled && o.display ~= "heatmap"; what(end+1) = "box plot"; end %#ok<AGROW>
+        case "heatmap"
+            if o.rows == "trials" && sortLat; what(end+1) = "sort"; end %#ok<AGROW>
+    end
+    if isfield(o, 'onsetLine') && o.onsetLine ~= "off"; what(end+1) = "onset line"; end %#ok<AGROW>
+    if ~isempty(what); parts(end+1) = p.id + " (" + strjoin(what, ", ") + ")"; end %#ok<AGROW>
+end
+s = "One block for the whole figure, found once per unit and alignment: ";
+if isempty(parts)
+    s = s + "no panel reads it yet (a raster's First spike marks or Sort rows by latency, a PSTH's Latency box, a " + ...
+        "heat map of trials sorted by latency, an Onset line).";
+else
+    s = s + "read by " + strjoin(parts, ", ") + ".";
+end
 end
 
 

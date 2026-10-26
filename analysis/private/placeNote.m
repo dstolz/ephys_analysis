@@ -22,7 +22,7 @@ t = N.text;
 if isempty(t) || ~isgraphics(t); return; end
 if note.box
     t.EdgeColor = t.Color;
-    t.LineWidth = 0.75;
+    t.LineWidth = 0.75 * PlotAesthetics.drawScale(t);   % (a drawing shown at a scale: renderFigure Scale=)
 end
 place = string(note.placement);
 if isempty(N.host)
@@ -37,7 +37,7 @@ t.Units = 'points';
 ext = t.Extent;
 t.Units = 'data';
 [W, H] = sizeOf(host);
-pad = 6;
+pad = 6 * PlotAesthetics.drawScale(t);
 bw = ext(3) / W;      % the text's width and height, and the gap round it, as shares of the host
 bh = ext(4) / H;
 px = pad / W;

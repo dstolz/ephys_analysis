@@ -145,9 +145,16 @@ function test_EphysAnalysisFigures(opts)
 %   Export size taller for the rows, an own size in px at the dpi, in and cm),
 %   figureSizeConvert, the suggestions and typed sizes (figureSizeParse,
 %   figureSizeText), validate's size rules and a JSON round trip.
+%   Scale (14), on the "clean" fixture: a raster + PSTH (a boxed note
+%   below, an overlay) and a tuning curve drawn at Scale 1.5 into a panel
+%   1.5 times the export page: every size of every part (fonts, lines,
+%   markers, caps, the labels' fonts) 1.5 times the export's, the plot
+%   areas in the same proportion to the page; the scale kept on the root
+%   (PlotAesthetics.drawScale), getValue and setValue speaking of the
+%   exported sizes; Reuse at a scale the same as a whole drawing.
 %
 %   The sections run on their own after the setup (TestSections): 1-6, 12 and 13 need
-%   no data, 7, 9 and 11 build the "clean" fixture once (fixtureA), 8 needs
+%   no data, 7, 9, 11 and 14 build the "clean" fixture once (fixtureA), 8 needs
 %   7's results (declared), 10 builds its own two-dataset fixture.
 %
 %   Usage:  test_EphysAnalysisFigures
@@ -4575,6 +4582,81 @@ if S.sec("13", "figure size: the page a figure is exported on (figureExportSize,
     check(any([pk.path] == "size.source") && any([pk.path] == "size.width"), 'a size edit is a change another figure can take (Apply to figures)');
 end
 
+%% ============================================================================ scale
+if S.sec("14", "render at a scale: the preview in proportion to the export page (renderFigure Scale, PlotAesthetics.drawScale)")
+    fixtureA();
+    cs = EphysAnalysisConfig();
+    cs.Source.Root = FX.proj;
+    cs.Defaults.EventRef.line = "Stim";
+    cs.Defaults.Window = struct('mode', "fixed", 'pre', -0.2, 'post', 0.8, 'stop', []);
+    cs = cs.addFigure("rasterPsth", Id="z_rp");
+    nt = EphysAnalysisConfig.defaults("Note");
+    nt.text = "n = 12"; nt.placement = "below"; nt.box = true;
+    cs.Figures(1).panels(2).note = nt;
+    ov = EphysAnalysisConfig.defaults("Overlay");
+    ov.value = 0.1;
+    cs.Figures(1).panels(2).overlays = ov;
+    cs = cs.addFigure("tuning", Id="z_tu");
+    cs.Figures(2).panels(1).options.param = "Depth";
+    rz = EphysAnalysisRunner(cs, LogFcn=[]);
+    srcZ = rz.source(1);
+    sc = 1.5;
+    uz = uifigure('Visible', 'off', 'Position', [50 50 1100 760]);
+    closeUz = onCleanup(@() delete(uz));
+    for id = ["z_rp" "z_tu"]
+        spZ = cs.figureFor(id);
+        Tz = figureObservations(srcZ, spZ);
+        Fz = rz.computeFigure(srcZ, spZ, Observation=Tz(1, :));
+        fz = newExportFigure(cs.Export, Fz, spZ);
+        hE = renderFigure(Fz, spZ, fz);
+        pg = getpixelposition(fz);
+        delete(uz.Children);
+        pz = uipanel(uz, 'Units', 'pixels', 'Position', [1 1 round(sc * pg(3:4))], 'BorderType', 'none');
+        hP = renderFigure(Fz, spZ, pz, Scale=sc);
+        E = drawnSizes(fz);
+        V = drawnSizes(pz);
+        k = 1 + (V.prop == "SizeData");
+        same = height(E) == height(V) && all(E.key == V.key) && all(E.prop == V.prop);
+        dev = Inf;
+        worst = "the parts differ";
+        if same
+            [dev, iw] = max(abs(V.val ./ (E.val .* sc .^ k) - 1));
+            worst = sprintf('%s %s %g vs %g', V.key(iw), V.prop(iw), V.val(iw), E.val(iw));
+        end
+        wE = hE.panels(1).axes.InnerPosition(3) / pg(3);
+        wP = hP.panels(1).axes.InnerPosition(3) / (sc * pg(3));
+        check(same && dev < 1e-6 && abs(wP / wE - 1) < 0.02, ...
+            sprintf(['%s at Scale %g: every size of its %d parts %g times the export''s (largest deviation %.2g: %s; fonts, lines, ' ...
+            'markers, caps, labels), the first plot area %.3f of the page''s width vs %.3f exported'], ...
+            id, sc, height(E), sc, dev, worst, wP, wE));
+        if id == "z_rp"
+            ax = hP.panels(2).axes;
+            lw = ax.LineWidth;
+            v0 = PlotAesthetics.getValue(ax, "LineWidth");
+            PlotAesthetics.setValue(ax, "LineWidth", 1);
+            check(PlotAesthetics.drawScale(pz) == sc && PlotAesthetics.drawScale(ax) == sc && abs(v0 - lw / sc) < 1e-6 ...
+                && abs(ax.LineWidth - sc) < 1e-9 && PlotAesthetics.drawScale(fz) == 1, ...
+                'the root keeps the scale; getValue gives a size as exported, setValue takes one so (1 pt is drawn 1.5 pt); an export has scale 1');
+            renderFigure(Fz, spZ, pz, Reuse=true, Scale=sc);
+            s2 = spZ;
+            s2.panels(2).options.histStyle = "line";
+            renderFigure(Fz, s2, pz, Reuse=true, Scale=sc);
+            pw = uipanel(uz, 'Units', 'pixels', 'Position', pz.Position, 'BorderType', 'none', 'Visible', 'off');
+            renderFigure(Fz, s2, pw, Scale=sc);
+            drawnow;
+            [sameR, whyR] = sameDrawing(pz, pw);
+            Ra = drawnSizes(pz);
+            Rb = drawnSizes(pw);
+            sizesR = height(Ra) == height(Rb) && all(Ra.key == Rb.key) && all(Ra.prop == Rb.prop) && all(abs(Ra.val - Rb.val) <= 1e-9 * Rb.val);
+            check(sameR && sizesR, ...
+                sprintf('Reuse at a scale: the kept raster is not scaled twice, the drawing the same as a whole one (%s)', whyR));
+            renderFigure(Fz, spZ, pz);
+            check(PlotAesthetics.drawScale(pz) == 1, 'drawn again at Scale 1, the root keeps no scale');
+        end
+        close(fz);
+    end
+end
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisFigures:Failures', '%d checks failed.', nFail);
@@ -4587,6 +4669,32 @@ function P = noCreated(P)
 for j = 1:numel(P.layers)
     if isstruct(P.layers(j).R) && isfield(P.layers(j).R, 'created'); P.layers(j).R = rmfield(P.layers(j).R, 'created'); end
 end
+end
+
+
+function T = drawnSizes(root)
+%drawnSizes  Every size a scale multiplies (PlotAesthetics.SizeProps) of the parts renderFigure tagged in ROOT, its panels' axes and their labels: key, prop, val, sorted.
+%   The hidden hosts of the title and of a note band (their own font shows
+%   nothing) are left out; a vector (a legend's ItemTokenSize) gives its first value.
+key = strings(0, 1); prop = strings(0, 1); val = zeros(0, 1);
+for o = reshape(findall(root), 1, [])
+    if ~startsWith(class(o), "matlab.graphics.") || o.Tag == "" || ismember(o.Tag, ["titleHost" "noteHost"]); continue; end
+    parts = {o, string(class(o)) + ":" + o.Tag};
+    if isa(o, 'matlab.graphics.axis.Axes')
+        parts = [parts; {o.XLabel, o.Tag + ":xlabel"; o.YLabel, o.Tag + ":ylabel"; o.Title, o.Tag + ":title"}]; %#ok<AGROW>
+    end
+    for i = 1:size(parts, 1)
+        for p = PlotAesthetics.SizeProps
+            if ~isprop(parts{i, 1}, p); continue; end
+            v = double(get(parts{i, 1}, p));
+            if isempty(v); continue; end
+            key(end+1, 1) = parts{i, 2}; %#ok<AGROW>
+            prop(end+1, 1) = p; %#ok<AGROW>
+            val(end+1, 1) = v(1); %#ok<AGROW>
+        end
+    end
+end
+T = sortrows(table(key, prop, val), {'key', 'prop', 'val'});
 end
 
 

@@ -136,7 +136,7 @@ active dataset.
 | **Name pattern** | dataset-name tokens, as in the pipeline config | `Source.NamePattern` |
 | Open Ephys drop-down | *join recordings*, *one dataset per recording* or *single recording*: what an Open Ephys session with several recordings is, as in the pipeline config's `Acquisition.OpenEphys.Recordings` | `Source.Recordings` |
 | **Output folders**, **Add...** | one dataset output folder per line (folders mode), for a machine that holds only the processed files | `Source.Folders` |
-| **Scan** | builds a new runner, which finds the datasets (and holds the data it loads) | |
+| **Scan** | builds a new runner, which finds the datasets (and holds the data it loads). A modal dialog shows it after startup (the splash does at startup): the root, dataset i of n and the time left, then the favorites, the notes and the first dataset. **Cancel** stops it while the datasets are read; the old list stays | |
 
 Match the project settings to the pipeline config that wrote the outputs,
 or the datasets' files are not found. Opening the app from the pipeline app

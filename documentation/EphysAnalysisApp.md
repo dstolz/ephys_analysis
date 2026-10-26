@@ -888,6 +888,8 @@ only that unit's spikes or that channel's column are read) and
 | **Preview** | (**Ctrl+P**) computes now, also for a signal extract above `PreviewMaxMB`, which otherwise waits for it. It is the button at the top left, heading a column of buttons (**Preview**, **Redraw All**, **Test report**, **Auto**, **<** **>**) left of **Dataset**, **Observation** and **Favorites**, and turns orange while the figure is *Out of date* |
 | **Auto** | (**Ctrl+T**) redraw after every edit while a preview takes under 2 s; a slower one says so (*"slow, so edits wait for Preview"*). On by default, because one observation is quick; remembered. It does not apply to a figure across sessions, which computes every session: an edit leaves its preview *Out of date* until **Preview** (or a pick in the observation list) draws it. The first figure drawn after the app starts is not timed, since it also loads the graphics, so that warm-up does not make the edits after it wait. The 2 s is the app's `FigureAutoPreviewSeconds` property (a public property, not a preference; set it on the app object before editing, for example to `Inf` to redraw however long a preview takes, which the app's tests do so a loaded machine cannot leave a preview out of date) |
 | **Design:** | the look every figure is drawn in (Default, Tufte, Journal, Night, Talk, Gray panel, and yours; the Design menu offers the same): picking one redraws the preview, and every other figure on screen, at once; runs draw their figures in it. It sits right of the **Dataset** drop-down, with **Save look as design...** under it, right of **Observation** |
+| **Template:** | the row above the preview: your figure templates ([Figure templates](#figure-templates)). The list (read again each time it opens; its tooltip gives the picked template's description, its shape -- *2 x 1: raster, psth; observes units* --, when it was saved and what reading it reported; *(!)* after a name that reported something; right-click it for **Open my templates folder**, **Keep my templates in...** and the template issue and feature items), then **Apply...** (green: into the figures you tick, or as a new figure), **Save as...** (the figure shown as a new template), **Update** (the template picked made again from the figure shown, after asking), **Remove** (red, after asking), **Import...**, **Export...** and **Report issue** (a GitHub issue about templates, prefilled). Apply, Update, Remove and Export are off with no template |
+| **Apply last change...** | at the right of the template row, in the same colors as **Preview**: **Edit → Apply last change to figures...** (**Ctrl+Shift+A**) as a button ([Apply a change to other figures](#apply-a-change-to-other-figures)). On and off with the menu item (with Undo), its tooltip naming the edit it would give (*Apply last change to figures: Font size (Ctrl+Shift+A)*), as the Undo tool's names its step |
 | **Save look as design...** | keeps the preview's look -- every property of every component, its ground and its group colors -- as a design of yours, and picks it. The look is read per panel type, from the panels as the preview drew them (not the config, which may have changed since): the rules of a heat map, probe map, unit correlation or spectrogram panel's tile (those axes are drawn their own way) go under the design's `kinds` for that panel type, and those of the figure's other panels are common rules (the same attribution as the preview's right-click **Save this look as a design...**). It saves nothing while the preview is *Out of date* (the status bar says *Preview first: the drawing is out of date*) |
 
 **The selected panel** is outlined in the preview: a blue frame, 3 px wide,
@@ -1236,7 +1238,8 @@ event reference, window or selection given to a figure (or panel) that uses
 the Defaults' (or its figure's) makes it its own, the one it used with that
 field changed, as editing the row in that figure would.
 
-**Edit → Apply last change to figures...** (**Ctrl+Shift+A**) opens the same
+**Edit → Apply last change to figures...** (**Ctrl+Shift+A**), or the
+**Apply last change...** button above the preview, opens the same
 window for the last edit of the figures, so you can decide after the edit,
 for a value typed in a field, or to give an edit already applied to more
 figures (an Apply is skipped back over to the edit it gave). It says so on
@@ -1293,6 +1296,92 @@ figures ticked are ticked again.
 `figureSettingParts`), `analysis/copyFigureSettings` copies them over Apply
 to figures' `changeTargets` and `applyChanges`, and
 `analysis/figureLookToDesign` puts a figure's look into a design.
+
+#### Figure templates
+
+A *figure template* is a figure's settings kept under a name of yours, to give
+to other figures, in this config or another: what it observes, its event
+reference, epoch window and trial selection, its page size, the grid with every
+panel (type, place, size, options, own alignment, layers, text note, overlays,
+waveform), the spacing, the Appearance, the looks remembered from the preview
+and the Sessions settings. It leaves out what makes a figure that figure: its id
+(and whether the id is automatic), its title and whether it is enabled. An
+event reference, window or selection the figure takes from the Defaults stays
+*default* in the template, so a figure it is applied to takes its own config's.
+
+The controls are the **Template:** row above the preview.
+
+| Control | What it does |
+| --- | --- |
+| the list | your templates, by name; pick the one the buttons act on |
+| **Save as...** | asks for a name (the figure's id is offered) and a description, and keeps the figure shown as a template. A template of yours with that name is replaced only if you agree |
+| **Apply...** | opens **Apply figure template**: every figure of the config with a box (the figure shown ticked; **All**, **None**), the parts of a figure's settings with a box each (*Observations*, *Alignment*, *Arrangement and panels*, *Panel settings*, *Appearance*, *Remembered looks*, *Across sessions*; all ticked: untick a part to keep the figures' own), and **Also add it as a new figure** (ticked when the config has none). **Apply** copies the template into the figures ticked as one step of the undo history (**Undo Apply template Unit card to 3 figures**) |
+| **Update** | makes the template picked again from the figure shown (its description kept), after asking. The figures it was applied to keep their settings until you apply it to them again |
+| **Remove** | deletes the template picked, after asking; the figures it was applied to keep their settings |
+| **Export...**, **Import...** | Export writes the template picked to a `.json` file you name, to share it; Import copies one or more template files into your templates folder (asking before replacing one of yours of the same name), named by the name inside the file |
+| **Report issue** | the [issue window](#reporting-an-issue), titled *Figure templates:*, with the system info, the template picked (its file) and the Log tab to send. **Help → Request a figure template feature...** (or the list's right-click menu) asks for what templates do not do yet |
+
+**Applying copies once.** A template is not linked to the figures it was
+applied to: changing or removing it later changes no figure. To give figures a
+template's new settings, apply it to them again; ticking them all in the window
+does that at once. Each figure keeps its id (an automatic one follows its new
+panels), title and enabled. The parts copy as **Copy settings...** copies them
+([Copy settings to other figures or a design](#copy-settings-to-other-figures-or-a-design)):
+*Arrangement and panels* gives the template's grid with every panel, and
+*Panel settings* alone gives each panel's settings to the panels of the figure
+that take them, so a template's appearance or a PSTH's options can go to figures
+whose panels you keep. The template's remembered looks replace the figure's own
+(Copy settings adds them), so the figure looks as the template does. A new
+figure is the whole template, with an automatic id, and is shown. The figure
+shown is drawn again when it changed (Auto); the other figures changed are
+marked out of date in the tree.
+
+**Example: one look for every unit figure.** Set up a raster over a PSTH as you
+want it (bins, the PSTH's *Shared by rows* y limits, a 6 x 4 in page, larger
+fonts in Appearance), then **Save as...** *Unit card*, *raster over PSTH for the
+lab meeting*. In another config, pick *Unit card*, press **Apply...**, tick
+**Also add it as a new figure** and **Apply**: the figure is there, observing
+units, its event reference the new config's default. Later, change the bins in
+one figure, **Update** *Unit card* from it, then **Apply...** with every figure
+that should follow it ticked: one step, one Undo. To share it, **Export...**
+*Unit card.json* and send it; your colleague's **Import...** adds it to their
+list.
+
+Templates are files, one per template, in your templates folder:
+`EphysFigureTemplates` beside MATLAB's preferences folder, next to your designs
+folder (**Open my templates folder** in the list's right-click menu), or a
+folder you choose (**Keep my templates in...**, one the lab shares say; the
+preference `FigureTemplate`, `Folder`). The file is `<name>.json`:
+
+```json
+{
+  "schema": "ephys-figure-template",
+  "version": 1,
+  "name": "Unit card",
+  "description": "raster over PSTH for the lab meeting",
+  "saved": "2026-10-26 14:05",
+  "from": "Raster+PSTH units",
+  "figure": { "size": {...}, "observe": {...}, "grid": {...}, "panels": [...], "ref": "default", ... }
+}
+```
+
+`figure` is a `Figures` entry of the config as **Save config** writes it
+([Figures](EphysAnalysisConfig.md#figures)), without `id`, `autoId`, `title` and
+`enabled`. A template is read through the code of the day: its figure is
+normalized as a config's figures are, so a setting added to the figure editor
+after the template was saved takes its default, and what the code no longer
+knows -- a field dropped or renamed, a file from a newer version -- is dropped
+and said (on the status bar and in the Log tab when it is applied or imported,
+in the list's tooltip, the list marking it *(!)*), never an error. Import also
+runs the config's checks of the template's figure (`FigureTemplate.check`) and
+says its errors. Only a file that is not a template, or a value the config
+itself refuses, cannot be read. Templates are a preference of yours, not part
+of the config, like designs.
+
+Templates here are yours, saved from figures; the starting figures **Add** and
+`cfg.addFigure("rasterPsth")` offer (`EphysAnalysisConfig.figureTemplates`) are
+built in and separate. In a script, `FigureTemplate` does the same
+([Figure templates](EphysAnalysis.md#figure-templates)).
 
 <a name="remembered-panel-options"></a>
 
@@ -1700,7 +1789,7 @@ options](EphysAnalysisConfig.md#panel-options)); how the numbers are computed:
 | | **Close** | asks about unsaved changes, cancels a run under way, closes |
 | Edit | **Undo** *edit* (Ctrl+Z) | takes back the last edit of the figures ([Undo and redo](#undo-and-redo)); the item names it (**Undo Add panel**, **Undo Bin (ms)**) and is grayed with nothing to undo, or off the Figures tab |
 | | **Redo** *edit* (Ctrl+Y, Ctrl+Shift+Z) | does the last edit undone again; grayed with none |
-| | **Apply last change to figures...** (Ctrl+Shift+A) | offers the last edit of the figures to the other figures or panels that can take it ([Apply a change to other figures](#apply-a-change-to-other-figures)); on with Undo |
+| | **Apply last change to figures...** (Ctrl+Shift+A) | offers the last edit of the figures to the other figures or panels that can take it ([Apply a change to other figures](#apply-a-change-to-other-figures)); on with Undo. The Figures tab's **Apply last change...** button, above the preview, does the same |
 | | **Reset panel options to defaults** | the selected panel takes its type's default options, as one undo step, and the options remembered for its type are forgotten ([Remembered panel options](#remembered-panel-options)) |
 | | **Forget remembered panel options** | new panels start from their types' defaults again; no panel changes |
 | Design | the designs | Default, the built-in designs, then yours (*(mine)*); the one chosen is ticked. Picking one redraws every figure on screen in it ([Plot designs](EphysAnalysis.md#plot-designs)); the Figures tab's **Design:** list is the same choice |
@@ -1713,6 +1802,7 @@ options](EphysAnalysisConfig.md#panel-options)); how the numbers are computed:
 | | **Figures tab keys** | a window listing every key of the Figures tab, as the **?** button over its editor does ([Keyboard](#figures-tab)) |
 | | **Documentation home**, **Analysis quick start**, **Analysis configs** | the wiki's Home, [Quick start](#quick-start) on this page, the page made from [EphysAnalysisConfig.md](EphysAnalysisConfig.md) |
 | | **Report an issue on GitHub...**, **Request a feature on GitHub...** | compose a GitHub issue from this session and open it prefilled ([Reporting an issue](#reporting-an-issue)) |
+| | **Report a figure template issue...**, **Request a figure template feature...** | the same window about [figure templates](#figure-templates): titled *Figure templates:*, sending the system info, the template picked (its file) and the Log tab |
 | | **About EphysAnalysisApp** | the version and git commit of the code, the repository folder and the MATLAB release; **Copy** puts them on the clipboard |
 
 The title shows `*` while the config has unsaved changes; closing, opening
@@ -1830,7 +1920,9 @@ The aesthetics editor keeps two more groups: `PlotAesthetics`, your
 remembered rules, one per panel type (`psth`, `raster`, ...), one for `figure` and one per Chronux result kind, and
 `PlotAestheticsDialog`, its **Remember** box and where it last remembered
 (`Remember`, `Scope`). The plot designs keep `PlotDesign`: the design
-chosen (`Design`) and your designs folder when you chose one (`Folder`). The data
+chosen (`Design`) and your designs folder when you chose one (`Folder`); the
+figure templates keep `FigureTemplate`: your templates folder when you chose
+one (`Folder`). The data
 tips keep `FigureDataTips`: the fields they show (`Fields`, the keys of
 `FigureDataTips.fields`; missing = the defaults).
 
@@ -1883,12 +1975,13 @@ results, on the Log tab and in the report.
 | Figures tab | `buildFiguresTab`; the tree `refreshFigureList` (over `private/figureGroups`), `onFigureSelected`, `onFigureTreeSelected`, `onFigureTreeClicked` (the check boxes), `onFigureGroupToggled`, `onFigureCheck` (All / None / Invert), `setFiguresEnabled`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure` (Up / Down within a group); the Id row's automatic id `private/showFigureId`, and the renames followed by `private/trackFigureIds` and `private/followedFigureId`; a panel's text note and overlays `onAddFigureOverlay`, `onDuplicateFigureOverlay`, `onRemoveFigureOverlay`, `onFigureOverlayPicked` (the rows are `applyFigureEditor`'s and `gatherFigureEditor`'s); dragging a panel in the schematic `onSchematicPress` (with the pointer callbacks it installs), `cancelSchematicDrag` (also `onKeyPress`'s Escape) and `schematicPixel` (the tests');  the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `gotoFigureSection`, `onFigureSuperToggled`, `gotoFigureSuper` and `onKeyPress` (Alt+1 ... Alt+3, Ctrl+1 ... Ctrl+0, F6: `focusFigurePane`), the search `onFigureSearch` and `gotoFigureRow` (over `private/figureSearchIndex`, `private/figureSearchPath`, `private/figureRowReason`), the keys window `onFigureKeys`, the panel keys `stepFigurePanel` and the preview's outline `markFigurePanel`, `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`, `onPanelSelectionToggled` (the Trial selection as the figure box; local to `buildFiguresTab`); the arrangement `drawFigureSchematic`, `onPanelSelected`, `onNewPanel` (the New panel window `private/newPanelDialog`, its pictures `analysis/icons/panels`, made by `tools/makePanelThumbnails`), `onRemovePanel`, `onMovePanel`, `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `removePanel` and `movePanel`; a structural edit ends in `private/commitFigureEdit`), the Spacing window `private/figureSpacingDialog`; the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`); the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoPreviewToggled`, `onCancelFigurePreview`, `onOpenFigureWindow`, the page size `onFigureSizeEdited`, `showFigureSize`, `fitFigureViews` (over `private/figureViewBox`), `redrawFigurePreview` and `private/previewSpec` (over `figureExportSize`, `figureSizePresets`, `figureSizeParse`, `figureSizeText`, `figureSizeConvert`), a Ctrl+Click on a panel `onFigurePanelClicked`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); each figure's own preview container `syncFigureView` (`private/newFigureView`, `private/previewFigureView`, `private/figureViewKey`, `private/figureViewFresh`, `private/clearFigureViews`, `private/showSessionPicker`), the tree's marks `private/markFigureTree`, the editor as each figure left it `private/saveFigureEditorState`, `private/restoreFigureEditorState`, `private/scrollFigureEditor`, its observation list `private/keepFigurePicker`, `private/takeFigurePicker`, `private/forgetFigurePickers`; the Sessions section `onPickFigureDatasets`, `onBrowseFigureMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`), `private/pickSessionDatasets` and `onFigureSessionPicked` (its preview is `refreshFigurePreview`'s session branch over `EphysAnalysisRunner.computeSessionFigure`, its picker `refreshFigureObservations`'s over `sessionFigureObservations`); the Design row `onDesignChosen` and `onSaveDesign` (below); the epoch diagram window is `onShowEpochs` (the Alignment tab's diagram is `refreshAlignPreview`'s); the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
 | copying figures | `onCopyFigureSettings` (the Figures tab's **Copy settings...**: `private/copySettingsDialog`, then `analysis/copyFigureSettings` over `analysis/figureSettingItems` and `analysis/figureSettingParts`, or `analysis/figureLookToDesign` into a design) |
 | remembered panel options, color swatches | `private/rememberPanelOptions` (called by `private/recordFigureEdit`), `private/rememberedPanelOptions` (read by `onNewPanel` and the New panel window), `onResetPanelOptions`, `onForgetPanelOptions`; `private/colorSwatch`, `private/syncColorSwatches` (`buildFiguresTab`, `syncFigureEditor`, `private/latencyDialog`) |
-| one edit to other figures | `onApplyToFigures` (Ctrl held: `onKeyPress` / `onKeyRelease` and `onConfigChanged`; Edit → Apply last change: the undo history), its window `private/applyToFiguresDialog`, over `EphysAnalysisConfig.figureEditChanges`, `changeTargets`, `panelTakes` and `applyChanges` |
+| one edit to other figures | `onApplyToFigures` (Ctrl held: `onKeyPress` / `onKeyRelease` and `onConfigChanged`; Edit → Apply last change and the Apply last change button: the undo history, the button's state and tooltip set by `private/refreshEditMenu`), its window `private/applyToFiguresDialog`, over `EphysAnalysisConfig.figureEditChanges`, `changeTargets`, `panelTakes` and `applyChanges` |
+| figure templates | `refreshTemplates` (the Template list), `onApplyTemplate` (its window `private/applyTemplateDialog`, then `analysis/copyFigureSettings` from the template's figure), `onFigureTemplate` (Save as, Update, Remove, Import, Export, the folder, the issue window; the name window `private/askTemplateName`); the templates themselves: `analysis/FigureTemplate.m` |
 | plot designs | `refreshDesigns` (the Design menu and list; `PlotDesign.listen` keeps them current), `onDesignChosen`, `onSaveDesign`, `onImportDesign`, `onDeleteDesign`, `onDesignsFolder`; the designs themselves: `PlotDesign`, `analysis/designs` |
 | running | `onValidate`, `onPlan`, `onRunExport`, `onGenerateFigure` (**File → Generate selected figure**: `onRunExport` for the selected figure alone, then the status bar's text), `onCancelRun` (also stops a Generate and Redraw All) |
 | files | `onNewConfig`, `onOpenConfig`, `openConfigFile`, `onSaveConfig`, `onSaveConfigAs`, `onGenerateScript`, `loadPreferences`, `savePreferences` |
 | help | `onHelp`, `helpURL` (the wiki page and anchor of each tab; `tools/wiki/test_gen_pages.py` checks that the page made from this file has them) |
-| issues | `onReportIssue`, `issueReport`, `issueURL`; the dialog, the address and the system lines are `pipeline/IssueReport.m`, shared with EphysPipelineApp |
+| issues | `onReportIssue`, `issueReport` (`Extra=`: a template's issue adds the template), `issueURL`; the template issue `onFigureTemplate`; the dialog, the address and the system lines are `pipeline/IssueReport.m`, shared with EphysPipelineApp |
 
 ## Tests
 
@@ -2254,6 +2347,30 @@ it would overlap raster_1"*; a drop on the bottom row moves it there with its sp
 clipped (*"Its spans became 1 x 1 to fit the grid."*); a release over another
 panel's middle moves nothing and says *"Nothing to drop psth_1 on there"*; and an
 edge drop (below `raster_1`) leaves the panels in their order in the figure.
+
+Its section 5q drives the figure templates and the **Apply last change...**
+button, from no figure, with Auto off and the templates folder (beside the
+tests' temporary preferences) emptied. The template row sits above the preview,
+every control in it, Apply in green and Remove in red, each button at least
+30 px high, Apply, Update, Remove and Export off with no template. After a font
+size edit of the first of three figures the button is on with the Edit menu's
+item, its tooltip *Apply last change to figures: Font size (Ctrl+...)*, and
+pressing it opens Apply to figures with the other two figures (canceled).
+**Save as...** from a script keeps the figure as *Card* (listed, picked, its
+shape in the tooltip, the buttons on), and from its window, answered from a
+timer, under another name (the figure's id offered). **Apply...** in its window
+lists the three figures with the one shown ticked; applied to the second and
+third it gives both the raster over PSTH and the font size, the third keeping
+its own title and being off, the first untouched, as one undo step
+(**Apply template Card to 2 figures**), which Undo takes back. `New=true` adds
+it as a fourth figure, selected, with an automatic id; `Parts="style"` gives a
+figure the appearance alone, its panels kept. **Update** remakes *Card* from
+the figure shown (its description kept; the figure it was applied to keeps its
+font size); **Export**, **Remove** (the list then empty) and **Import** bring it
+back by its own name; **Report issue** opens the issue window titled
+*[Bug] Figure templates:* with the template's file in its report.
+`test_FigureTemplate` checks `FigureTemplate` itself
+([Tests](EphysAnalysis.md#tests)).
 
 <!-- wiki
 ## Related

@@ -1167,6 +1167,43 @@ a run draws its figures in the design of whoever runs it. To pin one, pass
 whenever the choice or the list changes (the app keeps its Design menu up
 to date with it).
 
+### Figure templates
+
+A figure template (`FigureTemplate`) is a figure's settings kept under a name,
+to give to other figures: everything a `Figures` entry holds but its `id`,
+`autoId`, `title` and `enabled`. Templates are JSON files, one per template, in
+your templates folder (`FigureTemplate.folder()`: `EphysFigureTemplates` beside
+MATLAB's preferences folder, or `setFolder`'s), kept, listed, imported and
+deleted as designs are. Applying one copies its settings once; nothing links
+the figure to the template afterwards. The app's Figures tab has them in the
+row above the preview ([Figure templates](EphysAnalysisApp.md#figure-templates)).
+
+```matlab
+t = FigureTemplate.fromFigure(cfg.Figures(k), Description="raster over PSTH");
+FigureTemplate.save(t, "Unit card");          % <templates folder>/Unit card.json (Overwrite=true to replace)
+T = FigureTemplate.list();                    % Name, Description, Summary, Saved, File, Problem
+t = FigureTemplate.load("Unit card");         % t.notes: what reading it dropped (a newer version, an unknown field)
+cfg = cfg.addFigure(FigureTemplate.figureOf(t), Id="card_2");   % as a new figure
+
+% into figures 2 and 3, as the app's Apply... does (every part; or a part's name: "style", "panel", ...)
+n = numel(cfg.Figures);
+F = copyFigureSettings([cfg.Figures FigureTemplate.figureOf(t)], cfg.Defaults, n + 1, [2 3]);
+cfg.Figures = F(1:n);
+
+FigureTemplate.export("Unit card", "C:\shared\Unit card.json");      % to share
+FigureTemplate.import("C:\shared\Unit card.json", Name="Lab card");  % a colleague's, into your folder
+I = FigureTemplate.check(t, cfg.Defaults);    % the config's checks (validate) of its figure
+FigureTemplate.remove("Lab card");
+```
+
+A template is normalized through the current code when it is read
+(`EphysAnalysisConfig.normalizeFigure`), so one saved before a setting was
+added takes the setting's default, and fields the code does not know are
+dropped and listed in `t.notes` rather than refused. Errors:
+`FigureTemplate:Bad`, `:Unknown`, `:BadName`, `:Exists`. Copied through
+`copyFigureSettings`, a figure keeps its id, title and enabled; the app also
+replaces the figure's remembered looks with the template's.
+
 ### Figures
 
 A *figure* of the config's [`Figures`](EphysAnalysisConfig.md#figures) list
@@ -1792,6 +1829,7 @@ and counted. Each trial's mean is removed before its spectrum unless
 | `test_PopulationAnalysis` | the fixture: `populationAnalysis`' units, rates, PSTHs and per-level rates equal the per-dataset calls (the selection's groups pooled); the summary's counts and means add up; the groupings (none, dataset × shank, depth bins); the correction over every unit or each dataset; each unit's auROC equal to `aurocCurves`' over its dataset, the 95% CI cutoff pooled over every unit (the formula over all of them; `Family="dataset"`: each dataset's own) and, with `AurocGroupBy`, over every unit x group curve, the calls, peaks and summary counts that follow, a test cutoff's p corrected over the family, and the auROC columns and cutoff in the files; the files written; the errors; the stars (`DatasetFavorites`) in `P.units`, `P.datasets`, `GroupBy="starred"`, `unitSummary`, `sessionTable`, the report's summary tables and the HTML and PDF reports |
 | `test_PlotAesthetics` | the fixture (`figureTestCases`: a figure per panel type and per layout that matters): rules (decoded JSON, refused properties, merging, colors as text), `renderFigure` tagging everything every figure draws with a known role (a note's and the overlays' parts too), the user's rules for a panel's type and then the figure's own (and `UserAesthetics=false`; a value an object refuses is a warning, the figure still drawn), the right-click menu only in a visible figure or with `Editable=true`, the editor (live edits, Apply to one / same / role / ticked, Reset, Cancel, OK remembering for the figure or the user as `"figure"` rules, Forget and the redraw, unremembered edits put back), the config's `aesthetics` on a figure through JSON, and the script literal of a rule list |
 | `test_PlotDesign` | the fixture: the built-in designs (they load, name known roles and only known kinds -- `PlotDesign.kindNames()` --, give the session roles, and every panel type and layout draws in each without a refused value), what a design does to a figure (ground, palette, single and sequential colors, heat and diverging colormaps, rules for every figure and for one panel type; a figure's own colors win), the layering (design, the user's rules for a panel's type, the figure's), choosing a design (the preference, every figure on screen redrawn, listeners, the right-click Design submenu), capturing a figure's look per panel type (`Spec=` or the editing context) and saving, listing, importing and deleting designs, refused files and names (`PlotDesign:UnknownKind` for a retired plot kind), and the editor offering what designs set |
+| `test_FigureTemplate` | no fixture: `FigureTemplate` with the preferences and the templates folder temporary: a figure as a template (every setting but the id, title and enabled; Inf units), `summary`, `figureOf`; saved, listed and loaded back equal (the file's schema, version, no identity fields, Inf as a string; a name in any case; `Exists`, `BadName`, `Unknown`); a template from a newer version with unknown fields read with its notes, a partial figure taking the defaults, what is no template refused (`Bad`), `list`'s reasons; export, import (another name, the file's name field, `Overwrite`), remove; `check` (validate's rows of its figure); applied through `copyFigureSettings` (every setting, one part) and `addFigure` |
 | `test_copyFigureSettings` | no fixture: `figureSettingParts` and `figureSettingItems` (a figure's settings with their parts, groups, paths, values, generic keys and whether a design holds them), `copyFigureSettings` (one setting, a part, a panel's options to the panels that take them, one figure onto many, the layout, remembered looks one by one, panels matched by id then type, a copy that changes nothing, every setting by default; the id, title and `enabled` kept; a copy that validates; `BadSetting`, `BadFigure`; the time onto ten figures) and `figureLookToDesign` |
 | `test_ConfigMigration` | converting a version-1 config on load: every convertible plot kind and layout becomes a figure of the same id with its notes as `LoadWarnings`, session plots become session figures, a behavior plot is not migrated, looks on retired roles are remapped or dropped, a version-1 file is saved as version 2, see [EphysAnalysisConfig](EphysAnalysisConfig.md#tests) |
 | `test_EphysAnalysisConfig` | see [EphysAnalysisConfig](EphysAnalysisConfig.md#tests) |

@@ -371,9 +371,12 @@ shownFirst = find(d.Components.Type == typ, 1);
 check(d.Ticked(shownFirst) && nnz(d.Ticked) == 1, 'a tick in the filtered list lands on its own component');
 typeDrop.Value = '';
 typeDrop.ValueChangedFcn(typeDrop, []);
-words.Value = char(lower(d.Components.Label(d.Selected)));
+word = lower(extractBefore(d.Components.Label(d.Selected) + " ", " "));
+words.Value = char(word);
 words.ValueChangedFcn(words, []);
-check(height(lst.Data) >= 1 && height(lst.Data) < allRows && all(contains(lower(string(lst.Data.Component)), lower(d.Components.Label(d.Selected)))), 'the text filter keeps the components whose label has it');
+hay = lower(string(lst.Data.Tile) + " " + string(lst.Data.Component) + " " + string(lst.Data.Type));
+check(height(lst.Data) >= 1 && all(contains(hay, word)) && height(lst.Data) == nnz(contains(lower(d.Components.TileName + " " + d.Components.Label + " " + d.Components.Type), word)), ...
+    'the text filter keeps the components with the word in the tile, component or type');
 words.Value = '';
 words.ValueChangedFcn(words, []);
 check(height(lst.Data) == allRows && nnz(lst.Data.Tick) == 1 && lst.Data.Tick(shownFirst), 'with the filters cleared every component is back, the tick kept');

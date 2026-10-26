@@ -16,6 +16,9 @@ function body = issueReport(obj, kind, opts)
 %     Logs         the tail of the Log tab (default true)
 %     MaxLogLines  lines kept from the end of the log (default 60); a log
 %                  that is cut says so and how many lines it had.
+%     Extra        more lines, put after the others and before the
+%                  report's last lines (a figure template's issue: the
+%                  template, onFigureTemplate)
 %
 %   Nothing is collected that the dialog does not show: what this returns is
 %   exactly what onReportIssue previews, copies to the clipboard and sends.
@@ -29,6 +32,7 @@ arguments
     opts.Config (1,1) logical = true
     opts.Logs (1,1) logical = true
     opts.MaxLogLines (1,1) double = 60
+    opts.Extra (:,1) string = string.empty(0, 1)
 end
 
 L = IssueReport.lead(kind, opts.Description);
@@ -44,6 +48,7 @@ end
 if opts.Logs
     L = [L; IssueReport.details("Log tab", logLines(obj, opts.MaxLogLines), false)];
 end
+L = [L; opts.Extra];
 
 L = [L; IssueReport.trailer("EphysAnalysisApp")];
 body = join(L, newline);

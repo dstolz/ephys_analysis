@@ -120,6 +120,15 @@ function test_EphysAnalysisApp(opts)
 %   chooser in the tests' place: a color picked as one named step, Cancel,
 %   a color typed and Undo followed by the swatch, the search going to the
 %   field; the First-spike latency window's);
+%   figure templates and Apply last change (the row above the preview: its
+%   controls, off with no template; Save as... from a script and from its
+%   window; Apply... in its window onto two figures, one undo step, each
+%   keeping its title and enabled, the other figures untouched; Undo; as a
+%   new figure; one part only; Update keeping the description and leaving
+%   the figures applied as they were; Export, Remove, Import; the template
+%   issue window's title and report; the Apply last change button on and
+%   tooltipped as the Edit menu's item, naming the step, opening Apply to
+%   figures);
 %   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -244,6 +253,18 @@ applyCount = "";   % its count after All
         if accept; press(D, "Ok"); else; press(D, "Cancel"); end
     end
 
+templateRows = [];   % the Apply figure template window's figures as it opened (answerTemplate)
+    function answerTemplate(D, want, parts, asNew)
+        %answerTemplate  Answer Apply figure template: its rows noted (templateRows), WANT ticked, the PARTS ticked, New ASNEW, Apply.
+        templateRows = D.Table.Data;
+        D.Table.Data.Apply = reshape(logical(want), [], 1);
+        for tplPart = string(fieldnames(D.Parts)).'
+            D.Parts.(tplPart).Value = ismember(tplPart, parts);
+        end
+        D.New.Value = asNew;
+        press(D, "Ok");
+    end
+
 if S.sec("1", "build, open the project, scan")
     check(app.Fig.Visible == "on" && ~app.Splash.isActive() && app.Splash.Window == "" && isempty(findall(groot, 'Tag', 'AppSplash')) ...
         && isequal(app.Splash.History.Step.', ["window" "Data" "Alignment" "Figures" "Export" "Log" "finish" "prefs" "scan" "dataset" "show"]), ...
@@ -337,8 +358,9 @@ end
 
 if S.sec("1c", "Help menu: GitHub issue and feature request")
     items = flip(string({app.HelpMenu.Children.Text}));
-    check(isequal(items(end-2:end), ["Report an issue on GitHub..." "Request a feature on GitHub..." "About EphysAnalysisApp"]), ...
-        'the Help menu ends with the two GitHub issue items and About');
+    check(isequal(items(end-4:end), ["Report an issue on GitHub..." "Request a feature on GitHub..." "Report a figure template issue..." ...
+        "Request a figure template feature..." "About EphysAnalysisApp"]), ...
+        'the Help menu ends with the two GitHub issue items, the two about figure templates and About');
     app.log("synthetic log line for the report");
     bug = app.issueReport("bug", Description="the preview stops here");
     check(contains(bug, "### What happened") && contains(bug, "the preview stops here") ...
@@ -454,8 +476,9 @@ if S.sec("3", "the Figures tab: the toolbar's Preview, the Design row, the epoch
         && app.FiguresDatasetNote.Parent == dsg && app.FigureObservationNote.Parent == osg && app.AlignDatasetNote.Parent == app.AlignDatasetStar.Parent ...
         && app.FigureFavorites.Grid.Parent == pgrid && app.FigureFavorites.Grid.Layout.Row == osg.Layout.Row + 1 ...
         && app.FigurePreviewHost.Parent == pgrid && app.FigurePreviewPanel.Parent == app.FigurePreviewHost ...
-        && app.FigurePreviewHost.Layout.Row == app.FigureFavorites.Grid.Layout.Row + 1, ...
-        'the Design list sits right of Dataset and Save look as design... right of Observation, in their rows, each drop-down with its star and note button; Favorites under them, the preview (the figures'' containers) under that');
+        && app.FigureTemplateDropDown.Parent.Parent == pgrid && app.FigureTemplateDropDown.Parent.Layout.Row == app.FigureFavorites.Grid.Layout.Row + 1 ...
+        && app.FigurePreviewHost.Layout.Row == app.FigureFavorites.Grid.Layout.Row + 2, ...
+        'the Design list sits right of Dataset and Save look as design... right of Observation, in their rows, each drop-down with its star and note button; Favorites under them, the template row under that, the preview (the figures'' containers) under it');
     % the buttons in a column of their own left of those rows: Preview, Redraw All, Unit report, Auto, < > (a row each)
     bgrid = app.FigurePreviewButton.Parent;
     btnCol = [app.FigurePreviewButton app.FigureRedrawAllButton app.FigureUnitReportButton app.FigureAutoCheckBox app.FigureObsPrevButton.Parent];
@@ -3704,6 +3727,121 @@ if S.sec("5p", "remembered panel options: a new panel starts from the last set, 
     app.Tabs.SelectedTab = app.TabData;
 end
 
+if S.sec("5q", "figure templates (the row above the preview: Save as, Apply into figures or as a new one, Update, Export, Remove, Import, the issue window) and the Apply last change button")
+    noFigures();
+    app.selectTab(app.TabFigures);
+    app.FigureAutoCheckBox.Value = false;   % nothing here needs drawing
+    restoreAuto5q = onCleanup(@() autoBoxOn(app));
+    app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));   % a Ctrl key an earlier section pressed (5k), let go: edits stay with their figure
+    tplFolder5q = FigureTemplate.folder();
+    if isfolder(tplFolder5q); rmdir(tplFolder5q, 's'); end
+    restoreTpl5q = onCleanup(@() removeTemplates(tplFolder5q));
+    app.refreshTemplates();
+    drawnow;
+    row5q = app.FigureTemplateDropDown.Parent;
+    tplButtons5q = [app.FigureTemplateApplyButton app.FigureTemplateSaveButton app.FigureTemplateUpdateButton ...
+        app.FigureTemplateRemoveButton app.FigureTemplateImportButton app.FigureTemplateExportButton];
+    check(all(arrayfun(@(h) h.Parent == row5q, [tplButtons5q app.FigureApplyLastButton])) && app.FigureTemplateIssueLink.Parent == row5q ...
+        && isequal(string(app.FigureTemplateDropDown.Items), "(no templates)") && app.FigureTemplateSaveButton.Enable == "on" ...
+        && all([app.FigureTemplateApplyButton.Enable app.FigureTemplateUpdateButton.Enable app.FigureTemplateRemoveButton.Enable ...
+        app.FigureTemplateExportButton.Enable] == "off") && row5q.Parent.RowHeight{row5q.Layout.Row} - sum(row5q.Padding([2 4])) >= 30 ...
+        && isequal(app.FigureTemplateApplyButton.BackgroundColor, [0.16 0.52 0.28]) && isequal(app.FigureTemplateRemoveButton.BackgroundColor, [0.80 0.25 0.20]), ...
+        'the template row above the preview: the list, Apply... (green), Save as..., Update, Remove (red), Import..., Export..., Report issue and Apply last change; with no template Apply, Update, Remove and Export are off; buttons at least 30 px');
+    app.onAddFigure("rasterPsth");
+    app.onAddFigure("psth");
+    app.onAddFigure("continuous");
+    ids5q = app.Config.figureIds();
+    app.onFigureSelected(1);
+    FE.fontSize.Value = 15;
+    FE.fontSize.ValueChangedFcn(FE.fontSize, []);
+    tip5q = string(app.FigureApplyLastButton.Tooltip);
+    check(app.FigureApplyLastButton.Enable == "on" && app.ApplyMenu.Enable == "on" && startsWith(tip5q, "Apply last change to figures: Font size (") ...
+        && contains(tip5q, "+Shift+A)"), sprintf('Apply last change is on with the Edit menu''s item, its tooltip naming the step (%s)', tip5q));
+    applyRows = [];
+    answerDialog("Apply to figures", @(D) answerApply(D, [false false], false, false));
+    app.FigureApplyLastButton.ButtonPushedFcn(app.FigureApplyLastButton, []);
+    check(istable(applyRows) && isequal(string(applyRows.Figure).', ids5q(2:3)) && app.Config.Figures(2).style.FontSize ~= 15, ...
+        'the button opens Apply to figures for that step, as Edit > Apply last change does (Cancel: nothing given)');
+
+    % Save as...: from a script, then from its window
+    app.onFigureTemplate("save", Name="Card", Description="a raster over a PSTH");
+    T5q = FigureTemplate.list();
+    check(isequal(T5q.Name, "Card") && T5q.Description == "a raster over a PSTH" && string(app.FigureTemplateDropDown.Value) == "Card" ...
+        && all([app.FigureTemplateApplyButton.Enable app.FigureTemplateUpdateButton.Enable app.FigureTemplateRemoveButton.Enable ...
+        app.FigureTemplateExportButton.Enable] == "on") && contains(string(app.StatusBar.Text), "as the template Card") ...
+        && contains(string(app.FigureTemplateDropDown.Tooltip), "2 x 1: raster, psth"), ...
+        'Save as... keeps the figure shown as a template: listed and picked, its shape in the tooltip, the buttons on');
+    answerDialog("Save the figure as a template", @(D) saveTemplateAnswer(D, "Dialog card"));
+    app.onFigureTemplate("save");
+    check(isequal(sort(FigureTemplate.list().Name).', ["Card" "Dialog card"]) && string(app.FigureTemplateDropDown.Value) == "Dialog card" ...
+        && isequal(getappdata(groot, 'templateOffered'), app.Config.Figures(1).id), ...
+        'Save as... asks the name in its window (the figure''s id offered) and picks the new template');
+    FigureTemplate.remove("Dialog card");
+    app.refreshTemplates("Card");
+
+    % Apply... in its window: the figures picked, one undo step
+    app.onFigureSelected(2);
+    titled5q = app.Config;
+    titled5q.Figures(3).title = "Own title";
+    titled5q.Figures(3).enabled = false;
+    app.applyConfig(titled5q, Action="Title");
+    F05q = app.Config.Figures;
+    nUndo5q = numel(app.FigureHistory.Undo);
+    templateRows = [];
+    answerDialog("Apply figure template", @(D) answerTemplate(D, [false true true], figureSettingParts().Part, false));
+    app.onApplyTemplate();
+    F15q = app.Config.Figures;
+    check(istable(templateRows) && height(templateRows) == 3 && isequal(templateRows.Apply.', [false true false]) ...
+        && endsWith(string(templateRows.Figure(2)), "(shown)"), 'the window lists every figure, the one shown ticked');
+    check(isequal([F15q(2).panels.type], ["raster" "psth"]) && isequal([F15q(3).panels.type], ["raster" "psth"]) ...
+        && F15q(2).style.FontSize == 15 && F15q(3).style.FontSize == 15 && F15q(3).title == "Own title" && ~F15q(3).enabled ...
+        && isequaln(F15q(1), F05q(1)) && numel(app.FigureHistory.Undo) == nUndo5q + 1 ...
+        && app.FigureHistory.undoLabel() == "Apply template Card to 2 figures" && contains(string(app.StatusBar.Text), "Applied template Card"), ...
+        'Apply copies the template into the two figures ticked (their panels, appearance), each keeping its title and enabled, as one undo step; the others untouched');
+    app.onUndoRedo("undo");
+    check(isequaln(app.Config.Figures, F05q), 'Undo takes the template back off both');
+    app.onApplyTemplate("Card", New=true);
+    check(numel(app.Config.Figures) == 4 && app.SelectedFigure == 4 && isequal([app.Config.Figures(4).panels.type], ["raster" "psth"]) ...
+        && app.Config.Figures(4).autoId && app.FigureHistory.undoLabel() == "Apply template Card as a new figure", ...
+        'as a new figure: the whole template, an automatic id, selected');
+    app.onApplyTemplate("Card", To=app.Config.Figures(3).id, Parts="style");
+    check(app.Config.Figures(3).style.FontSize == 15 && isequal([app.Config.Figures(3).panels.type], "continuous"), ...
+        'one part only (Appearance): the figure keeps its panels');
+
+    % Update, Export, Remove, Import
+    app.onFigureSelected(1);
+    FE.fontSize.Value = 9;
+    FE.fontSize.ValueChangedFcn(FE.fontSize, []);
+    app.onFigureTemplate("update", Confirm=false);
+    U5q = FigureTemplate.load("Card");
+    check(U5q.figure.style.FontSize == 9 && U5q.description == "a raster over a PSTH" && app.Config.Figures(4).style.FontSize == 15, ...
+        'Update makes the template again from the figure shown, its description kept; a figure it was applied to keeps its settings');
+    ex5q = string(tempname) + ".json";
+    app.onFigureTemplate("export", File=ex5q);
+    app.onFigureTemplate("remove", Confirm=false);
+    gone5q = isempty(FigureTemplate.list()) && isequal(string(app.FigureTemplateDropDown.Items), "(no templates)");
+    app.onFigureTemplate("import", File=ex5q, Confirm=false);
+    check(isfile(ex5q) && gone5q && isequal(FigureTemplate.list().Name, "Card") && string(app.FigureTemplateDropDown.Value) == "Card" ...
+        && FigureTemplate.load("Card").figure.style.FontSize == 9, ...
+        'Export writes it to a file, Remove deletes it (the list empty), Import brings it back by its own name');
+    delete(ex5q);
+
+    % the issue window about templates: its title and the template in its report
+    app.onFigureTemplate("issue");
+    w5q = findall(groot, 'Type', 'figure', 'Name', 'Report an issue');
+    fields5q = findall(w5q, 'Type', 'uieditfield');
+    areas5q = findall(w5q, 'Type', 'uitextarea');
+    report5q = strjoin(string(vertcat(areas5q.Value)), newline);
+    check(isscalar(w5q) && any(string({fields5q.Value}) == "[Bug] Figure templates: ") && contains(report5q, "Figure template Card") ...
+        && contains(report5q, """schema"": ""ephys-figure-template"""), ...
+        'Report issue opens the issue window titled "Figure templates: ", the template''s file in its report');
+    delete(w5q);
+
+    noFigures();
+    clear restoreAuto5q restoreTpl5q
+    app.Tabs.SelectedTab = app.TabData;
+end
+
 if S.sec("6", "close")
     savedConfig();
     app.savePreferences();
@@ -3756,6 +3894,20 @@ catch ME
     fprintf(2, '  (the answer to "%s" failed: %s)\n', name, ME.message);
     delete(f);
 end
+end
+
+
+function saveTemplateAnswer(D, name)
+%saveTemplateAnswer  In the Save the figure as a template window: note the name offered (appdata templateOffered), type NAME, Save.
+setappdata(groot, 'templateOffered', string(D.Name.Value));
+D.Name.Value = char(name);
+D.Save.ButtonPushedFcn(D.Save, []);
+end
+
+
+function removeTemplates(folder)
+%removeTemplates  The templates folder the section made, gone (its cleanup).
+if isfolder(folder); rmdir(folder, 's'); end
 end
 
 

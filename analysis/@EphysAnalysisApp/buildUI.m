@@ -55,8 +55,8 @@ function styleButtons(obj)
 b = findall(obj.Fig, "Type", "uibutton", "-or", "Type", "uistatebutton");
 styleButton(b(~ismember(string(get(b, "Tag")), ["formSectionToggle" "colorSwatch"])));
 styleButton([obj.ScanButton, obj.RunButton, ...
-    obj.FigurePreviewButton, obj.FigureRedrawAllButton], "primary");
-styleButton([obj.AddFigureButton, obj.FigureEditor.newPanel, obj.FigureEditor.addLayer], "confirm");
+    obj.FigurePreviewButton, obj.FigureRedrawAllButton, obj.FigureApplyLastButton], "primary");
+styleButton([obj.AddFigureButton, obj.FigureEditor.newPanel, obj.FigureEditor.addLayer, obj.FigureTemplateApplyButton], "confirm");
 styleButton([obj.CancelButton, obj.RemoveFigureButton, obj.FigureEditor.removePanel, ...
-    obj.FigureEditor.removeLayer], "danger");
+    obj.FigureEditor.removeLayer, obj.FigureTemplateRemoveButton], "danger");
 end

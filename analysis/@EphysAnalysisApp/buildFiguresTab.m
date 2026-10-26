@@ -114,7 +114,14 @@ function buildFiguresTab(obj)
 %           drop-down is right of the dataset (the design every figure is
 %           drawn in, also in the Design menu: onDesignChosen; Save look as
 %           design... under it: the preview's look as a design of yours,
-%           onSaveDesign). Under them the preview
+%           onSaveDesign). Under them a row: Template: (your figure
+%           templates, FigureTemplate: the drop-down, re-listed as it
+%           opens, refreshTemplates; Apply... into figures picked or as a
+%           new figure, onApplyTemplate; Save as..., Update, Remove,
+%           Import..., Export... and Report issue, onFigureTemplate) and,
+%           at its right, Apply last change... (Edit > Apply last change
+%           to figures, onApplyToFigures; on and tooltipped with the menu
+%           item, naming the step: refreshEditMenu). Under it the preview
 %           (refreshFigurePreview: computeFigure and renderFigure for that
 %           one observation; the selected panel outlined there,
 %           markFigurePanel): a container per figure (FigurePreviewHost,
@@ -1401,10 +1408,10 @@ obj.FigureSearchIndex = figureSearchIndex(obj.FigureSections, U);   % the rows a
 
 % --- right: the observation picker and the preview ----------------------------------------------
 % the buttons in a column of their own at the left, beside the Dataset, Observation and Favorites rows (three rows
-% tall enough for its five); Design and Save look as design sit at the right of Dataset and Observation. Ctrl is
-% Cmd on a Mac (onKeyPress).
-pg = uigridlayout(g, [5 5]);
-pg.RowHeight = {46, 46, 46, '1x', 30};
+% tall enough for its five); Design and Save look as design sit at the right of Dataset and Observation; the
+% template row (and Apply last change) above the preview. Ctrl is Cmd on a Mac (onKeyPress).
+pg = uigridlayout(g, [6 5]);
+pg.RowHeight = {46, 46, 46, 34, '1x', 30};
 pg.ColumnWidth = {90, 'fit', '1x', 'fit', 125};
 pg.ColumnSpacing = 6;
 pg.Padding = [0 0 0 0];
@@ -1478,11 +1485,54 @@ obj.SaveDesignButton = uibutton(pg, "Text", "Save look as design...", "ButtonPus
     "correlation map and spectrogram panels are kept for those panel types only. Preview first if the " + ...
     "preview is out of date.");
 obj.SaveDesignButton.Layout.Row = 2; obj.SaveDesignButton.Layout.Column = [4 5];
+% the figure templates of yours (FigureTemplate: a figure's settings, copied into figures when applied), and Apply
+% last change (Edit > Apply last change to figures...), in the row above the preview
+tg = uigridlayout(pg, [1 11], "ColumnWidth", {'fit', '1x', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 8, 'fit'}, ...
+    "ColumnSpacing", 4, "Padding", [0 2 0 2]);
+tg.Layout.Row = 4; tg.Layout.Column = [1 5];
+uilabel(tg, "Text", "Template:", "FontWeight", "bold", ...
+    "Tooltip", "Figure templates: a figure's settings kept under a name, to copy into other figures. Applying copies once: " + ...
+    "a template changed later reaches a figure only when it is applied again.");
+obj.FigureTemplateDropDown = uidropdown(tg, "Items", "(no templates)", "ItemsData", "", ...
+    "ValueChangedFcn", @(~, ~) obj.refreshTemplates(), "DropDownOpeningFcn", @(~, ~) obj.refreshTemplates(), ...
+    "Tooltip", "Your figure templates (in your templates folder, " + FigureTemplate.folder() + ").");
+cm = uicontextmenu(obj.Fig);   % the folder, and the issues about templates
+uimenu(cm, "Text", "Open my templates folder", "MenuSelectedFcn", @(~,~) obj.onFigureTemplate("folder"));
+uimenu(cm, "Text", "Keep my templates in...", "Tooltip", "Another folder for your templates, such as one the lab shares.", ...
+    "MenuSelectedFcn", @(~,~) obj.onFigureTemplate("choose"));
+uimenu(cm, "Text", "Report a template issue on GitHub...", "Separator", "on", "MenuSelectedFcn", @(~,~) obj.onFigureTemplate("issue"));
+uimenu(cm, "Text", "Request a template feature on GitHub...", "MenuSelectedFcn", @(~,~) obj.onFigureTemplate("feature"));
+obj.FigureTemplateDropDown.ContextMenu = cm;
+obj.FigureTemplateApplyButton = uibutton(tg, "Text", "Apply...", "ButtonPushedFcn", @(~,~) obj.onApplyTemplate(), ...
+    "Tooltip", "Copy the template's settings into figures: pick them in a list (the figure shown ticked), and which " + ...
+    "settings; or add the template as a new figure. One step of Undo. Each figure keeps its id, title and enabled. " + ...
+    "The copy is made once: there is no link, so apply it again to give figures a template's later changes.");
+obj.FigureTemplateSaveButton = uibutton(tg, "Text", "Save as...", "ButtonPushedFcn", @(~,~) obj.onFigureTemplate("save"), ...
+    "Tooltip", "Save the figure shown as a new template: every setting (observations, alignment, page size, panels with their " + ...
+    "options, layers, notes and overlays, spacing, appearance, remembered looks, sessions) but its id, title and enabled.");
+obj.FigureTemplateUpdateButton = uibutton(tg, "Text", "Update", "ButtonPushedFcn", @(~,~) obj.onFigureTemplate("update"), ...
+    "Tooltip", "Replace the template picked with the settings of the figure shown (asks first). The figures it was applied " + ...
+    "to keep their settings until it is applied to them again.");
+obj.FigureTemplateRemoveButton = uibutton(tg, "Text", "Remove", "ButtonPushedFcn", @(~,~) obj.onFigureTemplate("remove"), ...
+    "Tooltip", "Delete the template picked (asks first). The figures it was applied to keep their settings.");
+obj.FigureTemplateImportButton = uibutton(tg, "Text", "Import...", "ButtonPushedFcn", @(~,~) obj.onFigureTemplate("import"), ...
+    "Tooltip", "Copy template files (.json), a colleague's say, into your templates folder.");
+obj.FigureTemplateExportButton = uibutton(tg, "Text", "Export...", "ButtonPushedFcn", @(~,~) obj.onFigureTemplate("export"), ...
+    "Tooltip", "Write the template picked to a .json file, to share it (Import... adds it on another computer).");
+obj.FigureTemplateIssueLink = uihyperlink(tg, "Text", "Report issue", ...
+    "HyperlinkClickedFcn", @(~, ~) obj.onFigureTemplate("issue"), ...
+    "Tooltip", "Report a problem with figure templates: an issue on GitHub, opened prefilled with the template picked. " + ...
+    "To ask for something they do not do: Help > Request a figure template feature..., or right-click the list.");
+obj.FigureApplyLastButton = uibutton(tg, "Text", "Apply last change...", "Enable", "off", ...
+    "ButtonPushedFcn", @(~,~) obj.onApplyToFigures(), ...
+    "Tooltip", "Apply last change to figures (" + cmdKey + "+Shift+A)");   % named after the step: refreshEditMenu
+obj.FigureApplyLastButton.Layout.Column = 11;
+obj.refreshTemplates();
 % the previews: a container per figure, all in this one cell, the selected figure's shown (syncFigureView); the
 % first, "", is shown while no figure is selected
 obj.FigurePreviewHost = uipanel(pg, "BorderType", "none", "BackgroundColor", [0.88 0.88 0.88], "AutoResizeChildren", "off", ...
     "SizeChangedFcn", @(~, ~) obj.fitFigureViews());   % each container is shaped like its figure's export page and centered in it (fitFigureViews)
-obj.FigurePreviewHost.Layout.Row = 4; obj.FigurePreviewHost.Layout.Column = [1 5];
+obj.FigurePreviewHost.Layout.Row = 5; obj.FigurePreviewHost.Layout.Column = [1 5];
 obj.FigureEditorStates = containers.Map('KeyType', 'char', 'ValueType', 'any');
 obj.FigurePickers = containers.Map('KeyType', 'char', 'ValueType', 'any');
 v = newFigureView(obj, "");
@@ -1492,7 +1542,7 @@ obj.FigureViewId = "";
 obj.FigurePreviewPanel = v.Panel;
 % the status line: badge, text, the session pick (opens when there are several), Export preview, Export code, Open in window
 sg = uigridlayout(pg, [1 6], "ColumnWidth", {'fit', '1x', 0, 120, 105, 130}, "Padding", [0 0 0 0], "ColumnSpacing", 8);
-sg.Layout.Row = 5; sg.Layout.Column = [1 5];
+sg.Layout.Row = 6; sg.Layout.Column = [1 5];
 B.Grid = uigridlayout(sg, [1 2], "ColumnWidth", {18, 'fit'}, "Padding", [6 2 10 2], "ColumnSpacing", 5);
 B.Icon = uiimage(B.Grid, "ScaleMethod", "fit");
 B.Text = uilabel(B.Grid, "FontWeight", "bold");

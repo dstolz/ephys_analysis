@@ -81,7 +81,8 @@ disp(T(:, {'label', 'class', 'nSpikes', 'firingRate', 'isiViolationsRatio', 'pre
 %% 6. Quick-look analysis: epochs around each stimulus, a PSTH, figures, response tests
 src = loadAnalysisSource(out);            % events, trials and probe, without loading signals
 E = epochTable(src, eventRef(line="Stim"), Window=epochWindow(pre=-0.2, post=0.5));
-[st, meta] = selectUnits(src, struct('classes', ["su" "mua"]));
+spikeSource = "units";                    % "units" (sorted) | "detected" (the Spikes step's threshold detections, one train per channel)
+[st, meta] = selectUnits(src, struct('source', spikeSource, 'classes', ["su" "mua"]));   % classes apply to sorted units only
 Rp = spikePSTH(st, E, Window=[-0.2 0.5], BinSec=0.01, SmoothSec=0.01, Meta=meta);   % the numbers: Rp.rate [bins x units x groups]
 
 % A figure says what to draw for one observation (a unit, a channel or the

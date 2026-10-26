@@ -100,6 +100,7 @@ switch section
             'channels', [], ...                 % 1-based recording channels kept ([] = all)
             'shanks',   [], ...                 % shanks kept ([] = all)
             'maxUnits', Inf, ...
+            'merge',    mergeDefaults(), ...    % source "detected": join the channels of neighboring sites that hold one neuron's spikes (groupDetected)
             'quality',  qualityDefaults(), ...  % keep the sorted units that meet good-unit criteria (unitQualityPass)
             'response', responseDefaults());    % keep the units that respond to the event (responseStats)
 
@@ -390,6 +391,19 @@ switch section
     otherwise
         error('EphysAnalysisConfig:BadSection', 'Unknown section "%s".', section);
 end
+end
+
+
+function m = mergeDefaults()
+%mergeDefaults  UnitSelection.merge: off; groupDetected's settings.
+m = struct( ...
+    'enabled',      false, ...
+    'radiusUm',     50, ...        % sites this close on the probe can hold one neuron
+    'refractoryMs', 1.5, ...       % no two spikes of one neuron are closer: the gap that joins two channels
+    'flankMs',      [5 30], ...    % the lags (ms) that give the count a gap is compared with
+    'minExpected',  20, ...        % fewest events expected in the gap to test a pair
+    'maxRatio',     0.25, ...      % a pair joins when its gap holds at most this share of the expected events
+    'alpha',        0.001);        % ... and the Poisson p of that is at most this
 end
 
 

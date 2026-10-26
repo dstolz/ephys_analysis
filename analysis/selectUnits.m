@@ -27,7 +27,19 @@ function [st, meta] = selectUnits(src, usel, opts)
 %     channels  1-based recording channels kept ([] = all)
 %     shanks    shanks kept ([] = all): the probe map's kcoords values
 %     maxUnits  at most this many, in order
-%     quality   good-unit criteria (unitQualityCriteria's fields) and
+%     merge     source "detected": with enabled, the channels of neighboring
+%               sites that hold one neuron's spikes are joined into one
+%               "unit" (groupDetected: the refractory gap between two
+%               channels' events; radiusUm, refractoryMs, flankMs,
+%               minExpected, maxRatio and alpha are its options). A unit is
+%               named for its channel with the largest waveform (channel,
+%               unitId, label, with "+n" for the n channels joined to it)
+%               and holds every spike of the group once. META gains nSites
+%               (channels joined) and sites (their recording channels,
+%               "3,4,12"). The ids / channels / shanks filters then see the
+%               unit's own channel. Needs the Spikes step's Coincidence
+%               "remove" or "tag" (groupDetected:NoCoincidence otherwise)
+%     quality  good-unit criteria (unitQualityCriteria's fields) and
 %               enabled: with enabled, the sorted units get their quality
 %               metrics (EphysDataset.unitQuality with the dataset, else
 %               unitQualityOf on the recording's length, without SNR; the
@@ -75,9 +87,9 @@ function [st, meta] = selectUnits(src, usel, opts)
 %   EphysAnalysisRunner passes the plot's own.
 %
 %   Errors: selectUnits:NoUnits, selectUnits:NoDetected, selectUnits:NoneLeft, selectUnits:NoQuality,
-%   selectUnits:BadSource, selectUnits:BadResponse, and responseStats', aurocCurves' and epochTable's.
+%   selectUnits:BadSource, selectUnits:BadResponse, and groupDetected's, responseStats', aurocCurves' and epochTable's.
 %
-%   See also loadAnalysisSource, spikePSTH, firingRate, unitSummary, responseStats, responseEpochs, aurocCurves.
+%   See also loadAnalysisSource, spikePSTH, firingRate, unitSummary, responseStats, responseEpochs, aurocCurves, groupDetected.
 
 arguments
     src (1,1) struct
@@ -145,11 +157,38 @@ switch usel.source
         end
         label = names;
         label(label == "") = "ch" + ch(label == "");
-        [shank, x, y] = probeSites(src.probe, ch);
         st = cellfun(@(v) double(v(:)), reshape(D.ts, [], 1), 'UniformOutput', false);
+        nSites = [];
+        sites = [];
+        if usel.merge.enabled
+            % one unit per group of channels: the group's channel with the largest waveform, all its spikes once
+            mg = usel.merge;
+            pos = [];
+            if ~(isfield(D, 'info') && isfield(D.info, 'coincidence') && isfield(D.info.coincidence, 'positions'))
+                [~, px, py] = probeSites(src.probe, ch);   % a file without its sites: the dataset's probe map
+                pos = [px py];
+            end
+            G = groupDetected(D, Positions=pos, RadiusUm=mg.radiusUm, RefractoryMs=mg.refractoryMs, ...
+                FlankMs=mg.flankMs, MinExpected=mg.minExpected, MaxRatio=mg.maxRatio, Alpha=mg.alpha);
+            [best, o] = sort(G.best);   % the units in channel order, as the unmerged channels come
+            members = G.members(o);
+            nSites = cellfun(@numel, members);
+            sites = string(cellfun(@(m) char(strjoin(string(ch(m)).', ",")), members, 'UniformOutput', false));
+            ch = ch(best);
+            names = names(best);
+            label = label(best);
+            label(nSites > 1) = label(nSites > 1) + "+" + (nSites(nSites > 1) - 1);
+            st = G.times(o);
+            nU = numel(ch);
+        end
+        [shank, x, y] = probeSites(src.probe, ch);
         nSpikes = cellfun(@numel, st);
         meta = table(label, ch, repmat("det", nU, 1), ch, names, shank, x, y, nSpikes, ...
             'VariableNames', {'label', 'unitId', 'class', 'channel', 'channelName', 'shank', 'x', 'y', 'nSpikes'});
+        if usel.merge.enabled
+            meta.nSites = nSites;     % channels joined into the unit
+            meta.sites = sites;       % their recording channels, "3,4,12"
+        end
         keep = true(nU, 1);
         if ~isempty(usel.ids); keep = keep & ismember(meta.unitId, usel.ids); end
     otherwise

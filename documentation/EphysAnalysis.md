@@ -339,7 +339,9 @@ It is the app's [epoch diagram](EphysAnalysisApp.md#epoch-diagram).
 channel, channelName, shank, x, y, nSpikes`. `usel.source` is `"units"`
 (sorted units, filtered by `classes`, `groups`, `ids`) or `"detected"`
 (threshold detections, one "unit" per channel, class `"det"`, sites from the
-probe map); both filter by `channels`, `shanks` and `maxUnits`. Shanks are
+probe map; with `usel.merge.enabled` the channels of neighboring sites that
+hold one neuron's spikes are joined into one unit, named for its channel with
+the largest waveform, `groupDetected`); both filter by `channels`, `shanks` and `maxUnits`. Shanks are
 the probe map's `kcoords` values for both: a sorted unit on a mapped channel
 takes its channel's shank, since the sorter's own shank numbers
 (`channel_shanks.npy`) need not match them. Everything downstream

@@ -363,7 +363,9 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   *Responsive only* unit selection; `tiedrank`, `tinv` and `ranksum` in its
   auROC, `aurocCurves` and `aurocCall`: the auROC baseline of PSTH and
   heat map panels, the auROC response test and `populationAnalysis`' calls
-  pooled over every dataset; `bootci` for the analysis figures' bootstrap 95%
+  pooled over every dataset; `poisscdf` in `groupDetected`, the refractory-gap
+  test that joins the detection channels holding one neuron's spikes
+  (`UnitSelection.merge`); `bootci` for the analysis figures' bootstrap 95%
   CI error bands and bars, `Style.ErrorType "ci95"`, `errorBounds`; `tinv`
   for the *t* interval across sessions of a session figure's `error "ci95"`,
   `combineSessions`, which falls back to 1.96 × SEM without the toolbox).

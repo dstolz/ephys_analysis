@@ -1,6 +1,11 @@
 %% S_ExampleSpikeAnalysis  A PSTH of every good single unit in an ephys project, no plots.
 %   Loads the project at projectRoot, keeps the sorted units classed "su"
-%   that meet the good-unit criteria (unitQualityCriteria), and bins each
+%   that meet the good-unit criteria (unitQualityCriteria), or, with
+%   spikeSource = "detected", reads the Spikes step's threshold detections
+%   (no sorting needed; classes and quality do not apply; one train per
+%   channel, or with mergeChannels the channels of neighboring sites that hold
+%   one neuron joined into one, named for the one with the largest waveform),
+%   and bins each
 %   one's spikes around an event (spikePSTH). The result is one struct,
 %   Hist, with one element of Hist.units per unit, carrying its recording
 %   session, subject, date and time.
@@ -10,14 +15,16 @@
 
 %% Parameters
 projectRoot = "S:/ANALYSIS_BACKUPS/Daniel/EPHYS/OFC/Analysis";                % project folder (recordings, or the pipeline's outputs)
+spikeSource = "units";                   % "units" (sorted, from the sorting folder) | "detected" (threshold detections of the Spikes step, one train per channel)
 alignLine   = "Stim";                   % digital line the histograms are aligned to ("Trial" = paired trial line)
 alignEdge   = "onset";                   % "onset" | "offset" of each interval
 windowSec   = [-1 1.0];                % [pre post] s around the event
 binSec      = 0.010;                     % bin width, s
 measure     = "rate";                    % "rate" (spikes/s) | "count" (per bin per epoch) | "probability"
 groupBy     = "Depth";        % 0-2 trial parameters to split trials by, e.g. "Depth"
-unitClasses = "su";                      % sorted-unit classes kept: single units
-useQuality  = true;                      % also require the good-unit quality criteria
+mergeChannels = true;                    % spikeSource "detected": join the channels of neighboring sites that hold one neuron (groupDetected), named for the one with the largest waveform
+unitClasses = "su";                      % sorted-unit classes kept: single units (spikeSource "units" only)
+useQuality  = true;                      % also require the good-unit quality criteria (spikeSource "units" only)
 criteria    = unitQualityCriteria();     % thresholds (isi violations, presence ratio, amplitude cutoff, ...)
 
 %% Load the project
@@ -28,11 +35,23 @@ P = EphysProject(projectRoot);
 P.refresh();
 fprintf('%d dataset(s) in %s\n', P.NumDatasets, projectRoot);
 
-% Unit selection: classes, plus the quality criteria when useQuality
+% Unit selection: the sorted units' classes, plus the quality criteria when useQuality;
+% detections have neither (one train per channel)
+spikeSource = lower(string(spikeSource));
+if ~ismember(spikeSource, ["units" "detected"])
+    error('S_ExampleSpikeAnalysis:BadSource', 'spikeSource must be "units" or "detected".');
+end
+isDet = spikeSource == "detected";
+if isDet; unitWord = "detection channel"; else; unitWord = "good single unit"; end
 usel = EphysAnalysisConfig.defaults("UnitSelection");
-usel.classes = unitClasses;
-criteria.enabled = useQuality;
-usel.quality = criteria;
+usel.source = spikeSource;
+if isDet
+    usel.merge.enabled = mergeChannels;
+else
+    usel.classes = unitClasses;
+    criteria.enabled = useQuality;
+    usel.quality = criteria;
+end
 
 ref = eventRef(line=alignLine, edge=alignEdge);             % define which digital-line event to align each epoch
 win = epochWindow(pre=windowSec(1), post=windowSec(2));     % define epoch window
@@ -44,7 +63,10 @@ t = []; edges = [];
 for k = 1:P.NumDatasets
     ds = P.Datasets(k);
     src = loadAnalysisSource(ds.outputs(), Key=P.datasetKey(k));
-    if ~src.hasUnits
+    if isDet && ~src.hasDetected
+        fprintf('  %s: no detected spikes, skipped\n', ds.Name);
+        continue
+    elseif ~isDet && ~src.hasUnits
         fprintf('  %s: no sorted units, skipped\n', ds.Name);
         continue
     end
@@ -59,12 +81,12 @@ for k = 1:P.NumDatasets
         recStart = src.startTime;
     end
 
-    % Good single units and their spike times (s, continuous clock)
+    % Good single units (or detection channels) and their spike times (s, continuous clock)
     try
         [st, meta] = selectUnits(src, usel);
     catch ME
-        if ismember(ME.identifier, ["selectUnits:NoUnits" "selectUnits:NoneLeft"])
-            fprintf('  %s: no good single units, skipped\n', ds.Name);
+        if ismember(ME.identifier, ["selectUnits:NoUnits" "selectUnits:NoDetected" "selectUnits:NoneLeft"])
+            fprintf('  %s: no %ss, skipped\n', ds.Name, unitWord);
             continue
         end
         rethrow(ME)
@@ -111,7 +133,7 @@ end
 %% Collect into one structure
 Hist = struct();
 Hist.projectRoot = projectRoot;
-Hist.params = struct('alignLine', alignLine, 'alignEdge', alignEdge, 'windowSec', windowSec, ...
+Hist.params = struct('spikeSource', spikeSource, 'alignLine', alignLine, 'alignEdge', alignEdge, 'windowSec', windowSec, ...
     'binSec', binSec, 'measure', measure, 'groupBy', groupBy, 'unitClasses', unitClasses, ...
     'useQuality', useQuality, 'criteria', criteria);
 Hist.t = t;                              % bin centers, s from the event
@@ -119,7 +141,7 @@ Hist.edges = edges;                      % bin edges, s
 Hist.units = units;                      % 1 x nUnits struct
 Hist.created = datetime('now');
 if isempty(units); nDs = 0; else; nDs = numel(unique([units.dataset])); end
-fprintf('%d good single unit(s) from %d dataset(s)\n', numel(units), nDs);
+fprintf('%d %s(s) from %d dataset(s)\n', numel(units), unitWord, nDs);
 
 %% Arrange the data to a single response matrix, R
 

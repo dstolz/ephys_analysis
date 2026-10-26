@@ -10,6 +10,13 @@ says how to cut a release.
 
 ### Added
 
+- Join the detection channels that hold one neuron. `UnitSelection.merge` (`enabled` false) makes
+  `selectUnits(source "detected")` return one unit per group of channels of neighboring sites instead of one per
+  channel: `groupDetected` joins two sites when the events of one leave the refractory gap (more than the
+  Coincidence jitter, at most `refractoryMs`) empty next to the other's, against the count the `flankMs` lags
+  predict (Poisson), and names the unit for its channel with the largest mean waveform, holding every spike of the
+  group once. The unit table gains `nSites` and `sites`. Needs the Spikes step's Coincidence `"remove"` or `"tag"`.
+  See [UnitSelection](documentation/EphysAnalysisConfig.md#unitselection).
 - Sort rasters by first-spike latency, and show the trials in each PSTH group. `rasterSort "latency"` orders a
   raster's rows (and a heat map of trials') by each epoch's first spike, within the groups, ascending or
   descending, epochs with no spike in the window last; a raster reads its `firstSpike` window, else the event to

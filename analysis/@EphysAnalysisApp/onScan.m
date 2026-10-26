@@ -8,20 +8,35 @@ function onScan(obj)
 %   too) and observation list are forgotten. Each dataset's stars and
 %   notes are read (loadFavorites, loadNotes) and shown (refreshFavorites,
 %   refreshNotes). While the app starts the scan and the first dataset's
-%   loading are steps on the splash.
+%   loading are steps on the splash; later a modal progress dialog shows the
+%   scan (dataset i/n, time left; Cancel stops it before the datasets are
+%   listed) and then the favorites, the notes and the first dataset.
 cfg = obj.gatherConfig();
 scanCfg = cfg;
 scanCfg.Source.Selection = "all";
 obj.setStatus("Scanning " + ternary(cfg.Source.Mode == "project", cfg.Source.Root, "the output folders") + " for datasets ...");
 obj.Splash.step("scan", "Scanning the datasets ...");
 if ~obj.Splash.isActive(); drawnow; end   % the hidden window is laid out once, when it shows (setStatus)
+dlg = [];
+if ~obj.Splash.isActive()
+    dlg = uiprogressdlg(obj.Fig, "Title", "Scanning for datasets", "Indeterminate", "on", "Cancelable", "on", ...
+        "Message", "Looking for datasets in " + ternary(cfg.Source.Mode == "project", string(cfg.Source.Root), "the output folders") + " ...");
+end
+clock = ProgressClock();
+cleanup = onCleanup(@() closeDialog(dlg));   % closed on every way out, an error too
 try
-    r = EphysAnalysisRunner(scanCfg, LogFcn=@(m) obj.log(m));
+    r = EphysAnalysisRunner(scanCfg, LogFcn=@(m) obj.log(m), ProgressFcn=@(f, m) scanProgress(dlg, clock, f, m));
 catch ME
+    if ME.identifier == "EphysAnalysisRunner:Canceled"
+        obj.setStatus("Scan canceled.");
+        return
+    end
     obj.ScanLabel.Text = "Scan failed: " + string(ME.message);
     obj.setStatus("Scan failed: " + string(ME.message));
     return
 end
+r.ProgressFcn = [];   % the dialog is for the scan only (a run sets its own)
+setDialog(dlg, "Message", "Reading favorites and notes ...");
 r.Config = cfg;
 obj.Runner = r;
 loadFavorites(obj);   % each dataset's <Name>_favorites.json
@@ -62,15 +77,44 @@ if n > 0
     end
     if fav > 0
         obj.Splash.step("dataset", "Loading " + names(E.dataset(fav)) + " ...");
+        setDialog(dlg, "Message", "Opening " + names(E.dataset(fav)) + " ...");
         goToFavorite(obj, E(fav, :));
     else
         first = find(obj.Ticked, 1);
         if isempty(first); first = 1; end
         obj.Splash.step("dataset", "Loading " + names(first) + " ...");
+        setDialog(dlg, "Message", "Opening " + names(first) + " ...");
         obj.selectDataset(first);
     end
 end
 obj.setStatus(obj.ScanLabel.Text);
+end
+
+
+function scanProgress(dlg, clock, fraction, message)
+%scanProgress  The runner's report while it reads the datasets: the dialog shows it; Cancel stops the scan.
+if isempty(dlg) || ~isvalid(dlg); return; end
+dlg.Indeterminate = "off";
+dlg.Value = min(max(fraction, 0), 1);
+dlg.Message = char(clock.message(message, fraction));
+drawnow limitrate;
+if dlg.CancelRequested
+    error('EphysAnalysisRunner:Canceled', 'The scan was canceled.');
+end
+end
+
+
+function setDialog(dlg, varargin)
+%setDialog  Set properties of the scan dialog (none while the splash shows) and draw it.
+if isempty(dlg) || ~isvalid(dlg); return; end
+set(dlg, varargin{:});
+dlg.Indeterminate = "on";   % the steps after the scan have no count
+drawnow limitrate;
+end
+
+
+function closeDialog(dlg)
+if ~isempty(dlg) && isvalid(dlg); close(dlg); end
 end
 
 

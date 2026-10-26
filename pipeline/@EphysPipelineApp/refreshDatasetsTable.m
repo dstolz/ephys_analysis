@@ -17,8 +17,9 @@ function refreshDatasetsTable(obj, opts)
 %
 %   refreshDatasetsTable(Datasets=IDX) only recomputes the cells of the
 %   datasets IDX (indices into Project.Datasets) in the rows the table
-%   shows (the Kilosort4 monitor, as a run starts or ends); it rebuilds the
-%   whole table when the table does not hold those datasets' rows, or
+%   shows (the Kilosort4 monitor, as a run starts or ends), and their rows
+%   of the Review tab's Datasets table (refreshReviewDatasets); it rebuilds
+%   the whole table when the table does not hold those datasets' rows, or
 %   while the tag filter is on (a tag edit may show or hide a row). The
 %   Behavior column reads each Epsych2 session file's summary once, and
 %   again only when the file changes (EpsychMetaCache).
@@ -31,8 +32,11 @@ arguments
     obj (1,1) EphysPipelineApp
     opts.Datasets (1,:) double = []
 end
-if ~isempty(opts.Datasets) && refreshRows(obj, opts.Datasets)
-    return
+if ~isempty(opts.Datasets)
+    obj.refreshReviewDatasets(Datasets=opts.Datasets);   % the Review tab's rows of them too
+    if refreshRows(obj, opts.Datasets)
+        return
+    end
 end
 
 [tokenNames, shown, patternMsg] = nameTokenSettings(obj);

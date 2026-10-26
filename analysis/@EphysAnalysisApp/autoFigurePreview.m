@@ -6,6 +6,11 @@ function autoFigurePreview(obj)
 %   the Preview button (FigurePreviewSeconds is Inf then). The limit is
 %   FigureAutoPreviewSeconds (AutoPreviewSeconds, 2 s; a test raises it so
 %   a loaded machine does not leave its previews out of date).
+%   An edit of text alone -- a panel's x or y label or title, the figure's
+%   title -- is set on the drawn preview instead (inPlaceFigurePreview:
+%   nothing computed, no busy card, no panel drawn again), when it is
+%   current but for that edit; with Auto on, that is done whatever the
+%   last preview took.
 %   A session figure (sessions.enabled) is not redrawn on an edit: it
 %   computes every session, so it waits for Preview (or a pick in the
 %   observation list); the status line says so. The figure tree's marks
@@ -21,8 +26,12 @@ if k >= 1 && k <= numel(obj.Config.Figures) && obj.Config.Figures(k).sessions.en
     markFigureTree(obj);
     return
 end
-if isempty(obj.Tabs) || obj.Tabs.SelectedTab ~= obj.TabFigures ...
-        || ~obj.FigureAutoCheckBox.Value || obj.FigurePreviewSeconds >= obj.FigureAutoPreviewSeconds
+auto = ~isempty(obj.Tabs) && obj.Tabs.SelectedTab == obj.TabFigures && obj.FigureAutoCheckBox.Value;
+if auto && inPlaceFigurePreview(obj)   % text alone changed: set on the drawing, however long the last preview took
+    markFigureTree(obj);
+    return
+end
+if ~auto || obj.FigurePreviewSeconds >= obj.FigureAutoPreviewSeconds
     if obj.FigurePreviewState == "drawn"; obj.setFigurePreviewState("stale"); end
     markFigureTree(obj);   % the other figures' previews too (another dataset, the defaults)
     return

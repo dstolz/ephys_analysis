@@ -97,6 +97,7 @@ distinct as file names: `{Plot}` replaces every character outside
       "grid": { "rows": 3, "cols": 1, "rowHeights": [1.5, 1, 1], "colWidths": [], "spacing": "none", "...": "..." },
       "ref": "default", "window": "default", "selection": "default",
       "sessions": { "enabled": false, "...": "..." },
+      "latency": { "method": "first", "minSec": 0, "maxSec": "Inf", "...": "..." },
       "panels": [ { "id": "raster_1", "type": "raster", "row": 1, "col": 1, "...": "..." },
                   { "id": "psth_1", "type": "psth", "row": 2, "col": 1, "...": "..." },
                   { "id": "continuous_1", "type": "continuous", "row": 3, "col": 1, "...": "..." } ],
@@ -107,7 +108,7 @@ distinct as file names: `{Plot}` replaces every character outside
               "Data": { "Enabled": false, "Folder": "{OutputRoot}\\analysis\\data",
                         "FilenamePattern": "{Name}_{Plot}", "MatVersion": "-v7.3" } },
   "Report": { "Enabled": true, "Format": "html", "Title": "{Name}",
-              "Folder": "{OutputRoot}\\analysis", "FileName": "analysis_report", "PerDataset": false,
+              "Folder": "{OutputRoot}\\analysis", "FileName": "analysis_report", "PerDataset": false, "Order": "figure",
               "EmbedFormat": "png", "Dpi": 110, "IncludeSummary": true, "IncludeParameters": true,
               "IncludeConfig": true }
 }
@@ -174,13 +175,14 @@ edits them.
 ## Building blocks
 
 `EphysAnalysisConfig.defaults("EventRef" | "EpochWindow" | "TrialSelection" |
-"UnitSelection" | "Style" | "Auroc" | "Waveform" | "FirstSpike" | "LatencyBox" | "EventMark" | "Note" | "Overlay")`. The first three are described with their
+"UnitSelection" | "Style" | "Auroc" | "Waveform" | "Latency" | "FirstSpike" | "LatencyBox" | "EventMark" | "Note" | "Overlay")`. The first three are described with their
 constructors (`eventRef`, `epochWindow`, `trialSelection`, which build and
 check one in a script) on the [Analysis page](EphysAnalysis.md#event-reference-window-selection);
 what they mean in a config follows. The sections after [Style](#style) describe
 the settings that figures and their panels share: stacks, y limits, the auROC
-baseline, a raster's sort and event marks, the first-spike latency (a raster's
-marks, a PSTH's box plot), unit waveforms, aux signals, error bands, and a
+baseline, a raster's sort and event marks, the first-spike latency and
+response onset (the figure's block; a raster's marks, a PSTH's box plot, the
+onset lines), unit waveforms, aux signals, error bands, and a
 panel's notes and overlays.
 
 ### EventRef
@@ -547,62 +549,145 @@ skipped with that reason. The private `epochIntervals` finds the intervals.
 
 ### First-spike latency
 
-Each epoch's **first-spike latency** is the time, from the epoch's aligned event,
-of its first spike at or after `minSec` and at or before `maxSec` (both ends
-included, to the sample); an epoch with no spike in that window has none (NaN).
-`firstSpikeLatency(R, Units=, MinSec=, MaxSec=)` ([Analysis
-page](EphysAnalysis.md#compute)) finds it in a spikePSTH result's raster rows: the
-very spike times the raster draws, on the clock of each epoch's event (a spike in
-the event's own sample is at 0), with the stop mask when the panel masks after
-the stop event, and only the epochs the panel draws (those an artifact period
-dropped are not there). The window is clipped to the panel's: `maxSec` `Inf`
-(the default) means the window's end. Two panel options use it, each with its
-own window:
+A figure's first-spike latencies and response onsets are the **figure's**: one
+block, `Figure.latency` (`EphysAnalysisConfig.defaults("Latency")`), says how
+they are found, for every panel that reads them, and the panels keep only how
+they are drawn. Once the panels are computed, `figureCompute` takes them once
+per unit and alignment -- per unit of a layer's raster rows, so a raster and a
+PSTH of one unit on the same epochs share one -- and hands them to each panel
+layer on those rows (`R.latency`, `R.onset`; the private `figureLatencies`).
+They are kept in the preview's cache keyed by the rows and the settings each
+rule reads: an edit of the block computes them again and nothing else (no
+panel's layers), an edit of a look none of them, and only the panels that read
+them are drawn again. `F.latency` sums them up for the figure's data and its
+exports: the block, and one entry per unit with the panels that read it, its
+latencies and onsets. A [session figure](#session-figures) takes them once, on
+the rows merged across the sessions.
+
+**Each epoch's first-spike latency** (`firstSpikeLatency`, [Analysis
+page](EphysAnalysis.md#compute)) is the time, from the epoch's aligned event, of
+its first response spike in the window `[minSec, maxSec]` (both ends included,
+to the sample; `maxSec` `Inf`, the default, is each panel's window's end); an
+epoch with none has NaN. It reads the raster's own rows: the very spike times
+the raster draws, on the clock of each epoch's event (a spike in the event's own
+sample is at 0), with the stop mask when the panel masks after the stop event,
+and only the epochs the panel draws. Three rules (`method`):
+
+- **`"first"`**: the first spike in the window. Exact on a clean unit; a
+  spontaneous spike before the response is taken for the latency.
+- **`"surprise"`**: the first spike of the first burst in the window whose
+  **Poisson surprise** against the baseline rate reaches `surprise` (Legendy &
+  Salcman 1985, *J Neurophysiol* 53:926-939). The surprise of n spikes in the
+  time T from the first to the last is S = -log10 P(N >= n), N Poisson with mean
+  r T at the baseline rate r. A burst starts as `minSpikes` consecutive spikes
+  whose intervals are each under half the baseline's mean interval (1/(2r)),
+  takes the following spikes on while that raises S (looking up to 10 spikes
+  ahead), then sheds spikes from its start while that raises S; every spike of
+  the window is a possible start, and the first burst with S >= `surprise` gives
+  the latency, its first spike.
+- **`"poisson"`**: the first spike at which the spikes counted since the
+  window's start are improbable at the baseline rate, in the manner of Chase &
+  Young 2007 (*PNAS* 104:5175-5180): the k-th spike, at t_k, is the latency
+  when P(N >= k) < `alpha`, N Poisson with mean r (t_k - `minSec`). It is the
+  spike at which the count turns improbable, so it lags the response's first
+  spike by the few spikes the count needs.
+
+The baseline rate r of the Poisson rules is the spike count in the baseline
+window over its length: `baseline "pre"` the part of the panel's window before
+the event, `"window"` the window `baselineWindow` (s from the event), clipped to
+the panel's; counted over every epoch together (`baselineRate "unit"`) or in
+each epoch alone (`"trial"`: an epoch with no baseline spike has r = 0, and then
+any spike, or any `minSpikes` spikes, are improbable). A window with no time
+before the event has no baseline: those rules then find nothing and the panels
+say why.
+
+On synthetic Poisson trains (a 20 Hz baseline, 250 Hz for 30 ms from 50 ms with
+2 ms of jitter; `test_FirstSpikeLatency`) the first-spike rule takes a
+spontaneous spike in most epochs, the Poisson surprise finds the response's
+first spike in about two epochs of three (its median error under 1 ms), and
+the Poisson count takes a spontaneous spike in a few percent, about 10 ms after
+the response's first spike.
+
+**The unit's response onset** (`responseOnset`) is found from its PSTH by
+CUSUM: the spikes of every epoch (and of each trial group's epochs) in bins of
+`cusumBinSec` on a grid through the event, as a rate; the baseline bins' mean m
+and SD s (the same baseline window); then over the bins of the window, Page's
+one-sided cumulative sum (Page 1954, *Biometrika* 41:100-115), as Ellaway (1978,
+*Electroencephalogr Clin Neurophysiol* 45:302-304) applied the cumulative sum to
+a PSTH: C_i = max(0, C_(i-1) + (x_i - m) / s - `cusumDrift`). The onset is where
+C first reaches `cusumThreshold` and stays up and rising for `cusumSustainSec`
+(never under the threshold, and higher at the end; a crossing that does not
+last is passed over), placed at the start of the rise: the bin after the last
+bin where C was 0. On a synthetic baseline the default allowance of 1 SD keeps
+C at zero (none of 40 runs found an onset), and the onset falls within a few ms
+of the true one.
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `method` | `"first"` | the per-trial rule: `"first"`, `"surprise"` or `"poisson"` |
+| `minSec`, `maxSec` | 0, `Inf` | the window searched, s from the event (included; `Inf`: each panel's window's end); the onset's too |
+| `baseline` | `"pre"` | where the baseline rate is counted: `"pre"` (before the event) or `"window"` |
+| `baselineWindow` | `[-0.1 0]` | `baseline "window"`: [lo hi] s from the event |
+| `baselineRate` | `"unit"` | the Poisson rules' rate: `"unit"` (every epoch's baseline together) or `"trial"` (each epoch's own) |
+| `alpha` | 0.01 | `"poisson"`: the count's improbability |
+| `surprise` | 3 | `"surprise"`: the least surprise of a burst, -log10 P |
+| `minSpikes` | 3 | `"surprise"`: the fewest spikes a burst starts with (at least 2) |
+| `cusumBinSec` | 0.002 | the onset: the PSTH's bins, s |
+| `cusumThreshold` | 5 | the onset: the CUSUM's threshold, baseline SDs |
+| `cusumDrift` | 1 | the onset: the allowance each bin takes off, baseline SDs (0: the plain excess, floored at zero) |
+| `cusumSustainSec` | 0.005 | the onset: how long the CUSUM stays over the threshold and rising, s (0: the crossing alone) |
+
+The panels that read them:
 
 - a **raster**'s `options.firstSpike` (`EphysAnalysisConfig.defaults("FirstSpike")`)
-  puts a mark on each epoch's first spike, on that epoch's row -- wherever the
-  sort, `rasterByGroup` or a further block's band put the row -- over the ticks,
-  in every block (each block's own unit). Aesthetics role `firstSpike`, a line
-  per trial group (group: its label); the legend lists "First spike"; a mark's
-  data tip names its trial.
+  puts a mark on each epoch's first-spike latency, on that epoch's row --
+  wherever the sort, `rasterByGroup` or a further block's band put the row --
+  over the ticks, in every block (each block's own unit). Aesthetics role
+  `firstSpike`, a line per trial group (group: its label); the legend lists
+  "First spike"; a mark's data tip names its trial.
 - a **PSTH**'s `options.latencyBox` (`EphysAnalysisConfig.defaults("LatencyBox")`)
   draws a horizontal box plot of those latencies along the time axis, one box
   per trial group: the box from the first to the third quartile, a line at the
-  median (`prctile`, MATLAB's own), whiskers to the most extreme latencies
-  within 1.5 IQR of the box (Tukey) and the latencies beyond them as outliers.
-  It reads the first item (the observed unit; a layer's mean pools its units'
-  epochs, one latency per unit and epoch). Overlaid, the boxes sit in a band
-  of their own above the traces: the y range grows by a small gap and a lane
-  of `boxHeight` times its height per group (the first group's on top), so no
-  box covers a trace (whatever `yLimMode` sets the range to: `yLim`'s, a run's
-  batch range), and the y ticks stay on the traces' range; the panel's y
-  extent for a batch range is the traces', not the band's. With `stack
-  "groups"` each row holds its group's box in a lane above its range
-  (`stackLayout`'s `Above`: a gap and `boxHeight` times the row height), and
-  the row step grows to take it, so the box stays outside the row's values in
-  every `yLimMode` ([Y limits](#y-limits)). Roles
-  `latencyBox`, `latencyMedian`, `latencyWhisker` and `latencyOutlier` (group:
-  the trial group); each part's data tip gives the median, the quartiles, the
-  whiskers, the outliers and n (the epochs with a first spike, of the group's).
-  Not drawn with `display "heatmap"`. A PSTH with it on keeps its raster's rows
-  (spikePSTH's `Raster`), which the box reads.
+  median (`prctile`), whiskers to the most extreme latencies within 1.5 IQR of
+  the box (Tukey) and the latencies beyond them as outliers. It reads the first
+  item (the observed unit; a layer's mean pools its units' epochs, one latency
+  per unit and epoch). Overlaid, the boxes sit in a band of their own above the
+  traces: the y range grows by a small gap and a lane of `boxHeight` times its
+  height per group (the first group's on top), so no box covers a trace
+  (whatever `yLimMode` sets the range to: `yLim`'s, a run's batch range), and
+  the y ticks stay on the traces' range; the panel's y extent for a batch range
+  is the traces', not the band's. With `stack "groups"` each row holds its
+  group's box in a lane above its range (`stackLayout`'s `Above`: a gap and
+  `boxHeight` times the row height), and the row step grows to take it, so the
+  box stays outside the row's values in every `yLimMode` ([Y limits](#y-limits)).
+  Roles `latencyBox`, `latencyMedian`, `latencyWhisker` and `latencyOutlier`
+  (group: the trial group); each part's data tip gives the median, the
+  quartiles, the whiskers, the outliers, n (the epochs with a latency, of the
+  group's) and the rule. Not drawn with `display "heatmap"`. A PSTH with it on
+  keeps its raster's rows (spikePSTH's `Raster`).
+- a **raster**'s or **PSTH**'s `options.onsetLine` draws the unit's response
+  onset as a dashed line: `"unit"` one over every epoch (on a raster, over the
+  block's rows; on a PSTH, across the axes; in the plot's ink), `"groups"` each
+  trial group's at its own onset in the group's color (on a raster, over that
+  group's rows); `"off"` (the default) none. Role `latencyOnset` (group: the
+  trial group, `""` for the unit's), "Response onset" in the legend; its data
+  tip gives the onset and the CUSUM's settings. A PSTH with it on keeps its
+  raster's rows; a layer's mean has no one unit's onset (noted).
 - **`rasterSort "latency"`** orders the rows of a raster (and of a heat map of
   trials) by each epoch's first-spike latency, ascending or, with
   `rasterSortOrder "descending"`, descending, within each trial group (or across
-  them with `rasterByGroup false`). A raster reads the window of its `firstSpike`
-  (`minSec`, `maxSec`) whether or not the marks are on; a heat map of trials, and
-  a raster without that window set, from the event to the window's end. An epoch
-  with no first spike in the window sorts last in either direction, ties keep
-  the time order, and the y label reads "Epoch (by first-spike latency)".
-  Turning it off is setting the sort back to `""`. The order is the one
-  `figEpochOrder` gives every raster-like display, so the first-spike marks stay
-  on their epochs' rows.
+  them with `rasterByGroup false`), whether or not the marks are on. An epoch
+  with no latency sorts last in either direction, ties keep the time order, and
+  the y label reads "Epoch (by first-spike latency)". Turning it off is setting
+  the sort back to `""`. The order is the one `figEpochOrder` gives every
+  raster-like display, so the first-spike marks stay on their epochs' rows.
+
+A latency or onset the block cannot find (no baseline before the event, a
+window with no whole bin) is noted in the panel with why.
 
 | Field | `FirstSpike` default | `LatencyBox` default | Meaning |
 | --- | --- | --- | --- |
 | `enabled` | `false` | `false` | draw the marks / the box plot |
-| `minSec` | 0 | 0 | the earliest latency, s from the event (included; negative: before it) |
-| `maxSec` | `Inf` | `Inf` | the latest, s (included); `Inf`: the panel's window's end |
 | `color` | `"groups"` | `"groups"` | `"groups"`: each trial group's color; or a color name or `#rrggbb` for every one |
 | `marker`, `size` | `"o"`, 5 | | the mark: a line marker the aesthetics editor knows (as an [event mark](#raster-event-marks)'s), its size in points |
 | `filled` | `false` | | a filled mark; `false`: its outline, the tick showing through |
@@ -611,11 +696,14 @@ own window:
 | `fillAlpha` | | 0.3 | the box's fill opacity, 0 (an outline) to 1 (the median then pale) |
 | `outlierMarker`, `outlierSize` | | `"o"`, 3 | the outliers' marker (`"none"`: not drawn) and size |
 
-They are checked only while `enabled` ([Validating figures](#validating-figures)).
-The figure's caption names them with their window. The analysis app edits them in
-a window of their own: the raster's **First-spike latency...** and the PSTH's
-**Latency box plot...** ([Figures tab](EphysAnalysisApp.md#figures-tab)). In a
-[session figure](#session-figures) they read the rows merged across the sessions.
+The looks are checked only while `enabled`, the block always
+([Validating figures](#validating-figures)). The figure's caption names the marks,
+the box plot and the onset lines with the block's rule, window and baseline
+(`latencyMethodText`). The analysis app edits the block in the figure editor's
+**First-spike latency** section, and the looks in a window of their own: the
+raster's **First-spike marks...** and the PSTH's **Latency box plot...**, with
+an **Onset line** row on both ([Figures tab](EphysAnalysisApp.md#figures-tab));
+**Copy settings** lists the block setting by setting.
 
 ### Trial counts
 
@@ -950,6 +1038,7 @@ give the fields below; every field exists on every entry.
 | `grid` | below | the arrangement of the panels |
 | `panels` | none | the [panels](#panel-fields), a list of any length |
 | `ref`, `window`, `selection` | `"default"` | `"default"` = [`Defaults`](#defaults), or the figure's own [EventRef](#eventref) / [EpochWindow](#epochwindow) / [TrialSelection](#trialselection). Every aligned panel starts from them |
+| `latency` | `defaults("Latency")` | how the first-spike latencies and response onsets its panels read are found, once per unit and alignment for every panel ([First-spike latency](#first-spike-latency)): the method, the window, the baseline and the CUSUM's settings. The panels keep only their looks |
 | `sessions` | `defaults("FigureSessions")` | the [session figure](#session-figures) settings: with `sessions.enabled` the figure is drawn once across several datasets instead of once per dataset; `sessions.enabled` false keeps the block and leaves it unused. Which datasets, how the observation is matched across them and how the sessions are colored, merged and grouped |
 | `style` | [Style](#style) | the figure's look: fonts, line widths, error bands, legend, colors and probe sorting apply. `XLim`, `YLim`, `CLim`, `MaxTiles` and `TileSpacing` are not used: the time panels show the window, each panel has its own `options.yLim` / `cLim`, and the spacing is `grid.spacing` |
 | `aesthetics` | none | remembered looks of the figure's components, a list of rules `{role, group, property, value}` ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)) |
@@ -1140,7 +1229,8 @@ What each draws:
   blocks. Events layers drawn as marks put a mark on every row of every block,
   drawn as a span a line from each onset to its offset on every row; drawn as a
   train they are blocks of rows of their own. `options.firstSpike` marks each
-  epoch's first spike in its window ([First-spike latency](#first-spike-latency)).
+  epoch's first-spike latency and `options.onsetLine` draws the unit's response
+  onset ([First-spike latency](#first-spike-latency)).
 - `psth`: the peri-event rate per trial group: a band and a trace for every
   layer and unit, each unit in a line style of its own (`-`, `--`, `:`, `-.`,
   or the layer's `lineStyle`); with several only the first is filled.
@@ -1513,7 +1603,8 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `raster` | `tickWidth` | `0` | the ticks' line width, points; `0` is the plot design's width (`rasterTicks` `LineWidth`). A value above 0 wins over the design's and the user's per-kind rules (the figure's own aesthetics rules still win); not a width of 0 or more is a validation error |
 | `raster` | `backColor` | `"none"` | bands behind the rows: `"none"` (the default), `"groups"` (a pale band of each group's color behind its rows; the legend then also names the groups when every tick is one color) or a color name or hex code, painted on every group's band and on the axes behind them. Anything else is a validation warning and no bands |
 | `raster` | `yTicks` | `false` | show the y axis' tick marks and labels (the epoch numbers); `false` hides them and keeps the y label. A raster of several blocks keeps its blocks' names on the y axis either way. A heat map of trials has no y ticks to show |
-| `raster` | `firstSpike` | [FirstSpike](#first-spike-latency), `enabled false` | a mark on each epoch's first spike in `[minSec, maxSec]` (default 0 to the window's end), on its row; its `marker`, `size`, `color` (`"groups"` or a color) and `filled` |
+| `raster` | `firstSpike` | [FirstSpike](#first-spike-latency), `enabled false` | a mark on each epoch's first-spike latency (the figure's `latency` block finds it), on its row; its `marker`, `size`, `color` (`"groups"` or a color) and `filled` |
+| `raster` | `onsetLine` | `"off"` | the unit's [response onset](#first-spike-latency) (the figure's CUSUM onset): `"unit"` a dashed line over every row, `"groups"` each trial group's over its rows in its color |
 | `raster` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | the first block's unit's waveform in a box in the panel |
 | `psth` | `bins` | `BinSec` 0.01, `SmoothSec` 0.01 | the bin width (bins are whole multiples of `BinSec` from the event) and the Gaussian SD applied to each epoch before averaging, s (0 = no smoothing) |
 | `psth` | `measure` | `"rate"` | `"rate"`, `"count"` or `"probability"` |
@@ -1526,7 +1617,8 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `psth` | `normalize` | `"none"` | `"none"`, `"unitPeak"`, `"groupPeak"` or `"allPeak"` |
 | `psth` | `stack` | `"off"` | `"groups"`: one row per trial group, stacked downwards (the first group on top, as a raster lists them), instead of overlaid; a single group is drawn overlaid ([Stacks](#stacks)) |
 | `psth` | `stackSpacing` | 1.1 | `stack`: the step between rows, times the row height (below 1 the rows overlap); positive |
-| `psth` | `latencyBox` | [LatencyBox](#first-spike-latency), `enabled false` | a box plot of the first-spike latencies in `[minSec, maxSec]` per trial group, in a band above the traces (`stack "groups"`: in a lane above each row); `color`, `lineStyle`, `lineWidth`, `boxHeight`, `fillAlpha`, `outlierMarker`, `outlierSize`. Not with `display "heatmap"` |
+| `psth` | `onsetLine` | `"off"` | the first item's unit's [response onset](#first-spike-latency): `"unit"` a dashed line across the axes, `"groups"` each trial group's in its color. A PSTH with it keeps its raster's rows |
+| `psth` | `latencyBox` | [LatencyBox](#first-spike-latency), `enabled false` | a box plot of the figure's first-spike latencies per trial group, in a band above the traces (`stack "groups"`: in a lane above each row); `color`, `lineStyle`, `lineWidth`, `boxHeight`, `fillAlpha`, `outlierMarker`, `outlierSize`. Not with `display "heatmap"` |
 | `psth` | `trialCount` | `"off"` | the trials each group has ([Trial counts](#trial-counts)): `"text"` writes `n = 24` per group in the group's color, `"legend"` appends ` (n = 24)` to the group's legend entry |
 | `psth` | `maskAfterStop` | `false` | drop each epoch's bins from its stop event on |
 | `psth` | `yLimMode`, `yLim` | `"auto"`, `[]` | the rate axis ([Y limits](#y-limits): auto, rows, batch or fixed at `yLim`); in a stack the rows' scale; not used by a heat map |
@@ -1546,7 +1638,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `heatmap` | `auroc` | `defaults("Auroc")` | a spike layer, baseline `Mode "auroc"`: the PSTH's `auroc` settings. A signal layer with `"auroc"` is an error |
 | `heatmap` | `rows` | `"items"` | `"items"`: a row per unit or channel of the layer; `"trials"`: a row per epoch of one unit, every trial group (a spike or train layer that follows the observation or is fixed to one unit; no auROC baseline). A layer that follows the observation through a channel (a channel observation, or a layer of the other spike source) keeps every unit on it, so validate refuses it; one that still keeps several is skipped at run time |
 | `heatmap` | `order` | `"probe"` | rows `"items"`: `"probe"` (the style's `SortDepth` / `SortShank`), `"peak"` (by the time of each row's maximum) or `"modulation"` (by each unit's mean auROC in the call window, highest first; only with the auROC baseline of a spike layer). Not used for `"trials"` |
-| `heatmap` | `rasterSort` | `""` | rows `"trials"`: the order of the epochs, as a raster's: `""` (trial order), `"stop"`, `"event"`, `"latency"` (the unit's first-spike latency, from the event to the window's end) or a trial parameter |
+| `heatmap` | `rasterSort` | `""` | rows `"trials"`: the order of the epochs, as a raster's: `""` (trial order), `"stop"`, `"event"`, `"latency"` (the unit's first-spike latency: the figure's `latency` block) or a trial parameter |
 | `heatmap` | `rasterSortEvent` | `[]` | rows `"trials"`, `rasterSort "event"` (required then): the [event reference](#eventref) whose latency orders the rows |
 | `heatmap` | `rasterSortOrder` | `"ascending"` | rows `"trials"`: or `"descending"` |
 | `heatmap` | `rasterByGroup` | `true` | rows `"trials"`: epochs by group first, else one block |
@@ -1850,11 +1942,11 @@ are `computeFigure`'s.
 
 ### renderFigure
 
-`h = renderFigure(F, spec, target, Design="", UserAesthetics=true, Editable="auto", OnRemember=[], DataTips="auto", Reuse=false)`
+`[h, how] = renderFigure(F, spec, target, Design="", UserAesthetics=true, Editable="auto", OnRemember=[], DataTips="auto", Reuse=false, InPlaceOnly=false, Scale=1)`
 draws `F` as `spec` says (the spec `F` was computed with; its `aesthetics` may
 differ, as when the aesthetics editor redraws). `target` is an axes (which draws
 panel 1 only), uiaxes, figure, uifigure, panel, tab or grid layout;
-renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#plot-designs) for this drawing (default: the user's chosen one), `UserAesthetics=false` leaves the user's remembered rules out, `Editable` (`"auto"`: in a visible figure) turns the right-click editing on or off, and `OnRemember` is called with a figure's new rules ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)). `OnSelect` is called with a panel's id and whether Ctrl was down when a drawn panel (its axes, labels and what is drawn in them) is clicked with Ctrl or the right button; the app selects that panel in its editor on a Ctrl+Click. `DataTips` (`"auto"`: in a visible figure, as `Editable`; `true` or `false`) gives every part drawn data tips that name what the point is (`FigureDataTips.attach`, below). `Reuse=true` (the app's preview) keeps the panels of the target's last drawing that would be drawn alike and draws only the others, the figure the same as a whole drawing ([Render](EphysAnalysis.md#render) says when a panel is kept).
+renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#plot-designs) for this drawing (default: the user's chosen one), `UserAesthetics=false` leaves the user's remembered rules out, `Editable` (`"auto"`: in a visible figure) turns the right-click editing on or off, and `OnRemember` is called with a figure's new rules ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)). `OnSelect` is called with a panel's id and whether Ctrl was down when a drawn panel (its axes, labels and what is drawn in them) is clicked with Ctrl or the right button; the app selects that panel in its editor on a Ctrl+Click. `DataTips` (`"auto"`: in a visible figure, as `Editable`; `true` or `false`) gives every part drawn data tips that name what the point is (`FigureDataTips.attach`, below). `Reuse=true` (the app's preview) keeps the panels of the target's last drawing that would be drawn alike and draws only the others, the figure the same as a whole drawing ([Render](EphysAnalysis.md#render) says when a panel is kept); an edit of text alone (a panel's `xLabel`, `yLabel` or `title`, the figure's `title`) draws nothing: the text is set on what is drawn. `InPlaceOnly=true` makes only such an edit and draws nothing otherwise. `how` says what was done: `"drawn"`, `"inplace"`, or `""` (`InPlaceOnly` and nothing done; `h` is then `[]`). `Scale=S` draws a figure shown `S` times as wide as its export page at 96 dpi (the app's preview and *Open in window*): it is drawn as the export is (on the export page's size first, so the automatic ticks and limits are the export's), then every font size, line width, marker size, error bar cap and legend token is multiplied by `S` (a scatter's marker area by `S`²; `PlotAesthetics.scaleSizes`), whatever set it -- the style, the panel type's own markers, the design, the remembered looks, the figure's own -- and so are the layout's margin and gaps, so the drawing has the proportions of the exported file (and of the report, which shows the exported pages). The target keeps `S` (`PlotAesthetics.drawScale`): `PlotAesthetics.getValue` and `setValue`, and so the aesthetics editor and `PlotDesign.capture`, read and set the sizes as exported.
 
 - **Layout.** renderFigure lays its panels out itself (not with MATLAB's tiled
   layout): `target`, emptied (a grid layout gets a borderless panel; `h.layout`),
@@ -1996,6 +2088,9 @@ defaults. A file written by hand may leave out any field that keeps its default.
     "sessions": { "enabled": false, "datasets": "ticked", "datasetKeys": [], "facet": "none", "series": "session",
                   "colorOrder": "palette", "showMembers": false, "error": "sem", "match": "site", "mappingFile": "",
                   "minSessions": 1, "trialGroups": "pool" },
+    "latency": { "method": "first", "minSec": 0, "maxSec": "Inf", "baseline": "pre", "baselineWindow": [-0.1, 0],
+                 "baselineRate": "unit", "alpha": 0.01, "surprise": 3, "minSpikes": 3, "cusumBinSec": 0.002,
+                 "cusumThreshold": 5, "cusumDrift": 1, "cusumSustainSec": 0.005 },
     "panels": [
       { "id": "raster_1", "type": "raster", "title": "", "box": "auto", "row": 1, "col": 1, "rowSpan": 1, "colSpan": 1,
         "ref": "default", "window": "default", "selection": "default",
@@ -2008,7 +2103,7 @@ defaults. A file written by hand may leave out any field that keeps its default.
                        "marker": "diamond", "size": 4, "color": "" } } ],
         "options": { "rasterSort": "", "rasterSortEvent": [], "rasterSortOrder": "ascending", "rasterByGroup": true,
                      "maskAfterStop": false, "tickColor": "groups", "tickWidth": 0, "backColor": "none", "yTicks": false,
-                     "firstSpike": { "enabled": false, "minSec": 0, "maxSec": "Inf", "...": "..." },
+                     "firstSpike": { "enabled": false, "marker": "o", "...": "..." }, "onsetLine": "off",
                      "waveform": { "mode": "off", "...": "..." } } },
       { "id": "psth_1", "type": "psth", "title": "", "box": "auto", "row": 2, "col": 1, "rowSpan": 1, "colSpan": 1,
         "ref": "default", "window": "default", "selection": "default",
@@ -2016,7 +2111,7 @@ defaults. A file written by hand may leave out any field that keeps its default.
         "options": { "bins": { "BinSec": 0.01, "SmoothSec": 0.01 }, "measure": "rate",
                      "baseline": { "Mode": "none", "Window": [-0.2, 0] }, "histStyle": "bar", "fill": true,
                      "fillAlpha": "NaN", "normalize": "none", "maskAfterStop": false, "yLim": [],
-                     "latencyBox": { "enabled": false, "minSec": 0, "maxSec": "Inf", "...": "..." }, "trialCount": "off",
+                     "latencyBox": { "enabled": false, "color": "groups", "...": "..." }, "onsetLine": "off", "trialCount": "off",
                      "waveform": { "mode": "off", "...": "..." } } },
       { "id": "continuous_1", "type": "continuous", "title": "", "box": "auto", "row": 3, "col": 1, "rowSpan": 1, "colSpan": 1,
         "ref": "default", "window": "default", "selection": "default",
@@ -2100,11 +2195,19 @@ Errors:
 - options, by type: a raster's `rasterSortOrder` and, with `rasterSort "event"`, a
   valid `rasterSortEvent`; a PSTH's `trialCount` (`off`, `text` or `legend`); an
   event trace's sub-rows with `rasterSort "latency"` (a warning: no spikes); a raster's `firstSpike` and a PSTH's `latencyBox` while
-  `enabled` (`minSec <= maxSec`, at `.minSec`; the marker and a positive size;
+  `enabled` (the marker and a positive size;
   the box's `lineStyle`, a positive `lineWidth`, `boxHeight` from 0.02 to 0.5,
-  `fillAlpha` from 0 to 1, the outliers' marker and a positive size; a window that
-  misses the panel's window, or a `color` that is not `groups` or a color, is a
-  warning); a PSTH's `bins` (`BinSec > 0`, `SmoothSec >= 0`),
+  `fillAlpha` from 0 to 1, the outliers' marker and a positive size; a `color`
+  that is not `groups` or a color is a warning); a raster's or PSTH's
+  `onsetLine` (`off`, `unit` or `groups`); the figure's `latency` block, at
+  `<figure>.latency.<field>` (`method`, `baseline` and `baselineRate` known
+  values, `minSec <= maxSec`, a `baselineWindow` [lo hi] with lo < hi, `alpha`
+  in (0, 1), `surprise > 0`, a whole `minSpikes >= 2`, `cusumBinSec` and
+  `cusumThreshold` above 0, `cusumDrift` and `cusumSustainSec` 0 or more; on a
+  figure with a raster, PSTH or heat map and a fixed window, warnings for a
+  window that misses the figure's, a Poisson rule or an onset line taking its
+  baseline from before the event when the window starts at or after it, and a
+  baseline window off the figure's); a PSTH's `bins` (`BinSec > 0`, `SmoothSec >= 0`),
   `measure`, `baseline` (`Mode` among the type's, a window `[b0 b1]` with `b0 < b1`),
   `auroc` (with baseline `Mode "auroc"`: the auROC rules ([auROC](#auroc)), its window
   and step whole numbers of the panel's bins, and the Statistics and Machine Learning
@@ -2698,6 +2801,7 @@ token values (the folder pattern is the plots'):
 | `Folder` | `{OutputRoot}\analysis` | a [folder pattern](#file-name-tokens). Each run also writes its run record there, under `analysis_runs`, whether or not a report is written |
 | `FileName` | `"analysis_report"` | a plain file name; `.html` / `.pdf` added |
 | `PerDataset` | `false` | one report per dataset, named `<FileName>_<dataset>` (the folder may then use `{OutputFolder}`) |
+| `Order` | `"figure"` | the order within a dataset: `"figure"`, a figure at a time with all its observations' pages together; `"unit"`, an observation at a time (a unit, a channel, or the dataset for a figure of the dataset) under a heading of its own, with its pages of every figure in the figures' order ([below](#report-order)) |
 | `EmbedFormat` | `"png"` | HTML images: `"png"` (base64) or `"svg"` (inline) |
 | `Dpi` | 110 | report PNG resolution |
 | `IncludeSummary` | `true` | summary tables per dataset (in the PDF, a summary page per dataset) |
@@ -2728,6 +2832,27 @@ is listed with its status and message. A [session
 figure](#session-figures) is an entry of the *Across sessions* section instead,
 one per facet and trial group, its pages the matched observations
 ([what a run writes](#what-a-run-writes)).
+
+### Report order
+
+`Order` arranges each dataset's part of the report:
+
+- `"figure"` (the default): the entries above, one figure after another, each
+  with every observation's pages together.
+- `"unit"`: one group per observation, in the order the observations first
+  appear (the first figure's in probe order, then what later figures add), each
+  under a heading with its label (*su12  ch 5  300 µm*, *LFP ch 5  300 µm*, or
+  the dataset's name for the figures of the dataset). Under it, every figure that
+  drew that observation, in the figures' order: its pages of it (every trial
+  group of a `perGroup` figure) and the caption; the figure's file links and
+  parameters come with its first appearance. A unit and the channel it was
+  recorded on are separate groups (a unit figure and an LFP figure observe
+  different things), as are a sorted unit and its detection channel. The
+  HTML contents list the observations, each with its count of figures; the PDF
+  has the pages in that order and its dataset summary page lists each
+  observation's pages (*su12  ch 5  300 µm: pages 4-6 (rp, wf)*). Figures not
+  drawn (skipped, failed) follow the groups with their reason, as do the
+  session figures, which are always in figure order.
 
 ## File-name tokens
 
@@ -2784,7 +2909,7 @@ With the defaults, the figure `unit_card` of dataset `SYNTH-01_260918_101500` wi
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi` positive; `FigureSizeCm` two positive numbers; the folder and file-name patterns use known tokens, and the file-name pattern is not empty; `SessionsFolder` and `Data.Folder` are folder patterns, `Data.FilenamePattern` a file-name pattern, and `Data.MatVersion` is `-v7.3` or `-v7` | error |
 | Export | a file-name pattern without `{Plot}` while several figures are enabled (every figure's `{Kind}` is `figure`, so only `{Plot}`, the figure's id, tells their files apart); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |
 | Export | `{OutputFolder}` in `SessionsFolder` or `Data.Folder`: it is one dataset's folder, so the session figures' files go to the first dataset's | warning |
-| Report | Format html / pdf / both, EmbedFormat png / svg, `Dpi` positive, a plain `FileName`, the folder pattern | error |
+| Report | Format html / pdf / both, EmbedFormat png / svg, Order figure / unit, `Dpi` positive, a plain `FileName`, the folder pattern | error |
 | Report | `{OutputFolder}` in a report over every dataset | warning |
 
 Whether a dataset can draw a figure (units, signals, trials, lines,
@@ -2838,8 +2963,10 @@ and `relinkPanels` (their results and `NoPanel`); `placePanel` in four direction
 `DuplicatePanelId`; every validate rule of figures (only the known layer sources and
 panel types; a PSTH's baseline
 mode (no `ratio`), `auroc` windows, its `stack` and a positive `stackSpacing`; a raster's `firstSpike` and a PSTH's
-`latencyBox` (off by default; while on, the window, a color, the marker, the box's height, line style and
-opacity); a heat map's
+`latencyBox` (off by default; while on, a color, the marker, the box's height, line style and
+opacity), a raster's or PSTH's `onsetLine`, and the figure's `latency` block (the method, the window and
+a window past the figure's, the baseline window and rate, alpha, surprise, minSpikes, the CUSUM's settings;
+a Poisson rule with no time before the event warns, the first-spike rule does not); a heat map's
 `modulation` order and the auROC baseline of a signal layer; a waveforms
 panel's `layout` and the probe layout's warning; a rate panel's `display`,
 `measure`, baseline mode and `yLim`; a tuning panel's `seriesParam`, `param`
@@ -2878,9 +3005,12 @@ own epochs and one group beside the raster on the figure's; a per-group observat
 epochs only, equal to that group's PSTH, while a panel with a selection of its own is not cut, and one
 whose group has lost every epoch drawing with `F.skip` and the panels' notes instead of failing; the
 groups `perGroup` lists agreeing with those compute reads, after the panels' baseline hull; the
-first-spike latency: a PSTH with `latencyBox` on keeping the raster's rows, its rates unchanged, and
-`firstSpikeLatency` of the raster equal to the first spike in the window taken from the unit's own
-train, the caption naming the marks and the box plot with their window).
+first-spike latency: the figure's block, a PSTH with `latencyBox` on keeping the raster's rows, its rates
+unchanged, one latency per unit for the raster and the PSTH (`R.latency`, one `F.latency` entry) equal to
+`firstSpikeLatency` of the raster and to the first spike in the window taken from the unit's own train;
+kept in the cache, so an edit of the method takes the latencies again and no panel, a look edit nothing
+and an onset line the onset alone; the caption naming the marks, the box plot and the onset with the
+block's rule and window).
 Render (8):
 `figureArrange` (exact gaps in px, % and per gap, the presets, rows and columns in exact proportion, spans, a panel's size and
 alignment in its cell, a note band, a phase strip, the title's and legend's bands), the layout drawn (flush with `"none"`, a
@@ -2910,7 +3040,9 @@ the window, each at its latency on a tick of its own row, by group and time and 
 mixed, in the options' marker, size, color and fill, "First spike" in the legend, and in a raster of five blocks
 on every block's own ticks; the PSTH's latency box plot, each group's box, median and whiskers `prctile`'s
 quartiles and Tukey's 1.5 IQR, in a band above every trace with the y ticks under it, and stacked one box per
-row above its own PSTH and under the next row up), and the
+row above its own PSTH and under the next row up; the response onset's lines, the unit's over the
+raster's rows and each group's across the PSTH at `responseOnset`'s onsets, "Response onset" in the
+legend), and the
 editing hooks (`Editable`, `OnRemember`, the redraw), and the data tips (`DataTips`: a PSTH line's rows, a raster tick's trial and group, heat map cells, a bar; the chosen fields followed on refresh; `DataTipFieldsDialog`; the time they add). Compute (7) also checks `figureCompute`
 against `computeFigure` (equal results, `Check=` called at the checkpoints and
 what it throws stopping the compute), `figureOutputName` (`{Plot}`, `{Unit}`,

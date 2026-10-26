@@ -1478,7 +1478,7 @@ version or schema fails (`EphysAnalysisConfig:BadSchema`); unknown fields
 | `Defaults` | `EventRef`, `Window` (`stop` is `[]` or an event reference), `Selection` |
 | `Figures` | array of figures (a session figure has `sessions.enabled`): `id`, `enabled`, `title`, `observe` (`kind`, `source`, `units`, `signal`, `channels`, `perGroup`), `grid` (`rows`, `cols`, `rowHeights`, `colWidths`, `spacing`), `common` (`bins`, `measure`, `baseline`, `auroc`, `maskAfterStop`, `waveform`), `ref` / `window` / `selection` (`"default"` or an object), `sessions` (`enabled`, `datasets`, `datasetKeys`, `facet`, `series`, `colorOrder`, `showMembers`, `error`, `match`, `mappingFile`, `minSessions`, `trialGroups`), `panels` (`id`, `type`, `title`, `box`, `row`, `col`, `rowSpan`, `colSpan`, `ref`, `window`, `selection`, `common`, `layers`, `options`, `note`, `overlays`), `style`, `aesthetics` |
 | `Export` | `Enabled`, `Formats`, `Folder`, `FilenamePattern`, `Dpi`, `FigureSizeCm`, `Overwrite`, `SessionsFolder`, `Data` (`Enabled`, `Folder`, `FilenamePattern`, `MatVersion`) |
-| `Report` | `Enabled`, `Format`, `Title`, `Folder`, `FileName`, `PerDataset`, `EmbedFormat`, `Dpi`, `IncludeSummary`, `IncludeParameters`, `IncludeConfig` |
+| `Report` | `Enabled`, `Format`, `Title`, `Folder`, `FileName`, `PerDataset`, `Order`, `EmbedFormat`, `Dpi`, `IncludeSummary`, `IncludeParameters`, `IncludeConfig` |
 
 Every field, its type and default: [EphysAnalysisConfig](EphysAnalysisConfig.md).
 
@@ -1557,6 +1557,12 @@ default `{Name}_{Plot}` gives:
   (`exportgraphics(ContentType="vector")`), made from the figures that were
   exported (an exported `.pdf` is reused) and joined in that order with the
   Apache PDFBox library MATLAB ships.
+- **Order** (`Report.Order`): `"figure"` keeps each figure's pages together;
+  `"unit"` groups a dataset's pages by observation (a unit, a channel, or the
+  dataset), every figure's pages of one observation together under its label
+  -- in the HTML a heading per observation, the contents listing them; in the
+  PDF the pages in that order, the summary page listing each observation's
+  pages ([Report order](EphysAnalysisConfig.md#report-order)).
 
 **Across sessions.** A run with enabled session figures adds a section after
 the datasets, *Across sessions*: in the HTML, a section of its own (counted

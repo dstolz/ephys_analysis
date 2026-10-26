@@ -87,11 +87,18 @@ function test_EphysAnalysisApp(opts)
 %   Ctrl held offered to the other figures' panels that take it, the
 %   window's rows, All, the ticks remembered, nothing drawn again unless
 %   Replot, Edit > Apply last change, Ctrl+Shift+A, Cancel, Undo, an edit
-%   that stays with its figure opening none); the first-spike latency windows
-%   (a raster's First spike row and a PSTH's Latency box row, each button
-%   opening its modal window, OK as one named undo step, the row's summary,
-%   a window ending before it starts refused, Cancel, the preview drawing
-%   the marks and the boxes);
+%   that stays with its figure opening none); the first-spike marks' and
+%   latency box's windows (a raster's First spike row and a PSTH's Latency
+%   box row, each button opening its modal window on the look, its note
+%   naming the figure's rule, OK as one named undo step, the row's summary,
+%   Cancel, the preview drawing the marks and the boxes); the figure's
+%   First-spike latency section (5u: shown with a raster, PSTH or heat map,
+%   its note naming the panels that read it, the rows of each method, a
+%   method and a window as named steps, the baseline window's fields with
+%   Window, a PSTH's Onset line, the preview computing the latencies once
+%   for both panels and drawing the onsets, an edit of the block computing
+%   no panel again, Copy settings listing the block, a figure without such
+%   a panel hiding the section);
 %   each figure's own preview container (a switch back shows its drawing
 %   again, the same axes, without drawing it; the tree selecting the
 %   figure shown and marking it bold, a preview out of date after an edit
@@ -119,7 +126,19 @@ function test_EphysAnalysisApp(opts)
 %   and the color fields' swatches (one beside every color field, the
 %   chooser in the tests' place: a color picked as one named step, Cancel,
 %   a color typed and Undo followed by the swatch, the search going to the
-%   field; the First-spike latency window's);
+%   field; the First-spike marks window's);
+%   figure templates and Apply last change (the row above the preview: its
+%   controls, off with no template; Save as... from a script and from its
+%   window; Apply... in its window onto two figures, one undo step, each
+%   keeping its title and enabled, the other figures untouched; Undo; as a
+%   new figure; one part only; Update keeping the description and leaving
+%   the figures applied as they were; Export, Remove, Import; the template
+%   issue window's title and report; the Apply last change button on and
+%   tooltipped as the Edit menu's item, naming the step, opening Apply to
+%   figures); an edit of text alone (an x
+%   and a y label, a panel title of its own) set on the drawn preview
+%   (nothing computed or drawn again, the texts and places a whole
+%   drawing's; a first title and a side drawn again);
 %   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -234,14 +253,42 @@ timing = onCleanup(@() S.done()); %#ok<NASGU> the sections' times, even after a 
 
 applyRows = [];    % the Apply to figures window's rows as it opened (answerApply)
 applyCount = "";   % its count after All
+applyFilter = [];  % what its filters did (answerApply): [rows shown for "continuous", ticks kept after None on those, rows shown for "has it", rows back]
     function answerApply(D, want, replot, accept)
         %answerApply  Answer Apply to figures: its rows noted (applyRows), All pressed (applyCount), WANT ticked, Replot REPLOT, then Apply (ACCEPT) or Cancel.
         applyRows = D.Table.Data;
+        if height(applyRows) == 2 && isempty(applyFilter)
+            D.Text.Value = 'continuous';
+            D.Text.ValueChangedFcn(D.Text, []);
+            shown1 = height(D.Table.Data);
+            press(D, "None");
+            D.Text.Value = '';
+            D.Text.ValueChangedFcn(D.Text, []);
+            kept = nnz(D.Table.Data.Apply);   % the hidden row kept its tick, the one None cleared did not
+            D.Show.Value = 'has';
+            D.Show.ValueChangedFcn(D.Show, []);
+            shown2 = height(D.Table.Data);
+            D.Show.Value = 'all';
+            D.Show.ValueChangedFcn(D.Show, []);
+            applyFilter = [shown1 kept shown2 height(D.Table.Data)];
+        end
         press(D, "All");
         applyCount = string(D.Count.Text);
         D.Table.Data.Apply = reshape(logical(want), [], 1);
         D.Replot.Value = replot;
         if accept; press(D, "Ok"); else; press(D, "Cancel"); end
+    end
+
+templateRows = [];   % the Apply figure template window's figures as it opened (answerTemplate)
+    function answerTemplate(D, want, parts, asNew)
+        %answerTemplate  Answer Apply figure template: its rows noted (templateRows), WANT ticked, the PARTS ticked, New ASNEW, Apply.
+        templateRows = D.Table.Data;
+        D.Table.Data.Apply = reshape(logical(want), [], 1);
+        for tplPart = string(fieldnames(D.Parts)).'
+            D.Parts.(tplPart).Value = ismember(tplPart, parts);
+        end
+        D.New.Value = asNew;
+        press(D, "Ok");
     end
 
 if S.sec("1", "build, open the project, scan")
@@ -339,8 +386,9 @@ end
 
 if S.sec("1c", "Help menu: GitHub issue and feature request")
     items = flip(string({app.HelpMenu.Children.Text}));
-    check(isequal(items(end-2:end), ["Report an issue on GitHub..." "Request a feature on GitHub..." "About EphysAnalysisApp"]), ...
-        'the Help menu ends with the two GitHub issue items and About');
+    check(isequal(items(end-4:end), ["Report an issue on GitHub..." "Request a feature on GitHub..." "Report a figure template issue..." ...
+        "Request a figure template feature..." "About EphysAnalysisApp"]), ...
+        'the Help menu ends with the two GitHub issue items, the two about figure templates and About');
     app.log("synthetic log line for the report");
     bug = app.issueReport("bug", Description="the preview stops here");
     check(contains(bug, "### What happened") && contains(bug, "the preview stops here") ...
@@ -456,16 +504,17 @@ if S.sec("3", "the Figures tab: the toolbar's Preview, the Design row, the epoch
         && app.FiguresDatasetNote.Parent == dsg && app.FigureObservationNote.Parent == osg && app.AlignDatasetNote.Parent == app.AlignDatasetStar.Parent ...
         && app.FigureFavorites.Grid.Parent == pgrid && app.FigureFavorites.Grid.Layout.Row == osg.Layout.Row + 1 ...
         && app.FigurePreviewHost.Parent == pgrid && app.FigurePreviewPanel.Parent == app.FigurePreviewHost ...
-        && app.FigurePreviewHost.Layout.Row == app.FigureFavorites.Grid.Layout.Row + 1, ...
-        'the Design list sits right of Dataset and Save look as design... right of Observation, in their rows, each drop-down with its star and note button; Favorites under them, the preview (the figures'' containers) under that');
-    % the buttons in a column of their own left of those rows: Preview, Redraw All, Unit report, Auto, < > (a row each)
+        && app.FigureTemplateDropDown.Parent.Parent == pgrid && app.FigureTemplateDropDown.Parent.Layout.Row == app.FigureFavorites.Grid.Layout.Row + 1 ...
+        && app.FigurePreviewHost.Layout.Row == app.FigureFavorites.Grid.Layout.Row + 2, ...
+        'the Design list sits right of Dataset and Save look as design... right of Observation, in their rows, each drop-down with its star and note button; Favorites under them, the template row under that, the preview (the figures'' containers) under it');
+    % the buttons in a column of their own left of those rows: Preview, Redraw All, Test report, Auto, < > (a row each)
     bgrid = app.FigurePreviewButton.Parent;
-    btnCol = [app.FigurePreviewButton app.FigureRedrawAllButton app.FigureUnitReportButton app.FigureAutoCheckBox app.FigureObsPrevButton.Parent];
+    btnCol = [app.FigurePreviewButton app.FigureRedrawAllButton app.FigureTestReportButton app.FigureAutoCheckBox app.FigureObsPrevButton.Parent];
     check(bgrid.Parent == pgrid && isequal(bgrid.Layout.Column, 1) && isequal(bgrid.Layout.Row, [dsg.Layout.Row app.FigureFavorites.Grid.Layout.Row]) ...
         && all(arrayfun(@(h) h.Parent == bgrid, btnCol)) && isequal(arrayfun(@(h) h.Layout.Row, btnCol), 1:5) ...
         && app.FigureObsNextButton.Parent == app.FigureObsPrevButton.Parent ...
         && all(arrayfun(@(h) min(h.Layout.Column) > 1, [dsg osg app.FigureFavorites.Grid])), ...
-        'the buttons stand in a column at the left, a row each (Preview, Redraw All, Unit report, Auto, < >), beside the Dataset, Observation and Favorites rows');
+        'the buttons stand in a column at the left, a row each (Preview, Redraw All, Test report, Auto, < >), beside the Dataset, Observation and Favorites rows');
     check(app.FigureOpenButton.Enable == "on" && ancestor(app.FigureOpenButton, 'uitab') == app.TabFigures, ...
         'Open in window is on with a figure selected');
     nFigs = numel(findall(groot, 'Type', 'figure'));
@@ -482,7 +531,7 @@ if S.sec("3", "the Figures tab: the toolbar's Preview, the Design row, the epoch
         && app.FigureCodeButton.Layout.Column == app.FigureOpenButton.Layout.Column - 1, ...
         'Export code sits left of Open in window under the preview, on with a figure selected');
     % every button of the preview has its key in its tooltip, and the key presses it: Ctrl+W opens the window, Ctrl+T toggles Auto, Ctrl+P previews
-    btnKeys = {app.FigurePreviewButton "+P"; app.FigureRedrawAllButton "+R"; app.FigureUnitReportButton "+U"; app.FigureAutoCheckBox "+T"; app.FigureCodeButton "+E"; ...
+    btnKeys = {app.FigurePreviewButton "+P"; app.FigureRedrawAllButton "+R"; app.FigureTestReportButton "+U"; app.FigureAutoCheckBox "+T"; app.FigureCodeButton "+E"; ...
         app.FigureExportPreviewButton "+K"; ...
         app.FigureOpenButton "+W"; app.FigureObsPrevButton "Page Up"; app.FigureObsNextButton "Page Down"};
     inTip = cellfun(@(h, k) contains(string(h.Tooltip), k), btnKeys(:, 1), btnKeys(:, 2));
@@ -735,10 +784,10 @@ if S.sec("5d.add", "the Figures tab: a figure from the rasterPsth template, the 
     app.selectTab(app.TabFigures);
     check(isempty(app.Config.Figures) && isempty(findall(app.FiguresTree, 'Type', 'uitreenode')) && ~shown(FE.id) && shown(FE.summary) ...
         && app.FigurePreviewState == "idle" && endsWith(app.helpURL("tab"), "#figures-tab") && app.RemoveFigureButton.Enable == "off" ...
-        && ~isprop(app, 'FigureTemplateDropDown') && string(app.AddFigureButton.Text) == "Add" ...
+        && string(app.AddFigureButton.Text) == "Add" ...
         && app.FigureSections([app.FigureSections.Name] == "arrangement").Title == "Panels" ...
         && app.FigureSections([app.FigureSections.Name] == "panel").Title == "Selected panel", ...
-        'the Figures tab: no figure yet, only a hint in the editor, no preview, no template drop-down; the Panels and Selected panel sections; Help goes to its section');
+        'the Figures tab: no figure yet, only a hint in the editor, no preview, an Add button; the Panels and Selected panel sections; Help goes to its section');
     app.onAddFigure("rasterPsth");
     fg = app.Config.Figures;
     check(isscalar(fg) && fg.id == "Raster+PSTH units" && numel(fg.panels) == 2 && app.SelectedFigure == 1 && app.SelectedPanel == 1 ...
@@ -882,7 +931,8 @@ if S.sec("5d.layers", "a continuous panel below (drawn at once); its layers: AUX
     spans = findall(app.FigurePreviewPanel, 'Tag', 'eventSpan');
     spans = spans(arrayfun(@(m) any(isfinite(m.XData)), spans));
     check(spanRows && L.eventsAs == "span" && L.event.spanStyle == "--" && L.event.spanWidth == 3 && L.event.spanAlpha == 0.5 ...
-        && app.FigurePreviewState == "drawn" && ~isempty(spans) && all([spans.LineWidth] == 3) && all(string({spans.LineStyle}) == "--"), ...
+        && app.FigurePreviewState == "drawn" && ~isempty(spans) && all(arrayfun(@(m) PlotAesthetics.getValue(m, "LineWidth"), spans) == 3) ...
+        && all(string({spans.LineStyle}) == "--"), ...   % (the width as exported: the preview draws it at its scale)
         'Draw as a line from onset to offset: the span''s rows show (not the marker), its style, width and opacity reach the config and the raster''s lines');
     FE.evDrawAs.Value = "marks";
     app.onConfigChanged("figure");
@@ -1067,7 +1117,8 @@ if S.sec("5d.stale", "Out of date with Auto off; Cancel on the busy card")
     app.autoFigurePreview();
     canceled = app.FigurePreviewState == "canceled";
     app.refreshFigurePreview(Force=true);
-    check(canceled && app.FigurePreviewState == "drawn" && numel(figAxes()) == 3, 'an edit does not redraw a canceled preview; Preview does');
+    check(canceled && app.FigurePreviewState == "drawn" && numel(figAxes()) == 3, sprintf(['an edit does not redraw a canceled preview; ' ...
+        'Preview does (canceled after the edit: %d; then %s, %d axes)'], canceled, app.FigurePreviewState, numel(figAxes())));
     clear restoreAutoLimit
 end
 
@@ -2054,22 +2105,22 @@ if S.sec("5f", "Generate a figure; figures on the Export tab")
     app.FigureAutoCheckBox.Value = true;   % the automatic preview, as 5d leaves it
     app.selectTab(app.TabFigures);
     bcol = app.FigurePreviewButton.Parent;   % the column of buttons, left of the Dataset, Observation and Favorites rows
-    check(app.FigureRedrawAllButton.Enable == "off" && app.GenerateFigureMenu.Enable == "off" && app.FigureUnitReportButton.Enable == "off" ...
-        && app.FigureRedrawAllButton.Parent == bcol && app.FigureUnitReportButton.Parent == bcol && app.FigureAutoCheckBox.Parent == bcol ...
-        && isequal(app.FigurePreviewButton.Layout.Row, 1) && isequal(app.FigureRedrawAllButton.Layout.Row, 2) && isequal(app.FigureUnitReportButton.Layout.Row, 3) ...
+    check(app.FigureRedrawAllButton.Enable == "off" && app.GenerateFigureMenu.Enable == "off" && app.FigureTestReportButton.Enable == "off" ...
+        && app.FigureRedrawAllButton.Parent == bcol && app.FigureTestReportButton.Parent == bcol && app.FigureAutoCheckBox.Parent == bcol ...
+        && isequal(app.FigurePreviewButton.Layout.Row, 1) && isequal(app.FigureRedrawAllButton.Layout.Row, 2) && isequal(app.FigureTestReportButton.Layout.Row, 3) ...
         && isequal(app.FigureRedrawAllButton.BackgroundColor, app.FigurePreviewButton.BackgroundColor) ...
         && app.GenerateFigureMenu.Parent == app.FileMenu && app.GenerateFigureMenu.Accelerator == "G" ...
         && app.FigureObsPrevButton.Parent == app.FigureObsNextButton.Parent && app.FigureObsPrevButton.Parent.Parent == bcol ...
         && app.FigureObsPrevButton.Layout.Row == 1 && app.FigureObsNextButton.Layout.Row == 1 ...
         && bcol.Parent == app.FiguresDatasetDropDown.Parent.Parent && max(bcol.Layout.Column) < min(app.FiguresDatasetDropDown.Parent.Layout.Column) ...
         && isequal(bcol.Layout.Row, [1 3]), ...
-        ['Preview, Redraw All (colored as it is, under Preview), Unit report (under Redraw All; both off with no figure), Auto and < > ' ...
+        ['Preview, Redraw All (colored as it is, under Preview), Test report (under Redraw All; both off with no figure), Auto and < > ' ...
         '(on one row) form a column left of Dataset, Observation and Favorites; File > Generate selected figure (Ctrl+G) is off too']);
     mods = {'control'};
     if ismac; mods = {'command'}; end
     report0 = app.LastReportFiles;
     app.onKeyPress(pressed('u', mods));
-    check(isequal(app.LastReportFiles, report0) && ~app.Running, 'Ctrl+U does nothing while Unit report is off');
+    check(isequal(app.LastReportFiles, report0) && ~app.Running, 'Ctrl+U does nothing while Test report is off');
     app.onAddFigure("rasterPsth");
     kG = app.SelectedFigure;
     fid = app.Config.Figures(kG).id;
@@ -2134,8 +2185,9 @@ if S.sec("5f", "Generate a figure; figures on the Export tab")
         && contains(string(app.StatusBar.Text), fid + " is off, so it was switched on for this run only") ...
         && endsWith(string(figureNode(app.FiguresTree, kG).Text), "(off)") && ~app.Runner.Config.Figures(kG).enabled, ...
         'Generate on a figure that is off draws it (not skipped), says so, and the config keeps it off');
-    % Unit report: every enabled figure (and the selected one, though off) for the unit picked, an HTML report in a
-    % temporary folder; a channel figure draws the unit's channel, a figure of the dataset is left out
+    % Test report: every enabled figure (and the selected one, though off) for the unit picked, an HTML report in a
+    % temporary folder; a channel figure draws the unit's channel, a figure of the dataset draws the dataset; in the
+    % report's Order, here by unit (the Export tab's drop-down)
     app.onAddFigure("continuous");
     app.onAddFigure("heatmap");
     app.onFigureSelected(kG);
@@ -2143,29 +2195,37 @@ if S.sec("5f", "Generate a figure; figures on the Export tab")
     app.onFigureObservationChanged();
     uT = app.FigureObservations;
     uLabel = uT.label(2);
-    check(app.FigureUnitReportButton.Enable == "on" && uT.kind(2) == "unit", 'Unit report is on with a unit picked');
+    check(app.FigureTestReportButton.Enable == "on" && app.FigureTestReportButton.Text == "Test report" && uT.kind(2) == "unit", ...
+        'Test report is on with a unit picked');
+    check(app.ReportControls.Order.Value == "figure" && isequal(app.ReportControls.Order.ItemsData, ["figure" "unit"]), ...
+        'the Export tab''s report Order is By figure by default, or By unit');
+    app.ReportControls.Order.Value = "unit";
     nTicked = numel(app.tickedDatasetIndices());
-    [Ru, fu] = app.onUnitReport(Open=false);
+    [Ru, fu] = app.onTestReport(Open=false);
+    app.ReportControls.Order.Value = "figure";
     uKinds = arrayfun(@(f) EphysAnalysisConfig.observeKind(f), app.Config.Figures);
     okRows = true;
     for q = 1:numel(app.Config.Figures)
         rq = Ru(Ru.Plot == app.Config.Figures(q).id, :);
-        if uKinds(q) == "dataset"
-            okRows = okRows && isscalar(rq.Status) && rq.Status == "skipped" && rq.Message == "it observes the dataset, not one unit";
-        elseif q == kG
+        if uKinds(q) == "dataset" || q == kG
             okRows = okRows && isscalar(rq.Status) && rq.Status == "done" && rq.Message == "1 observation(s)";
         else   % what is on the unit's channel, or why nothing is
             okRows = okRows && isscalar(rq.Status) && (rq.Status == "done" || rq.Status == "skipped" && startsWith(rq.Message, "no "));
         end
     end
-    check(istable(Ru) && height(Ru) == 3 && all(Ru.Dataset == app.Runner.Names(app.ActiveIdx)) && okRows ...
-        && isfile(fu) && endsWith(fu, "unit_report.html") && startsWith(fu, string(tempdir)) && ~startsWith(fu, string(outRoot)) ...
-        && contains(fileread(fu), fid) && isempty(dir(fullfile(outRoot, '**', 'unit_report*'))) ...
+    uHtml = string(fileread(fu));
+    dsName = app.Runner.Names(app.ActiveIdx);
+    check(istable(Ru) && height(Ru) == 3 && all(Ru.Dataset == dsName) && okRows && any(uKinds == "dataset") ...
+        && isfile(fu) && endsWith(fu, "test_report.html") && startsWith(fu, string(tempdir)) && ~startsWith(fu, string(outRoot)) ...
+        && contains(uHtml, fid) && isempty(dir(fullfile(outRoot, '**', 'test_report*'))) ...
         && isequal(app.LastReportFiles, fu) && ~app.Config.Figures(kG).enabled && nTicked == numel(app.tickedDatasetIndices()), ...
-        sprintf('Unit report draws the three figures for %s on the active dataset only (the dataset''s figure left out), into a temporary HTML report; the output folder untouched, the figure kept off', uLabel));
-    check(startsWith(string(app.StatusBar.Text), "Unit report for " + uLabel + ": ") && contains(string(app.StatusBar.Text), "left out") == any(Ru.Status ~= "done") ...
+        sprintf('Test report draws the three figures for %s on the active dataset only (the dataset''s figure for the dataset), into a temporary HTML report; the output folder untouched, the figure kept off', uLabel));
+    check(contains(uHtml, "<h3 class=""obs"">" + htmlEscape(uLabel) + "</h3>") && contains(uHtml, "<h3 class=""obs"">" + htmlEscape(dsName) + "</h3>") ...
+        && contains(uHtml, "test report, " + htmlEscape(uLabel) + " on " + htmlEscape(dsName)), ...
+        'by unit, the report heads the unit''s figures with its label and the dataset''s figure with the dataset''s name; its title names the unit');
+    check(startsWith(string(app.StatusBar.Text), "Test report for " + uLabel + ": ") && contains(string(app.StatusBar.Text), "left out") == any(Ru.Status ~= "done") ...
         && contains(string(app.StatusBar.Text), fid + " is off, so it was drawn for this report only") ...
-        && ~app.Running && app.FigureUnitReportButton.Enable == "on" && app.GenerateFigureMenu.Enable == "on", ...
+        && ~app.Running && app.FigureTestReportButton.Enable == "on" && app.GenerateFigureMenu.Enable == "on", ...
         'the status bar names the unit, what was left out, the figure that is off; the buttons are back');
     app.onFigureSelected(3); app.onRemoveFigure();
     app.onFigureSelected(2); app.onRemoveFigure();
@@ -2494,7 +2554,8 @@ if S.sec("5h", "the figure tree, a panel's note and overlays, dragging a panel i
     app.onConfigChanged("figure");
     tkW = findall(app.FigurePreviewPanel, 'Tag', 'rasterTicks');
     tkW = tkW(arrayfun(@(t) any(isfinite(t.XData)), tkW));
-    check(groupsShown && app.Config.Figures(1).panels(1).options.tickWidth == 2.5 && ~isempty(tkW) && all([tkW.LineWidth] == 2.5), ...
+    check(groupsShown && app.Config.Figures(1).panels(1).options.tickWidth == 2.5 && ~isempty(tkW) ...
+        && all(arrayfun(@(t) PlotAesthetics.getValue(t, "LineWidth"), tkW) == 2.5), ...   % (as exported: the preview draws it at its scale)
         'a raster''s Colors row shows "groups" for the groups'' colors; the Tick width row reaches the panel and the preview''s ticks');
     FE.tickWidth.Value = 0;
     FE.panelBox.Value = "auto";
@@ -3109,7 +3170,7 @@ if S.sec("5k", "Edit menu: undo and redo of the figure editor")
     app.Tabs.SelectedTab = app.TabData;
 end
 
-if S.sec("5l", "a raster's First-spike latency... and a PSTH's Latency box plot... windows: OK as one named step, Cancel, a refused window, the preview")
+if S.sec("5l", "a raster's First-spike marks... and a PSTH's Latency box plot... windows: their looks, OK as one named step, Cancel, the preview")
     noFigures();
     groupedBy("Depth");
     app.selectTab(app.TabFigures);
@@ -3122,12 +3183,11 @@ if S.sec("5l", "a raster's First-spike latency... and a PSTH's Latency box plot.
     FE.firstSpikeDialog.ButtonPushedFcn(FE.firstSpikeDialog, []);
     dF = findall(groot, 'Type', 'figure', 'Tag', 'latencyDialog');
     DF = dF.UserData;
-    grayed = DF.Marker.Enable == "off" && DF.MinMs.Enable == "off" && DF.Enabled.Enable == "on";
+    grayed = DF.Marker.Enable == "off" && DF.Color.Enable == "off" && DF.Enabled.Enable == "on";
     modal = string(dF.WindowStyle) == "modal";
+    noted = contains(DF.Note.Text, "the first spike in [0 ms to the window's end]") && ~isfield(DF, 'MinMs');
     DF.Enabled.Value = true;
     DF.Enabled.ValueChangedFcn(DF.Enabled, []);
-    DF.MinMs.Value = 5;
-    DF.MaxMs.Value = 50;
     DF.Marker.Value = "diamond";
     DF.Size.Value = 6;
     DF.Color.Value = "red";
@@ -3135,28 +3195,27 @@ if S.sec("5l", "a raster's First-spike latency... and a PSTH's Latency box plot.
     nU5l = numel(app.FigureHistory.Undo);
     DF.Ok.ButtonPushedFcn(DF.Ok, []);
     fsO = app.Config.Figures(1).panels(1).options.firstSpike;
-    check(isscalar(dF) && DF.Kind == "firstSpike" && DF.PanelId == "raster_1" && modal && grayed ...
-        && ~isvalid(dF) && fsO.enabled && abs(fsO.minSec - 0.005) < 1e-12 && abs(fsO.maxSec - 0.05) < 1e-12 && fsO.marker == "diamond" ...
+    check(isscalar(dF) && DF.Kind == "firstSpike" && DF.PanelId == "raster_1" && modal && grayed && noted ...
+        && ~isvalid(dF) && fsO.enabled && ~isfield(fsO, 'minSec') && fsO.marker == "diamond" ...
         && fsO.size == 6 && fsO.color == "red" && fsO.filled && numel(app.FigureHistory.Undo) == nU5l + 1 ...
-        && string(app.UndoMenu.Text) == "Undo First-spike latency" && string(FE.firstSpike.Text) == "on, 5-50 ms, ◆ red", ...
-        sprintf(['First-spike latency...: a modal window, its rows grayed while off; OK gives the raster the window (5-50 ms) ' ...
-        'and the look as one step, "Undo First-spike latency", and the row says "%s"'], FE.firstSpike.Text));
+        && string(app.UndoMenu.Text) == "Undo First-spike marks" && string(FE.firstSpike.Text) == "on, ◆ red", ...
+        sprintf(['First-spike marks...: a modal window on the look, its rows grayed while off, its note naming the ' ...
+        'figure''s rule; OK gives the raster the look as one step, "Undo First-spike marks", and the row says "%s"'], ...
+        FE.firstSpike.Text));
     app.onUndoRedo("undo");
     undone = ~app.Config.Figures(1).panels(1).options.firstSpike.enabled && string(FE.firstSpike.Text) == "off";
     app.onUndoRedo("redo");
-    check(undone && app.Config.Figures(1).panels(1).options.firstSpike.enabled && string(FE.firstSpike.Text) == "on, 5-50 ms, ◆ red", ...
+    check(undone && app.Config.Figures(1).panels(1).options.firstSpike.enabled && string(FE.firstSpike.Text) == "on, ◆ red", ...
         'Undo takes the marks off again in one step, Redo puts them back');
     FE.firstSpikeDialog.ButtonPushedFcn(FE.firstSpikeDialog, []);
     dF = findall(groot, 'Type', 'figure', 'Tag', 'latencyDialog');
     DF = dF.UserData;
-    shownBack = DF.Enabled.Value && DF.MinMs.Value == 5 && DF.MaxMs.Value == 50 && string(DF.Marker.Value) == "diamond";
-    DF.MinMs.Value = 80;
-    DF.Ok.ButtonPushedFcn(DF.Ok, []);
-    refused = isvalid(dF) && contains(DF.Note.Text, "before it starts") && app.Config.Figures(1).panels(1).options.firstSpike.minSec == 0.005;
+    shownBack = DF.Enabled.Value && string(DF.Marker.Value) == "diamond" && DF.Size.Value == 6;
+    DF.Size.Value = 9;
     DF.Cancel.ButtonPushedFcn(DF.Cancel, []);
-    check(shownBack && refused && ~isvalid(dF) && app.Config.Figures(1).panels(1).options.firstSpike.minSec == 0.005 ...
+    check(shownBack && ~isvalid(dF) && app.Config.Figures(1).panels(1).options.firstSpike.size == 6 ...
         && numel(app.FigureHistory.Undo) == nU5l + 1, ...
-        'the window opens on the panel''s settings; a window ending before it starts is refused (said, the window kept); Cancel changes nothing');
+        'the window opens on the panel''s settings; Cancel changes nothing');
     app.onPanelSelected(2);   % the PSTH
     check(shown(FE.latencyBox) && shown(FE.latencyBoxDialog) && ~shown(FE.firstSpike) && string(FE.latencyBox.Text) == "off", ...
         'a PSTH shows its Latency box row, not the raster''s First spike row');
@@ -3165,7 +3224,6 @@ if S.sec("5l", "a raster's First-spike latency... and a PSTH's Latency box plot.
     DB = dB.UserData;
     DB.Enabled.Value = true;
     DB.Enabled.ValueChangedFcn(DB.Enabled, []);
-    DB.MaxMs.Value = [];
     DB.LineStyle.Value = "--";
     DB.LineWidth.Value = 1.5;
     DB.BoxHeight.Value = 0.2;
@@ -3173,10 +3231,10 @@ if S.sec("5l", "a raster's First-spike latency... and a PSTH's Latency box plot.
     DB.OutlierMarker.Value = "x";
     DB.Ok.ButtonPushedFcn(DB.Ok, []);
     lbO = app.Config.Figures(1).panels(2).options.latencyBox;
-    check(DB.Kind == "latencyBox" && ~isvalid(dB) && lbO.enabled && lbO.minSec == 0 && lbO.maxSec == Inf && lbO.lineStyle == "--" ...
+    check(DB.Kind == "latencyBox" && ~isvalid(dB) && lbO.enabled && ~isfield(lbO, 'maxSec') && lbO.lineStyle == "--" ...
         && lbO.lineWidth == 1.5 && abs(lbO.boxHeight - 0.2) < 1e-12 && lbO.fillAlpha == 0.5 && lbO.outlierMarker == "x" ...
-        && string(app.UndoMenu.Text) == "Undo Latency box plot" && string(FE.latencyBox.Text) == "on, 0 ms-end, groups --", ...
-        sprintf('Latency box plot...: OK gives the PSTH its box plot (to the window''s end) as one step, "Undo Latency box plot"; the row says "%s"', ...
+        && string(app.UndoMenu.Text) == "Undo Latency box plot" && string(FE.latencyBox.Text) == "on, groups --", ...
+        sprintf('Latency box plot...: OK gives the PSTH its box plot as one step, "Undo Latency box plot"; the row says "%s"', ...
         FE.latencyBox.Text));
     app.refreshFigurePreview(Force=true);
     mkP = findall(app.FigurePreviewPanel, 'Tag', 'firstSpike');
@@ -3403,6 +3461,8 @@ if S.sec("5n", "Apply to figures: an edit made with Ctrl held given to other fig
         && isequal(string(applyRows.Now).', ["Off (overlaid)" "Off (overlaid)"]) && all(applyRows.Apply) && applyCount == "2 of 2 will change", ...
         ['with Ctrl held the Stack edit opens Apply to figures: the other figures'' PSTH and continuous panels (not the raster), ' ...
         'each "Off (overlaid)" now, all ticked the first time']);
+    check(isequal(applyFilter, [1 1 0 2]), ...
+        'the window''s filters: the text "continuous" shows its one row, None on the rows shown leaves the hidden row ticked, "has it" shows none yet, and clearing brings both back');
     check(F1(1).panels(2).options.stack == "groups" && F1(2).panels(1).options.stack == "groups" && F1(3).panels(1).options.stack == "off" ...
         && app.FigureHistory.undoLabel() == "Stack to 1 panel" && contains(string(app.StatusBar.Text), "psth_1 in " + ids(2)) ...
         && app.ApplyMenu.Enable == "on", ...
@@ -3699,10 +3759,257 @@ if S.sec("5p", "remembered panel options: a new panel starts from the last set, 
     inField = string(D5p.Color.Value) == "#0000ff" && isequal(D5p.ColorSwatch.BackgroundColor, [0 0 1]);
     D5p.Ok.ButtonPushedFcn(D5p.Ok, []);
     check(grayedSwatch && inField && ~isvalid(d5p) && app.Config.Figures(1).panels(1).options.firstSpike.color == "#0000ff", ...
-        'the First-spike latency window''s Color has a swatch too (grayed while off): the color picked goes into its field, and OK gives it the panel');
+        'the First-spike marks window''s Color has a swatch too (grayed while off): the color picked goes into its field, and OK gives it the panel');
     noFigures();
     app.onForgetPanelOptions();
     clear restoreAuto5p restorePicker5p
+    app.Tabs.SelectedTab = app.TabData;
+end
+
+if S.sec("5q", "figure templates (the row above the preview: Save as, Apply into figures or as a new one, Update, Export, Remove, Import, the issue window) and the Apply last change button")
+    noFigures();
+    app.selectTab(app.TabFigures);
+    app.FigureAutoCheckBox.Value = false;   % nothing here needs drawing
+    restoreAuto5q = onCleanup(@() autoBoxOn(app));
+    app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));   % a Ctrl key an earlier section pressed (5k), let go: edits stay with their figure
+    tplFolder5q = FigureTemplate.folder();
+    if isfolder(tplFolder5q); rmdir(tplFolder5q, 's'); end
+    restoreTpl5q = onCleanup(@() removeTemplates(tplFolder5q));
+    app.refreshTemplates();
+    drawnow;
+    row5q = app.FigureTemplateDropDown.Parent;
+    tplButtons5q = [app.FigureTemplateApplyButton app.FigureTemplateSaveButton app.FigureTemplateUpdateButton ...
+        app.FigureTemplateRemoveButton app.FigureTemplateImportButton app.FigureTemplateExportButton];
+    check(all(arrayfun(@(h) h.Parent == row5q, [tplButtons5q app.FigureApplyLastButton])) && app.FigureTemplateIssueLink.Parent == row5q ...
+        && isequal(string(app.FigureTemplateDropDown.Items), "(no templates)") && app.FigureTemplateSaveButton.Enable == "on" ...
+        && all([app.FigureTemplateApplyButton.Enable app.FigureTemplateUpdateButton.Enable app.FigureTemplateRemoveButton.Enable ...
+        app.FigureTemplateExportButton.Enable] == "off") && row5q.Parent.RowHeight{row5q.Layout.Row} - sum(row5q.Padding([2 4])) >= 30 ...
+        && isequal(app.FigureTemplateApplyButton.BackgroundColor, [0.16 0.52 0.28]) && isequal(app.FigureTemplateRemoveButton.BackgroundColor, [0.80 0.25 0.20]), ...
+        'the template row above the preview: the list, Apply... (green), Save as..., Update, Remove (red), Import..., Export..., Report issue and Apply last change; with no template Apply, Update, Remove and Export are off; buttons at least 30 px');
+    app.onAddFigure("rasterPsth");
+    app.onAddFigure("psth");
+    app.onAddFigure("continuous");
+    ids5q = app.Config.figureIds();
+    app.onFigureSelected(1);
+    FE.fontSize.Value = 15;
+    FE.fontSize.ValueChangedFcn(FE.fontSize, []);
+    tip5q = string(app.FigureApplyLastButton.Tooltip);
+    check(app.FigureApplyLastButton.Enable == "on" && app.ApplyMenu.Enable == "on" && startsWith(tip5q, "Apply last change to figures: Font size (") ...
+        && contains(tip5q, "+Shift+A)"), sprintf('Apply last change is on with the Edit menu''s item, its tooltip naming the step (%s)', tip5q));
+    applyRows = [];
+    answerDialog("Apply to figures", @(D) answerApply(D, [false false], false, false));
+    app.FigureApplyLastButton.ButtonPushedFcn(app.FigureApplyLastButton, []);
+    check(istable(applyRows) && isequal(string(applyRows.Figure).', ids5q(2:3)) && app.Config.Figures(2).style.FontSize ~= 15, ...
+        'the button opens Apply to figures for that step, as Edit > Apply last change does (Cancel: nothing given)');
+
+    % Save as...: from a script, then from its window
+    app.onFigureTemplate("save", Name="Card", Description="a raster over a PSTH");
+    T5q = FigureTemplate.list();
+    check(isequal(T5q.Name, "Card") && T5q.Description == "a raster over a PSTH" && string(app.FigureTemplateDropDown.Value) == "Card" ...
+        && all([app.FigureTemplateApplyButton.Enable app.FigureTemplateUpdateButton.Enable app.FigureTemplateRemoveButton.Enable ...
+        app.FigureTemplateExportButton.Enable] == "on") && contains(string(app.StatusBar.Text), "as the template Card") ...
+        && contains(string(app.FigureTemplateDropDown.Tooltip), "2 x 1: raster, psth"), ...
+        'Save as... keeps the figure shown as a template: listed and picked, its shape in the tooltip, the buttons on');
+    answerDialog("Save the figure as a template", @(D) saveTemplateAnswer(D, "Dialog card"));
+    app.onFigureTemplate("save");
+    check(isequal(sort(FigureTemplate.list().Name).', ["Card" "Dialog card"]) && string(app.FigureTemplateDropDown.Value) == "Dialog card" ...
+        && isequal(getappdata(groot, 'templateOffered'), app.Config.Figures(1).id), ...
+        'Save as... asks the name in its window (the figure''s id offered) and picks the new template');
+    FigureTemplate.remove("Dialog card");
+    app.refreshTemplates("Card");
+
+    % Apply... in its window: the figures picked, one undo step
+    app.onFigureSelected(2);
+    titled5q = app.Config;
+    titled5q.Figures(3).title = "Own title";
+    titled5q.Figures(3).enabled = false;
+    app.applyConfig(titled5q, Action="Title");
+    F05q = app.Config.Figures;
+    nUndo5q = numel(app.FigureHistory.Undo);
+    templateRows = [];
+    answerDialog("Apply figure template", @(D) answerTemplate(D, [false true true], figureSettingParts().Part, false));
+    app.onApplyTemplate();
+    F15q = app.Config.Figures;
+    check(istable(templateRows) && height(templateRows) == 3 && isequal(templateRows.Apply.', [false true false]) ...
+        && endsWith(string(templateRows.Figure(2)), "(shown)"), 'the window lists every figure, the one shown ticked');
+    check(isequal([F15q(2).panels.type], ["raster" "psth"]) && isequal([F15q(3).panels.type], ["raster" "psth"]) ...
+        && F15q(2).style.FontSize == 15 && F15q(3).style.FontSize == 15 && F15q(3).title == "Own title" && ~F15q(3).enabled ...
+        && isequaln(F15q(1), F05q(1)) && numel(app.FigureHistory.Undo) == nUndo5q + 1 ...
+        && app.FigureHistory.undoLabel() == "Apply template Card to 2 figures" && contains(string(app.StatusBar.Text), "Applied template Card"), ...
+        'Apply copies the template into the two figures ticked (their panels, appearance), each keeping its title and enabled, as one undo step; the others untouched');
+    app.onUndoRedo("undo");
+    check(isequaln(app.Config.Figures, F05q), 'Undo takes the template back off both');
+    app.onApplyTemplate("Card", New=true);
+    check(numel(app.Config.Figures) == 4 && app.SelectedFigure == 4 && isequal([app.Config.Figures(4).panels.type], ["raster" "psth"]) ...
+        && app.Config.Figures(4).autoId && app.FigureHistory.undoLabel() == "Apply template Card as a new figure", ...
+        'as a new figure: the whole template, an automatic id, selected');
+    app.onApplyTemplate("Card", To=app.Config.Figures(3).id, Parts="style");
+    check(app.Config.Figures(3).style.FontSize == 15 && isequal([app.Config.Figures(3).panels.type], "continuous"), ...
+        'one part only (Appearance): the figure keeps its panels');
+
+    % Update, Export, Remove, Import
+    app.onFigureSelected(1);
+    FE.fontSize.Value = 9;
+    FE.fontSize.ValueChangedFcn(FE.fontSize, []);
+    app.onFigureTemplate("update", Confirm=false);
+    U5q = FigureTemplate.load("Card");
+    check(U5q.figure.style.FontSize == 9 && U5q.description == "a raster over a PSTH" && app.Config.Figures(4).style.FontSize == 15, ...
+        'Update makes the template again from the figure shown, its description kept; a figure it was applied to keeps its settings');
+    ex5q = string(tempname) + ".json";
+    app.onFigureTemplate("export", File=ex5q);
+    app.onFigureTemplate("remove", Confirm=false);
+    gone5q = isempty(FigureTemplate.list()) && isequal(string(app.FigureTemplateDropDown.Items), "(no templates)");
+    app.onFigureTemplate("import", File=ex5q, Confirm=false);
+    check(isfile(ex5q) && gone5q && isequal(FigureTemplate.list().Name, "Card") && string(app.FigureTemplateDropDown.Value) == "Card" ...
+        && FigureTemplate.load("Card").figure.style.FontSize == 9, ...
+        'Export writes it to a file, Remove deletes it (the list empty), Import brings it back by its own name');
+    delete(ex5q);
+
+    % the issue window about templates: its title and the template in its report
+    app.onFigureTemplate("issue");
+    w5q = findall(groot, 'Type', 'figure', 'Name', 'Report an issue');
+    fields5q = findall(w5q, 'Type', 'uieditfield');
+    areas5q = findall(w5q, 'Type', 'uitextarea');
+    report5q = strjoin(string(vertcat(areas5q.Value)), newline);
+    check(isscalar(w5q) && any(string({fields5q.Value}) == "[Bug] Figure templates: ") && contains(report5q, "Figure template Card") ...
+        && contains(report5q, """schema"": ""ephys-figure-template"""), ...
+        'Report issue opens the issue window titled "Figure templates: ", the template''s file in its report');
+    delete(w5q);
+
+    noFigures();
+    clear restoreAuto5q restoreTpl5q
+    app.Tabs.SelectedTab = app.TabData;
+end
+
+if S.sec("5u", "the figure's First-spike latency section: one block for every panel, its rows by method, the onset line, the preview computing it once")
+    noFigures();
+    groupedBy("Depth");
+    app.selectTab(app.TabFigures);
+    app.FigureAutoCheckBox.Value = false;   % the preview is drawn when asked
+    restoreAuto5u = onCleanup(@() autoBoxOn(app));
+    app.onAddFigure("rasterPsth");
+    app.onPanelSelected(1);   % the raster: its marks on
+    FE.firstSpikeDialog.ButtonPushedFcn(FE.firstSpikeDialog, []);
+    dU = findall(groot, 'Type', 'figure', 'Tag', 'latencyDialog');
+    DU = dU.UserData;
+    DU.Enabled.Value = true;
+    DU.Enabled.ValueChangedFcn(DU.Enabled, []);
+    DU.Ok.ButtonPushedFcn(DU.Ok, []);
+    app.onPanelSelected(2);   % the PSTH: its box plot on
+    FE.latencyBoxDialog.ButtonPushedFcn(FE.latencyBoxDialog, []);
+    dU = findall(groot, 'Type', 'figure', 'Tag', 'latencyDialog');
+    DU = dU.UserData;
+    DU.Enabled.Value = true;
+    DU.Enabled.ValueChangedFcn(DU.Enabled, []);
+    DU.Ok.ButtonPushedFcn(DU.Ok, []);
+    secU = app.FigureSections([app.FigureSections.Name] == "latency");
+    check(shown(FE.latMethod) && shown(FE.latFrom) && shown(FE.latBaseline) && shown(FE.latCusum) && ~shown(FE.latRate) ...
+        && ~shown(FE.latSurprise) && ~shown(FE.latAlpha) && string(FE.latMethod.Value) == "first" ...
+        && contains(FE.latNote.Text, "raster_1 (marks)") && contains(FE.latNote.Text, "psth_1 (box plot)") ...
+        && secU.Super == "figure" && FE.latBaseFrom.Enable == "off", ...
+        sprintf(['the figure''s First-spike latency section (Figure): Method first, the window, baseline and onset rows; ' ...
+        'the note names the panels that read it ("%s")'], FE.latNote.Text));
+    FE.latMethod.Value = "surprise";
+    app.onConfigChanged("figure", FE.latMethod);
+    LU = app.Config.Figures(1).latency;
+    surpriseRows = shown(FE.latRate) && shown(FE.latSurprise) && ~shown(FE.latAlpha);
+    undoMethod = string(app.UndoMenu.Text) == "Undo Method";
+    FE.latMethod.Value = "poisson";
+    app.onConfigChanged("figure", FE.latMethod);
+    poissonRows = shown(FE.latRate) && ~shown(FE.latSurprise) && shown(FE.latAlpha);
+    FE.latTo.Value = 150;
+    app.onConfigChanged("figure", FE.latTo);
+    FE.latBaseline.Value = "window";
+    app.onConfigChanged("figure", FE.latBaseline);
+    L2U = app.Config.Figures(1).latency;
+    check(LU.method == "surprise" && surpriseRows && undoMethod && poissonRows && L2U.method == "poisson" ...
+        && abs(L2U.maxSec - 0.15) < 1e-12 && L2U.minSec == 0 && L2U.baseline == "window" && FE.latBaseFrom.Enable == "on" ...
+        && isequal(L2U.baselineWindow, [-0.1 0]) && L2U.cusumBinSec == 0.002, ...
+        ['a method is one named step ("Undo Method"), showing its own rows (the rate and burst with surprise, the rate ' ...
+        'and alpha with poisson); To (ms) sets the window''s end; a window of its own enables its fields, the values ' ...
+        'not edited kept exactly']);
+    FE.onsetLine.Value = "groups";   % the PSTH's onset line
+    app.onConfigChanged("figure", FE.onsetLine);
+    shownOn = shown(FE.onsetLine) && app.Config.Figures(1).panels(2).options.onsetLine == "groups" ...
+        && contains(FE.latNote.Text, "psth_1 (box plot, onset line)");
+    app.refreshFigurePreview(Force=true);
+    FU = app.FigurePreviewResult;
+    RU1 = FU.panels(1).layers(1).R;
+    RU2 = FU.panels(2).layers(1).R;
+    oneEntry = isscalar(FU.latency.entries) && isequal(FU.latency.entries.panels, ["raster_1" "psth_1"]);
+    check(shownOn && app.FigurePreviewState == "drawn" && oneEntry && isequaln(RU1.latency, RU2.latency) ...
+        && RU1.latency.method == "poisson" && abs(RU1.latency.window(2) - 0.15) < 1e-12 && isfield(RU2, 'onset') ...
+        && ~isfield(RU1, 'onset'), ...
+        ['the preview takes the latencies once for the raster and the PSTH (F.latency: one entry read by both), by the ' ...
+        'figure''s block, and the onset for the PSTH that draws it']);
+    K0 = app.Runner.FigureCache;
+    FE.latMethod.Value = "surprise";
+    app.onConfigChanged("figure", FE.latMethod);
+    app.refreshFigurePreview(Force=true);
+    K1 = app.Runner.FigureCache;
+    isNew = arrayfun(@(e) ~any(arrayfun(@(o) o.kind == e.kind && isequaln(o.key, e.key), K0)), K1);
+    newKinds = unique([K1(isNew).kind]);
+    check(app.FigurePreviewState == "drawn" && app.FigurePreviewResult.panels(1).layers(1).R.latency.method == "surprise" ...
+        && isequal(newKinds, "latency"), ...
+        sprintf(['an edit of the method computes the latencies again and nothing else: no panel, no onset (new in the ' ...
+        'cache: %s)'], strjoin(newKinds, ", ")));
+    I = figureSettingItems(app.Config.Figures(1));
+    keysU = I.Key(I.Part == "latency");
+    check(all(ismember(["latency.method" "latency.minSec" "latency.cusumThreshold"], keysU)) ...
+        && ~any(keysU == "latency.baselineWindow") && any(figureSettingParts().Part == "latency"), ...
+        'Copy settings lists the figure''s latency block, setting by setting (the baseline window with the baseline)');
+    app.onAddFigure("continuous");   % no panel that can read it: no section
+    check(~shown(FE.latMethod) && ~app.FigureSections([app.FigureSections.Name] == "latency").Visible, ...
+        'a figure without a raster, PSTH or heat map has no First-spike latency section');
+    noFigures();
+    clear restoreAuto5u
+    app.Tabs.SelectedTab = app.TabData;
+end
+
+if S.sec("5s", "an edit of text alone (a label, a panel title) set on the drawn preview: nothing computed or drawn again, the drawing a whole one's; a side drawn again")
+    noFigures();
+    app.selectTab(app.TabFigures);
+    app.FigureAutoCheckBox.Value = true;
+    app.FigureAutoPreviewSeconds = Inf;   % Auto draws here, however loaded the machine
+    restore5s = onCleanup(@() resetAutoLimit(app));
+    app.onAddFigure("rasterPsth");
+    app.refreshFigurePreview(Force=true);
+    fid = app.Config.Figures(1).id;
+    axR = findPanelAxes(app.FigurePreviewPanel, "raster_1");
+    axP = findPanelAxes(app.FigurePreviewPanel, "psth_1");
+    secs0 = app.FigurePreviewSeconds;
+    app.FigurePreviewSeconds = 1234;   % a compute would set it: an edit set in place leaves it
+    app.onFigureAxisEdited(fid, "psth_1", struct('xLabel', "Lag (s)"));
+    app.onFigureAxisEdited(fid, "raster_1", struct('yLabel', "Trial number"));
+    kept5s = isequal(findPanelAxes(app.FigurePreviewPanel, "raster_1"), axR) && isequal(findPanelAxes(app.FigurePreviewPanel, "psth_1"), axP) ...
+        && app.FigurePreviewSeconds == 1234 && app.FigurePreviewState == "drawn";
+    app.onPanelSelected(2);
+    FE.panelTitle.Value = "Rate";   % a panel title of its own, none before: drawn again, as an empty title has no looks
+    app.onConfigChanged("figure", FE.panelTitle);
+    axP2 = findPanelAxes(app.FigurePreviewPanel, "psth_1");
+    redrawn5s = ~isequal(axP2, axP) && app.FigurePreviewSeconds ~= 1234;
+    app.FigurePreviewSeconds = 1234;
+    FE.panelTitle.Value = "Rate by group";   % its own before and after: set in place (the editor's row)
+    app.onConfigChanged("figure", FE.panelTitle);
+    kept5s = kept5s && redrawn5s && isequal(findPanelAxes(app.FigurePreviewPanel, "psth_1"), axP2) && app.FigurePreviewSeconds == 1234 ...
+        && app.FigurePreviewState == "drawn";
+    shown5s = previewTexts(app.FigurePreviewPanel, ["raster_1" "psth_1"]);
+    rmappdata(app.FigurePreviewPanel, 'FigureDrawing');   % the next preview draws everything
+    app.refreshFigurePreview(Force=true);
+    whole5s = previewTexts(app.FigurePreviewPanel, ["raster_1" "psth_1"]);
+    [same5s, why5s] = sameTexts5s(shown5s, whole5s);
+    check(kept5s && same5s && app.FigurePreviewResult.spec.panels(2).title == "Rate by group" && shown5s(2).x == "Lag (s)" ...
+        && shown5s(1).y == "Trial number" && shown5s(2).t == "Rate by group" && app.FigureHistory.undoLabel() ~= "", ...
+        sprintf(['an x and a y label (right-click) and a panel title of its own (the editor) are set on the drawn preview: the same axes, ' ...
+        'nothing computed (%.2f s before), the badge Drawn; a first title of its own is drawn again; a whole drawing makes the same ' ...
+        'texts and places (%s)'], secs0, why5s));
+    axP = findPanelAxes(app.FigurePreviewPanel, "psth_1");
+    app.onFigureAxisEdited(fid, "psth_1", struct('ySide', "right"));
+    axP3 = findPanelAxes(app.FigurePreviewPanel, "psth_1");
+    check(~isequal(axP3, axP) && strcmp(axP3.YAxisLocation, 'right') && app.FigurePreviewState == "drawn", ...
+        'a side is not text alone: the panel is drawn again');
+    noFigures();
+    clear restore5s
     app.Tabs.SelectedTab = app.TabData;
 end
 
@@ -3758,6 +4065,20 @@ catch ME
     fprintf(2, '  (the answer to "%s" failed: %s)\n', name, ME.message);
     delete(f);
 end
+end
+
+
+function saveTemplateAnswer(D, name)
+%saveTemplateAnswer  In the Save the figure as a template window: note the name offered (appdata templateOffered), type NAME, Save.
+setappdata(groot, 'templateOffered', string(D.Name.Value));
+D.Name.Value = char(name);
+D.Save.ButtonPushedFcn(D.Save, []);
+end
+
+
+function removeTemplates(folder)
+%removeTemplates  The templates folder the section made, gone (its cleanup).
+if isfolder(folder); rmdir(folder, 's'); end
 end
 
 
@@ -3951,6 +4272,37 @@ b = [NaN NaN NaN NaN];
 if n == 0; return; end
 p = reshape([M.Position], 4, []).';
 b = [min(p(:, 1)) min(p(:, 2)) max(p(:, 1) + p(:, 3)) max(p(:, 2) + p(:, 4))];
+end
+
+
+function T = previewTexts(P, ids)
+%previewTexts  Each panel's axes place and its x label, y label and title in the preview P: text, place, interpreter and font size.
+T = struct('id', {}, 'pos', {}, 'x', {}, 'y', {}, 't', {}, 'texts', {});
+for id = reshape(ids, 1, [])
+    ax = findPanelAxes(P, id);
+    L = [ax.XLabel ax.YAxis(1).Label ax.Title];
+    T(end+1) = struct('id', id, 'pos', ax.Position, 'x', strjoin(string(L(1).String), " "), 'y', strjoin(string(L(2).String), " "), ...
+        't', strjoin(string(L(3).String), " "), 'texts', {arrayfun(@(l) {string(l.String), l.Position, string(l.Interpreter), l.FontSize}, ...
+        L, 'UniformOutput', false)}); %#ok<AGROW>
+end
+end
+
+
+function [ok, why] = sameTexts5s(A, B)
+%sameTexts5s  Two previewTexts alike: places within 1e-6 px (data units for the texts), the same strings, interpreters and sizes.
+ok = numel(A) == numel(B);
+why = "the same";
+if ~ok; why = "the panels"; return; end
+for i = 1:numel(A)
+    if any(abs(A(i).pos - B(i).pos) > 1e-6); ok = false; why = A(i).id + ": its axes' place"; return; end
+    for j = 1:numel(A(i).texts)
+        a = A(i).texts{j};
+        b = B(i).texts{j};
+        if ~isequal(a{1}, b{1}) || any(abs(a{2} - b{2}) > 1e-6) || a{3} ~= b{3} || a{4} ~= b{4}
+            ok = false; why = A(i).id + ": text " + j + " (" + strjoin(a{1}, " ") + ")"; return
+        end
+    end
+end
 end
 
 

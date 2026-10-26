@@ -55,6 +55,7 @@ classdef PlotAestheticsDialog < handle
         Original                            % values when the window opened (Map)
         PlotRules0
         UserRules0
+        Shown (:,1) double = zeros(0, 1)    % the rows of Components the list shows (its Data rows, in this order; the filters pick them)
         Ui = struct()
         Controls = struct()
     end
@@ -404,12 +405,20 @@ classdef PlotAestheticsDialog < handle
             main = uigridlayout(obj.Fig, [2 1], 'RowHeight', {'1x', 36}, 'Padding', 8, 'RowSpacing', 8);
             top = uigridlayout(main, [1 2], 'ColumnWidth', {400, '1x'}, 'Padding', 0, 'ColumnSpacing', 10);
 
-            left = uigridlayout(top, [3 1], 'RowHeight', {20, '1x', 30}, 'Padding', 0, 'RowSpacing', 4);
+            left = uigridlayout(top, [4 1], 'RowHeight', {20, 26, '1x', 30}, 'Padding', 0, 'RowSpacing', 4);
             uilabel(left, 'Text', 'Components: click one to edit it; tick several to change them together', ...
                 'FontWeight', 'bold');
             T = obj.Components;
-            obj.Ui.List = uitable(left, 'Data', [num2cell(obj.Ticked) cellstr(T.TileName) cellstr(T.Label) cellstr(T.Type)], ...
-                'ColumnName', {'✓', 'Tile', 'Component', 'Type'}, 'RowName', {}, ...
+            fl = uigridlayout(left, [1 4], 'ColumnWidth', {'1x', 80, 80, 70}, 'Padding', 0, 'ColumnSpacing', 4);
+            obj.Ui.Filter = uieditfield(fl, 'text', 'Placeholder', 'Filter: title, component, type', ...
+                'ValueChangingFcn', @(~, e) obj.refilter(e.Value), 'ValueChangedFcn', @(s, ~) obj.refilter(s.Value), ...
+                'Tooltip', 'Show only the components with this text in their tile title, component or type (words all must match)');
+            obj.Ui.FilterTile = filterDrop(fl, 'All titles', T.TileName, 'Show only the components of this tile', @(~, ~) obj.refilter());
+            obj.Ui.FilterLabel = filterDrop(fl, 'All components', T.Label, 'Show only this component', @(~, ~) obj.refilter());
+            obj.Ui.FilterType = filterDrop(fl, 'All types', T.Type, 'Show only the components of this type', @(~, ~) obj.refilter());
+            obj.Shown = (1:height(T)).';
+            obj.Ui.List = uitable(left, 'Data', obj.listData(), ...
+                'ColumnName', {'✓', 'Tile', 'Component', 'Type'}, 'RowName', {}, 'ColumnSortable', true, ...
                 'ColumnEditable', [true false false false], 'ColumnWidth', {28, 90, 'auto', 92}, ...
                 'CellEditCallback', @(~, e) obj.onTickEdited(e), 'CellSelectionCallback', @(~, e) obj.onListClicked(e));
             b = uigridlayout(left, [1 4], 'ColumnWidth', {'1x', '1x', '1x', '1x'}, 'Padding', 0, 'ColumnSpacing', 4);
@@ -491,7 +500,10 @@ classdef PlotAestheticsDialog < handle
             end
             obj.showApplyTo();
             obj.retarget();
-            try scroll(obj.Ui.List, 'row', s); catch; end
+            r = find(obj.Shown == s, 1);
+            if ~isempty(r)
+                try scroll(obj.Ui.List, 'row', r); catch; end
+            end
         end
 
         function c = control(obj, g, p, v)
@@ -607,13 +619,14 @@ classdef PlotAestheticsDialog < handle
 
         function onListClicked(obj, evt)
             if isempty(evt.Indices); return; end
-            ij = evt.Indices(end, :);
+            ij = evt.Indices(end, :);   % a row of Data (the rows shown), whatever the sort; DisplayIndices are rows as sorted
             if ij(2) == 1; return; end   % the tick column ticks, it does not select
-            if ij(1) ~= obj.Selected; obj.select(ij(1)); end
+            k = obj.Shown(ij(1));
+            if k ~= obj.Selected; obj.select(k); end
         end
 
         function onTickEdited(obj, evt)
-            obj.tick(evt.Indices(1), logical(evt.NewData));
+            obj.tick(obj.Shown(evt.Indices(1)), logical(evt.NewData));
         end
 
         function forgetSelected(obj)
@@ -625,20 +638,46 @@ classdef PlotAestheticsDialog < handle
             obj.forget(rows(:));
         end
 
+        function d = listData(obj)
+            %listData  The list's table: tick, tile, component and type of the rows shown.
+            T = obj.Components(obj.Shown, :);
+            d = table(obj.Ticked(obj.Shown), cellstr(T.TileName), cellstr(T.Label), cellstr(T.Type), ...
+                'VariableNames', {'Tick', 'Tile', 'Component', 'Type'});
+        end
+
+        function refilter(obj, text)
+            %refilter  Show the components that pass the filters (words in the tile title, component or type; the drop-downs); hidden rows keep their ticks.
+            if nargin < 2; text = obj.Ui.Filter.Value; end
+            T = obj.Components;
+            keep = true(height(T), 1);
+            hay = lower(T.TileName + " " + T.Label + " " + T.Type);
+            for w = split(lower(strtrim(string(text))), whitespacePattern).'
+                keep = keep & contains(hay, w);
+            end
+            if obj.Ui.FilterTile.Value ~= ""; keep = keep & T.TileName == string(obj.Ui.FilterTile.Value); end
+            if obj.Ui.FilterLabel.Value ~= ""; keep = keep & T.Label == string(obj.Ui.FilterLabel.Value); end
+            if obj.Ui.FilterType.Value ~= ""; keep = keep & T.Type == string(obj.Ui.FilterType.Value); end
+            obj.Shown = find(keep);
+            obj.Ui.List.Data = obj.listData();
+            obj.showTargets(obj.targetRows());
+        end
+
         function showTicks(obj)
-            d = obj.Ui.List.Data;
-            d(:, 1) = num2cell(obj.Ticked);
-            obj.Ui.List.Data = d;
+            obj.Ui.List.Data = obj.listData();
         end
 
         function showTargets(obj, rows)
             %showTargets  Shade the rows a change goes to; the selected one darker.
             L = obj.Ui.List;
             removeStyle(L);
+            rows = find(ismember(obj.Shown, rows)).';   % rows of the list (Data) that are components of the change
             if ~isempty(rows)
                 addStyle(L, uistyle('BackgroundColor', [0.91 0.95 1]), 'row', rows);
             end
-            addStyle(L, uistyle('BackgroundColor', [0.78 0.87 1], 'FontWeight', 'bold'), 'row', obj.Selected);
+            s = find(obj.Shown == obj.Selected, 1);
+            if ~isempty(s)
+                addStyle(L, uistyle('BackgroundColor', [0.78 0.87 1], 'FontWeight', 'bold'), 'row', s);
+            end
             obj.showApplyTo();
         end
 
@@ -836,4 +875,12 @@ for role = roles(roles ~= "")
         P = [P; [repmat(role, numel(g), 1) g]]; %#ok<AGROW>
     end
 end
+end
+
+
+function dd = filterDrop(parent, all, values, tip, fcn)
+%filterDrop  A filter drop-down: ALL (no filter), then the distinct VALUES; the list narrows when it changes.
+items = cellstr(unique(string(values(:)), 'stable')).';
+dd = uidropdown(parent, 'Items', [{all} items], 'ItemsData', [{''} items], 'Value', '', 'Tooltip', tip, ...
+    'ValueChangedFcn', fcn);
 end

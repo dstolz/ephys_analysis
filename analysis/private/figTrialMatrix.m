@@ -21,8 +21,9 @@ function [M, order, grp, name] = figTrialMatrix(R, o)
 %            rows' y label ("Epoch (by Depth), descending"): figEpochOrder's
 %            (by group first with O.rasterByGroup, then O.rasterSort in
 %            O.rasterSortOrder, missing values last, ties in time order;
-%            "latency": the unit's first-spike latency from the event to
-%            the window's end, an epoch with no spike last)
+%            "latency": the unit's first-spike latency, R.latency, which
+%            the figure's latencies bring after the compute: until then
+%            the time order, and figureLatencies sorts the rows again)
 %     GRP    each epoch's group (R.epochGroup, a row of R.groups)
 %
 %   See also computeHeatmapPanel, drawHeatmapPanel, spikePSTH, rasterInto, figEpochOrder.

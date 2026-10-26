@@ -1,17 +1,18 @@
 function d = latencyDialog(obj, kind)
-%latencyDialog  A raster's first-spike latency marks, or a PSTH's latency box plot, in a modal window (the Options' buttons).
+%latencyDialog  A raster's first-spike latency marks, or a PSTH's latency box plot: their look, in a modal window (the Options' buttons).
 %   D = latencyDialog(OBJ, KIND) opens a modal window (WindowStyle
 %   "modal", Tag latencyDialog; one at a time) on the panel selected in
 %   the Figures tab (OBJ.SelectedFigure, OBJ.SelectedPanel) and returns it:
-%     KIND "firstSpike"  "First-spike latency" (a raster panel's
+%     KIND "firstSpike"  "First-spike marks" (a raster panel's
 %                        options.firstSpike, the First spike row's
-%                        First-spike latency... button)
+%                        First-spike marks... button)
 %     KIND "latencyBox"  "Latency box plot" (a PSTH panel's
 %                        options.latencyBox, the Latency box row's Latency
 %                        box plot... button)
-%   Its rows: the on box (Enabled); Detect from / to (MinMs, MaxMs: the
-%   latency window in ms from the aligned event, both ends included; to
-%   blank = the window's end, maxSec Inf); then the look. A raster's:
+%   Its rows: the on box (Enabled), then the look; how the latencies are
+%   found (the method, its window and baseline) is the figure's, one
+%   block for all its panels (the First-spike latency section:
+%   Figure.latency), which the window's note names (Note). A raster's:
 %   Marker and Size, Color ("groups" = each trial group's color, or a color
 %   name or #RRGGBB) and Filled. A box plot's: Color, Line (LineStyle,
 %   LineWidth: the box's outline and whiskers), Box height (BoxHeight:
@@ -23,11 +24,10 @@ function d = latencyDialog(obj, kind)
 %   while it is off.
 %   OK gives the panel the settings (the window opened on it, by its
 %   figure's and its own id) as one edit, named in the undo history
-%   ("First-spike latency", "Latency box plot": commitFigureEdit), and
-%   closes the window; a window that ends before it starts is refused,
-%   said in the window's note, and the window stays. Cancel closes it,
-%   changing nothing. The window's UserData holds its controls (above,
-%   with ColorSwatch, Kind, FigureId, PanelId, Note, Ok, Cancel) for the tests.
+%   ("First-spike marks", "Latency box plot": commitFigureEdit), and
+%   closes the window. Cancel closes it, changing nothing. The window's
+%   UserData holds its controls (above, with ColorSwatch, Kind, FigureId,
+%   PanelId, Note, Ok, Cancel) for the tests.
 %   Nothing opens, and the status line says why, without a panel of the
 %   KIND's type selected.
 %
@@ -41,7 +41,7 @@ d = [];
 box = kind == "latencyBox";
 type = "raster";
 section = "FirstSpike";
-name = "First-spike latency";
+name = "First-spike marks";
 if box
     type = "psth";
     section = "LatencyBox";
@@ -63,10 +63,10 @@ MK = PlotAesthetics.catalog().Marker;
 
 pos = obj.Fig.Position;
 nRows = 3 + 2 * box;   % the look's rows
-d = uifigure('Name', name + ": " + pid, 'Position', [pos(1) + 160, pos(2) + 160, 460, 250 + 30 * nRows], ...
+d = uifigure('Name', name + ": " + pid, 'Position', [pos(1) + 160, pos(2) + 160, 460, 240 + 30 * nRows], ...
     'Tag', 'latencyDialog', 'WindowStyle', 'modal');
 addlistener(obj.Fig, 'ObjectBeingDestroyed', @(~, ~) delete(d(isvalid(d))));   % it goes with the app
-g = uigridlayout(d, [4 + nRows + 1, 1], 'RowHeight', [{'fit', 24, 24} repmat({24}, 1, nRows) {'fit', 36}], ...
+g = uigridlayout(d, [3 + nRows + 1, 1], 'RowHeight', [{'fit', 24} repmat({24}, 1, nRows) {'fit', 36}], ...
     'Padding', [12 12 12 12], 'RowSpacing', 8);
 if box
     what = "A box plot of each epoch's first-spike latency, one box per trial group (in each row of a stacked PSTH), " + ...
@@ -77,7 +77,7 @@ else
         "its groups or a block's band put it), over the ticks.";
 end
 l = uilabel(g, 'WordWrap', 'on', 'Text', what + " The latency is the spike's time from the aligned event, as the " + ...
-    "raster draws it; an epoch with no spike in the window has none.");
+    "raster draws it; an epoch with none (no spike found by the figure's method) has no mark.");
 l.Layout.Row = 1;
 r = 2;
 onText = "Mark each epoch's first spike";
@@ -85,14 +85,6 @@ if box; onText = "Draw the box plot of the first-spike latencies"; end
 D.Enabled = uicheckbox(g, 'Text', onText, 'Value', L.enabled, 'ValueChangedFcn', @(~, ~) sync());
 D.Enabled.Layout.Row = r;
 r = r + 1;
-wg = row("Detect from:", {70, 'fit', 70, 'fit', '1x'});
-D.MinMs = uieditfield(wg, 'numeric', 'Value', 1000 * L.minSec, 'Tooltip', ...
-    "The earliest latency, ms from the aligned event (included; negative: before it).");
-uilabel(wg, 'Text', 'to');
-D.MaxMs = uieditfield(wg, 'numeric', 'AllowEmpty', 'on', 'Placeholder', 'end', 'Tooltip', ...
-    "The latest latency, ms from the event (included). Blank: the panel's window's end.");
-if isfinite(L.maxSec); D.MaxMs.Value = 1000 * L.maxSec; else; D.MaxMs.Value = []; end
-uilabel(wg, 'Text', 'ms');
 colors = ["groups" "black" "red" "blue" "white" "gray" "#d62728" "#ff7f0e"];
 colorTip = "groups: each trial group's color (as its ticks and traces); or a color name or #RRGGBB for all.";
 pickColor = @(c, t) feval(obj.ColorPicker, c, t);   % the swatch's chooser (colorSwatch: uisetcolor, or the tests')
@@ -133,7 +125,8 @@ else
     D.Filled = uicheckbox(fg, 'Text', 'Filled', 'Value', L.filled, 'Tooltip', ...
         "Filled: a solid mark. Unticked: its outline only, the tick showing through.");
 end
-D.Note = uilabel(g, 'WordWrap', 'on', 'FontColor', [0.35 0.35 0.35], 'Text', "");
+D.Note = uilabel(g, 'WordWrap', 'on', 'FontColor', [0.35 0.35 0.35], 'Text', "The latencies are the figure's (its " + ...
+    "First-spike latency section, for all its panels): " + latencyMethodText(fig.latency) + ".");
 D.Note.Layout.Row = r;
 bg = uigridlayout(g, [1 3], 'ColumnWidth', {'1x', 100, 100}, 'Padding', [0 0 0 0]);
 bg.Layout.Row = r + 1;
@@ -171,18 +164,10 @@ sync();
     end
 
     function apply()
-        %apply  The panel the window was opened on takes the settings, as one named edit; a window ending before it starts is refused.
+        %apply  The panel the window was opened on takes the settings, as one named edit.
         if ~isvalid(obj) || ~isvalid(obj.Fig); delete(d); return; end
         N = L;
         N.enabled = logical(D.Enabled.Value);
-        N.minSec = D.MinMs.Value / 1000;
-        N.maxSec = Inf;
-        if ~isempty(D.MaxMs.Value); N.maxSec = D.MaxMs.Value / 1000; end
-        if N.minSec > N.maxSec
-            D.Note.Text = sprintf("The window ends (%g ms) before it starts (%g ms).", 1000 * N.maxSec, 1000 * N.minSec);
-            D.Note.FontColor = [0.75 0.1 0.1];
-            return
-        end
         N.color = strtrim(string(D.Color.Value));
         if N.color == ""; N.color = "groups"; end
         if box

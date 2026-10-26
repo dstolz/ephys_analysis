@@ -25,8 +25,8 @@ function refreshFigureObservations(obj, opts)
 %   list cannot be made, the picker's UserData.error says why (the preview
 %   shows it). The Observations section's count line follows (ending
 %   ", starred only" with Starred only). < and > are enabled when there is
-%   somewhere to go, Unit report when a unit or channel is picked
-%   (unitReportEnable). A figure across sessions lists its matched
+%   somewhere to go, Test report when a unit, channel or the dataset
+%   is picked (testReportEnable). A figure across sessions lists its matched
 %   observations (figureSessionObservations), a match starred on any of its
 %   sessions starting with "★ " (favoriteMarks with the sessions' datasets,
 %   kept in the picker's UserData.sessions).
@@ -248,6 +248,6 @@ n = 0;
 if istable(obj.FigureObservations); n = height(obj.FigureObservations); end
 obj.FigureObsPrevButton.Enable = matlab.lang.OnOffSwitchState(n > 0 && i > 1);
 obj.FigureObsNextButton.Enable = matlab.lang.OnOffSwitchState(n > 0 && i < n);
-obj.FigureUnitReportButton.Enable = unitReportEnable(obj);
+obj.FigureTestReportButton.Enable = testReportEnable(obj);
 syncStarButtons(obj);
 end

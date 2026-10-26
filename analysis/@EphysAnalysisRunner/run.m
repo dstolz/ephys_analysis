@@ -51,12 +51,17 @@ function T = run(obj, opts)
 %                     Figures=string.empty(1, 0))
 %     Export          write figure files (default Config.Export.Enabled)
 %     Report          write the report (default Config.Report.Enabled)
-%     Observation     one observation (a struct: kind "unit" | "channel",
-%                     data, unitId, channel, label; default [] = all):
-%                     each figure is drawn only for what matches it
-%                     (runDataset, figureObservations), a figure with
-%                     no match is "skipped" with the reason, and no
-%                     session figure runs (the app's Unit report)
+%     Observation     one observation (a struct: kind "unit" | "channel"
+%                     | "dataset", data, unitId, channel, label; default
+%                     [] = all): each figure is drawn only for what
+%                     matches it (runDataset, figureObservations; a
+%                     figure of the dataset draws the dataset), a figure
+%                     with no match is "skipped" with the reason, and no
+%                     session figure runs: each is a "skipped" row
+%                     "sessions: all" (and, in the one report over the
+%                     run, an entry under "Across sessions") saying it is
+%                     drawn across the sessions, not for one dataset's
+%                     observation (the app's Test report)
 %
 %   See also EphysAnalysisRunner.runDataset, EphysAnalysisRunner.runSessionFigure,
 %   EphysAnalysisRunner.plan, writeHtmlReport, writePdfReport.
@@ -82,7 +87,11 @@ if ~isempty(opts.Report); doReport = logical(opts.Report); end
 fids = EphysAnalysisRunner.idList(opts.Figures, @() cfg.enabledFigures());
 fids = fids(~arrayfun(@(f) cfg.isSessionFigure(f), fids));   % session figures are drawn across the datasets, not per dataset
 sfids = EphysAnalysisRunner.idList(opts.SessionFigures, @() cfg.enabledSessionFigures());
-if isstruct(opts.Observation); sfids = string.empty(1, 0); end   % one dataset's observation: no figure across the sessions
+sfOut = string.empty(1, 0);   % the session figures an Observation= run leaves out
+if isstruct(opts.Observation)   % one dataset's observation: no figure across the sessions
+    sfOut = sfids;
+    sfids = string.empty(1, 0);
+end
 if isempty(opts.Datasets)
     idx = 1:numel(obj.Outputs);
 elseif isnumeric(opts.Datasets)
@@ -174,6 +183,9 @@ if ~canceled && ~isempty(sfids) && ~isempty(idx)
         obj.ReportFiles = [obj.ReportFiles writeReports(obj, idx(1), "sessions", [1 1])];
     end
 end
+if ~canceled && ~isempty(sfOut) && ~isempty(idx)
+    skipSessionFigures(obj, cfg, sfOut, doReport && ~perDataset);
+end
 if doReport && ~perDataset && ~canceled && ~isempty(idx)
     obj.ReportFiles = writeReports(obj, idx(1), obj.Names(idx(1)), [nUnits - 1, nUnits] / nUnits);
 end
@@ -195,6 +207,28 @@ function cancelSessionFigures(obj, sfids)
 for id = sfids
     if ~any(obj.Results.Plot == id & startsWith(obj.Results.Dataset, "sessions: "))
         obj.Results(end+1, :) = {"sessions: all", id, "figure", "canceled", "canceled", "", 0};
+    end
+end
+end
+
+
+function skipSessionFigures(obj, cfg, sfids, inReport)
+%skipSessionFigures  A "skipped" row for each session figure an Observation= run leaves out (and, INREPORT, an entry).
+%   A figure across sessions matches its observations across the datasets,
+%   so it is not drawn for one dataset's observation; the report lists it
+%   under "Across sessions" with that reason.
+why = "it is drawn across the sessions, not for one dataset's observation";
+if inReport
+    obj.Report = addReportSection(obj.Report, "Across sessions");
+end
+for id = sfids
+    obj.Results(end+1, :) = {"sessions: all", id, "figure", "skipped", why, "", 0};
+    obj.log("sessions: %s skipped (%s)", id, why);
+    if inReport
+        k = cfg.figureIndex(id);
+        if k > 0; spec = cfg.Figures(k); else; spec = EphysAnalysisConfig.defaults("Figure"); spec.id = id; end
+        spec.kind = "figure";
+        obj.Report = addReportFigure(obj.Report, spec, [], Status="skipped", Message=why);
     end
 end
 end

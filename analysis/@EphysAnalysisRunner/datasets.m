@@ -16,7 +16,10 @@ function outs = datasets(obj)
 %                folder, the name its last part
 %   Every DatasetOutputs has CacheData=true: a figure's spikes and signals
 %   are read once per dataset; runDataset clears them afterwards. Each also
-%   searches r.SearchDirs (a pipeline's step output folders).
+%   searches r.SearchDirs (a pipeline's step output folders). While
+%   ProgressFcn is set, each dataset found reports ProgressFcn(i/n, "Reading
+%   dataset i/n: name"); a ProgressFcn that throws
+%   EphysAnalysisRunner:Canceled stops the scan (the app's scan dialog).
 %
 %   See also EphysAnalysisRunner.source, DatasetOutputs, EphysProject.
 
@@ -46,14 +49,22 @@ switch S.Mode
             end
             idx = idx(idx > 0);
         end
-        for k = reshape(idx, 1, [])
+        for j = 1:numel(idx)
+            k = idx(j);
             d = P.Datasets(k);
+            if ~isempty(obj.ProgressFcn)
+                obj.ProgressFcn((j - 1) / numel(idx), sprintf('Reading dataset %d/%d: %s', j, numel(idx), d.Name));
+            end
             outs(end+1) = d.outputs('CacheData', true, 'SearchDirs', obj.SearchDirs); %#ok<AGROW>
             keys(end+1) = P.datasetKey(k); %#ok<AGROW>
             names(end+1) = d.Name; %#ok<AGROW>
         end
     case "folders"
-        for f = S.Folders
+        for j = 1:numel(S.Folders)
+            f = S.Folders(j);
+            if ~isempty(obj.ProgressFcn)
+                obj.ProgressFcn((j - 1) / numel(S.Folders), sprintf('Reading dataset %d/%d: %s', j, numel(S.Folders), f));
+            end
             if ~isfolder(f)
                 error('EphysAnalysisRunner:NoFolder', 'Output folder does not exist: "%s".', f);
             end

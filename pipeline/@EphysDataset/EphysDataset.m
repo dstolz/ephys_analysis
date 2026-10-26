@@ -1723,6 +1723,35 @@ classdef EphysDataset < handle
             s.modified = sum(s.counts) > 0 || s.created > 0;
         end
 
+        function c = labelCounts(resultsDir)
+            %labelCounts  How many clusters of the sort in RESULTSDIR carry each label.
+            %   The labels readPhyUnits gives the units: phy's
+            %   cluster_group.tsv, else the sorter's cluster_KSLabel.tsv or
+            %   cluster_SILabel.tsv (the sorter's own copy in
+            %   cluster_group.tsv is read the same way). C.total (clusters,
+            %   NaN when no label file is there), C.good, C.mua, C.noise
+            %   (NaN alike), and C.source: "phy" when phy wrote the labels,
+            %   "sorter" for the sorter's, "none". Reads one small .tsv and
+            %   cluster_group.tsv's header, so it is cheap where many sorts
+            %   are counted (the Review tab's Datasets table).
+            c = struct('total', NaN, 'good', NaN, 'mua', NaN, 'noise', NaN, 'source', "none");
+            dir0 = char(resultsDir);
+            for name = ["cluster_group.tsv", "cluster_KSLabel.tsv", "cluster_SILabel.tsv"]
+                [ids, grp] = tsvColumns(fullfile(dir0, char(name)));
+                if isempty(ids); continue; end
+                grp = lower(grp);
+                c.total = numel(ids);
+                c.good = nnz(grp == "good");
+                c.mua = nnz(grp == "mua");
+                c.noise = nnz(grp == "noise");
+                c.source = "sorter";
+                if name == "cluster_group.tsv" && EphysDataset.phyCurated(dir0)
+                    c.source = "phy";
+                end
+                return
+            end
+        end
+
         function k = pathKey(p)
             %pathKey  Paths as comparable keys: "/" separators, no trailing
             %   separator, lower case on Windows (whose paths ignore case).

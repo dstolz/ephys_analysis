@@ -64,15 +64,20 @@ function T = panelTypes()
 %   time axis and one color scale and color bar, each with its group's
 %   color strip at the left. A raster panel above a stacked PSTH draws
 %   the rasters (a raster lists its groups in blocks already: it takes no
-%   stack). A raster's firstSpike (defaults("FirstSpike")) marks each
-%   epoch's first spike in a latency window, a PSTH's latencyBox
-%   (defaults("LatencyBox")) draws a box plot of those latencies per
-%   trial group in a band above its traces (in each row when stacked,
-%   outside every row's y range whatever its yLimMode); both read
-%   firstSpikeLatency. A rasterSort "latency" (a raster, a heat map of
-%   trials; an event trace has no spikes: time order) orders the epochs by
-%   their first spike's latency (a raster: in firstSpike's window, else
-%   from the event to the window's end; epochs with no spike last).
+%   stack). The first-spike latencies and response onsets are the
+%   figure's: its latency block (Figure.latency, defaults("Latency"):
+%   the method, window, baseline and CUSUM) finds them once per unit and
+%   alignment (figureLatencies), and the panels keep only how they are
+%   drawn. A raster's firstSpike (defaults("FirstSpike")) marks each
+%   epoch's first spike, a PSTH's latencyBox (defaults("LatencyBox"))
+%   draws a box plot of those latencies per trial group in a band above
+%   its traces (in each row when stacked, outside every row's y range
+%   whatever its yLimMode). A raster's or PSTH's onsetLine draws the
+%   unit's response onset as a vertical line: "unit" one over every
+%   epoch, "groups" each trial group's in its color ("off": none). A
+%   rasterSort "latency" (a raster, a heat map of trials; an event trace
+%   has no spikes: time order) orders the epochs by those latencies
+%   (epochs with none last).
 %   A PSTH's trialCount says how many trials each group holds: "text"
 %   writes "n = 24" per group in the group's color (a stack: at the right
 %   end of each row; a heat map: beside each row), "legend" appends
@@ -148,13 +153,13 @@ baseline = struct('Mode', "none", 'Window', [-0.2 0]);
 waveform = EphysAnalysisConfig.defaults("Waveform");           % raster / psth / rate / tuning: the unit's waveform inset ("off" = none)
 waveformsOwn = waveform;
 waveformsOwn.mode = "both";                                    % a waveforms panel: the mean over a subsample
-firstSpike = EphysAnalysisConfig.defaults("FirstSpike");       % raster: the first-spike latency marks (enabled false = none)
-latencyBox = EphysAnalysisConfig.defaults("LatencyBox");       % psth: the box plot of the first-spike latencies (enabled false = none)
+firstSpike = EphysAnalysisConfig.defaults("FirstSpike");       % raster: the first-spike latency marks' look (enabled false = none)
+latencyBox = EphysAnalysisConfig.defaults("LatencyBox");       % psth: the latency box plot's look (enabled false = none)
 auroc = EphysAnalysisConfig.defaults("Auroc");                % psth / heatmap of spikes: baseline Mode "auroc"
 
 opts = struct();
 opts.raster = struct( ...
-    'rasterSort',      "", ...          % "" (trial order) | "stop" | "event" (rasterSortEvent's latency) | "latency" (first-spike latency, firstSpike's window) | a trial parameter
+    'rasterSort',      "", ...          % "" (trial order) | "stop" | "event" (rasterSortEvent's latency) | "latency" (first-spike latency: the figure's latency block) | a trial parameter
     'rasterSortEvent', [], ...          % rasterSort "event": [] or an EventRef
     'rasterSortOrder', "ascending", ... % "ascending" | "descending" (missing values last)
     'rasterByGroup',   true, ...        % rows by group first (false: one block)
@@ -163,7 +168,8 @@ opts.raster = struct( ...
     'tickWidth',       0, ...           % the ticks' line width, points (0: the plot design's)
     'backColor',       "none", ...      % bands behind the rows: "none" | "groups" (each group's pale band) | a color name or hex code (every band)
     'yTicks',         false, ...       % show the y axis' tick marks and labels (the epoch numbers; a further block's name stays)
-    'firstSpike',      firstSpike, ...  % a mark on each epoch's first spike in [minSec, maxSec]: marker, size, color, filled
+    'firstSpike',      firstSpike, ...  % a mark on each epoch's first spike (the figure's latency block finds it): marker, size, color, filled
+    'onsetLine',       "off", ...       % the unit's response onset (the figure's latency block, CUSUM): "off" | "unit" (one line, over every epoch) | "groups" (each group's, in its color)
     'waveform',        waveform);       % the unit's waveform inset
 opts.psth = struct( ...
     'bins',          bins, ...
@@ -178,6 +184,7 @@ opts.psth = struct( ...
     'stack',         "off", ...         % "off" (the groups overlaid) | "groups" (a row per trial group, the first on top)
     'stackSpacing',  1.1, ...           % stack: the row step, x the row height (1: the rows touch; < 1 overlaps)
     'latencyBox',    latencyBox, ...    % a box plot of the first-spike latencies per trial group, in a band above the traces (stack "groups": in each row)
+    'onsetLine',     "off", ...         % the unit's response onset (the figure's latency block, CUSUM): "off" | "unit" (one line) | "groups" (each group's, in its color)
     'trialCount',    "off", ...         % the trials in each group: "off" | "text" ("n = 24" per group, in its color) | "legend" (the legend entries read "<group> (n = 24)")
     'maskAfterStop', false, ...
     'yLimMode',      "auto", ...  % "auto" (each axis, each stacked row, fits itself) | "rows" (a stack's rows share one scale) | "batch" (one range for every observation of a run) | "fixed" (yLim)

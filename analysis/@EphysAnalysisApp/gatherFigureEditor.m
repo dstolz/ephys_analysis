@@ -24,6 +24,8 @@ function fig = gatherFigureEditor(obj)
 %   scale).
 %   The panel's text note is its Text note rows', its overlays the
 %   Overlays list's, the one picked read from its rows (overlayGather).
+%   The figure's latency block is the First-spike latency rows' (a value
+%   in ms written only when it differs from what applyFigureEditor showed).
 %   The figure's size is the Size rows': "Export tab size" in the drop-down
 %   is size.source "export" (the own width and height kept as stored),
 %   anything else an own size of the Width and Height fields (the drop-down
@@ -83,6 +85,26 @@ ss.mappingFile = strtrim(string(E.sesMappingFile.Value));
 ss.minSessions = max(1, round(E.sesMinSessions.Value));
 ss.trialGroups = string(E.sesTrialGroups.Value);
 fig.sessions = ss;
+
+% the first-spike latency and response onset: a value in ms is written only when its field differs from what
+% applyFigureEditor showed (ms to s and back need not give the same number)
+L = fig.latency;
+L.method = string(E.latMethod.Value);
+L.minSec = fromMs(E.latFrom.Value, L.minSec);
+if isempty(E.latTo.Value); L.maxSec = Inf; else; L.maxSec = fromMs(E.latTo.Value, L.maxSec); end
+L.baseline = string(E.latBaseline.Value);
+bw = [-0.1 0];
+if numel(L.baselineWindow) == 2 && all(isfinite(L.baselineWindow)); bw = L.baselineWindow; end
+L.baselineWindow = [fromMs(E.latBaseFrom.Value, bw(1)) fromMs(E.latBaseTo.Value, bw(2))];
+L.baselineRate = string(E.latRate.Value);
+L.surprise = E.latSurprise.Value;
+L.minSpikes = E.latMinSpikes.Value;
+L.alpha = E.latAlpha.Value;
+L.cusumBinSec = fromMs(E.latCusum.Value, L.cusumBinSec);
+L.cusumSustainSec = fromMs(E.latCusumSustain.Value, L.cusumSustainSec);
+L.cusumThreshold = E.latCusumSD.Value;
+L.cusumDrift = E.latCusumDrift.Value;
+fig.latency = L;
 
 % arrangement and appearance
 fig.grid.spacing = string(E.spacing.Value);
@@ -184,6 +206,13 @@ fig = EphysAnalysisConfig.normalizeFigure(fig);
 end
 
 
+function s = fromMs(v, s)
+%fromMs  A field's value in ms as s, or S (the value stored) when the field shows that already.
+if isempty(v) || abs(v - 1000 * s) <= 1e-9 * max(1, abs(v)); return; end
+s = v / 1000;
+end
+
+
 function op = gatherOptions(E, p)
 %gatherOptions  The panel's options as the Options rows (and Group shown) show them; fields of other types are not there.
 op = p.options;
@@ -225,6 +254,7 @@ if isfield(op, 'rasterSort')
     op.rasterByGroup = logical(E.rasterByGroup.Value);
 end
 if isfield(op, 'trialCount'); op.trialCount = string(E.trialCount.Value); end
+if isfield(op, 'onsetLine'); op.onsetLine = string(E.onsetLine.Value); end
 if isfield(op, 'yTicks'); op.yTicks = logical(E.yTicks.Value); end
 if isfield(op, 'tickColor'); op.tickColor = strtrim(string(E.tickColor.Value)); end
 if isfield(op, 'tickWidth'); op.tickWidth = E.tickWidth.Value; end

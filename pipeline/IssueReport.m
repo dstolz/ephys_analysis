@@ -179,6 +179,8 @@ classdef IssueReport
             %               ticked is a logical vector, one per Includes entry
             %     Repo      the repository's address (https://github.com/<owner>/<repo>)
             %     Status    @(message) shows a message in the app's status line
+            %     Title     what the title starts with after its "[Bug] " or
+            %               "[Feature] " ("Figure templates: "; default none)
             %
             %   If no browser opens, an alert shows the address to copy instead.
             arguments
@@ -189,6 +191,7 @@ classdef IssueReport
                 opts.Report (1,1) function_handle
                 opts.Repo (1,1) string
                 opts.Status (1,1) function_handle = @(~) []
+                opts.Title (1,1) string = ""
             end
             if kind == "bug"
                 heading = "Report an issue";
@@ -227,7 +230,7 @@ classdef IssueReport
             tg = uigridlayout(g, [1 2]);
             tg.ColumnWidth = {56, '1x'}; tg.RowHeight = {'1x'}; tg.Padding = [0 0 0 0]; tg.ColumnSpacing = 6;
             uilabel(tg, "Text", "Title");
-            titleField = uieditfield(tg, "text", "Value", char(prefix), ...
+            titleField = uieditfield(tg, "text", "Value", char(prefix + opts.Title), ...
                 "ValueChangedFcn", @(~,~) refresh());
 
             uilabel(g, "Text", char(prompt));
@@ -286,7 +289,7 @@ classdef IssueReport
             function openOnGitHub()
                 body = currentBody();
                 ttl = strip(string(titleField.Value));
-                if ttl == "" || ttl == strip(string(prefix))
+                if ttl == "" || ttl == strip(string(prefix)) || ttl == strip(prefix + opts.Title)
                     uialert(d, "Give the " + what + " a title first.", heading);
                     return
                 end

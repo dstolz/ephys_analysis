@@ -1,7 +1,8 @@
 function clearTableSort(obj, id)
 %clearTableSort  Forget sortable table ID's sort and show its rows in the app's own order.
 %   The preference is saved at once. The app's order: the project's datasets
-%   (Project), trial order (Trials), cluster id (Review), Remove rows first,
+%   (Project and the Review tab's Datasets), trial order (Trials), cluster
+%   id (Review), Remove rows first,
 %   largest first (Clean up), the chosen method's statistic, highest first
 %   (the Artifacts tab's per-channel Selection table).
 arguments
@@ -16,6 +17,7 @@ switch id
     case "Datasets";     obj.refreshDatasetsTable();
     case "Trials";       obj.refreshTrialsTable();
     case "Review";       obj.showReviewUnits();
+    case "ReviewDatasets"; obj.refreshReviewDatasets();
     case "Cleanup";      obj.refreshCleanupTable();
     case "ArtSelection"; obj.measureArtifactSelection();
     case "Copy";         clearCopySort(obj);

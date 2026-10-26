@@ -20,7 +20,7 @@ if report.options.IncludeSummary
     summary = reportSummaryTables(src);
 end
 entry = struct('plot', {}, 'kind', {}, 'title', {}, 'caption', {}, 'spec', {}, ...
-    'images', {}, 'pages', {}, 'files', {}, 'status', {}, 'message', {});
+    'images', {}, 'pages', {}, 'files', {}, 'status', {}, 'message', {}, 'obsKeys', {}, 'obsLabels', {});
 starred = false;
 try
     fav = DatasetFavorites(src);

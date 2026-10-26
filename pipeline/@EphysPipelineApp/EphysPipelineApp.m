@@ -515,7 +515,7 @@ classdef EphysPipelineApp < handle
         % --- Review tab ---
         ReviewFolderField   matlab.ui.control.EditField
         BrowseReviewButton  matlab.ui.control.Button
-        ReviewDatasetDropDown matlab.ui.control.DropDown
+        ReviewDatasetTable  matlab.ui.control.Table           % the datasets with their sorts' state; its row picks the active dataset (refreshReviewDatasets)
         ReviewSortDropDown  matlab.ui.control.DropDown        % the active dataset's sorts (ReviewSorts), and a browsed folder
         ReviewUseSortButton matlab.ui.control.Button          % make the sort shown the dataset's own (onReviewUseSort)
         LoadReviewButton    matlab.ui.control.Button
@@ -968,6 +968,10 @@ classdef EphysPipelineApp < handle
         ReviewSelectedUnit (1,1) double = 0
         ReviewDatasetIdx (1,1) double = 0    % dataset the tab last showed (-1 = reload; syncReviewDataset)
         ReviewSorts struct = struct('dir', {}, 'label', {})   % that dataset's sorted-output folders (syncReviewDataset)
+        ReviewDatasetRows (1,:) double = zeros(1, 0)          % the dataset (index into Project.Datasets) of each row of ReviewDatasetTable.Data
+        % What the Datasets table shows of each dataset's sort, by dataset key,
+        % read once and again only when asked (refreshReviewDatasets).
+        ReviewDatasetStats struct = struct('key', {}, 'folder', {}, 'cells', {}, 'sorts', {})
         ReviewSpikeWaves = struct([])        % the last unit's spikes read for the shank plot (renderReviewUnitShank)
 
         % Epsych2 session summaries for the Project table's Behavior column,
@@ -1375,6 +1379,8 @@ classdef EphysPipelineApp < handle
         onOpenReviewFolder(obj)
         onReviewOpenPhy(obj)
         syncReviewDataset(obj)
+        refreshReviewDatasets(obj, opts)   % opts: Datasets
+        onReviewDatasetSelected(obj, evt)
         showReviewSorts(obj, folder)
         onReviewSortChanged(obj)
         onReviewUseSort(obj)

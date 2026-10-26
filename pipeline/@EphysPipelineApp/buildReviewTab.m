@@ -2,10 +2,16 @@ function buildReviewTab(obj)
 %buildReviewTab  Summary stats + plots for a sorted-output folder.
 %   Any sort in phy's files reads: Kilosort4's, a SpikeInterface sorter's
 %   (runSpikeInterface writes them in Kilosort4's layout), a phy-curated
-%   copy. The active dataset's sorted output loads when the tab opens or the
-%   dataset changes (syncReviewDataset); Sort lists the dataset's other
-%   sorts, and Browse... / Load take any other sorted-output folder. The
-%   left column shows aggregate stats and a per-unit table. On the right,
+%   copy. Across the top, the Datasets table picks the dataset: one row per
+%   dataset the other tabs' Dataset boxes list, with its sort's sorter,
+%   clusters, good and mua units, when phy last saved there and how many
+%   sorts it has, sortable by any column (refreshReviewDatasets); a click on
+%   a row makes that dataset active everywhere (onReviewDatasetSelected), as
+%   any other tab's Dataset box does. Beside it, the loaded sort's aggregate
+%   stats. The active dataset's sorted output loads when the tab opens or
+%   the dataset changes (syncReviewDataset); Sort lists the dataset's other
+%   sorts, and Browse... / Load take any other sorted-output folder. Below,
+%   on the left, the good-unit criteria and a per-unit table. On the right,
 %   the selected unit's inter-spike interval histogram and autocorrelogram
 %   sit above spike amplitudes over time, and
 %   beside them, largest, the selected unit's spikes on the shank it was
@@ -18,42 +24,71 @@ function buildReviewTab(obj)
 %   the cached ReviewData and reads only the selected unit's spikes. See
 %   loadReviewResults / renderReviewPlots / renderReviewUnitShank.
 
-g = uigridlayout(obj.TabReview, [1 2]);
+g = uigridlayout(obj.TabReview, [2 2]);
 g.ColumnWidth = {470, '1x'};
+g.RowHeight   = {180, '1x'};
 g.Padding     = [10 10 10 10];
+g.RowSpacing  = 10;
 
-% =================== left column: source + stats + table ===================
-left = uigridlayout(g, [9 1]);
-left.Layout.Column = 1;
-left.RowHeight = {'fit', 'fit', 30, 30, 'fit', 220, 'fit', '1x', 30};
+% =================== top: the datasets | the loaded sort's summary ===================
+top = uigridlayout(g, [1 2]);
+top.Layout.Row = 1; top.Layout.Column = [1 2];
+top.ColumnWidth = {'1x', 460};
+top.Padding = [0 0 0 0];
+top.ColumnSpacing = 10;
+
+% One row per dataset (refreshReviewDatasets); ReviewDatasetRows maps the
+% rows of Data to the datasets, so a header click's order (kept, tableSort
+% "ReviewDatasets"; right-click clears it) never changes which dataset a
+% click picks.
+dp = uipanel(top, "Title", "Datasets (click one to review it)");
+dg = uigridlayout(dp, [1 1]);
+dg.Padding = [0 0 0 0];
+obj.ReviewDatasetTable = uitable(dg, ...
+    "ColumnName", {'Dataset', 'Sorter', 'Units', 'Good', 'MUA', 'phy saved', 'Sorts'}, ...
+    "ColumnWidth", {'1x', 100, 48, 48, 48, 118, 46}, ...
+    "RowName", {}, ...
+    "SelectionType", "row", "Multiselect", "off", ...
+    "Tooltip", "The datasets the other tabs' Dataset boxes list (the Project tab's ticked ones, and the active one). " + ...
+        "Sorter: of the sort in use (missing: a pinned folder that is not there; -: none). " + ...
+        "Units, Good, MUA: its clusters and their labels (phy's, else the sorter's). " + ...
+        "phy saved: when phy last saved there (opened: phy opened it but saved nothing). " + ...
+        "Sorts: how many the Sort list has, once this tab has shown the dataset. " + ...
+        "Read once while this tab is open, and again when it shows the dataset. Click a header to sort.", ...
+    "SelectionChangedFcn", @(~, evt) obj.onReviewDatasetSelected(evt));
+makeSortable(obj, obj.ReviewDatasetTable, "ReviewDatasets");
+
+summaryPanel = uipanel(top, "Title", "Summary");
+sg = uigridlayout(summaryPanel, [1 1]);
+sg.RowHeight = {'fit'};
+sg.Padding = [8 6 8 6];
+sg.Scrollable = "on";
+obj.ReviewSummaryLabel = uilabel(sg, ...
+    "Text", "Pick a dataset's sort, or a sorted-output folder, and press Load.", ...
+    "VerticalAlignment", "top", "WordWrap", "on", ...
+    "FontName", "monospaced", "FontColor", [0.2 0.2 0.2]);
+
+% =================== left column: source + criteria + units ===================
+left = uigridlayout(g, [6 1]);
+left.Layout.Row = 2; left.Layout.Column = 1;
+left.RowHeight = {30, 30, 30, 'fit', '1x', 30};
 left.Padding   = [0 0 0 0];
 left.RowSpacing = 6;
 
-uilabel(left, "Text", "Sorted output", "FontWeight", "bold");
-
-% The dataset, then which of its sorts (syncReviewDataset: each folder under
+% Which of the active dataset's sorts (syncReviewDataset: each folder under
 % its output folder that holds one, and its pinned folder) with Use this
 % sort to make the one shown the dataset's own, then the folder itself,
 % which Browse... / Load take from anywhere.
-dr = uigridlayout(left, [2 3]);
+dr = uigridlayout(left, [1 3]);
 dr.ColumnWidth = {'fit', '1x', 'fit'};
-dr.RowHeight = {30, 30};
 dr.Padding = [0 0 0 0];
-dr.RowSpacing = 6;
-l = uilabel(dr, "Text", "Dataset:");
-l.Layout.Row = 1; l.Layout.Column = 1;
-obj.ReviewDatasetDropDown = obj.datasetPicker(dr);
-obj.ReviewDatasetDropDown.Layout.Row = 1; obj.ReviewDatasetDropDown.Layout.Column = [2 3];
-l = uilabel(dr, "Text", "Sort:");
-l.Layout.Row = 2; l.Layout.Column = 1;
+uilabel(dr, "Text", "Sort:");
 obj.ReviewSortDropDown = uidropdown(dr, "Items", {'(no sorts)'}, "Enable", "off", ...
     "Tooltip", "The active dataset's sorts: each folder under its output folder that holds one (kilosort4, si_<sorter> for a SpikeInterface sorter, a sweep's variants) and the folder pinned on the Sorting tab. ""in use"" marks the one Export and the analysis read. Choosing one loads it, for review only.", ...
     "ValueChangedFcn", @(~,~) obj.onReviewSortChanged());
-obj.ReviewSortDropDown.Layout.Row = 2; obj.ReviewSortDropDown.Layout.Column = 2;
 obj.ReviewUseSortButton = uibutton(dr, "Text", "Use this sort", "Enable", "off", ...
     "Tooltip", "Make the sort shown the active dataset's sorted output, which Export, the analysis and phy from the Sorting tab read (as the Sorting tab's Use folder... does; the run folder of the config's sorter is Use auto). Off while it already is.", ...
     "ButtonPushedFcn", @(~,~) obj.onReviewUseSort());
-obj.ReviewUseSortButton.Layout.Row = 2; obj.ReviewUseSortButton.Layout.Column = 3;
 
 fr = uigridlayout(left, [1 3]);
 fr.ColumnWidth = {'1x', 'fit', 'fit'};
@@ -75,20 +110,10 @@ obj.ReviewPhyButton = uibutton(br, "Text", "Open in phy", ...
     "ButtonPushedFcn", @(~,~) obj.onReviewOpenPhy(), ...
     "Tooltip", "Run 'phy template-gui params.py' in the sorted-output folder above");
 
-uilabel(left, "Text", "Summary", "FontWeight", "bold");
-
-summaryPanel = uipanel(left);
-sg = uigridlayout(summaryPanel, [1 1]);
-sg.Padding = [8 6 8 6];
-obj.ReviewSummaryLabel = uilabel(sg, ...
-    "Text", "Pick a dataset's sort, or a sorted-output folder, and press Load.", ...
-    "VerticalAlignment", "top", "WordWrap", "on", ...
-    "FontName", "monospaced", "FontColor", [0.2 0.2 0.2]);
-
 % Good-unit criteria (the config's Sorting.Quality, unitQualityPass): the QC
 % column and the QC report judge the units by them.
 cp = uipanel(left, "Title", "Good-unit criteria (Sorting.Quality; blank = not applied)");
-cp.Layout.Row = 7;
+cp.Layout.Row = 4;
 cg = uigridlayout(cp, [2 6]);
 cg.RowHeight = {24, 24};
 cg.ColumnWidth = {'fit', '1x', 'fit', '1x', 'fit', '1x'};
@@ -128,10 +153,10 @@ obj.ReviewUnitsTable = uitable(left, ...
     "CellEditCallback", @(~, evt) obj.onReviewNoteEdited(evt), ...
     "DisplayDataChangedFcn", @(~, evt) obj.onTableSorted("Review", evt), ...
     "ContextMenu", uicontextmenu(obj.Fig, "ContextMenuOpeningFcn", @(m, ~) obj.onTableSortMenu(m, "Review")));
-obj.ReviewUnitsTable.Layout.Row = 8;
+obj.ReviewUnitsTable.Layout.Row = 5;
 
 ub = uigridlayout(left, [1 2]);
-ub.Layout.Row = 9;
+ub.Layout.Row = 6;
 ub.ColumnWidth = {'1x', '1x'};
 ub.Padding = [0 0 0 0];
 obj.ReviewAllUnitsButton = uibutton(ub, "Text", "Show all units", ...
@@ -142,7 +167,7 @@ obj.ReviewQCButton = uibutton(ub, "Text", "QC report", ...
 
 % =================== right: ISI + ACG over amplitudes | the unit on its shank ===================
 right = uigridlayout(g, [3 3]);
-right.Layout.Column = 2;
+right.Layout.Row = 2; right.Layout.Column = 2;
 right.ColumnWidth = {'1x', '1x', '1x'};
 right.RowHeight = {30, '1x', '1x'};
 right.RowSpacing = 14;

@@ -4,11 +4,11 @@ function test_PlotAesthetics()
 %   per panel type and per layout that matters -- a stack, the auROC
 %   baseline, waveforms on the probe, stacked signals, boxes, a heat map
 %   of trials, notes and overlays, ordered groups, one group, first-spike
-%   marks and a latency box plot). Checks the
+%   marks, a latency box plot and onset lines). Checks the
 %   rules (normalizeRules, mergeRules, colors as text), that renderFigure
 %   tags everything every figure draws with a known role (the parts of a
 %   note and of the overlays too, listed by the editor; the first-spike
-%   marks and the box plot's parts on one dataset and on rows merged
+%   marks, the box plot's parts and the onset lines on one dataset and on rows merged
 %   across sessions), that it applies
 %   the user's rules for a panel's type and then the figure's own (and
 %   UserAesthetics=false skips the user's; a refused value only warns),
@@ -108,14 +108,14 @@ whyFS = strings(0, 1);
 for Ck = [byId("first_spike") byId("sessions_first_spike")]
     h = renderFigure(Ck.F, Ck.spec, fig, UserAesthetics=false);
     C = PlotAesthetics.components(h.layout);
-    need = ["firstSpike" "latencyBox" "latencyMedian" "latencyWhisker"];
+    need = ["firstSpike" "latencyBox" "latencyMedian" "latencyWhisker" "latencyOnset"];
     miss = need(~ismember(need, C.Role));
     if ~isempty(miss)
         okFS = false;
         whyFS(end+1) = Ck.id + ": no " + strjoin(miss, ", "); %#ok<AGROW>
     end
 end
-check(okFS, "the first-spike marks and the latency box plot are components of their own roles, on one dataset and on " + ...
+check(okFS, "the first-spike marks, the latency box plot and the response onset are components of their own roles, on one dataset and on " + ...
     "rows merged across sessions" + ifText(~okFS, " (" + strjoin(whyFS, "; ") + ")"));
 Cn = byId("notes_overlays");
 h = renderFigure(Cn.F, Cn.spec, fig, UserAesthetics=false);
@@ -351,6 +351,36 @@ d.select(rows1(1));
 d.setProperty("LineWidth", 6);
 d.cancel();
 check(line1(1).LineWidth == lw0 && ~isvalid(d.Fig), 'Cancel puts it back and closes');
+
+% the list sorts by its headers and filters by tile title, component and type; hidden rows keep their ticks
+d = PlotAestheticsDialog(ctx, line1(1), Visible=false);
+lists = findall(d.Fig, 'Type', 'uitable');
+lst = lists(arrayfun(@(t) iscell(t.ColumnName) && numel(t.ColumnName) == 4 && string(t.ColumnName{2}) == "Tile", lists));
+words = findall(d.Fig, 'Type', 'uieditfield');
+words = words(arrayfun(@(e) startsWith(string(e.Placeholder), "Filter"), words));
+drops = findall(d.Fig, 'Type', 'uidropdown');
+typeDrop = drops(arrayfun(@(x) string(x.Items{1}) == "All types", drops));
+allRows = height(d.Components);
+check(isscalar(lst) && all(lst.ColumnSortable) && height(lst.Data) == allRows, 'the list is sortable by every column and shows every component');
+typ = d.Components.Type(d.Selected);
+typeDrop.Value = char(typ);
+typeDrop.ValueChangedFcn(typeDrop, []);
+check(height(lst.Data) == nnz(d.Components.Type == typ) && all(string(lst.Data.Type) == typ), 'the type filter keeps the components of that type');
+lst.CellEditCallback(lst, struct('Indices', [1 1], 'NewData', true));
+shownFirst = find(d.Components.Type == typ, 1);
+check(d.Ticked(shownFirst) && nnz(d.Ticked) == 1, 'a tick in the filtered list lands on its own component');
+typeDrop.Value = '';
+typeDrop.ValueChangedFcn(typeDrop, []);
+word = lower(extractBefore(d.Components.Label(d.Selected) + " ", " "));
+words.Value = char(word);
+words.ValueChangedFcn(words, []);
+hay = lower(string(lst.Data.Tile) + " " + string(lst.Data.Component) + " " + string(lst.Data.Type));
+check(height(lst.Data) >= 1 && all(contains(hay, word)) && height(lst.Data) == nnz(contains(lower(d.Components.TileName + " " + d.Components.Label + " " + d.Components.Type), word)), ...
+    'the text filter keeps the components with the word in the tile, component or type');
+words.Value = '';
+words.ValueChangedFcn(words, []);
+check(height(lst.Data) == allRows && nnz(lst.Data.Tick) == 1 && lst.Data.Tick(shownFirst), 'with the filters cleared every component is back, the tick kept');
+d.cancel();
 
 fprintf('\n== 6. the editor: OK, Remember, Forget ==\n');
 d = PlotAestheticsDialog(ctx, line1(1), Visible=false);

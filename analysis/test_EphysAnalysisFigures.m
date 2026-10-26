@@ -42,8 +42,11 @@ function test_EphysAnalysisFigures(opts)
 %   rate layer of three units' mean (with the waveform inset read); an auROC PSTH equal to spikePSTH's;
 %   a stacked PSTH; the waveforms' probe layout (a following layer to
 %   ring); one observation faster than spikePSTH over every unit; the
-%   first-spike latency (a PSTH with latencyBox keeping the raster's rows,
-%   firstSpikeLatency against the unit's own train, the caption);
+%   first-spike latency (the figure's latency block: a PSTH with latencyBox
+%   keeping the raster's rows, one latency per unit for the raster and the
+%   PSTH equal to firstSpikeLatency and to the unit's own train, kept in
+%   the cache: a method edit takes the latencies again and no panel, a
+%   look edit nothing, an onset line the onset alone; the caption);
 %   figureCompute's Reuse (the same spec: every step taken again; a look
 %   edit: nothing computed; the PSTH's bins: that panel only, as from
 %   scratch; another observation: its panels) and the runner's
@@ -77,7 +80,10 @@ function test_EphysAnalysisFigures(opts)
 %   Editable, OnRemember and the context's redraw; the editor's colormap;
 %   renderFigure Reuse (an edit of two panels draws those again, the
 %   third kept with its menu, the drawing as a whole one; a title of the
-%   figure's own draws every panel);
+%   figure's own draws every panel; an edit of text alone -- labels, a
+%   panel title, the figure title -- set on the axes drawn, the drawing
+%   a whole one's, the data tips and editor context following; InPlaceOnly
+%   drawing nothing for a side, a title back to none drawn);
 %   one observation drawn in under a second; data tips (FigureDataTips:
 %   a PSTH line's rows, a raster tick's trial and group, a heat map cell's
 %   and a heat map of trials' tips, a bar's rows, the chosen fields a
@@ -88,7 +94,9 @@ function test_EphysAnalysisFigures(opts)
 %   marks on their epochs' ticks (by group, descending with the groups
 %   mixed, five blocks; their look and legend entry) and the PSTH's
 %   latency box plot (prctile's quartiles, Tukey's whiskers, a band above
-%   the traces; stacked, one box per row above its PSTH).
+%   the traces; stacked, one box per row above its PSTH); the response
+%   onset's lines (the unit's over the raster's rows, each group's across
+%   the PSTH, the legend entry).
 %   Spectral (9): the spectral templates and validate's rules (a coherence
 %   panel's two layers, chronuxSettings' errors, a spectrogram's baseline
 %   window, a coherogram of spikes and a spectrogram of units valid, a
@@ -145,9 +153,16 @@ function test_EphysAnalysisFigures(opts)
 %   Export size taller for the rows, an own size in px at the dpi, in and cm),
 %   figureSizeConvert, the suggestions and typed sizes (figureSizeParse,
 %   figureSizeText), validate's size rules and a JSON round trip.
+%   Scale (14), on the "clean" fixture: a raster + PSTH (a boxed note
+%   below, an overlay) and a tuning curve drawn at Scale 1.5 into a panel
+%   1.5 times the export page: every size of every part (fonts, lines,
+%   markers, caps, the labels' fonts) 1.5 times the export's, the plot
+%   areas in the same proportion to the page; the scale kept on the root
+%   (PlotAesthetics.drawScale), getValue and setValue speaking of the
+%   exported sizes; Reuse at a scale the same as a whole drawing.
 %
 %   The sections run on their own after the setup (TestSections): 1-6, 12 and 13 need
-%   no data, 7, 9 and 11 build the "clean" fixture once (fixtureA), 8 needs
+%   no data, 7, 9, 11 and 14 build the "clean" fixture once (fixtureA), 8 needs
 %   7's results (declared), 10 builds its own two-dataset fixture.
 %
 %   Usage:  test_EphysAnalysisFigures
@@ -1453,8 +1468,8 @@ if S.sec("6", "config: validate")
     kP = find([bR.Figures(1).panels.type] == "psth", 1);
     bF = bR; bF.Figures(1).panels(kR).options.firstSpike.enabled = true;
     bF.Figures(1).panels(kP).options.latencyBox.enabled = true;
-    bFw = bF; bFw.Figures(1).panels(kR).options.firstSpike.minSec = 0.2; bFw.Figures(1).panels(kR).options.firstSpike.maxSec = 0.1;
-    bFo = bF; bFo.Figures(1).panels(kR).options.firstSpike.minSec = 10;
+    bFw = bF; bFw.Figures(1).latency.minSec = 0.2; bFw.Figures(1).latency.maxSec = 0.1;
+    bFo = bF; bFo.Figures(1).latency.minSec = 10;
     bFc = bF; bFc.Figures(1).panels(kR).options.firstSpike.color = "nocolor";
     bFm = bF; bFm.Figures(1).panels(kR).options.firstSpike.marker = "blob";
     bFh = bF; bFh.Figures(1).panels(kP).options.latencyBox.boxHeight = 0.9;
@@ -1464,15 +1479,42 @@ if S.sec("6", "config: validate")
     bFoff = bR; bFoff.Figures(1).panels(kP).options.latencyBox.boxHeight = 0.9;   % off: not checked
     oF = bR.Figures(1).panels(kR).options.firstSpike;
     oB = bR.Figures(1).panels(kP).options.latencyBox;
+    oL = bR.Figures(1).latency;
     rF = "figure_1.raster_1.options.firstSpike.";
     pB = "figure_1.psth_1.options.latencyBox.";
-    check(~oF.enabled && oF.minSec == 0 && oF.maxSec == Inf && oF.marker == "o" && oF.color == "groups" && ~oB.enabled ...
-        && oB.maxSec == Inf && oB.boxHeight == 0.1 && isempty(figIssues(bF)) && has(bFw, rF + "minSec", "error") ...
-        && has(bFo, rF + "minSec", "warning") && ~has(bFo, rF + "minSec", "error") && has(bFc, rF + "color", "warning") ...
+    fL = "figure_1.latency.";
+    check(~oF.enabled && ~isfield(oF, 'minSec') && oF.marker == "o" && oF.color == "groups" && ~oB.enabled ...
+        && ~isfield(oB, 'maxSec') && oB.boxHeight == 0.1 && oL.method == "first" && oL.minSec == 0 && oL.maxSec == Inf ...
+        && isempty(figIssues(bF)) && has(bFw, fL + "minSec", "error") ...
+        && has(bFo, fL + "minSec", "warning") && ~has(bFo, fL + "minSec", "error") && has(bFc, rF + "color", "warning") ...
         && has(bFm, rF + "marker", "error") && has(bFh, pB + "boxHeight", "error") && has(bFs, pB + "lineStyle", "error") ...
         && has(bFa, pB + "fillAlpha", "error") && isempty(figIssues(bFx)) && isempty(figIssues(bFoff)), ...
-        ['a raster''s firstSpike and a PSTH''s latencyBox: off by default (0 to the window''s end, groups); checked while on: ' ...
-        'minSec <= maxSec, a window past the panel''s warns, a color, a marker, boxHeight 0.02-0.5, line style, fillAlpha']);
+        ['a raster''s firstSpike and a PSTH''s latencyBox are looks: off by default (groups), checked while on (a color, a ' ...
+        'marker, boxHeight 0.02-0.5, line style, fillAlpha); the figure''s latency block finds the latencies (first spike, ' ...
+        '0 to the window''s end): minSec <= maxSec, a window past the figure''s warns']);
+    bLm = bF; bLm.Figures(1).latency.method = "bogus";
+    bLb = bF; bLb.Figures(1).latency.baselineWindow = [0 -0.1];
+    bLa = bF; bLa.Figures(1).latency.alpha = 1;
+    bLs = bF; bLs.Figures(1).latency.surprise = 0;
+    bLk = bF; bLk.Figures(1).latency.minSpikes = 1;
+    bLc = bF; bLc.Figures(1).latency.cusumBinSec = 0;
+    bLt = bF; bLt.Figures(1).latency.cusumThreshold = -1;
+    bLd = bF; bLd.Figures(1).latency.cusumDrift = -1;
+    bLr = bF; bLr.Figures(1).latency.baselineRate = "session";
+    bLo = bF; bLo.Figures(1).panels(kR).options.onsetLine = "every";
+    bLg = bF; bLg.Figures(1).panels(kP).options.onsetLine = "groups";
+    bLp = bF; bLp.Figures(1).latency.method = "poisson"; bLp.Defaults.Window.pre = 0;   % no time before the event: no baseline
+    bLf = bF; bLf.Defaults.Window.pre = 0;   % "first" needs none
+    bLw = bLp; bLw.Figures(1).latency.baseline = "window"; bLw.Figures(1).latency.baselineWindow = [1 2];
+    check(has(bLm, fL + "method", "error") && has(bLb, fL + "baselineWindow", "error") && has(bLa, fL + "alpha", "error") ...
+        && has(bLs, fL + "surprise", "error") && has(bLk, fL + "minSpikes", "error") && has(bLc, fL + "cusumBinSec", "error") ...
+        && has(bLt, fL + "cusumThreshold", "error") && has(bLd, fL + "cusumDrift", "error") ...
+        && has(bLr, fL + "baselineRate", "error") && has(bLo, "figure_1.raster_1.options.onsetLine", "error") ...
+        && isempty(figIssues(bLg)) && has(bLp, fL + "baseline", "warning") && ~has(bLf, fL + "baseline", "warning") ...
+        && has(bLw, fL + "baselineWindow", "warning"), ...
+        ['the figure''s latency block: method, baseline rate, the baseline window, alpha, surprise, minSpikes and the ' ...
+        'CUSUM''s settings checked; a raster''s or PSTH''s onsetLine off / unit / groups; a Poisson method with no time ' ...
+        'before the event warns (the first-spike rule needs none), as does a baseline window off the figure''s window']);
     bTc = bR; bTc.Figures(1).panels(kP).options.trialCount = "text";
     bTl = bR; bTl.Figures(1).panels(kP).options.trialCount = "legend";
     bTx = bR; bTx.Figures(1).panels(kP).options.trialCount = "all";
@@ -2007,11 +2049,14 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
     Fst = rn.computeFigure(src, cfg.figureFor("stacked"), Observation=Tu(1, :));
     check(Fst.panels(2).layers(1).skip == "" && isequaln(Fst.panels(2).layers(1).R.rate, L2.R.rate) && height(Fst.groups) >= 2, ...
         sprintf('a stacked PSTH computes as an overlaid one (%d groups; stacking is the draw''s)', height(Fst.groups)));
-    % first-spike latency: the raster's marks and the PSTH's box plot read the raster's rows (a PSTH keeps them for its box)
+    % first-spike latency: the figure's block, taken once per unit for the raster's marks and the PSTH's box plot (a PSTH
+    % keeps the raster's rows for its box)
     ffs = cfg.Figures(cfg.figureIndex("rp"));
     ffs.id = "fsl";
-    ffs.panels(1).options.firstSpike = struct('enabled', true, 'minSec', 0.005, 'maxSec', 0.3);
-    ffs.panels(2).options.latencyBox = struct('enabled', true, 'minSec', 0.005, 'maxSec', 0.3);
+    ffs.panels(1).options.firstSpike = struct('enabled', true);
+    ffs.panels(2).options.latencyBox = struct('enabled', true);
+    ffs.latency.minSec = 0.005;
+    ffs.latency.maxSec = 0.3;
     cfg = cfg.addFigure(ffs);
     Ffs = rn.computeFigure(src, cfg.figureFor("fsl"), Observation=Tu(1, :));
     ffsS = cfg.Figures(cfg.figureIndex("fsl"));
@@ -2022,6 +2067,7 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
     Rfr = Ffs.panels(1).layers(1).R;
     Rfp = Ffs.panels(2).layers(1).R;
     Lfs = firstSpikeLatency(Rfr, MinSec=0.005, MaxSec=0.3);
+    Lfs.why = "";
     stF = unitsOf(Tu.unitId(1));
     EF = Rfr.epochs;
     wantF = NaN(height(EF), 1);   % the oracle: from the spike train itself, s from each epoch's event on the spikes' clock
@@ -2034,16 +2080,50 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
         && all(arrayfun(@(r) isempty(r.times), L2.R.raster)) && isequaln(Rfp.rate, L2.R.rate) && isequal(size(Lfs.lat), [height(EF) 1]) ...
         && isequal(isnan(Lfs.lat), isnan(wantF)) && max(abs(Lfs.lat - wantF), [], 'omitnan') < 1e-12 && nnz(isfinite(wantF)) >= 2 ...
         && isequal(Lfs.n, accumarray(EF.groupIndex(isfinite(wantF)), 1, [height(Ffs.groups) 1])) ...
-        && isequaln(FfsS.panels(2).layers(1).R.raster, Rfp.raster), ...
-        sprintf(['first-spike latency (5 to 300 ms): the PSTH keeps the raster''s rows for its box plot (one without it, ' ...
-        'none), its rates unchanged; firstSpikeLatency of the raster equals the first spike in the window from the ' ...
-        'unit''s own train (%d of %d epochs)'], nnz(isfinite(wantF)), height(EF)));
+        && isequaln(FfsS.panels(2).layers(1).R.raster, Rfp.raster) ...
+        && isequaln(Rfr.latency, Lfs) && isequaln(Rfp.latency, Lfs) && isscalar(Ffs.latency.entries) ...
+        && isequal(Ffs.latency.entries.panels, ["raster_1" "psth_1"]) && isequaln(Ffs.latency.entries.lat, Lfs.lat) ...
+        && ~isfield(L2.R, 'latency') && ~isfield(Rfr, 'onset'), ...
+        sprintf(['first-spike latency (the figure''s block, 5 to 300 ms): the PSTH keeps the raster''s rows for its box plot ' ...
+        '(one without it, none), its rates unchanged; one latency per unit for both panels (R.latency, F.latency: one ' ...
+        'entry), equal to firstSpikeLatency of the raster and to the first spike in the window from the unit''s own ' ...
+        'train (%d of %d epochs); a figure without a panel that reads it takes none'], nnz(isfinite(wantF)), height(EF)));
+    % computed once: an edit of the latency block takes the latencies again (kind "latency"), every panel's layers kept;
+    % an edit of a look keeps the latencies too; an onset line takes the onset ("onset") alone
+    sFs = cfg.figureFor("fsl");
+    [~, K1] = figureCompute(src, sFs, Observation=Tu(1, :), Reuse=struct('kind', {}, 'dataset', {}, 'key', {}, ...
+        'value', {}, 'bytes', {}, 'from', {}));
+    sM = sFs;
+    sM.latency.method = "surprise";
+    [FM, K2] = figureCompute(src, sM, Observation=Tu(1, :), Reuse=K1);
+    sLk = sFs;
+    sLk.panels(1).options.firstSpike.marker = "square";
+    [~, K3] = figureCompute(src, sLk, Observation=Tu(1, :), Reuse=K1);
+    sOn = sFs;
+    sOn.panels(1).options.onsetLine = "unit";
+    [FOn, K4] = figureCompute(src, sOn, Observation=Tu(1, :), Reuse=K1);
+    made = @(K, kind) nnz([K.kind] == kind & [K.from] == 0);
+    LM = firstSpikeLatency(Rfr, MinSec=0.005, MaxSec=0.3, Method="surprise");
+    OOn = responseOnset(Rfr, MinSec=0.005, MaxSec=0.3, BinSec=sOn.latency.cusumBinSec, Threshold=sOn.latency.cusumThreshold, ...
+        Drift=sOn.latency.cusumDrift, SustainSec=sOn.latency.cusumSustainSec);
+    check(made(K1, "latency") == 1 && made(K1, "panel") == 2 && made(K2, "latency") == 1 && made(K2, "panel") == 0 ...
+        && made(K2, "skip") == 0 && made(K3, "latency") == 0 && made(K3, "panel") == 0 && made(K4, "onset") == 1 ...
+        && made(K4, "latency") == 0 && made(K4, "panel") == 0 && isequaln(FM.panels(2).layers(1).R.latency.lat, LM.lat) ...
+        && FM.panels(1).layers(1).R.latency.method == "surprise" && isequaln(FOn.panels(1).layers(1).R.onset.onset, OOn.onset) ...
+        && ~isfield(FOn.panels(2).layers(1).R, 'onset'), ...
+        sprintf(['the latencies are computed once per unit (1 for the raster and the PSTH) and kept: a method edit takes ' ...
+        'them again and no panel (%d latency, %d panel made), a look edit nothing, an onset line the onset alone ' ...
+        '(%d onset) for the panel that draws it'], made(K2, "latency"), made(K2, "panel"), made(K4, "onset")));
     capF = figureCaption(cfg.figureFor("fsl"), Tu);
     capS = figureCaption(cfg.figureFor("fslstack"), Tu);
-    check(contains(capF, "each epoch's first spike in [5 300] ms marked on the raster") ...
-        && contains(capF, "a box plot of the first-spike latencies in [5 300] ms per trial group over the PSTH") ...
-        && contains(capS, "per trial group in each row of the PSTH") && ~contains(figureCaption(spec, Tu), "first spike"), ...
-        "figureCaption names the first-spike marks and the latency box plot with their window: " + capF);
+    capM = figureCaption(sM, Tu);
+    capO = figureCaption(sOn, Tu);
+    check(contains(capF, "each epoch's first-spike latency (the first spike in [5 300] ms) marked on the raster") ...
+        && contains(capF, "a box plot of the first-spike latencies per trial group over the PSTH") ...
+        && contains(capS, "per trial group in each row of the PSTH") && ~contains(figureCaption(spec, Tu), "first spike") ...
+        && contains(capM, "Poisson surprise of at least 3") && contains(capM, "Legendy & Salcman 1985") ...
+        && contains(capO, "the unit's response onset (the CUSUM of the PSTH") && contains(capO, "drawn on the raster"), ...
+        "figureCaption names the first-spike marks and the latency box plot with the figure's rule and window, and the onset: " + capF);
     fwp = cfg.Figures(cfg.figureIndex("wf"));
     fwp.id = "wfprobe";
     fwp.panels(1).options.layout = "probe";
@@ -3069,9 +3149,10 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     check(any(lgs2 == Fs2.panels(2).layers(2).name) && numel(rl2) >= 2 * nGs && yl2(2) > 0, ...
         'a stacked PSTH with a second layer: its mean drawn into the same rows, named in the legend');
 
-    % first-spike latency: a mark on each epoch's first spike, on that epoch's tick, whatever the rows' order
+    % first-spike latency: a mark on each epoch's first spike (the figure's latencies), on that epoch's tick, whatever the
+    % rows' order
     Rfr = Ffs.panels(1).layers(1).R;
-    Lfr = firstSpikeLatency(Rfr, MinSec=0.005, MaxSec=0.3);
+    Lfr = Rfr.latency;
     sF = Ffs.spec;
     hF = renderFigure(Ffs, sF, fig);
     [okF, nF, epF] = marksOnTicks(hF.axes(1), Lfr.lat);
@@ -3102,12 +3183,14 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     check(~isempty(mkG) && all(arrayfun(@(h) isequal(h.Color, [0.5 0.5 0.5]), mkG)), ...
         'first-spike marks in "gray" are gray, not their group''s color');
     sF5 = F5.spec;   % the five blocks: the further blocks' bands (rasterInto's stack mode) carry their own marks
-    sF5.panels(1).options.firstSpike = EphysAnalysisConfig.normalizeSection("FirstSpike", struct('enabled', true, 'maxSec', 0.3));
-    hF5 = renderFigure(F5, sF5, fig);
+    sF5.panels(1).options.firstSpike = EphysAnalysisConfig.normalizeSection("FirstSpike", struct('enabled', true));
+    sF5.latency.maxSec = 0.3;
+    F5m = rn.computeFigure(src, sF5, Observation=Tu(1, :));   % the marks read the figure's latencies: computed with them
+    hF5 = renderFigure(F5m, sF5, fig);
     want5 = 0;
-    for jF = 1:numel(F5.panels(1).layers)
-        RF = F5.panels(1).layers(jF).R;
-        if F5.panels(1).layers(jF).skip ~= "" || ~isfield(RF, 'raster') || isempty(RF.raster); continue; end
+    for jF = 1:numel(F5m.panels(1).layers)
+        RF = F5m.panels(1).layers(jF).R;
+        if F5m.panels(1).layers(jF).skip ~= "" || ~isfield(RF, 'raster') || isempty(RF.raster); continue; end
         LF = firstSpikeLatency(RF, MaxSec=0.3);
         want5 = want5 + nnz(isfinite(LF.lat));
     end
@@ -3116,7 +3199,7 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
         'unit marked on its own ticks (%d marks)'], n5));
     % a PSTH's box plot: prctile's statistics per group, in a band above the traces
     Rfp = Ffs.panels(2).layers(1).R;
-    Lfp = firstSpikeLatency(Rfp, MinSec=0.005, MaxSec=0.3);
+    Lfp = Rfp.latency;
     hF = renderFigure(Ffs, Ffs.spec, fig);   % drawn again: the redraws above replaced its axes
     ap = hF.axes(2);
     okB = true;
@@ -3212,13 +3295,12 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
         && isscalar(eO) && eO.lim(2) < max(ylim(hA.panels(2).axes)), ...
         ['the latency boxes stay outside the traces'' range in every yLimMode (stacked: above each row''s top, under the next ' ...
         'row; overlaid fixed: above yLim), and the panel''s yExtent (a run''s batch range) is the traces'' range, not the band']);
-    % rasterSort "latency": the rows by the first spike's latency in firstSpike's window, epochs without one last, within the groups
+    % rasterSort "latency": the rows by the figure's first-spike latencies, epochs without one last, within the groups
     sL = Ffs.spec;
     sL.panels(1).options.rasterSort = "latency";
     hL = renderFigure(Ffs, sL, fig);
     [okL, nL] = marksOnTicks(hL.axes(1), Lfr.lat);
-    oL = struct('rasterSort', "latency", 'rasterSortOrder', "ascending", 'rasterByGroup', true, ...
-        'firstSpike', sL.panels(1).options.firstSpike);
+    oL = struct('rasterSort', "latency", 'rasterSortOrder', "ascending", 'rasterByGroup', true);
     [ordL, nameL] = figEpochOrder(Rfr, oL, 1);
     rowL = zeros(size(ordL)); rowL(ordL) = 1:numel(ordL);
     okRowL = true;   % each mark on its epoch's row in that order
@@ -3236,20 +3318,47 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     [ordD, nameD] = figEpochOrder(Rfr, oLd, 1);
     vD = Lfr.lat(ordD);
     nanD = find(isnan(vD), 1);
-    oLw = oL; oLw.firstSpike.minSec = 0.1;   % the window moves the key
-    Lw = firstSpikeLatency(Rfr, MinSec=0.1, MaxSec=0.3);
-    [ordW, ~] = figEpochOrder(Rfr, oLw, 1);
+    Lw = firstSpikeLatency(Rfr, MinSec=0.1, MaxSec=0.3);   % the latencies move the key
+    RfrW = Rfr;
+    RfrW.latency = Lw;
+    [ordW, ~] = figEpochOrder(RfrW, oL, 1);
     [~, wantW] = sortrows([Rfr.epochGroup(:) Lw.lat(:) (1:numel(ordW)).'], [1 2 3]);
-    Rno = rmfield(Rfr, 'raster');   % no raster rows: time order, as for any key a result lacks
+    Rno = rmfield(Rfr, 'latency');   % no latencies: time order, as for any key a result lacks
     ordN = figEpochOrder(Rno, oL, 1);
     [~, wantN] = sort(Rno.epochGroup(:));
     check(okL && okRowL && okOrdL && nL == nnz(isfinite(Lfr.lat)) && nameL == "Epoch (by first-spike latency)" ...
         && issorted(vD(1:(min([nanD numel(vD) + 1]) - 1)), 'descend') && (isempty(nanD) || all(isnan(vD(nanD:end)))) ...
         && nameD == "Epoch (by first-spike latency), descending, groups mixed" && isequal(ordW(:), wantW(:)) ...
         && isequal(ordN(:), wantN(:)), ...
-        ['a raster sorted by rasterSort "latency": within each group ascending by the first spike''s latency in firstSpike''s ' ...
-        'window with the epochs without one last, the marks on their epochs'' rows; descending with the groups mixed; ' ...
-        'the window moves the key; a result without raster rows keeps the time order']);
+        ['a raster sorted by rasterSort "latency": within each group ascending by the figure''s first-spike latency ' ...
+        'with the epochs without one last, the marks on their epochs'' rows; descending with the groups mixed; ' ...
+        'other latencies move the key; a result without latencies keeps the time order']);
+    % the response onset: a dashed line over the raster's rows (the unit's) and across the PSTH (each group's, in its color)
+    sOL = Ffs.spec;
+    sOL.panels(1).options.onsetLine = "unit";
+    sOL.panels(2).options.onsetLine = "groups";
+    sOL.latency.minSec = 0;
+    FOL = rn.computeFigure(src, sOL, Observation=Tu(1, :));
+    hOL = renderFigure(FOL, sOL, fig);
+    OR = FOL.panels(1).layers(1).R.onset;
+    OP = FOL.panels(2).layers(1).R.onset;
+    lnR = findall(hOL.axes(1), 'Tag', 'latencyOnset');
+    lnR = lnR(arrayfun(@(h) all(isfinite(h.XData)), lnR));
+    lnP = findall(hOL.axes(2), 'Tag', 'latencyOnset');
+    lnP = lnP(arrayfun(@(h) isa(h, 'matlab.graphics.chart.decoration.ConstantLine'), lnP));
+    lgO = findall(fig, 'Type', 'legend');
+    lgO = string(lgO(1).String);
+    gOk = true;
+    for h = reshape(lnP, 1, [])
+        gl = string(getappdata(h, 'PlotGroup'));
+        gi = find(string(FOL.groups.label) == gl, 1);
+        gOk = gOk && ~isempty(gi) && abs(h.Value - OP.groupOnset(gi, 1)) < 1e-12;
+    end
+    nOn = nnz(isfinite(OP.groupOnset(:, 1)));
+    check(isequaln(OR.onset, OP.onset) && (isnan(OR.onset) || (isscalar(lnR) && all(abs(lnR.XData - OR.onset) < 1e-12) ...
+        && isfield(getappdata(lnR, 'LatencyOnset'), 'onset'))) && numel(lnP) == nOn && gOk && (nOn == 0 || any(lgO == "Response onset")), ...
+        sprintf(['the response onset (CUSUM, the figure''s): the unit''s as a line over the raster''s rows (%.4g s), each ' ...
+        'group''s across the PSTH at its onset (%d), "Response onset" in the legend'], OR.onset, nOn));
     % the PSTH's trial counts: "n = 24" per group in the plot, in the legend entries, at the rows' right ends, beside a heat map's rows
     nEp = double(Rfp.nEpochs(:));
     glC = string(Ffs.groups.label);
@@ -3522,6 +3631,61 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     renderFigure(F3, s3c, pA);   % without Reuse: nothing kept for next time
     check(~any(D2.axes == D1.axes) && same2 && ~isappdata(pA, 'FigureDrawing'), ...
         sprintf('a change that reaches every panel (a title of the figure''s own) draws them all; a drawing without Reuse keeps nothing (%s)', why2));
+    % Reuse, text alone: new label, panel title and figure title texts set on what is drawn (inPlace), the drawing a whole one's
+    renderFigure(F3, s3c, pA, Reuse=true, Editable=true, DataTips=true);
+    D3 = getappdata(pA, 'FigureDrawing');
+    s3d = s3c;
+    s3d.panels(2).yLabel = "Firing (Hz)";   % the PSTH's y label: its own text over the type's
+    s3d.panels(3).xLabel = "Lag (s)";       % the stack's time label, at its bottom
+    s3d.panels(1).xLabel = "Hidden";        % the raster's, which the stack hides: kept, nothing shown
+    s3d.panels(3).title = "LFP and AUX";    % a panel title of its own, before and after
+    s3d.title = "Own title, again";         % the figure's own title, before and after
+    [hI, howI] = renderFigure(F3, s3d, pA, Reuse=true, Editable=true, DataTips=true);
+    DI = getappdata(pA, 'FigureDrawing');
+    ctxI = getappdata(pA, PlotAesthetics.ContextKey);
+    renderFigure(F3, s3d, pB, Editable=true, DataTips=true);
+    drawnow;
+    [sameI, whyI] = sameDrawing(pA, pB);
+    [textI, whyT] = sameTexts(pA, pB);
+    rI = findall(DI.axes(2), '-regexp', 'Tag', '^(rate|rateFill)$');
+    rI = rI(arrayfun(@(o) ~all(isnan(o.XData(:))), rI));
+    LrI = strings(0, 1);
+    if ~isempty(rI); LrI = FigureDataTips.tipText(rI(1), 2); end
+    check(howI == "inplace" && isequal(DI.axes, D3.axes) && isequal(DI.title, D3.title) && sameI && textI ...
+        && string(DI.axes(3).XLabel.String) == "Lag (s)" && string(DI.axes(2).YLabel.String) == "Firing (Hz)" ...
+        && strjoin(string(DI.axes(1).XLabel.String), "") == "" && string(DI.axes(3).Title.String) == "LFP and AUX" ...
+        && figTitle(hI) == "Own title, again" && hI.title == "Own title, again" && isequal(hI.axes, DI.axes) ...
+        && isequaln(DI.spec, s3d) && ctxI.title == hI.title && any(startsWith(LrI, "Firing: ")), ...
+        sprintf(['renderFigure Reuse, text alone (labels, a panel title, the figure title): set on the axes drawn (inPlace), ' ...
+        'nothing drawn again, the drawing a whole one''s (%s; texts: %s); the PSTH''s data tips name the new quantity; ' ...
+        'the editor''s context takes the new spec'], whyI, whyT));
+    s3e = s3d;
+    s3e.panels(2).yLabel = "Rate";
+    s3e.panels(2).ySide = "right";   % a side: the place keys change, so it is drawn
+    [hN, howN] = renderFigure(F3, s3e, pA, InPlaceOnly=true, Editable=true, DataTips=true);
+    DN = getappdata(pA, 'FigureDrawing');
+    keptN = isempty(hN) && howN == "" && isequal(DN.axes, DI.axes) && string(DN.axes(2).YLabel.String) == "Firing (Hz)";
+    [~, howE] = renderFigure(F3, s3e, pA, Reuse=true, Editable=true, DataTips=true);
+    DE = getappdata(pA, 'FigureDrawing');
+    s3f = s3d;
+    s3f.panels(3).title = "";   % back to no title of its own: not set in place
+    renderFigure(F3, s3d, pB, Reuse=true);
+    [~, howF] = renderFigure(F3, s3f, pB, Reuse=true);
+    check(keptN && howE == "drawn" && ~isequal(DE.axes, DI.axes) && strcmp(DE.axes(2).YAxisLocation, 'right') ...
+        && string(DE.axes(2).YLabel.String) == "Rate" && howF == "drawn", ...
+        ['InPlaceOnly with an edit that is not text alone (a side) draws nothing and says so; Reuse draws it; a title ' ...
+        'that goes back to none is drawn']);
+    renderFigure(F3, s3c, pA, Reuse=true, Scale=0.7);   % drawn at a scale (the app's preview): the text set, every size left scaled
+    DS = getappdata(pA, 'FigureDrawing');
+    [~, howS] = renderFigure(F3, s3d, pA, Reuse=true, Scale=0.7);
+    renderFigure(F3, s3d, pB, Scale=0.7);
+    drawnow;
+    [sameS, whyS] = sameDrawing(pA, pB);
+    [textS, whyTS] = sameTexts(pA, pB);
+    check(howS == "inplace" && isequal(getappdata(pA, 'FigureDrawing').axes, DS.axes) && sameS && textS ...
+        && isequal(drawnSizes(pA), drawnSizes(pB)), ...
+        sprintf('drawn at Scale 0.7, a text edit is set in place too: the drawing, its texts and every size a whole one''s at that scale (%s; texts: %s)', ...
+        whyS, whyTS));
     delete([pA pB]);
 
     % one observation draws fast
@@ -4575,6 +4739,81 @@ if S.sec("13", "figure size: the page a figure is exported on (figureExportSize,
     check(any([pk.path] == "size.source") && any([pk.path] == "size.width"), 'a size edit is a change another figure can take (Apply to figures)');
 end
 
+%% ============================================================================ scale
+if S.sec("14", "render at a scale: the preview in proportion to the export page (renderFigure Scale, PlotAesthetics.drawScale)")
+    fixtureA();
+    cs = EphysAnalysisConfig();
+    cs.Source.Root = FX.proj;
+    cs.Defaults.EventRef.line = "Stim";
+    cs.Defaults.Window = struct('mode', "fixed", 'pre', -0.2, 'post', 0.8, 'stop', []);
+    cs = cs.addFigure("rasterPsth", Id="z_rp");
+    nt = EphysAnalysisConfig.defaults("Note");
+    nt.text = "n = 12"; nt.placement = "below"; nt.box = true;
+    cs.Figures(1).panels(2).note = nt;
+    ov = EphysAnalysisConfig.defaults("Overlay");
+    ov.value = 0.1;
+    cs.Figures(1).panels(2).overlays = ov;
+    cs = cs.addFigure("tuning", Id="z_tu");
+    cs.Figures(2).panels(1).options.param = "Depth";
+    rz = EphysAnalysisRunner(cs, LogFcn=[]);
+    srcZ = rz.source(1);
+    sc = 1.5;
+    uz = uifigure('Visible', 'off', 'Position', [50 50 1100 760]);
+    closeUz = onCleanup(@() delete(uz));
+    for id = ["z_rp" "z_tu"]
+        spZ = cs.figureFor(id);
+        Tz = figureObservations(srcZ, spZ);
+        Fz = rz.computeFigure(srcZ, spZ, Observation=Tz(1, :));
+        fz = newExportFigure(cs.Export, Fz, spZ);
+        hE = renderFigure(Fz, spZ, fz);
+        pg = getpixelposition(fz);
+        delete(uz.Children);
+        pz = uipanel(uz, 'Units', 'pixels', 'Position', [1 1 round(sc * pg(3:4))], 'BorderType', 'none');
+        hP = renderFigure(Fz, spZ, pz, Scale=sc);
+        E = drawnSizes(fz);
+        V = drawnSizes(pz);
+        k = 1 + (V.prop == "SizeData");
+        same = height(E) == height(V) && all(E.key == V.key) && all(E.prop == V.prop);
+        dev = Inf;
+        worst = "the parts differ";
+        if same
+            [dev, iw] = max(abs(V.val ./ (E.val .* sc .^ k) - 1));
+            worst = sprintf('%s %s %g vs %g', V.key(iw), V.prop(iw), V.val(iw), E.val(iw));
+        end
+        wE = hE.panels(1).axes.InnerPosition(3) / pg(3);
+        wP = hP.panels(1).axes.InnerPosition(3) / (sc * pg(3));
+        check(same && dev < 1e-6 && abs(wP / wE - 1) < 0.02, ...
+            sprintf(['%s at Scale %g: every size of its %d parts %g times the export''s (largest deviation %.2g: %s; fonts, lines, ' ...
+            'markers, caps, labels), the first plot area %.3f of the page''s width vs %.3f exported'], ...
+            id, sc, height(E), sc, dev, worst, wP, wE));
+        if id == "z_rp"
+            ax = hP.panels(2).axes;
+            lw = ax.LineWidth;
+            v0 = PlotAesthetics.getValue(ax, "LineWidth");
+            PlotAesthetics.setValue(ax, "LineWidth", 1);
+            check(PlotAesthetics.drawScale(pz) == sc && PlotAesthetics.drawScale(ax) == sc && abs(v0 - lw / sc) < 1e-6 ...
+                && abs(ax.LineWidth - sc) < 1e-9 && PlotAesthetics.drawScale(fz) == 1, ...
+                'the root keeps the scale; getValue gives a size as exported, setValue takes one so (1 pt is drawn 1.5 pt); an export has scale 1');
+            renderFigure(Fz, spZ, pz, Reuse=true, Scale=sc);
+            s2 = spZ;
+            s2.panels(2).options.histStyle = "line";
+            renderFigure(Fz, s2, pz, Reuse=true, Scale=sc);
+            pw = uipanel(uz, 'Units', 'pixels', 'Position', pz.Position, 'BorderType', 'none', 'Visible', 'off');
+            renderFigure(Fz, s2, pw, Scale=sc);
+            drawnow;
+            [sameR, whyR] = sameDrawing(pz, pw);
+            Ra = drawnSizes(pz);
+            Rb = drawnSizes(pw);
+            sizesR = height(Ra) == height(Rb) && all(Ra.key == Rb.key) && all(Ra.prop == Rb.prop) && all(abs(Ra.val - Rb.val) <= 1e-9 * Rb.val);
+            check(sameR && sizesR, ...
+                sprintf('Reuse at a scale: the kept raster is not scaled twice, the drawing the same as a whole one (%s)', whyR));
+            renderFigure(Fz, spZ, pz);
+            check(PlotAesthetics.drawScale(pz) == 1, 'drawn again at Scale 1, the root keeps no scale');
+        end
+        close(fz);
+    end
+end
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisFigures:Failures', '%d checks failed.', nFail);
@@ -4587,6 +4826,58 @@ function P = noCreated(P)
 for j = 1:numel(P.layers)
     if isstruct(P.layers(j).R) && isfield(P.layers(j).R, 'created'); P.layers(j).R = rmfield(P.layers(j).R, 'created'); end
 end
+end
+
+
+function [ok, why] = sameTexts(A, B)
+%sameTexts  The titles and axis labels of two drawings of renderFigure alike: every axes in order, each text's string, place and look.
+why = "the same";
+a = flipud(findall(A, 'Type', 'axes'));
+b = flipud(findall(B, 'Type', 'axes'));
+ok = numel(a) == numel(b);
+if ~ok; why = sprintf('%d vs %d axes', numel(a), numel(b)); return; end
+props = {'Interpreter', 'FontSize', 'FontWeight', 'FontAngle', 'Color', 'Visible', 'HorizontalAlignment', 'Rotation'};
+for i = 1:numel(a)
+    ta = [a(i).Title a(i).Subtitle a(i).XLabel reshape([a(i).YAxis.Label], 1, [])];
+    tb = [b(i).Title b(i).Subtitle b(i).XLabel reshape([b(i).YAxis.Label], 1, [])];
+    if numel(ta) ~= numel(tb); ok = false; why = sprintf('axes %d: its texts', i); return; end
+    for j = 1:numel(ta)
+        if ~isequal(string(ta(j).String), string(tb(j).String)) || any(abs(ta(j).Position - tb(j).Position) > 1e-6)
+            ok = false; why = sprintf('axes %d (%s): text %d "%s"', i, a(i).Tag, j, strjoin(string(ta(j).String), " ")); return
+        end
+        for p = props
+            if ~isequal(get(ta(j), p{1}), get(tb(j), p{1}))
+                ok = false; why = sprintf('axes %d (%s): text %d %s', i, a(i).Tag, j, p{1}); return
+            end
+        end
+    end
+end
+end
+
+
+function T = drawnSizes(root)
+%drawnSizes  Every size a scale multiplies (PlotAesthetics.SizeProps) of the parts renderFigure tagged in ROOT, its panels' axes and their labels: key, prop, val, sorted.
+%   The hidden hosts of the title and of a note band (their own font shows
+%   nothing) are left out; a vector (a legend's ItemTokenSize) gives its first value.
+key = strings(0, 1); prop = strings(0, 1); val = zeros(0, 1);
+for o = reshape(findall(root), 1, [])
+    if ~startsWith(class(o), "matlab.graphics.") || o.Tag == "" || ismember(o.Tag, ["titleHost" "noteHost"]); continue; end
+    parts = {o, string(class(o)) + ":" + o.Tag};
+    if isa(o, 'matlab.graphics.axis.Axes')
+        parts = [parts; {o.XLabel, o.Tag + ":xlabel"; o.YLabel, o.Tag + ":ylabel"; o.Title, o.Tag + ":title"}]; %#ok<AGROW>
+    end
+    for i = 1:size(parts, 1)
+        for p = PlotAesthetics.SizeProps
+            if ~isprop(parts{i, 1}, p); continue; end
+            v = double(get(parts{i, 1}, p));
+            if isempty(v); continue; end
+            key(end+1, 1) = parts{i, 2}; %#ok<AGROW>
+            prop(end+1, 1) = p; %#ok<AGROW>
+            val(end+1, 1) = v(1); %#ok<AGROW>
+        end
+    end
+end
+T = sortrows(table(key, prop, val), {'key', 'prop', 'val'});
 end
 
 

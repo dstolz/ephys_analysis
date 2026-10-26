@@ -6,7 +6,10 @@ function refreshDatasetPickers(obj)
 %   dataset is always listed and shown, even when it is not ticked (a click
 %   on an unticked table row or the "All datasets" menu can make it active).
 %   Called whenever the ticks (refreshDatasetMenu) or the active dataset
-%   (selectDataset) change.
+%   (selectDataset) change. The Review tab's Datasets table, its Dataset
+%   box, lists the same datasets with the active one's row selected
+%   (refreshReviewDatasets).
+obj.refreshReviewDatasets();
 pickers = obj.DatasetPickers(isvalid(obj.DatasetPickers));
 if isempty(pickers); return; end
 

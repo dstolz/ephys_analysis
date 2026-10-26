@@ -22,6 +22,15 @@ function file = writeHtmlReport(report, file, opts)
 %   relative to FILE's folder (a file:// URL on another drive) and
 %   percent-encoded.
 %
+%   Report.Order (REPORT.options.Order) sets the order within a section:
+%   "figure" (the default) a figure at a time, all its observations'
+%   pages together; "unit" an observation at a time (reportGroups): under
+%   a heading per unit, channel or the dataset, each figure's pages of it,
+%   in the figures' order -- the caption under each, the figure's file
+%   links and parameters at its first appearance -- and the contents list
+%   the observations. A figure not drawn, or one added without its pages'
+%   observations (a session figure), follows the groups whole.
+%
 %   writeHtmlReport(..., ProgressFcn=F) calls F(done, total, message)
 %   before each dataset's (or section's) part ("Writing the report: section
 %   3/12"): a report of many figures embeds many images.
@@ -53,12 +62,22 @@ if isfield(report, 'provenance') && isstruct(report.provenance)
         + htmlEscape(p.matlab) + " &middot; " + htmlEscape(p.host) + "</p>";
 end
 
+byUnit = isfield(report.options, 'Order') && report.options.Order == "unit";
+
 % --- contents ----------------------------------------------------------------------
 L(end+1) = "<nav><h2>Contents</h2><ol>";
 for d = 1:numel(report.datasets)
     D = report.datasets(d);
     L(end+1) = "<li><a href=""#ds" + d + """>" + htmlEscape(D.name) + "</a>" + starMark(D) + "<ul>"; %#ok<AGROW>
-    for k = 1:numel(D.entries)
+    rest = 1:numel(D.entries);
+    if byUnit
+        [G, rest] = reportGroups(D);
+        for g = 1:numel(G)
+            L(end+1) = "<li><a href=""#ds" + d + "-o" + g + """>" + htmlEscape(G(g).label) + "</a> (" ...
+                + numel(G(g).entry) + ")</li>"; %#ok<AGROW>
+        end
+    end
+    for k = rest
         e = D.entries(k);
         L(end+1) = "<li><a href=""#ds" + d + "-" + k + """>" + htmlEscape(e.plot) + "</a>" ...
             + ternary(e.status ~= "done", " <span class=""bad"">(" + htmlEscape(e.status) + ")</span>", "") + "</li>"; %#ok<AGROW>
@@ -89,36 +108,26 @@ for d = 1:nSections
         end
         L(end+1) = "</div>"; %#ok<AGROW>
     end
-    for k = 1:numel(D.entries)
-        e = D.entries(k);
-        head = e.plot;
-        if e.title ~= ""; head = head + ": " + e.title; end
-        L(end+1) = "<article id=""ds" + d + "-" + k + """><h3>" + htmlEscape(head) + ...
-            " <span class=""kind"">" + htmlEscape(e.kind) + "</span></h3>"; %#ok<AGROW>
-        if e.status ~= "done"
-            L(end+1) = "<p class=""bad"">" + htmlEscape(e.status) + ": " + htmlEscape(e.message) + "</p></article>"; %#ok<AGROW>
-            continue
-        end
-        images = e.images;
-        for p = 1:numel(images)
-            im = images{p};
-            if im.format == "svg"
-                L(end+1) = "<div class=""fig"">" + svgText(im.data, "d" + d + "p" + k + "i" + p + "_") + "</div>"; %#ok<AGROW>
-            else
-                L(end+1) = "<div class=""fig""><img alt=""" + htmlEscape(im.title) + """ src=""data:image/png;base64," ...
-                    + im.data + """></div>"; %#ok<AGROW>
+    rest = 1:numel(D.entries);
+    if byUnit
+        [G, rest] = reportGroups(D);
+        seen = false(1, numel(D.entries));   % a figure's files and parameters at its first appearance
+        for g = 1:numel(G)
+            L(end+1) = "<div class=""obs"" id=""ds" + d + "-o" + g + """><h3 class=""obs"">" + htmlEscape(G(g).label) + "</h3>"; %#ok<AGROW>
+            for q = 1:numel(G(g).entry)
+                k = G(g).entry(q);
+                a = articleLines(D.entries(k), "ds" + d + "-o" + g + "-" + k, "d" + d + "p" + k, G(g).pages{q}, ...
+                    ~seen(k), folder, report);
+                L(end+1:end+numel(a)) = a; %#ok<AGROW>
+                seen(k) = true;
             end
+            L(end+1) = "</div>"; %#ok<AGROW>
         end
-        L(end+1) = "<p class=""cap"">" + htmlEscape(e.caption) + "</p>"; %#ok<AGROW>
-        if ~isempty(e.files)
-            links = arrayfun(@(f) "<a href=""" + htmlEscape(relativePath(folder, f)) + """>" + htmlEscape(fileName(f)) + "</a>", e.files);
-            L(end+1) = "<p class=""files"">Files: " + strjoin(links, ", ") + "</p>"; %#ok<AGROW>
-        end
-        if report.options.IncludeParameters
-            L(end+1) = "<details><summary>Parameters</summary><pre>" + ...
-                htmlEscape(jsonencode(specForJson(e.spec), 'PrettyPrint', true)) + "</pre></details>"; %#ok<AGROW>
-        end
-        L(end+1) = "</article>"; %#ok<AGROW>
+    end
+    for k = rest
+        e = D.entries(k);
+        a = articleLines(e, "ds" + d + "-" + k, "d" + d + "p" + k, 1:numel(e.images), true, folder, report);
+        L(end+1:end+numel(a)) = a; %#ok<AGROW>
     end
     L(end+1) = "</section>"; %#ok<AGROW>
 end
@@ -137,6 +146,40 @@ fclose(fid);
 end
 
 
+function L = articleLines(e, id, svgId, pages, full, folder, report)
+%articleLines  One figure entry E as an <article> of id ID: its PAGES (indices into its images), the caption and,
+%   FULL, its file links and parameters; an entry not drawn says why. SVGID prefixes its inline SVGs' ids.
+L = strings(0, 1);
+head = e.plot;
+if e.title ~= ""; head = head + ": " + e.title; end
+L(end+1) = "<article id=""" + id + """><h3>" + htmlEscape(head) + ...
+    " <span class=""kind"">" + htmlEscape(e.kind) + "</span></h3>";
+if e.status ~= "done"
+    L(end+1) = "<p class=""bad"">" + htmlEscape(e.status) + ": " + htmlEscape(e.message) + "</p></article>";
+    return
+end
+for p = pages
+    im = e.images{p};
+    if im.format == "svg"
+        L(end+1) = "<div class=""fig"">" + svgText(im.data, svgId + "i" + p + "_") + "</div>"; %#ok<AGROW>
+    else
+        L(end+1) = "<div class=""fig""><img alt=""" + htmlEscape(im.title) + """ src=""data:image/png;base64," ...
+            + im.data + """></div>"; %#ok<AGROW>
+    end
+end
+L(end+1) = "<p class=""cap"">" + htmlEscape(e.caption) + "</p>";
+if full && ~isempty(e.files)
+    links = arrayfun(@(f) "<a href=""" + htmlEscape(relativePath(folder, f)) + """>" + htmlEscape(fileName(f)) + "</a>", e.files);
+    L(end+1) = "<p class=""files"">Files: " + strjoin(links, ", ") + "</p>";
+end
+if full && report.options.IncludeParameters
+    L(end+1) = "<details><summary>Parameters</summary><pre>" + ...
+        htmlEscape(jsonencode(specForJson(e.spec), 'PrettyPrint', true)) + "</pre></details>";
+end
+L(end+1) = "</article>";
+end
+
+
 function s = css()
 s = join([ ...
     "body{font:13px/1.45 'Segoe UI',system-ui,sans-serif;color:#1f2328;background:#f4f5f7;margin:0 auto;padding:12px 20px 40px;max-width:1200px}"
@@ -150,6 +193,7 @@ s = join([ ...
     "a{color:#0969da;text-decoration:none} a:hover{text-decoration:underline}"
     "section{margin-bottom:12px}"
     "article{background:#fff;border:1px solid #d0d7de;border-radius:8px;padding:10px 14px;margin:12px 0}"
+    "h3.obs{font-size:15px;margin:18px 0 0;padding:4px 10px;border-left:4px solid #0969da;background:#fff;border-radius:4px}"
     ".kind{font-size:11px;font-weight:normal;padding:1px 7px;border-radius:9px;background:#eaeef2;color:#57606a}"
     ".fig img,.fig svg{max-width:100%;height:auto;display:block;margin:4px 0}"
     ".cap{color:#1f2328;font-size:12px;margin:6px 0}"

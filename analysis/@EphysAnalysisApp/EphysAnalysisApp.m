@@ -132,7 +132,7 @@ classdef EphysAnalysisApp < handle
     %   outlines it: markFigurePanel). Page Up and Page Down step to the
     %   previous and next observation (onFigureObservationStep). Ctrl+P,
     %   Ctrl+R, Ctrl+U, Ctrl+T, Ctrl+E and Ctrl+W press Preview, Redraw
-    %   All, Unit report, Auto, Export code and Open in window
+    %   All, Test report, Auto, Export code and Open in window
     %   (pressFigureButton). Escape cancels a panel drag. Ctrl+Z undoes
     %   the last edit of the figures, Ctrl+Y and Ctrl+Shift+Z redo it
     %   (onUndoRedo). The "?" button lists them all (onFigureKeys).
@@ -268,13 +268,22 @@ classdef EphysAnalysisApp < handle
         FigureObsNextButton    matlab.ui.control.Button
         FigurePreviewButton    matlab.ui.control.Button
         FigureRedrawAllButton  matlab.ui.control.Button         % Redraw All: every enabled figure's preview drawn again where out of date (onRedrawAllFigures)
-        FigureUnitReportButton matlab.ui.control.Button         % Unit report: every enabled figure for the observation picked, a temporary HTML report (onUnitReport)
+        FigureTestReportButton matlab.ui.control.Button         % Test report: every enabled figure for the observation picked and the dataset, a temporary HTML report (onTestReport)
         FigureOpenButton       matlab.ui.control.Button         % Open in window: the figure as previewed in a figure() of its own (onOpenFigureWindow)
         FigureCodeButton       matlab.ui.control.Button         % Export code: the code behind the preview (its data in its epochs, the drawing), in the editor (onFigureCode)
         FigureExportPreviewButton matlab.ui.control.Button      % Export preview: the observation picked written as a run writes it (onExportPreview)
         FigureAutoCheckBox     matlab.ui.control.CheckBox       % auto-preview (pref FigureAutoPreview, on by default)
         DesignDropDown         matlab.ui.control.DropDown       % the design every figure is drawn in (PlotDesign; also the Design menu)
         SaveDesignButton       matlab.ui.control.Button         % Save look as design...: the figure preview's look (onSaveDesign)
+        FigureTemplateDropDown matlab.ui.control.DropDown       % your figure templates (FigureTemplate.list; refreshTemplates), above the preview
+        FigureTemplateApplyButton  matlab.ui.control.Button     % Apply...: the template into figures picked, or as a new one (onApplyTemplate)
+        FigureTemplateSaveButton   matlab.ui.control.Button     % Save as...: the figure shown as a new template (onFigureTemplate "save")
+        FigureTemplateUpdateButton matlab.ui.control.Button     % Update: the template picked from the figure shown ("update")
+        FigureTemplateRemoveButton matlab.ui.control.Button     % Remove: the template picked ("remove")
+        FigureTemplateImportButton matlab.ui.control.Button     % Import...: template files into your folder ("import")
+        FigureTemplateExportButton matlab.ui.control.Button     % Export...: the template picked to a file ("export")
+        FigureTemplateIssueLink    matlab.ui.control.Hyperlink  % Report issue: a GitHub issue about templates ("issue")
+        FigureApplyLastButton      matlab.ui.control.Button     % Apply last change...: as Edit > Apply last change to figures (refreshEditMenu)
         FigurePreviewPanel     matlab.ui.container.Panel        % the shown figure's own preview container (syncFigureView: one per figure, in FigurePreviewHost)
         FigurePreviewHost      matlab.ui.container.Panel        % the preview's cell: every figure's container stacked in it (fitFigureViews: shaped like its figure's export page), the shown one visible
         FigurePreviewBadge struct = struct()     % the figure preview's state badge: Grid, Icon, Text (setFigurePreviewState)
@@ -521,6 +530,9 @@ classdef EphysAnalysisApp < handle
         onFigureSelected(obj, k)
         onCopyFigureSettings(obj, opts)
         onApplyToFigures(obj, opts)
+        refreshTemplates(obj, pick)
+        onApplyTemplate(obj, name, opts)
+        onFigureTemplate(obj, action, opts)
         applyFigureEditor(obj)
         fig = gatherFigureEditor(obj)
         applyFigureEditorDefaults(obj)
@@ -564,7 +576,7 @@ classdef EphysAnalysisApp < handle
         onCancelFigurePreview(obj)
         R = onGenerateFigure(obj, opts)
         S = onRedrawAllFigures(obj)
-        [R, file] = onUnitReport(obj, opts)
+        [R, file] = onTestReport(obj, opts)
         h = onOpenFigureWindow(obj)
         onFigureSizeEdited(obj, part)
         showFigureSize(obj, z)

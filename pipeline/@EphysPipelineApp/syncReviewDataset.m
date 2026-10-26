@@ -13,13 +13,15 @@ function syncReviewDataset(obj)
 %   is next opened (ReviewDatasetIdx). Sort loads another of the dataset's
 %   sorts (onReviewSortChanged), Use this sort makes the one shown the
 %   dataset's own (onReviewUseSort); Browse... / Load still take any
-%   results folder.
+%   results folder. The dataset's row of the Datasets table is read again
+%   (refreshReviewDatasets), with its count of sorts.
 idx = obj.SelectedDatasetIdx;
 obj.ReviewDatasetIdx = idx;
 if idx < 1; return; end
 obj.applyConfigToProject();
 d = obj.Project.Datasets(idx);
 [obj.ReviewSorts, use] = reviewSorts(d);
+obj.refreshReviewDatasets(Datasets=idx);   % its row in the Datasets table, read now
 if d.sortingMissing()
     obj.showReviewSorts(d.SortingDir);
     clearReview(obj, d.Name + "'s sorted-output folder is not there now: " + d.SortingDir + ...

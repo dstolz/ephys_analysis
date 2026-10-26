@@ -16,6 +16,15 @@ function file = writePdfReport(report, file, opts)
 %   summary page. A report started for HTML only keeps no pages: start it
 %   with Format "pdf" or "both".
 %
+%   Report.Order (REPORT.options.Order) sets the order of a section's
+%   figure pages: "figure" (the default) a figure at a time, all its
+%   observations' pages together; "unit" an observation at a time
+%   (reportGroups): each unit's, channel's or the dataset's pages of every
+%   figure, in the figures' order, the summary page listing each
+%   observation's pages ("Pages by observation:  u12  ch 5  300 µm: pages
+%   4-6 (rp, wf)"). A figure added without its pages' observations (a
+%   session figure) follows the groups whole.
+%
 %   writePdfReport(..., ProgressFcn=F) calls F(done, total, message)
 %   before each page it draws ("Writing the report: page 3/12") and before
 %   the pages are joined.
@@ -47,6 +56,7 @@ for d = 1:numel(report.datasets)
     D = report.datasets(d);
     lines(end+1) = sprintf("%d. %s (%d figure(s))", d, D.name + starWord(D), numel(D.entries)) + tagsWord(D); %#ok<AGROW>
 end
+byUnit = isfield(report.options, 'Order') && report.options.Order == "unit";
 nPages = numel(report.datasets) + 1;   % the title page and a summary page per dataset; joining them is the last step
 say(0, sprintf("Writing the report: page 1/%d", nPages));
 parts = page(lines, report.title, 0);
@@ -72,14 +82,33 @@ for d = 1:numel(report.datasets)
     for e = D.entries(status ~= "done")
         L(end+1) = e.plot + ": " + e.status + " - " + e.message; %#ok<AGROW>
     end
-    parts = [parts; page(L, D.name + starWord(D), d)]; %#ok<AGROW>
     for e = D.entries(status == "done")
         if isempty(e.pages)
             error('writePdfReport:NoPages', ...
                 'Figure %s of %s holds no PDF pages: start the report with Format "pdf" or "both".', e.plot, D.name);
         end
-        parts = [parts; e.pages(:)]; %#ok<AGROW>
     end
+    at = numel(parts) + 1;   % this section's summary page; its figures' pages follow
+    figPages = strings(0, 1);
+    rest = find(status == "done");
+    if byUnit
+        [G, rest] = reportGroups(D);
+        rest = rest(status(rest) == "done");
+        if ~isempty(G); L(end+1) = "Pages by observation:"; end
+        for g = 1:numel(G)
+            from = at + numel(figPages) + 1;
+            for q = 1:numel(G(g).entry)
+                e = D.entries(G(g).entry(q));
+                figPages = [figPages; reshape(e.pages(G(g).pages{q}), [], 1)]; %#ok<AGROW>
+            end
+            L(end+1) = sprintf("  %s: %s (%s)", G(g).label, pageRange(from, at + numel(figPages)), ...
+                strjoin(string({D.entries(G(g).entry).plot}), ", ")); %#ok<AGROW>
+        end
+    end
+    for k = rest
+        figPages = [figPages; reshape(D.entries(k).pages, [], 1)]; %#ok<AGROW>
+    end
+    parts = [parts; page(L, D.name + starWord(D), d); figPages]; %#ok<AGROW>
 end
 say(nPages, sprintf("Writing the report: joining %d page file(s)", numel(parts)));
 mergePages(parts, file);
@@ -104,6 +133,16 @@ mergePages(parts, file);
         xlim(ax, [0 1]); ylim(ax, [0 1]);
         f = exportFigure(fig, fullfile(tmp, "page" + k), Format="pdf");
     end
+end
+
+
+function s = pageRange(a, b)
+%pageRange  "page 5" or "pages 5-9".
+if a == b
+    s = "page " + a;
+else
+    s = "pages " + a + "-" + b;
+end
 end
 
 

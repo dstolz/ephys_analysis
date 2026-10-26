@@ -1,7 +1,7 @@
 function applyFigureEditor(obj)
 %applyFigureEditor  Show the selected figure, its selected panel and that panel's selected layer in the editor.
 %   The figure's own rows (id, title, observations, spacing, alignment,
-%   appearance, looks), then the panel's (SelectedPanel: type, title, spans,
+%   first-spike latency, appearance, looks), then the panel's (SelectedPanel: type, title, spans,
 %   its row's height and column's width, its size in its cell and its
 %   alignment there, its own event and window or the
 %   figure's, its type's options, its unit waveform, its layers) and the layer's
@@ -76,6 +76,25 @@ E.sesMatch.Value = char(pickFrom(ss.match, EphysAnalysisConfig.FigureSessionMatc
 E.sesMappingFile.Value = char(ss.mappingFile);
 E.sesMinSessions.Value = max(1, ss.minSessions);
 E.sesTrialGroups.Value = char(pickFrom(ss.trialGroups, EphysAnalysisConfig.SessionTrialGroups, "pool"));
+
+% the first-spike latency and response onset (the First-spike latency section: the figure's, for all its panels)
+L = fig.latency;
+E.latMethod.Value = char(pickFrom(L.method, EphysAnalysisConfig.LatencyMethods, "first"));
+E.latFrom.Value = 1000 * L.minSec;
+if isfinite(L.maxSec); E.latTo.Value = 1000 * L.maxSec; else; E.latTo.Value = []; end
+E.latBaseline.Value = char(pickFrom(L.baseline, EphysAnalysisConfig.LatencyBaselines, "pre"));
+bw = [-0.1 0];   % the baseline window's fields: its bounds, else a start for typing
+if numel(L.baselineWindow) == 2 && all(isfinite(L.baselineWindow)); bw = L.baselineWindow; end
+E.latBaseFrom.Value = 1000 * bw(1);
+E.latBaseTo.Value = 1000 * bw(2);
+E.latRate.Value = char(pickFrom(L.baselineRate, EphysAnalysisConfig.LatencyRates, "unit"));
+E.latSurprise.Value = max(eps, L.surprise);
+E.latMinSpikes.Value = min(E.latMinSpikes.Limits(2), max(2, round(L.minSpikes)));
+E.latAlpha.Value = min(1 - eps, max(eps, L.alpha));
+E.latCusum.Value = max(eps, 1000 * L.cusumBinSec);
+E.latCusumSustain.Value = max(0, 1000 * L.cusumSustainSec);
+E.latCusumSD.Value = max(eps, L.cusumThreshold);
+E.latCusumDrift.Value = max(0, L.cusumDrift);
 
 % arrangement, appearance, looks
 E.spacing.Value = char(pickFrom(fig.grid.spacing, string(E.spacing.ItemsData), "tight"));
@@ -215,8 +234,9 @@ if isfield(op, 'yTicks'); E.yTicks.Value = logical(op.yTicks); end
 if isfield(op, 'tickColor'); offerItems(E.tickColor, string(E.tickColor.Items), string(op.tickColor)); end
 if isfield(op, 'tickWidth'); E.tickWidth.Value = min(E.tickWidth.Limits(2), max(E.tickWidth.Limits(1), op.tickWidth)); end
 if isfield(op, 'backColor'); offerItems(E.backColor, string(E.backColor.Items), string(op.backColor)); end
-if isfield(op, 'firstSpike'); E.firstSpike.Text = latencySummary(op.firstSpike, "firstSpike"); end   % its window: latencyDialog
+if isfield(op, 'firstSpike'); E.firstSpike.Text = latencySummary(op.firstSpike, "firstSpike"); end   % its look: latencyDialog
 if isfield(op, 'latencyBox'); E.latencyBox.Text = latencySummary(op.latencyBox, "latencyBox"); end
+if isfield(op, 'onsetLine'); E.onsetLine.Value = char(pickFrom(op.onsetLine, EphysAnalysisConfig.OnsetLines, "off")); end
 if isfield(op, 'trialCount'); E.trialCount.Value = char(pickFrom(op.trialCount, string(E.trialCount.ItemsData), "off")); end
 if isfield(op, 'maskAfterStop'); E.maskAfterStop.Value = op.maskAfterStop; end
 if isfield(op, 'histStyle')

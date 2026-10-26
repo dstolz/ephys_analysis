@@ -24,8 +24,8 @@ function rows = runDataset(obj, k, opts)
 %       images{i} = reportImage(...); pages(i) = reportPdfPage(...)                (Report)
 %       close(fig)
 %     report = addReportFigure(report, spec (kind "figure"), F, Files=, Images=, Pages=,
-%         Caption=figureCaption(spec, T, Dataset=name, Auroc=<each observation's
-%         figureAurocCalls(F)>))                                                   (Report)
+%         Observations=T, Caption=figureCaption(spec, T, Dataset=name, Auroc=<each
+%         observation's figureAurocCalls(F)>))                                     (Report)
 %   one Results row per figure (Kind "figure", Files every observation's
 %   files, Message "<n> observation(s)") and one report entry holding every
 %   observation's page. The file name is figureOutputName's ({Plot} the
@@ -53,8 +53,9 @@ function rows = runDataset(obj, k, opts)
 %   Observation= (a struct: kind, data, unitId, channel, label; default
 %   [] = every observation) draws each figure only for the rows that
 %   match it (figureObservations' Observation=): the unit picked, or what
-%   is on its channel. A figure with no match is "skipped", the reason
-%   (e.g. "it observes the dataset, not one unit") its message.
+%   is on its channel; a figure of the dataset draws the dataset. A
+%   figure with no match is "skipped", the reason (e.g. "no LFP channel on
+%   channel 12 (...)") its message.
 %
 %   See also EphysAnalysisRunner.run, EphysAnalysisRunner.computeFigure,
 %   renderFigure, figureOutputName.
@@ -165,7 +166,7 @@ for jf = 1:numel(fids)
         end
         if opts.Report
             if isempty(F); F = struct('kind', "figure"); end
-            obj.Report = addReportFigure(obj.Report, rspec, F, Files=files, Images=images, Pages=pages, ...
+            obj.Report = addReportFigure(obj.Report, rspec, F, Files=files, Images=images, Pages=pages, Observations=T, ...
                 Caption=figureCaption(spec, T, Dataset=name, Auroc=calls, YShared=nShared));
         end
         obj.clearBatchCache(k, spec.id);

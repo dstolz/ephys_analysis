@@ -5,9 +5,10 @@ function selectDataset(obj, idx, opts)
 %   and Spikes previews, the sorted-output association and phy, Optimize
 %   for probe, Visualize, Review and the behavior association. It is chosen
 %   in the Dataset menu (a ticked dataset or one under All datasets), in
-%   any tab's Dataset box or by clicking a row of the Project table, and all
-%   of them show it: its menu items are checked,
-%   every Dataset box shows it and its table row is highlighted.
+%   any tab's Dataset box, by clicking a row of the Project table or of the
+%   Review tab's Datasets table, and all of them show it: its menu items
+%   are checked, every Dataset box shows it, its Project-table row is
+%   highlighted and its Datasets-table row selected.
 %
 %   The Project tab's Source settings panel shows its recording system's
 %   settings (syncSourcePanel).

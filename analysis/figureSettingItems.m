@@ -25,13 +25,15 @@ function T = figureSettingItems(fig)
 %              (figureLookToDesign): the group colors (but "lines"), the
 %              heat colors (when set) and each remembered look
 %   Observations: each field of observe. Alignment: ref, window,
-%   selection. Arrangement: "layout" (the grid's rows, columns, sizes and
+%   selection. First-spike latency: each field of the latency block (the
+%   baseline window with the baseline). Arrangement: "layout" (the grid's rows, columns, sizes and
 %   per-gap lists, with every panel: the panels are the grid's) and
 %   "spacing" (the spacing and the custom gaps) and "page" (the figure's
 %   page size, figureExportSize). Panel settings, per panel:
 %   Axes and limits (box, axis sides, yLimMode, yLim, cLim, yTicks,
 %   scale), Colors and lines, Display and stacks, Marks and insets (first
-%   spike, latency box, waveform), Data and analysis (every other option),
+%   spike, latency box, onset line, waveform), Data and analysis (every
+%   other option),
 %   Size and alignment (size and place in its cell, its own event
 %   reference / window / selection, its note's look but not its text).
 %   Appearance: the Style fields a figure draws with, grouped (Lines and
@@ -56,6 +58,14 @@ end
 add("alignment", strings(1, 0), "ref", "Event reference", "figure", 0, "ref", false);
 add("alignment", strings(1, 0), "window", "Epoch window", "figure", 0, "window", false);
 add("alignment", strings(1, 0), "selection", "Trial selection", "figure", 0, "selection", false);
+% First-spike latency: the figure's latency block, setting by setting
+LL = latencyLabels();
+for f = string(fieldnames(fig.latency)).'
+    if f == "baselineWindow"; continue; end
+    paths = "latency." + f;
+    if f == "baseline"; paths = [paths "latency.baselineWindow"]; end   % the window goes with "window"
+    add("latency", strings(1, 0), f, word(f, LL), "figure", 0, paths, false);
+end
 % Arrangement
 g = fig.grid;
 add("arrangement", strings(1, 0), "layout", "Grid and panels (types, places, options, layers)", "figure", 0, ...
@@ -154,6 +164,14 @@ L = struct('data', "Data observed", 'units', "Unit filter", 'channels', "Channel
 end
 
 
+function L = latencyLabels()
+L = struct('method', "Method", 'minSec', "Detect from (s)", 'maxSec', "Detect to (s)", 'baseline', "Baseline", ...
+    'baselineRate', "Baseline rate", 'alpha', "Alpha (Poisson count)", 'surprise', "Least surprise", ...
+    'minSpikes', "Fewest burst spikes", 'cusumBinSec', "Onset bins (s)", 'cusumThreshold', "Onset threshold (SD)", ...
+    'cusumDrift', "Onset allowance (SD)", 'cusumSustainSec', "Onset sustain (s)");
+end
+
+
 function L = sessionLabels()
 L = struct('enabled', "Drawn across sessions", 'datasets', "Datasets", 'facet', "One figure per", 'series', "Colored by", ...
     'colorOrder', "Color order", 'showMembers', "Each session under its summary", 'error', "Error band", ...
@@ -196,7 +214,7 @@ elseif ismember(f, ["colormap" "tickColor" "tickWidth" "backColor" "fill" "fillA
 elseif ismember(f, ["display" "stack" "stackSpacing" "layout" "rows" "order" "rasterSort" "rasterSortEvent" ...
         "rasterSortOrder" "rasterByGroup" "maskAfterStop" "trials" "maxTrials" "group" "showPhase" "overTime"])
     g = "Display and stacks";
-elseif ismember(f, ["firstSpike" "latencyBox" "waveform"])
+elseif ismember(f, ["firstSpike" "latencyBox" "onsetLine" "waveform"])
     g = "Marks and insets";
 else
     g = "Data and analysis";
@@ -212,7 +230,7 @@ L = struct('bins', "Bins", 'measure', "Measure", 'baseline', "Baseline", 'auroc'
     'colormap', "Colormap", 'cLim', "Color limits", 'waveform', "Unit waveform", 'rasterSort', "Raster sort", ...
     'rasterSortEvent', "Raster sort event", 'rasterSortOrder', "Raster sort order", 'rasterByGroup', "Raster by group", ...
     'tickColor', "Tick color", 'tickWidth', "Tick width", 'backColor', "Background color", 'yTicks', "Y ticks", ...
-    'firstSpike', "First-spike latency", 'statistic', "Statistic", 'transform', "Transform", 'errorType', "Error type", ...
+    'firstSpike', "First-spike marks", 'onsetLine', "Response onset line", 'statistic', "Statistic", 'transform', "Transform", 'errorType', "Error type", ...
     'trials', "Trials", 'maxTrials', "Most trials", 'rows', "Rows", 'order', "Order", 'group', "Trial group", ...
     'layout', "Layout", 'value', "Value", 'metric', "Metric", 'correlation', "Correlation", 'fisherZ', "Fisher z", ...
     'param', "Parameter", 'seriesParam', "Series parameter", 'timeBase', "Time base", 'range', "Range", ...

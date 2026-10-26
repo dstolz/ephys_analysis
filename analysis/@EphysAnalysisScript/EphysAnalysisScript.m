@@ -918,7 +918,8 @@ classdef EphysAnalysisScript
                 drawn = "Files=files";
                 if withImages; drawn = drawn + ", Images=images"; end
                 if withPages; drawn = drawn + ", Pages=pages"; end
-                B(end+1, 1) = "        report = addReportFigure(report, fspecKind, fres, " + drawn + ", Caption=figureCaption(fspec, obsT, Dataset=name, Auroc=acalls" + yArg + "));";
+                B(end+1, 1) = "        report = addReportFigure(report, fspecKind, fres, " + drawn + ", Observations=obsT, ...   % each page's observation: Report.Order";
+                B(end+1, 1) = "            Caption=figureCaption(fspec, obsT, Dataset=name, Auroc=acalls" + yArg + "));";
             end
             B(end+1, 1) = "        fprintf('%s: %s done (%d observation(s), %d file(s))\n', name, fspec.id, nObs, numel(files));";
             B(end+1, 1) = "    catch ME";

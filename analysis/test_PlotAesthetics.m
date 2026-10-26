@@ -4,11 +4,11 @@ function test_PlotAesthetics()
 %   per panel type and per layout that matters -- a stack, the auROC
 %   baseline, waveforms on the probe, stacked signals, boxes, a heat map
 %   of trials, notes and overlays, ordered groups, one group, first-spike
-%   marks and a latency box plot). Checks the
+%   marks, a latency box plot and onset lines). Checks the
 %   rules (normalizeRules, mergeRules, colors as text), that renderFigure
 %   tags everything every figure draws with a known role (the parts of a
 %   note and of the overlays too, listed by the editor; the first-spike
-%   marks and the box plot's parts on one dataset and on rows merged
+%   marks, the box plot's parts and the onset lines on one dataset and on rows merged
 %   across sessions), that it applies
 %   the user's rules for a panel's type and then the figure's own (and
 %   UserAesthetics=false skips the user's; a refused value only warns),
@@ -108,14 +108,14 @@ whyFS = strings(0, 1);
 for Ck = [byId("first_spike") byId("sessions_first_spike")]
     h = renderFigure(Ck.F, Ck.spec, fig, UserAesthetics=false);
     C = PlotAesthetics.components(h.layout);
-    need = ["firstSpike" "latencyBox" "latencyMedian" "latencyWhisker"];
+    need = ["firstSpike" "latencyBox" "latencyMedian" "latencyWhisker" "latencyOnset"];
     miss = need(~ismember(need, C.Role));
     if ~isempty(miss)
         okFS = false;
         whyFS(end+1) = Ck.id + ": no " + strjoin(miss, ", "); %#ok<AGROW>
     end
 end
-check(okFS, "the first-spike marks and the latency box plot are components of their own roles, on one dataset and on " + ...
+check(okFS, "the first-spike marks, the latency box plot and the response onset are components of their own roles, on one dataset and on " + ...
     "rows merged across sessions" + ifText(~okFS, " (" + strjoin(whyFS, "; ") + ")"));
 Cn = byId("notes_overlays");
 h = renderFigure(Cn.F, Cn.spec, fig, UserAesthetics=false);

@@ -47,8 +47,8 @@ nPass = 0; nFail = 0;
 
 fprintf('\n== 1. figureSettingParts, figureSettingItems ==\n');
 P = figureSettingParts();
-check(isequal(P.Part.', ["observe" "alignment" "arrangement" "panel" "style" "looks" "sessions"]) && all(P.Label ~= "") ...
-    && all(P.Description ~= ""), 'figureSettingParts: observe, alignment, arrangement, panel, style, looks, sessions, each labeled and described');
+check(isequal(P.Part.', ["observe" "alignment" "latency" "arrangement" "panel" "style" "looks" "sessions"]) && all(P.Label ~= "") ...
+    && all(P.Description ~= ""), 'figureSettingParts: observe, alignment, latency, arrangement, panel, style, looks, sessions, each labeled and described');
 fc = EphysAnalysisConfig();
 [fc, idA] = fc.addFigure("rasterPsth", Id="a");
 [fc, idB] = fc.addFigure("psth", Id="b");

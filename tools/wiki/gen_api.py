@@ -1059,6 +1059,8 @@ def main(do_splice=True):
         "EphysTraceSource": pdir("pipeline", "EphysTraceSource.m"),
         "EphysTraceEnvelope": pdir("pipeline", "EphysTraceEnvelope.m"),
         "ManifestViewerApp": pdir("pipeline", "ManifestViewerApp.m"),
+        "TagSet": pdir("pipeline", "TagSet.m"),
+        "TagDialog": pdir("pipeline", "TagDialog.m"),
         "SyntheticDesign": pdir("pipeline", "SyntheticDesign.m"),
         "EphysAnalysisConfig": pdir("analysis", "@EphysAnalysisConfig"),
         "EphysAnalysisRunner": pdir("analysis", "@EphysAnalysisRunner"),

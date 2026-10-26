@@ -81,9 +81,12 @@ for a warning:
   says whether it was automatic. A pairing record that
   `EphysDataset.normalizeTrialPairing` rejects, and the dataset therefore
   ignores, is a warning;
+- tags that are not valid, or past the limit of 12, which
+  `EphysDataset.applyManifest` drops (see `TagSet`);
 - the schema is not one that `EphysDataset.applyManifest` reads.
 
-The General section gives how long ago the manifest was `updated`. The
+The General section gives how long ago the manifest was `updated` and its
+**Tags** (`draft, pilot`, or *(none)* when the manifest has no `tags`). The
 Behavior section gives the session start relative to `metadata.acq_date`.
 
 ## Buttons

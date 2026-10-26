@@ -48,6 +48,9 @@ function L = figureArrange(sz, grid, cells, opts)
 %              of the grid ("north", "south", "east", "west"; "" = none) of
 %              its size [width height] px
 %     Margin   px round the figure (default 6)
+%     Scale    what the px of Margin, the legend's spacing and the gaps in
+%              px are multiplied by (default 1): renderFigure's Scale, a
+%              drawing shown larger or smaller than its export page
 %
 %   L fields (pixel boxes [x y width height] from the bottom left)
 %     area    the grid's box, inside the margin, title and legend band
@@ -69,10 +72,11 @@ arguments
     opts.Top (1,1) double = 0
     opts.Legend struct = struct('side', "", 'size', [0 0])
     opts.Margin (1,1) double = 6
+    opts.Scale (1,1) double = 1
 end
 nr = max(1, round(double(grid.rows)));
 nc = max(1, round(double(grid.cols)));
-m = opts.Margin;
+m = opts.Margin * opts.Scale;
 x0 = m; y0 = m;
 x1 = max(x0 + 1, sz(1) - m);
 y1 = max(y0 + 1, sz(2) - m);
@@ -87,7 +91,7 @@ end
 lg = opts.Legend;
 side = "";
 if isstruct(lg) && isfield(lg, 'side'); side = string(lg.side); end
-pad = 8;   % between the legend and the grid
+pad = 8 * opts.Scale;   % between the legend and the grid
 if ismember(side, ["north" "south" "east" "west"])
     w = lg.size(1); h = lg.size(2);
     switch side
@@ -118,6 +122,7 @@ for k = 1:numel(cells)
     rig(c.c2) = max(rig(c.c2), in(3));
 end
 [gr, gc, pct] = gapsOf(grid, nr, nc);
+if ~pct; gr = gr * opts.Scale; gc = gc * opts.Scale; end   % px as the export has them
 
 % rows, top to bottom: their plot areas in the exact proportions of rowHeights
 rh = sizesOf(grid.rowHeights, nr);

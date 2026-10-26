@@ -182,6 +182,24 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %                     when it cannot be (HOW is "", H []), so the caller
 %                     can compute and draw as for any other edit (the app:
 %                     autoFigurePreview, with no busy card for a label)
+%     Scale           1 (default): the drawing at the sizes it is exported
+%                     at. S: a drawing shown S times as wide as its export
+%                     page at 96 dpi (the app's preview, drawn to fit its
+%                     area): drawn as the export is (its axes first laid
+%                     out on TARGET's size over S, so a draw function sees
+%                     them against its fonts as the export's, and picks
+%                     the same automatic ticks and limits), then every font size,
+%                     line width, marker size, error bar cap and legend
+%                     token times S (a scatter's marker area times S^2;
+%                     PlotAesthetics.scaleSizes) and the layout's px
+%                     (margin, gaps, legend and note spacing) too, before
+%                     the layout. So everything keeps the proportion to the
+%                     page it has in the export: whatever set the size (the
+%                     style, a draw function, the design, the remembered
+%                     looks, the figure's own) and however it was derived
+%                     (the tick labels' FontSize - 2). The root keeps S
+%                     (PlotAesthetics.drawScale): the aesthetics editor
+%                     reads and sets the exported sizes
 %
 %   HOW: "drawn" (drawn, all of it or the panels Reuse could not keep),
 %   "inplace" (only text set on the drawn handles), or "" (InPlaceOnly and
@@ -224,6 +242,7 @@ arguments
     opts.BatchYLim = []
     opts.Reuse (1,1) logical = false
     opts.InPlaceOnly (1,1) logical = false
+    opts.Scale (1,1) double {mustBePositive, mustBeFinite} = 1
 end
 how = "drawn";
 if opts.InPlaceOnly; opts.Reuse = true; end
@@ -289,10 +308,16 @@ if any(kept)
     canvas = target;
     ax0 = [];
     keepOnly(canvas, prior, kept);   % the rest of the last drawing goes
+    was = PlotAesthetics.drawScale(canvas);
+    for k = find(kept); PlotAesthetics.scaleSizes(prior.parts{k}, 1 / was); end   % back to the export's sizes, as a new panel is drawn
 else
     [canvas, ax0] = figureCanvas(target);
 end
-if ~isempty(canvas); L0 = firstLayout(canvas, spec.grid, panels, cells, style); end
+scaleKey = char(PlotAesthetics.ScaleKey);
+for x = [canvas ax0]   % drawn at the export's sizes (the looks set them so), scaled once everything is drawn
+    if isappdata(x, scaleKey); rmappdata(x, scaleKey); end
+end
+if ~isempty(canvas); L0 = firstLayout(canvas, spec.grid, panels, cells, style, opts.Scale); end
 nDraw = np;
 if ~isempty(ax0); nDraw = min(1, np); end
 axs = gobjects(1, np);
@@ -507,12 +532,16 @@ end
 for k = find(drawn)   % a panel's own box wins over the design's, the remembered looks' and the figure's rules
     if panels(k).box ~= "auto"; set([axs(k) reshape(extra{k}, 1, [])], 'Box', char(panels(k).box)); end
 end
+if opts.Scale ~= 1 && ~isempty(root)   % shown larger or smaller than exported: every size in proportion, then laid out
+    PlotAesthetics.scaleSizes(root, opts.Scale);
+    setappdata(root, scaleKey, opts.Scale);
+end
 if isempty(canvas)   % one axes: its note goes where it belongs once its looks are final (its size measured)
     for k = find(drawn)
         if ~isempty(notes{k}) && ~isempty(notes{k}.text); placeNote(notes{k}, panels(k).note); end
     end
 else   % the layout, once everything is drawn and dressed: every axes, band, the legend and the title, then the notes
-    figureLayout(canvas, layoutOf(spec, panels, cells, axs, extra, notes, bands, th, lgd, style));
+    figureLayout(canvas, layoutOf(spec, panels, cells, axs, extra, notes, bands, th, lgd, style, opts.Scale));
 end
 if editable(opts.Editable, target)
     PlotAesthetics.enableEditing(target, editContext(F, spec, target, opts, root, design, follows, txt));
@@ -671,7 +700,10 @@ function h = inPlace(F, spec, target, keys, opts, own, design, follows)
 %   whose labels changed are made again (they name their quantities after
 %   the labels); the right-click editor's context takes SPEC (its redraw,
 %   title and axis edits); and the drawing kept records SPEC, so the next
-%   one compares with it.
+%   one compares with it. Only texts and interpreters are set, no size:
+%   drawn at a Scale (in the global key, so the same one), the fonts keep
+%   the scaled sizes they have, and figureLayout lays the parts out with
+%   the scale it kept, as after a whole drawing at that scale.
 h = [];
 if ~isappdata(target, drawingAppdata()); return; end
 D = getappdata(target, drawingAppdata());
@@ -838,7 +870,7 @@ ctx = struct('kind', "figure", 'id', spec.id, 'title', txt, 'root', root, 'targe
     'onRemember', {opts.OnRemember}, 'onGoto', {opts.OnGoto}, 'design', design, 'followsDesign', follows, 'ordinal', ordinal, 'mapField', mapField, ...
     'redraw', @(newRules) renderFigure(F, setfield(spec, 'aesthetics', newRules), target, Design=opts.Design, ...
         UserAesthetics=opts.UserAesthetics, Editable=opts.Editable, OnRemember=opts.OnRemember, OnGoto=opts.OnGoto, ...
-        OnAxisEdit=opts.OnAxisEdit, OnSelect=opts.OnSelect, BatchYLim=opts.BatchYLim));
+        OnAxisEdit=opts.OnAxisEdit, OnSelect=opts.OnSelect, BatchYLim=opts.BatchYLim, Scale=opts.Scale));
 ctx.panelTypes = struct('id', sIds, 'type', types);   % each tile's panel type by the id it is tagged with (PlotDesign.capture)
 ctx.panelIds = sIds;   % "Move every panel's X axis to top": every panel of the figure
 ctx.onAxisEdit = @(panel, change) axisEdited(F, spec, target, opts, panel, change);   % an axis label's or axes' menu (PlotAesthetics)
@@ -905,7 +937,7 @@ function K = drawingKeys(F, spec, style, design, opts, colorsOf, isTime, target)
 %           draw functions' inTimeColumn read them across panels); the
 %           style, the design, the user's remembered looks of the panels'
 %           kinds and of "figure"; BatchYLim; editing and data tips on;
-%           TARGET's size in pixels
+%           TARGET's size in pixels; Scale
 %   panels  each one's result (F.panels(k)), spec, group colors, time
 %           axis and batch range
 %   ownTime  each panel on a time axis whose x limits are not the
@@ -935,7 +967,8 @@ catch
 end
 K = struct();
 K.global = struct('F', Fg, 'spec', Sg, 'place', place, 'style', style, 'design', design, 'rules', rules, ...
-    'batch', {opts.BatchYLim}, 'editable', editable(opts.Editable, target), 'tips', editable(opts.DataTips, target), 'size', sz);
+    'batch', {opts.BatchYLim}, 'editable', editable(opts.Editable, target), 'tips', editable(opts.DataTips, target), 'size', sz, ...
+    'scale', opts.Scale);
 K.panels = cell(1, np);
 K.ownTime = false(1, np);
 for k = 1:np
@@ -1043,15 +1076,19 @@ end
 end
 
 
-function L = firstLayout(canvas, grid, panels, cells, style)
+function L = firstLayout(canvas, grid, panels, cells, style, scale)
 %firstLayout  Where the panels' axes and note bands go before anything is drawn: labels and bands estimated from the font size.
 %   figureLayout places them once they are drawn; this is where they are
-%   drawn (a draw function sees a plot of about its final size).
+%   drawn (a draw function sees a plot of about its final size). With
+%   SCALE (renderFigure's Scale) not 1 they are laid out on the export's
+%   page (CANVAS's size over SCALE), so everything is drawn as the export
+%   draws it -- the axes' size against the fonts, which sets the automatic
+%   ticks and limits a draw function reads -- before it is scaled.
 px = 96 / 72 * style.FontSize;   % the font size in pixels
 sz = [700 500];   % the canvas's size, when it cannot be read yet
 try
     p = getpixelposition(canvas);
-    if all(p(3:4) > 40); sz = p(3:4); end
+    if all(p(3:4) > 40); sz = p(3:4) / scale; end
 catch
 end
 C = struct('r1', {}, 'r2', {}, 'c1', {}, 'c2', {}, 'size', {}, 'align', {}, 'valign', {}, 'inset', {}, ...
@@ -1085,8 +1122,9 @@ L = figureArrange(sz, grid, C, Top=3 * px, Margin=6);
 end
 
 
-function S = layoutOf(spec, panels, cells, axs, extra, notes, bands, th, lgd, style)
+function S = layoutOf(spec, panels, cells, axs, extra, notes, bands, th, lgd, style, scale)
 %layoutOf  What figureLayout lays out: each panel's axes (a coherence panel's phase under its magnitude, a third of it), note and band, the title and the legend.
+%   SCALE: renderFigure's Scale, which multiplies the layout's px (figureLayout).
 P = struct('axes', {}, 'shares', {}, 'r1', {}, 'r2', {}, 'c1', {}, 'c2', {}, 'size', {}, 'align', {}, 'valign', {}, ...
     'note', {}, 'text', {}, 'band', {});
 for k = 1:numel(panels)
@@ -1097,7 +1135,8 @@ for k = 1:numel(panels)
     P(k) = struct('axes', A, 'shares', [2 ones(1, numel(A) - 1)], 'r1', c.r1, 'r2', c.r2, 'c1', c.c1, 'c2', c.c2, ...
         'size', c.size, 'align', c.align, 'valign', c.valign, 'note', panels(k).note, 'text', t, 'band', bands{k});
 end
-S = struct('grid', spec.grid, 'panels', P, 'title', th, 'legend', lgd, 'side', legendSide(style), 'margin', 6);
+S = struct('grid', spec.grid, 'panels', P, 'title', th, 'legend', lgd, 'side', legendSide(style), 'margin', 6, ...
+    'scale', scale);
 end
 
 

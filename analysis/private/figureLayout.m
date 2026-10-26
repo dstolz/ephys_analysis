@@ -23,6 +23,8 @@ function figureLayout(canvas, S)
 %              ("north", "south", "east" or "west"; "" = none: it sits in a
 %              panel)
 %     margin   px round the figure
+%     scale    renderFigure's Scale: the margin, the gaps and the spacing
+%              round notes and color bars times it (figureArrange Scale)
 %   CANVAS (the figure, panel or tab drawn into: figureCanvas) keeps S
 %   (appdata FigureLayout) and lays itself out again from it whenever it
 %   changes size: its SizeChangedFcn calls figureLayout(CANVAS), after the
@@ -59,7 +61,7 @@ if any(sz < 40); return; end
 top = 0;
 if ~isempty(S.title) && isgraphics(S.title)
     t = S.title.TightInset;   % (in pixels, as renderFigure made it)
-    if written(S.title.Title) || written(S.title.Subtitle); top = t(4) + 2; end   % a text of several lines is a column
+    if written(S.title.Title) || written(S.title.Subtitle); top = t(4) + 2 * S.scale; end   % a text of several lines is a column
 end
 leg = struct('side', "", 'size', [0 0]);
 if ~isempty(S.legend) && isgraphics(S.legend) && S.side ~= ""
@@ -68,11 +70,11 @@ if ~isempty(S.legend) && isgraphics(S.legend) && S.side ~= ""
     leg = struct('side', S.side, 'size', p(3:4));
 end
 [cells, deco, bars] = measure(S, {});
-L = figureArrange(sz, S.grid, cells, Top=top, Legend=leg, Margin=S.margin);
+L = figureArrange(sz, S.grid, cells, Top=top, Legend=leg, Margin=S.margin, Scale=S.scale);
 place(S, L);
 [cells2, deco2] = measure(S, bars);   % the labels at the new sizes: tick labels can change with an axes' size
 if ~isempty(cells2) && max([abs([cells2.inset] - [cells.inset]), abs([cells2.need] - [cells.need])]) > 1
-    L = figureArrange(sz, S.grid, cells2, Top=top, Legend=leg, Margin=S.margin);
+    L = figureArrange(sz, S.grid, cells2, Top=top, Legend=leg, Margin=S.margin, Scale=S.scale);
     place(S, L);
     deco = deco2;
 end
@@ -104,7 +106,7 @@ if isempty(bars)
     bars = cell(1, n);
     for k = 1:n
         bars{k} = zeros(numel(S.panels(k).axes), 4);
-        for i = 1:numel(S.panels(k).axes); bars{k}(i, :) = colorbarRoom(S.panels(k).axes(i)); end
+        for i = 1:numel(S.panels(k).axes); bars{k}(i, :) = colorbarRoom(S.panels(k).axes(i), S.scale); end
     end
 end
 for k = 1:n
@@ -120,7 +122,7 @@ for k = 1:n
         e = P.text.Extent .* P.band.Position([3 4 3 4]);   % normalized in the band (pixels): its size in pixels
         along = e(4);
         if ismember(side, ["left" "right"]); along = e(3); end
-        need = deco(k) + along + 12;
+        need = deco(k) + along + 12 * S.scale;
     end
     cells(k) = struct('r1', P.r1, 'r2', P.r2, 'c1', P.c1, 'c2', P.c2, 'size', P.size, 'align', P.align, ...
         'valign', P.valign, 'inset', ins, 'band', side, 'need', need, 'shares', P.shares);
@@ -174,10 +176,10 @@ has(4) = has(4) || written(ax.Title) || written(ax.Subtitle);
 end
 
 
-function r = colorbarRoom(ax)
+function r = colorbarRoom(ax, scale)
 %colorbarRoom  The room a color bar outside the axes takes beyond its plot area, [left bottom right top] px (TightInset leaves it out).
 %   The bar's own place (set by MATLAB beside the plot area) and its tick
-%   labels and label, sized from their font.
+%   labels and label, sized from their font (SCALE: the drawing's, for the px between).
 r = [0 0 0 0];
 cb = ax.Colorbar;
 if isempty(cb) || ~isvalid(cb) || ~strcmp(cb.Visible, 'on') || ~endsWith(string(cb.Location), "outside"); return; end
@@ -189,7 +191,7 @@ if ~strcmp(ax.Units, 'pixels'); ax.Units = 'pixels'; end
 a = ax.InnerPosition;
 px = 96 / 72;
 labels = strlength(string(cb.TickLabels));
-ticks = 0.6 * cb.FontSize * px * max([0; labels(:)]) + 6;
+ticks = 0.6 * cb.FontSize * px * max([0; labels(:)]) + 6 * scale;
 label = 0;
 lab = cb.Label;   % (read once: slow)
 if written(lab); label = 1.5 * lab.FontSize * px; end
@@ -262,13 +264,13 @@ for k = 1:numel(S.panels)
         case "left",  free = [0 0 1 - f 1];
         otherwise,    free = [f 0 1 1];
     end
-    placeBandNote(P.text, P.note, free);
+    placeBandNote(P.text, P.note, free, S.scale);
 end
 end
 
 
-function placeBandNote(t, note, fr)
-%placeBandNote  A note in the band beside its panel, in the band's free part FR ([x0 y0 x1 y1], normalized).
+function placeBandNote(t, note, fr, scale)
+%placeBandNote  A note in the band beside its panel, in the band's free part FR ([x0 y0 x1 y1], normalized); its outline SCALE times 0.75 pt.
 %   Along the band by its alignment (below / above: align across the
 %   panel; left / right: valign up it), in the middle across it. A note
 %   turned a quarter (|sin(rotation)| > 0.7) reads along y: its horizontal
@@ -277,7 +279,7 @@ function placeBandNote(t, note, fr)
 %   valign puts it up the band.
 if note.box
     t.EdgeColor = t.Color;
-    t.LineWidth = 0.75;
+    t.LineWidth = 0.75 * scale;
 end
 t.Units = 'normalized';
 alongX = @(s) fr(1) + (fr(3) - fr(1)) * (0.02 + 0.96 * s);

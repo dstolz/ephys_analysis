@@ -10,7 +10,7 @@ function ok = redrawFigurePreview(obj)
 %   the selected figure to draw again (not drawn, a session figure, the
 %   preview busy): the caller leaves it to autoFigurePreview.
 %
-%   See also onFigureSizeEdited, refreshFigurePreview, previewSpec.
+%   See also onFigureSizeEdited, refreshFigurePreview, previewScale.
 ok = false;
 k = obj.SelectedFigure;
 if k < 1 || k > numel(obj.Config.Figures); return; end
@@ -21,7 +21,7 @@ spec = obj.Config.figureFor(k);
 spec.enabled = true;
 obj.fitFigureViews();
 try
-    renderFigure(F, previewSpec(obj, spec), obj.FigurePreviewPanel, OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules), ...
+    renderFigure(F, spec, obj.FigurePreviewPanel, Scale=previewScale(obj, spec), OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules), ...
         OnGoto=@(role, panel) obj.gotoFigureSetting(spec.id, role, panel), ...
         OnAxisEdit=@(panel, change) obj.onFigureAxisEdited(spec.id, panel, change), ...
         OnSelect=@(panel, ctrl) obj.onFigurePanelClicked(spec.id, panel, ctrl, false));

@@ -4,7 +4,7 @@ function ok = inPlaceFigurePreview(obj)
 %   an edit. When the selected figure's preview is drawn (its badge Drawn)
 %   from the dataset, observation and scan it would be drawn from now
 %   (FigurePreviewDrawn: figureViewKey but the figure), the figure as it is
-%   now (Config.figureFor, scaled as the preview draws it: previewSpec) is
+%   now (Config.figureFor, at the scale the preview draws it: previewScale) is
 %   given to renderFigure with InPlaceOnly: when it differs from the one
 %   drawn in text alone, the text is set on the labels and titles drawn and
 %   the layout done again -- what a whole drawing would make, with no
@@ -33,7 +33,7 @@ if ~isstruct(was) || ~isstruct(now) || ~isequaln(rmfield(was, 'figure'), rmfield
 spec = obj.Config.figureFor(k);
 spec.enabled = true;   % (as refreshFigurePreview computes it)
 try
-    [~, how] = renderFigure(F, previewSpec(obj, spec), P, OnRemember=@(rules) obj.rememberFigureAesthetics(id, rules), ...
+    [~, how] = renderFigure(F, spec, P, Scale=previewScale(obj, spec), OnRemember=@(rules) obj.rememberFigureAesthetics(id, rules), ...
         OnGoto=@(role, panel) obj.gotoFigureSetting(id, role, panel), ...
         OnAxisEdit=@(panel, change) obj.onFigureAxisEdited(id, panel, change), ...
         OnSelect=@(panel, ctrl) obj.onFigurePanelClicked(id, panel, ctrl, false), ...

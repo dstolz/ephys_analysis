@@ -22,8 +22,12 @@ function test_EphysAnalysisRunner()
 %   planted one and cached, detections' saved waveforms); one figure per
 %   trial group (perGroup); a report per dataset (PerDataset); one
 %   observation (run(Observation=): the unit on its own figure, its
-%   channel on the LFP one, the dataset's figures skipped and said so;
-%   figureObservations' match of a channel and of every trial group); and a
+%   channel on the LFP one, the dataset's figures drawn for the dataset, a
+%   figure across sessions skipped and said so; figureObservations' match
+%   of a channel, of every trial group and of the dataset); Report.Order
+%   (validated; by unit: the entries' observation keys, reportGroups, the
+%   HTML's headings and contents and the PDF's page order and listing,
+%   against the order by figure); and a
 %   session figure (the card across both datasets): one plan row, a page
 %   per matched site in the sessions folder, the "Across sessions" report
 %   entry with its caption (and its own <FileName>_sessions report with
@@ -335,7 +339,7 @@ ta = pdfPageTexts(fullfile(outA, 'analysis_report.pdf'));
 tb = pdfPageTexts(fullfile(outB, 'analysis_report.pdf'));
 check(numel(ta) == numel(texts) && isequal(erase(ta(2:end), " "), erase(tb(2:end), " ")) ...   % spaces: where the text extraction puts them varies
     && contains(txtS, "pages(end+1) = reportPdfPage(fig, report, Files=written);") ...
-    && contains(txtS, "Files=files, Images=images, Pages=pages, Caption="), ...
+    && contains(txtS, "Files=files, Images=images, Pages=pages, Observations=obsT, ..."), ...
     sprintf('both scripts write the same %d PDF pages (the title page''s time aside), made from the drawn pages', numel(ta)));
 
 fprintf('\n== 6. a failing export closes its page ==\n');
@@ -438,6 +442,10 @@ obU = struct('kind', "unit", 'data', "units", 'unitId', u.unitId, 'channel', u.c
 cfgOb = cfg;
 cfgOb.Report.Format = "html";
 cfgOb.Report.Folder = fullfile(root, 'outObs');
+sesOb = cfgOb.Figures(cfgOb.figureIndex("card"));
+sesOb.id = "card_sessions";
+sesOb.sessions.enabled = true;   % a figure across sessions: left out of a one-observation run
+cfgOb.Figures(end+1) = sesOb;
 rOb = EphysAnalysisRunner(cfgOb, LogFcn=[]);
 ROb = rOb.run(Datasets=1, Export=false, Report=true, Observation=obU);
 rowOf = @(id) ROb(ROb.Plot == id, :);
@@ -448,11 +456,25 @@ else
     lfpOk = lfpR.Status == "skipped" && startsWith(lfpR.Message, "no LFP channel on channel " + u.channel);
 end
 html = fileread(rOb.ReportFiles(1));
-check(height(ROb) == nOn && all(ROb.Dataset == names(1)) && rowOf("card").Status == "done" && rowOf("card").Message == "1 observation(s)" ...
-    && lfpOk && rowOf("map").Status == "skipped" && rowOf("map").Message == "it observes the dataset, not one unit" ...
+sesR = rowOf("card_sessions");
+dsR = ROb(ROb.Dataset == names(1), :);
+check(height(ROb) == nOn + 1 && height(dsR) == nOn && rowOf("card").Status == "done" && rowOf("card").Message == "1 observation(s)" ...
+    && lfpOk && rowOf("map").Status == "done" && rowOf("map").Message == "1 observation(s)" ...
+    && rowOf("heat").Status == "done" && rowOf("heat").Message == "1 observation(s)" ...
+    && isscalar(sesR.Status) && sesR.Status == "skipped" && sesR.Dataset == "sessions: all" ...
+    && sesR.Message == "it is drawn across the sessions, not for one dataset's observation" ...
     && isscalar(rOb.ReportFiles) && endsWith(rOb.ReportFiles, ".html") && startsWith(rOb.ReportFiles, cfgOb.Report.Folder) ...
-    && contains(html, "it observes the dataset, not one unit") && startsWith(rOb.RunRecordFile, cfgOb.Report.Folder), ...
-    sprintf('run(Observation=<a unit>): the unit alone on its figure, its channel on the LFP figure (%s), a figure of the dataset skipped and said so in the report', lfpR.Message));
+    && contains(html, "Across sessions") && contains(html, "it is drawn across the sessions, not for one dataset&#39;s observation") ...
+    && startsWith(rOb.RunRecordFile, cfgOb.Report.Folder), ...
+    sprintf(['run(Observation=<a unit>): the unit alone on its figure, its channel on the LFP figure (%s), the figures of ' ...
+    'the dataset drawn for the dataset, the figure across sessions skipped and said so under "Across sessions"'], lfpR.Message));
+[Tm, whyM] = figureObservations(r.source(1), cfg.figureFor("map"), Observation=obU);
+obD = struct('kind', "dataset", 'data', "units", 'unitId', NaN, 'channel', NaN, 'label', names(1));
+[Td, whyD] = figureObservations(r.source(1), cfg.figureFor("card"), Observation=obD);
+[Tdm, whyDm] = figureObservations(r.source(1), cfg.figureFor("map"), Observation=obD);
+check(height(Tm) == 1 && Tm.kind == "dataset" && whyM == "" && height(Td) == 0 && whyD ~= "" ...
+    && height(Tdm) == 1 && whyDm == "", ...
+    'a figure of the dataset keeps the dataset for any observation picked; the dataset picked keeps no unit (and says why)');
 Tg = figureObservations(r.source(1), cfgPg.figureFor("card"), Observation=obU);
 check(height(Tg) == nGpg && all(Tg.unitId == u.unitId), 'a figure per trial group keeps every group of the unit matched');
 Tl = figureObservations(r.source(1), cfg.figureFor("lfp"));
@@ -468,6 +490,53 @@ Tst = figureObservations(r.source(1), specSt);
 [Tso, whySo] = figureObservations(r.source(1), specSt, Observation=obU);
 check(height(Tst) == 0 && height(Tso) == 1 && Tso.unitId == u.unitId && ~Tso.starred && whySo == "", ...
     'Starred only keeps no unstarred unit, but the one observation picked (Observation=) is drawn, starred or not');
+
+fprintf('\n== 8c. report order: by figure, by unit ==\n');
+cfgOr = cfg;
+cfgOr.Report.Format = "both";
+cfgOr.Report.IncludeParameters = true;
+bad = cfgOr; bad.Report.Order = "shank";
+IOr = bad.validate();
+check(cfgOr.Report.Order == "figure" && any(IOr.Section == "Report" & IOr.Field == "Order" & IOr.Severity == "error"), ...
+    'Report.Order is "figure" by default; another value is a validation error');
+orderRun = @(order, folder) runOrder(cfgOr, order, fullfile(root, folder));
+[rF, HF] = orderRun("figure", 'outOrderFigure');
+[rU, HU] = orderRun("unit", 'outOrderUnit');
+DU = rU.Report.datasets(1);
+[G, rest] = reportGroups(DU);
+eCard = DU.entries([DU.entries.plot] == "card");
+eLfp = DU.entries([DU.entries.plot] == "lfp");
+check(numel(eCard.obsKeys) == numel(eCard.images) && all(startsWith(eCard.obsKeys, "unit|units|")) ...
+    && all(startsWith(eLfp.obsKeys, "channel|LFP|")) && isequal(DU.entries([DU.entries.plot] == "map").obsKeys, "dataset") ...
+    && isequal(eCard.obsLabels, obsCard{1}.label.'), ...
+    'each report entry keeps its pages'' observations: unit|<data>|<id>, channel|<data>|<channel>, dataset; the picker''s labels');
+nGroups = numel(unique([DU.entries.obsKeys]));
+check(numel(G) == nGroups && isequal([G(1:2).label], obsCard{1}.label.') && all(arrayfun(@(g) g.entry(1), G(1:2)) == find([DU.entries.plot] == "card")) ...
+    && any([G.key] == "dataset") && isequal(sort([DU.entries(rest).plot]), sort(["no_line" "spike_band"])), ...
+    sprintf('by unit: a group per observation (%d), the card''s units first in its order, the dataset one group; the skipped figures after them', nGroups));
+iFirst = @(H, s) strfind(H, s);
+headPos = arrayfun(@(g) min([iFirst(HU, "<h3 class=""obs"">" + htmlEscape(g.label) + "</h3>") Inf]), G);
+cardPos = cell2mat(arrayfun(@(k) iFirst(HU, "<article id=""ds1-o" + k + "-" + G(k).entry(1) + """>"), 1:numel(G), 'UniformOutput', false));
+check(~contains(HF, "class=""obs""") && count(HU, "<h3 class=""obs"">") == numel(G) ...
+    && all(isfinite(headPos)) && issorted(headPos) && numel(cardPos) == numel(G) && all(cardPos > headPos) ...
+    && count(HU, "<img ") == count(HF, "<img ") && count(HU, "<summary>Parameters</summary>") == count(HF, "<summary>Parameters</summary>") ...
+    && contains(HU, "href=""#ds1-o1"">" + htmlEscape(G(1).label) + "</a>"), ...
+    'the HTML by figure has no observation headings; by unit a heading per observation in order, each figure under it, the same pages, the parameters once per figure, the contents listing the observations');
+want = strings(0, 1);
+for g = 1:numel(G)
+    for q = 1:numel(G(g).entry)
+        e = DU.entries(G(g).entry(q));
+        want = [want; reshape(e.pages(G(g).pages{q}), [], 1)]; %#ok<AGROW>
+    end
+end
+TU = pdfPageTexts(rU.ReportFiles(endsWith(rU.ReportFiles, ".pdf")));
+TF = pdfPageTexts(rF.ReportFiles(endsWith(rF.ReportFiles, ".pdf")));
+sameOrder = numel(TU) == 2 + numel(want) && numel(TF) == numel(TU);
+for p = 1:numel(want)
+    sameOrder = sameOrder && TU(2 + p) == pdfPageTexts(want(p));
+end
+check(sameOrder && contains(TU(2), "Pages by observation:") && contains(TU(2), "page 3") && ~contains(TF(2), "Pages by observation"), ...
+    sprintf('the PDF by unit: every observation''s pages together in group order, the summary page listing them (%d pages)', numel(TU)));
 
 fprintf('\n== 9. session figures: plan, run, export, report, data file, run record, cancel, standalone script ==\n');
 outG = fullfile(root, 'outSesFig');
@@ -566,6 +635,16 @@ fprintf('\n================  %d passed, %d failed  ================\n', nPass, n
 if nFail > 0
     error('test_EphysAnalysisRunner:Failures', '%d checks failed.', nFail);
 end
+end
+
+
+function [r, H] = runOrder(cfg, order, folder)
+%runOrder  Dataset 1's report (no figure files) in Report.Order ORDER, into FOLDER: the runner and the HTML text.
+cfg.Report.Order = order;
+cfg.Report.Folder = folder;
+r = EphysAnalysisRunner(cfg, LogFcn=[]);
+r.run(Datasets=1, Export=false, Report=true);
+H = string(fileread(r.ReportFiles(endsWith(r.ReportFiles, ".html"))));
 end
 
 

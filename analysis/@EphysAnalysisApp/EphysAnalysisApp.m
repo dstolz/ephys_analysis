@@ -132,7 +132,7 @@ classdef EphysAnalysisApp < handle
     %   outlines it: markFigurePanel). Page Up and Page Down step to the
     %   previous and next observation (onFigureObservationStep). Ctrl+P,
     %   Ctrl+R, Ctrl+U, Ctrl+T, Ctrl+E and Ctrl+W press Preview, Redraw
-    %   All, Unit report, Auto, Export code and Open in window
+    %   All, Test report, Auto, Export code and Open in window
     %   (pressFigureButton). Escape cancels a panel drag. Ctrl+Z undoes
     %   the last edit of the figures, Ctrl+Y and Ctrl+Shift+Z redo it
     %   (onUndoRedo). The "?" button lists them all (onFigureKeys).
@@ -268,7 +268,7 @@ classdef EphysAnalysisApp < handle
         FigureObsNextButton    matlab.ui.control.Button
         FigurePreviewButton    matlab.ui.control.Button
         FigureRedrawAllButton  matlab.ui.control.Button         % Redraw All: every enabled figure's preview drawn again where out of date (onRedrawAllFigures)
-        FigureUnitReportButton matlab.ui.control.Button         % Unit report: every enabled figure for the observation picked, a temporary HTML report (onUnitReport)
+        FigureTestReportButton matlab.ui.control.Button         % Test report: every enabled figure for the observation picked and the dataset, a temporary HTML report (onTestReport)
         FigureOpenButton       matlab.ui.control.Button         % Open in window: the figure as previewed in a figure() of its own (onOpenFigureWindow)
         FigureCodeButton       matlab.ui.control.Button         % Export code: the code behind the preview (its data in its epochs, the drawing), in the editor (onFigureCode)
         FigureExportPreviewButton matlab.ui.control.Button      % Export preview: the observation picked written as a run writes it (onExportPreview)
@@ -564,7 +564,7 @@ classdef EphysAnalysisApp < handle
         onCancelFigurePreview(obj)
         R = onGenerateFigure(obj, opts)
         S = onRedrawAllFigures(obj)
-        [R, file] = onUnitReport(obj, opts)
+        [R, file] = onTestReport(obj, opts)
         h = onOpenFigureWindow(obj)
         onFigureSizeEdited(obj, part)
         showFigureSize(obj, z)

@@ -8,6 +8,7 @@ P.Title = string(C.Title.Value);
 P.Folder = strtrim(string(C.Folder.Value));
 P.FileName = strtrim(string(C.FileName.Value));
 P.PerDataset = C.PerDataset.Value;
+P.Order = string(C.Order.Value);
 P.EmbedFormat = string(C.EmbedFormat.Value);
 P.Dpi = C.Dpi.Value;
 P.IncludeSummary = C.IncludeSummary.Value;

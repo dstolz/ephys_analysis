@@ -10,6 +10,14 @@ says how to cut a release.
 
 ### Added
 
+- Report order. `Report.Order` (`"figure"`, the default and the order so far, | `"unit"`) arranges each dataset's
+  part of the HTML and PDF reports: by figure, each figure with all its observations' pages together; by unit, an
+  observation at a time (a unit, a channel, or the dataset for the figures of the dataset) under a heading of its
+  label, with its pages of every figure in the figures' order (the HTML contents list the observations; the PDF's
+  summary page lists each one's pages). `addReportFigure(Observations=)` keeps each page's observation for it.
+  Export tab: **Order** in the report settings. See
+  [Report order](documentation/EphysAnalysisConfig.md#report-order).
+
 - Join the detection channels that hold one neuron. `UnitSelection.merge` (`enabled` false) makes
   `selectUnits(source "detected")` return one unit per group of channels of neighboring sites instead of one per
   channel: `groupDetected` joins two sites when the events of one leave the refractory gap (more than the
@@ -1414,6 +1422,13 @@ says how to cut a release.
   says which one of how many it is loading, and Scan names the root it scans.
 
 ### Changed
+
+- Figures tab: **Unit report** is now **Test report** (`onTestReport`, `test_report.html`, Ctrl+U as before), and
+  it holds the figures of the dataset too: `run(Observation=)` draws a figure of the dataset for the dataset
+  instead of skipping it, and with a figure of the dataset selected (the dataset picked) the report draws the
+  dataset's figures. The figures across sessions stay out (they match observations across the datasets) and are
+  now listed as skipped under *Across sessions* with why. See the
+  [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
 
 - Figures tab: a switch between figures is faster. Each figure keeps its observation list (`FigurePickers`:
   `keepFigurePicker`, `takeFigurePicker`), so a figure shown again takes its own list, count line and pick back

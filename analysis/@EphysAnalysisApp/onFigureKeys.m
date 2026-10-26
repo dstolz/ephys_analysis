@@ -29,7 +29,7 @@ K = [ ...
     "Page Up, Page Down",                "Preview the previous or next observation (the < and > buttons)"
     c + "+P, " + c + "+R",              "Preview, Redraw All (the buttons at the left of the Dataset, Observation and Favorites rows)"
     c + "+G",                           "Generate selected figure (the File menu): its files for every observation on the ticked datasets"
-    c + "+U",                           "Unit report: every enabled figure for the observation picked, in the browser"
+    c + "+U",                           "Test report: every enabled figure for the observation picked (and the dataset's), in the browser"
     c + "+T",                           "Auto: tick or untick it"
     c + "+E, " + c + "+W",              "Export code, Open in window (the buttons under the preview)"
     "Escape (dragging a panel)",         "Cancel the drag in the schematic"

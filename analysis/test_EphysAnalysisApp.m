@@ -880,7 +880,8 @@ if S.sec("5d.layers", "a continuous panel below (drawn at once); its layers: AUX
     spans = findall(app.FigurePreviewPanel, 'Tag', 'eventSpan');
     spans = spans(arrayfun(@(m) any(isfinite(m.XData)), spans));
     check(spanRows && L.eventsAs == "span" && L.event.spanStyle == "--" && L.event.spanWidth == 3 && L.event.spanAlpha == 0.5 ...
-        && app.FigurePreviewState == "drawn" && ~isempty(spans) && all([spans.LineWidth] == 3) && all(string({spans.LineStyle}) == "--"), ...
+        && app.FigurePreviewState == "drawn" && ~isempty(spans) && all(arrayfun(@(m) PlotAesthetics.getValue(m, "LineWidth"), spans) == 3) ...
+        && all(string({spans.LineStyle}) == "--"), ...   % (the width as exported: the preview draws it at its scale)
         'Draw as a line from onset to offset: the span''s rows show (not the marker), its style, width and opacity reach the config and the raster''s lines');
     FE.evDrawAs.Value = "marks";
     app.onConfigChanged("figure");
@@ -2492,7 +2493,8 @@ if S.sec("5h", "the figure tree, a panel's note and overlays, dragging a panel i
     app.onConfigChanged("figure");
     tkW = findall(app.FigurePreviewPanel, 'Tag', 'rasterTicks');
     tkW = tkW(arrayfun(@(t) any(isfinite(t.XData)), tkW));
-    check(groupsShown && app.Config.Figures(1).panels(1).options.tickWidth == 2.5 && ~isempty(tkW) && all([tkW.LineWidth] == 2.5), ...
+    check(groupsShown && app.Config.Figures(1).panels(1).options.tickWidth == 2.5 && ~isempty(tkW) ...
+        && all(arrayfun(@(t) PlotAesthetics.getValue(t, "LineWidth"), tkW) == 2.5), ...   % (as exported: the preview draws it at its scale)
         'a raster''s Colors row shows "groups" for the groups'' colors; the Tick width row reaches the panel and the preview''s ticks');
     FE.tickWidth.Value = 0;
     FE.panelBox.Value = "auto";

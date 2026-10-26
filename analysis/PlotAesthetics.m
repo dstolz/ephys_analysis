@@ -29,6 +29,17 @@ classdef PlotAesthetics
     %     T = PlotAesthetics.components(TARGET)     one row per component (see components)
     %     P = PlotAesthetics.editableProperties(H)  what the editor offers for object H
     %     v = PlotAesthetics.getValue(H, NAME)      PlotAesthetics.setValue(H, NAME, V)
+    %   Scale
+    %     s = PlotAesthetics.drawScale(H)           the scale H's drawing is shown at (1: as exported)
+    %     PlotAesthetics.scaleSizes(H, S)           every size drawn in H times S
+    %   A drawing shown larger or smaller than its export page (renderFigure
+    %   Scale=, the app's preview) is drawn at the export's sizes and then
+    %   has every font size, line width, marker size, error bar cap and
+    %   legend token (SizeProps) times its scale, a scatter's marker area
+    %   times its square; its root keeps the scale (appdata ScaleKey).
+    %   getValue gives such a size as the export has it and setValue takes
+    %   one so, so rules, the editor and PlotDesign.capture speak of the
+    %   exported sizes whatever the scale shown.
     %   Editing
     %     PlotAesthetics.enableEditing(TARGET, CONTEXT)   right-click menu (renderFigure)
     %     d = PlotAesthetics.edit(H)                      the editor on component H
@@ -44,6 +55,8 @@ classdef PlotAesthetics
         MenuTag = "PlotAestheticsMenu"
         GotoTag = "PlotAestheticsGoto"
         ItemsKey = "PlotAestheticsItems"        % appdata of a right-click menu whose further items are made when it opens (fillMenu)
+        ScaleKey = "PlotDrawScale"              % appdata of the root of a drawing shown at a scale (renderFigure Scale=)
+        SizeProps = ["FontSize" "LineWidth" "MarkerSize" "CapSize" "SizeData" "ItemTokenSize"]   % sizes a scale multiplies (SizeData: an area, by its square)
     end
 
     methods (Static)
@@ -414,24 +427,95 @@ classdef PlotAesthetics
         function v = getValue(h, name)
             %getValue  The value of property NAME of H, as a rule stores it.
             %   On / off as "on" / "off", text as a string, numbers as double;
-            %   Colormap is the axes' colormap matrix.
+            %   Colormap is the axes' colormap matrix. A size (SizeProps) of
+            %   a drawing shown at a scale (drawScale) as the export has it.
             v = get(h, char(name));
             if isa(v, 'matlab.lang.OnOffSwitchState') || ischar(v) || iscellstr(v)
                 v = string(v);
             elseif isnumeric(v) || islogical(v)
                 v = double(v);
+                if ismember(string(name), PlotAesthetics.SizeProps)
+                    s = PlotAesthetics.drawScale(h);
+                    if s ~= 1; v = round(v / s ^ (1 + (string(name) == "SizeData")), 6); end   % (no rounding error in a rule)
+                end
             end
         end
 
         function setValue(h, name, v)
             %setValue  Set property NAME of H to V (a Colormap name sets the axes' colormap).
+            %   A size (SizeProps) is taken as the export has it: a drawing
+            %   shown at a scale (drawScale) gets it times its scale.
             name = string(name);
+            if isnumeric(v) && ismember(name, PlotAesthetics.SizeProps)
+                v = v * PlotAesthetics.drawScale(h) ^ (1 + (name == "SizeData"));
+            end
             if name == "Colormap" && (isstring(v) || ischar(v))
                 colormap(h, feval(char(v), 256));
             elseif isstring(v)
                 set(h, char(name), char(v));
             else
                 set(h, char(name), v);
+            end
+        end
+
+        function s = drawScale(h)
+            %drawScale  The scale the drawing H belongs to is shown at: its root's appdata ScaleKey (renderFigure Scale=), 1 when none.
+            s = 1;
+            key = char(PlotAesthetics.ScaleKey);
+            while ~isempty(h) && isscalar(h) && isgraphics(h)
+                if isappdata(h, key)
+                    s = getappdata(h, key);
+                    return
+                end
+                h = h.Parent;
+            end
+        end
+
+        function scaleSizes(h, s)
+            %scaleSizes  Multiply every size drawn in H by S: font sizes, line widths, marker sizes, caps, legend tokens; a scatter's marker area by S^2.
+            %   H: graphics objects (renderFigure's root, or a panel's
+            %   axes); everything in them (findall) and their axes' titles,
+            %   labels, color bars and legends, the graphics objects only (not a panel or
+            %   figure H is drawn on). A font size in "auto" mode follows
+            %   its axes' (a title's, label's, legend's or color bar's) and
+            %   is left to follow it; a font in normalized units is left as
+            %   it is. Every other size is scaled, its default too. Every
+            %   size is read first and the axes are set first: an axes'
+            %   FontSize sets its title's, labels', legend's and color
+            %   bar's, so theirs are set again after it.
+            if s == 1 || isempty(h); return; end
+            h = h(isgraphics(h));
+            if isempty(h); return; end
+            O = findall(h);
+            for ax = reshape(findall(h, 'Type', 'axes'), 1, [])   % (an empty title or label is not always among them)
+                labels = [ax.Title ax.Subtitle ax.XLabel ax.ZLabel];
+                for y = reshape(ax.YAxis, 1, []); labels = [labels y.Label]; end %#ok<AGROW>
+                for x = [ax.Colorbar ax.Legend labels]
+                    if isvalid(x) && ~any(O == x); O(end+1, 1) = x; end %#ok<AGROW>
+                end
+            end
+            O = O(arrayfun(@(o) startsWith(class(o), "matlab.graphics."), O));
+            isAxes = arrayfun(@(o) isa(o, 'matlab.graphics.axis.AbstractAxes'), O);
+            O = [O(isAxes); O(~isAxes)];
+            props = PlotAesthetics.SizeProps;
+            todo = cell(0, 3);   % object, property, scaled value: read before anything is set
+            for o = reshape(O, 1, [])
+                follows = isa(o, 'matlab.graphics.primitive.Text') || isa(o, 'matlab.graphics.illustration.Legend') || ...
+                    isa(o, 'matlab.graphics.illustration.ColorBar');   % a font that can follow its axes'
+                for p = props
+                    if ~isprop(o, p); continue; end
+                    if p == "FontSize" && follows && strcmp(o.FontSizeMode, 'auto'); continue; end   % follows its axes'
+                    if p == "FontSize" && isprop(o, 'FontUnits') && strcmp(o.FontUnits, 'normalized'); continue; end
+                    v = get(o, p);
+                    if ~isnumeric(v) || isempty(v); continue; end
+                    todo(end+1, :) = {o, char(p), round(v * s ^ (1 + (p == "SizeData")), 9)}; %#ok<AGROW>   % (rounded: scaled back, the same value)
+                end
+            end
+            for i = 1:size(todo, 1)
+                try
+                    set(todo{i, 1}, todo{i, 2}, todo{i, 3});
+                catch
+                end
             end
         end
 

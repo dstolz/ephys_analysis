@@ -960,6 +960,12 @@ notes, colors, fonts, the grid -- computes nothing; an edit of one panel's data
 computes that panel), and the panels the edit leaves as they were stay drawn,
 the others drawn again around them (`EphysAnalysisRunner.computeFigure`
 `Reuse=true`, `renderFigure` `Reuse=true`). A scan forgets what was computed.
+An edit of text alone -- a panel's x or y label or title (its own, before and
+after), the figure's own title -- with Auto on is set on the drawn preview
+itself: nothing is computed or drawn again and no busy card shows, however
+long the last preview took (`renderFigure` `InPlaceOnly=true`); the badge stays
+**Drawn**. A label or title that shows nothing before or after (a panel's first
+title of its own, one cleared) is drawn as any other edit.
 
 The line under the preview names the figure, the observation, the dataset and
 the time taken (*"figure_1, su12  ch 7  -320 µm on subj1_day1 (0.4 s);

@@ -860,7 +860,19 @@ panels are drawn again; the time stack, tick sizes, legend, title, looks and
 layout are done over all of them, so the figure is the one a whole drawing
 makes (a kept color bar may sit within a pixel of a new one's place). A time
 panel drawn again whose x limits are its own, not the figure's window, draws
-everything. [`renderFigure`](EphysAnalysisConfig.md#renderfigure)
+everything. An edit of text alone -- a panel's `xLabel`, `yLabel` or `title`,
+the figure's own `title` -- draws nothing: the new text is set on the label or
+title drawn (a blank label: the type's own text again; a time panel's x label
+as the time stack names it, nothing where the stack hides it) and the layout is
+done again from where a new drawing starts, with the data tips of the panels
+whose labels changed (they name their quantities after the labels) and the
+right-click editor following. A text that shows nothing before or after (an
+empty label, a first title of the panel's own, a title back to none: an empty
+text has no looks set and no menu), or a time panel with further axes, is
+drawn as above; so is any edit of more than text, such as a side.
+`InPlaceOnly=true` makes only such an edit and draws nothing otherwise (the
+second output, `how`, says `"inplace"`, `"drawn"` or `""`), so the app can
+skip its compute and busy card for it. [`renderFigure`](EphysAnalysisConfig.md#renderfigure)
 on the config page describes the layout, titles, legend and look in full.
 
 Four map and waveform drawings are public functions of their own, which the

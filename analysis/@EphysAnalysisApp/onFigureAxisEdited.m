@@ -40,6 +40,7 @@ if isempty(js)
 end
 said = strings(1, 0);
 moved = false(1, numel(js));   % each panel: a value of it changed
+fg = cfg.Figures(k);   % edited here, given back once (each assignment to Figures normalizes them all)
 for f = string(fieldnames(change)).'
     v = string(change.(f));
     switch f
@@ -65,11 +66,12 @@ for f = string(fieldnames(change)).'
             continue
     end
     for i = 1:numel(js)
-        moved(i) = moved(i) || cfg.Figures(k).panels(js(i)).(f) ~= v;
-        cfg.Figures(k).panels(js(i)).(f) = v;
+        moved(i) = moved(i) || fg.panels(js(i)).(f) ~= v;
+        fg.panels(js(i)).(f) = v;
     end
 end
 if isempty(said); return; end
+cfg.Figures(k) = fg;
 if every
     if ~any(moved)
         obj.setStatus("Every panel of " + id + " has its " + strjoin(said, ", ") + " already.");

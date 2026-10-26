@@ -42,6 +42,14 @@ function [F, K] = figureCompute(src, spec, opts)
 %         chronuxUnitCoherence); errors from data the dataset
 %         lacks for one layer or panel (no unit left, no event, no usable
 %         epoch) skip only it
+%     the latencies, when Latency (default true) and a panel reads them:
+%         figureLatencies(SPEC, panels) takes each epoch's first-spike
+%         latency (firstSpikeLatency) and each unit's response onset
+%         (responseOnset) by the figure's latency block, SPEC.latency,
+%         once per unit and alignment (the raster rows of a unit, as the
+%         panels on it hold them), and hands them to every panel layer on
+%         those rows (R.latency, R.onset); a heat map of trials sorted by
+%         latency is sorted by them there
 %   The error each panel draws as a band comes from figureErrorType
 %   (by panel type).
 %
@@ -67,7 +75,9 @@ function [F, K] = figureCompute(src, spec, opts)
 %                ("" = computed; "disabled"; a reason), R (the result; []
 %                when skipped) and meta (the units' or channels' table)
 %   A skipped layer stays with its reason and R = []; the panel's other
-%   layers are drawn.
+%   layers are drawn. F.latency is figureLatencies' summary (the block and
+%   one entry per unit and alignment: its latencies and onsets, the panels
+%   that read them), [] with Latency false.
 %
 %   It is pure: no runner, no graphics, nothing kept between calls, so a
 %   standalone script (EphysAnalysisScript.standalone) calls it as the
@@ -84,22 +94,29 @@ function [F, K] = figureCompute(src, spec, opts)
 %     panel   a panel's computed layers, keyed by its data spec, its epochs
 %             and groups, the observation, Observe, its selection and the
 %             error its band takes (figureErrorType)
+%     latency, onset  a unit's latencies and onset (figureLatencies), keyed
+%             by its raster rows and the latency block's settings the rule
+%             reads: an edit of the block computes them again, and nothing
+%             else
 %   A data spec (figureDataSpec) leaves out what only the drawing reads
 %   (titles, places, labels, notes, overlays, the grid, the aesthetics, a
 %   layer's color and line style, the style but its error settings, the
 %   options figureDataSpec lists): an edit of those reuses every step, an
-%   edit of one panel's data computes that panel only. With no Reuse and
+%   edit of one panel's data computes that panel only. The skip reasons
+%   are keyed without the latency block. With no Reuse and
 %   one output nothing is keyed. CHK (default [] = none) is a checkpoint: called with no
 %   arguments between the steps, panels and layers, and passed as Check=
 %   into spikePSTH, evokedPotential and unitWaveforms, so whatever it
 %   throws stops the compute there (EphysAnalysisRunner.computeFigure
 %   passes its own checkpoint while PollFcn is set, the app's preview:
-%   after cancel() it throws EphysAnalysisRunner:Canceled). Errors:
+%   after cancel() it throws EphysAnalysisRunner:Canceled). Latency=false
+%   leaves the latencies out (figureSessionCompute takes them once, on the
+%   rows merged across the sessions). Errors:
 %   EphysAnalysisRunner:FigureSkipped, EphysAnalysisRunner:NoObservation
 %   (OBS omitted and the dataset offers none), and epochTable's for the
 %   figure's own epochs.
 %
-%   See also EphysAnalysisRunner.computeFigure,
+%   See also EphysAnalysisRunner.computeFigure, figureLatencies,
 %   figureObservations, figureSkipReason, figurePanelRegistry,
 %   EphysAnalysisConfig.figureFor, renderFigure.
 
@@ -109,6 +126,7 @@ arguments
     opts.Observation = []
     opts.Check = []
     opts.Reuse = []
+    opts.Latency (1,1) logical = true
 end
 
 chk = opts.Check;   % the checkpoint the long steps call ([] = none)
@@ -120,14 +138,15 @@ C = struct('on', nargout > 1 || ~isempty(opts.Reuse), 'pool', opts.Reuse, 'datas
 if C.on
     C.dataset = string(src.key) + "|" + string(src.folder);
     dataSpec = figureDataSpec(asked);
-    [hit, v, C] = reuse(C, "skip", dataSpec);
+    skipKey = rmfield(dataSpec, intersect({'latency'}, fieldnames(dataSpec)));   % the latency block skips nothing
+    [hit, v, C] = figureReuse(C, "skip", skipKey);
 end
 if C.on && hit
     reason = v{1};
     LR = v{2};
 else
     [reason, LR] = figureSkipReason(src, asked);
-    if C.on; C = keep(C, "skip", dataSpec, {reason, LR}); end
+    if C.on; C = figureKeep(C, "skip", skipKey, {reason, LR}); end
 end
 if reason ~= ""
     error('EphysAnalysisRunner:FigureSkipped', 'Figure "%s" cannot be computed for %s: %s.', spec.id, src.name, reason);
@@ -210,7 +229,7 @@ for k = 1:np
         [eType, nBoot] = figureErrorType(spec, p);
         key = struct('panel', {rmfield(dataSpec.panels(k), 'id')}, 'epochs', {Ep}, 'groups', {Gp}, 'observation', {obs}, ...
             'observe', {spec.observe}, 'selection', {selectionOf(p, spec)}, 'errorType', eType, 'nBoot', nBoot, 'skips', {skips});
-        [hit, P.layers, C] = reuse(C, "panel", key);
+        [hit, P.layers, C] = figureReuse(C, "panel", key);
     end
     if ~hit
         ctx = struct('check', [], 'checkpoint', @() tick(chk), 'observation', obs, 'observe', spec.observe, ...
@@ -218,9 +237,14 @@ for k = 1:np
         ctx.check = chk;
         R = reg.(p.type).compute(src, p, Ep, Gp, ctx);
         P.layers = R.layers;
-        if C.on; C = keep(C, "panel", key, P.layers); end
+        if C.on; C = figureKeep(C, "panel", key, P.layers); end
     end
     panels(k) = P;
+end
+latency = [];
+if opts.Latency   % the first-spike latencies and response onsets, once per unit and alignment, for every panel that reads them
+    tick(chk);
+    [panels, latency, C] = figureLatencies(spec, panels, C);
 end
 K = C.K;
 
@@ -233,6 +257,7 @@ F.observation = obs;
 F.epochs = E;
 F.groups = G;
 F.panels = panels;
+F.latency = latency;
 F.skip = groupGone;
 F.created = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
 end
@@ -353,7 +378,7 @@ function [E, G, C] = epochsOf(C, src, ref, win, sel, base, cols)
 %epochsOf  epochTable's epochs and groups for these inputs, the ones kept when C holds them (C.on: reuse).
 if C.on
     key = struct('ref', {ref}, 'window', {win}, 'selection', {sel}, 'baseline', {base}, 'columns', {cols});
-    [hit, v, C] = reuse(C, "epochs", key);
+    [hit, v, C] = figureReuse(C, "epochs", key);
     if hit
         E = v{1};
         G = v{2};
@@ -361,34 +386,5 @@ if C.on
     end
 end
 [E, G] = epochTable(src, ref, Window=win, Selection=sel, Baseline=base, Columns=cols);
-if C.on; C = keep(C, "epochs", key, {E, G}); end
-end
-
-
-function [hit, v, C] = reuse(C, kind, key)
-%reuse  The value of the entry of C.pool (Reuse) of this KIND, dataset and KEY, noted in C.K; HIT false when none.
-hit = false;
-v = [];
-for i = 1:numel(C.K)   % made or found already in this compute (two panels on the same data)
-    if C.K(i).kind == kind && isequaln(C.K(i).key, key)
-        hit = true;
-        v = C.K(i).value;
-        return
-    end
-end
-P = C.pool;
-for i = 1:numel(P)
-    if P(i).kind ~= kind || P(i).dataset ~= C.dataset || ~isequaln(P(i).key, key); continue; end
-    hit = true;
-    v = P(i).value;
-    C.K(end+1) = struct('kind', kind, 'dataset', C.dataset, 'key', {key}, 'value', {v}, 'bytes', P(i).bytes, 'from', i);
-    return
-end
-end
-
-
-function C = keep(C, kind, key, v)
-%keep  Note in C.K what was computed now: its KIND, KEY and value V (and its size).
-w = whos('v');
-C.K(end+1) = struct('kind', kind, 'dataset', C.dataset, 'key', {key}, 'value', {v}, 'bytes', w.bytes, 'from', 0);
+if C.on; C = figureKeep(C, "epochs", key, {E, G}); end
 end

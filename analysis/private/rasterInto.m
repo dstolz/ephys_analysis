@@ -11,9 +11,8 @@ function rows = rasterInto(ax, R, u, style, colors, sortBy, look)
 %              their stop event's latency (R.epochStop); "event" by their
 %              latency to the event of R.rasterSortEvent (label, t:
 %              eventLatency); "latency" by their first spike's latency
-%              (firstSpikeLatency of unit U, in the window of
-%              look.firstSpike's minSec and maxSec -- on or off -- else from
-%              the event to the window's end); any other value names a
+%              (R.latency of unit U: the figure's latency block found it,
+%              figureLatencies); any other value names a
 %              column of R.epochs (a trial parameter epochTable copied on).
 %              Missing values (an epoch with no first spike) sort last
 %              either way; ties keep the time order. The order is
@@ -46,13 +45,20 @@ function rows = rasterInto(ax, R, u, style, colors, sortBy, look)
 %               (every group's band in that color)
 %    firstSpike [] (default: none) or defaults("FirstSpike") (a raster
 %               panel's options.firstSpike): with enabled, a mark on each
-%               epoch's first spike at or after minSec and at or before
-%               maxSec (firstSpikeLatency of unit U), on that epoch's row
-%               wherever the sort, the groups or a stack's band put it,
-%               over the ticks; in its marker and size, filled or not,
-%               each group's color ("groups") or one color. One line
-%               object per group, tagged "firstSpike" with the group's
-%               label, its epochs in appdata PlotEpochs (the data tips')
+%               epoch's first spike (R.latency.lat of unit U: the figure's
+%               latency block's, figureLatencies; an epoch without one has
+%               none), on that epoch's row wherever the sort, the groups
+%               or a stack's band put it, over the ticks; in its marker
+%               and size, filled or not, each group's color ("groups") or
+%               one color. One line object per group, tagged "firstSpike"
+%               with the group's label, its epochs in appdata PlotEpochs
+%               (the data tips')
+%    onset      "off" (default), "unit" or "groups" (a raster panel's
+%               options.onsetLine): unit U's response onset (R.onset: the
+%               figure's CUSUM onset, figureLatencies) as a dashed line
+%               over its rows, one over every row ("unit") or each group's
+%               over that group's rows in its color ("groups":
+%               drawOnsetLines, role "latencyOnset")
 %   Each group's ticks are one line object (NaN-separated), tagged
 %   "rasterTicks" with the group's label, so even long rasters export small.
 %   With ShowStop each epoch's stop event is a dot. The axes
@@ -66,8 +72,7 @@ if nargin < 6; sortBy = ""; end
 if nargin < 7; look = struct(); end
 look = rasterLook(look);
 nE = numel(R.epochGroup);
-so = struct('rasterSort', strtrim(string(sortBy)), 'rasterSortOrder', look.order, 'rasterByGroup', look.byGroup, ...
-    'firstSpike', look.firstSpike);
+so = struct('rasterSort', strtrim(string(sortBy)), 'rasterSortOrder', look.order, 'rasterByGroup', look.byGroup);
 [order, name] = figEpochOrder(R, so, u);   % the rows' order, shared with the heat map of trials and the event traces
 row = zeros(nE, 1);
 row(order) = 1:nE;
@@ -119,8 +124,11 @@ if ~isempty(tm)
         tagPart(line(ax, X(:), Y(:), 'Color', c, 'LineWidth', 0.5), "rasterTicks", R.groups.label(g));
     end
 end
-if isstruct(look.firstSpike) && look.firstSpike.enabled && look.firstSpike.minSec <= look.firstSpike.maxSec
+if isstruct(look.firstSpike) && look.firstSpike.enabled
     firstSpikeMarks(ax, R, u, y, colors, look.firstSpike);
+end
+if look.onset ~= "off" && isfield(R, 'onset')
+    onsetLines(ax, R, u, y, half, colors, look.onset, style);
 end
 if style.ShowStop && any(isfinite(R.epochStop))
     ok = isfinite(R.epochStop) & R.epochStop >= W(1) & R.epochStop <= W(2);
@@ -213,17 +221,22 @@ if ~isfield(look, 'into'); look.into = []; end
 if ~isfield(look, 'tickColor'); look.tickColor = "groups"; end
 if ~isfield(look, 'backColor'); look.backColor = "none"; end
 if ~isfield(look, 'firstSpike'); look.firstSpike = []; end
+if ~isfield(look, 'onset') || isempty(look.onset); look.onset = "off"; end
 look.order = string(look.order);
+look.onset = string(look.onset);
 look.byGroup = logical(look.byGroup);
 end
 
 
 function firstSpikeMarks(ax, R, u, y, colors, fs)
-%firstSpikeMarks  A mark on each epoch's first spike in [fs.minSec, fs.maxSec] (firstSpikeLatency), on its row Y, a line per group.
-%   An epoch with no spike in the window, or not drawn (Y NaN: left out of
-%   a stack's band), has none.
-L = firstSpikeLatency(R, Units=u, MinSec=fs.minSec, MaxSec=fs.maxSec);
-lat = L.lat(:, 1);
+%firstSpikeMarks  A mark on each epoch's first spike (R.latency: the figure's), on its row Y, a line per group.
+%   An epoch with no latency, or not drawn (Y NaN: left out of a stack's
+%   band), has none; so has a result without the figure's latencies.
+if ~isfield(R, 'latency') || ~isstruct(R.latency) || ~isfield(R.latency, 'lat') || size(R.latency.lat, 1) ~= numel(y) ...
+        || u > size(R.latency.lat, 2)
+    return
+end
+lat = R.latency.lat(:, u);
 fixed = rasterColor(fs.color, []);
 grp = R.epochGroup(:);
 for g = 1:height(R.groups)
@@ -237,6 +250,25 @@ for g = 1:height(R.groups)
         'Color', c, 'MarkerFaceColor', face, 'HandleVisibility', 'off'), "firstSpike", string(R.groups.label(g)));
     setappdata(h, 'PlotEpochs', ep);
 end
+end
+
+
+function onsetLines(ax, R, u, y, half, colors, mode, style)
+%onsetLines  Unit U's response onset over its rows: the unit's over every drawn row, or each group's over its own (drawOnsetLines).
+ok = isfinite(y(:));
+if ~any(ok); return; end
+grp = double(R.epochGroup(:));
+nG = height(R.groups);
+if mode == "unit"
+    spans = [min(y(ok) - half(ok)) max(y(ok) + half(ok))];
+else
+    spans = NaN(nG, 2);
+    for g = 1:nG
+        in = ok & grp == g;
+        if any(in); spans(g, :) = [min(y(in) - half(in)) max(y(in) + half(in))]; end
+    end
+end
+drawOnsetLines(ax, R.onset, u, mode, colors, style, spans);
 end
 
 

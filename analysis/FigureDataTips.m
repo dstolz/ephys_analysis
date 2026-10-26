@@ -15,7 +15,8 @@ classdef FigureDataTips
     %             is the time from its event), value (a heat map cell's or
     %             a probe site's, in its color bar's unit; a PSTH's latency
     %             box plot part: its median, quartiles, whiskers, outliers
-    %             and n), row (a heat map row's label: unit, channel or
+    %             and n; a response onset's line: the onset and the
+    %             CUSUM's settings), row (a heat map row's label: unit, channel or
     %             epoch)
     %     Trial   trial (a raster tick's, stop dot's, first-spike mark's or
     %             mark's trial, a
@@ -342,6 +343,8 @@ I.const = addConst(I.const, "dataset", "Dataset", C.src.dataset);
 I.const = addConst(I.const, "part", "Part", PlotAesthetics.roleLabel(role));
 if isappdata(o, 'LatencyStats')   % a latency box plot's part: its statistics, in the Cell value field
     I.const = addConst(I.const, "value", "First-spike latency", latencyText(getappdata(o, 'LatencyStats')));
+elseif isappdata(o, 'LatencyOnset')   % a response onset's line: the onset and how the CUSUM found it
+    I.const = addConst(I.const, "value", "Response onset", onsetText(getappdata(o, 'LatencyOnset')));
 end
 
 % per point: a raster part's trials, a heat map of trials' rows
@@ -619,6 +622,17 @@ s = "median " + ms(S.q(2)) + " ms, quartiles " + ms(S.q(1)) + "-" + ms(S.q(3)) +
     "-" + ms(S.whiskers(2)) + " ms";
 if S.nOutliers > 0; s = s + sprintf(", %d outlier%s", S.nOutliers, repmat('s', 1, S.nOutliers ~= 1)); end
 s = s + sprintf("; n = %d of %d epochs", S.n, S.nEpochs);
+if isfield(S, 'method') && S.method ~= "first"
+    names = struct('surprise', "Poisson surprise", 'poisson', "Poisson count");
+    if isfield(names, S.method); s = s + " (" + names.(S.method) + ")"; end
+end
+end
+
+
+function s = onsetText(S)
+%onsetText  A response onset's line as one line: "12.5 ms (CUSUM past 5 SD for 5 ms, 2 ms bins)".
+s = string(sprintf('%.3g ms (CUSUM past %g SD for %g ms, %g ms bins)', 1000 * S.onset, S.settings.Threshold, ...
+    1000 * S.settings.SustainSec, 1000 * S.settings.BinSec));
 end
 
 

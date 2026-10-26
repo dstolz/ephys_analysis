@@ -10,11 +10,12 @@ function P = computePsthPanel(src, panel, E, G, ctx)
 %   spikePSTH results (rate / err [nBins x nUnits x nGroups]; aggregate
 %   "mean" adds R.layerMean), events marks are R.kind "events" (their
 %   latencies, drawn as lines). The rows of a raster are kept (Raster=true)
-%   when an events-marks layer is drawn, and when options.latencyBox is
-%   enabled on a trace display (the box plot's first-spike latencies are
-%   read from them at draw time: firstSpikeLatency). options.normalize,
-%   histStyle, fill, stack, stackSpacing, latencyBox's look and yLim are
-%   the draw function's.
+%   when an events-marks layer is drawn, when options.latencyBox is
+%   enabled on a trace display and when options.onsetLine draws the
+%   response onset (the figure's latencies are taken from them once the
+%   panels are computed: figureLatencies). options.normalize, histStyle,
+%   fill, stack, stackSpacing, latencyBox's look and yLim are the draw
+%   function's.
 %
 %   See also figurePanelRegistry, figurePointLayer, spikePSTH.
 
@@ -26,7 +27,8 @@ P = struct('layers', figurePanelLayers(panel, ctx.skips));
 [ctx.errorType, ctx.nBoot] = figureErrorType(ctx.spec, panel);   % the band this panel draws ("sem" where none)
 on = arrayfun(@(l) l.skip == "", P.layers);
 marks = any(on & arrayfun(@(L) L.source == "events" && L.eventsAs == "marks", panel.layers));
-box = isfield(o, 'latencyBox') && o.latencyBox.enabled && o.display ~= "heatmap";   % the box plot reads the raster's rows
+box = isfield(o, 'latencyBox') && o.latencyBox.enabled && o.display ~= "heatmap";   % the box plot's latencies come from the raster's rows
+box = box || (isfield(o, 'onsetLine') && o.onsetLine ~= "off");   % ... and so does the response onset
 for j = find(on)
     P.layers(j) = figurePointLayer(src, panel.layers(j), P.layers(j), E, G, ctx, Window=[w.pre w.post], ...
         BinSec=o.bins.BinSec, SmoothSec=o.bins.SmoothSec, Measure=o.measure, Baseline=b, BaselineMode=o.baseline.Mode, ...

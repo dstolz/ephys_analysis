@@ -30,6 +30,13 @@ function issues = validate(obj, opts)
 %               rowHeights / colWidths [] or one positive size each,
 %               spacing, gapUnits, rowGap / colGap >= 0, rowGaps / colGaps
 %               [] or one gap >= 0 between every two rows / columns;
+%               latency ("<figure>.latency.<field>": method, baseline and
+%               baselineRate known values, the window minSec <= maxSec --
+%               a warning when it misses the figure's window --, the
+%               baseline window lo < hi, alpha in (0, 1), surprise > 0,
+%               whole minSpikes >= 2, the CUSUM's bin and threshold > 0,
+%               drift and sustain >= 0; a warning when a rule that needs a
+%               baseline rate has none in the figure's window);
 %               panels: a known type, whole row / col / spans inside the
 %               grid, a size in (0, 1] each way, align and valign, no
 %               overlaps, ids of their own (warnings:
@@ -66,11 +73,11 @@ function issues = validate(obj, opts)
 %               a PSTH's display (trace / heatmap),
 %               colormap (a warning for no colormap function) and color
 %               limits, the raster sort, a raster's first-spike marks
-%               and a PSTH's latency box plot while enabled (the latency
-%               window: minSec <= maxSec, a warning when it misses the
-%               panel's window; marker, size, color -- a warning for not
-%               groups or a color --, the box's line style and width,
-%               boxHeight 0.02-0.5, fillAlpha, the outliers), continuous
+%               and a PSTH's latency box plot while enabled (marker,
+%               size, color -- a warning for not groups or a color --, the
+%               box's line style and width, boxHeight 0.02-0.5, fillAlpha,
+%               the outliers), a raster's or PSTH's onsetLine (off, unit,
+%               groups), continuous
 %               statistic / transform / errorType and its
 %               toolbox, trials (off / faint / only) and
 %               maxTrials (whole, >= 1), heatmap rows (items / trials:
@@ -322,6 +329,7 @@ for k = 1:numel(obj.Figures)
     if isempty(fg.panels)
         add("Figures", f0 + ".panels", "warning", "The figure has no panels: it draws nothing.");
     end
+    checkFigureLatency(fg, f0, fw);
 
     % the panels' places
     pids = strings(1, 0);
@@ -566,7 +574,8 @@ for k = 1:numel(obj.Figures)
                 if ~ismember(op.backColor, ["" "none" "groups"]) && ~isColor(op.backColor)
                     add("Figures", o0 + ".backColor", "warning", "Not none, groups or a color: """ + op.backColor + """; the raster has no bands.");
                 end
-                checkLatency(op.firstSpike, o0 + ".firstSpike", pw, false);
+                checkLatency(op.firstSpike, o0 + ".firstSpike", false);
+                checkOnsetLine(op, o0);
                 checkFigWaveform(op.waveform, o0 + ".waveform", false);
             case "psth"
                 checkFigBins(op.bins, o0);
@@ -590,7 +599,8 @@ for k = 1:numel(obj.Figures)
                 end
                 checkFigLim(op.cLim, o0 + ".cLim", "color");
                 checkFigLim(op.yLim, o0 + ".yLim", "y");
-                checkLatency(op.latencyBox, o0 + ".latencyBox", pw, true);
+                checkLatency(op.latencyBox, o0 + ".latencyBox", true);
+                checkOnsetLine(op, o0);
                 if ~ismember(op.trialCount, ["off" "text" "legend"])
                     add("Figures", o0 + ".trialCount", "error", "A PSTH's trialCount is off, text (n = 24 per group) or legend (in the legend entries).");
                 end
@@ -1042,22 +1052,99 @@ issues = table(Section, Field, Severity, Message);
         end
     end
 
-    function checkLatency(hL, hL0, hW, hBox)
-        %checkLatency  A raster's first-spike marks (firstSpike) or, HBOX, a PSTH's latency box plot (latencyBox), against the panel's window HW.
-        %   Checked only while enabled: the window (minSec <= maxSec, both
-        %   numbers; a window that misses the panel's [pre post] warns, as
-        %   no spike can be found there), the color ("groups" or a color:
-        %   else a warning, and the groups' colors are used), the marker and
-        %   its size, and the box's line, lane height, opacity and outliers.
-        if ~hL.enabled; return; end
-        markers = PlotAesthetics.catalog().Marker.Choices;
+    function checkFigureLatency(hFg, hF0, hW)
+        %checkFigureLatency  A figure's latency block (latency: how its panels' first-spike latencies and onsets are found), against its window HW.
+        %   The method, baseline and baselineRate known values; the window
+        %   (minSec <= maxSec, both numbers; one that misses the figure's
+        %   [pre post] warns, as nothing can be found there); the baseline
+        %   window [lo hi] with lo < hi; alpha in (0, 1), surprise above 0,
+        %   minSpikes a whole number of at least 2; the CUSUM's bin (above
+        %   0), threshold (above 0), drift and sustain (0 or more). A
+        %   warning when a rule that needs a baseline rate ("surprise",
+        %   "poisson", or a panel that draws the onset) takes it from
+        %   before the event but the figure's window starts at or after the
+        %   event, and when the baseline window misses the figure's window.
+        %   The window warnings only on a figure with a raster, PSTH or heat
+        %   map and a fixed window (pre and post from the event).
+        hL = hFg.latency;
+        hL0 = hF0 + ".latency";
+        hTypes = strings(1, 0);
+        if ~isempty(hFg.panels); hTypes = [hFg.panels.type]; end
+        if ~(isstruct(hW) && isfield(hW, 'mode') && hW.mode == "fixed" && any(ismember(hTypes, ["raster" "psth" "heatmap"])))
+            hW = [];   % no panel that can read it, or a window from event to event: its place in the window is not checked
+        end
+        if ~ismember(hL.method, EphysAnalysisConfig.LatencyMethods)
+            add("Figures", hL0 + ".method", "error", "The latency method is " + strjoin(EphysAnalysisConfig.LatencyMethods, ", ") + ...
+                ", not " + hL.method + ".");
+        end
+        if ~ismember(hL.baseline, EphysAnalysisConfig.LatencyBaselines)
+            add("Figures", hL0 + ".baseline", "error", "The latency baseline is pre (before the event) or window (baselineWindow).");
+        end
+        if ~ismember(hL.baselineRate, EphysAnalysisConfig.LatencyRates)
+            add("Figures", hL0 + ".baselineRate", "error", "The latency baseline rate is unit (every epoch's) or trial (each epoch's own).");
+        end
         if isnan(hL.minSec) || isnan(hL.maxSec) || ~(hL.minSec <= hL.maxSec) || hL.minSec == Inf || hL.maxSec == -Inf
-            add("Figures", hL0 + ".minSec", "error", sprintf(['The first-spike latency window [%g %g] s needs minSec <= ' ...
+            add("Figures", hL0 + ".minSec", "error", sprintf(['The latency window [%g %g] s needs minSec <= ' ...
                 'maxSec (maxSec Inf = the window''s end).'], hL.minSec, hL.maxSec));
         elseif isstruct(hW) && isfinite(hW.pre) && isfinite(hW.post) && (hL.minSec >= hW.post || hL.maxSec < hW.pre)
-            add("Figures", hL0 + ".minSec", "warning", sprintf(['The first-spike latency window [%g %g] s misses the ' ...
-                'panel''s window [%g %g] s: no first spike can be found.'], hL.minSec, hL.maxSec, hW.pre, hW.post));
+            add("Figures", hL0 + ".minSec", "warning", sprintf(['The latency window [%g %g] s misses the ' ...
+                'figure''s window [%g %g] s: no first spike or onset can be found.'], hL.minSec, hL.maxSec, hW.pre, hW.post));
         end
+        bw = hL.baselineWindow;
+        if ~(numel(bw) == 2 && all(isfinite(bw)) && bw(1) < bw(2))
+            add("Figures", hL0 + ".baselineWindow", "error", "The latency baseline window is [lo hi] s with lo < hi.");
+        end
+        if ~(hL.alpha > 0 && hL.alpha < 1)
+            add("Figures", hL0 + ".alpha", "error", "The latency alpha is above 0 and below 1.");
+        end
+        if ~(isfinite(hL.surprise) && hL.surprise > 0)
+            add("Figures", hL0 + ".surprise", "error", "The least Poisson surprise is above 0 (-log10 of a probability).");
+        end
+        if ~(isscalar(hL.minSpikes) && isfinite(hL.minSpikes) && hL.minSpikes >= 2 && hL.minSpikes == round(hL.minSpikes))
+            add("Figures", hL0 + ".minSpikes", "error", "A burst starts with a whole number of spikes, at least 2.");
+        end
+        if ~(isfinite(hL.cusumBinSec) && hL.cusumBinSec > 0)
+            add("Figures", hL0 + ".cusumBinSec", "error", "The onset's bins (cusumBinSec) are above 0 s.");
+        end
+        if ~(isfinite(hL.cusumThreshold) && hL.cusumThreshold > 0)
+            add("Figures", hL0 + ".cusumThreshold", "error", "The onset's CUSUM threshold is above 0 baseline SDs.");
+        end
+        if ~(isfinite(hL.cusumDrift) && hL.cusumDrift >= 0)
+            add("Figures", hL0 + ".cusumDrift", "error", "The onset's CUSUM allowance (cusumDrift) is 0 or more baseline SDs.");
+        end
+        if ~(isfinite(hL.cusumSustainSec) && hL.cusumSustainSec >= 0)
+            add("Figures", hL0 + ".cusumSustainSec", "error", "The onset's sustain (cusumSustainSec) is 0 s or more.");
+        end
+        onset = false;
+        for hP = reshape(hFg.panels, 1, [])
+            onset = onset || (isfield(hP.options, 'onsetLine') && hP.options.onsetLine ~= "off");
+        end
+        if ~(ismember(hL.method, ["surprise" "poisson"]) || onset) || ~isstruct(hW); return; end
+        if hL.baseline == "pre" && isfinite(hW.pre) && hW.pre >= 0
+            add("Figures", hL0 + ".baseline", "warning", sprintf(['The baseline rate is taken before the event, but the ' ...
+                'figure''s window starts at %g s: there is no baseline, and no latency or onset is found (give the window ' ...
+                'time before the event, or a baseline window).'], hW.pre));
+        elseif hL.baseline == "window" && numel(bw) == 2 && isfinite(hW.pre) && isfinite(hW.post) && (bw(2) <= hW.pre || bw(1) >= hW.post)
+            add("Figures", hL0 + ".baselineWindow", "warning", sprintf(['The baseline window [%g %g] s misses the ' ...
+                'figure''s window [%g %g] s: the raster rows hold no baseline.'], bw(1), bw(2), hW.pre, hW.post));
+        end
+    end
+
+    function checkOnsetLine(hOp, hO0)
+        %checkOnsetLine  A raster's or PSTH's onsetLine: off, unit or groups.
+        if isfield(hOp, 'onsetLine') && ~ismember(hOp.onsetLine, EphysAnalysisConfig.OnsetLines)
+            add("Figures", hO0 + ".onsetLine", "error", "onsetLine is off, unit (one line) or groups (each group's).");
+        end
+    end
+
+    function checkLatency(hL, hL0, hBox)
+        %checkLatency  A raster's first-spike marks (firstSpike) or, HBOX, a PSTH's latency box plot (latencyBox): their look.
+        %   Checked only while enabled: the color ("groups" or a color:
+        %   else a warning, and the groups' colors are used), the marker and
+        %   its size, and the box's line, lane height, opacity and outliers.
+        %   How the latencies are found is the figure's (checkFigureLatency).
+        if ~hL.enabled; return; end
+        markers = PlotAesthetics.catalog().Marker.Choices;
         if hL.color ~= "groups" && ~isColor(hL.color)
             add("Figures", hL0 + ".color", "warning", "Not groups or a color: """ + hL.color + """; the groups' colors are used.");
         end

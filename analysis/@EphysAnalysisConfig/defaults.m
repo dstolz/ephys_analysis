@@ -11,9 +11,12 @@ function s = defaults(section)
 %                     of Figures)
 %   Building blocks   EventRef, SequenceStep (one step of an EventRef's
 %                     sequence), EpochWindow, TrialSelection, UnitSelection,
-%                     Style, Auroc, Waveform, FirstSpike (a raster's
-%                     first-spike latency marks), LatencyBox (a PSTH's box
-%                     plot of the first-spike latencies), Note, Overlay (one
+%                     Style, Auroc, Waveform, Latency (a figure's
+%                     first-spike latency and response onset: how they are
+%                     found, once for all its panels), FirstSpike (a
+%                     raster's first-spike latency marks: their look),
+%                     LatencyBox (a PSTH's box plot of the first-spike
+%                     latencies: its look), Note, Overlay (one
 %                     entry of a panel's overlays), EventMark (an events
 %                     layer's event: an EventRef and its mark's look);
 %                     a figure's Observe (what it is drawn for),
@@ -174,24 +177,40 @@ switch section
             'showSites', true, ...          % waveforms panel, probe layout: the probe's sites behind the waveforms
             'showNames', false);            % waveforms panel, probe layout: each unit's name beside its waveform
 
+    case "Latency"
+        % a figure's first-spike latency (each epoch's: firstSpikeLatency) and response onset (each unit's, by CUSUM:
+        % responseOnset), found once per unit and alignment for every panel that reads them (figureLatencies): a raster's
+        % marks and latency sort, a PSTH's latency box plot, a heat map of trials' latency sort, the onset lines
+        s = struct( ...
+            'method',          "first", ...     % per trial: "first" (the first spike in the window) | "surprise" (the first burst's first spike, Poisson surprise: Legendy & Salcman 1985) | "poisson" (the first spike whose count since the window's start is improbable at the baseline rate: Chase & Young 2007)
+            'minSec',          0, ...           % the window searched: the earliest latency (and onset), s from the event (included)
+            'maxSec',          Inf, ...         % the latest, s (included; Inf = each panel's window's end)
+            'baseline',        "pre", ...       % the baseline rate's window: "pre" (the window's part before the event) | "window" (baselineWindow)
+            'baselineWindow',  [-0.1 0], ...    % baseline "window": [lo hi] s from the event
+            'baselineRate',    "unit", ...      % "surprise" / "poisson": "unit" (every epoch's baseline counted together) | "trial" (each epoch's own)
+            'alpha',           0.01, ...        % "poisson": the count's improbability, P(N >= k) below it
+            'surprise',        3, ...           % "surprise": the least surprise of a burst, -log10 P
+            'minSpikes',       3, ...           % "surprise": the fewest spikes a burst starts with (at least 2)
+            'cusumBinSec',     0.002, ...       % the onset: the PSTH's bins, s
+            'cusumThreshold',  5, ...           % the onset: the CUSUM's threshold, baseline SDs
+            'cusumDrift',      1, ...           % the onset: the allowance each bin takes off, baseline SDs (0: the plain excess)
+            'cusumSustainSec', 0.005);          % the onset: how long the CUSUM stays over the threshold and rising, s
+
     case "FirstSpike"
-        % a raster panel's first-spike latency: a mark on each epoch's first spike in [minSec, maxSec] (firstSpikeLatency; rasterInto)
+        % a raster panel's first-spike latency marks: a mark on each epoch's first spike (the figure's latency block finds it:
+        % figureLatencies; rasterInto draws it)
         s = struct( ...
             'enabled', false, ...           % mark each epoch's first spike
-            'minSec',  0, ...               % the earliest latency, s from the event (included)
-            'maxSec',  Inf, ...             % the latest, s (included; Inf = the panel's window's end)
             'marker',  "o", ...             % a line marker (PlotAesthetics' list: o, square, diamond, ^, v, |, ...)
             'size',    5, ...               % marker size, points
             'color',   "groups", ...        % "groups" (each trial group's color) | a color name or hex code
             'filled',  false);              % a filled marker (false: its outline only, the tick showing through)
 
     case "LatencyBox"
-        % a PSTH panel's box plot of the first-spike latencies (firstSpikeLatency; drawPsthPanel): a box per trial group in a band
-        % of its own above the traces (a stacked PSTH: in each row, above its trace)
+        % a PSTH panel's box plot of the first-spike latencies (the figure's latency block finds them: figureLatencies;
+        % drawPsthPanel): a box per trial group in a band of its own above the traces (a stacked PSTH: in each row, above its trace)
         s = struct( ...
             'enabled',       false, ...     % draw the box plot
-            'minSec',        0, ...         % the earliest latency, s from the event (included)
-            'maxSec',        Inf, ...       % the latest, s (included; Inf = the panel's window's end)
             'color',         "groups", ...  % "groups" (each trial group's color) | a color name or hex code
             'lineStyle',     "-", ...       % the box's outline and whiskers: "-" | "--" | ":" | "-."
             'lineWidth',     1, ...         % points
@@ -385,6 +404,7 @@ switch section
             'window',     "default", ...        % "default" (Defaults.Window) or an EpochWindow
             'selection',  "default", ...        % "default" (Defaults.Selection) or a TrialSelection
             'sessions',   EphysAnalysisConfig.defaults("FigureSessions"), ...   % drawn across datasets (enabled) instead of per dataset
+            'latency',    EphysAnalysisConfig.defaults("Latency"), ...   % how the first-spike latencies and response onsets its panels read are found
             'style',      EphysAnalysisConfig.defaults("Style"), ...   % YLim / CLim / MaxTiles / TileSpacing unused (panel options, grid.spacing)
             'aesthetics', PlotAesthetics.emptyRules());
 

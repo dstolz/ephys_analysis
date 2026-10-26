@@ -3,7 +3,8 @@ function report = addReportDataset(report, src)
 %   REPORT = addReportDataset(REPORT, SRC) appends the dataset SRC
 %   (loadAnalysisSource) with its summary tables (reportSummaryTables, when
 %   the report's IncludeSummary is on) and its star (starred: the
-%   dataset's own star, DatasetFavorites; the reports mark it). Figures
+%   dataset's own star, DatasetFavorites; the reports mark it) and its
+%   tags (tags: SRC.tags, a cellstr; the reports show them). Figures
 %   added next with addReportFigure go into this section.
 %
 %   See also newAnalysisReport, addReportFigure, reportSummaryTables,
@@ -27,5 +28,5 @@ try
 catch   % a source without outputs: no star
 end
 report.datasets(end+1) = struct('name', src.name, 'key', src.key, 'folder', src.folder, ...
-    'summary', summary, 'entries', entry, 'kind', "dataset", 'starred', starred);
+    'summary', summary, 'entries', entry, 'kind', "dataset", 'starred', starred, 'tags', {src.tags});
 end

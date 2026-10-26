@@ -1,7 +1,7 @@
 function S = reportSummaryTables(src)
 %reportSummaryTables  The tables a report shows at the top of a dataset.
 %   S = reportSummaryTables(SRC) for a dataset SRC (loadAnalysisSource):
-%     recording  Field / Value: name, key, starred, folder, rate,
+%     recording  Field / Value: name, key, starred, tags, folder, rate,
 %                duration, subject, session start, probe, signals, units,
 %                detections, pairing, and the starred channels and units
 %                (DatasetFavorites) when there are any
@@ -34,6 +34,9 @@ try
 catch
 end
 if ~isempty(fav); add("Starred", yesNo(fav.Dataset, "")); end
+tagText = TagSet.toText(src.tags, TagSet.DisplayDelimiter);
+if tagText == ""; tagText = "(none)"; end
+add("Tags", tagText);
 add("Output folder", src.folder);
 add("Recording rate (Hz)", num(src.fs));
 add("Duration (s)", num(src.durationSec));

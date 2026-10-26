@@ -1,6 +1,6 @@
 function S = sessionTable(names, keys, opts)
 %sessionTable  One row per dataset of a session figure: who, when, and the label it is drawn with.
-%   S = sessionTable(NAMES, KEYS, NamePattern=, AcqDates=, Folders=) has one
+%   S = sessionTable(NAMES, KEYS, NamePattern=, AcqDates=, Folders=, Tags=) has one
 %   row per dataset (NAMES and KEYS: string vectors of one length), in the
 %   order given:
 %     index     Index= (default 1..n): the runner passes its dataset indices
@@ -9,6 +9,8 @@ function S = sessionTable(names, keys, opts)
 %     folder    its output folder (Folders=; "" when not given)
 %     starred   the dataset is starred: its folder's favorites file
 %               (DatasetFavorites); false without a folder
+%     tags      the dataset's tags as text (Tags=; TagSet.toText with the
+%               export delimiter ";", "" when none)
 %     subject   the SubjectID token of NamePattern (subjectAndDate), "" when
 %               unknown
 %     date      datetime: AcqDates (the recording's own start) where given,
@@ -20,7 +22,9 @@ function S = sessionTable(names, keys, opts)
 %   Sort=true orders the rows by date (NaT last), then name, before the
 %   labels are made unique (EphysAnalysisRunner.sessionTable does). The only
 %   I/O is each folder's favorites file (a dataset's star). AcqDates and
-%   Folders may be one value for every row.
+%   Folders may be one value for every row. Tags= is the text of each row's
+%   tags (a string vector, "" for none; one value or one per row), as the
+%   runner reads them from the manifests (loadAnalysisSource).
 %
 %   See also combineSessions, figureSessionCompute, subjectAndDate,
 %   EphysAnalysisRunner.sessionTable.
@@ -31,6 +35,7 @@ arguments
     opts.NamePattern (1,1) string = EphysDataset.DefaultNamePattern
     opts.AcqDates (:,1) datetime = NaT
     opts.Folders (:,1) string = ""
+    opts.Tags (:,1) string = ""
     opts.Index (:,1) double = []
     opts.Sort (1,1) logical = false
 end
@@ -41,6 +46,7 @@ if numel(keys) ~= n
 end
 acq = expand(opts.AcqDates, n, NaT, "AcqDates");
 folder = expand(opts.Folders, n, "", "Folders");
+tags = expand(opts.Tags, n, "", "Tags");
 index = opts.Index;
 if isempty(index); index = (1:n).'; end
 if numel(index) ~= n
@@ -69,7 +75,7 @@ for k = reshape(find(folder ~= "" & isfolder(folder)), 1, [])
     catch   % unreadable: no star
     end
 end
-S = table(index, key, name, folder, starred, subject, date, dateText);
+S = table(index, key, name, folder, starred, tags, subject, date, dateText);
 if opts.Sort && n > 1
     [~, order] = sortrows(table(S.date, S.name), [1 2], 'ascend', 'MissingPlacement', 'last');
     S = S(order, :);

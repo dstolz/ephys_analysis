@@ -151,6 +151,7 @@ copies them.
 | **✎** | the dataset has a note. Click it to make the dataset active and open its note in the notepad ([Notes](#notes)) |
 | **Name**, **Key** | the dataset's name and key (the root-relative folder, or the output folder in folders mode) |
 | **Subject**, **Date** | the dataset's `SubjectID` from the name pattern, and the day it was recorded (a project's recording start, else the date in the name) |
+| **Tags** | the dataset's [tags](EphysDataset.md#tags), `, `-joined (read only: tags are edited in the pipeline app's Project tab). From the manifest beside the data, read once per dataset, not the whole source. They also appear in the report (after the dataset's name, and the *Recording* table's **Tags** row) and in the sessions and population exports ([Tags](EphysAnalysis.md#tags)) |
 | **LFP**, **MUA**, **SPIKE**, **AUX** | ✓ when that signal's extract exists |
 | **Units**, **Detected** | the sorting folder holds sorted units; the spikes file holds threshold detections |
 | **Behavior** | `<Name>_behavior.mat` exists |

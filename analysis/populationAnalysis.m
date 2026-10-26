@@ -41,7 +41,8 @@ function [P, S, files] = populationAnalysis(source, opts)
 %
 %   P fields
 %     units     table, one row per unit: dataset, datasetKey, subject (the
-%               name pattern's SubjectID, else the behavior's), then
+%               name pattern's SubjectID, else the behavior's), tags (the
+%               dataset's tags, ";"-joined), then
 %               selectUnits' columns (label, unitId, class, channel,
 %               channelName, shank, x, y, nSpikes and, with
 %               Units.quality, the quality metrics), rateHz (nSpikes /
@@ -88,7 +89,8 @@ function [P, S, files] = populationAnalysis(source, opts)
 %               spikes/s; NaN where a unit has no epoch of a level), n
 %               (the epochs)
 %     datasets  table: datasetKey, dataset, subject, starred (the
-%               dataset's star: DatasetFavorites), status ("done" |
+%               dataset's star: DatasetFavorites), tags (its tags,
+%               ";"-joined: TagSet.ExportDelimiter), status ("done" |
 %               "skipped" | "error"), message, nUnits, nEpochs (the PSTH's),
 %               nTestEpochs, nTestEpochsLeftOut
 %     params    every option as used (ref, window and selection resolved)
@@ -244,9 +246,9 @@ end
 
 % --- per dataset ---------------------------------------------------------------------------
 nD = numel(idx);
-D = table(strings(nD, 1), strings(nD, 1), strings(nD, 1), false(nD, 1), repmat("error", nD, 1), strings(nD, 1), ...
+D = table(strings(nD, 1), strings(nD, 1), strings(nD, 1), false(nD, 1), strings(nD, 1), repmat("error", nD, 1), strings(nD, 1), ...
     zeros(nD, 1), zeros(nD, 1), zeros(nD, 1), zeros(nD, 1), ...
-    'VariableNames', {'datasetKey', 'dataset', 'subject', 'starred', 'status', 'message', 'nUnits', 'nEpochs', ...
+    'VariableNames', {'datasetKey', 'dataset', 'subject', 'starred', 'tags', 'status', 'message', 'nUnits', 'nEpochs', ...
     'nTestEpochs', 'nTestEpochsLeftOut'});
 skipIds = ["selectUnits:NoUnits" "selectUnits:NoDetected" "selectUnits:NoneLeft" "epochTable:NoEpochs" ...
     "resolveEvents:NoEvents" "resolveEvents:NoLine" "responseStats:NoEpochs"];
@@ -273,6 +275,7 @@ for j = 1:nD
         src = runner.source(k);
         subject = subjectOf(src, cfg.Source.NamePattern);
         D.subject(j) = subject;
+        D.tags(j) = TagSet.toText(src.tags, TagSet.ExportDelimiter);
         [st, meta] = selectUnits(src, usel, Ref=ref, Selection=sel);
         E = epochTable(src, ref, Window=win, Selection=sel, Baseline=opts.Baseline);
         R = spikePSTH(st, E, Window=[win.pre win.post], BinSec=opts.BinSec, SmoothSec=opts.SmoothSec, ...
@@ -312,8 +315,8 @@ for j = 1:nD
     end
     n = height(meta);
     U = meta;
-    U = addvars(U, repmat(D.dataset(j), n, 1), repmat(D.datasetKey(j), n, 1), repmat(subject, n, 1), ...
-        'Before', 1, 'NewVariableNames', {'dataset', 'datasetKey', 'subject'});
+    U = addvars(U, repmat(D.dataset(j), n, 1), repmat(D.datasetKey(j), n, 1), repmat(subject, n, 1), repmat(D.tags(j), n, 1), ...
+        'Before', 1, 'NewVariableNames', {'dataset', 'datasetKey', 'subject', 'tags'});
     U.rateHz = double(U.nSpikes) / src.durationSec;
     U.starred = false(n, 1);
     if ~isempty(fav) && usel.source == "detected"

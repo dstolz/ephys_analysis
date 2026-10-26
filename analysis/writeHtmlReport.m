@@ -75,7 +75,7 @@ for d = 1:nSections
         opts.ProgressFcn(d - 1, nSections, sprintf("Writing the report: section %d/%d", d, nSections));
     end
     D = report.datasets(d);
-    L(end+1) = "<section id=""ds" + d + """><h2>" + htmlEscape(D.name) + starMark(D) + "</h2>"; %#ok<AGROW>
+    L(end+1) = "<section id=""ds" + d + """><h2>" + htmlEscape(D.name) + starMark(D) + tagsMark(D) + "</h2>"; %#ok<AGROW>
     if ~isempty(D.summary)
         S = D.summary;
         L(end+1) = "<div class=""tables"">"; %#ok<AGROW>
@@ -156,6 +156,7 @@ s = join([ ...
     ".files{font-size:11px;color:#57606a;margin:4px 0}"
     ".bad{color:#cf222e}"
     ".star{color:#bf8700}"
+    ".tags{font-size:11px;font-weight:normal;color:#57606a}"
     ".tables{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start}"
     ".tables>div{background:#fff;border:1px solid #d0d7de;border-radius:8px;padding:8px 10px}"
     "table{border-collapse:collapse;font-size:12px}"
@@ -226,4 +227,13 @@ function s = starMark(D)
 %starMark  " ★" after a starred dataset's name (its starred field), else "".
 s = "";
 if D.starred; s = " <span class=""star"" title=""starred"">&#9733;</span>"; end
+end
+
+
+function s = tagsMark(D)
+%tagsMark  " <span>draft, pilot</span>" after a dataset's name (its tags field), else "".
+s = "";
+if ~isempty(D.tags)
+    s = " <span class=""tags"" title=""tags"">" + htmlEscape(TagSet.toText(D.tags, TagSet.DisplayDelimiter)) + "</span>";
+end
 end

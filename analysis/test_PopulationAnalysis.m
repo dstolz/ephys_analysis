@@ -298,6 +298,71 @@ classdef test_PopulationAnalysis < matlab.unittest.TestCase
             tc.verifyTrue(isfile(pdf), 'the PDF report is written with the starred dataset named so');
         end
 
+        function tagsInExports(tc)
+            % a dataset's tags (the manifest's) reach the source, the tables, the session table and the reports
+            r0 = EphysAnalysisRunner(tc.Config, LogFcn=[]);
+            f1 = r0.Outputs(1).ManifestFile;
+            f2 = r0.Outputs(2).ManifestFile;
+            for f = [f1 f2]
+                tc.addTeardown(@restoreText, f, string(fileread(f)));
+            end
+            m1 = readJsonFile(f1);
+            m1.tags = {'zeta', 'Pilot', 'pilot'};   % written as the manifest holds them; read sorted, unique, lowercase
+            writeJsonFile(f1, m1);
+            m2 = readJsonFile(f2);
+            if isfield(m2, 'tags'); m2 = rmfield(m2, 'tags'); end
+            writeJsonFile(f2, m2);
+            r = EphysAnalysisRunner(tc.Config, LogFcn=[]);
+            src = r.source(1);
+            src2 = r.source(2);
+            tc.verifyEqual(src.tags, {'pilot', 'zeta'}, 'loadAnalysisSource: the manifest''s tags, sorted and lowercase');
+            tc.verifyEqual(src2.tags, {}, 'a manifest without a tags key: {}');
+            m2.tags = {};   % jsonencode writes []
+            writeJsonFile(f2, m2);
+            tc.verifyEqual(loadAnalysisSource(r.Outputs(2).Folder).tags, {}, 'an empty tags array: {}');
+            tc.verifyEqual(outputTags(r.Outputs(1)), {'pilot', 'zeta'}, 'outputTags: the same, without loading a source');
+            % the session table, directly and through the runner
+            S = sessionTable(["a"; "b"], ["a"; "b"], Tags=["x;y"; ""]);
+            tc.verifyEqual(S.tags, ["x;y"; ""], 'sessionTable: Tags= is the tags column');
+            tc.verifyEqual(sessionTable(["a"; "b"], ["a"; "b"]).tags, ["";  ""], 'sessionTable: no Tags= gives ""');
+            sessions = r.sessionTable();
+            tc.verifyEqual(sessions.tags(sessions.index == 1), "pilot;zeta", 'EphysAnalysisRunner.sessionTable: the ";"-joined tags');
+            tc.verifyEqual(sessions.tags(sessions.index == 2), "", 'no tags: ""');
+            % the population tables and files
+            tmp = tc.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+            out = fullfile(tmp.Folder, "pop");
+            P = populationAnalysis(tc.Config, Tests=false, Folder=out, LogFcn=[]);
+            tc.verifyEqual(P.datasets.tags(P.datasets.datasetKey == r.Keys(1)), "pilot;zeta", 'P.datasets.tags');
+            rows = P.units.datasetKey == r.Keys(1);
+            tc.verifyTrue(all(P.units.tags(rows) == "pilot;zeta") && all(P.units.tags(~rows) == ""), 'P.units.tags: the dataset''s, on each of its units');
+            tc.verifyEqual(TagSet.fromText(P.units.tags(find(rows, 1)), TagSet.ExportDelimiter), {'pilot', 'zeta'}, 'the text reads back as the tag set');
+            T = readtable(fullfile(out, "population_units.csv"), 'TextType', 'string');
+            tc.verifyEqual(fillmissing(T.tags, 'constant', ""), P.units.tags, 'population_units.csv holds the tags column');
+            J = readJsonFile(fullfile(out, "population.json"));
+            tc.verifyTrue(isfield(J.datasets, 'tags'), 'population.json: the datasets carry tags');
+            % the report: the model, the Recording table, the HTML and the PDF
+            T1 = reportSummaryTables(src);
+            tc.verifyEqual(T1.recording.Value(T1.recording.Field == "Tags"), "pilot, zeta", 'the Recording table: Tags, ", "-joined');
+            T2 = reportSummaryTables(src2);
+            tc.verifyEqual(T2.recording.Value(T2.recording.Field == "Tags"), "(none)", 'the Recording table: (none) without tags');
+            report = newAnalysisReport(Options=struct('Format', "both"));
+            report = addReportDataset(report, src);
+            report = addReportDataset(report, src2);
+            report = addReportSection(report, "Across sessions");
+            tc.verifyEqual(report.datasets(1).tags, {'pilot', 'zeta'}, 'the report keeps the dataset''s tags');
+            tc.verifyTrue(isempty(report.datasets(2).tags) && isempty(report.datasets(3).tags), 'no tags on a dataset without and on a section');
+            html = writeHtmlReport(report, fullfile(string(tmp.Folder), "report.html"));
+            txt = string(fileread(html));
+            tc.verifyEqual(count(txt, "class=""tags"""), 1, 'the HTML report shows the tags once, over the tagged dataset''s section');
+            tc.verifyTrue(contains(txt, "<h2>" + src.name + " <span class=""tags"" title=""tags"">pilot, zeta</span></h2>"), ...
+                'the section header carries the tags');
+            tc.verifyTrue(contains(txt, "<td>Tags</td><td>pilot, zeta</td>") && contains(txt, "<td>Tags</td><td>(none)</td>"), 'the Recording tables have the Tags row');
+            pdf = writePdfReport(report, fullfile(string(tmp.Folder), "report.pdf"));
+            pages = pdfPageTexts(pdf);
+            tc.verifyTrue(contains(pages(1), "1. " + src.name) && contains(pages(1), "figure(s)) [pilot, zeta]"), 'the PDF title page: the dataset line gains [pilot, zeta]');
+            tc.verifyFalse(contains(pages(1), "2. " + src2.name + " (0 figure(s)) ["), 'no bracket without tags');
+        end
+
         function errors(tc)
             tc.verifyError(@() populationAnalysis(tc.Config, Units=struct('response', struct('enabled', true)), LogFcn=[]), ...
                 'populationAnalysis:ResponseSelection');
@@ -318,4 +383,27 @@ end
 
 function deleteIfThere(f)
 if isfile(f); delete(f); end
+end
+
+
+function restoreText(file, txt)
+%restoreText  Put a file's text back as it was.
+fid = fopen(file, 'w');
+c = onCleanup(@() fclose(fid));
+fwrite(fid, txt);
+end
+
+
+function T = pdfPageTexts(file)
+%pdfPageTexts  Each page's text, whitespace collapsed (PDFBox, as writePdfReport joins the pages).
+doc = org.apache.pdfbox.pdmodel.PDDocument.load(java.io.File(char(file)));
+closer = onCleanup(@() doc.close());
+strip = org.apache.pdfbox.text.PDFTextStripper();
+n = doc.getNumberOfPages();
+T = strings(n, 1);
+for p = 1:n
+    strip.setStartPage(p);
+    strip.setEndPage(p);
+    T(p) = strtrim(regexprep(string(strip.getText(doc)), '\s+', ' '));
+end
 end

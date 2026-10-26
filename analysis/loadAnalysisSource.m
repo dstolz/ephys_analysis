@@ -37,6 +37,9 @@ function src = loadAnalysisSource(out, opts)
 %                       periods count: with Signals.BlankArtifacts off the
 %                       periods erased before sorting or detection are not
 %                       here
+%     tags              the dataset's tags (the manifest's tags, TagSet): a
+%                       1 x N cellstr, sorted, lowercase; {} when none or
+%                       without a manifest
 %     invertedLines     lines whose polarity was inverted
 %     lines             table: Line, Count, MeanDurationSec, First, Last,
 %                       Inverted, Derived (a derived event's description,
@@ -108,6 +111,10 @@ src.durationSec = NaN;
 if isfield(m, 'metadata') && isstruct(m.metadata)
     src.fs = numOr(m.metadata, 'fs', NaN);
     src.durationSec = numOr(m.metadata, 'duration_s', NaN);
+end
+src.tags = {};
+if isfield(m, 'tags')
+    src.tags = TagSet.parse(m.tags);
 end
 src.probeFile = out.probeFile();
 src.probe = [];

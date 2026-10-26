@@ -130,7 +130,7 @@ classdef EphysAnalysisScript
                 end
                 L(end+1, 1) = "outs = DatasetOutputs.empty(1, 0); keys = strings(1, 0); folders = strings(1, 0);";
                 if across
-                    L(end+1, 1) = "names = strings(1, 0); acq = NaT(1, 0);   % for the session figures: each dataset's name and start";
+                    L(end+1, 1) = "names = strings(1, 0); acq = NaT(1, 0); tags = strings(1, 0);   % for the session figures: each dataset's name, start and tags";
                 end
                 L(end+1, 1) = "for k = idx";
                 L(end+1, 1) = "    d = P.Datasets(k);";
@@ -139,6 +139,8 @@ classdef EphysAnalysisScript
                 L(end+1, 1) = "    folders(end+1) = string(d.outputFolder());";
                 if across
                     L(end+1, 1) = "    names(end+1) = d.Name;";
+                    L(end+1, 1) = "    m = struct(); if outs(end).has(""manifest""); m = outs(end).Manifest; end   % the manifest's tags";
+                    L(end+1, 1) = "    tags(end+1) = """"; if isfield(m, 'tags'); tags(end) = TagSet.toText(TagSet.parse(m.tags), TagSet.ExportDelimiter); end";
                     L(end+1, 1) = "    a = d.AcqDate;   % the recording's own start, for the session figures' dates";
                     L(end+1, 1) = "    if isdatetime(a) && ~isempty(a); acq(end+1) = a(1); else; acq(end+1) = NaT; end";
                 end
@@ -148,13 +150,15 @@ classdef EphysAnalysisScript
                 L(end+1, 1) = "folders = " + lit(S.Folders) + ";   % the datasets' output folders";
                 L(end+1, 1) = "outs = DatasetOutputs.empty(1, 0);";
                 if across
-                    L(end+1, 1) = "names = strings(1, 0); acq = NaT(1, 0);   % folders carry no acquisition date";
+                    L(end+1, 1) = "names = strings(1, 0); acq = NaT(1, 0); tags = strings(1, 0);   % folders carry no acquisition date";
                 end
                 L(end+1, 1) = "for f = folders";
                 L(end+1, 1) = "    outs(end+1) = DatasetOutputs(f, CacheData=true);";
                 if across
                     L(end+1, 1) = "    names(end+1) = outs(end).Name;";
                     L(end+1, 1) = "    acq(end+1) = NaT;";
+                    L(end+1, 1) = "    m = struct(); if outs(end).has(""manifest""); m = outs(end).Manifest; end";
+                    L(end+1, 1) = "    tags(end+1) = """"; if isfield(m, 'tags'); tags(end) = TagSet.toText(TagSet.parse(m.tags), TagSet.ExportDelimiter); end";
                 end
                 L(end+1, 1) = "end";
                 L(end+1, 1) = "keys = folders;";
@@ -358,7 +362,7 @@ classdef EphysAnalysisScript
             else
                 L(end+1, 1) = "keys = " + lit(keys) + ";   % " + ternary(S.Mode == "project", "root-relative keys", "output folders");
                 L(end+1, 1) = "n = numel(keys);";
-                L(end+1, 1) = "outs = DatasetOutputs.empty(1, 0); names = strings(1, n); folders = strings(1, n); acq = NaT(1, n);";
+                L(end+1, 1) = "outs = DatasetOutputs.empty(1, 0); names = strings(1, n); folders = strings(1, n); acq = NaT(1, n); tags = strings(1, n);";
                 L(end+1, 1) = "for j = 1:n";
                 if S.Mode == "project"
                     L(end+1, 1) = "    k = P.findByKey(keys(j));";
@@ -366,17 +370,21 @@ classdef EphysAnalysisScript
                     L(end+1, 1) = "    d = P.Datasets(k);";
                     L(end+1, 1) = "    outs(j) = d.outputs('CacheData', true);";
                     L(end+1, 1) = "    names(j) = d.Name;";
+                    L(end+1, 1) = "    m = struct(); if outs(j).has(""manifest""); m = outs(j).Manifest; end   % the manifest's tags";
+                    L(end+1, 1) = "    if isfield(m, 'tags'); tags(j) = TagSet.toText(TagSet.parse(m.tags), TagSet.ExportDelimiter); end";
                     L(end+1, 1) = "    folders(j) = string(d.outputFolder());";
                     L(end+1, 1) = "    a = d.AcqDate;   % the recording's own start: the sessions' dates";
                     L(end+1, 1) = "    if isdatetime(a) && ~isempty(a); acq(j) = a(1); end";
                 else
                     L(end+1, 1) = "    outs(j) = DatasetOutputs(keys(j), CacheData=true);";
                     L(end+1, 1) = "    names(j) = outs(j).Name;";
+                    L(end+1, 1) = "    m = struct(); if outs(j).has(""manifest""); m = outs(j).Manifest; end";
+                    L(end+1, 1) = "    if isfield(m, 'tags'); tags(j) = TagSet.toText(TagSet.parse(m.tags), TagSet.ExportDelimiter); end";
                     L(end+1, 1) = "    folders(j) = keys(j);   % folders carry no recording date";
                 end
                 L(end+1, 1) = "end";
                 L(end+1, 1) = "sessions = sessionTable(names(:), keys(:), NamePattern=" + lit(S.NamePattern) + ...
-                    ", AcqDates=acq(:), Folders=folders(:), Index=(1:n).', Sort=true);   % by date, then name";
+                    ", AcqDates=acq(:), Folders=folders(:), Tags=tags(:), Index=(1:n).', Sort=true);   % by date, then name";
                 L(end+1, 1) = "sessions.status = repmat(""done"", n, 1);";
                 L(end+1, 1) = "sessions.message = strings(n, 1);";
                 L(end+1, 1) = "sources = cell(1, n);   % each session's analysis source, in session order";
@@ -583,13 +591,13 @@ classdef EphysAnalysisScript
             B = strings(0, 1);   % the body, inside "if ~isempty(outs)"
             if doReport
                 B(end+1, 1) = "sessionsAll = sessionTable(names(:), keys(:), NamePattern=" + lit(S.NamePattern) + ...
-                    ", AcqDates=acq(:), Folders=folders(:), Index=(1:numel(outs)).', Sort=true);";
+                    ", AcqDates=acq(:), Folders=folders(:), Tags=tags(:), Index=(1:numel(outs)).', Sort=true);";
                 if P.PerDataset
                     B(end+1, 1) = "report = newAnalysisReport(Title=title, Config=config, Export=exportOpts, Options=reportOpts);   % the session figures' own report";
                 end
                 B(end+1, 1) = "report = addReportSection(report, ""Across sessions"", Summary=struct('sessions', table(sessionsAll.label, ...";
-                B(end+1, 1) = "    sessionsAll.subject, sessionsAll.dateText, sessionsAll.name, sessionsAll.key, ...";
-                B(end+1, 1) = "    'VariableNames', {'Session', 'Subject', 'Date', 'Dataset', 'Key'})));";
+                B(end+1, 1) = "    sessionsAll.subject, sessionsAll.dateText, sessionsAll.name, sessionsAll.key, sessionsAll.tags, ...";
+                B(end+1, 1) = "    'VariableNames', {'Session', 'Subject', 'Date', 'Dataset', 'Key', 'Tags'})));";
             end
             for j = 1:numel(sfids)
                 B = [B; EphysAnalysisScript.sessionFigureLines(cfg, sfids(j), j, withImages, withPages)]; %#ok<AGROW>
@@ -636,7 +644,7 @@ classdef EphysAnalysisScript
                 B(end+1, 1) = "sel = 1:numel(outs);   % the run's datasets";
             end
             B(end+1, 1) = "sessions = sessionTable(names(sel).', keys(sel).', NamePattern=" + lit(S.NamePattern) + ...
-                ", AcqDates=acq(sel).', Folders=folders(sel).', Index=sel.', Sort=true);   % by date, then name";
+                ", AcqDates=acq(sel).', Folders=folders(sel).', Tags=tags(sel).', Index=sel.', Sort=true);   % by date, then name";
             B(end+1, 1) = "sessions.status = repmat(""done"", height(sessions), 1);";
             B(end+1, 1) = "sessions.message = strings(height(sessions), 1);";
             B(end+1, 1) = "sources = cell(1, height(sessions));   % each session's source (sessionFigureObservations)";

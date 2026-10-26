@@ -352,6 +352,33 @@ d.setProperty("LineWidth", 6);
 d.cancel();
 check(line1(1).LineWidth == lw0 && ~isvalid(d.Fig), 'Cancel puts it back and closes');
 
+% the list sorts by its headers and filters by tile title, component and type; hidden rows keep their ticks
+d = PlotAestheticsDialog(ctx, line1(1), Visible=false);
+lists = findall(d.Fig, 'Type', 'uitable');
+lst = lists(arrayfun(@(t) iscell(t.ColumnName) && numel(t.ColumnName) == 4 && string(t.ColumnName{2}) == "Tile", lists));
+words = findall(d.Fig, 'Type', 'uieditfield');
+words = words(arrayfun(@(e) startsWith(string(e.Placeholder), "Filter"), words));
+drops = findall(d.Fig, 'Type', 'uidropdown');
+typeDrop = drops(arrayfun(@(x) string(x.Items{1}) == "All types", drops));
+allRows = height(d.Components);
+check(isscalar(lst) && all(lst.ColumnSortable) && height(lst.Data) == allRows, 'the list is sortable by every column and shows every component');
+typ = d.Components.Type(d.Selected);
+typeDrop.Value = char(typ);
+typeDrop.ValueChangedFcn(typeDrop, []);
+check(height(lst.Data) == nnz(d.Components.Type == typ) && all(string(lst.Data.Type) == typ), 'the type filter keeps the components of that type');
+lst.CellEditCallback(lst, struct('Indices', [1 1], 'NewData', true));
+shownFirst = find(d.Components.Type == typ, 1);
+check(d.Ticked(shownFirst) && nnz(d.Ticked) == 1, 'a tick in the filtered list lands on its own component');
+typeDrop.Value = '';
+typeDrop.ValueChangedFcn(typeDrop, []);
+words.Value = char(lower(d.Components.Label(d.Selected)));
+words.ValueChangedFcn(words, []);
+check(height(lst.Data) >= 1 && height(lst.Data) < allRows && all(contains(lower(string(lst.Data.Component)), lower(d.Components.Label(d.Selected)))), 'the text filter keeps the components whose label has it');
+words.Value = '';
+words.ValueChangedFcn(words, []);
+check(height(lst.Data) == allRows && nnz(lst.Data.Tick) == 1 && lst.Data.Tick(shownFirst), 'with the filters cleared every component is back, the tick kept');
+d.cancel();
+
 fprintf('\n== 6. the editor: OK, Remember, Forget ==\n');
 d = PlotAestheticsDialog(ctx, line1(1), Visible=false);
 d.setApplyTo("same");

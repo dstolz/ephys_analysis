@@ -993,7 +993,11 @@ once they took most of a preview's drawing time. **Edit aesthetics...** opens
 - **Components**: every component drawn, by tile, component and group, with
   its object type. Click a row to edit it. Tick rows to change several at
   once; **Tick like it** (the same role and group in every tile), **Tick its
-  role**, **Tick its tile** and **Untick all** tick for you.
+  role**, **Tick its tile** and **Untick all** tick for you. Click a column
+  header to sort by it (again to reverse). The filter above the list narrows
+  it: words typed there (all must match the tile title, component or type;
+  live) and drop-downs for the title, the component and the type. A row a
+  filter hides keeps its tick and the ticked rows' change still reaches it.
 - **Edit**: the selected component's properties: color (picker, or a name,
   `#rrggbb`, `r g b`, `none` / `flat` / `auto`), line style and width,
   markers, fill and edge color and opacity, bar and box widths, fonts,

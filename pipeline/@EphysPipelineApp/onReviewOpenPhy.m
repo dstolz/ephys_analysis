@@ -8,4 +8,7 @@ function onReviewOpenPhy(obj)
         return
     end
     obj.launchPhy(f, f);
+    % The Datasets table's row reads phy's state again; what phy saves
+    % later shows when the tab is next opened or shows the dataset.
+    obj.refreshReviewDatasets(Datasets=obj.SelectedDatasetIdx);
 end

@@ -69,8 +69,14 @@ switch obj.Tabs.SelectedTab
 end
 obj.setStatus(msg);
 % The Review tab shows the active dataset's sorted output (after the status
-% line, so the load's own message stays).
-if obj.Tabs.SelectedTab == obj.TabReview && obj.ReviewDatasetIdx ~= obj.SelectedDatasetIdx
-    obj.syncReviewDataset();
+% line, so the load's own message stays), and its Datasets table reads the
+% rows it has not read yet and the active dataset's again, which phy may
+% have saved since (refreshReviewDatasets).
+if obj.Tabs.SelectedTab == obj.TabReview
+    if obj.ReviewDatasetIdx ~= obj.SelectedDatasetIdx
+        obj.syncReviewDataset();
+    else
+        obj.refreshReviewDatasets(Datasets=obj.SelectedDatasetIdx);
+    end
 end
 end

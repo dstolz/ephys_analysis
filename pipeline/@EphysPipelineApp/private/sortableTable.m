@@ -4,6 +4,7 @@ switch string(id)
     case "Datasets";     tbl = obj.DatasetsTable;
     case "Trials";       tbl = obj.TrialsTable;
     case "Review";       tbl = obj.ReviewUnitsTable;
+    case "ReviewDatasets"; tbl = obj.ReviewDatasetTable;
     case "Cleanup";      tbl = obj.CleanupTable;
     case "ArtSelection"; tbl = obj.ArtSelectionTable;
     case "Copy";         tbl = obj.CopyTable;

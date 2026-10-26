@@ -35,6 +35,7 @@ obj.refreshDatasetsTable();
 obj.refreshSortingLabel();
 [obj.ReviewSorts, ~] = reviewSorts(d);
 obj.showReviewSorts(folder);
+obj.refreshReviewDatasets(Datasets=obj.SelectedDatasetIdx);
 obj.setStatus(d.Name + ": sorted output " + how, ...
     "Export, the analysis and phy from the Sorting tab read this sort now.");
 end

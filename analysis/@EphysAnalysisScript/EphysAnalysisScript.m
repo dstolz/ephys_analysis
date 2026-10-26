@@ -139,8 +139,7 @@ classdef EphysAnalysisScript
                 L(end+1, 1) = "    folders(end+1) = string(d.outputFolder());";
                 if across
                     L(end+1, 1) = "    names(end+1) = d.Name;";
-                    L(end+1, 1) = "    m = struct(); if outs(end).has(""manifest""); m = outs(end).Manifest; end   % the manifest's tags";
-                    L(end+1, 1) = "    tags(end+1) = """"; if isfield(m, 'tags'); tags(end) = TagSet.toText(TagSet.parse(m.tags), TagSet.ExportDelimiter); end";
+                    L(end+1, 1) = "    tags(end+1) = TagSet.toText(outputTags(outs(end)), TagSet.ExportDelimiter);   % the manifest's tags";
                     L(end+1, 1) = "    a = d.AcqDate;   % the recording's own start, for the session figures' dates";
                     L(end+1, 1) = "    if isdatetime(a) && ~isempty(a); acq(end+1) = a(1); else; acq(end+1) = NaT; end";
                 end
@@ -157,8 +156,7 @@ classdef EphysAnalysisScript
                 if across
                     L(end+1, 1) = "    names(end+1) = outs(end).Name;";
                     L(end+1, 1) = "    acq(end+1) = NaT;";
-                    L(end+1, 1) = "    m = struct(); if outs(end).has(""manifest""); m = outs(end).Manifest; end";
-                    L(end+1, 1) = "    tags(end+1) = """"; if isfield(m, 'tags'); tags(end) = TagSet.toText(TagSet.parse(m.tags), TagSet.ExportDelimiter); end";
+                    L(end+1, 1) = "    tags(end+1) = TagSet.toText(outputTags(outs(end)), TagSet.ExportDelimiter);";
                 end
                 L(end+1, 1) = "end";
                 L(end+1, 1) = "keys = folders;";
@@ -370,16 +368,14 @@ classdef EphysAnalysisScript
                     L(end+1, 1) = "    d = P.Datasets(k);";
                     L(end+1, 1) = "    outs(j) = d.outputs('CacheData', true);";
                     L(end+1, 1) = "    names(j) = d.Name;";
-                    L(end+1, 1) = "    m = struct(); if outs(j).has(""manifest""); m = outs(j).Manifest; end   % the manifest's tags";
-                    L(end+1, 1) = "    if isfield(m, 'tags'); tags(j) = TagSet.toText(TagSet.parse(m.tags), TagSet.ExportDelimiter); end";
+                    L(end+1, 1) = "    tags(j) = TagSet.toText(outputTags(outs(j)), TagSet.ExportDelimiter);   % the manifest's tags";
                     L(end+1, 1) = "    folders(j) = string(d.outputFolder());";
                     L(end+1, 1) = "    a = d.AcqDate;   % the recording's own start: the sessions' dates";
                     L(end+1, 1) = "    if isdatetime(a) && ~isempty(a); acq(j) = a(1); end";
                 else
                     L(end+1, 1) = "    outs(j) = DatasetOutputs(keys(j), CacheData=true);";
                     L(end+1, 1) = "    names(j) = outs(j).Name;";
-                    L(end+1, 1) = "    m = struct(); if outs(j).has(""manifest""); m = outs(j).Manifest; end";
-                    L(end+1, 1) = "    if isfield(m, 'tags'); tags(j) = TagSet.toText(TagSet.parse(m.tags), TagSet.ExportDelimiter); end";
+                    L(end+1, 1) = "    tags(j) = TagSet.toText(outputTags(outs(j)), TagSet.ExportDelimiter);";
                     L(end+1, 1) = "    folders(j) = keys(j);   % folders carry no recording date";
                 end
                 L(end+1, 1) = "end";

@@ -133,6 +133,31 @@ classdef test_TagSet < matlab.unittest.TestCase
             tc.verifyEqual(TagSet.parse({'b'; 'a'}), {'a', 'b'});
         end
 
+        function parseTurnsNonTextIntoBadEntries(tc)
+            [t, bad, why] = TagSet.parse({'ok'; []});       % jsondecode('["ok",null]')
+            tc.verifyEqual(t, {'ok'});
+            tc.verifyEqual(bad, {'<double>'});
+            tc.verifyEqual(why, "entry 2 is not text (double)");
+
+            [t, bad, why] = TagSet.parse([1; 2]);
+            tc.verifyEqual(t, {});
+            tc.verifyEqual(bad, {'<double>'});
+            tc.verifyNumElements(why, 1);
+
+            [t, bad] = TagSet.parse(true);
+            tc.verifyEqual(t, {});
+            tc.verifyEqual(bad, {'<logical>'});
+
+            [t, bad, why] = TagSet.parse({'A', {'nested'}, 'bad one'});
+            tc.verifyEqual(t, {'a'});
+            tc.verifyEqual(bad, {'bad one', '<cell>'});
+            tc.verifySubstring(why(1), 'bad one');
+            tc.verifyEqual(why(2), "entry 2 is not text (cell)");
+            tc.verifyEqual(strjoin(bad, ', '), 'bad one, <cell>');
+
+            tc.verifyError(@() TagSet.require({'ok'; []}), 'TagSet:Invalid');
+        end
+
         % ---- require ----
         function requireReturnsTheValidSet(tc)
             tc.verifyEqual(TagSet.require({'B', 'a', 'b'}), {'a', 'b'});
@@ -263,7 +288,7 @@ classdef test_TagSet < matlab.unittest.TestCase
             [common, some, counts] = TagSet.summarize({{}, {}});
             tc.verifyEqual(common, {});
             tc.verifyEqual(some, {});
-            tc.verifyEmpty(counts);
+            tc.verifyEqual(counts, zeros(1, 0));
 
             [common, some, counts] = TagSet.summarize({});
             tc.verifyEqual(common, {});

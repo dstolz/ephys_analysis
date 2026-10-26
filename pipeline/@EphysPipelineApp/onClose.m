@@ -75,5 +75,8 @@ end
 if ~isempty(obj.SpkNeighborsDialog) && isvalid(obj.SpkNeighborsDialog)
     delete(obj.SpkNeighborsDialog);
 end
+if ~isempty(obj.TagDialog) && isvalid(obj.TagDialog)
+    delete(obj.TagDialog);
+end
 delete(obj.Fig);
 end

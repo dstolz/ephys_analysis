@@ -1308,6 +1308,17 @@ dtg.applyManifest();
 [wmsg, wid] = lastwarn();
 check(numel(dtg.Tags) == TagSet.MaxTags && strcmp(wid, 'EphysDataset:applyManifest:Tags') && contains(wmsg, '2 tag(s) dropped') ...
     && dtg.ExcludeChannels == 4, 'a hand-edited manifest over the limit keeps the first 12, warns, and the rest of it is still read');
+mt.tags = {'ok'; []};
+mt.manual_artifacts = [1 2; 5 6];
+writeJsonFile(dsm.manifestFile(), mt);
+dtg = EphysDataset(mdsDir, AutoMetadata=false);
+lastwarn('');
+dtg.applyManifest();
+[~, wid] = lastwarn();
+check(isequal(dtg.Tags, {'ok'}) && strcmp(wid, 'EphysDataset:applyManifest:Tags') ...
+    && isequal(dtg.ManualArtifacts, [1 2; 5 6]), ...
+    'applyManifest: a null among the tags is dropped with a warning, and the fields after tags are still restored');
+mt = rmfield(mt, 'manual_artifacts');
 mt.tags = [];
 writeJsonFile(dsm.manifestFile(), mt);
 dtg = EphysDataset(mdsDir, AutoMetadata=false);

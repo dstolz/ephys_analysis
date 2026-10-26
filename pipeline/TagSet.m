@@ -140,6 +140,28 @@ classdef TagSet
             %   a 1xK string array, one check message each (strings(1,0)
             %   when none). parse never errors on the content, and does not
             %   limit the count: use require or checkCount for that.
+            %   Nor does it error on what is not text (canon does): an
+            %   entry of a cell that is not text (a number, [] from a JSON
+            %   null, a nested cell) is a BAD entry, written as "<class>",
+            %   with a WHY such as "entry 2 is not text (double)", and the
+            %   other entries are kept; a whole IN that is not text and not
+            %   a cell (a number, a logical, a struct) gives TAGS {} and
+            %   one BAD entry. These come after the text entries in BAD.
+            nonText = {};
+            nonWhy = strings(1, 0);
+            if iscell(in)
+                in = in(:)';
+                isText = cellfun(@isTextEntry, in);
+                for k = find(~isText)
+                    nonText{end+1} = ['<' class(in{k}) '>']; %#ok<AGROW>
+                    nonWhy(end+1) = sprintf('entry %d is not text (%s)', k, class(in{k})); %#ok<AGROW>
+                end
+                in = in(isText);
+            elseif ~(ischar(in) || isstring(in) || (isnumeric(in) && isempty(in)))
+                nonText = {['<' class(in) '>']};
+                nonWhy = string(sprintf('value is not text (%s)', class(in)));
+                in = {};
+            end
             t = TagSet.canon(in);
             valid = true(1, numel(t));
             msg = strings(1, numel(t));
@@ -151,6 +173,10 @@ classdef TagSet
             bad = shaped(bad);
             msg = msg(~valid);
             why = reshape(msg(ia), 1, []);
+            if ~isempty(nonText)
+                bad = shaped([bad, nonText]);
+                why = [why, nonWhy];
+            end
         end
 
         function tags = require(in)
@@ -235,6 +261,7 @@ classdef TagSet
             for k = 1:m
                 counts = counts + ismember(vocab, tidy(TagSet.canon(sets{k})));
             end
+            counts = reshape(counts, 1, []);        % 1x0, not 0x0, when no tag is in use
             if m == 0
                 common = {};
                 some = {};
@@ -438,6 +465,12 @@ if isempty(c)
 else
     t = shaped(unique(c, 'sorted'));
 end
+end
+
+
+function tf = isTextEntry(e)
+%isTextEntry  Whether one cell entry is text canon takes: a character row (or '') or a string scalar.
+tf = (ischar(e) && (isrow(e) || isempty(e))) || (isstring(e) && isscalar(e));
 end
 
 

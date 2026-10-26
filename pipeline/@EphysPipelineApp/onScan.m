@@ -98,8 +98,15 @@ try
     if ~starting; obj.offerKeptKSQueue(); end
     bad = report(report.Message ~= "" & report.Message ~= "canceled", :);
     if height(bad) > 0
+        hint = strings(1, 0);
+        if any(~bad.Manifest)   % a manifest that was not read; a read one with a message only dropped tags
+            hint(end+1) = "A manifest that cannot be read is left as it is: fix or delete it, then Scan again.";
+        end
+        if any(bad.Manifest & contains(bad.Message, "tag(s) dropped"))
+            hint(end+1) = "Invalid tags were dropped from the manifest.";
+        end
         obj.setStatus(sprintf("Scanned %s: found %d dataset(s), %d with a problem.", root, n, height(bad)), ...
-            "A manifest that cannot be read is left as it is: fix or delete it, then Scan again.");
+            strjoin(hint, " "));
         obj.Splash.alert(obj.Fig, strjoin(["These datasets were scanned with a problem:"; ""; bad.Dataset + ": " + bad.Message], newline), ...
             "Scan", "Icon", "warning");
     end

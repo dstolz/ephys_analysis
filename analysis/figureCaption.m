@@ -31,11 +31,15 @@ function txt = figureCaption(spec, T, opts)
 %   over [0 0.5] s by a fixed cutoff (+/-0.2): Hit 2 up, 1 down; ... (of 6
 %   units)" (none with the cutoff "none").
 %   A raster with its first-spike marks on (options.firstSpike) and a PSTH
-%   with its latency box plot on (options.latencyBox) say so with their
-%   latency window: "each epoch's first spike in [0 50] ms marked on the
-%   raster"; "a box plot of the first-spike latencies in [0 to the window's
-%   end] per trial group over the PSTH (median, quartiles, whiskers to 1.5
-%   IQR, outliers)".
+%   with its latency box plot on (options.latencyBox) say so, and how the
+%   figure's latency block finds each epoch's latency (latencyMethodText:
+%   its rule, window and baseline): "each epoch's first-spike latency
+%   (the first spike in [0 50] ms) marked on the raster"; "a box plot of
+%   the first-spike latencies (...) per trial group over the PSTH (median,
+%   quartiles, whiskers to 1.5 IQR, outliers)". A raster or PSTH with its
+%   onset line on (options.onsetLine) says how the onset is found: "the
+%   unit's response onset (the CUSUM of the PSTH in 2 ms bins ...) drawn
+%   on the raster" ("each trial group's" with "groups").
 %   TXT = figureCaption(SPEC, T, Sessions=S) describes a session figure
 %   drawn for each row of T (figureSessionObservations) across the sessions
 %   S (sessionTable rows; those with status other than "done" are left
@@ -224,33 +228,42 @@ end
 
 
 function parts = latencyText(spec)
-%latencyText  The first-spike latency a figure's raster marks and its PSTH's box plot draws, with each one's window (the first panel of each type with it on).
+%latencyText  The first-spike latencies a figure's raster marks and its PSTH's box plot draws, and the onset lines, with how its latency block finds them (the first panel of each type with each on).
 parts = strings(1, 0);
 did = strings(1, 0);
+L = EphysAnalysisConfig.defaults("Latency");
+if isfield(spec, 'latency') && isstruct(spec.latency); L = spec.latency; end
+how = " (" + latencyMethodText(L) + ")";
 for k = 1:numel(spec.panels)
     p = spec.panels(k);
     o = p.options;
     if p.type == "raster" && ~ismember("raster", did) && isfield(o, 'firstSpike') && isstruct(o.firstSpike) && o.firstSpike.enabled
-        parts(end+1) = "each epoch's first spike in " + windowText(o.firstSpike) + " marked on the raster"; %#ok<AGROW>
+        parts(end+1) = "each epoch's first-spike latency" + how + " marked on the raster"; %#ok<AGROW>
         did(end+1) = "raster"; %#ok<AGROW>
+        how = "";   % said once
     elseif p.type == "psth" && ~ismember("psth", did) && isfield(o, 'latencyBox') && isstruct(o.latencyBox) ...
             && o.latencyBox.enabled && o.display ~= "heatmap"
         where = "over the PSTH";
         if isfield(o, 'stack') && o.stack == "groups"; where = "in each row of the PSTH"; end
-        parts(end+1) = "a box plot of the first-spike latencies in " + windowText(o.latencyBox) + " per trial group " + where + ...
+        parts(end+1) = "a box plot of the first-spike latencies" + how + " per trial group " + where + ...
             " (median, quartiles, whiskers to 1.5 IQR, outliers)"; %#ok<AGROW>
         did(end+1) = "psth"; %#ok<AGROW>
+        how = "";
     end
 end
-end
-
-
-function s = windowText(L)
-%windowText  A latency window in ms: "[0 50] ms", "[5 ms to the window's end]".
-if isfinite(L.maxSec)
-    s = sprintf("[%g %g] ms", 1000 * L.minSec, 1000 * L.maxSec);
-else
-    s = sprintf("[%g ms to the window's end]", 1000 * L.minSec);
+onset = " (" + latencyMethodText(L, "onset") + ")";
+for k = 1:numel(spec.panels)
+    p = spec.panels(k);
+    o = p.options;
+    if ~ismember(p.type, ["raster" "psth"]) || ~isfield(o, 'onsetLine') || o.onsetLine == "off" || ismember("onset", did)
+        continue
+    end
+    whose = "the unit's response onset";
+    if o.onsetLine == "groups"; whose = "each trial group's response onset"; end
+    on = "on the raster";
+    if p.type == "psth"; on = "on the PSTH"; end
+    parts(end+1) = whose + onset + " drawn " + on; %#ok<AGROW>
+    did(end+1) = "onset"; %#ok<AGROW>
 end
 end
 

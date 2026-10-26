@@ -47,7 +47,10 @@ function [C, fx] = figureTestCases(root)
 %                       (session dividers)
 %     first_spike       rasterPsth with the raster's first-spike marks and
 %                       the PSTH's latency box plot (options.firstSpike,
-%                       options.latencyBox)
+%                       options.latencyBox; the figure's latency block
+%                       searches to 0.3 s), and the response onset's lines
+%                       (options.onsetLine: the unit's on the raster, each
+%                       group's on the PSTH)
 %     sessions_first_spike  first_spike as a session figure (a color per
 %                       session): the marks and boxes on the merged rows
 %     trial_counts      rasterPsth with the raster sorted by first-spike
@@ -161,8 +164,11 @@ x = cfg.Figures(cfg.figureIndex("heatmap")); x.id = "sessions_heatmap";   % each
 x.sessions.enabled = true;
 cfg = cfg.addFigure(x);
 x = f; x.id = "first_spike";   % a mark on each epoch's first spike, a box plot of the latencies over the PSTH
-x.panels(1).options.firstSpike = struct('enabled', true, 'maxSec', 0.3);
-x.panels(2).options.latencyBox = struct('enabled', true, 'maxSec', 0.3);
+x.panels(1).options.firstSpike = struct('enabled', true);
+x.panels(1).options.onsetLine = "unit";
+x.panels(2).options.latencyBox = struct('enabled', true);
+x.panels(2).options.onsetLine = "groups";
+x.latency.maxSec = 0.3;
 cfg = cfg.addFigure(x);
 x.id = "sessions_first_spike";   % the same on the rows merged across the two sessions
 x.sessions.enabled = true;

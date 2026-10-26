@@ -10,8 +10,12 @@ function d = figureDataSpec(spec)
 %                    rowSpan, colSpan, size, align, valign, note and
 %                    overlays, and the options of LookOptions (the draw
 %                    functions' alone: the compute functions read none of
-%                    them)
+%                    them); a PSTH's latencyBox and onsetLine count only as
+%                    on or off (they keep its raster rows: their looks are
+%                    the drawing's), a raster's onsetLine not at all
 %     each layer's   color and lineStyle
+%   The figure's latency block (latency) stays: the latencies are computed
+%   from it (figureLatencies, keyed by the settings each rule reads).
 %   figureCompute keys what it keeps with it (its Reuse): two specs with
 %   the same D compute the same results, so an edit of the looks alone
 %   computes nothing again. An option a compute function starts to read
@@ -37,6 +41,12 @@ P = drop(d.panels, LookPanel);
 for k = 1:numel(P)
     if isstruct(P(k).options)
         P(k).options = drop(P(k).options, LookOptions);
+        if isfield(P(k).options, 'latencyBox') && isstruct(P(k).options.latencyBox)
+            P(k).options.latencyBox = P(k).options.latencyBox.enabled;   % on or off: the raster rows kept
+        end
+        if isfield(P(k).options, 'onsetLine')
+            P(k).options.onsetLine = P(k).type ~= "raster" && string(P(k).options.onsetLine) ~= "off";
+        end
     end
     if isstruct(P(k).layers)
         P(k).layers = drop(P(k).layers, LookLayer);

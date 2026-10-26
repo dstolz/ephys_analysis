@@ -178,6 +178,12 @@ classdef EphysAnalysisConfig
         SessionTrialGroups = ["pool" "each" "combine"]
         SessionFacets = ["none" "subject"]
         SessionColorOrders = ["palette" "sequential"]
+        % a figure's latency block (defaults("Latency")): the per-trial rule, its baseline window and rate; a raster's or
+        % PSTH's onsetLine (the unit's response onset)
+        LatencyMethods   = ["first" "surprise" "poisson"]
+        LatencyBaselines = ["pre" "window"]
+        LatencyRates     = ["unit" "trial"]
+        OnsetLines       = ["off" "unit" "groups"]
         % How the observed unit is matched across sessions (a figure observes one matched unit), and the panel types
         % combineSessions does not merge (a session figure holds none).
         FigureSessionMatches = ["site" "mapping"]

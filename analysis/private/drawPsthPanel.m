@@ -55,9 +55,9 @@ function hk = drawPsthPanel(ax, P, look)
 %   units' counts up and down); normalize does not
 %   apply.
 %   options.latencyBox (enabled; not with display "heatmap") draws a box
-%   plot of the first item's first-spike latencies (firstSpikeLatency over
-%   its raster rows: each epoch's first spike at or after minSec and at or
-%   before maxSec; a layer's mean pools its units' epochs) per trial group,
+%   plot of the first item's first-spike latencies (R.latency: the
+%   figure's, its latency block's method and window, figureLatencies; a
+%   layer's mean pools its units' epochs) per trial group,
 %   along the time axis (latencyBoxStats: the box from the first to the
 %   third quartile, a line at the median, whiskers to the most extreme
 %   values within 1.5 IQR of the box, the values beyond as outliers), in
@@ -73,9 +73,15 @@ function hk = drawPsthPanel(ax, P, look)
 %   yLimMode.
 %   Roles "latencyBox", "latencyMedian", "latencyWhisker", "latencyOutlier"
 %   (the group's label); each part carries its statistics (appdata
-%   LatencyStats: n, nEpochs, q, whiskers, nOutliers, window) for its data
-%   tip. A PSTH without raster rows (computed before the box was turned on)
-%   says so in its notes.
+%   LatencyStats: n, nEpochs, q, whiskers, nOutliers, window, method) for its data
+%   tip. A PSTH without the figure's latencies, or whose latency block
+%   could not find them (no baseline before the event, say), says so in
+%   its notes.
+%   options.onsetLine ("unit" or "groups") draws the first item's unit's
+%   response onset (R.onset: the figure's CUSUM onset) as a dashed line
+%   across the axes, over every epoch or each group's in its color
+%   (drawOnsetLines, role "latencyOnset"; a layer's mean has none: noted),
+%   with a legend entry "Response onset".
 %   options.trialCount says how many trials each group has (the epochs
 %   the PSTH averages; R.nEpochs): "text" writes "n = 24" per group in the
 %   group's color (role "trialCount", the group's label) in the top left
@@ -287,6 +293,23 @@ if nI > 0; nGroups = height(D(1).R.groups); end
 colorBy = "group";
 if heat; colorBy = "mark"; end   % over an image the latency lines take the marks' colors, as a heat map's do
 [hm, lm] = figEventMarks(ax, P, look, 1:max(1, nGroups), colorBy);
+onset = "off";   % the first item's unit's response onset: a line over every epoch, or each group's
+if isfield(o, 'onsetLine'); onset = string(o.onsetLine); end
+if onset ~= "off" && nI > 0
+    [hOn, why] = onsetLines(ax, D(1), onset, style);
+    if why ~= ""
+        P.layers(end+1) = P.layers(items(1, 1));
+        P.layers(end).skip = why;
+    end
+    if ~isempty(hOn)
+        c = [0.25 0.25 0.25];
+        if onset == "unit"; c = hOn(1).Color; end
+        hk.legendHandles(end+1) = tagPart(line(ax, NaN, NaN, 'Color', c, 'LineStyle', '--', 'LineWidth', hOn(1).LineWidth), ...
+            "latencyOnset");
+        hk.legendLabels(end+1) = "Response onset";
+        hk.legendGroup(end+1) = false;
+    end
+end
 if ~isempty(boxes) && ~stacked   % above the traces, the rug and the spans: a band of their own
     hk.yExtent = ylim(ax);   % the traces' range (a run's batch range measures it, not the band)
     boxBand(ax, boxes, lb, style);
@@ -555,24 +578,23 @@ function [B, why] = latencyBoxes(d, u, lb)
 %   every unit of the layer pooled: one latency per unit and epoch). Each
 %   entry: latencyBoxStats' fields, plus label (the group's), color (the
 %   group's, or LB.color when it is one), nEpochs (the group's epochs x
-%   units) and window (the window searched). B is empty, and WHY says why,
-%   when the result holds no raster rows or the window is not one.
+%   units), window (the window searched) and method (the figure's rule).
+%   B is empty, and WHY says why, when the result holds no latencies (the
+%   figure's latencies were not taken for it) or the figure's block could
+%   not find them.
 B = [];
 why = "";
 R = d.R;
 units = u;
 if u == 0 && isfield(R, 'raster'); units = 1:numel(R.raster); end
-try
-    L = firstSpikeLatency(R, Units=units, MinSec=lb.minSec, MaxSec=max(lb.minSec, lb.maxSec));
-catch ME
-    switch ME.identifier
-        case "firstSpikeLatency:NoRaster"
-            why = "no latency box plot: the PSTH holds no raster rows (preview it again)";
-        case "firstSpikeLatency:BadWindow"
-            why = "no latency box plot: its window needs minSec <= maxSec";
-        otherwise
-            rethrow(ME);
-    end
+if ~isfield(R, 'latency') || ~isstruct(R.latency) || ~isfield(R.latency, 'lat') || isempty(units) ...
+        || any(units > size(R.latency.lat, 2))
+    why = "no latency box plot: the PSTH holds no first-spike latencies (preview it again)";
+    return
+end
+L = R.latency;
+if L.why ~= ""
+    why = "no latency box plot: " + L.why;
     return
 end
 nG = size(d.m, 2);
@@ -587,14 +609,36 @@ if c ~= "groups"
 end
 for g = 1:nG
     in = L.epochGroup == g;
-    S = latencyBoxStats(L.lat(in, :));
+    S = latencyBoxStats(L.lat(in, units));
     S.label = string(R.groups.label(g));
     S.color = d.colors(min(g, size(d.colors, 1)), :);
     if ~isempty(fixed); S.color = fixed; end
     S.nEpochs = nnz(in) * numel(units);
     S.window = L.window;
+    S.method = string(L.method);
     if isempty(B); B = S; else; B(g) = S; end
 end
+end
+
+
+function [h, why] = onsetLines(ax, d, mode, style)
+%onsetLines  The item D's unit's response onset (R.onset: the figure's) across the axes, the unit's or each group's (drawOnsetLines); WHY when none can be drawn.
+h = gobjects(1, 0);
+why = "";
+R = d.R;
+if d.u == 0
+    why = "no response onset: the layer's mean is no one unit";
+    return
+end
+if ~isfield(R, 'onset') || ~isstruct(R.onset) || d.u > numel(R.onset.onset)
+    why = "no response onset: the PSTH holds no onset (preview it again)";
+    return
+end
+if R.onset.why ~= ""
+    why = "no response onset: " + R.onset.why;
+    return
+end
+h = drawOnsetLines(ax, R.onset, d.u, mode, d.colors, style);
 end
 
 
@@ -634,7 +678,8 @@ q = B.q;
 w = B.whiskers;
 ls = char(lb.lineStyle);
 lw = lb.lineWidth;
-stats = struct('n', B.n, 'nEpochs', B.nEpochs, 'q', q, 'whiskers', w, 'nOutliers', numel(B.outliers), 'window', B.window);
+stats = struct('n', B.n, 'nEpochs', B.nEpochs, 'q', q, 'whiskers', w, 'nOutliers', numel(B.outliers), 'window', B.window, ...
+    'method', B.method);
 mc = c;
 if lb.fillAlpha > 0.5; mc = paleColor(c, 0.75, style); end
 h = gobjects(1, 0);

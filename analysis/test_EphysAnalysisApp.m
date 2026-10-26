@@ -87,11 +87,18 @@ function test_EphysAnalysisApp(opts)
 %   Ctrl held offered to the other figures' panels that take it, the
 %   window's rows, All, the ticks remembered, nothing drawn again unless
 %   Replot, Edit > Apply last change, Ctrl+Shift+A, Cancel, Undo, an edit
-%   that stays with its figure opening none); the first-spike latency windows
-%   (a raster's First spike row and a PSTH's Latency box row, each button
-%   opening its modal window, OK as one named undo step, the row's summary,
-%   a window ending before it starts refused, Cancel, the preview drawing
-%   the marks and the boxes);
+%   that stays with its figure opening none); the first-spike marks' and
+%   latency box's windows (a raster's First spike row and a PSTH's Latency
+%   box row, each button opening its modal window on the look, its note
+%   naming the figure's rule, OK as one named undo step, the row's summary,
+%   Cancel, the preview drawing the marks and the boxes); the figure's
+%   First-spike latency section (5u: shown with a raster, PSTH or heat map,
+%   its note naming the panels that read it, the rows of each method, a
+%   method and a window as named steps, the baseline window's fields with
+%   Window, a PSTH's Onset line, the preview computing the latencies once
+%   for both panels and drawing the onsets, an edit of the block computing
+%   no panel again, Copy settings listing the block, a figure without such
+%   a panel hiding the section);
 %   each figure's own preview container (a switch back shows its drawing
 %   again, the same axes, without drawing it; the tree selecting the
 %   figure shown and marking it bold, a preview out of date after an edit
@@ -119,7 +126,7 @@ function test_EphysAnalysisApp(opts)
 %   and the color fields' swatches (one beside every color field, the
 %   chooser in the tests' place: a color picked as one named step, Cancel,
 %   a color typed and Undo followed by the swatch, the search going to the
-%   field; the First-spike latency window's);
+%   field; the First-spike marks window's);
 %   figure templates and Apply last change (the row above the preview: its
 %   controls, off with no template; Save as... from a script and from its
 %   window; Apply... in its window onto two figures, one undo step, each
@@ -3157,7 +3164,7 @@ if S.sec("5k", "Edit menu: undo and redo of the figure editor")
     app.Tabs.SelectedTab = app.TabData;
 end
 
-if S.sec("5l", "a raster's First-spike latency... and a PSTH's Latency box plot... windows: OK as one named step, Cancel, a refused window, the preview")
+if S.sec("5l", "a raster's First-spike marks... and a PSTH's Latency box plot... windows: their looks, OK as one named step, Cancel, the preview")
     noFigures();
     groupedBy("Depth");
     app.selectTab(app.TabFigures);
@@ -3170,12 +3177,11 @@ if S.sec("5l", "a raster's First-spike latency... and a PSTH's Latency box plot.
     FE.firstSpikeDialog.ButtonPushedFcn(FE.firstSpikeDialog, []);
     dF = findall(groot, 'Type', 'figure', 'Tag', 'latencyDialog');
     DF = dF.UserData;
-    grayed = DF.Marker.Enable == "off" && DF.MinMs.Enable == "off" && DF.Enabled.Enable == "on";
+    grayed = DF.Marker.Enable == "off" && DF.Color.Enable == "off" && DF.Enabled.Enable == "on";
     modal = string(dF.WindowStyle) == "modal";
+    noted = contains(DF.Note.Text, "the first spike in [0 ms to the window's end]") && ~isfield(DF, 'MinMs');
     DF.Enabled.Value = true;
     DF.Enabled.ValueChangedFcn(DF.Enabled, []);
-    DF.MinMs.Value = 5;
-    DF.MaxMs.Value = 50;
     DF.Marker.Value = "diamond";
     DF.Size.Value = 6;
     DF.Color.Value = "red";
@@ -3183,28 +3189,27 @@ if S.sec("5l", "a raster's First-spike latency... and a PSTH's Latency box plot.
     nU5l = numel(app.FigureHistory.Undo);
     DF.Ok.ButtonPushedFcn(DF.Ok, []);
     fsO = app.Config.Figures(1).panels(1).options.firstSpike;
-    check(isscalar(dF) && DF.Kind == "firstSpike" && DF.PanelId == "raster_1" && modal && grayed ...
-        && ~isvalid(dF) && fsO.enabled && abs(fsO.minSec - 0.005) < 1e-12 && abs(fsO.maxSec - 0.05) < 1e-12 && fsO.marker == "diamond" ...
+    check(isscalar(dF) && DF.Kind == "firstSpike" && DF.PanelId == "raster_1" && modal && grayed && noted ...
+        && ~isvalid(dF) && fsO.enabled && ~isfield(fsO, 'minSec') && fsO.marker == "diamond" ...
         && fsO.size == 6 && fsO.color == "red" && fsO.filled && numel(app.FigureHistory.Undo) == nU5l + 1 ...
-        && string(app.UndoMenu.Text) == "Undo First-spike latency" && string(FE.firstSpike.Text) == "on, 5-50 ms, ◆ red", ...
-        sprintf(['First-spike latency...: a modal window, its rows grayed while off; OK gives the raster the window (5-50 ms) ' ...
-        'and the look as one step, "Undo First-spike latency", and the row says "%s"'], FE.firstSpike.Text));
+        && string(app.UndoMenu.Text) == "Undo First-spike marks" && string(FE.firstSpike.Text) == "on, ◆ red", ...
+        sprintf(['First-spike marks...: a modal window on the look, its rows grayed while off, its note naming the ' ...
+        'figure''s rule; OK gives the raster the look as one step, "Undo First-spike marks", and the row says "%s"'], ...
+        FE.firstSpike.Text));
     app.onUndoRedo("undo");
     undone = ~app.Config.Figures(1).panels(1).options.firstSpike.enabled && string(FE.firstSpike.Text) == "off";
     app.onUndoRedo("redo");
-    check(undone && app.Config.Figures(1).panels(1).options.firstSpike.enabled && string(FE.firstSpike.Text) == "on, 5-50 ms, ◆ red", ...
+    check(undone && app.Config.Figures(1).panels(1).options.firstSpike.enabled && string(FE.firstSpike.Text) == "on, ◆ red", ...
         'Undo takes the marks off again in one step, Redo puts them back');
     FE.firstSpikeDialog.ButtonPushedFcn(FE.firstSpikeDialog, []);
     dF = findall(groot, 'Type', 'figure', 'Tag', 'latencyDialog');
     DF = dF.UserData;
-    shownBack = DF.Enabled.Value && DF.MinMs.Value == 5 && DF.MaxMs.Value == 50 && string(DF.Marker.Value) == "diamond";
-    DF.MinMs.Value = 80;
-    DF.Ok.ButtonPushedFcn(DF.Ok, []);
-    refused = isvalid(dF) && contains(DF.Note.Text, "before it starts") && app.Config.Figures(1).panels(1).options.firstSpike.minSec == 0.005;
+    shownBack = DF.Enabled.Value && string(DF.Marker.Value) == "diamond" && DF.Size.Value == 6;
+    DF.Size.Value = 9;
     DF.Cancel.ButtonPushedFcn(DF.Cancel, []);
-    check(shownBack && refused && ~isvalid(dF) && app.Config.Figures(1).panels(1).options.firstSpike.minSec == 0.005 ...
+    check(shownBack && ~isvalid(dF) && app.Config.Figures(1).panels(1).options.firstSpike.size == 6 ...
         && numel(app.FigureHistory.Undo) == nU5l + 1, ...
-        'the window opens on the panel''s settings; a window ending before it starts is refused (said, the window kept); Cancel changes nothing');
+        'the window opens on the panel''s settings; Cancel changes nothing');
     app.onPanelSelected(2);   % the PSTH
     check(shown(FE.latencyBox) && shown(FE.latencyBoxDialog) && ~shown(FE.firstSpike) && string(FE.latencyBox.Text) == "off", ...
         'a PSTH shows its Latency box row, not the raster''s First spike row');
@@ -3213,7 +3218,6 @@ if S.sec("5l", "a raster's First-spike latency... and a PSTH's Latency box plot.
     DB = dB.UserData;
     DB.Enabled.Value = true;
     DB.Enabled.ValueChangedFcn(DB.Enabled, []);
-    DB.MaxMs.Value = [];
     DB.LineStyle.Value = "--";
     DB.LineWidth.Value = 1.5;
     DB.BoxHeight.Value = 0.2;
@@ -3221,10 +3225,10 @@ if S.sec("5l", "a raster's First-spike latency... and a PSTH's Latency box plot.
     DB.OutlierMarker.Value = "x";
     DB.Ok.ButtonPushedFcn(DB.Ok, []);
     lbO = app.Config.Figures(1).panels(2).options.latencyBox;
-    check(DB.Kind == "latencyBox" && ~isvalid(dB) && lbO.enabled && lbO.minSec == 0 && lbO.maxSec == Inf && lbO.lineStyle == "--" ...
+    check(DB.Kind == "latencyBox" && ~isvalid(dB) && lbO.enabled && ~isfield(lbO, 'maxSec') && lbO.lineStyle == "--" ...
         && lbO.lineWidth == 1.5 && abs(lbO.boxHeight - 0.2) < 1e-12 && lbO.fillAlpha == 0.5 && lbO.outlierMarker == "x" ...
-        && string(app.UndoMenu.Text) == "Undo Latency box plot" && string(FE.latencyBox.Text) == "on, 0 ms-end, groups --", ...
-        sprintf('Latency box plot...: OK gives the PSTH its box plot (to the window''s end) as one step, "Undo Latency box plot"; the row says "%s"', ...
+        && string(app.UndoMenu.Text) == "Undo Latency box plot" && string(FE.latencyBox.Text) == "on, groups --", ...
+        sprintf('Latency box plot...: OK gives the PSTH its box plot as one step, "Undo Latency box plot"; the row says "%s"', ...
         FE.latencyBox.Text));
     app.refreshFigurePreview(Force=true);
     mkP = findall(app.FigurePreviewPanel, 'Tag', 'firstSpike');
@@ -3749,7 +3753,7 @@ if S.sec("5p", "remembered panel options: a new panel starts from the last set, 
     inField = string(D5p.Color.Value) == "#0000ff" && isequal(D5p.ColorSwatch.BackgroundColor, [0 0 1]);
     D5p.Ok.ButtonPushedFcn(D5p.Ok, []);
     check(grayedSwatch && inField && ~isvalid(d5p) && app.Config.Figures(1).panels(1).options.firstSpike.color == "#0000ff", ...
-        'the First-spike latency window''s Color has a swatch too (grayed while off): the color picked goes into its field, and OK gives it the panel');
+        'the First-spike marks window''s Color has a swatch too (grayed while off): the color picked goes into its field, and OK gives it the panel');
     noFigures();
     app.onForgetPanelOptions();
     clear restoreAuto5p restorePicker5p
@@ -3868,6 +3872,91 @@ if S.sec("5q", "figure templates (the row above the preview: Save as, Apply into
 
     noFigures();
     clear restoreAuto5q restoreTpl5q
+    app.Tabs.SelectedTab = app.TabData;
+end
+
+if S.sec("5u", "the figure's First-spike latency section: one block for every panel, its rows by method, the onset line, the preview computing it once")
+    noFigures();
+    groupedBy("Depth");
+    app.selectTab(app.TabFigures);
+    app.FigureAutoCheckBox.Value = false;   % the preview is drawn when asked
+    restoreAuto5u = onCleanup(@() autoBoxOn(app));
+    app.onAddFigure("rasterPsth");
+    app.onPanelSelected(1);   % the raster: its marks on
+    FE.firstSpikeDialog.ButtonPushedFcn(FE.firstSpikeDialog, []);
+    dU = findall(groot, 'Type', 'figure', 'Tag', 'latencyDialog');
+    DU = dU.UserData;
+    DU.Enabled.Value = true;
+    DU.Enabled.ValueChangedFcn(DU.Enabled, []);
+    DU.Ok.ButtonPushedFcn(DU.Ok, []);
+    app.onPanelSelected(2);   % the PSTH: its box plot on
+    FE.latencyBoxDialog.ButtonPushedFcn(FE.latencyBoxDialog, []);
+    dU = findall(groot, 'Type', 'figure', 'Tag', 'latencyDialog');
+    DU = dU.UserData;
+    DU.Enabled.Value = true;
+    DU.Enabled.ValueChangedFcn(DU.Enabled, []);
+    DU.Ok.ButtonPushedFcn(DU.Ok, []);
+    secU = app.FigureSections([app.FigureSections.Name] == "latency");
+    check(shown(FE.latMethod) && shown(FE.latFrom) && shown(FE.latBaseline) && shown(FE.latCusum) && ~shown(FE.latRate) ...
+        && ~shown(FE.latSurprise) && ~shown(FE.latAlpha) && string(FE.latMethod.Value) == "first" ...
+        && contains(FE.latNote.Text, "raster_1 (marks)") && contains(FE.latNote.Text, "psth_1 (box plot)") ...
+        && secU.Super == "figure" && FE.latBaseFrom.Enable == "off", ...
+        sprintf(['the figure''s First-spike latency section (Figure): Method first, the window, baseline and onset rows; ' ...
+        'the note names the panels that read it ("%s")'], FE.latNote.Text));
+    FE.latMethod.Value = "surprise";
+    app.onConfigChanged("figure", FE.latMethod);
+    LU = app.Config.Figures(1).latency;
+    surpriseRows = shown(FE.latRate) && shown(FE.latSurprise) && ~shown(FE.latAlpha);
+    undoMethod = string(app.UndoMenu.Text) == "Undo Method";
+    FE.latMethod.Value = "poisson";
+    app.onConfigChanged("figure", FE.latMethod);
+    poissonRows = shown(FE.latRate) && ~shown(FE.latSurprise) && shown(FE.latAlpha);
+    FE.latTo.Value = 150;
+    app.onConfigChanged("figure", FE.latTo);
+    FE.latBaseline.Value = "window";
+    app.onConfigChanged("figure", FE.latBaseline);
+    L2U = app.Config.Figures(1).latency;
+    check(LU.method == "surprise" && surpriseRows && undoMethod && poissonRows && L2U.method == "poisson" ...
+        && abs(L2U.maxSec - 0.15) < 1e-12 && L2U.minSec == 0 && L2U.baseline == "window" && FE.latBaseFrom.Enable == "on" ...
+        && isequal(L2U.baselineWindow, [-0.1 0]) && L2U.cusumBinSec == 0.002, ...
+        ['a method is one named step ("Undo Method"), showing its own rows (the rate and burst with surprise, the rate ' ...
+        'and alpha with poisson); To (ms) sets the window''s end; a window of its own enables its fields, the values ' ...
+        'not edited kept exactly']);
+    FE.onsetLine.Value = "groups";   % the PSTH's onset line
+    app.onConfigChanged("figure", FE.onsetLine);
+    shownOn = shown(FE.onsetLine) && app.Config.Figures(1).panels(2).options.onsetLine == "groups" ...
+        && contains(FE.latNote.Text, "psth_1 (box plot, onset line)");
+    app.refreshFigurePreview(Force=true);
+    FU = app.FigurePreviewResult;
+    RU1 = FU.panels(1).layers(1).R;
+    RU2 = FU.panels(2).layers(1).R;
+    oneEntry = isscalar(FU.latency.entries) && isequal(FU.latency.entries.panels, ["raster_1" "psth_1"]);
+    check(shownOn && app.FigurePreviewState == "drawn" && oneEntry && isequaln(RU1.latency, RU2.latency) ...
+        && RU1.latency.method == "poisson" && abs(RU1.latency.window(2) - 0.15) < 1e-12 && isfield(RU2, 'onset') ...
+        && ~isfield(RU1, 'onset'), ...
+        ['the preview takes the latencies once for the raster and the PSTH (F.latency: one entry read by both), by the ' ...
+        'figure''s block, and the onset for the PSTH that draws it']);
+    K0 = app.Runner.FigureCache;
+    FE.latMethod.Value = "surprise";
+    app.onConfigChanged("figure", FE.latMethod);
+    app.refreshFigurePreview(Force=true);
+    K1 = app.Runner.FigureCache;
+    isNew = arrayfun(@(e) ~any(arrayfun(@(o) o.kind == e.kind && isequaln(o.key, e.key), K0)), K1);
+    newKinds = unique([K1(isNew).kind]);
+    check(app.FigurePreviewState == "drawn" && app.FigurePreviewResult.panels(1).layers(1).R.latency.method == "surprise" ...
+        && isequal(newKinds, "latency"), ...
+        sprintf(['an edit of the method computes the latencies again and nothing else: no panel, no onset (new in the ' ...
+        'cache: %s)'], strjoin(newKinds, ", ")));
+    I = figureSettingItems(app.Config.Figures(1));
+    keysU = I.Key(I.Part == "latency");
+    check(all(ismember(["latency.method" "latency.minSec" "latency.cusumThreshold"], keysU)) ...
+        && ~any(keysU == "latency.baselineWindow") && any(figureSettingParts().Part == "latency"), ...
+        'Copy settings lists the figure''s latency block, setting by setting (the baseline window with the baseline)');
+    app.onAddFigure("continuous");   % no panel that can read it: no section
+    check(~shown(FE.latMethod) && ~app.FigureSections([app.FigureSections.Name] == "latency").Visible, ...
+        'a figure without a raster, PSTH or heat map has no First-spike latency section');
+    noFigures();
+    clear restoreAuto5u
     app.Tabs.SelectedTab = app.TabData;
 end
 

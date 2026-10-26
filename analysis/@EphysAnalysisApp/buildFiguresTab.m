@@ -48,6 +48,11 @@ function buildFiguresTab(obj)
 %           group shown), the
 %           figure's Event reference, Epoch window and Trial selection (the
 %           Alignment tab's while "Use default" is ticked; Epoch Diagram),
+%           First-spike latency (the figure's latency block, one for
+%           every panel that reads it: the method, the window, the
+%           baseline and its rate, the burst's surprise or the count's
+%           alpha, the onset's CUSUM bins, duration, threshold and
+%           allowance; a note names the panels that read it; no key),
 %           Panel alignment
 %           (the panel's own event and window, locked to the figure's while
 %           "Same as the figure" is ticked; its own trial selection, locked
@@ -58,7 +63,8 @@ function buildFiguresTab(obj)
 %           panel type's Options (all of the panel's own; Apply to all
 %           panels: applyOptionsToAll; a raster's First spike row and a
 %           PSTH's Latency box row each show a summary beside a button that
-%           opens their modal window: latencyDialog), its Waveform
+%           opens their modal window, the marks' or the box's look:
+%           latencyDialog; a raster's or PSTH's Onset line), its Waveform
 %           (the unit's waveform: an inset on a raster, PSTH, firing rate
 %           or tuning curve panel, the panel itself on a unit waveforms
 %           panel; what it shows, its x and y scales, size, place and
@@ -78,13 +84,15 @@ function buildFiguresTab(obj)
 %           header (onFigureSectionToggled). The sections stand under three
 %           supersections, each a dark header that collapses them all
 %           (onFigureSuperToggled): Figure (Observations, Event reference,
-%           Epoch window, Trial selection, Sessions, Panels), Panel
+%           Epoch window, Trial selection, First-spike latency, Sessions,
+%           Panels), Panel
 %           (Selected panel, Panel alignment, Layers, Options, Waveform, Text note, Overlays;
 %           its header names the selected panel) and Look (Appearance,
 %           Looks), built in that order so Tab follows it. Alt+1 to Alt+3
 %           go to a supersection (gotoFigureSuper), Ctrl+1 to Ctrl+9 and
 %           Ctrl+0 to the first ten sections, Observations to Text note
-%           (gotoFigureSection; onKeyPress); Sessions, Waveform, Overlays,
+%           (gotoFigureSection; onKeyPress); First-spike latency, Sessions,
+%           Waveform, Overlays,
 %           Appearance and Looks have no key. Over the editor, a search field
 %           (Ctrl+F; onFigureSearch) lists the rows whose label (or
 %           tooltip) has the words typed, "Supersection > Section > Row",
@@ -396,6 +404,71 @@ Sw.BodyHeight = gridHeight(C.WindowGrid);
 Ss.BodyHeight = gridHeight(C.SelectionGrid);
 obj.FigureAlignControls = C;
 sec = [sec Sr Sw Ss];
+
+% the figure's first-spike latency and response onset: one block for every panel that reads them (figureLatencies); no key
+S = formSection(eg, 18, "latency", "First-spike latency", Color=(tint("selection") + tint("sessions")) / 2);
+[S, r] = formRow(S, "latNote", "", 44);
+E.latNote = uilabel(S.Body, "Text", "", "FontColor", gray, "WordWrap", "on", "VerticalAlignment", "top");
+place(E.latNote, r, [1 2]);
+[S, r] = formRow(S, "latMethod", "Method:");
+E.latMethod = uidropdown(S.Body, "Items", ["First spike in the window" "Poisson surprise (Legendy & Salcman 1985)" ...
+    "Baseline Poisson count (Chase & Young 2007)"], "ItemsData", EphysAnalysisConfig.LatencyMethods, "ValueChangedFcn", changed, ...
+    "Tooltip", "How each epoch's first-spike latency is found, once per unit for every panel of the figure that reads it " + ...
+    "(a raster's marks and latency sort, a PSTH's latency box plot, a heat map of trials sorted by latency). First " + ...
+    "spike: the first spike in the window (a spontaneous spike before the response counts). Poisson surprise: the " + ...
+    "first spike of the first burst whose surprise against the baseline rate passes a threshold. Baseline Poisson " + ...
+    "count: the first spike at which the spikes counted since the window's start are improbable at the baseline rate.");
+place(E.latMethod, r, 2);
+[S, r] = formRow(S, ["latFrom" "latTo"], "Detect (ms):");
+lwg = subgrid(S.Body, r, {'1x', 'fit', '1x'});
+E.latFrom = uieditfield(lwg, "numeric", "Value", 0, "ValueChangedFcn", changed, "Tooltip", ...
+    "The earliest latency (and response onset), ms from the aligned event (included; negative: before it).");
+uilabel(lwg, "Text", "to");
+E.latTo = uieditfield(lwg, "numeric", "AllowEmpty", "on", "Value", [], "Placeholder", "end", "ValueChangedFcn", changed, ...
+    "Tooltip", "The latest, ms from the event (included). Blank: each panel's window's end.");
+[S, r] = formRow(S, ["latBaseline" "latBaseFrom" "latBaseTo"], "Baseline:");
+lbg2 = subgrid(S.Body, r, {'1x', 60, 'fit', 60});
+E.latBaseline = uidropdown(lbg2, "Items", ["Before the event" "Window (ms):"], "ItemsData", EphysAnalysisConfig.LatencyBaselines, ...
+    "ValueChangedFcn", changed, "Tooltip", "Where the baseline rate is counted (the Poisson methods' rate, the onset's " + ...
+    "mean and SD): the part of each panel's window before the event, or a window of its own (ms from the event).");
+E.latBaseFrom = uieditfield(lbg2, "numeric", "Value", -100, "ValueChangedFcn", changed, "Tooltip", ...
+    "The baseline window's start, ms from the event.");
+uilabel(lbg2, "Text", "to");
+E.latBaseTo = uieditfield(lbg2, "numeric", "Value", 0, "ValueChangedFcn", changed, "Tooltip", "The baseline window's end, ms from the event.");
+[S, r] = formRow(S, "latRate", "Baseline rate:");
+E.latRate = uidropdown(S.Body, "Items", ["The unit's (every epoch's baseline together)" "Each trial's own"], ...
+    "ItemsData", EphysAnalysisConfig.LatencyRates, "ValueChangedFcn", changed, "Tooltip", "The Poisson methods' rate: " + ...
+    "every epoch's baseline spikes counted together (steady), or each epoch's own (a trial with no baseline spike " + ...
+    "then takes its first spike, or first burst).");
+place(E.latRate, r, 2);
+[S, r] = formRow(S, ["latSurprise" "latMinSpikes"], "Burst:");
+lsg = subgrid(S.Body, r, {'fit', '1x', 'fit', '1x'});
+uilabel(lsg, "Text", "surprise at least");
+E.latSurprise = uieditfield(lsg, "numeric", "Value", 3, "Limits", [0 Inf], "LowerLimitInclusive", "off", ...
+    "ValueChangedFcn", changed, "Tooltip", "The least Poisson surprise of a burst, -log10 P (3: P < 0.001 at the baseline rate).");
+uilabel(lsg, "Text", "from spikes");
+E.latMinSpikes = uispinner(lsg, "Limits", [2 50], "Step", 1, "Value", 3, "RoundFractionalValues", "on", ...
+    "ValueChangedFcn", changed, "Tooltip", "The fewest spikes a burst starts with, each interval under half the baseline's mean interval.");
+[S, r] = formRow(S, "latAlpha", "Alpha (p below):");
+E.latAlpha = uieditfield(S.Body, "numeric", "Value", 0.01, "Limits", [0 1], "LowerLimitInclusive", "off", ...
+    "UpperLimitInclusive", "off", "ValueChangedFcn", changed, "Tooltip", "The first spike whose count since the " + ...
+    "window's start has P(N >= k) below this at the baseline rate is the latency.");
+place(E.latAlpha, r, 2);
+[S, r] = formRow(S, ["latCusum" "latCusumSustain"], "Onset bins (ms):");
+lcg = subgrid(S.Body, r, {'1x', 'fit', '1x'});
+E.latCusum = uieditfield(lcg, "numeric", "Value", 2, "Limits", [0 Inf], "LowerLimitInclusive", "off", "ValueChangedFcn", changed, ...
+    "Tooltip", "The response onset (a raster's or PSTH's Onset line): the PSTH's bins its CUSUM sums, ms.");
+uilabel(lcg, "Text", "lasting (ms)");
+E.latCusumSustain = uieditfield(lcg, "numeric", "Value", 5, "Limits", [0 Inf], "ValueChangedFcn", changed, ...
+    "Tooltip", "How long the CUSUM must stay over its threshold and rising for an onset, ms (0: the crossing alone).");
+[S, r] = formRow(S, ["latCusumSD" "latCusumDrift"], "Onset threshold:");
+ltg = subgrid(S.Body, r, {'1x', 'fit', '1x'});
+E.latCusumSD = uieditfield(ltg, "numeric", "Value", 5, "Limits", [0 Inf], "LowerLimitInclusive", "off", "ValueChangedFcn", changed, ...
+    "Tooltip", "The CUSUM's threshold, baseline SDs: the onset is where the cumulative excess over the baseline passes it.");
+uilabel(ltg, "Text", "allowance (SD)");
+E.latCusumDrift = uieditfield(ltg, "numeric", "Value", 1, "Limits", [0 Inf], "ValueChangedFcn", changed, ...
+    "Tooltip", "Taken off each bin's excess, baseline SDs, so the CUSUM stays at 0 on the baseline (0: the plain excess).");
+sec(end+1) = S;
 
 % across sessions: the figure drawn once over several datasets, each layer merged (figureSessionCompute); no key
 S = formSection(eg, 14, "sessions", "Sessions", Color=tint("sessions"));
@@ -872,10 +945,10 @@ E.tickWidth = uispinner(S.Body, "Limits", [0 12], "Step", 0.25, "Value", 0, "Val
 place(E.tickWidth, r, 2);
 [S, r] = formRow(S, ["firstSpike" "firstSpikeDialog"], "First spike:", 30);
 fsg = subgrid(S.Body, r, {'1x', 'fit'});
-E.firstSpike = uilabel(fsg, "Text", "off", "Tooltip", "The first-spike latency marks: on or off, the latency window " + ...
-    "(ms from the event; end = the window's end) and the mark.");
-E.firstSpikeDialog = uibutton(fsg, "Text", "First-spike latency...", "ButtonPushedFcn", @(~,~) latencyDialog(obj, "firstSpike"), ...
-    "Tooltip", "Mark each epoch's first spike in a latency window (its minimum and maximum, ms from the event) on " + ...
+E.firstSpike = uilabel(fsg, "Text", "off", "Tooltip", "The first-spike latency marks: on or off, and the mark. How " + ...
+    "the latency is found is the figure's (First-spike latency section).");
+E.firstSpikeDialog = uibutton(fsg, "Text", "First-spike marks...", "ButtonPushedFcn", @(~,~) latencyDialog(obj, "firstSpike"), ...
+    "Tooltip", "Mark each epoch's first-spike latency (the figure's: its First-spike latency section finds it) on " + ...
     "its row, over the ticks: the marker, its size and color (each group's or one), filled or not.");
 [S, r] = formRow(S, "maskAfterStop", "");
 E.maskAfterStop = uicheckbox(S.Body, "Text", "Mask after the stop event", "ValueChangedFcn", changed, ...
@@ -918,12 +991,19 @@ E.stackSpacing = uieditfield(sk, "numeric", "Value", 1.1, "Limits", [0 Inf], "Lo
     "they overlap (an image row never does: below 1 counts as 1).");
 [S, r] = formRow(S, ["latencyBox" "latencyBoxDialog"], "Latency box:", 30);
 lbg = subgrid(S.Body, r, {'1x', 'fit'});
-E.latencyBox = uilabel(lbg, "Text", "off", "Tooltip", "The box plot of the first-spike latencies: on or off, the latency " + ...
-    "window (ms from the event; end = the window's end) and its color.");
+E.latencyBox = uilabel(lbg, "Text", "off", "Tooltip", "The box plot of the first-spike latencies: on or off, and its " + ...
+    "color. How the latencies are found is the figure's (First-spike latency section).");
 E.latencyBoxDialog = uibutton(lbg, "Text", "Latency box plot...", "ButtonPushedFcn", @(~,~) latencyDialog(obj, "latencyBox"), ...
-    "Tooltip", "A box plot of each epoch's first-spike latency per trial group (median, quartiles, whiskers to 1.5 " + ...
-    "IQR, outliers) in a band above the traces (stacked: in each row): the latency window, color, line, box height, " + ...
+    "Tooltip", "A box plot of each epoch's first-spike latency (the figure's) per trial group (median, quartiles, " + ...
+    "whiskers to 1.5 IQR, outliers) in a band above the traces (stacked: in each row): its color, line, box height, " + ...
     "fill and outliers.");
+[S, r] = formRow(S, "onsetLine", "Onset line:");
+E.onsetLine = uidropdown(S.Body, "Items", ["Off" "One line (every epoch)" "A line per trial group"], ...
+    "ItemsData", EphysAnalysisConfig.OnsetLines, "Value", "off", "ValueChangedFcn", changed, "Tooltip", ...
+    "The unit's response onset, a dashed line: where its PSTH's CUSUM rises past the threshold and stays up (the " + ...
+    "figure's First-spike latency section: window, baseline, onset bins and threshold). One over every epoch, or " + ...
+    "each trial group's in its color.");
+place(E.onsetLine, r, 2);
 [S, r] = formRow(S, "trialCount", "Trial count:");
 E.trialCount = uidropdown(S.Body, "Items", ["Off" "Text in the plot (n = 24)" "In the legend entries"], "ItemsData", ["off" "text" "legend"], ...
     "ValueChangedFcn", changed, "Tooltip", "How many trials each group has: written in the group's color in the plot " + ...
@@ -1381,7 +1461,7 @@ for i = find(ismember(names, ["note" "overlays" "style" "looks" "sessions"]))
 end
 % the supersections: each collapses its sections under a dark header, which Alt+1 to Alt+3 go to (onKeyPress)
 U = struct('Name', {"figure" "panel" "look"}, 'Title', {"Figure" "Panel" "Look"}, ...
-    'Sections', {["observations" "ref" "window" "selection" "sessions" "arrangement"], ...
+    'Sections', {["observations" "ref" "window" "selection" "latency" "sessions" "arrangement"], ...
     ["panel" "palign" "layers" "options" "waveform" "note" "overlays"], ["style" "looks"]}, ...
     'Header', {hFigure hPanel hLook}, 'Expanded', true, 'Key', {"1" "2" "3"});
 [sec.Super] = deal("");

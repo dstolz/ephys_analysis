@@ -13,7 +13,7 @@ function [res, sessions, Fs] = figureSessionCompute(sources, sessions, spec, opt
 %                        and a tuning panel's seriesParam (the sessions are
 %                        the series); "combine" draws PSTH bars as lines
 %     per session k      figureCompute(SOURCES{k}, that spec,
-%                        Observation=OBS.perSession{1}(k, :)) where the
+%                        Observation=OBS.perSession{1}(k, :), Latency=false) where the
 %                        session holds the observation (a session without
 %                        it, or one figureCompute skips, is "skipped" with
 %                        the reason; an error is "error"); FS{k} its F
@@ -43,6 +43,9 @@ function [res, sessions, Fs] = figureSessionCompute(sources, sessions, spec, opt
 %   (EphysAnalysisConfig.FigureSessionUnmerged: probe map, unit
 %   correlation, spectrum, spectrogram, coherence). A merge that fails
 %   (combineSessions:TooFew, :Bins, ...) skips that layer with its message.
+%   The figure's first-spike latencies and response onsets are taken once,
+%   on the merged rows (figureLatencies: F.latency, each layer's R.latency
+%   and R.onset), not per session.
 %
 %   RES  struct array, one per figure: facet ("all" or the subject), group
 %        ("" or the trial group), label ("all", the subject, or "<facet> /
@@ -137,7 +140,7 @@ for k = 1:n
         continue
     end
     try
-        Fs{k} = figureCompute(sources{k}, sspec, Observation=per(k, :), Check=opts.Check);
+        Fs{k} = figureCompute(sources{k}, sspec, Observation=per(k, :), Check=opts.Check, Latency=false);
     catch ME
         if ME.identifier == "EphysAnalysisRunner:Canceled"; rethrow(ME); end
         sessions.status(k) = "error";
@@ -333,6 +336,7 @@ o = observationStruct(obs);
 if group ~= ""; o.groupLabel = group; end
 F.observation = o;
 F.perSession = rows;
+[F.panels, F.latency] = figureLatencies(spec, F.panels);   % once, on the merged rows (each session's figure took none)
 F.created = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
 end
 

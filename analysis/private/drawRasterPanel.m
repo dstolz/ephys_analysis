@@ -29,17 +29,23 @@ function hk = drawRasterPanel(ax, P, look)
 %   to its offset (rasterInto's rasterSpans: the EventMark's color, else
 %   the next automatic mark color, its spanStyle, spanWidth and spanAlpha;
 %   role "eventSpan"). options.firstSpike (enabled) marks each epoch's
-%   first spike at or after its minSec and at or before its maxSec
-%   (firstSpikeLatency of that block's unit) on the epoch's row in every
-%   block, over the ticks, wherever the sort, rasterByGroup or a further
-%   block's band put the row (rasterInto; role "firstSpike", one line per
-%   group). With options.waveform.mode
+%   first spike (the figure's latencies of that block's unit, R.latency:
+%   its latency block's method and window, figureLatencies) on the epoch's
+%   row in every block, over the ticks, wherever the sort, rasterByGroup or
+%   a further block's band put the row (rasterInto; role "firstSpike", one
+%   line per group). options.onsetLine ("unit" or "groups") draws the
+%   block's unit's response onset (R.onset: the figure's CUSUM onset) as a
+%   dashed line over its rows, or each group's over its rows in its color
+%   (role "latencyOnset"). A latency or onset the figure's block could not
+%   find (no baseline before the event, say) is noted in the panel, with
+%   why. With options.waveform.mode
 %   on, the first block's unit's waveform is an inset (waveformInset). A
 %   skipped layer's reason is noted in the panel (figLayerNotes); a panel
 %   with marks but no rows says they need some.
 %   The legend offers the groups (tick swatches in their colors; with one
 %   color for every tick, the groups' pale bands when there are any), the
-%   marks and the first-spike marks ("First spike").
+%   marks, the first-spike marks ("First spike") and the onset lines
+%   ("Response onset").
 %   HK: figDrawResult's, yName = what the rows are and how they are sorted.
 %
 %   See also renderFigure, rasterInto, figurePanelRegistry.
@@ -95,8 +101,10 @@ colors = look.colors;
 if size(colors, 1) ~= height(R1.groups); colors = groupPalette(R1.groups, style); end
 fs = EphysAnalysisConfig.defaults("FirstSpike");   % none on a spec without it
 if isfield(o, 'firstSpike'); fs = EphysAnalysisConfig.normalizeSection("FirstSpike", o.firstSpike); end
+onset = "off";   % the unit's response onset: none on a spec without it
+if isfield(o, 'onsetLine'); onset = string(o.onsetLine); end
 rl = struct('order', o.rasterSortOrder, 'byGroup', o.rasterByGroup, 'marks', {marks}, ...
-    'tickColor', o.tickColor, 'backColor', o.backColor, 'firstSpike', fs);
+    'tickColor', o.tickColor, 'backColor', o.backColor, 'firstSpike', fs, 'onset', onset);
 flat = style;
 flat.XLim = [];
 if ~isempty(ev); R1.rasterEvents = ev; end
@@ -187,6 +195,15 @@ if fs.enabled && ~isempty(findall(ax, 'Tag', 'firstSpike'))   % the first-spike 
     hk.legendLabels(end+1) = "First spike";
     hk.legendGroup(end+1) = false;
 end
+hOn = findall(ax, 'Tag', 'latencyOnset');
+if onset ~= "off" && ~isempty(hOn)   % the onset lines: one entry, in the unit's line's color (else gray)
+    c = [0.25 0.25 0.25];
+    if onset == "unit"; c = hOn(1).Color; end
+    hk.legendHandles(end+1) = tagPart(line(ax, NaN, NaN, 'Color', c, 'LineStyle', '--', 'LineWidth', hOn(1).LineWidth), ...
+        "latencyOnset");
+    hk.legendLabels(end+1) = "Response onset";
+    hk.legendGroup(end+1) = false;
+end
 for m = 1:numel(sp)
     if any(hk.legendLabels(~hk.legendGroup) == sp(m).label); continue; end
     hk.legendHandles(end+1) = tagPart(line(ax, NaN, NaN, 'Color', [sp(m).color sp(m).alpha], 'LineStyle', char(sp(m).style), ...
@@ -200,8 +217,28 @@ Rw = P.layers(blocks(1).j).R;
 if wave.mode ~= "off" && isfield(Rw, 'waveforms')
     waveformInset(ax, Rw.waveforms, blocks(1).u, wave, style);
 end
+P = latencyNotes(P, blocks, fs.enabled || o.rasterSort == "latency", onset ~= "off");
 figLayerNotes(ax, P, look, true);
 hk.yName = rows;
+end
+
+
+function P = latencyNotes(P, blocks, wantL, wantO)
+%latencyNotes  A note (a further skipped entry of P.layers, figLayerNotes) for each block's latency or onset the figure's block could not find.
+why = strings(1, 0);
+for b = 1:numel(blocks)
+    R = P.layers(blocks(b).j).R;
+    if wantL && isfield(R, 'latency') && isstruct(R.latency) && R.latency.why ~= ""
+        why(end+1) = "no first-spike latency: " + R.latency.why; %#ok<AGROW>
+    end
+    if wantO && isfield(R, 'onset') && isstruct(R.onset) && R.onset.why ~= ""
+        why(end+1) = "no response onset: " + R.onset.why; %#ok<AGROW>
+    end
+end
+for w = unique(why, 'stable')
+    P.layers(end+1) = P.layers(blocks(1).j);
+    P.layers(end).skip = w;
+end
 end
 
 

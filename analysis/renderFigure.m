@@ -149,7 +149,9 @@ function h = renderFigure(F, spec, target, opts)
 %                     figure, panel or tab) keeps what was drawn (appdata
 %                     FigureDrawing), and the next drawing with Reuse keeps
 %                     the panels of the last one that would be drawn alike:
-%                     the same result (F.panels(k)), panel spec, group colors
+%                     the same result (F.panels(k), with the latencies it
+%                     reads: an edit of the latency block draws again only
+%                     the panels that read them), panel spec, group colors
 %                     and batch range, while what every panel depends on is
 %                     the same too (F but its panels, SPEC but its panels'
 %                     contents, every panel's place, sides, time axis and
@@ -702,8 +704,10 @@ end
 
 function K = drawingKeys(F, spec, style, design, opts, colorsOf, isTime, target)
 %drawingKeys  What a drawing depends on (Reuse): global (what every panel's does) and each panel's own.
-%   global  F but its panels and creation time; SPEC but its panels and
-%           its id (its title only as there being one: the top-left panel
+%   global  F but its panels, creation time and latency summary; SPEC but
+%           its panels, its latency block (the panels that read it carry
+%           their latencies in their results) and its id (its title only
+%           as there being one: the top-left panel
 %           then names the observation); each panel's id, type, place,
 %           sides, time axis and note (the time stack, the layout and the
 %           draw functions' inTimeColumn read them across panels); the
@@ -722,8 +726,8 @@ for k = 1:np
         reshape(double(P(k).size), 1, [])]}, 'align', string(P(k).align) + "|" + string(P(k).valign), 'xSide', P(k).xSide, ...
         'ySide', P(k).ySide, 'sharesTime', P(k).sharesTime, 'note', P(k).note);
 end
-Fg = rmfield(F, intersect({'panels' 'created' 'spec'}, fieldnames(F)));
-Sg = rmfield(spec, intersect({'panels' 'id' 'autoId' 'enabled' 'title'}, fieldnames(spec)));
+Fg = rmfield(F, intersect({'panels' 'created' 'spec' 'latency'}, fieldnames(F)));
+Sg = rmfield(spec, intersect({'panels' 'id' 'autoId' 'enabled' 'title' 'latency'}, fieldnames(spec)));
 Sg.titled = spec.title ~= "";
 rules = struct();
 if opts.UserAesthetics

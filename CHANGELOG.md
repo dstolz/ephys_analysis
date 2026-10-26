@@ -17,7 +17,22 @@ says how to cut a release.
   summary page lists each one's pages). `addReportFigure(Observations=)` keeps each page's observation for it.
   Export tab: **Order** in the report settings. See
   [Report order](documentation/EphysAnalysisConfig.md#report-order).
-
+- A figure's first-spike latency, found once for all its panels, by one of three rules, and the unit's response
+  onset by CUSUM. A figure's new `latency` block (`defaults("Latency")`) says how: `method` `"first"` (the first
+  spike in the window, as before), `"surprise"` (the first burst whose Poisson surprise against the baseline rate
+  passes `surprise`; Legendy & Salcman 1985) or `"poisson"` (the first spike at which the count since the window's
+  start is improbable, p < `alpha`; Chase & Young 2007), the window `minSec`-`maxSec`, the baseline (before the
+  event or a window of its own; the unit's rate or each trial's) and the onset's CUSUM (`cusumBinSec`,
+  `cusumThreshold`, `cusumDrift`, `cusumSustainSec`: Page's one-sided cumulative sum of the PSTH over its baseline,
+  Ellaway 1978). `figureCompute` takes them once per unit and alignment and hands them to every panel that reads
+  them (`R.latency`, `R.onset`, `F.latency`), kept in the preview's cache: an edit of the block computes them again
+  and no panel, and only the panels that read them are drawn again. New `responseOnset`; `firstSpikeLatency` gains
+  `Method`, `Baseline`, `BaselineRate`, `Alpha`, `Surprise`, `MinSpikes`. A raster's or PSTH's new
+  `options.onsetLine` (`"off"` | `"unit"` | `"groups"`) draws the onset as a dashed line (role `latencyOnset`, its
+  data tip the onset). The window left a raster's `firstSpike` and a PSTH's `latencyBox` (their looks alone now)
+  and the latency sort: it is the block's. Figures tab: a **First-spike latency** section (Figure supersection)
+  edits the block; the raster's window is **First-spike marks...**, both panels gain **Onset line**. See
+  [First-spike latency](documentation/EphysAnalysisConfig.md#first-spike-latency).
 - Join the detection channels that hold one neuron. `UnitSelection.merge` (`enabled` false) makes
   `selectUnits(source "detected")` return one unit per group of channels of neighboring sites instead of one per
   channel: `groupDetected` joins two sites when the events of one leave the refractory gap (more than the

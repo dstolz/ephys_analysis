@@ -8,11 +8,11 @@ function R = onRunExport(obj, opts)
 %   SessionFigures=, Export= and Report= are run's
 %   ([] = the config's); Config= runs that config instead of the controls'
 %   (gatherConfig) and Title= names the progress dialog: the Figures tab's
-%   Generate selected figure (onGenerateFigure) runs one figure that way, and Unit report
-%   (onUnitReport) one observation (Observation=, run's). The dialog's
+%   Generate selected figure (onGenerateFigure) runs one figure that way, and Test report
+%   (onTestReport) one observation (Observation=, run's). The dialog's
 %   message is the runner's (what it is on, the report's pages) and the
 %   time left (ProgressClock). One run goes at a time (Running): Run,
-%   Plan, Validate, Generate, Unit report and Export preview are off
+%   Plan, Validate, Generate, Test report and Export preview are off
 %   meanwhile, and the previews compute nothing.
 arguments
     obj (1,1) EphysAnalysisApp
@@ -23,7 +23,7 @@ arguments
     opts.Report = []     % [] = Report.Enabled
     opts.Config = []     % an EphysAnalysisConfig to run ([] = gatherConfig)
     opts.Title (1,1) string = "Running the analysis"
-    opts.Observation = [] % run's: one observation only (the Figures tab's Unit report, onUnitReport)
+    opts.Observation = [] % run's: one observation only (the Figures tab's Test report, onTestReport)
 end
 R = table();
 if obj.Running; return; end
@@ -52,7 +52,7 @@ clock = ProgressClock();   % the time left, in the dialog's message
 r.ProgressFcn = @(f, m) progress(r, dlg, clock, f, m);
 obj.Running = true;
 obj.GenerateFigureMenu.Enable = 'off';
-set([obj.RunButton obj.PlanButton obj.ValidateButton obj.FigureRedrawAllButton obj.FigureUnitReportButton ...
+set([obj.RunButton obj.PlanButton obj.ValidateButton obj.FigureRedrawAllButton obj.FigureTestReportButton ...
     obj.FigureExportPreviewButton obj.ExportPreviewButton], 'Enable', 'off');
 set([obj.ToolbarRunTool obj.ToolbarPlanTool obj.ToolbarValidateTool], 'Enable', 'off');
 obj.CancelButton.Enable = 'on';
@@ -108,7 +108,7 @@ set([obj.ToolbarRunTool obj.ToolbarPlanTool obj.ToolbarValidateTool], 'Enable', 
 has = matlab.lang.OnOffSwitchState(obj.SelectedFigure >= 1 && obj.SelectedFigure <= numel(obj.Config.Figures));
 set([obj.FigureRedrawAllButton obj.FigureExportPreviewButton obj.ExportPreviewButton], 'Enable', has);
 obj.GenerateFigureMenu.Enable = has;
-obj.FigureUnitReportButton.Enable = unitReportEnable(obj);
+obj.FigureTestReportButton.Enable = testReportEnable(obj);
 obj.CancelButton.Enable = 'off';
 obj.ToolbarCancelTool.Enable = 'off';
 end

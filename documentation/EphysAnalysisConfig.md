@@ -107,7 +107,7 @@ distinct as file names: `{Plot}` replaces every character outside
               "Data": { "Enabled": false, "Folder": "{OutputRoot}\\analysis\\data",
                         "FilenamePattern": "{Name}_{Plot}", "MatVersion": "-v7.3" } },
   "Report": { "Enabled": true, "Format": "html", "Title": "{Name}",
-              "Folder": "{OutputRoot}\\analysis", "FileName": "analysis_report", "PerDataset": false,
+              "Folder": "{OutputRoot}\\analysis", "FileName": "analysis_report", "PerDataset": false, "Order": "figure",
               "EmbedFormat": "png", "Dpi": 110, "IncludeSummary": true, "IncludeParameters": true,
               "IncludeConfig": true }
 }
@@ -2698,6 +2698,7 @@ token values (the folder pattern is the plots'):
 | `Folder` | `{OutputRoot}\analysis` | a [folder pattern](#file-name-tokens). Each run also writes its run record there, under `analysis_runs`, whether or not a report is written |
 | `FileName` | `"analysis_report"` | a plain file name; `.html` / `.pdf` added |
 | `PerDataset` | `false` | one report per dataset, named `<FileName>_<dataset>` (the folder may then use `{OutputFolder}`) |
+| `Order` | `"figure"` | the order within a dataset: `"figure"`, a figure at a time with all its observations' pages together; `"unit"`, an observation at a time (a unit, a channel, or the dataset for a figure of the dataset) under a heading of its own, with its pages of every figure in the figures' order ([below](#report-order)) |
 | `EmbedFormat` | `"png"` | HTML images: `"png"` (base64) or `"svg"` (inline) |
 | `Dpi` | 110 | report PNG resolution |
 | `IncludeSummary` | `true` | summary tables per dataset (in the PDF, a summary page per dataset) |
@@ -2728,6 +2729,27 @@ is listed with its status and message. A [session
 figure](#session-figures) is an entry of the *Across sessions* section instead,
 one per facet and trial group, its pages the matched observations
 ([what a run writes](#what-a-run-writes)).
+
+### Report order
+
+`Order` arranges each dataset's part of the report:
+
+- `"figure"` (the default): the entries above, one figure after another, each
+  with every observation's pages together.
+- `"unit"`: one group per observation, in the order the observations first
+  appear (the first figure's in probe order, then what later figures add), each
+  under a heading with its label (*su12  ch 5  300 µm*, *LFP ch 5  300 µm*, or
+  the dataset's name for the figures of the dataset). Under it, every figure that
+  drew that observation, in the figures' order: its pages of it (every trial
+  group of a `perGroup` figure) and the caption; the figure's file links and
+  parameters come with its first appearance. A unit and the channel it was
+  recorded on are separate groups (a unit figure and an LFP figure observe
+  different things), as are a sorted unit and its detection channel. The
+  HTML contents list the observations, each with its count of figures; the PDF
+  has the pages in that order and its dataset summary page lists each
+  observation's pages (*su12  ch 5  300 µm: pages 4-6 (rp, wf)*). Figures not
+  drawn (skipped, failed) follow the groups with their reason, as do the
+  session figures, which are always in figure order.
 
 ## File-name tokens
 
@@ -2784,7 +2806,7 @@ With the defaults, the figure `unit_card` of dataset `SYNTH-01_260918_101500` wi
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi` positive; `FigureSizeCm` two positive numbers; the folder and file-name patterns use known tokens, and the file-name pattern is not empty; `SessionsFolder` and `Data.Folder` are folder patterns, `Data.FilenamePattern` a file-name pattern, and `Data.MatVersion` is `-v7.3` or `-v7` | error |
 | Export | a file-name pattern without `{Plot}` while several figures are enabled (every figure's `{Kind}` is `figure`, so only `{Plot}`, the figure's id, tells their files apart); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |
 | Export | `{OutputFolder}` in `SessionsFolder` or `Data.Folder`: it is one dataset's folder, so the session figures' files go to the first dataset's | warning |
-| Report | Format html / pdf / both, EmbedFormat png / svg, `Dpi` positive, a plain `FileName`, the folder pattern | error |
+| Report | Format html / pdf / both, EmbedFormat png / svg, Order figure / unit, `Dpi` positive, a plain `FileName`, the folder pattern | error |
 | Report | `{OutputFolder}` in a report over every dataset | warning |
 
 Whether a dataset can draw a figure (units, signals, trials, lines,

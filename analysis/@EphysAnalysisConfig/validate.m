@@ -138,7 +138,8 @@ function issues = validate(obj, opts)
 %               SessionsFolder and Data.Folder (folder patterns; a warning
 %               for {OutputFolder}), Data.FilenamePattern (a file pattern)
 %               and Data.MatVersion (-v7.3 or -v7)
-%     Report    Format html / pdf / both; EmbedFormat png / svg; Dpi;
+%     Report    Format html / pdf / both; EmbedFormat png / svg; Order
+%               figure / unit; Dpi;
 %               FileName; the folder pattern
 %
 %   Options: CheckPaths (default true) also checks that folders exist.
@@ -753,6 +754,9 @@ if ~ismember(P.Format, ["html" "pdf" "both"])
 end
 if ~ismember(P.EmbedFormat, ["png" "svg"])
     add("Report", "EmbedFormat", "error", "EmbedFormat must be png or svg.");
+end
+if ~ismember(P.Order, ["figure" "unit"])
+    add("Report", "Order", "error", "Order must be figure or unit.");
 end
 if ~(P.Dpi > 0); add("Report", "Dpi", "error", "Dpi must be positive."); end
 if strtrim(P.FileName) == "" || ~isempty(regexp(P.FileName, '[\\/:*?"<>|]', 'once'))

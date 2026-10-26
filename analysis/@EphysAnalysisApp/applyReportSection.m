@@ -7,6 +7,7 @@ C.Title.Value = char(P.Title);
 C.Folder.Value = char(P.Folder);
 C.FileName.Value = char(P.FileName);
 C.PerDataset.Value = P.PerDataset;
+C.Order.Value = char(P.Order);
 C.EmbedFormat.Value = char(P.EmbedFormat);
 C.Dpi.Value = P.Dpi;
 C.IncludeSummary.Value = P.IncludeSummary;

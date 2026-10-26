@@ -56,14 +56,16 @@ function [T, why] = figureObservations(src, spec, opts)
 %
 %   [T, WHY] = figureObservations(SRC, SPEC, Observation=OBS) keeps only
 %   the rows that match one observation picked on another figure (the
-%   app's Unit report): OBS is a struct with kind ("unit" | "channel"),
-%   data (that figure's observe.data), unitId, channel and label. A unit
-%   figure on the same data keeps the unit of that id; otherwise the match
-%   is by recording channel (a unit's channel figures, a channel's units,
-%   a detection's sorted units and back). Every trial group of a match is
-%   kept. A figure of the dataset keeps nothing. Starred only does not
-%   apply: the observation picked is drawn, starred or not. When nothing
-%   is kept, WHY says why (else "").
+%   app's Test report): OBS is a struct with kind ("unit" | "channel" |
+%   "dataset"), data (that figure's observe.data), unitId, channel and
+%   label. A unit figure on the same data keeps the unit of that id;
+%   otherwise the match is by recording channel (a unit's channel figures,
+%   a channel's units, a detection's sorted units and back). A figure of
+%   the dataset keeps its one row whatever was picked: the dataset is the
+%   picked observation's too. With the dataset picked, a unit or channel
+%   figure keeps nothing. Every trial group of a match is kept. Starred
+%   only does not apply: the observation picked is drawn, starred or not.
+%   When nothing is kept, WHY says why (else "").
 %
 %   Options
 %     Observation  a struct: only the rows matching it (above); default []
@@ -180,13 +182,17 @@ end
 
 function [T, why] = matchObservation(T, ob, obs)
 %matchObservation  The rows of T that match OBS (a unit or channel picked on another figure), and why none did.
-%   A unit figure on OBS's own data: the unit of OBS's id. Any other unit
-%   or channel figure: the rows on OBS's recording channel. A figure of
-%   the dataset: none.
+%   A figure of the dataset: its one row (the dataset itself). The dataset
+%   picked: no unit or channel. A unit figure on OBS's own data: the unit
+%   of OBS's id. Any other unit or channel figure: the rows on OBS's
+%   recording channel.
 why = "";
 if ob.kind == "dataset"
+    return   % the dataset is every observation's: drawn as it is
+end
+if obs.kind == "dataset"
     T = T([], :);
-    why = "it observes the dataset, not one " + obs.kind;
+    why = "it observes one " + ob.kind + ", and the dataset was picked";
     return
 end
 if ob.kind == "unit" && obs.kind == "unit" && ob.data == obs.data

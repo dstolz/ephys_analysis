@@ -21,7 +21,7 @@ if report.options.IncludeSummary && isstruct(opts.Summary) && ~isempty(fieldname
     summary = opts.Summary;
 end
 entry = struct('plot', {}, 'kind', {}, 'title', {}, 'caption', {}, 'spec', {}, ...
-    'images', {}, 'pages', {}, 'files', {}, 'status', {}, 'message', {});
+    'images', {}, 'pages', {}, 'files', {}, 'status', {}, 'message', {}, 'obsKeys', {}, 'obsLabels', {});
 report.datasets(end+1) = struct('name', name, 'key', "", 'folder', "", 'summary', summary, 'entries', entry, ...
     'kind', "section", 'starred', false);
 end

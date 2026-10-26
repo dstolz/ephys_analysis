@@ -2,7 +2,7 @@ function report = refresh(obj, opts)
 %refresh  Parse headers and restore/refresh each dataset's manifest.
 %   P.refresh() runs, for every dataset in the project (or Datasets=):
 %     1. refreshMetadata()  - header-only metadata (Fs, channels, duration)
-%     2. applyManifest()    - restore probe, exclusions, manual artifacts,
+%     2. applyManifest()    - restore probe, exclusions, tags, manual artifacts,
 %                             sorting and behavior associations from disk
 %                             (as recorded, also while their files are not
 %                             there); then associateFolderBehavior() - a
@@ -30,6 +30,9 @@ function report = refresh(obj, opts)
 %   Returns a table (Dataset, Key, Metadata, Manifest, Message), one row per
 %   dataset refreshed: Metadata / Manifest are logical success flags;
 %   failures warn and are recorded here instead of interrupting the loop.
+%   Tags a manifest holds that are not valid are dropped by applyManifest
+%   (warning EphysDataset:applyManifest:Tags); the warning's text goes into
+%   that row's Message, and the row's Manifest flag stays true.
 %
 %   See also EphysDataset.refreshMetadata, EphysDataset.applyManifest,
 %   EphysDataset.associateFolderBehavior, EphysDataset.writeManifest.
@@ -78,7 +81,15 @@ for i = 1:n
     try
         unread = "";   % why a manifest that is there was not read
         if opts.ApplyManifest
+            lastwarn("");
             [~, unread] = d.applyManifest();
+            % Tags dropped as invalid are reported with the row, so the Scan
+            % alert names them; the manifest itself still counts as read.
+            [wmsg, wid] = lastwarn();
+            if wid == "EphysDataset:applyManifest:Tags"
+                if msg(i) ~= ""; msg(i) = msg(i) + "; "; end
+                msg(i) = msg(i) + string(wmsg);
+            end
             % A recorded session is kept, also while its file is not there.
             % A folder of outputs alone holds no session: its .mat files are not opened.
             if d.BehaviorFile == "" && d.hasRecording()

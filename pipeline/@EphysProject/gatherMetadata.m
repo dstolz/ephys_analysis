@@ -2,8 +2,12 @@ function T = gatherMetadata(obj, opts)
 %gatherMetadata  Parse headers for every dataset and return a summary table.
 %   T = P.gatherMetadata() calls refreshMetadata on each dataset (header-only;
 %   no amplifier data is read) and returns a table with one row per dataset:
-%     Name, Folder, NumFiles, NumChannels, Fs, Duration, AcqDate,
+%     Name, Folder, NumFiles, NumChannels, Fs, Duration, AcqDate, Tags,
 %     ChannelNames, HasProbe, BinExists, HasKilosort
+%
+%   Tags is the dataset's tags (EphysDataset.Tags) as one string joined with
+%   ";" (TagSet.ExportDelimiter), "" when it has none; TagSet.fromText(s, ";")
+%   gives the set back.
 %
 %   HasProbe/BinExists test the dataset's assigned probe and canonical .bin
 %   path; HasKilosort comes from the dataset's DatasetTracker (true when any
@@ -34,6 +38,7 @@ NumChannels = zeros(n, 1);
 Fs          = zeros(n, 1);
 Duration    = zeros(n, 1);
 AcqDate     = NaT(n, 1);
+Tags        = strings(n, 1);
 ChannelNames = cell(n, 1);
 HasProbe    = false(n, 1);
 BinExists   = false(n, 1);
@@ -51,12 +56,13 @@ for i = 1:n
     Fs(i)          = d.Fs;
     Duration(i)    = d.Duration;
     AcqDate(i)     = d.AcqDate;
+    Tags(i)        = TagSet.toText(d.Tags, TagSet.ExportDelimiter);
     ChannelNames{i} = d.ChannelNames;
     HasProbe(i)    = d.ProbeFile ~= "" && isfile(d.ProbeFile);
     BinExists(i)   = isfile(d.BinFile);
     HasKilosort(i) = d.tracker().hasKilosort();
 end
 
-T = table(Name, Folder, NumFiles, NumChannels, Fs, Duration, AcqDate, ...
+T = table(Name, Folder, NumFiles, NumChannels, Fs, Duration, AcqDate, Tags, ...
     ChannelNames, HasProbe, BinExists, HasKilosort);
 end

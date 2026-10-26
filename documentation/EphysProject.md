@@ -78,7 +78,7 @@ recording, its folders of pipeline outputs are the datasets instead (see
 `Datasets=` indices):
 
 1. `refreshMetadata()`: header-only metadata (Fs, channels, duration);
-2. `applyManifest()`: restore the probe, channel exclusions, manual artifact
+2. `applyManifest()`: restore the probe, channel exclusions, tags, manual artifact
    periods, sorting and behavior associations from
    `<Folder>/<Name>_manifest.json`, as recorded, also while their files are
    not there; then, when no behavior file is recorded,
@@ -99,6 +99,10 @@ true), `Force` (re-parse cached
 headers), `ProgressFcn(i, n, name)`, `CancelFcn()`. Failures warn and are
 recorded in the returned table (`Dataset`, `Key`, `Metadata`, `Manifest`,
 `Message`; one row per dataset refreshed) instead of interrupting the loop.
+Tags in a manifest that are not valid are dropped by `applyManifest` with the
+warning `EphysDataset:applyManifest:Tags`; its text goes into that row's
+`Message` (the Scan alert lists it), the row's `Manifest` flag stays true,
+and the file is rewritten without them ([Tags](EphysDataset.md#tags)).
 
 **`pushConfig(d)`** copies `ProbeFile`, `PythonExe`, `CondaEnv`, `Scale`,
 `Dtype`, `NamePattern`, `Manifest`, the dataset's key (`DatasetKey`, saved
@@ -132,9 +136,11 @@ config's selection, the refresh report, the GUI table) uses the
 **`T = gatherMetadata(Force=false)`** calls `refreshMetadata` on every dataset
 whose `Fs` is still `NaN` (or on all of them with `Force=true`). It returns one
 table row per dataset with `Name`, `Folder`, `NumFiles`, `NumChannels`, `Fs`,
-`Duration`, `AcqDate`, `ChannelNames`, `HasProbe` (`ProbeFile` is set and
+`Duration`, `AcqDate`, `Tags`, `ChannelNames`, `HasProbe` (`ProbeFile` is set and
 exists), `BinExists`, `HasKilosort` (the dataset's tracker has a run with
-`spike_clusters.npy`).
+`spike_clusters.npy`). `Tags` is the dataset's [tags](EphysDataset.md#tags) as one
+string joined with `;` (`TagSet.ExportDelimiter`), `""` when it has none, so
+the table writes to CSV unquoted; `TagSet.fromText(s, ";")` gives the set back.
 
 **`infos = toBinAll(Name=Value...)`** calls `toBin` on every dataset, passing
 all arguments through to `EphysDataset.toBin`. An error on one dataset is caught,

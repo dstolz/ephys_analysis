@@ -61,6 +61,8 @@ classdef test_Provenance < matlab.unittest.TestCase
         function runWritesRecordAndOutputs(tc)
             pipe = EphysPipeline(tc.Cfg);
             pipe.LogFcn = [];
+            pipe.Project.Datasets(1).Tags = {'pilot', 'Draft'};
+            pipe.Project.Datasets(1).writeManifest();   % run() restores each manifest first
             pipe.run();
             file = pipe.RunRecordFile;
             tc.assertTrue(isfile(file), "the run record exists");
@@ -71,6 +73,7 @@ classdef test_Provenance < matlab.unittest.TestCase
             tc.verifyEqual(string(rec.outcome), "finished");
             tc.verifyTrue(any(string(rec.steps) == "spikes"), "the steps run");
             tc.verifyEqual(string(rec.datasets(1).key), "mouse1/M1_260101_120000");
+            tc.verifyEqual(rec.datasets(1).tags, {'draft'; 'pilot'}, "each dataset's tags are in the record");
             res = rec.results;
             if iscell(res); res = [res{:}]; end
             spk = res(string({res.Step}) == "spikes");

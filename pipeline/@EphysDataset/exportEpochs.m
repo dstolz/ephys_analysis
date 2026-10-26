@@ -29,7 +29,7 @@ function out = exportEpochs(obj, opts)
 %                behavior  the session and pairing the events came from, or []
 %                artifacts the extract's artifact periods (info.artifacts)
 %                meta      provenance
-%     export   provenance: tool, created, dataset, sources, signals, window,
+%     export   provenance: tool, created, dataset, tags, sources, signals, window,
 %              nEpochs (the same struct as epochs.meta)
 %
 %   Options

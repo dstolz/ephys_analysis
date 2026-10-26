@@ -3,7 +3,7 @@ function test_ManifestViewerApp()
 %   Builds ManifestViewerApp windows in the current session (uifigure; no
 %   display interaction) and checks: the Summary rows of a hand-written
 %   manifest (path checks against the recorded "exists", channel-count and
-%   range warnings, the reference exclusions, the pairing status, how each
+%   range warnings, the tags, the reference exclusions, the pairing status, how each
 %   output was made, unknown fields kept), a pairing record the dataset
 %   would ignore, opening from a
 %   file, a folder (the newest of two manifests) and an EphysDataset of a
@@ -54,6 +54,7 @@ m.metadata = struct('fs', 30000, 'num_channels', 16, 'duration_s', 100, 'num_fil
     'acq_date', "2026-01-01 12:00:00", 'files', {{'a.rhd'; 'b.rhd'}});
 m.probe = struct('file', probeFile, 'exists', true, 'num_channels', 16, 'num_shanks', 1, 'depth_um', 300, 'notes', "");
 m.exclude_channels = "2,5,20";
+m.tags = {'pilot', 'draft'};
 m.reference_exclude = struct('channels', "7,30", 'source', "manual");
 m.manual_artifacts = [1 2; 10 12; 95 130];
 m.artifact_adjustments = [20 21 19.5 21.25];   % one row: jsondecode gives it back as a vector
@@ -102,6 +103,19 @@ check(rowIs(T(T.Section == "Sorting", :), "Results folder", "missing") ...
     && contains(T.Check(T.Section == "Sorting" & T.Field == "Results folder"), "there when written"), ...
     'sorting folder without params.py: missing, and there when written');
 check(rowIs(T, "Excluded", "warn"), 'exclusion beyond the channel count: warning');
+check(T.Value(T.Section == "General" & T.Field == "Tags") == "draft, pilot" && ~any(T.Section == "Other" & T.Field == "tags"), ...
+    'Tags row: the dataset''s tags sorted and ", "-joined, not listed under Other');
+mTg = m;
+mTg.tags = {};
+Tt = ManifestViewerApp.summaryRows(mTg);
+check(Tt.Value(Tt.Field == "Tags") == "(none)" && rowIs(Tt, "Tags", ""), 'Tags row: (none) for an empty array');
+mTg = rmfield(m, 'tags');
+Tt = ManifestViewerApp.summaryRows(mTg);
+check(Tt.Value(Tt.Field == "Tags") == "(none)", 'Tags row: (none) for a manifest without the field');
+mTg.tags = {'Pilot', 'bad tag!', 'ok'};
+Tt = ManifestViewerApp.summaryRows(mTg);
+check(Tt.Value(Tt.Field == "Tags") == "ok, pilot" && rowIs(Tt, "Tags", "warn") ...
+    && contains(Tt.Check(Tt.Field == "Tags"), "bad tag!"), 'Tags row: an invalid tag is named in a warning (applyManifest drops it)');
 r = T(T.Field == "Reference exclude", :);
 check(rowIs(T, "Reference exclude", "warn") && contains(r.Check, "set by hand") && contains(r.Check, "2 left out"), ...
     'reference exclusion: counted, source named, beyond the channel count: warning');

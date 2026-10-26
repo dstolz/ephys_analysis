@@ -29,6 +29,7 @@ classdef test_NWBExport < matlab.unittest.TestCase
     methods (Test)
         function staged(tc)
             D = tc.Data;
+            D.ds.Tags = {'pilot', 'Draft'};
             out = D.ds.exportNWB(Extract=D.S, Units=D.U, Behavior=D.B, ProbeFile=D.probe, StageOnly=true, ...
                 Metadata=D.meta);
             tc.verifyEqual(out.file, "");
@@ -78,6 +79,8 @@ classdef test_NWBExport < matlab.unittest.TestCase
             tc.verifyEqual(string(st.subject.species), "Mus musculus");
             notes = jsondecode(char(st.session.notes));
             tc.verifyEqual(string(notes.tool), "EphysDataset.exportNWB");
+            tc.verifyEqual(notes.tags, {'draft'; 'pilot'}, 'the dataset''s tags are in the notes');
+            tc.verifyEmpty(st.session.keywords, 'the tags are not NWB keywords: those stay the config''s');
         end
 
         function writesAndReadsBack(tc)

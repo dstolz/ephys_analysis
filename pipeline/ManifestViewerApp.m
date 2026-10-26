@@ -505,6 +505,8 @@ if isfield(m, 'recording_format'); R = addRow(R, S, "Recording format", txtOf(m.
 if isfield(m, 'reader');           R = addRow(R, S, "Reader", txtOf(m.reader)); end
 upd = txtOf(getf(m, 'updated', ""));
 R = addRow(R, S, "Updated", upd, "", ageText(upd));
+[tg, lv, ck] = tagsCheck(getf(m, 'tags', {}));
+R = addRow(R, S, "Tags", tg, lv, ck);
 
 nch = numOf(getf(m, 'metadata.num_channels', NaN));
 dur = numOf(getf(m, 'metadata.duration_s', NaN));
@@ -772,7 +774,7 @@ if isfield(m, 'behavior') && isstruct(m.behavior)
 end
 
 known = ["schema" "name" "folder" "recording_format" "reader" "updated" "metadata" "probe" ...
-    "exclude_channels" "reference_exclude" "manual_artifacts" "artifact_adjustments" "artifacts" "bin" "kilosort" ...
+    "exclude_channels" "tags" "reference_exclude" "manual_artifacts" "artifact_adjustments" "artifacts" "bin" "kilosort" ...
     "sorting" "processing" "behavior"];
 other = setdiff(string(fieldnames(m)).', known, 'stable');
 for f = other
@@ -784,6 +786,27 @@ for f = other
 end
 
 T = array2table(R, 'VariableNames', {'Section', 'Field', 'Value', 'Check', 'Level'});
+end
+
+function [txt, level, check] = tagsCheck(v)
+% The manifest's tags as the table shows them (", "-joined, "(none)" when
+% empty), and whether applyManifest would keep them all.
+level = ""; check = "";
+try
+    [t, bad] = TagSet.parse(v);
+catch
+    txt = fmtValue(v); level = "warn"; check = "not a list of text: applyManifest ignores it";
+    return
+end
+txt = TagSet.toText(t, TagSet.DisplayDelimiter);
+if txt == ""; txt = "(none)"; end
+if ~isempty(bad)
+    level = "warn";
+    check = "applyManifest drops " + strjoin(string(bad), ", ") + " (not a valid tag)";
+elseif numel(t) > TagSet.MaxTags
+    level = "warn";
+    check = sprintf('more than the limit of %d: applyManifest keeps the first %d', TagSet.MaxTags, TagSet.MaxTags);
+end
 end
 
 function R = addRow(R, section, field, value, level, check)

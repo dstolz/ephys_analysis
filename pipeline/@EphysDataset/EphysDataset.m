@@ -109,6 +109,17 @@ classdef EphysDataset < handle
         % modified. See runKilosort, parseChannelList, formatChannelList.
         ExcludeChannels (1,:) double = double.empty(1,0)
 
+        % The user's tags on this dataset: a cellstr row, unique, sorted and
+        % lowercase, {} when there are none. Metadata only: no step reads
+        % them. TagSet holds every rule (what a tag is, at most TagSet.MaxTags
+        % of them); set.Tags runs every assignment through TagSet.require, so
+        % an invalid tag errors (TagSet:Invalid, TagSet:TooMany). Saved as
+        % the manifest's top-level "tags" array and written beside the
+        % dataset's metadata in the exports. Declared without a size on
+        % purpose: (1,:) would turn the default {} into a 1x0 cell, and the
+        % set always equals what TagSet.require returns, {} (0x0) when empty.
+        Tags = {}
+
         % Channels left out of the common reference (ArtifactConfig.Reference
         % "car" / "cmr", and the plain CAR the weighted CAR "wcar" weighs),
         % 1-based like ExcludeChannels, which are left out
@@ -411,6 +422,10 @@ classdef EphysDataset < handle
                 obj.Reader = []; %#ok<MCSUP> rebuilt with the new options on next use
                 obj.ReaderSearched = false; %#ok<MCSUP>
             end
+        end
+
+        function set.Tags(obj, v)
+            obj.Tags = TagSet.require(v);
         end
 
         function discoverFiles(obj)
@@ -956,6 +971,9 @@ classdef EphysDataset < handle
 
             m.exclude_channels = EphysDataset.formatChannelList(obj.ExcludeChannels);
 
+            % The user's tags (a JSON array of strings, [] for none).
+            m.tags = obj.Tags;
+
             % Channels left out of the common reference, and whether they
             % were suggested or set by hand ("" = never set).
             m.reference_exclude = struct( ...
@@ -1031,7 +1049,9 @@ classdef EphysDataset < handle
         function [tf, why] = applyManifest(obj)
             %applyManifest  Restore the editable per-dataset state from the
             %   on-disk manifest (if present) so a re-scan recovers prior work:
-            %   probe file, channel exclusions, manual artifact periods, the
+            %   probe file, channel exclusions, tags (those that are not
+            %   valid, or are past TagSet.MaxTags, are dropped with a warning,
+            %   EphysDataset:applyManifest:Tags), manual artifact periods, the
             %   detected artifacts' bounds moved by hand, an
             %   explicit ("manual") sorting folder, the behavior file and the
             %   records of how each output was made (Processing). The
@@ -1071,6 +1091,19 @@ classdef EphysDataset < handle
             end
             if isfield(m, 'exclude_channels')
                 obj.ExcludeChannels = EphysDataset.parseChannelList(string(m.exclude_channels));
+            end
+            if isfield(m, 'tags')
+                [t, bad] = TagSet.parse(m.tags);   % jsondecode gives an Nx1 cell, a char or []
+                if numel(t) > TagSet.MaxTags       % a hand-edited file: keep the first MaxTags, as sorted
+                    bad = [bad, t(TagSet.MaxTags+1:end)];
+                    t = t(1:TagSet.MaxTags);
+                end
+                obj.Tags = t;
+                if ~isempty(bad)
+                    warning('EphysDataset:applyManifest:Tags', ...
+                        'Manifest of %s: %d tag(s) dropped as invalid or over the limit of %d (%s); %d kept.', ...
+                        obj.Name, numel(bad), TagSet.MaxTags, strjoin(string(bad), ", "), numel(t));
+                end
             end
             if isfield(m, 'reference_exclude') && isstruct(m.reference_exclude) ...
                     && all(isfield(m.reference_exclude, {'channels', 'source'})) ...

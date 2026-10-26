@@ -153,6 +153,7 @@ check(isequal(art.samples, int64([200 211])) && isequal(art.s, [0.2005 0.2105]),
     'an artifact period as 0-based [start stop) samples covering every sample it touches');
 
 fprintf('\n== 4. EphysDataset.exportKCSD ==\n');
+ds.Tags = {'pilot', 'Draft'};
 out = ds.exportKCSD(Extract=S, ProbeFile=pLam);
 expected = string(fullfile(ds.outputFolder(), "rec_A_kcsd.npz"));
 check(out.file == expected && isfile(out.file) && out.nElectrodes == 5 && out.dim == 1 && out.nExcluded == 1 ...
@@ -171,6 +172,7 @@ M = jsondecode(K.meta);
 check(M.tool == "EphysDataset.exportKCSD" && M.dataset == "rec_A" && M.dim == 1 && M.units.ele_pos == "mm" ...
     && M.units.pots == "mV" && M.eventFs == origFs && string(M.sources.probeFile) == string(pLam) && M.artifactFill == "line", ...
     'meta: tool, dataset, units, eventFs, probe');
+check(isequal(M.tags, {'draft'; 'pilot'}), 'meta: the dataset''s tags as an array');
 check(strcmp(errorId(@() ds.exportKCSD(Extract=S, ProbeFile=pLam)), 'EphysDataset:exportKCSD:Exists'), ...
     'an existing file is not replaced without Overwrite');
 outN = ds.exportKCSD(Extract=S, ProbeFile=pLam, Events=false, Overwrite=true);

@@ -495,6 +495,14 @@ check(any(strcmp('HasKilosort', T2.Properties.VariableNames)), ...
     'gatherMetadata exposes a HasKilosort column');
 check(islogical(T2.HasKilosort) && ~any(T2.HasKilosort), ...
     'project datasets (no sorts) -> HasKilosort all false');
+check(isstring(T2.Tags) && all(T2.Tags == "") && find(strcmp('Tags', T2.Properties.VariableNames)) ...
+    == find(strcmp('AcqDate', T2.Properties.VariableNames)) + 1, ...
+    'gatherMetadata: a Tags string column after AcqDate, "" for untagged datasets');
+P.Datasets(1).Tags = {'Pilot', 'draft'};
+T2 = P.gatherMetadata();
+check(T2.Tags(1) == "draft;pilot" && T2.Tags(2) == "" && isequal(TagSet.fromText(T2.Tags(1), TagSet.ExportDelimiter), {'draft', 'pilot'}), ...
+    'gatherMetadata: Tags is the set joined with ";", and TagSet.fromText reads it back');
+P.Datasets(1).Tags = {};
 
 fprintf('\n== 10. split formats (one-file-per-signal / one-file-per-channel) ==\n');
 % Known int16 amplifier codes; microvolts = 0.195 * int16 (no 32768 offset).
@@ -1245,6 +1253,69 @@ ds3b = EphysDataset(mdsDir);
 ds3b.applyManifest();
 check(ds3b.SortingDir == "", 'an auto sorting association is not pinned on restore');
 
+% Tags: the property keeps exactly what TagSet.require returns, the manifest carries them.
+dtg = EphysDataset(mdsDir, AutoMetadata=false);
+check(isequal(dtg.Tags, {}) && isequal(dtg.Tags, TagSet.require(dtg.Tags)), 'Tags: an untagged dataset holds {} (0x0), as TagSet gives it');
+dtg.Tags = {'B', 'a', ' b '};
+check(isequal(dtg.Tags, {'a', 'b'}), 'Tags: set sorted, lowercase, unique');
+dtg.Tags = {};
+check(isequal(dtg.Tags, {}) && isequal(dtg.Tags, TagSet.require(dtg.Tags)), 'Tags: assigning {} keeps the 0x0 empty set');
+dtg.Tags = "Pilot";
+check(isequal(dtg.Tags, {'pilot'}), 'Tags: a string is one tag');
+tgId = @(v) errorIdOf(@() assignTags(dtg, v));
+check(strcmp(tgId({'ok', 'bad tag!'}), 'TagSet:Invalid') && strcmp(tgId(num2cell(string(1:13))), 'TagSet:TooMany') ...
+    && isequal(dtg.Tags, {'pilot'}), 'Tags: an invalid or too long set errors and leaves the tags as they were');
+dsm.Tags = {'pilot', 'Draft'};
+dsm.writeManifest();
+m = readJsonFile(dsm.manifestFile());
+check(isequal(m.tags, {'draft'; 'pilot'}), 'manifest: tags is a sorted array of strings');
+dtg = EphysDataset(mdsDir, AutoMetadata=false);
+dtg.applyManifest();
+check(isequal(dtg.Tags, {'draft', 'pilot'}), 'applyManifest restores the tags exactly');
+dsm.Tags = {'solo'};
+dsm.writeManifest();
+dtg = EphysDataset(mdsDir, AutoMetadata=false);
+dtg.applyManifest();
+check(isequal(dtg.Tags, {'solo'}), 'one tag survives the jsondecode collapse (a 1x1 cell)');
+dsm.Tags = {};
+dsm.writeManifest();
+m = readJsonFile(dsm.manifestFile());
+dtg = EphysDataset(mdsDir, AutoMetadata=false);
+dtg.Tags = {'stale'};
+dtg.applyManifest();
+check(isfield(m, 'tags') && isempty(m.tags) && isequal(dtg.Tags, {}), 'no tags: written as [], restored as {} (the file wins)');
+mt = struct('schema', "intan-dataset-manifest/2", 'exclude_channels', "4");
+writeJsonFile(dsm.manifestFile(), mt);
+dtg = EphysDataset(mdsDir, AutoMetadata=false);
+lastwarn('');
+dtg.applyManifest();
+[~, wid] = lastwarn();
+check(isequal(dtg.Tags, {}) && ~strcmp(wid, 'EphysDataset:applyManifest:Tags'), 'a manifest without a tags key loads {} without a warning');
+mt.tags = {'Pilot'; 'pilot'; 'bad tag!'; 'ok'};
+writeJsonFile(dsm.manifestFile(), mt);
+dtg = EphysDataset(mdsDir, AutoMetadata=false);
+lastwarn('');
+dtg.applyManifest();
+[wmsg, wid] = lastwarn();
+check(isequal(dtg.Tags, {'ok', 'pilot'}) && strcmp(wid, 'EphysDataset:applyManifest:Tags') ...
+    && contains(wmsg, 'bad tag!') && contains(wmsg, '1 tag(s) dropped'), ...
+    'applyManifest lowercases and de-duplicates silently, drops an invalid tag and warns, naming it');
+mt.tags = cellstr("t" + string(1:14));
+writeJsonFile(dsm.manifestFile(), mt);
+dtg = EphysDataset(mdsDir, AutoMetadata=false);
+lastwarn('');
+dtg.applyManifest();
+[wmsg, wid] = lastwarn();
+check(numel(dtg.Tags) == TagSet.MaxTags && strcmp(wid, 'EphysDataset:applyManifest:Tags') && contains(wmsg, '2 tag(s) dropped') ...
+    && dtg.ExcludeChannels == 4, 'a hand-edited manifest over the limit keeps the first 12, warns, and the rest of it is still read');
+mt.tags = [];
+writeJsonFile(dsm.manifestFile(), mt);
+dtg = EphysDataset(mdsDir, AutoMetadata=false);
+dtg.applyManifest();
+check(isequal(dtg.Tags, {}), 'applyManifest: tags [] loads {}');
+dsm.Tags = {};
+dsm.writeManifest();
+
 % v1 manifests still yield probe + exclusions.
 m1 = struct('schema', "intan-dataset-manifest/1", 'probe', struct('file', probeFile), ...
     'exclude_channels', "4");
@@ -1277,6 +1348,28 @@ check(isequal(Pr.Datasets(j1).ManualArtifacts, [0.001 0.002]) && ~isnan(Pr.Datas
     'refresh parses headers and restores manifest state');
 rep2 = Pr.refresh(CancelFcn=@() true);
 check(all(rep2.Message == "canceled"), 'refresh honours CancelFcn');
+
+% Tags survive a Scan; tags dropped as invalid are reported with the row, not as a failure.
+Pr.Datasets(j1).Tags = {'pilot', 'draft'};
+Pr.Datasets(j1).writeManifest();
+Pq = EphysProject(fullfile(root, 'proj'));
+repq = Pq.refresh();
+q1 = Pq.findByKey("mouse1/sess1");
+mq = readJsonFile(Pq.Datasets(q1).manifestFile());
+check(isequal(Pq.Datasets(q1).Tags, {'draft', 'pilot'}) && isequal(mq.tags, {'draft'; 'pilot'}) ...
+    && all(repq.Message == "") && all(repq.Manifest), 'a Scan keeps the tags, and rewrites them to the manifest');
+mq.tags = {'Draft'; 'bad tag!'};
+writeJsonFile(Pq.Datasets(q1).manifestFile(), mq);
+Pq2 = EphysProject(fullfile(root, 'proj'));
+repq2 = Pq2.refresh();
+q1 = Pq2.findByKey("mouse1/sess1");
+rowq = repq2(repq2.Key == "mouse1/sess1", :);
+mq = readJsonFile(Pq2.Datasets(q1).manifestFile());
+check(isequal(Pq2.Datasets(q1).Tags, {'draft'}) && contains(rowq.Message, "bad tag!") && rowq.Manifest ...
+    && isequal(mq.tags, {'draft'}) && all(repq2.Metadata), ...
+    'a Scan reports a dropped tag in the row''s Message, keeps the row''s Manifest flag true and rewrites the file without it');
+Pq2.Datasets(q1).Tags = {};
+Pq2.Datasets(q1).writeManifest();
 
 % refresh associates the one Epsych2 file in a recording folder (the Copy tab puts it there).
 k1 = Pr.findByKey("mouse1/sess1");
@@ -1469,6 +1562,7 @@ check(isfile(o1.file) && endsWith(o1.file, '_spikes.mat') && startsWith(o1.file,
 M = load(o1.file);
 check(isequal(sort(fieldnames(M)), {'conversion'; 'detected'}), ...
     'file holds detected / conversion only (sorted units stay in the sorting folder, behavior has its own file)');
+check(isequal(M.conversion.tags, {}), 'spikesToMat: conversion.tags is {} for an untagged dataset');
 check(isequal(M.detected.info.index{1}, recIdx) && isempty(M.detected.wf), ...
     'detected indices match detectSpikes; no waveforms by default');
 check(isequal(M.detected.channels, [1 2]) && isequal(M.detected.channelNames, ["amp0" "amp1"]), ...
@@ -1479,8 +1573,10 @@ check(isempty(wfN) || all(cellfun(@isempty, wfN)), 'Waveforms=false suppresses e
 
 % Events inside a manual artifact period are rejected (indices 4010, 6000).
 dsSpk.ManualArtifacts = [4000 6100] / Fs;
+dsSpk.Tags = {'Pilot', 'draft'};
 o2 = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1);
 M2 = load(o2.file);
+check(isequal(M2.conversion.tags, {'draft', 'pilot'}), 'spikesToMat: the dataset''s tags are in conversion.tags');
 check(isequal(o2.nRejectedArtifact, 2) && numel(M2.detected.ts{1}) == 8 ...
     && ~any(M2.detected.ts{1} >= 4000/Fs & M2.detected.ts{1} <= 6100/Fs), ...
     'events inside a manual artifact period are rejected');
@@ -1704,8 +1800,10 @@ check(isstruct(bs) && bs.nTrials == 2 && bs.file == string(behFile), 'behaviorSt
 dsx.writeManifest();
 mx = readJsonFile(dsx.manifestFile());
 check(strcmp(mx.behavior.subject, 'subjA') && mx.behavior.n_trials == 2, 'manifest behavior block carries subject / n_trials');
+dsx.Tags = {'pilot', 'Draft'};
 oB = dsx.behaviorToMat();
 B = load(oB.file);
+check(isequal(B.conversion.tags, {'draft', 'pilot'}), 'behaviorToMat: the dataset''s tags are in conversion.tags');
 check(oB.file == string(fullfile(expOut, dsx.Name + "_behavior.mat")) && B.behavior.nTrials == 2 ...
     && B.conversion.behaviorFile == string(behFile) && isequal(sort(string(fieldnames(B))), ["behavior"; "conversion"]), ...
     'behaviorToMat writes <Name>_behavior.mat with behavior + conversion');
@@ -1753,6 +1851,7 @@ check(numel(C.spDetected) == numAmp && ~isempty(C.detected) && isequal(C.spDetec
     'spDetected from the spikes file');
 check(isequal(C.events.din0, src.events.din0) && C.export.tool == "EphysDataset.exportChronux", ...
     'events and provenance');
+check(isequal(C.export.tags, {'draft', 'pilot'}), 'exportChronux: the dataset''s tags are in export.tags');
 Lx = C.export.layout.LFP;
 check(isequal(fieldnames(C.export.layout), {'LFP'}) && Lx.fs == Fs && Lx.nSamples == nX && Lx.nChan == numAmp ...
     && isequal(Lx.labels, C.LFP.labels) && Lx.units == C.LFP.info.units && isequal(Lx.sampleRange, [1 nX]), ...
@@ -1799,6 +1898,7 @@ check(isequal(F.spike.label, {'su000_A1_260101T1200', 'mua001_A1_260101T1200'}) 
 check(numel(F.spikeDetected.label) == numAmp && F.spikeDetected.hdr.Fs == Fs, 'spikeDetected from the spikes file');
 check(numel(F.event) == size(src.events.din0, 1) && F.export.eventFs == Fs, ...
     'event at the recording rate; provenance');
+check(isequal(F.export.tags, {'draft', 'pilot'}), 'exportFieldTrip: the dataset''s tags are in export.tags');
 check(isempty(dir(fullfile(expOut, '~*.partial.mat'))), 'no partial files left by the exporters');
 
 % Extract from the file written by toMat (needs the Signal Processing Toolbox).
@@ -1808,6 +1908,8 @@ if license('test', 'Signal_Toolbox')
     F2 = load(oF2.file);
     check(isfile(oM.file) && isequal(sort(oF2.signals), ["LFP" "MUA"]) && isfield(F2, 'data_MUA') ...
         && F2.data_MUA.hdr.TimeStampPerSample == Fs / 2000, 'default Extract is the toMat file; origFs sets TimeStampPerSample');
+    Mx = load(oM.file, 'conversion');
+    check(isequal(Mx.conversion.tags, {'draft', 'pilot'}), 'toMat: the dataset''s tags are in conversion.tags');
 else
     fprintf('  (toMat-based export check skipped: no Signal Processing Toolbox)\n');
 end
@@ -1863,6 +1965,12 @@ for base = [string(getenv('LOCALAPPDATA')), string(getenv('USERPROFILE'))]
         if st == 0; py = c; return; end
     end
 end
+end
+
+
+function assignTags(d, v)
+% d.Tags = v as a function, so an error can be caught in an anonymous function.
+d.Tags = v;
 end
 
 

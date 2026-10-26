@@ -10,6 +10,21 @@ says how to cut a release.
 
 ### Added
 
+- Tag datasets. A dataset holds up to 12 free-form tags (lowercase letters, digits, `-`, `_`, `.`; 1-50
+  characters), kept sorted in its manifest's new `tags` array (`EphysDataset.Tags`); a manifest without the key has
+  none, and tags that are not valid are dropped with a warning that the Scan alert shows. Tags are metadata only: no
+  step reads them. New `TagSet` holds every rule (check, parse, add/remove, bulk edit with an all-or-nothing or skip
+  policy at the limit, any/all filter, search, text in and out) and `TagDialog` edits one dataset or the ticked ones
+  (add to all / remove from all, **If a dataset would exceed the limit:** *Cancel the whole edit* or *Skip that
+  dataset*). Pipeline app, Project tab: a **Tags** column (click a cell to edit that dataset), a **Tags...** button
+  and **Dataset > Tags...** for the ticked datasets, and a **Tags:** filter (any of / all of, plus a search, combined
+  with AND). Tags reach `gatherMetadata`'s `Tags` column, the pipeline run record, the `.mat` exports' `export` /
+  `conversion` blocks, the kCSD `meta`, the NWB `notes` and the manifest viewer; on the analysis side `src.tags`
+  (`loadAnalysisSource`, `outputTags`), the analysis app's Data tab, the report (a Tags row in the Recording table,
+  beside the star in HTML, in brackets in the PDF), `sessionTable`'s `tags` column (and the generated scripts) and
+  the population tables (`population_units.csv`, `population.json`). Tables join tags with `;`, JSON and `.mat`
+  carry the list. See [Dataset tags](documentation/EphysPipelineApp.md#dataset-tags) and
+  [Tags](documentation/EphysDataset.md#tags).
 - Join the detection channels that hold one neuron. `UnitSelection.merge` (`enabled` false) makes
   `selectUnits(source "detected")` return one unit per group of channels of neighboring sites instead of one per
   channel: `groupDetected` joins two sites when the events of one leave the refractory gap (more than the

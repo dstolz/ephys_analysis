@@ -1020,7 +1020,7 @@ PIPE_GROUPS = [
 ]
 
 ANALYSIS_GROUPS = [
-    ("Loading", ["loadAnalysisSource"]),
+    ("Loading", ["loadAnalysisSource", "outputTags"]),
     ("Events, trial selection and epochs", ["eventRef", "resolveEvents", "trialSelection",
                                             "selectTrials", "epochWindow", "epochTable"]),
     ("Units and channels", ["selectUnits", "selectChannels", "unitWaveforms"]),

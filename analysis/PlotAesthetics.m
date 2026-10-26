@@ -617,7 +617,7 @@ classdef PlotAesthetics
             axisMenu = isfield(context, 'onAxisEdit') && ~isempty(context.onAxisEdit);
             goto = isfield(context, 'onGoto') && ~isempty(context.onGoto);
             flags = [goto axisMenu];   % what a menu's items are made for
-            old = findall(fig, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag);
+            old = findall(fig, '-depth', 1, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag);   % (a figure's children: its whole tree is slow to walk in the app)
             has = false(1, numel(objs));   % an object that keeps its menu: one made for it alike (a part renderFigure kept, Reuse)
             for k = 1:numel(old)
                 o = old(k).UserData;

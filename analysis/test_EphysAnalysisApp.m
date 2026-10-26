@@ -135,7 +135,10 @@ function test_EphysAnalysisApp(opts)
 %   the figures applied as they were; Export, Remove, Import; the template
 %   issue window's title and report; the Apply last change button on and
 %   tooltipped as the Edit menu's item, naming the step, opening Apply to
-%   figures);
+%   figures); an edit of text alone (an x
+%   and a y label, a panel title of its own) set on the drawn preview
+%   (nothing computed or drawn again, the texts and places a whole
+%   drawing's; a first title and a side drawn again);
 %   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -3960,6 +3963,53 @@ if S.sec("5u", "the figure's First-spike latency section: one block for every pa
     app.Tabs.SelectedTab = app.TabData;
 end
 
+if S.sec("5s", "an edit of text alone (a label, a panel title) set on the drawn preview: nothing computed or drawn again, the drawing a whole one's; a side drawn again")
+    noFigures();
+    app.selectTab(app.TabFigures);
+    app.FigureAutoCheckBox.Value = true;
+    app.FigureAutoPreviewSeconds = Inf;   % Auto draws here, however loaded the machine
+    restore5s = onCleanup(@() resetAutoLimit(app));
+    app.onAddFigure("rasterPsth");
+    app.refreshFigurePreview(Force=true);
+    fid = app.Config.Figures(1).id;
+    axR = findPanelAxes(app.FigurePreviewPanel, "raster_1");
+    axP = findPanelAxes(app.FigurePreviewPanel, "psth_1");
+    secs0 = app.FigurePreviewSeconds;
+    app.FigurePreviewSeconds = 1234;   % a compute would set it: an edit set in place leaves it
+    app.onFigureAxisEdited(fid, "psth_1", struct('xLabel', "Lag (s)"));
+    app.onFigureAxisEdited(fid, "raster_1", struct('yLabel', "Trial number"));
+    kept5s = isequal(findPanelAxes(app.FigurePreviewPanel, "raster_1"), axR) && isequal(findPanelAxes(app.FigurePreviewPanel, "psth_1"), axP) ...
+        && app.FigurePreviewSeconds == 1234 && app.FigurePreviewState == "drawn";
+    app.onPanelSelected(2);
+    FE.panelTitle.Value = "Rate";   % a panel title of its own, none before: drawn again, as an empty title has no looks
+    app.onConfigChanged("figure", FE.panelTitle);
+    axP2 = findPanelAxes(app.FigurePreviewPanel, "psth_1");
+    redrawn5s = ~isequal(axP2, axP) && app.FigurePreviewSeconds ~= 1234;
+    app.FigurePreviewSeconds = 1234;
+    FE.panelTitle.Value = "Rate by group";   % its own before and after: set in place (the editor's row)
+    app.onConfigChanged("figure", FE.panelTitle);
+    kept5s = kept5s && redrawn5s && isequal(findPanelAxes(app.FigurePreviewPanel, "psth_1"), axP2) && app.FigurePreviewSeconds == 1234 ...
+        && app.FigurePreviewState == "drawn";
+    shown5s = previewTexts(app.FigurePreviewPanel, ["raster_1" "psth_1"]);
+    rmappdata(app.FigurePreviewPanel, 'FigureDrawing');   % the next preview draws everything
+    app.refreshFigurePreview(Force=true);
+    whole5s = previewTexts(app.FigurePreviewPanel, ["raster_1" "psth_1"]);
+    [same5s, why5s] = sameTexts5s(shown5s, whole5s);
+    check(kept5s && same5s && app.FigurePreviewResult.spec.panels(2).title == "Rate by group" && shown5s(2).x == "Lag (s)" ...
+        && shown5s(1).y == "Trial number" && shown5s(2).t == "Rate by group" && app.FigureHistory.undoLabel() ~= "", ...
+        sprintf(['an x and a y label (right-click) and a panel title of its own (the editor) are set on the drawn preview: the same axes, ' ...
+        'nothing computed (%.2f s before), the badge Drawn; a first title of its own is drawn again; a whole drawing makes the same ' ...
+        'texts and places (%s)'], secs0, why5s));
+    axP = findPanelAxes(app.FigurePreviewPanel, "psth_1");
+    app.onFigureAxisEdited(fid, "psth_1", struct('ySide', "right"));
+    axP3 = findPanelAxes(app.FigurePreviewPanel, "psth_1");
+    check(~isequal(axP3, axP) && strcmp(axP3.YAxisLocation, 'right') && app.FigurePreviewState == "drawn", ...
+        'a side is not text alone: the panel is drawn again');
+    noFigures();
+    clear restore5s
+    app.Tabs.SelectedTab = app.TabData;
+end
+
 if S.sec("6", "close")
     savedConfig();
     app.savePreferences();
@@ -4219,6 +4269,37 @@ b = [NaN NaN NaN NaN];
 if n == 0; return; end
 p = reshape([M.Position], 4, []).';
 b = [min(p(:, 1)) min(p(:, 2)) max(p(:, 1) + p(:, 3)) max(p(:, 2) + p(:, 4))];
+end
+
+
+function T = previewTexts(P, ids)
+%previewTexts  Each panel's axes place and its x label, y label and title in the preview P: text, place, interpreter and font size.
+T = struct('id', {}, 'pos', {}, 'x', {}, 'y', {}, 't', {}, 'texts', {});
+for id = reshape(ids, 1, [])
+    ax = findPanelAxes(P, id);
+    L = [ax.XLabel ax.YAxis(1).Label ax.Title];
+    T(end+1) = struct('id', id, 'pos', ax.Position, 'x', strjoin(string(L(1).String), " "), 'y', strjoin(string(L(2).String), " "), ...
+        't', strjoin(string(L(3).String), " "), 'texts', {arrayfun(@(l) {string(l.String), l.Position, string(l.Interpreter), l.FontSize}, ...
+        L, 'UniformOutput', false)}); %#ok<AGROW>
+end
+end
+
+
+function [ok, why] = sameTexts5s(A, B)
+%sameTexts5s  Two previewTexts alike: places within 1e-6 px (data units for the texts), the same strings, interpreters and sizes.
+ok = numel(A) == numel(B);
+why = "the same";
+if ~ok; why = "the panels"; return; end
+for i = 1:numel(A)
+    if any(abs(A(i).pos - B(i).pos) > 1e-6); ok = false; why = A(i).id + ": its axes' place"; return; end
+    for j = 1:numel(A(i).texts)
+        a = A(i).texts{j};
+        b = B(i).texts{j};
+        if ~isequal(a{1}, b{1}) || any(abs(a{2} - b{2}) > 1e-6) || a{3} ~= b{3} || a{4} ~= b{4}
+            ok = false; why = A(i).id + ": text " + j + " (" + strjoin(a{1}, " ") + ")"; return
+        end
+    end
+end
 end
 
 

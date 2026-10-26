@@ -80,7 +80,10 @@ function test_EphysAnalysisFigures(opts)
 %   Editable, OnRemember and the context's redraw; the editor's colormap;
 %   renderFigure Reuse (an edit of two panels draws those again, the
 %   third kept with its menu, the drawing as a whole one; a title of the
-%   figure's own draws every panel);
+%   figure's own draws every panel; an edit of text alone -- labels, a
+%   panel title, the figure title -- set on the axes drawn, the drawing
+%   a whole one's, the data tips and editor context following; InPlaceOnly
+%   drawing nothing for a side, a title back to none drawn);
 %   one observation drawn in under a second; data tips (FigureDataTips:
 %   a PSTH line's rows, a raster tick's trial and group, a heat map cell's
 %   and a heat map of trials' tips, a bar's rows, the chosen fields a
@@ -3628,6 +3631,61 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     renderFigure(F3, s3c, pA);   % without Reuse: nothing kept for next time
     check(~any(D2.axes == D1.axes) && same2 && ~isappdata(pA, 'FigureDrawing'), ...
         sprintf('a change that reaches every panel (a title of the figure''s own) draws them all; a drawing without Reuse keeps nothing (%s)', why2));
+    % Reuse, text alone: new label, panel title and figure title texts set on what is drawn (inPlace), the drawing a whole one's
+    renderFigure(F3, s3c, pA, Reuse=true, Editable=true, DataTips=true);
+    D3 = getappdata(pA, 'FigureDrawing');
+    s3d = s3c;
+    s3d.panels(2).yLabel = "Firing (Hz)";   % the PSTH's y label: its own text over the type's
+    s3d.panels(3).xLabel = "Lag (s)";       % the stack's time label, at its bottom
+    s3d.panels(1).xLabel = "Hidden";        % the raster's, which the stack hides: kept, nothing shown
+    s3d.panels(3).title = "LFP and AUX";    % a panel title of its own, before and after
+    s3d.title = "Own title, again";         % the figure's own title, before and after
+    [hI, howI] = renderFigure(F3, s3d, pA, Reuse=true, Editable=true, DataTips=true);
+    DI = getappdata(pA, 'FigureDrawing');
+    ctxI = getappdata(pA, PlotAesthetics.ContextKey);
+    renderFigure(F3, s3d, pB, Editable=true, DataTips=true);
+    drawnow;
+    [sameI, whyI] = sameDrawing(pA, pB);
+    [textI, whyT] = sameTexts(pA, pB);
+    rI = findall(DI.axes(2), '-regexp', 'Tag', '^(rate|rateFill)$');
+    rI = rI(arrayfun(@(o) ~all(isnan(o.XData(:))), rI));
+    LrI = strings(0, 1);
+    if ~isempty(rI); LrI = FigureDataTips.tipText(rI(1), 2); end
+    check(howI == "inplace" && isequal(DI.axes, D3.axes) && isequal(DI.title, D3.title) && sameI && textI ...
+        && string(DI.axes(3).XLabel.String) == "Lag (s)" && string(DI.axes(2).YLabel.String) == "Firing (Hz)" ...
+        && strjoin(string(DI.axes(1).XLabel.String), "") == "" && string(DI.axes(3).Title.String) == "LFP and AUX" ...
+        && figTitle(hI) == "Own title, again" && hI.title == "Own title, again" && isequal(hI.axes, DI.axes) ...
+        && isequaln(DI.spec, s3d) && ctxI.title == hI.title && any(startsWith(LrI, "Firing: ")), ...
+        sprintf(['renderFigure Reuse, text alone (labels, a panel title, the figure title): set on the axes drawn (inPlace), ' ...
+        'nothing drawn again, the drawing a whole one''s (%s; texts: %s); the PSTH''s data tips name the new quantity; ' ...
+        'the editor''s context takes the new spec'], whyI, whyT));
+    s3e = s3d;
+    s3e.panels(2).yLabel = "Rate";
+    s3e.panels(2).ySide = "right";   % a side: the place keys change, so it is drawn
+    [hN, howN] = renderFigure(F3, s3e, pA, InPlaceOnly=true, Editable=true, DataTips=true);
+    DN = getappdata(pA, 'FigureDrawing');
+    keptN = isempty(hN) && howN == "" && isequal(DN.axes, DI.axes) && string(DN.axes(2).YLabel.String) == "Firing (Hz)";
+    [~, howE] = renderFigure(F3, s3e, pA, Reuse=true, Editable=true, DataTips=true);
+    DE = getappdata(pA, 'FigureDrawing');
+    s3f = s3d;
+    s3f.panels(3).title = "";   % back to no title of its own: not set in place
+    renderFigure(F3, s3d, pB, Reuse=true);
+    [~, howF] = renderFigure(F3, s3f, pB, Reuse=true);
+    check(keptN && howE == "drawn" && ~isequal(DE.axes, DI.axes) && strcmp(DE.axes(2).YAxisLocation, 'right') ...
+        && string(DE.axes(2).YLabel.String) == "Rate" && howF == "drawn", ...
+        ['InPlaceOnly with an edit that is not text alone (a side) draws nothing and says so; Reuse draws it; a title ' ...
+        'that goes back to none is drawn']);
+    renderFigure(F3, s3c, pA, Reuse=true, Scale=0.7);   % drawn at a scale (the app's preview): the text set, every size left scaled
+    DS = getappdata(pA, 'FigureDrawing');
+    [~, howS] = renderFigure(F3, s3d, pA, Reuse=true, Scale=0.7);
+    renderFigure(F3, s3d, pB, Scale=0.7);
+    drawnow;
+    [sameS, whyS] = sameDrawing(pA, pB);
+    [textS, whyTS] = sameTexts(pA, pB);
+    check(howS == "inplace" && isequal(getappdata(pA, 'FigureDrawing').axes, DS.axes) && sameS && textS ...
+        && isequal(drawnSizes(pA), drawnSizes(pB)), ...
+        sprintf('drawn at Scale 0.7, a text edit is set in place too: the drawing, its texts and every size a whole one''s at that scale (%s; texts: %s)', ...
+        whyS, whyTS));
     delete([pA pB]);
 
     % one observation draws fast
@@ -4767,6 +4825,32 @@ function P = noCreated(P)
 %noCreated  A panel result without its layers' creation times (a compute made at another second).
 for j = 1:numel(P.layers)
     if isstruct(P.layers(j).R) && isfield(P.layers(j).R, 'created'); P.layers(j).R = rmfield(P.layers(j).R, 'created'); end
+end
+end
+
+
+function [ok, why] = sameTexts(A, B)
+%sameTexts  The titles and axis labels of two drawings of renderFigure alike: every axes in order, each text's string, place and look.
+why = "the same";
+a = flipud(findall(A, 'Type', 'axes'));
+b = flipud(findall(B, 'Type', 'axes'));
+ok = numel(a) == numel(b);
+if ~ok; why = sprintf('%d vs %d axes', numel(a), numel(b)); return; end
+props = {'Interpreter', 'FontSize', 'FontWeight', 'FontAngle', 'Color', 'Visible', 'HorizontalAlignment', 'Rotation'};
+for i = 1:numel(a)
+    ta = [a(i).Title a(i).Subtitle a(i).XLabel reshape([a(i).YAxis.Label], 1, [])];
+    tb = [b(i).Title b(i).Subtitle b(i).XLabel reshape([b(i).YAxis.Label], 1, [])];
+    if numel(ta) ~= numel(tb); ok = false; why = sprintf('axes %d: its texts', i); return; end
+    for j = 1:numel(ta)
+        if ~isequal(string(ta(j).String), string(tb(j).String)) || any(abs(ta(j).Position - tb(j).Position) > 1e-6)
+            ok = false; why = sprintf('axes %d (%s): text %d "%s"', i, a(i).Tag, j, strjoin(string(ta(j).String), " ")); return
+        end
+        for p = props
+            if ~isequal(get(ta(j), p{1}), get(tb(j), p{1}))
+                ok = false; why = sprintf('axes %d (%s): text %d %s', i, a(i).Tag, j, p{1}); return
+            end
+        end
+    end
 end
 end
 

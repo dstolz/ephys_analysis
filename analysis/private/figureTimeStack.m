@@ -1,6 +1,6 @@
-function figureTimeStack(axs, panels, isTime, labelSize, sided)
+function hidden = figureTimeStack(axs, panels, isTime, labelSize, sided)
 %figureTimeStack  One time axis for the time panels stacked in a figure's columns.
-%   figureTimeStack(AXS, PANELS, ISTIME, LABELSIZE) goes through the
+%   HIDDEN = figureTimeStack(AXS, PANELS, ISTIME, LABELSIZE) goes through the
 %   arrangement's columns (PANELS: the figure spec's panels, with row,
 %   col, rowSpan and colSpan; AXS(k): panel k's axes, not drawn where it
 %   is no graphics object; ISTIME(k): panel k's x axis is time from the
@@ -26,12 +26,14 @@ function figureTimeStack(axs, panels, isTime, labelSize, sided)
 %   (default none): panel k's axes are narrower than the column's (its note
 %   takes a band left or right of them, or it is smaller than its cell:
 %   renderFigure): neither it nor the panel above it drops its time tick
-%   labels.
+%   labels. HIDDEN(k): panel k's x tick labels and x label went (renderFigure
+%   keeps it: a new x label text of that panel shows nothing).
 %
 %   See also renderFigure.
 if nargin < 4; labelSize = []; end
 if nargin < 5; sided = false(1, numel(panels)); end
 np = numel(panels);
+hidden = false(1, np);
 drawn = false(1, np);
 for k = 1:np
     drawn(k) = k <= numel(axs) && isgraphics(axs(k));
@@ -68,6 +70,7 @@ for k = time
         end
     end
     ax = axs(k);
+    hidden(k) = hide;
     if hide
         ax.XTickLabel = [];
         ax.XLabel.String = '';

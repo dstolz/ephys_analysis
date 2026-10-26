@@ -866,7 +866,7 @@ function addMenus(fig, axs)
 %   Made with the menu's other waiting items when it first opens
 %   (PlotAesthetics.addMenuItem); a menu given it already (appdata MenuTag)
 %   is left as it is.
-menus = findall(fig, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag);
+menus = findall(fig, '-depth', 1, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag);   % (a figure's children: not its whole tree, slow in the app's window)
 axs = axs(isgraphics(axs));
 for cm = reshape(menus, 1, [])
     o = cm.UserData;

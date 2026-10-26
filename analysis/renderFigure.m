@@ -714,6 +714,9 @@ if ~isstruct(D) || ~isfield(D, 'spec') || numel(D.keys.panels) ~= np || ~isequal
         || ~isequal(D.keys.ownTime, keys.ownTime)
     return
 end
+if ~all(isgraphics(D.axes)) || ~all(cellfun(@(p) all(isgraphics(p)), D.parts))
+    return   % the drawing is gone (a canceled preview cleared the target): drawn again
+end
 P = spec.panels;
 Q = D.spec.panels;
 was = D.spec;   % the spec drawn with the new texts: anything else that differs is drawn

@@ -1115,7 +1115,8 @@ if S.sec("5d.stale", "Out of date with Auto off; Cancel on the busy card")
     app.autoFigurePreview();
     canceled = app.FigurePreviewState == "canceled";
     app.refreshFigurePreview(Force=true);
-    check(canceled && app.FigurePreviewState == "drawn" && numel(figAxes()) == 3, 'an edit does not redraw a canceled preview; Preview does');
+    check(canceled && app.FigurePreviewState == "drawn" && numel(figAxes()) == 3, sprintf(['an edit does not redraw a canceled preview; ' ...
+        'Preview does (canceled after the edit: %d; then %s, %d axes)'], canceled, app.FigurePreviewState, numel(figAxes())));
     clear restoreAutoLimit
 end
 

@@ -27,7 +27,9 @@ function onApplyToFigures(obj, opts)
 %   figure (the preview follows as after any edit).
 %   Ticked=KEYS ("<figure id>" for a figure, "<figure id>/<panel id>" for
 %   a panel) skips the window and gives the change to those targets, with
-%   Replot=TF (default the box's last value), for scripts and tests.
+%   Replot=TF (default the box's last value), for scripts and tests. The
+%   window's table sorts by its column headers and its filters (text,
+%   panel type, figure type, will change or has it) narrow the rows shown.
 arguments
     obj (1,1) EphysAnalysisApp
     opts.Before = []
@@ -91,7 +93,8 @@ end
 from = after(k).id;
 if any([changes.scope] == "panel"); from = after(k).panels(sel(2)).id + " of " + from; end
 if isscalar(opts.Ticked) && ismissing(opts.Ticked)
-    [tick, replot, ok] = applyToFiguresDialog(obj.Fig, what + ", from " + from, T, current, rememberedTicks(obj, T, keys), obj.ApplyReplot);
+    [titles, kinds] = figureLabels(cfg.Figures, T);
+    [tick, replot, ok] = applyToFiguresDialog(obj.Fig, what + ", from " + from, T, current, rememberedTicks(obj, T, keys), obj.ApplyReplot, titles, kinds);
     if isvalid(obj.Fig); figure(obj.Fig); end
     if ~ok
         held(obj, fromCtrl);
@@ -170,6 +173,18 @@ if k < 1; return; end
 obj.onFigureSelected(k);
 if ~obj.Config.Figures(k).sessions.enabled && ~figureViewFresh(obj) && obj.FigurePreviewState ~= "canceled"
     obj.refreshFigurePreview();
+end
+end
+
+
+function [titles, kinds] = figureLabels(F, T)
+%figureLabels  Each row's figure title and type (the panel types the figure holds, "psth + raster"), for the window's filters.
+titles = strings(numel(T), 1);
+kinds = strings(numel(T), 1);
+for r = 1:numel(T)
+    f = F(T(r).figure);
+    titles(r) = string(f.title);
+    kinds(r) = strjoin(unique(string({f.panels.type}), 'stable'), " + ");
 end
 end
 

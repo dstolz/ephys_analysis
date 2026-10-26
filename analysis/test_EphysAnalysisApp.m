@@ -234,9 +234,25 @@ timing = onCleanup(@() S.done()); %#ok<NASGU> the sections' times, even after a 
 
 applyRows = [];    % the Apply to figures window's rows as it opened (answerApply)
 applyCount = "";   % its count after All
+applyFilter = [];  % what its filters did (answerApply): [rows shown for "continuous", ticks kept after None on those, rows shown for "has it", rows back]
     function answerApply(D, want, replot, accept)
         %answerApply  Answer Apply to figures: its rows noted (applyRows), All pressed (applyCount), WANT ticked, Replot REPLOT, then Apply (ACCEPT) or Cancel.
         applyRows = D.Table.Data;
+        if height(applyRows) == 2 && isempty(applyFilter)
+            D.Text.Value = 'continuous';
+            D.Text.ValueChangedFcn(D.Text, []);
+            shown1 = height(D.Table.Data);
+            press(D, "None");
+            D.Text.Value = '';
+            D.Text.ValueChangedFcn(D.Text, []);
+            kept = nnz(D.Table.Data.Apply);   % the hidden row kept its tick, the one None cleared did not
+            D.Show.Value = 'has';
+            D.Show.ValueChangedFcn(D.Show, []);
+            shown2 = height(D.Table.Data);
+            D.Show.Value = 'all';
+            D.Show.ValueChangedFcn(D.Show, []);
+            applyFilter = [shown1 kept shown2 height(D.Table.Data)];
+        end
         press(D, "All");
         applyCount = string(D.Count.Text);
         D.Table.Data.Apply = reshape(logical(want), [], 1);
@@ -3401,6 +3417,8 @@ if S.sec("5n", "Apply to figures: an edit made with Ctrl held given to other fig
         && isequal(string(applyRows.Now).', ["Off (overlaid)" "Off (overlaid)"]) && all(applyRows.Apply) && applyCount == "2 of 2 will change", ...
         ['with Ctrl held the Stack edit opens Apply to figures: the other figures'' PSTH and continuous panels (not the raster), ' ...
         'each "Off (overlaid)" now, all ticked the first time']);
+    check(isequal(applyFilter, [1 1 0 2]), ...
+        'the window''s filters: the text "continuous" shows its one row, None on the rows shown leaves the hidden row ticked, "has it" shows none yet, and clearing brings both back');
     check(F1(1).panels(2).options.stack == "groups" && F1(2).panels(1).options.stack == "groups" && F1(3).panels(1).options.stack == "off" ...
         && app.FigureHistory.undoLabel() == "Stack to 1 panel" && contains(string(app.StatusBar.Text), "psth_1 in " + ids(2)) ...
         && app.ApplyMenu.Enable == "on", ...

@@ -4,9 +4,11 @@ function buildMenus(obj)
 %   Save As, Export copy, Generate script), Create synthetic test project,
 %   Open analysis app (EphysAnalysisApp on this project; onOpenAnalysisApp),
 %   Copy files for the analysis app (AnalysisCopyDialog; onCopyForAnalysis),
-%   Channel mapper (ChannelMapperApp; onOpenChannelMapper)
-%   and Close. Dataset chooses the active dataset, the one every tab's
-%   single-dataset controls work on (see selectDataset): it lists the
+%   Channel mapper (ChannelMapperApp; onOpenChannelMapper),
+%   "Scan the project at startup" (a check item, on by default, kept as the
+%   AutoScan preference; read by startupScan) and Close. Dataset chooses
+%   the active dataset, the one every tab's single-dataset controls work
+%   on (see selectDataset): it lists the
 %   datasets ticked in the Project table, with every dataset in an "All
 %   datasets" submenu, and View manifest opens the active dataset's
 %   manifest in a ManifestViewerApp (onViewManifest); Tags edits the tags
@@ -48,6 +50,10 @@ uimenu(obj.FileMenu, "Text", "Copy files for the analysis app...", ...
 uimenu(obj.FileMenu, "Text", "Channel mapper...", ...
     "Tooltip", "Map probe sites through the package and headstage to recording rows, and export the Kilosort4 probe .json.", ...
     "MenuSelectedFcn", @(~,~) obj.onOpenChannelMapper());
+obj.AutoScanMenu = uimenu(obj.FileMenu, "Text", "Scan the project at startup", "Separator", "on", ...
+    "Checked", "on", ...
+    "Tooltip", "When the app starts, scan the project root of the last config. Off: the window opens at once and Scan is left to the Project tab.", ...
+    "MenuSelectedFcn", @(src,~) toggleAutoScan(obj, src));
 uimenu(obj.FileMenu, "Text", "Close", "Separator", "on", ...
     "MenuSelectedFcn", @(~,~) obj.onClose());
 
@@ -106,4 +112,12 @@ uimenu(obj.HelpMenu, "Text", "Request a feature on GitHub...", ...
 uimenu(obj.HelpMenu, "Text", "About EphysPipelineApp", "Separator", "on", ...
     "Tooltip", "The version and git commit of this code, and the MATLAB release.", ...
     "MenuSelectedFcn", @(~,~) showAbout(obj.Fig, "EphysPipelineApp"));
+end
+
+
+function toggleAutoScan(obj, item)
+%toggleAutoScan  Flip File > Scan the project at startup and remember it (preference AutoScan).
+on = ~logical(item.Checked);
+item.Checked = on;
+AppPrefs.setpref(obj.PrefGroup, 'AutoScan', logical(on));
 end

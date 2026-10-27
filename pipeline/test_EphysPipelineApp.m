@@ -3561,6 +3561,14 @@ if S.sec("6c2", "closing with runs queued and going: kept for the next launch")
         'the next launch follows the run still going again; one with no process left is logged and left out');
     check(isempty(app3.KSQueue) && AppPrefs.ispref(g, 'KeptSortingQueue'), 'the kept queue waits for its project''s scan');
     delete(app3.Fig);
+    AppPrefs.setpref(g, 'AutoScan', false);   % File > Scan the project at startup, off
+    app4 = EphysPipelineApp;
+    check(~logical(app4.AutoScanMenu.Checked) && isempty(app4.Project) && contains(app4.StatusBar.Text, "Scan the project at startup is off") ...
+        && ~any(app4.Splash.History.Step == "scan"), 'File > Scan the project at startup off: the last config is reopened and not scanned');
+    app4.AutoScanMenu.MenuSelectedFcn(app4.AutoScanMenu, []);   % tick it again
+    check(logical(app4.AutoScanMenu.Checked) && isequal(AppPrefs.getpref(g, 'AutoScan'), true), 'ticking it again is remembered');
+    delete(app4.Fig);
+    AppPrefs.setpref(g, 'AutoScan', true);
     app.KSRuns = EphysPipeline.sortRun(dM2.Name, resA);   % still going: it holds the only slot
     app.startKSMonitor();
     T = app.restoreKSQueue("check");

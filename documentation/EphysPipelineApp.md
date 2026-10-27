@@ -68,7 +68,9 @@ status bar is not painted before), with the Project tab's contents alone:
 each other tab is laid out the first time it is shown.
 
 **Startup scan.** The reopened config's project root is scanned as **Scan**
-does, its progress on the startup window. A root that is not there is not
+does, its progress on the startup window. **File > Scan the project at
+startup** turns this on or off (on by default, remembered between launches);
+off, the window opens at once and **Scan** is left to the Project tab. A root that is not there is not
 scanned, and neither is one on a network share (a `\\server` path or a
 mapped network drive) that does not answer within 5 s (`folderReachable`):
 the status bar says which and why, and **Scan** waits for when it can be

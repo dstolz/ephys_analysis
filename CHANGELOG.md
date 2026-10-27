@@ -10,6 +10,8 @@ says how to cut a release.
 
 ### Added
 
+- Pipeline app: **File > Scan the project at startup** (a check item, on by default, remembered as the `AutoScan`
+  preference) turns the startup scan of the reopened config's project off.
 - Tag datasets. A dataset holds up to 12 free-form tags (lowercase letters, digits, `-`, `_`, `.`; 1-50
   characters), kept sorted in its manifest's new `tags` array (`EphysDataset.Tags`); a manifest without the key has
   none, and tags that are not valid are dropped with a warning that the Scan alert shows. Tags are metadata only: no

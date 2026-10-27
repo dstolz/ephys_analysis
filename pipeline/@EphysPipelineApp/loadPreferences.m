@@ -80,6 +80,9 @@ end
 if AppPrefs.ispref(g, 'DiagramHideUnused')
     obj.FlowHideCheckBox.Value = isequal(AppPrefs.getpref(g, 'DiagramHideUnused'), true);
 end
+if AppPrefs.ispref(g, 'AutoScan')
+    obj.AutoScanMenu.Checked = isequal(AppPrefs.getpref(g, 'AutoScan'), true);
+end
 if AppPrefs.ispref(g, 'QueueSortingRuns')
     obj.RunKSQueueCheckBox.Value = isequal(AppPrefs.getpref(g, 'QueueSortingRuns'), true);
 end

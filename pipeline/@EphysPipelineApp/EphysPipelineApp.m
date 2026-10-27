@@ -165,6 +165,7 @@ classdef EphysPipelineApp < handle
         % --- Menu bar ---
         FileMenu           matlab.ui.container.Menu
         RecentMenu         matlab.ui.container.Menu
+        AutoScanMenu       matlab.ui.container.Menu   % check item: scan the last config's project at startup (startupScan)
         DatasetMenu        matlab.ui.container.Menu   % chooses the active dataset (selectDataset)
         DatasetTickedItems matlab.ui.container.Menu   % top of the menu: the ticked datasets (UserData = dataset index)
         DatasetAllMenu     matlab.ui.container.Menu   % "All datasets" submenu
@@ -1475,7 +1476,11 @@ function scanned = startupScan(obj)
 scanned = false;
 root = strtrim(string(obj.RootPathField.Value));
 if root == ""; return; end
-obj.Splash.step("scan", "Looking for the project " + root + " ...");
+if ~logical(obj.AutoScanMenu.Checked)
+    obj.setStatus("The project " + root + " was not scanned at startup (File > Scan the project at startup is off).", "Press Scan on the Project tab.");
+    return
+end
+obj.Splash.step("scan","Looking for the project " + root + " ...");
 [ok, why] = folderReachable(root, 5);
 if ~ok
     obj.setStatus("The project " + root + " was not scanned: " + why + ".", "Scan once it can be reached.");

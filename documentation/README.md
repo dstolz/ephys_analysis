@@ -382,8 +382,12 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   config, or `UseParallel=true` on `detectSpikes`, `artifactIntervals` and
   `analyzeArtifacts`; in the analysis module, `EphysAnalysisRunner.Workers`
   -- the analysis app's **Workers**, 4 by default -- draws and writes a
-  run's figure pages and report pages on a process pool, `parfeval`).
-  Without it a run draws every page in MATLAB itself. The Visualize tab's envelope builds
+  run's figure pages and report pages on a process pool, `parfeval`; and
+  `Workers` of `DatasetRuns.run`, `epochMatrix` and `DatasetBrowser` -- the
+  browser's **Workers**, 0 by default -- computes several datasets at once
+  on a process pool, `parfeval`).
+  Without it a run draws every page in MATLAB itself, and the datasets are
+  computed one after the other. The Visualize tab's envelope builds
   (`EphysTraceEnvelope`) need no toolbox: `parfeval` on `backgroundPool`
   is part of MATLAB.
 - No Report Generator: the analysis module's PDF reports are vector pages

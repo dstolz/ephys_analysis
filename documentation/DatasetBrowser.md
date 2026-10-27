@@ -38,6 +38,7 @@ B = DatasetBrowser(root, Scan=false);     % only read the result file: B.Result,
 | `ResultFile` | default `<root>\DatasetBrowser_results.mat` |
 | `Visible` | `false`: no window shows |
 | `Scan` | `false`: only restore the result file, without touching the share |
+| `Workers` | the process workers **Compute** and `forEach` use ([Workers](#workers)). Default: the last one set, else 0 |
 
 On opening, the ticks, filter, settings and result saved in the result file
 are restored, unless the options set them. With no saved state, the first scan
@@ -144,12 +145,34 @@ begins *Out of date:* and says what differs.
 ### The progress strip
 
 The strip at the bottom has a message, a bar, the elapsed time with the time
-left (`ProgressClock`) and a **Cancel** button. The scan, **Compute**,
-`forEach` and a script's own loop all drive it. While it is running
-(`Busy`), every control but **Cancel** is off. **Cancel** takes effect at the
-next check: between datasets and between units. With `Visible=false`, or once
-the window is closed, the same calls print a line to the command window at
-most every 2 s, and one at the finish.
+left (`ProgressClock`), the **Workers** field and a **Cancel** button. The
+scan, **Compute**, `forEach` and a script's own loop all drive it. While it
+is running (`Busy`), every control but **Cancel** is off. **Cancel** takes
+effect at the next check: between datasets and between units (on workers:
+at once, for every dataset not finished). With `Visible=false`, or once the
+window is closed, the same calls print a line to the command window at most
+every 2 s, and one at the finish.
+
+### Workers
+
+**Workers** (`B.Workers`, preference `Workers`) is how many datasets
+**Compute** and `forEach` compute at once on process workers (Parallel
+Computing Toolbox, `parfeval`). `0`, the default, computes them here, one
+after the other. With 1 or more, and two or more datasets to compute, the open
+process pool is used, or one of that many workers is started (`parpool
+"Processes"`; it stays open until its idle timeout, so the next **Compute**
+starts at once). Each worker loads its dataset's source, computes its part and
+sends it back; the cache, the **Cached** column and the result are the same
+as when computed here. Datasets already cached are not sent. Without the
+toolbox, or when no pool can be started, the datasets are computed here with
+the warning `DatasetRuns:Serial`.
+
+Each worker holds one dataset in memory (its spikes, or its signal for LFP,
+MUA, SPIKE and AUX), so the number that fits depends on the machine's memory
+and the size of the recordings. A `forEach` function, and whatever it
+captures, is copied to the workers: a handle object it captures is a copy
+there, and changes made to it on a worker are not seen here. The functions it
+calls must be on the path the workers start with.
 
 ## From a script
 
@@ -220,7 +243,7 @@ The properties: `Settings` (the whole struct; assigning checks it with
 `epochMatrixSettings`), `Filter`, `Selected` (the ticked keys), `Table` and
 `Shown` (the rows shown, and their keys), `Datasets` (every dataset found),
 `Result`, `ResultCurrent` (the result was computed with these settings on
-these ticks), `ResultFile`, `Runs` (the `DatasetRuns` with the kept parts),
+these ticks), `ResultFile`, `Workers` ([Workers](#workers)), `Runs` (the `DatasetRuns` with the kept parts),
 `Runner`, `Busy`, `CancelRequested`, `Fig` and `Ctl` (the window and its
 controls). `OnChange(B, what)` is called with `"scan"`, `"filter"`,
 `"ticks"`, `"settings"`, `"result"`, `"done"` or `"closed"`.

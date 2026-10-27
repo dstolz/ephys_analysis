@@ -15,7 +15,10 @@ classdef test_DatasetRuns < matlab.unittest.TestCase
     %   a changed stamp is "old" and computes only that dataset again, a
     %   kept skip is tried again, a dataset canceled after its stamp changed
     %   keeps no old value. outputsStamp over a hand-built output folder:
-    %   what it holds, and that a file's size or time changes it.
+    %   what it holds, and that a file's size or time changes it. Workers:
+    %   one dataset to compute is computed here; on process workers (Slow)
+    %   the statuses and values equal those computed here, and a cancel
+    %   while they compute marks every unfinished dataset "canceled".
     %
     %   Usage:  runtests("test_DatasetRuns")
 
@@ -422,6 +425,48 @@ classdef test_DatasetRuns < matlab.unittest.TestCase
             tc.verifyFalse(sorted4);
             tc.verifyFalse(contains(s4, "sorting "), s4);
         end
+
+        function workersComputeOneHere(tc)
+            runs = DatasetRuns();
+            [v, T] = runs.run(@(k) tc.source(k), "a", @(src) src.n, Name="one", Id=1, Workers=4);
+            tc.verifyEqual(v, {1});
+            tc.verifyEqual(T.status, "done");
+            tc.verifyEqual(tc.Calls, "a", 'One dataset to compute is computed here.');
+            tc.Calls = strings(0, 1);
+            [v, T] = runs.run(@(k) tc.source(k), ["a" "bb"], @(src) src.n, Name="one", Id=1, Workers=4);
+            tc.verifyEqual(v, {1; 2});
+            tc.verifyEqual(T.status, ["cached"; "done"]);
+            tc.verifyEqual(tc.Calls, "bb");
+        end
+    end
+
+    methods (Test, TestTags = {'Slow'})
+        function workersMatchHere(tc)
+            tc.assumeTrue(~isempty(ver('parallel')) && license('test', 'Distrib_Computing_Toolbox'), ...
+                'No Parallel Computing Toolbox.');
+            source = @(k) struct('name', k, 'n', strlength(k));
+            keys = ["a" "bb" "ccc" "dddd" "eeeee"];
+            args = {'Name', "w", 'Id', 1, 'SkipIds', "Test:Nothing"};
+            [v0, T0] = tc.verifyWarning(@() DatasetRuns().run(source, keys, @workerValue, args{:}), 'DatasetRuns:DatasetFailed');
+            runs = DatasetRuns();
+            [v, T] = tc.verifyWarning(@() runs.run(source, keys, @workerValue, args{:}, Workers=2, ...
+                LogFcn=@(m) []), 'DatasetRuns:DatasetFailed');
+            tc.verifyEqual(T.status, ["done"; "done"; "skipped"; "error"; "done"]);
+            tc.verifyEqual(T(:, 1:4), T0(:, 1:4));
+            done = T.status == "done";
+            tc.verifyEqual(cellfun(@(x) x.n, v(done)), cellfun(@(x) x.n, v0(done)));
+            tc.verifyTrue(all(cellfun(@(x) x.onWorker, v(done))), 'Computed on the workers.');
+            tc.verifyFalse(any(cellfun(@(x) x.onWorker, v0(done))));
+            [~, T2] = tc.verifyWarning(@() runs.run(source, keys, @workerValue, args{:}, Workers=2), 'DatasetRuns:DatasetFailed');
+            tc.verifyEqual(T2.status, ["cached"; "cached"; "skipped"; "error"; "cached"]);
+            % a cancel while the workers compute: every dataset not finished is "canceled", none kept
+            slow = DatasetRuns();
+            n = numel(keys);
+            tc.verifyError(@() slow.run(source, keys, @slowValue, Name="slow", Id=1, Workers=2, ...
+                CheckFcn=@() tc.countCheck(n + 1)), 'DatasetRuns:Canceled');   % the first check while they compute
+            tc.verifyEqual(slow.Last.status, repmat("canceled", n, 1));
+            tc.verifyEqual(slow.status("slow", keys, 1), strings(n, 1));
+        end
     end
 end
 
@@ -463,5 +508,19 @@ end
 
 function v = checkedLength(src, check)
 check();
+v = src.n;
+end
+
+
+function v = workerValue(src)
+%workerValue  A value, a skip ("ccc") or an error ("dddd"), and whether it was computed on a worker.
+if src.name == "ccc"; error('Test:Nothing', 'nothing in ccc'); end
+if src.name == "dddd"; error('Test:Broken', 'broken dddd'); end
+v = struct('n', src.n, 'onWorker', ~isempty(getCurrentTask()));
+end
+
+
+function v = slowValue(src)
+pause(3);
 v = src.n;
 end

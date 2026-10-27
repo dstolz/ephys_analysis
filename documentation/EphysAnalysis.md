@@ -686,6 +686,23 @@ Pt = populationAnalysis(cfg, AurocGroupBy="TrialType", ...
     Selection=struct('response', ["Hit" "FA"]), Window=struct('pre', -2, 'post', 5));
 ```
 
+## Across datasets: epochMatrix and the dataset browser
+
+`R = epochMatrix(runner, S)` puts every unit (or channel) of the datasets of a runner into one matrix,
+`R.data(row, time, group)`, with a table `R.rows` that says whose each row is. Per dataset it makes the same
+calls as `populationAnalysis` and a figure (`selectUnits`, `epochTable`, `spikePSTH` or `evokedPotential`);
+`S` is `epochMatrixSettings`. `DatasetBrowser` is a window over it: filter and tick the datasets, set the event,
+window and groups, **Compute**. A script waits for the window and reads the result, and each dataset's part is
+kept, so ticking one more dataset computes only that one:
+
+```matlab
+B = DatasetBrowser(root, Settings="ofc_hit_depth.json");
+B.wait();
+R = B.Result;
+```
+
+See [DatasetBrowser](DatasetBrowser.md).
+
 ## Across sessions
 
 A *session figure* draws one [figure](EphysAnalysisConfig.md#session-figures)

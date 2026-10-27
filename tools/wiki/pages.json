@@ -9,6 +9,7 @@
     {"page": "Analysis-App", "source": "documentation/EphysAnalysisApp.md", "status": "generated"},
     {"page": "Analysis-Configs", "source": "documentation/EphysAnalysisConfig.md", "status": "generated"},
     {"page": "Analysis-Scripting", "source": "documentation/EphysAnalysis.md", "status": "generated"},
+    {"page": "Dataset-Browser", "source": "documentation/DatasetBrowser.md", "status": "generated"},
     {"page": "App-Overview", "source": "documentation/EphysPipelineApp.md", "sections": ["Launching", "Window layout", "Typical workflow", "Reporting an issue", "Sorted tables", "Preferences", "What the app writes to disk", "Scripting against a running app"], "status": "generated"},
     {"page": "Copy-Tab", "source": "documentation/EphysPipelineApp.md", "sections": ["Copy"], "status": "generated"},
     {"page": "Project-Tab", "source": "documentation/EphysPipelineApp.md", "sections": ["Project"], "status": "generated"},

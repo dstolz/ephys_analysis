@@ -170,7 +170,7 @@ the results) sorts on a header click too.
 
 | Control | Effect |
 | --- | --- |
-| **Subject:** | *(any)*, a subject from the list (the subjects in use), or several typed, comma-separated; `*` and `?` are wildcards and case is ignored. A dataset without a subject (its name does not match the name pattern) shows only under *(any)* |
+| **Subject:** | *(any)*, a subject from the list (the subjects in use), or several typed, comma-separated; `*` and `?` are wildcards and case is ignored. Any other character, a regular-expression one such as `.` or `(`, stands for itself. A dataset without a subject (its name does not match the name pattern) shows only under *(any)* |
 | **Tags:**, *any of* / *all of* | *(any)*, a tag from the list (the tags in use), or several typed, comma-separated: the datasets holding at least one of them (*any of*) or every one (*all of*). A term that is no valid tag matches nothing |
 | **Tick shown only** | ticks **Run** for the datasets shown and clears it for those the filter hides; with no filter on, ticks every dataset |
 | **Untick all** | clears **Run** for every dataset, shown or hidden |

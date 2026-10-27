@@ -10,6 +10,23 @@ says how to cut a release.
 
 ### Added
 
+- Dataset browser: `DatasetBrowser(root)` opens a window over a project's datasets. **Subject**, **Tags** and
+  **Search** filter the table, **Use** ticks datasets, the **Settings** form sets the event, window, groups and
+  **Data** (`units`, `detected`, `LFP`, `MUA`, `SPIKE`, `AUX`), and **Compute** gives one matrix over the ticked
+  datasets, `R.data(row, time, group)`, with `R.rows`, `R.t`, `R.groupLabels` and the other fields of
+  `epochMatrix`. A script waits for the window with `B.wait()` and reads `B.Result`, or runs headless
+  (`setFilter`, `tickShown`, `compute`). A progress strip with **Cancel** serves the scan, the compute, `forEach` and
+  a script's own loop (`progressStart`, `progressStep`, `checkCancel`, `progressFinish`). See
+  [DatasetBrowser](documentation/DatasetBrowser.md#the-window).
+- New `epochMatrix`, `epochMatrixSettings` (settings in JSON files, `epoch-matrix-settings`) and `DatasetRuns`: each
+  dataset's part is kept and reused while the settings and a stamp of the dataset's output files (names, sizes,
+  times: `outputsStamp`) are unchanged, so re-sorting a dataset computes it again and ticking one more dataset
+  computes only that one. The browser keeps them, with its state and the result, in
+  `<root>\DatasetBrowser_results.mat`; `B.forEach(fn)` caches any per-dataset code the same way. See
+  [The cache and the result file](documentation/DatasetBrowser.md#the-cache-and-the-result-file) and
+  [`forEach`](documentation/DatasetBrowser.md#foreach).
+- New `datasetFilter`, the subject, tag and text filter shared by the dataset browser and the analysis app's Data
+  tab. See [The filter](documentation/DatasetBrowser.md#the-filter).
 - Analysis app, Data tab: a filter over the datasets table. **Subject:** (picked from the subjects in use, or several
   typed, comma-separated, with `*` / `?` wildcards) and **Tags:** (any of / all of the tags picked or typed) show only
   the datasets that pass both; a hidden dataset keeps its **Run** tick, and the line above says *showing k of n (m
@@ -1466,6 +1483,9 @@ says how to cut a release.
 
 ### Changed
 
+- Analysis app, Data tab: **Subject:** terms are matched literally apart from the wildcards `*` and `?`; a regular-expression
+  character such as `.` or `(` no longer acts as one. See
+  [The filter](documentation/DatasetBrowser.md#the-filter).
 - Analysis app: **Test report** and the Export tab's **Export preview** swapped places. The Figures tab's column of
   buttons now holds **Export preview** (under **Redraw All**; the one under the preview stays), and the Export tab has
   **Test report** between **Plan** and **Run**. **Ctrl+U** on the Figures tab still runs the Test report.

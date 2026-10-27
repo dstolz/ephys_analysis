@@ -16,7 +16,9 @@ the headless runner and generated scripts.
 The [`analysis`](../analysis) folder draws quick-look figures (PSTHs, evoked
 potentials, rates, tuning curves, heatmaps, probe maps) and reports from the
 pipeline's outputs, with its own config, runner, scripts and GUI. It depends
-on `pipeline`; `pipeline` does not depend on it. See [Analysis](EphysAnalysis.md).
+on `pipeline`; `pipeline` does not depend on it. See [Analysis](EphysAnalysis.md). To compute one
+matrix over the units of many datasets, ticked in a window or from a script, see
+[DatasetBrowser](DatasetBrowser.md).
 
 ## Pages
 
@@ -41,6 +43,7 @@ on `pipeline`; `pipeline` does not depend on it. See [Analysis](EphysAnalysis.md
 | [Analysis](EphysAnalysis.md) | the `analysis` folder: event references, epochs, trial selection and grouping, PSTH / evoked / rate / tuning computations, response statistics, population analysis, figures merged across sessions and their data export, renderers, export, HTML / PDF reports, `EphysAnalysisRunner`, `EphysAnalysisScript` |
 | [EphysAnalysisConfig](EphysAnalysisConfig.md) | the analysis config (JSON `ephys-analysis-config`): every field, panel types, version 1 migration, validation, tokens |
 | [EphysAnalysisApp](EphysAnalysisApp.md) | the analysis GUI: Data, Alignment, Figures, Export and Log tabs, preferences, why a figure is skipped |
+| [DatasetBrowser](DatasetBrowser.md) | a window (and a handle for scripts) that filters and ticks a project's datasets and computes `epochMatrix`, every unit's or channel's response around an event over all of them, `data(row, time, group)`: `epochMatrixSettings`, `DatasetRuns` (the per-dataset cache), the result file, `datasetFilter` |
 | [Python drivers](python-drivers.md) | `run_ks4.py`, `probe_tool.py` |
 | [Kilosort4 notes](kilosort4-notes.md) | Kilosort4 parameters its documentation does not settle, worked out from its source: `whitening_range`, and `shank_spacing` (moving the shanks apart for the sort only) |
 | [Files on disk](file-formats.md) | folder layout and every JSON / `.bin` / `.mat` schema |
@@ -361,7 +364,8 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   `prepareWCAR`; `signrank` and `kruskalwallis` in
   the analysis module's response statistics, `responseStats` and the
   *Responsive only* unit selection; `tiedrank`, `tinv` and `ranksum` in its
-  auROC, `aurocCurves` and `aurocCall`: the auROC baseline of PSTH and
+  auROC, `aurocCurves` and `aurocCall`, and `tiedrank` in `epochMatrix`' auROC measure
+  (`spikePSTH`): the auROC baseline of PSTH and
   heat map panels, the auROC response test and `populationAnalysis`' calls
   pooled over every dataset; `poisscdf` in `groupDetected`, the refractory-gap
   test that joins the detection channels holding one neuron's spikes
@@ -433,7 +437,8 @@ no optional toolbox are needed; tests that need one are skipped (reported as
   `test_NWBExport`, `test_OutputTransfer`, `test_PipelineScriptSave`, `test_PlatformSupport`,
   `test_ProgressClock`, `test_Provenance`, `test_ReadNewLines`, `test_RepositoryMetadata`,
   `test_SpikeCoincidence`, `test_TableSort`, `test_ThresholdScope` and `test_UnitQuality`; in
-  `analysis/`, `test_Auroc`, `test_FirstSpikeLatency`, `test_PopulationAnalysis` and
+  `analysis/`, `test_Auroc`, `test_DatasetBrowser`, `test_DatasetFilter`, `test_DatasetRuns`,
+  `test_EpochMatrix`, `test_FirstSpikeLatency`, `test_PopulationAnalysis` and
   `test_ResponseStats`. New suites take this form; `test_BinaryReader` is the
   pattern for converting a function-style one (shared fixtures in
   `TestClassSetup`, one test method per section, each `check(cond, msg)` as
@@ -605,6 +610,10 @@ suite's temporary preferences, so close it before the run ends.
 | `test_PipelineAnalysisStep` (analysis/) | the pipeline's Analysis step running a saved analysis config over a synthetic project: validation, plan, dry run, figures and report, progress, cancel, a `list` selection with one report per dataset, both scripts |
 | `test_ResponseStats` (analysis/) | `pAdjust` against statsmodels; `responseStats` on known counts against `signrank` / `kruskalwallis` called directly (toolbox tests skipped without it) |
 | `test_Auroc` (analysis/) | `aucOf`; `aurocCurves` (`"psth"` against a port of the Caras lab's code, `"epochs"`, windows, the stop mask, cutoffs, `aurocCall` over stacked results, silent units, bootstrap / ranksum / shuffle tests); `spikePSTH`'s auROC result; the figure caption's auROC clause; the PSTH and heat map marks (skipped without the toolbox) |
+| `test_DatasetFilter` (analysis/) | `datasetFilter`: subjects (case, `*` and `?` wildcards, whole-subject matches, regex characters taken literally), excluded subjects, tags (any / all, excluded, invalid terms), search words, the combinations and the sizes it refuses |
+| `test_DatasetRuns` (analysis/) | `DatasetRuns`: a value reused while its identity (settings and the stamp of the output files) holds, skipped and failed datasets, cancel keeping the finished ones, `forget`, the saved struct |
+| `test_EpochMatrix` (analysis/) | `epochMatrixSettings` (defaults, overlay, checks, cache identity, settings files) and `epochMatrix`: the parts against the per-dataset calls, assembly (rows, groups and their order, sessions), the result fields, `Recompute`, cancel |
+| `test_DatasetBrowser` (analysis/) | `DatasetBrowser`, headless and with its window: scan, filter, ticks, the settings form, `compute` against `epochMatrix`, `forEach`, the progress strip and cancel, the result file, closing keeping the object |
 | `test_FirstSpikeLatency` (analysis/) | `firstSpikeLatency` on planted spike trains (known latencies, both window ends included, none NaN, groups, the stop mask, the errors) and the latency box plot's statistics against `prctile` and Tukey's fences |
 | `test_PopulationAnalysis` (analysis/) | `populationAnalysis` against the per-dataset calls, the auROC calls pooled over the family, `populationSummary`, the files `writePopulation` writes |
 | `test_ReadNewLines` | `readNewLines` (the run monitor's log tail): whole lines from a byte offset, a partial line left for the next call, CRLF and carriage-return progress lines as a terminal shows them; a missing file or no name reads nothing and keeps the offset |

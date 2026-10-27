@@ -6,7 +6,8 @@ function onReviewUseSort(obj)
 %   of the config's sorter (sortRunDir: kilosort4, or si_<sorter>) is the
 %   auto association instead, so for it the pin is cleared (Use auto). A
 %   folder that is not one of the dataset's sorts (Browse... / Load) is
-%   used only after a confirmation. The Sort list then marks it in use.
+%   used only after a confirmation. The dataset's Sort cell then reads
+%   "(in use)" again.
 if obj.refuseWhileRunning("Use this sort"); return; end
 R = obj.ReviewData;
 d = obj.currentDataset();
@@ -34,6 +35,8 @@ obj.saveManifests(d);
 obj.refreshDatasetsTable();
 obj.refreshSortingLabel();
 [obj.ReviewSorts, ~] = reviewSorts(d);
+j = find(string([obj.ReviewDatasetStats.key]) == string(obj.Project.datasetKey(obj.SelectedDatasetIdx)), 1);
+if ~isempty(j); obj.ReviewDatasetStats(j).choice = ""; end   % the sort shown is the one in use now
 obj.showReviewSorts(folder);
 obj.refreshReviewDatasets(Datasets=obj.SelectedDatasetIdx);
 obj.setStatus(d.Name + ": sorted output " + how, ...

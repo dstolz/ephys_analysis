@@ -1,17 +1,17 @@
 function syncReviewDataset(obj)
 %syncReviewDataset  Show the active dataset's sorted output on the Review tab.
-%   Lists the dataset's sorts in the Sort dropdown (reviewSorts: its own,
-%   then every other folder under its output folder holding one) and loads
-%   its own: the associated output (an explicit SortingDir, else its
+%   Lists the dataset's sorts (reviewSorts: its own, then every other folder
+%   under its output folder holding one) and loads the one its Sort cell in
+%   the Datasets table picked (reviewSortChoice), else its own: the associated output (an explicit SortingDir, else its
 %   Sorter's run folder, kilosort4 or si_<sorter>), else its most recently
 %   changed sort so results in other folders are still found. A dataset
 %   without sorted output clears the tab, and so does one whose hand-picked
 %   folder is not there now (sortingMissing): no other sort stands in for
-%   it, though Sort still lists the others to pick by hand; the folder
-%   field then holds no other dataset's sort. Runs when the
+%   it, though the Sort cell still offers the others to pick by hand; the
+%   folder field then holds no other dataset's sort. Runs when the
 %   active dataset changes while the Review tab is open, else when the tab
 %   is next opened (ReviewDatasetIdx). Sort loads another of the dataset's
-%   sorts (onReviewSortChanged), Use this sort makes the one shown the
+%   sorts (onReviewSortEdited), Use this sort makes the one shown the
 %   dataset's own (onReviewUseSort); Browse... / Load still take any
 %   results folder. The dataset's row of the Datasets table is read again
 %   (refreshReviewDatasets), with its count of sorts.
@@ -33,7 +33,8 @@ if use == 0
     clearReview(obj, d.Name + " has no sorted output yet. Run the Sorting step, or pin a results folder on the Sorting tab.", "");
     return
 end
-folder = obj.ReviewSorts(use).dir;
+folder = obj.reviewSortChoice(idx);
+if folder == ""; folder = obj.ReviewSorts(use).dir; end
 obj.showReviewSorts(folder);
 obj.ReviewFolderField.Value = char(folder);
 obj.savePreferences();

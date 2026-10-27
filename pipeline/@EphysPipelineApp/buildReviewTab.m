@@ -5,12 +5,14 @@ function buildReviewTab(obj)
 %   copy. Across the top, the Datasets table picks the dataset: one row per
 %   dataset the other tabs' Dataset boxes list, with its sort's sorter,
 %   clusters, good and mua units, when phy last saved there and how many
-%   sorts it has, sortable by any column (refreshReviewDatasets); a click on
+%   sorts it has, and a Sort cell to pick which of its sorts to review,
+%   sortable by any column (refreshReviewDatasets); a click on
 %   a row makes that dataset active everywhere (onReviewDatasetSelected), as
 %   any other tab's Dataset box does. Beside it, the loaded sort's aggregate
 %   stats. The active dataset's sorted output loads when the tab opens or
-%   the dataset changes (syncReviewDataset); Sort lists the dataset's other
-%   sorts, and Browse... / Load take any other sorted-output folder. Below,
+%   the dataset changes (syncReviewDataset), the sort its Sort cell picks
+%   (else the one in use); Browse... / Load take any other sorted-output
+%   folder. Below,
 %   on the left, the good-unit criteria and a per-unit table. On the right,
 %   the selected unit's inter-spike interval histogram and autocorrelogram
 %   sit above spike amplitudes over time, and
@@ -39,23 +41,28 @@ g.ColumnSpacing = 14;
 % One row per dataset (refreshReviewDatasets); ReviewDatasetRows maps the
 % rows of Data to the datasets, so a header click's order (kept, tableSort
 % "ReviewDatasets"; right-click clears it) never changes which dataset a
-% click picks.
+% click picks. The Sort column is editable: a dropdown of the sorts the
+% datasets have, the one to review when the dataset is shown (onReviewSortEdited).
 dp = uipanel(g, "Title", "Datasets (click one to review it)");
 dp.Layout.Row = 1; dp.Layout.Column = [1 2];
 dg = uigridlayout(dp, [1 1]);
 dg.Padding = [0 0 0 0];
 obj.ReviewDatasetTable = uitable(dg, ...
-    "ColumnName", {'Dataset', 'Sorter', 'Units', 'Good', 'MUA', 'phy saved', 'Sorts'}, ...
-    "ColumnWidth", {'1x', 100, 48, 48, 48, 118, 46}, ...
+    "ColumnName", {'Dataset', 'Sort', 'Sorter', 'Units', 'Good', 'MUA', 'phy saved', 'Sorts'}, ...
+    "ColumnWidth", {'1x', 110, 100, 48, 48, 48, 118, 46}, ...
+    "ColumnEditable", [false true false false false false false false], ...
+    "ColumnFormat", repmat({[]}, 1, 8), ...
     "RowName", {}, ...
     "SelectionType", "row", "Multiselect", "off", ...
     "Tooltip", "The datasets the other tabs' Dataset boxes list (the Project tab's ticked ones, and the active one). " + ...
+        "Sort: which of the dataset's sorts to review when it is shown (a folder under its output folder; (in use) is the one Export and the analysis read). Changing it changes nothing the other steps read. " + ...
         "Sorter: of the sort in use (missing: a pinned folder that is not there; -: none). " + ...
         "Units, Good, MUA: its clusters and their labels (phy's, else the sorter's). " + ...
         "phy saved: when phy last saved there (opened: phy opened it but saved nothing). " + ...
-        "Sorts: how many the Sort list has, once this tab has shown the dataset. " + ...
+        "Sorts: how many the Sort cell offers, once this tab has shown the dataset. " + ...
         "Read once while this tab is open, and again when it shows the dataset. Click a header to sort.", ...
-    "SelectionChangedFcn", @(~, evt) obj.onReviewDatasetSelected(evt));
+    "SelectionChangedFcn", @(~, evt) obj.onReviewDatasetSelected(evt), ...
+    "CellEditCallback", @(~, evt) obj.onReviewSortEdited(evt));
 makeSortable(obj, obj.ReviewDatasetTable, "ReviewDatasets");
 
 summaryPanel = uipanel(g, "Title", "Summary");
@@ -76,17 +83,12 @@ left.RowHeight = {30, 30, 30, 'fit', '1x', 30};
 left.Padding   = [0 0 0 0];
 left.RowSpacing = 6;
 
-% Which of the active dataset's sorts (syncReviewDataset: each folder under
-% its output folder that holds one, and its pinned folder) with Use this
-% sort to make the one shown the dataset's own, then the folder itself,
-% which Browse... / Load take from anywhere.
-dr = uigridlayout(left, [1 4]);
-dr.ColumnWidth = {'fit', '1x', 'fit', 'fit'};
+% Refresh, and Use this sort to make the sort shown (the Datasets table's
+% Sort cell picks it) the dataset's own, then the folder itself, which
+% Browse... / Load take from anywhere.
+dr = uigridlayout(left, [1 2]);
+dr.ColumnWidth = {'1x', '1x'};
 dr.Padding = [0 0 0 0];
-uilabel(dr, "Text", "Sort:");
-obj.ReviewSortDropDown = uidropdown(dr, "Items", {'(no sorts)'}, "Enable", "off", ...
-    "Tooltip", "The active dataset's sorts: each folder under its output folder that holds one (kilosort4, si_<sorter> for a SpikeInterface sorter, a sweep's variants) and the folder pinned on the Sorting tab. ""in use"" marks the one Export and the analysis read. Choosing one loads it, for review only.", ...
-    "ValueChangedFcn", @(~,~) obj.onReviewSortChanged());
 obj.ReviewRefreshButton = uibutton(dr, "Text", "Refresh", ...
     "Tooltip", "Read the active dataset's row in the Datasets table, its list of sorts and the sort shown (summary, units table, plots) again, keeping the selected unit. For after phy saved or a sorting run finished.", ...
     "ButtonPushedFcn", @(~,~) obj.onReviewRefresh());

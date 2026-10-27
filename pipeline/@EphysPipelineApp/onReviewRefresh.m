@@ -1,7 +1,7 @@
 function onReviewRefresh(obj)
 %onReviewRefresh  Read the active dataset's row, its sorts and the loaded sort again.
 %   The Datasets table's row of the active dataset (refreshReviewDatasets,
-%   with its count of sorts), the Sort list (reviewSorts) and the sort now
+%   with its count of sorts), its list of sorts (reviewSorts) and the sort now
 %   shown, the one in the folder field, which may be another of the
 %   dataset's sorts or a browsed folder: its summary, units table and plots
 %   (loadReviewResults). The focused unit stays focused when the sort still

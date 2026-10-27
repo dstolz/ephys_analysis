@@ -1453,6 +1453,12 @@ says how to cut a release.
 
 ### Changed
 
+- Review tab: the **Sort** dropdown is gone. The Datasets table has a **Sort** column instead: each row's cell
+  picks which of that dataset's sorts to review (a dropdown of the sorts found under the datasets' output folders,
+  or **(in use)**, the default, the dataset's own). Showing a dataset loads the sort its cell picks. The pick is for
+  review only and is kept for the session; **Use this sort** makes the sort shown the dataset's own and resets the
+  cell to **(in use)**.
+
 - Figures tab: **Unit report** is now **Test report** (`onTestReport`, `test_report.html`, Ctrl+U as before), and
   it holds the figures of the dataset too: `run(Observation=)` draws a figure of the dataset for the dataset
   instead of skipping it, and with a figure of the dataset selected (the dataset picked) the report draws the

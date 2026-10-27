@@ -1,6 +1,7 @@
 function [sorts, use] = reviewSorts(d)
-%reviewSorts  Dataset D's sorted-output folders, as the Review tab's Sort dropdown lists them.
-%   SORTS (struct array: dir, label): the dataset's own sorted output
+%reviewSorts  Dataset D's sorted-output folders, as the Review tab's Sort column offers them.
+%   SORTS (struct array: dir, name, label): NAME is the folder relative to the
+%   output folder (the Datasets table's Sort cell); the dataset's own sorted output
 %   (sortingResultsDir: its pinned SortingDir, else its Sorter's run
 %   folder) first, when it holds a sort or is pinned; then each other
 %   folder under its output folder holding one (spike_clusters.npy:
@@ -11,7 +12,7 @@ function [sorts, use] = reviewSorts(d)
 %   show, the dataset's own, else the most recently changed
 %   (DatasetTracker.latestKilosortRun's choice); 0 for none.
 %   See syncReviewDataset, onReviewUseSort.
-sorts = struct('dir', {}, 'label', {});
+sorts = struct('dir', {}, 'name', {}, 'label', {});
 use = 0;
 out = string(d.outputFolder());
 dirs = strings(0, 1);
@@ -29,6 +30,7 @@ modified = NaT(numel(dirs), 1);
 for k = 1:numel(dirs)
     run = DatasetTracker.kilosortRunAt(dirs(k));
     where = relativeTo(dirs(k), out);
+    where0 = where;
     mine = hasOwn && k == 1;
     if mine && pinned; where = "pinned " + where; end
     if isempty(run)
@@ -39,7 +41,7 @@ for k = 1:numel(dirs)
         modified(k) = run.Modified;
     end
     if mine; txt = txt + " - in use"; end
-    sorts(k) = struct('dir', dirs(k), 'label', txt);
+    sorts(k) = struct('dir', dirs(k), 'name', where0, 'label', txt);
 end
 if hasOwn
     use = 1;

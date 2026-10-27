@@ -3,8 +3,8 @@ function loadReviewResults(obj)
 %   Any sort in phy's files: Kilosort4's, or a SpikeInterface sorter's
 %   (runSpikeInterface writes them in Kilosort4's layout). The summary
 %   names the sorter (the run's settings.json, else the folder's name) and
-%   where the unit groups come from, and the Sort dropdown shows the folder
-%   (showReviewSorts). Reads the .npy + .tsv outputs once, derives per-unit summary
+%   where the unit groups come from, and Use this sort turns on for a sort
+%   that is not the dataset's own (showReviewSorts). Reads the .npy + .tsv outputs once, derives per-unit summary
 %   statistics (spike counts, firing rates, peak channel, shank, position,
 %   amplitude, contamination, notes, mean waveform), caches them in
 %   obj.ReviewData, fills the summary label and units table, and draws the

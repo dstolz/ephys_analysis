@@ -8,14 +8,15 @@ function refreshReviewDatasets(obj, opts)
 %   and mua (the labels the units table shows: phy's, else the sorter's;
 %   EphysDataset.labelCounts), when phy last saved there (cluster_info.tsv,
 %   EphysDataset.phyStatus; "opened" when phy opened it but saved nothing)
-%   and, once the tab has shown the dataset, how many sorts it has (the Sort
-%   list, reviewSorts). Rows are in the table's remembered sort (tableSort
+%   and how many sorts it has (reviewSorts). The Sort cell is the sort picked
+%   for review (reviewSortChoice; "(in use)" when none), a dropdown of the
+%   sorts the datasets have (ColumnFormat). Rows are in the table's remembered sort (tableSort
 %   "ReviewDatasets"), the active dataset's row selected; ReviewDatasetRows
 %   maps each row of Data to its dataset, so a click picks the right one in
 %   any order (onReviewDatasetSelected).
 %
 %   The project may be on a slow share, so each dataset's sort is read
-%   once and kept (ReviewDatasetStats, by dataset key), and only while the
+%   once and kept (ReviewDatasetStats, by dataset key, with its list of sorts and the Sort choice), and only while the
 %   Review tab is open: until then a row shows the name alone. A row is
 %   read again when its sort in use changes (Use this sort, the Sorting
 %   tab), when the tab shows the dataset (syncReviewDataset, and each time
@@ -45,7 +46,7 @@ if active >= 1 && active <= n && ~ismember(active, idx)
 end
 readNow = ~isempty(obj.Tabs) && isvalid(obj.Tabs) && obj.Tabs.SelectedTab == obj.TabReview;
 
-C = cell(numel(idx), 7);
+C = cell(numel(idx), 8);
 for k = 1:numel(idx)
     i = idx(k);
     d = obj.Project.Datasets(i);
@@ -57,12 +58,23 @@ for k = 1:numel(idx)
         if isempty(j)
             j = numel(obj.ReviewDatasetStats) + 1;
             obj.ReviewDatasetStats(j).sorts = NaN;
+            obj.ReviewDatasetStats(j).choice = "";
         elseif stale
             obj.ReviewDatasetStats(j).sorts = NaN;   % another sort in use: count its sorts again
         end
         obj.ReviewDatasetStats(j).key = key;
         obj.ReviewDatasetStats(j).folder = folder;
         obj.ReviewDatasetStats(j).cells = sortCells(d, folder);
+        if i == obj.ReviewDatasetIdx
+            list = obj.ReviewSorts;   % syncReviewDataset / onReviewRefresh have just listed them
+        else
+            list = reviewSorts(d);
+        end
+        obj.ReviewDatasetStats(j).list = list;
+        ch = string(obj.ReviewDatasetStats(j).choice);
+        if ch ~= "" && ~any(EphysDataset.pathKey(string({list.dir})) == EphysDataset.pathKey(ch))
+            obj.ReviewDatasetStats(j).choice = "";   % that sort is gone
+        end
         stale = false;
     end
     if i == obj.ReviewDatasetIdx && ~isempty(j)
@@ -71,19 +83,36 @@ for k = 1:numel(idx)
     end
     C{k, 1} = char(d.Name);
     if stale
-        C(k, 2:7) = {'', [], [], [], '', []};
+        C(k, 2:8) = {'', '', [], [], [], '', []};
     else
-        C(k, 2:6) = obj.ReviewDatasetStats(j).cells;
-        C{k, 7} = num(obj.ReviewDatasetStats(j).sorts);
+        C{k, 2} = sortChoiceName(obj.ReviewDatasetStats(j));
+        C(k, 3:7) = obj.ReviewDatasetStats(j).cells;
+        C{k, 8} = num(obj.ReviewDatasetStats(j).sorts);
     end
 end
 
 [C, ord] = TableSort.apply(C, obj.tableSort("ReviewDatasets"), tbl.ColumnName);
 tbl.Data = C;
+names = strings(1, 0);
+for s = obj.ReviewDatasetStats
+    if ~isempty(s.list); names = [names, string({s.list.name})]; end %#ok<AGROW>
+end
+fmt = repmat({[]}, 1, numel(tbl.ColumnName));
+fmt{2} = cellstr(["(in use)", unique(names, 'stable')]);
+tbl.ColumnFormat = fmt;
 obj.ReviewDatasetRows = reshape(idx(ord), 1, []);
 row = find(obj.ReviewDatasetRows == active, 1);
 if isempty(row); row = []; end
 tbl.Selection = row;
+end
+
+
+function n = sortChoiceName(s)
+%sortChoiceName  The Sort cell of a dataset's stats S: the picked sort's name, else "(in use)".
+n = '(in use)';
+if isempty(s.choice) || strlength(s.choice) == 0 || isempty(s.list); return; end
+k = find(EphysDataset.pathKey(string({s.list.dir})) == EphysDataset.pathKey(string(s.choice)), 1);
+if ~isempty(k); n = char(s.list(k).name); end
 end
 
 

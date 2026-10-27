@@ -1,7 +1,7 @@
 function pressFigureButton(obj, key)
 %pressFigureButton  The key of one of the Figures tab's preview buttons: do what pressing it does.
 %   pressFigureButton(obj, KEY) is onKeyPress's Ctrl+KEY (Cmd on a Mac):
-%     "p"  Preview            "r"  Redraw All       "u"  Test report
+%     "p"  Preview            "r"  Redraw All       "u"  Test report (Export tab)
 %     "t"  Auto, ticked or unticked                 "k"  Export preview
 %     "e"  Export code        "w"  Open in window
 %   A button that is off (no figure selected, a run going) is left alone,
@@ -13,7 +13,7 @@ switch key
     case "r"
         b = obj.FigureRedrawAllButton;
     case "u"
-        b = obj.FigureTestReportButton;
+        b = obj.TestReportButton;
     case "k"
         b = obj.FigureExportPreviewButton;
     case "e"

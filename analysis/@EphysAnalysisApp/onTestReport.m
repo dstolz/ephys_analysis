@@ -1,6 +1,7 @@
 function [R, file] = onTestReport(obj, opts)
 %onTestReport  A spot check: every enabled figure of the active dataset, for the observation picked and the dataset, as an HTML report.
-%   [R, FILE] = onTestReport(obj) is the Figures tab's Test report button.
+%   [R, FILE] = onTestReport(obj) is the Export tab's Test report button
+%   (Ctrl+U on the Figures tab).
 %   It runs the report as the Export tab's Run does (onRunExport: the
 %   config validated first, the cancelable progress dialog, one run at a
 %   time) with these differences: the active dataset only; the unit or

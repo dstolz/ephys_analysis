@@ -35,7 +35,7 @@ else
         case "corrmap"
             txt = "A unit correlation map is a units-by-units matrix, no one unit's panel: it has no waveform inset." + alt;
         case "probemap"
-            txt = "A probe map draws a value per site, not one unit: it has no waveform inset. A Unit waveforms " + ...
+            txt = "A probe map draws a value per unit or site, not one unit: it has no waveform inset. A Unit waveforms " + ...
                 "panel in the probe layout draws every unit's waveform at its place.";
         case {"spectrum" "spectrogram" "coherence"}
             txt = "A spectral panel's axis is frequency: it has no waveform inset." + alt;

@@ -1,7 +1,7 @@
 function files = onExportPreview(obj)
 %onExportPreview  Write the selected figure for the observation picked as a run would, into a preview folder, and show it.
-%   FILES = onExportPreview(obj) is the Export preview button of the Export
-%   tab and of the Figures tab (Ctrl+K): a spot check of the Export section
+%   FILES = onExportPreview(obj) is the Figures tab's Export preview button,
+%   in its column of buttons and under the preview (Ctrl+K): a spot check of the Export section
 %   before a run. The figure in the editor (SelectedFigure), for the
 %   observation picked over the preview on the active dataset (a session
 %   figure: the matched observation and the figure the "Figure:" drop-down

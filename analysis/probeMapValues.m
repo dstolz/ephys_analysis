@@ -1,17 +1,20 @@
 function R = probeMapValues(T, probe, opts)
-%probeMapValues  One value per probe site, ready for renderProbeMap.
-%   R = probeMapValues(T, PROBE, Value="rate") spreads the unitSummary table
-%   T over the sites of the probe map PROBE (chanMap 0-based, xc, yc,
-%   kcoords): each site takes the rows of T on its recording channel
-%   (chanMap + 1) and shows
-%     "rate"     the summed rate, Hz (NaN where T has no row)
-%     "nSpikes"  the summed spike count (NaN where T has no row)
-%     "nUnits"   how many rows (units) sit there (0 where none)
+%probeMapValues  The unitSummary table's values on the probe, ready for renderProbeMap.
+%   R = probeMapValues(T, PROBE, Value="rate") places the unitSummary table
+%   T on the sites of the probe map PROBE (chanMap 0-based, xc, yc,
+%   kcoords). A unit's value is its own, drawn on the unit:
+%     "rate"     its rate, Hz
+%     "nSpikes"  its spike count
+%   and a count is the site's, drawn on the site:
+%     "nUnits"   how many rows (units) sit on its recording channel
+%                (chanMap + 1; 0 where none)
 %
-%   R fields: kind "probemap", channel, x, y, shank (one per site), value,
-%   valueName, units ("Hz" | "spikes" | "units"), unitX / unitY (T.x / T.y,
-%   the units' own positions), table (T), labels (site labels "ch<N>"),
-%   groups (one "all" row), n (rows of T), params, created.
+%   R fields: kind "probemap", channel, x, y, shank (one per site), on
+%   ("units" | "sites": what value is one per), value (one per row of T,
+%   or one per site), valueName, units ("Hz" | "spikes" | "units"),
+%   unitX / unitY (T.x / T.y, the units' own positions; a unit without
+%   one at the site of its channel), table (T), labels (site labels
+%   "ch<N>"), groups (one "all" row), n (rows of T), params, created.
 %   Error: probeMapValues:NoProbe.
 %
 %   See also unitSummary, renderProbeMap.
@@ -31,17 +34,17 @@ x = double(probe.xc(:)); y = double(probe.yc(:));
 x = x(1:n); y = y(1:n);
 shank = zeros(n, 1);
 if isfield(probe, 'kcoords'); k = double(probe.kcoords(:)); shank = k(1:n); end
-value = NaN(n, 1);
-if opts.Value == "nUnits"; value(:) = 0; end
-for s = 1:n
-    rows = T.channel == channel(s);
-    if ~any(rows); continue; end
-    switch opts.Value
-        case "rate",    value(s) = sum(T.rateHz(rows), 'omitnan');
-        case "nSpikes", value(s) = sum(T.nSpikes(rows));
-        case "nUnits",  value(s) = nnz(rows);
-    end
+switch opts.Value
+    case "rate",    value = double(T.rateHz(:));
+    case "nSpikes", value = double(T.nSpikes(:));
+    case "nUnits",  value = arrayfun(@(c) nnz(T.channel == c), channel);
 end
+unitX = double(T.x(:));
+unitY = double(T.y(:));
+[at, k] = ismember(double(T.channel(:)), channel);
+none = ~(isfinite(unitX) & isfinite(unitY)) & at;   % no position of its own: its channel's site
+unitX(none) = x(k(none));
+unitY(none) = y(k(none));
 
 R = struct();
 R.kind = "probemap";
@@ -49,6 +52,8 @@ R.channel = channel;
 R.x = x;
 R.y = y;
 R.shank = shank;
+R.on = "units";
+if opts.Value == "nUnits"; R.on = "sites"; end
 R.value = value;
 R.valueName = opts.Value;
 switch opts.Value
@@ -56,8 +61,8 @@ switch opts.Value
     case "nSpikes", R.units = "spikes";
     case "nUnits",  R.units = "units";
 end
-R.unitX = T.x;
-R.unitY = T.y;
+R.unitX = unitX;
+R.unitY = unitY;
 R.table = T;
 R.labels = "ch" + channel;
 R.groups = table(1, "all", [0.15 0.15 0.15], height(T), 'VariableNames', {'index', 'label', 'color', 'n'});

@@ -1888,7 +1888,7 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
         Tsum = unitSummary(src, Source="units", Units=U0, Ref=D.EventRef, Selection=D.Selection);
         Rpm = probeMapValues(Tsum, src.probe, Value="rate");
         check(Lpm.skip == "" && Lpm.R.kind == "probemap" && isequaln(Lpm.R.value, Rpm.value) && isempty(Fp.epochs) && isempty(Fp.panels(1).groups), ...
-            'probemap: the units'' rates on the probe sites, as unitSummary + probeMapValues give them; no epochs');
+            'probemap: the units'' rates on the units, as unitSummary + probeMapValues give them; no epochs');
     end
     cfg = cfg.addFigure("corrmap", Id="cm");
     Fcm = rn.computeFigure(src, cfg.figureFor("cm"));

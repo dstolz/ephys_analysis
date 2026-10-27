@@ -1309,9 +1309,10 @@ What each draws:
   that follows the observation) draws no waveforms but frames its units in red
   there. Bind the first layer to fixed units: a first layer that follows the
   observation draws the one unit, and validate warns.
-- `probemap`: a per-channel value on the probe sites, the units' positions as
-  dots; the observed unit's site (a channel observation: the channel's) is
-  ringed.
+- `probemap`: the layer's units on the probe, each at its own position and
+  colored by its rate or spike count (`options.value` `nUnits`: the sites
+  colored by their units, the units as dots); the observed unit (a channel
+  observation: the channel's site) is ringed.
 - `corrmap`: the pairwise correlation of the layer's units' per-epoch rates for
   the trial group `options.group`.
 - `rate`: a firing rate panel for the observed unit: each

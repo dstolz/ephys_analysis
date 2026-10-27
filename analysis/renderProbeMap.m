@@ -1,10 +1,13 @@
 function h = renderProbeMap(values, probe, target, opts)
-%renderProbeMap  Draw one value per channel on the probe's sites.
-%   H = renderProbeMap(VALUES, PROBE, TARGET, Name=Value) colors every site
-%   of the probe map PROBE (chanMap 0-based, xc, yc, kcoords) by VALUES, all
-%   shanks on one axis and one color scale. VALUES is either a numeric vector
-%   indexed by 1-based recording channel, or a probeMapValues result (then
-%   PROBE may be []; its units' own positions are drawn as dots).
+%renderProbeMap  Draw values on the probe: one per unit, or one per site.
+%   H = renderProbeMap(VALUES, PROBE, TARGET, Name=Value) draws the probe
+%   map PROBE (chanMap 0-based, xc, yc, kcoords) with VALUES in one color
+%   scale, all shanks on one axis. VALUES is either a numeric vector
+%   indexed by 1-based recording channel (each site colored by its
+%   channel's), or a probeMapValues result (then PROBE may be []; its
+%   units are drawn as dots at their own positions, colored by their own
+%   value where the result is one per unit, R.on "units", else ink dots
+%   over sites colored by theirs).
 %
 %   Every site is drawn where the map puts it (xc, yc): no shank is moved.
 %   The probe is drawn behind its sites, each shank (probeColumns: sites a
@@ -13,9 +16,10 @@ function h = renderProbeMap(values, probe, target, opts)
 %   tip, named under the tip by the kcoords group holding most of its sites
 %   (a probe of more than one shank), with an x tick at each shank. Sites
 %   with a value are filled circles in the color scale, sites without one
-%   open circles. Units per site (a result's units "units") draw a site
-%   with none as one without a value, and a few counts get a color step
-%   each.
+%   (every site, where the values are the units') open circles; units with
+%   a value filled circles in the color scale, those without one open.
+%   Units per site (a result's units "units") draw a site with none as one
+%   without a value, and a few counts get a color step each.
 %
 %   Options
 %     Title       text over the tiles
@@ -56,7 +60,7 @@ else
     shank = zeros(n, 1);
     if isfield(probe, 'kcoords'); k = double(probe.kcoords(:)); shank = k(1:n); end
     P = struct('channel', ch, 'x', double(probe.xc(1:n)).', 'y', double(probe.yc(1:n)).', 'shank', shank, ...
-        'value', v, 'units', "value", 'unitX', [], 'unitY', []);
+        'on', "sites", 'value', v, 'units', "value", 'unitX', [], 'unitY', []);
     P.x = P.x(:); P.y = P.y(:);
 end
 valueName = opts.ValueName;
@@ -65,10 +69,12 @@ if valueName == ""; valueName = valueLabel(P); end
 if isempty(ax); ax = nexttile(tl, 1); end
 
 % the colors: the scale, and the probe's own in the plot's ground
+onUnits = isfield(P, 'on') && P.on == "units";   % the value is the units', not the sites'
 isCount = isfield(P, 'units') && string(P.units) == "units";
 fin = isfinite(P.value);
 if isCount; fin = fin & P.value > 0; end   % a site with no unit is drawn as one without a value
 v = P.value(fin);
+if onUnits; fin = false(size(P.x)); end   % then no site has one
 counts = isCount && ~isempty(v) && all(v == round(v)) && max(v) - min(v) <= 12;
 clim0 = style.CLim;
 fixed = numel(clim0) == 2 && clim0(2) > clim0(1);
@@ -162,7 +168,18 @@ if isfield(P, 'unitX') && ~isempty(P.unitX)
     ux = P.unitX(:);
     uy = P.unitY(:);
     u = isfinite(ux) & isfinite(uy);
-    if any(u)
+    if onUnits
+        uv = P.value(:);
+        has = u & isfinite(uv);
+        if any(u & ~has)
+            tagPart(plot(ax, ux(u & ~has), uy(u & ~has), 'o', 'MarkerSize', 0.8 * sz, 'Color', ink, ...
+                'MarkerFaceColor', ground, 'LineWidth', 0.75), "unitDots");
+        end
+        if any(has)
+            tagPart(scatter(ax, ux(has), uy(has), (0.8 * sz)^2, uv(has), 'o', 'filled', 'MarkerEdgeColor', ink, ...
+                'LineWidth', 0.75), "unitDots");
+        end
+    elseif any(u)
         tagPart(plot(ax, ux(u), uy(u), 'o', 'MarkerSize', max(3.5, 0.55 * sz), 'Color', ink, 'MarkerFaceColor', ink, ...
             'MarkerEdgeColor', ground, 'LineWidth', 0.75), "unitDots");
     end

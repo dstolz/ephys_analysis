@@ -22,7 +22,7 @@ function onKeyPress(obj, evt)
 %     Ctrl+P, Ctrl+R        Preview, Redraw All (Ctrl+G, Generate
 %                           selected figure, is the File menu's
 %                           accelerator, not a key of this function)
-%     Ctrl+U                Test report
+%     Ctrl+U                Test report (the Export tab's button)
 %     Ctrl+T                Auto on or off
 %     Ctrl+K                Export preview
 %     Ctrl+E, Ctrl+W        Export code, Open in window

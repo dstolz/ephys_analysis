@@ -1,5 +1,5 @@
 function tf = testReportEnable(obj)
-%testReportEnable  Whether the Figures tab's Test report can run now (onTestReport), as an on / off state.
+%testReportEnable  Whether the Export tab's Test report can run now (onTestReport), as an on / off state.
 %   On with a scanned, active dataset, a figure drawn per dataset (not
 %   across sessions) selected and an observation picked over the preview
 %   (a unit, a channel, or the dataset for a figure of the dataset), while

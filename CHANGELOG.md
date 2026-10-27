@@ -1466,6 +1466,9 @@ says how to cut a release.
 
 ### Changed
 
+- Analysis app: **Test report** and the Export tab's **Export preview** swapped places. The Figures tab's column of
+  buttons now holds **Export preview** (under **Redraw All**; the one under the preview stays), and the Export tab has
+  **Test report** between **Plan** and **Run**. **Ctrl+U** on the Figures tab still runs the Test report.
 - Scanning datasets is faster, most of all over a network share. `DatasetOutputs.refresh` reads a `-v7.3` file's
   variable names from its HDF5 root group, which is about ten times faster there than `whos('-file')`. It keeps
   what it read from each output file (variables, or a `.npz`/`.nwb`'s tool, and the dataset and `sourceFolder` its

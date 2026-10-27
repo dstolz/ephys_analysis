@@ -222,9 +222,13 @@ Tu = table(["u1"; "u2"; "u3"], ["su"; "mua"; "su"], [1; 5; 3], [0; 1; 0], [0; 20
 Rc = unitCorrelation({s2, st, drv}, E3, Groups=G3, Meta=meta);
 Rc.epochs = E3; Rc.dataset = "synthetic";
 Rq = probeMapValues(Tu, probe, Value="rate");
-check(isequal(Rq.value([1 3 5]), [1; 3; 2]) && all(isnan(Rq.value([2 4 6 7 8]))), 'probeMapValues puts each unit''s rate on its site');
+check(Rq.on == "units" && isequal(Rq.value, Tu.rateHz) && isequal(Rq.unitX, Tu.x) && isequal(Rq.unitY, Tu.y), ...
+    'probeMapValues keeps each unit''s own rate, at its own position');
+Tn = Tu; Tn.x(3) = NaN; Tn.y(3) = NaN;
+Rn = probeMapValues(Tn, probe, Value="nSpikes");
+check(isequal(Rn.value, Tu.nSpikes) && Rn.unitX(3) == 0 && Rn.unitY(3) == 50, 'a unit without a position goes to its channel''s site');
 Rq0 = probeMapValues(Tu, probe, Value="nUnits");
-check(sum(Rq0.value) == 3 && Rq0.value(2) == 0, 'nUnits counts the units per site');
+check(Rq0.on == "sites" && sum(Rq0.value) == 3 && Rq0.value(2) == 0, 'nUnits counts the units per site');
 cases = {
     "heatmap psth",        @(tg) renderHeatmap(Rp, tg, Order="peak")
     "heatmap evoked",      @(tg) renderHeatmap(Rv, tg)
@@ -266,12 +270,13 @@ check(isequal(colP.', [1 1 1 1 2 2 2 2 1 2]) && isequal(CP.shank, [0 1]) && iseq
     'probeColumns: shanks by x, a site parked on a kcoords group of its own stays on its shank (named by its main group); a point goes to its nearest shank');
 Rpk = probeMapValues(Tu, parked, Value="rate");
 h = renderProbeMap(Rpk, [], fig);
-fin = isfinite(Rpk.value);
 lab = findall(h.axes, 'Tag', 'shankLabels');
-check(isequal(findall(h.axes, 'Tag', 'sites').XData(:), Rpk.x(fin)) && isequal(findall(h.axes, 'Tag', 'emptySites').XData(:), Rpk.x(~fin)) ...
+ud = findall(h.axes, 'Tag', 'unitDots', 'Type', 'scatter');
+check(isempty(findall(h.axes, 'Tag', 'sites')) && isequal(findall(h.axes, 'Tag', 'emptySites').XData(:), Rpk.x) ...
+    && isscalar(ud) && isequal(ud.XData(:), Tu.x) && isequal(ud.CData(:), Tu.rateHz) ...
     && numel(findall(h.axes, 'Tag', 'probeShank')) == 2 && isequal(sort(string(get(lab, 'String'))), ["Shank 0"; "Shank 1"]) ...
     && isequal(h.axes.XTick, [4 204]), ...
-    'probe map: every site at its own x (the parked ones too), a body and a name per shank, an x tick at each');
+    'probe map: the rates on the units (no site colored), every site at its own x (the parked ones too), a body and a name per shank, an x tick at each');
 h = renderProbeMap(Rq0, [], fig);
 check(numel(findall(h.axes, 'Tag', 'sites').XData) == 3 && numel(findall(h.axes, 'Tag', 'emptySites').XData) == 5 ...
     && isequal(h.colorbar.Ticks, 1) && string(h.colorbar.Label.String) == "Units", ...

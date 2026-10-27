@@ -288,7 +288,7 @@ classdef PlotDesign
             mapField = "";
             if isfield(ctx, 'mapField'); mapField = string(ctx.mapField); end
             if mapField ~= ""
-                ims = T.Handles(ismember(T.Role, ["image" "sites"]));
+                ims = T.Handles(ismember(T.Role, ["image" "sites"]) | (T.Role == "unitDots" & tileKind == "probemap"));   % a probe map's units carry its colors
                 if ~isempty(ims)
                     ax = ancestor(ims{1}(1), 'axes');
                     cm = ax.Colormap;

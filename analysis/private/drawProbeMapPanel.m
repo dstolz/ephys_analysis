@@ -1,12 +1,13 @@
 function hk = drawProbeMapPanel(ax, P, look)
-%drawProbeMapPanel  Draw a figure's probe map panel: a per-channel value on the probe sites, the observation ringed.
+%drawProbeMapPanel  Draw a figure's probe map panel: the units' values on the probe, the observation ringed.
 %   HK = drawProbeMapPanel(AX, P, LOOK) draws the panel result P
 %   (F.panels(k) of EphysAnalysisRunner.computeFigure) into the axes AX,
 %   as renderFigure asks (LOOK: style, colors, W, spec, panel, panelId,
 %   isTop, isBottom, epochs, groups, observation, isTime). Its first
 %   computed layer (a probeMapValues result) is drawn by renderProbeMap
-%   into AX (Style.CLim = options.cLim): the sites colored by the value,
-%   the units' positions as dots, the color bar. The observation is ringed
+%   into AX (Style.CLim = options.cLim): the units at their positions
+%   colored by their rate or spike count (units per site: the sites
+%   colored, the units as ink dots), the color bar. The observation is ringed
 %   in red (role "unitDots", group "observed"): a unit at its own position
 %   (R.unitX / unitY of its row of R.table), else (a channel, or a unit
 %   without a position) the site of its recording channel. A skipped

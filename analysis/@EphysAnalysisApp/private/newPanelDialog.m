@@ -242,7 +242,7 @@ switch t
             "ItemsData", ["grid" "probe"], "Value", def.layout, "Tooltip", "The unit's waveform, or every unit of the layer on the probe.")};
     case "probemap"
         specs(end+1, :) = {"Value", "Value:", @(gr) uidropdown(gr, "Items", ["rate" "nSpikes" "nUnits"], "Value", def.value, ...
-            "Tooltip", "The per-channel value drawn on the probe sites.")};
+            "Tooltip", "Each unit's rate or spike count, drawn on the unit; or the units per site, drawn on the site.")};
     case "corrmap"
         specs(end+1, :) = {"Metric", "Epoch rate:", @(gr) uidropdown(gr, "Items", ["mean" "peak"], "Value", def.metric, ...
             "Tooltip", "Each epoch's mean rate, or its peak binned rate.")};

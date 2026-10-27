@@ -132,9 +132,9 @@ classdef EphysAnalysisApp < handle
     %   panel above, below, left or right (stepFigurePanel; the preview
     %   outlines it: markFigurePanel). Page Up and Page Down step to the
     %   previous and next observation (onFigureObservationStep). Ctrl+P,
-    %   Ctrl+R, Ctrl+U, Ctrl+T, Ctrl+E and Ctrl+W press Preview, Redraw
-    %   All, Test report, Auto, Export code and Open in window
-    %   (pressFigureButton). Escape cancels a panel drag. Ctrl+Z undoes
+    %   Ctrl+R, Ctrl+U, Ctrl+T, Ctrl+K, Ctrl+E and Ctrl+W press Preview,
+    %   Redraw All, Test report (the Export tab's), Auto, Export preview,
+    %   Export code and Open in window (pressFigureButton). Escape cancels a panel drag. Ctrl+Z undoes
     %   the last edit of the figures, Ctrl+Y and Ctrl+Shift+Z redo it
     %   (onUndoRedo). The "?" button lists them all (onFigureKeys).
     %
@@ -275,10 +275,10 @@ classdef EphysAnalysisApp < handle
         FigureObsNextButton    matlab.ui.control.Button
         FigurePreviewButton    matlab.ui.control.Button
         FigureRedrawAllButton  matlab.ui.control.Button         % Redraw All: every enabled figure's preview drawn again where out of date (onRedrawAllFigures)
-        FigureTestReportButton matlab.ui.control.Button         % Test report: every enabled figure for the observation picked and the dataset, a temporary HTML report (onTestReport)
+        FigureExportPreviewColumnButton matlab.ui.control.Button % Export preview in the column of buttons, as FigureExportPreviewButton (onExportPreview)
         FigureOpenButton       matlab.ui.control.Button         % Open in window: the figure as previewed in a figure() of its own (onOpenFigureWindow)
         FigureCodeButton       matlab.ui.control.Button         % Export code: the code behind the preview (its data in its epochs, the drawing), in the editor (onFigureCode)
-        FigureExportPreviewButton matlab.ui.control.Button      % Export preview: the observation picked written as a run writes it (onExportPreview)
+        FigureExportPreviewButton matlab.ui.control.Button      % Export preview under the preview: the observation picked written as a run writes it (onExportPreview)
         FigureAutoCheckBox     matlab.ui.control.CheckBox       % auto-preview (pref FigureAutoPreview, on by default)
         DesignDropDown         matlab.ui.control.DropDown       % the design every figure is drawn in (PlotDesign; also the Design menu)
         SaveDesignButton       matlab.ui.control.Button         % Save look as design...: the figure preview's look (onSaveDesign)
@@ -304,7 +304,7 @@ classdef EphysAnalysisApp < handle
         ValidateButton     matlab.ui.control.Button
         PlanButton         matlab.ui.control.Button
         RunButton          matlab.ui.control.Button
-        ExportPreviewButton matlab.ui.control.Button     % Export preview, as the Figures tab's (onExportPreview)
+        TestReportButton   matlab.ui.control.Button     % Test report: every enabled figure for the Figures tab's observation and the dataset, a temporary HTML report (onTestReport)
         CancelButton       matlab.ui.control.Button
         OpenReportButton   matlab.ui.control.Button
         OpenFolderButton   matlab.ui.control.Button

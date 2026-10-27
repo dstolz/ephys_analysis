@@ -1,5 +1,5 @@
 function P = computeProbeMapPanel(src, panel, E, G, ctx) %#ok<INUSL>
-%computeProbeMapPanel  A figure's probe map panel: a per-channel value of the layer's units on the probe sites.
+%computeProbeMapPanel  A figure's probe map panel: the layer's units on the probe, colored by their value (units per site: the sites).
 %   P = computeProbeMapPanel(SRC, PANEL, E, G, CTX) (figurePanelRegistry's
 %   compute for "probemap"; not aligned, so E and G are unused) has
 %   P.layers, one per layer of PANEL (figurePanelLayers). Its first enabled

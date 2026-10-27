@@ -110,9 +110,9 @@ function buildFiguresTab(obj)
 %           (every enabled figure's preview drawn again where out of date,
 %           the shown figure first: onRedrawAllFigures; the selected
 %           figure's files for every observation are the File menu's
-%           Generate selected figure, onGenerateFigure), Test report (every enabled
-%           figure for the observation picked, and the dataset's figures,
-%           as an HTML report in a temporary folder: onTestReport), Auto, and < and > on a row
+%           Generate selected figure, onGenerateFigure), Export preview (the
+%           observation picked, written as a run writes it into a preview
+%           folder and shown: onExportPreview), Auto, and < and > on a row
 %           (Page Up / Page Down) -- beside the dataset, the observation
 %           picked (figureObservations' labels) and the Favorites
 %           (buildFavorites: a filter and every starred dataset, channel
@@ -143,16 +143,16 @@ function buildFiguresTab(obj)
 %           back as the figure left it: its sections open or collapsed,
 %           its scroll, its panel and layer (saveFigureEditorState). The
 %           preview's badge (setFigurePreviewState) and status
-%           line, with Export preview (the observation picked, written
-%           as a run writes it into a preview folder and shown:
-%           onExportPreview, also on the Export tab), Export code (the code
+%           line, with Export preview again (as in the column of
+%           buttons), Export code (the code
 %           that loads the data in the preview's epochs and draws the
 %           preview, in the editor: onFigureCode) and Open
 %           in window (onOpenFigureWindow: the figure in a figure() of its
 %           own) at its right. Every button has a key, named in its tooltip
-%           (onKeyPress): Ctrl+P Preview, Ctrl+R Redraw All, Ctrl+U Unit
-%           report, Ctrl+T Auto, Page Up / Page Down < and >, Ctrl+K Export
-%           preview, Ctrl+E Export code, Ctrl+W Open in window.
+%           (onKeyPress): Ctrl+P Preview, Ctrl+R Redraw All, Ctrl+T Auto,
+%           Page Up / Page Down < and >, Ctrl+K Export preview, Ctrl+E
+%           Export code, Ctrl+W Open in window; Ctrl+U presses the Export
+%           tab's Test report.
 g = uigridlayout(obj.TabFigures, [1 3]);
 g.ColumnWidth = {285, 560, '1x'};
 g.Padding = [8 8 8 8];
@@ -1511,14 +1511,11 @@ obj.FigureRedrawAllButton = uibutton(bg, "Text", "Redraw All", "Enable", "off", 
     "stops it. Writing the figure's files is File > Generate selected figure (" + cmdKey + "+G). (" + cmdKey + "+R)", ...
     "ButtonPushedFcn", @(~,~) obj.onRedrawAllFigures());
 obj.FigureRedrawAllButton.Layout.Row = 2;
-obj.FigureTestReportButton = uibutton(bg, "Text", "Test report", "Enable", "off", ...
-    "Tooltip", "A spot check: every enabled figure (and this one) on the active dataset, drawn for the unit or " + ...
-    "channel picked only, as an HTML report in a temporary folder that opens in the browser, in the report's Order " + ...
-    "(Export tab). A figure of channels or detections draws what is on the unit's channel; a figure of the " + ...
-    "dataset draws the dataset; one with nothing there is listed as left out, as are the figures across sessions. " + ...
-    "No figure files; the output folder is not touched. (" + cmdKey + "+U)", ...
-    "ButtonPushedFcn", @(~,~) obj.onTestReport());
-obj.FigureTestReportButton.Layout.Row = 3;
+obj.FigureExportPreviewColumnButton = uibutton(bg, "Text", "Export preview", "Enable", "off", ...
+    "Tooltip", "Spot-check the Export tab's settings: this figure for the observation picked, drawn and written as a " + ...
+    "run writes it (size, formats, dpi, file name) into a preview folder -- not the figure folder -- and shown in a " + ...
+    "window. (" + cmdKey + "+K)", "ButtonPushedFcn", @(~,~) obj.onExportPreview());
+obj.FigureExportPreviewColumnButton.Layout.Row = 3;
 obj.FigureAutoCheckBox = uicheckbox(bg, "Text", "Auto", "Value", true, ...
     "Tooltip", "Redraw on every change while a preview takes under " + obj.AutoPreviewSeconds + " s (one observation is quick). (" + cmdKey + "+T)", ...
     "ValueChangedFcn", @(~,~) obj.onFigureAutoPreviewToggled());

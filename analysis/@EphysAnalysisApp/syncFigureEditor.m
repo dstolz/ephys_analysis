@@ -122,7 +122,7 @@ obj.CopyFigureButton.Enable = onoff(has);   % (with one figure: into a design)
 if ~isempty(obj.FigureRedrawAllButton)
     obj.FigureRedrawAllButton.Enable = onoff(has && ~obj.Running && ~obj.FigureRedrawing);   % off while a run (or a generate, or itself) goes
     if ~isempty(obj.GenerateFigureMenu); obj.GenerateFigureMenu.Enable = onoff(has && ~obj.Running); end
-    set([obj.FigureExportPreviewButton obj.ExportPreviewButton], 'Enable', onoff(has && ~obj.Running));
+    set([obj.FigureExportPreviewButton obj.FigureExportPreviewColumnButton], 'Enable', onoff(has && ~obj.Running));
     obj.FigureOpenButton.Enable = onoff(has);
     obj.FigureCodeButton.Enable = onoff(has);
 end

@@ -40,6 +40,11 @@ B = DatasetBrowser(root, Scan=false);     % only read the result file: B.Result,
 | `Scan` | `false`: only restore the result file, without touching the share |
 | `Workers` | the process workers **Compute** and `forEach` use ([Workers](#workers)). Default: all workers of a process pool already open, else the last one set, else 0 |
 
+While the window opens, a small startup window (the name, version and a progress
+bar) shows the steps: the window is built hidden, the last session restored and
+the root scanned, then the browser appears. `Splash=false` starts without it
+(the default with `Visible=false` and under `-batch`).
+
 `B.OnTop` (the **Keep on top** checkbox) is settable at any time; its default is the last one set, else `false`.
 
 On opening, the ticks, filter, settings and result saved in the result file
@@ -49,7 +54,20 @@ ticks what the filter shows. A root that cannot be reached raises
 
 ## The window
 
-The window (1380 x 860 pixels, its position remembered) has four rows:
+The window (1380 x 860 pixels, its position remembered) has a **File** menu
+and four rows.
+
+The **File** menu holds the [settings files](#settings):
+
+| Item | Does |
+| --- | --- |
+| **Load settings...** (Ctrl+O) | reads a settings file (`B.loadSettings()`) |
+| **Recent settings** | the last 10 settings files loaded or saved, newest first (`B.RecentSettings`, preference `RecentSettings`); one that no longer exists stays listed, grayed, with *(not found)*. **Remove from list** drops one file from the list (`B.removeRecent(file)`), **Clear list** drops them all (`B.clearRecent()`); the files themselves stay |
+| **Save settings** (Ctrl+S) | writes the settings to the settings file (`B.SettingsFile`, the one last loaded or saved, named above the form); with none yet, it asks for one as **Save settings as...** does (`B.saveSettings()`) |
+| **Save settings as...** | writes the settings to a file picked in a dialog (`B.saveSettingsAs()`) |
+| **Close** | closes the window, as its close button does |
+
+The rows:
 
 1. **Root** (a field and **Browse...**) and **Pattern**, with **Scan**.
    **Scan** lists the root's datasets. It reads each one's outputs and tags
@@ -102,9 +120,10 @@ row makes it the dataset the form's lists are read from.
 The right panel holds the settings of `epochMatrix`: **Data** above three
 tabs, **Event**, **Trials** and **Measure**. Every edit is merged into the
 whole settings struct and checked by `epochMatrixSettings`; an edit that does
-not fit is undone and its reason shown in the status line. **Load...** and
-**Save...** read and write a [settings file](#settings) (**Save...** writes
-every field, also those the form does not show).
+not fit is undone and its reason shown in the status line. Above **Data**,
+*Settings file* names the file **File > Save settings** writes (its full path
+in the tooltip). A [settings file](#settings) holds every field, also those
+the form does not show.
 
 The **Event** and **Trials** tabs are the analysis app's own controls
 (`AlignControls`, the Alignment tab's Event reference, Epoch window and Trial
@@ -251,7 +270,9 @@ R = B.compute();
 | `R = compute(B, Recompute=false)` | `epochMatrix` over the ticked datasets with `B.Settings` |
 | `[VALUES, T] = forEach(B, FN, ...)` | [your own per-dataset code, cached](#foreach) |
 | `forget(B, NAME, KEYS)`, `forgetTicked(B)` | drop kept parts |
-| `loadSettings(B, FILE)`, `saveSettings(B, FILE)` | a [settings file](#settings) (no `FILE`: a file dialog) |
+| `loadSettings(B, FILE)` | read a [settings file](#settings) (no `FILE`: a file dialog) |
+| `saveSettings(B, FILE)`, `saveSettingsAs(B)` | write one (no `FILE`: `B.SettingsFile`, else a file dialog; `saveSettingsAs`: always a dialog) |
+| `removeRecent(B, FILE)`, `clearRecent(B)` | drop files from `B.RecentSettings` (**File > Recent settings**) |
 | `save(B, FILE)`, `restore(B, FILE)` | the [result file](#the-cache-and-the-result-file) |
 | `wait(B, Timeout=Inf)`, `done(B)`, `close(B)` | the window |
 | `B = DatasetBrowser.open(ROOT, ...)` | the browser of the window open on `ROOT`, else a new one ([without waiting](#without-waiting)) |
@@ -500,10 +521,12 @@ the cached spike results. `normalize` is left out of it too.
 **Settings files** are JSON: `{"schema": "epoch-matrix-settings", "version":
 1, "settings": {...}}`, with non-finite numbers written as the strings
 `"Inf"`, `"-Inf"` and `"NaN"`. Write one with
-`epochMatrixSettings(S, SaveAs="ofc_hit_depth.json")`, **Save...** or
-`B.saveSettings(file)`; read one with `epochMatrixSettings(file)`,
-`DatasetBrowser(root, Settings=file)`, **Load...** or `B.loadSettings(file)`.
-The form remembers the folder of the last file (preference `SettingsFolder`).
+`epochMatrixSettings(S, SaveAs="ofc_hit_depth.json")`, **File > Save
+settings** or `B.saveSettings(file)`; read one with `epochMatrixSettings(file)`,
+`DatasetBrowser(root, Settings=file)`, **File > Load settings** or
+`B.loadSettings(file)`. The last file loaded or saved is `B.SettingsFile`
+(kept in the result file); its folder is where the file dialogs open
+(preference `SettingsFolder`), and it heads **File > Recent settings**.
 
 `[S, ID] = epochMatrixSettings(...)` also returns the cache identity `ID`:
 `data`, `ref`, `window`, `selection`, the fields that apply to `data` and a
@@ -633,6 +656,7 @@ Saved on close under the `AppPrefs` group `DatasetBrowser`:
 | `Position` | the window's position and size |
 | `Sort` | the table's sort (column and direction) |
 | `SettingsFolder` | the folder of the last settings file loaded or saved |
+| `RecentSettings` | **File > Recent settings**: the last 10 settings files loaded or saved |
 
 ## Errors and warnings
 

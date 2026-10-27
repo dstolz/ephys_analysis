@@ -336,6 +336,50 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyError(@() B.loadSettings(), 'DatasetBrowser:NoFile', 'Hidden: no file dialog.');
         end
 
+        function fileMenuAndRecent(tc)
+            B = tc.open(Scan=false);
+            tmp = tc.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+            f1 = string(fullfile(tmp.Folder, "a.json"));
+            f2 = string(fullfile(tmp.Folder, "b.json"));
+            tc.verifyEqual(B.SettingsFile, "");
+            tc.verifyError(@() B.saveSettings(), 'DatasetBrowser:NoFile', 'No settings file and hidden: no Save as dialog.');
+            B.saveSettings(f1);
+            tc.verifyEqual(B.SettingsFile, f1);
+            B.Settings = epochMatrixSettings(B.Settings, binSec=0.02);
+            B.saveSettings();   % to SettingsFile
+            tc.verifyEqual(epochMatrixSettings(f1).binSec, 0.02, 'Save writes the settings file.');
+            B.saveSettings(f2);
+            B.loadSettings(f1);
+            tc.verifyEqual(B.RecentSettings, [f1; f2], 'Newest first, no duplicates.');
+            tc.verifyTrue(contains(string(B.Ctl.SettingsFile.Text), "a.json"), B.Ctl.SettingsFile.Text);
+            items = string({B.Ctl.RecentMenu.Children.Text});   % Children are newest-created first
+            tc.verifyTrue(all(ismember([f1 f2 "Remove from list" "Clear list"], items)), strjoin(items, ", "));
+            % a recent item loads its file; Remove from list drops it
+            B.Settings = [];
+            item = findobj(B.Ctl.RecentMenu.Children, "flat", "Text", char(f2));
+            item.MenuSelectedFcn(item, []);
+            tc.verifyEqual(B.Settings.binSec, 0.02);
+            tc.verifyEqual(B.RecentSettings(1), f2);
+            rm = findobj(B.Ctl.RecentMenu.Children, "flat", "Text", "Remove from list");
+            item = findobj(rm.Children, "flat", "Text", char(f1));
+            item.MenuSelectedFcn(item, []);
+            tc.verifyEqual(B.RecentSettings, f2);
+            tc.verifyTrue(isfile(f1), 'Removing keeps the file.');
+            % a missing file stays listed, grayed, until removed
+            delete(f2);
+            B.removeRecent("nothing.json");
+            item = findobj(B.Ctl.RecentMenu.Children, "flat", "-regexp", "Text", "not found");
+            tc.verifyEqual(string(item.Enable), "off");
+            B.close();
+            tc.verifyEqual(string(AppPrefs.getpref("DatasetBrowser", "RecentSettings")), f2, 'The list is a preference.');
+            B2 = tc.open(Scan=false);
+            tc.verifyEqual(B2.RecentSettings, f2);
+            B2.clearRecent();
+            tc.verifyEmpty(B2.RecentSettings);
+            tc.verifyEqual(string(B2.Ctl.RecentMenu.Children.Text), "(none)");
+            B2.close();
+        end
+
         function dropDownLoadsOneSource(tc)
             B = tc.open();
             c = B.Ctl;

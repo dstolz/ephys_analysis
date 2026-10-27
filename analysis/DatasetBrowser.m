@@ -96,6 +96,11 @@ classdef DatasetBrowser < handle
     %   closed, the same calls print a line to the command window at most
     %   every 2 s, and one at the finish.
     %
+    %   Startup: a small window (AppSplash) shows the name, version and a
+    %   progress bar while the window is built hidden, the last session
+    %   restored and the root scanned; then the window shows. Splash=false
+    %   starts without it (the default under -batch and with Visible=false).
+    %
     %   Methods (each control's action has one)
     %     scan(B, Root=, NamePattern=)       find the datasets (the Scan button)
     %     setFilter(B, Subjects=, ExcludeSubjects=, Tags=, TagMode=, ExcludeTags=, Search=)
@@ -110,7 +115,10 @@ classdef DatasetBrowser < handle
     %                  FN(SRC) or FN(SRC, INFO) per dataset, kept in Runs
     %                  (DatasetRuns.run); Name defaults to "forEach/" + func2str(FN)
     %     forget(B, NAME, KEYS); forgetTicked(B)   (nothing ticked: nothing dropped)
-    %     loadSettings(B, FILE); saveSettings(B, FILE)   (no FILE: a file dialog)
+    %     loadSettings(B, FILE)              (no FILE: a file dialog; File > Load settings)
+    %     saveSettings(B, FILE)              (no FILE: SettingsFile, else a file dialog; File > Save settings)
+    %     saveSettingsAs(B)                  a file dialog (File > Save settings as)
+    %     removeRecent(B, FILE); clearRecent(B)   File > Recent settings' list (RecentSettings)
     %     save(B, FILE); restore(B, FILE)    the result file
     %     progressStart, progress, progressStep, checkCancel, progressFinish, cancel
     %     wait(B, Timeout=Inf); done(B); close(B)
@@ -126,7 +134,8 @@ classdef DatasetBrowser < handle
     %   DatasetBrowser:BadResultFile, DatasetBrowser:NotSaved, and with
     %   Workers DatasetRuns:Serial (no process pool: computed here).
     %   Preferences (AppPrefs group DatasetBrowser, saved on close): Root,
-    %   NamePattern, Position, Sort, SettingsFolder, Workers, OnTop.
+    %   NamePattern, Position, Sort, SettingsFolder, RecentSettings, Workers,
+    %   OnTop.
     %
     %   See also epochMatrix, epochMatrixSettings, DatasetRuns, outputsStamp,
     %   datasetFilter, EphysAnalysisRunner.
@@ -232,6 +241,8 @@ classdef DatasetBrowser < handle
         Fig = []                           % the uifigure
         Ctl = struct()                     % the controls
         Sort = TableSort.none()            % the table's sort (a header click; TableSort state)
+        SettingsFile (1,1) string = ""     % the settings file last loaded or saved ("" = none): saveSettings() writes it
+        RecentSettings (:,1) string = strings(0, 1)   % the settings files last loaded or saved, newest first (File > Recent settings)
     end
 
     properties
@@ -284,6 +295,7 @@ classdef DatasetBrowser < handle
         OwnRun (1,1) logical = false       % the strip's run is the browser's own scan, compute or forEach (they end it themselves)
         WorkersN (1,1) double = 0          % Workers
         OnTopS (1,1) logical = false       % OnTop
+        Splash AppSplash = AppSplash.empty % the startup window (AppSplash; open while the window is built and the root scanned)
     end
 
     properties (Constant)
@@ -295,9 +307,10 @@ classdef DatasetBrowser < handle
     properties (Constant, Access = private)
         DataItems = ["units" "detected" "LFP" "MUA" "SPIKE" "AUX"]
         Controls = ["Root" "Browse" "Pattern" "Scan" "Subject" "NotSubject" "Search" "Tags" "TagMode" "NotTags" ...
-            "TickShown" "UntickAll" "Table" "Load" "Save" "Data" "Normalize" "NormBaseline" "NormScope" ...
+            "TickShown" "UntickAll" "Table" "FileMenu" "Data" "Normalize" "NormBaseline" "NormScope" ...
             "Merge" "UnitShanks" "Measure" "Bin" "Baseline" ...
             "Channels" "SigShanks" "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "KeepEpochs" "Compute" "Done" "Workers"]
+        MaxRecent = 10                     % RecentSettings' length
         ErrorColor = [0.75 0.1 0.1]
         TextColor = [0.25 0.25 0.25]
     end
@@ -316,7 +329,16 @@ classdef DatasetBrowser < handle
                 opts.Visible (1,1) logical = true
                 opts.Scan (1,1) logical = true
                 opts.Workers (1,1) double {mustBeInteger, mustBeNonnegative}
+                opts.Splash (1,1) logical = ~batchStartupOptionUsed()   % no one watches a -batch run
             end
+            % Behind the startup window (AppSplash) the UI is built hidden and
+            % the root scanned; the window shows at the end. A hidden browser
+            % (Visible=false) or Splash=false has none.
+            [steps, weights] = startupSteps();
+            B.Splash = AppSplash("Dataset browser", steps, weights, Show=opts.Visible && opts.Splash);
+            splash = B.Splash;
+            unfinished = onCleanup(@() splash.close()); %#ok<NASGU> an error closes the splash too
+            B.Splash.step("settings", "Reading the preferences ...");
             B.Runs = DatasetRuns();
             B.Datasets = DatasetBrowser.emptyDatasets();
             B.FilterS = DatasetBrowser.noFilter();
@@ -328,6 +350,10 @@ classdef DatasetBrowser < handle
             B.NamePattern = EphysDataset.DefaultNamePattern;
             if isfield(prefs, 'NamePattern') && string(prefs.NamePattern) ~= ""; B.NamePattern = string(prefs.NamePattern); end
             if isfield(prefs, 'SettingsFolder'); B.SettingsFolder = string(prefs.SettingsFolder); end
+            if isfield(prefs, 'RecentSettings') && (iscellstr(prefs.RecentSettings) || isstring(prefs.RecentSettings) || ischar(prefs.RecentSettings))
+                r = reshape(string(prefs.RecentSettings), [], 1);
+                B.RecentSettings = r(r ~= "");
+            end
             if isfield(prefs, 'Sort'); B.Sort = TableSort.fromPref(prefs.Sort); end
             if isfield(prefs, 'Workers') && isnumeric(prefs.Workers) && isscalar(prefs.Workers) && prefs.Workers >= 0
                 B.WorkersN = round(double(prefs.Workers));
@@ -342,7 +368,9 @@ classdef DatasetBrowser < handle
             B.ResultFileS = opts.ResultFile;
             if B.DefaultFile; B.ResultFileS = DatasetBrowser.defaultFile(B.Root); end
 
+            B.Splash.step("window", "Building the window ...");
             B.build(prefs);
+            B.Splash.step("restore", "Restoring the last session ...");
             % precedence: the options, then the result file, then the defaults
             if B.ResultFileS ~= "" && isfile(B.ResultFileS)
                 B.restoreFile(B.ResultFileS, false);
@@ -350,11 +378,20 @@ classdef DatasetBrowser < handle
             if isfield(opts, 'NamePattern'); B.NamePattern = opts.NamePattern; end
             if isfield(opts, 'OutputRoot'); B.OutputRoot = opts.OutputRoot; end
             if isfield(opts, 'Recordings'); B.Recordings = opts.Recordings; end
-            if ~isempty(opts.Settings); B.setSettings(opts.Settings, false); end
+            if ~isempty(opts.Settings)
+                B.setSettings(opts.Settings, false);
+                if isstring(opts.Settings) || ischar(opts.Settings)
+                    B.tookFile(string(opts.Settings));
+                else
+                    B.SettingsFile = "";
+                end
+            end
             if ~isempty(opts.Filter); B.FilterS = DatasetBrowser.checkFilter(opts.Filter, DatasetBrowser.noFilter()); end
             B.refreshAll();
-            if opts.Visible; B.Fig.Visible = "on"; end
+            behind = B.Splash.isOpen();   % the splash shows: the scan runs on the hidden window, then it shows
+            if opts.Visible && ~behind; B.Fig.Visible = "on"; end
             if opts.Scan && B.Root ~= ""
+                B.Splash.step("scan", "Scanning " + B.Root + " ...");
                 if opts.Visible
                     B.uiRun(@() B.scan());
                 else
@@ -363,6 +400,12 @@ classdef DatasetBrowser < handle
             elseif B.Root == ""
                 B.setStatus("Choose the project root and press Scan.");
             end
+            if behind
+                B.Splash.step("show", "Drawing the window ...");
+                B.Fig.Visible = "on";
+                drawnow;
+            end
+            B.Splash.close();
         end
 
         function delete(B)
@@ -739,20 +782,41 @@ classdef DatasetBrowser < handle
                 file = B.pickFile("get");
                 if file == ""; return; end
             end
-            B.Settings = epochMatrixSettings(string(file));
-            B.SettingsFolder = string(fileparts(file));
+            file = string(file);
+            B.Settings = epochMatrixSettings(file);
+            B.tookFile(file);
             B.setStatus("Settings loaded from " + file + ".");
         end
 
         function saveSettings(B, file)
-            %saveSettings  Write Settings to a .json settings file; no FILE: a file dialog.
+            %saveSettings  Write Settings to a .json settings file; no FILE: SettingsFile, else a file dialog.
             if nargin < 2 || string(file) == ""
-                file = B.pickFile("put");
-                if file == ""; return; end
+                file = B.SettingsFile;
+                if file == ""; B.saveSettingsAs(); return; end
             end
-            epochMatrixSettings(B.SettingsS, SaveAs=string(file));
-            B.SettingsFolder = string(fileparts(file));
+            file = string(file);
+            epochMatrixSettings(B.SettingsS, SaveAs=file);
+            B.tookFile(file);
             B.setStatus("Settings saved to " + file + ".");
+        end
+
+        function saveSettingsAs(B)
+            %saveSettingsAs  Write Settings to a .json settings file picked in a file dialog.
+            file = B.pickFile("put");
+            if file == ""; return; end
+            B.saveSettings(file);
+        end
+
+        function removeRecent(B, file)
+            %removeRecent  Drop FILE (one or several) from RecentSettings (case ignored); the files stay.
+            B.RecentSettings = B.RecentSettings(~ismember(lower(B.RecentSettings), lower(string(file(:)))));
+            B.refreshFileMenu();
+        end
+
+        function clearRecent(B)
+            %clearRecent  Empty RecentSettings; the files stay.
+            B.RecentSettings = strings(0, 1);
+            B.refreshFileMenu();
         end
 
         function tf = save(B, file)
@@ -814,7 +878,7 @@ classdef DatasetBrowser < handle
             B.Clock = ProgressClock();
             B.RunStart = tic;
             B.LastPrint = -Inf;
-            if B.uiOk()
+            if B.uiOk() && ~B.Splash.isOpen()   % behind the splash it shows the progress
                 B.setBar(0);
                 B.Ctl.ProgMsg.Text = title;
                 B.Ctl.ProgTime.Text = "";
@@ -834,13 +898,16 @@ classdef DatasetBrowser < handle
             el = toc(B.RunStart);
             timeText = B.Clock.message(ProgressClock.elapsedText(el), f);
             message = string(message);
-            if B.uiOk()
+            behind = B.Splash.isOpen();
+            if behind
+                B.Splash.progress(f, message + " (" + timeText + ")");
+            elseif B.uiOk()
                 B.setBar(f);
                 B.Ctl.ProgMsg.Text = message;
                 B.Ctl.ProgTime.Text = timeText;
                 drawnow limitrate
             end
-            if B.headless() && el - B.LastPrint >= 2
+            if ~behind && B.headless() && el - B.LastPrint >= 2
                 B.LastPrint = el;
                 fprintf('%s: %s (%d%%, %s)\n', B.RunTitle, message, round(100 * f), timeText);
             end
@@ -862,7 +929,7 @@ classdef DatasetBrowser < handle
             %   A script's run on the strip is ended first ("Canceled", the
             %   bar as it was, Busy off, the controls on); the browser's own
             %   scan, compute and forEach end theirs as they unwind.
-            if B.uiOk(); drawnow limitrate; end
+            if B.uiOk() && ~B.Splash.isOpen(); drawnow limitrate; end
             if B.CancelRequested
                 if B.Busy && ~B.OwnRun; B.finishRun("Canceled", false); end
                 error('DatasetBrowser:Canceled', 'Canceled.');
@@ -963,8 +1030,22 @@ classdef DatasetBrowser < handle
                 f.Position = double(prefs.Position(:)).';
             end
             B.Fig = f;
-            g = uigridlayout(f, [4 1], "RowHeight", {30, '1x', 30, 22}, "Padding", [8 8 8 6], "RowSpacing", 6);
             c = struct();
+
+            % --- the File menu: the settings files
+            c.FileMenu = uimenu(f, "Text", "File");
+            uimenu(c.FileMenu, "Text", "Load settings...", "Accelerator", "O", ...
+                "Tooltip", "Settings from a .json settings file.", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.loadSettings()));
+            c.RecentMenu = uimenu(c.FileMenu, "Text", "Recent settings");
+            uimenu(c.FileMenu, "Text", "Save settings", "Accelerator", "S", "Separator", "on", ...
+                "Tooltip", "These settings to the settings file shown above the form (none yet: a file dialog).", ...
+                "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.saveSettings()));
+            uimenu(c.FileMenu, "Text", "Save settings as...", ...
+                "Tooltip", "These settings to a .json file (every field, also those the form does not show).", ...
+                "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.saveSettingsAs()));
+            uimenu(c.FileMenu, "Text", "Close", "Separator", "on", "MenuSelectedFcn", @(~, ~) B.close());
+
+            g = uigridlayout(f, [4 1], "RowHeight", {30, '1x', 30, 22}, "Padding", [8 8 8 6], "RowSpacing", 6);
 
             % --- the root and the pattern
             t = uigridlayout(g, [1 7], "ColumnWidth", {'fit', '1x', 90, 'fit', 300, 100, 'fit'}, "RowHeight", {30}, "Padding", [0 0 0 0]);
@@ -1018,12 +1099,10 @@ classdef DatasetBrowser < handle
 
             % --- right: the settings
             p = uipanel(m, "Title", "Settings");
-            R = uigridlayout(p, [5 1], "RowHeight", {30, 26, '1x', 34, 48}, "Padding", [8 6 8 6], "RowSpacing", 5);
+            R = uigridlayout(p, [5 1], "RowHeight", {22, 26, '1x', 34, 48}, "Padding", [8 6 8 6], "RowSpacing", 5);
             edit = @(name) @(~, ~) B.uiRun(@() B.onFormEdit(name));
             open = @(~, ~) B.uiRun(@() B.fillLists());
-            r = uigridlayout(R, [1 3], "ColumnWidth", {90, 90, '1x'}, "RowHeight", {30}, "Padding", [0 0 0 0]);
-            c.Load = uibutton(r, "Text", "Load...", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.loadSettings()), "Tooltip", "Settings from a .json settings file.");
-            c.Save = uibutton(r, "Text", "Save...", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.saveSettings()), "Tooltip", "These settings to a .json file (every field, also those the form does not show).");
+            c.SettingsFile = uilabel(R, "Text", "", "FontColor", B.TextColor);
             r = row(R, {'fit', 100, '1x'});
             uilabel(r, "Text", "Data");
             c.Data = uidropdown(r, "Items", cellstr(B.DataItems), "ValueChangedFcn", edit("Data"), ...
@@ -1120,7 +1199,7 @@ classdef DatasetBrowser < handle
             c.Cancel = uibutton(s, "Text", "Cancel", "Enable", "off", "ButtonPushedFcn", @(~, ~) B.cancel());
             c.Status = uilabel(g, "Text", "", "FontColor", B.TextColor);
 
-            styleButton([c.Browse c.TickShown c.UntickAll c.Load c.Save]);
+            styleButton([c.Browse c.TickShown c.UntickAll]);
             styleButton([c.Scan c.Compute], "primary");
             styleButton(c.Done, "confirm");
             styleButton(c.Cancel, "danger");
@@ -1129,6 +1208,7 @@ classdef DatasetBrowser < handle
 
         % --- refreshing ------------------------------------------------------------------------------
         function refreshAll(B)
+            B.refreshFileMenu();
             B.refreshFilterControls();
             B.refreshForm();
             B.refreshTable();
@@ -1196,6 +1276,41 @@ classdef DatasetBrowser < handle
             if n > 0; msg = msg + sprintf(" · %d ticked", nTicked); end
             c.Count.Text = msg;
             B.refreshDataNote();
+        end
+
+        function refreshFileMenu(B)
+            %refreshFileMenu  File > Recent settings from RecentSettings (a missing file grayed), and the settings file's label.
+            if ~B.uiOk(); return; end
+            c = B.Ctl;
+            if B.SettingsFile == ""
+                c.SettingsFile.Text = "Settings file: none (File > Save settings as...)";
+                c.SettingsFile.Tooltip = "";
+            else
+                [~, n, e] = fileparts(B.SettingsFile);
+                c.SettingsFile.Text = "Settings file: " + n + e;
+                c.SettingsFile.Tooltip = B.SettingsFile + "  (File > Save settings writes it)";
+            end
+            M = c.RecentMenu;
+            delete(M.Children);
+            r = B.RecentSettings;
+            if isempty(r)
+                uimenu(M, "Text", "(none)", "Enable", "off");
+                return
+            end
+            for k = 1:numel(r)
+                f = r(k);
+                if isfile(f)
+                    uimenu(M, "Text", char(f), "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.loadSettings(f)));
+                else
+                    uimenu(M, "Text", char(f + "  (not found)"), "Enable", "off");
+                end
+            end
+            rm = uimenu(M, "Text", "Remove from list", "Separator", "on");
+            for k = 1:numel(r)
+                f = r(k);
+                uimenu(rm, "Text", char(f), "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.removeRecent(f)));
+            end
+            uimenu(M, "Text", "Clear list", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.clearRecent()));
         end
 
         function refreshFilterControls(B)
@@ -1533,6 +1648,7 @@ classdef DatasetBrowser < handle
                 try
                     [S, ID, name] = epochMatrixSettings(s.settings);
                     B.takeSettings(S, ID, name);
+                    if isfield(s, 'settingsFile'); B.SettingsFile = string(s.settingsFile); end
                 catch ME
                     warning('DatasetBrowser:BadResultFile', '%s: the settings are not used (%s).', file, ME.message);
                 end
@@ -1594,7 +1710,8 @@ classdef DatasetBrowser < handle
 
         function s = browserState(B)
             s = struct('root', B.Root, 'outputRoot', B.OutputRoot, 'namePattern', B.NamePattern, ...
-                'recordings', B.Recordings, 'ticked', B.SelectedKeys, 'filter', B.FilterS, 'settings', B.SettingsS);
+                'recordings', B.Recordings, 'ticked', B.SelectedKeys, 'filter', B.FilterS, 'settings', B.SettingsS, ...
+                'settingsFile', B.SettingsFile);
         end
 
         function sig = stateSig(B)
@@ -1625,6 +1742,18 @@ classdef DatasetBrowser < handle
             B.refreshSummary();
         end
 
+        function tookFile(B, file)
+            %tookFile  FILE was loaded or saved: SettingsFile, its folder, the top of RecentSettings.
+            [ok, a] = fileattrib(file);
+            if ok; file = string(a.Name); end   % the full path of a relative one
+            B.SettingsFile = file;
+            B.SettingsFolder = string(fileparts(file));
+            r = B.RecentSettings;
+            r = [file; r(lower(r) ~= lower(file))];
+            B.RecentSettings = r(1:min(B.MaxRecent, end));
+            B.refreshFileMenu();
+        end
+
         function setOnTopFrom(B, tf)
             B.OnTop = logical(tf);
         end
@@ -1636,6 +1765,7 @@ classdef DatasetBrowser < handle
                 AppPrefs.setpref(g, "NamePattern", char(B.NamePattern));
                 AppPrefs.setpref(g, "Sort", TableSort.toPref(B.Sort));
                 AppPrefs.setpref(g, "SettingsFolder", char(B.SettingsFolder));
+                AppPrefs.setpref(g, "RecentSettings", cellstr(B.RecentSettings));
                 AppPrefs.setpref(g, "Workers", B.WorkersN);
                 AppPrefs.setpref(g, "OnTop", B.OnTopS);
                 if B.uiOk(); AppPrefs.setpref(g, "Position", B.Fig.Position); end
@@ -1675,14 +1805,17 @@ classdef DatasetBrowser < handle
             if ~isempty(B.RunStart); el = toc(B.RunStart); end
             timeText = "done in " + ProgressClock.durationText(el);
             B.Busy = false;
+            behind = B.Splash.isOpen();
             if B.uiOk()
                 if full; B.setBar(1); end
                 B.Ctl.ProgMsg.Text = message;
                 B.Ctl.ProgTime.Text = timeText;
-                B.setBusyUI(false);
-                drawnow limitrate
+                if ~behind   % the splash left the controls as built
+                    B.setBusyUI(false);
+                    drawnow limitrate
+                end
             end
-            if B.headless()
+            if B.headless() && ~behind
                 fprintf('%s: %s (%s)\n', B.RunTitle, message, timeText);
             end
         end
@@ -1819,7 +1952,9 @@ classdef DatasetBrowser < handle
             if how == "get"
                 [f, p] = uigetfile({'*.json', 'Settings (*.json)'}, "Load settings", char(start0));
             else
-                [f, p] = uiputfile({'*.json', 'Settings (*.json)'}, "Save settings", char(fullfile(start0, "settings.json")));
+                name = "settings.json";
+                if B.SettingsFile ~= ""; [~, n, e] = fileparts(B.SettingsFile); name = n + e; end
+                [f, p] = uiputfile({'*.json', 'Settings (*.json)'}, "Save settings as", char(fullfile(start0, name)));
             end
             if B.uiOk(); figure(B.Fig); end
             if isequal(f, 0); return; end
@@ -1992,6 +2127,17 @@ classdef DatasetBrowser < handle
             if ~isstruct(p); p = struct(); end
         end
     end
+end
+
+
+function [steps, weights] = startupSteps()
+%startupSteps  The constructor's steps on the splash (AppSplash) and the seconds each takes (measured warm).
+%   "scan" is the root's scan (its progress fills the step); "show" is the
+%   hidden window's first draw, the longest part.
+S = { ...
+    "settings", 0.2; "window", 2.3; "restore", 0.2; "scan", 3.0; "show", 6.0};
+steps = [S{:, 1}];
+weights = [S{:, 2}];
 end
 
 

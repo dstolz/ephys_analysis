@@ -78,6 +78,22 @@ files are listed in `Foreign`. Every file
 found is listed in `Candidates` (`Kind`, `File`, `Signal`, `Modified`, `Bytes`).
 When a kind has several files, **the newest wins**.
 
+Reading a file's variables and provenance opens it, which over a network
+share costs a few tenths of a second a file. Two things keep that down:
+
+- A `-v7.3` file (HDF5) is read for the variable names in its root group
+  only, about ten times faster there than `whos('-file')`, which also sizes
+  every variable. Other `.mat` files go to `whos`.
+- **`OutputFileIndex`** keeps what was read from each file (its variable
+  names, or a `.npz`/`.nwb`'s tool, and the dataset and `sourceFolder` its
+  provenance names) on this machine, under the file's path, size and
+  modification time. A later `refresh()`, in any MATLAB session, opens only
+  the files that are new or have changed. The index is
+  `%LOCALAPPDATA%\ephys_analysis\output_index.mat`, or the file the
+  environment variable `EPHYS_OUTPUT_INDEX_FILE` names. It keeps the 20000
+  files stored last. Deleting it costs only the next scan's time. A file
+  that could not be read is not stored, so its warning comes again.
+
 The other two paths are resolved when they are read:
 
 - **`SortingDir`**: the dataset's `sortingResultsDir()` when it holds

@@ -9,8 +9,12 @@ function test_DatasetOutputs()
 %   Then: two recordings with one name whose outputs share a folder (the
 %   recorded source folder decides, also after the project moved), a
 %   hand-picked sort that is not there, and a combined extract that changes.
-%   Last, an EphysProject over a copy of an output root, without the
-%   recordings: its output folders are the datasets.
+%   Then an EphysProject over a copy of an output root, without the
+%   recordings: its output folders are the datasets; and the files the
+%   analysis app needs. Last, -v7.3 files (their variables read from the
+%   HDF5 root group) and the OutputFileIndex: what was read is kept, an
+%   unchanged file is classified from it, a changed one is read again.
+%   The suite uses a temporary index (OutputFileIndex.useTemporary).
 %
 %   Usage:  test_DatasetOutputs
 %
@@ -26,6 +30,7 @@ root = fullfile(tempdir, sprintf('DSOutputs_test_%s', ...
     datestr(now, 'yyyymmdd_HHMMSSFFF'))); %#ok<TNOW1,DATST>
 mkdir(root);
 cleanup = onCleanup(@() rmdir(root, 's')); %#ok<NASGU>
+restoreIndex = OutputFileIndex.useTemporary(); %#ok<NASGU> the suite never reads or writes this machine's index
 
 nPass = 0; nFail = 0;
     function check(cond, msg)
@@ -385,6 +390,36 @@ check(oa.probeFile() == "" && contains(strjoin(notes5, "|"), "no probe file"), .
 writeJsonFile(fullfile(outA, 'p16.json'), struct('chanMap', 0:3));
 check(oa.probeFile() == string(fullfile(outA, 'p16.json')), ...
     'probeFile: a file of the same name in the dataset''s folder stands in');
+
+%% ---- 8. -v7.3 files, and the index of what each file holds ----------------
+fprintf('\n== 8. -v7.3 files and OutputFileIndex ==\n');
+ix = fullfile(root, 'index', 'rec9');
+mkdir(ix);
+S = struct('Y', struct('LFP', single(ones(10, 2))), 'info', struct('LFP', struct('Fs', 1000)), ...
+    'events', ev, 'conversion', conv("rec9"));
+save(fullfile(ix, 'rec9_extract_LFP.mat'), '-struct', 'S', '-v7.3');
+Sp = struct('detected', struct('ts', {{1, 2}}), 'conversion', conv("rec9_b"));
+save(fullfile(ix, 'rec9_b_spikes.mat'), '-struct', 'Sp', '-v7.3');   % another dataset's, by its provenance
+o9 = DatasetOutputs(ix, Name="rec9");
+check(o9.has("LFP") && ~o9.has("spikes") && isequal(o9.Foreign, string(fullfile(ix, 'rec9_b_spikes.mat'))), ...
+    '-v7.3 files are classified by their variables, and their provenance is read');
+lfp = string(fullfile(ix, 'rec9_extract_LFP.mat'));
+d = matchFiles(listTree(string(ix), false), "rec9_extract_LFP.mat");   % as refresh lists it
+e = OutputFileIndex.lookup(lfp, d.bytes, d.datenum);
+check(isstruct(e) && isequal(sort(split(e.vars, ",")).', sort(["Y" "conversion" "events" "info"])) ...
+    && e.prov == "conversion" && e.dataset == "rec9", ...
+    'the index holds what was read: the variables and the provenance''s dataset');
+check(isempty(OutputFileIndex.lookup(lfp, d.bytes + 1, d.datenum)), 'a file of another size is not known');
+check(isfile(OutputFileIndex.file()), 'the index is written to its file');
+% Facts planted for the unchanged file are what the next scan uses: the file is not opened.
+OutputFileIndex.store(lfp, d.bytes, d.datenum, struct('vars', "detected,conversion", 'prov', "conversion", ...
+    'tool', "", 'dataset', "rec9", 'sourceFolder', ""));
+o9.refresh();
+check(o9.has("spikes") && ~o9.has("LFP"), 'an unchanged file is classified from the index');
+pause(1.1);
+save(lfp, '-struct', 'S', '-v7.3');   % written again: another modification time
+o9.refresh();
+check(o9.has("LFP") && ~o9.has("spikes"), 'a changed file is read again');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

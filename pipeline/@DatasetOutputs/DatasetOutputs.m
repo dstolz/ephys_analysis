@@ -39,7 +39,12 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %   (mouse1/rec, mouse2/rec) neither picks up the other's files.
     %   <Name>_manifest.json and <Name>_artifacts.json are found by name.
     %   When several files of one kind exist, the newest wins; every
-    %   candidate is listed in Candidates.
+    %   candidate is listed in Candidates. A -v7.3 .mat is read for its
+    %   HDF5 root group's names only (whos sizes every variable, ~10 times
+    %   slower over a network share), and what was read from each file is
+    %   kept on this machine (OutputFileIndex, by path, size and
+    %   modification time), so a later refresh opens only new or changed
+    %   files.
     %
     %   Search roots: the dataset's outputFolder() and Folder (or FOLDER when
     %   constructed from a folder), plus SearchDirs, recursively unless
@@ -225,9 +230,9 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                 for k = 1:numel(mats)
                     m = mats(k);
                     if isempty(regexpi(m.name, prefix + "\.mat$", 'once')); continue; end
-                    [kind, prov] = classifyMat(m.path);
+                    [kind, owner] = matKind(m);
                     if kind == ""; continue; end
-                    if ~obj.belongs(m.path, prov)
+                    if ~obj.ownsProvenance(owner)
                         foreign(end+1, 1) = m.path; %#ok<AGROW>
                         continue
                     end
@@ -242,8 +247,8 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                 for k = 1:numel(npz)
                     m = npz(k);
                     if isempty(regexpi(m.name, prefix + "\.npz$", 'once')); continue; end
-                    meta = npzMeta(m.path);
-                    if ~isstruct(meta) || ~isfield(meta, 'tool') || string(meta.tool) ~= "EphysDataset.exportKCSD"; continue; end
+                    meta = exportMeta(m, @npzMeta);
+                    if meta.tool ~= "EphysDataset.exportKCSD"; continue; end
                     if ~obj.ownsProvenance(meta)
                         foreign(end+1, 1) = m.path; %#ok<AGROW>
                         continue
@@ -254,8 +259,8 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                 for k = 1:numel(nwbs)
                     m = nwbs(k);
                     if isempty(regexpi(m.name, prefix + "\.nwb$", 'once')); continue; end
-                    meta = nwbNotes(m.path);
-                    if ~isstruct(meta) || ~isfield(meta, 'tool') || string(meta.tool) ~= "EphysDataset.exportNWB"; continue; end
+                    meta = exportMeta(m, @nwbNotes);
+                    if meta.tool ~= "EphysDataset.exportNWB"; continue; end
                     if ~obj.ownsProvenance(meta)
                         foreign(end+1, 1) = m.path; %#ok<AGROW>
                         continue
@@ -269,6 +274,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                     end
                 end
             end
+            OutputFileIndex.save();   % what was read from the files, for the next scan
             [~, keep] = unique(lower(T.File), 'stable');
             T = T(keep, :);
             obj.Candidates = sortrows(T, 'Modified', 'descend');
@@ -825,24 +831,10 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             end
         end
 
-        function tf = belongs(obj, file, prov)
-            %belongs  False when FILE's provenance names another dataset.
-            %   Another dataset name, or - built from a dataset - another
-            %   recording folder (sourceFolder, EphysDataset.isOwnSource).
-            tf = true;
-            if prov == ""; return; end
-            try
-                P = load(file, prov);
-                tf = obj.ownsProvenance(P.(prov));
-            catch ME
-                warning('DatasetOutputs:Unreadable', ...
-                    'Cannot read the provenance of %s (%s); it is counted as this dataset''s.', file, ME.message);
-            end
-        end
-
         function tf = ownsProvenance(obj, p)
             %ownsProvenance  False when provenance struct P names another
-            %   dataset, or - built from a dataset - another recording folder.
+            %   dataset, or - built from a dataset - another recording folder
+            %   (sourceFolder, EphysDataset.isOwnSource).
             tf = true;
             if ~isstruct(p); return; end
             if isfield(p, 'dataset') && strlength(string(p.dataset)) > 0
@@ -1000,10 +992,69 @@ row = table(string(kind), m.path, string(sig), ...
 end
 
 
-function [kind, prov] = classifyMat(file)
-%classifyMat  Output kind of a .mat from its variable names ("" = not ours).
+function [kind, owner] = matKind(m)
+%matKind  Output kind of the .mat M (a listFiles element; "" = not ours) and the owner its provenance names.
+%   OWNER (dataset, sourceFolder; "" = not recorded) is for ownsProvenance.
+%   Both come from the variable names (classifyMat) and the provenance
+%   variable they point to (PROV), as the OutputFileIndex holds them while
+%   M has the size and modification time they were read at; else they are
+%   read from the file and stored there (not when a read failed, so the
+%   warning comes again and the file is read again next time).
+e = OutputFileIndex.lookup(m.path, m.bytes, m.datenum);
+if ~isempty(e)
+    [kind, prov] = classifyMat(split(e.vars, ",").');
+    if prov == e.prov; owner = e; return; end   % the provenance read then is the one asked for now
+end
+[v, ok] = matVars(m.path);
+[kind, prov] = classifyMat(v);
+owner = struct('dataset', "", 'sourceFolder', "");
+if kind ~= "" && prov ~= ""
+    try
+        P = load(m.path, prov);
+        owner = struct('dataset', textField(P.(prov), 'dataset'), 'sourceFolder', textField(P.(prov), 'sourceFolder'));
+    catch ME
+        ok = false;
+        warning('DatasetOutputs:Unreadable', ...
+            'Cannot read the provenance of %s (%s); it is counted as this dataset''s.', m.path, ME.message);
+    end
+end
+if ok
+    OutputFileIndex.store(m.path, m.bytes, m.datenum, struct('vars', strjoin(v, ","), 'prov', prov, ...
+        'tool', "", 'dataset', owner.dataset, 'sourceFolder', owner.sourceFolder));
+end
+end
+
+
+function meta = exportMeta(m, read)
+%exportMeta  The tool, dataset and sourceFolder the .npz or .nwb M records (READ: npzMeta or nwbNotes; "" = not recorded).
+%   From the OutputFileIndex while M is unchanged since they were read,
+%   else read from the file and stored there (not when the read failed).
+meta = OutputFileIndex.lookup(m.path, m.bytes, m.datenum);
+if ~isempty(meta); return; end
+[M, ok] = read(m.path);
+meta = struct('vars', "", 'prov', "", 'tool', textField(M, 'tool'), 'dataset', textField(M, 'dataset'), ...
+    'sourceFolder', textField(M, 'sourceFolder'));
+if ok; OutputFileIndex.store(m.path, m.bytes, m.datenum, meta); end
+end
+
+
+function s = textField(S, f)
+%textField  Field F of struct S as one string; "" when S has no such text.
+s = "";
+if ~(isstruct(S) && isscalar(S) && isfield(S, f)); return; end
+try
+    t = string(S.(f));
+catch
+    return
+end
+if isscalar(t) && ~ismissing(t); s = t; end
+end
+
+
+function [kind, prov] = classifyMat(v)
+%classifyMat  Output kind of a .mat from its variable names V ("" = not ours), and the variable naming its owner (PROV, "" = none).
 kind = ""; prov = "";
-v = matVars(file);
+v = v(v ~= "");
 if all(ismember(["export" "epochs"], v))
     kind = "epochs"; prov = "export";
 elseif ismember("export", v) && any(ismember(["sp" "spDetected"], v))
@@ -1022,14 +1073,17 @@ end
 end
 
 
-function meta = nwbNotes(file)
+function [meta, ok] = nwbNotes(file)
 %nwbNotes  The decoded JSON of an NWB file's /general/notes ([] when it has none or it is not JSON).
+%   OK is false when the file could not be read (with a warning).
 meta = [];
+ok = true;
 try
     info = h5info(file, '/general');
     if ~any(string({info.Datasets.Name}) == "notes"); return; end
     v = string(h5read(file, '/general/notes'));
 catch ME
+    ok = false;
     warning('DatasetOutputs:Unreadable', 'Cannot read %s (%s); it is left out.', file, ME.message);
     return
 end
@@ -1041,29 +1095,59 @@ end
 end
 
 
-function meta = npzMeta(file)
+function [meta, ok] = npzMeta(file)
 %npzMeta  The decoded JSON meta member of a .npz ([] when it has none or cannot be read).
+%   OK is false when it could not be read (with a warning).
 meta = [];
+ok = true;
 try
     M = readNPZ(file, "meta");
     meta = jsondecode(M.meta);
 catch ME
     if ME.identifier ~= "readNPZ:NoMember"   % an archive without meta is not one of ours
+        ok = false;
         warning('DatasetOutputs:Unreadable', 'Cannot read %s (%s); it is left out.', file, ME.message);
     end
 end
 end
 
 
-function v = matVars(file)
-%matVars  Variable names in a .mat file (empty when it cannot be read).
+function [v, ok] = matVars(file)
+%matVars  Variable names in a .mat file (empty, OK false, when it cannot be read).
+%   A -v7.3 file (HDF5) gives the names in its root group (hdf5Vars): a
+%   few small reads, where whos('-file') also sizes every variable, which
+%   over a network share is ~10 times slower. Other files go to whos.
+ok = true;
+try
+    v = hdf5Vars(file);
+    return
+catch
+end
 try
     w = whos('-file', file);
     v = string({w.name});
 catch ME
     v = string.empty(1,0);
+    ok = false;
     warning('DatasetOutputs:Unreadable', 'Cannot read %s (%s); it is left out.', file, ME.message);
 end
+end
+
+
+function v = hdf5Vars(file)
+%hdf5Vars  The variables of a -v7.3 .mat: its HDF5 root group's links but MATLAB's own (#refs#, #subsystem#).
+%   Errors when FILE is not an HDF5 file.
+f = H5F.open(file, 'H5F_ACC_RDONLY', 'H5P_DEFAULT');
+closeFile = onCleanup(@() H5F.close(f));
+[~, ~, v] = H5L.iterate(f, 'H5_INDEX_NAME', 'H5_ITER_NATIVE', 0, @addLinkName, string.empty(1, 0));
+v = v(~startsWith(v, "#"));
+end
+
+
+function [status, names] = addLinkName(~, name, names)
+%addLinkName  H5L.iterate's callback: NAMES with NAME added; 0 = go on.
+status = 0;
+names(end+1) = string(name);
 end
 
 

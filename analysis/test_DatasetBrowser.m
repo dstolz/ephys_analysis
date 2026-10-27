@@ -1,0 +1,617 @@
+classdef test_DatasetBrowser < matlab.unittest.TestCase
+    %test_DatasetBrowser  DatasetBrowser, mostly with its window hidden (Visible=false).
+    %   Over the analysis fixture (two synthetic datasets run through the
+    %   pipeline, tagged here): a scan loads no source; the filter and the
+    %   ticks through the methods and through the controls' callbacks (a
+    %   tick on a sorted row goes to its dataset); the settings form (a
+    %   round trip, hidden fields kept, the Data drop-down's blocks, an
+    %   invalid edit undone); a drop-down opening loads one source; compute
+    %   equals epochMatrix, a dataset ticked later is the only one computed,
+    %   a binSec change computes all; the result file restores without a
+    %   compute, and Scan=false; forEach's cache and cancel; the progress
+    %   strip (bar widths, the "i/Total" prefix, Cancel and checkCancel, a
+    %   full bar at the finish, the command window throttled when hidden);
+    %   a compute canceled from the strip keeps its finished part, the
+    %   controls off while busy; wait and done (a visible window, a timer);
+    %   closing keeps the result and saves the preferences. A dataset whose
+    %   outputs changed (its manifest's time, restored afterwards) reads
+    %   "old" after a scan and is the only one computed again;
+    %   forgetTicked with nothing ticked keeps the cache. checkCancel ends a
+    %   script's canceled run; a second Cancel ends a script's run left
+    %   open, but not the browser's own compute.
+    %
+    %   Usage:  runtests("test_DatasetBrowser")
+
+    properties (SetAccess = private)
+        Fixture = []
+        Root (1,1) string = ""
+        Keys (:,1) string = strings(0, 1)
+        Names (:,1) string = strings(0, 1)
+        Spike = []       % the spike settings of test_EpochMatrix (Stim, [-0.2 0.5] s, Depth descending)
+    end
+
+    methods (TestClassSetup)
+        function makeFixture(tc)
+            here = fileparts(mfilename('fullpath'));
+            repo = fileparts(here);
+            addpath(fullfile(repo, 'pipeline'));
+            addpath(repo);
+            addpath(genpath(fullfile(repo, 'vendor')));
+            tc.applyFixture(AppPrefsFixture);
+            tmp = tc.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+            F = makeAnalysisFixture(string(tmp.Folder), Scenarios=["clean" "late-start"], NumTrials=12);
+            tc.Fixture = F;
+            tc.Root = F.proj;
+            P = EphysProject(F.proj);
+            P.refresh();
+            tags = {{'ofc', 'pilot'}, {'ofc'}};
+            for k = 1:numel(F.names)
+                d = P.dataset(F.names(k));
+                d.Tags = tags{min(k, 2)};
+                d.writeManifest();
+            end
+            tc.Keys = reshape(F.keys, [], 1);
+            tc.Names = reshape(F.names, [], 1);
+            tc.Spike = epochMatrixSettings([], ref=eventRef(line="Stim"), window=epochWindow(pre=-0.2, post=0.5), ...
+                selection=trialSelection(groupBy="Depth", groupOrder="descending"));
+        end
+    end
+
+    methods
+        function B = open(tc, varargin)
+            %open  A hidden browser on the fixture with its own result file (unless one is given), closed afterwards.
+            args = varargin;
+            if ~any(cellfun(@(a) (ischar(a) || isstring(a)) && string(a) == "ResultFile", args(1:2:end)))
+                tmp = tc.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+                args = [args, {'ResultFile', fullfile(tmp.Folder, "results.mat")}];
+            end
+            if ~any(cellfun(@(a) (ischar(a) || isstring(a)) && string(a) == "Visible", args(1:2:end)))
+                args = [args, {'Visible', false}];
+            end
+            B = DatasetBrowser(tc.Root, args{:});
+            tc.addTeardown(@() delete(B));
+        end
+    end
+
+    methods (Test)
+        function scanLoadsNoSource(tc)
+            B = tc.open();
+            tc.verifyNotEmpty(B.Runner);
+            tc.verifyEqual(B.Runner.Sources.Count, uint64(0), 'A scan loads no source.');
+            D = B.Datasets;
+            tc.verifyEqual(sort(D.key), sort(tc.Keys));
+            tc.verifyTrue(all(D.subject ~= "") && all(~isnat(D.date)));
+            tc.verifyTrue(all(D.detected) && all(D.behavior));
+            tc.verifyTrue(all(contains(D.signals, "LFP")) && all(contains(D.signals, "AUX")));
+            k1 = D.key == tc.Keys(1);
+            tc.verifyEqual(D.tags(k1), "ofc;pilot");
+            tc.verifyEqual(sort(B.Selected), sort(tc.Keys), 'With no saved state, a scan ticks what shows.');
+            T = B.Table;
+            tc.verifyEqual(string(T.Properties.VariableNames), ["Use" "Name" "Subject" "Date" "Session" "Tags" ...
+                "Units" "Detected" "Behavior" "Signals" "Cached" "Key" "Idx"]);
+            tc.verifyEqual(B.Ctl.Table.Data, T);
+            tc.verifyEqual(B.Ctl.Table.ColumnEditable, [true false(1, 12)]);
+            tc.verifyTrue(all(T.Cached == ""));
+            tc.verifyEmpty(B.Result);
+            tc.verifyFalse(B.Busy);
+        end
+
+        function filterAndTicks(tc)
+            B = tc.open();
+            k1 = tc.Keys(1); k2 = tc.Keys(2);
+            seen = containers.Map();
+            B.OnChange = @(~, what) count(seen, what);
+            B.setFilter(Tags="pilot");
+            tc.verifyEqual(B.Shown, k1);
+            tc.verifyEqual(sort(B.Selected), sort(tc.Keys), 'A filter leaves the ticks.');
+            tc.verifyTrue(startsWith(B.Ctl.Count.Text, "showing 1 of 2 (1 ticked hidden)"), B.Ctl.Count.Text);
+            tc.verifyTrue(endsWith(B.Ctl.Count.Text, "2 ticked"), B.Ctl.Count.Text);
+            B.setFilter(Tags=["ofc" "pilot"], TagMode="all");
+            tc.verifyEqual(B.Shown, k1);
+            B.setFilter(Tags="", ExcludeTags="pilot");
+            tc.verifyEqual(B.Shown, k2);
+            B.clearFilter();
+            tc.verifyEqual(sort(B.Shown), sort(tc.Keys));
+            B.setFilter(Search=tc.Names(2));
+            tc.verifyEqual(B.Shown, k2);
+            B.setFilter(Search="");
+            sub = B.Datasets.subject(B.Datasets.key == k1);
+            B.setFilter(Subjects=sub);
+            tc.verifyTrue(ismember(k1, B.Shown));
+            B.setFilter(Subjects="", ExcludeSubjects=sub);
+            tc.verifyFalse(ismember(k1, B.Shown));
+            B.clearFilter();
+            tc.verifyTrue(seen.isKey('filter'));
+
+            % the filter controls
+            c = B.Ctl;
+            tc.verifyTrue(all(ismember({'(any)', 'ofc', 'pilot'}, c.Tags.Items)), 'The tag lists offer the tags in use.');
+            c.Tags.Value = 'pilot';
+            c.Tags.ValueChangedFcn(c.Tags, []);
+            tc.verifyEqual(B.Filter.Tags, "pilot");
+            tc.verifyEqual(B.Shown, k1);
+            c.Tags.Value = 'xyz';   % typed: no such tag
+            c.Tags.ValueChangedFcn(c.Tags, []);
+            tc.verifyEqual(string(c.Tags.Value), "xyz", 'A typed value stays.');
+            tc.verifyEmpty(B.Shown);
+            c.Tags.Value = '(any)';
+            c.Tags.ValueChangedFcn(c.Tags, []);
+            tc.verifyEqual(B.Filter.Tags, "");
+            c.NotTags.Value = 'pilot';
+            c.NotTags.ValueChangedFcn(c.NotTags, []);
+            tc.verifyEqual(B.Shown, k2);
+            c.TickShown.ButtonPushedFcn(c.TickShown, []);
+            tc.verifyEqual(B.Selected, k2, 'Tick shown only.');
+            tc.verifyTrue(seen.isKey('ticks'));
+            c.UntickAll.ButtonPushedFcn(c.UntickAll, []);
+            tc.verifyEmpty(B.Selected);
+            c.NotTags.Value = '(any)';
+            c.NotTags.ValueChangedFcn(c.NotTags, []);
+            c.Search.Value = char(tc.Names(1));
+            c.Search.ValueChangedFcn(c.Search, []);
+            tc.verifyEqual(B.Shown, k1);
+            c.Search.ValueChangingFcn(c.Search, struct('Value', ''));
+            tc.verifyEqual(sort(B.Shown), sort(tc.Keys));
+
+            % the methods
+            B.tick(k2);
+            tc.verifyEqual(B.Selected, k2);
+            B.tick(tc.Names(1), true);   % a name works too
+            tc.verifyEqual(sort(B.Selected), sort(tc.Keys));
+            B.tick(k2, false);
+            tc.verifyEqual(B.Selected, k1);
+            tc.verifyError(@() B.tick("nope"), 'DatasetBrowser:UnknownDataset');
+            B.Selected = tc.Keys;
+            B.untickAll();
+
+            % a tick on a sorted row goes to that row's dataset
+            B.sortBy("Name", "descend");
+            T = B.Ctl.Table.Data;
+            tc.verifyEqual(T.Name, sort(B.Datasets.name, 'descend'));
+            c.Table.CellEditCallback(c.Table, struct('Indices', [1 1], 'NewData', true));
+            tc.verifyEqual(B.Selected, B.Datasets.key(B.Datasets.name == T.Name(1)));
+            tc.verifyTrue(B.Ctl.Table.Data.Use(1));
+            B.clearSort();
+            tc.verifyEqual(B.Ctl.Table.Data.Idx, (1:height(B.Datasets)).');
+            % a header click is kept as the sort
+            c.Table.DisplayDataChangedFcn(c.Table, struct('Interaction', 'sort', 'InteractionColumn', 3, ...
+                'InteractionVariable', 'Subject'));
+            tc.verifyEqual(B.Sort.column, "Subject");
+            tc.verifyEqual(B.Filter, struct('Subjects', "", 'ExcludeSubjects', "", 'Tags', "", 'TagMode', "any", ...
+                'ExcludeTags', "", 'Search', ""));
+            tc.verifyError(@() B.setFilter(TagMode="some"), 'DatasetBrowser:BadFilter');
+        end
+
+        function formRoundTrip(tc)
+            B = tc.open();
+            ref = eventRef(line="Stim", scope="trial", sequence=[struct('line', "Platform", 'edge', "offset"), ...
+                struct('line', "Trough", 'edge', "onset")]);
+            S = epochMatrixSettings([], ref=ref, window=epochWindow(pre=-1, post=1), ...
+                selection=trialSelection(response="Hit", groupBy="Depth", groupOrder="descending", filter="Depth > 0"), ...
+                data="detected", units=struct('classes', "su", 'shanks', 1:4, 'merge', struct('enabled', true)), ...
+                measure="rate", binSec=0.01, baseline=[-1 -0.5], signal=struct('detrend', true));
+            B.Settings = S;
+            c = B.Ctl;
+            tc.verifyEqual(string(c.Data.Value), "detected");
+            tc.verifyEqual(string(c.Line.Value), "Stim");
+            tc.verifyEqual(string(c.ThenLine.Value), "Platform");
+            tc.verifyEqual(string(c.ThenEdge.Value), "offset");
+            tc.verifyEqual(string(c.ThenMore.Text), "+1 more step(s) kept");
+            tc.verifyEqual(c.Pre.Value, -1);
+            tc.verifyEqual(string(c.Response.Value), "Hit");
+            tc.verifyEqual(string(c.GroupBy.Value), "Depth");
+            tc.verifyEqual(string(c.Order.Value), "descending");
+            tc.verifyTrue(c.Merge.Value);
+            tc.verifyEqual(string(c.UnitShanks.Value), "1:4");
+            tc.verifyEqual(string(c.Baseline.Value), "-1 -0.5");
+            tc.verifyTrue(c.Detrend.Value);
+            % every control applied as it shows gives the settings back
+            for name = ["Data" "Line" "Edge" "Which" "N" "ThenLine" "ThenEdge" "Pre" "Post" "Response" "GroupBy" "Order" ...
+                    "Merge" "UnitShanks" "Measure" "Bin" "Baseline" "Channels" "SigShanks" "SigBaseline" "Statistic" ...
+                    "Detrend" "Rectify" "Magnitude"]
+                B.formEdit(name);
+                tc.verifyEqual(B.Settings, S, name + " applied as shown changes nothing");
+            end
+            % an edit keeps the fields the form does not show
+            B.formEdit("Pre", -0.5);
+            S2 = B.Settings;
+            tc.verifyEqual(S2.window.pre, -0.5);
+            tc.verifyEqual(S2.ref.scope, "trial");
+            tc.verifyEqual(numel(S2.ref.sequence), 2);
+            tc.verifyEqual(S2.selection.filter, "Depth > 0");
+            tc.verifyEqual(S2.units.classes, "su");
+            tc.verifyTrue(S2.signal.detrend);
+            B.formEdit("UnitShanks", "1 3");
+            tc.verifyEqual(B.Settings.units.shanks, [1 3]);
+            B.formEdit("UnitShanks", "");
+            tc.verifyEmpty(B.Settings.units.shanks);
+            B.formEdit("Response", ["Hit" "Miss"]);
+            tc.verifyEqual(B.Settings.selection.response, ["Hit" "Miss"]);
+            B.formEdit("ThenLine", "(none)");
+            tc.verifyEqual(numel(B.Settings.ref.sequence), 1, 'Only the first step goes.');
+            tc.verifyEqual(B.Settings.ref.sequence(1).line, "Trough");
+            % the Data drop-down: only its block is on
+            c.Data.Value = 'LFP';
+            c.Data.ValueChangedFcn(c.Data, []);
+            tc.verifyEqual(B.Settings.data, "LFP");
+            tc.verifyEqual([c.Channels.Enable c.SigShanks.Enable c.Detrend.Enable c.Measure.Enable c.Merge.Enable c.Magnitude.Enable], ...
+                matlab.lang.OnOffSwitchState([1 1 1 0 0 0]));
+            B.formEdit("Data", "AUX");
+            tc.verifyEqual([c.Magnitude.Enable c.SigShanks.Enable], matlab.lang.OnOffSwitchState([1 0]));
+            B.formEdit("Data", "units");
+            tc.verifyEqual([c.Measure.Enable c.Merge.Enable c.Channels.Enable c.Baseline.Enable], matlab.lang.OnOffSwitchState([1 0 0 0]));
+            B.formEdit("Measure", "auroc");
+            tc.verifyEqual(c.Baseline.Enable, matlab.lang.OnOffSwitchState(true));
+            B.formEdit("Data", "detected");
+            tc.verifyEqual(c.Merge.Enable, matlab.lang.OnOffSwitchState(true));
+            % an invalid edit is undone and said
+            before = B.Settings;
+            B.formEdit("UnitShanks", "1:x");
+            tc.verifyEqual(B.Settings, before);
+            tc.verifyEqual(string(c.UnitShanks.Value), "");
+            tc.verifyTrue(startsWith(string(c.Status.Text), "Not applied"), c.Status.Text);
+            B.formEdit("Bin", 5);   % no whole bin fits [-1 1] s
+            tc.verifyEqual(B.Settings, before);
+            tc.verifyEqual(c.Bin.Value, 0.01);
+            tc.verifyTrue(contains(string(c.Status.Text), "bin"), c.Status.Text);
+            tc.verifyError(@() setSettings(B, struct('nope', 1)), 'epochMatrixSettings:UnknownField');
+            tc.verifyEqual(B.Settings, before);
+            % settings files
+            tmp = tc.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+            f = fullfile(tmp.Folder, "s.json");
+            B.saveSettings(f);
+            B.Settings = [];
+            tc.verifyEqual(B.Settings.data, "units");
+            B.loadSettings(f);
+            tc.verifyEqual(B.Settings, before);
+            tc.verifyError(@() B.loadSettings(), 'DatasetBrowser:NoFile', 'Hidden: no file dialog.');
+        end
+
+        function dropDownLoadsOneSource(tc)
+            B = tc.open();
+            c = B.Ctl;
+            tc.verifyEqual(B.Runner.Sources.Count, uint64(0));
+            c.Line.DropDownOpeningFcn(c.Line, []);
+            tc.verifyEqual(B.Runner.Sources.Count, uint64(1), 'Opening a list loads one source.');
+            tc.verifyTrue(isKey(B.Runner.Sources, char(B.Selected(1))), 'The first ticked dataset''s.');
+            tc.verifyTrue(all(ismember({'Trial', 'Stim'}, c.Line.Items)));
+            tc.verifyTrue(ismember('Depth', c.GroupBy.Items));
+            tc.verifyEqual(c.ThenLine.Items{1}, '(none)');
+            % a clicked row's dataset is the one listed
+            T = c.Table.Data;
+            r = find(T.Key == tc.Keys(2));
+            c.Table.CellSelectionCallback(c.Table, struct('Indices', [r 2]));
+            c.GroupBy.DropDownOpeningFcn(c.GroupBy, []);
+            tc.verifyTrue(isKey(B.Runner.Sources, char(tc.Keys(2))));
+            tc.verifyEqual(B.Runner.Sources.Count, uint64(2));
+        end
+
+        function computeEqualsEpochMatrix(tc)
+            B = tc.open(Settings=tc.Spike);
+            R = B.compute();
+            R0 = epochMatrix(B.Runner, tc.Spike, Datasets=B.Selected, LogFcn=[]);
+            tc.verifyEqual(R.data, R0.data);
+            tc.verifyEqual(R.rows, R0.rows);
+            tc.verifyEqual(R.t, R0.t);
+            tc.verifyEqual(R.groupLabels, R0.groupLabels);
+            tc.verifyEqual(R.keys, R0.keys);
+            tc.verifyEqual(B.Result, R);
+            tc.verifyTrue(B.ResultCurrent);
+            tc.verifyTrue(all(startsWith(B.Table.Cached, "✓")), 'The Cached column.');
+            tc.verifyTrue(contains(B.Ctl.Summary.Text, sprintf("%d units × %d bins × %d groups from 2 of 2 datasets; 2 computed, 0 reused", ...
+                height(R.rows), numel(R.t), numel(R.groupLabels))), B.Ctl.Summary.Text);
+            % a dataset ticked later is the only one computed
+            D = B.Datasets.key;   % the order the datasets are computed in
+            B.Selected = D(1);
+            tc.verifyFalse(B.ResultCurrent);
+            tc.verifyTrue(startsWith(B.Ctl.Summary.Text, "Out of date: ticks changed"), B.Ctl.Summary.Text);
+            B.forget();
+            B.compute();
+            tc.verifyEqual(B.Runs.Last.status, "done");
+            B.tick(D(2));
+            B.compute();
+            tc.verifyEqual(B.Runs.Last.status, ["cached"; "done"]);
+            tc.verifyTrue(contains(B.Ctl.Summary.Text, "1 computed, 1 reused"), B.Ctl.Summary.Text);
+            % a settings change computes all again; a signal option does not
+            B.Settings = epochMatrixSettings(B.Settings, signal=struct('detrend', true));
+            tc.verifyTrue(B.ResultCurrent, 'A signal option leaves a spike result current.');
+            B.Settings = epochMatrixSettings(B.Settings, binSec=0.02);
+            tc.verifyTrue(startsWith(B.Ctl.Summary.Text, "Out of date: settings changed"), B.Ctl.Summary.Text);
+            tc.verifyTrue(all(B.Table.Cached == "old"));
+            B.compute();
+            tc.verifyEqual(B.Runs.Last.status, ["done"; "done"]);
+            tc.verifyTrue(isfile(B.ResultFile), 'The result file is written after a compute.');
+            B.untickAll();
+            tc.verifyError(@() B.compute(), 'DatasetBrowser:NoneTicked');
+        end
+
+        function resultFileRestores(tc)
+            tmp = tc.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+            f = string(fullfile(tmp.Folder, "keep.mat"));
+            B = tc.open(Settings=tc.Spike, ResultFile=f);
+            B.setFilter(Tags="ofc");
+            B.Selected = tc.Keys(2);
+            R = B.compute();
+            B.close();
+            raw = load(f);
+            tc.verifyEqual(sort(string(fieldnames(raw))).', ["browser" "result" "runs" "schema" "version"]);
+            tc.verifyEqual(raw.schema, "dataset-browser-results");
+            % Scan=false: the result, without touching the root
+            B2 = tc.open(ResultFile=f, Scan=false);
+            tc.verifyEmpty(B2.Runner);
+            tc.verifyEqual(B2.Result.data, R.data);
+            tc.verifyEqual(B2.Result.rows, R.rows);
+            tc.verifyEqual(B2.Selected, tc.Keys(2));
+            tc.verifyEqual(B2.Settings, B.Settings);
+            tc.verifyEqual(B2.Filter.Tags, "ofc");
+            tc.verifyError(@() B2.compute(), 'DatasetBrowser:NotScanned');
+            % a scan restores the ticks and the cache, and computes nothing
+            B3 = tc.open(ResultFile=f);
+            tc.verifyEqual(B3.Runner.Sources.Count, uint64(0));
+            tc.verifyEqual(B3.Selected, tc.Keys(2));
+            tc.verifyTrue(B3.ResultCurrent);
+            T = B3.Table;
+            tc.verifyTrue(startsWith(T.Cached(T.Key == tc.Keys(2)), "✓"));
+            B3.compute();
+            tc.verifyEqual(B3.Runs.Last.status, "cached");
+            % options override the file
+            B4 = tc.open(ResultFile=f, Scan=false, Settings=epochMatrixSettings(tc.Spike, binSec=0.02));
+            tc.verifyEqual(B4.Settings.binSec, 0.02);
+            tc.verifyFalse(B4.ResultCurrent);
+            % a file that is not one: a warning, the defaults
+            bad = string(fullfile(tmp.Folder, "bad.mat"));
+            schema = "something-else";
+            save(bad, 'schema');
+            B5 = tc.verifyWarning(@() DatasetBrowser(tc.Root, ResultFile=bad, Visible=false, Scan=false), ...
+                'DatasetBrowser:BadResultFile');
+            tc.addTeardown(@() delete(B5));
+            tc.verifyEmpty(B5.Result);
+            % the default file is beside the root
+            B6 = DatasetBrowser(tc.Root, Visible=false, Scan=false);
+            tc.addTeardown(@() delete(B6));
+            tc.verifyEqual(B6.ResultFile, string(fullfile(tc.Root, "DatasetBrowser_results.mat")));
+        end
+
+        function forEachCachesAndCancels(tc)
+            B = tc.open();
+            fn = @(src, info) string(info.name) + ":" + numel(fieldnames(src.events));
+            [v, T] = B.forEach(fn, Name="probe");
+            tc.verifyEqual(T.status, ["done"; "done"]);
+            tc.verifyTrue(startsWith(v{1}, B.Datasets.name(B.Datasets.key == T.key(1)) + ":"), 'FN(src, info) gets the info row.');
+            [v2, T2] = B.forEach(fn, Name="probe");
+            tc.verifyEqual(T2.status, ["cached"; "cached"]);
+            tc.verifyEqual(v2, v);
+            [~, T3] = B.forEach(fn, Name="probe", Datasets=tc.Keys(2), Recompute=true);
+            tc.verifyEqual(T3.status, "done");
+            % a cancel keeps what finished
+            stop = @(src) cancelFrom(B);
+            tc.verifyError(@() B.forEach(stop, Name="stop"), 'DatasetRuns:NeedId', 'B is a handle: Id is needed.');
+            tc.verifyError(@() B.forEach(stop, Name="stop", Id="stop-1"), 'DatasetRuns:Canceled');
+            tc.verifyEqual(B.Runs.status("stop", B.Selected, "stop-1"), ["current"; ""]);
+            tc.verifyFalse(B.Busy);
+            tc.verifyTrue(isfile(B.ResultFile), 'A canceled forEach that added parts writes the file.');
+        end
+
+        function progressStrip(tc)
+            B = tc.open();
+            c = B.Ctl;
+            B.progressStart("Histograms", Total=4);
+            tc.verifyTrue(B.Busy);
+            tc.verifyEqual(c.Cancel.Enable, matlab.lang.OnOffSwitchState(true));
+            tc.verifyEqual(c.Compute.Enable, matlab.lang.OnOffSwitchState(false));
+            tc.verifyEqual(c.Bar.ColumnWidth, {0, '1x'});
+            B.progressStep(2, "Session 2");
+            tc.verifyEqual(c.Bar.ColumnWidth, {'500x', '500x'});
+            tc.verifyEqual(string(c.ProgMsg.Text), "2/4 Session 2");
+            B.progress(0.25, "a quarter");
+            tc.verifyEqual(c.Bar.ColumnWidth, {'250x', '750x'});
+            tc.verifyTrue(contains(string(c.ProgTime.Text), "elapsed"), c.ProgTime.Text);
+            c.Cancel.ButtonPushedFcn(c.Cancel, []);
+            tc.verifyTrue(B.CancelRequested);
+            tc.verifyError(@() B.checkCancel(), 'DatasetBrowser:Canceled');
+            B.progressFinish("Histograms done");
+            tc.verifyEqual(c.Bar.ColumnWidth, {'1x', 0});
+            tc.verifyTrue(startsWith(string(c.ProgTime.Text), "done in"));
+            tc.verifyFalse(B.Busy);
+            tc.verifyEqual(c.Cancel.Enable, matlab.lang.OnOffSwitchState(false));
+            tc.verifyEqual(c.Compute.Enable, matlab.lang.OnOffSwitchState(true));
+            B.progressStart("Again");
+            tc.verifyFalse(B.CancelRequested, 'progressStart clears a cancel.');
+            B.progressStep(3, "no total");
+            tc.verifyEqual(string(c.ProgMsg.Text), "3 no total");
+            B.progressFinish("x");
+            % hidden: at most a line every 2 s, and one at the finish
+            B.progressStart("Loop", Total=50);
+            txt = evalc('for i = 1:50, B.progressStep(i, "item"); end, B.progressFinish("Loop done");');
+            lines = splitlines(strtrim(string(txt)));
+            tc.verifyLessThanOrEqual(numel(lines), 3, txt);
+            tc.verifyTrue(contains(lines(1), "Loop: 1/50 item"), txt);
+            tc.verifyTrue(contains(lines(end), "Loop done") && contains(lines(end), "done in"), txt);
+        end
+
+        function computeOnTheStrip(tc)
+            B = tc.open(Settings=tc.Spike);
+            seen = containers.Map();
+            B.ProgressHook = @(b, f, m) cancelAtSecond(b, f, seen);
+            tc.verifyError(@() B.compute(), 'epochMatrix:Canceled');
+            tc.verifyEqual(seen('busy'), [true true true true], 'Busy, Compute and the table off, Cancel on, while computing.');
+            [~, ID] = epochMatrixSettings(tc.Spike);
+            tc.verifyEqual(B.Runs.status("epochMatrix/units", B.Selected, ID), ["current"; ""], 'The finished part is kept.');
+            tc.verifyFalse(B.Busy);
+            c = B.Ctl;
+            tc.verifyEqual([string(c.Compute.Enable) string(c.Table.Enable) string(c.Data.Enable) string(c.Cancel.Enable)], ["on" "on" "on" "off"]);
+            tc.verifyEqual(c.Merge.Enable, matlab.lang.OnOffSwitchState(false), 'The blocks come back as Data says.');
+            tc.verifyTrue(isfile(B.ResultFile));
+            B.ProgressHook = [];
+            B.compute();
+            tc.verifyEqual(B.Runs.Last.status, ["cached"; "done"]);
+            % the Compute button's error goes to the status line
+            B.untickAll();
+            c.Compute.ButtonPushedFcn(c.Compute, []);
+            tc.verifyTrue(contains(string(c.Status.Text), "Tick at least one"), c.Status.Text);
+        end
+
+        function changedOutputsReadOld(tc)
+            B = tc.open(Settings=tc.Spike);
+            B.compute();
+            k = tc.Keys(1);
+            tc.verifyTrue(all(B.Datasets.stamp ~= ""), 'The scan keeps each dataset''s stamp.');
+            f = string(B.Runner.Outputs(B.Runner.index(k)).ManifestFile);
+            tc.assumeTrue(isfile(f), 'The fixture''s dataset has no manifest.');
+            tc.verifyTrue(contains(B.Datasets.stamp(B.Datasets.key == k), "manifest "), 'The manifest is stamped.');
+            jf = java.io.File(char(f));
+            t0 = jf.lastModified();
+            tc.addTeardown(@() java.io.File(char(f)).setLastModified(t0));   % the shared fixture as it was
+            jf.setLastModified(t0 - 120 * 1000);
+            T = B.Table;
+            tc.verifyTrue(all(startsWith(T.Cached, "✓")), 'The stamps are the last scan''s.');
+            B.scan();
+            T = B.Table;
+            tc.verifyEqual(T.Cached(T.Key == k), "old");
+            tc.verifyTrue(all(startsWith(T.Cached(T.Key ~= k), "✓")), 'The other dataset is still cached.');
+            B.compute();
+            L = B.Runs.Last;
+            tc.verifyEqual(L.status(L.key == k), "done");
+            tc.verifyTrue(all(L.status(L.key ~= k) == "cached"));
+            tc.verifyTrue(all(startsWith(B.Table.Cached, "✓")));
+        end
+
+        function forgetTickedNoneKeepsCache(tc)
+            B = tc.open(Settings=tc.Spike);
+            B.compute();
+            n = numel(B.Runs.Entries);
+            tc.verifyEqual(n, numel(tc.Keys));
+            B.untickAll();
+            B.forgetTicked();
+            tc.verifyEqual(numel(B.Runs.Entries), n, 'Nothing ticked: nothing forgotten.');
+            tc.verifyTrue(contains(string(B.Ctl.Status.Text), "Nothing is ticked"), B.Ctl.Status.Text);
+            B.Selected = tc.Keys(1);
+            B.forgetTicked();
+            tc.verifyEqual(numel(B.Runs.Entries), n - 1);
+            T = B.Table;
+            tc.verifyEqual(T.Cached(T.Key == tc.Keys(1)), "");
+        end
+
+        function checkCancelEndsScriptRun(tc)
+            B = tc.open();
+            c = B.Ctl;
+            B.progressStart("Loop", Total=4);
+            B.progressStep(1, "one");
+            c.Cancel.ButtonPushedFcn(c.Cancel, []);
+            tc.verifyTrue(B.Busy, 'Cancel only asks; the loop stops at its check.');
+            tc.verifyError(@() B.checkCancel(), 'DatasetBrowser:Canceled');
+            tc.verifyFalse(B.Busy);
+            tc.verifyEqual(string(c.ProgMsg.Text), "Canceled");
+            tc.verifyEqual(c.Bar.ColumnWidth, {'250x', '750x'}, 'The bar is left as it was.');
+            tc.verifyEqual([string(c.Compute.Enable) string(c.Table.Enable) string(c.Data.Enable) string(c.Cancel.Enable)], ...
+                ["on" "on" "on" "off"]);
+            tc.verifyError(@() B.checkCancel(), 'DatasetBrowser:Canceled', 'Later checks still stop the loop.');
+            tc.verifyFalse(B.Busy);
+        end
+
+        function secondCancelEndsOpenScriptRun(tc)
+            B = tc.open();
+            c = B.Ctl;
+            B.progressStart("Script", Total=2);
+            B.progressStep(1, "first");
+            % the script stops on an error here: nothing ends its run
+            c.Cancel.ButtonPushedFcn(c.Cancel, []);
+            tc.verifyTrue(B.Busy);
+            tc.verifyTrue(B.CancelRequested);
+            c.Cancel.ButtonPushedFcn(c.Cancel, []);
+            tc.verifyFalse(B.Busy, 'A second Cancel ends a script''s open run.');
+            tc.verifyEqual(string(c.ProgMsg.Text), "Canceled");
+            tc.verifyEqual(c.Bar.ColumnWidth, {'500x', '500x'});
+            tc.verifyEqual([string(c.Compute.Enable) string(c.Cancel.Enable)], ["on" "off"]);
+            % the browser's own compute is not ended early by a second Cancel
+            B.Settings = tc.Spike;
+            seen = containers.Map();
+            B.ProgressHook = @(b, f, m) cancelTwice(b, f, seen);
+            tc.verifyError(@() B.compute(), 'epochMatrix:Canceled');
+            tc.verifyTrue(seen('busy'), 'Compute stays Busy until it stops itself.');
+            tc.verifyFalse(B.Busy);
+            tc.verifyTrue(startsWith(string(c.ProgMsg.Text), "Canceled: "), c.ProgMsg.Text);
+            B.ProgressHook = [];
+        end
+
+        function waitAndDone(tc)
+            B = tc.open();
+            t0 = tic;
+            B.wait();
+            tc.verifyLessThan(toc(t0), 2, 'Hidden: wait returns at once.');
+            V = tc.open(Visible=true);
+            seen = containers.Map();
+            V.OnChange = @(~, what) count(seen, what);
+            t = timer('StartDelay', 1, 'TimerFcn', @(~, ~) V.done());
+            tc.addTeardown(@() delete(t));
+            start(t);
+            t0 = tic;
+            V.wait(Timeout=60);
+            tc.verifyLessThan(toc(t0), 30, 'Done ends the wait.');
+            tc.verifyTrue(seen.isKey('done'));
+            tc.verifyTrue(isvalid(V.Fig), 'Done keeps the window.');
+        end
+
+        function closingKeepsTheObject(tc)
+            B = tc.open(Settings=tc.Spike);
+            seen = containers.Map();
+            B.OnChange = @(~, what) count(seen, what);
+            R = B.compute();
+            B.Fig.CloseRequestFcn(B.Fig, []);
+            tc.verifyTrue(isvalid(B));
+            tc.verifyFalse(isvalid(B.Fig));
+            tc.verifyTrue(seen.isKey('closed'));
+            tc.verifyEqual(B.Result, R);
+            R2 = B.compute();
+            tc.verifyEqual(R2.data, R.data);
+            tc.verifyEqual(B.Runs.Last.status, ["cached"; "cached"]);
+            B.setFilter(Tags="pilot");   % refreshes skip the closed window
+            tc.verifyEqual(B.Shown, tc.Keys(1));
+            txt = evalc('B.progressStart("After"); B.progress(0.5, "half"); B.progressFinish("over");');
+            tc.verifyTrue(contains(txt, "After: half") && contains(txt, "over"), txt);
+            tc.verifyTrue(AppPrefs.ispref("DatasetBrowser", "Root"));
+            tc.verifyEqual(string(AppPrefs.getpref("DatasetBrowser", "Root")), tc.Root);
+            tc.verifyTrue(AppPrefs.ispref("DatasetBrowser", "Position"));
+        end
+    end
+end
+
+
+function setSettings(B, S)
+B.Settings = S;
+end
+
+
+function count(map, what)
+what = char(what);
+if isKey(map, what); n = map(what); else; n = 0; end
+map(what) = n + 1; %#ok<NASGU> a containers.Map is a handle
+end
+
+
+function v = cancelFrom(B)
+%cancelFrom  A forEach function that presses Cancel: the next dataset stops.
+B.cancel();
+v = 1;
+end
+
+
+function cancelTwice(B, f, seen)
+%cancelTwice  ProgressHook: at the second dataset, press Cancel twice and note whether the compute is still Busy.
+if f > 0 && ~isKey(seen, 'busy')
+    B.cancel();
+    B.cancel();
+    seen('busy') = B.Busy; %#ok<NASGU> a containers.Map is a handle
+end
+end
+
+
+function cancelAtSecond(B, f, seen)
+%cancelAtSecond  ProgressHook: at the second dataset, note the controls and press Cancel.
+if f > 0 && ~isKey(seen, 'busy')
+    c = B.Ctl;
+    seen('busy') = [B.Busy, c.Compute.Enable == "off" && c.Table.Enable == "off", c.Cancel.Enable == "on", ...
+        c.Data.Enable == "off"]; %#ok<NASGU> a containers.Map is a handle
+    B.cancel();
+end
+end

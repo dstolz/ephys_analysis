@@ -799,7 +799,7 @@ place(E.evEdge, r, 2);
 [S, r] = formRow(S, ["evSeqText" "evSeqEdit"], "Sequence:");
 sg = subgrid(S.Body, r, {'1x', 70});
 E.evSeqText = uilabel(sg, "Text", "none");
-setSequenceHolder(E.evSeqText, struct('sequence', repmat(EphysAnalysisConfig.defaults("SequenceStep"), 1, 0), 'alignStep', Inf));
+AlignControls.setSequenceHolder(E.evSeqText, struct('sequence', repmat(EphysAnalysisConfig.defaults("SequenceStep"), 1, 0), 'alignStep', Inf));
 E.evSeqEdit = uibutton(sg, "Text", "Edit...", "Tooltip", "Events that must (or must not) follow the line's event, " + ...
     "e.g. Stim onset then Trough onset: the first Trough onset after each Stim onset.");
 E.evSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(E.evSeqText, E.evLine, E.evEdge, @() obj.onConfigChanged("figure", "Event sequence"));
@@ -917,7 +917,7 @@ E.sortEdge = uidropdown(seg, "Items", ["onset" "offset"], "ValueChangedFcn", cha
 [S, r] = formRow(S, ["sortSeqText" "sortSeqEdit"], "Sort sequence:");
 ssg = subgrid(S.Body, r, {'1x', 70});
 E.sortSeqText = uilabel(ssg, "Text", "none");
-setSequenceHolder(E.sortSeqText, struct('sequence', repmat(EphysAnalysisConfig.defaults("SequenceStep"), 1, 0), 'alignStep', Inf));
+AlignControls.setSequenceHolder(E.sortSeqText, struct('sequence', repmat(EphysAnalysisConfig.defaults("SequenceStep"), 1, 0), 'alignStep', Inf));
 E.sortSeqEdit = uibutton(ssg, "Text", "Edit...", "Tooltip", "Events that must follow the sort event's line.");
 E.sortSeqEdit.ButtonPushedFcn = @(~,~) obj.editSequence(E.sortSeqText, E.sortLine, E.sortEdge, @() obj.onConfigChanged("figure", "Sort sequence"));
 [S, r] = formRow(S, "rasterByGroup", "");

@@ -1,29 +1,11 @@
 function onFilterHelp(obj)
-%onFilterHelp  What a trial filter can use: the columns, the response words, the functions.
-[~, words] = respCodeBits();
-cols = "(scan and pick a dataset to list its trial columns)";
+%onFilterHelp  What a trial filter can use: the active dataset's columns, the response words, the functions.
+src = [];
 if ~isempty(obj.Runner) && obj.ActiveIdx >= 1
     try
         src = obj.Runner.source(obj.ActiveIdx);
-        if src.hasBehavior
-            v = string(src.trials.Properties.VariableNames);
-            ok = arrayfun(@(c) isvarname(c) && size(src.trials.(c), 2) == 1 && ~isstruct(src.trials.(c)), v);
-            v = v(ok);
-            [~, ord] = sort(lower(v));
-            cols = strjoin(v(ord), ", ");
-        end
     catch
     end
 end
-msg = "A filter keeps the trials for which it is true, e.g." + newline + ...
-    "   Depth > 0 & RespLatency < 500" + newline + ...
-    "   Hit | Miss" + newline + ...
-    "   ismember(Depth, [0.5 1]) & ~FA" + newline + newline + ...
-    "Trial columns: " + cols + newline + newline + ...
-    "Response words (bits of RespCode): " + strjoin(words, ", ") + newline + newline + ...
-    "Operators: == ~= (or !=) < <= > >= & | ~ (or !) + - * / ( ) [ ], a single = means ==." + newline + ...
-    "Functions: abs round floor ceil fix mod rem min max isnan isfinite ismissing ismember any all " + ...
-    "strcmp strcmpi contains startsWith endsWith lower upper string double bitand; true false pi NaN Inf." + newline + ...
-    "Text columns compare with ==, e.g. Protocol == ""AM"". Nothing else is evaluated.";
-uialert(obj.Fig, msg, "Trial filter", "Icon", "info");
+uialert(obj.Fig, AlignControls.filterHelpText(src), "Trial filter", "Icon", "info");
 end

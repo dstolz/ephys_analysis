@@ -3,13 +3,13 @@ function cfg = gatherConfig(obj)
 %   The figure in the Figures tab's editor (SelectedFigure) is taken from
 %   it (gatherFigureEditor); the other figures as they are in obj.Config
 %   (the list buttons change them there directly). Fields without a
-%   control keep obj.Config's values (gatherAlignControls).
+%   control keep obj.Config's values (AlignControls.read).
 cfg = obj.Config;
 cfg.Name = string(obj.ConfigNameField.Value);
 cfg.Description = string(obj.ConfigDescField.Value);
 cfg.Source = obj.gatherSourceSection();
 D = cfg.Defaults;
-[ref, win, sel] = obj.gatherAlignControls(obj.AlignControls, D.EventRef, D.Window, D.Selection);
+[ref, win, sel] = AlignControls.read(obj.AlignControls, D.EventRef, D.Window, D.Selection);
 cfg.Defaults = struct('EventRef', ref, 'Window', win, 'Selection', sel);
 cfg.Export = obj.gatherExportSection();
 cfg.Report = obj.gatherReportSection();

@@ -408,12 +408,12 @@ if hasPanel
     % the panel's own alignment
     modes = "fixed";
     if ismember(t, ["corrmap" "rate" "tuning"]); modes = ["fixed" "between"]; end
-    setWindowModes(obj.PanelAlignControls.Mode, modes);
+    AlignControls.setWindowModes(obj.PanelAlignControls.Mode, modes);
     C2 = obj.PanelAlignControls;
     unlinked = paligned && ~E.panelSame.Value;   % linked ("Same as the figure"): the rows show the figure's, locked
     ctl = findobj([C2.RefGrid C2.WindowGrid], '-property', 'Enable');
     set(ctl, 'Enable', onoff(unlinked));
-    if unlinked; syncAlignEnable(C2); end
+    if unlinked; AlignControls.syncEnable(C2); end
     ownSel = paligned && ~E.panelSameSel.Value;   % linked ("Trial selection as the figure"): the figure's, locked
     set(findobj(C2.SelectionGrid, '-property', 'Enable'), 'Enable', onoff(ownSel));
     if ownSel; en(C2.MinArtifact, C2.ExcludeArtifacts.Value); end
@@ -519,7 +519,7 @@ if hasPanel && ~isempty(fig.panels(j).layers)
     S(names == "layers").Title = "Layers (" + numel(fig.panels(j).layers) + ") of " + fig.panels(j).id;
 end
 obj.FigureSections = S;
-syncAlignEnable(obj.FigureAlignControls);
+AlignControls.syncEnable(obj.FigureAlignControls);
 if ~isempty(obj.FiguresDatasetDropDown) && isvalid(obj.FiguresDatasetDropDown)
     obj.FiguresDatasetDropDown.Enable = onoff(~ses);   % a session figure is drawn across the datasets, not on the active one
 end

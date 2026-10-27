@@ -227,7 +227,7 @@ if isfield(op, 'rasterSort')
     offerItems(E.sortLine, ["" lines], se.line);
     offerItems(E.sortEdge, ["onset" "offset"], se.edge);
     closeSequenceDialog(obj, E.sortSeqText);
-    setSequenceHolder(E.sortSeqText, struct('sequence', se.sequence, 'alignStep', se.alignStep));
+    AlignControls.setSequenceHolder(E.sortSeqText, struct('sequence', se.sequence, 'alignStep', se.alignStep));
     E.rasterByGroup.Value = op.rasterByGroup;
 end
 if isfield(op, 'yTicks'); E.yTicks.Value = logical(op.yTicks); end
@@ -431,7 +431,7 @@ ev = L.event;
 offerItems(E.evLine, lines, ev.line);
 offerItems(E.evEdge, ["onset" "offset"], ev.edge);
 closeSequenceDialog(obj, E.evSeqText);
-setSequenceHolder(E.evSeqText, struct('sequence', ev.sequence, 'alignStep', ev.alignStep));
+AlignControls.setSequenceHolder(E.evSeqText, struct('sequence', ev.sequence, 'alignStep', ev.alignStep));
 drawAsChoices(E.evDrawAs, type, pickFrom(L.eventsAs, ["marks" "train" "span"], "marks"));
 E.evMarker.Value = char(pickFrom(ev.marker, string(E.evMarker.ItemsData), "diamond"));
 E.evSize.Value = min(E.evSize.Limits(2), max(E.evSize.Limits(1), ev.size));

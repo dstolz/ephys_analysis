@@ -146,7 +146,7 @@ ref = D.EventRef; win = D.Window; sel = D.Selection;
 if isstruct(fig.ref); ref = fig.ref; end
 if isstruct(fig.window); win = fig.window; end
 if isstruct(fig.selection); sel = fig.selection; end
-[ref, win, sel] = obj.gatherAlignControls(obj.FigureAlignControls, ref, win, sel);
+[ref, win, sel] = AlignControls.read(obj.FigureAlignControls, ref, win, sel);
 if E.defaultRef.Value; fig.ref = "default"; else; fig.ref = ref; end
 if E.defaultWindow.Value; fig.window = "default"; else; fig.window = win; end
 if E.defaultSelection.Value; fig.selection = "default"; else; fig.selection = sel; end
@@ -186,7 +186,7 @@ if j >= 1 && j <= numel(fig.panels)
         if isstruct(p.ref); fref = p.ref; end
         if isstruct(p.window); fwin = p.window; end
         if isstruct(p.selection); fsel = p.selection; end
-        [pref, pwin, psel] = obj.gatherAlignControls(obj.PanelAlignControls, fref, fwin, fsel);
+        [pref, pwin, psel] = AlignControls.read(obj.PanelAlignControls, fref, fwin, fsel);
     end
     if own(1); p.ref = pref; else; p.ref = "default"; end
     if own(2); p.window = pwin; else; p.window = "default"; end

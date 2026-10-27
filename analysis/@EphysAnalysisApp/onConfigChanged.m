@@ -61,7 +61,7 @@ switch what
             obj.ScanLabel.Text = "The source changed: Scan to list its datasets.";
         end
     case "defaults"
-        syncAlignEnable(obj.AlignControls);
+        AlignControls.syncEnable(obj.AlignControls);
         obj.refreshAlignPreview();
         obj.applyFigureEditorDefaults();
         obj.refreshFigureObservations();

@@ -449,7 +449,6 @@ classdef EphysAnalysisApp < handle
         buildLogTab(obj)
         C = buildAlignControls(obj, parents, changed)
         applyAlignControls(obj, C, ref, win, sel)
-        [ref, win, sel] = gatherAlignControls(obj, C, ref, win, sel)
         fillAlignItems(obj, C)
         editSequence(obj, holder, lineCtl, edgeCtl, done)
 

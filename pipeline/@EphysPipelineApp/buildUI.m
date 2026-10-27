@@ -12,7 +12,8 @@ function buildUI(obj)
 %   (onTabChanged).
 
 pos = [120 90 1240 800];   % default; overridden by the saved preference
-obj.Fig = uifigure("Name", "Ephys preprocessing", "Position", pos, "Visible", "off");
+obj.Fig = uifigure("Name", "Ephys preprocessing", "Position", pos, "Visible", "off", ...
+    "AutoResizeChildren", "off");   % its one child is a grid; off lets SizeChangedFcn run
 obj.Fig.CloseRequestFcn = @(~,~) obj.onClose();
 obj.Fig.DeleteFcn = @(~,~) obj.stopTimers();   % also when deleted without onClose
 
@@ -29,7 +30,7 @@ obj.TabHost = uipanel(outer, "BorderType", "none", "AutoResizeChildren", "off");
 obj.TabHost.Layout.Row = 2; obj.TabHost.Layout.Column = 1;
 obj.Tabs = uitabgroup(obj.TabHost);
 obj.Tabs.SelectionChangedFcn = @(~,~) obj.onTabChanged();
-obj.TabHost.SizeChangedFcn = @(~,~) fitTabGroup(obj);
+obj.Fig.SizeChangedFcn = @(~,~) fitTabGroup(obj);   % from the figure's size: the host's comes late
 
 buildStatusBar(obj, outer);
 
@@ -144,15 +145,6 @@ for c = barCol
 end
 obj.TabButtons = buttons;
 obj.TabMarks   = marks;
-end
-
-
-function fitTabGroup(obj)
-%fitTabGroup  Size the tab group so its header row sits above the host's clip edge.
-if isempty(obj.Tabs) || ~isvalid(obj.Tabs); return; end
-hdr = 26;   % tab header height in R2025a, plus its bottom border
-p = obj.TabHost.InnerPosition;
-obj.Tabs.Position = [-1 0 p(3) + 2, p(4) + hdr];
 end
 
 

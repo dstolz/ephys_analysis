@@ -211,8 +211,9 @@ if S.sec("1", "build + open")
     app.selectTab(wasShown);
     check(isequal(startHidden, app.TabList ~= app.TabProject) && revealed, ...
         'the window shows with the Project tab''s contents alone; another tab''s show when it is first shown (revealTab)');
-    check(isequal(app.Tabs.Position(3:4), app.TabHost.InnerPosition(3:4) + [2 26]), ...
-        'built hidden, the tab group still fits its host once the window shows (fitTabGroup)');
+    g = app.TabHost.Parent;   % the outer grid: tab strip, host, status bar
+    check(isequal(app.Tabs.Position(3:4), app.Fig.Position(3:4) + [2, 26 - g.RowHeight{1} - g.RowHeight{3}]), ...
+        'built hidden, the tab group fits the window as it shows, not a new panel''s 260 x 221 px (fitTabGroup)');
     sp = AppSplash("test", ["a" "b" "c"], [1 2 1], Show=false);
     sp.step("a", "first");
     sp.progress(0.5);

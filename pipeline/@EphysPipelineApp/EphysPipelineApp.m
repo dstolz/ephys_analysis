@@ -1029,6 +1029,7 @@ classdef EphysPipelineApp < handle
             obj.followKeptKSRuns();
             scanned = startupScan(obj);   % last: what it says stays in the status bar
             obj.Splash.step("show", "Drawing the window ...");
+            fitTabGroup(obj);   % to the saved window size (loadPreferences)
             obj.Fig.Visible = "on";
             drawnow;
             obj.Splash.close();

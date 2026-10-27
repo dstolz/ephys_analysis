@@ -1893,6 +1893,10 @@ says how to cut a release.
 
 ### Fixed
 
+- Pipeline app: at startup the tabs could show as a small 260 x 221 px box in the window's bottom-left corner,
+  for seconds to minutes, until another tab was picked. The tab group was sized from its host panel, whose
+  laid-out size reaches MATLAB only once the window's first render is over; it is now sized from the window's
+  own size before the window shows, and again whenever the window is resized (`fitTabGroup`).
 - The probe map moved sites sideways by `kcoords` group: a Kilosort map that parks a site on a group of its
   own (H64LP_4x16lin parks two per shank, on groups 5 to 12) had those sites spread out to the right of the
   probe, under a row of overlapping *Shank 5* ... *Shank 12* labels. Every site is now drawn at its own x

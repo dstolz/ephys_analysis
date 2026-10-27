@@ -2374,6 +2374,13 @@ if S.sec("4a", "Review tab: unit labels, location, notes")
         'QC report writes quality_report.html next to the sort');
     app.syncReviewDataset();
     check(app.ReviewData.notes(app.ReviewData.clusterID == 1) == "two cells?", 'the note is read back on reload');
+    row = find(cellfun(@(v) isequal(v, 1), app.ReviewUnitsTable.Data(:, 1)), 1);
+    app.onReviewUnitSelected(struct('Indices', [row 1]));
+    app.ReviewData.notes(app.ReviewData.clusterID == 1) = "stale";
+    app.onReviewRefresh();
+    check(app.ReviewData.notes(app.ReviewData.clusterID == 1) == "two cells?" ...
+        && app.ReviewData.clusterID(app.ReviewSelectedUnit) == 1, ...
+        'Refresh reads the shown sort again and keeps the selected unit');
     settingsFile = fullfile(phyDir, 'settings.json');
     S0 = readJsonFile(settingsFile);
     S1 = S0; S1.tmin = 0.005;   % Kilosort4 sorted from 5 ms on

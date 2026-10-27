@@ -519,6 +519,7 @@ classdef EphysPipelineApp < handle
         ReviewSortDropDown  matlab.ui.control.DropDown        % the active dataset's sorts (ReviewSorts), and a browsed folder
         ReviewUseSortButton matlab.ui.control.Button          % make the sort shown the dataset's own (onReviewUseSort)
         LoadReviewButton    matlab.ui.control.Button
+        ReviewRefreshButton matlab.ui.control.Button          % read the dataset's row, sorts and the sort shown again (onReviewRefresh)
         OpenReviewFolderButton matlab.ui.control.Button
         ReviewPhyButton     matlab.ui.control.Button
         ReviewSummaryLabel  matlab.ui.control.Label
@@ -1383,6 +1384,7 @@ classdef EphysPipelineApp < handle
         onReviewDatasetSelected(obj, evt)
         showReviewSorts(obj, folder)
         onReviewSortChanged(obj)
+        onReviewRefresh(obj)
         onReviewUseSort(obj)
         onReviewUnitSelected(obj, evt)
         onReviewNoteEdited(obj, evt)

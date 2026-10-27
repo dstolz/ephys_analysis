@@ -3079,6 +3079,11 @@ dataset whose name does not match `Project.NamePattern`, is read with
   units. Choosing one loads it for review only: it changes nothing the
   other steps read. With a pinned folder that is not there, the list still
   offers the others.
+- **Refresh** (beside Sort): reads the active dataset's row of the Datasets
+  table, the **Sort** list and the sort shown (summary, units table, plots)
+  again, and keeps the selected unit when the sort still has it. For after
+  phy saved or a sorting run finished. With nothing shown, or the folder
+  gone, it looks for the dataset's own sort again.
 - **Use this sort** (beside Sort): makes the sort shown the active
   dataset's sorted output, as **Use folder...** on the Sorting tab does,
   so Export, the analysis, Visualize's units and phy from the Sorting tab

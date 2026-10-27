@@ -79,6 +79,9 @@ end
 cfg = obj.Config;
 obj.CancelRequested = false;
 obj.RunRecordFile = "";
+obj.PagesSeen = 0;   % usePagePool: the workers start once the run has enough pages
+obj.PoolFailed = false;
+obj.PageLooks = [];   % the user's looks as they are now, for the workers
 started = datetime('now');
 doExport = cfg.Export.Enabled;
 if ~isempty(opts.Export); doExport = logical(opts.Export); end

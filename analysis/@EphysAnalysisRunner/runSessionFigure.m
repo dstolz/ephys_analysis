@@ -11,7 +11,9 @@ function rows = runSessionFigure(obj, id, idx, opts)
 %     per observation i of T (cancel() stops between them, through
 %         progress): figureSessionCompute -> one figure per facet and trial
 %         group (RES); each drawn exactly as runDataset draws a figure's
-%         page (newExportFigure + renderFigure) and exported into
+%         page (drawExportPage; on the process workers with Workers, the
+%         pages taken in order after the observations are computed) and
+%         exported into
 %         Export.SessionsFolder (its folder tokens those of the first
 %         session's dataset) named figureOutputName(Export.FilenamePattern,
 %         <facet>, SPEC, OBS, i, nObs) -- {Name} the facet ("all" or the
@@ -128,8 +130,17 @@ if ~isempty(figureBatchPanels(spec)) && ((opts.Export) || withImages || withPage
 end
 nShared = NaN;
 if ~isempty(BY); nShared = max([BY.n]); end
+draws = opts.Export || withImages || withPages;
+onPool = draws && obj.usePagePool(nObs);
+share = 1 - 0.5 * onPool;   % on the workers the computing is the first half, the drawing the second
+jobs = cell(1, 0);   % the pages, drawn or on the workers (submitPage), in order: each with its entry q, row i and F
 for i = 1:nObs
-    obj.progress(opts.Span(1) + diff(opts.Span) * (i - 1) / nObs, sprintf("sessions: %s (%d/%d)", id, i, nObs));   % cancel() stops here
+    try
+        obj.progress(opts.Span(1) + diff(opts.Span) * share * (i - 1) / nObs, sprintf("sessions: %s (%d/%d)", id, i, nObs));   % cancel() stops here
+    catch ME
+        cancelPages(jobs);
+        rethrow(ME);
+    end
     t1 = tic;
     if ~isempty(pre)   % computed while measuring
         [res, lastSessions, Fs] = pre{i, 1:3};
@@ -160,31 +171,47 @@ for i = 1:nObs
             base = fullfile(folder, fname);
             want = base + "." + X.Formats;
             kept = opts.Export && ~X.Overwrite && all(isfile(want));   % its files exist: not written again
-            if kept; E(q).files = [E(q).files want]; end
+            job = struct('future', [], 'out', noPage());
             if (opts.Export && ~kept) || withImages || withPages
-                fig = newExportFigure(X, e.F, spec);
-                closer = onCleanup(@() close(fig));   % closes the page on a failure too
-                h = renderFigure(e.F, spec, fig, BatchYLim=BY);
-                written = string.empty(1, 0);
-                if opts.Export && ~kept
-                    written = exportFigure(fig, base, Format=X.Formats, Dpi=X.Dpi);
-                    E(q).files = [E(q).files written];
-                end
-                if withImages; E(q).images{end+1} = reportImage(fig, obj.Report, Title=h.title, Files=written); end
-                if withPages; E(q).pages(end+1) = reportPdfPage(fig, obj.Report, Files=written); end
-                clear closer
+                page = struct('Export', X, 'Base', "", 'Formats', X.Formats, 'Dpi', X.Dpi, 'Kept', string.empty(1, 0), ...
+                    'BatchYLim', BY, 'Images', withImages, 'Pages', withPages);
+                if opts.Export && ~kept; page.Base = base; end
+                if kept; page.Kept = want; end
+                job = obj.submitPage(e.F, spec, onPool, page);
             end
-            E(q).done = E(q).done + 1;
-            E(q).rows(end+1) = i;
-            E(q).F = e.F;
+            job.kept = string.empty(1, 0);
+            if kept; job.kept = want; end
+            job.q = q;
+            job.i = i;
+            job.F = keptPart(e.F);   % what the report reads of it (its sessions), not every page's whole result
+            jobs{end+1} = job; %#ok<AGROW>
         catch ME
-            clear closer
-            if ME.identifier == "EphysAnalysisRunner:Canceled"; rethrow(ME); end
+            if ME.identifier == "EphysAnalysisRunner:Canceled"; cancelPages(jobs); rethrow(ME); end
             E(q).why(end+1) = string(T.label(i)) + ": " + string(ME.message);
             E(q).nError = E(q).nError + 1;
         end
     end
     for q = 1:numel(E); E(q).seconds = E(q).seconds + toc(t1) / max(1, numel(res)); end
+end
+for j = 1:numel(jobs)   % the pages, in order
+    job = jobs{j};
+    q = job.q;
+    t1 = tic;
+    try
+        out = obj.pageOutput(job, opts.Span(1) + diff(opts.Span) * (0.5 + 0.5 * (j - 1) / numel(jobs)), ...
+            sprintf("sessions: %s drawing page %d/%d", id, j, numel(jobs)));
+        E(q).files = [E(q).files job.kept out.files];
+        if ~isempty(out.image); E(q).images{end+1} = out.image; end
+        if out.page ~= ""; E(q).pages(end+1) = out.page; end
+        E(q).done = E(q).done + 1;
+        E(q).rows(end+1) = job.i;
+        E(q).F = job.F;
+    catch ME
+        if ME.identifier == "EphysAnalysisRunner:Canceled"; cancelPages(jobs(j:end)); rethrow(ME); end
+        E(q).why(end+1) = string(T.label(job.i)) + ": " + string(ME.message);
+        E(q).nError = E(q).nError + 1;
+    end
+    E(q).seconds = E(q).seconds + toc(t1) * onPool;   % here the drawing was counted with its observation
 end
 
 for q = 1:numel(E)
@@ -275,4 +302,26 @@ end
 s.kind = "figure";
 s.id = id;
 if nFigures > 1; s.id = id + " (" + label + ")"; end
+end
+
+
+function cancelPages(jobs)
+%cancelPages  Cancel the pages of JOBS still on the workers.
+for j = 1:numel(jobs)
+    if ~isempty(jobs{j}.future); cancel(jobs{j}.future); end
+end
+end
+
+
+function out = noPage()
+%noPage  drawExportPage's OUT for a page not drawn (its files kept).
+out = struct('files', string.empty(1, 0), 'image', [], 'page', "", 'title', "");
+end
+
+
+function K = keptPart(F)
+%keptPart  What the report reads of a page's figure (addReportFigure, figureCaption Sessions=): its kind and sessions.
+K = struct('kind', "figure", 'sessions', []);
+if isfield(F, 'kind'); K.kind = F.kind; end
+if isfield(F, 'sessions'); K.sessions = F.sessions; end
 end

@@ -19,10 +19,9 @@ function rows = runDataset(obj, k, opts)
 %         observe.perGroup: a row per observation and trial group)
 %     for each observation i of n, one figure at a time:
 %       F = r.computeFigure(src, spec, Observation=T(i,:))
-%       fig = newExportFigure(Export, F, spec); h = renderFigure(F, spec, fig)
-%       files = [files exportFigure(fig, <folder>/<figureOutputName(...)>, Format=, Dpi=)]   (Export)
-%       images{i} = reportImage(...); pages(i) = reportPdfPage(...)                (Report)
-%       close(fig)
+%       out = drawExportPage(F, spec, Base=<folder>/<figureOutputName(...)>, ...)
+%         (newExportFigure, renderFigure, exportFigure (Export), reportImage
+%         and reportPdfPage (Report), close)
 %     report = addReportFigure(report, spec (kind "figure"), F, Files=, Images=, Pages=,
 %         Observations=T, Caption=figureCaption(spec, T, Dataset=name, Auroc=<each
 %         observation's figureAurocCalls(F)>))                                     (Report)
@@ -38,6 +37,13 @@ function rows = runDataset(obj, k, opts)
 %   layer or panel that cannot be computed for one observation is drawn as
 %   its note, not a failure; a figure that fails is an "error" row.
 %   Progress before each observation: "<name>: <id> (<i>/<n>)".
+%
+%   With Workers the pages are drawn on process workers (usePagePool):
+%   each observation is computed here and its page sent to a worker
+%   (submitPage) while the next is computed; the pages are then taken in
+%   order (pageOutput: "<name>: <id> drawing page <j>/<n>"), the computing
+%   reporting the first half of the figure's progress and the drawing the
+%   second. A failure or cancel() cancels the pages still on the workers.
 %
 %   Afterwards the dataset's cached data is cleared. The report (Report)
 %   is r.Report, started by run(). Span=[a b] is the share of a longer run
@@ -99,6 +105,7 @@ for jf = 1:numel(fids)
     rspec = spec;
     rspec.kind = "figure";   % the report entry's kind
     t0 = tic;
+    jobs = cell(1, 0);   % the figure's pages, drawn or on the workers (submitPage), in order
     try
         reason = figureSkipReason(src, spec);
         T = [];
@@ -135,34 +142,38 @@ for jf = 1:numel(fids)
         pages = strings(1, 0);
         F = [];
         calls = {};   % each observation's auROC calls, for the caption (figureAurocCalls)
+        draws = opts.Export || withImages || withPages;
+        onPool = draws && obj.usePagePool(nObs);
+        share = 1 - 0.5 * onPool;   % on the workers the computing is the first half, the drawing the second
         for i = 1:nObs
-            obj.progress(opts.Span(1) + diff(opts.Span) * (at + (i - 1) / nObs) / nAll, ...
+            obj.progress(opts.Span(1) + diff(opts.Span) * (at + share * (i - 1) / nObs) / nAll, ...
                 sprintf("%s: %s (%d/%d)", name, spec.id, i, nObs));   % cancel() stops between observations
             base = fullfile(folder, figureOutputName(X.FilenamePattern, name, spec, T(i, :), i, nObs));
             want = base + "." + X.Formats;
             kept = opts.Export && ~X.Overwrite && all(isfile(want));   % its files exist: not written again
-            if kept; files = [files want]; end %#ok<AGROW>
-            if kept && ~withImages && ~withPages; continue; end   % ... nor computed, unless the report needs the page
+            if kept && ~withImages && ~withPages   % ... nor computed, unless the report needs the page
+                jobs{end+1} = struct('future', [], 'out', noPage(), 'kept', want); %#ok<AGROW>
+                continue
+            end
             F = obj.takeBatchFigure(k, spec.id, i);   % computed while measuring the batch range, else now
             if isempty(F); F = obj.computeFigure(src, spec, Observation=T(i, :)); end
             ac = figureAurocCalls(F);
             if ~isempty(ac); calls{end+1} = ac; end %#ok<AGROW>
-            if ~opts.Export && ~withImages && ~withPages; continue; end   % computed only
-            fig = newExportFigure(X, F, spec);
-            closer = onCleanup(@() close(fig));   % closes the page on a failure too
-            h = renderFigure(F, spec, fig, BatchYLim=BY);
-            written = string.empty(1, 0);
-            if opts.Export && ~kept
-                written = exportFigure(fig, base, Format=X.Formats, Dpi=X.Dpi);
-                files = [files written]; %#ok<AGROW>
-            end
-            if withImages
-                images{end+1} = reportImage(fig, obj.Report, Title=h.title, Files=written); %#ok<AGROW>
-            end
-            if withPages
-                pages(end+1) = reportPdfPage(fig, obj.Report, Files=written); %#ok<AGROW>
-            end
-            clear closer
+            if ~draws; continue; end   % computed only
+            page = struct('Export', X, 'Base', "", 'Formats', X.Formats, 'Dpi', X.Dpi, 'Kept', string.empty(1, 0), ...
+                'BatchYLim', BY, 'Images', withImages, 'Pages', withPages);
+            if opts.Export && ~kept; page.Base = base; end
+            if kept; page.Kept = want; end
+            job = obj.submitPage(F, spec, onPool, page);
+            job.kept = page.Kept;
+            jobs{end+1} = job; %#ok<AGROW>
+        end
+        for j = 1:numel(jobs)
+            out = obj.pageOutput(jobs{j}, opts.Span(1) + diff(opts.Span) * (at + 0.5 + 0.5 * (j - 1) / numel(jobs)) / nAll, ...
+                sprintf("%s: %s drawing page %d/%d", name, spec.id, j, numel(jobs)));
+            files = [files jobs{j}.kept out.files]; %#ok<AGROW>
+            if ~isempty(out.image); images{end+1} = out.image; end %#ok<AGROW>
+            if out.page ~= ""; pages(end+1) = out.page; end %#ok<AGROW>
         end
         if opts.Report
             if isempty(F); F = struct('kind', "figure"); end
@@ -173,7 +184,7 @@ for jf = 1:numel(fids)
         obj.Results(end+1, :) = {name, spec.id, "figure", "done", sprintf("%d observation(s)", nObs), strjoin(files, "; "), toc(t0)};
         obj.log("%s: %s done (%d observation(s), %d file(s), %.1f s)", name, spec.id, nObs, numel(files), toc(t0));
     catch ME
-        clear closer   % the page a failure left open
+        cancelPages(jobs);   % the pages still on the workers
         if ME.identifier == "EphysAnalysisRunner:Canceled"
             cancelFrom(obj, src, name, fids, jf);
             rethrow(ME);
@@ -196,4 +207,18 @@ for jj = jFig:numel(fids)
     obj.Results(end+1, :) = {name, fids(jj), "figure", "canceled", "canceled", "", 0};
 end
 src.outputs.clearCache();
+end
+
+
+function cancelPages(jobs)
+%cancelPages  Cancel the pages of JOBS still on the workers.
+for j = 1:numel(jobs)
+    if ~isempty(jobs{j}.future); cancel(jobs{j}.future); end
+end
+end
+
+
+function out = noPage()
+%noPage  drawExportPage's OUT for a page not drawn (its files kept).
+out = struct('files', string.empty(1, 0), 'image', [], 'page', "", 'title', "");
 end

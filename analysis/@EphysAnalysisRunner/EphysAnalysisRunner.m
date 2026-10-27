@@ -47,6 +47,14 @@ classdef EphysAnalysisRunner < handle
     %                   While it is empty (a run, a script) there are no
     %                   checkpoints
     %     LogFcn        LogFcn(message) per line (default: print); [] = quiet
+    %     Workers       process workers that draw and write the pages (0, the
+    %                   default = this MATLAB): a run's pages go to an open
+    %                   process pool, or to one of Workers workers started
+    %                   once the run has MinPoolPages (20) pages (usePagePool).
+    %                   Each figure's observations are computed here, in turn;
+    %                   their pages are drawn on the workers meanwhile and
+    %                   put in the report in order (submitPage, pageOutput).
+    %                   EphysAnalysisApp sets it from its Workers preference
     %     SearchDirs    further folders each dataset's outputs are searched in
     %                   (DatasetOutputs SearchDirs), e.g. a pipeline's
     %                   Signals / Spikes OutputDir; set before datasets()
@@ -94,6 +102,7 @@ classdef EphysAnalysisRunner < handle
         PollFcn = []
         LogFcn = @(msg) fprintf('%s\n', msg)
         SearchDirs (1,:) string = string.empty(1, 0)
+        Workers (1,1) double {mustBeInteger, mustBeNonnegative} = 0   % process workers that draw the pages (0 = here)
     end
 
     properties (SetAccess = protected)
@@ -114,11 +123,16 @@ classdef EphysAnalysisRunner < handle
         BatchCache = []                  % containers.Map 'k|figure|i' -> F: figures computed while measuring, for their pages
         BatchCacheUsedMB (1,1) double = 0
         FigureCache = struct('kind', {}, 'dataset', {}, 'key', {}, 'value', {}, 'bytes', {}, 'from', {})   % what the preview's computes found or made (computeFigure Reuse), the most recent first
+        PagesSeen (1,1) double = 0       % the pages the run has come to (usePagePool starts the workers at MinPoolPages)
+        PoolFailed (1,1) logical = false % the workers could not start this run: its pages are drawn here
+        PageLooks = []                   % the design and plot rules the workers draw in (submitPage; once per run)
+        LastFraction (1,1) double = 0    % the fraction last reported (progress)
     end
 
     properties (Constant, Hidden)
         BatchCacheMB = 512               % the most computed figures batchYLimits keeps for the drawing pass, MB
         FigureCacheMB = 256              % the most FigureCache keeps, MB
+        MinPoolPages = 20                % the pages a run comes to before usePagePool starts the workers
     end
 
     methods
@@ -140,6 +154,9 @@ classdef EphysAnalysisRunner < handle
         [res, sessions, spec, Fs] = computeSessionFigure(obj, fig, idx, opts)
         rows = runSessionFigure(obj, id, idx, opts)
         B = batchYLimits(obj, idx, spec, opts)
+        tf = usePagePool(obj, n)
+        job = submitPage(obj, F, spec, onPool, page)
+        out = pageOutput(obj, job, fraction, message)
 
         function obj = EphysAnalysisRunner(cfg, opts)
             %EphysAnalysisRunner  Find the config's datasets (Scan=false: later, with datasets()).

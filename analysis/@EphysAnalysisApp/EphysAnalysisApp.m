@@ -145,7 +145,9 @@ classdef EphysAnalysisApp < handle
     %   one observation is quick), FigureSectionsCollapsed and
     %   FigureSupersectionsCollapsed (its editor's collapsed sections and
     %   supersections), FigureGroupBy and FigureGroupsCollapsed (how
-    %   its figure tree groups, and its collapsed groups).
+    %   its figure tree groups, and its collapsed groups), ReportWorkers
+    %   (the Export tab's Workers: the process workers a run draws and
+    %   writes its pages on, 4 by default; 0 = in this MATLAB).
     %
     %   Startup: a small window (AppSplash) shows the app's name, version
     %   and a progress bar while the window is built hidden, the
@@ -306,6 +308,7 @@ classdef EphysAnalysisApp < handle
         RunButton          matlab.ui.control.Button
         TestReportButton   matlab.ui.control.Button     % Test report: every enabled figure for the Figures tab's observation and the dataset, a temporary HTML report (onTestReport)
         CancelButton       matlab.ui.control.Button
+        WorkersSpinner     matlab.ui.control.Spinner    % the process workers a run draws its pages on (EphysAnalysisRunner.Workers; preference ReportWorkers)
         OpenReportButton   matlab.ui.control.Button
         OpenFolderButton   matlab.ui.control.Button
         IssuesTable        matlab.ui.control.Table

@@ -5,6 +5,8 @@ function buildExportTab(obj)
 %   the results table too). Test report (onTestReport) draws every enabled
 %   figure of the active dataset for the observation picked on the Figures
 %   tab, and the dataset's figures, as an HTML report in a temporary folder.
+%   Workers (beside Cancel; preference ReportWorkers) is how many process
+%   workers a run draws and writes its pages on (EphysAnalysisRunner.Workers).
 g = uigridlayout(obj.TabExport, [1 2]);
 g.ColumnWidth = {470, '1x'};
 g.Padding = [8 8 8 8];
@@ -124,6 +126,14 @@ obj.RunButton = uibutton(right, "Text", "Run", ...
 place(obj.RunButton, 1, 4);
 obj.CancelButton = uibutton(right, "Text", "Cancel", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onCancelRun());
 place(obj.CancelButton, 1, 5);
+wg = uigridlayout(right, [1 3], "Padding", [8 0 0 0], "ColumnWidth", {'fit', 60, '1x'}, "ColumnSpacing", 4);
+place(wg, 1, 6);
+wTip = "Process workers that draw and write the pages of a run (Parallel Computing Toolbox): they start once a " + ...
+    "run has 20 pages (about half a minute, once; they stay open for the next runs) and draw the pages while the " + ...
+    "figures are computed here. 0 = draw every page in this MATLAB. Each worker takes about 1-2 GB of memory.";
+uilabel(wg, "Text", "Workers:", "Tooltip", wTip);
+obj.WorkersSpinner = uispinner(wg, "Limits", [0 max(4, feature('numcores'))], "RoundFractionalValues", "on", ...
+    "Value", 4, "Tooltip", wTip, "ValueChangedFcn", @(src, ~) AppPrefs.setpref(obj.PrefGroup, 'ReportWorkers', src.Value));
 obj.IssuesTable = uitable(right, "RowName", {}, "ColumnWidth", 'auto', "ColumnSortable", true);
 place(obj.IssuesTable, 2, [1 6]);
 obj.RunLabel = uilabel(right, "Text", "Results", "FontWeight", "bold");

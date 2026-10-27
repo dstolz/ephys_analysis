@@ -1,4 +1,4 @@
-function [S, ID] = epochMatrixSettings(S0, opts)
+function [S, ID, name] = epochMatrixSettings(S0, opts)
 %epochMatrixSettings  The settings of epochMatrix: defaults, overlay, checks, and the cache identity.
 %   S = epochMatrixSettings() gives the default settings; S =
 %   epochMatrixSettings(S0, Name=Value) overlays the struct S0 (or [], the
@@ -7,7 +7,10 @@ function [S, ID] = epochMatrixSettings(S0, opts)
 %   selection, units, signal, auroc) is merged field by field over the
 %   value it replaces, so units=struct('shanks', 1:2) keeps the other unit
 %   fields; any other option replaces its field. [S, ID] = ... also gives
-%   the cache identity (below).
+%   the cache identity (below), and [S, ID, NAME] = ... the DatasetRuns
+%   name epochMatrix keeps the parts under: "epochMatrix/" + data, with
+%   "/epochs" added when keepEpochs is on (such parts hold the epochs, so
+%   they are kept apart from those without).
 %
 %   Fields of S, in this order
 %     data       what is computed: "units" (default; the sorted units of
@@ -42,13 +45,37 @@ function [S, ID] = epochMatrixSettings(S0, opts)
 %                  magnitude  the channels' vector magnitude, one row
 %                             (AUX's accelerometer; false)
 %                  statistic  "mean" (default) | "median" over the epochs
+%   Every kind
+%     normalize  struct, applied to the assembled matrix (epochMatrixNormalize),
+%                each row's trace in each group against its own values:
+%                  method    "none" (default) | "subtract" (x - b) |
+%                            "ratio" (x / b) | "percent" (100 (x - b) / |b|)
+%                            | "zscore" ((x - b) / SD) | "minmax" ((x -
+%                            min) / (max - min), 0 to 1 over the window).
+%                            b and SD are the mean and SD of the trace's
+%                            values at the times of R.t in baseline (the
+%                            bins of the mean trace, not the epochs). Not
+%                            applied to measure "auroc"
+%                  baseline  [b0 b1] s from the event (default [-0.5 0]);
+%                            must overlap the window for a method that
+%                            uses it
+%                  scope     "row" (default): one baseline (or range) per
+%                            row, from all its groups, so the groups keep
+%                            their differences | "group": each group its own
+%     keepEpochs false (default); true: the result keeps each epoch, before
+%                any average (epochMatrix's R.epochs): spikes, every spike's
+%                time from the event and its epoch; signals, every epoch's
+%                trace [row x time x epoch], single. Signal epochs are large
+%                (they go into the result file's kept parts)
 %   Fields that do not apply to data are kept in S, unchecked beyond their
 %   form, and left out of ID, so a change to an LFP option keeps the
-%   cached spike results.
+%   cached spike results. normalize is left out of ID too: it is applied
+%   after the parts are assembled, so a change to it computes nothing again.
 %
 %   ID is the cache identity of the results S gives: a struct holding data,
 %   ref, window, selection, the fields that apply to data (spikes: units,
-%   measure, binSec, baseline, auroc; signals: signal) and version,
+%   measure, binSec, baseline, auroc; signals: signal), keepEpochs (only
+%   when true, so the identity without it is unchanged) and version,
 %   epochMatrixSettings' version of the part builders (see below).
 %   DatasetRuns.idText(ID) is its text, which is the same after a JSON
 %   round trip and for row or column vectors.
@@ -59,13 +86,13 @@ function [S, ID] = epochMatrixSettings(S0, opts)
 %
 %   Options
 %     data, ref, window, selection, units, signal, measure, binSec,
-%     baseline, auroc   the fields above
+%     baseline, auroc, normalize, keepEpochs   the fields above
 %     SaveAs     a .json file: write the checked settings there
 %
 %   Errors: epochMatrixSettings:UnknownField (a field S has no place for, at
-%   the top or inside units, signal or auroc; ref, window and selection
-%   raise theirs as this too), epochMatrixSettings:BadValue (any value that
-%   does not fit, or a file that is not a settings file).
+%   the top or inside units, signal, auroc or normalize; ref, window and
+%   selection raise theirs as this too), epochMatrixSettings:BadValue (any
+%   value that does not fit, or a file that is not a settings file).
 %
 %   The version constant (PartVersion below) goes into ID. Bump it whenever
 %   what a part builder of epochMatrix computes changes (spikePart,
@@ -87,11 +114,13 @@ arguments
     opts.binSec
     opts.baseline
     opts.auroc
+    opts.normalize
+    opts.keepEpochs
     opts.SaveAs (1,1) string = ""
 end
 
 PartVersion = 2;   % bump when a part builder's computation changes (see the help); 2: groupValues, bare text labels
-Fields = ["data" "ref" "window" "selection" "units" "measure" "binSec" "baseline" "auroc" "signal"];
+Fields = ["data" "ref" "window" "selection" "units" "measure" "binSec" "baseline" "auroc" "signal" "normalize" "keepEpochs"];
 
 % --- the input: [], a struct or a settings file ------------------------------------------
 if isempty(S0)
@@ -135,6 +164,15 @@ end
 S.baseline = checkSpan(S.baseline, "baseline");
 S.auroc = section("Auroc", S.auroc, "auroc");
 S.signal = checkSignal(S.signal);
+S.normalize = checkNormalize(S.normalize);
+S.keepEpochs = toLogical(S.keepEpochs, "keepEpochs");
+
+nb = S.normalize.baseline;
+if ismember(S.normalize.method, ["subtract" "ratio" "percent" "zscore"]) && ~(isSpikes(S.data) && S.measure == "auroc") ...
+        && (nb(2) < S.window.pre || nb(1) > S.window.post)
+    error('epochMatrixSettings:BadValue', 'normalize.baseline [%g %g] s lies outside the window [%g %g] s.', ...
+        nb(1), nb(2), S.window.pre, S.window.post);
+end
 
 if isSpikes(S.data)
     pre = S.window.pre; post = S.window.post;
@@ -162,7 +200,10 @@ if isSpikes(S.data)
 else
     ID.signal = S.signal;
 end
+if S.keepEpochs; ID.keepEpochs = true; end
 ID.version = PartVersion;
+name = "epochMatrix/" + S.data;
+if S.keepEpochs; name = name + "/epochs"; end
 
 if opts.SaveAs ~= ""
     writeJsonFile(opts.SaveAs, struct('schema', "epoch-matrix-settings", 'version', 1, 'settings', S), NonFinite="string");
@@ -184,7 +225,14 @@ S = struct( ...
     'baseline',  [-0.5 0], ...
     'auroc',     EphysAnalysisConfig.normalizeSection("Auroc", struct('cutoff', "none")), ...
     'signal',    struct('channels', [], 'shanks', [], 'baseline', [], 'detrend', false, 'rectify', false, ...
-                        'magnitude', false, 'statistic', "mean"));
+                        'magnitude', false, 'statistic', "mean"), ...
+    'normalize', normalizeDefaults(), ...
+    'keepEpochs', false);
+end
+
+
+function n = normalizeDefaults()
+n = struct('method', "none", 'baseline', [-0.5 0], 'scope', "row");
 end
 
 
@@ -375,6 +423,31 @@ for f = ["detrend" "rectify" "magnitude"]
     s.(f) = toLogical(s.(f), "signal." + f);
 end
 s.statistic = checkWord(s.statistic, ["mean" "median"], "signal.statistic");
+end
+
+
+function n = checkNormalize(n)
+%checkNormalize  The normalize struct: known fields, each in its form; baseline [b0 b1] with b0 < b1.
+def = normalizeDefaults();
+if isempty(n); n = struct(); end
+if ~(isstruct(n) && isscalar(n))
+    error('epochMatrixSettings:BadValue', 'normalize must be a struct.');
+end
+unknown = setdiff(string(fieldnames(n)).', string(fieldnames(def)).', 'stable');
+if ~isempty(unknown)
+    error('epochMatrixSettings:UnknownField', 'Unknown normalize field(s): %s.', strjoin("normalize." + unknown, ", "));
+end
+in = n;
+n = def;
+for f = string(fieldnames(in)).'
+    n.(f) = in.(f);
+end
+n.method = checkWord(n.method, ["none" "subtract" "ratio" "percent" "zscore" "minmax"], "normalize.method");
+n.baseline = checkSpan(n.baseline, "normalize.baseline");
+if ~(numel(n.baseline) == 2 && n.baseline(1) < n.baseline(2))
+    error('epochMatrixSettings:BadValue', 'normalize.baseline must be [b0 b1] s with b0 < b1.');
+end
+n.scope = checkWord(n.scope, ["row" "group"], "normalize.scope");
 end
 
 

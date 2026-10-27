@@ -29,6 +29,12 @@ function L = epochMatrixLabels(R)
 %     bins         "10 ms bins" (spikes; "" for signals)
 %     baseline     the auROC's baseline or the signal's subtracted one:
 %                  "baseline -1 to -0.5 s" ("" without one)
+%     normalization  R.normalization's method in words (epochMatrixNormalize):
+%                  "z-scored against the baseline -0.5 to 0 s", "scaled 0
+%                  to 1 over the window", with ", per group" for scope
+%                  "group" ("" without one). value then names it too:
+%                  "Firing rate (z-score vs. baseline)", "Firing rate -
+%                  baseline (spikes/s)"
 %     description  one line of the above, for a subtitle or a caption:
 %                  "Firing rate of units in 10 ms bins, -1 to 1 s from Stim
 %                  onset; Hit trials by Depth (descending)"
@@ -44,6 +50,11 @@ function L = epochMatrixLabels(R)
 S = R.settings;
 spikes = ismember(S.data, ["units" "detected"]);
 vu = string(R.valueUnits);
+nm = "none";
+if isfield(R, 'normalization') && isstruct(R.normalization) && isfield(R.normalization, 'method')
+    nm = string(R.normalization.method);
+    vu = string(R.normalization.rawUnits);
+end
 
 % --- the values
 if spikes
@@ -55,7 +66,7 @@ if spikes
     if S.measure == "auroc"
         L.value = "auROC vs. baseline";
     else
-        L.value = withUnit(L.measure, vu);
+        L.value = normalizedValue(L.measure, vu, nm);
     end
 else
     sig = S.signal;
@@ -63,7 +74,7 @@ else
     if sig.magnitude; what = what + " magnitude"; end
     if sig.rectify; what = "Rectified " + what; end
     L.measure = what + " " + sig.statistic;
-    L.value = withUnit(what + ", " + sig.statistic + " over epochs", vu);
+    L.value = normalizedValue(what + ", " + sig.statistic + " over epochs", vu, nm);
 end
 
 % --- time and event
@@ -100,18 +111,50 @@ if spikes && S.measure == "auroc"
 elseif ~spikes && ~isempty(S.signal.baseline)
     L.baseline = string(sprintf('baseline %g to %g s subtracted', S.signal.baseline));
 end
+L.normalization = normalizationText(R, nm);
 
 % --- one line
 d = L.measure + " of " + L.rows;
 if L.bins ~= ""; d = d + " in " + L.bins; end
 d = d + ", " + L.window + " from " + L.event;
 if L.baseline ~= ""; d = d + ", " + L.baseline; end
+if L.normalization ~= ""; d = d + ", " + L.normalization; end
 d = d + "; " + L.trials;
 if ~isempty(by); d = d + " by " + L.group + " (" + S.selection.groupOrder + ")"; end
 L.description = d;
 
 L = orderfields(L, ["value" "measure" "time" "event" "group" "groups" "rows" "trials" "window" "bins" ...
-    "baseline" "description"]);
+    "baseline" "normalization" "description"]);
+end
+
+
+function s = normalizedValue(name, unit, method)
+%normalizedValue  The axis label of a value NAME in UNIT after a normalization METHOD.
+switch method
+    case "subtract"; s = withUnit(name + " - baseline", unit);
+    case "ratio";    s = name + " / baseline";
+    case "percent";  s = name + " (% change from baseline)";
+    case "zscore";   s = name + " (z-score vs. baseline)";
+    case "minmax";   s = name + " (min-max normalized)";
+    otherwise;       s = withUnit(name, unit);
+end
+end
+
+function s = normalizationText(R, method)
+%normalizationText  The normalization in words ("" for none).
+s = "";
+if method == "none"; return; end
+n = R.normalization;
+b = "";
+if ~isempty(n.baseline); b = string(sprintf('the baseline %g to %g s', n.baseline)); end
+switch method
+    case "subtract"; s = b + " subtracted";
+    case "ratio";    s = "divided by " + b;
+    case "percent";  s = "% change from " + b;
+    case "zscore";   s = "z-scored against " + b;
+    case "minmax";   s = "scaled 0 to 1 over the window";
+end
+if n.scope == "group"; s = s + ", per group"; end
 end
 
 

@@ -7,8 +7,13 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
     %   round trip, hidden fields kept, the Data drop-down's blocks, an
     %   invalid edit undone); a drop-down opening loads one source; compute
     %   equals epochMatrix, a dataset ticked later is the only one computed,
-    %   a binSec change computes all; the result file restores without a
-    %   compute, and Scan=false; forEach's cache and cancel; the progress
+    %   a binSec change computes all; a Normalize change normalizes the
+    %   result again in place (still current, nothing assembled, the same as
+    %   a compute), and its controls are on only where they apply; the
+    %   result file restores without a
+    %   compute, and Scan=false; Keep each epoch (its own cached parts,
+    %   R.epochs left out of the result file and assembled again from the
+    %   parts on a restore, a warning without them); forEach's cache and cancel; the progress
     %   strip (bar widths, the "i/Total" prefix, Cancel and checkCancel, a
     %   full bar at the finish, the command window throttled when hidden);
     %   a compute canceled from the strip keeps its finished part, the
@@ -193,26 +198,37 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             S = epochMatrixSettings([], ref=ref, window=epochWindow(pre=-1, post=1), ...
                 selection=trialSelection(response="Hit", groupBy="Depth", groupOrder="descending", filter="Depth > 0"), ...
                 data="detected", units=struct('classes', "su", 'shanks', 1:4, 'merge', struct('enabled', true)), ...
-                measure="rate", binSec=0.01, baseline=[-1 -0.5], signal=struct('detrend', true));
+                measure="rate", binSec=0.01, baseline=[-1 -0.5], signal=struct('detrend', true), ...
+                normalize=struct('method', "zscore", 'baseline', [-0.4 0], 'scope', "group"), keepEpochs=true);
             B.Settings = S;
             c = B.Ctl;
+            A = c.Align;
             tc.verifyEqual(string(c.Data.Value), "detected");
-            tc.verifyEqual(string(c.Line.Value), "Stim");
-            tc.verifyEqual(string(c.ThenLine.Value), "Platform");
-            tc.verifyEqual(string(c.ThenEdge.Value), "offset");
-            tc.verifyEqual(string(c.ThenMore.Text), "+1 more step(s) kept");
-            tc.verifyEqual(c.Pre.Value, -1);
-            tc.verifyEqual(string(c.Response.Value), "Hit");
-            tc.verifyEqual(string(c.GroupBy.Value), "Depth");
-            tc.verifyEqual(string(c.Order.Value), "descending");
+            tc.verifyEqual(string(A.Line.Value), "Stim");
+            tc.verifyEqual(string(A.Scope.Value), "trial");
+            tc.verifyEqual(A.SeqText.UserData.sequence, S.ref.sequence, 'The sequence is kept in its summary label.');
+            tc.verifyEqual(string(A.SeqText.Text), "then Platform offset then Trough onset");
+            tc.verifyEqual(A.Pre.Value, -1);
+            tc.verifyEqual(string(A.Mode.ItemsData), "fixed", 'epochMatrix takes a fixed window only.');
+            tc.verifyEqual(A.Mode.Visible, matlab.lang.OnOffSwitchState(false));
+            tc.verifyEqual(A.StopOn.Visible, matlab.lang.OnOffSwitchState(false));
+            tc.verifyEqual(string(A.Filter.Value), "Depth > 0");
+            tc.verifyEqual(string(A.Response.Value), "Hit");
+            tc.verifyEqual(string(A.Flags.Value), "ok");
+            tc.verifyEqual(string(A.Group1.Value), "Depth");
+            tc.verifyEqual(string(A.Group2.Value), "(none)");
+            tc.verifyEqual(string(A.Order.Value), "descending");
             tc.verifyTrue(c.Merge.Value);
             tc.verifyEqual(string(c.UnitShanks.Value), "1:4");
             tc.verifyEqual(string(c.Baseline.Value), "-1 -0.5");
             tc.verifyTrue(c.Detrend.Value);
+            tc.verifyEqual(string({c.Normalize.Value c.NormBaseline.Value c.NormScope.Value}), ["zscore" "-0.4 0" "group"]);
+            tc.verifyTrue(c.KeepEpochs.Value);
             % every control applied as it shows gives the settings back
-            for name = ["Data" "Line" "Edge" "Which" "N" "ThenLine" "ThenEdge" "Pre" "Post" "Response" "GroupBy" "Order" ...
-                    "Merge" "UnitShanks" "Measure" "Bin" "Baseline" "Channels" "SigShanks" "SigBaseline" "Statistic" ...
-                    "Detrend" "Rectify" "Magnitude"]
+            for name = ["Data" "Line" "Edge" "Which" "N" "Scope" "Offset" "MinDur" "MaxDur" "TimeFrom" "TimeTo" ...
+                    "ShiftParam" "ShiftUnit" "Pre" "Post" "Filter" "Response" "Flags" "Group1" "Group2" "Order" "MaxGroups" ...
+                    "ExcludeArtifacts" "MinArtifact" "Normalize" "NormBaseline" "NormScope" "Merge" "UnitShanks" "Measure" "Bin" "Baseline" "Channels" "SigShanks" "SigBaseline" "Statistic" ...
+                    "Detrend" "Rectify" "Magnitude" "KeepEpochs"]
                 B.formEdit(name);
                 tc.verifyEqual(B.Settings, S, name + " applied as shown changes nothing");
             end
@@ -231,9 +247,50 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEmpty(B.Settings.units.shanks);
             B.formEdit("Response", ["Hit" "Miss"]);
             tc.verifyEqual(B.Settings.selection.response, ["Hit" "Miss"]);
-            B.formEdit("ThenLine", "(none)");
-            tc.verifyEqual(numel(B.Settings.ref.sequence), 1, 'Only the first step goes.');
-            tc.verifyEqual(B.Settings.ref.sequence(1).line, "Trough");
+            % the trial selection: every field of trialSelection
+            B.formEdit("Filter", "Depth > 0.5 & ~FA");
+            B.formEdit("Flags", ["ok" "partial"]);
+            B.formEdit("Group2", "Level");
+            B.formEdit("MaxGroups", 20);
+            B.formEdit("ExcludeArtifacts", false);
+            sel = B.Settings.selection;
+            tc.verifyEqual({sel.filter, sel.pairingFlags, sel.groupBy, sel.maxGroups, sel.excludeArtifacts}, ...
+                {"Depth > 0.5 & ~FA", ["ok" "partial"], ["Depth" "Level"], 20, false});
+            tc.verifyEqual(A.MinArtifact.Enable, matlab.lang.OnOffSwitchState(false));
+            B.formEdit("Filter", "Depth >");   % does not parse: undone
+            tc.verifyEqual(B.Settings.selection.filter, "Depth > 0.5 & ~FA");
+            tc.verifyEqual(string(A.Filter.Value), "Depth > 0.5 & ~FA");
+            tc.verifyTrue(startsWith(string(c.Status.Text), "Not applied"), c.Status.Text);
+            B.formEdit("Which", "nth");
+            tc.verifyEqual(A.N.Enable, matlab.lang.OnOffSwitchState(true));
+            B.formEdit("N", 2);
+            tc.verifyEqual([B.Settings.ref.which B.Settings.ref.n], ["nth" "2"]);
+            B.formEdit("Which", "first");
+            % the sequence: the analysis app's Event sequence window
+            A.SeqEdit.ButtonPushedFcn(A.SeqEdit, []);
+            tc.addTeardown(@() delete(B.SequenceDialog));
+            D = B.SequenceDialog.UserData;
+            tc.verifyEqual(height(D.Table.Data), 2);
+            tc.verifyEqual(string(D.Line.Value), "Stim");
+            D.Table.CellSelectionCallback(D.Table, struct('Indices', [1 1]));
+            D.RemoveStep.ButtonPushedFcn(D.RemoveStep, []);
+            D.AddStep.ButtonPushedFcn(D.AddStep, []);   % a Trough onset after the Trough onset
+            T = D.Table.Data;
+            T.Then(2) = "not followed by";
+            T.Within(2) = 0.5;
+            D.Table.Data = T;
+            D.Align.Value = 1;   % align to step 1; step 2 is a condition
+            D.Apply.ButtonPushedFcn(D.Apply, []);
+            tc.verifyFalse(isvalid(D.Apply), 'Apply closes the window.');
+            seq = B.Settings.ref.sequence;
+            tc.verifyEqual({seq.line}, {"Trough", "Trough"});
+            tc.verifyEqual({seq.relation}, {"followedBy", "notFollowedBy"});
+            tc.verifyEqual(seq(2).maxGapSec, 0.5);
+            tc.verifyEqual(B.Settings.ref.alignStep, 1);
+            kept = B.Settings;
+            A.SeqEdit.ButtonPushedFcn(A.SeqEdit, []);
+            B.Settings = kept;   % settings from elsewhere close the window
+            tc.verifyTrue(isempty(B.SequenceDialog));
             % the Data drop-down: only its block is on
             c.Data.Value = 'LFP';
             c.Data.ValueChangedFcn(c.Data, []);
@@ -245,7 +302,15 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             B.formEdit("Data", "units");
             tc.verifyEqual([c.Measure.Enable c.Merge.Enable c.Channels.Enable c.Baseline.Enable], matlab.lang.OnOffSwitchState([1 0 0 0]));
             B.formEdit("Measure", "auroc");
-            tc.verifyEqual(c.Baseline.Enable, matlab.lang.OnOffSwitchState(true));
+            tc.verifyEqual([c.Baseline.Enable c.Normalize.Enable c.NormBaseline.Enable c.NormScope.Enable], ...
+                matlab.lang.OnOffSwitchState([1 0 0 0]), 'auROC is not normalized.');
+            B.formEdit("Measure", "rate");
+            B.formEdit("Normalize", "minmax");
+            tc.verifyEqual([c.Normalize.Enable c.NormBaseline.Enable c.NormScope.Enable], matlab.lang.OnOffSwitchState([1 0 1]));
+            B.formEdit("Normalize", "none");
+            tc.verifyEqual([c.NormBaseline.Enable c.NormScope.Enable], matlab.lang.OnOffSwitchState([0 0]));
+            B.formEdit("Normalize", "zscore");
+            B.formEdit("Measure", "auroc");
             B.formEdit("Data", "detected");
             tc.verifyEqual(c.Merge.Enable, matlab.lang.OnOffSwitchState(true));
             % an invalid edit is undone and said
@@ -275,19 +340,29 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             B = tc.open();
             c = B.Ctl;
             tc.verifyEqual(B.Runner.Sources.Count, uint64(0));
-            c.Line.DropDownOpeningFcn(c.Line, []);
+            c.Align.Line.DropDownOpeningFcn(c.Align.Line, []);
             tc.verifyEqual(B.Runner.Sources.Count, uint64(1), 'Opening a list loads one source.');
             tc.verifyTrue(isKey(B.Runner.Sources, char(B.Selected(1))), 'The first ticked dataset''s.');
-            tc.verifyTrue(all(ismember({'Trial', 'Stim'}, c.Line.Items)));
-            tc.verifyTrue(ismember('Depth', c.GroupBy.Items));
-            tc.verifyEqual(c.ThenLine.Items{1}, '(none)');
+            A = c.Align;
+            tc.verifyTrue(all(ismember({'Trial', 'Stim'}, cellstr(A.Line.Items))));
+            tc.verifyTrue(all(ismember({'(none)', 'Depth'}, cellstr(A.Group1.Items))));
+            tc.verifyTrue(ismember('Depth', cellstr(A.ShiftParam.Items)));
             % a clicked row's dataset is the one listed
             T = c.Table.Data;
             r = find(T.Key == tc.Keys(2));
             c.Table.CellSelectionCallback(c.Table, struct('Indices', [r 2]));
-            c.GroupBy.DropDownOpeningFcn(c.GroupBy, []);
+            A.Group1.DropDownOpeningFcn(A.Group1, []);
             tc.verifyTrue(isKey(B.Runner.Sources, char(tc.Keys(2))));
             tc.verifyEqual(B.Runner.Sources.Count, uint64(2));
+            % the Epoch Diagram shows that dataset, follows the settings and closes with the browser
+            A.Diagram.ButtonPushedFcn(A.Diagram, []);
+            d = B.EpochWindow;
+            tc.verifyTrue(~isempty(d) && d.isOpen(), 'Epoch Diagram opens the window.');
+            tc.verifyEqual(string(d.Fig.Name), "How the epochs are cut");
+            B.formEdit("Pre", -0.5);
+            tc.verifyTrue(d.isOpen());
+            delete(B);
+            tc.verifyFalse(isvalid(d) && d.isOpen(), 'It closes with the browser.');
         end
 
         function computeEqualsEpochMatrix(tc)
@@ -327,6 +402,38 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyTrue(isfile(B.ResultFile), 'The result file is written after a compute.');
             B.untickAll();
             tc.verifyError(@() B.compute(), 'DatasetBrowser:NoneTicked');
+        end
+
+        function normalizeAppliesWithoutCompute(tc)
+            B = tc.open(Settings=tc.Spike);
+            R = B.compute();
+            tc.verifyEqual(R.normalization.method, "none");
+            B.formEdit("Normalize", "zscore");
+            tc.verifyTrue(B.ResultCurrent, 'Normalized again in place: still current.');
+            Rz = B.Result;
+            tc.verifyEqual(Rz.created, R.created, 'Nothing was assembled again.');
+            tc.verifyEqual(Rz.data, epochMatrixNormalize(R, struct('method', "zscore")).data);
+            tc.verifyEqual(Rz.raw, R.data);
+            tc.verifyEqual(Rz.valueUnits, "z");
+            tc.verifyTrue(contains(B.Ctl.Summary.Text, "z-scored against the baseline -0.5 to 0 s"), B.Ctl.Summary.Text);
+            B.formEdit("NormScope", "group");
+            B.formEdit("NormBaseline", "-0.2 0");
+            tc.verifyEqual(B.Result.normalization.scope, "group");
+            tc.verifyEqual(B.Result.normalization.baseline, [-0.2 0]);
+            tc.verifyEqual(B.Settings.normalize.baseline, [-0.2 0]);
+            % a compute gives the same, from the kept parts
+            Rg = B.Result;
+            R2 = B.compute();
+            tc.verifyEqual(B.Runs.Last.status, ["cached"; "cached"]);
+            tc.verifyEqual(R2.data, Rg.data);
+            % "none": the values as computed
+            B.formEdit("Normalize", "none");
+            tc.verifyEqual(B.Result.data, R.data);
+            tc.verifyEmpty(B.Result.raw);
+            % another setting changed too: out of date, not normalized in place
+            B.Settings = epochMatrixSettings(B.Settings, binSec=0.02, normalize=struct('method', "subtract"));
+            tc.verifyFalse(B.ResultCurrent);
+            tc.verifyEqual(B.Result.normalization.method, "none");
         end
 
         function resultFileRestores(tc)
@@ -375,6 +482,40 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             B6 = DatasetBrowser(tc.Root, Visible=false, Scan=false);
             tc.addTeardown(@() delete(B6));
             tc.verifyEqual(B6.ResultFile, string(fullfile(tc.Root, "DatasetBrowser_results.mat")));
+        end
+
+        function keepEpochsRoundTrip(tc)
+            tmp = tc.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+            f = string(fullfile(tmp.Folder, "epochs.mat"));
+            B = tc.open(Settings=tc.Spike, ResultFile=f);
+            R0 = B.compute();
+            tc.verifyEmpty(R0.epochs);
+            B.formEdit("KeepEpochs", true);
+            tc.verifyFalse(B.ResultCurrent, 'A result without epochs is out of date.');
+            tc.verifyTrue(all(B.Table.Cached == ""), 'The parts with epochs are kept apart: none yet.');
+            R = B.compute();
+            tc.verifyEqual(B.Runs.Last.status, ["done"; "done"]);
+            tc.verifyEqual(R.data, R0.data);
+            tc.verifyEqual(numel(R.epochs), numel(R.keys));
+            tc.verifyTrue(contains(B.Ctl.Summary.Text, "epochs kept (R.epochs)"), B.Ctl.Summary.Text);
+            % off again: the parts without epochs are still kept
+            B.formEdit("KeepEpochs", false);
+            tc.verifyTrue(all(startsWith(B.Table.Cached, "✓")));
+            B.formEdit("KeepEpochs", true);
+            B.close();
+            % the result file leaves the epochs to the kept parts; a restore assembles them again
+            raw = load(f);
+            tc.verifyEmpty(raw.result.epochs);
+            B2 = tc.open(ResultFile=f, Scan=false);
+            tc.verifyEqual(B2.Result.epochs, R.epochs);
+            tc.verifyTrue(B2.ResultCurrent);
+            % without its parts the result comes back without epochs, and says so
+            B3 = tc.open(ResultFile=f, Scan=false);
+            B3.forget();
+            B3.save();
+            B4 = tc.verifyWarning(@() tc.open(ResultFile=f, Scan=false), 'DatasetBrowser:BadResultFile');
+            tc.verifyEmpty(B4.Result.epochs);
+            tc.verifyEqual(B4.Result.data, R.data);
         end
 
         function forEachCachesAndCancels(tc)
@@ -611,8 +752,33 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             B.close();
             tc.verifyEqual(AppPrefs.getpref("DatasetBrowser", "Workers"), 2);
             B2 = tc.open(Scan=false);
-            tc.verifyEqual(B2.Workers, 2, 'Workers comes back from the preferences.');
+            want = 2;
+            pool = gcp('nocreate');
+            if isa(pool, 'parallel.ProcessPool'); want = pool.NumWorkers; end
+            tc.verifyEqual(B2.Workers, want, 'Workers comes back from the preferences, or is the open process pool''s size.');
             B2.Workers = 0;
+            B2.close();
+        end
+    end
+
+    methods (Test)
+        function keepOnTop(tc)
+            B = tc.open(Scan=false);
+            tc.verifyFalse(B.OnTop);
+            tc.verifyEqual(string(B.Fig.WindowStyle), "normal");
+            B.Ctl.OnTop.Value = true;
+            B.Ctl.OnTop.ValueChangedFcn(B.Ctl.OnTop, []);
+            tc.verifyTrue(B.OnTop, 'The checkbox sets OnTop.');
+            tc.verifyEqual(string(B.Fig.WindowStyle), "alwaysontop");
+            B.close();
+            tc.verifyTrue(logical(AppPrefs.getpref("DatasetBrowser", "OnTop")));
+            B2 = tc.open(Scan=false);
+            tc.verifyTrue(B2.OnTop, 'OnTop comes back from the preferences.');
+            tc.verifyTrue(B2.Ctl.OnTop.Value);
+            tc.verifyEqual(string(B2.Fig.WindowStyle), "alwaysontop");
+            B2.OnTop = false;
+            tc.verifyEqual(string(B2.Fig.WindowStyle), "normal");
+            tc.verifyFalse(B2.Ctl.OnTop.Value);
             B2.close();
         end
     end

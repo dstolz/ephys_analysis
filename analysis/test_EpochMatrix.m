@@ -17,7 +17,15 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
     %   script's session rule; a changed outputs stamp recomputes that
     %   dataset only. Assembly: numeric and text labels of one parameter
     %   line up, two parameters order by value (Depth 9 before 10), and an
-    %   integer column some datasets lack becomes double.
+    %   integer column some datasets lack becomes double. Normalization:
+    %   every method by hand, per row and per group, normalized again from
+    %   the raw values (no stacking, "none" gives them back), a flat
+    %   baseline NaN and marked, a missing group left unmarked, no baseline
+    %   time an error, auROC left alone, and the labels; normalize is not
+    %   in the id. keepEpochs: in the id only when on, its parts under their
+    %   own name; the kept spike times, binned per epoch, average to the
+    %   counts, and the kept LFP epochs to the means; normalization leaves
+    %   them alone; a part without epochs assembles with empty ones.
     %
     %   Usage:  runtests("test_EpochMatrix")
 
@@ -56,7 +64,9 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
         function settingsDefaults(tc)
             [S, ID] = epochMatrixSettings();
             tc.verifyEqual(string(fieldnames(S)).', ["data" "ref" "window" "selection" "units" "measure" "binSec" ...
-                "baseline" "auroc" "signal"]);
+                "baseline" "auroc" "signal" "normalize" "keepEpochs"]);
+            tc.verifyEqual(S.normalize, struct('method', "none", 'baseline', [-0.5 0], 'scope', "row"));
+            tc.verifyFalse(S.keepEpochs);
             tc.verifyEqual(S.data, "units");
             tc.verifyEmpty(S.units.classes, 'Every class by default, as the script''s [].');
             tc.verifyEqual(S.units.source, "units");
@@ -122,6 +132,19 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
             tc.verifyError(@() epochMatrixSettings([], signal=struct('detrend', "maybe")), bad);
             tc.verifyError(@() epochMatrixSettings([], data="LFP", signal=struct('baseline', [2 3])), bad);
             tc.verifyError(@() epochMatrixSettings(42), bad);
+            tc.verifyError(@() epochMatrixSettings([], normalize=struct('nope', 1)), unk);
+            tc.verifyError(@() epochMatrixSettings([], normalize=struct('method', "log")), bad);
+            tc.verifyError(@() epochMatrixSettings([], normalize=struct('scope', "unit")), bad);
+            tc.verifyError(@() epochMatrixSettings([], normalize=struct('baseline', [0 0])), bad);
+            tc.verifyError(@() epochMatrixSettings([], normalize=struct('baseline', [])), bad);
+            tc.verifyError(@() epochMatrixSettings([], normalize="zscore"), bad);
+            tc.verifyError(@() epochMatrixSettings([], normalize=struct('method', "zscore", 'baseline', [2 3])), bad);
+            tc.verifyError(@() epochMatrixSettings([], keepEpochs="maybe"), bad);
+            tc.verifyError(@() epochMatrixSettings([], keepEpochs=[true false]), bad);
+            % a baseline outside the window only matters where it is used
+            S = epochMatrixSettings([], normalize=struct('method', "minmax", 'baseline', [2 3]));
+            tc.verifyEqual(S.normalize.baseline, [2 3]);
+            epochMatrixSettings([], measure="auroc", normalize=struct('method', "zscore", 'baseline', [2 3]));
             % the auROC baseline and the bins only matter for spikes
             S = epochMatrixSettings([], data="LFP", measure="auroc", baseline=[]);
             tc.verifyEqual(S.data, "LFP");
@@ -164,6 +187,17 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
             tc.verifyEqual(DatasetRuns.idText(IL2), DatasetRuns.idText(IL), 'Spike options leave the signal id.');
             [~, IL3] = epochMatrixSettings(L, signal=struct('rectify', true));
             tc.verifyNotEqual(DatasetRuns.idText(IL3), DatasetRuns.idText(IL));
+            [~, IN] = epochMatrixSettings(S, normalize=struct('method', "zscore", 'baseline', [-1 0], 'scope', "group"));
+            tc.verifyEqual(DatasetRuns.idText(IN), DatasetRuns.idText(ID), 'normalize is applied after assembly: not in the id.');
+            % keepEpochs: in the id only when on, and its parts under their own name
+            [~, ~, name] = epochMatrixSettings(S);
+            tc.verifyEqual(name, "epochMatrix/units");
+            [~, IK, nameK] = epochMatrixSettings(S, keepEpochs=true);
+            tc.verifyTrue(IK.keepEpochs);
+            tc.verifyNotEqual(DatasetRuns.idText(IK), DatasetRuns.idText(ID));
+            tc.verifyEqual(nameK, "epochMatrix/units/epochs");
+            [~, ~, nameL] = epochMatrixSettings(L, keepEpochs=true);
+            tc.verifyEqual(nameL, "epochMatrix/LFP/epochs");
         end
 
         % --- spikes ---------------------------------------------------------------------------
@@ -187,7 +221,8 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
             end
             % the result's fields, and its datasets table
             tc.verifyEqual(string(fieldnames(R)).', ["data" "rows" "t" "groupLabels" "rowKind" "valueUnits" ...
-                "settings" "datasets" "keys" "created" "labels"]);
+                "settings" "datasets" "keys" "created" "raw" "normalization" "labels" "epochs"]);
+            tc.verifyEmpty(R.epochs, 'No epochs without keepEpochs.');
             tc.verifyEqual(R.labels, epochMatrixLabels(R));
             tc.verifyEqual(R.settings, S);
             tc.verifyEqual(R.datasets.Properties.VariableNames, {'key', 'name', 'subject', 'date', 'status', ...
@@ -321,6 +356,75 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
                 row = row + n;
             end
             tc.verifyEqual(row, height(R.rows));
+        end
+
+        % --- keepEpochs -------------------------------------------------------------------------
+        function spikeEpochsCountToTheMatrix(tc)
+            r = tc.Runner;
+            runs = DatasetRuns();
+            [S, ID] = tc.spikeSettings(data="units", measure="count");
+            R0 = epochMatrix(r, S, LogFcn=[], Runs=runs);
+            R = epochMatrix(r, epochMatrixSettings(S, keepEpochs=true), LogFcn=[], Runs=runs);
+            tc.verifyEqual(R.data, R0.data, 'Keeping the epochs changes no value.');
+            tc.verifyEqual(runs.status("epochMatrix/units", r.Keys, ID), repmat("current", numel(r.Keys), 1), ...
+                'The parts without epochs stay, under their own name.');
+            tc.verifyEqual(numel(R.epochs), numel(R.keys));
+            edges = [R.t - S.binSec / 2; R.t(end) + S.binSec / 2];
+            for k = 1:numel(R.epochs)
+                e = R.epochs(k);
+                tc.verifyEqual(e.key, R.keys(k));
+                tc.verifyEqual(e.rows, find(R.rows.Dataset == e.key));
+                tc.verifyEmpty(e.data);
+                src = r.source(e.key);
+                E = epochTable(src, S.ref, Window=S.window, Selection=S.selection);
+                tc.verifyEqual(removevars(e.E, 'resultGroup'), E);
+                tc.verifyEqual(R.groupLabels(e.E.resultGroup), e.E.Depth, 'resultGroup names the group of R.groupLabels.');
+                tc.verifyEqual(numel(e.spikes), numel(e.rows));
+                % every row's spikes, binned per epoch and averaged per group, give R.data
+                for i = 1:numel(e.rows)
+                    sp = e.spikes(i);
+                    tc.verifyTrue(all(sp.times >= edges(1) & sp.times < edges(end)));
+                    for g = reshape(unique(e.E.resultGroup), 1, [])
+                        ep = find(e.E.resultGroup == g);
+                        c = zeros(numel(R.t), numel(ep));
+                        for j = 1:numel(ep)
+                            c(:, j) = histcounts(sp.times(sp.epoch == ep(j)), edges).';
+                        end
+                        tc.verifyEqual(R.data(e.rows(i), :, g), mean(c, 2).', 'AbsTol', 1e-12, ...
+                            sprintf('%s row %d group %d', e.key, i, g));
+                    end
+                end
+            end
+        end
+
+        function lfpEpochsAverageToTheMatrix(tc)
+            r = tc.Runner;
+            S = tc.spikeSettings(data="LFP", signal=struct('baseline', [-0.2 0], 'detrend', true, 'rectify', true));
+            R0 = epochMatrix(r, S, LogFcn=[]);
+            R = epochMatrix(r, epochMatrixSettings(S, keepEpochs=true), LogFcn=[]);
+            tc.verifyEqual(R.data, R0.data);
+            for k = 1:numel(R.epochs)
+                e = R.epochs(k);
+                tc.verifyEmpty(e.spikes);
+                tc.verifyClass(e.data, 'single');
+                tc.verifyEqual(size(e.data), [numel(e.rows), numel(R.t), height(e.E)]);
+                tc.verifyEqual(R.datasets.nEpochs(R.datasets.key == e.key), height(e.E));
+                for g = reshape(unique(e.E.resultGroup), 1, [])
+                    m = mean(double(e.data(:, :, e.E.resultGroup == g)), 3);
+                    tc.verifyEqual(m, R.data(e.rows, :, g), 'RelTol', 1e-5, 'AbsTol', 1e-4);
+                end
+            end
+            % normalization leaves the epochs as they are
+            Rz = epochMatrixNormalize(R, struct('method', "zscore", 'baseline', [-0.2 0]));
+            tc.verifyEqual(Rz.epochs, R.epochs);
+        end
+
+        function assemblyKeepsPartsWithoutEpochs(tc)
+            S = epochMatrixSettings([], keepEpochs=true);
+            R = epochMatrix({makePart("a", [1; 2], 2)}, S);
+            tc.verifyEqual(R.epochs.key, "a");
+            tc.verifyEqual(R.epochs.rows, [1; 2]);
+            tc.verifyEmpty(R.epochs.E);
         end
 
         function channelAndShankPicks(tc)
@@ -462,6 +566,110 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
             L = epochMatrix(p, S).labels;
             tc.verifyEqual([L.value L.measure L.rows L.bins L.baseline], ["Rectified MUA, median over epochs (uV)" ...
                 "Rectified MUA median" "MUA channels" "" "baseline -0.2 to 0 s subtracted"]);
+        end
+
+        % --- normalization ------------------------------------------------------------------------
+        function normalizeMethods(tc)
+            % each method by hand, per row (the groups pooled) and per group
+            A = makePart("A", [1; 2], 2);
+            A.values(:, 2, :) = A.values(:, 2, :) .^ 1.5;   % rows that differ in their spread
+            R0 = epochMatrix(A, []);
+            raw = R0.data;
+            tc.verifyEmpty(R0.raw);
+            tc.verifyEqual(R0.normalization.method, "none");
+            inB = R0.t >= 0 & R0.t <= 0.1;   % t 0 and 0.1
+            for scope = ["row" "group"]
+                if scope == "row"
+                    Xb = reshape(raw(:, inB, :), 2, []);
+                    X = reshape(raw, 2, []);
+                else
+                    Xb = raw(:, inB, :);
+                    X = raw;
+                end
+                mu = mean(Xb, 2);
+                sd = std(Xb, 0, 2);
+                want = struct('subtract', raw - mu, 'ratio', raw ./ mu, 'percent', 100 * (raw - mu) ./ abs(mu), ...
+                    'zscore', (raw - mu) ./ sd, 'minmax', (raw - min(X, [], 2)) ./ (max(X, [], 2) - min(X, [], 2)));
+                units = struct('subtract', "spikes/s", 'ratio', "x baseline", 'percent', "%", 'zscore', "z", 'minmax', "0-1");
+                for m = string(fieldnames(want)).'
+                    S = epochMatrixSettings([], normalize=struct('method', m, 'baseline', [0 0.1], 'scope', scope));
+                    R = epochMatrix(A, S);
+                    tc.verifyEqual(R.data, want.(m), 'AbsTol', 1e-9, m + " " + scope);
+                    tc.verifyEqual(R.raw, raw);
+                    tc.verifyEqual(R.data, (R.raw - R.normalization.center) ./ R.normalization.scale, 'AbsTol', 1e-12);
+                    tc.verifyEqual(R.valueUnits, units.(m));
+                    tc.verifyEqual(R.normalization.rawUnits, "spikes/s");
+                    tc.verifyEqual([R.normalization.method R.normalization.scope], [m scope]);
+                    tc.verifyFalse(any(R.normalization.undefined(:)));
+                    if m == "minmax"
+                        tc.verifyEmpty(R.normalization.baseline);
+                    else
+                        tc.verifyEqual([R.normalization.baseline R.normalization.nBaseline], [0 0.1 2]);
+                    end
+                end
+            end
+            % normalized again from the raw values: no stacking; "none" gives them back
+            Rs = epochMatrix(A, epochMatrixSettings([], normalize=struct('method', "subtract", 'baseline', [0 0.1])));
+            Rz = epochMatrixNormalize(Rs, struct('method', "zscore"));
+            tc.verifyEqual(Rz.data, epochMatrix(A, epochMatrixSettings([], normalize=struct('method', "zscore", ...
+                'baseline', [0 0.1]))).data, 'AbsTol', 1e-12);
+            tc.verifyEqual(Rz.settings.normalize.baseline, [0 0.1], 'The other fields are kept.');
+            Rn = epochMatrixNormalize(Rz, struct('method', "none"));
+            tc.verifyEqual(Rn.data, raw);
+            tc.verifyEmpty(Rn.raw);
+            tc.verifyEqual(Rn.valueUnits, "spikes/s");
+            tc.verifyEqual(epochMatrixNormalize(Rz).data, Rz.data, 'Its own settings again: the same.');
+        end
+
+        function normalizeUndefinedAndMissing(tc)
+            % a flat baseline gives NaN and is marked; a group a dataset lacks stays NaN, unmarked
+            A = makePart("A", [1; 2], 2);
+            A.values(1:2, 1, 1) = 5;   % row 1, group 1: the same value at both baseline times
+            B = makePart("B", 1, 1);   % no group 2
+            S = epochMatrixSettings([], normalize=struct('method', "zscore", 'baseline', [0 0.1], 'scope', "group"));
+            R = epochMatrix([A B], S);
+            tc.verifyTrue(all(isnan(R.data(1, :, 1))));
+            tc.verifyTrue(all(isfinite(R.data(1, :, 2))));
+            tc.verifyTrue(all(isfinite(R.data(2, :, :)), 'all'));
+            tc.verifyTrue(all(isnan(R.data(3, :, 2))));
+            tc.verifyEqual(R.normalization.undefined, logical([1 0; 0 0; 0 0]));
+            % per row the groups are pooled: row 1's baseline varies across them
+            R = epochMatrix([A B], epochMatrixSettings(S, normalize=struct('scope', "row")));
+            tc.verifyTrue(all(isfinite(R.data(1, :, :)), 'all'));
+            tc.verifyFalse(any(R.normalization.undefined(:)));
+            % no time of R.t in the baseline
+            tc.verifyError(@() epochMatrix(A, epochMatrixSettings(S, normalize=struct('baseline', [0.35 0.5]))), ...
+                'epochMatrixNormalize:NoBaseline');
+            tc.verifyError(@() epochMatrixNormalize(struct('data', 1)), 'epochMatrixNormalize:BadResult');
+            % auROC is not normalized
+            p = makePart("A", [1; 2], 1); p.valueUnits = "auROC";
+            R = epochMatrix(p, epochMatrixSettings([], measure="auroc", normalize=struct('method', "zscore")));
+            tc.verifyEqual(R.normalization.method, "none");
+            tc.verifyEqual(R.settings.normalize.method, "zscore");
+            tc.verifyEqual(R.valueUnits, "auROC");
+            tc.verifyEmpty(R.raw);
+        end
+
+        function normalizeLabels(tc)
+            A = makePart("A", [3; 1], 2);
+            S = epochMatrixSettings([], ref=eventRef(line="Stim"), normalize=struct('method', "zscore", 'baseline', [0 0.1]));
+            L = epochMatrix(A, S).labels;
+            tc.verifyEqual([L.value L.normalization], ["Firing rate (z-score vs. baseline)" ...
+                "z-scored against the baseline 0 to 0.1 s"]);
+            tc.verifyEqual(L.description, "Firing rate of units in 10 ms bins, -1 to 1 s from Stim onset, " + ...
+                "z-scored against the baseline 0 to 0.1 s; all trials");
+            L = epochMatrix(A, epochMatrixSettings(S, normalize=struct('method', "subtract", 'scope', "group"))).labels;
+            tc.verifyEqual([L.value L.normalization], ["Firing rate - baseline (spikes/s)" ...
+                "the baseline 0 to 0.1 s subtracted, per group"]);
+            L = epochMatrix(A, epochMatrixSettings(S, normalize=struct('method', "minmax"))).labels;
+            tc.verifyEqual([L.value L.normalization], ["Firing rate (min-max normalized)" "scaled 0 to 1 over the window"]);
+            L = epochMatrix(A, epochMatrixSettings(S, normalize=struct('method', "percent"))).labels;
+            tc.verifyEqual(L.value, "Firing rate (% change from baseline)");
+            L = epochMatrix(A, epochMatrixSettings(S, normalize=struct('method', "none"))).labels;
+            tc.verifyEqual([L.value L.normalization], ["Firing rate (spikes/s)" ""]);
+            p = makePart("A", [1; 2], 1); p.valueUnits = "uV";
+            L = epochMatrix(p, epochMatrixSettings([], data="LFP", normalize=struct('method', "ratio", 'baseline', [0 0.1]))).labels;
+            tc.verifyEqual(L.value, "LFP, mean over epochs / baseline");
         end
 
         % --- assembly -----------------------------------------------------------------------------

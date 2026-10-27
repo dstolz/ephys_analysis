@@ -27,11 +27,16 @@ function [R, T] = epochMatrix(source, S, opts)
 %           Detrend=, Rectify=, Magnitude=, Statistic=, Units=, Check=)
 %   using P.mean, one row per channel (one row with signal.magnitude, the
 %   channels' vector magnitude, e.g. AUX's accelerometer). Only the group
-%   means are kept, never the epochs. signal.shanks is not used for AUX.
+%   means are kept, and the epochs only with S.keepEpochs (Raster=true for
+%   spikes, KeepEpochs=true for signals). signal.shanks is not used for AUX.
 %   A part is a struct: values [time x row x group], t (column), labels
 %   (one per group, column), groupValues (table: one row per group, one
 %   column per groupBy parameter, the group's value; no columns without
-%   groupBy), rows (table), nEpochs (per group), valueUnits. With one
+%   groupBy), rows (table), nEpochs (per group), valueUnits, and with
+%   S.keepEpochs epochs (struct: E, the epochs (epochTable's rows; for
+%   signals only those evokedPotential kept, in data's order); spikes, one
+%   per row, times and epoch from P.raster; data, signals' P.data as [row
+%   x time x epoch]). With one
 %   groupBy parameter a label is the group's bare value: a number (double)
 %   for a numeric parameter, else its text ("<missing>" for a missing
 %   value); with several, G.label ("Depth = 3, Level = 2"); without
@@ -70,7 +75,9 @@ function [R, T] = epochMatrix(source, S, opts)
 %                      selectTrials orders a dataset's groups (Depth 9
 %                      before Depth 10 ascending). The labels are text,
 %                      "Depth = 9, Level = 2" (numbers "%.10g").
-%   Session numbers each subject's datasets by date (below).
+%   Session numbers each subject's datasets by date (below). Last, the
+%   values are normalized as S.normalize asks (epochMatrixNormalize; none
+%   by default): a change to it computes no dataset again.
 %
 %   R fields (size(R.data) = [height(R.rows), numel(R.t), numel(R.groupLabels)])
 %     R.data         double [nRows x nTime x nGroups]
@@ -78,6 +85,8 @@ function [R, T] = epochMatrix(source, S, opts)
 %                    measure (rate, count or auROC) for spikes, and the
 %                    group mean or median for signals. Wherever a row's
 %                    dataset has no epochs in a group, the value is NaN.
+%                    With settings.normalize.method other than "none" the
+%                    values are normalized (R.raw holds them before).
 %     R.rows         table, nRows rows
 %                    One row per unit (spikes) or channel (signals), in
 %                    data's first-dimension order. Columns for every kind:
@@ -101,7 +110,9 @@ function [R, T] = epochMatrix(source, S, opts)
 %                    "unit" or "channel".
 %     R.valueUnits   string
 %                    The unit of data: "spikes/s", "spikes/bin", "auROC",
-%                    "uV" or "V". Use it for axis labels.
+%                    "uV" or "V"; normalized: "z", "%", "x baseline" or
+%                    "0-1" ("subtract" keeps the unit). Use it for axis
+%                    labels.
 %     R.settings     struct
 %                    The settings that made R (see the table above), e.g.
 %                    R.settings.measure, R.settings.data,
@@ -115,11 +126,35 @@ function [R, T] = epochMatrix(source, S, opts)
 %                    The datasets whose rows are in R, in row order.
 %     R.created      datetime
 %                    When the result was assembled.
+%     R.raw          double, the size of R.data, or []
+%                    The values before normalization ([] when
+%                    settings.normalize.method is "none").
+%     R.normalization struct
+%                    How R.data was normalized (epochMatrixNormalize):
+%                    method, baseline, scope, rawUnits, center and scale
+%                    (R.data = (R.raw - center) ./ scale), undefined
+%                    (logical [nRows x nGroups]: NaN for a zero or flat
+%                    baseline), nBaseline.
 %     R.labels       struct
 %                    Labels and a description in words (epochMatrixLabels):
 %                    value (R.data's axis label), measure, time (R.t's),
 %                    event, group, groups (one per group), rows, trials,
-%                    window, bins, baseline, description.
+%                    window, bins, baseline, normalization, description.
+%     R.epochs       struct column, one per dataset of R.keys, or []
+%                    Each epoch before any average, with
+%                    settings.keepEpochs ([] without). Fields: key, name,
+%                    rows (its rows of R.rows and R.data), E (its epochs,
+%                    epochTable's table, plus resultGroup: the epoch's
+%                    group in R.groupLabels, data's third dimension),
+%                    spikes and data. Spikes: spikes(k) for its k-th row
+%                    holds times (s from the event, inside the window's
+%                    whole bins) and epoch (each spike's row of E); data is
+%                    []. Signals: data single [nRows x nTime x nEpochs],
+%                    data(row, time, epoch) at R.t, each epoch after
+%                    detrend, baseline, magnitude and rectify (what is
+%                    averaged), E's rows in its third dimension's order
+%                    (the epochs off the signal or not finite are left
+%                    out); spikes is []. Never normalized.
 %   Notes on the fields:
 %     Subject and Date come from subjectAndDate: the subject from the
 %     dataset's name (the project's name pattern); the date is the day
@@ -203,7 +238,7 @@ arguments
     opts.Workers (1,1) double {mustBeInteger, mustBeNonnegative} = 0
 end
 
-[S, ID] = epochMatrixSettings(S);
+[S, ID, partName] = epochMatrixSettings(S);
 
 % --- assembly only --------------------------------------------------------------------------
 if isstruct(source) || iscell(source)
@@ -248,7 +283,7 @@ skipIds = ["selectUnits:NoUnits" "selectUnits:NoDetected" "selectUnits:NoneLeft"
 stampFcn = opts.StampFcn;
 if isempty(stampFcn); stampFcn = @(key) stampOf(runner, key); end
 try
-    [values, T] = runs.run(runner, keys, fn, Name="epochMatrix/" + S.data, Id=ID, Info=info, ...
+    [values, T] = runs.run(runner, keys, fn, Name=partName, Id=ID, Info=info, ...
         Recompute=opts.Recompute, ProgressFcn=opts.ProgressFcn, CheckFcn=opts.CheckFcn, LogFcn=opts.LogFcn, ...
         SkipIds=skipIds, StampFcn=stampFcn, Workers=opts.Workers);
 catch ME
@@ -269,7 +304,7 @@ function part = spikePart(src, S, check)
 %spikePart  One dataset's spike histograms (the script's per-dataset loop).
 [st, u] = selectUnits(src, S.units, Ref=S.ref, Selection=S.selection);
 [E, G] = epochTable(src, S.ref, Window=S.window, Selection=S.selection);
-args = {'Window', [S.window.pre S.window.post], 'BinSec', S.binSec, 'Raster', false, 'Meta', u, 'Groups', G, 'Check', check};
+args = {'Window', [S.window.pre S.window.post], 'BinSec', S.binSec, 'Raster', S.keepEpochs, 'Meta', u, 'Groups', G, 'Check', check};
 if S.measure == "auroc"
     P = spikePSTH(st, E, args{:}, 'BaselineMode', "auroc", 'Baseline', S.baseline, 'Auroc', S.auroc);
 else
@@ -278,6 +313,10 @@ end
 [labels, gv] = groupLabels(G, S.selection);
 part = struct('values', P.rate, 't', P.t(:), 'labels', labels, 'groupValues', gv, 'rows', P.meta, ...
     'nEpochs', P.nEpochs(:), 'valueUnits', string(P.units));
+if S.keepEpochs
+    spikes = struct('times', {P.raster.times}, 'epoch', {P.raster.epoch});   % one per row; the epoch is a row of E
+    part.epochs = struct('E', E, 'spikes', reshape(spikes, [], 1), 'data', []);
+end
 end
 
 
@@ -297,7 +336,7 @@ if height(meta) > 0; units = string(meta.units(1)); end
 [E, G] = epochTable(src, S.ref, Window=S.window, Selection=S.selection);
 P = evokedPotential(Y, fs, E, Window=[S.window.pre S.window.post], Channels=cols, Groups=G, Meta=meta(cols, :), ...
     Baseline=sig.baseline, Detrend=sig.detrend, Rectify=sig.rectify, Magnitude=sig.magnitude, ...
-    Statistic=sig.statistic, Units=units, Check=check);
+    Statistic=sig.statistic, Units=units, Check=check, KeepEpochs=S.keepEpochs);
 rows = meta(cols, :);
 if sig.magnitude
     rows = table(P.labels, NaN, NaN, NaN, NaN, NaN, units, 'VariableNames', ...
@@ -306,6 +345,11 @@ end
 [labels, gv] = groupLabels(G, S.selection);
 part = struct('values', P.mean, 't', P.t(:), 'labels', labels, 'groupValues', gv, 'rows', rows, ...
     'nEpochs', P.nEpochs(:), 'valueUnits', units);
+if S.keepEpochs
+    % the epochs evokedPotential kept (it drops those off the signal or not finite), in P.data's order
+    [~, k] = ismember(P.keptEpochs, E.epoch);
+    part.epochs = struct('E', E(k, :), 'spikes', [], 'data', permute(P.data, [2 1 3]));   % (row, time, epoch)
+end
 end
 
 
@@ -526,9 +570,16 @@ rows.Session = sessionNumbers(rows.Subject, rows.Date);
 
 data = NaN(height(rows), numel(t), numel(groupLabels));
 row = 0;
+epochs = [];
+if S.keepEpochs
+    epochs = struct('key', cell(numel(use), 1), 'name', [], 'rows', [], 'E', [], 'spikes', [], 'data', []);
+end
 for i = 1:numel(use)
     v = permute(values{use(i)}.values, [2 1 3]);   % (row, time, group)
     data(row + (1:size(v, 1)), :, cols{i}) = v;
+    if S.keepEpochs
+        epochs(i) = partEpochs(values{use(i)}, T.key(use(i)), T.name(use(i)), row + (1:size(v, 1)).', cols{i}); %#ok<AGROW> preallocated above
+    end
     row = row + size(v, 1);
 end
 
@@ -548,7 +599,26 @@ R.settings = S;
 R.datasets = D;
 R.keys = unique(rows.Dataset, 'stable');
 R.created = datetime('now');
-R.labels = epochMatrixLabels(R);
+R.raw = [];
+R.normalization = [];
+R.labels = [];
+R.epochs = epochs;
+R = epochMatrixNormalize(R);   % S.normalize; the labels
+end
+
+
+function e = partEpochs(p, key, name, rows, cols)
+%partEpochs  One dataset's element of R.epochs: its rows of R, its epochs (E with resultGroup), spikes or data.
+%   COLS maps the part's groups (E.groupIndex) to R.groupLabels. A part
+%   without epochs (made with keepEpochs off, or given to assembly
+%   without them) gives empty E, spikes and data.
+e = struct('key', key, 'name', name, 'rows', rows, 'E', [], 'spikes', [], 'data', []);
+if ~isfield(p, 'epochs') || isempty(p.epochs); return; end
+E = p.epochs.E;
+E.resultGroup = reshape(cols(E.groupIndex), [], 1);
+e.E = E;
+e.spikes = p.epochs.spikes;
+e.data = p.epochs.data;
 end
 
 

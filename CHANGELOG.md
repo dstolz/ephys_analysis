@@ -10,6 +10,28 @@ says how to cut a release.
 
 ### Added
 
+- Dataset browser: opening it with a process pool already open sets **Workers** to that pool's size (the
+  `Workers` option still wins).
+- Dataset browser: **Keep each epoch** (Measure tab; `epochMatrixSettings`' new `keepEpochs`) keeps every epoch
+  before the average in `R.epochs`, one element per dataset: its epochs table `E` (with `resultGroup`, the group
+  in `R.groupLabels`), its rows of `R`, and each row's spike times from the event with their epoch, or each epoch's
+  signal trace `data(row, time, epoch)`. These parts are cached apart from those without epochs. The result file
+  leaves `R.epochs` out because the kept parts already hold them, and a restore assembles them again. See
+  [The result](documentation/DatasetBrowser.md#the-result).
+- Dataset browser: **Keep on top** (`B.OnTop`, remembered) holds the window above the other windows.
+- Dataset browser: the settings form's **Event** and **Trials** tabs are the analysis app's own event, window and
+  trial-selection controls (the new `AlignControls`, which the app now builds from too), so the browser sets every
+  field of `ref` and `selection`: event **Sequence**s of any length in the app's *Event sequence* window (*followed
+  by* / *not followed by*, **Align to**), **Scope**, **Offset**, **Length**, **Time range**, **Shift by**, the trial
+  **Filter**, **Pairing**, two **Group by** parameters, **Max groups** and **Artifacts**. **Epoch Diagram** (and
+  `B.showEpochs()`) shows how the settings cut the lists' dataset. The one-step **Then** row is gone. See
+  [The settings form](documentation/DatasetBrowser.md#the-settings-form).
+- Dataset browser: **Normalize** (`none`, `subtract`, `ratio`, `percent`, `zscore`, `minmax`), **Baseline (s)** and
+  *per row* / *per group* normalize each row of the result against its baseline window or to 0 to 1. A change
+  normalizes the result in place and computes nothing. `epochMatrixSettings`' new `normalize` field does the same
+  in `epochMatrix`, and the new `epochMatrixNormalize(R, N)` normalizes any result again, without stacking. The raw
+  values stay in `R.raw`, and `R.labels` names the normalization. See
+  [Normalization](documentation/DatasetBrowser.md#normalization).
 - Dataset browser: `DatasetBrowser(root)` opens a window over a project's datasets. **Subject**, **Tags** and
   **Search** filter the table, **Use** ticks datasets, the **Settings** form sets the event, window, groups and
   **Data** (`units`, `detected`, `LFP`, `MUA`, `SPIKE`, `AUX`), and **Compute** gives one matrix over the ticked

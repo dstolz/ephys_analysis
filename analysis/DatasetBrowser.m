@@ -3,8 +3,10 @@ classdef DatasetBrowser < handle
     %   B = DatasetBrowser(ROOT) scans the project ROOT (an EphysProject root,
     %   or a copy of its output root), lists its datasets in a window where
     %   they are filtered, searched and ticked, holds the settings of
-    %   epochMatrix in a compact form, and computes data(row, time, group)
-    %   over the ticked datasets. A script waits for the window and reads the
+    %   epochMatrix in a form (the event, its sequence, the window and the
+    %   trial selection in the analysis app's controls, AlignControls), and
+    %   computes data(row, time, group) over the ticked datasets. A script
+    %   waits for the window and reads the
     %   result through the handle:
     %
     %     B = DatasetBrowser(root, Settings="ofc_hit_depth.json");
@@ -45,8 +47,9 @@ classdef DatasetBrowser < handle
     %                  datasets on (B.Workers; the Workers field beside
     %                  Cancel): 0 = here, one after the other; N >= 1 = up to
     %                  N datasets at once (Parallel Computing Toolbox;
-    %                  DatasetRuns.run's Workers). Default: the last one
-    %                  set, else 0
+    %                  DatasetRuns.run's Workers). Default: all workers of a
+    %                  process pool already open, else the last one set,
+    %                  else 0
     %   On opening, the ticks, filter, settings and result saved in the result
     %   file are restored, unless the options set them. With no saved state,
     %   the first scan ticks what the filter shows.
@@ -57,11 +60,13 @@ classdef DatasetBrowser < handle
     %   source; the line and parameter lists of the form load one source
     %   when opened (the clicked row's, else the first ticked dataset's).
     %   Every dataset's part is kept in Runs (DatasetRuns,
-    %   "epochMatrix/<data>") with the stamp of the scan: ticking a new
+    %   "epochMatrix/<data>", or "epochMatrix/<data>/epochs" with Keep each
+    %   epoch) with the stamp of the scan: ticking a new
     %   dataset computes only that one, a settings change computes all
-    %   again, and a dataset whose outputs changed (a new sort, phy
-    %   curation, a new spikes file, ...; seen at the next Scan) is
-    %   computed again, a skipped one tried again. The Cached column says
+    %   again (but Normalize: it normalizes the result again in place,
+    %   epochMatrixNormalize, and computes nothing), and a dataset whose
+    %   outputs changed (a new sort, phy curation, a new spikes file, ...;
+    %   seen at the next Scan) is computed again, a skipped one tried again. The Cached column says
     %   "✓ <n> rows", "skipped", "old" (another settings id or another
     %   stamp: Compute computes it again) or nothing. The result file (-v7.3,
     %   written through a temporary file) holds the browser's state, the
@@ -96,8 +101,9 @@ classdef DatasetBrowser < handle
     %     setFilter(B, Subjects=, ExcludeSubjects=, Tags=, TagMode=, ExcludeTags=, Search=)
     %     clearFilter(B); tick(B, KEYS, TF); tickShown(B); untickAll(B)
     %     sortBy(B, COLUMN, DIRECTION); clearSort(B); setListSource(B, KEY)
-    %     formEdit(B, CONTROL, VALUE)        a form control edited (Ctl.<CONTROL>)
+    %     formEdit(B, CONTROL, VALUE)        a form control edited (Ctl.<CONTROL>, or Ctl.Align.<CONTROL>)
     %     fillLists(B)                       fill the line / parameter lists
+    %     showEpochs(B)                      the Epoch Diagram window (EpochDiagram) of one dataset
     %     SRC = source(B, KEY)
     %     R = compute(B, Recompute=false)
     %     [VALUES, T] = forEach(B, FN, Name=, Id=, Datasets=, Recompute=, SkipIds=)
@@ -120,7 +126,7 @@ classdef DatasetBrowser < handle
     %   DatasetBrowser:BadResultFile, DatasetBrowser:NotSaved, and with
     %   Workers DatasetRuns:Serial (no process pool: computed here).
     %   Preferences (AppPrefs group DatasetBrowser, saved on close): Root,
-    %   NamePattern, Position, Sort, SettingsFolder, Workers.
+    %   NamePattern, Position, Sort, SettingsFolder, Workers, OnTop.
     %
     %   See also epochMatrix, epochMatrixSettings, DatasetRuns, outputsStamp,
     %   datasetFilter, EphysAnalysisRunner.
@@ -139,6 +145,8 @@ classdef DatasetBrowser < handle
         %                    measure (rate, count or auROC) for spikes, and the
         %                    group mean or median for signals. Wherever a row's
         %                    dataset has no epochs in a group, the value is NaN.
+        %                    With settings.normalize.method other than "none" the
+        %                    values are normalized (R.raw holds them before).
         %     R.rows         table, nRows rows
         %                    One row per unit (spikes) or channel (signals), in
         %                    data's first-dimension order. Columns for every kind:
@@ -162,7 +170,9 @@ classdef DatasetBrowser < handle
         %                    "unit" or "channel".
         %     R.valueUnits   string
         %                    The unit of data: "spikes/s", "spikes/bin", "auROC",
-        %                    "uV" or "V". Use it for axis labels.
+        %                    "uV" or "V"; normalized: "z", "%", "x baseline" or
+        %                    "0-1" ("subtract" keeps the unit). Use it for axis
+        %                    labels.
         %     R.settings     struct
         %                    The settings that made R (see the table above), e.g.
         %                    R.settings.measure, R.settings.data,
@@ -176,12 +186,32 @@ classdef DatasetBrowser < handle
         %                    The datasets whose rows are in R, in row order.
         %     R.created      datetime
         %                    When the result was assembled.
+        %     R.raw          double, the size of R.data, or []
+        %                    The values before normalization ([] when
+        %                    settings.normalize.method is "none").
+        %     R.normalization struct
+        %                    How R.data was normalized (epochMatrixNormalize):
+        %                    method, baseline, scope, rawUnits, center and scale
+        %                    (R.data = (R.raw - center) ./ scale), undefined
+        %                    (logical [nRows x nGroups]: NaN for a zero or flat
+        %                    baseline), nBaseline.
         %     R.labels       struct
         %                    Labels and a description in words (epochMatrixLabels):
         %                    value (R.data's axis label), measure, time (R.t's),
         %                    event, group, groups (one per group), rows, trials,
-        %                    window, bins, baseline, description. A restored
-        %                    result's are made again, in the current wording.
+        %                    window, bins, baseline, normalization, description.
+        %                    A restored result's are made again, in the current
+        %                    wording.
+        %     R.epochs       struct column, one per dataset of R.keys, or []
+        %                    Each epoch before any average, with
+        %                    settings.keepEpochs (the Measure tab's "Keep each
+        %                    epoch"): key, name, rows (of R.rows), E (the epochs,
+        %                    with resultGroup, the group in R.groupLabels), and
+        %                    spikes (per row: times from the event, epoch) or
+        %                    data (signals: single [nRows x nTime x nEpochs]).
+        %                    See epochMatrix. The result file leaves them out
+        %                    (the kept parts hold them); a restore assembles
+        %                    them again from the parts.
         %   Notes on the fields:
         %     Subject and Date come from subjectAndDate: the subject from the
         %     dataset's name (the project's name pattern); the date is the day
@@ -212,6 +242,11 @@ classdef DatasetBrowser < handle
         ProgressHook = []                  % ProgressHook(B, fraction, message) after each progress call (tests)
     end
 
+    properties (Hidden, SetAccess = private)
+        SequenceDialog = []                % the Event sequence window (AlignControls.editSequence), when open
+        EpochWindow = []                   % the Epoch Diagram window (showEpochs), when open
+    end
+
     properties (Dependent)
         Settings                           % epochMatrixSettings' struct (set: the whole struct, checked by epochMatrixSettings)
         Filter                             % struct: Subjects, ExcludeSubjects, Tags, TagMode, ExcludeTags, Search
@@ -221,12 +256,14 @@ classdef DatasetBrowser < handle
         Shown                              % their keys
         ResultCurrent                      % Result was computed with these settings on these ticks
         Workers                            % process workers compute and forEach use (0 = here; DatasetRuns.run's Workers)
+        OnTop                              % the window stays above the other windows (WindowStyle "alwaysontop")
     end
 
     properties (Access = private)
         SettingsS = []                     % the full settings struct
         Id = []                            % its cache identity (epochMatrixSettings' ID)
         IdText (1,1) string = ""           % DatasetRuns.idText(Id)
+        PartName (1,1) string = ""         % the Runs name of its parts (epochMatrixSettings' NAME)
         ResultIdText (1,1) string = ""     % ... of Result's
         FilterS = struct()
         SelectedKeys (:,1) string = strings(0, 1)
@@ -246,6 +283,7 @@ classdef DatasetBrowser < handle
         DoneFlag (1,1) logical = false
         OwnRun (1,1) logical = false       % the strip's run is the browser's own scan, compute or forEach (they end it themselves)
         WorkersN (1,1) double = 0          % Workers
+        OnTopS (1,1) logical = false       % OnTop
     end
 
     properties (Constant)
@@ -257,9 +295,9 @@ classdef DatasetBrowser < handle
     properties (Constant, Access = private)
         DataItems = ["units" "detected" "LFP" "MUA" "SPIKE" "AUX"]
         Controls = ["Root" "Browse" "Pattern" "Scan" "Subject" "NotSubject" "Search" "Tags" "TagMode" "NotTags" ...
-            "TickShown" "UntickAll" "Table" "Load" "Save" "Data" "Line" "Edge" "Which" "N" "ThenLine" "ThenEdge" ...
-            "Pre" "Post" "Response" "GroupBy" "Order" "Merge" "UnitShanks" "Measure" "Bin" "Baseline" ...
-            "Channels" "SigShanks" "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "Compute" "Done" "Workers"]
+            "TickShown" "UntickAll" "Table" "Load" "Save" "Data" "Normalize" "NormBaseline" "NormScope" ...
+            "Merge" "UnitShanks" "Measure" "Bin" "Baseline" ...
+            "Channels" "SigShanks" "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "KeepEpochs" "Compute" "Done" "Workers"]
         ErrorColor = [0.75 0.1 0.1]
         TextColor = [0.25 0.25 0.25]
     end
@@ -282,8 +320,8 @@ classdef DatasetBrowser < handle
             B.Runs = DatasetRuns();
             B.Datasets = DatasetBrowser.emptyDatasets();
             B.FilterS = DatasetBrowser.noFilter();
-            [S0, ID] = epochMatrixSettings();
-            B.takeSettings(S0, ID);
+            [S0, ID, name] = epochMatrixSettings();
+            B.takeSettings(S0, ID, name);
             prefs = DatasetBrowser.readPrefs();
             if root == "" && isfield(prefs, 'Root'); root = string(prefs.Root); end
             B.Root = strtrim(root);
@@ -294,7 +332,12 @@ classdef DatasetBrowser < handle
             if isfield(prefs, 'Workers') && isnumeric(prefs.Workers) && isscalar(prefs.Workers) && prefs.Workers >= 0
                 B.WorkersN = round(double(prefs.Workers));
             end
+            nPool = DatasetBrowser.openPoolWorkers();
+            if nPool > 0; B.WorkersN = nPool; end
             if isfield(opts, 'Workers'); B.WorkersN = opts.Workers; end
+            if isfield(prefs, 'OnTop') && (islogical(prefs.OnTop) || isnumeric(prefs.OnTop)) && isscalar(prefs.OnTop)
+                B.OnTopS = logical(prefs.OnTop);
+            end
             B.DefaultFile = opts.ResultFile == "";
             B.ResultFileS = opts.ResultFile;
             if B.DefaultFile; B.ResultFileS = DatasetBrowser.defaultFile(B.Root); end
@@ -323,6 +366,7 @@ classdef DatasetBrowser < handle
         end
 
         function delete(B)
+            B.closeWindows();
             if ~isempty(B.Fig) && isvalid(B.Fig); delete(B.Fig); end
         end
 
@@ -332,6 +376,7 @@ classdef DatasetBrowser < handle
         end
 
         function set.Settings(B, S)
+            B.closeSequenceDialog();
             B.setSettings(S, true);
         end
 
@@ -388,6 +433,22 @@ classdef DatasetBrowser < handle
             end
             B.WorkersN = n;
             if B.uiOk(); B.Ctl.Workers.Value = n; end
+        end
+
+        function tf = get.OnTop(B)
+            tf = B.OnTopS;
+        end
+
+        function set.OnTop(B, tf)
+            arguments
+                B
+                tf (1,1) logical
+            end
+            B.OnTopS = tf;
+            if B.uiOk()
+                B.Ctl.OnTop.Value = tf;
+                if tf; B.Fig.WindowStyle = "alwaysontop"; else; B.Fig.WindowStyle = "normal"; end
+            end
         end
 
         % --- scanning ----------------------------------------------------------------------
@@ -508,16 +569,21 @@ classdef DatasetBrowser < handle
 
         % --- the form --------------------------------------------------------------------------
         function formEdit(B, control, value)
-            %formEdit  Put VALUE in the form control CONTROL (a field of Ctl) and apply it, as an edit there.
+            %formEdit  Put VALUE in the form control CONTROL (a field of Ctl or of Ctl.Align) and apply it, as an edit there.
             %   The edit is merged into the whole settings struct and checked
             %   (epochMatrixSettings); an edit that does not fit is undone in
             %   the control and its reason shown in the status line.
             control = string(control);
             if nargin > 2
-                c = B.Ctl.(control);
+                if isfield(B.Ctl.Align, control)
+                    c = B.Ctl.Align.(control);
+                else
+                    c = B.Ctl.(control);
+                end
                 if isa(c, 'matlab.ui.control.ListBox')
                     c.Value = cellstr(string(value));
-                elseif isa(c, 'matlab.ui.control.NumericEditField') || isa(c, 'matlab.ui.control.CheckBox')
+                elseif isa(c, 'matlab.ui.control.NumericEditField') || isa(c, 'matlab.ui.control.CheckBox') ...
+                        || isa(c, 'matlab.ui.control.Spinner')
                     c.Value = value;
                 else
                     c.Value = char(string(value));
@@ -539,18 +605,24 @@ classdef DatasetBrowser < handle
                 B.setStatus("Cannot read " + key + " for the lists: " + string(ME.message), true);
                 return
             end
-            lines = "Trial";
-            if isstruct(src.events); lines = [lines string(fieldnames(src.events)).']; end
-            if src.hasTrials && height(src.trials) > 0 && ismember("TrialEvents", string(src.trials.Properties.VariableNames))
-                lines = [lines string(fieldnames(src.trials.TrialEvents)).'];
-            end
-            lines = unique(lines, 'stable');
-            params = reshape(string(src.paramNames), 1, []);
-            c = B.Ctl;
-            setItems(c.Line, lines);
-            setItems(c.ThenLine, ["(none)" lines]);
-            setItems(c.GroupBy, ["(none)" params]);
+            AlignControls.fillItems(B.Ctl.Align, src);
             B.setStatus("Lists from " + src.name + ".");
+        end
+
+        function showEpochs(B)
+            %showEpochs  The Epoch Diagram window (EpochDiagram): how the settings cut one dataset into epochs.
+            %   The dataset is the one the lists come from (the clicked row's,
+            %   else the first ticked). The window is redrawn on every
+            %   settings edit and row click until it is closed; it closes
+            %   with the browser. A second call raises it.
+            B.needRunner();
+            d = B.EpochWindow;
+            if isempty(d) || ~isvalid(d) || ~d.isOpen()
+                B.EpochWindow = EpochDiagram(Owner=B.Fig);
+            else
+                figure(d.Fig);
+            end
+            B.refreshEpochs();
         end
 
         function src = source(B, key)
@@ -656,7 +728,7 @@ classdef DatasetBrowser < handle
                 B.setStatus("Nothing is ticked: no cached parts were forgotten.");
                 return
             end
-            B.forget("epochMatrix/" + B.SettingsS.data, B.SelectedKeys);
+            B.forget(B.PartName, B.SelectedKeys);
             B.setStatus(sprintf("Forgot the %s parts of %d ticked dataset(s).", B.SettingsS.data, numel(B.SelectedKeys)));
         end
 
@@ -689,8 +761,10 @@ classdef DatasetBrowser < handle
             file = string(file);
             tf = false;
             if file == ""; return; end
+            R = B.Result;
+            if isstruct(R) && isfield(R, 'epochs'); R.epochs = []; end   % the kept parts hold them: restoreEpochs
             payload = struct('schema', DatasetBrowser.Schema, 'version', DatasetBrowser.Version, ...
-                'browser', B.browserState(), 'result', B.Result, 'runs', B.Runs.toStruct());
+                'browser', B.browserState(), 'result', R, 'runs', B.Runs.toStruct());
             [folder, name] = fileparts(file);
             tmp = fullfile(folder, "." + name + "_saving.mat");
             try
@@ -718,6 +792,7 @@ classdef DatasetBrowser < handle
             %   check, warns (DatasetBrowser:BadResultFile) and leaves that
             %   part at its default.
             if nargin < 2; file = B.ResultFileS; end
+            B.closeSequenceDialog();
             B.restoreFile(string(file), true);
             B.refreshAll();
             if ~isempty(B.Result); B.changed("result"); end
@@ -845,6 +920,7 @@ classdef DatasetBrowser < handle
             %close  Close the window (its preferences and, when changed, the result file are saved); B stays.
             B.savePrefs();
             B.saveIfChanged();
+            B.closeWindows();
             if B.uiOk(); delete(B.Fig); end
             B.changed("closed");
         end
@@ -881,6 +957,7 @@ classdef DatasetBrowser < handle
         function build(B, prefs)
             f = uifigure("Name", "Dataset browser", "Position", [60 60 1380 860], "Visible", "off", ...
                 "Tag", "DatasetBrowser", "CloseRequestFcn", @(~, ~) B.close());
+            if B.OnTopS; f.WindowStyle = "alwaysontop"; end
             setappdata(f, "DatasetBrowser", B);   % DatasetBrowser.open finds the browser of an open window
             if isfield(prefs, 'Position') && isnumeric(prefs.Position) && numel(prefs.Position) == 4 && all(prefs.Position(3:4) > 200)
                 f.Position = double(prefs.Position(:)).';
@@ -890,7 +967,7 @@ classdef DatasetBrowser < handle
             c = struct();
 
             % --- the root and the pattern
-            t = uigridlayout(g, [1 6], "ColumnWidth", {'fit', '1x', 90, 'fit', 300, 100}, "RowHeight", {30}, "Padding", [0 0 0 0]);
+            t = uigridlayout(g, [1 7], "ColumnWidth", {'fit', '1x', 90, 'fit', 300, 100, 'fit'}, "RowHeight", {30}, "Padding", [0 0 0 0]);
             uilabel(t, "Text", "Root");
             c.Root = uieditfield(t, "text", "Value", B.Root, "Tooltip", "The project root (or a copy of its output root); press Scan to list its datasets.");
             c.Browse = uibutton(t, "Text", "Browse...", "ButtonPushedFcn", @(~, ~) B.onBrowse());
@@ -898,8 +975,10 @@ classdef DatasetBrowser < handle
             c.Pattern = uieditfield(t, "text", "Value", B.NamePattern, "Tooltip", "The project's name pattern: the subject and date of each dataset come from its name.");
             c.Scan = uibutton(t, "Text", "Scan", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.scan(Root=string(B.Ctl.Root.Value), ...
                 NamePattern=string(B.Ctl.Pattern.Value))), "Tooltip", "List the root's datasets: which outputs each has and its tags (no dataset is loaded).");
+            c.OnTop = uicheckbox(t, "Text", "Keep on top", "Value", B.OnTopS, "ValueChangedFcn", @(src, ~) B.uiRun(@() B.setOnTopFrom(src.Value)), ...
+                "Tooltip", "Keep this window above the other windows.");
 
-            m = uigridlayout(g, [1 2], "ColumnWidth", {'1x', 440}, "RowHeight", {'1x'}, "Padding", [0 0 0 0]);
+            m = uigridlayout(g, [1 2], "ColumnWidth", {'1x', 470}, "RowHeight", {'1x'}, "Padding", [0 0 0 0]);
 
             % --- left: the filter, the count and the table
             L = uigridlayout(m, [4 1], "RowHeight", {30, 30, 20, '1x'}, "Padding", [0 0 0 0], "RowSpacing", 4);
@@ -939,8 +1018,7 @@ classdef DatasetBrowser < handle
 
             % --- right: the settings
             p = uipanel(m, "Title", "Settings");
-            R = uigridlayout(p, [11 1], "RowHeight", {30, 26, 26, 26, 26, 76, 26, 'fit', 'fit', 34, '1x'}, ...
-                "Padding", [8 6 8 6], "RowSpacing", 5);
+            R = uigridlayout(p, [5 1], "RowHeight", {30, 26, '1x', 34, 48}, "Padding", [8 6 8 6], "RowSpacing", 5);
             edit = @(name) @(~, ~) B.uiRun(@() B.onFormEdit(name));
             open = @(~, ~) B.uiRun(@() B.fillLists());
             r = uigridlayout(R, [1 3], "ColumnWidth", {90, 90, '1x'}, "RowHeight", {30}, "Padding", [0 0 0 0]);
@@ -951,38 +1029,36 @@ classdef DatasetBrowser < handle
             c.Data = uidropdown(r, "Items", cellstr(B.DataItems), "ValueChangedFcn", edit("Data"), ...
                 "Tooltip", "units: the sorted units; detected: the Spikes step's detections; LFP, MUA, SPIKE, AUX: a derived signal.");
             c.DataNote = uilabel(r, "Text", "", "FontColor", B.TextColor);
-            r = row(R, {'fit', '1x', 76, 64, 'fit', 46});
-            uilabel(r, "Text", "Event");
-            c.Line = uidropdown(r, "Items", {'Stim'}, "Editable", "on", "ValueChangedFcn", edit("Line"), "DropDownOpeningFcn", open, ...
-                "Tooltip", "The line each epoch is aligned to (the list: the clicked row's dataset, else the first ticked).");
-            c.Edge = uidropdown(r, "Items", {'onset', 'offset'}, "ValueChangedFcn", edit("Edge"));
-            c.Which = uidropdown(r, "Items", {'first', 'last', 'all', 'nth'}, "ValueChangedFcn", edit("Which"), ...
-                "Tooltip", "Which interval of the line per trial (over the recording without trials).");
-            uilabel(r, "Text", "n");
-            c.N = uieditfield(r, "numeric", "Limits", [1 Inf], "RoundFractionalValues", "on", "Value", 1, "ValueChangedFcn", edit("N"));
-            r = row(R, {'fit', '1x', 76, 130});
-            uilabel(r, "Text", "Then");
-            c.ThenLine = uidropdown(r, "Items", {'(none)'}, "Editable", "on", "ValueChangedFcn", edit("ThenLine"), "DropDownOpeningFcn", open, ...
-                "Tooltip", "An event that must follow (a sequence step); the epochs align to it. (none): the event alone.");
-            c.ThenEdge = uidropdown(r, "Items", {'onset', 'offset'}, "ValueChangedFcn", edit("ThenEdge"));
-            c.ThenMore = uilabel(r, "Text", "", "FontColor", B.TextColor);
-            r = row(R, {'fit', 70, 'fit', 70, '1x'});
-            uilabel(r, "Text", "Pre (s)");
-            c.Pre = uieditfield(r, "numeric", "ValueChangedFcn", edit("Pre"));
-            uilabel(r, "Text", "Post (s)");
-            c.Post = uieditfield(r, "numeric", "ValueChangedFcn", edit("Post"));
-            r = uigridlayout(R, [1 2], "ColumnWidth", {'fit', '1x'}, "RowHeight", {'1x'}, "Padding", [0 0 0 0]);
-            uilabel(r, "Text", "Response", "VerticalAlignment", "top", "Tooltip", "Keep the trials that are any of these (none picked: every trial).");
-            [~, words] = respCodeBits();
-            c.Response = uilistbox(r, "Items", cellstr(words), "Multiselect", "on", "Value", {}, "ValueChangedFcn", edit("Response"));
-            r = row(R, {'fit', '1x', 'fit', 110});
-            uilabel(r, "Text", "Group by");
-            c.GroupBy = uidropdown(r, "Items", {'(none)'}, "Editable", "on", "ValueChangedFcn", edit("GroupBy"), "DropDownOpeningFcn", open, ...
-                "Tooltip", "A trial parameter: one group per value.");
-            uilabel(r, "Text", "Order");
-            c.Order = uidropdown(r, "Items", {'ascending', 'descending', 'appearance'}, "ValueChangedFcn", edit("Order"));
+            % the event, its sequence, the window and the trial selection: the analysis app's controls (AlignControls)
+            tg = uitabgroup(R);
+            te = uitab(tg, "Title", "Event", "Scrollable", "on");
+            eg = uigridlayout(te, [3 1], "RowHeight", {'fit', 'fit', '1x'}, "Padding", [4 4 4 4], "RowSpacing", 6);
+            pr = uipanel(eg, "Title", "Event reference");
+            pw = uipanel(eg, "Title", "Epoch window");
+            tt = uitab(tg, "Title", "Trials", "Scrollable", "on");
+            tm = uitab(tg, "Title", "Measure", "Scrollable", "on");
+            A = AlignControls.build([pr pw tt], @(~) B.uiRun(@() B.onAlignEdit()), FixedWindow=true, ...
+                EditSequence=@(varargin) B.uiRun(@() B.editSequence(varargin{:})), FilterHelp=@() B.uiRun(@() B.showFilterHelp()));
+            set([A.Line A.StopLine A.Group1 A.Group2 A.ShiftParam A.StopShiftParam], "DropDownOpeningFcn", open);
+            A.Diagram.ButtonPushedFcn = @(~, ~) B.uiRun(@() B.showEpochs());
+            A.Diagram.Tooltip = "How these settings cut one dataset (the clicked row's, else the first ticked) into epochs: " + ...
+                "the event, its sequence, the window and the trials kept.";
+            c.Align = A;
+            M = uigridlayout(tm, [4 1], "RowHeight", {26, 'fit', 'fit', 26}, "Padding", [4 4 4 4], "RowSpacing", 6);
+            r = row(M, {'fit', 84, 'fit', '1x', 96});
+            uilabel(r, "Text", "Normalize");
+            c.Normalize = uidropdown(r, "Items", {'none', 'subtract', 'ratio', 'percent', 'zscore', 'minmax'}, ...
+                "ValueChangedFcn", edit("Normalize"), "Tooltip", "Each row's trace against its baseline: " + ...
+                "subtract (x - b), ratio (x / b), percent (100 (x - b) / |b|), zscore ((x - b) / SD over the baseline's bins), " + ...
+                "minmax (0 to 1 over the window). Applied to the result: nothing is computed again. Not for auroc.");
+            uilabel(r, "Text", "Baseline (s)");
+            c.NormBaseline = uieditfield(r, "text", "ValueChangedFcn", edit("NormBaseline"), ...
+                "Tooltip", "b0 b1, s from the event: the times whose mean (and SD) normalize each row.");
+            c.NormScope = uidropdown(r, "Items", {'per row', 'per group'}, "ItemsData", {'row', 'group'}, ...
+                "ValueChangedFcn", edit("NormScope"), "Tooltip", "per row: one baseline from all of a row's groups, " + ...
+                "so the groups keep their differences; per group: each group its own.");
 
-            sp = uipanel(R, "Title", "Spikes (units, detected)");
+            sp = uipanel(M, "Title", "Spikes (units, detected)");
             sg = uigridlayout(sp, [3 4], "ColumnWidth", {'fit', '1x', 'fit', '1x'}, "RowHeight", {24, 24, 24}, "Padding", [6 4 6 4], "RowSpacing", 4);
             c.Merge = place(uicheckbox(sg, "Text", "Merge neighboring sites", "ValueChangedFcn", edit("Merge"), ...
                 "Tooltip", "detected: join the channels of neighboring sites that hold one neuron (groupDetected)."), 1, [1 2]);
@@ -997,7 +1073,7 @@ classdef DatasetBrowser < handle
             c.Baseline = place(uieditfield(sg, "text", "ValueChangedFcn", edit("Baseline"), ...
                 "Tooltip", "b0 b1, s from the event (measure auroc)."), 3, [3 4]);
 
-            gp = uipanel(R, "Title", "Signals (LFP, MUA, SPIKE, AUX)");
+            gp = uipanel(M, "Title", "Signals (LFP, MUA, SPIKE, AUX)");
             gg = uigridlayout(gp, [3 4], "ColumnWidth", {'fit', '1x', 'fit', '1x'}, "RowHeight", {24, 24, 24}, "Padding", [6 4 6 4], "RowSpacing", 4);
             place(uilabel(gg, "Text", "Channels"), 1, 1);
             c.Channels = place(uieditfield(gg, "text", "ValueChangedFcn", edit("Channels"), "Placeholder", "all", ...
@@ -1014,6 +1090,10 @@ classdef DatasetBrowser < handle
             c.Rectify = place(uicheckbox(gg, "Text", "Rectify", "ValueChangedFcn", edit("Rectify")), 3, 2);
             c.Magnitude = place(uicheckbox(gg, "Text", "Magnitude (AUX)", "ValueChangedFcn", edit("Magnitude"), ...
                 "Tooltip", "The channels' vector magnitude, one row (the accelerometer)."), 3, [3 4]);
+            c.KeepEpochs = uicheckbox(M, "Text", "Keep each epoch (R.epochs)", "ValueChangedFcn", edit("KeepEpochs"), ...
+                "Tooltip", "Keep every epoch before the average in B.Result.epochs: each spike's time from the event and its " + ...
+                "epoch, or each epoch's signal trace (row x time x epoch). Computes every dataset once more; " + ...
+                "signal epochs are large and go into the result file.");
 
             r = uigridlayout(R, [1 2], "ColumnWidth", {'1x', '1x'}, "RowHeight", {34}, "Padding", [0 0 0 0]);
             c.Compute = uibutton(r, "Text", "Compute", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.compute()), ...
@@ -1066,7 +1146,7 @@ classdef DatasetBrowser < handle
             Use = ismember(D.key, B.SelectedKeys);
             Cached = strings(n, 1);
             if n > 0
-                name = "epochMatrix/" + B.SettingsS.data;
+                name = B.PartName;
                 st = B.Runs.status(name, D.key, B.Id, Stamps=D.stamp);   % "old": other settings or changed outputs
                 Cached(st == "skipped") = "skipped";
                 Cached(st == "old") = "old";
@@ -1136,28 +1216,10 @@ classdef DatasetBrowser < handle
             c = B.Ctl;
             S = B.SettingsS;
             c.Data.Value = char(S.data);
-            setValue(c.Line, S.ref.line);
-            c.Edge.Value = char(S.ref.edge);
-            c.Which.Value = char(S.ref.which);
-            c.N.Value = max(1, S.ref.n);
-            seq = S.ref.sequence;
-            if isempty(seq)
-                setValue(c.ThenLine, "(none)");
-                c.ThenMore.Text = "";
-            else
-                setValue(c.ThenLine, seq(1).line);
-                c.ThenEdge.Value = char(seq(1).edge);
-                c.ThenMore.Text = ternary(numel(seq) > 1, sprintf("+%d more step(s) kept", numel(seq) - 1), "");
-            end
-            c.Pre.Value = S.window.pre;
-            c.Post.Value = S.window.post;
-            c.Response.Value = cellstr(intersect(string(S.selection.response), string(c.Response.Items), 'stable'));
-            if isempty(S.selection.groupBy)
-                setValue(c.GroupBy, "(none)");
-            else
-                setValue(c.GroupBy, S.selection.groupBy(1));
-            end
-            c.Order.Value = char(S.selection.groupOrder);
+            AlignControls.show(c.Align, S.ref, S.window, S.selection);
+            c.Normalize.Value = char(S.normalize.method);
+            c.NormBaseline.Value = char(numbersText(S.normalize.baseline));
+            c.NormScope.Value = char(S.normalize.scope);
             c.Merge.Value = logical(S.units.merge.enabled);
             c.UnitShanks.Value = char(numbersText(S.units.shanks));
             c.Measure.Value = char(S.measure);
@@ -1170,6 +1232,7 @@ classdef DatasetBrowser < handle
             c.Detrend.Value = S.signal.detrend;
             c.Rectify.Value = S.signal.rectify;
             c.Magnitude.Value = S.signal.magnitude;
+            c.KeepEpochs.Value = S.keepEpochs;
             B.applyEnable();
             B.refreshDataNote();
         end
@@ -1184,11 +1247,14 @@ classdef DatasetBrowser < handle
             set([c.UnitShanks c.Measure c.Bin], "Enable", on(spikes));
             c.Merge.Enable = on(S.data == "detected");
             c.Baseline.Enable = on(spikes && S.measure == "auroc");
+            auroc = spikes && S.measure == "auroc";
+            c.Normalize.Enable = on(~auroc);
+            c.NormBaseline.Enable = on(~auroc && ismember(S.normalize.method, ["subtract" "ratio" "percent" "zscore"]));
+            c.NormScope.Enable = on(~auroc && S.normalize.method ~= "none");
             set([c.Channels c.SigBaseline c.Detrend c.Rectify c.Statistic], "Enable", on(~spikes));
             c.SigShanks.Enable = on(~spikes && S.data ~= "AUX");
             c.Magnitude.Enable = on(S.data == "AUX");
-            c.ThenEdge.Enable = on(~isempty(S.ref.sequence));
-            c.N.Enable = on(S.ref.which == "nth");
+            AlignControls.syncEnable(c.Align);
             c.Compute.Enable = on(~isempty(B.Runner));
         end
 
@@ -1231,6 +1297,14 @@ classdef DatasetBrowser < handle
                 nnz(st == "done"), nnz(st == "cached"));
             other = nnz(~ismember(st, ["done" "cached"]));
             if other > 0; s = s + sprintf(", %d skipped or failed", other); end
+            if isfield(R, 'epochs') && ~isempty(R.epochs)
+                s = s + sprintf("; %d epochs kept (R.epochs)", sum(arrayfun(@(e) height(e.E), R.epochs)));
+            end
+            if isfield(R, 'labels') && isstruct(R.labels) && isfield(R.labels, 'normalization') && R.labels.normalization ~= ""
+                s = s + "; " + R.labels.normalization;
+                nBad = nnz(any(R.normalization.undefined, 2));
+                if nBad > 0; s = s + sprintf(" (%d %s NaN: a zero or flat baseline)", nBad, noun); end
+            end
             [current, why] = B.resultState();
             if ~current; s = "Out of date: " + why + ". (" + s + ")"; end
         end
@@ -1242,7 +1316,7 @@ classdef DatasetBrowser < handle
             R = B.Result;
             if isempty(R); why = "no result"; return; end
             parts = strings(1, 0);
-            if B.ResultIdText ~= B.IdText; parts(end+1) = "settings"; end
+            if B.ResultIdText ~= B.IdText || ~sameNormalize(R.settings, B.SettingsS); parts(end+1) = "settings"; end
             if ~isequal(sort(string(R.datasets.key)), sort(B.SelectedKeys)); parts(end+1) = "ticks"; end
             tf = isempty(parts);
             if ~tf; why = strjoin(parts, " and ") + " changed"; end
@@ -1307,7 +1381,11 @@ classdef DatasetBrowser < handle
             if isempty(evt.Indices); return; end
             T = B.Ctl.Table.Data;
             r = evt.Indices(1, 1);
-            if r >= 1 && r <= height(T); B.ListKey = B.Datasets.key(T.Idx(r)); end
+            if r < 1 || r > height(T); return; end
+            key = B.Datasets.key(T.Idx(r));
+            if key == B.ListKey; return; end
+            B.ListKey = key;
+            B.refreshEpochs();
         end
 
         function onTableSorted(B, evt)
@@ -1316,6 +1394,7 @@ classdef DatasetBrowser < handle
 
         function onFormEdit(B, name)
             %onFormEdit  Merge one control's value into the settings and check them; undo it when they do not fit.
+            if isfield(B.Ctl.Align, name); B.onAlignEdit(); return; end
             try
                 S = B.applyControl(B.SettingsS, name, B.Ctl.(name).Value);
                 B.setSettings(S, true);
@@ -1328,40 +1407,12 @@ classdef DatasetBrowser < handle
 
         function S = applyControl(~, S, name, v)
             %applyControl  S with control NAME's value V put in its field (the other fields as they were).
-            if iscell(v) && name ~= "Response"; v = v{1}; end
+            if iscell(v); v = v{1}; end
             switch name
                 case "Data";     S.data = string(v);
-                case "Line";     S.ref.line = strtrim(string(v));
-                case "Edge";     S.ref.edge = string(v);
-                case "Which";    S.ref.which = string(v);
-                case "N";        S.ref.n = double(v);
-                case "ThenLine"
-                    v = strtrim(string(v));
-                    seq = S.ref.sequence;
-                    if v == "" || v == "(none)"
-                        if ~isempty(seq); seq(1) = []; end
-                    else
-                        if isempty(seq); seq = EphysAnalysisConfig.defaults("SequenceStep"); end
-                        seq(1).line = v;
-                    end
-                    S.ref.sequence = seq;
-                case "ThenEdge"
-                    if ~isempty(S.ref.sequence); S.ref.sequence(1).edge = string(v); end
-                case "Pre";      S.window.pre = double(v);
-                case "Post";     S.window.post = double(v);
-                case "Response"; S.selection.response = reshape(string(v), 1, []);
-                case "GroupBy"
-                    v = strtrim(string(v));
-                    g = reshape(string(S.selection.groupBy), 1, []);
-                    if v == "" || v == "(none)"
-                        g = g(2:end);
-                    elseif isempty(g)
-                        g = v;
-                    else
-                        g(1) = v;
-                    end
-                    S.selection.groupBy = g;
-                case "Order";    S.selection.groupOrder = string(v);
+                case "Normalize"; S.normalize.method = string(v);
+                case "NormBaseline"; S.normalize.baseline = parseNumbers(v, "Normalize baseline");
+                case "NormScope"; S.normalize.scope = string(v);
                 case "Merge";    S.units.merge.enabled = logical(v);
                 case "UnitShanks"; S.units.shanks = parseNumbers(v, "Shanks");
                 case "Measure";  S.measure = string(v);
@@ -1372,6 +1423,7 @@ classdef DatasetBrowser < handle
                 case "SigBaseline"; S.signal.baseline = parseNumbers(v, "Baseline");
                 case "Statistic"; S.signal.statistic = string(v);
                 case {"Detrend", "Rectify", "Magnitude"}; S.signal.(lower(name)) = logical(v);
+                case "KeepEpochs"; S.keepEpochs = logical(v);
                 otherwise
                     error('DatasetBrowser:BadValue', 'No form control "%s".', name);
             end
@@ -1380,18 +1432,29 @@ classdef DatasetBrowser < handle
         % --- state -----------------------------------------------------------------------------------
         function setSettings(B, S, announce)
             %setSettings  Check S (epochMatrixSettings) and take it: the form, the Cached column, the summary.
-            [S, ID] = epochMatrixSettings(S);
-            B.takeSettings(S, ID);
+            [S, ID, name] = epochMatrixSettings(S);
+            B.takeSettings(S, ID, name);
+            renormalized = B.renormalize();
             B.refreshForm();
             B.refreshTable();
             B.refreshSummary();
+            B.refreshEpochs();
             if announce; B.changed("settings"); end
+            if renormalized; B.changed("result"); end
         end
 
-        function takeSettings(B, S, ID)
+        function tf = renormalize(B)
+            %renormalize  A result of these settings but for normalize: normalized again in place (nothing computed).
+            R = B.Result;
+            tf = ~isempty(R) && B.ResultIdText == B.IdText && ~sameNormalize(R.settings, B.SettingsS);
+            if tf; B.Result = epochMatrixNormalize(R, B.SettingsS.normalize); end
+        end
+
+        function takeSettings(B, S, ID, name)
             B.SettingsS = S;
             B.Id = ID;
             B.IdText = DatasetRuns.idText(ID);
+            B.PartName = name;
         end
 
         function setTicks(B, keys)
@@ -1468,8 +1531,8 @@ classdef DatasetBrowser < handle
             end
             if isfield(s, 'settings')
                 try
-                    [S, ID] = epochMatrixSettings(s.settings);
-                    B.takeSettings(S, ID);
+                    [S, ID, name] = epochMatrixSettings(s.settings);
+                    B.takeSettings(S, ID, name);
                 catch ME
                     warning('DatasetBrowser:BadResultFile', '%s: the settings are not used (%s).', file, ME.message);
                 end
@@ -1489,12 +1552,44 @@ classdef DatasetBrowser < handle
                     catch ME
                         warning('DatasetBrowser:BadResultFile', '%s: the result has no labels (%s).', file, ME.message);
                     end
+                    R = B.restoreEpochs(R, file);
                     B.setResult(R);
                 else
                     warning('DatasetBrowser:BadResultFile', '%s: the result is not used (it lacks fields).', file);
                 end
             end
             if file == B.ResultFileS; B.SavedSig = B.stateSig(); end
+        end
+
+        function R = restoreEpochs(B, R, file)
+            %restoreEpochs  R.epochs again from the kept parts (save leaves them out of the result, as the parts hold them).
+            %   The parts of R's datasets are assembled again (epochMatrix's
+            %   assembly only) for their epochs. When a part is missing or of
+            %   other settings, R.epochs stays [] with a warning.
+            if ~isfield(R, 'epochs'); R.epochs = []; end
+            if ~isempty(R.epochs) || ~(isfield(R.settings, 'keepEpochs') && isequal(R.settings.keepEpochs, true)); return; end
+            try
+                [S, ID, name] = epochMatrixSettings(R.settings);
+                keys = string(R.datasets.key(ismember(R.datasets.key, R.keys)));
+                st = B.Runs.status(name, keys, ID);
+                if ~all(st == "current")
+                    error('DatasetBrowser:BadResultFile', 'the kept parts of %d dataset(s) are missing or of other settings', nnz(st ~= "current"));
+                end
+                parts = cell(numel(keys), 1);
+                for k = 1:numel(keys)
+                    parts{k} = B.Runs.value(name, keys(k));
+                    parts{k}.key = keys(k);
+                end
+                info = R.datasets(ismember(R.datasets.key, keys), {'key', 'name', 'subject', 'date'});
+                A = epochMatrix(parts, S, Info=info);
+                if height(A.rows) ~= height(R.rows)
+                    error('DatasetBrowser:BadResultFile', 'the kept parts give %d rows, the result %d', height(A.rows), height(R.rows));
+                end
+                R.epochs = A.epochs;
+            catch ME
+                warning('DatasetBrowser:BadResultFile', '%s: the result''s epochs are not restored (%s); Compute again for them.', ...
+                    file, ME.message);
+            end
         end
 
         function s = browserState(B)
@@ -1530,6 +1625,10 @@ classdef DatasetBrowser < handle
             B.refreshSummary();
         end
 
+        function setOnTopFrom(B, tf)
+            B.OnTop = logical(tf);
+        end
+
         function savePrefs(B)
             g = DatasetBrowser.PrefGroup;
             try
@@ -1538,6 +1637,7 @@ classdef DatasetBrowser < handle
                 AppPrefs.setpref(g, "Sort", TableSort.toPref(B.Sort));
                 AppPrefs.setpref(g, "SettingsFolder", char(B.SettingsFolder));
                 AppPrefs.setpref(g, "Workers", B.WorkersN);
+                AppPrefs.setpref(g, "OnTop", B.OnTopS);
                 if B.uiOk(); AppPrefs.setpref(g, "Position", B.Fig.Position); end
             catch
                 % preferences are a convenience
@@ -1561,6 +1661,9 @@ classdef DatasetBrowser < handle
             c = B.Ctl;
             for name = B.Controls
                 if isfield(c, name) && isvalid(c.(name)); c.(name).Enable = ternary(tf, 'off', 'on'); end   % a uitable takes text only
+            end
+            for h = struct2cell(c.Align).'
+                if isprop(h{1}, 'Enable'); h{1}.Enable = ternary(tf, 'off', 'on'); end
             end
             c.Cancel.Enable = matlab.lang.OnOffSwitchState(tf);
             if ~tf; B.applyEnable(); end
@@ -1743,6 +1846,69 @@ classdef DatasetBrowser < handle
             B.setStatus(string(msg));
         end
 
+        % --- the event, window and trial-selection controls (AlignControls) -----------------------
+        function onAlignEdit(B)
+            %onAlignEdit  The event, window and selection the controls show into the settings, checked; undone when they do not fit.
+            try
+                S = B.SettingsS;
+                [S.ref, S.window, S.selection] = AlignControls.read(B.Ctl.Align, S.ref, S.window, S.selection);
+                B.setSettings(S, true);
+                B.setStatus("");
+            catch ME
+                B.refreshForm();
+                B.setStatus("Not applied: " + string(ME.message), true);
+            end
+        end
+
+        function editSequence(B, holder, lineCtl, edgeCtl, done)
+            %editSequence  The Event sequence window on HOLDER's steps, its lines from one dataset (fillLists).
+            B.fillLists();
+            B.closeSequenceDialog();
+            B.SequenceDialog = AlignControls.editSequence(holder, lineCtl, edgeCtl, done);
+        end
+
+        function showFilterHelp(B)
+            %showFilterHelp  What a trial filter can use, with the trial columns of the lists' dataset.
+            src = [];
+            key = B.listKey();
+            if key ~= ""
+                try
+                    src = B.source(key);
+                catch
+                end
+            end
+            uialert(B.Fig, AlignControls.filterHelpText(src), "Trial filter", "Icon", "info");
+        end
+
+        function refreshEpochs(B)
+            %refreshEpochs  Redraw the Epoch Diagram window, when open, with the settings and the lists' dataset.
+            d = B.EpochWindow;
+            if isempty(d) || ~isvalid(d) || ~d.isOpen(); return; end
+            key = B.listKey();
+            if key == ""; return; end
+            try
+                src = B.source(key);
+            catch ME
+                B.setStatus("Cannot read " + key + " for the epoch diagram: " + string(ME.message), true);
+                return
+            end
+            S = B.SettingsS;
+            d.update(src, S.ref, S.window, S.selection, Title=src.name);
+        end
+
+        function closeSequenceDialog(B)
+            if ~isempty(B.SequenceDialog) && isvalid(B.SequenceDialog); delete(B.SequenceDialog); end
+            B.SequenceDialog = [];
+        end
+
+        function closeWindows(B)
+            %closeWindows  The Event sequence and Epoch Diagram windows go.
+            B.closeSequenceDialog();
+            d = B.EpochWindow;
+            if ~isempty(d) && isvalid(d); d.close(); end
+            B.EpochWindow = [];
+        end
+
         function changed(B, what)
             if isempty(B.OnChange); return; end
             try
@@ -1805,6 +1971,18 @@ classdef DatasetBrowser < handle
             tf = a == b;
         end
 
+        function n = openPoolWorkers()
+            %openPoolWorkers  Workers of the open process pool (0 when none is open or the toolbox is missing).
+            n = 0;
+            try
+                if ~isempty(ver('parallel')) && license('test', 'Distrib_Computing_Toolbox')
+                    p = gcp('nocreate');
+                    if isa(p, 'parallel.ProcessPool'); n = p.NumWorkers; end
+                end
+            catch
+            end
+        end
+
         function p = readPrefs()
             p = struct();
             try
@@ -1845,25 +2023,6 @@ dd.Value = char(text);
 end
 
 
-function setItems(dd, items)
-%setItems  ITEMS in drop-down DD; its value stays (added when the items lack it).
-v = string(dd.Value);
-items = reshape(string(items), 1, []);
-if ~ismember(v, items); items = [items v]; end
-dd.Items = cellstr(items);
-dd.Value = char(v);
-end
-
-
-function setValue(dd, v)
-%setValue  Drop-down DD shows V (added to its items when they lack it).
-v = string(v);
-items = string(dd.Items);
-if ~ismember(v, items); dd.Items = cellstr([reshape(items, 1, []) v]); end
-dd.Value = char(v);
-end
-
-
 function v = parseNumbers(txt, name)
 %parseNumbers  Numbers typed as "1:4", "1 3", "[-1 -0.5]", "1, 2" (blank = []); never eval.
 t = strtrim(string(txt));
@@ -1898,6 +2057,12 @@ if numel(v) > 2 && all(v == round(v)) && all(diff(v) == 1)
 else
     s = strjoin(compose("%g", v), " ");
 end
+end
+
+
+function tf = sameNormalize(a, b)
+%sameNormalize  Settings A and B normalize alike (A from a result that may predate normalize).
+tf = isfield(a, 'normalize') && isequal(a.normalize, b.normalize);
 end
 
 

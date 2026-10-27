@@ -38,7 +38,9 @@ B = DatasetBrowser(root, Scan=false);     % only read the result file: B.Result,
 | `ResultFile` | default `<root>\DatasetBrowser_results.mat` |
 | `Visible` | `false`: no window shows |
 | `Scan` | `false`: only restore the result file, without touching the share |
-| `Workers` | the process workers **Compute** and `forEach` use ([Workers](#workers)). Default: the last one set, else 0 |
+| `Workers` | the process workers **Compute** and `forEach` use ([Workers](#workers)). Default: all workers of a process pool already open, else the last one set, else 0 |
+
+`B.OnTop` (the **Keep on top** checkbox) is settable at any time; its default is the last one set, else `false`.
 
 On opening, the ticks, filter, settings and result saved in the result file
 are restored, unless the options set them. With no saved state, the first scan
@@ -52,7 +54,8 @@ The window (1380 x 860 pixels, its position remembered) has four rows:
 1. **Root** (a field and **Browse...**) and **Pattern**, with **Scan**.
    **Scan** lists the root's datasets. It reads each one's outputs and tags
    but loads no dataset. The **Root** of a new scan takes that root's own
-   result file, when the result file follows the root.
+   result file, when the result file follows the root. **Keep on top**
+   (`B.OnTop`, preference `OnTop`) holds the window above the other windows.
 2. On the left, the filter, the count and the datasets table. On the right,
    the **Settings** panel.
 3. The progress strip.
@@ -96,34 +99,45 @@ row makes it the dataset the form's lists are read from.
 
 ### The settings form
 
-The right panel holds the settings of `epochMatrix` in a compact form. Every
-edit is merged into the whole settings struct and checked by
-`epochMatrixSettings`; an edit that does not fit is undone and its reason
-shown in the status line. **Load...** and **Save...** read and write a
-[settings file](#settings) (**Save...** writes every field, also those the
-form does not show).
+The right panel holds the settings of `epochMatrix`: **Data** above three
+tabs, **Event**, **Trials** and **Measure**. Every edit is merged into the
+whole settings struct and checked by `epochMatrixSettings`; an edit that does
+not fit is undone and its reason shown in the status line. **Load...** and
+**Save...** read and write a [settings file](#settings) (**Save...** writes
+every field, also those the form does not show).
+
+The **Event** and **Trials** tabs are the analysis app's own controls
+(`AlignControls`, the Alignment tab's Event reference, Epoch window and Trial
+selection), so they offer the same fields and behave the same; see
+the [Alignment tab](EphysAnalysisApp.md#alignment-tab) for each one. The window is always
+fixed (`epochMatrix` takes no other mode), so the browser hides the window's
+mode and its stop event.
 
 | Control | Sets |
 | --- | --- |
-| **Data** | `data`: `units`, `detected`, `LFP`, `MUA`, `SPIKE` or `AUX`. Only the block that matches is on |
-| **Event**, edge, which, **n** | `ref`: the line each epoch is aligned to, its onset or offset, which interval per trial (`first`, `last`, `all`, `nth`; **n** is for `nth`) |
-| **Then**, edge | one follow-up step of `ref.sequence` (an event that must follow; the epochs align to it). *(none)*: the event alone. More steps from a loaded file are kept and noted |
-| **Pre (s)**, **Post (s)** | `window` (fixed) |
-| **Response** | `selection.response`: keep the trials that are any of these (none picked: every trial) |
-| **Group by**, **Order** | `selection.groupBy` (one trial parameter) and `groupOrder` |
-| **Spikes** block | **Merge neighboring sites** (`units.merge.enabled`, `detected` only), **Shanks** (`units.shanks`, e.g. `1:4`), **Measure**, **Bin (s)**, **auROC baseline (s)** (with measure `auroc`) |
-| **Signals** block | **Channels**, **Shanks** (not for AUX), **Baseline (s)**, **Statistic**, **Detrend**, **Rectify**, **Magnitude (AUX)** |
+| **Data** | `data`: `units`, `detected`, `LFP`, `MUA`, `SPIKE` or `AUX`. Only the matching block of the **Measure** tab is on |
+| **Event** tab: **Event reference** | `ref`: **Line**, **Edge**, **Which** and **n**, **Scope**, **Offset (s)**, **Length (s)**, **Time range (s)**, **Shift by** and its unit, and **Sequence** |
+| **Event** tab: **Sequence** **Edit...** | `ref.sequence` and `ref.alignStep` in the *Event sequence* window: any number of steps, each *followed by* or *not followed by* a line's onset or offset (its **n**, **Within (s)**, **Min / Max length (s)**), and **Align to** the start or any *followed by* step (aligned to the start, the steps are conditions only). For example *Trial offset then Trough onset*: the first Trough onset after each trial ends. **Apply** checks the steps |
+| **Event** tab: **Epoch window** | `window`: **Pre (s)**, **Post (s)** |
+| **Event** tab: **Epoch Diagram** | opens the *How the epochs are cut* window (`EpochDiagram`, also `B.showEpochs()`) for the dataset the lists come from: the lines, each event picked, the sequence, the windows and the trials kept or dropped. It is redrawn on every settings edit and row click until closed, and closes with the browser |
+| **Trials** tab | `selection`: **Filter** (an expression over the trial columns, e.g. `Depth > 0 & ~FA`; **?** lists the columns, words and functions), **Response**, **Pairing** (`pairingFlags`), **Group by** and **and** (one or two trial parameters), **Order**, **Max groups**, **Artifacts** (`excludeArtifacts`, at least `minArtifactSec`) |
+| **Measure** tab: **Normalize**, **Baseline (s)**, scope | `normalize`: `method`, `baseline` and `scope` (*per row* or *per group*); see [Normalization](#normalization). A change normalizes the result again in place and computes nothing. Off for measure `auroc`; **Baseline (s)** only for the methods that use it |
+| **Measure** tab: **Spikes** block | **Merge neighboring sites** (`units.merge.enabled`, `detected` only), **Shanks** (`units.shanks`, e.g. `1:4`), **Measure**, **Bin (s)**, **auROC baseline (s)** (with measure `auroc`) |
+| **Measure** tab: **Signals** block | **Channels**, **Shanks** (not for AUX), **Baseline (s)**, **Statistic**, **Detrend**, **Rectify**, **Magnitude (AUX)** |
+| **Measure** tab: **Keep each epoch (R.epochs)** | `keepEpochs`: the result keeps every epoch before the average ([Each epoch](#each-epoch-repochs)). Every kind of **Data** |
 
 The form does not show every field (the unit classes and tests, the auROC
-section, the trial filter). Load a settings file or assign `B.Settings` for
-those.
+section, the selection's explicit trial rows, and an interval length or time
+range of a stop event). Load a settings file or assign `B.Settings` for
+those; an edit in the form keeps them.
 
-The line and parameter lists come from one dataset's source: the clicked
-row's, else the first ticked dataset's. A value typed or loaded that this
-dataset lacks stays.
+The line and parameter lists (**Line**, **Shift by**, **Group by**, and the
+lines the *Event sequence* window offers) come from one dataset's source: the
+clicked row's, else the first ticked dataset's. A value typed or loaded that
+this dataset lacks stays.
 
 **The Data dropdown and its two blocks.** **Data** chooses what is computed,
-and with it which block of the form applies:
+and with it which block of the **Measure** tab applies:
 
 - `units` (the sorted units of the sorting folder) and `detected` (the Spikes
   step's threshold detections, one train per channel) use the **Spikes** block.
@@ -157,8 +171,10 @@ every 2 s, and one at the finish.
 
 **Workers** (`B.Workers`, preference `Workers`) is how many datasets
 **Compute** and `forEach` compute at once on process workers (Parallel
-Computing Toolbox, `parfeval`). `0`, the default, computes them here, one
-after the other. With 1 or more, and two or more datasets to compute, the open
+Computing Toolbox, `parfeval`). When a process pool is already open as the
+browser opens, Workers starts at that pool's size. Otherwise it starts at the
+last value set, else `0`, which computes the datasets here, one after the
+other. With 1 or more, and two or more datasets to compute, the open
 process pool is used, or one of that many workers is started (`parpool
 "Processes"`; it stays open until its idle timeout, so the next **Compute**
 starts at once). Each worker loads its dataset's source, computes its part and
@@ -230,7 +246,8 @@ R = B.compute();
 | `tick(B, KEYS, TF)`, `tickShown(B)`, `untickAll(B)` | tick or untick datasets by key, name or index; or set `B.Selected` |
 | `sortBy(B, COLUMN, DIRECTION)`, `clearSort(B)` | sort the table |
 | `setListSource(B, KEY)`, `fillLists(B)`, `source(B, KEY)` | the dataset the form's lists come from; fill them; its analysis source |
-| `formEdit(B, CONTROL, VALUE)` | edit a control of `B.Ctl` as a click would |
+| `formEdit(B, CONTROL, VALUE)` | edit a control of `B.Ctl` (or of `B.Ctl.Align`, the Event and Trials tabs: `Line`, `Filter`, `Group1`, ...) as a click would |
+| `showEpochs(B)` | the **Epoch Diagram** window of the lists' dataset |
 | `R = compute(B, Recompute=false)` | `epochMatrix` over the ticked datasets with `B.Settings` |
 | `[VALUES, T] = forEach(B, FN, ...)` | [your own per-dataset code, cached](#foreach) |
 | `forget(B, NAME, KEYS)`, `forgetTicked(B)` | drop kept parts |
@@ -286,17 +303,20 @@ R.data(:, :, 1))` draws the first group of every row, and `R.labels`
 
 | Field | Type | Holds |
 | --- | --- | --- |
-| `R.data` | double [nRows x nTime x nGroups] | The values: data(row, time, group). It holds the measure (rate, count or auROC) for spikes, and the group mean or median for signals. Wherever a row's dataset has no epochs in a group, the value is NaN. |
+| `R.data` | double [nRows x nTime x nGroups] | The values: data(row, time, group). It holds the measure (rate, count or auROC) for spikes, and the group mean or median for signals. Wherever a row's dataset has no epochs in a group, the value is NaN. With `settings.normalize.method` other than `"none"` the values are normalized ([Normalization](#normalization)). |
 | `R.rows` | table, nRows rows | One row per unit (spikes) or channel (signals), in data's first-dimension order. Columns for every kind: label, Dataset (key), Subject, Date (day), Session, Tags (";"-joined). Units add unitId, class ("su", "mua", "det", ...), channel, channelName, shank, x, y, nSpikes, and nSites/sites when merged. Channels add channel, shank, x, y, units. A column that some datasets lack is missing (missing/NaN) in their rows. |
 | `R.t` | double column, nTime | Times along data's second dimension, in s from the event. For spikes these are bin centers (auROC window centers for auroc); for signals, sample times. |
 | `R.groupLabels` | column, nGroups | Labels along data's third dimension, in settings.selection.groupOrder. Numeric when grouped by one parameter that is numeric in every dataset (e.g. Depth), otherwise string: the value's text for one parameter, "Depth = 3, Level = 2" for several. |
 | `R.rowKind` | string | "unit" or "channel". |
-| `R.valueUnits` | string | The unit of data: "spikes/s", "spikes/bin", "auROC", "uV" or "V". Use it for axis labels. |
+| `R.valueUnits` | string | The unit of data: "spikes/s", "spikes/bin", "auROC", "uV" or "V"; normalized: "z", "%", "x baseline" or "0-1" ("subtract" keeps the unit). Use it for axis labels. |
 | `R.settings` | struct | The settings that made R (see [Settings](#settings)), e.g. R.settings.measure, R.settings.data, R.settings.window.pre. |
 | `R.datasets` | table, one row per ticked dataset | key, name, subject, date, status ("done", "cached", "skipped" or "error"), message, nRows, nEpochs, nGroups, seconds. This table answers "why is dataset X missing". |
 | `R.keys` | string column | The datasets whose rows are in R, in row order. |
 | `R.created` | datetime | When the result was assembled. |
+| `R.raw` | double, the size of `R.data`, or `[]` | The values before normalization (`[]` when `settings.normalize.method` is `"none"`). |
+| `R.normalization` | struct | How `R.data` was normalized: `method` (the one applied), `baseline`, `scope`, `rawUnits`, `center` and `scale` (`R.data = (R.raw - center) ./ scale`), `undefined` (logical [nRows x nGroups]: NaN for a zero or flat baseline), `nBaseline` (the times of `R.t` in the baseline). |
 | `R.labels` | struct of strings | Axis labels, legend text and a one-line description of R, in words (see [Labels](#labels)). |
+| `R.epochs` | struct column, one per dataset of `R.keys`, or `[]` | Each epoch before any average, with `settings.keepEpochs` (see [Each epoch](#each-epoch-repochs)); `[]` without. |
 
 Notes on the fields:
 
@@ -328,6 +348,92 @@ Notes on the fields:
 - A time base that differs between datasets (different bins or signal rates)
   raises `epochMatrix:TimeBase`, naming the datasets.
 
+### Each epoch (`R.epochs`)
+
+`R.data` holds averages. To work with single trials (decoding, trial-by-trial
+variability, your own statistics), tick **Keep each epoch (R.epochs)** on the
+**Measure** tab, or set `keepEpochs=true`, and compute. `R.epochs(k)` is
+dataset `R.keys(k)`'s:
+
+| Field | Holds |
+| --- | --- |
+| `key`, `name` | the dataset |
+| `rows` | its rows of `R.rows` and `R.data` (indices) |
+| `E` | its epochs: `epochTable`'s table (`trial`, `t0`, `t0Continuous`, `groupIndex`, `group`, the `groupBy` parameters, ...), plus `resultGroup`, the epoch's group in `R.groupLabels` (data's third dimension) |
+| `spikes` | spikes: `spikes(i)` for the dataset's i-th row has `times` (s from the event, inside the window's whole bins) and `epoch` (each spike's row of `E`). `[]` for signals |
+| `data` | signals: single `[nRows x nTime x nEpochs]`, `data(row, time, epoch)` at `R.t`, each epoch after **Detrend**, **Baseline**, **Magnitude** and **Rectify** (what is averaged). Its third dimension follows `E`'s rows; the epochs off the signal or not finite are left out of both. `[]` for spikes |
+
+The values are never normalized. The mean of a group's epochs is `R.data` for
+signals, and for measure `count` the spike counts binned per epoch average to
+`R.data`:
+
+```matlab
+B.Settings = epochMatrixSettings(B.Settings, keepEpochs=true);
+R = B.compute();
+e = R.epochs(1);                               % the first dataset
+% LFP: the epochs of the first group, rows x time x epochs
+X = e.data(:, :, e.E.resultGroup == 1);
+% spikes: a trials x bins count matrix of the dataset's first unit
+edges = [R.t - R.settings.binSec/2; R.t(end) + R.settings.binSec/2];
+sp = e.spikes(1);
+C = zeros(height(e.E), numel(R.t));
+for j = 1:height(e.E)
+    C(j, :) = histcounts(sp.times(sp.epoch == j), edges);
+end
+```
+
+Parts with epochs are kept under their own cache name
+(`"epochMatrix/<data>/epochs"`), so turning the option on computes every
+dataset once more, and turning it off again reuses the parts without epochs.
+Signal epochs are large (2 s at 1 kHz over 32 channels and 300 trials is
+about 77 MB per dataset) and go into the result file with the kept parts.
+`R.epochs` itself is left out of the file's `result`, and a restore assembles
+it again from the kept parts. If the parts are gone (`forget`), the result
+comes back without its epochs, with the warning
+`DatasetBrowser:BadResultFile`: compute again.
+
+### Normalization
+
+`settings.normalize` normalizes each row's trace in `R.data` against its own
+values. It is applied after the parts are assembled, by
+`epochMatrixNormalize` ([source](../analysis/epochMatrixNormalize.m)), so
+it is not in the cache identity: a change to it computes no dataset again,
+and the browser normalizes its result again in place. In the formulas, `b`
+and `SD` are the mean and standard deviation of the trace's values at the
+times of `R.t` inside `normalize.baseline` (default [-0.5 0] s; missing
+values ignored).
+
+| `method` | `R.data` | `R.valueUnits` |
+| --- | --- | --- |
+| `"none"` (default) | the values as computed | the measure's |
+| `"subtract"` | x - b | the measure's |
+| `"ratio"` | x / b | "x baseline" |
+| `"percent"` | 100 (x - b) / \|b\| | "%" |
+| `"zscore"` | (x - b) / SD | "z" |
+| `"minmax"` | (x - min) / (max - min), over the whole window | "0-1" |
+
+`normalize.scope` is `"row"` (default: one baseline, or one range, per row
+from all its groups, so the groups keep their differences) or `"group"` (each
+group its own).
+
+- The SD is over the baseline's bins (spikes) or samples (signals) of the
+  group's mean trace, not over the epochs: it shrinks with more epochs and
+  grows with narrower bins. `spikePSTH`'s `BaselineMode` `"zscore"`, which
+  the analysis app's PSTH panels use, takes the SD over the epochs instead.
+- Where `b` is 0 (ratio, percent), the SD is 0 (zscore), the trace is flat
+  (minmax) or no baseline value is finite, the row is NaN in that group (with
+  scope `"row"`, in every group) and `R.normalization.undefined` marks it.
+  The browser's summary counts these rows.
+- A result of measure `"auroc"` is not normalized: `R.normalization.method`
+  is `"none"`, while `R.settings.normalize` keeps what was asked.
+- `R.raw` holds the values before normalization, so normalizing again never
+  stacks. A script can normalize any result itself:
+
+```matlab
+Rz = epochMatrixNormalize(B.Result, struct('method', "zscore", 'baseline', [-1 0]));
+Rn = epochMatrixNormalize(Rz, struct('method', "none"));   % the raw values again
+```
+
 ### Labels
 
 `R.labels = epochMatrixLabels(R)`
@@ -351,6 +457,7 @@ is a column.
 | `window` | the epoch window | "-1 to 1 s" |
 | `bins` | the bin width (spikes; "" for signals) | "10 ms bins" |
 | `baseline` | the auROC's baseline, or the signal's subtracted one ("" without one) | "baseline -0.5 to 0 s", "baseline -0.2 to 0 s subtracted" |
+| `normalization` | the [normalization](#normalization) in words, with ", per group" for scope `"group"` ("" without one). `value` then names it too: "Firing rate (z-score vs. baseline)", "Firing rate - baseline (spikes/s)", "Firing rate / baseline", "Firing rate (% change from baseline)", "Firing rate (min-max normalized)" | "z-scored against the baseline -0.5 to 0 s", "scaled 0 to 1 over the window" |
 | `description` | one line of the above, for a subtitle or a caption | "Firing rate of units in 10 ms bins, -1 to 1 s from Stim onset; Hit trials by Depth (descending)" |
 
 ```matlab
@@ -367,7 +474,7 @@ defaults, overlays a struct or a file on them, checks the result and gives
 its cache identity. `S = epochMatrixSettings()` gives the defaults;
 `S = epochMatrixSettings(S0, Name=Value)` overlays the struct `S0` (or `[]`,
 or the path of a settings file) and then the options. A struct option (`ref`,
-`window`, `selection`, `units`, `signal`, `auroc`) is merged field by field
+`window`, `selection`, `units`, `signal`, `auroc`, `normalize`) is merged field by field
 over the value it replaces, so `units=struct('shanks', 1:2)` keeps the other
 unit fields; any other option replaces its field.
 
@@ -382,11 +489,13 @@ unit fields; any other option replaces its field.
 | `binSec` | spikes: the bin width, s (default 0.01); at least one whole bin, edged at the event, must fit in [pre post] (`spikePSTH`) |
 | `baseline` | spikes: [b0 b1] s from the event, the auROC's baseline (default [-0.5 0]; b0 < b1 with measure `"auroc"`) |
 | `auroc` | spikes: the Auroc section (`aurocCurves`' settings), with `cutoff` `"none"` by default |
+| `normalize` | every kind: a struct of `method` (`"none"` default, `"subtract"`, `"ratio"`, `"percent"`, `"zscore"` or `"minmax"`), `baseline` ([b0 b1] s, b0 < b1; default [-0.5 0]; must overlap the window for a method that uses it) and `scope` (`"row"` default, or `"group"`). Applied after assembly, so not in the cache identity; see [Normalization](#normalization) |
+| `keepEpochs` | every kind: `false` (default) or `true`, keep every epoch in `R.epochs` ([Each epoch](#each-epoch-repochs)). In the cache identity only when `true`, with parts kept under `"epochMatrix/<data>/epochs"` |
 | `signal` | signals: a struct of `channels` (1-based columns of the signal; `[]` = all), `shanks` (probe shanks kept; `[]` = all; not used for AUX), `baseline` ([b0 b1] s: each epoch's mean over it is subtracted per channel; `[]` = none), `detrend` (remove each epoch's linear trend; false), `rectify` (the absolute value before the average; false), `magnitude` (the channels' vector magnitude, one row, e.g. AUX's accelerometer; false) and `statistic` (`"mean"` default, or `"median"`) |
 
 Fields that do not apply to `data` are kept in `S`, unchecked beyond their
 form, and left out of the cache identity, so a change to an LFP option keeps
-the cached spike results.
+the cached spike results. `normalize` is left out of it too.
 
 **Settings files** are JSON: `{"schema": "epoch-matrix-settings", "version":
 1, "settings": {...}}`, with non-finite numbers written as the strings
@@ -406,7 +515,8 @@ cached by old code are computed again.
 
 **Per-dataset parts.** `epochMatrix` computes one part per dataset and keeps
 it in a `DatasetRuns` ([source](../analysis/DatasetRuns.m), `B.Runs`) under
-the name `"epochMatrix/" + data`. A part is reused only while its identity is
+the name `"epochMatrix/" + data` (`+ "/epochs"` with `keepEpochs`; the third
+output of `epochMatrixSettings`). A part is reused only while its identity is
 unchanged. The identity is
 
 - the settings: the cache identity above, so a dataset is computed again when
@@ -461,7 +571,7 @@ the old one. It holds
 | --- | --- |
 | `schema`, `version` | `"dataset-browser-results"`, 1 |
 | `browser` | the browser's state: `root`, `outputRoot`, `namePattern`, `recordings`, `ticked` (keys), `filter` and `settings` |
-| `result` | `B.Result` (`[]` before a compute); its `labels` are made again on restore |
+| `result` | `B.Result` (`[]` before a compute); its `labels` are made again on restore, and its `epochs` are left out and assembled again from `runs` |
 | `runs` | `B.Runs.toStruct()`: every kept part and `forEach` value, each with its identity, status, message, seconds and the time it was made |
 
 It is written after a `compute` or `forEach` that added parts (a canceled one
@@ -562,6 +672,7 @@ out).
 | the compute and its result | [`epochMatrix.m`](../analysis/epochMatrix.m) |
 | the settings, their checks and cache identity | [`epochMatrixSettings.m`](../analysis/epochMatrixSettings.m) |
 | the result's labels and description in words | [`epochMatrixLabels.m`](../analysis/epochMatrixLabels.m) |
+| the normalization of a result | [`epochMatrixNormalize.m`](../analysis/epochMatrixNormalize.m) |
 | the per-dataset cache and run engine | [`DatasetRuns.m`](../analysis/DatasetRuns.m) |
 | the stamp of a dataset's output files (names, sizes, times) | [`outputsStamp.m`](../analysis/outputsStamp.m) |
 | the subject, tag and text filter (also the analysis app's Data tab) | [`datasetFilter.m`](../analysis/datasetFilter.m) |
@@ -574,5 +685,5 @@ out).
 | --- | --- |
 | [`test_DatasetFilter.m`](../analysis/test_DatasetFilter.m) | `datasetFilter`: subjects, wildcards and literal regex characters, tags, search, the combinations |
 | [`test_DatasetRuns.m`](../analysis/test_DatasetRuns.m) | `DatasetRuns`: reuse, identity, skipped and failed datasets, cancel, `forget`, the saved struct |
-| [`test_EpochMatrix.m`](../analysis/test_EpochMatrix.m) | `epochMatrixSettings` and `epochMatrix`: the parts against the per-dataset calls, assembly, groups, the result fields, the labels |
+| [`test_EpochMatrix.m`](../analysis/test_EpochMatrix.m) | `epochMatrixSettings` and `epochMatrix`: the parts against the per-dataset calls, assembly, groups, the result fields, the labels, the normalization (`epochMatrixNormalize`) |
 | [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file |

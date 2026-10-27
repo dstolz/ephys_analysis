@@ -12,6 +12,12 @@ says how to cut a release.
 
 - Pipeline app: **File > Scan the project at startup** (a check item, on by default, remembered as the `AutoScan`
   preference) turns the startup scan of the reopened config's project off.
+- Tags for new datasets. Pipeline app, Project tab, under **Scan**: **Tag new datasets:** with a field of tags and
+  **Choose...** (the tag window, from the tags in use). Each dataset a scan finds for the first time (no manifest yet)
+  gets those tags, written to its new manifest, so once only. Saved in the config (`Project.AutoTag`,
+  `Project.NewDatasetTags`), so each project has its own; `EphysProject.refresh` takes them as `NewTags=` and its
+  report gains a `New` column, and `EphysPipeline` and the standalone script pass them too. See
+  [Tags for new datasets](documentation/EphysPipelineApp.md#tags-for-new-datasets).
 - Tag datasets. A dataset holds up to 12 free-form tags (lowercase letters, digits, `-`, `_`, `.`; 1-50
   characters), kept sorted in its manifest's new `tags` array (`EphysDataset.Tags`); a manifest without the key has
   none, and tags that are not valid are dropped with a warning that the Scan alert shows. Tags are metadata only: no

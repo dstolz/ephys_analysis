@@ -725,6 +725,7 @@ with its Epsych2 session.
 | Refresh metadata | re-parse all headers, after files changed on disk (off while a run is under way) |
 | Save the pipeline script on each run | `Project.SaveScript` (default on): each run, not a dry run, saves the config's standalone script as `<project root>\pipeline_<config name>.m`, replacing the one the previous run saved; a file of that name that no run saved is left as it is ([details](EphysPipeline.md#run)) |
 | Output root + Browse... | `Project.OutputRoot`: each dataset writes to `<root>/<Name>`, its **output folder**; blank = next to the recording, in the recording folder |
+| Tag new datasets + Choose... | (under **Scan**) `Project.AutoTag` and `Project.NewDatasetTags`: each dataset a scan finds for the first time gets these tags ([Tags for new datasets](#tags-for-new-datasets)) |
 | Name pattern + Columns | `Project.NamePattern`: how each dataset name splits into tokens ([Name pattern and token columns](#name-pattern-and-token-columns)); one checkbox per token, ticked tokens (`Project.TokenColumns`, default `SubjectID`) become table columns after Name. The label right of the **Tags:** filter shows how many names match, or the pattern error. After a scan that found Open Ephys sessions whose names do not match, the status bar suggests `{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*` |
 | Filter | (right of **Tags...**) one editable dropdown per name-pattern token, listing the values found (`-` = the name does not match). Rows whose token does not match are hidden; type `*` / `?` wildcards or comma-separated alternatives (case-insensitive). Filters are a view only: they are not saved, and ticks on hidden rows stay in the selection (the label shows `showing k of n (m ticked hidden)`) |
 | All / None | **All** ticks every shown row; **None** unticks every row, shown or hidden |
@@ -757,7 +758,9 @@ with its Epsych2 session.
    tab puts a session's behavior file, so copied sessions fill the
    **Behavior** column without any search folders. With none, or several,
    nothing is associated.
-4. It rewrites each manifest with the fresh metadata (`writeManifest`).
+4. It rewrites each manifest with the fresh metadata (`writeManifest`). A
+   dataset that had no manifest is new: with **Tag new datasets** on it first
+   takes those tags ([Tags for new datasets](#tags-for-new-datasets)).
 
 A progress dialog with **Cancel** follows the scan. A dataset whose headers
 cannot be read stays in the table with `NaN` metadata, and an alert lists the
@@ -901,6 +904,29 @@ two are combined: a row shows when it passes both, and an empty part passes
 every row. The dropdown lists the tags in use, and follows every edit. The
 label counts the tag filter as one filter (`showing k of n (m ticked
 hidden)`).
+
+#### Tags for new datasets
+
+**Tag new datasets** (under **Scan**) tags every recording as it arrives,
+`cohort-3` or `pilot` say, so you need not find and tag each one by hand.
+Tick it and type the tags in the field beside it, separated by commas, or
+press **Choose...** to pick them in the tag window from the tags in use (and
+type new ones there). From then on, each dataset a scan finds for the first
+time gets those tags. A dataset is new when it has no manifest yet, that is,
+no scan has seen it before. The tags are written to its manifest at once, so
+it gets them once: tags you take off later do not come back, and datasets
+scanned before keep the tags they have.
+
+The setting belongs to the config (`Project.AutoTag`, `Project.NewDatasetTags`),
+so each project has its own and saving the config keeps it. The field takes
+the tag rules: an entry that is no valid tag, or more than 12 tags, is
+refused with an alert and the field keeps what it had; what it takes it
+shows lowercase and sorted. The first tag you type ticks **Tag new
+datasets**, and clearing the field unticks it; ticking it while the field is
+empty opens **Choose...**. After a scan the status bar says how many new
+datasets were tagged (`Tagged 3 new dataset(s) with cohort-3, pilot.`). Runs
+outside the app do the same: `EphysPipeline` and the standalone script pass
+the tags to `EphysProject.refresh` (`NewTags=`).
 
 ### Behavior (Epsych2) sessions
 

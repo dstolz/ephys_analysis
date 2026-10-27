@@ -96,9 +96,16 @@ This is what the GUI's Scan does and what `EphysPipeline` and generated scripts
 call, so headless runs and the app agree on the state of each dataset. Options:
 `Datasets` (indices, default all), `ApplyManifest`, `WriteManifest` (default
 true), `Force` (re-parse cached
-headers), `ProgressFcn(i, n, name)`, `CancelFcn()`. Failures warn and are
+headers), `ProgressFcn(i, n, name)`, `CancelFcn()`, `NewTags` (tags given
+to each dataset whose first manifest the refresh writes: one no refresh has
+seen before; default none). `NewTags` is read like a manifest's tags: an
+entry that is no valid tag, and those past 12, are left out with the warning
+`EphysProject:refresh:NewTags`. The app's Scan, `EphysPipeline` and the
+standalone script pass `Project.NewDatasetTags` when `Project.AutoTag` is on.
+Failures warn and are
 recorded in the returned table (`Dataset`, `Key`, `Metadata`, `Manifest`,
-`Message`; one row per dataset refreshed) instead of interrupting the loop.
+`New`, `Message`; one row per dataset refreshed; `New` is true for a dataset
+that had no manifest and has one now) instead of interrupting the loop.
 Tags in a manifest that are not valid are dropped by `applyManifest` with the
 warning `EphysDataset:applyManifest:Tags`; its text goes into that row's
 `Message` (the Scan alert lists it), the row's `Manifest` flag stays true,

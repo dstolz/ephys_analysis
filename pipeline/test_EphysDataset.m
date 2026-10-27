@@ -1382,6 +1382,28 @@ check(isequal(Pq2.Datasets(q1).Tags, {'draft'}) && contains(rowq.Message, "bad t
 Pq2.Datasets(q1).Tags = {};
 Pq2.Datasets(q1).writeManifest();
 
+% Tags for new datasets (Project.AutoTag): only a dataset with no manifest yet takes them, once.
+delete(Pq2.Datasets(Pq2.findByKey("mouse2/sess1")).manifestFile());
+Pn = EphysProject(fullfile(root, 'proj'));
+repn = Pn.refresh(NewTags=["Cohort-3" "pilot"]);
+n1 = Pn.Datasets(Pn.findByKey("mouse1/sess1"));
+n2 = Pn.Datasets(Pn.findByKey("mouse2/sess1"));
+mn = readJsonFile(n2.manifestFile());
+check(repn.New(repn.Key == "mouse2/sess1") && ~repn.New(repn.Key == "mouse1/sess1") ...
+    && isequal(n2.Tags, {'cohort-3', 'pilot'}) && isequal(mn.tags, {'cohort-3'; 'pilot'}) && isequal(n1.Tags, {}), ...
+    'NewTags: the dataset without a manifest is New and takes them (saved); the one scanned before does not');
+n2.Tags = {};
+n2.writeManifest();
+Pn2 = EphysProject(fullfile(root, 'proj'));
+repn2 = Pn2.refresh(NewTags="pilot");
+check(~any(repn2.New) && isequal(Pn2.Datasets(Pn2.findByKey("mouse2/sess1")).Tags, {}), ...
+    'NewTags are given once: tags taken off a dataset do not come back at the next refresh');
+lastwarn('');
+Pn2.refresh(Datasets=zeros(1, 0), NewTags=["ok" "bad tag!"]);
+[wmsg, wid] = lastwarn();
+check(strcmp(wid, 'EphysProject:refresh:NewTags') && contains(wmsg, 'bad tag!'), ...
+    'NewTags: an entry that is no tag is left out with a warning naming it');
+
 % refresh associates the one Epsych2 file in a recording folder (the Copy tab puts it there).
 k1 = Pr.findByKey("mouse1/sess1");
 k2 = Pr.findByKey("mouse2/sess1");

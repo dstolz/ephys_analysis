@@ -285,6 +285,10 @@ classdef EphysPipelineApp < handle
         TagSearchField        matlab.ui.control.EditField  % text any tag of a shown dataset contains
         TagDialog = []                                     % the open TagDialog ([] when none)
         TagPolicy (1,1) string = "all"                     % the bulk policy last chosen this session ("all" | "skip")
+        % Tags for new datasets, beside Scan: a scan tags each dataset it finds for the first time
+        AutoTagCheckBox       matlab.ui.control.CheckBox   % Project.AutoTag
+        AutoTagField          matlab.ui.control.EditField  % Project.NewDatasetTags, comma-separated (onAutoTags)
+        AutoTagButton         matlab.ui.control.Button     % Choose...: the tag dialog over them (onAutoTags "choose")
         ScanStatusLabel   matlab.ui.control.Label
         % Tools panel (beside the table): open datasets in other programs (onOpenTool)
         ToolsScopeDropDown  matlab.ui.control.DropDown   % ItemsData "active" | "ticked" (toolTargets)
@@ -1186,6 +1190,7 @@ classdef EphysPipelineApp < handle
         onDatasetCellSelection(obj, evt)
         onDatasetsTableClicked(obj, evt)
         onEditTags(obj, idx)
+        onAutoTags(obj, action, evt)
         onRefreshMetadata(obj)
         onSelectDatasets(obj, mode)
         onBrowseRoot(obj)

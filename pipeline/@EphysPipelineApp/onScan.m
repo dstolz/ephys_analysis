@@ -11,7 +11,10 @@ function onScan(obj)
 %   (offerKeptKSQueue). While the app starts (the constructor's scan of
 %   the last config's project) the progress goes to the splash instead of
 %   a dialog, its alerts wait for the window (AppSplash.alert), and the
-%   constructor offers the kept queue once the window shows.
+%   constructor offers the kept queue once the window shows. With "Tag new
+%   datasets" on (Project.AutoTag), each dataset found for the first time
+%   (no manifest yet) takes Project.NewDatasetTags (EphysProject.refresh,
+%   NewTags), and the status bar says how many were tagged.
 
 if obj.refuseWhileRunning("Scan"); return; end
 root = string(obj.RootPathField.Value);
@@ -63,15 +66,19 @@ try
     % with progress (EphysProject.refresh is what scripts and the pipeline
     % call too, so the app and headless runs agree on what a scan does).
     n = P.NumDatasets;
+    newTags = {};   % given to the datasets found for the first time
+    if obj.Config.Project.AutoTag; newTags = obj.Config.Project.NewDatasetTags; end
     if starting
-        report = P.refresh(ProgressFcn=@(i, n, name) obj.Splash.progress(i / n, ...
+        report = P.refresh(NewTags=newTags, ProgressFcn=@(i, n, name) obj.Splash.progress(i / n, ...
             sprintf("Reading headers %d/%d: %s", i, n, name)));
     else
         dlg.Indeterminate = "off";
-        report = P.refresh(ProgressFcn=@(i, n, name) showScanProgress(dlg, i, n, name), ...
+        report = P.refresh(NewTags=newTags, ProgressFcn=@(i, n, name) showScanProgress(dlg, i, n, name), ...
             CancelFcn=@() dlg.CancelRequested);
         close(dlg);
     end
+    nTagged = 0;
+    if ~isempty(newTags); nTagged = nnz(report.New); end
 
     nRule = 0;   % datasets that took the probe of a matching probe rule
     if obj.Config.Probe.AutoAssign
@@ -93,6 +100,10 @@ try
     scanMsg = sprintf("Scanned %s: found %d dataset(s).", root, n);
     if nRule > 0
         scanMsg = scanMsg + sprintf(" Probe rules assigned a probe to %d.", nRule);
+    end
+    if nTagged > 0
+        scanMsg = scanMsg + sprintf(" Tagged %d new dataset(s) with %s.", nTagged, ...
+            TagSet.toText(TagSet.parse(newTags), TagSet.DisplayDelimiter));
     end
     obj.setStatus(scanMsg, namePatternHint(P, obj.Config.Project.NamePattern));
     if ~starting; obj.offerKeptKSQueue(); end

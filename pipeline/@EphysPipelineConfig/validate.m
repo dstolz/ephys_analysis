@@ -52,6 +52,14 @@ catch ME
     patternParses = false;
     add("project", "NamePattern", "error", string(ME.message));
 end
+[newTags, ~, why] = TagSet.parse(P.NewDatasetTags);   % a hand-edited file: what a scan leaves out
+for w = why
+    add("project", "NewDatasetTags", "warning", "Tags for new datasets: " + w + "; a scan leaves it out.");
+end
+[fits, why] = TagSet.checkCount(newTags);
+if ~fits
+    add("project", "NewDatasetTags", "warning", "Tags for new datasets: " + why + "; a scan gives only the first " + TagSet.MaxTags + ".");
+end
 
 % --- Acquisition (always) ------------------------------------------------------
 OE = obj.Acquisition.OpenEphys;

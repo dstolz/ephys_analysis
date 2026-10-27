@@ -23,7 +23,9 @@ switch section
             'Datasets',   string.empty(1,0), ... % root-relative keys when "list"
             'NamePattern',  EphysDataset.DefaultNamePattern, ... % see parseNameTokens; labels sorted units
             'TokenColumns', "SubjectID", ...  % list text: tokens shown as dataset-table columns
-            'SaveScript',   true);            % each run saves the standalone script as <Root>/pipeline_<Name>.m
+            'SaveScript',   true, ...         % each run saves the standalone script as <Root>/pipeline_<Name>.m
+            'AutoTag',      false, ...        % a scan tags each dataset it finds for the first time (no manifest yet)
+            'NewDatasetTags', string.empty(1,0));  % the tags those datasets get (TagSet rules, at most TagSet.MaxTags)
 
     case "Acquisition"
         % Reader options (EphysReader): each reader reads its own sub-struct.

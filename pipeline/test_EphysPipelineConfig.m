@@ -73,6 +73,10 @@ check(isequal(unknown, "Probe.Nope") && s.DefaultProbeFile == "p.json" && islogi
 pr = EphysPipelineConfig.normalizeSection("Probe", struct('AutoAssign', "true", 'RuleSubjects', {{"a*", "b"}}, 'RuleProbes', "p.json"));
 check(pr.AutoAssign && isequal(pr.RuleSubjects, ["a*" "b"]) && isequal(pr.RuleProbes, "p.json") ...
     && isempty(EphysPipelineConfig.defaults("Probe").RuleSubjects), 'probe rules: lists of subject patterns and probe files, none by default');
+pt = EphysPipelineConfig.normalizeSection("Project", struct('AutoTag', "true", 'NewDatasetTags', {{'pilot'}}));
+dp = EphysPipelineConfig.defaults("Project");
+check(pt.AutoTag && isequal(pt.NewDatasetTags, "pilot") && ~dp.AutoTag && isequal(size(dp.NewDatasetTags), [1 0]), ...
+    'tags for new datasets: Project.AutoTag and a string list Project.NewDatasetTags, off and none by default');
 check(strcmp(errorId(@() EphysPipelineConfig.normalizeSection("Spikes", struct('Threshold', 'abc'))), ...
     'EphysPipelineConfig:BadValue'), 'a non-numeric value for a numeric field errors');
 check(strcmp(errorId(@() EphysPipelineConfig.defaults("Nope")), 'EphysPipelineConfig:BadSection'), 'unknown section errors');
@@ -133,6 +137,8 @@ cfg.Description = "with awkward values";
 cfg.Project.Root = "C:\data";
 cfg.Project.Selection = "list";
 cfg.Project.Datasets = "only/one";
+cfg.Project.AutoTag = true;
+cfg.Project.NewDatasetTags = ["cohort-3" "pilot"];
 cfg.Sorting.Enabled = true;
 cfg.Sorting.KS4.dmin = 25;
 cfg.Sorting.KS4.tmax = 100;
@@ -163,6 +169,7 @@ check(c3.isequalConfig(cfg) && isequaln(c3.toStruct(), cfg.toStruct()), 'load re
 check(isequal(c3.Project.Datasets, "only/one") && isequal(c3.Export.Formats, "chronux") ...
     && isequal(c3.Export.Groups, "good") && isequal(size(c3.Export.Signals), [1 0]) ...
     && isequal(c3.Behavior.SearchDirs, ["D:\beh" "E:\beh"]), 'one-element and empty string lists survive');
+check(c3.Project.AutoTag && isequal(c3.Project.NewDatasetTags, ["cohort-3" "pilot"]), 'the tags for new datasets survive');
 check(isequal(c3.Spikes.WindowMs, [-1 2]) && isequal(c3.Sorting.KS4.drift_smoothing, [1 2 3]) ...
     && c3.Sorting.KS4.dmin == 25 && isinf(c3.Sorting.KS4.artifact_threshold) && isempty(c3.Sorting.KS4.n_chan_bin), ...
     'rows, nullables and Inf survive');
@@ -661,6 +668,16 @@ check(any(iss.Field == "TokenColumns" & iss.Severity == "warning" & contains(iss
 cfg.Project.NamePattern = "{bad";
 iss = cfg.validate(CheckPaths=false);
 check(any(iss.Field == "NamePattern" & iss.Severity == "error"), 'an invalid pattern is a validation error');
+cfg.Project.NewDatasetTags = ["ok" "bad tag!"];
+iss = cfg.validate(CheckPaths=false);
+check(any(iss.Field == "NewDatasetTags" & iss.Severity == "warning" & contains(iss.Message, "bad tag!")), ...
+    'a tag for new datasets that is no tag warns (a scan leaves it out)');
+cfg.Project.NewDatasetTags = "t" + (1:13);
+iss = cfg.validate(CheckPaths=false);
+check(any(iss.Field == "NewDatasetTags" & iss.Severity == "warning" & contains(iss.Message, "1 over the limit")), ...
+    'more tags for new datasets than TagSet.MaxTags warns');
+cfg.Project.NewDatasetTags = "pilot";
+check(~any(cfg.validate(CheckPaths=false).Field == "NewDatasetTags"), 'valid tags for new datasets: no issue');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

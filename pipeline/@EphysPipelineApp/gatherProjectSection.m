@@ -12,6 +12,8 @@ P.Recursive  = logical(obj.RecursiveCheckBox.Value);
 P.SaveScript = logical(obj.SaveScriptCheckBox.Value);
 P.OutputRoot = string(strtrim(obj.OutputRootField.Value));
 P.NamePattern = string(obj.NamePatternField.Value);
+P.AutoTag    = logical(obj.AutoTagCheckBox.Value);
+P.NewDatasetTags = reshape(string(TagSet.fromText(obj.AutoTagField.Value)), 1, []);   % checked as typed (onAutoTags)
 checks = obj.NameTokenChecks;
 if ~isempty(checks)
     shown = string({checks.Text});

@@ -9,7 +9,9 @@ function report = refresh(obj, opts)
 %                             dataset with no behavior file takes the one
 %                             Epsych2 session file in its own folder (where
 %                             the Copy tab puts it)
-%     3. writeManifest()    - rewrite the manifest with the fresh metadata
+%     3. writeManifest()    - rewrite the manifest with the fresh metadata;
+%                             a dataset that had no manifest (a scan finds
+%                             it for the first time) first takes NewTags
 %   A dataset without its recording (EphysDataset.hasRecording false: a
 %   folder of pipeline outputs) takes its metadata from those outputs, and
 %   nothing is written to its folder, which is often a backup.
@@ -26,10 +28,19 @@ function report = refresh(obj, opts)
 %     Force          logical (default false)  re-parse headers even if cached
 %     ProgressFcn    ProgressFcn(i, n, name) called before each dataset
 %     CancelFcn      returns true to stop early (remaining datasets untouched)
+%     NewTags        tags given to each dataset whose first manifest this
+%                    refresh writes (default none; Project.NewDatasetTags
+%                    with Project.AutoTag). Lenient, like a manifest's
+%                    tags: entries that are no valid tag, and those past
+%                    TagSet.MaxTags, are left out with a warning
+%                    (EphysProject:refresh:NewTags). Added to the tags the
+%                    dataset holds, unless that would pass TagSet.MaxTags.
 %
-%   Returns a table (Dataset, Key, Metadata, Manifest, Message), one row per
-%   dataset refreshed: Metadata / Manifest are logical success flags;
-%   failures warn and are recorded here instead of interrupting the loop.
+%   Returns a table (Dataset, Key, Metadata, Manifest, New, Message), one
+%   row per dataset refreshed: Metadata / Manifest are logical success
+%   flags, New is true for a dataset that had no manifest and has one now
+%   (it took NewTags); failures warn and are recorded here instead of
+%   interrupting the loop.
 %   Tags a manifest holds that are not valid are dropped by applyManifest
 %   (warning EphysDataset:applyManifest:Tags); the warning's text goes into
 %   that row's Message, and the row's Manifest flag stays true.
@@ -45,6 +56,7 @@ arguments
     opts.Force (1,1) logical = false
     opts.ProgressFcn = []
     opts.CancelFcn = []
+    opts.NewTags = {}
 end
 
 idx = opts.Datasets;
@@ -53,7 +65,9 @@ names = strings(n, 1);
 keys  = strings(n, 1);
 okMeta = false(n, 1);
 okMan  = false(n, 1);
+isNew  = false(n, 1);
 msg    = strings(n, 1);
+newTags = newDatasetTags(opts.NewTags);
 
 for i = 1:n
     d = obj.Datasets(idx(i));
@@ -66,6 +80,7 @@ for i = 1:n
     if ~isempty(opts.ProgressFcn)
         opts.ProgressFcn(i, n, d.Name);
     end
+    first = ~isfile(d.manifestFile());   % before this refresh writes one
 
     try
         if opts.Force || isnan(d.Fs) || isempty(d.PerFile)
@@ -101,7 +116,11 @@ for i = 1:n
             msg(i) = msg(i) + "manifest not read (" + unread + "), left as it is";
         else
             if opts.WriteManifest && d.hasRecording()
-                d.writeManifest();
+                if first && ~isempty(newTags)
+                    t = TagSet.union(d.Tags, newTags);
+                    if TagSet.checkCount(t); d.Tags = t; end
+                end
+                isNew(i) = d.writeManifest() && first;
             end
             okMan(i) = true;
         end
@@ -113,6 +132,21 @@ for i = 1:n
     end
 end
 
-report = table(names, keys, okMeta, okMan, msg, ...
-    'VariableNames', {'Dataset', 'Key', 'Metadata', 'Manifest', 'Message'});
+report = table(names, keys, okMeta, okMan, isNew, msg, ...
+    'VariableNames', {'Dataset', 'Key', 'Metadata', 'Manifest', 'New', 'Message'});
+end
+
+
+function t = newDatasetTags(in)
+%newDatasetTags  The NewTags option as a valid set: what is no tag, and what is past MaxTags, left out with a warning.
+[t, bad] = TagSet.parse(in);
+if numel(t) > TagSet.MaxTags
+    bad = [bad, t(TagSet.MaxTags+1:end)];
+    t = t(1:TagSet.MaxTags);
+end
+if ~isempty(bad)
+    warning('EphysProject:refresh:NewTags', ...
+        'Tags for new datasets: %d left out as invalid or over the limit of %d (%s).', ...
+        numel(bad), TagSet.MaxTags, strjoin(string(bad), ", "));
+end
 end

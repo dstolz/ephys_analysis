@@ -160,8 +160,10 @@ classdef EphysPipeline < handle
             %EphysPipeline  Build the project for a config (or use a given one).
             %   The project's datasets are found and the config applied to
             %   them all; only the selected ones are then refreshed (headers
-            %   and manifests, EphysProject.refresh). Refresh=false skips
-            %   that (e.g. for a Project= the app has scanned already).
+            %   and manifests, EphysProject.refresh; with Project.AutoTag a
+            %   dataset found for the first time takes Project.NewDatasetTags).
+            %   Refresh=false skips that (e.g. for a Project= the app has
+            %   scanned already).
             arguments
                 cfg (1,1) EphysPipelineConfig
                 opts.Project = []
@@ -181,7 +183,9 @@ classdef EphysPipeline < handle
             end
             obj.Config = cfg;   % set.Config pushes the settings onto the datasets and selects them
             if opts.Refresh
-                obj.Project.refresh(Datasets=obj.DatasetIdx);
+                newTags = {};
+                if cfg.Project.AutoTag; newTags = cfg.Project.NewDatasetTags; end
+                obj.Project.refresh(Datasets=obj.DatasetIdx, NewTags=newTags);
             end
         end
 

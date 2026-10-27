@@ -129,7 +129,12 @@ classdef EphysPipelineScript
             else
                 L(end+1, 1) = "idx = 1:P.NumDatasets;             % every dataset under the root";
             end
-            L(end+1, 1) = "P.refresh(Datasets=idx);           % headers + per-dataset manifests (probe, exclusions, ...)";
+            if cfg.Project.AutoTag && ~isempty(cfg.Project.NewDatasetTags)
+                L(end+1, 1) = "newTags = " + lit(cfg.Project.NewDatasetTags) + ";   % given to each dataset found for the first time (no manifest yet)";
+                L(end+1, 1) = "P.refresh(Datasets=idx, NewTags=newTags);   % headers + per-dataset manifests (probe, exclusions, ...)";
+            else
+                L(end+1, 1) = "P.refresh(Datasets=idx);           % headers + per-dataset manifests (probe, exclusions, ...)";
+            end
             L(end+1, 1) = "I = P.unitIdentities(Among=idx);   % subject + recording start that label sorted units";
             L(end+1, 1) = "if any(I.Status ~= ""ok""); disp(I(I.Status ~= ""ok"", [""Key"" ""Status"" ""Message""])); end";
             L(end+1, 1) = "";

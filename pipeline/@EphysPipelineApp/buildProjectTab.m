@@ -1,5 +1,6 @@
 function buildProjectTab(obj)
-%buildProjectTab  Config name, project root / output root, name pattern,
+%buildProjectTab  Config name, project root / output root, the tags for
+%   new datasets (under Scan: onAutoTags), name pattern,
 %   dataset table, selection helpers, the dataset tags (Tags..., a click on
 %   a Tags cell: onEditTags; the tag filter), the Tools panel beside the table (the
 %   datasets in the manifest viewer, the analysis app, phy or the file
@@ -72,6 +73,24 @@ obj.OutputRootField.Layout.Row = 3; obj.OutputRootField.Layout.Column = 2;
 obj.BrowseOutputButton = uibutton(top, "Text", "Browse...", ...
     "ButtonPushedFcn", @(~,~) obj.onBrowseOutput());
 obj.BrowseOutputButton.Layout.Row = 3; obj.BrowseOutputButton.Layout.Column = 3;
+
+% Tags for new datasets, under Scan: Project.AutoTag / NewDatasetTags (onAutoTags).
+at = uigridlayout(top, [1 3]);
+at.Layout.Row = 3; at.Layout.Column = [4 7];
+at.RowHeight   = {'fit'};
+at.ColumnWidth = {'fit', '1x', 'fit'};
+at.Padding     = [0 0 0 0];
+newTip = sprintf(['When a scan finds a dataset for the first time (it has no manifest yet), it gets these tags. ' ...
+    'Saved in the config, so each project has its own. Datasets scanned before keep their tags. ' ...
+    'Tags: separated by commas, %d to %d characters, letters, digits, - _ . (lowercased).'], ...
+    TagSet.MinLength, TagSet.MaxLength);
+obj.AutoTagCheckBox = uicheckbox(at, "Text", "Tag new datasets:", "Tooltip", newTip, ...
+    "ValueChangedFcn", @(~, evt) obj.onAutoTags("check", evt));
+obj.AutoTagField = uieditfield(at, "text", "Placeholder", "e.g. cohort-3, pilot", "Tooltip", newTip, ...
+    "ValueChangedFcn", @(~, evt) obj.onAutoTags("field", evt));
+obj.AutoTagButton = uibutton(at, "Text", "Choose...", ...
+    "Tooltip", "Pick the tags for new datasets from those in use, or type new ones.", ...
+    "ButtonPushedFcn", @(~,~) obj.onAutoTags("choose"));
 
 lbl = uilabel(top, "Text", "Name pattern:", "Tooltip", ...
     "Tokens parsed from each dataset name. {Token} = any text, {Token:yyMMdd} or {Token:yyyy-MM-dd} = that many digits (separators matched literally), {Token:regex} = a regular expression, * = ignored text. Open Ephys session folders: " + OpenEphysReader.DefaultNamePattern);

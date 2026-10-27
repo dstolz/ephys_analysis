@@ -1705,6 +1705,85 @@ if S.sec("3e", "Project tab: Tags column, dialog, filter")
     check(app.Project.NumDatasets == 1 && all(app.DatasetsTable.Data.Tags == ""), 'the second recording removed again');
 end
 
+if S.sec("3e1", "Project tab: tags for new datasets")
+    app.onScan();   % recA has its manifest: it is not new
+    nameA = "recA_260101_120000"; nameC = "recC_260103_120000";
+    dsOf = @(name) app.Project.Datasets([app.Project.Datasets.Name] == name);
+    typeTags = @(txt) typeAutoTags(app, txt);
+    check(~app.AutoTagCheckBox.Value && app.AutoTagField.Value == "" && ~app.Config.Project.AutoTag ...
+        && isempty(app.Config.Project.NewDatasetTags) && app.AutoTagCheckBox.Text == "Tag new datasets:", ...
+        'Tag new datasets is off and empty by default');
+
+    % Typing: the set is shown tidied, the first tag ticks the checkbox; the config is unsaved.
+    typeTags('Pilot, cohort-3');
+    check(app.AutoTagField.Value == "cohort-3, pilot" && app.AutoTagCheckBox.Value && app.Config.Project.AutoTag ...
+        && isequal(app.Config.Project.NewDatasetTags, ["cohort-3" "pilot"]) && startsWith(string(app.Fig.Name), "* ") ...
+        && contains(app.StatusBar.Text, "will be tagged cohort-3, pilot."), ...
+        'typed tags are lowercased and sorted, tick Tag new datasets and mark the config unsaved');
+    typeTags('cohort-3, bad tag!');
+    check(app.AutoTagField.Value == "cohort-3, pilot" && isequal(app.Config.Project.NewDatasetTags, ["cohort-3" "pilot"]), ...
+        'an entry that is no tag is refused: the field keeps its last value');
+    typeTags(strjoin("t" + (1:13), ","));
+    check(app.AutoTagField.Value == "cohort-3, pilot", 'more than 12 tags are refused');
+
+    % A scan tags the recording it finds for the first time, once.
+    fC = fullfile(proj, char(nameC)); mkdir(fC);
+    writeSyntheticRHD(fullfile(fC, 'recC.rhd'), ampRaw, digRaw, Fs, spb);
+    app.onScan();
+    check(isequal(dsOf(nameC).Tags, {'cohort-3', 'pilot'}) && isequal(manifestTags(dsOf(nameC)), {'cohort-3', 'pilot'}) ...
+        && isempty(dsOf(nameA).Tags) && contains(app.StatusBar.Text, "Tagged 1 new dataset(s) with cohort-3, pilot.") ...
+        && any(strcmp(app.TagFilterDropDown.Items, 'cohort-3')), ...
+        'Scan tags the new recording (saved in its manifest), not the one scanned before; the status says so');
+    dd = dsOf(nameC); dd.Tags = {}; dd.writeManifest();
+    app.onScan();
+    check(isempty(dsOf(nameC).Tags) && ~contains(app.StatusBar.Text, "Tagged"), ...
+        'the next scan finds nothing new: tags taken off do not come back');
+    delete(dsOf(nameC).manifestFile());
+    app.AutoTagCheckBox.Value = false;
+    app.AutoTagCheckBox.ValueChangedFcn(app.AutoTagCheckBox, struct('Value', false));
+    app.onScan();
+    check(~app.Config.Project.AutoTag && isempty(dsOf(nameC).Tags) && ~contains(app.StatusBar.Text, "Tagged") ...
+        && app.AutoTagField.Value == "cohort-3, pilot", 'unticked: a new recording gets no tags, the field keeps them');
+
+    % Choose...: the tag dialog over the field's tags.
+    app.AutoTagButton.ButtonPushedFcn(app.AutoTagButton, []);
+    dlg = app.TagDialog;
+    check(isa(dlg, 'TagDialog') && isvalid(dlg.Fig) && dlg.Mode == "set" && isequal(dlg.Pending, {'cohort-3', 'pilot'}) ...
+        && dlg.Ctl.Title.Text == "Tags of new datasets", 'Choose... opens the tag dialog on the tags for new datasets');
+    app.onEditTags(1);
+    check(app.TagDialog == dlg, 'one tag dialog at a time');
+    dlg.removeCurrent('pilot');
+    dlg.addTyped('batch-2');
+    dlg.ok();
+    check(app.AutoTagField.Value == "batch-2, cohort-3" && app.AutoTagCheckBox.Value ...
+        && isequal(app.Config.Project.NewDatasetTags, ["batch-2" "cohort-3"]) && app.Config.Project.AutoTag, ...
+        'OK puts the chosen set in the field and ticks Tag new datasets');
+
+    % Clearing the field unticks it; ticking it with no tags opens Choose..., Cancel unticks it again.
+    typeTags('');
+    check(~app.AutoTagCheckBox.Value && ~app.Config.Project.AutoTag && isempty(app.Config.Project.NewDatasetTags), ...
+        'clearing the field unticks Tag new datasets');
+    app.AutoTagCheckBox.Value = true;
+    app.AutoTagCheckBox.ValueChangedFcn(app.AutoTagCheckBox, struct('Value', true));
+    dlg = app.TagDialog;
+    check(isvalid(dlg.Fig) && isempty(dlg.Pending), 'ticking with no tags opens the tag dialog');
+    dlg.cancel();
+    check(~app.AutoTagCheckBox.Value && ~app.Config.Project.AutoTag, 'canceled: unticked again');
+
+    % The config carries them (per project): applying a Project section shows them.
+    P = app.Config.Project; P.AutoTag = true; P.NewDatasetTags = ["Pilot" "ok"];
+    app.applyProjectSection(P);
+    check(app.AutoTagCheckBox.Value && app.AutoTagField.Value == "ok, pilot", 'a config''s tags for new datasets show beside Scan');
+
+    % Back to the fixture: one dataset, Tag new datasets off.
+    app.applyProjectSection(app.Config.Project);   % the working config: off, none
+    app.onConfigChanged();
+    rmdir(fC, 's');
+    app.onScan();
+    check(app.Project.NumDatasets == 1 && ~app.Config.Project.AutoTag && app.AutoTagField.Value == "", ...
+        'the third recording removed again, Tag new datasets off');
+end
+
 if S.sec("3b1", "Project tab: source settings (Open Ephys, TDT)")
     app.selectDataset(1);
     check(app.SourcePanel.Title == "Source settings: Intan" && app.SourceNoteLabel.Visible == "on" ...
@@ -3734,6 +3813,14 @@ app.TagFilterDropDown.Value = value;
 app.TagFilterModeDropDown.Value = mode;
 app.TagSearchField.Value = search;
 app.refreshDatasetsTable();
+end
+
+
+function typeAutoTags(app, txt)
+%typeAutoTags  Type TXT in the tags-for-new-datasets field beside Scan, as the user would.
+prev = app.AutoTagField.Value;
+app.AutoTagField.Value = txt;
+app.AutoTagField.ValueChangedFcn(app.AutoTagField, struct('Value', txt, 'PreviousValue', prev));
 end
 
 

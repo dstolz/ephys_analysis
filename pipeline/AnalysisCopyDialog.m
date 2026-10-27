@@ -340,7 +340,7 @@ classdef AnalysisCopyDialog < handle
             obj.Ctl.Hash.Layout.Row = 5; obj.Ctl.Hash.Layout.Column = [1 5];
 
             % --- the datasets
-            obj.Ctl.Table = uitable(g, "ColumnName", {'Copy', 'Dataset', 'Subject', 'Date', 'Files', 'Size', 'Status', 'Notes'}, ...
+            obj.Ctl.Table = uitable(g, "ColumnName", {'Copy', 'Dataset', 'Subject', 'Date', 'Files', 'Size', 'Status', 'Not found here / errors'}, ...
                 "ColumnEditable", [true false false false false false false false], "ColumnSortable", true, ...
                 "ColumnWidth", {50, 190, 80, 84, 50, 70, 100, 'auto'}, "RowName", {}, ...
                 "CellEditCallback", @(~, ~) obj.summarize());
@@ -435,7 +435,7 @@ classdef AnalysisCopyDialog < handle
                 if X.Canceled
                     obj.Ctl.Status.Text = "Stopped. " + obj.Ctl.Status.Text;
                 elseif failed > 0
-                    obj.Ctl.Status.Text = sprintf("%d dataset(s) failed - see the Notes column.", failed);
+                    obj.Ctl.Status.Text = sprintf("%d dataset(s) failed - see the last column.", failed);
                 else
                     obj.Ctl.Status.Text = "Done: " + OutputTransfer.progressText(info);
                 end

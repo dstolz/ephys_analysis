@@ -174,7 +174,7 @@ lab(sg, "Order:", 5, 1);
 C.Order = uidropdown(sg, "Items", ["ascending" "descending" "appearance"], "ValueChangedFcn", cbSel);
 C.Order.Layout.Row = 5; C.Order.Layout.Column = 2;
 lab(sg, "Max groups:", 5, 3);
-C.MaxGroups = uispinner(sg, "Limits", [1 100], "Value", 12, "RoundFractionalValues", "on", "ValueChangedFcn", cbSel);
+C.MaxGroups = uispinner(sg, "Limits", [1 100], "Value", 100, "RoundFractionalValues", "on", "ValueChangedFcn", cbSel);
 C.MaxGroups.Layout.Row = 5; C.MaxGroups.Layout.Column = 4;
 
 % Artifacts

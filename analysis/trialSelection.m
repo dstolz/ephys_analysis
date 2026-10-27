@@ -28,7 +28,7 @@ function sel = trialSelection(s, opts)
 %     groupBy       0, 1 or 2 trial parameters; one group per value (per
 %                   pair of values)
 %     groupOrder    "ascending" (default) | "descending" | "appearance"
-%     maxGroups     more groups than this is an error (default 12)
+%     maxGroups     more groups than this is an error (default 100)
 %     excludeArtifacts   true (default): leave out the epochs whose window
 %                   touches an artifact period (src.artifacts, the periods
 %                   the Signals step erased); false: keep them (epochTable

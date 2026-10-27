@@ -89,7 +89,7 @@ distinct as file names: `{Plot}` replaces every character outside
                    "offsetParam": "", "offsetParamUnit": "ms" },
     "Window":    { "mode": "fixed", "pre": -0.2, "post": 0.8, "stop": [] },
     "Selection": { "filter": "", "response": [], "pairingFlags": "ok", "trials": [],
-                   "groupBy": "Depth", "groupOrder": "ascending", "maxGroups": 12,
+                   "groupBy": "Depth", "groupOrder": "ascending", "maxGroups": 100,
                    "excludeArtifacts": true, "minArtifactSec": 0 } },
   "Figures": [
     { "id": "unit_card", "autoId": false, "enabled": true, "title": "",

@@ -258,7 +258,7 @@ epoch's event the animal left the platform; a raster can be sorted by it
 | `trials` | `[]` | explicit rows of `behavior.trials` |
 | `groupBy` | none | 0-2 parameters; one group per value (pair of values) |
 | `groupOrder` | `"ascending"` | `"ascending"`, `"descending"` or `"appearance"` |
-| `maxGroups` | 12 | more groups is `selectTrials:TooManyGroups` |
+| `maxGroups` | 100 | more groups is `selectTrials:TooManyGroups` |
 | `excludeArtifacts` | `true` | leave out the epochs that touch an artifact period (`src.artifacts`); `false` keeps them, flagged in `epochTable`'s `artifact` column |
 | `minArtifactSec` | 0 | only artifact periods at least this long count (for `excludeArtifacts` and the `artifact` column alike) |
 

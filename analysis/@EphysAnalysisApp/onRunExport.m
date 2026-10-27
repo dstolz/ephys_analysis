@@ -13,7 +13,9 @@ function R = onRunExport(obj, opts)
 %   message is the runner's (what it is on, the report's pages) and the
 %   time left (ProgressClock). One run goes at a time (Running): Run,
 %   Plan, Validate, Generate, Test report and Export preview are off
-%   meanwhile, and the previews compute nothing.
+%   meanwhile, and the previews compute nothing. The pages are drawn on
+%   as many process workers as the Export tab's Workers says
+%   (EphysAnalysisRunner.Workers).
 arguments
     obj (1,1) EphysAnalysisApp
     opts.Figures = []    % [] = the enabled figures; string.empty(1, 0) = none; else ids
@@ -47,6 +49,7 @@ if isempty(idx)
 end
 r = obj.Runner;
 r.Config = cfg;
+r.Workers = obj.WorkersSpinner.Value;
 dlg = uiprogressdlg(obj.Fig, "Title", opts.Title, "Message", "Starting ...", "Cancelable", "on");
 clock = ProgressClock();   % the time left, in the dialog's message
 r.ProgressFcn = @(f, m) progress(r, dlg, clock, f, m);

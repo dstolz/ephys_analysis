@@ -2751,8 +2751,10 @@ and layout), apart from what the plot itself held that was invalid.
 | `Data.FilenamePattern` | `{Name}_{Plot}` | a [file-name pattern](#file-name-tokens); `{Name}` is `all`, `{Plot}` the session figure's id (`{Kind}` is `figure`); `.mat` is added. One file per session figure holds every facet, trial group and observation |
 | `Data.MatVersion` | `"-v7.3"` | `"-v7.3"` (HDF5, no 2 GB limit, readable with `h5read` and from Python) or `"-v7"` |
 
-`exportFigure` writes PNG with `exportgraphics` at `Dpi`, PDF and EPS as
-vector graphics (`exportgraphics`, `ContentType="vector"`) and SVG with
+`exportFigure` writes PNG with `exportgraphics` at `Dpi`, PDF with
+`print -dpdf -vector` on a page the figure's size (a third faster than
+`exportgraphics`; `exportgraphics` when appending a page), EPS as vector
+graphics (`exportgraphics`, `ContentType="vector"`) and SVG with
 `print -dsvg -vector`, creating the folder.
 
 ### Figures in an export
@@ -2804,7 +2806,7 @@ token values (the folder pattern is the plots'):
 | `PerDataset` | `false` | one report per dataset, named `<FileName>_<dataset>` (the folder may then use `{OutputFolder}`) |
 | `Order` | `"figure"` | the order within a dataset: `"figure"`, a figure at a time with all its observations' pages together; `"unit"`, an observation at a time (a unit, a channel, or the dataset for a figure of the dataset) under a heading of its own, with its pages of every figure in the figures' order ([below](#report-order)) |
 | `EmbedFormat` | `"png"` | HTML images: `"png"` (base64) or `"svg"` (inline) |
-| `Dpi` | 110 | report PNG resolution |
+| `Dpi` | 110 | report PNG resolution, for a page the Export writes no PNG of: when it does (or one is kept on disk), the HTML embeds that PNG, at the Export `Dpi`, rather than write the page again |
 | `IncludeSummary` | `true` | summary tables per dataset (in the PDF, a summary page per dataset) |
 | `IncludeParameters` | `true` | HTML: each figure's parameters, folded |
 | `IncludeConfig` | `true` | HTML: the config JSON at the end, folded |

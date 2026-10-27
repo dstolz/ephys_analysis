@@ -376,11 +376,14 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   the app reads the PNGs it wrote, committed under `analysis/icons/panels`).
 - Parallel Computing Toolbox (optional; `Parallel.Enabled` in a pipeline
   config, or `UseParallel=true` on `detectSpikes`, `artifactIntervals` and
-  `analyzeArtifacts`). The Visualize tab's envelope builds
+  `analyzeArtifacts`; in the analysis module, `EphysAnalysisRunner.Workers`
+  -- the analysis app's **Workers**, 4 by default -- draws and writes a
+  run's figure pages and report pages on a process pool, `parfeval`).
+  Without it a run draws every page in MATLAB itself. The Visualize tab's envelope builds
   (`EphysTraceEnvelope`) need no toolbox: `parfeval` on `backgroundPool`
   is part of MATLAB.
 - No Report Generator: the analysis module's PDF reports are vector pages
-  from `exportgraphics`, joined with the Apache PDFBox library that MATLAB
+  from `print -dpdf -vector`, joined with the Apache PDFBox library that MATLAB
   ships on its Java class path (`java/jarext/pdfbox.jar`,
   `PDFMergerUtility`), and its HTML reports are written by hand.
 

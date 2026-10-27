@@ -2,6 +2,7 @@ function progress(obj, fraction, message)
 %progress  Report progress; throw EphysAnalysisRunner:Canceled after cancel().
 %   Calls ProgressFcn(fraction, message) when set. The ProgressFcn may call
 %   cancel() itself (e.g. from a cancelable progress dialog).
+obj.LastFraction = fraction;
 if ~isempty(obj.ProgressFcn)
     obj.ProgressFcn(fraction, string(message));
 end

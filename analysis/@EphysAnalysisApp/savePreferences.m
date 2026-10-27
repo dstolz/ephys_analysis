@@ -21,6 +21,7 @@ AppPrefs.setpref(g, 'ApplyTicked', cellstr(obj.ApplyTicked));
 AppPrefs.setpref(g, 'ApplySeen', cellstr(obj.ApplySeen));
 AppPrefs.setpref(g, 'ApplyReplot', obj.ApplyReplot);
 AppPrefs.setpref(g, 'PanelOptions', obj.PanelOptions);
+AppPrefs.setpref(g, 'ReportWorkers', obj.WorkersSpinner.Value);
 U = obj.FigureSupers;
 AppPrefs.setpref(g, 'FigureSupersectionsCollapsed', cellstr([string.empty(1, 0) U(~[U.Expanded]).Name]));
 end

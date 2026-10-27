@@ -1948,6 +1948,9 @@ if S.sec("5d.saveprefs", "save, reopen; the preferences restored by a new app; R
     app.onFigureSuperToggled("look");
     app.FigureAutoCheckBox.Value = false;
     app.onFigureAutoPreviewToggled();
+    workersDefault = app.WorkersSpinner.Value;
+    app.WorkersSpinner.Value = 2;
+    app.WorkersSpinner.ValueChangedFcn(app.WorkersSpinner, []);
     app.onSaveConfig();
     app2 = EphysAnalysisApp(Splash=true);
     H2 = app2.Splash.History;
@@ -1959,7 +1962,12 @@ if S.sec("5d.saveprefs", "save, reopen; the preferences restored by a new app; R
     restored = ~app2.FigureAutoCheckBox.Value && ~app2.FigureSections([app2.FigureSections.Name] == "options").Expanded ...
         && app2.FigureSections([app2.FigureSections.Name] == "layers").Expanded ...
         && isequal([app2.FigureSupers.Expanded], [true true false]) && ~shown(app2.FigureEditor.fontSize);
+    workersKept = app2.WorkersSpinner.Value;
     closeApp(app2);
+    check(workersDefault == 4 && workersKept == 2, sprintf(['the Export tab''s Workers: 4 by default, and a new app ' ...
+        'restores the number set (%g, then %g)'], workersDefault, workersKept));
+    app.WorkersSpinner.Value = workersDefault;
+    app.WorkersSpinner.ValueChangedFcn(app.WorkersSpinner, []);
     check(~startsWith(app.Fig.Name, "*") && kept, 'saved and opened again, the config keeps the figure');
     check(restored, 'a new app restores the Figures tab''s Auto, collapsed section and collapsed supersection (Look)');
     app.FigureAutoCheckBox.Value = true;

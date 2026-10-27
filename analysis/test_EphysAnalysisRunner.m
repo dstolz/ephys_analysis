@@ -208,6 +208,10 @@ check(~isempty(E1) && all(arrayfun(@(e) numel(e.images) == numel(e.files) / nume
     && all([E1.kind] == "figure"), ...
     'a "both" report holds the image and the PDF page of every exported page (a page per observation), and no result');
 eC = E1([E1.plot] == "card");
+png1 = eC(1).files(endsWith(eC(1).files, ".png"));
+fid = fopen(png1(1), 'r'); pngBytes = fread(fid, Inf, '*uint8'); fclose(fid);
+check(eC(1).images{1}.data == string(matlab.net.base64encode(pngBytes)), ...
+    'the HTML embeds the exported PNG of a page (Export png ticked) rather than write the page again at the report''s dpi');
 check(numel(eC) == 2 && all(startsWith([eC.caption], "card: 2 observations")), 'each figure''s report entry carries figureCaption''s caption');
 check(made == nDrawn + 1 + numel(names), sprintf(['each page is drawn once: %d figures for %d exported pages, ' ...
     'the PDF''s title page and its %d summary pages'], made, nDrawn, numel(names)));
@@ -233,6 +237,22 @@ after = dir(fullfile(outMain, names(1), names(1) + "_card_*.*"));
 check(height(RO) == 1 && RO.Plot == "card" && RO.Status == "done" && numel(split(RO.Files, "; ")) == numel(before) ...
     && isequal([before.datenum], [after.datenum]), ...
     'run(Figures="card") runs that figure alone; Overwrite off keeps (and lists) every observation''s files');
+hadPool = license('test', 'Distrib_Computing_Toolbox') && ~isempty(ver('parallel')) && ~isempty(gcp('nocreate'));
+rw = EphysAnalysisRunner(ro, LogFcn=[]);
+rw.Workers = 2;
+RW = rw.run(Datasets=1, Figures="card");
+check(RW.Status == "done" && (hadPool || ~license('test', 'Distrib_Computing_Toolbox') || isempty(ver('parallel')) || isempty(gcp('nocreate'))), ...
+    'Workers = 2 on a run of fewer than MinPoolPages pages starts no pool: the pages are drawn here');
+% a vector PDF page is the figure's size, also for a figure whose paper is not set up (exportFigure prints on its size)
+fpdf = figure('Visible', 'off', 'Units', 'centimeters', 'Position', [1 1 10 6]);
+plot(axes(fpdf), 1:3);
+paper = get(fpdf, {'PaperUnits', 'PaperSize', 'PaperPosition', 'PaperPositionMode'});
+pdfFile = exportFigure(fpdf, fullfile(root, "paper_check"), Format="pdf");
+paperAfter = get(fpdf, {'PaperUnits', 'PaperSize', 'PaperPosition', 'PaperPositionMode'});
+close(fpdf);
+sz = pdfPageSizeCm(pdfFile);
+check(all(abs(sz - [10 6]) < 0.05) && isequal(paper, paperAfter), ...
+    sprintf('exportFigure PDF: one page the figure''s size (%.2f x %.2f cm, 10 x 6 wanted), the figure''s paper put back', sz));
 
 fprintf('\n== 3. cancel ==\n');
 calls = 0;
@@ -680,6 +700,15 @@ end
 function out = runScript(file) %#ok<INUSD> used inside evalc
 %runScript  Run a script in its own workspace and capture what it prints.
 out = evalc('run(file)');
+end
+
+
+function sz = pdfPageSizeCm(file)
+%pdfPageSizeCm  The first page's width and height, cm (PDFBox).
+doc = org.apache.pdfbox.pdmodel.PDDocument.load(java.io.File(char(file)));
+closer = onCleanup(@() doc.close());
+box = doc.getPage(0).getMediaBox();
+sz = [box.getWidth() box.getHeight()] / 72 * 2.54;
 end
 
 

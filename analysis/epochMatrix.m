@@ -153,6 +153,10 @@ function [R, T] = epochMatrix(source, S, opts)
 %                  16 epochs for signals); it may throw an error whose id
 %                  ends in ":Canceled" to stop
 %     LogFcn       LogFcn(message) per dataset (default: print; [] = quiet)
+%     Workers      0 (default): the datasets one after the other, here;
+%                  N >= 1: up to N at once on process workers
+%                  (DatasetRuns.run's Workers; CheckFcn then stops between
+%                  datasets, not inside one)
 %
 %   PARTS (assembly only) is a struct array or a cell array of part
 %   structs; each may hold key (default "part<k>"); nEpochs, valueUnits and
@@ -191,6 +195,7 @@ arguments
     opts.CheckFcn = []
     opts.LogFcn = @(msg) fprintf('%s\n', msg)
     opts.StampFcn = []
+    opts.Workers (1,1) double {mustBeInteger, mustBeNonnegative} = 0
 end
 
 [S, ID] = epochMatrixSettings(S);
@@ -240,7 +245,7 @@ if isempty(stampFcn); stampFcn = @(key) stampOf(runner, key); end
 try
     [values, T] = runs.run(runner, keys, fn, Name="epochMatrix/" + S.data, Id=ID, Info=info, ...
         Recompute=opts.Recompute, ProgressFcn=opts.ProgressFcn, CheckFcn=opts.CheckFcn, LogFcn=opts.LogFcn, ...
-        SkipIds=skipIds, StampFcn=stampFcn);
+        SkipIds=skipIds, StampFcn=stampFcn, Workers=opts.Workers);
 catch ME
     if ME.identifier == "DatasetRuns:Canceled"
         C = MException('epochMatrix:Canceled', '%s', ME.message);

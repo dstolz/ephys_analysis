@@ -18,7 +18,9 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
     %   "old" after a scan and is the only one computed again;
     %   forgetTicked with nothing ticked keeps the cache. checkCancel ends a
     %   script's canceled run; a second Cancel ends a script's run left
-    %   open, but not the browser's own compute.
+    %   open, but not the browser's own compute. Workers: the option, the
+    %   field and the preference; on process workers (Slow) compute equals
+    %   epochMatrix here and is cached, and forEach runs there too.
     %
     %   Usage:  runtests("test_DatasetBrowser")
 
@@ -572,6 +574,42 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyTrue(AppPrefs.ispref("DatasetBrowser", "Root"));
             tc.verifyEqual(string(AppPrefs.getpref("DatasetBrowser", "Root")), tc.Root);
             tc.verifyTrue(AppPrefs.ispref("DatasetBrowser", "Position"));
+        end
+
+        function workersPreference(tc)
+            B = tc.open(Scan=false, Workers=3);
+            tc.verifyEqual(B.Workers, 3);
+            tc.verifyEqual(B.Ctl.Workers.Value, 3, 'The Workers field shows the option.');
+            B.Ctl.Workers.Value = 2;
+            B.Ctl.Workers.ValueChangedFcn(B.Ctl.Workers, []);
+            tc.verifyEqual(B.Workers, 2, 'The Workers field sets Workers.');
+            B.close();
+            tc.verifyEqual(AppPrefs.getpref("DatasetBrowser", "Workers"), 2);
+            B2 = tc.open(Scan=false);
+            tc.verifyEqual(B2.Workers, 2, 'Workers comes back from the preferences.');
+            B2.Workers = 0;
+            B2.close();
+        end
+    end
+
+    methods (Test, TestTags = {'Slow'})
+        function computeOnWorkersEqualsHere(tc)
+            tc.assumeTrue(~isempty(ver('parallel')) && license('test', 'Distrib_Computing_Toolbox'), ...
+                'No Parallel Computing Toolbox.');
+            B = tc.open(Settings=tc.Spike, Workers=2);
+            R = B.compute();
+            tc.verifyEqual(B.Runs.Last.status, ["done"; "done"]);
+            R0 = epochMatrix(B.Runner, tc.Spike, Datasets=B.Selected, LogFcn=[]);
+            tc.verifyEqual(R.data, R0.data);
+            tc.verifyEqual(R.rows, R0.rows);
+            tc.verifyEqual(R.groupLabels, R0.groupLabels);
+            tc.verifyTrue(all(startsWith(B.Table.Cached, "✓")), 'The Cached column.');
+            B.compute();
+            tc.verifyEqual(B.Runs.Last.status, ["cached"; "cached"]);
+            [v, T] = B.forEach(@(src) src.name, Name="names", Workers=2);
+            tc.verifyEqual(T.status, ["done"; "done"]);
+            v0 = B.forEach(@(src) src.name, Name="names here", Workers=0);
+            tc.verifyEqual(v, v0);
         end
     end
 end

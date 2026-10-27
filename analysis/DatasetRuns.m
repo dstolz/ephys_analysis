@@ -68,6 +68,25 @@ classdef DatasetRuns < handle
     %                  reused): the default clears SRC.outputs' cache
     %                  (DatasetOutputs.clearCache), so one dataset's signals
     %                  are held at a time; [] = none
+    %     Workers      0 (default): compute here, one dataset after the
+    %                  other. N >= 1: when two or more datasets are to be
+    %                  computed, compute up to N at once on process workers
+    %                  (Parallel Computing Toolbox, parfeval): the open
+    %                  process pool, else one of N workers started (parpool
+    %                  "Processes"; it stays open until its idle timeout).
+    %                  The stamps, the kept entries and the reports stay
+    %                  here; a worker loads the dataset's source itself
+    %                  (loadAnalysisSource of the runner's outputs, whose
+    %                  cache is cleared first; or SOURCE(key)), runs FN with
+    %                  a CHECK that does nothing, and releases the source.
+    %                  FN, SOURCE (a function) and what they capture are
+    %                  copied to the workers: a handle they capture is a copy
+    %                  there. ProgressFcn and LogFcn report each dataset as
+    %                  it finishes; CheckFcn is called here while waiting,
+    %                  and a cancel stops the workers' datasets. Without the
+    %                  toolbox, or when no process pool can be had, the
+    %                  datasets are computed here with the warning
+    %                  DatasetRuns:Serial. On a worker Workers is ignored
     %   A dataset's kept entry is dropped before the dataset is computed, so
     %   whatever happens next never leaves an old value behind. Any error
     %   but a skip leaves no entry: the dataset is "error", with the
@@ -75,8 +94,9 @@ classdef DatasetRuns < handle
     %   error of StampFcn too, which leaves the entry as it was). An error
     %   whose identifier ends in ":Canceled" (from ProgressFcn, CheckFcn,
     %   StampFcn, SOURCE or FN) marks that dataset and the ones after it
-    %   "canceled", keeps the ones finished, and raises
-    %   DatasetRuns:Canceled (the original error as its cause).
+    %   "canceled" (with Workers: every dataset not finished), keeps the
+    %   ones finished, and raises DatasetRuns:Canceled (the original error
+    %   as its cause).
     %
     %   Other methods
     %     ST = status(R, NAME, KEYS, ID, Stamps=)   per key: "current" (a
@@ -98,7 +118,7 @@ classdef DatasetRuns < handle
     %   Errors: DatasetRuns:Canceled, DatasetRuns:NeedId (no Id, and FN
     %   captured a value jsonencode cannot write, e.g. a handle or another
     %   function), DatasetRuns:BadSource, DatasetRuns:BadStruct. Warnings:
-    %   DatasetRuns:DatasetFailed, DatasetRuns:OldVersion.
+    %   DatasetRuns:DatasetFailed, DatasetRuns:OldVersion, DatasetRuns:Serial.
     %
     %   See also epochMatrix, epochMatrixSettings, outputsStamp,
     %   EphysAnalysisRunner.
@@ -135,6 +155,7 @@ classdef DatasetRuns < handle
                 opts.SkipIds (1,:) string = string.empty(1, 0)
                 opts.ReleaseFcn = @releaseOutputs
                 opts.StampFcn = []
+                opts.Workers (1,1) double {mustBeInteger, mustBeNonnegative} = 0
             end
             isRunner = isa(source, 'EphysAnalysisRunner');
             if ~isRunner && ~isa(source, 'function_handle')
@@ -171,16 +192,26 @@ classdef DatasetRuns < handle
                 'VariableNames', {'key', 'name', 'status', 'message', 'seconds'});
             values = cell(n, 1);
             obj.Last = T;
+            ctx = struct('keep', keep, 'name', opts.Name, 'txt', txt, 'skipIds', opts.SkipIds, 'n', n);
+            ctx.say = say;
 
+            % with Workers, the datasets to compute are gathered here and computed after the loop (computeTodo)
+            par = opts.Workers >= 1 && ~onWorker();
+            todo = zeros(1, 0);
+            stamps = strings(n, 1);
             for j = 1:n
                 key = keys(j);
                 try
                     if ~isempty(opts.ProgressFcn)
-                        opts.ProgressFcn((j - 1) / n, sprintf('%d/%d %s', j, n, names(j)));
+                        if par
+                            opts.ProgressFcn(nnz(T.status ~= "") / n, sprintf('Checking %d/%d %s', j, n, names(j)));
+                        else
+                            opts.ProgressFcn((j - 1) / n, sprintf('%d/%d %s', j, n, names(j)));
+                        end
                     end
                     check();
                 catch ME
-                    if isCancel(ME); obj.cancelAt(T, j, ME); end
+                    if isCancel(ME); obj.cancelAt(T, [todo j:n], ME); end
                     rethrow(ME);
                 end
 
@@ -189,7 +220,7 @@ classdef DatasetRuns < handle
                     try
                         stamp = stampText(opts.StampFcn(key));
                     catch ME
-                        if isCancel(ME); obj.cancelAt(T, j, ME); end
+                        if isCancel(ME); obj.cancelAt(T, [todo j:n], ME); end
                         T.status(j) = "error";
                         T.message(j) = "outputs stamp: " + string(ME.message);
                         warning('DatasetRuns:DatasetFailed', '%s failed: %s', names(j), T.message(j));
@@ -198,6 +229,7 @@ classdef DatasetRuns < handle
                         continue
                     end
                 end
+                stamps(j) = stamp;
 
                 e = obj.entryIndex(opts.Name, key);
                 if keep && ~opts.Recompute && ~isempty(e) && obj.Entries(e).idText == txt ...
@@ -218,52 +250,23 @@ classdef DatasetRuns < handle
                 if keep && ~isempty(e)
                     obj.Entries(e) = [];   % an error or a cancel below must not leave the old value
                 end
-
-                t0 = tic;
-                src = [];
-                try
-                    if isRunner
-                        k = source.index(key);
-                        if k == 0
-                            error('DatasetRuns:BadSource', 'The runner has no dataset "%s".', key);
-                        end
-                        src = source.source(k);
-                    else
-                        src = source(key);
-                    end
-                    if nIn == 0
-                        v = fn();
-                    elseif nIn == 1
-                        v = fn(src);
-                    elseif nIn == 2
-                        v = fn(src, infoRow(info, key, names(j)));
-                    else   % 3 or more, or varargin
-                        v = fn(src, infoRow(info, key, names(j)), check);
-                    end
-                    values{j} = v;
-                    T.status(j) = "done";
-                    T.seconds(j) = toc(t0);
-                    if keep; obj.store(opts.Name, key, txt, stamp, "done", "", T.seconds(j), v); end
-                catch ME
-                    T.seconds(j) = toc(t0);
-                    if isCancel(ME)
-                        release(opts.ReleaseFcn, src);
-                        obj.cancelAt(T, j, ME);
-                    end
-                    T.message(j) = string(ME.message);
-                    if ismember(string(ME.identifier), opts.SkipIds)
-                        T.status(j) = "skipped";
-                        if keep; obj.store(opts.Name, key, txt, stamp, "skipped", T.message(j), T.seconds(j), []); end
-                    else
-                        T.status(j) = "error";
-                        warning('DatasetRuns:DatasetFailed', '%s failed: %s', names(j), ME.message);
-                    end
+                if par
+                    todo(end+1) = j; %#ok<AGROW>
+                    continue
                 end
-                release(opts.ReleaseFcn, src);
-                obj.Last = T;
-                msg = sprintf('%s (%d/%d): %s, %.1f s', names(j), j, n, T.status(j), T.seconds(j));
-                if T.message(j) ~= ""; msg = msg + ": " + T.message(j); end
-                say(msg);
+
+                res = computeOne(sourceLoader(source, isRunner, key, false), fn, nIn, infoRow(info, key, names(j)), ...
+                    check, opts.ReleaseFcn);
+                [T, values, canceled] = obj.settle(T, values, j, res, stamp, ctx);
+                if canceled; obj.cancelAt(T, j:n, res.error); end
+            end
+            if ~isempty(todo)
+                job = struct('isRunner', isRunner, 'fn', fn, 'nIn', nIn, 'check', check, 'workers', opts.Workers);
+                job.source = source;
+                job.info = info;
+                job.progress = opts.ProgressFcn;
+                job.release = opts.ReleaseFcn;
+                [T, values] = obj.computeTodo(T, values, todo, stamps, job, ctx);
             end
             obj.Last = T;
         end
@@ -427,16 +430,144 @@ classdef DatasetRuns < handle
             end
         end
 
-        function cancelAt(obj, T, j, ME)
-            %cancelAt  Mark dataset J and the rest canceled, keep T, raise DatasetRuns:Canceled.
-            T.status(j:end) = "canceled";
-            T.message(j) = string(ME.message);
+        function [T, values, canceled] = settle(obj, T, values, j, res, stamp, ctx)
+            %settle  Take dataset J's computeOne result RES: its row of T, its value, its entry, its log line.
+            %   CANCELED: RES.error is a cancel; T has only the seconds, and
+            %   the caller raises it (cancelAt).
+            canceled = false;
+            T.seconds(j) = res.seconds;
+            ME = res.error;
+            if isempty(ME)
+                values{j} = res.value;
+                T.status(j) = "done";
+                if ctx.keep; obj.store(ctx.name, T.key(j), ctx.txt, stamp, "done", "", T.seconds(j), res.value); end
+            elseif isCancel(ME)
+                canceled = true;
+                return
+            else
+                T.message(j) = string(ME.message);
+                if ismember(string(ME.identifier), ctx.skipIds)
+                    T.status(j) = "skipped";
+                    if ctx.keep; obj.store(ctx.name, T.key(j), ctx.txt, stamp, "skipped", T.message(j), T.seconds(j), []); end
+                else
+                    T.status(j) = "error";
+                    warning('DatasetRuns:DatasetFailed', '%s failed: %s', T.name(j), ME.message);
+                end
+            end
             obj.Last = T;
-            nDone = nnz(ismember(T.status(1:j-1), ["done" "cached"]));
+            msg = sprintf('%s (%d/%d): %s, %.1f s', T.name(j), j, ctx.n, T.status(j), T.seconds(j));
+            if T.message(j) ~= ""; msg = msg + ": " + T.message(j); end
+            ctx.say(msg);
+        end
+
+        function [T, values] = computeTodo(obj, T, values, todo, stamps, job, ctx)
+            %computeTodo  The datasets TODO (rows of T) on process workers (run's Workers), else here.
+            %   Two or more go to the workers, at most as many at once as
+            %   there are workers; each is taken as it finishes. One, or no
+            %   process pool (DatasetRuns:Serial), computes them here.
+            pool = [];
+            cap = 1;
+            if numel(todo) >= 2
+                [pool, cap, why] = workerPool(job.workers, ctx.say);
+                if isempty(pool)
+                    warning('DatasetRuns:Serial', 'The datasets are computed here, not on workers: %s.', why);
+                end
+            end
+            nDone = ctx.n - numel(todo);   % reused, skipped or failed before
+            if isempty(pool)
+                for i = 1:numel(todo)
+                    j = todo(i);
+                    try
+                        report(job, (nDone + i - 1) / ctx.n, sprintf('%d/%d %s', j, ctx.n, T.name(j)));
+                        job.check();
+                    catch ME
+                        if isCancel(ME); obj.cancelAt(T, todo(i:end), ME); end
+                        rethrow(ME);
+                    end
+                    res = computeOne(sourceLoader(job.source, job.isRunner, T.key(j), false), job.fn, job.nIn, ...
+                        infoRow(job.info, T.key(j), T.name(j)), job.check, job.release);
+                    [T, values, canceled] = obj.settle(T, values, j, res, stamps(j), ctx);
+                    if canceled; obj.cancelAt(T, todo(i:end), res.error); end
+                end
+                return
+            end
+
+            ctx.say(sprintf('Computing %d dataset(s) on %d workers ...', numel(todo), cap));
+            report(job, nDone / ctx.n, sprintf('%d dataset(s) on %d workers ...', numel(todo), cap));
+            F = parallel.FevalFuture.empty(1, 0);
+            of = zeros(1, 0);          % F(i) computes row of(i) of T
+            active = false(1, 0);
+            next = 1;
+            try
+                while next <= numel(todo) || any(active)
+                    while next <= numel(todo) && nnz(active) < cap
+                        j = todo(next);
+                        next = next + 1;
+                        try
+                            load = sourceLoader(job.source, job.isRunner, T.key(j), true);
+                        catch ME
+                            [T, values] = obj.settle(T, values, j, failed(ME), stamps(j), ctx);
+                            nDone = nDone + 1;
+                            continue
+                        end
+                        F(end+1) = parfeval(pool, @DatasetRuns.computeRemote, 1, load, job.fn, job.nIn, ...
+                            infoRow(job.info, T.key(j), T.name(j)), job.release); %#ok<AGROW>
+                        of(end+1) = j; %#ok<AGROW>
+                        active(end+1) = true; %#ok<AGROW>
+                    end
+                    if ~any(active); continue; end
+                    try
+                        job.check();
+                    catch ME
+                        if isCancel(ME); obj.cancelAt(T, [of(active) todo(next:end)], ME); end
+                        rethrow(ME);
+                    end
+                    live = find(active);
+                    try
+                        [i, res] = fetchNext(F(live), 0.25);
+                    catch ME   % a worker failed outside FN (it died, ran out of memory, ...)
+                        bad = live(arrayfun(@(f) ~isempty(f.Error), F(live)));
+                        if isempty(bad); rethrow(ME); end
+                        for i = bad
+                            active(i) = false;
+                            [T, values] = obj.settle(T, values, of(i), failed(F(i).Error), stamps(of(i)), ctx);
+                            nDone = nDone + 1;
+                        end
+                        continue
+                    end
+                    if isempty(i); continue; end
+                    i = live(i);
+                    active(i) = false;
+                    j = of(i);
+                    [T, values, canceled] = obj.settle(T, values, j, res, stamps(j), ctx);
+                    if canceled; obj.cancelAt(T, [j of(active) todo(next:end)], res.error); end
+                    nDone = nDone + 1;
+                    report(job, nDone / ctx.n, sprintf('%d/%d %s (%d running on %d workers)', ...
+                        nDone, ctx.n, T.name(j), nnz(active), cap));
+                end
+            catch ME
+                if any(active); cancel(F(active)); end   % a cancel or an error here stops the workers' datasets
+                rethrow(ME);
+            end
+        end
+
+        function cancelAt(obj, T, idx, ME)
+            %cancelAt  Mark the datasets IDX (rows of T; IDX(1) the one canceled at) canceled, keep T, raise DatasetRuns:Canceled.
+            T.status(idx) = "canceled";
+            T.message(idx(1)) = string(ME.message);
+            obj.Last = T;
+            nDone = nnz(ismember(T.status, ["done" "cached"]));
             C = MException('DatasetRuns:Canceled', 'Canceled at %s (%d of %d): %d dataset(s) finished are kept.', ...
-                T.name(j), j, height(T), nDone);
+                T.name(idx(1)), idx(1), height(T), nDone);
             C = C.addCause(ME);
             throwAsCaller(C);
+        end
+    end
+
+    methods (Static, Hidden)
+        function res = computeRemote(load, fn, nIn, row, releaseFcn)
+            %computeRemote  computeOne on a process worker (run's Workers): FN's CHECK does nothing there.
+            res = computeOne(load, fn, nIn, row, @() [], releaseFcn);
         end
     end
 
@@ -481,6 +612,102 @@ end
 function release(fcn, src)
 if isempty(fcn) || isempty(src); return; end
 fcn(src);
+end
+
+
+function res = computeOne(load, fn, nIn, row, check, releaseFcn)
+%computeOne  Load one dataset's source (LOAD()), compute FN on it, release it: RES.value, .seconds, .error ([] = none).
+res = struct('value', [], 'seconds', NaN, 'error', []);
+t0 = tic;
+src = [];
+try
+    src = load();
+    if nIn == 0
+        v = fn();
+    elseif nIn == 1
+        v = fn(src);
+    elseif nIn == 2
+        v = fn(src, row);
+    else   % 3 or more, or varargin
+        v = fn(src, row, check);
+    end
+    res.value = v;
+catch ME
+    res.error = ME;
+end
+res.seconds = toc(t0);
+release(releaseFcn, src);
+end
+
+
+function res = failed(ME)
+%failed  A computeOne result of an error raised before or around FN.
+res = struct('value', [], 'seconds', NaN, 'error', ME);
+end
+
+
+function load = sourceLoader(source, isRunner, key, remote)
+%sourceLoader  LOAD() gives dataset KEY's source: SOURCE(key), the runner's, or (REMOTE) loaded afresh from its outputs.
+%   REMOTE is for a worker: it captures only the dataset's outputs (their
+%   cache cleared, so it is not copied there), not the runner.
+if ~isRunner
+    load = @() source(key);
+elseif ~remote
+    load = @() source.source(runnerIndex(source, key));
+else
+    out = source.Outputs(runnerIndex(source, key));
+    out.clearCache();
+    load = @() loadAnalysisSource(out, Key=key);
+end
+end
+
+
+function k = runnerIndex(runner, key)
+k = runner.index(key);
+if k == 0
+    error('DatasetRuns:BadSource', 'The runner has no dataset "%s".', key);
+end
+end
+
+
+function [pool, cap, why] = workerPool(n, say)
+%workerPool  The process pool for run's Workers N, and how many datasets go to it at once ([] and WHY when none).
+%   The open process pool is used (at most N of its workers); with none
+%   open, one of N workers is started.
+pool = [];
+cap = 1;
+why = "";
+if ~(~isempty(ver('parallel')) && license('test', 'Distrib_Computing_Toolbox'))
+    why = "the Parallel Computing Toolbox is not available";
+    return
+end
+p = gcp('nocreate');
+if isempty(p)
+    say(sprintf('Starting %d workers ...', n));
+    try
+        p = parpool("Processes", n);
+    catch ME
+        why = "no process pool could be started (" + string(ME.message) + ")";
+        return
+    end
+end
+if ~isa(p, 'parallel.ProcessPool')
+    why = "the open pool is a " + string(class(p)) + ", not a process pool";
+    return
+end
+pool = p;
+cap = min(n, p.NumWorkers);
+end
+
+
+function tf = onWorker()
+%onWorker  This MATLAB is a parallel worker (run's Workers is ignored there).
+tf = exist('getCurrentTask', 'file') > 0 && ~isempty(getCurrentTask());
+end
+
+
+function report(job, fraction, message)
+if ~isempty(job.progress); job.progress(fraction, message); end
 end
 
 

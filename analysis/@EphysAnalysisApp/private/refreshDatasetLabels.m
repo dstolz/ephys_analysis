@@ -24,11 +24,15 @@ function refreshDatasetLabels(obj, idx)
 %   folder changes. A dataset is counted the first time it is opened, so a
 %   share's folders are never walked for the counts.
 %
+%   Nothing happens while HoldDatasetViews is set (onScan labels them
+%   once).
+%
 %   See also selectDataset, onScan, refreshDatasetsTable.
 arguments
     obj (1,1) EphysAnalysisApp
     idx (1,1) double = 0
 end
+if obj.HoldDatasetViews; return; end
 r = obj.Runner;
 if isempty(r) || isempty(r.Keys); return; end
 if ~isa(obj.DatasetUnits, 'containers.Map')

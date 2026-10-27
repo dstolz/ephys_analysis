@@ -330,6 +330,7 @@ classdef EphysAnalysisApp < handle
         ActiveIdx (1,1) double = 0          % the active dataset (index into Runner.Outputs)
         Ticked (1,:) logical = logical.empty(1, 0)   % datasets ticked to run
         DatasetsSort (1,1) struct = TableSort.none()   % the datasets table's header click (a TableSort state), kept as it is filled again
+        HoldDatasetViews (1,1) logical = false   % onScan: refreshDatasetsTable and refreshDatasetLabels do nothing (onScan fills both once, after the stars and notes)
         Favorites = []                      % the scanned datasets' stars: a DatasetFavorites each, in Runner order (read on Scan)
         FavoriteEntries = []                % the Favorites drop-downs' entries: table dataset, level, id, label (refreshFavorites)
         Notes = []                          % the scanned datasets' notes: a DatasetNotes each, in Runner order (read on Scan)

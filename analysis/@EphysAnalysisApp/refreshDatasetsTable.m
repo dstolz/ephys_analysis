@@ -24,6 +24,11 @@ function refreshDatasetsTable(obj)
 %   matches nothing), both together when both are set. Their lists are the
 %   subjects and tags in use. A hidden row keeps its Run tick (Ticked is per
 %   dataset), and FilterLabel says "showing k of n (m ticked hidden)".
+%
+%   Nothing happens while HoldDatasetViews is set (onScan, which fills
+%   the table once): every dataset's files are checked on each fill, a
+%   network round trip each over a share.
+if obj.HoldDatasetViews; return; end
 r = obj.Runner;
 if isempty(r) || isempty(r.Keys)
     obj.DatasetsTable.Data = table();

@@ -7,7 +7,9 @@ function onScan(obj)
 %   the unit is picked in the Figures tab's observation list). The Figures tab's preview (a session figure's
 %   too) and observation list are forgotten. Each dataset's stars and
 %   notes are read (loadFavorites, loadNotes) and shown (refreshFavorites,
-%   refreshNotes). While the app starts the scan and the first dataset's
+%   refreshNotes; the datasets table and the Dataset drop-downs' labels
+%   held meanwhile, HoldDatasetViews, and filled once after them, as each
+%   fill checks every dataset's files). While the app starts the scan and the first dataset's
 %   loading are steps on the splash; later a modal progress dialog shows the
 %   scan (dataset i/n, time left; Cancel stops it before the datasets are
 %   listed) and then the favorites, the notes and the first dataset.
@@ -54,7 +56,6 @@ obj.ActiveIdx = 0;
 obj.FigurePreviewResult = [];
 obj.FigureSessionResults = [];   % a session figure's last preview was drawn on the old runner's datasets
 obj.FigurePreviewGeneration = obj.FigurePreviewGeneration + 1;   % every figure's kept preview is out of date (figureViewKey)
-obj.refreshDatasetsTable();
 names = r.Names;
 if n == 0
     items = "(no datasets)"; data = 0;
@@ -62,9 +63,13 @@ else
     items = names; data = 1:n;
 end
 set([obj.AlignDatasetDropDown obj.FiguresDatasetDropDown], 'Items', items, 'ItemsData', data);
-refreshDatasetLabels(obj);   % with what each holds of spikes (the units counted when a dataset was opened)
+obj.HoldDatasetViews = true;   % the stars and notes would each fill the table and the labels again
+held = onCleanup(@() releaseDatasetViews(obj));
 obj.refreshFavorites();
 obj.refreshNotes();
+clear held
+obj.refreshDatasetsTable();
+refreshDatasetLabels(obj);   % with what each holds of spikes (the units counted when a dataset was opened)
 obj.ScanLabel.Text = sprintf("%d dataset(s) found (%s).", n, ternary(cfg.Source.Mode == "project", ...
     "project " + cfg.Source.Root, "output folders"));
 obj.log("Scan: " + obj.ScanLabel.Text);
@@ -115,6 +120,12 @@ end
 
 function closeDialog(dlg)
 if ~isempty(dlg) && isvalid(dlg); close(dlg); end
+end
+
+
+function releaseDatasetViews(obj)
+%releaseDatasetViews  The datasets table and the Dataset drop-downs' labels follow again (HoldDatasetViews off).
+if isvalid(obj); obj.HoldDatasetViews = false; end
 end
 
 

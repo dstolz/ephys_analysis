@@ -1466,6 +1466,16 @@ says how to cut a release.
 
 ### Changed
 
+- Scanning datasets is faster, most of all over a network share. `DatasetOutputs.refresh` reads a `-v7.3` file's
+  variable names from its HDF5 root group, which is about ten times faster there than `whos('-file')`. It keeps
+  what it read from each output file (variables, or a `.npz`/`.nwb`'s tool, and the dataset and `sourceFolder` its
+  provenance names) in a new **`OutputFileIndex`** on this machine
+  (`%LOCALAPPDATA%\ephys_analysis\output_index.mat`, or `EPHYS_OUTPUT_INDEX_FILE`), by path, size and
+  modification time, so a later scan opens only new or changed files. The analysis app fills its datasets table
+  and Dataset labels twice per scan (after the scan, and for the first dataset opened) instead of four times
+  (`HoldDatasetViews`); each fill checks every dataset's files. On the lab share's 40 datasets
+  (186 files), the analysis app's scan went from 125 s to 42 s the first time and 4 s after that. See
+  [Discovery](documentation/DatasetOutputs.md#discovery).
 - Review tab: the **Sort** dropdown is gone. The Datasets table has a **Sort** column instead: each row's cell
   picks which of that dataset's sorts to review (a dropdown of the sorts found under the datasets' output folders,
   or **(in use)**, the default, the dataset's own). Showing a dataset loads the sort its cell picks. The pick is for

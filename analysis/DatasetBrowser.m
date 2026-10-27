@@ -33,6 +33,12 @@ classdef DatasetBrowser < handle
     %     Visible      false: no window shows (tests, scripts)
     %     Scan         false: only restore the result file (B.Result) without
     %                  touching the share
+    %     Workers      process workers compute and forEach compute the
+    %                  datasets on (B.Workers; the Workers field beside
+    %                  Cancel): 0 = here, one after the other; N >= 1 = up to
+    %                  N datasets at once (Parallel Computing Toolbox;
+    %                  DatasetRuns.run's Workers). Default: the last one
+    %                  set, else 0
     %   On opening, the ticks, filter, settings and result saved in the result
     %   file are restored, unless the options set them. With no saved state,
     %   the first scan ticks what the filter shows.
@@ -102,9 +108,10 @@ classdef DatasetBrowser < handle
     %   DatasetBrowser:NoFile, DatasetBrowser:Canceled (checkCancel; a scan);
     %   compute raises epochMatrix's (epochMatrix:Canceled after a Cancel)
     %   and forEach DatasetRuns' (DatasetRuns:Canceled). Warnings:
-    %   DatasetBrowser:BadResultFile, DatasetBrowser:NotSaved.
+    %   DatasetBrowser:BadResultFile, DatasetBrowser:NotSaved, and with
+    %   Workers DatasetRuns:Serial (no process pool: computed here).
     %   Preferences (AppPrefs group DatasetBrowser, saved on close): Root,
-    %   NamePattern, Position, Sort, SettingsFolder.
+    %   NamePattern, Position, Sort, SettingsFolder, Workers.
     %
     %   See also epochMatrix, epochMatrixSettings, DatasetRuns, outputsStamp,
     %   datasetFilter, EphysAnalysisRunner.
@@ -198,6 +205,7 @@ classdef DatasetBrowser < handle
         Table                              % the rows shown (the filter's, in the table's sort)
         Shown                              % their keys
         ResultCurrent                      % Result was computed with these settings on these ticks
+        Workers                            % process workers compute and forEach use (0 = here; DatasetRuns.run's Workers)
     end
 
     properties (Access = private)
@@ -222,6 +230,7 @@ classdef DatasetBrowser < handle
         SettingsFolder (1,1) string = ""
         DoneFlag (1,1) logical = false
         OwnRun (1,1) logical = false       % the strip's run is the browser's own scan, compute or forEach (they end it themselves)
+        WorkersN (1,1) double = 0          % Workers
     end
 
     properties (Constant)
@@ -235,7 +244,7 @@ classdef DatasetBrowser < handle
         Controls = ["Root" "Browse" "Pattern" "Scan" "Subject" "NotSubject" "Search" "Tags" "TagMode" "NotTags" ...
             "TickShown" "UntickAll" "Table" "Load" "Save" "Data" "Line" "Edge" "Which" "N" "ThenLine" "ThenEdge" ...
             "Pre" "Post" "Response" "GroupBy" "Order" "Merge" "UnitShanks" "Measure" "Bin" "Baseline" ...
-            "Channels" "SigShanks" "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "Compute" "Done"]
+            "Channels" "SigShanks" "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "Compute" "Done" "Workers"]
         ErrorColor = [0.75 0.1 0.1]
         TextColor = [0.25 0.25 0.25]
     end
@@ -253,6 +262,7 @@ classdef DatasetBrowser < handle
                 opts.ResultFile (1,1) string = ""
                 opts.Visible (1,1) logical = true
                 opts.Scan (1,1) logical = true
+                opts.Workers (1,1) double {mustBeInteger, mustBeNonnegative}
             end
             B.Runs = DatasetRuns();
             B.Datasets = DatasetBrowser.emptyDatasets();
@@ -266,6 +276,10 @@ classdef DatasetBrowser < handle
             if isfield(prefs, 'NamePattern') && string(prefs.NamePattern) ~= ""; B.NamePattern = string(prefs.NamePattern); end
             if isfield(prefs, 'SettingsFolder'); B.SettingsFolder = string(prefs.SettingsFolder); end
             if isfield(prefs, 'Sort'); B.Sort = TableSort.fromPref(prefs.Sort); end
+            if isfield(prefs, 'Workers') && isnumeric(prefs.Workers) && isscalar(prefs.Workers) && prefs.Workers >= 0
+                B.WorkersN = round(double(prefs.Workers));
+            end
+            if isfield(opts, 'Workers'); B.WorkersN = opts.Workers; end
             B.DefaultFile = opts.ResultFile == "";
             B.ResultFileS = opts.ResultFile;
             if B.DefaultFile; B.ResultFileS = DatasetBrowser.defaultFile(B.Root); end
@@ -346,6 +360,19 @@ classdef DatasetBrowser < handle
 
         function tf = get.ResultCurrent(B)
             [tf, ~] = B.resultState();
+        end
+
+        function n = get.Workers(B)
+            n = B.WorkersN;
+        end
+
+        function set.Workers(B, n)
+            arguments
+                B
+                n (1,1) double {mustBeInteger, mustBeNonnegative}
+            end
+            B.WorkersN = n;
+            if B.uiOk(); B.Ctl.Workers.Value = n; end
         end
 
         % --- scanning ----------------------------------------------------------------------
@@ -536,7 +563,7 @@ classdef DatasetBrowser < handle
             try
                 R = epochMatrix(B.Runner, B.SettingsS, Datasets=keys, Info=B.info(keys), Runs=B.Runs, ...
                     Recompute=opts.Recompute, ProgressFcn=@(f, m) B.progress(f, m), CheckFcn=@() B.checkCancel(), ...
-                    LogFcn=@(m) B.say(m), StampFcn=@(key) B.stampOf(key));
+                    LogFcn=@(m) B.say(m), StampFcn=@(key) B.stampOf(key), Workers=B.WorkersN);
             catch ME
                 if ME.identifier == "epochMatrix:Canceled"
                     B.endRun("Canceled: " + string(ME.message));
@@ -557,7 +584,9 @@ classdef DatasetBrowser < handle
             %   the identity of what FN computes (default: FN's text and what
             %   it captured; edits to code FN calls need Recompute=true),
             %   Datasets the keys (default: the ticked ones), SkipIds the error
-            %   ids that mean "nothing to compute". A Cancel raises
+            %   ids that mean "nothing to compute", Workers the process
+            %   workers (default B.Workers; FN and what it captures are
+            %   copied to them, a handle as a copy). A Cancel raises
             %   DatasetRuns:Canceled; the values finished stay in Runs.
             arguments
                 B
@@ -567,6 +596,7 @@ classdef DatasetBrowser < handle
                 opts.Datasets = []
                 opts.Recompute (1,1) logical = false
                 opts.SkipIds (1,:) string = string.empty(1, 0)
+                opts.Workers (1,1) double {mustBeInteger, mustBeNonnegative} = B.Workers
             end
             B.needRunner();
             if isempty(opts.Datasets)
@@ -583,7 +613,7 @@ classdef DatasetBrowser < handle
             try
                 [values, T] = B.Runs.run(B.Runner, keys, fn, Name=opts.Name, Id=id, Info=B.info(keys), ...
                     Recompute=opts.Recompute, ProgressFcn=@(f, m) B.progress(f, m), CheckFcn=@() B.checkCancel(), ...
-                    SkipIds=opts.SkipIds, StampFcn=@(key) B.stampOf(key));
+                    SkipIds=opts.SkipIds, StampFcn=@(key) B.stampOf(key), Workers=opts.Workers);
             catch ME
                 if ME.identifier == "DatasetRuns:Canceled"
                     B.endRun("Canceled: " + string(ME.message));
@@ -951,7 +981,7 @@ classdef DatasetBrowser < handle
             c.Summary = uilabel(R, "Text", "", "WordWrap", "on", "VerticalAlignment", "top");
 
             % --- the progress strip and the status line
-            s = uigridlayout(g, [1 4], "ColumnWidth", {'1x', '1x', 'fit', 100}, "RowHeight", {30}, "Padding", [0 0 0 0]);
+            s = uigridlayout(g, [1 6], "ColumnWidth", {'1x', '1x', 'fit', 'fit', 60, 100}, "RowHeight", {30}, "Padding", [0 0 0 0]);
             c.ProgMsg = uilabel(s, "Text", "", "FontColor", B.TextColor);
             bgc = [0.92 0.92 0.94];
             bp = uipanel(s, "BorderType", "line", "BackgroundColor", bgc);
@@ -960,6 +990,11 @@ classdef DatasetBrowser < handle
             fill = uipanel(c.Bar, "BorderType", "none", "BackgroundColor", [0.25 0.55 0.85]);
             fill.Layout.Row = 1; fill.Layout.Column = 1;
             c.ProgTime = uilabel(s, "Text", "", "FontColor", B.TextColor);
+            wTip = "Process workers that compute the datasets, several at once (Parallel Computing Toolbox). " + ...
+                "0 = here, one after the other. Each worker holds one dataset in memory.";
+            uilabel(s, "Text", "Workers", "Tooltip", wTip);
+            c.Workers = uispinner(s, "Limits", [0 Inf], "RoundFractionalValues", "on", "Value", B.WorkersN, "Tooltip", wTip, ...
+                "ValueChangedFcn", @(src, ~) B.uiRun(@() B.onWorkers(src.Value)));
             c.Cancel = uibutton(s, "Text", "Cancel", "Enable", "off", "ButtonPushedFcn", @(~, ~) B.cancel());
             c.Status = uilabel(g, "Text", "", "FontColor", B.TextColor);
 
@@ -1183,6 +1218,15 @@ classdef DatasetBrowser < handle
                 else
                     B.setStatus(string(ME.message), true);
                 end
+            end
+        end
+
+        function onWorkers(B, n)
+            B.Workers = n;
+            if n == 0
+                B.setStatus("Compute works here, one dataset after the other.");
+            else
+                B.setStatus(sprintf("Compute works on up to %d process workers.", n));
             end
         end
 
@@ -1446,6 +1490,7 @@ classdef DatasetBrowser < handle
                 AppPrefs.setpref(g, "NamePattern", char(B.NamePattern));
                 AppPrefs.setpref(g, "Sort", TableSort.toPref(B.Sort));
                 AppPrefs.setpref(g, "SettingsFolder", char(B.SettingsFolder));
+                AppPrefs.setpref(g, "Workers", B.WorkersN);
                 if B.uiOk(); AppPrefs.setpref(g, "Position", B.Fig.Position); end
             catch
                 % preferences are a convenience

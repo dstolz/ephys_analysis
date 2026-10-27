@@ -176,6 +176,12 @@ classdef DatasetBrowser < handle
         %                    The datasets whose rows are in R, in row order.
         %     R.created      datetime
         %                    When the result was assembled.
+        %     R.labels       struct
+        %                    Labels and a description in words (epochMatrixLabels):
+        %                    value (R.data's axis label), measure, time (R.t's),
+        %                    event, group, groups (one per group), rows, trials,
+        %                    window, bins, baseline, description. A restored
+        %                    result's are made again, in the current wording.
         %   Notes on the fields:
         %     Subject and Date come from subjectAndDate: the subject from the
         %     dataset's name (the project's name pattern); the date is the day
@@ -1478,6 +1484,11 @@ classdef DatasetBrowser < handle
             if isfield(L, 'result') && ~isempty(L.result)
                 R = L.result;
                 if isstruct(R) && isscalar(R) && all(isfield(R, {'data', 'rows', 't', 'groupLabels', 'settings', 'datasets', 'keys'}))
+                    try
+                        R.labels = epochMatrixLabels(R);
+                    catch ME
+                        warning('DatasetBrowser:BadResultFile', '%s: the result has no labels (%s).', file, ME.message);
+                    end
                     B.setResult(R);
                 else
                     warning('DatasetBrowser:BadResultFile', '%s: the result is not used (it lacks fields).', file);

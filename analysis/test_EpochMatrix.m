@@ -187,7 +187,8 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
             end
             % the result's fields, and its datasets table
             tc.verifyEqual(string(fieldnames(R)).', ["data" "rows" "t" "groupLabels" "rowKind" "valueUnits" ...
-                "settings" "datasets" "keys" "created"]);
+                "settings" "datasets" "keys" "created" "labels"]);
+            tc.verifyEqual(R.labels, epochMatrixLabels(R));
             tc.verifyEqual(R.settings, S);
             tc.verifyEqual(R.datasets.Properties.VariableNames, {'key', 'name', 'subject', 'date', 'status', ...
                 'message', 'nRows', 'nEpochs', 'nGroups', 'seconds'});
@@ -423,6 +424,44 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
             [R, T] = epochMatrix(tc.Config, tc.spikeSettings(), LogFcn=[]);
             tc.verifyEqual(T.key, reshape(tc.Runner.Keys, [], 1));
             tc.verifyEqual(R.keys, reshape(tc.Runner.Keys, [], 1));
+        end
+
+        % --- labels -------------------------------------------------------------------------------
+        function labelsInWords(tc)
+            parts = makePart("A", [3; 1], 2);
+            S = epochMatrixSettings([], ref=eventRef(line="Stim", sequence=struct('line', "Platform", 'edge', "offset"), alignStep=0), ...
+                window=epochWindow(pre=-1, post=1), selection=trialSelection(response="Hit", groupBy="Depth", groupOrder="descending"));
+            L = epochMatrix(parts, S).labels;
+            tc.verifyEqual(L.value, "Firing rate (spikes/s)");
+            tc.verifyEqual(L.measure, "Firing rate");
+            tc.verifyEqual(L.time, "Time from Stim onset (s)", 'The aligned event, not the last step.');
+            tc.verifyEqual(L.event, "Stim onset then Platform offset (aligned to Stim onset)");
+            tc.verifyEqual(L.group, "Depth");
+            tc.verifyEqual(L.groups, ["Depth 3"; "Depth 1"]);
+            tc.verifyEqual(L.rows, "units");
+            tc.verifyEqual(L.trials, "Hit trials");
+            tc.verifyEqual(L.window, "-1 to 1 s");
+            tc.verifyEqual(L.bins, "10 ms bins");
+            tc.verifyEqual(L.baseline, "");
+            tc.verifyEqual(L.description, "Firing rate of units in 10 ms bins, -1 to 1 s from Stim onset then Platform offset " + ...
+                "(aligned to Stim onset); Hit trials by Depth (descending)");
+
+            % auROC: its baseline; no groupBy: one "All trials" group
+            p = makePart("A", "all", 1); p.valueUnits = "auROC";
+            S = epochMatrixSettings([], ref=eventRef(line="Stim"), measure="auroc", baseline=[-0.5 0], ...
+                selection=trialSelection(response=["Hit" "Miss"], filter="Depth > 0"));
+            L = epochMatrix(p, S).labels;
+            tc.verifyEqual([L.value L.baseline L.trials L.group], ["auROC vs. baseline" "baseline -0.5 to 0 s" ...
+                "Hit or Miss trials where Depth > 0" ""]);
+            tc.verifyEqual(L.groups, "All trials");
+
+            % a signal: rectified, the median, a subtracted baseline, no bins
+            p = makePart("A", [1; 2], 1); p.valueUnits = "uV";
+            S = epochMatrixSettings([], data="MUA", ref=eventRef(line="Stim"), ...
+                signal=struct('rectify', true, 'statistic', "median", 'baseline', [-0.2 0]));
+            L = epochMatrix(p, S).labels;
+            tc.verifyEqual([L.value L.measure L.rows L.bins L.baseline], ["Rectified MUA, median over epochs (uV)" ...
+                "Rectified MUA median" "MUA channels" "" "baseline -0.2 to 0 s subtracted"]);
         end
 
         % --- assembly -----------------------------------------------------------------------------

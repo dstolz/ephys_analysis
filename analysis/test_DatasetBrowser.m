@@ -345,6 +345,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEmpty(B2.Runner);
             tc.verifyEqual(B2.Result.data, R.data);
             tc.verifyEqual(B2.Result.rows, R.rows);
+            tc.verifyEqual(B2.Result.labels, R.labels);
             tc.verifyEqual(B2.Selected, tc.Keys(2));
             tc.verifyEqual(B2.Settings, B.Settings);
             tc.verifyEqual(B2.Filter.Tags, "ofc");

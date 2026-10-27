@@ -115,6 +115,11 @@ function [R, T] = epochMatrix(source, S, opts)
 %                    The datasets whose rows are in R, in row order.
 %     R.created      datetime
 %                    When the result was assembled.
+%     R.labels       struct
+%                    Labels and a description in words (epochMatrixLabels):
+%                    value (R.data's axis label), measure, time (R.t's),
+%                    event, group, groups (one per group), rows, trials,
+%                    window, bins, baseline, description.
 %   Notes on the fields:
 %     Subject and Date come from subjectAndDate: the subject from the
 %     dataset's name (the project's name pattern); the date is the day
@@ -543,6 +548,7 @@ R.settings = S;
 R.datasets = D;
 R.keys = unique(rows.Dataset, 'stable');
 R.created = datetime('now');
+R.labels = epochMatrixLabels(R);
 end
 
 

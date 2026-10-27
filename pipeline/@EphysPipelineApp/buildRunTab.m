@@ -60,8 +60,7 @@ obj.RunKSQueueCheckBox.Layout.Row = 3; obj.RunKSQueueCheckBox.Layout.Column = [1
 obj.RunSignalsCheckBox   = uicheckbox(sg, "Text", "Signals: LFP / MUA / SPIKE / AUX .mat", "ValueChangedFcn", @(src,~) mirror(obj, "SigEnableCheckBox", src.Value));
 obj.RunSpikesCheckBox    = uicheckbox(sg, "Text", "Spikes: detected spikes .mat", "ValueChangedFcn", @(src,~) mirror(obj, "SpkEnableCheckBox", src.Value));
 obj.RunExportCheckBox    = uicheckbox(sg, "Text", "Export: analysis-toolbox files", "ValueChangedFcn", @(src,~) mirror(obj, "ExpEnableCheckBox", src.Value));
-obj.RunAnalysisCheckBox  = uicheckbox(sg, "Text", "Analysis: figures and report", "ValueChangedFcn", @(src,~) mirror(obj, "AnaEnableCheckBox", src.Value));
-pg = uigridlayout(sg, [1 3]);
+pg =uigridlayout(sg, [1 3]);
 pg.Padding = [0 0 0 0]; pg.ColumnWidth = {'1x', 'fit', 56}; pg.RowHeight = {'fit'}; pg.ColumnSpacing = 4;
 obj.RunParallelCheckBox = uicheckbox(pg, "Text", "Parallel: chunks on the process pool", ...
     "Tooltip", "Artifacts and spike detection process their chunks on a process pool (Parallel Computing Toolbox). Results are identical; the worker count is capped by free memory.", ...
@@ -78,7 +77,8 @@ obj.RunAnalysisCopyCheckBox = uicheckbox(sg, "Text", "Copy files for the analysi
     "checksum). A dataset whose background sort is still going is copied when the sort ends. Not a dry run. " + ...
     "Needs a destination chosen in that window once, and Copy outputs on copy, not move.", ...
     "ValueChangedFcn", @(~,~) obj.onConfigChanged());
-obj.RunSelectionLabel = uilabel(sg, "Text", "Selection: (scan first)", "WordWrap", "on", "FontColor", [0.3 0.3 0.3]);
+obj.RunAnalysisCheckBox  = uicheckbox(sg, "Text", "Analysis: figures and report", "ValueChangedFcn", @(src,~) mirror(obj, "AnaEnableCheckBox", src.Value));
+obj.RunSelectionLabel =uilabel(sg, "Text", "Selection: (scan first)", "WordWrap", "on", "FontColor", [0.3 0.3 0.3]);
 obj.RunValidateButton = uibutton(sg, "Text", "Validate config", "ButtonPushedFcn", @(~,~) obj.onValidate());
 obj.RunPlanButton     = uibutton(sg, "Text", "Plan (writes nothing)", "ButtonPushedFcn", @(~,~) obj.onPlan());
 bg = uigridlayout(sg, [1 3]);

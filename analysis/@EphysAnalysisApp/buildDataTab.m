@@ -5,9 +5,9 @@ g.ColumnWidth = {'3x', '2x'};
 g.Padding = [8 8 8 8];
 changed = @(~,~) obj.onConfigChanged("source");
 
-left = uigridlayout(g, [9 4]);
+left = uigridlayout(g, [10 4]);
 left.Padding = [0 0 0 0];
-left.RowHeight = {24, 30, 24, 24, 24, 56, 20, '1x', 20};
+left.RowHeight = {24, 30, 24, 24, 24, 56, 20, 30, '1x', 20};
 left.ColumnWidth = {110, '1x', '1x', 90};
 
 lab(left, "Config name:", 1, 1);
@@ -56,7 +56,36 @@ obj.AddFolderButton = uibutton(left, "Text", "Add...", "ButtonPushedFcn", @(~,~)
 obj.AddFolderButton.Layout.Row = 6; obj.AddFolderButton.Layout.Column = 4;
 
 obj.ScanLabel = uilabel(left, "Text", "Scan to list the datasets.", "FontColor", [0.35 0.35 0.35]);
-obj.ScanLabel.Layout.Row = 7; obj.ScanLabel.Layout.Column = [1 4];
+obj.ScanLabel.Layout.Row = 7; obj.ScanLabel.Layout.Column = [1 2];
+obj.FilterLabel = uilabel(left, "Text", "", "FontColor", [0.35 0.35 0.35], "HorizontalAlignment", "right");
+obj.FilterLabel.Layout.Row = 7; obj.FilterLabel.Layout.Column = [3 4];
+
+% The filter: only some subjects and tags (refreshDatasetsTable applies it,
+% lists the subjects and tags in use and says above how many rows show; the
+% rows it hides keep their ticks), and the Run ticks from what it shows
+% (onTickDatasets).
+fb = uigridlayout(left, [1 7]);
+fb.Layout.Row = 8; fb.Layout.Column = [1 4];
+fb.RowHeight = {'1x'};
+fb.ColumnWidth = {'fit', 120, 'fit', 140, 70, 'fit', 'fit'};
+fb.Padding = [0 0 0 0];
+refilter = @(~,~) obj.refreshDatasetsTable();
+uilabel(fb, "Text", "Subject:", "Tooltip", "Show only these subjects; with Tags, the datasets that pass both.");
+obj.SubjectFilterDropDown = uidropdown(fb, "Items", {'(any)'}, "Editable", "on", "Value", '(any)', ...
+    "Tooltip", "Filter by subject (the name pattern's SubjectID): pick one, or type several separated by commas; * and ? are wildcards.", ...
+    "ValueChangedFcn", refilter);
+uilabel(fb, "Text", "Tags:", "Tooltip", "Show only datasets with these tags (any or all of them); with Subject, the datasets that pass both.");
+obj.TagFilterDropDown = uidropdown(fb, "Items", {'(any)'}, "Editable", "on", "Value", '(any)', ...
+    "Tooltip", "Filter by tag: pick one, or type several separated by commas. A term that is no tag in use matches nothing.", ...
+    "ValueChangedFcn", refilter);
+obj.TagFilterModeDropDown = uidropdown(fb, "Items", {'any of', 'all of'}, "ItemsData", {'any', 'all'}, "Value", 'any', ...
+    "Tooltip", "any of: a dataset with at least one of the tags; all of: with every one", "ValueChangedFcn", refilter);
+obj.TickShownButton = uibutton(fb, "Text", "Tick shown only", ...
+    "Tooltip", "Tick Run for the datasets shown and clear it for those the filter hides (no filter: tick every one).", ...
+    "ButtonPushedFcn", @(~,~) obj.onTickDatasets("shown"));
+obj.UntickAllButton = uibutton(fb, "Text", "Untick all", "Tooltip", "Clear Run for every dataset, shown or hidden.", ...
+    "ButtonPushedFcn", @(~,~) obj.onTickDatasets("none"));
+
 obj.DatasetsTable = uitable(left, "RowName", {}, ...
     "ColumnName", {'Run', '★', '✎', 'Name', 'Subject', 'Date', 'Key', 'Tags', 'LFP', 'MUA', 'SPIKE', 'AUX', 'Units', 'Detected', 'Behavior', 'Trials', 'Pairing', 'Duration (s)', ''}, ...
     "ColumnWidth", {36, 30, 30, 'auto', 90, 84, 'auto', 90, 38, 38, 44, 38, 44, 60, 60, 46, 'auto', 80, 1}, ...
@@ -67,10 +96,10 @@ obj.DatasetsTable = uitable(left, "RowName", {}, ...
     "DisplayDataChangedFcn", @(~, evt) obj.onDatasetsSorted(evt), ...
     "ContextMenu", uicontextmenu(obj.Fig));
 uimenu(obj.DatasetsTable.ContextMenu, "Text", "Clear sort", "MenuSelectedFcn", @(~,~) obj.clearDatasetsSort());
-obj.DatasetsTable.Layout.Row = 8; obj.DatasetsTable.Layout.Column = [1 4];
+obj.DatasetsTable.Layout.Row = 9; obj.DatasetsTable.Layout.Column = [1 4];
 hint = uilabel(left, "Text", "Tick Run for the datasets to run, ★ to star one (a favorite), click ✎ for its notes; click a row to make it the active dataset (Alignment and Figures preview it).", ...
     "FontColor", [0.35 0.35 0.35]);
-hint.Layout.Row = 9; hint.Layout.Column = [1 4];
+hint.Layout.Row = 10; hint.Layout.Column = [1 4];
 
 right = uipanel(g, "Title", "Active dataset");
 rg = uigridlayout(right, [6 1]);

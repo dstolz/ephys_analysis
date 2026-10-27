@@ -10,7 +10,8 @@ classdef EphysAnalysisApp < handle
     %     Data       where the datasets are: a pipeline project (root + output
     %                root) or a list of output folders; Scan; a table of what
     %                each dataset holds (signals, units, detections, behavior,
-    %                trials, pairing); for the active dataset its files, digital
+    %                trials, pairing), filtered by subject and tags, with Tick
+    %                shown only / Untick all; for the active dataset its files, digital
     %                lines, behavior and units
     %     Alignment  the config's Defaults: the event reference (any digital
     %                line or "Trial", onset / offset, first / last / all / nth,
@@ -216,6 +217,12 @@ classdef EphysAnalysisApp < handle
         AddFolderButton    matlab.ui.control.Button
         ScanButton         matlab.ui.control.Button
         ScanLabel          matlab.ui.control.Label
+        SubjectFilterDropDown matlab.ui.control.DropDown   % editable: '(any)', a subject, or several typed, comma-separated (* ? wildcards)
+        TagFilterDropDown  matlab.ui.control.DropDown   % editable: '(any)', a tag, or several typed, comma-separated
+        TagFilterModeDropDown matlab.ui.control.DropDown   % ItemsData "any" | "all": of the tags picked
+        TickShownButton    matlab.ui.control.Button     % Tick shown only (onTickDatasets "shown")
+        UntickAllButton    matlab.ui.control.Button     % Untick all (onTickDatasets "none")
+        FilterLabel        matlab.ui.control.Label      % "showing k of n (m ticked hidden)" while a filter is on
         DatasetsTable      matlab.ui.control.Table
         InventoryTable     matlab.ui.control.Table
         LinesTable         matlab.ui.control.Table
@@ -477,6 +484,7 @@ classdef EphysAnalysisApp < handle
         onScan(obj)
         refreshDatasetsTable(obj)
         onDatasetsTableEdited(obj, evt)
+        onTickDatasets(obj, mode)
         onDatasetCellSelection(obj, evt)
         onDatasetNoteClicked(obj, evt)
         onDatasetsSorted(obj, evt)

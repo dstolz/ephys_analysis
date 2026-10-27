@@ -166,6 +166,22 @@ dataset in any order. Every other table in the app (the active dataset's
 inventory, lines, parameters and units, the alignment's trials, the issues and
 the results) sorts on a header click too.
 
+**The filter**, the row above the table, shows only some datasets:
+
+| Control | Effect |
+| --- | --- |
+| **Subject:** | *(any)*, a subject from the list (the subjects in use), or several typed, comma-separated; `*` and `?` are wildcards and case is ignored. A dataset without a subject (its name does not match the name pattern) shows only under *(any)* |
+| **Tags:**, *any of* / *all of* | *(any)*, a tag from the list (the tags in use), or several typed, comma-separated: the datasets holding at least one of them (*any of*) or every one (*all of*). A term that is no valid tag matches nothing |
+| **Tick shown only** | ticks **Run** for the datasets shown and clears it for those the filter hides; with no filter on, ticks every dataset |
+| **Untick all** | clears **Run** for every dataset, shown or hidden |
+
+With both set, a dataset must pass both. The filter is the table's view only:
+a hidden dataset keeps its **Run** tick, and a run uses every ticked dataset,
+shown or not. While a filter is on, the line above it (right of the scan's
+count) says *showing k of n* and, when
+hidden datasets are ticked, *(m ticked hidden)*; **Tick shown only** makes the
+ticks match what shows. The filter is not saved in the config.
+
 **Active dataset**, on the right:
 
 - the size of each signal extract and the recording's length; an extract
@@ -1981,7 +1997,7 @@ results, on the Log tab and in the report.
 | --- | --- |
 | building | `buildUI`, `buildMenus`, `buildToolbar` (its icons in `analysis/icons/toolbar`), `buildDataTab`, `buildAlignTab`, `buildFiguresTab`, `buildExportTab`, `buildLogTab`, `buildAlignControls`; the editor's collapsible sections in `private/` (`formSection`, `formRow`, `formShow`, `formLayout`) |
 | config model | `gatherConfig` / `applyConfig`, `gather*` / `apply*Section`, `gatherAlignControls` / `applyAlignControls`, `gatherFigureEditor` / `applyFigureEditor`, `onConfigChanged`, `updateTitle`, `confirmDiscard`; the undo history `onUndoRedo` (the Edit menu) over `analysis/FigureEditHistory`, fed by `private/recordFigureEdit` at each path that edits the figures, its labels `private/figureEditLabel`, its menu `private/refreshEditMenu` |
-| data | `openSource`, `onScan`, `refreshDatasetsTable`, `selectDataset`, `refreshDatasetInfo` |
+| data | `openSource`, `onScan`, `refreshDatasetsTable` (and the Subject / Tags filter), `onTickDatasets` (Tick shown only, Untick all), `selectDataset`, `refreshDatasetInfo` |
 | favorites | `refreshFavorites`, `onStarToggled`, `onFavoritePicked`, `onFavoritesFilter`, `onDatasetsTableEdited` (the ★ column); `private/loadFavorites` (on Scan), `private/starItem`, `private/starButton`, `private/syncStarButtons`, `private/observedItem`, `private/buildFavorites`, `private/fillFavorites`, `private/favoriteMarks`, `private/markObservations`, `private/listFavorites` (the entries and their labels), `private/datasetSortKey`; the files: `analysis/DatasetFavorites.m` |
 | notes | `refreshNotes`, `onNoteButton`, `onSearchNotes`, `onDatasetNoteClicked` (the ✎ column); `private/loadNotes` (on Scan), `private/noteButton`, `private/noteTip`, `private/syncNoteButtons` (from `syncStarButtons`; the notepad follows here), `private/openNotePad`, `private/noteMarks`, `private/noteEntries`, `private/goToNote` (over `goToFavorite`); the notepad `analysis/NotePad.m`, the search window `analysis/NoteSearch.m`, the files `analysis/DatasetNotes.m` (the sort a unit's note and star record: `analysis/private/sortIdentity.m`) |
 | previews | `refreshAlignPreview` (the Alignment tab); the Figures tab's under its row below; `private/showPreviewState` (the badge and the busy card; its icons in `analysis/icons/status`) |
@@ -2007,7 +2023,8 @@ unshown); the five tabs (Data, Alignment, Figures,
 Export, Log); the toolbar (1b: its tools in groups with their icons, Undo and Redo following the Edit menu (5k),
 every File menu shortcut named in a tooltip, Preview and Plan clicked from another
 tab, the run and results tools following the Export tab's buttons); the scan;
-opening on a list of datasets (`Datasets=`, as the pipeline app's Tools panel
+the datasets table's filter (Subject and Tags, any of / all of, together; a hidden
+dataset keeping its tick; Tick shown only and Untick all); opening on a list of datasets (`Datasets=`, as the pipeline app's Tools panel
 does); the active dataset's lines and parameters, and its sorted units counted
 in the Dataset drop-downs (the same items on the three tabs); the Help menu's GitHub issue
 and feature request (1c); grouping by Depth from the Alignment controls, with the tab's epoch diagram (2);

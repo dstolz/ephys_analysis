@@ -336,6 +336,57 @@ if S.sec("1", "build, open the project, scan")
     app.clearDatasetsSort();
     check(~TableSort.isSorted(app.DatasetsSort) && isequal(app.DatasetsTable.Data.Idx, (1:2).') && all(app.Ticked), ...
         'Clear sort puts the rows back in the scan order');
+    % the filter above the table: Subject and Tags (any / all of) hide rows, a hidden row keeps its tick,
+    % Tick shown only and Untick all set the ticks from what shows
+    fk = {char(app.Runner.Keys(kF1)), char(app.Runner.Keys(kF2))};
+    app.Runner.source(kF1); app.Runner.source(kF2);   % both loaded: the table's tags are their sources'
+    tags0 = {setSourceTags(app, fk{1}, {'pilot'}), setSourceTags(app, fk{2}, {'draft', 'pilot'})};
+    app.refreshDatasetsTable();
+    T0 = app.DatasetsTable.Data;
+    subjOf = @(kk) T0.Subject(T0.Idx == kk);
+    s1 = subjOf(kF1);
+    check(isequal(app.SubjectFilterDropDown.Items, [{'(any)'}, cellstr(unique(T0.Subject)).']) ...
+        && isequal(app.TagFilterDropDown.Items, {'(any)', 'draft', 'pilot'}) && app.FilterLabel.Text == "", ...
+        'the Subject and Tags filters list the subjects and tags in use; no filter on, no count');
+    filterBy(app, s1, '(any)', 'any');
+    T3 = app.DatasetsTable.Data;
+    nS1 = nnz(T0.Subject == s1);
+    filterBy(app, lower(s1) + ", nosuch", '(any)', 'any');
+    T4 = app.DatasetsTable.Data;
+    filterBy(app, "nosuch*", '(any)', 'any');
+    check(all(T3.Subject == s1) && height(T3) == nS1 && any(T3.Idx == kF1) && height(T4) == nS1 ...
+        && height(app.DatasetsTable.Data) == 0 && app.FilterLabel.Text == "showing 0 of 2 (2 ticked hidden)" && all(app.Ticked), ...
+        'Subject keeps the datasets of the subjects picked or typed (several, case ignored, * wildcards); hidden rows keep their ticks, counted');
+    filterBy(app, '(any)', 'draft', 'any');
+    T5 = app.DatasetsTable.Data;
+    filterBy(app, '(any)', 'draft, pilot', 'any');
+    T6 = app.DatasetsTable.Data;
+    filterBy(app, '(any)', 'draft, pilot', 'all');
+    T7 = app.DatasetsTable.Data;
+    filterBy(app, '(any)', 'Bad Tag!', 'any');
+    check(isequal(T5.Idx, kF2) && height(T6) == 2 && isequal(T7.Idx, kF2) && height(app.DatasetsTable.Data) == 0, ...
+        'Tags keeps the datasets holding any of the tags, or all of them; a term that is no tag matches nothing');
+    filterBy(app, s1, 'draft', 'any');
+    check(isequal(reshape(app.DatasetsTable.Data.Idx, 1, []), reshape(kF2(subjOf(kF2) == s1), 1, [])), ...
+        'Subject and Tags together keep the datasets that pass both');
+    filterBy(app, '(any)', 'draft', 'any');
+    Tt = app.DatasetsTable.Data;
+    Tt.Run(:) = false;
+    app.DatasetsTable.Data = Tt;
+    app.onDatasetsTableEdited([]);
+    check(app.Ticked(kF1) && ~app.Ticked(kF2), 'a tick cleared on the row shown leaves the hidden dataset''s alone');
+    app.onTickDatasets("shown");
+    check(~app.Ticked(kF1) && app.Ticked(kF2) && app.Config.Source.Selection == "list" ...
+        && isequal(app.Config.Source.Datasets, app.Runner.Keys(kF2)) && app.FilterLabel.Text == "showing 1 of 2", ...
+        'Tick shown only ticks the rows shown and clears the hidden ones; the config''s selection follows');
+    app.onTickDatasets("none");
+    noneTicked = ~any(app.Ticked);
+    filterBy(app, '(any)', '(any)', 'any');
+    app.onTickDatasets("shown");
+    check(noneTicked && all(app.Ticked) && height(app.DatasetsTable.Data) == 2 && app.FilterLabel.Text == "" ...
+        && app.Config.Source.Selection == "all", 'Untick all clears every tick; with no filter on, Tick shown only ticks every dataset');
+    setSourceTags(app, fk{1}, tags0{1}); setSourceTags(app, fk{2}, tags0{2});
+    app.refreshDatasetsTable();
     k = find(app.Runner.Names == F.names(1));
     app.selectDataset(k);
     check(app.ActiveIdx == k && any(app.LinesTable.Data.Line == "Stim") && any(app.ParamsTable.Data.Parameter == "Depth") ...
@@ -4041,6 +4092,24 @@ function clickTool(app, tag)
 %clickTool  Run the toolbar tool TAG's callback as a click would.
 t = findobj(app.Toolbar.Children, 'flat', 'Tag', tag);
 t.ClickedCallback(t, []);
+end
+
+
+function filterBy(app, subject, tags, mode)
+%filterBy  The Data tab's filter as picked or typed: Subject SUBJECT, Tags TAGS, MODE "any" | "all", applied as their callbacks do.
+app.SubjectFilterDropDown.Value = char(subject);
+app.TagFilterDropDown.Value = char(tags);
+app.TagFilterModeDropDown.Value = char(mode);
+app.refreshDatasetsTable();
+end
+
+
+function was = setSourceTags(app, key, tags)
+%setSourceTags  Give the loaded source KEY the tags TAGS, as if its manifest held them; WAS the ones it had.
+src = app.Runner.Sources(key);
+was = src.tags;
+src.tags = tags;
+app.Runner.Sources(key) = src;
 end
 
 

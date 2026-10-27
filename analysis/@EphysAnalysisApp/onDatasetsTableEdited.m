@@ -1,7 +1,8 @@
 function onDatasetsTableEdited(obj, ~)
 %onDatasetsTableEdited  A Run tick changed: the datasets a run (and, in project mode, the config) uses; or a star (★).
 %   A ★ ticked or cleared stars or unstars its dataset, written at once
-%   beside its outputs (starItem); the Run ticks are left alone then.
+%   beside its outputs (starItem); the Run ticks are left alone then. The
+%   datasets the filter hides (not in the table) keep their ticks.
 T = obj.DatasetsTable.Data;
 if ~istable(T) || ~ismember("Run", string(T.Properties.VariableNames)); return; end
 if ismember("Star", string(T.Properties.VariableNames)) && numel(obj.Favorites) == numel(obj.Ticked)
@@ -14,8 +15,8 @@ if ismember("Star", string(T.Properties.VariableNames)) && numel(obj.Favorites) 
         return
     end
 end
-ticked = false(1, numel(obj.Ticked));   % a row's Idx is its dataset, whatever order the rows are in
-ticked(T.Idx) = logical(T.Run);
+ticked = obj.Ticked;
+ticked(T.Idx) = logical(T.Run);   % a row's Idx is its dataset, whatever order the rows are in
 obj.Ticked = ticked;
 obj.onConfigChanged("ticks");
 obj.setStatus(sprintf("%d of %d dataset(s) ticked to run.", nnz(obj.Ticked), numel(obj.Ticked)));

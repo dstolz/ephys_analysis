@@ -10,6 +10,11 @@ says how to cut a release.
 
 ### Added
 
+- Analysis app, Data tab: a filter over the datasets table. **Subject:** (picked from the subjects in use, or several
+  typed, comma-separated, with `*` / `?` wildcards) and **Tags:** (any of / all of the tags picked or typed) show only
+  the datasets that pass both; a hidden dataset keeps its **Run** tick, and the line above says *showing k of n (m
+  ticked hidden)*. **Tick shown only** ticks exactly the datasets shown; **Untick all** clears every tick. See
+  [The filter](documentation/EphysAnalysisApp.md#data-tab).
 - Pipeline app: **File > Scan the project at startup** (a check item, on by default, remembered as the `AutoScan`
   preference) turns the startup scan of the reopened config's project off.
 - Tags for new datasets. Pipeline app, Project tab, under **Scan**: **Tag new datasets:** with a field of tags and

@@ -1309,7 +1309,8 @@ reads them to decide anything, and every figure and number is the same with or
 without them. They travel with the data as `src.tags` (a cellstr, from the
 manifest) and are shown in:
 
-- the [Data tab](EphysAnalysisApp.md#data) (a read-only *Tags* column after *Key*);
+- the [Data tab](EphysAnalysisApp.md#data) (a read-only *Tags* column after *Key*,
+  and a **Tags:** filter over the table, which only shows or hides rows);
 - the report: `addReportDataset` stores `tags` in the dataset's entry (`{}` for a
   section), the HTML report writes them after the dataset's name in its section
   header (`<span class="tags">draft, pilot</span>`), the PDF report adds

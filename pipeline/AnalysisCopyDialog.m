@@ -17,8 +17,8 @@ classdef AnalysisCopyDialog < handle
     %   sorting folder), the sorted binary the unit waveforms are cut from
     %   (large; templates are drawn without it), and the probe .json (put
     %   beside the manifest, where the copy finds it). The manifest,
-    %   <Name>_behavior.mat and <Name>_favorites.json (when there is one)
-    %   are always copied. The datasets table lists
+    %   <Name>_behavior.mat, <Name>_favorites.json and <Name>_notes.json
+    %   (when there is one) are always copied; Refresh lists them again. The datasets table lists
     %   each dataset's files and size, and what is missing; untick a row to
     %   leave a dataset out. Settings are remembered (AppPrefs group
     %   AnalysisCopyDialog).
@@ -302,8 +302,10 @@ classdef AnalysisCopyDialog < handle
             obj.Ctl.Browse = uibutton(r, "Text", "Browse...", "ButtonPushedFcn", @(~, ~) obj.onBrowse());
 
             % --- what to copy
-            p = uipanel(g, "Title", "What to copy");
-            og = uigridlayout(p, [5 6], "RowHeight", repmat({26}, 1, 5), ...
+            top = uigridlayout(g, [1 2], "ColumnWidth", {'1x', 250}, "RowHeight", {'1x'}, ...
+                "Padding", [0 0 0 0], "ColumnSpacing", 8);
+            p = uipanel(top, "Title", "What to copy");
+            og =uigridlayout(p, [5 6], "RowHeight", repmat({26}, 1, 5), ...
                 "ColumnWidth", {'fit', 80, 80, 80, 80, '1x'}, "Padding", [10 6 10 6], "ColumnSpacing", 8);
             lbl = uilabel(og, "Text", "Signal files", "Tooltip", ...
                 "The extract files holding these signals (a file with several is copied once). The smallest extract file is always copied: the digital events are in it.");
@@ -339,8 +341,14 @@ classdef AnalysisCopyDialog < handle
             obj.Ctl.Hash = uicheckbox(og, "Text", "Check the copies by checksum (slower)", "Value", D.Hash);
             obj.Ctl.Hash.Layout.Row = 5; obj.Ctl.Hash.Layout.Column = [1 5];
 
+            % --- overview of the ticked datasets' files, by kind
+            op = uipanel(top, "Title", "Overview of the ticked datasets");
+            ogl = uigridlayout(op, [1 1], "Padding", [4 4 4 4]);
+            obj.Ctl.Overview = uitable(ogl, "ColumnName", {'File type', 'Files', 'Size'}, ...
+                "ColumnWidth", {'auto', 50, 80}, "RowName", {}, "Data", table(strings(0, 1), zeros(0, 1), strings(0, 1)));
+
             % --- the datasets
-            obj.Ctl.Table = uitable(g, "ColumnName", {'Copy', 'Dataset', 'Subject', 'Date', 'Files', 'Size', 'Status', 'Not found here / errors'}, ...
+            obj.Ctl.Table =uitable(g, "ColumnName", {'Copy', 'Dataset', 'Subject', 'Date', 'Files', 'Size', 'Status', 'Not found here / errors'}, ...
                 "ColumnEditable", [true false false false false false false false], "ColumnSortable", true, ...
                 "ColumnWidth", {50, 190, 80, 84, 50, 70, 100, 'auto'}, "RowName", {}, ...
                 "CellEditCallback", @(~, ~) obj.summarize());
@@ -390,6 +398,7 @@ classdef AnalysisCopyDialog < handle
             if ~istable(T) || height(T) == 0
                 obj.Ctl.Summary.Text = "No datasets.";
                 obj.Ctl.Copy.Enable = "off";
+                obj.overview([]);
                 return
             end
             sel = find(T.Copy(:)).';
@@ -398,9 +407,33 @@ classdef AnalysisCopyDialog < handle
                 nf = nf + height(obj.Files{k});
                 nb = nb + sum(obj.Files{k}.Bytes);
             end
+            obj.overview(sel);
             obj.Ctl.Summary.Text = sprintf("%d of %d dataset(s) ticked: %d file(s), %s.", ...
                 numel(sel), height(T), nf, OutputTransfer.bytesText(nb));
             obj.Ctl.Copy.Enable = matlab.lang.OnOffSwitchState(~isempty(sel) && ~obj.Running);
+        end
+
+        function overview(obj, sel)
+            %overview  Count and size of the ticked datasets' files per kind (the Overview panel).
+            kinds = ["manifest" "behavior" "favorites" "notes" "extract" "spikes" "sorting" "sorted data" "probe"];
+            F = table(strings(0, 1), zeros(0, 1), 'VariableNames', {'Kind', 'Bytes'});
+            for k = sel(:).'
+                F = [F; obj.Files{k}(:, {'Kind', 'Bytes'})]; %#ok<AGROW>
+            end
+            kinds = [kinds, setdiff(unique(F.Kind).', kinds)];
+            n = numel(kinds);
+            cnt = zeros(n, 1);
+            by = zeros(n, 1);
+            for j = 1:n
+                m = F.Kind == kinds(j);
+                cnt(j) = nnz(m);
+                by(j) = sum(F.Bytes(m));
+            end
+            keep = cnt > 0;
+            Type = [kinds(keep).'; "Total"];
+            Files = [cnt(keep); sum(cnt)];
+            Size = [arrayfun(@OutputTransfer.bytesText, by(keep)); OutputTransfer.bytesText(sum(by))];
+            obj.Ctl.Overview.Data = table(Type, Files, Size);
         end
 
         function tick(obj)

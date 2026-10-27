@@ -88,9 +88,13 @@ classdef test_AnalysisCopyDialog < matlab.unittest.TestCase
             T = dlg.Files{1};
             tc.verifyEqual(sum(T.Kind == "extract"), 1, 'only the LFP file once MUA is off (no SPIKE file exists)');
             tc.verifyEqual(sum(T.Kind == "sorted data"), 1, 'the sorted binary on request');
-            tbl = findobj(dlg.Fig, 'Type', 'uitable');
+            tbl = findobj(dlg.Fig, 'Tag', 'acd_Table');
             tc.verifyEqual(tbl.Data.Dataset.', tc.keys(), 'the table lists the datasets by their folders');
             tc.verifyTrue(all(tbl.Data.Copy) && all(tbl.Data.Files > 0));
+            ov = findobj(dlg.Fig, 'Tag', 'acd_Overview').Data;
+            tc.verifyEqual(ov.Type(end), "Total", 'the overview ends with a total row');
+            tc.verifyEqual(ov.Files(end), sum(tbl.Data.Files), 'the overview counts the ticked datasets'' files');
+            tc.verifyTrue(ismember("sorted data", ov.Type), 'the overview lists each file type');
         end
 
         function copiesTheFilesToTheKeyFolders(tc)
@@ -110,7 +114,7 @@ classdef test_AnalysisCopyDialog < matlab.unittest.TestCase
                 || isfile(fullfile(folder, tc.Names(1) + ".bin")), 'exports and the sorted binary stay');
             tc.verifyTrue(isfile(fullfile(folder, "p4.json")), 'the probe file lands beside the manifest');
             tc.verifyTrue(isfile(fullfile(tc.Src, "s1", tc.Names(1), tc.Names(1) + "_epochs.mat")), 'the sources stay');
-            tbl = findobj(dlg.Fig, 'Type', 'uitable');
+            tbl = findobj(dlg.Fig, 'Tag', 'acd_Table');
             tc.verifyEqual(tbl.Data.Status.', ["done" "done"]);
 
             % Read on "another machine": the manifest's probe path is gone.
@@ -134,7 +138,7 @@ classdef test_AnalysisCopyDialog < matlab.unittest.TestCase
             tc.assumeTrue(ispc, "robocopy needs Windows");
             dlg = tc.dialog();
             tc.setControl(dlg, "Dest", tc.Dest);
-            tbl = findobj(dlg.Fig, 'Type', 'uitable');
+            tbl = findobj(dlg.Fig, 'Tag', 'acd_Table');
             T = tbl.Data;
             T.Copy(2) = false;
             tbl.Data = T;

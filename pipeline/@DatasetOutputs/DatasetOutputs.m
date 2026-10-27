@@ -469,7 +469,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             %   SortedData=, Probe=) lists what the analysis reads, so a
             %   copy of just these files (into <folder>/<dataset key>) runs
             %   it on another machine. T has one row per file or folder:
-            %   Kind ("manifest", "behavior", "favorites", "extract", "spikes",
+            %   Kind ("manifest", "behavior", "favorites", "notes", "extract", "spikes",
             %   "sorting", "sorted data", "probe"), Path, Base (the folder the file's
             %   place in the copy is counted from: its path below it is kept;
             %   "" keeps the name only) and Bytes. NOTES says in words what
@@ -491,7 +491,8 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             %     Probe       true      the probe .json (probeFile)
             %
             %   The manifest, <Name>_behavior.mat and, when it exists,
-            %   <Name>_favorites.json (Kind "favorites") are always there.
+            %   <Name>_favorites.json (Kind "favorites") and <Name>_notes.json
+            %   (Kind "notes") are always there.
             arguments
                 obj (1,1) DatasetOutputs
                 opts.Signals (1,:) string = ["LFP" "MUA" "AUX"]
@@ -530,6 +531,13 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                 f = DatasetFavorites.fileFor(root, obj.Name);
                 if isfile(f)
                     rows(end+1, :) = {"favorites", f, rootOf(f, roots)}; %#ok<AGROW>
+                    break
+                end
+            end
+            for root = roots
+                f = DatasetNotes.fileFor(root, obj.Name);
+                if isfile(f)
+                    rows(end+1, :) = {"notes", f, rootOf(f, roots)}; %#ok<AGROW>
                     break
                 end
             end

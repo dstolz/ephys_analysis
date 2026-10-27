@@ -20,8 +20,8 @@ function refreshDatasetsTable(obj)
 %   The filter above the table shows only some rows: Subject keeps the
 %   datasets whose subject is one of those picked or typed (comma-separated,
 %   * and ? wildcards, case ignored), Tags those holding any (or all) of the
-%   tags picked or typed (TagSet.matches; a term that is no valid tag
-%   matches nothing), both together when both are set. Their lists are the
+%   tags picked or typed (a term that is no valid tag matches nothing), both
+%   together when both are set (datasetFilter). Their lists are the
 %   subjects and tags in use. A hidden row keeps its Run tick (Ticked is per
 %   dataset), and FilterLabel says "showing k of n (m ticked hidden)".
 %
@@ -105,18 +105,9 @@ function keep = applyFilter(obj, subject, sets)
 n = numel(subject);
 syncItems(obj.SubjectFilterDropDown, cellstr(unique(subject(subject ~= ""))).');
 syncItems(obj.TagFilterDropDown, TagSet.vocabulary(sets));
-keep = true(n, 1);
-terms = filterTerms(obj.SubjectFilterDropDown.Value);
-if ~isempty(terms)
-    keep(:) = false;
-    for t = terms
-        keep = keep | ~cellfun(@isempty, regexpi(cellstr(subject), "^" + regexptranslate('wildcard', t) + "$", 'once'));
-    end
-end
-[tags, bad] = TagSet.fromText(filterTerms(obj.TagFilterDropDown.Value), TagSet.EntryDelimiter);
-selected = [reshape(tags, 1, []), reshape(bad, 1, [])];   % a term that is no valid tag is passed on as typed: it matches nothing
-keep = keep & reshape(TagSet.matches(sets, selected, string(obj.TagFilterModeDropDown.Value)), [], 1);
-if isempty(terms) && isempty(selected)
+[keep, active] = datasetFilter(subject, sets, Subjects=obj.SubjectFilterDropDown.Value, ...
+    Tags=obj.TagFilterDropDown.Value, TagMode=obj.TagFilterModeDropDown.Value);
+if ~active
     obj.FilterLabel.Text = "";
 else
     msg = sprintf("showing %d of %d", nnz(keep), n);
@@ -132,13 +123,6 @@ function syncItems(dd, inUse)
 v = dd.Value;
 dd.Items = [{'(any)'}, reshape(inUse, 1, [])];
 dd.Value = v;
-end
-
-
-function terms = filterTerms(value)
-%filterTerms  Comma-separated filter text -> terms ("" / "(any)" = none).
-terms = strtrim(split(string(value), ","));
-terms = reshape(terms(terms ~= "" & terms ~= "(any)"), 1, []);
 end
 
 

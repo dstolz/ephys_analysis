@@ -1596,30 +1596,42 @@ if S.sec("3e", "Project tab: Tags column, dialog, filter")
         && contains(app.StatusBar.Text, "Tagged " + nameB + ": draft, pilot."), ...
         'OK stores the set, writes the manifest and updates the cell');
     check(isequaln(app.Config.toStruct(), cfg0) && string(app.Fig.Name) == title0, 'a tag edit does not mark the config unsaved');
+    app.DatasetsTable.Selection = [];
     app.DatasetTagsItem.MenuSelectedFcn(app.DatasetTagsItem, []);
     dlg = app.TagDialog;
     check(dlg.Mode == "set" && isequal(dlg.Pending, {'draft', 'pilot'}), ...
-        'Dataset > Tags... with nothing ticked edits the active dataset');
+        'Dataset > Tags... with no row selected edits the active dataset');
     dlg.cancel();
 
-    % Tags... on two ticked datasets: bulk mode.
+    % Tags... works on the selected rows; the ticks play no part.
+    selectRows = @(names) set(app.DatasetsTable, 'Selection', rowCells(app.DatasetsTable.Data, names));
     app.onSelectDatasets("all");
-    cfg0 = app.Config.toStruct(); title0 = string(app.Fig.Name);
+    selectRows(nameA);
     app.TagsButton.ButtonPushedFcn(app.TagsButton, []);
     dlg = app.TagDialog;
-    check(isvalid(dlg.Fig) && dlg.Mode == "add" && dlg.Policy == "all", 'Tags... with two rows ticked opens bulk mode');
+    check(isvalid(dlg.Fig) && dlg.Mode == "set" && isempty(dlg.Pending), ...
+        'Tags... with both rows ticked and one selected edits that one alone (not the active one)');
+    dlg.cancel();
+    app.onSelectDatasets("none");
+    cfg0 = app.Config.toStruct(); title0 = string(app.Fig.Name);
+    selectRows([nameA nameB]);
+    app.TagsButton.ButtonPushedFcn(app.TagsButton, []);
+    dlg = app.TagDialog;
+    check(isvalid(dlg.Fig) && dlg.Mode == "add" && dlg.Policy == "all", 'Tags... with two rows selected, none ticked, opens bulk mode');
     dlg.addTyped("shared");
     dlg.ok();
     check(isequal(tagsOf(nameA), {'shared'}) && isequal(fileTags(nameB), {'draft', 'pilot', 'shared'}) ...
         && cellOf(nameA) == "shared" && contains(app.StatusBar.Text, "Tagged 2 datasets: added shared.") ...
         && isequaln(app.Config.toStruct(), cfg0) && string(app.Fig.Name) == title0, ...
-        'Add reaches both ticked datasets and their manifests; the config stays as it was');
+        'Add reaches both selected datasets and their manifests; the config stays as it was');
+    app.onSelectDatasets("all");   % the filter checks below count ticks on hidden rows
 
     % recA full (12 tags): Add over the limit, policy "all" then "skip".
     dsA = dsOf(nameA);
     dsA.Tags = [{'shared'}, cellstr("t" + compose("%02d", (1:11)'))'];
     dsA.writeManifest();
     full = dsA.Tags;
+    selectRows([nameA nameB]);
     app.TagsButton.ButtonPushedFcn(app.TagsButton, []);
     dlg = app.TagDialog;
     dlg.addTyped("extra");
@@ -1635,6 +1647,7 @@ if S.sec("3e", "Project tab: Tags column, dialog, filter")
         && contains(app.StatusBar.Text, "Added extra to 1 of 2 datasets; skipped 1 over the tag limit.") ...
         && contains(app.StatusHint.Text, nameA + " (13 tags, 1 over the limit of 12)") && app.TagPolicy == "skip", ...
         'then writes the other; the status names the skipped dataset and why; the policy is remembered');
+    selectRows([nameA nameB]);
     app.onEditTags();
     dlg = app.TagDialog;
     check(dlg.Policy == "skip", 'the next dialog starts from the policy last chosen');
@@ -1642,7 +1655,7 @@ if S.sec("3e", "Project tab: Tags column, dialog, filter")
     dlg.pick({'extra'});
     dlg.ok();
     check(isequal(fileTags(nameB), {'draft', 'pilot', 'shared'}) && isequal(tagsOf(nameA), full) ...
-        && contains(app.StatusBar.Text, "Removed extra from 2 datasets."), 'Remove from all takes a tag off every ticked dataset');
+        && contains(app.StatusBar.Text, "Removed extra from 2 datasets."), 'Remove from all takes a tag off every selected dataset');
 
     % The filter: the tags in use, any / all of them AND the search.
     filt = @(v, mode, search) setFilter(app, v, mode, search);
@@ -3703,6 +3716,13 @@ app.TagFilterDropDown.Value = value;
 app.TagFilterModeDropDown.Value = mode;
 app.TagSearchField.Value = search;
 app.refreshDatasetsTable();
+end
+
+
+function sel = rowCells(T, names)
+%rowCells  A Project-table Selection ([row column] per cell): the Name cells of the rows named NAMES.
+r = find(ismember(T.Name, names));
+sel = [r, repmat(find(strcmp(T.Properties.VariableNames, 'Name')), numel(r), 1)];
 end
 
 

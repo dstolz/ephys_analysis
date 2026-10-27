@@ -10,7 +10,7 @@ function buildMenus(obj)
 %   datasets ticked in the Project table, with every dataset in an "All
 %   datasets" submenu, and View manifest opens the active dataset's
 %   manifest in a ManifestViewerApp (onViewManifest); Tags edits the tags
-%   of the ticked datasets, or the active one's (onEditTags). Run mirrors the Run
+%   of the selected rows' datasets, or the active one's (onEditTags). Run mirrors the Run
 %   tab's buttons. Help opens pages of the GitHub wiki: the one for the tab
 %   that is shown, the home page and the main guides, and at the bottom
 %   files against the repository itself: Report an issue and Request a
@@ -60,7 +60,7 @@ obj.DatasetManifestItem = uimenu(obj.DatasetMenu, "Text", "View manifest...", "S
     "Tooltip", "Open the active dataset's <Name>_manifest.json in the manifest viewer.", ...
     "MenuSelectedFcn", @(~,~) obj.onViewManifest());
 obj.DatasetTagsItem = uimenu(obj.DatasetMenu, "Text", "Tags...", ...
-    "Tooltip", "Tag the ticked datasets (the active one when none is ticked).", ...
+    "Tooltip", "Tag the datasets on the rows selected in the Project table, ticked or not (the active one when no row is selected).", ...
     "MenuSelectedFcn", @(~,~) obj.onEditTags());
 obj.refreshDatasetMenu();
 

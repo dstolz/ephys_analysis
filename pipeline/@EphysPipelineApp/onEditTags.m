@@ -1,10 +1,10 @@
 function onEditTags(obj, idx)
 %onEditTags  Open the tag dialog on datasets IDX (indices into Project.Datasets).
-%   obj.onEditTags() (Tags... and Dataset > Tags...) works on the ticked
-%   datasets, those on rows the filters hide included, as Assign probe
-%   does: bulk mode (add to all / remove from all) when two or more are
-%   ticked, single mode for one, and the active dataset when none is
-%   ticked. obj.onEditTags(IDX) (a click on a Tags cell) edits those.
+%   obj.onEditTags() (Tags... and Dataset > Tags...) works on the rows
+%   selected in the Project table (selectedRowDatasets), ticked or not:
+%   bulk mode (add to all / remove from all) when two or more are
+%   selected, single mode for one, and the active dataset when none is
+%   selected. obj.onEditTags(IDX) (a click on a Tags cell) edits those.
 %
 %   The dialog (TagDialog, kept in obj.TagDialog) offers the tags in use
 %   on the project's datasets. On OK each dataset it changes gets its new
@@ -28,12 +28,12 @@ if isempty(obj.Project) || obj.Project.NumDatasets == 0
     return
 end
 if nargin < 2
-    idx = obj.tickedDatasetIndices();
+    idx = selectedRowDatasets(obj);
     if isempty(idx); idx = obj.SelectedDatasetIdx; end
 end
 idx = reshape(idx(idx >= 1 & idx <= obj.Project.NumDatasets), 1, []);
 if isempty(idx)
-    uialert(obj.Fig, "Tick datasets in the Project table, or choose one in the Dataset box.", "Tags");
+    uialert(obj.Fig, "Select rows in the Project table, or choose a dataset in the Dataset box.", "Tags");
     return
 end
 
@@ -43,6 +43,21 @@ vocab = TagSet.vocabulary(arrayfun(@(d) d.Tags, obj.Project.Datasets, 'UniformOu
 obj.TagDialog = TagDialog(arrayfun(@(d) d.Tags, targets, 'UniformOutput', false), vocab, ...
     Labels=labels, Parent=obj.Fig, Policy=obj.TagPolicy, ...
     OnDone=@(r) applyTags(obj, idx, targets, r));
+end
+
+
+function idx = selectedRowDatasets(obj)
+%selectedRowDatasets  Datasets on the rows selected in the Project table.
+%   Its Selection is [row column] per selected cell, rows of Data (not of
+%   a header sort's order), mapped to datasets through DatasetIdx; the
+%   Select ticks play no part. Ascending; empty when nothing is selected.
+idx = zeros(1, 0);
+T = obj.DatasetsTable.Data;
+sel = obj.DatasetsTable.Selection;
+if isempty(sel) || ~istable(T) || ~any(strcmp('DatasetIdx', T.Properties.VariableNames)); return; end
+rows = unique(sel(:, 1));
+rows = rows(rows >= 1 & rows <= height(T));
+idx = reshape(unique(T.DatasetIdx(rows)), 1, []);
 end
 
 

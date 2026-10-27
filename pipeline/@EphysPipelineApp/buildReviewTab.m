@@ -24,24 +24,24 @@ function buildReviewTab(obj)
 %   the cached ReviewData and reads only the selected unit's spikes. See
 %   loadReviewResults / renderReviewPlots / renderReviewUnitShank.
 
-g = uigridlayout(obj.TabReview, [2 2]);
-g.ColumnWidth = {470, '1x'};
+% Four columns: the left column, then three equal ones. The datasets take the
+% left column and the next, the summary the third, and the unit on its shank
+% (with its two small plots) the fourth, top to bottom; the timing plots sit
+% under the datasets and summary, in the second and third.
+g = uigridlayout(obj.TabReview, [2 4]);
+g.ColumnWidth = {470, '1x', '1x', '1x'};
 g.RowHeight   = {180, '1x'};
 g.Padding     = [10 10 10 10];
 g.RowSpacing  = 10;
+g.ColumnSpacing = 14;
 
 % =================== top: the datasets | the loaded sort's summary ===================
-top = uigridlayout(g, [1 2]);
-top.Layout.Row = 1; top.Layout.Column = [1 2];
-top.ColumnWidth = {'1x', 460};
-top.Padding = [0 0 0 0];
-top.ColumnSpacing = 10;
-
 % One row per dataset (refreshReviewDatasets); ReviewDatasetRows maps the
 % rows of Data to the datasets, so a header click's order (kept, tableSort
 % "ReviewDatasets"; right-click clears it) never changes which dataset a
 % click picks.
-dp = uipanel(top, "Title", "Datasets (click one to review it)");
+dp = uipanel(g, "Title", "Datasets (click one to review it)");
+dp.Layout.Row = 1; dp.Layout.Column = [1 2];
 dg = uigridlayout(dp, [1 1]);
 dg.Padding = [0 0 0 0];
 obj.ReviewDatasetTable = uitable(dg, ...
@@ -58,7 +58,8 @@ obj.ReviewDatasetTable = uitable(dg, ...
     "SelectionChangedFcn", @(~, evt) obj.onReviewDatasetSelected(evt));
 makeSortable(obj, obj.ReviewDatasetTable, "ReviewDatasets");
 
-summaryPanel = uipanel(top, "Title", "Summary");
+summaryPanel = uipanel(g, "Title", "Summary");
+summaryPanel.Layout.Row = 1; summaryPanel.Layout.Column = 3;
 sg = uigridlayout(summaryPanel, [1 1]);
 sg.RowHeight = {'fit'};
 sg.Padding = [8 6 8 6];
@@ -166,10 +167,11 @@ obj.ReviewQCButton = uibutton(ub, "Text", "QC report", ...
     "ButtonPushedFcn", @(~,~) obj.onReviewQCReport());
 
 % =================== right: ISI + ACG over amplitudes | the unit on its shank ===================
-right = uigridlayout(g, [3 3]);
-right.Layout.Row = 2; right.Layout.Column = 2;
-right.ColumnWidth = {'1x', '1x', '1x'};
+right = uigridlayout(g, [3 2]);
+right.Layout.Row = 2; right.Layout.Column = [2 3];
+right.ColumnWidth = {'1x', '1x'};
 right.RowHeight = {30, '1x', '1x'};
+right.Padding = [0 0 0 0];
 right.RowSpacing = 14;
 right.ColumnSpacing = 14;
 
@@ -215,8 +217,8 @@ title(obj.ReviewAmpAxes, "Amplitudes over time");
 % The selected unit's spikes at the sites of the shank it was detected on,
 % most of the height, with what to draw above it (renderReviewUnitShank);
 % units per shank and firing rates, smaller, below it.
-sp = uigridlayout(right, [4 1]);
-sp.Layout.Row = [1 3]; sp.Layout.Column = 3;
+sp = uigridlayout(g, [4 1]);
+sp.Layout.Row = [1 2]; sp.Layout.Column = 4;
 sp.RowHeight = {30, '2.5x', '1x', '1x'};
 sp.Padding = [0 0 0 0];
 sp.RowSpacing = 4;

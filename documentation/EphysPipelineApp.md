@@ -340,7 +340,8 @@ that recording again by its folder.
 | Trials: every control but Prefetch ticked; Probe: Exclude channels, the channel-count check; Artifacts: Detect / Preview, manual periods table; Sorting: Use folder / Use auto / Open in phy, Optimize for probe (the default probe when the dataset has none); Spikes: Preview; Export: Epochs to workspace; Analysis: Open report / Open figures folder (the active dataset's first); Visualize; Review; Project: Associate file / Clear, the Tools panel set to **Active dataset** | the **active dataset** |
 | Run pipeline, Dry run, Run this step, Plan, Signals / Export / Analysis target tables; Project: Find sessions for selected, the Tools panel set to **Ticked datasets**; Clean up: Preview and the files it lists | the rows **ticked** in the Project table (`Project.Selection = "list"`), or **all** datasets when none are ticked (`"all"`) |
 | Trials: Prefetch ticked | the rows **ticked** in the Project table; with none ticked it asks you to tick some |
-| Probe: Assign to selected datasets; Project: Tags... (and Dataset → Tags...) | the rows **ticked** in the Project table, or the **active dataset** when none are ticked |
+| Probe: Assign to selected datasets | the rows **ticked** in the Project table, or the **active dataset** when none are ticked |
+| Project: Tags... (and Dataset → Tags...) | the rows **selected** (highlighted) in the Project table, ticked or not, or the **active dataset** when none is selected |
 | Project: a click on a Tags cell | that row's dataset (it becomes the active one) |
 | Probe: Assign to all datasets | every dataset |
 
@@ -725,7 +726,7 @@ with its Epsych2 session.
 | Name pattern + Columns | `Project.NamePattern`: how each dataset name splits into tokens ([Name pattern and token columns](#name-pattern-and-token-columns)); one checkbox per token, ticked tokens (`Project.TokenColumns`, default `SubjectID`) become table columns after Name. The label right of the **Tags:** filter shows how many names match, or the pattern error. After a scan that found Open Ephys sessions whose names do not match, the status bar suggests `{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*` |
 | Filter | (right of **Tags...**) one editable dropdown per name-pattern token, listing the values found (`-` = the name does not match). Rows whose token does not match are hidden; type `*` / `?` wildcards or comma-separated alternatives (case-insensitive). Filters are a view only: they are not saved, and ticks on hidden rows stay in the selection (the label shows `showing k of n (m ticked hidden)`) |
 | All / None | **All** ticks every shown row; **None** unticks every row, shown or hidden |
-| **Tags...** | edits the tags of the ticked datasets (rows the filters hide included), or of the active dataset when none is ticked; also **Dataset → Tags...** ([Dataset tags](#dataset-tags)) |
+| **Tags...** | edits the tags of the datasets on the selected rows (Shift / Ctrl+click selects several), ticked or not, or of the active dataset when no row is selected; also **Dataset → Tags...** ([Dataset tags](#dataset-tags)) |
 | Tags: filter | (under the token filters) the tags picked or typed (**any of** / **all of** them) and a search over the tags, both applied ([Dataset tags](#dataset-tags)). A view only, like the token filters: not saved, and ticks on hidden rows stay in the selection |
 | **Source settings** panel (under the table) | the reader options of the **active dataset's** recording system (the [`Acquisition` section](EphysPipeline.md#acquisition)); the panel's title names the system and only its controls show. They are the config's, so they apply to every dataset of that system in the project, and a change rescans the project. **Open Ephys** ([Open Ephys sessions](#open-ephys-sessions)): what a session with several recordings is (**join recordings** = one dataset, **one dataset per recording** = part folders created in the session folder, **single recording only** = refused), **Record node** and **Stream** (blank = automatic). **TDT (Synapse)**: **Stream** (`Acquisition.TDT.Stream`: an editable list of the active block's stream stores, or a typed name; **automatic** = the stream with the most channels, the highest rate among those) and **Gain (µV per unit)** (`Acquisition.TDT.GainToMicrovolts`: blank = 1e6 for float streams, which TDT stores in volts; needed for a stream stored as integers; a value that is not a number is refused in the status bar), and a line saying what the active block reads (its tooltip lists the block's streams). Intan and binary recordings have no source settings; without an active dataset the panel says so. The Open Ephys options therefore show only once an Open Ephys dataset is scanned and active (a config file can set them before a scan) |
 | **Tools** panel (beside the table) | opens datasets in another program. The box on top chooses which: **Active dataset** (the highlighted row) or **Ticked datasets** (the ticked rows, or every dataset when none is ticked, as a run takes them); the label under it names them, and how many of several have sorted output. **Manifest viewer**: each one's `<Name>_manifest.json` in a [manifest viewer](ManifestViewerApp.md), a window each, cascaded (the same as Dataset → View manifest...). **Analysis app**: one [analysis app](EphysAnalysisApp.md) on the project with those datasets selected (a new config in project mode with `Source.Selection = "list"` and their keys: it lists every dataset but ticks only these to run, the first of them active; `"all"` when they are every dataset); needs the repository's `analysis` folder on the path. **phy**: phy's template-gui on each one's associated sorted output, a window each (on only when one of them has `params.py`; the others are skipped). **Output folder**: each one's output folder in the file browser (an alert names those not written yet). Opening more than four windows at once asks first |
@@ -863,18 +864,20 @@ unsaved.
 The tag window opens two ways:
 
 - **A click on a Tags cell** edits that one dataset (and makes it the active
-  one), whatever is ticked. **Available** lists the tags in use on the
+  one), whatever is selected or ticked. **Available** lists the tags in use on the
   project's other datasets (select and **Add selected**, or double-click);
   **New tag** takes new ones, several separated by commas (an entry that is
   no valid tag is named in red and nothing is added); **Current** is the set
   you are building (**Remove selected**, **Clear all**). **OK** saves it.
 - **Tags...** (beside All / None, and **Dataset → Tags...**) works on the
-  **ticked** datasets, those on rows the filters hide included; with one
-  ticked it is the same single edit, and with none ticked it edits the
-  active dataset. With two or more ticked it is a bulk edit: **Add to all**
-  or **Remove from all**, the tags on every ticked dataset and on some of
-  them shown above the list (`On some: draft (2 of 5)`). Remove from all
-  takes the tags you pick off every dataset that has them.
+  rows **selected** in the table (click one, Shift / Ctrl+click for more),
+  whether they are ticked or not: the ticks choose what a run processes,
+  not what is tagged. With one row selected it is the same single edit,
+  and with none it edits the active dataset. With two or more selected it
+  is a bulk edit: **Add to all** or **Remove from all**, the tags on every
+  selected dataset and on some of them shown above the list
+  (`On some: draft (2 of 5)`). Remove from all takes the tags you pick off
+  every dataset that has them.
 
 When adding would take a dataset over 12 tags, **If a dataset would exceed
 the limit** decides: **Cancel the whole edit** (the default) keeps the window

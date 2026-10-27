@@ -13,7 +13,9 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
     %   full bar at the finish, the command window throttled when hidden);
     %   a compute canceled from the strip keeps its finished part, the
     %   controls off while busy; wait and done (a visible window, a timer);
-    %   closing keeps the result and saves the preferences. A dataset whose
+    %   DatasetBrowser.open returns the window open on the root (never a
+    %   hidden or closed one; a new browser for another root); closing
+    %   keeps the result and saves the preferences. A dataset whose
     %   outputs changed (its manifest's time, restored afterwards) reads
     %   "old" after a scan and is the only one computed again;
     %   forgetTicked with nothing ticked keeps the cache. checkCancel ends a
@@ -550,6 +552,28 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyLessThan(toc(t0), 30, 'Done ends the wait.');
             tc.verifyTrue(seen.isKey('done'));
             tc.verifyTrue(isvalid(V.Fig), 'Done keeps the window.');
+        end
+
+        function openFindsTheOpenWindow(tc)
+            H = tc.open();
+            tmp = tc.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+            file = fullfile(tmp.Folder, "results.mat");
+            B = DatasetBrowser.open(tc.Root, ResultFile=file, Visible=true);
+            tc.addTeardown(@() delete(B));
+            tc.verifyNotSameHandle(B, H, 'A hidden browser is never returned.');
+            tc.verifyEqual(string(B.Fig.Visible), "on");
+            tc.verifySameHandle(DatasetBrowser.open(tc.Root + filesep), B, 'The window open on the root (a trailing separator ignored).');
+            if ispc
+                tc.verifySameHandle(DatasetBrowser.open(upper(tc.Root)), B, 'Case is ignored on Windows.');
+            end
+            tc.verifySameHandle(DatasetBrowser.open(""), B, 'No root: any open window.');
+            other = DatasetBrowser.open(string(tmp.Folder), Visible=false, Scan=false);
+            tc.addTeardown(@() delete(other));
+            tc.verifyNotSameHandle(other, B, 'Another root: a new browser.');
+            B.Fig.CloseRequestFcn(B.Fig, []);
+            C = DatasetBrowser.open(tc.Root, ResultFile=file, Visible=false, Scan=false);
+            tc.addTeardown(@() delete(C));
+            tc.verifyNotSameHandle(C, B, 'A closed window is not returned.');
         end
 
         function closingKeepsTheObject(tc)

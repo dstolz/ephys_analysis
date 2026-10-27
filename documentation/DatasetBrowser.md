@@ -4,8 +4,8 @@
 that opens a window over a project's datasets. In it you filter and tick the
 datasets, set what to compute around an event, and press **Compute**. The
 result is one matrix over every ticked dataset, `data(row, time, group)`, with
-one row per unit (or channel). A script waits for the window and reads the
-result from the handle, so the part of an analysis script that picks datasets
+one row per unit (or channel). A script waits for the window, or goes on
+with the window left open, and reads the result from the handle, so the part of an analysis script that picks datasets
 and loops over them shrinks to three lines. The compute itself is
 [`epochMatrix`](../analysis/epochMatrix.m), which also runs without a window.
 
@@ -167,6 +167,27 @@ at once when the window is hidden or closed; `Timeout=` limits the wait).
 `R` is [the result](#the-result). Closing the window keeps the object:
 `Result`, `compute` and `forEach` still work.
 
+### Without waiting
+
+A script need not wait. `DatasetBrowser.open` returns the browser whose window
+is already open on the root, as it is, and opens one only when none is. The
+script goes on with the result the browser holds (the result file's, when the
+window has just opened) and the window stays open for later changes:
+
+```matlab
+B = DatasetBrowser.open(root, NamePattern=namePattern);
+if isempty(B.Result), B.wait(); end   % nothing computed yet: tick, Compute, Done
+R = B.Result;
+```
+
+To use other datasets or settings, change them in the window, press
+**Compute** and run the script again: it finds the same window and reads the
+new result. `B.ResultCurrent` is false while the window's settings or ticks
+differ from the result's. The options are only for a new browser; an open
+one keeps its own. A root of `""` takes any open window, and a hidden browser
+(`Visible=false`) is never returned. The script's variables do not matter: a
+`clear` leaves the window, and its browser, open.
+
 ### Without a window
 
 Every control's action is a method, so the same steps run headless:
@@ -193,6 +214,7 @@ R = B.compute();
 | `loadSettings(B, FILE)`, `saveSettings(B, FILE)` | a [settings file](#settings) (no `FILE`: a file dialog) |
 | `save(B, FILE)`, `restore(B, FILE)` | the [result file](#the-cache-and-the-result-file) |
 | `wait(B, Timeout=Inf)`, `done(B)`, `close(B)` | the window |
+| `B = DatasetBrowser.open(ROOT, ...)` | the browser of the window open on `ROOT`, else a new one ([without waiting](#without-waiting)) |
 
 The properties: `Settings` (the whole struct; assigning checks it with
 `epochMatrixSettings`), `Filter`, `Selected` (the ticked keys), `Table` and

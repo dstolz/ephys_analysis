@@ -11,6 +11,14 @@ classdef DatasetBrowser < handle
     %     B.wait();          % tick, adjust, Compute, Done
     %     R = B.Result;      % R.data, R.rows, R.t, R.groupLabels, R.settings
     %
+    %   Or it goes on with the result it has and leaves the window open for
+    %   later changes: DatasetBrowser.open returns the window already open
+    %   on ROOT (whatever the script's variables), else opens one.
+    %
+    %     B = DatasetBrowser.open(root);
+    %     if isempty(B.Result), B.wait(); end   % nothing computed yet
+    %     R = B.Result;      % after a Compute in the window, run again
+    %
     %   Without a window the same methods work:
     %
     %     B = DatasetBrowser(root, Visible=false);
@@ -94,6 +102,7 @@ classdef DatasetBrowser < handle
     %     save(B, FILE); restore(B, FILE)    the result file
     %     progressStart, progress, progressStep, checkCancel, progressFinish, cancel
     %     wait(B, Timeout=Inf); done(B); close(B)
+    %     B = DatasetBrowser.open(ROOT, ...)   the window open on ROOT, else a new browser
     %   Closing the window keeps the object: Result, compute and forEach work.
     %
     %   Errors: DatasetBrowser:NoRoot, DatasetBrowser:NotScanned,
@@ -805,11 +814,38 @@ classdef DatasetBrowser < handle
         end
     end
 
+    methods (Static)
+        function B = open(root, varargin)
+            %open  The browser whose window is open on ROOT, else DatasetBrowser(ROOT, ...).
+            %   An open window's browser is returned as it is (its ticks,
+            %   settings and result); the options are only for a new one.
+            %   ROOT "" takes any open window. Hidden browsers
+            %   (Visible=false) are never returned. A script that calls it
+            %   on every run keeps one window, even after a clear:
+            %
+            %     B = DatasetBrowser.open(root, NamePattern=namePattern);
+            %     if isempty(B.Result), B.wait(); end
+            %     R = B.Result;
+            if nargin < 1; root = ""; end
+            root = strtrim(string(root));
+            figs = findall(groot, "Type", "figure", "Tag", "DatasetBrowser", "Visible", "on");
+            for f = reshape(figs, 1, [])
+                b = getappdata(f, "DatasetBrowser");
+                if isa(b, "DatasetBrowser") && isvalid(b) && (root == "" || DatasetBrowser.sameRoot(b.Root, root))
+                    B = b;
+                    return
+                end
+            end
+            B = DatasetBrowser(root, varargin{:});
+        end
+    end
+
     methods (Access = private)
         % --- building ------------------------------------------------------------------------------
         function build(B, prefs)
             f = uifigure("Name", "Dataset browser", "Position", [60 60 1380 860], "Visible", "off", ...
                 "Tag", "DatasetBrowser", "CloseRequestFcn", @(~, ~) B.close());
+            setappdata(f, "DatasetBrowser", B);   % DatasetBrowser.open finds the browser of an open window
             if isfield(prefs, 'Position') && isnumeric(prefs.Position) && numel(prefs.Position) == 4 && all(prefs.Position(3:4) > 200)
                 f.Position = double(prefs.Position(:)).';
             end
@@ -1703,6 +1739,14 @@ classdef DatasetBrowser < handle
         function file = defaultFile(root)
             file = "";
             if root ~= ""; file = string(fullfile(root, "DatasetBrowser_results.mat")); end
+        end
+
+        function tf = sameRoot(a, b)
+            %sameRoot  A and B name one folder: / or \, a trailing separator and (on Windows) case ignored.
+            a = regexprep(strrep(strtrim(string(a)), "/", "\"), "\\+$", "");
+            b = regexprep(strrep(strtrim(string(b)), "/", "\"), "\\+$", "");
+            if ispc; a = lower(a); b = lower(b); end
+            tf = a == b;
         end
 
         function p = readPrefs()

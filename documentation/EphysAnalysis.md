@@ -701,7 +701,8 @@ B.wait();
 R = B.Result;
 ```
 
-See [DatasetBrowser](DatasetBrowser.md).
+`DatasetBrowser.open(root)` instead returns the window already open on the root, so a script can go on with
+its result and leave the window open for later changes. See [DatasetBrowser](DatasetBrowser.md).
 
 ## Across sessions
 

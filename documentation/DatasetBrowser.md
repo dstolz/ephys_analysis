@@ -281,7 +281,8 @@ strip over for its time.
 `size(R.data) = [height(R.rows), numel(R.t), numel(R.groupLabels)]`. Scripts
 use the fields in place (`R.data`, `R.rows`, `R.t`, `R.groupLabels`,
 `R.settings`) and need not copy them out. `imagesc(R.t, 1:height(R.rows),
-R.data(:, :, 1))` draws the first group of every row.
+R.data(:, :, 1))` draws the first group of every row, and `R.labels`
+([Labels](#labels)) gives its axis labels and caption in words.
 
 | Field | Type | Holds |
 | --- | --- | --- |
@@ -295,6 +296,7 @@ R.data(:, :, 1))` draws the first group of every row.
 | `R.datasets` | table, one row per ticked dataset | key, name, subject, date, status ("done", "cached", "skipped" or "error"), message, nRows, nEpochs, nGroups, seconds. This table answers "why is dataset X missing". |
 | `R.keys` | string column | The datasets whose rows are in R, in row order. |
 | `R.created` | datetime | When the result was assembled. |
+| `R.labels` | struct of strings | Axis labels, legend text and a one-line description of R, in words (see [Labels](#labels)). |
 
 Notes on the fields:
 
@@ -325,6 +327,38 @@ Notes on the fields:
   error is `"error"`.
 - A time base that differs between datasets (different bins or signal rates)
   raises `epochMatrix:TimeBase`, naming the datasets.
+
+### Labels
+
+`R.labels = epochMatrixLabels(R)`
+([source](../analysis/epochMatrixLabels.m)) describes the result from its
+settings, group labels and value unit, so a script need not spell them out.
+`epochMatrix` stores it on every result; the browser makes it again for a
+result it restores from the [result file](#the-cache-and-the-result-file), so
+a restored result has the current wording. Every field is a string; `groups`
+is a column.
+
+| Field | Holds | Example |
+| --- | --- | --- |
+| `value` | the axis or color-bar label of `R.data`. For signals, "Rectified " or " magnitude" is added when those options are on | "Firing rate (spikes/s)", "Spike count (spikes/bin)", "auROC vs. baseline", "LFP, mean over epochs (uV)" |
+| `measure` | the quantity without its unit, for titles | "Firing rate", "auROC", "LFP mean" |
+| `time` | the label of `R.t`, from the event the epochs are aligned to (`eventRef.alignStep`) | "Time from Stim onset (s)" |
+| `event` | the whole event reference (`eventRefLabel`) | "Stim onset then Platform offset (aligned to Stim onset)" |
+| `group` | the `groupBy` parameters ("" without `groupBy`) | "Depth", "Depth, Level" |
+| `groups` | a label per group of `R.groupLabels`, in its order | "Depth 3" for one parameter; the label itself ("Depth = 3, Level = 2") for several; "All trials" without `groupBy` |
+| `rows` | what a row of `R.data` is, plural | "units", "detected channels", "LFP channels" |
+| `trials` | the trials kept | "Hit trials", "Hit or Miss trials where Depth > 0", "all trials" |
+| `window` | the epoch window | "-1 to 1 s" |
+| `bins` | the bin width (spikes; "" for signals) | "10 ms bins" |
+| `baseline` | the auROC's baseline, or the signal's subtracted one ("" without one) | "baseline -0.5 to 0 s", "baseline -0.2 to 0 s subtracted" |
+| `description` | one line of the above, for a subtitle or a caption | "Firing rate of units in 10 ms bins, -1 to 1 s from Stim onset; Hit trials by Depth (descending)" |
+
+```matlab
+R = B.Result;
+imagesc(R.t, 1:height(R.rows), R.data(:, :, 1));
+xlabel(R.labels.time); title(R.labels.groups(1)); subtitle(R.labels.description)
+cb = colorbar; cb.Label.String = R.labels.value;
+```
 
 ## Settings
 
@@ -427,7 +461,7 @@ the old one. It holds
 | --- | --- |
 | `schema`, `version` | `"dataset-browser-results"`, 1 |
 | `browser` | the browser's state: `root`, `outputRoot`, `namePattern`, `recordings`, `ticked` (keys), `filter` and `settings` |
-| `result` | `B.Result` (`[]` before a compute) |
+| `result` | `B.Result` (`[]` before a compute); its `labels` are made again on restore |
 | `runs` | `B.Runs.toStruct()`: every kept part and `forEach` value, each with its identity, status, message, seconds and the time it was made |
 
 It is written after a `compute` or `forEach` that added parts (a canceled one
@@ -527,6 +561,7 @@ out).
 | the window and the handle | [`DatasetBrowser.m`](../analysis/DatasetBrowser.m) |
 | the compute and its result | [`epochMatrix.m`](../analysis/epochMatrix.m) |
 | the settings, their checks and cache identity | [`epochMatrixSettings.m`](../analysis/epochMatrixSettings.m) |
+| the result's labels and description in words | [`epochMatrixLabels.m`](../analysis/epochMatrixLabels.m) |
 | the per-dataset cache and run engine | [`DatasetRuns.m`](../analysis/DatasetRuns.m) |
 | the stamp of a dataset's output files (names, sizes, times) | [`outputsStamp.m`](../analysis/outputsStamp.m) |
 | the subject, tag and text filter (also the analysis app's Data tab) | [`datasetFilter.m`](../analysis/datasetFilter.m) |
@@ -539,5 +574,5 @@ out).
 | --- | --- |
 | [`test_DatasetFilter.m`](../analysis/test_DatasetFilter.m) | `datasetFilter`: subjects, wildcards and literal regex characters, tags, search, the combinations |
 | [`test_DatasetRuns.m`](../analysis/test_DatasetRuns.m) | `DatasetRuns`: reuse, identity, skipped and failed datasets, cancel, `forget`, the saved struct |
-| [`test_EpochMatrix.m`](../analysis/test_EpochMatrix.m) | `epochMatrixSettings` and `epochMatrix`: the parts against the per-dataset calls, assembly, groups, the result fields |
+| [`test_EpochMatrix.m`](../analysis/test_EpochMatrix.m) | `epochMatrixSettings` and `epochMatrix`: the parts against the per-dataset calls, assembly, groups, the result fields, the labels |
 | [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file |

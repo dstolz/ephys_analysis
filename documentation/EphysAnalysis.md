@@ -701,6 +701,9 @@ B.wait();
 R = B.Result;
 ```
 
+`R.labels` holds the result's axis labels, group names and a one-line description in words
+(`R.labels.time`, `R.labels.value`, `R.labels.groups`, `R.labels.description`).
+
 `DatasetBrowser.open(root)` instead returns the window already open on the root, so a script can go on with
 its result and leave the window open for later changes. See [DatasetBrowser](DatasetBrowser.md).
 

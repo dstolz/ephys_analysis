@@ -57,8 +57,8 @@ obj.ExportControls = X;
 
 % --- Report -------------------------------------------------------------------
 rp = uipanel(left, "Title", "Report (config: Report)");
-rg = uigridlayout(rp, [7 4]);
-rg.RowHeight = repmat({22}, 1, 7);
+rg = uigridlayout(rp, [8 4]);
+rg.RowHeight = repmat({22}, 1, 8);
 rg.ColumnWidth = {100, '1x', '1x', 70};
 rg.RowSpacing = 4;
 P = struct();
@@ -97,6 +97,20 @@ P.Order = uidropdown(rg, "Items", ["By figure (a figure's units together)" "By u
     "Tooltip", "Within a dataset: each figure with all its units, channels or the dataset in turn, or each unit " + ...
     "(channel, or the dataset) under a heading with all its figures in turn.");
 place(P.Order, 7, [2 4]);
+lab(rg, "Per page:", 8, 1);
+pg = uigridlayout(rg, [1 3]); pg.Padding = [0 0 0 0]; pg.Layout.Row = 8; pg.Layout.Column = [2 4];
+pg.ColumnWidth = {60, '1x', '1x'};
+pageTip = "Figure pages on one sheet. 1: each its own page, at the size it was drawn. More: the PDF puts up to " + ...
+    "that many on a sheet of the paper and orientation beside, in the rows that draw them largest, all at one " + ...
+    "scale and never enlarged, a figure's pages (by unit: an observation's) kept on one sheet where they fit; " + ...
+    "the HTML sets them side by side the same way.";
+P.FiguresPerPage = uispinner(pg, "Limits", [1 16], "RoundFractionalValues", "on", "Value", 1, ...
+    "ValueChangedFcn", changed, "Tooltip", pageTip);
+P.PageSize = uidropdown(pg, "Items", ["Letter" "A4"], "ItemsData", ["letter" "a4"], "ValueChangedFcn", changed, ...
+    "Tooltip", "The sheet the figure pages are tiled on, with more than one per page.");
+P.PageOrientation = uidropdown(pg, "Items", ["Best fit" "Portrait" "Landscape"], ...
+    "ItemsData", ["auto" "portrait" "landscape"], "ValueChangedFcn", changed, ...
+    "Tooltip", "Best fit: portrait or landscape, whichever draws a sheet's pages larger.");
 obj.ReportControls = P;
 
 % --- run ------------------------------------------------------------------------

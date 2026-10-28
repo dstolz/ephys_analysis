@@ -27,7 +27,9 @@ function test_EphysAnalysisRunner()
 %   of a channel, of every trial group and of the dataset); Report.Order
 %   (validated; by unit: the entries' observation keys, reportGroups, the
 %   HTML's headings and contents and the PDF's page order and listing,
-%   against the order by figure); and a
+%   against the order by figure); Report.FiguresPerPage (validated;
+%   reportPageLayout's arrangements, reportSheets' grouping, the PDF's
+%   pages tiled on letter sheets with their text, the HTML's tiles); and a
 %   session figure (the card across both datasets): one plan row, a page
 %   per matched site in the sessions folder, the "Across sessions" report
 %   entry with its caption (and its own <FileName>_sessions report with
@@ -570,6 +572,90 @@ end
 check(sameOrder && contains(TU(2), "Pages by observation:") && contains(TU(2), "page 3") && ~contains(TF(2), "Pages by observation"), ...
     sprintf('the PDF by unit: every observation''s pages together in group order, the summary page listing them (%d pages)', numel(TU)));
 
+fprintf('\n== 8d. figures per page: the layout, the sheets, the PDF and the HTML tiled ==\n');
+isRepErr = @(I, f) any(I.Section == "Report" & I.Field == f & I.Severity == "error");
+bad = cfgOr; bad.Report.FiguresPerPage = 0;
+I0 = bad.validate();
+bad.Report.FiguresPerPage = 2.5;
+I1 = bad.validate();
+bad = cfgOr; bad.Report.PageSize = "legal"; bad.Report.PageOrientation = "sideways";
+I2 = bad.validate();
+check(cfgOr.Report.FiguresPerPage == 1 && cfgOr.Report.PageSize == "letter" && cfgOr.Report.PageOrientation == "auto" ...
+    && isRepErr(I0, "FiguresPerPage") && isRepErr(I1, "FiguresPerPage") && isRepErr(I2, "PageSize") && isRepErr(I2, "PageOrientation") ...
+    && ~isRepErr(IOr, "FiguresPerPage"), ...
+    'Report.FiguresPerPage is 1, PageSize letter and PageOrientation auto by default; 0, 2.5, "legal" and "sideways" are validation errors');
+L4 = reportPageLayout(repmat([18 12], 4, 1));
+check(L4.orientation == "landscape" && isequal(L4.sheetCm, [27.94 21.59]) && L4.cols == 2 && L4.rows == 2 ...
+    && abs(L4.scale - (25.94 - 0.5) / 36) < 1e-9 && isequal(L4.row.', [1 1 2 2]) && onSheet(L4) ...
+    && abs((21.59 - 1) - (L4.pos(1, 2) + L4.pos(1, 4)) - (L4.pos(3, 2) - 1)) < 1e-9 && L4.pos(1, 1) < L4.pos(2, 1) && L4.pos(1, 2) > L4.pos(3, 2), ...
+    sprintf(['four 18 x 12 cm pages: two by two on landscape letter (it draws them larger than portrait), at %.3f, ' ...
+    'the rows centred down the sheet, in reading order, inside the margins, none overlapping'], L4.scale));
+LP = reportPageLayout(repmat([18 12], 4, 1), Orientation="portrait", PageSize="a4");
+check(LP.orientation == "portrait" && isequal(LP.sheetCm, [21 29.7]) && LP.cols == 1 && LP.rows == 4 ...
+    && abs(LP.scale - (27.7 - 1.5) / 48) < 1e-9 && onSheet(LP), ...
+    'Orientation portrait and PageSize a4 are kept: on portrait A4 the four pages draw largest one under the other');
+LS = reportPageLayout([8 6; 8 6]);
+check(LS.orientation == "portrait" && LS.cols == 2 && LS.rows == 1 && LS.scale == 1 && isequal(LS.pos(:, 3:4), [8 6; 8 6]) ...
+    && LS.pos(1, 2) == LS.pos(2, 2) && abs(LS.pos(1, 1) - (21.59 - 16.5) / 2) < 1e-9 && onSheet(LS), ...
+    'two small pages: side by side, centred, never enlarged (scale 1)');
+LM = reportPageLayout([18 12; 18 20]);
+check(LM.cols == 1 && LM.orientation == "portrait" && abs(LM.scale - (25.94 - 0.5) / 32) < 1e-9 && onSheet(LM) ...
+    && abs(LM.pos(1, 4) / LM.pos(2, 4) - 12 / 20) < 1e-9, ...
+    'pages of two sizes: one scale for both (their proportions kept), one under the other on portrait letter');
+check(isequal(reportSheets([3 1], 4), {1:4}) && isequal(reportSheets([6 1 1], 4), {1:3, 4:6, 7:8}) ...
+    && isequal(reportSheets([2 3], 4), {1:2, 3:5}) && isequal(reportSheets([5 2], 4), {1:3, 4:5, 6:7}) ...
+    && isequal(reportSheets([2 0 1], 1), {1, 2, 3}) && isequal(reportSheets(9, 4), {1:3, 4:6, 7:9}), ...
+    ['reportSheets: a block that fits what is left of a sheet joins it, else starts the next; ' ...
+    'a block larger than a sheet spread evenly over sheets of its own']);
+cfgPp = cfgOr;
+cfgPp.Report.FiguresPerPage = 4;
+[rPp, HP] = runOrder(cfgPp, "unit", fullfile(root, 'outPerPage'));
+DP = rPp.Report.datasets(1);
+[GP, restP] = reportGroups(DP);
+restP = restP([DP.entries(restP).status] == "done");
+wantP = strings(0, 1);
+counts = zeros(1, 0);
+for g = 1:numel(GP)
+    for q = 1:numel(GP(g).entry)
+        e = DP.entries(GP(g).entry(q));
+        wantP = [wantP; reshape(e.pages(GP(g).pages{q}), [], 1)]; %#ok<AGROW>
+    end
+    counts(end+1) = sum(cellfun(@numel, GP(g).pages)); %#ok<AGROW>
+end
+for k = restP
+    wantP = [wantP; reshape(DP.entries(k).pages, [], 1)]; %#ok<AGROW>
+    counts(end+1) = numel(DP.entries(k).pages); %#ok<AGROW>
+end
+sheetsP = reportSheets(counts, 4);
+pdfP = rPp.ReportFiles(endsWith(rPp.ReportFiles, ".pdf"));
+TP = pdfPageTexts(pdfP);
+SP = pdfPageSizesCm(pdfP);
+tiled = numel(TP) == 2 + numel(sheetsP) && numel(sheetsP) < numel(wantP) && all(cellfun(@numel, sheetsP) <= 4) ...
+    && isequal([sheetsP{:}], 1:numel(wantP));
+for j = 1:numel(sheetsP)
+    if 2 + j > numel(TP); break; end
+    sheetText = erase(TP(2 + j), " ");
+    seenAt = 0;
+    for i = sheetsP{j}   % each page's text on its sheet, in order
+        pageText = erase(pdfPageTexts(wantP(i)), " ");
+        if pageText == ""; continue; end
+        hit = strfind(sheetText, pageText);
+        hit = hit(hit > seenAt);
+        tiled = tiled && ~isempty(hit);
+        if ~isempty(hit); seenAt = hit(1); end
+    end
+    tiled = tiled && any(all(abs(SP(2 + j, :) - [21.59 27.94; 27.94 21.59]) < 0.05, 2));
+end
+check(tiled && contains(TP(2), "Pages by observation:") && contains(TP(2), "page 3"), ...
+    sprintf(['FiguresPerPage 4: the PDF''s %d figure pages on %d letter sheets, each holding its pages'' text (vector) ' ...
+    'in order; the summary page counts sheets'], numel(wantP), numel(sheetsP)));
+widths = str2double(extractBetween(HP, "class=""tile"" style=""width:", "%"""));
+check(contains(HP, "<div class=""sheet"">") && contains(HP, "<div class=""tilerow""") && ~isempty(widths) ...
+    && all(widths > 0 & widths <= 100) && count(HP, "<img ") == count(HU, "<img ") ...
+    && count(HP, "<h3 class=""obs"">") == count(HU, "<h3 class=""obs"">") && ~contains(HU, "class=""sheet"""), ...
+    ['FiguresPerPage 4: the HTML sets an observation''s figures side by side, in sheets of tiles each as wide as its ' ...
+    'page on the sheet; the same images and headings as at one a page']);
+
 fprintf('\n== 9. session figures: plan, run, export, report, data file, run record, cancel, standalone script ==\n');
 outG = fullfile(root, 'outSesFig');
 cfgG = cfg;
@@ -721,6 +807,35 @@ doc = org.apache.pdfbox.pdmodel.PDDocument.load(java.io.File(char(file)));
 closer = onCleanup(@() doc.close());
 box = doc.getPage(0).getMediaBox();
 sz = [box.getWidth() box.getHeight()] / 72 * 2.54;
+end
+
+
+function S = pdfPageSizesCm(file)
+%pdfPageSizesCm  Every page's width and height, cm (PDFBox): a row a page.
+doc = org.apache.pdfbox.pdmodel.PDDocument.load(java.io.File(char(file)));
+closer = onCleanup(@() doc.close());
+n = doc.getNumberOfPages();
+S = zeros(n, 2);
+for p = 1:n
+    box = doc.getPage(p - 1).getMediaBox();
+    S(p, :) = [box.getWidth() box.getHeight()] / 72 * 2.54;
+end
+end
+
+
+function ok = onSheet(L)
+%onSheet  Whether reportPageLayout's pages lie inside the 1 cm margins, none overlapping another.
+P = L.pos;
+tol = 1e-9;
+ok = all(P(:, 1) >= 1 - tol & P(:, 2) >= 1 - tol & P(:, 1) + P(:, 3) <= L.sheetCm(1) - 1 + tol ...
+    & P(:, 2) + P(:, 4) <= L.sheetCm(2) - 1 + tol);
+for a = 1:size(P, 1)
+    for b = a + 1:size(P, 1)
+        apart = P(a, 1) + P(a, 3) <= P(b, 1) + tol || P(b, 1) + P(b, 3) <= P(a, 1) + tol ...
+            || P(a, 2) + P(a, 4) <= P(b, 2) + tol || P(b, 2) + P(b, 4) <= P(a, 2) + tol;
+        ok = ok && apart;
+    end
+end
 end
 
 

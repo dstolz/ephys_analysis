@@ -1479,7 +1479,7 @@ version or schema fails (`EphysAnalysisConfig:BadSchema`); unknown fields
 | `Defaults` | `EventRef`, `Window` (`stop` is `[]` or an event reference), `Selection` |
 | `Figures` | array of figures (a session figure has `sessions.enabled`): `id`, `enabled`, `title`, `observe` (`kind`, `source`, `units`, `signal`, `channels`, `perGroup`), `grid` (`rows`, `cols`, `rowHeights`, `colWidths`, `spacing`), `common` (`bins`, `measure`, `baseline`, `auroc`, `maskAfterStop`, `waveform`), `ref` / `window` / `selection` (`"default"` or an object), `sessions` (`enabled`, `datasets`, `datasetKeys`, `facet`, `series`, `colorOrder`, `showMembers`, `error`, `match`, `mappingFile`, `minSessions`, `trialGroups`), `panels` (`id`, `type`, `title`, `box`, `row`, `col`, `rowSpan`, `colSpan`, `ref`, `window`, `selection`, `common`, `layers`, `options`, `note`, `overlays`), `style`, `aesthetics` |
 | `Export` | `Enabled`, `Formats`, `Folder`, `FilenamePattern`, `Dpi`, `FigureSizeCm`, `Overwrite`, `SessionsFolder`, `Data` (`Enabled`, `Folder`, `FilenamePattern`, `MatVersion`) |
-| `Report` | `Enabled`, `Format`, `Title`, `Folder`, `FileName`, `PerDataset`, `Order`, `EmbedFormat`, `Dpi`, `IncludeSummary`, `IncludeParameters`, `IncludeConfig` |
+| `Report` | `Enabled`, `Format`, `Title`, `Folder`, `FileName`, `PerDataset`, `Order`, `FiguresPerPage`, `PageSize`, `PageOrientation`, `EmbedFormat`, `Dpi`, `IncludeSummary`, `IncludeParameters`, `IncludeConfig` |
 
 Every field, its type and default: [EphysAnalysisConfig](EphysAnalysisConfig.md).
 
@@ -1564,6 +1564,13 @@ default `{Name}_{Plot}` gives:
   -- in the HTML a heading per observation, the contents listing them; in the
   PDF the pages in that order, the summary page listing each observation's
   pages ([Report order](EphysAnalysisConfig.md#report-order)).
+- **Figures per page** (`Report.FiguresPerPage` above 1): the PDF tiles up
+  to that many figure pages, still vector, on each sheet of
+  `Report.PageSize` (letter or A4), in the rows and orientation that draw
+  them largest, all at one scale and never enlarged. A figure's pages, or
+  with `Order "unit"` an observation's, stay on one sheet when they fit.
+  The HTML sets the same pages side by side as tiles
+  ([Figures per page](EphysAnalysisConfig.md#figures-per-page)).
 
 **Across sessions.** A run with enabled session figures adds a section after
 the datasets, *Across sessions*: in the HTML, a section of its own (counted

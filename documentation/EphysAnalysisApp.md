@@ -1652,6 +1652,7 @@ drawn, so you can see why. Examples: a fixed window with *pre* after
 | **HTML images**, **Dpi** | PNG (base64) or inline SVG in the HTML; the PNG resolution, for a page whose PNG the figure files do not hold (with png ticked above, the HTML embeds that PNG, at its dpi, rather than write the page again) | png, 110 |
 | **Summary tables**, **Figure parameters**, **The config** | what the report holds besides the figures | all on |
 | **Order** | *By figure (a figure's units together)*: each figure with all its observations in turn; *By unit (a unit's figures together)*: each unit, channel or the dataset under a heading, with all the figures drawn for it in turn ([Report order](EphysAnalysisConfig.md#report-order)) | by figure |
+| **Per page**, paper, orientation | figure pages on one sheet, 1 to 16; *Letter* or *A4*; *Best fit*, *Portrait* or *Landscape*. 1 gives each page its own, at the size it was drawn. More puts up to that many on each sheet of the PDF, in the rows and orientation that draw them largest, all at one scale and never enlarged, and sets them side by side in the HTML ([Figures per page](EphysAnalysisConfig.md#figures-per-page)) | 1, Letter, Best fit |
 
 **Running**:
 

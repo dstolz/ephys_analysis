@@ -25,13 +25,27 @@ function file = writePdfReport(report, file, opts)
 %   4-6 (rp, wf)"). A figure added without its pages' observations (a
 %   session figure) follows the groups whole.
 %
+%   Report.FiguresPerPage (1, the default: every figure page a page of its
+%   own, at the size it was drawn) puts up to that many figure pages on one
+%   sheet of Report.PageSize ("letter" | "a4"), Report.PageOrientation
+%   ("auto" | "portrait" | "landscape"). Each section's pages are grouped
+%   by reportSheets -- in order, a figure's pages (by unit: an
+%   observation's) kept on one sheet when they fit what is left of it,
+%   else started on the next; a figure of more pages than a sheet holds
+%   spread evenly over as few sheets as hold it -- and each sheet is laid
+%   out by reportPageLayout: the rows and orientation that draw its pages
+%   largest, every page at one scale and never enlarged. The pages stay
+%   vector (imported whole, PDFBox LayerUtility). The summary page's
+%   "Pages by observation" then counts sheets.
+%
 %   writePdfReport(..., ProgressFcn=F) calls F(done, total, message)
 %   before each page it draws ("Writing the report: page 3/12") and before
 %   the pages are joined.
 %
-%   Errors: writePdfReport:NoPages, writePdfReport:Merge.
+%   Errors: writePdfReport:NoPages, writePdfReport:Tile, writePdfReport:Merge.
 %
-%   See also writeHtmlReport, newAnalysisReport, reportPdfPage, exportFigure.
+%   See also writeHtmlReport, newAnalysisReport, reportPdfPage, exportFigure,
+%   reportPageLayout.
 
 arguments
     report (1,1) struct
@@ -57,6 +71,8 @@ for d = 1:numel(report.datasets)
     lines(end+1) = sprintf("%d. %s (%d figure(s))", d, D.name + starWord(D), numel(D.entries)) + tagsWord(D); %#ok<AGROW>
 end
 byUnit = isfield(report.options, 'Order') && report.options.Order == "unit";
+perSheet = 1;
+if isfield(report.options, 'FiguresPerPage'); perSheet = max(1, round(report.options.FiguresPerPage)); end
 nPages = numel(report.datasets) + 1;   % the title page and a summary page per dataset; joining them is the last step
 say(0, sprintf("Writing the report: page 1/%d", nPages));
 parts = page(lines, report.title, 0);
@@ -88,25 +104,45 @@ for d = 1:numel(report.datasets)
                 'Figure %s of %s holds no PDF pages: start the report with Format "pdf" or "both".', e.plot, D.name);
         end
     end
-    at = numel(parts) + 1;   % this section's summary page; its figures' pages follow
+    at = numel(parts) + 1;   % this section's summary page; its figures' pages (or sheets) follow
     figPages = strings(0, 1);
+    counts = zeros(1, 0);   % the pages of each block: an observation's (by unit), a figure's
     rest = find(status == "done");
+    G = [];
     if byUnit
         [G, rest] = reportGroups(D);
         rest = rest(status(rest) == "done");
-        if ~isempty(G); L(end+1) = "Pages by observation:"; end
         for g = 1:numel(G)
-            from = at + numel(figPages) + 1;
+            n0 = numel(figPages);
             for q = 1:numel(G(g).entry)
                 e = D.entries(G(g).entry(q));
                 figPages = [figPages; reshape(e.pages(G(g).pages{q}), [], 1)]; %#ok<AGROW>
             end
-            L(end+1) = sprintf("  %s: %s (%s)", G(g).label, pageRange(from, at + numel(figPages)), ...
-                strjoin(string({D.entries(G(g).entry).plot}), ", ")); %#ok<AGROW>
+            counts(end+1) = numel(figPages) - n0; %#ok<AGROW>
         end
     end
     for k = rest
         figPages = [figPages; reshape(D.entries(k).pages, [], 1)]; %#ok<AGROW>
+        counts(end+1) = numel(D.entries(k).pages); %#ok<AGROW>
+    end
+    sheets = reportSheets(counts, perSheet);
+    sheetOf = zeros(numel(figPages), 1);   % each figure page's page of the section, after its summary page
+    for j = 1:numel(sheets); sheetOf(sheets{j}) = j; end
+    if ~isempty(G); L(end+1) = "Pages by observation:"; end
+    last = 0;
+    for g = 1:numel(G)
+        span = last + (1:counts(g));
+        last = last + counts(g);
+        if isempty(span); continue; end
+        L(end+1) = sprintf("  %s: %s (%s)", G(g).label, pageRange(at + sheetOf(span(1)), at + sheetOf(span(end))), ...
+            strjoin(string({D.entries(G(g).entry).plot}), ", ")); %#ok<AGROW>
+    end
+    if perSheet > 1
+        tiled = strings(numel(sheets), 1);
+        for j = 1:numel(sheets)
+            tiled(j) = tileSheet(figPages(sheets{j}), fullfile(tmp, "sheet" + d + "_" + j + ".pdf"), report.options);
+        end
+        figPages = tiled;
     end
     parts = [parts; page(L, D.name + starWord(D), d); figPages]; %#ok<AGROW>
 end
@@ -177,6 +213,61 @@ try
 catch ME
     error('writePdfReport:Merge', 'The report''s %d page file(s) could not be joined into %s with PDFBox: %s', ...
         numel(parts), file, ME.message);
+end
+end
+
+
+function file = tileSheet(pages, file, P)
+%tileSheet  The one-page PDFs PAGES on one sheet, as the PDF FILE (Report.FiguresPerPage).
+%   reportPageLayout places them (P.PageSize, P.PageOrientation); each is
+%   imported whole as a form (PDFBox LayerUtility) and drawn scaled into its
+%   place, so it stays vector and its text stays text.
+pt = 72 / 2.54;   % PDF points a cm
+target = org.apache.pdfbox.pdmodel.PDDocument();
+src = cell(1, numel(pages));
+try
+    sizes = zeros(numel(pages), 2);
+    for i = 1:numel(pages)
+        src{i} = org.apache.pdfbox.pdmodel.PDDocument.load(java.io.File(char(pages(i))));
+        p = src{i}.getPage(0);
+        box = p.getCropBox();
+        sizes(i, :) = [box.getWidth() box.getHeight()] / pt;
+        if mod(p.getRotation(), 180) == 90; sizes(i, :) = fliplr(sizes(i, :)); end
+    end
+    L = reportPageLayout(sizes, PageSize=P.PageSize, Orientation=P.PageOrientation);
+    sheet = org.apache.pdfbox.pdmodel.PDPage(org.apache.pdfbox.pdmodel.common.PDRectangle( ...
+        single(L.sheetCm(1) * pt), single(L.sheetCm(2) * pt)));
+    target.addPage(sheet);
+    layer = org.apache.pdfbox.multipdf.LayerUtility(target);
+    cs = org.apache.pdfbox.pdmodel.PDPageContentStream(target, sheet);
+    for i = 1:numel(pages)
+        form = layer.importPageAsForm(src{i}, 0);
+        cs.saveGraphicsState();
+        cs.transform(org.apache.pdfbox.util.Matrix(single(L.scale), single(0), single(0), single(L.scale), ...
+            single(L.pos(i, 1) * pt), single(L.pos(i, 2) * pt)));
+        cs.drawForm(form);
+        cs.restoreGraphicsState();
+    end
+    cs.close();
+    target.save(java.io.File(char(file)));
+catch ME
+    closeDocs([{target} src]);
+    error('writePdfReport:Tile', 'The %d figure page(s) could not be put on one sheet (%s) with PDFBox: %s', ...
+        numel(pages), strjoin(pages, ", "), ME.message);
+end
+closeDocs([{target} src]);
+end
+
+
+function closeDocs(docs)
+%closeDocs  Close each PDFBox document of the cell DOCS ([] where none was opened).
+for k = 1:numel(docs)
+    if ~isempty(docs{k})
+        try
+            docs{k}.close();
+        catch
+        end
+    end
 end
 end
 

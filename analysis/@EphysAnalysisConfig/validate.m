@@ -146,8 +146,9 @@ function issues = validate(obj, opts)
 %               for {OutputFolder}), Data.FilenamePattern (a file pattern)
 %               and Data.MatVersion (-v7.3 or -v7)
 %     Report    Format html / pdf / both; EmbedFormat png / svg; Order
-%               figure / unit; Dpi;
-%               FileName; the folder pattern
+%               figure / unit; FiguresPerPage a whole number 1-16;
+%               PageSize letter / a4; PageOrientation auto / portrait /
+%               landscape; Dpi; FileName; the folder pattern
 %
 %   Options: CheckPaths (default true) also checks that folders exist.
 %
@@ -771,6 +772,15 @@ if ~ismember(P.EmbedFormat, ["png" "svg"])
 end
 if ~ismember(P.Order, ["figure" "unit"])
     add("Report", "Order", "error", "Order must be figure or unit.");
+end
+if ~(P.FiguresPerPage >= 1 && P.FiguresPerPage <= 16 && P.FiguresPerPage == round(P.FiguresPerPage))
+    add("Report", "FiguresPerPage", "error", "FiguresPerPage must be a whole number from 1 to 16.");
+end
+if ~ismember(P.PageSize, ["letter" "a4"])
+    add("Report", "PageSize", "error", "PageSize must be letter or a4.");
+end
+if ~ismember(P.PageOrientation, ["auto" "portrait" "landscape"])
+    add("Report", "PageOrientation", "error", "PageOrientation must be auto, portrait or landscape.");
 end
 if ~(P.Dpi > 0); add("Report", "Dpi", "error", "Dpi must be positive."); end
 if strtrim(P.FileName) == "" || ~isempty(regexp(P.FileName, '[\\/:*?"<>|]', 'once'))

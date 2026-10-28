@@ -10,6 +10,14 @@ says how to cut a release.
 
 ### Added
 
+- Reports: **Per page** (`Report.FiguresPerPage`, 1 to 16; default 1, as before) puts several figure pages on one
+  sheet of `Report.PageSize` (`"letter"` or `"a4"`) and `Report.PageOrientation` (`"auto"`, `"portrait"`,
+  `"landscape"`). A figure's pages, or with `Order "unit"` an observation's, stay on one sheet when they fit, and a
+  figure with more pages than a sheet holds is spread evenly over its own sheets. The new `reportPageLayout` lays out
+  each sheet: it picks the rows and orientation that draw the pages largest, draws every page at one scale, and never
+  enlarges a page. The PDF tiles the pages as vector forms (PDFBox), and its *Pages by observation* counts sheets. The
+  HTML sets the same pages side by side as tiles. `reportImage`'s struct gains `sizeCm`, the drawn page's size. See
+  [Figures per page](documentation/EphysAnalysisConfig.md#figures-per-page).
 - Dataset browser: opening it with a process pool already open sets **Workers** to that pool's size (the
   `Workers` option still wins).
 - Dataset browser: **Keep each epoch** (Measure tab; `epochMatrixSettings`' new `keepEpochs`) keeps every epoch

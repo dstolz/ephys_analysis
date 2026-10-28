@@ -266,7 +266,8 @@ classdef DatasetBrowser < handle
         Table                              % the rows shown (the filter's, in the table's sort)
         Shown                              % their keys
         ResultCurrent                      % Result was computed with these settings on these ticks
-        Workers                            % process workers compute and forEach use (0 = here; DatasetRuns.run's Workers)
+        Computed                           % when Result was computed (Result.created; NaT before a compute): the last compute, or the result file's
+        Workers                          % process workers compute and forEach use (0 = here; DatasetRuns.run's Workers)
         OnTop                              % the window stays above the other windows (WindowStyle "alwaysontop")
     end
 
@@ -463,6 +464,13 @@ classdef DatasetBrowser < handle
 
         function tf = get.ResultCurrent(B)
             [tf, ~] = B.resultState();
+        end
+
+        function t = get.Computed(B)
+            t = NaT;
+            if isstruct(B.Result) && isfield(B.Result, 'created') && isa(B.Result.created, 'datetime')
+                t = B.Result.created;
+            end
         end
 
         function n = get.Workers(B)

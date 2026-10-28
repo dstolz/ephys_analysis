@@ -281,7 +281,9 @@ The properties: `Settings` (the whole struct; assigning checks it with
 `epochMatrixSettings`), `Filter`, `Selected` (the ticked keys), `Table` and
 `Shown` (the rows shown, and their keys), `Datasets` (every dataset found),
 `Result`, `ResultCurrent` (the result was computed with these settings on
-these ticks), `ResultFile`, `Workers` ([Workers](#workers)), `Runs` (the `DatasetRuns` with the kept parts),
+these ticks), `Computed` (when the result was computed, a `datetime`: the
+last Compute, or the one the result file holds; `NaT` before a result; a
+change of `Normalize` alone does not move it), `ResultFile`, `Workers` ([Workers](#workers)), `Runs` (the `DatasetRuns` with the kept parts),
 `Runner`, `Busy`, `CancelRequested`, `Fig` and `Ctl` (the window and its
 controls). `OnChange(B, what)` is called with `"scan"`, `"filter"`,
 `"ticks"`, `"settings"`, `"result"`, `"done"` or `"closed"`.

@@ -411,7 +411,12 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
 
         function computeEqualsEpochMatrix(tc)
             B = tc.open(Settings=tc.Spike);
+            tc.verifyTrue(isnat(B.Computed), 'No compute yet.');
+            before = datetime('now');
             R = B.compute();
+            tc.verifyClass(B.Computed, 'datetime');
+            tc.verifyEqual(B.Computed, R.created);
+            tc.verifyTrue(B.Computed >= before && B.Computed <= datetime('now'), 'Stamped by the compute.');
             R0 = epochMatrix(B.Runner, tc.Spike, Datasets=B.Selected, LogFcn=[]);
             tc.verifyEqual(R.data, R0.data);
             tc.verifyEqual(R.rows, R0.rows);

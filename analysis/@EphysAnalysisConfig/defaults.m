@@ -299,6 +299,9 @@ switch section
             'FileName',          "analysis_report", ...
             'PerDataset',        false, ...     % one report per dataset (Folder may use {OutputFolder})
             'Order',             "figure", ...  % within a dataset: "figure" (a figure's observations together) | "unit" (an observation's figures together)
+            'FiguresPerPage',    1, ...         % figure pages on one sheet (1 = a page each, at its drawn size): PDF sheets of PageSize, HTML tiles side by side
+            'PageSize',          "letter", ...  % the sheet when FiguresPerPage > 1: "letter" | "a4"
+            'PageOrientation',   "auto", ...    % "auto" (whichever draws the pages larger, per sheet) | "portrait" | "landscape"
             'EmbedFormat',       "png", ...     % HTML images: "png" | "svg"
             'Dpi',               110, ...
             'IncludeSummary',    true, ...

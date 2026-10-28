@@ -6,9 +6,10 @@ function im = reportImage(fig, report, opts)
 %   base64; with "svg" the SVG text. F lists the files just exported from
 %   FIG (exportFigure), or already on disk for it: an .svg (or, for "png",
 %   a .png, at the dpi it was written at) among them is read instead of
-%   printing FIG again. IM is a struct (format, data, title) for
+%   printing FIG again. IM is a struct (format, data, title, sizeCm) for
 %   addReportFigure(..., Images=); T is the PNG's alt text (renderFigure's
-%   H.title).
+%   H.title) and sizeCm FIG's [width height] in cm, which the HTML report
+%   sizes its tiles by (Report.FiguresPerPage).
 %
 %   The runner and the standalone script make the images from the figures
 %   they export, so an HTML report draws nothing again.
@@ -36,7 +37,17 @@ else
     data = readData(f, fmt);
     delete(f);
 end
-im = struct('format', fmt, 'data', data, 'title', opts.Title);
+im = struct('format', fmt, 'data', data, 'title', opts.Title, 'sizeCm', sizeCm(fig));
+end
+
+
+function sz = sizeCm(fig)
+%sizeCm  The figure's [width height] in cm, its Units put back.
+u = fig.Units;
+fig.Units = 'centimeters';
+p = fig.Position;
+fig.Units = u;
+sz = p(3:4);
 end
 
 

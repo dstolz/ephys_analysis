@@ -2307,6 +2307,19 @@ if S.sec("5f", "Generate a figure; figures on the Export tab")
         'Test report is on with a unit picked, left of Run on the Export tab');
     check(app.ReportControls.Order.Value == "figure" && isequal(app.ReportControls.Order.ItemsData, ["figure" "unit"]), ...
         'the Export tab''s report Order is By figure by default, or By unit');
+    RC = app.ReportControls;
+    check(RC.FiguresPerPage.Value == 1 && isequal(RC.FiguresPerPage.Limits, [1 16]) && RC.PageSize.Value == "letter" ...
+        && isequal(RC.PageSize.ItemsData, ["letter" "a4"]) && RC.PageOrientation.Value == "auto" ...
+        && isequal(RC.PageOrientation.ItemsData, ["auto" "portrait" "landscape"]), ...
+        'the Export tab''s figures per page is 1 by default (up to 16), on Letter or A4, Best fit, portrait or landscape');
+    RC.FiguresPerPage.Value = 4;
+    RC.PageSize.Value = "a4";
+    RC.PageOrientation.Value = "landscape";
+    pp = app.gatherReportSection();
+    app.applyReportSection(app.Config.Report);
+    check(pp.FiguresPerPage == 4 && pp.PageSize == "a4" && pp.PageOrientation == "landscape" ...
+        && RC.FiguresPerPage.Value == 1 && RC.PageSize.Value == "letter" && RC.PageOrientation.Value == "auto", ...
+        'figures per page, the paper and the orientation go to the config''s Report section, and come back from it');
     app.ReportControls.Order.Value = "unit";
     nTicked = numel(app.tickedDatasetIndices());
     [Ru, fu] = app.onTestReport(Open=false);

@@ -109,6 +109,7 @@ distinct as file names: `{Plot}` replaces every character outside
                         "FilenamePattern": "{Name}_{Plot}", "MatVersion": "-v7.3" } },
   "Report": { "Enabled": true, "Format": "html", "Title": "{Name}",
               "Folder": "{OutputRoot}\\analysis", "FileName": "analysis_report", "PerDataset": false, "Order": "figure",
+              "FiguresPerPage": 1, "PageSize": "letter", "PageOrientation": "auto",
               "EmbedFormat": "png", "Dpi": 110, "IncludeSummary": true, "IncludeParameters": true,
               "IncludeConfig": true }
 }
@@ -2821,6 +2822,9 @@ token values (the folder pattern is the plots'):
 | `FileName` | `"analysis_report"` | a plain file name; `.html` / `.pdf` added |
 | `PerDataset` | `false` | one report per dataset, named `<FileName>_<dataset>` (the folder may then use `{OutputFolder}`) |
 | `Order` | `"figure"` | the order within a dataset: `"figure"`, a figure at a time with all its observations' pages together; `"unit"`, an observation at a time (a unit, a channel, or the dataset for a figure of the dataset) under a heading of its own, with its pages of every figure in the figures' order ([below](#report-order)) |
+| `FiguresPerPage` | 1 | figure pages on one sheet, 1 to 16: 1 gives each page its own, at the size it was drawn; more tiles them ([below](#figures-per-page)) |
+| `PageSize` | `"letter"` | the sheet the pages are tiled on when `FiguresPerPage` is above 1: `"letter"` (21.59 x 27.94 cm) or `"a4"` (21.0 x 29.7 cm) |
+| `PageOrientation` | `"auto"` | `"auto"` (portrait or landscape, whichever draws a sheet's pages larger), `"portrait"` or `"landscape"` |
 | `EmbedFormat` | `"png"` | HTML images: `"png"` (base64) or `"svg"` (inline) |
 | `Dpi` | 110 | report PNG resolution, for a page the Export writes no PNG of: when it does (or one is kept on disk), the HTML embeds that PNG, at the Export `Dpi`, rather than write the page again |
 | `IncludeSummary` | `true` | summary tables per dataset (in the PDF, a summary page per dataset) |
@@ -2872,6 +2876,42 @@ one per facet and trial group, its pages the matched observations
   observation's pages (*su12  ch 5  300 µm: pages 4-6 (rp, wf)*). Figures not
   drawn (skipped, failed) follow the groups with their reason, as do the
   session figures, which are always in figure order.
+
+### Figures per page
+
+`FiguresPerPage` above 1 puts up to that many figure pages on one sheet of
+`PageSize`. The title and summary pages are unchanged.
+
+- **Which pages share a sheet.** The pages fill sheets in their order (the
+  order `Order` sets). A figure's pages (with `Order "unit"`, an
+  observation's) stay on one sheet: when they do not fit in what is left of
+  the current sheet they start the next one. A figure with more pages than
+  a sheet holds starts a sheet of its own and is spread evenly over as few
+  sheets as hold it: 7 pages at 4 a sheet are 4 and 3, 5 are 3 and 2.
+- **How a sheet is laid out** (`reportPageLayout`). The pages go in rows,
+  in reading order. Every number of pages a row is tried, on both
+  orientations with `PageOrientation "auto"`, and the arrangement that
+  draws the pages largest is kept. Arrangements within 2% of the largest
+  count as equal; of those, portrait wins, then the fewest rows. Every page
+  of a sheet is drawn at one scale, so the text keeps the same size from
+  page to page, and no page is drawn larger than it was. Pages of different
+  sizes share rows: a row is as tall as its tallest page, each page is
+  centred in its row, and the rows are centred across and down the sheet. The margins are 1 cm, and the gap between pages
+  is 0.5 cm.
+- **PDF.** Each sheet is one page, with its figure pages placed whole, so
+  they stay vector (PDFBox `LayerUtility`). The summary page's *Pages by
+  observation* counts sheets.
+- **HTML.** The HTML has no pages, so it tiles on screen what the PDF tiles
+  on paper: with `Order "figure"` a figure's pages sit side by side, and
+  with `Order "unit"` an observation's figures do (or a figure's pages,
+  when it is the observation's only figure). The tiles come in sheets of
+  up to `FiguresPerPage`, laid out by the same rule. Each tile is as wide,
+  as a share of the row, as its page would be on the sheet. Printed, no
+  sheet is split across two pages.
+
+Four 18 x 12 cm pages go two by two on landscape letter, at 0.71 of their
+size. Two 8 x 6 cm pages sit side by side on portrait letter, at their own
+size.
 
 ## File-name tokens
 
@@ -2928,7 +2968,7 @@ With the defaults, the figure `unit_card` of dataset `SYNTH-01_260918_101500` wi
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi` positive; `FigureSizeCm` two positive numbers; the folder and file-name patterns use known tokens, and the file-name pattern is not empty; `SessionsFolder` and `Data.Folder` are folder patterns, `Data.FilenamePattern` a file-name pattern, and `Data.MatVersion` is `-v7.3` or `-v7` | error |
 | Export | a file-name pattern without `{Plot}` while several figures are enabled (every figure's `{Kind}` is `figure`, so only `{Plot}`, the figure's id, tells their files apart); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |
 | Export | `{OutputFolder}` in `SessionsFolder` or `Data.Folder`: it is one dataset's folder, so the session figures' files go to the first dataset's | warning |
-| Report | Format html / pdf / both, EmbedFormat png / svg, Order figure / unit, `Dpi` positive, a plain `FileName`, the folder pattern | error |
+| Report | Format html / pdf / both, EmbedFormat png / svg, Order figure / unit, `FiguresPerPage` a whole number from 1 to 16, PageSize letter / a4, PageOrientation auto / portrait / landscape, `Dpi` positive, a plain `FileName`, the folder pattern | error |
 | Report | `{OutputFolder}` in a report over every dataset | warning |
 
 Whether a dataset can draw a figure (units, signals, trials, lines,

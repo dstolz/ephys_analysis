@@ -28,6 +28,11 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
     %   open, but not the browser's own compute. Workers: the option, the
     %   field and the preference; on process workers (Slow) compute equals
     %   epochMatrix here and is cached, and forEach runs there too.
+    %   Post-processing scripts: the first list (analysis\scripts), a script
+    %   added and picked, Compute runs it in the base workspace (B there)
+    %   only with the box ticked, Run now, a failing script's name and line,
+    %   removing keeps the file, the bundled script runs on a result, the
+    %   preferences.
     %
     %   Usage:  runtests("test_DatasetBrowser")
 
@@ -446,7 +451,9 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             B.Settings = epochMatrixSettings(B.Settings, binSec=0.02);
             tc.verifyTrue(startsWith(B.Ctl.Summary.Text, "Out of date: settings changed"), B.Ctl.Summary.Text);
             tc.verifyTrue(all(B.Table.Cached == "old"));
+            tc.verifyEqual(rowTints(B.Ctl.Table), {[0.98 0.96 0.86], [1 2]}, 'Old rows are tinted yellow.');
             B.compute();
+            tc.verifyEqual(rowTints(B.Ctl.Table), {[0.90 0.96 0.90], [1 2]}, 'Cached rows are tinted green.');
             tc.verifyEqual(B.Runs.Last.status, ["done"; "done"]);
             tc.verifyTrue(isfile(B.ResultFile), 'The result file is written after a compute.');
             B.untickAll();
@@ -830,6 +837,72 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyFalse(B2.Ctl.OnTop.Value);
             B2.close();
         end
+
+        function postProcessingScript(tc)
+            tmp = tc.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+            good = fullfile(string(tmp.Folder), "S_postTest.m");
+            bad = fullfile(string(tmp.Folder), "S_postBad.m");
+            writelines(["if ~exist('postRuns', 'var'), postRuns = 0; end" "postRuns = postRuns + 1;" ...
+                "postSize = size(B.Result.data);"], good);
+            writelines(["postX = 1;" "error('Post:Bad', 'broken');"], bad);
+            before = evalin('base', 'who');
+            tc.addTeardown(@() clearBaseExcept(before));
+            B = tc.open(Settings=tc.Spike);
+            bundled = endsWith(B.Scripts, "S_PrepareDatasetBrowserOutputForPlots.m");
+            tc.verifyTrue(any(bundled), 'The first list holds the scripts of analysis\scripts.');
+            tc.verifyEqual(B.Script, B.Scripts(1));
+            tc.verifyFalse(B.ScriptAfterCompute);
+            tc.verifyEqual(string(B.Ctl.ScriptRun.Enable), "off", 'Run now is off before a result.');
+
+            B.addScript(good);
+            tc.verifyTrue(endsWith(B.Script, "S_postTest.m"));
+            tc.verifyEqual(B.Script, B.Scripts(end));
+            tc.verifyEqual(string(B.Ctl.ScriptList.Value), B.Script, 'The drop-down shows the script added.');
+            R = B.compute();
+            tc.verifyFalse(evalin('base', 'exist(''postSize'', ''var'') == 1'), 'compute alone runs no script.');
+            tc.verifyEqual(string(B.Ctl.ScriptRun.Enable), "on");
+
+            B.Ctl.ScriptAfter.Value = true;
+            B.Ctl.ScriptAfter.ValueChangedFcn(B.Ctl.ScriptAfter, []);
+            tc.verifyTrue(B.ScriptAfterCompute, 'The box sets ScriptAfterCompute.');
+            B.Ctl.Compute.ButtonPushedFcn(B.Ctl.Compute, []);
+            tc.verifyEqual(evalin('base', 'postSize'), size(R.data), 'Compute ran the script in the base workspace.');
+            tc.verifyEqual(evalin('base', 'postRuns'), 1);
+            tc.verifyTrue(evalin('base', 'B') == B, 'The script sees this browser as B.');
+            tc.verifyTrue(contains(B.Ctl.Status.Text, "S_postTest ran"), B.Ctl.Status.Text);
+            B.Ctl.ScriptRun.ButtonPushedFcn(B.Ctl.ScriptRun, []);
+            tc.verifyEqual(evalin('base', 'postRuns'), 2, 'Run now runs it again.');
+
+            B.Script = bad;
+            tc.verifyError(@() B.runScript(), 'DatasetBrowser:ScriptFailed');
+            try
+                B.runScript();
+            catch ME
+                tc.verifySubstring(ME.message, "S_postBad failed at line 2: broken");
+            end
+            B.Ctl.ScriptRun.ButtonPushedFcn(B.Ctl.ScriptRun, []);
+            tc.verifySubstring(string(B.Ctl.Status.Text), "S_postBad failed");
+            n = numel(B.Scripts);
+            B.removeScript();
+            tc.verifyEqual(numel(B.Scripts), n - 1);
+            tc.verifyFalse(any(endsWith(B.Scripts, "S_postBad.m")));
+            tc.verifyTrue(isfile(bad), 'Removing a script keeps its file.');
+            tc.verifyTrue(endsWith(B.Script, "S_postTest.m"), 'The next one listed is picked.');
+
+            B.Script = B.Scripts(find(bundled, 1));
+            evalc('B.runScript()');
+            tc.verifyEqual(evalin('base', 'size(R.data)'), size(R.data), 'The bundled script runs on the result.');
+            tc.verifyTrue(evalin('base', 'exist(''data_'', ''var'') == 1'));
+
+            B.close();
+            tc.verifyEqual(string(AppPrefs.getpref("DatasetBrowser", "Scripts")), B.Scripts);
+            B2 = tc.open(Scan=false);
+            tc.verifyEqual(B2.Scripts, B.Scripts, 'The list comes back from the preferences.');
+            tc.verifyEqual(B2.Script, B.Script);
+            tc.verifyTrue(B2.ScriptAfterCompute);
+            B2.ScriptAfterCompute = false;
+            B2.close();
+        end
     end
 
     methods (Test, TestTags = {'Slow'})
@@ -857,6 +930,20 @@ end
 
 function setSettings(B, S)
 B.Settings = S;
+end
+
+
+function c = rowTints(tbl)
+%rowTints  {color, rows} of the table's one row style (it must be the only background tint).
+S = tbl.StyleConfigurations;
+c = {S.Style(1).BackgroundColor, S.TargetIndex{1}(:).'};
+end
+
+
+function clearBaseExcept(keep)
+%clearBaseExcept  Clear the base workspace's variables but KEEP (what a post-processing script left).
+names = setdiff(evalin('base', 'who'), keep);
+if ~isempty(names); evalin('base', char("clear " + strjoin(string(names), " "))); end
 end
 
 

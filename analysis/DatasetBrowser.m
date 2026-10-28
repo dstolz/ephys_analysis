@@ -110,7 +110,8 @@ classdef DatasetBrowser < handle
     %     fillLists(B)                       fill the line / parameter lists
     %     showEpochs(B)                      the Epoch Diagram window (EpochDiagram) of one dataset
     %     SRC = source(B, KEY)
-    %     R = compute(B, Recompute=false)
+    %     R = compute(B, Recompute=false, RunScript=false)   RunScript: then runScript (the Compute button
+    %                  passes ScriptAfterCompute)
     %     [VALUES, T] = forEach(B, FN, Name=, Id=, Datasets=, Recompute=, SkipIds=)
     %                  FN(SRC) or FN(SRC, INFO) per dataset, kept in Runs
     %                  (DatasetRuns.run); Name defaults to "forEach/" + func2str(FN)
@@ -120,22 +121,36 @@ classdef DatasetBrowser < handle
     %     saveSettingsAs(B)                  a file dialog (File > Save settings as)
     %     removeRecent(B, FILE); clearRecent(B)   File > Recent settings' list (RecentSettings)
     %     save(B, FILE); restore(B, FILE)    the result file
+    %     runScript(B, FILE)                 a post-processing script (default Script) in the base
+    %                                        workspace, with B there (the Run now button)
+    %     addScript(B, FILE); removeScript(B, FILE); editScript(B, FILE)   the Scripts list (+, −, Edit;
+    %                                        addScript with no FILE: a file dialog)
     %     progressStart, progress, progressStep, checkCancel, progressFinish, cancel
     %     wait(B, Timeout=Inf); done(B); close(B)
     %     B = DatasetBrowser.open(ROOT, ...)   the window open on ROOT, else a new browser
     %   Closing the window keeps the object: Result, compute and forEach work.
     %
+    %   Post-processing scripts: the "Post-processing script" box under
+    %   Compute lists scripts (Scripts; + adds one, − takes the one shown
+    %   off the list, Edit opens it). With "Run it after each Compute"
+    %   (ScriptAfterCompute) ticked, Compute runs the picked one (Script)
+    %   in the base workspace once the result is in, with this browser put
+    %   there as B (the script reads R = B.Result); "Run now" runs it on the
+    %   result as it is. Its variables stay in the workspace. The first
+    %   list is the scripts in analysis\scripts.
+    %
     %   Errors: DatasetBrowser:NoRoot, DatasetBrowser:NotScanned,
     %   DatasetBrowser:NoneTicked, DatasetBrowser:UnknownDataset,
     %   DatasetBrowser:BadValue, DatasetBrowser:BadFilter,
-    %   DatasetBrowser:NoFile, DatasetBrowser:Canceled (checkCancel; a scan);
+    %   DatasetBrowser:NoFile, DatasetBrowser:Canceled (checkCancel; a scan),
+    %   DatasetBrowser:NoScript, DatasetBrowser:ScriptFailed (runScript);
     %   compute raises epochMatrix's (epochMatrix:Canceled after a Cancel)
     %   and forEach DatasetRuns' (DatasetRuns:Canceled). Warnings:
     %   DatasetBrowser:BadResultFile, DatasetBrowser:NotSaved, and with
     %   Workers DatasetRuns:Serial (no process pool: computed here).
     %   Preferences (AppPrefs group DatasetBrowser, saved on close): Root,
     %   NamePattern, Position, Sort, SettingsFolder, RecentSettings, Workers,
-    %   OnTop.
+    %   OnTop, Scripts, Script, ScriptAfterCompute, ScriptFolder.
     %
     %   See also epochMatrix, epochMatrixSettings, DatasetRuns, outputsStamp,
     %   datasetFilter, EphysAnalysisRunner.
@@ -243,10 +258,11 @@ classdef DatasetBrowser < handle
         Sort = TableSort.none()            % the table's sort (a header click; TableSort state)
         SettingsFile (1,1) string = ""     % the settings file last loaded or saved ("" = none): saveSettings() writes it
         RecentSettings (:,1) string = strings(0, 1)   % the settings files last loaded or saved, newest first (File > Recent settings)
+        Scripts (:,1) string = strings(0, 1)   % the post-processing scripts listed (full paths; the Script drop-down)
     end
 
     properties
-        OnChange = []                      % OnChange(B, what): "scan" | "filter" | "ticks" | "settings" | "result" | "done" | "closed"
+        OnChange = []                      % OnChange(B, what): "scan" | "filter" | "ticks" | "settings" | "result" | "script" | "done" | "closed"
     end
 
     properties (Hidden)
@@ -269,6 +285,8 @@ classdef DatasetBrowser < handle
         Computed                           % when Result was computed (Result.created; NaT before a compute): the last compute, or the result file's
         Workers                          % process workers compute and forEach use (0 = here; DatasetRuns.run's Workers)
         OnTop                              % the window stays above the other windows (WindowStyle "alwaysontop")
+        Script                             % the post-processing script picked ("" = none; set: a file, added to Scripts)
+        ScriptAfterCompute                 % Compute in the window runs Script after (the "After Compute, run" box)
     end
 
     properties (Access = private)
@@ -296,6 +314,9 @@ classdef DatasetBrowser < handle
         OwnRun (1,1) logical = false       % the strip's run is the browser's own scan, compute or forEach (they end it themselves)
         WorkersN (1,1) double = 0          % Workers
         OnTopS (1,1) logical = false       % OnTop
+        ScriptS (1,1) string = ""          % Script
+        AfterS (1,1) logical = false       % ScriptAfterCompute
+        ScriptFolder (1,1) string = ""     % the folder of the last script added (the + dialog starts there)
         Splash AppSplash = AppSplash.empty % the startup window (AppSplash; open while the window is built and the root scanned)
     end
 
@@ -310,7 +331,8 @@ classdef DatasetBrowser < handle
         Controls = ["Root" "Browse" "Pattern" "Scan" "Subject" "NotSubject" "Search" "Tags" "TagMode" "NotTags" ...
             "TickShown" "UntickAll" "Table" "FileMenu" "Data" "Normalize" "NormBaseline" "NormScope" ...
             "Merge" "UnitShanks" "Measure" "Bin" "Baseline" ...
-            "Channels" "SigShanks" "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "KeepEpochs" "Compute" "Done" "Workers"]
+            "Channels" "SigShanks" "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "KeepEpochs" "Compute" "Done" "Workers" ...
+            "ScriptAfter" "ScriptList" "ScriptAdd" "ScriptRemove" "ScriptEdit" "ScriptRun"]
         MaxRecent = 10                     % RecentSettings' length
         ErrorColor = [0.75 0.1 0.1]
         TextColor = [0.25 0.25 0.25]
@@ -365,6 +387,7 @@ classdef DatasetBrowser < handle
             if isfield(prefs, 'OnTop') && (islogical(prefs.OnTop) || isnumeric(prefs.OnTop)) && isscalar(prefs.OnTop)
                 B.OnTopS = logical(prefs.OnTop);
             end
+            B.readScriptPrefs(prefs);
             B.DefaultFile = opts.ResultFile == "";
             B.ResultFileS = opts.ResultFile;
             if B.DefaultFile; B.ResultFileS = DatasetBrowser.defaultFile(B.Root); end
@@ -500,6 +523,37 @@ classdef DatasetBrowser < handle
                 B.Ctl.OnTop.Value = tf;
                 if tf; B.Fig.WindowStyle = "alwaysontop"; else; B.Fig.WindowStyle = "normal"; end
             end
+        end
+
+        function f = get.Script(B)
+            f = B.ScriptS;
+        end
+
+        function set.Script(B, file)
+            arguments
+                B
+                file (1,1) string
+            end
+            k = find(lower(B.Scripts) == lower(fullPath(file)), 1);
+            if isempty(k)
+                B.addScript(file);   % listed, then picked
+            else
+                B.ScriptS = B.Scripts(k);   % listed: picked even when the file is gone (to remove it)
+                B.refreshScripts();
+            end
+        end
+
+        function tf = get.ScriptAfterCompute(B)
+            tf = B.AfterS;
+        end
+
+        function set.ScriptAfterCompute(B, tf)
+            arguments
+                B
+                tf (1,1) logical
+            end
+            B.AfterS = tf;
+            B.refreshScripts();
         end
 
         % --- scanning ----------------------------------------------------------------------
@@ -685,9 +739,12 @@ classdef DatasetBrowser < handle
         % --- compute ---------------------------------------------------------------------------
         function R = compute(B, opts)
             %compute  epochMatrix over the ticked datasets with Settings; the parts kept in Runs.
+            %   RunScript=true then runs Script (runScript) when one is
+            %   picked; the Compute button passes ScriptAfterCompute.
             arguments
                 B
                 opts.Recompute (1,1) logical = false
+                opts.RunScript (1,1) logical = false
             end
             B.needRunner();
             keys = B.tickedKeys();
@@ -714,6 +771,7 @@ classdef DatasetBrowser < handle
             clear stopper
             B.afterRun(t0);
             B.changed("result");
+            if opts.RunScript && B.ScriptS ~= ""; B.runScript(); end
         end
 
         function [values, T] = forEach(B, fn, opts)
@@ -781,6 +839,78 @@ classdef DatasetBrowser < handle
             end
             B.forget(B.PartName, B.SelectedKeys);
             B.setStatus(sprintf("Forgot the %s parts of %d ticked dataset(s).", B.SettingsS.data, numel(B.SelectedKeys)));
+        end
+
+        % --- post-processing scripts -------------------------------------------------------------
+        function runScript(B, file)
+            %runScript  Run a post-processing script (default Script) in the base workspace, with this browser there as B.
+            %   The script runs as RUN runs it, in the base workspace, after
+            %   B (this browser) is put there; the variables it makes stay
+            %   there. Its error is raised again as DatasetBrowser:ScriptFailed
+            %   with the script's name and line (a Cancel's as it is).
+            if nargin < 2; file = B.ScriptS; end
+            file = string(file);
+            if file == ""
+                error('DatasetBrowser:NoScript', 'No post-processing script picked: add one with + (or B.addScript(FILE)).');
+            end
+            if ~isfile(file); error('DatasetBrowser:NoScript', 'The script %s is not found.', file); end
+            name = scriptName(file);
+            B.setStatus("Running " + name + " ...");
+            if B.uiOk(); drawnow limitrate; end
+            assignin('base', 'B', B);
+            t = tic;
+            try
+                evalin('base', "run('" + strrep(file, "'", "''") + "')");
+            catch ME
+                if endsWith(string(ME.identifier), ":Canceled"); rethrow(ME); end
+                where = "";
+                st = ME.stack(strcmpi(string({ME.stack.file}), file));
+                if ~isempty(st); where = sprintf(" at line %d", st(1).line); end
+                E = MException('DatasetBrowser:ScriptFailed', '%s failed%s: %s', name, where, ME.message);
+                throw(E.addCause(ME));
+            end
+            B.setStatus(sprintf("%s ran in %s; its variables are in the base workspace.", name, ...
+                ProgressClock.durationText(toc(t))));
+            B.changed("script");
+        end
+
+        function addScript(B, file)
+            %addScript  List a post-processing script (a .m file) and pick it; no FILE: a file dialog (the + button).
+            if nargin < 2 || string(file) == ""
+                file = B.pickScript();
+                if file == ""; return; end
+            end
+            file = fullPath(file);
+            if ~isfile(file) || ~endsWith(lower(file), ".m")
+                error('DatasetBrowser:NoScript', 'Not a MATLAB script: %s', file);
+            end
+            k = find(lower(B.Scripts) == lower(file), 1);
+            if isempty(k); B.Scripts(end+1, 1) = file; else; file = B.Scripts(k); end
+            B.ScriptS = file;
+            B.ScriptFolder = string(fileparts(file));
+            B.refreshScripts();
+            B.setStatus("Post-processing script: " + scriptName(file) + ".");
+        end
+
+        function removeScript(B, file)
+            %removeScript  Take a script (default Script) off the list; the file stays. The next one listed is picked.
+            if nargin < 2; file = B.ScriptS; end
+            k = find(lower(B.Scripts) == lower(fullPath(file)), 1);
+            if isempty(k); return; end
+            gone = B.Scripts(k);
+            B.Scripts(k) = [];
+            if lower(B.ScriptS) == lower(gone)
+                if isempty(B.Scripts); B.ScriptS = ""; else; B.ScriptS = B.Scripts(min(k, end)); end
+            end
+            B.refreshScripts();
+            B.setStatus(scriptName(gone) + " is off the list (the file stays).");
+        end
+
+        function editScript(B, file)
+            %editScript  Open a script (default Script) in the MATLAB editor.
+            if nargin < 2; file = B.ScriptS; end
+            if string(file) == ""; error('DatasetBrowser:NoScript', 'No post-processing script picked.'); end
+            edit(char(file));
         end
 
         % --- settings files and the result file -------------------------------------------------
@@ -1107,7 +1237,7 @@ classdef DatasetBrowser < handle
 
             % --- right: the settings
             p = uipanel(m, "Title", "Settings");
-            R = uigridlayout(p, [5 1], "RowHeight", {22, 26, '1x', 34, 48}, "Padding", [8 6 8 6], "RowSpacing", 5);
+            R = uigridlayout(p, [6 1], "RowHeight", {22, 26, '1x', 34, 'fit', 48}, "Padding", [8 6 8 6], "RowSpacing", 5);
             edit = @(name) @(~, ~) B.uiRun(@() B.onFormEdit(name));
             open = @(~, ~) B.uiRun(@() B.fillLists());
             c.SettingsFile = uilabel(R, "Text", "", "FontColor", B.TextColor);
@@ -1183,10 +1313,30 @@ classdef DatasetBrowser < handle
                 "signal epochs are large and go into the result file.");
 
             r = uigridlayout(R, [1 2], "ColumnWidth", {'1x', '1x'}, "RowHeight", {34}, "Padding", [0 0 0 0]);
-            c.Compute = uibutton(r, "Text", "Compute", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.compute()), ...
-                "Tooltip", "Compute the ticked datasets (those already computed with these settings are reused).");
+            c.Compute = uibutton(r, "Text", "Compute", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.compute(RunScript=B.AfterS)), ...
+                "Tooltip", "Compute the ticked datasets (those already computed with these settings are reused); " + ...
+                "then the post-processing script, when ticked below.");
             c.Done = uibutton(r, "Text", "Done", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.done()), ...
                 "Tooltip", "Let the script go on with B.Result (the window stays open).");
+
+            % --- the post-processing script: run in the base workspace after Compute
+            sp = uipanel(R, "Title", "Post-processing script");
+            sg = uigridlayout(sp, [2 4], "ColumnWidth", {'1x', 34, 34, 'fit'}, "RowHeight", {30, 30}, ...
+                "Padding", [6 4 6 4], "RowSpacing", 4, "ColumnSpacing", 4);
+            c.ScriptList = place(uidropdown(sg, "Items", {''}, ...
+                "ValueChangedFcn", @(src, ~) B.uiRun(@() B.pickScriptFrom(src.Value))), 1, 1);
+            c.ScriptAdd = place(uibutton(sg, "Text", "+", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.addScript()), ...
+                "Tooltip", "Add a script (.m) to the list and pick it."), 1, 2);
+            c.ScriptRemove = place(uibutton(sg, "Text", "−", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.removeScript()), ...
+                "Tooltip", "Take the script shown off the list (the file stays)."), 1, 3);
+            c.ScriptEdit = place(uibutton(sg, "Text", "Edit", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.editScript()), ...
+                "Tooltip", "Open the script in the MATLAB editor."), 1, 4);
+            c.ScriptAfter = place(uicheckbox(sg, "Text", "Run it after each Compute", ...
+                "ValueChangedFcn", @(src, ~) B.uiRun(@() B.setAfterFrom(src.Value)), ...
+                "Tooltip", "After Compute, run the script in the base workspace (B is this browser there, " + ...
+                "R = B.Result in the script); its variables stay in the workspace."), 2, [1 3]);
+            c.ScriptRun = place(uibutton(sg, "Text", "Run now", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.runScript()), ...
+                "Tooltip", "Run the script now on the result, in the base workspace."), 2, 4);
             c.Summary = uilabel(R, "Text", "", "WordWrap", "on", "VerticalAlignment", "top");
 
             % --- the progress strip and the status line
@@ -1207,7 +1357,7 @@ classdef DatasetBrowser < handle
             c.Cancel = uibutton(s, "Text", "Cancel", "Enable", "off", "ButtonPushedFcn", @(~, ~) B.cancel());
             c.Status = uilabel(g, "Text", "", "FontColor", B.TextColor);
 
-            styleButton([c.Browse c.TickShown c.UntickAll]);
+            styleButton([c.Browse c.TickShown c.UntickAll c.ScriptAdd c.ScriptRemove c.ScriptEdit c.ScriptRun]);
             styleButton([c.Scan c.Compute], "primary");
             styleButton(c.Done, "confirm");
             styleButton(c.Cancel, "danger");
@@ -1217,6 +1367,7 @@ classdef DatasetBrowser < handle
         % --- refreshing ------------------------------------------------------------------------------
         function refreshAll(B)
             B.refreshFileMenu();
+            B.refreshScripts();
             B.refreshFilterControls();
             B.refreshForm();
             B.refreshTable();
@@ -1269,6 +1420,7 @@ classdef DatasetBrowser < handle
             syncItems(c.NotTags, voc);
             c.Table.Data = T;
             c.Table.ColumnEditable = [true false(1, width(T) - 1)];
+            DatasetBrowser.colorRows(c.Table, T.Cached);
             n = height(D);
             nShown = height(T);
             nTicked = numel(B.SelectedKeys);
@@ -1319,6 +1471,28 @@ classdef DatasetBrowser < handle
                 uimenu(rm, "Text", char(f), "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.removeRecent(f)));
             end
             uimenu(M, "Text", "Clear list", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.clearRecent()));
+        end
+
+        function refreshScripts(B)
+            %refreshScripts  The post-processing row from Scripts (a missing file marked), Script and ScriptAfterCompute.
+            if ~B.uiOk(); return; end
+            c = B.Ctl;
+            s = B.Scripts;
+            if isempty(s)
+                c.ScriptList.Items = {'(none: press + to add one)'};
+                c.ScriptList.ItemsData = {''};
+                c.ScriptList.Value = '';
+            else
+                n = scriptName(s);
+                gone = ~arrayfun(@isfile, s);
+                n(gone) = n(gone) + " (not found)";
+                c.ScriptList.Items = cellstr(n);
+                c.ScriptList.ItemsData = cellstr(s);
+                if B.ScriptS ~= ""; c.ScriptList.Value = char(B.ScriptS); end
+            end
+            c.ScriptList.Tooltip = B.ScriptS;
+            c.ScriptAfter.Value = B.AfterS;
+            B.applyEnable();
         end
 
         function refreshFilterControls(B)
@@ -1379,6 +1553,9 @@ classdef DatasetBrowser < handle
             c.Magnitude.Enable = on(S.data == "AUX");
             AlignControls.syncEnable(c.Align);
             c.Compute.Enable = on(~isempty(B.Runner));
+            picked = B.ScriptS ~= "";
+            set([c.ScriptList c.ScriptRemove c.ScriptEdit c.ScriptAfter], "Enable", on(picked));
+            c.ScriptRun.Enable = on(picked && ~isempty(B.Result));
         end
 
         function refreshDataNote(B)
@@ -1766,6 +1943,57 @@ classdef DatasetBrowser < handle
             B.OnTop = logical(tf);
         end
 
+        function setAfterFrom(B, tf)
+            B.ScriptAfterCompute = logical(tf);
+            if tf
+                B.setStatus("Compute runs " + scriptName(B.ScriptS) + " after.");
+            else
+                B.setStatus("Compute runs no script after.");
+            end
+        end
+
+        function pickScriptFrom(B, file)
+            if string(file) == ""; return; end
+            B.Script = string(file);
+        end
+
+        function file = pickScript(B)
+            %pickScript  A .m file from a dialog, starting in the folder of the last one added ("" when canceled).
+            file = "";
+            if ~B.uiOk() || B.Fig.Visible ~= "on"
+                error('DatasetBrowser:NoFile', 'Pass the script file.');
+            end
+            start0 = B.ScriptFolder;
+            if start0 == "" || ~isfolder(start0); start0 = DatasetBrowser.scriptsFolder(); end
+            [f, p] = uigetfile({'*.m', 'MATLAB scripts (*.m)'}, "Add a post-processing script", char(start0 + filesep));
+            if B.uiOk(); figure(B.Fig); end
+            if isequal(f, 0); return; end
+            file = string(fullfile(p, f));
+        end
+
+        function readScriptPrefs(B, prefs)
+            %readScriptPrefs  Scripts, Script, ScriptAfterCompute and the folder from the preferences.
+            %   With no list saved yet, the scripts that come with the browser
+            %   (analysis\scripts) are listed.
+            if isfield(prefs, 'Scripts') && (iscellstr(prefs.Scripts) || isstring(prefs.Scripts))
+                s = reshape(string(prefs.Scripts), [], 1);
+                B.Scripts = s(s ~= "");
+            else
+                d = dir(fullfile(DatasetBrowser.scriptsFolder(), '*.m'));
+                B.Scripts = reshape(string({d.folder}) + filesep + string({d.name}), [], 1);
+            end
+            if ~isempty(B.Scripts); B.ScriptS = B.Scripts(1); end
+            if isfield(prefs, 'Script') && (ischar(prefs.Script) || isstring(prefs.Script))
+                k = find(lower(B.Scripts) == lower(string(prefs.Script)), 1);
+                if ~isempty(k); B.ScriptS = B.Scripts(k); end
+            end
+            if isfield(prefs, 'ScriptAfterCompute') && (islogical(prefs.ScriptAfterCompute) || isnumeric(prefs.ScriptAfterCompute)) ...
+                    && isscalar(prefs.ScriptAfterCompute)
+                B.AfterS = logical(prefs.ScriptAfterCompute);
+            end
+            if isfield(prefs, 'ScriptFolder'); B.ScriptFolder = string(prefs.ScriptFolder); end
+        end
+
         function savePrefs(B)
             g = DatasetBrowser.PrefGroup;
             try
@@ -1776,6 +2004,10 @@ classdef DatasetBrowser < handle
                 AppPrefs.setpref(g, "RecentSettings", cellstr(B.RecentSettings));
                 AppPrefs.setpref(g, "Workers", B.WorkersN);
                 AppPrefs.setpref(g, "OnTop", B.OnTopS);
+                AppPrefs.setpref(g, "Scripts", cellstr(B.Scripts));
+                AppPrefs.setpref(g, "Script", char(B.ScriptS));
+                AppPrefs.setpref(g, "ScriptAfterCompute", B.AfterS);
+                AppPrefs.setpref(g, "ScriptFolder", char(B.ScriptFolder));
                 if B.uiOk(); AppPrefs.setpref(g, "Position", B.Fig.Position); end
             catch
                 % preferences are a convenience
@@ -2070,8 +2302,20 @@ classdef DatasetBrowser < handle
                 'signals', 'stamp'});
         end
 
+        function colorRows(tbl, cached)
+            %colorRows  Tint each row by its Cached text: green cached, yellow old, red skipped; others plain.
+            removeStyle(tbl);
+            tint = {startsWith(cached, "✓"), [0.90 0.96 0.90]; cached == "old", [0.98 0.96 0.86]; cached == "skipped", [0.97 0.89 0.89]};
+            for k = 1:size(tint, 1)
+                rows = find(tint{k, 1}).';
+                if ~isempty(rows)
+                    addStyle(tbl, uistyle("BackgroundColor", tint{k, 2}), "row", rows);
+                end
+            end
+        end
+
         function f = noFilter()
-            f = struct('Subjects', "", 'ExcludeSubjects', "", 'Tags', "", 'TagMode', "any", 'ExcludeTags', "", 'Search', "");
+            f = struct('Subjects', "",'ExcludeSubjects', "", 'Tags', "", 'TagMode', "any", 'ExcludeTags', "", 'Search', "");
         end
 
         function f = checkFilter(in, f)
@@ -2099,6 +2343,11 @@ classdef DatasetBrowser < handle
                 end
                 f.(n) = v;
             end
+        end
+
+        function d = scriptsFolder()
+            %scriptsFolder  analysis\scripts: the post-processing scripts that come with the browser.
+            d = string(fullfile(fileparts(mfilename('fullpath')), 'scripts'));
         end
 
         function file = defaultFile(root)
@@ -2230,6 +2479,20 @@ for sub = unique(subject).'
     [~, ~, r] = unique(date(m));
     s(m) = r;
 end
+end
+
+
+function f = fullPath(f)
+%fullPath  F's full path (a relative one from the current folder); F as given when it does not exist.
+f = string(f);
+[ok, a] = fileattrib(f);
+if ok; f = string(a.Name); end
+end
+
+
+function n = scriptName(f)
+%scriptName  The scripts' names: the files' names without folder or .m.
+n = regexprep(regexprep(string(f), '^.*[\\/]', ''), '\.[mM]$', '');
 end
 
 

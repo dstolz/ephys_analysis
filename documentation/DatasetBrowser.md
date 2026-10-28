@@ -114,7 +114,7 @@ row makes it the dataset the form's lists are read from.
 | **Tags** | the manifest's tags |
 | **Units**, **Detected**, **Behavior** | a check mark when the sorting, the spikes file or the behavior file exists |
 | **Signals** | the derived signals the dataset has (`LFP`, `MUA`, `SPIKE`, `AUX`) |
-| **Cached** | the dataset's part for the current **Data** and settings: `✓ 62 rows` (kept and current), `skipped` (nothing to compute, kept so), `old` (kept, but either the settings or the stamp of the dataset's output files differ: computed again next time), or blank |
+| **Cached** | the dataset's part for the current **Data** and settings: `✓ 62 rows` (kept and current), `skipped` (nothing to compute, kept so), `old` (kept, but either the settings or the stamp of the dataset's output files differ: computed again next time), or blank. The whole row is tinted to match: pale green (cached), pale yellow (`old`), pale red (`skipped`), none (blank) |
 
 ### The settings form
 
@@ -175,6 +175,40 @@ script that called `B.wait()` go on; the window stays open. The summary under
 the buttons reads *812 units × 200 bins × 5 groups from 32 of 34 datasets; 1
 computed, 33 reused*. When the settings or ticks changed since the result, it
 begins *Out of date:* and says what differs.
+
+### The post-processing script
+
+The **Post-processing script** box under **Compute** runs a script of yours
+on the result, so its variables (the data sorted, split and labeled for the
+plots) are in the workspace as soon as a compute finishes:
+
+| Control | Does |
+| --- | --- |
+| the drop-down | picks the script (`B.Script`) from the list (`B.Scripts`, full paths); its tooltip is the path. A file that no longer exists stays listed, with *(not found)* |
+| **+** | adds a `.m` file picked in a dialog to the list and picks it (`B.addScript()`, or `B.addScript(file)`) |
+| **−** | takes the script shown off the list; the file stays (`B.removeScript()`) |
+| **Edit** | opens the script in the MATLAB editor (`B.editScript()`) |
+| **Run it after each Compute** | **Compute** runs the script once the result is in (`B.ScriptAfterCompute`) |
+| **Run now** | runs the script on the result as it is (`B.runScript()`); off before a result |
+
+The script runs in the base workspace, as `run` runs it, with the browser put
+there as `B` first (a `B` already there is replaced). It reads the result
+with `R = B.Result` and may use anything of the browser (`B.ResultCurrent`,
+`B.progressStart`, `B.forEach`, ...). Everything it makes stays in the
+workspace. An error in it is shown on the status line, naming the script and
+its line (`DatasetBrowser:ScriptFailed`, the script's error as its cause);
+the result is kept.
+
+The first list is the scripts in [`analysis/scripts`](../analysis/scripts),
+which holds
+[`S_PrepareDatasetBrowserOutputForPlots.m`](../analysis/scripts/S_PrepareDatasetBrowserOutputForPlots.m):
+it keeps the `su` units (or every channel of a signal), sorts them by session
+and the groups by label, and leaves `R`, `units_`, `data_`, `groupLabels_`,
+`groupTexts_`, `cmap`, `nS`, `nU`, `nB`, `nG` and a summary of `R` in the
+workspace. The list, the script picked and the box are preferences.
+
+From a script, `B.compute(RunScript=true)` computes and then runs `B.Script`;
+`B.compute()` runs none.
 
 ### The progress strip
 
@@ -660,6 +694,11 @@ Saved on close under the `AppPrefs` group `DatasetBrowser`:
 | `Sort` | the table's sort (column and direction) |
 | `SettingsFolder` | the folder of the last settings file loaded or saved |
 | `RecentSettings` | **File > Recent settings**: the last 10 settings files loaded or saved |
+| `Workers` | the process workers **Compute** and `forEach` use |
+| `OnTop` | **Keep on top** |
+| `Scripts`, `Script` | the [post-processing scripts](#the-post-processing-script) listed and the one picked (with none saved yet: the scripts in `analysis/scripts`) |
+| `ScriptAfterCompute` | **Run it after each Compute** |
+| `ScriptFolder` | the folder of the last script added (where **+** opens) |
 
 ## Errors and warnings
 
@@ -673,6 +712,8 @@ Saved on close under the `AppPrefs` group `DatasetBrowser`:
 | `DatasetBrowser:BadFilter` | a filter option that does not fit |
 | `DatasetBrowser:NoFile` | a settings file was asked for and none was passed |
 | `DatasetBrowser:Canceled` | `checkCancel` after **Cancel**; a scan canceled |
+| `DatasetBrowser:NoScript` | `runScript` or `editScript` with no script picked, a script file not found, or `addScript` given a file that is no `.m` file |
+| `DatasetBrowser:ScriptFailed` | the post-processing script raised an error (the message names the script and its line) |
 | `epochMatrix:Canceled` | `compute` after **Cancel** (the finished parts stay in `Runs`) |
 | `DatasetRuns:Canceled` | `forEach` after **Cancel** (the finished values stay) |
 | `epochMatrix:NoData` | no dataset gave rows (the message lists why) |

@@ -369,6 +369,30 @@ if S.sec("1", "build, open the project, scan")
     filterBy(app, s1, 'draft', 'any');
     check(isequal(reshape(app.DatasetsTable.Data.Idx, 1, []), reshape(kF2(subjOf(kF2) == s1), 1, [])), ...
         'Subject and Tags together keep the datasets that pass both');
+    % the DatasetBrowser's other selections: "not" subjects, "not" tags, Search over name, key, subject and tags
+    filterBy(app, '(any)', '(any)', 'any', NotSubject=s1);
+    U1 = app.DatasetsTable.Data;
+    filterBy(app, '(any)', '(any)', 'any', NotTags='draft');
+    U2 = app.DatasetsTable.Data;
+    filterBy(app, '(any)', 'pilot', 'any', NotTags='draft, nosuch');
+    U3 = app.DatasetsTable.Data;
+    filterBy(app, s1, '(any)', 'any', NotSubject=s1);
+    nNone = height(app.DatasetsTable.Data);
+    check(isequal(sort(U1.Idx), sort(T0.Idx(T0.Subject ~= s1))) && isequal(U2.Idx, kF1) && isequal(U3.Idx, kF1) && nNone == 0, ...
+        '"not" subject and "not" tags drop the datasets of those subjects or holding any of those tags; a "not" cancels the same pick');
+    filterBy(app, '(any)', '(any)', 'any', Search=lower(s1) + " " + T0.Name(T0.Idx == kF1));
+    V1 = app.DatasetsTable.Data;
+    filterBy(app, '(any)', '(any)', 'any', Search='DRAFT');
+    V2 = app.DatasetsTable.Data;
+    filterBy(app, '(any)', 'pilot', 'any', Search='draft');
+    V3 = app.DatasetsTable.Data;
+    filterBy(app, '(any)', '(any)', 'any', Search='nosuchword');
+    check(isequal(V1.Idx, kF1) && isequal(V2.Idx, kF2) && isequal(V3.Idx, kF2) && height(app.DatasetsTable.Data) == 0 ...
+        && contains(app.FilterLabel.Text, "showing 0 of 2"), ...
+        'Search keeps the datasets whose name, key, subject and tags hold every word (case ignored), together with the other filters');
+    check(isequal(app.NotSubjectFilterDropDown.Items, app.SubjectFilterDropDown.Items) ...
+        && isequal(app.NotTagFilterDropDown.Items, app.TagFilterDropDown.Items), ...
+        'the "not" lists hold the same subjects and tags in use');
     filterBy(app, '(any)', 'draft', 'any');
     Tt = app.DatasetsTable.Data;
     Tt.Run(:) = false;
@@ -4128,11 +4152,24 @@ t.ClickedCallback(t, []);
 end
 
 
-function filterBy(app, subject, tags, mode)
+function filterBy(app, subject, tags, mode, opts)
 %filterBy  The Data tab's filter as picked or typed: Subject SUBJECT, Tags TAGS, MODE "any" | "all", applied as their callbacks do.
+%   NotSubject, NotTags and Search (all blank by default) fill the "not" drop-downs and the Search field.
+arguments
+    app
+    subject
+    tags
+    mode
+    opts.NotSubject = '(any)'
+    opts.NotTags = '(any)'
+    opts.Search = ''
+end
 app.SubjectFilterDropDown.Value = char(subject);
 app.TagFilterDropDown.Value = char(tags);
 app.TagFilterModeDropDown.Value = char(mode);
+app.NotSubjectFilterDropDown.Value = char(opts.NotSubject);
+app.NotTagFilterDropDown.Value = char(opts.NotTags);
+app.SearchFilterField.Value = char(opts.Search);
 app.refreshDatasetsTable();
 end
 

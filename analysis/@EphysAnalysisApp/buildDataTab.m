@@ -7,7 +7,7 @@ changed = @(~,~) obj.onConfigChanged("source");
 
 left = uigridlayout(g, [10 4]);
 left.Padding = [0 0 0 0];
-left.RowHeight = {24, 30, 24, 24, 24, 56, 20, 30, '1x', 20};
+left.RowHeight = {24, 30, 24, 24, 24, 56, 20, 64, '1x', 20};
 left.ColumnWidth = {110, '1x', '1x', 90};
 
 lab(left, "Config name:", 1, 1);
@@ -60,30 +60,43 @@ obj.ScanLabel.Layout.Row = 7; obj.ScanLabel.Layout.Column = [1 2];
 obj.FilterLabel = uilabel(left, "Text", "", "FontColor", [0.35 0.35 0.35], "HorizontalAlignment", "right");
 obj.FilterLabel.Layout.Row = 7; obj.FilterLabel.Layout.Column = [3 4];
 
-% The filter: only some subjects and tags (refreshDatasetsTable applies it,
-% lists the subjects and tags in use and says above how many rows show; the
-% rows it hides keep their ticks), and the Run ticks from what it shows
-% (onTickDatasets).
-fb = uigridlayout(left, [1 7]);
+% The filter, as the DatasetBrowser has it: Subject (and "not" these), Search,
+% Tags (any / all of, and "not" these) in two rows (refreshDatasetsTable
+% applies it, lists the subjects and tags in use and says above how many rows
+% show; the rows it hides keep their ticks), and the Run ticks from what it
+% shows (onTickDatasets).
+fb = uigridlayout(left, [2 1]);
 fb.Layout.Row = 8; fb.Layout.Column = [1 4];
-fb.RowHeight = {'1x'};
-fb.ColumnWidth = {'fit', 120, 'fit', 140, 70, 'fit', 'fit'};
+fb.RowHeight = {30, 30};
+fb.RowSpacing = 4;
 fb.Padding = [0 0 0 0];
 refilter = @(~,~) obj.refreshDatasetsTable();
-uilabel(fb, "Text", "Subject:", "Tooltip", "Show only these subjects; with Tags, the datasets that pass both.");
-obj.SubjectFilterDropDown = uidropdown(fb, "Items", {'(any)'}, "Editable", "on", "Value", '(any)', ...
-    "Tooltip", "Filter by subject (the name pattern's SubjectID): pick one, or type several separated by commas; * and ? are wildcards.", ...
+r1 = uigridlayout(fb, [1 6], "ColumnWidth", {'fit', 120, 'fit', 120, 'fit', '1x'}, "RowHeight", {30}, "Padding", [0 0 0 0]);
+uilabel(r1, "Text", "Subject");
+obj.SubjectFilterDropDown = uidropdown(r1, "Items", {'(any)'}, "Editable", "on", "Value", '(any)', ...
+    "Tooltip", "Show these subjects (the name pattern's SubjectID): pick one, or type several separated by commas; * and ? are wildcards. With Tags, the datasets that pass both.", ...
     "ValueChangedFcn", refilter);
-uilabel(fb, "Text", "Tags:", "Tooltip", "Show only datasets with these tags (any or all of them); with Subject, the datasets that pass both.");
-obj.TagFilterDropDown = uidropdown(fb, "Items", {'(any)'}, "Editable", "on", "Value", '(any)', ...
-    "Tooltip", "Filter by tag: pick one, or type several separated by commas. A term that is no tag in use matches nothing.", ...
+uilabel(r1, "Text", "not");
+obj.NotSubjectFilterDropDown = uidropdown(r1, "Items", {'(any)'}, "Editable", "on", "Value", '(any)', ...
+    "Tooltip", "Leave these subjects out (comma-separated; * and ? are wildcards).", "ValueChangedFcn", refilter);
+uilabel(r1, "Text", "Search");
+obj.SearchFilterField = uieditfield(r1, "text", "ValueChangedFcn", refilter, ...
+    "Placeholder", "words in the name, key, subject or tags", ...
+    "Tooltip", "Every word must appear (case ignored); applied when you press Enter or leave the field.");
+r2 = uigridlayout(fb, [1 7], "ColumnWidth", {'fit', 120, 70, 'fit', 120, 'fit', 'fit'}, "RowHeight", {30}, "Padding", [0 0 0 0]);
+uilabel(r2, "Text", "Tags");
+obj.TagFilterDropDown = uidropdown(r2, "Items", {'(any)'}, "Editable", "on", "Value", '(any)', ...
+    "Tooltip", "Show the datasets with these tags (any or all of them): pick one, or type several separated by commas. A term that is no tag in use matches nothing. With Subject, the datasets that pass both.", ...
     "ValueChangedFcn", refilter);
-obj.TagFilterModeDropDown = uidropdown(fb, "Items", {'any of', 'all of'}, "ItemsData", {'any', 'all'}, "Value", 'any', ...
+obj.TagFilterModeDropDown = uidropdown(r2, "Items", {'any of', 'all of'}, "ItemsData", {'any', 'all'}, "Value", 'any', ...
     "Tooltip", "any of: a dataset with at least one of the tags; all of: with every one", "ValueChangedFcn", refilter);
-obj.TickShownButton = uibutton(fb, "Text", "Tick shown only", ...
+uilabel(r2, "Text", "not");
+obj.NotTagFilterDropDown = uidropdown(r2, "Items", {'(any)'}, "Editable", "on", "Value", '(any)', ...
+    "Tooltip", "Leave out the datasets holding any of these tags.", "ValueChangedFcn", refilter);
+obj.TickShownButton = uibutton(r2, "Text", "Tick shown only", ...
     "Tooltip", "Tick Run for the datasets shown and clear it for those the filter hides (no filter: tick every one).", ...
     "ButtonPushedFcn", @(~,~) obj.onTickDatasets("shown"));
-obj.UntickAllButton = uibutton(fb, "Text", "Untick all", "Tooltip", "Clear Run for every dataset, shown or hidden.", ...
+obj.UntickAllButton = uibutton(r2, "Text", "Untick all", "Tooltip", "Clear Run for every dataset, shown or hidden.", ...
     "ButtonPushedFcn", @(~,~) obj.onTickDatasets("none"));
 
 obj.DatasetsTable = uitable(left, "RowName", {}, ...

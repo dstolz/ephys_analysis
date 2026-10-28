@@ -220,8 +220,11 @@ classdef EphysAnalysisApp < handle
         ScanButton         matlab.ui.control.Button
         ScanLabel          matlab.ui.control.Label
         SubjectFilterDropDown matlab.ui.control.DropDown   % editable: '(any)', a subject, or several typed, comma-separated (* ? wildcards)
+        NotSubjectFilterDropDown matlab.ui.control.DropDown   % editable, as Subject: the subjects to leave out
+        SearchFilterField  matlab.ui.control.EditField  % words that must all appear in the name, key, subject or tags
         TagFilterDropDown  matlab.ui.control.DropDown   % editable: '(any)', a tag, or several typed, comma-separated
         TagFilterModeDropDown matlab.ui.control.DropDown   % ItemsData "any" | "all": of the tags picked
+        NotTagFilterDropDown matlab.ui.control.DropDown   % editable, as Tags: leave out the datasets holding any of these
         TickShownButton    matlab.ui.control.Button     % Tick shown only (onTickDatasets "shown")
         UntickAllButton    matlab.ui.control.Button     % Untick all (onTickDatasets "none")
         FilterLabel        matlab.ui.control.Label      % "showing k of n (m ticked hidden)" while a filter is on

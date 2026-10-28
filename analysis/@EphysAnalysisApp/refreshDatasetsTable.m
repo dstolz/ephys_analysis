@@ -17,13 +17,16 @@ function refreshDatasetsTable(obj)
 %   place in the Runner: ticks, clicks and the active row go through it,
 %   never through the row, so any order is safe.
 %
-%   The filter above the table shows only some rows: Subject keeps the
-%   datasets whose subject is one of those picked or typed (comma-separated,
-%   * and ? wildcards, case ignored), Tags those holding any (or all) of the
-%   tags picked or typed (a term that is no valid tag matches nothing), both
-%   together when both are set (datasetFilter). Their lists are the
-%   subjects and tags in use. A hidden row keeps its Run tick (Ticked is per
-%   dataset), and FilterLabel says "showing k of n (m ticked hidden)".
+%   The filter above the table is the DatasetBrowser's and shows only some
+%   rows: Subject keeps the datasets whose subject is one of those picked or
+%   typed (comma-separated, * and ? wildcards, case ignored) and "not" drops
+%   those of the subjects given there; Tags keeps those holding any (or all)
+%   of the tags picked or typed (a term that is no valid tag matches
+%   nothing) and its "not" drops those holding any of the tags given there;
+%   Search keeps those whose name, key, subject and tags hold every word
+%   typed. Every filter that is set must pass (datasetFilter). The lists are
+%   the subjects and tags in use. A hidden row keeps its Run tick (Ticked is
+%   per dataset), and FilterLabel says "showing k of n (m ticked hidden)".
 %
 %   Nothing happens while HoldDatasetViews is set (onScan, which fills
 %   the table once): every dataset's files are checked on each fill, a
@@ -84,7 +87,7 @@ for k = 1:n
 end
 Idx = (1:n).';
 T = table(Run, Star, Note, Name, Subject, Date, Key, Tags, LFP, MUA, SPIKE, AUX, Units, Detected, Behavior, Trials, Pairing, Duration, Idx);
-keep = applyFilter(obj, Subject, sets);
+keep = applyFilter(obj, Subject, sets, Name + " " + Key + " " + Subject + " " + Tags);
 T = T(keep, :);
 T = TableSort.apply(T, obj.DatasetsSort);
 obj.DatasetsTable.Data = T;
@@ -97,16 +100,24 @@ end
 end
 
 
-function keep = applyFilter(obj, subject, sets)
-%applyFilter  Which datasets (SUBJECT, a column, and SETS, a tag set each) the Subject and Tags filters keep.
-%   Their lists are set to '(any)' and the subjects and tags in use first
-%   (a typed value is kept by the editable drop-down), and FilterLabel
-%   says how many rows show while either filter is on.
+function keep = applyFilter(obj, subject, sets, text)
+%applyFilter  Which datasets (SUBJECT, a column, SETS, a tag set each, and TEXT, what Search looks in) the filters keep.
+%   Subject, "not" subject, Tags (any / all of), "not" tags and Search, as
+%   the DatasetBrowser's (datasetFilter). Their lists are set to '(any)' and
+%   the subjects and tags in use first (a typed value is kept by the
+%   editable drop-down), and FilterLabel says how many rows show while any
+%   filter is on.
 n = numel(subject);
-syncItems(obj.SubjectFilterDropDown, cellstr(unique(subject(subject ~= ""))).');
-syncItems(obj.TagFilterDropDown, TagSet.vocabulary(sets));
+inUse = cellstr(unique(subject(subject ~= ""))).';
+voc = TagSet.vocabulary(sets);
+syncItems(obj.SubjectFilterDropDown, inUse);
+syncItems(obj.NotSubjectFilterDropDown, inUse);
+syncItems(obj.TagFilterDropDown, voc);
+syncItems(obj.NotTagFilterDropDown, voc);
 [keep, active] = datasetFilter(subject, sets, Subjects=obj.SubjectFilterDropDown.Value, ...
-    Tags=obj.TagFilterDropDown.Value, TagMode=obj.TagFilterModeDropDown.Value);
+    ExcludeSubjects=obj.NotSubjectFilterDropDown.Value, Tags=obj.TagFilterDropDown.Value, ...
+    TagMode=obj.TagFilterModeDropDown.Value, ExcludeTags=obj.NotTagFilterDropDown.Value, ...
+    Search=obj.SearchFilterField.Value, Text=text);
 if ~active
     obj.FilterLabel.Text = "";
 else

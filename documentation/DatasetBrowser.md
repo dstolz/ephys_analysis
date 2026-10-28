@@ -83,8 +83,9 @@ The rows:
 
 The filter only chooses which datasets the table shows. A hidden dataset keeps
 its tick. Several terms are combined with AND. It is
-[`datasetFilter`](../analysis/datasetFilter.m), the same filter as the analysis
-app's [Data tab](EphysAnalysisApp.md#data-tab).
+[`datasetFilter`](../analysis/datasetFilter.m), the same filter, with the same
+controls, as the analysis app's [Data tab](EphysAnalysisApp.md#data-tab). (There
+**Search** is applied on Enter or leaving the field, not as you type.)
 
 | Control | Effect |
 | --- | --- |

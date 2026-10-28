@@ -166,16 +166,21 @@ dataset in any order. Every other table in the app (the active dataset's
 inventory, lines, parameters and units, the alignment's trials, the issues and
 the results) sorts on a header click too.
 
-**The filter**, the row above the table, shows only some datasets:
+**The filter**, the two rows above the table, shows only some datasets. It is
+the [Dataset browser](DatasetBrowser.md#the-filter)'s filter
+([`datasetFilter`](../analysis/datasetFilter.m)):
 
 | Control | Effect |
 | --- | --- |
-| **Subject:** | *(any)*, a subject from the list (the subjects in use), or several typed, comma-separated; `*` and `?` are wildcards and case is ignored. Any other character, a regular-expression one such as `.` or `(`, stands for itself. A dataset without a subject (its name does not match the name pattern) shows only under *(any)* |
-| **Tags:**, *any of* / *all of* | *(any)*, a tag from the list (the tags in use), or several typed, comma-separated: the datasets holding at least one of them (*any of*) or every one (*all of*). A term that is no valid tag matches nothing |
+| **Subject** | *(any)*, a subject from the list (the subjects in use), or several typed, comma-separated; `*` and `?` are wildcards and case is ignored; a term must match the whole subject. Any other character, a regular-expression one such as `.` or `(`, stands for itself. A dataset without a subject (its name does not match the name pattern) shows only under *(any)* |
+| **not** (after Subject) | leave these subjects out (the same matching) |
+| **Search** | words separated by spaces. Every word must appear, case ignored, in the dataset's name, key, subject or tags. Applied when you press Enter or leave the field |
+| **Tags**, *any of* / *all of* | *(any)*, a tag from the list (the tags in use), or several typed, comma-separated: the datasets holding at least one of them (*any of*) or every one (*all of*). A term that is no valid tag matches nothing |
+| **not** (after Tags) | leave out the datasets holding any of these tags. A dataset with no tags is never left out by it |
 | **Tick shown only** | ticks **Run** for the datasets shown and clears it for those the filter hides; with no filter on, ticks every dataset |
 | **Untick all** | clears **Run** for every dataset, shown or hidden |
 
-With both set, a dataset must pass both. The filter is the table's view only:
+With several set, a dataset must pass all of them. The filter is the table's view only:
 a hidden dataset keeps its **Run** tick, and a run uses every ticked dataset,
 shown or not. While a filter is on, the line above it (right of the scan's
 count) says *showing k of n* and, when
@@ -2030,7 +2035,7 @@ unshown); the five tabs (Data, Alignment, Figures,
 Export, Log); the toolbar (1b: its tools in groups with their icons, Undo and Redo following the Edit menu (5k),
 every File menu shortcut named in a tooltip, Preview and Plan clicked from another
 tab, the run and results tools following the Export tab's buttons); the scan;
-the datasets table's filter (Subject and Tags, any of / all of, together; a hidden
+the datasets table's filter (Subject, Tags (any of / all of), their "not" lists and Search, together; a hidden
 dataset keeping its tick; Tick shown only and Untick all); opening on a list of datasets (`Datasets=`, as the pipeline app's Tools panel
 does); the active dataset's lines and parameters, and its sorted units counted
 in the Dataset drop-downs (the same items on the three tabs); the Help menu's GitHub issue

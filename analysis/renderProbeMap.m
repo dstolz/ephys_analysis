@@ -31,7 +31,8 @@ function h = renderProbeMap(values, probe, target, opts)
 %   per site still color the sites), unless ColorWaveforms is true: each
 %   glyph (mean, band and spikes) then takes the color of its unit's value
 %   (rate or spike count) in the color scale, a unit without one gray, and
-%   the color bar is drawn.
+%   the color bar is drawn (their means are parts "trace" and bands "sem",
+%   one group per unit, not waveMean / waveBand).
 %
 %   UnitLabels writes each unit's name (shortUnitLabels of the table's
 %   label) in a column beside its shank, clear of the units, each with a
@@ -233,15 +234,21 @@ if glyphs
         hasV = isfinite(P.value(:));
         step = min(max(round(1 + (P.value(hasV) - clim0(1)) / (clim0(2) - clim0(1)) * (size(cmap, 1) - 1)), 1), size(cmap, 1));
         uc(hasV, :) = cmap(step, :);
+        % each unit's mean and band are a group of their own ("trace", "sem"), so a design's one waveMean / waveBand
+        % color does not paint every unit alike
+        names = string(1:numel(ux)).';
+        if isfield(P, 'table') && istable(P.table) && height(P.table) == numel(ux) && ismember("label", string(P.table.Properties.VariableNames))
+            names = string(P.table.label(:));
+        end
         for u = find(~cellfun(@isempty, Gl.band)).'
             B = Gl.band{u};
-            errorPatch(ax, B(:, 1), B(:, 2), B(:, 3), uc(u, :), "", style, "waveBand");
+            errorPatch(ax, B(:, 1), B(:, 2), B(:, 3), uc(u, :), names(u), style, "sem");
         end
         for u = find(~cellfun(@isempty, Gl.spikes)).'
             tagPart(line(ax, Gl.spikes{u}(:, 1), Gl.spikes{u}(:, 2), 'Color', [uc(u, :) 0.25], 'LineWidth', 0.5), "waveSpikes");
         end
         for u = find(~cellfun(@isempty, Gl.mean)).'
-            tagPart(line(ax, Gl.mean{u}(:, 1), Gl.mean{u}(:, 2), 'Color', uc(u, :), 'LineWidth', max(1, style.LineWidth)), "waveMean");
+            tagPart(line(ax, Gl.mean{u}(:, 1), Gl.mean{u}(:, 2), 'Color', uc(u, :), 'LineWidth', max(1, style.LineWidth)), "trace", names(u));
         end
     else
         for u = find(~cellfun(@isempty, Gl.band)).'

@@ -695,6 +695,9 @@ for k = 1:numel(obj.Figures)
                 end
                 checkFigLim(op.cLim, o0 + ".cLim", "color");
                 checkFigWaveform(op.waveform, o0 + ".waveform", false);
+                if ~(islogical(op.waveColor) && isscalar(op.waveColor))
+                    add("Figures", o0 + ".waveColor", "error", "Color waveforms by value is on or off.");
+                end
             case "corrmap"
                 if ~ismember(op.metric, ["mean" "peak"])
                     add("Figures", o0 + ".metric", "error", "A unit correlation map correlates each epoch's mean or peak rate.");

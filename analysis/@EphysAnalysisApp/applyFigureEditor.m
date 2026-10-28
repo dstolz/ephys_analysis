@@ -262,6 +262,7 @@ if isfield(op, 'rows'); E.heatRows.Value = char(pickFrom(op.rows, string(E.heatR
 if isfield(op, 'order'); offerItems(E.order, ["probe" "peak" "modulation"], op.order); end
 if isfield(op, 'value'); offerItems(E.value, ["rate" "nSpikes" "nUnits"], op.value); end
 if isfield(op, 'unitLabels'); E.unitLabels.Value = logical(op.unitLabels); end
+if isfield(op, 'waveColor'); E.waveColor.Value = logical(op.waveColor); end
 if isfield(op, 'metric')
     offerItems(E.metric, ["mean" "peak"], op.metric);
     E.correlation.Value = char(pickFrom(op.correlation, string(E.correlation.ItemsData), "pearson"));

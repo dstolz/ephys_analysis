@@ -324,6 +324,16 @@ check(all(abs((min(mx) + max(mx)) / 2 - Tu.x.') < 1e-9) && all(abs((max(mx) - mi
 tipG = findall(h.axes, 'Tag', 'unitArrows').Vertices(1:3, :);
 check(all(abs(tipG(:, 1) - Tu.x) >= h.glyph(1) / 2 - 1e-9 | abs(tipG(:, 2) - Tu.y) >= h.glyph(2) / 2 - 1e-9), ...
     'with glyphs the arrows stop at the glyph''s box, not on it');
+h = renderProbeMap(Rq, [], fig, Waveforms=Wp, Waveform=struct('mode', "both", 'band', "std"), ColorWaveforms=true);
+mc = findall(h.axes, 'Tag', 'waveMean');   % one line per unit, each in the color of its rate in the scale
+cm = colormap(h.axes);
+pos = cell2mat(arrayfun(@(l) [(min(l.XData) + max(l.XData)) / 2, mean(l.YData, 'omitnan')], mc, 'UniformOutput', false));   % x, y of each glyph; the units' y are 50 apart
+[~, ord] = sortrows(pos);
+want = cm(min(max(round(1 + (Tu.rateHz - min(Tu.rateHz)) / (max(Tu.rateHz) - min(Tu.rateHz)) * (size(cm, 1) - 1)), 1), size(cm, 1)), :);
+[~, ordU] = sortrows([Tu.x Tu.y]);
+check(numel(mc) == 3 && ~isempty(h.colorbar) && numel(findall(h.axes, 'Tag', 'waveBand')) == 3 ...
+    && max(abs(cell2mat(arrayfun(@(l) l.Color, mc(ord), 'UniformOutput', false)) - want(ordU, :)), [], 'all') < 1e-9, ...
+    'probe map, ColorWaveforms: each glyph in its unit''s rate''s color, with a color bar');
 Wt = Wp; Wt.from(:) = "template"; Wt.spikes(:) = {[]};
 h = renderProbeMap(Rq0, [], fig, Waveforms=Wt, Waveform=struct('mode', "template", 'band', "sem"));
 check(isscalar(findall(h.axes, 'Tag', 'waveMean')) && isempty(findall(h.axes, 'Tag', 'waveSpikes')) ...

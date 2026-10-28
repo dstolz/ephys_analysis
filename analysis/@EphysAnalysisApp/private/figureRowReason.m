@@ -170,6 +170,7 @@ for f = ["etDisplay" "etTrials" "etColorBy" "etHeight" "etEdge" "etMinWidth" "et
 end
 T.value = o("probemap", "");
 T.unitLabels = o("probemap", "");
+T.waveColor = o("probemap", "with Waveform: Show, and Value: rate or nSpikes");
 for f = ["metric" "correlation" "fisherZ"]; T.(f) = o("corrmap", ""); end
 T.yLim = o(["psth" "continuous" "waveforms" "rate" "tuning" "spectrum" "coherence"], ...
     "on a PSTH with Display: trace, on a coherence panel unless drawn over time (an image's scale is its Color limits)");

@@ -1666,6 +1666,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `probemap` | `value` | `"rate"` | `"rate"`, `"nSpikes"` or `"nUnits"` |
 | `probemap` | `cLim` | `[]` | the color scale |
 | `probemap` | `unitLabels` | `false` | each unit's name beside its shank, with an arrow to the unit (roles `unitLabels`, `unitLeaders`, `unitArrows`) |
+| `probemap` | `waveColor` | `false` | with a `waveform` mode other than `"off"` and `value` `"rate"` or `"nSpikes"`: each unit's glyph (mean, band, spikes) in the color of its value in the color scale, with a color bar |
 | `probemap` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | `"off"`: a circle per unit; otherwise each unit's waveform as a glyph (`mode`, `band`, `maxSpikes`, `timeMs`, `ampScale`, `ampLim`, `width`, `height`; not `location`, `box`, `showPP`, `showCount`, `showSites`, `showNames`). Not shared by **Apply to all panels** |
 | `corrmap` | `metric` | `"mean"` | each epoch's `"mean"` rate over its window, or its `"peak"` binned rate |
 | `corrmap` | `correlation` | `"pearson"` | or `"spearman"` |

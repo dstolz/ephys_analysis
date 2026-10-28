@@ -287,6 +287,7 @@ if isfield(op, 'rows'); op.rows = string(E.heatRows.Value); end
 if isfield(op, 'order'); op.order = string(E.order.Value); end
 if isfield(op, 'value'); op.value = string(E.value.Value); end
 if isfield(op, 'unitLabels'); op.unitLabels = logical(E.unitLabels.Value); end
+if isfield(op, 'waveColor'); op.waveColor = logical(E.waveColor.Value); end
 if isfield(op, 'metric')
     op.metric = string(E.metric.Value);
     op.correlation = string(E.correlation.Value);

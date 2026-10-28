@@ -261,6 +261,7 @@ end
 if isfield(op, 'rows'); E.heatRows.Value = char(pickFrom(op.rows, string(E.heatRows.ItemsData), "items")); end
 if isfield(op, 'order'); offerItems(E.order, ["probe" "peak" "modulation"], op.order); end
 if isfield(op, 'value'); offerItems(E.value, ["rate" "nSpikes" "nUnits"], op.value); end
+if isfield(op, 'unitLabels'); E.unitLabels.Value = logical(op.unitLabels); end
 if isfield(op, 'metric')
     offerItems(E.metric, ["mean" "peak"], op.metric);
     E.correlation.Value = char(pickFrom(op.correlation, string(E.correlation.ItemsData), "pearson"));
@@ -274,6 +275,7 @@ if isfield(op, 'waveform')
     fallback = ch.WaveModes(1);
     if p.type == "waveforms"; fallback = "both"; end
     setChoices(E.waveMode, ch.WaveLabels, ch.WaveModes, pickFrom(wv.mode, ch.WaveModes, fallback));
+    E.waveBand.Value = char(pickFrom(wv.band, EphysAnalysisConfig.WaveformBands, "off"));
     E.waveSpikes.Value = min(E.waveSpikes.Limits(2), max(E.waveSpikes.Limits(1), round(wv.maxSpikes)));
     span = [-Inf Inf];   % the time span: a blank field is the cut's edge
     if numel(wv.timeMs) == 2; span = wv.timeMs; end

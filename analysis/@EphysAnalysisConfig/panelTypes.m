@@ -94,13 +94,22 @@ function T = panelTypes()
 %   curve). Their baseline Modes are firingRate's: none, subtract, ratio,
 %   zscore. A waveforms panel's layout "probe" draws every unit of its
 %   first layer at its place on the probe; a further layer (e.g. one
-%   following the observation) rings its units there.
+%   following the observation) rings its units there. A probe map draws
+%   each unit as a circle colored by its value (options.value "rate" or
+%   "nSpikes"; "nUnits" colors the sites), or, with a waveform mode other
+%   than "off", as its waveform (a glyph sized by the waveform's width
+%   and height: the mean, with or without its band, spikes, both, or the
+%   template), colored by its unit's value when waveColor is true;
+%   unitLabels writes each unit's id beside it, clear of the
+%   units, with an arrow to it.
 %   A raster, PSTH, rate or tuning panel's waveform (defaults("Waveform"),
 %   EphysAnalysisConfig.WaveformInsetTypes) with a mode other than "off"
 %   draws its first unit's waveform as an inset (waveformInset): its time
 %   span (timeMs), width and height, amplitude scale (ampScale, ampLim),
-%   place, box and label; a waveforms panel's waveform is the panel's own
-%   drawing (its mode never "off"; width and height size its probe glyphs).
+%   error band (band), place, box and label; a waveforms panel's waveform
+%   is the panel's own drawing (its mode never "off"; width and height
+%   size its probe glyphs). Mode "template" draws a sorted unit's template
+%   (no spikes read; detected spikes have none).
 %   A continuous panel draws each epoch's trace with trials "faint"
 %   (behind the mean, pale and thin) or "only" (no mean), at most
 %   maxTrials epochs (default 100; Inf = every one) picked evenly over
@@ -225,8 +234,11 @@ opts.waveforms = struct( ...
     'yLimMode', "auto", ...  % as a PSTH's (EphysAnalysisConfig.YLimModes)
     'yLim',     []);
 opts.probemap = struct( ...
-    'value', "rate", ...                % "rate" | "nSpikes" | "nUnits"
-    'cLim',  []);
+    'value',      "rate", ...           % "rate" | "nSpikes" | "nUnits"
+    'cLim',       [], ...
+    'unitLabels', false, ...            % each unit's id beside it, an arrow from the label to the unit
+    'waveColor',  false, ...            % waveform glyphs colored by their unit's value (rate / nSpikes), with a color bar
+    'waveform',   waveform);            % mode "off": a circle per unit (colored by its value); else its waveform as a glyph
 opts.corrmap = struct( ...
     'metric',      "mean", ...          % each epoch's "mean" or "peak" (binned) rate
     'correlation', "pearson", ...       % "pearson" | "spearman"
@@ -343,7 +355,7 @@ rows = {
     "continuous", "Continuous signal", "Continuous",  "continuous",            true,   true,      false,   true,      "observation",  "The epochs' mean of LFP / MUA / SPIKE / AUX channels, with an error band"
     "heatmap",    "Heat map",          "Heatmap",     ["point" "continuous"],  true,   true,      true,    false,     "fixed",        "Units or channels by time in color, one trial group"
     "waveforms",  "Unit waveforms",    "Waveforms",   "unit",                  false,  false,     false,   false,     "observation",  "A unit's mean waveform and a sample of its spikes"
-    "probemap",   "Probe map",         "ProbeMap",    "unit",                  false,  false,     false,   false,     "fixed",        "The units' rates or spikes drawn on the units, or the units per site on the probe sites"
+    "probemap",   "Probe map",         "ProbeMap",    "unit",                  false,  false,     false,   false,     "fixed",        "The units' rates or spikes drawn on the units (or their waveforms), or the units per site on the probe sites"
     "corrmap",    "Unit correlation",  "Correlation", "unit",                  true,   false,     true,    false,     "fixed",        "Pairwise correlation of the units' per-epoch rates, one trial group"
     "rate",       "Firing rate",       "Rate",        "point",                 true,   false,     false,   true,      "observation",  "Each epoch window's firing rate per trial group: bars, boxes or points"
     "tuning",     "Tuning curve",      "Tuning",      "point",                 true,   false,     false,   true,      "observation",  "Firing rate against a trial parameter, one curve per series"

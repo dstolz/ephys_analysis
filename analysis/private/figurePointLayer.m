@@ -96,7 +96,7 @@ end
 wf = opts.Waveform;
 if isstruct(wf) && wf.mode ~= "off"
     ctx.checkpoint();
-    lay.R.waveforms = unitWaveforms(src, meta, Source=L.source, MaxSpikes=wf.maxSpikes, Check=ctx.check);
+    lay.R.waveforms = unitWaveforms(src, meta, Source=L.source, MaxSpikes=wf.maxSpikes, Template=wf.mode == "template", Check=ctx.check);
 end
 end
 

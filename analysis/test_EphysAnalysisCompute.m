@@ -281,6 +281,57 @@ h = renderProbeMap(Rq0, [], fig);
 check(numel(findall(h.axes, 'Tag', 'sites').XData) == 3 && numel(findall(h.axes, 'Tag', 'emptySites').XData) == 5 ...
     && isequal(h.colorbar.Ticks, 1) && string(h.colorbar.Label.String) == "Units", ...
     'units per site: a site with none is drawn as one without a value, a color step per count');
+clf(fig); fig.Position = [100 100 500 600];
+h = renderProbeMap(Rq, [], fig, UnitLabels=true);
+ul = findall(h.axes, 'Tag', 'unitLabels'); ld = findall(h.axes, 'Tag', 'unitLeaders'); ah = findall(h.axes, 'Tag', 'unitArrows');
+ulx = arrayfun(@(t) t.Position(1), ul); uls = string(get(ul, 'String'));
+check(numel(ul) == 3 && isequal(sort(uls), ["u1"; "u2"; "u3"]) && isscalar(ld) && nnz(isnan(ld.XData)) == 3 ...
+    && isscalar(ah) && size(ah.Faces, 1) == 3 && isempty(findall(h.axes, 'Tag', 'siteLabels')) ...
+    && all(ulx(uls ~= "u2") < 0) && ulx(uls == "u2") > 208 && h.axes.XLim(1) < min(ulx) && h.axes.XLim(2) > max(ulx), ...
+    'unit labels: one per unit, the first shank''s left of it and the second''s right, a leader and an arrowhead each, no channel numbers, inside the x limits');
+tip = ah.Vertices(1:3, :);   % the arrows' tips stop short of their units
+dTip = min(hypot(tip(:, 1) - Tu.x.', tip(:, 2) - Tu.y.'), [], 2);
+check(all(dTip > 0), 'the arrows stop short of the units');
+Tc = table("u" + (1:6).', repmat("su", 6, 1), ones(6, 1), zeros(6, 1), [0; 8; 0; 8; 0; 8], [30; 31; 32; 33; 34; 35], ...
+    (1:6).', (1:6).', 'VariableNames', {'label', 'class', 'channel', 'shank', 'x', 'y', 'nSpikes', 'rateHz'});
+h = renderProbeMap(probeMapValues(Tc, probe, Value="rate"), [], fig, UnitLabels=true);
+E = vertcat(arrayfun(@(t) t.Extent, findall(h.axes, 'Tag', 'unitLabels'), 'UniformOutput', false));
+E = vertcat(E{:});
+ok = true;
+for sd = [-1 1]   % each column's labels, bottom to top, do not overlap
+    k = find(sign(E(:, 1) - 4) == sd);
+    [~, o] = sort(E(k, 2));
+    Ek = E(k(o), :);
+    ok = ok && all(Ek(1:end-1, 2) + Ek(1:end-1, 4) <= Ek(2:end, 2) + 1e-6 * diff(h.axes.YLim));
+end
+check(ok && size(E, 1) == 6, 'six units 1 um apart: their labels spread apart, none over another');
+tmsP = (-1:0.1:2).';
+Wp = struct('timeMs', {repmat({tmsP}, 3, 1)}, 'mean', {cell(3, 1)}, 'spikes', {cell(3, 1)}, ...
+    'from', repmat("spikes", 3, 1), 'units', repmat("uV", 3, 1), 'note', "", 'maxSpikes', 8);
+for u = 1:3
+    Wp.spikes{u} = -40 * u * exp(-(tmsP / 0.2).^2) + 4 * randn(numel(tmsP), 8);
+    Wp.mean{u} = mean(Wp.spikes{u}, 2);
+end
+h = renderProbeMap(Rq, [], fig, Waveforms=Wp, Waveform=struct('mode', "both", 'band', "std"), UnitLabels=true);
+mu = findall(h.axes, 'Tag', 'waveMean');
+check(isempty(findall(h.axes, 'Tag', 'unitDots')) && isscalar(mu) && nnz(isnan(mu.XData)) == 3 ...
+    && isscalar(findall(h.axes, 'Tag', 'waveSpikes')) && numel(findall(h.axes, 'Tag', 'waveBand')) == 3 ...
+    && isempty(h.colorbar) && all(h.glyph > 0) && numel(findall(h.axes, 'Tag', 'unitLabels')) == 3, ...
+    'probe map, waveform "both" with a band: each unit a glyph (its mean, spikes and SD band) instead of a dot, no color bar, labeled');
+mx = reshape(mu.XData, [], 3);
+check(all(abs((min(mx) + max(mx)) / 2 - Tu.x.') < 1e-9) && all(abs((max(mx) - min(mx)) - h.glyph(1)) < 1e-9), ...
+    'each glyph centered on its unit, a glyph wide');
+tipG = findall(h.axes, 'Tag', 'unitArrows').Vertices(1:3, :);
+check(all(abs(tipG(:, 1) - Tu.x) >= h.glyph(1) / 2 - 1e-9 | abs(tipG(:, 2) - Tu.y) >= h.glyph(2) / 2 - 1e-9), ...
+    'with glyphs the arrows stop at the glyph''s box, not on it');
+Wt = Wp; Wt.from(:) = "template"; Wt.spikes(:) = {[]};
+h = renderProbeMap(Rq0, [], fig, Waveforms=Wt, Waveform=struct('mode', "template", 'band', "sem"));
+check(isscalar(findall(h.axes, 'Tag', 'waveMean')) && isempty(findall(h.axes, 'Tag', 'waveSpikes')) ...
+    && isempty(findall(h.axes, 'Tag', 'waveBand')) && ~isempty(h.colorbar) && numel(findall(h.axes, 'Tag', 'sites').XData) == 3, ...
+    'templates: the mean only, no band; units per site keep the sites colored and the color bar');
+h = renderProbeMap(Rq, [], fig, Waveforms=Wp, Waveform=struct('mode', "off"));
+check(~isempty(findall(h.axes, 'Tag', 'unitDots')) && isempty(findall(h.axes, 'Tag', 'waveMean')) && isequal(h.glyph, [0 0]), ...
+    'waveform mode "off": the dots, as before');
 check(isequal(shortUnitLabels(["su001_S-01_260918T1405"; "mua012_S-01_260918T1405"]), ["su001"; "mua012"]) ...
     && isequal(shortUnitLabels(["su001_S-01_A"; "su001_S-01_B"]), ["su001_S-01_A"; "su001_S-01_B"]) ...
     && isequal(shortUnitLabels(["A-000"; "A-001"]), ["A-000"; "A-001"]), ...
@@ -517,6 +568,19 @@ Rw3 = Rw; Rw3.waveforms.from(:) = "template"; Rw3.waveforms.spikes(:) = {[]};
 h = renderWaveforms(Rw3, fig11, Waveform=struct('mode', "subsample"));
 check(all(arrayfun(@(a) isscalar(part(a, "waveMean")) && isempty(part(a, "waveSpikes")) && endsWith(part(a, "waveLabel").String, "(template)"), h.axes)), ...
     'templates are drawn as the mean whatever the mode, and say so');
+h = renderWaveforms(Rw, fig11, Waveform=struct('mode', "mean", 'band', "std"));
+b = part(h.axes(1), "waveBand");   % the first tile is u2's (top of the probe first)
+sd2 = std(Ww.spikes{2}, 0, 2);
+check(all(arrayfun(@(a) isscalar(part(a, "waveBand")) && isempty(part(a, "waveSpikes")), h.axes)) ...
+    && max(abs(b.YData(1:61) - (Ww.mean{2} - sd2))) < 1e-9 && max(abs(flipud(b.YData(62:end)) - (Ww.mean{2} + sd2))) < 1e-9, ...
+    'band "std": the mean +/- the SD of its spikes behind each tile''s mean');
+h = renderWaveforms(Rw, fig11, Waveform=struct('mode', "mean", 'band', "sem"));
+b = part(h.axes(1), "waveBand");
+check(max(abs(b.YData(1:61) - (Ww.mean{2} - sd2 / sqrt(12)))) < 1e-9, 'band "sem": the SD over the square root of the 12 spikes');
+h = renderWaveforms(Rw, fig11, Layout="probe", Waveform=struct('mode', "both", 'band', "std"));
+check(numel(part(h.axes, "waveBand")) == 3 && isscalar(part(h.axes, "waveSpikes")), 'probe layout: a band per glyph');
+h = renderWaveforms(Rw3, fig11, Waveform=struct('mode', "template", 'band', "std"));
+check(all(arrayfun(@(a) isempty(part(a, "waveBand")) && isscalar(part(a, "waveMean")), h.axes)), 'a template has no band');
 check(strcmp(errorId(@() renderWaveforms(rmfield(Rw, 'waveforms'), fig11)), 'renderWaveforms:NoWaveforms'), ...
     'a result without waveforms: renderWaveforms:NoWaveforms');
 delete(fig11);

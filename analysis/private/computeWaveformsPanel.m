@@ -8,8 +8,9 @@ function P = computeWaveformsPanel(src, panel, E, G, ctx) %#ok<INUSL>
 %     R = struct(kind "waveforms", meta, labels, n, groups (one "all"
 %         row), probe, dataset)
 %     R.waveforms = unitWaveforms(src, meta, Source=, MaxSpikes=
-%         options.waveform.maxSpikes, Check=)
-%   (timeMs, mean, spikes, from, units, total, note, maxSpikes per unit).
+%         options.waveform.maxSpikes, Template= (mode "template"), Check=)
+%   (timeMs, mean, sd, nMean, spikes, from, units, total, note, maxSpikes
+%   per unit).
 %   In the probe layout (options.layout "probe") every further enabled
 %   layer is resolved too, without reading waveforms: R = struct(kind
 %   "ring", meta, source), the units the draw function rings on the probe
@@ -52,7 +53,8 @@ G1 = table(1, "all", [0.15 0.15 0.15], height(meta), 'VariableNames', {'index', 
 R = struct('kind', "waveforms", 'meta', meta, 'labels', meta.label, 'n', height(meta), 'groups', G1, 'probe', []);
 R.probe = src.probe;
 ctx.checkpoint();
-R.waveforms = unitWaveforms(src, meta, Source=L.source, MaxSpikes=o.waveform.maxSpikes, Check=ctx.check);
+R.waveforms = unitWaveforms(src, meta, Source=L.source, MaxSpikes=o.waveform.maxSpikes, ...
+    Template=o.waveform.mode == "template", Check=ctx.check);
 R.dataset = src.name;
 lay.R = R;
 lay.meta = meta;

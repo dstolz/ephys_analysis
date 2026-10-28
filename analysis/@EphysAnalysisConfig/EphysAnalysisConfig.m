@@ -138,6 +138,10 @@ classdef EphysAnalysisConfig
         % How a waveform's amplitude axis is scaled (options.waveform.ampScale): each unit its own range, one range for
         % the units drawn together, or the range ampLim.
         WaveformAmpScales = ["unit" "common" "fixed"]
+        % What a panel's waveform shows (options.waveform.mode): none, the mean, individual spikes, both, or a sorted
+        % unit's template; and the mean's error band (options.waveform.band): none, mean +/- SD, mean +/- SEM.
+        WaveformModes = ["off" "mean" "subsample" "both" "template"]
+        WaveformBands = ["off" "std" "sem"]
         % The error a figure draws as bands or bars (Style.ErrorType): mean +/- SEM, mean +/- SD, bootstrap 95% CI of the mean.
         ErrorTypes    = ["sem" "std" "ci95"]
         % What a continuous panel shows at each sample over the epochs (options.statistic), and of what
@@ -650,7 +654,8 @@ classdef EphysAnalysisConfig
             %   baseline; rate: measure, baseline, waveform, yLimMode; tuning:
             %   measure, baseline, waveform, stack, stackSpacing, yLimMode;
             %   waveforms: yLimMode (its waveform is its own settings, not
-            %   an inset); probemap: none. The spectral types (spectrum,
+            %   an inset); probemap: none (its waveform draws its units, not
+            %   an inset). The spectral types (spectrum,
             %   spectrogram, coherence): stack, stackSpacing and (spectrum,
             %   coherence) yLimMode only (their Chronux settings are their
             %   own; a spectrogram's baseline is chronuxNormalize's). The
@@ -662,7 +667,7 @@ classdef EphysAnalysisConfig
             row = T.Type == string(type);
             if ~any(row); return; end
             names = ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform" "stack" "stackSpacing" "yLimMode"];
-            if string(type) == "waveforms"; names(names == "waveform") = []; end
+            if ismember(string(type), ["waveforms" "probemap"]); names(names == "waveform") = []; end
             if ismember(string(type), ["spectrum" "spectrogram" "coherence"]); names = ["stack" "stackSpacing" "yLimMode"]; end
             f = names(isfield(T.DefaultOptions{row}, cellstr(names)));
         end

@@ -694,6 +694,7 @@ for k = 1:numel(obj.Figures)
                     add("Figures", o0 + ".value", "error", "A probe map shows rate, nSpikes or nUnits.");
                 end
                 checkFigLim(op.cLim, o0 + ".cLim", "color");
+                checkFigWaveform(op.waveform, o0 + ".waveform", false);
             case "corrmap"
                 if ~ismember(op.metric, ["mean" "peak"])
                     add("Figures", o0 + ".metric", "error", "A unit correlation map correlates each epoch's mean or peak rate.");
@@ -1023,15 +1024,18 @@ issues = table(Section, Field, Severity, Message);
     end
 
     function checkFigWaveform(hW, hW0, hOwn)
-        %checkFigWaveform  A raster / PSTH / rate / tuning panel's waveform inset, or (HOWN) a waveforms panel's settings.
+        %checkFigWaveform  A raster / PSTH / rate / tuning panel's waveform inset, a probe map's glyphs, or (HOWN) a waveforms panel's settings.
         %   Its mode always; while drawn, its place, size, spikes, time span and amplitude scale (ampLim with "fixed").
         if ~ismember(hW.ampScale, EphysAnalysisConfig.WaveformAmpScales)
             add("Figures", hW0 + ".ampScale", "error", "The waveform amplitude scale is unit, common or fixed.");
         end
-        if ~ismember(hW.mode, ["off" "mean" "subsample" "both"])
-            add("Figures", hW0 + ".mode", "error", "The waveform mode is off, mean, subsample or both.");
+        if ~ismember(hW.band, EphysAnalysisConfig.WaveformBands)
+            add("Figures", hW0 + ".band", "error", "The waveform's error band is off, std or sem.");
+        end
+        if ~ismember(hW.mode, EphysAnalysisConfig.WaveformModes)
+            add("Figures", hW0 + ".mode", "error", "The waveform mode is off, mean, subsample, both or template.");
         elseif hOwn && hW.mode == "off"
-            add("Figures", hW0 + ".mode", "error", "A unit waveforms panel shows the mean, a subsample or both: its waveform mode cannot be off.");
+            add("Figures", hW0 + ".mode", "error", "A unit waveforms panel shows the mean, a subsample, both or the template: its waveform mode cannot be off.");
         elseif hW.mode ~= "off"
             if ~ismember(hW.location, EphysAnalysisConfig.WaveformLocations)
                 add("Figures", hW0 + ".location", "error", "The waveform location is one of " + ...

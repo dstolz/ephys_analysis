@@ -209,7 +209,7 @@ needs = ["5d.observe" "5d.add"; "5d.layers" "5d.add"; "5d.keys" "5d.layers"; "5d
     "5d.filter" "5d.add"; "5d.pergroup" "5d.add"; "5d.ownsel" "5d.add"; "5d.conttrials" "5d.layers"; ...
     "5d.type" "5d.add"; "5d.applyall" "5d.layers"; "5d.look" "5d.add"; "5d.otherconfig" "5d.add"; ...
     "5d.remove" "5d.layers"; "5d.arrange" "5d.add"; "5d.newpanel" "5d.add"; "5d.follow" "5d.add"; ...
-    "5d.eventtrace" "5d.add"; "5d.psth" "5d.remove"; "5d.scan" "5d.add"; "5d.saveprefs" "5d.remove"];
+    "5d.probemap" "5d.add"; "5d.eventtrace" "5d.add"; "5d.psth" "5d.remove"; "5d.scan" "5d.add"; "5d.saveprefs" "5d.remove"];
 S = TestSections(mfilename, opts.Sections, Needs=needs);
 timing = onCleanup(@() S.done()); %#ok<NASGU> the sections' times, even after a failure on the way
 
@@ -1722,6 +1722,29 @@ if S.sec("5d.follow", "a panel made from a heat map or a probe map follows the o
             sprintf('a %s made a %s: its units layer follows the observation, and the preview draws %g unit', pair(1), pair(2), nShown));
         app.onRemoveFigure();
     end
+end
+
+if S.sec("5d.probemap", "a probe map's rows: Unit labels, the Waveform section (Off = circles, its glyphs' rows, the band with a mean), round trip")
+    app.FigureAutoCheckBox.Value = false;   % no redraw per edit (as 5d.add leaves it)
+    app.onAddFigure("probemap");
+    check(shown(FE.unitLabels) && ~FE.unitLabels.Value && shown(FE.waveMode) && string(FE.waveMode.Value) == "off" ...
+        && FE.waveMode.Items{1} == "Off (a circle per unit)" && any(string(FE.waveMode.ItemsData) == "template") ...
+        && shown(FE.waveWidth) && ~shown(FE.wavePP) && ~shown(FE.waveSites) && ~shown(FE.waveLocation) ...
+        && FE.waveBand.Enable == "off" && isequal(string(FE.waveAmp.ItemsData), EphysAnalysisConfig.WaveformAmpScales), ...
+        'a probe map: Unit labels in its options; its Waveform rows (Off: circles), no label, location or sites rows, the band off');
+    FE.unitLabels.Value = true;
+    FE.waveMode.Value = "mean";
+    app.onConfigChanged("figure");
+    FE.waveBand.Value = "std";
+    app.onConfigChanged("figure");
+    o = app.Config.Figures(2).panels(1).options;
+    bandOn = FE.waveBand.Enable == "on";
+    FE.waveMode.Value = "template";
+    app.onConfigChanged("figure");
+    check(o.unitLabels && o.waveform.mode == "mean" && o.waveform.band == "std" && bandOn && FE.waveBand.Enable == "off" ...
+        && FE.waveSpikes.Enable == "off" && app.Config.Figures(2).panels(1).options.waveform.mode == "template", ...
+        'the rows reach the options: unit labels, the mean with its SD band; a template takes no band and reads no spikes');
+    app.onRemoveFigure();
 end
 
 if S.sec("5d.eventtrace", "an event-trace panel: its template, its Options rows (those its display does not use grayed out), the preview")

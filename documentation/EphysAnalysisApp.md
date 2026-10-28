@@ -743,7 +743,7 @@ list edit the layer picked:
 | Continuous signal | **Baseline** and its window, **Stack** (*Off (overlaid)*, *One row per group* or *One row per channel*, with its **spacing**), **Signal** (mean or median; as recorded, rectified, or *Vector magnitude*: the layer's channels as one trace, √(x² + y² + z²) in each epoch after the baseline, e.g. a 3-axis accelerometer's AUX channels with Baseline *subtract*), **Error band** (off, mean ± SEM, mean ± SD, bootstrap 95% CI or interquartile range), **Trials** (*Off*, *Faint, behind the mean* or *Only the trials*) with **at most** (the most epochs drawn, 100 by default, picked evenly over their order; the traces sit under every band and mean; grayed out while *Off*), **Y limits** |
 | Heat map | **Bin**, **Smooth**, **Measure** and **Mask after the stop event** (a spike layer), **Baseline** (*auroc* for a spike layer, with the auROC rows; the map is then of auROCs in the diverging colormap), **Rows** (*the layer's units or channels*, or *one unit's epochs (trials)*), **Row order** (*probe*, *peak* or *modulation*, the last only with the auROC baseline), **Stack** (*One image row per group*: a block of rows per group, **Group shown** hidden), **Color limits**; the group drawn is in the Selected panel section. With *one unit's epochs (trials)* a row is an epoch of one unit, every group at once, sorted as a raster's rows: the raster's **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*) and **Rows by group first** show, **Row order** and **Group shown** hide, and the layer may follow the observation (its Binding row opens for a spike layer; otherwise fix it to one unit). The map is one unit's epochs: a layer that follows the observation through a channel (a channel observation, or the other spike source) keeps every unit on it, which Validate refuses, and a layer that still keeps several is skipped with *A heat map of trials draws one unit: this layer keeps n*. The groups are a color strip along the left edge, the y label names the sort, and the auROC baseline is refused |
 | Unit waveforms | **Layout** (*grid*: the unit, or several overlaid; *probe*: every unit of the first layer at its place on the probe, with the units of a further layer framed in red), **Y limits** (what is drawn, its scales and label: the [Waveform section](#the-waveform-section)) |
-| Probe map | **Value** (*rate*, *nSpikes* or *nUnits*), **Color limits** |
+| Probe map | **Value** (*rate*, *nSpikes* or *nUnits*), **Unit labels, with arrows** (each unit's name beside its shank, clear of the units, an arrow to each; the channel numbers are left off then), **Color limits**; its units drawn as waveforms instead of circles: the [Waveform section](#the-waveform-section) |
 | Unit correlation | **Epoch rate**, **Correlation**, **Fisher z transform**, **Baseline**, **Bin** and **Smooth** (for the *peak* rate), **Color limits** |
 | Firing rate | **Measure**, **Baseline** (*none*, *subtract*, *ratio* or *zscore*) and its window, **Display** (*bars (mean, error bar)*, *boxes* or *points (each epoch)*), **Y limits** (its waveform inset: the [Waveform section](#the-waveform-section)) |
 | Tuning curve | **Measure**, **Baseline** (as the firing rate panel's) and its window, **Parameter** (the trial parameter on the x axis; blank: the figure's first group-by parameter, else the first numeric one) with **series** (one curve per value of another trial parameter; blank: one curve), **Stack** (*One row per series*), **Y limits** (its waveform inset: the [Waveform section](#the-waveform-section)) |
@@ -759,9 +759,10 @@ selected panel's unit waveform, `options.waveform`
 firing rate or tuning curve panel an inset, the panel's first unit's waveform
 on its peak channel drawn in a corner of the panel, in the panel's data units
 as the Review tab draws it (a layer drawn as its units' mean has none); on a
-unit waveforms panel the panel itself. It shows for every panel type whose
+unit waveforms panel the panel itself; on a probe map each unit's glyph
+(*Off*: a circle per unit, colored by its value). It shows for every panel type whose
 layers may be spikes, titled with the panel's id, and starts with a note on
-what it sets there. A heat map, probe map, unit correlation or spectral panel
+what it sets there. A heat map, unit correlation or spectral panel
 draws no waveform: the section holds only the note, which says why and
 suggests a Unit waveforms panel beside it (the search, asked for one of its
 rows, says the same). A panel of signals or events only (continuous, event
@@ -769,16 +770,17 @@ traces) has no Waveform section.
 
 | Row | What it sets |
 | --- | --- |
-| Show | *Off* (no inset; a unit waveforms panel cannot be off), *Mean*, *Individual spikes* (thin, pale) or *Mean + individual spikes* (`mode`: `off`, `mean`, `subsample`, `both`). A unit whose spikes cannot be read draws its template as the mean, and says so |
+| Show | *Off* (no inset; a probe map's circles; a unit waveforms panel cannot be off), *Mean*, *Individual spikes* (thin, pale), *Mean + individual spikes* or *Template* (a sorted unit's: no spikes read; `mode`: `off`, `mean`, `subsample`, `both`, `template`), and at its right the mean's error band, *No band*, *± SD* or *± SEM* (`band`: over the spikes the mean is over; open with *Mean* or *Mean + individual spikes*). A unit whose spikes cannot be read draws its template as the mean, and says so |
 | Spikes drawn | how many of the unit's spikes are drawn one by one, at random but the same each time; a sorted unit's mean is over them, so it counts for *Mean* too (`maxSpikes`) |
 | Time (x, ms) | the x scale: the span drawn, from and to, ms from the spike; a blank field is the cut's edge, both blank the whole cut (`timeMs`: `[]`, or `[from to]` with `-Inf` / `Inf`). A span that misses the waveform draws all of it |
 | Amplitude (y) | the y scale: *Each unit's own range* (the waveform fills its box or tile), *One range for the units drawn* (a unit waveforms panel: the units' sizes can be compared, with a scale bar on the probe), or *Fixed range* with the range at its right in the waveform's units, µV for most (`ampScale`: `unit`, `common`, `fixed`; `ampLim`); a fixed range is the same for every observation, and an inset or probe glyph cuts what lies beyond it at its edge. On a unit waveforms panel in the grid layout the panel's own **Y limits** (Options), when not *Auto*, win |
-| Size | the inset's **width** and **height**, each a factor of its default, a third of the panel's (0.25 to 3); on a unit waveforms panel in the probe layout each glyph's (`width`, `height`) |
+| Size | the inset's **width** and **height**, each a factor of its default, a third of the panel's (0.25 to 3); on a probe map or a unit waveforms panel in the probe layout each glyph's (`width`, `height`) |
 | Inset location | where the inset sits (a compass point; `location`) and **Axis box** (its outline and pale ground; `box`): an inset only |
-| Label | **Peak-to-peak** (the mean's, over the whole cut; `showPP`) and **Spike count** (the unit's spikes in the whole recording; `showCount`) |
+| Label | **Peak-to-peak** (the mean's, over the whole cut; `showPP`) and **Spike count** (the unit's spikes in the whole recording; `showCount`); not on a probe map (its **Unit labels**, in Options, name the units) |
 | On the probe | **Sites** (the probe's sites behind the waveforms; `showSites`) and **Unit names** (`showNames`): a unit waveforms panel in the probe layout only |
 
-Every row but **Show** is grayed out while it is *Off*. **Apply to all panels**
+Every row but **Show** is grayed out while it is *Off*, **Spikes drawn** with
+*Template*. **Apply to all panels**
 (Options) copies the inset to every raster, PSTH, firing rate and tuning
 curve panel of the figure, and a type change from one of these to another
 keeps it. The inset's mean and spikes take their colors and line widths from

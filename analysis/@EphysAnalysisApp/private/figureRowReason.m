@@ -169,6 +169,7 @@ for f = ["etDisplay" "etTrials" "etColorBy" "etHeight" "etEdge" "etMinWidth" "et
     T.(f) = o("eventTrace", "");
 end
 T.value = o("probemap", "");
+T.unitLabels = o("probemap", "");
 for f = ["metric" "correlation" "fisherZ"]; T.(f) = o("corrmap", ""); end
 T.yLim = o(["psth" "continuous" "waveforms" "rate" "tuning" "spectrum" "coherence"], ...
     "on a PSTH with Display: trace, on a coherence panel unless drawn over time (an image's scale is its Color limits)");
@@ -207,12 +208,17 @@ if ~draws
 end
 switch key
     case {"waveLocation" "waveBox"}
-        why = label + " places an inset, on a " + inset + " panel: a unit waveforms panel's waveform is the panel itself.";
+        why = label + " places an inset, on a " + inset + " panel: a unit waveforms panel's waveform is the panel " + ...
+            "itself, a probe map's are at the units' places.";
     case {"waveWidth" "waveHeight"}
-        why = label + " sizes an inset (" + inset + " panels) or the glyphs of a unit waveforms panel in the probe " + ...
-            "layout: in the grid layout the waveform fills its panel.";
+        why = label + " sizes an inset (" + inset + " panels) or the glyphs of a probe map or of a unit waveforms " + ...
+            "panel in the probe layout: in the grid layout the waveform fills its panel.";
     case {"waveSites" "waveNames"}
-        why = label + " is for a unit waveforms panel in the probe layout (Options: Layout).";
+        why = label + " is for a unit waveforms panel in the probe layout (Options: Layout); a probe map draws its " + ...
+            "sites always, and names its units with Unit labels (Options).";
+    case {"wavePP" "waveCount"}
+        why = label + " labels an inset or a unit waveforms panel's waveform; a probe map names its units with " + ...
+            "Unit labels (Options).";
     otherwise
         why = label + " is not used by this panel's waveform.";
 end

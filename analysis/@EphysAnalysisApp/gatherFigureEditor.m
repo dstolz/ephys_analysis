@@ -286,6 +286,7 @@ end
 if isfield(op, 'rows'); op.rows = string(E.heatRows.Value); end
 if isfield(op, 'order'); op.order = string(E.order.Value); end
 if isfield(op, 'value'); op.value = string(E.value.Value); end
+if isfield(op, 'unitLabels'); op.unitLabels = logical(E.unitLabels.Value); end
 if isfield(op, 'metric')
     op.metric = string(E.metric.Value);
     op.correlation = string(E.correlation.Value);
@@ -341,6 +342,7 @@ end
 if own('waveform')
     wv = op.waveform;
     wv.mode = string(E.waveMode.Value);
+    wv.band = string(E.waveBand.Value);
     wv.maxSpikes = E.waveSpikes.Value;
     wv.timeMs = spanOf(E.waveFrom.Value, E.waveTo.Value);
     wv.ampScale = string(E.waveAmp.Value);

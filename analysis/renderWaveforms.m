@@ -6,9 +6,13 @@ function h = renderWaveforms(R, target, opts)
 %   (selectUnits' table) as the waveform settings say
 %   (EphysAnalysisConfig.defaults("Waveform")):
 %     mode       "mean" (the mean waveform), "subsample" (maxSpikes of the
-%                unit's spikes, thin) or "both"; "off" is read as "both". A
-%                template (no spikes read) is drawn as the mean whatever the
-%                mode, and says so
+%                unit's spikes, thin), "both" or "template" (the unit's
+%                template: unitWaveforms Template=true); "off" is read as
+%                "both". A template (no spikes read) is drawn as the mean
+%                whatever the mode, and says so
+%     band       the mean's error band (role "waveBand", errorPatch's look):
+%                "off", "std" (the SD of the spikes the mean is over) or
+%                "sem"; none on a template
 %     timeMs     the x scale: the span drawn, [from to] ms from the spike
 %                (-Inf / Inf: the cut's edge; [] = the whole cut:
 %                waveformSpan)
@@ -68,7 +72,7 @@ W = R.waveforms;
 nU = height(R.meta);
 P = cell(nU, 1);
 for u = 1:nU
-    P{u} = unitParts(W, u, wave.mode, wave.timeMs);
+    P{u} = waveformParts(W, u, wave);
 end
 if opts.Layout == "probe"
     h = probeLayout(R, W, P, target, wave, style, opts.Highlight);
@@ -101,11 +105,15 @@ for j = 1:numel(idx)
             lo = wave.ampLim(1);
             hi = wave.ampLim(2);
         else
-            [lo, hi] = valueRange(p);
+            lo = p.lo;
+            hi = p.hi;
         end
         pad = 0.08 * (hi - lo);
         if ~(pad > 0); pad = 1; end
         [spikeColor, meanColor, meanRole, group] = looks(S, u);
+        if p.band
+            errorPatch(ax, p.t, p.bandLo, p.bandHi, meanColor, group, style, "waveBand");
+        end
         if p.spikes
             tagPart(line(ax, repmat([p.t; NaN], size(p.S, 2), 1), reshape([p.S; NaN(1, size(p.S, 2))], [], 1), ...
                 'Color', spikeColor, 'LineWidth', 0.5), "waveSpikes", group);
@@ -193,48 +201,25 @@ end
 X0 = ux + shift(uc);
 L = sessionLooks(R, style);
 nL = max(1, numel(L.label));   % one spikes line and one means line per session (one in all without sessions)
-spk = cell(0, 1); mu = cell(0, 1); spkOf = zeros(0, 1); muOf = zeros(0, 1);
-common = zeros(nU, 1);
-fixed = wave.ampScale == "fixed" && numel(wave.ampLim) == 2 && wave.ampLim(2) > wave.ampLim(1);
-for u = find(placed).'
-    p = P{u};
-    [lo, hi] = valueRange(p);
-    span1 = hi - lo;
-    if wave.ampScale == "common"
-        common(u) = commonSpan(W, P, W.units(u));
-        span1 = common(u);
-    elseif fixed
-        lo = wave.ampLim(1);
-        hi = wave.ampLim(2);
-        common(u) = hi - lo;
-        span1 = common(u);
-    end
-    if ~(span1 > 0); span1 = 1; end
-    tspan = max(p.t) - min(p.t);
-    if ~(tspan > 0); tspan = 1; end
-    gx = X0(u) + gw * ((p.t - min(p.t)) / tspan - 0.5);
-    at = @(v) uy(u) + gh * (v - (lo + hi) / 2) / span1;
-    if fixed; at = @(v) uy(u) + gh * (min(max(v, lo), hi) - (lo + hi) / 2) / span1; end   % clipped at the fixed range
-    sk1 = 1;
-    if ~isempty(L.session); sk1 = L.session(u); end
-    if p.spikes
-        k = size(p.S, 2);
-        spk{end+1, 1} = [repmat([gx; NaN], k, 1), reshape([at(p.S); NaN(1, k)], [], 1)]; %#ok<AGROW>
-        spkOf(end+1, 1) = sk1; %#ok<AGROW>
-    end
-    if p.mean
-        mu{end+1, 1} = [gx, at(p.m); NaN NaN]; %#ok<AGROW>
-        muOf(end+1, 1) = sk1; %#ok<AGROW>
-    end
-end
+X1 = X0;
+X1(~placed) = NaN;
+Gl = waveformGlyphs(W, P, X1, uy, gw, gh, wave);
+common = Gl.span;
+of = ones(nU, 1);   % each unit's session (one in all without sessions)
+if ~isempty(L.session); of = L.session(:); end
 for s = 1:nL
     [spikeColor, meanColor, meanRole, group] = looks(L, find(L.session == s, 1));
-    if any(spkOf == s)
-        Sx = vertcat(spk{spkOf == s});
+    mine = Gl.placed & of == s;
+    for u = find(mine & ~cellfun(@isempty, Gl.band)).'
+        B = Gl.band{u};
+        errorPatch(ax, B(:, 1), B(:, 2), B(:, 3), meanColor, group, style, "waveBand");
+    end
+    Sx = vertcat(Gl.spikes{mine});
+    if ~isempty(Sx)
         tagPart(line(ax, Sx(:, 1), Sx(:, 2), 'Color', spikeColor, 'LineWidth', 0.5), "waveSpikes", group);
     end
-    if any(muOf == s)
-        M = vertcat(mu{muOf == s});
+    M = vertcat(Gl.mean{mine});
+    if ~isempty(M)
         tagPart(line(ax, M(:, 1), M(:, 2), 'Color', meanColor, 'LineWidth', max(1, style.LineWidth)), meanRole, group);
     end
 end
@@ -357,48 +342,12 @@ b = struct('line', line(ax, [x0 x0], [y0 y0 + gh * amp / span], 'Color', [0.2 0.
 end
 
 
-function p = unitParts(W, u, mode, timeMs)
-%unitParts  What to draw for unit U: its mean, spikes and time (in the span TIMEMS), and which of them the mode shows.
-p = struct('has', false, 'm', [], 't', [], 'S', [], 'spikes', false, 'mean', false, 'template', false, 'pp', NaN);
-if u > numel(W.mean) || isempty(W.mean{u}); return; end
-p.has = true;
-p.pp = max(W.mean{u}) - min(W.mean{u});   % the unit's, whatever span is drawn
-[p.t, p.m, p.S] = waveformSpan(W.timeMs{u}(:), W.mean{u}(:), W.spikes{u}, timeMs);
-p.template = W.from(u) == "template";
-p.spikes = ismember(mode, ["subsample" "both"]) && ~isempty(p.S) && ~p.template;
-p.mean = ismember(mode, ["mean" "both"]) || ~p.spikes;
-if ~p.spikes; p.S = []; end
-end
-
-
-function [lo, hi] = valueRange(p)
-%valueRange  The lowest and highest value drawn for a unit.
-V = p.m;
-if p.spikes; V = [p.m p.S]; end
-lo = min(V(:));
-hi = max(V(:));
-if ~(hi > lo); lo = lo - 1; hi = hi + 1; end
-end
-
-
 function [lo, hi] = commonRange(W, P, units)
 %commonRange  The range of every drawn unit whose values are of the kind UNITS.
 lo = Inf; hi = -Inf;
 for u = 1:numel(P)
     if ~P{u}.has || W.units(u) ~= units; continue; end
-    [l, h] = valueRange(P{u});
-    lo = min(lo, l); hi = max(hi, h);
-end
-end
-
-
-function span = commonSpan(W, P, units)
-%commonSpan  The largest peak-to-peak range of the drawn units whose values are of the kind UNITS.
-span = 0;
-for u = 1:numel(P)
-    if ~P{u}.has || W.units(u) ~= units; continue; end
-    [l, h] = valueRange(P{u});
-    span = max(span, h - l);
+    lo = min(lo, P{u}.lo); hi = max(hi, P{u}.hi);
 end
 end
 

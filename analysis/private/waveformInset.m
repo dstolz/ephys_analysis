@@ -14,22 +14,22 @@ function waveformInset(ax, W, u, opt, style)
 %   in the waveform's units; what lies beyond it is drawn at its edge).
 %   With OPT.showPP / OPT.showCount the label says the p-p amplitude / the
 %   unit's total number of spikes (W.total, not just those drawn); with
-%   OPT.box it has an outline and a pale ground. A template (no spikes
-%   read) is drawn as the mean whatever the mode, and says so. Nothing is
-%   drawn for mode "off" or a unit without a waveform. The parts are tagged
-%   waveBox, waveSpikes, waveMean and waveLabel, and kept out of legends.
+%   OPT.box it has an outline and a pale ground. A template (mode
+%   "template", or no spikes read) is drawn as the mean whatever the mode,
+%   and says so; OPT.band ("std" / "sem") draws the mean's error band
+%   (waveformParts). Nothing is drawn for mode "off" or a unit without a
+%   waveform. The parts are tagged waveBox, waveBand, waveSpikes, waveMean
+%   and waveLabel, and kept out of legends.
 
 if opt.mode == "off" || isempty(W) || ~isfield(W, 'mean') || u > numel(W.mean) || isempty(W.mean{u})
     return
 end
-m = W.mean{u}(:);
-t = W.timeMs{u}(:);
-S = W.spikes{u};
-pp = max(m) - min(m);               % the unit's, whatever span is drawn
-[t, m, S] = waveformSpan(t, m, S, opt.timeMs);
-template = W.from(u) == "template";
-showSpikes = ismember(opt.mode, ["subsample" "both"]) && ~isempty(S) && ~template;
-showMean = ismember(opt.mode, ["mean" "both"]) || ~showSpikes;
+p = waveformParts(W, u, opt);
+t = p.t;
+m = p.m;
+S = W.spikes{u};                    % the spikes read, for the count
+pp = p.pp;
+template = p.template;
 
 % --- the box, in fractions of the axes as seen (0 0 = bottom left) ------------------
 xl = xlim(ax);
@@ -49,10 +49,8 @@ X = @(fx) toData(fx, xl, ax.XScale, ax.XDir);
 Y = @(fy) toData(fy, yl, ax.YScale, ax.YDir);
 
 % --- the waveform on the box's scale: the top fifth is the label --------------------
-V = m;
-if showSpikes; V = [m S]; end
-lo = min(V(:));
-hi = max(V(:));
+lo = p.lo;
+hi = p.hi;
 if opt.ampScale == "fixed" && numel(opt.ampLim) == 2 && opt.ampLim(2) > opt.ampLim(1)
     lo = opt.ampLim(1);
     hi = opt.ampLim(2);
@@ -69,12 +67,15 @@ if opt.box
     tagPart(patch(ax, X(x0 + [0 fw fw 0]), Y(y0 + [0 0 fh fh]), paleColor([1 1 1], 1, style), 'FaceAlpha', 0.85, ...
         'EdgeColor', [0.6 0.6 0.6], 'HandleVisibility', 'off'), "waveBox");
 end
-if showSpikes
-    K = size(S, 2);
-    tagPart(line(ax, repmat([xw; NaN], K, 1), reshape([yOf(S); NaN(1, K)], [], 1), ...
+if p.band
+    errorPatch(ax, xw, yOf(p.bandLo), yOf(p.bandHi), [0.80 0.10 0.10], "", style, "waveBand");
+end
+if p.spikes
+    K = size(p.S, 2);
+    tagPart(line(ax, repmat([xw; NaN], K, 1), reshape([yOf(p.S); NaN(1, K)], [], 1), ...
         'Color', [0.30 0.45 0.75 0.25], 'LineWidth', 0.5, 'HandleVisibility', 'off'), "waveSpikes");
 end
-if showMean
+if p.mean
     tagPart(line(ax, xw, yOf(m), 'Color', [0.80 0.10 0.10], 'LineWidth', max(1, style.LineWidth), ...
         'HandleVisibility', 'off'), "waveMean");
 end

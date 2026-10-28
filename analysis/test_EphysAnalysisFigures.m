@@ -1322,6 +1322,17 @@ if S.sec("6", "config: validate")
         'tuning: param and seriesParam (names, not the same), its waveform inset; a "between" window; no auROC baseline');
     b = base.addFigure("probemap", Id="pm"); b.Figures(2).panels.options.value = "x";
     check(has(b, "pm.probemap_1.options.value", "error"), 'probemap: value');
+    b = base.addFigure("probemap", Id="pm"); b.Figures(2).panels.options.waveform.mode = "huge";
+    b.Figures(2).panels.options.waveform.band = "ci";
+    b2 = base.addFigure("probemap", Id="pm"); b2.Figures(2).panels.options.waveform.mode = "template";
+    b2.Figures(2).panels.options.waveform.band = "sem"; b2.Figures(2).panels.options.unitLabels = true;
+    check(has(b, "pm.probemap_1.options.waveform.mode", "error") && has(b, "pm.probemap_1.options.waveform.band", "error") ...
+        && ~any(startsWith(figIssues(b2).Field, "pm.")), ...
+        'probemap: its waveform''s mode and band are checked; template, a band and unit labels are fine');
+    pm = base.addFigure("probemap", Id="pm").figureFor("pm").panels.options;
+    check(pm.waveform.mode == "off" && pm.waveform.band == "off" && ~pm.unitLabels ...
+        && ~ismember("waveform", EphysAnalysisConfig.sharedFieldsOf("probemap")), ...
+        'probemap: circles and no labels by default; its waveform is not shared with the insets');
     b = base.addFigure("corrmap", Id="cm"); b.Figures(2).panels.options.metric = "max"; b.Figures(2).panels.options.correlation = "kendall";
     b2 = base.addFigure("corrmap", Id="cm"); b2.Figures(2).panels.options.metric = "peak"; b2.Figures(2).panels.options.bins.BinSec = 0;
     check(has(b, "cm.corrmap_1.options.metric", "error") && has(b, "cm.corrmap_1.options.correlation", "error") ...

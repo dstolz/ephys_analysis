@@ -1038,8 +1038,15 @@ E.order = uidropdown(S.Body, "Items", ["probe" "peak" "modulation"], "ValueChang
     "modulation (the auROC baseline): by the mean auROC in the call window, highest first.");
 place(E.order, r, 2);
 [S, r] = formRow(S, "value", "Value:");
-E.value = uidropdown(S.Body, "Items", ["rate" "nSpikes" "nUnits"], "ValueChangedFcn", changed, "Tooltip", "What colors each site.");
+E.value = uidropdown(S.Body, "Items", ["rate" "nSpikes" "nUnits"], "ValueChangedFcn", changed, "Tooltip", ...
+    "What colors each unit (rate, nSpikes) or each site (nUnits). Units drawn as waveforms (Waveform: Show) are " + ...
+    "not colored.");
 place(E.value, r, 2);
+[S, r] = formRow(S, "unitLabels", "");
+E.unitLabels = uicheckbox(S.Body, "Text", "Unit labels, with arrows", "ValueChangedFcn", changed, "Tooltip", ...
+    "Each unit's name beside its shank, clear of the units, with an arrow to the unit. The channel numbers are " + ...
+    "left off then.");
+place(E.unitLabels, r, [1 2]);
 [S, r] = formRow(S, "metric", "Epoch rate:");
 E.metric = uidropdown(S.Body, "Items", ["mean" "peak"], "ValueChangedFcn", changed, ...
     "Tooltip", "Each epoch's mean rate over its window, or its peak binned rate.");
@@ -2003,10 +2010,12 @@ end
 function [S, E] = waveformSection(eg, E, changed, color)
 %waveformSection  The Waveform section: the selected panel's unit waveform (options.waveform), its rows in E.
 %   An inset on a raster, PSTH, firing rate or tuning curve panel, the
-%   panel itself on a unit waveforms panel. syncFigureEditor shows it for
+%   panel itself on a unit waveforms panel, the units' glyphs on a probe
+%   map. syncFigureEditor shows it for
 %   every type whose layers may be spikes, with a note (waveformNote) on
 %   what it sets there or why the type draws none, and the rows the type
-%   uses: what is shown and how many spikes; the x scale (the time span,
+%   uses: what is shown (and the mean's error band) and how many spikes;
+%   the x scale (the time span,
 %   ms from the spike) and the y scale (each unit's range, one for the
 %   units drawn, or a fixed range); the size of an inset or of a probe
 %   layout's glyphs; an inset's place and box; the label; a probe layout's
@@ -2016,12 +2025,16 @@ S = formSection(eg, 17, "waveform", "Waveform", Color=color);
 [S, r] = formRow(S, "waveNote", "", 46);
 E.waveNote = uilabel(S.Body, "Text", "", "FontColor", gray, "WordWrap", "on", "VerticalAlignment", "top");
 place(E.waveNote, r, [1 2]);
-[S, r] = formRow(S, "waveMode", "Show:");
-E.waveMode = uidropdown(S.Body, "Items", ["Off" "Mean" "Individual spikes" "Mean + individual spikes"], ...
-    "ItemsData", ["off" "mean" "subsample" "both"], "Value", "off", "ValueChangedFcn", changed, ...
-    "Tooltip", "The unit's waveform on its peak channel: its mean, its individual spikes (thin, pale), or both. " + ...
-    "Off: none. A unit whose spikes cannot be read draws its template as the mean, and says so.");
-place(E.waveMode, r, 2);
+[S, r] = formRow(S, ["waveMode" "waveBand"], "Show:");
+mg = subgrid(S.Body, r, {'1x', 'fit'});
+E.waveMode = uidropdown(mg, "Items", ["Off" "Mean" "Individual spikes" "Mean + individual spikes" "Template"], ...
+    "ItemsData", EphysAnalysisConfig.WaveformModes, "Value", "off", "ValueChangedFcn", changed, ...
+    "Tooltip", "The unit's waveform on its peak channel: its mean, its individual spikes (thin, pale), both, or " + ...
+    "its template (a sorted unit's: no spikes read). Off: none (a probe map: a circle per unit). A unit whose " + ...
+    "spikes cannot be read draws its template as the mean, and says so.");
+E.waveBand = uidropdown(mg, "Items", ["No band" "± SD" "± SEM"], "ItemsData", EphysAnalysisConfig.WaveformBands, ...
+    "Value", "off", "ValueChangedFcn", changed, "Tooltip", "An error band round the mean: the SD of the spikes " + ...
+    "it is over, or its SEM. None on a template.");
 [S, r] = formRow(S, "waveSpikes", "Spikes drawn:");
 E.waveSpikes = uispinner(S.Body, "Limits", [1 2000], "Step", 50, "Value", 100, "RoundFractionalValues", "on", ...
     "ValueChangedFcn", changed, "Tooltip", "How many of the unit's spikes are drawn one by one, picked at random " + ...

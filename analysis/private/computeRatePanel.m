@@ -50,7 +50,7 @@ for j = find(arrayfun(@(l) l.skip == "", P.layers))
     wf = o.waveform;
     if isstruct(wf) && wf.mode ~= "off"
         ctx.checkpoint();
-        R.waveforms = unitWaveforms(src, meta, Source=L.source, MaxSpikes=wf.maxSpikes, Check=ctx.check);
+        R.waveforms = unitWaveforms(src, meta, Source=L.source, MaxSpikes=wf.maxSpikes, Template=wf.mode == "template", Check=ctx.check);
     end
     lay.R = R;
     lay.meta = meta;

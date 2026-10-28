@@ -13,7 +13,8 @@ function hk = drawWaveformsPanel(ax, P, look)
 %                  range)
 %     several      (a fixed layer of several units) every unit's mean
 %                  overlaid in a color of its own (role "waveMean", group =
-%                  the unit's label), the spike time marked, each unit in
+%                  the unit's label; its waveform.band behind it, role
+%                  "waveBand"), the spike time marked, each unit in
 %                  the legend; the waveform's time span (timeMs) and, with
 %                  ampScale "fixed", its ampLim as the y limits (the
 %                  panel's own y limits, yLimMode not "auto", win)
@@ -79,9 +80,18 @@ end
 hold(ax, 'on');
 drew = false;
 wave = EphysAnalysisConfig.normalizeSection("Waveform", o.waveform);
+parts = arrayfun(@(u) waveformParts(W, u, wave), 1:nU, 'UniformOutput', false);
+for u = reshape(order, 1, [])   % the bands first, behind every mean
+    p = parts{u};
+    if ~p.band; continue; end
+    g = names(u);
+    if ~isempty(ser); g = serLabel(ser(u)); end
+    errorPatch(ax, p.t, p.bandLo, p.bandHi, C(u, :), g, st, "waveBand");
+end
 for u = reshape(order, 1, [])
-    if u > numel(W.mean) || isempty(W.mean{u}); continue; end
-    [t, m] = waveformSpan(W.timeMs{u}(:), W.mean{u}(:), [], wave.timeMs);
+    if ~parts{u}.has; continue; end
+    t = parts{u}.t;
+    m = parts{u}.m;
     if isempty(ser)
         hk.legendHandles(end+1) = tagPart(line(ax, t, m, 'Color', C(u, :), ...
             'LineWidth', max(1, style.LineWidth)), "waveMean", names(u));

@@ -77,10 +77,12 @@ function syncFigureEditor(obj)
 %                    hold units or detected: figureEditorChoices), titled
 %                    with the panel's id: a note (waveformNote: what it
 %                    sets, or why the type draws no waveform), then, where
-%                    the type draws one, Show, Spikes drawn, Time (x),
-%                    Amplitude (y) and Label; Size and Inset location on a
-%                    raster, PSTH, rate or tuning panel (an inset), Size and
-%                    On the probe on a waveforms panel in the probe layout
+%                    the type draws one, Show (and its band), Spikes drawn,
+%                    Time (x), Amplitude (y) and Label; Size and Inset
+%                    location on a raster, PSTH, rate or tuning panel (an
+%                    inset), Size and On the probe on a waveforms panel in
+%                    the probe layout, Size on a probe map (no Label: its
+%                    Unit labels row, in Options, names the units)
 %     Text note, Overlays   with a panel selected: the panel's note rows
 %                    (its look enabled with text; x and y with "At x, y")
 %                    and its overlay list with the rows of the overlay
@@ -103,7 +105,8 @@ function syncFigureEditor(obj)
 %   with Responsive only, the baseline window with a baseline, the fill
 %   opacity when filled, the sort event with "event", the
 %   waveform's rows when it is not Off (its range's fields with the fixed
-%   amplitude), the bins of a unit
+%   amplitude; Spikes drawn but with Template, the band with a mean), the
+%   bins of a unit
 %   correlation for its peak rate, the mask with a stop event, the stack
 %   spacing when stacked, the error and legend rows with their boxes, each
 %   Move button when the panel has a same-shaped neighbor that way, and
@@ -215,7 +218,7 @@ layerKeys = ["layerList" "layerAdd" "layerNote" "layerName" "layerSource" "layer
 optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort" "sortLine" "sortSeqText" "rasterByGroup" "yTicks" "tickColor" "tickWidth" "backColor" ...
     "firstSpike" "latencyBox" "onsetLine" "trialCount" ...
     "maskAfterStop" "psthDisplay" "histStyle" "fill" "normalize" "statistic" "errorType" "order" ...
-    "value" "metric" "correlation" "fisherZ" "yLim" "cLim" "panelColormap" ...
+    "value" "unitLabels" "metric" "correlation" "fisherZ" "yLim" "cLim" "panelColormap" ...
     "optApplyAll" "auMethod" "auWinMs" "auModFrom" "auCutoff" "auTest" "auMarks" "stack" "param" "rateDisplay" "waveLayout" ...
     "contTrials" "heatRows" "spTimeBase" "spRangeFrom" "spSegment" "spTaperMode" "spTW" "spW" "spPad" "spFmin" "spErr" ...
     "spDetrend" "spScale" "spSpikeFs" "spOverTime" "spWin" "spShowPhase" "etDisplay" "etTrials" "etColorBy" "etHeight" ...
@@ -339,6 +342,7 @@ if hasPanel
     en([E.etBaseColor E.etBaseStyle E.etBaseWidth], E.etBaseline.Value);
     if trialHeat; v.group = false; end   % a heat map of trials draws every group
     v.value = t == "probemap";
+    v.unitLabels = v.value;
     v.metric = t == "corrmap"; v.correlation = v.metric; v.fisherZ = v.metric;
     v.yLim = ismember(t, ["psth" "continuous" "waveforms" "rate" "tuning" "spectrum"]) && ~psthHeat;
     v.cLim = ismember(t, ["heatmap" "probemap" "corrmap" "spectrogram"]) || psthHeat;
@@ -397,12 +401,16 @@ if hasPanel
     E.waveNote.Text = waveText;
     inset = ismember(t, EphysAnalysisConfig.WaveformInsetTypes);
     probe = t == "waveforms" && string(E.waveLayout.Value) == "probe";
+    glyphs = probe || t == "probemap";   % the units' waveforms at their places on the probe
     v.waveNote = waveSpiky;
-    v.waveMode = draws; v.waveSpikes = draws; v.waveFrom = draws; v.waveAmp = draws; v.wavePP = draws;
-    v.waveWidth = inset || probe; v.waveLocation = inset; v.waveSites = probe;
-    waveOn = string(E.waveMode.Value) ~= "off";
+    v.waveMode = draws; v.waveSpikes = draws; v.waveFrom = draws; v.waveAmp = draws; v.wavePP = draws && t ~= "probemap";
+    v.waveWidth = inset || glyphs; v.waveLocation = inset; v.waveSites = probe;
+    mode = string(E.waveMode.Value);
+    waveOn = mode ~= "off";
     en([E.waveSpikes E.waveFrom E.waveTo E.waveAmp E.waveWidth E.waveHeight E.waveLocation E.waveBox E.wavePP E.waveCount ...
         E.waveSites E.waveNames], waveOn);
+    en(E.waveSpikes, ismember(mode, ["mean" "subsample" "both"]));   % a template reads no spikes
+    en(E.waveBand, ismember(mode, ["mean" "both"]));
     en([E.waveAmpLo E.waveAmpHi], waveOn && string(E.waveAmp.Value) == "fixed");
 
     % the panel's own alignment

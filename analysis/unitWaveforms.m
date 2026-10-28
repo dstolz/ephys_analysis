@@ -1,6 +1,6 @@
 function W = unitWaveforms(src, meta, opts)
 %unitWaveforms  Each unit's spike waveform on its peak channel, for a plot's waveform boxes.
-%   W = unitWaveforms(SRC, META, Source=, MaxSpikes=, Check=) takes the dataset SRC
+%   W = unitWaveforms(SRC, META, Source=, MaxSpikes=, Template=, Check=) takes the dataset SRC
 %   (loadAnalysisSource) and the units META (selectUnits' table, one row
 %   per unit, in the plot's order) and gives each unit's waveform:
 %     Source "units" (sorted units, by META.unitId): at most MaxSpikes of
@@ -10,12 +10,16 @@ function W = unitWaveforms(src, meta, opts)
 %       EphysDataset.readPhyWaveforms), and their mean. When they cannot be
 %       read (the sorted .bin is not there) the unit's template
 %       (units.templateWaveform) is its mean, with no spikes; the warning
-%       unitWaveforms:Templates and W.note say why.
+%       unitWaveforms:Templates and W.note say why. With Template=true
+%       (a waveform setting's mode "template") only the templates are
+%       read, no spikes.
 %     Source "detected" (a channel's threshold detections, by
 %       META.unitId = the channel): the waveforms the spikes file keeps
 %       (the Spikes step's Waveforms option), MaxSpikes of them at random,
 %       and the mean of them all. A spikes file without waveforms gives
 %       none: the warning unitWaveforms:NoWaveforms and W.note say so.
+%       Detections have no template: Template=true gives none, and W.note
+%       says so.
 %   With SRC.outputs' CacheData (loadAnalysisSource's) the spikes are read
 %   once per unit and count, so a redraw does not read them again. Check is
 %   a function handle called with no input before each unit (default []); it
@@ -24,6 +28,10 @@ function W = unitWaveforms(src, meta, opts)
 %   W fields (one row per unit of META)
 %     timeMs     {nU x 1} [nt x 1] ms from the spike (0 = its sample)
 %     mean       {nU x 1} [nt x 1] the mean waveform ([] when none)
+%     sd         {nU x 1} [nt x 1] the SD of the spikes the mean is over
+%                ([] for a template, or none)
+%     nMean      [nU x 1] how many spikes the mean is over (0 for a
+%                template, or none)
 %     spikes     {nU x 1} [nt x k] the spikes, k <= MaxSpikes ([] for a
 %                template, or none)
 %     from       [nU x 1] "spikes" | "template" | "none"
@@ -42,19 +50,21 @@ arguments
     meta table
     opts.Source (1,1) string {mustBeMember(opts.Source, ["units" "detected"])} = "units"
     opts.MaxSpikes (1,1) double {mustBePositive, mustBeInteger} = 100
+    opts.Template (1,1) logical = false
     opts.Check = []
 end
 
 nU = height(meta);
-W = struct('timeMs', {cell(nU, 1)}, 'mean', {cell(nU, 1)}, 'spikes', {cell(nU, 1)}, ...
-    'from', repmat("none", nU, 1), 'units', strings(nU, 1), 'total', zeros(nU, 1), 'note', "", ...
-    'maxSpikes', opts.MaxSpikes);
+W = struct('timeMs', {cell(nU, 1)}, 'mean', {cell(nU, 1)}, 'sd', {cell(nU, 1)}, 'nMean', zeros(nU, 1), ...
+    'spikes', {cell(nU, 1)}, 'from', repmat("none", nU, 1), 'units', strings(nU, 1), 'total', zeros(nU, 1), ...
+    'note', "", 'maxSpikes', opts.MaxSpikes);
 if nU == 0; return; end
 out = src.outputs;
 switch opts.Source
     case "units"
         U = out.load("sorting");
         unread = "";                       % why the sorted data cannot be read: templates from then on
+        if opts.Template; unread = "templates asked for"; end
         for u = 1:nU
             if ~isempty(opts.Check); opts.Check(); end
             id = double(meta.unitId(u));
@@ -64,6 +74,8 @@ switch opts.Source
                     if size(w, 2) > 0
                         W.spikes{u} = w;
                         W.mean{u} = mean(w, 2);
+                        W.sd{u} = std(w, 0, 2);
+                        W.nMean(u) = size(w, 2);
                         W.timeMs{u} = double(info.timeMs(:));
                         W.from(u) = "spikes";
                         W.units(u) = string(info.units);
@@ -88,11 +100,17 @@ switch opts.Source
                 W.units(u) = string(U.templateUnits);
             end
         end
-        if unread ~= ""
+        if opts.Template
+            if any(W.from == "none"); W.note = "The sorting keeps no template for some of the units."; end
+        elseif unread ~= ""
             W.note = "The sorted spikes cannot be read, so the units' templates are drawn: " + unread;
             warning('unitWaveforms:Templates', '%s: %s', src.name, W.note);
         end
     case "detected"
+        if opts.Template
+            W.note = "Detected spikes have no template (a sorted unit has).";
+            return
+        end
         S = out.load("spikes", "detected");
         D = S.detected;
         if ~isfield(D, 'wf') || isempty(D.wf) || ~isfield(D.info, 'waveformTimeMs')
@@ -108,6 +126,8 @@ switch opts.Source
             w = double(D.wf{k}).';         % [nWin x nSpikes]
             W.mean{u} = mean(w, 2);
             n = size(w, 2);
+            W.sd{u} = std(w, 0, 2);
+            W.nMean(u) = n;
             if n > opts.MaxSpikes
                 pick = sort(randperm(RandStream('mt19937ar', 'Seed', 0), n, opts.MaxSpikes));
                 w = w(:, pick);

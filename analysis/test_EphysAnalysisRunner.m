@@ -408,6 +408,15 @@ for u = find(isS).'
 end
 check(any(isS) && vals && any(cellfun(@(w) size(w, 2), W2.spikes(isS)) == 5) && W2.units(find(isS, 1)) == "whitened" && W2.note == "", ...
     'with the sorted .bin the spikes are cut on each unit''s peak channel, at most maxSpikes of them, and averaged');
+k1 = find(isS, 1);
+check(max(abs(W2.sd{k1} - std(W2.spikes{k1}, 0, 2))) < 1e-12 && W2.nMean(k1) == size(W2.spikes{k1}, 2), ...
+    'W.sd and W.nMean: the SD of the spikes the mean is over, and how many');
+lastwarn('');
+Wt = unitWaveforms(src, metaW, Source="units", MaxSpikes=5, Template=true);
+[~, widT] = lastwarn();
+check(all(Wt.from == "template") && isequal(Wt.mean{1}, W.mean{1}) && all(cellfun(@isempty, Wt.spikes)) ...
+    && all(Wt.nMean == 0) && Wt.note == "" && string(widT) == "", ...
+    'Template=true: the templates even with the sorted .bin there, no spikes read, no warning');
 delete(datFile);
 W3 = unitWaveforms(src, metaW, Source="units", MaxSpikes=5);
 check(all(W3.total(W3.from == "spikes") >= cellfun(@(s) size(s, 2), W3.spikes(W3.from == "spikes"))) ...
@@ -421,6 +430,9 @@ wf1 = double(Dd.wf{double(Dd.channels) == metaD.unitId(u1)}).';
 check(~isempty(u1) && max(abs(Wd.mean{u1} - mean(wf1, 2))) < 1e-9 && size(Wd.spikes{u1}, 2) == min(5, size(wf1, 2)) ...
     && Wd.units(u1) == "uV" && isequal(Wd.timeMs{u1}, double(Dd.info.waveformTimeMs(:))) && Wd.note == "", ...
     'detections: the spikes file''s waveforms, maxSpikes of them drawn, the mean over all of them');
+check(max(abs(Wd.sd{u1} - std(wf1, 0, 2))) < 1e-9 && Wd.nMean(u1) == size(wf1, 2), 'detections: W.sd over all of them, as the mean is');
+WdT = unitWaveforms(src, metaD, Source="detected", Template=true);
+check(all(WdT.from == "none") && contains(WdT.note, "no template"), 'detections have no template: none, and W.note says so');
 src.outputs.clearCache();
 
 fprintf('\n== 8. one figure per trial group, a report per dataset ==\n');

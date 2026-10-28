@@ -735,7 +735,8 @@ the rate axes of a PSTH). The `waveform` settings
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `mode` | `"off"` | `"mean"`, `"subsample"` (the individual spikes read, thin and pale), `"both"` (the mean over the spikes), or `"off"` |
+| `mode` | `"off"` | `"mean"`, `"subsample"` (the individual spikes read, thin and pale), `"both"` (the mean over the spikes), `"template"` (a sorted unit's template, `units.templateWaveform`: no spikes read; detections have none), or `"off"` |
+| `band` | `"off"` | an error band round the mean: `"std"` (the SD of the spikes the mean is over: `maxSpikes` of a sorted unit's, all of a detection channel's), `"sem"` (that SD over the square root of their number), or `"off"`; none on a template. Role `waveBand`, drawn as every [error band](#error-bands) is (`ErrorFaceColor`, `ErrorFaceAlpha`, ...) |
 | `maxSpikes` | 100 | the spikes drawn per unit, picked at random (the same ones each run) |
 | `timeMs` | `[]` | the x scale: the span drawn, `[from to]` ms from the spike (`-Inf` / `Inf`: the cut's edge); `[]` = the whole cut. A span holding fewer than two samples draws the whole cut |
 | `width` | 1 | the box's width: 1 = a third of the panel's; at most 3 |
@@ -755,7 +756,7 @@ detections, the waveforms the spikes file keeps (the Spikes step's
 `Waveforms` option; none without it, and a warning) and the mean of them
 all. Each box is on its own amplitude scale unless `ampScale` is `"fixed"`; its label gives the mean's
 peak-to-peak amplitude. The box keeps the tile's limits, stays out of
-the legend and its parts (`waveBox`, `waveSpikes`, `waveMean`,
+the legend and its parts (`waveBox`, `waveBand`, `waveSpikes`, `waveMean`,
 `waveLabel`) take [aesthetics](EphysAnalysis.md#plot-aesthetics) like any other.
 
 ### Waveforms panels
@@ -1312,7 +1313,19 @@ What each draws:
 - `probemap`: the layer's units on the probe, each at its own position and
   colored by its rate or spike count (`options.value` `nUnits`: the sites
   colored by their units, the units as dots); the observed unit (a channel
-  observation: the channel's site) is ringed.
+  observation: the channel's site) is ringed. With a `waveform.mode` other
+  than `"off"` each unit is its waveform instead, a glyph centered on its
+  position as a waveforms panel's probe layout draws it (`mode`, `band`,
+  `timeMs`, `ampScale`, `ampLim`, `width`, `height`; the values then color
+  no unit and there is no color bar), the observed unit's glyph framed in
+  red. `options.unitLabels` writes each unit's name in a column beside its
+  shank, clear of the units, with a leader and an arrowhead stopping short
+  of the unit (dot or glyph): one shank, the units right of its middle
+  labeled on its right, the others on its left; several, the first shank's
+  on its left and every other one's on its right, so each gap between
+  shanks holds one column. The labels keep their units' heights where they
+  can and spread apart where they would overlap (at the size drawn); the
+  channel numbers are left off then.
 - `corrmap`: the pairwise correlation of the layer's units' per-epoch rates for
   the trial group `options.group`.
 - `rate`: a firing rate panel for the observed unit: each
@@ -1648,10 +1661,12 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `heatmap` | `cLim` | `[]` | the color scale |
 | `heatmap` | `maskAfterStop` | `false` | spike layers: as the PSTH's |
 | `waveforms` | `layout` | `"grid"` | `"grid"`: the observed unit's waveform, or the means of a fixed layer's units overlaid; `"probe"`: every unit of the first enabled layer at its place on the probe, a further layer's units framed in red (bind the first layer to fixed units: validate warns when it follows the observation, which draws one glyph). Several enabled layers are not a warning in the probe layout |
-| `waveforms` | `waveform` | [Waveform](#unit-waveforms), `mode "both"` | `mode` `"mean"`, `"subsample"` or `"both"` (never `"off"`), `maxSpikes` (the spikes drawn), `timeMs`, `ampScale` and `ampLim`, and `showPP` / `showCount` (the label). `width` and `height` (the glyphs' size), `showSites` and `showNames` are for the probe layout |
+| `waveforms` | `waveform` | [Waveform](#unit-waveforms), `mode "both"` | `mode` `"mean"`, `"subsample"`, `"both"` or `"template"` (never `"off"`), `band`, `maxSpikes` (the spikes drawn), `timeMs`, `ampScale` and `ampLim`, and `showPP` / `showCount` (the label). `width` and `height` (the glyphs' size), `showSites` and `showNames` are for the probe layout |
 | `waveforms` | `yLimMode`, `yLim` | `"auto"`, `[]` | the amplitude axis ([Y limits](#y-limits); not the probe layout's) |
 | `probemap` | `value` | `"rate"` | `"rate"`, `"nSpikes"` or `"nUnits"` |
 | `probemap` | `cLim` | `[]` | the color scale |
+| `probemap` | `unitLabels` | `false` | each unit's name beside its shank, with an arrow to the unit (roles `unitLabels`, `unitLeaders`, `unitArrows`) |
+| `probemap` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | `"off"`: a circle per unit; otherwise each unit's waveform as a glyph (`mode`, `band`, `maxSpikes`, `timeMs`, `ampScale`, `ampLim`, `width`, `height`; not `location`, `box`, `showPP`, `showCount`, `showSites`, `showNames`). Not shared by **Apply to all panels** |
 | `corrmap` | `metric` | `"mean"` | each epoch's `"mean"` rate over its window, or its `"peak"` binned rate |
 | `corrmap` | `correlation` | `"pearson"` | or `"spearman"` |
 | `corrmap` | `fisherZ` | `false` | draw Fisher's z and average the pairwise r in z |

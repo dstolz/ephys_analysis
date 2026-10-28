@@ -6,10 +6,13 @@ function P = computeProbeMapPanel(src, panel, E, G, ctx) %#ok<INUSL>
 %   layer (units / detected) gets, as probeMapValues' probe map,
 %     T = unitSummary(src, Source=, Units=, Ref=, Selection=)
 %     R = probeMapValues(T, src.probe, Value=options.value)
-%   plus R.dataset; the layer's meta is T. The observed unit (a unit
+%   plus R.dataset and, with a waveform mode other than "off" (the units
+%   drawn as their waveforms), R.waveforms = unitWaveforms(src, T,
+%   Source=, MaxSpikes=options.waveform.maxSpikes, Template= (mode
+%   "template"), Check=); the layer's meta is T. The observed unit (a unit
 %   figure) is F.observation, for the draw function to ring its site.
 %
-%   See also figurePanelRegistry, unitSummary, probeMapValues, renderProbeMap.
+%   See also figurePanelRegistry, unitSummary, probeMapValues, unitWaveforms, renderProbeMap.
 
 o = panel.options;
 P = struct('layers', figurePanelLayers(panel, ctx.skips));
@@ -32,6 +35,12 @@ catch ME
     return
 end
 R.dataset = src.name;
+wf = o.waveform;
+if wf.mode ~= "off"
+    ctx.checkpoint();
+    R.waveforms = unitWaveforms(src, T, Source=L.source, MaxSpikes=wf.maxSpikes, Template=wf.mode == "template", ...
+        Check=ctx.check);
+end
 lay.R = R;
 lay.meta = T;
 if lay.name == ""; lay.name = R.valueName; end

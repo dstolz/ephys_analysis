@@ -161,9 +161,11 @@ switch section
     case "Waveform"
         % a panel's unit waveform (the figure editor's Waveform section): an inset in a raster / psth / rate / tuning
         % panel (EphysAnalysisConfig.WaveformInsetTypes; unitWaveforms, waveformInset), or a waveforms panel's own
-        % (renderWaveforms: location and box unused; width and height size its probe glyphs)
+        % (renderWaveforms: location and box unused; width and height size its probe glyphs), or a probe map's units
+        % drawn as glyphs (renderProbeMap; "off" = a circle per unit)
         s = struct( ...
-            'mode',      "off", ...         % "off" | "mean" | "subsample" (individual spikes) | "both" (the mean over the spikes)
+            'mode',      "off", ...         % "off" | "mean" | "subsample" (individual spikes) | "both" (the mean over the spikes) | "template" (a sorted unit's template, no spikes read)
+            'band',      "off", ...         % the mean's error band: "off" | "std" (the SD of the spikes the mean is over) | "sem" (none on a template)
             'maxSpikes', 100, ...           % the individual spikes: per unit, at random (the same each time); a sorted unit's mean is over them
             'timeMs',    [], ...            % x: the span drawn, [from to] ms from the spike (-Inf / Inf: the cut's edge); [] = the whole cut
             'width',     1, ...             % x: an inset's width, 1 = a third of the tile's (at most 3); a probe glyph's, 1 = its default

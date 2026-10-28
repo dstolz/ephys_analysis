@@ -1322,8 +1322,9 @@ end
 function W = mergeWaveformStructs(Rs, tiles)
 %mergeWaveformStructs  unitWaveforms' fields, one row per (pool) tile.
 nT = numel(tiles.key);
-W = struct('timeMs', {cell(nT, 1)}, 'mean', {cell(nT, 1)}, 'spikes', {cell(nT, 1)}, 'from', repmat("none", nT, 1), ...
-    'units', strings(nT, 1), 'total', zeros(nT, 1), 'note', "", 'maxSpikes', NaN);
+W = struct('timeMs', {cell(nT, 1)}, 'mean', {cell(nT, 1)}, 'sd', {cell(nT, 1)}, 'nMean', zeros(nT, 1), ...
+    'spikes', {cell(nT, 1)}, 'from', repmat("none", nT, 1), 'units', strings(nT, 1), 'total', zeros(nT, 1), ...
+    'note', "", 'maxSpikes', NaN);
 notes = strings(0, 1);
 for t = 1:nT
     k = find(~cellfun(@isempty, tiles.units(t, :)), 1);
@@ -1331,6 +1332,7 @@ for t = 1:nT
     w = Rs{k}.waveforms;
     W.timeMs{t} = w.timeMs{u};
     W.mean{t} = w.mean{u};
+    if isfield(w, 'sd'); W.sd{t} = w.sd{u}; W.nMean(t) = w.nMean(u); end
     W.spikes{t} = w.spikes{u};
     W.from(t) = w.from(u);
     W.units(t) = w.units(u);

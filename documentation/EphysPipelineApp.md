@@ -1322,7 +1322,20 @@ marked), and two tabs on the right: **Preview** (the preview's summary with
 its per-channel table) and **Selection** (a stretch measured with **Measure**,
 below).
 
-The first panel, *Common reference, for every step (config: Reference)*, is
+The first panel, *Bad channels, before every step (config: Artifacts)*, leaves
+the active dataset's bad channels out of every step that works on the signals:
+the common reference, artifact detection, spike detection, the sorter (dropped
+from its chanMap; they stay in the `.bin`) and the Signals step, so the exports
+([Bad channels](EphysDataset.md#bad-channels)). A bad channel is one whose
+noise floor lies outside the reference panel's *Good noise* band, which stays
+live while the box is ticked.
+
+| Control | Maps to |
+| --- | --- |
+| **Leave out bad channels** | `Artifacts.ExcludeBadChannels` (off): leave each dataset's `BadChannels` out of every step. A run or preview suggests them for a dataset whose list was never set, whatever the reference |
+| Bad, **Suggest** | the active dataset's `BadChannels` (written to its manifest). **Suggest** measures each channel's noise floor on a sample of the recording as it is and fills the field (each channel's ratio goes to the log); typing a list marks it set by hand. A list that does not parse changes nothing (an alert says why). Channels excluded on the Probe tab are not counted |
+
+The second panel, *Common reference, for every step (config: Reference)*, is
 the config's `Reference` section, not part of `Artifacts`: every step that
 reads the recording takes the reference, whether or not detection is on, and
 a problem with it colors this tab even while detection is off. It sits here
@@ -1333,8 +1346,8 @@ referenced signal. The Signals tab picks which derived signals take it.
 | --- | --- |
 | Reference: *None (as recorded)* / *CAR: common average* / *CMR: common median* / *WCAR: adaptive weighted CAR* | `Reference.Mode` (`"none"` / `"car"` / `"cmr"` / `"wcar"`), a setting for the whole pipeline: subtract, sample by sample, the mean or median of the good channels from every channel, or each channel's own Kalman-tracked share of their mean (the [adaptive weighted CAR](EphysDataset.md#adaptive-weighted-car), Khorasani et al. 2019), once, as each step reads the recording - artifact detection, the noise level of the fill, the sorting `.bin` (Kilosort4's own `do_CAR`, or a SpikeInterface sorter's own common reference, is then turned off, so it is not referenced twice), spike detection, the derived signals ticked on the Signals tab (MUA and SPIKE by default, not the LFP), and the Visualize tab's *As the pipeline*. The preview and the viewer show the referenced signal. With WCAR the first read of a recording (a preview, the viewer, a run) first works out its state, once (`EphysDataset.prepareWCAR`: a pass over every channel, about 8 s per channel-hour at 30 kHz, and one before it for an automatic Q; the app waits, and **Detect / Preview** and the Visualize tab's dialog say which window it is on and the time left, *Weighted CAR: state, window 12/80 · about 40 s left*), kept in `<Name>_wcar.mat`. See [Common reference](EphysDataset.md#common-reference-car--cmr) |
 | WCAR order, Alpha at 1 kHz, Drift (/s), High-pass (Hz), Q (uV^2), Automatic Q, Estimate | `Reference.WCAR_Order` (1), `WCAR_Alpha1k` (1), `WCAR_DriftPerSec` (1), `WCAR_HighpassHz` (0.5; each read is padded by the filter's memory, 23 s on either side at 0.5 Hz, 0 = none), `WCAR_Q` (Q, used when *Automatic Q* is off; ticked = `NaN`, the robust variance of the high-passed plain-CAR residual per dataset) and `WCAR_Estimate` (*prior* / *posterior*): the weighted CAR's parameters, on while the reference is WCAR (Q while *Automatic Q* is off). The tooltips say where each default comes from |
-| Good noise (x median): *low* to *high* | `Reference.BadLow`, `BadHigh` (0.3 and 2, Ludwig et al. 2009): a channel whose noise floor lies outside this band, relative to the median across channels, is suggested to stay out of the reference |
-| Left out, **Suggest** | the active dataset's `ReferenceExclude` (written to its manifest): channels kept out of the average, though still referenced. **Suggest** measures each channel's noise floor on a sample of the recording and fills the field (each channel's ratio goes to the log); typing a list marks it set by hand. A list that does not parse changes nothing (an alert says why). A dataset whose list was never set gets the suggestion on its first referenced run or preview. Channels excluded on the Probe tab stay out of the reference too |
+| Good noise (x median): *low* to *high* | `Reference.BadLow`, `BadHigh` (0.3 and 2, Ludwig et al. 2009): a channel whose noise floor lies outside this band, relative to the median across channels, is suggested to stay out of the reference, and is suggested as bad while *Leave out bad channels* is ticked |
+| Left out, **Suggest** | the active dataset's `ReferenceExclude` (written to its manifest): channels kept out of the average, though still referenced. **Suggest** measures each channel's noise floor on a sample of the recording and fills the field (each channel's ratio goes to the log); typing a list marks it set by hand. A list that does not parse changes nothing (an alert says why). A dataset whose list was never set gets the suggestion on its first referenced run or preview. Channels excluded on the Probe tab, and the bad channels in force, stay out of the reference too |
 | **Enable automatic detection** | `Artifacts.Enabled`: run automatic detection (manual periods always apply) |
 | Dataset | the active dataset: the one **Detect / Preview** analyzes and whose manual periods are listed |
 | Method, Threshold, RMS window, Stitch gap, Pad, Min channels | `Artifacts.Method`, `Threshold`, `RmsWindowMs`, `MergeGapMs`, `PadMs`, `MinChannels` |

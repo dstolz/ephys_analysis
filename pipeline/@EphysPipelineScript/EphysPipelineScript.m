@@ -347,7 +347,9 @@ classdef EphysPipelineScript
             L(end+1, 1) = "    outFiles = " + sigFilesExpr + ";";
             L(end+1, 1) = "    if any(isfile(outFiles)) && ~signals.Overwrite; fprintf('%s: %s exists, skipped\n', d.Name, strjoin(outFiles, ', ')); continue; end";
             L(end+1, 1) = "    try";
-            L(end+1, 1) = "        sigOpts = EphysPipelineConfig.signalOptions(signals, ExcludeChannels=d.ExcludeChannels, NumChannels=d.NumChannels);";
+            L(end+1, 1) = "        d.prepareBadChannels();";
+            L(end+1, 1) = "        [~, bad] = d.excludedChannels();";
+            L(end+1, 1) = "        sigOpts = EphysPipelineConfig.signalOptions(signals, ExcludeChannels=d.ExcludeChannels, BadChannels=bad, NumChannels=d.NumChannels);";
             L(end+1, 1) = "        if isfield(sigOpts, 'badChannels')   % the geometry for them: its own probe, else the default";
             L(end+1, 1) = "            sigOpts.probeFile = d.ProbeFile;";
             L(end+1, 1) = "            if sigOpts.probeFile == """"; sigOpts.probeFile = defaultProbe; end";
@@ -379,6 +381,7 @@ classdef EphysPipelineScript
             L(end+1, 1) = "    outFile = fullfile(" + EphysPipelineScript.outDirExpr(K.OutputDir) + ", d.Name + " + lit(K.Suffix) + " + "".mat"");";
             L(end+1, 1) = "    if isfile(outFile) && ~spikes.Overwrite; fprintf('%s: %s exists, skipped\n', d.Name, outFile); continue; end";
             L(end+1, 1) = "    try";
+            L(end+1, 1) = "        d.prepareBadChannels();";
             L(end+1, 1) = "        channels = EphysPipelineConfig.spikeChannels(spikes, d);";
             if K.ArtifactMode ~= "none"
                 if cfg.Artifacts.ApplyToSpikes

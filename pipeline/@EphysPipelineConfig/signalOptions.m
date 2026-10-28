@@ -21,8 +21,12 @@ function s = signalOptions(cfg, opts)
 %                        "none"        ignored (default)
 %                        "drop"        removed from the kept channels
 %                        "interpolate" added to the bad channels
-%     NumChannels      the recording's channel count (needed by "drop" when
-%                      no explicit keep list is given)
+%     BadChannels      the dataset's bad channels in force (1-based,
+%                      EphysDataset.excludedChannels): always removed from
+%                      the kept channels, whatever ExcludeHandling says, so
+%                      no signal or export holds them
+%     NumChannels      the recording's channel count (needed by "drop" and
+%                      BadChannels when no explicit keep list is given)
 %
 %   Error identifiers (EphysPipelineConfig:Signals*): NoSignals, BadList,
 %   AutoBadNeedsLFP, BadThreshold, LFPNyquist, LFPNotch, Band, IndexList,
@@ -33,6 +37,7 @@ function s = signalOptions(cfg, opts)
 arguments
     cfg (1,1) struct
     opts.ExcludeChannels (1,:) double = []
+    opts.BadChannels (1,:) double = []
     opts.NumChannels (1,1) double = NaN
 end
 
@@ -82,6 +87,21 @@ switch cfg.ExcludeHandling
     otherwise
         error('EphysPipelineConfig:SignalsExcludeHandling', ...
             'Unknown ExcludeHandling "%s".', cfg.ExcludeHandling);
+end
+if ~isempty(opts.BadChannels)
+    if isempty(keep)
+        if isnan(opts.NumChannels)
+            error('EphysPipelineConfig:SignalsExcludeHandling', ...
+                'Dropping the bad channels needs the channel count (NumChannels) when no keep list is given.');
+        end
+        keep = 1:opts.NumChannels;
+    end
+    keep = keep(~ismember(keep, opts.BadChannels));
+    excl = excl(~ismember(excl, opts.BadChannels));   % not interpolated either: they are gone
+    if isempty(keep)
+        error('EphysPipelineConfig:SignalsExcludeHandling', ...
+            'Dropping the bad channels leaves no channel to convert.');
+    end
 end
 if ~isempty(keep)
     s.keepAmpChannels = keep;

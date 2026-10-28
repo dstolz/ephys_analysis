@@ -122,7 +122,7 @@ nChunks = numel(plan);
 filt = struct('use', useFilter, 'type', fType, 'cutoff', fCut, 'order', fOrd);
 det  = struct('method', method, 'threshold', thr, 'rmsWindowMs', rmsWinMs, ...
     'minChannels', minCh, 'mergeGapMs', mergeGap, 'padMs', padMs, ...
-    'channels', setdiff(1:obj.NumChannels, obj.ExcludeChannels));
+    'channels', setdiff(1:obj.NumChannels, obj.excludedChannels()));
 
 pool = [];
 nWorkers = 1;

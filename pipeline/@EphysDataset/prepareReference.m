@@ -27,7 +27,11 @@ function tf = prepareReference(obj, opts)
 %   large unit can then dominate the average and appear on every channel
 %   (Ludwig et al. 2009).
 %
-%   See also EphysDataset.suggestReferenceExclude, EphysDataset.applyReference.
+%   It first settles the bad channels (prepareBadChannels), whatever the
+%   reference, so they are out of the reference and of every read's step.
+%
+%   See also EphysDataset.suggestReferenceExclude, EphysDataset.applyReference,
+%   EphysDataset.prepareBadChannels.
 
 arguments
     obj (1,1) EphysDataset
@@ -35,6 +39,7 @@ arguments
 end
 
 tf = false;
+obj.prepareBadChannels();   % before the reference: bad channels are out of it
 mode = opts.Mode;
 if mode == ""
     mode = string(EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).Reference);
@@ -44,7 +49,7 @@ if mode == "none"
 end
 if obj.ReferenceExcludeSource == ""
     [bad, info] = obj.suggestReferenceExclude();
-    nLeft = numel(setdiff(1:numel(info.sigma), [obj.ExcludeChannels, bad]));
+    nLeft = numel(setdiff(1:numel(info.sigma), [obj.excludedChannels(), bad]));
     if ~isempty(bad) && nLeft < EphysDataset.MinReferenceChannels
         warning('EphysDataset:prepareReference:SuggestionNotApplied', ...
             ['The suggested channels (%s) would leave %d channel(s) in the common reference ' ...

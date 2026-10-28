@@ -452,6 +452,8 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | `Tags` | `{}` | the user's tags on the dataset, a cellstr row, unique, sorted and lowercase (`{}`, 0x0, when none); see [Tags](#tags). Saved to and restored from the manifest's `tags` array |
 | `ReferenceExclude` | `[]` | 1-based channels left out of the common reference, though still referenced (see [Common reference](#common-reference-car--cmr)). Saved to and restored from the dataset manifest |
 | `ReferenceExcludeSource` | `""` | where `ReferenceExclude` came from: `""` (never set: the first referenced read suggests it), `"suggested"` or `"manual"` |
+| `BadChannels` | `[]` | 1-based bad channels, left out of every step while `ArtifactConfig.ExcludeBadChannels` is on (see [Bad channels](#bad-channels)). Saved to and restored from the dataset manifest |
+| `BadChannelsSource` | `""` | where `BadChannels` came from: `""` (never set: the first read with `ExcludeBadChannels` on suggests them), `"suggested"` or `"manual"` |
 | `PythonExe`, `CondaEnv` | `""` | Python launch configuration |
 | `Scale` | `NaN` | `.bin` units per µV (`NaN` = `binScale`) |
 | `Dtype` | `"int16"` | one of `int16`, `uint16`, `int32`, `single`, `float32` |
@@ -810,8 +812,36 @@ out), for `"car"`, `"cmr"` and `"wcar"` alike, and the recording is never
 referenced twice. `readData` itself
 returns the recording as stored.
 
+#### Bad channels
+
+With `ArtifactConfig.ExcludeBadChannels` on, a dataset's `BadChannels` are
+left out of every step that works on the signals, as `ExcludeChannels` are, and
+before any of them: the common reference, artifact detection (and the
+selection measure), spike detection (whatever `Spikes.Channels` says), the
+sorter (dropped from the chanMap of Kilosort4 or a SpikeInterface sorter; they
+stay in the `.bin`, so `n_chan_bin` is unchanged), and the Signals step, which
+drops them from the kept channels (whatever `Signals.ExcludeHandling` says), so
+no export holds them. The recording is never changed.
+
+**`[ch, bad] = excludedChannels()`**: `ExcludeChannels` and the bad channels in
+force, sorted; `bad` alone is the bad channels (none while
+`ExcludeBadChannels` is off). Every step reads its channels from here.
+
+**`[tf, info] = prepareBadChannels()`** settles them: with
+`ExcludeBadChannels` on and the list never set (`BadChannelsSource ""`), it
+takes the channels `suggestReferenceExclude(Excluded=ExcludeChannels)` finds
+(the noise floor of the recording as it is, outside `ReferenceBadLow` to
+`ReferenceBadHigh` times the median), marks them `"suggested"` and writes the
+manifest. `prepareReference` calls it first, so every streaming entry point and
+`deriveSignals` settle them before they read, whatever the reference; the
+pipeline also calls it before it picks the Signals, Spikes and sorter channels.
+A suggestion that would leave fewer than `MinReferenceChannels` (5) channels
+is not applied (`EphysDataset:prepareBadChannels:SuggestionNotApplied`). A
+dataset without its recording is left alone.
+
 **`ch = referenceChannels()`**: the channels the reference is taken over,
-which is every channel except `ExcludeChannels` and `ReferenceExclude`. A channel
+which is every channel except `excludedChannels()` (`ExcludeChannels` and the
+[bad channels](#bad-channels) in force) and `ReferenceExclude`. A channel
 left out is still referenced; it only stays out of the average.
 
 **`[bad, info] = suggestReferenceExclude(Name=Value)`** applies the paper's
@@ -824,9 +854,10 @@ high-impedance sites (typically 3-6x) rise above it. The noise floor is the
 robust SD (1.4826 x MAD) of the **unreferenced** signal above `CutoffHz`
 (default `NoiseBandHz`, 300 Hz), measured on `MaxChunks` (default 8) chunks
 spread over the recording. Spikes and artifacts barely move it, as with the
-paper's SD after removing threshold crossings. `ExcludeChannels` are neither
+paper's SD after removing threshold crossings. The channels already out
+(`Excluded`, default `excludedChannels()`) are neither
 counted in the median nor suggested. Options: `Low`, `High`, `CutoffHz`,
-`MaxChunks` (`Inf` = every chunk), `ProgressFcn`. `info` holds `sigma`,
+`MaxChunks` (`Inf` = every chunk), `Excluded`, `ProgressFcn`. `info` holds `sigma`,
 `ratio`, `medianSigma`, `low`, `high`, `cutoffHz`, `bad`, `excluded`,
 `channelNames`, `nChunks` and a one-line `summary`. The function changes
 nothing.
@@ -1257,7 +1288,8 @@ the rule:
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `Reference` | `"none"` | common reference subtracted once from every read of the recording (`deriveSignals`: from the `referenceSignals` only): `"none"`, `"car"` or `"cmr"` ([above](#common-reference-car--cmr)) |
-| `ReferenceBadLow`, `ReferenceBadHigh` | `0.3`, `2` | noise-floor band, as a multiple of the median across channels, outside which `suggestReferenceExclude` leaves a channel out of the reference |
+| `ReferenceBadLow`, `ReferenceBadHigh` | `0.3`, `2` | noise-floor band, as a multiple of the median across channels, outside which `suggestReferenceExclude` leaves a channel out of the reference, and `prepareBadChannels` marks it bad |
+| `ExcludeBadChannels` | `false` | leave the [bad channels](#bad-channels) out of every step (`excludedChannels`) |
 | `Enabled` | `false` | `toBin` blanks, and `artifactIntervals` includes auto detections, only when true |
 | `Method` | `"rms"` | detector method |
 | `Threshold` | `9` | robust SDs (µV for microvolts/commonmode) |
@@ -1765,8 +1797,9 @@ from `chanMap`, `xc`, `yc` and `kcoords`. `n_chan` is unchanged (it equals
 `n_chan_bin`), the channels stay in the `.bin`, and the original probe file is
 not modified. The derived probe is written by `writeProbeMap`, so with one
 site left its arrays are still JSON lists, as Kilosort4 needs; excluding every
-site is refused (`EphysDataset:runKilosort:AllExcluded`). There is no
-automatic bad-channel detection.
+site is refused (`EphysDataset:runKilosort:AllExcluded`). By default the list
+is `excludedChannels()`: `ExcludeChannels` plus, while
+`ArtifactConfig.ExcludeBadChannels` is on, the [bad channels](#bad-channels).
 
 #### Shank spacing
 

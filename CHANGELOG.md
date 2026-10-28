@@ -10,6 +10,15 @@ says how to cut a release.
 
 ### Added
 
+- Pipeline: **Leave out bad channels** (Artifacts tab, `Artifacts.ExcludeBadChannels`, off by default) leaves each
+  dataset's bad channels out of every step that works on the signals, before any of them: the common reference,
+  artifact detection, spike detection, the sorter (dropped from its chanMap; they stay in the `.bin`) and the Signals
+  step, so the exports. A bad channel's noise floor lies outside the common reference's *Good noise* band
+  (`Reference.BadLow` / `BadHigh`); a run suggests them for a dataset whose list was never set
+  (`EphysDataset.prepareBadChannels`), and **Suggest** or the *Bad* field set them by hand. The list is the
+  dataset's `BadChannels`, kept in the manifest's new `bad_channels` block. See
+  [Bad channels](documentation/EphysDataset.md#bad-channels).
+
 - Reports: **Per page** (`Report.FiguresPerPage`, 1 to 16; default 1, as before) puts several figure pages on one
   sheet of `Report.PageSize` (`"letter"` or `"a4"`) and `Report.PageOrientation` (`"auto"`, `"portrait"`,
   `"landscape"`). A figure's pages, or with `Order "unit"` an observation's, stay on one sheet when they fit, and a

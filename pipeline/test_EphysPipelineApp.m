@@ -902,6 +902,24 @@ if S.sec("2b", "Analysis tab")
     check(isempty(app.currentDataset().ExcludeChannels) && strcmp(app.ExcludeChannelsField.Value, '') ...
         && isempty(app.currentDataset().ReferenceExclude) && app.ArtRefExcludeField.Value == "", ...
         'a channel list that does not parse ("4O", "x") changes nothing and the fields show the lists in force');
+    app.ArtBadField.Value = '2,x';
+    app.onBadChannelsEdited();
+    check(isempty(app.currentDataset().BadChannels) && app.ArtBadField.Value == "", ...
+        'a bad-channel list that does not parse changes nothing');
+    app.ArtBadField.Value = '2,4';
+    app.onBadChannelsEdited();
+    app.ArtBadCheckBox.Value = true;
+    app.refreshReferencePanel();
+    A = app.gatherArtifactsSection();
+    check(isequal(app.currentDataset().BadChannels, [2 4]) && app.currentDataset().BadChannelsSource == "manual" ...
+        && A.ExcludeBadChannels && contains(app.ArtBadStatusLabel.Text, "set by hand") ...
+        && app.ArtRefLowField.Enable == "on", ...
+        'the Bad field sets the dataset''s bad channels by hand; Leave out bad channels is Artifacts.ExcludeBadChannels');
+    app.ArtBadCheckBox.Value = false;
+    app.currentDataset().BadChannels = [];
+    app.currentDataset().BadChannelsSource = "";
+    app.saveManifests(app.currentDataset());
+    app.refreshReferencePanel();
     app.onPlan();
     P = app.RunResultsTable.Data;
     check(istable(P) && any(P.Step == "spikes" & P.Status == "ready"), 'plan lists the spikes step as ready');

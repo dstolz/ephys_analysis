@@ -7,7 +7,9 @@ function [bad, info] = suggestReferenceExclude(obj, opts)
 %   Channels outside that band - dead or shorted sites below it, broken or
 %   high-impedance sites (typically 3-6x) above it - are returned in BAD
 %   (1-based, recording order). ExcludeChannels are already left out of the
-%   reference, so they are neither suggested nor counted in the level.
+%   reference, so they are neither suggested nor counted in the level, and
+%   so are BadChannels while ArtifactConfig.ExcludeBadChannels is on
+%   (excludedChannels).
 %
 %   The typical noise floor is the MEDIAN across the channels, not the
 %   paper's mean: a few floating channels at 25x the others would pull a mean
@@ -31,11 +33,14 @@ function [bad, info] = suggestReferenceExclude(obj, opts)
 %     CutoffHz   (1,1) double  high-pass the level is measured above
 %                (default ArtifactConfig.NoiseBandHz, 300 Hz when that is 0)
 %     MaxChunks  (1,1) double  chunks read (default 8; Inf = the whole recording)
+%     Excluded   (1,:) double  channels already out: neither suggested nor
+%                counted (default NaN = excludedChannels(); prepareBadChannels
+%                passes ExcludeChannels alone)
 %     ProgressFcn function handle  ProgressFcn(i, nChunks, chunkName)
 %
-%   INFO: sigma [1 x nChan] noise floor (uV, NaN for ExcludeChannels),
+%   INFO: sigma [1 x nChan] noise floor (uV, NaN for the Excluded channels),
 %   ratio [1 x nChan] sigma / medianSigma, medianSigma, low, high, cutoffHz,
-%   bad, excluded (ExcludeChannels), channelNames, nChunks, summary (one line).
+%   bad, excluded (the Excluded channels), channelNames, nChunks, summary (one line).
 %
 %   See also EphysDataset.applyReference, EphysDataset.noiseLevels.
 
@@ -45,6 +50,7 @@ arguments
     opts.High (1,1) double = NaN
     opts.CutoffHz (1,1) double = NaN
     opts.MaxChunks (1,1) double {mustBePositive} = 8
+    opts.Excluded (1,:) double = NaN
     opts.ProgressFcn = []
 end
 
@@ -63,7 +69,9 @@ nl = obj.noiseLevels(Reference=false, Filter=true, FilterType="highpass", ...
 
 sigma = nl.sigma;
 nChan = numel(sigma);
-excluded = obj.ExcludeChannels(obj.ExcludeChannels <= nChan);
+excluded = opts.Excluded;
+if isequaln(excluded, NaN); excluded = obj.excludedChannels(); end
+excluded = excluded(excluded <= nChan);
 counted = setdiff(1:nChan, excluded);
 sigma(excluded) = NaN;
 medianSigma = median(sigma(counted));

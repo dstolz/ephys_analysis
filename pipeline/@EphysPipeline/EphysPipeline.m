@@ -1106,7 +1106,7 @@ classdef EphysPipeline < handle
             %   schema, the detector settings (not the fill fields: they say
             %   how the periods are erased, not which they are), the channels
             %   the common reference is taken over (detection runs on the
-            %   referenced signal), ExcludeChannels, the recording files and
+            %   referenced signal), the channels left out (excludedChannels), the recording files and
             %   the sample count. <Name>_artifacts.json is used while its
             %   fingerprint is FP (artifactIntervalsFor, cachedDetection).
             %   REFERENCED is true when ACFG has a common reference. Nothing
@@ -1124,7 +1124,7 @@ classdef EphysPipeline < handle
                 refCh = d.referenceChannels();
             end
             fp = string(jsonencode(struct('schema', EphysPipeline.ArtifactsSchema, 'config', det, ...
-                'reference', refCh, 'exclude', d.ExcludeChannels, 'files', cellstr(d.Files(:).'), ...
+                'reference', refCh, 'exclude', d.excludedChannels(), 'files', cellstr(d.Files(:).'), ...
                 'nSamples', d.NumSamples)));
         end
 
@@ -1139,7 +1139,8 @@ classdef EphysPipeline < handle
             %            recording: automatic detection is off in CFG, a common
             %            reference is on while D's ReferenceExcludeSource is ""
             %            (the first referenced read suggests the channels it
-            %            leaves out, which the fingerprint holds), or D's
+            %            leaves out, which the fingerprint holds), bad channels
+            %            are on while D's BadChannelsSource is "" (likewise), or D's
             %            sample count is not known
             %     MATCH  true when the file holds a detection with that
             %            fingerprint, so CFG detects the same periods; false
@@ -1162,7 +1163,8 @@ classdef EphysPipeline < handle
                 return
             end
             [fp, referenced] = EphysPipeline.artifactFingerprint(acfg, d);
-            if referenced && d.ReferenceExcludeSource == ""
+            if (referenced && d.ReferenceExcludeSource == "") ...
+                    || (acfg.ExcludeBadChannels && d.BadChannelsSource == "")
                 return
             end
             ok = true;

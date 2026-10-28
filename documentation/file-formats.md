@@ -414,6 +414,11 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   "tags":             [<lowercase strings>],        the user's tags on the dataset, [] when none
   "reference_exclude": { "channels": <compact list or "">,   left out of the common reference
                          "source": "" | "suggested" | "manual" },
+  "bad_channels": { "enabled": <bool>,                  Artifacts.ExcludeBadChannels
+                    "channels": <compact list or "">,   the dataset's bad channels
+                    "source": "" | "suggested" | "manual",
+                    "low": <x median>, "high": <x median>,   the noise band that suggests them
+                    "excluded": <compact list or ""> },      every channel the steps leave out
   "manual_artifacts": [[<t0>, <t1>], ...],          seconds, recording-relative
   "artifact_adjustments": [[<det0>, <det1>, <t0>, <t1>], ...],   detected artifacts moved by hand, seconds
   "artifacts": {
@@ -508,6 +513,12 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   `"suggested"` (by the noise-floor rule, `suggestReferenceExclude`),
   `"manual"` (typed on the Artifacts tab), or `""` (never set: the first
   referenced read suggests it).
+- `bad_channels` lists the dataset's bad channels (1-based) and whether they
+  are left out (`enabled`, the config's `Artifacts.ExcludeBadChannels`).
+  `source` is `"suggested"` (by the noise-floor rule with the `low` / `high`
+  band, `prepareBadChannels`), `"manual"` (typed on the Artifacts tab) or `""`
+  (never set). `excluded` is what every step leaves out: `exclude_channels`
+  plus, while `enabled`, the bad channels.
 - `artifact_adjustments` lists the detected artifacts whose onset or offset
   was moved by hand (the GUI's Artifacts tab): the artifact as the detector
   found it, `[det0 det1)`, then the bounds used instead, `[t0 t1)`

@@ -49,7 +49,10 @@ for k = 1:n
         continue
     end
     try
-        sigOpts = EphysPipelineConfig.signalOptions(G, ExcludeChannels=d.ExcludeChannels, NumChannels=d.NumChannels);
+        d.prepareBadChannels();   % settled before the channels are picked
+        [~, bad] = d.excludedChannels();
+        sigOpts = EphysPipelineConfig.signalOptions(G, ExcludeChannels=d.ExcludeChannels, ...
+            BadChannels=bad, NumChannels=d.NumChannels);
         if isfield(sigOpts, 'badChannels')
             sigOpts.probeFile = obj.probeFor(d);   % the geometry for them: its own probe, else the default
         end

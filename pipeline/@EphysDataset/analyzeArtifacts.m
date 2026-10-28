@@ -114,7 +114,7 @@ if isempty(recCh); recCh = 1:obj.NumChannels; end
 filt = struct('use', useFilter, 'type', fType, 'cutoff', fCut, 'order', fOrd);
 det  = struct('method', method, 'threshold', thr, 'rmsWindowMs', rmsWinMs, ...
     'minChannels', minCh, 'mergeGapMs', mergeGapMs, 'padMs', padMs, ...
-    'channels', find(~ismember(recCh, obj.ExcludeChannels)));
+    'channels', find(~ismember(recCh, obj.excludedChannels())));
 
 pool = [];
 nWorkers = 1;

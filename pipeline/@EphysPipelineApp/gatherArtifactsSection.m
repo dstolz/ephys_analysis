@@ -7,6 +7,7 @@ function A = gatherArtifactsSection(obj)
 %   Reference section (gatherReferenceSection).
 A = obj.Config.Artifacts;
 A.Enabled     = logical(obj.ArtEnableCheckBox.Value);
+A.ExcludeBadChannels = logical(obj.ArtBadCheckBox.Value);
 A.Method      = string(obj.ArtMethodDropDown.Value);
 A.Threshold   = obj.ArtThresholdField.Value;
 A.MergeGapMs  = obj.ArtMergeGapField.Value;

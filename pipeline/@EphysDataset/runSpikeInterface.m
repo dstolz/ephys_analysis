@@ -185,7 +185,10 @@ end
 checkProbeChannels(probeFile, nChanBin, "runSpikeInterface");
 
 excludeCh = opts.ExcludeChannels;
-if isempty(excludeCh); excludeCh = obj.ExcludeChannels; end
+if isempty(excludeCh)
+    obj.prepareBadChannels();
+    excludeCh = obj.excludedChannels();
+end
 excludeCh = EphysDataset.parseChannelList(excludeCh);
 nExcluded = 0;
 if ~isempty(excludeCh)

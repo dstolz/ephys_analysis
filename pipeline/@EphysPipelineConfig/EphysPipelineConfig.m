@@ -464,15 +464,25 @@ classdef EphysPipelineConfig
 
         function ch = spikeChannels(sp, ds)
             %spikeChannels  1-based channels to detect on for dataset DS ([] = all).
+            %   The dataset's bad channels in force (EphysDataset.excludedChannels)
+            %   are left out whatever Spikes.Channels says. DS may also be a
+            %   struct with NumChannels and ExcludeChannels (no bad channels).
             sp = EphysPipelineConfig.normalizeSection("Spikes", sp);
+            if isa(ds, 'EphysDataset')
+                [excl, bad] = ds.excludedChannels();
+            else
+                excl = ds.ExcludeChannels;
+                bad = [];
+            end
+            n = ds.NumChannels;
             switch sp.Channels
                 case "all"
-                    ch = [];
+                    if isnan(n) || isempty(bad); ch = []; else; ch = setdiff(1:n, bad); end
                 case "excludeManifest"
-                    n = ds.NumChannels;
-                    if isnan(n); ch = []; else; ch = setdiff(1:n, ds.ExcludeChannels); end
+                    if isnan(n); ch = []; else; ch = setdiff(1:n, excl); end
                 case "list"
                     ch = EphysPipelineConfig.parseOrderedList(sp.ChannelList, "Spikes channel list");
+                    ch = ch(~ismember(ch, bad));
             end
         end
 

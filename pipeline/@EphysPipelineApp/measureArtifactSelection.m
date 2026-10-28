@@ -75,7 +75,7 @@ if ~isempty(chosen)
 end
 ch = 1:nCh;
 if nCh == d.NumChannels
-    ch = setdiff(ch, d.ExcludeChannels);
+    ch = setdiff(ch, d.excludedChannels());
 end
 
 % --- common mode on the signal as recorded ---------------------------------------

@@ -19,7 +19,9 @@ function result = runKilosort(obj, opts)
 %     CondaEnv       conda env name; when set, uses `conda run -n <env> ...`
 %     ProbeFile      KS4 probe .json (default ds.ProbeFile)
 %     ExcludeChannels (1,:) double  1-based channels to drop from sorting
-%                    (default ds.ExcludeChannels). Excluded channels stay in the
+%                    (default ds.excludedChannels(): ExcludeChannels and, while
+%                    ArtifactConfig.ExcludeBadChannels is on, BadChannels,
+%                    settled first by prepareBadChannels). Excluded channels stay in the
 %                    .bin (n_chan_bin is unchanged) but are removed from the
 %                    probe's chanMap/xc/yc/kcoords via a derived probe written to
 %                    the run folder (result.runDir); the original probe .json
@@ -225,7 +227,10 @@ checkProbeChannels(probeFile, nChanBin, "runKilosort");
 % (keeping n_chan == n_chan_bin) so Kilosort4 ignores them. Write the reduced
 % map to a derived probe in the run dir; never touch the original .json.
 excludeCh = opts.ExcludeChannels;
-if isempty(excludeCh); excludeCh = obj.ExcludeChannels; end
+if isempty(excludeCh)
+    obj.prepareBadChannels();
+    excludeCh = obj.excludedChannels();
+end
 excludeCh = EphysDataset.parseChannelList(excludeCh);
 nExcluded = 0;
 if ~isempty(excludeCh)

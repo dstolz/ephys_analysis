@@ -43,6 +43,7 @@ for k = 1:n
         continue
     end
     try
+        d.prepareBadChannels();   % settled before the channels are picked
         channels = EphysPipelineConfig.spikeChannels(K, d);
         if opts.DryRun
             obj.log("[spikes] %s: dry run -> %s", d.Name, out);

@@ -379,6 +379,10 @@ classdef EphysPipelineApp < handle
 
         % --- Artifacts tab ---
         ArtDatasetDropDown  matlab.ui.control.DropDown
+        ArtBadCheckBox      matlab.ui.control.CheckBox           % Artifacts.ExcludeBadChannels
+        ArtBadField         matlab.ui.control.EditField          % active dataset's bad channels
+        ArtBadSuggestButton matlab.ui.control.Button
+        ArtBadStatusLabel   matlab.ui.control.Label
         ArtRefDropDown      matlab.ui.control.DropDown           % common reference (Reference.Mode): none / car / cmr / wcar
         ArtRefLowField      matlab.ui.control.NumericEditField   % good-noise band (x median) of the suggestion (Reference.BadLow / BadHigh)
         ArtRefHighField     matlab.ui.control.NumericEditField
@@ -1253,6 +1257,8 @@ classdef EphysPipelineApp < handle
         refreshReferencePanel(obj)
         onSuggestReferenceExclude(obj)
         onReferenceExcludeEdited(obj)
+        onSuggestBadChannels(obj)
+        onBadChannelsEdited(obj)
         onClearManualArtifacts(obj)
         showArtifactView(obj, span)
         drawArtifactView(obj)

@@ -27,6 +27,15 @@ function buildArtifactsTab(obj)
 %   noise-floor rule of Ludwig et al. 2009 (onSuggestReferenceExclude) or
 %   typed in (onReferenceExcludeEdited).
 %
+%   Above it, the bad channels (Artifacts.ExcludeBadChannels): with the box
+%   ticked, the active dataset's channels whose noise floor lies outside
+%   the reference's Good noise band are left out of every step - the
+%   reference, artifact detection, spike detection, the sorter's chanMap
+%   (they stay in the .bin) and the signals, so the exports
+%   (EphysDataset.excludedChannels). A run suggests them when the list was
+%   never set (EphysDataset.prepareBadChannels); Suggest
+%   (onSuggestBadChannels) or the field (onBadChannelsEdited) set them here.
+%
 %   Three columns: the reference and the detection settings with the manual
 %   periods below them, the viewer (the plot takes the full height), and the preview's
 %   summary with its per-channel table. With a probe assigned to the
@@ -53,16 +62,17 @@ g.ColumnWidth = {400, '1x', 350};
 g.Padding     = [10 10 10 10];
 changed = @(~,~) obj.onArtifactControlsChanged();
 
-% =========== left: the reference, the controls, then the manual periods ===========
-left = uigridlayout(g, [3 1]);
+% =========== left: bad channels, the reference, the controls, then the manual periods ===========
+left = uigridlayout(g, [4 1]);
 left.Layout.Column = 1;
 left.Padding = [0 0 0 0];
-left.RowHeight = {'fit', '1x', 210};
+left.RowHeight = {'fit', 'fit', '1x', 210};
 
+buildBadChannelsPanel(obj, left, changed);
 buildReferencePanel(obj, left, changed);
 
 ctrl = uipanel(left, "Title", "Automatic artifact detection (config: Artifacts)");
-ctrl.Layout.Row = 2;
+ctrl.Layout.Row = 3;
 
 nRows = 18;
 cg = uigridlayout(ctrl, [nRows 2]);
@@ -200,7 +210,7 @@ obj.ArtStatusLabel = uilabel(cg, "Text", "", "FontColor", [0.4 0.4 0.4], "WordWr
 obj.ArtStatusLabel.Layout.Row = row; obj.ArtStatusLabel.Layout.Column = [1 2];
 
 manual = uipanel(left);
-manual.Layout.Row = 3;
+manual.Layout.Row = 4;
 mg = uigridlayout(manual, [3 2]);
 mg.RowHeight = {'fit', '1x', 30};
 mg.ColumnWidth = {'1x', 'fit'};
@@ -434,12 +444,51 @@ obj.drawArtifactView();
 end
 
 
+function buildBadChannelsPanel(obj, parent, changed)
+% The bad channels: whether they are left out (the config's
+% Artifacts.ExcludeBadChannels) and the active dataset's list (manifest).
+% refreshReferencePanel fills the dataset part.
+p = uipanel(parent, "Title", "Bad channels, before every step (config: Artifacts)");
+p.Layout.Row = 1;
+bg = uigridlayout(p, [3 2]);
+bg.RowHeight   = {'fit', 30, 'fit'};
+bg.ColumnWidth = {'fit', '1x'};
+bg.RowSpacing  = 6;
+
+obj.ArtBadCheckBox = uicheckbox(bg, "Text", "Leave out bad channels", "FontWeight", "bold", "Value", false, ...
+    "Tooltip", "Artifacts.ExcludeBadChannels: the channels whose noise floor lies outside the Good noise band " + ...
+    "below (Reference.BadLow / BadHigh, x the median across channels; Ludwig et al. 2009) take no part in any " + ...
+    "step: the common reference, artifact detection, spike detection and the sorter (dropped from its chanMap; " + ...
+    "they stay in the .bin), and the Signals step drops them, so no export holds them. A run suggests them for a " + ...
+    "dataset whose list was never set, whatever the reference. The recording is never changed.", ...
+    "ValueChangedFcn", changed);
+obj.ArtBadCheckBox.Layout.Row = 1; obj.ArtBadCheckBox.Layout.Column = [1 2];
+
+lab(bg, "Bad:", 2);
+xg = uigridlayout(bg, [1 2]);
+xg.Layout.Row = 2; xg.Layout.Column = 2;
+xg.Padding = [0 0 0 0]; xg.ColumnSpacing = 6;
+xg.ColumnWidth = {'1x', 'fit'};
+obj.ArtBadField = uieditfield(xg, "text", "Value", "", "Placeholder", "none", ...
+    "Tooltip", "The active dataset's bad channels (1-based, e.g. ""3,7,12-14""), left out of every step while " + ...
+    "the box above is ticked. Saved in its manifest.", ...
+    "ValueChangedFcn", @(~,~) obj.onBadChannelsEdited());
+obj.ArtBadSuggestButton = uibutton(xg, "Text", "Suggest", ...
+    "Tooltip", "Measure each channel's noise floor on a sample of the recording, as is (no reference), and " + ...
+    "mark the channels outside the Good noise band below as bad.", ...
+    "ButtonPushedFcn", @(~,~) obj.onSuggestBadChannels());
+
+obj.ArtBadStatusLabel = uilabel(bg, "Text", "", "FontColor", [0.4 0.4 0.4], "WordWrap", "on");
+obj.ArtBadStatusLabel.Layout.Row = 3; obj.ArtBadStatusLabel.Layout.Column = [1 2];
+end
+
+
 function buildReferencePanel(obj, parent, changed)
 % The common reference: its mode and noise bounds (the config's Reference
 % section), the weighted CAR's options, and the active dataset's channels
 % left out of it (manifest). refreshReferencePanel fills the dataset part.
 p = uipanel(parent, "Title", "Common reference, for every step (config: Reference)");
-p.Layout.Row = 1;
+p.Layout.Row = 2;
 rg = uigridlayout(p, [6 2]);
 rg.RowHeight   = {'fit', 'fit', 'fit', 'fit', 30, 'fit'};
 rg.ColumnWidth = {'fit', '1x'};
@@ -475,8 +524,8 @@ bg.Layout.Row = 4; bg.Layout.Column = 2;
 bg.Padding = [0 0 0 0]; bg.ColumnSpacing = 6;
 bg.ColumnWidth = {'1x', 'fit', '1x'};
 tip = "Reference.BadLow / BadHigh: a channel whose noise floor lies outside this band, relative to the " + ...
-    "median across channels, is suggested to stay out of the reference (Ludwig et al. 2009: 0.3 to 2; " + ...
-    "broken sites run 3-6x).";
+    "median across channels, is suggested to stay out of the reference, and is a bad channel while Leave out " + ...
+    "bad channels is ticked (Ludwig et al. 2009: 0.3 to 2; broken sites run 3-6x).";
 obj.ArtRefLowField = uieditfield(bg, "numeric", "Value", 0.3, "Limits", [0 Inf], ...
     "ValueDisplayFormat", "%.3g", "Tooltip", tip, "ValueChangedFcn", changed);
 uilabel(bg, "Text", "to");

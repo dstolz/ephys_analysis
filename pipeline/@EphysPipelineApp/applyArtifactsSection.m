@@ -7,6 +7,7 @@ function applyArtifactsSection(obj, A)
 %   same tab shows the Reference section (applyReferenceSection).
 A = EphysPipelineConfig.normalizeSection("Artifacts", A);
 obj.ArtEnableCheckBox.Value = logical(A.Enabled);
+obj.ArtBadCheckBox.Value = logical(A.ExcludeBadChannels);
 obj.setDropIfMember(obj.ArtMethodDropDown, A.Method, "Artifacts.Method");
 obj.setControlValue(obj.ArtThresholdField, A.Threshold, "Artifacts.Threshold");
 obj.setControlValue(obj.ArtMergeGapField, A.MergeGapMs, "Artifacts.MergeGapMs");

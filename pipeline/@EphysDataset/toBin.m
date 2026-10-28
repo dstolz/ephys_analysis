@@ -272,7 +272,7 @@ end
 % is taken, over the channels that take part.
 recCh = opts.ChannelOrder;
 if isempty(recCh); recCh = 1:obj.NumChannels; end
-detCols  = find(~ismember(recCh, obj.ExcludeChannels));   % columns of the written data
+detCols  = find(~ismember(recCh, obj.excludedChannels()));   % columns of the written data
 cmDetect = doBlank && artMethod == "commonmode";
 
 fid = fopen(binFile, 'w', 'ieee-le');

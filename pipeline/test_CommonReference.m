@@ -25,6 +25,10 @@ function test_CommonReference()
 %        artifact periods after it, and derives a referenced and an
 %        unreferenced signal from one read exactly as each alone; toMat and
 %        spikesToMat record the reference they applied
+%    11. bad channels (ArtifactConfig.ExcludeBadChannels): suggested by the
+%        noise-floor rule on the first read, whatever the reference, saved
+%        in and restored from the manifest, and left out of the reference,
+%        spike detection, the signals and the artifact cache's fingerprint
 %   No Intan files, toolboxes or Python are needed.
 %
 %   Usage:  test_CommonReference
@@ -399,6 +403,68 @@ if license('test', 'Signal_Toolbox')
 else
     fprintf('  (skipped: no Signal Processing Toolbox)\n');
 end
+
+fprintf('\n== 11. bad channels ==\n');
+dsB = EphysDataset(writeRecording(root, 'badrec', X, Fs));
+check(~dsB.prepareBadChannels() && isempty(dsB.excludedChannels()) && dsB.BadChannelsSource == "", ...
+    'off by default: nothing is suggested or left out');
+aB = dsB.ArtifactConfig;
+aB.ExcludeBadChannels = true;
+dsB.ArtifactConfig = aB;
+check(dsB.prepareReference() == false && isequal(dsB.BadChannels, [3 6]) && dsB.BadChannelsSource == "suggested", ...
+    'on: the first read suggests the broken and the dead channel, even without a reference');
+[ex, bd] = dsB.excludedChannels();
+check(isequal(ex, [3 6]) && isequal(bd, [3 6]), 'excludedChannels holds them');
+m = readJsonFile(dsB.manifestFile());
+check(isfield(m, 'bad_channels') && m.bad_channels.enabled && strcmp(m.bad_channels.channels, '3,6') ...
+    && strcmp(m.bad_channels.source, 'suggested') && strcmp(m.bad_channels.excluded, '3,6') ...
+    && m.bad_channels.low == 0.3 && m.bad_channels.high == 2, 'the manifest records them, the switch and the band');
+dsB2 = EphysDataset(dsB.Folder);
+dsB2.applyManifest();
+check(isequal(dsB2.BadChannels, [3 6]) && dsB2.BadChannelsSource == "suggested", 'the manifest restores them');
+dsB.ExcludeChannels = 1;
+[ex, bd] = dsB.excludedChannels();
+check(isequal(ex, [1 3 6]) && isequal(bd, [3 6]), 'with the Probe tab exclusions: both are left out');
+aB.Reference = "car";
+dsB.ArtifactConfig = aB;
+dsB.prepareReference();
+check(~any(ismember([1 3 6], dsB.referenceChannels())) && ~any(ismember([3 6], dsB.ReferenceExclude)), ...
+    'the reference leaves them out, and its own suggestion neither counts nor suggests them');
+sp = EphysPipelineConfig.defaults("Spikes");
+sp.Channels = "all";
+check(isequal(EphysPipelineConfig.spikeChannels(sp, dsB), [1 2 4 5 7 8]), 'spike detection skips them on "all"');
+sp.Channels = "list"; sp.ChannelList = "1-4";
+check(isequal(EphysPipelineConfig.spikeChannels(sp, dsB), [1 2 4]), '... and on a list');
+sp.Channels = "excludeManifest";
+check(isequal(EphysPipelineConfig.spikeChannels(sp, dsB), [2 4 5 7 8]), '... and with the manifest exclusions');
+G = EphysPipelineConfig.defaults("Signals");
+G.LFP = true;
+so = EphysPipelineConfig.signalOptions(G, ExcludeChannels=1, BadChannels=bd, NumChannels=nChan);
+check(isequal(so.keepAmpChannels, [1 2 4 5 7 8]), 'Signals drops them whatever ExcludeHandling says ("none")');
+G.ExcludeHandling = "interpolate";
+so = EphysPipelineConfig.signalOptions(G, ExcludeChannels=[1 3], BadChannels=bd, NumChannels=nChan);
+check(isequal(so.keepAmpChannels, [1 2 4 5 7 8]) && isequal(so.badChannels, 1), ...
+    '... and does not interpolate a bad channel the Probe tab excludes too');
+fpOn = EphysPipeline.artifactFingerprint(aB, dsB);
+aOff = aB; aOff.ExcludeBadChannels = false;
+dsB.ArtifactConfig = aOff;
+check(isequal(dsB.excludedChannels(), 1) && fpOn ~= EphysPipeline.artifactFingerprint(aOff, dsB), ...
+    'off again: only the Probe tab exclusions, and the artifact cache is detected again');
+dsB.ArtifactConfig = aB;
+dsB.BadChannels = 2;
+dsB.BadChannelsSource = "manual";
+check(~dsB.prepareBadChannels() && isequal(dsB.BadChannels, 2), 'a list set by hand is kept');
+dsB.BadChannelsSource = "";
+dsB.ExcludeChannels = [1 2 4];   % 3 and 6 bad would leave 3 channels
+dsB.BadChannels = [];
+lastwarn('');
+warning('off', 'EphysDataset:prepareBadChannels:SuggestionNotApplied');
+dsB.prepareBadChannels();
+warning('on', 'EphysDataset:prepareBadChannels:SuggestionNotApplied');
+[~, wid] = lastwarn();
+check(isempty(dsB.BadChannels) && dsB.BadChannelsSource == "suggested" ...
+    && strcmp(wid, 'EphysDataset:prepareBadChannels:SuggestionNotApplied'), ...
+    'a suggestion that leaves too few channels is not applied');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

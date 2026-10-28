@@ -134,6 +134,22 @@ classdef EphysDataset < handle
         % "manual".
         ReferenceExcludeSource (1,1) string {mustBeMember(ReferenceExcludeSource, ["" "suggested" "manual"])} = ""
 
+        % Bad channels, 1-based like ExcludeChannels: while
+        % ArtifactConfig.ExcludeBadChannels is on they are left out of
+        % every step as ExcludeChannels are (excludedChannels): the common
+        % reference, artifact detection, spike detection, the sorter's
+        % chanMap (they stay in the .bin) and the signals, so the exports.
+        % Filled by the noise-floor rule of the common reference
+        % (suggestReferenceExclude, ReferenceBadLow / ReferenceBadHigh) or
+        % set by hand; saved in the manifest. See BadChannelsSource,
+        % prepareBadChannels.
+        BadChannels (1,:) double = double.empty(1,0)
+
+        % Where BadChannels came from: "" = never set (the first read with
+        % ExcludeBadChannels on suggests them, see prepareBadChannels),
+        % "suggested" or "manual".
+        BadChannelsSource (1,1) string {mustBeMember(BadChannelsSource, ["" "suggested" "manual"])} = ""
+
         PythonExe (1,1) string = ""              % python/conda exe path for KS4 spawn
         CondaEnv  (1,1) string = ""              % conda env name (uses `conda run -n` when set)
         % .bin units per microvolt. NaN (default) = from the recording
@@ -349,8 +365,10 @@ classdef EphysDataset < handle
         r      = referenceTrace(obj, X, opts)
         [bad, info] = suggestReferenceExclude(obj, opts)
         tf     = prepareReference(obj, opts)
+        [tf, info] = prepareBadChannels(obj)
         st     = prepareWCAR(obj, opts)
         ch     = referenceChannels(obj)
+        [ch, bad] = excludedChannels(obj)
         X      = blankArtifacts(obj, X, mask, opts)
         mask   = manualArtifactMask(obj, nSamp, sampleOffset, Fs, iv)
         addArtifact(obj, t0, t1)
@@ -980,6 +998,17 @@ classdef EphysDataset < handle
                 'channels', EphysDataset.formatChannelList(obj.ReferenceExclude), ...
                 'source', obj.ReferenceExcludeSource);
 
+            % Bad channels: whether they are left out (ExcludeBadChannels),
+            % which, where they came from ("" = never set), and the noise
+            % band that suggests them.
+            acfg = EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig);
+            m.bad_channels = struct( ...
+                'enabled', logical(acfg.ExcludeBadChannels), ...
+                'channels', EphysDataset.formatChannelList(obj.BadChannels), ...
+                'source', obj.BadChannelsSource, ...
+                'low', acfg.ReferenceBadLow, 'high', acfg.ReferenceBadHigh, ...
+                'excluded', EphysDataset.formatChannelList(obj.excludedChannels()));
+
             % Manual artifact periods ([k x 2] seconds, recording-relative) so
             % periods marked on the Artifacts tab survive a rescan / restart.
             ma = obj.ManualArtifacts;
@@ -1110,6 +1139,12 @@ classdef EphysDataset < handle
                     && ismember(string(m.reference_exclude.source), ["" "suggested" "manual"])
                 obj.ReferenceExclude = EphysDataset.parseChannelList(string(m.reference_exclude.channels));
                 obj.ReferenceExcludeSource = string(m.reference_exclude.source);
+            end
+            if isfield(m, 'bad_channels') && isstruct(m.bad_channels) ...
+                    && all(isfield(m.bad_channels, {'channels', 'source'})) ...
+                    && ismember(string(m.bad_channels.source), ["" "suggested" "manual"])
+                obj.BadChannels = EphysDataset.parseChannelList(string(m.bad_channels.channels));
+                obj.BadChannelsSource = string(m.bad_channels.source);
             end
             if isfield(m, 'manual_artifacts')
                 ma = m.manual_artifacts;
@@ -1271,7 +1306,7 @@ classdef EphysDataset < handle
             r = EphysDataset.processingRecord(key, opts.File, struct('runId', opts.RunId), settings);
             r.created = opts.Created;
             r.reference = EphysDataset.referenceRecord(ref);
-            r.channels = EphysDataset.formatChannelList(setdiff(1:obj.NumChannels, obj.ExcludeChannels));
+            r.channels = EphysDataset.formatChannelList(setdiff(1:obj.NumChannels, obj.excludedChannels()));
             r.detected = size(auto, 1);
             r.detected_s = sum(auto(:, 2) - auto(:, 1));
             obj.Processing.artifacts = r;
@@ -1454,6 +1489,7 @@ classdef EphysDataset < handle
                 'ReferenceBadLow',  0.3, ... % x median noise: quieter channels are left out of the reference
                 'ReferenceBadHigh', 2, ...   % x median noise: noisier channels are left out of the reference
                 'ReferenceWCAR', EphysDataset.defaultWCAR(), ...  % weightedCAR options for "wcar"
+                'ExcludeBadChannels', false, ... % leave BadChannels (noise floor outside [ReferenceBadLow ReferenceBadHigh]) out of every step
                 'Enabled',      false, ...   % toBin blanks only when true
                 'Method',       "rms", ...   % running-RMS amplitude deviation
                 'Threshold',    9, ...       % robust SDs above per-channel baseline

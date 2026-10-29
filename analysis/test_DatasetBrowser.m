@@ -782,6 +782,136 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyError(@() epochMatrixFieldTrip(B.compute()), 'epochMatrixFieldTrip:NotSignal');
         end
 
+        function mtrfOfEpochsAndSessions(tc)
+            B = tc.open(Settings=epochMatrixSettings(tc.Spike, data="LFP", keepEpochs=true));
+            R = B.compute();
+            M = epochMatrixMTRF(R);
+            tc.verifySize(M, [numel(R.epochs) 1]);
+            e = R.epochs(1);
+            m = M{1};
+            fsR = 1 / mean(diff(R.t));
+            tc.verifyEqual(m.fs, fsR, 'AbsTol', 1e-9, 'Fs [] keeps the result''s rate.');
+            tc.verifyEqual(m.nTrials, height(e.E));
+            tc.verifyEqual(m.resp{end}, double(e.data(:, :, end)).', 'A trial per epoch, [nTime x nChannels], as R.epochs holds it.');
+            tc.verifyEqual(m.t, R.t(:), 'Not resampled: the result''s own times.');
+            tc.verifyEqual(m.respLabels, reshape(string(R.rows.label(e.rows)), 1, []));
+            tc.verifyEqual(m.stimLabels, "onset");
+            j0 = round(-R.t(1) * m.fs) + 1;
+            x = m.stim{1};
+            tc.verifyEqual(nnz(x), 1);
+            tc.verifyEqual(x(j0), m.fs, 'An impulse of unit area (height fs) on the event''s sample.');
+            tc.verifyEqual(m.trialinfo.resultGroup, e.E.resultGroup);
+            tc.verifyEqual(m.trialinfo.trial, e.E.trial);
+            tc.verifyEqual(m.start, e.E.t0Continuous + R.t(1), 'AbsTol', 1e-9);
+            tc.verifyEqual(m.cfg.data, "LFP");
+            tc.verifyEqual(m.cfg.epochs, e.E);
+            % resampled, scaled by a value per epoch, and a stimulus function
+            M2 = epochMatrixMTRF(R, Fs=100, Values=@(E) E.trial, ImpulseHeight=1);
+            tc.verifyEqual(M2{1}.fs, 100);
+            tc.verifyEqual(size(M2{1}.resp{1}, 1), numel(M2{1}.t));
+            tc.verifyEqual(nnz(M2{1}.stim{2}), 1);
+            tc.verifyEqual(max(M2{1}.stim{2}), e.E.trial(2), 'Values scale the impulse; ImpulseHeight=1 is a plain feature.');
+            M3 = epochMatrixMTRF(R, Stimulus=@(E, t) [t, E.trial + 0 * t]);
+            tc.verifyEqual(M3{1}.nFeatures, 2);
+            tc.verifyEqual(M3{1}.stim{3}(:, 2), repmat(e.E.trial(3), numel(R.t), 1));
+            tc.verifyError(@() epochMatrixMTRF(R, Stimulus="nope"), 'epochMatrixMTRF:BadStimulus');
+            tc.verifyError(@() epochMatrixMTRF(R, Values=[1 2]), 'epochMatrixMTRF:BadStimulus');
+
+            % the whole sessions: pieces of the signal at its own rate, an impulse on each Stim onset
+            D = B.loadSessions();
+            k = find([D.key] == e.key);
+            d = D(k);
+            fs = d.signalFs;
+            S = sessionDataMTRF(D, Stimulus="Stim", Fs=fs, MaxSeconds=1, MinSeconds=0.5);
+            s = S{k};
+            tc.verifyEqual(s.fs, fs);
+            tc.verifyGreaterThan(s.nTrials, 1, 'A session longer than MaxSeconds gives several pieces.');
+            tc.verifyTrue(all(cellfun(@(c) size(c, 1), s.resp) <= fs + 1), 'No piece longer than MaxSeconds.');
+            tc.verifyEqual(s.respLabels, reshape(string(d.channels.label), 1, []));
+            tc.verifyEqual(s.pos, [d.channels.x d.channels.y]);
+            tc.verifyEqual(s.stimLabels, "Stim");
+            tc.verifyEqual(s.cfg.mode, "segments");
+            full = mTRFExport.pulses(d.eventsContinuous.Stim, fs, size(d.signal, 1), Height=fs);
+            for j = 1:s.nTrials
+                rows = s.trialinfo.first(j):s.trialinfo.last(j);
+                tc.verifyEqual(s.resp{j}, double(d.signal(rows, :)), sprintf('Piece %d is the signal''s rows.', j));
+                tc.verifyEqual(s.stim{j}, full(rows), sprintf('Piece %d holds the Stim impulses of its rows.', j));
+                tc.verifyEqual(s.start(j), (rows(1) - 1) / fs, 'AbsTol', 1e-9);
+            end
+            % the kept trials in the browser's window, with a trial column as a second feature
+            win = B.Settings.window;
+            T = sessionDataMTRF(D, Stimulus=["Stim" "Depth"], Fs=fs, Mode="trials", Window=[win.pre win.post]);
+            t1 = T{k};
+            tc.verifyEqual(t1.cfg.mode, "trials");
+            tc.verifyEqual(t1.nFeatures, 2);
+            tc.verifyTrue(all(d.kept(t1.trialinfo.trial)), 'Only the trials kept.');
+            tc.verifyEqual(t1.trialinfo.group, d.group(t1.trialinfo.trial));
+            on = d.toContinuous(d.trials.TrialOnset(t1.trialinfo.trial));
+            [C, keep] = mTRFExport.trials(d.signal, fs, on, [win.pre win.post], Artifacts=d.artifacts);
+            tc.verifyTrue(all(keep));
+            tc.verifyEqual(t1.resp, C, 'The kept trials in the window, cut as mTRFExport.trials cuts them.');
+            j = 1;
+            depth = double(d.trials.Depth(t1.trialinfo.trial(j)));
+            tc.verifyEqual(max(t1.stim{j}(:, 2)), depth * fs, 'AbsTol', 1e-9, 'A trial column: an impulse of its value on the trial''s onset.');
+            tc.verifyEqual(t1.start(j), (round(on(j) * fs) + round(win.pre * fs)) / fs, 'AbsTol', 1e-9, ...
+                'start is the first sample''s time.');
+            % a line as the alignment: every pulse of it
+            T2 = sessionDataMTRF(D(k), Stimulus="Stim", Fs=fs, Mode="trials", Window=[win.pre win.post], Align="Stim");
+            tc.verifyEqual(T2{1}.trialinfo.Properties.VariableNames, {'pulse'});
+            tc.verifyLessThanOrEqual(T2{1}.nTrials, size(d.events.Stim, 1));
+            % an AUX signal of the same datasets as the stimulus, resampled with the response
+            A = arrayfun(@(dd) sessionData(B.source(dd.key), epochMatrixSettings(B.Settings, data="AUX")), D);
+            S2 = sessionDataMTRF(D(k), Stimulus=A, StimulusChannels=1, Envelope=false, Fs=128, MaxSeconds=2);
+            s2 = S2{1};
+            tc.verifyEqual(s2.fs, 128);
+            tc.verifyEqual(s2.stimLabels, string(A(k).channels.label(1)));
+            tc.verifyEqual(s2.stimUnits, "V");
+            tc.verifyEqual(size(s2.resp{1}, 1), size(s2.stim{1}, 1));
+            x = mTRFExport.resample(A(k).signal(:, 1), A(k).signalFs, 128);
+            tc.verifyEqual(s2.stim{1}, x(s2.trialinfo.first(1):s2.trialinfo.last(1)), 'AbsTol', 1e-9);
+            S3 = sessionDataMTRF(D(k), Stimulus=A, StimulusChannels=[1 3], Fs=128, MaxSeconds=2);
+            tc.verifyEqual(S3{1}.nFeatures, 2);
+            tc.verifyTrue(all(S3{1}.stim{1}(:) >= 0), 'An envelope is never negative.');
+            % a function as the stimulus, at its own rate
+            S4 = sessionDataMTRF(D(k), Fs=128, MaxSeconds=2, ...
+                Stimulus=@(dd) struct('x', ones(round(dd.durationSec * 64), 1), 'fs', 64, 'labels', "one"));
+            tc.verifyEqual(S4{1}.stimLabels, "one");
+            tc.verifyEqual(S4{1}.stim{1}(25:end-25), ones(numel(S4{1}.stim{1}) - 49, 1), 'AbsTol', 1e-3, ...
+                'A constant at 64 Hz stays one at 128 Hz, past the filter''s ends.');
+            % the refusals
+            tc.verifyError(@() sessionDataMTRF(D), 'sessionDataMTRF:NoStimulus');
+            tc.verifyError(@() sessionDataMTRF(D, Stimulus="Nope"), 'sessionDataMTRF:BadStimulus');
+            tc.verifyError(@() sessionDataMTRF(D, Stimulus="Stim", Mode="trials"), 'sessionDataMTRF:NoTrials');
+            tc.verifyError(@() sessionDataMTRF(D, Stimulus="Stim", Mode="trials", Window=[-0.1 0.2], Align="Nope"), ...
+                'sessionDataMTRF:NoTrials');
+            B.Settings = epochMatrixSettings(B.Settings, keepEpochs=false);
+            tc.verifyError(@() epochMatrixMTRF(B.compute()), 'epochMatrixMTRF:NoEpochs');
+
+            % spike trains: binned rates, every spike counted once
+            B.Settings = epochMatrixSettings(B.Settings, data="units", keepEpochs=true);
+            Ru = B.compute();
+            Mu = epochMatrixMTRF(Ru, Fs=200, SpikeUnits="count");
+            eu = Ru.epochs(1);
+            mu = Mu{1};
+            tc.verifyEqual(mu.fs, 200);
+            tc.verifyEqual(mu.respUnits, "spikes");
+            tc.verifyEqual(mu.respLabels, reshape(string(Ru.rows.label(eu.rows)), 1, []));
+            edges = [mu.t - 0.5 / mu.fs; mu.t(end) + 0.5 / mu.fs];
+            for u = 1:min(2, numel(eu.spikes))
+                sp = eu.spikes(u);
+                inWin = sp.times >= edges(1) & sp.times < edges(end);
+                tc.verifyEqual(sum(cellfun(@(c) sum(c(:, u)), mu.resp)), nnz(inWin), ...
+                    sprintf('Unit %d: every spike in the window counted once.', u));
+            end
+            Du = B.loadSessions();
+            Su = sessionDataMTRF(Du(k), Stimulus="Stim", Fs=100, MaxSeconds=Inf);
+            su = Su{1};
+            tc.verifyEqual(su.respUnits, "spikes/s");
+            tc.verifyEqual(su.nChannels, numel(Du(k).spikes));
+            nIn = nnz(Du(k).spikes{1} >= -0.5 / su.fs & Du(k).spikes{1} < size(su.resp{1}, 1) / su.fs - 0.5 / su.fs);
+            tc.verifyEqual(sum(su.resp{1}(:, 1)) / su.fs, nIn, 'AbsTol', 1e-9, 'Rates integrate to the spike count.');
+        end
+
         function exportedScriptEqualsCompute(tc)
             % trials kept and grouped, units' shanks, a normalization: all written out
             S = epochMatrixSettings(tc.Spike, measure="count", ...

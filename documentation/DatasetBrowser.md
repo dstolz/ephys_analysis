@@ -389,7 +389,24 @@ per dataset: `ftEpochs` from `R.epochs` (`epochMatrixFieldTrip`: a trial per
 epoch, `trialinfo` = `[resultGroup trial]`) and `ftSessions` from
 `B.Sessions` (`sessionDataFieldTrip`: the whole signal, with its events, a
 `trl` for `ft_redefinetrial` and the erased periods as an artifact matrix);
-see [FieldTripExport](FieldTripExport.md#from-the-analysis-results). The
+see [FieldTripExport](FieldTripExport.md#from-the-analysis-results).
+[`S_DatasetBrowserToChronux.m`](../analysis/scripts/S_DatasetBrowserToChronux.m)
+does the same for Chronux, and
+[`S_DatasetBrowserToNeuroGLM.m`](../analysis/scripts/S_DatasetBrowserToNeuroGLM.m)
+hands the whole sessions' spike trains to the neuroGLM toolbox
+(`sessionDataNeuroGLM`: one neuroGLM trial per kept trial, every line's
+edges as events, the trial parameters as values) and fits Park et al. 2014's
+Poisson GLM for one unit per dataset, with the kernels, held-out trials and
+PSTHs drawn; see [NeuroGLMExport](NeuroGLMExport.md).
+[`S_DatasetBrowserToMTRF.m`](../analysis/scripts/S_DatasetBrowserToMTRF.m)
+turns a signal (or spike trains) and a stimulus into the stimulus / response
+pairs the mTRF-Toolbox fits, one package per dataset: `mtEpochs` from
+`R.epochs` (`epochMatrixMTRF`: an impulse on each epoch's event) and
+`mtSessions` / `mtTrials` from `B.Sessions` (`sessionDataMTRF`: the whole
+signal resampled, with the pulses of a digital line, a trial parameter or an
+AUX channel's envelope as the stimulus, cut into artifact-free pieces or the
+kept trials), then cross-validates, trains and plots a TRF and a decoder when
+the toolbox is on the path; see [mTRFExport](mTRFExport.md). The
 list, the script picked and the box are preferences.
 
 From a script, `B.compute(RunScript=true)` computes and then runs `B.Script`;

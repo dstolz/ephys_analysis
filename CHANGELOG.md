@@ -50,7 +50,7 @@ says how to cut a release.
   GLM, by neuroGLM's own `matRegress` route (`fminunc`, a ridge prior with the paper's evidence optimization) or by
   `glmfit`; `sessionDataNeuroGLM` builds the experiment from a dataset browser whole session (a trial per
   kept trial, every digital line's edges as events, the trial parameters and group as values, optionally a signal as
-  a continuous covariate); the post-processing script `S_DatasetBrowserToNeuroGLM.m` fits one unit per dataset and
+  a continuous covariate); the post-processing script `S_DatasetBrowserToNeuroGLM.m` fits every unit of each dataset and
   draws the kernels, held-out trials and PSTHs. See [NeuroGLMExport](documentation/NeuroGLMExport.md).
 - mTRF-Toolbox connector: `mTRFExport` (`resample`, `envelope`, `pulses`, `lines`, `trials`, `segments`, `package`,
   `lagSamples`) prepares stimulus / response pairs for the [mTRF-Toolbox](https://github.com/mickcrosse/mTRF-Toolbox)
@@ -2058,6 +2058,10 @@ says how to cut a release.
 
 ### Fixed
 
+- `S_DatasetBrowserToChronux.m`: the spectrogram figure was named from a unit of the wrong dataset (or failed
+  without spikes, after drawing an empty figure), and the groups shared one color scale only within the last
+  dataset; it now plots nothing without spikes, titles each tile with its dataset and unit, and scales every tile
+  alike.
 - Pipeline app: at startup the tabs could show as a small 260 x 221 px box in the window's bottom-left corner,
   for seconds to minutes, until another tab was picked. The tab group was sized from its host panel, whose
   laid-out size reaches MATLAB only once the window's first render is over; it is now sized from the window's

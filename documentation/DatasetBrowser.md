@@ -416,13 +416,13 @@ erased periods), then draws the evoked responses at the probe sites
 see [FieldTripExport](FieldTripExport.md#from-the-analysis-results).
 [`S_DatasetBrowserToChronux.m`](../analysis/browser_scripts/S_DatasetBrowserToChronux.m)
 does the same for Chronux, and
-[`S_DatasetBrowserToNeuroGLM.m`](../analysis/scripts/S_DatasetBrowserToNeuroGLM.m)
+[`S_DatasetBrowserToNeuroGLM.m`](../analysis/browser_scripts/S_DatasetBrowserToNeuroGLM.m)
 hands the whole sessions' spike trains to the neuroGLM toolbox
 (`sessionDataNeuroGLM`: one neuroGLM trial per kept trial, every line's
 edges as events, the trial parameters as values) and fits Park et al. 2014's
-Poisson GLM for one unit per dataset, with the kernels, held-out trials and
+Poisson GLM for every unit of each dataset, with the kernels, held-out trials and
 PSTHs drawn; see [NeuroGLMExport](NeuroGLMExport.md).
-[`S_DatasetBrowserToMTRF.m`](../analysis/scripts/S_DatasetBrowserToMTRF.m)
+[`S_DatasetBrowserToMTRF.m`](../analysis/browser_scripts/S_DatasetBrowserToMTRF.m)
 turns a signal (or spike trains) and a stimulus into the stimulus / response
 pairs the mTRF-Toolbox fits, one package per dataset: `mtEpochs` from
 `R.epochs` (`epochMatrixMTRF`: an impulse on each epoch's event) and
@@ -430,7 +430,18 @@ pairs the mTRF-Toolbox fits, one package per dataset: `mtEpochs` from
 signal resampled, with the pulses of a digital line, a trial parameter or an
 AUX channel's envelope as the stimulus, cut into artifact-free pieces or the
 kept trials), then cross-validates, trains and plots a TRF and a decoder when
-the toolbox is on the path; see [mTRFExport](mTRFExport.md). The
+the toolbox is on the path; see [mTRFExport](mTRFExport.md).
+[`S_DatasetBrowserToICSD.m`](../analysis/browser_scripts/S_DatasetBrowserToICSD.m)
+and [`S_DatasetBrowserToKCSD.m`](../analysis/browser_scripts/S_DatasetBrowserToKCSD.m)
+estimate the current source density of a signal along each shank: the
+evoked potential of every group per laminar profile (`epochMatrixCSD` from
+`R.epochs`, `sessionDataCSD` from `B.Sessions` with the kept trials cut in
+the browser's window), then the iCSD toolbox's spline, delta, step and
+standard methods (`icsdEstimate`, `csdEpochs` / `csdSessions` with
+`csd.<method>`) or kCSD-python's kernel CSD with `R` and `lambda`
+cross-validated (`kcsdEstimate`, run in a Python with `kcsd`), and draw the
+CSD images with the potentials overlaid; see
+[CSDEstimate](CSDEstimate.md). The
 list, the script picked and the box are preferences.
 
 From a script, `B.compute(RunScript=true)` computes and then runs `B.Script`;

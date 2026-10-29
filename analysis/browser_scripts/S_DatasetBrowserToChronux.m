@@ -195,8 +195,8 @@ if outDir ~= ""
 end
 
 %% Example plot: one unit's spike spectrogram, a tile per group (mtspecgrampt)
-% The busiest unit of the first dataset with spikes: from its epochs when there
-% are any, else from a whole session's trials. The spike stamps start at 0 at
+% Each dataset's busiest unit, a row of tiles per dataset: from the epochs when
+% there are any, else from the whole sessions' trials. The spike stamps start at 0 at
 % the window's start, so c.window(1) moves the times back to the event.
 % mtspecgrampt places its windows from the first to the last spike of the
 % trials it is given, not over the whole window, so a group's image may start
@@ -209,11 +209,11 @@ if ~isempty(cxEpochs) && isfield(cxEpochs{1}, 'sp')
 elseif ~isempty(cxSessions)
     src = cxSessions(cellfun(@(c) isfield(c, 'trials') && iscell(c.trials), cxSessions));
 end
+if isempty(src), return, end   % no spikes: nothing to plot
 
-
-fig = figure('Name', "Spike spectrogram " + c.labels(u), 'Color', 'w');
+fig = figure('Name', 'Spike spectrograms (Chronux)', 'Color', 'w');
 tl = tiledlayout(fig, 'flow', 'TileSpacing', 'compact');
-
+axs = gobjects(0); clims = [Inf -Inf];
 for si = 1:length(src)
     c = src{si};
     if iscell(c.sp)
@@ -225,7 +225,6 @@ for si = 1:length(src)
     p.fpass = [plotFpass(1) min(plotFpass(2), p.Fs / 2)];
     p.err = 0;
 
-    axs = gobjects(0); clims = [Inf -Inf];
     for g = unique(c.group(c.group > 0)).'
         if istable(c.groupLabels); gl = string(c.groupLabels.label(g)); else; gl = string(c.groupLabels(g)); end
         tr = trains{u}(c.group == g);
@@ -238,7 +237,7 @@ for si = 1:length(src)
             img = 10 * log10(Sg).';                             % [nFreq x nTime], dB
             imagesc(ax, tn + c.window(1), f, img);
         end
-        title(ax, sprintf('%s (%d trials)', gl, numel(tr)), 'Interpreter', 'none');   % after imagesc, which resets the axes
+        title(ax, sprintf('%s %s: %s (%d trials)', c.name, c.labels(u), gl, numel(tr)), 'Interpreter', 'none');   % after imagesc, which resets the axes
         if numel(allT) < 2 || max(allT) - min(allT) < movingwin(1), continue, end
         axis(ax, 'xy');
         xlim(ax, c.window);

@@ -701,6 +701,43 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyError(@() B.loadSessions(), 'DatasetBrowser:NoneTicked');
         end
 
+        function fieldTripOfEpochsAndSessions(tc)
+            B = tc.open(Settings=epochMatrixSettings(tc.Spike, data="LFP", keepEpochs=true));
+            R = B.compute();
+            F = epochMatrixFieldTrip(R);
+            tc.verifySize(F, [numel(R.epochs) 1]);
+            e = R.epochs(1);
+            f = F{1};
+            tc.verifyEqual(f.trial{end}, double(e.data(:, :, end)), 'A trial per epoch, as R.epochs holds it.');
+            tc.verifyEqual(f.time{1}, R.t.');
+            tc.verifyEqual(f.label, cellstr(R.rows.label(e.rows)));
+            tc.verifyEqual(f.trialinfo, [e.E.resultGroup e.E.trial]);
+            tc.verifyEqual(f.cfg.epochs, e.E);
+            % the whole sessions: each epoch is the session's signal at its sampleinfo
+            D = B.loadSessions();
+            win = B.Settings.window;
+            G = sessionDataFieldTrip(D, Window=[win.pre win.post]);
+            k = find([D.key] == e.key);
+            g = G{k};
+            tc.verifyEqual(g.trial{1}, double(D(k).signal).');
+            for j = 1:numel(f.trial)
+                tc.verifyEqual(g.trial{1}(:, f.sampleinfo(j, 1):f.sampleinfo(j, 2)), f.trial{j}, ...
+                    sprintf('Epoch %d lies on the session at its sampleinfo.', j));
+            end
+            nPulses = sum(structfun(@(iv) size(iv, 1), D(k).events));
+            tc.verifyNumElements(g.cfg.event, nPulses, 'Every pulse of every line.');
+            trl = g.cfg.trl;
+            tc.verifyEqual(trl(:, 3), repmat(round(win.pre * g.fsample), height(trl), 1));
+            tc.verifyEqual(trl(:, 2) - trl(:, 1), repmat(round((win.post - win.pre) * g.fsample), height(trl), 1));
+            tc.verifyEqual(trl(:, 4), D(k).group(trl(:, 5)), 'Each trial''s group.');
+            tc.verifyTrue(all(D(k).kept(trl(:, 5))), 'Only the trials kept.');
+            % spikes, and a result without epochs, are refused
+            B.Settings = epochMatrixSettings(B.Settings, keepEpochs=false);
+            tc.verifyError(@() epochMatrixFieldTrip(B.compute()), 'epochMatrixFieldTrip:NoEpochs');
+            B.Settings = epochMatrixSettings(B.Settings, data="units", keepEpochs=true);
+            tc.verifyError(@() epochMatrixFieldTrip(B.compute()), 'epochMatrixFieldTrip:NotSignal');
+        end
+
         function exportedScriptEqualsCompute(tc)
             % trials kept and grouped, units' shanks, a normalization: all written out
             S = epochMatrixSettings(tc.Spike, measure="count", ...

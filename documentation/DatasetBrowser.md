@@ -354,7 +354,15 @@ which holds
 it keeps the `su` units (or every channel of a signal), sorts them by session
 and the groups by label, and leaves `R`, `units_`, `data_`, `groupLabels_`,
 `groupTexts_`, `cmap`, `nS`, `nU`, `nB`, `nG` and a summary of `R` in the
-workspace. The list, the script picked and the box are preferences.
+workspace. It also holds
+[`S_DatasetBrowserLFPToFieldTrip.m`](../analysis/scripts/S_DatasetBrowserLFPToFieldTrip.m),
+which turns a signal into FieldTrip raw structures (`ft_datatype_raw`), one
+per dataset: `ftEpochs` from `R.epochs` (`epochMatrixFieldTrip`: a trial per
+epoch, `trialinfo` = `[resultGroup trial]`) and `ftSessions` from
+`B.Sessions` (`sessionDataFieldTrip`: the whole signal, with its events, a
+`trl` for `ft_redefinetrial` and the erased periods as an artifact matrix);
+see [FieldTripExport](FieldTripExport.md#from-the-analysis-results). The
+list, the script picked and the box are preferences.
 
 From a script, `B.compute(RunScript=true)` computes and then runs `B.Script`;
 `B.compute()` runs none. `B.loadSessions(RunScript=true)` likewise.

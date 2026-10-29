@@ -26,6 +26,9 @@ neither output is derived from the other.
 | Call | Returns |
 | --- | --- |
 | `data = FieldTripExport.raw(S, "LFP", Class="double")` | a raw structure with **one trial spanning the signal**: `label` (`nChan x 1` cellstr), `time{1}` = `(k-1)/Fs`, `trial{1}` = `[nChan x N]` (the transpose of the pipeline's `[N x nChan]`), `fsample`, `sampleinfo = [1 N]`, `hdr` (`Fs`, `nChans`, `nSamples`, `nSamplesPre = 0`, `nTrials = 1`, `label`, `chantype`, `chanunit = {'uV'}`, `FirstTimeStamp = 0`, `TimeStampPerSample = origFs/Fs`), `cfg` (`exportFieldTrip` adds `cfg.event` at this signal's rate, each onset on the sample nearest its recording row, and `cfg.artfctdef.preprocessing.artifact`, below) |
+| `data = FieldTripExport.continuous(X, Fs, ...)` | the general builder of `raw`: a raw structure of any continuous signal `X` (`[nSamples x nChan]`, row `k` at `(k-1)/Fs`), one trial as above. Options: `Label` (default `ch1..chN`), `ChanType` (`"lfp"`), `ChanUnit` (`"uV"`), `Positions` (`[nChan x 2\|3]` µm: `data.elec`, `unit = 'um'`, when every one is finite), `OrigFs` (the recording rate, for `TimeStampPerSample`; default `Fs`), `Class`, `Cfg` (fields added to `data.cfg`) |
+| `data = FieldTripExport.epochs(X, t, ...)` | a raw structure with **a trial per epoch**: `X` is `[nChan x nTime x nEpochs]` and `t` the `nTime` times, s from each epoch's event (`time{k} = t`, `fsample` from `t`, or `Fs=`). `Onsets=` (each epoch's event, s on the continuous clock of the signal it was cut from) gives `sampleinfo`, the first sample at `round(onset*Fs) + 1 + round(t(1)*Fs)`; without it there is none. `TrialInfo=` (`nEpochs` rows, a matrix or a table) is `trialinfo`. `hdr.nSamplesPre` is the samples before the event. The other options as in `continuous` |
+| `[trl, keep] = FieldTripExport.trl(onsets, [pre post], Fs, Info=, NSamples=)` | a trial definition for `ft_redefinetrial` on a `continuous` structure: `[begsample endsample offset]` around event times `onsets` (s on the signal's clock), on the same samples `epochs` gives with those onsets, plus the columns of `Info` (`trialinfo`). Trials with a NaN onset or off a signal of `NSamples` samples are dropped; `keep` marks the onsets kept |
 | `spike = FieldTripExport.spike(units)` | a spike structure: `label` (`1 x nUnits`, the unit labels, e.g. `su042_1255_260908T1039`), `timestamp{u}` = 0-based recording samples (Kilosort's `spike_times`), `hdr` (`Fs = units.fs`, `FirstTimeStamp = 0`, `TimeStampPerSample = 1`), `cfg`. No `time` / `trial` fields: cut trials in FieldTrip with `ft_spike_maketrials` |
 | `spike = FieldTripExport.spikeFromDetected(detected)` | the same, one "unit" per detected channel |
 | `event = FieldTripExport.event(events, Fs, EventFs=)` | struct array, one element per digital-input pulse at a signal's rate `Fs`: `type` (line name), `sample = round((t_on - 1/EventFs)*Fs) + 1` (1-based; the pulse times count rows of the `EventFs` clock, `t = row/EventFs`, so at `Fs = EventFs`, the default, it is the row that produced the onset, and otherwise the nearest sample of the signal), `value = 1`, `offset = 0`, `duration = round((t_off - t_on)*Fs) + 1` (samples, inclusive), sorted by sample. `exportFieldTrip` passes the recording rate as `EventFs` |
@@ -92,6 +95,32 @@ Each `data_<SIG>.cfg.artfctdef.preprocessing.artifact` lists the samples of
 that signal the erased artifact periods cover, on its `sampleinfo`: the
 matrix `ft_rejectartifact` reads to reject the trials that touch one.
 
+## From the analysis results
+
+Two functions in [`analysis/`](../analysis) hand the DatasetBrowser's data
+(`epochMatrix` results and `sessionData` sessions) to the general builders.
+Each returns a cell column of raw structures, one per dataset:
+
+| Call | Returns |
+| --- | --- |
+| `F = epochMatrixFieldTrip(R, Class=)` ([source](../analysis/epochMatrixFieldTrip.m)) | the epochs of a signal result computed with `keepEpochs=true` (`FieldTripExport.epochs`): `F{k}` is `R.epochs(k)`'s, `trial{j}` epoch `j` as the browser averaged it (never normalized), `time{j} = R.t`, `sampleinfo` on the dataset's continuous signal, `trialinfo = [resultGroup trial]` (the group in `R.groupLabels`, the same across datasets; the trial in the session), `elec` from `R.rows.x`/`y`, and in `cfg` the dataset, the description, the event, the window, `groupLabels`, `groups` and `epochs` (the epochs' table). A spike result raises `epochMatrixFieldTrip:NotSignal`, one without epochs `epochMatrixFieldTrip:NoEpochs` |
+| `F = sessionDataFieldTrip(D, Window=, Align="TrialOnset", Class=)` ([source](../analysis/sessionDataFieldTrip.m)) | whole-session signals (`B.Sessions` after **Load whole sessions** of LFP, MUA, SPIKE or AUX; `FieldTripExport.continuous`): the whole signal as one trial, `elec`, `hdr.TimeStampPerSample` = the recording rate / the signal's, `cfg.event` (every line's pulses at the signal's rate, derived events included), `cfg.artfctdef.preprocessing.artifact` (the erased periods) and `cfg.groups`. `Window=[pre post]` adds `cfg.trl` (`FieldTripExport.trl`): the kept trials around `Align` (a `D.trials` column on the digital clock, moved to the continuous one), `[begsample endsample offset group trial]`. A session without a signal raises `sessionDataFieldTrip:NoSignal` |
+
+```matlab
+R = B.compute();                                  % Data LFP, keepEpochs=true
+F = epochMatrixFieldTrip(R);
+cfg = []; cfg.method = 'mtmfft'; cfg.taper = 'hanning'; cfg.foi = 1:100;
+cfg.trials = find(F{1}.trialinfo(:, 1) == 1);     % the first group
+freq = ft_freqanalysis(cfg, F{1});
+
+G = sessionDataFieldTrip(B.loadSessions(), Window=[-0.5 1]);
+cfg = []; cfg.trl = G{1}.cfg.trl;
+trials = ft_redefinetrial(cfg, G{1});
+```
+
+[`S_DatasetBrowserLFPToFieldTrip.m`](../analysis/scripts/S_DatasetBrowserLFPToFieldTrip.m)
+does both as a DatasetBrowser post-processing script.
+
 ## Tests
 
 [`test_FieldTripExport.m`](../pipeline/test_FieldTripExport.m): `raw`
@@ -105,6 +134,15 @@ rate, row 180001 at 30 kHz → 6001 at 1 kHz; durations, ordering),
 `exportFieldTrip`'s per-signal `cfg.event`, `artifact` (the periods as
 `[begsample endsample]` at the LFP rate, a period shorter than one sample
 included; at the recording rate exactly its own samples; `[]` with none) and
-each signal's `cfg.artfctdef.preprocessing.artifact`, the `export` record's event rate and periods, and
+each signal's `cfg.artfctdef.preprocessing.artifact`, the `export` record's event rate and periods,
+the general builders (`continuous`: the transpose, default labels, `elec`
+only with every position known; `epochs`: a trial per epoch, `sampleinfo`
+from the onsets, `trialinfo`; `trl`: the same samples as `epochs`, NaN and
+off-signal trials dropped), and
 `Validate` as a no-op without FieldTrip (the checks run `ft_datatype_raw` /
 `ft_datatype_spike` when a FieldTrip checkout is on the path).
+[`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m)
+(`fieldTripOfEpochsAndSessions`) checks `epochMatrixFieldTrip` and
+`sessionDataFieldTrip` on the browser's own results: each epoch equals the
+session's signal at its `sampleinfo`, every pulse is an event, and the `trl`
+holds only the kept trials with their groups.

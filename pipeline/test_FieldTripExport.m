@@ -138,7 +138,30 @@ check(isequal(FieldTripExport.artifact([0 1e-3], struct('fsample', 30000, 'trial
     'at the recording rate a period covers exactly its own samples; none gives []');
 clear cleanup
 
-fprintf('\n== 6. validation ==\n');
+fprintf('\n== 6. general builders: continuous, epochs, trl ==\n');
+dc = FieldTripExport.continuous(X, Fs, Positions=[0 0; 0 20; 0 40], ChanType="mua");
+check(isequal(dc.trial{1}, double(X).') && isequal(dc.label, {'ch1'; 'ch2'; 'ch3'}) ...
+    && isequal(dc.sampleinfo, [1 N]) && dc.hdr.TimeStampPerSample == 1 && strcmp(dc.hdr.chantype{1}, 'mua'), ...
+    'continuous: [N x nChan] -> trial{1} [nChan x N], default labels, own clock');
+check(isequal(dc.elec.elecpos, [0 0 0; 0 20 0; 0 40 0]) && strcmp(dc.elec.unit, 'um') && isequal(dc.elec.label, dc.label), ...
+    'continuous: Positions [x y] um -> elec, z = 0');
+dn = FieldTripExport.continuous(X, Fs, Positions=[0 0; NaN 20; 0 40]);
+check(~isfield(dn, 'elec'), 'a position not known: no elec');
+te = (-2:5).' / Fs;                         % 8 samples, 2 before the event
+E = reshape(1:3*8*2, 3, 8, 2);              % 3 channels x 8 times x 2 epochs
+de = FieldTripExport.epochs(E, te, Onsets=[0.1; 0.25], TrialInfo=[1 7; 2 9], Label=["a" "b" "c"]);
+check(numel(de.trial) == 2 && isequal(de.trial{2}, E(:, :, 2)) && isequal(de.time{1}, te.') ...
+    && abs(de.fsample - Fs) < 1e-9, 'epochs: a trial per epoch, time = t, rate from t');
+check(isequal(de.sampleinfo, [99 106; 249 256]) && isequal(de.trialinfo, [1 7; 2 9]) ...
+    && de.hdr.nSamplesPre == 2 && de.hdr.nTrials == 2, ...
+    'epochs: an onset at 0.1 s is sample 101, so the epoch starts 2 samples before');
+dc0 = FieldTripExport.epochs(E, te);
+check(~isfield(dc0, 'sampleinfo') && ~isfield(dc0, 'trialinfo'), 'epochs: no onsets, no sampleinfo');
+[T, keep] = FieldTripExport.trl([0.1; NaN; 0.0005; 0.998], [-0.002 0.005], Fs, Info=[1 1; 2 2; 1 3; 2 4], NSamples=N);
+check(isequal(T, [99 106 -2 1 1]) && isequal(keep, [true; false; false; false]), ...
+    'trl: [begsample endsample offset info], the same samples as epochs; NaN and off-signal trials dropped');
+
+fprintf('\n== 7. validation ==\n');
 hasFT = FieldTripExport.hasFieldTrip();
 [ok, msg] = FieldTripExport.validate(data, "raw");
 if hasFT

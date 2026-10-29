@@ -11,12 +11,20 @@ classdef FieldTripExport
     %   FieldTrip is never required. When it is on the path, validate() runs
     %   ft_datatype_raw / ft_datatype_spike on the structs as a check.
     %
+    %   continuous, epochs and trl are the general builders: any signal as a
+    %   matrix, from this pipeline or not (epochMatrixFieldTrip and
+    %   sessionDataFieldTrip feed them the analysis results).
+    %
     %   Conventions
     %   -----------
     %   - raw: one trial spanning the whole signal; trial{1} is [nChan x N]
     %     (the transpose of this pipeline's [N x nChan]); time{1} = (k-1)/Fs;
     %     sampleinfo = [1 N]; hdr.TimeStampPerSample = origFs/Fs so raw and
     %     spike timestamps share the recording's sample clock.
+    %   - epochs: a trial per epoch, time{k} = the epoch's times from its
+    %     event; sampleinfo, when the onsets are given, places each epoch on
+    %     the continuous signal it was cut from (onset t at sample
+    %     round(t*Fs) + 1).
     %   - spike: timestamp{u} are 0-based recording samples (Kilosort's
     %     spike_times), hdr.Fs the sorter's rate, FirstTimeStamp = 0,
     %     TimeStampPerSample = 1. No trial fields: cut trials in FieldTrip
@@ -50,26 +58,150 @@ classdef FieldTripExport
             end
             X  = S.Y.(sig);
             Fs = double(S.info.(sig).Fs);
-            [N, nCh] = size(X);
-            labels = FieldTripExport.labelsFor(S, nCh, sig);
-            [unit, unitName] = FieldTripExport.unitsFor(S, sig);
+            labels = FieldTripExport.labelsFor(S, size(X, 2), sig);
+            [~, unitName] = FieldTripExport.unitsFor(S, sig);
             origFs = Fs;
             if isfield(S.info, 'origFs') && isfinite(double(S.info.origFs)); origFs = double(S.info.origFs); end
 
+            data = FieldTripExport.continuous(X, Fs, Label=labels, ChanType=lower(sig), ...
+                ChanUnit=unitName, OrigFs=origFs, Class=opts.Class, ...
+                Cfg=struct('exporter', "FieldTripExport.raw", 'signal', sig, 'units', unitName));
+            data.hdr.orig = struct('signal', sig, 'origFs', origFs, 'info', S.info.(sig));
+        end
+
+        function data = continuous(X, Fs, opts)
+            %continuous  FieldTrip raw structure of a continuous signal, one trial.
+            %   data = FieldTripExport.continuous(X, Fs) with X [nSamples x
+            %   nChan], row k at t = (k-1)/Fs (this pipeline's convention):
+            %   trial{1} = X.', time{1} = (0:N-1)/Fs, sampleinfo = [1 N].
+            %   Options:
+            %     Label      nChan names (default ch1..chN)
+            %     ChanType   hdr.chantype, "lfp" by default
+            %     ChanUnit   hdr.chanunit, "uV" by default
+            %     Positions  [nChan x 2|3] site positions, um: data.elec when all finite
+            %     OrigFs     the recording rate, for hdr.TimeStampPerSample = OrigFs/Fs (default Fs)
+            %     Class      "double" (default) or "single"
+            %     Cfg        fields added to data.cfg
+            arguments
+                X (:,:) {mustBeNumeric}
+                Fs (1,1) double {mustBePositive}
+                opts.Label string = string.empty
+                opts.ChanType (1,1) string = "lfp"
+                opts.ChanUnit (1,1) string = "uV"
+                opts.Positions double = []
+                opts.OrigFs (1,1) double {mustBePositive} = Fs
+                opts.Class (1,1) string {mustBeMember(opts.Class, ["double","single"])} = "double"
+                opts.Cfg (1,1) struct = struct()
+            end
+            [N, nCh] = size(X);
             data = struct();
-            data.label      = cellstr(labels(:));
+            data.label      = FieldTripExport.channelLabels(opts.Label, nCh);
             data.time       = {(0:N-1) / Fs};
             data.trial      = {cast(X, opts.Class).'};
             data.fsample    = Fs;
             data.sampleinfo = [1 N];
-            data.hdr = struct('Fs', Fs, 'nChans', nCh, 'nSamples', N, 'nSamplesPre', 0, ...
-                'nTrials', 1, 'label', {cellstr(labels(:))}, ...
-                'chantype', {repmat({char(lower(sig))}, nCh, 1)}, ...
-                'chanunit', {repmat({unit}, nCh, 1)}, ...
-                'FirstTimeStamp', 0, 'TimeStampPerSample', origFs / Fs, ...
-                'orig', struct('signal', sig, 'origFs', origFs, 'info', S.info.(sig)));
-            data.cfg = struct('previous', [], 'exporter', "FieldTripExport.raw", ...
-                'signal', sig, 'units', unitName, 'timeConvention', "t = (sample-1)/Fs");
+            data.hdr = FieldTripExport.header(data.label, Fs, N, 0, 1, opts.ChanType, opts.ChanUnit);
+            data.hdr.FirstTimeStamp = 0;
+            data.hdr.TimeStampPerSample = opts.OrigFs / Fs;
+            data = FieldTripExport.withElec(data, opts.Positions);
+            data.cfg = FieldTripExport.cfgWith(struct('previous', [], 'exporter', "FieldTripExport.continuous", ...
+                'timeConvention', "t = (sample-1)/Fs"), opts.Cfg);
+        end
+
+        function data = epochs(X, t, opts)
+            %epochs  FieldTrip raw structure of epochs, a trial per epoch.
+            %   data = FieldTripExport.epochs(X, t) with X [nChan x nTime x
+            %   nEpochs] and t the nTime sample times, s from each epoch's
+            %   event (evenly spaced): trial{k} = X(:,:,k), time{k} = t.
+            %   Options, besides Label, ChanType, ChanUnit, Positions, Class
+            %   and Cfg as in continuous:
+            %     Onsets     nEpochs event times, s on the continuous clock of
+            %                the signal (sample k at (k-1)/Fs): gives
+            %                sampleinfo, epoch k's first sample at
+            %                round(Onsets(k)*Fs) + 1 + round(t(1)*Fs). Without
+            %                it there is no sampleinfo (FieldTrip makes one up)
+            %     TrialInfo  nEpochs rows: data.trialinfo (a matrix or a table)
+            %     Fs         the rate, when t alone does not give it exactly
+            arguments
+                X (:,:,:) {mustBeNumeric}
+                t (:,1) double
+                opts.Onsets (:,1) double = []
+                opts.TrialInfo = []
+                opts.Fs (1,1) double = NaN
+                opts.Label string = string.empty
+                opts.ChanType (1,1) string = "lfp"
+                opts.ChanUnit (1,1) string = "uV"
+                opts.Positions double = []
+                opts.Class (1,1) string {mustBeMember(opts.Class, ["double","single"])} = "double"
+                opts.Cfg (1,1) struct = struct()
+            end
+            [nCh, nT, nE] = size(X);
+            if numel(t) ~= nT
+                error('FieldTripExport:BadEpochs', 'X has %d time points but t has %d.', nT, numel(t));
+            end
+            Fs = opts.Fs;
+            if ~isfinite(Fs)
+                if nT < 2
+                    error('FieldTripExport:BadEpochs', 'One time point gives no rate: pass Fs.');
+                end
+                Fs = (nT - 1) / (t(end) - t(1));
+            end
+            pre = round(t(1) * Fs);   % samples from the event to an epoch's first (negative before it)
+            data = struct();
+            data.label   = FieldTripExport.channelLabels(opts.Label, nCh);
+            data.fsample = Fs;
+            data.trial   = cell(1, nE);
+            for k = 1:nE
+                data.trial{k} = cast(X(:, :, k), opts.Class);
+            end
+            data.time = repmat({t.'}, 1, nE);
+            if ~isempty(opts.Onsets)
+                if numel(opts.Onsets) ~= nE
+                    error('FieldTripExport:BadEpochs', '%d epochs but %d onsets.', nE, numel(opts.Onsets));
+                end
+                beg = round(opts.Onsets * Fs) + 1 + pre;
+                data.sampleinfo = [beg, beg + nT - 1];
+            end
+            if ~isempty(opts.TrialInfo)
+                if size(opts.TrialInfo, 1) ~= nE
+                    error('FieldTripExport:BadEpochs', '%d epochs but %d TrialInfo rows.', nE, size(opts.TrialInfo, 1));
+                end
+                data.trialinfo = opts.TrialInfo;
+            end
+            data.hdr = FieldTripExport.header(data.label, Fs, nT, max(0, -pre), nE, opts.ChanType, opts.ChanUnit);
+            data = FieldTripExport.withElec(data, opts.Positions);
+            data.cfg = FieldTripExport.cfgWith(struct('previous', [], 'exporter', "FieldTripExport.epochs", ...
+                'timeConvention', "time{k} = s from epoch k's event"), opts.Cfg);
+        end
+
+        function [T, keep] = trl(onsets, window, Fs, opts)
+            %trl  A FieldTrip trial definition around event times.
+            %   [trl, keep] = FieldTripExport.trl(onsets, [pre post], Fs)
+            %   gives [begsample endsample offset] rows for ft_redefinetrial
+            %   on a continuous raw structure: the event at onsets(k) s on the
+            %   signal's clock (sample round(t*Fs) + 1), the window [pre post]
+            %   s from it (pre < 0 before the event). Info= adds columns (one
+            %   row per onset, FieldTrip's trialinfo); NSamples= drops the
+            %   trials that run off a signal of that many samples. keep marks
+            %   the onsets kept (not NaN, inside the signal).
+            arguments
+                onsets (:,1) double
+                window (1,2) double
+                Fs (1,1) double {mustBePositive}
+                opts.Info double = zeros(numel(onsets), 0)
+                opts.NSamples (1,1) double = Inf
+            end
+            if window(1) > window(2)
+                error('FieldTripExport:BadWindow', 'The window needs pre <= post (got [%g %g]).', window(1), window(2));
+            end
+            if size(opts.Info, 1) ~= numel(onsets)
+                error('FieldTripExport:BadWindow', '%d onsets but %d Info rows.', numel(onsets), size(opts.Info, 1));
+            end
+            offset = round(window(1) * Fs);
+            beg = round(onsets * Fs) + 1 + offset;
+            fin = beg + round((window(2) - window(1)) * Fs);
+            keep = isfinite(onsets) & beg >= 1 & fin <= opts.NSamples;
+            T = [beg(keep), fin(keep), repmat(offset, nnz(keep), 1), opts.Info(keep, :)];
         end
 
         function spike = spike(units)
@@ -217,6 +349,43 @@ classdef FieldTripExport
     end
 
     methods (Static, Access = private)
+        function label = channelLabels(label, nCh)
+            %channelLabels  nChan x 1 cellstr of the names given, else ch1..chN.
+            if isempty(label)
+                label = "ch" + string(1:nCh);
+            elseif numel(label) ~= nCh
+                error('FieldTripExport:BadLabels', '%d labels for %d channels.', numel(label), nCh);
+            end
+            label = cellstr(label(:));
+        end
+
+        function hdr = header(label, Fs, nSamples, nSamplesPre, nTrials, chanType, chanUnit)
+            %header  The hdr fields FieldTrip reads, every channel of one type and unit.
+            nCh = numel(label);
+            hdr = struct('Fs', Fs, 'nChans', nCh, 'nSamples', nSamples, 'nSamplesPre', nSamplesPre, ...
+                'nTrials', nTrials, 'label', {label}, ...
+                'chantype', {repmat({char(chanType)}, nCh, 1)}, ...
+                'chanunit', {repmat({char(chanUnit)}, nCh, 1)});
+        end
+
+        function data = withElec(data, pos)
+            %withElec  data.elec from [nChan x 2|3] um positions, when all are finite.
+            if isempty(pos) || ~all(isfinite(pos), 'all'); return; end
+            if size(pos, 1) ~= numel(data.label) || ~ismember(size(pos, 2), [2 3])
+                error('FieldTripExport:BadPositions', 'Positions must be [%d x 2] or [%d x 3].', ...
+                    numel(data.label), numel(data.label));
+            end
+            if size(pos, 2) == 2; pos(:, 3) = 0; end
+            data.elec = struct('label', {data.label}, 'elecpos', pos, 'chanpos', pos, 'unit', 'um');
+        end
+
+        function cfg = cfgWith(cfg, extra)
+            %cfgWith  cfg with the fields of extra set over it.
+            for f = string(fieldnames(extra)).'
+                cfg.(f) = extra.(f);
+            end
+        end
+
         function [unit, name] = unitsFor(S, sig)
             %unitsFor  FieldTrip chanunit and a units name: uV unless info says volts.
             unit = 'uV'; name = "uV";

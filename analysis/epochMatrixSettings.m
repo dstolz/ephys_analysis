@@ -84,7 +84,8 @@ function [S, ID, name] = epochMatrixSettings(S0, opts)
 %
 %   Settings files are JSON: {"schema": "epoch-matrix-settings",
 %   "version": 1, "settings": {...}}, with non-finite numbers written as
-%   the strings "Inf", "-Inf" and "NaN".
+%   the strings "Inf", "-Inf" and "NaN". Other top-level fields (DatasetBrowser
+%   writes "definitions" beside "settings") are left alone.
 %
 %   Options
 %     data, ref, window, selection, units, signal, measure, binSec,

@@ -133,6 +133,9 @@ classdef DatasetBrowser < handle
     %                                        epochMatrix (no FILE: a file dialog; "": text only;
     %                                        File > Export compute script)
     %     removeRecent(B, FILE); clearRecent(B)   File > Recent settings' list (RecentSettings)
+    %     addDefinition(B, NAME); useDefinition(B, NAME); removeDefinition(B, NAME)
+    %                                        Definitions: named event, window and trials (the
+    %                                        Event & trial definitions panel: +, the drop-down, −)
     %     save(B, FILE); restore(B, FILE)    the result file
     %     runScript(B, FILE)                 a post-processing script (default Script) in the base
     %                                        workspace, with B there (the Run now button)
@@ -152,6 +155,21 @@ classdef DatasetBrowser < handle
     %   or S = B.Sessions); "Run now" runs it on them as they are. Its
     %   variables stay in the workspace. The first list is the scripts in
     %   analysis\scripts.
+    %
+    %   Event & trial definitions: the panel under the tabs keeps named
+    %   sets of the Event and Trials tabs' settings (the event and its
+    %   sequence, the epoch window, the trial selection) to switch between
+    %   (Definitions). + keeps the tabs' settings under the name typed in the
+    %   drop-down, replacing a definition of that name; with the box blank,
+    %   under the event and trials part of ResultName ("StimOnset_Hit",
+    %   numbered when taken). Picking a name from the drop-down puts its
+    %   event, window and trials in the settings; data, channels, measure and
+    %   normalization stay as they are. − drops the definition shown. The
+    %   drop-down shows the definition the settings match, and "changed" once
+    %   they differ from the one shown. The definitions are saved in the
+    %   settings file ("definitions" beside "settings"; File > Save settings)
+    %   and come back with File > Load settings (a file without them: none),
+    %   and in the result file with the rest of the state.
     %
     %   Whole sessions: Load whole sessions (loadSessions) is the browser
     %   as a way in to the data, not a compute. Each ticked dataset's
@@ -190,12 +208,15 @@ classdef DatasetBrowser < handle
     %   DatasetBrowser:NoneTicked, DatasetBrowser:UnknownDataset,
     %   DatasetBrowser:BadValue, DatasetBrowser:BadFilter,
     %   DatasetBrowser:NoFile, DatasetBrowser:Canceled (checkCancel; a scan),
+    %   DatasetBrowser:NoDefinition (useDefinition, removeDefinition),
     %   DatasetBrowser:NoScript, DatasetBrowser:ScriptFailed (runScript),
     %   DatasetBrowser:NoResult (showRasters, raster before a compute),
     %   epochMatrixRaster:NoEpochs (a result without epochs);
     %   compute raises epochMatrix's (epochMatrix:Canceled after a Cancel)
     %   and forEach DatasetRuns' (DatasetRuns:Canceled). Warnings:
-    %   DatasetBrowser:BadResultFile, DatasetBrowser:NotSaved, and with
+    %   DatasetBrowser:BadResultFile, DatasetBrowser:NotSaved,
+    %   DatasetBrowser:BadDefinition (one a settings file holds that does not
+    %   check: left out), and with
     %   Workers DatasetRuns:Serial (no process pool: computed here).
     %   Preferences (AppPrefs group DatasetBrowser, saved on close): Root,
     %   NamePattern, Position, Sort, SettingsFolder, RecentSettings, Workers,
@@ -319,10 +340,11 @@ classdef DatasetBrowser < handle
         SettingsFile (1,1) string = ""     % the settings file last loaded or saved ("" = none): saveSettings() writes it
         RecentSettings (:,1) string = strings(0, 1)   % the settings files last loaded or saved, newest first (File > Recent settings)
         Scripts (:,1) string = strings(0, 1)   % the post-processing scripts listed (full paths; the Script drop-down)
+        Definitions = reshape(struct('name', {}, 'ref', {}, 'window', {}, 'selection', {}), 0, 1)   % the named event, window and trials (struct column: name, ref, window, selection; the definitions drop-down)
     end
 
     properties
-        OnChange = []                      % OnChange(B, what): "scan" | "filter" | "ticks" | "settings" | "result" | "sessions" | "script" | "done" | "closed"
+        OnChange = []                      % OnChange(B, what): "scan" | "filter" | "ticks" | "settings" | "definitions" | "result" | "sessions" | "script" | "done" | "closed"
     end
 
     properties (Hidden)
@@ -383,6 +405,7 @@ classdef DatasetBrowser < handle
         ScriptS (1,1) string = ""          % Script
         AfterS (1,1) logical = false       % ScriptAfterCompute
         ScriptFolder (1,1) string = ""     % the folder of the last script added (the + dialog starts there)
+        DefinitionName (1,1) string = ""   % the definition shown in the drop-down ("" = none): + replaces it, − drops it
         Splash AppSplash = AppSplash.empty % the startup window (AppSplash; open while the window is built and the root scanned)
     end
 
@@ -398,7 +421,7 @@ classdef DatasetBrowser < handle
             "TickShown" "UntickAll" "Table" "FileMenu" "Data" "Normalize" "NormBaseline" "NormScope" ...
             "Shanks" "Channels" "ProbeAll" "Probe" "Merge" "Measure" "Bin" "Baseline" ...
             "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "KeepEpochs" "Compute" "LoadSessions" "Workers" ...
-            "ScriptAfter" "ScriptList" "ScriptAdd" "ScriptRemove" "ScriptEdit" "ScriptRun"]
+            "ScriptAfter" "ScriptList" "ScriptAdd" "ScriptRemove" "ScriptEdit" "ScriptRun" "DefList" "DefAdd" "DefRemove"]
         MaxRecent = 10                     % RecentSettings' length
         ErrorColor = [0.75 0.1 0.1]
         TextColor = [0.25 0.25 0.25]
@@ -469,6 +492,9 @@ classdef DatasetBrowser < handle
             if isfield(opts, 'OutputRoot'); B.OutputRoot = opts.OutputRoot; end
             if isfield(opts, 'Recordings'); B.Recordings = opts.Recordings; end
             if ~isempty(opts.Settings)
+                if isstring(opts.Settings) || ischar(opts.Settings)
+                    B.Definitions = fileDefinitions(string(opts.Settings));
+                end
                 B.setSettings(opts.Settings, false);
                 if isstring(opts.Settings) || ischar(opts.Settings)
                     B.tookFile(string(opts.Settings));
@@ -1106,19 +1132,26 @@ classdef DatasetBrowser < handle
                 if file == ""; return; end
             end
             file = string(file);
-            B.Settings = epochMatrixSettings(file);
+            S = epochMatrixSettings(file);
+            B.Definitions = fileDefinitions(file);   % the file's (none without them), before the settings so the drop-down follows them
+            B.DefinitionName = "";
+            B.Settings = S;
             B.tookFile(file);
+            B.changed("definitions");
             B.setStatus("Settings loaded from " + file + ".");
         end
 
         function saveSettings(B, file)
-            %saveSettings  Write Settings to a .json settings file; no FILE: SettingsFile, else a file dialog.
+            %saveSettings  Write Settings and Definitions to a .json settings file; no FILE: SettingsFile, else a file dialog.
+            %   The file is epochMatrixSettings' (it reads the settings and
+            %   leaves "definitions" alone), with Definitions beside the settings.
             if nargin < 2 || string(file) == ""
                 file = B.SettingsFile;
                 if file == ""; B.saveSettingsAs(); return; end
             end
             file = string(file);
-            epochMatrixSettings(B.SettingsS, SaveAs=file);
+            writeJsonFile(file, struct('schema', "epoch-matrix-settings", 'version', 1, 'settings', B.SettingsS, ...
+                'definitions', {num2cell(B.Definitions)}), NonFinite="string");
             B.tookFile(file);
             B.setStatus("Settings saved to " + file + ".");
         end
@@ -1202,6 +1235,56 @@ classdef DatasetBrowser < handle
             %clearRecent  Empty RecentSettings; the files stay.
             B.RecentSettings = strings(0, 1);
             B.refreshFileMenu();
+        end
+
+        % --- event & trial definitions --------------------------------------------------------------
+        function addDefinition(B, name)
+            %addDefinition  Keep the settings' event, window and trials under NAME in Definitions (the + button).
+            %   A definition of that name is replaced. No NAME (or ""): the
+            %   event and trials part of ResultName ("StimOnset_Hit"), numbered
+            %   when a definition holds it already.
+            arguments
+                B
+                name (1,1) string = ""
+            end
+            name = strtrim(name);
+            names = string([B.Definitions.name]);
+            if name == ""; name = string(matlab.lang.makeUniqueStrings(definitionName(B.SettingsS), cellstr(names))); end
+            S = B.SettingsS;
+            k = find(names == name, 1);
+            replaced = ~isempty(k);
+            if ~replaced; k = numel(B.Definitions) + 1; end
+            B.Definitions(k, 1) = struct('name', name, 'ref', S.ref, 'window', S.window, 'selection', S.selection);
+            B.DefinitionName = name;
+            B.refreshDefinitions();
+            B.changed("definitions");
+            B.setStatus(ternary(replaced, "Replaced", "Added") + " the definition """ + name + """ (event, window, trials).");
+        end
+
+        function useDefinition(B, name)
+            %useDefinition  Definition NAME's event, window and trials into Settings; the other settings stay (a pick in the drop-down).
+            k = B.definitionIndex(name);
+            d = B.Definitions(k);
+            S = B.SettingsS;
+            S.ref = d.ref;
+            S.window = d.window;
+            S.selection = d.selection;
+            B.Settings = S;   % checked: epochMatrixSettings' errors leave the settings as they were
+            B.DefinitionName = d.name;
+            B.refreshDefinitions();
+            B.setStatus("Event and trials of """ + d.name + """.");
+        end
+
+        function removeDefinition(B, name)
+            %removeDefinition  Drop definition NAME (no NAME: the one shown) from Definitions; the settings stay (the − button).
+            if nargin < 2; name = B.DefinitionName; end
+            k = B.definitionIndex(name);
+            name = B.Definitions(k).name;
+            B.Definitions(k) = [];
+            if B.DefinitionName == name; B.DefinitionName = ""; end
+            B.refreshDefinitions();
+            B.changed("definitions");
+            B.setStatus("Removed the definition """ + name + """.");
         end
 
         function tf = save(B, file)
@@ -1487,7 +1570,7 @@ classdef DatasetBrowser < handle
 
             % --- right: the settings
             p = uipanel(m, "Title", "Settings");
-            R = uigridlayout(p, [7 1], "RowHeight", {22, 26, '1x', 24, 34, 'fit', 48}, "Padding", [8 6 8 6], "RowSpacing", 5);
+            R = uigridlayout(p, [8 1], "RowHeight", {22, 26, '1x', 62, 24, 34, 'fit', 48}, "Padding", [8 6 8 6], "RowSpacing", 5);
             edit = @(name) @(~, ~) B.uiRun(@() B.onFormEdit(name));
             open = @(~, ~) B.uiRun(@() B.fillLists());
             c.SettingsFile = uilabel(R, "Text", "", "FontColor", B.TextColor);
@@ -1569,6 +1652,21 @@ classdef DatasetBrowser < handle
             c.Rectify = place(uicheckbox(gg, "Text", "Rectify", "ValueChangedFcn", edit("Rectify")), 2, 2);
             c.Magnitude = place(uicheckbox(gg, "Text", "Magnitude (AUX)", "ValueChangedFcn", edit("Magnitude"), ...
                 "Tooltip", "The channels' vector magnitude, one row (the accelerometer)."), 2, [3 4]);
+            % --- the event & trial definitions: named sets of the Event and Trials tabs, switched by the drop-down
+            dp = uipanel(R, "Title", "Event & trial definitions");
+            dg = uigridlayout(dp, [1 4], "ColumnWidth", {'1x', 34, 34, 'fit'}, "RowHeight", {30}, ...
+                "Padding", [6 4 6 4], "ColumnSpacing", 4);
+            c.DefList = uidropdown(dg, "Items", {}, "Editable", "on", "Value", '', ...
+                "Placeholder", "pick one, or type a name for +", ...
+                "ValueChangedFcn", @(~, evt) B.uiRun(@() B.onDefinitionPick(evt)), ...
+                "Tooltip", "Pick a definition: its event, window and trials go into the settings (the rest stays). " + ...
+                "Type a name, then press +, to keep the Event and Trials tabs under it.");
+            c.DefAdd = uibutton(dg, "Text", "+", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.addDefinition(string(B.Ctl.DefList.Value))), ...
+                "Tooltip", "Keep the Event and Trials tabs' settings (event, window, trials) under the name shown " + ...
+                "(an existing one is replaced; blank: a name from the event and trials). Saved with the settings file.");
+            c.DefRemove = uibutton(dg, "Text", "−", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.removeDefinition(string(B.Ctl.DefList.Value))), ...
+                "Tooltip", "Drop the definition shown from the list (the settings stay).");
+            c.DefNote = uilabel(dg, "Text", "", "FontColor", B.TextColor);
             c.KeepEpochs = uicheckbox(R, "Text", "Keep single trials, not just averages (R.epochs)", "ValueChangedFcn", edit("KeepEpochs"), ...
                 "Tooltip", "Also keep every epoch before it is averaged, in B.Result.epochs, for trial-by-trial work: " + ...
                 "each spike's time from the event and its epoch, or each epoch's signal trace (row x time x epoch). " + ...
@@ -1622,7 +1720,7 @@ classdef DatasetBrowser < handle
             c.Cancel = uibutton(s, "Text", "Cancel", "Enable", "off", "ButtonPushedFcn", @(~, ~) B.cancel());
             c.Status = uilabel(g, "Text", "", "FontColor", B.TextColor);
 
-            styleButton([c.Browse c.TickShown c.UntickAll c.ProbeAll c.ScriptAdd c.ScriptRemove c.ScriptEdit c.ScriptRun]);
+            styleButton([c.Browse c.TickShown c.UntickAll c.ProbeAll c.ScriptAdd c.ScriptRemove c.ScriptEdit c.ScriptRun c.DefAdd c.DefRemove]);
             styleButton([c.Scan c.Compute], "primary");
             styleButton(c.LoadSessions, "confirm");
             styleButton(c.Cancel, "danger");
@@ -1635,6 +1733,7 @@ classdef DatasetBrowser < handle
             B.refreshScripts();
             B.refreshFilterControls();
             B.refreshForm();
+            B.refreshDefinitions();
             B.refreshTable();
             B.refreshSummary();
             if B.uiOk()
@@ -1762,6 +1861,26 @@ classdef DatasetBrowser < handle
             B.applyEnable();
         end
 
+        function refreshDefinitions(B)
+            %refreshDefinitions  The definitions drop-down from Definitions: the one the settings match shown, else "changed".
+            %   DefinitionName follows the settings: when they match another
+            %   definition than the one shown, that one is shown (a new name
+            %   typed for + stays).
+            names = string([B.Definitions.name]);
+            match = names(arrayfun(@(d) B.isCurrent(d), B.Definitions));
+            typed = B.DefinitionName ~= "" && ~ismember(B.DefinitionName, names);
+            if ~isempty(match) && ~typed && ~ismember(B.DefinitionName, match); B.DefinitionName = match(1); end
+            if ~B.uiOk(); return; end
+            c = B.Ctl;
+            c.DefList.Items = cellstr(names);
+            c.DefList.Value = char(B.DefinitionName);
+            shown = ismember(B.DefinitionName, names);
+            c.DefNote.Text = ternary(shown && ~ismember(B.DefinitionName, match), "changed", "");
+            c.DefNote.Tooltip = ternary(c.DefNote.Text == "", "", ...
+                "The settings' event, window or trials differ from """ + B.DefinitionName + """: + keeps them under that name.");
+            B.applyEnable();
+        end
+
         function refreshFilterControls(B)
             if ~B.uiOk(); return; end
             c = B.Ctl;
@@ -1838,6 +1957,7 @@ classdef DatasetBrowser < handle
             picked = B.ScriptS ~= "";
             set([c.ScriptList c.ScriptRemove c.ScriptEdit c.ScriptAfter], "Enable", on(picked));
             c.ScriptRun.Enable = on(picked && (~isempty(B.Result) || ~isempty(B.Sessions)));
+            c.DefRemove.Enable = on(ismember(B.DefinitionName, string([B.Definitions.name])));
         end
 
         function refreshDataNote(B)
@@ -2000,6 +2120,36 @@ classdef DatasetBrowser < handle
             end
         end
 
+        function onDefinitionPick(B, evt)
+            %onDefinitionPick  A name picked from the drop-down is applied; a typed one waits for + (it may be new).
+            name = strtrim(string(evt.Value));
+            B.DefinitionName = name;
+            if evt.Edited || ~ismember(name, string([B.Definitions.name]))
+                B.refreshDefinitions();
+                return
+            end
+            try
+                B.useDefinition(name);
+            catch ME
+                B.refreshForm();
+                B.refreshDefinitions();
+                B.setStatus("Not applied: " + string(ME.message), true);
+            end
+        end
+
+        function tf = isCurrent(B, d)
+            %isCurrent  Definition D's event, window and trials are the settings' (as their cache identity's text).
+            tf = DatasetRuns.idText(struct('ref', d.ref, 'window', d.window, 'selection', d.selection)) == ...
+                DatasetRuns.idText(struct('ref', B.SettingsS.ref, 'window', B.SettingsS.window, 'selection', B.SettingsS.selection));
+        end
+
+        function k = definitionIndex(B, name)
+            k = find(string([B.Definitions.name]) == strtrim(string(name)), 1);
+            if isempty(k)
+                error('DatasetBrowser:NoDefinition', 'No event & trial definition "%s".', string(name));
+            end
+        end
+
         function onProbePick(B, channels, shanks)
             %onProbePick  The probe's picks (or All: both blank) into the settings of the data computed; undone when they do not fit.
             try
@@ -2044,6 +2194,7 @@ classdef DatasetBrowser < handle
             B.takeSettings(S, ID, name);
             renormalized = B.renormalize();
             B.refreshForm();
+            B.refreshDefinitions();
             B.refreshTable();
             B.refreshSummary();
             B.refreshEpochs();
@@ -2105,9 +2256,7 @@ classdef DatasetBrowser < handle
                 tags = string(TagSet.summarize(reshape(B.Datasets.tagSet(ismember(B.Datasets.key, R.keys)), 1, [])));
                 joint = "_";
             end
-            trials = "AllTrials";
-            if ~isempty(R.settings.selection.response); trials = strjoin(R.settings.selection.response, " or "); end
-            parts = [camelWords(R.labels.aligned), camelWords(trials), camelWords(R.labels.measure)];
+            parts = [eventTrialsWords(R.labels.aligned, R.settings.selection), camelWords(R.labels.measure)];
             if ~isempty(tags); parts = [strjoin(tags, joint), parts]; end
             s = string(matlab.lang.makeValidName(char(strjoin(parts(parts ~= ""), "_"))));
         end
@@ -2170,6 +2319,11 @@ classdef DatasetBrowser < handle
                     warning('DatasetBrowser:BadResultFile', '%s: the settings are not used (%s).', file, ME.message);
                 end
             end
+            if isfield(s, 'definitions')
+                B.Definitions = checkDefinitions(s.definitions, file);
+                B.DefinitionName = "";
+                if isfield(s, 'definitionName'); B.DefinitionName = string(s.definitionName); end
+            end
             if isfield(L, 'runs')
                 try
                     B.Runs = DatasetRuns.fromStruct(L.runs);
@@ -2228,7 +2382,7 @@ classdef DatasetBrowser < handle
         function s = browserState(B)
             s = struct('root', B.Root, 'outputRoot', B.OutputRoot, 'namePattern', B.NamePattern, ...
                 'recordings', B.Recordings, 'ticked', B.SelectedKeys, 'filter', B.FilterS, 'settings', B.SettingsS, ...
-                'settingsFile', B.SettingsFile);
+                'settingsFile', B.SettingsFile, 'definitions', {B.Definitions}, 'definitionName', B.DefinitionName);
         end
 
         function sig = stateSig(B)
@@ -2964,6 +3118,56 @@ function s = camelWords(text)
 w = regexp(string(text), '[A-Za-z0-9]+', 'match');
 for k = 2:numel(w); w(k) = upper(extractBefore(w(k), 2)) + extractAfter(w(k), 1); end
 s = strjoin(w, "");
+end
+
+
+function w = eventTrialsWords(aligned, selection)
+%eventTrialsWords  ResultName's event and trials parts: ["StimOnset" "Hit"], ["TrialOnset" "AllTrials"].
+trials = "AllTrials";
+if ~isempty(selection.response); trials = strjoin(selection.response, " or "); end
+w = [camelWords(aligned), camelWords(trials)];
+end
+
+
+function s = definitionName(S)
+%definitionName  A definition's default name: the event and trials of ResultName, one identifier ("StimOnset_Hit").
+L = epochMatrixLabels(struct('settings', S, 'valueUnits', "", 'groupLabels', zeros(0, 1)));
+w = eventTrialsWords(L.aligned, S.selection);
+s = string(matlab.lang.makeValidName(char(strjoin(w(w ~= ""), "_"))));
+end
+
+
+function D = fileDefinitions(file)
+%fileDefinitions  The definitions a settings file holds (none without "definitions").
+s = readJsonFile(file);
+D = checkDefinitions([], file);
+if isstruct(s) && isfield(s, 'definitions'); D = checkDefinitions(s.definitions, file); end
+end
+
+
+function D = checkDefinitions(in, file)
+%checkDefinitions  IN (a struct array, or a cell of structs: JSON) as Definitions, each checked.
+%   A definition without a name, of a name taken before, or whose ref,
+%   window or selection epochMatrixSettings rejects (over the defaults) is
+%   left out with the warning DatasetBrowser:BadDefinition.
+D = reshape(struct('name', {}, 'ref', {}, 'window', {}, 'selection', {}), 0, 1);
+if isstruct(in); in = num2cell(in); end
+if ~iscell(in); return; end
+for k = 1:numel(in)
+    d = in{k};
+    try
+        if ~(isstruct(d) && isscalar(d) && all(isfield(d, {'name', 'ref', 'window', 'selection'})))
+            error('DatasetBrowser:BadDefinition', 'it needs name, ref, window and selection');
+        end
+        name = strtrim(string(d.name));
+        if ~isscalar(name) || name == ""; error('DatasetBrowser:BadDefinition', 'it has no name'); end
+        if ismember(name, string([D.name])); error('DatasetBrowser:BadDefinition', 'the name "%s" is taken', name); end
+        C = epochMatrixSettings([], ref=d.ref, window=d.window, selection=d.selection);
+        D(end+1, 1) = struct('name', name, 'ref', C.ref, 'window', C.window, 'selection', C.selection); %#ok<AGROW>
+    catch ME
+        warning('DatasetBrowser:BadDefinition', '%s: definition %d is left out (%s).', file, k, ME.message);
+    end
+end
 end
 
 

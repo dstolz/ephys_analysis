@@ -395,6 +395,93 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             B2.close();
         end
 
+        function eventTrialDefinitions(tc)
+            B = tc.open(Settings=tc.Spike, Scan=false);
+            c = B.Ctl;
+            on = @(tf) matlab.lang.OnOffSwitchState(tf);
+            pick = @(name, edited) c.DefList.ValueChangedFcn(c.DefList, struct('Value', char(name), 'Edited', edited));
+            tc.verifyEmpty(B.Definitions);
+            tc.verifyEqual(c.DefRemove.Enable, on(false));
+            % + with the box blank: the event and trials part of ResultName, numbered when taken
+            B.addDefinition();
+            tc.verifyEqual([B.Definitions.name], "StimOnset_AllTrials");
+            tc.verifyEqual(string(c.DefList.Value), "StimOnset_AllTrials");
+            tc.verifyEqual(c.DefRemove.Enable, on(true));
+            hit = epochMatrixSettings(tc.Spike, ref=eventRef(line="Stim", edge="offset"), window=epochWindow(pre=-0.5, post=1), ...
+                selection=trialSelection(response="Hit"));
+            B.Settings = hit;
+            tc.verifyEqual(string(c.DefNote.Text), "changed", 'The settings differ from the definition shown.');
+            B.addDefinition();
+            B.addDefinition();
+            tc.verifyEqual([B.Definitions.name], ["StimOnset_AllTrials" "StimOffset_Hit" "StimOffset_Hit_1"]);
+            B.removeDefinition("StimOffset_Hit_1");
+            tc.verifyEqual([B.Definitions.name], ["StimOnset_AllTrials" "StimOffset_Hit"]);
+            % a pick puts its event, window and trials in the settings; the rest stays
+            B.Settings = epochMatrixSettings(B.Settings, binSec=0.02);
+            pick("StimOnset_AllTrials", false);
+            tc.verifyEqual(B.Settings.ref, tc.Spike.ref);
+            tc.verifyEqual(B.Settings.window, tc.Spike.window);
+            tc.verifyEqual(B.Settings.selection, tc.Spike.selection);
+            tc.verifyEqual(B.Settings.binSec, 0.02);
+            tc.verifyEqual(string(c.DefNote.Text), "");
+            % a typed name applies nothing and names the next +; + replaces a definition of that name
+            pick("mine", true);
+            tc.verifyEqual(B.Settings.ref, tc.Spike.ref, 'Typing applies nothing.');
+            c.DefAdd.ButtonPushedFcn(c.DefAdd, []);
+            tc.verifyEqual([B.Definitions.name], ["StimOnset_AllTrials" "StimOffset_Hit" "mine"]);
+            B.Settings = epochMatrixSettings(B.Settings, window=epochWindow(pre=-0.3, post=0.3));
+            tc.verifyEqual([string(c.DefList.Value) string(c.DefNote.Text)], ["mine" "changed"]);
+            c.DefAdd.ButtonPushedFcn(c.DefAdd, []);
+            tc.verifyEqual(numel(B.Definitions), 3, 'Replaced, not added.');
+            tc.verifyEqual(B.Definitions(3).window.pre, -0.3);
+            tc.verifyEqual(string(c.DefNote.Text), "");
+            % the drop-down follows the settings to the definition they match
+            B.Settings = epochMatrixSettings(hit, binSec=0.02);
+            tc.verifyEqual(string(c.DefList.Value), "StimOffset_Hit");
+            % a definition the other settings reject is not applied
+            B.Settings = epochMatrixSettings(B.Settings, window=epochWindow(pre=0.1, post=0.5));
+            B.addDefinition("late");
+            B.Settings = epochMatrixSettings(hit, normalize=struct('method', "zscore", 'baseline', [-0.5 0]));
+            before = B.Settings;
+            pick("late", false);
+            tc.verifyEqual(B.Settings, before);
+            tc.verifyTrue(startsWith(string(c.Status.Text), "Not applied"), c.Status.Text);
+            tc.verifyError(@() B.useDefinition("nope"), 'DatasetBrowser:NoDefinition');
+            tc.verifyError(@() B.removeDefinition("nope"), 'DatasetBrowser:NoDefinition');
+            % saved in the settings file beside the settings; Load settings brings them back
+            tmp = tc.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+            f = string(fullfile(tmp.Folder, "defs.json"));
+            defs = B.Definitions;
+            B.saveSettings(f);
+            tc.verifyTrue(isfield(readJsonFile(f), 'definitions'));
+            tc.verifyEqual(epochMatrixSettings(f), B.Settings, 'epochMatrixSettings reads the settings, the definitions left alone.');
+            B.removeDefinition("mine");
+            B.loadSettings(f);
+            tc.verifyEqual(B.Definitions, defs);
+            tc.verifyEqual(string(c.DefList.Items), [defs.name]);
+            B3 = tc.open(Settings=f, Scan=false);
+            tc.verifyEqual(B3.Definitions, defs, 'The Settings= file''s definitions.');
+            % a file without definitions: none
+            f2 = string(fullfile(tmp.Folder, "plain.json"));
+            epochMatrixSettings(B.Settings, SaveAs=f2);
+            B.loadSettings(f2);
+            tc.verifyEmpty(B.Definitions);
+            tc.verifyEmpty(c.DefList.Items);
+            % one that does not check is left out with a warning
+            f3 = string(fullfile(tmp.Folder, "bad.json"));
+            good = struct('name', "ok", 'ref', tc.Spike.ref, 'window', tc.Spike.window, 'selection', tc.Spike.selection);
+            bad = struct('name', "bad", 'ref', tc.Spike.ref, 'window', setfield(tc.Spike.window, 'mode', "between"),'selection', tc.Spike.selection);
+            writeJsonFile(f3, struct('schema', "epoch-matrix-settings", 'version', 1, 'settings', tc.Spike, ...
+                'definitions', {{good, bad, good}}), NonFinite="string");
+            tc.verifyWarning(@() B.loadSettings(f3), 'DatasetBrowser:BadDefinition');
+            tc.verifyEqual([B.Definitions.name], "ok", 'A window that is not fixed, and a name taken, are left out.');
+            % the result file keeps them
+            B.loadSettings(f);
+            B.save();
+            B2 = tc.open(ResultFile=B.ResultFile, Scan=false);
+            tc.verifyEqual(B2.Definitions, defs);
+        end
+
         function dropDownLoadsOneSource(tc)
             B = tc.open();
             c = B.Ctl;

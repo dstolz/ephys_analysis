@@ -53,8 +53,6 @@ cmap = turbo(nG);   % a color per depth group
 unitsTxt = sprintf('%d %s', height(units_), rowsTxt);   % "12 su units", "64 LFP channels"
 
 % Summary of R
-fprintf('R: %s\n', R.labels.description);
-fprintf('created %s\n',string(R.created));
 fprintf('data   %s  (rows x time x groups), units: %s\n', mat2str(size(R.data)), R.valueUnits);
 fprintf('rows   %d %ss from %d datasets (%d subjects)\n', height(R.rows), R.rowKind, ...
     numel(unique(R.rows.Dataset)), numel(unique(R.rows.Subject)));
@@ -65,3 +63,7 @@ fprintf('range  %.3g to %.3g (median %.3g)\n', min(R.data, [], 'all'), max(R.dat
 fprintf('normalized: %s\n', R.normalization.method);
 disp(groupcounts(R.datasets, 'status'))
 disp(R.settings)
+
+fprintf('R: %s\n', R.labels.description);
+fprintf('created %s\n',string(R.created));
+disp(B.ResultName)

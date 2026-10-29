@@ -213,6 +213,35 @@ The probe and the fields are yoked:
 does. For a dataset without a probe map the tab says so; type the numbers
 instead.
 
+### Event & trial definitions
+
+The **Event & trial definitions** panel under the tabs (above **Keep single
+trials**) keeps named sets of
+the **Event** and **Trials** tabs' settings, to switch between them in one
+click: each holds the event (with its sequence), the epoch window and the
+trial selection (`ref`, `window`, `selection`). **Data**, the channels, the
+measure and the normalization are not part of it.
+
+- **+** keeps the tabs' settings under the name in the drop-down's box,
+  replacing a definition of that name. With the box blank, the name is the
+  event and trials part of [`ResultName`](#from-a-script) (`StimOnset_Hit`,
+  `TrialOnset_AllTrials`), numbered when taken (`B.addDefinition(name)`).
+- Picking a name from the drop-down puts its event, window and trials in the
+  settings, checked as any edit is (`B.useDefinition(name)`); typing a name
+  only names the next **+**.
+- **−** drops the definition shown; the settings stay
+  (`B.removeDefinition(name)`).
+
+The drop-down shows the definition the settings match (also after **File >
+Load settings**), and *changed* beside it once the event, window or trials
+differ from the one shown; **+** then keeps the changes under that name.
+
+The definitions (`B.Definitions`: `name`, `ref`, `window`, `selection`) are
+saved in the [settings file](#settings) by **File > Save settings**, and
+**File > Load settings** replaces them with the file's (none when the file
+holds none). The result file keeps them with the rest of the browser's
+state.
+
 ### Compute
 
 **Compute** computes the ticked datasets with these settings. The summary under
@@ -417,6 +446,7 @@ R = B.compute();
 | `saveSettings(B, FILE)`, `saveSettingsAs(B)` | write one (no `FILE`: `B.SettingsFile`, else a file dialog; `saveSettingsAs`: always a dialog) |
 | `TXT = exportScript(B, FILE)` | [a script](#export-a-script) that computes `B.Settings` on the ticked datasets without the browser (no `FILE`: a file dialog; `""`: the text only) |
 | `removeRecent(B, FILE)`, `clearRecent(B)` | drop files from `B.RecentSettings` (**File > Recent settings**) |
+| `addDefinition(B, NAME)`, `useDefinition(B, NAME)`, `removeDefinition(B, NAME)` | keep the settings' event, window and trials under `NAME` (blank: a name from them), put a definition's in the settings, drop one ([Event & trial definitions](#event--trial-definitions)) |
 | `save(B, FILE)`, `restore(B, FILE)` | the [result file](#the-cache-and-the-result-file) |
 | `wait(B, Timeout=Inf)`, `done(B)`, `close(B)` | the window |
 | `B = DatasetBrowser.open(ROOT, ...)` | the browser of the window open on `ROOT`, else a new one ([without waiting](#without-waiting)) |
@@ -428,10 +458,10 @@ The properties: `Settings` (the whole struct; assigning checks it with
 these ticks), `Computed` (when the result was computed, a `datetime`: the
 last Compute, or the one the result file holds; `NaT` before a result; a
 change of `Normalize` alone does not move it), `ResultName` (read-only: the
-result's default name, `R.name`; `""` before a result), `ResultFile`, `Workers` ([Workers](#workers)), `Runs` (the `DatasetRuns` with the kept parts),
+result's default name, `R.name`; `""` before a result), `Definitions` (read-only: the [event & trial definitions](#event--trial-definitions)), `ResultFile`, `Workers` ([Workers](#workers)), `Runs` (the `DatasetRuns` with the kept parts),
 `Runner`, `Busy`, `CancelRequested`, `Fig` and `Ctl` (the window and its
 controls). `OnChange(B, what)` is called with `"scan"`, `"filter"`,
-`"ticks"`, `"settings"`, `"result"`, `"done"` or `"closed"`.
+`"ticks"`, `"settings"`, `"definitions"`, `"result"`, `"done"` or `"closed"`.
 
 ### Export a script
 
@@ -748,7 +778,12 @@ the cached spike results. `normalize` is left out of it too.
 
 **Settings files** are JSON: `{"schema": "epoch-matrix-settings", "version":
 1, "settings": {...}}`, with non-finite numbers written as the strings
-`"Inf"`, `"-Inf"` and `"NaN"`. Write one with
+`"Inf"`, `"-Inf"` and `"NaN"`. The browser's files also hold its
+[event & trial definitions](#event--trial-definitions) as `"definitions"`
+beside `"settings"`, a list of `{name, ref, window, selection}`;
+`epochMatrixSettings` reads the settings and leaves them alone. A definition
+that does not check is left out with the warning
+`DatasetBrowser:BadDefinition`. Write one with
 `epochMatrixSettings(S, SaveAs="ofc_hit_depth.json")`, **File > Save
 settings** or `B.saveSettings(file)`; read one with `epochMatrixSettings(file)`,
 `DatasetBrowser(root, Settings=file)`, **File > Load settings** or
@@ -902,6 +937,7 @@ Saved on close under the `AppPrefs` group `DatasetBrowser`:
 | `DatasetBrowser:BadValue` | a form control that does not exist, or a typed number or range (`1:4`) that does not parse |
 | `DatasetBrowser:BadFilter` | a filter option that does not fit |
 | `DatasetBrowser:NoFile` | a settings file was asked for and none was passed |
+| `DatasetBrowser:NoDefinition` | `useDefinition` or `removeDefinition` with a name that is no definition |
 | `DatasetBrowser:Canceled` | `checkCancel` after **Cancel**; a scan canceled |
 | `DatasetBrowser:NoScript` | `runScript` or `editScript` with no script picked, a script file not found, or `addScript` given a file that is no `.m` file |
 | `DatasetBrowser:ScriptFailed` | the post-processing script raised an error (the message names the script and its line) |
@@ -922,6 +958,8 @@ Saved on close under the `AppPrefs` group `DatasetBrowser`:
 
 Warnings: `DatasetBrowser:NotSaved` (the result file cannot be written),
 `DatasetBrowser:BadResultFile` (a result file or a part of it is not used),
+`DatasetBrowser:BadDefinition` (a definition in a settings or result file
+that does not check is left out),
 `DatasetRuns:OldVersion` (kept results of an older `DatasetRuns` version are
 not restored) and `DatasetRuns:DatasetFailed` (a dataset failed and is left
 out).
@@ -951,4 +989,4 @@ out).
 | [`test_DatasetFilter.m`](../analysis/test_DatasetFilter.m) | `datasetFilter`: subjects, wildcards and literal regex characters, tags, search, the combinations |
 | [`test_DatasetRuns.m`](../analysis/test_DatasetRuns.m) | `DatasetRuns`: reuse, identity, skipped and failed datasets, cancel, `forget`, the saved struct |
 | [`test_EpochMatrix.m`](../analysis/test_EpochMatrix.m) | `epochMatrixSettings` and `epochMatrix`: the parts against the per-dataset calls, assembly, groups, the result fields, the labels, the normalization (`epochMatrixNormalize`) |
-| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window), the exported script (`exportScript`), the whole sessions (`loadSessions`, `sessionData`), the Channels tab (`ProbePicker`: clicks and fields yoked) |
+| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window), the exported script (`exportScript`), the whole sessions (`loadSessions`, `sessionData`), the Channels tab (`ProbePicker`: clicks and fields yoked), the event & trial definitions |

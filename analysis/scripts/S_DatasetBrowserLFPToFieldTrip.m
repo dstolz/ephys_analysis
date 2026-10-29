@@ -129,6 +129,7 @@ if ~isempty(ftSessions)
     ev = D.cfg.event;
     evType = trialEvent;
     if evType == "", evType = B.Settings.ref.line; end
+    if evType == "Trial", evType = S(1).trialLine; end   % the browser's "Trial" = the paired trial line
     if ~ismember(evType, string({ev.type}))
         error('%s has no "%s" events to define trials on; set trialEvent to one of: %s.', ...
             D.cfg.name, evType, strjoin(unique(string({ev.type})), ', '));

@@ -221,12 +221,7 @@ s = d.sortingStruct();
 if s.results_dir ~= "" && ~s.exists
     c.Sorting = "missing: " + s.source;
 elseif s.results_dir ~= ""
-    txt = s.source;
-    if isfinite(s.num_units); txt = txt + sprintf(": %d units", s.num_units); end
-    if s.exists && EphysDataset.phyStatus(s.results_dir).modified
-        txt = txt + ", modified in phy";
-    end
-    c.Sorting = txt;
+    c.Sorting = sortingCell(s);
 end
 if d.BehaviorFile ~= "" && ~isfile(d.BehaviorFile)
     c.Behavior = "missing: " + fileName(d.BehaviorFile);
@@ -244,6 +239,24 @@ elseif d.BehaviorFile ~= ""
         end
     end
 end
+end
+
+
+function txt = sortingCell(s)
+%sortingCell  The Sorting cell of a sort that is there (sortingStruct S):
+%   "auto: 12 good units" while the sorter's labels stand, "phy: 9 good
+%   units" once phy saved a label, merge or split (phyStatus.modified), the
+%   good units counted from the labels in use (labelCounts). A folder
+%   picked on the Sorting tab adds ", manual folder".
+p = EphysDataset.phyStatus(s.results_dir);
+n = EphysDataset.labelCounts(s.results_dir);
+txt = "auto";
+if p.modified || n.source == "phy"; txt = "phy"; end
+if isfinite(n.good)
+    txt = txt + sprintf(": %d good unit", n.good);
+    if n.good ~= 1; txt = txt + "s"; end
+end
+if s.source == "manual"; txt = txt + ", manual folder"; end
 end
 
 

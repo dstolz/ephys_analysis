@@ -839,9 +839,11 @@ Dur (min), Format (`traditional`, `one-file-per-signal`,
 `openephys-nwb`, `tdt` or `binary`), Probe
 (`default: <file>` when the dataset has none of its own and the config's
 default probe applies), Exclude,
-**Sorting** (units, `modified in phy` when phy saved a label, merge or split
-there, see [What phy changed](#what-phy-changed); `auto` = found where
-Kilosort4 writes it / `manual` = a folder chosen on the Sorting tab),
+**Sorting** (the good units of the sort: `auto: 12 good units` while the
+sorter's labels stand, `phy: 9 good units` once phy saved a label, merge or
+split there, see [What phy changed](#what-phy-changed); `, manual folder`
+when the folder was chosen on the Sorting tab rather than found where the
+sorter writes it),
 **Behavior** (subject, trial count and the recorded pairing status:
 `pairing approved`, `pairing approved (auto)`, `pairing unreviewed`),
 **Tags** (the dataset's tags, `draft, pilot`; a click on the cell edits them,
@@ -1916,8 +1918,8 @@ The save time is when `cluster_info.tsv` was last modified, so a copy that
 keeps file times (robocopy, the Copy tab) still shows it. phy numbers each
 cluster it makes by merging or splitting from the largest id on. The count of
 those clusters is therefore the ids in `cluster_info.tsv` beyond the sorter's
-(the rows of `templates.npy`). The Project table's **Sorting** column says
-`modified in phy` for the same green state.
+(the rows of `templates.npy`). The Project table's **Sorting** column reads
+`phy: <n> good units` for the same green state.
 
 ### Things to know
 
@@ -3806,7 +3808,7 @@ trip, the unsaved marker, the Diagram of the loaded config and its refresh on ed
 chart of all the steps points at controls that exist and that clicking one opens its tab and marks
 them, the data-flow overview (its boxes and arrows, that no arrow runs through a box or shares a line
 with another source's and at most five cross, the reads a config leaves off, the arrows into a disabled
-step, the View preference and Layout turned off), the Run checklist ↔ tab sync and its Parallel controls, scan + selection ticks (the Sorting tab's phy lamp, its green **Open in phy (curated)** and the table's `modified in phy` for a phy-curated sort)
+step, the View preference and Layout turned off), the Run checklist ↔ tab sync and its Parallel controls, scan + selection ticks (the Sorting tab's phy lamp, its green **Open in phy (curated)** and the table's `phy: <n> good units` for a phy-curated sort)
 (and the ticked datasets in the Dataset menu),
 the active dataset's highlight under the token filters, the Source settings panel (the active dataset's system: Intan's
 note, the Open Ephys and TDT options saved and pushed to the datasets, a TDT gain that is not a number refused, a TDT

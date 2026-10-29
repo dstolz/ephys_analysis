@@ -20,7 +20,8 @@ function s = defaults(section)
 %                     entry of a panel's overlays), EventMark (an events
 %                     layer's event: an EventRef and its mark's look);
 %                     a figure's Observe (what it is drawn for),
-%                     FigureSessions (drawn across datasets), Panel (one entry
+%                     FigureSessions (drawn across datasets), FigureProbe
+%                     (laid out on the probe), Panel (one entry
 %                     of its panels; options from panelTypes) and Layer
 %                     (one entry of a panel's layers)
 %
@@ -377,6 +378,28 @@ switch section
             'minSessions', 1, ...                   % an observation is kept with data from at least this many sessions
             'trialGroups', "pool");                 % the figure's trial groups: "pool" | "each" (a figure each) | "combine" (line styles)
 
+    case "FigureProbe"
+        % a figure laid out on the probe (Figure.probe): with enabled, the whole figure is drawn once per unit (or
+        % channel) as a small tile at its site on the probe, every tile on one page per dataset (figureProbeCompute)
+        s = struct( ...
+            'enabled',     false, ...               % true: a probe figure
+            'layout',      "schematic", ...         % "schematic" (each shank a column, the sites in rows) | "physical" (y in proportion to the µm)
+            'overlap',     "nudge", ...             % physical: "nudge" (slide apart along the shank) | "lanes" | "shrink" | "allow"
+            'lanes',       2, ...                   % overlap "lanes": lanes beside each shank (whole, >= 1)
+            'shanks',      [], ...                  % [] = all; else the kcoords shank numbers whose sites are laid out
+            'channels',    [], ...                  % [] = all; else the recording channels (1-based) whose sites are laid out
+            'depthRange',  [], ...                  % [] = all; else [lo hi] µm of probe y kept (lo < hi)
+            'maxTiles',    64, ...                  % the most tiles on the page (whole, >= 1): more keep every k-th in probe order
+            'maxPerSite',  3, ...                   % the most units drawn on one site (whole, >= 1): the first in probe order
+            'tileWidth',   0.9, ...                 % a tile's share (0, 1] of its column band's width
+            'tileHeight',  0.9, ...                 % schematic: a tile's share (0, 1] of its row's height; physical: of the median site pitch
+            'tileScale',   1, ...                   % physical: multiplies the tiles' size (> 0)
+            'labels',      "short", ...             % each tile's label: "short" (su12, ch 7) | "full" (the observation's label) | "none"
+            'sharedY',     true, ...                % every tile's panel on one y range per panel (the union of the tiles' extents)
+            'scaleTile',   true, ...                % the bottom-left tile keeps its tick and axis labels, as the page's scale
+            'showSites',   true, ...                % the shank bodies and sites drawn pale behind the tiles
+            'leaders',     true);                   % physical: a line from a moved tile to its site
+
     case "Figure"
         % one figure (Figures): one observation's panels on a grid; the preview draws one observation, Generate many
         s = struct( ...
@@ -407,6 +430,7 @@ switch section
             'window',     "default", ...        % "default" (Defaults.Window) or an EpochWindow
             'selection',  "default", ...        % "default" (Defaults.Selection) or a TrialSelection
             'sessions',   EphysAnalysisConfig.defaults("FigureSessions"), ...   % drawn across datasets (enabled) instead of per dataset
+            'probe',      EphysAnalysisConfig.defaults("FigureProbe"), ...   % laid out on the probe (enabled): a tile per unit or channel, a page per dataset
             'latency',    EphysAnalysisConfig.defaults("Latency"), ...   % how the first-spike latencies and response onsets its panels read are found
             'style',      EphysAnalysisConfig.defaults("Style"), ...   % YLim / CLim / MaxTiles / TileSpacing unused (panel options, grid.spacing)
             'aesthetics', PlotAesthetics.emptyRules());

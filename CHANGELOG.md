@@ -10,6 +10,17 @@ says how to cut a release.
 
 ### Added
 
+- Analysis figures: *probe figures*. A figure with `probe.enabled` (`defaults("FigureProbe")`, the new `probe` block
+  after `sessions`) is drawn once per unit or channel as a small tile at its site on the probe, every tile on one page
+  per dataset. The `schematic` layout puts each shank in a column and the sites in rows; the `physical` layout places
+  the tiles by their µm and keeps them apart by `nudge`, `lanes`, `shrink` or `allow`. `shanks`, `channels`,
+  `depthRange`, `maxTiles` and `maxPerSite` choose the tiles. `sharedY` puts each panel on one y range, and a
+  bottom-left scale tile keeps the labels. `figureProbeTiles` picks the tiles, `figureProbeCompute` and
+  `EphysAnalysisRunner.computeProbeFigure` compute every tile with the shared steps computed once, and
+  `renderFigure` draws the page with the new `renderProbeFigure`. A run writes one page per dataset (`{Unit}`
+  `probe`), and the scripts do the same. `cfg.isProbeFigure`, `cfg.probeFigureIds` and validate's
+  `<figure>.probe.<field>` rules come with it. The app's Figures tab has a **Probe layout** section and draws the
+  preview tile by tile, with Cancel. See [Probe figures](documentation/EphysAnalysisConfig.md#probe-figures).
 - Dataset browser: opening it with a process pool already open sets **Workers** to that pool's size (the
   `Workers` option still wins).
 - Dataset browser: **Keep each epoch** (Measure tab; `epochMatrixSettings`' new `keepEpochs`) keeps every epoch

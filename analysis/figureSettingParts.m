@@ -4,7 +4,7 @@ function T = figureSettingParts()
 %   order (figureSettingItems lists each part's settings, copyFigureSettings
 %   copies them):
 %     Part         "observe", "alignment", "latency", "arrangement",
-%                  "panel", "style", "looks" or "sessions"
+%                  "panel", "style", "looks", "sessions" or "probe"
 %     Label        name shown in the app
 %     Description  one line
 %   A figure's id (and autoId), title and enabled are never copied.
@@ -19,6 +19,7 @@ rows = {
     "style",       "Appearance",             "Line widths, error bands, colors, fonts, legend, marks, sorting and labels"
     "looks",       "Remembered looks",       "The looks remembered from the preview's right-click editor, one by one (added to the figure's own)"
     "sessions",    "Across sessions",        "Drawn across the datasets: which ones, the figures, colors, error band, matching and trial groups"
+    "probe",       "On the probe",           "Laid out on the probe, a tile per unit or channel at its site: the layout, overlaps, which sites, how many tiles and their look"
     };
 Part = [rows{:, 1}].';
 Label = [rows{:, 2}].';

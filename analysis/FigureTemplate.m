@@ -317,7 +317,7 @@ classdef FigureTemplate
 
         function s = summary(fig)
             %summary  A figure's shape in a line: "2 x 1: raster, psth; observes units".
-            %   With a page size of its own, and across sessions, it says so.
+            %   With a page size of its own, across sessions or on the probe, it says so.
             types = strings(1, 0);
             if ~isempty(fig.panels); types = string([fig.panels.type]); end
             what = "no panels";
@@ -325,6 +325,7 @@ classdef FigureTemplate
             s = string(sprintf("%d x %d: %s; observes %s", fig.grid.rows, fig.grid.cols, what, fig.observe.data));
             if fig.size.source == "own"; s = s + sprintf(", %g x %g %s", fig.size.width, fig.size.height, fig.size.units); end
             if fig.sessions.enabled; s = s + ", across sessions"; end
+            if isfield(fig, 'probe') && fig.probe.enabled; s = s + ", on the probe"; end
         end
 
         function s = toStruct(t)

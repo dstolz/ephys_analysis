@@ -45,11 +45,11 @@ keep the result (`cfg = cfg.addFigure(...)`, `cfg = cfg.save(...)`).
 | `Source`, `Defaults`, `Export`, `Report` | sections (structs), coerced on assignment |
 | `Figures` | struct array, one entry per [figure](#figures): one observation's panels (a unit, a channel or the dataset) on a grid. Its ids are unique among figures (`EphysAnalysisConfig:DuplicateFigureId`; a figure's panel ids `EphysAnalysisConfig:DuplicatePanelId`); a cell array (what `jsondecode` gives for figures whose fields differ) is accepted too. A run draws the enabled figures, a page per observation ([Export](#export), [Report](#report)); one with `sessions.enabled` is a [session figure](#session-figures), drawn once across the datasets instead |
 | `File`, `LoadWarnings` | transient: where it was loaded from / saved to; the unknown fields `load` dropped |
-| `Schema`, `Version`, `Sections`, `SpikeSources`, `SignalSources`, `FigureSources`, `ObserveData`, `WaveformLocations`, `ErrorTypes`, `ListFields` | constants. `Version` is 2 (a version 1 file is [migrated](#loading-a-version-1-config) on load); `FigureSources`: what a figure's layer reads, `ObserveData`: what a figure is drawn for (`observe.data`: `units`, `detected`, `LFP`, `MUA`, `SPIKE`, `AUX`, `dataset`); `Figures` is a list, not one of the four `Sections`. The continuous panels' and notes' choices: `AuxStatistics`, `AuxTransforms`, `AuxErrorTypes`, `NotePlacements`, `OverlayLayers`, `OverlayLineStyles`. The [session figures'](#session-figures): `SessionSeries`, `SessionErrors`, `SessionTrialGroups`, `SessionFacets`, `SessionColorOrders`, `FigureSessionMatches` (`"site"`, `"mapping"`: a figure observes one matched unit, so no pooling) and `FigureSessionUnmerged` (the panel types that cannot be merged across sessions: `probemap`, `corrmap`, `spectrum`, `spectrogram`, `coherence`). There are no plot constants (`Kinds`, `AuxModes`, `AuxPlacements`, `AuxDisplays`, `AuxColorBy`, `OverlayPanels`, `SessionKinds`, `SessionMatches`, `SessionData`): the plots are gone |
+| `Schema`, `Version`, `Sections`, `SpikeSources`, `SignalSources`, `FigureSources`, `ObserveData`, `WaveformLocations`, `ErrorTypes`, `ListFields` | constants. `Version` is 2 (a version 1 file is [migrated](#loading-a-version-1-config) on load); `FigureSources`: what a figure's layer reads, `ObserveData`: what a figure is drawn for (`observe.data`: `units`, `detected`, `LFP`, `MUA`, `SPIKE`, `AUX`, `dataset`); `Figures` is a list, not one of the four `Sections`. The continuous panels' and notes' choices: `AuxStatistics`, `AuxTransforms`, `AuxErrorTypes`, `NotePlacements`, `OverlayLayers`, `OverlayLineStyles`. The [session figures'](#session-figures): `SessionSeries`, `SessionErrors`, `SessionTrialGroups`, `SessionFacets`, `SessionColorOrders`, `FigureSessionMatches` (`"site"`, `"mapping"`: a figure observes one matched unit, so no pooling) and `FigureSessionUnmerged` (the panel types that cannot be merged across sessions: `probemap`, `corrmap`, `spectrum`, `spectrogram`, `coherence`). The [probe figures'](#probe-figures): `ProbeLayouts` (`schematic`, `physical`), `ProbeOverlaps` (`nudge`, `lanes`, `shrink`, `allow`) and `ProbeTileLabels` (`short`, `full`, `none`). There are no plot constants (`Kinds`, `AuxModes`, `AuxPlacements`, `AuxDisplays`, `AuxColorBy`, `OverlayPanels`, `SessionKinds`, `SessionMatches`, `SessionData`): the plots are gone |
 | `toStruct()`, `toJson()`, `save(file)` | plain struct; the JSON `save` writes (`Inf` / `-Inf` / `NaN` as `"Inf"` / `"-Inf"` / `"NaN"`) |
 | `EphysAnalysisConfig.load(file)`, `fromStruct(s)` | version 2; a version 1 file (or struct) is [migrated](#loading-a-version-1-config) first. `load` errors `EphysAnalysisConfig:BadSchema` on another schema or any other version |
 | `validate(CheckPaths=true)` | issues table `Section, Field, Severity, Message` ([rules](#validation)) |
-| `addFigure(templateOrStruct, Id=)`, `duplicateFigure(idOrIndex)`, `removeFigure(id)`, `figureIndex(id)`, `figureIds()`, `enabledFigures()`, `sessionFigureIds()`, `enabledSessionFigures()`, `isSessionFigure(id)` | the figure list. `enabledFigures()` is the enabled figures a run draws per dataset and leaves out the [session figures](#session-figures) (a figure whose `sessions.enabled` is true); `sessionFigureIds()` lists those, enabled or not, `enabledSessionFigures()` the enabled ones (a run draws them across the datasets, after the datasets), and `isSessionFigure(id)` (an id or an index; false for an unknown one) tells. `[cfg, id] = cfg.addFigure("rasterPsth")` (a template's name from `figureTemplates()`, or a partial figure struct) returns the new id too: an [automatic id](#figure-ids) (*Raster+PSTH units*) when none is given; `[cfg, id] = cfg.duplicateFigure(id)` copies a figure right after it as *&lt;id&gt; (n)*; `removeFigure` of an unknown id is `EphysAnalysisConfig:NoFigure`; `figureIndex` is 0 for one |
+| `addFigure(templateOrStruct, Id=)`, `duplicateFigure(idOrIndex)`, `removeFigure(id)`, `figureIndex(id)`, `figureIds()`, `enabledFigures()`, `sessionFigureIds()`, `enabledSessionFigures()`, `isSessionFigure(id)`, `probeFigureIds()`, `isProbeFigure(id)` | the figure list. `enabledFigures()` is the enabled figures a run draws per dataset and leaves out the [session figures](#session-figures) (a figure whose `sessions.enabled` is true); `sessionFigureIds()` lists those, enabled or not, `enabledSessionFigures()` the enabled ones (a run draws them across the datasets, after the datasets), and `isSessionFigure(id)` (an id or an index; false for an unknown one) tells. `probeFigureIds()` lists the [probe figures](#probe-figures) (`probe.enabled`), enabled or not, and `isProbeFigure(id)` tells likewise; `enabledFigures()` keeps them (a run draws them per dataset, a page each). `[cfg, id] = cfg.addFigure("rasterPsth")` (a template's name from `figureTemplates()`, or a partial figure struct) returns the new id too: an [automatic id](#figure-ids) (*Raster+PSTH units*) when none is given; `[cfg, id] = cfg.duplicateFigure(id)` copies a figure right after it as *&lt;id&gt; (n)*; `removeFigure` of an unknown id is `EphysAnalysisConfig:NoFigure`; `figureIndex` is 0 for one |
 | `figureFor(idOrIndex)` | a figure with every `"default"` resolved and each panel's type facts and each layer's category added: what the compute draws ([Resolving a figure](#resolving-a-figure)). `EphysAnalysisConfig:NoFigure` for an unknown one |
 | `isequalConfig(other)` | same values (NaN equal) |
 | `defaults(section)`, `normalizeSection(section, s)` | static: the single source of truth for fields, types and shapes |
@@ -97,6 +97,7 @@ distinct as file names: `{Plot}` replaces every character outside
       "grid": { "rows": 3, "cols": 1, "rowHeights": [1.5, 1, 1], "colWidths": [], "spacing": "none", "...": "..." },
       "ref": "default", "window": "default", "selection": "default",
       "sessions": { "enabled": false, "...": "..." },
+      "probe": { "enabled": false, "layout": "schematic", "...": "..." },
       "latency": { "method": "first", "minSec": 0, "maxSec": "Inf", "...": "..." },
       "panels": [ { "id": "raster_1", "type": "raster", "row": 1, "col": 1, "...": "..." },
                   { "id": "psth_1", "type": "psth", "row": 2, "col": 1, "...": "..." },
@@ -1021,9 +1022,11 @@ A figure can also be drawn **across several datasets** instead of once per
 dataset: with `sessions.enabled` it is a [session figure](#session-figures), an
 observation (a site, a cell of a mapping, a channel or the dataset) computed
 on every session and each panel's layers merged, a color per session or
-subject.
+subject. With `probe.enabled` it is a [probe figure](#probe-figures): the whole
+figure drawn once per unit or channel as a tile at its site on the probe, one
+page per dataset.
 
-`EphysAnalysisConfig.defaults("Figure" | "FigureSessions" | "Observe" | "Panel" | "Layer")`
+`EphysAnalysisConfig.defaults("Figure" | "FigureSessions" | "FigureProbe" | "Observe" | "Panel" | "Layer")`
 give the fields below; every field exists on every entry.
 
 ### Figure, grid and observe fields
@@ -1041,6 +1044,7 @@ give the fields below; every field exists on every entry.
 | `ref`, `window`, `selection` | `"default"` | `"default"` = [`Defaults`](#defaults), or the figure's own [EventRef](#eventref) / [EpochWindow](#epochwindow) / [TrialSelection](#trialselection). Every aligned panel starts from them |
 | `latency` | `defaults("Latency")` | how the first-spike latencies and response onsets its panels read are found, once per unit and alignment for every panel ([First-spike latency](#first-spike-latency)): the method, the window, the baseline and the CUSUM's settings. The panels keep only their looks |
 | `sessions` | `defaults("FigureSessions")` | the [session figure](#session-figures) settings: with `sessions.enabled` the figure is drawn once across several datasets instead of once per dataset; `sessions.enabled` false keeps the block and leaves it unused. Which datasets, how the observation is matched across them and how the sessions are colored, merged and grouped |
+| `probe` | `defaults("FigureProbe")` | the [probe figure](#probe-figures) settings: with `probe.enabled` the whole figure is drawn once per unit or channel as a tile at its site on the probe, every tile on one page per dataset; `probe.enabled` false keeps the block and leaves it unused. The layout (schematic or physical), how tiles are kept apart, which shanks, channels and depths, how many tiles and their look |
 | `style` | [Style](#style) | the figure's look: fonts, line widths, error bands, legend, colors and probe sorting apply. `XLim`, `YLim`, `CLim`, `MaxTiles` and `TileSpacing` are not used: the time panels show the window, each panel has its own `options.yLim` / `cLim`, and the spacing is `grid.spacing` |
 | `aesthetics` | none | remembered looks of the figure's components, a list of rules `{role, group, property, value}` ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)) |
 
@@ -2105,6 +2109,9 @@ defaults. A file written by hand may leave out any field that keeps its default.
     "sessions": { "enabled": false, "datasets": "ticked", "datasetKeys": [], "facet": "none", "series": "session",
                   "colorOrder": "palette", "showMembers": false, "error": "sem", "match": "site", "mappingFile": "",
                   "minSessions": 1, "trialGroups": "pool" },
+    "probe": { "enabled": false, "layout": "schematic", "overlap": "nudge", "lanes": 2, "shanks": [], "channels": [],
+               "depthRange": [], "maxTiles": 64, "maxPerSite": 3, "tileWidth": 0.9, "tileHeight": 0.9, "tileScale": 1,
+               "labels": "short", "sharedY": true, "scaleTile": true, "showSites": true, "leaders": true },
     "latency": { "method": "first", "minSec": 0, "maxSec": "Inf", "baseline": "pre", "baselineWindow": [-0.1, 0],
                  "baselineRate": "unit", "alpha": 0.01, "surprise": 3, "minSpikes": 3, "cusumBinSec": 0.002,
                  "cusumThreshold": 5, "cusumDrift": 1, "cusumSustainSec": 0.005 },
@@ -2177,6 +2184,9 @@ Errors:
 - `sessions` (`<figure>.sessions.<field>`): the known values and, with
   `sessions.enabled`, what a figure across sessions cannot hold: the rules
   are under [Session figures](#validating-session-figures);
+- `probe` (`<figure>.probe.<field>`): the known values, whole numbers and shares
+  and, with `probe.enabled`, neither `sessions.enabled` nor a `dataset`
+  observation: the rules are under [Probe figures](#probe-figures);
 - `grid`: `rows` and `cols` whole numbers >= 1; `rowHeights` and `colWidths` `[]` or
   one finite positive size per row and column; `spacing` `loose`, `compact`, `tight`,
   `none` or `custom`; `gapUnits` `px` or `%`; `rowGap` and `colGap` numbers >= 0;
@@ -2294,8 +2304,10 @@ Warnings:
   (`<panel>.layers(<j>)`): only the first is the seed, so fix the layer to one;
 - a unit or channel observation with no layer following it (`<figure>.observe.data`:
   the figure is the same for every one);
-- `observe.perGroup` while the figure's selection groups by nothing (not for a session figure; `<figure>.observe.perGroup`:
+- `observe.perGroup` while the figure's selection groups by nothing (not for a session or probe figure; `<figure>.observe.perGroup`:
   one figure per observation, as without it);
+- a probe figure's warnings ([Probe figures](#probe-figures)): `observe.perGroup` (ignored),
+  a probe map panel and a waveforms panel in the probe layout (a probe inside each tile);
 - a session figure's warnings ([below](#validating-session-figures)): `datasets "list"` with no
   `datasetKeys`, `showMembers` with `series "session"`, `trialGroups "pool"` over a selection that
   groups, `"combine"` over PSTH bars and a heat map of trials;
@@ -2312,6 +2324,109 @@ Warnings:
 Whether a dataset can draw the figure (units, signals, lines, trial parameters, a
 probe) is not a config error: `figureSkipReason` says why a figure or a layer is
 skipped on a dataset ([above](#observations-and-skip-reasons)).
+
+### Probe figures
+
+A figure with `probe.enabled` is a *probe figure*: the whole figure (all its
+panels, at its grid) drawn once per unit or channel as a small *tile* at that
+observation's site on the probe, every tile on **one page per dataset**. The
+observation kind stays `observe.data` (`units`, `detected`, or a signal's
+channels; not `dataset`), and `observe.units` and `observe.starred` filter the
+units as for every figure. A figure never refers to another one, so to lay an
+existing figure out on the probe, duplicate it (**Duplicate** in the Figures tab,
+`cfg.duplicateFigure`) and tick **On the probe** on the copy, or tick it on the
+figure itself. A probe figure runs per dataset, as any figure (`enabledFigures`
+lists it); it is not also a [session figure](#session-figures).
+
+```matlab
+[cfg, id] = cfg.addFigure("rasterPsth", Id="probe_rp");
+k = cfg.figureIndex(id);
+cfg.Figures(k).probe.enabled = true;                     % a tile per unit, at its site, one page
+cfg.Figures(k).probe.maxPerSite = 2;                     % at most two units on one recording channel
+spec = cfg.figureFor(id);
+r = EphysAnalysisRunner(cfg);
+src = r.source(1);
+[T, left] = figureProbeTiles(src, spec);                 % the units with a site, as laid out; left: how many were left out
+PF = figureProbeCompute(src, spec);                      % the whole figure for every tile, no graphics
+renderFigure(PF, spec, newExportFigure(cfg.Export, PF, spec));   % draw the page (renderProbeFigure)
+R = r.run(Figures=id, SessionFigures=string.empty(1, 0));   % or the page of every dataset
+```
+
+`probe` is `defaults("FigureProbe")`:
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | `true`: a probe figure. False keeps the block and leaves it unused |
+| `layout` | `"schematic"` | `"schematic"`: each shank a column band, the sites clustered into rows by y (a tolerance of half the median pitch), the rows equally spaced, the depth in µm written at the rows, so tiles never overlap; `"physical"`: y in proportion to the sites' µm, x by the shanks' µm, tiles sized from the median site pitch, kept apart by `overlap` (`ProbeLayouts`) |
+| `overlap` | `"nudge"` | physical: `"nudge"` (the tiles of a column slide apart along the shank, keeping their order and the column's extent), `"lanes"` (the column's tiles alternate across `lanes` lanes beside the shank, then nudge within a lane), `"shrink"` (every tile shrinks, aspect kept, to the largest size that clears) or `"allow"` (drawn as they fall) (`ProbeOverlaps`) |
+| `lanes` | `2` | overlap `"lanes"`: the lanes beside each shank (a whole number >= 1) |
+| `shanks` | `[]` | `[]` = all; else the `kcoords` shank numbers whose sites are laid out |
+| `channels` | `[]` | `[]` = all; else the recording channels (1-based) whose sites are laid out |
+| `depthRange` | `[]` | `[]` = all; else `[lo hi]` µm of probe y kept (lo < hi) |
+| `maxTiles` | `64` | the most tiles on the page (a whole number >= 1): more observations keep every k-th in probe order (`round(linspace(1, n, maxTiles))`), and the page says how many were left out |
+| `maxPerSite` | `3` | the most units drawn on one recording channel (a whole number >= 1): the first in probe order; several on a site share its band side by side |
+| `tileWidth` | `0.9` | a tile's share (0, 1] of its column band's width |
+| `tileHeight` | `0.9` | schematic: a tile's share (0, 1] of its row's height; physical: of the median site pitch (then times `tileScale`) |
+| `tileScale` | `1` | physical: multiplies the tiles' size (> 0, finite) |
+| `labels` | `"short"` | each tile's label: `"short"` (the unit's short label, `ch 7`), `"full"` (the observation's label) or `"none"` (`ProbeTileLabels`) |
+| `sharedY` | `true` | each panel on one y range across the tiles (the union of their extents) |
+| `scaleTile` | `true` | the bottom-left tile keeps its tick and axis labels: the page's scale, valid for every tile while `sharedY` |
+| `showSites` | `true` | the shank bodies and sites drawn pale behind the tiles |
+| `leaders` | `true` | physical: a line from a moved tile to its site |
+
+`cfg.isProbeFigure(id)` (an id or an index) and `cfg.probeFigureIds()` (enabled or
+not) tell them apart; `EphysAnalysisConfig.ProbeLayouts`, `ProbeOverlaps` and
+`ProbeTileLabels` are the choices.
+
+`[T, left, sites] = figureProbeTiles(src, spec)` picks the tiles:
+`figureObservations(src, spec)` with `perGroup` off; the rows with a finite
+position (a unit's `meta{1}.x` / `.y` from the probe map, a channel's); those
+`shanks`, `channels` and `depthRange` keep; at most `maxPerSite` per recording
+channel; then at most `maxTiles`. `T` gains `x` and `y` (µm); `left` counts
+`total`, `noPosition`, `filtered`, `overSite`, `overMax` and `kept` (the first is
+the sum of the others); `sites` is every site of the probe map (`channel`, `x`,
+`y`, `shank`, `included`). `[PF, K] = figureProbeCompute(src, spec, Check=,
+Reuse=, ProgressFcn=)` computes each tile with `figureCompute(...,
+Observation=T(i, :), Reuse=)`, the steps the tiles share (the figure's epochs, the
+skip reasons) computed once; `PF` holds `kind` `"probeFigure"`, `id`, `spec`,
+`dataset`, `observation` (kind `"probe"`, label *23 units at their sites*),
+`probe` (the map), `sites`, `tiles` (one per row of `T`: `observation`, `x`, `y`,
+`shank`, `channel`, `F`, `skip`, a tile that fails being kept with its message),
+`left`, `nTiles`, `epochs` and `groups` (the first computed tile's, for the
+legend). `EphysAnalysisRunner.computeProbeFigure(src, spec, Reuse=, ProgressFcn=)`
+wraps it with the runner's checkpoint and `FigureCache`, so the preview's look
+edits, and edits of the probe block (it counts only as on or off in each step's
+key: `figureDataSpec`), compute nothing again. `renderFigure` draws a `PF` with
+`renderProbeFigure`.
+
+Validation, at `<figure>.probe.<field>`: `layout`, `overlap` and `labels` known
+values; `lanes`, `maxTiles` and `maxPerSite` whole numbers >= 1; `tileWidth` and
+`tileHeight` in (0, 1]; `tileScale` finite and > 0; `shanks` whole numbers and
+`channels` whole numbers >= 1 (`[]` = all); `depthRange` `[]` or `[lo hi]` with
+lo < hi. With `probe.enabled`, errors at `<figure>.probe.enabled`: `sessions.enabled`
+too (*laid out on the probe or drawn across sessions, not both*), and an
+`observe.data` of `dataset`. Warnings: `observe.perGroup` (`<figure>.observe.perGroup`:
+ignored, each observation is one tile), a probe map panel (`<figure>.<panel>.type`)
+and a waveforms panel in the probe layout (`<figure>.<panel>.options.layout`): a
+probe drawn inside each tile. The default block raises nothing. `figureSkipReason`
+skips a probe figure on a dataset without a probe map (*no probe map*) and one
+observing the dataset (*a probe figure observes units or channels, not the
+dataset*); a dataset with no observation that has a site is skipped with *no
+observation with a probe position*.
+
+A run (`runDataset`) draws one page per dataset: its file is
+`figureOutputName`'s with `{Unit}` `probe` (an observation of kind `"probe"`), its
+caption *probe_rp: 23 units laid out at their sites on the probe (2 shanks) of
+RAT1_260918; panels: raster, PSTH; aligned to Stim onset; ...; each panel's y
+shared across the tiles* (`figureCaption` with `spec.probe.enabled`), its
+`Results` message *23 tile(s)*. With the Export section's size
+(`size.source "export"`) the page is `FigureSizeCm(1)` wide and
+`max(FigureSizeCm(2), min(80, 2 + nRows * grid.rows * 1.5))` cm tall, `nRows`
+the rows of tiles `probeTileLayout` lays out (`figureExportSize`,
+`newExportFigure`). A probe figure takes no `"batch"` y range (`batchYLimits`
+skips it: `sharedY` shares y across its tiles) and ignores `observe.perGroup`.
+`Observation=` of a run draws the probe whatever is picked, as a figure of the
+dataset does. The page is drawn in this MATLAB, never on the page workers.
 
 ### Session figures
 
@@ -2923,8 +3038,8 @@ With the defaults, the figure `unit_card` of dataset `SYNTH-01_260918_101500` wi
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
 | Defaults, Figures | the event reference, window and selection are valid: known values, `n` a whole number >= 1, `0 <= minDurationSec <= maxDurationSec`, `timeRange` ordered, a finite `offsetSec`, `offsetParamUnit` ms or s, each sequence step's relation, line, edge, `n`, positive `maxGapSec` and lengths, an `alignStep` of 0, `Inf` or a followedBy step (the stop's and each raster-mark sequence's too), finite `pre` and `post`, `pre <= post` in a fixed window, a stop event in a `"between"` window, known response words and pairing flags, at most 2 distinct `groupBy` parameters, `maxGroups` and `trials` whole numbers >= 1 | error |
 | Defaults, Figures | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
-| Figures | at least one figure or session figure enabled (`No figure is enabled.`); the figure id is not empty, file-name safe and distinct once sanitized from the other figures' (`{Plot}` fills the files' names, case-blind); the figure's alignment is valid; `observe` (`data`, channels, `maxUnits`; on a figure that observes units, an enabled `units.response` test at `<figure>.observe.units.response.<field>` and each spike layer's at `<figure>.<panel>.layers(<j>).units.response.<field>`: the test, `param` for tuning / either / both, ordered `baseline` and `window`, direction, correction, `alpha` in (0, 1], the `"auroc"` test's settings and the Statistics and Machine Learning Toolbox the tests need), `sessions` (the known values, `minSessions`; with `sessions.enabled` no probe map, unit correlation or spectral panel, no auROC baseline, a mapping file for `match "mapping"` and a unit observation for it: [rules](#validating-session-figures)) and `grid` (rows, columns, relative sizes, spacing, gap units, gaps) hold known values; each panel has an id of its own, a known type, a place inside the grid that no other panel overlaps, a size in (0, 1] each way and an alignment, and its own `ref` / `window` / `selection` only when its type is aligned; each enabled layer's source, binding, aggregate, channels, events (`eventsAs`, event reference, marker, size, a span's look; only events layers on an event-trace panel) and line style fit its panel type; a raster has rows, not marks or spans alone; each type's options; the style ([rules](#validating-figures)) | error |
-| Figures | no panels; cells no panel covers; a panel with no enabled layer, or with several on a type that draws one; a unit or channel observation with no layer following it; a session figure's `datasets "list"` with no keys, `showMembers` with `series "session"`, `trialGroups "pool"` over grouped trials, `"combine"` over PSTH bars, a heat map of trials ([rules](#validating-session-figures)); `observe.perGroup` while the figure's selection groups by nothing (not on a session figure); a signal layer following another signal's channel; a waveforms panel in the probe layout whose first layer follows the observation; a fixed raster, PSTH, rate or tuning layer that may keep more than 8 units; a layer, mark, style, note or overlay color that is not a color; two overlays of a figure with one name ([rules](#validating-figures)) | warning |
+| Figures | at least one figure or session figure enabled (`No figure is enabled.`); the figure id is not empty, file-name safe and distinct once sanitized from the other figures' (`{Plot}` fills the files' names, case-blind); the figure's alignment is valid; `observe` (`data`, channels, `maxUnits`; on a figure that observes units, an enabled `units.response` test at `<figure>.observe.units.response.<field>` and each spike layer's at `<figure>.<panel>.layers(<j>).units.response.<field>`: the test, `param` for tuning / either / both, ordered `baseline` and `window`, direction, correction, `alpha` in (0, 1], the `"auroc"` test's settings and the Statistics and Machine Learning Toolbox the tests need), `sessions` (the known values, `minSessions`; with `sessions.enabled` no probe map, unit correlation or spectral panel, no auROC baseline, a mapping file for `match "mapping"` and a unit observation for it: [rules](#validating-session-figures)), `probe` (`layout`, `overlap`, `labels` known values, `lanes` / `maxTiles` / `maxPerSite` whole >= 1, `tileWidth` / `tileHeight` in (0, 1], `tileScale` > 0, whole `shanks` and `channels`, `depthRange` `[]` or `[lo hi]`; with `probe.enabled` not a session figure too and not observing the dataset: [rules](#probe-figures)) and `grid` (rows, columns, relative sizes, spacing, gap units, gaps) hold known values; each panel has an id of its own, a known type, a place inside the grid that no other panel overlaps, a size in (0, 1] each way and an alignment, and its own `ref` / `window` / `selection` only when its type is aligned; each enabled layer's source, binding, aggregate, channels, events (`eventsAs`, event reference, marker, size, a span's look; only events layers on an event-trace panel) and line style fit its panel type; a raster has rows, not marks or spans alone; each type's options; the style ([rules](#validating-figures)) | error |
+| Figures | no panels; cells no panel covers; a panel with no enabled layer, or with several on a type that draws one; a unit or channel observation with no layer following it; a session figure's `datasets "list"` with no keys, `showMembers` with `series "session"`, `trialGroups "pool"` over grouped trials, `"combine"` over PSTH bars, a heat map of trials ([rules](#validating-session-figures)); `observe.perGroup` while the figure's selection groups by nothing (not on a session or probe figure); a probe figure's `observe.perGroup` (ignored), probe map panel or waveforms panel in the probe layout ([rules](#probe-figures)); a signal layer following another signal's channel; a waveforms panel in the probe layout whose first layer follows the observation; a fixed raster, PSTH, rate or tuning layer that may keep more than 8 units; a layer, mark, style, note or overlay color that is not a color; two overlays of a figure with one name ([rules](#validating-figures)) | warning |
 | Export | formats are png / eps / svg / pdf (and at least one when enabled); `Dpi` positive; `FigureSizeCm` two positive numbers; the folder and file-name patterns use known tokens, and the file-name pattern is not empty; `SessionsFolder` and `Data.Folder` are folder patterns, `Data.FilenamePattern` a file-name pattern, and `Data.MatVersion` is `-v7.3` or `-v7` | error |
 | Export | a file-name pattern without `{Plot}` while several figures are enabled (every figure's `{Kind}` is `figure`, so only `{Plot}`, the figure's id, tells their files apart); neither the folder nor the file-name pattern names the dataset (`{OutputFolder}` or `{Name}`), unless the source is a single folder: files that would overwrite each other | warning |
 | Export | `{OutputFolder}` in `SessionsFolder` or `Data.Folder`: it is one dataset's folder, so the session figures' files go to the first dataset's | warning |

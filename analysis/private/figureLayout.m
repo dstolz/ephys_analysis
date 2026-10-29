@@ -36,6 +36,9 @@ function figureLayout(canvas, S)
 %   Once its axes are gone (another drawing in their place) the
 %   callback lays out nothing. A canvas too small to hold a figure (under
 %   40 px a side: not laid out yet) is left as it is.
+%   S with a field layoutFcn (renderProbeFigure: its arithmetic layout) is
+%   kept and chained alike, and laid out by calling S.layoutFcn(CANVAS)
+%   in place of all this.
 %
 %   See also renderFigure, figureArrange, placeNote.
 
@@ -50,6 +53,10 @@ else
         canvas.SizeChangedFcn = own;
         setappdata(canvas, 'FigureLayoutFcn', own);
     end
+end
+if isfield(S, 'layoutFcn')   % a drawing laid out its own way (renderProbeFigure): its function places it
+    S.layoutFcn(canvas);
+    return
 end
 for P = reshape(S.panels, 1, [])
     if any(~isgraphics(P.axes)); return; end   % drawn over since

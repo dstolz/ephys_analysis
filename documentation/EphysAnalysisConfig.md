@@ -2087,6 +2087,15 @@ every other panel; `note`, the text object of its note, empty without one; and
 `renderFigure:Mismatch` when `F`'s panels are not the spec's, `renderFigure:BadTarget`
 for a target it cannot draw into (a tiled layout, say).
 
+A probe figure's result (`figureProbeCompute`'s `PF`, `kind` `"probeFigure"`: see
+[Probe figures](#probe-figures)) is drawn by `renderProbeFigure` (the figure's
+panels as a small tile at every unit's or channel's site on one page,
+[Render](EphysAnalysis.md#render)): `renderFigure(PF, spec, target, ...)` hands it
+over with the same options before anything is cleared and returns its `h` and
+`how`. Its target is a figure, panel, tab or grid layout (an axes is refused,
+`renderProbeFigure:BadTarget`); `DataTips` is off unless `true`, `Reuse` is ignored
+(the page is drawn whole) and `InPlaceOnly` draws nothing.
+
 ### A figure in JSON
 
 A raster flush over a PSTH over an LFP panel, all following the unit, with the

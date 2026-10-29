@@ -2,12 +2,16 @@
 
 Standing instructions from the repository's owner.
 
+To reduce redundancy, use functions already existing within this repository whenever possible. If needed, update the function without breaking existing behavior. Keep functions organized in a logical manner.
+
 ## MATLAB toolboxes
 
 - When a function from one of these toolboxes fits the job, use it instead of
   writing your own: Statistics and Machine Learning Toolbox, Parallel
   Computing Toolbox, Image Processing Toolbox, Signal Processing Toolbox.
-- Before using a function from any other toolbox, ask.
+- Any other MathWorks toolbox may be used too, without asking: the owner is
+  licensed for all of them (2026-10-29). Prefer a toolbox function to a
+  hand-written one.
 - List each toolbox the code uses, and what for, under Dependencies in
   [documentation/README.md](documentation/README.md#dependencies).
 - Exception: `analysis/pAdjust.m` (Benjamini-Hochberg, Holm, Bonferroni)

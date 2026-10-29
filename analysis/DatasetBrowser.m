@@ -162,7 +162,7 @@ classdef DatasetBrowser < handle
     %   sequence, the epoch window, the trial selection) to switch between
     %   (Definitions). + adds the tabs' settings as a new definition, named
     %   from the event and trials part of ResultName ("StimOnset_Hit",
-    %   numbered when taken; nothing when one holds them already); with a
+    %   numbered when taken); with a
     %   name typed in the drop-down, under that name, replacing a definition
     %   of that name. Picking a name from the drop-down puts its
     %   event, window and trials in the settings; data, channels, measure and
@@ -1255,8 +1255,7 @@ classdef DatasetBrowser < handle
             %addDefinition  Keep the settings' event, window and trials under NAME in Definitions (the + button).
             %   A definition of that name is replaced. No NAME (or ""): a new
             %   definition under the event and trials part of ResultName
-            %   ("StimOnset_Hit"), numbered when taken; nothing when a
-            %   definition holds these settings already.
+            %   ("StimOnset_Hit"), numbered when taken.
             arguments
                 B
                 name (1,1) string = ""
@@ -1265,13 +1264,6 @@ classdef DatasetBrowser < handle
             names = string([B.Definitions.name]);
             B.DefinitionTyped = false;
             if name == ""
-                same = names(arrayfun(@(d) B.isCurrent(d), B.Definitions));
-                if ~isempty(same)
-                    B.DefinitionName = same(1);
-                    B.refreshDefinitions();
-                    B.setStatus("Not added: the definition """ + same(1) + """ holds this event, window and trials.");
-                    return
-                end
                 name = string(matlab.lang.makeUniqueStrings(definitionName(B.SettingsS), cellstr(names)));
             end
             S = B.SettingsS;

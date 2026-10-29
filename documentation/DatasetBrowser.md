@@ -232,8 +232,8 @@ measure and the normalization are not part of it.
 
 - **+** adds the tabs' settings as a new definition, named from the event
   and trials part of [`ResultName`](#from-a-script) (`StimOnset_Hit`,
-  `TrialOnset_AllTrials`), numbered when taken; nothing when a definition
-  holds these settings already. With a name typed in the drop-down's box, it
+  `TrialOnset_AllTrials`), numbered when taken. With a name typed in the
+  drop-down's box, it
   keeps them under that name, replacing a definition of that name
   (`B.addDefinition(name)`; no name: a new one).
 - Picking a name from the drop-down puts its event, window and trials in the

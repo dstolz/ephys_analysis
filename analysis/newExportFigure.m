@@ -28,10 +28,8 @@ end
 x = EphysAnalysisConfig.normalizeSection("Export", onlyKnown(exportSection));
 sz = figureExportSize(x, F, spec);
 fig = figure('Visible', 'off', 'Color', 'w', 'Units', 'centimeters', 'Position', [1 1 sz(1) sz(2)], ...
+    'PaperUnits', 'centimeters', 'PaperSize', sz, 'PaperPosition', [0 0 sz(1) sz(2)], ...
     'InvertHardcopy', 'off', 'IntegerHandle', 'off', 'NumberTitle', 'off', 'MenuBar', 'none', 'ToolBar', 'none');
-% the paper once the window is made: a page taller than the screen (a probe figure's) gets its paper fitted to the
-% screen while the figure is made, so the paper is set after, and is the page
-set(fig, 'PaperUnits', 'centimeters', 'PaperSize', sz, 'PaperPosition', [0 0 sz(1) sz(2)]);
 end
 
 

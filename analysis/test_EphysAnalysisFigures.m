@@ -5123,7 +5123,10 @@ if S.sec("15", "probe figures: config, tiles, compute, run")
         '2 cm (%.1f x %.1f cm)'], pbLay.nRows, pbSz));
     check(all(abs(pbSz0 - pbX.FigureSizeCm) < 1e-12), sprintf('figureExportSize of a probe figure without a tile: FigureSizeCm (%.1f x %.1f cm)', pbSz0));
     check(all(abs(pbSz2 - pbSz) < 1e-12), sprintf('figureExportSize of a probe figure without a spec: its own (%.1f x %.1f cm)', pbSz2));
-    check(all(abs(pbPap - pbSz) < 1e-9), sprintf('newExportFigure of a probe figure: a page of that size (paper %.3f x %.3f cm, drawn %.3f x %.3f cm)', pbPap, pbPos));
+    % the page is drawn at that size (exportFigure writes the figure's own size, and sets the PDF's paper from it); MATLAB
+    % adjusts the paper of a figure taller than the screen by a percent or two (the paper is 18.2 x 25.7 cm for 18 x 26)
+    check(all(abs(pbPos - pbSz) < 1e-9) && all(abs(pbPap ./ pbSz - 1) < 0.03), ...
+        sprintf('newExportFigure of a probe figure: a page drawn at that size (%.3f x %.3f cm; paper %.3f x %.3f cm)', pbPos, pbPap));
 
     % a run: one page per dataset, the plan, the scripts
     pbC.Export.Folder = string(fullfile(root, "probe_out"));

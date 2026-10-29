@@ -538,6 +538,50 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyFalse(isvalid(d) && d.isOpen(), 'It closes with the browser.');
         end
 
+        function groupCountsWindow(tc)
+            B = tc.open();
+            c = B.Ctl;
+            B.Settings = tc.Spike;   % Stim, [-0.2 0.5] s, grouped by Depth
+            tc.verifyEmpty(B.CountsWindow);
+            c.GroupCounts.ButtonPushedFcn(c.GroupCounts, []);
+            w = B.CountsWindow;
+            tc.verifyTrue(~isempty(w) && w.isOpen(), 'Epochs per group opens the window.');
+            tc.verifyEqual(string(w.Fig.Name), "Epochs per group");
+            % the first ticked dataset's epochs per depth, as epochTable (and so Compute) cuts them
+            src = B.source(B.Selected(1));
+            G = verifyGroupCounts(tc, w, src, B.Settings);
+            tc.verifyGreaterThan(height(G), 1, 'The fixture has several depths.');
+            % a settings edit redraws it: without Group by, one group
+            B.formEdit("Group1", "(none)");
+            tc.verifyEqual(height(w.Counts), 1);
+            verifyGroupCounts(tc, w, src, B.Settings);
+            B.formEdit("Group1", "Depth");
+            % no epoch: said in red, nothing counted
+            B.formEdit("Filter", "Depth > 1000");
+            tc.verifyTrue(startsWith(w.Summary, "No epochs: ") && w.Message ~= "", w.Summary);
+            tc.verifyEqual(height(w.Counts), 0);
+            B.formEdit("Filter", "");
+            % the excluded epochs stacked on the kept: the kept are the selection's
+            w.setExcluded(true);
+            [E, G] = epochTable(src, B.Settings.ref, Window=B.Settings.window, Selection=B.Settings.selection);
+            K = w.Counts;
+            tc.verifyEqual(K.Properties.VariableNames, {'Group', 'Trials', 'Epochs', 'PairingExcludes', 'ArtifactsExclude'});
+            [in, at] = ismember(G.label, K.Group);
+            tc.verifyTrue(all(in), 'Every group of the selection has its bar.');
+            tc.verifyEqual(K.Epochs(at), G.n);
+            tc.verifyEqual(K.Trials(at), G.nTrials);
+            tc.verifyEqual(sum(K.Epochs), height(E));
+            tc.verifyEqual(numel(findall(w.Fig, 'Type', 'bar')), 3, 'Kept, Pairing and artifacts stacked.');
+            w.setExcluded(false);
+            % a row click: that dataset
+            other = B.Datasets.key(B.Datasets.key ~= B.Selected(1));
+            T = c.Table.Data;
+            c.Table.CellSelectionCallback(c.Table, struct('Indices', [find(T.Key == other(1)) 2]));
+            verifyGroupCounts(tc, w, B.source(other(1)), B.Settings);
+            delete(B);
+            tc.verifyFalse(isvalid(w) && w.isOpen(), 'It closes with the browser.');
+        end
+
         function channelsTabYoked(tc)
             B = tc.open();
             c = B.Ctl;
@@ -1661,6 +1705,23 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEqual(v, v0);
         end
     end
+end
+
+
+function G = verifyGroupCounts(tc, w, src, S)
+%verifyGroupCounts  The Epochs per group window shows SRC cut by the settings S: epochTable's groups, epochs and trials.
+[E, G] = epochTable(src, S.ref, Window=S.window, Selection=S.selection);
+tc.verifyEqual(w.Heading, string(src.name));
+tc.verifyEqual(w.Message, "");
+tc.verifyEqual(w.Summary, EpochGroupCounts.summary(src, E, G));
+K = w.Counts;
+tc.verifyEqual(K.Group, G.label);
+tc.verifyEqual(K.Epochs, G.n);
+tc.verifyEqual(K.Trials, G.nTrials);
+tc.verifyEqual(sum(K.Epochs), height(E));
+counts = findall(w.Fig, 'Tag', 'epochCount');
+tc.verifyEqual(sort(reshape(str2double(strtrim(string({counts.String}))), [], 1)), sort(G.n), ...
+    'A count on top of each bar.');
 end
 
 

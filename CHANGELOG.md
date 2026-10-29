@@ -10,6 +10,12 @@ says how to cut a release.
 
 ### Added
 
+- Dataset browser: **Epochs per group** (under the **Trials** tab; `B.showGroupCounts()`) opens a window that counts
+  one dataset's epochs by group as **Compute** cuts them: the analysis app's Alignment-tab bars (a bar per group, e.g.
+  per depth, in its color with its count on top, and **Show the epochs Pairing and Artifacts exclude**) and a table of
+  each group's trials and epochs. It follows every settings edit and row click. The window is the new
+  `EpochGroupCounts`; the Alignment tab now draws its bars with `EpochGroupCounts`' static methods. See
+  [Epochs per group](documentation/DatasetBrowser.md#epochs-per-group).
 - Several kinds of data at once in the dataset browser: **Data** is a box per kind (`units`, `detected`, `LFP`,
   `MUA`, `SPIKE`, `AUX`), and `epochMatrixSettings`' `data` a string row. **Compute** computes each kind on its
   own (`epochMatrixSettings(S, Kind=K)`, cached per kind) into `B.Results`, by kind; `B.Result` stays the first

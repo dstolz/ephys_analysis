@@ -71,7 +71,8 @@ baseline    = "db";                      % "none" (power, dB) | "db" 10*log10(S/
 baselineSec = [-1 -0.5];                 % [b0 b1] s from the event
 
 %% Load the project
-here = fileparts(mfilename('fullpath'));
+here = fileparts(fileparts(fileparts(mfilename('fullpath'))));   % repository root
+addpath(here);                           % addpath_nogit lives there
 addpath_nogit(here);                     % pipeline/, analysis/, vendor/ and toolboxes/chronux
 
 ChronuxDataset.requireChronux();

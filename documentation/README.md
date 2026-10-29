@@ -410,7 +410,7 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
 | Function | Used by |
 | --- | --- |
 | [`read_Intan_RHD2000_file_modified`](../pipeline/read_Intan_RHD2000_file_modified.m) | `IntanReader`, traditional `*.rhd` |
-| [`matrix2kilosort`](../matrix2kilosort.m) | `EphysDataset.matrixToBin` |
+| [`matrix2kilosort`](../pipeline/matrix2kilosort.m) | `EphysDataset.matrixToBin` |
 | [`Manifest`](../vendor/tools/Manifest.m) | optional provenance log |
 | [`parfor_progress`](../vendor/compute/parfor_progress.m) | `intan2matlab` console progress |
 | [`addpath_nogit`](../addpath_nogit.m) | path setup |
@@ -447,7 +447,7 @@ neuroGLM (its matRegress tests without matRegress or `fminunc`).
 The [mTRF-Toolbox](https://github.com/mickcrosse/mTRF-Toolbox) (not bundled;
 add its `mtrf` folder to the path) is called only by the DatasetBrowser's
 post-processing script
-[`S_DatasetBrowserToMTRF.m`](../analysis/scripts/S_DatasetBrowserToMTRF.m)
+[`S_DatasetBrowserToMTRF.m`](../analysis/browser_scripts/S_DatasetBrowserToMTRF.m)
 (`mTRFcrossval`, `mTRFtrain`, `mTRFpredict`, `mTRFplot`) and by
 `test_MTRFExport` when it is present; the [mTRFExport](mTRFExport.md)
 connector prepares the data without it (`mTRFExport.hasMTRF` reports whether

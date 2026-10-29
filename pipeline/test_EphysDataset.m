@@ -21,7 +21,6 @@ function test_EphysDataset()
 
 here = fileparts(mfilename('fullpath'));
 addpath(here);                          % @EphysDataset / @EphysProject
-addpath(fileparts(here));               % matrix2kilosort.m (ephys/)
 
 root = fullfile(tempdir, sprintf('IntanDS_test_%s', datestr(now,'yyyymmdd_HHMMSSFFF'))); %#ok<TNOW1,DATST>
 mkdir(root);

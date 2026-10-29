@@ -28,7 +28,8 @@ useQuality  = true;                      % also require the good-unit quality cr
 criteria    = unitQualityCriteria();     % thresholds (isi violations, presence ratio, amplitude cutoff, ...)
 
 %% Load the project
-here = fileparts(mfilename('fullpath'));
+here = fileparts(fileparts(fileparts(mfilename('fullpath'))));   % repository root
+addpath(here);                           % addpath_nogit lives there
 addpath_nogit(here);                     % pipeline/, analysis/ and vendor/
 
 P = EphysProject(projectRoot);

@@ -664,6 +664,19 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEqual(height(D(1).channels), 1);
             tc.verifyEmpty(D(1).spikes);
             tc.verifyTrue(contains(B.Ctl.ProgMsg.Text, "2 session(s) loaded"), B.Ctl.ProgMsg.Text);
+            % trials only: no spikes, no signal, the trials and lines as above
+            B.Ctl.LoadTrials.ButtonPushedFcn(B.Ctl.LoadTrials, []);
+            D = B.Sessions;
+            tc.verifyNumElements(D, 2);
+            tc.verifyEqual([D.data], ["trials" "trials"]);
+            tc.verifyEmpty(D(1).spikes);
+            tc.verifyEmpty(D(1).signal);
+            tc.verifyEmpty(D(1).channels);
+            src = B.source(D(1).key);
+            tc.verifyEqual(D(1).trials, src.trials);
+            tc.verifyEqual(D(1).events, src.events);
+            tc.verifyEqual(D(1).kept, selectTrials(src, B.Settings.selection));
+            tc.verifyTrue(contains(B.Ctl.ProgMsg.Text, "2 session(s) loaded in B.Sessions (trials)"), B.Ctl.ProgMsg.Text);
             B.untickAll();
             tc.verifyError(@() B.loadSessions(), 'DatasetBrowser:NoneTicked');
         end

@@ -1,4 +1,4 @@
-function D = sessionData(src, S)
+function D = sessionData(src, S, opts)
 %sessionData  One dataset on its own clock, not cut into epochs: its spike trains or signal, every trial and digital line.
 %   D = sessionData(SRC, S) takes the dataset SRC (loadAnalysisSource) and
 %   epochMatrixSettings' S (a struct, a settings file or [] for the
@@ -9,6 +9,10 @@ function D = sessionData(src, S)
 %   S.signal picks (selectChannels), whole. Every trial and every digital
 %   line come along, with the trials S.selection keeps marked. Nothing is
 %   computed. DatasetBrowser.loadSessions calls it for each ticked dataset.
+%
+%   D = sessionData(SRC, S, TrialsOnly=true) reads neither spikes nor
+%   signal: D.data is "trials", spikes, units, signal and channels are
+%   empty, and the rest (trials, events, lines, ...) is as above.
 %
 %   Two clocks. Spike times and signal samples are on the continuous
 %   clock: sample k at (k-1)/fs. Digital events (events, lines, the
@@ -22,7 +26,7 @@ function D = sessionData(src, S)
 %     key, name, folder, subject, startTime, tags
 %     fs, durationSec   the recording's rate and length (NaN when unknown)
 %     data              S.data: "units" | "detected" | "LFP" | "MUA" |
-%                       "SPIKE" | "AUX"
+%                       "SPIKE" | "AUX"; "trials" with TrialsOnly
 %     spikes            {nUnits x 1} spike times, s, continuous clock
 %                       (spike data; {} for a signal)
 %     units             table, one row per spike train (selectUnits' META;
@@ -60,6 +64,7 @@ function D = sessionData(src, S)
 arguments
     src (1,1) struct
     S = []
+    opts.TrialsOnly (1,1) logical = false
 end
 
 S = epochMatrixSettings(S);
@@ -75,13 +80,16 @@ D.tags = src.tags;
 D.fs = fs;
 D.durationSec = src.durationSec;
 D.data = S.data;
+if opts.TrialsOnly; D.data = "trials"; end
 
 D.spikes = {};
 D.units = table();
 D.signal = [];
 D.signalFs = NaN;
 D.channels = table();
-if ismember(S.data, ["units" "detected"])
+if opts.TrialsOnly
+    % no spikes, no signal
+elseif ismember(S.data, ["units" "detected"])
     [D.spikes, D.units] = selectUnits(src, S.units, Ref=S.ref, Selection=S.selection);
 else
     sig = S.signal;

@@ -118,8 +118,9 @@ classdef DatasetBrowser < handle
     %     SRC = source(B, KEY)
     %     R = compute(B, Recompute=false, RunScript=false)   RunScript: then runScript (the Compute button
     %                  passes ScriptAfterCompute)
-    %     [D, T] = loadSessions(B, RunScript=false)   the ticked datasets on their own clock, not cut
-    %                  into epochs, in B.Sessions (sessionData; the Load whole sessions button)
+    %     [D, T] = loadSessions(B, RunScript=false, TrialsOnly=false)   the ticked datasets on their own
+    %                  clock, not cut into epochs, in B.Sessions (sessionData; the Load whole sessions
+    %                  button); TrialsOnly: trials and digital lines, no spikes or signal (Load trials only)
     %     [VALUES, T] = forEach(B, FN, Name=, Id=, Datasets=, Recompute=, SkipIds=)
     %                  FN(SRC) or FN(SRC, INFO) per dataset, kept in Runs
     %                  (DatasetRuns.run); Name defaults to "forEach/" + func2str(FN)
@@ -181,7 +182,9 @@ classdef DatasetBrowser < handle
     %   spikes), into B.Sessions, one struct per dataset (sessionData's
     %   fields). The event window, the measure and normalization are not
     %   used. Nothing is cached or saved in the result file; signals are
-    %   whole (GBs per dataset).
+    %   whole (GBs per dataset). Load trials only (TrialsOnly=true) brings
+    %   the same without the spikes or signal: only the trials and the
+    %   digital lines (D.data "trials").
     %
     %   Trial rasters: with "Keep single trials, not just averages (R.epochs)"
     %   (Measure tab) ticked, Compute keeps every epoch, and showRasters(B)
@@ -420,7 +423,7 @@ classdef DatasetBrowser < handle
         Controls = ["Root" "Browse" "Pattern" "Scan" "Subject" "NotSubject" "Search" "Tags" "TagMode" "NotTags" ...
             "TickShown" "UntickAll" "Table" "FileMenu" "Data" "Normalize" "NormBaseline" "NormScope" ...
             "Shanks" "Channels" "ProbeAll" "Probe" "Merge" "Measure" "Bin" "Baseline" ...
-            "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "KeepEpochs" "Compute" "LoadSessions" "Workers" ...
+            "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "KeepEpochs" "Compute" "LoadSessions" "LoadTrials" "Workers" ...
             "ScriptAfter" "ScriptList" "ScriptAdd" "ScriptRemove" "ScriptEdit" "ScriptRun" "DefList" "DefAdd" "DefRemove"]
         MaxRecent = 10                     % RecentSettings' length
         ErrorColor = [0.75 0.1 0.1]
@@ -944,10 +947,13 @@ classdef DatasetBrowser < handle
             %   result file: each call reads the datasets again. Signals are
             %   whole (GBs per dataset). RunScript=true then runs Script
             %   (runScript); the Load sessions button passes
-            %   ScriptAfterCompute.
+            %   ScriptAfterCompute. TrialsOnly=true reads no spikes or
+            %   signal: only the trials and digital lines (the Load trials
+            %   only button).
             arguments
                 B
                 opts.RunScript (1,1) logical = false
+                opts.TrialsOnly (1,1) logical = false
             end
             B.needRunner();
             keys = B.tickedKeys();
@@ -955,14 +961,17 @@ classdef DatasetBrowser < handle
                 error('DatasetBrowser:NoneTicked', 'Tick at least one dataset to load.');
             end
             S = B.SettingsS;
+            what = S.data;
+            if opts.TrialsOnly; what = "trials"; end
             t0 = datetime('now');
             own = B.beginOwnRun(); %#ok<NASGU> cleared on return
-            B.progressStart("Loading " + S.data + " sessions");
+            B.progressStart("Loading " + what + " sessions");
             stopper = onCleanup(@() B.endRun("Loading stopped."));
             skipIds = ["selectUnits:NoUnits" "selectUnits:NoDetected" "selectUnits:NoneLeft" ...
                 "selectChannels:NoSignal" "epochMatrix:NoChannels"];
             try
-                [values, T] = B.Runs.run(B.Runner, keys, @(src) sessionData(src, S), Id="sessionData", ...
+                [values, T] = B.Runs.run(B.Runner, keys, @(src) sessionData(src, S, TrialsOnly=opts.TrialsOnly), ...
+                    Id="sessionData/" + what, ...
                     Info=B.info(keys), ProgressFcn=@(f, m) B.progress(f, m), CheckFcn=@() B.checkCancel(), ...
                     LogFcn=@(m) B.say(m), SkipIds=skipIds, Workers=B.WorkersN);
             catch ME
@@ -976,7 +985,7 @@ classdef DatasetBrowser < handle
             B.Sessions = D;
             n = @(s) nnz(T.status == s);
             B.progressFinish(sprintf("%d session(s) loaded in B.Sessions (%s), %d skipped, %d failed", ...
-                n("done"), S.data, n("skipped"), n("error")));
+                n("done"), what, n("skipped"), n("error")));
             clear stopper
             B.setStatus(sprintf("Loaded %d session(s) in %s: B.Sessions.", n("done"), ...
                 ProgressClock.durationText(seconds(datetime('now') - t0))));
@@ -1672,7 +1681,7 @@ classdef DatasetBrowser < handle
                 "each spike's time from the event and its epoch, or each epoch's signal trace (row x time x epoch). " + ...
                 "Computes every dataset once more; signal epochs are large and go into the result file.");
 
-            r = uigridlayout(R, [1 2], "ColumnWidth", {'1x', '1x'}, "RowHeight", {34}, "Padding", [0 0 0 0]);
+            r = uigridlayout(R, [1 3], "ColumnWidth", {'1x', '1x', '1x'}, "RowHeight", {34}, "Padding", [0 0 0 0]);
             c.Compute = uibutton(r, "Text", "Compute", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.onCompute()), ...
                 "Tooltip", "Compute the ticked datasets (those already computed with these settings are reused); " + ...
                 "then the post-processing script, when ticked below.");
@@ -1680,6 +1689,10 @@ classdef DatasetBrowser < handle
                 "Tooltip", "No epochs, nothing computed: the ticked datasets on their own clock, in B.Sessions for a script. " + ...
                 "Each one's spike times (units, detected) or whole signal (LFP, MUA, SPIKE, AUX: GBs each), " + ...
                 "every trial (those the Trials tab keeps marked) and every digital line. " + ...
+                "Then the post-processing script, when ticked below.");
+            c.LoadTrials = uibutton(r, "Text", "Load trials only", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.onLoadSessions(true)), ...
+                "Tooltip", "Like Load whole sessions, without spikes or signal: each ticked dataset's trials " + ...
+                "(those the Trials tab keeps marked) and digital lines, in B.Sessions. " + ...
                 "Then the post-processing script, when ticked below.");
 
             % --- the post-processing script: run in the base workspace after Compute
@@ -1722,7 +1735,7 @@ classdef DatasetBrowser < handle
 
             styleButton([c.Browse c.TickShown c.UntickAll c.ProbeAll c.ScriptAdd c.ScriptRemove c.ScriptEdit c.ScriptRun c.DefAdd c.DefRemove]);
             styleButton([c.Scan c.Compute], "primary");
-            styleButton(c.LoadSessions, "confirm");
+            styleButton([c.LoadSessions c.LoadTrials], "confirm");
             styleButton(c.Cancel, "danger");
             B.Ctl = c;
         end
@@ -1953,7 +1966,7 @@ classdef DatasetBrowser < handle
             set([c.SigBaseline c.Detrend c.Rectify c.Statistic], "Enable", on(~spikes));
             c.Magnitude.Enable = on(aux);
             AlignControls.syncEnable(c.Align);
-            set([c.Compute c.LoadSessions], "Enable", on(~isempty(B.Runner)));
+            set([c.Compute c.LoadSessions c.LoadTrials], "Enable", on(~isempty(B.Runner)));
             picked = B.ScriptS ~= "";
             set([c.ScriptList c.ScriptRemove c.ScriptEdit c.ScriptAfter], "Enable", on(picked));
             c.ScriptRun.Enable = on(picked && (~isempty(B.Result) || ~isempty(B.Sessions)));
@@ -2045,9 +2058,13 @@ classdef DatasetBrowser < handle
             B.done();
         end
 
-        function onLoadSessions(B)
-            %onLoadSessions  The Load whole sessions button: load (and run the script), then let wait return; the window stays.
-            B.loadSessions(RunScript=B.AfterS);
+        function onLoadSessions(B, trialsOnly)
+            %onLoadSessions  The Load whole sessions (Load trials only) button: load (and run the script), then let wait return; the window stays.
+            arguments
+                B
+                trialsOnly (1,1) logical = false
+            end
+            B.loadSessions(RunScript=B.AfterS, TrialsOnly=trialsOnly);
             B.done();
         end
 

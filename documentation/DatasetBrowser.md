@@ -266,6 +266,11 @@ Every dataset also brings every trial and every digital line. The **Trials**
 tab's selection marks the trials (`kept`, `group`, `groups`) but drops none.
 The event, the window, the measure and normalization are not used.
 
+**Load trials only**, beside it, brings the same without the spikes or the
+signal: only the trials and the digital lines, whatever **Data** is (`data` is
+`"trials"`; `spikes`, `units`, `signal` and `channels` are empty). From a
+script: `B.loadSessions(TrialsOnly=true)`.
+
 `B.Sessions` is a struct column, one per dataset loaded, made by
 [`sessionData.m`](../analysis/sessionData.m):
 
@@ -273,7 +278,7 @@ The event, the window, the measure and normalization are not used.
 | --- | --- |
 | `key`, `name`, `folder`, `subject`, `startTime`, `tags` | which dataset |
 | `fs`, `durationSec` | the recording's rate and length |
-| `data` | **Data** |
+| `data` | **Data**; `"trials"` from **Load trials only** |
 | `spikes`, `units` | `{nUnits x 1}` spike times, s, on the continuous clock, and one row per unit (`selectUnits`' table); `{}` and `table()` for a signal |
 | `signal`, `signalFs`, `channels` | `[nSamples x nChannels]` single (µV; AUX: V), row `k` at `(k-1)/signalFs`, its rate and one row per column (`selectChannels`' table); `[]`, `NaN` and `table()` for spikes |
 | `events` | line → `[k x 2]` `[t_on t_off]` s on the digital clock (polarity applied, derived events included) |

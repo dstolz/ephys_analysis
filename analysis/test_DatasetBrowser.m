@@ -7,7 +7,9 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
     %   round trip, hidden fields kept, the Data drop-down's blocks, an
     %   invalid edit undone); a drop-down opening loads one source; compute
     %   equals epochMatrix, a dataset ticked later is the only one computed,
-    %   a binSec change computes all; a Normalize change normalizes the
+    %   a binSec change computes all; the exported script (exportScript:
+    %   the ticked keys, only the settings that differ, no browser) gives
+    %   the compute's result; a Normalize change normalizes the
     %   result again in place (still current, nothing assembled, the same as
     %   a compute), and its controls are on only where they apply; the
     %   result file restores without a
@@ -532,6 +534,39 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyTrue(isfile(B.ResultFile), 'The result file is written after a compute.');
             B.untickAll();
             tc.verifyError(@() B.compute(), 'DatasetBrowser:NoneTicked');
+        end
+
+        function exportedScriptEqualsCompute(tc)
+            % trials kept and grouped, units' shanks, a normalization: all written out
+            S = epochMatrixSettings(tc.Spike, measure="count", ...
+                selection=trialSelection(response=["Hit" "Miss"], groupBy="Depth", groupOrder="descending"), ...
+                units=struct('shanks', 0), normalize=struct('method', "zscore"));
+            B = tc.open(Settings=S);
+            B.setFilter(Tags="ofc");
+            B.Selected = B.Datasets.key(2);
+            R = B.compute();
+            tmp = tc.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+            file = fullfile(tmp.Folder, "compute_export.m");
+            txt = B.exportScript(file);
+            tc.verifyTrue(isfile(file));
+            tc.verifyEqual(string(fileread(file)), txt);
+            tc.verifyFalse(contains(txt, "DatasetBrowser("), 'No browser in the script.');
+            tc.verifyTrue(contains(txt, "% (The browser's filter: Tags=""ofc"", TagMode=""any"".)"), txt);
+            tc.verifyTrue(contains(txt, """" + B.Datasets.key(2) + """") && ~contains(txt, """" + B.Datasets.key(1) + """"), ...
+                'Only the ticked dataset.');
+            tc.verifyFalse(contains(txt, "signal="), 'Fields that do not apply to the data are left out.');
+            tc.verifyFalse(contains(txt, "binSec="), 'Defaults are left out.');
+            R1 = runScript(file);
+            tc.verifyEqual(R1.data, R.data);
+            tc.verifyEqual(R1.rows, R.rows);
+            tc.verifyEqual(R1.t, R.t);
+            tc.verifyEqual(R1.groupLabels, R.groupLabels);
+            tc.verifyEqual(DatasetRuns.idText(R1.settings), DatasetRuns.idText(R.settings));
+            % the defaults: one line of settings
+            B.Settings = epochMatrixSettings();
+            tc.verifyTrue(contains(B.exportScript(""), "S = epochMatrixSettings();"));
+            B.untickAll();
+            tc.verifyError(@() B.exportScript(""), 'DatasetBrowser:NoneTicked');
         end
 
         function normalizeAppliesWithoutCompute(tc)
@@ -1110,6 +1145,12 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEqual(v, v0);
         end
     end
+end
+
+
+function R = runScript(file)
+%runScript  Run an exported script in this function's workspace (no browser, no base variables); its R.
+run(file);
 end
 
 

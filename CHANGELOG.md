@@ -10,6 +10,10 @@ says how to cut a release.
 
 ### Added
 
+- Dataset browser: **File > Export compute script...** (`B.exportScript(file)`) writes the least code that computes
+  the current settings on the ticked datasets without the window or the browser: an `EphysAnalysisConfig` with the
+  ticked keys, `epochMatrixSettings` with only the settings that differ from the defaults (the trials are its
+  `selection`), and `epochMatrix`. See [Export a script](documentation/DatasetBrowser.md#export-a-script).
 - Pipeline: **Leave out bad channels** (Artifacts tab, `Artifacts.ExcludeBadChannels`, off by default) leaves each
   dataset's bad channels out of every step that works on the signals, before any of them: the common reference,
   artifact detection, spike detection, the sorter (dropped from its chanMap; they stay in the `.bin`) and the Signals

@@ -125,6 +125,11 @@ classdef DatasetBrowser < handle
     %     loadSettings(B, FILE)              (no FILE: a file dialog; File > Load settings)
     %     saveSettings(B, FILE)              (no FILE: SettingsFile, else a file dialog; File > Save settings)
     %     saveSettingsAs(B)                  a file dialog (File > Save settings as)
+    %     TXT = exportScript(B, FILE)        a script computing Settings on the ticked datasets
+    %                                        without the window: EphysAnalysisConfig (the keys),
+    %                                        epochMatrixSettings (what differs from the defaults),
+    %                                        epochMatrix (no FILE: a file dialog; "": text only;
+    %                                        File > Export compute script)
     %     removeRecent(B, FILE); clearRecent(B)   File > Recent settings' list (RecentSettings)
     %     save(B, FILE); restore(B, FILE)    the result file
     %     runScript(B, FILE)                 a post-processing script (default Script) in the base
@@ -1055,6 +1060,68 @@ classdef DatasetBrowser < handle
             B.saveSettings(file);
         end
 
+        function txt = exportScript(B, file)
+            %exportScript  A script that computes Settings on the ticked datasets without the window; no FILE: a file dialog.
+            %   The script names the project and the ticked datasets
+            %   (EphysAnalysisConfig, Selection "list"), the settings that
+            %   differ from the defaults (epochMatrixSettings; the trials are
+            %   its selection), and calls epochMatrix: R is the result
+            %   compute gives, but R.name and the kept parts (each run
+            %   computes every dataset). TXT is the script's text; FILE ""
+            %   (headless: always) only returns it.
+            if nargin < 2
+                file = "";
+                if B.uiOk() && B.Fig.Visible == "on"
+                    file = B.pickScriptFile();
+                    if file == ""; txt = ""; return; end
+                end
+            end
+            keys = B.tickedKeys();
+            if isempty(keys)
+                error('DatasetBrowser:NoneTicked', 'Tick at least one dataset to export.');
+            end
+            lit = @EphysPipelineScript.literal;
+            src = EphysAnalysisConfig.defaults("Source");
+            L = strings(0, 1);
+            L(end+1, 1) = "%% Dataset browser compute: " + B.SettingsS.data + " of " + numel(keys) + " dataset(s)";
+            L(end+1, 1) = "% Generated " + string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm')) + ...
+                " by DatasetBrowser.exportScript: the browser's Compute without the window.";
+            L(end+1, 1) = "";
+            L(end+1, 1) = "% The datasets: those ticked in the browser.";
+            f = B.FilterS;
+            terms = strings(1, 0);
+            for t = ["Subjects" "ExcludeSubjects" "Tags" "ExcludeTags" "Search"]
+                if f.(t) ~= ""; terms(end+1) = t + "=" + lit(f.(t)); end %#ok<AGROW>
+            end
+            if f.Tags ~= ""; terms(end+1) = "TagMode=" + lit(f.TagMode); end
+            if ~isempty(terms); L(end+1, 1) = "% (The browser's filter: " + strjoin(terms, ", ") + ".)"; end
+            L(end+1, 1) = "cfg = EphysAnalysisConfig();";
+            L(end+1, 1) = "cfg.Source.Root = " + lit(B.Root) + ";";
+            if B.OutputRoot ~= src.OutputRoot; L(end+1, 1) = "cfg.Source.OutputRoot = " + lit(B.OutputRoot) + ";"; end
+            if B.NamePattern ~= src.NamePattern; L(end+1, 1) = "cfg.Source.NamePattern = " + lit(B.NamePattern) + ";"; end
+            if B.Recordings ~= src.Recordings; L(end+1, 1) = "cfg.Source.Recordings = " + lit(B.Recordings) + ";"; end
+            L(end+1, 1) = "cfg.Source.Selection = ""list"";";
+            L(end+1, 1) = "cfg.Source.Datasets = [";
+            L = [L; "    " + arrayfun(lit, keys)];
+            L(end+1, 1) = "    ];";
+            L(end+1, 1) = "";
+            L(end+1, 1) = "% The settings that differ from the defaults (epochMatrixSettings); the trials are selection.";
+            L = [L; DatasetBrowser.settingsCode(B.SettingsS)];
+            L(end+1, 1) = "";
+            L(end+1, 1) = "% R.data(row, time, group), R.rows, R.t, R.groupLabels, R.datasets (see epochMatrix).";
+            if B.WorkersN > 0
+                L(end+1, 1) = "R = epochMatrix(cfg, S, Workers=" + B.WorkersN + ");";
+            else
+                L(end+1, 1) = "R = epochMatrix(cfg, S);";
+            end
+            txt = strjoin(L, newline) + newline;
+            if file ~= ""
+                EphysPipelineScript.write(file, txt);
+                B.ScriptFolder = string(fileparts(file));
+                B.setStatus("Wrote " + file + ".");
+            end
+        end
+
         function removeRecent(B, file)
             %removeRecent  Drop FILE (one or several) from RecentSettings (case ignored); the files stay.
             B.RecentSettings = B.RecentSettings(~ismember(lower(B.RecentSettings), lower(string(file(:)))));
@@ -1291,6 +1358,9 @@ classdef DatasetBrowser < handle
             uimenu(c.FileMenu, "Text", "Save settings as...", ...
                 "Tooltip", "These settings to a .json file (every field, also those the form does not show).", ...
                 "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.saveSettingsAs()));
+            uimenu(c.FileMenu, "Text", "Export compute script...", "Separator", "on", ...
+                "Tooltip", "A script that computes these settings on the ticked datasets without the window (epochMatrix).", ...
+                "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.exportScript()));
             uimenu(c.FileMenu, "Text", "Close", "Separator", "on", "MenuSelectedFcn", @(~, ~) B.close());
 
             g = uigridlayout(f, [4 1], "RowHeight", {30, '1x', 30, 22}, "Padding", [8 8 8 6], "RowSpacing", 6);
@@ -2148,6 +2218,19 @@ classdef DatasetBrowser < handle
             file = string(fullfile(p, f));
         end
 
+        function file = pickScriptFile(B)
+            %pickScriptFile  A .m file to write (exportScript), named after the result when it is current ("" when canceled).
+            file = "";
+            start0 = B.ScriptFolder;
+            if start0 == "" || ~isfolder(start0); start0 = string(pwd); end
+            name = "compute_" + B.SettingsS.data;
+            if B.ResultCurrent && B.ResultName ~= ""; name = "compute_" + B.ResultName; end
+            [f, p] = uiputfile({'*.m', 'MATLAB script (*.m)'}, "Export compute script", char(fullfile(start0, name + ".m")));
+            if B.uiOk(); figure(B.Fig); end
+            if isequal(f, 0); return; end
+            file = string(fullfile(p, f));
+        end
+
         function readScriptPrefs(B, prefs)
             %readScriptPrefs  Scripts, Script, ScriptAfterCompute and the folder from the preferences.
             %   With no list saved yet, the scripts that come with the browser
@@ -2548,6 +2631,44 @@ classdef DatasetBrowser < handle
                 if ~isempty(rows)
                     addStyle(tbl, uistyle("BackgroundColor", tint{k, 2}), "row", rows);
                 end
+            end
+        end
+
+        function L = settingsCode(S)
+            %settingsCode  Lines "S = epochMatrixSettings([], ...);" with only what S changes from the defaults.
+            %   A struct field (ref, window, selection, units, ...) lists only
+            %   its subfields that differ (epochMatrixSettings merges them
+            %   over the defaults); fields that do not apply to S.data are
+            %   left out (the cache identity leaves them out too).
+            lit = @EphysPipelineScript.literal;
+            D = epochMatrixSettings(struct('data', S.data));   % the defaults for this data (units.source follows data)
+            spikes = ismember(S.data, ["units" "detected"]);
+            skip = ternary(spikes, "signal", ["units" "measure" "binSec" "baseline" "auroc"]);
+            args = strings(0, 1);
+            for f = string(fieldnames(S)).'
+                if ismember(f, skip) || isequaln(S.(f), D.(f)); continue; end
+                v = S.(f);
+                if isstruct(v) && isscalar(v)
+                    parts = strings(1, 0);
+                    for g = string(fieldnames(v)).'
+                        if isfield(D.(f), g) && isequaln(v.(g), D.(f).(g)); continue; end   % unknown subfields: epochMatrixSettings raises them
+                        w = v.(g);
+                        if iscell(w) || (isstruct(w) && ~isscalar(w))
+                            parts(end+1) = "'" + g + "', {" + lit(w) + "}"; %#ok<AGROW>
+                        else
+                            parts(end+1) = "'" + g + "', " + lit(w); %#ok<AGROW>
+                        end
+                    end
+                    if isempty(parts); continue; end   % equal but for the fields' order
+                    args(end+1, 1) = f + "=struct(" + strjoin(parts, ", ") + ")"; %#ok<AGROW>
+                else
+                    args(end+1, 1) = f + "=" + lit(v); %#ok<AGROW>
+                end
+            end
+            if isempty(args)
+                L = "S = epochMatrixSettings();";
+            else
+                L = ["S = epochMatrixSettings([], ..."; "    " + args(1:end-1) + ", ..."; "    " + args(end) + ");"];
             end
         end
 

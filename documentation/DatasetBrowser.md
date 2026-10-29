@@ -65,6 +65,7 @@ The **File** menu holds the [settings files](#settings):
 | **Recent settings** | the last 10 settings files loaded or saved, newest first (`B.RecentSettings`, preference `RecentSettings`); one that no longer exists stays listed, grayed, with *(not found)*. **Remove from list** drops one file from the list (`B.removeRecent(file)`), **Clear list** drops them all (`B.clearRecent()`); the files themselves stay |
 | **Save settings** (Ctrl+S) | writes the settings to the settings file (`B.SettingsFile`, the one last loaded or saved, named above the form); with none yet, it asks for one as **Save settings as...** does (`B.saveSettings()`) |
 | **Save settings as...** | writes the settings to a file picked in a dialog (`B.saveSettingsAs()`) |
+| **Export compute script...** | writes a script that computes these settings on the ticked datasets without the window ([Export a script](#export-a-script); `B.exportScript()`) |
 | **Close** | closes the window, as its close button does |
 
 The rows:
@@ -354,6 +355,7 @@ R = B.compute();
 | `forget(B, NAME, KEYS)`, `forgetTicked(B)` | drop kept parts |
 | `loadSettings(B, FILE)` | read a [settings file](#settings) (no `FILE`: a file dialog) |
 | `saveSettings(B, FILE)`, `saveSettingsAs(B)` | write one (no `FILE`: `B.SettingsFile`, else a file dialog; `saveSettingsAs`: always a dialog) |
+| `TXT = exportScript(B, FILE)` | [a script](#export-a-script) that computes `B.Settings` on the ticked datasets without the browser (no `FILE`: a file dialog; `""`: the text only) |
 | `removeRecent(B, FILE)`, `clearRecent(B)` | drop files from `B.RecentSettings` (**File > Recent settings**) |
 | `save(B, FILE)`, `restore(B, FILE)` | the [result file](#the-cache-and-the-result-file) |
 | `wait(B, Timeout=Inf)`, `done(B)`, `close(B)` | the window |
@@ -370,6 +372,43 @@ result's default name, `R.name`; `""` before a result), `ResultFile`, `Workers` 
 `Runner`, `Busy`, `CancelRequested`, `Fig` and `Ctl` (the window and its
 controls). `OnChange(B, what)` is called with `"scan"`, `"filter"`,
 `"ticks"`, `"settings"`, `"result"`, `"done"` or `"closed"`.
+
+### Export a script
+
+**File > Export compute script...** (`B.exportScript(file)`) writes the
+least code that gives the window's Compute without the window or the
+browser: the project and the ticked datasets' keys, the settings that
+differ from the defaults (the trials kept and grouped are `selection`),
+and `epochMatrix`:
+
+```matlab
+% The datasets: those ticked in the browser.
+% (The browser's filter: Tags="ofc, perceptual_training", TagMode="all".)
+cfg = EphysAnalysisConfig();
+cfg.Source.Root = "D:\EPHYS";
+cfg.Source.Selection = "list";
+cfg.Source.Datasets = [
+    "SUBJ-ID-1301/SUBJ-ID-1301_260302_101512"
+    "SUBJ-ID-1302/SUBJ-ID-1302_260304_094730"
+    ];
+
+% The settings that differ from the defaults (epochMatrixSettings); the trials are selection.
+S = epochMatrixSettings([], ...
+    data="detected", ...
+    ref=struct('line', "Stim"), ...
+    selection=struct('response', "Hit", 'groupBy', "Depth"));
+
+R = epochMatrix(cfg, S);
+```
+
+A struct setting lists only its fields that differ (`epochMatrixSettings`
+merges them over the defaults), and settings that do not apply to the data
+(`signal` for spikes; `units`, `measure`, `binSec`, `baseline`, `auroc` for
+a signal) are left out. The filter is a comment: the keys are the
+selection. `R` is what Compute gives, but for `R.name`, and nothing is
+cached: each run computes every dataset (pass `Runs=` a `DatasetRuns` to
+keep the parts between calls). With [Workers](#workers) set, the call
+passes `Workers=`.
 
 ### A script's own progress
 
@@ -851,4 +890,4 @@ out).
 | [`test_DatasetFilter.m`](../analysis/test_DatasetFilter.m) | `datasetFilter`: subjects, wildcards and literal regex characters, tags, search, the combinations |
 | [`test_DatasetRuns.m`](../analysis/test_DatasetRuns.m) | `DatasetRuns`: reuse, identity, skipped and failed datasets, cancel, `forget`, the saved struct |
 | [`test_EpochMatrix.m`](../analysis/test_EpochMatrix.m) | `epochMatrixSettings` and `epochMatrix`: the parts against the per-dataset calls, assembly, groups, the result fields, the labels, the normalization (`epochMatrixNormalize`) |
-| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window), the Channels tab (`ProbePicker`: clicks and fields yoked) |
+| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window), the exported script (`exportScript`), the Channels tab (`ProbePicker`: clicks and fields yoked) |

@@ -181,8 +181,8 @@ function test_EphysAnalysisFigures(opts)
 %   side by side; a tile without a position; physical "allow" overlapping,
 %   "nudge" clearing in order with the moved tiles marked, "lanes",
 %   "shrink"; no tile, one tile, no included site); on the "clean"
-%   fixture a raster + PSTH probe figure (built by hand from figureCompute:
-%   probeFigureOf) of 8 tiles drawn by renderProbeFigure: the tiles' axes
+%   fixture a raster + PSTH probe figure (figureProbeCompute, its tiles
+%   repeated over the 8 sites) drawn by renderProbeFigure: the tiles' axes
 %   (ProbeTile, FigurePanel), inside the canvas and apart, the probe axes
 %   under them, one legend and title, the scale tile's ticks, sharedY, the
 %   tile labels, a skipped tile's note, renderFigure's dispatch, a resize,
@@ -5219,8 +5219,8 @@ if S.sec("16", "probe figures: layout and render (probeTileLayout, renderProbeFi
     rp = EphysAnalysisRunner(cp, LogFcn=[]);
     srcP = rp.source(1);
     spP = cp.figureFor("z_probe");
-    spP.probe = probeOpts();   % (the config's Figure.probe once figureProbeCompute is merged)
-    PFu = probeFigureOf(srcP, spP);
+    spP.probe.enabled = true;   % a probe figure, laid out as the defaults say
+    PFu = figureProbeCompute(srcP, spP);
     PF8 = PFu;   % 8 tiles: the units' results, one at each site
     nS = height(PF8.sites);
     PF8.tiles = PFu.tiles(mod(0:nS - 1, numel(PFu.tiles)) + 1);
@@ -5631,36 +5631,6 @@ for i = 1:numel(tx)
     tiles(end+1) = struct('x', tx(i), 'y', ty(i), 'shank', tk(i), 'channel', c); %#ok<AGROW>
 end
 PF = struct('sites', sites, 'tiles', {tiles});
-end
-
-
-function PF = probeFigureOf(src, spec)
-%probeFigureOf  A probe figure made by hand (section 16): every observation of SPEC on SRC computed by figureCompute, at its site. figureProbeCompute replaces it.
-T = figureObservations(src, spec);
-P = src.probe;
-nS = numel(P.xc);
-ch = (1:nS).';
-if isfield(P, 'chanMap') && numel(P.chanMap) == nS; ch = double(P.chanMap(:)) + 1; end
-sites = table(ch, double(P.xc(:)), double(P.yc(:)), double(P.kcoords(:)), true(nS, 1), ...
-    'VariableNames', {'channel', 'x', 'y', 'shank', 'included'});
-tiles = struct('observation', {}, 'x', {}, 'y', {}, 'shank', {}, 'channel', {}, 'F', {}, 'skip', {});
-for i = 1:height(T)
-    m = T.meta{i};
-    F = figureCompute(src, spec, Observation=T(i, :));
-    tiles(end+1) = struct('observation', F.observation, 'x', double(m.x(1)), 'y', double(m.y(1)), 'shank', T.shank(i), ...
-        'channel', T.channel(i), 'F', F, 'skip', ""); %#ok<AGROW>
-end
-n = numel(tiles);
-obs = struct('kind', "probe", 'label', sprintf("%d units at their sites", n), 'unitId', NaN, 'channel', NaN, 'column', NaN, ...
-    'shank', NaN, 'depth', NaN, 'meta', {{}}, 'group', NaN, 'groupLabel', "");
-PF = struct('kind', "probeFigure", 'id', spec.id, 'spec', spec, 'dataset', string(src.name), 'created', datetime('now'), ...
-    'observation', obs, 'probe', P, 'sites', sites, 'tiles', {tiles}, ...
-    'left', struct('total', n, 'noPosition', 0, 'filtered', 0, 'overSite', 0, 'overMax', 0, 'kept', n), 'nTiles', n, ...
-    'epochs', [], 'groups', []);
-if n > 0
-    PF.epochs = tiles(1).F.epochs;
-    PF.groups = tiles(1).F.groups;
-end
 end
 
 

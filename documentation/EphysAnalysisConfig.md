@@ -3118,7 +3118,7 @@ channel figure, a probe map panel and an auROC baseline, the warnings); `LoadWar
 plots and session plots as figures of the same ids, the converter's notes as
 `LoadWarnings`, saved as version 2); and `figureFileName`.
 
-`test_EphysAnalysisFigures`, in ten sections. Config (1 to 6): the defaults of
+`test_EphysAnalysisFigures`, in sixteen sections. Config (1 to 6): the defaults of
 Figure, Panel, Layer and Observe (no options block in a figure, `panels` after `grid`;
 `selection` after `window`, then `layers`, `options`, `note` and `overlays` last in a panel; `defaults("FigureCommon")` a `BadSection`;
 the continuous `trials` and `maxTrials` (100), the heat map's `rows` and raster sort fields and `observe.perGroup`);
@@ -3253,6 +3253,7 @@ per session, equal to each session's own PSTH, every epoch kept) and rendered
 a facet per subject with a figure per trial group, a probe map panel (a validate
 error, the panel skipped with its reason, the rest drawn), `figureSessionSkipReason`
 and events drawn as marks skipped across sessions.
+Probe figures (15 and 16): `defaults("FigureProbe")`, the constants, `isProbeFigure` / `probeFigureIds`, every validate rule at `<figure>.probe.<field>` (and a session figure or a dataset observation too, the `perGroup` and probe-panel warnings), a JSON round trip; on the fixture `figureProbeTiles` (the positions, the counts, `channels`, `maxPerSite`, `maxTiles`, `depthRange`, `shanks`, a channel figure), `figureProbeCompute` (each tile `figureCompute`'s result, the shared steps once, Reuse, a look or layout edit computing nothing), `computeProbeFigure` (the cache, `ProgressFcn`, cancel), `figureSkipReason`, `figureOutputName`, `figureCaption`, `figureExportSize`, `runDataset` writing one page, `plan` and the scripts; `probeTileLayout` on synthetic probes (a 4 x 8 probe's columns and rows, a staggered shank, two units on a site, physical `allow`, `nudge`, `lanes` and `shrink`, no tile, one tile) and `renderProbeFigure` on the fixture (the tiles' axes inside the canvas and apart, the probe axes, one legend and title, the scale tile, `sharedY`, the labels, a skipped tile, `renderFigure`'s dispatch, a resize, every role known, a panel and a grid layout, Scale 0.5).
 
 `test_ConfigMigration` (replaces `test_plotToFigure`), in ten sections, on hand-made version-1
 configs: a PSTH grid with its raster, event marks, waveform inset and aux magnitude, field by

@@ -232,7 +232,7 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %   renderFigure:BadTarget.
 %
 %   See also EphysAnalysisRunner.computeFigure, figurePanelRegistry,
-%   EphysAnalysisConfig.figureFor, figureLayout, renderChronux,
+%   EphysAnalysisConfig.figureFor, figureLayout, renderChronux, renderProbeFigure,
 %   PlotAesthetics.
 
 arguments

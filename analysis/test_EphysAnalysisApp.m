@@ -139,6 +139,11 @@ function test_EphysAnalysisApp(opts)
 %   and a y label, a panel title of its own) set on the drawn preview
 %   (nothing computed or drawn again, the texts and places a whole
 %   drawing's; a first title and a side drawn again);
+%   a figure on the probe (5v: the Probe layout section's rows wired to
+%   the config both ways, Physical enabling its rows, Across sessions
+%   and On the probe excluding each other, Undo Probe layout, the
+%   picker's one entry and count line, the preview's tiles and status
+%   line, the tree's On the probe group, Generate writing one page);
 %   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -4132,6 +4137,141 @@ if S.sec("5s", "an edit of text alone (a label, a panel title) set on the drawn 
     noFigures();
     clear restore5s
     app.Tabs.SelectedTab = app.TabData;
+end
+
+if S.sec("5v", "a figure on the probe: the Probe layout section's rows wired to the config, the picker's one entry, the preview of every tile, Undo, the tree, Generate")
+    savedConfig();
+    noFigures();
+    exported();
+    app.FigureAutoPreviewSeconds = Inf;   % a preview slowed by a loaded machine must not leave the next one out of date
+    restore5v = onCleanup(@() resetAutoLimit(app));
+    app.FigureAutoCheckBox.Value = false;   % no redraw per edit: the preview is pressed below
+    app.selectTab(app.TabFigures);
+    app.onAddFigure("rasterPsth");
+    kP = app.SelectedFigure;
+    pid = app.Config.Figures(kP).id;
+    rowOf5v = @(s) s.Grid.Layout.Row;
+    if ~app.FigureSupers(1).Expanded; app.onFigureSuperToggled("figure"); end
+    if ~secOf("probe").Expanded; app.onFigureSectionToggled("probe"); end
+    check(secOf("probe").Super == "figure" && secOf("probe").Key == "" && secOf("probe").Title == "Probe layout" ...
+        && rowOf5v(secOf("sessions")) < rowOf5v(secOf("probe")) && rowOf5v(secOf("probe")) < rowOf5v(secOf("arrangement")) ...
+        && shown(FE.prbEnabled) && ~FE.prbEnabled.Value && ~shown(FE.prbLayout) && ~shown(FE.prbNote) && shown(FE.obsPerGroup) ...
+        && ~app.Config.Figures(kP).probe.enabled, ...
+        'the Probe layout section: in the Figure supersection after Sessions, no key; only "On the probe" until it is ticked');
+    FE.prbEnabled.Value = true;
+    app.onConfigChanged("figure", FE.prbEnabled);
+    check(app.Config.Figures(kP).probe.enabled && app.Config.isProbeFigure(pid) && shown(FE.prbLayout) && shown(FE.prbMaxTiles) ...
+        && shown(FE.prbLeaders) && shown(FE.prbNote) && ~shown(FE.obsPerGroup) && FE.sesEnabled.Enable == "off" && FE.prbEnabled.Enable == "on" ...
+        && FE.prbOverlap.Enable == "off" && FE.prbScale.Enable == "off" && FE.prbLeaders.Enable == "off" && FE.prbLanes.Enable == "off" ...
+        && app.FiguresDatasetDropDown.Enable == "on" && string(app.UndoMenu.Text) == "Undo Probe layout", ...
+        ['On the probe ticked: probe.enabled in the config, its rows shown (Overlap, Lanes, Tile scale and Leaders off for a ' ...
+        'schematic), Per trial group hidden, Across sessions off, the Dataset drop-down on; Undo Probe layout']);
+    FE.prbLayout.Value = "physical";
+    app.onConfigChanged("figure", FE.prbLayout);
+    physOn = FE.prbOverlap.Enable == "on" && FE.prbScale.Enable == "on" && FE.prbLeaders.Enable == "on" && FE.prbLanes.Enable == "off";
+    FE.prbOverlap.Value = "lanes";
+    app.onConfigChanged("figure", FE.prbOverlap);
+    check(physOn && FE.prbLanes.Enable == "on" && app.Config.Figures(kP).probe.layout == "physical" ...
+        && app.Config.Figures(kP).probe.overlap == "lanes" && string(app.UndoMenu.Text) == "Undo Probe layout: Overlap", ...
+        'Physical enables Overlap, Tile scale and Leaders, Lanes beside the shank Lanes too; a row is a named edit (Undo Probe layout: Overlap)');
+    % every row reaches the config (gather), and a config reaches the rows (apply)
+    want5v = struct('lanes', 3, 'shanks', [1 2], 'channels', 1:4, 'depthRange', [0 400], 'maxTiles', 5, 'maxPerSite', 2, ...
+        'tileWidth', 0.8, 'tileHeight', 0.7, 'tileScale', 1.5, 'labels', "full", 'sharedY', false, 'scaleTile', false, ...
+        'showSites', false, 'leaders', false);
+    FE.prbLanes.Value = 3;
+    FE.prbShanks.Value = '1, 2';
+    FE.prbChannels.Value = '1:4';
+    FE.prbDepth.Value = '0 400';
+    FE.prbMaxTiles.Value = 5;
+    FE.prbPerSite.Value = 2;
+    FE.prbTileWidth.Value = 0.8;
+    FE.prbTileHeight.Value = 0.7;
+    FE.prbScale.Value = 1.5;
+    FE.prbLabels.Value = "full";
+    FE.prbSharedY.Value = false;
+    FE.prbScaleTile.Value = false;
+    FE.prbShowSites.Value = false;
+    FE.prbLeaders.Value = false;
+    app.onConfigChanged("figure", FE.prbMaxTiles);
+    prG = app.Config.Figures(kP).probe;
+    bad5v = strings(1, 0);
+    for f5v = string(fieldnames(want5v)).'
+        if ~isequal(string(reshape(prG.(f5v), 1, [])), string(reshape(want5v.(f5v), 1, []))); bad5v(end+1) = f5v; end %#ok<AGROW>
+    end
+    check(isempty(bad5v) && prG.layout == "physical" && prG.overlap == "lanes" && prG.enabled, ...
+        sprintf('every Probe layout row reaches probe.* (gather; the lists parsed, the depth range lo hi)%s', ...
+        strjoin(" -- not: " + bad5v, "")));
+    cfgP = app.Config;
+    pr0 = EphysAnalysisConfig.defaults("FigureProbe");
+    pr0.enabled = true;
+    pr0.shanks = 1;
+    pr0.depthRange = [-50 300];
+    pr0.labels = "none";
+    pr0.tileWidth = 0.05;   % under the spinner's 0.1: shown as 0.1, kept until the spinner is changed
+    cfgP.Figures(kP).probe = pr0;
+    app.applyConfig(cfgP);
+    shownOk = FE.prbEnabled.Value && string(FE.prbLayout.Value) == "schematic" && string(FE.prbOverlap.Value) == "nudge" ...
+        && FE.prbLanes.Value == pr0.lanes && string(FE.prbShanks.Value) == "1" && string(FE.prbChannels.Value) == "" ...
+        && string(FE.prbDepth.Value) == "-50 300" && FE.prbMaxTiles.Value == pr0.maxTiles && FE.prbPerSite.Value == pr0.maxPerSite ...
+        && FE.prbTileWidth.Value == 0.1 && FE.prbTileHeight.Value == pr0.tileHeight && FE.prbScale.Value == pr0.tileScale ...
+        && string(FE.prbLabels.Value) == "none" && FE.prbSharedY.Value == pr0.sharedY && FE.prbScaleTile.Value == pr0.scaleTile ...
+        && FE.prbShowSites.Value == pr0.showSites && FE.prbLeaders.Value == pr0.leaders && FE.prbOverlap.Enable == "off";
+    FE.prbDepth.Value = '';
+    FE.prbShanks.Value = '';
+    app.onConfigChanged("figure", FE.prbDepth);
+    prA = app.Config.Figures(kP).probe;
+    check(shownOk && prA.tileWidth == 0.05 && isempty(prA.depthRange) && isempty(prA.shanks), ...
+        'a config''s probe block reaches every row (apply); a tile width the spinner cannot show is kept; blank Depth range and Shanks are all');
+    % Across sessions and On the probe exclude each other
+    FE.prbEnabled.Value = false;
+    FE.sesEnabled.Value = true;
+    app.onConfigChanged("figure", FE.sesEnabled);
+    sesOff = FE.prbEnabled.Enable == "off" && FE.sesEnabled.Enable == "on" && shown(FE.prbEnabled) && ~shown(FE.prbLayout);
+    FE.sesEnabled.Value = false;
+    FE.prbEnabled.Value = true;
+    app.onConfigChanged("figure", FE.prbEnabled);
+    check(sesOff && FE.sesEnabled.Enable == "off" && FE.prbEnabled.Enable == "on" && app.Config.Figures(kP).probe.enabled ...
+        && ~app.Config.Figures(kP).sessions.enabled, 'Across sessions ticked grays On the probe out, and the reverse');
+    % the picker: one entry, the probe; the count line and the section's note
+    app.refreshFigureObservations(Force=true);
+    src5v = app.Runner.source(app.ActiveIdx);
+    T5v = figureProbeTiles(src5v, app.Config.figureFor(kP));
+    TP = app.FigureObservations;
+    nT5v = height(T5v);
+    check(nT5v >= 2 && istable(TP) && height(TP) == 1 && TP.kind == "probe" && startsWith(TP.label, "the probe: " + nT5v + " units") ...
+        && numel(app.FigureObservationDropDown.Items) == 1 && string(app.FigureObservationDropDown.Items{1}) == TP.label ...
+        && app.FigureObsPrevButton.Enable == "off" && app.FigureObsNextButton.Enable == "off" && app.FigureObservationStar.Enable == "off" ...
+        && startsWith(string(FE.obsCount.Text), "Laid out on the probe: " + nT5v + " tiles") ...
+        && startsWith(string(FE.prbNote.Text), nT5v + " tiles: " + nT5v + " units"), ...
+        sprintf('the picker lists one entry, "%s", < and > and its star off; the count line "%s"; the note "%s"', ...
+        string(app.FigureObservationDropDown.Items{1}), string(FE.obsCount.Text), string(FE.prbNote.Text)));
+    % the preview: every tile, each panel an axes of its own
+    app.refreshFigurePreview(Force=true);
+    PF5v = app.FigurePreviewResult;
+    np5v = numel(app.Config.Figures(kP).panels);
+    ax5v = findall(app.FigurePreviewPanel, 'Type', 'axes');
+    ax5v = ax5v(arrayfun(@(a) isappdata(a, 'ProbeTile'), ax5v));
+    check(app.FigurePreviewState == "drawn" && isstruct(PF5v) && string(PF5v.kind) == "probeFigure" && PF5v.nTiles == nT5v ...
+        && numel(ax5v) == PF5v.nTiles * np5v && startsWith(string(app.FigurePreviewLabel.Text), pid + " on " + string(src5v.name) + ":") ...
+        && contains(string(app.FigurePreviewLabel.Text), PF5v.nTiles + " tiles"), ...
+        sprintf('Preview computes and draws every tile: %d axes (%d tiles x %d panels); the status line "%s"', numel(ax5v), ...
+        PF5v.nTiles, np5v, string(app.FigurePreviewLabel.Text)));
+    % the tree: under On the probe
+    setGroupBy(app, "observe");
+    node5v = figureNode(app.FiguresTree, kP);
+    check(isscalar(node5v) && startsWith(string(node5v.Parent.Text), "On the probe") && contains(string(node5v.Text), ", per unit"), ...
+        sprintf('the tree groups the figure under On the probe ("%s": "%s")', string(node5v.Parent.Text), string(node5v.Text)));
+    % Generate: one page for the dataset, every tile on it
+    R5v = app.onGenerateFigure(Datasets=app.ActiveIdx);
+    files5v = split(R5v.Files(1), "; ");
+    check(istable(R5v) && height(R5v) == 1 && R5v.Kind == "figure" && R5v.Plot == pid && R5v.Status == "done" ...
+        && startsWith(R5v.Message, PF5v.nTiles + " tile") && isscalar(files5v) && isfile(files5v) && endsWith(files5v, ".png") ...
+        && startsWith(string(app.StatusBar.Text), sprintf("Generated %s: 1 page (%d tiles) on 1 dataset(s), 1 file(s)", pid, PF5v.nTiles)), ...
+        sprintf('Generate writes one page for the dataset (%s); the status bar counts the page and its tiles', files5v(1)));
+    app.onRemoveFigure();
+    app.onSaveConfig();
+    app.Tabs.SelectedTab = app.TabData;
+    clear restore5v
 end
 
 if S.sec("6", "close")

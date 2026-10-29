@@ -16,7 +16,9 @@ function R = onGenerateFigure(obj, opts)
 %   a run. The status bar then says "Generated <id>: <n> observation(s) on
 %   <m> dataset(s), <k> file(s) in <folder>" (and what was skipped, failed
 %   or canceled). Datasets= narrows it (indices; the tests use it); by
-%   default the ticked datasets.
+%   default the ticked datasets. A figure on the probe (probe.enabled) runs
+%   as any figure, one page per dataset holding every tile, and the status
+%   bar counts "<p> page(s) (<n> tiles) on <m> dataset(s), ...".
 %   A session figure (sessions.enabled) runs as run(SessionFigures=<id>)
 %   instead, no per-dataset figures: one page per matched observation
 %   across the datasets, into Export.SessionsFolder (runSessionFigure);
@@ -76,7 +78,7 @@ end
 if across
     obj.setStatus(generatedAcross(obj, R, id, wasOff));
 else
-    obj.setStatus(generatedText(obj, R, id, wasOff));
+    obj.setStatus(generatedText(obj, R, id, wasOff, cfg.isProbeFigure(id)));
 end
 end
 
@@ -116,8 +118,10 @@ txt = txt + ".";
 end
 
 
-function txt = generatedText(obj, R, id, wasOff)
+function txt = generatedText(obj, R, id, wasOff, probe)
 %generatedText  "Generated <id>: <n> observation(s) on <m> dataset(s), <k> file(s) in <folder>", and what did not draw.
+%   PROBE: a probe figure's rows ("<n> tile(s)", a page per dataset) read
+%   "<p> page(s) (<n> tiles) on <m> dataset(s), ...".
 rows = R(R.Kind == "figure" & R.Plot == id, :);
 done = rows(rows.Status == "done", :);
 nObs = 0;
@@ -125,7 +129,7 @@ nFiles = 0;
 folders = strings(1, 0);
 cfg = obj.Runner.Config;
 for i = 1:height(done)
-    n = sscanf(char(done.Message(i)), '%d', 1);   % "<n> observation(s)"
+    n = sscanf(char(done.Message(i)), '%d', 1);   % "<n> observation(s)" (a probe figure's "<n> tile(s)")
     if ~isempty(n); nObs = nObs + n; end
     if done.Files(i) ~= ""; nFiles = nFiles + numel(split(done.Files(i), "; ")); end
     j = obj.Runner.index(done.Dataset(i));
@@ -141,7 +145,13 @@ if isscalar(folders)
 elseif numel(folders) > 1
     where = sprintf(" in %d folders (the first: %s)", numel(folders), folders(1));
 end
-body = sprintf("%d observation(s) on %d dataset(s), %d file(s)", nObs, height(done), nFiles) + where;
+if probe
+    nP = height(done);
+    body = sprintf("%d page%s (%d tile%s) on %d dataset(s), %d file(s)", nP, repmat('s', 1, nP ~= 1), nObs, ...
+        repmat('s', 1, nObs ~= 1), height(done), nFiles) + where;
+else
+    body = sprintf("%d observation(s) on %d dataset(s), %d file(s)", nObs, height(done), nFiles) + where;
+end
 if any(rows.Status == "canceled")
     txt = "Generating " + id + " was canceled: " + body + " before it stopped";
 else

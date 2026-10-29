@@ -87,8 +87,9 @@ if isempty(figs)
 else
     on = [figs.enabled];
     across = arrayfun(@(f) f.sessions.enabled, figs);
+    probe = arrayfun(@(f) f.probe.enabled, figs);
     types = arrayfun(@(f) reshape(string([f.panels.type]), 1, []), figs, 'UniformOutput', false);
-    L = [L; kv("Figures", sprintf('%d, %d enabled, %d across sessions', numel(figs), nnz(on), nnz(across))); ...
+    L = [L; kv("Figures", sprintf('%d, %d enabled, %d across sessions, %d on the probe', numel(figs), nnz(on), nnz(across), nnz(probe))); ...
         kv("Panel types", join(unique([string.empty(1, 0) types{:}]), ", "))];
 end
 r = obj.Runner;

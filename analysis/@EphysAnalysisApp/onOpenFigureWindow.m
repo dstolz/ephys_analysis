@@ -7,7 +7,8 @@ function h = onOpenFigureWindow(obj)
 %   previews as the Preview button does (refreshFigurePreview, Force), and
 %   opens the window only if that draws. The window is a regular figure()
 %   named "<figure id>: <observation> (<dataset>)", the shape of the
-%   figure's export page (figureExportSize) at its true size on screen
+%   figure's export page (figureExportSize; a probe figure's from its
+%   result, the tiles' rows) at its true size on screen
 %   (96 dpi; scaled down to fit when it is larger than the screen), drawn
 %   by renderFigure (Editable: the right-click aesthetics
 %   editor and its Design submenu work in it, and "remember for this
@@ -49,7 +50,9 @@ else
     spec = obj.Config.figureFor(k);
     spec.enabled = true;
 end
-cm = figureExportSize(obj.Config.Export, [], spec);
+Fs = [];
+if isfield(F, 'kind') && string(F.kind) == "probeFigure"; Fs = F; end   % a probe figure's page is as tall as its rows of tiles need
+cm = figureExportSize(obj.Config.Export, Fs, spec);
 sz = cm / 2.54 * 96;   % the page at its true size on screen, scaled down to fit
 scr = get(groot, 'ScreenSize');
 sz = max(round(sz * min(1, min(0.9 * scr(3:4) ./ sz))), 100);

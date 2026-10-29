@@ -2,11 +2,12 @@ function [keys, labels, members] = figureGroups(F, by)
 %figureGroups  The groups of the figure tree: the figures F sorted into groups by BY.
 %   BY: "observe" (what each figure is drawn for: a unit, a channel or the
 %   dataset, EphysAnalysisConfig.observeKind; a figure across sessions by
-%   its observation too), "status" (enabled / off) or "none" (one flat
+%   its observation too; a figure on the probe, probe.enabled, in a group
+%   of its own, "On the probe", whatever it tiles), "status" (enabled / off) or "none" (one flat
 %   group). KEYS(g) names group g ("<by>:<value>", "" when flat), LABELS(g)
 %   is what its node says, and MEMBERS{g} the indices into F of its
 %   figures, in F's order (the run order). Groups follow a fixed order
-%   (unit, channel, dataset; enabled before off) and only those with a
+%   (unit, channel, dataset, on the probe; enabled before off) and only those with a
 %   figure are listed.
 keys = strings(1, 0);
 labels = strings(1, 0);
@@ -24,10 +25,11 @@ end
 val = strings(1, n);
 switch by
     case "observe"
-        canon = ["unit" "channel" "dataset"];
-        names = ["Per unit" "Per channel" "Per dataset"];
+        canon = ["unit" "channel" "dataset" "probe"];
+        names = ["Per unit" "Per channel" "Per dataset" "On the probe"];
         for k = 1:n
             val(k) = EphysAnalysisConfig.observeKind(F(k));
+            if isfield(F(k), 'probe') && F(k).probe.enabled; val(k) = "probe"; end   % one page per dataset, its tiles at their sites
         end
     case "status"
         canon = ["Enabled" "Off"];

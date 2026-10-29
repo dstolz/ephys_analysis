@@ -430,7 +430,15 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
         function channelAndShankPicks(tc)
             r = tc.Runner;
             R = epochMatrix(r, tc.spikeSettings(data="LFP", signal=struct('channels', [1 3])), LogFcn=[]);
-            tc.verifyEqual(R.rows.channel, repmat([1; 3], numel(r.Keys), 1));
+            tc.verifyEqual(R.rows.recordingChannel, repmat([1; 3], numel(r.Keys), 1), 'signal.channels are recording channels.');
+            tc.verifyEqual(R.rows.channel, repmat([1; 3], numel(r.Keys), 1), 'The fixture''s columns are its recording channels.');
+            try   % no channel picked: the dataset is skipped, saying why, so nothing is left to assemble
+                epochMatrix(r, tc.spikeSettings(data="LFP", signal=struct('channels', 999)), LogFcn=[], Datasets=r.Keys(1));
+                tc.verifyFail('A recording channel the dataset lacks leaves no rows.');
+            catch ME
+                tc.verifyEqual(string(ME.identifier), "epochMatrix:NoData");
+                tc.verifySubstring(ME.message, 'recording channel(s) 999');
+            end
             [~, ~, meta] = selectChannels(r.source(1), "LFP");
             sh = unique(meta.shank(isfinite(meta.shank)));
             tc.assumeNotEmpty(sh, 'The fixture''s LFP channels have no shanks.');

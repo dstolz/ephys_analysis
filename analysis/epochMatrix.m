@@ -20,15 +20,18 @@ function [R, T] = epochMatrix(source, S, opts)
 %   with the rows from P.meta (Auroc.modulatedOnly may drop units). No
 %   Baseline= is passed to epochTable, as in the script. For signals
 %   (S.data "LFP", "MUA", "SPIKE" or "AUX"):
-%     [Y, fs, meta] = selectChannels(src, S.data, Channels=S.signal.channels)
+%     [Y, fs, meta] = selectChannels(src, S.data)   (AUX: Channels=S.signal.channels)
 %     [E, G] = epochTable(src, S.ref, Window=S.window, Selection=S.selection)
 %     P = evokedPotential(Y, fs, E, Window=[pre post], Channels=<the columns
-%           on S.signal.shanks, meta.shank>, Groups=G, Meta=, Baseline=,
+%           whose meta.recordingChannel is in S.signal.channels and whose
+%           meta.shank is in S.signal.shanks>, Groups=G, Meta=, Baseline=,
 %           Detrend=, Rectify=, Magnitude=, Statistic=, Units=, Check=)
 %   using P.mean, one row per channel (one row with signal.magnitude, the
 %   channels' vector magnitude, e.g. AUX's accelerometer). Only the group
 %   means are kept, and the epochs only with S.keepEpochs (Raster=true for
-%   spikes, KeepEpochs=true for signals). signal.shanks is not used for AUX.
+%   spikes, KeepEpochs=true for signals). signal.channels are recording
+%   channels, as units.channels are (AUX: its columns); signal.shanks is
+%   not used for AUX.
 %   A part is a struct: values [time x row x group], t (column), labels
 %   (one per group, column), groupValues (table: one row per group, one
 %   column per groupBy parameter, the group's value; no columns without
@@ -323,12 +326,18 @@ end
 function part = signalPart(src, S, check)
 %signalPart  One dataset's group means of a derived signal.
 sig = S.signal;
-[Y, fs, meta] = selectChannels(src, S.data, Channels=sig.channels);
-cols = 1:height(meta);
-if ~isempty(sig.shanks) && S.data ~= "AUX"
-    cols = reshape(find(ismember(meta.shank, sig.shanks)), 1, []);
+if S.data == "AUX"
+    [Y, fs, meta] = selectChannels(src, S.data, Channels=sig.channels);   % AUX's columns: it has no probe
+    cols = 1:height(meta);
+else
+    [Y, fs, meta] = selectChannels(src, S.data);   % the cached signal, not a copy; evokedPotential takes the columns
+    keep = true(height(meta), 1);
+    if ~isempty(sig.channels); keep = keep & ismember(meta.recordingChannel, sig.channels); end
+    if ~isempty(sig.shanks); keep = keep & ismember(meta.shank, sig.shanks); end
+    cols = reshape(find(keep), 1, []);
     if isempty(cols)
-        error('epochMatrix:NoChannels', '%s: no %s channel lies on shank(s) %s.', src.name, S.data, mat2str(sig.shanks));
+        error('epochMatrix:NoChannels', '%s: no %s channel is among recording channel(s) %s on shank(s) %s.', ...
+            src.name, S.data, listText(sig.channels), listText(sig.shanks));
     end
 end
 units = "uV";
@@ -874,4 +883,11 @@ end
 
 function tf = isSpikes(d)
 tf = ismember(d, ["units" "detected"]);
+end
+
+
+function s = listText(v)
+%listText  A channel or shank list for a message: "(all)" when blank.
+s = "(all)";
+if ~isempty(v); s = mat2str(v); end
 end

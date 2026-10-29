@@ -34,7 +34,9 @@ function [S, ID, name] = epochMatrixSettings(S0, opts)
 %                "none" by default
 %   Signals (data "LFP", "MUA", "SPIKE" or "AUX")
 %     signal     struct:
-%                  channels   1-based columns of the signal ([] = all)
+%                  channels   recording channels kept, 1-based (the probe
+%                             map's chanMap + 1, as units.channels; AUX:
+%                             its 1-based columns) ([] = all)
 %                  shanks     probe shanks kept ([] = all; selectChannels'
 %                             meta.shank, the probe map's kcoords; not used
 %                             for AUX)
@@ -119,7 +121,7 @@ arguments
     opts.SaveAs (1,1) string = ""
 end
 
-PartVersion = 2;   % bump when a part builder's computation changes (see the help); 2: groupValues, bare text labels
+PartVersion = 3;   % bump when a part builder's computation changes (see the help); 2: groupValues, bare text labels; 3: signal.channels are recording channels
 Fields = ["data" "ref" "window" "selection" "units" "measure" "binSec" "baseline" "auroc" "signal" "normalize" "keepEpochs"];
 
 % --- the input: [], a struct or a settings file ------------------------------------------

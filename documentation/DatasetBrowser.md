@@ -142,8 +142,9 @@ mode and its stop event.
 | **Event** tab: **Epoch Diagram** | opens the *How the epochs are cut* window (`EpochDiagram`, also `B.showEpochs()`) for the dataset the lists come from: the lines, each event picked, the sequence, the windows and the trials kept or dropped. It is redrawn on every settings edit and row click until closed, and closes with the browser |
 | **Trials** tab | `selection`: **Filter** (an expression over the trial columns, e.g. `Depth > 0 & ~FA`; **?** lists the columns, words and functions), **Response**, **Pairing** (`pairingFlags`), **Group by** and **and** (one or two trial parameters), **Order**, **Max groups**, **Artifacts** (`excludeArtifacts`, at least `minArtifactSec`) |
 | **Measure** tab: **Normalize**, **Baseline (s)**, scope | `normalize`: `method`, `baseline` and `scope` (*per row* or *per group*); see [Normalization](#normalization). A change normalizes the result again in place and computes nothing. Off for measure `auroc`; **Baseline (s)** only for the methods that use it |
-| **Measure** tab: **Spikes** block | **Merge neighboring sites** (`units.merge.enabled`, `detected` only), **Shanks** (`units.shanks`, e.g. `1:4`), **Measure**, **Bin (s)**, **auROC baseline (s)** (with measure `auroc`) |
-| **Measure** tab: **Signals** block | **Channels**, **Shanks** (not for AUX), **Baseline (s)**, **Statistic**, **Detrend**, **Rectify**, **Magnitude (AUX)** |
+| **Channels** tab | **Shanks** and **Channels**: `units.shanks` and `units.channels` for `units` and `detected`, `signal.shanks` and `signal.channels` for a signal (blank = all), also picked by clicking the probe; see [Shanks and channels](#shanks-and-channels) |
+| **Measure** tab: **Spikes** block | **Merge neighboring sites** (`units.merge.enabled`, `detected` only), **Measure**, **Bin (s)**, **auROC baseline (s)** (with measure `auroc`) |
+| **Measure** tab: **Signals** block | **Baseline (s)**, **Statistic**, **Detrend**, **Rectify**, **Magnitude (AUX)** |
 | **Measure** tab: **Keep each epoch (R.epochs)** | `keepEpochs`: the result keeps every epoch before the average ([Each epoch](#each-epoch-repochs)), which **Trial rasters** draws ([Trial rasters](#trial-rasters)). Every kind of **Data** |
 
 The form does not show every field (the unit classes and tests, the auROC
@@ -169,6 +170,49 @@ The controls of the other block are off. A note beside the dropdown counts the
 ticked datasets that cannot give that data (*3 of 12 ticked lack LFP
 (skipped)*, *2 of 12 ticked have no sorting*). A change to a setting of the
 other block leaves the kept parts of this **Data** valid.
+
+### Shanks and channels
+
+The **Channels** tab picks the shanks and channels computed with. Its two
+fields are the settings of the **Data** chosen: for `units` and `detected`,
+`units.shanks` and `units.channels`; for `LFP`, `MUA` and `SPIKE`,
+`signal.shanks` and `signal.channels`. Each kind keeps its own picks, so
+switching **Data** shows the other kind's.
+
+- **Shanks**: the probe map's `kcoords` values, e.g. `1:4` or `1 3`.
+- **Channels**: recording channels, 1-based (the probe map's `chanMap` + 1,
+  the numbers drawn beside the sites), e.g. `1:16` or `3 7 12`. For `AUX`,
+  which has no probe, they are the AUX columns, and **Shanks** and the probe
+  are off.
+- **All** clears both fields: every shank and every channel.
+
+A site is computed with when both fields hold it (blank = all). This is how
+`selectUnits` and `epochMatrix` select: a unit by its own channel and shank, a
+signal's column by its recording channel and shank.
+
+Under the fields, the probe of one dataset is drawn at its true site
+positions (`ProbePicker`). The dataset is the clicked row's, else the first
+ticked one, and its probe is read when the tab is shown (`B.showProbe()`).
+Each physical shank is drawn as a body with a tip, named under it by its
+`kcoords` group, and each site as a dot, with its channel beside it when the
+labels fit. The sites computed with are filled blue. A site in **Channels** on
+a shank that **Shanks** leaves out is ringed. The rest are gray. With
+**Shanks** set, the bodies of its shanks are tinted.
+
+The probe and the fields are yoked:
+
+- A click on a site picks its channel, or drops it when it is picked. With
+  **Channels** blank (all), the first click starts the list with that one
+  channel. Dropping the last one leaves the field blank (all again).
+- A click on a shank's body or name picks or drops the shank in the same
+  way.
+- A value typed in a field recolors the probe.
+
+`B.pickProbe("site", 17)` and `B.pickProbe("shank", 2)` do what a click
+does. For a dataset without a probe map the tab says so; type the numbers
+instead.
+
+### Compute
 
 **Compute** computes the ticked datasets with these settings. **Trial
 rasters** opens the [Trial rasters](#trial-rasters) window on the result (it
@@ -304,6 +348,7 @@ R = B.compute();
 | `setListSource(B, KEY)`, `fillLists(B)`, `source(B, KEY)` | the dataset the form's lists come from; fill them; its analysis source |
 | `formEdit(B, CONTROL, VALUE)` | edit a control of `B.Ctl` (or of `B.Ctl.Align`, the Event and Trials tabs: `Line`, `Filter`, `Group1`, ...) as a click would |
 | `showEpochs(B)` | the **Epoch Diagram** window of the lists' dataset |
+| `showProbe(B)`, `pickProbe(B, KIND, VALUE)` | the **Channels** tab with the lists' dataset's probe; a click on it: `KIND` `"site"` (a recording channel) or `"shank"`, toggled and applied ([Shanks and channels](#shanks-and-channels)) |
 | `showRasters(B, ROW)`, `X = raster(B, ROW, Order=)` | the **Trial rasters** window on row `ROW` of the result; that row trial by trial ([Trial rasters](#trial-rasters)) |
 | `R = compute(B, Recompute=false)` | `epochMatrix` over the ticked datasets with `B.Settings` |
 | `[VALUES, T] = forEach(B, FN, ...)` | [your own per-dataset code, cached](#foreach) |
@@ -321,7 +366,8 @@ The properties: `Settings` (the whole struct; assigning checks it with
 `Result`, `ResultCurrent` (the result was computed with these settings on
 these ticks), `Computed` (when the result was computed, a `datetime`: the
 last Compute, or the one the result file holds; `NaT` before a result; a
-change of `Normalize` alone does not move it), `ResultFile`, `Workers` ([Workers](#workers)), `Runs` (the `DatasetRuns` with the kept parts),
+change of `Normalize` alone does not move it), `ResultName` (read-only: the
+result's default name, `R.name`; `""` before a result), `ResultFile`, `Workers` ([Workers](#workers)), `Runs` (the `DatasetRuns` with the kept parts),
 `Runner`, `Busy`, `CancelRequested`, `Fig` and `Ctl` (the window and its
 controls). `OnChange(B, what)` is called with `"scan"`, `"filter"`,
 `"ticks"`, `"settings"`, `"result"`, `"done"` or `"closed"`.
@@ -374,6 +420,7 @@ R.data(:, :, 1))` draws the first group of every row, and `R.labels`
 | `R.datasets` | table, one row per ticked dataset | key, name, subject, date, status ("done", "cached", "skipped" or "error"), message, nRows, nEpochs, nGroups, seconds. This table answers "why is dataset X missing". |
 | `R.keys` | string column | The datasets whose rows are in R, in row order. |
 | `R.created` | datetime | When the result was assembled. |
+| `R.name` | string | A default name for the result (`B.ResultName`), one identifier made by Compute and kept in the result file: the filter's tags (joined by `_`, by `_or_` with tag mode "any"; without filter tags, the tags every dataset of `R.keys` holds), the event the epochs are aligned to, the responses kept (`AllTrials` without any) and the measure, e.g. `ofc_perceptual_training_StimOnset_Hit_FiringRate`. |
 | `R.raw` | double, the size of `R.data`, or `[]` | The values before normalization (`[]` when `settings.normalize.method` is `"none"`). |
 | `R.normalization` | struct | How `R.data` was normalized: `method` (the one applied), `baseline`, `scope`, `rawUnits`, `center` and `scale` (`R.data = (R.raw - center) ./ scale`), `undefined` (logical [nRows x nGroups]: NaN for a zero or flat baseline), `nBaseline` (the times of `R.t` in the baseline). |
 | `R.labels` | struct of strings | Axis labels, legend text and a one-line description of R, in words (see [Labels](#labels)). |
@@ -553,6 +600,7 @@ is a column.
 | `value` | the axis or color-bar label of `R.data`. For signals, "Rectified " or " magnitude" is added when those options are on | "Firing rate (spikes/s)", "Spike count (spikes/bin)", "auROC vs. baseline", "LFP, mean over epochs (uV)" |
 | `measure` | the quantity without its unit, for titles | "Firing rate", "auROC", "LFP mean" |
 | `time` | the label of `R.t`, from the event the epochs are aligned to (`eventRef.alignStep`) | "Time from Stim onset (s)" |
+| `aligned` | that event alone | "Stim onset" |
 | `event` | the whole event reference (`eventRefLabel`) | "Stim onset then Platform offset (aligned to Stim onset)" |
 | `group` | the `groupBy` parameters ("" without `groupBy`) | "Depth", "Depth, Level" |
 | `groups` | a label per group of `R.groupLabels`, in its order | "Depth 3" for one parameter; the label itself ("Depth = 3, Level = 2") for several; "All trials" without `groupBy` |
@@ -595,7 +643,7 @@ unit fields; any other option replaces its field.
 | `auroc` | spikes: the Auroc section (`aurocCurves`' settings), with `cutoff` `"none"` by default |
 | `normalize` | every kind: a struct of `method` (`"none"` default, `"subtract"`, `"ratio"`, `"percent"`, `"zscore"` or `"minmax"`), `baseline` ([b0 b1] s, b0 < b1; default [-0.5 0]; must overlap the window for a method that uses it) and `scope` (`"row"` default, or `"group"`). Applied after assembly, so not in the cache identity; see [Normalization](#normalization) |
 | `keepEpochs` | every kind: `false` (default) or `true`, keep every epoch in `R.epochs` ([Each epoch](#each-epoch-repochs)). In the cache identity only when `true`, with parts kept under `"epochMatrix/<data>/epochs"` |
-| `signal` | signals: a struct of `channels` (1-based columns of the signal; `[]` = all), `shanks` (probe shanks kept; `[]` = all; not used for AUX), `baseline` ([b0 b1] s: each epoch's mean over it is subtracted per channel; `[]` = none), `detrend` (remove each epoch's linear trend; false), `rectify` (the absolute value before the average; false), `magnitude` (the channels' vector magnitude, one row, e.g. AUX's accelerometer; false) and `statistic` (`"mean"` default, or `"median"`) |
+| `signal` | signals: a struct of `channels` (recording channels kept, 1-based: the probe map's `chanMap` + 1, as `units.channels`; for AUX its 1-based columns; `[]` = all), `shanks` (probe shanks kept; `[]` = all; not used for AUX), `baseline` ([b0 b1] s: each epoch's mean over it is subtracted per channel; `[]` = none), `detrend` (remove each epoch's linear trend; false), `rectify` (the absolute value before the average; false), `magnitude` (the channels' vector magnitude, one row, e.g. AUX's accelerometer; false) and `statistic` (`"mean"` default, or `"median"`) |
 
 Fields that do not apply to `data` are kept in `S`, unchecked beyond their
 form, and left out of the cache identity, so a change to an LFP option keeps
@@ -795,6 +843,7 @@ out).
 | the stamp of a dataset's output files (names, sizes, times) | [`outputsStamp.m`](../analysis/outputsStamp.m) |
 | the subject, tag and text filter (also the analysis app's Data tab) | [`datasetFilter.m`](../analysis/datasetFilter.m) |
 | the sorted table | [`TableSort.m`](../pipeline/TableSort.m) |
+| the clickable probe of the Channels tab | [`ProbePicker.m`](../analysis/ProbePicker.m) |
 | the time left | [`ProgressClock.m`](../pipeline/ProgressClock.m) |
 
 ## Tests
@@ -804,4 +853,4 @@ out).
 | [`test_DatasetFilter.m`](../analysis/test_DatasetFilter.m) | `datasetFilter`: subjects, wildcards and literal regex characters, tags, search, the combinations |
 | [`test_DatasetRuns.m`](../analysis/test_DatasetRuns.m) | `DatasetRuns`: reuse, identity, skipped and failed datasets, cancel, `forget`, the saved struct |
 | [`test_EpochMatrix.m`](../analysis/test_EpochMatrix.m) | `epochMatrixSettings` and `epochMatrix`: the parts against the per-dataset calls, assembly, groups, the result fields, the labels, the normalization (`epochMatrixNormalize`) |
-| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window) |
+| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window), the Channels tab (`ProbePicker`: clicks and fields yoked) |

@@ -14,7 +14,8 @@ function L = epochMatrixLabels(R)
 %                  rate", "Spike count", "auROC", "LFP mean", ...
 %     time         the label of R.t: "Time from Stim onset (s)", from the
 %                  event the epochs are aligned to (eventRef.alignStep)
-%     event        the whole event reference (eventRefLabel): "Stim onset
+%     aligned      that event alone: "Stim onset"
+%     event       the whole event reference (eventRefLabel): "Stim onset
 %                  then Platform offset"
 %     group        the groupBy parameters, "Depth" or "Depth, Level" (""
 %                  without groupBy)
@@ -78,7 +79,8 @@ else
 end
 
 % --- time and event
-L.time = "Time from " + alignedEvent(S.ref) + " (s)";
+L.aligned = alignedEvent(S.ref);
+L.time = "Time from " + L.aligned + " (s)";
 L.event = eventRefLabel(S.ref);
 
 % --- groups
@@ -123,7 +125,7 @@ d = d + "; " + L.trials;
 if ~isempty(by); d = d + " by " + L.group + " (" + S.selection.groupOrder + ")"; end
 L.description = d;
 
-L = orderfields(L, ["value" "measure" "time" "event" "group" "groups" "rows" "trials" "window" "bins" ...
+L = orderfields(L, ["value" "measure" "time" "aligned" "event" "group" "groups" "rows" "trials" "window" "bins" ...
     "baseline" "normalization" "description"]);
 end
 

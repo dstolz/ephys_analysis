@@ -228,7 +228,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEqual(string(A.Group2.Value), "(none)");
             tc.verifyEqual(string(A.Order.Value), "descending");
             tc.verifyTrue(c.Merge.Value);
-            tc.verifyEqual(string(c.UnitShanks.Value), "1:4");
+            tc.verifyEqual(string(c.Shanks.Value), "1:4", 'The Channels tab shows the units'' shanks for detected.');
             tc.verifyEqual(string(c.Baseline.Value), "-1 -0.5");
             tc.verifyTrue(c.Detrend.Value);
             tc.verifyEqual(string({c.Normalize.Value c.NormBaseline.Value c.NormScope.Value}), ["zscore" "-0.4 0" "group"]);
@@ -236,7 +236,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             % every control applied as it shows gives the settings back
             for name = ["Data" "Line" "Edge" "Which" "N" "Scope" "Offset" "MinDur" "MaxDur" "TimeFrom" "TimeTo" ...
                     "ShiftParam" "ShiftUnit" "Pre" "Post" "Filter" "Response" "Flags" "Group1" "Group2" "Order" "MaxGroups" ...
-                    "ExcludeArtifacts" "MinArtifact" "Normalize" "NormBaseline" "NormScope" "Merge" "UnitShanks" "Measure" "Bin" "Baseline" "Channels" "SigShanks" "SigBaseline" "Statistic" ...
+                    "ExcludeArtifacts" "MinArtifact" "Normalize" "NormBaseline" "NormScope" "Merge" "Shanks" "Measure" "Bin" "Baseline" "Channels" "SigBaseline" "Statistic" ...
                     "Detrend" "Rectify" "Magnitude" "KeepEpochs"]
                 B.formEdit(name);
                 tc.verifyEqual(B.Settings, S, name + " applied as shown changes nothing");
@@ -250,9 +250,9 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEqual(S2.selection.filter, "Depth > 0");
             tc.verifyEqual(S2.units.classes, "su");
             tc.verifyTrue(S2.signal.detrend);
-            B.formEdit("UnitShanks", "1 3");
+            B.formEdit("Shanks", "1 3");
             tc.verifyEqual(B.Settings.units.shanks, [1 3]);
-            B.formEdit("UnitShanks", "");
+            B.formEdit("Shanks", "");
             tc.verifyEmpty(B.Settings.units.shanks);
             B.formEdit("Response", ["Hit" "Miss"]);
             tc.verifyEqual(B.Settings.selection.response, ["Hit" "Miss"]);
@@ -304,12 +304,13 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             c.Data.Value = 'LFP';
             c.Data.ValueChangedFcn(c.Data, []);
             tc.verifyEqual(B.Settings.data, "LFP");
-            tc.verifyEqual([c.Channels.Enable c.SigShanks.Enable c.Detrend.Enable c.Measure.Enable c.Merge.Enable c.Magnitude.Enable], ...
+            tc.verifyEqual([c.Channels.Enable c.Shanks.Enable c.Detrend.Enable c.Measure.Enable c.Merge.Enable c.Magnitude.Enable], ...
                 matlab.lang.OnOffSwitchState([1 1 1 0 0 0]));
             B.formEdit("Data", "AUX");
-            tc.verifyEqual([c.Magnitude.Enable c.SigShanks.Enable], matlab.lang.OnOffSwitchState([1 0]));
+            tc.verifyEqual([c.Magnitude.Enable c.Shanks.Enable c.Channels.Enable], matlab.lang.OnOffSwitchState([1 0 1]));
             B.formEdit("Data", "units");
-            tc.verifyEqual([c.Measure.Enable c.Merge.Enable c.Channels.Enable c.Baseline.Enable], matlab.lang.OnOffSwitchState([1 0 0 0]));
+            tc.verifyEqual([c.Measure.Enable c.Merge.Enable c.Detrend.Enable c.Baseline.Enable c.Shanks.Enable], ...
+                matlab.lang.OnOffSwitchState([1 0 0 0 1]));
             B.formEdit("Measure", "auroc");
             tc.verifyEqual([c.Baseline.Enable c.Normalize.Enable c.NormBaseline.Enable c.NormScope.Enable], ...
                 matlab.lang.OnOffSwitchState([1 0 0 0]), 'auROC is not normalized.');
@@ -324,9 +325,9 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEqual(c.Merge.Enable, matlab.lang.OnOffSwitchState(true));
             % an invalid edit is undone and said
             before = B.Settings;
-            B.formEdit("UnitShanks", "1:x");
+            B.formEdit("Shanks", "1:x");
             tc.verifyEqual(B.Settings, before);
-            tc.verifyEqual(string(c.UnitShanks.Value), "");
+            tc.verifyEqual(string(c.Shanks.Value), "");
             tc.verifyTrue(startsWith(string(c.Status.Text), "Not applied"), c.Status.Text);
             B.formEdit("Bin", 5);   % no whole bin fits [-1 1] s
             tc.verifyEqual(B.Settings, before);
@@ -418,6 +419,75 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyFalse(isvalid(d) && d.isOpen(), 'It closes with the browser.');
         end
 
+        function channelsTabYoked(tc)
+            B = tc.open();
+            c = B.Ctl;
+            B.Settings = tc.Spike;
+            tc.verifyEqual(B.Runner.Sources.Count, uint64(0));
+            B.showProbe();
+            tc.verifyEqual(c.SettingsTabs.SelectedTab, c.ProbeTab);
+            tc.verifyEqual(B.Runner.Sources.Count, uint64(1), 'Showing the tab reads one source, for its probe.');
+            tc.verifyNotEmpty(c.ProbeNote.Text);
+            % two shanks of 4 sites (recording channels 1-8, chanMap 0-based), drawn in the picker
+            probe = struct('chanMap', 0:7, 'xc', [0 0 20 20 200 200 220 220], 'yc', [0 40 20 60 0 40 20 60], ...
+                'kcoords', [1 1 1 1 2 2 2 2]);
+            c.Probe.setProbe(probe);
+            P = c.Probe;
+            keptCh = @() reshape(P.Sites.channel(P.kept()), 1, []);
+            tc.verifyEqual(height(P.Sites), 8);
+            tc.verifyEqual(keptCh(), 1:8, 'Both fields blank: every site.');
+            % a site click starts the channel list, a second adds to it; the field and the settings follow
+            B.pickProbe("site", 3);
+            tc.verifyEqual(B.Settings.units.channels, 3);
+            tc.verifyEqual(string(c.Channels.Value), "3");
+            B.pickProbe("site", 6);
+            tc.verifyEqual(B.Settings.units.channels, [3 6]);
+            tc.verifyEqual(keptCh(), [3 6]);
+            % a shank click: only the sites on both lists are kept
+            B.pickProbe("shank", 2);
+            tc.verifyEqual(B.Settings.units.shanks, 2);
+            tc.verifyEqual(string(c.Shanks.Value), "2");
+            tc.verifyEqual(keptCh(), 6);
+            % a field typed: the probe follows
+            B.formEdit("Channels", "1:4 7");
+            tc.verifyEqual(P.Channels, [1 2 3 4 7]);
+            tc.verifyEqual(keptCh(), 7);
+            B.formEdit("Shanks", "");
+            tc.verifyEmpty(P.Shanks);
+            tc.verifyEqual(keptCh(), [1 2 3 4 7]);
+            % dropping the last channel leaves the field blank: all again
+            B.formEdit("Channels", "5");
+            B.pickProbe("site", 5);
+            tc.verifyEmpty(B.Settings.units.channels);
+            tc.verifyEqual(string(c.Channels.Value), "");
+            tc.verifyEqual(keptCh(), 1:8);
+            % each kind of data keeps its own picks: a signal's go into signal
+            B.pickProbe("site", 2);
+            B.formEdit("Data", "LFP");
+            tc.verifyEqual(string(c.Channels.Value), "", 'LFP shows its own channels (none picked).');
+            tc.verifyEqual(keptCh(), 1:8);
+            B.pickProbe("site", 8);
+            tc.verifyEqual(B.Settings.signal.channels, 8);
+            tc.verifyEqual(B.Settings.units.channels, 2, 'The units'' pick stays.');
+            % All: both fields blank
+            B.formEdit("Shanks", "1");
+            c.ProbeAll.ButtonPushedFcn(c.ProbeAll, []);
+            tc.verifyEmpty(B.Settings.signal.channels);
+            tc.verifyEmpty(B.Settings.signal.shanks);
+            tc.verifyEqual([string(c.Channels.Value) string(c.Shanks.Value)], ["" ""]);
+            % AUX has no probe: the picker is off and cleared, Channels are its columns
+            B.formEdit("Data", "AUX");
+            tc.verifyEqual([c.Shanks.Enable P.Enable c.Channels.Enable], matlab.lang.OnOffSwitchState([0 0 1]));
+            tc.verifyEqual(height(P.Sites), 0);
+            tc.verifyTrue(startsWith(string(c.ProbeNote.Text), "AUX"));
+            B.pickProbe("site", 1);
+            tc.verifyEmpty(B.Settings.signal.channels, 'A click does nothing with the probe off.');
+            % the picker on its own: the toggle rule
+            tc.verifyEqual(ProbePicker.toggle([], 4), 4);
+            tc.verifyEqual(ProbePicker.toggle([2 4], 3), [2 3 4]);
+            tc.verifyEmpty(ProbePicker.toggle(4, 4));
+        end
+
         function computeEqualsEpochMatrix(tc)
             B = tc.open(Settings=tc.Spike);
             tc.verifyTrue(isnat(B.Computed), 'No compute yet.');
@@ -496,6 +566,29 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEqual(B.Result.normalization.method, "none");
         end
 
+        function resultNameFromTagsEventTrialsMeasure(tc)
+            B = tc.open(Settings=tc.Spike);
+            tc.verifyEqual(B.ResultName, "", 'No name before a compute.');
+            mc = ?DatasetBrowser;
+            mp = findobj(mc.PropertyList, 'Name', 'ResultName');
+            tc.verifyEqual(mp.SetAccess, 'private', 'ResultName is read-only.');
+            R = B.compute();
+            tc.verifyEqual(R.labels.aligned, "Stim onset");
+            tc.verifyEqual(B.ResultName, "ofc_StimOnset_AllTrials_FiringRate", ...
+                'No filter tags: the tags every dataset holds.');
+            tc.verifyEqual(R.name, B.ResultName);
+            B.setFilter(Tags="pilot, ofc", TagMode="all");
+            B.Settings = epochMatrixSettings(B.Settings, measure="count", ...
+                selection=trialSelection(response=["Hit" "Miss"], groupBy="Depth", groupOrder="descending"));
+            B.tickShown();
+            B.compute();
+            tc.verifyEqual(B.ResultName, "ofc_pilot_StimOnset_HitOrMiss_SpikeCount");
+            B.setFilter(TagMode="any");
+            tc.verifyEqual(B.ResultName, "ofc_pilot_StimOnset_HitOrMiss_SpikeCount", 'A filter edit keeps the computed name.');
+            B.compute();
+            tc.verifyEqual(B.ResultName, "ofc_or_pilot_StimOnset_HitOrMiss_SpikeCount");
+        end
+
         function resultFileRestores(tc)
             tmp = tc.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
             f = string(fullfile(tmp.Folder, "keep.mat"));
@@ -513,6 +606,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEqual(B2.Result.data, R.data);
             tc.verifyEqual(B2.Result.rows, R.rows);
             tc.verifyEqual(B2.Result.labels, R.labels);
+            tc.verifyEqual(B2.ResultName, R.name, 'The name is kept in the result file.');
             tc.verifyEqual(B2.Selected, tc.Keys(2));
             tc.verifyEqual(B2.Settings, B.Settings);
             tc.verifyEqual(B2.Filter.Tags, "ofc");

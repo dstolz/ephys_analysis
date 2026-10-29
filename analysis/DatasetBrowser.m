@@ -109,6 +109,9 @@ classdef DatasetBrowser < handle
     %     formEdit(B, CONTROL, VALUE)        a form control edited (Ctl.<CONTROL>, or Ctl.Align.<CONTROL>)
     %     fillLists(B)                       fill the line / parameter lists
     %     showEpochs(B)                      the Epoch Diagram window (EpochDiagram) of one dataset
+    %     showProbe(B)                       the Channels tab, its probe drawn (one dataset's)
+    %     pickProbe(B, KIND, VALUE)          a click on the probe: KIND "site" (a recording
+    %                                        channel) or "shank"; the click's toggle, applied
     %     showRasters(B, ROW)                the Trial rasters window (TrialRaster) on row ROW of
     %                                        Result (the Trial rasters button; needs Keep each epoch)
     %     X = raster(B, ROW, Order=)         row ROW of Result trial by trial (epochMatrixRaster)
@@ -150,6 +153,18 @@ classdef DatasetBrowser < handle
     %   new result and closes with the browser. raster(B, ROW) gives the
     %   same to a script (epochMatrixRaster: the epochs, each spike's time
     %   and epoch, the counts per bin, or each epoch's trace).
+    %
+    %   Shanks and channels: the Channels tab picks what is computed with.
+    %   Its Shanks field (kcoords values) and Channels field (recording
+    %   channels, 1-based: the probe map's chanMap + 1; AUX: the AUX
+    %   columns) are the settings of the data computed: units.shanks /
+    %   units.channels for units and detected, signal.shanks /
+    %   signal.channels for a signal (blank = all). Beside them the probe
+    %   of one dataset (the clicked row's, else the first ticked) is drawn
+    %   (ProbePicker), the sites kept filled: a click on a site picks or
+    %   drops its channel, a click on a shank picks or drops the shank, and
+    %   the fields follow; a field typed redraws the probe. All clears both.
+    %   The probe is read when the tab is shown (showProbe).
     %
     %   Errors: DatasetBrowser:NoRoot, DatasetBrowser:NotScanned,
     %   DatasetBrowser:NoneTicked, DatasetBrowser:UnknownDataset,
@@ -225,6 +240,15 @@ classdef DatasetBrowser < handle
         %                    The datasets whose rows are in R, in row order.
         %     R.created      datetime
         %                    When the result was assembled.
+        %     R.name         string
+        %                    A default name for the result (ResultName), one
+        %                    identifier: the filter's tags (joined by "_", by
+        %                    "_or_" with TagMode "any"; without filter tags,
+        %                    the tags every dataset of R.keys holds), the event
+        %                    the epochs are aligned to, the responses kept
+        %                    ("AllTrials" without any) and the measure, e.g.
+        %                    "ofc_perceptual_training_StimOnset_Hit_FiringRate".
+        %                    Made by compute and kept in the result file.
         %     R.raw          double, the size of R.data, or []
         %                    The values before normalization ([] when
         %                    settings.normalize.method is "none").
@@ -305,6 +329,10 @@ classdef DatasetBrowser < handle
         ScriptAfterCompute                 % Compute in the window runs Script after (the "After Compute, run" box)
     end
 
+    properties (Dependent, SetAccess = private)
+        ResultName                         % Result's default name (Result.name; "" before a compute): tags, event, trials, measure
+    end
+
     properties (Access = private)
         SettingsS = []                     % the full settings struct
         Id = []                            % its cache identity (epochMatrixSettings' ID)
@@ -325,6 +353,7 @@ classdef DatasetBrowser < handle
         RunFraction (1,1) double = 0
         LastPrint (1,1) double = -Inf      % seconds into the run of the last printed line
         ListKey (1,1) string = ""          % the clicked row's dataset: the lists load its source
+        ProbeKey (1,1) string = ""         % the dataset whose probe the Channels tab draws ("" = none drawn)
         SettingsFolder (1,1) string = ""
         DoneFlag (1,1) logical = false
         OwnRun (1,1) logical = false       % the strip's run is the browser's own scan, compute or forEach (they end it themselves)
@@ -346,8 +375,8 @@ classdef DatasetBrowser < handle
         DataItems = ["units" "detected" "LFP" "MUA" "SPIKE" "AUX"]
         Controls = ["Root" "Browse" "Pattern" "Scan" "Subject" "NotSubject" "Search" "Tags" "TagMode" "NotTags" ...
             "TickShown" "UntickAll" "Table" "FileMenu" "Data" "Normalize" "NormBaseline" "NormScope" ...
-            "Merge" "UnitShanks" "Measure" "Bin" "Baseline" ...
-            "Channels" "SigShanks" "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "KeepEpochs" "Compute" "Rasters" "Done" "Workers" ...
+            "Shanks" "Channels" "ProbeAll" "Probe" "Merge" "Measure" "Bin" "Baseline" ...
+            "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "KeepEpochs" "Compute" "Rasters" "Done" "Workers" ...
             "ScriptAfter" "ScriptList" "ScriptAdd" "ScriptRemove" "ScriptEdit" "ScriptRun"]
         MaxRecent = 10                     % RecentSettings' length
         ErrorColor = [0.75 0.1 0.1]
@@ -512,6 +541,11 @@ classdef DatasetBrowser < handle
             end
         end
 
+        function s = get.ResultName(B)
+            s = "";
+            if isstruct(B.Result) && isfield(B.Result, 'name'); s = string(B.Result.name); end
+        end
+
         function n = get.Workers(B)
             n = B.WorkersN;
         end
@@ -612,6 +646,7 @@ classdef DatasetBrowser < handle
             end
             B.Runner = r;
             B.Datasets = D;
+            B.ProbeKey = "";   % the new runner's sources: the probe is read again
             if B.HasTicks
                 B.SelectedKeys = D.key(ismember(D.key, B.SelectedKeys));
             else
@@ -746,6 +781,19 @@ classdef DatasetBrowser < handle
             B.refreshEpochs();
         end
 
+        function showProbe(B)
+            %showProbe  The Channels tab shown, the probe of one dataset drawn (the clicked row's, else the first ticked).
+            if ~B.uiOk(); return; end
+            B.Ctl.SettingsTabs.SelectedTab = B.Ctl.ProbeTab;
+            B.refreshProbe();
+        end
+
+        function pickProbe(B, kind, value)
+            %pickProbe  A click on the probe: KIND "site" toggles recording channel VALUE, "shank" shank VALUE; applied.
+            if ~B.uiOk(); return; end
+            B.Ctl.Probe.click(kind, value);
+        end
+
         function showRasters(B, row)
             %showRasters  The Trial rasters window (TrialRaster): row ROW of Result trial by trial.
             %   A unit's raster or a channel's epochs, from Result.epochs
@@ -827,6 +875,7 @@ classdef DatasetBrowser < handle
                 B.afterRun(t0);
                 rethrow(ME);
             end
+            R.name = B.nameOf(R);
             B.setResult(R);
             B.progressFinish(B.summaryText());
             clear stopper
@@ -1314,7 +1363,11 @@ classdef DatasetBrowser < handle
             pr = uipanel(eg, "Title", "Event reference");
             pw = uipanel(eg, "Title", "Epoch window");
             tt = uitab(tg, "Title", "Trials", "Scrollable", "on");
+            tp = uitab(tg, "Title", "Channels");
             tm = uitab(tg, "Title", "Measure", "Scrollable", "on");
+            tg.SelectionChangedFcn = @(~, ~) B.uiRun(@() B.refreshProbe());
+            c.SettingsTabs = tg;
+            c.ProbeTab = tp;
             A = AlignControls.build([pr pw tt], @(~) B.uiRun(@() B.onAlignEdit()), FixedWindow=true, ...
                 EditSequence=@(varargin) B.uiRun(@() B.editSequence(varargin{:})), FilterHelp=@() B.uiRun(@() B.showFilterHelp()));
             set([A.Line A.StopLine A.Group1 A.Group2 A.ShiftParam A.StopShiftParam], "DropDownOpeningFcn", open);
@@ -1322,6 +1375,23 @@ classdef DatasetBrowser < handle
             A.Diagram.Tooltip = "How these settings cut one dataset (the clicked row's, else the first ticked) into epochs: " + ...
                 "the event, its sequence, the window and the trials kept.";
             c.Align = A;
+
+            % the shanks and channels computed with: two fields and the probe, yoked (ProbePicker)
+            P = uigridlayout(tp, [3 1], "RowHeight", {26, 'fit', '1x'}, "Padding", [4 4 4 4], "RowSpacing", 4);
+            r = row(P, {'fit', '1x', 'fit', '1x', 50});
+            uilabel(r, "Text", "Shanks");
+            c.Shanks = uieditfield(r, "text", "ValueChangedFcn", edit("Shanks"), "Placeholder", "all", ...
+                "Tooltip", "The probe shanks kept (the probe map's kcoords), e.g. 1:4 or 1 3; blank = every shank. " + ...
+                "Click a shank on the probe to pick or drop it.");
+            uilabel(r, "Text", "Channels");
+            c.Channels = uieditfield(r, "text", "ValueChangedFcn", edit("Channels"), "Placeholder", "all");
+            c.ProbeAll = uibutton(r, "Text", "All", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.onProbePick([], [])), ...
+                "Tooltip", "Every shank and every channel (both fields blank).");
+            c.ProbeNote = uilabel(P, "Text", "", "WordWrap", "on", "FontColor", B.TextColor);
+            c.Probe = ProbePicker(P);
+            c.Probe.Axes.Layout.Row = 3;
+            c.Probe.OnPick = @(ch, sh) B.uiRun(@() B.onProbePick(ch, sh));
+
             M = uigridlayout(tm, [4 1], "RowHeight", {26, 'fit', 'fit', 26}, "Padding", [4 4 4 4], "RowSpacing", 6);
             r = row(M, {'fit', 84, 'fit', '1x', 96});
             uilabel(r, "Text", "Normalize");
@@ -1339,10 +1409,7 @@ classdef DatasetBrowser < handle
             sp = uipanel(M, "Title", "Spikes (units, detected)");
             sg = uigridlayout(sp, [3 4], "ColumnWidth", {'fit', '1x', 'fit', '1x'}, "RowHeight", {24, 24, 24}, "Padding", [6 4 6 4], "RowSpacing", 4);
             c.Merge = place(uicheckbox(sg, "Text", "Merge neighboring sites", "ValueChangedFcn", edit("Merge"), ...
-                "Tooltip", "detected: join the channels of neighboring sites that hold one neuron (groupDetected)."), 1, [1 2]);
-            place(uilabel(sg, "Text", "Shanks"), 1, 3);
-            c.UnitShanks = place(uieditfield(sg, "text", "ValueChangedFcn", edit("UnitShanks"), "Placeholder", "all", ...
-                "Tooltip", "e.g. 1:4 or 1 3; blank = every shank."), 1, 4);
+                "Tooltip", "detected: join the channels of neighboring sites that hold one neuron (groupDetected)."), 1, [1 4]);
             place(uilabel(sg, "Text", "Measure"), 2, 1);
             c.Measure = place(uidropdown(sg, "Items", {'rate', 'count', 'auroc'}, "ValueChangedFcn", edit("Measure")), 2, 2);
             place(uilabel(sg, "Text", "Bin (s)"), 2, 3);
@@ -1352,22 +1419,16 @@ classdef DatasetBrowser < handle
                 "Tooltip", "b0 b1, s from the event (measure auroc)."), 3, [3 4]);
 
             gp = uipanel(M, "Title", "Signals (LFP, MUA, SPIKE, AUX)");
-            gg = uigridlayout(gp, [3 4], "ColumnWidth", {'fit', '1x', 'fit', '1x'}, "RowHeight", {24, 24, 24}, "Padding", [6 4 6 4], "RowSpacing", 4);
-            place(uilabel(gg, "Text", "Channels"), 1, 1);
-            c.Channels = place(uieditfield(gg, "text", "ValueChangedFcn", edit("Channels"), "Placeholder", "all", ...
-                "Tooltip", "1-based columns of the signal, e.g. 1:16; blank = all."), 1, 2);
-            place(uilabel(gg, "Text", "Shanks"), 1, 3);
-            c.SigShanks = place(uieditfield(gg, "text", "ValueChangedFcn", edit("SigShanks"), "Placeholder", "all", ...
-                "Tooltip", "The probe shanks kept, e.g. 1 2; blank = all."), 1, 4);
-            place(uilabel(gg, "Text", "Baseline (s)"), 2, 1);
+            gg = uigridlayout(gp, [2 4], "ColumnWidth", {'fit', '1x', 'fit', '1x'}, "RowHeight", {24, 24}, "Padding", [6 4 6 4], "RowSpacing", 4);
+            place(uilabel(gg, "Text", "Baseline (s)"), 1, 1);
             c.SigBaseline = place(uieditfield(gg, "text", "ValueChangedFcn", edit("SigBaseline"), "Placeholder", "none", ...
-                "Tooltip", "b0 b1: each epoch's mean over it is subtracted; blank = none."), 2, 2);
-            place(uilabel(gg, "Text", "Statistic"), 2, 3);
-            c.Statistic = place(uidropdown(gg, "Items", {'mean', 'median'}, "ValueChangedFcn", edit("Statistic")), 2, 4);
-            c.Detrend = place(uicheckbox(gg, "Text", "Detrend", "ValueChangedFcn", edit("Detrend")), 3, 1);
-            c.Rectify = place(uicheckbox(gg, "Text", "Rectify", "ValueChangedFcn", edit("Rectify")), 3, 2);
+                "Tooltip", "b0 b1: each epoch's mean over it is subtracted; blank = none."), 1, 2);
+            place(uilabel(gg, "Text", "Statistic"), 1, 3);
+            c.Statistic = place(uidropdown(gg, "Items", {'mean', 'median'}, "ValueChangedFcn", edit("Statistic")), 1, 4);
+            c.Detrend = place(uicheckbox(gg, "Text", "Detrend", "ValueChangedFcn", edit("Detrend")), 2, 1);
+            c.Rectify = place(uicheckbox(gg, "Text", "Rectify", "ValueChangedFcn", edit("Rectify")), 2, 2);
             c.Magnitude = place(uicheckbox(gg, "Text", "Magnitude (AUX)", "ValueChangedFcn", edit("Magnitude"), ...
-                "Tooltip", "The channels' vector magnitude, one row (the accelerometer)."), 3, [3 4]);
+                "Tooltip", "The channels' vector magnitude, one row (the accelerometer)."), 2, [3 4]);
             c.KeepEpochs = uicheckbox(M, "Text", "Keep each epoch (R.epochs)", "ValueChangedFcn", edit("KeepEpochs"), ...
                 "Tooltip", "Keep every epoch before the average in B.Result.epochs: each spike's time from the event and its " + ...
                 "epoch, or each epoch's signal trace (row x time x epoch). Computes every dataset once more; " + ...
@@ -1421,7 +1482,7 @@ classdef DatasetBrowser < handle
             c.Cancel = uibutton(s, "Text", "Cancel", "Enable", "off", "ButtonPushedFcn", @(~, ~) B.cancel());
             c.Status = uilabel(g, "Text", "", "FontColor", B.TextColor);
 
-            styleButton([c.Browse c.TickShown c.UntickAll c.Rasters c.ScriptAdd c.ScriptRemove c.ScriptEdit c.ScriptRun]);
+            styleButton([c.Browse c.TickShown c.UntickAll c.ProbeAll c.Rasters c.ScriptAdd c.ScriptRemove c.ScriptEdit c.ScriptRun]);
             styleButton([c.Scan c.Compute], "primary");
             styleButton(c.Done, "confirm");
             styleButton(c.Cancel, "danger");
@@ -1581,13 +1642,18 @@ classdef DatasetBrowser < handle
             c.Normalize.Value = char(S.normalize.method);
             c.NormBaseline.Value = char(numbersText(S.normalize.baseline));
             c.NormScope.Value = char(S.normalize.scope);
+            pick = pickOf(S);
+            c.Shanks.Value = char(numbersText(pick.shanks));
+            c.Channels.Value = char(numbersText(pick.channels));
+            if S.data == "AUX"
+                c.Probe.select([], []);   % the AUX columns are no probe sites
+            else
+                c.Probe.select(pick.channels, pick.shanks);
+            end
             c.Merge.Value = logical(S.units.merge.enabled);
-            c.UnitShanks.Value = char(numbersText(S.units.shanks));
             c.Measure.Value = char(S.measure);
             c.Bin.Value = S.binSec;
             c.Baseline.Value = char(numbersText(S.baseline));
-            c.Channels.Value = char(numbersText(S.signal.channels));
-            c.SigShanks.Value = char(numbersText(S.signal.shanks));
             c.SigBaseline.Value = char(numbersText(S.signal.baseline));
             c.Statistic.Value = char(S.signal.statistic);
             c.Detrend.Value = S.signal.detrend;
@@ -1605,16 +1671,26 @@ classdef DatasetBrowser < handle
             S = B.SettingsS;
             spikes = ismember(S.data, ["units" "detected"]);
             on = @(tf) matlab.lang.OnOffSwitchState(tf);
-            set([c.UnitShanks c.Measure c.Bin], "Enable", on(spikes));
+            set([c.Measure c.Bin], "Enable", on(spikes));
+            aux = S.data == "AUX";
+            c.Shanks.Enable = on(~aux);
+            c.Probe.Enable = on(~aux);
+            c.Channels.Enable = "on";
+            c.ProbeAll.Enable = "on";
+            if aux
+                c.Channels.Tooltip = "The AUX columns kept (1-based), e.g. 1:3; blank = all.";
+            else
+                c.Channels.Tooltip = "The recording channels kept (1-based: the probe map's chanMap + 1), e.g. 1:16 or 3 7 12; " + ...
+                    "blank = all. Click a site on the probe to pick or drop its channel.";
+            end
             c.Merge.Enable = on(S.data == "detected");
             c.Baseline.Enable = on(spikes && S.measure == "auroc");
             auroc = spikes && S.measure == "auroc";
             c.Normalize.Enable = on(~auroc);
             c.NormBaseline.Enable = on(~auroc && ismember(S.normalize.method, ["subtract" "ratio" "percent" "zscore"]));
             c.NormScope.Enable = on(~auroc && S.normalize.method ~= "none");
-            set([c.Channels c.SigBaseline c.Detrend c.Rectify c.Statistic], "Enable", on(~spikes));
-            c.SigShanks.Enable = on(~spikes && S.data ~= "AUX");
-            c.Magnitude.Enable = on(S.data == "AUX");
+            set([c.SigBaseline c.Detrend c.Rectify c.Statistic], "Enable", on(~spikes));
+            c.Magnitude.Enable = on(aux);
             AlignControls.syncEnable(c.Align);
             c.Compute.Enable = on(~isempty(B.Runner));
             c.Rasters.Enable = on(~isempty(B.Result));
@@ -1751,6 +1827,7 @@ classdef DatasetBrowser < handle
             if key == B.ListKey; return; end
             B.ListKey = key;
             B.refreshEpochs();
+            B.refreshProbe();
         end
 
         function onTableSorted(B, evt)
@@ -1770,6 +1847,20 @@ classdef DatasetBrowser < handle
             end
         end
 
+        function onProbePick(B, channels, shanks)
+            %onProbePick  The probe's picks (or All: both blank) into the settings of the data computed; undone when they do not fit.
+            try
+                S = withPick(withPick(B.SettingsS, "channels", channels), "shanks", shanks);
+                B.setSettings(S, true);
+                pick = pickOf(B.SettingsS);
+                say = @(v, all) ternary(isempty(v), all, numbersText(v));
+                B.setStatus("Computed with shanks " + say(pick.shanks, "all") + ", channels " + say(pick.channels, "all") + ".");
+            catch ME
+                B.refreshForm();
+                B.setStatus("Not applied: " + string(ME.message), true);
+            end
+        end
+
         function S = applyControl(~, S, name, v)
             %applyControl  S with control NAME's value V put in its field (the other fields as they were).
             if iscell(v); v = v{1}; end
@@ -1779,12 +1870,11 @@ classdef DatasetBrowser < handle
                 case "NormBaseline"; S.normalize.baseline = parseNumbers(v, "Normalize baseline");
                 case "NormScope"; S.normalize.scope = string(v);
                 case "Merge";    S.units.merge.enabled = logical(v);
-                case "UnitShanks"; S.units.shanks = parseNumbers(v, "Shanks");
+                case "Shanks";   S = withPick(S, "shanks", parseNumbers(v, "Shanks"));
+                case "Channels"; S = withPick(S, "channels", parseNumbers(v, "Channels"));
                 case "Measure";  S.measure = string(v);
                 case "Bin";      S.binSec = double(v);
                 case "Baseline"; S.baseline = parseNumbers(v, "auROC baseline");
-                case "Channels"; S.signal.channels = parseNumbers(v, "Channels");
-                case "SigShanks"; S.signal.shanks = parseNumbers(v, "Shanks");
                 case "SigBaseline"; S.signal.baseline = parseNumbers(v, "Baseline");
                 case "Statistic"; S.signal.statistic = string(v);
                 case {"Detrend", "Rectify", "Magnitude"}; S.signal.(lower(name)) = logical(v);
@@ -1804,6 +1894,7 @@ classdef DatasetBrowser < handle
             B.refreshTable();
             B.refreshSummary();
             B.refreshEpochs();
+            B.refreshProbe();
             if renormalized; B.refreshRasters(); end
             if announce; B.changed("settings"); end
             if renormalized; B.changed("result"); end
@@ -1847,6 +1938,25 @@ classdef DatasetBrowser < handle
             B.refreshTable();
             B.refreshSummary();
             B.refreshRasters();
+        end
+
+        function s = nameOf(B, R)
+            %nameOf  Result R's default name (R.name, ResultName): tags, event, trials and measure, as one identifier.
+            %   The tags are the filter's (joined by "_", by "_or_" with
+            %   TagMode "any"), else those every dataset of R holds; then the
+            %   event the epochs are aligned to, the responses kept
+            %   ("AllTrials" without any) and the measure.
+            tags = string(TagSet.fromText(B.FilterS.Tags));
+            joint = ternary(B.FilterS.TagMode == "any", "_or_", "_");
+            if isempty(tags) && height(B.Datasets) > 0
+                tags = string(TagSet.summarize(reshape(B.Datasets.tagSet(ismember(B.Datasets.key, R.keys)), 1, [])));
+                joint = "_";
+            end
+            trials = "AllTrials";
+            if ~isempty(R.settings.selection.response); trials = strjoin(R.settings.selection.response, " or "); end
+            parts = [camelWords(R.labels.aligned), camelWords(trials), camelWords(R.labels.measure)];
+            if ~isempty(tags); parts = [strjoin(tags, joint), parts]; end
+            s = string(matlab.lang.makeValidName(char(strjoin(parts(parts ~= ""), "_"))));
         end
 
         function switchRoot(B, root)
@@ -2339,6 +2449,51 @@ classdef DatasetBrowser < handle
             d.update(src, S.ref, S.window, S.selection, Title=src.name);
         end
 
+        function refreshProbe(B)
+            %refreshProbe  The Channels tab, when shown: the probe of the lists' dataset drawn (read once per dataset), with a note.
+            if ~B.uiOk() || B.Ctl.SettingsTabs.SelectedTab ~= B.Ctl.ProbeTab; return; end
+            c = B.Ctl;
+            if B.SettingsS.data == "AUX"
+                if B.ProbeKey ~= "<AUX>"
+                    c.Probe.setProbe([], "AUX has no probe");
+                    c.ProbeNote.Text = "AUX has no probe: Channels are the AUX columns kept.";
+                    B.ProbeKey = "<AUX>";   % no dataset's key
+                end
+                return
+            end
+            key = B.listKey();
+            if key == ""
+                if B.ProbeKey ~= "<none>"
+                    c.Probe.setProbe([], "No dataset yet");
+                    c.ProbeNote.Text = "Scan the root: the probe of the clicked row's dataset (else the first ticked) is drawn here.";
+                    B.ProbeKey = "<none>";   % no dataset's key
+                end
+                return
+            end
+            if key == B.ProbeKey; return; end
+            try
+                src = B.source(key);
+            catch ME
+                c.Probe.setProbe([], "Cannot read " + key);
+                B.setStatus("Cannot read " + key + " for the probe: " + string(ME.message), true);
+                B.ProbeKey = "";
+                return
+            end
+            S = B.SettingsS;
+            pick = pickOf(S);
+            c.Probe.select(pick.channels, pick.shanks);
+            c.Probe.setProbe(src.probe, src.name + " has no probe map");
+            Sites = c.Probe.Sites;
+            if height(Sites) == 0
+                c.ProbeNote.Text = src.name + " has no probe map: type the shanks and channels.";
+            else
+                [~, C] = probeColumns(Sites.x, Sites.shank);
+                c.ProbeNote.Text = sprintf("%s: %d sites on %d shank(s). Click a site to pick or drop its channel, " + ...
+                    "a shank to pick or drop the shank; filled sites are computed with.", src.name, height(Sites), numel(C.center));
+            end
+            B.ProbeKey = key;
+        end
+
         function refreshRasters(B)
             %refreshRasters  Redraw the Trial rasters window, when open, with Result (its row kept when Result has it).
             w = B.RasterWindow;
@@ -2576,6 +2731,34 @@ end
 function n = scriptName(f)
 %scriptName  The scripts' names: the files' names without folder or .m.
 n = regexprep(regexprep(string(f), '^.*[\\/]', ''), '\.[mM]$', '');
+end
+
+
+function p = pickOf(S)
+%pickOf  The shanks and channels the settings S compute with: units' for units and detected, signal's for a signal.
+if ismember(S.data, ["units" "detected"])
+    p = struct('shanks', S.units.shanks, 'channels', S.units.channels);
+else
+    p = struct('shanks', S.signal.shanks, 'channels', S.signal.channels);
+end
+end
+
+
+function S = withPick(S, field, v)
+%withPick  S with FIELD ("shanks" | "channels") of the data computed set to V (units' or signal's; the other kept).
+if ismember(S.data, ["units" "detected"])
+    S.units.(field) = v;
+else
+    S.signal.(field) = v;
+end
+end
+
+
+function s = camelWords(text)
+%camelWords  Words run together, each after the first capitalized: "Stim onset" -> "StimOnset", "Hit or Miss" -> "HitOrMiss".
+w = regexp(string(text), '[A-Za-z0-9]+', 'match');
+for k = 2:numel(w); w(k) = upper(extractBefore(w(k), 2)) + extractAfter(w(k), 1); end
+s = strjoin(w, "");
 end
 
 

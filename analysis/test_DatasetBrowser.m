@@ -658,7 +658,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
         end
 
         function forEachCachesAndCancels(tc)
-            B = tc.open();
+            B = tc.open(Workers=0);   % here: a pool left open by another suite would run FN on copies of B, which cannot cancel
             fn = @(src, info) string(info.name) + ":" + numel(fieldnames(src.events));
             [v, T] = B.forEach(fn, Name="probe");
             tc.verifyEqual(T.status, ["done"; "done"]);
@@ -715,7 +715,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
         end
 
         function computeOnTheStrip(tc)
-            B = tc.open(Settings=tc.Spike);
+            B = tc.open(Settings=tc.Spike, Workers=0);   % here, one dataset after the other, whatever pool another suite left open
             seen = containers.Map();
             B.ProgressHook = @(b, f, m) cancelAtSecond(b, f, seen);
             tc.verifyError(@() B.compute(), 'epochMatrix:Canceled');

@@ -113,7 +113,7 @@ classdef DatasetBrowser < handle
     %     pickProbe(B, KIND, VALUE)          a click on the probe: KIND "site" (a recording
     %                                        channel) or "shank"; the click's toggle, applied
     %     showRasters(B, ROW)                the Trial rasters window (TrialRaster) on row ROW of
-    %                                        Result (the Trial rasters button; needs Keep each epoch)
+    %                                        Result (needs Keep single trials)
     %     X = raster(B, ROW, Order=)         row ROW of Result trial by trial (epochMatrixRaster)
     %     SRC = source(B, KEY)
     %     R = compute(B, Recompute=false, RunScript=false)   RunScript: then runScript (the Compute button
@@ -145,8 +145,8 @@ classdef DatasetBrowser < handle
     %   result as it is. Its variables stay in the workspace. The first
     %   list is the scripts in analysis\scripts.
     %
-    %   Trial rasters: with "Keep each epoch (R.epochs)" (Measure tab) ticked,
-    %   Compute keeps every epoch, and the Trial rasters button (showRasters)
+    %   Trial rasters: with "Keep single trials, not just averages (R.epochs)"
+    %   (Measure tab) ticked, Compute keeps every epoch, and showRasters(B)
     %   opens a window on one row of the result at a time: a unit's raster
     %   (a line of spikes per epoch) or a channel's epochs as an image, by
     %   group or by time, over the row's trace per group. It follows each
@@ -797,7 +797,7 @@ classdef DatasetBrowser < handle
         function showRasters(B, row)
             %showRasters  The Trial rasters window (TrialRaster): row ROW of Result trial by trial.
             %   A unit's raster or a channel's epochs, from Result.epochs
-            %   (Keep each epoch), over the row's trace per group. ROW (an
+            %   (Keep single trials), over the row's trace per group. ROW (an
             %   index into Result.rows) defaults to the row shown, else 1.
             %   The window follows each new result until it is closed; it
             %   closes with the browser. A second call raises it.
@@ -805,7 +805,7 @@ classdef DatasetBrowser < handle
                 error('DatasetBrowser:NoResult', 'No result yet: press Compute.');
             end
             if ~isfield(B.Result, 'epochs') || isempty(B.Result.epochs)
-                error('epochMatrixRaster:NoEpochs', ['The result keeps no epochs: tick "Keep each epoch (R.epochs)" ' ...
+                error('epochMatrixRaster:NoEpochs', ['The result keeps no epochs: tick "Keep single trials, not just averages (R.epochs)" ' ...
                     'on the Measure tab and press Compute.']);
             end
             w = B.RasterWindow;
@@ -827,7 +827,7 @@ classdef DatasetBrowser < handle
         function X = raster(B, row, opts)
             %raster  Row ROW of Result trial by trial (epochMatrixRaster): its epochs, spikes or traces.
             %   Order "group" (default) or "time". Needs a result computed
-            %   with Keep each epoch (epochMatrixRaster:NoEpochs otherwise).
+            %   with Keep single trials (epochMatrixRaster:NoEpochs otherwise).
             arguments
                 B
                 row (1,1) double
@@ -1429,18 +1429,15 @@ classdef DatasetBrowser < handle
             c.Rectify = place(uicheckbox(gg, "Text", "Rectify", "ValueChangedFcn", edit("Rectify")), 2, 2);
             c.Magnitude = place(uicheckbox(gg, "Text", "Magnitude (AUX)", "ValueChangedFcn", edit("Magnitude"), ...
                 "Tooltip", "The channels' vector magnitude, one row (the accelerometer)."), 2, [3 4]);
-            c.KeepEpochs = uicheckbox(M, "Text", "Keep each epoch (R.epochs)", "ValueChangedFcn", edit("KeepEpochs"), ...
-                "Tooltip", "Keep every epoch before the average in B.Result.epochs: each spike's time from the event and its " + ...
-                "epoch, or each epoch's signal trace (row x time x epoch). Computes every dataset once more; " + ...
-                "signal epochs are large and go into the result file.");
+            c.KeepEpochs = uicheckbox(M, "Text", "Keep single trials, not just averages (R.epochs)", "ValueChangedFcn", edit("KeepEpochs"), ...
+                "Tooltip", "Also keep every epoch before it is averaged, in B.Result.epochs, for trial-by-trial work: " + ...
+                "each spike's time from the event and its epoch, or each epoch's signal trace (row x time x epoch). " + ...
+                "Computes every dataset once more; signal epochs are large and go into the result file.");
 
-            r = uigridlayout(R, [1 2], "ColumnWidth", {'1x', '1x'}, "RowHeight", {34}, "Padding", [0 0 0 0]);
+            r = uigridlayout(R, [1 1], "ColumnWidth", {'1x'}, "RowHeight", {34}, "Padding", [0 0 0 0]);
             c.Compute = uibutton(r, "Text", "Compute", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.onCompute()), ...
                 "Tooltip", "Compute the ticked datasets (those already computed with these settings are reused); " + ...
                 "then the post-processing script, when ticked below.");
-            c.Rasters = uibutton(r, "Text", "Trial rasters", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.showRasters()), ...
-                "Tooltip", "Each row of the result trial by trial: a unit's raster or a channel's epochs. " + ...
-                "Needs a result computed with ""Keep each epoch (R.epochs)"" (Measure tab).");
 
             % --- the post-processing script: run in the base workspace after Compute
             sp = uipanel(R, "Title", "Post-processing script");
@@ -1480,7 +1477,7 @@ classdef DatasetBrowser < handle
             c.Cancel = uibutton(s, "Text", "Cancel", "Enable", "off", "ButtonPushedFcn", @(~, ~) B.cancel());
             c.Status = uilabel(g, "Text", "", "FontColor", B.TextColor);
 
-            styleButton([c.Browse c.TickShown c.UntickAll c.ProbeAll c.Rasters c.ScriptAdd c.ScriptRemove c.ScriptEdit c.ScriptRun]);
+            styleButton([c.Browse c.TickShown c.UntickAll c.ProbeAll c.ScriptAdd c.ScriptRemove c.ScriptEdit c.ScriptRun]);
             styleButton([c.Scan c.Compute], "primary");
             styleButton(c.Cancel, "danger");
             B.Ctl = c;
@@ -1690,7 +1687,6 @@ classdef DatasetBrowser < handle
             c.Magnitude.Enable = on(aux);
             AlignControls.syncEnable(c.Align);
             c.Compute.Enable = on(~isempty(B.Runner));
-            c.Rasters.Enable = on(~isempty(B.Result));
             picked = B.ScriptS ~= "";
             set([c.ScriptList c.ScriptRemove c.ScriptEdit c.ScriptAfter], "Enable", on(picked));
             c.ScriptRun.Enable = on(picked && ~isempty(B.Result));

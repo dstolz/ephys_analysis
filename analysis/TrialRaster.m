@@ -62,7 +62,7 @@ classdef TrialRaster < handle
         OneGroupColor = [0.15 0.15 0.15]        % one ungrouped set
         ErrorColor = [0.75 0.1 0.1]
         TextColor = [0.25 0.25 0.25]
-        NoData = "Compute with ""Keep each epoch (R.epochs)"" ticked to see each row trial by trial."
+        NoData = "Compute with ""Keep single trials, not just averages (R.epochs)"" ticked to see each row trial by trial."
     end
 
     methods

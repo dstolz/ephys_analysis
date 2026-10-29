@@ -145,7 +145,7 @@ mode and its stop event.
 | **Channels** tab | **Shanks** and **Channels**: `units.shanks` and `units.channels` for `units` and `detected`, `signal.shanks` and `signal.channels` for a signal (blank = all), also picked by clicking the probe; see [Shanks and channels](#shanks-and-channels) |
 | **Measure** tab: **Spikes** block | **Merge neighboring sites** (`units.merge.enabled`, `detected` only), **Measure**, **Bin (s)**, **auROC baseline (s)** (with measure `auroc`) |
 | **Measure** tab: **Signals** block | **Baseline (s)**, **Statistic**, **Detrend**, **Rectify**, **Magnitude (AUX)** |
-| **Measure** tab: **Keep each epoch (R.epochs)** | `keepEpochs`: the result keeps every epoch before the average ([Each epoch](#each-epoch-repochs)), which **Trial rasters** draws ([Trial rasters](#trial-rasters)). Every kind of **Data** |
+| **Measure** tab: **Keep single trials, not just averages (R.epochs)** | `keepEpochs`: the result also keeps every epoch before the average ([Each epoch](#each-epoch-repochs)), which `B.showRasters` draws ([Trial rasters](#trial-rasters)). Every kind of **Data** |
 
 The form does not show every field (the unit classes and tests, the auROC
 section, the selection's explicit trial rows, and an interval length or time
@@ -214,10 +214,8 @@ instead.
 
 ### Compute
 
-**Compute** computes the ticked datasets with these settings. **Trial
-rasters** opens the [Trial rasters](#trial-rasters) window on the result (it
-needs a result computed with **Keep each epoch**). The summary under
-the buttons reads *812 units × 200 bins × 5 groups from 32 of 34 datasets; 1
+**Compute** computes the ticked datasets with these settings. The summary under
+the button reads *812 units × 200 bins × 5 groups from 32 of 34 datasets; 1
 computed, 33 reused*. When the settings or ticks changed since the result, it
 begins *Out of date:* and says what differs.
 
@@ -460,7 +458,7 @@ Notes on the fields:
 ### Each epoch (`R.epochs`)
 
 `R.data` holds averages. To work with single trials (decoding, trial-by-trial
-variability, your own statistics), tick **Keep each epoch (R.epochs)** on the
+variability, your own statistics), tick **Keep single trials, not just averages (R.epochs)** on the
 **Measure** tab, or set `keepEpochs=true`, and compute. `R.epochs(k)` is
 dataset `R.keys(k)`'s:
 
@@ -494,8 +492,7 @@ end
 ### Trial rasters
 
 With epochs kept, the result can be looked at row by row, trial by trial.
-**Trial rasters** (beside **Compute**; `B.showRasters(row)`) opens a window on
-one row of the result:
+`B.showRasters(row)` opens a window on one row of the result:
 
 | Part | Shows |
 | --- | --- |
@@ -508,8 +505,8 @@ one row of the result:
 The axes zoom and pan with their toolbar. The window follows every new result
 (a **Compute**, a **Normalize** change, a restore) and keeps its row while the
 result has it; a result without epochs is said in red. It closes with the
-browser. **Trial rasters** is off before a result; with a result that keeps no
-epochs, it says to tick **Keep each epoch** and compute.
+browser. Before a result it raises `DatasetBrowser:NoResult`; with a result that
+keeps no epochs, it says to tick **Keep single trials** and compute.
 
 A script gets the same, one row at a time, with `X = B.raster(row)`
 (`epochMatrixRaster(R, row)`, [source](../analysis/epochMatrixRaster.m); the
@@ -810,7 +807,7 @@ Saved on close under the `AppPrefs` group `DatasetBrowser`:
 | `DatasetBrowser:NoScript` | `runScript` or `editScript` with no script picked, a script file not found, or `addScript` given a file that is no `.m` file |
 | `DatasetBrowser:ScriptFailed` | the post-processing script raised an error (the message names the script and its line) |
 | `DatasetBrowser:NoResult` | `showRasters` or `raster` before a result |
-| `epochMatrixRaster:NoEpochs` | `showRasters`, `raster` or `epochMatrixRaster` on a result computed without **Keep each epoch** |
+| `epochMatrixRaster:NoEpochs` | `showRasters`, `raster` or `epochMatrixRaster` on a result computed without **Keep single trials** |
 | `epochMatrixRaster:BadRow`, `:BadResult` | a row that is not a row of the result; a result that is not `epochMatrix`'s |
 | `epochMatrix:Canceled` | `compute` after **Cancel** (the finished parts stay in `Runs`) |
 | `DatasetRuns:Canceled` | `forEach` after **Cancel** (the finished values stay) |

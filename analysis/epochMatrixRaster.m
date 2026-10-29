@@ -2,7 +2,7 @@ function X = epochMatrixRaster(R, row, opts)
 %epochMatrixRaster  One row's epochs of an epochMatrix result, trial by trial: its raster, or its signal per epoch.
 %   X = epochMatrixRaster(R, ROW) takes row ROW of R.data (an index into
 %   R.rows) of an epochMatrix result made with settings.keepEpochs (the
-%   dataset browser's "Keep each epoch"), and gives that row's epochs one
+%   dataset browser's "Keep single trials"), and gives that row's epochs one
 %   by one from R.epochs, in the order a raster draws them: by group (in
 %   R.groupLabels' order), each group's epochs in time order. Nothing is
 %   computed again and nothing is normalized: the spike times and the
@@ -47,7 +47,7 @@ function X = epochMatrixRaster(R, row, opts)
 %   keepEpochs=true), epochMatrixRaster:BadRow (ROW is no row of R).
 %
 %   Example: a unit's raster, group by group
-%     R = B.Result;                       % computed with "Keep each epoch"
+%     R = B.Result;                       % computed with "Keep single trials"
 %     X = epochMatrixRaster(R, 12);
 %     plot([X.times X.times].', [X.trial - 0.4 X.trial + 0.4].', 'k');
 %     set(gca, 'YDir', 'reverse'); xlabel(R.labels.time); ylabel("Epoch");
@@ -64,7 +64,7 @@ if ~(isstruct(R) && isscalar(R) && all(isfield(R, {'data', 'rows', 't', 'groupLa
 end
 if ~isfield(R, 'epochs') || isempty(R.epochs)
     error('epochMatrixRaster:NoEpochs', ['The result keeps no epochs: compute it with keepEpochs=true ' ...
-        '(the dataset browser''s "Keep each epoch (R.epochs)", Measure tab).']);
+        '(the dataset browser''s "Keep single trials, not just averages (R.epochs)", Measure tab).']);
 end
 nRows = height(R.rows);
 if row < 1 || row > nRows || row ~= round(row)

@@ -11,7 +11,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
     %   result again in place (still current, nothing assembled, the same as
     %   a compute), and its controls are on only where they apply; the
     %   result file restores without a
-    %   compute, and Scan=false; Keep each epoch (its own cached parts,
+    %   compute, and Scan=false; Keep single trials (its own cached parts,
     %   R.epochs left out of the result file and assembled again from the
     %   parts on a restore, a warning without them); the trial rasters
     %   (raster: every row's spikes on their epochs, in group or time order,
@@ -675,11 +675,9 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
         function trialRasters(tc)
             S = epochMatrixSettings(tc.Spike, measure="count", keepEpochs=true);
             B = tc.open(Settings=S);
-            tc.verifyTrue(B.Ctl.Rasters.Enable == "off", 'No result: Trial rasters is off.');
             tc.verifyError(@() B.showRasters(), 'DatasetBrowser:NoResult');
             tc.verifyError(@() B.raster(1), 'DatasetBrowser:NoResult');
             R = B.compute();
-            tc.verifyTrue(B.Ctl.Rasters.Enable == "on");
             % every row's raster: the spikes of its epochs, in group order; the counts average to R.data (measure count)
             for row = 1:height(R.rows)
                 X = B.raster(row);

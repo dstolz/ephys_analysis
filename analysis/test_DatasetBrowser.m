@@ -840,6 +840,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             % a result without epochs is refused
             B.Settings = epochMatrixSettings(B.Settings, keepEpochs=false);
             tc.verifyError(@() epochMatrixFieldTrip(B.compute()), 'epochMatrixFieldTrip:NoEpochs');
+            % spikes: spike structures, each spike on the session at its timestamp
             B.Settings = epochMatrixSettings(B.Settings, data="units", keepEpochs=true);
             tc.verifyError(@() epochMatrixFieldTrip(B.compute()), 'epochMatrixFieldTrip:NotSignal');
         end

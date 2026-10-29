@@ -165,6 +165,24 @@ check(~isfield(dc0, 'sampleinfo') && ~isfield(dc0, 'trialinfo'), 'epochs: no ons
 [T, keep] = FieldTripExport.trl([0.1; NaN; 0.0005; 0.998], [-0.002 0.005], Fs, Info=[1 1; 2 2; 1 3; 2 4], NSamples=N);
 check(isequal(T, [99 106 -2 1 1]) && isequal(keep, [true; false; false; false]), ...
     'trl: [begsample endsample offset info], the same samples as epochs; NaN and off-signal trials dropped');
+st = FieldTripExport.spikeTimes({[0.01; 0.02; 1], 0.03}, 30000, Label=["u1" "u2"], DurationSec=2);
+check(isequal(st.timestamp{1}, [300 600 30000]) && isequal(st.timestamp{2}, 900) ...
+    && isequal(st.label, {'u1', 'u2'}) && st.hdr.Fs == 30000 && st.hdr.nSamples == 60001, ...
+    'spikeTimes: t s -> 0-based samples, as spike() gives the sorted samples');
+st0 = FieldTripExport.spikeTimes({[], 1}, 1000);
+check(isequal(st0.label, {'unit1', 'unit2'}) && isempty(st0.timestamp{1}), 'spikeTimes: default labels, a silent unit');
+sk = FieldTripExport.spikeTrials({[-0.1 0.2 0.05], 0.3}, {[1 1 3], 2}, [-0.5 1], ...
+    Onsets=[10; 20; 30], Fs=1000, TrialInfo=[1 4; 2 5; 1 6], Label=["u1" "u2"]);
+check(isequal(sk.time{1}, [-0.1 0.2 0.05]) && isequal(sk.trial{1}, [1 1 3]) && isequal(sk.trialtime, repmat([-0.5 1], 3, 1)) ...
+    && isequal(sk.trialinfo, [1 4; 2 5; 1 6]), 'spikeTrials: time, trial, trialtime and trialinfo as given');
+check(isequal(sk.timestamp{1}, [9900 10200 30050]) && isequal(sk.timestamp{2}, 20300) && sk.hdr.Fs == 1000, ...
+    'spikeTrials: timestamp = the spike''s sample on the recording, (onset + t)*Fs');
+sk0 = FieldTripExport.spikeTrials({0.25}, {2}, [0 1]);
+check(height(sk0.trialtime) == 2 && sk0.timestamp{1} == 250000 && sk0.hdr.Fs == 1e6, ...
+    'spikeTrials: without onsets, trials up to the last one a spike is in, microsecond timestamps');
+errId = '';
+try FieldTripExport.spikeTrials({0.1}, {4}, [0 1], NTrials=3); catch e, errId = e.identifier; end
+check(strcmp(errId, 'FieldTripExport:BadSpikeTrials'), 'spikeTrials: a spike outside the trials errors');
 
 fprintf('\n== 7. validation ==\n');
 hasFT = FieldTripExport.hasFieldTrip();
@@ -173,6 +191,8 @@ if hasFT
     check(ok && msg == "", 'ft_datatype_raw accepts the raw structure');
     [ok2, msg2] = FieldTripExport.validate(sp, "spike");
     check(ok2 && msg2 == "", 'ft_datatype_spike accepts the spike structure');
+    [ok3, msg3] = FieldTripExport.validate(sk, "spike");
+    check(ok3 && msg3 == "", 'ft_datatype_spike accepts the spike trials');
 else
     check(ok && contains(msg, "not on the path"), 'validate is a no-op without FieldTrip');
     fprintf('  (FieldTrip not on the path; datatype checks skipped)\n');

@@ -28,7 +28,9 @@ classdef FieldTripExport
     %   - spike: timestamp{u} are 0-based recording samples (Kilosort's
     %     spike_times), hdr.Fs the sorter's rate, FirstTimeStamp = 0,
     %     TimeStampPerSample = 1. No trial fields: cut trials in FieldTrip
-    %     with ft_spike_maketrials.
+    %     with ft_spike_maketrials. spikeTimes builds the same from spike
+    %     times in s; spikeTrials from spikes already cut into trials (time,
+    %     trial, trialtime, as ft_spike_maketrials leaves them).
     %   - event: one element per digital-input pulse, value = 1. Pulse times
     %     are t = row/origFs on the recording's clock, so row r is at
     %     continuous time (r-1)/origFs, and at a signal's rate Fs sample =
@@ -262,6 +264,123 @@ classdef FieldTripExport
             spike.cfg = struct('previous', [], 'exporter', "FieldTripExport.spikeFromDetected");
         end
 
+        function spike = spikeTimes(times, Fs, opts)
+            %spikeTimes  FieldTrip spike structure of spike trains given as times.
+            %   spike = FieldTripExport.spikeTimes(TIMES, Fs) with TIMES a
+            %   cell of spike times, s on the continuous clock (sample k at
+            %   (k-1)/Fs), one per unit: timestamp{u} = round(t*Fs), 0-based
+            %   samples at Fs, as spike() gives them. Cut trials with
+            %   ft_spike_maketrials (cfg.trl in these timestamps,
+            %   cfg.timestampspersecond = Fs).
+            %   Options:
+            %     Label       one name per unit (default unit1..unitN)
+            %     DurationSec the recording's length: hdr.nSamples
+            %     Cfg         fields added to spike.cfg
+            arguments
+                times cell
+                Fs (1,1) double {mustBePositive}
+                opts.Label string = string.empty
+                opts.DurationSec (1,1) double = NaN
+                opts.Cfg (1,1) struct = struct()
+            end
+            nU = numel(times);
+            labels = FieldTripExport.unitLabels(opts.Label, nU);
+            ts = cell(1, nU);
+            for u = 1:nU
+                ts{u} = round(double(times{u}(:)).' * Fs);
+            end
+            spike = struct();
+            spike.label     = labels;
+            spike.timestamp = ts;
+            spike.timestampdimord = '{chan}_spike';
+            spike.hdr = FieldTripExport.spikeHeader(labels, Fs, round(opts.DurationSec * Fs) + 1);
+            spike.cfg = FieldTripExport.cfgWith(struct('previous', [], 'exporter', "FieldTripExport.spikeTimes", ...
+                'timestampConvention', "0-based sample at hdr.Fs: t = timestamp/Fs"), opts.Cfg);
+        end
+
+        function spike = spikeTrials(times, trial, window, opts)
+            %spikeTrials  FieldTrip spike structure of spikes already cut into trials.
+            %   spike = FieldTripExport.spikeTrials(TIMES, TRIAL, [pre post])
+            %   with TIMES{u} each unit's spike times, s from its trial's
+            %   event, and TRIAL{u} each spike's trial (1..nTrials): the
+            %   shape ft_spike_maketrials gives, time{u}, trial{u} and
+            %   trialtime = [pre post] for every trial.
+            %   Options:
+            %     NTrials    the number of trials (default: Onsets', else the
+            %                largest trial a spike is in)
+            %     Onsets     nTrials event times, s on the continuous clock:
+            %                with Fs, timestamp{u} = round((onset + t)*Fs),
+            %                the spikes' 0-based samples at Fs, as spike()
+            %     Fs         the recording rate, for the timestamps and hdr
+            %     TrialInfo  nTrials rows: spike.trialinfo
+            %     Label, Cfg as in spikeTimes
+            %   FieldTrip requires timestamp: without Onsets and Fs it is
+            %   round(t*1e6), microseconds from each trial's event (hdr.Fs =
+            %   1e6), which places no spike on the recording.
+            arguments
+                times cell
+                trial cell
+                window (1,2) double
+                opts.NTrials double = []
+                opts.Onsets (:,1) double = []
+                opts.Fs (1,1) double = NaN
+                opts.TrialInfo = []
+                opts.Label string = string.empty
+                opts.Cfg (1,1) struct = struct()
+            end
+            nU = numel(times);
+            if numel(trial) ~= nU
+                error('FieldTripExport:BadSpikeTrials', '%d units of times but %d of trial.', nU, numel(trial));
+            end
+            if window(1) > window(2)
+                error('FieldTripExport:BadWindow', 'The window needs pre <= post (got [%g %g]).', window(1), window(2));
+            end
+            nT = opts.NTrials;
+            if isempty(nT); nT = numel(opts.Onsets); end
+            if nT == 0; nT = max([0, cellfun(@(x) max([0; x(:)]), trial)]); end
+            if ~isempty(opts.Onsets) && numel(opts.Onsets) ~= nT
+                error('FieldTripExport:BadSpikeTrials', '%d trials but %d onsets.', nT, numel(opts.Onsets));
+            end
+            stamped = ~isempty(opts.Onsets) && isfinite(opts.Fs);
+            Fs = 1e6; if stamped; Fs = opts.Fs; end
+            labels = FieldTripExport.unitLabels(opts.Label, nU);
+            spike = struct();
+            spike.label = labels;
+            spike.time = cell(1, nU);
+            spike.trial = cell(1, nU);
+            spike.timestamp = cell(1, nU);
+            for u = 1:nU
+                t = double(times{u}(:)).';
+                k = double(trial{u}(:)).';
+                if numel(k) ~= numel(t)
+                    error('FieldTripExport:BadSpikeTrials', 'Unit %d: %d times but %d trials.', u, numel(t), numel(k));
+                end
+                if any(k < 1 | k > nT | k ~= round(k))
+                    error('FieldTripExport:BadSpikeTrials', 'Unit %d has spikes outside trials 1..%d.', u, nT);
+                end
+                spike.time{u} = t;
+                spike.trial{u} = k;
+                if stamped
+                    spike.timestamp{u} = round((opts.Onsets(k).' + t) * Fs);
+                else
+                    spike.timestamp{u} = round(t * Fs);
+                end
+            end
+            spike.timestampdimord = '{chan}_spike';
+            spike.trialtime = repmat(window, nT, 1);
+            if ~isempty(opts.TrialInfo)
+                if size(opts.TrialInfo, 1) ~= nT
+                    error('FieldTripExport:BadSpikeTrials', '%d trials but %d TrialInfo rows.', nT, size(opts.TrialInfo, 1));
+                end
+                spike.trialinfo = opts.TrialInfo;
+            end
+            spike.hdr = FieldTripExport.spikeHeader(labels, Fs, NaN);
+            convention = "0-based sample at hdr.Fs: t = timestamp/Fs";
+            if ~stamped; convention = "microseconds from each trial's event"; end
+            spike.cfg = FieldTripExport.cfgWith(struct('previous', [], 'exporter', "FieldTripExport.spikeTrials", ...
+                'timeConvention', "time{u} = s from the trial's event", 'timestampConvention', convention), opts.Cfg);
+        end
+
         function ev = event(events, Fs, opts)
             %event  FieldTrip event struct array from dig-in [t_on t_off] intervals.
             %   ev = FieldTripExport.event(events, Fs, EventFs=origFs): one
@@ -357,6 +476,25 @@ classdef FieldTripExport
                 error('FieldTripExport:BadLabels', '%d labels for %d channels.', numel(label), nCh);
             end
             label = cellstr(label(:));
+        end
+
+        function label = unitLabels(label, nU)
+            %unitLabels  1 x nU cellstr of the names given, else unit1..unitN (spike.label).
+            if isempty(label)
+                label = "unit" + string(1:nU);
+            elseif numel(label) ~= nU
+                error('FieldTripExport:BadLabels', '%d labels for %d units.', numel(label), nU);
+            end
+            label = cellstr(label(:).');
+        end
+
+        function hdr = spikeHeader(label, Fs, nSamples)
+            %spikeHeader  The hdr of a spike structure: timestamps are 0-based samples at Fs.
+            nU = numel(label);
+            hdr = struct('Fs', Fs, 'FirstTimeStamp', 0, 'TimeStampPerSample', 1, ...
+                'nSamples', nSamples, 'nSamplesPre', 0, 'nTrials', 1, ...
+                'label', {label(:)}, 'chantype', {repmat({'spike'}, nU, 1)}, ...
+                'chanunit', {repmat({'unknown'}, nU, 1)});
         end
 
         function hdr = header(label, Fs, nSamples, nSamplesPre, nTrials, chanType, chanUnit)

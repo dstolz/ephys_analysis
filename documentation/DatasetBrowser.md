@@ -402,14 +402,19 @@ it keeps the `su` units (or every channel of a signal), sorts them by session
 and the groups by label, and leaves `R`, `units_`, `data_`, `groupLabels_`,
 `groupTexts_`, `cmap`, `nS`, `nU`, `nB`, `nG` and a summary of `R` in the
 workspace. It also holds
-[`S_DatasetBrowserLFPToFieldTrip.m`](../analysis/scripts/S_DatasetBrowserLFPToFieldTrip.m),
-which turns a signal into FieldTrip raw structures (`ft_datatype_raw`), one
-per dataset: `ftEpochs` from `R.epochs` (`epochMatrixFieldTrip`: a trial per
-epoch, `trialinfo` = `[resultGroup trial]`) and `ftSessions` from
-`B.Sessions` (`sessionDataFieldTrip`: the whole signal, with its events, a
-`trl` for `ft_redefinetrial` and the erased periods as an artifact matrix);
+[`S_DatasetBrowserToFieldTrip.m`](../analysis/browser_scripts/S_DatasetBrowserToFieldTrip.m),
+which turns a signal into FieldTrip raw structures (`ft_datatype_raw`) and
+spikes into spike structures (`ft_datatype_spike`), one per dataset:
+`ftEpochs` from `R.epochs` (`epochMatrixFieldTrip`: a trial per epoch,
+`trialinfo` = `[resultGroup trial]`; spikes cut as `ft_spike_maketrials`
+leaves them, on the recording's timestamps) and `ftSessions` from
+`B.Sessions` (`sessionDataFieldTrip`: the whole signal or every spike, with
+its events, a `trl` for `ft_redefinetrial` / `ft_spike_maketrials` and the
+erased periods), then draws the evoked responses at the probe sites
+(`ft_multiplotER`) or a unit's raster and PSTH per group
+(`ft_spike_plot_raster`, `ft_spike_psth`);
 see [FieldTripExport](FieldTripExport.md#from-the-analysis-results).
-[`S_DatasetBrowserToChronux.m`](../analysis/scripts/S_DatasetBrowserToChronux.m)
+[`S_DatasetBrowserToChronux.m`](../analysis/browser_scripts/S_DatasetBrowserToChronux.m)
 does the same for Chronux, and
 [`S_DatasetBrowserToNeuroGLM.m`](../analysis/scripts/S_DatasetBrowserToNeuroGLM.m)
 hands the whole sessions' spike trains to the neuroGLM toolbox

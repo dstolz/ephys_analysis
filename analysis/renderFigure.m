@@ -252,7 +252,7 @@ if opts.InPlaceOnly; opts.Reuse = true; end
 if isfield(F, 'nSessions') && isfield(spec, 'sessions')
     spec = figureSessionSpec(spec);   % merged across sessions: drawn as computed (e.g. "combine" draws a PSTH's bars as lines)
 end
-[design, follows] = designFor(opts.Design, opts.UserAesthetics);
+[design, follows] = figureDesignFor(opts.Design, opts.UserAesthetics);
 s = spec.style;
 s.Design = design;
 style = renderStyle(s);
@@ -288,7 +288,7 @@ for k = 1:np
     colorsOf{k} = colors;
     if own(k); colorsOf{k} = groupPalette(P.groups, style); end
 end
-cells = panelCells(spec.grid, panels);
+cells = figurePanelCells(spec.grid, panels);
 kept = false(1, np);   % the panels whose drawing is kept from the last one (Reuse)
 prior = [];
 if opts.Reuse
@@ -357,7 +357,7 @@ for k = 1:nDraw
     else
         ax = ax0;
     end
-    look = lookFor(F, spec, p, P, style, colorsOf{k}, isTime(k));
+    look = figureLookFor(F, spec, p, P, style, colorsOf{k}, isTime(k));
     look.batchYLim = batchFor(opts.BatchYLim, p.id);
     if isfield(reg, p.type)
         hk = reg.(p.type).draw(ax, P, look);
@@ -390,7 +390,7 @@ for k = 1:nDraw
         hk.legendGroup = false(1, 0);
     end
     axs(k) = ax;
-    yExt(k, :) = extentOf(hk, ax, p);
+    yExt(k, :) = figureExtentOf(hk, ax, p);
     if isfield(hk, 'extraAxes'); extra{k} = hk.extraAxes(isgraphics(hk.extraAxes)); end
     labs{k} = panelAxes([ax reshape(extra{k}, 1, [])], p);   % its own axis sides and labels, over what its type drew
     hks{k} = hk;
@@ -439,7 +439,7 @@ for k = 1:np; sided(k) = isempty(ax0) && (sideNote(panels(k)) || any(cells(k).si
 hidden = figureTimeStack(axs, panels, isTime, labelSize, sided);
 
 % title: the figure's, or what it shows; the top-left panel names the observation under a title of the figure's own
-[txt, named] = figureTitle(F, spec);
+[txt, named] = figureAutoTitle(F, spec);
 obs = F.observation;
 if spec.title ~= "" && named && any(drawn)
     on = find(drawn);
@@ -471,10 +471,10 @@ end
 % one legend: the groups once, then the layers', units', channels' and marks' entries
 lgd = [];
 if style.Legend && any(drawn)
-    [lh, ll] = legendEntries(hks, types, G);
+    [lh, ll] = figureLegendEntries(hks, types, G);
     if ~isempty(lh)
         ls = style;
-        side = legendSide(style);
+        side = figureLegendSide(style);
         if ~isempty(canvas) && side ~= ""   % in the band beside the panels figureLayout gives it
             ls.LegendLocation = "none";
             if string(ls.LegendOrientation) == "auto" && ismember(side, ["north" "south"]); ls.LegendOrientation = "horizontal"; end
@@ -490,7 +490,7 @@ specRules = PlotAesthetics.normalizeRules(spec.aesthetics);
 PlotAesthetics.apply(root, design.rules);
 kRules = cell(1, np);
 for k = find(drawn)
-    r = kindRules(design, types(k));
+    r = figureKindRules(design, types(k));
     if opts.UserAesthetics && isvarname(types(k)); r = [r PlotAesthetics.userRules(types(k))]; end %#ok<AGROW>
     if types(k) == "raster" && isfield(panels(k).options, 'tickWidth') && panels(k).options.tickWidth > 0
         % the panel's tick width wins over the design's and the user's kind rules (the figure's own rules still win)
@@ -504,7 +504,7 @@ for k = find(drawn)
     kRules{k} = r;
 end
 PlotDesign.paint(root, design);
-r = kindRules(design, "figure");
+r = figureKindRules(design, "figure");
 if opts.UserAesthetics; r = [r PlotAesthetics.userRules("figure")]; end
 % a panel's note and overlays: their own looks after the design's and the user's, before the figure's own
 ownRules = cell(1, np);
@@ -545,7 +545,7 @@ if isempty(canvas)   % one axes: its note goes where it belongs once its looks a
 else   % the layout, once everything is drawn and dressed: every axes, band, the legend and the title, then the notes
     figureLayout(canvas, layoutOf(spec, panels, cells, axs, extra, notes, bands, th, lgd, style, opts.Scale));
 end
-if editable(opts.Editable, target)
+if figureEditable(opts.Editable, target)
     PlotAesthetics.enableEditing(target, editContext(F, spec, target, opts, root, design, follows, txt));
 end
 
@@ -556,7 +556,7 @@ if ~isempty(opts.OnSelect)
 end
 
 h = figureHandles(canvas, spec, axs, extra, notes, ovls, yExt, txt);
-if editable(opts.DataTips, target)   % after the right-click menus: it adds its item to them
+if figureEditable(opts.DataTips, target)   % after the right-click menus: it adds its item to them
     hT = h;
     for k = find(kept)   % a kept panel's parts have theirs
         hT.panels(k).axes = gobjects(0);
@@ -776,7 +776,7 @@ end
 txt = D.txt;
 if spec.title ~= D.spec.title   % the figure's own before and after (the global key says whether it has one)
     if isempty(D.title) || ~isgraphics(D.title); return; end
-    txt = figureTitle(F, spec);
+    txt = figureAutoTitle(F, spec);
     sets(end+1, :) = {D.title.Title, txt, ""};
 end
 for i = 1:size(sets, 1)
@@ -795,7 +795,7 @@ if ~isempty(sets)
     figureLayout(target);   % as it was laid out (the same axes, bands, legend and title)
 end
 h = figureHandles(target, spec, D.axes, D.extra, D.notes, D.ovls, D.yExt, txt);
-if any(tips) && editable(opts.DataTips, target)
+if any(tips) && figureEditable(opts.DataTips, target)
     hT = h;
     for k = find(~tips)   % the others' tips name what they named
         hT.panels(k).axes = gobjects(0);
@@ -803,7 +803,7 @@ if any(tips) && editable(opts.DataTips, target)
     end
     FigureDataTips.attach(F, spec, hT);
 end
-if editable(opts.Editable, target) && isappdata(target, PlotAesthetics.ContextKey)
+if figureEditable(opts.Editable, target) && isappdata(target, PlotAesthetics.ContextKey)
     setappdata(target, PlotAesthetics.ContextKey, editContext(F, spec, target, opts, target, design, follows, txt));
 end
 D.spec = spec;
@@ -903,21 +903,6 @@ h = struct('layout', canvas, 'axes', axs(drawn), 'panels', hp, 'title', txt);
 end
 
 
-function [txt, named] = figureTitle(F, spec)
-%figureTitle  The figure's title: SPEC.title, else what it shows (autoTitle); an observation of one trial group adds its group. NAMED: it observes something with a label (not the dataset).
-txt = spec.title;
-obs = F.observation;
-named = isstruct(obs) && isfield(obs, 'kind') && obs.kind ~= "dataset" && isfield(obs, 'label') && string(obs.label) ~= "";
-grpTxt = "";   % one figure per trial group: the group drawn
-if isstruct(obs) && isfield(obs, 'groupLabel'); grpTxt = string(obs.groupLabel); end
-if txt == ""
-    txt = autoTitle(F, spec, named, grpTxt);
-elseif grpTxt ~= ""
-    txt = txt + " · " + grpTxt;
-end
-end
-
-
 function lim = batchFor(B, id)
 %batchFor  The run's shared y range for panel ID (BatchYLim: id, lim), [] when it has none.
 lim = [];
@@ -974,14 +959,14 @@ catch
 end
 K = struct();
 K.global = struct('F', Fg, 'spec', Sg, 'place', place, 'style', style, 'design', design, 'rules', rules, ...
-    'batch', {opts.BatchYLim}, 'editable', editable(opts.Editable, target), 'tips', editable(opts.DataTips, target), 'size', sz, ...
+    'batch', {opts.BatchYLim}, 'editable', figureEditable(opts.Editable, target), 'tips', figureEditable(opts.DataTips, target), 'size', sz, ...
     'scale', opts.Scale);
 K.panels = cell(1, np);
 K.ownTime = false(1, np);
 for k = 1:np
     K.panels{k} = struct('P', F.panels(k), 'p', P(k), 'colors', colorsOf{k}, 'isTime', isTime(k), ...
         'batch', {batchFor(opts.BatchYLim, P(k).id)});
-    K.ownTime(k) = isTime(k) && ~(P(k).sharesTime && ~isempty(fixedWindow(P(k).window)));
+    K.ownTime(k) = isTime(k) && ~(P(k).sharesTime && ~isempty(figureFixedWindow(P(k).window)));
 end
 end
 
@@ -1031,28 +1016,6 @@ delete(gone);
 end
 
 
-function W = fixedWindow(w)
-%fixedWindow  [pre post] of a fixed epoch window W, [] for any other (between events, or none).
-W = [];
-if isstruct(w) && all(isfield(w, {'pre' 'post'})) && (~isfield(w, 'mode') || w.mode == "fixed")
-    W = double([w.pre w.post]);
-    if ~(numel(W) == 2 && all(isfinite(W)) && W(2) > W(1)); W = []; end
-end
-end
-
-
-function e = extentOf(hk, ax, p)
-%extentOf  A panel's y extent as drawn (yLimMode panels only): the draw function's yExtent, else its axes' y limits.
-e = [NaN NaN];
-if ~isfield(p.options, 'yLimMode'); return; end
-if isfield(hk, 'yExtent') && numel(hk.yExtent) == 2 && all(isfinite(hk.yExtent))
-    e = double(reshape(hk.yExtent, 1, 2));
-elseif isgraphics(ax) && isscalar(ax.YAxis)
-    e = double(ylim(ax));
-end
-end
-
-
 function tf = besideNote(p)
 %besideNote  The panel has a note placed beside its axes (below, above, left or right): it takes a band of its area.
 tf = strtrim(string(p.note.text)) ~= "" && ismember(string(p.note.placement), ["below" "above" "left" "right"]);
@@ -1062,24 +1025,6 @@ end
 function tf = sideNote(p)
 %sideNote  The panel's note takes a band left or right of its axes: they are narrower than a plain panel's in the column.
 tf = besideNote(p) && ismember(string(p.note.placement), ["left" "right"]);
-end
-
-
-function C = panelCells(grid, panels)
-%panelCells  Each panel's rows and columns (clipped to the grid), its size in its cell and its alignment there.
-nr = max(1, round(double(grid.rows)));
-nc = max(1, round(double(grid.cols)));
-C = struct('r1', {}, 'r2', {}, 'c1', {}, 'c2', {}, 'size', {}, 'align', {}, 'valign', {});
-for k = 1:numel(panels)
-    p = panels(k);
-    r = min(max(1, round(p.row)), nr);
-    c = min(max(1, round(p.col)), nc);
-    s = double(p.size);
-    if ~(numel(s) == 2 && all(isfinite(s) & s > 0)); s = [1 1]; end
-    C(k) = struct('r1', r, 'r2', min(nr, r + max(1, round(p.rowSpan)) - 1), 'c1', c, ...
-        'c2', min(nc, c + max(1, round(p.colSpan)) - 1), 'size', min(reshape(s, 1, 2), 1), ...
-        'align', string(p.align), 'valign', string(p.valign));
-end
 end
 
 
@@ -1142,16 +1087,8 @@ for k = 1:numel(panels)
     P(k) = struct('axes', A, 'shares', [2 ones(1, numel(A) - 1)], 'r1', c.r1, 'r2', c.r2, 'c1', c.c1, 'c2', c.c2, ...
         'size', c.size, 'align', c.align, 'valign', c.valign, 'note', panels(k).note, 'text', t, 'band', bands{k});
 end
-S = struct('grid', spec.grid, 'panels', P, 'title', th, 'legend', lgd, 'side', legendSide(style), 'margin', 6, ...
+S = struct('grid', spec.grid, 'panels', P, 'title', th, 'legend', lgd, 'side', figureLegendSide(style), 'margin', 6, ...
     'scale', scale);
-end
-
-
-function side = legendSide(style)
-%legendSide  The side of the panels the figure's legend takes a band on: "north", "south", "east" (auto) or "west"; "" in a panel (inside).
-side = string(style.LegendLocation);
-if side == "auto"; side = "east"; end
-if ~ismember(side, ["north" "south" "east" "west"]); side = ""; end
 end
 
 
@@ -1159,56 +1096,6 @@ function tf = overEpochs(p)
 %overEpochs  A coherence panel drawn over time from the event (a coherogram on the aligned time base): a time panel.
 o = p.options;
 tf = p.type == "coherence" && isfield(o, 'overTime') && o.overTime && isfield(o, 'timeBase') && o.timeBase == "aligned";
-end
-
-
-function look = lookFor(F, spec, p, P, style, colors, isTime)
-%lookFor  What a panel's draw function is given besides its result (figurePanelRegistry's LOOK).
-W = fixedWindow(p.window);
-look = struct('style', style, 'colors', colors, 'W', W, 'spec', spec, 'panel', p, 'panelId', p.id, ...
-    'isTop', p.row == 1, 'isBottom', p.row + p.rowSpan - 1 >= spec.grid.rows, 'epochs', [], 'groups', [], ...
-    'observation', F.observation, 'isTime', isTime);
-look.epochs = P.epochs;
-if ~istable(look.epochs); look.epochs = F.epochs; end
-look.groups = P.groups;
-if ~istable(look.groups); look.groups = F.groups; end
-end
-
-
-function [lh, ll] = legendEntries(hks, types, G)
-%legendEntries  The figure's legend: each group once (from the panel that draws the groups best), then the rest, each label once.
-lh = gobjects(1, 0);
-ll = strings(1, 0);
-withGroups = false(1, numel(hks));
-for k = 1:numel(hks)
-    withGroups(k) = ~isempty(hks{k}) && any(hks{k}.legendGroup);
-end
-src = 0;
-if istable(G) && height(G) > 1
-    for t = ["psth" "continuous" "raster"]
-        src = find(withGroups & types == t, 1);
-        if ~isempty(src); break; end
-    end
-    if isempty(src); src = find(withGroups, 1); end
-    if isempty(src); src = 0; end
-end
-if src > 0
-    hk = hks{src};
-    for i = find(hk.legendGroup)
-        if any(ll == hk.legendLabels(i)); continue; end
-        lh(end+1) = hk.legendHandles(i); %#ok<AGROW>
-        ll(end+1) = hk.legendLabels(i); %#ok<AGROW>
-    end
-end
-for k = 1:numel(hks)
-    hk = hks{k};
-    if isempty(hk); continue; end
-    for i = find(~hk.legendGroup)
-        if any(ll == hk.legendLabels(i)) || ~isgraphics(hk.legendHandles(i)); continue; end
-        lh(end+1) = hk.legendHandles(i); %#ok<AGROW>
-        ll(end+1) = hk.legendLabels(i); %#ok<AGROW>
-    end
-end
 end
 
 
@@ -1232,16 +1119,6 @@ end
 end
 
 
-function R = kindRules(D, kind)
-%kindRules  A design's own rules for one kind of plot (its common rules apart).
-R = PlotAesthetics.emptyRules();
-kind = string(kind);
-if isvarname(kind) && isfield(D, 'kinds') && isstruct(D.kinds) && isfield(D.kinds, kind) && ~isempty(D.kinds.(kind))
-    R = PlotAesthetics.normalizeRules(D.kinds.(kind));
-end
-end
-
-
 function t = groupingTitle(t, p, spec)
 %groupingTitle  A panel title that says how the panel's own selection groups its trials, when not as the figure does.
 gb = strings(1, 0);
@@ -1256,38 +1133,6 @@ if t == ""
 else
     t = t + " (" + what + ")";
 end
-end
-
-
-function t = autoTitle(F, spec, named, grpTxt)
-%autoTitle  "<id>: <observation> — <event> (<n> epochs)" (a trial group's observation names its group).
-t = spec.id;
-if t == ""; t = "Figure"; end
-if named
-    t = t + ": " + string(F.observation.label);
-elseif grpTxt ~= ""
-    t = t + ": " + grpTxt;
-end
-if istable(F.epochs) && isstruct(spec.ref)
-    ev = eventRefLabel(spec.ref);
-    w = spec.window;
-    if isstruct(w) && isfield(w, 'mode') && w.mode == "between" && isfield(w, 'stop') && ~isempty(w.stop)
-        ev = ev + " to " + eventRefLabel(w.stop);
-    end
-    if isfield(F, 'nSessions')   % merged across sessions (figureSessionCompute)
-        t = t + " — " + ev + sprintf(" (%d session%s, %d epochs)", F.nSessions, plural(F.nSessions), height(F.epochs));
-    else
-        t = t + " — " + ev + sprintf(" (%d epochs)", height(F.epochs));
-    end
-elseif isfield(F, 'nSessions')
-    t = t + sprintf(" (%d session%s)", F.nSessions, plural(F.nSessions));
-end
-end
-
-
-function s = plural(n)
-s = "";
-if n ~= 1; s = "s"; end
 end
 
 
@@ -1323,34 +1168,4 @@ for i = reshape(find(u(:, 1) > 0), 1, [])
     parts(end+1) = sprintf("%d of %d (%s)", u(i, 1), u(i, 2), strjoin(reshape(names(j == i), 1, []), ", ")); %#ok<AGROW>
 end
 t = "Epochs that touch an artifact period: " + strjoin(parts, "; ");
-end
-
-
-function [D, follows] = designFor(design, userAesthetics)
-%designFor  The design to draw in, and whether it is the user's choice (a new choice redraws it).
-follows = false;
-if isstruct(design)
-    D = design;
-elseif string(design) ~= ""
-    D = PlotDesign.load(string(design));
-elseif userAesthetics
-    D = PlotDesign.current();
-    follows = true;
-else
-    D = PlotDesign.none();
-end
-end
-
-
-function tf = editable(mode, target)
-%editable  Whether the right-click aesthetics editor goes on: "auto" = in a visible figure.
-if isstring(mode) || ischar(mode)
-    if string(mode) ~= "auto"
-        error('renderFigure:BadEditable', 'Editable is "auto", true or false.');
-    end
-    fig = ancestor(target, 'figure');
-    tf = ~isempty(fig) && strcmp(fig.Visible, 'on');
-else
-    tf = logical(mode);
-end
 end

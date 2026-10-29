@@ -41,6 +41,7 @@ matrix over the units of many datasets, ticked in a window or from a script, see
 | [FieldTripExport](FieldTripExport.md) | FieldTrip raw / spike / event structures and `exportFieldTrip` |
 | [NeuroGLMExport](NeuroGLMExport.md) | connector that hands the browser's whole sessions to the neuroGLM toolbox (Park et al. 2014) and fits its Poisson GLM |
 | [mTRFExport](mTRFExport.md) | stimulus / response pairs for the mTRF-Toolbox (Crosse et al. 2016: temporal response functions, decoders): `mTRFExport`, `epochMatrixMTRF`, `sessionDataMTRF` |
+| [CSDEstimate](CSDEstimate.md) | current source density of the browser's laminar potentials with the iCSD toolbox (`icsdEstimate`: Pettersen et al. 2006) or kCSD-python (`kcsdEstimate`: Potworowski et al. 2012): `laminarColumns`, `epochMatrixCSD`, `sessionDataCSD` |
 | [Platforms](platforms.md) | what runs on Windows, macOS and Linux; `platformSupport`, `openInSystem` |
 | [Analysis](EphysAnalysis.md) | the `analysis` folder: event references, epochs, trial selection and grouping, PSTH / evoked / rate / tuning computations, response statistics, population analysis, figures merged across sessions and their data export, renderers, export, HTML / PDF reports, `EphysAnalysisRunner`, `EphysAnalysisScript` |
 | [EphysAnalysisConfig](EphysAnalysisConfig.md) | the analysis config (JSON `ephys-analysis-config`): every field, panel types, version 1 migration, validation, tokens |
@@ -420,7 +421,10 @@ an optional separate `phy` environment. Needed only for
 the sorting step and the probe designer. Sorting with a SpikeInterface sorter
 (`Sorting.Sorter`) needs `spikeinterface[full]` in that environment. The NWB
 export needs a Python with pynwb and nwbinspector (the same environment or
-another). See
+another), and the kCSD connector (`kcsdEstimate`,
+[CSDEstimate](CSDEstimate.md)) one with numpy, scipy and
+[kcsd](https://github.com/Neuroinflab/kCSD-python), found through
+`KCSD_PYTHON`, `pyenv`, a miniconda3 base install or the PATH. See
 [INSTALL.md](../pipeline/INSTALL.md) for known-good versions.
 
 **Optional MATLAB toolboxes**: [Chronux](http://chronux.org) (bundled in
@@ -444,6 +448,12 @@ own `matRegress` (`glms.neglog.poisson` + `fminunc`, a ridge prior) or with
 MATLAB's `glmfit`; `NeuroGLMExport.hasNeuroGLM` / `hasMatRegress` report
 whether they are on the path, and `test_NeuroGLMExport` is skipped without
 neuroGLM (its matRegress tests without matRegress or `fminunc`).
+The [iCSD toolbox](https://github.com/dstolz/iCSD) (not bundled; add its
+folder with `methods/` to the path) is called only by `icsdEstimate`, the
+DatasetBrowser's post-processing script
+[`S_DatasetBrowserToICSD.m`](../analysis/browser_scripts/S_DatasetBrowserToICSD.m)
+and `test_CSDEstimate` (skipped without it); see
+[CSDEstimate](CSDEstimate.md).
 The [mTRF-Toolbox](https://github.com/mickcrosse/mTRF-Toolbox) (not bundled;
 add its `mtrf` folder to the path) is called only by the DatasetBrowser's
 post-processing script

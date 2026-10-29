@@ -842,7 +842,77 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyError(@() epochMatrixFieldTrip(B.compute()), 'epochMatrixFieldTrip:NoEpochs');
             % spikes: spike structures, each spike on the session at its timestamp
             B.Settings = epochMatrixSettings(B.Settings, data="units", keepEpochs=true);
-            tc.verifyError(@() epochMatrixFieldTrip(B.compute()), 'epochMatrixFieldTrip:NotSignal');
+            R = B.compute();
+            fs = arrayfun(@(e) B.source(e.key).fs, R.epochs);
+            F = epochMatrixFieldTrip(R, Fs=fs);
+            e = R.epochs(1);
+            f = F{1};
+            tc.verifyEqual(f.label, cellstr(R.rows.label(e.rows)).');
+            tc.verifyEqual(f.time{1}, e.spikes(1).times(:).');
+            tc.verifyEqual(f.trial{1}, double(e.spikes(1).epoch(:)).');
+            tc.verifyEqual(height(f.trialtime), height(e.E));
+            tc.verifyEqual(f.trialinfo, [e.E.resultGroup e.E.trial]);
+            D = B.loadSessions();
+            G = sessionDataFieldTrip(D, Window=[win.pre win.post]);
+            k = find([D.key] == e.key);
+            g = G{k};
+            tc.verifyEqual(g.hdr.Fs, D(k).fs);
+            tc.verifyEqual(g.label, cellstr(string(D(k).units.label)).');
+            u = find(strcmp(g.label, f.label{1}));
+            tc.verifyTrue(all(ismember(f.timestamp{1}, g.timestamp{u})), ...
+                'Every epoch spike is a spike of the session, at the same timestamp.');
+            trl = g.cfg.trl;
+            tc.verifyEqual(trl(:, 1) - trl(:, 3), round(D(k).toContinuous(D(k).trials.TrialOnset(trl(:, 5))) * D(k).fs), ...
+                'cfg.trl places each trial''s event at its timestamp.');
+            tc.verifyEqual(trl(:, 4), D(k).group(trl(:, 5)));
+        end
+
+        function csdOfEpochsAndSessions(tc)
+            B = tc.open(Settings=epochMatrixSettings(tc.Spike, data="LFP", keepEpochs=true));
+            R = B.compute();
+            P = epochMatrixCSD(R);
+            tc.verifyEqual(numel(unique([P.key])), numel(R.epochs), 'A laminar profile for every dataset.');
+            e = R.epochs(1);
+            p = P([P.key] == e.key);
+            p = p(1);
+            C = laminarColumns(R.rows(e.rows, :));
+            tc.verifyEqual(p.rows, e.rows(C(1).rows), 'The first column''s channels, as rows of R.rows.');
+            tc.verifyEqual(p.depth_mm(1), 0);
+            tc.verifyTrue(issorted(p.depth_mm, 'strictascend'), 'Depths ascend from the top channel.');
+            tc.verifyEqual(p.t, R.t(:));
+            g = find(p.nEpochs > 0, 1);
+            in = e.E.resultGroup == g;
+            tc.verifyEqual(p.pots(:, :, g), mean(double(e.data(C(1).rows, :, in)), 3) * 1e-6, 'AbsTol', 1e-15, ...
+                'The group''s epochs averaged, uV -> V.');
+            tc.verifyEqual(double(p.epochs), double(e.data(C(1).rows, :, :)) * 1e-6, 'RelTol', 1e-6, 'Every epoch, scaled in single.');
+            tc.verifyEqual(p.group, e.E.resultGroup);
+            % the whole sessions, cut in the browser's window, give the same evoked potentials
+            D = B.loadSessions();
+            win = B.Settings.window;
+            Q = sessionDataCSD(D, Window=[win.pre win.post]);
+            k = find([D.key] == e.key);
+            q = Q([Q.key] == e.key);
+            q = q(1);
+            tc.verifyEqual(q.rows, C(1).rows, 'The session''s channels come in the result''s order.');
+            tc.verifySize(q.signal, [numel(q.rows), size(D(k).signal, 1)]);
+            tc.verifyEqual(double(q.signal), double(D(k).signal(:, q.rows)).' * 1e-6, 'RelTol', 1e-6, 'The whole signal, scaled in single.');
+            tc.verifyEqual(q.t, p.t, 'AbsTol', 1e-9);
+            tc.verifyEqual(numel(q.trial), height(e.E), 'Every kept trial, as the result''s epochs.');
+            tc.verifyEqual(q.groupLabels, string(D(k).groups.label));
+            tc.verifyEqual(height(D(k).groups), numel(q.nEpochs), 'A group per session group (the result unions the datasets'' groups).');
+            % the session's trials are cut around TrialOnset (the result's epochs around the browser's event)
+            on = D(k).toContinuous(D(k).trials.TrialOnset(q.trial));
+            [Cc, keep] = mTRFExport.trials(D(k).signal(:, q.rows), D(k).signalFs, on, [win.pre win.post], Artifacts=D(k).artifacts);
+            tc.verifyTrue(all(keep));
+            tc.verifyEqual(double(q.epochs(:, :, end)), Cc{end}.' * 1e-6, 'RelTol', 1e-6, 'Each trial as mTRFExport.trials cuts it, in V.');
+            for j = find(q.nEpochs > 0).'
+                tc.verifyEqual(q.pots(:, :, j), mean(double(q.epochs(:, :, q.group == j)), 3), 'RelTol', 1e-6, 'AbsTol', 1e-10, ...
+                    sprintf('Session group %d is the mean of its trials.', j));
+            end
+            % spikes are refused
+            B.Settings = epochMatrixSettings(B.Settings, data="units", keepEpochs=true);
+            tc.verifyError(@() epochMatrixCSD(B.compute()), 'epochMatrixCSD:NotSignal');
+            tc.verifyError(@() sessionDataCSD(B.loadSessions()), 'sessionDataCSD:NoSignal');
         end
 
         function mtrfOfEpochsAndSessions(tc)

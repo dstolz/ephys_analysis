@@ -61,14 +61,16 @@ classdef DatasetBrowser < handle
     %   when opened (the clicked row's, else the first ticked dataset's).
     %   Every dataset's part is kept in Runs (DatasetRuns,
     %   "epochMatrix/<data>", or "epochMatrix/<data>/epochs" with Keep each
-    %   epoch) with the stamp of the scan: ticking a new
+    %   epoch; one per kind of data) with the stamp of the scan: ticking a new
     %   dataset computes only that one, a settings change computes all
     %   again (but Normalize: it normalizes the result again in place,
     %   epochMatrixNormalize, and computes nothing), and a dataset whose
     %   outputs changed (a new sort, phy curation, a new spikes file, ...;
     %   seen at the next Scan) is computed again, a skipped one tried again. The Cached column says
     %   "✓ <n> units" (or "<n> channels" for signals: the rows the dataset adds to the result), "skipped", "old" (another settings id or another
-    %   stamp: Compute computes it again) or nothing. The result file (-v7.3,
+    %   stamp: Compute computes it again) or nothing; with several kinds of
+    %   data, "✓ 12 units, 32 LFP" once every kind is cached (a kind the
+    %   dataset lacks: "AUX skipped"), "old" when one is old. The result file (-v7.3,
     %   written through a temporary file) holds the browser's state, the
     %   result and Runs; it is written after a compute or forEach that added
     %   parts (a canceled one too), on done and on close when the state
@@ -116,11 +118,13 @@ classdef DatasetBrowser < handle
     %                                        Result (needs Keep single trials)
     %     X = raster(B, ROW, Order=)         row ROW of Result trial by trial (epochMatrixRaster)
     %     SRC = source(B, KEY)
-    %     R = compute(B, Recompute=false, RunScript=false)   RunScript: then runScript (the Compute button
-    %                  passes ScriptAfterCompute)
+    %     [R, Rs] = compute(B, Recompute=false, RunScript=false)   R: Result, Rs: Results (a result per
+    %                  kind of data); RunScript: then runScript (the Compute button passes
+    %                  ScriptAfterCompute)
     %     [D, T] = loadSessions(B, RunScript=false, TrialsOnly=false)   the ticked datasets on their own
-    %                  clock, not cut into epochs, in B.Sessions (sessionData; the Load whole sessions
-    %                  button); TrialsOnly: trials and digital lines, no spikes or signal (Load trials only)
+    %                  clock, not cut into epochs, in B.Sessions (sessionData; one per dataset and kind
+    %                  of data; the Load whole sessions button); TrialsOnly: trials and digital lines,
+    %                  no spikes or signal (Load trials only)
     %     [VALUES, T] = forEach(B, FN, Name=, Id=, Datasets=, Recompute=, SkipIds=)
     %                  FN(SRC) or FN(SRC, INFO) per dataset, kept in Runs
     %                  (DatasetRuns.run); Name defaults to "forEach/" + func2str(FN)
@@ -141,7 +145,8 @@ classdef DatasetBrowser < handle
     %     runScript(B, FILE)                 a post-processing script (default Script) in the base
     %                                        workspace, with B there (the Run now button)
     %     addScript(B, FILE); removeScript(B, FILE); editScript(B, FILE)   the Scripts list (+, −, Edit;
-    %                                        addScript with no FILE: a file dialog)
+    %                                        addScript with no FILE: a file dialog; a script of
+    %                                        analysis\browser_scripts cannot be removed)
     %     progressStart, progress, progressStep, checkCancel, progressFinish, cancel
     %     wait(B, Timeout=Inf); done(B); close(B)
     %     B = DatasetBrowser.open(ROOT, ...)   the window open on ROOT, else a new browser
@@ -154,8 +159,10 @@ classdef DatasetBrowser < handle
     %   run the picked one (Script) in the base workspace once the data are
     %   in, with this browser put there as B (the script reads R = B.Result
     %   or S = B.Sessions); "Run now" runs it on them as they are. Its
-    %   variables stay in the workspace. The first list is the scripts in
-    %   analysis\scripts.
+    %   variables stay in the workspace. Every script in
+    %   analysis\browser_scripts is always listed, first (found again at
+    %   each start; − cannot take one off); + and − add and remove scripts
+    %   from anywhere else, and those are what the Scripts preference keeps.
     %
     %   Event & trial definitions: the panel under the tabs keeps named
     %   sets of the Event and Trials tabs' settings (the event and its
@@ -173,6 +180,18 @@ classdef DatasetBrowser < handle
     %   and come back with File > Load settings (a file without them: none),
     %   and in the result file with the rest of the state.
     %
+    %   Several kinds of data: Data is a box per kind (Settings.data a
+    %   string row, e.g. ["units" "LFP"]); tick one or more. Compute gives
+    %   a result per kind, each computed on its own (epochMatrixSettings(S,
+    %   Kind=K)) with the same event, window, trials and normalization, in
+    %   B.Results by kind (B.Results.LFP); B.Result is the first kind's.
+    %   The Measure tab's Spikes block applies to units and detected, its
+    %   Signals block to the signals; the Channels tab's shanks and
+    %   channels are one pick for every probe kind (units.* and signal.*
+    %   set together), and AUX, which has no probe, keeps all its columns
+    %   (and Magnitude is AUX's) when other kinds are ticked. Load whole
+    %   sessions gives an entry per dataset and kind.
+    %
     %   Whole sessions: Load whole sessions (loadSessions) is the browser
     %   as a way in to the data, not a compute. Each ticked dataset's
     %   spike trains (Data units or detected: the units Compute uses) or
@@ -180,16 +199,19 @@ classdef DatasetBrowser < handle
     %   tab keeps) comes on the recording's own clock, with every trial
     %   (the Trials tab's selection marked: kept, group, groups) and every
     %   digital line (events, and eventsContinuous on the clock of the
-    %   spikes), into B.Sessions, one struct per dataset (sessionData's
-    %   fields). The event window, the measure and normalization are not
+    %   spikes), into B.Sessions, one struct per dataset and kind of Data
+    %   (sessionData's fields; D.data the kind; pair a dataset's kinds by
+    %   D.key). A dataset that lacks one of the kinds has no entry for it.
+    %   The event window, the measure and normalization are not
     %   used. Nothing is cached or saved in the result file; signals are
     %   whole (GBs per dataset). Load trials only (TrialsOnly=true) brings
     %   the same without the spikes or signal: only the trials and the
-    %   digital lines (D.data "trials").
+    %   digital lines (D.data "trials"), one per dataset.
     %
     %   Trial rasters: with "Keep single trials, not just averages (R.epochs)"
     %   (Measure tab) ticked, Compute keeps every epoch, and showRasters(B)
-    %   opens a window on one row of the result at a time: a unit's raster
+    %   opens a window on one row of Result (the first kind's; for another,
+    %   epochMatrixRaster(B.Results.LFP, ROW)) at a time: a unit's raster
     %   (a line of spikes per epoch) or a channel's epochs as an image, by
     %   group or by time, over the row's trace per group. It follows each
     %   new result and closes with the browser. raster(B, ROW) gives the
@@ -237,7 +259,11 @@ classdef DatasetBrowser < handle
         Recordings (1,1) string = "concatenate"
         Runner = []                        % the EphysAnalysisRunner of the last scan ([] before one)
         Datasets table                     % every dataset found: key, name, subject, date, session, tags (";"-joined), tagSet, units, detected, behavior, signals, stamp (outputsStamp at the scan)
-        Result = []                        % the last compute's result ([] before one):
+        Results = []                       % the last compute's results, one per kind of data, by kind ([] before one):
+        %   a struct whose fields are the kinds of Settings.data, in its
+        %   order (B.Results.units, B.Results.LFP), each a result R as
+        %   below; Result is the first. Each kind is computed on its own
+        %   (epochMatrixSettings(S, Kind=K)), so R.settings.data is its kind.
         %   R fields (size(R.data) = [height(R.rows), numel(R.t), numel(R.groupLabels)])
         %     R.data         double [nRows x nTime x nGroups]
         %                    The values: data(row, time, group). It holds the
@@ -286,7 +312,8 @@ classdef DatasetBrowser < handle
         %     R.created      datetime
         %                    When the result was assembled.
         %     R.name         string
-        %                    A default name for the result (ResultName), one
+        %                    A default name for the result (ResultName is
+        %                    Result's), one
         %                    identifier: the filter's tags (joined by "_", by
         %                    "_or_" with TagMode "any"; without filter tags,
         %                    the tags every dataset of R.keys holds), the event
@@ -334,7 +361,7 @@ classdef DatasetBrowser < handle
         %     Group labels: NaN is treated as one label, and groups are matched
         %     across datasets as epochMatrix's help describes.
         %   ("The table above" is epochMatrixSettings' list of the fields of S.)
-        Sessions = []                      % the last loadSessions' datasets ([] before one): a struct column of sessionData's D, on their own clock
+        Sessions = []                      % the last loadSessions' datasets ([] before one): a struct column of sessionData's D, on their own clock, one per dataset and kind of data (D.data)
         Runs                               % the DatasetRuns holding every dataset's parts and forEach values
         Busy (1,1) logical = false         % the progress strip is running (progressStart .. progressFinish)
         CancelRequested (1,1) logical = false   % Cancel was pressed (or cancel() called) since progressStart
@@ -377,15 +404,16 @@ classdef DatasetBrowser < handle
     end
 
     properties (Dependent, SetAccess = private)
+        Result                             % the first kind's result of the last compute (Results' first field; [] before one)
         ResultName                         % Result's default name (Result.name; "" before a compute): tags, event, trials, measure
     end
 
     properties (Access = private)
         SettingsS = []                     % the full settings struct
-        Id = []                            % its cache identity (epochMatrixSettings' ID)
-        IdText (1,1) string = ""           % DatasetRuns.idText(Id)
-        PartName (1,1) string = ""         % the Runs name of its parts (epochMatrixSettings' NAME)
-        ResultIdText (1,1) string = ""     % ... of Result's
+        Ids = struct()                     % its cache identity per kind of data (epochMatrixSettings' ID with Kind=), by kind
+        IdText (1,1) string = ""           % DatasetRuns.idText(Ids)
+        PartNames (1,:) string = strings(1, 0)   % the Runs name of each kind's parts (epochMatrixSettings' NAME), in data's order
+        ResultIdText (1,1) string = ""     % ... of Results'
         FilterS = struct()
         SelectedKeys (:,1) string = strings(0, 1)
         HasTicks (1,1) logical = false     % the ticks were set (restored, given, or by a scan)
@@ -418,7 +446,7 @@ classdef DatasetBrowser < handle
         PrefGroup = "DatasetBrowser"
         WikiURL = "https://github.com/dstolz/ephys_analysis/wiki"   % the Help menu's pages
         Schema = "dataset-browser-results"
-        Version = 1
+        Version = 2                        % 2: "results", one per kind of data (1: "result")
     end
 
     properties (Constant, Access = private)
@@ -460,8 +488,7 @@ classdef DatasetBrowser < handle
             B.Runs = DatasetRuns();
             B.Datasets = DatasetBrowser.emptyDatasets();
             B.FilterS = DatasetBrowser.noFilter();
-            [S0, ID, name] = epochMatrixSettings();
-            B.takeSettings(S0, ID, name);
+            B.takeSettings(epochMatrixSettings());
             prefs = DatasetBrowser.readPrefs();
             if root == "" && isfield(prefs, 'Root'); root = string(prefs.Root); end
             B.Root = strtrim(root);
@@ -581,6 +608,14 @@ classdef DatasetBrowser < handle
         function k = get.Shown(B)
             T = B.buildTable();
             k = T.Key;
+        end
+
+        function R = get.Result(B)
+            R = [];
+            if isstruct(B.Results)
+                f = fieldnames(B.Results);
+                if ~isempty(f); R = B.Results.(f{1}); end
+            end
         end
 
         function tf = get.ResultCurrent(B)
@@ -783,7 +818,9 @@ classdef DatasetBrowser < handle
             %   (epochMatrixSettings); an edit that does not fit is undone in
             %   the control and its reason shown in the status line.
             control = string(control);
-            if nargin > 2
+            if nargin > 2 && control == "Data"   % a box per kind: VALUE the kinds ticked
+                for k = 1:numel(B.Ctl.Data); B.Ctl.Data(k).Value = ismember(B.DataItems(k), string(value)); end
+            elseif nargin > 2
                 if isfield(B.Ctl.Align, control)
                     c = B.Ctl.Align.(control);
                 else
@@ -899,9 +936,12 @@ classdef DatasetBrowser < handle
         end
 
         % --- compute ---------------------------------------------------------------------------
-        function R = compute(B, opts)
-            %compute  epochMatrix over the ticked datasets with Settings; the parts kept in Runs.
-            %   RunScript=true then runs Script (runScript) when one is
+        function [R, Rs] = compute(B, opts)
+            %compute  epochMatrix over the ticked datasets with Settings, once per kind of data; the parts kept in Runs.
+            %   R is the first kind's result (Result), Rs every kind's by
+            %   kind (Results). A kind no dataset gives rows for raises
+            %   epochMatrix:NoData (its kind named) and leaves Results as it
+            %   was. RunScript=true then runs Script (runScript) when one is
             %   picked; the Compute button passes ScriptAfterCompute.
             arguments
                 B
@@ -913,23 +953,38 @@ classdef DatasetBrowser < handle
             if isempty(keys)
                 error('DatasetBrowser:NoneTicked', 'Tick at least one dataset to compute.');
             end
+            kinds = B.SettingsS.data;
+            n = numel(kinds);
             t0 = datetime('now');
             own = B.beginOwnRun(); %#ok<NASGU> cleared on return
-            B.progressStart("Computing " + B.SettingsS.data);
+            B.progressStart("Computing " + strjoin(kinds, ", "));
             stopper = onCleanup(@() B.endRun("Compute stopped."));
-            try
-                R = epochMatrix(B.Runner, B.SettingsS, Datasets=keys, Info=B.info(keys), Runs=B.Runs, ...
-                    Recompute=opts.Recompute, ProgressFcn=@(f, m) B.progress(f, m), CheckFcn=@() B.checkCancel(), ...
-                    LogFcn=@(m) B.say(m), StampFcn=@(key) B.stampOf(key), Workers=B.WorkersN);
-            catch ME
-                if ME.identifier == "epochMatrix:Canceled"
-                    B.endRun("Canceled: " + string(ME.message));
+            Rs = struct();
+            for k = 1:n
+                kind = kinds(k);
+                tag = @(m) m;
+                if n > 1; tag = @(m) kind + ": " + m; end
+                try
+                    R = epochMatrix(B.Runner, epochMatrixSettings(B.SettingsS, Kind=kind), Datasets=keys, Info=B.info(keys), ...
+                        Runs=B.Runs, Recompute=opts.Recompute, ProgressFcn=@(f, m) B.progress((k - 1 + f) / n, tag(m)), ...
+                        CheckFcn=@() B.checkCancel(), LogFcn=@(m) B.say(tag(m)), StampFcn=@(key) B.stampOf(key), ...
+                        Workers=B.WorkersN);
+                catch ME
+                    if ME.identifier == "epochMatrix:Canceled"
+                        B.endRun("Canceled: " + string(ME.message));
+                    end
+                    B.afterRun(t0);
+                    if n > 1 && ~isempty(ME.identifier) && ME.identifier ~= "epochMatrix:Canceled"
+                        E = MException(ME.identifier, '%s: %s', kind, ME.message);
+                        throw(E.addCause(ME));
+                    end
+                    rethrow(ME);
                 end
-                B.afterRun(t0);
-                rethrow(ME);
+                R.name = B.nameOf(R);
+                Rs.(kind) = R;
             end
-            R.name = B.nameOf(R);
-            B.setResult(R);
+            R = Rs.(kinds(1));
+            B.setResults(Rs);
             B.progressFinish(B.summaryText());
             clear stopper
             B.afterRun(t0);
@@ -943,10 +998,12 @@ classdef DatasetBrowser < handle
             %   the units Compute uses) or whole signal (Data LFP, MUA,
             %   SPIKE or AUX: the channels the Channels tab keeps), every
             %   trial and every digital line; nothing is computed. D is a
-            %   struct column, one per dataset loaded (sessionData's
-            %   fields), also kept in B.Sessions; T the status of each
-            %   ticked dataset (DatasetRuns.run's T: a dataset without the
-            %   data is "skipped"). Nothing is cached or written to the
+            %   struct column, one per dataset loaded and kind of Data
+            %   (sessionData's fields; D.data the kind; dataset by dataset,
+            %   the kinds in Data's order), also kept in B.Sessions; T the
+            %   status of each ticked dataset (DatasetRuns.run's T: a
+            %   dataset without any of the kinds is "skipped"; one without
+            %   some has no entry for them). Nothing is cached or written to the
             %   result file: each call reads the datasets again. Signals are
             %   whole (GBs per dataset). RunScript=true then runs Script
             %   (runScript); the Load sessions button passes
@@ -964,8 +1021,9 @@ classdef DatasetBrowser < handle
                 error('DatasetBrowser:NoneTicked', 'Tick at least one dataset to load.');
             end
             S = B.SettingsS;
-            what = S.data;
-            if opts.TrialsOnly; what = "trials"; end
+            kinds = S.data;
+            if opts.TrialsOnly; kinds = "trials"; end
+            what = strjoin(kinds, ", ");
             t0 = datetime('now');
             own = B.beginOwnRun(); %#ok<NASGU> cleared on return
             B.progressStart("Loading " + what + " sessions");
@@ -974,7 +1032,7 @@ classdef DatasetBrowser < handle
                 "selectChannels:NoSignal" "epochMatrix:NoChannels"];
             try
                 [values, T] = B.Runs.run(B.Runner, keys, @(src) sessionData(src, S, TrialsOnly=opts.TrialsOnly), ...
-                    Id="sessionData/" + what, ...
+                    Id="sessionData/" + strjoin(kinds, "+"), ...
                     Info=B.info(keys), ProgressFcn=@(f, m) B.progress(f, m), CheckFcn=@() B.checkCancel(), ...
                     LogFcn=@(m) B.say(m), SkipIds=skipIds, Workers=B.WorkersN);
             catch ME
@@ -986,6 +1044,11 @@ classdef DatasetBrowser < handle
             done = T.status == "done";
             D = vertcat(values{done});
             B.Sessions = D;
+            if numel(kinds) > 1   % how many of each kind: a dataset may lack some
+                got = strings(0, 1);
+                if ~isempty(D); got = [D.data]; end
+                what = strjoin(kinds + " " + arrayfun(@(k) nnz(got == k), kinds), ", ");
+            end
             n = @(s) nnz(T.status == s);
             B.progressFinish(sprintf("%d session(s) loaded in B.Sessions (%s), %d skipped, %d failed", ...
                 n("done"), what, n("skipped"), n("error")));
@@ -1054,14 +1117,17 @@ classdef DatasetBrowser < handle
         end
 
         function forgetTicked(B)
-            %forgetTicked  Drop the ticked datasets' parts for the current Data (the table's context menu).
+            %forgetTicked  Drop the ticked datasets' parts for the current Data, every kind of it (the table's context menu).
             %   With nothing ticked nothing is dropped.
             if isempty(B.SelectedKeys)
                 B.setStatus("Nothing is ticked: no cached parts were forgotten.");
                 return
             end
-            B.forget(B.PartName, B.SelectedKeys);
-            B.setStatus(sprintf("Forgot the %s parts of %d ticked dataset(s).", B.SettingsS.data, numel(B.SelectedKeys)));
+            for name = B.PartNames
+                B.Runs.forget(name, B.SelectedKeys);
+            end
+            B.refreshTable();
+            B.setStatus(sprintf("Forgot the %s parts of %d ticked dataset(s).", strjoin(B.SettingsS.data, ", "), numel(B.SelectedKeys)));
         end
 
         % --- post-processing scripts -------------------------------------------------------------
@@ -1120,6 +1186,10 @@ classdef DatasetBrowser < handle
             if nargin < 2; file = B.ScriptS; end
             k = find(lower(B.Scripts) == lower(fullPath(file)), 1);
             if isempty(k); return; end
+            if DatasetBrowser.isBundledScript(B.Scripts(k))
+                error('DatasetBrowser:BundledScript', ...
+                    '%s comes with the browser (analysis\\browser_scripts) and stays on the list.', scriptName(B.Scripts(k)));
+            end
             gone = B.Scripts(k);
             B.Scripts(k) = [];
             if lower(B.ScriptS) == lower(gone)
@@ -1199,7 +1269,8 @@ classdef DatasetBrowser < handle
             lit = @EphysPipelineScript.literal;
             src = EphysAnalysisConfig.defaults("Source");
             L = strings(0, 1);
-            L(end+1, 1) = "%% Dataset browser compute: " + B.SettingsS.data + " of " + numel(keys) + " dataset(s)";
+            kinds = B.SettingsS.data;
+            L(end+1, 1) = "%% Dataset browser compute: " + strjoin(kinds, ", ") + " of " + numel(keys) + " dataset(s)";
             L(end+1, 1) = "% Generated " + string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm')) + ...
                 " by DatasetBrowser.exportScript: the browser's Compute without the window.";
             L(end+1, 1) = "";
@@ -1225,10 +1296,17 @@ classdef DatasetBrowser < handle
             L = [L; DatasetBrowser.settingsCode(B.SettingsS)];
             L(end+1, 1) = "";
             L(end+1, 1) = "% R.data(row, time, group), R.rows, R.t, R.groupLabels, R.datasets (see epochMatrix).";
-            if B.WorkersN > 0
-                L(end+1, 1) = "R = epochMatrix(cfg, S, Workers=" + B.WorkersN + ");";
+            workers = "";
+            if B.WorkersN > 0; workers = ", Workers=" + B.WorkersN; end
+            if isscalar(kinds)
+                L(end+1, 1) = "R = epochMatrix(cfg, S" + workers + ");";
             else
-                L(end+1, 1) = "R = epochMatrix(cfg, S);";
+                L(end+1, 1) = "% One result per kind of data (epochMatrix computes one at a time), by kind: Results." + kinds(1) + ", ...";
+                L(end+1, 1) = "Results = struct();";
+                L(end+1, 1) = "for kind = S.data";
+                L(end+1, 1) = "    Results.(kind) = epochMatrix(cfg, epochMatrixSettings(S, Kind=kind)" + workers + ");";
+                L(end+1, 1) = "end";
+                L(end+1, 1) = "R = Results.(S.data(1));";
             end
             txt = strjoin(L, newline) + newline;
             if file ~= ""
@@ -1305,15 +1383,19 @@ classdef DatasetBrowser < handle
         end
 
         function tf = save(B, file)
-            %save  Write the result file (default ResultFile): the state, Result and Runs. TF: written.
+            %save  Write the result file (default ResultFile): the state, Results and Runs. TF: written.
             if nargin < 2; file = B.ResultFileS; end
             file = string(file);
             tf = false;
             if file == ""; return; end
-            R = B.Result;
-            if isstruct(R) && isfield(R, 'epochs'); R.epochs = []; end   % the kept parts hold them: restoreEpochs
+            Rs = B.Results;
+            if isstruct(Rs)
+                for f = string(fieldnames(Rs)).'
+                    if isfield(Rs.(f), 'epochs'); Rs.(f).epochs = []; end   % the kept parts hold them: restoreEpochs
+                end
+            end
             payload = struct('schema', DatasetBrowser.Schema, 'version', DatasetBrowser.Version, ...
-                'browser', B.browserState(), 'result', R, 'runs', B.Runs.toStruct());
+                'browser', B.browserState(), 'results', Rs, 'runs', B.Runs.toStruct());
             [folder, name] = fileparts(file);
             tmp = fullfile(folder, "." + name + "_saving.mat");
             try
@@ -1336,7 +1418,7 @@ classdef DatasetBrowser < handle
         end
 
         function restore(B, file)
-            %restore  Take the ticks, filter, settings, result and Runs from a result file (default ResultFile).
+            %restore  Take the ticks, filter, settings, results and Runs from a result file (default ResultFile).
             %   A file that cannot be read, or a part of it that does not
             %   check, warns (DatasetBrowser:BadResultFile) and leaves that
             %   part at its default.
@@ -1614,12 +1696,19 @@ classdef DatasetBrowser < handle
             R = uigridlayout(p, [8 1], "RowHeight", {22, 26, '1x', 62, 24, 34, 'fit', 48}, "Padding", [8 6 8 6], "RowSpacing", 5);
             edit = @(name) @(~, ~) B.uiRun(@() B.onFormEdit(name));
             open = @(~, ~) B.uiRun(@() B.fillLists());
-            c.SettingsFile = uilabel(R, "Text", "", "FontColor", B.TextColor);
-            r = row(R, {'fit', 100, '1x'});
-            uilabel(r, "Text", "Data");
-            c.Data = uidropdown(r, "Items", cellstr(B.DataItems), "ValueChangedFcn", edit("Data"), ...
-                "Tooltip", "units: the sorted units; detected: the Spikes step's detections; LFP, MUA, SPIKE, AUX: a derived signal.");
-            c.DataNote = uilabel(r, "Text", "", "FontColor", B.TextColor);
+            r = row(R, {'1x', 'fit'});
+            c.SettingsFile = uilabel(r, "Text", "", "FontColor", B.TextColor);
+            c.DataNote = uilabel(r, "Text", "", "FontColor", B.TextColor, "HorizontalAlignment", "right");
+            r = row(R, [{'fit'}, repmat({'fit'}, 1, numel(B.DataItems))]);
+            both = " Tick several: Compute gives a result per kind (B.Results.<kind>; B.Result is the first), " + ...
+                "Load whole sessions an entry per dataset and kind (B.Sessions).";
+            uilabel(r, "Text", "Data", "Tooltip", "What is computed or loaded." + both);
+            what = ["the sorted units (the sorting folder)." "the Spikes step's detections, one train per channel." ...
+                repmat("a derived signal.", 1, 4)];
+            for k = 1:numel(B.DataItems)
+                c.Data(k) = uicheckbox(r, "Text", B.DataItems(k), "ValueChangedFcn", edit("Data"), ...
+                    "Tooltip", B.DataItems(k) + ": " + what(k) + both);
+            end
             % the event, its sequence, the window and the trial selection: the analysis app's controls (AlignControls)
             tg = uitabgroup(R);
             te = uitab(tg, "Title", "Event", "Scrollable", "on");
@@ -1716,11 +1805,13 @@ classdef DatasetBrowser < handle
 
             r = uigridlayout(R, [1 3], "ColumnWidth", {'1x', '1x', '1x'}, "RowHeight", {34}, "Padding", [0 0 0 0]);
             c.Compute = uibutton(r, "Text", "Compute", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.onCompute()), ...
-                "Tooltip", "Compute the ticked datasets (those already computed with these settings are reused); " + ...
+                "Tooltip", "Compute the ticked datasets (those already computed with these settings are reused), " + ...
+                "a result per kind of Data ticked (B.Results; B.Result is the first); " + ...
                 "then the post-processing script, when ticked below.");
             c.LoadSessions = uibutton(r, "Text", "Load whole sessions", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.onLoadSessions()), ...
                 "Tooltip", "No epochs, nothing computed: the ticked datasets on their own clock, in B.Sessions for a script. " + ...
                 "Each one's spike times (units, detected) or whole signal (LFP, MUA, SPIKE, AUX: GBs each), " + ...
+                "one entry per dataset and kind of Data ticked, " + ...
                 "every trial (those the Trials tab keeps marked) and every digital line. " + ...
                 "Then the post-processing script, when ticked below.");
             c.LoadTrials = uibutton(r, "Text", "Load trials only", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.onLoadSessions(true)), ...
@@ -1795,17 +1886,39 @@ classdef DatasetBrowser < handle
             Use = ismember(D.key, B.SelectedKeys);
             Cached = strings(n, 1);
             if n > 0
-                name = B.PartName;
-                noun = ["channel" "channels"];   % one row of a part = one unit (spikes) or one channel (signals)
-                if ismember(B.SettingsS.data, ["units" "detected"]); noun = ["unit" "units"]; end
-                st = B.Runs.status(name, D.key, B.Id, Stamps=D.stamp);   % "old": other settings or changed outputs
-                Cached(st == "skipped") = "skipped";
-                Cached(st == "old") = "old";
-                for k = reshape(find(st == "current"), 1, [])
-                    v = B.Runs.value(name, D.key(k));
-                    nr = 0;
-                    if isstruct(v) && isfield(v, 'rows'); nr = height(v.rows); end
-                    Cached(k) = sprintf("✓ %d %s", nr, noun(1 + (nr ~= 1)));
+                kinds = B.SettingsS.data;
+                nk = numel(kinds);
+                st = strings(n, nk);
+                rows = zeros(n, nk);
+                for j = 1:nk
+                    name = B.PartNames(j);
+                    st(:, j) = B.Runs.status(name, D.key, B.Ids.(kinds(j)), Stamps=D.stamp);   % "old": other settings or changed outputs
+                    for k = reshape(find(st(:, j) == "current"), 1, [])
+                        v = B.Runs.value(name, D.key(k));
+                        if isstruct(v) && isfield(v, 'rows'); rows(k, j) = height(v.rows); end
+                    end
+                end
+                if nk == 1   % "✓ 12 units": one row of a part = one unit (spikes) or one channel (signals)
+                    noun = ["channel" "channels"];
+                    if ismember(kinds, ["units" "detected"]); noun = ["unit" "units"]; end
+                    Cached(st == "skipped") = "skipped";
+                    Cached(st == "old") = "old";
+                    for k = reshape(find(st == "current"), 1, [])
+                        Cached(k) = sprintf("✓ %d %s", rows(k), noun(1 + (rows(k) ~= 1)));
+                    end
+                else   % "✓ 12 units, 32 LFP": every kind cached (or skipped), else old, skipped or nothing
+                    for k = 1:n
+                        s = st(k, :);
+                        if all(s == "current" | s == "skipped") && any(s == "current")
+                            parts = compose("%d ", rows(k, :)) + kinds;
+                            parts(s == "skipped") = kinds(s == "skipped") + " skipped";
+                            Cached(k) = "✓ " + strjoin(parts, ", ");
+                        elseif all(s == "skipped")
+                            Cached(k) = "skipped";
+                        elseif any(s == "old")
+                            Cached(k) = "old";
+                        end
+                    end
                 end
             end
             mark = @(tf) replace(string(double(tf)), ["1" "0"], ["✓" ""]);
@@ -1945,7 +2058,7 @@ classdef DatasetBrowser < handle
             if ~B.uiOk(); return; end
             c = B.Ctl;
             S = B.SettingsS;
-            c.Data.Value = char(S.data);
+            for k = 1:numel(c.Data); c.Data(k).Value = ismember(B.DataItems(k), S.data); end
             AlignControls.show(c.Align, S.ref, S.window, S.selection);
             c.Normalize.Value = char(S.normalize.method);
             c.NormBaseline.Value = char(numbersText(S.normalize.baseline));
@@ -1953,7 +2066,7 @@ classdef DatasetBrowser < handle
             pick = pickOf(S);
             c.Shanks.Value = char(numbersText(pick.shanks));
             c.Channels.Value = char(numbersText(pick.channels));
-            if S.data == "AUX"
+            if all(S.data == "AUX")
                 c.Probe.select([], []);   % the AUX columns are no probe sites
             else
                 c.Probe.select(pick.channels, pick.shanks);
@@ -1973,57 +2086,63 @@ classdef DatasetBrowser < handle
         end
 
         function applyEnable(B)
-            %applyEnable  Only the block matching Data is on (and within it what applies); all off while Busy.
+            %applyEnable  Only the blocks matching the kinds of Data are on (and within them what applies); all off while Busy.
             if ~B.uiOk() || B.Busy; return; end
             c = B.Ctl;
             S = B.SettingsS;
-            spikes = ismember(S.data, ["units" "detected"]);
+            isSpike = ismember(S.data, ["units" "detected"]);
+            spikes = any(isSpike);
+            signals = any(~isSpike);
             on = @(tf) matlab.lang.OnOffSwitchState(tf);
             set([c.Measure c.Bin], "Enable", on(spikes));
-            aux = S.data == "AUX";
-            c.Shanks.Enable = on(~aux);
-            c.Probe.Enable = on(~aux);
+            aux = any(S.data == "AUX");
+            auxOnly = all(S.data == "AUX");
+            c.Shanks.Enable = on(~auxOnly);
+            c.Probe.Enable = on(~auxOnly);
             c.Channels.Enable = "on";
             c.ProbeAll.Enable = "on";
-            if aux
+            if auxOnly
                 c.Channels.Tooltip = "The AUX columns kept (1-based), e.g. 1:3; blank = all.";
             else
                 c.Channels.Tooltip = "The recording channels kept (1-based: the probe map's chanMap + 1), e.g. 1:16 or 3 7 12; " + ...
-                    "blank = all. Click a site on the probe to pick or drop its channel.";
+                    "blank = all. Click a site on the probe to pick or drop its channel. One pick for every kind of Data" + ...
+                    ternary(aux, " (AUX, which has no probe, keeps all its columns).", ".");
             end
-            c.Merge.Enable = on(S.data == "detected");
-            c.Baseline.Enable = on(spikes && S.measure == "auroc");
+            c.Merge.Enable = on(any(S.data == "detected"));
             auroc = spikes && S.measure == "auroc";
-            c.Normalize.Enable = on(~auroc);
-            c.NormBaseline.Enable = on(~auroc && ismember(S.normalize.method, ["subtract" "ratio" "percent" "zscore"]));
-            c.NormScope.Enable = on(~auroc && S.normalize.method ~= "none");
-            set([c.SigBaseline c.Detrend c.Rectify c.Statistic], "Enable", on(~spikes));
+            c.Baseline.Enable = on(auroc);
+            normalized = signals || ~auroc;   % auROC is not normalized
+            c.Normalize.Enable = on(normalized);
+            c.NormBaseline.Enable = on(normalized && ismember(S.normalize.method, ["subtract" "ratio" "percent" "zscore"]));
+            c.NormScope.Enable = on(normalized && S.normalize.method ~= "none");
+            set([c.SigBaseline c.Detrend c.Rectify c.Statistic], "Enable", on(signals));
             c.Magnitude.Enable = on(aux);
             AlignControls.syncEnable(c.Align);
             set([c.Compute c.LoadSessions c.LoadTrials], "Enable", on(~isempty(B.Runner)));
             picked = B.ScriptS ~= "";
-            set([c.ScriptList c.ScriptRemove c.ScriptEdit c.ScriptAfter], "Enable", on(picked));
+            set([c.ScriptList c.ScriptEdit c.ScriptAfter], "Enable", on(picked));
+            c.ScriptRemove.Enable = on(picked && ~DatasetBrowser.isBundledScript(B.ScriptS));
             c.ScriptRun.Enable = on(picked && (~isempty(B.Result) || ~isempty(B.Sessions)));
             c.DefRemove.Enable = on(ismember(B.DefinitionName, string([B.Definitions.name])));
         end
 
         function refreshDataNote(B)
-            %refreshDataNote  For a signal: how many ticked datasets lack it (they are skipped).
+            %refreshDataNote  For each kind of Data: how many ticked datasets lack it (they are skipped for it).
             if ~B.uiOk(); return; end
-            d = B.SettingsS.data;
-            txt = "";
-            if ~ismember(d, ["units" "detected"]) && height(B.Datasets) > 0
+            parts = strings(1, 0);
+            if height(B.Datasets) > 0
                 D = B.Datasets(ismember(B.Datasets.key, B.SelectedKeys), :);
-                lack = nnz(~contains(" " + D.signals + " ", " " + d + " "));
-                if lack > 0
-                    txt = sprintf("%d of %d ticked lack %s (skipped)", lack, height(D), d);
+                for d = B.SettingsS.data
+                    if d == "units"
+                        lack = nnz(~D.units);
+                        if lack > 0; parts(end+1) = sprintf("%d of %d ticked have no sorting", lack, height(D)); end %#ok<AGROW>
+                    elseif d ~= "detected"
+                        lack = nnz(~contains(" " + D.signals + " ", " " + d + " "));
+                        if lack > 0; parts(end+1) = sprintf("%d of %d ticked lack %s (skipped)", lack, height(D), d); end %#ok<AGROW>
+                    end
                 end
-            elseif d == "units" && height(B.Datasets) > 0
-                D = B.Datasets(ismember(B.Datasets.key, B.SelectedKeys), :);
-                lack = nnz(~D.units);
-                if lack > 0; txt = sprintf("%d of %d ticked have no sorting", lack, height(D)); end
             end
-            B.Ctl.DataNote.Text = txt;
+            B.Ctl.DataNote.Text = strjoin(parts, "; ");
         end
 
         function refreshSummary(B)
@@ -2033,33 +2152,42 @@ classdef DatasetBrowser < handle
 
         function s = summaryText(B)
             %summaryText  "812 units × 200 bins × 5 groups from 32 of 34 datasets; 1 computed, 33 reused", or why it is out of date.
-            R = B.Result;
-            if isempty(R)
+            %   With several kinds of data, a line per kind, "LFP: ...".
+            Rs = B.Results;
+            if isempty(B.Result)
                 s = "No result yet: tick datasets and press Compute.";
                 return
             end
-            noun = ternary(R.rowKind == "unit", "units", "channels");
-            tnoun = ternary(R.rowKind == "unit", "bins", "samples");
-            st = R.datasets.status;
-            s = sprintf("%d %s × %d %s × %d groups from %d of %d datasets; %d computed, %d reused", ...
-                height(R.rows), noun, numel(R.t), tnoun, numel(R.groupLabels), numel(R.keys), height(R.datasets), ...
-                nnz(st == "done"), nnz(st == "cached"));
-            other = nnz(~ismember(st, ["done" "cached"]));
-            if other > 0; s = s + sprintf(", %d skipped or failed", other); end
-            if isfield(R, 'epochs') && ~isempty(R.epochs)
-                s = s + sprintf("; %d epochs kept (R.epochs)", sum(arrayfun(@(e) height(e.E), R.epochs)));
+            kinds = string(fieldnames(Rs)).';
+            lines = strings(1, 0);
+            for kind = kinds
+                R = Rs.(kind);
+                noun = ternary(R.rowKind == "unit", "units", "channels");
+                tnoun = ternary(R.rowKind == "unit", "bins", "samples");
+                st = R.datasets.status;
+                t = sprintf("%d %s × %d %s × %d groups from %d of %d datasets; %d computed, %d reused", ...
+                    height(R.rows), noun, numel(R.t), tnoun, numel(R.groupLabels), numel(R.keys), height(R.datasets), ...
+                    nnz(st == "done"), nnz(st == "cached"));
+                other = nnz(~ismember(st, ["done" "cached"]));
+                if other > 0; t = t + sprintf(", %d skipped or failed", other); end
+                if isfield(R, 'epochs') && ~isempty(R.epochs)
+                    t = t + sprintf("; %d epochs kept (R.epochs)", sum(arrayfun(@(e) height(e.E), R.epochs)));
+                end
+                if isfield(R, 'labels') && isstruct(R.labels) && isfield(R.labels, 'normalization') && R.labels.normalization ~= ""
+                    t = t + "; " + R.labels.normalization;
+                    nBad = nnz(any(R.normalization.undefined, 2));
+                    if nBad > 0; t = t + sprintf(" (%d %s NaN: a zero or flat baseline)", nBad, noun); end
+                end
+                if numel(kinds) > 1; t = kind + ": " + t; end
+                lines(end+1) = t; %#ok<AGROW>
             end
-            if isfield(R, 'labels') && isstruct(R.labels) && isfield(R.labels, 'normalization') && R.labels.normalization ~= ""
-                s = s + "; " + R.labels.normalization;
-                nBad = nnz(any(R.normalization.undefined, 2));
-                if nBad > 0; s = s + sprintf(" (%d %s NaN: a zero or flat baseline)", nBad, noun); end
-            end
+            s = strjoin(lines, newline);
             [current, why] = B.resultState();
             if ~current; s = "Out of date: " + why + ". (" + s + ")"; end
         end
 
         function [tf, why] = resultState(B)
-            %resultState  Whether Result matches the settings and the ticks, and what differs.
+            %resultState  Whether Results match the settings (every kind of Data) and the ticks, and what differs.
             tf = false;
             why = "";
             R = B.Result;
@@ -2162,7 +2290,12 @@ classdef DatasetBrowser < handle
             %onFormEdit  Merge one control's value into the settings and check them; undo it when they do not fit.
             if isfield(B.Ctl.Align, name); B.onAlignEdit(); return; end
             try
-                S = B.applyControl(B.SettingsS, name, B.Ctl.(name).Value);
+                if name == "Data"
+                    v = B.DataItems([B.Ctl.Data.Value]);   % the kinds ticked, in the boxes' order
+                else
+                    v = B.Ctl.(name).Value;
+                end
+                S = B.applyControl(B.SettingsS, name, v);
                 B.setSettings(S, true);
                 B.setStatus("");
             catch ME
@@ -2227,9 +2360,9 @@ classdef DatasetBrowser < handle
 
         function S = applyControl(~, S, name, v)
             %applyControl  S with control NAME's value V put in its field (the other fields as they were).
+            if name == "Data"; S.data = reshape(string(v), 1, []); return; end   % the kinds: none ticked is refused by the check
             if iscell(v); v = v{1}; end
             switch name
-                case "Data";     S.data = string(v);
                 case "Normalize"; S.normalize.method = string(v);
                 case "NormBaseline"; S.normalize.baseline = parseNumbers(v, "Normalize baseline");
                 case "NormScope"; S.normalize.scope = string(v);
@@ -2251,8 +2384,7 @@ classdef DatasetBrowser < handle
         % --- state -----------------------------------------------------------------------------------
         function setSettings(B, S, announce)
             %setSettings  Check S (epochMatrixSettings) and take it: the form, the Cached column, the summary.
-            [S, ID, name] = epochMatrixSettings(S);
-            B.takeSettings(S, ID, name);
+            B.takeSettings(epochMatrixSettings(S));
             renormalized = B.renormalize();
             B.refreshForm();
             B.refreshDefinitions();
@@ -2266,17 +2398,26 @@ classdef DatasetBrowser < handle
         end
 
         function tf = renormalize(B)
-            %renormalize  A result of these settings but for normalize: normalized again in place (nothing computed).
+            %renormalize  Results of these settings but for normalize: each normalized again in place (nothing computed).
             R = B.Result;
             tf = ~isempty(R) && B.ResultIdText == B.IdText && ~sameNormalize(R.settings, B.SettingsS);
-            if tf; B.Result = epochMatrixNormalize(R, B.SettingsS.normalize); end
+            if ~tf; return; end
+            for f = string(fieldnames(B.Results)).'
+                B.Results.(f) = epochMatrixNormalize(B.Results.(f), B.SettingsS.normalize);
+            end
         end
 
-        function takeSettings(B, S, ID, name)
+        function takeSettings(B, S)
+            %takeSettings  S (checked) as Settings, with each kind's cache identity and parts' name (epochMatrixSettings with Kind=).
+            ids = struct();
+            names = strings(1, numel(S.data));
+            for k = 1:numel(S.data)
+                [~, ids.(S.data(k)), names(k)] = epochMatrixSettings(S, Kind=S.data(k));
+            end
             B.SettingsS = S;
-            B.Id = ID;
-            B.IdText = DatasetRuns.idText(ID);
-            B.PartName = name;
+            B.Ids = ids;
+            B.IdText = DatasetRuns.idText(ids);
+            B.PartNames = names;
         end
 
         function setTicks(B, keys)
@@ -2292,12 +2433,16 @@ classdef DatasetBrowser < handle
             B.changed("ticks");
         end
 
-        function setResult(B, R)
-            B.Result = R;
+        function setResults(B, Rs)
+            %setResults  Rs (a result per kind, by kind) as Results, with their cache identity (to tell whether they are current).
+            B.Results = Rs;
             B.ResultIdText = "";
             try
-                [~, IDr] = epochMatrixSettings(R.settings);
-                B.ResultIdText = DatasetRuns.idText(IDr);
+                ids = struct();
+                for f = string(fieldnames(Rs)).'
+                    [~, ids.(f)] = epochMatrixSettings(Rs.(f).settings);
+                end
+                B.ResultIdText = DatasetRuns.idText(ids);
             catch
             end
             B.refreshTable();
@@ -2330,7 +2475,7 @@ classdef DatasetBrowser < handle
             B.Runner = [];
             B.Datasets = DatasetBrowser.emptyDatasets();
             B.Runs = DatasetRuns();
-            B.Result = [];
+            B.Results = [];
             B.ResultIdText = "";
             B.Sessions = [];
             B.SelectedKeys = strings(0, 1);
@@ -2373,8 +2518,7 @@ classdef DatasetBrowser < handle
             end
             if isfield(s, 'settings')
                 try
-                    [S, ID, name] = epochMatrixSettings(s.settings);
-                    B.takeSettings(S, ID, name);
+                    B.takeSettings(epochMatrixSettings(s.settings));
                     if isfield(s, 'settingsFile'); B.SettingsFile = string(s.settingsFile); end
                 catch ME
                     warning('DatasetBrowser:BadResultFile', '%s: the settings are not used (%s).', file, ME.message);
@@ -2393,19 +2537,22 @@ classdef DatasetBrowser < handle
                     warning('DatasetBrowser:BadResultFile', '%s: the kept parts are not used (%s).', file, ME.message);
                 end
             end
-            if isfield(L, 'result') && ~isempty(L.result)
-                R = L.result;
-                if isstruct(R) && isscalar(R) && all(isfield(R, {'data', 'rows', 't', 'groupLabels', 'settings', 'datasets', 'keys'}))
+            if isfield(L, 'results') && isstruct(L.results) && isscalar(L.results) && ~isempty(fieldnames(L.results))
+                Rs = struct();
+                for f = string(fieldnames(L.results)).'
+                    R = L.results.(f);
+                    if ~(isstruct(R) && isscalar(R) && all(isfield(R, {'data', 'rows', 't', 'groupLabels', 'settings', 'datasets', 'keys'})))
+                        warning('DatasetBrowser:BadResultFile', '%s: the %s result is not used (it lacks fields).', file, f);
+                        continue
+                    end
                     try
                         R.labels = epochMatrixLabels(R);
                     catch ME
-                        warning('DatasetBrowser:BadResultFile', '%s: the result has no labels (%s).', file, ME.message);
+                        warning('DatasetBrowser:BadResultFile', '%s: the %s result has no labels (%s).', file, f, ME.message);
                     end
-                    R = B.restoreEpochs(R, file);
-                    B.setResult(R);
-                else
-                    warning('DatasetBrowser:BadResultFile', '%s: the result is not used (it lacks fields).', file);
+                    Rs.(f) = B.restoreEpochs(R, file);
                 end
+                if ~isempty(fieldnames(Rs)); B.setResults(Rs); end
             end
             if file == B.ResultFileS; B.SavedSig = B.stateSig(); end
         end
@@ -2453,7 +2600,12 @@ classdef DatasetBrowser < handle
             stamp = "";
             if ~isempty(E); stamp = string(max([E.created]), 'yyyy-MM-dd HH:mm:ss.SSS'); end
             created = "";
-            if ~isempty(B.Result) && isfield(B.Result, 'created'); created = string(B.Result.created, 'yyyy-MM-dd HH:mm:ss.SSS'); end
+            if isstruct(B.Results)
+                for f = string(fieldnames(B.Results)).'
+                    R = B.Results.(f);
+                    if isfield(R, 'created'); created = created + f + " " + string(R.created, 'yyyy-MM-dd HH:mm:ss.SSS') + ";"; end
+                end
+            end
             s = B.browserState();
             s.runs = sprintf('%d %s', numel(E), stamp);
             s.result = created;
@@ -2524,7 +2676,7 @@ classdef DatasetBrowser < handle
             file = "";
             start0 = B.ScriptFolder;
             if start0 == "" || ~isfolder(start0); start0 = string(pwd); end
-            name = "compute_" + B.SettingsS.data;
+            name = "compute_" + strjoin(B.SettingsS.data, "_");
             if B.ResultCurrent && B.ResultName ~= ""; name = "compute_" + B.ResultName; end
             [f, p] = uiputfile({'*.m', 'MATLAB script (*.m)'}, "Export compute script", char(fullfile(start0, name + ".m")));
             if B.uiOk(); figure(B.Fig); end
@@ -2534,15 +2686,17 @@ classdef DatasetBrowser < handle
 
         function readScriptPrefs(B, prefs)
             %readScriptPrefs  Scripts, Script, ScriptAfterCompute and the folder from the preferences.
-            %   With no list saved yet, the scripts that come with the browser
-            %   (analysis\scripts) are listed.
+            %   Scripts is every script of analysis\browser_scripts, found now,
+            %   then the scripts added from elsewhere (the preference).
+            d = dir(fullfile(DatasetBrowser.scriptsFolder(), '*.m'));
+            s = reshape(string({d.folder}) + filesep + string({d.name}), [], 1);
             if isfield(prefs, 'Scripts') && (iscellstr(prefs.Scripts) || isstring(prefs.Scripts))
-                s = reshape(string(prefs.Scripts), [], 1);
-                B.Scripts = s(s ~= "");
-            else
-                d = dir(fullfile(DatasetBrowser.scriptsFolder(), '*.m'));
-                B.Scripts = reshape(string({d.folder}) + filesep + string({d.name}), [], 1);
+                added = reshape(string(prefs.Scripts), [], 1);
+                added = added(added ~= "" & ~DatasetBrowser.isBundledScript(added));
+                [~, first] = unique(lower(added), 'stable');
+                s = [s; added(first)];
             end
+            B.Scripts = s;
             if ~isempty(B.Scripts); B.ScriptS = B.Scripts(1); end
             if isfield(prefs, 'Script') && (ischar(prefs.Script) || isstring(prefs.Script))
                 k = find(lower(B.Scripts) == lower(string(prefs.Script)), 1);
@@ -2565,7 +2719,7 @@ classdef DatasetBrowser < handle
                 AppPrefs.setpref(g, "RecentSettings", cellstr(B.RecentSettings));
                 AppPrefs.setpref(g, "Workers", B.WorkersN);
                 AppPrefs.setpref(g, "OnTop", B.OnTopS);
-                AppPrefs.setpref(g, "Scripts", cellstr(B.Scripts));
+                AppPrefs.setpref(g, "Scripts", cellstr(B.Scripts(~DatasetBrowser.isBundledScript(B.Scripts))));
                 AppPrefs.setpref(g, "Script", char(B.ScriptS));
                 AppPrefs.setpref(g, "ScriptAfterCompute", B.AfterS);
                 AppPrefs.setpref(g, "ScriptFolder", char(B.ScriptFolder));
@@ -2591,7 +2745,10 @@ classdef DatasetBrowser < handle
         function setBusyUI(B, tf)
             c = B.Ctl;
             for name = B.Controls
-                if isfield(c, name) && isvalid(c.(name)); c.(name).Enable = ternary(tf, 'off', 'on'); end   % a uitable takes text only
+                if ~isfield(c, name); continue; end
+                for h = reshape(c.(name), 1, [])   % Data is a box per kind; ProbePicker is no graphics object (no set)
+                    if isvalid(h); h.Enable = ternary(tf, 'off', 'on'); end   % a uitable takes text only
+                end
             end
             for h = struct2cell(c.Align).'
                 if isprop(h{1}, 'Enable'); h{1}.Enable = ternary(tf, 'off', 'on'); end
@@ -2852,7 +3009,7 @@ classdef DatasetBrowser < handle
             %refreshProbe  The Channels tab, when shown: the probe of the lists' dataset drawn (read once per dataset), with a note.
             if ~B.uiOk() || B.Ctl.SettingsTabs.SelectedTab ~= B.Ctl.ProbeTab; return; end
             c = B.Ctl;
-            if B.SettingsS.data == "AUX"
+            if all(B.SettingsS.data == "AUX")
                 if B.ProbeKey ~= "<AUX>"
                     c.Probe.setProbe([], "AUX has no probe");
                     c.ProbeNote.Text = "AUX has no probe: Channels are the AUX columns kept.";
@@ -2970,8 +3127,10 @@ classdef DatasetBrowser < handle
             %   left out (the cache identity leaves them out too).
             lit = @EphysPipelineScript.literal;
             D = epochMatrixSettings(struct('data', S.data));   % the defaults for this data (units.source follows data)
-            spikes = ismember(S.data, ["units" "detected"]);
-            skip = ternary(spikes, "signal", ["units" "measure" "binSec" "baseline" "auroc"]);
+            D.data = epochMatrixSettings().data;   % data itself is written unless it is the default
+            skip = strings(1, 0);
+            if ~any(~ismember(S.data, ["units" "detected"])); skip = "signal"; end
+            if ~any(ismember(S.data, ["units" "detected"])); skip = ["units" "measure" "binSec" "baseline" "auroc"]; end
             args = strings(0, 1);
             for f = string(fieldnames(S)).'
                 if ismember(f, skip) || isequaln(S.(f), D.(f)); continue; end
@@ -3032,8 +3191,15 @@ classdef DatasetBrowser < handle
         end
 
         function d = scriptsFolder()
-            %scriptsFolder  analysis\scripts: the post-processing scripts that come with the browser.
-            d = string(fullfile(fileparts(mfilename('fullpath')), 'scripts'));
+            %scriptsFolder  analysis\browser_scripts: the post-processing scripts that come with the browser.
+            d = string(fullfile(fileparts(mfilename('fullpath')), 'browser_scripts'));
+        end
+
+        function tf = isBundledScript(files)
+            %isBundledScript  True for each file in scriptsFolder itself (always listed, never removed).
+            folders = strings(size(files));
+            for k = 1:numel(files); folders(k) = fileparts(files(k)); end
+            tf = lower(folders) == lower(DatasetBrowser.scriptsFolder());
         end
 
         function file = defaultFile(root)
@@ -3184,7 +3350,9 @@ end
 
 function p = pickOf(S)
 %pickOf  The shanks and channels the settings S compute with: units' for units and detected, signal's for a signal.
-if ismember(S.data, ["units" "detected"])
+%   With several kinds, the first probe kind's (AUX, which has no probe, only when it is the only kind).
+probe = S.data(S.data ~= "AUX");
+if ~isempty(probe) && ismember(probe(1), ["units" "detected"])
     p = struct('shanks', S.units.shanks, 'channels', S.units.channels);
 else
     p = struct('shanks', S.signal.shanks, 'channels', S.signal.channels);
@@ -3193,12 +3361,12 @@ end
 
 
 function S = withPick(S, field, v)
-%withPick  S with FIELD ("shanks" | "channels") of the data computed set to V (units' or signal's; the other kept).
-if ismember(S.data, ["units" "detected"])
-    S.units.(field) = v;
-else
-    S.signal.(field) = v;
-end
+%withPick  S with FIELD ("shanks" | "channels") of the data computed set to V: units' and the probe signal's, one pick for all.
+%   AUX alone: its columns (signal's); among other kinds AUX takes all its
+%   columns (epochMatrixSettings' Kind), so the pick is the probe's.
+isSpike = ismember(S.data, ["units" "detected"]);
+if any(isSpike); S.units.(field) = v; end
+if any(~isSpike & S.data ~= "AUX") || all(S.data == "AUX"); S.signal.(field) = v; end
 end
 
 
@@ -3220,6 +3388,7 @@ end
 
 function s = definitionName(S)
 %definitionName  A definition's default name: the event and trials of ResultName, one identifier ("StimOnset_Hit").
+S.data = S.data(1);   % the labels are one kind's; the event and trials are every kind's
 L = epochMatrixLabels(struct('settings', S, 'valueUnits', "", 'groupLabels', zeros(0, 1)));
 w = eventTrialsWords(L.aligned, S.selection);
 s = string(matlab.lang.makeValidName(char(strjoin(w(w ~= ""), "_"))));

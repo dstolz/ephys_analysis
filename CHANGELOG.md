@@ -10,6 +10,41 @@ says how to cut a release.
 
 ### Added
 
+- Several kinds of data at once in the dataset browser: **Data** is a box per kind (`units`, `detected`, `LFP`,
+  `MUA`, `SPIKE`, `AUX`), and `epochMatrixSettings`' `data` a string row. **Compute** computes each kind on its
+  own (`epochMatrixSettings(S, Kind=K)`, cached per kind) into `B.Results`, by kind; `B.Result` stays the first
+  kind's. **Load whole sessions** gives an entry per dataset and kind in `B.Sessions` (`sessionData` returns one
+  per kind, leaving out a kind the dataset lacks). The Channels tab is one pick for every probe kind; AUX among
+  other kinds keeps all its columns and Magnitude is AUX's. The Cached column, the summary and the exported
+  script follow every kind. The result file is version 2 (`results` in place of `result`); a version 1 file's
+  result is not read. `epochMatrixSettings:SeveralData` when a cache identity is asked of several kinds (so
+  `epochMatrix` given several). The exported script now writes a `data` other than the default (it was left
+  out). `S_DatasetBrowserToNeuroGLM.m` takes `withSignal` from `B.Sessions` when that signal was loaded too.
+
+- Current source density connectors for the dataset browser: `laminarColumns` finds the laminar profiles of a
+  channel table (a staggered shank merges into one profile, a true two-column shank separates, `"2d"` keeps a
+  shank's layout; depths in mm below the top channel), `epochMatrixCSD` and `sessionDataCSD` arrange a signal
+  result's epochs or whole sessions' kept trials along them (the evoked potential per group in V, every epoch,
+  the whole signal); `icsdEstimate` runs the iCSD toolbox's spline, delta, step and standard methods (Pettersen
+  et al. 2006; delta and step refuse unequal spacing), `kcsdEstimate` runs kCSD-python's KCSD1D /
+  KCSD2D in a Python with `kcsd` through `kcsd_estimate.py` (`.npz` in and out; `R` and `lambda` cross-validated
+  or by L-curve; the fitted potentials back), both in uA/mm^3. The post-processing scripts
+  `S_DatasetBrowserToICSD.m` and `S_DatasetBrowserToKCSD.m` estimate and draw them per group and shank;
+  `test_CSDEstimate` and `test_DatasetBrowser`'s `csdOfEpochsAndSessions` check them;
+  [CSDEstimate.md](documentation/CSDEstimate.md) documents them.
+
+- FieldTrip spikes from the dataset browser: `epochMatrixFieldTrip` turns a spike result's epochs into
+  `ft_datatype_spike` structures cut into trials (`time`, `trial`, `trialtime`, `trialinfo`; timestamps on the
+  recording with `Fs=`), and `sessionDataFieldTrip` whole spike sessions into timestamped spike structures with a
+  `cfg.trl` for `ft_spike_maketrials`; new general builders `FieldTripExport.spikeTimes` and `.spikeTrials`. The
+  post-processing script `S_DatasetBrowserLFPToFieldTrip.m` is now `S_DatasetBrowserToFieldTrip.m` and handles
+  signals and spikes (a raster and PSTH per group for spikes). `sessionDataFieldTrip:NoSignal` is now
+  `sessionDataFieldTrip:NoData`.
+- Dataset browser: its post-processing scripts (`S_DatasetBrowser*.m`) moved from `analysis/scripts` to their own
+  folder, `analysis/browser_scripts`. Every script there is always listed, first, found again at each start, and
+  cannot be taken off the list (`DatasetBrowser:BundledScript`); **+** and **−** add and remove scripts from
+  elsewhere, and the `Scripts` preference keeps only those.
+
 - neuroGLM connector: `NeuroGLMExport` (`experiment`, `designSpec`, `fit`, `predict`) hands trials to the
   [neuroGLM](https://github.com/pillowlab/neuroGLM) toolbox (Park, Meister, Huk & Pillow 2014) and fits its Poisson
   GLM, by neuroGLM's own `matRegress` route (`fminunc`, a ridge prior with the paper's evidence optimization) or by

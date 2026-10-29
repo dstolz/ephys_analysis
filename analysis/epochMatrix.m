@@ -211,7 +211,9 @@ function [R, T] = epochMatrix(source, S, opts)
 %   why), epochMatrix:TimeBase (the datasets' t differ, e.g. different bins
 %   or signal rates; named), epochMatrix:Canceled (the finished parts stay
 %   in Runs), epochMatrix:UnknownDataset, epochMatrix:BadSource,
-%   epochMatrix:BadPart, and epochMatrixSettings'.
+%   epochMatrix:BadPart, and epochMatrixSettings' (SeveralData: S.data
+%   holds several kinds; compute each with epochMatrixSettings(S, Kind=K),
+%   as DatasetBrowser does).
 %
 %   Example
 %     cfg = EphysAnalysisConfig(); cfg.Source.Root = "D:\EPHYS";

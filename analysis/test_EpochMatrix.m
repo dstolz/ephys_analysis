@@ -3,7 +3,9 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
     %   Settings: the defaults (every unit class, auROC cutoff "none"), the
     %   OFC script's settings as an overlay, every error, a JSON round trip
     %   with the same id text, and an ID that holds only what applies to
-    %   the data. Over the analysis fixture (two synthetic datasets run
+    %   the data; several kinds of data (each once, every kind's fields
+    %   checked, the ID per kind through Kind=, AUX's columns and magnitude
+    %   among other kinds, a file round trip). Over the analysis fixture (two synthetic datasets run
     %   through the pipeline): spike rates and counts equal the script's
     %   loop written out here, the auROC equals spikePSTH's; an LFP equals
     %   evokedPotential by hand, with the shank and channel picks, and AUX's
@@ -198,6 +200,48 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
             tc.verifyEqual(nameK, "epochMatrix/units/epochs");
             [~, ~, nameL] = epochMatrixSettings(L, keepEpochs=true);
             tc.verifyEqual(nameL, "epochMatrix/LFP/epochs");
+        end
+
+        function settingsSeveralKinds(tc)
+            bad = 'epochMatrixSettings:BadValue';
+            % data: a row of kinds, each once, in the order given
+            S = epochMatrixSettings([], data=["lfp" "units" "LFP" "AUX"], units=struct('shanks', 1:2), ...
+                signal=struct('channels', 1:4, 'shanks', 1, 'magnitude', true));
+            tc.verifyEqual(S.data, ["LFP" "units" "AUX"]);
+            tc.verifyEqual(S.units.source, "units");
+            tc.verifyEqual(epochMatrixSettings([], data={'detected', 'LFP'}).data, ["detected" "LFP"], 'A JSON list (cell).');
+            tc.verifyError(@() epochMatrixSettings([], data=string.empty(1, 0)), bad);
+            tc.verifyError(@() epochMatrixSettings([], data=["units" "spikes"]), bad);
+            % every kind's fields are checked
+            tc.verifyError(@() epochMatrixSettings([], data=["LFP" "units"], window=struct('pre', -0.004, 'post', 0.004), ...
+                binSec=0.01), bad);
+            tc.verifyError(@() epochMatrixSettings([], data=["units" "LFP"], signal=struct('baseline', [2 3])), bad);
+            tc.verifyError(@() epochMatrixSettings([], data=["units" "LFP"], measure="auroc", ...
+                normalize=struct('method', "zscore", 'baseline', [2 3])), bad, 'The signal is normalized, the auROC not.');
+            % the cache identity is per kind: Kind=; epochMatrix computes one kind
+            tc.verifyError(@() secondOutput(S), 'epochMatrixSettings:SeveralData');
+            tc.verifyError(@() epochMatrix(tc.Runner, S, LogFcn=[]), 'epochMatrixSettings:SeveralData');
+            [U, IU, nU] = epochMatrixSettings(S, Kind="units");
+            [U1, IU1, nU1] = epochMatrixSettings(S, data="units");
+            tc.verifyEqual(U, U1, 'Kind gives that kind alone.');
+            tc.verifyEqual(DatasetRuns.idText(IU), DatasetRuns.idText(IU1));
+            tc.verifyEqual([nU nU1], ["epochMatrix/units" "epochMatrix/units"]);
+            L = epochMatrixSettings(S, Kind="lfp");
+            tc.verifyEqual(L.data, "LFP");
+            tc.verifyEqual(L.signal.channels, 1:4, 'A probe signal keeps the probe pick.');
+            tc.verifyFalse(L.signal.magnitude, 'Magnitude is AUX''s when AUX is in data.');
+            A = epochMatrixSettings(S, Kind="AUX");
+            tc.verifyEmpty(A.signal.channels, 'Among other kinds AUX takes all its columns.');
+            tc.verifyEmpty(A.signal.shanks);
+            tc.verifyTrue(A.signal.magnitude);
+            tc.verifyEqual(epochMatrixSettings(S, data="AUX", Kind="AUX").signal.channels, 1:4, 'Alone, AUX keeps its columns.');
+            tc.verifyError(@() epochMatrixSettings(S, Kind="MUA"), bad);
+            tc.verifyEqual(epochMatrixSettings([], data=["units" "detected"], Kind="detected").units.source, "detected");
+            % a settings file keeps the row
+            tmp = tc.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+            f = string(fullfile(tmp.Folder, 'several.json'));
+            epochMatrixSettings(S, SaveAs=f);
+            tc.verifyEqual(epochMatrixSettings(f), S);
         end
 
         % --- spikes ---------------------------------------------------------------------------
@@ -893,6 +937,12 @@ elseif isstring(groupLabels) && isnumeric(x)
 else
     c = find(groupLabels == x, 1);
 end
+end
+
+
+function secondOutput(S)
+%secondOutput  epochMatrixSettings asked for the cache identity (verifyError calls with no output).
+[~, ~] = epochMatrixSettings(S);
 end
 
 

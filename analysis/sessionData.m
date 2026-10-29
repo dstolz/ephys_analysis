@@ -10,9 +10,16 @@ function D = sessionData(src, S, opts)
 %   line come along, with the trials S.selection keeps marked. Nothing is
 %   computed. DatasetBrowser.loadSessions calls it for each ticked dataset.
 %
+%   With several kinds in S.data (["units" "LFP"]), D is a struct column,
+%   one per kind in S.data's order, each as above (the settings of that
+%   kind: epochMatrixSettings(S, Kind=K), so AUX among other kinds has all
+%   its columns); the trials, lines and the rest are the same in each. A
+%   kind the dataset lacks (no sorting, no such signal, no channel left) is
+%   left out; when it lacks every kind, the first kind's error is raised.
+%
 %   D = sessionData(SRC, S, TrialsOnly=true) reads neither spikes nor
-%   signal: D.data is "trials", spikes, units, signal and channels are
-%   empty, and the rest (trials, events, lines, ...) is as above.
+%   signal: D (one) has data "trials", spikes, units, signal and channels
+%   are empty, and the rest (trials, events, lines, ...) is as above.
 %
 %   Two clocks. Spike times and signal samples are on the continuous
 %   clock: sample k at (k-1)/fs. Digital events (events, lines, the
@@ -25,7 +32,7 @@ function D = sessionData(src, S, opts)
 %   D fields
 %     key, name, folder, subject, startTime, tags
 %     fs, durationSec   the recording's rate and length (NaN when unknown)
-%     data              S.data: "units" | "detected" | "LFP" | "MUA" |
+%     data              the kind: "units" | "detected" | "LFP" | "MUA" |
 %                       "SPIKE" | "AUX"; "trials" with TrialsOnly
 %     spikes            {nUnits x 1} spike times, s, continuous clock
 %                       (spike data; {} for a signal)
@@ -79,41 +86,12 @@ D.startTime = src.startTime;
 D.tags = src.tags;
 D.fs = fs;
 D.durationSec = src.durationSec;
-D.data = S.data;
-if opts.TrialsOnly; D.data = "trials"; end
-
+D.data = "trials";
 D.spikes = {};
 D.units = table();
 D.signal = [];
 D.signalFs = NaN;
 D.channels = table();
-if opts.TrialsOnly
-    % no spikes, no signal
-elseif ismember(S.data, ["units" "detected"])
-    [D.spikes, D.units] = selectUnits(src, S.units, Ref=S.ref, Selection=S.selection);
-else
-    sig = S.signal;
-    if S.data == "AUX"
-        [Y, D.signalFs, meta] = selectChannels(src, S.data, Channels=sig.channels);
-        cols = 1:height(meta);
-    else
-        [Y, D.signalFs, meta] = selectChannels(src, S.data);
-        keep = true(height(meta), 1);
-        if ~isempty(sig.channels); keep = keep & ismember(meta.recordingChannel, sig.channels); end
-        if ~isempty(sig.shanks); keep = keep & ismember(meta.shank, sig.shanks); end
-        cols = reshape(find(keep), 1, []);
-        if isempty(cols)
-            error('epochMatrix:NoChannels', '%s: no %s channel is among recording channel(s) %s on shank(s) %s.', ...
-                src.name, S.data, mat2str(sig.channels), mat2str(sig.shanks));
-        end
-    end
-    if isequal(cols, 1:size(Y, 2))
-        D.signal = Y;
-    else
-        D.signal = Y(:, cols);
-    end
-    D.channels = meta(cols, :);
-end
 
 toContinuous = @(t) (round(t * fs) - 1) / fs;
 D.events = src.events;
@@ -134,4 +112,52 @@ D.invertedLines = src.invertedLines;
 D.artifacts = src.artifacts;
 D.probe = src.probe;
 D.labels = src.labels;
+if opts.TrialsOnly; return; end
+
+% --- each kind: its spike trains or its signal
+lacks = ["selectUnits:NoUnits" "selectUnits:NoDetected" "selectUnits:NoneLeft" "selectChannels:NoSignal" "epochMatrix:NoChannels"];
+several = ~isscalar(S.data);
+base = D;
+D = repmat(base, 0, 1);
+first = [];
+for kind = S.data
+    try
+        D(end+1, 1) = kindData(base, src, epochMatrixSettings(S, Kind=kind)); %#ok<AGROW>
+    catch ME
+        if ~(several && ismember(string(ME.identifier), lacks)); rethrow(ME); end
+        if isempty(first); first = ME; end   % the dataset lacks this kind: left out
+    end
+end
+if isempty(D); rethrow(first); end
+end
+
+
+function D = kindData(D, src, S)
+%kindData  D with the spike trains or the signal of S.data (one kind).
+D.data = S.data;
+if ismember(S.data, ["units" "detected"])
+    [D.spikes, D.units] = selectUnits(src, S.units, Ref=S.ref, Selection=S.selection);
+    return
+end
+sig = S.signal;
+if S.data == "AUX"
+    [Y, D.signalFs, meta] = selectChannels(src, S.data, Channels=sig.channels);
+    cols = 1:height(meta);
+else
+    [Y, D.signalFs, meta] = selectChannels(src, S.data);
+    keep = true(height(meta), 1);
+    if ~isempty(sig.channels); keep = keep & ismember(meta.recordingChannel, sig.channels); end
+    if ~isempty(sig.shanks); keep = keep & ismember(meta.shank, sig.shanks); end
+    cols = reshape(find(keep), 1, []);
+    if isempty(cols)
+        error('epochMatrix:NoChannels', '%s: no %s channel is among recording channel(s) %s on shank(s) %s.', ...
+            src.name, S.data, mat2str(sig.channels), mat2str(sig.shanks));
+    end
+end
+if isequal(cols, 1:size(Y, 2))
+    D.signal = Y;
+else
+    D.signal = Y(:, cols);
+end
+D.channels = meta(cols, :);
 end

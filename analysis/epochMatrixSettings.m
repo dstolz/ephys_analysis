@@ -10,13 +10,25 @@ function [S, ID, name] = epochMatrixSettings(S0, opts)
 %   the cache identity (below), and [S, ID, NAME] = ... the DatasetRuns
 %   name epochMatrix keeps the parts under: "epochMatrix/" + data, with
 %   "/epochs" added when keepEpochs is on (such parts hold the epochs, so
-%   they are kept apart from those without).
+%   they are kept apart from those without). ID and NAME are those of one
+%   kind of data: with several kinds in data, ask for each with Kind=.
+%
+%   [S, ID, NAME] = epochMatrixSettings(S0, Kind=K) gives the settings of
+%   kind K of S0's data alone (data = K; units.source = K for spikes), its
+%   ID and NAME: what epochMatrix computes for K. Among other kinds, AUX
+%   (no probe) takes all its columns: signal.channels and signal.shanks
+%   are the probe's pick then, so K = "AUX" clears them; and
+%   signal.magnitude is AUX's, so a probe signal K clears it when AUX is
+%   in data.
 %
 %   Fields of S, in this order
-%     data       what is computed: "units" (default; the sorted units of
+%     data       what is computed, one kind or several (a string row, each
+%                kind once, in the order given; epochMatrix computes one
+%                at a time: Kind=): "units" (default; the sorted units of
 %                the sorting folder) | "detected" (the Spikes step's
 %                threshold detections, one train per channel) | "LFP" |
-%                "MUA" | "SPIKE" | "AUX" (a derived signal)
+%                "MUA" | "SPIKE" | "AUX" (a derived signal). The fields
+%                of every kind in data are checked
 %     ref        eventRef: the event each epoch is aligned to
 %     window     epochWindow; its mode must be "fixed" (default [-1 1] s)
 %     selection  trialSelection: the trials kept and their groups
@@ -90,12 +102,15 @@ function [S, ID, name] = epochMatrixSettings(S0, opts)
 %   Options
 %     data, ref, window, selection, units, signal, measure, binSec,
 %     baseline, auroc, normalize, keepEpochs   the fields above
-%     SaveAs     a .json file: write the checked settings there
+%     Kind       one kind of data: S, ID and NAME of that kind alone (above)
+%     SaveAs     a .json file: write the checked settings returned there
 %
 %   Errors: epochMatrixSettings:UnknownField (a field S has no place for, at
 %   the top or inside units, signal, auroc or normalize; ref, window and
 %   selection raise theirs as this too), epochMatrixSettings:BadValue (any
-%   value that does not fit, or a file that is not a settings file).
+%   value that does not fit, a Kind not in data, or a file that is not a
+%   settings file), epochMatrixSettings:SeveralData (ID or NAME asked for
+%   with several kinds in data and no Kind).
 %
 %   The version constant (PartVersion below) goes into ID. Bump it whenever
 %   what a part builder of epochMatrix computes changes (spikePart,
@@ -119,6 +134,7 @@ arguments
     opts.auroc
     opts.normalize
     opts.keepEpochs
+    opts.Kind (1,1) string = ""
     opts.SaveAs (1,1) string = ""
 end
 
@@ -143,11 +159,13 @@ end
 % --- overlay: defaults <- S0 <- options -------------------------------------------------
 S = defaultSettings();
 S = overlay(S, in);
-given = rmfield(opts, 'SaveAs');
+given = rmfield(opts, {'SaveAs', 'Kind'});
 S = overlay(S, given);
 
 % --- normalize and check ------------------------------------------------------------------
 S.data = checkData(S.data);
+spikes = any(isSpikes(S.data));
+signals = any(~isSpikes(S.data));
 S.ref = wrapped(@() eventRef(S.ref), "ref");
 S.window = wrapped(@() epochWindow(S.window), "window");
 if S.window.mode ~= "fixed"
@@ -155,7 +173,7 @@ if S.window.mode ~= "fixed"
 end
 S.selection = wrapped(@() trialSelection(S.selection), "selection");
 S.units = section("UnitSelection", S.units, "units");
-if isSpikes(S.data); S.units.source = S.data; end
+if spikes; S.units.source = S.data(find(isSpikes(S.data), 1)); end
 if ~ismember(S.units.source, ["units" "detected"])
     error('epochMatrixSettings:BadValue', 'units.source must be "units" or "detected" (got "%s").', S.units.source);
 end
@@ -171,13 +189,14 @@ S.normalize = checkNormalize(S.normalize);
 S.keepEpochs = toLogical(S.keepEpochs, "keepEpochs");
 
 nb = S.normalize.baseline;
-if ismember(S.normalize.method, ["subtract" "ratio" "percent" "zscore"]) && ~(isSpikes(S.data) && S.measure == "auroc") ...
+normalized = signals || S.measure ~= "auroc";   % auROC is not normalized
+if ismember(S.normalize.method, ["subtract" "ratio" "percent" "zscore"]) && normalized ...
         && (nb(2) < S.window.pre || nb(1) > S.window.post)
     error('epochMatrixSettings:BadValue', 'normalize.baseline [%g %g] s lies outside the window [%g %g] s.', ...
         nb(1), nb(2), S.window.pre, S.window.post);
 end
 
-if isSpikes(S.data)
+if spikes
     pre = S.window.pre; post = S.window.post;
     edges = (ceil(pre / S.binSec - 1e-9) : floor(post / S.binSec + 1e-9)) * S.binSec;   % spikePSTH's whole bins
     if numel(edges) < 2
@@ -186,7 +205,8 @@ if isSpikes(S.data)
     if S.measure == "auroc" && ~(numel(S.baseline) == 2 && S.baseline(1) < S.baseline(2))
         error('epochMatrixSettings:BadValue', 'measure "auroc" needs baseline = [b0 b1] with b0 < b1.');
     end
-else
+end
+if signals
     b = S.signal.baseline;
     if ~isempty(b) && (b(2) < S.window.pre || b(1) > S.window.post)
         error('epochMatrixSettings:BadValue', 'signal.baseline [%g %g] s lies outside the window [%g %g] s.', ...
@@ -194,19 +214,41 @@ else
     end
 end
 
-% --- the cache identity ---------------------------------------------------------------------
-ID = struct('data', S.data, 'ref', S.ref, 'window', S.window, 'selection', S.selection);
-if isSpikes(S.data)
-    for f = ["units" "measure" "binSec" "baseline" "auroc"]
-        ID.(f) = S.(f);
+% --- one kind of data ------------------------------------------------------------------------
+if opts.Kind ~= ""
+    k = checkData(opts.Kind);
+    if ~ismember(k, S.data)
+        error('epochMatrixSettings:BadValue', 'Kind "%s" is not in data (%s).', k, strjoin(S.data, ", "));
     end
-else
-    ID.signal = S.signal;
+    if k == "AUX" && numel(S.data) > 1
+        S.signal.channels = [];   % the probe's pick: AUX takes all its columns
+        S.signal.shanks = [];
+    elseif ~isSpikes(k) && ismember("AUX", S.data)
+        S.signal.magnitude = false;   % AUX's (the accelerometer's), not the probe signal's
+    end
+    S.data = k;
+    if isSpikes(k); S.units.source = k; end
 end
-if S.keepEpochs; ID.keepEpochs = true; end
-ID.version = PartVersion;
-name = "epochMatrix/" + S.data;
-if S.keepEpochs; name = name + "/epochs"; end
+
+% --- the cache identity ---------------------------------------------------------------------
+if nargout > 1
+    if ~isscalar(S.data)
+        error('epochMatrixSettings:SeveralData', ['The cache identity is per kind of data, and data holds %s: ' ...
+            'ask for each kind with Kind= (epochMatrix computes one at a time).'], strjoin(S.data, ", "));
+    end
+    ID = struct('data', S.data, 'ref', S.ref, 'window', S.window, 'selection', S.selection);
+    if isSpikes(S.data)
+        for f = ["units" "measure" "binSec" "baseline" "auroc"]
+            ID.(f) = S.(f);
+        end
+    else
+        ID.signal = S.signal;
+    end
+    if S.keepEpochs; ID.keepEpochs = true; end
+    ID.version = PartVersion;
+    name = "epochMatrix/" + S.data;
+    if S.keepEpochs; name = name + "/epochs"; end
+end
 
 if opts.SaveAs ~= ""
     writeJsonFile(opts.SaveAs, struct('schema', "epoch-matrix-settings", 'version', 1, 'settings', S), NonFinite="string");
@@ -311,15 +353,31 @@ end
 
 
 function d = checkData(d)
-%checkData  "units" | "detected" | a signal type (case ignored).
-d = checkText(d, "data");
-if ismember(lower(d), ["units" "detected"])
-    d = lower(d);
-elseif ismember(upper(d), DatasetOutputs.SignalTypes)
-    d = upper(d);
-else
-    error('epochMatrixSettings:BadValue', 'data must be "units", "detected", "LFP", "MUA", "SPIKE" or "AUX" (got "%s").', d);
+%checkData  A row of kinds, each "units" | "detected" | a signal type (case ignored), each once: one at least.
+if iscell(d)
+    if ~all(cellfun(@(v) (isstring(v) && isscalar(v)) || (ischar(v) && (isrow(v) || isempty(v))), d))
+        error('epochMatrixSettings:BadValue', 'data must be text.');
+    end
+    d = string(d);
+elseif ischar(d) && (isrow(d) || isempty(d))
+    d = string(d);
+elseif ~isstring(d)
+    error('epochMatrixSettings:BadValue', 'data must be text.');
 end
+d = reshape(d, 1, []);
+if isempty(d) || any(ismissing(d)) || any(strtrim(d) == "")
+    error('epochMatrixSettings:BadValue', 'data must name at least one kind: "units", "detected", "LFP", "MUA", "SPIKE" or "AUX".');
+end
+for k = 1:numel(d)
+    if ismember(lower(d(k)), ["units" "detected"])
+        d(k) = lower(d(k));
+    elseif ismember(upper(d(k)), DatasetOutputs.SignalTypes)
+        d(k) = upper(d(k));
+    else
+        error('epochMatrixSettings:BadValue', 'data must be "units", "detected", "LFP", "MUA", "SPIKE" or "AUX" (got "%s").', d(k));
+    end
+end
+d = reshape(unique(d, 'stable'), 1, []);
 end
 
 

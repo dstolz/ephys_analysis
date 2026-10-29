@@ -4,7 +4,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
     %   pipeline, tagged here): a scan loads no source; the filter and the
     %   ticks through the methods and through the controls' callbacks (a
     %   tick on a sorted row goes to its dataset); the settings form (a
-    %   round trip, hidden fields kept, the Data drop-down's blocks, an
+    %   round trip, hidden fields kept, the Data boxes' blocks, an
     %   invalid edit undone); a drop-down opening loads one source; compute
     %   equals epochMatrix, a dataset ticked later is the only one computed,
     %   a binSec change computes all; the exported script (exportScript:
@@ -12,7 +12,13 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
     %   the compute's result; loadSessions gives each ticked dataset whole
     %   (the units Compute uses, every trial with the selection marked, the
     %   events on the spikes' clock as epochTable puts them; a signal's
-    %   channels kept) and caches nothing; a Normalize change normalizes the
+    %   channels kept) and caches nothing; several kinds of Data (a result
+    %   per kind equal to that kind's epochMatrix in B.Results, B.Result the
+    %   first; the Cached column and summary per kind; normalized again
+    %   together; the result file and the exported script keep every kind;
+    %   none ticked refused; one probe pick for units and the signal; Load
+    %   whole sessions an entry per dataset and kind, a kind no dataset has
+    %   left out, and Compute of it named); a Normalize change normalizes the
     %   result again in place (still current, nothing assembled, the same as
     %   a compute), and its controls are on only where they apply; the
     %   result file restores without a
@@ -37,11 +43,11 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
     %   open, but not the browser's own compute. Workers: the option, the
     %   field and the preference; on process workers (Slow) compute equals
     %   epochMatrix here and is cached, and forEach runs there too.
-    %   Post-processing scripts: the first list (analysis\scripts), a script
-    %   added and picked, Compute runs it in the base workspace (B there)
+    %   Post-processing scripts: every script of analysis\browser_scripts
+    %   listed first and not removable, a script added and picked, Compute runs it in the base workspace (B there)
     %   only with the box ticked, Run now, a failing script's name and line,
     %   removing keeps the file, the bundled script runs on a result, the
-    %   preferences.
+    %   preferences (only the scripts added).
     %
     %   Usage:  runtests("test_DatasetBrowser")
 
@@ -231,7 +237,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             B.Settings = S;
             c = B.Ctl;
             A = c.Align;
-            tc.verifyEqual(string(c.Data.Value), "detected");
+            tc.verifyEqual([c.Data.Value], [false true false false false false], 'The detected box alone.');
             tc.verifyEqual(string(A.Line.Value), "Stim");
             tc.verifyEqual(string(A.Scope.Value), "trial");
             tc.verifyEqual(A.SeqText.UserData.sequence, S.ref.sequence, 'The sequence is kept in its summary label.');
@@ -319,9 +325,10 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             A.SeqEdit.ButtonPushedFcn(A.SeqEdit, []);
             B.Settings = kept;   % settings from elsewhere close the window
             tc.verifyTrue(isempty(B.SequenceDialog));
-            % the Data drop-down: only its block is on
-            c.Data.Value = 'LFP';
-            c.Data.ValueChangedFcn(c.Data, []);
+            % the Data boxes: only the blocks of the kinds ticked are on
+            set(c.Data, "Value", false);
+            c.Data(3).Value = true;   % LFP
+            c.Data(3).ValueChangedFcn(c.Data(3), []);
             tc.verifyEqual(B.Settings.data, "LFP");
             tc.verifyEqual([c.Channels.Enable c.Shanks.Enable c.Detrend.Enable c.Measure.Enable c.Merge.Enable c.Magnitude.Enable], ...
                 matlab.lang.OnOffSwitchState([1 1 1 0 0 0]));
@@ -701,6 +708,105 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyError(@() B.loadSessions(), 'DatasetBrowser:NoneTicked');
         end
 
+        function severalKindsOfData(tc)
+            kinds = ["units" "LFP" "AUX"];
+            S = epochMatrixSettings(tc.Spike, data=kinds, signal=struct('channels', 1:4));
+            B = tc.open(Settings=S);
+            c = B.Ctl;
+            tc.verifyEqual([c.Data.Value], [true false true false false true], 'A box per kind.');
+            tc.verifyEqual([c.Measure.Enable c.Detrend.Enable c.Magnitude.Enable c.Shanks.Enable], ...
+                matlab.lang.OnOffSwitchState([1 1 1 1]), 'Every block that applies is on.');
+            % Compute: a result per kind, each that kind's epochMatrix; Result the first
+            [R, Rs] = B.compute();
+            tc.verifyEqual(string(fieldnames(Rs)).', kinds);
+            tc.verifyEqual(B.Results, Rs);
+            tc.verifyEqual(B.Result, R);
+            tc.verifyEqual(R, Rs.units);
+            for kind = kinds
+                R0 = epochMatrix(B.Runner, epochMatrixSettings(S, Kind=kind), Datasets=B.Selected, LogFcn=[]);
+                tc.verifyEqual(Rs.(kind).data, R0.data, kind);
+                tc.verifyEqual(Rs.(kind).rows, R0.rows, kind);
+                tc.verifyEqual(Rs.(kind).settings.data, kind);
+            end
+            tc.verifyEqual(height(Rs.LFP.rows), 4 * numel(B.Selected), 'The probe pick: recording channels 1:4.');
+            nAux = 0;
+            for key = B.Selected.'
+                [~, ~, meta] = selectChannels(B.source(key), "AUX");
+                nAux = nAux + height(meta);
+            end
+            tc.verifyEqual(height(Rs.AUX.rows), nAux, 'Among other kinds AUX keeps all its columns.');
+            tc.verifyTrue(B.ResultCurrent);
+            tc.verifyTrue(all(startsWith(B.Table.Cached, "✓") & contains(B.Table.Cached, "units") ...
+                & contains(B.Table.Cached, "LFP") & contains(B.Table.Cached, "AUX")), strjoin(B.Table.Cached, " | "));
+            lines = splitlines(string(c.Summary.Text));
+            tc.verifyEqual(extractBefore(lines, ":"), kinds.', c.Summary.Text);
+            B.compute();
+            tc.verifyEqual(B.Runs.Last.status, ["cached"; "cached"], 'Every kind reused.');
+            % a spike option: the units are old, the signals cached
+            B.Settings = epochMatrixSettings(B.Settings, binSec=0.02);
+            tc.verifyFalse(B.ResultCurrent);
+            tc.verifyTrue(all(B.Table.Cached == "old"));
+            B.Settings = epochMatrixSettings(B.Settings, binSec=0.01);
+            tc.verifyTrue(B.ResultCurrent);
+            % Normalize: every kind normalized again in place
+            B.formEdit("Normalize", "zscore");
+            tc.verifyTrue(B.ResultCurrent);
+            tc.verifyEqual(B.Results.LFP.data, epochMatrixNormalize(Rs.LFP, struct('method', "zscore")).data);
+            tc.verifyEqual(B.Results.units.normalization.method, "zscore");
+            B.formEdit("Normalize", "none");
+            % the result file keeps every kind
+            B.save();
+            B2 = tc.open(ResultFile=B.ResultFile, Scan=false);
+            tc.verifyEqual(string(fieldnames(B2.Results)).', kinds);
+            tc.verifyEqual(B2.Results.LFP.data, Rs.LFP.data);
+            tc.verifyEqual(B2.Result.data, R.data);
+            % the exported script computes each kind
+            tmp = tc.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+            file = fullfile(tmp.Folder, "compute_several.m");
+            txt = B.exportScript(file);
+            tc.verifyTrue(contains(txt, "data=[""units"" ""LFP"" ""AUX""]") && contains(txt, "Kind=kind"), txt);
+            [R1, Rs1] = runScriptResults(file);
+            tc.verifyEqual(R1.data, R.data);
+            tc.verifyEqual(Rs1.AUX.data, Rs.AUX.data);
+            % the boxes: none ticked is refused
+            B.formEdit("Data", ["units" "AUX"]);
+            tc.verifyEqual(B.Settings.data, ["units" "AUX"]);
+            tc.verifyFalse(B.ResultCurrent);
+            set(c.Data, "Value", false);
+            c.Data(6).ValueChangedFcn(c.Data(6), []);
+            tc.verifyEqual(B.Settings.data, ["units" "AUX"], 'None ticked is refused.');
+            tc.verifyEqual([c.Data([1 6]).Value], [true true], 'The boxes come back.');
+            tc.verifyTrue(startsWith(string(c.Status.Text), "Not applied"), c.Status.Text);
+            % the Channels tab: one pick for units and the probe signal
+            B.formEdit("Data", ["units" "LFP"]);
+            B.formEdit("Channels", "2 3");
+            tc.verifyEqual([B.Settings.units.channels; B.Settings.signal.channels], [2 3; 2 3]);
+            B.formEdit("Channels", "");
+            tc.verifyEmpty([B.Settings.units.channels B.Settings.signal.channels]);
+            % Load whole sessions: an entry per dataset and kind; a kind no dataset has, none
+            B.formEdit("Data", ["units" "LFP" "SPIKE"]);
+            tc.verifyTrue(contains(string(c.DataNote.Text), "lack SPIKE"), c.DataNote.Text);
+            [D, T] = B.loadSessions();
+            tc.verifyEqual(T.status, ["done"; "done"]);
+            tc.verifyEqual([D.data], repmat(["units" "LFP"], 1, 2));
+            tc.verifyEqual([D.key], repelem(B.Selected.', 2));
+            src = B.source(D(2).key);
+            tc.verifyEqual(D(2).signal, selectChannels(src, "LFP"), 'The LFP whole.');
+            U = epochMatrixSettings(B.Settings, Kind="units");
+            tc.verifyEqual(D(1).spikes, selectUnits(src, U.units, Ref=U.ref, Selection=U.selection));
+            tc.verifyEqual(D(1).trials, D(2).trials);
+            tc.verifyTrue(contains(c.ProgMsg.Text, "(units 2, LFP 2, SPIKE 0)"), c.ProgMsg.Text);
+            % Compute of a kind no dataset has: named, Results kept
+            try
+                B.compute();
+                tc.verifyFail('SPIKE gives no rows.');
+            catch ME
+                tc.verifyEqual(string(ME.identifier), "epochMatrix:NoData");
+                tc.verifyTrue(startsWith(string(ME.message), "SPIKE: "), ME.message);
+            end
+            tc.verifyEqual(string(fieldnames(B.Results)).', kinds);
+        end
+
         function fieldTripOfEpochsAndSessions(tc)
             B = tc.open(Settings=epochMatrixSettings(tc.Spike, data="LFP", keepEpochs=true));
             R = B.compute();
@@ -731,7 +837,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEqual(trl(:, 2) - trl(:, 1), repmat(round((win.post - win.pre) * g.fsample), height(trl), 1));
             tc.verifyEqual(trl(:, 4), D(k).group(trl(:, 5)), 'Each trial''s group.');
             tc.verifyTrue(all(D(k).kept(trl(:, 5))), 'Only the trials kept.');
-            % spikes, and a result without epochs, are refused
+            % a result without epochs is refused
             B.Settings = epochMatrixSettings(B.Settings, keepEpochs=false);
             tc.verifyError(@() epochMatrixFieldTrip(B.compute()), 'epochMatrixFieldTrip:NoEpochs');
             B.Settings = epochMatrixSettings(B.Settings, data="units", keepEpochs=true);
@@ -965,7 +1071,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             R = B.compute();
             B.close();
             raw = load(f);
-            tc.verifyEqual(sort(string(fieldnames(raw))).', ["browser" "result" "runs" "schema" "version"]);
+            tc.verifyEqual(sort(string(fieldnames(raw))).', ["browser" "results" "runs" "schema" "version"]);
             tc.verifyEqual(raw.schema, "dataset-browser-results");
             % Scan=false: the result, without touching the root
             B2 = tc.open(ResultFile=f, Scan=false);
@@ -1026,7 +1132,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             B.close();
             % the result file leaves the epochs to the kept parts; a restore assembles them again
             raw = load(f);
-            tc.verifyEmpty(raw.result.epochs);
+            tc.verifyTrue(all(structfun(@(r) isempty(r.epochs), raw.results)), 'Every kind''s epochs left out.');
             B2 = tc.open(ResultFile=f, Scan=false);
             tc.verifyEqual(B2.Result.epochs, R.epochs);
             tc.verifyTrue(B2.ResultCurrent);
@@ -1183,7 +1289,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEqual(B.Runs.status("epochMatrix/units", B.Selected, ID), ["current"; ""], 'The finished part is kept.');
             tc.verifyFalse(B.Busy);
             c = B.Ctl;
-            tc.verifyEqual([string(c.Compute.Enable) string(c.Table.Enable) string(c.Data.Enable) string(c.Cancel.Enable)], ["on" "on" "on" "off"]);
+            tc.verifyEqual([string(c.Compute.Enable) string(c.Table.Enable) string(c.Data(1).Enable) string(c.Cancel.Enable)], ["on" "on" "on" "off"]);
             tc.verifyEqual(c.Merge.Enable, matlab.lang.OnOffSwitchState(false), 'The blocks come back as Data says.');
             tc.verifyTrue(isfile(B.ResultFile));
             B.ProgressHook = [];
@@ -1247,7 +1353,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyFalse(B.Busy);
             tc.verifyEqual(string(c.ProgMsg.Text), "Canceled");
             tc.verifyEqual(c.Bar.ColumnWidth, {'250x', '750x'}, 'The bar is left as it was.');
-            tc.verifyEqual([string(c.Compute.Enable) string(c.Table.Enable) string(c.Data.Enable) string(c.Cancel.Enable)], ...
+            tc.verifyEqual([string(c.Compute.Enable) string(c.Table.Enable) string(c.Data(1).Enable) string(c.Cancel.Enable)], ...
                 ["on" "on" "on" "off"]);
             tc.verifyError(@() B.checkCancel(), 'DatasetBrowser:Canceled', 'Later checks still stop the loop.');
             tc.verifyFalse(B.Busy);
@@ -1400,9 +1506,14 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             before = evalin('base', 'who');
             tc.addTeardown(@() clearBaseExcept(before));
             B = tc.open(Settings=tc.Spike);
-            bundled = endsWith(B.Scripts, "S_PrepareDatasetBrowserOutputForPlots.m");
-            tc.verifyTrue(any(bundled), 'The first list holds the scripts of analysis\scripts.');
+            folder = fullfile(fileparts(which('DatasetBrowser')), 'browser_scripts');
+            d = dir(fullfile(folder, '*.m'));
+            shipped = reshape(string({d.folder}) + filesep + string({d.name}), [], 1);
+            tc.verifyEqual(B.Scripts(1:numel(shipped)), shipped, 'Every script of analysis\browser_scripts is listed, first.');
+            bundled = endsWith(B.Scripts, "S_DatasetBrowserBasicOutput.m");
             tc.verifyEqual(B.Script, B.Scripts(1));
+            tc.verifyEqual(string(B.Ctl.ScriptRemove.Enable), "off", 'A shipped script cannot be taken off.');
+            tc.verifyError(@() B.removeScript(), 'DatasetBrowser:BundledScript');
             tc.verifyFalse(B.ScriptAfterCompute);
             tc.verifyEqual(string(B.Ctl.ScriptRun.Enable), "off", 'Run now is off before a result.');
 
@@ -1410,6 +1521,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyTrue(endsWith(B.Script, "S_postTest.m"));
             tc.verifyEqual(B.Script, B.Scripts(end));
             tc.verifyEqual(string(B.Ctl.ScriptList.Value), B.Script, 'The drop-down shows the script added.');
+            tc.verifyEqual(string(B.Ctl.ScriptRemove.Enable), "on", 'A script added can be taken off.');
             R = B.compute();
             tc.verifyFalse(evalin('base', 'exist(''postSize'', ''var'') == 1'), 'compute alone runs no script.');
             tc.verifyEqual(string(B.Ctl.ScriptRun.Enable), "on");
@@ -1447,9 +1559,10 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyTrue(evalin('base', 'exist(''data_'', ''var'') == 1'));
 
             B.close();
-            tc.verifyEqual(string(AppPrefs.getpref("DatasetBrowser", "Scripts")), B.Scripts);
+            tc.verifyEqual(string(AppPrefs.getpref("DatasetBrowser", "Scripts")), B.Scripts(numel(shipped)+1:end), ...
+                'The preference keeps only the scripts added.');
             B2 = tc.open(Scan=false);
-            tc.verifyEqual(B2.Scripts, B.Scripts, 'The list comes back from the preferences.');
+            tc.verifyEqual(B2.Scripts, B.Scripts, 'The shipped scripts, then the added ones from the preferences.');
             tc.verifyEqual(B2.Script, B.Script);
             tc.verifyTrue(B2.ScriptAfterCompute);
             B2.ScriptAfterCompute = false;
@@ -1482,6 +1595,12 @@ end
 
 function R = runScript(file)
 %runScript  Run an exported script in this function's workspace (no browser, no base variables); its R.
+run(file);
+end
+
+
+function [R, Results] = runScriptResults(file)
+%runScriptResults  Run an exported script of several kinds of data here (as runScript); its R and Results.
 run(file);
 end
 
@@ -1534,7 +1653,7 @@ function cancelAtSecond(B, f, seen)
 if f > 0 && ~isKey(seen, 'busy')
     c = B.Ctl;
     seen('busy') = [B.Busy, c.Compute.Enable == "off" && c.Table.Enable == "off", c.Cancel.Enable == "on", ...
-        c.Data.Enable == "off"]; %#ok<NASGU> a containers.Map is a handle
+        all([c.Data.Enable] == "off")]; %#ok<NASGU> a containers.Map is a handle
     B.cancel();
 end
 end

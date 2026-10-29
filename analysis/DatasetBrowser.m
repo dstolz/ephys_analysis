@@ -67,7 +67,7 @@ classdef DatasetBrowser < handle
     %   epochMatrixNormalize, and computes nothing), and a dataset whose
     %   outputs changed (a new sort, phy curation, a new spikes file, ...;
     %   seen at the next Scan) is computed again, a skipped one tried again. The Cached column says
-    %   "✓ <n> rows", "skipped", "old" (another settings id or another
+    %   "✓ <n> units" (or "<n> channels" for signals: the rows the dataset adds to the result), "skipped", "old" (another settings id or another
     %   stamp: Compute computes it again) or nothing. The result file (-v7.3,
     %   written through a temporary file) holds the browser's state, the
     %   result and Runs; it is written after a compute or forEach that added
@@ -1575,6 +1575,8 @@ classdef DatasetBrowser < handle
             Cached = strings(n, 1);
             if n > 0
                 name = B.PartName;
+                noun = ["channel" "channels"];   % one row of a part = one unit (spikes) or one channel (signals)
+                if ismember(B.SettingsS.data, ["units" "detected"]); noun = ["unit" "units"]; end
                 st = B.Runs.status(name, D.key, B.Id, Stamps=D.stamp);   % "old": other settings or changed outputs
                 Cached(st == "skipped") = "skipped";
                 Cached(st == "old") = "old";
@@ -1582,7 +1584,7 @@ classdef DatasetBrowser < handle
                     v = B.Runs.value(name, D.key(k));
                     nr = 0;
                     if isstruct(v) && isfield(v, 'rows'); nr = height(v.rows); end
-                    Cached(k) = sprintf("✓ %d rows", nr);
+                    Cached(k) = sprintf("✓ %d %s", nr, noun(1 + (nr ~= 1)));
                 end
             end
             mark = @(tf) replace(string(double(tf)), ["1" "0"], ["✓" ""]);

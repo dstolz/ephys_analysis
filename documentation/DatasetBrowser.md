@@ -115,7 +115,7 @@ row makes it the dataset the form's lists are read from.
 | **Tags** | the manifest's tags |
 | **Units**, **Detected**, **Behavior** | a check mark when the sorting, the spikes file or the behavior file exists |
 | **Signals** | the derived signals the dataset has (`LFP`, `MUA`, `SPIKE`, `AUX`) |
-| **Cached** | the dataset's part for the current **Data** and settings: `✓ 62 rows` (kept and current), `skipped` (nothing to compute, kept so), `old` (kept, but either the settings or the stamp of the dataset's output files differ: computed again next time), or blank. The whole row is tinted to match: pale green (cached), pale yellow (`old`), pale red (`skipped`), none (blank) |
+| **Cached** | the dataset's part for the current **Data** and settings: `✓ 62 units` (kept and current; the units, or for signals the channels, the dataset adds to the result: one matrix row each, so `✓ 8 channels` for signals), `skipped` (nothing to compute, kept so), `old` (kept, but either the settings or the stamp of the dataset's output files differ: computed again next time), or blank. The whole row is tinted to match: pale green (cached), pale yellow (`old`), pale red (`skipped`), none (blank) |
 
 ### The settings form
 

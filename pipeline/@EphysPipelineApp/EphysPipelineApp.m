@@ -282,7 +282,8 @@ classdef EphysPipelineApp < handle
         TagsButton            matlab.ui.control.Button     % Tags...: the ticked datasets, the active one when none is ticked
         TagFilterDropDown     matlab.ui.control.DropDown   % editable: '(any)', a tag, or several typed, comma-separated
         TagFilterModeDropDown matlab.ui.control.DropDown   % ItemsData "any" | "all": of the tags picked
-        TagSearchField        matlab.ui.control.EditField  % text any tag of a shown dataset contains
+        NotTagFilterDropDown  matlab.ui.control.DropDown   % editable, as the tag filter: leave out the datasets holding any of these
+        DatasetSearchField    matlab.ui.control.EditField  % words that must all appear in a shown dataset's name, key or tags
         TagDialog = []                                     % the open TagDialog ([] when none)
         TagPolicy (1,1) string = "all"                     % the bulk policy last chosen this session ("all" | "skip")
         % Tags for new datasets, beside Scan: a scan tags each dataset it finds for the first time

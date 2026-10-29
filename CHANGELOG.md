@@ -1565,6 +1565,10 @@ says how to cut a release.
 
 ### Changed
 
+- Pipeline app: the Project table's **Tags:** filter works as the dataset browser's: a **not** list leaves out the
+  datasets holding any of its tags, and **search** (was *search tags*) looks for every word in the name, key and tags.
+  `datasetFilter` (and `test_DatasetFilter`) moved from `analysis/` to `pipeline/`, so the app needs no `analysis`
+  folder for it.
 - Analysis app, Data tab: **Subject:** terms are matched literally apart from the wildcards `*` and `?`; a regular-expression
   character such as `.` or `(` no longer acts as one. See
   [The filter](documentation/DatasetBrowser.md#the-filter).

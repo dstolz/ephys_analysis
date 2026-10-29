@@ -92,7 +92,7 @@ The rows:
 
 The filter only chooses which datasets the table shows. A hidden dataset keeps
 its tick. Several terms are combined with AND. It is
-[`datasetFilter`](../analysis/datasetFilter.m), the same filter, with the same
+[`datasetFilter`](../pipeline/datasetFilter.m), the same filter, with the same
 controls, as the analysis app's [Data tab](EphysAnalysisApp.md#data-tab). (There
 **Search** is applied on Enter or leaving the field, not as you type.)
 
@@ -1018,7 +1018,7 @@ out).
 | one row of a result trial by trial; its window | [`epochMatrixRaster.m`](../analysis/epochMatrixRaster.m), [`TrialRaster.m`](../analysis/TrialRaster.m) |
 | the per-dataset cache and run engine | [`DatasetRuns.m`](../analysis/DatasetRuns.m) |
 | the stamp of a dataset's output files (names, sizes, times) | [`outputsStamp.m`](../analysis/outputsStamp.m) |
-| the subject, tag and text filter (also the analysis app's Data tab) | [`datasetFilter.m`](../analysis/datasetFilter.m) |
+| the subject, tag and text filter (also the analysis app's Data tab) | [`datasetFilter.m`](../pipeline/datasetFilter.m) |
 | the sorted table | [`TableSort.m`](../pipeline/TableSort.m) |
 | the clickable probe of the Channels tab | [`ProbePicker.m`](../analysis/ProbePicker.m) |
 | the time left | [`ProgressClock.m`](../pipeline/ProgressClock.m) |
@@ -1027,7 +1027,7 @@ out).
 
 | Suite | Covers |
 | --- | --- |
-| [`test_DatasetFilter.m`](../analysis/test_DatasetFilter.m) | `datasetFilter`: subjects, wildcards and literal regex characters, tags, search, the combinations |
+| [`test_DatasetFilter.m`](../pipeline/test_DatasetFilter.m) | `datasetFilter`: subjects, wildcards and literal regex characters, tags, search, the combinations |
 | [`test_DatasetRuns.m`](../analysis/test_DatasetRuns.m) | `DatasetRuns`: reuse, identity, skipped and failed datasets, cancel, `forget`, the saved struct |
 | [`test_EpochMatrix.m`](../analysis/test_EpochMatrix.m) | `epochMatrixSettings` and `epochMatrix`: the parts against the per-dataset calls, assembly, groups, the result fields, the labels, the normalization (`epochMatrixNormalize`) |
 | [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window), the exported script (`exportScript`), the whole sessions (`loadSessions`, `sessionData`), the Channels tab (`ProbePicker`: clicks and fields yoked), the event & trial definitions |

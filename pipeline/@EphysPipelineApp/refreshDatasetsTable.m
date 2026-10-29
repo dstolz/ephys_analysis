@@ -10,10 +10,11 @@ function refreshDatasetsTable(obj, opts)
 %   the rows are put in its order on every rebuild (tableSort "Datasets"),
 %   and rows map to datasets through DatasetIdx. The token filters and the
 %   tag filter above the table hide rows; ticks on hidden rows are kept in
-%   HiddenSelectedKeys. The tag filter keeps the datasets that hold any
-%   (or all) of the tags picked or typed AND have a tag containing the
-%   search text (TagSet.matches, TagSet.search); a typed term that is no
-%   valid tag matches nothing, and an empty filter passes every row.
+%   HiddenSelectedKeys. The tag filter, the DatasetBrowser's (datasetFilter),
+%   keeps the datasets that hold any (or all) of the tags picked or typed,
+%   none of the "not" tags, and every search word somewhere in their name,
+%   key or tags; a typed term that is no valid tag matches nothing, and an
+%   empty filter passes every row.
 %
 %   refreshDatasetsTable(Datasets=IDX) only recomputes the cells of the
 %   datasets IDX (indices into Project.Datasets) in the rows the table
@@ -116,7 +117,7 @@ for i = 1:n
     sets{i} = obj.Project.Datasets(i).Tags;
 end
 syncTagFilterItems(obj, sets);
-[tagKeep, tagActive] = tagFilter(obj, sets);
+[tagKeep, tagActive] = tagFilter(obj, sets, Name + " " + Key + " " + Tags);
 keep = keep & tagKeep;
 nActive = nActive + tagActive;
 
@@ -178,7 +179,7 @@ if isempty(obj.Project) || ~istable(T) || ~all(ismember({'Key', 'DatasetIdx'}, T
     return
 end
 sets = arrayfun(@(d) d.Tags, obj.Project.Datasets, 'UniformOutput', false);
-[~, tagActive] = tagFilter(obj, sets);
+[~, tagActive] = tagFilter(obj, sets, strings(numel(sets), 1));
 if tagActive; return; end
 syncTagFilterItems(obj, sets);   % a tag edit may add or drop one
 for i = idx(idx >= 1 & idx <= obj.Project.NumDatasets)
@@ -339,33 +340,31 @@ end
 
 
 function syncTagFilterItems(obj, sets)
-%syncTagFilterItems  The tag filter lists '(any)' and every tag in use
-%   (SETS, one per dataset); a typed value is kept by the editable dropdown.
-dd = obj.TagFilterDropDown;
-if isempty(dd) || ~isvalid(dd); return; end
-v = dd.Value;
-dd.Items = [{'(any)'}, TagSet.vocabulary(sets)];
-dd.Value = v;
+%syncTagFilterItems  The tag filter and its "not" list show '(any)' and every
+%   tag in use (SETS, one per dataset); a typed value is kept by the editable dropdowns.
+voc = [{'(any)'}, TagSet.vocabulary(sets)];
+for dd = [obj.TagFilterDropDown, obj.NotTagFilterDropDown]
+    if isempty(dd) || ~isvalid(dd); continue; end
+    v = dd.Value;
+    dd.Items = voc;
+    dd.Value = v;
+end
 end
 
 
-function [keep, active] = tagFilter(obj, sets)
+function [keep, active] = tagFilter(obj, sets, text)
 %tagFilter  Which datasets (SETS, one tag set each) the tag filter keeps.
-%   KEEP (n x 1): holding any / all of the tags picked or typed, and a tag
-%   containing the search text. A typed term that is no valid tag is passed
-%   on as typed, so it matches nothing. ACTIVE: either part is set.
+%   KEEP (n x 1): holding any / all of the tags picked or typed, none of the
+%   "not" tags, and every search word in TEXT (a string per dataset: its
+%   name, key and tags), as the DatasetBrowser filters (datasetFilter). A
+%   typed term that is no valid tag matches nothing. ACTIVE: any part is set.
 keep = true(numel(sets), 1);
 active = false;
 dd = obj.TagFilterDropDown;
 if isempty(dd) || ~isvalid(dd); return; end
-txt = string(dd.Value);
-if txt == "(any)"; txt = ""; end
-[tags, bad] = TagSet.fromText(txt, TagSet.EntryDelimiter);
-selected = [reshape(tags, 1, []), reshape(bad, 1, [])];
-search = strtrim(string(obj.TagSearchField.Value));
-active = ~isempty(selected) || search ~= "";
-keep = reshape(TagSet.matches(sets, selected, string(obj.TagFilterModeDropDown.Value)), [], 1) ...
-    & reshape(TagSet.search(sets, search), [], 1);
+[keep, active] = datasetFilter(strings(numel(sets), 1), reshape(sets, [], 1), Tags=dd.Value, ...
+    TagMode=obj.TagFilterModeDropDown.Value, ExcludeTags=obj.NotTagFilterDropDown.Value, ...
+    Search=obj.DatasetSearchField.Value, Text=text);
 end
 
 

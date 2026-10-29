@@ -102,6 +102,12 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %            editor on the figure (context kind "figure"; its redraw draws
 %            F again with the new SPEC.aesthetics). A panel's box ("on" /
 %            "off"; "auto" leaves the looks' Box) is set last, over all of them.
+%   Probe figures  F of kind "probeFigure" (figureProbeCompute's PF: the
+%            figure computed for every unit or channel at its site on the
+%            probe) is drawn by renderProbeFigure with the same options,
+%            before anything is cleared, and its H and HOW are returned
+%            (H: renderProbeFigure's fields; data tips there only with
+%            DataTips=true; Reuse ignored, InPlaceOnly drawing nothing).
 %
 %   Options
 %     Design          "" (default): the user's design (PlotDesign.current;
@@ -246,6 +252,11 @@ arguments
     opts.InPlaceOnly (1,1) logical = false
     opts.Scale (1,1) double {mustBePositive, mustBeFinite} = 1
 end
+if isfield(F, 'kind') && string(F.kind) == "probeFigure"   % a probe figure (figureProbeCompute): every tile on one page
+    args = namedargs2cell(opts);
+    [h, how] = renderProbeFigure(F, spec, target, args{:});
+    return
+end
 how = "drawn";
 if opts.InPlaceOnly; opts.Reuse = true; end
 
@@ -282,7 +293,7 @@ own = false(1, np);         % a panel with a trial selection of its own
 colorsOf = cell(1, np);     % each panel's group colors: such a panel colors its own groups
 for k = 1:np
     row = PT.Type == types(k);
-    isTime(k) = any(row) && (PT.SharesTime(row) || overEpochs(panels(k)));
+    isTime(k) = any(row) && (PT.SharesTime(row) || figureOverEpochs(panels(k)));
     P = F.panels(k);
     own(k) = isfield(P, 'ownSelection') && P.ownSelection && istable(P.groups) && height(P.groups) > 0;
     colorsOf{k} = colors;
@@ -358,7 +369,7 @@ for k = 1:nDraw
         ax = ax0;
     end
     look = figureLookFor(F, spec, p, P, style, colorsOf{k}, isTime(k));
-    look.batchYLim = batchFor(opts.BatchYLim, p.id);
+    look.batchYLim = figureBatchFor(opts.BatchYLim, p.id);
     if isfield(reg, p.type)
         hk = reg.(p.type).draw(ax, P, look);
     else
@@ -546,12 +557,12 @@ else   % the layout, once everything is drawn and dressed: every axes, band, the
     figureLayout(canvas, layoutOf(spec, panels, cells, axs, extra, notes, bands, th, lgd, style, opts.Scale));
 end
 if figureEditable(opts.Editable, target)
-    PlotAesthetics.enableEditing(target, editContext(F, spec, target, opts, root, design, follows, txt));
+    PlotAesthetics.enableEditing(target, figureEditContext(F, spec, target, opts, root, design, follows, txt));
 end
 
 if ~isempty(opts.OnSelect)
     for k = find(drawn)
-        pickable([axs(k) reshape(extra{k}, 1, [])], @(ctrl) opts.OnSelect(panels(k).id, ctrl));
+        figurePickable([axs(k) reshape(extra{k}, 1, [])], @(ctrl) opts.OnSelect(panels(k).id, ctrl));
     end
 end
 
@@ -571,33 +582,6 @@ if opts.Reuse && ~isempty(canvas) && isequal(canvas, target)   % what the next d
 elseif isappdata(target, drawingAppdata())
     rmappdata(target, drawingAppdata());
 end
-end
-
-
-function pickable(axs, fcn)
-%pickable  A Ctrl+Click (or right-click) on AXS or anything drawn in them calls FCN(CTRL): CTRL is whether Ctrl was down.
-%   A plain click and a double click do not. A click goes to the object under the pointer only (a line does not
-%   pass it to its axes), so each one that has no ButtonDownFcn of its own
-%   gets the callback; the axes themselves take it over their whole area.
-for ax = reshape(axs, 1, [])
-    ax.PickableParts = 'all';
-    for o = reshape(findall(ax, '-property', 'ButtonDownFcn'), 1, [])
-        if isempty(o.ButtonDownFcn); o.ButtonDownFcn = @(src, ~) ctrlClicked(src, fcn); end
-    end
-end
-end
-
-
-function ctrlClicked(src, fcn)
-%ctrlClicked  Call FCN(CTRL) when the click on SRC was a Ctrl+Click or a right-click, CTRL telling whether Ctrl (Cmd) was down.
-fig = ancestor(src, 'figure');
-if isempty(fig); return; end
-try
-    ctrl = any(ismember(fig.CurrentModifier, {'control', 'command'}));
-catch
-    ctrl = false;
-end
-if ~strcmp(fig.SelectionType, 'open') && (ctrl || strcmp(fig.SelectionType, 'alt')); fcn(ctrl); end   % (Ctrl+Click reports 'alt', as a right-click does)
 end
 
 
@@ -656,27 +640,6 @@ for a = A
         cb.Location = 'southoutside';
     end
 end
-end
-
-
-function axisEdited(F, spec, target, opts, panel, change)
-%axisEdited  A right-click axis edit of the panels PANEL (ids; CHANGE: their new xLabel, yLabel, xSide or ySide).
-%   OnAxisEdit keeps it (the app: in its config, then it draws the figure
-%   again); without one the figure is drawn again here with it.
-if ~isempty(opts.OnAxisEdit)
-    opts.OnAxisEdit(panel, change);
-    return
-end
-ks = find(ismember([spec.panels.id], panel));
-if isempty(ks); return; end
-for k = ks
-    for f = string(fieldnames(change)).'
-        spec.panels(k).(f) = change.(f);
-    end
-end
-opts.InPlaceOnly = false;   % drawn as it was (Reuse: a label's text set on it)
-args = namedargs2cell(opts);
-renderFigure(F, spec, target, args{:});
 end
 
 
@@ -804,7 +767,7 @@ if any(tips) && figureEditable(opts.DataTips, target)
     FigureDataTips.attach(F, spec, hT);
 end
 if figureEditable(opts.Editable, target) && isappdata(target, PlotAesthetics.ContextKey)
-    setappdata(target, PlotAesthetics.ContextKey, editContext(F, spec, target, opts, target, design, follows, txt));
+    setappdata(target, PlotAesthetics.ContextKey, figureEditContext(F, spec, target, opts, target, design, follows, txt));
 end
 D.spec = spec;
 D.keys = keys;
@@ -831,57 +794,6 @@ tf = ~isempty(s) && any(strlength(string(s)) > 0, 'all');
 end
 
 
-function ctx = editContext(F, spec, target, opts, root, design, follows, txt)
-%editContext  The right-click aesthetics editor's context of F drawn with SPEC on TARGET (PlotAesthetics.enableEditing): its redraw draws them again.
-%   ROOT: what was drawn on (the canvas, or the one axes); TXT: the
-%   figure's title. Its colormap field: "diverging" with a correlation map
-%   or an auROC or baseline-normalized heat map or spectrogram, "heat"
-%   with another heat map, a probe map, a spectrogram or a coherogram.
-panels = spec.panels;
-np = numel(panels);
-types = strings(1, np);
-sIds = strings(1, np);
-for k = 1:np
-    types(k) = panels(k).type;
-    sIds(k) = panels(k).id;
-end
-G = F.groups;
-mapField = "";
-aurocMap = false;   % a heat map of auROCs is drawn in the diverging colormap
-heat = types == "heatmap";
-for k = find(types == "psth")   % a PSTH drawn as a heat map
-    heat(k) = isfield(panels(k).options, 'display') && panels(k).options.display == "heatmap";
-end
-for k = find(heat)
-    o = panels(k).options;
-    aurocMap = aurocMap || (isfield(o, 'baseline') && isstruct(o.baseline) && o.baseline.Mode == "auroc");
-end
-for k = find(types == "spectrogram")   % a baseline-normalized spectrogram: diverging, centered on no change
-    o = panels(k).options;
-    aurocMap = aurocMap || (isfield(o, 'baseline') && isstruct(o.baseline) && o.baseline.Mode ~= "none");
-end
-cohgram = false;
-for k = find(types == "coherence")
-    cohgram = cohgram || (isfield(panels(k).options, 'overTime') && panels(k).options.overTime);
-end
-if any(types == "corrmap") || aurocMap
-    mapField = "diverging";
-elseif any(heat) || any(ismember(types, ["probemap" "spectrogram"])) || cohgram
-    mapField = "heat";
-end
-ordinal = istable(G) && ismember('color', G.Properties.VariableNames) && isOrdinalGroups(G);
-specRules = PlotAesthetics.normalizeRules(spec.aesthetics);
-ctx = struct('kind', "figure", 'id', spec.id, 'title', txt, 'root', root, 'target', target, 'plotRules', specRules, ...
-    'onRemember', {opts.OnRemember}, 'onGoto', {opts.OnGoto}, 'design', design, 'followsDesign', follows, 'ordinal', ordinal, 'mapField', mapField, ...
-    'redraw', @(newRules) renderFigure(F, setfield(spec, 'aesthetics', newRules), target, Design=opts.Design, ...
-        UserAesthetics=opts.UserAesthetics, Editable=opts.Editable, OnRemember=opts.OnRemember, OnGoto=opts.OnGoto, ...
-        OnAxisEdit=opts.OnAxisEdit, OnSelect=opts.OnSelect, BatchYLim=opts.BatchYLim, Scale=opts.Scale));
-ctx.panelTypes = struct('id', sIds, 'type', types);   % each tile's panel type by the id it is tagged with (PlotDesign.capture)
-ctx.panelIds = sIds;   % "Move every panel's X axis to top": every panel of the figure
-ctx.onAxisEdit = @(panel, change) axisEdited(F, spec, target, opts, panel, change);   % an axis label's or axes' menu (PlotAesthetics)
-end
-
-
 function h = figureHandles(canvas, spec, axs, extra, notes, ovls, yExt, txt)
 %figureHandles  renderFigure's H: the layout, the panels' axes drawn (AXS(k) no graphics object: not drawn), each panel's parts, the title TXT.
 np = numel(spec.panels);
@@ -900,15 +812,6 @@ for k = 1:np
     end
 end
 h = struct('layout', canvas, 'axes', axs(drawn), 'panels', hp, 'title', txt);
-end
-
-
-function lim = batchFor(B, id)
-%batchFor  The run's shared y range for panel ID (BatchYLim: id, lim), [] when it has none.
-lim = [];
-if isempty(B) || ~isstruct(B) || ~isfield(B, 'id'); return; end
-k = find([B.id] == id, 1);
-if ~isempty(k); lim = B(k).lim; end
 end
 
 
@@ -965,7 +868,7 @@ K.panels = cell(1, np);
 K.ownTime = false(1, np);
 for k = 1:np
     K.panels{k} = struct('P', F.panels(k), 'p', P(k), 'colors', colorsOf{k}, 'isTime', isTime(k), ...
-        'batch', {batchFor(opts.BatchYLim, P(k).id)});
+        'batch', {figureBatchFor(opts.BatchYLim, P(k).id)});
     K.ownTime(k) = isTime(k) && ~(P(k).sharesTime && ~isempty(figureFixedWindow(P(k).window)));
 end
 end
@@ -1089,13 +992,6 @@ for k = 1:numel(panels)
 end
 S = struct('grid', spec.grid, 'panels', P, 'title', th, 'legend', lgd, 'side', figureLegendSide(style), 'margin', 6, ...
     'scale', scale);
-end
-
-
-function tf = overEpochs(p)
-%overEpochs  A coherence panel drawn over time from the event (a coherogram on the aligned time base): a time panel.
-o = p.options;
-tf = p.type == "coherence" && isfield(o, 'overTime') && o.overTime && isfield(o, 'timeBase') && o.timeBase == "aligned";
 end
 
 

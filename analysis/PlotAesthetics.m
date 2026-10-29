@@ -233,7 +233,7 @@ classdef PlotAesthetics
                 if isempty(name) || name == ""; name = strjoin(string(ax.Title.String), " "); end
                 if name == ""; name = "Tile " + t; end
                 role = string(ax.Tag);
-                if ~ismember(role, ["axes" "rasterAxes"]); role = "axes"; end   % an aux panel ("auxAxes") is styled as a data panel
+                if ~ismember(role, ["axes" "rasterAxes" "probeAxes"]); role = "axes"; end   % an aux panel ("auxAxes") is styled as a data panel
                 C(end+1) = struct('h', ax, 'role', role, 'group', "", 'tile', t, 'name', name); %#ok<AGROW>
                 C = addText(C, ax.Title, "tileTitle", t, name);
                 C = addText(C, ax.Subtitle, "tileSubtitle", t, name);
@@ -368,6 +368,11 @@ classdef PlotAesthetics
                 "emptySites"   "Sites without a value"
                 "siteLabels"   "Site labels"
                 "shankLabels"  "Shank labels"
+                "probeAxes"    "Probe axes (probe figure)"
+                "probeBody"    "Probe body (probe figure)"
+                "probeSites"   "Probe sites (probe figure)"
+                "tileLeaders"  "Tile leaders (probe figure)"
+                "tileLabels"   "Tile labels (probe figure)"
                 "unitDots"     "Unit positions"
                 "unitLabels"   "Unit labels"
                 "unitLeaders"  "Unit label leaders"

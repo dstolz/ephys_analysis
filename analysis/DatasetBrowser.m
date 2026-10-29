@@ -109,6 +109,8 @@ classdef DatasetBrowser < handle
     %     formEdit(B, CONTROL, VALUE)        a form control edited (Ctl.<CONTROL>, or Ctl.Align.<CONTROL>)
     %     fillLists(B)                       fill the line / parameter lists
     %     showEpochs(B)                      the Epoch Diagram window (EpochDiagram) of one dataset
+    %     showGroupCounts(B)                 the Epochs per group window (EpochGroupCounts) of one dataset:
+    %                                        a bar per group (Group by) with its epochs, its trials
     %     showProbe(B)                       the Channels tab, its probe drawn (one dataset's)
     %     pickProbe(B, KIND, VALUE)          a click on the probe: KIND "site" (a recording
     %                                        channel) or "shank"; the click's toggle, applied
@@ -195,6 +197,17 @@ classdef DatasetBrowser < handle
     %   new result and closes with the browser. raster(B, ROW) gives the
     %   same to a script (epochMatrixRaster: the epochs, each spike's time
     %   and epoch, the counts per bin, or each epoch's trace).
+    %
+    %   Epochs per group: the button under the Trials tab (showGroupCounts)
+    %   opens a window that counts the epochs of one dataset (the clicked
+    %   row's, else the first ticked) by group, as Compute cuts them
+    %   (epochTable with the Event and Trials tabs' settings): a bar per
+    %   group (e.g. per Depth with Group by Depth) in its color, its count
+    %   on top, and a table of each group's trials and epochs; "Show the
+    %   epochs Pairing and Artifacts exclude" stacks those on the kept ones.
+    %   It is redrawn on every settings edit and row click until closed,
+    %   and closes with the browser (EpochGroupCounts; the analysis app's
+    %   Alignment tab draws the same bars).
     %
     %   Shanks and channels: the Channels tab picks what is computed with.
     %   Its Shanks field (kcoords values) and Channels field (recording
@@ -358,6 +371,7 @@ classdef DatasetBrowser < handle
     properties (Hidden, SetAccess = private)
         SequenceDialog = []                % the Event sequence window (AlignControls.editSequence), when open
         EpochWindow = []                   % the Epoch Diagram window (showEpochs), when open
+        CountsWindow = []                  % the Epochs per group window (showGroupCounts), when open
         RasterWindow = []                  % the Trial rasters window (showRasters), when open
     end
 
@@ -427,7 +441,7 @@ classdef DatasetBrowser < handle
             "TickShown" "UntickAll" "Table" "FileMenu" "Data" "Normalize" "NormBaseline" "NormScope" ...
             "Shanks" "Channels" "ProbeAll" "Probe" "Merge" "Measure" "Bin" "Baseline" ...
             "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "KeepEpochs" "Compute" "LoadSessions" "LoadTrials" "Workers" ...
-            "ScriptAfter" "ScriptList" "ScriptAdd" "ScriptRemove" "ScriptEdit" "ScriptRun" "DefList" "DefAdd" "DefRemove"]
+            "GroupCounts" "ScriptAfter" "ScriptList" "ScriptAdd" "ScriptRemove" "ScriptEdit" "ScriptRun" "DefList" "DefAdd" "DefRemove"]
         MaxRecent = 10                     % RecentSettings' length
         ErrorColor = [0.75 0.1 0.1]
         TextColor = [0.25 0.25 0.25]
@@ -832,6 +846,27 @@ classdef DatasetBrowser < handle
                 figure(d.Fig);
             end
             B.refreshEpochs();
+        end
+
+        function showGroupCounts(B)
+            %showGroupCounts  The Epochs per group window (EpochGroupCounts): one dataset's epochs counted by group.
+            %   A bar per group of the Trials tab's selection (Group by: e.g.
+            %   a bar per depth) with its number of epochs, and a table of
+            %   each group's trials and epochs, as Compute cuts them, for the
+            %   dataset the lists come from (the clicked row's, else the
+            %   first ticked). The window is redrawn on every settings edit
+            %   and row click until it is closed; it closes with the browser.
+            %   A second call raises it.
+            B.needRunner();
+            w = B.CountsWindow;
+            if isempty(w) || ~isvalid(w) || ~w.isOpen()
+                owner = [];
+                if B.uiOk(); owner = B.Fig; end
+                B.CountsWindow = EpochGroupCounts(Owner=owner, Visible=~B.headless());
+            elseif ~B.headless()
+                figure(w.Fig);
+            end
+            B.refreshGroupCounts();
         end
 
         function showProbe(B)
@@ -1627,12 +1662,18 @@ classdef DatasetBrowser < handle
             pr = uipanel(eg, "Title", "Event reference");
             pw = uipanel(eg, "Title", "Epoch window");
             tt = uitab(tg, "Title", "Trials", "Scrollable", "on");
+            tl = uigridlayout(tt, [2 1], "RowHeight", {'fit', 30}, "Padding", [0 0 0 0], "RowSpacing", 0);
+            ts = uipanel(tl, "BorderType", "none");
+            bl = uigridlayout(tl, [1 1], "Padding", [10 0 10 0]);
+            c.GroupCounts = uibutton(bl, "Text", "Epochs per group", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.showGroupCounts()), ...
+                "Tooltip", "Count the epochs of one dataset (the clicked row's, else the first ticked) per group, " + ...
+                "as Compute cuts them: a bar per group (Group by, e.g. one per depth) and each group's trials and epochs.");
             tp = uitab(tg, "Title", "Channels");
             tm = uitab(tg, "Title", "Measure", "Scrollable", "on");
             tg.SelectionChangedFcn = @(~, ~) B.uiRun(@() B.refreshProbe());
             c.SettingsTabs = tg;
             c.ProbeTab = tp;
-            A = AlignControls.build([pr pw tt], @(~) B.uiRun(@() B.onAlignEdit()), FixedWindow=true, ...
+            A = AlignControls.build([pr pw ts], @(~) B.uiRun(@() B.onAlignEdit()), FixedWindow=true, ...
                 EditSequence=@(varargin) B.uiRun(@() B.editSequence(varargin{:})), FilterHelp=@() B.uiRun(@() B.showFilterHelp()));
             set([A.Line A.StopLine A.Group1 A.Group2 A.ShiftParam A.StopShiftParam], "DropDownOpeningFcn", open);
             A.Diagram.ButtonPushedFcn = @(~, ~) B.uiRun(@() B.showEpochs());
@@ -1766,7 +1807,8 @@ classdef DatasetBrowser < handle
             c.Cancel = uibutton(s, "Text", "Cancel", "Enable", "off", "ButtonPushedFcn", @(~, ~) B.cancel());
             c.Status = uilabel(g, "Text", "", "FontColor", B.TextColor);
 
-            styleButton([c.Browse c.TickShown c.UntickAll c.ProbeAll c.ScriptAdd c.ScriptRemove c.ScriptEdit c.ScriptRun c.DefAdd c.DefRemove]);
+            styleButton([c.Browse c.TickShown c.UntickAll c.ProbeAll c.ScriptAdd c.ScriptRemove c.ScriptEdit c.ScriptRun c.DefAdd c.DefRemove ...
+                c.GroupCounts]);
             styleButton([c.Scan c.Compute], "primary");
             styleButton([c.LoadSessions c.LoadTrials], "confirm");
             styleButton(c.Cancel, "danger");
@@ -2151,6 +2193,7 @@ classdef DatasetBrowser < handle
             if key == B.ListKey; return; end
             B.ListKey = key;
             B.refreshEpochs();
+            B.refreshGroupCounts();
             B.refreshProbe();
         end
 
@@ -2259,6 +2302,7 @@ classdef DatasetBrowser < handle
             B.refreshTable();
             B.refreshSummary();
             B.refreshEpochs();
+            B.refreshGroupCounts();
             B.refreshProbe();
             if renormalized; B.refreshRasters(); end
             if announce; B.changed("settings"); end
@@ -2848,6 +2892,23 @@ classdef DatasetBrowser < handle
             d.update(src, S.ref, S.window, S.selection, Title=src.name);
         end
 
+        function refreshGroupCounts(B)
+            %refreshGroupCounts  Redraw the Epochs per group window, when open, with the settings and the lists' dataset.
+            w = B.CountsWindow;
+            if isempty(w) || ~isvalid(w) || ~w.isOpen(); return; end
+            key = B.listKey();
+            if key == ""; return; end
+            try
+                src = B.source(key);
+            catch ME
+                w.clear("Cannot read " + key + ": " + string(ME.message));
+                B.setStatus("Cannot read " + key + " for the epochs per group: " + string(ME.message), true);
+                return
+            end
+            S = B.SettingsS;
+            w.update(src, S.ref, S.window, S.selection, Title=src.name);
+        end
+
         function refreshProbe(B)
             %refreshProbe  The Channels tab, when shown: the probe of the lists' dataset drawn (read once per dataset), with a note.
             if ~B.uiOk() || B.Ctl.SettingsTabs.SelectedTab ~= B.Ctl.ProbeTab; return; end
@@ -2911,11 +2972,14 @@ classdef DatasetBrowser < handle
         end
 
         function closeWindows(B)
-            %closeWindows  The Event sequence, Epoch Diagram and Trial rasters windows go.
+            %closeWindows  The Event sequence, Epoch Diagram, Epochs per group and Trial rasters windows go.
             B.closeSequenceDialog();
             d = B.EpochWindow;
             if ~isempty(d) && isvalid(d); d.close(); end
             B.EpochWindow = [];
+            w = B.CountsWindow;
+            if ~isempty(w) && isvalid(w); w.close(); end
+            B.CountsWindow = [];
             w = B.RasterWindow;
             if ~isempty(w) && isvalid(w); w.close(); end
             B.RasterWindow = [];

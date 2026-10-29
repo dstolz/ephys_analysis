@@ -150,6 +150,7 @@ mode and its stop event.
 | **Event** tab: **Epoch window** | `window`: **Pre (s)**, **Post (s)** |
 | **Event** tab: **Epoch Diagram** | opens the *How the epochs are cut* window (`EpochDiagram`, also `B.showEpochs()`) for the dataset the lists come from: the lines, each event picked, the sequence, the windows and the trials kept or dropped. It is redrawn on every settings edit and row click until closed, and closes with the browser |
 | **Trials** tab | `selection`: **Filter** (an expression over the trial columns, e.g. `Depth > 0 & ~FA`; **?** lists the columns, words and functions), **Response**, **Pairing** (`pairingFlags`), **Group by** and **and** (one or two trial parameters), **Order**, **Max groups**, **Artifacts** (`excludeArtifacts`, at least `minArtifactSec`) |
+| **Trials** tab: **Epochs per group** | opens the *Epochs per group* window (`EpochGroupCounts`, also `B.showGroupCounts()`) for the dataset the lists come from: see [Epochs per group](#epochs-per-group). It is redrawn on every settings edit and row click until closed, and closes with the browser |
 | **Measure** tab: **Normalize**, **Baseline (s)**, scope | `normalize`: `method`, `baseline` and `scope` (*per row* or *per group*); see [Normalization](#normalization). A change normalizes the result again in place and computes nothing. Off for measure `auroc`; **Baseline (s)** only for the methods that use it |
 | **Channels** tab | **Shanks** and **Channels**: `units.shanks` and `units.channels` for `units` and `detected`, `signal.shanks` and `signal.channels` for a signal (blank = all), also picked by clicking the probe; see [Shanks and channels](#shanks-and-channels) |
 | **Measure** tab: **Spikes** block | **Merge neighboring sites** (`units.merge.enabled`, `detected` only), **Measure**, **Bin (s)**, **auROC baseline (s)** (with measure `auroc`) |
@@ -165,6 +166,33 @@ The line and parameter lists (**Line**, **Shift by**, **Group by**, and the
 lines the *Event sequence* window offers) come from one dataset's source: the
 clicked row's, else the first ticked dataset's. A value typed or loaded that
 this dataset lacks stays.
+
+#### Epochs per group
+
+**Epochs per group**, under the **Trials** tab, opens a window that counts
+the epochs of one dataset (the clicked row's, else the first ticked) by
+group, cut as **Compute** cuts them (`epochTable` with the **Event** and
+**Trials** tabs' settings). With **Group by** *Depth*, it shows how many
+epochs, and trials, each depth gives. Top to bottom:
+
+- the count, as the analysis app's [Alignment tab](EphysAnalysisApp.md#alignment-tab)
+  words it: *"N epochs from M of T trials in G groups (scope)"*, with the
+  events dropped and why; or, in red, why there are none;
+- **Show the epochs Pairing and Artifacts exclude** (off by default): each
+  bar then counts the epochs of every pairing flag, with or without an
+  artifact, and stacks on the kept epochs those the **Pairing** selection
+  leaves out (gray) and those an artifact period excludes (red);
+- a bar per group in the group colors the figures use, in the selection's
+  group order, its count on top (the Alignment tab's bars);
+- a table, a row per bar: **Trials** (the trials the selection keeps in the
+  group), **Epochs** (the epochs they give, the ones **Compute** averages)
+  and, with the excluded shown, **Pairing excludes** and **Artifacts
+  exclude**.
+
+The window stays above the browser, follows every settings edit and row
+click, and closes with the browser. What it drew is on the window object
+(`B.CountsWindow`): `Counts` (the table), `Groups` (`epochTable`'s groups),
+`Summary`, `Message`.
 
 **The Data dropdown and its two blocks.** **Data** chooses what is computed,
 and with it which block of the **Measure** tab applies:
@@ -461,6 +489,7 @@ R = B.compute();
 | `setListSource(B, KEY)`, `fillLists(B)`, `source(B, KEY)` | the dataset the form's lists come from; fill them; its analysis source |
 | `formEdit(B, CONTROL, VALUE)` | edit a control of `B.Ctl` (or of `B.Ctl.Align`, the Event and Trials tabs: `Line`, `Filter`, `Group1`, ...) as a click would |
 | `showEpochs(B)` | the **Epoch Diagram** window of the lists' dataset |
+| `showGroupCounts(B)` | the **Epochs per group** window of the lists' dataset ([Epochs per group](#epochs-per-group)) |
 | `showProbe(B)`, `pickProbe(B, KIND, VALUE)` | the **Channels** tab with the lists' dataset's probe; a click on it: `KIND` `"site"` (a recording channel) or `"shank"`, toggled and applied ([Shanks and channels](#shanks-and-channels)) |
 | `showRasters(B, ROW)`, `X = raster(B, ROW, Order=)` | the **Trial rasters** window on row `ROW` of the result; that row trial by trial ([Trial rasters](#trial-rasters)) |
 | `R = compute(B, Recompute=false)` | `epochMatrix` over the ticked datasets with `B.Settings` |
@@ -999,6 +1028,7 @@ out).
 | the result's labels and description in words | [`epochMatrixLabels.m`](../analysis/epochMatrixLabels.m) |
 | the normalization of a result | [`epochMatrixNormalize.m`](../analysis/epochMatrixNormalize.m) |
 | one row of a result trial by trial; its window | [`epochMatrixRaster.m`](../analysis/epochMatrixRaster.m), [`TrialRaster.m`](../analysis/TrialRaster.m) |
+| the **Epochs per group** window (also the analysis app's Alignment tab bars) | [`EpochGroupCounts.m`](../analysis/EpochGroupCounts.m) |
 | the per-dataset cache and run engine | [`DatasetRuns.m`](../analysis/DatasetRuns.m) |
 | the stamp of a dataset's output files (names, sizes, times) | [`outputsStamp.m`](../analysis/outputsStamp.m) |
 | the subject, tag and text filter (also the analysis app's Data tab) | [`datasetFilter.m`](../analysis/datasetFilter.m) |
@@ -1013,4 +1043,4 @@ out).
 | [`test_DatasetFilter.m`](../analysis/test_DatasetFilter.m) | `datasetFilter`: subjects, wildcards and literal regex characters, tags, search, the combinations |
 | [`test_DatasetRuns.m`](../analysis/test_DatasetRuns.m) | `DatasetRuns`: reuse, identity, skipped and failed datasets, cancel, `forget`, the saved struct |
 | [`test_EpochMatrix.m`](../analysis/test_EpochMatrix.m) | `epochMatrixSettings` and `epochMatrix`: the parts against the per-dataset calls, assembly, groups, the result fields, the labels, the normalization (`epochMatrixNormalize`) |
-| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window), the exported script (`exportScript`), the whole sessions (`loadSessions`, `sessionData`), the Channels tab (`ProbePicker`: clicks and fields yoked), the event & trial definitions |
+| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window), the exported script (`exportScript`), the whole sessions (`loadSessions`, `sessionData`), the Channels tab (`ProbePicker`: clicks and fields yoked), the event & trial definitions, the **Epochs per group** window (`EpochGroupCounts`: its groups, epochs and trials against `epochTable`, the excluded epochs, a settings edit and a row click redraw it) |

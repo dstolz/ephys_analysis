@@ -168,7 +168,7 @@ the results) sorts on a header click too.
 
 **The filter**, the two rows above the table, shows only some datasets. It is
 the [Dataset browser](DatasetBrowser.md#the-filter)'s filter
-([`datasetFilter`](../analysis/datasetFilter.m)):
+([`datasetFilter`](../pipeline/datasetFilter.m)):
 
 | Control | Effect |
 | --- | --- |

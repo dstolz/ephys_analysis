@@ -112,7 +112,7 @@ row `base(i)` follows `OnsetRule`:
 
 | `OnsetRule` | `base` | Use it for |
 | --- | --- | --- |
-| `"event"` (default) | `round((t - 1/EventFs)*Fs) + 1` | digital-input onsets (`t = row/EventFs`; `EventFs` is the recording rate, `Info.origFs`, or `Fs` for a matrix source, and the option `EventFs` sets it). Row *r* lies at `(r-1)/EventFs`, so this is the signal sample nearest the one that produced the onset: that very row at the recording rate, within half a sample at a derived rate. Same indexing as [`extract_trials`](../extract_trials.m) (`EventFs`) |
+| `"event"` (default) | `round((t - 1/EventFs)*Fs) + 1` | digital-input onsets (`t = row/EventFs`; `EventFs` is the recording rate, `Info.origFs`, or `Fs` for a matrix source, and the option `EventFs` sets it). Row *r* lies at `(r-1)/EventFs`, so this is the signal sample nearest the one that produced the onset: that very row at the recording rate, within half a sample at a derived rate. Same indexing as [`extract_trials`](../pipeline/extract_trials.m) (`EventFs`) |
 | `"sample"` | `round(t*Fs)+1` | times on a continuous time base (`readData`'s `t`, a derived signal's row times, `(k-1)/Fs`, spike times) |
 
 At the recording rate the two rules differ by exactly one sample. At a derived

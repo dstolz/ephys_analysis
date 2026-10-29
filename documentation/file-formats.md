@@ -1050,7 +1050,7 @@ Path: `<outputFolder>/<Name>.json` (`<Name>_ks4.json` beside a
 | `created` | timestamp |
 | `provenance` | the code and config that wrote it ([Provenance](#provenance), as JSON) |
 
-`matrixToBin` delegates to [`matrix2kilosort`](../matrix2kilosort.m), which
+`matrixToBin` delegates to [`matrix2kilosort`](../pipeline/matrix2kilosort.m), which
 writes its own sidecar. See that function's help for its fields.
 
 ---

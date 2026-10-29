@@ -22,7 +22,8 @@
 %   renderFigure, responseStats, populationAnalysis.
 
 %% 1. A synthetic project
-here = fileparts(mfilename('fullpath'));
+here = fileparts(fileparts(fileparts(mfilename('fullpath'))));   % repository root
+addpath(here);                           % addpath_nogit lives there
 addpath_nogit(here);                      % pipeline/, analysis/ and vendor/, without .git
 
 root = fullfile(tempdir, "ephys_walkthrough");

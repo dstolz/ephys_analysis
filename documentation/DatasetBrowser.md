@@ -92,7 +92,7 @@ The rows:
 
 The filter only chooses which datasets the table shows. A hidden dataset keeps
 its tick. Several terms are combined with AND. It is
-[`datasetFilter`](../analysis/datasetFilter.m), the same filter, with the same
+[`datasetFilter`](../pipeline/datasetFilter.m), the same filter, with the same
 controls, as the analysis app's [Data tab](EphysAnalysisApp.md#data-tab). (There
 **Search** is applied on Enter or leaving the field, not as you type.)
 
@@ -123,7 +123,7 @@ row makes it the dataset the form's lists are read from.
 | **Tags** | the manifest's tags |
 | **Units**, **Detected**, **Behavior** | a check mark when the sorting, the spikes file or the behavior file exists |
 | **Signals** | the derived signals the dataset has (`LFP`, `MUA`, `SPIKE`, `AUX`) |
-| **Cached** | the dataset's part for the current **Data** and settings: `✓ 62 units` (kept and current; the units, or for signals the channels, the dataset adds to the result: one matrix row each, so `✓ 8 channels` for signals), `skipped` (nothing to compute, kept so), `old` (kept, but either the settings or the stamp of the dataset's output files differ: computed again next time), or blank. The whole row is tinted to match: pale green (cached), pale yellow (`old`), pale red (`skipped`), none (blank) |
+| **Cached** | the dataset's part for the current **Data** and settings: `✓ 62 units` (kept and current; the units, or for signals the channels, the dataset adds to the result: one matrix row each, so `✓ 8 channels` for signals), `skipped` (nothing to compute, kept so), `old` (kept, but either the settings or the stamp of the dataset's output files differ: computed again next time), or blank. With several kinds of **Data** ticked: `✓ 62 units, 32 LFP` once every kind is kept and current (a kind the dataset lacks reads `AUX skipped`), `old` when one kind is, `skipped` when all are, else blank. The whole row is tinted to match: pale green (cached), pale yellow (`old`), pale red (`skipped`), none (blank) |
 
 ### The settings form
 
@@ -144,15 +144,15 @@ mode and its stop event.
 
 | Control | Sets |
 | --- | --- |
-| **Data** | `data`: `units`, `detected`, `LFP`, `MUA`, `SPIKE` or `AUX`. Only the matching block of the **Measure** tab is on |
+| **Data** | `data`: a box per kind, `units`, `detected`, `LFP`, `MUA`, `SPIKE` and `AUX`; tick one or more ([Several kinds of data](#several-kinds-of-data)). Only the blocks of the **Measure** tab that apply are on |
 | **Event** tab: **Event reference** | `ref`: **Line**, **Edge**, **Which** and **n**, **Scope**, **Offset (s)**, **Length (s)**, **Time range (s)**, **Shift by** and its unit, and **Sequence** |
 | **Event** tab: **Sequence** **Edit...** | `ref.sequence` and `ref.alignStep` in the *Event sequence* window: any number of steps, each *followed by* or *not followed by* a line's onset or offset (its **n**, **Within (s)**, **Min / Max length (s)**), and **Align to** the start or any *followed by* step (aligned to the start, the steps are conditions only). For example *Trial offset then Trough onset*: the first Trough onset after each trial ends. **Apply** checks the steps |
 | **Event** tab: **Epoch window** | `window`: **Pre (s)**, **Post (s)** |
 | **Event** tab: **Epoch Diagram** | opens the *How the epochs are cut* window (`EpochDiagram`, also `B.showEpochs()`) for the dataset the lists come from: the lines, each event picked, the sequence, the windows and the trials kept or dropped. It is redrawn on every settings edit and row click until closed, and closes with the browser |
 | **Trials** tab | `selection`: **Filter** (an expression over the trial columns, e.g. `Depth > 0 & ~FA`; **?** lists the columns, words and functions), **Response**, **Pairing** (`pairingFlags`), **Group by** and **and** (one or two trial parameters), **Order**, **Max groups**, **Artifacts** (`excludeArtifacts`, at least `minArtifactSec`) |
 | **Trials** tab: **Epochs per group** | opens the *Epochs per group* window (`EpochGroupCounts`, also `B.showGroupCounts()`) for the dataset the lists come from: see [Epochs per group](#epochs-per-group). It is redrawn on every settings edit and row click until closed, and closes with the browser |
-| **Measure** tab: **Normalize**, **Baseline (s)**, scope | `normalize`: `method`, `baseline` and `scope` (*per row* or *per group*); see [Normalization](#normalization). A change normalizes the result again in place and computes nothing. Off for measure `auroc`; **Baseline (s)** only for the methods that use it |
-| **Channels** tab | **Shanks** and **Channels**: `units.shanks` and `units.channels` for `units` and `detected`, `signal.shanks` and `signal.channels` for a signal (blank = all), also picked by clicking the probe; see [Shanks and channels](#shanks-and-channels) |
+| **Measure** tab: **Normalize**, **Baseline (s)**, scope | `normalize`: `method`, `baseline` and `scope` (*per row* or *per group*); see [Normalization](#normalization). A change normalizes the result again in place and computes nothing. Off for measure `auroc` (unless a signal is ticked too); **Baseline (s)** only for the methods that use it |
+| **Channels** tab | **Shanks** and **Channels**: `units.shanks` and `units.channels` for `units` and `detected`, `signal.shanks` and `signal.channels` for a signal (blank = all; both with several kinds), also picked by clicking the probe; see [Shanks and channels](#shanks-and-channels) |
 | **Measure** tab: **Spikes** block | **Merge neighboring sites** (`units.merge.enabled`, `detected` only), **Measure**, **Bin (s)**, **auROC baseline (s)** (with measure `auroc`) |
 | **Measure** tab: **Signals** block | **Baseline (s)**, **Statistic**, **Detrend**, **Rectify**, **Magnitude (AUX)** |
 | Above **Compute**: **Keep single trials, not just averages (R.epochs)** | `keepEpochs`: the result also keeps every epoch before the average ([Each epoch](#each-epoch-repochs)), which `B.showRasters` draws ([Trial rasters](#trial-rasters)). Every kind of **Data** |
@@ -194,7 +194,7 @@ click, and closes with the browser. What it drew is on the window object
 (`B.CountsWindow`): `Counts` (the table), `Groups` (`epochTable`'s groups),
 `Summary`, `Message`.
 
-**The Data dropdown and its two blocks.** **Data** chooses what is computed,
+**The Data boxes and the two blocks.** **Data** chooses what is computed,
 and with it which block of the **Measure** tab applies:
 
 - `units` (the sorted units of the sorting folder) and `detected` (the Spikes
@@ -203,10 +203,31 @@ and with it which block of the **Measure** tab applies:
 - `LFP`, `MUA`, `SPIKE` and `AUX` (derived signals) use the **Signals**
   block. The result is the group mean or median of each channel.
 
-The controls of the other block are off. A note beside the dropdown counts the
-ticked datasets that cannot give that data (*3 of 12 ticked lack LFP
-(skipped)*, *2 of 12 ticked have no sorting*). A change to a setting of the
-other block leaves the kept parts of this **Data** valid.
+The controls of a block no ticked kind uses are off. A note above the boxes
+counts, for each kind ticked, the ticked datasets that cannot give it (*3 of
+12 ticked lack LFP (skipped)*, *2 of 12 ticked have no sorting*). A change to
+a setting of the other block leaves the kept parts of this **Data** valid.
+
+**Several kinds of data.** Tick more than one box (`B.Settings.data` is then a
+string row, e.g. `["units" "LFP"]`, kept in that order) to compute or load
+them together, with one event, window, trial selection and normalization:
+
+- **Compute** computes each kind on its own, as `epochMatrix` computes one
+  kind at a time (`epochMatrixSettings(S, Kind="LFP")` gives that kind's
+  settings), each with its own kept parts. `B.Results` holds a result per
+  kind, by kind (`B.Results.units`, `B.Results.LFP`); `B.Result` is the first
+  kind's, so a script that reads `B.Result` goes on working. The summary has
+  a line per kind (*LFP: 64 channels × 701 samples × 5 groups ...*). A kind
+  that no ticked dataset has stops the compute with `epochMatrix:NoData`, its
+  kind named (*SPIKE: ...*), and leaves `B.Results` as it was; the kinds
+  computed before it stay cached.
+- **Load whole sessions** gives an entry per dataset and kind (see
+  [Load whole sessions](#load-whole-sessions)).
+- The **Measure** tab's **Spikes** block applies to `units` and `detected`,
+  its **Signals** block to the signals.
+- The [Channels tab](#shanks-and-channels) is one pick for every probe kind.
+  `AUX`, which has no probe, keeps all its columns, and **Magnitude (AUX)**
+  applies to `AUX` only.
 
 ### Shanks and channels
 
@@ -214,7 +235,11 @@ The **Channels** tab picks the shanks and channels computed with. Its two
 fields are the settings of the **Data** chosen: for `units` and `detected`,
 `units.shanks` and `units.channels`; for `LFP`, `MUA` and `SPIKE`,
 `signal.shanks` and `signal.channels`. Each kind keeps its own picks, so
-switching **Data** shows the other kind's.
+switching **Data** shows the other kind's. With spikes and a probe signal
+ticked together, the fields are one pick for both: an edit sets `units.*` and
+`signal.*` alike (they show the first probe kind's). `AUX` ticked with other
+kinds keeps all its columns (`epochMatrixSettings(S, Kind="AUX")` clears
+`signal.channels` and `signal.shanks` for it).
 
 - **Shanks**: the probe map's `kcoords` values, e.g. `1:4` or `1 3`.
 - **Channels**: recording channels, 1-based (the probe map's `chanMap` + 1,
@@ -283,17 +308,20 @@ state.
 
 ### Compute
 
-**Compute** computes the ticked datasets with these settings. The summary under
-the button reads *812 units × 200 bins × 5 groups from 32 of 34 datasets; 1
-computed, 33 reused*. When the settings or ticks changed since the result, it
-begins *Out of date:* and says what differs.
+**Compute** computes the ticked datasets with these settings, once per kind
+of **Data** ticked. The summary under the button reads *812 units × 200 bins
+× 5 groups from 32 of 34 datasets; 1 computed, 33 reused* (a line per kind,
+each starting with its kind, when several are ticked). When the settings or
+ticks changed since the result, it begins *Out of date:* and says what
+differs.
 
 ### Load whole sessions
 
 **Load whole sessions**, beside **Compute**, computes nothing: it uses the
 browser as a way in to the data. Each ticked dataset comes on its own clock,
 not cut into epochs, into `B.Sessions` for your script to use as it likes
-(`B.loadSessions()` from a script). What comes depends on **Data**:
+(`B.loadSessions()` from a script). What comes depends on **Data**, each
+kind ticked:
 
 - **units**, **detected**: the spike times of the units **Compute** would use
   (classes, shanks, channels, merge, quality and response filters).
@@ -310,14 +338,19 @@ signal: only the trials and the digital lines, whatever **Data** is (`data` is
 `"trials"`; `spikes`, `units`, `signal` and `channels` are empty). From a
 script: `B.loadSessions(TrialsOnly=true)`.
 
-`B.Sessions` is a struct column, one per dataset loaded, made by
-[`sessionData.m`](../analysis/sessionData.m):
+`B.Sessions` is a struct column, one per dataset loaded and kind of
+**Data** (dataset by dataset, the kinds in **Data**'s order; pair a dataset's
+kinds by `key`), made by [`sessionData.m`](../analysis/sessionData.m). A
+dataset that lacks one of the kinds ticked (no sort, no such signal) has no
+entry for it; the strip's message counts each kind (*12 session(s) loaded in
+B.Sessions (units 12, LFP 11), ...*). **Load trials only** gives one entry per
+dataset.
 
 | Field | Holds |
 | --- | --- |
 | `key`, `name`, `folder`, `subject`, `startTime`, `tags` | which dataset |
 | `fs`, `durationSec` | the recording's rate and length |
-| `data` | **Data**; `"trials"` from **Load trials only** |
+| `data` | the entry's kind of **Data**; `"trials"` from **Load trials only** |
 | `spikes`, `units` | `{nUnits x 1}` spike times, s, on the continuous clock, and one row per unit (`selectUnits`' table); `{}` and `table()` for a signal |
 | `signal`, `signalFs`, `channels` | `[nSamples x nChannels]` single (µV; AUX: V), row `k` at `(k-1)/signalFs`, its rate and one row per column (`selectChannels`' table); `[]`, `NaN` and `table()` for spikes |
 | `events` | line → `[k x 2]` `[t_on t_off]` s on the digital clock (polarity applied, derived events included) |
@@ -346,10 +379,20 @@ for D = B.Sessions.'
 end
 ```
 
+With units and LFP ticked, each dataset's two entries side by side:
+
+```matlab
+S = B.Sessions;
+for U = S([S.data] == "units").'
+    L = S([S.data] == "LFP" & [S.key] == U.key);   % empty when the dataset has no LFP
+    % ... U.spikes against L.signal (at L.signalFs) ...
+end
+```
+
 Nothing is cached or written to the result file: each press reads the
 datasets again (on the [workers](#workers) when set). A dataset without the
-data asked for (no sort, no spikes file, no such signal) is skipped; the
-strip's message counts them. `[D, T] = B.loadSessions()` also returns each
+data asked for (no sort, no spikes file, no such signal; with several kinds,
+none of them) is skipped; the strip's message counts them. `[D, T] = B.loadSessions()` also returns each
 ticked dataset's status. Like **Compute**, the button lets `wait` return and
 runs the post-processing script when ticked.
 
@@ -376,29 +419,38 @@ workspace. An error in it is shown on the status line, naming the script and
 its line (`DatasetBrowser:ScriptFailed`, the script's error as its cause);
 the result is kept.
 
-The first list is the scripts in [`analysis/scripts`](../analysis/scripts),
-which holds
-[`S_PrepareDatasetBrowserOutputForPlots.m`](../analysis/scripts/S_PrepareDatasetBrowserOutputForPlots.m):
+Every script in [`analysis/browser_scripts`](../analysis/browser_scripts) is
+always listed, first: the folder is read again each time the browser opens,
+so a script saved there appears at the next start, and **−** is off for
+these (`removeScript` raises `DatasetBrowser:BundledScript`). **+** and **−**
+add and remove scripts from anywhere else; only those are kept in the
+`Scripts` preference. The folder holds
+[`S_DatasetBrowserBasicOutput.m`](../analysis/browser_scripts/S_DatasetBrowserBasicOutput.m):
 it keeps the `su` units (or every channel of a signal), sorts them by session
 and the groups by label, and leaves `R`, `units_`, `data_`, `groupLabels_`,
 `groupTexts_`, `cmap`, `nS`, `nU`, `nB`, `nG` and a summary of `R` in the
 workspace. It also holds
-[`S_DatasetBrowserLFPToFieldTrip.m`](../analysis/scripts/S_DatasetBrowserLFPToFieldTrip.m),
-which turns a signal into FieldTrip raw structures (`ft_datatype_raw`), one
-per dataset: `ftEpochs` from `R.epochs` (`epochMatrixFieldTrip`: a trial per
-epoch, `trialinfo` = `[resultGroup trial]`) and `ftSessions` from
-`B.Sessions` (`sessionDataFieldTrip`: the whole signal, with its events, a
-`trl` for `ft_redefinetrial` and the erased periods as an artifact matrix);
+[`S_DatasetBrowserToFieldTrip.m`](../analysis/browser_scripts/S_DatasetBrowserToFieldTrip.m),
+which turns a signal into FieldTrip raw structures (`ft_datatype_raw`) and
+spikes into spike structures (`ft_datatype_spike`), one per dataset:
+`ftEpochs` from `R.epochs` (`epochMatrixFieldTrip`: a trial per epoch,
+`trialinfo` = `[resultGroup trial]`; spikes cut as `ft_spike_maketrials`
+leaves them, on the recording's timestamps) and `ftSessions` from
+`B.Sessions` (`sessionDataFieldTrip`: the whole signal or every spike, with
+its events, a `trl` for `ft_redefinetrial` / `ft_spike_maketrials` and the
+erased periods), then draws the evoked responses at the probe sites
+(`ft_multiplotER`) or a unit's raster and PSTH per group
+(`ft_spike_plot_raster`, `ft_spike_psth`);
 see [FieldTripExport](FieldTripExport.md#from-the-analysis-results).
-[`S_DatasetBrowserToChronux.m`](../analysis/scripts/S_DatasetBrowserToChronux.m)
+[`S_DatasetBrowserToChronux.m`](../analysis/browser_scripts/S_DatasetBrowserToChronux.m)
 does the same for Chronux, and
-[`S_DatasetBrowserToNeuroGLM.m`](../analysis/scripts/S_DatasetBrowserToNeuroGLM.m)
+[`S_DatasetBrowserToNeuroGLM.m`](../analysis/browser_scripts/S_DatasetBrowserToNeuroGLM.m)
 hands the whole sessions' spike trains to the neuroGLM toolbox
 (`sessionDataNeuroGLM`: one neuroGLM trial per kept trial, every line's
 edges as events, the trial parameters as values) and fits Park et al. 2014's
-Poisson GLM for one unit per dataset, with the kernels, held-out trials and
+Poisson GLM for every unit of each dataset, with the kernels, held-out trials and
 PSTHs drawn; see [NeuroGLMExport](NeuroGLMExport.md).
-[`S_DatasetBrowserToMTRF.m`](../analysis/scripts/S_DatasetBrowserToMTRF.m)
+[`S_DatasetBrowserToMTRF.m`](../analysis/browser_scripts/S_DatasetBrowserToMTRF.m)
 turns a signal (or spike trains) and a stimulus into the stimulus / response
 pairs the mTRF-Toolbox fits, one package per dataset: `mtEpochs` from
 `R.epochs` (`epochMatrixMTRF`: an impulse on each epoch's event) and
@@ -406,7 +458,18 @@ pairs the mTRF-Toolbox fits, one package per dataset: `mtEpochs` from
 signal resampled, with the pulses of a digital line, a trial parameter or an
 AUX channel's envelope as the stimulus, cut into artifact-free pieces or the
 kept trials), then cross-validates, trains and plots a TRF and a decoder when
-the toolbox is on the path; see [mTRFExport](mTRFExport.md). The
+the toolbox is on the path; see [mTRFExport](mTRFExport.md).
+[`S_DatasetBrowserToICSD.m`](../analysis/browser_scripts/S_DatasetBrowserToICSD.m)
+and [`S_DatasetBrowserToKCSD.m`](../analysis/browser_scripts/S_DatasetBrowserToKCSD.m)
+estimate the current source density of a signal along each shank: the
+evoked potential of every group per laminar profile (`epochMatrixCSD` from
+`R.epochs`, `sessionDataCSD` from `B.Sessions` with the kept trials cut in
+the browser's window), then the iCSD toolbox's spline, delta, step and
+standard methods (`icsdEstimate`, `csdEpochs` / `csdSessions` with
+`csd.<method>`) or kCSD-python's kernel CSD with `R` and `lambda`
+cross-validated (`kcsdEstimate`, run in a Python with `kcsd`), and draw the
+CSD images with the potentials overlaid; see
+[CSDEstimate](CSDEstimate.md). The
 list, the script picked and the box are preferences.
 
 From a script, `B.compute(RunScript=true)` computes and then runs `B.Script`;
@@ -509,7 +572,8 @@ R = B.compute();
 | `showGroupCounts(B)` | the **Epochs per group** window of the lists' dataset ([Epochs per group](#epochs-per-group)) |
 | `showProbe(B)`, `pickProbe(B, KIND, VALUE)` | the **Channels** tab with the lists' dataset's probe; a click on it: `KIND` `"site"` (a recording channel) or `"shank"`, toggled and applied ([Shanks and channels](#shanks-and-channels)) |
 | `showRasters(B, ROW)`, `X = raster(B, ROW, Order=)` | the **Trial rasters** window on row `ROW` of the result; that row trial by trial ([Trial rasters](#trial-rasters)) |
-| `R = compute(B, Recompute=false)` | `epochMatrix` over the ticked datasets with `B.Settings` |
+| `[R, Rs] = compute(B, Recompute=false)` | `epochMatrix` over the ticked datasets with `B.Settings`, once per kind of data: `R` is `B.Result`, `Rs` is `B.Results` ([Several kinds of data](#several-kinds-of-data)) |
+| `[D, T] = loadSessions(B, TrialsOnly=false)` | the ticked datasets whole, in `B.Sessions` ([Load whole sessions](#load-whole-sessions)) |
 | `[VALUES, T] = forEach(B, FN, ...)` | [your own per-dataset code, cached](#foreach) |
 | `forget(B, NAME, KEYS)`, `forgetTicked(B)` | drop kept parts |
 | `loadSettings(B, FILE)` | read a [settings file](#settings) (no `FILE`: a file dialog) |
@@ -524,14 +588,15 @@ R = B.compute();
 The properties: `Settings` (the whole struct; assigning checks it with
 `epochMatrixSettings`), `Filter`, `Selected` (the ticked keys), `Table` and
 `Shown` (the rows shown, and their keys), `Datasets` (every dataset found),
-`Result`, `ResultCurrent` (the result was computed with these settings on
-these ticks), `Computed` (when the result was computed, a `datetime`: the
+`Result` (the first kind's), `Results` (a result per kind of data, by
+kind), `Sessions`, `ResultCurrent` (the results were computed with these
+settings on these ticks), `Computed` (when the result was computed, a `datetime`: the
 last Compute, or the one the result file holds; `NaT` before a result; a
 change of `Normalize` alone does not move it), `ResultName` (read-only: the
 result's default name, `R.name`; `""` before a result), `Definitions` (read-only: the [event & trial definitions](#event--trial-definitions)), `ResultFile`, `Workers` ([Workers](#workers)), `Runs` (the `DatasetRuns` with the kept parts),
 `Runner`, `Busy`, `CancelRequested`, `Fig` and `Ctl` (the window and its
 controls). `OnChange(B, what)` is called with `"scan"`, `"filter"`,
-`"ticks"`, `"settings"`, `"definitions"`, `"result"`, `"done"` or `"closed"`.
+`"ticks"`, `"settings"`, `"definitions"`, `"result"`, `"sessions"`, `"script"`, `"done"` or `"closed"`.
 
 ### Export a script
 
@@ -561,10 +626,21 @@ S = epochMatrixSettings([], ...
 R = epochMatrix(cfg, S);
 ```
 
+With several kinds of **Data** ticked, `data=["units" "LFP"]` and one
+`epochMatrix` per kind:
+
+```matlab
+Results = struct();
+for kind = S.data
+    Results.(kind) = epochMatrix(cfg, epochMatrixSettings(S, Kind=kind));
+end
+R = Results.(S.data(1));
+```
+
 A struct setting lists only its fields that differ (`epochMatrixSettings`
 merges them over the defaults), and settings that do not apply to the data
 (`signal` for spikes; `units`, `measure`, `binSec`, `baseline`, `auroc` for
-a signal) are left out. The filter is a comment: the keys are the
+a signal; with several kinds, only those no kind uses) are left out. The filter is a comment: the keys are the
 selection. `R` is what Compute gives, but for `R.name`, and nothing is
 cached: each run computes every dataset (pass `Runs=` a `DatasetRuns` to
 keep the parts between calls). With [Workers](#workers) set, the call
@@ -599,7 +675,10 @@ strip over for its time.
 
 ## The result
 
-`B.compute()` returns, and `B.Result` holds, the result `R`.
+`B.compute()` returns, and `B.Result` holds, the result `R`. With several
+kinds of **Data**, `B.Results` holds one such `R` per kind, by kind
+(`B.Results.LFP`; `R.settings.data` is its kind), and `B.Result` is the
+first kind's.
 `size(R.data) = [height(R.rows), numel(R.t), numel(R.groupLabels)]`. Scripts
 use the fields in place (`R.data`, `R.rows`, `R.t`, `R.groupLabels`,
 `R.settings`) and need not copy them out. `imagesc(R.t, 1:height(R.rows),
@@ -829,7 +908,7 @@ unit fields; any other option replaces its field.
 
 | Field | Meaning |
 | --- | --- |
-| `data` | what is computed: `"units"` (default; the sorted units of the sorting folder), `"detected"` (the Spikes step's threshold detections, one train per channel), `"LFP"`, `"MUA"`, `"SPIKE"` or `"AUX"` (a derived signal) |
+| `data` | what is computed, one kind or several (a string row, each kind once, in the order given; the fields of every kind are checked): `"units"` (default; the sorted units of the sorting folder), `"detected"` (the Spikes step's threshold detections, one train per channel), `"LFP"`, `"MUA"`, `"SPIKE"` or `"AUX"` (a derived signal) |
 | `ref` | `eventRef`: the event each epoch is aligned to |
 | `window` | `epochWindow`; its mode must be `"fixed"` (default [-1 1] s) |
 | `selection` | `trialSelection`: the trials kept and their groups |
@@ -845,6 +924,15 @@ unit fields; any other option replaces its field.
 Fields that do not apply to `data` are kept in `S`, unchecked beyond their
 form, and left out of the cache identity, so a change to an LFP option keeps
 the cached spike results. `normalize` is left out of it too.
+
+**One kind of several.** `epochMatrix` computes one kind at a time.
+`[S1, ID, NAME] = epochMatrixSettings(S, Kind="LFP")` gives the settings of
+that kind of `S.data` alone (`data` = the kind; `units.source` = the kind for
+spikes), with its cache identity and parts' name. Among other kinds, `AUX`
+takes all its columns (its `signal.channels` and `signal.shanks` are cleared:
+they are the probe's pick), and `signal.magnitude` is `AUX`'s (cleared for a
+probe signal when `AUX` is in `data`). Asking for `ID` or `NAME` with several
+kinds and no `Kind` raises `epochMatrixSettings:SeveralData`.
 
 **Settings files** are JSON: `{"schema": "epoch-matrix-settings", "version":
 1, "settings": {...}}`, with non-finite numbers written as the strings
@@ -927,7 +1015,7 @@ the old one. It holds
 | --- | --- |
 | `schema`, `version` | `"dataset-browser-results"`, 1 |
 | `browser` | the browser's state: `root`, `outputRoot`, `namePattern`, `recordings`, `ticked` (keys), `filter` and `settings` |
-| `result` | `B.Result` (`[]` before a compute); its `labels` are made again on restore, and its `epochs` are left out and assembled again from `runs` |
+| `results` | `B.Results` (`[]` before a compute): a result per kind of data, by kind; their `labels` are made again on restore, and their `epochs` are left out and assembled again from `runs`. A version 1 file's `result` is not read |
 | `runs` | `B.Runs.toStruct()`: every kept part and `forEach` value, each with its identity, status, message, seconds and the time it was made |
 
 It is written after a `compute` or `forEach` that added parts (a canceled one
@@ -992,7 +1080,7 @@ Saved on close under the `AppPrefs` group `DatasetBrowser`:
 | `RecentSettings` | **File > Recent settings**: the last 10 settings files loaded or saved |
 | `Workers` | the process workers **Compute** and `forEach` use |
 | `OnTop` | **Keep on top** |
-| `Scripts`, `Script` | the [post-processing scripts](#the-post-processing-script) listed and the one picked (with none saved yet: the scripts in `analysis/scripts`) |
+| `Scripts`, `Script` | the [post-processing scripts](#the-post-processing-script) listed and the one picked (the scripts of `analysis/browser_scripts`, always, then those added with **+**) |
 | `ScriptAfterCompute` | **Run it after each Compute or Load** |
 | `ScriptFolder` | the folder of the last script added (where **+** opens) |
 
@@ -1016,11 +1104,12 @@ Saved on close under the `AppPrefs` group `DatasetBrowser`:
 | `epochMatrixRaster:BadRow`, `:BadResult` | a row that is not a row of the result; a result that is not `epochMatrix`'s |
 | `epochMatrix:Canceled` | `compute` after **Cancel** (the finished parts stay in `Runs`) |
 | `DatasetRuns:Canceled` | `forEach` after **Cancel** (the finished values stay) |
-| `epochMatrix:NoData` | no dataset gave rows (the message lists why) |
+| `epochMatrix:NoData` | no dataset gave rows (the message lists why; with several kinds, it starts with the kind) |
 | `epochMatrix:TimeBase` | the datasets' `t` differ |
 | `epochMatrix:UnknownDataset`, `:BadSource`, `:BadPart` | a dataset not in the runner; a source that is not a runner, config or list of parts; a malformed part |
 | `epochMatrixSettings:UnknownField` | a setting that has no place |
-| `epochMatrixSettings:BadValue` | a value that does not fit, or a file that is no settings file |
+| `epochMatrixSettings:BadValue` | a value that does not fit, a `Kind` not in `data`, or a file that is no settings file |
+| `epochMatrixSettings:SeveralData` | the cache identity asked for with several kinds in `data` and no `Kind` (so `epochMatrix` given several kinds) |
 | `DatasetRuns:NeedId` | `forEach` without `Id=` over a value `jsonencode` cannot write |
 | `DatasetRuns:BadSource`, `:BadStruct` | a bad run source; a bad saved struct |
 | `datasetFilter:BadSize` | the filter's inputs differ in length |
@@ -1048,7 +1137,7 @@ out).
 | the **Epochs per group** window (also the analysis app's Alignment tab bars) | [`EpochGroupCounts.m`](../analysis/EpochGroupCounts.m) |
 | the per-dataset cache and run engine | [`DatasetRuns.m`](../analysis/DatasetRuns.m) |
 | the stamp of a dataset's output files (names, sizes, times) | [`outputsStamp.m`](../analysis/outputsStamp.m) |
-| the subject, tag and text filter (also the analysis app's Data tab) | [`datasetFilter.m`](../analysis/datasetFilter.m) |
+| the subject, tag and text filter (also the analysis app's Data tab) | [`datasetFilter.m`](../pipeline/datasetFilter.m) |
 | the sorted table | [`TableSort.m`](../pipeline/TableSort.m) |
 | the clickable probe of the Channels tab | [`ProbePicker.m`](../analysis/ProbePicker.m) |
 | the time left | [`ProgressClock.m`](../pipeline/ProgressClock.m) |
@@ -1057,7 +1146,7 @@ out).
 
 | Suite | Covers |
 | --- | --- |
-| [`test_DatasetFilter.m`](../analysis/test_DatasetFilter.m) | `datasetFilter`: subjects, wildcards and literal regex characters, tags, search, the combinations |
+| [`test_DatasetFilter.m`](../pipeline/test_DatasetFilter.m) | `datasetFilter`: subjects, wildcards and literal regex characters, tags, search, the combinations |
 | [`test_DatasetRuns.m`](../analysis/test_DatasetRuns.m) | `DatasetRuns`: reuse, identity, skipped and failed datasets, cancel, `forget`, the saved struct |
 | [`test_EpochMatrix.m`](../analysis/test_EpochMatrix.m) | `epochMatrixSettings` and `epochMatrix`: the parts against the per-dataset calls, assembly, groups, the result fields, the labels, the normalization (`epochMatrixNormalize`) |
 | [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window), the exported script (`exportScript`), the whole sessions (`loadSessions`, `sessionData`), the Channels tab (`ProbePicker`: clicks and fields yoked), the event & trial definitions, the **Epochs per group** window (`EpochGroupCounts`: its groups, epochs and trials against `epochTable`, the excluded epochs, a settings edit and a row click redraw it) |

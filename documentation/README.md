@@ -41,6 +41,7 @@ matrix over the units of many datasets, ticked in a window or from a script, see
 | [FieldTripExport](FieldTripExport.md) | FieldTrip raw / spike / event structures and `exportFieldTrip` |
 | [NeuroGLMExport](NeuroGLMExport.md) | connector that hands the browser's whole sessions to the neuroGLM toolbox (Park et al. 2014) and fits its Poisson GLM |
 | [mTRFExport](mTRFExport.md) | stimulus / response pairs for the mTRF-Toolbox (Crosse et al. 2016: temporal response functions, decoders): `mTRFExport`, `epochMatrixMTRF`, `sessionDataMTRF` |
+| [CSDEstimate](CSDEstimate.md) | current source density of the browser's laminar potentials with the iCSD toolbox (`icsdEstimate`: Pettersen et al. 2006) or kCSD-python (`kcsdEstimate`: Potworowski et al. 2012): `laminarColumns`, `epochMatrixCSD`, `sessionDataCSD` |
 | [Platforms](platforms.md) | what runs on Windows, macOS and Linux; `platformSupport`, `openInSystem` |
 | [Analysis](EphysAnalysis.md) | the `analysis` folder: event references, epochs, trial selection and grouping, PSTH / evoked / rate / tuning computations, response statistics, population analysis, figures merged across sessions and their data export, renderers, export, HTML / PDF reports, `EphysAnalysisRunner`, `EphysAnalysisScript` |
 | [EphysAnalysisConfig](EphysAnalysisConfig.md) | the analysis config (JSON `ephys-analysis-config`): every field, panel types, version 1 migration, validation, tokens |
@@ -410,7 +411,7 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
 | Function | Used by |
 | --- | --- |
 | [`read_Intan_RHD2000_file_modified`](../pipeline/read_Intan_RHD2000_file_modified.m) | `IntanReader`, traditional `*.rhd` |
-| [`matrix2kilosort`](../matrix2kilosort.m) | `EphysDataset.matrixToBin` |
+| [`matrix2kilosort`](../pipeline/matrix2kilosort.m) | `EphysDataset.matrixToBin` |
 | [`Manifest`](../vendor/tools/Manifest.m) | optional provenance log |
 | [`parfor_progress`](../vendor/compute/parfor_progress.m) | `intan2matlab` console progress |
 | [`addpath_nogit`](../addpath_nogit.m) | path setup |
@@ -420,7 +421,10 @@ an optional separate `phy` environment. Needed only for
 the sorting step and the probe designer. Sorting with a SpikeInterface sorter
 (`Sorting.Sorter`) needs `spikeinterface[full]` in that environment. The NWB
 export needs a Python with pynwb and nwbinspector (the same environment or
-another). See
+another), and the kCSD connector (`kcsdEstimate`,
+[CSDEstimate](CSDEstimate.md)) one with numpy, scipy and
+[kcsd](https://github.com/Neuroinflab/kCSD-python), found through
+`KCSD_PYTHON`, `pyenv`, a miniconda3 base install or the PATH. See
 [INSTALL.md](../pipeline/INSTALL.md) for known-good versions.
 
 **Optional MATLAB toolboxes**: [Chronux](http://chronux.org) (bundled in
@@ -444,10 +448,16 @@ own `matRegress` (`glms.neglog.poisson` + `fminunc`, a ridge prior) or with
 MATLAB's `glmfit`; `NeuroGLMExport.hasNeuroGLM` / `hasMatRegress` report
 whether they are on the path, and `test_NeuroGLMExport` is skipped without
 neuroGLM (its matRegress tests without matRegress or `fminunc`).
+The [iCSD toolbox](https://github.com/dstolz/iCSD) (not bundled; add its
+folder with `methods/` to the path) is called only by `icsdEstimate`, the
+DatasetBrowser's post-processing script
+[`S_DatasetBrowserToICSD.m`](../analysis/browser_scripts/S_DatasetBrowserToICSD.m)
+and `test_CSDEstimate` (skipped without it); see
+[CSDEstimate](CSDEstimate.md).
 The [mTRF-Toolbox](https://github.com/mickcrosse/mTRF-Toolbox) (not bundled;
 add its `mtrf` folder to the path) is called only by the DatasetBrowser's
 post-processing script
-[`S_DatasetBrowserToMTRF.m`](../analysis/scripts/S_DatasetBrowserToMTRF.m)
+[`S_DatasetBrowserToMTRF.m`](../analysis/browser_scripts/S_DatasetBrowserToMTRF.m)
 (`mTRFcrossval`, `mTRFtrain`, `mTRFpredict`, `mTRFplot`) and by
 `test_MTRFExport` when it is present; the [mTRFExport](mTRFExport.md)
 connector prepares the data without it (`mTRFExport.hasMTRF` reports whether
@@ -641,7 +651,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_PipelineAnalysisStep` (analysis/) | the pipeline's Analysis step running a saved analysis config over a synthetic project: validation, plan, dry run, figures and report, progress, cancel, a `list` selection with one report per dataset, both scripts |
 | `test_ResponseStats` (analysis/) | `pAdjust` against statsmodels; `responseStats` on known counts against `signrank` / `kruskalwallis` called directly (toolbox tests skipped without it) |
 | `test_Auroc` (analysis/) | `aucOf`; `aurocCurves` (`"psth"` against a port of the Caras lab's code, `"epochs"`, windows, the stop mask, cutoffs, `aurocCall` over stacked results, silent units, bootstrap / ranksum / shuffle tests); `spikePSTH`'s auROC result; the figure caption's auROC clause; the PSTH and heat map marks (skipped without the toolbox) |
-| `test_DatasetFilter` (analysis/) | `datasetFilter`: subjects (case, `*` and `?` wildcards, whole-subject matches, regex characters taken literally), excluded subjects, tags (any / all, excluded, invalid terms), search words, the combinations and the sizes it refuses |
+| `test_DatasetFilter` (pipeline/) | `datasetFilter` (the dataset browser, the analysis app's Data tab and the pipeline app's Project table): subjects (case, `*` and `?` wildcards, whole-subject matches, regex characters taken literally), excluded subjects, tags (any / all, excluded, invalid terms), search words, the combinations and the sizes it refuses |
 | `test_DatasetRuns` (analysis/) | `DatasetRuns`: a value reused while its identity (settings and the stamp of the output files) holds, skipped and failed datasets, cancel keeping the finished ones, `forget`, the saved struct |
 | `test_EpochMatrix` (analysis/) | `epochMatrixSettings` (defaults, overlay, checks, cache identity, settings files) and `epochMatrix`: the parts against the per-dataset calls, assembly (rows, groups and their order, sessions), the result fields, the labels (`epochMatrixLabels`), the normalization (`epochMatrixNormalize`), `Recompute`, cancel |
 | `test_DatasetBrowser` (analysis/) | `DatasetBrowser`, headless and with its window: scan, filter, ticks, the settings form, `compute` against `epochMatrix`, `forEach`, the progress strip and cancel, the result file, the trial rasters (`epochMatrixRaster`, `TrialRaster`), FieldTrip structures of the epochs and sessions (`epochMatrixFieldTrip`, `sessionDataFieldTrip`), mTRF packages of the epochs, sessions, trials, an AUX stimulus and spikes (`epochMatrixMTRF`, `sessionDataMTRF`), `DatasetBrowser.open` finding the open window, closing keeping the object |

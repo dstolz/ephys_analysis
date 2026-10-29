@@ -730,7 +730,7 @@ with its Epsych2 session.
 | Filter | (right of **Tags...**) one editable dropdown per name-pattern token, listing the values found (`-` = the name does not match). Rows whose token does not match are hidden; type `*` / `?` wildcards or comma-separated alternatives (case-insensitive). Filters are a view only: they are not saved, and ticks on hidden rows stay in the selection (the label shows `showing k of n (m ticked hidden)`) |
 | All / None | **All** ticks every shown row; **None** unticks every row, shown or hidden |
 | **Tags...** | edits the tags of the datasets on the selected rows (Shift / Ctrl+click selects several), ticked or not, or of the active dataset when no row is selected; also **Dataset → Tags...** ([Dataset tags](#dataset-tags)) |
-| Tags: filter | (under the token filters) the tags picked or typed (**any of** / **all of** them) and a search over the tags, both applied ([Dataset tags](#dataset-tags)). A view only, like the token filters: not saved, and ticks on hidden rows stay in the selection |
+| Tags: filter | (under the token filters) the tags picked or typed (**any of** / **all of** them), the tags to leave out (**not**) and a search over the name, key and tags, all applied, as in the [dataset browser](DatasetBrowser.md) ([Dataset tags](#dataset-tags)). A view only, like the token filters: not saved, and ticks on hidden rows stay in the selection |
 | **Source settings** panel (under the table) | the reader options of the **active dataset's** recording system (the [`Acquisition` section](EphysPipeline.md#acquisition)); the panel's title names the system and only its controls show. They are the config's, so they apply to every dataset of that system in the project, and a change rescans the project. **Open Ephys** ([Open Ephys sessions](#open-ephys-sessions)): what a session with several recordings is (**join recordings** = one dataset, **one dataset per recording** = part folders created in the session folder, **single recording only** = refused), **Record node** and **Stream** (blank = automatic). **TDT (Synapse)**: **Stream** (`Acquisition.TDT.Stream`: an editable list of the active block's stream stores, or a typed name; **automatic** = the stream with the most channels, the highest rate among those) and **Gain (µV per unit)** (`Acquisition.TDT.GainToMicrovolts`: blank = 1e6 for float streams, which TDT stores in volts; needed for a stream stored as integers; a value that is not a number is refused in the status bar), and a line saying what the active block reads (its tooltip lists the block's streams). Intan and binary recordings have no source settings; without an active dataset the panel says so. The Open Ephys options therefore show only once an Open Ephys dataset is scanned and active (a config file can set them before a scan) |
 | **Tools** panel (beside the table) | opens datasets in another program. The box on top chooses which: **Active dataset** (the highlighted row) or **Ticked datasets** (the ticked rows, or every dataset when none is ticked, as a run takes them); the label under it names them, and how many of several have sorted output. **Manifest viewer**: each one's `<Name>_manifest.json` in a [manifest viewer](ManifestViewerApp.md), a window each, cascaded (the same as Dataset → View manifest...). **Analysis app**: one [analysis app](EphysAnalysisApp.md) on the project with those datasets selected (a new config in project mode with `Source.Selection = "list"` and their keys: it lists every dataset but ticks only these to run, the first of them active; `"all"` when they are every dataset); needs the repository's `analysis` folder on the path. **phy**: phy's template-gui on each one's associated sorted output, a window each (on only when one of them has `params.py`; the others are skipped). **Output folder**: each one's output folder in the file browser (an alert names those not written yet). Opening more than four windows at once asks first |
 
@@ -900,11 +900,14 @@ run is going.
 The **Tags:** filter above the table, under the token filters, hides rows the same way the token
 filters do. Pick a tag in the dropdown, or type several separated by commas,
 and choose **any of** (a dataset with at least one of them) or **all of**
-(with every one); a typed term that is no valid tag matches nothing. **search
-tags** keeps the datasets with a tag containing the text, ignoring case. The
-two are combined: a row shows when it passes both, and an empty part passes
-every row. The dropdown lists the tags in use, and follows every edit. The
-label counts the tag filter as one filter (`showing k of n (m ticked
+(with every one); a typed term that is no valid tag matches nothing. **not**
+leaves out the datasets holding any of the tags picked or typed there (a
+dataset with no tags is never left out by it). **search** keeps the datasets
+whose name, key or tags hold every word typed, ignoring case. The parts are
+combined: a row shows when it passes all of them, and an empty part passes
+every row. It is the [dataset browser](DatasetBrowser.md)'s filter
+(`datasetFilter`) without the subject lists. Both dropdowns list the tags in
+use, and follow every edit. The label counts the tag filter as one filter (`showing k of n (m ticked
 hidden)`).
 
 #### Tags for new datasets

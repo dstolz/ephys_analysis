@@ -82,7 +82,7 @@ the trial's row of `D.trials` and its group, or the pulse's index; epochs:
 align, the stimulus described, the options; for epochs the epochs table).
 
 The post-processing script
-[`S_DatasetBrowserToMTRF.m`](../analysis/scripts/S_DatasetBrowserToMTRF.m)
+[`S_DatasetBrowserToMTRF.m`](../analysis/browser_scripts/S_DatasetBrowserToMTRF.m)
 runs both over the browser's result and sessions (`mtEpochs`, `mtSessions`,
 `mtTrials`), saves them, and with the toolbox on the path cross-validates the
 ridge in both directions, trains a TRF and a decoder, tests them on a held-out

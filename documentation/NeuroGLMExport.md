@@ -22,8 +22,8 @@ specification** (`buildGLM.initDesignSpec`, `addCovariate*`,
 [`sessionDataNeuroGLM`](../analysis/sessionDataNeuroGLM.m) builds the
 experiment struct from one of the [DatasetBrowser](DatasetBrowser.md)'s whole
 sessions (`B.Sessions`), and the bundled post-processing script
-[`S_DatasetBrowserToNeuroGLM.m`](../analysis/scripts/S_DatasetBrowserToNeuroGLM.m)
-fits one unit per dataset and draws the paper's figures.
+[`S_DatasetBrowserToNeuroGLM.m`](../analysis/browser_scripts/S_DatasetBrowserToNeuroGLM.m)
+fits every unit of each dataset and draws the paper's figures.
 
 neuroGLM is needed for everything here; it is not bundled. Clone it and add
 its folder (the one holding `+buildGLM` and `+basisFactory`) to the path;
@@ -101,18 +101,19 @@ the same tables with `key`, `name`, `fs`, `binMs`, `window`, `align`,
 
 ## From the DatasetBrowser
 
-[`S_DatasetBrowserToNeuroGLM.m`](../analysis/scripts/S_DatasetBrowserToNeuroGLM.m)
+[`S_DatasetBrowserToNeuroGLM.m`](../analysis/browser_scripts/S_DatasetBrowserToNeuroGLM.m)
 is in the browser's post-processing script list. Tick datasets, set **Data**
 to *units* or *detected*, **Load whole sessions**, pick the script and **Run
 now** (or tick *Run it after each Compute or Load*). For each dataset it
-builds the experiment, picks a unit (the busiest by default), fits the GLM on
-80% of the trials with a kernel per line edge (one per trial group for the
+builds the experiment and, for every unit with spikes, fits the GLM on the
+same 80% of the trials with a kernel per line edge (one per trial group for the
 browser's event line when `groupKernels` is on), a spike-history filter and,
 with `withSignal = "LFP"`, the LFP as a covariate, predicts the held-out
-trials and prints bits per spike for both. The fit is the paper's by default
+trials and prints bits per spike for both, a line per unit. The fit is the paper's by default
 (`fitMethod = "matRegress"`, `ridge = "evidence"`); `fitMethod = "glmfit"`
-is the quick maximum-likelihood alternative. The workspace gets `glm{k}` (`expt`,
-`dspec`, `F`, `P`, `info`, `unit`, the train/test split) and three figures:
+is the quick maximum-likelihood alternative. The workspace gets `glm{k}` per dataset (`expt`,
+`info`, the train/test split, and `fits`, one element per unit: `unit`,
+`dspec`, `F`, `P`) and three figures:
 
 1. the **kernels** as gains over time from each event, with their standard
    error, grouped kernels on one tile in the groups' colors;
@@ -122,9 +123,9 @@ is the quick maximum-likelihood alternative. The workspace gets `glm{k}` (`expt`
    start (Fig. 2c).
 
 The options at the top of the script (`binMs`, `window`, `kernelMs`,
-`acausal`, `groupKernels`, `history`, `coupling`, `withSignal`, `unitPick`,
+`acausal`, `groupKernels`, `history`, `coupling`, `withSignal`,
 `fitMethod`, `ridge`, `outDir`) are the knobs; `outDir` saves `<dataset>_neuroglm.mat` per dataset. From there,
-neuroGLM's own API applies to `glm{k}.expt` and `glm{k}.dspec`
+neuroGLM's own API applies to `glm{k}.expt` and `glm{k}.fits(j).dspec`
 (`buildGLM.addCovariate`, `addCovariateBoxcar`, ... as in its `tutorial.m`),
 and `NeuroGLMExport.fit` / `predict` take any design built on the experiment.
 

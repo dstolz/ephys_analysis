@@ -1707,11 +1707,12 @@ if S.sec("3e", "Project tab: Tags column, dialog, filter")
     check(isequal(fileTags(nameB), {'draft', 'pilot', 'shared'}) && isequal(tagsOf(nameA), full) ...
         && contains(app.StatusBar.Text, "Removed extra from 2 datasets."), 'Remove from all takes a tag off every selected dataset');
 
-    % The filter: the tags in use, any / all of them AND the search.
-    filt = @(v, mode, search) setFilter(app, v, mode, search);
+    % The filter: the tags in use, any / all of them, AND none of the "not" tags, AND the search.
+    filt = @(v, mode, search, varargin) setFilter(app, v, mode, search, varargin{:});
     shownNames = @() sort(app.DatasetsTable.Data.Name).';
     check(isequal(app.TagFilterDropDown.Items, [{'(any)'}, TagSet.union(full, {'draft', 'pilot'})]), ...
         'the filter lists every tag in use');
+    check(isequal(app.NotTagFilterDropDown.Items, app.TagFilterDropDown.Items), 'the "not" list lists the same tags');
     filt('pilot', 'any', '');
     check(isequal(shownNames(), nameB) && isequal(app.HiddenSelectedKeys, app.Project.datasetKey(iOf(nameA))) ...
         && isequal(app.tickedDatasetIndices(), sort([iOf(nameA) iOf(nameB)])) ...
@@ -1726,9 +1727,15 @@ if S.sec("3e", "Project tab: Tags column, dialog, filter")
     filt('Bad tag!', 'any', '');
     check(height(app.DatasetsTable.Data) == 0, 'a typed term that is no valid tag matches nothing');
     filt('(any)', 'any', 'T0');
-    check(isequal(shownNames(), nameA), 'the search keeps the datasets with a tag containing the text (ignoring case)');
+    check(isequal(shownNames(), nameA), 'the search keeps the datasets with a tag containing the word (ignoring case)');
     filt('shared', 'all', 'pil');
     check(isequal(shownNames(), nameB), 'the tags and the search are AND-combined');
+    filt('(any)', 'any', '', 'pilot');
+    check(isequal(shownNames(), nameA), '"not" leaves out the datasets holding the tag');
+    filt('shared', 'any', '', 'Pilot, t01');
+    check(height(app.DatasetsTable.Data) == 0, '"not" drops a dataset holding any of its tags, and the tags are AND-combined with it');
+    filt('(any)', 'any', 'recb 0102');
+    check(isequal(shownNames(), nameB), 'the search looks in the name too: every word must appear (case ignored)');
     filt('(any)', 'any', '');
     check(height(app.DatasetsTable.Data) == 2 && isempty(app.HiddenSelectedKeys) && all(app.DatasetsTable.Data.Select) ...
         && ~contains(app.NameTokenStatusLabel.Text, "showing"), 'an empty filter shows every dataset, ticks back');
@@ -3856,11 +3863,19 @@ t = TagSet.canon(m.tags);
 end
 
 
-function setFilter(app, value, mode, search)
+function setFilter(app, value, mode, search, notTags)
 %setFilter  Set the Project table's tag filter as the user would, then apply it.
+arguments
+    app
+    value
+    mode
+    search
+    notTags = '(any)'
+end
 app.TagFilterDropDown.Value = value;
 app.TagFilterModeDropDown.Value = mode;
-app.TagSearchField.Value = search;
+app.NotTagFilterDropDown.Value = notTags;
+app.DatasetSearchField.Value = search;
 app.refreshDatasetsTable();
 end
 

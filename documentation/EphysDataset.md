@@ -1622,7 +1622,7 @@ output folder. A bare `BinFile` name goes in `binFolder()`.
 
 **`info = matrixToBin(X, Name=Value)`** writes an in-memory
 `[nSamples x nChan]` µV matrix by delegating to
-[`matrix2kilosort`](../matrix2kilosort.m), using the dataset's
+[`matrix2kilosort`](../pipeline/matrix2kilosort.m), using the dataset's
 `Scale`/`Dtype`/`Fs`. Options: `BinFile`, `Scale`, `Offset`, `Dtype`, `Fs`,
 `ChannelOrder`, `ChannelsAreRows`, `WriteMeta`. The code comments state that,
 for the same data and options, it produces a file byte-identical to `toBin`;

@@ -328,6 +328,10 @@ A figure can be drawn **across several datasets** instead of once per
 dataset: tick **Across sessions** in its Sessions section ([below](#sessions-in-the-figures-tab)),
 and Generate selected figure and Run draw it once over the ticked (or listed) datasets, a
 page per matched site, cell or channel, and the preview does the same.
+A figure can also be laid out **on the probe**: tick **On the probe** in its
+Probe layout section ([below](#probe-layout-in-the-figures-tab)), and every
+unit or channel it observes is a small tile of all its panels at its site on
+the probe, one page per dataset, in the preview, Generate and Run alike.
 **File → Save config**
 keeps the figures, and **Help → Help for this tab** opens this section.
 
@@ -337,10 +341,12 @@ Three columns: the figures, the editor of the selected one, and the preview.
 them by what each is drawn for, by enabled or off, or not at all. A group
 header reads `Per unit  (2)` (*Per unit*, *Per channel* or *Per dataset*, the
 kind of data its Observe row names, with a figure across sessions grouped by its
-observation too; or *Enabled* and *Off*, with the number of figures in it);
+observation too, then *On the probe* for the figures laid out on the probe; or
+*Enabled* and *Off*, with the number of figures in it);
 only groups with a figure are listed, in that order. A figure reads
 `<id>  (<n> panels)`, with `, per <kind>` added unless the groups are by what
-the figures observe (the group says it) and *(off)* after it for a disabled
+the figures observe (the group says it; under *On the probe* it is added, and
+under the other groupings a figure on the probe adds `, on the probe`) and *(off)* after it for a disabled
 figure unless the groups are by status. Within a group the figures keep the
 run order. A group collapses under its header (which are collapsed is
 remembered), and the selected figure's group is always open: it opens when the
@@ -447,6 +453,7 @@ with the key of each in brackets:
 | Event reference (2), Epoch window (3), Trial selection (4) | the figure's alignment: the [Alignment tab](#alignment-tab)'s controls, for this figure (`ref`, `window`, `selection`), each with **Use default** in its header; **Epoch Diagram** sits under the Epoch window. Hidden when every panel of the figure is of a type that is not aligned to events (probe map, unit waveforms) |
 | First-spike latency | the figure's [latency block](EphysAnalysisConfig.md#first-spike-latency) (`latency`), one for every panel that reads it: a note naming those panels (*read by raster_1 (marks), psth_1 (box plot, onset line)*), **Method** (*First spike in the window*, *Poisson surprise (Legendy & Salcman 1985)*, *Baseline Poisson count (Chase & Young 2007)*), **Detect (ms)** from / to (blank: each panel's window's end), **Baseline** (*Before the event* or a **Window (ms)** of its own, its fields enabled with it), **Baseline rate** (*The unit's* or *Each trial's own*; the Poisson methods), **Burst** (the least surprise and the fewest spikes; *Poisson surprise*), **Alpha (p below)** (*Baseline Poisson count*), and the response onset's CUSUM: **Onset bins (ms)** with how long it must last, **Onset threshold** in baseline SDs with the allowance a bin. Each row is a named edit (*Undo Method*). Shown while the figure has a raster, PSTH or heat map panel; no key |
 | Sessions | **Across sessions**, and with it ticked which datasets, how the sessions are colored, the error band, how the observed unit is matched, the minimum sessions and the trial groups: the figure drawn once over several datasets instead of once per dataset ([Sessions in the Figures tab](#sessions-in-the-figures-tab)); no key; collapsed until opened. Its place in the Figure supersection, above the Panels section: it decides what the figure is drawn over |
+| Probe layout | **On the probe**, and with it ticked the layout, the overlap strategy, which shanks, channels and depths are laid out, the most tiles and units per site, the tiles' size, scale and labels, shared y, the scale tile, the sites and the leaders: the figure drawn once per dataset, every unit or channel a tile at its site ([Probe layout in the Figures tab](#probe-layout-in-the-figures-tab)); no key; collapsed until opened. Below Sessions: it too decides what the figure is drawn over, and the two exclude each other |
 | Panels (5) | the schematic of the grid, **New panel...** (the [New panel window](#the-new-panel-window)), the selected panel's **Row span**, **Column span**, **Row height**, **Column width**, **Panel size** and **Align in cell**, **Spacing** with **Spacing...**, **Remove panel** and **Move** (below) |
 | **PANEL** (Alt+2) | the sections below, down to Overlays: the selected panel's. Its header names the panel and its type |
 | Selected panel (6) | **Type** (a change starts the panel afresh: below), **Title** (blank = none), **Box** (*auto (the design's)*, *on* or *off*: the frame around the panel's axes; *on* and *off* win over the design, the remembered looks and the figure's own rules; `box`), **X axis** and **Y axis** (every type: the axis' label, blank = the type's own, and its side, *bottom* or *top*, *left* or *right*; `xLabel`, `yLabel`, `xSide`, `ySide`; the y side grayed out on a stacked line panel (PSTH, continuous, spectrum, coherence, tuning), which has a y axis on each side; a stack of time panels with its x axes on top tells the time once, at its top; the sides, not the label texts, go to every panel with Options' **Apply to all panels**, or from the right-click menu's **Move every panel's X axis to top** (*Axis labels*, below)) and **Group shown** (heat map, unit correlation and spectrogram panels, and a coherence panel drawn over time: which of the figure's trial groups they draw, 1 = the first; `options.group`; a heat map of trials and a stacked panel draw every group, so the row hides) |
@@ -460,13 +467,13 @@ with the key of each in brackets:
 | Appearance | the figure's `style` (below); no key; collapsed until opened |
 | Looks | how many looks are remembered for the figure (*"1 remembered look(s); right-click the preview to edit."*) and **Forget**, which drops them and redraws; no key; collapsed until opened |
 
-Each of the sixteen headed sections has a title color of its own (steps along
+Each of the seventeen headed sections has a title color of its own (steps along
 `turbo`; Waveform's lies between Options' and Text note's, First-spike latency's
 between Trial selection's and Sessions') and ten a key: **Ctrl+1** to **Ctrl+9** and **Ctrl+0**
 (**Cmd** on a Mac; the number pad too) go to the section of that number, in
 the order above: Observations is 1, Event reference 2, Epoch window 3, Trial
 selection 4, Panels 5, Selected panel 6, Panel alignment 7, Layers 8, Options 9
-and Text note 0. First-spike latency, Sessions, Waveform, Overlays, Appearance and Looks have no key (the
+and Text note 0. First-spike latency, Sessions, Probe layout, Waveform, Overlays, Appearance and Looks have no key (the
 search finds them). The key opens the section, and its supersection, if
 collapsed, scrolls the editor to it and puts the keyboard focus on its
 header. **Alt+1**, **Alt+2** and **Alt+3** (**Option** on a Mac) go the same
@@ -1078,7 +1085,10 @@ why)"* and *"; figure_1 is off, so it was switched on for this run only"*. With
 no dataset ticked it says so and draws nothing. A figure across sessions is
 the exception: Generate selected figure runs it as `run(SessionFigures=<id>)`, once across the
 ticked (or listed) datasets rather than on each, into `Export.SessionsFolder`
-([Sessions in the Figures tab](#sessions-in-the-figures-tab)).
+([Sessions in the Figures tab](#sessions-in-the-figures-tab)). A figure on the
+probe draws one page per dataset, every tile on it, and the status bar counts
+pages and tiles: *"Generated Probe card: 2 pages (46 tiles) on 2 dataset(s), 2
+file(s) in ..."* ([Probe layout in the Figures tab](#probe-layout-in-the-figures-tab)).
 
 **Test report** (on the Export tab, between **Plan** and **Run**; **Ctrl+U**
 on the Figures tab) is a spot check: the report for one unit without generating
@@ -1594,6 +1604,77 @@ columns). An empty **Mapping file** box asks for a path first
 sends the preview out of date. The format:
 [Unit mapping CSV](file-formats.md#unit-mapping-csv).
 
+#### Probe layout in the Figures tab
+
+The **Probe layout** section of the editor (in the FIGURE supersection, below
+Sessions; collapsed until opened, no key) makes the selected figure a *probe
+figure*: drawn **once per dataset**, every unit (or channel) it observes a
+small *tile* of all the figure's panels, on the figure's grid, at that unit's
+site on the probe. To lay out a figure you also want page by page, **Duplicate**
+it and tick **On the probe** on the copy. The layouts, the overlap strategies
+and what a page holds are under
+[Probe figures](EphysAnalysisConfig.md#probe-figures). The rows:
+
+| Row | Effect | Config field |
+| --- | --- | --- |
+| **On the probe (every unit or channel at its site, one page per dataset)** | ticked, the figure is a probe figure: the preview, Generate and Run draw one page per dataset with every tile on it | `probe.enabled` |
+| **Layout** | *Schematic (rows of sites)*: each shank a column, its sites in rows equally spaced, the depth written at the rows, so the tiles never overlap; *Physical (µm)*: the tiles where the sites are, sized from the site pitch | `layout` |
+| **Overlap** | physical: *Slide apart along the shank* (in order, a leader to the site), *Lanes beside the shank*, *Shrink the tiles* or *Allow* | `overlap` |
+| **Lanes** | with *Lanes beside the shank*: how many lanes each shank's tiles alternate across | `lanes` |
+| **Shanks** | the shanks (kcoords) whose sites are laid out, a list as the Observations section's **Shanks** (`1 2`, `1:3`); blank = all | `shanks` |
+| **Channels** | the recording channels whose sites are laid out, likewise; blank = all | `channels` |
+| **Depth range (µm)** | the probe y kept, `lo hi` (lo below hi); blank, or anything else, = all | `depthRange` |
+| **Max tiles** | the most tiles on the page: more observations keep every k-th in probe order | `maxTiles` |
+| **Per site** | the most units drawn on one recording channel's site (the first in probe order) | `maxPerSite` |
+| **Tile width**, **Tile height** | a tile's share (0.1-1) of its column's width and of its row's height (physical: of the median site pitch); a value under 0.1 set in the config is kept until the spinner is changed | `tileWidth`, `tileHeight` |
+| **Tile scale** | physical: multiplies the tiles' size | `tileScale` |
+| **Labels** | each tile's label: *Short* (the unit's short label, *ch 7*), *Full* (the observation's label) or *None* | `labels` |
+| **Shared y** | every tile's panel of one id on one y range | `sharedY` |
+| **Scale tile** | the bottom-left tile keeps its ticks and axis labels, as the page's scale | `scaleTile` |
+| **Show sites** | the shanks and their sites drawn pale behind the tiles | `showSites` |
+| **Leaders** | physical: a line from a moved tile to its site | `leaders` |
+
+A gray note under the rows says what the active dataset gives: *"23 tiles: 23
+units on 2 shanks; 3 left out (1 without a position, 2 over 3 per site)."*
+(`figureProbeTiles`; also *outside the shanks, channels or depth range* and
+*over 64 tiles*), *"Scan and pick a dataset to count the tiles."* before one is
+open, or why they cannot be counted. With **On the probe** unticked only the box
+shows; ticked, every row does, **Overlap**, **Tile scale** and **Leaders** enabled
+with *Physical* and **Lanes** with *Lanes beside the shank*, and the
+Observations section's **Per trial group** row hides (a probe figure has no
+trial-group pages). **On the probe** and the Sessions section's **Across
+sessions** exclude each other: one ticked grays the other out. Each row is a
+named edit: *Undo Probe layout* for the box, *Undo Probe layout: Max tiles* for
+a row.
+
+**The preview.** The **Observation** list holds one entry, *"the probe: 23
+units on 2 shanks"*, and the count line reads *"Laid out on the probe: 23
+tiles; 3 left out (1 without a position, 2 over 3 per site)."*; **<** and **>**
+are off, and the entry has no star or note (the toggles beside it are off). A
+dataset where nothing has a site laid out lists none and the preview says so.
+**Preview** computes every tile on the active dataset
+(`EphysAnalysisRunner.computeProbeFigure`): the card counts them, *"Computing
+tile 3/23 (su12  ch 7  -320 µm) on subj1_day1 ..."*, and its **Cancel** stops
+between two tiles. What earlier previews computed is taken again (the figure's
+epochs are one step every tile shares, and a look-only edit computes nothing).
+The page is then drawn whole (`renderFigure` hands it to `renderProbeFigure`),
+and the line under the preview reads *"Probe card on subj1_day1: 23 tiles, 3
+left out (4.2 s); right-click to change colors, lines and fonts"*. The
+Auto box applies as for any figure: a probe figure that took
+`AutoPreviewSeconds` or more waits for **Preview**. The selected panel is not
+outlined (it is in every tile). **Open in window** draws the page at its export
+size (as tall as its rows of tiles need); **Export preview** writes it as a run
+does, named with `{Unit}` *probe*; **Export code** writes the code for the
+whole page, no observation picked. The Export tab's **Test report** is off for
+a probe figure.
+
+**Generate and Run.** **File → Generate selected figure** draws a probe figure
+as any figure, one page per ticked dataset holding every tile, into the Export
+folder; the status bar reads *"Generated Probe card: 2 pages (46 tiles) on 2
+dataset(s), 2 file(s) in D:\EPHYS\..."*, and the results table's row says
+*"23 tile(s)"*. A dataset without a probe map, or where nothing has a position
+on it, is skipped with why.
+
 ### Epoch diagram
 
 The epoch diagram draws how an event reference, epoch window and trial
@@ -1659,7 +1740,7 @@ drawn, so you can see why. Examples: a fixed window with *pre* after
 | --- | --- |
 | **Validate** | lists the config's issues (Section, Field, Severity, Message) in the table; errors stop a run |
 | **Plan** | one row per ticked dataset and [figure](#figures-tab) (Dataset, Subject, Date, Plot, Kind, Source, Enabled, Reason): `Plot` its id, Kind `figure`, Source what it is drawn for (`unit`, `channel` or `dataset`), Enabled whether it will run, and the Reason, why not ([skip reasons](#why-is-my-figure-skipped): no sorted units, no LFP extract, no line X, ...); then one row per [session figure](#sessions-in-the-figures-tab) (Dataset `sessions: all`, or `sessions: <subject>`; a figure with *Across sessions* ticked is listed there and not per dataset). Every figure is listed, enabled or not. Cheap: no signals or spikes are loaded, so a unit filter or channel list that leaves nothing to draw shows only when the figure runs. The status bar counts the rows that will draw: *"Plan: 4 of 6 figure run(s) and 2 of 2 session figure run(s) will draw."* (a row whose Dataset starts `sessions: ` is a session figure run; the session part is left out when the plan lists none) |
-| **Test report** | a spot check of one unit (or channel): every enabled figure of the active dataset, drawn for the unit or channel picked over the Figures tab's preview only, and the figures of the dataset for the dataset, as an HTML report in a temporary folder that opens in the browser, in the report's **Order**; no figure files ([Figures tab](#figures-tab), **Test report**; **Ctrl+U** there). Off without a dataset or an observation picked, for a figure across sessions, and while a run goes |
+| **Test report** | a spot check of one unit (or channel): every enabled figure of the active dataset, drawn for the unit or channel picked over the Figures tab's preview only, and the figures of the dataset for the dataset, as an HTML report in a temporary folder that opens in the browser, in the report's **Order**; no figure files ([Figures tab](#figures-tab), **Test report**; **Ctrl+U** there). Off without a dataset or an observation picked, for a figure across sessions or on the probe, and while a run goes |
 | **Run** | validates, then runs every enabled figure on every ticked dataset, and then every enabled [session figure](#sessions-in-the-figures-tab) over them, with a cancelable progress dialog: compute, export, report. A figure is drawn once per observation (a unit, a channel or the dataset), a page each, and the dialog names the observation (`<dataset>: <figure> (3/12)`) and, once 1% of the run is done and 5 s have passed, the time left (`<dataset>: <figure> (3/12) · about 4 min left`); writing the report shows its sections and pages (*Writing the report: page 3/12*) in a share of the run of its own. A failing figure is an error row and the rest still run. **File → Generate selected figure** is this run for one figure alone, with no report ([Figures tab](#figures-tab)); its rows land in this table |
 | **Workers** | right of **Cancel**: how many process workers draw and write a run's pages (Parallel Computing Toolbox; `EphysAnalysisRunner.Workers`). They start once a run has 20 pages, which takes about half a minute once, and stay open for the next runs; the figures are computed here meanwhile, and the dialog shows `<dataset>: <figure> drawing page 3/12` while it waits for them. 0 draws every page in this MATLAB. Each worker takes about 1-2 GB of memory. 4 by default, remembered (preference `ReportWorkers`) |
 | **Cancel** | stops before the next figure observation; what is left (the rest of that figure's observations too) is *canceled*. It also stops a Generate selected figure, which is a run, and the Figures tab's **Redraw All** |
@@ -1810,7 +1891,10 @@ section shows the rows of the selected panel's type
 What each draws, its layers and its options are on the config page
 ([Panel types](EphysAnalysisConfig.md#panel-types), [Panel
 options](EphysAnalysisConfig.md#panel-options)); how the numbers are computed:
-[Compute](EphysAnalysis.md#compute).
+[Compute](EphysAnalysis.md#compute). A figure of any of these panels can also be
+laid out on the probe, its panels a small tile at each unit's or channel's site,
+one page per dataset ([Probe layout in the Figures tab](#probe-layout-in-the-figures-tab)):
+that is a figure's setting, not a panel type.
 
 <!-- wiki: ![A unit's raster over its PSTH, groups by Depth](images/analysis-example-unit-card.png) -->
 
@@ -1863,7 +1947,7 @@ whole report exactly as it will be sent.
 | Ticked | What it sends |
 | --- | --- |
 | System info | MATLAB release and platform, OS, compute threads, memory, GPUs, the installed toolboxes, the version of the code with its git commit, branch and whether it has uncommitted changes, and the repository folder |
-| Analysis config | the working config as the controls hold it now (name, file, unsaved edits, source and its roots, how many figures, how many enabled and how many across sessions, dataset counts, active dataset, selected tab, whether a run is going) and the whole config as JSON, written the way **Save config** writes it — **this carries your file paths** |
+| Analysis config | the working config as the controls hold it now (name, file, unsaved edits, source and its roots, how many figures, how many enabled, how many across sessions and how many on the probe, dataset counts, active dataset, selected tab, whether a run is going) and the whole config as JSON, written the way **Save config** writes it — **this carries your file paths** |
 | Log tab | the last 60 lines of the Log tab, saying how many lines it had; a failed run's message is there |
 
 A bug report starts with all three ticked and a feature request with only the
@@ -1952,7 +2036,7 @@ is in the config.
 | `FigureAutoPreview` | the Figures tab's Auto box (on by default: one observation is quick to compute). The time limit it applies, 2 s, is not a preference but the app's `FigureAutoPreviewSeconds` property |
 | `FigureGroupBy` | how the figure tree groups (`observe`, the default; `status`; `none`) |
 | `FigureGroupsCollapsed` | the figure tree's collapsed groups, by key (`observe:unit`, `status:Off`, ...); the selected figure's group opens whatever is kept |
-| `FigureSectionsCollapsed` | the figure editor's collapsed sections (Text note, Overlays, Appearance, Looks and Sessions start collapsed) |
+| `FigureSectionsCollapsed` | the figure editor's collapsed sections (Text note, Overlays, Appearance, Looks, Sessions and Probe layout start collapsed) |
 | `FigureSupersectionsCollapsed` | the figure editor's collapsed supersections (`figure`, `panel`, `look`; all start open) |
 | `ApplyTicked`, `ApplySeen` | **Apply to figures**: the figures and panels ticked when it was last shown, and every one it has listed (`<figure id>`, `<figure id>/<panel id>`; one never listed is ticked) |
 | `ApplyReplot` | **Apply to figures**: its **Replot the changed figures now** box (off by default) |
@@ -2014,7 +2098,7 @@ results, on the Log tab and in the report.
 | notes | `refreshNotes`, `onNoteButton`, `onSearchNotes`, `onDatasetNoteClicked` (the ✎ column); `private/loadNotes` (on Scan), `private/noteButton`, `private/noteTip`, `private/syncNoteButtons` (from `syncStarButtons`; the notepad follows here), `private/openNotePad`, `private/noteMarks`, `private/noteEntries`, `private/goToNote` (over `goToFavorite`); the notepad `analysis/NotePad.m`, the search window `analysis/NoteSearch.m`, the files `analysis/DatasetNotes.m` (the sort a unit's note and star record: `analysis/private/sortIdentity.m`) |
 | previews | `refreshAlignPreview` (the Alignment tab); the Figures tab's under its row below; `private/showPreviewState` (the badge and the busy card; its icons in `analysis/icons/status`) |
 | epoch diagram | the window `onShowEpochs`, `refreshEpochDiagram`; the Alignment tab's `refreshAlignPreview`; the diagram itself is `analysis/EpochDiagram.m` (in a window, or `Parent=` a container) |
-| Figures tab | `buildFiguresTab`; the tree `refreshFigureList` (over `private/figureGroups`), `onFigureSelected`, `onFigureTreeSelected`, `onFigureTreeClicked` (the check boxes), `onFigureGroupToggled`, `onFigureCheck` (All / None / Invert), `setFiguresEnabled`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure` (Up / Down within a group); the Id row's automatic id `private/showFigureId`, and the renames followed by `private/trackFigureIds` and `private/followedFigureId`; a panel's text note and overlays `onAddFigureOverlay`, `onDuplicateFigureOverlay`, `onRemoveFigureOverlay`, `onFigureOverlayPicked` (the rows are `applyFigureEditor`'s and `gatherFigureEditor`'s); dragging a panel in the schematic `onSchematicPress` (with the pointer callbacks it installs), `cancelSchematicDrag` (also `onKeyPress`'s Escape) and `schematicPixel` (the tests');  the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `gotoFigureSection`, `onFigureSuperToggled`, `gotoFigureSuper` and `onKeyPress` (Alt+1 ... Alt+3, Ctrl+1 ... Ctrl+0, F6: `focusFigurePane`), the search `onFigureSearch` and `gotoFigureRow` (over `private/figureSearchIndex`, `private/figureSearchPath`, `private/figureRowReason`), the keys window `onFigureKeys`, the panel keys `stepFigurePanel` and the preview's outline `markFigurePanel`, `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`, `onPanelSelectionToggled` (the Trial selection as the figure box; local to `buildFiguresTab`); the arrangement `drawFigureSchematic`, `onPanelSelected`, `onNewPanel` (the New panel window `private/newPanelDialog`, its pictures `analysis/icons/panels`, made by `tools/makePanelThumbnails`), `onRemovePanel`, `onMovePanel`, `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `removePanel` and `movePanel`; a structural edit ends in `private/commitFigureEdit`), the Spacing window `private/figureSpacingDialog`; the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`); the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoPreviewToggled`, `onCancelFigurePreview`, `onOpenFigureWindow`, the page size `onFigureSizeEdited`, `showFigureSize`, `fitFigureViews` (over `private/figureViewBox`), `redrawFigurePreview` and `private/previewScale` (over `figureExportSize`, `figureSizePresets`, `figureSizeParse`, `figureSizeText`, `figureSizeConvert`), a Ctrl+Click on a panel `onFigurePanelClicked`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); each figure's own preview container `syncFigureView` (`private/newFigureView`, `private/previewFigureView`, `private/figureViewKey`, `private/figureViewFresh`, `private/clearFigureViews`, `private/showSessionPicker`), the tree's marks `private/markFigureTree`, the editor as each figure left it `private/saveFigureEditorState`, `private/restoreFigureEditorState`, `private/scrollFigureEditor`, its observation list `private/keepFigurePicker`, `private/takeFigurePicker`, `private/forgetFigurePickers`; the Sessions section `onPickFigureDatasets`, `onBrowseFigureMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`), `private/pickSessionDatasets` and `onFigureSessionPicked` (its preview is `refreshFigurePreview`'s session branch over `EphysAnalysisRunner.computeSessionFigure`, its picker `refreshFigureObservations`'s over `sessionFigureObservations`); the Design row `onDesignChosen` and `onSaveDesign` (below); the epoch diagram window is `onShowEpochs` (the Alignment tab's diagram is `refreshAlignPreview`'s); the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
+| Figures tab | `buildFiguresTab`; the tree `refreshFigureList` (over `private/figureGroups`), `onFigureSelected`, `onFigureTreeSelected`, `onFigureTreeClicked` (the check boxes), `onFigureGroupToggled`, `onFigureCheck` (All / None / Invert), `setFiguresEnabled`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure` (Up / Down within a group); the Id row's automatic id `private/showFigureId`, and the renames followed by `private/trackFigureIds` and `private/followedFigureId`; a panel's text note and overlays `onAddFigureOverlay`, `onDuplicateFigureOverlay`, `onRemoveFigureOverlay`, `onFigureOverlayPicked` (the rows are `applyFigureEditor`'s and `gatherFigureEditor`'s); dragging a panel in the schematic `onSchematicPress` (with the pointer callbacks it installs), `cancelSchematicDrag` (also `onKeyPress`'s Escape) and `schematicPixel` (the tests');  the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `gotoFigureSection`, `onFigureSuperToggled`, `gotoFigureSuper` and `onKeyPress` (Alt+1 ... Alt+3, Ctrl+1 ... Ctrl+0, F6: `focusFigurePane`), the search `onFigureSearch` and `gotoFigureRow` (over `private/figureSearchIndex`, `private/figureSearchPath`, `private/figureRowReason`), the keys window `onFigureKeys`, the panel keys `stepFigurePanel` and the preview's outline `markFigurePanel`, `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`, `onPanelSelectionToggled` (the Trial selection as the figure box; local to `buildFiguresTab`); the arrangement `drawFigureSchematic`, `onPanelSelected`, `onNewPanel` (the New panel window `private/newPanelDialog`, its pictures `analysis/icons/panels`, made by `tools/makePanelThumbnails`), `onRemovePanel`, `onMovePanel`, `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `removePanel` and `movePanel`; a structural edit ends in `private/commitFigureEdit`), the Spacing window `private/figureSpacingDialog`; the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`); the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoPreviewToggled`, `onCancelFigurePreview`, `onOpenFigureWindow`, the page size `onFigureSizeEdited`, `showFigureSize`, `fitFigureViews` (over `private/figureViewBox`), `redrawFigurePreview` and `private/previewScale` (over `figureExportSize`, `figureSizePresets`, `figureSizeParse`, `figureSizeText`, `figureSizeConvert`), a Ctrl+Click on a panel `onFigurePanelClicked`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); each figure's own preview container `syncFigureView` (`private/newFigureView`, `private/previewFigureView`, `private/figureViewKey`, `private/figureViewFresh`, `private/clearFigureViews`, `private/showSessionPicker`), the tree's marks `private/markFigureTree`, the editor as each figure left it `private/saveFigureEditorState`, `private/restoreFigureEditorState`, `private/scrollFigureEditor`, its observation list `private/keepFigurePicker`, `private/takeFigurePicker`, `private/forgetFigurePickers`; the Sessions section `onPickFigureDatasets`, `onBrowseFigureMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`), `private/pickSessionDatasets` and `onFigureSessionPicked` (its preview is `refreshFigurePreview`'s session branch over `EphysAnalysisRunner.computeSessionFigure`, its picker `refreshFigureObservations`'s over `sessionFigureObservations`); the Probe layout section's rows (`gatherFigureEditor` / `applyFigureEditor`, `syncFigureEditor`) and its tile count `private/probeTileCount` (over `figureProbeTiles`; its picker is `refreshFigureObservations`' probe branch, its preview `refreshFigurePreview`'s over `EphysAnalysisRunner.computeProbeFigure` and `renderFigure`, which hands it to `renderProbeFigure`; the tree's *On the probe* group `private/figureGroups`; the edit's name `private/figureEditLabel`); the Design row `onDesignChosen` and `onSaveDesign` (below); the epoch diagram window is `onShowEpochs` (the Alignment tab's diagram is `refreshAlignPreview`'s); the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
 | copying figures | `onCopyFigureSettings` (the Figures tab's **Copy settings...**: `private/copySettingsDialog`, then `analysis/copyFigureSettings` over `analysis/figureSettingItems` and `analysis/figureSettingParts`, or `analysis/figureLookToDesign` into a design) |
 | remembered panel options, color swatches | `private/rememberPanelOptions` (called by `private/recordFigureEdit`), `private/rememberedPanelOptions` (read by `onNewPanel` and the New panel window), `onResetPanelOptions`, `onForgetPanelOptions`; `private/colorSwatch`, `private/syncColorSwatches` (`buildFiguresTab`, `syncFigureEditor`, `private/latencyDialog`) |
 | one edit to other figures | `onApplyToFigures` (Ctrl held: `onKeyPress` / `onKeyRelease` and `onConfigChanged`; Edit → Apply last change and the Apply last change button: the undo history, the button's state and tooltip set by `private/refreshEditMenu`), its window `private/applyToFiguresDialog`, over `EphysAnalysisConfig.figureEditChanges`, `changeTargets`, `panelTakes` and `applyChanges` |
@@ -2353,6 +2437,28 @@ gives the figure picked there. **Generate selected figure**
 then writes a page per matched site into the sessions folder
 (`<facet>_<id>_site_ch<N>.png`), one `sessions: all` results row, and the status
 bar reads `Generated <id> across the sessions: <n> observation(s), ...`.
+
+Its section 5v drives a figure on the probe (a raster over a PSTH) on the
+active dataset, Auto off. The Probe layout section sits in the Figure
+supersection after Sessions, with no key, and shows only **On the probe** until
+it is ticked; ticked, the config holds `probe.enabled` (`isProbeFigure`), the
+rows show, **Overlap**, **Lanes**, **Tile scale** and **Leaders** are off for a
+schematic, **Per trial group** hides, **Across sessions** is off, the Dataset
+drop-down stays on and the Edit menu reads *Undo Probe layout*. *Physical*
+enables Overlap, Tile scale and Leaders, *Lanes beside the shank* Lanes too
+(*Undo Probe layout: Overlap*). Every row, set and gathered, reaches its
+`probe.*` field (the shanks and channels parsed as lists, the depth range
+`lo hi`); a config's probe block applied reaches every row, a tile width under
+the spinner's 0.1 is kept, and blank Depth range and Shanks are all. Across
+sessions ticked grays **On the probe** out, and the reverse. The picker then
+lists one entry, *the probe: <n> units ...*, with **<**, **>** and its star
+off, the count line *Laid out on the probe: <n> tiles* and the note *<n> tiles:
+<n> units ...* (`figureProbeTiles`' count); **Preview** draws every tile, an
+axes per tile and panel (appdata `ProbeTile`), the status line reading *"<id>
+on <dataset>: <n> tiles ..."*; the tree groups the figure under *On the
+probe*; and **Generate selected figure** writes one page for the dataset, a
+`<n> tile(s)` results row, the status bar reading *Generated <id>: 1 page (<n>
+tiles) on 1 dataset(s), 1 file(s) in ...*.
 
 Its section 5h drives the figure tree, a panel's note and overlays, and the
 schematic's drag, from no figure (it, too, sets `FigureAutoPreviewSeconds` to

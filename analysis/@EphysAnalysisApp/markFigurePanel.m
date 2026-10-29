@@ -6,7 +6,8 @@ function markFigurePanel(obj)
 %   take (TightInset), 4 px out. It is drawn for the figure the preview
 %   shows (the editing context renderFigure keeps: its id) and the panel
 %   of that id there, so it is hidden while the preview shows another
-%   figure, an older drawing without that panel, or nothing. It is a part
+%   figure, an older drawing without that panel, a probe figure (the
+%   panel is drawn in every tile), or nothing. It is a part
 %   of the app, not of the figure: renderFigure, exports, Open in window,
 %   PlotDesign.capture, the aesthetics editor and the data tips never see
 %   it, and the preview is not computed or drawn again for it. Called when
@@ -63,6 +64,8 @@ if k < 1 || k > numel(obj.Config.Figures); return; end
 j = obj.SelectedPanel;
 fig = obj.Config.Figures(k);
 if j < 1 || j > numel(fig.panels); return; end
+F = obj.FigurePreviewResult;
+if isstruct(F) && isfield(F, 'kind') && string(F.kind) == "probeFigure"; return; end   % a probe figure: the panel is in every tile
 ctx = [];
 if isappdata(P, PlotAesthetics.ContextKey); ctx = getappdata(P, PlotAesthetics.ContextKey); end
 if (isstruct(ctx) && isfield(ctx, 'id') && string(ctx.id) ~= fig.id) || ~isappdata(P, 'FigureLayout'); return; end   % another figure's drawing

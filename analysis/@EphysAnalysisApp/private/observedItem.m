@@ -3,7 +3,8 @@ function [level, id, why] = observedItem(obj)
 %   LEVEL "unit" (a sorted unit: ID its cluster id), "channel" (a channel,
 %   or a detection channel: ID its recording channel) or "dataset" (ID
 %   NaN); WHY is "" then, else says why nothing can be starred or have a note (no scan,
-%   no figure, a figure across sessions, nothing picked, an AUX channel).
+%   no figure, a figure across sessions or on the probe, nothing picked,
+%   an AUX channel).
 %
 %   See also onStarToggled, syncStarButtons, favoriteMarks.
 level = "";
@@ -18,6 +19,8 @@ elseif k < 1 || k > numel(obj.Config.Figures)
     why = "no figure is selected";
 elseif obj.Config.Figures(k).sessions.enabled
     why = "a figure across sessions observes several datasets: pick a figure of one dataset";
+elseif obj.Config.Figures(k).probe.enabled
+    why = "a figure on the probe draws every unit or channel at its site: pick a figure of one observation";
 elseif ~istable(T) || ~isnumeric(i) || ~isscalar(i) || i < 1 || i > height(T)
     why = "no observation is picked";
 end

@@ -26,6 +26,11 @@ function fig = gatherFigureEditor(obj)
 %   Overlays list's, the one picked read from its rows (overlayGather).
 %   The figure's latency block is the First-spike latency rows' (a value
 %   in ms written only when it differs from what applyFigureEditor showed).
+%   Its probe block is the Probe layout rows': the shanks and channels as
+%   the Observations section's lists, the depth range two ascending
+%   values ("lo hi"; anything else, blank, is [] = all), the tile's width
+%   and height only when their spinners differ from what
+%   applyFigureEditor showed.
 %   The figure's size is the Size rows': "Export tab size" in the drop-down
 %   is size.source "export" (the own width and height kept as stored),
 %   anything else an own size of the Width and Height fields (the drop-down
@@ -85,6 +90,27 @@ ss.mappingFile = strtrim(string(E.sesMappingFile.Value));
 ss.minSessions = max(1, round(E.sesMinSessions.Value));
 ss.trialGroups = string(E.sesTrialGroups.Value);
 fig.sessions = ss;
+
+% on the probe (the Probe layout section): a tile's width and height only when edited (the spinners start at 0.1)
+pr = fig.probe;
+pr.enabled = logical(E.prbEnabled.Value);
+pr.layout = string(E.prbLayout.Value);
+pr.overlap = string(E.prbOverlap.Value);
+pr.lanes = max(1, round(E.prbLanes.Value));
+pr.shanks = parseList(E.prbShanks.Value);
+pr.channels = parseList(E.prbChannels.Value);
+pr.depthRange = limits(E.prbDepth.Value);
+pr.maxTiles = max(1, round(E.prbMaxTiles.Value));
+pr.maxPerSite = max(1, round(E.prbPerSite.Value));
+if E.prbTileWidth.Value ~= shownIn(pr.tileWidth, E.prbTileWidth.Limits); pr.tileWidth = E.prbTileWidth.Value; end
+if E.prbTileHeight.Value ~= shownIn(pr.tileHeight, E.prbTileHeight.Limits); pr.tileHeight = E.prbTileHeight.Value; end
+pr.tileScale = E.prbScale.Value;
+pr.labels = string(E.prbLabels.Value);
+pr.sharedY = logical(E.prbSharedY.Value);
+pr.scaleTile = logical(E.prbScaleTile.Value);
+pr.showSites = logical(E.prbShowSites.Value);
+pr.leaders = logical(E.prbLeaders.Value);
+fig.probe = pr;
 
 % the first-spike latency and response onset: a value in ms is written only when its field differs from what
 % applyFigureEditor showed (ms to s and back need not give the same number)
@@ -451,6 +477,12 @@ end
 function v = shownSpan(span, limits)
 %shownSpan  The span applyFigureEditor shows.
 v = min(limits(2), max(1, round(span)));
+end
+
+
+function v = shownIn(x, limits)
+%shownIn  The value applyFigureEditor shows for X in a spinner of LIMITS (clipped to them).
+v = min(limits(2), max(limits(1), x));
 end
 
 

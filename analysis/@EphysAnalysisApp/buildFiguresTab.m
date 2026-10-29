@@ -9,7 +9,7 @@ function buildFiguresTab(obj)
 %           leaf "<id>  (<n> panels)", with ", per <kind>" unless grouped by
 %           it and "(off)" when disabled unless grouped by status) under
 %           the groups Group by names (what it observes: unit, channel or
-%           dataset; enabled / off; none), each node with a check box that
+%           dataset, or on the probe; enabled / off; none), each node with a check box that
 %           ticks or unticks the figure, or every figure of a group
 %           (onFigureTreeClicked), All / None / Invert (onFigureCheck);
 %           Add (a blank figure, then the New panel window: onAddFigure),
@@ -80,19 +80,27 @@ function buildFiguresTab(obj)
 %           lists the matched observations and the preview draws them
 %           across the sessions, with a "Figure:" drop-down under it for
 %           one figure per subject or trial group, and the Dataset
-%           drop-down is off). Each section collapses under its colored
+%           drop-down is off) and Probe layout (On the probe: the figure
+%           drawn once per dataset, each unit or channel a tile of its
+%           panels at its site; the layout, the overlap strategy and its
+%           lanes, the shanks, channels and depth range laid out, the most
+%           tiles and units per site, the tiles' size, scale and labels,
+%           shared y, the scale tile, the sites and the leaders; a note
+%           counts the tiles on the active dataset; then the picker lists
+%           one entry, the probe, the preview draws every tile, and Per
+%           trial group and Across sessions are off). Each section collapses under its colored
 %           header (onFigureSectionToggled). The sections stand under three
 %           supersections, each a dark header that collapses them all
 %           (onFigureSuperToggled): Figure (Observations, Event reference,
 %           Epoch window, Trial selection, First-spike latency, Sessions,
-%           Panels), Panel
+%           Probe layout, Panels), Panel
 %           (Selected panel, Panel alignment, Layers, Options, Waveform, Text note, Overlays;
 %           its header names the selected panel) and Look (Appearance,
 %           Looks), built in that order so Tab follows it. Alt+1 to Alt+3
 %           go to a supersection (gotoFigureSuper), Ctrl+1 to Ctrl+9 and
 %           Ctrl+0 to the first ten sections, Observations to Text note
 %           (gotoFigureSection; onKeyPress); First-spike latency, Sessions,
-%           Waveform, Overlays,
+%           Probe layout, Waveform, Overlays,
 %           Appearance and Looks have no key. Over the editor, a search field
 %           (Ctrl+F; onFigureSearch) lists the rows whose label (or
 %           tooltip) has the words typed, "Supersection > Section > Row",
@@ -174,7 +182,7 @@ place(l, 2, 1);
 obj.FigureGroupDropDown = uidropdown(lg, "Items", ["What it observes" "Enabled / off" "None"], ...
     "ItemsData", ["observe" "status" "none"], "Value", "observe", "ValueChangedFcn", @(~,~) onGroupByChanged(obj), ...
     "Tooltip", "How the tree sorts the figures: by what each is drawn for (a unit, a channel or the dataset; a figure " + ...
-    "across sessions too), enabled or off, or a flat list. Within a group the figures keep the run order; Up / Down " + ...
+    "across sessions too; the figures on the probe in a group of their own), enabled or off, or a flat list. Within a group the figures keep the run order; Up / Down " + ...
     "move a figure within its group.");
 place(obj.FigureGroupDropDown, 2, 2);
 cg = uigridlayout(lg, [1 3], "Padding", [0 0 0 0], "ColumnSpacing", 4);
@@ -211,7 +219,7 @@ obj.DownFigureButton = uibutton(lg, "Text", "Down", "ButtonPushedFcn", @(~,~) ob
 place(obj.DownFigureButton, 7, 2);
 obj.CopyFigureButton = uibutton(lg, "Text", "Copy settings...", "ButtonPushedFcn", @(~,~) obj.onCopyFigureSettings(), ...
     "Tooltip", "Copy a figure's settings onto other figures (one or many) or into a design: tick the settings one by one " + ...
-    "(observations, alignment, panels, each panel's options, appearance, looks, across sessions). Each figure keeps its " + ...
+    "(observations, alignment, panels, each panel's options, appearance, looks, across sessions, on the probe). Each figure keeps its " + ...
     "id, title and enabled; one step of Undo; the other figures' previews are marked out of date, not drawn again.");
 place(obj.CopyFigureButton, 8, [1 2]);
 l = uilabel(lg, "Text", "A figure is one observation's panels: a unit's, a channel's or the dataset's. " + ...
@@ -235,8 +243,8 @@ obj.FigureSearchList = uilistbox(mc, "Items", {}, "Visible", "off", ...
 ep = uipanel(mc, "Title", "Figure");
 ep.Layout.Row = 3;
 obj.FigureEditorPanel = ep;
-eg = uigridlayout(ep, [20 1]);
-eg.RowHeight = [repmat({0}, 1, 19) {'1x'}];
+eg = uigridlayout(ep, [21 1]);
+eg.RowHeight = [repmat({0}, 1, 20) {'1x'}];
 eg.RowSpacing = 6;
 eg.Padding = [4 4 4 4];
 eg.Scrollable = "on";
@@ -245,9 +253,9 @@ E = struct();
 
 % the sections with a header, in order (built so, so Tab follows it): a header color each (a step along the turbo map)
 % and the keys 1-9, 0
-order = ["observations" "ref" "window" "selection" "sessions" "arrangement" "panel" "palign" "layers" "options" "note" ...
+order = ["observations" "ref" "window" "selection" "sessions" "probe" "arrangement" "panel" "palign" "layers" "options" "note" ...
     "overlays" "style" "looks"];
-keyed = order(~ismember(order, ["sessions" "overlays" "style" "looks"]));   % Observations Ctrl+1 ... Options Ctrl+9, Text note Ctrl+0
+keyed = order(~ismember(order, ["sessions" "probe" "overlays" "style" "looks"]));   % Observations Ctrl+1 ... Options Ctrl+9, Text note Ctrl+0
 hue = turbo(256);
 hue = hue(round(linspace(24, 232, numel(order))), :);
 tint = @(name) hue(order == name, :);
@@ -476,7 +484,8 @@ S = formSection(eg, 14, "sessions", "Sessions", Color=tint("sessions"));
 E.sesEnabled = uicheckbox(S.Body, "Text", "Across sessions (one figure over several datasets)", "ValueChangedFcn", changed, ...
     "Tooltip", "Draw this figure once across the datasets instead of once per dataset: each observation (a site, " + ...
     "a cell of the mapping, a channel or the dataset) is computed on every session and each panel's layers are " + ...
-    "merged, a color per session (or subject). Generate selected figure and Run then write it to the sessions folder.");
+    "merged, a color per session (or subject). Generate selected figure and Run then write it to the sessions folder. " + ...
+    "Not with On the probe (Probe layout).");
 place(E.sesEnabled, r, [1 2]);
 [S, r] = formRow(S, "sesDatasets", "Datasets:");
 E.sesDatasets = uidropdown(S.Body, "Items", ["The ticked datasets" "These datasets"], "ItemsData", ["ticked" "list"], ...
@@ -541,6 +550,95 @@ place(E.sesTrialGroups, r, 2);
 [S, r] = formRow(S, "sesNote", "", 44);
 E.sesNote = uilabel(S.Body, "Text", "", "FontColor", gray, "WordWrap", "on", "VerticalAlignment", "top");
 place(E.sesNote, r, [1 2]);
+sec(end+1) = S;
+
+% on the probe: the figure drawn once per dataset, a tile of its panels per unit or channel at its site
+% (figureProbeTiles, computeProbeFigure); no key
+S = formSection(eg, 19, "probe", "Probe layout", Color=tint("probe"));
+[S, r] = formRow(S, "prbEnabled", "");
+E.prbEnabled = uicheckbox(S.Body, "Text", "On the probe (every unit or channel at its site, one page per dataset)", ...
+    "ValueChangedFcn", changed, "Tooltip", "Draw this figure once per dataset, every observation (each unit, or " + ...
+    "each channel) a small tile of all its panels at its site on the probe, instead of a page per observation. " + ...
+    "Generate selected figure and Run then write one page per dataset. Not with Across sessions (Sessions).");
+place(E.prbEnabled, r, [1 2]);
+[S, r] = formRow(S, "prbLayout", "Layout:");
+E.prbLayout = uidropdown(S.Body, "Items", ["Schematic (rows of sites)" "Physical (µm)"], "ItemsData", ["schematic" "physical"], ...
+    "ValueChangedFcn", changed, "Tooltip", "Schematic: each shank a column, its sites in rows equally spaced (the " + ...
+    "depth written at the rows), so the tiles never overlap. Physical: the tiles where the sites are, in µm, sized " + ...
+    "from the site pitch, with an overlap strategy.");
+place(E.prbLayout, r, 2);
+[S, r] = formRow(S, "prbOverlap", "Overlap:");
+E.prbOverlap = uidropdown(S.Body, "Items", ["Slide apart along the shank" "Lanes beside the shank" "Shrink the tiles" "Allow"], ...
+    "ItemsData", ["nudge" "lanes" "shrink" "allow"], "ValueChangedFcn", changed, ...
+    "Tooltip", "Physical: what is done with tiles that would overlap. Slide apart: they move along the shank, in " + ...
+    "order, a leader line to their sites. Lanes: they alternate across lanes beside the shank, then slide apart. " + ...
+    "Shrink: every tile shrinks until none overlaps. Allow: drawn where they fall.");
+place(E.prbOverlap, r, 2);
+[S, r] = formRow(S, "prbLanes", "Lanes:");
+E.prbLanes = uispinner(S.Body, "Limits", [1 Inf], "Step", 1, "Value", 2, "RoundFractionalValues", "on", "ValueChangedFcn", changed, ...
+    "Tooltip", "Overlap: Lanes beside the shank: how many lanes each shank's tiles alternate across.");
+place(E.prbLanes, r, 2);
+[S, r] = formRow(S, "prbShanks", "Shanks:");
+E.prbShanks = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
+    "Tooltip", "The probe shanks (kcoords) whose sites are laid out, e.g. 1 2 (blank = all).");
+place(E.prbShanks, r, 2);
+[S, r] = formRow(S, "prbChannels", "Channels:");
+E.prbChannels = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
+    "Tooltip", "The recording channels whose sites are laid out, e.g. 1:16 (blank = all).");
+place(E.prbChannels, r, 2);
+[S, r] = formRow(S, "prbDepth", "Depth range (µm):");
+E.prbDepth = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
+    "Tooltip", "The probe y kept, ""lo hi"" in µm, e.g. 0 400 (blank = all; lo below hi).");
+place(E.prbDepth, r, 2);
+[S, r] = formRow(S, "prbMaxTiles", "Max tiles:");
+E.prbMaxTiles = uispinner(S.Body, "Limits", [1 Inf], "Step", 1, "Value", 64, "RoundFractionalValues", "on", "ValueChangedFcn", changed, ...
+    "Tooltip", "The most tiles on the page: more observations than that keep every k-th in probe order, and the page " + ...
+    "says how many were left out.");
+place(E.prbMaxTiles, r, 2);
+[S, r] = formRow(S, "prbPerSite", "Per site:");
+E.prbPerSite = uispinner(S.Body, "Limits", [1 Inf], "Step", 1, "Value", 3, "RoundFractionalValues", "on", "ValueChangedFcn", changed, ...
+    "Tooltip", "The most units drawn on one recording channel's site (the first in probe order), side by side; the " + ...
+    "rest are left out and counted.");
+place(E.prbPerSite, r, 2);
+[S, r] = formRow(S, "prbTileWidth", "Tile width:");
+E.prbTileWidth = uispinner(S.Body, "Limits", [0.1 1], "Step", 0.05, "Value", 0.9, "ValueDisplayFormat", "%.4g", ...
+    "ValueChangedFcn", changed, "Tooltip", "A tile's share of its shank's column width.");
+place(E.prbTileWidth, r, 2);
+[S, r] = formRow(S, "prbTileHeight", "Tile height:");
+E.prbTileHeight = uispinner(S.Body, "Limits", [0.1 1], "Step", 0.05, "Value", 0.9, "ValueDisplayFormat", "%.4g", ...
+    "ValueChangedFcn", changed, "Tooltip", "Schematic: a tile's share of its row's height. Physical: its share of the " + ...
+    "median site pitch (then times the tile scale).");
+place(E.prbTileHeight, r, 2);
+[S, r] = formRow(S, "prbScale", "Tile scale:");
+E.prbScale = uispinner(S.Body, "Limits", [0 Inf], "LowerLimitInclusive", "off", "Step", 0.25, "Value", 1, "ValueDisplayFormat", "%.4gx", ...
+    "ValueChangedFcn", changed, "Tooltip", "Physical: multiplies the tiles' size (the overlap strategy then clears them).");
+place(E.prbScale, r, 2);
+[S, r] = formRow(S, "prbLabels", "Labels:");
+E.prbLabels = uidropdown(S.Body, "Items", ["Short" "Full" "None"], "ItemsData", ["short" "full" "none"], "ValueChangedFcn", changed, ...
+    "Tooltip", "Each tile's label: the unit's short label (""ch 7"" for a channel), the observation's whole label, or none.");
+place(E.prbLabels, r, 2);
+[S, r] = formRow(S, "prbSharedY", "");
+E.prbSharedY = uicheckbox(S.Body, "Text", "Shared y (each panel on one y range over every tile)", "ValueChangedFcn", changed, ...
+    "Tooltip", "Every tile's panel of one id on one y range (the union of the tiles'), so the tiles compare at a " + ...
+    "glance and the scale tile's ticks hold for all of them.");
+place(E.prbSharedY, r, [1 2]);
+[S, r] = formRow(S, "prbScaleTile", "");
+E.prbScaleTile = uicheckbox(S.Body, "Text", "Scale tile (the bottom-left tile keeps its ticks and axis labels)", ...
+    "ValueChangedFcn", changed, "Tooltip", "The tiles are drawn without tick or axis labels; the bottom-left one keeps " + ...
+    "them, as the page's scale.");
+place(E.prbScaleTile, r, [1 2]);
+[S, r] = formRow(S, "prbShowSites", "");
+E.prbShowSites = uicheckbox(S.Body, "Text", "Show sites (the shanks and their sites, pale, behind the tiles)", ...
+    "ValueChangedFcn", changed, "Tooltip", "Draw each shank's body and every site of the probe map, pale, behind the " + ...
+    "tiles (the sites laid out darker).");
+place(E.prbShowSites, r, [1 2]);
+[S, r] = formRow(S, "prbLeaders", "");
+E.prbLeaders = uicheckbox(S.Body, "Text", "Leaders (a line from a moved tile to its site)", "ValueChangedFcn", changed, ...
+    "Tooltip", "Physical: a thin line from each tile the overlap strategy moved to the site it stands for.");
+place(E.prbLeaders, r, [1 2]);
+[S, r] = formRow(S, "prbNote", "", 44);
+E.prbNote = uilabel(S.Body, "Text", "", "FontColor", gray, "WordWrap", "on", "VerticalAlignment", "top");
+place(E.prbNote, r, [1 2]);
 sec(end+1) = S;
 
 % the panels: the schematic, adding (New panel...), sizing and moving them (the section's key stays "arrangement")
@@ -1468,12 +1566,12 @@ for i = 2:numel(sec)
     k = find(keyed == name);
     if ~isempty(k); sec(i).Key = string(mod(k, 10)); end   % Ctrl+1 ... Ctrl+9, then Ctrl+0 for the tenth (onKeyPress)
 end
-for i = find(ismember(names, ["note" "overlays" "style" "looks" "sessions"]))
+for i = find(ismember(names, ["note" "overlays" "style" "looks" "sessions" "probe"]))
     sec(i).Expanded = false;   % collapsed until opened (then kept: FigureSectionsCollapsed)
 end
 % the supersections: each collapses its sections under a dark header, which Alt+1 to Alt+3 go to (onKeyPress)
 U = struct('Name', {"figure" "panel" "look"}, 'Title', {"Figure" "Panel" "Look"}, ...
-    'Sections', {["observations" "ref" "window" "selection" "latency" "sessions" "arrangement"], ...
+    'Sections', {["observations" "ref" "window" "selection" "latency" "sessions" "probe" "arrangement"], ...
     ["panel" "palign" "layers" "options" "waveform" "note" "overlays"], ["style" "looks"]}, ...
     'Header', {hFigure hPanel hLook}, 'Expanded', true, 'Key', {"1" "2" "3"});
 [sec.Super] = deal("");
@@ -1599,7 +1697,7 @@ obj.FigureTemplateApplyButton = uibutton(tg, "Text", "Apply...", "ButtonPushedFc
     "The copy is made once: there is no link, so apply it again to give figures a template's later changes.");
 obj.FigureTemplateSaveButton = uibutton(tg, "Text", "Save as...", "ButtonPushedFcn", @(~,~) obj.onFigureTemplate("save"), ...
     "Tooltip", "Save the figure shown as a new template: every setting (observations, alignment, page size, panels with their " + ...
-    "options, layers, notes and overlays, spacing, appearance, remembered looks, sessions) but its id, title and enabled.");
+    "options, layers, notes and overlays, spacing, appearance, remembered looks, sessions, probe layout) but its id, title and enabled.");
 obj.FigureTemplateUpdateButton = uibutton(tg, "Text", "Update", "ButtonPushedFcn", @(~,~) obj.onFigureTemplate("update"), ...
     "Tooltip", "Replace the template picked with the settings of the figure shown (asks first). The figures it was applied " + ...
     "to keep their settings until it is applied to them again.");

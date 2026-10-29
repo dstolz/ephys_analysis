@@ -1,7 +1,8 @@
 function applyFigureEditor(obj)
 %applyFigureEditor  Show the selected figure, its selected panel and that panel's selected layer in the editor.
-%   The figure's own rows (id, title, observations, spacing, alignment,
-%   first-spike latency, appearance, looks), then the panel's (SelectedPanel: type, title, spans,
+%   The figure's own rows (id, title, observations, across sessions, on
+%   the probe, spacing, alignment, first-spike latency, appearance,
+%   looks), then the panel's (SelectedPanel: type, title, spans,
 %   its row's height and column's width, its size in its cell and its
 %   alignment there, its own event and window or the
 %   figure's, its type's options, its unit waveform, its layers) and the layer's
@@ -76,6 +77,26 @@ E.sesMatch.Value = char(pickFrom(ss.match, EphysAnalysisConfig.FigureSessionMatc
 E.sesMappingFile.Value = char(ss.mappingFile);
 E.sesMinSessions.Value = max(1, ss.minSessions);
 E.sesTrialGroups.Value = char(pickFrom(ss.trialGroups, EphysAnalysisConfig.SessionTrialGroups, "pool"));
+
+% on the probe (the Probe layout section)
+pr = fig.probe;
+E.prbEnabled.Value = logical(pr.enabled);
+E.prbLayout.Value = char(pickFrom(pr.layout, string(E.prbLayout.ItemsData), "schematic"));
+E.prbOverlap.Value = char(pickFrom(pr.overlap, string(E.prbOverlap.ItemsData), "nudge"));
+E.prbLanes.Value = max(1, round(pr.lanes));
+E.prbShanks.Value = listText(pr.shanks);
+E.prbChannels.Value = listText(pr.channels);
+E.prbDepth.Value = listText(pr.depthRange);
+E.prbMaxTiles.Value = max(1, round(pr.maxTiles));
+E.prbPerSite.Value = max(1, round(pr.maxPerSite));
+E.prbTileWidth.Value = min(E.prbTileWidth.Limits(2), max(E.prbTileWidth.Limits(1), pr.tileWidth));
+E.prbTileHeight.Value = min(E.prbTileHeight.Limits(2), max(E.prbTileHeight.Limits(1), pr.tileHeight));
+if isfinite(pr.tileScale) && pr.tileScale > 0; E.prbScale.Value = pr.tileScale; else; E.prbScale.Value = 1; end
+E.prbLabels.Value = char(pickFrom(pr.labels, string(E.prbLabels.ItemsData), "short"));
+E.prbSharedY.Value = logical(pr.sharedY);
+E.prbScaleTile.Value = logical(pr.scaleTile);
+E.prbShowSites.Value = logical(pr.showSites);
+E.prbLeaders.Value = logical(pr.leaders);
 
 % the first-spike latency and response onset (the First-spike latency section: the figure's, for all its panels)
 L = fig.latency;

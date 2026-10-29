@@ -13,7 +13,7 @@ function ok = inPlaceFigurePreview(obj)
 %   computeFigure gives it), the preview is current (FigurePreviewDrawn)
 %   and the selected panel outlined again (markFigurePanel); the badge stays
 %   Drawn. OK is false, and nothing is done, for any other edit or preview
-%   (a session figure, another figure shown, not drawn): the caller
+%   (a session figure, a probe figure, another figure shown, not drawn): the caller
 %   computes and draws as after any edit.
 %
 %   See also autoFigurePreview, renderFigure, redrawFigurePreview.
@@ -24,8 +24,8 @@ id = obj.Config.Figures(k).id;
 F = obj.FigurePreviewResult;
 P = obj.FigurePreviewPanel;
 if obj.FigurePreviewState ~= "drawn" || ~isstruct(F) || ~isfield(F, 'id') || string(F.id) ~= id ...
-        || obj.FigureViewId ~= id || isempty(P) || ~isvalid(P)
-    return
+        || obj.FigureViewId ~= id || isempty(P) || ~isvalid(P) || (isfield(F, 'kind') && string(F.kind) == "probeFigure")
+    return   % (a probe figure's page is drawn whole: renderProbeFigure sets nothing in place)
 end
 was = obj.FigurePreviewDrawn;
 now = figureViewKey(obj, k);

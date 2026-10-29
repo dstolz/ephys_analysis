@@ -29,7 +29,14 @@ function refreshFigureObservations(obj, opts)
 %   is picked (testReportEnable). A figure across sessions lists its matched
 %   observations (figureSessionObservations), a match starred on any of its
 %   sessions starting with "★ " (favoriteMarks with the sessions' datasets,
-%   kept in the picker's UserData.sessions).
+%   kept in the picker's UserData.sessions). A figure on the probe
+%   (probe.enabled) lists one entry, the probe ("the probe: 23 units on 2
+%   shanks"): a one-row table of kind "probe" (the other columns NaN or
+%   ""), its tiles counted by figureProbeTiles (private/probeTileCount);
+%   the count line says how many are laid out and what is left out
+%   ("Laid out on the probe: 23 tiles; 3 left out (1 without a position, 2
+%   over 3 per site)."), and so does the Probe layout section's note. No
+%   ★ or ✎ marks; < and > are off (one entry).
 arguments
     obj (1,1) EphysAnalysisApp
     opts.Force (1,1) logical = false
@@ -51,6 +58,10 @@ end
 if isempty(obj.Runner) || obj.ActiveIdx < 1
     none("(scan and pick a dataset)");
     E.obsCount.Text = "Scan and pick a dataset to list what the figure is drawn for.";
+    return
+end
+if spec.probe.enabled   % a probe figure: one page per dataset, its tiles at their sites
+    probeObservations(obj, spec, opts.Force);
     return
 end
 st = spec.style;
@@ -224,6 +235,50 @@ end
 obj.FigureObservation(id) = T.label(i);
 dd.ItemsData = [];
 set(dd, "Items", favoriteMarks(obj, T, spec.observe.data, reshape(S.index, 1, [])) + labels, "ItemsData", 1:n, "Value", i);
+keepFigurePicker(obj);
+syncSteps(obj);
+end
+
+
+function probeObservations(obj, spec, force)
+%probeObservations  A probe figure's picker: one entry, the probe, its tiles counted on the active dataset.
+%   The list is kept while the key probeTileCount counts for holds (the
+%   figure's id, the dataset, the observe and probe blocks, event,
+%   selection, sort and scan).
+dd = obj.FigureObservationDropDown;
+E = obj.FigureEditor;
+P = probeTileCount(obj, spec, Force=force);
+key = P.key;
+if ~force && isstruct(dd.UserData) && isfield(dd.UserData, 'key') && isequaln(dd.UserData.key, key)
+    return
+end
+if ~force && takeFigurePicker(obj, key)   % the figure's own list, kept when it was last shown
+    syncSteps(obj);
+    return
+end
+if P.error ~= ""
+    setNone(obj, "(cannot list them)");
+    E.obsCount.Text = P.count;
+    E.prbNote.Text = P.note;
+    dd.UserData = struct('key', key, 'error', P.count);   % kept, so the preview can say why
+    keepFigurePicker(obj);
+    return
+end
+E.obsCount.Text = P.count;
+E.prbNote.Text = P.note;
+if P.n == 0
+    setNone(obj, "(nothing has a site laid out on the probe)");
+    dd.UserData = struct('key', key, 'error', "");
+    keepFigurePicker(obj);
+    return
+end
+T = table("probe", P.entry, NaN, NaN, NaN, NaN, NaN, {[]}, NaN, "", false, 'VariableNames', ...
+    {'kind', 'label', 'unitId', 'channel', 'column', 'shank', 'depth', 'meta', 'group', 'groupLabel', 'starred'});
+obj.FigureObservations = T;
+dd.UserData = struct('key', key, 'error', "");
+obj.FigureObservation(char(spec.id)) = T.label(1);
+dd.ItemsData = [];
+set(dd, "Items", T.label(1), "ItemsData", 1, "Value", 1);
 keepFigurePicker(obj);
 syncSteps(obj);
 end

@@ -11,8 +11,8 @@ function markObservations(obj)
 dd = obj.FigureObservationDropDown;
 T = obj.FigureObservations;
 k = obj.SelectedFigure;
-if ~istable(T) || height(T) == 0 || k < 1 || k > numel(obj.Config.Figures)
-    return
+if ~istable(T) || height(T) == 0 || k < 1 || k > numel(obj.Config.Figures) || obj.Config.Figures(k).probe.enabled
+    return   % (a probe figure's one entry, the probe, has no marks)
 end
 items = regexprep(reshape(string(dd.Items), 1, []), "^(★ )?(✎ )?", "");
 if numel(items) ~= height(T); return; end

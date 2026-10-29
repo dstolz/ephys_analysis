@@ -53,14 +53,19 @@ classdef EphysAnalysisApp < handle
     %                figure drawn once across the ticked or picked datasets:
     %                a session figure, its facet, colors, error band, unit
     %                matching by site or mapping file, minimum sessions,
-    %                trial groups), showing only the rows the figure, panel
+    %                trial groups) and Probe layout (the figure drawn once
+    %                per dataset, every unit or channel a tile of its
+    %                panels at its site on the probe: the layout, overlap,
+    %                shanks, channels, depth range, the most tiles and
+    %                units per site, the tiles' size and labels), showing only the rows the figure, panel
     %                and layer use (syncFigureEditor); a preview of the
     %                observation picked in the dataset and observation
     %                drop-downs (< and >), which computes only that unit's
     %                spikes or that channel's column (refreshFigurePreview:
     %                figureObservations, EphysAnalysisRunner.computeFigure,
     %                renderFigure; a session figure across its datasets:
-    %                computeSessionFigure; Auto while a preview takes under
+    %                computeSessionFigure; a probe figure every tile:
+    %                computeProbeFigure; Auto while a preview takes under
     %                2 s), with its own badge (setFigurePreviewState), drawn
     %                in the design picked above it (Design, PlotDesign; Save
     %                look as design...: onSaveDesign); each figure keeps its
@@ -70,7 +75,8 @@ classdef EphysAnalysisApp < handle
     %                the tree marks the figure shown and the previews out of
     %                date (markFigureTree). Runs, plans, reports
     %                and the generated scripts draw the enabled figures: one
-    %                page per observation on each dataset
+    %                page per observation on each dataset (a probe
+    %                figure one page per dataset)
     %                (EphysAnalysisRunner.runDataset), then each session
     %                figure across the datasets (runSessionFigure)
     %     Export     figure formats, folder and file-name pattern, the report
@@ -375,6 +381,7 @@ classdef EphysAnalysisApp < handle
         FigurePreviewRedo (1,1) logical = false    % an edit or a Preview press came in while one computed: it ends Out of date
         FigureAddSource (1,1) string = "units"     % the source Add layer adds, when the panel's type draws it
         FigureSessionResults = []           % a session figure's last preview: struct(res (figureSessionCompute's RES), spec, what, label, seconds)
+        FigureProbeTiles = []               % a probe figure's tiles on the active dataset, counted once per key (private/probeTileCount: key, T, left, words)
         FigureGroupsCollapsed (1,:) string = string.empty(1,0)   % keys of the figure tree's groups the user collapsed
         FigureDrag = []                     % a panel dragged in the schematic (onSchematicPress): its state, else []
         FigureSearchIndex struct = struct([])   % the editor's searchable rows, as built (figureSearchIndex)

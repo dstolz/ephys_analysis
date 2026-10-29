@@ -51,7 +51,7 @@ obj.refreshFigureObservations();   % the picker as the preview has it (kept whil
 T = obj.FigureObservations;
 i = obj.FigureObservationDropDown.Value;
 obs = [];
-if istable(T) && isnumeric(i) && isscalar(i) && i >= 1 && i <= height(T); obs = T(i, :); end
+if istable(T) && isnumeric(i) && isscalar(i) && i >= 1 && i <= height(T) && T.kind(i) ~= "probe"; obs = T(i, :); end   % (a probe figure: every tile)
 entry = "";
 K = obj.FigureSessionResults;
 if fg.sessions.enabled && isstruct(K) && isfield(K, 'label') && K.spec.id == fg.id; entry = K.label; end

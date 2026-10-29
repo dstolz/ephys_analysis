@@ -109,6 +109,9 @@ classdef DatasetBrowser < handle
     %     formEdit(B, CONTROL, VALUE)        a form control edited (Ctl.<CONTROL>, or Ctl.Align.<CONTROL>)
     %     fillLists(B)                       fill the line / parameter lists
     %     showEpochs(B)                      the Epoch Diagram window (EpochDiagram) of one dataset
+    %     showRasters(B, ROW)                the Trial rasters window (TrialRaster) on row ROW of
+    %                                        Result (the Trial rasters button; needs Keep each epoch)
+    %     X = raster(B, ROW, Order=)         row ROW of Result trial by trial (epochMatrixRaster)
     %     SRC = source(B, KEY)
     %     R = compute(B, Recompute=false, RunScript=false)   RunScript: then runScript (the Compute button
     %                  passes ScriptAfterCompute)
@@ -139,11 +142,22 @@ classdef DatasetBrowser < handle
     %   result as it is. Its variables stay in the workspace. The first
     %   list is the scripts in analysis\scripts.
     %
+    %   Trial rasters: with "Keep each epoch (R.epochs)" (Measure tab) ticked,
+    %   Compute keeps every epoch, and the Trial rasters button (showRasters)
+    %   opens a window on one row of the result at a time: a unit's raster
+    %   (a line of spikes per epoch) or a channel's epochs as an image, by
+    %   group or by time, over the row's trace per group. It follows each
+    %   new result and closes with the browser. raster(B, ROW) gives the
+    %   same to a script (epochMatrixRaster: the epochs, each spike's time
+    %   and epoch, the counts per bin, or each epoch's trace).
+    %
     %   Errors: DatasetBrowser:NoRoot, DatasetBrowser:NotScanned,
     %   DatasetBrowser:NoneTicked, DatasetBrowser:UnknownDataset,
     %   DatasetBrowser:BadValue, DatasetBrowser:BadFilter,
     %   DatasetBrowser:NoFile, DatasetBrowser:Canceled (checkCancel; a scan),
-    %   DatasetBrowser:NoScript, DatasetBrowser:ScriptFailed (runScript);
+    %   DatasetBrowser:NoScript, DatasetBrowser:ScriptFailed (runScript),
+    %   DatasetBrowser:NoResult (showRasters, raster before a compute),
+    %   epochMatrixRaster:NoEpochs (a result without epochs);
     %   compute raises epochMatrix's (epochMatrix:Canceled after a Cancel)
     %   and forEach DatasetRuns' (DatasetRuns:Canceled). Warnings:
     %   DatasetBrowser:BadResultFile, DatasetBrowser:NotSaved, and with
@@ -152,8 +166,9 @@ classdef DatasetBrowser < handle
     %   NamePattern, Position, Sort, SettingsFolder, RecentSettings, Workers,
     %   OnTop, Scripts, Script, ScriptAfterCompute, ScriptFolder.
     %
-    %   See also epochMatrix, epochMatrixSettings, DatasetRuns, outputsStamp,
-    %   datasetFilter, EphysAnalysisRunner.
+    %   See also epochMatrix, epochMatrixSettings, epochMatrixRaster,
+    %   TrialRaster, DatasetRuns, outputsStamp, datasetFilter,
+    %   EphysAnalysisRunner.
 
     properties (SetAccess = private)
         Root (1,1) string = ""             % the project root
@@ -272,6 +287,7 @@ classdef DatasetBrowser < handle
     properties (Hidden, SetAccess = private)
         SequenceDialog = []                % the Event sequence window (AlignControls.editSequence), when open
         EpochWindow = []                   % the Epoch Diagram window (showEpochs), when open
+        RasterWindow = []                  % the Trial rasters window (showRasters), when open
     end
 
     properties (Dependent)
@@ -331,7 +347,7 @@ classdef DatasetBrowser < handle
         Controls = ["Root" "Browse" "Pattern" "Scan" "Subject" "NotSubject" "Search" "Tags" "TagMode" "NotTags" ...
             "TickShown" "UntickAll" "Table" "FileMenu" "Data" "Normalize" "NormBaseline" "NormScope" ...
             "Merge" "UnitShanks" "Measure" "Bin" "Baseline" ...
-            "Channels" "SigShanks" "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "KeepEpochs" "Compute" "Done" "Workers" ...
+            "Channels" "SigShanks" "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "KeepEpochs" "Compute" "Rasters" "Done" "Workers" ...
             "ScriptAfter" "ScriptList" "ScriptAdd" "ScriptRemove" "ScriptEdit" "ScriptRun"]
         MaxRecent = 10                     % RecentSettings' length
         ErrorColor = [0.75 0.1 0.1]
@@ -728,6 +744,51 @@ classdef DatasetBrowser < handle
                 figure(d.Fig);
             end
             B.refreshEpochs();
+        end
+
+        function showRasters(B, row)
+            %showRasters  The Trial rasters window (TrialRaster): row ROW of Result trial by trial.
+            %   A unit's raster or a channel's epochs, from Result.epochs
+            %   (Keep each epoch), over the row's trace per group. ROW (an
+            %   index into Result.rows) defaults to the row shown, else 1.
+            %   The window follows each new result until it is closed; it
+            %   closes with the browser. A second call raises it.
+            if isempty(B.Result)
+                error('DatasetBrowser:NoResult', 'No result yet: press Compute.');
+            end
+            if ~isfield(B.Result, 'epochs') || isempty(B.Result.epochs)
+                error('epochMatrixRaster:NoEpochs', ['The result keeps no epochs: tick "Keep each epoch (R.epochs)" ' ...
+                    'on the Measure tab and press Compute.']);
+            end
+            w = B.RasterWindow;
+            if isempty(w) || ~isvalid(w) || ~w.isOpen()
+                owner = [];
+                if B.uiOk(); owner = B.Fig; end
+                w = TrialRaster(Owner=owner, Visible=~B.headless());
+                B.RasterWindow = w;
+            elseif ~B.headless()
+                figure(w.Fig);
+            end
+            if nargin < 2
+                w.update(B.Result);
+            else
+                w.update(B.Result, row);
+            end
+        end
+
+        function X = raster(B, row, opts)
+            %raster  Row ROW of Result trial by trial (epochMatrixRaster): its epochs, spikes or traces.
+            %   Order "group" (default) or "time". Needs a result computed
+            %   with Keep each epoch (epochMatrixRaster:NoEpochs otherwise).
+            arguments
+                B
+                row (1,1) double
+                opts.Order (1,1) string = "group"
+            end
+            if isempty(B.Result)
+                error('DatasetBrowser:NoResult', 'No result yet: press Compute.');
+            end
+            X = epochMatrixRaster(B.Result, row, Order=opts.Order);
         end
 
         function src = source(B, key)
@@ -1312,10 +1373,13 @@ classdef DatasetBrowser < handle
                 "epoch, or each epoch's signal trace (row x time x epoch). Computes every dataset once more; " + ...
                 "signal epochs are large and go into the result file.");
 
-            r = uigridlayout(R, [1 2], "ColumnWidth", {'1x', '1x'}, "RowHeight", {34}, "Padding", [0 0 0 0]);
+            r = uigridlayout(R, [1 3], "ColumnWidth", {'1x', '1x', '1x'}, "RowHeight", {34}, "Padding", [0 0 0 0]);
             c.Compute = uibutton(r, "Text", "Compute", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.compute(RunScript=B.AfterS)), ...
                 "Tooltip", "Compute the ticked datasets (those already computed with these settings are reused); " + ...
                 "then the post-processing script, when ticked below.");
+            c.Rasters = uibutton(r, "Text", "Trial rasters", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.showRasters()), ...
+                "Tooltip", "Each row of the result trial by trial: a unit's raster or a channel's epochs. " + ...
+                "Needs a result computed with ""Keep each epoch (R.epochs)"" (Measure tab).");
             c.Done = uibutton(r, "Text", "Done", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.done()), ...
                 "Tooltip", "Let the script go on with B.Result (the window stays open).");
 
@@ -1357,7 +1421,7 @@ classdef DatasetBrowser < handle
             c.Cancel = uibutton(s, "Text", "Cancel", "Enable", "off", "ButtonPushedFcn", @(~, ~) B.cancel());
             c.Status = uilabel(g, "Text", "", "FontColor", B.TextColor);
 
-            styleButton([c.Browse c.TickShown c.UntickAll c.ScriptAdd c.ScriptRemove c.ScriptEdit c.ScriptRun]);
+            styleButton([c.Browse c.TickShown c.UntickAll c.Rasters c.ScriptAdd c.ScriptRemove c.ScriptEdit c.ScriptRun]);
             styleButton([c.Scan c.Compute], "primary");
             styleButton(c.Done, "confirm");
             styleButton(c.Cancel, "danger");
@@ -1553,6 +1617,7 @@ classdef DatasetBrowser < handle
             c.Magnitude.Enable = on(S.data == "AUX");
             AlignControls.syncEnable(c.Align);
             c.Compute.Enable = on(~isempty(B.Runner));
+            c.Rasters.Enable = on(~isempty(B.Result));
             picked = B.ScriptS ~= "";
             set([c.ScriptList c.ScriptRemove c.ScriptEdit c.ScriptAfter], "Enable", on(picked));
             c.ScriptRun.Enable = on(picked && ~isempty(B.Result));
@@ -1739,6 +1804,7 @@ classdef DatasetBrowser < handle
             B.refreshTable();
             B.refreshSummary();
             B.refreshEpochs();
+            if renormalized; B.refreshRasters(); end
             if announce; B.changed("settings"); end
             if renormalized; B.changed("result"); end
         end
@@ -1780,6 +1846,7 @@ classdef DatasetBrowser < handle
             end
             B.refreshTable();
             B.refreshSummary();
+            B.refreshRasters();
         end
 
         function switchRoot(B, root)
@@ -1799,6 +1866,7 @@ classdef DatasetBrowser < handle
                 B.restoreFile(B.ResultFileS, true);
             end
             B.refreshAll();
+            B.refreshRasters();
         end
 
         function restoreFile(B, file, takeRoot)
@@ -2271,17 +2339,32 @@ classdef DatasetBrowser < handle
             d.update(src, S.ref, S.window, S.selection, Title=src.name);
         end
 
+        function refreshRasters(B)
+            %refreshRasters  Redraw the Trial rasters window, when open, with Result (its row kept when Result has it).
+            w = B.RasterWindow;
+            if isempty(w) || ~isvalid(w) || ~w.isOpen(); return; end
+            if isempty(B.Result)
+                w.update([]);
+                w.clear("No result: press Compute.");
+            else
+                w.update(B.Result);
+            end
+        end
+
         function closeSequenceDialog(B)
             if ~isempty(B.SequenceDialog) && isvalid(B.SequenceDialog); delete(B.SequenceDialog); end
             B.SequenceDialog = [];
         end
 
         function closeWindows(B)
-            %closeWindows  The Event sequence and Epoch Diagram windows go.
+            %closeWindows  The Event sequence, Epoch Diagram and Trial rasters windows go.
             B.closeSequenceDialog();
             d = B.EpochWindow;
             if ~isempty(d) && isvalid(d); d.close(); end
             B.EpochWindow = [];
+            w = B.RasterWindow;
+            if ~isempty(w) && isvalid(w); w.close(); end
+            B.RasterWindow = [];
         end
 
         function changed(B, what)

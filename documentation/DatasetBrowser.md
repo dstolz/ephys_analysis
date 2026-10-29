@@ -144,7 +144,7 @@ mode and its stop event.
 | **Measure** tab: **Normalize**, **Baseline (s)**, scope | `normalize`: `method`, `baseline` and `scope` (*per row* or *per group*); see [Normalization](#normalization). A change normalizes the result again in place and computes nothing. Off for measure `auroc`; **Baseline (s)** only for the methods that use it |
 | **Measure** tab: **Spikes** block | **Merge neighboring sites** (`units.merge.enabled`, `detected` only), **Shanks** (`units.shanks`, e.g. `1:4`), **Measure**, **Bin (s)**, **auROC baseline (s)** (with measure `auroc`) |
 | **Measure** tab: **Signals** block | **Channels**, **Shanks** (not for AUX), **Baseline (s)**, **Statistic**, **Detrend**, **Rectify**, **Magnitude (AUX)** |
-| **Measure** tab: **Keep each epoch (R.epochs)** | `keepEpochs`: the result keeps every epoch before the average ([Each epoch](#each-epoch-repochs)). Every kind of **Data** |
+| **Measure** tab: **Keep each epoch (R.epochs)** | `keepEpochs`: the result keeps every epoch before the average ([Each epoch](#each-epoch-repochs)), which **Trial rasters** draws ([Trial rasters](#trial-rasters)). Every kind of **Data** |
 
 The form does not show every field (the unit classes and tests, the auROC
 section, the selection's explicit trial rows, and an interval length or time
@@ -170,7 +170,9 @@ ticked datasets that cannot give that data (*3 of 12 ticked lack LFP
 (skipped)*, *2 of 12 ticked have no sorting*). A change to a setting of the
 other block leaves the kept parts of this **Data** valid.
 
-**Compute** computes the ticked datasets with these settings. **Done** lets a
+**Compute** computes the ticked datasets with these settings. **Trial
+rasters** opens the [Trial rasters](#trial-rasters) window on the result (it
+needs a result computed with **Keep each epoch**). **Done** lets a
 script that called `B.wait()` go on; the window stays open. The summary under
 the buttons reads *812 units × 200 bins × 5 groups from 32 of 34 datasets; 1
 computed, 33 reused*. When the settings or ticks changed since the result, it
@@ -302,6 +304,7 @@ R = B.compute();
 | `setListSource(B, KEY)`, `fillLists(B)`, `source(B, KEY)` | the dataset the form's lists come from; fill them; its analysis source |
 | `formEdit(B, CONTROL, VALUE)` | edit a control of `B.Ctl` (or of `B.Ctl.Align`, the Event and Trials tabs: `Line`, `Filter`, `Group1`, ...) as a click would |
 | `showEpochs(B)` | the **Epoch Diagram** window of the lists' dataset |
+| `showRasters(B, ROW)`, `X = raster(B, ROW, Order=)` | the **Trial rasters** window on row `ROW` of the result; that row trial by trial ([Trial rasters](#trial-rasters)) |
 | `R = compute(B, Recompute=false)` | `epochMatrix` over the ticked datasets with `B.Settings` |
 | `[VALUES, T] = forEach(B, FN, ...)` | [your own per-dataset code, cached](#foreach) |
 | `forget(B, NAME, KEYS)`, `forgetTicked(B)` | drop kept parts |
@@ -438,6 +441,49 @@ C = zeros(height(e.E), numel(R.t));
 for j = 1:height(e.E)
     C(j, :) = histcounts(sp.times(sp.epoch == j), edges);
 end
+```
+
+### Trial rasters
+
+With epochs kept, the result can be looked at row by row, trial by trial.
+**Trial rasters** (beside **Compute**; `B.showRasters(row)`) opens a window on
+one row of the result:
+
+| Part | Shows |
+| --- | --- |
+| the heading | the row's label and its dataset, the result in words (`R.labels.description`) and the epochs per group |
+| **◀ Previous**, the row list, **Next ▶** | the row drawn: every row of `R.rows`, as *12  u37  (dataset name)* |
+| **Order** | *by group* (default): each group's epochs together, in `R.groupLabels`' order, each group labeled at the left and banded in its color; *by time*: every epoch in time order, each one in its group's color |
+| the upper axes | a unit: its raster, a tick for each spike on its epoch's line. A channel: its epochs as an image, one line per epoch, the raw unit on the color bar (the epochs are never normalized). Time 0 is dotted |
+| the lower axes | the row's trace in each group, `R.data(row, :, g)`, in the groups' colors (normalized when the result is) |
+
+The axes zoom and pan with their toolbar. The window follows every new result
+(a **Compute**, a **Normalize** change, a restore) and keeps its row while the
+result has it; a result without epochs is said in red. It closes with the
+browser. **Trial rasters** is off before a result; with a result that keeps no
+epochs, it says to tick **Keep each epoch** and compute.
+
+A script gets the same, one row at a time, with `X = B.raster(row)`
+(`epochMatrixRaster(R, row)`, [source](../analysis/epochMatrixRaster.m); the
+window is [`TrialRaster`](../analysis/TrialRaster.m)):
+
+| Field of `X` | Holds |
+| --- | --- |
+| `row`, `label`, `key`, `name`, `rowKind` | the row, its dataset, `"unit"` or `"channel"` |
+| `order` | `"group"` (default) or `"time"` (`B.raster(row, Order="time")`) |
+| `t`, `window` | `R.t`; `[pre post]` s |
+| `groupLabels`, `groupNames` | `R.groupLabels`; a label per group as text (`R.labels.groups`) |
+| `E` | the dataset's epochs (`R.epochs(k).E`, with `resultGroup`) in `X`'s order, plus `epochRow`, the epoch's row of `R.epochs(k).E`. Row `j` of `E` is line `j` of the raster |
+| `nPerGroup` | the epochs in each group |
+| `times`, `trial` | spikes: each spike's time from the event and its row of `X.E` |
+| `counts` | spikes: `[nEpochs x nTime]` spike counts in the bins of `R.t`, binned as `spikePSTH` bins them (whole `binSec` bins with an edge at the event); for measure `count`, a group's mean is its trace in `R.data` (before normalization). `[]` for measure `auroc` |
+| `data` | signals: `[nEpochs x nTime]`, each epoch's trace at `R.t`, what is averaged (for statistic `mean`, a group's mean is its trace in `R.data` before normalization) |
+| `units` | the unit of `data` (`"s"` for spikes) |
+
+```matlab
+X = B.raster(12);                     % row 12 of B.Result
+plot([X.times X.times].', [X.trial - 0.4 X.trial + 0.4].', 'k');
+set(gca, 'YDir', 'reverse'); xlabel(B.Result.labels.time); ylabel("Epoch")
 ```
 
 Parts with epochs are kept under their own cache name
@@ -714,6 +760,9 @@ Saved on close under the `AppPrefs` group `DatasetBrowser`:
 | `DatasetBrowser:Canceled` | `checkCancel` after **Cancel**; a scan canceled |
 | `DatasetBrowser:NoScript` | `runScript` or `editScript` with no script picked, a script file not found, or `addScript` given a file that is no `.m` file |
 | `DatasetBrowser:ScriptFailed` | the post-processing script raised an error (the message names the script and its line) |
+| `DatasetBrowser:NoResult` | `showRasters` or `raster` before a result |
+| `epochMatrixRaster:NoEpochs` | `showRasters`, `raster` or `epochMatrixRaster` on a result computed without **Keep each epoch** |
+| `epochMatrixRaster:BadRow`, `:BadResult` | a row that is not a row of the result; a result that is not `epochMatrix`'s |
 | `epochMatrix:Canceled` | `compute` after **Cancel** (the finished parts stay in `Runs`) |
 | `DatasetRuns:Canceled` | `forEach` after **Cancel** (the finished values stay) |
 | `epochMatrix:NoData` | no dataset gave rows (the message lists why) |
@@ -741,6 +790,7 @@ out).
 | the settings, their checks and cache identity | [`epochMatrixSettings.m`](../analysis/epochMatrixSettings.m) |
 | the result's labels and description in words | [`epochMatrixLabels.m`](../analysis/epochMatrixLabels.m) |
 | the normalization of a result | [`epochMatrixNormalize.m`](../analysis/epochMatrixNormalize.m) |
+| one row of a result trial by trial; its window | [`epochMatrixRaster.m`](../analysis/epochMatrixRaster.m), [`TrialRaster.m`](../analysis/TrialRaster.m) |
 | the per-dataset cache and run engine | [`DatasetRuns.m`](../analysis/DatasetRuns.m) |
 | the stamp of a dataset's output files (names, sizes, times) | [`outputsStamp.m`](../analysis/outputsStamp.m) |
 | the subject, tag and text filter (also the analysis app's Data tab) | [`datasetFilter.m`](../analysis/datasetFilter.m) |
@@ -754,4 +804,4 @@ out).
 | [`test_DatasetFilter.m`](../analysis/test_DatasetFilter.m) | `datasetFilter`: subjects, wildcards and literal regex characters, tags, search, the combinations |
 | [`test_DatasetRuns.m`](../analysis/test_DatasetRuns.m) | `DatasetRuns`: reuse, identity, skipped and failed datasets, cancel, `forget`, the saved struct |
 | [`test_EpochMatrix.m`](../analysis/test_EpochMatrix.m) | `epochMatrixSettings` and `epochMatrix`: the parts against the per-dataset calls, assembly, groups, the result fields, the labels, the normalization (`epochMatrixNormalize`) |
-| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file |
+| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window) |

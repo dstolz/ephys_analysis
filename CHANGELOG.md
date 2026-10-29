@@ -27,6 +27,13 @@ says how to cut a release.
   enlarges a page. The PDF tiles the pages as vector forms (PDFBox), and its *Pages by observation* counts sheets. The
   HTML sets the same pages side by side as tiles. `reportImage`'s struct gains `sizeCm`, the drawn page's size. See
   [Figures per page](documentation/EphysAnalysisConfig.md#figures-per-page).
+- Dataset browser: **Trial rasters** (beside **Compute**; `B.showRasters(row)`) opens a window on one row of a
+  result computed with **Keep each epoch**: a unit's raster (a line of spikes per epoch) or a channel's epochs as an
+  image, by group or by time, over the row's trace per group. **◀ Previous** / **Next ▶** and a list step through the
+  rows; the window follows each new result and closes with the browser. `B.raster(row)`, the new
+  `epochMatrixRaster(R, row)`, gives a script the same row: its epochs in the raster's order, each spike's time and
+  line, the spike counts per bin of each epoch, or each epoch's trace. See
+  [Trial rasters](documentation/DatasetBrowser.md#trial-rasters).
 - Dataset browser: opening it with a process pool already open sets **Workers** to that pool's size (the
   `Workers` option still wins).
 - Dataset browser: **Keep each epoch** (Measure tab; `epochMatrixSettings`' new `keepEpochs`) keeps every epoch

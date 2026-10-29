@@ -41,7 +41,8 @@ function T = figureSettingItems(fig)
 %   for a field not named here), not YLim, XLim, CLim, MaxTiles,
 %   TileSpacing and StackSpacing (a figure does not use them). Remembered
 %   looks: each rule. Across sessions: each field (the dataset keys with
-%   the datasets, the mapping file with the matching).
+%   the datasets, the mapping file with the matching). On the probe: each
+%   field of the probe block.
 %
 %   See also figureSettingParts, copyFigureSettings, figureLookToDesign.
 arguments
@@ -122,6 +123,13 @@ for f = string(fieldnames(fig.sessions)).'
     if isfield(with, f); paths = [paths "sessions." + with.(f)]; end
     add("sessions", strings(1, 0), f, word(f, L), "figure", 0, paths, false);
 end
+% On the probe
+if isfield(fig, 'probe')
+    L = probeLabels();
+    for f = string(fieldnames(fig.probe)).'
+        add("probe", strings(1, 0), f, word(f, L), "figure", 0, "probe." + f, false);
+    end
+end
 T = struct2table(R(:), 'AsArray', true);   % (never empty: every figure has its observe and style fields)
 
     function add(part, groups, name, label, scope, index, paths, design, value)
@@ -176,6 +184,14 @@ function L = sessionLabels()
 L = struct('enabled', "Drawn across sessions", 'datasets', "Datasets", 'facet', "One figure per", 'series', "Colored by", ...
     'colorOrder', "Color order", 'showMembers', "Each session under its summary", 'error', "Error band", ...
     'match', "Matching", 'minSessions', "Fewest sessions", 'trialGroups', "Trial groups");
+end
+
+
+function L = probeLabels()
+L = struct('enabled', "On the probe", 'layout', "Layout", 'overlap', "Overlap", 'lanes', "Lanes", 'shanks', "Shanks", ...
+    'channels', "Channels", 'depthRange', "Depth range (µm)", 'maxTiles', "Max tiles", 'maxPerSite', "Per site", ...
+    'tileWidth', "Tile width", 'tileHeight', "Tile height", 'tileScale', "Tile scale", 'labels', "Labels", ...
+    'sharedY', "Shared y", 'scaleTile', "Scale tile", 'showSites', "Show sites", 'leaders', "Leaders");
 end
 
 

@@ -6,7 +6,8 @@ function markFigurePanel(obj)
 %   take (TightInset), 4 px out. It is drawn for the figure the preview
 %   shows (the editing context renderFigure keeps: its id) and the panel
 %   of that id there, so it is hidden while the preview shows another
-%   figure, an older drawing without that panel, or nothing. It is a part
+%   figure, an older drawing without that panel, a probe figure (the
+%   panel is drawn in every tile), or nothing. It is a part
 %   of the app, not of the figure: renderFigure, exports, Open in window,
 %   PlotDesign.capture, the aesthetics editor and the data tips never see
 %   it, and the preview is not computed or drawn again for it. Called when
@@ -63,10 +64,13 @@ if k < 1 || k > numel(obj.Config.Figures); return; end
 j = obj.SelectedPanel;
 fig = obj.Config.Figures(k);
 if j < 1 || j > numel(fig.panels); return; end
+F = obj.FigurePreviewResult;
+if isstruct(F) && isfield(F, 'kind') && string(F.kind) == "probeFigure"; return; end   % a probe figure: the panel is in every tile
 ctx = [];
 if isappdata(P, PlotAesthetics.ContextKey); ctx = getappdata(P, PlotAesthetics.ContextKey); end
 if (isstruct(ctx) && isfield(ctx, 'id') && string(ctx.id) ~= fig.id) || ~isappdata(P, 'FigureLayout'); return; end   % another figure's drawing
 L = getappdata(P, 'FigureLayout');
+if ~isstruct(L) || ~isfield(L, 'panels'); return; end   % a page laid out its own way (a probe figure's): no panel to outline
 id = fig.panels(j).id;
 for q = reshape(L.panels, 1, [])
     if isempty(q.axes) || ~all(isgraphics(q.axes)); continue; end
@@ -83,6 +87,7 @@ function followAxes(obj, P)
 A = gobjects(1, 0);
 if isappdata(P, 'FigureLayout')
     L = getappdata(P, 'FigureLayout');
+    if ~isstruct(L) || ~isfield(L, 'panels'); L = struct('panels', []); end   % a probe page: nothing to follow
     for q = reshape(L.panels, 1, [])
         A = [A reshape(q.axes(isgraphics(q.axes)), 1, [])]; %#ok<AGROW>
     end

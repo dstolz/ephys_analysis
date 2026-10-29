@@ -5,7 +5,8 @@ function why = figureRowReason(label, key, type)
 %   selected panel's type ("" = none). The reasons follow what
 %   syncFigureEditor shows: the Observations rows by the data observed,
 %   the First-spike latency rows by the figure's panels and the method,
-%   the Sessions rows by Across sessions, the selected panel's rows, the
+%   the Sessions rows by Across sessions, the Probe layout rows by On the
+%   probe, the selected panel's rows, the
 %   picked layer's by its source and binding, the Options rows by the
 %   panel's type (an option of the selected type that is still hidden says
 %   what else it needs), the Waveform rows by the panel's type
@@ -53,7 +54,10 @@ switch key
     case "obsChannels"
         tail = "is for a signal: pick LFP, MUA, SPIKE or AUX in Observe.";
     case "obsPerGroup"
-        tail = "is not used by a figure across sessions: its Trial groups row (Sessions) decides.";
+        tail = "is not used by a figure across sessions (its Trial groups row, Sessions, decides) or on the probe (Probe layout).";
+    case {"prbLayout" "prbOverlap" "prbLanes" "prbShanks" "prbChannels" "prbDepth" "prbMaxTiles" "prbPerSite" "prbTileWidth" ...
+            "prbTileHeight" "prbScale" "prbLabels" "prbSharedY" "prbScaleTile" "prbShowSites" "prbLeaders" "prbNote"}
+        tail = "shows once On the probe is ticked (Probe layout).";
     case {"sesDatasets" "sesFacet" "sesSeries" "sesColorOrder" "sesTrialGroups" "sesMinSessions" "sesShowMembers" "sesError" "sesNote"}
         tail = "shows once Across sessions is ticked (Sessions).";
     case "sesKeys"

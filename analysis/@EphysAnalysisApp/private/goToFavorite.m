@@ -65,6 +65,10 @@ if fig.sessions.enabled
     why = "the figure """ + fig.id + """ is drawn across sessions";
     return
 end
+if fig.probe.enabled
+    why = "the figure """ + fig.id + """ lays every " + e.level + " out on the probe";
+    return
+end
 ob = obj.Config.figureFor(k).observe;
 if e.level == "unit" && ~(ob.kind == "unit" && ob.data == "units")
     why = "the figure """ + fig.id + """ does not observe sorted units";

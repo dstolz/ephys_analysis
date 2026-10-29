@@ -14,6 +14,8 @@ function d = figureDataSpec(spec)
 %                    on or off (they keep its raster rows: their looks are
 %                    the drawing's), a raster's onsetLine not at all
 %     each layer's   color and lineStyle
+%   and with the probe block (probe) as its enabled alone: how the tiles of
+%   a probe figure are picked and laid out changes no tile's compute.
 %   The figure's latency block (latency) stays: the latencies are computed
 %   from it (figureLatencies, keyed by the settings each rule reads).
 %   figureCompute keys what it keeps with it (its Reuse): two specs with
@@ -33,6 +35,9 @@ LookOptions = ["tickColor" "tickWidth" "backColor" "yTicks" "firstSpike" "fill" 
 ErrorStyle = ["ShowSEM" "ErrorType" "ErrorResamples"];
 
 d = drop(spec, LookFigure);
+if isfield(d, 'probe') && isstruct(d.probe) && isfield(d.probe, 'enabled')
+    d.probe = d.probe.enabled;   % the tiles' choice and layout are the probe figure's: no tile computes them
+end
 if isfield(d, 'style') && isstruct(d.style)
     d.style = drop(d.style, setdiff(string(fieldnames(d.style)), ErrorStyle));
 end

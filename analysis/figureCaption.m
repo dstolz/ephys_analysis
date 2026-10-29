@@ -52,6 +52,13 @@ function txt = figureCaption(spec, T, opts)
 %   A figure with a panel whose options.yLimMode is "batch" adds "y shared
 %   across <N> observations" (YShared=N, the run's count: figureBatchYLim's
 %   n), or "y shared across the run's observations" without it.
+%   A probe figure (SPEC.probe.enabled; T its tiles, figureProbeTiles)
+%   is one page: "rp: 23 units laid out at their sites on the probe (2
+%   shanks) of RAT1_260918; panels: ...; aligned to ...", the shanks
+%   counted from T.shank, then the panels, alignment and grouping as
+%   above, and "each panel's y shared across the tiles" with
+%   probe.sharedY (no batch range, no trial group per figure: a probe
+%   figure shares y across its tiles itself and ignores perGroup).
 %
 %   See also figureObservations, addReportFigure,
 %   EphysAnalysisRunner.runDataset.
@@ -90,7 +97,16 @@ elseif nStar > 0
 end
 head = spec.id;
 if isfield(spec, 'title') && spec.title ~= ""; head = head + " (" + spec.title + ")"; end
-if across
+onProbe = ~across && isfield(spec, 'probe') && isstruct(spec.probe) && spec.probe.enabled;
+if onProbe
+    tw = ["unit" "units" "at its site" "at their sites"];
+    if ob.kind == "unit" && ob.data == "detected"; tw(1:2) = ["detection" "detections"]; end
+    if ob.kind == "channel"; tw(1:2) = [ob.data + " channel", ob.data + " channels"]; end
+    nSh = 0;
+    if ismember("shank", string(T.Properties.VariableNames)); nSh = numel(unique(T.shank(isfinite(T.shank)))); end
+    first = sprintf("%s: %d %s laid out %s on the probe (%d shank%s%s)", head, n, tw(1 + (n ~= 1)), tw(3 + (n ~= 1)), ...
+        nSh, plural(nSh), starTxt);
+elseif across
     S = opts.Sessions;
     if ismember("status", string(S.Properties.VariableNames)); S = S(S.status == "done", :); end
     nS = height(S);
@@ -154,10 +170,12 @@ if across
         end
     end
     if ss.facet == "subject"; parts(end+1) = "one figure per subject"; end
+elseif onProbe
+    if spec.probe.sharedY; parts(end+1) = "each panel's y shared across the tiles"; end
 elseif isfield(ob, 'perGroup') && ob.perGroup && isfield(spec.selection, 'groupBy') && ~isempty(spec.selection.groupBy)
     parts(end+1) = "one figure per trial group";
 end
-if ~isempty(figureBatchPanels(spec))
+if ~onProbe && ~isempty(figureBatchPanels(spec))
     if isfinite(opts.YShared) && opts.YShared > 0
         parts(end+1) = sprintf("y shared across %d observation%s", opts.YShared, plural(opts.YShared));
     else

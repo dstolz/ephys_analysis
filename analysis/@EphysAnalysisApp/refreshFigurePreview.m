@@ -36,6 +36,14 @@ function refreshFigurePreview(obj, opts)
 %   says the run shares it. Redraw
 %   (onFigureSessionPicked) draws another of the kept figures without
 %   computing.
+%   A probe figure (probe.enabled) computes every tile on the active
+%   dataset instead (EphysAnalysisRunner.computeProbeFigure, the card
+%   saying "Computing tile 3/23 (<tile>) on <dataset> ...", Cancel at the
+%   runner's checkpoints between the tiles) and draws them on one page
+%   (renderFigure hands the result to renderProbeFigure; Reuse off); the
+%   status line reads "<id> on <dataset>: 23 tiles, 3 left out (4.2 s);
+%   ...". The auto-preview rule (the seconds it took) applies as for any
+%   figure.
 %   It draws into the selected figure's own container (FigurePreviewPanel,
 %   syncFigureView: shown first when it is not yet), and keeps the key it
 %   drew with (FigurePreviewDrawn: figureViewKey, so the tree and a switch
@@ -124,8 +132,13 @@ if ~istable(T) || height(T) == 0 || ~isnumeric(i) || i < 1 || i > height(T)
         obj.setFigurePreviewState("failed");
         return
     end
-    clearPanel(obj, spec.id + " has nothing to draw on " + src.name + ": no " + spec.observe.kind + ...
-        " passes the Observations section's filter.");
+    if spec.probe.enabled
+        clearPanel(obj, spec.id + " has nothing to draw on " + src.name + ": no " + spec.observe.kind + ...
+            " has a site the Probe layout section lays out (" + string(obj.FigureEditor.obsCount.Text) + ")");
+    else
+        clearPanel(obj, spec.id + " has nothing to draw on " + src.name + ": no " + spec.observe.kind + ...
+            " passes the Observations section's filter.");
+    end
     obj.setFigurePreviewState("skipped");
     return
 end
@@ -139,6 +152,10 @@ if ~opts.Force
         obj.setFigurePreviewState("waiting");
         return
     end
+end
+if spec.probe.enabled   % every tile on one page
+    probePreview(obj, spec, src, drawnKey);
+    return
 end
 what = spec.id + " (" + obs.label + ")";
 L.Text = "Computing " + what + " ...";
@@ -317,6 +334,81 @@ end
 if numel(K.res) > 1; txt = txt + " — " + e.label; end
 if secs > 0; txt = txt + sprintf(" (%.1f s)", secs); end
 L.Text = txt + "; right-click to change colors, lines and fonts" + batchNote(spec);
+end
+
+
+function probePreview(obj, spec, src, drawnKey)
+%probePreview  A probe figure: every tile computed (the card counting them, Cancel between them), then drawn on one page.
+%   EphysAnalysisRunner.computeProbeFigure, with what earlier previews
+%   computed taken again (Reuse: the figure's epochs are one step every
+%   tile shares; a look-only edit computes nothing), then renderFigure,
+%   which hands the result (PF, kind "probeFigure") to renderProbeFigure:
+%   drawn whole each time (Reuse off). The status line says how many tiles
+%   and how many observations were left out.
+L = obj.FigurePreviewLabel;
+what = spec.id + " on the probe";
+L.Text = "Computing " + what + " ...";
+rn = obj.Runner;
+rn.clearCancel();   % before the badge paints: a click on Cancel can come in while it does
+obj.FigurePreviewRedo = false;
+obj.setFigurePreviewState("computing", Message="Computing the tiles of " + spec.id + " on " + src.name + " ...");
+t0 = tic;
+rn.PollFcn = @() drawnow("limitrate");
+polling = onCleanup(@() stopPolling(rn));
+try
+    PF =rn.computeProbeFigure(src, spec, Reuse=true, ProgressFcn=@(i, n, lab) obj.setFigurePreviewState("computing", ...
+        Message=sprintf("Computing tile %d/%d (%s) on %s ...", i, n, lab, src.name)));
+    rn.PollFcn = [];
+    obj.FigurePreviewResult = PF;
+    L.Text = "Drawing " + what + " ...";
+    obj.setFigurePreviewState("drawing", Message="Drawing " + what + " (" + PF.nTiles + " tiles) ...");
+    renderFigure(PF, spec, obj.FigurePreviewPanel, Scale=previewScale(obj, spec), OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules), ...
+        OnGoto=@(role, panel) obj.gotoFigureSetting(spec.id, role, panel), ...
+        OnAxisEdit=@(panel, change) obj.onFigureAxisEdited(spec.id, panel, change), ...
+        OnSelect=@(panel, ctrl) obj.onFigurePanelClicked(spec.id, panel, ctrl, false), ...
+        Reuse=false);   % drawn whole: its tiles are placed by arithmetic, not kept
+    obj.markFigurePanel();   % (hides the outline: a probe figure's panels are many)
+catch ME
+    if ~isvalid(obj) || ~isvalid(obj.Fig); return; end   % the app was closed while it computed
+    obj.FigurePreviewResult = [];
+    obj.FigurePreviewSeconds = Inf;
+    switch string(ME.identifier)
+        case "EphysAnalysisRunner:Canceled"
+            clearPanel(obj, spec.id + " was canceled: press Preview to compute it.");
+            obj.log(spec.id + " figure preview canceled.");
+            obj.setFigurePreviewState("canceled");
+        case {"EphysAnalysisRunner:FigureSkipped" "EphysAnalysisRunner:NoObservation"}
+            clearPanel(obj, string(ME.message));
+            obj.setFigurePreviewState("skipped");
+        otherwise
+            clearPanel(obj, spec.id + " failed: " + string(ME.message));
+            obj.log(spec.id + " figure preview failed: " + string(ME.message));
+            obj.setFigurePreviewState("failed");
+    end
+    return
+end
+clear polling
+secs = toc(t0);
+obj.FigurePreviewSeconds = secs;
+if ~obj.FigurePreviewWarm   % the first figure drawn also loads the graphics: its time does not stop auto-preview
+    obj.FigurePreviewSeconds = 0;
+    obj.FigurePreviewWarm = true;
+end
+obj.FigurePreviewDrawn = drawnKey;
+obj.setFigurePreviewState("drawn");
+if obj.FigurePreviewRedo; obj.setFigurePreviewState("stale"); end
+nLeft = 0;
+if isfield(PF, 'left') && isstruct(PF.left)
+    for f = ["noPosition" "filtered" "overSite" "overMax"]
+        if isfield(PF.left, f); nLeft = nLeft + PF.left.(f); end
+    end
+end
+txt = sprintf("%s on %s: %d tile%s", spec.id, src.name, PF.nTiles, repmat('s', 1, PF.nTiles ~= 1));
+if nLeft > 0; txt = txt + sprintf(", %d left out", nLeft); end
+L.Text = txt + sprintf(" (%.1f s); right-click to change colors, lines and fonts", secs);
+if obj.FigurePreviewSeconds >= obj.FigureAutoPreviewSeconds && obj.FigureAutoCheckBox.Value
+    L.Text = L.Text + ": slow, so edits wait for Preview";
+end
 end
 
 

@@ -17,6 +17,8 @@ function B = batchYLimits(obj, idx, spec, opts)
 %   BatchCacheMB (512 MB): runDataset draws a kept one instead of
 %   computing it again, and drops it. A figure that fails to compute for
 %   an observation is left out of the range (runDataset reports it).
+%   A probe figure (SPEC.probe.enabled) gives no row: its panels share y
+%   across its tiles on its one page (probe.sharedY), not across a run.
 %
 %   See also figureYExtents, figureBatchYLim, figureBatchPanels,
 %   EphysAnalysisRunner.run, EphysAnalysisRunner.runDataset.
@@ -29,7 +31,7 @@ arguments
 end
 ids = figureBatchPanels(spec);
 B = struct('figure', cell(1, 0), 'id', cell(1, 0), 'lim', cell(1, 0), 'n', cell(1, 0));
-if isempty(ids); return; end
+if isempty(ids) || (isfield(spec, 'probe') && spec.probe.enabled); return; end   % a probe figure shares y across its tiles itself
 if isempty(obj.BatchCache) || ~isa(obj.BatchCache, 'containers.Map')
     obj.BatchCache = containers.Map('KeyType', 'char', 'ValueType', 'any');
 end

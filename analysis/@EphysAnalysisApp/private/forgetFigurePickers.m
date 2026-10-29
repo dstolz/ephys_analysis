@@ -6,7 +6,11 @@ function forgetFigurePickers(obj)
 %   cleared (the ★ and ✎ marks, a Starred only list: refreshFavorites,
 %   refreshNotes, which keep the selected figure's again as it is then).
 %
+%   A probe figure's tiles counted on the active dataset (FigureProbeTiles,
+%   private/probeTileCount) are forgotten with them.
+%
 %   See also keepFigurePicker, takeFigurePicker.
 M = obj.FigurePickers;
 if isa(M, 'containers.Map') && M.Count > 0; remove(M, keys(M)); end
+obj.FigureProbeTiles = [];
 end

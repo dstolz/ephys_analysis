@@ -24,7 +24,10 @@ classdef EphysAnalysisScript
     %                                 batchYLim<k>) and drawn at that range
     %                                 (renderFigure BatchYLim=), a session
     %                                 figure over its observations, as the
-    %                                 runner does. After the datasets, a
+    %                                 runner does; a probe figure is one
+    %                                 page per dataset (figureProbeTiles,
+    %                                 figureProbeCompute, newExportFigure,
+    %                                 renderFigure). After the datasets, a
     %                                 "Session figures" block per enabled
     %                                 session figure (sfspec<j>):
     %                                 sessionTable, a source per session,
@@ -46,8 +49,9 @@ classdef EphysAnalysisScript
     %                                 (every event and spike train, the
     %                                 trials, figureEpochs, epochSpikes,
     %                                 epochEvents), then figureCompute (or
-    %                                 figureSessionCompute) and renderFigure
-    %                                 into a figure window.
+    %                                 figureSessionCompute; a probe figure's
+    %                                 figureProbeCompute, every tile) and
+    %                                 renderFigure into a figure window.
     %   Each returns the script text; pass File= to write it.
     %
     %   See also EphysAnalysisConfig, EphysAnalysisRunner, EphysPipelineScript.
@@ -208,7 +212,8 @@ classdef EphysAnalysisScript
             drawsAny = X.Enabled || withImages || withPages;
             batchFig = false(1, numel(fids));
             for k = 1:numel(fids)
-                batchFig(k) = drawsAny && ~isempty(figureBatchPanels(cfg.figureFor(fids(k))));
+                fk = cfg.figureFor(fids(k));
+                batchFig(k) = drawsAny && ~fk.probe.enabled && ~isempty(figureBatchPanels(fk));   % a probe figure shares y across its tiles itself
                 if ~batchFig(k); continue; end
                 L(end+1, 1) = "%% Shared y range of " + fids(k) + " (yLimMode ""batch""): every observation on every dataset measured first";
                 L(end+1, 1) = "yext = {};";
@@ -240,7 +245,11 @@ classdef EphysAnalysisScript
             L(end+1, 1) = "    folder = figureFileName(exportOpts.Folder, struct('OutputFolder', folders(k), 'OutputRoot', outputRoot, ...";
             L(end+1, 1) = "        'Root', root, 'Name', name), Kind=""folder"");";
             for k = 1:numel(fids)
-                L = [L; EphysAnalysisScript.figureLines(fids(k), k, X.Enabled, doReport, withImages, withPages, batchFig(k))]; %#ok<AGROW>
+                if cfg.isProbeFigure(fids(k))   % one page of tiles, not a page per observation
+                    L = [L; EphysAnalysisScript.probeFigureLines(fids(k), k, X.Enabled, doReport, withImages, withPages)]; %#ok<AGROW>
+                else
+                    L = [L; EphysAnalysisScript.figureLines(fids(k), k, X.Enabled, doReport, withImages, withPages, batchFig(k))]; %#ok<AGROW>
+                end
             end
             L(end+1, 1) = "    src.outputs.clearCache();   % free this dataset's spikes and signals";
             if doReport && P.PerDataset
@@ -294,6 +303,10 @@ classdef EphysAnalysisScript
             %   of each session as data(j) (the variables above, without
             %   units.observed), figureSessionCompute, and the figure of its result labeled
             %   Entry= ("" = the first: one per subject or trial group).
+            %   A probe figure (probe.enabled) draws every tile: the tiles
+            %   (figureProbeTiles, as obsT; OBS is not used), the data as
+            %   above, then figureProbeCompute and renderFigure (which
+            %   draws it with renderProbeFigure).
             %   Errors: EphysAnalysisScript:NoFigure, EphysAnalysisScript:NoDataset.
             arguments
                 cfg (1,1) EphysAnalysisConfig
@@ -317,9 +330,14 @@ classdef EphysAnalysisScript
             spec = cfg.figureFor(id);
             spec.enabled = true;   % a figure that is off is still previewed
             across = spec.sessions.enabled;
+            onProbe = ~across && spec.probe.enabled;   % every unit or channel a tile at its site: no observation picked
             if ~across; keys = keys(1); end
             obs = opts.Observation;
+            if onProbe; obs = []; end
             what = id;
+            if onProbe; what = what + ": the probe"; end
+            computeName = ternary(across, "figureSessionCompute", "figureCompute");
+            if onProbe; computeName = "figureProbeCompute"; end
             if istable(obs) && height(obs) > 0
                 obs = obs(1, :);
                 what = what + ": " + string(obs.label);
@@ -331,8 +349,8 @@ classdef EphysAnalysisScript
             L(end+1, 1) = "% app's preview draws -- every event, every spike train, the trials, each";
             L(end+1, 1) = "% unit's spikes and each line's events in every epoch -- as plain variables";
             L(end+1, 1) = "% to analyze" + ternary(across, " (data(j): session j)", "") + ". Then it draws the figure as the preview does, with the";
-            L(end+1, 1) = "% analysis functions themselves: " + ternary(across, "figureSessionCompute", "figureCompute") + " and renderFigure. Change";
-            L(end+1, 1) = "% spec (or pick another row of obsT) and run it again.";
+            L(end+1, 1) = "% analysis functions themselves: " + computeName + " and renderFigure. Change";
+            L(end+1, 1) = "% spec" + ternary(onProbe, "", " (or pick another row of obsT)") + " and run it again.";
             L(end+1, 1) = "";
 
             % --- the dataset(s) --------------------------------------------------------
@@ -404,20 +422,27 @@ classdef EphysAnalysisScript
             if across
                 L(end+1, 1) = "%% The observation, matched across the sessions";
                 L(end+1, 1) = "obsT = figureSessionObservations(sources, spec);   % the sites, cells or channels enough sessions hold";
+            elseif onProbe
+                L(end+1, 1) = "%% The tiles: its units or channels at their sites on the probe";
+                L(end+1, 1) = "reason = figureSkipReason(src, spec);   % what the dataset lacks for this figure (a probe map too)";
+                L(end+1, 1) = "if reason ~= """"; error('%s cannot be drawn for %s: %s.', spec.id, src.name, reason); end";
+                L(end+1, 1) = "obsT = figureProbeTiles(src, spec);   % a tile each, in probe order: what figureProbeCompute computes";
             else
                 L(end+1, 1) = "%% The observation";
                 L(end+1, 1) = "reason = figureSkipReason(src, spec);   % what the dataset lacks for this figure";
                 L(end+1, 1) = "if reason ~= """"; error('%s cannot be drawn for %s: %s.', spec.id, src.name, reason); end";
                 L(end+1, 1) = "obsT = figureObservations(src, spec);   % its units, channels, or the dataset, in probe order";
             end
-            if istable(obs) && height(obs) > 0
+            if onProbe
+                L(end+1, 1) = "if height(obsT) == 0; error('%s has no observation with a probe position.', spec.id); end";
+            elseif istable(obs) && height(obs) > 0
                 L(end+1, 1) = "i = find(" + EphysAnalysisScript.observationTest(obs, across) + ", 1);   % " + string(obs.label);
                 L(end+1, 1) = "if isempty(i); error('The observation previewed is not in obsT: pick one of its rows.'); end";
             else
                 L(end+1, 1) = "if height(obsT) == 0; error('%s has no observation to draw.', spec.id); end";
                 L(end+1, 1) = "i = 1;   % the first";
             end
-            L(end+1, 1) = "obs = obsT(i, :);";
+            if ~onProbe; L(end+1, 1) = "obs = obsT(i, :);"; end
             L(end+1, 1) = "";
 
             % --- the data, in the preview's epochs ------------------------------------------
@@ -437,6 +462,8 @@ classdef EphysAnalysisScript
                 end
                 L(end+1, 1) = "if e.status ~= ""done""; error('%s (%s) is not drawn across the sessions: %s', spec.id, e.label, e.message); end";
                 L(end+1, 1) = "F = e.F;";
+            elseif onProbe
+                L(end+1, 1) = "F = figureProbeCompute(src, spec);   % the whole figure for every tile, the steps they share computed once";
             else
                 L(end+1, 1) = "F = figureCompute(src, spec, Observation=obs);   % that observation's data only";
             end
@@ -922,6 +949,96 @@ classdef EphysAnalysisScript
                 B(end+1, 1) = "            Caption=figureCaption(fspec, obsT, Dataset=name, Auroc=acalls" + yArg + "));";
             end
             B(end+1, 1) = "        fprintf('%s: %s done (%d observation(s), %d file(s))\n', name, fspec.id, nObs, numel(files));";
+            B(end+1, 1) = "    catch ME";
+            if draws
+                B(end+1, 1) = "        clear closer   % the page a failure left open";
+            end
+            if doReport
+                B(end+1, 1) = "        report = addReportFigure(report, fspecKind, [], Status=""error"", Message=string(ME.message));";
+            end
+            B(end+1, 1) = "        fprintf(2, '%s: %s FAILED: %s\n', name, fspec.id, ME.message);";
+            B(end+1, 1) = "    end";
+            B(end+1, 1) = "else";
+            if doReport
+                B(end+1, 1) = "    report = addReportFigure(report, fspecKind, [], Status=""skipped"", Message=reason);";
+            end
+            B(end+1, 1) = "    fprintf('%s: %s skipped (%s)\n', name, fspec.id, reason);";
+            B(end+1, 1) = "end";
+            L = "    " + B;
+            L(1) = "";
+        end
+
+        function L = probeFigureLines(id, k, doExport, doReport, withImages, withPages)
+            %probeFigureLines  One probe figure on one dataset, one page of tiles, as EphysAnalysisRunner.runDataset draws it.
+            %   The figure's spec is fspec<K> (written above);
+            %   figureProbeCompute is what the runner's computeProbeFigure
+            %   calls, without its checkpoints: the whole figure for every
+            %   tile figureProbeTiles lays out on the probe.
+            B = strings(0, 1);
+            B(end+1, 1) = "";
+            B(end+1, 1) = "% --- " + id + " (probe figure: a tile per unit or channel at its site, one page) ---";
+            B(end+1, 1) = "fspec = fspec" + k + ";";
+            if doReport
+                B(end+1, 1) = "fspecKind = fspec; fspecKind.kind = ""figure"";   % the report entry's kind";
+            end
+            B(end+1, 1) = "reason = figureSkipReason(src, fspec);   % what the dataset lacks for this figure (a probe map too)";
+            B(end+1, 1) = "if reason == """"";
+            B(end+1, 1) = "    tilesT = figureProbeTiles(src, fspec);   % its units or channels with a site on the probe: a tile each";
+            B(end+1, 1) = "    if height(tilesT) == 0; reason = ""no observation with a probe position""; end";
+            B(end+1, 1) = "end";
+            B(end+1, 1) = "if reason == """"";
+            B(end+1, 1) = "    try";
+            B(end+1, 1) = "        files = strings(1, 0);";
+            if withImages; B(end+1, 1) = "        images = cell(1, 0);   % the page as the HTML report embeds it"; end
+            if withPages; B(end+1, 1) = "        pages = strings(1, 0);   % ... and as the PDF report holds it"; end
+            B(end+1, 1) = "        base = fullfile(folder, figureOutputName(exportOpts.FilenamePattern, name, fspec, " + ...
+                "struct('kind', ""probe"", 'label', ""probe""), 1, 1));   % {Unit} ""probe""";
+            draws = doExport || withImages || withPages;
+            in = "        ";
+            if doExport
+                B(end+1, 1) = "        want = base + ""."" + exportOpts.Formats;";
+                B(end+1, 1) = "        kept = ~exportOpts.Overwrite && all(isfile(want));   % its files exist: not written again";
+                B(end+1, 1) = "        if kept; files = want; end";
+                if ~withImages && ~withPages
+                    B(end+1, 1) = "        if ~kept   % ... nor computed";
+                    in = "            ";
+                end
+            end
+            B(end+1, 1) = in + "PF = figureProbeCompute(src, fspec);   % the whole figure for every tile, the steps they share computed once";
+            if draws
+                B(end+1, 1) = in + "fig = newExportFigure(exportOpts, PF, fspec);   % a page as tall as its rows of tiles";
+                B(end+1, 1) = in + "closer = onCleanup(@() close(fig));   % closes the page on a failure too";
+                if withImages
+                    B(end+1, 1) = in + "h = renderFigure(PF, fspec, fig);   % renderProbeFigure: each tile at its site";
+                else
+                    B(end+1, 1) = in + "renderFigure(PF, fspec, fig);   % renderProbeFigure: each tile at its site";
+                end
+                B(end+1, 1) = in + "written = strings(1, 0);";
+                if doExport
+                    B(end+1, 1) = in + "if ~kept";
+                    B(end+1, 1) = in + "    written = exportFigure(fig, base, Format=exportOpts.Formats, Dpi=exportOpts.Dpi);";
+                    B(end+1, 1) = in + "    files = [files written];";
+                    B(end+1, 1) = in + "end";
+                end
+                if withImages
+                    B(end+1, 1) = in + "images{end+1} = reportImage(fig, report, Title=h.title, Files=written);";
+                end
+                if withPages
+                    B(end+1, 1) = in + "pages(end+1) = reportPdfPage(fig, report, Files=written);";
+                end
+                B(end+1, 1) = in + "clear closer";
+            end
+            if in ~= "        "
+                B(end+1, 1) = "        end";
+            end
+            if doReport
+                drawn = "Files=files";
+                if withImages; drawn = drawn + ", Images=images"; end
+                if withPages; drawn = drawn + ", Pages=pages"; end
+                B(end+1, 1) = "        report = addReportFigure(report, fspecKind, PF, " + drawn + ", Observations=tilesT, ...   % one page: every tile";
+                B(end+1, 1) = "            Caption=figureCaption(fspec, tilesT, Dataset=name));";
+            end
+            B(end+1, 1) = "        fprintf('%s: %s done (%d tile(s), %d file(s))\n', name, fspec.id, height(tilesT), numel(files));";
             B(end+1, 1) = "    catch ME";
             if draws
                 B(end+1, 1) = "        clear closer   % the page a failure left open";

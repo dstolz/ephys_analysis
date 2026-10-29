@@ -99,6 +99,13 @@ function syncFigureEditor(obj)
 %                    per session) and a note on what it draws; Per trial
 %                    group is hidden then and the preview's Dataset
 %                    drop-down is off
+%     Probe layout   On the probe; with it ticked every row (Overlap, Tile
+%                    scale and Leaders enabled with Physical, Lanes with
+%                    Lanes beside the shank) and a note counting the
+%                    tiles on the active dataset (probeNote); Per trial
+%                    group is hidden then. On the probe and Across
+%                    sessions exclude each other: one ticked grays the
+%                    other out
 %   What is enabled: the binding only where a layer may follow the
 %   observation (figureEditorChoices: Bindable; otherwise it shows Fixed),
 %   the train only on a raster, PSTH or heat map, the response test's rows
@@ -163,7 +170,7 @@ for q = 1:np
 end
 
 v = struct();
-for f = ["id" "title" "size" "sizeWidth" "enabled" "summary" "observe" "obsStarred" "sesEnabled" "obsPerGroup" "obsCount" "schematic" "newPanel" "spacing" ...
+for f = ["id" "title" "size" "sizeWidth" "enabled" "summary" "observe" "obsStarred" "sesEnabled" "prbEnabled" "obsPerGroup" "obsCount" "schematic" "newPanel" "spacing" ...
         "fontSize" "lineWidth" "colormap" "sortDepth" "labelDepth" "showSEM" "legendLoc" "errType" "errFace" "errEdge" "looksText"]
     v.(f) = true;   % the rows every figure shows
 end
@@ -187,8 +194,22 @@ v.sesMatch = ses && kind == "unit";
 v.sesMappingFile = ses && kind == "unit" && string(E.sesMatch.Value) == "mapping";
 v.sesNote = ses;
 en([E.sesShowMembers E.sesError], string(E.sesSeries.Value) ~= "session");
-v.obsPerGroup = ~ses;   % a session figure's trial groups follow its Trial groups
 E.sesNote.Text = sessionNote(fig, kind);
+% on the probe: every row once On the probe is ticked; Overlap, Lanes, Tile scale and Leaders enabled with Physical,
+% Lanes with Lanes beside the shank; On the probe and Across sessions exclude each other (both ticked: both enabled,
+% to untick one)
+prb = logical(E.prbEnabled.Value);
+for f = ["prbLayout" "prbOverlap" "prbLanes" "prbShanks" "prbChannels" "prbDepth" "prbMaxTiles" "prbPerSite" ...
+        "prbTileWidth" "prbTileHeight" "prbScale" "prbLabels" "prbSharedY" "prbScaleTile" "prbShowSites" "prbLeaders" "prbNote"]
+    v.(f) = prb;
+end
+physical = string(E.prbLayout.Value) == "physical";
+en([E.prbOverlap E.prbScale E.prbLeaders], physical);
+en(E.prbLanes, physical && string(E.prbOverlap.Value) == "lanes");
+en(E.sesEnabled, ~prb || ses);
+en(E.prbEnabled, ~ses || prb);
+if prb; E.prbNote.Text = probeNote(obj, k); end
+v.obsPerGroup = ~ses && ~prb;   % a session figure's trial groups follow its Trial groups; a probe figure has none
 % the first-spike latency: the figure's block, while it has a panel that can read it (a raster, PSTH or heat map); the
 % rate with a Poisson method, the burst's rows with "surprise", alpha with "poisson"; the baseline window's fields with
 % "Window"
@@ -579,6 +600,21 @@ if isempty(parts)
         "heat map of trials sorted by latency, an Onset line).";
 else
     s = s + "read by " + strjoin(parts, ", ") + ".";
+end
+end
+
+
+function txt = probeNote(obj, k)
+%probeNote  What the active dataset gives probe figure K, under the Probe layout rows: its tiles and what is left out.
+%   "23 tiles: 23 units on 2 shanks; 3 left out (1 without a position, 2
+%   over 3 per site)." (private/probeTileCount, counted once per edit),
+%   "Scan and pick a dataset to count the tiles." with none open, or why
+%   they cannot be counted.
+try
+    P = probeTileCount(obj, obj.Config.figureFor(k));
+    txt = P.note;
+catch ME
+    txt = "Cannot count the tiles: " + string(ME.message);
 end
 end
 

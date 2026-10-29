@@ -16,9 +16,11 @@ function f = figureOutputName(pattern, name, spec, obs, i, n)
 %     a channel   "ch<N>", N its recording channel (an AUX channel: its
 %                 label)
 %     the dataset "dataset"
+%     the probe   "probe" (a probe figure's one page per dataset: OBS of
+%                 kind "probe")
 %   with every character outside [A-Za-z0-9_-.] replaced by "_". With N > 1
 %   and a pattern that names neither {Unit} nor {Index}, "_<Unit>" is
-%   appended (not for the dataset), and for a trial group's observation
+%   appended (not for the dataset or the probe), and for a trial group's observation
 %   with a pattern that names neither {Group} nor {Index}, "_<Group>", so
 %   the observations never overwrite each other. Every figure fills
 %   {Plot} with its id: EphysAnalysisConfig.validate checks that two
@@ -47,7 +49,7 @@ else
 end
 f = figureFileName(pattern, struct('Name', name, 'Plot', spec.id, 'Kind', "figure", 'Group', grp, ...
     'Unit', unit, 'Index', i));
-if n > 1 && ~contains(pattern, ["{Unit}" "{Index}"]) && string(valueOf(obs, 'kind', "unit")) ~= "dataset"
+if n > 1 && ~contains(pattern, ["{Unit}" "{Index}"]) && ~ismember(string(valueOf(obs, 'kind', "unit")), ["dataset" "probe"])
     f = f + "_" + unit;
 end
 if perGroup && ~contains(pattern, ["{Group}" "{Index}"])
@@ -83,6 +85,8 @@ switch kind
         else
             s = "ch" + valueOf(obs, 'column', NaN);
         end
+    case "probe"
+        s = "probe";   % a probe figure's page: every tile of the dataset
     otherwise
         s = "dataset";
 end

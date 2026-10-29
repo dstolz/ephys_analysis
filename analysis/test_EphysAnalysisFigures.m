@@ -160,9 +160,37 @@ function test_EphysAnalysisFigures(opts)
 %   areas in the same proportion to the page; the scale kept on the root
 %   (PlotAesthetics.drawScale), getValue and setValue speaking of the
 %   exported sizes; Reuse at a scale the same as a whole drawing.
+%   Probe figures (15): defaults("FigureProbe") and the Figure's probe
+%   block, the constants, probeFigureIds / isProbeFigure, validate's probe
+%   rules at "<figure>.probe.<field>" (each value and number rule's
+%   message, a session figure or a dataset observation too, perGroup and
+%   a probe inside the probe layout warning; the default block clean), a
+%   JSON round trip; on the "clean" fixture figureProbeTiles (every unit
+%   at its site, the counts, channels, maxPerSite, maxTiles, depthRange,
+%   shanks, a channel figure, the probe map's sites), figureProbeCompute
+%   (each tile figureCompute's figure of its unit, the shared steps once,
+%   Reuse, an edit of the looks or the probe layout computing nothing),
+%   computeProbeFigure (FigureCache, ProgressFcn, PollFcn and cancel),
+%   figureSkipReason ("no probe map"), figureOutputName ({Unit} "probe"),
+%   figureCaption, figureExportSize and newExportFigure (probeTileLayout's
+%   rows), runDataset writing one page (Observation= ignored), plan's
+%   Source "probe" and the standalone and preview scripts.
+%   Probe figures (16): probeTileLayout on synthetic probes (a 4 x 8
+%   probe's columns and rows, nothing overlapping, all on the page; a
+%   staggered shank; level pairs of sites in one row; two units on a site
+%   side by side; a tile without a position; physical "allow" overlapping,
+%   "nudge" clearing in order with the moved tiles marked, "lanes",
+%   "shrink"; no tile, one tile, no included site); on the "clean"
+%   fixture a raster + PSTH probe figure (figureProbeCompute, its tiles
+%   repeated over the 8 sites) drawn by renderProbeFigure: the tiles' axes
+%   (ProbeTile, FigurePanel), inside the canvas and apart, the probe axes
+%   under them, one legend and title, the scale tile's ticks, sharedY, the
+%   tile labels, a skipped tile's note, renderFigure's dispatch, a resize,
+%   every component a known role, a uipanel and a grid layout, Scale 0.5,
+%   the time it takes.
 %
 %   The sections run on their own after the setup (TestSections): 1-6, 12 and 13 need
-%   no data, 7, 9, 11 and 14 build the "clean" fixture once (fixtureA), 8 needs
+%   no data, 7, 9, 11, 14, 15 and 16 build the "clean" fixture once (fixtureA), 8 needs
 %   7's results (declared), 10 builds its own two-dataset fixture.
 %
 %   Usage:  test_EphysAnalysisFigures
@@ -210,6 +238,11 @@ nPass = 0; nFail = 0;
     function I = figIssues(cfg)
         I = cfg.validate(CheckPaths=false);
         I = I(I.Section == "Figures", :);
+    end
+    function m = issueMessages(cfg, field)
+        % the messages of the Figures issues at exactly this Field
+        I = figIssues(cfg);
+        m = I.Message(I.Field == field);
     end
 
 % what a section needs from the data: makeAnalysisFixture's "clean" dataset (FX; sections 7 and 9)
@@ -1937,9 +1970,9 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
     nChk = 0;
     Fg2 = figureCompute(src, spec, Observation=Tu(2, :), Check=@countCheck);
     cidF = string(errorId(@() figureCompute(src, spec, Observation=Tu(2, :), Check=@() error('test:Stop', 'stop'))));
-    check(isequaln(rmfield(Fg, 'created'), rmfield(Fr2, 'created')) && isequaln(rmfield(Fg2, 'created'), rmfield(Fr2, 'created')) ...
+    check(isequaln(noCreatedFigure(Fg), noCreatedFigure(Fr2)) && isequaln(noCreatedFigure(Fg2), noCreatedFigure(Fr2)) ...
         && nChk >= 5 && cidF == "test:Stop", ...
-        sprintf('figureCompute equals computeFigure''s result; Check= is called at %d checkpoints and what it throws stops the compute', nChk));
+        sprintf('figureCompute equals computeFigure''s result (but the creation times); Check= is called at %d checkpoints and what it throws stops the compute', nChk));
 
     % figureOutputName: {Plot} the figure, {Unit} the observation, "_<Unit>" when the pattern does not tell them apart
     pat = "{Name}_{Plot}";
@@ -4825,9 +4858,509 @@ if S.sec("14", "render at a scale: the preview in proportion to the export page 
     end
 end
 
+%% ============================================================================ probe figures
+if S.sec("15", "probe figures: config, tiles, compute, run")
+    % the config: the block, the methods, validate's rules, a JSON round trip
+    pbD = EphysAnalysisConfig.defaults("FigureProbe");
+    check(isequal(string(fieldnames(pbD)).', ["enabled" "layout" "overlap" "lanes" "shanks" "channels" "depthRange" "maxTiles" ...
+        "maxPerSite" "tileWidth" "tileHeight" "tileScale" "labels" "sharedY" "scaleTile" "showSites" "leaders"]) ...
+        && ~pbD.enabled && pbD.layout == "schematic" && pbD.overlap == "nudge" && pbD.lanes == 2 && isequal(pbD.shanks, []) ...
+        && isequal(pbD.channels, []) && isequal(pbD.depthRange, []) && pbD.maxTiles == 64 && pbD.maxPerSite == 3 ...
+        && pbD.tileWidth == 0.9 && pbD.tileHeight == 0.9 && pbD.tileScale == 1 && pbD.labels == "short" && pbD.sharedY ...
+        && pbD.scaleTile && pbD.showSites && pbD.leaders, 'defaults("FigureProbe"): off, schematic, nudge, every site, 64 tiles, 3 per site');
+    pbF = EphysAnalysisConfig.defaults("Figure");
+    pbFn = string(fieldnames(pbF)).';
+    check(isequaln(pbF.probe, pbD) && find(pbFn == "probe") == find(pbFn == "sessions") + 1 ...
+        && isequal(EphysAnalysisConfig.ProbeLayouts, ["schematic" "physical"]) ...
+        && isequal(EphysAnalysisConfig.ProbeOverlaps, ["nudge" "lanes" "shrink" "allow"]) ...
+        && isequal(EphysAnalysisConfig.ProbeTileLabels, ["short" "full" "none"]), ...
+        'the Figure''s probe block, right after sessions; the constants ProbeLayouts, ProbeOverlaps, ProbeTileLabels');
+    pbC = EphysAnalysisConfig();
+    pbC.Source.Root = root;
+    pbC = pbC.addFigure("rasterPsth", Id="pr");
+    pbC = pbC.addFigure("continuous", Id="ct");
+    pbI = pbC;
+    pbI.Figures(1).probe.enabled = true;
+    pbI.Figures(1).enabled = false;
+    check(isequal(pbI.probeFigureIds(), "pr") && pbI.isProbeFigure("pr") && pbI.isProbeFigure(1) && ~pbI.isProbeFigure("ct") ...
+        && ~pbI.isProbeFigure(2) && ~pbI.isProbeFigure("nope") && ~pbI.isProbeFigure(9) && isempty(pbC.probeFigureIds()) ...
+        && isequal(pbI.enabledFigures(), "ct"), ...
+        'probeFigureIds lists the probe figures, enabled or not; isProbeFigure takes an id or an index (false for an unknown one)');
+    pbOk = pbC;
+    pbOk.Figures(1).probe.enabled = true;
+    check(~any(startsWith(figIssues(pbC).Field, "pr.probe")) && ~any(contains(figIssues(pbOk).Field, "probe")) ...
+        && ~any(figIssues(pbOk).Field == "pr.observe.perGroup"), ...
+        'the default probe block raises nothing, off or on (a raster + PSTH of units)');
+    pbCases = {
+        "layout",     "diagonal", "A probe figure's layout is one of schematic, physical, not ""diagonal""."
+        "overlap",    "stack",    "A probe figure's overlap is one of nudge, lanes, shrink, allow, not ""stack""."
+        "labels",     "long",     "A probe figure's labels is one of short, full, none, not ""long""."
+        "lanes",      0,          "A probe figure's lanes is a whole number, at least 1."
+        "maxTiles",   2.5,        "A probe figure's maxTiles is a whole number, at least 1."
+        "maxPerSite", Inf,        "A probe figure's maxPerSite is a whole number, at least 1."
+        "tileWidth",  0,          "A probe figure's tileWidth is a share of its band or row: above 0, at most 1."
+        "tileHeight", 1.5,        "A probe figure's tileHeight is a share of its band or row: above 0, at most 1."
+        "tileScale",  -1,         "A probe figure's tileScale is a finite number above 0."
+        "shanks",     0.5,        "The probe's shanks are kcoords shank numbers: whole numbers ([] = all)."
+        "channels",   [0 3],      "The probe's channels are recording channels: whole numbers, at least 1 ([] = all)."
+        "depthRange", [100 50],   "The probe's depthRange is [] (all) or [lo hi] µm of probe y, lo < hi."
+        "depthRange", [1 2 3],    "The probe's depthRange is [] (all) or [lo hi] µm of probe y, lo < hi."
+        };
+    for q = 1:size(pbCases, 1)
+        pbQ = pbC;
+        pbQ.Figures(1).probe.(pbCases{q, 1}) = pbCases{q, 2};
+        pbM = issueMessages(pbQ, "pr.probe." + pbCases{q, 1});
+        check(isscalar(pbM) && pbM == pbCases{q, 3} && has(pbQ, "pr.probe." + pbCases{q, 1}, "error"), ...
+            sprintf('validate: probe.%s = %s is an error at pr.probe.%s ("%s")', pbCases{q, 1}, strjoin(string(pbCases{q, 2}), " "), ...
+            pbCases{q, 1}, pbCases{q, 3}));
+    end
+    pbQ = pbC;
+    pbQ.Figures(1).probe.shanks = [0 2];
+    pbQ.Figures(1).probe.channels = [1 7];
+    pbQ.Figures(1).probe.depthRange = [-50 200];
+    check(~any(startsWith(figIssues(pbQ).Field, "pr.probe")), 'shank 0 (kcoords), channels >= 1 and an ordered depth range are valid');
+    pbQ = pbOk;
+    pbQ.Figures(1).sessions.enabled = true;
+    check(any(issueMessages(pbQ, "pr.probe.enabled") == "A figure is laid out on the probe or drawn across sessions, not both: " + ...
+        "untick probe.enabled or sessions.enabled."), 'a probe figure that is also a session figure is an error at pr.probe.enabled');
+    pbQ = pbOk;
+    pbQ.Figures(1).observe.data = "dataset";
+    check(any(issueMessages(pbQ, "pr.probe.enabled") == "A probe figure lays out units or channels at their sites: observe units, " + ...
+        "detections or a signal's channels, not the dataset."), 'a probe figure observing the dataset is an error at pr.probe.enabled');
+    pbQ = pbOk;
+    pbQ.Figures(1).observe.perGroup = true;
+    pbG = pbC;
+    pbG.Figures(1).observe.perGroup = true;
+    check(isequal(issueMessages(pbQ, "pr.observe.perGroup"), "A probe figure draws each observation once, as its tile: perGroup is ignored.") ...
+        && has(pbQ, "pr.observe.perGroup", "warning") && isscalar(issueMessages(pbG, "pr.observe.perGroup")) ...
+        && startsWith(issueMessages(pbG, "pr.observe.perGroup"), "perGroup draws each observation once per trial group"), ...
+        'perGroup on a probe figure is one warning, that it is ignored (the selection-groups-by-nothing warning is not given)');
+    pbQ = pbC.addFigure("probemap", Id="pm");
+    pbQ.Figures(3).observe.data = "units";
+    pbQ.Figures(3).probe.enabled = true;
+    pbQ = pbQ.addFigure("waveforms", Id="wf");
+    pbQ.Figures(4).panels(1).options.layout = "probe";
+    pbQ.Figures(4).probe.enabled = true;
+    pbW = pbQ.Figures(4).panels(1).id;
+    check(isequal(issueMessages(pbQ, "pm." + pbQ.Figures(3).panels(1).id + ".type"), ...
+        "A probe map in a probe figure draws the probe again inside each tile of the probe layout.") ...
+        && has(pbQ, "pm." + pbQ.Figures(3).panels(1).id + ".type", "warning") ...
+        && any(issueMessages(pbQ, "wf." + pbW + ".options.layout") == ...
+        "A waveforms panel in the probe layout draws the probe again inside each tile of the probe figure.") ...
+        && ~any(figIssues(pbC.addFigure("probemap", Id="pm")).Field == "pm." + pbQ.Figures(3).panels(1).id + ".type"), ...
+        'a probe map panel, or a waveforms panel in the probe layout, in a probe figure warns (a probe inside each tile); not on another figure');
+    pbJ = pbOk;
+    pbJ.Figures(1).probe.shanks = [1 2];
+    pbJ.Figures(1).probe.channels = [3 5 7];
+    pbJ.Figures(1).probe.layout = "physical";
+    pbJ.Figures(2).probe.channels = 4;
+    pbJ.Figures(2).probe.depthRange = [0 100];
+    pbFile = string(tempname) + ".json";
+    pbJ.save(pbFile);
+    pbL = EphysAnalysisConfig.load(pbFile);
+    delete(pbFile);
+    pbLeg = EphysAnalysisConfig.normalizeFigure(struct('id', "old", 'panels', {{}}));   % a figure written before the probe block: it gets the defaults
+    check(isequaln(pbL.Figures(1).probe, pbJ.Figures(1).probe) && isequaln(pbL.Figures(2).probe, pbJ.Figures(2).probe) ...
+        && isequal(pbL.Figures(1).probe.shanks, [1 2]) && isequal(size(pbL.Figures(2).probe.shanks), [0 0]) ...
+        && isequal(pbL.Figures(2).probe.channels, 4) && isempty(pbL.Figures(1).probe.depthRange) && isempty(pbL.LoadWarnings) ...
+        && isequaln(pbLeg.probe, pbD), ...
+        'a JSON round trip keeps the probe block ([] lists, one channel, two shanks, a depth range); a figure without it gets the defaults');
+
+    % the tiles, on the "clean" fixture
+    fixtureA();
+    pbC = EphysAnalysisConfig();
+    pbC.Source.Root = FX.proj;
+    pbC.Defaults.EventRef.line = "Stim";
+    pbC.Defaults.Window = struct('mode', "fixed", 'pre', -0.2, 'post', 0.8, 'stop', []);
+    pbC = pbC.addFigure("rasterPsth", Id="pr");
+    pbC = pbC.addFigure("continuous", Id="pc");
+    pbC.Figures(1).probe.enabled = true;
+    pbC.Figures(2).probe.enabled = true;
+    pbR = EphysAnalysisRunner(pbC, LogFcn=[]);
+    pbSrc = pbR.source(1);
+    pbSp = pbC.figureFor("pr");
+    pbT0 = figureObservations(pbSrc, pbSp);
+    [pbT, pbLeft, pbSites] = figureProbeTiles(pbSrc, pbSp);
+    pbN = height(pbT0);
+    pbCnt = arrayfun(@(i) nnz(pbT0.channel(1:i) == pbT0.channel(i)), (1:pbN).');   % each unit's place on its channel, in probe order
+    pbX = cellfun(@(m) double(m.x(1)), pbT0.meta);
+    check(pbN >= 2 && pbLeft.total == pbN && pbLeft.noPosition == 0 && pbLeft.filtered == 0 && pbLeft.overSite == nnz(pbCnt > 3) ...
+        && pbLeft.overMax == 0 && pbLeft.kept == height(pbT) ...
+        && pbLeft.total == pbLeft.noPosition + pbLeft.filtered + pbLeft.overSite + pbLeft.overMax + pbLeft.kept ...
+        && isequal(pbT.unitId, pbT0.unitId(pbCnt <= 3)) && isequal(pbT.x, pbX(pbCnt <= 3)) && isequaln(pbT.y, pbT.depth) ...
+        && all(isfinite(pbT.x) & isfinite(pbT.y)) && isequal(string(pbT.Properties.VariableNames), ...
+        [string(pbT0.Properties.VariableNames) "x" "y"]), ...
+        sprintf(['figureProbeTiles: every unit of the fixture has a site (x, y from its meta), at most 3 per channel, in probe ' ...
+        'order (%d tiles of %d units); the counts add up'], height(pbT), pbN));
+    check(height(pbSites) == numel(pbSrc.probe.chanMap) && isequal(pbSites.channel, double(pbSrc.probe.chanMap(:)) + 1) ...
+        && isequal(pbSites.y, double(pbSrc.probe.yc(:))) && all(pbSites.included), ...
+        'figureProbeTiles'' sites: every site of the probe map (1-based channel, x, y, shank), all included by default');
+    pbS = pbSp;
+    pbS.probe.channels = pbT.channel(1);
+    [pbTc, pbLc] = figureProbeTiles(pbSrc, pbS);
+    [~, ~, pbSitesC] = figureProbeTiles(pbSrc, pbS);
+    check(height(pbTc) == min(3, nnz(pbT0.channel == pbT.channel(1))) && all(pbTc.channel == pbT.channel(1)) ...
+        && pbLc.filtered == nnz(pbT0.channel ~= pbT.channel(1)) && isequal(pbSitesC.included, pbSitesC.channel == pbT.channel(1)), ...
+        'probe.channels keeps the tiles (and sites) of those recording channels; the others are counted as filtered');
+    pbS = pbSp;
+    pbS.probe.maxPerSite = 1;
+    pbT1 = figureProbeTiles(pbSrc, pbS);
+    [~, pbFirst] = unique(pbT0.channel, 'first');
+    check(numel(unique(pbT1.channel)) == height(pbT1) && isequal(sort(pbT1.unitId), sort(pbT0.unitId(pbFirst))), ...
+        'maxPerSite 1: one tile per recording channel, its first unit in probe order');
+    pbS = pbSp;
+    pbS.probe.maxTiles = 2;
+    [pbT2, pbL2] = figureProbeTiles(pbSrc, pbS);
+    check(height(pbT2) == 2 && isequal(pbT2.unitId, pbT.unitId([1 end])) && pbL2.overMax == height(pbT) - 2 ...
+        && pbL2.total == pbL2.noPosition + pbL2.filtered + pbL2.overSite + pbL2.overMax + pbL2.kept, ...
+        'maxTiles 2: the first and the last of the probe order (round(linspace(1, n, 2))), the rest counted as overMax');
+    pbS = pbSp;
+    pbMid = median(pbT.y);
+    pbS.probe.depthRange = [min(pbT.y) - 1, pbMid];
+    pbTd = figureProbeTiles(pbSrc, pbS);
+    pbS.probe.depthRange = [];
+    pbS.probe.shanks = max(pbSites.shank) + 1;
+    [pbTs, pbLs, pbSitesS] = figureProbeTiles(pbSrc, pbS);
+    check(height(pbTd) == nnz(pbT.y <= pbMid) && all(pbTd.y <= pbMid) && height(pbTs) == 0 && pbLs.filtered == pbN - pbLs.noPosition ...
+        && ~any(pbSitesS.included), 'depthRange keeps the tiles inside it; a shank the probe lacks keeps none (no error)');
+    pbSc = pbC.figureFor("pc");
+    [pbTch, pbLch] = figureProbeTiles(pbSrc, pbSc);
+    check(height(pbTch) == height(figureObservations(pbSrc, pbSc)) && all(pbTch.kind == "channel") && pbLch.noPosition == 0, ...
+        'a channel figure: every LFP channel a tile at its site');
+
+    % the compute: each tile is figureCompute's figure of that observation
+    [pbPF, pbK1] = figureProbeCompute(pbSrc, pbSp);
+    pbSame = true;
+    for i = 1:height(pbT)
+        pbFi = figureCompute(pbSrc, pbSp, Observation=pbT0(pbT0.unitId == pbT.unitId(i), :));
+        pbTi = pbPF.tiles(i);
+        pbSame = pbSame && pbTi.skip == "" && isequaln(arrayfun(@noCreated, pbTi.F.panels, 'UniformOutput', false), ...
+            arrayfun(@noCreated, pbFi.panels, 'UniformOutput', false)) && isequaln(pbTi.F.epochs, pbFi.epochs) ...
+            && isequaln(pbTi.F.groups, pbFi.groups) && isequaln(pbTi.observation, pbFi.observation) ...
+            && pbTi.x == pbT.x(i) && pbTi.y == pbT.y(i) && pbTi.channel == pbT.channel(i) && isequaln(pbTi.shank, pbT.shank(i));
+    end
+    check(pbSame && pbPF.kind == "probeFigure" && pbPF.nTiles == height(pbT) && numel(pbPF.tiles) == height(pbT) ...
+        && pbPF.id == "pr" && pbPF.dataset == pbSrc.name && isequaln(pbPF.spec, pbSp) && isequal(pbPF.left, pbLeft) ...
+        && height(pbPF.sites) == numel(pbSrc.probe.chanMap) && isequaln(pbPF.probe, pbSrc.probe) ...
+        && isequaln(pbPF.epochs, pbPF.tiles(1).F.epochs) && isequaln(pbPF.groups, pbPF.tiles(1).F.groups) ...
+        && pbPF.observation.kind == "probe" && pbPF.observation.label == sprintf("%d units at their sites", height(pbT)) ...
+        && isnan(pbPF.observation.unitId) && isequal(pbPF.observation.meta, {}) && pbPF.observation.groupLabel == "", ...
+        sprintf(['figureProbeCompute: %d tiles in figureProbeTiles'' order, each figureCompute''s figure of its unit (but its ' ...
+        'creation time); kind probeFigure, the probe map''s sites, the first tile''s epochs and groups; "%s"'], ...
+        height(pbT), pbPF.observation.label));
+    pbKinds = [pbK1.kind];
+    check(all([pbK1.from] == 0) && nnz(pbKinds == "skip") == 1 && nnz(pbKinds == "epochs") == 1 ...
+        && nnz(pbKinds == "panel") == 2 * height(pbT), ...
+        'its steps: the skip reasons and the figure''s epochs once for every tile (taken from the first), each tile''s two panels');
+    [pbPF2, pbK2] = figureProbeCompute(pbSrc, pbSp, Reuse=pbK1);
+    pbSl = pbSp;   % the looks and the probe layout only
+    pbSl.title = "Looks"; pbSl.probe.layout = "physical"; pbSl.probe.maxTiles = 50; pbSl.probe.tileWidth = 0.5;
+    [~, pbK3] = figureProbeCompute(pbSrc, pbSl, Reuse=pbK1);
+    pbPanels = @(PF) arrayfun(@(t) t.F.panels, PF.tiles, 'UniformOutput', false);
+    check(numel(pbK2) == numel(pbK1) && all([pbK2.from] > 0) && isequal(sort([pbK2.from]), 1:numel(pbK1)) ...
+        && isequaln(pbPanels(pbPF2), pbPanels(pbPF)) && all([pbK3.from] > 0), ...
+        ['figureProbeCompute Reuse: the same spec takes every step again (each once), the same tiles; an edit of the looks or ' ...
+        'of the probe layout computes nothing']);
+    pbR.clearSources();
+    pbSrc = pbR.source(1);
+    nChk = 0;
+    pbRF = pbR.computeProbeFigure(pbSrc, pbSp, Reuse=true, ProgressFcn=@(i, n, lab) countCheck());
+    pbNC = numel(pbR.FigureCache);
+    pbRF2 = pbR.computeProbeFigure(pbSrc, pbSp, Reuse=true);
+    pbNC2 = numel(pbR.FigureCache);
+    pbNoCr = @(PF) arrayfun(@(t) arrayfun(@noCreated, t.F.panels, 'UniformOutput', false), PF.tiles, 'UniformOutput', false);
+    check(pbRF.kind == "probeFigure" && pbRF.nTiles == pbPF.nTiles && isequaln(pbNoCr(pbRF), pbNoCr(pbPF)) && nChk == height(pbT) ...
+        && pbNC == numel(pbK1) && pbNC2 == pbNC && isequaln(pbPanels(pbRF2), pbPanels(pbRF)), ...
+        sprintf(['computeProbeFigure: figureProbeCompute''s tiles, ProgressFcn before each of the %d; Reuse=true keeps every ' ...
+        'tile''s steps in FigureCache (%d) and a second call takes them all, computing nothing new'], height(pbT), pbNC));
+    nPolls = 0;
+    pbR.clearCancel();
+    pbR.PollFcn = @countPoll;
+    pbR.computeProbeFigure(pbSrc, pbSp);
+    pbR.PollFcn = @() pbR.cancel();
+    pbCid = string(errorId(@() pbR.computeProbeFigure(pbSrc, pbSp)));
+    pbR.PollFcn = [];
+    pbR.clearCancel();
+    check(nPolls > height(pbT) && pbCid == "EphysAnalysisRunner:Canceled", ...
+        sprintf('with PollFcn set, computeProbeFigure reaches %d checkpoints (between the tiles too); a cancel() stops it', nPolls));
+
+    % skip reasons, names, caption, page size
+    pbNoMap = pbSrc;
+    pbNoMap.probe = [];
+    pbDs = pbSp;
+    pbDs.observe.kind = "dataset";
+    check(figureSkipReason(pbSrc, pbSp) == "" && figureSkipReason(pbNoMap, pbSp) == "no probe map" ...
+        && figureSkipReason(pbSrc, pbDs) == "a probe figure observes units or channels, not the dataset" ...
+        && string(errorId(@() figureProbeCompute(pbNoMap, pbSp))) == "EphysAnalysisRunner:FigureSkipped" ...
+        && figureSkipReason(pbNoMap, pbC.figureFor("pr")) == "no probe map", ...
+        'figureSkipReason: a probe figure without a probe map ("no probe map"), or observing the dataset; figureProbeCompute throws FigureSkipped');
+    pbObs = struct('kind', "probe", 'label', "probe");
+    check(figureOutputName("{Plot}_{Unit}", "ds", pbSp, pbObs, 1, 1) == "pr_probe" ...
+        && figureOutputName("{Name}_{Plot}", "ds", pbSp, pbObs, 1, 1) == "ds_pr" ...
+        && figureOutputName("{Name}_{Plot}", "ds", pbSp, pbObs, 1, 3) == "ds_pr", ...
+        'figureOutputName: a probe page''s {Unit} is "probe", never appended');
+    pbCap = figureCaption(pbSp, pbT, Dataset=pbSrc.name);
+    pbCap1 = figureCaption(pbSp, pbT(1, :));
+    check(startsWith(pbCap, sprintf("pr: %d units laid out at their sites on the probe (1 shank) of %s; panels: raster, PSTH; aligned to ", ...
+        height(pbT), pbSrc.name)) && endsWith(pbCap, "; each panel's y shared across the tiles.") && ~contains(pbCap, "observation") ...
+        && startsWith(pbCap1, "pr: 1 unit laid out at its site on the probe (1 shank); panels: ") ...
+        && ~contains(figureCaption(setfield(pbSp, 'probe', setfield(pbSp.probe, 'sharedY', false)), pbT), "shared"), ...
+        sprintf('figureCaption of a probe figure: "%s"', pbCap));
+    pbX = pbC.Export;
+    pbLay = probeTileLayout(pbPF, pbSp.probe);
+    pbSz = figureExportSize(pbX, pbPF, pbSp);
+    pbPF0 = pbPF;
+    pbPF0.tiles = pbPF.tiles([]);
+    pbPF0.nTiles = 0;
+    pbFg = newExportFigure(pbX, pbPF, pbSp);
+    pbPap = pbFg.PaperSize;
+    pbPos = pbFg.Position(3:4);
+    close(pbFg);
+    pbSz0 = figureExportSize(pbX, pbPF0, pbSp);
+    pbSz2 = figureExportSize(pbX, pbPF);
+    check(all(abs(pbSz - [pbX.FigureSizeCm(1) max(pbX.FigureSizeCm(2), min(80, 2 + pbLay.nRows * pbSp.grid.rows * 1.5))]) < 1e-12), ...
+        sprintf(['figureExportSize of a probe figure: the Export width, 1.5 cm a panel row of each of its %d rows of tiles and ' ...
+        '2 cm (%.1f x %.1f cm)'], pbLay.nRows, pbSz));
+    check(all(abs(pbSz0 - pbX.FigureSizeCm) < 1e-12), sprintf('figureExportSize of a probe figure without a tile: FigureSizeCm (%.1f x %.1f cm)', pbSz0));
+    check(all(abs(pbSz2 - pbSz) < 1e-12), sprintf('figureExportSize of a probe figure without a spec: its own (%.1f x %.1f cm)', pbSz2));
+    % the page is drawn at that size (exportFigure writes the figure's own size, and sets the PDF's paper from it); MATLAB
+    % adjusts the paper of a figure taller than the screen by a percent or two (the paper is 18.2 x 25.7 cm for 18 x 26)
+    check(all(abs(pbPos - pbSz) < 1e-9) && all(abs(pbPap ./ pbSz - 1) < 0.03), ...
+        sprintf('newExportFigure of a probe figure: a page drawn at that size (%.3f x %.3f cm; paper %.3f x %.3f cm)', pbPos, pbPap));
+
+    % a run: one page per dataset, the plan, the scripts
+    pbC.Export.Folder = string(fullfile(root, "probe_out"));
+    pbC.Export.Formats = "png";
+    pbRR = EphysAnalysisRunner(pbC, LogFcn=[]);
+    pbRows = pbRR.runDataset(1, Figures="pr", Export=true, Report=false);
+    pbFiles = split(pbRows.Files, "; ");
+    pbPl = pbRR.plan();
+    check(height(pbRows) == 1 && pbRows.Status == "done" && pbRows.Message == sprintf("%d tile(s)", height(pbT)) ...
+        && isscalar(pbFiles) && isfile(pbFiles) && endsWith(pbFiles, "_pr.png") ...
+        && all(pbPl.Source(pbPl.Plot == "pr") == "probe") && all(pbPl.Source(pbPl.Plot == "pc") == "probe"), ...
+        sprintf('runDataset draws a probe figure on one page ("%s", "%s"); plan says its Source is probe', pbRows.Message, pbFiles(1)));
+    pbObsU = struct('kind', "unit", 'data', "units", 'unitId', pbT.unitId(1), 'channel', pbT.channel(1), 'label', pbT.label(1));
+    pbRowsO = pbRR.runDataset(1, Figures="pr", Export=false, Report=false, Observation=pbObsU);
+    check(pbRowsO.Status == "done" && pbRowsO.Message == pbRows.Message, 'Observation= of a run: a probe figure draws the probe whatever is picked');
+    pbTxt = EphysAnalysisScript.standalone(pbC);
+    pbPv = EphysAnalysisScript.preview(pbC, "pr", Datasets=pbRR.Keys(1));
+    check(contains(pbTxt, "tilesT = figureProbeTiles(src, fspec);") && contains(pbTxt, "PF = figureProbeCompute(src, fspec);") ...
+        && contains(pbTxt, "fig = newExportFigure(exportOpts, PF, fspec);") && contains(pbPv, "obsT = figureProbeTiles(src, spec);") ...
+        && contains(pbPv, "F = figureProbeCompute(src, spec);") && ~contains(pbPv, "obs = obsT(i, :);"), ...
+        'the standalone and preview scripts compute a probe figure with figureProbeTiles and figureProbeCompute, one page');
+end
+
+%% ============================================================================ probe figures: layout and render
+if S.sec("16", "probe figures: layout and render (probeTileLayout, renderProbeFigure, renderFigure's dispatch)")
+    % probeTileLayout on synthetic probes (pure)
+    pageOk = @(B) all(B(:, 1) >= -1e-9 & B(:, 2) >= -1e-9 & B(:, 1) + B(:, 3) <= 1 + 1e-9 & B(:, 2) + B(:, 4) <= 1 + 1e-9);
+    [gx, gy] = meshgrid(0:200:600, 0:25:175);   % a 4 x 8 probe: shanks 200 um apart, 25 um pitch
+    gk = repmat(1:4, 8, 1);
+    P4 = synthProbeFigure(gx(:), gy(:), gk(:), gx(:), gy(:), gk(:));
+    L4 = probeTileLayout(P4, probeOpts());
+    check(L4.n == 32 && L4.nCols == 4 && L4.nRows == 8 && isequal(L4.cols.shank, 1:4) && ~boxesOverlap(L4.box) && pageOk(L4.box) ...
+        && isequal(L4.rows.um, 0:25:175) && all(diff(L4.rows.y) > 0) && ~any(L4.moved) && all(L4.row == repmat((1:8).', 4, 1)) ...
+        && isequal(L4.depthTicks.label, compose("%g", 0:25:175)), ...
+        'probeTileLayout schematic, a 4 x 8 probe: 4 columns (shanks 1-4), 8 rows from the bottom (0-175 um), no two tiles overlapping, every tile on the page');
+    check(all(abs(L4.box(:, 4) - 0.9 / 8) < 1e-12) && all(abs(L4.box(:, 3) - 0.9 / 4) < 1e-12) ...
+        && all(abs(L4.box(:, 2) + L4.box(:, 4) / 2 - L4.anchor(:, 2)) < 1e-12), ...
+        'schematic tiles: tileHeight of a row high, tileWidth of a band wide, centered on their row');
+    by = (0:20:140).';   % a Buzsaki-like shank: x alternating, y every 20 um
+    bx = repmat([-10; 10], 4, 1);
+    PB = synthProbeFigure(bx, by, ones(8, 1), bx, by, ones(8, 1));
+    LB = probeTileLayout(PB, probeOpts());
+    side = sign(LB.anchor(:, 1) - LB.cols.center);
+    check(LB.nCols == 1 && LB.nRows == 8 && isequal(LB.rows.um, by.') && isequal(side, repmat([-1; 1], 4, 1)) && ~boxesOverlap(LB.box), ...
+        'a staggered (Buzsaki-like) shank: one column, a row per 20 um step, the sites'' anchors left and right of the shank''s middle');
+    nx = [0; 32; 16; 48; 0; 32; 16; 48];   % pairs of sites level with each other (Neuropixels-like)
+    ny = [0; 0; 20; 20; 40; 40; 60; 60];
+    PN = synthProbeFigure(nx, ny, ones(8, 1), nx, ny, ones(8, 1));
+    LN = probeTileLayout(PN, probeOpts());
+    check(LN.nCols == 1 && LN.nRows == 4 && isequal(LN.rows.n, [2 2 2 2]) && isequal(LN.rows.um, [0 20 40 60]) && ~boxesOverlap(LN.box) ...
+        && pageOk(LN.box), 'level pairs of sites cluster into one row each (4 rows of 2), their tiles side by side');
+    sy1 = (0:25:175).';
+    s0 = zeros(8, 1);
+    P2 = synthProbeFigure(s0, sy1, ones(8, 1), [0; 0; 0; NaN], [50; 50; 125; NaN], ones(4, 1));   % two units on one site, one more, one without a position
+    L2 = probeTileLayout(P2, probeOpts());
+    L2p = probeTileLayout(P2, probeOpts('layout', "physical"));
+    check(L2.n == 4 && L2.nRows == 8 && abs(L2.box(1, 2) - L2.box(2, 2)) < 1e-12 && L2.box(1, 1) + L2.box(1, 3) <= L2.box(2, 1) + 1e-12 ...
+        && abs(L2.box(1, 3) - 0.9 / 2) < 1e-12 && ~boxesOverlap(L2.box) && all(isnan(L2.box(4, :))) && all(isnan(L2.anchor(4, :))) ...
+        && ~boxesOverlap(L2p.box) && abs(L2p.box(1, 2) - L2p.box(2, 2)) < 1e-12 && all(isnan(L2p.box(4, :))), ...
+        'two units on one site share their band side by side (schematic and physical); a tile without a position has a NaN box');
+    P3 = synthProbeFigure(s0, sy1, ones(8, 1), [0; 0; 0], [0; 25; 50], ones(3, 1));   % three units 25 um apart, tiles three pitches tall
+    La = probeTileLayout(P3, probeOpts('layout', "physical", 'overlap', "allow", 'tileScale', 3));
+    Ln = probeTileLayout(P3, probeOpts('layout', "physical", 'overlap', "nudge", 'tileScale', 3));
+    [~, ordA] = sort(La.anchor(:, 2));
+    [~, ordN] = sort(Ln.box(:, 2));
+    check(boxesOverlap(La.box) && ~any(La.moved) && ~boxesOverlap(Ln.box) && pageOk(Ln.box) && isequal(ordA, ordN) ...
+        && isequal(Ln.moved, [false; true; true]) && max(abs(Ln.anchor(:) - La.anchor(:))) < 1e-12 && Ln.nRows >= 1 && isempty(Ln.rows.y), ...
+        'physical at tileScale 3: the tiles overlap where they fall ("allow"); "nudge" slides them apart in order, the moved ones marked, the anchors unchanged');
+    P4l = synthProbeFigure(s0, sy1, ones(8, 1), zeros(4, 1), [0; 25; 50; 75], ones(4, 1));
+    Ll = probeTileLayout(P4l, probeOpts('layout', "physical", 'overlap', "lanes", 'lanes', 2, 'tileScale', 3));
+    check(Ll.box(1, 1) < Ll.box(2, 1) && abs(Ll.box(1, 1) - Ll.box(3, 1)) < 1e-12 && abs(Ll.box(2, 1) - Ll.box(4, 1)) < 1e-12 ...
+        && ~boxesOverlap(Ll.box) && pageOk(Ll.box) && all(Ll.moved), ...
+        '"lanes" 2: alternate tiles in the left and right lanes of the band, nudged within each lane, none overlapping');
+    Ls = probeTileLayout(P3, probeOpts('layout', "physical", 'overlap', "shrink", 'tileScale', 3));
+    check(Ls.shrink < 1 && Ls.shrink > 0 && ~boxesOverlap(Ls.box) && ~any(Ls.moved) && abs(Ls.box(1, 4) / La.box(1, 4) - Ls.shrink) < 1e-9 ...
+        && abs(Ls.box(1, 3) / La.box(1, 3) - Ls.shrink) < 1e-9, ...
+        sprintf('"shrink": every tile %.3f of its size (w and h alike), centered on its site, none overlapping', Ls.shrink));
+    P0 = synthProbeFigure(s0, sy1, ones(8, 1), zeros(0, 1), zeros(0, 1), zeros(0, 1));
+    L0 = probeTileLayout(P0, probeOpts());
+    P1 = synthProbeFigure(s0, sy1, ones(8, 1), 0, 75, 1);
+    L1 = probeTileLayout(P1, probeOpts());
+    L1p = probeTileLayout(P1, probeOpts('layout', "physical"));
+    PX = P1;
+    PX.sites.included(:) = false;
+    LX = probeTileLayout(PX, probeOpts());
+    check(L0.n == 0 && L0.nRows == 0 && isequal(size(L0.box), [0 4]) && L1.n == 1 && L1.nCols == 1 && pageOk(L1.box) ...
+        && all(isfinite(L1.box)) && pageOk(L1p.box) && LX.nCols == 1 && LX.nRows == 1 && all(isfinite(LX.box)), ...
+        'no tile: n 0, no rows; one tile: on the page (schematic and physical); no included site: the tiles stand for the sites');
+
+    % renderProbeFigure on the "clean" fixture: a raster + PSTH tile at each of the probe's 8 sites
+    fixtureA();
+    cp = EphysAnalysisConfig();
+    cp.Source.Root = FX.proj;
+    cp.Defaults.EventRef.line = "Stim";
+    cp.Defaults.Window = struct('mode', "fixed", 'pre', -0.2, 'post', 0.8, 'stop', []);
+    cp = cp.addFigure("rasterPsth", Id="z_probe");
+    rp = EphysAnalysisRunner(cp, LogFcn=[]);
+    srcP = rp.source(1);
+    spP = cp.figureFor("z_probe");
+    spP.probe.enabled = true;   % a probe figure, laid out as the defaults say
+    PFu = figureProbeCompute(srcP, spP);
+    PF8 = PFu;   % 8 tiles: the units' results, one at each site
+    nS = height(PF8.sites);
+    PF8.tiles = PFu.tiles(mod(0:nS - 1, numel(PFu.tiles)) + 1);
+    for i = 1:nS
+        PF8.tiles(i).x = PF8.sites.x(i);
+        PF8.tiles(i).y = PF8.sites.y(i);
+        PF8.tiles(i).channel = PF8.sites.channel(i);
+    end
+    PF8.nTiles = nS;
+    np = numel(spP.panels);
+    iPsth = find([spP.panels.type] == "psth", 1);
+    tileAxesOf = @(c) findall(c, 'Type', 'axes', '-function', @(a) isappdata(a, 'ProbeTile'));
+    fgP = figure('Visible', 'off', 'Position', [100 100 800 800]);
+    closeFgP = onCleanup(@() delete(fgP));
+    tP = tic;
+    hP = renderProbeFigure(PF8, spP, fgP);
+    drawnow;
+    secs = toc(tP);
+    check(numel(PFu.tiles) >= 1 && nS == 8 && secs < 20, sprintf('a page of %d tiles (%d units of the fixture) drawn in %.1f s (under 20 s)', ...
+        nS, numel(PFu.tiles), secs));
+    ta = tileAxesOf(fgP);
+    okPanel = all(arrayfun(@(a) ismember(string(getappdata(a, 'FigurePanel')), [spP.panels.id]) && ismember(string(a.Tag), ["axes" "rasterAxes"]), ta));
+    check(numel(ta) == nS * np && okPanel && numel(hP.axes) == nS * np && isequaln(hP.layout, probeTileLayout(PF8, spP.probe)), ...
+        sprintf('%d tiles x %d panels: %d axes with appdata ProbeTile and FigurePanel, tagged as panels (%d found)', nS, np, nS * np, numel(ta)));
+    [okIn, okApart, why] = tilesPlaced(hP, fgP);
+    check(okIn && okApart, sprintf('every tile''s axes inside the canvas, no two tiles overlapping (pixels; %s)', why));
+    pa = findall(fgP, 'Type', 'axes', 'Tag', 'probeAxes');
+    kids = fgP.Children;
+    check(isscalar(pa) && isequal(getappdata(pa, 'ProbeAxes'), true) && pa == hP.probeAxes ...
+        && all(arrayfun(@(a) find(kids == a) < find(kids == pa), ta)) && numel(findall(fgP, 'Tag', 'shankLabels')) == hP.layout.nCols ...
+        && numel(findall(fgP, 'Tag', 'probeBody')) == 1 && ~isempty(findall(fgP, 'Tag', 'probeSites')) ...
+        && all(arrayfun(@(x) x.HitTest == "off", findall(pa, 'Tag', 'probeSites'))), ...
+        'the probe axes (tagged probeAxes) under every tile''s axes; its body, sites (taking no clicks) and one shank label per column');
+    fgR = figure('Visible', 'off', 'Position', [100 100 700 800]);
+    closeFgR = onCleanup(@() delete(fgR));
+    renderFigure(PF8.tiles(1).F, spP, fgR);
+    nLeg = numel(findall(fgR, 'Type', 'legend'));
+    th = findall(fgP, 'Type', 'axes', 'Tag', 'titleHost');
+    check(numel(findall(fgP, 'Type', 'legend')) == nLeg && nLeg <= 1 && isscalar(th) && contains(strjoin(string(th.Subtitle.String), " "), srcP.name) ...
+        && strjoin(string(th.Title.String), " ") == hP.title && contains(hP.title, "z_probe"), ...
+        sprintf('one legend as a tile''s figure has (%d), one title host with the title "%s" and the dataset as subtitle', nLeg, hP.title));
+    lowY = arrayfun(@(t) t.box(2), hP.tiles);
+    lowX = arrayfun(@(t) t.box(1), hP.tiles);
+    cand = find(abs(lowY - min(lowY)) < 1e-6);
+    [~, j] = min(lowX(cand));
+    iS = cand(j);
+    others = setdiff(1:nS, iS);
+    bare = all(arrayfun(@(i) all(arrayfun(@(a) isempty(a.XTick) && isempty(a.YTick) && strjoin(string(a.XLabel.String), "") == "" ...
+        && isempty(a.Colorbar), hP.tiles(i).axes)), others));
+    sa = hP.tiles(iS).axes;
+    [~, iBot] = max([spP.panels.row]);
+    check(bare && ~isempty(sa(iPsth).YTick) && ~isempty(sa(iBot).XTickLabel) && strjoin(string(sa(iBot).XLabel.String), "") ~= "", ...
+        sprintf('the scale tile (tile %d, bottom left) keeps its ticks and the bottom panel''s x label; every other tile has none', iS));
+    YL = cell2mat(arrayfun(@(t) t.axes(iPsth).YLim, hP.tiles, 'UniformOutput', false).');
+    sF = spP;
+    sF.probe.sharedY = false;
+    fgF = figure('Visible', 'off', 'Position', [100 100 800 800]);
+    closeFgF = onCleanup(@() delete(fgF));
+    hF = renderProbeFigure(PF8, sF, fgF);
+    YF = cell2mat(arrayfun(@(t) t.axes(iPsth).YLim, hF.tiles, 'UniformOutput', false).');
+    check(all(abs(YL - YL(1, :)) < 1e-9, 'all') && max(abs(YL(1, :) - [min(YF(:, 1)) max(YF(:, 2))])) < 1e-9, ...
+        sprintf('sharedY: every PSTH tile on one y range [%g %g], the union of the tiles'' own (sharedY false keeps each its own)', YL(1, :)));
+    nLab = numel(findall(fgP, 'Tag', 'tileLabels'));
+    sN = spP;
+    sN.probe.labels = "none";
+    renderProbeFigure(PF8, sN, fgF);
+    check(nLab == nS && isempty(findall(fgF, 'Tag', 'tileLabels')), sprintf('a label per tile (%d), none with labels "none"', nLab));
+    PFs = PF8;
+    PFs.tiles(3).skip = "no spikes here";
+    PFs.tiles(3).F = [];
+    hS = renderProbeFigure(PFs, spP, fgF);
+    nt = findall(hS.tiles(3).note, 'Tag', 'note');
+    check(hS.tiles(3).skipped && isgraphics(hS.tiles(3).note) && isscalar(nt) && string(nt.String) == "no spikes here" ...
+        && ~any(isgraphics(hS.tiles(3).axes)) && numel(tileAxesOf(fgF)) == (nS - 1) * np + 1, ...
+        'a skipped tile is one empty axes saying why (role note); the others drawn');
+    hD = renderFigure(PF8, spP, fgF);
+    check(isfield(hD, 'probeAxes') && numel(tileAxesOf(fgF)) == nS * np && numel(hD.tiles) == nS, ...
+        'renderFigure draws a probe figure (kind "probeFigure") through renderProbeFigure');
+    check(strcmp(errorId(@() renderProbeFigure(PF8, spP, axes(fgR))), 'renderProbeFigure:BadTarget'), 'an axes target is refused');
+    pz0 = getpixelposition(pa);
+    fgP.Position(3:4) = [560 700];
+    fgP.SizeChangedFcn(fgP, []);   % MATLAB runs it for a visible figure only
+    [okIn, okApart, why] = tilesPlaced(hP, fgP);
+    pz = getpixelposition(pa);
+    check(okIn && okApart && pz(3) < 560 && pz(4) < 700 && pz(3) < pz0(3) - 200, ...
+        sprintf('resized to 560 x 700 px: laid out again (the probe axes %.0f px wide, were %.0f), every tile inside, none overlapping (%s)', ...
+        pz(3), pz0(3), why));
+    C = PlotAesthetics.components(hP.canvas);
+    bad = C.Role == "" | ~ismember(C.Role, roles);
+    check(~any(bad) && all(ismember(["probeAxes" "probeBody" "probeSites" "shankLabels" "tileLabels" "axes"], C.Role)), ...
+        sprintf('every component of the page is tagged with a known role (%d components%s)', height(C), ...
+        strjoin(" " + C.Type(bad) + " " + C.Role(bad), ",")));
+    uP = uifigure('Visible', 'off', 'Position', [50 50 1100 760]);
+    closeUP = onCleanup(@() delete(uP));
+    okT = true;
+    for mode = ["panel" "grid"]
+        delete(uP.Children);
+        if mode == "panel"; tg = uipanel(uP, 'Units', 'pixels', 'Position', [1 1 1000 740]); else; tg = uigridlayout(uP, [1 1]); end
+        hT = renderProbeFigure(PF8, spP, tg);
+        okT = okT && numel(tileAxesOf(hT.canvas)) == nS * np && isgraphics(hT.probeAxes);
+    end
+    check(okT, 'drawn into a uipanel and a grid layout too');
+    % Scale: half the export page, every size half the export's
+    delete(uP.Children);
+    p1 = uipanel(uP, 'Units', 'pixels', 'Position', [1 1 800 700], 'BorderType', 'none');
+    p2 = uipanel(uP, 'Units', 'pixels', 'Position', [1 1 400 350], 'BorderType', 'none', 'Visible', 'off');
+    h1 = renderProbeFigure(PF8, spP, p1);
+    h2 = renderProbeFigure(PF8, spP, p2, Scale=0.5);
+    E = drawnSizes(p1);
+    V = drawnSizes(p2);
+    k = 1 + (V.prop == "SizeData");
+    same = height(E) == height(V) && all(E.key == V.key) && all(E.prop == V.prop);
+    dev = Inf;
+    if same; dev = max(abs(V.val ./ (E.val .* 0.5 .^ k) - 1)); end
+    w1 = h1.tiles(1).box(3) / 800;
+    w2 = h2.tiles(1).box(3) / 400;
+    check(same && dev < 1e-6 && abs(w2 / w1 - 1) < 0.03 && PlotAesthetics.drawScale(h2.canvas) == 0.5, ...
+        sprintf('Scale 0.5: every size of the page''s %d parts half the export''s (largest deviation %.2g), a tile %.3f of the width vs %.3f', ...
+        height(E), dev, w2, w1));
+end
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisFigures:Failures', '%d checks failed.', nFail);
+end
+end
+
+
+function F = noCreatedFigure(F)
+%noCreatedFigure  A computed figure without its own and its layers' creation times (computes made in different seconds).
+F = rmfield(F, 'created');
+for k = 1:numel(F.panels)
+    F.panels(k) = noCreated(F.panels(k));
 end
 end
 
@@ -5089,4 +5622,74 @@ end
 function deleteQuiet(f)
 %deleteQuiet  Delete file F when it is there.
 if isfile(f); delete(f); end
+end
+
+
+function o = probeOpts(varargin)
+%probeOpts  A probe figure's layout settings (Figure.probe's defaults, enabled) with NAME, VALUE pairs set.
+o = struct('enabled', true, 'layout', "schematic", 'overlap', "nudge", 'lanes', 2, 'shanks', [], 'channels', [], ...
+    'depthRange', [], 'maxTiles', 64, 'maxPerSite', 3, 'tileWidth', 0.9, 'tileHeight', 0.9, 'tileScale', 1, ...
+    'labels', "short", 'sharedY', true, 'scaleTile', true, 'showSites', true, 'leaders', true);
+for i = 1:2:numel(varargin)
+    o.(varargin{i}) = varargin{i + 1};
+end
+end
+
+
+function PF = synthProbeFigure(sx, sy, sk, tx, ty, tk)
+%synthProbeFigure  What probeTileLayout reads of a probe figure, on synthetic positions: PF.sites (every site included) and PF.tiles (x, y, shank, the nearest site's channel).
+n = numel(sx);
+sites = table((1:n).', sx(:), sy(:), sk(:), true(n, 1), 'VariableNames', {'channel', 'x', 'y', 'shank', 'included'});
+tiles = struct('x', {}, 'y', {}, 'shank', {}, 'channel', {});
+for i = 1:numel(tx)
+    [~, c] = min(hypot(sx(:) - tx(i), sy(:) - ty(i)));
+    if ~isfinite(tx(i)); c = NaN; end
+    tiles(end+1) = struct('x', tx(i), 'y', ty(i), 'shank', tk(i), 'channel', c); %#ok<AGROW>
+end
+PF = struct('sites', sites, 'tiles', {tiles});
+end
+
+
+function tf = boxesOverlap(B)
+%boxesOverlap  Whether any two boxes [x y w h] (rows of B; rows with a NaN left out) overlap by more than 1e-9 both across and up.
+B = B(all(isfinite(B), 2), :);
+tf = false;
+for i = 1:size(B, 1) - 1
+    for j = i + 1:size(B, 1)
+        ox = min(B(i, 1) + B(i, 3), B(j, 1) + B(j, 3)) - max(B(i, 1), B(j, 1));
+        oy = min(B(i, 2) + B(i, 4), B(j, 2) + B(j, 4)) - max(B(i, 2), B(j, 2));
+        if ox > 1e-9 && oy > 1e-9
+            tf = true;
+            return
+        end
+    end
+end
+end
+
+
+function [okIn, okApart, why] = tilesPlaced(h, canvas)
+%tilesPlaced  Every drawn tile's axes inside CANVAS (pixels), and no two tiles (the box round each one's axes) overlapping.
+q = getpixelposition(canvas);
+B = NaN(numel(h.tiles), 4);
+okIn = true;
+why = "every tile placed";
+for i = 1:numel(h.tiles)
+    A = h.tiles(i).axes(isgraphics(h.tiles(i).axes));
+    if isempty(A); continue; end
+    P = zeros(numel(A), 4);
+    for j = 1:numel(A)
+        u = A(j).Units;
+        A(j).Units = 'pixels';
+        P(j, :) = A(j).Position;
+        A(j).Units = u;
+    end
+    lo = min(P(:, 1:2), [], 1);
+    hi = max(P(:, 1:2) + P(:, 3:4), [], 1);
+    B(i, :) = [lo hi - lo];
+    if any(lo < 0) || hi(1) > q(3) + 1 || hi(2) > q(4) + 1
+        okIn = false;
+        why = sprintf('tile %d at [%.1f %.1f %.1f %.1f] on %g x %g px', i, B(i, :), q(3), q(4));
+    end
+end
+okApart = ~boxesOverlap(B);
 end

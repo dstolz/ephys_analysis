@@ -22,12 +22,18 @@ classdef EphysAnalysisConfig
     %               each layer bound to a source (FigureSources) that either
     %               follows the observation or names fixed items: id,
     %               autoId, enabled, title, observe, grid, panels, ref,
-    %               window, selection, sessions, style, aesthetics.
+    %               window, selection, sessions, probe, style, aesthetics.
     %               sessions (defaults("FigureSessions")) with enabled true
     %               makes it a session figure: drawn once across the ticked
     %               (or listed) datasets, each layer merged across them
     %               (figureSessionCompute, EphysAnalysisRunner.runSessionFigure),
-    %               never per dataset. Each panel holds all of its own
+    %               never per dataset. probe (defaults("FigureProbe")) with
+    %               enabled true makes it a probe figure: the whole figure
+    %               drawn once per unit or channel as a tile at its site on
+    %               the probe, every tile on one page per dataset
+    %               (figureProbeTiles, figureProbeCompute,
+    %               EphysAnalysisRunner.computeProbeFigure); not also a
+    %               session figure. Each panel holds all of its own
     %               options; adoptPanelOptions copies one panel's to the
     %               others (sharedFieldsOf: the options several types
     %               have), with its axis sides, adoptPanelAlignment and relinkPanels spread one
@@ -55,7 +61,8 @@ classdef EphysAnalysisConfig
     %               namespace of their own (DuplicateFigureId), panel ids
     %               one per figure (DuplicatePanelId); figureFor(id) is the
     %               spec the compute draws. The run draws each enabled
-    %               figure once per observation on each dataset
+    %               figure once per observation on each dataset (a probe
+    %               figure once per dataset: every observation a tile)
     %               (EphysAnalysisRunner.runDataset), a file each named by
     %               figureOutputName ({Plot} its id, {Unit} the observation,
     %               {Group} its trial group per group)
@@ -192,6 +199,11 @@ classdef EphysAnalysisConfig
         % combineSessions does not merge (a session figure holds none).
         FigureSessionMatches = ["site" "mapping"]
         FigureSessionUnmerged = ["probemap" "corrmap" "spectrum" "spectrogram" "coherence"]
+        % Probe figures (Figure.probe): how the tiles are laid out (layout), how a physical layout keeps them apart
+        % (overlap) and what labels each tile (labels).
+        ProbeLayouts = ["schematic" "physical"]
+        ProbeOverlaps = ["nudge" "lanes" "shrink" "allow"]
+        ProbeTileLabels = ["short" "full" "none"]
         % String fields that are lists even when their default has one element.
         ListFields = ["response" "pairingFlags" "groupBy" "classes" "groups" "Formats" "Datasets" "Folders" "datasetKeys"]
     end
@@ -380,6 +392,23 @@ classdef EphysAnalysisConfig
             k = id;
             if ~isnumeric(id); k = obj.figureIndex(id); end
             tf = k >= 1 && k <= numel(obj.Figures) && obj.Figures(k).sessions.enabled;
+        end
+
+        function ids = probeFigureIds(obj)
+            %probeFigureIds  Ids of the probe figures (probe.enabled), enabled or not, in order.
+            ids = string.empty(1, 0);
+            if ~isempty(obj.Figures)
+                s = [obj.Figures.probe];
+                on = obj.Figures([s.enabled]);
+                if ~isempty(on); ids = reshape([on.id], 1, []); end
+            end
+        end
+
+        function tf = isProbeFigure(obj, id)
+            %isProbeFigure  True when figure ID (an id or an index) is laid out on the probe (probe.enabled): a tile per observation, a page per dataset.
+            k = id;
+            if ~isnumeric(id); k = obj.figureIndex(id); end
+            tf = k >= 1 && k <= numel(obj.Figures) && obj.Figures(k).probe.enabled;
         end
     end
 

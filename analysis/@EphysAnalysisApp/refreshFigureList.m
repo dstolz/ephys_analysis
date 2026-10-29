@@ -2,7 +2,9 @@ function refreshFigureList(obj)
 %refreshFigureList  The figure tree: the figures under groups, as Group by says.
 %   A leaf reads "<id>  (<n> panels)" under groups by what the figures
 %   observe (the group says the rest), else "<id>  (<n> panels, per
-%   <observation kind>)" (observeKind of its observe.data); disabled
+%   <observation kind>)" (observeKind of its observe.data; a figure on
+%   the probe says its kind under the group On the probe too, and ", on the
+%   probe" under the others); disabled
 %   figures add "  (off)" but under groups by status. Each node has a check
 %   box (an icon, checkIcon): a figure's is ticked while it is enabled, a
 %   group's when all its figures are, "mixed" when some. When the groups
@@ -109,9 +111,11 @@ function text = leafText(f, by)
 %leafText  A figure's node: "<id>  (<n> panels)", the observation kind unless the group says it, "(off)" unless it does.
 m = numel(f.panels);
 what = sprintf("%d panel%s", m, repmat('s', 1, m ~= 1));
-if by ~= "observe"
+probe = isfield(f, 'probe') && f.probe.enabled;
+if by ~= "observe" || probe   % (the group On the probe does not say what it tiles)
     what = what + ", per " + EphysAnalysisConfig.observeKind(f);
 end
+if probe && by ~= "observe"; what = what + ", on the probe"; end
 text = char(f.id + "  (" + what + ")");
 if ~f.enabled && by ~= "status"
     text = [text '  (off)'];

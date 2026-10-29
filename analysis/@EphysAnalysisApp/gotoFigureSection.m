@@ -4,8 +4,8 @@ function gotoFigureSection(obj, name)
 %   call this on the Figures tab (onKeyPress), the keys following the
 %   editor's order: Observations 1, Event reference 2, Epoch window 3,
 %   Trial selection 4, Panels 5, Selected panel 6, Panel alignment 7, Layers
-%   8, Options 9, Text note 0; Sessions, Overlays, Appearance and Looks
-%   have none. A section the figure does not show (no panel picked, say)
+%   8, Options 9, Text note 0; Sessions, Probe layout, Overlays,
+%   Appearance and Looks have none. A section the figure does not show (no panel picked, say)
 %   stays where it is, and the status bar says so.
 i = find([obj.FigureSections.Name] == name, 1);
 if isempty(i); return; end

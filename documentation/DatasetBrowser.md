@@ -54,8 +54,8 @@ ticks what the filter shows. A root that cannot be reached raises
 
 ## The window
 
-The window (1380 x 860 pixels, its position remembered) has a **File** menu
-and four rows.
+The window (1380 x 860 pixels, its position remembered) has a **File** menu,
+a **Help** menu and four rows.
 
 The **File** menu holds the [settings files](#settings):
 
@@ -67,6 +67,14 @@ The **File** menu holds the [settings files](#settings):
 | **Save settings as...** | writes the settings to a file picked in a dialog (`B.saveSettingsAs()`) |
 | **Export compute script...** | writes a script that computes these settings on the ticked datasets without the window ([Export a script](#export-a-script); `B.exportScript()`) |
 | **Close** | closes the window, as its close button does |
+
+The **Help** menu:
+
+| Item | Does |
+| --- | --- |
+| **Help for DatasetBrowser** | opens this page's wiki page (`Dataset-Browser`) in the browser |
+| **Documentation home** | opens the wiki's front page |
+| **About DatasetBrowser** | shows the version of the code (release number, git commit, branch, date, uncommitted changes), the MATLAB release, the last commit of `DatasetBrowser.m`, `epochMatrix.m` and `DatasetRuns.m`, the versions of the result file and of the cache, and the root, the number of datasets found and the settings file. **Copy** puts the text on the clipboard, for an issue; `B.aboutText()` returns the part particular to the browser |
 
 The rows:
 
@@ -222,10 +230,12 @@ click: each holds the event (with its sequence), the epoch window and the
 trial selection (`ref`, `window`, `selection`). **Data**, the channels, the
 measure and the normalization are not part of it.
 
-- **+** keeps the tabs' settings under the name in the drop-down's box,
-  replacing a definition of that name. With the box blank, the name is the
-  event and trials part of [`ResultName`](#from-a-script) (`StimOnset_Hit`,
-  `TrialOnset_AllTrials`), numbered when taken (`B.addDefinition(name)`).
+- **+** adds the tabs' settings as a new definition, named from the event
+  and trials part of [`ResultName`](#from-a-script) (`StimOnset_Hit`,
+  `TrialOnset_AllTrials`), numbered when taken; nothing when a definition
+  holds these settings already. With a name typed in the drop-down's box, it
+  keeps them under that name, replacing a definition of that name
+  (`B.addDefinition(name)`; no name: a new one).
 - Picking a name from the drop-down puts its event, window and trials in the
   settings, checked as any edit is (`B.useDefinition(name)`); typing a name
   only names the next **+**.
@@ -234,7 +244,8 @@ measure and the normalization are not part of it.
 
 The drop-down shows the definition the settings match (also after **File >
 Load settings**), and *changed* beside it once the event, window or trials
-differ from the one shown; **+** then keeps the changes under that name.
+differ from the one shown; **+** then adds them as a new definition (type
+the shown name to replace it instead).
 
 The definitions (`B.Definitions`: `name`, `ref`, `window`, `selection`) are
 saved in the [settings file](#settings) by **File > Save settings**, and

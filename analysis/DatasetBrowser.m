@@ -160,10 +160,11 @@ classdef DatasetBrowser < handle
     %   Event & trial definitions: the panel under the tabs keeps named
     %   sets of the Event and Trials tabs' settings (the event and its
     %   sequence, the epoch window, the trial selection) to switch between
-    %   (Definitions). + keeps the tabs' settings under the name typed in the
-    %   drop-down, replacing a definition of that name; with the box blank,
-    %   under the event and trials part of ResultName ("StimOnset_Hit",
-    %   numbered when taken). Picking a name from the drop-down puts its
+    %   (Definitions). + adds the tabs' settings as a new definition, named
+    %   from the event and trials part of ResultName ("StimOnset_Hit",
+    %   numbered when taken; nothing when one holds them already); with a
+    %   name typed in the drop-down, under that name, replacing a definition
+    %   of that name. Picking a name from the drop-down puts its
     %   event, window and trials in the settings; data, channels, measure and
     %   normalization stay as they are. − drops the definition shown. The
     %   drop-down shows the definition the settings match, and "changed" once
@@ -408,12 +409,14 @@ classdef DatasetBrowser < handle
         ScriptS (1,1) string = ""          % Script
         AfterS (1,1) logical = false       % ScriptAfterCompute
         ScriptFolder (1,1) string = ""     % the folder of the last script added (the + dialog starts there)
-        DefinitionName (1,1) string = ""   % the definition shown in the drop-down ("" = none): + replaces it, − drops it
+        DefinitionName (1,1) string = ""   % the definition shown in the drop-down ("" = none): − drops it
+        DefinitionTyped (1,1) logical = false   % DefinitionName was typed in the drop-down: + keeps the settings under it (replacing one of that name)
         Splash AppSplash = AppSplash.empty % the startup window (AppSplash; open while the window is built and the root scanned)
     end
 
     properties (Constant)
         PrefGroup = "DatasetBrowser"
+        WikiURL = "https://github.com/dstolz/ephys_analysis/wiki"   % the Help menu's pages
         Schema = "dataset-browser-results"
         Version = 1
     end
@@ -1144,6 +1147,7 @@ classdef DatasetBrowser < handle
             S = epochMatrixSettings(file);
             B.Definitions = fileDefinitions(file);   % the file's (none without them), before the settings so the drop-down follows them
             B.DefinitionName = "";
+            B.DefinitionTyped = false;
             B.Settings = S;
             B.tookFile(file);
             B.changed("definitions");
@@ -1249,16 +1253,27 @@ classdef DatasetBrowser < handle
         % --- event & trial definitions --------------------------------------------------------------
         function addDefinition(B, name)
             %addDefinition  Keep the settings' event, window and trials under NAME in Definitions (the + button).
-            %   A definition of that name is replaced. No NAME (or ""): the
-            %   event and trials part of ResultName ("StimOnset_Hit"), numbered
-            %   when a definition holds it already.
+            %   A definition of that name is replaced. No NAME (or ""): a new
+            %   definition under the event and trials part of ResultName
+            %   ("StimOnset_Hit"), numbered when taken; nothing when a
+            %   definition holds these settings already.
             arguments
                 B
                 name (1,1) string = ""
             end
             name = strtrim(name);
             names = string([B.Definitions.name]);
-            if name == ""; name = string(matlab.lang.makeUniqueStrings(definitionName(B.SettingsS), cellstr(names))); end
+            B.DefinitionTyped = false;
+            if name == ""
+                same = names(arrayfun(@(d) B.isCurrent(d), B.Definitions));
+                if ~isempty(same)
+                    B.DefinitionName = same(1);
+                    B.refreshDefinitions();
+                    B.setStatus("Not added: the definition """ + same(1) + """ holds this event, window and trials.");
+                    return
+                end
+                name = string(matlab.lang.makeUniqueStrings(definitionName(B.SettingsS), cellstr(names)));
+            end
             S = B.SettingsS;
             k = find(names == name, 1);
             replaced = ~isempty(k);
@@ -1280,6 +1295,7 @@ classdef DatasetBrowser < handle
             S.selection = d.selection;
             B.Settings = S;   % checked: epochMatrixSettings' errors leave the settings as they were
             B.DefinitionName = d.name;
+            B.DefinitionTyped = false;
             B.refreshDefinitions();
             B.setStatus("Event and trials of """ + d.name + """.");
         end
@@ -1290,7 +1306,7 @@ classdef DatasetBrowser < handle
             k = B.definitionIndex(name);
             name = B.Definitions(k).name;
             B.Definitions(k) = [];
-            if B.DefinitionName == name; B.DefinitionName = ""; end
+            if B.DefinitionName == name; B.DefinitionName = ""; B.DefinitionTyped = false; end
             B.refreshDefinitions();
             B.changed("definitions");
             B.setStatus("Removed the definition """ + name + """.");
@@ -1468,6 +1484,20 @@ classdef DatasetBrowser < handle
             if B.uiOk(); delete(B.Fig); end
             B.changed("closed");
         end
+
+        function L = aboutText(B)
+            %aboutText  What the About item shows besides the code's version: its git describe, the last commits of the files behind the browser, the file versions, what is loaded (a string column).
+            v = ephysVersion();
+            L = "Describe: " + ternary(v.Describe == "", "unknown", v.Describe);
+            for f = ["analysis/DatasetBrowser.m" "analysis/epochMatrix.m" "analysis/DatasetRuns.m"]
+                L(end+1) = "Last commit of " + f + ": " + DatasetBrowser.lastCommit(v.Folder, f); %#ok<AGROW>
+            end
+            L = [L(:); "Result file: " + DatasetBrowser.Schema + " v" + DatasetBrowser.Version; ...
+                "Cache (DatasetRuns): v" + DatasetRuns.Version; ...
+                "Root: " + ternary(B.Root == "", "(none)", B.Root); ...
+                "Datasets found: " + height(B.Datasets); ...
+                "Settings file: " + ternary(B.SettingsFile == "", "(none)", B.SettingsFile)];
+        end
     end
 
     methods (Static)
@@ -1524,6 +1554,16 @@ classdef DatasetBrowser < handle
                 "Tooltip", "A script that computes these settings on the ticked datasets without the window (epochMatrix).", ...
                 "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.exportScript()));
             uimenu(c.FileMenu, "Text", "Close", "Separator", "on", "MenuSelectedFcn", @(~, ~) B.close());
+
+            % --- the Help menu: the wiki, and which version of the code this is
+            c.HelpMenu = uimenu(f, "Text", "Help");
+            uimenu(c.HelpMenu, "Text", "Help for DatasetBrowser", ...
+                "Tooltip", "The DatasetBrowser wiki page.", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.openHelp("Dataset-Browser")));
+            uimenu(c.HelpMenu, "Text", "Documentation home", ...
+                "Tooltip", "The wiki's front page.", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.openHelp("")));
+            uimenu(c.HelpMenu, "Text", "About DatasetBrowser", "Separator", "on", ...
+                "Tooltip", "The version and git commit of this code, the file versions it reads and writes, and what is loaded.", ...
+                "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.about()));
 
             g = uigridlayout(f, [4 1], "RowHeight", {30, '1x', 30, 22}, "Padding", [8 8 8 6], "RowSpacing", 6);
 
@@ -1670,9 +1710,10 @@ classdef DatasetBrowser < handle
                 "ValueChangedFcn", @(~, evt) B.uiRun(@() B.onDefinitionPick(evt)), ...
                 "Tooltip", "Pick a definition: its event, window and trials go into the settings (the rest stays). " + ...
                 "Type a name, then press +, to keep the Event and Trials tabs under it.");
-            c.DefAdd = uibutton(dg, "Text", "+", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.addDefinition(string(B.Ctl.DefList.Value))), ...
-                "Tooltip", "Keep the Event and Trials tabs' settings (event, window, trials) under the name shown " + ...
-                "(an existing one is replaced; blank: a name from the event and trials). Saved with the settings file.");
+            c.DefAdd = uibutton(dg, "Text", "+", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.onDefinitionAdd()), ...
+                "Tooltip", "Add the Event and Trials tabs' settings (event, window, trials) as a new definition, " + ...
+                "named from the event and trials, or under a name typed in the box (typing an existing name replaces it). " + ...
+                "Saved with the settings file.");
             c.DefRemove = uibutton(dg, "Text", "−", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.removeDefinition(string(B.Ctl.DefList.Value))), ...
                 "Tooltip", "Drop the definition shown from the list (the settings stay).");
             c.DefNote = uilabel(dg, "Text", "", "FontColor", B.TextColor);
@@ -1890,7 +1931,8 @@ classdef DatasetBrowser < handle
             shown = ismember(B.DefinitionName, names);
             c.DefNote.Text = ternary(shown && ~ismember(B.DefinitionName, match), "changed", "");
             c.DefNote.Tooltip = ternary(c.DefNote.Text == "", "", ...
-                "The settings' event, window or trials differ from """ + B.DefinitionName + """: + keeps them under that name.");
+                "The settings' event, window or trials differ from """ + B.DefinitionName + """: + adds them as a new definition " + ...
+                "(type this name, then +, to replace it).");
             B.applyEnable();
         end
 
@@ -2141,6 +2183,7 @@ classdef DatasetBrowser < handle
             %onDefinitionPick  A name picked from the drop-down is applied; a typed one waits for + (it may be new).
             name = strtrim(string(evt.Value));
             B.DefinitionName = name;
+            B.DefinitionTyped = evt.Edited && name ~= "";
             if evt.Edited || ~ismember(name, string([B.Definitions.name]))
                 B.refreshDefinitions();
                 return
@@ -2152,6 +2195,15 @@ classdef DatasetBrowser < handle
                 B.refreshDefinitions();
                 B.setStatus("Not applied: " + string(ME.message), true);
             end
+        end
+
+        function onDefinitionAdd(B)
+            %onDefinitionAdd  The + button: a new definition, or the settings under a name typed in the box.
+            %   The name of a definition picked (or followed) is not reused,
+            %   so + after changing the settings adds one beside it.
+            name = strtrim(string(B.Ctl.DefList.Value));
+            if ~B.DefinitionTyped && ismember(name, string([B.Definitions.name])); name = ""; end
+            B.addDefinition(name);
         end
 
         function tf = isCurrent(B, d)
@@ -2339,6 +2391,7 @@ classdef DatasetBrowser < handle
             if isfield(s, 'definitions')
                 B.Definitions = checkDefinitions(s.definitions, file);
                 B.DefinitionName = "";
+                B.DefinitionTyped = false;
                 if isfield(s, 'definitionName'); B.DefinitionName = string(s.definitionName); end
             end
             if isfield(L, 'runs')
@@ -2771,6 +2824,22 @@ classdef DatasetBrowser < handle
             uialert(B.Fig, AlignControls.filterHelpText(src), "Trial filter", "Icon", "info");
         end
 
+        function openHelp(B, page)
+            %openHelp  Open a wiki page ("" = the front page) in the system browser.
+            url = DatasetBrowser.WikiURL;
+            if page ~= ""; url = url + "/" + page; end
+            if web(url, "-browser") ~= 0
+                uialert(B.Fig, "Could not open a web browser. The page is at:" + newline + url, "Help");
+                return
+            end
+            B.setStatus("Opened " + url + " in the browser.");
+        end
+
+        function about(B)
+            %about  The About dialog (showAbout) with aboutText.
+            showAbout(B.Fig, "DatasetBrowser", B.aboutText());
+        end
+
         function refreshEpochs(B)
             %refreshEpochs  Redraw the Epoch Diagram window, when open, with the settings and the lists' dataset.
             d = B.EpochWindow;
@@ -2871,6 +2940,17 @@ classdef DatasetBrowser < handle
     end
 
     methods (Static, Access = private)
+        function s = lastCommit(folder, file)
+            %lastCommit  "hash date subject" of the last commit that touched FILE (under FOLDER); "unknown" when git cannot tell.
+            s = "unknown";
+            try
+                [st, out] = system(sprintf('git -C "%s" log -1 --format="%%h %%cs %%s" -- "%s"', folder, file));
+                out = strtrim(string(out));
+                if st == 0 && out ~= "" && ~contains(out, newline); s = out; end
+            catch
+            end
+        end
+
         function D = emptyDatasets()
             D = table(strings(0, 1), strings(0, 1), strings(0, 1), NaT(0, 1), zeros(0, 1), strings(0, 1), cell(0, 1), ...
                 false(0, 1), false(0, 1), false(0, 1), strings(0, 1), strings(0, 1), 'VariableNames', ...

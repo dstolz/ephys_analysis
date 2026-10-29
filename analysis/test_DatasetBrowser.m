@@ -97,6 +97,20 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
     end
 
     methods (Test)
+        function helpMenuAndAbout(tc)
+            B = tc.open(Scan=false);
+            help = findobj(B.Fig.Children, "flat", "Type", "uimenu", "Text", "Help");
+            tc.verifyNotEmpty(help, 'A Help menu.');
+            tc.verifyEqual(flip(string({help.Children.Text})), ...
+                ["Help for DatasetBrowser" "Documentation home" "About DatasetBrowser"]);
+            tc.verifyEqual(DatasetBrowser.WikiURL, "https://github.com/dstolz/ephys_analysis/wiki");
+            L = B.aboutText();
+            txt = join(L, newline);
+            tc.verifyTrue(contains(txt, "Describe: ") && contains(txt, "Last commit of analysis/DatasetBrowser.m: ") ...
+                && contains(txt, "Result file: dataset-browser-results v" + DatasetBrowser.Version) ...
+                && contains(txt, "Cache (DatasetRuns): v" + DatasetRuns.Version) && contains(txt, "Root: " + B.Root), txt);
+        end
+
         function scanLoadsNoSource(tc)
             B = tc.open();
             tc.verifyNotEmpty(B.Runner);
@@ -411,11 +425,18 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
                 selection=trialSelection(response="Hit"));
             B.Settings = hit;
             tc.verifyEqual(string(c.DefNote.Text), "changed", 'The settings differ from the definition shown.');
-            B.addDefinition();
-            B.addDefinition();
-            tc.verifyEqual([B.Definitions.name], ["StimOnset_AllTrials" "StimOffset_Hit" "StimOffset_Hit_1"]);
+            % + after a change adds beside the one shown, not over it; settings already kept add nothing
+            c.DefAdd.ButtonPushedFcn(c.DefAdd, []);
+            tc.verifyEqual([B.Definitions.name], ["StimOnset_AllTrials" "StimOffset_Hit"]);
+            tc.verifyEqual(B.Definitions(1).ref, tc.Spike.ref, 'The first definition is not overwritten.');
+            c.DefAdd.ButtonPushedFcn(c.DefAdd, []);
+            tc.verifyEqual([B.Definitions.name], ["StimOnset_AllTrials" "StimOffset_Hit"], 'Already kept: nothing added.');
+            B.Settings = epochMatrixSettings(hit, window=epochWindow(pre=-0.2, post=1));
+            c.DefAdd.ButtonPushedFcn(c.DefAdd, []);
+            tc.verifyEqual([B.Definitions.name], ["StimOnset_AllTrials" "StimOffset_Hit" "StimOffset_Hit_1"], 'Numbered when taken.');
             B.removeDefinition("StimOffset_Hit_1");
             tc.verifyEqual([B.Definitions.name], ["StimOnset_AllTrials" "StimOffset_Hit"]);
+            B.Settings = hit;
             % a pick puts its event, window and trials in the settings; the rest stays
             B.Settings = epochMatrixSettings(B.Settings, binSec=0.02);
             pick("StimOnset_AllTrials", false);
@@ -431,6 +452,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEqual([B.Definitions.name], ["StimOnset_AllTrials" "StimOffset_Hit" "mine"]);
             B.Settings = epochMatrixSettings(B.Settings, window=epochWindow(pre=-0.3, post=0.3));
             tc.verifyEqual([string(c.DefList.Value) string(c.DefNote.Text)], ["mine" "changed"]);
+            pick("mine", true);   % the shown name typed: + replaces it
             c.DefAdd.ButtonPushedFcn(c.DefAdd, []);
             tc.verifyEqual(numel(B.Definitions), 3, 'Replaced, not added.');
             tc.verifyEqual(B.Definitions(3).window.pre, -0.3);

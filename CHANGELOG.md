@@ -10,6 +10,9 @@ says how to cut a release.
 
 ### Added
 
+- Dataset browser: a **Help** menu with the wiki page, the documentation home and **About DatasetBrowser** (the
+  version and git commit of the code, the last commits of the browser's files, the result file's and the cache's
+  versions, what is loaded; `B.aboutText()`). `showAbout` takes optional detail lines.
 - Dataset browser: **File > Export compute script...** (`B.exportScript(file)`) writes the least code that computes
   the current settings on the ticked datasets without the window or the browser: an `EphysAnalysisConfig` with the
   ticked keys, `epochMatrixSettings` with only the settings that differ from the defaults (the trials are its

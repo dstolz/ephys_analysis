@@ -296,12 +296,14 @@ datasets, set the options, compute) become
 
 ```matlab
 B = DatasetBrowser(root, Settings="ofc_hit_depth.json");
-B.wait();          % tick, adjust, Compute, close the window
+B.wait();          % tick, adjust, Compute
 R = B.Result;
 ```
 
-`wait` blocks until the window is closed or `B.done()` is called (it returns
-at once when the window is hidden or closed; `Timeout=` limits the wait).
+`wait` blocks until a **Compute** from the window finishes (and the
+post-processing script, when ticked, has run), `B.done()` is called, or the
+window is closed (it returns at once when the window is hidden or closed;
+`Timeout=` limits the wait). The window stays open after Compute.
 `R` is [the result](#the-result). Closing the window keeps the object:
 `Result`, `compute` and `forEach` still work.
 
@@ -314,7 +316,7 @@ window has just opened) and the window stays open for later changes:
 
 ```matlab
 B = DatasetBrowser.open(root, NamePattern=namePattern);
-if isempty(B.Result), B.wait(); end   % nothing computed yet: tick, Compute, close the window
+if isempty(B.Result), B.wait(); end   % nothing computed yet: tick, Compute
 R = B.Result;
 ```
 

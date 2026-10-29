@@ -10,7 +10,7 @@ classdef DatasetBrowser < handle
     %   result through the handle:
     %
     %     B = DatasetBrowser(root, Settings="ofc_hit_depth.json");
-    %     B.wait();          % tick, adjust, Compute, close the window
+    %     B.wait();          % tick, adjust, Compute
     %     R = B.Result;      % R.data, R.rows, R.t, R.groupLabels, R.settings
     %
     %   Or it goes on with the result it has and leaves the window open for
@@ -1209,7 +1209,7 @@ classdef DatasetBrowser < handle
 
         % --- the window ----------------------------------------------------------------------------
         function wait(B, opts)
-            %wait  Block until done() is called or the window closes (returns at once when hidden or closed).
+            %wait  Block until a Compute from the window finishes, done() is called or the window closes (returns at once when hidden or closed).
             arguments
                 B
                 opts.Timeout (1,1) double {mustBePositive} = Inf
@@ -1224,7 +1224,7 @@ classdef DatasetBrowser < handle
         end
 
         function done(B)
-            %done  The state is saved (when it changed) and wait returns; the window stays.
+            %done  Let wait return (a Compute from the window calls it): the state is saved (when it changed) and wait returns; the window stays.
             B.DoneFlag = true;
             B.saveIfChanged();
             B.changed("done");
@@ -1435,7 +1435,7 @@ classdef DatasetBrowser < handle
                 "signal epochs are large and go into the result file.");
 
             r = uigridlayout(R, [1 2], "ColumnWidth", {'1x', '1x'}, "RowHeight", {34}, "Padding", [0 0 0 0]);
-            c.Compute = uibutton(r, "Text", "Compute", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.compute(RunScript=B.AfterS)), ...
+            c.Compute = uibutton(r, "Text", "Compute", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.onCompute()), ...
                 "Tooltip", "Compute the ticked datasets (those already computed with these settings are reused); " + ...
                 "then the post-processing script, when ticked below.");
             c.Rasters = uibutton(r, "Text", "Trial rasters", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.showRasters()), ...
@@ -1773,6 +1773,12 @@ classdef DatasetBrowser < handle
                     B.setStatus(string(ME.message), true);
                 end
             end
+        end
+
+        function onCompute(B)
+            %onCompute  The Compute button: compute (and run the script), then let wait return; the window stays.
+            B.compute(RunScript=B.AfterS);
+            B.done();
         end
 
         function onWorkers(B, n)

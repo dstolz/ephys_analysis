@@ -929,6 +929,16 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyLessThan(toc(t0), 30, 'Done ends the wait.');
             tc.verifyTrue(seen.isKey('done'));
             tc.verifyTrue(isvalid(V.Fig), 'Done keeps the window.');
+            % the Compute button ends the wait once the result is there
+            W = tc.open(Visible=true, Settings=tc.Spike, Workers=0);
+            t2 = timer('StartDelay', 1, 'TimerFcn', @(~, ~) W.Ctl.Compute.ButtonPushedFcn(W.Ctl.Compute, []));
+            tc.addTeardown(@() delete(t2));
+            start(t2);
+            t0 = tic;
+            W.wait(Timeout=120);
+            tc.verifyLessThan(toc(t0), 110, 'Compute ends the wait.');
+            tc.verifyNotEmpty(W.Result, 'The result is there when wait returns.');
+            tc.verifyTrue(isvalid(W.Fig), 'Compute keeps the window.');
         end
 
         function openFindsTheOpenWindow(tc)

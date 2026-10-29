@@ -70,6 +70,7 @@ ctx = [];
 if isappdata(P, PlotAesthetics.ContextKey); ctx = getappdata(P, PlotAesthetics.ContextKey); end
 if (isstruct(ctx) && isfield(ctx, 'id') && string(ctx.id) ~= fig.id) || ~isappdata(P, 'FigureLayout'); return; end   % another figure's drawing
 L = getappdata(P, 'FigureLayout');
+if ~isstruct(L) || ~isfield(L, 'panels'); return; end   % a page laid out its own way (a probe figure's): no panel to outline
 id = fig.panels(j).id;
 for q = reshape(L.panels, 1, [])
     if isempty(q.axes) || ~all(isgraphics(q.axes)); continue; end
@@ -86,6 +87,7 @@ function followAxes(obj, P)
 A = gobjects(1, 0);
 if isappdata(P, 'FigureLayout')
     L = getappdata(P, 'FigureLayout');
+    if ~isstruct(L) || ~isfield(L, 'panels'); L = struct('panels', []); end   % a probe page: nothing to follow
     for q = reshape(L.panels, 1, [])
         A = [A reshape(q.axes(isgraphics(q.axes)), 1, [])]; %#ok<AGROW>
     end

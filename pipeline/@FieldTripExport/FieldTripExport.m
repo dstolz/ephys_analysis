@@ -370,12 +370,27 @@ classdef FieldTripExport
 
         function data = withElec(data, pos)
             %withElec  data.elec from [nChan x 2|3] um positions, when all are finite.
+            %   2-D positions (the probe's plane) are centered on the probe
+            %   (x and y minus their midrange) and get z = rho/tan(rho/R),
+            %   rho = hypot(x, y), R = 100*max(rho): the points FieldTrip's
+            %   default polar projection (ft_prepare_layout, so ft_multiplotER
+            %   without cfg.layout) puts at exactly (x, y)/R, around the
+            %   center it scales the layout about. At z = 0 every site
+            %   projected onto one circle. z stays within max(rho)/300 of R,
+            %   so distances between sites barely change.
             if isempty(pos) || ~all(isfinite(pos), 'all'); return; end
             if size(pos, 1) ~= numel(data.label) || ~ismember(size(pos, 2), [2 3])
                 error('FieldTripExport:BadPositions', 'Positions must be [%d x 2] or [%d x 3].', ...
                     numel(data.label), numel(data.label));
             end
-            if size(pos, 2) == 2; pos(:, 3) = 0; end
+            if size(pos, 2) == 2
+                pos = pos - (min(pos, [], 1) + max(pos, [], 1)) / 2;
+                rho = hypot(pos(:, 1), pos(:, 2));
+                R = 100 * max([rho; 1]);
+                z = rho ./ tan(rho / R);
+                z(rho == 0) = R;
+                pos(:, 3) = z;
+            end
             data.elec = struct('label', {data.label}, 'elecpos', pos, 'chanpos', pos, 'unit', 'um');
         end
 

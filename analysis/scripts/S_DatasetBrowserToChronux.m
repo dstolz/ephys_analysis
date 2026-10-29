@@ -17,7 +17,8 @@
 %        spikes: sp, every unit over the whole session, and trials{u}, each
 %          unit cut into one Chronux trial per kept trial
 %
-% Either part runs when its data is there. The cutting and the params come
+% Either part runs when its data is there; the last section plots one unit's
+% spectrogram with mtspecgrampt when there are spikes and Chronux is on the path. The cutting and the params come
 % from ChronuxDataset; Chronux itself is needed only for the analysis.
 % Every struct carries params (Chronux's params, trialave = 1: Chronux averages
 % the trials) and t, the time grid to pass along (mtspectrumpt(sp, params, 0, t)).
@@ -192,3 +193,66 @@ if outDir ~= ""
         save(fullfile(outDir, c.name + "_chronux.mat"), '-struct', 'c', '-v7.3');
     end
 end
+
+%% Example plot: one unit's spike spectrogram, a tile per group (mtspecgrampt)
+% The busiest unit of the first dataset with spikes: from its epochs when there
+% are any, else from a whole session's trials. The spike stamps start at 0 at
+% the window's start, so c.window(1) moves the times back to the event.
+% mtspecgrampt places its windows from the first to the last spike of the
+% trials it is given, not over the whole window, so a group's image may start
+% late or end early.
+movingwin = [0.25 0.025];   % [window step] s; the half-bandwidth is tapers(1) / movingwin(1) Hz
+plotFpass = [0 100];        % Hz shown
+src = {};
+if ~isempty(cxEpochs) && isfield(cxEpochs{1}, 'sp')
+    src = cxEpochs;
+elseif ~isempty(cxSessions)
+    src = cxSessions(cellfun(@(c) isfield(c, 'trials') && iscell(c.trials), cxSessions));
+end
+
+
+fig = figure('Name', "Spike spectrogram " + c.labels(u), 'Color', 'w');
+tl = tiledlayout(fig, 'flow', 'TileSpacing', 'compact');
+
+for si = 1:length(src)
+    c = src{si};
+    if iscell(c.sp)
+        trains = c.sp; p = c.params;            % epochs
+    else
+        trains = c.trials; p = c.trialParams;   % a session's trials
+    end
+    [~, u] = max(cellfun(@(tr) numel(vertcat(tr.times)), trains));
+    p.fpass = [plotFpass(1) min(plotFpass(2), p.Fs / 2)];
+    p.err = 0;
+
+    axs = gobjects(0); clims = [Inf -Inf];
+    for g = unique(c.group(c.group > 0)).'
+        if istable(c.groupLabels); gl = string(c.groupLabels.label(g)); else; gl = string(c.groupLabels(g)); end
+        tr = trains{u}(c.group == g);
+        ax = nexttile(tl);
+        allT = vertcat(tr.times);
+        if numel(allT) < 2 || max(allT) - min(allT) < movingwin(1)
+            text(ax, 0.5, 0.5, 'too few spikes', 'Units', 'normalized', 'HorizontalAlignment', 'center');
+        else
+            [Sg, tn, f] = mtspecgrampt(tr, movingwin, p, 1);   % trials averaged (trialave = 1)
+            img = 10 * log10(Sg).';                             % [nFreq x nTime], dB
+            imagesc(ax, tn + c.window(1), f, img);
+        end
+        title(ax, sprintf('%s (%d trials)', gl, numel(tr)), 'Interpreter', 'none');   % after imagesc, which resets the axes
+        if numel(allT) < 2 || max(allT) - min(allT) < movingwin(1), continue, end
+        axis(ax, 'xy');
+        xlim(ax, c.window);
+        xline(ax, 0, 'w', LineWidth=1);
+        axs(end+1) = ax; %#ok<SAGROW>
+        clims = [min(clims(1), min(img(isfinite(img)))), max(clims(2), max(img(isfinite(img))))];
+    end
+end
+
+if ~isempty(axs)
+    set(axs, 'CLim', clims);                            % one color scale for every group
+    cb = colorbar(axs(end));
+    cb.Layout.Tile = 'east';
+    cb.Label.String = '10 log_{10} S';
+end
+xlabel(tl, 'Time from the event (s)');
+ylabel(tl, 'Frequency (Hz)');

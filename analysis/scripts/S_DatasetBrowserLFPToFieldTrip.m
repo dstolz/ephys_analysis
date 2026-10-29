@@ -16,9 +16,20 @@
 % and AUX. The general builders behind both are FieldTripExport.epochs,
 % .continuous and .trl, for any signal matrix.
 
+if ~exist('B', 'var') || ~isa(B, 'DatasetBrowser')
+    error('B is not a DatasetBrowser: run this from the browser (Post-processing script), or set B = DatasetBrowser.open(root) first.');
+end
+outDir = "";                    % a folder to save <dataset>_fieldtrip_*.mat in; "" keeps them in the workspace only
+fieldTripPath = 'c:\src\fieldtrip\';   % added when FieldTrip is not on the path
+
 %% 1. Epochs (R.epochs): a trial per epoch, trialinfo = [group in R.groupLabels, trial]
 R = B.Result;
 ftEpochs = {};
+if ~isempty(R) && R.rowKind == "channel" && isfield(R, 'epochs') && ~isempty(R.epochs)
+    ftEpochs = epochMatrixFieldTrip(R);
+    fprintf('ftEpochs: %d datasets, %d epochs, %s\n', numel(ftEpochs), ...
+        sum(cellfun(@(d) numel(d.trial), ftEpochs)), R.labels.description);
+end
 
 %% 2. Whole sessions (B.Sessions): one continuous trial, cfg.trl around TrialOnset
 S = B.Sessions;
@@ -30,9 +41,14 @@ if ~isempty(S)
     fprintf('ftSessions: %d datasets\n', numel(ftSessions));
 end
 
+if isempty(ftEpochs) && isempty(ftSessions)
+    error(['Nothing to convert: Compute a signal with "Keep single trials" ticked (B.Result.epochs), ' ...
+        'or "Load whole sessions" (B.Sessions).']);
+end
+
 %% Check and save
 if ~FieldTripExport.hasFieldTrip()
-    addpath('c:\src\fieldtrip\')
+    addpath(fieldTripPath)
     ft_defaults;
 end
 for d = [ftEpochs; ftSessions].'
@@ -40,22 +56,63 @@ for d = [ftEpochs; ftSessions].'
     if ~ok, fprintf('%s: %s\n', d{1}.cfg.name, msg), end
 end
 
-% With FieldTrip on the path:
-cfg = []; cfg.method = 'mtmfft'; cfg.taper = 'hanning'; cfg.foi = 1:100;
-cfg.trials = find(ftEpochs{1}.trialinfo(:, 1) == 1);   % the first group
-freq = ft_freqanalysis(cfg, ftEpochs{1});
+% With FieldTrip on the path, the spectrum of a dataset's epochs of the first group:
+if ~isempty(ftEpochs)
+    cfg = []; cfg.method = 'mtmfft'; cfg.taper = 'hanning'; cfg.foi = 1:100;
+    cfg.trials = find(ftEpochs{1}.trialinfo(:, 1) == 1);
+    freq = ft_freqanalysis(cfg, ftEpochs{1});
+end
 
 % and a session's trials, without those touching an erased period:
-D = ftSessions{1};
-cfg = []; cfg.trl = D.cfg.trl; trials = ft_redefinetrial(cfg, D);
-cfg = []; cfg.artfctdef = D.cfg.artfctdef; cfg.artfctdef.reject = 'complete';
-trials = ft_rejectartifact(cfg, trials);
+if ~isempty(ftSessions)
+    D = ftSessions{1};
+    cfg = []; cfg.trl = D.cfg.trl; trials = ft_redefinetrial(cfg, D);
+    cfg = []; cfg.artfctdef = D.cfg.artfctdef; cfg.artfctdef.reject = 'complete';
+    trials = ft_rejectartifact(cfg, trials);
+end
 
-for d = ftEpochs.'
-    data = d{1};
-    save(fullfile(outDir, d{1}.cfg.name + "_fieldtrip_epochs.mat"), 'data', '-v7.3');
+if outDir ~= ""
+    for d = ftEpochs.'
+        data = d{1};
+        save(fullfile(outDir, d{1}.cfg.name + "_fieldtrip_epochs.mat"), 'data', '-v7.3');
+    end
+    for d = ftSessions.'
+        data = d{1};
+        save(fullfile(outDir, d{1}.cfg.name + "_fieldtrip_session.mat"), 'data', '-v7.3');
+    end
 end
-for d = ftSessions.'
-    data = d{1};
-    save(fullfile(outDir, d{1}.cfg.name + "_fieldtrip_session.mat"), 'data', '-v7.3');
+
+%% A sample plot: the first dataset's evoked LFP per group and its spectrum
+% ft_timelockanalysis averages the epochs; ft_singleplotER averages the
+% channels (cfg.channel = 'all'); give it a channel label to see that one.
+if ~isempty(ftEpochs)
+    data = ftEpochs{1};
+    groups = unique(data.trialinfo(:, 1)).';
+    tl = cell(1, numel(groups));
+    for g = 1:numel(groups)
+        cfg = []; 
+        cfg.trials = find(data.trialinfo(:, 1) == groups(g));
+        tl{g} = ft_timelockanalysis(cfg, data);
+    end
+    groupNames = string(data.cfg.groupLabels(groups));
+    figure('Name', data.cfg.name + " (FieldTrip)");
+    subplot(2, 1, 1)
+    cfg = []; cfg.figure = 'gca'; cfg.interactive = 'no'; cfg.channel = 'all';
+    ft_singleplotER(cfg, tl{:});
+    xlabel('Time from event (s)'); ylabel("LFP (" + string(data.hdr.chanunit{1}) + ")")
+    title(data.cfg.name + ": mean of " + numel(data.label) + " channels", 'Interpreter', 'none')
+    legend(groupNames, 'Interpreter', 'none', 'Location', 'best')
+    subplot(2, 1, 2)
+    cfg = []; cfg.figure = 'gca'; cfg.interactive = 'no'; cfg.channel = 'all'; cfg.parameter = 'powspctrm';
+    ft_singleplotER(cfg, freq);
+    set(gca, 'YScale', 'log'); xlabel('Frequency (Hz)'); ylabel('Power')
+    title("Spectrum, " + groupNames(1) + " (mtmfft, Hanning)", 'Interpreter', 'none')
 end
+
+%%
+cfg = [];
+cfg.figure = 'gca';
+cfg.interactive = 'no';
+cfg.channel = 'all';
+cfg.parameter = 'avg';
+ft_multiplotER(cfg,tl{:})

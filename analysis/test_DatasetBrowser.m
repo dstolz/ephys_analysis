@@ -13,7 +13,11 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
     %   result file restores without a
     %   compute, and Scan=false; Keep each epoch (its own cached parts,
     %   R.epochs left out of the result file and assembled again from the
-    %   parts on a restore, a warning without them); forEach's cache and cancel; the progress
+    %   parts on a restore, a warning without them); the trial rasters
+    %   (raster: every row's spikes on their epochs, in group or time order,
+    %   counts that average to R.data; a signal's epochs that average to
+    %   R.data; the window follows the result and closes with the browser;
+    %   no result or no epochs raise); forEach's cache and cancel; the progress
     %   strip (bar widths, the "i/Total" prefix, Cancel and checkCancel, a
     %   full bar at the finish, the command window throttled when hidden);
     %   a compute canceled from the strip keeps its finished part, the
@@ -574,8 +578,87 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEqual(B4.Result.data, R.data);
         end
 
+        function trialRasters(tc)
+            S = epochMatrixSettings(tc.Spike, measure="count", keepEpochs=true);
+            B = tc.open(Settings=S);
+            tc.verifyTrue(B.Ctl.Rasters.Enable == "off", 'No result: Trial rasters is off.');
+            tc.verifyError(@() B.showRasters(), 'DatasetBrowser:NoResult');
+            tc.verifyError(@() B.raster(1), 'DatasetBrowser:NoResult');
+            R = B.compute();
+            tc.verifyTrue(B.Ctl.Rasters.Enable == "on");
+            % every row's raster: the spikes of its epochs, in group order; the counts average to R.data (measure count)
+            for row = 1:height(R.rows)
+                X = B.raster(row);
+                k = find(R.keys == R.rows.Dataset(row));
+                e = R.epochs(k);
+                i = find(e.rows == row);
+                tc.verifyEqual([X.row X.key X.label], [row R.keys(k) string(R.rows.label(row))]);
+                tc.verifyEqual(sort(X.E.epochRow), (1:height(e.E)).');
+                tc.verifyTrue(issorted(X.E.resultGroup), 'By group: the groups in order.');
+                tc.verifyEqual(X.nPerGroup, arrayfun(@(g) nnz(e.E.resultGroup == g), (1:numel(R.groupLabels)).'));
+                tc.verifyEqual(X.times, double(e.spikes(i).times(:)));
+                tc.verifyEqual(X.E.epochRow(X.trial), double(e.spikes(i).epoch(:)), 'Each spike on its own epoch''s line.');
+                tc.verifySize(X.counts, [height(X.E) numel(R.t)]);
+                for g = 1:numel(R.groupLabels)
+                    in = X.E.resultGroup == g;
+                    if ~any(in); continue; end
+                    tc.verifyEqual(mean(X.counts(in, :), 1), R.data(row, :, g), 'AbsTol', 1e-9);
+                end
+                tc.verifyEmpty(X.data);
+            end
+            Xt = B.raster(1, Order="time");
+            tc.verifyTrue(issorted(Xt.E.t0), 'By time: the epochs in time order.');
+            tc.verifyEqual(sort(Xt.times), sort(B.raster(1).times));
+
+            % the window: a row, the next one, the order; it follows the result
+            B.showRasters(2);
+            w = B.RasterWindow;
+            tc.verifyTrue(~isempty(w) && w.isOpen(), 'Trial rasters opens the window.');
+            tc.verifyEqual(string(w.Fig.Name), "Trial rasters");
+            tc.verifyEqual(w.Row, 2);
+            tc.verifyEqual(w.Raster, B.raster(2));
+            tc.verifyEqual(w.Message, "");
+            w.step(1);
+            tc.verifyEqual(w.Row, min(3, height(R.rows)));
+            w.setOrder("time");
+            tc.verifyEqual(w.Raster, B.raster(w.Row, Order="time"));
+            w.setOrder("group");
+            r0 = w.Row;
+            B.formEdit("Normalize", "zscore");   % the result normalized again: redrawn, its row kept
+            tc.verifyEqual(w.Row, r0);
+            tc.verifyEqual(w.Result.normalization.method, "zscore");
+            B.formEdit("Normalize", "none");
+
+            % a signal: each epoch's trace, whose group mean is R.data
+            setSettings(B, epochMatrixSettings(B.Settings, data="LFP"));
+            R2 = B.compute();
+            X = B.raster(1);
+            tc.verifyEqual(X.rowKind, "channel");
+            tc.verifySize(X.data, [height(X.E) numel(R2.t)]);
+            tc.verifyEmpty(X.times);
+            tc.verifyEmpty(X.counts);
+            for g = 1:numel(R2.groupLabels)
+                in = X.E.resultGroup == g;
+                if ~any(in); continue; end
+                m = R2.data(1, :, g);
+                tc.verifyEqual(double(mean(X.data(in, :), 1)), m, 'AbsTol', 1e-4 * max(1, max(abs(m))));
+            end
+            tc.verifyEqual(w.Raster, B.raster(w.Row), 'The window follows the new result.');
+
+            % a result without epochs: said in the window and by the methods
+            B.formEdit("KeepEpochs", false);
+            B.compute();
+            tc.verifyEmpty(w.Raster);
+            tc.verifyTrue(contains(w.Message, "keeps no epochs"), w.Message);
+            tc.verifyError(@() B.showRasters(), 'epochMatrixRaster:NoEpochs');
+            tc.verifyError(@() B.raster(1), 'epochMatrixRaster:NoEpochs');
+            tc.verifyError(@() epochMatrixRaster(R, height(R.rows) + 1), 'epochMatrixRaster:BadRow');
+            delete(B);
+            tc.verifyFalse(isvalid(w) && w.isOpen(), 'It closes with the browser.');
+        end
+
         function forEachCachesAndCancels(tc)
-            B = tc.open();
+            B = tc.open(Workers=0);   % here: a pool left open by another suite would run FN on copies of B, which cannot cancel
             fn = @(src, info) string(info.name) + ":" + numel(fieldnames(src.events));
             [v, T] = B.forEach(fn, Name="probe");
             tc.verifyEqual(T.status, ["done"; "done"]);
@@ -632,7 +715,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
         end
 
         function computeOnTheStrip(tc)
-            B = tc.open(Settings=tc.Spike);
+            B = tc.open(Settings=tc.Spike, Workers=0);   % here, one dataset after the other, whatever pool another suite left open
             seen = containers.Map();
             B.ProgressHook = @(b, f, m) cancelAtSecond(b, f, seen);
             tc.verifyError(@() B.compute(), 'epochMatrix:Canceled');

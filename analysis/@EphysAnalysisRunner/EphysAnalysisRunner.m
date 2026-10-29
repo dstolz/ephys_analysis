@@ -40,7 +40,8 @@ classdef EphysAnalysisRunner < handle
     %                   j/n], its figures share it). cancel() makes the next
     %                   call throw EphysAnalysisRunner:Canceled
     %     PollFcn       PollFcn() called at computeFigure's checkpoints
-    %                   (between its panels and inside the long ones); the
+    %                   (between its panels and inside the long ones;
+    %                   computeProbeFigure's between its tiles too); the
     %                   app's preview sets it to let a Cancel button act
     %                   while a figure computes. cancel() then makes the
     %                   next checkpoint throw EphysAnalysisRunner:Canceled.
@@ -94,6 +95,14 @@ classdef EphysAnalysisRunner < handle
     %   Export.Data.Enabled, writes its data file); run does it after the
     %   datasets.
     %
+    %   Probe figures (a figure whose probe.enabled is true) are drawn per
+    %   dataset, one page each: figureProbeTiles picks the units or
+    %   channels with a site on the probe, computeProbeFigure computes the
+    %   whole figure for each of them, a tile each (figureProbeCompute:
+    %   figureCompute per tile, the steps they share computed once), and
+    %   runDataset draws the page (renderFigure dispatches to
+    %   renderProbeFigure), exports it and reports it.
+    %
     %   See also EphysAnalysisConfig, EphysAnalysisScript, EphysAnalysisApp.
 
     properties
@@ -141,6 +150,7 @@ classdef EphysAnalysisRunner < handle
         src = source(obj, k)
         T = plan(obj, opts)
         F = computeFigure(obj, src, spec, opts)
+        PF = computeProbeFigure(obj, src, spec, opts)
         rows = runDataset(obj, k, opts)
         T = run(obj, opts)
         cancel(obj)

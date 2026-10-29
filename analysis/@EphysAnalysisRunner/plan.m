@@ -2,7 +2,8 @@ function T = plan(obj, opts)
 %plan  Which figure runs on which dataset, and why one is skipped.
 %   T = r.plan() has one row per dataset and figure (Config.Figures):
 %   Dataset, Plot (the figure's id), Kind ("figure"), Source what it is
-%   drawn for (the observe kind: "unit", "channel" or "dataset"), Enabled
+%   drawn for (the observe kind: "unit", "channel" or "dataset"; "probe"
+%   for a probe figure, one page of tiles per dataset), Enabled
 %   (it will run) and Reason (why not: from figureSkipReason -- no units,
 %   detections or extract to observe, a missing line or parameter -- or a
 %   dataset that cannot be read). Reading each dataset's source is cheap
@@ -59,6 +60,7 @@ for i = idx
         r = r + 1;
         spec = cfg.figureFor(id);
         Dataset(r, 1) = obj.Names(i); Plot(r, 1) = id; Kind(r, 1) = "figure"; Source(r, 1) = spec.observe.kind;
+        if spec.probe.enabled; Source(r, 1) = "probe"; end   % every unit or channel a tile, one page
         if err ~= ""
             Reason(r, 1) = err;
         else

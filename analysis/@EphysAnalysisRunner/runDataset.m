@@ -59,12 +59,28 @@ function rows = runDataset(obj, k, opts)
 %   Observation= (a struct: kind, data, unitId, channel, label; default
 %   [] = every observation) draws each figure only for the rows that
 %   match it (figureObservations' Observation=): the unit picked, or what
-%   is on its channel; a figure of the dataset draws the dataset. A
+%   is on its channel; a figure of the dataset draws the dataset, and a
+%   probe figure the probe, whatever is picked. A
 %   figure with no match is "skipped", the reason (e.g. "no LFP channel on
 %   channel 12 (...)") its message.
 %
+%   A probe figure (spec.probe.enabled) is one page per dataset, every
+%   observation a tile on it:
+%     T = figureProbeTiles(src, spec)        (none: skipped, "no
+%         observation with a probe position")
+%     PF = r.computeProbeFigure(src, spec)   (progress before each tile:
+%         "<name>: <id> tile <i>/<n>"; cancel() stops between them)
+%     out = drawExportPage(PF, spec, Base=<folder>/<figureOutputName(...,
+%         OBS, 1, 1)>, ...)   (OBS of kind "probe": {Unit} "probe"; drawn
+%         here, never on the workers: one page)
+%     report = addReportFigure(report, spec, PF, ..., Observations=T,
+%         Caption=figureCaption(spec, T, Dataset=name))
+%   one Results row, Message "<n> tile(s)", and Export.Overwrite as for an
+%   observation's page. It has no "batch" range (its panels share y
+%   across its tiles: probe.sharedY) and ignores observe.perGroup.
+%
 %   See also EphysAnalysisRunner.run, EphysAnalysisRunner.computeFigure,
-%   renderFigure, figureOutputName.
+%   EphysAnalysisRunner.computeProbeFigure, renderFigure, figureOutputName.
 
 arguments
     obj (1,1) EphysAnalysisRunner
@@ -109,7 +125,11 @@ for jf = 1:numel(fids)
     try
         reason = figureSkipReason(src, spec);
         T = [];
-        if reason == ""
+        onProbe = spec.probe.enabled;   % a probe figure: one page, every tile on it (whatever Observation= picks)
+        if reason == "" && onProbe
+            T = figureProbeTiles(src, spec);
+            if height(T) == 0; reason = "no observation with a probe position"; end
+        elseif reason == ""
             [T, why] = figureObservations(src, spec, Observation=opts.Observation);
             if height(T) == 0 && why ~= ""; reason = why; end   % Observation= matched nothing: why
             if height(T) == 0 && reason == "" && spec.observe.starred && ~isstruct(opts.Observation)
@@ -123,6 +143,11 @@ for jf = 1:numel(fids)
             if opts.Report
                 obj.Report = addReportFigure(obj.Report, rspec, [], Status="skipped", Message=reason);
             end
+            continue
+        end
+        if onProbe
+            probePage(obj, src, spec, rspec, T, name, folder, opts, withImages, withPages, ...
+                opts.Span(1) + diff(opts.Span) * at / nAll, diff(opts.Span) / nAll, t0);
             continue
         end
         nObs = height(T);
@@ -215,6 +240,53 @@ function cancelPages(jobs)
 for j = 1:numel(jobs)
     if ~isempty(jobs{j}.future); cancel(jobs{j}.future); end
 end
+end
+
+
+function probePage(obj, src, spec, rspec, T, name, folder, opts, withImages, withPages, from, span, t0)
+%probePage  A probe figure on one dataset: its tiles computed (computeProbeFigure), one page drawn, exported, reported.
+%   FROM and SPAN: the figure's share of the run's progress, the tiles
+%   dividing it. The page is drawn here (drawExportPage through
+%   submitPage), never on the workers: it is one page. With
+%   Export.Overwrite off and its files on disk it is neither computed nor
+%   drawn again unless the report needs it. A Results row: "done",
+%   "<n> tile(s)".
+X = obj.Config.Export;
+nT = height(T);
+obsP = struct('kind', "probe", 'label', "probe", 'unitId', NaN, 'channel', NaN, 'column', NaN, 'meta', [], 'groupLabel', "");
+base = fullfile(folder, figureOutputName(X.FilenamePattern, name, spec, obsP, 1, 1));
+want = base + "." + X.Formats;
+kept = opts.Export && ~X.Overwrite && all(isfile(want));   % its files exist: not written again
+draws = opts.Export || withImages || withPages;
+files = string.empty(1, 0);
+images = cell(1, 0);
+pages = strings(1, 0);
+PF = [];
+if kept && ~withImages && ~withPages   % ... nor computed, unless the report needs the page
+    files = want;
+else
+    obj.progress(from, sprintf("%s: %s (%d tile(s))", name, spec.id, nT));
+    PF = obj.computeProbeFigure(src, spec, ProgressFcn=@(i, n, ~) obj.progress(from + span * (i - 1) / max(n, 1), ...
+        sprintf("%s: %s tile %d/%d", name, spec.id, i, n)));   % cancel() stops between the tiles
+    if draws
+        page = struct('Export', X, 'Base', "", 'Formats', X.Formats, 'Dpi', X.Dpi, 'Kept', string.empty(1, 0), ...
+            'BatchYLim', [], 'Images', withImages, 'Pages', withPages);
+        if opts.Export && ~kept; page.Base = base; end
+        if kept; page.Kept = want; end
+        job = obj.submitPage(PF, spec, false, page);
+        out = obj.pageOutput(job, from + span, sprintf("%s: %s drawing the page", name, spec.id));
+        files = [page.Kept out.files];
+        if ~isempty(out.image); images{end+1} = out.image; end
+        if out.page ~= ""; pages(end+1) = out.page; end
+    end
+end
+if opts.Report
+    if isempty(PF); PF = struct('kind', "probeFigure"); end
+    obj.Report = addReportFigure(obj.Report, rspec, PF, Files=files, Images=images, Pages=pages, Observations=T, ...
+        Caption=figureCaption(spec, T, Dataset=name));
+end
+obj.Results(end+1, :) = {name, spec.id, "figure", "done", sprintf("%d tile(s)", nT), strjoin(files, "; "), toc(t0)};
+obj.log("%s: %s done (%d tile(s), %d file(s), %.1f s)", name, spec.id, nT, numel(files), toc(t0));
 end
 
 

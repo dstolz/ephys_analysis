@@ -25,7 +25,8 @@ function issues = validate(obj, opts)
 %               no layer following a "dataset" observation, a
 %               warning when a unit / channel observation has no
 %               following layer, a warning for perGroup while the figure's
-%               selection groups by nothing; size: source and units, an own
+%               selection groups by nothing (not on a session or probe
+%               figure, which ignore it); size: source and units, an own
 %               width and height above 0; grid: whole rows and cols >= 1,
 %               rowHeights / colWidths [] or one positive size each,
 %               spacing, gapUnits, rowGap / colGap >= 0, rowGaps / colGaps
@@ -136,7 +137,18 @@ function issues = validate(obj, opts)
 %               without keys; showMembers with series "session";
 %               trialGroups "pool" while the selection groups trials;
 %               "combine" with a PSTH panel drawn as bars (drawn as
-%               lines); a heat map of trials (not merged: skipped)
+%               lines); a heat map of trials (not merged: skipped); probe
+%               (a probe figure, "<figure>.probe.<field>"): layout
+%               (ProbeLayouts), overlap (ProbeOverlaps) and labels
+%               (ProbeTileLabels) known values, lanes, maxTiles and
+%               maxPerSite whole numbers >= 1, tileWidth and tileHeight in
+%               (0, 1], tileScale finite and > 0, shanks and channels
+%               whole numbers (channels >= 1; [] = all), depthRange [] or
+%               [lo hi] with lo < hi; with probe.enabled not also
+%               sessions.enabled and not a dataset observation (errors at
+%               probe.enabled). Warnings: perGroup on a probe figure
+%               (ignored), a probe map panel or a waveforms panel in the
+%               probe layout (a probe drawn inside each tile)
 %     Export   formats are png / eps / svg / pdf; Dpi, FigureSizeCm; the
 %               folder and file-name patterns use known tokens; a warning
 %               when the files of two enabled figures, or of two datasets,
@@ -272,7 +284,8 @@ for k = 1:numel(obj.Figures)
     fs = fg.selection;
     if isequal(fs, "default"); fs = D.Selection; end
     checkFigureSessions(fg, k, kind, fs, f0);
-    if ob.perGroup && ~fg.sessions.enabled && (~isstruct(fs) || ~isfield(fs, 'groupBy') || isempty(fs.groupBy))   % a session figure ignores perGroup
+    checkFigureProbe(fg, kind, f0);
+    if ob.perGroup && ~fg.sessions.enabled && ~fg.probe.enabled && (~isstruct(fs) || ~isfield(fs, 'groupBy') || isempty(fs.groupBy))   % a session or probe figure ignores perGroup
         add("Figures", f0 + ".observe.perGroup", "warning", "perGroup draws each observation once per trial group, but the " + ...
             "figure's trial selection groups by nothing (groupBy): one figure per observation, as without it.");
     end
@@ -1514,6 +1527,70 @@ issues = table(Section, Field, Severity, Message);
             end
             if sxP.type == "heatmap" && isfield(sxO, 'rows') && sxO.rows == "trials"
                 add("Figures", sxP0 + ".rows", "warning", "A heat map of trials is not merged across sessions: the session figure skips it.");
+            end
+        end
+    end
+
+    function checkFigureProbe(fg, kind, f0)
+        %checkFigureProbe  A figure's probe block, and what a probe figure (probe.enabled) cannot be or hold.
+        %   KIND: the resolved observe kind ("" when unknown). The field is
+        %   "<figure>.probe.<field>"; the warnings name the field they are of.
+        px = fg.probe;
+        px0 = f0 + ".probe";
+        pxEnums = struct('layout', EphysAnalysisConfig.ProbeLayouts, 'overlap', EphysAnalysisConfig.ProbeOverlaps, ...
+            'labels', EphysAnalysisConfig.ProbeTileLabels);
+        for pxF = string(fieldnames(pxEnums)).'
+            if ~ismember(px.(pxF), pxEnums.(pxF))
+                add("Figures", px0 + "." + pxF, "error", "A probe figure's " + pxF + " is one of " + strjoin(pxEnums.(pxF), ", ") + ...
+                    ", not """ + px.(pxF) + """.");
+            end
+        end
+        for pxF = ["lanes" "maxTiles" "maxPerSite"]
+            if ~isWhole(px.(pxF))
+                add("Figures", px0 + "." + pxF, "error", "A probe figure's " + pxF + " is a whole number, at least 1.");
+            end
+        end
+        for pxF = ["tileWidth" "tileHeight"]
+            pxV = px.(pxF);
+            if ~(isscalar(pxV) && isfinite(pxV) && pxV > 0 && pxV <= 1)
+                add("Figures", px0 + "." + pxF, "error", "A probe figure's " + pxF + " is a share of its band or row: above 0, at most 1.");
+            end
+        end
+        if ~(isscalar(px.tileScale) && isfinite(px.tileScale) && px.tileScale > 0)
+            add("Figures", px0 + ".tileScale", "error", "A probe figure's tileScale is a finite number above 0.");
+        end
+        if ~isempty(px.shanks) && ~all(isfinite(px.shanks) & px.shanks == round(px.shanks))
+            add("Figures", px0 + ".shanks", "error", "The probe's shanks are kcoords shank numbers: whole numbers ([] = all).");
+        end
+        if ~isempty(px.channels) && ~all(arrayfun(isWhole, px.channels))
+            add("Figures", px0 + ".channels", "error", "The probe's channels are recording channels: whole numbers, at least 1 ([] = all).");
+        end
+        pxD = px.depthRange;
+        if ~isempty(pxD) && ~(numel(pxD) == 2 && all(isfinite(pxD)) && pxD(1) < pxD(2))
+            add("Figures", px0 + ".depthRange", "error", "The probe's depthRange is [] (all) or [lo hi] µm of probe y, lo < hi.");
+        end
+        if ~px.enabled; return; end
+        if fg.sessions.enabled
+            add("Figures", px0 + ".enabled", "error", "A figure is laid out on the probe or drawn across sessions, not both: " + ...
+                "untick probe.enabled or sessions.enabled.");
+        end
+        if kind == "dataset"
+            add("Figures", px0 + ".enabled", "error", "A probe figure lays out units or channels at their sites: observe units, " + ...
+                "detections or a signal's channels, not the dataset.");
+        end
+        if fg.observe.perGroup
+            add("Figures", f0 + ".observe.perGroup", "warning", "A probe figure draws each observation once, as its tile: " + ...
+                "perGroup is ignored.");
+        end
+        for pxK = 1:numel(fg.panels)
+            pxP = fg.panels(pxK);
+            pxP0 = f0 + "." + pxP.id;
+            if pxP.type == "probemap"
+                add("Figures", pxP0 + ".type", "warning", "A probe map in a probe figure draws the probe again inside each " + ...
+                    "tile of the probe layout.");
+            elseif pxP.type == "waveforms" && isstruct(pxP.options) && isfield(pxP.options, 'layout') && pxP.options.layout == "probe"
+                add("Figures", pxP0 + ".options.layout", "warning", "A waveforms panel in the probe layout draws the probe again " + ...
+                    "inside each tile of the probe figure.");
             end
         end
     end

@@ -6,7 +6,10 @@ function [reason, layerReasons] = figureSkipReason(src, spec)
 %
 %   REASON is the figure's own: "disabled"; what it observes is missing
 %   ("no sorted units", "no detected spikes" for a unit observation, "no
-%   <SIGNAL> extract" for a channel observation); and, when any panel with
+%   <SIGNAL> extract" for a channel observation); a probe figure's
+%   (probe.enabled): "a probe figure observes units or channels, not the
+%   dataset" and "no probe map" (SRC.probe empty: no site to lay a tile
+%   at); and, when any panel with
 %   an enabled layer is aligned to events, what the figure's alignment
 %   needs: "no paired trials" (trial scope, "Trial", a selection that
 %   filters or groups trials, an event or stop shifted by a trial
@@ -59,6 +62,10 @@ switch ob.kind
         if ob.data == "detected" && ~src.hasDetected; reason = "no detected spikes"; return; end
     case "channel"
         if ~hasSignal(src, ob.data); reason = "no " + ob.data + " extract"; return; end
+end
+if isfield(spec, 'probe') && isstruct(spec.probe) && spec.probe.enabled   % a probe figure: its tiles need sites
+    if ob.kind == "dataset"; reason = "a probe figure observes units or channels, not the dataset"; return; end
+    if ~isfield(src, 'probe') || isempty(src.probe); reason = "no probe map"; return; end
 end
 PT = EphysAnalysisConfig.panelTypes();
 vars = string.empty(1, 0);

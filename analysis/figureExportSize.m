@@ -12,6 +12,12 @@ function sz = figureExportSize(exportSection, F, spec)
 %     SPEC.size.source "own"   SPEC.size.width x height as they are, in
 %         SPEC.size.units: "px" (pixels of the exported PNG, so inches at
 %         EXPORT.Dpi), "in" or "cm"
+%   A probe figure's page (F from figureProbeCompute, F.kind
+%   "probeFigure") with SPEC.size.source "export" is FigureSizeCm(1) wide
+%   and max(FigureSizeCm(2), min(80, 2 + nRows * grid.rows * 1.5)) cm
+%   tall, nRows the rows of its tiles (probeTileLayout(F, SPEC.probe);
+%   0 without a tile): 1.5 cm a panel row of each row of tiles, 2 cm for
+%   the title, at most 80 cm. SPEC is F.spec when not given.
 %   newExportFigure sizes the export page with it, and the Figures tab
 %   draws the preview at the same shape (the aspect ratio of SZ).
 %
@@ -39,6 +45,17 @@ if isstruct(spec) && isscalar(spec) && isfield(spec, 'size') && isstruct(spec.si
 end
 if ~isempty(z) && string(z.source) == "own"
     sz = figureSizeConvert(double([z.width z.height]), string(z.units), "cm", dpi);
+    return
+end
+if isstruct(F) && isscalar(F) && isfield(F, 'kind') && isequal(string(F.kind), "probeFigure")
+    sp = spec;
+    if ~(isstruct(sp) && isscalar(sp) && isfield(sp, 'grid') && isfield(sp, 'probe')); sp = F.spec; end
+    nRows = 0;
+    if F.nTiles > 0
+        L = probeTileLayout(F, sp.probe);
+        nRows = L.nRows;
+    end
+    sz = [cm(1) max(cm(2), min(80, 2 + nRows * sp.grid.rows * 1.5))];   % 1.5 cm a panel row of each row of tiles, 2 cm for the title
     return
 end
 sz = cm;

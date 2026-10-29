@@ -10,7 +10,7 @@ classdef DatasetBrowser < handle
     %   result through the handle:
     %
     %     B = DatasetBrowser(root, Settings="ofc_hit_depth.json");
-    %     B.wait();          % tick, adjust, Compute, Done
+    %     B.wait();          % tick, adjust, Compute, close the window
     %     R = B.Result;      % R.data, R.rows, R.t, R.groupLabels, R.settings
     %
     %   Or it goes on with the result it has and leaves the window open for
@@ -71,7 +71,7 @@ classdef DatasetBrowser < handle
     %   stamp: Compute computes it again) or nothing. The result file (-v7.3,
     %   written through a temporary file) holds the browser's state, the
     %   result and Runs; it is written after a compute or forEach that added
-    %   parts (a canceled one too), on Done and on close when the state
+    %   parts (a canceled one too), on done and on close when the state
     %   changed. A root that cannot be written keeps them in memory, with
     %   the warning DatasetBrowser:NotSaved. Kept parts of an older
     %   DatasetRuns version are not restored (DatasetRuns:OldVersion): they
@@ -376,7 +376,7 @@ classdef DatasetBrowser < handle
         Controls = ["Root" "Browse" "Pattern" "Scan" "Subject" "NotSubject" "Search" "Tags" "TagMode" "NotTags" ...
             "TickShown" "UntickAll" "Table" "FileMenu" "Data" "Normalize" "NormBaseline" "NormScope" ...
             "Shanks" "Channels" "ProbeAll" "Probe" "Merge" "Measure" "Bin" "Baseline" ...
-            "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "KeepEpochs" "Compute" "Rasters" "Done" "Workers" ...
+            "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "KeepEpochs" "Compute" "Rasters" "Workers" ...
             "ScriptAfter" "ScriptList" "ScriptAdd" "ScriptRemove" "ScriptEdit" "ScriptRun"]
         MaxRecent = 10                     % RecentSettings' length
         ErrorColor = [0.75 0.1 0.1]
@@ -1209,7 +1209,7 @@ classdef DatasetBrowser < handle
 
         % --- the window ----------------------------------------------------------------------------
         function wait(B, opts)
-            %wait  Block until Done is pressed or the window closes (returns at once when hidden or closed).
+            %wait  Block until done() is called or the window closes (returns at once when hidden or closed).
             arguments
                 B
                 opts.Timeout (1,1) double {mustBePositive} = Inf
@@ -1224,7 +1224,7 @@ classdef DatasetBrowser < handle
         end
 
         function done(B)
-            %done  The Done button: the state is saved (when it changed) and wait returns; the window stays.
+            %done  The state is saved (when it changed) and wait returns; the window stays.
             B.DoneFlag = true;
             B.saveIfChanged();
             B.changed("done");
@@ -1434,15 +1434,13 @@ classdef DatasetBrowser < handle
                 "epoch, or each epoch's signal trace (row x time x epoch). Computes every dataset once more; " + ...
                 "signal epochs are large and go into the result file.");
 
-            r = uigridlayout(R, [1 3], "ColumnWidth", {'1x', '1x', '1x'}, "RowHeight", {34}, "Padding", [0 0 0 0]);
+            r = uigridlayout(R, [1 2], "ColumnWidth", {'1x', '1x'}, "RowHeight", {34}, "Padding", [0 0 0 0]);
             c.Compute = uibutton(r, "Text", "Compute", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.compute(RunScript=B.AfterS)), ...
                 "Tooltip", "Compute the ticked datasets (those already computed with these settings are reused); " + ...
                 "then the post-processing script, when ticked below.");
             c.Rasters = uibutton(r, "Text", "Trial rasters", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.showRasters()), ...
                 "Tooltip", "Each row of the result trial by trial: a unit's raster or a channel's epochs. " + ...
                 "Needs a result computed with ""Keep each epoch (R.epochs)"" (Measure tab).");
-            c.Done = uibutton(r, "Text", "Done", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.done()), ...
-                "Tooltip", "Let the script go on with B.Result (the window stays open).");
 
             % --- the post-processing script: run in the base workspace after Compute
             sp = uipanel(R, "Title", "Post-processing script");
@@ -1484,7 +1482,6 @@ classdef DatasetBrowser < handle
 
             styleButton([c.Browse c.TickShown c.UntickAll c.ProbeAll c.Rasters c.ScriptAdd c.ScriptRemove c.ScriptEdit c.ScriptRun]);
             styleButton([c.Scan c.Compute], "primary");
-            styleButton(c.Done, "confirm");
             styleButton(c.Cancel, "danger");
             B.Ctl = c;
         end

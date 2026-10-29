@@ -216,8 +216,7 @@ instead.
 
 **Compute** computes the ticked datasets with these settings. **Trial
 rasters** opens the [Trial rasters](#trial-rasters) window on the result (it
-needs a result computed with **Keep each epoch**). **Done** lets a
-script that called `B.wait()` go on; the window stays open. The summary under
+needs a result computed with **Keep each epoch**). The summary under
 the buttons reads *812 units × 200 bins × 5 groups from 32 of 34 datasets; 1
 computed, 33 reused*. When the settings or ticks changed since the result, it
 begins *Out of date:* and says what differs.
@@ -297,11 +296,11 @@ datasets, set the options, compute) become
 
 ```matlab
 B = DatasetBrowser(root, Settings="ofc_hit_depth.json");
-B.wait();          % tick, adjust, Compute, Done
+B.wait();          % tick, adjust, Compute, close the window
 R = B.Result;
 ```
 
-`wait` blocks until **Done** is pressed or the window is closed (it returns
+`wait` blocks until the window is closed or `B.done()` is called (it returns
 at once when the window is hidden or closed; `Timeout=` limits the wait).
 `R` is [the result](#the-result). Closing the window keeps the object:
 `Result`, `compute` and `forEach` still work.
@@ -315,7 +314,7 @@ window has just opened) and the window stays open for later changes:
 
 ```matlab
 B = DatasetBrowser.open(root, NamePattern=namePattern);
-if isempty(B.Result), B.wait(); end   % nothing computed yet: tick, Compute, Done
+if isempty(B.Result), B.wait(); end   % nothing computed yet: tick, Compute, close the window
 R = B.Result;
 ```
 
@@ -729,7 +728,7 @@ the old one. It holds
 | `runs` | `B.Runs.toStruct()`: every kept part and `forEach` value, each with its identity, status, message, seconds and the time it was made |
 
 It is written after a `compute` or `forEach` that added parts (a canceled one
-too, so the finished parts survive), on **Done**, and on close, when the state
+too, so the finished parts survive), on `done`, and on close, when the state
 changed. A root that cannot be written keeps everything in memory, with the
 warning `DatasetBrowser:NotSaved` (once). A file that cannot be read, or a
 part of it that does not check, warns `DatasetBrowser:BadResultFile` and

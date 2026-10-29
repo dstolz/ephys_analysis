@@ -89,7 +89,11 @@ function [h, how] = renderProbeFigure(PF, spec, target, opts)
 %   tiles gets data tips only when asked with true). Reuse is accepted and
 %   ignored (every drawing is whole); InPlaceOnly draws nothing (HOW "", H
 %   []). Editable puts the aesthetics editor on the page (figureEditContext:
-%   its redraw draws PF again through renderFigure); OnSelect is called
+%   its redraw draws PF again through renderFigure), its right-click menus
+%   on the probe axes, one tile (the scale tile, else the first drawn), the
+%   title and the legend only (context.menuRoot: a menu is a web component
+%   each in a uifigure, and a page of tiles has many parts); an edit made
+%   there applies to every tile. OnSelect is called
 %   with a panel's id when any tile's axes of that panel is Ctrl+Clicked.
 %
 %   H fields
@@ -365,6 +369,7 @@ title(th, txt, 'FontSize', style.FontSize + 1, 'FontWeight', 'bold', 'Interprete
 if ~isempty(lines); subtitle(th, lines, 'FontSize', style.FontSize, 'Interpreter', 'none', 'Visible', 'on'); end
 D.titleHost = th;
 lgd = [];
+lhost = gobjects(1, 0);
 if style.Legend && ~isempty(hks1)
     [lh, ll] = figureLegendEntries(hks1, types, G);
     if ~isempty(lh)
@@ -376,6 +381,7 @@ if style.Legend && ~isempty(hks1)
         host = axes(canvas, 'Units', 'pixels', 'Position', [1 1 1 1], 'Visible', 'off', 'HitTest', 'off', ...
             'PickableParts', 'none', 'Tag', 'legendHost');
         lgd = placeLegend(host, lh, ll, ls, [], "east");
+        lhost = host;
         D.legend = lgd;
         D.side = side;
     end
@@ -413,7 +419,15 @@ figureLayout(canvas, struct('layoutFcn', @placeProbe));
 D = getappdata(canvas, 'ProbeFigureLayout');
 
 if figureEditable(opts.Editable, target)
-    PlotAesthetics.enableEditing(target, figureEditContext(PF, spec, target, opts, canvas, design, follows, txt));
+    % the right-click editor: its menus on the probe axes, one tile (the scale tile, else the first drawn), the title and the
+    % legend, not on every part of every tile (a web component each in a uifigure); its edits apply to the whole page
+    menuTile = scaleI;
+    if menuTile == 0 && any(drawable); menuTile = find(drawable, 1); end
+    menuAxes = gobjects(1, 0);
+    if menuTile > 0; menuAxes = [D.parts{menuTile, :}]; end
+    ctx = figureEditContext(PF, spec, target, opts, canvas, design, follows, txt);
+    ctx.menuRoot = [pax reshape(menuAxes, 1, []) th lhost];
+    PlotAesthetics.enableEditing(target, ctx);
 end
 if ~isempty(opts.OnSelect)
     for k = 1:np

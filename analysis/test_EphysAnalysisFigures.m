@@ -1970,9 +1970,9 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
     nChk = 0;
     Fg2 = figureCompute(src, spec, Observation=Tu(2, :), Check=@countCheck);
     cidF = string(errorId(@() figureCompute(src, spec, Observation=Tu(2, :), Check=@() error('test:Stop', 'stop'))));
-    check(isequaln(rmfield(Fg, 'created'), rmfield(Fr2, 'created')) && isequaln(rmfield(Fg2, 'created'), rmfield(Fr2, 'created')) ...
+    check(isequaln(noCreatedFigure(Fg), noCreatedFigure(Fr2)) && isequaln(noCreatedFigure(Fg2), noCreatedFigure(Fr2)) ...
         && nChk >= 5 && cidF == "test:Stop", ...
-        sprintf('figureCompute equals computeFigure''s result; Check= is called at %d checkpoints and what it throws stops the compute', nChk));
+        sprintf('figureCompute equals computeFigure''s result (but the creation times); Check= is called at %d checkpoints and what it throws stops the compute', nChk));
 
     % figureOutputName: {Plot} the figure, {Unit} the observation, "_<Unit>" when the pattern does not tell them apart
     pat = "{Name}_{Plot}";
@@ -5114,12 +5114,16 @@ if S.sec("15", "probe figures: config, tiles, compute, run")
     pbPF0.nTiles = 0;
     pbFg = newExportFigure(pbX, pbPF, pbSp);
     pbPap = pbFg.PaperSize;
+    pbPos = pbFg.Position(3:4);
     close(pbFg);
-    check(all(abs(pbSz - [pbX.FigureSizeCm(1) max(pbX.FigureSizeCm(2), min(80, 2 + pbLay.nRows * pbSp.grid.rows * 1.5))]) < 1e-12) ...
-        && all(abs(figureExportSize(pbX, pbPF0, pbSp) - pbX.FigureSizeCm) < 1e-12) && isequal(figureExportSize(pbX, pbPF), pbSz) ...
-        && all(abs(pbPap - pbSz) < 1e-9), ...
+    pbSz0 = figureExportSize(pbX, pbPF0, pbSp);
+    pbSz2 = figureExportSize(pbX, pbPF);
+    check(all(abs(pbSz - [pbX.FigureSizeCm(1) max(pbX.FigureSizeCm(2), min(80, 2 + pbLay.nRows * pbSp.grid.rows * 1.5))]) < 1e-12), ...
         sprintf(['figureExportSize of a probe figure: the Export width, 1.5 cm a panel row of each of its %d rows of tiles and ' ...
-        '2 cm (%.1f x %.1f cm); no tile: FigureSizeCm; newExportFigure that size'], pbLay.nRows, pbSz));
+        '2 cm (%.1f x %.1f cm)'], pbLay.nRows, pbSz));
+    check(all(abs(pbSz0 - pbX.FigureSizeCm) < 1e-12), sprintf('figureExportSize of a probe figure without a tile: FigureSizeCm (%.1f x %.1f cm)', pbSz0));
+    check(all(abs(pbSz2 - pbSz) < 1e-12), sprintf('figureExportSize of a probe figure without a spec: its own (%.1f x %.1f cm)', pbSz2));
+    check(all(abs(pbPap - pbSz) < 1e-9), sprintf('newExportFigure of a probe figure: a page of that size (paper %.3f x %.3f cm, drawn %.3f x %.3f cm)', pbPap, pbPos));
 
     % a run: one page per dataset, the plan, the scripts
     pbC.Export.Folder = string(fullfile(root, "probe_out"));
@@ -5345,6 +5349,15 @@ end
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisFigures:Failures', '%d checks failed.', nFail);
+end
+end
+
+
+function F = noCreatedFigure(F)
+%noCreatedFigure  A computed figure without its own and its layers' creation times (computes made in different seconds).
+F = rmfield(F, 'created');
+for k = 1:numel(F.panels)
+    F.panels(k) = noCreated(F.panels(k));
 end
 end
 

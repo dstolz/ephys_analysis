@@ -603,15 +603,22 @@ classdef PlotAesthetics
             %   preview's drawing time. menuOf(H) makes them without
             %   opening it. A component that has a menu made for it with
             %   the same onGoto and onAxisEdit (a part renderFigure kept
-            %   from its last drawing: Reuse) keeps it.
+            %   from its last drawing: Reuse) keeps it. With context.menuRoot
+            %   (an array of axes, hosts included) only the components under
+            %   those get a menu, while the edits still apply to context.root
+            %   (renderProbeFigure: a page of tiles gets menus on the probe
+            %   axes, one tile, the title and the legend, not on every part
+            %   of every tile).
             fig = ancestor(target, 'figure');
             if isempty(fig); return; end
             setappdata(target, PlotAesthetics.ContextKey, context);
-            T = PlotAesthetics.components(context.root);
+            menuRoot = context.root;   % the components that get a menu: all of them, or context.menuRoot (renderProbeFigure: the
+            if isfield(context, 'menuRoot') && ~isempty(context.menuRoot); menuRoot = context.menuRoot; end   % probe, one tile, the title, the legend)
+            T = PlotAesthetics.components(menuRoot);
             for i = find(ismember(T.Role, ["legend" "colorbar"])).'
                 setappdata(T.Handles{i}(1), 'PlotAestheticsHolder', target);   % not inside TARGET when it is an axes
             end
-            L = PlotAesthetics.layoutsIn(context.root);
+            L = PlotAesthetics.layoutsIn(menuRoot);
             objs = [L, T.Handles{:}];
             roles = repmat("", 1, numel(L));   % each object's role, a panel's label (tile > 0) apart
             for i = 1:height(T)
@@ -896,7 +903,10 @@ classdef PlotAesthetics
         function axs = axesIn(target)
             %axesIn  The axes in TARGET, in tile order (then the order drawn).
             if isa(target, 'matlab.graphics.axis.Axes')
-                axs = target;
+                axs = reshape(target, [], 1);
+                if numel(axs) > 1   % an array of axes (apply over one panel's tiles, a menuRoot): its hidden hosts apart
+                    axs = axs(~ismember({axs.Tag}, {'legendHost' 'noteHost' 'titleHost'}));
+                end
                 return
             end
             axs = flipud(findall(target, 'Type', 'axes'));

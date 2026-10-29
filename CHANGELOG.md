@@ -18,6 +18,9 @@ says how to cut a release.
   (`EphysDataset.prepareBadChannels`), and **Suggest** or the *Bad* field set them by hand. The list is the
   dataset's `BadChannels`, kept in the manifest's new `bad_channels` block. See
   [Bad channels](documentation/EphysDataset.md#bad-channels).
+- Pipeline app, Artifacts tab: the viewer draws bad channels (and the Probe tab's exclusions) light gray, labeled
+  *(bad)* / *(excluded)*, with a legend entry saying whether they are left out; the preview's per-channel table grays
+  their rows. Right-click a lane to mark its channel bad or not, or to toggle **Leave out bad channels**.
 
 - Reports: **Per page** (`Report.FiguresPerPage`, 1 to 16; default 1, as before) puts several figure pages on one
   sheet of `Report.PageSize` (`"letter"` or `"a4"`) and `Report.PageOrientation` (`"auto"`, `"portrait"`,
@@ -47,7 +50,7 @@ says how to cut a release.
   [Trial rasters](documentation/DatasetBrowser.md#trial-rasters).
 - Dataset browser: opening it with a process pool already open sets **Workers** to that pool's size (the
   `Workers` option still wins).
-- Dataset browser: **Keep single trials, not just averages** (Measure tab; `epochMatrixSettings`' new `keepEpochs`) keeps every epoch
+- Dataset browser: **Keep single trials, not just averages** (above Compute; `epochMatrixSettings`' new `keepEpochs`) keeps every epoch
   before the average in `R.epochs`, one element per dataset: its epochs table `E` (with `resultGroup`, the group
   in `R.groupLabels`), its rows of `R`, and each row's spike times from the event with their epoch, or each epoch's
   signal trace `data(row, time, epoch)`. These parts are cached apart from those without epochs. The result file

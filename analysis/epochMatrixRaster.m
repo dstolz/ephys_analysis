@@ -64,7 +64,7 @@ if ~(isstruct(R) && isscalar(R) && all(isfield(R, {'data', 'rows', 't', 'groupLa
 end
 if ~isfield(R, 'epochs') || isempty(R.epochs)
     error('epochMatrixRaster:NoEpochs', ['The result keeps no epochs: compute it with keepEpochs=true ' ...
-        '(the dataset browser''s "Keep single trials, not just averages (R.epochs)", Measure tab).']);
+        '(the dataset browser''s "Keep single trials, not just averages (R.epochs)", above Compute).']);
 end
 nRows = height(R.rows);
 if row < 1 || row > nRows || row ~= round(row)

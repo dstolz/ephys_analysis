@@ -36,6 +36,8 @@ if isvalid(dlg); close(dlg); end
 d.BadChannels = bad;
 d.BadChannelsSource = "suggested";
 obj.saveManifests(d);
+obj.drawArtifactView();          % the bad lanes gray
+obj.refreshArtChannelTable();
 
 names = info.channelNames;
 for k = 1:numel(info.ratio)

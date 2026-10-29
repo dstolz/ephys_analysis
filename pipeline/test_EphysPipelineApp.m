@@ -1114,6 +1114,37 @@ if S.sec("3a0", "Artifacts tab: the artifact viewer")
     app.ArtViewShadeButton.ValueChangedFcn(app.ArtViewShadeButton, []);
     check(numel(findobj(ax, 'Type', 'constantregion')) == nReg && isequal(app.ArtViewShadeButton.BackgroundColor, [1 0.8 0.3]), ...
         'Shade artifacts turns it back on (amber while on)');
+    % Right-click on a lane marks its channel bad: gray, "(bad)", and back.
+    lanes = app.ArtView.drawn.ch;
+    nL = numel(lanes);
+    cm = ax.ContextMenu;
+    rightClick = @() cm.ContextMenuOpeningFcn(cm, []);
+    pick = @() cm.Children(end).MenuSelectedFcn(cm.Children(end), []);   % the first item
+    innerBox = @(pp) [pp(1:2) + ax.InnerPosition(1:2) - ax.OuterPosition(1:2), ax.InnerPosition(3:4)];
+    topLane = @(b) [b(1) + b(3) / 2, b(2) + b(4) * (nL - 0.5) / nL];   % the plot box moves as the legend grows
+    drawnow;
+    app.Fig.CurrentPoint = topLane(innerBox(getpixelposition(ax, true)));
+    rightClick();
+    check(startsWith(cm.Children(end).Text, "Mark ch " + lanes(1)), 'a right-click on a lane offers to mark its channel bad');
+    pick();
+    gray = findobj(ax, 'Type', 'line', 'DisplayName', "Bad channel (kept: Leave out unticked)");
+    check(isequal(app.currentDataset().BadChannels, lanes(1)) && app.ArtBadField.Value == string(lanes(1)) ...
+        && ~isempty(gray) && isequal(gray(1).Color, [0.68 0.68 0.68]) && endsWith(ax.YTickLabel{end}, "(bad)") ...
+        && isequal(gray(1).ContextMenu, cm) && ~isempty(app.ArtChannelTable.StyleConfigurations), ...
+        'marked bad, its lane is gray and labeled, its table row gray, the lines carry the menu');
+    drawnow;
+    app.Fig.CurrentPoint = topLane(innerBox(getpixelposition(ax, true)));
+    rightClick();
+    check(startsWith(cm.Children(end).Text, "Unmark ch " + lanes(1)), 'a bad channel''s lane offers to unmark it');
+    pick();
+    check(isempty(app.currentDataset().BadChannels) && isempty(findobj(ax, 'Type', 'line', '-regexp', 'DisplayName', '^Bad')) ...
+        && ~endsWith(ax.YTickLabel{end}, "(bad)") && isempty(app.ArtChannelTable.StyleConfigurations), ...
+        'unmarked, it is drawn as before');
+    app.Fig.CurrentPoint = [1 1];
+    rightClick();
+    check(cm.Children(end).Text == "No channel here", 'off the plot the menu names no channel');
+    app.currentDataset().BadChannelsSource = "";
+    app.saveManifests(app.currentDataset());
     app.ArtViewRestoreButton.ButtonPushedFcn(app.ArtViewRestoreButton, []);
     mA = readJsonFile(dA.manifestFile());
     check(isempty(dA.ArtifactAdjustments) && ~contains(ax.Title.String, "moved") && app.ArtViewCountLabel.Text == "of " + nArt ...

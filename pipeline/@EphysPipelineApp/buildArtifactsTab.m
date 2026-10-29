@@ -34,7 +34,9 @@ function buildArtifactsTab(obj)
 %   (they stay in the .bin) and the signals, so the exports
 %   (EphysDataset.excludedChannels). A run suggests them when the list was
 %   never set (EphysDataset.prepareBadChannels); Suggest
-%   (onSuggestBadChannels) or the field (onBadChannelsEdited) set them here.
+%   (onSuggestBadChannels) or the field (onBadChannelsEdited) set them here,
+%   and so does a right-click on a channel's lane in the viewer (laneMenu),
+%   which draws them gray (drawArtifactView), as the table grays their rows.
 %
 %   Three columns: the reference and the detection settings with the manual
 %   periods below them, the viewer (the plot takes the full height), and the preview's
@@ -327,6 +329,8 @@ obj.ArtViewNoteLabel = uilabel(mid, "Text", "", "WordWrap", "on");
 obj.ArtViewAxes = uiaxes(mid);
 obj.ArtViewAxes.Toolbar.Visible = "on";
 obj.ArtViewAxes.Interactions = [panInteraction(Dimensions="x"), dataTipInteraction];
+obj.ArtViewAxes.ContextMenu = uicontextmenu(obj.Fig, ...
+    "ContextMenuOpeningFcn", @(m, ~) laneMenu(obj, m));
 obj.drawArtifactView();   % the empty state
 
 uilabel(mid, "WordWrap", "on", "FontColor", [0.45 0.45 0.45], "Text", ...
@@ -338,7 +342,8 @@ uilabel(mid, "WordWrap", "on", "FontColor", [0.45 0.45 0.45], "Text", ...
     "Hold Ctrl and drag to move the artifact's nearer bound (dashed); it is saved for the dataset. " + ...
     "Orange: detected (automatic) artifacts; purple: manual periods. With Mark artifacts on, drag to mark a " + ...
     "manual period and click a purple one to remove it; Esc stops marking. With Measure on (M), drag to " + ...
-    "select a stretch (blue) and score it with every method (Selection tab, right); a click clears it.");
+    "select a stretch (blue) and score it with every method (Selection tab, right); a click clears it. " + ...
+    "Gray lanes are bad or excluded channels; right-click a lane to mark its channel bad or not.");
 
 % =========== right: the preview's summary and per-channel table, and the selection's ===========
 obj.ArtResultTabs = uitabgroup(g);
@@ -415,6 +420,72 @@ if ~isempty(obj.ArtView.free)
     wid = diff(obj.ArtView.free);
 end
 obj.showArtifactView([t, t + wid]);
+end
+
+
+function laneMenu(obj, menu)
+% The plot's right-click menu, built as it opens: mark the channel of the
+% lane under the pointer bad, or not (its Bad field, onBadChannelsEdited),
+% and Leave out bad channels.
+delete(menu.Children);
+d = obj.currentDataset();
+k = laneChannel(obj);
+if isempty(d) || isempty(k)
+    uimenu(menu, "Text", "No channel here", "Enable", "off");
+else
+    name = obj.ArtView.win.names(k);
+    if ismember(k, d.BadChannels)
+        txt = sprintf("Unmark ch %d (%s) as bad", k, name);
+    else
+        txt = sprintf("Mark ch %d (%s) as bad", k, name);
+    end
+    uimenu(menu, "Text", txt, "MenuSelectedFcn", @(~,~) toggleBad(obj, k));
+end
+uimenu(menu, "Text", "Leave out bad channels", "Separator", "on", ...
+    "Checked", matlab.lang.OnOffSwitchState(obj.ArtBadCheckBox.Value), ...
+    "MenuSelectedFcn", @(~,~) toggleLeaveOut(obj));
+end
+
+
+function k = laneChannel(obj)
+% The channel of the lane under the figure's pointer, [] when none: read
+% through the axes' inner box, as onArtViewInput reads the time.
+k = [];
+w = obj.ArtView.win;
+D = obj.ArtView.drawn;
+if isempty(w) || isfield(w, 'error') || isempty(D.key) || isempty(D.ch); return; end
+ax = obj.ArtViewAxes;
+pp = getpixelposition(ax, true);
+box = [pp(1:2) + ax.InnerPosition(1:2) - ax.OuterPosition(1:2), ax.InnerPosition(3:4)];
+f = (obj.Fig.CurrentPoint - box(1:2)) ./ max(box(3:4), 1);
+if any(f < 0 | f > 1); return; end
+y = ax.YLim(1) + f(2) * diff(ax.YLim);
+i = numel(D.ch) - round(y / D.spacing);   % lane i sits at (n - i) * spacing
+if i >= 1 && i <= numel(D.ch)
+    k = D.ch(i);
+end
+end
+
+
+function toggleBad(obj, k)
+% Channel K in or out of the active dataset's bad channels, as typed in the Bad field.
+d = obj.currentDataset();
+if isempty(d); return; end
+bad = d.BadChannels;
+if ismember(k, bad)
+    bad = setdiff(bad, k);
+else
+    bad = union(bad, k);
+end
+obj.ArtBadField.Value = EphysDataset.formatChannelList(bad);
+obj.onBadChannelsEdited();
+end
+
+
+function toggleLeaveOut(obj)
+% Leave out bad channels, flipped as its box would be.
+obj.ArtBadCheckBox.Value = ~obj.ArtBadCheckBox.Value;
+obj.onArtifactControlsChanged();
 end
 
 

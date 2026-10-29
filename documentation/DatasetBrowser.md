@@ -145,7 +145,7 @@ mode and its stop event.
 | **Channels** tab | **Shanks** and **Channels**: `units.shanks` and `units.channels` for `units` and `detected`, `signal.shanks` and `signal.channels` for a signal (blank = all), also picked by clicking the probe; see [Shanks and channels](#shanks-and-channels) |
 | **Measure** tab: **Spikes** block | **Merge neighboring sites** (`units.merge.enabled`, `detected` only), **Measure**, **Bin (s)**, **auROC baseline (s)** (with measure `auroc`) |
 | **Measure** tab: **Signals** block | **Baseline (s)**, **Statistic**, **Detrend**, **Rectify**, **Magnitude (AUX)** |
-| **Measure** tab: **Keep single trials, not just averages (R.epochs)** | `keepEpochs`: the result also keeps every epoch before the average ([Each epoch](#each-epoch-repochs)), which `B.showRasters` draws ([Trial rasters](#trial-rasters)). Every kind of **Data** |
+| Above **Compute**: **Keep single trials, not just averages (R.epochs)** | `keepEpochs`: the result also keeps every epoch before the average ([Each epoch](#each-epoch-repochs)), which `B.showRasters` draws ([Trial rasters](#trial-rasters)). Every kind of **Data** |
 
 The form does not show every field (the unit classes and tests, the auROC
 section, the selection's explicit trial rows, and an interval length or time
@@ -458,8 +458,8 @@ Notes on the fields:
 ### Each epoch (`R.epochs`)
 
 `R.data` holds averages. To work with single trials (decoding, trial-by-trial
-variability, your own statistics), tick **Keep single trials, not just averages (R.epochs)** on the
-**Measure** tab, or set `keepEpochs=true`, and compute. `R.epochs(k)` is
+variability, your own statistics), tick **Keep single trials, not just averages (R.epochs)** above
+**Compute**, or set `keepEpochs=true`, and compute. `R.epochs(k)` is
 dataset `R.keys(k)`'s:
 
 | Field | Holds |

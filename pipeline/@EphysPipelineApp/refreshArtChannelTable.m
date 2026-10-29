@@ -4,7 +4,8 @@ function refreshArtChannelTable(obj)
 %   table gains a Shank column, and its rows follow the probe layout while
 %   "Order channels by probe layout" is ticked (recording order otherwise).
 %   Reads ArtView.summary (onDetectArtifacts) and ArtView.layout
-%   (syncArtProbeControls); empty until a preview has run.
+%   (syncArtProbeControls); empty until a preview has run. The rows of the
+%   dataset's bad channels and the Probe tab's exclusions are gray.
 %
 %   See also onDetectArtifacts, syncArtProbeControls, EphysDataset.channelLayout.
 
@@ -22,6 +23,7 @@ else
     t.ColumnWidth = {34, '1x', 74, 100};
 end
 nCol = numel(t.ColumnName);
+removeStyle(t);
 if isempty(s) || s.nChan == 0
     t.Data = cell(0, nCol);
     return
@@ -49,4 +51,11 @@ for r = 1:nCh
     C{r, nCol}     = sprintf('%.3f', s.channelPct(k));
 end
 t.Data = C;
+d = obj.currentDataset();
+if ~isempty(d)                   % bad and excluded channels gray, as in the plot
+    out = find(ismember(ord, [d.BadChannels, d.ExcludeChannels]));
+    if ~isempty(out)
+        addStyle(t, uistyle("FontColor", [0.6 0.6 0.6], "FontAngle", "italic"), "row", out);
+    end
+end
 end

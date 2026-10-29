@@ -1334,6 +1334,12 @@ live while the box is ticked.
 | --- | --- |
 | **Leave out bad channels** | `Artifacts.ExcludeBadChannels` (off): leave each dataset's `BadChannels` out of every step. A run or preview suggests them for a dataset whose list was never set, whatever the reference |
 | Bad, **Suggest** | the active dataset's `BadChannels` (written to its manifest). **Suggest** measures each channel's noise floor on a sample of the recording as it is and fills the field (each channel's ratio goes to the log); typing a list marks it set by hand. A list that does not parse changes nothing (an alert says why). Channels excluded on the Probe tab are not counted |
+| right-click a lane of the viewer's plot | **Mark ch *N* as bad** / **Unmark ch *N* as bad** adds the lane's channel to the Bad list or takes it off (set by hand, as typing it); **Leave out bad channels** ticks or unticks the box |
+
+The viewer draws the bad channels' lanes light gray, *(bad)* after their
+names, and its legend says whether they are left out (*Bad channel (left
+out)*) or only listed (*kept: Leave out unticked*); the Probe tab's exclusions
+are gray too, *(excluded)*. The preview's per-channel table grays their rows.
 
 The second panel, *Common reference, for every step (config: Reference)*, is
 the config's `Reference` section, not part of `Artifacts`: every step that
@@ -1471,6 +1477,7 @@ default.
 | M, **Measure** | Measure on / off |
 | drag, click (with **Measure** on) | select a stretch and score it; clear the selection (below) |
 | Esc | turn **Mark artifacts** or **Measure** off |
+| right-click a lane | mark its channel bad or not; **Leave out bad channels** (above) |
 
 The voltage scale carries over from one artifact to the next until **Reset
 view** or a new **Scale**; with Manual the voltage keys change **Lanes**.

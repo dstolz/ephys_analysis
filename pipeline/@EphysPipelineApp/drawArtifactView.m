@@ -29,6 +29,11 @@ function drawArtifactView(obj)
 %   kept signal is colored by shank ("Color by shank"). Otherwise the
 %   lanes are in recording order.
 %
+%   The dataset's bad channels and the Probe tab's exclusions are drawn
+%   light gray, "(bad)" / "(excluded)" after their names, the legend saying
+%   whether the bad ones are left out (Leave out bad channels). A
+%   right-click on a lane marks its channel bad or not (buildArtifactsTab).
+%
 %   A redraw of the same window keeps the time zoom (the axes' XLim); a new
 %   window starts on its whole span. Long windows are drawn as a min / max
 %   envelope, finer as the zoom narrows (ArtView.drawn). Without a
@@ -150,6 +155,9 @@ if byShank
     on = si > 0;
     laneColor(on, :) = pal(mod(si(on) - 1, size(pal, 1)) + 1, :);
 end
+[outName, outLabel] = leftOutLanes(obj, d, ch);
+isOut = outName ~= "";
+laneColor(isOut, :) = repmat(leftOutColor(), nnz(isOut), 1);
 
 % --- lanes ---------------------------------------------------------------------
 scale = string(obj.ArtViewScaleDropDown.Value);
@@ -188,7 +196,7 @@ detail = 2 ^ max(0, ceil(log2(diff(span) / diff(xl)) - 1e-9));   % finer envelop
 maxBins = 10000 * detail;
 [t, Y, removed] = envelope(t, Y, removed, maxBins);
 obj.ArtView.drawn = struct('key', key, 'span', span, 'factor', detail, ...
-    'decimated', m > 2 * maxBins);
+    'decimated', m > 2 * maxBins, 'ch', ch, 'spacing', spacing);
 
 % Removed samples are drawn one sample wider each side, so the red joins the black.
 wide = removed | [removed(2:end); false] | [false; removed(1:end-1)];
@@ -239,6 +247,7 @@ if byShank
     keptName = "Shank " + L.shank(ch);
     keptName(isnan(L.shank(ch))) = "Not on the probe";
 end
+keptName(isOut) = outName(isOut);
 hRem  = drawLanes(ax, t, yRem, repmat(red, nShow, 1), repmat("Removed (replaced)", 1, nShow));
 hKept = drawLanes(ax, t, yKept, laneColor, keptName);
 
@@ -250,11 +259,14 @@ for j = first(:).'
 end
 hLeg = [hLeg; legendLine(ax, hRem, red, "Removed (replaced)"); hDet(1:min(1, end)); hMan(1:min(1, end)); hSel];
 hold(ax, 'off');
+% Right-click on a lane offers to mark its channel bad (buildArtifactsTab's
+% menu); the lines and shadings carry the axes' menu, as theirs is their own.
+set(findobj(ax.Children, 'flat', '-property', 'ContextMenu'), 'ContextMenu', ax.ContextMenu);
 legend(ax, hLeg, 'Location', 'southoutside', 'NumColumns', min(numel(hLeg), 4), ...
     'Box', 'off', 'AutoUpdate', 'off');
 
 set(ax, 'XLim', xl, 'YLim', [-0.5, nShow - 0.5] * spacing, 'TickLabelInterpreter', 'none', ...
-    'YTick', (0:nShow - 1) * spacing, 'YTickLabel', w.names(ch(end:-1:1)));
+    'YTick', (0:nShow - 1) * spacing, 'YTickLabel', w.names(ch(end:-1:1)) + outLabel(end:-1:1));
 xlabel(ax, "Recording time (s)");
 ax.XAxis.Exponent = 0;                       % whole seconds, not an offset or a power of ten
 if w.k == 0
@@ -288,6 +300,35 @@ else
 end
 if clipped; scaleText = scaleText + ", larger values clipped"; end
 ylabel(ax, scaleText, 'Interpreter', 'none');
+end
+
+
+function [name, label] = leftOutLanes(obj, d, ch)
+% The legend entry (NAME) and the tick-label suffix (LABEL) of each channel
+% of CH a run leaves out or the dataset lists as bad, "" for the others:
+% the Probe tab's exclusions, and the bad channels (left out while Leave
+% out bad channels is ticked, listed but kept otherwise).
+name = strings(1, numel(ch));
+label = strings(1, numel(ch));
+if isempty(d); return; end
+if logical(obj.ArtBadCheckBox.Value)
+    badName = "Bad channel (left out)";
+else
+    badName = "Bad channel (kept: Leave out unticked)";
+end
+isBad = ismember(ch, d.BadChannels);
+name(isBad) = badName;
+label(isBad) = " (bad)";
+isExcl = ismember(ch, d.ExcludeChannels);
+name(isExcl) = "Excluded (Probe tab)";
+label(isExcl) = " (excluded)";
+end
+
+
+function c = leftOutColor()
+% Light gray, apart from the shank colors, the red of the removed samples
+% and the black of the kept signal.
+c = [0.68 0.68 0.68];
 end
 
 

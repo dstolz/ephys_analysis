@@ -220,6 +220,66 @@ the button reads *812 units × 200 bins × 5 groups from 32 of 34 datasets; 1
 computed, 33 reused*. When the settings or ticks changed since the result, it
 begins *Out of date:* and says what differs.
 
+### Load whole sessions
+
+**Load whole sessions**, beside **Compute**, computes nothing: it uses the
+browser as a way in to the data. Each ticked dataset comes on its own clock,
+not cut into epochs, into `B.Sessions` for your script to use as it likes
+(`B.loadSessions()` from a script). What comes depends on **Data**:
+
+- **units**, **detected**: the spike times of the units **Compute** would use
+  (classes, shanks, channels, merge, quality and response filters).
+- **LFP**, **MUA**, **SPIKE**, **AUX**: the whole signal, of the channels the
+  [Channels tab](#shanks-and-channels) keeps. A MUA at 2 kHz × 64 channels ×
+  1 h is about 1.8 GB, and every ticked dataset is held at once.
+
+Every dataset also brings every trial and every digital line. The **Trials**
+tab's selection marks the trials (`kept`, `group`, `groups`) but drops none.
+The event, the window, the measure and normalization are not used.
+
+`B.Sessions` is a struct column, one per dataset loaded, made by
+[`sessionData.m`](../analysis/sessionData.m):
+
+| Field | Holds |
+| --- | --- |
+| `key`, `name`, `folder`, `subject`, `startTime`, `tags` | which dataset |
+| `fs`, `durationSec` | the recording's rate and length |
+| `data` | **Data** |
+| `spikes`, `units` | `{nUnits x 1}` spike times, s, on the continuous clock, and one row per unit (`selectUnits`' table); `{}` and `table()` for a signal |
+| `signal`, `signalFs`, `channels` | `[nSamples x nChannels]` single (µV; AUX: V), row `k` at `(k-1)/signalFs`, its rate and one row per column (`selectChannels`' table); `[]`, `NaN` and `table()` for spikes |
+| `events` | line → `[k x 2]` `[t_on t_off]` s on the digital clock (polarity applied, derived events included) |
+| `eventsContinuous` | the same on the continuous clock |
+| `toContinuous` | a function moving any digital-clock time (a trial column) to the continuous clock |
+| `lines` | Line, Count, MeanDurationSec, First, Last, Inverted, Derived |
+| `trials` | every paired trial (`table()` without a pairing) |
+| `kept`, `group`, `groups` | the trials the **Trials** tab keeps, each trial's group (0 = not kept), the groups table |
+| `hasTrials`, `trialLine`, `respField`, `paramNames`, `pairing`, `derivedEvents`, `invertedLines` | the pairing and the behavior |
+| `artifacts` | `[k x 2]` s, continuous clock: the periods the Signals step erased |
+| `probe`, `labels` | the probe map and the amplifier channel labels |
+
+**Two clocks.** Spike times and signal samples are on the continuous clock
+(sample `k` at `(k-1)/fs`); digital events and the trials' times
+(`TrialOnset`, `TrialEvents`, ...) are on the digital clock (`t = row/fs`).
+One recording sample is `1/fs` apart on the two. Align spikes to
+`eventsContinuous`, or to `D.toContinuous(D.trials.TrialOnset)`, never to the
+raw trial times.
+
+```matlab
+B = DatasetBrowser.open(root);
+B.wait();                       % tick, then Load whole sessions
+for D = B.Sessions.'
+    on = D.toContinuous(D.trials.TrialOnset(D.kept));
+    % ... D.spikes{u} against on, D.events.Lick, ...
+end
+```
+
+Nothing is cached or written to the result file: each press reads the
+datasets again (on the [workers](#workers) when set). A dataset without the
+data asked for (no sort, no spikes file, no such signal) is skipped; the
+strip's message counts them. `[D, T] = B.loadSessions()` also returns each
+ticked dataset's status. Like **Compute**, the button lets `wait` return and
+runs the post-processing script when ticked.
+
 ### The post-processing script
 
 The **Post-processing script** box under **Compute** runs a script of yours
@@ -232,12 +292,12 @@ plots) are in the workspace as soon as a compute finishes:
 | **+** | adds a `.m` file picked in a dialog to the list and picks it (`B.addScript()`, or `B.addScript(file)`) |
 | **−** | takes the script shown off the list; the file stays (`B.removeScript()`) |
 | **Edit** | opens the script in the MATLAB editor (`B.editScript()`) |
-| **Run it after each Compute** | **Compute** runs the script once the result is in (`B.ScriptAfterCompute`) |
-| **Run now** | runs the script on the result as it is (`B.runScript()`); off before a result |
+| **Run it after each Compute or Load** | **Compute** and **Load whole sessions** run the script once the data are in (`B.ScriptAfterCompute`) |
+| **Run now** | runs the script on the result or the sessions as they are (`B.runScript()`); off before either |
 
 The script runs in the base workspace, as `run` runs it, with the browser put
 there as `B` first (a `B` already there is replaced). It reads the result
-with `R = B.Result` and may use anything of the browser (`B.ResultCurrent`,
+with `R = B.Result` (or `S = B.Sessions`) and may use anything of the browser (`B.ResultCurrent`,
 `B.progressStart`, `B.forEach`, ...). Everything it makes stays in the
 workspace. An error in it is shown on the status line, naming the script and
 its line (`DatasetBrowser:ScriptFailed`, the script's error as its cause);
@@ -252,7 +312,7 @@ and the groups by label, and leaves `R`, `units_`, `data_`, `groupLabels_`,
 workspace. The list, the script picked and the box are preferences.
 
 From a script, `B.compute(RunScript=true)` computes and then runs `B.Script`;
-`B.compute()` runs none.
+`B.compute()` runs none. `B.loadSessions(RunScript=true)` likewise.
 
 ### The progress strip
 
@@ -299,7 +359,7 @@ B.wait();          % tick, adjust, Compute
 R = B.Result;
 ```
 
-`wait` blocks until a **Compute** from the window finishes (and the
+`wait` blocks until a **Compute** or **Load whole sessions** from the window finishes (and the
 post-processing script, when ticked, has run), `B.done()` is called, or the
 window is closed (it returns at once when the window is hidden or closed;
 `Timeout=` limits the wait). The window stays open after Compute.
@@ -828,7 +888,7 @@ Saved on close under the `AppPrefs` group `DatasetBrowser`:
 | `Workers` | the process workers **Compute** and `forEach` use |
 | `OnTop` | **Keep on top** |
 | `Scripts`, `Script` | the [post-processing scripts](#the-post-processing-script) listed and the one picked (with none saved yet: the scripts in `analysis/scripts`) |
-| `ScriptAfterCompute` | **Run it after each Compute** |
+| `ScriptAfterCompute` | **Run it after each Compute or Load** |
 | `ScriptFolder` | the folder of the last script added (where **+** opens) |
 
 ## Errors and warnings
@@ -837,7 +897,7 @@ Saved on close under the `AppPrefs` group `DatasetBrowser`:
 | --- | --- |
 | `DatasetBrowser:NoRoot` | the root cannot be reached on a scan |
 | `DatasetBrowser:NotScanned` | a method needs the scan's datasets and there are none |
-| `DatasetBrowser:NoneTicked` | `compute` with no dataset ticked |
+| `DatasetBrowser:NoneTicked` | `compute` or `loadSessions` with no dataset ticked |
 | `DatasetBrowser:UnknownDataset` | a key, name or index that is no scanned dataset |
 | `DatasetBrowser:BadValue` | a form control that does not exist, or a typed number or range (`1:4`) that does not parse |
 | `DatasetBrowser:BadFilter` | a filter option that does not fit |
@@ -872,6 +932,7 @@ out).
 | --- | --- |
 | the window and the handle | [`DatasetBrowser.m`](../analysis/DatasetBrowser.m) |
 | the compute and its result | [`epochMatrix.m`](../analysis/epochMatrix.m) |
+| one dataset on its own clock (**Load whole sessions**) | [`sessionData.m`](../analysis/sessionData.m) |
 | the settings, their checks and cache identity | [`epochMatrixSettings.m`](../analysis/epochMatrixSettings.m) |
 | the result's labels and description in words | [`epochMatrixLabels.m`](../analysis/epochMatrixLabels.m) |
 | the normalization of a result | [`epochMatrixNormalize.m`](../analysis/epochMatrixNormalize.m) |
@@ -890,4 +951,4 @@ out).
 | [`test_DatasetFilter.m`](../analysis/test_DatasetFilter.m) | `datasetFilter`: subjects, wildcards and literal regex characters, tags, search, the combinations |
 | [`test_DatasetRuns.m`](../analysis/test_DatasetRuns.m) | `DatasetRuns`: reuse, identity, skipped and failed datasets, cancel, `forget`, the saved struct |
 | [`test_EpochMatrix.m`](../analysis/test_EpochMatrix.m) | `epochMatrixSettings` and `epochMatrix`: the parts against the per-dataset calls, assembly, groups, the result fields, the labels, the normalization (`epochMatrixNormalize`) |
-| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window), the exported script (`exportScript`), the Channels tab (`ProbePicker`: clicks and fields yoked) |
+| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window), the exported script (`exportScript`), the whole sessions (`loadSessions`, `sessionData`), the Channels tab (`ProbePicker`: clicks and fields yoked) |

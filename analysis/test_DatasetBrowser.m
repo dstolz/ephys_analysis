@@ -9,7 +9,10 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
     %   equals epochMatrix, a dataset ticked later is the only one computed,
     %   a binSec change computes all; the exported script (exportScript:
     %   the ticked keys, only the settings that differ, no browser) gives
-    %   the compute's result; a Normalize change normalizes the
+    %   the compute's result; loadSessions gives each ticked dataset whole
+    %   (the units Compute uses, every trial with the selection marked, the
+    %   events on the spikes' clock as epochTable puts them; a signal's
+    %   channels kept) and caches nothing; a Normalize change normalizes the
     %   result again in place (still current, nothing assembled, the same as
     %   a compute), and its controls are on only where they apply; the
     %   result file restores without a
@@ -534,6 +537,48 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyTrue(isfile(B.ResultFile), 'The result file is written after a compute.');
             B.untickAll();
             tc.verifyError(@() B.compute(), 'DatasetBrowser:NoneTicked');
+        end
+
+        function loadSessionsOnTheirOwnClock(tc)
+            B = tc.open(Settings=tc.Spike);
+            tc.verifyEmpty(B.Sessions);
+            [D, T] = B.loadSessions();
+            tc.verifyEqual(T.status, ["done"; "done"]);
+            tc.verifyEqual(B.Sessions, D);
+            tc.verifyEqual([D.key].', B.Selected);
+            tc.verifyEmpty(B.Runs.Entries, 'Nothing is cached.');
+            tc.verifyEmpty(B.Result, 'Nothing is computed.');
+            S = B.Settings;
+            for k = 1:numel(D)
+                src = B.source(D(k).key);
+                [st, u] = selectUnits(src, S.units, Ref=S.ref, Selection=S.selection);
+                tc.verifyEqual(D(k).spikes, st, 'The units Compute uses, whole.');
+                tc.verifyEqual(D(k).units, u);
+                tc.verifyEmpty(D(k).signal);
+                tc.verifyEqual(D(k).events, src.events);
+                tc.verifyEqual(D(k).trials, src.trials, 'Every trial.');
+                [mask, G] = selectTrials(src, S.selection);
+                tc.verifyEqual(D(k).kept, mask);
+                tc.verifyEqual(D(k).groups, G);
+                % the events on the spikes' clock, bit for bit as epochTable puts them
+                E = epochTable(src, S.ref, Window=S.window, Selection=S.selection);
+                tc.verifyTrue(all(ismember(E.t0Continuous, D(k).eventsContinuous.Stim(:, 1))));
+                tc.verifyEqual(D(k).eventsContinuous.Stim, D(k).toContinuous(src.events.Stim));
+            end
+            % a signal: whole, the channels kept
+            B.Settings = epochMatrixSettings(B.Settings, data="AUX", signal=struct('channels', 1));
+            B.Ctl.LoadSessions.ButtonPushedFcn(B.Ctl.LoadSessions, []);
+            D = B.Sessions;
+            tc.verifyNumElements(D, 2);
+            src = B.source(D(1).key);
+            [Y, fs] = selectChannels(src, "AUX", Channels=1);
+            tc.verifyEqual(D(1).signal, Y);
+            tc.verifyEqual(D(1).signalFs, fs);
+            tc.verifyEqual(height(D(1).channels), 1);
+            tc.verifyEmpty(D(1).spikes);
+            tc.verifyTrue(contains(B.Ctl.ProgMsg.Text, "2 session(s) loaded"), B.Ctl.ProgMsg.Text);
+            B.untickAll();
+            tc.verifyError(@() B.loadSessions(), 'DatasetBrowser:NoneTicked');
         end
 
         function exportedScriptEqualsCompute(tc)

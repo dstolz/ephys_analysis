@@ -39,6 +39,8 @@ matrix over the units of many datasets, ticked in a window or from a script, see
 | [intan2matlab](intan2matlab.md) | `intan2matlab` / `deriveSignals` / `toMat`: LFP, MUA, SPIKE and digital events |
 | [ChronuxDataset](ChronuxDataset.md) | connector that hands recordings, trials and spike trains to the Chronux toolbox |
 | [FieldTripExport](FieldTripExport.md) | FieldTrip raw / spike / event structures and `exportFieldTrip` |
+| [NeuroGLMExport](NeuroGLMExport.md) | connector that hands the browser's whole sessions to the neuroGLM toolbox (Park et al. 2014) and fits its Poisson GLM |
+| [mTRFExport](mTRFExport.md) | stimulus / response pairs for the mTRF-Toolbox (Crosse et al. 2016: temporal response functions, decoders): `mTRFExport`, `epochMatrixMTRF`, `sessionDataMTRF` |
 | [Platforms](platforms.md) | what runs on Windows, macOS and Linux; `platformSupport`, `openInSystem` |
 | [Analysis](EphysAnalysis.md) | the `analysis` folder: event references, epochs, trial selection and grouping, PSTH / evoked / rate / tuning computations, response statistics, population analysis, figures merged across sessions and their data export, renderers, export, HTML / PDF reports, `EphysAnalysisRunner`, `EphysAnalysisScript` |
 | [EphysAnalysisConfig](EphysAnalysisConfig.md) | the analysis config (JSON `ephys-analysis-config`): every field, panel types, version 1 migration, validation, tokens |
@@ -356,7 +358,10 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   the high-pass of the adaptive weighted CAR's estimation inputs,
   `weightedCAR` and `EphysDataset.prepareWCAR`; `butter`'s poles also size
   the streamed weighted CAR's padding; `resample` for a coherence panel's
-  two signals at different rates, e.g. AUX and LFP, `computeCoherencePanel`).
+  two signals at different rates, e.g. AUX and LFP, `computeCoherencePanel`,
+  and for a continuous covariate brought to the neuroGLM bin rate,
+  `NeuroGLMExport.experiment`; `resample`, `envelope` and `hilbert` in the
+  mTRF-Toolbox packaging, `mTRFExport.resample` and `mTRFExport.envelope`).
 - Statistics and Machine Learning Toolbox (`zscore` in automatic
   derived-signal bad-channel detection; `mad` for the adaptive weighted CAR's
   automatic `Q` and `prctile` for its weight summary, `weightedCAR`,
@@ -374,10 +379,15 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   `"surprise"` / `"poisson"`); `bootci` for the analysis figures' bootstrap 95%
   CI error bands and bars, `Style.ErrorType "ci95"`, `errorBounds`; `tinv`
   for the *t* interval across sessions of a session figure's `error "ci95"`,
-  `combineSessions`, which falls back to 1.96 × SEM without the toolbox).
+  `combineSessions`, which falls back to 1.96 × SEM without the toolbox;
+  `glmfit` for the neuroGLM connector's Poisson fit, `NeuroGLMExport.fit`).
 - Image Processing Toolbox (optional; only `tools/makePanelThumbnails`,
   which scales the analysis app's New panel pictures down with `imresize`;
   the app reads the PNGs it wrote, committed under `analysis/icons/panels`).
+- Optimization Toolbox (`fminunc`, trust-region with the analytic Hessian,
+  in `NeuroGLMExport.fit` with `Method="matRegress"`: neuroGLM's own Poisson
+  fit under a ridge prior; the default `Method="glmfit"` needs only the
+  Statistics and Machine Learning Toolbox).
 - Parallel Computing Toolbox (optional; `Parallel.Enabled` in a pipeline
   config, or `UseParallel=true` on `detectSpikes`, `artifactIntervals` and
   `analyzeArtifacts`; in the analysis module, `EphysAnalysisRunner.Workers`
@@ -426,6 +436,22 @@ MATLAB's while it is on the path. Producing the files never calls either
 toolbox; `ChronuxDataset.hasChronux` / `FieldTripExport.hasFieldTrip` report
 whether they are on the path, and the FieldTrip export validates its
 structures with `ft_datatype_*` when FieldTrip is present.
+[neuroGLM](https://github.com/pillowlab/neuroGLM) (not bundled; clone it and
+add its folder to the path) is needed by the
+[NeuroGLMExport](NeuroGLMExport.md) connector, which builds its experiment and
+design structs (`buildGLM.*`, `basisFactory.*`) and fits them with neuroGLM's
+own `matRegress` (`glms.neglog.poisson` + `fminunc`, a ridge prior) or with
+MATLAB's `glmfit`; `NeuroGLMExport.hasNeuroGLM` / `hasMatRegress` report
+whether they are on the path, and `test_NeuroGLMExport` is skipped without
+neuroGLM (its matRegress tests without matRegress or `fminunc`).
+The [mTRF-Toolbox](https://github.com/mickcrosse/mTRF-Toolbox) (not bundled;
+add its `mtrf` folder to the path) is called only by the DatasetBrowser's
+post-processing script
+[`S_DatasetBrowserToMTRF.m`](../analysis/scripts/S_DatasetBrowserToMTRF.m)
+(`mTRFcrossval`, `mTRFtrain`, `mTRFpredict`, `mTRFplot`) and by
+`test_MTRFExport` when it is present; the [mTRFExport](mTRFExport.md)
+connector prepares the data without it (`mTRFExport.hasMTRF` reports whether
+it is on the path).
 
 ## Tests
 
@@ -581,6 +607,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_DatasetOutputs` | `DatasetOutputs`: files classified by their variables, decoys rejected, newest wins, merged and per-signal extracts, units, behavior, pinning and `SearchDirs`, caching, dataset mode, two recordings with one name sharing an output folder, a hand-picked sort that is not there, a changed extract |
 | `test_ChronuxDataset` | the Chronux connector: `makeParams` / `tapersFor`, continuous and trial data from a matrix, a `toMat` file or struct (onset rules, `EventFs`, trial policies), point-process spikes, `spikeTrials`, `binnedSpikes`, the Kilosort4 / phy source, `extract_trials` |
 | `test_FieldTripExport` | the FieldTrip `raw`, `spike` (sorted and detected) and `event` structures; the general builders `continuous`, `epochs` and `trl`; `exportFieldTrip`'s events on each signal's clock and its artifact matrix; `ft_datatype_*` validation when FieldTrip is on the path |
+| `test_MTRFExport` | the mTRF-Toolbox packaging: `resample` (the rate reached), `envelope` (an AM tone's modulator), `pulses` / `lines`, `trials` (the samples `FieldTripExport.epochs` gives), `segments` (artifact-free stretches, merged periods, split), `package`, `lagSamples`; with the toolbox on the path, `mTRFtrain` recovering a known kernel, `mTRFcrossval` and `mTRFpredict` on a package |
 | `test_EventEpochs` | the event-organized export (`eventEpochs`, `exportEpochs`): sample alignment (a derived signal's rows, `EpochComplete` in samples), spike windows and time bases, the trials table, the behavior source, onsets passed in, the `Incomplete` / `NonFinite` policies, the refusals, the file and `DatasetOutputs`' epochs kind, the Export section's epoch settings, epochs touching an artifact period |
 | `test_KCSDExport` | the kCSD-python export: the NumPy layer (`writeNPY` text and shapes, `writeNPZ` / `readNPZ`, zip64, NumPy's own archives), electrodes on the probe (order, 1-D / 2-D, column → channel mapping, bad and off-probe channels), events and artifacts as 0-based LFP samples, the file, `DatasetOutputs`' `kcsd` kind; with a Python that has NumPy (and kcsd), `numpy.load` and `KCSD1D` on the file |
 | `test_EpsychSession` | Epsych2 readers (`epsychSessionMeta`, `readEpsychSession`, `findEpsychSessions`), matching (`matchEpsychSession`), stitching (`stitchEpsychSessions` and its refusals), two session files in one recording folder |
@@ -617,7 +644,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_DatasetFilter` (analysis/) | `datasetFilter`: subjects (case, `*` and `?` wildcards, whole-subject matches, regex characters taken literally), excluded subjects, tags (any / all, excluded, invalid terms), search words, the combinations and the sizes it refuses |
 | `test_DatasetRuns` (analysis/) | `DatasetRuns`: a value reused while its identity (settings and the stamp of the output files) holds, skipped and failed datasets, cancel keeping the finished ones, `forget`, the saved struct |
 | `test_EpochMatrix` (analysis/) | `epochMatrixSettings` (defaults, overlay, checks, cache identity, settings files) and `epochMatrix`: the parts against the per-dataset calls, assembly (rows, groups and their order, sessions), the result fields, the labels (`epochMatrixLabels`), the normalization (`epochMatrixNormalize`), `Recompute`, cancel |
-| `test_DatasetBrowser` (analysis/) | `DatasetBrowser`, headless and with its window: scan, filter, ticks, the settings form, `compute` against `epochMatrix`, `forEach`, the progress strip and cancel, the result file, the trial rasters (`epochMatrixRaster`, `TrialRaster`), FieldTrip structures of the epochs and sessions (`epochMatrixFieldTrip`, `sessionDataFieldTrip`), `DatasetBrowser.open` finding the open window, closing keeping the object |
+| `test_DatasetBrowser` (analysis/) | `DatasetBrowser`, headless and with its window: scan, filter, ticks, the settings form, `compute` against `epochMatrix`, `forEach`, the progress strip and cancel, the result file, the trial rasters (`epochMatrixRaster`, `TrialRaster`), FieldTrip structures of the epochs and sessions (`epochMatrixFieldTrip`, `sessionDataFieldTrip`), mTRF packages of the epochs, sessions, trials, an AUX stimulus and spikes (`epochMatrixMTRF`, `sessionDataMTRF`), `DatasetBrowser.open` finding the open window, closing keeping the object |
 | `test_FirstSpikeLatency` (analysis/) | `firstSpikeLatency` on planted spike trains (known latencies, both window ends included, none NaN, groups, the stop mask, the errors) and the latency box plot's statistics against `prctile` and Tukey's fences |
 | `test_PopulationAnalysis` (analysis/) | `populationAnalysis` against the per-dataset calls, the auROC calls pooled over the family, `populationSummary`, the files `writePopulation` writes |
 | `test_ReadNewLines` | `readNewLines` (the run monitor's log tail): whole lines from a byte offset, a partial line left for the next call, CRLF and carriage-return progress lines as a terminal shows them; a missing file or no name reads nothing and keeps the offset |

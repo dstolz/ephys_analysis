@@ -10,6 +10,21 @@ says how to cut a release.
 
 ### Added
 
+- neuroGLM connector: `NeuroGLMExport` (`experiment`, `designSpec`, `fit`, `predict`) hands trials to the
+  [neuroGLM](https://github.com/pillowlab/neuroGLM) toolbox (Park, Meister, Huk & Pillow 2014) and fits its Poisson
+  GLM, by neuroGLM's own `matRegress` route (`fminunc`, a ridge prior with the paper's evidence optimization) or by
+  `glmfit`; `sessionDataNeuroGLM` builds the experiment from a dataset browser whole session (a trial per
+  kept trial, every digital line's edges as events, the trial parameters and group as values, optionally a signal as
+  a continuous covariate); the post-processing script `S_DatasetBrowserToNeuroGLM.m` fits one unit per dataset and
+  draws the kernels, held-out trials and PSTHs. See [NeuroGLMExport](documentation/NeuroGLMExport.md).
+- mTRF-Toolbox connector: `mTRFExport` (`resample`, `envelope`, `pulses`, `lines`, `trials`, `segments`, `package`,
+  `lagSamples`) prepares stimulus / response pairs for the [mTRF-Toolbox](https://github.com/mickcrosse/mTRF-Toolbox)
+  (Crosse et al. 2016: temporal response functions and decoders by ridge regression over time-lagged inputs);
+  `epochMatrixMTRF` makes a trial per epoch of a browser result (an impulse of unit area on the event, so the TRF is the
+  evoked mean), `sessionDataMTRF` the whole sessions (the signal or binned spike trains resampled; a digital line's
+  pulses, a trial parameter, an AUX channel's envelope or a function as the stimulus; artifact-free pieces or the kept
+  trials as the folds); the post-processing script `S_DatasetBrowserToMTRF.m` cross-validates, trains, tests and plots
+  a TRF and a decoder. See [mTRFExport](documentation/mTRFExport.md).
 - Dataset browser: a **Help** menu with the wiki page, the documentation home and **About DatasetBrowser** (the
   version and git commit of the code, the last commits of the browser's files, the result file's and the cache's
   versions, what is loaded; `B.aboutText()`). `showAbout` takes optional detail lines.

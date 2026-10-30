@@ -10,6 +10,9 @@ says how to cut a release.
 
 ### Added
 
+- `addToManifest(target, Name=Value, ...)` adds your own fields from a script to a dataset's manifest, in a new
+  `custom` block; `target` is a dataset, a folder or the file. `writeManifest` keeps the block. See
+  [Dataset manifest](documentation/EphysDataset.md#dataset-manifest).
 - Dataset browser: **Epochs per group** (under the **Trials** tab; `B.showGroupCounts()`) opens a window that counts
   one dataset's epochs by group as **Compute** cuts them: the analysis app's Alignment-tab bars (a bar per group, e.g.
   per depth, in its color with its count on top, and **Show the epochs Pairing and Artifacts exclude**) and a table of

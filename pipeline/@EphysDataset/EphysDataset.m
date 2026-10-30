@@ -1042,10 +1042,12 @@ classdef EphysDataset < handle
             %   (EphysDataset:writeManifest:Kept) and leaves the file for you to
             %   fix or delete. Other failures warn too but never interrupt the
             %   caller (the manifest is a convenience, not the source of truth).
+            %   The file's "custom" block (addToManifest) is carried over as it
+            %   is: the file is its only home, so no object can hold a stale copy.
             tf = false;
             if obj.Folder == "" || ~isfolder(obj.Folder); return; end
             f = obj.manifestFile();
-            [~, why] = EphysDataset.readManifest(f);
+            [old, why] = EphysDataset.readManifest(f);
             if why ~= "" && why ~= "missing"
                 warning('EphysDataset:writeManifest:Kept', ...
                     'Not writing the manifest of %s: %s cannot be read (%s). It is left as it is; fix or delete it.', ...
@@ -1053,7 +1055,9 @@ classdef EphysDataset < handle
                 return
             end
             try
-                writeJsonFile(f, obj.manifestStruct());
+                m = obj.manifestStruct();
+                if isfield(old, 'custom'); m.custom = old.custom; end
+                writeJsonFile(f, m);
                 tf = true;
             catch ME
                 warning('EphysDataset:writeManifest:Failed', ...

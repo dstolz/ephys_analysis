@@ -460,10 +460,15 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
                 "pairing": [] | { "status": "unreviewed" | "approved", "auto_approved": <bool>,
                   "cut_trials": [<from start>, <from end>], "cut_intervals": [<from start>, <from end>],
                   "fingerprint": <string>, "trial_line": <string>, "summary": <string>,
-                  "updated": <"yyyy-MM-dd HH:mm:ss"> } }
+                  "updated": <"yyyy-MM-dd HH:mm:ss"> } },
+  "custom": { <your own fields> }     only once addToManifest has added some
 }
 ```
 
+- `custom` holds the fields a script added with
+  [`addToManifest`](EphysDataset.md#dataset-manifest). `writeManifest` carries
+  it over from the file unchanged, `applyManifest()` does not read it, and no
+  step uses it.
 - The associations (`probe.file`, `sorting.results_dir` when `"manual"`,
   `behavior.file`) are written as recorded, even while their file or folder is
   not there; `exists` says whether it is there now (for `sorting`: whether

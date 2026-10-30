@@ -2526,7 +2526,31 @@ is in [file-formats.md](file-formats.md#dataset-manifest).
   when it did. A manifest file it cannot read (not JSON, or an unknown schema
   such as a newer version's) is never replaced: it warns
   (`EphysDataset:writeManifest:Kept`) and leaves the file for you to fix or
-  delete. Other failures only warn (`EphysDataset:writeManifest:Failed`).
+  delete. Other failures only warn (`EphysDataset:writeManifest:Failed`). The
+  file's `custom` block is carried over as it is.
+- **`c = addToManifest(target, Name=Value, ...)`** adds your own fields to the
+  manifest's `custom` block; `target` is a dataset, a folder holding one
+  dataset manifest, or the file. `addToManifest(target, S)` takes them from a
+  struct. A name already there gets the new value. Nothing else in the file
+  changes but `updated`, and a dataset with no manifest yet gets one first.
+  Every later `writeManifest` (a Scan, a pipeline step, the app) keeps the
+  block, even from a dataset object made before the fields were added. The
+  block lives only in the file: there is no property for it, `applyManifest`
+  does not read it and no step uses it. Read it with
+  `m = EphysDataset.readManifest(file); m.custom`. The viewer lists it under
+  Other. Adding to the manifest changes `outputsStamp`, so a `DatasetRuns`
+  folder computes that dataset's results again, as after a tag edit. It errors
+  and writes nothing on a bad name or value, a folder with no manifest or
+  several (`addToManifest:NoManifest`, `:Ambiguous`) and a manifest it cannot
+  read (`addToManifest:Unreadable`).
+
+  ```matlab
+  addToManifest("D:\EPHYS\subjA\subjA_260101_120000", surgeon="DS", depth_um=1200);
+  for d = P.Datasets
+      addToManifest(d, batch="pilot");
+  end
+  ```
+
 - `ManifestViewerApp(ds)` shows it in a window
   ([ManifestViewerApp](ManifestViewerApp.md)).
 - `[tf, why] = applyManifest()` restores `ProbeFile`,

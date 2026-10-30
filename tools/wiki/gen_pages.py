@@ -28,6 +28,8 @@ or, for several lines,
     ![The Run tab](images/app-run-plan.png)
     -->
 
+A page with more than one section gets a table of contents (wiki_toc.py).
+
 Pages whose status is "candidate" still hold content in the wiki that
 documentation/ lacks. They are generated for comparison (--out, --report)
 and are written into a wiki clone only with --include-candidates, once that
@@ -40,6 +42,8 @@ Usage (see README.md next to this file):
     python gen_pages.py --wiki <clone> --report              how each page differs from the clone's
 """
 import argparse, difflib, json, os, re, sys
+
+from wiki_toc import add_toc
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.normpath(os.path.join(HERE, "..", ".."))
@@ -250,7 +254,7 @@ def build(p, texts, idx):
         + (" without " + ", ".join(f'"## {s}"' for s in p["exclude"]) if p.get("exclude") else "")
     banner = (f"<!-- Generated from {what} by tools/wiki/gen_pages.py. "
               f"Edit that file, not this page: the next update replaces it. -->\n\n")
-    return banner + body.rstrip() + "\n"
+    return add_toc(banner + body.rstrip() + "\n")
 
 
 def main():

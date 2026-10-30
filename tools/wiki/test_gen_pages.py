@@ -7,6 +7,7 @@ import os, re, sys, unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gen_pages as g
+from wiki_toc import add_toc
 
 APP = """# The app
 
@@ -121,6 +122,24 @@ class GenPages(unittest.TestCase):
                          "nwb-export-exportnwb-the-export-step")
         self.assertEqual(g.anchor_of("NWB export (`exportNWB`; the Export step)", seen),
                          "nwb-export-exportnwb-the-export-step-1")
+
+    def test_toc(self):
+        t = self.page("Copy-Tab")
+        self.assertNotIn("<!-- toc -->", t, "one section: no contents")
+        f = self.page("File-Formats")
+        self.assertNotIn("<!-- toc -->", f)
+        text = "<!-- b -->\n\n# Title\n\nLead.\n\n## A\n\n### A1\n\n#### deep\n\n```\n## code\n```\n\n## B\n\n## A\n"
+        once = add_toc(text)
+        self.assertEqual(add_toc(once), once, "running it again changes nothing")
+        self.assertLess(once.index("<!-- toc -->"), once.index("## A"))
+        self.assertGreater(once.index("<!-- toc -->"), once.index("Lead."), "after the lead")
+        for want in ("- [A](#a)\n  - [A1](#a1)\n- [B](#b)\n- [A](#a-1)\n",):
+            self.assertIn(want, once, "sections, subsections, repeated names")
+        self.assertNotIn("deep](", once)
+        self.assertNotIn("code](", once)
+        self.assertNotIn("Title](", once, "a lone title is the page name")
+        self.assertEqual(add_toc(once.replace("## B\n\n## A\n", "")), add_toc(text.replace("## B\n\n## A\n", "")))
+        self.assertNotIn("<!-- toc -->", add_toc(once.replace("## B\n\n## A\n", "")), "dropped when one section is left")
 
     def test_real_map(self):
         pages, texts = g.load_pages(g.REPO)

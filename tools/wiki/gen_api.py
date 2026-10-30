@@ -19,6 +19,8 @@ Usage (see README.md next to this file):
 """
 import argparse, os, re, sys, glob
 
+from wiki_toc import add_toc
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.normpath(os.path.join(HERE, "..", ".."))   # set by main()
 WIKI = ""                                                 # set by main()
@@ -961,7 +963,7 @@ def splice(page, generated, marker="## Reference"):
         lead = txt[:k + 1]
     else:
         raise SystemExit(f"{page}: page missing (write its lead first)")
-    body = lead + marker + "\n\n" + "\n".join(generated).rstrip() + "\n"
+    body = add_toc(lead + marker + "\n\n" + "\n".join(generated).rstrip() + "\n")
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(body)
 

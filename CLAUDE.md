@@ -89,6 +89,12 @@ people learn to use this repository. Keep it current; the mechanics are in
   to the commit. A new public function needs a group in `gen_api.py`, and a
   new class a script writer uses needs an `API-<Class>` page with a short
   lead.
+- **Contents list.** Every wiki page with more than one section has a table
+  of contents before its first section (`tools/wiki/wiki_toc.py`).
+  `gen_pages.py` and `gen_api.py` add it to the pages they write; for the
+  hand-written pages, run `python tools\wiki\wiki_toc.py <wiki clone>` before
+  `check_links.py`. Never write a contents list by hand, and leave the
+  `<!-- toc -->` markers alone. The sidebar and footer have none.
 - **Help menus.** The apps' Help menus open wiki pages by name and anchor
   (`helpURL.m`, `buildMenus.m`, `DatasetBrowser.m`); `test_gen_pages.py`
   checks them. Keep those pages and headings, or change the menus with them.

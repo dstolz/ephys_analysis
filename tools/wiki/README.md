@@ -7,6 +7,7 @@ so that each update repeats the last one instead of rebuilding it.
 | --- | --- |
 | `gen_api.py` | Generates the reference part of every `API-*` page from the `.m` sources. It needs no MATLAB. |
 | `gen_pages.py`, `pages.json` | Generates the prose pages from `documentation/`, the one source: `pages.json` says which page is made from which file or sections. It needs no MATLAB, and `test_gen_pages.py` tests it, along with the page anchors the pipeline and analysis apps' Help opens (their `helpURL.m`, and the analysis app's `buildMenus.m`). |
+| `wiki_toc.py` | Adds a table of contents, before the first section, to every page with more than one section. `gen_pages.py` and `gen_api.py` call it; run it on a wiki clone for the hand-written pages. Rerunning replaces the list (it sits between `<!-- toc -->` and `<!-- /toc -->`). |
 | `check_links.py` | Checks every page's links, anchors and images before a push. |
 | `wikiScreenshots.m` | Takes the pipeline app's screenshots headlessly over a synthetic project, and runs it. |
 | `wikiToolScreenshots.m` | Takes the other windows' screenshots (probe designer, channel mapper, manifest viewer, analysis app) over that project. |
@@ -144,9 +145,11 @@ git clone https://github.com/dstolz/ephys_analysis.wiki.git C:\temp\wiki
    msedge --headless=new --hide-scrollbars --user-data-dir=C:\temp\edgeprof --window-size=1373,5000 --screenshot=C:\temp\flow.png file:///C:/temp/flow.html
    ```
 
-5. **Check the links**, update `_Footer.md` to the commit, then commit and push:
+5. **Add the contents lists, check the links**, update `_Footer.md` to the
+   commit, then commit and push:
 
    ```bat
+   python tools\wiki\wiki_toc.py C:\temp\wiki
    python tools\wiki\check_links.py C:\temp\wiki
    cd C:\temp\wiki && git add -A && git commit -m "Update the wiki to commit <sha>: ..." && git push origin master
    ```

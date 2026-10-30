@@ -386,7 +386,8 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   run's figure pages and report pages on a process pool, `parfeval`; and
   `Workers` of `DatasetRuns.run`, `epochMatrix` and `DatasetBrowser` -- the
   browser's **Workers**, 0 by default -- computes several datasets at once
-  on a process pool, `parfeval`).
+  on a process pool, `parfeval`; `S_DatasetBrowserToNeuroGLM.m`'s `opts.workers`
+  fits a dataset's units at once, `parfeval`, `NeuroGLMExport.fitUnits`).
   Without it a run draws every page in MATLAB itself, and the datasets are
   computed one after the other. The Visualize tab's envelope builds
   (`EphysTraceEnvelope`) need no toolbox: `parfeval` on `backgroundPool`

@@ -12,7 +12,7 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
     %   response (a gain after the event, bits per spike > 0, predict's
     %   shapes); the matRegress route (fminunc) against glmfit, its ridge
     %   and evidence optimization (skipped without matRegress or the
-    %   Optimization Toolbox).
+    %   Optimization Toolbox); fitWorkers' zero cases.
     %
     %   Usage:  runtests("test_NeuroGLMExport")
 
@@ -285,6 +285,16 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
             tc.verifyError(@() NeuroGLMExport.designSpec(expt, GroupBy="nope"), 'NeuroGLMExport:BadGroupBy');
             bare = NeuroGLMExport.experiment([0 1; 1 2], Spikes=struct('a', [0.5; 1.5]));
             tc.verifyError(@() NeuroGLMExport.designSpec(bare, History=false), 'NeuroGLMExport:EmptyDesign');
+        end
+
+        function fitWorkersCap(tc)
+            expt = sessionDataNeuroGLM(tc.D, Window=[-0.2 1.0]);
+            dspec = NeuroGLMExport.designSpec(expt, Events="Stim_on", History=false);
+            tc.verifyEqual(NeuroGLMExport.fitWorkers(dspec, 1:3, 0), 0, 'Asked for no workers.');
+            tc.verifyEqual(NeuroGLMExport.fitWorkers(dspec, 1:3, 1), 0, 'One worker is no gain.');
+            dspec.expt.trial(1).duration = 1e15;   % a design no memory holds: no pool is started
+            n = tc.verifyWarning(@() NeuroGLMExport.fitWorkers(dspec, 1:3, 4), 'NeuroGLMExport:SerialFit');
+            tc.verifyEqual(n, 0);
         end
     end
 end

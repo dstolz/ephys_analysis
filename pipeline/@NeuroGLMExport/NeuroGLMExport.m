@@ -522,6 +522,152 @@ classdef NeuroGLMExport
             P.bitsPerSpike = (P.logLik - P.logLikNull) / max(sum(y), 1) / log(2);
         end
 
+        function fits = fitUnits(expt, units, opts)
+            %fitUnits  Fit and test one design per unit, on process workers or here; progress and cancel on the way.
+            %   fits = NeuroGLMExport.fitUnits(expt, units, Design=, Trials=, Test=, Method=, Ridge=, Workers=, ...)
+            %   units: a table with a row per unit to fit, its spike train's
+            %   label in the column variable (sessionDataNeuroGLM's
+            %   info.units). fits has one element per row, in that order:
+            %   unit (the row), dspec, F (fit), P (predict on Test).
+            %   Options
+            %     Design       designSpec's options, a name-value cell ({})
+            %     Trials       the trials fitted (all)
+            %     Test         the trials predicted (Trials)
+            %     Method, Ridge   as fit
+            %     Workers      process workers fitting at once, as fitWorkers
+            %                  allows (0: one unit after the other, here)
+            %     ProgressFcn  ProgressFcn(fraction, message) at the start
+            %                  and after each unit ([] = none)
+            %     LogFcn       LogFcn(message), a unit's line as it finishes
+            %                  ([] = none)
+            %     CheckFcn     called between units and, with workers, four
+            %                  times a second; its error stops the workers
+            %                  and is raised here ([] = none)
+            arguments
+                expt (1,1) struct
+                units table
+                opts.Design cell = {}
+                opts.Trials double = []
+                opts.Test double = []
+                opts.Method (1,1) string = "glmfit"
+                opts.Ridge = 1
+                opts.Workers (1,1) double {mustBeInteger, mustBeNonnegative} = 0
+                opts.ProgressFcn = []
+                opts.LogFcn = []
+                opts.CheckFcn = []
+            end
+            trials = opts.Trials;
+            if isempty(trials); trials = 1:numel(expt.trial); end
+            nU = height(units);
+            parts = cell(1, nU);
+            nWorkers = 0;
+            if nU > 1
+                nWorkers = NeuroGLMExport.fitWorkers(NeuroGLMExport.designSpec(expt, 'Response', units.variable(1), opts.Design{:}), ...
+                    trials, min(opts.Workers, nU));
+            end
+            NeuroGLMExport.reportFit(opts, 0, nU, []);
+            if nWorkers == 0
+                for i = 1:nU
+                    if ~isempty(opts.CheckFcn); opts.CheckFcn(); end
+                    parts{i} = NeuroGLMExport.fitOne(expt, units(i, :), opts.Design, trials, opts.Test, opts.Method, opts.Ridge);
+                    NeuroGLMExport.reportFit(opts, i, nU, parts{i});
+                end
+            else
+                constant = parallel.pool.Constant(expt);   % one copy per worker, not one per unit
+                pool = gcp('nocreate');
+                F = parallel.FevalFuture.empty(1, 0);      % the units running
+                of = zeros(1, 0);
+                next = 1;
+                nDone = 0;
+                try
+                    while nDone < nU
+                        while next <= nU && numel(F) < nWorkers
+                            F(end + 1) = parfeval(pool, @NeuroGLMExport.fitOne, 1, constant, units(next, :), ...
+                                opts.Design, trials, opts.Test, opts.Method, opts.Ridge); %#ok<AGROW>
+                            of(end + 1) = next; %#ok<AGROW>
+                            next = next + 1;
+                        end
+                        if ~isempty(opts.CheckFcn); opts.CheckFcn(); end
+                        [k, part] = fetchNext(F, 0.25);
+                        if isempty(k); continue; end
+                        parts{of(k)} = part;
+                        F(k) = [];
+                        of(k) = [];
+                        nDone = nDone + 1;
+                        NeuroGLMExport.reportFit(opts, nDone, nU, part);
+                    end
+                catch ME
+                    if ~isempty(F); cancel(F); end
+                    rethrow(ME);
+                end
+            end
+            fits = struct('unit', {}, 'dspec', {}, 'F', {}, 'P', {});
+            fits = [fits, parts{:}];
+            for j = 1:numel(fits)      % shared again, as a fit here holds it
+                fits(j).dspec.expt = expt;
+                fits(j).F.expt = expt;
+                fits(j).F.dspec.expt = expt;
+                fits(j).F.dm.dspec.expt = expt;
+            end
+        end
+
+        function n = fitWorkers(dspec, trials, maxWorkers)
+            %fitWorkers  How many process workers can fit a design at once (0 = fit here), with the pool open.
+            %   n = NeuroGLMExport.fitWorkers(dspec, trials, maxWorkers) for
+            %   fitUnits, each worker fitting dspec on trials.
+            %   The open process pool is used, else one is started. A worker
+            %   holds about 4 full design matrices (bins x columns doubles)
+            %   and the experiment, and 10% of the available memory or 2 GB
+            %   stays free: n = min(what fits, maxWorkers, the pool's size,
+            %   which is at most the Processes profile's NumWorkers).
+            %   n is 0 for maxWorkers < 2 and, with the warning
+            %   NeuroGLMExport:SerialFit, when fewer than two workers can be
+            %   had (memory, no Parallel Computing Toolbox, no process pool).
+            arguments
+                dspec (1,1) struct
+                trials double
+                maxWorkers (1,1) double {mustBeInteger, mustBeNonnegative}
+            end
+            n = 0;
+            if maxWorkers < 2; return; end
+            expt = dspec.expt;
+            nBins = sum(arrayfun(@(k) expt.binfun(expt.trial(k).duration), trials));
+            sz = whos('expt');
+            perWorker = 4 * 8 * nBins * sum([dspec.covar.edim]) + sz.bytes;
+            avail = 8e9;
+            if ispc
+                m = memory;
+                avail = double(m.MemAvailableAllArrays);
+            end
+            cap = min(maxWorkers, floor((avail - max(2e9, 0.1 * avail)) / perWorker));
+            why = "";
+            if cap < 2
+                why = sprintf("%.1f GB per worker, %.1f GB available", perWorker / 1e9, avail / 1e9);
+            elseif isempty(ver('parallel')) || ~license('test', 'Distrib_Computing_Toolbox')
+                why = "the Parallel Computing Toolbox is not available";
+            else
+                try
+                    pool = gcp('nocreate');
+                    if isempty(pool)
+                        cluster = parcluster("Processes");
+                        pool = parpool(cluster, max(1, min(cap, cluster.NumWorkers)));
+                    end
+                    if ~isa(pool, 'parallel.ProcessPool')
+                        why = "the open pool is a " + class(pool) + ", not a process pool";
+                    elseif pool.NumWorkers < 2
+                        why = "the pool has one worker";
+                    else
+                        n = min(cap, pool.NumWorkers);
+                    end
+                catch ME
+                    why = "no process pool could be started (" + ME.message + ")";
+                end
+            end
+            if why ~= ""
+                warning('NeuroGLMExport:SerialFit', 'Fitting one unit after the other: %s.', why);
+            end
+        end
+
         function tf = hasMatRegress()
             %hasMatRegress  True when neuroGLM's matRegress (glms, nlfuns packages) is on the path.
             tf = ~isempty(which('glms.neglog.poisson')) && ~isempty(which('nlfuns.exp'));
@@ -555,7 +701,33 @@ classdef NeuroGLMExport
         end
     end
 
+    methods (Static, Hidden)
+        function part = fitOne(expt, unit, design, trials, test, method, ridge)
+            %fitOne  One unit of fitUnits, on a worker or here: the experiment (or its Constant) comes off the result, fitUnits puts it back.
+            if isa(expt, 'parallel.pool.Constant'); expt = expt.Value; end
+            dspec = NeuroGLMExport.designSpec(expt, 'Response', unit.variable, design{:});
+            F = NeuroGLMExport.fit(dspec, Trials=trials, Method=method, Ridge=ridge);
+            P = NeuroGLMExport.predict(F, test);
+            dspec.expt = [];
+            F.expt = [];
+            F.dspec.expt = [];
+            F.dm.dspec.expt = [];
+            part = struct('unit', unit, 'dspec', dspec, 'F', F, 'P', P);
+        end
+    end
+
     methods (Static, Access = private)
+        function reportFit(opts, nDone, nU, part)
+            %reportFit  fitUnits' ProgressFcn and, with a finished unit PART, LogFcn.
+            if ~isempty(part) && ~isempty(opts.LogFcn)
+                opts.LogFcn(sprintf('unit %s: %d trials fitted (%s, ridge %g), %d held out; %.3f bits/spike (fit), %.3f (held out)', ...
+                    part.unit.label, numel(part.F.trials), part.F.method, part.F.ridge, numel(part.P.trials), part.F.bitsPerSpike, part.P.bitsPerSpike));
+            end
+            if ~isempty(opts.ProgressFcn)
+                opts.ProgressFcn(nDone / max(nU, 1), sprintf('%d/%d units', nDone, nU));
+            end
+        end
+
         function [b, se, H, ev] = fitRidge(X, y, grid)
             %fitRidge  Poisson GLM with a ridge prior by fminunc, over a grid of precisions.
             %   [b, se, H, ev] = fitRidge(X, y, grid): b = [bias; w] at the

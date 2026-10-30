@@ -26,7 +26,8 @@ function files = wikiScreenshots(outFolder, opts)
 %     app-sorting-tab.png   Sorting tab
 %     app-signals-tab.png   Signals tab
 %     app-spikes-tab.png    Spikes tab after its Preview
-%     app-export-tab.png    Export tab with the epochs format ticked
+%     app-export-tab.png    Export tab with NWB ticked (off again after
+%                           the shot)
 %     app-analysis-tab.png  Analysis tab: the step on, an analysis config
 %                           like wikiToolScreenshots' (a figure of each
 %                           kind and a session figure) chosen, its figures
@@ -148,8 +149,6 @@ app.TrialsAutoApproveCheckBox.Value = true;
 app.onTrialsSettingsChanged();
 app.TrialsParamColumns = ["TrialType" "RespCode"];   % what the Trials table's and plot's context menus set
 app.TrialsLabelParams = "TrialType";
-app.ExpEpochsCheckBox.Value = true;
-app.ExpEpochsCheckBox.ValueChangedFcn(app.ExpEpochsCheckBox, []);
 
 if want("app-copy-tab.png")
     % A source like the lab's, from the project: its ePsych files in
@@ -262,7 +261,12 @@ if want("app-spikes-tab.png")
     shot("app-spikes-tab.png", 1);
 end
 app.selectTab(app.TabExport);
+% NWB ticked for the shot only: the run needs no Python with pynwb
+app.ExpNWBCheckBox.Value = true;
+app.ExpNWBCheckBox.ValueChangedFcn(app.ExpNWBCheckBox, []);
 shot("app-export-tab.png", 1);
+app.ExpNWBCheckBox.Value = false;
+app.ExpNWBCheckBox.ValueChangedFcn(app.ExpNWBCheckBox, []);
 if want("app-analysis-tab.png")
     % wikiToolScreenshots' "Synthetic quick look", saved in the work folder.
     % The step is switched off again, so the run does not draw it.

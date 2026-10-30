@@ -60,12 +60,18 @@ git clone https://github.com/dstolz/ephys_analysis.wiki.git C:\temp\wiki
 
    `documentation/` is the one source. Edit it, never a generated page,
    because the next run replaces that page whole. Each page in `pages.json`
-   is made from a file, or from some of its `## ` sections (the app's tabs
-   from `EphysPipelineApp.md`). The file's title is dropped, and the
-   headings go up a level when sections are taken. Links to other docs
-   point at the page made from them (or from the section that holds the
-   anchor), and links to anything else point at the file on GitHub. A new
-   page needs a line in `_Sidebar.md`.
+   is made from a file, from some of its `## ` sections (`sections`: the
+   app's tabs from `EphysPipelineApp.md`), or from a file without some
+   sections (`exclude`). The file's title is dropped, and the headings go up
+   a level when sections are taken. Links to other docs point at the page
+   made from them (or from the section that holds the anchor; a link to the
+   file itself goes to its `main` page), and links to anything else point
+   at the file on GitHub. A new page needs a line in `_Sidebar.md`.
+
+   The wiki speaks to people who use the apps and people who write
+   scripts, not to developers of the code: a doc's developer sections
+   (`Tests`, `Where the code is`) are left out with `exclude`, and the
+   wiki has no architecture or testing pages.
 
    What only the wiki shows, its screenshots mainly, goes into
    `documentation/` as an HTML comment, which GitHub hides there and the
@@ -88,9 +94,13 @@ git clone https://github.com/dstolz/ephys_analysis.wiki.git C:\temp\wiki
      as before. `--include-candidates` writes them all.
 
    Pages not in `pages.json` stay hand-written in the wiki: Home,
-   Quick-Start, Output-Files, Troubleshooting-and-FAQ, the scripting guide,
-   Architecture, Extending-the-Pipeline, Testing, the sidebar and the
-   footer. Check them for the change too.
+   Quick-Start, Output-Files, Troubleshooting-and-FAQ, the pipeline's
+   scripting pages (Scripting-Overview to Synthetic-Test-Data), the
+   connectors' overview (Analysis-Toolbox-Exports), the sidebar and the
+   footer. Check them for the change too. The sidebar has a branch per
+   tool (pipeline app, analysis app, dataset browser), each split into
+   *Using the app* and *Writing scripts*, with the tool's API pages under
+   the latter.
 
 4. **Retake the screenshots the change affects**, with MATLAB R2025a. First
    the pipeline app, which also writes and runs the synthetic project:
@@ -115,8 +125,9 @@ git clone https://github.com/dstolz/ephys_analysis.wiki.git C:\temp\wiki
      results), Visualize (traces, heatmap), Review (unit, notes) and Clean
      up tabs.
    - `wikiToolScreenshots`: `probe-designer`, `channel-mapper`,
-     `manifest-viewer`, the analysis app's four tabs (`analysis-*-tab`) and
-     the three example figures its run writes (`analysis-example-*`).
+     `manifest-viewer`, the analysis app's four tabs (`analysis-*-tab`),
+     the three example figures its run writes (`analysis-example-*`) and
+     the dataset browser after a compute (`dataset-browser`).
 
    Each script's help says what each shot shows. `Shots={...}` takes a
    subset. A `Project=` folder that already holds a synthetic project is

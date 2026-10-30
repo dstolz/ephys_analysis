@@ -4,10 +4,14 @@ pages.json (next to this file) maps each generated wiki page to what it is
 made of: a markdown file of this repository, whole or some of its "## "
 sections. A page is written whole. It starts with a comment naming its source
 (edit that file, not the page); the file's "# " title is dropped, since the
-wiki shows the page name. When only some sections are taken, their headings
-go up one level. Links are rewritten for the wiki:
+wiki shows the page name. When only some sections are taken ("sections"),
+their headings go up one level; "exclude" takes the whole file but the
+sections it names (Tests, Where the code is: what is for developers).
+Links are rewritten for the wiki:
   a markdown file of the repo (+ #anchor)
-        the wiki page made from it, or from the section holding the anchor;
+        the wiki page made from it, or from the section holding the anchor
+        (a link without an anchor: the page made from the whole file, from
+        it with "exclude", or the "sections" page marked "main": true);
         otherwise the file on GitHub
   any other file of the repo (../pipeline/x.m, ...)
         the file on GitHub (main)
@@ -123,15 +127,43 @@ def load_pages(repo):
     return pages, texts
 
 
+def text_lines(text):
+    """TEXT's lines with its wiki-only comments unwrapped and its "# " title dropped."""
+    lines = unwrap_wiki(text).split("\n")
+    if lines and lines[0].startswith("# "):
+        lines = lines[1:]
+        while lines and lines[0].strip() == "":
+            lines = lines[1:]
+    return lines
+
+
+def kept_sections(p, text):
+    """The "## " section titles an "exclude" page keeps (None = the part before the first)."""
+    titles = [t for t, _ in split_sections("\n".join(text_lines(text)))]
+    missing = [s for s in p["exclude"] if s not in titles]
+    if missing:
+        raise SystemExit(f"{p['page']}: {p['source']} has no section(s) {missing} to exclude")
+    return [t for t in titles if t not in p["exclude"]]
+
+
 def page_index(pages, texts):
-    """{(source, section title or None): page} for every source part a page takes ((src, None) for a whole file)."""
+    """{(source, section title or None): page} for every source part a page takes ((src, None) for a whole
+    file); an "exclude" page, and a "sections" page marked "main", is also (src, "") for links to its file."""
     idx = {}
     for p in pages:
+        src = p["source"]
         if p.get("sections"):
             for s in p["sections"]:
-                idx[(p["source"], s)] = p["page"]
+                idx[(src, s)] = p["page"]
+            if p.get("main"):
+                idx[(src, "")] = p["page"]
+        elif p.get("exclude"):
+            for s in kept_sections(p, texts[src]):
+                if s is not None:
+                    idx[(src, s)] = p["page"]
+            idx[(src, "")] = p["page"]
         else:
-            idx[(p["source"], None)] = p["page"]
+            idx[(src, None)] = p["page"]
     return idx
 
 
@@ -140,9 +172,14 @@ def target_page(src, anchor, idx, texts):
     if (src, None) in idx:
         return idx[(src, None)]
     if src in texts and anchor:
-        sec = anchors_by_section(texts[src]).get(anchor)
-        if sec is not None and (src, sec) in idx:
-            return idx[(src, sec)]
+        secs = anchors_by_section(texts[src])
+        if anchor in secs:
+            sec = secs[anchor]
+            if sec is not None:
+                return idx.get((src, sec))
+            return idx.get((src, ""))                 # an anchor before the first "## " section
+    if not anchor:
+        return idx.get((src, ""))                     # the file itself: its main page
     return None
 
 
@@ -154,8 +191,8 @@ def rewrite_links(body, src, idx, texts, own):
         label, url = m.group(1), m.group(2)
         if re.match(r'^[a-z]+:', url) or url.startswith("mailto:"):
             return m.group(0)
-        if re.match(r'^[A-Z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*(?:#[\w-]*)?$', url):
-            return m.group(0)                            # a wiki page by name (Quick-Start), from a wiki-only comment
+        if re.match(r'^(?:[A-Z][A-Za-z0-9]*|[a-z][A-Za-z0-9]*(?=-))(?:-[A-Za-z0-9]+)*(?:#[\w-]*)?$', url):
+            return m.group(0)                            # a wiki page by name (Quick-Start, mTRF-Connector), from a wiki-only comment
         path, _, anchor = url.partition("#")
         if path == "":
             rel = src                                   # same file
@@ -181,12 +218,12 @@ def rewrite_links(body, src, idx, texts, own):
 
 def build(p, texts, idx):
     src = p["source"]
-    text = unwrap_wiki(texts[src])
-    lines = text.split("\n")
-    if lines and lines[0].startswith("# "):
-        lines = lines[1:]
-        while lines and lines[0].strip() == "":
-            lines = lines[1:]
+    lines = text_lines(texts[src])
+    if p.get("exclude"):
+        keep = kept_sections(p, texts[src])
+        lines = [l for t, ls in split_sections("\n".join(lines)) if t in keep for l in ls]
+        while lines and lines[-1].strip() == "":
+            lines.pop()
     if p.get("sections"):
         want = p["sections"]
         parts = dict((t, ls) for t, ls in split_sections("\n".join(lines)) if t is not None)
@@ -209,7 +246,8 @@ def build(p, texts, idx):
     else:
         body = "\n".join(lines)
     body = rewrite_links(body, src, idx, texts, p["page"])
-    what = src + (" (" + ", ".join(f'"## {s}"' for s in p["sections"]) + ")" if p.get("sections") else "")
+    what = src + (" (" + ", ".join(f'"## {s}"' for s in p["sections"]) + ")" if p.get("sections") else "") \
+        + (" without " + ", ".join(f'"## {s}"' for s in p["exclude"]) if p.get("exclude") else "")
     banner = (f"<!-- Generated from {what} by tools/wiki/gen_pages.py. "
               f"Edit that file, not this page: the next update replaces it. -->\n\n")
     return banner + body.rstrip() + "\n"

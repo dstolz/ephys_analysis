@@ -63,8 +63,8 @@ def split_code_comment(line):
         code.append(c)
         if not c.isspace():
             prev = c
-        elif prev and prev.isalnum():
-            prev = " "
+        elif prev:
+            prev = " "   # a quote after white space starts a string: [a (b) '>'] is not a transpose
         i += 1
     return "".join(code), None
 
@@ -90,8 +90,8 @@ def strip_strings(code):
         out.append(c)
         if not c.isspace():
             prev = c
-        elif prev and prev.isalnum():
-            prev = " "
+        elif prev:
+            prev = " "   # a quote after white space starts a string: [a (b) '>'] is not a transpose
         i += 1
     return "".join(out)
 
@@ -1006,11 +1006,14 @@ PIPE_GROUPS = [
     ("Unit quality and sort comparison", ["unitQualityMetrics", "unitQualityCriteria", "unitQualityPass",
                                           "writeUnitQualityReport", "sortSweep"]),
     ("Units and names", ["unitTable", "parseNameTokens"]),
-    ("Derived signals and conversion", ["intan2matlab", "matrix2kilosort", "extract_trials"]),
+    ("Dataset subjects, dates and filters", ["subjectAndDate", "datasetFilter"]),
+    ("Derived signals and conversion", ["intan2matlab", "matrix2kilosort", "extract_trials", "recordingChannels"]),
+    ("Signal cleaning", ["removeLineNoise", "weightedCAR"]),
     ("Synthetic data", ["makeSyntheticProject", "makeSyntheticRecording", "makeSyntheticProbe",
                         "syntheticModel", "syntheticTaskSchedule",
                         "benchmarkDetection"]),
-    ("Probe maps", ["probeMapProblems", "writeProbeMap"]),
+    ("Probe maps and sites", ["probeMapProblems", "writeProbeMap", "siteNeighbors"]),
+    ("Folders and network shares", ["folderReachable", "listTree", "matchFiles"]),
     ("File I/O", ["readJsonFile", "writeJsonFile", "stringifyNonFinite", "readNPY", "writeNPY", "readNPZ",
                   "writeNPZ", "readNewLines", "read_Intan_RHD2000_file_modified"]),
     ("Version and provenance", ["ephysVersion", "ephysProvenance", "provenanceForJson"]),
@@ -1020,20 +1023,46 @@ PIPE_GROUPS = [
 ]
 
 ANALYSIS_GROUPS = [
-    ("Loading", ["loadAnalysisSource", "outputTags"]),
-    ("Events, trial selection and epochs", ["eventRef", "resolveEvents", "trialSelection",
-                                            "selectTrials", "epochWindow", "epochTable"]),
-    ("Units and channels", ["selectUnits", "selectChannels", "unitWaveforms"]),
+    ("Loading", ["loadAnalysisSource", "outputTags", "outputsStamp"]),
+    ("Events, trial selection and epochs", ["eventRef", "resolveEvents", "eventRefLabel", "trialSelection",
+                                            "selectTrials", "epochWindow", "epochTable", "epochSpikes"]),
+    ("Raster event marks", ["epochEvents", "eventMarkRef", "rasterMarkLabels", "rasterMarkLooks"]),
+    ("Units and channels", ["selectUnits", "selectChannels", "unitWaveforms", "probeOrder", "groupDetected"]),
+    ("Unit mapping across datasets", ["readUnitMapping", "writeUnitMapping"]),
     ("Compute", ["spikePSTH", "firingRate", "tuningCurve", "evokedPotential", "unitCorrelation",
                  "unitSummary", "probeMapValues"]),
+    ("Latency and onset", ["eventLatency", "firstSpikeLatency", "responseOnset", "latencyMethodText"]),
     ("Response tests and auROC", ["responseEpochs", "responseStats", "pAdjust", "aurocCurves", "aurocCall"]),
     ("Population analysis", ["populationAnalysis", "populationSummary", "renderPopulation", "writePopulation"]),
-    ("Figures", ["figureObservations", "figureSkipReason", "figureCompute", "figureSessionCompute",
+    ("Chronux analyses", ["chronuxSettings", "chronuxTimeBase", "chronuxSpectrum", "chronuxSpecgram",
+                          "chronuxCoherence", "chronuxSpikeSpectrum", "chronuxSpikeSpecgram",
+                          "chronuxUnitCoherence", "chronuxSpikeField"]),
+    ("Dataset browser: epochs of every dataset", ["epochMatrix", "epochMatrixSettings", "epochMatrixLabels",
+                                                  "epochMatrixNormalize", "epochMatrixRaster"]),
+    ("Dataset browser: whole sessions", ["sessionData"]),
+    ("Toolbox connectors: FieldTrip, mTRF, neuroGLM", ["epochMatrixFieldTrip", "sessionDataFieldTrip",
+                                                       "epochMatrixMTRF", "sessionDataMTRF",
+                                                       "sessionDataNeuroGLM"]),
+    ("Toolbox connectors: current source density", ["laminarColumns", "epochMatrixCSD", "sessionDataCSD",
+                                                    "icsdEstimate", "kcsdEstimate"]),
+    ("Figures", ["figureObservations", "figureSkipReason", "figureEpochs", "figurePanelRegistry",
+                 "figurePanelLayers", "figureCompute", "figureChronuxSettings", "figureAurocCalls",
                  "renderFigure", "figureCaption", "figureOutputName"]),
-    ("Renderers", ["renderHeatmap", "renderProbeMap", "renderCorrMap", "renderWaveforms", "renderChronux", "blueWhiteRed"]),
-    ("Figure export and reports", ["newExportFigure", "exportFigure", "figureFileName", "newAnalysisReport",
-                                   "addReportDataset", "addReportFigure", "reportSummaryTables",
-                                   "reportImage", "reportPdfPage", "writeHtmlReport", "writePdfReport"]),
+    ("Probe figures", ["figureProbeTiles", "figureProbeCompute", "renderProbeFigure"]),
+    ("Y ranges shared across a run", ["figureBatchPanels", "figureYExtents", "figureBatchYLim"]),
+    ("Session figures (across datasets)", ["sessionTable", "figureSessionObservations", "figureSessionSkipReason",
+                                           "figureSessionSpec", "figureSessionCompute", "combineSessions",
+                                           "writeAnalysisData"]),
+    ("Figure settings", ["figureSettingParts", "figureSettingItems", "figureRoleSettings", "copyFigureSettings",
+                         "figureLookToDesign"]),
+    ("Figure sizes and pages", ["figureExportSize", "figureSizePresets", "figureSizeParse", "figureSizeText",
+                                "figureSizeConvert", "pageItems", "reportPageLayout"]),
+    ("Renderers and colors", ["renderHeatmap", "renderProbeMap", "renderCorrMap", "renderWaveforms", "renderChronux",
+                              "blueWhiteRed", "namedColor"]),
+    ("Figure export and reports", ["newExportFigure", "drawExportPage", "exportFigure", "figureFileName",
+                                   "newAnalysisReport", "addReportDataset", "addReportSection", "addReportFigure",
+                                   "reportSummaryTables", "reportImage", "reportPdfPage", "writeHtmlReport",
+                                   "writePdfReport"]),
 ]
 
 
@@ -1049,6 +1078,9 @@ def main(do_splice=True):
         "EphysPipelineScript": pdir("pipeline", "@EphysPipelineScript"),
         "ChronuxDataset": pdir("pipeline", "@ChronuxDataset"),
         "FieldTripExport": pdir("pipeline", "@FieldTripExport"),
+        "mTRFExport": pdir("pipeline", "@mTRFExport"),
+        "NeuroGLMExport": pdir("pipeline", "@NeuroGLMExport"),
+        "PipelineDiagram": pdir("pipeline", "@PipelineDiagram"),
         "ProbeDesignerApp": pdir("pipeline", "ProbeDesignerApp.m"),
         "ChannelMapperApp": pdir("pipeline", "@ChannelMapperApp"),
         "ChannelMap": pdir("pipeline", "ChannelMap.m"),
@@ -1065,6 +1097,12 @@ def main(do_splice=True):
         "EphysAnalysisConfig": pdir("analysis", "@EphysAnalysisConfig"),
         "EphysAnalysisRunner": pdir("analysis", "@EphysAnalysisRunner"),
         "EphysAnalysisScript": pdir("analysis", "@EphysAnalysisScript"),
+        "DatasetBrowser": pdir("analysis", "DatasetBrowser.m"),
+        "DatasetRuns": pdir("analysis", "DatasetRuns.m"),
+        "DatasetFavorites": pdir("analysis", "DatasetFavorites.m"),
+        "DatasetNotes": pdir("analysis", "DatasetNotes.m"),
+        "PlotDesign": pdir("analysis", "PlotDesign.m"),
+        "FigureTemplate": pdir("analysis", "FigureTemplate.m"),
     }
     for n, p in simple.items():
         cls = load_class(p)

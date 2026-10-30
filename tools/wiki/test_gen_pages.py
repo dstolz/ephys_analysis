@@ -36,7 +36,7 @@ Sorts. Back to [copy](#copy). [Elsewhere](EphysDataset.md#reading). [Old](#old-d
 See [copy](#copy) too.
 -->
 
-<!-- wiki: More in [Troubleshooting](Troubleshooting-and-FAQ#sorting) and [the start](Quick-Start). -->
+<!-- wiki: More in [Troubleshooting](Troubleshooting-and-FAQ#sorting) and [the start](Quick-Start), [mTRF](mTRF-Connector). -->
 """
 FMT = """# Files
 
@@ -87,12 +87,33 @@ class GenPages(unittest.TestCase):
         self.assertIn("\n![The Sorting tab](images/app-sorting-tab.png)\n", s, "a one-line wiki comment is unwrapped")
         self.assertIn("\n![Optimize](images/app-optimize.png)\nSee [copy](Copy-Tab#copy) too.\n", s,
                       "a wiki block is unwrapped, and its links rewritten")
-        self.assertIn("[Troubleshooting](Troubleshooting-and-FAQ#sorting) and [the start](Quick-Start)", s,
-                      "a link to a page only the wiki has is kept")
+        self.assertIn("[Troubleshooting](Troubleshooting-and-FAQ#sorting) and [the start](Quick-Start), "
+                      "[mTRF](mTRF-Connector)", s, "a link to a page only the wiki has is kept")
         self.assertNotIn("<!-- wiki", s)
         self.assertNotIn("\n-->", s)
         with self.assertRaises(SystemExit):
             g.unwrap_wiki("<!-- wiki\n![x](images/x.png)\n")
+
+    def test_exclude_and_main(self):
+        texts = dict(self.texts)
+        texts["documentation/guide.md"] = ("# Guide\n\nSee [the app](app.md), [its copy](app.md#copy), "
+                                           "[the tests](#tests) and [what](#what).\n\n## What\n\nText.\n\n"
+                                           "## Tests\n\nFor developers.\n")
+        pages = self.pages + [{"page": "Guide", "source": "documentation/guide.md", "exclude": ["Tests"],
+                               "status": "generated"}]
+        pages[0] = dict(pages[0], main=True)
+        idx = g.page_index(pages, texts)
+        t = g.build(pages[-1], texts, idx)
+        self.assertIn("## What", t)
+        self.assertNotIn("For developers.", t, "an excluded section is left out")
+        self.assertIn("[the app](Copy-Tab)", t, "a file link goes to the sections page marked main")
+        self.assertIn("[its copy](Copy-Tab#copy)", t)
+        self.assertIn("[what](#what)", t, "an anchor of a kept section stays on the page")
+        self.assertIn("[the tests](" + g.BLOB + "documentation/guide.md#tests)", t,
+                      "an anchor of an excluded section goes to GitHub")
+        self.assertTrue(t.startswith('<!-- Generated from documentation/guide.md without "## Tests"'))
+        with self.assertRaises(SystemExit):
+            g.page_index(pages[:-1] + [dict(pages[-1], exclude=["Nope"])], texts)
 
     def test_anchors(self):
         seen = set()
@@ -124,6 +145,11 @@ class GenPages(unittest.TestCase):
             for page, anchor in links:
                 self.assertIn(page, built, f"{name}: {page} is made from documentation/")
                 self.assertIn(anchor, g.anchors_by_section(built[page]), f"{name}: {page}#{anchor}")
+        with open(os.path.join(g.REPO, "analysis", "DatasetBrowser.m"), encoding="utf-8") as fid:
+            pages_opened = re.findall(r'openHelp\("([A-Za-z0-9-]+)"\)', fid.read())
+        self.assertTrue(pages_opened, "DatasetBrowser.m opens a page")
+        for page in pages_opened:
+            self.assertIn(page, built, f"analysis/DatasetBrowser.m: {page} is made from documentation/")
 
 
 if __name__ == "__main__":

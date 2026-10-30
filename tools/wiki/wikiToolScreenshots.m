@@ -22,6 +22,9 @@ function files = wikiToolScreenshots(outFolder, opts)
 %     analysis-example-unit-card.png  the PNGs that run wrote: the first
 %     analysis-example-heatmap.png    unit's card, and the dataset's heat
 %     analysis-example-corrmap.png    map and unit correlation
+%     dataset-browser.png   DatasetBrowser on P, every dataset ticked:
+%                           sorted units around Stim onset, grouped by
+%                           Depth, after Compute
 %   The analysis config is "Synthetic quick look": the default event (the
 %   first Stim onset of each trial, -0.2 to 0.8 s), grouped by Depth, the
 %   figures unit_card (raster over PSTH), tuning, heatmap, probemap,
@@ -52,7 +55,8 @@ arguments
     opts.Source (1,1) string = string(fileparts(fileparts(fileparts(mfilename('fullpath')))))
     opts.Shots (1,:) string = ["probe-designer.png" "channel-mapper.png" "manifest-viewer.png" ...
         "analysis-data-tab.png" "analysis-alignment-tab.png" "analysis-figures-tab.png" "analysis-export-tab.png" ...
-        "analysis-example-unit-card.png" "analysis-example-heatmap.png" "analysis-example-corrmap.png"]
+        "analysis-example-unit-card.png" "analysis-example-heatmap.png" "analysis-example-corrmap.png" ...
+        "dataset-browser.png"]
     opts.Wait (1,1) double {mustBeNonnegative} = 2
 end
 
@@ -155,6 +159,18 @@ if any(ismember(analysisShots, opts.Shots))
             fprintf('wrote %s (from %s)\n', files(end), F(1).name);
         end
     end
+end
+
+if want("dataset-browser.png")
+    B = DatasetBrowser(proj, Splash=false, Workers=0);   % no saved state: the scan ticks every dataset
+    closeBrowser = onCleanup(@() delete(B));
+    S = B.Settings;
+    S.ref = eventRef(line="Stim");
+    S.selection.groupBy = "Depth";
+    B.Settings = S;
+    B.compute();
+    shot(B.Fig, "dataset-browser.png");
+    clear closeBrowser
 end
 
 

@@ -2531,8 +2531,12 @@ is in [file-formats.md](file-formats.md#dataset-manifest).
 - **`c = addToManifest(target, Name=Value, ...)`** adds your own fields to the
   manifest's `custom` block; `target` is a dataset, a folder holding one
   dataset manifest, or the file. `addToManifest(target, S)` takes them from a
-  struct. A name already there gets the new value. Nothing else in the file
-  changes but `updated`, and a dataset with no manifest yet gets one first.
+  struct, and `addToManifest(target, S, Name=Value, ...)` adds the pairs to
+  them; a pair wins over a field of `S` with its name. An array of datasets
+  adds to each and returns a cell array of blocks; if one manifest cannot be
+  read, none is changed. A name already there gets the new value, and a nested
+  struct replaces the old one whole. Nothing else in the file changes but
+  `updated`, and a dataset with no manifest yet gets one first.
   Every later `writeManifest` (a Scan, a pipeline step, the app) keeps the
   block, even from a dataset object made before the fields were added. The
   block lives only in the file: there is no property for it, `applyManifest`
@@ -2545,10 +2549,10 @@ is in [file-formats.md](file-formats.md#dataset-manifest).
   read (`addToManifest:Unreadable`).
 
   ```matlab
-  addToManifest("D:\EPHYS\subjA\subjA_260101_120000", surgeon="DS", depth_um=1200);
-  for d = P.Datasets
-      addToManifest(d, batch="pilot");
-  end
+  info.surgeon = "DS";
+  info.depth_um = 1200;
+  addToManifest("D:\EPHYS\subjA\subjA_260101_120000", info);
+  addToManifest(P.Datasets, info, batch="pilot");
   ```
 
 - `ManifestViewerApp(ds)` shows it in a window

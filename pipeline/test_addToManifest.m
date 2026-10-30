@@ -47,6 +47,55 @@ classdef test_addToManifest < matlab.unittest.TestCase
             tc.verifyEqual(tc.custom(), struct('a', 1, 'nested', struct('b', 'x')));
         end
 
+        function takesAStructAndPairs(tc)
+            tc.Ds.writeManifest();
+            c = addToManifest(tc.Dir, struct('a', 1, 'b', 2), b=3, d="x");
+            tc.verifyEqual(c.b, 3, 'A pair wins over the struct''s field.');
+            tc.verifyEqual(tc.custom(), struct('a', 1, 'b', 3, 'd', 'x'));
+            addToManifest(tc.Dir, struct(), e=4);
+            tc.verifyEqual(tc.custom().e, 4);
+        end
+
+        function replacesANestedStructWhole(tc)
+            tc.Ds.writeManifest();
+            addToManifest(tc.Dir, struct('nested', struct('a', 1, 'b', 2)));
+            addToManifest(tc.Dir, struct('nested', struct('a', 3)));
+            tc.verifyEqual(tc.custom().nested, struct('a', 3));
+        end
+
+        function addsToAnArrayOfDatasets(tc)
+            several = [tc.Ds tc.moreDatasets(2)];
+            tc.Ds.writeManifest();   % the others have none yet
+            c = addToManifest(several, struct('a', 1), b=2);
+            tc.verifyClass(c, 'cell');
+            tc.verifySize(c, size(several));
+            tc.verifyEqual(c{2}, struct('a', 1, 'b', 2));
+            for k = 1:numel(several)
+                tc.verifyEqual(readJsonFile(several(k).manifestFile()).custom, struct('a', 1, 'b', 2));
+            end
+            % one element is one dataset: its block, not a cell
+            tc.verifyClass(addToManifest(several(1), d=3), 'struct');
+        end
+
+        function emptyArrayOfDatasetsDoesNothing(tc)
+            c = addToManifest(tc.Ds([]), a=1);
+            tc.verifyEmpty(c);
+            tc.verifyFalse(isfile(tc.Ds.manifestFile()));
+            tc.verifyError(@() addToManifest(tc.Ds([]), a=@sin), 'addToManifest:BadValue');
+        end
+
+        function aBadManifestInAnArrayStopsThemAll(tc)
+            ds = tc.moreDatasets(1);
+            tc.Ds.writeManifest();
+            before = fileread(tc.Ds.manifestFile());
+            f = ds.manifestFile();
+            fid = fopen(f, 'w');
+            fwrite(fid, '{not json', 'char');
+            fclose(fid);
+            tc.verifyError(@() addToManifest([tc.Ds ds], a=1), 'addToManifest:Unreadable');
+            tc.verifyEqual(fileread(tc.Ds.manifestFile()), before);
+        end
+
         function takesNameValueAsTextPairs(tc)
             tc.Ds.writeManifest();
             addToManifest(tc.Dir, "a", 1, 'b', 2);
@@ -120,6 +169,10 @@ classdef test_addToManifest < matlab.unittest.TestCase
             tc.verifyError(@() addToManifest(5, a=1), 'addToManifest:BadInput');
             tc.verifyError(@() addToManifest(["x" "y"], a=1), 'addToManifest:BadInput');
             tc.verifyError(@() addToManifest(tc.Dir, a=@sin), 'addToManifest:BadValue');
+            tc.verifyError(@() addToManifest(tc.Dir, struct('a', 1), "b"), 'addToManifest:BadInput');
+            tc.verifyError(@() addToManifest(tc.Dir, struct('a', 1), struct('b', 2)), 'addToManifest:BadInput');
+            tc.verifyError(@() addToManifest(tc.Dir, "a", 1, struct('b', 2)), 'addToManifest:BadInput');
+            tc.verifyError(@() addToManifest(tc.Dir, struct('a', {1, 2})), 'addToManifest:BadInput');
             tc.verifyEqual(fileread(tc.Ds.manifestFile()), before);
         end
 
@@ -145,6 +198,16 @@ classdef test_addToManifest < matlab.unittest.TestCase
     end
 
     methods (Access = private)
+        function ds = moreDatasets(tc, n)
+            ds = EphysDataset.empty;
+            for k = 1:n
+                folder = string(tempname);
+                mkdir(folder);
+                tc.addTeardown(@() rmdir(folder, 's'));
+                ds(k) = EphysDataset(folder, AutoMetadata=false, Name="subjB" + k + "_260101_120000");
+            end
+        end
+
         function c = custom(tc)
             m = readJsonFile(tc.Ds.manifestFile());
             c = m.custom;

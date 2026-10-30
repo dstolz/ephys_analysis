@@ -4,14 +4,21 @@ function c = addToManifest(target, varargin)
 %   "custom" block of the dataset's <Name>_manifest.json and changes nothing
 %   else but the file's "updated" time. A name already there gets the new
 %   value; the block's other fields stay.
-%   addToManifest(TARGET, S) takes the fields from the scalar struct S.
-%   C = addToManifest(...) returns the whole block as it now stands.
+%   addToManifest(TARGET, S) takes the fields from the scalar struct S, and
+%   addToManifest(TARGET, S, Name=Value, ...) adds the pairs to them; a pair
+%   wins over a field of S with its name.
+%   C = addToManifest(...) returns the whole block as it now stands; a cell
+%   array of them, one per dataset, for an array of datasets.
 %
 %   TARGET is one of
-%     an EphysDataset  a manifest is written first when it has none yet
+%     an EphysDataset  a manifest is written first when it has none yet; an
+%                      array adds to each, and an empty one does nothing
 %     a folder         holding one dataset manifest (session_manifest.json,
 %                      the Copy tab's, does not count)
 %     a file           the manifest itself
+%
+%   A field of S replaces the field of its name whole: a nested struct is not
+%   merged with the one already in the file.
 %
 %   Each name must be a valid MATLAB field name. A value is anything
 %   jsonencode takes: numbers, text, logicals, structs, cells. It comes back
@@ -31,20 +38,40 @@ function c = addToManifest(target, varargin)
 %   Errors (nothing is written): addToManifest:BadInput, :BadValue,
 %   :NotFound (no such file or folder), :NoManifest, :Ambiguous (a folder of
 %   several manifests: name the file), :Unreadable (not JSON, an unknown
-%   schema, or a custom field that is not an object).
+%   schema, or a custom field that is not an object). An array of datasets is
+%   read through first, so one bad manifest stops them all.
 %
 %   Example
-%     addToManifest("D:\EPHYS\subjA\subjA_260101_120000", surgeon="DS", depth_um=1200);
-%     for d = P.Datasets
-%         addToManifest(d, batch="pilot");
-%     end
+%     info.surgeon = "DS";
+%     info.depth_um = 1200;
+%     addToManifest("D:\EPHYS\subjA\subjA_260101_120000", info);
+%     addToManifest(P.Datasets, info, batch="pilot");
 %
 %   See also EphysDataset.writeManifest, EphysDataset.readManifest,
 %   ManifestViewerApp, TagSet.
 
 [names, values] = fieldsToAdd(varargin);
-file = manifestOf(target);
+if isa(target, 'EphysDataset')
+    targets = arrayfun(@(d) d, target, 'UniformOutput', false);
+else
+    targets = {target};
+end
 
+files = strings(size(targets));
+manifests = cell(size(targets));
+for k = 1:numel(targets)
+    files(k) = manifestOf(targets{k});
+    manifests{k} = withFields(files(k), names, values);
+end
+for k = 1:numel(targets)
+    writeJsonFile(files(k), manifests{k});
+end
+c = cellfun(@(m) m.custom, manifests, 'UniformOutput', false);
+if isscalar(c); c = c{1}; end
+end
+
+function m = withFields(file, names, values)
+%withFields  The manifest in FILE with the fields in its custom block, not yet written.
 [m, why] = EphysDataset.readManifest(file);
 if why ~= ""
     error('addToManifest:Unreadable', 'Cannot add to %s: %s.', file, why);
@@ -61,20 +88,22 @@ for k = 1:numel(names)
 end
 m.custom = c;
 m.updated = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
-writeJsonFile(file, m);
 end
 
 function [names, values] = fieldsToAdd(args)
 %fieldsToAdd  The names and values asked for, checked, as cell arrays.
-if isscalar(args) && isstruct(args{1}) && isscalar(args{1})
+names = {};
+values = {};
+if ~isempty(args) && isstruct(args{1}) && isscalar(args{1})
     names = fieldnames(args{1}).';
     values = struct2cell(args{1}).';
-elseif mod(numel(args), 2) == 0
-    names = args(1:2:end);
-    values = args(2:2:end);
-else
-    error('addToManifest:BadInput', 'Give Name=Value pairs or one scalar struct.');
+    args = args(2:end);
 end
+if mod(numel(args), 2) ~= 0
+    error('addToManifest:BadInput', 'Give Name=Value pairs, a scalar struct, or the struct and then pairs.');
+end
+names = [names, args(1:2:end)];
+values = [values, args(2:2:end)];
 if isempty(names)
     error('addToManifest:BadInput', 'Nothing to add: give Name=Value pairs or a struct with fields.');
 end

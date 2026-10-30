@@ -7,6 +7,7 @@ if isempty(obj.FlowHTML) || ~isvalid(obj.FlowHTML); return; end
 obj.FlowLayoutDropDown.Enable = obj.FlowViewDropDown.Value == "detail";
 key = "overview";
 if obj.FlowViewDropDown.Value == "detail"; key = "detail_" + obj.FlowLayoutDropDown.Value; end
+if obj.FlowDirectionDropDown.Value == "horizontal"; key = key + "_lr"; end
 if isfield(obj.FlowZoom, key)
     obj.FlowHTML.Data = obj.FlowZoom.(key);
 else

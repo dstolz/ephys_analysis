@@ -49,7 +49,7 @@ if ~(isstruct(v) && isscalar(v) && all(isfield(v, {'key', 'auto', 'scale', 'x', 
 end
 key = asText(v.key);
 num = @(a) isnumeric(a) && isscalar(a) && isfinite(a);
-if ~ismember(key, ["overview" "detail_tree" "detail_steps"]) || ~num(v.scale) || v.scale <= 0 ...
+if ~ismember(extractBefore(key + "_lr", "_lr"), ["overview" "detail_tree" "detail_steps"]) || ~num(v.scale) || v.scale <= 0 ...
         || ~num(v.x) || ~num(v.y)
     return
 end

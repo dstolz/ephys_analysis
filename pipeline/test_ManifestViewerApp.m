@@ -9,8 +9,11 @@ function test_ManifestViewerApp()
 %   file, a folder (the newest of two manifests) and an EphysDataset of a
 %   synthetic recording, the timeline and probe plots, the tree, a schema
 %   /1 manifest without a probe (with and without the config's default
-%   probe), a file that is not JSON, Rewrite, and a Rewrite that
-%   writeManifest refuses.
+%   probe), a file that is not JSON, Rewrite, a Rewrite that writeManifest
+%   refuses, and the Flow chart: PipelineDiagram.manifest at its four levels
+%   of detail (what each shows, no box over another and no arrow through one,
+%   the steps not run hidden) and its tab (drawn when shown, the level kept,
+%   saved as a file).
 %
 %   Usage:  test_ManifestViewerApp
 
@@ -168,8 +171,119 @@ To = ManifestViewerApp.summaryRows(mOk);
 check(rowIs(To, "Pairing", "ok") && contains(To.Check(To.Field == "Pairing"), "automatically") ...
     && To.Value(To.Field == "Cut trials") == "[start end] [0 1]", 'approved pairing: ok, cut counts shown as a row');
 
+fprintf('\n== flow chart ==\n');
+[html, summary, model] = PipelineDiagram.manifest(readJsonFile(f1));
+html = string(html);
+check(isequal([model.levels(1:4).name], ["steps" "outputs" "settings" "parameters"]) && numel(model.levels) == 8 ...
+    && all([model.levels(5:8).direction] == "horizontal"), 'four levels of detail, from the steps to each parameter, in each direction');
+check(count(html, "<svg class=""flow""") == 8 && count(html, "<button type=""button"" data-level=") == 4 ...
+    && count(html, "<button type=""button"" data-dir=") == 2 ...
+    && contains(html, "<div class=""lvl on"" data-level=""outputs"" data-dir=""vertical""") ...
+    && contains(html, "<title>Processing flow: subjA_260101_120000</title>"), ...
+    'the page holds every level in each direction and opens on Outputs, top to bottom, by default');
+check(contains(summary, "5 of 7 steps run") && contains(summary, "with files gone"), ...
+    'summary: the steps run (the artifacts by their manual periods, the behavior by its pairing), and the files gone');
+pane = @(h, lv) extractBetween(h, "data-level=""" + lv + """ data-dir=""vertical"" data-initial", "</svg>");
+check(~contains(pane(html, "steps"), "Th_universal") && ~contains(pane(html, "steps"), "written 2026") ...
+    && ~contains(pane(html, "outputs"), "Th_universal") && contains(pane(html, "outputs"), "missing.bin") ...
+    && contains(pane(html, "settings"), "Th_universal") && contains(pane(html, "settings"), "weighted CAR") ...
+    && ~contains(pane(html, "settings"), "LFP_NotchBW") && contains(pane(html, "parameters"), "MUA_bpLoHi"), ...
+    'each level adds to the last: steps; files; key settings in words; every parameter');
+check(contains(pane(html, "outputs"), "reference: referenced twice") && ~contains(pane(html, "steps"), "referenced twice"), ...
+    'a warning the Summary raises (a sort referenced twice) is on the box from Outputs on');
+check(contains(pane(html, "steps"), "file gone") && contains(pane(html, "steps"), "not run") ...
+    && count(pane(html, "steps"), "class=""badge bad""") >= 1, 'badges: a file gone now, a step not run');
+mFull = m;
+mFull.processing.artifacts = struct('created', "2026-01-01 12:30:00", 'run_id', "", 'detected', 12, 'detected_s', 4, ...
+    'options', struct('Method', "rms", 'Threshold', 9), 'reference', struct('mode', "none", 'channels', ""), 'channels', "1-16");
+mFull.processing.spikes = struct('file', string(fullfile(rec, 's.mat')), 'created', "2026-01-01 12:43:00", 'run_id', "", ...
+    'options', struct('ThresholdMethod', "mad", 'ChannelOrder', (1:64).'), 'threshold_input', 4, ...
+    'artifacts', struct('mode', "reject", 'periods', 2, 'rejected', 7, 'erased_s', 0), ...
+    'coincidence', struct('mode', "remove", 'probe', probeFile));
+mFull.processing.behavior = struct('file', string(fullfile(rec, 'b.mat')), 'created', "2026-01-01 12:44:00", 'run_id', "", ...
+    'options', struct('Overwrite', true), 'n_trials', 12, 'extract_files', {{'x'}}, 'derived_events', {{'Hit'}}, 'derived_failed', {{}});
+mFull.processing.nwb = struct('file', string(fullfile(rec, 'n.nwb')), 'created', "2026-01-01 12:45:00", 'run_id', "", ...
+    'options', struct('Trials', true, 'Events', true), 'probe_file', probeFile, ...
+    'sources', struct('extractFile', "x", 'sortingDir', "y"), 'versions', struct('pynwb', "3.0"));
+mFull.behavior.file = string(f1);
+[htmlF, ~, modelF] = PipelineDiagram.manifest(mFull);
+check(contains(string(htmlF), "ChannelOrder") && contains(string(htmlF), "[1-64]"), 'a run of channels is shown in short');
+check(contains(pane(string(htmlF), "parameters"), ">Overwrite</text><text class=""kv"" x=""")  ...
+    && contains(extractAfter(pane(string(htmlF), "parameters"), ">Overwrite</text>"), ">true</text>"), 'a logical value reads as true / false');
+ok = true; msg = "";
+for mdl = [model, modelF]
+    for L = mdl.levels
+        [nBox, nThrough, nShared, nCross] = chartProblems(L);
+        ok = ok && nBox == 0 && nThrough == 0 && nShared == 0 && nCross <= 6;
+        msg = msg + sprintf(" %s:%d/%d/%d/%d", L.name, nBox, nThrough, nShared, nCross);
+    end
+end
+for L = modelF.levels(5:8)
+    % Left to right: each arrow leaves its source's right edge, enters its target's left edge, and runs forward.
+    r = @(id) L.nodes([L.nodes.id] == id).rect;
+    for e = L.edges
+        a = r(e.from); b = r(e.to); p = e.points;
+        ok = ok && abs(p(1, 1) - (a(1) + a(3))) < 0.5 && abs(p(end, 1) - b(1)) < 0.5 && b(1) > a(1) ...
+            && p(end, 2) > b(2) && p(end, 2) < b(2) + b(4) && abs(p(end, 2) - p(end - 1, 2)) < 1e-6;
+    end
+end
+check(ok, "no box over another, no arrow through a box, no stretch shared, few crossings (box/through/shared/crossings):" + msg);
+stepsF = modelF.levels(1);
+onEdges = stepsF.edges([stepsF.edges.on]);
+readsOf = @(a, b) any([onEdges.from] == a & [onEdges.to] == b);
+check(readsOf("behavior", "signals") && readsOf("probemap", "spikes") && readsOf("sorting", "export") && readsOf("rec", "signals") ...
+    && readsOf("artifacts", "spikes"), 'the arrows say what each record read: derived events, sites, periods, units');
+step1 = model.levels(1);
+check(~any([step1.edges.on] & [step1.edges.from] == "artifacts" & [step1.edges.to] == "spikes") ...
+    && any(~[step1.edges.on] & [step1.edges.to] == "export"), 'an arrow not read is off');
+[~, ~, modelH] = PipelineDiagram.manifest(m, HideNotRun=true);
+ids = [modelH.levels(1).nodes.id];
+check(~any(ismember(ids, ["spikes" "export" "epsych"])) && all(ismember(["rec" "artifacts" "signals" "bin"], ids)) && all([modelH.levels(1).edges.on]), ...
+    'HideNotRun leaves out the steps not run, the arrows not read and the inputs nothing reads');
+mNone = struct('schema', "intan-dataset-manifest/1", 'name', "old", 'folder', string(root));
+[~, sNone, modelN] = PipelineDiagram.manifest(mNone, HideNotRun=true);
+check(contains(sNone, "0 of 7") && numel(modelN.levels(1).nodes) == 10, 'nothing run: the chart still draws, nothing hidden');
+mSort = mNone;
+mSort.sorting = struct('results_dir', string(rec), 'exists', true, 'num_units', 3, 'curated', true);
+[hSort, ~, modelS] = PipelineDiagram.manifest(mSort, HideNotRun=true);
+check(any([modelS.levels(1).nodes.id] == "sorting") && contains(string(hSort), "imported"), 'a sort with no record of how it was made: drawn as imported, without an arrow');
+hf = PipelineDiagram.manifest(string(f1), Level="parameters", Direction="horizontal");
+check(contains(string(hf), "<div class=""lvl on"" data-level=""parameters"" data-dir=""horizontal"""), 'from a file, opening on a level and direction');
+hd = PipelineDiagram.manifest(string(rec), Level="steps");
+check(contains(string(hd), "<div class=""lvl on"" data-level=""steps"""), 'from a folder');
+threw = false;
+try
+    PipelineDiagram.manifest(fullfile(root, 'no_such.json'));
+catch ME
+    threw = ME.identifier == "ManifestViewerApp:NotFound";
+end
+check(threw, 'a missing file raises ManifestViewerApp:NotFound');
+
 fprintf('\n== open from a file ==\n');
 v = ManifestViewerApp(f1);
+check(v.FlowStale && isempty(v.FlowHTML.HTMLSource), 'the Flow chart is not drawn until its tab is shown');
+v.Tabs.SelectedTab = v.FlowTab;
+v.Tabs.SelectionChangedFcn(v.Tabs, []);
+src = string(v.FlowHTML.HTMLSource);
+check(~v.FlowStale && contains(src, "Processing flow: subjA_260101_120000") && contains(v.FlowSummaryLabel.Text, "of 7 steps run"), ...
+    'showing the tab draws the chart');
+v.FlowHTML.HTMLEventReceivedFcn(v.FlowHTML, struct('HTMLEventName', 'level', 'HTMLEventData', 'settings'));
+v.FlowHTML.HTMLEventReceivedFcn(v.FlowHTML, struct('HTMLEventName', 'direction', 'HTMLEventData', 'horizontal'));
+v.FlowHideCheckBox.Value = true;
+v.FlowHideCheckBox.ValueChangedFcn(v.FlowHideCheckBox, []);
+src = string(v.FlowHTML.HTMLSource);
+check(v.FlowLevel == "settings" && v.FlowDirection == "horizontal" && contains(src, "<div class=""lvl on"" data-level=""settings"" data-dir=""horizontal""") ...
+    && contains(v.FlowSummaryLabel.Text, "hidden"), 'the level and direction picked are kept, and Hide steps not run draws it again');
+v.reload();
+check(contains(string(v.FlowHTML.HTMLSource), "<div class=""lvl on"" data-level=""settings"" data-dir=""horizontal"""), 'Reload redraws the tab shown, on the same level and direction');
+fc = fullfile(root, 'chart.html');
+v.saveFlowChart(fc);
+check(isfile(fc) && count(string(fileread(fc)), "<svg class=""flow""") == 8 && contains(string(fileread(fc)), "flowZoom"), ...
+    'saved as a standalone page with all its levels, in both directions');
+v.FlowHideCheckBox.Value = false;
+v.Tabs.SelectedTab = v.Tabs.Children(1);
+v.Tabs.SelectionChangedFcn(v.Tabs, []);
+v.reload();
 check(v.File == string(f1), 'File set');
 check(isstruct(v.Manifest) && v.Manifest.name == "subjA_260101_120000", 'manifest decoded');
 check(height(v.SummaryTable.Data) == height(v.Rows) && height(v.Rows) > 20, 'summary table filled');
@@ -223,6 +337,7 @@ fid = fopen(f4, 'w'); fprintf(fid, '{ not json'); fclose(fid);
 v.load(f4);
 check(isempty(v.Manifest) && contains(v.StatusLabel.Text, "Cannot parse"), 'parse error reported');
 check(v.Tabs.SelectedTab.Title == "JSON", 'JSON tab shown');
+check(v.FlowSaveButton.Enable == "off", 'no flow chart to save');
 
 threw = false;
 try
@@ -257,6 +372,51 @@ check(~isvalid(v) && ~isvalid(fig), 'closing the window deletes the viewer');
 fprintf('\n%d passed, %d failed\n', nPass, nFail);
 if nFail > 0
     error('test_ManifestViewerApp:Failed', '%d check(s) failed.', nFail);
+end
+end
+
+function [nBox, nThrough, nShared, nCross] = chartProblems(L)
+%chartProblems  What a level of the chart draws over itself: boxes overlapping,
+%   arrows through a box, stretches two sources share, and arrow crossings.
+R = vertcat(L.nodes.rect);
+nBox = 0;
+for i = 1:height(R)
+    for j = i + 1:height(R)
+        if R(i, 1) < R(j, 1) + R(j, 3) && R(j, 1) < R(i, 1) + R(i, 3) ...
+                && R(i, 2) < R(j, 2) + R(j, 4) && R(j, 2) < R(i, 2) + R(i, 4)
+            nBox = nBox + 1;
+        end
+    end
+end
+nThrough = 0;
+S = zeros(0, 5);
+ids = unique([L.edges.from]);
+for e = L.edges
+    p = e.points;
+    for k = 1:height(p) - 1
+        lo = min(p(k, :), p(k + 1, :));
+        hi = max(p(k, :), p(k + 1, :));
+        S(end + 1, :) = [lo hi find(ids == e.from)]; %#ok<AGROW>
+        nThrough = nThrough + nnz(lo(1) < R(:, 1) + R(:, 3) - 0.5 & hi(1) > R(:, 1) + 0.5 ...
+            & lo(2) < R(:, 2) + R(:, 4) - 0.5 & hi(2) > R(:, 2) + 0.5);
+    end
+end
+nShared = 0;
+nCross = 0;
+for a = 1:height(S)
+    for b = a + 1:height(S)
+        if S(a, 5) == S(b, 5); continue; end
+        A = S(a, :); B = S(b, :);
+        if A(1) == A(3) && B(1) == B(3) && abs(A(1) - B(1)) < 0.5 && min(A(4), B(4)) - max(A(2), B(2)) > 0.5
+            nShared = nShared + 1;
+        elseif A(2) == A(4) && B(2) == B(4) && abs(A(2) - B(2)) < 0.5 && min(A(3), B(3)) - max(A(1), B(1)) > 0.5
+            nShared = nShared + 1;
+        elseif A(1) == A(3) && B(2) == B(4) && A(1) > B(1) + 0.5 && A(1) < B(3) - 0.5 && B(2) > A(2) + 0.5 && B(2) < A(4) - 0.5
+            nCross = nCross + 1;
+        elseif A(2) == A(4) && B(1) == B(3) && B(1) > A(1) + 0.5 && B(1) < A(3) - 0.5 && A(2) > B(2) + 0.5 && A(2) < B(4) - 0.5
+            nCross = nCross + 1;
+        end
+    end
 end
 end
 

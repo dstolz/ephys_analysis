@@ -14,11 +14,16 @@ classdef PipelineDiagram
     %   (data-nav); in the app a click opens them, in a saved page the boxes
     %   are plain.
     %
-    %   See also EphysPipelineApp, EphysPipelineConfig, EphysPipeline.
+    %   PipelineDiagram.manifest draws a dataset's manifest in the same way: what
+    %   was done, where the others draw what a config would do. The manifest
+    %   viewer's Flow chart tab shows it (ManifestViewerApp).
+    %
+    %   See also EphysPipelineApp, EphysPipelineConfig, EphysPipeline, ManifestViewerApp.
 
     methods (Static)
         [html, summary] = detail(cfg, d, opts)
         [html, summary, model] = overview(cfg, d, opts)
-        z = zoomFrame(key, initial)
+        [html, summary, model] = manifest(src, opts)
+        z = zoomFrame(key, initial, anchor)
     end
 end

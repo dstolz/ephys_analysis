@@ -34,7 +34,8 @@ function [html, summary] = detail(cfg, d, opts)
 %   for each step that reads the recording, each from the recording box,
 %   then the steps hung from another step's output -- Sorting and Signals
 %   from the artifact periods too -- as downstream trees, each under the box
-%   it reads), as Layout says.
+%   it reads), as Layout says. Direction="horizontal" draws each tree from
+%   left to right instead of from top to bottom, one under the other.
 %
 %   Each box names the control(s) that set what it shows (its node target,
 %   written into the page as data-nav). In the app a click on a box sends
@@ -42,7 +43,8 @@ function [html, summary] = detail(cfg, d, opts)
 %   the boxes are plain, because only the app calls the page's setup().
 %
 %   The page draws in a viewport it zooms and pans (zoomFrame), opening at
-%   100%. SUMMARY is a one-line description.
+%   100% (left to right, from the recording at its left edge). SUMMARY is a
+%   one-line description.
 %
 %   See also PipelineDiagram.overview, PipelineDiagram.zoomFrame,
 %   EphysPipelineApp.flowChartHTML, EphysDataset.deriveSignals,
@@ -54,8 +56,10 @@ arguments
     d = []
     opts.Layout (1,1) string {mustBeMember(opts.Layout, ["tree" "steps"])} = "tree"
     opts.HideUnused (1,1) logical = false
+    opts.Direction (1,1) string {mustBeMember(opts.Direction, ["vertical" "horizontal"])} = "vertical"
 end
 layout = opts.Layout;
+lr = opts.Direction == "horizontal";
 dsName = "<Name>";
 if ~isempty(d); dsName = d.Name; end
 
@@ -89,14 +93,14 @@ if ~isempty(d)
 end
 
 pageTitle = "Preprocessing diagram: " + cfg.Name;
-zoom = PipelineDiagram.zoomFrame("detail_" + layout, "actual");
+zoom = PipelineDiagram.zoomFrame("detail_" + layout + ternary(lr, "_lr", ""), "actual", ternary(lr, "left", ""));
 body = "<h1>" + esc(pageTitle) + "</h1>" + legendHTML() ...
     + ternary(opts.HideUnused, "<div class=""note"">Hiding what this config does not use: stages left off and disabled steps.</div>", "") ...
     + "<div class=""hint"">Click any box to open the setting it draws. Scroll to zoom, drag to pan.</div>" ...
     + zoom.open + ternary(layout == "steps", stepsHTML(raw, steps), treeHTML(raw, steps)) + zoom.close ...
     + "<script>" + zoom.js + newline + js() + "</script>";
 html = "<!DOCTYPE html><html><head><meta charset=""utf-8""><title>" + esc(pageTitle) + "</title><style>" ...
-    + zoom.css + css() + "</style></head><body>" + body + "</body></html>";
+    + zoom.css + css() + "</style></head><body" + ternary(lr, " class=""lr""", "") + ">" + body + "</body></html>";
 end
 
 
@@ -909,6 +913,18 @@ s = join([ ...
     ".tree .cr{left:50%;margin-left:-1px;border-left:2px solid #9aa4ae}"
     ".tree li:first-child>.cl,.tree li:last-child>.cr{border-top:0 none}"
     ".tree li:only-child>.cl,.tree li:only-child>.cr{display:none}"
+    % Left to right (<body class="lr">): the same tree with its axes swapped.
+    "body.lr .zoomstage{width:max-content}"
+    "body.lr .cards{flex-direction:column}"
+    "body.lr .cards .card{max-width:none;overflow-x:visible}"
+    "body.lr .tree ul{flex-direction:column;align-items:flex-start}"
+    "body.lr .tree li{flex-direction:row;padding:5px 0 5px 14px}"
+    "body.lr .tree li:only-child{padding:0}"
+    "body.lr .tree .stem{width:14px;height:2px}"
+    "body.lr .tree .cl,body.lr .tree .cr{left:0;width:14px;height:50%;margin-left:0;border-top:0 none;border-left:2px solid #9aa4ae}"
+    "body.lr .tree .cl{top:0}"
+    "body.lr .tree .cr{top:50%;margin-top:-1px;border-top:2px solid #9aa4ae}"
+    "body.lr .tree li:first-child>.cl,body.lr .tree li:last-child>.cr{border-left:0 none}"
     ".n{box-sizing:border-box;min-width:120px;max-width:220px;padding:4px 8px;border:1px solid #d0d7de;border-left:4px solid var(--acc);border-radius:6px;background:#fff;text-align:left}"
     ".n .t{font-weight:600}"
     ".n .d{color:#57606a;font-size:11px}"

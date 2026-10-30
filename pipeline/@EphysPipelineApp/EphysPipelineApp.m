@@ -743,6 +743,7 @@ classdef EphysPipelineApp < handle
         FlowOpenButton    matlab.ui.control.Button
         FlowViewDropDown  matlab.ui.control.DropDown   % every parameter | data-flow overview (a preference)
         FlowLayoutDropDown matlab.ui.control.DropDown
+        FlowDirectionDropDown matlab.ui.control.DropDown   % top to bottom | left to right (a preference)
         FlowHideCheckBox  matlab.ui.control.CheckBox   % Hide unused (a preference)
         FlowSummaryLabel  matlab.ui.control.Label
         FlowHTML          matlab.ui.control.HTML

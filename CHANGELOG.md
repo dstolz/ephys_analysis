@@ -10,8 +10,16 @@ says how to cut a release.
 
 ### Added
 
-- `addToManifest(target, Name=Value, ...)` adds your own fields from a script to a dataset's manifest, in a new
-  `custom` block; `target` is a dataset, a folder or the file. `writeManifest` keeps the block. See
+- Manifest viewer: a **Flow chart** tab draws how a dataset's outputs were made, from its manifest, with four levels of
+  detail: the major steps, the files written, the key settings and every parameter's value, drawn from top to bottom or
+  from left to right. No box overlaps another, no arrow runs through one, and a saved page keeps all of it. In a script: the new `PipelineDiagram.manifest`. See
+  [Flow chart](documentation/ManifestViewerApp.md#flow-chart).
+- Pipeline app: the **Diagram** tab's new **Direction** draws either view from top to bottom or from left to right (a
+  preference; `Direction="horizontal"` on `PipelineDiagram.overview` and `.detail`). See
+  [Diagram](documentation/EphysPipelineApp.md#diagram).
+- `addToManifest(target, S, Name=Value, ...)` adds your own fields from a script to a dataset's manifest, in a new
+  `custom` block, from a struct, `Name=Value` pairs or both; `target` is a dataset, an array of datasets, a folder or
+  the file. `writeManifest` keeps the block. See
   [Dataset manifest](documentation/EphysDataset.md#dataset-manifest).
 - The `S_DatasetBrowserTo*.m` scripts (FieldTrip, Chronux, NeuroGLM, mTRF, iCSD, kCSD) note what they did in the manifest
   of each dataset they processed, in `custom.browser_<tool>`: the time, epochs or sessions and the script's settings

@@ -89,7 +89,9 @@ Three ideas make the rest easy:
 - **The manifest.** What you decide about one recording (its probe, its bad
   channels, the periods you marked, the trials you cut) is saved next to that
   recording, at once, in its manifest file. You never lose it by opening
-  another config or scanning again.
+  another config or scanning again. **Dataset → View manifest...** shows it,
+  and its **Flow chart** tab draws how each file was made, from the major
+  steps down to each setting.
 
 ## A typical session
 
@@ -115,7 +117,8 @@ Three ideas make the rest easy:
    channels for you.
 6. **Choose the steps.** Switch on what you need on the Sorting, Signals,
    Spikes, Export and Analysis tabs, and set their options. The defaults are a
-   good start. The **Diagram** tab draws what your config will do.
+   good start. The **Diagram** tab draws what your config will do, from top
+   to bottom or, with **Direction**, from left to right.
 7. **Run.** On the Run tab press **Validate config** (it lists any problem),
    **Plan** (what would happen; it writes nothing), then **Run pipeline**. The
    Run tab shows the progress, the computer's load and, at the end, a row of

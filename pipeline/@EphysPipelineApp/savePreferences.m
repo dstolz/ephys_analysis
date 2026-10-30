@@ -32,6 +32,7 @@ AppPrefs.setpref(g, 'TrialsColumnOrder', cellstr(obj.trialsColumnOrder()));
 AppPrefs.setpref(g, 'TrialsLabelParams', cellstr(obj.TrialsLabelParams));
 AppPrefs.setpref(g, 'DiagramView', char(obj.FlowViewDropDown.Value));
 AppPrefs.setpref(g, 'DiagramLayout', char(obj.FlowLayoutDropDown.Value));
+AppPrefs.setpref(g, 'DiagramDirection', char(obj.FlowDirectionDropDown.Value));
 AppPrefs.setpref(g, 'DiagramHideUnused', logical(obj.FlowHideCheckBox.Value));
 AppPrefs.setpref(g, 'QueueSortingRuns', logical(obj.RunKSQueueCheckBox.Value));
 AppPrefs.setpref(g, 'VizOptions', struct( ...

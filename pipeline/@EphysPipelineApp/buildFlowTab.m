@@ -14,6 +14,8 @@ function buildFlowTab(obj)
 %   - Data-flow overview (flowOverviewHTML): every step as one box with the
 %     files it writes, and an arrow from each input or file to every step
 %     that reads it. Layout does not apply.
+%   The Direction drop-down draws either view from top to bottom (the default)
+%   or from left to right; it is a preference (DiagramDirection).
 %   The Hide unused box (a preference, DiagramHideUnused) leaves out what the
 %   working config does not use, in either view.
 %   Shown in an HTML component; refreshed when the tab is shown and whenever
@@ -26,9 +28,9 @@ g = uigridlayout(obj.TabFlow, [2 1]);
 g.RowHeight = {'fit', '1x'};
 g.Padding   = [10 10 10 10];
 
-bar = uigridlayout(g, [1 9]);
+bar = uigridlayout(g, [1 11]);
 bar.Layout.Row = 1;
-bar.ColumnWidth = {'fit', 'fit', 'fit', 'fit', 170, 'fit', 150, 'fit', '1x'};
+bar.ColumnWidth = {'fit', 'fit', 'fit', 'fit', 160, 'fit', 130, 'fit', 130, 'fit', '1x'};
 bar.RowHeight   = {30};
 bar.Padding     = [0 0 0 0];
 obj.FlowRefreshButton = uibutton(bar, "Text", "Refresh", ...
@@ -48,6 +50,11 @@ uilabel(bar, "Text", "Layout:", "HorizontalAlignment", "right");
 obj.FlowLayoutDropDown = uidropdown(bar, "Items", ["One tree", "Tree per step"], ...
     "ItemsData", ["tree", "steps"], "Value", "tree", ...
     "Tooltip", "One tree from the raw recording, or a tree of its own for each step (Every parameter view).", ...
+    "ValueChangedFcn", @(~,~) obj.onFlowLayoutChanged());
+uilabel(bar, "Text", "Direction:", "HorizontalAlignment", "right");
+obj.FlowDirectionDropDown = uidropdown(bar, "Items", ["Top to bottom", "Left to right"], ...
+    "ItemsData", ["vertical", "horizontal"], "Value", "vertical", ...
+    "Tooltip", "Draw the flow from top to bottom, or from left to right.", ...
     "ValueChangedFcn", @(~,~) obj.onFlowLayoutChanged());
 obj.FlowHideCheckBox = uicheckbox(bar, "Text", "Hide unused", "Value", false, ...
     "Tooltip", "Leave out the steps, stages, files and arrows the working config does not use.", ...

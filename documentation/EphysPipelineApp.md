@@ -2321,6 +2321,12 @@ drawings, and the choice is kept as a preference:
 - **Data-flow overview** (the default): only the steps and the data passing
   between them (see [Data-flow overview](#data-flow-overview)).
 
+**Direction** draws either view **Top to bottom** (the default) or **Left to
+right**, which suits a wide screen. It is kept as a preference, and **Save as
+HTML...** and **Open in Browser** write the direction shown. In a script:
+`PipelineDiagram.overview(cfg, [], Direction="horizontal")`, and the same
+option on `PipelineDiagram.detail`.
+
 **Hide unused** (also kept as a preference) leaves out what the working config does
 not use, in either view: disabled steps (the Artifacts step stays while its manual
 periods are read), stages and files switched off, arrows not read, and inputs
@@ -2336,7 +2342,9 @@ the drawing out ([below](#data-flow-overview)).
 Both are drawn by `PipelineDiagram`, which needs no app, so a script can
 write a config's diagram too:
 `writelines(PipelineDiagram.overview(cfg, []), "overview.html")`
-(`PipelineDiagram.detail(cfg, ds, Layout="steps")` for the other).
+(`PipelineDiagram.detail(cfg, ds, Layout="steps")` for the other). These draw
+what a config would do; to draw what was done to one dataset, see the manifest
+viewer's [Flow chart](ManifestViewerApp.md#flow-chart).
 
 Either drawing sits in a frame you can zoom and pan. The buttons at its top
 right zoom out (**−**), back to actual size (the percentage shown), in
@@ -2344,10 +2352,10 @@ right zoom out (**−**), back to actual size (the percentage shown), in
 about the pointer, and dragging the diagram pans it (a drag never opens a
 box; a click still does). The overview opens fitted to the frame and
 follows it as the window resizes; Every parameter opens at 100% from the
-top. Once zoomed or panned, a view keeps its place until you close the app,
-even as the diagram is redrawn (on a config edit, or on leaving and coming
-back to the tab); each view, and each layout of Every parameter, keeps its
-own.
+top, or from the recording at the left edge when it runs left to right. Once zoomed or panned, a view
+keeps its place until you close the app, even as the diagram is redrawn (on a
+config edit, or on leaving and coming back to the tab); each view, each layout
+of Every parameter and each direction keeps its own.
 
 <!-- wiki: ![The Diagram tab, Every parameter view](images/app-diagram-tab.png) -->
 
@@ -3654,7 +3662,7 @@ of a config lives here:
 | `ArtifactViewOptions` | the Artifacts tab's viewer options: Context, Channels, Scale (and Lanes when Manual), Color by shank, Shade artifacts. The detection settings and the reference are the config's; Order by probe and Shank follow the dataset's probe |
 | `CopyOptions` | the Copy tab's subject, roots, pairing and copy options (not the dates) |
 | `SynthOptions` | the Synthetic tab's settings and its design (as `SyntheticDesign` JSON in `design`; a design saved by an older generator is not restored) |
-| `DiagramView`, `DiagramLayout` | the Diagram tab's **View** (`detail` \| `overview`) and **Layout** (`tree` \| `steps`) |
+| `DiagramView`, `DiagramLayout`, `DiagramDirection` | the Diagram tab's **View** (`detail` \| `overview`), **Layout** (`tree` \| `steps`) and **Direction** (`vertical` \| `horizontal`) |
 | `QueueSortingRuns` | the Run tab's **Queue the waiting runs; the Run goes on** switch |
 | `KeptSortingQueue` | the sorting queues kept at Close (**Keep the queue for next time**), one element per project root: `root`, `saved` (when), `runs` (`Name`, `key`: the dataset's folder relative to the root, `prepared`: the run `launchSorting` starts). Offered back, then removed, once that root is scanned ([Run](#run)) |
 | `KeptSortingRuns` | the background Kilosort4 runs going at Close (`EphysPipeline.emptyRuns` shape), followed again, then removed, at the next launch |
@@ -3740,7 +3748,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `onBrowseExportOutput.m` | Export tab (output folder) |
 | `buildAnalysisTab.m`, `gatherAnalysisSection.m`, `applyAnalysisSection.m`, `onAnalysisControlsChanged.m`, `onBrowseAnalysisConfig.m`, `onOpenAnalysisConfig.m`, `refreshAnalysisSummary.m`, `onOpenAnalysisOutput.m` | Analysis tab (the analysis config, its summary, Open in the analysis app, Open report / figures folder) |
 | `onPlotVisualization.m`, `applyVizSettings.m`, `onVizControlsChanged.m`, `onVizViewChanged.m`, `onVizInput.m`, `onVizButtonDown/Up.m`, `refreshVizShading.m`, `vizDetectedIntervals.m`, `updateVizArtStatus.m`, `syncVizDataset.m`, `loadVizEvents.m`, `onVizReadEvents.m`, `showVizHelp.m`; `pipeline/EphysTraceViewer.m`, `pipeline/EphysTraceSource.m`, `pipeline/EphysTraceEnvelope.m` | Visualize tab: loading the active dataset's signals and spikes, the controls, the wheel / keys / drags, the shading (`vizDetectedIntervals`: the Artifacts preview's intervals the plot shades, or why none; `updateVizArtStatus`: their counts, and whether the last run's match the current settings); the digital-input events and Read events; the "?" window of mouse and key controls; the viewer, the windowed sources behind it and their envelopes (min / max cached on disk, built in the background) |
-| `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `flowOverviewHTML.m`, `onFlowViewChanged.m`, `onFlowLayoutChanged.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m` | Diagram tab: the page in the view picked, drawn by [`PipelineDiagram`](../pipeline/@PipelineDiagram/PipelineDiagram.m), a plain class the app calls (`detail`: every parameter; `overview`: the data flow, laid out and routed there; `zoomFrame`: the zoom and pan, kept per view by the app), save / open, a box's click |
+| `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `flowOverviewHTML.m`, `onFlowViewChanged.m`, `onFlowLayoutChanged.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m` | Diagram tab: the page in the view picked, drawn by [`PipelineDiagram`](../pipeline/@PipelineDiagram/PipelineDiagram.m), a plain class the app calls (`detail`: every parameter; `overview`: the data flow; `manifest`: a dataset's manifest, for the manifest viewer; `private/grid*`: the grid those two share, laid out and routed there; `zoomFrame`: the zoom and pan, kept per view by the app), save / open, a box's click |
 | `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`, `refreshCopySchedule.m`, `onCopyScheduleSave.m`, `onCopyScheduleRemove.m`, `onCopyScheduleRunNow.m`, `onCopyScheduleLog.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m`, `pipeline/CopySchedule.m` | Copy tab, the pairing / stitching / copy functions it calls, the detached copy engine, and the scheduled copy (its Windows task and what each run does) |
 | `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m`, `showReviewSorts.m`, `onReviewSortEdited.m`, `reviewSortChoice.m`, `onReviewUseSort.m`, `private/reviewSorts.m`, `private/sorterOfSort.m`, `showReviewUnits.m`, `refreshReviewDatasets.m`, `onReviewDatasetSelected.m` | Review tab (`refreshReviewDatasets`: the Datasets table, each dataset's sort read once and kept; `onReviewDatasetSelected`: a row click makes its dataset active; `reviewSorts`: the active dataset's sorts and the one to show; `onReviewSortEdited` / `reviewSortChoice`: a row's Sort cell picks which of the dataset's sorts the tab loads when it shows the dataset, kept per dataset, for review only; `showReviewSorts`: whether Use this sort is on; `onReviewUseSort`: the sort shown made the dataset's own; `showReviewUnits`: the units table in its sort, the selected unit's row kept) |
 | `buildSyntheticTab.m`, `onSynthPreview.m`, `renderSynthPreview.m`, `onSynthGenerate.m`, `generateSynthetic.m`, `onSynthDesign.m`, `onSynthControlsChanged.m`, `syncSynthControls.m`, `gather/applySynthDesign.m`, `synthColumns.m`, `synthSourceLists.m`, `synthGeneratorArgs.m`, `synthOutputRoot.m`, `synthOutputFolder.m`; `pipeline/SyntheticDesign.m`, `pipeline/syntheticModel.m`, `pipeline/syntheticTaskSchedule.m`, `pipeline/makeSyntheticRecording.m` | Synthetic tab (`generateSynthetic`: Generate without its questions; `synthGeneratorArgs`: the options Preview and Generate share) and the generator |

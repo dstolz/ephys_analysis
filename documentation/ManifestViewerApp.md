@@ -30,6 +30,7 @@ v = ManifestViewerApp(ds);
 v.load(otherDs);      % show another manifest in the same window
 v.reload();           % read the file again
 tf = v.rewrite();     % ds.writeManifest(), then reload (no confirmation)
+v.saveFlowChart("flowchart.html");                       % the Flow chart as a page
 T = ManifestViewerApp.summaryRows(readJsonFile(file));   % the Summary table, no window
 ```
 
@@ -47,6 +48,7 @@ in the status line.
 | Tab | Shows |
 | --- | --- |
 | **Summary** | every field, grouped by section (General, Recording, Probe, Channels, Manual artifacts, Artifacts, Binary, Kilosort run, Sorting, Processing, Behavior, Other). Fields the viewer does not know are listed under Other, one row per leaf. The **Check** column is worked out when the file is loaded (see below) |
+| **Flow chart** | how the outputs were made, as a flow chart ([below](#flow-chart)), with buttons for four levels of detail, from the major steps to each parameter's value |
 | **Timeline & probe** | the recording span with the manual artifact periods in red. A marker above each period keeps short ones visible. The behavior session start is drawn as a line when it falls inside the recording, and given in the title otherwise. Below it is the probe geometry from `probe.file`, else the default probe. The excluded channels (`chanMap + 1`) are marked ✕ and the channels left out of the common reference are circled |
 | **Tree** | the decoded JSON as an expandable tree |
 | **JSON** | the file's text |
@@ -89,6 +91,60 @@ The General section gives how long ago the manifest was `updated` and its
 **Tags** (`draft, pilot`, or *(none)* when the manifest has no `tags`). The
 Behavior section gives the session start relative to `metadata.acq_date`.
 
+## Flow chart
+
+The **Flow chart** tab draws what the manifest says was done to the recording.
+The inputs are on top (the behavior session, the recording and the probe map),
+then a box per step, with the files it wrote hung under it. An arrow runs from
+each input or output to every step that reads it. Hover a box to light its
+arrows. The mouse wheel zooms and a drag pans, as on the pipeline app's
+[Diagram tab](EphysPipelineApp.md).
+
+The buttons at the top pick how much the chart shows:
+
+| Level | Adds |
+| --- | --- |
+| **Steps** | the major steps, and whether each ran |
+| **Outputs** | the files written and what came of each step: the artifacts found, the trials paired, the units sorted, any warning |
+| **Key settings** | the settings that decide the result, in words: the reference, the filters, the thresholds |
+| **Every parameter** | every value the manifest holds about each step, by group. It opens at full size, for reading: drag to move around |
+
+The **Direction** buttons beside them draw the flow **Top to bottom** or **Left
+to right**. Left to right suits a wide screen: the columns follow the data from
+the inputs to the export, and each arrow leaves the right of a box and enters
+the left of the next.
+
+An array that is data rather than a setting, such as a pairing's per-trial
+columns, is shown as its size, and a run of channels in short (`[1-64]`). The
+**Tree** and **JSON** tabs have the values themselves.
+
+Faded means a step has not run. A dashed arrow is a read the step's record
+says did not happen: Signals without artifact periods to erase, for example.
+**Hide steps not run** leaves these out and closes the rows up. A box's badge
+says whether its file is on disk now (`file gone` in red), and a sort with
+results but no record of how it was made is `imported`.
+
+**Save as HTML...** writes the chart as one standalone page with all four
+levels in both directions, which opens in any browser and prints to PDF. **Open in Browser** opens
+the same page, where a large chart is easier to read.
+
+The chart is drawn when the tab is first shown, and the level and direction you
+picked are kept when you reload. Each is laid out for the size of its boxes: no box
+overlaps another, no arrow runs through a box, and the arrows are ordered to
+cross as little as they can.
+
+A script does not need the window:
+
+```matlab
+writelines(PipelineDiagram.manifest(ds), "flowchart.html");
+[html, summary] = PipelineDiagram.manifest("D:\...\subj1_manifest.json", Level="settings", Direction="horizontal", HideNotRun=true);
+```
+
+`src` is an `EphysDataset`, a manifest file, the folder that holds one, or a
+decoded manifest struct. `Level` is `"steps"`, `"outputs"` (the default),
+`"settings"` or `"parameters"`. `Direction` is `"vertical"` (the default) or
+`"horizontal"`. `DefaultProbeFile=` is as for the viewer.
+
 ## Buttons
 
 | Button | Does |
@@ -106,6 +162,8 @@ pairing record the dataset would ignore, opening from a file, from a folder
 with two manifests and from an `EphysDataset` of a synthetic recording, the
 timeline and probe plots, the tree, a schema `/1` manifest without a probe
 (with and without a default probe), a file that is not JSON, Rewrite, a
-Rewrite that `writeManifest` refuses, and that closing the window deletes the
-viewer. [`test_EphysPipelineApp.m`](../pipeline/test_EphysPipelineApp.m)
+Rewrite that `writeManifest` refuses, that closing the window deletes the
+viewer, and the Flow chart: what each level shows, that no box overlaps another
+and no arrow runs through one at any level in either direction, hiding the steps not run, the tab
+drawn when shown and the level kept. [`test_EphysPipelineApp.m`](../pipeline/test_EphysPipelineApp.m)
 opens it from **Dataset → View manifest...**.

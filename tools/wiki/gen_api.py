@@ -1093,6 +1093,7 @@ def main(do_splice=True):
         "EphysTraceSource": pdir("pipeline", "EphysTraceSource.m"),
         "EphysTraceEnvelope": pdir("pipeline", "EphysTraceEnvelope.m"),
         "ManifestViewerApp": pdir("pipeline", "ManifestViewerApp.m"),
+        "ManifestText": pdir("pipeline", "ManifestText.m"),
         "TagSet": pdir("pipeline", "TagSet.m"),
         "TagDialog": pdir("pipeline", "TagDialog.m"),
         "SyntheticDesign": pdir("pipeline", "SyntheticDesign.m"),

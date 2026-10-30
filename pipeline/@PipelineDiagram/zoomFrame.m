@@ -1,4 +1,4 @@
-function z = zoomFrame(key, initial)
+function z = zoomFrame(key, initial, anchor)
 %zoomFrame  The diagram pages' zoom and pan: a viewport, its buttons and script.
 %   Z = PipelineDiagram.zoomFrame(KEY, INITIAL) returns what a diagram page
 %   (PipelineDiagram.detail, PipelineDiagram.overview) wraps its drawing in:
@@ -12,6 +12,9 @@ function z = zoomFrame(key, initial)
 %   "fit" (the whole drawing) or "actual" (100%, from the top, centerd
 %   across, as the detail view's tree is). Until it is zoomed or panned,
 %   the page keeps that view as the viewport resizes.
+%   PipelineDiagram.zoomFrame(KEY, INITIAL, "left") shows 100% from the left
+%   edge, centered up and down, for a drawing that runs left to right from its
+%   root instead.
 %
 %   The script defines flowZoom for the page's setup() (the app only):
 %     flowZoom.restore(v)   the view the page was last left in (from
@@ -19,12 +22,16 @@ function z = zoomFrame(key, initial)
 %     flowZoom.onChange(f)  f({key, auto, scale, x, y}) after each zoom or pan
 %                           (debounced); KEY names the page's view, AUTO is
 %                           "fit" / "actual" while the page follows one
+%     flowZoom.setView(m)   go to "fit" or "actual", for a page that changes
+%                           what the stage shows (PipelineDiagram.manifest)
 %   The app keeps them per view (FlowZoom, onFlowNavigate) and hands the
 %   last one back when it redraws the page (refreshFlowChart).
 %
 %   A printed page is drawn whole, at 100%, without the buttons.
 
-z.open = "<div class=""zoomview"" data-key=""" + key + """ data-initial=""" + initial + """>" ...
+anchorAttr = "";
+if nargin >= 3 && anchor ~= ""; anchorAttr = " data-anchor=""" + anchor + """"; end
+z.open = "<div class=""zoomview"" data-key=""" + key + """ data-initial=""" + initial + """" + anchorAttr + ">" ...
     + "<div class=""zoomctl"">" ...
     + "<button type=""button"" data-z=""out"" title=""Zoom out"">&minus;</button>" ...
     + "<button type=""button"" data-z=""actual"" class=""pct"" title=""Actual size"">100%</button>" ...
@@ -77,6 +84,8 @@ z.js = join([ ...
     "      var top = ctl.offsetTop + ctl.offsetHeight + 6;"
     "      s = clamp(Math.min((vw - 2 * PAD) / cw, (vh - top - PAD) / ch));"
     "      x = (vw - cw * s) / 2; y = top + Math.max(0, (vh - top - PAD - ch * s) / 2);"
+    "    } else if (view.getAttribute('data-anchor') === 'left') {"
+    "      s = 1; x = PAD; y = Math.max(0, (vh - ch) / 2);"
     "    } else {"
     "      s = 1; x = (vw - cw) / 2; y = 0;"
     "    }"
@@ -137,7 +146,8 @@ z.js = join([ ...
     "      if (!(v.scale > 0) || !isFinite(v.x) || !isFinite(v.y)) { return; }"
     "      auto = null; s = clamp(v.scale); x = v.x; y = v.y; draw(false);"
     "    },"
-    "    onChange: function (f) { listener = f; }"
+    "    onChange: function (f) { listener = f; },"
+    "    setView: function (m) { auto = m; follow(false); }"
     "  };"
     "})();"
     ], newline);

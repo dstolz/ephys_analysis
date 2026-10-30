@@ -22,6 +22,13 @@ classdef ManifestViewerApp < handle
 %                       made (Processing: per record its file, run, the
 %                       common reference applied, a sort referenced twice,
 %                       and every option it was made with)
+%     Flow chart        how the outputs were made, as a flow chart with four
+%                       levels of detail, from the major steps to each
+%                       parameter's value, from top to bottom or from left
+%                       to right (PipelineDiagram.manifest). Drawn when the
+%                       tab is first shown. Save as HTML... and
+%                       Open in Browser write it out, its levels included;
+%                       V.saveFlowChart(FILE) does so without a dialog.
 %     Timeline & probe  the recording span with its manual artifact periods
 %                       (and the behavior start), and the probe geometry
 %                       with the excluded and reference-excluded channels
@@ -41,7 +48,7 @@ classdef ManifestViewerApp < handle
 %   DefaultProbeFile= too.
 %
 %   See also EphysDataset.writeManifest, EphysDataset.applyManifest,
-%   EphysPipelineApp.onViewManifest.
+%   EphysPipelineApp.onViewManifest, PipelineDiagram.manifest.
 
     properties (SetAccess = private)
         File string = ""                 % manifest shown ("" before one is loaded)
@@ -49,6 +56,8 @@ classdef ManifestViewerApp < handle
         Dataset = EphysDataset.empty     % source dataset, when opened from one
         DefaultProbeFile string = ""     % probe used by a dataset without its own ("" = none)
         Rows table = table()             % the Summary table (summaryRows)
+        FlowLevel string = "outputs"     % the Flow chart's level of detail, as last picked
+        FlowDirection string = "vertical"  % and its direction ("vertical" or "horizontal")
     end
 
     properties (Hidden)
@@ -60,6 +69,13 @@ classdef ManifestViewerApp < handle
         RewriteButton
         Tabs
         SummaryTable
+        FlowTab
+        FlowHTML
+        FlowSaveButton
+        FlowOpenButton
+        FlowHideCheckBox
+        FlowSummaryLabel
+        FlowStale logical = true         % the chart does not show obj.Manifest yet
         TimeAxes
         ProbeAxes
         Tree
@@ -130,6 +146,11 @@ classdef ManifestViewerApp < handle
             end
         end
 
+        function saveFlowChart(obj, file)
+            %saveFlowChart  Write the Flow chart as a standalone .html file, its levels included.
+            writelines(obj.flowHTML(), file, 'Encoding', 'UTF-8');
+        end
+
         function delete(obj)
             if ~isempty(obj.Fig) && isvalid(obj.Fig)
                 delete(obj.Fig);
@@ -196,13 +217,32 @@ classdef ManifestViewerApp < handle
             styleButton([obj.OpenButton, obj.FolderButton, obj.RewriteButton]);
             styleButton(obj.ReloadButton, 'primary');
 
-            obj.Tabs = uitabgroup(g);
+            obj.Tabs = uitabgroup(g, 'SelectionChangedFcn', @(~,~) obj.refreshFlowChart());
 
             t = uitab(obj.Tabs, 'Title', 'Summary');
             tg = uigridlayout(t, [1 1]);
             obj.SummaryTable = uitable(tg, 'ColumnName', {'Section', 'Field', 'Value', 'Check'}, ...
                 'ColumnWidth', {110, 150, '2x', '1x'}, 'RowName', {}, ...
                 'ColumnSortable', false);
+
+            obj.FlowTab = uitab(obj.Tabs, 'Title', 'Flow chart');
+            tg = uigridlayout(obj.FlowTab, [2 1]);
+            tg.RowHeight = {30, '1x'};
+            bar = uigridlayout(tg, [1 4]);
+            bar.ColumnWidth = {'fit', 'fit', 'fit', '1x'};
+            bar.Padding = [0 0 0 0];
+            obj.FlowSaveButton = uibutton(bar, 'Text', 'Save as HTML...', 'Enable', 'off', ...
+                'Tooltip', 'Write the chart as a standalone .html file, with its levels of detail (opens in any browser, prints to PDF).', ...
+                'ButtonPushedFcn', @(~,~) obj.onSaveFlowChart());
+            obj.FlowOpenButton = uibutton(bar, 'Text', 'Open in Browser', 'Enable', 'off', ...
+                'Tooltip', 'Open the chart in your default web browser.', ...
+                'ButtonPushedFcn', @(~,~) obj.onOpenFlowChart());
+            styleButton([obj.FlowSaveButton, obj.FlowOpenButton]);
+            obj.FlowHideCheckBox = uicheckbox(bar, 'Text', 'Hide steps not run', 'Value', false, ...
+                'Tooltip', 'Leave out the steps that have not run and the arrows that were not read.', ...
+                'ValueChangedFcn', @(~,~) obj.onFlowHideChanged());
+            obj.FlowSummaryLabel = uilabel(bar, 'Text', '', 'FontColor', [0.4 0.4 0.4]);
+            obj.FlowHTML = uihtml(tg, 'HTMLEventReceivedFcn', @(~, evt) obj.onFlowEvent(evt));
 
             t = uitab(obj.Tabs, 'Title', 'Timeline & probe');
             tg = uigridlayout(t, [2 1]);
@@ -251,6 +291,9 @@ classdef ManifestViewerApp < handle
             obj.ReloadButton.Enable = 'on';
             obj.FolderButton.Enable = 'on';
             obj.RewriteButton.Enable = matlab.lang.OnOffSwitchState(~isempty(obj.Dataset));
+            obj.FlowSaveButton.Enable = matlab.lang.OnOffSwitchState(~isempty(m));
+            obj.FlowOpenButton.Enable = matlab.lang.OnOffSwitchState(~isempty(m));
+            obj.FlowStale = true;
 
             if isempty(m)
                 obj.Rows = table();
@@ -262,6 +305,7 @@ classdef ManifestViewerApp < handle
                 obj.StatusLabel.Text = strjoin([err, note], ' ');
                 obj.StatusLabel.FontColor = [0.8 0 0];
                 obj.Tabs.SelectedTab = findobj(obj.Tabs.Children, 'Title', 'JSON');
+                obj.refreshFlowChart();
                 return
             end
 
@@ -270,6 +314,7 @@ classdef ManifestViewerApp < handle
             obj.renderTimeline(m);
             obj.renderProbe(m);
             obj.renderTree(m);
+            obj.refreshFlowChart();
 
             nMiss = nnz(obj.Rows.Level == "missing");
             nWarn = nnz(obj.Rows.Level == "warn");
@@ -447,6 +492,79 @@ classdef ManifestViewerApp < handle
         function renderTree(obj, m)
             delete(obj.Tree.Children);
             addTreeChildren(obj.Tree, m);
+        end
+
+        function [html, summary] = flowHTML(obj)
+            %flowHTML  The Flow chart's page, opening on the level and direction last picked.
+            [html, summary] = PipelineDiagram.manifest(obj.Manifest, Level=obj.FlowLevel, Direction=obj.FlowDirection, ...
+                HideNotRun=obj.FlowHideCheckBox.Value, DefaultProbeFile=obj.DefaultProbeFile);
+        end
+
+        function refreshFlowChart(obj)
+            %refreshFlowChart  Draw the chart if it is out of date and its tab is shown.
+            %   Only then: laying out its four levels takes a moment, and most
+            %   openings of the viewer are for the Summary.
+            if ~obj.FlowStale || obj.Tabs.SelectedTab ~= obj.FlowTab; return; end
+            obj.FlowStale = false;
+            if isempty(obj.Manifest)
+                obj.FlowHTML.HTMLSource = '';
+                obj.FlowSummaryLabel.Text = '';
+                return
+            end
+            try
+                [html, summary] = obj.flowHTML();
+            catch ME
+                html = "<p style=""font:12px sans-serif;color:#b42318"">Could not draw the flow chart: " ...
+                    + replace(replace(string(ME.message), "&", "&amp;"), "<", "&lt;") + "</p>";
+                summary = "Flow chart failed.";
+            end
+            obj.FlowHTML.HTMLSource = char(html);
+            obj.FlowSummaryLabel.Text = summary;
+        end
+
+        function onFlowEvent(obj, evt)
+            % The page tells what was picked, to open on it when redrawn.
+            if evt.HTMLEventName == "level"
+                obj.FlowLevel = string(evt.HTMLEventData);
+            elseif evt.HTMLEventName == "direction"
+                obj.FlowDirection = string(evt.HTMLEventData);
+            end
+        end
+
+        function onFlowHideChanged(obj)
+            obj.FlowStale = true;
+            obj.refreshFlowChart();
+        end
+
+        function onSaveFlowChart(obj)
+            [folder, base] = fileparts(obj.File);
+            base = extractBefore(base + "_manifest", "_manifest");
+            [f, p] = uiputfile({'*.html', 'HTML page (*.html)'}, 'Save the flow chart', ...
+                char(fullfile(folder, base + "_flowchart.html")));
+            figure(obj.Fig);
+            if isequal(f, 0); return; end
+            try
+                obj.saveFlowChart(fullfile(p, f));
+                obj.setStatus("Flow chart saved to " + string(fullfile(p, f)));
+            catch ME
+                uialert(obj.Fig, ME.message, 'Cannot save the flow chart');
+            end
+        end
+
+        function onOpenFlowChart(obj)
+            try
+                file = string(tempname) + ".html";
+                obj.saveFlowChart(file);
+                web("file:///" + file, '-browser');
+                obj.setStatus("Flow chart opened in the browser.");
+            catch ME
+                uialert(obj.Fig, ME.message, 'Cannot open the flow chart');
+            end
+        end
+
+        function setStatus(obj, msg)
+            obj.StatusLabel.Text = msg;
+            obj.StatusLabel.FontColor = [0 0 0];
         end
 
         function onOpen(obj)
@@ -899,53 +1017,11 @@ end
 end
 
 function s = referenceText(ref)
-% A processing record's common reference in words: the mode, the channels it
-% was taken over, the weighted CAR's order and Q, and the derived signals it
-% was subtracted from.
-mode = txtOf(getf(ref, 'mode', ""));
-ch = txtOf(getf(ref, 'channels', ""));
-switch mode
-    case "none"
-        s = "none";
-    case {"car" "cmr"}
-        s = upper(mode) + " over channels " + ch;
-    case "wcar"
-        s = "weighted CAR over channels " + ch;
-        w = getf(ref, 'wcar', []);
-        if isstruct(w) && isscalar(w)
-            s = s + sprintf(' (Order %s, Q %.4g µV²%s)', fmtNum(numOf(getf(w, 'Order', NaN)), ""), ...
-                numOf(getf(w, 'Q', NaN)), ternary(isequal(getf(w, 'QAuto', false), true), ", automatic", ""));
-        end
-    otherwise
-        s = mode;
-end
-sig = getf(ref, 'signals', []);
-if (iscell(sig) || isstring(sig) || ischar(sig)) && ~isempty(sig) && mode ~= "none"
-    s = s + ", subtracted from " + strjoin(string(sig), ", ");
-end
+s = ManifestText.reference(ref);
 end
 
 function [s, level, check] = sortReferenceText(r)
-% The reference a sort saw: the .bin's, and the sorter's own on top of it
-% (Kilosort4's do_CAR). Both is a warning, as is a .bin whose is unknown.
-br = txtOf(getf(r, 'bin_reference', ""));
-sorter = txtOf(getf(r, 'sorter', ""));
-level = ""; check = "";
-if br == ""
-    s = "unknown in the .bin";
-    level = "warn"; check = "the .bin had no readable sidecar";
-else
-    s = upper(br) + " in the .bin";
-end
-if isequal(getf(r, 'own_reference', false), true)
-    s = s + "; " + ternary(sorter == "kilosort4", "Kilosort4's do_CAR (median across channels)", ...
-        sorter + "'s own, if it has one");
-    if ismember(br, ["car" "cmr" "wcar"])
-        level = "warn"; check = "referenced twice";
-    end
-else
-    s = s + "; none of the sorter's own";
-end
+[s, level, check] = ManifestText.sortReference(r);
 end
 
 function ma = artifactMatrix(v, nCol)
@@ -1020,32 +1096,15 @@ end
 
 %% --- Formatting ---------------------------------------------------------
 function v = getf(s, path, default)
-% Field at a dotted path, or default when any level is missing.
-v = default;
-for p = split(string(path), ".").'
-    if ~isstruct(s) || ~isscalar(s) || ~isfield(s, p); return; end
-    s = s.(p);
-end
-v = s;
+v = ManifestText.field(s, path, default);
 end
 
 function s = txtOf(v)
-% A manifest string field as a string ("" for null / non-text).
-if ischar(v) || (isstring(v) && isscalar(v))
-    s = string(v);
-elseif iscellstr(v) || isstring(v)
-    s = strjoin(string(v), ", ");
-else
-    s = "";
-end
+s = ManifestText.text(v);
 end
 
 function x = numOf(v)
-% A manifest number as a double (NaN for null / non-numeric).
-x = NaN;
-if (isnumeric(v) || islogical(v)) && isscalar(v)
-    x = double(v);
-end
+x = ManifestText.number(v);
 end
 
 function s = fmtNum(x, unit)
@@ -1073,29 +1132,7 @@ if ~isnan(x); s = ternary(x ~= 0, "yes", "no"); end
 end
 
 function s = fmtValue(v)
-if ischar(v) || (isstring(v) && isscalar(v))
-    s = string(v);
-elseif isempty(v)
-    s = "null";
-elseif isstring(v)
-    s = "[" + strjoin(v, ", ") + "]";
-elseif islogical(v) && isscalar(v)
-    s = ternary(v, "true", "false");
-elseif isnumeric(v) && isscalar(v)
-    s = string(num2str(double(v), 10));
-elseif (isnumeric(v) || islogical(v)) && numel(v) <= 24
-    if isvector(v); v = reshape(v, 1, []); end   % jsondecode gives a list as a column
-    s = string(mat2str(double(v), 6));
-elseif isnumeric(v) || islogical(v)
-    s = sprintf('[%s %s]', strjoin(string(size(v)), 'x'), class(v));
-elseif iscell(v)
-    parts = string(cellfun(@(x) char(fmtValue(x)), v(1:min(end, 12)), 'UniformOutput', false));
-    s = "[" + strjoin(parts, ", ") + ternary(numel(v) > 12, ", ...", "") + "]";
-elseif isstruct(v)
-    s = sprintf('{%d fields}', numel(fieldnames(v)));
-else
-    s = "<" + class(v) + ">";
-end
+s = ManifestText.value(v);
 end
 
 function out = ternary(cond, a, b)

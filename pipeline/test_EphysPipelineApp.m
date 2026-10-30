@@ -434,6 +434,29 @@ if S.sec("1a2", "Diagram: the data-flow overview")
     app.FlowHideCheckBox.Value = false;
     app.onFlowHideChanged();
     app.applyConfig(flowOn);
+    app.FlowDirectionDropDown.Value = "horizontal";
+    app.onFlowLayoutChanged();
+    ovLR = string(app.FlowHTML.HTMLSource);
+    [~, ~, M] = app.flowOverviewHTML();
+    [nCross, nOverlap, nThrough, nBadEnd] = flowGeometry(flippedModel(M));
+    check(contains(ovLR, "data-key=""overview_lr"" data-initial=""fit""") && count(ovLR, "<g class=""edge ") == 26 ...
+        && nThrough == 0 && nOverlap == 0 && nBadEnd == 0 && nCross <= 17 ...
+        && string(AppPrefs.getpref(g, 'DiagramDirection')) == "horizontal", sprintf(['Direction "Left to right": the overview runs ' ...
+        'left to right, no arrow through a box or sharing a stretch, each ending on its target''s left (%d crossing(s), at most 17); saved as a preference'], nCross));
+    app.onFlowNavigate(struct('HTMLEventName', 'zoom', 'HTMLEventData', ...
+        struct('key', 'overview_lr', 'auto', [], 'scale', 0.8, 'x', 5, 'y', 6)));
+    app.refreshFlowChart();
+    check(isstruct(app.FlowHTML.Data) && app.FlowHTML.Data.key == "overview_lr" && app.FlowHTML.Data.scale == 0.8, ...
+        'each direction keeps its own zoom');
+    app.FlowViewDropDown.Value = "detail";
+    app.onFlowViewChanged();
+    dtLR = string(app.FlowHTML.HTMLSource);
+    check(contains(dtLR, "<body class=""lr"">") && contains(dtLR, "data-key=""detail_tree_lr"" data-initial=""actual"" data-anchor=""left"">") ...
+        && contains(string(app.flowChartHTML(Direction="vertical")), "data-key=""detail_tree"" data-initial=""actual"">"), ...
+        'Every parameter too: its tree runs left to right, opening on the recording at its left; a saved page follows the Direction');
+    app.FlowViewDropDown.Value = "overview";
+    app.FlowDirectionDropDown.Value = "vertical";
+    app.onFlowViewChanged();
     flowOff = flowOn;
     flowOff.Signals.BlankArtifacts = false; flowOff.Sorting.Enabled = false; flowOff.Spikes.ArtifactMode = "none";
     flowOff.Export.Formats = strings(1, 0);
@@ -3886,6 +3909,18 @@ end
 function tip = tabTip(app, tab)
 %tabTip  Status tooltip of TAB's button in the tab strip.
 tip = string(app.TabButtons(app.TabList == tab).Tooltip);
+end
+
+
+function M = flippedModel(M)
+%flippedModel  A left-to-right overview's geometry with its axes swapped, for
+%   flowGeometry: its arrows then end going down onto the top of their target.
+for k = 1:numel(M.nodes)
+    M.nodes(k).rect = M.nodes(k).rect([2 1 4 3]);
+end
+for k = 1:numel(M.edges)
+    M.edges(k).points = fliplr(M.edges(k).points);
+end
 end
 
 

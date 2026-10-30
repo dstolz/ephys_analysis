@@ -8,9 +8,12 @@ function [expt, info] = sessionDataNeuroGLM(D, opts)
 %     timing         every digital line's pulses, "<line>_on" and
 %                    "<line>_off" (D.eventsContinuous: the pulses are on the
 %                    spikes' clock)
+%                    with ResponseLine=, "response_time": that line's onset
+%                    plus the trial's ResponseLatency, on Hit and FA trials
 %     values         trialIndex (the row of D.trials), group (the trial's
-%                    row of D.groups), the response code (D.respField) and
-%                    every trial parameter (D.paramNames)
+%                    row of D.groups), the response code (D.respField),
+%                    every trial parameter (D.paramNames) and, with a
+%                    response code, "response": the trial's response word
 %     continuous     with Signal=, that signal's channels as one variable
 %                    named after its data ("LFP", ...), dim nChannels
 %   Labels are made valid and unique field names; INFO maps them back.
@@ -33,16 +36,26 @@ function [expt, info] = sessionDataNeuroGLM(D, opts)
 %                 variable ([])
 %     DropArtifacts   drop the trials whose span touches an erased period
 %                 (D.artifacts; true)
+%     Responses   the response words (respCodeBits) a trial's "response" can
+%                 be, the first that matches wins; "" on a trial with none
+%                 (["Hit" "Miss" "CR" "FA" "Abort"])
+%     ResponseLine     the digital line whose onset the response latency
+%                 counts from, e.g. "RespWindow" ("": no response_time)
+%     ResponseLatency  the trial column holding the latency, ms
+%                 ("RespLatency"); a trial without a finite value has no
+%                 response_time
 %
 %   INFO fields: trialIndex (the row of D.trials of each expt.trial), spans
 %   ([start stop] s on the continuous clock), units (D.units' rows kept,
 %   plus variable), lines (table: line, on, off: the variable names), values
 %   (table: column, variable), signal (the continuous variable's name, ""),
-%   nDroppedEdge, nDroppedArtifact. expt.param holds key, name, fs, binMs,
-%   window, align, trialLine, groups (D.groups) and the same tables.
+%   response, responseTime (those variables' names, ""), nDroppedEdge,
+%   nDroppedArtifact. expt.param holds key, name, fs, binMs, window, align,
+%   trialLine, groups (D.groups) and the same tables and names.
 %
 %   Errors: sessionDataNeuroGLM:NoSpikes, :NoTrials, :NoColumn,
-%   :SignalMismatch, and NeuroGLMExport's.
+%   :SignalMismatch, :BadResponse, those of resolveEvents and
+%   NeuroGLMExport's.
 %
 %   See also NeuroGLMExport, sessionData, DatasetBrowser.
 
@@ -56,6 +69,9 @@ arguments
     opts.Units double = []
     opts.Signal = []
     opts.DropArtifacts (1,1) logical = true
+    opts.Responses string = ["Hit" "Miss" "CR" "FA" "Abort"]
+    opts.ResponseLine (1,1) string = ""
+    opts.ResponseLatency (1,1) string = "RespLatency"
 end
 
 if isempty(D.spikes)
@@ -117,7 +133,28 @@ cols = cols(ismember(cols, string(D.trials.Properties.VariableNames)));
 for c = cols.'
     V.(c) = D.trials.(c)(idx, :);
 end
+hasResp = D.respField ~= "" && ismember(D.respField, cols);
+respCol = "";
+if hasResp
+    respCol = matlab.lang.makeUniqueStrings("response", string(V.Properties.VariableNames));
+    V.(respCol) = responseWords(D.trials.(D.respField)(idx, :), opts.Responses);
+end
 valueCols = string(V.Properties.VariableNames).';
+
+% the response time, on the trials with a response
+timeVar = "";
+tResponse = zeros(0, 1);
+if opts.ResponseLine ~= ""
+    timeVar = "response_time";
+    mask = [];
+    if hasResp; mask = responseWords(D.trials.(D.respField), ["Hit" "FA"]) ~= ""; end
+    ref = eventRef(line=opts.ResponseLine, which="all", scope="recording", offsetParam=opts.ResponseLatency);
+    try
+        tResponse = D.toContinuous(resolveEvents(D, ref, mask));
+    catch ME
+        if ME.identifier ~= "resolveEvents:NoEvents"; rethrow(ME); end   % no trial has a response: a kernel with no events
+    end
+end
 
 % lines -> "<line>_on" / "<line>_off"
 lines = opts.Lines;
@@ -148,16 +185,20 @@ if ~isempty(opts.Signal)
 end
 
 % valid, unique variable names, in one pass
-names = [valueCols; lines + "_on"; lines + "_off"; "sp_" + string(units.label); sigName(sigName ~= "")];
+names = [valueCols; lines + "_on"; lines + "_off"; "sp_" + string(units.label); sigName(sigName ~= ""); timeVar(timeVar ~= "")];
 valid = matlab.lang.makeUniqueStrings(matlab.lang.makeValidName(cellstr(names)));
 valid = string(valid(:));
-nV = numel(valueCols); nL = numel(lines); nU = height(units);
+nV = numel(valueCols); nL = numel(lines); nU = height(units); nS = nnz(sigName ~= "");
 vValues = valid(1:nV);
 vOn  = valid(nV + (1:nL));
 vOff = valid(nV + nL + (1:nL));
 vSp  = valid(nV + 2 * nL + (1:nU));
-vSig = valid(nV + 2 * nL + nU + 1:end);
+vSig = valid(nV + 2 * nL + nU + (1:nS));
+vTime = valid(nV + 2 * nL + nU + nS + 1:end);
 V.Properties.VariableNames = cellstr(vValues);
+respVar = "";
+if hasResp; respVar = vValues(valueCols == respCol); end
+if timeVar ~= ""; timeVar = vTime; end
 
 E = struct();
 Dsc = struct();
@@ -167,6 +208,10 @@ for k = 1:nL
     E.(vOff(k)) = iv(:, 2);
     Dsc.(vOn(k)) = lines(k) + " onset";
     Dsc.(vOff(k)) = lines(k) + " offset";
+end
+if timeVar ~= ""
+    E.(timeVar) = tResponse;
+    Dsc.(timeVar) = "Response (" + opts.ResponseLine + " onset + " + opts.ResponseLatency + ")";
 end
 Sp = struct();
 for k = 1:nU
@@ -187,12 +232,15 @@ info.units = addvars(units, vSp, 'NewVariableNames', 'variable');
 info.lines = table(lines, vOn, vOff, 'VariableNames', {'line', 'on', 'off'});
 info.values = table(valueCols, vValues, 'VariableNames', {'column', 'variable'});
 info.signal = sigName;
+info.response = respVar;
+info.responseTime = timeVar;
 info.nDroppedEdge = nDroppedEdge;
 info.nDroppedArtifact = nDroppedArtifact;
 
 param = struct('key', D.key, 'name', D.name, 'fs', D.fs, 'binMs', opts.BinMs, 'window', opts.Window, ...
     'align', opts.Align, 'trialLine', D.trialLine, 'groups', D.groups, ...
-    'units', info.units, 'lines', info.lines, 'values', info.values, 'signal', sigName);
+    'units', info.units, 'lines', info.lines, 'values', info.values, 'signal', sigName, ...
+    'response', respVar, 'responseTime', timeVar);
 if sigName ~= ""; param.channels = opts.Signal.channels; end
 
 [expt, keep] = NeuroGLMExport.experiment(spans, BinMs=opts.BinMs, Spikes=Sp, Events=E, Values=V, ...
@@ -200,4 +248,27 @@ if sigName ~= ""; param.channels = opts.Signal.channels; end
 info.trialIndex = idx(keep);
 info.spans = spans(keep, :);
 expt.param.trialIndex = info.trialIndex;
+end
+
+
+function w = responseWords(rc, words)
+%responseWords  Each trial's first response word among WORDS, "" with none.
+%   RC is the response code column: a bit mask (respCodeBits), or the words as text.
+[bits, known] = respCodeBits();
+bad = setdiff(words, known);
+if ~isempty(bad)
+    error('sessionDataNeuroGLM:BadResponse', 'Not a response word: %s (%s).', strjoin(bad, ', '), strjoin(known, ', '));
+end
+w = strings(size(rc, 1), 1);
+if isnumeric(rc)
+    rc = double(rc);
+    rc(~isfinite(rc)) = 0;
+    for k = reshape(flip(words), 1, [])
+        w(bitand(rc, bits.(k)) > 0) = k;
+    end
+else
+    for k = reshape(flip(words), 1, [])
+        w(string(rc) == k) = k;
+    end
+end
 end

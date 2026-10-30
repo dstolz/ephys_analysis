@@ -10,6 +10,13 @@
 % for the browser's event line (the paper's coherence-dependent kernels), a
 % spike-history filter, and optionally the LFP as a continuous covariate.
 %
+% The trial's response enters twice (the paper's choice-dependent saccade
+% kernels): opts.responseEvents get one kernel per response word (opts.responses;
+% F.kernels.RespWindow_on__Hit, ...), and the moment of the response (opts.responseLine's
+% onset + opts.responseLatency, Hit and FA trials) gets a kernel of its own that also
+% reaches before it (F.kernels.response_time). Each trial's word is
+% g.expt.trial(j).response, for sorting the predictions by response.
+%
 % Data: "Load whole sessions" with Data = units or detected (B.Sessions holds
 % the spike trains, every trial and digital line); with opts.withSignal, tick that
 % signal too and it comes from B.Sessions (else it is loaded here). Each kept
@@ -46,6 +53,10 @@ opts.kernelMs = 500;                     % each event kernel's reach after the e
 opts.nBases = 8;                         % raised cosines per kernel
 opts.acausal = string.empty;             % event variables whose kernel also precedes the event, e.g. "Resp_on" for the animal's response
 opts.groupKernels = true;                % one kernel per trial group (B's groupBy) for the browser's event line's onset (B.Settings.ref.line)
+opts.responses = ["Hit" "Miss" "CR" "FA"];    % the response words given their own kernels; string.empty = none (a trial with another word gets none on opts.responseEvents)
+opts.responseEvents = "RespWindow_on";   % the events split by response word; not one groupKernels also splits (B.Settings.ref.line's onset)
+opts.responseTime = true;                % a kernel around the moment of the response, before and after it
+opts.responseLine = "RespWindow"; opts.responseLatency = "RespLatency";   % that moment: the line's onset + the trial column, ms
 opts.history = true; opts.historyMs = 200;    % the spike-history filter
 opts.coupling = false;                   % a coupling filter from every other unit of the dataset (slow with many units)
 opts.withSignal = "AUX";                    % "LFP" | "MUA" | "AUX" | "": that signal's channels as an instantaneous covariate
@@ -100,17 +111,44 @@ try
             end
             args = {'Signal', L};
         end
+        if ~isempty(opts.responses), args = [args, {'Responses', opts.responses}]; end %#ok<AGROW>
+        if opts.responseTime
+            if isfield(D.eventsContinuous, opts.responseLine) && ismember(opts.responseLatency, string(D.trials.Properties.VariableNames))
+                args = [args, {'ResponseLine', opts.responseLine, 'ResponseLatency', opts.responseLatency}]; %#ok<AGROW>
+            else
+                fprintf('%s: no response-time kernel (no line %s or trial column %s)\n', name, opts.responseLine, opts.responseLatency);
+            end
+        end
         [expt, info] = sessionDataNeuroGLM(D, 'Window', opts.window, 'BinMs', opts.binMs, args{:});
 
-        dsArgs = {'KernelMs', opts.kernelMs, 'NBases', opts.nBases, 'Acausal', opts.acausal, ...
+        acausal = reshape(opts.acausal, 1, []);
+        if info.responseTime ~= "", acausal = [acausal, info.responseTime]; end %#ok<AGROW>
+        dsArgs = {'KernelMs', opts.kernelMs, 'NBases', opts.nBases, 'Acausal', acausal, ...
             'History', opts.history, 'HistoryMs', opts.historyMs, 'Coupling', opts.coupling};
+        groupBy = string.empty(1, 0);
+        groupEvents = {};
         if opts.groupKernels
             % the paper's coherence-dependent kernels: the event the browser aligns to, split by trial group
             refLine = B.Settings.ref.line;
             if refLine == "Trial", refLine = D.trialLine; end
             refOn = info.lines.on(info.lines.line == refLine);
             if isempty(refOn), refOn = info.lines.on(1); end
-            dsArgs = [dsArgs, {'GroupBy', "group", 'GroupEvents', refOn.'}]; %#ok<AGROW>
+            groupBy(end + 1) = "group"; %#ok<AGROW>
+            groupEvents{end + 1} = refOn.'; %#ok<AGROW>
+        end
+        if ~isempty(opts.responses) && info.response ~= ""
+            % the paper's choice-dependent kernels: these events, split by the trial's response word
+            have = intersect(reshape(opts.responseEvents, 1, []), [info.lines.on.', info.lines.off.', info.responseTime], 'stable');
+            for ev = setdiff(reshape(opts.responseEvents, 1, []), have)
+                fprintf('%s: no response kernels on %s (no such event)\n', name, ev);
+            end
+            if ~isempty(have)
+                groupBy(end + 1) = info.response; %#ok<AGROW>
+                groupEvents{end + 1} = have; %#ok<AGROW>
+            end
+        end
+        if ~isempty(groupBy)
+            dsArgs = [dsArgs, {'GroupBy', groupBy, 'GroupEvents', groupEvents}]; %#ok<AGROW>
         end
 
         % one split per dataset: every unit is fitted and tested on the same trials
@@ -162,6 +200,9 @@ B.progressFinish(sprintf("%d units of %d dataset(s) fitted", nFit, numel(S)));
 %   g = glm{1}; f = g.fits(1);                                % the first dataset's first fitted unit
 %   vertcat(g.fits.unit), arrayfun(@(f) f.P.bitsPerSpike, g.fits)   % every unit and its held-out bits/spike
 %   f.F.kernels.Stim_on.tr, exp(f.F.kernels.Stim_on.data)     % a kernel as gain over ms after the event
+%   plot(f.F.kernels.RespWindow_on__Hit.tr, exp([f.F.kernels.RespWindow_on__Hit.data, f.F.kernels.RespWindow_on__Miss.data]))   % Hit against Miss
+%   plot(f.F.kernels.response_time.tr, exp(f.F.kernels.response_time.data))   % the gain around the response (0 = the response)
+%   hits = string({g.expt.trial(f.P.trials).response}) == "Hit";   % held-out trials by response word
 %   dspec2 = NeuroGLMExport.designSpec(g.expt, Response=f.dspec.response, History=false);   % another design
 %   F2 = NeuroGLMExport.fit(dspec2, Trials=g.trainTrials, Method="matRegress", Ridge=10); NeuroGLMExport.predict(F2, g.testTrials).bitsPerSpike
 %   semilogx(f.F.ridgeGrid, f.F.evidence)                     % the evidence over the ridge grid

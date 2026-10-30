@@ -7,7 +7,8 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
     %   resampled and cut, trials off a signal dropped); its errors;
     %   sessionDataNeuroGLM's spans (Inf post = up to the next trial, the
     %   last to the recording's end; edge and artifact drops; "all" trials),
-    %   its labels and values, a Signal as a continuous variable;
+    %   its labels and values, a Signal as a continuous variable; the trial's
+    %   response word and response time, kernels split by two variables;
     %   designSpec (grouped, acausal, coupling kernels) and fit on a planted
     %   response (a gain after the event, bits per spike > 0, predict's
     %   shapes); the matRegress route (fminunc) against glmfit, its ridge
@@ -56,8 +57,10 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
             planted = reshape(stimOn + [0.010 0.012 0.015 0.020 0.030], [], 1);
             spikes = {sort([bg(2); planted]); bg(3)};
             depth = repmat([0.2; 0.8], n / 2, 1);
-            trials = table(on, depth, repmat(["Hit"; "Miss"; "Hit"], n / 3, 1), ...
-                'VariableNames', {'TrialOnset', 'Depth', 'RespCode'});
+            word = repmat(["Hit"; "Miss"; "Hit"], n / 3, 1);
+            latency = NaN(n, 1); latency(word == "Hit") = 100;   % ms; a miss has none
+            trials = table(on, on + 1.5, depth, word, latency, ...
+                'VariableNames', {'TrialOnset', 'TrialOffset', 'Depth', 'RespCode', 'RespLatency'});
             kept = true(n, 1); kept(3) = false;
             group = 1 + (depth == 0.8); group(~kept) = 0;
             groups = table([1; 2], ["Depth = 0.2"; "Depth = 0.8"], [0 0.4 0.8; 0.8 0.3 0.1], ...
@@ -150,7 +153,9 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
             tc.verifyEqual(info.units.variable, ["sp_su001_1"; "sp_su002_2"]);
             tc.verifyEqual(info.lines.on, ["Trial_on"; "Stim_on"; "Resp_on"]);
             tc.verifyEqual(info.lines.off, ["Trial_off"; "Stim_off"; "Resp_off"]);
-            tc.verifyEqual(info.values.variable, ["trialIndex"; "group"; "RespCode"; "Depth"]);
+            tc.verifyEqual(info.values.variable, ["trialIndex"; "group"; "RespCode"; "Depth"; "response"]);
+            tc.verifyEqual(info.response, "response");
+            tc.verifyEqual(info.responseTime, "");
             tc.verifyEqual(T(1).trialIndex, 1);
             tc.verifyEqual(T(2).trialIndex, 2);
             tc.verifyEqual(T(1).Depth, 0.2);
@@ -177,7 +182,7 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
             tc.verifyEqual(e3.trial(1).trialIndex, 2);
             % a subset of lines and units
             [e4, i4] = sessionDataNeuroGLM(D, Lines="Stim", Units=2);
-            tc.verifyEqual(string(fieldnames(e4.type)).', ["sp_su002_2" "Stim_on" "Stim_off" "trialIndex" "group" "RespCode" "Depth"], ...
+            tc.verifyEqual(string(fieldnames(e4.type)).', ["sp_su002_2" "Stim_on" "Stim_off" "trialIndex" "group" "RespCode" "Depth" "response"], ...
                 'Spike trains, timings, values, then continuous variables.');
             tc.verifyEqual(i4.units.label, "su002_2");
             tc.verifyError(@() sessionDataNeuroGLM(D, Lines="Nope"), 'sessionDataNeuroGLM:NoLine');
@@ -197,6 +202,62 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
             tc.verifyEqual(tr.LFP, double(tc.L.signal(r0:r0 + 1199, :)), 'The signal rows of the trial''s bins.');
             bad = tc.L; bad.key = "other";
             tc.verifyError(@() sessionDataNeuroGLM(tc.D, Signal=bad), 'sessionDataNeuroGLM:SignalMismatch');
+        end
+
+        function sessionResponses(tc)
+            D = tc.D;
+            word = D.trials.RespCode;
+            [expt, info] = sessionDataNeuroGLM(D, Window=[-0.2 1.0], Trials="all", DropArtifacts=false, ...
+                ResponseLine="Stim");
+            tc.verifyEqual(string({expt.trial.response}).', word, 'The words, as text.');
+            tc.verifyEqual(info.responseTime, "response_time");
+            tc.verifyEqual(expt.type.response_time, 'timing');
+            hit = word == "Hit";
+            T = expt.trial;
+            tc.verifyEqual([T(hit).response_time] - [T(hit).Stim_on], repmat(100, 1, nnz(hit)), 'AbsTol', 1e-6, ...
+                'The line''s onset + the latency, in ms.');
+            tc.verifyTrue(all(arrayfun(@(t) isempty(t.response_time), T(~hit))), 'A miss has no response time.');
+            % the bit mask: the first listed word that matches, "" with none; the latency only on Hit and FA
+            D2 = D;
+            D2.trials.RespCode = repmat([1 + 32 + 256 + 1024; 2 + 128 + 1024; 8 + 64 + 256 + 2048; 4 + 128 + 2048], 3, 1);
+            D2.trials.RespLatency(:) = 50;
+            expt2 = sessionDataNeuroGLM(D2, Window=[-0.2 1.0], Trials="all", DropArtifacts=false, ResponseLine="Stim", ...
+                Responses=["Hit" "Miss" "FA"]);
+            T2 = expt2.trial;
+            tc.verifyEqual(string({T2(1:4).response}), ["Hit" "Miss" "FA" ""]);
+            tc.verifyEqual(arrayfun(@(t) numel(t.response_time), T2(1:4)), [1; 0; 1; 0], ...
+                'Only the trials with a response have a response time, whatever the latency column holds.');
+            % no response at all: an empty event; no response code: no word; errors
+            D3 = D; D3.trials.RespLatency(:) = NaN;
+            [e3, i3] = sessionDataNeuroGLM(D3, Window=[-0.2 1.0], ResponseLine="Stim");
+            tc.verifyEqual(i3.responseTime, "response_time");
+            tc.verifyTrue(all(arrayfun(@(t) isempty(t.response_time), e3.trial)));
+            D4 = D; D4.respField = "";
+            [~, i4] = sessionDataNeuroGLM(D4, Window=[-0.2 1.0]);
+            tc.verifyEqual(i4.response, "");
+            tc.verifyFalse(ismember("response", i4.values.variable));
+            tc.verifyError(@() sessionDataNeuroGLM(D, Responses="Nope"), 'sessionDataNeuroGLM:BadResponse');
+            tc.verifyError(@() sessionDataNeuroGLM(D, ResponseLine="Nope"), 'resolveEvents:NoLine');
+            tc.verifyError(@() sessionDataNeuroGLM(D, ResponseLine="Stim", ResponseLatency="Nope"), 'resolveEvents:NoParam');
+            % two splits on different events, the response time acausal
+            expt = sessionDataNeuroGLM(D, Window=[-0.2 1.0], Trials="all", DropArtifacts=false, ResponseLine="Stim");
+            dspec = NeuroGLMExport.designSpec(expt, Response=1, Events=["Stim_on" "Resp_on" "response_time"], ...
+                GroupBy=["group" "response"], GroupEvents={"Stim_on", "Resp_on"}, Acausal="response_time", ...
+                KernelMs=100, NBases=4, History=false);
+            tc.verifyEqual(string({dspec.covar.label}), ["Stim_on__0" "Stim_on__1" "Stim_on__2" "Resp_on__Hit" "Resp_on__Miss" "response_time"]);
+            tc.verifyEqual(dspec.groupBy, ["group" "response"]);
+            tc.verifyEqual(dspec.groupLevels, {[0; 1; 2], ["Hit"; "Miss"]});
+            F = NeuroGLMExport.fit(dspec);
+            tc.verifyEqual(F.kernels.response_time.tr(1), -100);
+            % a blank word gets no kernel
+            D5 = D2; D5.trials.RespCode(:) = 4 + 128 + 2048; D5.trials.RespCode(1) = 1;
+            e5 = sessionDataNeuroGLM(D5, Window=[-0.2 1.0], Trials="all", DropArtifacts=false, Responses="Hit");
+            d5 = NeuroGLMExport.designSpec(e5, Events="Stim_on", GroupBy="response", History=false, KernelMs=100, NBases=4);
+            tc.verifyEqual(string({d5.covar.label}), "Stim_on__Hit");
+            tc.verifyError(@() NeuroGLMExport.designSpec(expt, GroupBy=["group" "response"], GroupEvents={"Stim_on", "Stim_on"}), ...
+                'NeuroGLMExport:BadGroupEvents');
+            tc.verifyError(@() NeuroGLMExport.designSpec(expt, GroupBy=["group" "response"], GroupEvents="Stim_on"), ...
+                'NeuroGLMExport:BadGroupEvents');
         end
 
         function matRegressFit(tc)
@@ -268,7 +329,7 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
                 Acausal="Resp_on", KernelMs=100, NBases=4, Coupling=true, History=false);
             labels = string({d2.covar.label});
             tc.verifyEqual(labels, ["Stim_on__1" "Stim_on__2" "Resp_on" "coupling_sp_su002_2"]);
-            tc.verifyEqual(d2.groupLevels, [1; 2]);
+            tc.verifyEqual(d2.groupLevels, {[1; 2]});
             F2 = NeuroGLMExport.fit(d2, Trials=1:6);
             tc.verifyEqual(F2.kernels.Resp_on.tr(1), -100, 'An acausal kernel starts KernelMs before the event.');
             tc.verifyEqual(numel(F2.kernels.Resp_on.tr), 200);

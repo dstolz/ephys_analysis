@@ -43,7 +43,7 @@ others.
 | Call | Returns |
 | --- | --- |
 | `[expt, keep] = NeuroGLMExport.experiment(spans, ...)` | neuroGLM's experiment struct, one trial per row of `spans` (`[start stop]`, s on the continuous clock). `Spikes=` (struct: label → spike times, s) registers spike trains, `Events=` (label → event times) timing variables, `Values=` (a table, a row per span) per-trial values, `Continuous=` (label → `struct(data=[N x d], fs=)`) continuous variables resampled to the bin rate and cut. `BinMs` (1), `Id`, `Param` (kept in `expt.param`), `Describe` (label → description). `keep` marks the spans that became trials |
-| `dspec = NeuroGLMExport.designSpec(expt, ...)` | a design: a raised-cosine kernel per timing variable (`Events=`, all by default; `KernelMs` 500, `NBases` 8, `Shape`), `Acausal=` events whose kernel spans `[-KernelMs, KernelMs]`, `GroupBy=` a value variable and `GroupEvents=` the events that get one kernel per value (included only on the trials with it, the paper's coherence-dependent kernels; labels `<event>__<value>`), `History` (true; `HistoryMs` 200, `HistoryBases` 10, log-stretched raised cosines), `Coupling` (false; a filter from every other spike train, `coupling_<label>`), `Continuous=` (all; instantaneous). `Response=` the spike train modeled (label or index, 1); kept in `dspec.response` |
+| `dspec = NeuroGLMExport.designSpec(expt, ...)` | a design: a raised-cosine kernel per timing variable (`Events=`, all by default; `KernelMs` 500, `NBases` 8, `Shape`), `Acausal=` events whose kernel spans `[-KernelMs, KernelMs]`, `GroupBy=` a value variable and `GroupEvents=` the events that get one kernel per value (included only on the trials with it, the paper's coherence-dependent kernels; labels `<event>__<value>`; a value of `""` gets none; several variables split different events: `GroupBy=["group" "response"], GroupEvents={"Stim_on", "RespWindow_on"}`, and an event takes one split), `History` (true; `HistoryMs` 200, `HistoryBases` 10, log-stretched raised cosines), `Coupling` (false; a filter from every other spike train, `coupling_<label>`), `Continuous=` (all; instantaneous). `Response=` the spike train modeled (label or index, 1); kept in `dspec.response` |
 | `F = NeuroGLMExport.fit(dspec, Trials=, Response=, Method=, Ridge=, RidgeGrid=)` | the design matrix (`F.dm`, constant columns removed), the binned response `F.y` and a Poisson GLM. `Method="glmfit"` (default): maximum likelihood by `glmfit`, `stats` its stats. `Method="matRegress"`: neuroGLM's route, `glms.neglog.poisson` with its gradient and Hessian minimized by `fminunc` (trust-region) under a ridge prior of precision `Ridge` on every weight but the bias (the penalty `Ridge/2 · ‖w‖²`; 1 by default, 0 = maximum likelihood), or `Ridge="evidence"`: the precision on `RidgeGrid` (`logspace(-2, 4, 13)`) with the largest Laplace approximation of the log marginal likelihood, the paper's evidence optimization (`F.ridge` the value used, `F.evidence` the grid's log evidence); standard errors from the Hessian at the optimum, `stats.hessian` / `stats.covb`. Either way: `bias`, `w`, `se`, `kernels` (`buildGLM.combineWeights`: `kernels.<covariate>.tr` ms from the event, `.data` the log-rate change, so `exp(data)` is the gain), `kernelSE` (the same shape; covariances ignored, as neuroGLM's tutorial), `rate` (spikes/s per bin), `deviance`, `logLik`, `logLikNull` (a constant rate), `bitsPerSpike` (their difference per spike in bits, the paper's single-trial prediction measure), `nSpikes`, `nBins`, `method`, `ridge` |
 | `P = NeuroGLMExport.predict(F, trials)` | the model's rate on any trials (held-out ones give the cross-validated prediction): `t{k}` (ms from the trial's start), `rate{k}` (spikes/s), `counts{k}` (the response's spikes per bin), `logLik`, `bitsPerSpike` |
 | `fits = NeuroGLMExport.fitUnits(expt, units, Design=, Trials=, Test=, Method=, Ridge=, Workers=, ProgressFcn=, LogFcn=, CheckFcn=)` | a design fitted and tested per row of `units` (`info.units`), on process workers (`Workers=`, 0 = here): `fits(j).unit`, `.dspec`, `.F`, `.P` in the rows' order. `ProgressFcn(fraction, message)` and `LogFcn(message)` report each unit as it finishes; an error from `CheckFcn` (e.g. `@() B.checkCancel()`) stops the workers and is raised |
@@ -92,12 +92,15 @@ span touches an erased period (`D.artifacts`) unless `DropArtifacts=false`
 | --- | --- | --- |
 | spike trains | every element of `D.spikes` (`Units=` a subset) | `sp_<unit label>` |
 | timing | every digital line's pulses (`Lines=` a subset), onsets and offsets apart | `<line>_on`, `<line>_off` |
+| timing | with `ResponseLine=`, the moment of the response on Hit and FA trials: that line's onset + the trial's `ResponseLatency` (`"RespLatency"`, ms) | `response_time` |
 | values | the trial's row of `D.trials`, its group (its row of `D.groups`, 0 when not kept), the response code (`D.respField`), every trial parameter (`D.paramNames`) | `trialIndex`, `group`, the column names |
+| values | with a response code, the trial's response word: the first of `Responses=` (`["Hit" "Miss" "CR" "FA" "Abort"]`) that it is, `""` when none | `response` |
 | continuous | `Signal=`, a `sessionData` struct of the **same dataset** holding a signal, every channel | the signal's name (`LFP`, `MUA`, `AUX`) |
 
 `info` holds `trialIndex` (the row of `D.trials` of each `expt.trial`),
 `spans`, `units` (the rows of `D.units` plus `variable`), `lines` (`line`,
-`on`, `off`), `values` (`column`, `variable`), `signal`; `expt.param` holds
+`on`, `off`), `values` (`column`, `variable`), `signal`, `response` and
+`responseTime` (the variables' names, `""` without them); `expt.param` holds
 the same tables with `key`, `name`, `fs`, `binMs`, `window`, `align`,
 `trialLine` and `groups`.
 
@@ -109,7 +112,8 @@ to *units* or *detected*, **Load whole sessions**, pick the script and **Run
 now** (or tick *Run it after each Compute or Load*). For each dataset it
 builds the experiment and, for every unit with spikes, fits the GLM on the
 same 80% of the trials with a kernel per line edge (one per trial group for the
-browser's event line when `opts.groupKernels` is on), a spike-history filter and,
+browser's event line when `opts.groupKernels` is on), the trial's response (below), a
+spike-history filter and,
 with `opts.withSignal = "LFP"`, the LFP as a covariate, predicts the held-out
 trials and prints bits per spike for both, a line per unit. The fit is the paper's by default
 (`opts.fitMethod = "matRegress"`, `opts.ridge = "evidence"`); `opts.fitMethod = "glmfit"`
@@ -124,8 +128,29 @@ is the quick maximum-likelihood alternative. The workspace gets `glm{k}` per dat
 3. the **PSTH per trial group**, data against model, aligned to the trial's
    start (Fig. 2c).
 
+The trial's response enters the model in two ways, as the paper's
+choice-dependent saccade kernels do:
+
+- **A kernel per response word.** `opts.responseEvents` (`"RespWindow_on"`) get
+  one kernel per word of `opts.responses` (`Hit`, `Miss`, `CR`, `FA`), each on
+  the trials with that word: `F.kernels.RespWindow_on__Hit`, and so on. A trial
+  with another word (an abort) has no kernel on that event. An event takes one
+  split, so an event in `opts.responseEvents` cannot also be the browser's event
+  line while `opts.groupKernels` is on; the script stops with
+  `NeuroGLMExport:BadGroupEvents` when it is. Set `opts.responses = string.empty`
+  for none.
+- **A kernel around the response.** With `opts.responseTime`, the moment of the
+  response, `opts.responseLine`'s onset + `opts.responseLatency` (`RespWindow`,
+  `RespLatency`, ms), gets a kernel reaching `opts.kernelMs` before and after
+  it: `F.kernels.response_time`. Only Hit and FA trials have one, and a dataset
+  without that line or column is fitted without it, with a line printed.
+
+Each trial's word is `glm{k}.expt.trial(j).response`, to sort the predictions
+by response.
+
 The fields of `opts` at the top of the script (`binMs`, `window`, `kernelMs`,
-`acausal`, `groupKernels`, `history`, `coupling`, `withSignal`,
+`acausal`, `groupKernels`, `responses`, `responseEvents`, `responseTime`,
+`responseLine`, `responseLatency`, `history`, `coupling`, `withSignal`,
 `fitMethod`, `ridge`, `workers`, `outDir`) are the knobs; `opts.workers` (4; 0 =
 one unit after the other in MATLAB itself) fits the units on process workers
 (`fitUnits`), fewer when memory is short, so the per-unit lines print as the fits
@@ -158,4 +183,4 @@ and `NeuroGLMExport.fit` / `predict` take any design built on the experiment.
 - **Decoding** (the paper's second half) is not implemented: the saccade
   kernels' difference as linear decoding weights, and model-based choice
   probability, build directly on `F.kernels` when a design has one kernel
-  per choice (`GroupBy` on a response value).
+  per choice (`GroupBy` on `response`).

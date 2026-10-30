@@ -210,8 +210,12 @@ classdef NeuroGLMExport
             %                  get one kernel per distinct value, included
             %                  only on the trials with that value (""); e.g.
             %                  "group" for the browser's trial groups, as
-            %                  the paper's coherence-dependent kernels
-            %     GroupEvents  the events split by GroupBy (Events)
+            %                  the paper's coherence-dependent kernels. A
+            %                  value of "" gets no kernel. Several variables
+            %                  split different events
+            %     GroupEvents  the events split by GroupBy (Events); with
+            %                  several GroupBy, a cell of them, one per
+            %                  variable. An event takes one split
             %     History      a spike-history filter on the response (true)
             %     HistoryMs    its reach, ms (200)
             %     HistoryBases raised cosines, log-stretched (10)
@@ -220,7 +224,8 @@ classdef NeuroGLMExport
             %     Continuous   the continuous variables as instantaneous
             %                  covariates (all registered)
             %   The design is dspec.covar; dspec.response holds the label
-            %   fit regresses on, dspec.groupLevels the GroupBy values.
+            %   fit regresses on, dspec.groupBy the variables and
+            %   dspec.groupLevels their values, a cell with one per variable.
             %   Kernels: covariate label = the event label; grouped kernels
             %   "<event>__<value>"; history "hist"; coupling "coupling_<label>".
             arguments
@@ -231,8 +236,8 @@ classdef NeuroGLMExport
                 opts.NBases (1,1) double {mustBeInteger, mustBePositive} = 8
                 opts.Shape (1,1) string {mustBeMember(opts.Shape, ["raised cosine" "boxcar"])} = "raised cosine"
                 opts.Acausal string = string.empty
-                opts.GroupBy (1,1) string = ""
-                opts.GroupEvents string = string.empty
+                opts.GroupBy string = string.empty
+                opts.GroupEvents = string.empty
                 opts.History (1,1) logical = true
                 opts.HistoryMs (1,1) double {mustBePositive} = 200
                 opts.HistoryBases (1,1) double {mustBeInteger, mustBePositive} = 10
@@ -262,7 +267,11 @@ classdef NeuroGLMExport
             end
             events = opts.Events;
             if isempty(events); events = eventLabels; end
-            missing = setdiff([events opts.Acausal opts.GroupEvents], eventLabels);
+            groupBy = reshape(opts.GroupBy(opts.GroupBy ~= ""), 1, []);
+            groupEvents = opts.GroupEvents;
+            if ~iscell(groupEvents); groupEvents = {groupEvents}; end
+            groupEvents = cellfun(@(g) reshape(string(g), 1, []), groupEvents, 'UniformOutput', false);
+            missing = setdiff([events opts.Acausal groupEvents{:}], eventLabels);
             if ~isempty(missing)
                 error('NeuroGLMExport:BadEvent', 'Not a registered timing variable: %s.', strjoin(missing, ', '));
             end
@@ -272,19 +281,30 @@ classdef NeuroGLMExport
             if ~isempty(missing)
                 error('NeuroGLMExport:BadContinuous', 'Not a registered continuous variable: %s.', strjoin(missing, ', '));
             end
-            groupEvents = string.empty;
-            levels = [];
-            if opts.GroupBy ~= ""
-                if ~isfield(types, opts.GroupBy) || ~strcmp(types.(opts.GroupBy), 'value')
-                    error('NeuroGLMExport:BadGroupBy', '"%s" is not a registered value variable.', opts.GroupBy);
+            if numel(groupBy) > 1 && numel(groupEvents) ~= numel(groupBy)
+                error('NeuroGLMExport:BadGroupEvents', 'Several GroupBy need GroupEvents as a cell, one element per variable.');
+            end
+            levels = cell(1, numel(groupBy));
+            for i = 1:numel(groupBy)
+                by = groupBy(i);
+                if ~isfield(types, by) || ~strcmp(types.(by), 'value')
+                    error('NeuroGLMExport:BadGroupBy', '"%s" is not a registered value variable.', by);
                 end
-                groupEvents = opts.GroupEvents;
-                if isempty(groupEvents); groupEvents = events; end
-                vals = arrayfun(@(tr) tr.(opts.GroupBy), expt.trial, 'UniformOutput', false);
+                if isempty(groupEvents{i}); groupEvents{i} = events; end
+                vals = arrayfun(@(tr) tr.(by), expt.trial, 'UniformOutput', false);
                 if all(cellfun(@(v) isnumeric(v) || islogical(v), vals))
-                    levels = unique(cell2mat(vals(:)));
+                    levels{i} = unique(cell2mat(vals(:)));
                 else
-                    levels = unique(string(vals));
+                    levels{i} = setdiff(unique(string(vals)), "");
+                end
+            end
+            if ~isempty(groupBy)
+                split = [groupEvents{1:numel(groupBy)}];
+                [u, ~, ic] = unique(split);
+                twice = u(accumarray(ic(:), 1) > 1);
+                if ~isempty(twice)
+                    error('NeuroGLMExport:BadGroupEvents', 'An event takes one split, but %s is in two (GroupBy %s).', ...
+                        strjoin(twice, ', '), strjoin(groupBy, ', '));
                 end
             end
 
@@ -299,18 +319,20 @@ classdef NeuroGLMExport
                     bs = basisFactory.makeSmoothTemporalBasis(char(opts.Shape), opts.KernelMs, opts.NBases, binfun);
                     offset = 0;
                 end
-                if ismember(lab, groupEvents)
-                    for L = reshape(levels, 1, [])
+                iBy = find(cellfun(@(g) ismember(lab, g), groupEvents(1:numel(groupBy))), 1);
+                if ~isempty(iBy)
+                    by = groupBy(iBy);
+                    for L = reshape(levels{iBy}, 1, [])
                         if isnumeric(L) || islogical(L)
-                            cond = @(tr) isequal(double(tr.(opts.GroupBy)), double(L));
+                            cond = @(tr) isequal(double(tr.(by)), double(L));
                             tag = regexprep(num2str(L), '[^\w]', '_');
                         else
-                            cond = @(tr) string(tr.(opts.GroupBy)) == L;
+                            cond = @(tr) string(tr.(by)) == L;
                             tag = matlab.lang.makeValidName(char(L));
                         end
                         covLabel = char(lab + "__" + tag);
                         dspec = buildGLM.addCovariateTiming(dspec, covLabel, char(lab), ...
-                            sprintf('%s (%s = %s)', expt.desc.(lab), opts.GroupBy, string(L)), bs, offset, cond);
+                            sprintf('%s (%s = %s)', expt.desc.(lab), by, string(L)), bs, offset, cond);
                     end
                 else
                     dspec = buildGLM.addCovariateTiming(dspec, char(lab), char(lab), expt.desc.(lab), bs, offset);
@@ -335,7 +357,7 @@ classdef NeuroGLMExport
                 error('NeuroGLMExport:EmptyDesign', 'The design has no covariate: give Events, History, Coupling or Continuous.');
             end
             dspec.response = resp;
-            dspec.groupBy = opts.GroupBy;
+            dspec.groupBy = groupBy;
             dspec.groupLevels = levels;
             dspec.options = opts;
         end

@@ -11,10 +11,11 @@ says how to cut a release.
 ### Added
 
 - `S_DatasetBrowserToNeuroGLM.m` models the trial's response: a kernel per response word on `opts.responseEvents`
-  (`RespWindow_on__Hit`, `__Miss`, `__CR`, `__FA`) and a kernel reaching before and after the moment of the response
-  (`response_time`, the response window's onset + `RespLatency`, on Hit and FA trials). `sessionDataNeuroGLM` adds the
-  word as the value `response` and, with `ResponseLine=`, the event; `NeuroGLMExport.designSpec` takes several `GroupBy`
-  variables, each splitting its own events, and `dspec.groupLevels` is now a cell with one element per variable. See
+  (`response_time__Hit`, `response_time__Miss`, ...), with `response_time` the moment of the response (the response
+  window's onset + `RespLatency` on Hit and FA trials, the trial's offset on Miss and CR trials) and its kernels reaching
+  `opts.acausalMs` (1000 ms) before it. `sessionDataNeuroGLM` adds the word as the value `response` and, with
+  `ResponseLine=`, the event; `NeuroGLMExport.designSpec` takes `AcausalMs=` and several `GroupBy` variables, each
+  splitting its own events, and `dspec.groupLevels` is now a cell with one element per variable. See
   [From the DatasetBrowser](documentation/NeuroGLMExport.md#from-the-datasetbrowser).
 - Manifest viewer: a **Flow chart** tab draws how a dataset's outputs were made, from its manifest, with four levels of
   detail: the major steps, the files written, the key settings and every parameter's value, drawn from top to bottom or

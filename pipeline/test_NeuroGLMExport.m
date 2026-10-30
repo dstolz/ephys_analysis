@@ -216,18 +216,25 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
             T = expt.trial;
             tc.verifyEqual([T(hit).response_time] - [T(hit).Stim_on], repmat(100, 1, nnz(hit)), 'AbsTol', 1e-6, ...
                 'The line''s onset + the latency, in ms.');
-            tc.verifyTrue(all(arrayfun(@(t) isempty(t.response_time), T(~hit))), 'A miss has no response time.');
+            tc.verifyTrue(all(arrayfun(@(t) isempty(t.response_time), T(~hit))), 'A miss''s trial offset is past this window.');
+            exptLong = sessionDataNeuroGLM(D, Window=[-0.2 2.0], Trials="all", DropArtifacts=false, ResponseLine="Stim");
+            TL = exptLong.trial;
+            tc.verifyEqual([TL(~hit).response_time], [TL(~hit).Trial_off], 'AbsTol', 1e-6, 'A miss responds at its trial offset.');
+            tc.verifyEqual([TL(hit).response_time] - [TL(hit).Stim_on], repmat(100, 1, nnz(hit)), 'AbsTol', 1e-6, ...
+                'A hit keeps its latency, one event per trial.');
             % the bit mask: the first listed word that matches, "" with none; the latency only on Hit and FA
             D2 = D;
             D2.trials.RespCode = repmat([1 + 32 + 256 + 1024; 2 + 128 + 1024; 8 + 64 + 256 + 2048; 4 + 128 + 2048], 3, 1);
             D2.trials.RespLatency(:) = 50;
-            expt2 = sessionDataNeuroGLM(D2, Window=[-0.2 1.0], Trials="all", DropArtifacts=false, ResponseLine="Stim", ...
+            expt2 = sessionDataNeuroGLM(D2, Window=[-0.2 2.0], Trials="all", DropArtifacts=false, ResponseLine="Stim", ...
                 Responses=["Hit" "Miss" "FA"]);
             T2 = expt2.trial;
             tc.verifyEqual(string({T2(1:4).response}), ["Hit" "Miss" "FA" ""]);
-            tc.verifyEqual(arrayfun(@(t) numel(t.response_time), T2(1:4)), [1; 0; 1; 0], ...
-                'Only the trials with a response have a response time, whatever the latency column holds.');
-            % no response at all: an empty event; no response code: no word; errors
+            tc.verifyEqual(arrayfun(@(t) numel(t.response_time), T2(1:4)), [1; 1; 1; 1], ...
+                'A hit, a miss, a false alarm and a correct rejection each have one response time, whatever the latency column holds.');
+            tc.verifyEqual(T2(2).response_time, T2(2).Trial_off, 'AbsTol', 1e-6, 'The miss, at its trial offset.');
+            tc.verifyEqual(T2(4).response_time, T2(4).Trial_off, 'AbsTol', 1e-6, 'The correct rejection, at its trial offset, even with no kernel word of its own.');
+            % no response at all: an empty event (a miss's offset is past this window); no response code: no word; errors
             D3 = D; D3.trials.RespLatency(:) = NaN;
             [e3, i3] = sessionDataNeuroGLM(D3, Window=[-0.2 1.0], ResponseLine="Stim");
             tc.verifyEqual(i3.responseTime, "response_time");
@@ -249,6 +256,14 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
             tc.verifyEqual(dspec.groupLevels, {[0; 1; 2], ["Hit"; "Miss"]});
             F = NeuroGLMExport.fit(dspec);
             tc.verifyEqual(F.kernels.response_time.tr(1), -100);
+            % a kernel per word on the response time, its reach before the event apart from its reach after
+            dReach = NeuroGLMExport.designSpec(exptLong, Response=1, Events="response_time", GroupBy="response", ...
+                GroupEvents="response_time", Acausal="response_time", AcausalMs=300, KernelMs=100, NBases=4, History=false);
+            tc.verifyEqual(string({dReach.covar.label}), ["response_time__Hit" "response_time__Miss"]);
+            FReach = NeuroGLMExport.fit(dReach);
+            tc.verifyEqual(FReach.kernels.response_time__Hit.tr(1), -300);
+            tc.verifyEqual(FReach.kernels.response_time__Miss.tr(1), -300);
+            tc.verifyLessThan(abs(FReach.kernels.response_time__Hit.tr(end) - 100), 50, 'And still reaches KernelMs after it.');
             % a blank word gets no kernel
             D5 = D2; D5.trials.RespCode(:) = 4 + 128 + 2048; D5.trials.RespCode(1) = 1;
             e5 = sessionDataNeuroGLM(D5, Window=[-0.2 1.0], Trials="all", DropArtifacts=false, Responses="Hit");

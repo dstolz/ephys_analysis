@@ -10,12 +10,12 @@
 % for the browser's event line (the paper's coherence-dependent kernels), a
 % spike-history filter, and optionally the LFP as a continuous covariate.
 %
-% The trial's response enters twice (the paper's choice-dependent saccade
-% kernels): opts.responseEvents get one kernel per response word (opts.responses;
-% F.kernels.RespWindow_on__Hit, ...), and the moment of the response (opts.responseLine's
-% onset + opts.responseLatency, Hit and FA trials) gets a kernel of its own that also
-% reaches before it (F.kernels.response_time). Each trial's word is
-% g.expt.trial(j).response, for sorting the predictions by response.
+% The trial's response enters as the paper's choice-dependent saccade kernels:
+% opts.responseEvents get one kernel per response word (opts.responses;
+% F.kernels.response_time__Hit, ...). One of them is the moment of the response,
+% response_time (opts.responseLine's onset + opts.responseLatency on Hit and FA trials,
+% the trial's offset on Miss and CR trials), whose kernels also reach opts.acausalMs before it.
+% Each trial's word is g.expt.trial(j).response, for sorting the predictions by response.
 %
 % Data: "Load whole sessions" with Data = units or detected (B.Sessions holds
 % the spike trains, every trial and digital line); with opts.withSignal, tick that
@@ -47,17 +47,18 @@ end
 opts = struct();                    % the settings, noted whole in each dataset's manifest
 opts.neuroGLMPath = 'c:\src\neuroGLM';   % added when neuroGLM is not on the path (the folder holding +buildGLM)
 opts.outDir = "C:\Users\dstolz\My Drive\PROJECTS\OFC_Ephys\Analysis\NeuroGLM\";                        % a folder to save <dataset>_neuroglm.mat in; "" keeps them in the workspace only
-opts.binMs = 1;                          % neuroGLM's bin (1 ms, as the paper); 5-10 ms fits much faster on long sessions
+opts.binMs = 5;                          % neuroGLM's bin (1 ms, as the paper); 5-10 ms fits much faster on long sessions
 opts.window = [-0.5 Inf];                % s around TrialOnset; Inf = up to the next trial's start
 opts.kernelMs = 500;                     % each event kernel's reach after the event
 opts.nBases = 8;                         % raised cosines per kernel
 opts.acausal = string.empty;             % event variables whose kernel also precedes the event, e.g. "Resp_on" for the animal's response
+opts.acausalMs = 1000;                   % how far those kernels and response_time's reach before the event; after it, opts.kernelMs
 opts.groupKernels = true;                % one kernel per trial group (B's groupBy) for the browser's event line's onset (B.Settings.ref.line)
 opts.responses = ["Hit" "Miss" "CR" "FA"];    % the response words given their own kernels; string.empty = none (a trial with another word gets none on opts.responseEvents)
-opts.responseEvents = "RespWindow_on";   % the events split by response word; not one groupKernels also splits (B.Settings.ref.line's onset)
-opts.responseTime = true;                % a kernel around the moment of the response, before and after it
+opts.responseEvents = "response_time";   % the events split by response word; not one groupKernels also splits (B.Settings.ref.line's onset). One a fixed time from the response on some word's trials (RespWindow_on, on a Miss) cannot be told from its kernel, and swapping words to decode then fails
+opts.responseTime = true;                % the event response_time: the moment of the response, with kernels before and after it
 opts.responseLine = "RespWindow"; opts.responseLatency = "RespLatency";   % that moment: the line's onset + the trial column, ms
-opts.history = true; opts.historyMs = 200;    % the spike-history filter
+opts.history = true; opts.historyMs = 500;    % the spike-history filter
 opts.coupling = false;                   % a coupling filter from every other unit of the dataset (slow with many units)
 opts.withSignal = "AUX";                    % "LFP" | "MUA" | "AUX" | "": that signal's channels as an instantaneous covariate
 opts.fitMethod = "matRegress";           % "matRegress": neuroGLM's route (fminunc, ridge prior; the paper's) | "glmfit": maximum likelihood
@@ -65,6 +66,10 @@ opts.ridge = "evidence";                 % matRegress: the ridge prior's precisi
 opts.trainFraction = 0.8;                % trials fitted; the rest are held out for the prediction
 opts.workers = 4;                        % process workers fitting units at once (Parallel Computing Toolbox), fewer when memory is short; 0 = one unit after the other here
 rng(1);                             % the train/test split
+
+opts.outDir = fullfile(opts.outDir,join(B.Filter.Tags,"_")); % place in a subdirectory based on teh tags
+
+if ~isfolder(opts.outDir), mkdir(opts.outDir); end
 
 %% The sessions
 if ~NeuroGLMExport.hasNeuroGLM()
@@ -107,7 +112,9 @@ try
                 % the axes as one: each less its 2 s running mean (offset and gravity), then the vector magnitude
                 x = double(L.signal);
                 w = 2 * floor(2 * L.signalFs / 2) + 1;
-                L.signal = zscore(sqrt(sum((x - movmean(x, w, 1)) .^ 2, 2)));
+                mmxw = movmean(x, w, 1);
+                hp = x - mmxw;
+                L.signal = zscore([sqrt(sum(hp .^ 2, 2)), hp, mmxw]);   % magnitude, then the three signed axes, then the slow modulations along the three axes
             end
             args = {'Signal', L};
         end
@@ -123,7 +130,7 @@ try
 
         acausal = reshape(opts.acausal, 1, []);
         if info.responseTime ~= "", acausal = [acausal, info.responseTime]; end %#ok<AGROW>
-        dsArgs = {'KernelMs', opts.kernelMs, 'NBases', opts.nBases, 'Acausal', acausal, ...
+        dsArgs = {'KernelMs', opts.kernelMs, 'NBases', opts.nBases, 'Acausal', acausal, 'AcausalMs', opts.acausalMs, ...
             'History', opts.history, 'HistoryMs', opts.historyMs, 'Coupling', opts.coupling};
         groupBy = string.empty(1, 0);
         groupEvents = {};

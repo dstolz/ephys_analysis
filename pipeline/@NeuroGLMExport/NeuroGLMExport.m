@@ -204,8 +204,10 @@ classdef NeuroGLMExport
             %     NBases       raised cosines per kernel (8)
             %     Shape        "raised cosine" (default) | "boxcar"
             %     Acausal      timing variables whose kernel also precedes
-            %                  the event: it spans [-KernelMs, KernelMs]
+            %                  the event: it spans [-AcausalMs, KernelMs]
             %                  (none); e.g. a response the animal makes
+            %     AcausalMs    an acausal kernel's reach before the event, ms
+            %                  (KernelMs); its raised cosines keep their width
             %     GroupBy      a value variable: the events in GroupEvents
             %                  get one kernel per distinct value, included
             %                  only on the trials with that value (""); e.g.
@@ -236,6 +238,7 @@ classdef NeuroGLMExport
                 opts.NBases (1,1) double {mustBeInteger, mustBePositive} = 8
                 opts.Shape (1,1) string {mustBeMember(opts.Shape, ["raised cosine" "boxcar"])} = "raised cosine"
                 opts.Acausal string = string.empty
+                opts.AcausalMs double = []
                 opts.GroupBy string = string.empty
                 opts.GroupEvents = string.empty
                 opts.History (1,1) logical = true
@@ -310,11 +313,13 @@ classdef NeuroGLMExport
 
             dspec = buildGLM.initDesignSpec(expt);
             binfun = expt.binfun;
-            nK = binfun(opts.KernelMs);
+            preMs = opts.AcausalMs;
+            if isempty(preMs); preMs = opts.KernelMs; end
             for lab = events
                 if ismember(lab, opts.Acausal)
-                    bs = basisFactory.makeSmoothTemporalBasis(char(opts.Shape), 2 * opts.KernelMs, 2 * opts.NBases, binfun);
-                    offset = -nK;
+                    spanMs = preMs + opts.KernelMs;
+                    bs = basisFactory.makeSmoothTemporalBasis(char(opts.Shape), spanMs, round(opts.NBases * spanMs / opts.KernelMs), binfun);
+                    offset = -binfun(preMs);
                 else
                     bs = basisFactory.makeSmoothTemporalBasis(char(opts.Shape), opts.KernelMs, opts.NBases, binfun);
                     offset = 0;

@@ -9,8 +9,9 @@ function [expt, info] = sessionDataNeuroGLM(D, opts)
 %                    "<line>_off" (D.eventsContinuous: the pulses are on the
 %                    spikes' clock)
 %                    with ResponseLine=, "response_time": that line's onset
-%                    plus the trial's ResponseLatency, on Hit and FA trials
-%     values         trialIndex (the row of D.trials), group (the trial's
+%                    plus the trial's ResponseLatency on Hit and FA trials,
+%                    TrialOffset on Miss and CR trials (when each is coded)
+%     values        trialIndex (the row of D.trials), group (the trial's
 %                    row of D.groups), the response code (D.respField),
 %                    every trial parameter (D.paramNames) and, with a
 %                    response code, "response": the trial's response word
@@ -42,8 +43,8 @@ function [expt, info] = sessionDataNeuroGLM(D, opts)
 %     ResponseLine     the digital line whose onset the response latency
 %                 counts from, e.g. "RespWindow" ("": no response_time)
 %     ResponseLatency  the trial column holding the latency, ms
-%                 ("RespLatency"); a trial without a finite value has no
-%                 response_time
+%                 ("RespLatency"); a Hit or FA without a finite value has
+%                 no response_time
 %
 %   INFO fields: trialIndex (the row of D.trials of each expt.trial), spans
 %   ([start stop] s on the continuous clock), units (D.units' rows kept,
@@ -141,7 +142,7 @@ if hasResp
 end
 valueCols = string(V.Properties.VariableNames).';
 
-% the response time, on the trials with a response
+% the response time: a Hit's or FA's response, a Miss's or CR's trial offset
 timeVar = "";
 tResponse = zeros(0, 1);
 if opts.ResponseLine ~= ""
@@ -153,6 +154,11 @@ if opts.ResponseLine ~= ""
         tResponse = D.toContinuous(resolveEvents(D, ref, mask));
     catch ME
         if ME.identifier ~= "resolveEvents:NoEvents"; rethrow(ME); end   % no trial has a response: a kernel with no events
+    end
+    if hasResp
+        atOffset = responseWords(D.trials.(D.respField), ["Miss" "CR"]) ~= "";
+        tOffset = D.toContinuous(double(D.trials.TrialOffset(atOffset)));
+        tResponse = sort([tResponse(:); tOffset(isfinite(tOffset))]);
     end
 end
 

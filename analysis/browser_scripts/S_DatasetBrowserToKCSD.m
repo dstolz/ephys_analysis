@@ -13,7 +13,7 @@
 %      (kcsdEstimate). -> csdEpochs, one element per profile, with
 %        pots [nChan x nTime x nGroups] V, the evoked potentials
 %        csd  [nX x nTime x nGroups] uA/mm^3 on the grid (positive = source);
-%             [nX x nY x nTime x nGroups] for a 2-D layout (columns = "2d")
+%             [nX x nY x nTime x nGroups] for a 2-D layout (opts.columns = "2d")
 %        grid x (mm below the top channel) and, in 2-D, y
 %        info lambd and R used, the cross-validation errors, potEst (the
 %             potentials the estimate reproduces at the channels)
@@ -25,38 +25,39 @@
 %
 % Either part runs when its data is there. kCSD fits the potentials with a
 % field of basis sources of width R and a ridge lambda, both picked here by
-% leave-one-electrode-out cross-validation over `rsPerSpacing` x the channel
-% spacing and `lambdas` (kCSD's cross_validate); the estimate is read off
+% leave-one-electrode-out cross-validation over `opts.rsPerSpacing` x the channel
+% spacing and `opts.lambdas` (kCSD's cross_validate); the estimate is read off
 % kCSD's grid, finer than the channels. A Python with numpy, scipy and kcsd
 % is needed (kcsdEstimate finds one: KCSD_PYTHON, MATLAB's pyenv, a
-% miniconda3 base install, python on the PATH); kcsdPython / kcsdSource
+% miniconda3 base install, python on the PATH); opts.kcsdPython / opts.kcsdSource
 % name one by hand. Units are kCSD's: mm, mV (converted here) and S/m.
 
 if ~exist('B', 'var') || ~isa(B, 'DatasetBrowser')
     error('B is not a DatasetBrowser: run this from the browser (Post-processing script), or set B = DatasetBrowser.open(root) first.');
 end
-kcsdPython = "";                    % python.exe with kcsd ("" = found: KCSD_PYTHON, pyenv, miniconda3, PATH)
-kcsdSource = "";                    % a kCSD-python checkout to import kcsd from when it is not installed, e.g. "c:\src\kCSD-python"
-outDir = "";                        % a folder to save <dataset>_kcsd_*.mat in; "" keeps them in the workspace only
-columns = "auto";                   % laminarColumns: "auto" (one 1-D profile per shank when its depths are distinct,
-                                    % else per x column) | "separate" | "merged" | "2d" (KCSD2D over a shank's x and depth)
-shanks = [];                        % the shanks to use ([] = all)
-sessionAlign = "TrialOnset";        % whole sessions: the trial column the kept trials are cut around (digital clock)
-sigma = 0.3;                        % S/m, the tissue's conductivity
-rsPerSpacing = [1 2 3 4];           % basis widths R cross-validated, in channel spacings ([] = kCSD's R_init, 0.23 mm)
-lambdas = [0 logspace(-8, -1, 15)]; % ridges cross-validated ([] = kCSD's own 1e-2 .. 1e-25 and 0)
-crossValidate = true;               % false: R = rsPerSpacing(1) spacings, lambda = 0, no search
-gdx = [];                           % mm, the grid step ([] = 1% of the span)
-extMm = 0;                          % mm, how far the estimate extends past the end channels
-plotGroup = [];                     % the group drawn in the detail figure ([] = the first with epochs)
+opts = struct();                    % the settings, noted whole in each dataset's manifest
+opts.kcsdPython = "";                    % python.exe with kcsd ("" = found: KCSD_PYTHON, pyenv, miniconda3, PATH)
+opts.kcsdSource = "";                    % a kCSD-python checkout to import kcsd from when it is not installed, e.g. "c:\src\kCSD-python"
+opts.outDir = "";                        % a folder to save <dataset>_kcsd_*.mat in; "" keeps them in the workspace only
+opts.columns = "auto";                   % laminarColumns: "auto" (one 1-D profile per shank when its depths are distinct,
+                                         % else per x column) | "separate" | "merged" | "2d" (KCSD2D over a shank's x and depth)
+opts.shanks = [];                        % the shanks to use ([] = all)
+opts.sessionAlign = "TrialOnset";        % whole sessions: the trial column the kept trials are cut around (digital clock)
+opts.sigma = 0.3;                        % S/m, the tissue's conductivity
+opts.rsPerSpacing = [1 2 3 4];           % basis widths R cross-validated, in channel spacings ([] = kCSD's R_init, 0.23 mm)
+opts.lambdas = [0 logspace(-8, -1, 15)]; % ridges cross-validated ([] = kCSD's own 1e-2 .. 1e-25 and 0)
+opts.crossValidate = true;               % false: R = rsPerSpacing(1) spacings, lambda = 0, no search
+opts.gdx = [];                           % mm, the grid step ([] = 1% of the span)
+opts.extMm = 0;                          % mm, how far the estimate extends past the end channels
+opts.plotGroup = [];                     % the group drawn in the detail figure ([] = the first with epochs)
 
-estimate = @(P) kcsdOf(P, sigma, rsPerSpacing, lambdas, crossValidate, gdx, extMm, kcsdPython, kcsdSource);
+estimate = @(P) kcsdOf(P, opts);
 
 %% 1. Epochs (R.epochs): the evoked potential of each group, per shank profile
 R = B.Result;
 csdEpochs = struct([]);
 if ~isempty(R) && isfield(R, 'epochs') && ~isempty(R.epochs) && R.rowKind == "channel"
-    P = epochMatrixCSD(R, Columns=columns, Shanks=shanks);
+    P = epochMatrixCSD(R, Columns=opts.columns, Shanks=opts.shanks);
     csdEpochs = estimate(P);
     fprintf('csdEpochs: %d profile(s) of %d dataset(s), %s\n', numel(csdEpochs), numel(unique([csdEpochs.key])), R.labels.description);
 end
@@ -69,11 +70,11 @@ if ~isempty(S)
     S = S(arrayfun(@(D) ~isempty(D.signal), S));   % spikes or "Load trials only" bring no signal
 end
 if ~isempty(S)
-    P = sessionDataCSD(S, Window=[win.pre win.post], Align=sessionAlign, Columns=columns, Shanks=shanks, ...
+    P = sessionDataCSD(S, Window=[win.pre win.post], Align=opts.sessionAlign, Columns=opts.columns, Shanks=opts.shanks, ...
         Statistic=B.Settings.signal.statistic);
     csdSessions = estimate(P);
     fprintf('csdSessions: %d profile(s) of %d session(s), %d trial(s) in [%g %g] s around %s\n', numel(csdSessions), ...
-        numel(S), sum(arrayfun(@(p) numel(p.trial), csdSessions)), win.pre, win.post, sessionAlign);
+        numel(S), sum(arrayfun(@(p) numel(p.trial), csdSessions)), win.pre, win.post, opts.sessionAlign);
 end
 
 profiles = [num2cell(csdEpochs(:)); num2cell(csdSessions(:))];   % every profile, the epochs' first
@@ -88,9 +89,14 @@ for c = profiles.'
         strjoin(string(p.groupLabels(:).') + " (n = " + string(p.nEpochs(:).') + ")", ", "));
 end
 
-if outDir ~= ""
-    saveProfiles(csdEpochs, outDir, "_kcsd_epochs.mat");
-    saveProfiles(csdSessions, outDir, "_kcsd_session.mat");
+if opts.outDir ~= ""
+    saveProfiles(csdEpochs, opts.outDir, "_kcsd_epochs.mat");
+    saveProfiles(csdSessions, opts.outDir, "_kcsd_session.mat");
+end
+
+% note it in each dataset's manifest (custom.browser_kcsd)
+for key = unique(cellfun(@(c) string(c.key), profiles)).'
+    B.noteInManifest(key, "kcsd", opts, epochs=any([csdEpochs.key] == key), sessions=any([csdSessions.key] == key));
 end
 
 %% Plots
@@ -100,7 +106,7 @@ end
 % the first dataset, with the potentials overlaid. A 2-D layout is drawn
 % averaged over x, with a map of the layout at the time of the largest |CSD|.
 p = profiles{1};
-g = plotGroup;
+g = opts.plotGroup;
 if isempty(g); g = find(p.nEpochs > 0, 1); end
 hasCV = ~isempty(p.info.cv);
 fig = figure('Name', sprintf('%s shank %d: kCSD (%s)', p.name, p.shank, string(p.groupLabels(g))), ...
@@ -167,18 +173,18 @@ end
 title(tl, sprintf('%s: kCSD of the %s, traces = the potentials', p.name, p.cfg.data), 'Interpreter', 'none');
 
 %% Local functions
-function P = kcsdOf(P, sigma, rsPerSpacing, lambdas, crossValidate, gdx, extMm, python, source)
+function P = kcsdOf(P, opts)
 % Add csd, grid and info (kcsdEstimate) to every laminar profile of P
 if isempty(P); return; end
 for i = 1:numel(P)
     p = P(i);
-    args = {'Sigma', sigma, 'Python', python, 'Source', source};
-    if ~isempty(gdx); args = [args {'Gdx', gdx}]; if p.dim == 2; args = [args {'Gdy', gdx}]; end; end %#ok<AGROW>
-    if extMm > 0; args = [args {'ExtX', extMm}]; if p.dim == 2; args = [args {'ExtY', extMm}]; end; end %#ok<AGROW>
-    Rs = rsPerSpacing * p.h_mm;
-    if crossValidate
+    args = {'Sigma', opts.sigma, 'Python', opts.kcsdPython, 'Source', opts.kcsdSource};
+    if ~isempty(opts.gdx); args = [args {'Gdx', opts.gdx}]; if p.dim == 2; args = [args {'Gdy', opts.gdx}]; end; end %#ok<AGROW>
+    if opts.extMm > 0; args = [args {'ExtX', opts.extMm}]; if p.dim == 2; args = [args {'ExtY', opts.extMm}]; end; end %#ok<AGROW>
+    Rs = opts.rsPerSpacing * p.h_mm;
+    if opts.crossValidate
         if ~isempty(Rs); args = [args {'Rs', Rs}]; end %#ok<AGROW>
-        if ~isempty(lambdas); args = [args {'Lambdas', lambdas}]; end %#ok<AGROW>
+        if ~isempty(opts.lambdas); args = [args {'Lambdas', opts.lambdas}]; end %#ok<AGROW>
         args = [args {'CrossValidate', true}]; %#ok<AGROW>
     elseif ~isempty(Rs)
         args = [args {'RInit', Rs(1)}]; %#ok<AGROW>

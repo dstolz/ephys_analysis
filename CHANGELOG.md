@@ -13,6 +13,16 @@ says how to cut a release.
 - `addToManifest(target, Name=Value, ...)` adds your own fields from a script to a dataset's manifest, in a new
   `custom` block; `target` is a dataset, a folder or the file. `writeManifest` keeps the block. See
   [Dataset manifest](documentation/EphysDataset.md#dataset-manifest).
+- The `S_DatasetBrowserTo*.m` scripts (FieldTrip, Chronux, NeuroGLM, mTRF, iCSD, kCSD) note what they did in the manifest
+  of each dataset they processed, in `custom.browser_<tool>`: the time, epochs or sessions and the script's settings
+  (the new `DatasetBrowser.noteInManifest`, which calls `addToManifest`). Their settings now live in one struct, `opts`
+  (`opts.outDir`, `opts.tapers`, ...), and the whole struct is noted. Because the manifest counts
+  in a dataset's cache stamp, the next **Compute** works those datasets out again. See
+  [Noting a script's work in the manifests](documentation/DatasetBrowser.md#noting-a-scripts-work-in-the-manifests).
+- `S_DatasetBrowserToNeuroGLM.m` fits a dataset's units in parallel: `opts.workers` (4 by default, 0 = one after the other)
+  process workers, fewer when memory is short (the new `NeuroGLMExport.fitUnits` and `fitWorkers`). The results are the
+  same, in unit order; the per-unit lines print as the fits finish. The browser's progress strip follows the units and
+  its **Cancel** stops the fits; each dataset is saved to `opts.outDir` as it finishes.
 - Dataset browser: **Epochs per group** (under the **Trials** tab; `B.showGroupCounts()`) opens a window that counts
   one dataset's epochs by group as **Compute** cuts them: the analysis app's Alignment-tab bars (a bar per group, e.g.
   per depth, in its color with its count on top, and **Show the epochs Pairing and Artifacts exclude**) and a table of

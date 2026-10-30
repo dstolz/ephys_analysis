@@ -25,10 +25,11 @@
 if ~exist('B', 'var') || ~isa(B, 'DatasetBrowser')
     error('B is not a DatasetBrowser: run this from the browser (Post-processing script), or set B = DatasetBrowser.open(root) first.');
 end
-outDir = "";                    % a folder to save <dataset>_fieldtrip_*.mat in; "" keeps them in the workspace only
-fieldTripPath = 'c:\src\fieldtrip\';   % added when FieldTrip is not on the path
-trialEvent = "";                % the event line FieldTrip defines a session's trials on; "" takes the browser's
-psthBin = 0.025;                % s, the spikes' PSTH bins in the plots
+opts = struct();                    % the settings, noted whole in each dataset's manifest
+opts.outDir = "";                    % a folder to save <dataset>_fieldtrip_*.mat in; "" keeps them in the workspace only
+opts.fieldTripPath = 'c:\src\fieldtrip\';   % added when FieldTrip is not on the path
+opts.trialEvent = "";                % the event line FieldTrip defines a session's trials on; "" takes the browser's
+opts.psthBin = 0.025;                % s, the spikes' PSTH bins in the plots
 
 %% 1. Epochs (R.epochs): a trial per epoch, trialinfo = [group in R.groupLabels, trial]
 R = B.Result;
@@ -64,7 +65,7 @@ isSpike = @(d) isfield(d, 'timestamp');
 
 %% Check and save
 if ~FieldTripExport.hasFieldTrip()
-    addpath(fieldTripPath)
+    addpath(opts.fieldTripPath)
     ft_defaults;
 end
 for d = [ftEpochs; ftSessions].'
@@ -74,15 +75,22 @@ for d = [ftEpochs; ftSessions].'
     if ~ok, fprintf('%s: %s\n', d{1}.cfg.name, msg), end
 end
 
-if outDir ~= ""
+if opts.outDir ~= ""
     for d = ftEpochs.'
         data = d{1};
-        save(fullfile(outDir, d{1}.cfg.name + "_fieldtrip_epochs.mat"), 'data', '-v7.3');
+        save(fullfile(opts.outDir, d{1}.cfg.name + "_fieldtrip_epochs.mat"), 'data', '-v7.3');
     end
     for d = ftSessions.'
         data = d{1};
-        save(fullfile(outDir, d{1}.cfg.name + "_fieldtrip_session.mat"), 'data', '-v7.3');
+        save(fullfile(opts.outDir, d{1}.cfg.name + "_fieldtrip_session.mat"), 'data', '-v7.3');
     end
+end
+
+% note it in each dataset's manifest (custom.browser_fieldtrip)
+ftKeys = unique(cellfun(@(d) string(d.cfg.dataset), [ftEpochs(:); ftSessions(:)]));
+for key = ftKeys(:).'
+    B.noteInManifest(key, "fieldtrip", opts, epochs=any(cellfun(@(d) string(d.cfg.dataset) == key, ftEpochs)), ...
+        sessions=any(cellfun(@(d) string(d.cfg.dataset) == key, ftSessions)));
 end
 
 %% Use with FieldTrip
@@ -125,9 +133,9 @@ if ~isempty(ftEpochs)
             cfg = [];
             cfg.spikechannel = unit;
             cfg.trials = find(data.trialinfo(:, 1) == groups(g));
-            cfg.binsize = psthBin;
+            cfg.binsize = opts.psthBin;
             psth = ft_spike_psth(cfg, data);
-            stairs(ax, psth.time - psthBin / 2, psth.avg, 'Color', colors(g, :));
+            stairs(ax, psth.time - opts.psthBin / 2, psth.avg, 'Color', colors(g, :));
         end
         xline(ax, 0, ':');
         ylabel(ax, 'Spikes/s'); title(ax, unit, 'Interpreter', 'none')
@@ -174,7 +182,7 @@ if ~isempty(ftEpochs)
 end
 
 % A session's trials defined by FieldTrip from its events: ft_trialfun_general
-% cuts the browser's window around every pulse of trialEvent in cfg.event
+% cuts the browser's window around every pulse of opts.trialEvent in cfg.event
 % (every pulse, not just the trials the browser keeps, as cfg.trl above
 % does). A signal: the trials running off the signal or touching an erased
 % period are dropped, the rest averaged. Spikes: ft_spike_maketrials cuts
@@ -183,14 +191,14 @@ end
 if ~isempty(ftSessions)
     D = ftSessions{1};
     ev = D.cfg.event;
-    evType = trialEvent;
+    evType = opts.trialEvent;
     if evType == "", evType = B.Settings.ref.line; end
     if evType == "Trial", evType = S(1).trialLine; end   % the browser's "Trial" = the paired trial line
     if ~ismember(evType, string({ev.type}))
-        error('%s has no "%s" events to define trials on; set trialEvent to one of: %s.', ...
+        error('%s has no "%s" events to define trials on; set opts.trialEvent to one of: %s.', ...
             D.cfg.name, evType, strjoin(unique(string({ev.type})), ', '));
     end
-    if trialEvent == "" && B.Settings.ref.edge == "offset"   % align on the pulses' ends, as the browser does
+    if opts.trialEvent == "" && B.Settings.ref.edge == "offset"   % align on the pulses' ends, as the browser does
         for k = find(string({ev.type}) == evType)
             ev(k).sample = ev(k).sample + ev(k).duration - 1;
         end
@@ -211,7 +219,7 @@ if ~isempty(ftSessions)
         trl(:, 1:2) = trl(:, 1:2) - 1;     % samples -> 0-based timestamps
         cfg = []; cfg.trl = trl; cfg.timestampspersecond = D.hdr.Fs;
         spk = ft_spike_maketrials(cfg, D);
-        cfg = []; cfg.binsize = psthBin;
+        cfg = []; cfg.binsize = opts.psthBin;
         psth = ft_spike_psth(cfg, spk);
         fig = figure('Name', sprintf('%s: %d %s trials (FieldTrip)', D.cfg.name, size(trl, 1), evType), 'Color', 'w');
         ax = axes(fig);

@@ -46,6 +46,8 @@ others.
 | `dspec = NeuroGLMExport.designSpec(expt, ...)` | a design: a raised-cosine kernel per timing variable (`Events=`, all by default; `KernelMs` 500, `NBases` 8, `Shape`), `Acausal=` events whose kernel spans `[-KernelMs, KernelMs]`, `GroupBy=` a value variable and `GroupEvents=` the events that get one kernel per value (included only on the trials with it, the paper's coherence-dependent kernels; labels `<event>__<value>`), `History` (true; `HistoryMs` 200, `HistoryBases` 10, log-stretched raised cosines), `Coupling` (false; a filter from every other spike train, `coupling_<label>`), `Continuous=` (all; instantaneous). `Response=` the spike train modeled (label or index, 1); kept in `dspec.response` |
 | `F = NeuroGLMExport.fit(dspec, Trials=, Response=, Method=, Ridge=, RidgeGrid=)` | the design matrix (`F.dm`, constant columns removed), the binned response `F.y` and a Poisson GLM. `Method="glmfit"` (default): maximum likelihood by `glmfit`, `stats` its stats. `Method="matRegress"`: neuroGLM's route, `glms.neglog.poisson` with its gradient and Hessian minimized by `fminunc` (trust-region) under a ridge prior of precision `Ridge` on every weight but the bias (the penalty `Ridge/2 · ‖w‖²`; 1 by default, 0 = maximum likelihood), or `Ridge="evidence"`: the precision on `RidgeGrid` (`logspace(-2, 4, 13)`) with the largest Laplace approximation of the log marginal likelihood, the paper's evidence optimization (`F.ridge` the value used, `F.evidence` the grid's log evidence); standard errors from the Hessian at the optimum, `stats.hessian` / `stats.covb`. Either way: `bias`, `w`, `se`, `kernels` (`buildGLM.combineWeights`: `kernels.<covariate>.tr` ms from the event, `.data` the log-rate change, so `exp(data)` is the gain), `kernelSE` (the same shape; covariances ignored, as neuroGLM's tutorial), `rate` (spikes/s per bin), `deviance`, `logLik`, `logLikNull` (a constant rate), `bitsPerSpike` (their difference per spike in bits, the paper's single-trial prediction measure), `nSpikes`, `nBins`, `method`, `ridge` |
 | `P = NeuroGLMExport.predict(F, trials)` | the model's rate on any trials (held-out ones give the cross-validated prediction): `t{k}` (ms from the trial's start), `rate{k}` (spikes/s), `counts{k}` (the response's spikes per bin), `logLik`, `bitsPerSpike` |
+| `fits = NeuroGLMExport.fitUnits(expt, units, Design=, Trials=, Test=, Method=, Ridge=, Workers=, ProgressFcn=, LogFcn=, CheckFcn=)` | a design fitted and tested per row of `units` (`info.units`), on process workers (`Workers=`, 0 = here): `fits(j).unit`, `.dspec`, `.F`, `.P` in the rows' order. `ProgressFcn(fraction, message)` and `LogFcn(message)` report each unit as it finishes; an error from `CheckFcn` (e.g. `@() B.checkCancel()`) stops the workers and is raised |
+| `n = NeuroGLMExport.fitWorkers(dspec, trials, maxWorkers)` | how many process workers can fit this design at once, with the pool open: at most `maxWorkers`, fewer when memory is short (a worker holds about 4 full design matrices); 0 = fit here, with the warning `NeuroGLMExport:SerialFit` when workers were asked for and cannot be had |
 | `NeuroGLMExport.hasNeuroGLM()`, `requireNeuroGLM()` | is neuroGLM on the path? / error with a hint |
 | `NeuroGLMExport.hasMatRegress()`, `requireMatRegress()` | is neuroGLM's `matRegress` on the path (and `fminunc` installed)? / error with a hint |
 
@@ -107,10 +109,10 @@ to *units* or *detected*, **Load whole sessions**, pick the script and **Run
 now** (or tick *Run it after each Compute or Load*). For each dataset it
 builds the experiment and, for every unit with spikes, fits the GLM on the
 same 80% of the trials with a kernel per line edge (one per trial group for the
-browser's event line when `groupKernels` is on), a spike-history filter and,
-with `withSignal = "LFP"`, the LFP as a covariate, predicts the held-out
+browser's event line when `opts.groupKernels` is on), a spike-history filter and,
+with `opts.withSignal = "LFP"`, the LFP as a covariate, predicts the held-out
 trials and prints bits per spike for both, a line per unit. The fit is the paper's by default
-(`fitMethod = "matRegress"`, `ridge = "evidence"`); `fitMethod = "glmfit"`
+(`opts.fitMethod = "matRegress"`, `opts.ridge = "evidence"`); `opts.fitMethod = "glmfit"`
 is the quick maximum-likelihood alternative. The workspace gets `glm{k}` per dataset (`expt`,
 `info`, the train/test split, and `fits`, one element per unit: `unit`,
 `dspec`, `F`, `P`) and three figures:
@@ -122,9 +124,14 @@ is the quick maximum-likelihood alternative. The workspace gets `glm{k}` per dat
 3. the **PSTH per trial group**, data against model, aligned to the trial's
    start (Fig. 2c).
 
-The options at the top of the script (`binMs`, `window`, `kernelMs`,
+The fields of `opts` at the top of the script (`binMs`, `window`, `kernelMs`,
 `acausal`, `groupKernels`, `history`, `coupling`, `withSignal`,
-`fitMethod`, `ridge`, `outDir`) are the knobs; `outDir` saves `<dataset>_neuroglm.mat` per dataset. From there,
+`fitMethod`, `ridge`, `workers`, `outDir`) are the knobs; `opts.workers` (4; 0 =
+one unit after the other in MATLAB itself) fits the units on process workers
+(`fitUnits`), fewer when memory is short, so the per-unit lines print as the fits
+finish while `fits` stays in unit order. The browser's progress strip follows
+the units, and **Cancel** stops the fits: the datasets finished stay in `glm`
+(and in `opts.outDir`, saved as each one finishes); `opts.outDir` saves `<dataset>_neuroglm.mat` per dataset. From there,
 neuroGLM's own API applies to `glm{k}.expt` and `glm{k}.fits(j).dspec`
 (`buildGLM.addCovariate`, `addCovariateBoxcar`, ... as in its `tutorial.m`),
 and `NeuroGLMExport.fit` / `predict` take any design built on the experiment.

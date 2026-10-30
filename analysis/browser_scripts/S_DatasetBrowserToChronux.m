@@ -31,13 +31,14 @@
 if ~exist('B', 'var') || ~isa(B, 'DatasetBrowser')
     error('B is not a DatasetBrowser: run this from the browser (Post-processing script), or set B = DatasetBrowser.open(root) first.');
 end
-outDir = "";            % a folder to save <dataset>_chronux_*.mat in; "" keeps them in the workspace only
-spikeFs = 1000;         % Hz, the point-process grid: params.Fs and t for spikes
-tapers = [3 5];         % [TW K], see ChronuxDataset.tapersFor
-pad = 0;                % FFT padding
-fpass = [0 Inf];        % Hz; Inf = Nyquist
-err = 0;                % 0 | [1 p] theoretical | [2 p] jackknife
-dropArtifacts = true;   % whole sessions: drop the trials whose window touches an erased period
+opts = struct();                    % the settings, noted whole in each dataset's manifest
+opts.outDir = "";            % a folder to save <dataset>_chronux_*.mat in; "" keeps them in the workspace only
+opts.spikeFs = 1000;         % Hz, the point-process grid: params.Fs and t for spikes
+opts.tapers = [3 5];         % [TW K], see ChronuxDataset.tapersFor
+opts.pad = 0;                % FFT padding
+opts.fpass = [0 Inf];        % Hz; Inf = Nyquist
+opts.err = 0;                % 0 | [1 p] theoretical | [2 p] jackknife
+opts.dropArtifacts = true;   % whole sessions: drop the trials whose window touches an erased period
 hasChronux = ChronuxDataset.hasChronux();
 
 %% 1. Epochs (R.epochs) -> one Chronux struct per dataset, a trial per epoch
@@ -50,14 +51,14 @@ if ~isempty(R) && ~isempty(R.epochs)
         % the trial, and its start is time 0 of the spike stamps
         bin = R.settings.binSec;
         span = [ceil(R.settings.window.pre / bin - 1e-9), floor(R.settings.window.post / bin + 1e-9)] * bin;
-        fs = spikeFs;
+        fs = opts.spikeFs;
         t = (0:round(diff(span) * fs)) / fs;
     else
         fs = 1 / mean(diff(R.t));
         span = R.t([1 end]).';
         t = R.t(:).' - R.t(1);
     end
-    params = ChronuxDataset.makeParams(fs, Tapers=tapers, Pad=pad, Fpass=fpass, Err=err, TrialAve=1);
+    params = ChronuxDataset.makeParams(fs, Tapers=opts.tapers, Pad=opts.pad, Fpass=opts.fpass, Err=opts.err, TrialAve=1);
 
     cxEpochs = cell(numel(R.epochs), 1);
     for k = 1:numel(R.epochs)
@@ -117,7 +118,7 @@ if ~isempty(S) && any(arrayfun(@(D) ~isempty(D.signal) || ~isempty(D.spikes), S)
         if D.hasTrials
             idx = find(D.kept);
             on = D.toContinuous(D.trials.TrialOnset(idx));
-            if dropArtifacts && ~isempty(D.artifacts)
+            if opts.dropArtifacts && ~isempty(D.artifacts)
                 a = D.artifacts;
                 touch = any(on + win(1) < a(:, 2).' & on + win(2) > a(:, 1).', 2);
                 idx = idx(~touch);
@@ -128,7 +129,7 @@ if ~isempty(S) && any(arrayfun(@(D) ~isempty(D.signal) || ~isempty(D.spikes), S)
         if isSignal
             % the connector holds the signal; ask it for any stretch or channel
             c.cx = ChronuxDataset(D.signal, Fs=D.signalFs, Signal=D.data, ...
-                ChannelLabels=string(D.channels.label).', Tapers=tapers, Pad=pad, Fpass=fpass, Err=err);
+                ChannelLabels=string(D.channels.label).', Tapers=opts.tapers, Pad=opts.pad, Fpass=opts.fpass, Err=opts.err);
             c.channels = D.channels;
             c.labels = string(D.channels.label).';
             c.units = unique(string(D.channels.units));
@@ -143,7 +144,7 @@ if ~isempty(S) && any(arrayfun(@(D) ~isempty(D.signal) || ~isempty(D.spikes), S)
                 c.group = D.group(c.trial);
             end
         else
-            cx = ChronuxDataset(SpikeFs=spikeFs, Tapers=tapers, Pad=pad, Fpass=fpass, Err=err);
+            cx = ChronuxDataset(SpikeFs=opts.spikeFs, Tapers=opts.tapers, Pad=opts.pad, Fpass=opts.fpass, Err=opts.err);
             c.units = D.units;
             c.labels = string(D.units.label).';
             [c.sp, c.params, c.t] = cx.spikes(Times=D.spikes, TimeRange=[0 D.durationSec]);
@@ -176,10 +177,10 @@ if ~hasChronux, disp('Chronux is not on the path: add toolboxes/chronux to analy
 %   [S, f] = mtspectrumc(x, p);
 %   [S, f, R] = mtspectrumpt(c.trials{1}(c.group == 1), c.trialParams, 0, c.trialT);   % spikes, a unit's trials
 
-if outDir ~= ""
+if opts.outDir ~= ""
     for k = 1:numel(cxEpochs)
         c = cxEpochs{k};
-        save(fullfile(outDir, cxEpochs{k}.name + "_chronux_epochs.mat"), '-struct', 'c', '-v7.3');
+        save(fullfile(opts.outDir, cxEpochs{k}.name + "_chronux_epochs.mat"), '-struct', 'c', '-v7.3');
     end
     for k = 1:numel(cxSessions)
         if isempty(cxSessions{k}), continue, end
@@ -190,8 +191,17 @@ if outDir ~= ""
             c.fs = c.cx.Fs;
             c = rmfield(c, 'cx');
         end
-        save(fullfile(outDir, c.name + "_chronux.mat"), '-struct', 'c', '-v7.3');
+        save(fullfile(opts.outDir, c.name + "_chronux.mat"), '-struct', 'c', '-v7.3');
     end
+end
+
+% note it in each dataset's manifest (custom.browser_chronux)
+cxDone = [cxEpochs(:); cxSessions(~cellfun(@isempty, cxSessions(:)))];
+cxKeys = unique(cellfun(@(c) string(c.key), cxDone));
+inEpochs = cellfun(@(c) string(c.key), cxEpochs);
+inSessions = cellfun(@(c) string(c.key), cxSessions(~cellfun(@isempty, cxSessions(:))));
+for key = cxKeys(:).'
+    B.noteInManifest(key, "chronux", opts, epochs=any(inEpochs == key), sessions=any(inSessions == key));
 end
 
 %% Example plot: one unit's spike spectrogram, a tile per group (mtspecgrampt)
@@ -201,7 +211,7 @@ end
 % mtspecgrampt places its windows from the first to the last spike of the
 % trials it is given, not over the whole window, so a group's image may start
 % late or end early.
-movingwin = [0.25 0.025];   % [window step] s; the half-bandwidth is tapers(1) / movingwin(1) Hz
+movingwin = [0.25 0.025];   % [window step] s; the half-bandwidth is opts.tapers(1) / movingwin(1) Hz
 plotFpass = [0 100];        % Hz shown
 src = {};
 if ~isempty(cxEpochs) && isfield(cxEpochs{1}, 'sp')

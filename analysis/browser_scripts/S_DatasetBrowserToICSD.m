@@ -11,7 +11,7 @@
 %      arranged along the probe (epochMatrixCSD: a laminar profile per
 %      shank, or per column of a shank; depths in mm below the top channel),
 %      and the CSD of every group's evoked potential is estimated with each
-%      of `methods`. -> csdEpochs, one element per profile, with
+%      of `opts.methods`. -> csdEpochs, one element per profile, with
 %        pots [nChan x nTime x nGroups] V, the evoked potentials
 %        csd.<method> [nZ x nTime x nGroups] uA/mm^3 (positive = source)
 %        z.<method>   [nZ x 1] mm below the top channel
@@ -33,33 +33,34 @@
 if ~exist('B', 'var') || ~isa(B, 'DatasetBrowser')
     error('B is not a DatasetBrowser: run this from the browser (Post-processing script), or set B = DatasetBrowser.open(root) first.');
 end
-icsdPath = 'c:\src\iCSD';           % added (with its methods/ folder) when the toolbox is not on the path
-outDir = "";                        % a folder to save <dataset>_icsd_*.mat in; "" keeps them in the workspace only
-methods = ["spline" "delta" "step" "standard"];   % the methods estimated; the first is plotted per group
-columns = "auto";                   % laminarColumns: "auto" (one profile per shank when its depths are distinct,
-                                    % else per x column) | "separate" | "merged"
-shanks = [];                        % the shanks to use ([] = all)
-sessionAlign = "TrialOnset";        % whole sessions: the trial column the kept trials are cut around (digital clock)
-cond = 0.3;                         % S/m, the tissue's conductivity
-condTop = [];                       % S/m, the medium above the surface ([] = cond: one layer)
-diam = 0.5e-3;                      % m, the active column's diameter (delta, step, spline)
-gaussSigma = 0.1e-3;                % m, the spatial smoothing of spline and step (0 = none)
-surfaceMm = [];                     % mm, the top channel's depth below the surface ([] = one spacing; two layers only)
-plotGroup = [];                     % the group whose CSD every method is drawn for ([] = the first with epochs)
+opts = struct();                    % the settings, noted whole in each dataset's manifest
+opts.icsdPath = 'c:\src\iCSD';           % added (with its methods/ folder) when the toolbox is not on the path
+opts.outDir = "";                        % a folder to save <dataset>_icsd_*.mat in; "" keeps them in the workspace only
+opts.methods = ["spline" "delta" "step" "standard"];   % the methods estimated; the first is plotted per group
+opts.columns = "auto";                   % laminarColumns: "auto" (one profile per shank when its depths are distinct,
+                                         % else per x column) | "separate" | "merged"
+opts.shanks = [];                        % the shanks to use ([] = all)
+opts.sessionAlign = "TrialOnset";        % whole sessions: the trial column the kept trials are cut around (digital clock)
+opts.cond = 0.3;                         % S/m, the tissue's conductivity
+opts.condTop = [];                       % S/m, the medium above the surface ([] = cond: one layer)
+opts.diam = 0.5e-3;                      % m, the active column's diameter (delta, step, spline)
+opts.gaussSigma = 0.1e-3;                % m, the spatial smoothing of spline and step (0 = none)
+opts.surfaceMm = [];                     % mm, the top channel's depth below the surface ([] = one spacing; two layers only)
+opts.plotGroup = [];                     % the group whose CSD every method is drawn for ([] = the first with epochs)
 
-if ~exist('iCSD_spline', 'file') && isfolder(icsdPath); addpath(genpath(icsdPath)); end
+if ~exist('iCSD_spline', 'file') && isfolder(opts.icsdPath); addpath(genpath(opts.icsdPath)); end
 if ~exist('iCSD_spline', 'file')
-    error('The iCSD toolbox is not on the path: set icsdPath to its folder (it holds iCSD_spline.m and methods/).');
+    error('The iCSD toolbox is not on the path: set opts.icsdPath to its folder (it holds iCSD_spline.m and methods/).');
 end
-estimate = @(pots, depth, method) icsdEstimate(pots, depth, Method=method, Cond=cond, CondTop=condTop, ...
-    Diam=diam, GaussSigma=gaussSigma, Surface=surfaceMm);
+estimate = @(pots, depth, method) icsdEstimate(pots, depth, Method=method, Cond=opts.cond, CondTop=opts.condTop, ...
+    Diam=opts.diam, GaussSigma=opts.gaussSigma, Surface=opts.surfaceMm);
 
 %% 1. Epochs (R.epochs): the evoked potential of each group, per shank profile
 R = B.Result;
 csdEpochs = struct([]);
 if ~isempty(R) && isfield(R, 'epochs') && ~isempty(R.epochs) && R.rowKind == "channel"
-    P = epochMatrixCSD(R, Columns=columns, Shanks=shanks);
-    csdEpochs = csdOfProfiles(P, methods, estimate);
+    P = epochMatrixCSD(R, Columns=opts.columns, Shanks=opts.shanks);
+    csdEpochs = csdOfProfiles(P, opts.methods, estimate);
     fprintf('csdEpochs: %d profile(s) of %d dataset(s), %s\n', numel(csdEpochs), numel(unique([csdEpochs.key])), R.labels.description);
 end
 
@@ -71,11 +72,11 @@ if ~isempty(S)
     S = S(arrayfun(@(D) ~isempty(D.signal), S));   % spikes or "Load trials only" bring no signal
 end
 if ~isempty(S)
-    P = sessionDataCSD(S, Window=[win.pre win.post], Align=sessionAlign, Columns=columns, Shanks=shanks, ...
+    P = sessionDataCSD(S, Window=[win.pre win.post], Align=opts.sessionAlign, Columns=opts.columns, Shanks=opts.shanks, ...
         Statistic=B.Settings.signal.statistic);
-    csdSessions = csdOfProfiles(P, methods, estimate);
+    csdSessions = csdOfProfiles(P, opts.methods, estimate);
     fprintf('csdSessions: %d profile(s) of %d session(s), %d trial(s) in [%g %g] s around %s\n', numel(csdSessions), ...
-        numel(S), sum(arrayfun(@(p) numel(p.trial), csdSessions)), win.pre, win.post, sessionAlign);
+        numel(S), sum(arrayfun(@(p) numel(p.trial), csdSessions)), win.pre, win.post, opts.sessionAlign);
 end
 
 profiles = [num2cell(csdEpochs(:)); num2cell(csdSessions(:))];   % every profile, the epochs' first
@@ -90,9 +91,14 @@ for c = profiles.'
         p.h_mm, spacing, strjoin(string(p.groupLabels(:).') + " (n = " + string(p.nEpochs(:).') + ")", ", "));
 end
 
-if outDir ~= ""
-    saveProfiles(csdEpochs, outDir, "_icsd_epochs.mat");
-    saveProfiles(csdSessions, outDir, "_icsd_session.mat");
+if opts.outDir ~= ""
+    saveProfiles(csdEpochs, opts.outDir, "_icsd_epochs.mat");
+    saveProfiles(csdSessions, opts.outDir, "_icsd_session.mat");
+end
+
+% note it in each dataset's manifest (custom.browser_icsd)
+for key = unique(cellfun(@(c) string(c.key), profiles)).'
+    B.noteInManifest(key, "icsd", opts, epochs=any([csdEpochs.key] == key), sessions=any([csdSessions.key] == key));
 end
 
 %% Plots
@@ -101,14 +107,14 @@ end
 % sink is blue); then the first method for every group of every profile of
 % the first dataset, with the LFP traces overlaid.
 p = profiles{1};
-g = plotGroup;
+g = opts.plotGroup;
 if isempty(g); g = find(p.nEpochs > 0, 1); end
 fig = figure('Name', sprintf('%s shank %d: iCSD methods (%s)', p.name, p.shank, string(p.groupLabels(g))), ...
-    'Color', 'w', 'Position', [80 80 300 * (numel(methods) + 1) 420]);
-tl = tiledlayout(fig, 1, numel(methods) + 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+    'Color', 'w', 'Position', [80 80 300 * (numel(opts.methods) + 1) 420]);
+tl = tiledlayout(fig, 1, numel(opts.methods) + 1, 'TileSpacing', 'compact', 'Padding', 'compact');
 ax = nexttile(tl);
 drawDepthImage(ax, p.t, p.depth_mm, p.pots(:, :, g) * 1e6, 'LFP', '\muV', parula(256));
-for m = methods
+for m = opts.methods
     if ~isfield(p.csd, m); continue; end
     ax = nexttile(tl);
     drawDepthImage(ax, p.t, p.z.(m), p.csd.(m)(:, :, g), m + " iCSD", '\muA/mm^3', blueWhiteRed(256));
@@ -116,7 +122,7 @@ end
 title(tl, sprintf('%s, shank %d, %s (n = %d): %s', p.name, p.shank, string(p.groupLabels(g)), p.nEpochs(g), p.cfg.data), ...
     'Interpreter', 'none');
 
-m = methods(1);
+m = opts.methods(1);
 own = profiles(cellfun(@(q) q.key == p.key, profiles));
 nG = max(cellfun(@(q) numel(q.groupLabels), own));   % a session's groups are its own, a result's the union
 fig = figure('Name', sprintf('%s: %s iCSD per group', p.name, m), 'Color', 'w', ...

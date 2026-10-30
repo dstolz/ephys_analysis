@@ -126,15 +126,15 @@ of the dataset browser. Either works from `B.Result` (a signal computed with
 *Keep single trials*: `csdEpochs`) and from `B.Sessions` (whole sessions of a
 signal, the kept trials cut in the browser's window around `TrialOnset`:
 `csdSessions`), one element per shank profile, and runs when its data is
-there. The iCSD script estimates every method in `methods` (`csd.<method>`,
+there. The iCSD script estimates every method in `opts.methods` (`csd.<method>`,
 `z.<method>`) and draws the first profile by every method beside its LFP,
 then the first method for every group of every profile of the first dataset
 with the potentials overlaid. The kCSD script cross-validates `R` over
-`rsPerSpacing` channel spacings and `lambda` over `lambdas`, estimates every
+`opts.rsPerSpacing` channel spacings and `lambda` over `opts.lambdas`, estimates every
 group at once (`csd`, `grid`, `info`) and draws the LFP, the kCSD, the fit at
 the channels, the cross-validation error per `R` and, for a 2-D layout, a map
 of the shank at the largest |CSD|, then every group of every profile. Both
-save one file per dataset when `outDir` is set, the whole-session signal left
+save one file per dataset when `opts.outDir` is set, the whole-session signal left
 out.
 
 Positive CSD (red in the plots) is a source and negative (blue) a sink; the

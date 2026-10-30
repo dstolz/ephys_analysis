@@ -1394,6 +1394,39 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyTrue(contains(lines(end), "Loop done") && contains(lines(end), "done in"), txt);
         end
 
+        function noteInManifestRecords(tc)
+            B = tc.open();
+            B.noteInManifest(tc.Keys(1), "NeuroGLM", struct('binMs', 5, 'window', [-0.5 Inf], 'file', ""));
+            B.noteInManifest(tc.Keys(1), "kcsd");
+            out = B.Runner.Outputs(B.Runner.index(tc.Keys(1)));
+            m = EphysDataset.readManifest(out.ManifestFile);
+            tc.verifyTrue(isfield(m.custom, 'browser_neuroglm') && isfield(m.custom, 'browser_kcsd'));
+            g = m.custom.browser_neuroglm;
+            tc.verifyEqual(g.binMs, 5);
+            tc.verifyTrue(isfield(g, 'processed') && strlength(string(g.processed)) == 19);
+            tc.verifyEqual(string(m.tags(:)).', ["ofc" "pilot"], 'The manifest''s other fields stay.');
+            % a second run replaces its field; the other dataset is untouched
+            B.noteInManifest(tc.Keys(1), "neuroglm", struct('binMs', 10));
+            m = EphysDataset.readManifest(out.ManifestFile);
+            tc.verifyEqual(m.custom.browser_neuroglm.binMs, 10);
+            tc.verifyFalse(isfield(m.custom.browser_neuroglm, 'window'));
+            % the struct, then pairs: a pair wins over the struct's field
+            opts = struct('binMs', 20, 'window', [-1 1]);
+            B.noteInManifest(tc.Keys(1), "neuroglm", opts, binMs=30, file="x.mat");
+            m = EphysDataset.readManifest(out.ManifestFile);
+            g = m.custom.browser_neuroglm;
+            tc.verifyEqual([g.binMs g.window(:).'], [30 -1 1]);
+            tc.verifyEqual(string(g.file), "x.mat");
+            tc.verifyError(@() B.noteInManifest(tc.Keys(1), "neuroglm", opts, "binMs"), 'DatasetBrowser:BadValue');
+            other = B.Runner.Outputs(B.Runner.index(tc.Keys(2))).ManifestFile;
+            m2 = EphysDataset.readManifest(other);
+            tc.verifyFalse(isfield(m2, 'custom'));
+            % an unknown dataset warns and the rest go on
+            tc.verifyWarning(@() B.noteInManifest(["nope" tc.Keys(2)], "kcsd"), 'DatasetBrowser:noteInManifest');
+            m2 = EphysDataset.readManifest(other);
+            tc.verifyTrue(isfield(m2.custom, 'browser_kcsd'));
+        end
+
         function computeOnTheStrip(tc)
             B = tc.open(Settings=tc.Spike, Workers=0);   % here, one dataset after the other, whatever pool another suite left open
             seen = containers.Map();

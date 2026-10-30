@@ -12,9 +12,9 @@
 %   2. Whole sessions: "Load whole sessions". Each dataset's whole signal,
 %      resampled to fs, is the response; the stimulus is the pulses of a
 %      digital line (the browser's event line by default), a trial parameter
-%      on each trial's onset, or an AUX channel's envelope (auxChannel). The
+%      on each trial's onset, or an AUX channel's envelope (opts.auxChannel). The
 %      artifact-free stretches of the session, split into pieces of at most
-%      maxSeconds, are the trials the toolbox cross-validates over:
+%      opts.maxSeconds, are the trials the toolbox cross-validates over:
 %      sessionDataMTRF, Mode "segments". -> mtSessions. The kept trials cut in
 %      the browser's window are made too (Mode "trials"). -> mtTrials
 %
@@ -33,25 +33,26 @@
 if ~exist('B', 'var') || ~isa(B, 'DatasetBrowser')
     error('B is not a DatasetBrowser: run this from the browser (Post-processing script), or set B = DatasetBrowser.open(root) first.');
 end
-mtrfPath = 'c:\src\mTRF-Toolbox\mtrf';   % added (with its subfolders) when the toolbox is not on the path
-outDir = "";                % a folder to save <dataset>_mtrf_*.mat in; "" keeps them in the workspace only
-fs = 128;                   % Hz, the rate the models are fit at (the toolbox's examples use 64-128)
-stimulus = "";              % the stimulus of the whole sessions: "" = the browser's event line (an impulse on each
-                            % onset); or line names and numeric trial columns, e.g. ["Stim" "Depth"]; see sessionDataMTRF
-kind = "onset";             % each line's feature: "onset" | "offset" | "boxcar"
-auxChannel = [];            % a column of the datasets' AUX signal (e.g. the speaker monitor): its envelope is the
-                            % stimulus instead of `stimulus`
-maxSeconds = 30;            % whole sessions: the longest piece (a trial = a cross-validation fold)
-tmin = -100; tmax = 400;    % ms, the lags of the model (negative = the response leads the stimulus)
-lambda = 10 .^ (-2:1:6);    % the ridge values cross-validated
-holdOut = [];               % the trial kept out of training to test the final model on: [] = the first one
-                            % whose stimulus changes, a number = that trial, 0 = none
+opts = struct();                    % the settings, noted whole in each dataset's manifest
+opts.mtrfPath = 'c:\src\mTRF-Toolbox\mtrf';   % added (with its subfolders) when the toolbox is not on the path
+opts.outDir = "";                % a folder to save <dataset>_mtrf_*.mat in; "" keeps them in the workspace only
+opts.fs = 128;                   % Hz, the rate the models are fit at (the toolbox's examples use 64-128)
+opts.stimulus = "";              % the stimulus of the whole sessions: "" = the browser's event line (an impulse on each
+                                 % onset); or line names and numeric trial columns, e.g. ["Stim" "Depth"]; see sessionDataMTRF
+opts.kind = "onset";             % each line's feature: "onset" | "offset" | "boxcar"
+opts.auxChannel = [];            % a column of the datasets' AUX signal (e.g. the speaker monitor): its envelope is the
+                                 % stimulus instead of `opts.stimulus`
+opts.maxSeconds = 30;            % whole sessions: the longest piece (a trial = a cross-validation fold)
+opts.tmin = -100; opts.tmax = 400;    % ms, the lags of the model (negative = the response leads the stimulus)
+opts.lambda = 10 .^ (-2:1:6);    % the ridge values cross-validated
+opts.holdOut = [];               % the trial kept out of training to test the final model on: [] = the first one
+                                 % whose stimulus changes, a number = that trial, 0 = none
 
 %% 1. Epochs (R.epochs): a trial per epoch, an impulse on the event
 R = B.Result;
 mtEpochs = {};
 if ~isempty(R) && isfield(R, 'epochs') && ~isempty(R.epochs)
-    mtEpochs = epochMatrixMTRF(R, Fs=fs);
+    mtEpochs = epochMatrixMTRF(R, Fs=opts.fs);
     fprintf('mtEpochs: %d datasets, %d epochs at %g Hz, %s\n', numel(mtEpochs), ...
         sum(cellfun(@(m) m.nTrials, mtEpochs)), mtEpochs{1}.fs, R.labels.description);
 end
@@ -64,20 +65,20 @@ if ~isempty(S)
     S = S(arrayfun(@(D) ~isempty(D.signal) || ~isempty(D.spikes), S));   % "Load trials only" brings no data
 end
 if ~isempty(S)
-    stim = stimulus;
-    if isempty(auxChannel)
+    stim = opts.stimulus;
+    if isempty(opts.auxChannel)
         if isscalar(stim) && stim == ""; stim = B.Settings.ref.line; end
         if isscalar(stim) && stim == "Trial"; stim = S(1).trialLine; end   % the browser's "Trial" = the paired trial line
     else
         % the envelope of one AUX channel, read from each dataset's AUX extract as the stimulus
-        stim = @(D) auxEnvelopeStimulus(B, D, auxChannel, fs);
+        stim = @(D) auxEnvelopeStimulus(B, D, opts.auxChannel, opts.fs);
     end
-    mtSessions = sessionDataMTRF(S, Stimulus=stim, Kind=kind, Fs=fs, Mode="segments", MaxSeconds=maxSeconds);
+    mtSessions = sessionDataMTRF(S, Stimulus=stim, Kind=opts.kind, Fs=opts.fs, Mode="segments", MaxSeconds=opts.maxSeconds);
     win = B.Settings.window;
-    mtTrials = sessionDataMTRF(S, Stimulus=stim, Kind=kind, Fs=fs, Mode="trials", Window=[win.pre win.post]);
+    mtTrials = sessionDataMTRF(S, Stimulus=stim, Kind=opts.kind, Fs=opts.fs, Mode="trials", Window=[win.pre win.post]);
     fprintf('mtSessions: %d datasets, %s; %d pieces of <= %g s; mtTrials: %d kept trials\n', ...
         numel(mtSessions), mtSessions{1}.cfg.stimulus, sum(cellfun(@(m) m.nTrials, mtSessions)), ...
-        maxSeconds, sum(cellfun(@(m) m.nTrials, mtTrials)));
+        opts.maxSeconds, sum(cellfun(@(m) m.nTrials, mtTrials)));
 end
 
 if isempty(mtEpochs) && isempty(mtSessions)
@@ -85,18 +86,25 @@ if isempty(mtEpochs) && isempty(mtSessions)
         'or "Load whole sessions" (B.Sessions).']);
 end
 
-if outDir ~= ""
+if opts.outDir ~= ""
     for m = [mtEpochs; mtSessions; mtTrials].'
         M = m{1};
-        save(fullfile(outDir, M.cfg.name + "_mtrf_" + packageKind(M) + ".mat"), '-struct', 'M', '-v7.3');
+        save(fullfile(opts.outDir, M.cfg.name + "_mtrf_" + packageKind(M) + ".mat"), '-struct', 'M', '-v7.3');
     end
+end
+
+% note it in each dataset's manifest (custom.browser_mtrf)
+mtKeys = unique(cellfun(@(m) string(m.cfg.dataset), [mtEpochs(:); mtSessions(:); mtTrials(:)]));
+for key = mtKeys(:).'
+    B.noteInManifest(key, "mtrf", opts, epochs=any(cellfun(@(m) string(m.cfg.dataset) == key, mtEpochs)), ...
+        sessions=any(cellfun(@(m) string(m.cfg.dataset) == key, mtSessions)));
 end
 
 %% The toolbox: cross-validate the ridge, train, test on a held-out trial
 % Everything below needs the mTRF-Toolbox on the path.
-if ~mTRFExport.hasMTRF() && isfolder(mtrfPath); addpath(genpath(mtrfPath)); end
+if ~mTRFExport.hasMTRF() && isfolder(opts.mtrfPath); addpath(genpath(opts.mtrfPath)); end
 if ~mTRFExport.hasMTRF()
-    disp('The mTRF-Toolbox is not on the path: set mtrfPath to its mtrf folder to fit models.');
+    disp('The mTRF-Toolbox is not on the path: set opts.mtrfPath to its mtrf folder to fit models.');
     return
 end
 
@@ -105,39 +113,40 @@ end
 candidates = [mtSessions(1:min(1, end)); mtTrials(1:min(1, end)); mtEpochs(1:min(1, end))];
 enough = cellfun(@(m) m.nTrials >= 3, candidates);
 if ~any(enough)
-    error('%s gives at most %d trial(s): the toolbox cross-validates over at least 2 (lower maxSeconds, or compute more epochs).', ...
+    error('%s gives at most %d trial(s): the toolbox cross-validates over at least 2 (lower opts.maxSeconds, or compute more epochs).', ...
         candidates{1}.cfg.name, max(cellfun(@(m) m.nTrials, candidates)));
 end
 M = candidates{find(enough, 1)};
 % pieces whose stimulus never changes (no event in them) cannot be scored: their fold's r is NaN
 silent = cellfun(@(x) all(x(:) == x(1)), M.stim);
 if any(silent)
-    fprintf('%d of %d trials hold no change of the stimulus: they train but cannot be scored (raise maxSeconds).\n', ...
+    fprintf('%d of %d trials hold no change of the stimulus: they train but cannot be scored (raise opts.maxSeconds).\n', ...
         nnz(silent), M.nTrials);
 end
 test = false(M.nTrials, 1);
+holdOut = opts.holdOut;
 if isempty(holdOut); holdOut = find(~silent, 1); end
 if holdOut >= 1; test(min(holdOut, M.nTrials)) = true; end
 train = ~test;
 
 % forward (encoding) model: the TRF of every channel
-cvF = mTRFcrossval(M.stim(train), M.resp(train), M.fs, 1, tmin, tmax, lambda, 'verbose', 0);
+cvF = mTRFcrossval(M.stim(train), M.resp(train), M.fs, 1, opts.tmin, opts.tmax, opts.lambda, 'verbose', 0);
 rF = squeeze(mean(cvF.r, 1, 'omitnan'));         % [nLambda x nChannels] mean over the folds scored
-if isvector(rF); rF = reshape(rF, numel(lambda), []); end
+if isvector(rF); rF = reshape(rF, numel(opts.lambda), []); end
 [~, iF] = max(mean(rF, 2));                      % the ridge best on average over the channels
-trf = mTRFtrain(M.stim(train), M.resp(train), M.fs, 1, tmin, tmax, lambda(iF), 'verbose', 0);
+trf = mTRFtrain(M.stim(train), M.resp(train), M.fs, 1, opts.tmin, opts.tmax, opts.lambda(iF), 'verbose', 0);
 trf.label = M.respLabels; trf.pos = M.pos; trf.featureLabels = M.stimLabels;   % names for the plots
 fprintf('Forward model (%s -> %s): lambda = %g, CV r = %.3f (mean over %d channels)\n', ...
-    strjoin(M.stimLabels, '+'), M.cfg.data, lambda(iF), max(mean(rF, 2)), M.nChannels);
+    strjoin(M.stimLabels, '+'), M.cfg.data, opts.lambda(iF), max(mean(rF, 2)), M.nChannels);
 
 % backward (decoding) model: the stimulus from every channel at once
-cvB = mTRFcrossval(M.stim(train), M.resp(train), M.fs, -1, tmin, tmax, lambda, 'verbose', 0);
+cvB = mTRFcrossval(M.stim(train), M.resp(train), M.fs, -1, opts.tmin, opts.tmax, opts.lambda, 'verbose', 0);
 rB = squeeze(mean(cvB.r, 1, 'omitnan'));
-if isvector(rB); rB = reshape(rB, numel(lambda), []); end
+if isvector(rB); rB = reshape(rB, numel(opts.lambda), []); end
 [~, iB] = max(mean(rB, 2));
-decoder = mTRFtrain(M.stim(train), M.resp(train), M.fs, -1, tmin, tmax, lambda(iB), 'verbose', 0);
+decoder = mTRFtrain(M.stim(train), M.resp(train), M.fs, -1, opts.tmin, opts.tmax, opts.lambda(iB), 'verbose', 0);
 fprintf('Backward model (%s -> %s): lambda = %g, CV r = %.3f\n', ...
-    M.cfg.data, strjoin(M.stimLabels, '+'), lambda(iB), max(mean(rB, 2)));
+    M.cfg.data, strjoin(M.stimLabels, '+'), opts.lambda(iB), max(mean(rB, 2)));
 
 % the held-out trial: the prediction of each model against the data
 if any(test)
@@ -156,7 +165,7 @@ unitText = M.respUnits; if unitText == ""; unitText = "a.u."; end
 
 % the TRF of every channel (summed over the features), with the toolbox's plot
 ax = nexttile(tl);
-mTRFplot(trf, 'trf', 'all', 'all', [tmin tmax]);
+mTRFplot(trf, 'trf', 'all', 'all', [opts.tmin opts.tmax]);
 title(ax, 'TRF per channel'); xlabel(ax, 'Lag (ms)'); ylabel(ax, "Weight (" + unitText + " per event)");
 
 % the same as an image, channels in probe order (depth) when positions are known
@@ -175,15 +184,15 @@ title(ax, 'TRF by channel'); xlabel(ax, 'Lag (ms)');
 
 % the global field power across channels
 ax = nexttile(tl);
-mTRFplot(trf, 'gfp', 'all', 'all', [tmin tmax]);
+mTRFplot(trf, 'gfp', 'all', 'all', [opts.tmin opts.tmax]);
 title(ax, 'Global field power'); xlabel(ax, 'Lag (ms)'); ylabel(ax, 'GFP');
 
 % the cross-validation: r against lambda, both directions
 ax = nexttile(tl);
-hF = semilogx(ax, lambda, mean(rF, 2), '-o');
+hF = semilogx(ax, opts.lambda, mean(rF, 2), '-o');
 hold(ax, 'on');
-hB = semilogx(ax, lambda, mean(rB, 2), '-s');
-xline(ax, lambda(iF), ':', 'HandleVisibility', 'off'); xline(ax, lambda(iB), ':', 'HandleVisibility', 'off');
+hB = semilogx(ax, opts.lambda, mean(rB, 2), '-s');
+xline(ax, opts.lambda(iF), ':', 'HandleVisibility', 'off'); xline(ax, opts.lambda(iB), ':', 'HandleVisibility', 'off');
 hold(ax, 'off'); grid(ax, 'on');
 legend(ax, [hF hB], {'forward (mean over channels)', 'backward'}, 'Location', 'best');
 title(ax, 'Cross-validation'); xlabel(ax, '\lambda'); ylabel(ax, 'r (left-out trial)');
@@ -206,7 +215,7 @@ if any(test)
     hold(ax, 'off'); legend(ax, 'Location', 'best');
     title(ax, "Held-out trial, " + M.stimLabels(1) + " decoded"); xlabel(ax, 'Time in the trial (s)'); ylabel(ax, 'normalized');
 end
-title(tl, sprintf('%s: %s, %d trials at %g Hz, lags %d..%d ms', M.cfg.name, M.cfg.stimulus, M.nTrials, M.fs, tmin, tmax), ...
+title(tl, sprintf('%s: %s, %d trials at %g Hz, lags %d..%d ms', M.cfg.name, M.cfg.stimulus, M.nTrials, M.fs, opts.tmin, opts.tmax), ...
     'Interpreter', 'none');
 
 %% The check: a TRF of the epochs is the evoked mean

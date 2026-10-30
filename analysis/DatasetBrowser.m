@@ -1544,6 +1544,58 @@ classdef DatasetBrowser < handle
             B.finishRun(string(message), true);
         end
 
+        function noteInManifest(B, keys, tool, details, varargin)
+            %noteInManifest  Record in the manifest of each dataset in KEYS that a script processed it (addToManifest).
+            %   B.noteInManifest(KEYS, TOOL, DETAILS) adds the field
+            %   browser_<tool> (TOOL lower-cased: "neuroglm" gives
+            %   browser_neuroglm) to the "custom" block of each dataset's
+            %   <Name>_manifest.json: the time ("processed"), then the
+            %   fields of the scalar struct DETAILS (the settings used).
+            %   B.noteInManifest(KEYS, TOOL, DETAILS, Name=Value, ...) adds
+            %   the pairs to them (the file written); a pair wins over a
+            %   field of DETAILS with its name. A second run replaces the
+            %   field. A dataset whose manifest cannot be written warns
+            %   (DatasetBrowser:noteInManifest) and the rest go on.
+            %   The manifest counts in a dataset's cache stamp, so Compute
+            %   works the noted datasets out again.
+            arguments
+                B
+                keys (1,:) string
+                tool (1,1) string
+                details (1,1) struct = struct()
+            end
+            arguments (Repeating)
+                varargin
+            end
+            if mod(numel(varargin), 2) ~= 0
+                error('DatasetBrowser:BadValue', 'noteInManifest takes the details struct, then Name=Value pairs.');
+            end
+            B.needRunner();
+            field = "browser_" + lower(tool);
+            rec = struct('processed', string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')));
+            for name = string(fieldnames(details)).'
+                rec.(name) = details.(name);
+            end
+            for k = 1:2:numel(varargin)
+                rec.(varargin{k}) = varargin{k + 1};
+            end
+            for key = unique(keys, 'stable')
+                try
+                    i = B.Runner.index(key);
+                    if i == 0
+                        error('DatasetBrowser:NoDataset', 'No dataset "%s".', key);
+                    end
+                    out = B.Runner.Outputs(i);
+                    target = out.ManifestFile;
+                    if target == "" && ~isempty(out.Dataset); target = out.Dataset; end
+                    addToManifest(target, field, rec);
+                catch ME
+                    warning('DatasetBrowser:noteInManifest', 'Could not note %s in the manifest of %s: %s', ...
+                        tool, key, ME.message);
+                end
+            end
+        end
+
         function cancel(B)
             %cancel  Ask the running scan, compute, forEach or script loop to stop (the Cancel button).
             %   Pressed again while a script's run is still open (the script

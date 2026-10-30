@@ -475,6 +475,17 @@ CSD images with the potentials overlaid; see
 [CSDEstimate](CSDEstimate.md). The
 list, the script picked and the box are preferences.
 
+Each of these scripts ends by noting what it did in the manifest of every
+dataset it processed (`B.noteInManifest`, below): the field
+`custom.browser_<tool>` -- `browser_fieldtrip`, `browser_chronux`,
+`browser_neuroglm`, `browser_mtrf`, `browser_icsd`, `browser_kcsd` -- holds
+the time, whether the epochs or the whole sessions were converted, and the
+script's settings: everything in its `opts` struct. The neuroGLM script adds
+the file it wrote and the number of units fitted. A second run
+replaces the field. Because the manifest counts in a dataset's cache stamp
+([The cache](#the-cache-and-the-result-file)), the next **Compute** works those
+datasets out again.
+
 From a script, `B.compute(RunScript=true)` computes and then runs `B.Script`;
 `B.compute()` runs none. `B.loadSessions(RunScript=true)` likewise.
 
@@ -675,6 +686,33 @@ If the script stopped on an error and left its run open, a second press of
 `forEach`, which end their runs themselves.
 `progressFinish(message)` ends the run. A `compute` inside the loop takes the
 strip over for its time.
+
+### Noting a script's work in the manifests
+
+`B.noteInManifest(keys, tool, details)` records in the manifest of each
+dataset in `keys` that a script processed it: it adds the field
+`browser_<tool>` (`tool` lower-cased) to the manifest's `custom` block with
+[`addToManifest`](EphysDataset.md#dataset-manifest). The field holds
+`processed` (the time) and the fields of the scalar struct `details`, e.g.
+the settings used. `Name=Value` pairs after it add to those fields, e.g. the
+file written, and win over a field of `details` with their name. A second
+call replaces the field; a dataset whose manifest cannot be written warns
+(`DatasetBrowser:noteInManifest`) and the others go on.
+
+Keep a script's settings in one struct, so that noting them takes one word.
+The bundled scripts call it `opts`. Start it with `opts = struct();`, because
+a script runs in the base workspace, where an earlier script's `opts` would
+otherwise still hold its fields.
+
+```matlab
+opts = struct();
+opts.binMs = 5;
+opts.window = [-0.5 1];
+% ... the fit, using opts.binMs and opts.window ...
+B.noteInManifest(D.key, "myfit", opts, file=savedTo);
+m = EphysDataset.readManifest(B.Runner.Outputs(B.Runner.index(D.key)).ManifestFile);
+m.custom.browser_myfit
+```
 
 ## The result
 
@@ -1152,4 +1190,4 @@ out).
 | [`test_DatasetFilter.m`](../pipeline/test_DatasetFilter.m) | `datasetFilter`: subjects, wildcards and literal regex characters, tags, search, the combinations |
 | [`test_DatasetRuns.m`](../analysis/test_DatasetRuns.m) | `DatasetRuns`: reuse, identity, skipped and failed datasets, cancel, `forget`, the saved struct |
 | [`test_EpochMatrix.m`](../analysis/test_EpochMatrix.m) | `epochMatrixSettings` and `epochMatrix`: the parts against the per-dataset calls, assembly, groups, the result fields, the labels, the normalization (`epochMatrixNormalize`) |
-| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window), the exported script (`exportScript`), the whole sessions (`loadSessions`, `sessionData`), the Channels tab (`ProbePicker`: clicks and fields yoked), the event & trial definitions, the **Epochs per group** window (`EpochGroupCounts`: its groups, epochs and trials against `epochTable`, the excluded epochs, a settings edit and a row click redraw it) |
+| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window), the exported script (`exportScript`), the whole sessions (`loadSessions`, `sessionData`), the Channels tab (`ProbePicker`: clicks and fields yoked), the event & trial definitions, `noteInManifest` (the `custom.browser_<tool>` field written, replaced and left off other datasets, a bad key warning), the **Epochs per group** window (`EpochGroupCounts`: its groups, epochs and trials against `epochTable`, the excluded epochs, a settings edit and a row click redraw it) |

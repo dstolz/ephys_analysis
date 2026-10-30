@@ -88,9 +88,9 @@ runs both over the browser's result and sessions (`mtEpochs`, `mtSessions`,
 ridge in both directions, trains a TRF and a decoder, tests them on a held-out
 trial, plots the TRFs (per channel, by probe depth, the global field power),
 the cross-validation curves and the held-out trial, and checks the epochs'
-TRF against the evoked mean. Set `mtrfPath` to the toolbox's `mtrf` folder;
-`stimulus`, `kind`, `auxChannel`, `fs`, `tmin`/`tmax`, `lambda` and
-`maxSeconds` are the knobs at its top.
+TRF against the evoked mean. Set `opts.mtrfPath` to the toolbox's `mtrf` folder;
+`opts.stimulus`, `kind`, `auxChannel`, `fs`, `tmin`/`tmax`, `lambda` and
+`maxSeconds` are the other fields of `opts` at its top.
 
 ## Tests
 

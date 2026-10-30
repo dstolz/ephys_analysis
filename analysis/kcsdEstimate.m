@@ -55,7 +55,7 @@ function [csd, G, info] = kcsdEstimate(posMm, pots, opts)
 %   message).
 %
 %   See also epochMatrixCSD, sessionDataCSD, icsdEstimate, laminarColumns,
-%   KCSDExport, EphysDataset.exportKCSD.
+%   writeNPZ, readNPZ.
 
 arguments
     posMm (:,:) double {mustBeFinite}

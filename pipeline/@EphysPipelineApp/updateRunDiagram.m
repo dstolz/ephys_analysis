@@ -8,7 +8,7 @@ function updateRunDiagram(obj, evt)
 
 M = obj.RunDiagram;
 if M.phase ~= "running"; return; end
-key = extractBefore(evt.step + ":", ":");   % "export:chronux" -> "export"
+key = extractBefore(evt.step + ":", ":");   % "export:nwb" -> "export"
 j = find([M.steps.key] == key, 1);
 if isempty(j) || ~M.steps(j).inRun; return; end
 

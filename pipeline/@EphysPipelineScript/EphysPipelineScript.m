@@ -407,7 +407,7 @@ classdef EphysPipelineScript
             L = [L; EphysPipelineScript.stepFooter(cfg.stepEnabled("spikes"))];
 
             % --- export --------------------------------------------------------------
-            L = [L; EphysPipelineScript.stepHeader("Export: analysis-toolbox and epoch files",cfg.stepEnabled("export"))];
+            L = [L; EphysPipelineScript.stepHeader("Export: NWB 2 files", cfg.stepEnabled("export"))];
             E = cfg.Export;
             % The extract files Export reads (EphysPipeline.exportExtractFiles):
             % with separate files, only those of Export.Signals when it lists any.
@@ -417,147 +417,38 @@ classdef EphysPipelineScript
             else
                 exFilesExpr = sigFilesExpr;
             end
-            % kcsd writes the LFP alone (a .npz for kCSD-python): no units,
-            % detected spikes or sorting folder, and the dataset's probe
-            hasKCSD = any(E.Formats == "kcsd");
-            withUnits = E.IncludeUnits && any(E.Formats ~= "kcsd");
-            withDetected = E.IncludeDetected && any(E.Formats ~= "kcsd");
-            hasNWB = any(E.Formats == "nwb");
-            L(end+1, 1) = "formats = " + lit(E.Formats) + ";";
-            if hasKCSD || hasNWB
-                L(end+1, 1) = "tails = ""_"" + formats + "".mat"";";
-                if hasKCSD
-                    L(end+1, 1) = "tails(formats == ""kcsd"") = ""_kcsd.npz"";   % kCSD-python reads a NumPy archive";
+            if any(E.Formats == "nwb")
+                L(end+1, 1) = "for k = idx";
+                L(end+1, 1) = "    d = P.Datasets(k);";
+                L(end+1, 1) = "    extract = EphysDataset.recordedSignalFiles(" + exFilesExpr + ");";
+                L(end+1, 1) = "    if isempty(extract) || ~all(isfile(extract)); fprintf('%s: no extract file, skipped\n', d.Name); continue; end";
+                if E.IncludeUnits
+                    L(end+1, 1) = "    if d.sortingMissing(); fprintf(2, '%s: the sorted-output folder %s is not there, skipped\n', d.Name, d.SortingDir); continue; end";
                 end
-                if hasNWB
-                    L(end+1, 1) = "tails(formats == ""nwb"") = "".nwb"";         % <Name>.nwb";
+                L(end+1, 1) = "    out = fullfile(" + EphysPipelineScript.outDirExpr(E.OutputDir) + ", d.Name + "".nwb"");";
+                if ~E.Overwrite
+                    L(end+1, 1) = "    if isfile(out); fprintf('%s: %s exists, skipped\n', d.Name, out); continue; end";
                 end
-            end
-            L(end+1, 1) = "for k = idx";
-            L(end+1, 1) = "    d = P.Datasets(k);";
-            L(end+1, 1) = "    extract = EphysDataset.recordedSignalFiles(" + exFilesExpr + ");";
-            L(end+1, 1) = "    if isempty(extract) || ~all(isfile(extract)); fprintf('%s: no extract file, skipped\n', d.Name); continue; end";
-            if withUnits && ~hasKCSD
-                L(end+1, 1) = "    if d.sortingMissing(); fprintf(2, '%s: the sorted-output folder %s is not there, skipped\n', d.Name, d.SortingDir); continue; end";
-            end
-            if hasKCSD || hasNWB
-                L(end+1, 1) = "    outFiles = fullfile(" + EphysPipelineScript.outDirExpr(E.OutputDir) + ", d.Name + tails);";
+                L(end+1, 1) = "    try";
+                L(end+1, 1) = "        o = EphysPipelineConfig.exportOptions(" + EphysPipelineScript.inlineStruct(E) + ", ""nwb"");";
+                L(end+1, 1) = "        o.Extract = extract;";
+                L(end+1, 1) = "        % the probe in effect, the Sorting step's Python when Export.NWB has none, the behavior file's trials";
+                L(end+1, 1) = "        o.ProbeFile = d.ProbeFile;";
+                L(end+1, 1) = "        if o.ProbeFile == """"; o.ProbeFile = defaultProbe; end";
+                L(end+1, 1) = "        if o.PythonExe == """"; o.PythonExe = " + lit(cfg.Sorting.PythonExe) + "; o.CondaEnv = " + lit(cfg.Sorting.CondaEnv) + "; end";
+                L(end+1, 1) = "        o.Behavior = fullfile(d.outputFolder(), d.Name + ""_behavior.mat"");";
+                L(end+1, 1) = "        if ~isfile(o.Behavior); o.Behavior = """"; end";
+                L(end+1, 1) = "        args = namedargs2cell(o);";
+                L(end+1, 1) = "        r = d.exportNWB('File', out, args{:});";
+                L(end+1, 1) = "        d.writeManifest();   % its processing block: how the file was made";
+                L(end+1, 1) = "        fprintf('%s: wrote %s\n', d.Name, r.file);";
+                L(end+1, 1) = "    catch ME";
+                L(end+1, 1) = "        fprintf(2, '%s: export (nwb) FAILED: %s\n', d.Name, ME.message);";
+                L(end+1, 1) = "    end";
+                L(end+1, 1) = "end";
             else
-                L(end+1, 1) = "    outFiles = fullfile(" + EphysPipelineScript.outDirExpr(E.OutputDir) + ", d.Name + ""_"" + formats + "".mat"");";
+                L(end+1, 1) = "% no export format ticked";
             end
-            if ~E.Overwrite
-                L(end+1, 1) = "    if all(isfile(outFiles)); fprintf('%s: %s exist, skipped\n', d.Name, strjoin(outFiles, ', ')); continue; end";
-            end
-            L(end+1, 1) = "    try   % the inputs, read once for every format";
-            L(end+1, 1) = "        S = load(extract(1));";
-            L(end+1, 1) = "        for f = extract(2:end)   % each per-type file adds its signal";
-            L(end+1, 1) = "            X = load(f);";
-            L(end+1, 1) = "            for sig = [""LFP"" ""MUA"" ""SPIKE"" ""AUX""]";
-            L(end+1, 1) = "                if isfield(X.Y, sig) && ~isempty(X.Y.(sig)) && isfield(X.info, sig)";
-            L(end+1, 1) = "                    S.Y.(sig) = X.Y.(sig); S.info.(sig) = X.info.(sig);";
-            L(end+1, 1) = "                end";
-            L(end+1, 1) = "            end";
-            L(end+1, 1) = "        end";
-            if withUnits
-                L(end+1, 1) = "        units = false;";
-                if E.UnitQuality
-                    L(end+1, 1) = "        if d.hasKilosortResults()";
-                    L(end+1, 1) = "            [units, uinfo] = d.readSortedUnits(Groups=" + lit(E.Groups) + ");";
-                    L(end+1, 1) = "            try   % the quality metrics (Export.UnitQuality), as an exporter adds them";
-                    L(end+1, 1) = "                units = d.unitQuality(units, uinfo);";
-                    L(end+1, 1) = "                units.quality = rmfield(units.quality, 'cache');";
-                    L(end+1, 1) = "            catch ME";
-                    L(end+1, 1) = "                warning('EphysPipeline:runExport:NoUnitQuality', '%s: no quality metrics (%s); the units are exported without them.', d.Name, ME.message);";
-                    L(end+1, 1) = "            end";
-                    L(end+1, 1) = "        end";
-                else
-                    L(end+1, 1) = "        if d.hasKilosortResults(); units = d.readSortedUnits(Groups=" + lit(E.Groups) + "); end";
-                end
-            end
-            if withDetected
-                L(end+1, 1) = "        detected = false;";
-                L(end+1, 1) = "        spikesFile = fullfile(" + EphysPipelineScript.outDirExpr(K.OutputDir) + ", d.Name + " + lit(K.Suffix) + " + "".mat"");";
-                L(end+1, 1) = "        if isfile(spikesFile)";
-                L(end+1, 1) = "            M = load(spikesFile, 'detected');";
-                L(end+1, 1) = "            if isfield(M, 'detected') && ~isempty(M.detected); detected = M.detected; end";
-                L(end+1, 1) = "        end";
-            end
-            L(end+1, 1) = "        % where the inputs came from, as each exporter records it (Sources)";
-            L(end+1, 1) = "        sources = struct('extractFile', strjoin(extract, ""; ""), 'spikesFile', """", 'sortingDir', """");";
-            if withUnits
-                L(end+1, 1) = "        if isstruct(units); sources.sortingDir = string(d.sortingResultsDir()); end";
-            end
-            if withDetected
-                L(end+1, 1) = "        if isstruct(detected); sources.spikesFile = spikesFile; end";
-            end
-            L(end+1, 1) = "    catch ME";
-            L(end+1, 1) = "        fprintf(2, '%s: export inputs FAILED: %s\n', d.Name, ME.message);";
-            L(end+1, 1) = "        continue";
-            L(end+1, 1) = "    end";
-            L(end+1, 1) = "    for j = 1:numel(formats)";
-            L(end+1, 1) = "        fmt = formats(j);";
-            if ~E.Overwrite
-                L(end+1, 1) = "        if isfile(outFiles(j)); fprintf('%s: %s exists, skipped\n', d.Name, outFiles(j)); continue; end";
-            end
-            L(end+1, 1) = "        try";
-            L(end+1, 1) = "            o = EphysPipelineConfig.exportOptions(" + EphysPipelineScript.inlineStruct(E) + ", fmt);";
-            L(end+1, 1) = "            o.Sources = sources;";
-            if hasKCSD
-                L(end+1, 1) = "            if fmt == ""kcsd""   % the LFP alone, on the dataset's probe";
-                L(end+1, 1) = "                o.ProbeFile = d.ProbeFile;";
-                L(end+1, 1) = "                if o.ProbeFile == """"; o.ProbeFile = defaultProbe; end";
-                if withUnits
-                    L(end+1, 1) = "            elseif d.sortingMissing()";
-                    L(end+1, 1) = "                fprintf(2, '%s: the sorted-output folder %s is not there, %s skipped\n', d.Name, d.SortingDir, fmt);";
-                    L(end+1, 1) = "                continue";
-                end
-                if withUnits || withDetected
-                    L(end+1, 1) = "            else";
-                end
-                ind = "    ";
-            else
-                ind = "";
-            end
-            if withUnits
-                L(end+1, 1) = ind + "            o.Units = units;";
-            end
-            if withDetected
-                L(end+1, 1) = ind + "            o.Detected = detected;";
-            end
-            if hasKCSD
-                L(end+1, 1) = "            end";
-            end
-            if hasNWB
-                L(end+1, 1) = "            if fmt == ""nwb""   % the probe in effect, the Sorting step's Python when Export.NWB has none, the behavior file's trials";
-                L(end+1, 1) = "                o.ProbeFile = d.ProbeFile;";
-                L(end+1, 1) = "                if o.ProbeFile == """"; o.ProbeFile = defaultProbe; end";
-                L(end+1, 1) = "                if o.PythonExe == """"; o.PythonExe = " + lit(cfg.Sorting.PythonExe) + "; o.CondaEnv = " + lit(cfg.Sorting.CondaEnv) + "; end";
-                L(end+1, 1) = "                o.Behavior = fullfile(d.outputFolder(), d.Name + ""_behavior.mat"");";
-                L(end+1, 1) = "                if ~isfile(o.Behavior); o.Behavior = """"; end";
-                L(end+1, 1) = "            end";
-            end
-            L(end+1, 1) = "            args = namedargs2cell(o);";
-            L(end+1, 1) = "            switch fmt";
-            L(end+1, 1) = "                case ""chronux""";
-            L(end+1, 1) = "                    r = d.exportChronux('File', outFiles(j), 'Extract', S, args{:});";
-            L(end+1, 1) = "                case ""fieldtrip""";
-            L(end+1, 1) = "                    r = d.exportFieldTrip('File', outFiles(j), 'Extract', S, args{:});";
-            L(end+1, 1) = "                case ""epochs""";
-            L(end+1, 1) = "                    r = d.exportEpochs('File', outFiles(j), 'Extract', S, args{:});";
-            L(end+1, 1) = "                case ""kcsd""";
-            L(end+1, 1) = "                    r = d.exportKCSD('File', outFiles(j), 'Extract', S, args{:});";
-            L(end+1, 1) = "                case ""nwb""";
-            L(end+1, 1) = "                    r = d.exportNWB('File', outFiles(j), 'Extract', S, args{:});";
-            L(end+1, 1) = "                otherwise";
-            L(end+1, 1) = "                    error('Unknown export format ""%s"".', fmt);";
-            L(end+1, 1) = "            end";
-            L(end+1, 1) = "            d.writeManifest();   % its processing block: how the file was made";
-            L(end+1, 1) = "            fprintf('%s: wrote %s\n', d.Name, r.file);";
-            L(end+1, 1) = "        catch ME";
-            L(end+1, 1) = "            fprintf(2, '%s: export (%s) FAILED: %s\n', d.Name, fmt, ME.message);";
-            L(end+1, 1) = "        end";
-            L(end+1, 1) = "    end";
-            L(end+1, 1) = "end";
             L = [L; EphysPipelineScript.stepFooter(cfg.stepEnabled("export"))];
 
             % --- analysis ------------------------------------------------------------
@@ -766,11 +657,8 @@ classdef EphysPipelineScript
                     ", d.Name + " + lit(cfg.Spikes.Suffix) + " + "".mat""))];";
             end
             if cfg.stepEnabled("export") && ~isempty(E.Formats)
-                tails = "_" + E.Formats + ".mat";
-                tails(E.Formats == "kcsd") = "_kcsd.npz";
-                tails(E.Formats == "nwb") = ".nwb";
                 L(end+1, 1) = "    out = [out, string(fullfile(" + EphysPipelineScript.outDirExpr(E.OutputDir) + ...
-                    ", d.Name + " + lit(tails) + "))];";
+                    ", d.Name + "".nwb""))];";
             end
             if cfg.stepEnabled("analysis") && strtrim(cfg.Analysis.ConfigFile) ~= ""
                 L(end+1, 1) = "    if exist('analysisResults', 'var')   % the figures and per-dataset reports written";

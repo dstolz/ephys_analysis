@@ -111,6 +111,24 @@ check(EphysPipelineConfig.load(fAC).isequalConfig(cAC) && EphysPipelineConfig.lo
 sOld = rmfield(cAC.toStruct(), 'AnalysisCopy');
 cOld = EphysPipelineConfig.fromStruct(sOld);
 check(~cOld.AnalysisCopy.Enabled && isempty(cOld.LoadWarnings), 'a config saved before the section existed loads with it off');
+sR = struct('Export', struct('Enabled', true, 'Formats', {{'chronux'; 'fieldtrip'}}, 'IncludeDetected', true, ...
+    'EpochWindow', [-0.1 0.3], 'MatVersion', "-v7", 'Validate', false, 'Groups', "good"));
+cR = EphysPipelineConfig.fromStruct(sR);
+check(~cR.Export.Enabled && isempty(cR.Export.Formats) && cR.Export.Groups == "good" && isscalar(cR.LoadWarnings) ...
+    && contains(cR.LoadWarnings, "chronux, fieldtrip") && contains(cR.LoadWarnings, "step is off") ...
+    && ~any(isfield(cR.Export, {'IncludeDetected', 'EpochWindow', 'MatVersion', 'Validate'})), ...
+    'a config with the retired toolbox formats loads: they and their settings are dropped, Export is off with no format left');
+sR.Export.Formats = {'nwb'; 'epochs'};
+cR = EphysPipelineConfig.fromStruct(sR);
+check(cR.Export.Enabled && isequal(cR.Export.Formats, "nwb") && isscalar(cR.LoadWarnings) ...
+    && ~contains(cR.LoadWarnings, "step is off"), 'with NWB ticked too, Export stays on for NWB alone');
+sR.Export.Formats = {'nwb'};
+cR = EphysPipelineConfig.fromStruct(sR);
+check(cR.Export.Enabled && isempty(cR.LoadWarnings), 'the retired settings alone are dropped without a warning');
+for shipped = ["H64LP_4x16" "TESTRUN"]
+    cS = EphysPipelineConfig.load(fullfile(fileparts(here), 'pipeline', 'pipeline_configs', shipped + ".json"));
+    check(isempty(cS.LoadWarnings) && isempty(cS.Export.Formats), shipped + ".json loads in the current shape");
+end
 cAC.Project.Root = root;
 cAC.Transfer.Enabled = true;
 cAC.Transfer.Method = "move";
@@ -151,7 +169,7 @@ cfg.Spikes.Threshold = NaN;
 cfg.Spikes.MaxAmplitudeUV = Inf;
 cfg.Spikes.WindowMs = [-1 2];
 cfg.Export.Groups = "good";
-cfg.Export.Formats = "chronux";
+cfg.Export.Formats = "nwb";
 cfg.Export.Signals = string.empty(1,0);
 cfg.Behavior.SearchDirs = ["D:\beh" "E:\beh"];
 cfg.Parallel.Enabled = true; cfg.Parallel.MaxWorkers = NaN;
@@ -166,7 +184,7 @@ check(contains(txt, '"schema": "ephys-pipeline-config"') && contains(txt, '"vers
     'JSON carries schema / version and Inf / NaN as strings');
 c3 = EphysPipelineConfig.load(f);
 check(c3.isequalConfig(cfg) && isequaln(c3.toStruct(), cfg.toStruct()), 'load reproduces the config exactly (isequaln)');
-check(isequal(c3.Project.Datasets, "only/one") && isequal(c3.Export.Formats, "chronux") ...
+check(isequal(c3.Project.Datasets, "only/one") && isequal(c3.Export.Formats, "nwb") ...
     && isequal(c3.Export.Groups, "good") && isequal(size(c3.Export.Signals), [1 0]) ...
     && isequal(c3.Behavior.SearchDirs, ["D:\beh" "E:\beh"]), 'one-element and empty string lists survive');
 check(c3.Project.AutoTag && isequal(c3.Project.NewDatasetTags, ["cohort-3" "pilot"]), 'the tags for new datasets survive');
@@ -464,20 +482,15 @@ check(isequal(sort(fieldnames(ac)), sort(fieldnames(EphysDataset.defaultArtifact
 check(strcmp(errorId(@() EphysPipelineConfig.artifactConfig(A)), 'MATLAB:minrhs'), ...
     'artifactConfig needs the Reference section too');
 E = EphysPipelineConfig.defaults("Export"); E.IncludeUnits = false; E.Signals = "LFP";
-eo = EphysPipelineConfig.exportOptions(E, "fieldtrip");
-check(islogical(eo.Units) && ~eo.Units && isequal(eo.Signals, "LFP") && ~isfield(eo, 'Behavior') && eo.Validate, ...
-    'exportOptions for the FieldTrip exporter');
-eo = EphysPipelineConfig.exportOptions(E, "chronux");
-check(~isfield(eo, 'Validate') && eo.Events && ~eo.Detected, 'exportOptions for the Chronux exporter');
-E.EpochSource = "behavior"; E.EpochWindow = [-0.1 0.4]; E.EpochSpikeTimeBase = "window";
-eo = EphysPipelineConfig.exportOptions(E, "epochs");
-check(~isfield(eo, 'Validate') && eo.EventSource == "behavior" && isequal(eo.Window, [-0.1 0.4]) ...
-    && eo.SpikeTimeBase == "window" && eo.Incomplete == "nan" && eo.OnsetRule == "event", ...
-    'exportOptions for the epoch exporter uses its own option names');
-E.IncludeEvents = false; E.Overwrite = true;
-eo = EphysPipelineConfig.exportOptions(E, "kcsd");
-check(isequal(sort(string(fieldnames(eo))).', ["Events" "Overwrite"]) && ~eo.Events && eo.Overwrite, ...
-    'exportOptions for the kCSD exporter: events and overwrite only (the LFP alone)');
+E.NWB.Species = "Mus musculus"; E.NWB.PythonExe = "py.exe";
+eo = EphysPipelineConfig.exportOptions(E);
+check(islogical(eo.Units) && ~eo.Units && isequal(eo.Signals, "LFP") && eo.Events && eo.Trials && eo.Inspect ...
+    && eo.PythonExe == "py.exe" && eo.Metadata.Species == "Mus musculus" && ~isfield(eo.Metadata, 'PythonExe') ...
+    && ~any(isfield(eo, {'Detected', 'MatVersion', 'Validate', 'Behavior'})), ...
+    'exportOptions for the NWB exporter (the default format)');
+check(isequal(EphysPipelineConfig.exportOptions(E, "nwb"), eo) ...
+    && startsWith(errorId(@() EphysPipelineConfig.exportOptions(E, "chronux")), 'MATLAB:validators'), ...
+    'exportOptions takes the formats of ExportFormats only');
 
 fprintf('\n== 6. validate ==\n');
 cfg = EphysPipelineConfig();
@@ -606,32 +619,14 @@ iss = cfg.validate();
 check(any(iss.Step == "export" & iss.Field == "Formats" & iss.Severity == "error") ...
     && any(iss.Step == "export" & iss.Field == "Signals" & iss.Severity == "warning"), ...
     'export needs a format; warns when Signals is off');
-cfg.Export.Formats = ["chronux" "bogus"];
+cfg.Export.Formats = ["nwb" "bogus"];
 iss = cfg.validate();
 check(any(iss.Field == "Formats" & contains(iss.Message, "bogus")), 'unknown export format is reported');
-cfg.Export.Formats = ["chronux" "epochs"];
-cfg.Export.EpochWindow = [0.5 -0.5];
+cfg.Export.Formats = ["nwb" "chronux"];
 iss = cfg.validate();
-check(~any(iss.Field == "Formats" & iss.Severity == "error") ...
-    && any(iss.Field == "EpochWindow" & iss.Severity == "error"), ...
-    '"epochs" is a known format; a reversed epoch window is an error');
-cfg.Export.Formats = ["chronux" "kcsd"]; cfg.Export.Signals = "MUA";
-iss = cfg.validate();
-check(~any(iss.Field == "Formats" & iss.Severity == "error") && any(iss.Field == "Signals" & iss.Severity == "error" & contains(iss.Message, "kCSD")), ...
-    '"kcsd" is a known format; it needs the LFP among Export.Signals');
-cfg.Export.Signals = strings(1, 0); cfg.Signals.Enabled = true; cfg.Signals.LFP = false; cfg.Signals.MUA = true;
-iss = cfg.validate();
-check(any(iss.Step == "export" & iss.Severity == "warning" & contains(iss.Message, "kCSD export needs an existing LFP")), ...
-    'a Signals step without LFP: the kCSD export warns');
-cfg.Signals = EphysPipelineConfig.defaults("Signals");
-cfg.Export.Formats = ["chronux" "epochs"];
-cfg.Export.EpochWindow = [-0.2 0.5];
-cfg.Export.IncludeEvents = false;
-iss = cfg.validate();
-check(any(iss.Field == "IncludeEvents" & iss.Severity == "error"), ...
-    'epochs around a digital line need the digital-input events');
-cfg.Export.IncludeEvents = true;
-cfg.Export.Formats = "chronux";
+check(any(iss.Field == "Formats" & iss.Severity == "error" & contains(iss.Message, "chronux")), ...
+    'a retired toolbox format set in code is an unknown format');
+cfg.Export.Formats = "nwb";
 check(isequal(cfg.enabledSteps(), ["probe" "sorting" "spikes" "export"]) && cfg.stepEnabled("probe") && ~cfg.stepEnabled("signals"), ...
     'enabledSteps / stepEnabled');
 check(strcmp(errorId(@() cfg.stepSection("nope")), 'EphysPipelineConfig:BadStep'), 'unknown step errors');

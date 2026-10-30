@@ -54,12 +54,12 @@ classdef EphysPipelineConfig
     %                and polarity are also used by the trial pairing
     %     Spikes     Enabled, threshold-detection settings, output settings
     %                (sorted units stay in the sorting folder)
-    %     Export     Enabled, Formats (a subset of ExportFormats: the
-    %                analysis-toolbox files, kCSD-python's .npz, the
-    %                event-organized epochs and NWB 2), what to include
-    %                (UnitQuality: the units carry their quality metrics),
-    %                the Epoch* settings of the epoch format, NWB (the NWB
-    %                file's metadata and the Python that writes it)
+    %     Export     Enabled, Formats (a subset of ExportFormats: NWB 2),
+    %                what to include (UnitQuality: the units carry their
+    %                quality metrics), NWB (the NWB file's metadata and the
+    %                Python that writes it). The analysis-toolbox inputs
+    %                (Chronux, FieldTrip, kCSD, ...) and event-organized
+    %                epochs are the DatasetBrowser's, not the pipeline's
     %     Analysis   Enabled, ConfigFile (an EphysAnalysisApp config, read
     %                when the step runs and run over the pipeline's
     %                selected datasets: analysisSource), Figures (write the
@@ -133,11 +133,9 @@ classdef EphysPipelineConfig
         StepNames = ["probe" "behavior" "artifacts" "sorting" "signals" "spikes" "export" "analysis"]
         % Section that holds each step's settings.
         StepSections = ["Probe" "Behavior" "Artifacts" "Sorting" "Signals" "Spikes" "Export" "Analysis"]
-        % Export formats the Export step can write: one per analysis
-        % toolbox (kcsd: the LFP and probe positions for kCSD-python, a
-        % .npz), plus "epochs", the same data organized by event. Each has
-        % an EphysDataset.export<Format> method.
-        ExportFormats = ["chronux" "fieldtrip" "epochs" "kcsd" "nwb"]
+        % Export formats the Export step can write. Each has an
+        % EphysDataset.export<Format> method.
+        ExportFormats = "nwb"
         % Kilosort4 parameters that depend on the probe layout: what
         % ks4ProbeDefaults derives and what a probe's parameter file holds
         % when it is created from the Sorting tab.
@@ -266,6 +264,7 @@ classdef EphysPipelineConfig
             end
             obj = EphysPipelineConfig();
             [s, warn] = movedWCARFields(s);
+            [s, warn] = retiredExports(s, warn);
             if isfield(s, 'name');        obj.Name = string(s.name);               end
             if isfield(s, 'description'); obj.Description = string(s.description); end
             for sec = EphysPipelineConfig.Sections
@@ -488,56 +487,27 @@ classdef EphysPipelineConfig
 
         function o = exportOptions(e, fmt)
             %exportOptions  Name-value struct for the export<Format> method of FMT.
-            %   The shared options, plus Validate (fieldtrip) or the Epoch*
-            %   settings under the epoch exporter's own names (epochs).
-            %   kcsd writes the LFP alone: Events and Overwrite only (the
-            %   caller adds the dataset's ProbeFile).
+            %   FMT is one of ExportFormats ("nwb", the default). The
+            %   caller adds ProbeFile and, when Export.NWB leaves them "",
+            %   the Sorting step's PythonExe / CondaEnv.
+            arguments
+                e
+                fmt (1,1) string {mustBeMember(fmt, "nwb")} = "nwb"
+            end
             e = EphysPipelineConfig.normalizeSection("Export", e);
-            if nargin > 1 && string(fmt) == "kcsd"
-                o = struct('Events', logical(e.IncludeEvents), 'Overwrite', logical(e.Overwrite));
-                return
-            end
-            if nargin > 1 && string(fmt) == "nwb"
-                % the caller adds ProbeFile and, when Export.NWB leaves them "",
-                % the Sorting step's PythonExe / CondaEnv
-                n = e.NWB;
-                o = struct();
-                if ~isempty(e.Signals); o.Signals = e.Signals; end
-                if e.IncludeUnits; o.Units = []; else; o.Units = false; end
-                o.UnitQuality = logical(e.UnitQuality);
-                o.Events = logical(e.IncludeEvents);
-                o.Groups = e.Groups;
-                o.Overwrite = logical(e.Overwrite);
-                o.Trials = logical(n.Trials);
-                o.Inspect = logical(n.Inspect);
-                o.PythonExe = n.PythonExe;
-                o.CondaEnv = n.CondaEnv;
-                o.Metadata = rmfield(n, ["Trials" "Inspect" "PythonExe" "CondaEnv"]);
-                return
-            end
+            n = e.NWB;
             o = struct();
             if ~isempty(e.Signals); o.Signals = e.Signals; end
-            if e.IncludeUnits;    o.Units = [];    else; o.Units = false;    end
+            if e.IncludeUnits; o.Units = []; else; o.Units = false; end
             o.UnitQuality = logical(e.UnitQuality);
-            o.Detected = logical(e.IncludeDetected);
-            o.Events   = logical(e.IncludeEvents);
-            o.Groups     = e.Groups;
-            o.Overwrite  = logical(e.Overwrite);
-            o.MatVersion = e.MatVersion;
-            if nargin > 1 && string(fmt) == "fieldtrip"
-                o.Validate = logical(e.Validate);
-            end
-            if nargin > 1 && string(fmt) == "epochs"
-                o.EventSource   = e.EpochSource;
-                o.EventLine     = e.EpochLine;
-                o.Window        = e.EpochWindow;
-                o.OnsetRule     = e.EpochOnsetRule;
-                o.Incomplete    = e.EpochIncomplete;
-                o.NonFinite     = e.EpochNonFinite;
-                o.Artifacts     = e.EpochArtifacts;
-                o.SpikeTimeBase = e.EpochSpikeTimeBase;
-                o.Class         = e.EpochClass;
-            end
+            o.Events = logical(e.IncludeEvents);
+            o.Groups = e.Groups;
+            o.Overwrite = logical(e.Overwrite);
+            o.Trials = logical(n.Trials);
+            o.Inspect = logical(n.Inspect);
+            o.PythonExe = n.PythonExe;
+            o.CondaEnv = n.CondaEnv;
+            o.Metadata = rmfield(n, ["Trials" "Inspect" "PythonExe" "CondaEnv"]);
         end
 
         function dirs = outputSearchDirs(cfg)
@@ -703,4 +673,38 @@ if isfield(G, 'ReferenceMethod')
     G = rmfield(G, 'ReferenceMethod');
 end
 s.Signals = G;
+end
+
+
+function [s, warn] = retiredExports(s, warn)
+%retiredExports  A config saved when the Export step wrote toolbox files.
+%   The formats chronux, fieldtrip, kcsd and epochs, and the settings only
+%   they used, are retired: the DatasetBrowser's scripts make those inputs.
+%   The settings are dropped without a word; a retired format that was
+%   ticked is dropped and reported in WARN (LoadWarnings), and Export is
+%   switched off when no format is left, so the config runs as before
+%   less those files.
+if ~isfield(s, 'Export') || ~isstruct(s.Export) || ~isscalar(s.Export)
+    return
+end
+E = s.Export;
+gone = ["IncludeDetected" "Validate" "MatVersion" "EpochSource" "EpochLine" "EpochWindow" ...
+    "EpochOnsetRule" "EpochIncomplete" "EpochNonFinite" "EpochArtifacts" "EpochSpikeTimeBase" "EpochClass"];
+E = rmfield(E, cellstr(intersect(gone, string(fieldnames(E)).')));
+if isfield(E, 'Formats')
+    f = string(E.Formats);
+    f = f(:).';
+    retired = f(ismember(f, ["chronux" "fieldtrip" "kcsd" "epochs"]));
+    if ~isempty(retired)
+        E.Formats = setdiff(f, retired, 'stable');
+        msg = "Export: the " + strjoin(retired, ", ") + " format(s) are no longer written by the " + ...
+            "pipeline (the DatasetBrowser's scripts make them) and were dropped";
+        if isempty(E.Formats) && isfield(E, 'Enabled') && isequal(logical(E.Enabled), true)
+            E.Enabled = false;
+            msg = msg + "; the Export step is off (no format left)";
+        end
+        warn(end+1) = msg;
+    end
+end
+s.Export = E;
 end

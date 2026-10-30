@@ -379,9 +379,8 @@ isequal(bi.nBins, ci.nSamples)      % true: bin k starts on sample k
 | `Signal="SPIKE"` + `Source="detect"` | the signal is already band-passed and `detectSpikes` filters again by default; the call warns and points at `DetectOptions=struct('Filter',false)` |
 | Kilosort channel ids | `spikes` reports cluster ids as sorted, not channels; peak channels are in the `units` struct from `EphysDataset.readSortedUnits` (`channel`, 1-based recording channel) |
 | Chronux not required | preparing data never calls Chronux; only your analysis does |
-| Files for later | `EphysDataset.exportChronux` (the pipeline's Export step) writes `<Name>_chronux.mat` with `LFP` / `MUA` / `SPIKE` structs (`data`, `params`, `t`, `labels`) and `sp` built by this class, so the analysis can run on a machine without the recordings; see [file-formats.md](file-formats.md#chronux-export-ephysdatasetexportchronux-the-export-step) |
-| Used by the analysis app | the analysis functions behind the [spectral panels](EphysAnalysisConfig.md#spectral-panels) cut the trials of a dataset's Chronux file with `trials` (on a block of rows, `OnsetRule="sample"`) before `mtspectrumc` / `mtspecgramc`; see [Chronux analyses](EphysAnalysis.md#chronux-analyses) |
-| Event-organized files | `EphysDataset.eventEpochs` / `exportEpochs` (the Export step's `epochs` format) cut the same data into one epoch per event with `trials` and `spikeTrials`, and keep the trial table and the behavior columns alongside; see [EphysDataset](EphysDataset.md#event-organized-epoched-data) |
+| Inputs from the DatasetBrowser | the browser's post-processing script [`S_DatasetBrowserToChronux.m`](../analysis/browser_scripts/S_DatasetBrowserToChronux.m) cuts its epochs (`R.epochs`) and whole sessions (`B.Sessions`) with this class, one struct per dataset: `data`, `params` and `t` for the continuous routines, `sp` for the point-process ones, each trial's group beside them; see [DatasetBrowser](DatasetBrowser.md#the-post-processing-script) |
+| Used by the analysis app | the analysis functions behind the [spectral panels](EphysAnalysisConfig.md#spectral-panels) cut the trials of a dataset's signal with `trials` (on a block of rows, `OnsetRule="sample"`) before `mtspectrumc` / `mtspecgramc`; see [Chronux analyses](EphysAnalysis.md#chronux-analyses) |
 
 ## Main error identifiers
 

@@ -22,7 +22,7 @@ classdef EphysPipeline < handle
     %                                   SpikeInterface sorter (runSpikeInterface)
     %     signals    runSignals         derived LFP/MUA/SPIKE/AUX .mat (toMat)
     %     spikes     runSpikeDetection  threshold-detected spikes .mat (spikesToMat)
-    %     export     runExport          analysis-toolbox / epoch files (Export.Formats)
+    %     export     runExport          NWB 2 files (Export.Formats)
     %     analysis   runAnalysis        an EphysAnalysisApp config's figures and report
     %                                   (Analysis.ConfigFile; needs the analysis folder)
     %   Each step method can be called directly (it then runs even if the
@@ -518,14 +518,6 @@ classdef EphysPipeline < handle
                     end
                 case "spikes"
                     f = fullfile(dirOr(c.Spikes.OutputDir, d), d.Name + string(c.Spikes.Suffix) + ".mat");
-                case "export:chronux"
-                    f = fullfile(dirOr(c.Export.OutputDir, d), d.Name + "_chronux.mat");
-                case "export:fieldtrip"
-                    f = fullfile(dirOr(c.Export.OutputDir, d), d.Name + "_fieldtrip.mat");
-                case "export:epochs"
-                    f = fullfile(dirOr(c.Export.OutputDir, d), d.Name + "_epochs.mat");
-                case "export:kcsd"
-                    f = fullfile(dirOr(c.Export.OutputDir, d), d.Name + "_kcsd.npz");
                 case "export:nwb"
                     f = fullfile(dirOr(c.Export.OutputDir, d), d.Name + ".nwb");
                 case "sorting"

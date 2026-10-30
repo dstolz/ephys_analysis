@@ -49,7 +49,7 @@ classdef EphysPipelineApp < handle
     %                step, background-run log
     %     Signals    derived LFP / MUA / SPIKE / AUX (.mat) settings, plan, Run
     %     Spikes     threshold detection / sorted units (.mat), preview, Run
-    %     Export     analysis-toolbox and epoch files (one per format), plan, Run
+    %     Export     NWB 2 files (one per format), plan, Run
     %     Analysis   the Analysis step: an EphysAnalysisApp config (its figures,
     %                alignment, figure files and report) run over the
     %                selected datasets; the config's summary and figures, open
@@ -698,10 +698,6 @@ classdef EphysPipelineApp < handle
 
         % --- Export tab ---
         ExpEnableCheckBox    matlab.ui.control.CheckBox
-        ExpChronuxCheckBox   matlab.ui.control.CheckBox
-        ExpFieldTripCheckBox matlab.ui.control.CheckBox
-        ExpEpochsCheckBox    matlab.ui.control.CheckBox
-        ExpKCSDCheckBox      matlab.ui.control.CheckBox
         ExpNWBCheckBox       matlab.ui.control.CheckBox
         ExpNWBLocationField  matlab.ui.control.EditField
         ExpNWBSpeciesField   matlab.ui.control.EditField
@@ -717,24 +713,10 @@ classdef EphysPipelineApp < handle
         ExpSignalsField      matlab.ui.control.EditField
         ExpUnitsCheckBox     matlab.ui.control.CheckBox
         ExpGroupsField       matlab.ui.control.EditField
-        ExpDetectedCheckBox  matlab.ui.control.CheckBox
         ExpEventsCheckBox    matlab.ui.control.CheckBox
-        ExpValidateCheckBox  matlab.ui.control.CheckBox
-        ExpEpochSourceDropDown     matlab.ui.control.DropDown
-        ExpEpochLineField          matlab.ui.control.EditField
-        ExpEpochPreField           matlab.ui.control.NumericEditField
-        ExpEpochPostField          matlab.ui.control.NumericEditField
-        ExpEpochOnsetRuleDropDown  matlab.ui.control.DropDown
-        ExpEpochIncompleteDropDown matlab.ui.control.DropDown
-        ExpEpochNonFiniteDropDown  matlab.ui.control.DropDown
-        ExpEpochArtifactsDropDown  matlab.ui.control.DropDown
-        ExpEpochSpikeBaseDropDown  matlab.ui.control.DropDown
-        ExpEpochClassDropDown      matlab.ui.control.DropDown
-        ExpEpochsToWorkspaceButton matlab.ui.control.Button
         ExpOutputDirField    matlab.ui.control.EditField
         ExpBrowseOutputButton matlab.ui.control.Button
         ExpOverwriteCheckBox matlab.ui.control.CheckBox
-        ExpMatVersionDropDown matlab.ui.control.DropDown
         ExpTargetsTable      matlab.ui.control.Table
         RunStepExportButton  matlab.ui.control.Button
         ExpRefreshButton     matlab.ui.control.Button
@@ -1365,7 +1347,6 @@ classdef EphysPipelineApp < handle
         onSpikesNeighbors(obj)
         onBrowseSpikesOutput(obj)
         onBrowseExportOutput(obj)
-        onExportEpochsToWorkspace(obj)
 
         % --- Analysis tab ---
         onAnalysisControlsChanged(obj, what)

@@ -336,20 +336,16 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
             tc.writeMat(fullfile(tc.Local, tc.Name + "_spk.mat"), ...
                 struct('detected', 1, 'units', 1, 'conversion', conv));
             tc.writeMat(fullfile(tc.Local, tc.Name + "_behavior.mat"), struct('behavior', 1, 'conversion', conv));
-            tc.writeMat(fullfile(shared, tc.Name + "_ft.mat"), struct('export', conv, 'event', 1));
-            tc.writeMat(fullfile(shared, "OTHER_ft.mat"), struct('export', struct('dataset', "OTHER"), 'event', 1));
+            tc.writeNWBNotes(fullfile(shared, tc.Name + ".nwb"), tc.Name);
+            tc.writeNWBNotes(fullfile(shared, "OTHER.nwb"), "OTHER");
             tc.writeBytes(fullfile(tc.Local, tc.Name + "_events.mat"), 60);
             tc.writeBytes(fullfile(tc.Local, tc.Name + "_artifacts.json"), 30);
             tc.writeBytes(fullfile(tc.Local, "~" + tc.Name + "_extract_MUA.partial.mat"), 70);
             tc.writeBytes(fullfile(tc.Local, tc.Name + "_notes.txt"), 10);
-            kcsdMeta = @(name) string(jsonencode(struct('tool', "EphysDataset.exportKCSD", 'dataset', name)));
-            writeNPZ(fullfile(shared, tc.Name + "_kcsd.npz"), struct('ele_pos', [0; 1], 'meta', kcsdMeta(tc.Name)), ...
-                Shapes=struct('meta', "scalar"));
-            writeNPZ(fullfile(tc.Local, tc.Name + "_b_kcsd.npz"), struct('ele_pos', [0; 1], 'meta', kcsdMeta("OTHER")), ...
-                Shapes=struct('meta', "scalar"));
-            tc.writeBytes(fullfile(tc.Local, "~" + tc.Name + "_kcsd.partial.npz"), 40);
+            tc.writeNWBNotes(fullfile(tc.Local, tc.Name + "_b.nwb"), "OTHER");
+            tc.writeBytes(fullfile(tc.Local, tc.Name + "_nwbinspector.json"), 40);
             expect = [tc.Name + "_lfp.mat" "signals"; tc.Name + "_extract_LFP.mat" "signals"
-                "~" + tc.Name + "_kcsd.partial.npz" "export"
+                tc.Name + "_nwbinspector.json" "export"
                 "~" + tc.Name + "_extract_MUA.partial.mat" "signals"; tc.Name + "_spk.mat" "spikes"
                 tc.Name + "_spikes.mat" "spikes"; tc.Name + "_behavior.mat" "behavior"
                 tc.Name + "_events.mat" "behavior"; tc.Name + "_artifacts.json" "artifacts"];
@@ -360,14 +356,11 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
                 r = T(T.File == fullfile(tc.Local, expect(k, 1)), :);
                 tc.verifyEqual([r.Step r.Action], [expect(k, 2) "remove"], expect(k, 1));
             end
-            ft = T(T.File == fullfile(shared, tc.Name + "_ft.mat"), :);
-            tc.verifyEqual([ft.Step ft.Action ft.What ft.Root], ["export" "remove" "FieldTrip export" string(shared)], ...
-                'an output in a search folder is listed below that folder');
-            tc.verifyFalse(any(contains(T.File, "OTHER_ft")), 'another dataset''s file in the search folder is not listed');
-            kc = T(T.File == fullfile(shared, tc.Name + "_kcsd.npz"), :);
-            tc.verifyEqual([kc.Step kc.Action kc.What], ["export" "remove" "kCSD export"], ...
-                'a kCSD .npz is placed by its meta member');
-            tc.verifyEqual(tc.action(T, tc.Name + "_b_kcsd.npz"), "keep", 'a .npz whose meta names another dataset stays');
+            nw = T(T.File == fullfile(shared, tc.Name + ".nwb"), :);
+            tc.verifyEqual([nw.Step nw.Action nw.What nw.Root], ["export" "remove" "NWB export" string(shared)], ...
+                'an output in a search folder is listed below that folder; an .nwb is placed by its notes');
+            tc.verifyFalse(any(contains(T.File, "OTHER")), 'another dataset''s file in the search folder is not listed');
+            tc.verifyEqual(tc.action(T, tc.Name + "_b.nwb"), "keep", 'an .nwb whose notes name another dataset stays');
             tc.verifyEqual(T.What(T.File == fullfile(tc.Local, "~" + tc.Name + "_extract_MUA.partial.mat")), ...
                 "Unfinished signals output (extract) (a failed write)");
             tc.verifyEqual(tc.action(T, tc.Name + "_notes.txt"), "keep");
@@ -669,6 +662,12 @@ classdef test_LocalCleanup < matlab.unittest.TestCase
 
         function writeMat(file, S)
             save(file, '-struct', 'S');
+        end
+
+        function writeNWBNotes(file, dataset)
+            %writeNWBNotes  An HDF5 file holding only the /general/notes JSON exportNWB writes.
+            h5create(file, '/general/notes', 1, 'Datatype', 'string');
+            h5write(file, '/general/notes', string(jsonencode(struct('tool', "EphysDataset.exportNWB", 'dataset', dataset))));
         end
     end
 end

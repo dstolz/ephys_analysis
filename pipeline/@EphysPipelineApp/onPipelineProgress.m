@@ -40,7 +40,7 @@ function t = timeText(obj, evt, frac)
 %   comes from how far it is through its datasets, as the diagram counts
 %   it; it is the run's once the run's last step is under way. Before then
 %   it says how many steps follow, since nothing tells how long they take.
-key = extractBefore(evt.step + ":", ":");   % "export:chronux" -> "export"
+key = extractBefore(evt.step + ":", ":");   % "export:nwb" -> "export"
 if isempty(obj.RunStepClock) || obj.RunClockStep ~= key
     obj.RunStepClock = ProgressClock();
     obj.RunClockStep = key;

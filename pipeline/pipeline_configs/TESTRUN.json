@@ -227,32 +227,15 @@
   },
   "Export": {
     "Enabled": false,
-    "Formats": [
-      "chronux",
-      "fieldtrip"
-    ],
+    "Formats": [],
     "Signals": [],
     "IncludeUnits": true,
     "UnitQuality": true,
-    "IncludeDetected": true,
     "IncludeEvents": true,
     "Groups": [
       "good",
       "mua"
     ],
-    "Validate": true,
-    "EpochSource": "line",
-    "EpochLine": "",
-    "EpochWindow": [
-      -0.2,
-      0.5
-    ],
-    "EpochOnsetRule": "event",
-    "EpochIncomplete": "nan",
-    "EpochNonFinite": "keep",
-    "EpochArtifacts": "drop",
-    "EpochSpikeTimeBase": "onset",
-    "EpochClass": "double",
     "NWB": {
       "SessionDescription": "",
       "ExperimentDescription": "",
@@ -276,7 +259,6 @@
       "CondaEnv": ""
     },
     "OutputDir": "",
-    "MatVersion": "-v7.3",
     "Overwrite": true
   }
 }

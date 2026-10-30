@@ -1,13 +1,13 @@
 function test_EphysPipelineScript()
 %test_EphysPipelineScript  Verification suite for the script generator.
 %   Generates the compact and the standalone script for a config over a
-%   synthetic project (spike detection + exports enabled, sorting as a dry
-%   run), checks both with checkcode, runs each into its own output root and
-%   requires the spikes / chronux / fieldtrip files and settings.json to
-%   match between the two. Then runs both on copies of one synthetic
-%   recording with its Epsych2 session (behavior step pairing and approving
-%   the trials, epochs around the paired trials) and requires the same
-%   pairing, behavior file and epochs. Also checks that disabled steps are
+%   synthetic project (spike detection enabled, the NWB export too when a
+%   Python has pynwb and nwbinspector, sorting as a dry run), checks both
+%   with checkcode, runs each into its own output root and requires the
+%   spikes file, the NWB file and settings.json to match between the two.
+%   Then runs both on copies of one synthetic recording with its Epsych2
+%   session (behavior step pairing and approving the trials) and requires
+%   the same pairing and behavior file. Also checks that disabled steps are
 %   commented out in the compact script, that it stops on run()'s checks, that
 %   the standalone script never uses the EphysPipeline runner, and that
 %   literal(v) round-trips through eval.
@@ -78,7 +78,8 @@ cfg.Sorting.Enabled = true; cfg.Sorting.PythonExe = "C:\envs\ks\python.exe"; cfg
 cfg.Sorting.Execution = "blocking"; cfg.Sorting.KS4.nblocks = 2; cfg.Sorting.KS4ExtraJSON = "{""x_centers"": 2}";
 cfg.Spikes.Enabled = true; cfg.Spikes.Filter = false;
 cfg.Spikes.ThresholdMethod = "absolute"; cfg.Spikes.Threshold = 2000;
-cfg.Export.Enabled = true; cfg.Export.Formats = ["chronux" "fieldtrip" "kcsd"]; cfg.Export.IncludeDetected = true;
+py = nwbPython();   % the NWB export runs only with a Python that has pynwb and nwbinspector
+cfg.Export.Enabled = py ~= ""; cfg.Export.Formats = "nwb"; cfg.Export.NWB.PythonExe = py;
 cfg.Artifacts.Enabled = false;
 % signals off: an extract is written by hand into each output root instead
 cfg.Signals.Enabled = false;
@@ -162,19 +163,14 @@ check(contains(txtS, "d.TrialConfig = trialConfig;") && contains(txtS, "trialCon
     'standalone script pushes the trial config and uses the default probe without assigning it');
 check(contains(txtS, "parallelOpts.UseParallel = false;") && contains(txtS, "parallelArgs{:}") ...
     && contains(txtS, "detectOptions.UseParallel = false;"), 'standalone script carries the Parallel section into the chunked steps');
-check(contains(txtS, "S = load(extract(1));") && contains(txtS, "d.exportChronux('File', outFiles(j), 'Extract', S, args{:});") ...
-    && contains(txtS, "[units, uinfo] = d.readSortedUnits(Groups=[""good"" ""mua""]);") ...
-    && contains(txtS, "units = d.unitQuality(units, uinfo);") && contains(txtS, "o.Detected = detected;") ...
-    && count(txtS, "load(extract(") == 1, ...
-    'standalone export reads each dataset''s extract, units (with their quality metrics) and detected spikes once for every format');
-cfgNQ = cfgB; cfgNQ.Export.UnitQuality = false;
-check(contains(EphysPipelineScript.standalone(cfgNQ), "units = d.readSortedUnits(Groups=[""good"" ""mua""]); end") ...
-    && ~contains(EphysPipelineScript.standalone(cfgNQ), "d.unitQuality("), 'Export.UnitQuality off: the units without metrics');
-cfgNWB = cfgB; cfgNWB.Export.Formats = ["chronux" "nwb"];
-txtN = EphysPipelineScript.standalone(cfgNWB);
-check(contains(txtN, "tails(formats == ""nwb"") = "".nwb"";") && contains(txtN, "r = d.exportNWB('File', outFiles(j), 'Extract', S, args{:});") ...
-    && contains(txtN, "o.Behavior = fullfile(d.outputFolder(), d.Name + ""_behavior.mat"");"), ...
-    'standalone export writes <Name>.nwb with exportNWB, the probe in effect and the behavior file''s trials');
+check(contains(txtS, "out = fullfile(d.outputFolder(), d.Name + "".nwb"");") && contains(txtS, "o.Extract = extract;") ...
+    && contains(txtS, "r = d.exportNWB('File', out, args{:});") && contains(txtS, "if o.ProbeFile == """"; o.ProbeFile = defaultProbe; end") ...
+    && contains(txtS, "o.Behavior = fullfile(d.outputFolder(), d.Name + ""_behavior.mat"");") ...
+    && contains(txtS, "if d.sortingMissing();") && ~contains(txtS, "load(extract("), ...
+    'standalone export writes <Name>.nwb with exportNWB from the extract files, the probe in effect and the behavior file''s trials');
+cfgNo0 = cfgB; cfgNo0.Export.Formats = strings(1, 0);
+check(contains(EphysPipelineScript.standalone(cfgNo0), "% no export format ticked") ...
+    && ~contains(EphysPipelineScript.standalone(cfgNo0), "exportNWB"), 'no export format: the export section writes nothing');
 cfgES = cfgB; cfgES.Signals.MUA = true; cfgES.Export.Signals = "LFP";
 txtES = EphysPipelineScript.standalone(cfgES);
 check(contains(txtES, "extract = EphysDataset.recordedSignalFiles(EphysDataset.signalFiles(fullfile(d.outputFolder(), " + ...
@@ -209,20 +205,20 @@ outS = runScript(standaloneFile);
 check(isfile(fullfile(outB, 'A1_260101_120000', 'A1_260101_120000_spikes.mat')), 'standalone script ran and wrote the spikes file');
 check(~contains(outS, "FAILED"), 'standalone script reported no failures');
 if contains(outS, "FAILED"); disp(outS); end
-for f = ["A1_260101_120000_spikes.mat" "A1_260101_120000_chronux.mat" "A1_260101_120000_fieldtrip.mat"]
-    A = load(fullfile(outA, 'A1_260101_120000', f));
-    B = load(fullfile(outB, 'A1_260101_120000', f));
-    A = stripVolatile(A); B = stripVolatile(B);
-    check(isequaln(A, B), "identical " + f + " from both scripts");
+A = stripVolatile(load(fullfile(outA, 'A1_260101_120000', 'A1_260101_120000_spikes.mat')));
+B = stripVolatile(load(fullfile(outB, 'A1_260101_120000', 'A1_260101_120000_spikes.mat')));
+check(isequaln(A, B), "identical A1_260101_120000_spikes.mat from both scripts");
+if py ~= ""
+    nA = fullfile(outA, 'A1_260101_120000', 'A1_260101_120000.nwb');
+    nB = fullfile(outB, 'A1_260101_120000', 'A1_260101_120000.nwb');
+    check(isfile(nA) && isfile(nB) ...
+        && isequal(h5read(nA, '/processing/ecephys/LFP/LFP/data'), h5read(nB, '/processing/ecephys/LFP/LFP/data')) ...
+        && isequal(h5read(nA, '/units/spike_times'), h5read(nB, '/units/spike_times')) ...
+        && isequal(h5read(nA, '/general/extracellular_ephys/electrodes/rel_y'), h5read(nB, '/general/extracellular_ephys/electrodes/rel_y')), ...
+        'the same NWB file (signals, units, electrodes on the probe) from both scripts');
+else
+    fprintf('  (no Python with pynwb and nwbinspector: the NWB export is not run; set NWB_PYTHON)\n');
 end
-kA = readNPZ(fullfile(outA, 'A1_260101_120000', 'A1_260101_120000_kcsd.npz'));
-kB = readNPZ(fullfile(outB, 'A1_260101_120000', 'A1_260101_120000_kcsd.npz'));
-mA = jsondecode(kA.meta); mB = jsondecode(kB.meta);
-check(isequaln(rmfield(kA, 'meta'), rmfield(kB, 'meta')) ...
-    && isequaln(rmfield(mA, {'created' 'sources' 'provenance'}), rmfield(mB, {'created' 'sources' 'provenance'})) ...
-    && string(mA.sources.probeFile) == string(probeFile) && string(mB.sources.probeFile) == string(probeFile) ...
-    && isequal(size(kA.pots), [numAmp 256]), ...
-    'identical A1_260101_120000_kcsd.npz from both scripts, on the dataset''s probe');
 paths = {'filename', 'probe', 'results_dir', 'provenance'};   % under each script's own output root; when and how it ran
 stA = rmfield(readJsonFile(fullfile(outA, 'A1_260101_120000', 'kilosort4', 'dryrun', 'settings.json')), paths);
 stB = rmfield(readJsonFile(fullfile(outB, 'A1_260101_120000', 'kilosort4', 'dryrun', 'settings.json')), paths);
@@ -241,7 +237,7 @@ end
 check(strcmp(errBad, 'EphysPipeline:PlanInvalid') && ~isfile(fullfile(outA, 'A1_260101_120000', 'A1_260101_120000_spikes.mat')), ...
     'a compact script whose plan has an error stops before any step');
 
-fprintf('\n== 4. behavior pairing and behavior epochs: both scripts do what the runner does ==\n');
+fprintf('\n== 4. behavior pairing: both scripts do what the runner does ==\n');
 nm = "SYN-01_260102_100000";
 synA = fullfile(root, 'projBA', nm);
 synB = fullfile(root, 'projBB', nm);
@@ -249,19 +245,9 @@ makeSyntheticRecording(synA, Subject="SYN-01", Fs=5000, NumChannels=4, NumTrials
     SortedOutput=false, WriteManifest=false, Artifacts=false);
 copyfile(synA, synB);                     % the same recording, with its Epsych2 session, twice
 outBA = fullfile(root, 'outBA'); outBB = fullfile(root, 'outBB');
-ds = EphysDataset(synA);
-src = ds.readData();
-Sx = struct('Y', struct('LFP', single(src.amplifier(1:5:end, :)), 'MUA', single([]), 'SPIKE', single([])), ...
-    'events', src.events, 'info', struct('LFP', struct('Fs', 1000), 'labels', ds.ChannelNames, 'origFs', 5000));
-for o = [string(outBA) string(outBB)]
-    mkdir(fullfile(o, nm));
-    save(fullfile(o, nm, nm + "_extract_LFP.mat"), '-struct', 'Sx');   % the Signals step's file
-end
 cfgBeh = EphysPipelineConfig();
 cfgBeh.Name = "behavior parity";
 cfgBeh.Behavior.Enabled = true; cfgBeh.Behavior.AutoApprove = true;   % PairTrials, WriteFile, TrialLine "InTrial": defaults
-cfgBeh.Export.Enabled = true; cfgBeh.Export.Formats = "epochs"; cfgBeh.Export.EpochSource = "behavior";
-cfgBeh.Export.IncludeUnits = false; cfgBeh.Export.EpochWindow = [-0.1 0.2];
 cfgBehA = cfgBeh; cfgBehA.Project.Root = fileparts(synA); cfgBehA.Project.OutputRoot = outBA;
 cfgBehB = cfgBeh; cfgBehB.Project.Root = fileparts(synB); cfgBehB.Project.OutputRoot = outBB;
 cfgBehA = cfgBehA.save(fullfile(root, 'behavior.json'));
@@ -296,11 +282,6 @@ BB = load(fullfile(outBB, nm, nm + "_behavior.mat"));
 check(isequaln(BA.behavior.trials, BB.behavior.trials) && isequaln(BA.behavior.pairing, BB.behavior.pairing) ...
     && ismember("TrialOnset", string(BB.behavior.trials.Properties.VariableNames)) && BB.behavior.pairing.status == "approved", ...
     'identical behavior files from both scripts, with the pairing columns');
-EA = load(fullfile(outBA, nm, nm + "_epochs.mat"));
-EB = load(fullfile(outBB, nm, nm + "_epochs.mat"));
-check(EB.epochs.event.nEpochs == 4 && isequaln(EA.epochs.trials, EB.epochs.trials) ...
-    && isequaln(EA.epochs.signals, EB.epochs.signals) && isequaln(EA.epochs.event, EB.epochs.event), ...
-    'identical epochs around the paired trials from both scripts');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
@@ -317,10 +298,8 @@ end
 
 function S = stripVolatile(S)
 %stripVolatile  Drop timestamps / paths that legitimately differ between runs.
-for f = ["conversion" "export"]
-    if isfield(S, f)
-        S = rmfield(S, f);
-    end
+if isfield(S, 'conversion')
+    S = rmfield(S, 'conversion');
 end
 if isfield(S, 'units') && isstruct(S.units) && isfield(S.units, 'readAt')
     S.units = rmfield(S.units, 'readAt');
@@ -328,9 +307,21 @@ end
 if isfield(S, 'detected') && isstruct(S.detected)
     S.detected.detection = rmfield(S.detected.detection, 'options');
 end
-for f = ["spike" "spikeDetected" "data_LFP"]
-    if isfield(S, f) && isstruct(S.(f)) && isfield(S.(f), 'hdr') && isfield(S.(f).hdr, 'orig')
-        S.(f).hdr = rmfield(S.(f).hdr, 'orig');
-    end
+end
+
+
+function py = nwbPython()
+%nwbPython  A Python with pynwb and nwbinspector: NWB_PYTHON, else pyenv's ("" for none).
+py = "";
+cands = string(getenv('NWB_PYTHON'));
+try
+    pe = pyenv;
+    cands(end+1) = string(pe.Executable);
+catch
+end
+for c = cands(cands ~= "")
+    if ~isfile(c); continue; end
+    [st, ~] = system(sprintf('"%s" -c "import pynwb, nwbinspector"', c));
+    if st == 0; py = c; return; end
 end
 end

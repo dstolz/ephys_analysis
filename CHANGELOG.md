@@ -2008,6 +2008,20 @@ says how to cut a release.
 
 ### Removed
 
+- The pipeline's analysis-toolbox and epoch exports: the DatasetBrowser and its post-processing scripts
+  (`analysis/browser_scripts`) make the Chronux, FieldTrip, kCSD, iCSD, neuroGLM and mTRF inputs and the
+  event-organized epochs. The Export step and tab now write NWB 2 only (`EphysPipelineConfig.ExportFormats` is
+  `"nwb"`). Gone: the formats `chronux`, `fieldtrip`, `kcsd` and `epochs`; `EphysDataset.exportChronux`,
+  `exportFieldTrip`, `exportKCSD`, `exportEpochs` and `eventEpochs`; the `KCSDExport` class
+  (`recordingChannels` is now a function of its own); `FieldTripExport.raw`, `spike` and `spikeFromDetected`
+  (the builders the browser uses stay); the Export tab's toolbox and epoch controls and **Epochs to workspace**;
+  the Export settings `IncludeDetected`, `Validate`, `MatVersion` and `Epoch*`; `exportNWB`'s ignored `Detected`
+  option; `DatasetOutputs`' `chronux`, `fieldtrip`, `epochs` and `kcsd` kinds with their properties
+  (`ChronuxFile`, `FieldTrip`, ...); `test_EventEpochs` and `test_KCSDExport` (its NumPy archive checks are
+  `test_NumPyArchives`). A config that names a retired format loads without it, with a load warning, and with the
+  Export step off when no format is left; the retired settings are dropped silently. The clean-up's **Export**
+  option now removes `<Name>.nwb` and its nwbinspector report. The shipped configs are resaved without the
+  retired settings.
 - The Figures tab's template drop-down above **Add**, and the Panels section's **Add panel** drop-down with
   its **Above** / **Below** / **Left** / **Right** buttons (one **New panel...** button and its window
   instead); the app's `onAddPanel`, `FigureTemplateDropDown` and `FigureAddType`. `figureTemplates` and

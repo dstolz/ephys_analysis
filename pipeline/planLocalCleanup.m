@@ -50,10 +50,10 @@ function T = planLocalCleanup(datasets, opts)
 %     "behavior"     <Name>_behavior.mat (behaviorToMat) and the digital
 %                    events cache <Name>_events.mat (trial pairing)
 %     "artifacts"    the artifact-interval cache <Name>_artifacts.json
-%     "export"       the Chronux, FieldTrip and epochs .mat files and the
-%                    kCSD .npz
-%   A .mat output is recognized by the variables it holds (a .npz by its
-%   meta member; DatasetOutputs),
+%     "export"       the NWB file (<Name>.nwb) and its nwbinspector report
+%                    (<Name>_nwbinspector.json)
+%   A .mat output is recognized by the variables it holds (an .nwb by its
+%   notes; DatasetOutputs),
 %   so outputs with configured suffixes are found too, else by its default
 %   name (<Name>_extract*, <Name>_spikes*, ...). Unfinished outputs that a
 %   failed write left (~<name>.partial.mat) go with their step. The probe
@@ -227,10 +227,10 @@ for k = 1:n
     else
         kind = "";
         if isKey(outputKind, char(fileKey)); kind = outputKind(char(fileKey)); end
-        partial = startsWith(lower(leaf), "~" + lower(name) + "_") && endsWith(lower(leaf), [".partial.mat" ".partial.npz"]);
+        partial = startsWith(lower(leaf), "~" + lower(name) + "_") && endsWith(lower(leaf), ".partial.mat");
         if kind == "" && (partial || startsWith(lower(leaf), lower(name) + "_"))
             kind = "other";
-            if partial || any(lower(ext) == [".mat" ".json" ".npz"])
+            if partial || any(lower(ext) == [".mat" ".json"])
                 byName = nameKind(lower(extractAfter(leaf, strlength(name) + 1 + partial)));
                 if byName ~= ""; kind = byName; end
             end
@@ -317,18 +317,16 @@ end
 
 
 function [what, step] = outputWhat(kind)
-%outputWhat  Words for an output of KIND (a DatasetOutputs kind, or "events") and the step that writes it.
+%outputWhat  Words for an output of KIND (a DatasetOutputs kind, "events" or "nwbinspector") and the step that writes it.
 switch kind
     case "extract";   what = "Signals output (extract)"; step = "signals";
     case "spikes";    what = "Spikes output";            step = "spikes";
     case "behavior";  what = "Behavior output";          step = "behavior";
     case "events";    what = "Digital events cache";     step = "behavior";
     case "artifacts"; what = "Artifact cache";           step = "artifacts";
-    case "chronux";   what = "Chronux export";           step = "export";
-    case "fieldtrip"; what = "FieldTrip export";         step = "export";
-    case "epochs";    what = "Epochs export";            step = "export";
-    case "kcsd";      what = "kCSD export";              step = "export";
-    otherwise;        what = "Pipeline output";          step = "";
+    case "nwb";       what = "NWB export";               step = "export";
+    case "nwbinspector"; what = "NWB export's nwbinspector report"; step = "export";
+    otherwise;       what = "Pipeline output";          step = "";
 end
 end
 
@@ -336,7 +334,7 @@ end
 function kind = nameKind(rest)
 %nameKind  The output kind a <Name>_<rest> file's default name gives ("" = none).
 kind = "";
-for k = ["extract" "spikes" "behavior" "events" "artifacts" "chronux" "fieldtrip" "epochs" "kcsd"]
+for k = ["extract" "spikes" "behavior" "events" "artifacts" "nwbinspector"]
     if startsWith(rest, k); kind = k; return; end
 end
 end

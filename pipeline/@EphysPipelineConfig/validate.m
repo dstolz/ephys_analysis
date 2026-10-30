@@ -394,16 +394,6 @@ if E.Enabled
     if ~G.Enabled
         add("export", "Signals", "warning", "The Signals step is off; each dataset needs an existing extract file.");
     end
-    if E.IncludeDetected && ~K.Enabled
-        add("export", "IncludeDetected", "warning", "Detected spikes are included only where a spikes file already exists.");
-    end
-    if any(E.Formats == "kcsd")
-        if ~isempty(E.Signals) && ~any(upper(E.Signals) == "LFP")
-            add("export", "Signals", "error", "The kCSD export writes the LFP, but Export.Signals leaves it out.");
-        elseif G.Enabled && ~G.LFP
-            add("export", "Formats", "warning", "The Signals step derives no LFP; the kCSD export needs an existing LFP extract.");
-        end
-    end
     if any(E.Formats == "nwb")
         N = E.NWB;
         py = N.PythonExe;
@@ -437,31 +427,6 @@ if E.Enabled
         if ~isempty(unset)
             add("export", "NWB", "warning", "NWB." + strjoin(unset, ", NWB.") + ...
                 " not set: nwbinspector reports a subject without them (nothing is made up for them).");
-        end
-    end
-    if any(E.Formats == "epochs")
-        w = E.EpochWindow;
-        if numel(w) ~= 2 || w(2) <= w(1)
-            add("export", "EpochWindow", "error", ...
-                "The epoch window must be [tPre tPost] with tPre < tPost; got [" + strjoin(string(w), " ") + "].");
-        end
-        if ~ismember(E.EpochSource, ["line" "behavior"])
-            add("export", "EpochSource", "error", "Epoch events come from a digital line or the paired trials (line / behavior).");
-        end
-        % eventEpochs' choices, checked here so a bad value fails validation, not every dataset
-        choices = struct('EpochOnsetRule', ["event" "sample"], 'EpochIncomplete', ["nan" "drop" "error"], ...
-            'EpochNonFinite', ["keep" "drop" "error"], 'EpochArtifacts', ["drop" "keep"], ...
-            'EpochSpikeTimeBase', ["onset" "window" "absolute"], 'EpochClass', ["double" "single" "asis"]);
-        for f = string(fieldnames(choices)).'
-            if isfield(E, f) && ~(isscalar(string(E.(f))) && ismember(string(E.(f)), choices.(f)))
-                add("export", f, "error", sprintf("%s must be one of %s.", f, strjoin(choices.(f), ", ")));
-            end
-        end
-        if E.EpochSource == "line" && ~E.IncludeEvents
-            add("export", "IncludeEvents", "error", "Epochs around a digital line need the digital-input events.");
-        end
-        if E.EpochSource == "behavior" && ~(B.Enabled && B.PairTrials)
-            add("export", "EpochSource", "warning", "Epochs around behavior trials need a paired session (the behavior step with PairTrials, reviewed on the Trials tab).");
         end
     end
 end

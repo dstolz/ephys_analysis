@@ -115,7 +115,7 @@ words = ["raw" "Raw recording files (a copy of the same size is at the source)"
     "step:spikes" "Spikes output"
     "step:behavior" "Behavior output and digital events caches"
     "step:artifacts" "Artifact caches"
-    "step:export" "Export files (Chronux, FieldTrip, epochs, kCSD)"];
+    "step:export" "Export files (NWB and its nwbinspector report)"];
 lines = strings(0, 1);
 for k = 1:size(words, 1)
     sel = group == words(k, 1);

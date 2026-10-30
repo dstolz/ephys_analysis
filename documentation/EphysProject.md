@@ -169,7 +169,7 @@ P = EphysProject("S:\backup\EXTRACT");   % warns EphysProject:OutputsOnly
 P.refresh();                             % metadata from the outputs; writes nothing
 T = P.gatherMetadata();
 out = P.Datasets(1).outputs();           % DatasetOutputs
-u = out.Units;  E = out.Epochs;  b = out.Behavior;
+u = out.Units;  S = out.Extract;  b = out.Behavior;
 ```
 
 When `discover()` finds no recording, it looks for folders laid out as the

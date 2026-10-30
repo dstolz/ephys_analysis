@@ -112,7 +112,7 @@ With no mapping given it reopens the chain it showed when it last closed.
    site's shank is bold blue. Groups set by hand are saved with the mapping
    and in the export, and are dropped when you choose another probe design.
    The pipeline reads `kcoords` as the shank too (the Probe tab picture,
-   `channelLayout`, the analysis probe maps, the NWB and kCSD exports), so a
+   `channelLayout`, the analysis probe maps, the NWB export), so a
    regrouping shows there as well. They need a probe design.
 7. **Copy table** (tab-separated, pastes into Excel), **Copy CSV**, **Copy
    MATLAB** (`site`, `chanMap` and `kcoords` vectors) or **Copy path**.

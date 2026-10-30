@@ -31,7 +31,7 @@ switch obj.Tabs.SelectedTab
     case obj.TabSpikes
         msg = "Spikes: threshold detection and/or sorted units per dataset.";
     case obj.TabExport
-        msg = "Export: write analysis-toolbox files from the extract + spikes.";
+        msg = "Export: write NWB files from the extract, the sorted units and the behavior file.";
         obj.refreshStepPlan("export");
     case obj.TabAnalysis
         msg = "Analysis: choose an analysis config (made in the analysis app); the step draws its plots and writes its report for the selected datasets.";

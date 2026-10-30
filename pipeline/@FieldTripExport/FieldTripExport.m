@@ -1,36 +1,33 @@
 classdef FieldTripExport
     % FieldTripExport  Build FieldTrip data structures from this pipeline's data.
     %   Pure, static packaging functions: nothing here reads a recording or
-    %   calls FieldTrip. They take the neutral inputs the pipeline already
-    %   produces - the extract struct written by EphysDataset.toMat (Y, events,
-    %   info), the units struct from EphysDataset.readSortedUnits, and the
-    %   detected struct from EphysDataset.spikesToMat - and return structs in
-    %   the shapes FieldTrip documents (ft_datatype_raw, ft_datatype_spike,
-    %   ft_read_event). EphysDataset.exportFieldTrip writes them to a .mat.
+    %   calls FieldTrip. They take signals as matrices, spike times, events
+    %   and erased periods - from this pipeline or not - and return structs
+    %   in the shapes FieldTrip documents (ft_datatype_raw,
+    %   ft_datatype_spike, ft_read_event). The DatasetBrowser feeds them its
+    %   results (epochMatrixFieldTrip, sessionDataFieldTrip; the browser
+    %   script S_DatasetBrowserToFieldTrip).
     %
     %   FieldTrip is never required. When it is on the path, validate() runs
     %   ft_datatype_raw / ft_datatype_spike on the structs as a check.
     %
-    %   continuous, epochs and trl are the general builders: any signal as a
-    %   matrix, from this pipeline or not (epochMatrixFieldTrip and
-    %   sessionDataFieldTrip feed them the analysis results).
-    %
     %   Conventions
     %   -----------
-    %   - raw: one trial spanning the whole signal; trial{1} is [nChan x N]
-    %     (the transpose of this pipeline's [N x nChan]); time{1} = (k-1)/Fs;
-    %     sampleinfo = [1 N]; hdr.TimeStampPerSample = origFs/Fs so raw and
-    %     spike timestamps share the recording's sample clock.
+    %   - continuous: one trial spanning the whole signal; trial{1} is
+    %     [nChan x N] (the transpose of this pipeline's [N x nChan]);
+    %     time{1} = (k-1)/Fs; sampleinfo = [1 N]; hdr.TimeStampPerSample =
+    %     OrigFs/Fs so raw and spike timestamps share the recording's sample
+    %     clock.
     %   - epochs: a trial per epoch, time{k} = the epoch's times from its
     %     event; sampleinfo, when the onsets are given, places each epoch on
     %     the continuous signal it was cut from (onset t at sample
     %     round(t*Fs) + 1).
-    %   - spike: timestamp{u} are 0-based recording samples (Kilosort's
-    %     spike_times), hdr.Fs the sorter's rate, FirstTimeStamp = 0,
+    %   - spikeTimes: timestamp{u} are 0-based samples at hdr.Fs (spike
+    %     times in s, t = timestamp/Fs), FirstTimeStamp = 0,
     %     TimeStampPerSample = 1. No trial fields: cut trials in FieldTrip
-    %     with ft_spike_maketrials. spikeTimes builds the same from spike
-    %     times in s; spikeTrials from spikes already cut into trials (time,
-    %     trial, trialtime, as ft_spike_maketrials leaves them).
+    %     with ft_spike_maketrials. spikeTrials builds one from spikes
+    %     already cut into trials (time, trial, trialtime, as
+    %     ft_spike_maketrials leaves them).
     %   - event: one element per digital-input pulse, value = 1. Pulse times
     %     are t = row/origFs on the recording's clock, so row r is at
     %     continuous time (r-1)/origFs, and at a signal's rate Fs sample =
@@ -41,36 +38,9 @@ classdef FieldTripExport
     %     [begsample endsample] rows on a raw structure's sampleinfo (every
     %     sample a period touches), for cfg.artfctdef.<type>.artifact.
     %
-    %   See also EphysDataset.exportFieldTrip, EphysDataset.exportChronux.
+    %   See also epochMatrixFieldTrip, sessionDataFieldTrip, ChronuxDataset.
 
     methods (Static)
-        function data = raw(S, sig, opts)
-            %raw  FieldTrip raw structure for one signal of a toMat extract.
-            %   data = FieldTripExport.raw(S, "LFP") with S = load("x_extract.mat").
-            arguments
-                S (1,1) struct
-                sig (1,1) string {mustBeMember(sig, ["LFP","MUA","SPIKE","AUX"])}
-                opts.Class (1,1) string {mustBeMember(opts.Class, ["double","single"])} = "double"
-            end
-            if ~isfield(S, 'Y') || ~isfield(S.Y, sig) || isempty(S.Y.(sig))
-                error('FieldTripExport:SignalMissing', 'The extract holds no %s signal.', sig);
-            end
-            if ~isfield(S, 'info') || ~isfield(S.info, sig) || ~isfield(S.info.(sig), 'Fs')
-                error('FieldTripExport:SignalMissing', 'No info.%s.Fs in the extract.', sig);
-            end
-            X  = S.Y.(sig);
-            Fs = double(S.info.(sig).Fs);
-            labels = FieldTripExport.labelsFor(S, size(X, 2), sig);
-            [~, unitName] = FieldTripExport.unitsFor(S, sig);
-            origFs = Fs;
-            if isfield(S.info, 'origFs') && isfinite(double(S.info.origFs)); origFs = double(S.info.origFs); end
-
-            data = FieldTripExport.continuous(X, Fs, Label=labels, ChanType=lower(sig), ...
-                ChanUnit=unitName, OrigFs=origFs, Class=opts.Class, ...
-                Cfg=struct('exporter', "FieldTripExport.raw", 'signal', sig, 'units', unitName));
-            data.hdr.orig = struct('signal', sig, 'origFs', origFs, 'info', S.info.(sig));
-        end
-
         function data = continuous(X, Fs, opts)
             %continuous  FieldTrip raw structure of a continuous signal, one trial.
             %   data = FieldTripExport.continuous(X, Fs) with X [nSamples x
@@ -206,70 +176,12 @@ classdef FieldTripExport
             T = [beg(keep), fin(keep), repmat(offset, nnz(keep), 1), opts.Info(keep, :)];
         end
 
-        function spike = spike(units)
-            %spike  FieldTrip spike structure from a readSortedUnits struct.
-            arguments
-                units (1,1) struct
-            end
-            nU = numel(units.unitId);
-            ts = cell(1, nU);
-            for u = 1:nU
-                ts{u} = double(units.samples{u}(:)).';
-            end
-            labels = cellstr(string(units.label(:)).');
-            nSamp = NaN;
-            if isfield(units, 'durationSec') && isfinite(units.durationSec)
-                nSamp = round(units.durationSec * units.fs) + 1;
-            end
-            orig = units;
-            for f = ["samples" "times" "templateFull"]
-                if isfield(orig, f); orig = rmfield(orig, f); end
-            end
-            spike = struct();
-            spike.label     = labels;
-            spike.timestamp = ts;
-            spike.hdr = struct('Fs', units.fs, 'FirstTimeStamp', 0, 'TimeStampPerSample', 1, ...
-                'nSamples', nSamp, 'nSamplesPre', 0, 'nTrials', 1, ...
-                'label', {labels(:)}, 'chantype', {repmat({'spike'}, nU, 1)}, ...
-                'chanunit', {repmat({'unknown'}, nU, 1)}, 'orig', orig);
-            spike.cfg = struct('previous', [], 'exporter', "FieldTripExport.spike", ...
-                'timestampConvention', "0-based recording sample (Kilosort spike_times)");
-        end
-
-        function spike = spikeFromDetected(detected)
-            %spikeFromDetected  FieldTrip spike structure from spikesToMat's detected struct.
-            %   One "unit" per channel; timestamps are 0-based samples at the
-            %   recording rate (t = (index-1)/Fs -> sample index-1).
-            arguments
-                detected (1,1) struct
-            end
-            fs = detected.info.fs;
-            nCh = numel(detected.ts);
-            ts = cell(1, nCh);
-            for c = 1:nCh
-                ts{c} = round(double(detected.ts{c}(:)).' * fs);
-            end
-            labels = cellstr(string(detected.channelNames(:)).');
-            nSamp = NaN;
-            if isfield(detected.info, 'nSamples'); nSamp = double(detected.info.nSamples); end
-            spike = struct();
-            spike.label     = labels;
-            spike.timestamp = ts;
-            spike.hdr = struct('Fs', fs, 'FirstTimeStamp', 0, 'TimeStampPerSample', 1, ...
-                'nSamples', nSamp, 'nSamplesPre', 0, 'nTrials', 1, ...
-                'label', {labels(:)}, 'chantype', {repmat({'spike'}, nCh, 1)}, ...
-                'chanunit', {repmat({'unknown'}, nCh, 1)}, ...
-                'orig', struct('source', "EphysDataset.detectSpikes", ...
-                    'channels', detected.channels, 'detection', detected.detection));
-            spike.cfg = struct('previous', [], 'exporter', "FieldTripExport.spikeFromDetected");
-        end
-
         function spike = spikeTimes(times, Fs, opts)
             %spikeTimes  FieldTrip spike structure of spike trains given as times.
             %   spike = FieldTripExport.spikeTimes(TIMES, Fs) with TIMES a
             %   cell of spike times, s on the continuous clock (sample k at
             %   (k-1)/Fs), one per unit: timestamp{u} = round(t*Fs), 0-based
-            %   samples at Fs, as spike() gives them. Cut trials with
+            %   samples at Fs. Cut trials with
             %   ft_spike_maketrials (cfg.trl in these timestamps,
             %   cfg.timestampspersecond = Fs).
             %   Options:
@@ -536,27 +448,6 @@ classdef FieldTripExport
             %cfgWith  cfg with the fields of extra set over it.
             for f = string(fieldnames(extra)).'
                 cfg.(f) = extra.(f);
-            end
-        end
-
-        function [unit, name] = unitsFor(S, sig)
-            %unitsFor  FieldTrip chanunit and a units name: uV unless info says volts.
-            unit = 'uV'; name = "uV";
-            if isfield(S.info.(sig), 'units') && string(S.info.(sig).units) == "volts"
-                unit = 'V'; name = "V";
-            end
-        end
-
-        function labels = labelsFor(S, nCh, sig)
-            %labelsFor  The signal's own labels (AUX), else info.labels, else ch1..N.
-            labels = string.empty(1, 0);
-            if isfield(S.info.(sig), 'labels')
-                labels = string(S.info.(sig).labels(:)).';
-            elseif isfield(S.info, 'labels')
-                labels = string(S.info.labels(:)).';
-            end
-            if numel(labels) ~= nCh
-                labels = "ch" + string(1:nCh);
             end
         end
     end

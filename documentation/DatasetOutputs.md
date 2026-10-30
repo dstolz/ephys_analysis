@@ -9,7 +9,7 @@ preprocessed data, wherever the pipeline wrote it:
 out = ds.outputs();                          % from an EphysDataset
 out = DatasetOutputs("D:\out\subj1_day1");   % or from a folder alone
 
-FT  = out.FieldTrip;     % the variables of <Name>_fieldtrip.mat
+S   = out.Extract;       % the extract files, merged (Y, info, events)
 lfp = out.LFP;           % only the extract file that holds LFP
 u   = out.Units;         % Kilosort4 / phy sorted units
 beh = out.Behavior;      % the Epsych2 session data
@@ -59,15 +59,11 @@ not matter, so configured `Suffix` values are found:
 | `extract` | `Y` + `info` | `toMat` (Signals step); `<...>_LFP.mat` etc. are per-type files |
 | `spikes` | `detected` + `conversion` | `spikesToMat` |
 | `behavior` | `behavior` + `conversion` | `behaviorToMat` (behavior step) |
-| `chronux` | `export` + `sp` / `spDetected` | `exportChronux` |
-| `fieldtrip` | `export` + `event` / `spike` / `data_*` | `exportFieldTrip` |
-| `epochs` | `export` + `epochs` | `exportEpochs` (event-organized data) |
-| `kcsd` | a `<Name>*.npz` whose `meta` member names `EphysDataset.exportKCSD` (and this dataset) | `exportKCSD` (kCSD-python) |
 | `nwb` | a `<Name>*.nwb` whose `/general/notes` JSON names `EphysDataset.exportNWB` (and this dataset), read with `h5read` | `exportNWB` (NWB 2) |
 | `manifest` | `<Name>_manifest.json` | `writeManifest` |
 | `artifacts` | `<Name>_artifacts.json` | `EphysPipeline` artifact cache |
 
-A file whose `conversion.dataset` / `export.dataset` names a different dataset
+A file whose `conversion.dataset` (an `.nwb`'s notes) names a different dataset
 is skipped. This separates `rec1` from `rec1_b` in a shared folder. Built from
 a dataset, a file whose provenance `sourceFolder` is another recording's is
 skipped too (`EphysDataset.isOwnSource`: the dataset's `Folder`, or a folder
@@ -85,7 +81,7 @@ share costs a few tenths of a second a file. Two things keep that down:
   only, about ten times faster there than `whos('-file')`, which also sizes
   every variable. Other `.mat` files go to `whos`.
 - **`OutputFileIndex`** keeps what was read from each file (its variable
-  names, or a `.npz`/`.nwb`'s tool, and the dataset and `sourceFolder` its
+  names, or an `.nwb`'s tool, and the dataset and `sourceFolder` its
   provenance names) on this machine, under the file's path, size and
   modification time. A later `refresh()`, in any MATLAB session, opens only
   the files that are new or have changed. The index is
@@ -113,17 +109,17 @@ The scan is a snapshot. Call `refresh()` after writing new outputs.
 | Property | Kind |
 | --- | --- |
 | `ExtractFiles` | the newest file per signal type plus the newest combined file, newest first |
-| `SpikesFile`, `ChronuxFile`, `FieldTripFile`, `EpochsFile`, `KCSDFile`, `NWBFile`, `BehaviorFile`, `ManifestFile`, `ArtifactsFile` | one file |
+| `SpikesFile`, `NWBFile`, `BehaviorFile`, `ManifestFile`, `ArtifactsFile` | one file |
 | `SortingDir` | a phy results folder |
 
 Reading a path property returns the path in effect. **Assigning** one pins it.
 Assigning `""` returns that kind to discovery.
 
 ```matlab
-out.FieldTripFile = "E:\shared\subj1_ft_v2.mat";
+out.SpikesFile    = "E:\shared\subj1_spikes_v2.mat";
 out.SortingDir    = "E:\curated\subj1_day1";
 out.ExtractFiles  = ["D:\a\subj1_LFP.mat" "D:\b\subj1_MUA.mat"];
-out.pathSource("fieldtrip")    % "manual" | "discovered" | "dataset" | "manifest" | ""
+out.pathSource("spikes")        % "manual" | "discovered" | "dataset" | "manifest" | ""
 ```
 
 ## Loading
@@ -132,8 +128,7 @@ out.pathSource("fieldtrip")    % "manual" | "discovered" | "dataset" | "manifest
 | --- | --- |
 | `Extract` | every `ExtractFiles` file merged into one `toMat`-shaped struct (`Y`, `info`, `events`, `conversion`); when two files hold the same signal the newer one wins |
 | `LFP`, `MUA`, `SPIKE`, `AUX` | the `toMat`-shaped struct of the newest file holding that signal, with `Y` / `info` reduced to it |
-| `Spikes`, `Chronux`, `FieldTrip`, `Epochs` | the file's variables as a struct (`Epochs`: `epochs` + `export`, see [file-formats](file-formats.md#epoch-export-ephysdatasetexportepochs-the-export-step)) |
-| `KCSD` | the `.npz` arrays (`readNPZ`), `meta` decoded from its JSON ([file-formats](file-formats.md#kcsd-export-ephysdatasetexportkcsd-the-export-step)); `load("kcsd", "ele_pos", ...)` reads only those members |
+| `Spikes` | the file's variables as a struct |
 | `NWB` | `file` and `notes` (the decoded JSON the exporter records); the data itself is read with pynwb, MatNWB or `h5read` ([file-formats](file-formats.md#nwb-export-ephysdatasetexportnwb-the-export-step)) |
 | `Units` | `ds.readSortedUnits(ResultsDir=SortingDir)` (full unit labels), or without a dataset `EphysDataset.readPhyUnits(SortingDir)` (labels `<class><id>` only, no `subject` / `recordingStart` / `datasetKey`) |
 | `Behavior` | `trials`, `info`, `meta`, `file`, `subject`, `startTime`, `nTrials` |
@@ -147,7 +142,7 @@ property to set.
 | Method | Does |
 | --- | --- |
 | `has(kind)` | true when the file (or `params.py`) exists; `kind` is a `Kinds` value or `"LFP"` / `"MUA"` / `"SPIKE"` / `"AUX"` |
-| `load(kind, vars...)` | loads only the listed variables, e.g. `out.load("fieldtrip", "data_LFP", "event")` |
+| `load(kind, vars...)` | loads only the listed variables, e.g. `out.load("extract", "info", "events")` |
 | `readUnits(Name=Value)` | `Units` with reader options (`Groups`, `IncludeNoise`, `Templates`, ...) |
 | `readWaveforms(unitId, MaxSpikes=)` | `[W, info]`: at most `MaxSpikes` (100) of a sorted unit's spikes, picked at random (the same ones each time), on its peak channel, cut from the sorted `.bin` by `EphysDataset.readPhyWaveforms` (`W` `[nt x nSpikes]`); kept with `CacheData`. Its errors pass through (`...:NoDataFile` when the `.bin` is not there); `DatasetOutputs:NoUnit` for an unknown id |
 | `signalFile(type)` | the extract file that holds a signal (`""` when none); a combined file's `info` is loaded once per path, size and modification time (until `refresh()`) |
@@ -186,10 +181,10 @@ P = EphysProject("D:\experiments");
 P.refresh();
 for ds = P.Datasets
     out = ds.outputs();
-    if ~out.has("fieldtrip") || ~out.has("behavior"); continue; end
-    ft  = out.load("fieldtrip", "data_LFP", "event");
+    if ~out.has("extract") || ~out.has("behavior"); continue; end
+    S   = out.load("extract", "info", "events");
     beh = out.Behavior;
-    % ... ft.data_LFP, ft.event, beh.trials
+    % ... S.events, beh.trials
 end
 ```
 

@@ -22,11 +22,12 @@ previews, plans and runs are the runner's `computeFigure`,
 [generated script](EphysAnalysis.md#scripts) draws. Its
 [spectral panels](EphysAnalysisConfig.md#spectral-panels) (power spectrum,
 spectrogram, coherence) compute multitaper spectra and coherence of signals and
-spike trains straight from the extracts and units, with no Chronux file. For anything further, Chronux and FieldTrip take the files the
-pipeline's [Export step](EphysPipelineApp.md#export) writes. There are five
+spike trains straight from the extracts and units. For anything further, the
+[DatasetBrowser](DatasetBrowser.md#the-post-processing-script) makes the inputs
+of Chronux, FieldTrip and other toolboxes. There are five
 tabs: Data, Alignment, Figures, Export and Log.
 
-<!-- wiki: More on those exports: [Analysis toolbox exports](Analysis-Toolbox-Exports). -->
+<!-- wiki: More on those toolbox inputs: [Analysis toolbox exports](Analysis-Toolbox-Exports). -->
 
 <!-- wiki: ![The analysis app, Figures tab, previewing a unit's raster over its PSTH grouped by Depth](images/analysis-figures-tab.png) -->
 

@@ -35,7 +35,7 @@ picked by evidence optimization; `addpath(<neuroGLM>/matRegress)`,
 `hasMatRegress()` / `requireMatRegress()`), and plain maximum likelihood by
 `glmfit` (Statistics and Machine Learning Toolbox), the alternative
 neuroGLM's tutorial names. Like the [FieldTrip](FieldTripExport.md) and
-[Chronux](ChronuxDataset.md) exporters, this one shares no code with the
+[Chronux](ChronuxDataset.md) connectors, this one shares no code with the
 others.
 
 ## Static functions

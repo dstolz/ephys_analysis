@@ -1,8 +1,8 @@
 function test_DatasetOutputs()
 %test_DatasetOutputs  Verification suite for DatasetOutputs.
 %   Builds the files the pipeline writes for a dataset -- per-type and
-%   combined extracts, spikes, Chronux, FieldTrip and behavior files, a phy
-%   results folder, a manifest -- with plain save() calls, plus decoys that
+%   combined extracts, spikes and behavior files, a phy results folder, a
+%   manifest, an NWB file's notes -- with plain save() calls, plus decoys that
 %   belong to other datasets, and checks discovery, pinning and on-demand
 %   loading, both for a folder alone and for an EphysDataset (a tiny
 %   universal-format recording, so no Intan files or toolboxes are needed).
@@ -65,26 +65,23 @@ S.Y = struct('LFP', single(3 * ones(10, 2)), 'MUA', single(4 * ones(10, 2)), 'SP
 S.info = struct('LFP', struct('Fs', 1000), 'MUA', struct('Fs', 1000), 'labels', ["a" "b"]);
 save(fullfile(out, 'rec1_custom.mat'), '-struct', 'S');     % suffix need not be "_extract"
 
-% Spikes, exports and behavior, classified by their variables.
+% Spikes and behavior, classified by their variables; an NWB export
+% elsewhere, by its notes (and another dataset's beside it).
 Sp = struct('detected', struct('ts', {{1, 2}}), 'conversion', conv(name));
 save(fullfile(out, 'rec1_spikes.mat'), '-struct', 'Sp');
-C = struct('LFP', struct('data', 1), 'sp', struct('times', {1}), 'spDetected', [], ...
-    'events', ev, 'export', conv(name));
-save(fullfile(out, 'rec1_chronux.mat'), '-struct', 'C');
-ftDir = fullfile(root, 'ft_elsewhere');
-mkdir(ftDir);
-F = struct('data_LFP', struct('fsample', 1000), 'spike', [], 'event', struct('sample', 1), ...
-    'export', conv(name));
-save(fullfile(ftDir, 'rec1_fieldtrip.mat'), '-struct', 'F');
+nwbDir = fullfile(root, 'nwb_elsewhere');
+mkdir(nwbDir);
+writeNWBNotes(fullfile(nwbDir, 'rec1.nwb'), name);
+writeNWBNotes(fullfile(nwbDir, 'rec1_b.nwb'), "rec1_b");
 B = struct('behavior', struct('nTrials', 7, 'subject', "mouseA"), 'conversion', conv(name));
 save(fullfile(out, 'rec1_behavior.mat'), '-struct', 'B');
 
 % Decoys: another dataset whose name starts with "rec1", another dataset's
 % provenance under a matching name, a partial file and an unrelated .mat.
-save(fullfile(out, 'rec10_fieldtrip.mat'), '-struct', 'F');
-Fo = F; Fo.export = conv("rec1_other");
-save(fullfile(out, 'rec1_other_fieldtrip.mat'), '-struct', 'Fo');
-save(fullfile(out, '~rec1_chronux.partial.mat'), '-struct', 'C');
+save(fullfile(out, 'rec10_spikes.mat'), '-struct', 'Sp');
+Spo = Sp; Spo.conversion = conv("rec1_other");
+save(fullfile(out, 'rec1_other_spikes.mat'), '-struct', 'Spo');
+save(fullfile(out, '~rec1_spikes.partial.mat'), '-struct', 'Sp');
 junk = 1; %#ok<NASGU>
 save(fullfile(out, 'rec1_notes.mat'), 'junk');
 
@@ -99,20 +96,20 @@ fprintf('\n== 1. discovery from a folder ==\n');
 o = DatasetOutputs(out);
 check(o.Name == name && o.Roots == string(out), 'name from the folder leaf; the folder is the root');
 C0 = o.Candidates;
-check(sum(C0.Kind == "extract") == 3 && sum(C0.Kind == "spikes") == 1 && sum(C0.Kind == "chronux") == 1 ...
+check(sum(C0.Kind == "extract") == 3 && sum(C0.Kind == "spikes") == 1 ...
     && sum(C0.Kind == "behavior") == 1 && sum(C0.Kind == "manifest") == 1 && sum(C0.Kind == "artifacts") == 1, ...
     'files classified by their variables');
 check(~any(contains(C0.File, ["rec10" "rec1_other" "partial" "notes"])), ...
     'other datasets, partial files and unrelated .mat files are ignored');
-check(sum(C0.Kind == "fieldtrip") == 0 && ~o.has("fieldtrip"), 'nothing outside the roots');
+check(sum(C0.Kind == "nwb") == 0 && ~o.has("nwb"), 'nothing outside the roots');
 check(isequal(o.ExtractFiles(1), string(fullfile(out, 'rec1_custom.mat'))) && numel(o.ExtractFiles) == 3, ...
     'ExtractFiles: newest combined + newest per type, newest first');
 check(o.SortingDir == string(fullfile(out, 'kilosort4')) && o.pathSource("sorting") == "discovered", ...
     'sorting found in the kilosort4 layout');
-check(o.pathSource("fieldtrip") == "" && o.pathSource("spikes") == "discovered", 'pathSource');
+check(o.pathSource("nwb") == "" && o.pathSource("spikes") == "discovered", 'pathSource');
 errId = '';
 try
-    o.FieldTrip; %#ok<VUNUS>
+    o.NWB; %#ok<VUNUS>
 catch ME
     errId = ME.identifier;
 end
@@ -130,41 +127,44 @@ check(isequal(fieldnames(L.Y), {'LFP'}) && isequal(L.Y.LFP, X.Y.LFP) && ~isfield
 check(o.signalFile("SPIKE") == string(fullfile(out, 'rec1_extract_SPIKE.mat')) && isequal(o.SPIKE.Y.SPIKE, X.Y.SPIKE), ...
     'SPIKE from its per-type file');
 check(~o.has("AUX"), 'has("AUX") false when no file holds AUX');
-check(isequal(o.Spikes.detected.ts, {1, 2}) && isequal(o.Chronux.sp.times, 1), 'Spikes and Chronux load the files');
+check(isequal(o.Spikes.detected.ts, {1, 2}), 'Spikes loads the file');
 check(o.Behavior.nTrials == 7 && o.pathSource("behavior") == "discovered", 'Behavior from <Name>_behavior.mat');
 U = o.Units;
 check(isequal(U.unitId, [0; 1]) && U.fs == 30000, 'Units read from the sorting folder');
 [Ug, ~] = o.readUnits(Groups="good");
 check(isequal(Ug.unitId, 0), 'readUnits forwards reader options');
 check(o.Artifacts.intervals(2) == 1 && o.Manifest.name == name, 'Manifest and Artifacts decode the JSON');
-P = o.load("chronux", "events");
-check(isequal(fieldnames(P), {'events'}), 'load(kind, vars) reads only those variables');
+P = o.load("spikes", "detected");
+check(isequal(fieldnames(P), {'detected'}), 'load(kind, vars) reads only those variables');
 T = o.inventory();
-check(height(T) == numel(DatasetOutputs.Kinds) && T.Exists(T.Kind == "extract") && ~T.Exists(T.Kind == "fieldtrip") ...
+check(height(T) == numel(DatasetOutputs.Kinds) && T.Exists(T.Kind == "extract") && ~T.Exists(T.Kind == "nwb") ...
     && T.NumCandidates(T.Kind == "extract") == 3, 'inventory table');
 
 %% ---- 3. manual paths ------------------------------------------------------
 fprintf('\n== 3. pinning paths ==\n');
-o.FieldTripFile = fullfile(ftDir, 'rec1_fieldtrip.mat');
-FT = o.FieldTrip;
-check(o.pathSource("fieldtrip") == "manual" && FT.data_LFP.fsample == 1000, 'a pinned file loads');
+o.NWBFile = fullfile(nwbDir, 'rec1.nwb');
+N = o.NWB;
+check(o.pathSource("nwb") == "manual" && N.notes.dataset == name, 'a pinned file loads');
 o.ExtractFiles = fullfile(out, 'rec1_extract_LFP.mat');
 check(isequal(o.Extract.Y.LFP, single(ones(10, 2))) && ~o.has("SPIKE"), 'pinned ExtractFiles replace discovery');
 o.ExtractFiles = "";
-o.FieldTripFile = "";
-check(numel(o.ExtractFiles) == 3 && o.pathSource("fieldtrip") == "", 'assigning "" returns to discovery');
-o2 = DatasetOutputs(out, SearchDirs=ftDir);
-check(o2.has("fieldtrip") && o2.pathSource("fieldtrip") == "discovered", 'SearchDirs extend discovery');
+o.NWBFile = "";
+check(numel(o.ExtractFiles) == 3 && o.pathSource("nwb") == "", 'assigning "" returns to discovery');
+o2 = DatasetOutputs(out, SearchDirs=nwbDir);
+check(o2.has("nwb") && o2.pathSource("nwb") == "discovered" && o2.NWBFile == string(fullfile(nwbDir, 'rec1.nwb')), ...
+    'SearchDirs extend discovery (an .nwb by the dataset its notes name)');
+check(any(o2.Foreign == string(fullfile(nwbDir, 'rec1_b.nwb'))) && ~any(o2.Candidates.File == string(fullfile(nwbDir, 'rec1_b.nwb'))), ...
+    'an .nwb whose notes name another dataset is foreign');
 
 o2.CacheData = true;
-a = o2.Chronux;
-delete(fullfile(out, 'rec1_chronux.mat'));
-check(isequal(o2.Chronux, a), 'CacheData serves the loaded data again');
+a = o2.Spikes;
+delete(fullfile(out, 'rec1_spikes.mat'));
+check(isequal(o2.Spikes, a), 'CacheData serves the loaded data again');
 o2.clearCache();
-check(~o2.has("chronux"), 'clearCache + a deleted file');
+check(~o2.has("spikes"), 'clearCache + a deleted file');
 o2.refresh();
-check(~any(o2.Candidates.Kind == "chronux"), 'refresh forgets deleted files');
-save(fullfile(out, 'rec1_chronux.mat'), '-struct', 'C');
+check(~any(o2.Candidates.Kind == "spikes"), 'refresh forgets deleted files');
+save(fullfile(out, 'rec1_spikes.mat'), '-struct', 'Sp');
 
 %% ---- 4. dataset mode ------------------------------------------------------
 fprintf('\n== 4. from an EphysDataset ==\n');
@@ -349,7 +349,7 @@ check(oa.probeFile() == string(probeJson), 'probeFile: the manifest''s probe.fil
 check(isequal(U.unitId, [0; 1]), 'readUnits in folder mode, with a probe file in the manifest');
 [T, notes] = oa.analysisFiles();
 check(isequal(sort(unique(T.Kind)).', ["behavior" "extract" "favorites" "manifest" "probe" "sorting" "spikes"]) ...
-    && ~any(contains(T.Path, ["rec1_artifacts" "chronux" "rec10" "partial" "notes"])) ...
+    && ~any(contains(T.Path, ["rec1_artifacts" "rec1_other" "rec10" "partial" "notes"])) ...
     && T.Path(T.Kind == "favorites") == DatasetFavorites.fileFor(outA, name), ...
     'analysisFiles: manifest, behavior, favorites, extract, spikes, sorting and probe - no exports, no artifacts file');
 writeJsonFile(DatasetNotes.fileFor(outA, name), struct('schema', "ephys-notes/1"));
@@ -425,4 +425,11 @@ fprintf('\n================  %d passed, %d failed  ================\n', nPass, n
 if nFail > 0
     error('test_DatasetOutputs:Failures', '%d checks failed.', nFail);
 end
+end
+
+
+function writeNWBNotes(file, dataset)
+%writeNWBNotes  An HDF5 file holding only the /general/notes JSON exportNWB writes.
+h5create(file, '/general/notes', 1, 'Datatype', 'string');
+h5write(file, '/general/notes', string(jsonencode(struct('tool', "EphysDataset.exportNWB", 'dataset', dataset))));
 end

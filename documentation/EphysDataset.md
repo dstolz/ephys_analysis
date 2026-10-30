@@ -32,9 +32,7 @@ An `EphysDataset` can:
   `intan2matlab` processing);
 - detect spikes by threshold into a `.mat` (`spikesToMat`; the sorted units
   stay in the sorting folder);
-- export Chronux- and FieldTrip-shaped files, event-organized epochs, kCSD-python
-  input and NWB 2 (`exportChronux`, `exportFieldTrip`, `exportEpochs`,
-  `exportKCSD`, `exportNWB`);
+- export an NWB 2 file (`exportNWB`);
 - hold an associated Epsych2 behavior session (`BehaviorFile`, `readBehavior`);
 - keep a JSON manifest of its state in the recording folder.
 
@@ -76,7 +74,7 @@ flowchart TB
         EXT[("_extract_TYPE.mat<br/>toMat")]
         SPK[("_spikes.mat<br/>spikesToMat")]
         BEHM[("_behavior.mat<br/>behaviorToMat")]
-        EXP[("_chronux.mat · _fieldtrip.mat<br/>_epochs.mat · _kcsd.npz · .nwb<br/>exportChronux · exportFieldTrip<br/>exportEpochs · exportKCSD · exportNWB")]
+        EXP[(".nwb<br/>exportNWB")]
         EVC[("_events.mat<br/>digitalEvents")]
     end
 
@@ -470,7 +468,7 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | `NamePattern` | `EphysDataset.DefaultNamePattern` = `"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"` | [`parseNameTokens`](../pipeline/parseNameTokens.m) pattern that splits `Name` into the tokens labeling sorted units. Pushed from `EphysProject.NamePattern` / the config's `Project.NamePattern` |
 | `DatasetKey` | `""` | folder relative to the project root, saved with every unit (`""` = the absolute folder). Pushed by `EphysProject` and the pipeline |
 | `TrialPairing` | `struct([])` | the recorded pairing (manifest `behavior.pairing`): `status` (`"unreviewed"` / `"approved"`), `auto_approved` (approved by `autoApproveTrialPairing`, not by a review), `cut_trials` and `cut_intervals` (`[start end]` counts dropped before the in-order pairing), `fingerprint`, `trial_line`, `summary`, `updated` |
-| `Processing` | `emptyProcessing()` | every detail of how each output was made, as its writer recorded it when it wrote it: `artifacts` (`artifactIntervals`), `bin` (`toBin`), `sorting` (`runKilosort`, `runSpikeInterface`), `signals` (`toMat`), `spikes` (`spikesToMat`), `behavior` (`behaviorToMat`), `chronux`, `fieldtrip`, `epochs`, `kcsd`, `nwb` (the exports), each `[]` until written. Saved to and restored from the manifest's `processing` block ([Dataset manifest](#dataset-manifest)) |
+| `Processing` | `emptyProcessing()` | every detail of how each output was made, as its writer recorded it when it wrote it: `artifacts` (`artifactIntervals`), `bin` (`toBin`), `sorting` (`runKilosort`, `runSpikeInterface`), `signals` (`toMat`), `spikes` (`spikesToMat`), `behavior` (`behaviorToMat`), `nwb` (`exportNWB`), each `[]` until written. Saved to and restored from the manifest's `processing` block ([Dataset manifest](#dataset-manifest)) |
 
 ### Dependent
 
@@ -501,8 +499,7 @@ out = ds.toMat(File="D:\out\subj1.mat", SignalOptions=struct('dataTypeOut', "LFP
 % --- Sorted units, spikes file, exports ---
 U   = ds.readSortedUnits(Groups=["good" "mua"]);   % the associated Kilosort4 / phy output
 out = ds.spikesToMat();                             % <Name>_spikes.mat: threshold detections
-out = ds.exportChronux();                           % <Name>_chronux.mat
-out = ds.exportFieldTrip();                         % <Name>_fieldtrip.mat
+out = ds.exportNWB();                               % <Name>.nwb (needs a Python with pynwb)
 ```
 
 For many datasets with one set of settings, use [`EphysPipeline`](EphysPipeline.md).
@@ -1279,7 +1276,7 @@ the rule:
 | --- | --- |
 | `rows = EphysDataset.artifactSamples(iv, Fs, nSamp)` | the `[first last]` 1-based rows a period replaces at the recording rate `Fs` (`nSamp` rows): 0-based `round(t0·Fs)` .. `round(t1·Fs) − 1`, merged where they touch |
 | `rows = EphysDataset.intervalRows(iv, Fs, nRows)` | the `[first last]` rows of a signal at any rate (row r at `(r − 1)/Fs`, `nRows` rows) whose sample period `[(r − 1)/Fs, r/Fs)` overlaps a period, merged where they touch. At the recording rate that is `artifactSamples`' rows for periods on the sample grid; at a derived rate every row a period falls in is kept, so a period shorter than one row still marks one (`FieldTripExport.artifact`) |
-| `tf = EphysDataset.overlapsIntervals(tStart, tStop, iv)` | which closed windows `[tStart tStop]` touch a period: `t0 <= tStop` and `t1 > tStart`, windows and periods on the same clock (`eventEpochs`' `EpochArtifact`, the analysis `epochTable`) |
+| `tf = EphysDataset.overlapsIntervals(tStart, tStop, iv)` | which closed windows `[tStart tStop]` touch a period: `t0 <= tStop` and `t1 > tStart`, windows and periods on the same clock (the analysis `epochTable`) |
 
 #### Default artifact configuration
 
@@ -1859,7 +1856,7 @@ distance-based steps on one shank ([why and how much](kilosort4-notes.md#shank_s
 one reader of phy-format sorter output; **`units = ds.readSortedUnits(...)`**
 wraps it with the dataset's defaults (`sortingResultsDir()`, `Fs` as the
 fallback rate, the channel numbers and native channel names, and `unitIdentity()` for the labels). The Review tab,
-`ChronuxDataset.spikes`, `spikesToMat` and both exporters all read through it,
+`ChronuxDataset.spikes`, `spikesToMat` and `exportNWB` all read through it,
 so they agree on labels, times, channels and notes.
 
 | Option | Default | Meaning |
@@ -1954,7 +1951,7 @@ identifiers: `EphysDataset:readPhyWaveforms:NoResultsDir` / `NoParams` /
 `BadParams` / `NoDataFile` / `BadChannels`. The high-pass needs the Signal
 Processing Toolbox.
 [`unitTable`](../pipeline/unitTable.m) turns one or more
-`units` structs or Chronux export files into a table (see
+`units` structs or `.mat` files holding a `units` variable into a table (see
 [Unit labels](EphysPipeline.md#unit-labels)).
 
 #### Unit labels
@@ -2083,10 +2080,10 @@ v = struct('name', {"th8", "th10"}, 'settings', {struct('Th_universal', 8), stru
 R = sortSweep(ds, v, ReportFile=fullfile(ds.outputFolder(), "sweep.html"));
 ```
 
-The exporters (`exportChronux`, `exportFieldTrip`, `exportEpochs`) read the
+`exportNWB` reads the
 units with their metrics (`UnitQuality=true`, the default; the pipeline's
 `Export.UnitQuality`); a sort whose metrics cannot be computed is exported
-without them, with a warning (`EphysDataset:<exporter>:NoUnitQuality`).
+without them, with a warning (`EphysDataset:exportNWB:NoUnitQuality`).
 `unitTable` has a column per metric (NaN for units without them).
 
 ### Running a SpikeInterface sorter
@@ -2224,8 +2221,7 @@ count), `badChannels` (the columns interpolated; `info.badChannels` says how),
 erased and the samples replaced).
 
 **`EphysDataset.saveAtomically(file, S, matVersion)`** (static) is the writer
-behind `toMat`, `spikesToMat`, `behaviorToMat`, the `.mat` exports
-(`exportChronux`, `exportFieldTrip`, `exportEpochs`) and
+behind `toMat`, `spikesToMat`, `behaviorToMat` and
 `stitchEpsychSessions`: the struct's fields are saved to `~<name>.partial.mat`, and the file is renamed to the target only
 after `save()` finishes **without any warning** and every variable is confirmed
 present with `whos -file`. Otherwise the partial file is deleted and an error is
@@ -2265,152 +2261,10 @@ events in artifact periods are rejected; with `"tag"`, `info.eventId`,
 
 ### Exports
 
-**`out = exportChronux(Name=Value)`** writes `<outputFolder>/<Name>_chronux.mat`
-([schema](file-formats.md#chronux-export-ephysdatasetexportchronux-the-export-step)):
-the derived signals as `LFP` / `MUA` / `SPIKE` structs (`data`, `params`, `t`,
-`labels`, `info`, built by [`ChronuxDataset.continuous`](ChronuxDataset.md)),
-the sorted units as `sp` (the `mtspectrumpt` input form) and detected spikes
-as `spDetected`, plus `units`, `detected`, `events` (`t = row/eventFs` on the
-recording's clock), `artifacts` (the extract's `info.artifacts`: the periods
-erased before the signals were derived, `[tStart tEnd)` seconds on the
-continuous clock, with `fill` and `nSamples`; no intervals when nothing was
-erased) and `export` (provenance, with `eventFs`, the recording
-rate, and `timeConventions`, including `artifacts`). No Chronux function is called.
-
-**`out = exportFieldTrip(Name=Value)`** writes
-`<outputFolder>/<Name>_fieldtrip.mat` with FieldTrip raw / spike / event
-structures built by [`FieldTripExport`](FieldTripExport.md); each `data_<SIG>`
-carries its events at its own rate in `cfg.event`, each onset on the signal's
-sample nearest its recording row, and the artifact periods erased before the
-signals were derived in `cfg.artfctdef.preprocessing.artifact`: `[begsample
-endsample]` rows at the signal's rate on its `sampleinfo`, the matrix
-`ft_rejectartifact` reads (`FieldTripExport.artifact`; `[]` with none).
-`export.artifacts` holds the extract's `info.artifacts` (the periods in
-seconds). FieldTrip is
-never required; with `Validate=true` (default) the structures are checked with
-`ft_datatype_raw` / `ft_datatype_spike` when FieldTrip is on the path.
-
-**`E = eventEpochs(Name=Value)`** and **`out = exportEpochs(Name=Value)`** are
-the event-organized pair — see
-[Event-organized (epoched) data](#event-organized-epoched-data) below.
-
-The Chronux and FieldTrip exporters take the same options:
-
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `File` | `<Name>_chronux.mat` / `<Name>_fieldtrip.mat` | target |
-| `Extract` | `<outputFolder>/<Name>_extract.mat`, else the `<Name>_extract_<TYPE>.mat` files present | other extract file(s) (several are merged; with `Signals`, the per-type files of other signals are not read), or a `toMat`-shaped struct (`Y`, `events`, `info`) |
-| `Signals` | all present | subset of `["LFP" "MUA" "SPIKE" "AUX"]` |
-| `Units` | the associated sorted units | a units struct, or `false` |
-| `Groups` | `["good" "mua"]` | phy labels kept when reading units |
-| `Detected` | `<Name>_spikes.mat` when present | a spikes file, a `detected` struct, or `false` |
-| `Sources` | `struct()` | provenance to record for inputs passed as structs (`extractFile`, `spikesFile`, `sortingDir`); what is read from files replaces it. `EphysPipeline.runExport` reads a dataset's inputs once and passes them to every format this way |
-| `Events` | `true` | include the digital-input events |
-| `Overwrite`, `MatVersion` | `false`, `"-v7.3"` | |
-
-The two toolboxes are independent: neither export is built from the other,
-and nothing analysis-related is run.
-
-#### Event-organized (epoched) data
-
-**`E = eventEpochs(Name=Value)`** cuts the same data into one epoch per event
-and returns it as one struct, aligned trial by trial;
-**`out = exportEpochs(Name=Value)`** saves that struct as
-`<outputFolder>/<Name>_epochs.mat`
-([schema](file-formats.md#epoch-export-ephysdatasetexportepochs-the-export-step)),
-and the app's **Epochs to workspace** button puts it in the base workspace
-without writing a file. It selects and re-packages: the epochs are cut by
-[`ChronuxDataset.trials`](ChronuxDataset.md#data-params-t-info--cxtrialsonsets-twin-namevalue)
-(continuous) and
-[`ChronuxDataset.spikeTrials`](ChronuxDataset.md#data-params-t-info--cxspiketrialsonsets-twin-namevalue)
-(spike times), so the sample alignment and the half-open spike window are
-exactly the documented ones, and no epoch is silently dropped by default — a
-window that runs past the recording is padded with `NaN` and flagged
-(`EpochComplete`), and one that touches an artifact period of the extract (its
-`info.artifacts`, the periods erased before the signals were derived) is
-flagged (`EpochArtifact`) and left out of the continuous signals.
-
-| Field of `E` | Contents |
-| --- | --- |
-| `event` | `source` (`"line"` / `"behavior"` / `"times"`), `name`, `window`, `onsetRule`, `eventFs` (the recording rate, the clock the event times count rows of), `nEpochs`, `onsets` / `offsets` / `durations`, `recordingRange` (+ its source), `lines`, what the selection dropped, `nArtifact` (epochs that touch an artifact period), and `pairingStatus` for the behavior source |
-| `trials` | table, one row per epoch: `EpochIndex`, `EpochOnset`, `EpochOffset`, `EpochDuration`, `EpochComplete` (the window lies inside the recording and inside every signal's rows, so no sample of the epoch is `NaN` padding), `EpochArtifact` (the window on the continuous clock, onset + `[tPre tPost]` with an `"event"` onset moved to its recording row `(row − 1)/eventFs`, overlaps a period of `artifacts.intervals`), plus `EventIndex` (row in the line's event list) or `BehaviorRow` and every behavior trial column |
-| `signals` | one struct per signal: `data` `[nTime x nEpochs x nChan]`, `t` (seconds relative to the onset), `fs`, `labels`, `units`, `nIncomplete`, `nNonFinite`, `nArtifact`, `info` (`keptTrials` names the epochs the data holds; `droppedArtifact` the ones left out for an artifact period) |
-| `units` | `1 x nUnits`: `id`, `label`, `class`, `group`, `channel`, `channelName`, `times` (`1 x nEpochs` cell), `counts` |
-| `detected` | the same per detected channel (`channel`, `channelName`, `times`, `counts`), or `[]` |
-| `artifacts` | the extract's artifact periods (`info.artifacts`: `intervals` `[k x 2]` `[tStart tEnd)` s on the continuous clock, `fill`, `nSamples`) |
-| `spikes`, `behavior`, `meta` | how the spike times are stamped; the session and pairing the events came from; provenance (with `artifacts`, the option, `nArtifact`, and `conventions.artifact`) |
-
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `EventSource` | `"line"` | `"line"` (a digital-input line), `"behavior"` (the paired Epsych2 trials, whose columns ride along), `"times"` (`Times=`, epoched in the order given) |
-| `EventLine` | `""` | the line; blank uses `TrialConfig.TrialLine` when the extract has it, else the only line |
-| `Behavior` | `<Name>_behavior.mat`, else the associated session with its recorded pairing | a behavior file or a `behaviorStruct`; a pairing that is not approved warns (`EphysDataset:eventEpochs:PairingNotApproved`) |
-| `Window` | `[-0.2 0.5]` | `[tPre tPost]` seconds around the onset |
-| `OnsetRule` | `"event"` | `"event"` / `"sample"`, as in `ChronuxDataset.trials`: `"event"` puts an onset on row `round((t − 1/eventFs)·Fs) + 1` of each signal, the sample nearest its recording row |
-| `Incomplete` | `"nan"` | window past the recording: pad with `NaN`, `"drop"` or `"error"` |
-| `NonFinite` | `"keep"` | epoch with `NaN`/`Inf` samples: keep, `"drop"` or `"error"` |
-| `Artifacts` | `"drop"` | epoch whose window touches an artifact period of the extract: `"drop"` (flagged in `EpochArtifact` and left out of the signals) or `"keep"` (flagged only) |
-| `SpikeTimeBase` | `"onset"` | `"onset"` (0 at the event), `"window"` (0 at the window start), `"absolute"` |
-| `Class` | `"double"` | `"single"` / `"asis"` for the epoched samples |
-| `MinDurationSec`, `MaxDurationSec` | `0`, `Inf` | pulse-length filter for the `"line"` source |
-| `Extract`, `Signals`, `Units`, `Groups`, `Detected`, `Sources`, `Events` | as above | |
-| `File`, `Overwrite`, `MatVersion` (`exportEpochs`) | `<Name>_epochs.mat`, `false`, `"-v7.3"` | |
-
-With `Incomplete="drop"`, `NonFinite="drop"` or `Artifacts="drop"` a signal
-holds fewer epochs than the trials table has rows, and its `info.keptTrials`
-names the rows it kept; the spike epochs always cover every row. `exportEpochs`'
-`out` adds `nArtifact` (epochs that touch an artifact period) and `artifacts`
-(the `Artifacts` option). With `OnsetRule="event"` the spikes
-are cut around the onset's recording row, `(row − 1)/eventFs` on the spikes'
-clock, so a spike in the onset's own sample is at 0.
-
-This is the data itself, organized by event, for an analysis of your own. For
-quick-look figures from the same alignment — PSTHs, evoked potentials, tuning,
-with trial filtering and grouping — use
-[`analysis`](EphysAnalysis.md#event-reference-window-selection), whose
-`epochTable` indexes signals with the same event rule
-(`round((t − 1/eventFs)·Fs) + 1`).
-
-```matlab
-E = ds.eventEpochs(EventSource="behavior", Window=[-0.2 0.5]);
-k = E.signals.LFP.info.keptTrials;                        % the epochs the LFP holds
-lfp = E.signals.LFP.data(:, E.trials.EpochComplete(k), 1);   % [nTime x nEpochs]
-hit = E.trials.ResponseCode == 1;                         % a session column
-raster = E.units(3).times(hit);                           % spike times per trial
-```
-
-#### Current source density (kCSD-python)
-
-**`out = exportKCSD(Name=Value)`** writes the LFP and the probe positions of
-its channels to `<outputFolder>/<Name>_kcsd.npz`, a NumPy archive whose
-`ele_pos` (mm) and `pots` (mV) go straight into
-[kCSD-python](https://github.com/Neuroinflab/kCSD-python)'s `KCSD1D` /
-`KCSD2D` ([schema and a Python example](file-formats.md#kcsd-export-ephysdatasetexportkcsd-the-export-step)).
-Packaging is done by `KCSDExport`, which shares no code with the other
-exporters; Python is not needed to write it. The electrodes are the LFP
-channels on the probe less the bad channels the Signals step interpolated,
-in probe order; the layout is 1-D (position along the shank) on a single
-column of one shank, else 2-D. The events are written as 0-based LFP samples
-on the same rule as everywhere else, `round((t − 1/eventFs)·Fs)`.
-
-| Option | Default | |
-| --- | --- | --- |
-| `File` | `<outputFolder>/<Name>_kcsd.npz` | |
-| `Extract` | `""` | as in `exportChronux`; the extract must hold LFP |
-| `ProbeFile` | `""` = the dataset's `ProbeFile` | the probe the dataset is used with (the pipeline passes `probeFor(d)`: its own, a rule's or the default probe); no probe is an error |
-| `Dim` | `"auto"` | `1` or `2` to force the layout; `1` on several columns puts electrodes at one depth, which kCSD rejects (`KCSDExport:Duplicate`) |
-| `Sources`, `Events`, `Overwrite` | | as in `exportChronux` |
-
-`out` has `file`, `bytes`, `seconds`, `nElectrodes`, `dim`, `nExcluded`,
-`excluded` (a table: `column`, `recordingChannel`, `label`, `reason`),
-`nEvents`, `probeFile` and `sources`. `writeNPZ` / `readNPZ` (and
-`writeNPY` / `readNPY`, which also handle unicode text arrays and 0-d
-values) are the NumPy layer; `DatasetOutputs.KCSD` reads the file back.
-
-```matlab
-out = ds.exportKCSD(ProbeFile="C:\probes\A1x16.json");
-K = readNPZ(out.file, ["ele_pos" "pots" "fs"]);   % pots is [n_ele x N] mV
-```
+The one exporter, [`exportNWB`](#neurodata-without-borders-nwb), writes the dataset as
+an NWB 2 file. The inputs of the analysis toolboxes (Chronux, FieldTrip,
+kCSD-python, ...) and the data organized by event are made in the
+[DatasetBrowser](DatasetBrowser.md#the-post-processing-script), not here.
 
 #### Neurodata Without Borders (NWB)
 
@@ -2452,14 +2306,21 @@ violation, so give them in `Metadata`.
 | Option | Default | |
 | --- | --- | --- |
 | `File` | `<outputFolder>/<Name>.nwb` | |
-| `Extract`, `Signals`, `Units`, `Groups`, `UnitQuality`, `Sources`, `Events` | | as in `exportChronux` (`Detected` is accepted and ignored) |
+| `Extract` | `""` | `<outputFolder>/<Name>_extract.mat`, else the `<Name>_extract_<TYPE>.mat` files present; other extract file(s) (several are merged; with `Signals`, the per-type files of other signals are not read), or a `toMat`-shaped struct (`Y`, `events`, `info`) |
+| `Signals` | all present | subset of `["LFP" "MUA" "SPIKE" "AUX"]` |
+| `Units` | the associated sorted units | a units struct, or `false` |
+| `Groups` | `["good" "mua"]` | phy labels kept when reading units |
+| `UnitQuality` | `true` | the units carry their [quality metrics](#unit-quality-metrics); a failure warns (`EphysDataset:exportNWB:NoUnitQuality`) and the units are written without them |
+| `Sources` | `struct()` | provenance to record for inputs passed as structs (`extractFile`, `sortingDir`); what is read from files replaces it |
+| `Events` | `true` | include the digital lines, with the behavior file's derived events |
 | `Trials`, `Behavior` | `true`, `""` | the paired trials of `<outputFolder>/<Name>_behavior.mat` when it exists, of another behavior file, or of a `behaviorStruct` |
 | `ProbeFile` | `""` = the dataset's | the probe that places the electrodes (the pipeline passes `probeFor(d)`) |
 | `Metadata` | `struct()` | the pipeline config's `Export.NWB` fields: `SessionDescription`, `ExperimentDescription`, `Experimenter`, `Lab`, `Institution`, `Keywords`, `Location`, `SubjectId` (`""` = the name pattern's SubjectID, else the behavior's), `Species`, `Sex`, `Age` (ISO 8601, `P90D`), `SubjectDescription`, `Strain`, `Genotype`, `TimeZone` (IANA; `""` = this computer's), `SessionStartTime` (`"yyyy-MM-dd HH:mm:ss"`; `""` = `AcqDate`, else the name pattern's) |
 | `PythonExe`, `CondaEnv` | `""` = the dataset's | a Python with pynwb and nwbinspector |
 | `Inspect` | `true` | run nwbinspector |
 | `KeepStaging`, `StageOnly` | `false` | keep the staging folder; write it and stop (no Python; `out.stage`) |
-| `Overwrite`, `Provenance` | | as in `exportChronux` |
+| `Overwrite` | `false` | an error when `File` exists |
+| `Provenance` | made here | `ephysProvenance()` of the run writing it |
 
 `out` has `file`, `bytes`, `seconds`, `signals`, `nElectrodes`, `nUnits`,
 `nTrials`, `nTrialsLeftOut`, `trialColumnsLeftOut`, `nEventLines`,
@@ -2518,8 +2379,8 @@ validation to Python.
   startTime, nTrials)` or `[]`.
 - `out = behaviorToMat(File=, MatVersion=, Overwrite=)` saves that struct once,
   as the `behavior` variable of `<outputFolder>/<Name>_behavior.mat` (plus
-  `conversion`). It is the only output that carries behavior data: the extract,
-  spikes, Chronux and FieldTrip files do not. Errors
+  `conversion`). It is the only output that carries behavior data: the extract
+  and spikes files do not. Errors
   `EphysDataset:behaviorToMat:NoFile` without an associated session and
   `:Exists` when the file exists and `Overwrite` is off. `out`: `file`,
   `bytes`, `seconds`, `behaviorFile`, `nTrials`, `paired`, `derivedEvents`,
@@ -2578,7 +2439,7 @@ validation to Python.
 
 `ds.Tags` holds free-form labels the user puts on the dataset (`draft`,
 `pilot`, `2-shank`) to sort datasets into groups, filter the pipeline app's
-datasets table on them and read them in the exports. They are metadata only:
+datasets table on them and read them in the NWB file. They are metadata only:
 no step, export or figure reads them to decide anything, so every output is
 the same with or without tags apart from the `tags` field written beside the
 other per-dataset metadata.
@@ -2616,15 +2477,15 @@ next write (a Scan rewrites the manifest of every dataset that has its
 recording). Other places the tags appear:
 [`EphysProject.gatherMetadata`](EphysProject.md) (a `Tags` column, `;`-joined),
 the manifest viewer's Summary (a `Tags` row), the pipeline run record's
-`datasets`, and the `.mat`, NWB and kCSD outputs
+`datasets`, and the `.mat` and NWB outputs
 ([file-formats.md](file-formats.md#dataset-manifest) lists each field).
 
 ### Processed files (`DatasetOutputs`)
 
 `out = ds.outputs(Name=Value)` returns a [`DatasetOutputs`](DatasetOutputs.md)
-that finds this dataset's extract, spikes, behavior, Chronux and FieldTrip
-files, sorted units and manifest, and loads each one when its property is read
-(`FT = out.FieldTrip`).
+that finds this dataset's extract, spikes, behavior and NWB files, sorted
+units and manifest, and loads each one when its property is read
+(`S = out.Extract`).
 
 ### Dataset manifest
 
@@ -2648,7 +2509,7 @@ is in [file-formats.md](file-formats.md#dataset-manifest).
   folder, not in a dry run (`sorting`: settings.json, the probe given, the
   `.bin`'s reference and whether the sorter adds its own), `toMat`
   (`signals`), `spikesToMat` (`spikes`), `behaviorToMat` (`behavior`) and
-  the exports (`chronux`, `fieldtrip`, `epochs`, `kcsd`, `nwb`). Each record
+  `exportNWB` (`nwb`). Each record
   is built by **`r = EphysDataset.processingRecord(fileKey, file, prov,
   options)`** (static): the file, `created`, `run_id`, and `options`, every
   option as run, through **`EphysDataset.optionsRecord(o)`**, which leaves
@@ -2785,7 +2646,7 @@ interpolates.
 | `EphysDataset:BadArtifactIntervals` | an `ArtifactIntervals` option that is not `[k x 2]` |
 | `EphysDataset:toMat:Exists` / `MkdirFailed` | `toMat` output refused: a file exists and `Overwrite` is off, or the output folder cannot be made |
 | `EphysDataset:saveAtomically:SaveWarning` / `SaveIncomplete` / `MkdirFailed` / `MoveFailed` | a `.mat` output discarded (`save()` warned, a variable is missing) or not put in place |
-| `EphysDataset:spikesToMat:Exists`, `behaviorToMat:Exists`, `exportChronux:Exists`, `exportFieldTrip:Exists`, `exportEpochs:Exists`, `exportKCSD:Exists`, `exportNWB:Exists` | target file exists and `Overwrite` is off |
+| `EphysDataset:spikesToMat:Exists`, `behaviorToMat:Exists`, `exportNWB:Exists` | target file exists and `Overwrite` is off |
 | `EphysDataset:readPhyUnits:NoResultsDir` / `NoOutput` / `NoSampleRate` / `Mismatch` / `NoClusterLabels` / `NoGroupMatch` | sorted output missing or inconsistent |
 | `EphysDataset:readPhyUnits:BadIdentity` | an `Identity` struct without `subject`, `recordingStart`, `labelSuffix` and `datasetKey` |
 | `EphysDataset:readPhyWaveforms:NoResultsDir` / `NoParams` / `BadParams` / `NoDataFile` / `BadChannels` | no sort, no usable `params.py`, the sorted `.bin` not found, or a channel that was not sorted |
@@ -2812,7 +2673,7 @@ deletes them afterwards. It covers:
 | 8b | explicit artifact intervals in the `.bin` (noise fill, seed, zero fill, `MostlySilenced` refusal) |
 | 8c | `toBin` / `matrixToBin` refuse the recording's own files and leave it untouched; no step at a filled period's edges; a period cut by a chunk boundary carries on across it; the fill level from 16 chunks |
 | 9 | `DatasetTracker` integration |
-| 10 | split layouts (metadata, `readData`, byte-correct `toBin`; aux inputs: `auxiliary.dat` in volts with its names, `deriveSignals` `"AUX"`, the `_AUX` file and the AUX exports, none for a recording without aux) |
+| 10 | split layouts (metadata, `readData`, byte-correct `toBin`; aux inputs: `auxiliary.dat` in volts with its names, `deriveSignals` `"AUX"`, the `_AUX` file, none for a recording without aux) |
 | 11 | `artifactIntervals` (manual merge + automatic streaming; parallel == serial, `MaxWorkers=1` fall-back) and moved detections (`setArtifactAdjustment` / `adjustArtifacts`: on the sample grid, replaced, refused when they keep no sample, put back by the detected bounds) |
 | 12 | `runKilosort(DryRun=true)` with excluded channels (derived probe; one site left is still written as lists; every site excluded is refused) |
 | 12b | `runKilosort(DryRun=true)` with `shank_spacing` (a derived `<probe>_spaced.json` in the run folder with each shank moved along x, the probe map untouched, `settings.json` naming both probes; with excluded channels; one shank or 0 left alone; a negative value refused) and `restore_positions` (the true channel and spike positions) |
@@ -2823,7 +2684,7 @@ deletes them afterwards. It covers:
 | 17 | `readPhyUnits` / `readSortedUnits` (times = samples/fs, phy labels beat Kilosort labels, groups, channel mapping, `FsFallback`, a template as stored and not scaled by the amplitude) |
 | 18 | `detectSpikes(ArtifactIntervals=)` (the periods erased in every chunk; refused for a data block); `spikesToMat` (the detections only: a sorted dataset's units stay in the sorting folder, labeled with their recording by `readSortedUnits`; artifact rejection - also over 200 overlapping, touching, reversed and empty periods -; `ArtifactMode` `"none"` / `"erase"`; explicit `ArtifactIntervals`; waveforms; no partial file left); `toMat` saves no behavior variable |
 | 19 | the reader registry, `BinaryReader` (same microvolts through `readData`, `streamPlan` / `readChunkUV` and `readWindowUV`), random access for every Intan layout, a short last window joined to the one before, discovery of both kinds, `runKilosort` dry-run settings on the universal format |
-| 20 | `exportChronux` / `exportFieldTrip`, `readBehavior` / `behaviorStruct` / `behaviorToMat` |
+| 20 | `readBehavior` / `behaviorStruct` / `behaviorToMat` |
 | 21 | `channelLayout` (`chanMap` values are `.bin` rows; without `kcoords` every site on shank 1; `ProbeFile=` places a dataset without a probe, and wins over its own) |
 
 [`test_OpenEphysReader.m`](../pipeline/test_OpenEphysReader.m) writes Open

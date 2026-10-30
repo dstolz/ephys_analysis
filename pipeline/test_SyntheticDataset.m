@@ -178,8 +178,8 @@ cfg = EphysPipelineConfig.load(S.configFile);
 cfg.Project.Selection = "list";
 cfg.Project.Datasets = EphysProject.relativeKey(proj, T1.folder);
 cfg.Signals.Enabled = hasSP;
-cfg.Export.Enabled = hasSP;
 cfg.Spikes.Filter = hasSP;
+check(~cfg.Export.Enabled, 'the generated config leaves the Export step (NWB, Python) off');
 pipe = EphysPipeline(cfg, Project=P, Refresh=false);
 pipe.LogFcn = [];
 R = pipe.run();
@@ -197,10 +197,8 @@ if hasSP
     outS = pipe.outputPathFor("signals", d1);
     check(all(R.Status(R.Step == "signals") == "done") && all(isfile(outS)) && any(contains(outS, "_AUX")), ...
         'signals written per type, AUX included');
-    check(all(R.Status(startsWith(R.Step, "export")) == "done") && isfile(pipe.outputPathFor("export:chronux", d1)) ...
-        && isfile(pipe.outputPathFor("export:fieldtrip", d1)), 'Chronux and FieldTrip exports written');
 else
-    fprintf('  (signals / export checks skipped: Signal Processing Toolbox not available)\n');
+    fprintf('  (signals checks skipped: Signal Processing Toolbox not available)\n');
 end
 
 fprintf('\n== 7. the app: File > Create synthetic test project ==\n');

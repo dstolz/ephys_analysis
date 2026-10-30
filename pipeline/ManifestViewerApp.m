@@ -687,8 +687,7 @@ if isfield(m, 'processing') && isstruct(m.processing) && isscalar(m.processing)
     % (the options as run first), one row per leaf.
     S = "Processing";
     labels = struct('artifacts', "Artifact detection", 'bin', "Sorting .bin", 'sorting', "Sort", ...
-        'signals', "Signals", 'spikes', "Spikes", 'behavior', "Behavior file", 'chronux', "Chronux export", ...
-        'fieldtrip', "FieldTrip export", 'epochs', "Epochs export", 'kcsd', "kCSD export", 'nwb', "NWB export");
+        'signals', "Signals", 'spikes', "Spikes", 'behavior', "Behavior file", 'nwb', "NWB export");
     shown = ["file" "files" "results_dir" "exists" "created" "run_id" "reference" "bin_reference" "own_reference"];
     missingKinds = strings(1, 0);
     for k = string(fieldnames(m.processing)).'

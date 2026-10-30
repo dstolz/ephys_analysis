@@ -1,24 +1,16 @@
 function runExport(obj, opts)
-%runExport  Analysis-toolbox and epoch files per dataset, one per format
-%   (export<Format>).
-%   The continuous signals come from the Signals step's extract file(s), the
-%   sorted units from the sorting association, detected spikes from the
-%   Spikes step's file (Export.IncludeDetected), events as configured. The
-%   "epochs" format organizes the same data by event, one epoch per digital
-%   pulse or paired trial (Export.Epoch* settings); the behavior columns of a
-%   paired session ride along with its trials table. The "kcsd" format
-%   writes the LFP alone with the positions of its channels on the
-%   dataset's probe (probeFor) for kCSD-python, so neither the sorted units
-%   nor a missing sorting folder concern it. The "nwb" format writes an NWB
-%   2 file through Python (exportNWB: Export.NWB's metadata and Python,
-%   else the Sorting step's; the probe of probeFor; the trials of the
-%   behavior step's file). Behavior data is not otherwise
-%   exported here (see the behavior step). A dataset's inputs are read once
-%   and handed to every format: the extract files of the Export.Signals
-%   signals (per-type files of other signals are not read), the sorted units
-%   and the spikes file. One row per
-%   format and dataset (step "export:<format>"); progress goes out as the
-%   "export" step, the formats sharing each dataset's part of it.
+%runExport  NWB 2 files per dataset, one per format (export<Format>).
+%   The continuous signals come from the Signals step's extract file(s)
+%   (exportExtractFiles: per-type files of signals Export.Signals leaves
+%   out are not read), the sorted units from the sorting association (with
+%   their quality metrics, Export.UnitQuality), events as configured. The
+%   "nwb" format writes an NWB 2 file through Python (exportNWB:
+%   Export.NWB's metadata and Python, else the Sorting step's; the probe of
+%   probeFor; the trials of the behavior step's file). The inputs of the
+%   analysis toolboxes (Chronux, FieldTrip, kCSD, ...) and event-organized
+%   epochs are not written here: the DatasetBrowser's scripts make them.
+%   One row per format and dataset (step "export:<format>"); progress goes
+%   out as the "export" step, the formats sharing each dataset's part of it.
 %
 %   Options: Datasets (indices), DryRun (log only).
 
@@ -37,8 +29,6 @@ nFmt = numel(E.Formats);
 for k = 1:n
     d = ds(k);
     extract = obj.exportExtractFiles(d);   % with SeparateFiles, only those of Export.Signals (as plan)
-    spikesFile = obj.outputPathFor("spikes", d);
-    in = [];                       % read by the dataset's first format that runs
     for j = 1:nFmt
         fmt = E.Formats(j);
         step = "export:" + fmt;
@@ -56,7 +46,7 @@ for k = 1:n
             obj.addResult(step, d.Name, "skipped", "output exists (Overwrite is off)", out, toc(t0));
             continue
         end
-        if E.IncludeUnits && fmt ~= "kcsd" && d.sortingMissing()
+        if E.IncludeUnits && d.sortingMissing()
             % never export without the hand-picked sort, or with another one
             obj.addResult(step, d.Name, "skipped", "the sorted-output folder is not there: " + d.SortingDir, out, toc(t0));
             continue
@@ -68,37 +58,16 @@ for k = 1:n
                 obj.addResult(step, d.Name, "dry run", "would write from " + strjoin(extract, ", "), out, toc(t0));
                 continue
             end
-            if isempty(in)
-                obj.progress("export", d.Name, k, n, j - 1, nFmt, fmt + ": reading the inputs");
-                in = exportInputs(d, extract, sharedInputOptions(E, spikesFile));
-            end
             obj.progress("export", d.Name, k, n, j - 1, nFmt, fmt + ": exporting");
-            o.Extract  = in.Extract;
-            o.Sources  = in.Sources;
+            o.Extract = extract;
             o.Provenance = obj.provenance();
-            if fmt == "kcsd"
-                o.ProbeFile = obj.probeFor(d);   % its own, a rule's or the default probe
-            else
-                o.Units    = in.Units;
-                o.Detected = in.Detected;
-            end
-            if fmt == "nwb"
-                o.ProbeFile = obj.probeFor(d);
-                if o.PythonExe == ""; o.PythonExe = c.Sorting.PythonExe; o.CondaEnv = c.Sorting.CondaEnv; end
-                % the run's provenance, the pairing of the behavior step's file
-                o.Behavior = obj.outputPathFor("behavior", d);
-                if ~isfile(o.Behavior); o.Behavior = ""; end
-            end
+            o.ProbeFile = obj.probeFor(d);   % its own, a rule's or the default probe
+            if o.PythonExe == ""; o.PythonExe = c.Sorting.PythonExe; o.CondaEnv = c.Sorting.CondaEnv; end
+            % the trials of the behavior step's pairing
+            o.Behavior = obj.outputPathFor("behavior", d);
+            if ~isfile(o.Behavior); o.Behavior = ""; end
             args = namedargs2cell(o);
             switch fmt
-                case "chronux"
-                    r = d.exportChronux('File', out, args{:});
-                case "fieldtrip"
-                    r = d.exportFieldTrip('File', out, args{:});
-                case "epochs"
-                    r = d.exportEpochs('File', out, args{:});
-                case "kcsd"
-                    r = d.exportKCSD('File', out, args{:});
                 case "nwb"
                     r = d.exportNWB('File', out, args{:});
                 otherwise
@@ -111,23 +80,9 @@ for k = 1:n
                 % The file is complete; a cancel raised here must not report it
                 % as "nothing written" (the next format records the cancel).
             end
-            if fmt == "kcsd"
-                msg = string(sprintf("LFP; %d electrode(s) in %d-D, %d channel(s) left out; %d event(s)", ...
-                    r.nElectrodes, r.dim, r.nExcluded, r.nEvents));
-            elseif fmt == "nwb"
-                serious = nnz(ismember(r.inspector.importance, ["ERROR" "PYNWB_VALIDATION" "CRITICAL"]));
-                msg = string(sprintf("%s; %d electrode(s), %d unit(s), %d trial(s), %d line(s); nwbinspector: %d finding(s), %d critical or above", ...
-                    strjoin(r.signals, "+"), r.nElectrodes, r.nUnits, r.nTrials, r.nEventLines, height(r.inspector), serious));
-            else
-                msg = sprintf("%s; %d unit(s)", strjoin(r.signals, "+"), r.nUnits);
-            end
-            if fmt == "epochs"
-                msg = string(msg) + sprintf("; %d epoch(s) of %s [%g %g] s", r.nEpochs, r.eventName, r.window(1), r.window(2));
-                if r.nArtifact > 0
-                    msg = msg + sprintf(", %d touch an artifact period (%s)", r.nArtifact, ...
-                        ternary(r.artifacts == "drop", "left out of the signals", "kept, flagged"));
-                end
-            end
+            serious = nnz(ismember(r.inspector.importance, ["ERROR" "PYNWB_VALIDATION" "CRITICAL"]));
+            msg = string(sprintf("%s; %d electrode(s), %d unit(s), %d trial(s), %d line(s); nwbinspector: %d finding(s), %d critical or above", ...
+                strjoin(r.signals, "+"), r.nElectrodes, r.nUnits, r.nTrials, r.nEventLines, height(r.inspector), serious));
             obj.log("[%s] %s: wrote %s (%s)", step, d.Name, r.file, msg);
             obj.addResult(step, d.Name, "done", msg, r.file, toc(t0));
         catch ME
@@ -143,72 +98,4 @@ end
 if obj.CancelRequested
     error('EphysPipeline:Canceled', 'Canceled by user.');
 end
-end
-
-
-function o = sharedInputOptions(E, spikesFile)
-%sharedInputOptions  The options the dataset's inputs are read with, once for
-%   every format: the shared export options, the spikes file for
-%   IncludeDetected, and no sorted units when only kcsd (the LFP alone) is
-%   written.
-o = EphysPipelineConfig.exportOptions(E);
-if E.IncludeDetected
-    if isfile(spikesFile); o.Detected = spikesFile; else; o.Detected = false; end
-end
-if all(E.Formats == "kcsd")
-    o.Units = false;
-    o.Detected = false;
-end
-end
-
-
-function in = exportInputs(d, files, o)
-%exportInputs  Dataset D's export inputs, read once for all of its formats.
-%   Loads the extract FILES (one combined file, or per-type files that each
-%   add their own signal), the sorted units when o.Units asks for them ([] =
-%   the dataset's own, when it has any; with o.UnitQuality, with their
-%   quality metrics, EphysDataset.unitQuality) and the detected spikes of
-%   the spikes file o.Detected. Sources names what was read, as each
-%   exporter records it when it reads the files itself.
-S = load(files(1));
-for f = files(2:end)
-    T = load(f);
-    for sig = ["LFP" "MUA" "SPIKE" "AUX"]
-        if isfield(T.info, sig)
-            S.Y.(sig) = T.Y.(sig);
-            S.info.(sig) = T.info.(sig);
-        end
-    end
-end
-src = struct('extractFile', strjoin(files, "; "), 'spikesFile', "", 'sortingDir', "");
-units = false;
-if isempty(o.Units) && d.hasKilosortResults()
-    [units, uinfo] = d.readSortedUnits(Groups=o.Groups);
-    if isfield(o, 'UnitQuality') && o.UnitQuality
-        % as resolveExportInputs does for an exporter called on its own
-        try
-            units = d.unitQuality(units, uinfo);
-            units.quality = rmfield(units.quality, 'cache');   % not part of an export
-        catch ME
-            warning('EphysPipeline:runExport:NoUnitQuality', ...
-                'The quality metrics of the units of %s could not be computed (%s); the units are exported without them.', ...
-                d.Name, ME.message);
-        end
-    end
-    src.sortingDir = string(d.sortingResultsDir());
-end
-detected = false;
-if isstring(o.Detected)
-    M = load(o.Detected, 'detected');
-    if isfield(M, 'detected') && ~isempty(M.detected)
-        detected = M.detected;
-        src.spikesFile = o.Detected;
-    end
-end
-in = struct('Extract', S, 'Units', units, 'Detected', detected, 'Sources', src);
-end
-
-
-function out = ternary(cond, a, b)
-if cond; out = a; else; out = b; end
 end

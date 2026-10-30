@@ -10,8 +10,8 @@ function test_DerivedEvents()
 %   TrialEvents, the InDataset trials column, a definition the session
 %   cannot meet left out, none without a pairing), the extract's events
 %   (toMat, and writeExtractEvents bringing an existing extract up to date
-%   without touching its signals), the exports (exportChronux,
-%   eventEpochs) and the analysis source (loadAnalysisSource,
+%   without touching its signals), the NWB export's staged lines
+%   (exportNWB, StageOnly) and the analysis source (loadAnalysisSource,
 %   resolveEvents, selectTrials), and the DerivedEventsDialog.
 %
 %   Usage:  test_DerivedEvents
@@ -182,12 +182,14 @@ if license('test', 'Signal_Toolbox')
         'the behavior step brings an existing extract''s events up to date, its signals untouched');
     o3 = d.behaviorToMat(Pairing=P, Overwrite=true);
     check(isempty(o3.extractFiles), 'an extract already up to date is not written again');
-    cf = d.exportChronux();
-    C = load(cf.file, 'events');
-    check(all(isfield(C.events, {'Shallow', 'DeepStim', 'ShallowHit', 'din0', 'din1'})) && isequal(C.events.DeepStim, DE(2).intervals), ...
-        'an export carries every derived event, in the extract or not');
-    EP = d.eventEpochs(EventLine="ShallowHit", Window=[-0.05 0.1]);
-    check(EP.event.nEpochs == 2, 'the epochs export cuts epochs around a derived event');
+    nw = d.exportNWB(StageOnly=true, Units=false, Metadata=struct('SessionStartTime', "2026-01-01 12:00:00"));
+    st = readJsonFile(fullfile(nw.stage, "stage.json"));
+    ev = st.events;
+    if ~iscell(ev); ev = num2cell(ev); end
+    evNames = string(cellfun(@(e) e.name, ev, 'UniformOutput', false));
+    rmdir(nw.stage, 's');
+    check(all(ismember(["Shallow" "DeepStim" "ShallowHit" "din0"], evNames)), ...
+        'the NWB export carries every derived event, in the extract or not');
 else
     fprintf('  (extract and export checks skipped: Signal Processing Toolbox not available)\n');
     tc.DerivedEvents(1).InDataset = true;

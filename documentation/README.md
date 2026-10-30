@@ -6,8 +6,8 @@ recordings through an acquisition-agnostic reader layer (Intan RHD and Open
 Ephys GUI sessions in its Binary, Open Ephys and NWB formats out of the box,
 anything else through a universal binary format), screens them for
 artifacts, sorts them with **Kilosort4** on a `.bin` (optional), derives LFP / MUA / spike-band signals, detects spikes and collects
-sorted units, associates **Epsych2** behavior sessions, and exports files for
-the **Chronux** and **FieldTrip** toolboxes. One JSON config drives the GUI,
+sorted units, associates **Epsych2** behavior sessions, and exports an **NWB 2**
+file. One JSON config drives the GUI,
 the headless runner and generated scripts.
 
 > Written 2026-09-11 and revised 2026-09-23 from the source in the working
@@ -18,17 +18,19 @@ potentials, rates, tuning curves, heatmaps, probe maps) and reports from the
 pipeline's outputs, with its own config, runner, scripts and GUI. It depends
 on `pipeline`; `pipeline` does not depend on it. See [Analysis](EphysAnalysis.md). To compute one
 matrix over the units of many datasets, ticked in a window or from a script, see
-[DatasetBrowser](DatasetBrowser.md).
+[DatasetBrowser](DatasetBrowser.md), which also makes the inputs of the analysis
+toolboxes (Chronux, FieldTrip, neuroGLM, mTRF, iCSD, kCSD-python) and the data
+organized by event.
 
 ## Pages
 
 | Page | Covers |
 | --- | --- |
 | [EphysPipeline](EphysPipeline.md) | `EphysPipelineConfig` (the config and its schema), `EphysPipeline` (plan / run / cancel; background Kilosort4 runs N at a time over the listed GPUs: `sortingSlot`, `waitForSortingSlot`; the Analysis step, which runs an analysis config's figures and report over the selected datasets), `EphysPipelineScript` (generated scripts), Epsych2 session readers |
-| [EphysDataset](EphysDataset.md) | one recording: readers and the universal data struct, layouts, metadata, streaming, filtering, artifacts, spike detection, `.bin` writing, Kilosort4 runs, sorted-unit loader, derived signals, spikes file, exports, behavior, manifest |
+| [EphysDataset](EphysDataset.md) | one recording: readers and the universal data struct, layouts, metadata, streaming, filtering, artifacts, spike detection, `.bin` writing, Kilosort4 runs, sorted-unit loader, derived signals, spikes file, the NWB export, behavior, manifest |
 | [EphysProject](EphysProject.md) | discovering many recordings, `refresh`, dataset keys, batch operations |
 | [DatasetTracker](DatasetTracker.md) | read-only filesystem inventory (recordings, probe maps, `.bin` files, Kilosort4 runs) |
-| [DatasetOutputs](DatasetOutputs.md) | one dataset's processed files (signals, spikes, behavior, exports, sorted units), found wherever they live and loaded on demand |
+| [DatasetOutputs](DatasetOutputs.md) | one dataset's processed files (signals, spikes, behavior, the NWB file, sorted units), found wherever they live and loaded on demand |
 | [EphysPipelineApp](EphysPipelineApp.md) | the GUI, tab by tab, its config model and preferences |
 | [Copying the outputs](EphysPipeline.md#copying-the-outputs-elsewhere) | `OutputTransfer` and the pipeline's `Transfer` section: each dataset's outputs copied or moved to `<folder>/<subject>/<session>` in the background, after each step or after the run, with a new version folder, overwrite or skip when it is there (the Run tab's **Copy outputs to**) |
 | [Copying sessions](EphysPipelineApp.md#copy) | `findCopySessions`, `stitchCopySessions`, `copySessions`, `CopySchedule`: pairing recording folders (Intan RHX, Open Ephys GUI sessions) with ePsych files on the source and copying them to local session folders, by hand or on a schedule |
@@ -38,7 +40,7 @@ matrix over the units of many datasets, ticked in a window or from a script, see
 | [Visualize](EphysPipelineApp.md#visualize) | `EphysTraceSource` (the recording, the Sorting `.bin` or a derived signal, read a window at a time), `EphysTraceEnvelope` (its min / max at several block sizes, cached on disk and built in the background, for views wider than one read) and `EphysTraceViewer` (stacked lanes with sorted units and detected spikes over them), behind the app's Visualize tab |
 | [intan2matlab](intan2matlab.md) | `intan2matlab` / `deriveSignals` / `toMat`: LFP, MUA, SPIKE and digital events |
 | [ChronuxDataset](ChronuxDataset.md) | connector that hands recordings, trials and spike trains to the Chronux toolbox |
-| [FieldTripExport](FieldTripExport.md) | FieldTrip raw / spike / event structures and `exportFieldTrip` |
+| [FieldTripExport](FieldTripExport.md) | FieldTrip raw / spike / event structures, built for the DatasetBrowser's FieldTrip script (`epochMatrixFieldTrip`, `sessionDataFieldTrip`) |
 | [NeuroGLMExport](NeuroGLMExport.md) | connector that hands the browser's whole sessions to the neuroGLM toolbox (Park et al. 2014) and fits its Poisson GLM |
 | [mTRFExport](mTRFExport.md) | stimulus / response pairs for the mTRF-Toolbox (Crosse et al. 2016: temporal response functions, decoders): `mTRFExport`, `epochMatrixMTRF`, `sessionDataMTRF` |
 | [CSDEstimate](CSDEstimate.md) | current source density of the browser's laminar potentials with the iCSD toolbox (`icsdEstimate`: Pettersen et al. 2006) or kCSD-python (`kcsdEstimate`: Potworowski et al. 2012): `laminarColumns`, `epochMatrixCSD`, `sessionDataCSD` |
@@ -82,23 +84,11 @@ flowchart LR
     PRB[("probe .json<br/>ProbeDesignerApp")] -.-> KS
     EVT -. pairTrials .-> BMAT
 
-    subgraph EXP["exports"]
-        CHX[(_chronux.mat)]
-        FTX[(_fieldtrip.mat)]
-        EPO[(_epochs.mat)]
-        KCX[(_kcsd.npz)]
-        NWBX[(.nwb)]
-    end
-    MAT -- exportChronux --> CHX
-    MAT -- exportFieldTrip --> FTX
-    MAT -- exportEpochs --> EPO
-    MAT -- exportKCSD --> KCX
+    NWBX[(".nwb")]
     MAT -- exportNWB --> NWBX
-    SPK & KS -.-> EXP
-    BMAT -.-> EPO & NWBX
-    CHX -.-> CHRONUX[/Chronux/]
-    FTX -.-> FIELDTRIP[/FieldTrip/]
-    KCX -.-> KCSD[/kCSD-python/]
+    KS -.-> NWBX
+    BMAT -.-> NWBX
+    MAT & SPK & KS & BMAT -.-> DSB[/"DatasetBrowser<br/>epochs, sessions,<br/>toolbox inputs"/]
 
     MAT -- EphysAnalysisRunner --> FIGS[("figures + reports<br/>.png / .svg / .eps / .pdf,<br/>HTML + PDF")]
     SPK & KS & BMAT -.-> FIGS
@@ -110,11 +100,12 @@ Behavior pairing reads the cached digital events. The artifact periods are
 erased in the `.bin` and, before any filter, in the data LFP / MUA / SPIKE are
 derived from (`Signals.BlankArtifacts`, which also records them in
 `_extract.mat`), and threshold detection drops the spikes inside them or, with
-`Spikes.ArtifactMode = "erase"`, erases them before it filters. The exports
-and the analysis take their signals, events and artifact periods from
-`_extract.mat` (epochs that touch a period are dropped by default), detected
-spikes from `_spikes.mat` and sorted units straight from `kilosort4/`; epochs and figures also read the
-paired trials in `_behavior.mat`. The common reference (CAR / CMR), when set,
+`Spikes.ArtifactMode = "erase"`, erases them before it filters. The NWB
+export, the DatasetBrowser and the analysis take their signals, events and
+artifact periods from `_extract.mat` (epochs that touch a period are dropped by
+default) and sorted units straight from `kilosort4/`; the browser and the
+analysis also read detected spikes from `_spikes.mat`, and the NWB file, the
+epochs and the figures the paired trials in `_behavior.mat`. The common reference (CAR / CMR), when set,
 is subtracted once as each step reads the recording, so artifact detection, the
 `.bin` (Kilosort4's own `do_CAR` is then off) and threshold detection all see
 it, and so do the derived signals ticked for it (MUA and SPIKE by default; the
@@ -125,9 +116,9 @@ The code that drives the tree: `EphysPipelineApp` or a generated
 runs its steps over an `EphysProject`, one `EphysDataset` per recording, read
 through an `EphysReader` (`IntanReader` / `OpenEphysReader` / `TDTReader` / `BinaryReader`).
 `readEpsychSession` reads the Epsych2 session, `intan2matlab` is a thin
-wrapper around `deriveSignals` (what `toMat` saves), `exportChronux` packages
-through `ChronuxDataset` and `exportFieldTrip` through `FieldTripExport`, and
-`DatasetTracker` keeps the inventory of files on disk. Each dataset keeps its
+wrapper around `deriveSignals` (what `toMat` saves), `exportNWB` writes the
+NWB file through Python, the DatasetBrowser's scripts package data through
+`ChronuxDataset` and `FieldTripExport`, and `DatasetTracker` keeps the inventory of files on disk. Each dataset keeps its
 state in `<Name>_manifest.json` (`writeManifest` / `applyManifest`), which
 `ManifestViewerApp` shows (**Dataset → View manifest...**). Kilosort4
 (`run_ks4.py`) and probeinterface (`probe_tool.py`, behind `ProbeDesignerApp`)
@@ -179,17 +170,15 @@ res = ds.runKilosort();              % writes the .bin, blocks until Kilosort4 f
 U   = ds.readSortedUnits();          % the sorted units (phy labels, times, channels)
 out = ds.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "MUA"]));
 out = ds.spikesToMat();             % threshold-detected spikes
-out = ds.exportChronux();  out = ds.exportFieldTrip();
-E   = ds.eventEpochs(EventSource="behavior");   % the same data, one epoch per trial
-out = ds.exportEpochs();                        % E, saved as _epochs.mat
-out = ds.exportKCSD();                          % LFP + probe positions for kCSD-python, _kcsd.npz
+out = ds.exportNWB();               % an NWB 2 file (needs a Python with pynwb)
 ```
 
-Chronux spectra from the export (needs [Chronux](http://chronux.org) on the path):
+Chronux spectra of a derived signal (needs [Chronux](http://chronux.org) on the path):
 
 ```matlab
-C = load("D:\out\subj1_day1\subj1_day1_chronux.mat");
-[S, f] = mtspectrumc(C.LFP.data(:, 1), C.LFP.params);
+cx = ChronuxDataset("D:\out\subj1_day1\subj1_day1_extract_LFP.mat", Signal="LFP");
+[data, params] = cx.continuous(Channels=1);
+[S, f] = mtspectrumc(data, params);
 ```
 
 ## Conventions
@@ -250,12 +239,12 @@ probe that accounts for the gap; see
   continuous clock, so on any signal at `Fs` its row is
   `round((t − 1/origFs)·Fs) + 1`: that very row at the recording rate, the
   nearest sample of a derived signal. `ChronuxDataset.trials` (`OnsetRule`
-  `"event"`), `eventEpochs` / `exportEpochs`, the pairing's
-  `TrialOnsetSample_<SIG>`, FieldTrip `data_<SIG>.cfg.event`,
+  `"event"`), the pairing's
+  `TrialOnsetSample_<SIG>`, `FieldTripExport.event`,
   `extract_trials` (`EventFs`) and the analysis module (`epochTable`'s
   `t0Continuous`, `evokedPotential`) all use it. Spikes are cut or binned
   around the event's recording row, `(row − 1) / origFs`, so a spike in the
-  event's own sample is at 0 (`eventEpochs` spike epochs, `spikePSTH`,
+  event's own sample is at 0 (`spikePSTH`,
   `firingRate`, `unitCorrelation`).
 - `detectArtifacts` intervals are half-open on the continuous clock: the
   flagged rows a..b give `[a − 1, b) / Fs`, so a one-sample artifact is one
@@ -310,8 +299,8 @@ Collected from the code. Each is explained on the linked page.
 | Sorted-output association | a hand-picked folder is restored on rescan as recorded, even while it is not there; the steps that read sorted units then report it missing (`error: sorting folder missing`) instead of using another sort | [EphysDataset → Sorted output](EphysDataset.md#sorted-output) |
 | Sorted waveforms | `templateWaveform` is Kilosort4's template (its mean of the unit's spikes in the whitened, high-passed data), unwhitened with `whitening_mat_inv.npy` (transposed), in µV when the run's `settings.json` has `bin_scale` (`runKilosort` writes it), else in `.bin` units (`units.templateUnits` says which); it is not scaled by the amplitude and not a raw-spike average. `EphysDataset.readPhyWaveforms` cuts the spikes themselves from the sorted `.bin`, prepared as Kilosort4 saw them before whitening, on the templates' time axis and in their units | [EphysDataset → Reading sorted units](EphysDataset.md#reading-sorted-units) |
 | Review firing rates | spike count ÷ the sorted time, from Kilosort4's `tmin` to `min(tmax, recording end)`; the time of the last spike only when the recording's length is unknown | [App → Review](EphysPipelineApp.md#review) |
-| Epsych2 trials | paired **in order** with the intervals of the trial line, not by timestamps (`pairEpsychTrials` / `ds.pairTrials`, the behavior step's `PairTrials`, the Trials tab), and reviewed before approval (`setTrialPairing`, `autoApproveTrialPairing`); the pairing goes into `<Name>_behavior.mat` and the behavior-sourced epochs | [EphysPipeline → Pairing trials](EphysPipeline.md#pairing-trials-with-the-trial-line) |
-| Derived events | new named lines from a line's intervals in the trials that meet conditions on the trial parameters (`Depth >= -6`; several combined with all / any), kept as typed in `Behavior.DerivedEvents` and edited on the Trials tab (`deriveEvents`, `DerivedEventsDialog`); in the behavior file, every export and the analysis app, and optionally the extract's events and a trials column | [EphysPipeline → Derived events](EphysPipeline.md#derived-events) |
+| Epsych2 trials | paired **in order** with the intervals of the trial line, not by timestamps (`pairEpsychTrials` / `ds.pairTrials`, the behavior step's `PairTrials`, the Trials tab), and reviewed before approval (`setTrialPairing`, `autoApproveTrialPairing`); the pairing goes into `<Name>_behavior.mat`, from which the NWB export, the DatasetBrowser and the analysis take their trials | [EphysPipeline → Pairing trials](EphysPipeline.md#pairing-trials-with-the-trial-line) |
+| Derived events | new named lines from a line's intervals in the trials that meet conditions on the trial parameters (`Depth >= -6`; several combined with all / any), kept as typed in `Behavior.DerivedEvents` and edited on the Trials tab (`deriveEvents`, `DerivedEventsDialog`); in the behavior file, the NWB export, the DatasetBrowser and the analysis app, and optionally the extract's events and a trials column | [EphysPipeline → Derived events](EphysPipeline.md#derived-events) |
 | Background sorting + dependent steps | a background sorting run cannot feed `Export` (units, `Export.IncludeUnits`) in the same run; `validate` reports it | [EphysPipeline → Validation](EphysPipeline.md#validation) |
 | Duplicate dataset names | two recordings with the same leaf name under one `Project.OutputRoot` share `<OutputRoot>/<Name>`: `plan()` refuses either one (`error: output folder shared with <key>`), even when only one is selected; same-name files in a shared step `OutputDir` are `duplicate output`; `DatasetOutputs` and the clean-up ignore another recording's files by their recorded source folder. Rename one folder, or leave `OutputRoot` empty | [EphysPipeline → Dataset keys](EphysPipeline.md#dataset-keys) |
 | Probe mapping | `chanMap` indexes `.bin` rows, not hardware channel numbers; a recording with a channel disabled at acquisition needs a probe that accounts for the gap | [Python drivers](python-drivers.md#channel-numbering-caveat) |
@@ -431,14 +420,14 @@ another), and the kCSD connector (`kcsdEstimate`,
 [`toolboxes/chronux`](../toolboxes/chronux), which `addpath_nogit` on the
 repository root puts on the path)
 and [FieldTrip](https://www.fieldtriptoolbox.org/), each only for analyzing the
-files the pipeline exports for it. The analysis app's
+inputs the DatasetBrowser's scripts make for it. The analysis app's
 [spectral panels](EphysAnalysisConfig.md#spectral-panels) call Chronux's `mtspectrumc`,
 `mtspecgramc`, `coherencyc`, `cohgramc`, `mtspectrumpt`, `coherencycpt`,
 `cohgramcpt`, `coherencypt`, `dpsschk` and `getfgrid` (power spectrum, spectrogram, coherence; they need Chronux on
 the path to compute). Chronux's own `findpeaks` and `jackknife` shadow
-MATLAB's while it is on the path. Producing the files never calls either
+MATLAB's while it is on the path. Producing the inputs never calls either
 toolbox; `ChronuxDataset.hasChronux` / `FieldTripExport.hasFieldTrip` report
-whether they are on the path, and the FieldTrip export validates its
+whether they are on the path, and `FieldTripExport.validate` checks its
 structures with `ft_datatype_*` when FieldTrip is present.
 [neuroGLM](https://github.com/pillowlab/neuroGLM) (not bundled; clone it and
 add its folder to the path) is needed by the
@@ -596,7 +585,7 @@ suite's temporary preferences, so close it before the run ends.
 
 | Suite | Covers |
 | --- | --- |
-| `test_EphysDataset` | readers, layouts (aux inputs included), streaming, filters, artifacts (moved bounds, the fill), spike detection, `.bin`, Kilosort4 dry runs (exclusions, `shank_spacing`), JSON and probe maps, manifest v2, sorted units, `spikesToMat` (detections only), exports, behavior, `channelLayout` ([sections](EphysDataset.md#tests)) |
+| `test_EphysDataset` | readers, layouts (aux inputs included), streaming, filters, artifacts (moved bounds, the fill), spike detection, `.bin`, Kilosort4 dry runs (exclusions, `shank_spacing`), JSON and probe maps, manifest v2, sorted units, `spikesToMat` (detections only), behavior, `channelLayout` ([sections](EphysDataset.md#tests)) |
 | `test_IntanReader` | the Intan reader: every data-block and on-disk layout, truncated last blocks, window reads across files, `readDigitalEvents` without the amplifier data, the run helpers, one-file-per-channel digital files, the recording start (`AcqDate`), `streamPlan` chunks, `KeepChannels` / `Precision`; the software notch of files before version 3.0 against Intan's own loop (its speed-up, one stream across files, the lead-in, every read and `toBin`) |
 | `test_BinaryReader` | the universal binary reader: `readDigitalEvents` from `dig_in_file` alone, `readData`, `Files` listing `dig_in_file`, `streamPlan` |
 | `test_AppPrefs` | the apps' preference store: a file store's set / get / remove, nothing reaching MATLAB's own preferences, nested temporary stores, `AppPrefsFixture` |
@@ -614,18 +603,17 @@ suite's temporary preferences, so close it before the run ends.
 | `test_TDTReader` | TDT Synapse blocks (TSQ / TEV / Tbk / SEV): discovery, metadata, exact samples from TEV chunks and SEV files, stream choice and gain, epocs as TDT's readers return them and their rows on the stream grid (late stream start, gaps), disabled stores, line names, `Acquisition.TDT`; trials from the epocs of a block without an Epsych2 session (paired, written, the behavior step); synthetic TDT recordings and projects through the pipeline |
 | `test_EphysProject` (in `test_EphysDataset` §7 / §15) | discovery (recursive or not), keys, `refresh`, the one Epsych2 file in a recording folder associated |
 | `test_DatasetTracker` | the filesystem inventory |
-| `test_DatasetOutputs` | `DatasetOutputs`: files classified by their variables, decoys rejected, newest wins, merged and per-signal extracts, units, behavior, pinning and `SearchDirs`, caching, dataset mode, two recordings with one name sharing an output folder, a hand-picked sort that is not there, a changed extract |
+| `test_DatasetOutputs` | `DatasetOutputs`: files classified by their variables (an `.nwb` by its notes), decoys rejected, newest wins, merged and per-signal extracts, units, behavior, pinning and `SearchDirs`, caching, dataset mode, two recordings with one name sharing an output folder, a hand-picked sort that is not there, a changed extract |
 | `test_ChronuxDataset` | the Chronux connector: `makeParams` / `tapersFor`, continuous and trial data from a matrix, a `toMat` file or struct (onset rules, `EventFs`, trial policies), point-process spikes, `spikeTrials`, `binnedSpikes`, the Kilosort4 / phy source, `extract_trials` |
-| `test_FieldTripExport` | the FieldTrip `raw`, `spike` (sorted and detected) and `event` structures; the general builders `continuous`, `epochs` and `trl`; `exportFieldTrip`'s events on each signal's clock and its artifact matrix; `ft_datatype_*` validation when FieldTrip is on the path |
+| `test_FieldTripExport` | the FieldTrip structures `FieldTripExport` builds: `continuous`, `event` (on the recording's clock) and `artifact` (the matrix on a raw structure), the general builders `epochs`, `trl`, `spikeTimes` and `spikeTrials`; `ft_datatype_*` validation when FieldTrip is on the path |
 | `test_MTRFExport` | the mTRF-Toolbox packaging: `resample` (the rate reached), `envelope` (an AM tone's modulator), `pulses` / `lines`, `trials` (the samples `FieldTripExport.epochs` gives), `segments` (artifact-free stretches, merged periods, split), `package`, `lagSamples`; with the toolbox on the path, `mTRFtrain` recovering a known kernel, `mTRFcrossval` and `mTRFpredict` on a package |
-| `test_EventEpochs` | the event-organized export (`eventEpochs`, `exportEpochs`): sample alignment (a derived signal's rows, `EpochComplete` in samples), spike windows and time bases, the trials table, the behavior source, onsets passed in, the `Incomplete` / `NonFinite` policies, the refusals, the file and `DatasetOutputs`' epochs kind, the Export section's epoch settings, epochs touching an artifact period |
-| `test_KCSDExport` | the kCSD-python export: the NumPy layer (`writeNPY` text and shapes, `writeNPZ` / `readNPZ`, zip64, NumPy's own archives), electrodes on the probe (order, 1-D / 2-D, column → channel mapping, bad and off-probe channels), events and artifacts as 0-based LFP samples, the file, `DatasetOutputs`' `kcsd` kind; with a Python that has NumPy (and kcsd), `numpy.load` and `KCSD1D` on the file |
+| `test_NumPyArchives` | the NumPy layer `exportNWB` and `kcsdEstimate` use: `writeNPY` text and shapes, `writeNPZ` / `readNPZ` (selected members, zip64 records, a deflated member as `numpy.savez_compressed` writes it); with a Python that has NumPy, `numpy.load` on the archive |
 | `test_EpsychSession` | Epsych2 readers (`epsychSessionMeta`, `readEpsychSession`, `findEpsychSessions`), matching (`matchEpsychSession`), stitching (`stitchEpsychSessions` and its refusals), two session files in one recording folder |
 | `test_DerivedEvents` | derived events: `deriveEvents` (all / any, chained lines, errors, skip), the config list (normalized, JSON, validated, script), the behavior file, the extract's events kept up to date, the exports, the analysis source, the Derived events window |
 | `test_TrialPairing` | trial pairing: `pairEpsychTrials` (counts, partial edge intervals, cuts, inverted lines), the `digitalEvents` cache, the manifest record and its staleness, auto approval, the behavior file, line polarity and names from `TrialConfig`, the behavior step |
 | `test_EphysPipelineConfig` | the pipeline config: defaults, normalization, JSON round trips, the Kilosort4 settings and probe parameter files, `numberText`, the option builders, `validate`, name tokens ([details](EphysPipeline.md#tests)) |
 | `test_EphysPipeline` | the runner: selection, `plan`, the probe and behavior preflights, the artifact cache, each step against the direct calls, `run` (dry run, steps, progress, cancel), same-name recordings, offline associations, manifests ([details](EphysPipeline.md#tests)) |
-| `test_EphysPipelineScript` | the compact and standalone scripts: `literal`, what each writes, `checkcode`, both run to identical outputs (behavior and epochs included) ([details](EphysPipeline.md#tests)) |
+| `test_EphysPipelineScript` | the compact and standalone scripts: `literal`, what each writes, `checkcode`, both run to identical outputs (behavior included) ([details](EphysPipeline.md#tests)) |
 | `test_SpikeInterfaceSorting` | the SpikeInterface sorters beside Kilosort4: `Sorting.Sorter` / `SIParams` (normalize, save / load, validation), `sortRunDir` and the sorted output following the sorter, `runSpikeInterface(DryRun=true)` and its refusals, a background launch through `si_launch.cmd` (stand-in python, Windows), the Sorting step and a Kilosort4 run holding a SpikeInterface sort back, `readPhyUnits` on `run_si.py`'s layout, `run_si.py`'s labels against `unitQualityPass`; with spikeinterface in the env, a real tridesclous2 sort of a synthetic recording (about 2 min) |
 | `test_SortingConcurrency` | (Windows) background Kilosort4 runs with stand-in executables: `sortRunState`, `sortingSlot` / `waitForSortingSlot`, `Sorting.MaxConcurrent` slots, runs started elsewhere, a cancel while waiting, blocking runs, GPUs (`Sorting.Devices`), the queue (`QueueFcn`, `launchSorting`), `stopSortRun`, paths with `&` `^` `( )` and spaces, an earlier sort's curation set aside |
 | `test_EphysPipelineApp` | the pipeline app, headless: the config round trip, the Diagram, every tab (Project, Artifacts, Trials, Sorting, Review, Run, Analysis with its figures table, Clean up, Visualize), the Help menu, preferences ([details](EphysPipelineApp.md#tests)) |
@@ -638,7 +626,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_ChannelMapper` | the channel mapper: parsing vendor rows, the shipped hardware bank and saving entries, mating (both orientations, GND / REF safety, one-way connectors), the golden chains (H32 + RHD2132 = probeinterface's `H32>RHD2132`; H64LP + RHD2164 = `H64LP_4x16lin_probemap.json`; H16 + the 16-channel RHD2132), two headstages, a dataset's channel numbers, the Kilosort4 export and its sidecar, text output, saved mappings, the site-order templates, and `ChannelMapperApp` headless (selection, orientation, export, mappings, the entry editor, preferences) |
 | `test_SyntheticDataset` | `makeSyntheticProject` / `makeSyntheticRecording`: the written lines, sessions, spikes, aux and artifacts read back; pairing per scenario; the one-file-per-signal and binary layouts; the config through the pipeline; the app's File-menu action and the active dataset across its tabs |
 | `test_SyntheticGenerator` | `SyntheticDesign` (validation, JSON), the built-in design read back from the files (silenced window, evoked potential, aux steps), responses exactly in their window after the edge, evoked potentials peaking halfway through theirs, parameter scaling, `PreviewOnly` = what is written, the app's Synthetic tab |
-| `test_ChronuxAnalysis` (analysis/) | the Chronux analyses: settings, reading a Chronux file by parts, trials from epochs or from segments clear of artifact periods, their alignment, multitaper spectra, spectrograms and coherence of known signals and spike trains, drawing them |
+| `test_ChronuxAnalysis` (analysis/) | the Chronux analyses: settings, trials from epochs or from segments clear of artifact periods, their alignment, multitaper spectra, spectrograms and coherence of known signals and spike trains, drawing them |
 | `test_EphysAnalysisCompute` (analysis/) | compute functions on seeded spike trains and signals, the trial-filter compiler, the renderers the figures share (`renderHeatmap`, `renderProbeMap`, `renderCorrMap`, `renderWaveforms`), error bands, results merged across sessions (`combineSessions` on every kind a figure layer merges) and the session figure data export |
 | `test_PlotAesthetics` (analysis/) | the right-click aesthetics editor on figures (one per panel type and layout): rules, `renderFigure` naming everything it draws, the user's rules for a panel's type then the figure's, the menu, the editor (Apply to, Reset, Cancel, OK, Remember, Forget), the config and the script literal |
 | `test_PlotDesign` (analysis/) | plot designs on figures: the built-in ones (every panel type and layout draws in each), ground, palette, sequential and heat colors, the layering (design, the user's rules for a panel's type, the figure's), choosing one redrawing every figure on screen, capturing a figure's look per panel type, saving, importing and deleting designs, refused files (unknown kinds warn) |
@@ -666,7 +654,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_SpikeCoincidence` | one spike seen on neighboring sites (`detectSpikes` `Coincidence`): `"remove"` keeps the deepest copy, `"tag"` numbers them; the jitter and radius edges, ties, a site off the probe, waveforms, whole-recording mode across chunk joins, `spikesToMat` with and without a probe, tags after artifact rejection, the config and its validation, `siteNeighbors`, `SpikeNeighborsDialog` |
 | `test_DetectionBenchmark` | (tag `Benchmark`) spike and artifact detection scored against synthetic truth with `benchmarkDetection`: recall, precision, duplicates and noise crossings, artifact recall, coverage and edges, against regression floors ([below](#detection-benchmark)) |
 | `test_NWBExport` | the NWB export: every staged number against the inputs (signals as stored, electrodes on the probe, units, trial and pulse times on the continuous clock, the erased periods, the session start in its time zone) without Python; with a Python that has pynwb and nwbinspector (`NWB_PYTHON`, else `pyenv`), the file read back with `h5read`, nwbinspector's findings and `DatasetOutputs`' `nwb` kind; the errors |
-| `test_UnitQuality` | unit quality metrics: every metric equal to SpikeInterface's own on spike trains rebuilt from the integer generator of [`tools/golden/unit_quality_golden.py`](../tools/golden/unit_quality_golden.py) (golden values in `pipeline/testdata/`); SNR; the criteria; `ds.unitQuality` on a synthetic sort (fields, cache written, read, made stale by phy, SNR with uV templates); `unitTable`; the QC page; exports carrying the metrics; `sortSweep` comparing two sorts and dry-running two variants |
+| `test_UnitQuality` | unit quality metrics: every metric equal to SpikeInterface's own on spike trains rebuilt from the integer generator of [`tools/golden/unit_quality_golden.py`](../tools/golden/unit_quality_golden.py) (golden values in `pipeline/testdata/`); SNR; the criteria; `ds.unitQuality` on a synthetic sort (fields, cache written, read, made stale by phy, SNR with uV templates); `unitTable`; the QC page; the NWB export carrying the metrics; `sortSweep` comparing two sorts and dry-running two variants |
 
 ### Detection benchmark
 

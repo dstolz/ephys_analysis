@@ -568,15 +568,6 @@ if license('test', 'Signal_Toolbox')
     oa = daux.toMat(SeparateFiles=true, SignalOptions=struct('dataTypeOut', ["LFP" "AUX"], 'LFP_Fs', 1000));
     check(numel(oa.file) == 2 && endsWith(oa.file(2), "_AUX.mat") && isequal(oa.types, ["LFP" "AUX"]), ...
         'toMat SeparateFiles writes an _AUX file');
-    cxa = daux.exportChronux();
-    Ca = load(cxa.file);
-    check(isequal(sort(cxa.signals), ["AUX" "LFP"]) && isequal(size(Ca.AUX.data), [nSampSplit numAux]) ...
-        && Ca.AUX.params.Fs == Fs && Ca.AUX.info.units == "volts" && Ca.AUX.labels(1) == "accel1", ...
-        'exportChronux: AUX struct in volts with aux labels');
-    fta = daux.exportFieldTrip(Validate=false);
-    Fa = load(fta.file);
-    check(isfield(Fa, 'data_AUX') && isequal(Fa.data_AUX.label, {'accel1'; 'accel2'; 'accel3'}) ...
-        && isequal(Fa.data_AUX.hdr.chanunit, repmat({'V'}, numAux, 1)), 'exportFieldTrip: data_AUX with aux labels, unit V');
     dsig.OutputDir = fullfile(root, 'out_split_noaux');
     on = dsig.toMat(SeparateFiles=true, SignalOptions=struct('dataTypeOut', ["LFP" "AUX"], 'LFP_Fs', 1000));
     check(isscalar(on.file) && endsWith(on.file, "_LFP.mat") && on.types == "LFP" ...
@@ -1809,19 +1800,13 @@ ws = warning('off', 'EphysReader:ReaderFailed');
 check(isempty(EphysReader.forFolder(fullfile(root, 'bad_rec'))), 'an invalid descriptor is reported, not claimed');
 warning(ws);
 
-fprintf('\n== 20. exportChronux / exportFieldTrip / behavior ==\n');
-% A toMat-shaped extract built in memory (no Signal Processing Toolbox needed).
-nX = 256;
-Sx = struct();
-Sx.Y = struct('LFP', single(Xsrc(1:nX, :)), 'MUA', single([]), 'SPIKE', single([]));
-Sx.events = src.events;
-Sx.info = struct('LFP', struct('Fs', Fs), 'labels', ds.ChannelNames, 'origFs', Fs);
+fprintf('\n== 20. behavior ==\n');
 expOut = fullfile(root, 'export_out');
 dsx = EphysDataset(dsFolder);
 dsx.OutputDir = expOut;
 dsx.SortingDir = legDir;
 dsx.BehaviorFile = behFile;
-check(dsx.hasKilosortResults(), 'export fixture dataset has sorted units');
+check(dsx.hasKilosortResults(), 'fixture dataset has sorted units');
 
 % behavior helpers on the minimal section-15 session file
 [bt, bi, bm] = dsx.readBehavior();
@@ -1864,86 +1849,13 @@ end
 check(strcmp(errId, 'EphysDataset:readBehavior:NoFile'), 'readBehavior errors without a file');
 dsx.BehaviorFile = behFile;
 
-% detected spikes for the exports
-dsx.spikesToMat(DetectOptions=struct('Filter', false, 'ThresholdMethod', "absolute", 'Threshold', 100));
-
-oC = dsx.exportChronux(Extract=Sx);
-check(endsWith(oC.file, '_chronux.mat') && isfile(oC.file), 'exportChronux writes <Name>_chronux.mat');
-C = load(oC.file);
-check(all(isfield(C, {'LFP', 'sp', 'spDetected', 'units', 'detected', 'events', 'export'})) ...
-    && ~isfield(C, 'MUA') && ~isfield(C, 'behavior'), 'chronux file variables (only signals present, no behavior)');
-check(isa(C.LFP.data, 'double') && isequal(size(C.LFP.data), [nX numAmp]) ...
-    && isequal(C.LFP.data, double(single(Xsrc(1:nX, :)))) ...
-    && C.LFP.params.Fs == Fs && C.LFP.t(1) == 0 && abs(C.LFP.t(2) - 1/Fs) < 1e-12 ...
-    && isequal(C.LFP.labels, ds.ChannelNames), 'LFP data / params / t / labels through ChronuxDataset.continuous');
-check(numel(C.sp) == 2 && isequal(fieldnames(C.sp), {'times'}) && isequal(C.units.unitId, [0; 1]) ...
-    && isequal(C.units.label, ["su000_A1_260101T1200"; "mua001_A1_260101T1200"]) ...
-    && isequal(C.sp(1).times, C.units.times{1}), 'sp is the toPointProcess form of the sorted units');
-check(numel(C.spDetected) == numAmp && ~isempty(C.detected) && isequal(C.spDetected(1).times, C.detected.ts{1}(:)), ...
-    'spDetected from the spikes file');
-check(isequal(C.events.din0, src.events.din0) && C.export.tool == "EphysDataset.exportChronux", ...
-    'events and provenance');
-check(isequal(C.export.tags, {'draft', 'pilot'}), 'exportChronux: the dataset''s tags are in export.tags');
-Lx = C.export.layout.LFP;
-check(isequal(fieldnames(C.export.layout), {'LFP'}) && Lx.fs == Fs && Lx.nSamples == nX && Lx.nChan == numAmp ...
-    && isequal(Lx.labels, C.LFP.labels) && Lx.units == C.LFP.info.units && isequal(Lx.sampleRange, [1 nX]), ...
-    'export.layout indexes each signal (fs, size, labels, units) for reading it by parts');
-oC2 = dsx.exportChronux(Extract=Sx, Units=false, Detected=false, Overwrite=true, ...
-    File=fullfile(expOut, 'c2.mat'));
-C2 = load(oC2.file);
-check(isempty(C2.sp) && isempty(C2.units) && isempty(C2.spDetected) && oC2.nUnits == 0, ...
-    'Units / Detected = false leave those empty');
-errId = '';
-try
-    dsx.exportChronux(Extract=Sx);
-catch ME
-    errId = ME.identifier;
-end
-check(strcmp(errId, 'EphysDataset:exportChronux:Exists'), 'existing chronux file is not overwritten by default');
-errId = '';
-try
-    dsx.exportChronux(Extract=Sx, Signals="MUA", Overwrite=true);
-catch ME
-    errId = ME.identifier;
-end
-check(strcmp(errId, 'EphysDataset:exportChronux:SignalMissing'), 'asking for a signal the extract lacks errors');
-errId = '';
-try
-    dsx.exportChronux(Overwrite=true);
-catch ME
-    errId = ME.identifier;
-end
-check(strcmp(errId, 'EphysDataset:exportChronux:NoExtract'), 'no extract file -> clear error');
-
-oF = dsx.exportFieldTrip(Extract=Sx);
-check(endsWith(oF.file, '_fieldtrip.mat') && isfile(oF.file), 'exportFieldTrip writes <Name>_fieldtrip.mat');
-F = load(oF.file);
-check(all(isfield(F, {'data_LFP', 'spike', 'spikeDetected', 'event', 'export'})) && ~isfield(F, 'data_MUA') ...
-    && ~isfield(F, 'behavior'), 'fieldtrip file variables (no behavior)');
-check(isequal(size(F.data_LFP.trial{1}), [numAmp nX]) && isequal(F.data_LFP.label, cellstr(ds.ChannelNames(:))) ...
-    && F.data_LFP.fsample == Fs && F.data_LFP.hdr.TimeStampPerSample == 1, 'data_LFP is a FieldTrip raw structure');
-check(numel(F.data_LFP.cfg.event) == size(src.events.din0, 1) && F.data_LFP.cfg.event(1).sample == round(src.events.din0(1, 1) * Fs), ...
-    'each data struct carries its events at its own rate in cfg.event');
-check(isequal(F.spike.label, {'su000_A1_260101T1200', 'mua001_A1_260101T1200'}) && isequal(F.spike.timestamp{1}, [300 600 30000]) && F.spike.hdr.Fs == 30000 ...
-    && isequal(F.spike.hdr.orig.shank, [0; 0]) && isfield(F.spike.hdr.orig, 'notes') && isfield(F.spike.hdr.orig, 'y'), ...
-    'spike structure from the sorted units');
-check(numel(F.spikeDetected.label) == numAmp && F.spikeDetected.hdr.Fs == Fs, 'spikeDetected from the spikes file');
-check(numel(F.event) == size(src.events.din0, 1) && F.export.eventFs == Fs, ...
-    'event at the recording rate; provenance');
-check(isequal(F.export.tags, {'draft', 'pilot'}), 'exportFieldTrip: the dataset''s tags are in export.tags');
-check(isempty(dir(fullfile(expOut, '~*.partial.mat'))), 'no partial files left by the exporters');
-
-% Extract from the file written by toMat (needs the Signal Processing Toolbox).
+% toMat records the tags too (needs the Signal Processing Toolbox).
 if license('test', 'Signal_Toolbox')
     oM = dsx.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "MUA"], 'LFP_Fs', 1000, 'MUA_Fs', 2000));
-    oF2 = dsx.exportFieldTrip(Overwrite=true);
-    F2 = load(oF2.file);
-    check(isfile(oM.file) && isequal(sort(oF2.signals), ["LFP" "MUA"]) && isfield(F2, 'data_MUA') ...
-        && F2.data_MUA.hdr.TimeStampPerSample == Fs / 2000, 'default Extract is the toMat file; origFs sets TimeStampPerSample');
     Mx = load(oM.file, 'conversion');
-    check(isequal(Mx.conversion.tags, {'draft', 'pilot'}), 'toMat: the dataset''s tags are in conversion.tags');
+    check(isfile(oM.file) && isequal(Mx.conversion.tags, {'draft', 'pilot'}), 'toMat: the dataset''s tags are in conversion.tags');
 else
-    fprintf('  (toMat-based export check skipped: no Signal Processing Toolbox)\n');
+    fprintf('  (toMat tags check skipped: no Signal Processing Toolbox)\n');
 end
 
 fprintf('\n== 21. channelLayout (the recording channels on the probe) ==\n');

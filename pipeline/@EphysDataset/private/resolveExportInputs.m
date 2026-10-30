@@ -1,11 +1,10 @@
 function in = resolveExportInputs(obj, opts, who)
-%resolveExportInputs  Shared input resolution for the export<Format> methods.
+%resolveExportInputs  Input resolution for the export<Format> methods (exportNWB).
 %   Turns the exporter options into concrete data:
 %     in.S         toMat-shaped extract struct (Y, events, info)
 %     in.signals   signals to export (present in in.S.Y)
 %     in.units     readSortedUnits struct or []
-%     in.detected  spikesToMat detected struct or []
-%     in.events    dig-in events struct (or empty struct), with every
+%     in.events   dig-in events struct (or empty struct), with every
 %                  derived event of the behavior file added (whether or not
 %                  it is in the extract: readDerivedEvents)
 %     in.derived   those derived events (deriveEvents' D, 1 x 0 without)
@@ -16,10 +15,10 @@ function in = resolveExportInputs(obj, opts, who)
 %                  derived: info.artifacts (intervals [k x 2] s on the
 %                  continuous clock, fill, nSamples), with no intervals for
 %                  an extract passed as a struct without them
-%     in.sources   provenance (extractFile, spikesFile, sortingDir)
+%     in.sources   provenance (extractFile, sortingDir)
 %
-%   opts fields: Extract, Signals, Units, Detected, Events, Groups, Sources,
-%   and UnitQuality (true: the units are read with their quality metrics,
+%   opts fields: Extract, Signals, Units, Events, Groups, Sources, and
+%   UnitQuality (true: the units are read with their quality metrics,
 %   readSortedUnits(Quality=true)).
 %
 %   Extract may be one file, several files (e.g. the per-signal-type files of
@@ -29,13 +28,13 @@ function in = resolveExportInputs(obj, opts, who)
 %   <Name>_extract_<TYPE>.mat files that do. With Signals given, a per-type
 %   file (<...>_<TYPE>.mat) of another signal is not read.
 %
-%   Sources (extractFile, spikesFile, sortingDir) is the provenance of inputs
-%   passed in as structs; what is read from files here replaces it.
+%   Sources (extractFile, sortingDir) is the provenance of inputs passed in
+%   as structs; what is read from files here replaces it.
 
-in = struct('S', [], 'signals', string.empty(1,0), 'units', [], 'detected', [], ...
+in = struct('S', [], 'signals', string.empty(1,0), 'units', [], ...
     'events', struct(), 'eventFs', NaN, 'artifacts', [], 'sources', struct());
 [~, in.derived] = deriveEvents(struct(), table(), []);
-src = struct('extractFile', "", 'spikesFile', "", 'sortingDir', "");
+src = struct('extractFile', "", 'sortingDir', "");
 if isfield(opts, 'Sources')
     for fld = intersect(string(fieldnames(opts.Sources)).', string(fieldnames(src)).')
         src.(fld) = string(opts.Sources.(fld));
@@ -146,33 +145,6 @@ elseif isempty(u)
     end
 else
     error(['EphysDataset:' who ':Units'], 'Units must be a units struct, [] (auto) or false.');
-end
-
-% --- detected spikes ---------------------------------------------------------
-d = opts.Detected;
-if isstruct(d)
-    in.detected = d;
-elseif isstring(d) || ischar(d)
-    f = string(d);
-    if f ~= ""
-        if ~isfile(f)
-            error(['EphysDataset:' who ':NoSpikes'], 'No spikes file %s.', f);
-        end
-        M = load(f, 'detected');
-        if isfield(M, 'detected') && ~isempty(M.detected)
-            in.detected = M.detected;
-            src.spikesFile = f;
-        end
-    end
-elseif islogical(d) && d
-    f = string(fullfile(obj.outputFolder(), obj.Name + "_spikes.mat"));
-    if isfile(f)
-        M = load(f, 'detected');
-        if isfield(M, 'detected') && ~isempty(M.detected)
-            in.detected = M.detected;
-            src.spikesFile = f;
-        end
-    end
 end
 
 in.sources = src;

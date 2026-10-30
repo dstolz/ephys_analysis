@@ -1,13 +1,12 @@
 function test_FieldTripExport()
 %test_FieldTripExport  Verification suite for the FieldTrip packaging.
-%   Checks the shapes FieldTripExport builds from a toMat-shaped extract, a
-%   readSortedUnits struct and a spikesToMat detected struct against the
-%   FieldTrip datatype conventions (raw: trial{1} [nChan x N], time = (k-1)/Fs,
-%   sampleinfo, hdr; spike: label/timestamp in samples; event: 1-based sample,
-%   duration in samples, on the recording's event clock at a derived rate),
-%   and the events exportFieldTrip gives each signal. No FieldTrip
-%   installation is needed; when FieldTrip is already on the path,
-%   ft_datatype_raw / ft_datatype_spike are run too.
+%   Checks the shapes FieldTripExport builds against the FieldTrip datatype
+%   conventions (raw: trial{1} [nChan x N], time = (k-1)/Fs, sampleinfo,
+%   hdr; spike: label/timestamp in samples; event: 1-based sample, duration
+%   in samples, on the recording's event clock at a derived rate; artifact:
+%   [begsample endsample] on a raw structure). No FieldTrip installation is
+%   needed; when FieldTrip is already on the path, ft_datatype_raw /
+%   ft_datatype_spike are run too.
 %
 %   Usage:  test_FieldTripExport
 
@@ -27,17 +26,14 @@ nPass = 0; nFail = 0;
         end
     end
 
-fprintf('\n== 1. raw structure from an extract ==\n');
+fprintf('\n== 1. continuous structure on the recording clock ==\n');
 N = 1000; nCh = 3; Fs = 1000; origFs = 30000;
 X = single(reshape(1:N*nCh, N, nCh));
-S = struct();
-S.Y = struct('LFP', X, 'MUA', single([]), 'SPIKE', single([]));
-S.info = struct('LFP', struct('Fs', Fs, 'nSamples', N), 'labels', ["a" "b" "c"], 'origFs', origFs);
-S.events = struct('din0', [0.1 0.2; 0.5 0.55], 'din1', zeros(0, 2));
+S = struct('events', struct('din0', [0.1 0.2; 0.5 0.55], 'din1', zeros(0, 2)));
 
-data = FieldTripExport.raw(S, "LFP");
+data = FieldTripExport.continuous(X, Fs, Label=["a" "b" "c"], OrigFs=origFs);
 check(iscell(data.trial) && isequal(size(data.trial{1}), [nCh N]) && isa(data.trial{1}, 'double') ...
-    && isequal(data.trial{1}, double(X).'), 'trial{1} is [nChan x N] double = Y.LFP transposed');
+    && isequal(data.trial{1}, double(X).'), 'trial{1} is [nChan x N] double = X transposed');
 check(isequal(size(data.time{1}), [1 N]) && data.time{1}(1) == 0 && abs(data.time{1}(2) - 1/Fs) < 1e-12, ...
     'time{1} = (k-1)/Fs');
 check(iscellstr(data.label) && isequal(size(data.label), [nCh 1]) && strcmp(data.label{2}, 'b'), ...
@@ -48,47 +44,10 @@ check(h.Fs == Fs && h.nChans == nCh && h.nSamples == N && h.nSamplesPre == 0 && 
     && h.FirstTimeStamp == 0 && h.TimeStampPerSample == origFs / Fs, 'hdr fields');
 check(isequal(h.chantype, repmat({'lfp'}, nCh, 1)) && isequal(h.chanunit, repmat({'uV'}, nCh, 1)), ...
     'hdr.chantype / chanunit');
-check(data.cfg.signal == "LFP", 'cfg records the exporter and signal');
-dataS = FieldTripExport.raw(S, "LFP", Class="single");
+dataS = FieldTripExport.continuous(X, Fs, Class="single");
 check(isa(dataS.trial{1}, 'single'), 'Class="single" keeps the data single');
-errId = '';
-try
-    FieldTripExport.raw(S, "MUA");
-catch ME
-    errId = ME.identifier;
-end
-check(strcmp(errId, 'FieldTripExport:SignalMissing'), 'a signal that is not in the extract errors');
-S2 = S; S2.info = rmfield(S2.info, 'labels');
-d2 = FieldTripExport.raw(S2, "LFP");
-check(isequal(d2.label, {'ch1'; 'ch2'; 'ch3'}), 'labels default to ch1..chN');
 
-fprintf('\n== 2. spike structure from sorted units ==\n');
-units = struct('unitId', [0; 1], 'label', ["su000_A1_260101T1200"; "mua001_A1_260101T1200"], 'group', ["good"; "mua"], ...
-    'nSpikes', [3; 1], 'samples', {{int64([300; 600; 30000]); int64(900)}}, ...
-    'times', {{[300; 600; 30000] / 30000; 900 / 30000}}, 'channel', [3; 1], ...
-    'templateFull', [], 'fs', 30000, 'durationSec', 1, 'resultsDir', "x");
-sp = FieldTripExport.spike(units);
-check(isequal(sp.label, {'su000_A1_260101T1200', 'mua001_A1_260101T1200'}) && isequal(size(sp.label), [1 2]), 'spike.label is 1 x nUnits');
-check(isequal(sp.timestamp{1}, [300 600 30000]) && isequal(sp.timestamp{2}, 900) ...
-    && isa(sp.timestamp{1}, 'double') && isequal(size(sp.timestamp{1}), [1 3]), ...
-    'timestamp{u} are 0-based samples as double rows');
-check(sp.hdr.Fs == 30000 && sp.hdr.FirstTimeStamp == 0 && sp.hdr.TimeStampPerSample == 1 ...
-    && sp.hdr.nSamples == 30001, 'spike hdr on the recording sample clock');
-check(~isfield(sp, 'time') && ~isfield(sp, 'trial') && ~isfield(sp, 'waveform'), ...
-    'no trial-defined or waveform fields');
-check(~isfield(sp.hdr.orig, 'samples') && isequal(sp.hdr.orig.channel, [3; 1]), ...
-    'hdr.orig keeps the unit metadata without the spike arrays');
-
-fprintf('\n== 3. spike structure from detected spikes ==\n');
-det = struct('ts', {{[0; 2; 4] / 1000, 3 / 1000}}, 'wf', [], ...
-    'info', struct('fs', 1000, 'nSamples', 5000), 'channels', [1 2], ...
-    'channelNames', ["amp0" "amp1"], 'detection', struct('nRejectedArtifact', [0 0]));
-spd = FieldTripExport.spikeFromDetected(det);
-check(isequal(spd.label, {'amp0', 'amp1'}) && isequal(spd.timestamp{1}, [0 2 4]) && isequal(spd.timestamp{2}, 3), ...
-    'detected spikes: one unit per channel, timestamps = round(t*Fs)');
-check(spd.hdr.Fs == 1000 && spd.hdr.nSamples == 5000, 'detected spike hdr');
-
-fprintf('\n== 4. events ==\n');
+fprintf('\n== 2. events ==\n');
 ev = FieldTripExport.event(S.events, Fs);
 check(numel(ev) == 2 && strcmp(ev(1).type, 'din0') && ev(1).sample == 100 && ev(2).sample == 500, ...
     'one event per pulse, sample = round(t_on * Fs), 1-based');
@@ -108,37 +67,17 @@ check(isstruct(ev0) && isempty(ev0) && all(isfield(ev0, {'type', 'sample', 'valu
 evU = FieldTripExport.event(struct('b', [0.9 1.0], 'a', [0.1 0.2]), Fs);
 check(strcmp(evU(1).type, 'a') && strcmp(evU(2).type, 'b'), 'events are sorted by sample');
 
-fprintf('\n== 5. exportFieldTrip: each signal''s events on its own clock ==\n');
-root = fullfile(tempdir, sprintf('FieldTripExport_test_%s', datestr(now, 'yyyymmdd_HHMMSSFFF'))); %#ok<TNOW1,DATST>
-mkdir(root);
-cleanup = onCleanup(@() rmdir(root, 's'));
-mkdir(fullfile(root, 'rec'));
-ds = EphysDataset(fullfile(root, 'rec'), AutoMetadata=false);
-ds.OutputDir = fullfile(root, 'out');
-Se = S;
-Se.Y.LFP = single(zeros(7000, nCh));                          % 7 s of LFP at 1 kHz
-Se.events = struct('InTrial', [180001 240000] / origFs);      % recording rows at 30 kHz
-oF = ds.exportFieldTrip(Extract=Se, Units=false, Detected=false, Validate=false);
-F = load(oF.file);
-check(F.data_LFP.cfg.event(1).sample == 6001 && F.data_LFP.time{1}(6001) == 6 ...
-    && F.event(1).sample == 180001 && F.export.eventFs == origFs, ...
-    'cfg.event of data_LFP is at the LFP rate on the nearest sample; event stays at the recording rate');
-check(isempty(F.data_LFP.cfg.artfctdef.preprocessing.artifact) && isempty(F.export.artifacts.intervals), ...
-    'an extract without artifact periods gives an empty artifact matrix');
+fprintf('\n== 3. artifact periods on a raw structure ==\n');
+dl = FieldTripExport.continuous(zeros(7000, nCh), Fs);   % 7 s of LFP at 1 kHz
 % [2 2.5) s is LFP rows 2001..2500 (t = 2.000 .. 2.499 s); [3.0101 3.0104) s is
 % shorter than one 1 kHz sample and still marks the row it falls in (t = 3.010 s)
-Se.info.artifacts = struct('intervals', [2 2.5; 3.0101 3.0104], 'fill', "line", 'nSamples', 15009);
-oA = ds.exportFieldTrip(Extract=Se, Units=false, Detected=false, Validate=false, Overwrite=true);
-A = load(oA.file);
-check(isequal(A.data_LFP.cfg.artfctdef.preprocessing.artifact, [2001 2500; 3011 3011]) ...
-    && isequal(A.export.artifacts.intervals, [2 2.5; 3.0101 3.0104]), ...
-    'cfg.artfctdef.preprocessing.artifact: the periods as [begsample endsample] at the LFP rate, a sub-sample one included');
+check(isequal(FieldTripExport.artifact([2 2.5; 3.0101 3.0104], dl), [2001 2500; 3011 3011]), ...
+    'the periods as [begsample endsample] at the LFP rate, a sub-sample one included');
 check(isequal(FieldTripExport.artifact([0 1e-3], struct('fsample', 30000, 'trial', {{zeros(1, 90)}}, ...
-    'sampleinfo', [1 90])), [1 30]) && isempty(FieldTripExport.artifact(zeros(0, 2), A.data_LFP)), ...
+    'sampleinfo', [1 90])), [1 30]) && isempty(FieldTripExport.artifact(zeros(0, 2), dl)), ...
     'at the recording rate a period covers exactly its own samples; none gives []');
-clear cleanup
 
-fprintf('\n== 6. general builders: continuous, epochs, trl ==\n');
+fprintf('\n== 4. general builders: continuous, epochs, trl ==\n');
 dc = FieldTripExport.continuous(X, Fs, Positions=[0 0; 0 20; 0 40], ChanType="mua");
 check(isequal(dc.trial{1}, double(X).') && isequal(dc.label, {'ch1'; 'ch2'; 'ch3'}) ...
     && isequal(dc.sampleinfo, [1 N]) && dc.hdr.TimeStampPerSample == 1 && strcmp(dc.hdr.chantype{1}, 'mua'), ...
@@ -168,7 +107,7 @@ check(isequal(T, [99 106 -2 1 1]) && isequal(keep, [true; false; false; false]),
 st = FieldTripExport.spikeTimes({[0.01; 0.02; 1], 0.03}, 30000, Label=["u1" "u2"], DurationSec=2);
 check(isequal(st.timestamp{1}, [300 600 30000]) && isequal(st.timestamp{2}, 900) ...
     && isequal(st.label, {'u1', 'u2'}) && st.hdr.Fs == 30000 && st.hdr.nSamples == 60001, ...
-    'spikeTimes: t s -> 0-based samples, as spike() gives the sorted samples');
+    'spikeTimes: t s -> 0-based samples');
 st0 = FieldTripExport.spikeTimes({[], 1}, 1000);
 check(isequal(st0.label, {'unit1', 'unit2'}) && isempty(st0.timestamp{1}), 'spikeTimes: default labels, a silent unit');
 sk = FieldTripExport.spikeTrials({[-0.1 0.2 0.05], 0.3}, {[1 1 3], 2}, [-0.5 1], ...
@@ -184,12 +123,12 @@ errId = '';
 try FieldTripExport.spikeTrials({0.1}, {4}, [0 1], NTrials=3); catch e, errId = e.identifier; end
 check(strcmp(errId, 'FieldTripExport:BadSpikeTrials'), 'spikeTrials: a spike outside the trials errors');
 
-fprintf('\n== 7. validation ==\n');
+fprintf('\n== 5. validation ==\n');
 hasFT = FieldTripExport.hasFieldTrip();
 [ok, msg] = FieldTripExport.validate(data, "raw");
 if hasFT
     check(ok && msg == "", 'ft_datatype_raw accepts the raw structure');
-    [ok2, msg2] = FieldTripExport.validate(sp, "spike");
+    [ok2, msg2] = FieldTripExport.validate(st, "spike");
     check(ok2 && msg2 == "", 'ft_datatype_spike accepts the spike structure');
     [ok3, msg3] = FieldTripExport.validate(sk, "spike");
     check(ok3 && msg3 == "", 'ft_datatype_spike accepts the spike trials');

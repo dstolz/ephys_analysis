@@ -7,7 +7,8 @@ function test_EphysPipeline()
 %   missing probe, missing sorting output, missing extract), the probe and
 %   behavior preflights (the default probe, a session file that is not
 %   there), the sorting dry run, spike detection against direct calls, the
-%   exports, the artifact cache (and cachedDetection, which asks it
+%   NWB export (the file itself only with a Python that has pynwb and
+%   nwbinspector: NWB_PYTHON, else pyenv's), the artifact cache (and cachedDetection, which asks it
 %   without detecting), run(DryRun=true) writing nothing and
 %   cancellation. Then, on projects of their own: two recordings with the
 %   same name under one output root, an unsorted dataset that cannot label
@@ -128,12 +129,12 @@ check(isequal(pBad.DatasetIdx, pipe.DatasetIdx), 'unknown keys are dropped with 
 check(strcmp(errorId(@() EphysPipeline(EphysPipelineConfig())), 'EphysPipeline:NoRoot'), 'no root -> clear error');
 
 fprintf('\n== 2. plan ==\n');
-cfg.Signals.Enabled = true; cfg.Spikes.Enabled = true; cfg.Export.Enabled = true; cfg.Export.Formats = ["chronux" "fieldtrip"];
+cfg.Signals.Enabled = true; cfg.Spikes.Enabled = true; cfg.Export.Enabled = true; cfg.Export.Formats = "nwb";
 cfg.Sorting.Enabled = true; cfg.Sorting.PythonExe = "C:\envs\ks\python.exe"; cfg.Sorting.Execution = "blocking";
 pipe.Config = cfg;
 T = pipe.plan();
 check(isempty(dir(fullfile(outRoot, '**', '*.mat'))) && ~isfolder(fullfile(outRoot, 'M1_260101_120000')), 'plan writes nothing');
-check(all(ismember(["probe" "sorting" "signals" "spikes" "export:chronux" "export:fieldtrip"], T.Step)), 'one row per enabled step (export per format)');
+check(all(ismember(["probe" "sorting" "signals" "spikes" "export:nwb"], T.Step)), 'one row per enabled step (export per format)');
 check(T.Status(T.Step == "probe") == "ok" && T.Status(T.Step == "sorting") == "exists: will re-sort", 'probe ok; existing sorting output noted');
 check(T.Status(T.Step == "signals") == "ready" && T.Status(T.Step == "spikes") == "ready", 'signals / spikes ready');
 check(all(T.Status(startsWith(T.Step, "export")) == "ready"), 'export ready when Signals will produce the extract');
@@ -146,7 +147,7 @@ cfgS = cfg; cfgS.Project.Datasets = "mouse2/M1_260101_120030";
 p2 = EphysPipeline(cfgS, Project=pipe.Project, Refresh=false);
 T2 = p2.plan();
 check(T2.Status(T2.Step == "spikes") == "ready" && T2.Status(T2.Step == "probe") == "no probe" ...
-    && T2.Status(T2.Step == "sorting") == "no probe" && all(T2.Note(startsWith(T2.Step, "export")) == "no sorted units (left out)"), ...
+    && T2.Status(T2.Step == "sorting") == "no probe" && all(startsWith(T2.Note(startsWith(T2.Step, "export")), "no sorted units (left out)")), ...
     'a missing probe is flagged; spikes needs no sort; export leaves the absent units out');
 cfgD = cfg; cfgD.Project.Selection = "all";
 pD = EphysPipeline(cfgD, Project=pipe.Project, Refresh=false);
@@ -480,26 +481,31 @@ Sx.Y = struct('LFP', single(src.amplifier(1:256, :)), 'MUA', single([]), 'SPIKE'
 Sx.events = src.events;
 Sx.info = struct('LFP', struct('Fs', Fs), 'labels', d1.ChannelNames, 'origFs', Fs); %#ok<STRNU>
 save(extract, '-struct', 'Sx');
-cfg.Export.IncludeDetected = true;
 cfgY = cfg; cfgY.Spikes.Overwrite = true;                 % restore the full-channel spikes file
 pipe.Config = cfgY; pipe.reset(); pipe.runSpikeDetection();
+py = nwbPython();
+cfg.Export.NWB.PythonExe = py;   % "" = the Sorting step's Python, which is not there: the row records the error
 pipe.Config = cfg;
 pipe.reset();
 pipe.runExport();
 R = pipe.Results;
-check(height(R) == 2 && all(R.Status == "done") && isfile(R.Output(1)) && isfile(R.Output(2)), 'both export files written');
-C = load(R.Output(R.Step == "export:chronux"));
-F = load(R.Output(R.Step == "export:fieldtrip"));
-check(isequal(size(C.LFP.data), [256 numAmp]) && numel(C.sp) == 2 && numel(C.spDetected) == numAmp && ~isfield(C, 'behavior'), ...
-    'chronux export carries signals, units and detected spikes (behavior is separate)');
-check(isequal(size(F.data_LFP.trial{1}), [numAmp 256]) && isequal(F.spike.timestamp{1}, [300 600 30000]) ...
-    && numel(F.spikeDetected.label) == numAmp, 'fieldtrip export carries signals, units and detected spikes');
-oC = d1.exportChronux(File=fullfile(root, 'direct_chronux.mat'), Extract=extract, Detected=pipe.outputPathFor("spikes", d1));
-Cd = load(oC.file);
-check(isequal(Cd.LFP.data, C.LFP.data) && isequal(Cd.sp, C.sp) && isequal(Cd.spDetected, C.spDetected), ...
-    'pipeline export equals a direct exportChronux call');
+nwbOut = pipe.outputPathFor("export:nwb", d1);
+check(height(R) == 1 && R.Step == "export:nwb" && R.Output == nwbOut && endsWith(nwbOut, "M1_260101_120000.nwb"), ...
+    'one row per format and dataset, writing <Name>.nwb');
+if py ~= ""
+    check(R.Status == "done" && isfile(nwbOut) && contains(R.Message, "2 unit(s)") && d1.outputs().has("nwb"), ...
+        'the NWB file is written from the extract, with the sorted units, and DatasetOutputs finds it');
+else
+    check(R.Status == "error" && contains(R.Message, "nwb_export.py") && ~isfile(nwbOut) ...
+        && isempty(dir(fullfile(d1.outputFolder(), '~*.nwbstage'))), ...
+        'without a Python that has pynwb the row records the error, and nothing is left behind');
+    fprintf('  (no Python with pynwb and nwbinspector: set NWB_PYTHON to write the file)\n');
+end
+madeOut = ~isfile(nwbOut);
+if madeOut; writeJsonFile(nwbOut, struct()); end   % stands in for the file
 pipe.reset(); pipe.runExport();
-check(all(pipe.Results.Status == "skipped"), 'existing exports are skipped');
+check(all(pipe.Results.Status == "skipped") && contains(pipe.Results.Message(1), "exists"), 'existing exports are skipped');
+if madeOut; delete(nwbOut); end
 cfgF = cfg; cfgF.Signals.MUA = true; cfgF.Signals.Enabled = false;   % an MUA file that was never written
 pipe.Config = cfgF;
 TF = pipe.plan(Steps="export");
@@ -511,32 +517,6 @@ check(all(TF.Status == "no extract file") && ~any(TF2.Status == "no extract file
     'with Export.Signals (separate files) an export needs only the extract files of those signals');
 pipe.Config = cfg;
 
-cfgP = cfg; cfgP.Export.Formats = "epochs"; cfgP.Export.EpochWindow = [-0.001 0.002];
-pipe.Config = cfgP; pipe.reset(); pipe.runExport();
-Rp = pipe.Results;
-check(height(Rp) == 1 && Rp.Step(1) == "export:epochs" && Rp.Status(1) == "done" ...
-    && endsWith(Rp.Output(1), "_epochs.mat"), 'the epochs format writes <Name>_epochs.mat');
-P = load(Rp.Output(1));
-check(isfield(P, 'epochs') && P.epochs.event.nEpochs == 1 && istable(P.epochs.trials) ...
-    && isequal(size(P.epochs.signals.LFP.data), [91 1 numAmp]) ...
-    && isequal(P.epochs.signals.LFP.data(:, 1, 1), double(Sx.Y.LFP(20:110, 1))) ...
-    && numel(P.epochs.units) == 2 && numel(P.epochs.detected) == numAmp, ...
-    'the epoch file holds the samples around the dig-in onset, with the units and detected spikes');
-cfgK = cfg; cfgK.Export.Formats = "kcsd";
-pipe.Config = cfgK; pipe.reset(); pipe.runExport();
-Rk = pipe.Results;
-check(height(Rk) == 1 && Rk.Step(1) == "export:kcsd" && Rk.Status(1) == "done" ...
-    && endsWith(Rk.Output(1), "_kcsd.npz") && contains(Rk.Message(1), "4 electrode(s) in 1-D"), ...
-    'the kcsd format writes <Name>_kcsd.npz on the dataset''s probe');
-K = readNPZ(Rk.Output(1), ["pots" "ele_pos" "meta"]);
-check(isequal(K.pots, (single(Sx.Y.LFP(:, [4 3 2 1])) / 1000).') && isequal(K.ele_pos, [60; 40; 20; 0] / 1000) ...
-    && string(jsondecode(K.meta).sources.probeFile) == string(probeFile), ...
-    'its pots are the extract''s LFP in mV, top of the probe first, from probeFor''s probe');
-d1.ProbeFile = "";
-TK = pipe.plan(Steps="export");
-check(TK.Status(TK.Step == "export:kcsd") == "error: no probe", 'a dataset with no probe: the plan says kcsd cannot run');
-d1.ProbeFile = probeFile;
-pipe.Config = cfg;
 
 fprintf('\n== 8. run(), dry run and cancel ==\n');
 cfg.Sorting.Enabled = false; cfg.Signals.Enabled = false; cfg.Export.Overwrite = true; cfg.Spikes.Overwrite = true;
@@ -551,8 +531,8 @@ check(all(R.Status(ismember(R.Step, ["behavior" "behavior:pairing" "behavior:fil
     'the behavior and artifacts steps of a dry run write nothing either (no manifest, cache or behavior file)');
 cfg.Behavior.Overwrite = false;
 pipe.Config = cfg;
-R = pipe.run(Steps=["spikes" "export"]);
-check(isequal(unique(R.Step, 'stable'), ["spikes"; "export:chronux"; "export:fieldtrip"]) && all(R.Status == "done"), ...
+R = pipe.run(Steps=["export" "spikes"]);
+check(isequal(unique(R.Step, 'stable'), ["spikes"; "export:nwb"]) && all(R.Status(R.Step == "spikes") == "done"), ...
     'run(Steps=...) runs the given steps in canonical order');
 check(strcmp(errorId(@() pipe.run(Steps="nope")), 'EphysPipeline:BadStep'), 'unknown step name errors');
 evts = struct('step', {}, 'dataset', {}, 'index', {}, 'count', {}, 'done', {}, 'total', {}, 'message', {});
@@ -569,14 +549,15 @@ check(isequal([starts.step], ["probe" "spikes" "export"]) && all([starts.dataset
     && all([starts.message] == "starting"), 'run() announces each step as it starts (dataset "", index 0)');
 [~, pos] = ismember(names, EphysPipelineConfig.StepNames);
 check(all(pos > 0) && issorted(pos) && any(names == "spikes" & startsWith([evts.message], "artifact intervals, detecting")) ...
-    && any(names == "export" & [evts.message] == "fieldtrip: done"), ...
-    'every event names its own step: the detection Spikes needs reports as spikes, both formats as export');
+    && any(names == "export" & [evts.message] == "nwb: exporting"), ...
+    'every event names its own step: the detection Spikes needs reports as spikes, the NWB file as export');
 frac = arrayfun(@(e) (max(e.index, 1) - 1 + e.done / e.total) / e.count, evts);
 grows = true;
 for s = reshape(unique(names), 1, [])
     grows = grows && all(diff(frac(names == s)) >= 0);
 end
-check(grows && frac(find(names == "export", 1, 'last')) == 1, 'each step''s fraction only grows, reaching 1 as export ends');
+check(grows && (py == "" || frac(find(names == "export", 1, 'last')) == 1), ...
+    'each step''s fraction only grows, reaching 1 as export ends (once the file is written)');
 evts = evts([]); logs = strings(0, 1);
 pipe.run(Steps=["artifacts" "spikes"]);
 names = [evts.step];
@@ -672,17 +653,14 @@ if license('test', 'Signal_Toolbox')
         'each per-type file holds only its signal, plus events');
     check(isequal(Ml.info.artifacts.intervals, ivS) && isequal(Mm.info.artifacts.intervals, ivS), ...
         'every per-type file records the artifact periods (LFP and MUA alike)');
-    oM = d1.exportChronux(File=fullfile(root, 'merged_chronux.mat'), Units=false, Overwrite=true);
-    Cm = load(oM.file);
-    check(isequal(sort(oM.signals), ["LFP" "MUA"]) && size(Cm.LFP.data, 1) == size(Ml.Y.LFP, 1) ...
-        && size(Cm.MUA.data, 1) == size(Mm.Y.MUA, 1), ...
-        'exporters find and merge the per-type files');
-    oF = d1.exportFieldTrip(File=fullfile(root, 'merged_fieldtrip.mat'), Units=false, Validate=false, Overwrite=true);
-    Fm = load(oF.file);
-    check(isequal(Cm.artifacts.intervals, ivS) ...
-        && isequal(Fm.data_LFP.cfg.artfctdef.preprocessing.artifact, EphysDataset.intervalRows(ivS, 1000, size(Ml.Y.LFP, 1))) ...
-        && isequal(Fm.data_MUA.cfg.artfctdef.preprocessing.artifact, EphysDataset.intervalRows(ivS, Mm.info.MUA.Fs, size(Mm.Y.MUA, 1))), ...
-        'the Chronux file carries the periods, the FieldTrip file each signal''s rows of them');
+    nw = d1.exportNWB(StageOnly=true, Units=false);
+    A = readNPZ(fullfile(nw.stage, "stage.npz"));
+    sL = readNPY(fullfile(nw.stage, "signal_LFP.npy"));
+    sM = readNPY(fullfile(nw.stage, "signal_MUA.npy"));
+    rmdir(nw.stage, 's');
+    check(isequal(sort(nw.signals), ["LFP" "MUA"]) && size(sL, 2) == size(Ml.Y.LFP, 1) && size(sM, 2) == size(Mm.Y.MUA, 1), ...
+        'the NWB export finds and merges the per-type files');
+    check(isequal(A.invalid_times, ivS), 'and carries the periods the Signals step erased');
     cfgO = cfgM; cfgO.Signals.SeparateFiles = false;
     pipe.Config = cfgO; pipe.reset(); pipe.runSignals();
     Mo = load(pipe.Results.Output(1));
@@ -858,14 +836,14 @@ Tc = planLocalCleanup(e2, Remove="signals");
 check(o1.has("LFP") && ~o2.has("LFP") && any(o2.Foreign == foreignFile) ...
     && Tc.Action(Tc.File == foreignFile) == "keep", ...
     'm2/rec neither loads nor cleans up the extract whose provenance names m1/rec (the same output folder)');
-% An unsorted dataset whose name cannot label units: its exports leave the units out, epochs too.
+% An unsorted dataset whose name cannot label units: its export leaves the units out.
 cfgR.Project.Datasets = "calibration";
-cfgR.Export.Enabled = true; cfgR.Export.Formats = ["chronux" "epochs"]; cfgR.Export.IncludeUnits = true;
+cfgR.Export.Enabled = true; cfgR.Export.Formats = "nwb"; cfgR.Export.IncludeUnits = true;
 pR.Config = cfgR;
 TR = pR.plan(Steps=["signals" "export"]);
 isExport = startsWith(TR.Step, "export:");
-check(nnz(isExport) == 2 && all(TR.Status(isExport) == "ready") && all(contains(TR.Note(isExport), "left out")), ...
-    'no unit identity error for exports that leave the units out (the epochs row included)');
+check(nnz(isExport) == 1 && all(TR.Status(isExport) == "ready") && all(contains(TR.Note(isExport), "left out")), ...
+    'no unit identity error for an export that leaves the units out');
 
 fprintf('\n== 12. associations offline, an unreadable manifest, manifest parsing ==\n');
 projO = fullfile(root, 'projO');
@@ -881,7 +859,7 @@ eo.writeManifest();
 makePhyFixture(fullfile(h1, 'kilosort4'), Fs, ChannelMap=[0 1 2 3]);   % an uncurated sort next to the recording
 cfgO = EphysPipelineConfig(); cfgO.Project.Root = projO;
 cfgO.Spikes.Enabled = true; cfgO.Signals.Enabled = true;
-cfgO.Export.Enabled = true; cfgO.Export.Formats = ["chronux" "kcsd"];   % IncludeUnits: reads the sorted units
+cfgO.Export.Enabled = true; cfgO.Export.Formats = "nwb";   % IncludeUnits: reads the sorted units
 cfgO.Sorting.Enabled = true; cfgO.Sorting.PythonExe = "C:\envs\ks\python.exe"; cfgO.Sorting.Execution = "blocking";
 cfgO.Sorting.SkipExisting = true;
 pO = EphysPipeline(cfgO);               % the scan applies the manifest and writes it again
@@ -895,12 +873,10 @@ check(eo.SortingDir == curated && eo.ProbeFile == offProbe && eo.BehaviorFile ==
 check(mo.kilosort.has_results && string(mo.kilosort.results_dir) == string(eo.kilosortDir()), ...
     'the manifest''s kilosort block describes the run in kilosortDir');
 TO = pO.plan();
-check(TO.Status(TO.Step == "export:chronux") == "error: sorting folder missing" && contains(TO.Note(TO.Step == "export:chronux"), curated) ...
+check(TO.Status(TO.Step == "export:nwb") == "error: sorting folder missing" && contains(TO.Note(TO.Step == "export:nwb"), curated) ...
     && TO.Status(TO.Step == "spikes") == "ready" ...
     && TO.Status(TO.Step == "probe") == "probe file missing" && TO.Status(TO.Step == "sorting") == "probe file missing", ...
     'plan names the missing folder and probe instead of using the kilosort4 sort next to the recording');
-check(TO.Status(TO.Step == "export:kcsd") == "error: probe file missing" && TO.Note(TO.Step == "export:kcsd") == offProbe, ...
-    'the kcsd export needs no sort, but its probe file must be there');
 oo = eo.outputs();
 check(oo.SortingDir == curated && ~oo.has("sorting") && strcmp(errorId(@() oo.Units), 'DatasetOutputs:Missing'), ...
     'DatasetOutputs keeps the hand-picked folder too: no fallback to the uncurated sort');
@@ -908,10 +884,8 @@ makePhyFixture(curated, Fs, ChannelMap=[0 1 2 3]);   % the disk is back
 writeJsonFile(offProbe, struct('chanMap', 0:numAmp-1, 'xc', zeros(1, numAmp), 'yc', (0:numAmp-1) * 20, ...
     'kcoords', zeros(1, numAmp), 'n_chan', numAmp));
 TO = pO.plan();
-check(eo.hasKilosortResults() && TO.Status(TO.Step == "export:chronux") == "ready" ...
+check(eo.hasKilosortResults() && TO.Status(TO.Step == "export:nwb") == "ready" ...
     && TO.Status(TO.Step == "sorting") == "exists: skip (SkipExisting)", 'with the disk back the association works again');
-check(TO.Status(TO.Step == "export:kcsd") == "ready" && endsWith(TO.Output(TO.Step == "export:kcsd"), "_kcsd.npz"), ...
-    'and the kcsd export is ready, to <Name>_kcsd.npz');
 % Kilosort4 4.x writes its own cluster_group.tsv (a copy of cluster_KSLabel.tsv) on every run.
 fid = fopen(fullfile(h1, 'kilosort4', 'cluster_group.tsv'), 'w');
 fprintf(fid, 'cluster_id\tKSLabel\n0\tmua\n1\tgood\n2\tgood\n');
@@ -999,6 +973,23 @@ for f = unique(folders)
     end
 end
 S = sort(S);
+end
+
+
+function py = nwbPython()
+%nwbPython  A Python with pynwb and nwbinspector: NWB_PYTHON, else pyenv's ("" for none).
+py = "";
+cands = string(getenv('NWB_PYTHON'));
+try
+    pe = pyenv;
+    cands(end+1) = string(pe.Executable);
+catch
+end
+for c = cands(cands ~= "")
+    if ~isfile(c); continue; end
+    [st, ~] = system(sprintf('"%s" -c "import pynwb, nwbinspector"', c));
+    if st == 0; py = c; return; end
+end
 end
 
 

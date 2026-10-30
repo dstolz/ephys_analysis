@@ -600,42 +600,9 @@ function n = exportTree(cfg, dsName)
 E = cfg.Export;
 in = "Signals extract: " + joinOr(E.Signals, "every signal");
 if E.IncludeUnits; in(end+1) = "sorted units: " + joinOr(E.Groups, "every non-noise cluster"); end
-if E.IncludeDetected; in(end+1) = "detected spikes (Spikes file)"; end
 if E.IncludeEvents; in(end+1) = "digital events"; end
 
-fileTarget = "ExpOutputDirField,ExpOverwriteCheckBox,ExpMatVersionDropDown";
 kids = {};
-if ismember("chronux", E.Formats)
-    kids{end+1} = chain({node("op", "Chronux layout", ["[samples x channels] + params", "spike times as structs"], "ExpChronuxCheckBox"), ...
-        node("out", "Chronux file", [dsName + "_chronux.mat", E.MatVersion], fileTarget)});
-end
-if ismember("fieldtrip", E.Formats)
-    kids{end+1} = chain({node("op", "FieldTrip structures", ["raw / spike / event", ...
-        ternary(E.Validate, "validated when FieldTrip is on the path", "not validated")], ...
-        "ExpFieldTripCheckBox,ExpValidateCheckBox"), ...
-        node("out", "FieldTrip file", [dsName + "_fieldtrip.mat", E.MatVersion], fileTarget)});
-end
-if ismember("epochs", E.Formats)
-    if E.EpochSource == "behavior"
-        around = "around the paired trials";
-    elseif E.EpochLine == ""
-        around = "around the trial line";
-    else
-        around = "around " + E.EpochLine;
-    end
-    kids{end+1} = chain({node("op", "Event epochs", [around, ...
-        sprintf("window [%g %g] s, spike times %s", E.EpochWindow(1), E.EpochWindow(2), E.EpochSpikeTimeBase), ...
-        ternary(~cfg.Signals.BlankArtifacts, "no artifact periods in the extract (Signals does not erase them)", ...
-            ternary(E.EpochArtifacts == "drop", "touching an artifact period: dropped", "touching an artifact period: kept, flagged"))], ...
-        "ExpEpochsCheckBox,ExpEpochSourceDropDown,ExpEpochLineField,ExpEpochPreField,ExpEpochPostField,ExpEpochArtifactsDropDown"), ...
-        node("out", "Epoch file", [dsName + "_epochs.mat", E.MatVersion], fileTarget)});
-end
-if ismember("kcsd", E.Formats)
-    kids{end+1} = chain({node("op", "kCSD-python arrays", ["ele_pos (mm, on the probe) + pots (LFP, mV)", ...
-        "interpolated bad channels left out", ternary(E.IncludeEvents, "events as LFP samples", "no events")], ...
-        "ExpKCSDCheckBox"), ...
-        node("out", "kCSD file", [dsName + "_kcsd.npz", "NumPy archive"], "ExpOutputDirField,ExpOverwriteCheckBox")});
-end
 if ismember("nwb", E.Formats)
     kids{end+1} = chain({node("op", "NWB 2 (pynwb)", ["electrodes on the probe, signals, units with quality metrics", ...
         "paired trials, digital lines, erased periods", ternary(E.NWB.Inspect, "checked with nwbinspector", "not inspected")], ...
@@ -643,9 +610,9 @@ if ismember("nwb", E.Formats)
         node("out", "NWB file", [dsName + ".nwb", "HDF5"], "ExpOutputDirField,ExpOverwriteCheckBox")});
 end
 if isempty(kids)
-    kids = {node("off", "Formats", "none ticked", "ExpChronuxCheckBox,ExpFieldTripCheckBox,ExpEpochsCheckBox,ExpKCSDCheckBox,ExpNWBCheckBox")};
+    kids = {node("off", "Formats", "none ticked", "ExpNWBCheckBox")};
 end
-inputs = node("data", "Export inputs", in, "ExpSignalsField,ExpUnitsCheckBox,ExpGroupsField,ExpDetectedCheckBox,ExpEventsCheckBox");
+inputs = node("data", "Export inputs", in, "ExpSignalsField,ExpUnitsCheckBox,ExpGroupsField,ExpEventsCheckBox");
 inputs.children = kids;
 n = step("export", "Export", E.Enabled, "", "ExpEnableCheckBox", {inputs});
 end

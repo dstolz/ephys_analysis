@@ -17,7 +17,7 @@ for the preprocessing pipeline. It edits **one pipeline config**
 - derive LFP / MUA / spike-band `.mat` files;
 - detect spikes by threshold into a `.mat` (sorted units stay in the sorting
   folder);
-- export Chronux- and FieldTrip-shaped files;
+- export an NWB 2 file;
 - run an analysis config (figures, figure files, a report) from the
   [analysis app](EphysAnalysisApp.md) over the processed datasets;
 - associate Epsych2 behavior sessions;
@@ -155,7 +155,7 @@ The tabs, in workflow order:
 | [Sorting](#sorting) | configure Kilosort4, associate sorted output, open phy |
 | [Signals](#signals) | derive LFP / MUA / SPIKE / AUX signals |
 | [Spikes](#spikes) | detect spikes by threshold |
-| [Export](#export) | write files for other tools (Chronux, FieldTrip, event epochs, kCSD-python, NWB) |
+| [Export](#export) | write an NWB 2 file |
 | [Analysis](#analysis) | run an analysis config from the analysis app over the selected datasets: its figures and report |
 | [Diagram](#diagram) | see a diagram of what the config does; click a box to open its settings |
 | [Run](#run) | validate, plan and run; watch progress, results and the computer's load |
@@ -339,7 +339,7 @@ that recording again by its folder.
 
 | Action | Target |
 | --- | --- |
-| Trials: every control but Prefetch ticked; Probe: Exclude channels, the channel-count check; Artifacts: Detect / Preview, manual periods table; Sorting: Use folder / Use auto / Open in phy, Optimize for probe (the default probe when the dataset has none); Spikes: Preview; Export: Epochs to workspace; Analysis: Open report / Open figures folder (the active dataset's first); Visualize; Review; Project: Associate file / Clear, the Tools panel set to **Active dataset** | the **active dataset** |
+| Trials: every control but Prefetch ticked; Probe: Exclude channels, the channel-count check; Artifacts: Detect / Preview, manual periods table; Sorting: Use folder / Use auto / Open in phy, Optimize for probe (the default probe when the dataset has none); Spikes: Preview; Analysis: Open report / Open figures folder (the active dataset's first); Visualize; Review; Project: Associate file / Clear, the Tools panel set to **Active dataset** | the **active dataset** |
 | Run pipeline, Dry run, Run this step, Plan, Signals / Export / Analysis target tables; Project: Find sessions for selected, the Tools panel set to **Ticked datasets**; Clean up: Preview and the files it lists | the rows **ticked** in the Project table (`Project.Selection = "list"`), or **all** datasets when none are ticked (`"all"`) |
 | Trials: Prefetch ticked | the rows **ticked** in the Project table; with none ticked it asks you to tick some |
 | Probe: Assign to selected datasets | the rows **ticked** in the Project table, or the **active dataset** when none are ticked |
@@ -380,7 +380,7 @@ that recording again by its folder.
    in the project root (**Save the pipeline script on each run**, Project
    tab); **Generate script** writes either form wherever you choose.
 9. **Review**: inspect sorted units, or open them in phy. After curating in
-   phy, run **Export** again (with **Overwrite**) so its files carry the
+   phy, run **Export** again (with **Overwrite**) so the NWB file carries the
    curated labels.
 10. **Clean up** (optional): once the outputs are written, free the local
     disk space the raw recordings, the sorting copies of them and the
@@ -1594,7 +1594,7 @@ detection*, *Erase in the signals*) is ticked:
 - **Signals** draws a straight line across each before LFP / MUA / SPIKE are
   derived, and records them in every file, while the Signals tab's *Erase the
   artifact periods first* is ticked ([Signals](#signals)). The analysis and
-  Export's epochs (with *Artifact periods: drop*) then leave out the epochs
+  the DatasetBrowser (its **Artifacts** selection) then leave out the epochs
   that touch one.
 - **Spikes** rejects the events inside them, or erases them before
   detection, as the Spikes tab's *Artifact periods* says; with *Ignore them*
@@ -1901,7 +1901,7 @@ touched.
    `cluster_group.tsv`, whose labels win over Kilosort4's `cluster_KSLabel.tsv`
    wherever units are read. A note per unit is a cluster label named `notes`
    (`cluster_notes.tsv`), which the [Review](#review) tab edits too.
-3. Run **Export** again with **Overwrite** so its files carry the curated
+3. Run **Export** again with **Overwrite** so the NWB file carries the curated
    labels. The Review tab and the analysis read them from the sort folder.
 
 ### What phy changed
@@ -2027,7 +2027,7 @@ reads these files.
   tab's *Erase in the signals* is ticked) become a straight line between the
   levels on either side, so no filter or resampler spreads an artifact into
   the samples around it. Every file records them (`info.artifacts`), and the
-  analysis and Export's epochs (with *Artifact periods: drop*) leave out the
+  analysis and the DatasetBrowser (its **Artifacts** selection) leave out the
   epochs that touch one. AUX is not changed.
 - **Common reference: LFP / MUA / SPIKE**, the row below it:
   `Signals.LFP_Reference` / `MUA_Reference` / `SPIKE_Reference` (off / on /
@@ -2205,29 +2205,19 @@ detection boundaries, so no event is lost or counted twice at a join.
 
 ## Export
 
-Files for external toolboxes, and the same data organized by event,
-`Export.*`: one file per format ticked (`Export.Formats`). Nothing about
-spectra, tapers or Chronux functions appears here: the app only writes files,
-and no toolbox is needed to write them. The exports are independent: none is
-built from another. They read the Signals step's extract files
-(`<Name>_extract_<TYPE>.mat`, or one `<Name>_extract.mat`), so run **Signals**
-first; detected spikes come from the Spikes step's file, and units from the
-dataset's [sorted output](#sorted-output), which need a dataset name that
+An NWB 2 file per dataset, `Export.*` (`Export.Formats` is `nwb`). The inputs
+of the analysis toolboxes (Chronux, FieldTrip, kCSD-python, ...) and the data
+organized by event are not written here: the [DatasetBrowser](DatasetBrowser.md)
+makes them, with its
+[post-processing scripts](DatasetBrowser.md#the-post-processing-script). The
+step reads the Signals step's extract files (`<Name>_extract_<TYPE>.mat`, or
+one `<Name>_extract.mat`), so run **Signals** first; units come from the
+dataset's [sorted output](#sorted-output), which needs a dataset name that
 matches the [name pattern](#name-pattern-and-token-columns).
 
 <!-- wiki: ![The Export tab with its formats and its plan](images/app-export-tab.png) -->
 
-- **Chronux** (`<Name>_chronux.mat`, [format](file-formats.md#chronux-export-ephysdatasetexportchronux-the-export-step)),
-  **FieldTrip** (`<Name>_fieldtrip.mat`,
-  [FieldTripExport](FieldTripExport.md)), **Event epochs**
-  (`<Name>_epochs.mat`, the same data organized by event —
-  [`EphysDataset.eventEpochs`](EphysDataset.md#event-organized-epoched-data))
-  and **kCSD-python** (`<Name>_kcsd.npz`, the LFP in mV and its channels'
-  probe positions in mm as `ele_pos` / `pots` for kCSD-python's `KCSD1D` /
-  `KCSD2D`, [format](file-formats.md#kcsd-export-ephysdatasetexportkcsd-the-export-step)).
-  kCSD needs a probe (the dataset's own, a rule's or the default) and leaves
-  out the interpolated bad channels; units and detected spikes are not part
-  of it. **NWB 2** (`<Name>.nwb`, [EphysDataset → NWB](EphysDataset.md#neurodata-without-borders-nwb))
+- **NWB 2** (`<Name>.nwb`, [EphysDataset → NWB](EphysDataset.md#neurodata-without-borders-nwb))
   holds the electrodes on the probe, the signals, the sorted units with
   their quality metrics, the paired trials, the digital lines and the erased
   periods. It is written by Python (pynwb) and checked with nwbinspector.
@@ -2238,69 +2228,25 @@ matches the [name pattern](#name-pattern-and-token-columns).
   nwbinspector reports a subject without species, sex or age.
 - What to include: signals (`Export.Signals`, e.g. `LFP, MUA`; blank = every
   signal in the extract: LFP, MUA, SPIKE, AUX), sorted units (+ groups, `good,
-  mua` by default), detected spikes (from the Spikes step's file), digital-input
-  events; **Validate with FieldTrip** (FieldTrip's own `ft_datatype_*` checks)
-  when it is on the path. These choices apply to every format, the epoch file
-  included.
-- **Event epochs**: where the onsets come from (`Export.EpochSource`: the
-  pulses of a digital-input line, or the trials paired on the
-  [Trials](#trials) tab, which bring their session columns with them; a
-  pairing that is not approved gives a warning), the line (blank = the trial
-  line, else the only line), the window around each onset (default −0.2 to
-  0.5 s), what to do with a window that runs past the recording (*pad with
-  NaN*, the default, which flags the row `EpochComplete = false`; *drop the
-  epoch*; *error*) or holds `NaN` / `Inf` samples (*keep the epoch*, the
-  default; *drop*; *error*), what to do with an epoch that
-  touches an artifact period the Signals step erased (**Artifact periods:**
-  *touching one: drop the epoch*, the default, leaves it out of the signals as
-  the analysis does; *touching one: keep it (flagged)*; the trials table flags
-  it either way, `Export.EpochArtifacts`), how the per-epoch spike
-  times are stamped (*0 at the onset*, the default; *0 at the window start*;
-  *recording clock*), the class of the epoched samples (*double*, the
-  default; *single*; *as recorded*: the values never change) and the onset
-  rule (*event*, the default, for digital-input times `t = row / origFs`:
-  `round((t − 1/origFs) × Fs) + 1`, the signal row nearest the event's
-  recording row, which at the recording rate is that row, `round(t × Fs)`;
-  *sample*: `round(t × Fs) + 1`, for times on a continuous time base).
-  Nothing is averaged, smoothed or resampled.
-  **Epochs to workspace** builds that struct for the active dataset with
-  these settings and puts it in the base workspace as `epochs_<name>`
-  (replacing a variable of that name); an alert says what was built. Nothing
-  is written to disk. It needs the dataset's Signals output.
-- Output folder, overwrite, MAT version; **Run this step** runs
+  mua` by default) and digital-input events.
+- Output folder and overwrite; **Run this step** runs
   `EphysPipeline.runExport`.
-- The targets table lists one row per format and dataset (steps
-  `export:chronux`, `export:fieldtrip`, `export:epochs`, `export:kcsd`,
-  `export:nwb`) with the output file and a status: `ready`; `exists: skip` /
+- The targets table lists one row per dataset (step `export:nwb`) with the
+  output file and a status: `ready`; `exists: skip` /
   `exists: overwrite` (**Overwrite** decides); `no extract file` (no Signals
   output yet: fine when the Signals step runs first in the same run);
   `error: unit identity` (units are asked for but the dataset name cannot
   label them). It is refreshed when the tab opens; **Refresh plan** redoes
   it.
 
-### What is in the files
+### What is in the file
 
-Every variable and field is in [Files on disk](file-formats.md):
-
-- `<Name>_chronux.mat`: one struct per signal (`data`
-  `[nSamples x nChannels]`, Chronux `params` with the signal's `Fs`, `t`,
-  `labels`, `info`), the sorted units as `sp` (a struct array with `times`, the input
-  of `mtspectrumpt`), the detections as `spDetected`, the events, and
-  `export` (provenance and time conventions)
-  ([format](file-formats.md#chronux-export-ephysdatasetexportchronux-the-export-step)).
-- `<Name>_fieldtrip.mat`: `data_<SIG>` raw structures (`ft_datatype_raw`),
-  `spike` / `spikeDetected` (`ft_datatype_spike`), `event`, and `export` with
-  the validation result ([format](file-formats.md#fieldtrip-export-ephysdatasetexportfieldtrip-the-export-step)).
-- `<Name>_epochs.mat`: `epochs` with the event, a trials table (one row per
-  epoch), the signals as `[nTime x nEpochs x nChan]`, the units' and
-  detections' spike times per epoch, and `export`
-  ([format](file-formats.md#epoch-export-ephysdatasetexportepochs-the-export-step)).
-- `<Name>_kcsd.npz` and `<Name>.nwb`: see their formats above.
+Every group and field of `<Name>.nwb` is in [Files on disk](file-formats.md#nwb-export-ephysdatasetexportnwb-the-export-step).
 
 For quick-look figures (PSTHs, evoked potentials, tuning) of the same data,
 use the [analysis app](EphysAnalysisApp.md).
 
-<!-- wiki: Worked examples of the toolbox formats (trial-aligned spectra, spike-field coherence, FieldTrip trials) are on [Analysis toolbox exports](Analysis-Toolbox-Exports). -->
+<!-- wiki: Worked examples of the toolbox inputs the DatasetBrowser makes (trial-aligned spectra, spike-field coherence, FieldTrip trials) are on [Analysis toolbox exports](Analysis-Toolbox-Exports). -->
 
 ## Analysis
 
@@ -2445,9 +2391,8 @@ step box to the files it writes:
   channel-selected. The amplifier branches end with bad-channel
   interpolation, the channel remap and the output file. Export and Analysis
   hang from the first signal file (from the digital events when no amplifier
-  signal is computed). Export shows its inputs, then one branch per format;
-  the *Event epochs* box says whether epochs touching an artifact period are
-  dropped or kept, flagged. Analysis shows what it reads, the analysis
+  signal is computed). Export shows its inputs, then the NWB branch.
+  Analysis shows what it reads, the analysis
   config's figures and alignment, and its figure files and report.
 - **Spikes**: chunking, channels, the erased artifact periods (with
   `ArtifactMode` `"erase"`: *NaN: out of the thresholds, a line across each
@@ -2506,7 +2451,7 @@ it:
 | Sorting | the recording, the artifact periods (always blanked), the probe map | `kilosort4/`, the sorted units |
 | Signals | the recording; the artifact periods (`BlankArtifacts`) | the signal files, `<Name>_extract_<TYPE>.mat` |
 | Spikes | the recording and the artifact periods (threshold detection; the periods rejected or erased first, unless `ArtifactMode` is none) | `<Name>_spikes.mat` |
-| Export | the signal files; the sorted units (`IncludeUnits`); the spikes file (`IncludeDetected`); the behavior file (epochs around the paired trials) | one file per format |
+| Export | the signal files; the sorted units (`IncludeUnits`); the behavior file (the NWB file's trials, when the NWB file includes trials and Behavior writes its file) | `<Name>.nwb` |
 | Analysis | the signal files; the behavior file; the sorted units and the spikes file (dashed when no enabled figure of the analysis config reads them) | the figure files (`Figures`), the report (`Report`) |
 | Copy outputs (not a step: the Run tab's **Copy outputs to**) | every file a step writes: the behavior file, the artifact cache, the sort folder, the signal and spikes files, the exports, the figure files (each dashed while the config does not write it) | the copies, in `<folder>\<subject>\<session>` (a new `<session>_v2` when it is there, or as **If it is there** says) |
 
@@ -2564,7 +2509,7 @@ step's own tab.
 | `sorting` | *Sorting: Kilosort4* | writes the `.bin` and runs Kilosort4 ([Sorting](#sorting)) |
 | `signals` | *Signals: LFP / MUA / SPIKE / AUX .mat* | the derived signals ([Signals](#signals)) |
 | `spikes` | *Spikes: detected spikes .mat* | threshold spike detection ([Spikes](#spikes)) |
-| `export` | *Export: analysis-toolbox files* | the files for other tools ([Export](#export)) |
+| `export` | *Export: NWB files* | the NWB file ([Export](#export)) |
 
 The line under the panel's switches gives the selection:
 `Selection: 2 of 4 dataset(s) ticked.` (the rows ticked on the Project tab)
@@ -2634,7 +2579,7 @@ alert. **Scan** and **Refresh metadata** are off while it runs.
 ### The plan
 
 **Plan** puts one row per step and dataset in the results table (one per
-file for Signals, one per format for Export, as `export:chronux`): **Step**,
+file for Signals; Export's is `export:nwb`): **Step**,
 **Dataset**, **Subject** and **Date** (the dataset's subject ID and the day it
 was recorded, added by the app), **Key**, **Output** (the file or folder the step writes),
 **Status** and **Note**. The status bar sums it up:
@@ -2674,7 +2619,7 @@ During a run:
   the run*); before that the line says how many steps follow, since nothing
   tells how long they will take. No time left is shown until 1% of the step
   is done and 5 s have passed. The artifact detection a Sorting, Signals or
-  Spikes step needs reports as that step, and the export formats as one
+  Spikes step needs reports as that step, and the NWB export as the
   `export` step. With the weighted CAR (Reference WCAR) the windows of its
   state's passes move the **Current** bar too: in the first half of the
   artifact detection when it is worked out there, else in the next quarter
@@ -2687,7 +2632,7 @@ During a run:
   row shows at the pipeline's next progress event after it is recorded (the
   table is only touched when a row was added), and a row the Kilosort4
   monitor restates during the Run shows at once. Signals gives a row per
-  file, Export one per format, and Behavior up to three: `behavior` (the
+  file, Export one (`export:nwb`), and Behavior up to three: `behavior` (the
   match), `behavior:pairing` and `behavior:file`. The last Run's results stay
   in the table: the monitor goes on restating its background runs there.
 
@@ -3187,8 +3132,8 @@ dataset whose name does not match `Project.NamePattern`, is read with
   the table by it.
 - **Notes**: the one editable column. Typing a note saves it at once to
   `cluster_notes.tsv` next to the sort (`EphysDataset.writeUnitNotes`), the
-  file phy uses for a `notes` label, so the Chronux export's `units`, the
-  FieldTrip export's `spike.hdr.orig` and `unitTable` carry it. A note that
+  file phy uses for a `notes` label, so the `notes` of the units
+  `readSortedUnits` returns and `unitTable` carry it. A note that
   cannot be saved is put back, with an alert.
 - **Plots**: the selected unit's inter-spike interval histogram (intervals up
   to 50 ms in 0.5 ms bins; those under the 1.5 ms refractory period in red,
@@ -3436,7 +3381,7 @@ or drop it:
 | Spikes | the spikes `.mat` (`<Name>_spikes.mat`) |
 | Behavior | `<Name>_behavior.mat` and the digital events cache `<Name>_events.mat` |
 | Artifacts | the artifact-interval cache `<Name>_artifacts.json` |
-| Export | the Chronux, FieldTrip and epochs `.mat` files and the kCSD `.npz` |
+| Export | the NWB file (`<Name>.nwb`) and its nwbinspector report (`<Name>_nwbinspector.json`) |
 
 A `.mat` output is recognized by the variables it holds (as `DatasetOutputs`
 does), so outputs with a configured suffix count too, and the config's
@@ -3584,9 +3529,9 @@ one recording per scenario with
 | --- | --- |
 | recordings `SYNTH-01/SYNTH-01_<yymmdd>_<HHMMSS>/` | Intan RHX-style `*.rhd` files (30 s each) on consecutive days holding the built-in design ([Synthetic](#synthetic)): 10 µV white noise, a 100 µV 2 Hz sine, a −150 µV evoked potential on every channel 20–70 ms after each Stim onset, units of a fixed waveform on one channel each (half ×5 from 20 to 220 ms after Stim onset, one silenced from 0 to 500 ms), two artifacts (one saturating the ADC); the lab's six digital lines `Trough`, `Platform`, `Stim`, `InTrial`, `RespWindow`, `Commutator`; three accelerometer inputs at Fs/4, constant and 0.1 V higher while `InTrial` is on |
 | Epsych2 session `SYNTH-01_<yymmdd>T<HHMMSS>.mat` | in the recording folder, starting 65 s before the recording as in the lab: `Data` (one trial per `InTrial` interval, with `TrialType`, `Depth`, `StimDelay`, `RespCode`, `RespLatency`, `TrialIndex`, `computerTimestamp`, ...) and `Info` |
-| `kilosort4/` | the ground-truth units as Kilosort4 / phy files (plus a noise cluster), where a sorting run would put them, so Export (units), the Review tab and the analysis of sorted units work without a sorting run |
+| `kilosort4/` | the ground-truth units as Kilosort4 / phy files (plus a noise cluster), where a sorting run would put them, so the Review tab and the analysis of sorted units work without a sorting run |
 | `<Name>_manifest.json` | the session and the probe already associated |
-| `SYNTH-01_probe.json`, `synthetic_pipeline.json`, `README.txt` | a probe map for the channel count; a config with behavior (matching + pairing), artifacts, signals (LFP, MUA, AUX), spikes (threshold detection, with waveforms) and export (Chronux + FieldTrip, with the units and the detections) enabled, outputs next to each recording, sorting off; what each dataset should show |
+| `SYNTH-01_probe.json`, `synthetic_pipeline.json`, `README.txt` | a probe map for the channel count; a config with behavior (matching + pairing), artifacts, signals (LFP, MUA, AUX), and spikes (threshold detection, with waveforms) enabled, outputs next to each recording, sorting and export off; what each dataset should show |
 
 The four recordings differ in how they cover their session, so the
 **Trials** tab has one case of each kind to review:
@@ -3730,7 +3675,7 @@ preference: its settings live in its own file, which its Windows task reads.
 | `<outputFolder>/<Name>.bin` (or `<Name>_ks4.bin`; in `Sorting.BinDir` instead of the output folder when that is set) + `.json`, `<outputFolder>/kilosort4/{settings.json, run_ks4.py, ks4_launch.cmd, ks4_run.log, ks4_status.json, ks4_exit.txt}` and the phy files (plus `<probe>_excluded.json` with excluded channels, `<probe>_spaced.json` with `shank_spacing`, and `previous_<yyyyMMdd_HHmmss>/` holding an earlier sort's curation) | Sorting (a dry run writes only `settings.json` and `run_ks4.py`, into `kilosort4/dryrun/`) |
 | `<outputFolder>/<Name>_artifacts.json` | Artifacts (cache) |
 | `<outputFolder>/<Name>_envelope_<what>.dat` (a `.partial` file while it is built) | Visualize, in the background, the first time it shows a signal: the min / max that wide views and the overview strip draw ([format](file-formats.md#signal-envelope-name_envelope_whatdat)) |
-| `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>_chronux.mat`, `<Name>_fieldtrip.mat`, `<Name>_epochs.mat`, `<Name>_kcsd.npz`, `<Name>.nwb` (+ `<Name>_nwbinspector.json`) | Signals, Spikes, Export |
+| `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>.nwb` (+ `<Name>_nwbinspector.json`) | Signals, Spikes, Export |
 | the analysis config's figure files (by default `<outputFolder>/analysis/<Name>_<Plot>.png` / `.svg`), its report (by default `<output root, else project root>/analysis/analysis_report.html`) and `<report folder>/analysis_runs/<runId>_<name>.json` | Analysis (a dry run writes nothing) |
 | `cluster_notes.tsv`, `quality_metrics.json`, `quality_report.html` in the sorted-output folder | a Review **Notes** edit; loading a sort on the Review tab (the metrics' cache); Review **QC report** |
 | probe `.json` in the probe folder | Import, Designer save, Notes edit |
@@ -3788,7 +3733,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `queueKSRun.m`, `onStopKSQueue.m`, `onStopKSRuns.m`, `stopKSRuns.m`, `markKSResult.m` | background sorting runs: the queue the monitor starts from, Stop queue, Stop runs..., restating a run's result row |
 | `keepKSRuns.m`, `followKeptKSRuns.m`, `offerKeptKSQueue.m`, `restoreKSQueue.m`, `private/keptSortingQueue.m`, `private/keptSortingRuns.m` | the background runs kept at Close: storing them, following the runs going again at launch, offering a kept queue back after its root's scan and putting it back in the queue (or dropping it), reading the two preferences |
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
-| `onBrowseExportOutput.m`, `onExportEpochsToWorkspace.m` | Export tab (output folder, Epochs to workspace) |
+| `onBrowseExportOutput.m` | Export tab (output folder) |
 | `buildAnalysisTab.m`, `gatherAnalysisSection.m`, `applyAnalysisSection.m`, `onAnalysisControlsChanged.m`, `onBrowseAnalysisConfig.m`, `onOpenAnalysisConfig.m`, `refreshAnalysisSummary.m`, `onOpenAnalysisOutput.m` | Analysis tab (the analysis config, its summary, Open in the analysis app, Open report / figures folder) |
 | `onPlotVisualization.m`, `applyVizSettings.m`, `onVizControlsChanged.m`, `onVizViewChanged.m`, `onVizInput.m`, `onVizButtonDown/Up.m`, `refreshVizShading.m`, `vizDetectedIntervals.m`, `updateVizArtStatus.m`, `syncVizDataset.m`, `loadVizEvents.m`, `onVizReadEvents.m`, `showVizHelp.m`; `pipeline/EphysTraceViewer.m`, `pipeline/EphysTraceSource.m`, `pipeline/EphysTraceEnvelope.m` | Visualize tab: loading the active dataset's signals and spikes, the controls, the wheel / keys / drags, the shading (`vizDetectedIntervals`: the Artifacts preview's intervals the plot shades, or why none; `updateVizArtStatus`: their counts, and whether the last run's match the current settings); the digital-input events and Read events; the "?" window of mouse and key controls; the viewer, the windowed sources behind it and their envelopes (min / max cached on disk, built in the background) |
 | `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `flowOverviewHTML.m`, `onFlowViewChanged.m`, `onFlowLayoutChanged.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m` | Diagram tab: the page in the view picked, drawn by [`PipelineDiagram`](../pipeline/@PipelineDiagram/PipelineDiagram.m), a plain class the app calls (`detail`: every parameter; `overview`: the data flow, laid out and routed there; `zoomFrame`: the zoom and pan, kept per view by the app), save / open, a box's click |
@@ -3954,7 +3899,7 @@ session's files below its Record Node; an empty plan when there is nothing
 to clean), that the Remove option limits the kinds, what each step's removal
 takes (the whole `kilosort4` folder and the `.bin` with its sidecar; outputs
 found by their variables, with configured suffixes, in a search folder but
-not another dataset's, a kCSD `.npz` by its meta member, and unfinished
+not another dataset's, an `.nwb` by its notes, and unfinished
 ones; a hand-picked sorted-output folder kept), and that `runLocalCleanup`
 removes only the Remove rows, leaves the source alone, skips files that
 changed since the preview, removes emptied folders, moves files into a folder

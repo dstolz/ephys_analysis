@@ -42,15 +42,6 @@ classdef EphysDataset < handle
     %     out = ds.toMat(File="D:\out\subj1.mat", ...
     %                    SignalOptions=struct('dataTypeOut', "LFP"));
     %
-    %   Event-organized (epoched) data
-    %   ------------------------------
-    %     E = ds.eventEpochs(EventSource="behavior", Window=[-0.2 0.5]);
-    %     out = ds.exportEpochs();         % the same, saved as <Name>_epochs.mat
-    %
-    %   Current source density (kCSD-python)
-    %   ------------------------------------
-    %     out = ds.exportKCSD();           % <Name>_kcsd.npz: ele_pos, pots, events
-    %
     %   Neurodata Without Borders
     %   -------------------------
     %     out = ds.exportNWB(PythonExe=..., Metadata=struct('Species', "Mus musculus"));   % <Name>.nwb
@@ -59,7 +50,7 @@ classdef EphysDataset < handle
     %   Processed files, loaded on demand
     %   ---------------------------------
     %     out = ds.outputs();              % DatasetOutputs: finds every output
-    %     FT  = out.FieldTrip;             % loads <Name>_fieldtrip.mat
+    %     S   = out.Extract;               % loads <Name>_extract.mat
     %
     %   See also EPHYSPROJECT, DATASETOUTPUTS, READ_INTAN_RHD2000_FILE_MODIFIED,
     %   MATRIX2KILOSORT, EXTRACT_TRIALS, INTAN2MATLAB.
@@ -263,7 +254,7 @@ classdef EphysDataset < handle
         % it: artifacts (the automatic artifact detection, artifactIntervals),
         % bin (toBin), sorting (runKilosort, runSpikeInterface), signals
         % (toMat), spikes (spikesToMat), behavior (behaviorToMat) and the
-        % exports (chronux, fieldtrip, epochs, kcsd, nwb), each [] until
+        % export nwb (exportNWB), each [] until
         % written. Every record names its file, when and in which pipeline
         % run it was written, every option it was made with
         % (processingRecord) and what was worked out on the way (the common
@@ -342,11 +333,6 @@ classdef EphysDataset < handle
         [units, info] = readSortedUnits(obj, opts)
         [units, Q] = unitQuality(obj, units, info, opts)
         out    = spikesToMat(obj, opts)
-        out    = exportChronux(obj, opts)
-        out    = exportFieldTrip(obj, opts)
-        E      = eventEpochs(obj, opts)
-        out    = exportEpochs(obj, opts)
-        out    = exportKCSD(obj, opts)
         out    = exportNWB(obj, opts)
         [trials, info, meta] = readBehavior(obj)
         [src, store] = behaviorSource(obj)
@@ -836,9 +822,9 @@ classdef EphysDataset < handle
         function o = outputs(obj, varargin)
             %outputs  A DatasetOutputs over this dataset's processed files.
             %   OUT = ds.outputs(Name=Value) finds the extract, spikes, behavior
-            %   and toolbox export files, the sorted units and the manifest
-            %   under outputFolder() and Folder, and loads each one when its
-            %   property is read (FT = OUT.FieldTrip). Options are those of
+            %   and NWB files, the sorted units and the manifest under
+            %   outputFolder() and Folder, and loads each one when its
+            %   property is read (S = OUT.Extract). Options are those of
             %   DatasetOutputs (SearchDirs, Recursive, CacheData, AutoRefresh).
             %
             %   See also DATASETOUTPUTS, EphysPipeline.outputsFor.
@@ -2126,10 +2112,9 @@ classdef EphysDataset < handle
         function p = emptyProcessing()
             %emptyProcessing  Processing before anything is written: a []
             %   per kind - artifacts (the automatic artifact detection),
-            %   bin, sorting, signals, spikes, behavior and the exports
-            %   chronux, fieldtrip, epochs, kcsd and nwb.
+            %   bin, sorting, signals, spikes, behavior and the export nwb.
             p = struct('artifacts', [], 'bin', [], 'sorting', [], 'signals', [], 'spikes', [], ...
-                'behavior', [], 'chronux', [], 'fieldtrip', [], 'epochs', [], 'kcsd', [], 'nwb', []);
+                'behavior', [], 'nwb', []);
         end
 
         function r = processingRecord(fileKey, file, prov, options)

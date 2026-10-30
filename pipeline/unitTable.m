@@ -7,7 +7,7 @@ function T = unitTable(units, opts)
 %     deep = T(T.shank == 2 & T.y > 400, :);
 %   UNITS is a units struct (EphysDataset.readSortedUnits / readPhyUnits), a
 %   struct or cell array of them, or .mat file path(s) holding a "units"
-%   variable (<Name>_chronux.mat). Entries without sorted units
+%   variable. Entries without sorted units
 %   (units = []) are skipped.
 %
 %   Columns

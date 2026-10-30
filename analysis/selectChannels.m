@@ -71,21 +71,3 @@ channel = ch(:);
 meta = table(label(:), channel, recCh(:), shank, x, y, repmat(units, numel(ch), 1), ...
     'VariableNames', {'label', 'channel', 'recordingChannel', 'shank', 'x', 'y', 'units'});
 end
-
-
-function rec = recordingChannels(info, nCh)
-%recordingChannels  1-based amplifier channel of each extract column.
-%   Column c is keepAmpChannels(channelRemap(c)) (deriveSignals' order of
-%   operations); without either option it is channel c.
-rec = (1:nCh).';
-if ~isfield(info, 'importOptions') || ~isstruct(info.importOptions); return; end
-o = info.importOptions;
-k = []; r = [];
-if isfield(o, 'keepAmpChannels'); k = double(o.keepAmpChannels(:)); end
-if isfield(o, 'channelRemap');    r = double(o.channelRemap(:)); end
-if isempty(k); k = (1:max([nCh; r])).'; end
-if isempty(r); r = (1:numel(k)).'; end
-if numel(r) == nCh && all(r >= 1 & r <= numel(k))
-    rec = k(r);
-end
-end

@@ -32,9 +32,9 @@ function S = makeSyntheticProject(root, opts)
 %   for the cuts that resolve each mismatch.
 %
 %   The config enables the behavior (matching + pairing), artifacts, signals
-%   (LFP, MUA, AUX), spikes (threshold detection, with waveforms) and export
-%   (Chronux + FieldTrip) steps, with outputs next to each recording;
-%   sorting is off (it needs Python). Open it in the app (File > Open config, or File >
+%   (LFP, MUA, AUX) and spikes (threshold detection, with waveforms) steps,
+%   with outputs next to each recording; sorting and export are off (they
+%   need Python). Open it in the app (File > Open config, or File >
 %   Create synthetic test project..., which does all of this) or run it:
 %
 %     S = makeSyntheticProject("D:\scratch\synthetic_ephys");
@@ -197,11 +197,6 @@ cfg.Signals.LFP_Fs = 1000;
 cfg.Signals.InvertedLines = opts.InvertedLines;
 cfg.Spikes.Enabled = true;
 cfg.Spikes.Waveforms = true;
-cfg.Export.Enabled = true;
-cfg.Export.Formats = ["chronux" "fieldtrip"];
-cfg.Export.IncludeUnits = opts.SortedOutput;
-cfg.Export.IncludeDetected = true;
-cfg.Export.IncludeEvents = true;
 cfg = cfg.save(configFile);
 issues = cfg.validate();
 bad = issues(issues.Severity == "error", :);
@@ -281,7 +276,7 @@ w('The Epsych2 session (<subject>_<yymmdd>T<HHMMSS>.mat,');
 w('variables Data + Info) sits in the recording folder and starts 65 s before the recording.');
 if opts.SortedOutput
     w('kilosort4/ holds the ground-truth units as Kilosort4 / phy output, so the');
-    w('Export step (units) and the Review tab work without running Python.');
+    w('Review tab and the analysis (units) work without running Python.');
 end
 if ~isempty(opts.InvertedLines)
     w('Lines written active-low (on = low): %s. The config lists them in Signals.InvertedLines.', strjoin(opts.InvertedLines, ', '));
@@ -322,8 +317,8 @@ end
 w('');
 w('Suggested walk-through in the app: File > Open config (this folder''s synthetic_pipeline.json),');
 w('Scan; Trials tab: Load each dataset, resolve the mismatches with the cut spinners, Approve;');
-w('Run tab: Plan, then Run (behavior, artifacts, signals, spikes, export). Then open the outputs');
-w('(<recording>/<name>_behavior.mat, _extract_*.mat, _spikes.mat, _chronux.mat, _fieldtrip.mat)');
+w('Run tab: Plan, then Run (behavior, artifacts, signals, spikes). Then open the outputs');
+w('(<recording>/<name>_behavior.mat, _extract_*.mat, _spikes.mat)');
 w('or the Review tab. Delete this folder when you are done; regenerate it with');
 w('makeSyntheticProject or File > Create synthetic test project... in the app.');
 end

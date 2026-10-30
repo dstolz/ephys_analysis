@@ -1,14 +1,13 @@
 classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     % DatasetOutputs  One dataset's processed files, found once and loaded on demand.
     %   A DatasetOutputs keeps track of every file the pipeline writes for one
-    %   dataset -- derived signals, spikes, analysis-toolbox and epoch
-    %   exports, sorted units, the Epsych2 behavior session, the manifest and
-    %   the artifact cache -- wherever they live, and loads each one only when its
-    %   property is read:
+    %   dataset -- derived signals, spikes, the NWB export, sorted units, the
+    %   Epsych2 behavior session, the manifest and the artifact cache --
+    %   wherever they live, and loads each one only when its property is read:
     %
     %     out = ds.outputs();                  % from an EphysDataset
     %     out = DatasetOutputs("D:\out\subj1_day1");   % or from a folder alone
-    %     FT  = out.FieldTrip;                 % loads <Name>_fieldtrip.mat
+    %     S   = out.Extract;                   % loads <Name>_extract.mat
     %     lfp = out.LFP;                       % only the file holding LFP
     %     u   = out.Units;                     % Kilosort4 / phy sorted units
     %
@@ -23,16 +22,11 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %   Signals/Spikes suffixes and output folders are found too:
     %     extract    Y + info                     (toMat; the Signals step)
     %     spikes     detected + conversion (spikesToMat)
-    %     chronux    export + sp                   (exportChronux)
-    %     fieldtrip  export + event / spike / data_* (exportFieldTrip)
-    %     epochs     export + epochs               (exportEpochs)
-    %   and each *.npz named like the dataset by its meta member:
-    %     kcsd       meta.tool EphysDataset.exportKCSD  (exportKCSD)
+    %     behavior   behavior + conversion         (behaviorToMat)
     %   and each *.nwb named like the dataset by the JSON in its
     %   /general/notes:
     %     nwb        notes.tool EphysDataset.exportNWB  (exportNWB)
-    %     behavior   behavior + conversion         (behaviorToMat)
-    %   A file whose provenance (conversion / export struct, a .npz's meta) names another
+    %   A file whose provenance (conversion struct, an .nwb's notes) names another
     %   dataset is skipped and listed in Foreign: another dataset name, or -
     %   built from a dataset - another recording folder (sourceFolder, see
     %   EphysDataset.isOwnSource), so of two recordings with the same name
@@ -59,14 +53,13 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %
     %   Manual paths
     %   ------------
-    %   The path properties (ExtractFiles, SpikesFile, ChronuxFile,
-    %   FieldTripFile, EpochsFile, KCSDFile, NWBFile, SortingDir, BehaviorFile,
-    %   ManifestFile, ArtifactsFile)
+    %   The path properties (ExtractFiles, SpikesFile, NWBFile, SortingDir,
+    %   BehaviorFile, ManifestFile, ArtifactsFile)
     %   always return the path in effect. Assigning one pins it; assigning ""
     %   returns it to discovery. pathSource(kind) says which applies.
     %
-    %     out.FieldTripFile = "E:\shared\subj1_day1_ft.mat";
-    %     out.SortingDir    = "E:\curated\subj1_day1";
+    %     out.SpikesFile = "E:\shared\subj1_day1_spk.mat";
+    %     out.SortingDir = "E:\curated\subj1_day1";
     %
     %   Loading
     %   -------
@@ -74,11 +67,8 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %                  (Y, info, events, behavior, conversion); newer files win
     %     LFP, MUA, SPIKE, AUX   the toMat-shaped struct of the file holding
     %                  that signal, with Y / info trimmed to it
-    %     Spikes, Chronux, FieldTrip, Epochs   the file's variables as a struct
-    %                  (Epochs: epochs + export, see EphysDataset.exportEpochs)
-    %     KCSD         the .npz arrays (readNPZ), meta decoded from its JSON
-    %                  (see EphysDataset.exportKCSD)
-    %     NWB          file and notes (the decoded JSON the exporter records:
+    %     Spikes       the file's variables as a struct
+    %     NWB         file and notes (the decoded JSON the exporter records:
     %                  dataset, sources, provenance); read the data itself
     %                  with pynwb or MatNWB (see EphysDataset.exportNWB)
     %     Units        readSortedUnits (with a dataset) / readPhyUnits defaults
@@ -94,8 +84,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %
     %   See also EphysDataset.outputs, EphysPipeline.outputsFor, DatasetTracker,
     %   EphysDataset.toMat, EphysDataset.spikesToMat, EphysDataset.behaviorToMat,
-    %   EphysDataset.exportChronux, EphysDataset.exportFieldTrip,
-    %   EphysDataset.exportEpochs, EphysDataset.exportKCSD, EphysDataset.exportNWB.
+    %   EphysDataset.exportNWB.
 
     properties
         Name       (1,1) string = ""      % dataset name; files must start with it
@@ -116,11 +105,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         % Paths in effect. Assign to pin; assign "" to use discovery again.
         ExtractFiles    % derived-signal .mat file(s), newest first
         SpikesFile      % spikesToMat output
-        ChronuxFile     % exportChronux output
-        FieldTripFile   % exportFieldTrip output
-        EpochsFile      % exportEpochs output (event-organized data)
-        KCSDFile        % exportKCSD output (.npz for kCSD-python)
-        NWBFile         % exportNWB output (<Name>.nwb)
+        NWBFile        % exportNWB output (<Name>.nwb)
         SortingDir      % Kilosort4 / phy results folder
         BehaviorFile    % <Name>_behavior.mat, else the Epsych2 session .mat
         ManifestFile    % <Name>_manifest.json
@@ -136,10 +121,6 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         AUX
         Spikes
         Units
-        Chronux
-        FieldTrip
-        Epochs
-        KCSD
         NWB
         Behavior
         Manifest
@@ -148,19 +129,17 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     end
 
     properties (Constant)
-        Kinds = ["extract" "spikes" "chronux" "fieldtrip" "epochs" "kcsd" "nwb" "sorting" "behavior" "manifest" "artifacts"]
+        Kinds = ["extract" "spikes" "nwb" "sorting" "behavior" "manifest" "artifacts"]
         SignalTypes = ["LFP" "MUA" "SPIKE" "AUX"]
     end
 
     properties (Constant, Access = private)
-        PathProps = ["ExtractFiles" "SpikesFile" "ChronuxFile" "FieldTripFile" ...
-                     "EpochsFile" "KCSDFile" "NWBFile" "SortingDir" "BehaviorFile" "ManifestFile" "ArtifactsFile"]
+        PathProps = ["ExtractFiles" "SpikesFile" "NWBFile" "SortingDir" "BehaviorFile" "ManifestFile" "ArtifactsFile"]
     end
 
     properties (Access = private)
         Pinned = struct('extract', string.empty(1,0), 'spikes', string.empty(1,0), ...
-            'chronux', string.empty(1,0), 'fieldtrip', string.empty(1,0), ...
-            'epochs', string.empty(1,0), 'kcsd', string.empty(1,0), 'nwb', string.empty(1,0), ...
+            'nwb', string.empty(1,0), ...
             'sorting', string.empty(1,0), 'behavior', string.empty(1,0), ...
             'manifest', string.empty(1,0), 'artifacts', string.empty(1,0))
         Cache = []
@@ -243,18 +222,6 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                     end
                     T = [T; candidateRow(kind, m, sig)]; %#ok<AGROW>
                 end
-                npz = listFiles(tree, "*.npz");
-                for k = 1:numel(npz)
-                    m = npz(k);
-                    if isempty(regexpi(m.name, prefix + "\.npz$", 'once')); continue; end
-                    meta = exportMeta(m, @npzMeta);
-                    if meta.tool ~= "EphysDataset.exportKCSD"; continue; end
-                    if ~obj.ownsProvenance(meta)
-                        foreign(end+1, 1) = m.path; %#ok<AGROW>
-                        continue
-                    end
-                    T = [T; candidateRow("kcsd", m, "")]; %#ok<AGROW>
-                end
                 nwbs = listFiles(tree, "*.nwb");
                 for k = 1:numel(nwbs)
                     m = nwbs(k);
@@ -285,9 +252,8 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
 
         function tf = has(obj, kind)
             %has  True when the file (or folder) for KIND exists.
-            %   KIND: "extract" | "spikes" | "chronux" | "fieldtrip" |
-            %   "epochs" | "kcsd" | "nwb" | "sorting" | "behavior" | "manifest" | "artifacts" |
-            %   "LFP" | "MUA" | "SPIKE" | "AUX".
+            %   KIND: "extract" | "spikes" | "nwb" | "sorting" | "behavior" |
+            %   "manifest" | "artifacts" | "LFP" | "MUA" | "SPIKE" | "AUX".
             kind = string(kind);
             if ismember(upper(kind), DatasetOutputs.SignalTypes)
                 tf = ~isempty(obj.signalFile(upper(kind)));
@@ -335,7 +301,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
 
         function S = load(obj, kind, vars)
             %load  Load a kind's data, optionally only some variables.
-            %   S = out.load("fieldtrip", "data_LFP", "event") reads just those
+            %   S = out.load("extract", "info", "events") reads just those
             %   variables. Without VARS it is the same as reading the property
             %   (out.load("LFP") == out.LFP).
             arguments
@@ -370,11 +336,8 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                     end
                 case {"LFP", "MUA", "SPIKE", "AUX"}
                     S = trimToSignal(loadMat(files, vars), kind);
-                case {"spikes", "chronux", "fieldtrip", "epochs"}
+                case "spikes"
                     S = loadMat(files, vars);
-                case "kcsd"
-                    S = readNPZ(files, vars);
-                    if isfield(S, 'meta'); S.meta = jsondecode(S.meta); end
                 case "nwb"
                     S = struct('file', files, 'notes', nwbNotes(files));
                 case "sorting"
@@ -646,11 +609,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         %% --- path properties -------------------------------------------------
         function f = get.ExtractFiles(obj);  f = obj.resolve("extract");   end
         function f = get.SpikesFile(obj);    f = obj.resolve("spikes");    end
-        function f = get.ChronuxFile(obj);   f = obj.resolve("chronux");   end
-        function f = get.FieldTripFile(obj); f = obj.resolve("fieldtrip"); end
-        function f = get.EpochsFile(obj);    f = obj.resolve("epochs");    end
-        function f = get.KCSDFile(obj);      f = obj.resolve("kcsd");      end
-        function f = get.NWBFile(obj);       f = obj.resolve("nwb");       end
+        function f = get.NWBFile(obj);      f = obj.resolve("nwb");       end
         function f = get.SortingDir(obj);    f = obj.resolve("sorting");   end
         function f = get.BehaviorFile(obj);  f = obj.resolve("behavior");  end
         function f = get.ManifestFile(obj);  f = obj.resolve("manifest");  end
@@ -658,11 +617,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
 
         function set.ExtractFiles(obj, f);  obj.pin("extract", f);   end
         function set.SpikesFile(obj, f);    obj.pin("spikes", f);    end
-        function set.ChronuxFile(obj, f);   obj.pin("chronux", f);   end
-        function set.FieldTripFile(obj, f); obj.pin("fieldtrip", f); end
-        function set.EpochsFile(obj, f);    obj.pin("epochs", f);    end
-        function set.KCSDFile(obj, f);      obj.pin("kcsd", f);      end
-        function set.NWBFile(obj, f);       obj.pin("nwb", f);       end
+        function set.NWBFile(obj, f);      obj.pin("nwb", f);       end
         function set.SortingDir(obj, f);    obj.pin("sorting", f);   end
         function set.BehaviorFile(obj, f);  obj.pin("behavior", f);  end
         function set.ManifestFile(obj, f);  obj.pin("manifest", f);  end
@@ -676,11 +631,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         function S = get.AUX(obj);       S = obj.load("AUX");       end
         function S = get.Spikes(obj);    S = obj.load("spikes");    end
         function S = get.Units(obj);     S = obj.load("sorting");   end
-        function S = get.Chronux(obj);   S = obj.load("chronux");   end
-        function S = get.FieldTrip(obj); S = obj.load("fieldtrip"); end
-        function S = get.Epochs(obj);    S = obj.load("epochs");    end
-        function S = get.KCSD(obj);      S = obj.load("kcsd");      end
-        function S = get.NWB(obj);       S = obj.load("nwb");       end
+        function S = get.NWB(obj);      S = obj.load("nwb");       end
         function S = get.Behavior(obj);  S = obj.load("behavior");  end
         function S = get.Manifest(obj);  S = obj.load("manifest");  end
         function S = get.Artifacts(obj); S = obj.load("artifacts"); end
@@ -881,7 +832,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         function s = getFooter(obj)
             if ~isscalar(obj); s = ''; return; end
             s = sprintf(['  Load on demand: Extract, LFP, MUA, SPIKE, AUX, Spikes, Units, ' ...
-                'Chronux, FieldTrip, Epochs, KCSD, NWB, Behavior, Manifest, Artifacts\n' ...
+                'NWB, Behavior, Manifest, Artifacts\n' ...
                 '  See inventory(), has(kind), load(kind, vars...), readUnits(...), readWaveforms(unitId)\n']);
         end
     end
@@ -1026,7 +977,7 @@ end
 
 
 function meta = exportMeta(m, read)
-%exportMeta  The tool, dataset and sourceFolder the .npz or .nwb M records (READ: npzMeta or nwbNotes; "" = not recorded).
+%exportMeta  The tool, dataset and sourceFolder the .nwb M records (READ: nwbNotes; "" = not recorded).
 %   From the OutputFileIndex while M is unchanged since they were read,
 %   else read from the file and stored there (not when the read failed).
 meta = OutputFileIndex.lookup(m.path, m.bytes, m.datenum);
@@ -1055,14 +1006,7 @@ function [kind, prov] = classifyMat(v)
 %classifyMat  Output kind of a .mat from its variable names V ("" = not ours), and the variable naming its owner (PROV, "" = none).
 kind = ""; prov = "";
 v = v(v ~= "");
-if all(ismember(["export" "epochs"], v))
-    kind = "epochs"; prov = "export";
-elseif ismember("export", v) && any(ismember(["sp" "spDetected"], v))
-    kind = "chronux"; prov = "export";
-elseif ismember("export", v) && (any(ismember(["event" "spike" "spikeDetected"], v)) ...
-        || any(startsWith(v, "data_")))
-    kind = "fieldtrip"; prov = "export";
-elseif all(ismember(["detected" "conversion"], v))
+if all(ismember(["detected" "conversion"], v))
     kind = "spikes"; prov = "conversion";
 elseif all(ismember(["Y" "info"], v))
     kind = "extract";
@@ -1091,23 +1035,6 @@ try
     meta = jsondecode(char(v(1)));
 catch
     meta = [];   % notes that are not JSON: another tool's file
-end
-end
-
-
-function [meta, ok] = npzMeta(file)
-%npzMeta  The decoded JSON meta member of a .npz ([] when it has none or cannot be read).
-%   OK is false when it could not be read (with a warning).
-meta = [];
-ok = true;
-try
-    M = readNPZ(file, "meta");
-    meta = jsondecode(M.meta);
-catch ME
-    if ME.identifier ~= "readNPZ:NoMember"   % an archive without meta is not one of ours
-        ok = false;
-        warning('DatasetOutputs:Unreadable', 'Cannot read %s (%s); it is left out.', file, ME.message);
-    end
 end
 end
 

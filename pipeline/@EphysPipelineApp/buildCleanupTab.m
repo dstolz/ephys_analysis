@@ -67,7 +67,7 @@ steps = ["sorting" "Sorting" "The sort run folders, kilosort4 and si_<sorter> fo
     "spikes" "Spikes" "The spikes .mat (<Name>_spikes.mat, or the configured suffix and folder)."
     "behavior" "Behavior" "<Name>_behavior.mat and the digital events cache <Name>_events.mat. The trial pairing in the manifest stays."
     "artifacts" "Artifacts" "The artifact-interval cache <Name>_artifacts.json. Manual artifact periods (in the manifest) stay."
-    "export" "Export" "The Chronux, FieldTrip and epochs .mat files and the kCSD .npz."];
+    "export" "Export" "The NWB file (<Name>.nwb) and its nwbinspector report (<Name>_nwbinspector.json)."];
 for k = 1:size(steps, 1)
     obj.CleanupStepCheckBoxes(k) = uicheckbox(sg, "Text", steps(k, 2), "Tag", steps(k, 1), ...
         "Value", false, "Tooltip", steps(k, 3), "ValueChangedFcn", stale);

@@ -71,9 +71,27 @@ function out = exportNWB(obj, opts)
 %
 %   Options
 %     File          target (default <outputFolder>/<Name>.nwb)
-%     Extract, Signals, Units, Groups, UnitQuality, Sources, Events
-%                   as in exportChronux (Detected is accepted and ignored)
-%     Trials        true (default): the paired trials of Behavior
+%     Extract       "" (default: <outputFolder>/<Name>_extract.mat, else the
+%                   <Name>_extract_<TYPE>.mat files present), other extract
+%                   file(s) -- several are merged, e.g. the per-type files
+%                   of toMat(SeparateFiles=true), of which only those of
+%                   Signals are read -- or a toMat-shaped struct (Y,
+%                   events, info)
+%     Signals       subset of ["LFP" "MUA" "SPIKE" "AUX"] ([] = all present)
+%     Units         [] (default: the associated sorted units when present)
+%                   | a units struct | false (none)
+%     Groups        phy groups to keep when reading units (default
+%                   ["good" "mua"])
+%     UnitQuality   true (default): the units carry their quality metrics
+%                   (EphysDataset.unitQuality); a failure is a warning
+%                   (EphysDataset:exportNWB:NoUnitQuality) and the units
+%                   are written without them
+%     Sources       provenance to record for inputs passed as structs: a
+%                   struct with any of extractFile, sortingDir
+%                   (what is read from files here replaces it)
+%     Events        true (default): the digital lines, with the behavior
+%                   file's derived events (readDerivedEvents) | false
+%     Trials       true (default): the paired trials of Behavior
 %     Behavior      "" (default: <outputFolder>/<Name>_behavior.mat when it
 %                   exists, else no trials), a behavior .mat file, or a
 %                   behaviorStruct
@@ -115,8 +133,8 @@ function out = exportNWB(obj, opts)
 %   inputs read, the probe, the Python packages) for the manifest's
 %   processing block.
 %
-%   See also EphysDataset.exportChronux, EphysDataset.exportFieldTrip,
-%   EphysDataset.exportKCSD, writeNPZ, ephysProvenance.
+%   See also EphysDataset.toMat, EphysDataset.readSortedUnits,
+%   EphysDataset.behaviorToMat, writeNPZ, ephysProvenance.
 
 arguments
     obj (1,1) EphysDataset
@@ -126,7 +144,6 @@ arguments
     opts.Units = []
     opts.Groups (1,:) string = ["good" "mua"]
     opts.UnitQuality (1,1) logical = true
-    opts.Detected = false
     opts.Sources struct = struct()
     opts.Events (1,1) logical = true
     opts.Trials (1,1) logical = true
@@ -168,9 +185,7 @@ end
 M = opts.Metadata;
 startTime = sessionStart(obj, M);
 
-ro = opts;
-ro.Detected = false;
-in = resolveExportInputs(obj, ro, 'exportNWB');
+in = resolveExportInputs(obj, opts, 'exportNWB');
 S = in.S;
 eventFs = in.eventFs;
 
@@ -185,7 +200,7 @@ recAll = zeros(0, 1);
 labelOf = containers.Map('KeyType', 'double', 'ValueType', 'any');
 for sig = elecSigs
     nCol = size(S.Y.(sig), 2);
-    rec = KCSDExport.recordingChannels(S.info, nCol);
+    rec = recordingChannels(S.info, nCol);
     sigRec.(sig) = rec;
     recAll = [recAll; rec(:)]; %#ok<AGROW>
     lab = "ch" + string(rec);

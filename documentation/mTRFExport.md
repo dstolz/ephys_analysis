@@ -13,7 +13,7 @@ needed to fit and plot models (`mTRFtrain`, `mTRFcrossval`, `mTRFpredict`,
 `hilbert`).
 
 mTRF, [FieldTrip](FieldTripExport.md) and [Chronux](ChronuxDataset.md) are
-separate toolboxes with separate exporters. They take the same neutral inputs
+separate toolboxes with separate connectors. They take the same neutral inputs
 but share no code, and no output is derived from another's.
 
 ## What the toolbox fits

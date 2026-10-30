@@ -22,11 +22,8 @@ shared builders that arrange the browser's data along the probe:
 Underneath, [`laminarColumns`](../analysis/laminarColumns.m) turns a channel
 table (`R.rows`, `D.channels`, `selectChannels`' META) into the profiles.
 
-The exporter [`EphysDataset.exportKCSD`](EphysDataset.md) (format `kcsd`,
-`<Name>_kcsd.npz`) is the pipeline's own route to kCSD-python and stays
-separate: it writes a whole dataset's LFP for Python work outside MATLAB,
-whereas these connectors bring kCSD's estimate back into the browser's
-workspace.
+The [browser scripts](#the-browser-scripts) below run both estimators on the
+browser's results.
 
 ## Laminar profiles
 

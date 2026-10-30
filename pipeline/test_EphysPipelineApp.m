@@ -82,7 +82,7 @@ cfg.Name = "gui test";
 cfg.Project.Root = proj;
 cfg.Project.OutputRoot = outRoot;
 cfg.Spikes.Enabled = true; cfg.Spikes.Filter = false; cfg.Spikes.ThresholdMethod = "absolute"; cfg.Spikes.Threshold = 2000;
-cfg.Export.Formats = "chronux";
+cfg.Export.Formats = "nwb";
 cfg.Sorting.KS4.nblocks = 3; cfg.Sorting.KS4.dmin = 12;
 cfg.Parallel.Enabled = true; cfg.Parallel.MaxWorkers = 3;
 cfgFile = fullfile(root, 'gui_test.json');
@@ -103,7 +103,7 @@ loaded = app.Config;                       % the config as opened, put back afte
 allOn = loaded;
 allOn.Artifacts.Enabled = true; allOn.Sorting.Enabled = true; allOn.Signals.Enabled = true;
 allOn.Signals.LFP = true; allOn.Signals.MUA = true; allOn.Signals.SPIKE = true; allOn.Signals.AUX = true;
-allOn.Export.Enabled = true; allOn.Export.Formats = ["chronux" "fieldtrip" "epochs" "kcsd"];
+allOn.Export.Enabled = true; allOn.Export.Formats = "nwb";
 allOn.Reference.Mode = "cmr";
 art0 = app.Config.Artifacts;               % the detection settings as opened; the Artifacts tab sections put them back
 ax = app.ArtViewAxes;                      % the Artifacts tab's plot (3a0, 3a0b, 3a0c)
@@ -211,8 +211,8 @@ if S.sec("1", "build + open")
     app.selectTab(wasShown);
     check(isequal(startHidden, app.TabList ~= app.TabProject) && revealed, ...
         'the window shows with the Project tab''s contents alone; another tab''s show when it is first shown (revealTab)');
-    g = app.TabHost.Parent;   % the outer grid: tab strip, host, status bar
-    check(isequal(app.Tabs.Position(3:4), app.Fig.Position(3:4) + [2, 26 - g.RowHeight{1} - g.RowHeight{3}]), ...
+    outer = app.TabHost.Parent;   % the outer grid: tab strip, host, status bar (g is the prefs group)
+    check(isequal(app.Tabs.Position(3:4), app.Fig.Position(3:4) + [2, 26 - outer.RowHeight{1} - outer.RowHeight{3}]), ...
         'built hidden, the tab group fits the window as it shows, not a new panel''s 260 x 221 px (fitTabGroup)');
     sp = AppSplash("test", ["a" "b" "c"], [1 2 1], Show=false);
     sp.step("a", "first");
@@ -243,7 +243,7 @@ if S.sec("1", "build + open")
     check(startsWith(app.Fig.Name, "Ephys preprocessing") && ~startsWith(app.Fig.Name, "*"), 'fresh app is clean');
     check(ok && app.Config.Name == "gui test" && app.Config.File == string(cfgFile), 'openConfigFile loads the config');
     check(strcmp(app.RootPathField.Value, proj) && app.SpkEnableCheckBox.Value && strcmp(app.SpkThresholdField.Value, '2000') ...
-        && app.ExpChronuxCheckBox.Value && ~app.ExpFieldTripCheckBox.Value && app.ParamControls.nblocks.Value == 3 ...
+        && app.ExpNWBCheckBox.Value && app.ParamControls.nblocks.Value == 3 ...
         && strcmp(app.ParamControls.dmin.Value, '12'), 'controls reflect the config');
     check(app.RunParallelCheckBox.Value && strcmp(app.RunMaxWorkersField.Value, '3') && strcmp(app.RunMaxWorkersField.Enable, 'on') ...
         && ~isprop(app, 'SpkParallelCheckBox'), 'the Run tab shows the Parallel section; the Spikes tab has no parallel box');
@@ -272,7 +272,7 @@ if S.sec("1", "build + open")
         'the detail view opens at 100% (no zoom kept for it yet)');
     check(contains(html, "Preprocessing diagram: gui test") ...
         && contains(html, "thr = 2000 &micro;V") && contains(html, "Bandpass filter</div><div class=""d"">off (raw trace)") ...
-        && contains(html, "nblocks 3") && contains(html, "Chronux file") && ~contains(html, "FieldTrip file") ...
+        && contains(html, "nblocks 3") && contains(html, "NWB file") ...
         && ~contains(html, "sorted units (under Sorting)") && ~contains(html, "Spikes: sorted units") ...
         && startsWith(app.FlowSummaryLabel.Text, "1 of 4"), ...
         'the Diagram tab charts the loaded config (spike threshold, filter off, KS4 drift, export formats; Spikes reads no sorted units)');
@@ -314,10 +314,9 @@ if S.sec("1a", "Diagram: boxes open their settings")
         strfind(full, ">Channel selection</div>"), ...
         strfind(full, ">Erase artifact periods</div>"), strfind(full, ">LFP</div>"), strfind(full, ">MUA</div>"), ...
         strfind(full, ">SPIKE</div>"), strfind(full, ">AUX</div>"), strfind(full, ">Reject in Spikes</div>")];
-    check(numel(sigAt) == 9 && issorted(sigAt) && contains(full, "a line across each, before any filter") ...
-        && contains(full, "touching an artifact period: dropped"), ...
+    check(numel(sigAt) == 9 && issorted(sigAt) && contains(full, "a line across each, before any filter"), ...
         ['Signals hangs from the artifact periods too: the channel selection, then the periods ' ...
-         'erased before LFP / MUA / SPIKE (AUX after); its epochs drop the ones that touch a period']);
+         'erased before LFP / MUA / SPIKE (AUX after)']);
     wc = allOn;
     wc.Reference.Mode = "wcar";
     wc.Reference.WCAR_Order = 2;
@@ -392,7 +391,6 @@ if S.sec("1a2", "Diagram: the data-flow overview")
     flowShown();
     flowOn = allOn;
     flowOn.Behavior.Enabled = true;
-    flowOn.Export.IncludeDetected = true; flowOn.Export.EpochSource = "behavior";
     flowOn.Analysis.Enabled = true;
     flowOn.Transfer.Enabled = true; flowOn.Transfer.Destination = fullfile(root, 'copies');
     app.applyConfig(flowOn);
@@ -400,10 +398,10 @@ if S.sec("1a2", "Diagram: the data-flow overview")
     app.onFlowViewChanged();
     ov = string(app.FlowHTML.HTMLSource);
     check(contains(ov, "Preprocessing data flow: gui test") && contains(ov, "<svg class=""flow""") ...
-        && count(ov, "<g class=""node c-") == 12 && count(ov, "<g class=""edge ") == 27 ...
+        && count(ov, "<g class=""node c-") == 12 && count(ov, "<g class=""edge ") == 26 ...
         && app.FlowLayoutDropDown.Enable == "off" && startsWith(app.FlowSummaryLabel.Text, "8 of 8 steps enabled") ...
         && string(AppPrefs.getpref(g, 'DiagramView')) == "overview", ...
-        ['View "Data-flow overview": a box per input and step and Copy outputs, 27 arrows between them, Layout off, ' ...
+        ['View "Data-flow overview": a box per input and step and Copy outputs, 26 arrows between them, Layout off, ' ...
         'all 8 steps counted (Copy outputs is no step); saved as a preference']);
     [~, ~, M] = app.flowOverviewHTML();
     [nCross, nOverlap, nThrough, nBadEnd] = flowGeometry(M);
@@ -416,10 +414,11 @@ if S.sec("1a2", "Diagram: the data-flow overview")
     check(numel(targets) > 30 && isempty(missing) && contains(ov, "sendEventToMATLAB('navigate'"), msg);
     reads = @(M, a, b) M.edges([M.edges.from] == a & [M.edges.to] == b).on;
     check(reads(M, "artifacts", "signals") && reads(M, "artifacts", "spikes") && reads(M, "behavior", "export") ...
-        && reads(M, "spikes", "export") && ~any([M.edges.dim]) && ~any([M.edges.from] == "sorting" & [M.edges.to] == "spikes") ...
+        && ~any([M.edges.from] == "spikes" & [M.edges.to] == "export") ...
+        && ~any([M.edges.dim]) && ~any([M.edges.from] == "sorting" & [M.edges.to] == "spikes") ...
         && all(arrayfun(@(s) reads(M, s, "analysis"), ["behavior" "signals" "sorting" "spikes"])) ...
         && all(arrayfun(@(s) reads(M, s, "transfer"), ["analysis" "behavior" "signals" "export" "artifacts" "sorting" "spikes"])), ...
-        ['with every step on, Signals and Spikes read the artifact periods, Export the behavior and spikes files, ' ...
+        ['with every step on, Signals and Spikes read the artifact periods, Export the behavior file (never the spikes), ' ...
         'Analysis (no config yet) all four outputs, Copy outputs every file written; Spikes never reads the sort']);
     flowNoCopy = flowOn; flowNoCopy.Transfer.Enabled = false;
     app.applyConfig(flowNoCopy);
@@ -430,8 +429,8 @@ if S.sec("1a2", "Diagram: the data-flow overview")
     app.onFlowHideChanged();
     [ovH, ~, M] = app.flowOverviewHTML();
     [nCross, nOverlap, nThrough] = flowGeometry(M);
-    check(~contains(ovH, "data-id=""transfer""") && numel(M.edges) == 20 && nCross <= 6 && nOverlap == 0 && nThrough == 0, ...
-        'Copy outputs off and Hide unused: the overview is the one without it (20 arrows, at most 6 crossings)');
+    check(~contains(ovH, "data-id=""transfer""") && numel(M.edges) == 19 && nCross <= 6 && nOverlap == 0 && nThrough == 0, ...
+        'Copy outputs off and Hide unused: the overview is the one without it (19 arrows, at most 6 crossings)');
     app.FlowHideCheckBox.Value = false;
     app.onFlowHideChanged();
     app.applyConfig(flowOn);
@@ -464,29 +463,18 @@ if S.sec("1a2", "Diagram: the data-flow overview")
     check(g2.isequalConfig(app.Config) && isequaln(g2.toStruct(), cfg.toStruct()), 'gatherConfig reproduces the loaded config exactly');
     check(~startsWith(app.Fig.Name, "*") && contains(app.Fig.Name, "gui_test.json"), 'title shows the file and no unsaved marker');
 
-    % the Export tab's event-epoch settings, both ways
-    app.ExpEpochsCheckBox.Value = true;
-    app.ExpEpochSourceDropDown.Value = 'behavior';
-    app.ExpEpochPreField.Value = -0.35;
-    app.ExpEpochPostField.Value = 0.8;
-    app.ExpEpochSpikeBaseDropDown.Value = 'window';
-    app.ExpEpochIncompleteDropDown.Value = 'drop';
-    app.ExpEpochArtifactsDropDown.Value = 'keep';
-    gE = app.gatherExportSection();
-    check(any(gE.Formats == "epochs") && gE.EpochSource == "behavior" && isequal(gE.EpochWindow, [-0.35 0.8]) ...
-        && gE.EpochSpikeTimeBase == "window" && gE.EpochIncomplete == "drop" && gE.EpochArtifacts == "keep", ...
-        'the Export tab''s epoch settings reach the Export section');
-    app.applyExportSection(app.Config.Export);
-    check(~app.ExpEpochsCheckBox.Value && strcmp(app.ExpEpochSourceDropDown.Value, 'line') ...
-        && app.ExpEpochPreField.Value == -0.2 && strcmp(app.ExpEpochIncompleteDropDown.Value, 'nan') ...
-        && strcmp(app.ExpEpochArtifactsDropDown.Value, 'drop'), ...
-        'applyExportSection puts the epoch settings back');
-    app.ExpKCSDCheckBox.Value = true;
-    gK = app.gatherExportSection();
-    check(any(gK.Formats == "kcsd"), 'the kCSD box adds the kcsd format');
-    kc = app.Config.Export; kc.Formats = "kcsd";
-    app.applyExportSection(kc);
-    check(app.ExpKCSDCheckBox.Value && ~app.ExpChronuxCheckBox.Value, 'applyExportSection ticks the kCSD box for the kcsd format');
+    % the Export tab's format box, both ways: NWB is the only one
+    app.ExpNWBCheckBox.Value = false;
+    gN = app.gatherExportSection();
+    check(isempty(gN.Formats), 'the NWB box off: no format');
+    app.ExpNWBCheckBox.Value = true;
+    gN = app.gatherExportSection();
+    check(isequal(gN.Formats, "nwb") && ~any(isfield(gN, {'IncludeDetected' 'Validate' 'MatVersion' 'EpochSource'})), ...
+        'the NWB box adds the nwb format; the section has no toolbox or epoch settings');
+    nc = app.Config.Export; nc.Formats = strings(1, 0);
+    app.applyExportSection(nc);
+    check(~app.ExpNWBCheckBox.Value && ~isprop(app, 'ExpChronuxCheckBox') && ~isprop(app, 'ExpEpochsToWorkspaceButton'), ...
+        'applyExportSection clears the NWB box; the toolbox boxes and Epochs to workspace are gone');
     app.applyExportSection(app.Config.Export);
 
     % the artifact periods in the signals: the Signals tab's switch and the Artifacts tab's use

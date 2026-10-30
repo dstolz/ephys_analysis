@@ -1861,9 +1861,9 @@ The Figures tab's [spectral panels](EphysAnalysisConfig.md#spectral-panels) (spe
 spectrogram, coherence) run [Chronux](http://chronux.org) (bundled in
 `toolboxes/chronux`; put it on the path) through the functions below. They take
 the block of a layer's signal or the spike trains the panel has read
-(`figureChronuxLayer`), not a file: the dataset's Chronux file,
-`<Name>_chronux.mat` ([format](file-formats.md#chronux-export-ephysdatasetexportchronux-the-export-step)),
-is for running Chronux on the dataset yourself ([ChronuxDataset](ChronuxDataset.md)).
+(`figureChronuxLayer`), not a file. To run Chronux on a dataset yourself, use
+[ChronuxDataset](ChronuxDataset.md) or the DatasetBrowser's
+[Chronux script](DatasetBrowser.md#the-post-processing-script).
 
 | Function | Does |
 | --- | --- |

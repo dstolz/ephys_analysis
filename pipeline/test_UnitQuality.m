@@ -179,12 +179,13 @@ classdef test_UnitQuality < matlab.unittest.TestCase
             delete(dat);
             tc.verifyError(@() writeUnitQualityReport(ds.readSortedUnits(), fullfile(root, "x.html")), ...
                 'writeUnitQualityReport:NoMetrics');
-            ds.toMat(Overwrite=true);                        % the extract the exporters read (LFP)
-            ds.exportChronux(File=fullfile(root, "q_chronux.mat"), Detected=false);
-            M = load(fullfile(root, "q_chronux.mat"));
-            tc.verifyTrue(isfield(M.units, 'presenceRatio') && isfield(M.units, 'quality') ...
-                && ~isfield(M.units.quality, 'cache'), ...
-                "exports carry the quality metrics (and not whether they came from the cache)");
+            ds.toMat(Overwrite=true);                        % the extract the export reads (LFP)
+            nw = ds.exportNWB(StageOnly=true, Metadata=struct('SessionStartTime', "2026-01-01 12:00:00"));
+            A = readNPZ(fullfile(nw.stage, "stage.npz"));
+            rmdir(nw.stage, 's');
+            tc.verifyTrue(isfield(A, 'units_presence_ratio') && isfield(A, 'units_firing_rate') ...
+                && numel(A.units_presence_ratio) == numel(A.units_id), ...
+                "the NWB export carries the quality metrics");
         end
 
         function sweepComparesSorts(tc)

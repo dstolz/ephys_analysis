@@ -20,9 +20,9 @@ function p = ephysProvenance(opts)
 %   P = ephysProvenance(Config=CFG, RunId=ID) fills config, configFile and
 %   runId (EphysPipeline.run passes them to every writer).
 %
-%   Every output writer stores P: the .mat files in their conversion or
-%   export struct (field provenance), the JSON ones (the .bin sidecar,
-%   settings.json, the kCSD meta, run records) as an object with
+%   Every output writer stores P: the .mat files in their conversion
+%   struct (field provenance), the JSON ones (the .bin sidecar,
+%   settings.json, the NWB notes, run records) as an object with
 %   non-finite numbers written as strings (provenanceForJson).
 %
 %   See also ephysVersion, EphysPipeline.run, provenanceForJson.

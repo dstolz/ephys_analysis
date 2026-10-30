@@ -35,9 +35,13 @@ associations in each dataset's manifest. Anything the app runs can be run
 without it from the saved config.
 
 Installation (MATLAB, conda environments, GPU) is covered in
-[INSTALL.md](../pipeline/INSTALL.md).
+[INSTALL.md](../pipeline/INSTALL.md). This page is the reference for every
+control; the [pipeline app guide](pipeline-app-guide.md) is the place to
+start.
 
 ## Launching
+
+<!-- wiki: This page and the tab pages are the reference for every control. New to the app? Start with the [pipeline app guide](pipeline-app-guide.md). -->
 
 ```matlab
 EphysPipelineApp                 % open the window
@@ -108,9 +112,9 @@ that are already sorting keep running.
   - **Run**: Validate config, Plan, Run pipeline (Ctrl+R), Dry run, Cancel.
   - **Help**: opens the [GitHub wiki](https://github.com/dstolz/ephys_analysis/wiki)
     in the browser. Help for this tab (the page for the tab that is shown),
-    Documentation home, Quick start, App overview, Output files,
-    Troubleshooting and FAQ, Scripting guide, Pipeline configs, Developer
-    reference. If no browser opens, an alert shows the address.
+    Documentation home, App guide, Quick start, App overview, Output files,
+    Troubleshooting and FAQ, Scripting guide, Pipeline configs. If no
+    browser opens, an alert shows the address.
     Its last two items file against the
     [repository](https://github.com/dstolz/ephys_analysis/issues) instead:
     **Report an issue on GitHub...** and **Request a feature on GitHub...**

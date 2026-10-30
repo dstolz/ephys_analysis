@@ -16,6 +16,9 @@ trial parameters. Every dataset's part of the result is kept
 ([The cache and the result file](#the-cache-and-the-result-file)), so ticking
 one more dataset computes only that one.
 
+This page is the reference for every control and for scripts. New to the
+browser? Start with the [dataset browser guide](dataset-browser-guide.md).
+
 ## Opening it
 
 ```matlab

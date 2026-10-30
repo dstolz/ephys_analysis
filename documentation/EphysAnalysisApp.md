@@ -31,6 +31,9 @@ tabs: Data, Alignment, Figures, Export and Log.
 
 <!-- wiki: ![The analysis app, Figures tab, previewing a unit's raster over its PSTH grouped by Depth](images/analysis-figures-tab.png) -->
 
+This page is the reference for every control. New to the app? Start with
+the [analysis app guide](analysis-app-guide.md).
+
 ## Quick start
 
 On the [synthetic test project](EphysPipelineApp.md#synthetic-test-project)
@@ -1891,8 +1894,8 @@ section shows the rows of the selected panel's type
 | `eventTrace` (Event traces) | digital or derived lines as a logic analyzer shows them: a row per line, bars or a logic level from each onset to its offset, epochs overlaid or a sub-row each |
 
 What each draws, its layers and its options are on the config page
-([Panel types](EphysAnalysisConfig.md#panel-types), [Panel
-options](EphysAnalysisConfig.md#panel-options)); how the numbers are computed:
+([Panel types](EphysAnalysisConfig.md#panel-types),
+[Panel options](EphysAnalysisConfig.md#panel-options)); how the numbers are computed:
 [Compute](EphysAnalysis.md#compute). A figure of any of these panels can also be
 laid out on the probe, its panels a small tile at each unit's or channel's site,
 one page per dataset ([Probe layout in the Figures tab](#probe-layout-in-the-figures-tab)):
@@ -1940,8 +1943,8 @@ or starting a new config asks to save them.
 
 **Help → Report an issue on GitHub...** and **Help → Request a feature on
 GitHub...** compose a GitHub issue from the session you are in. Both open the
-same dialog as in the pipeline app ([Reporting an
-issue](EphysPipelineApp.md#reporting-an-issue) there says how the buttons and
+same dialog as in the pipeline app
+([Reporting an issue](EphysPipelineApp.md#reporting-an-issue) there says how the buttons and
 the address work): a title, a box for what happened (or what you would like
 the app to do), tick boxes for what to send with it, and a preview of the
 whole report exactly as it will be sent.

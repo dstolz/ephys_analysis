@@ -26,6 +26,7 @@ organized by event.
 
 | Page | Covers |
 | --- | --- |
+| [Pipeline app guide](pipeline-app-guide.md), [Analysis app guide](analysis-app-guide.md), [Dataset browser guide](dataset-browser-guide.md) | for people who use the windows rather than scripts: what each tool is for, a typical session and common tasks, in plain words, pointing to the reference pages below |
 | [EphysPipeline](EphysPipeline.md) | `EphysPipelineConfig` (the config and its schema), `EphysPipeline` (plan / run / cancel; background Kilosort4 runs N at a time over the listed GPUs: `sortingSlot`, `waitForSortingSlot`; the Analysis step, which runs an analysis config's figures and report over the selected datasets), `EphysPipelineScript` (generated scripts), Epsych2 session readers |
 | [EphysDataset](EphysDataset.md) | one recording: readers and the universal data struct, layouts, metadata, streaming, filtering, artifacts, spike detection, `.bin` writing, Kilosort4 runs, sorted-unit loader, derived signals, spikes file, the NWB export, behavior, manifest |
 | [EphysProject](EphysProject.md) | discovering many recordings, `refresh`, dataset keys, batch operations |

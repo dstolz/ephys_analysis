@@ -87,13 +87,13 @@ uimenu(obj.HelpMenu, "Text", "Help for this tab", ...
 uimenu(obj.HelpMenu, "Text", "Documentation home", ...
     "MenuSelectedFcn", @(~,~) obj.onHelp(""));
 pages = [ ...
-    "Quick start",              "Quick-Start",             "on"
+    "App guide",                "Pipeline-App-Guide",      "on"
+    "Quick start",              "Quick-Start",             "off"
     "App overview",             "App-Overview",            "off"
     "Output files",             "Output-Files",            "off"
     "Troubleshooting and FAQ",  "Troubleshooting-and-FAQ", "off"
     "Scripting guide",          "Scripting-Overview",      "on"
-    "Pipeline configs",         "Pipeline-Configs",        "off"
-    "Developer reference",      "Architecture",            "on"];
+    "Pipeline configs",         "Pipeline-Configs",        "off"];
 for k = 1:height(pages)
     page = pages(k, 2);
     uimenu(obj.HelpMenu, "Text", pages(k, 1), "Separator", pages(k, 3), ...

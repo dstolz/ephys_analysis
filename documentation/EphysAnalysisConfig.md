@@ -566,8 +566,8 @@ exports: the block, and one entry per unit with the panels that read it, its
 latencies and onsets. A [session figure](#session-figures) takes them once, on
 the rows merged across the sessions.
 
-**Each epoch's first-spike latency** (`firstSpikeLatency`, [Analysis
-page](EphysAnalysis.md#compute)) is the time, from the epoch's aligned event, of
+**Each epoch's first-spike latency** (`firstSpikeLatency`,
+[Analysis page](EphysAnalysis.md#compute)) is the time, from the epoch's aligned event, of
 its first response spike in the window `[minSec, maxSec]` (both ends included,
 to the sample; `maxSec` `Inf`, the default, is each panel's window's end); an
 epoch with none has NaN. It reads the raster's own rows: the very spike times

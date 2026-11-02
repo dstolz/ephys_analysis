@@ -1063,6 +1063,9 @@ classdef EphysPipeline < handle
     end
 
     methods (Static)
+        h = configHash(c, step, d)
+        [write, status, message, state] = outputDecision(c, step, d, overwrite, overwriteStale)
+
         function applyConfigToDatasets(cfg, P)
             %applyConfigToDatasets  Push the config's shared settings onto every dataset.
             %   Sets PythonExe, CondaEnv, Sorter (Sorting.Sorter: whose run

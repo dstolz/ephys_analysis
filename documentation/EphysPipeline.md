@@ -385,11 +385,16 @@ periods when the step erases them, the probe when the step reads its geometry
 (a sort, the spikes' coincidence, an export) and, for an export, the sorted
 folder and the Signals record's own hash. `outputState(step, d)` compares the
 recorded hash with the current one (`"current"`, `"stale"`, or `"unknown"`
-for a record without a `cfg-` hash: a script's, or none) and
+for a record without a `cfg-` hash: a writer called by hand, or none) and
 `existingOutput(...)` turns it into the plan's status and the step's action.
 Signals, Spikes and Export keep an output that exists unless `Overwrite` is on,
 or `OverwriteStale` is on and it is stale. Their app tabs show `Overwrite`
-only: `OverwriteStale` is for scripts and config files.
+only: `OverwriteStale` is for scripts and config files. The static
+`EphysPipeline.configHash(c, step, d)` and
+`EphysPipeline.outputDecision(c, step, d, overwrite, overwriteStale)` do the
+same from a config or a struct of its sections, without a pipeline: a standalone
+script ([below](#ephyspipelinescript)) records and compares the same hash, so a
+run of either kind judges the files of the other.
 
 With `Transfer.Enabled`, each selected dataset has a `transfer` row, `Output`
 the folder its outputs would go to (`ready` when it is not there yet). The
@@ -888,7 +893,7 @@ txt = EphysPipelineScript.standalone(cfg, File="run_subj1_standalone.m");
 | Form | Contents |
 | --- | --- |
 | `compact` | loads the JSON config, builds an `EphysPipeline`, calls `checkRun()` (`run()`'s checks: a config error or a blocking plan row stops the script) and prints the plan, then one `pipe.<step>()` line per step. Disabled steps are written commented out. Override hints for the output root, the selection, the execution mode and the background runs at once are included as comments. Keep the config file next to it |
-| `standalone` | every parameter written out as MATLAB literals, in `%%` sections; builds `EphysProject`, selects datasets by key, `refresh()`es them, pushes `ArtifactConfig` and `TrialConfig` onto them, and calls `artifactIntervals`, `runKilosort`, `toMat`, `spikesToMat`, `exportNWB` and the Epsych2 functions directly. Each step does what the runner's does: the behavior step pairs and approves trials as `checkBehavior` does, the default probe is used without being assigned (unless `WriteDefaultToManifest`), for sorting and to place the derived signals' bad channels, and the export passes `exportNWB` the extract files of `Export.Signals` only (it reads them, the units and their quality metrics itself). The Analysis step carries the analysis config as its JSON (as it was when the script was written; when it cannot be read then, the script loads the file), points it at the datasets above and runs `EphysAnalysisRunner`, leaving out a dataset whose outputs cannot be read. The runner's cache of artifact detections and its plan checks are left out. It never references the pipeline classes, so it documents exactly what a run does and needs no config file. The config JSON is embedded in the header comment |
+| `standalone` | every parameter written out as MATLAB literals, in `%%` sections; builds `EphysProject`, selects datasets by key, `refresh()`es them, pushes `ArtifactConfig` and `TrialConfig` onto them, and calls `artifactIntervals`, `runKilosort`, `toMat`, `spikesToMat`, `exportNWB` and the Epsych2 functions directly. Each step does what the runner's does: the behavior step pairs and approves trials as `checkBehavior` does, the default probe is used without being assigned (unless `WriteDefaultToManifest`), for sorting and to place the derived signals' bad channels, and the export passes `exportNWB` the extract files of `Export.Signals` only (it reads them, the units and their quality metrics itself). The Analysis step carries the analysis config as its JSON (as it was when the script was written; when it cannot be read then, the script loads the file), points it at the datasets above and runs `EphysAnalysisRunner`, leaving out a dataset whose outputs cannot be read. Signals, Spikes and Export keep or write again an output by the runner's rule (`Overwrite`, `OverwriteStale`; `EphysPipeline.outputDecision`) and record the same options hash, so a run of the script and a pipeline run judge each other's files. The runner's cache of artifact detections and its plan checks are left out. It never builds an `EphysPipeline`, only its static helpers, so it documents exactly what a run does and needs no config file. The config JSON is embedded in the header comment |
 
 Both scripts write to separate output folders when their config does. In
 [`test_EphysPipelineScript`](../pipeline/test_EphysPipelineScript.m) the two

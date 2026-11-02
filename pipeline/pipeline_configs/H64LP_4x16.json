@@ -80,7 +80,7 @@
     "MaxConcurrent": 1,
     "Devices": [],
     "DryRun": false,
-    "SkipExisting": false,
+    "SkipExisting": true,
     "KS4": {
       "n_chan_bin": [],
       "fs": [],

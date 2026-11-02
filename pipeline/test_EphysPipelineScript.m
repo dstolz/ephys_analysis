@@ -76,6 +76,7 @@ cfg.Description = "generated-script equivalence";
 cfg.Project.Root = proj;
 cfg.Sorting.Enabled = true; cfg.Sorting.PythonExe = "C:\envs\ks\python.exe"; cfg.Sorting.DryRun = true;
 cfg.Sorting.Execution = "blocking"; cfg.Sorting.KS4.nblocks = 2; cfg.Sorting.KS4ExtraJSON = "{""x_centers"": 2}";
+cfg.Sorting.SkipExisting = false;   % the dataset has a sorted output (phyDir), and the dry run writes settings.json all the same
 cfg.Spikes.Enabled = true; cfg.Spikes.Filter = false;
 cfg.Spikes.ThresholdMethod = "absolute"; cfg.Spikes.Threshold = 2000;
 py = nwbPython();   % the NWB export runs only with a Python that has pynwb and nwbinspector
@@ -282,6 +283,60 @@ BB = load(fullfile(outBB, nm, nm + "_behavior.mat"));
 check(isequaln(BA.behavior.trials, BB.behavior.trials) && isequaln(BA.behavior.pairing, BB.behavior.pairing) ...
     && ismember("TrialOnset", string(BB.behavior.trials.Properties.VariableNames)) && BB.behavior.pairing.status == "approved", ...
     'identical behavior files from both scripts, with the pairing columns');
+
+fprintf('\n== 5. the standalone script keeps or rewrites an output as the runner does ==\n');
+% Spikes off the Filter with a high threshold, on a recording of its own.
+rngBefore = rng(5);
+Xst = uint16(randi([32000 33500], 4, 4 * 128));
+rng(rngBefore);
+stDir = fullfile(root, 'projST', 'S1_260101_120000');
+mkdir(stDir);
+writeSyntheticRHD(fullfile(stDir, 'S1_260101_120000.rhd'), Xst, zeros(1, 4 * 128), 30000, 128);
+cfgSt = EphysPipelineConfig();
+cfgSt.Name = "stale";
+cfgSt.Project.Root = fileparts(stDir);
+cfgSt.Project.OutputRoot = fullfile(root, 'outST');
+cfgSt.Probe.DefaultProbeFile = fullfile(root, 'stale_probe.json');
+writeProbeMap(cfgSt.Probe.DefaultProbeFile, struct('chanMap', 0:3, 'xc', zeros(1, 4), 'yc', (0:3) * 20, ...
+    'kcoords', zeros(1, 4), 'n_chan', 4));
+cfgSt.Spikes.Enabled = true;
+cfgSt.Spikes.Filter = false;
+cfgSt.Spikes.ThresholdMethod = "absolute";
+cfgSt.Spikes.Threshold = 2000;
+stScript = fullfile(root, 'scripts', 'run_stale.m');
+stFile = fullfile(cfgSt.Project.OutputRoot, 'S1_260101_120000', 'S1_260101_120000_spikes.mat');
+writtenAt = @() dir(stFile).datenum;
+setDate = @() java.io.File(stFile).setLastModified(int64(1.0e12));
+EphysPipelineScript.standalone(cfgSt, File=stScript);
+outSt = runScript(stScript);
+check(isfile(stFile) && ~contains(outSt, "FAILED"), 'the script writes the spikes file');
+pipeSt = EphysPipeline(cfgSt);
+dSt = pipeSt.Project.Datasets(1);
+check(pipeSt.outputState("spikes", dSt) == "current" && startsWith(string(dSt.Processing.spikes.options_hash), "cfg-"), ...
+    'its record holds the hash a pipeline run with this config computes: up to date');
+setDate();
+stamp = writtenAt();
+outSt = runScript(stScript);
+check(writtenAt() == stamp && contains(outSt, "up to date"), 'a second run keeps the file, up to date');
+cfgSt.Spikes.Threshold = 3000;
+EphysPipelineScript.standalone(cfgSt, File=stScript);
+outSt = runScript(stScript);
+check(writtenAt() == stamp && contains(outSt, "stale"), 'options changed, OverwriteStale off: kept, and says stale');
+cfgSt.Spikes.OverwriteStale = true;
+EphysPipelineScript.standalone(cfgSt, File=stScript);
+runScript(stScript);
+check(writtenAt() ~= stamp, 'OverwriteStale on: the stale file is written again');
+setDate();
+stamp = writtenAt();
+runScript(stScript);
+check(writtenAt() == stamp, 'OverwriteStale leaves the file it just wrote alone');
+pipeSt = EphysPipeline(cfgSt);
+check(pipeSt.outputState("spikes", pipeSt.Project.Datasets(1)) == "current", ...
+    'a pipeline run with the config agrees it is up to date');
+cfgSt.Export.Formats = "nwb";
+txtStale = EphysPipelineScript.standalone(cfgSt);
+check(count(txtStale, "EphysPipeline.outputDecision(stepOptions") == 3 && ~contains(txtStale, "exists, skipped"), ...
+    'Signals, Spikes and Export all decide by the same rule');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

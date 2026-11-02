@@ -15,9 +15,12 @@ classdef EphysPipelineScript
     %                                 documents exactly what a run does and
     %                                 needs no config file. Each step does what
     %                                 the runner's does (the behavior step's
-    %                                 trial pairing and approval included); the
-    %                                 runner's cache of artifact detections and
-    %                                 its plan checks are left out. The
+    %                                 trial pairing and approval included; an
+    %                                 output is kept, or written again with
+    %                                 Overwrite or OverwriteStale, by
+    %                                 EphysPipeline.outputDecision and its hash
+    %                                 recorded); the runner's cache of artifact
+    %                                 detections and its plan checks are left out. The
     %                                 Analysis step runs EphysAnalysisRunner on
     %                                 the analysis config, written out as its
     %                                 JSON as it was when the script was made.
@@ -143,6 +146,12 @@ classdef EphysPipelineScript
             L = [L; EphysPipelineScript.structLiteral("trialConfig", EphysPipelineConfig.trialConfig(cfg))];
             L = [L; EphysPipelineScript.structLiteral("parallelOpts", EphysPipelineConfig.parallelOptions(cfg.Parallel))];
             L(end+1, 1) = "parallelArgs = namedargs2cell(parallelOpts);   % UseParallel / MaxWorkers for the chunked steps";
+            L(end+1, 1) = "% What decides the outputs of Signals, Spikes and Export: each records its hash, and a";
+            L(end+1, 1) = "% file whose recorded hash differs was made with other options (OverwriteStale).";
+            L = [L; EphysPipelineScript.structLiteral("stepOptions", struct('Probe', cfg.Probe, 'Reference', cfg.Reference, ...
+                'Artifacts', cfg.Artifacts, 'Signals', cfg.Signals, 'Spikes', cfg.Spikes, 'Export', cfg.Export))];
+            L(end+1, 1) = "provenance = ephysProvenance();";
+            L(end+1, 1) = "provenanceFor = @(step, d) setfield(provenance, 'optionsHash', EphysPipeline.configHash(stepOptions, step, d));";
             L(end+1, 1) = "for k = idx";
             L(end+1, 1) = "    d = P.Datasets(k);";
             L(end+1, 1) = "    d.PythonExe = " + lit(cfg.Sorting.PythonExe) + ";";
@@ -345,7 +354,11 @@ classdef EphysPipelineScript
             L(end+1, 1) = "    d = P.Datasets(k);";
             L(end+1, 1) = "    outFile = fullfile(" + EphysPipelineScript.outDirExpr(G.OutputDir) + ", d.Name + " + lit(G.Suffix) + " + "".mat"");";
             L(end+1, 1) = "    outFiles = " + sigFilesExpr + ";";
-            L(end+1, 1) = "    if any(isfile(outFiles)) && ~signals.Overwrite; fprintf('%s: %s exists, skipped\n', d.Name, strjoin(outFiles, ', ')); continue; end";
+            L(end+1, 1) = "    overwrite = signals.Overwrite;";
+            L(end+1, 1) = "    if any(isfile(outFiles))";
+            L(end+1, 1) = "        [overwrite, ~, kept] = EphysPipeline.outputDecision(stepOptions, ""signals"", d, signals.Overwrite, signals.OverwriteStale);";
+            L(end+1, 1) = "        if ~overwrite; fprintf('%s: skipped, %s: %s\n', d.Name, kept, strjoin(outFiles, ', ')); continue; end";
+            L(end+1, 1) = "    end";
             L(end+1, 1) = "    try";
             L(end+1, 1) = "        d.prepareBadChannels();";
             L(end+1, 1) = "        [~, bad] = d.excludedChannels();";
@@ -362,7 +375,7 @@ classdef EphysPipelineScript
                     L(end+1, 1) = "        sigOpts.artifactIntervals = d.artifactIntervals(IncludeAuto=false);   % erased before deriving";
                 end
             end
-            L(end+1, 1) = "        r = d.toMat(File=outFile, SeparateFiles=signals.SeparateFiles, SignalOptions=sigOpts, MatVersion=signals.MatVersion, Overwrite=signals.Overwrite);";
+            L(end+1, 1) = "        r = d.toMat(File=outFile, SeparateFiles=signals.SeparateFiles, SignalOptions=sigOpts, MatVersion=signals.MatVersion, Overwrite=overwrite, Provenance=provenanceFor(""signals"", d));";
             L(end+1, 1) = "        d.writeManifest();   % its processing block: how the signals were made";
             L(end+1, 1) = "        fprintf('%s: wrote %s\n', d.Name, strjoin(r.file, ', '));";
             L(end+1, 1) = "    catch ME";
@@ -379,7 +392,11 @@ classdef EphysPipelineScript
             L(end+1, 1) = "for k = idx";
             L(end+1, 1) = "    d = P.Datasets(k);";
             L(end+1, 1) = "    outFile = fullfile(" + EphysPipelineScript.outDirExpr(K.OutputDir) + ", d.Name + " + lit(K.Suffix) + " + "".mat"");";
-            L(end+1, 1) = "    if isfile(outFile) && ~spikes.Overwrite; fprintf('%s: %s exists, skipped\n', d.Name, outFile); continue; end";
+            L(end+1, 1) = "    overwrite = spikes.Overwrite;";
+            L(end+1, 1) = "    if isfile(outFile)";
+            L(end+1, 1) = "        [overwrite, ~, kept] = EphysPipeline.outputDecision(stepOptions, ""spikes"", d, spikes.Overwrite, spikes.OverwriteStale);";
+            L(end+1, 1) = "        if ~overwrite; fprintf('%s: skipped, %s: %s\n', d.Name, kept, outFile); continue; end";
+            L(end+1, 1) = "    end";
             L(end+1, 1) = "    try";
             L(end+1, 1) = "        d.prepareBadChannels();";
             L(end+1, 1) = "        channels = EphysPipelineConfig.spikeChannels(spikes, d);";
@@ -397,7 +414,7 @@ classdef EphysPipelineScript
             L(end+1, 1) = "        if probe == """"; probe = defaultProbe; end";
             L(end+1, 1) = "        r = d.spikesToMat('File', outFile, 'DetectOptions', detectOptions, ...";
             L(end+1, 1) = "            'Channels', channels, 'ProbeFile', probe, 'ArtifactMode', spikes.ArtifactMode, ...";
-            L(end+1, 1) = "            'MatVersion', spikes.MatVersion, 'Overwrite', spikes.Overwrite, extra{:});";
+            L(end+1, 1) = "            'MatVersion', spikes.MatVersion, 'Overwrite', overwrite, 'Provenance', provenanceFor(""spikes"", d), extra{:});";
             L(end+1, 1) = "        d.writeManifest();   % its processing block: how the detections were made";
             L(end+1, 1) = "        fprintf('%s: wrote %s\n', d.Name, r.file);";
             L(end+1, 1) = "    catch ME";
@@ -426,11 +443,15 @@ classdef EphysPipelineScript
                     L(end+1, 1) = "    if d.sortingMissing(); fprintf(2, '%s: the sorted-output folder %s is not there, skipped\n', d.Name, d.SortingDir); continue; end";
                 end
                 L(end+1, 1) = "    out = fullfile(" + EphysPipelineScript.outDirExpr(E.OutputDir) + ", d.Name + "".nwb"");";
-                if ~E.Overwrite
-                    L(end+1, 1) = "    if isfile(out); fprintf('%s: %s exists, skipped\n', d.Name, out); continue; end";
-                end
+                L(end+1, 1) = "    overwrite = stepOptions.Export.Overwrite;";
+                L(end+1, 1) = "    if isfile(out)";
+                L(end+1, 1) = "        [overwrite, ~, kept] = EphysPipeline.outputDecision(stepOptions, ""export:nwb"", d, stepOptions.Export.Overwrite, stepOptions.Export.OverwriteStale);";
+                L(end+1, 1) = "        if ~overwrite; fprintf('%s: skipped, %s: %s\n', d.Name, kept, out); continue; end";
+                L(end+1, 1) = "    end";
                 L(end+1, 1) = "    try";
                 L(end+1, 1) = "        o = EphysPipelineConfig.exportOptions(" + EphysPipelineScript.inlineStruct(E) + ", ""nwb"");";
+                L(end+1, 1) = "        o.Overwrite = overwrite;";
+                L(end+1, 1) = "        o.Provenance = provenanceFor(""export:nwb"", d);";
                 L(end+1, 1) = "        o.Extract = extract;";
                 L(end+1, 1) = "        % the probe in effect, the Sorting step's Python when Export.NWB has none, the behavior file's trials";
                 L(end+1, 1) = "        o.ProbeFile = d.ProbeFile;";

@@ -31,6 +31,11 @@ if ~isempty(chanOrder)
 end
 
 if filt.use
+    % FILTFILT needs more than three times the filter's length; a chunk that
+    % short (a trailing file of a few samples) is left out of the estimate.
+    if size(X, 1) <= 3 * (2 * filt.order + 1)
+        return
+    end
     X = obj.filterContinuous(X, Type=filt.type, Cutoff=filt.cutoff, ...
         Order=filt.order, Fs=Fs);
 end

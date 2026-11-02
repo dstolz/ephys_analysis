@@ -32,7 +32,9 @@ function G = groupDetected(D, opts)
 %   Options
 %     Positions       [nChan x 2] site x, y in um, NaN off the probe
 %                     (default: D.info.coincidence.positions)
-%     RadiusUm        sites this close on the probe are neighbors (50)
+%     RadiusUm        sites this close on the probe are neighbors (default:
+%                     the Coincidence radius of the file,
+%                     D.info.coincidence.radiusUm, else 50)
 %     RefractoryMs    longest lag counted in the gap (1.5)
 %     FlankMs         [from to] ms, the lags that give the expected count ([5 30])
 %     MinExpected     fewest expected events in the gap to test a pair (20)
@@ -52,16 +54,17 @@ function G = groupDetected(D, opts)
 %
 %   Errors: groupDetected:NoCoincidence (the file's Coincidence was "none", or
 %   it predates it: copies of a spike sit on several channels, and no gap
-%   can be told from them), groupDetected:NoPositions, groupDetected:BadDetected,
-%   groupDetected:NoToolbox (the Poisson p needs the Statistics and Machine
-%   Learning Toolbox).
+%   can be told from them), groupDetected:NoGap (the Coincidence jitter is
+%   at least RefractoryMs, so no lag is left to count), groupDetected:NoPositions,
+%   groupDetected:BadDetected, groupDetected:NoToolbox (the Poisson p needs the
+%   Statistics and Machine Learning Toolbox).
 %
 %   See also selectUnits, siteNeighbors, EphysDataset.detectSpikes.
 
 arguments
     D (1,1) struct
     opts.Positions = []
-    opts.RadiusUm (1,1) double {mustBeNonnegative} = 50
+    opts.RadiusUm (1,1) double = NaN   % NaN: the file's Coincidence radius
     opts.RefractoryMs (1,1) double {mustBePositive} = 1.5
     opts.FlankMs (1,2) double {mustBeNonnegative} = [5 30]
     opts.MinExpected (1,1) double {mustBeNonnegative} = 20
@@ -93,7 +96,14 @@ if isempty(pos) && isfield(C, 'positions'); pos = C.positions; end
 if isempty(pos) || size(pos, 1) ~= nChan || size(pos, 2) ~= 2
     error('groupDetected:NoPositions', 'The %d channels need their sites on the probe: pass Positions [nChan x 2].', nChan);
 end
-[~, nb] = siteNeighbors(double(pos), opts.RadiusUm);
+radius = opts.RadiusUm;
+if isnan(radius)
+    radius = 50;
+    if isfield(C, 'radiusUm') && isscalar(C.radiusUm) && isfinite(C.radiusUm); radius = double(C.radiusUm); end
+elseif radius < 0
+    error('groupDetected:BadRadius', 'RadiusUm must be 0 or more um (got %g).', radius);
+end
+[~, nb] = siteNeighbors(double(pos), radius);
 
 % --- the events used, as sample numbers -------------------------------------------
 keep = cell(nChan, 1);
@@ -113,6 +123,14 @@ gap = round(opts.RefractoryMs * fs / 1000);
 flank = round(opts.FlankMs * fs / 1000);
 gapWidth = gap - jit;
 flankWidth = flank(2) - flank(1);
+if gapWidth < 1
+    error('groupDetected:NoGap', ...
+        ['The file''s Coincidence jitter (%g ms) is at least RefractoryMs (%g ms), so no lag is left between them ' ...
+         'to count: raise RefractoryMs above the jitter.'], 1000 * jit / fs, opts.RefractoryMs);
+end
+if flankWidth < 1
+    error('groupDetected:NoGap', 'FlankMs [%g %g] spans no sample at %g Hz.', opts.FlankMs(1), opts.FlankMs(2), fs);
+end
 [ia, ib] = find(triu(nb, 1));
 nP = numel(ia);
 nA = zeros(nP, 1); nB = zeros(nP, 1);

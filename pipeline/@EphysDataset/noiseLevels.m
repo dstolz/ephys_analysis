@@ -140,8 +140,8 @@ if ~isempty(chanOrder)
 end
 
 nl = struct();
-nl.sigma        = median(sig, 1);
-nl.center       = median(cen, 1);
+nl.sigma        = median(sig, 1, 'omitnan');   % a chunk without a usable value on a channel does not blank it
+nl.center       = median(cen, 1, 'omitnan');
 nl.nChan        = size(sig, 2);
 nl.channelNames = channelNames;
 nl.nChunks      = nUsed;

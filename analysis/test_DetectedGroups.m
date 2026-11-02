@@ -199,7 +199,8 @@ D = struct();
 D.ts = cellfun(@(i) double(i(:) - 1) / fs, idx, 'UniformOutput', false);
 D.channels = 1:n;
 D.channelNames = "A-" + compose("%03d", (0:n-1));
-D.info = struct('fs', fs, 'index', {cellfun(@(i) double(i(:)), idx, 'UniformOutput', false)}, ...
+% the types the spikes file keeps (spikesToMat): times and amplitudes double, indices int32
+D.info = struct('fs', fs, 'index', {cellfun(@(i) int32(i(:)), idx, 'UniformOutput', false)}, ...
     'amplitude', {amp}, 'count', cellfun(@numel, idx));
 D.info.coincidence = struct('mode', mode, 'radiusUm', 50, 'jitterMs', 1000 * jit / fs, 'jitterSamples', jit, ...
     'positions', pos);

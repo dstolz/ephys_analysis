@@ -4,10 +4,14 @@ function runSpikeDetection(obj, opts)
 %   channels from Spikes.Channels (all / manifest exclusions removed / list),
 %   the sites Spikes.Coincidence compares from the dataset's probe
 %   (probeFor; without one every copy is kept and the result says so),
-%   the artifact periods (Spikes.ArtifactMode "reject": the events inside
-%   them dropped; "erase": erased before detection) from the manual periods
+%   the artifact periods (Spikes.ArtifactMode "erase", the default: erased
+%   before detection; "reject": the events inside them dropped before the
+%   coincidence pass) from the manual periods
 %   plus the cached automatic detection when Artifacts.ApplyToSpikes.
-%   Output: <Spikes.OutputDir or output folder>/<Name><Suffix>.mat.
+%   Output: <Spikes.OutputDir or output folder>/<Name><Suffix>.mat, kept
+%   when it exists unless Spikes.Overwrite, or Spikes.OverwriteStale and it
+%   was made with other options than the config's now (existingOutput); a
+%   dataset another session works on (RunLock) is skipped.
 %
 %   Options: Datasets (indices), DryRun (log only).
 
@@ -38,9 +42,18 @@ for k = 1:n
         obj.addResult("spikes", d.Name, "skipped", "no recording files", out, toc(t0));
         continue
     end
-    if isfile(out) && ~K.Overwrite
-        obj.addResult("spikes", d.Name, "skipped", "output exists (Overwrite is off)", out, toc(t0));
+    busy = obj.inUse(d);
+    if busy ~= ""
+        obj.addResult("spikes", d.Name, "skipped", busy, out, toc(t0));
         continue
+    end
+    overwrite = K.Overwrite;
+    if isfile(out)
+        [overwrite, ~, kept] = obj.existingOutput("spikes", d, K.Overwrite, K.OverwriteStale);
+        if ~overwrite
+            obj.addResult("spikes", d.Name, "skipped", kept, out, toc(t0));
+            continue
+        end
     end
     try
         d.prepareBadChannels();   % settled before the channels are picked
@@ -67,7 +80,7 @@ for k = 1:n
         cb =@(done, total, msg) obj.progress("spikes", d.Name, k, n, lo + (1 - lo) * done / max(total, 1), 1, msg);
         r = d.spikesToMat('File', out, 'DetectOptions', dopt, 'Channels', channels, ...
             'ProbeFile', obj.probeFor(d), 'ArtifactMode', K.ArtifactMode, 'MatVersion', K.MatVersion, ...
-            'Overwrite', K.Overwrite, 'ProgressFcn', cb, 'Provenance', obj.provenance(), args{:});
+            'Overwrite', overwrite, 'ProgressFcn', cb, 'Provenance', obj.provenanceFor("spikes", d), args{:});
         d.writeManifest();   % its processing block: how the detections were made
         msg = sprintf("%d detected event(s), %d rejected", sum(r.nDetected), sum(r.nRejectedArtifact));
         if K.ArtifactMode == "erase"

@@ -175,6 +175,8 @@ classdef test_SpikeCoincidence < matlab.unittest.TestCase
             tc.verifyEqual(S.detected.info.coincidence.mode, "remove");
             tc.verifyEqual(S.detected.info.coincidence.positions, [0 0; 0 20; 0 200; 300 0], "the probe's xc / yc");
             tc.verifyEqual(cellfun(@numel, S.detected.ts), [3 2 1 1]);
+            tc.verifyClass(S.detected.info.index{1}, 'int32', "the file keeps the sample indices as int32");
+            tc.verifyEqual(double(S.detected.info.index{1}), [3000; 15000; 21000]);
             tc.verifyEqual(S.detected.detection.coincidence, ...
                 struct('requested', "remove", 'probeFile', tc.ProbeFile, 'note', ""));
             tc.verifyEqual([r.coincidence r.coincidenceNote], ["remove" ""]);
@@ -212,9 +214,12 @@ classdef test_SpikeCoincidence < matlab.unittest.TestCase
             ds.spikesToMat(File=file, ArtifactMode="reject", ArtifactIntervals=[0.0995 0.1005], ...
                 ProbeFile=tc.ProbeFile, DetectOptions=tc.fileOptions("tag"));
             info = load(file).detected.info;
-            tc.verifyEqual(info.index(1:2), {[8997; 15000; 21000], [9000; 15015; 21016]}, ...
-                "the events at 3000 / 3005 lie in the period");
-            tc.verifyEqual(info.eventId(1:2), {[4; 5; 6], [4; 5; 7]});
+            tc.verifyEqual(info.index(1:2), {int32([8997; 15000; 21000]), int32([9000; 15015; 21016])}, ...
+                "the events at 3000 / 3005 lie in the period (indices are int32 in the file)");
+            % the period's events are dropped before the copies are found, so the
+            % numbering starts at the first event kept (an artifact in a period can
+            % no longer claim a neighbor's spike as its copy)
+            tc.verifyEqual(info.eventId(1:2), {[1; 2; 3], [1; 2; 4]});
             tc.verifyEqual(info.primary(1:2), {logical([0; 1; 1]), logical([1; 0; 1])});
             tc.verifyTrue(all(cellfun(@isempty, [info.index(3:4) info.eventId(3:4) info.primary(3:4)])));
             tc.verifyEqual(info.coincidence.nCopies, [1 1 0 0], "the copies still in the file");

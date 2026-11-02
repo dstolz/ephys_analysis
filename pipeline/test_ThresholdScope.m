@@ -92,6 +92,30 @@ classdef test_ThresholdScope < matlab.unittest.TestCase
                 "per-chunk thresholds follow the noise of each chunk");
         end
 
+        function chunkThresholdIsTheQcCurve(tc)
+            [~, ~, k] = tc.detect(MaxChunkSamples=7000);
+            c = k.chunkThreshold;
+            n = numel(k.chunks);
+            tc.verifyEqual(size(c.threshold), [n 2]);
+            tc.verifyEqual(c.startSec, [k.chunks.sampleOffset].' / tc.Fs, "the time of each chunk's first sample");
+            tc.verifyEqual([k.chunks.startSec].', c.startSec);
+            tc.verifyEqual(c.durationSec, [k.chunks.nSamples].' / tc.Fs);
+            tc.verifyEqual(c.threshold, k.threshold, "per-chunk scope: the thresholds it applied");
+            tc.verifyEqual(c.noise, k.noise);
+            tc.verifyEqual(c.degenerate, k.degenerate);
+            tc.verifyEqual(sum(c.count, 1), k.count, "every event is in one chunk");
+            tc.verifyEqual(c.rate, c.count ./ c.durationSec, 'AbsTol', 1e-9);
+            tc.verifyGreaterThan(max(c.threshold(:, 1)) / min(c.threshold(:, 1)), 3, ...
+                "the noisier second half of channel 1 shows as a step");
+            tc.verifyGreaterThan(c.threshold(end, 1), 3 * c.threshold(1, 1));
+            [~, ~, r] = tc.detect(ThresholdScope="recording", MaxChunkSamples=7000);
+            tc.verifyEqual(r.chunkThreshold.threshold, repmat(r.threshold, n, 1), "the one threshold, in every chunk");
+            tc.verifyEqual(r.chunkThreshold.noise, repmat(r.noise, n, 1));
+            tc.verifyEqual(sum(r.chunkThreshold.count, 1), r.count);
+            [~, ~, o] = tc.detect(ThresholdScope="recording", TimeOffset=5, MaxChunkSamples=7000);
+            tc.verifyEqual(o.chunkThreshold.startSec, r.chunkThreshold.startSec + 5, "on the clock of the timestamps");
+        end
+
         function detectionUsesTheThresholds(tc)
             [~, ~, info] = tc.detect(ThresholdScope="recording", MaxChunkSamples=7000);
             ds = EphysDataset(tc.Folder);

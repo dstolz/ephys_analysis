@@ -29,7 +29,9 @@ function [pool, nWorkers] = parallelChunkPool(plan, nChan, maxWorkers, copies, w
 %     nChan       channels per chunk as read (all channels, before any subset)
 %     maxWorkers  cap requested by the caller; NaN = automatic only
 %     copies      working copies of one chunk per worker (5 for artifact
-%                 detection, 6 for spike detection, which also reads context)
+%                 detection; spike detection filters a group of channels at
+%                 a time and passes 1 + 8 * min(1, group / nChan), about 2 to
+%                 2.6 for a 64-channel chunk, 9 when a group is the whole chunk)
 %     who         method name for the warning id
 %
 %   See also mapChunks, EphysDataset.detectSpikes, EphysDataset.artifactIntervals.

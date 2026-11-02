@@ -13,9 +13,13 @@ function out = spikesToMat(obj, opts)
 %   Variables in the file
 %   ---------------------
 %     detected    struct: ts {1 x nChan} spike times (s, (index-1)/Fs,
-%                 recording-relative), wf {1 x nChan} [nSpikes x nWin] uV or
-%                 [] when waveforms were not requested, info (detectSpikes'
-%                 info, filtered to the kept events), channels (1-based
+%                 recording-relative, double), wf {1 x nChan} [nSpikes x nWin]
+%                 uV (single) or [] when waveforms were not requested, info
+%                 (detectSpikes' info, filtered to the kept events; its
+%                 index is int32 - the 1-based sample of each event, double
+%                 for a recording of 2^31 samples or more - and its
+%                 amplitude double; info.chunkThreshold keeps each chunk's
+%                 threshold, noise and rate over time), channels (1-based
 %                 recording channels, in order), channelNames, reference
 %                 (the common reference detection ran on, as
 %                 EphysDataset.referenceInfo gives it: mode, channels, and
@@ -57,15 +61,20 @@ function out = spikesToMat(obj, opts)
 %                       (ArtifactIntervals, else ds.artifactIntervals():
 %                       manual periods always, the automatic detector when
 %                       ds.ArtifactConfig.Enabled):
-%                         "reject" (default) detect on the recording as
-%                                  read, then drop the events inside a period
-%                         "erase"  erase the periods before detection
-%                                  (detectSpikes' ArtifactIntervals: NaN, left
-%                                  out of the thresholds, a line for the
-%                                  band-pass), so detection runs on the
+%                         "erase"  (default) erase the periods before
+%                                  detection (detectSpikes' ArtifactIntervals:
+%                                  NaN, left out of the thresholds, a line for
+%                                  the band-pass), so detection runs on the
 %                                  cleaned recording: no event lies inside a
 %                                  period and no artifact rings into the
-%                                  samples around it
+%                                  samples around it (the band-pass of an
+%                                  unerased artifact crosses threshold for
+%                                  milliseconds on either side of it)
+%                         "reject" detect on the recording as read, then drop
+%                                  the events inside a period (detectSpikes'
+%                                  RejectIntervals, before the coincident
+%                                  copies are found, so an artifact never
+%                                  claims a neighbor's spike as its copy)
 %                         "none"   ignore them
 %     ArtifactIntervals [k x 2] seconds to use instead of ds.artifactIntervals()
 %                       ([] = none; default NaN = ds.artifactIntervals())
@@ -87,7 +96,7 @@ arguments
     opts.DetectOptions (1,1) struct = struct()
     opts.Channels (1,:) double {mustBeInteger, mustBePositive} = []
     opts.ProbeFile (1,1) string = ""
-    opts.ArtifactMode (1,1) string {mustBeMember(opts.ArtifactMode, ["reject","erase","none"])} = "reject"
+    opts.ArtifactMode (1,1) string {mustBeMember(opts.ArtifactMode, ["reject","erase","none"])} = "erase"
     opts.ArtifactIntervals double = NaN
     opts.MatVersion (1,1) string {mustBeMember(opts.MatVersion, ["-v7.3", "-v7"])} = "-v7.3"
     opts.Overwrite (1,1) logical = false
@@ -113,7 +122,7 @@ if strlength(outDir) > 0 && ~isfolder(outDir)
         error('EphysDataset:spikesToMat:MkdirFailed', 'Could not create %s: %s', outDir, msg);
     end
 end
-for bad = ["Fs" "ChannelOrder" "ProgressFcn" "Files" "ArtifactIntervals" "SitePositions"]
+for bad = ["Fs" "ChannelOrder" "ProgressFcn" "Files" "ArtifactIntervals" "RejectIntervals" "SitePositions"]
     if isfield(opts.DetectOptions, bad)
         error('EphysDataset:spikesToMat:DetectOption', ...
             ['Pass %s to spikesToMat itself (Channels / ProgressFcn / ArtifactMode ' ...
@@ -146,10 +155,11 @@ if any(channels > obj.NumChannels)
 end
 
 dopts = opts.DetectOptions;
-wantWf = isfield(dopts, 'Waveforms') && logical(dopts.Waveforms);
+wantWf = isfield(dopts, 'Waveforms') && ~isempty(dopts.Waveforms) && logical(dopts.Waveforms);
 dopts.Waveforms = wantWf;
-if opts.ArtifactMode == "erase"
-    dopts.ArtifactIntervals = iv;   % detection runs on the cleaned recording
+switch opts.ArtifactMode
+    case "erase",  dopts.ArtifactIntervals = iv;   % detection runs on the cleaned recording
+    case "reject", dopts.RejectIntervals = iv;     % the events inside, dropped before the coincidence pass
 end
 % Coincident events: the channels' sites on the probe, or every copy kept
 % when there is no probe to say which sites are neighbors.
@@ -185,14 +195,19 @@ end
 step = step + 1;
 
 % Drop events inside artifact periods, keeping every per-channel array
-% (times, waveforms, indices, amplitudes, counts) consistent. After an
-% erase there are none: an erased sample never crosses threshold.
+% (times, waveforms, indices, amplitudes, counts) consistent. detectSpikes
+% has done it already ("reject": nRejectedArtifact, before its coincidence
+% pass; after an erase there are none, an erased sample never crosses
+% threshold), so this is a check that leaves the arrays as they are.
 [ivStart, ivEnd] = sampleIntervals(iv, obj.Fs);
 nCh = numel(ts);
 nRej = zeros(1, nCh);
+if isfield(info, 'nRejectedArtifact') && numel(info.nRejectedArtifact) == nCh
+    nRej = reshape(double(info.nRejectedArtifact), 1, []);
+end
 for c = 1:nCh
     keep = ~inIntervals(ts{c}, ivStart, ivEnd, obj.Fs);
-    nRej(c) = nnz(~keep);
+    nRej(c) = nRej(c) + nnz(~keep);
     if all(keep); continue; end
     ts{c} = ts{c}(keep);
     if wantWf && numel(wf) >= c && ~isempty(wf{c}); wf{c} = wf{c}(keep, :); end
@@ -202,6 +217,7 @@ if isfield(info, 'count') && isfield(info, 'durationSec') && info.durationSec > 
     info.rate = info.count / info.durationSec;
 end
 if ~wantWf; wf = []; end
+[wf, info] = compactForFile(wf, info);     % the file's smaller types
 
 detected = struct();
 detected.ts           = ts;
@@ -323,6 +339,27 @@ end
 k = discretize(g, [s; Inf]);         % NaN before the first range
 ok = ~isnan(k);
 tf(ok) = g(ok) < e(k(ok));
+end
+
+
+function [wf, info] = compactForFile(wf, info)
+%compactForFile  The arrays that dominate the file in the types that hold them.
+%   Waveforms go to single (microvolts of a trace the amplifier measured to
+%   0.195 uV, so single's 7 digits lose nothing that matters) and the sample
+%   indices to int32, which holds a recording of up to 2^31 - 1 samples (19.9
+%   hours at 30 kHz; a longer one keeps double rather than overflow). Spike
+%   times and amplitudes stay double, one channel at a time so a copy never
+%   doubles the memory. Everything that reads the file accepts either type.
+if iscell(wf)
+    for c = 1:numel(wf)
+        wf{c} = single(wf{c});
+    end
+end
+if isfield(info, 'index') && isfield(info, 'nSamples') && info.nSamples <= double(intmax('int32'))
+    for c = 1:numel(info.index)
+        info.index{c} = int32(info.index{c});
+    end
+end
 end
 
 

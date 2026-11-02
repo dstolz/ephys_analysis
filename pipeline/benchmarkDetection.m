@@ -169,7 +169,20 @@ for seed = opts.Seeds
     margin = round(opts.MarginMs * 1e-3 * Fs);
     artRows = [round(T.artifacts(:, 1) * Fs) + 1 - margin, round(T.artifacts(:, 2) * Fs) + margin];
     keepRow = @(r) ~any(r(:) >= artRows(:, 1).' & r(:) <= artRows(:, 2).', 2);
-    nKept = T.nSamples - sum(min(artRows(:, 2), T.nSamples) - max(artRows(:, 1), 1) + 1);
+    % The scored samples: the recording less the margins, merged first so that
+    % margins that overlap are not subtracted twice.
+    mRows = sortrows([max(artRows(:, 1), 1), min(artRows(:, 2), T.nSamples)]);
+    mRows = mRows(mRows(:, 2) >= mRows(:, 1), :);
+    k = 1;
+    while k < size(mRows, 1)
+        if mRows(k + 1, 1) <= mRows(k, 2) + 1
+            mRows(k, 2) = max(mRows(k, 2), mRows(k + 1, 2));
+            mRows(k + 1, :) = [];
+        else
+            k = k + 1;
+        end
+    end
+    nKept = T.nSamples - sum(mRows(:, 2) - mRows(:, 1) + 1);
     scoredSec = nKept / Fs;
     tol = round(opts.ToleranceMs * 1e-3 * Fs);
     dupW = round(opts.DuplicateMs * 1e-3 * Fs);
@@ -191,7 +204,9 @@ for seed = opts.Seeds
     for c = 1:nCh
         det = info.index{c}(:);
         det = det(keepRow(det));
-        vis = arrayfun(@(q) max(-q.template(:, c)) >= opts.VisibleFraction * thr(c), model.units);
+        % Visible: the unit's trough on this channel after the detection
+        % filter (the trace the threshold was set on), as the unit SNR above.
+        vis = arrayfun(@(q) filteredTrough(ds, q.template(:, c), filt, Fs) >= opts.VisibleFraction * thr(c), model.units);
         visRows = sort(vertcat(trueRows{vis}, zeros(0, 1)));
         d = nearest(det, visRows);
         matched = d <= tol;

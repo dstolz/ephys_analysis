@@ -9,10 +9,25 @@ function [onsets, info] = eventOnsets(obj, name, opts)
 %
 %   The events are the ones EphysDataset.readData / deriveSignals extracted
 %   (the contiguous on segments of each line, times on the recording's own
-%   sample grid with t = row/origFs). Feed them straight to trials /
-%   spikeTrials: trials' default OnsetRule "event" puts such a time on the
-%   signal sample nearest the one that produced it (that very sample at the
-%   recording rate).
+%   sample grid with t = row/origFs). Both ends are rows the line was high
+%   in (inclusive rows): t_on is the first high row, t_off the last, so a
+%   pulse high for n rows has t_off - t_on = (n-1)/origFs. Its duration is
+%   the n rows' worth, t_off - t_on + 1/origFs, and that is the duration the
+%   filters and INFO.durations use: a 10 ms pulse measures 10 ms, and
+%   MinDurationSec=0.01 keeps it (a one-sample pulse lasts 1/origFs, not 0).
+%
+%   Which call takes the onsets
+%   ---------------------------
+%   The onsets are times of the sample GRID that produced them, t = row/origFs,
+%   one sample later than the continuous time (row-1)/origFs that signals and
+%   spike times use.
+%     cx.trials(onsets, twin)            the default OnsetRule "event" corrects
+%                                        for it: nothing more to do
+%     cx.spikeTrials(onsets, twin, ...   pass EventFs=info.eventFs (the
+%         EventFs=info.eventFs)          recording rate), which moves each
+%                                        onset to the continuous clock as
+%                                        "event" does; without it the
+%                                        onsets are taken as continuous times
 %
 %   Options
 %   -------
@@ -20,14 +35,17 @@ function [onsets, info] = eventOnsets(obj, name, opts)
 %     MaxDurationSec  drop pulses longer than this (default Inf)
 %     TimeRange       [t0 t1] seconds; keep onsets inside it (default all)
 %
-%   INFO: name, onsets, offsets, durations, n, nTotal, keptEvents (indices into
-%   the line's event list), droppedDuration, droppedTimeRange, lines (every
-%   line name in this recording).
+%   INFO: name, onsets, offsets, durations (t_off - t_on + 1/eventFs), eventFs
+%   (the rate of the clock the events count rows of: the recording rate,
+%   Info.origFs, or Fs for a source that has none), n, nTotal, keptEvents
+%   (indices into the line's event list), droppedDuration, droppedTimeRange,
+%   lines (every line name in this recording).
 %
 %   Example
 %   -------
-%     onsets = cx.eventOnsets("din0", MinDurationSec=0.01);
+%     [onsets, info] = cx.eventOnsets("din0", MinDurationSec=0.01);
 %     [D, params, T] = cx.trials(onsets, [-0.2 0.5], Channels=1, TrialAve=1);
+%     [sp, params, t] = cx.spikeTrials(onsets, [-0.2 0.5], Unit=3, EventFs=info.eventFs);
 %
 %   See also ChronuxDataset.trials, ChronuxDataset.spikeTrials,
 %   EphysDataset.readData.
@@ -82,11 +100,23 @@ if size(E, 2) ~= 2
         mat2str(size(E)));
 end
 
+% The clock the events count rows of (the rate trials' "event" rule uses): the
+% recording rate, else the signal's own.
+eventFs = obj.Fs;
+if isfield(obj.Info, 'origFs') && isscalar(obj.Info.origFs) ...
+        && isfinite(obj.Info.origFs) && obj.Info.origFs > 0
+    eventFs = double(obj.Info.origFs);
+end
+if ~(eventFs > 0)
+    error('ChronuxDataset:BadEventFs', 'The events need a positive rate; got %g.', eventFs);
+end
+
 allOn  = E(:, 1);
 allOff = E(:, 2);
-dur    = allOff - allOn;
+dur    = allOff - allOn + 1 / eventFs;      % t_off is the last high row: inclusive rows
 
-keepDur = dur >= opts.MinDurationSec & dur <= opts.MaxDurationSec;
+tol = 1e-3 / eventFs;                       % a pulse of exactly MinDurationSec is kept (rounding of the times)
+keepDur = dur >= opts.MinDurationSec - tol & dur <= opts.MaxDurationSec + tol;
 keepRng = true(size(allOn));
 if isfinite(opts.TimeRange(1)); keepRng = keepRng & allOn >= opts.TimeRange(1); end
 if isfinite(opts.TimeRange(2)); keepRng = keepRng & allOn <= opts.TimeRange(2); end
@@ -104,6 +134,7 @@ info.lines            = lines;
 info.onsets           = onsets;
 info.offsets          = allOff(keep);
 info.durations        = dur(keep);
+info.eventFs          = eventFs;
 info.n                = numel(onsets);
 info.nTotal           = numel(allOn);
 info.keptEvents       = reshape(find(keep), 1, []);

@@ -123,13 +123,20 @@ switch fmt
         for k = 1:L.nChan
             files(k) = string(fullfile(folder, "amp-" + L.ampNative(k) + ".dat"));
         end
-        if ~isfile(files(1))
+        missing = files(~isfile(files));
+        if ~isempty(missing)
             error('IntanReader:splitLayout:NoAmplifier', ...
-                'Missing per-channel amplifier file %s', files(1));
+                'Missing per-channel amplifier file(s): %s', strjoin(missing, ", "));
         end
         L.ampFiles = files;
         d = dir(char(files(1)));
-        L.nSamp = floor(d.bytes / 2);               % int16 = 2 bytes/sample
+        bytes = arrayfun(@(f) getfield(dir(char(f)), 'bytes'), files);
+        L.nSamp = floor(min(bytes) / 2);            % int16 = 2 bytes/sample; the shortest file bounds every read
+        if any(bytes ~= bytes(1))
+            warning('IntanReader:splitLayout:UnequalChannelFiles', ...
+                'The per-channel amplifier files of %s differ in length (%d to %d samples); the shortest bounds the recording.', ...
+                folder, floor(min(bytes) / 2), floor(max(bytes) / 2));
+        end
         L.ampDatenum = d.datenum;
         % Per-line digital-in files: RHX names them after the line's native
         % name, the RHD2000 Interface after its native_order.

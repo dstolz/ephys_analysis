@@ -57,6 +57,9 @@ filesize = s.bytes;
 
 % Magic number guard
 magic_number = fread(fid, 1, 'uint32');
+if isempty(magic_number)
+    error('IntanReader:parseIntanHeader:BadMagic', 'Empty or truncated file, shorter than an RHD header: %s', ffn);
+end
 if magic_number ~= hex2dec('c6912702')
     error('IntanReader:parseIntanHeader:BadMagic', 'Unrecognized file type: %s', ffn);
 end
@@ -253,11 +256,9 @@ function a = fread_QString(fid)
 % First uint32 is the length in bytes; 0xFFFFFFFF means null.
 a = '';
 len = fread(fid, 1, 'uint32');
-if len == hex2num('ffffffff')
+if isempty(len) || len == 4294967295   % 0xFFFFFFFF: a null string (hex2num would give NaN here)
     return;
 end
 len = len / 2;  % bytes -> 16-bit Unicode words
-for i = 1:len
-    a(i) = fread(fid, 1, 'uint16'); %#ok<AGROW>
-end
+a = char(fread(fid, len, 'uint16').');   % one fread, not one per character
 end

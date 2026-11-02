@@ -395,18 +395,22 @@ if (data_present)
     end
     temp_sensor_data = temp_sensor_data / 100; % units = deg C
 
-    % Check for gaps in timestamps.
-    num_gaps = sum(diff(t_amplifier) ~= 1);
-
+    % Check for gaps in timestamps. IntanReader.refreshMetadata checks the
+    % clock of a recording and warns once per jump, so a silent read (the
+    % pipeline's) leaves the warning to it.
+    d_stamp = diff(t_amplifier);
+    num_gaps = sum(d_stamp ~= 1);
 
     if (num_gaps == 0)
         if options.Verbosity == "high"
 
             fprintf(1, 'No missing timestamps in data.\n');
         end
-    else
-        fprintf(1, 'Warning: %d gaps in timestamp data found.  Time scale will not be uniform!\n', ...
-            num_gaps);
+    elseif options.Verbosity == "high"
+        warning('read_Intan_RHD2000_file_modified:TimestampGap', ...
+            ['%s: %d gaps in the timestamp data (%d samples missing in all). ' ...
+             'The time scale will not be uniform; the rows are read as contiguous.'], ...
+            ffn, num_gaps, sum(d_stamp(d_stamp ~= 1) - 1));
     end
 
     % Scale time steps (units = seconds).
@@ -525,15 +529,13 @@ function a = fread_QString(fid)
 
 a = '';
 length = fread(fid, 1, 'uint32');
-if length == hex2num('ffffffff')
+if isempty(length) || length == 4294967295   % 0xFFFFFFFF: a null string (hex2num would give NaN here)
     return;
 end
 % convert length from bytes to 16-bit Unicode words
 length = length / 2;
 
-for i=1:length
-    a(i) = fread(fid, 1, 'uint16');
-end
+a = char(fread(fid, length, 'uint16').');   % one fread, not one per character
 
 return
 

@@ -6,8 +6,8 @@ function E = readDigitalEvents(obj, opts)
 %   events, rate, sample count and line names readData gives - but decodes
 %   only the digital inputs, one bounded piece at a time, so memory does not
 %   grow with the recording:
-%     traditional   each file's data blocks are read in batches and only
-%                   their digital-input words kept (sliceDataBlocks)
+%     traditional   only each data block's digital-input words are read, in
+%                   batches (a strided fread, IntanReader.blockLayout)
 %     split         digitalin.dat, or each line's board-*.dat file, window
 %                   by window (splitDigitalEvents)
 %   ProgressFcn(i, nFiles, fileName) is called before each traditional file
@@ -99,20 +99,28 @@ closer = onCleanup(@() fclose(fid));
 if fseek(fid, hdr.headerBytes, 'bof') ~= 0
     error('IntanReader:readDigitalEvents:SeekFailed', 'Could not seek to the data of %s', ffn);
 end
+% Only the digital-input words are read: spb words of each block, a strided
+% fread that skips the rest of the block (the amplifier samples are most of
+% it), a batch of blocks at a time.
 spb = hdr.numSamplesPerDataBlock;
-per = max(1, floor(2^26 / hdr.bytesPerBlock));  % blocks per read: ~64 MB
+first = IntanReader.blockLayout(hdr);
+dinByte = 2 * first(7);                         % bytes before the digital-input words in a block
+per = 2^16;                                     % blocks per read: spb*per words, ~16 MB
 parts = cell(nHave, ceil(hdr.numDataBlocks / per));
 row = offset;
 for k = 1:size(parts, 2)
     nb = min(per, hdr.numDataBlocks - (k - 1) * per);
-    raw = fread(fid, [hdr.bytesPerBlock / 2, nb], 'uint16=>uint16');
-    if size(raw, 2) < nb
+    at = hdr.headerBytes + (k - 1) * per * hdr.bytesPerBlock + dinByte;
+    if fseek(fid, at, 'bof') ~= 0
+        error('IntanReader:readDigitalEvents:SeekFailed', 'Could not seek to the data of %s', ffn);
+    end
+    w = fread(fid, spb * nb, sprintf('%d*uint16=>uint16', spb), hdr.bytesPerBlock - 2 * spb);
+    if numel(w) < spb * nb
         error('IntanReader:readDigitalEvents:ShortRead', ...
             '%s holds fewer data blocks than its header parse counted; refresh the metadata.', ffn);
     end
-    S = IntanReader.sliceDataBlocks(raw, hdr, "digIn");
     for j = 1:nHave
-        parts{j, k} = EphysReader.highRuns(EphysReader.wordBit(S.digIn, hdr.digInNativeOrders(j)), row);
+        parts{j, k} = EphysReader.highRuns(EphysReader.wordBit(w, hdr.digInNativeOrders(j)), row);
     end
     row = row + nb * spb;
 end

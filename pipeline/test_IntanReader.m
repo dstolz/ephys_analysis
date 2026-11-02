@@ -522,9 +522,174 @@ check(near(rm.readWindowUV(0, nL), XM) && near(rm.readWindowUV(4000, 3000), XM(4
     && near(rm.readData().amplifier, XM), ...
     'a file without the notch between two with it: unfiltered, and the next file starts the filter again');
 
+%% ---- 12. the acquisition clock: a pause, dropped samples ---------------------------------
+fprintf('\n== 12. timestamp gaps ==\n');
+% three files, the second starting 9e6 samples (7.5 min) after the first ended
+Fg = 20000; spbG = 128;
+fg = fullfile(root, 'clock');
+mkdir(fg);
+nbG = [4 5 3]; nG = nbG * spbG;
+startG = [0, nG(1) + 9e6, nG(1) + 9e6 + nG(2)];
+ampG = uint16(randi([0 65535], 2, sum(nG)));
+for k = 1:3
+    idx = sum(nG(1:k-1)) + (1:nG(k));
+    nm = sprintf('clock_%d.rhd', k);
+    writeSyntheticRHD(fullfile(fg, nm), ampG(:, idx), zeros(1, nG(k)), Fg, spbG, 'FirstTimestamp', startG(k));
+    setFileModifiedTime(fullfile(fg, nm), datetime(2026, 1, 1, 10, 0, k));
+end
+rg = IntanReader(fg);
+lastwarn('');
+evalc('rg.refreshMetadata();');                             % the warning text is captured, not shown
+[msg, id] = lastwarn();
+check(strcmp(id, 'IntanReader:TimestampGap') && contains(msg, '9000000') && contains(msg, 'clock_2.rhd'), ...
+    'a file starting 9e6 samples after the one before ended warns IntanReader:TimestampGap, with the samples');
+check(isscalar(rg.Gaps) && rg.Gaps.file == "clock_2.rhd" && rg.Gaps.row == nG(1) + 1 && rg.Gaps.samples == 9e6 ...
+    && isnan(rg.PerFile(1).gapBefore) && rg.PerFile(2).gapBefore == 9e6 && rg.PerFile(3).gapBefore == 0 ...
+    && all([rg.PerFile.numGaps] == 0) && rg.PerFile(2).firstTimestamp == startG(2) ...
+    && rg.PerFile(2).endTimestamp == startG(2) + nG(2) && isequal(rg.metadataStruct().Gaps, rg.Gaps), ...
+    'the jump is in Gaps (file, row, samples) and PerFile (firstTimestamp, endTimestamp, gapBefore)');
+XG = 0.195 * (double(ampG.') - 32768);
+check(isequal(rg.readWindowUV(nG(1) - 4, 8), XG(nG(1) - 3 : nG(1) + 4, :)) && rg.Duration == sum(nG) / Fg, ...
+    'the rows stay the stored samples: read as contiguous across the pause');
+lastwarn('');
+ra.refreshMetadata();
+[~, id] = lastwarn();
+check(isempty(id) && isempty(ra.Gaps) && ra.PerFile(3).gapBefore == 0 && isnan(ra.PerFile(2).firstTimestamp) ...
+    && all([ra.PerFile.numGaps] == 0), ...
+    'files that continue the count (an empty file between them too) give no warning and no gap');
+
+% jumps between the data blocks of one file: 200 samples missing at block 2, the clock back 50 at block 4
+fd = fullfile(root, 'clock_drop');
+mkdir(fd);
+nD = 6 * spbG;
+writeSyntheticRHD(fullfile(fd, 'drop.rhd'), uint16(randi([0 65535], 2, nD)), zeros(1, nD), Fg, spbG);
+shiftStamps(fullfile(fd, 'drop.rhd'), 2, 200);
+shiftStamps(fullfile(fd, 'drop.rhd'), 4, -50);
+rd = IntanReader(fd);
+lastwarn('');
+evalc('rd.refreshMetadata();');
+[~, id] = lastwarn();
+check(strcmp(id, 'IntanReader:TimestampGap') && rd.PerFile.numGaps == 2 && isequal([rd.Gaps.row], [2 * spbG + 1, 4 * spbG + 1]) ...
+    && isequal([rd.Gaps.samples], [200 -50]) && all([rd.Gaps.file] == "drop.rhd") && isnan(rd.PerFile.gapBefore), ...
+    'a strided check of the block starts finds each jump inside a file (rows, samples; backwards too)');
+lastwarn('');
+evalc('read_Intan_RHD2000_file_modified(fullfile(fd, ''drop.rhd''));');
+[~, id] = lastwarn();
+lastwarn('');
+read_Intan_RHD2000_file_modified(fullfile(fd, 'drop.rhd'), Verbosity="silent");
+[~, idSilent] = lastwarn();
+check(strcmp(id, 'read_Intan_RHD2000_file_modified:TimestampGap') && isempty(idSilent), ...
+    'the whole-file reader warns about the gaps unless it is silent (the reader has already)');
+
+% a split recording: time.dat is checked once, from its first and last stamp
+fsig = fullfile(root, 'signal_rec');
+nT = 9000;
+ft = fullfile(root, 'signal_time');
+copyfile(fsig, ft);
+writeDat(fullfile(ft, 'time.dat'), int32(0:nT-1), 'int32');
+rt1 = IntanReader(ft);
+lastwarn('');
+rt1.refreshMetadata();
+[~, id] = lastwarn();
+check(isempty(id) && isempty(rt1.Gaps) && rt1.PerFile.firstTimestamp == 0 && rt1.PerFile.endTimestamp == nT ...
+    && rt1.PerFile.numGaps == 0, 'split: a contiguous time.dat gives no warning');
+writeDat(fullfile(ft, 'time.dat'), int32([0:3999, 4300:nT + 299]), 'int32');   % 300 samples missing at row 4001
+rt2 = IntanReader(ft);
+lastwarn('');
+evalc('rt2.refreshMetadata();');
+[~, id] = lastwarn();
+check(strcmp(id, 'IntanReader:TimestampGap') && isscalar(rt2.Gaps) && rt2.Gaps.row == 4001 && rt2.Gaps.samples == 300 ...
+    && rt2.Gaps.file == "time.dat" && rt2.PerFile.numGaps == 1, 'split: a jump in time.dat is found and placed');
+
+%% ---- 13. traditional streamPlan: bounded windows --------------------------------------------
+fprintf('\n== 13. streamPlan windows of traditional files ==\n');
+fw = fullfile(root, 'windows');
+mkdir(fw);
+nbW = [30 20]; FsW = 1000; nW = nbW * 128;
+ampW = uint16(randi([0 65535], 3, sum(nW)));
+for k = 1:2
+    idx = sum(nW(1:k-1)) + (1:nW(k));
+    writeSyntheticRHD(fullfile(fw, sprintf('w_%d.rhd', k)), ampW(:, idx), zeros(1, nW(k)), FsW, 128, ...
+        'FirstTimestamp', sum(nW(1:k-1)));
+    setFileModifiedTime(fullfile(fw, sprintf('w_%d.rhd', k)), datetime(2026, 1, 1, 10, 0, k));
+end
+rw = IntanReader(fw);
+rw.refreshMetadata();
+p0 = rw.streamPlan();
+pw = rw.streamPlan(MaxChunkSamples=1000);
+XW = 0.195 * (double(ampW.') - 32768);
+okW = true;
+for k = 1:numel(pw)
+    okW = okW && isequal(rw.readChunkUV(pw(k)), XW(pw(k).sampleOffset + (1:pw(k).nSamples), :));
+end
+check(numel(p0) == 2 && isequal([p0.nSamples], nW) && p0(1).name == "w_1.rhd", ...
+    'a file smaller than the chunk size is one chunk, named by the file');
+check(isequal([pw.sampleOffset], [0 1000 2000 3840 4840]) && isequal([pw.nSamples], [1000 1000 1840 1000 1560]) ...
+    && all([pw.kind] == "rhd") && okW, ...
+    'MaxChunkSamples cuts a file into windows (a leftover under a second joins the last); each reads its own rows');
+check(pw(3).name == "w_1.rhd samples 2001-3840" && pw(4).file == string(fullfile(fw, 'w_2.rhd')), ...
+    'a window of a cut file is named by its samples in the file');
+ps = rw.streamPlan(Files="w_2.rhd", MaxChunkSamples=1000);
+check(isequal([ps.sampleOffset], [3840 4840]) && isequal([ps.nSamples], [1000 1560]), ...
+    'a Files subset keeps the recording offsets of its windows');
+pl2 = rl.streamPlan(MaxChunkSamples=1000);                   % the pre-3.0 notch files of section 11
+okN = numel(pl2) == 6;
+for k = 1:numel(pl2)
+    okN = okN && near(rl.readChunkUV(pl2(k)), XL(pl2(k).sampleOffset + (1:pl2(k).nSamples), :));
+end
+check(okN, 'windows of notch-filtered files equal the loop over the recording (each starts the filter in the stream)');
+
+%% ---- 14. digital events: the strided read, and the cache fingerprint -----------------------
+fprintf('\n== 14. digital events: strided read, cache ==\n');
+r5 = IntanReader(fileparts(layoutFiles(5)));                % aux, supply, temperature, ADC, 16 inputs, outputs
+r5.refreshMetadata();
+E5 = r5.readDigitalEvents();
+dEv5 = r5.readData(KeepChannels=1, Precision="single");
+check(numel(fieldnames(E5.events)) == 16 && isequal(E5.events, dEv5.events), ...
+    'the digital words read alone (a strided fread past every other signal of the block) give the events readData gives');
+fsC = fullfile(root, 'signal_cache');
+copyfile(fsig, fsC);
+dC = EphysDataset(fsC);
+dC.OutputDir = fullfile(root, 'cache_out');
+EC1 = dC.digitalEvents();
+EC2 = dC.digitalEvents();
+check(EC1.source == "read" && EC2.source == "cache" && isequal(EC2.events, EC1.events), ...
+    'split recording: the events are cached while the files are unchanged');
+fpC = dC.Reader.eventFingerprint();
+check(contains(fpC, "digitalin.dat") && contains(fpC, EphysReader.EventsVersion), ...
+    'the reader''s fingerprint names the decoding version and the digital file');
+Ws2 = Ws; Ws2(100:120) = bitor(Ws2(100:120), 1);
+writeDat(fullfile(fsC, 'digitalin.dat'), Ws2, 'uint16');   % replaced, same size
+stamped = setFileModifiedTime(fullfile(fsC, 'digitalin.dat'), datetime('now') + minutes(7));
+if stamped
+    EC3 = dC.digitalEvents();
+    check(EC3.source == "read" && ~isequal(EC3.events, EC1.events), ...
+        'a replaced digitalin.dat (same size, later time) is read again, not served from the cache');
+else
+    fprintf('  (replaced-file check skipped: file times could not be set)\n');
+end
+writeDat(fullfile(fsC, 'digitalin.dat'), Ws2(1:8000), 'uint16');   % cut short
+EC4 = dC.digitalEvents();
+check(EC4.source == "read", 'a digitalin.dat of another size is read again');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_IntanReader:Failed', '%d checks failed.', nFail);
+end
+end
+
+
+function shiftStamps(file, fromBlock, delta)
+%shiftStamps  Move the timestamps of the data blocks FROMBLOCK.. (0-based) of an RHD file by DELTA samples.
+hdr = IntanReader.parseIntanHeader(file);
+fid = fopen(file, 'r+', 'ieee-le');
+closer = onCleanup(@() fclose(fid));
+for b = fromBlock : hdr.numDataBlocks - 1
+    at = hdr.headerBytes + b * hdr.bytesPerBlock;
+    fseek(fid, at, 'bof');
+    t = fread(fid, hdr.numSamplesPerDataBlock, 'int32');
+    fseek(fid, at, 'bof');
+    fwrite(fid, t + delta, 'int32');
 end
 end
 

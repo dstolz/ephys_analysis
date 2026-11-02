@@ -7,8 +7,12 @@ function E = digitalEvents(obj, opts)
 %   "read"). Reading the events can mean reading the whole recording (see
 %   EphysReader.readDigitalEvents), so the reader's native-keyed result is
 %   saved as <outputFolder>/<Name>_events.mat and reused while the recording
-%   files, their sample count and the reader are unchanged. The lines are
-%   named after loading, so renaming a line never re-reads the recording.
+%   files, their sample count and the reader are unchanged - the reader's
+%   decoding version (EphysReader.eventFingerprint) is part of that, and so
+%   are a split Intan recording's digital-input files (digitalin.dat, the
+%   board-*.dat files: names, sizes, modification times), which are not in
+%   the file list. The lines are named after loading, so renaming a line
+%   never re-reads the recording.
 %
 %   Options
 %     LabelField   "custom" | "native": each line's default name (default
@@ -43,8 +47,12 @@ for k = 1:numel(obj.Files)
     f = dir(fullfile(obj.Folder, obj.Files(k)));
     if isscalar(f); modified(k) = round(f.datenum * 86400); end
 end
+% The reader adds what is not in Files: the decoding version (a later fix of
+% the event convention reads the events again) and, for a split Intan
+% recording, the names, sizes and times of the digital-input files.
 fp = string(jsonencode(struct('reader', string(obj.Reader.Kind), ...
-    'files', {cellstr(obj.Files(:).')}, 'nSamples', obj.NumSamples, 'modified', modified)));
+    'files', {cellstr(obj.Files(:).')}, 'nSamples', obj.NumSamples, 'modified', modified, ...
+    'code', char(obj.Reader.eventFingerprint()))));
 cacheFile = fullfile(obj.outputFolder(), obj.Name + "_events.mat");
 
 E = [];

@@ -41,7 +41,15 @@ classdef (Abstract) EphysReader < handle
     %                      the line's NATIVE name (matlab.lang.makeValidName) ->
     %                      [k x 2] [t_on t_off] seconds, t = row/Fs (1-based
     %                      row). EphysDataset renames the lines (LabelField,
-    %                      LineNames); see EphysDataset.readData.
+    %                      LineNames); see EphysDataset.readData. The rows
+    %                      are inclusive: t_on is the first HIGH row (the
+    %                      onset) and t_off the LAST HIGH row (not the first
+    %                      low one), so a pulse high for n rows has
+    %                      t_off - t_on = (n-1)/Fs and lasts n/Fs, and a
+    %                      one-sample pulse has t_off == t_on. A row r
+    %                      happened at the continuous time (r-1)/Fs, where
+    %                      sample k of a signal lies (see
+    %                      ChronuxDataset.eventOnsets).
     %     digInNames / digInNativeNames   aligned custom / native line names
     %                      (the custom name equals the native one when the
     %                      format has none)
@@ -92,6 +100,24 @@ classdef (Abstract) EphysReader < handle
         Duration         (1,1) double = NaN
         AcqDate          datetime = NaT
         PerFile          struct = struct([])       % per-file summary; name + numAmplifierSamples at least
+
+        % Discontinuities of the acquisition clock that the rows hide (filled
+        % by refreshMetadata): the readers number the stored samples 1..N, so
+        % a pause or dropped samples leave no trace in the row grid. One
+        % element per jump: file (the file or recording it is in), row (the
+        % 1-based recording row of the first sample after it) and samples (the
+        % clock's jump beyond one sample per row; positive = samples missing,
+        % negative = the clock went back). Empty when the clock is continuous.
+        % A manifest writer records it with PerFile.
+        Gaps             struct = struct('file', {}, 'row', {}, 'samples', {})
+    end
+
+    properties (Constant)
+        % Version of the digital-event decoding (the rows, polarity and
+        % inclusive-row convention every reader's events follow). It is part
+        % of EphysDataset.digitalEvents' cache fingerprint: bump it when a
+        % reader's events change for the same files.
+        EventsVersion = "2"
     end
 
     properties (Abstract, Constant)
@@ -156,6 +182,17 @@ classdef (Abstract) EphysReader < handle
                 'digInNativeNames', string(data.digInNativeNames));
         end
 
+        function s = eventFingerprint(obj)
+            %eventFingerprint  What the digital events depend on beyond Files, as text.
+            %   EphysDataset.digitalEvents adds it to the fingerprint of its
+            %   cache, so events decoded under another convention or from a
+            %   replaced data file are read again. The default is the
+            %   decoding version and the reader class; a reader whose events
+            %   come from files outside Files (a separate digital-input
+            %   file) or from reader options extends it.
+            s = "events/" + EphysReader.EventsVersion + "/" + string(class(obj));
+        end
+
         function m = metadataStruct(obj)
             %metadataStruct  The header metadata as one struct.
             m = struct('Fs', obj.Fs, 'NumChannels', obj.NumChannels, ...
@@ -164,7 +201,7 @@ classdef (Abstract) EphysReader < handle
                 'DigInNames', obj.DigInNames, 'DigInNativeNames', obj.DigInNativeNames, ...
                 'Duration', obj.Duration, ...
                 'AcqDate', obj.AcqDate, 'NumFiles', obj.NumFiles, ...
-                'PerFile', obj.PerFile, 'RecordingFormat', obj.RecordingFormat);
+                'PerFile', obj.PerFile, 'Gaps', obj.Gaps, 'RecordingFormat', obj.RecordingFormat);
         end
     end
 
@@ -240,14 +277,19 @@ classdef (Abstract) EphysReader < handle
         function iv = highSegments(x, Fs)
             %highSegments  [k x 2] [t_on t_off] (s) for contiguous high runs of x.
             %   Times use the 1-based row index divided by Fs (t = row/Fs), the
-            %   convention every reader's digital-input events follow.
+            %   convention every reader's digital-input events follow. Both
+            %   ends are HIGH rows (inclusive rows, see highRuns): a run of n
+            %   rows lasts n/Fs, though t_off - t_on is (n-1)/Fs.
             iv = EphysReader.highRuns(x) ./ Fs;
         end
 
         function R = highRuns(x, offset)
             %highRuns  [k x 2] [first last] rows of the contiguous high runs of x.
             %   R = EphysReader.highRuns(x) lists the runs of x > 0 as 1-based
-            %   row pairs; highRuns(x, OFFSET) adds OFFSET to both, so a long
+            %   row pairs. The pair is inclusive: [first last] are the first and
+            %   the LAST HIGH rows (a one-sample pulse is [r r], with zero
+            %   length as t_off - t_on; its duration is last - first + 1 rows).
+            %   highRuns(x, OFFSET) adds OFFSET to both, so a long
             %   line can be decoded one block at a time: take each block's
             %   runs with its offset (the rows before it) and join them with
             %   joinRuns. Only logical temporaries are made (1 byte a sample).

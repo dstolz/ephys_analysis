@@ -46,6 +46,21 @@ classdef OpenEphysReader < EphysReader
     %                 warning, when there are several)
     %     Stream      continuous stream name ("" = the one with the most
     %                 headstage channels, with a warning when several have them)
+    %     EventStream name of another stream to read the TTL lines from ("" =
+    %                 the stream's own; Binary only). Neuropixels data often
+    %                 has its TTLs on an NI-DAQ stream, which the default
+    %                 does not read - it warns OpenEphysReader:TTLOtherStream
+    %                 and lists those TTL folders. A stream is named by its
+    %                 folder name ("NI-DAQmx-103.PXIe-6341"), its stream name
+    %                 or the part of the folder name after the processor
+    %                 ("PXIe-6341"). The events' sample numbers count that
+    %                 stream's own clock, so each event is put on the
+    %                 continuous stream's through the timestamps.npy of
+    %                 both (seconds on the session's synchronized clock;
+    %                 both streams must be synchronized in the GUI).
+    %     Every recording of a dataset must have the same channels and rate
+    %     in its own structure.oebin: OpenEphysReader:RecordingsDiffer
+    %     otherwise ("separate" reads each recording on its own).
     %
     %   Samples are read as stored: a recording's rows are its stored samples
     %   (dropped samples are not zero-filled; a warning lists the gaps), and
@@ -161,7 +176,9 @@ classdef OpenEphysReader < EphysReader
             end
             obj.PerFile = pf;
             obj.Duration = sum([obj.Parts.nSamples]) / s.Fs;
+            obj.Gaps = OpenEphysReader.gapList(obj.Parts, s.Fs);
             obj.warnLayout();
+            obj.warnOtherTTL();
         end
 
         function plan = streamPlan(obj, opts)
@@ -354,6 +371,19 @@ classdef OpenEphysReader < EphysReader
         end
     end
 
+    methods
+        function s = eventFingerprint(obj)
+            %eventFingerprint  The decoding version and the options that choose the events.
+            %   Which Record Node, stream and event stream are read decides the
+            %   events, and they are not in Files.
+            s = eventFingerprint@EphysReader(obj);
+            o = OpenEphysReader.modeOptions(obj.Options);
+            key = "";
+            if ~isempty(obj.Stream); key = string(obj.Stream.key); end
+            s = s + "|" + o.Recordings + "|" + o.RecordNode + "|" + key + "|" + o.EventStream;
+        end
+    end
+
     methods (Access = private)
         function f = formatName(obj)
             f = obj.Node.format;
@@ -384,6 +414,26 @@ classdef OpenEphysReader < EphysReader
                 raw = oeReadRows(obj.formatName(), obj.Parts(k), lo - offsets(k), hi - lo + 1, chanIdx);
                 X(lo - a + 1 : hi - a + 1, :) = double(raw) .* gain;
             end
+        end
+
+        function warnOtherTTL(obj)
+            %warnOtherTTL  TTL folders of other streams that are not read, listed once.
+            %   A Neuropixels session with its TTLs on an NI-DAQ stream gives
+            %   no TTL lines from the probe's stream; EventStream reads them.
+            if ~isfield(obj.Parts, 'otherTTL'); return; end
+            other = [obj.Parts.otherTTL];
+            if isempty(other); return; end
+            found = unique(string({other.stream}) + "/" + string({other.name}), 'stable');
+            own = sprintf('stream "%s" has no TTL events of its own', obj.Stream.name);
+            if ~isempty(obj.Parts(1).eventDirs)
+                own = sprintf('stream "%s" has TTL events of its own (%s)', obj.Stream.name, ...
+                    strjoin(string({obj.Parts(1).eventDirs.name}), ", "));
+            end
+            warning('OpenEphysReader:TTLOtherStream', ...
+                ['%s: the TTL events of other streams are not read: %s; %s. Set ' ...
+                 'Acquisition.OpenEphys.EventStream to read the TTL lines of one of those streams ' ...
+                 '(their events are put on this stream''s clock through the timestamps.npy of both).'], ...
+                obj.Name, strjoin(found, ", "), own);
         end
 
         function warnLayout(obj)
@@ -567,8 +617,7 @@ classdef OpenEphysReader < EphysReader
                 end
             end
             inv = oeInventory(node);
-            stream = OpenEphysReader.pickStream(inv.streams, o.Stream, session);
-            if isempty(stream) || isempty(inv.parts); return; end
+            if isempty(inv.parts); return; end
             all = inv.parts;
             ordinal = zeros(1, numel(all));
             for k = 1:numel(all)
@@ -583,8 +632,42 @@ classdef OpenEphysReader < EphysReader
                         session, double(selection.experiment), double(selection.recording));
                 end
             end
+            % The stream is picked from the first recording read; the others must
+            % have it too, with the same rate and channels (each recording's own
+            % structure.oebin is parsed), because the rows are joined end to end.
+            stream = OpenEphysReader.pickStream(OpenEphysReader.partStreams(inv, all(pick(1))), o.Stream, session);
+            if isempty(stream); return; end
+            if o.EventStream ~= "" && inv.format ~= "binary"
+                warning('OpenEphysReader:EventStreamFormat', ...
+                    ['%s: EventStream "%s" applies to the Binary format only; the events of the stream ' ...
+                     'itself are read from this %s session.'], session, o.EventStream, inv.format);
+            end
+            % ("separate" lists the recordings without selecting one, to make the part
+            % folders: each is read on its own later, so they may differ.)
+            listing = o.Recordings == "separate" && isempty(selection);
             for k = pick
-                d = oePartDetails(inv, all(k), stream, ordinal(k));
+                own = OpenEphysReader.partStreams(inv, all(k));
+                j = find([own.key] == stream.key, 1);
+                if isempty(j)
+                    if listing
+                        warning('OpenEphysReader:RecordingsDiffer', ...
+                            '%s: %s has no stream "%s" (it has: %s); skipped.', ...
+                            session, all(k).label, stream.name, strjoin([own.name], ", "));
+                        continue
+                    end
+                    error('OpenEphysReader:RecordingsDiffer', ...
+                        ['%s: %s has no stream "%s" (it has: %s) that %s has, so they cannot be one ' ...
+                         'dataset. Set Acquisition.OpenEphys.Recordings to "separate" to read each on its own.'], ...
+                        session, all(k).label, stream.name, strjoin([own.name], ", "), all(pick(1)).label);
+                end
+                why = OpenEphysReader.streamDiff(stream, own(j));
+                if why ~= "" && ~listing
+                    error('OpenEphysReader:RecordingsDiffer', ...
+                        ['%s: %s and %s differ in stream "%s" (%s), so they cannot be one dataset. ' ...
+                         'Set Acquisition.OpenEphys.Recordings to "separate" to read each on its own.'], ...
+                        session, all(pick(1)).label, all(k).label, stream.name, why);
+                end
+                d = oePartDetails(inv, all(k), own(j), ordinal(k), o.EventStream);
                 if d.nSamples == 0
                     warning('OpenEphysReader:EmptyRecording', '%s: %s holds no samples; skipped.', session, all(k).label);
                     continue
@@ -648,7 +731,7 @@ classdef OpenEphysReader < EphysReader
 
         function o = modeOptions(options)
             %modeOptions  The OpenEphys reader options with defaults filled in.
-            o = struct('Recordings', "concatenate", 'RecordNode', "", 'Stream', "");
+            o = struct('Recordings', "concatenate", 'RecordNode', "", 'Stream', "", 'EventStream', "");
             s = EphysReader.readerOptions(options, 'OpenEphys');
             for f = string(fieldnames(o)).'
                 if isfield(s, f) && ~isempty(s.(f)); o.(f) = string(s.(f)); end
@@ -666,6 +749,55 @@ classdef OpenEphysReader < EphysReader
             isCH = ~cellfun('isempty', regexp(cellstr(names), '^CH\d+$', 'ignorecase', 'once'));
             nums(isCH) = nums(isCH) - 1;
             nums = EphysReader.checkChannelNumbers(nums, where);
+        end
+
+        function s = partStreams(inv, part)
+            %partStreams  The streams of one recording: its own (Binary), else the node's.
+            if isfield(part, 'streams'); s = part.streams; else; s = inv.streams; end
+        end
+
+        function why = streamDiff(a, b)
+            %streamDiff  How two streams' layouts differ ("" when they do not).
+            why = "";
+            if a.Fs ~= b.Fs
+                why = sprintf('sample rate %g and %g Hz', a.Fs, b.Fs);
+            elseif numel(a.channels) ~= numel(b.channels)
+                why = sprintf('%d and %d channels', numel(a.channels), numel(b.channels));
+            elseif any([a.channels.name] ~= [b.channels.name])
+                why = "channel names " + strjoin([a.channels.name], " ") + " and " + strjoin([b.channels.name], " ");
+            elseif any([a.channels.type] ~= [b.channels.type])
+                why = "channel types";
+            elseif any([a.channels.bitVolts] ~= [b.channels.bitVolts])
+                why = "bit_volts";
+            end
+        end
+
+        function g = gapList(parts, Fs)
+            %gapList  The Gaps of a dataset: dropped samples in each recording, a pause between recordings.
+            %   One element (file, row, samples) per run break inside a
+            %   recording (row: the first stored row after it; samples: the
+            %   sample numbers missing) and, for each recording after the
+            %   first, the wall-clock time between the end of the one before
+            %   and its start, in samples (row: its first row).
+            g = struct('file', {}, 'row', {}, 'samples', {});
+            offset = 0;
+            for k = 1:numel(parts)
+                p = parts(k);
+                if k > 1
+                    gapS = seconds(p.start - (parts(k-1).start + seconds(parts(k-1).nSamples / Fs)));
+                    if isfinite(gapS) && abs(gapS) * Fs >= 1
+                        g(end+1) = struct('file', string(p.label), 'row', offset + 1, ...
+                            'samples', round(gapS * Fs)); %#ok<AGROW>
+                    end
+                end
+                r = p.runs;
+                for j = 2:size(r, 1)
+                    lost = r(j, 3) - (r(j-1, 3) + r(j-1, 2) - r(j-1, 1) + 1);
+                    g(end+1) = struct('file', string(p.label), 'row', offset + r(j, 1), ...
+                        'samples', lost); %#ok<AGROW>
+                end
+                offset = offset + p.nSamples;
+            end
         end
 
         function [aux, auxFs] = decimateHeldAux(aux, Fs)

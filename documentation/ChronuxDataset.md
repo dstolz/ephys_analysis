@@ -258,8 +258,16 @@ source holds several), `TimeBase`, `Incomplete` (`"drop"` by default — a
 truncated window holds fewer spikes than it should, which biases both the rate
 and the spectrum), `Spikes` (epoch a struct array you already have),
 `Source` / `Times` / `ResultsDir` / `Units` / `Groups` / `DetectOptions`
-(forwarded to `spikes`), `SpikeFs`, and the params overrides. The spikes of each trial are found with a sorted
+(forwarded to `spikes`), `SpikeFs`, `EventFs`, and the params overrides. The spikes of each trial are found with a sorted
 search over the train (the same selection as a scan, far faster).
+
+`onsets` are times on the continuous clock of the spike times, `(row-1)/Fs`,
+and are used as they are. Digital-input onsets from `eventOnsets` are
+`row/origFs`, one sample later: pass `EventFs=info.eventFs` (the recording
+rate) and every onset moves to `t - 1/EventFs`, as `trials`' `"event"` rule
+moves it onto the signal. `info.onsets` stays as passed, `info.onsetTimes`
+holds the times the windows were cut on, and `info.eventFs` the rate (`NaN`
+when not given).
 
 ### `[data, params, t, info] = cx.binnedSpikes(Name=Value)`
 
@@ -283,8 +291,16 @@ routines assume finer bins.
 Digital-input onsets as trial triggers. `name` is a line name (`"din0"`) or its
 position; it may be omitted when the recording has exactly one line. Options:
 `MinDurationSec`, `MaxDurationSec`, `TimeRange`. `info` carries `offsets`,
-`durations`, `keptEvents`, `droppedDuration`, `droppedTimeRange` and every line
-name in the recording.
+`durations`, `eventFs` (the rate the events count rows of), `keptEvents`,
+`droppedDuration`, `droppedTimeRange` and every line name in the recording.
+
+The events' rows are inclusive: `t_on` is the first high row and `t_off` the
+last, so a pulse high for *n* rows has `t_off - t_on = (n-1)/origFs`. Its
+duration, the one the filters and `info.durations` use, is `t_off - t_on +
+1/origFs`: a 10 ms pulse measures 10 ms (`MinDurationSec=0.01` keeps it) and a
+one-sample pulse lasts `1/origFs`, not 0. Take the onsets to the two methods as
+`cx.trials(onsets, twin)` (the default `OnsetRule="event"` shifts them) and
+`cx.spikeTrials(onsets, twin, EventFs=info.eventFs)`.
 
 ### Statics
 

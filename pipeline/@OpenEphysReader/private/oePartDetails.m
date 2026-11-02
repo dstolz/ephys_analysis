@@ -1,8 +1,10 @@
-function P = oePartDetails(inv, part, stream, ordinal)
+function P = oePartDetails(inv, part, stream, ordinal, eventStream)
 %oePartDetails  Sample count, stored-sample runs, start time and files of one recording.
 %   P = oePartDetails(INV, PART, STREAM, ORDINAL) for PART of inventory INV
 %   (oeInventory) and the selected STREAM; ORDINAL is the part's position
-%   among its experiment's recordings (1-based). P has
+%   among its experiment's recordings (1-based). EVENTSTREAM ("" = the
+%   stream's own TTL events) names another stream whose TTL events are read
+%   instead (Binary only, see binaryEventDirs). P has
 %     nSamples     stored rows of the stream in this recording
 %     runs         [k x 3] firstRow lastRow firstSampleNumber: gap-free runs
 %                  of rows (one run when no samples were dropped)
@@ -11,11 +13,19 @@ function P = oePartDetails(inv, part, stream, ordinal)
 %     startSource  where the start came from
 %     files        absolute paths of the data and event files
 %   plus what the format's readers need (datFile / nChanStream; channelFiles
-%   / firstRecord; file / dsPath / rowOffset).
+%   / firstRecord; file / dsPath / rowOffset). A Binary part also has
+%     eventDirs      the TTL folders the events are read from (dir, initialState,
+%                    name, stream, streamName)
+%     eventsMapped   true when they belong to another stream (EVENTSTREAM):
+%                    their timestamps.npy are put on the continuous stream's
+%                    clock through clockFile (its timestamps.npy)
+%     otherTTL       TTL folders of other streams that are NOT read, with
+%                    nothing chosen to read them (the reader warns)
 %   Only headers and a few sample numbers (binary search) are read.
 
+if nargin < 5; eventStream = ""; end
 switch inv.format
-    case "binary", P = binaryPart(part, stream);
+    case "binary", P = binaryPart(part, stream, string(eventStream));
     case "legacy", P = legacyPart(inv, part, stream, ordinal);
     case "nwb",    P = nwbPart(inv, part, stream, ordinal);
 end
@@ -23,10 +33,11 @@ end
 
 
 %% === Binary =================================================================
-function P = binaryPart(part, stream)
+function P = binaryPart(part, stream, eventStream)
 cdir = fullfile(part.folder, "continuous", stream.key);
 datFile = fullfile(cdir, "continuous.dat");
 snFile  = fullfile(cdir, "sample_numbers.npy");
+clockFile = fullfile(cdir, "timestamps.npy");
 if ~isfile(datFile)
     error('OpenEphysReader:MissingFile', 'Missing %s', datFile);
 end
@@ -55,35 +66,81 @@ if isfile(snFile) && n > 0
 end
 [start, src] = binaryStart(part);
 files = [string(datFile), string(snFile), fullfile(part.folder, "structure.oebin")];
-ev = binaryEventDirs(part, stream);
+[ev, other, mapped] = binaryEventDirs(part, stream, eventStream);
 for k = 1:numel(ev)
     files = [files, fullfile(ev(k).dir, ["states.npy" "sample_numbers.npy"])]; %#ok<AGROW>
+    if mapped
+        files = [files, fullfile(ev(k).dir, "timestamps.npy")]; %#ok<AGROW>
+    end
 end
+if mapped; files = [files, string(clockFile)]; end
 runs = runs(runs(:, 1) <= n, :);
 if ~isempty(runs); runs(end, 2) = min(runs(end, 2), n); end
 P = struct('nSamples', n, 'runs', runs, 'firstSample', firstSample, ...
     'start', start, 'startSource', src, 'files', files(isfile(files)), ...
-    'datFile', string(datFile), 'nChanStream', nChan, 'eventDirs', ev);
+    'datFile', string(datFile), 'nChanStream', nChan, 'eventDirs', ev, ...
+    'eventsMapped', mapped, 'clockFile', string(clockFile), 'otherTTL', other);
 end
 
 
-function ev = binaryEventDirs(part, stream)
-%binaryEventDirs  TTL event folders of the stream (with the initial TTL word).
-ev = struct('dir', {}, 'initialState', {}, 'name', {});
+function [ev, other, mapped] = binaryEventDirs(part, stream, eventStream)
+%binaryEventDirs  The TTL folders to read (with the initial TTL word) and those left unread.
+%   Without EVENTSTREAM the stream's own TTL folders are read. TTL folders
+%   of other streams are listed in OTHER when they would be lost silently:
+%   the stream has none of its own (Neuropixels data with the TTLs on an
+%   NI-DAQ stream), or they come from another source processor (the
+%   streams of one probe share the same events and are not listed). With
+%   EVENTSTREAM (a stream's folder name, stream_name, or the part of its
+%   folder name after the processor, case ignored) that stream's TTL
+%   folders are read instead, and MAPPED says their sample numbers count
+%   another clock: oeReadEvents puts their timestamps on this stream's.
+ev = struct('dir', {}, 'initialState', {}, 'name', {}, 'stream', {}, 'streamName', {});
+other = ev;
+mapped = false;
 E = part.oebin;
 if ~isfield(E, 'events') || isempty(E.events); return; end
 C = E.events;
 if isstruct(C); C = num2cell(C); end
+ttl = ev;
 for k = 1:numel(C)
     c = C{k};
     fn = string(regexprep(char(string(c.folder_name)), '[\\/]+$', ''));
-    if ~startsWith(fn, stream.key + "/") && ~startsWith(fn, stream.key + "\"); continue; end
-    leaf = extractAfter(fn, strlength(stream.key) + 1);
+    tok = regexp(char(fn), '^([^\\/]+)[\\/](.+)$', 'tokens', 'once');
+    if isempty(tok); continue; end
+    key = string(tok{1}); leaf = string(tok{2});
     if ~startsWith(leaf, "TTL"); continue; end
     init = NaN;
     if isfield(c, 'initial_state') && ~isempty(c.initial_state); init = double(c.initial_state); end
-    ev(end+1) = struct('dir', string(fullfile(part.folder, "events", stream.key, leaf)), ...
-        'initialState', init, 'name', leaf); %#ok<AGROW>
+    sname = key;
+    if isfield(c, 'stream_name') && ~isempty(c.stream_name); sname = string(c.stream_name); end
+    ttl(end+1) = struct('dir', string(fullfile(part.folder, "events", key, leaf)), ...
+        'initialState', init, 'name', leaf, 'stream', key, 'streamName', sname); %#ok<AGROW>
+end
+if isempty(ttl); return; end
+if eventStream ~= ""
+    after = extractAfter([ttl.stream], ".");
+    after(ismissing(after)) = "";
+    hit = strcmpi([ttl.stream], eventStream) | strcmpi([ttl.streamName], eventStream) | strcmpi(after, eventStream);
+    if ~any(hit)
+        error('OpenEphysReader:NoEventStream', ...
+            '%s has no stream "%s" with TTL events (those with TTL events: %s).', ...
+            part.label, eventStream, strjoin(unique([ttl.stream], 'stable'), ", "));
+    end
+    chosen = ttl(find(hit, 1)).stream;
+    ev = ttl([ttl.stream] == chosen);
+    mapped = chosen ~= stream.key;
+    return
+end
+own = [ttl.stream] == stream.key;
+ev = ttl(own);
+others = ttl(~own);
+if ~isempty(others)
+    proc = @(k) extractBefore(k + ".", ".");
+    if isempty(ev)
+        other = others;
+    else
+        other = others(proc([others.stream]) ~= proc(stream.key));
+    end
 end
 end
 

@@ -22,6 +22,15 @@ classdef IntanReader < EphysReader
     %   <prefix>_yyMMdd_HHmmss), else a modification time less the data it
     %   ends: RHX stamps a file when it closes it.
     %
+    %   The rows are the stored samples, numbered on from file to file, so a
+    %   pause or dropped samples are invisible in them. refreshMetadata
+    %   checks the acquisition clock instead (the 32-bit sample timestamp of
+    %   every data block; time.dat of a split recording): a file that does
+    %   not start where the one before it ended, or a jump between blocks,
+    %   warns IntanReader:TimestampGap and is listed in Gaps (file, row,
+    %   samples) and in PerFile (firstTimestamp, endTimestamp, numGaps,
+    %   gapBefore).
+    %
     %   See also EphysReader, EphysDataset, READ_INTAN_RHD2000_FILE_MODIFIED.
 
     properties (Constant)
@@ -38,6 +47,11 @@ classdef IntanReader < EphysReader
         % far (block layout for the window reads). Filled by refreshMetadata
         % and rhdHeader; cleared by discoverFiles.
         pHeaders = []
+        % Each file's software notch, first row and the first row of its run
+        % (fileNotch), kept so a window read does not look every header up
+        % again. Filled by fileNotch; cleared by discoverFiles and
+        % refreshMetadata.
+        pNotch = []
     end
 
     methods
@@ -73,6 +87,7 @@ classdef IntanReader < EphysReader
             obj.RecordingFormat = IntanReader.detectFormat(obj.Folder);
             obj.pSplitLayout = [];
             obj.pHeaders = [];
+            obj.pNotch = [];
             obj.AcqDate = NaT;
 
             switch obj.RecordingFormat
@@ -87,7 +102,31 @@ classdef IntanReader < EphysReader
                         obj.NumFiles = 0;
                         return
                     end
-                    [~, ix] = sort([D.datenum]);
+                    % In recording order: by the first sample's timestamp (the
+                    % RHX software numbers the samples on through a session's
+                    % files), then by modification time. A copy can reset the
+                    % times, and the names turn back at a DST change, so neither
+                    % alone orders the files.
+                    t0 = NaN(1, numel(D));
+                    for k = 1:numel(D)
+                        try
+                            hdr = obj.rhdHeader(D(k).name);
+                            fid = fopen(fullfile(obj.Folder, D(k).name), 'r', 'ieee-le');
+                            if fid > 0
+                                fseek(fid, hdr.headerBytes, 'bof');
+                                v = fread(fid, 1, 'int32');
+                                fclose(fid);
+                                if isscalar(v); t0(k) = v; end
+                            end
+                        catch
+                            % an unreadable file is reported by refreshMetadata
+                        end
+                    end
+                    if all(isfinite(t0))
+                        [~, ix] = sortrows([t0(:), [D.datenum].']);
+                    else
+                        [~, ix] = sort([D.datenum]);
+                    end
                     D = D(ix);
                     obj.Files = string({D.name});
                     obj.NumFiles = numel(D);
@@ -103,6 +142,32 @@ classdef IntanReader < EphysReader
         function tf = supportsRandomAccess(obj)
             %supportsRandomAccess  Every Intan layout allows bounded window reads.
             tf = ismember(obj.RecordingFormat, ["traditional" "one-file-per-signal" "one-file-per-channel"]);
+        end
+
+        function s = eventFingerprint(obj)
+            %eventFingerprint  The decoding version, plus the digital files of a split recording.
+            %   A split recording lists only info.rhd in Files, but its
+            %   events come from digitalin.dat (one-file-per-signal) or the
+            %   board-*.dat files (one-file-per-channel): their names, sizes
+            %   and modification times are part of the fingerprint, so a
+            %   replaced digital file is read again. A traditional
+            %   recording's events are in the files Files lists.
+            s = eventFingerprint@EphysReader(obj);
+            if ~ismember(obj.RecordingFormat, ["one-file-per-signal" "one-file-per-channel"])
+                return
+            end
+            L = obj.splitLayout();
+            files = [L.digInFile, L.digInFiles];
+            files = files(files ~= "");
+            for f = files
+                d = dir(char(f));
+                [~, leaf, ext] = fileparts(char(f));
+                if isscalar(d)
+                    s = s + "|" + string(leaf) + string(ext) + ":" + d.bytes + ":" + round(d.datenum * 86400);
+                else
+                    s = s + "|" + string(leaf) + string(ext) + ":absent";
+                end
+            end
         end
 
         function S = storageFormat(obj)
@@ -175,7 +240,12 @@ classdef IntanReader < EphysReader
             %   before version 3.0, else 0), FIRST(k) its first recording
             %   row and RUNFIRST(k) the first row of its run: the
             %   consecutive files with data and the same notch, which the
-            %   notch filters as one stream (recordingRows).
+            %   notch filters as one stream (recordingRows). Worked out
+            %   once per refreshMetadata, not for every window read.
+            if ~isempty(obj.pNotch)
+                hz = obj.pNotch.hz; first = obj.pNotch.first; runFirst = obj.pNotch.runFirst;
+                return
+            end
             counts = [obj.PerFile.numAmplifierSamples];
             first = cumsum([1, counts(1:end-1)]);
             hz = zeros(size(counts));
@@ -191,6 +261,7 @@ classdef IntanReader < EphysReader
                 end
                 prev = k;
             end
+            obj.pNotch = struct('hz', hz, 'first', first, 'runFirst', runFirst);
         end
 
         function [hz, zi] = notchEntry(obj, name, keep, prevName, prevState)
@@ -275,6 +346,8 @@ classdef IntanReader < EphysReader
         hdr = parseIntanHeader(ffn)
         S   = sliceDataBlocks(raw, hdr, signals)
         [Y, zf] = notchFilter(X, Fs, fNotch, zi)
+        S   = scanTimestamps(ffn, offset, stride, n, step, unsigned)
+        [first, words] = blockLayout(hdr)
 
         function n = notchLeadIn(Fs)
             %notchLeadIn  Samples after which notchFilter has forgotten how it started.

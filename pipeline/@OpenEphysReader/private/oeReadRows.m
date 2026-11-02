@@ -18,7 +18,11 @@ switch format
             error('OpenEphysReader:Seek', 'Cannot seek to row %d of %s', r0, P.datFile);
         end
         raw = fread(fid, [nc, n], 'int16=>int16');
-        X(1:size(raw, 2), :) = raw(chanIdx, :).';
+        if isequal(chanIdx, 1:nc)
+            X(1:size(raw, 2), :) = raw.';              % every channel in order: no index copy
+        else
+            X(1:size(raw, 2), :) = raw(chanIdx, :).';
+        end
     case "legacy"
         k0 = P.firstRecord + floor((r0 - 1) / 1024);      % first record (0-based)
         off = mod(r0 - 1, 1024);

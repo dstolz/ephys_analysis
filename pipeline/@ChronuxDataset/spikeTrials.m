@@ -9,7 +9,11 @@ function [data, params, t, info] = spikeTrials(obj, onsets, twin, opts)
 %     [sp, params, t] = cx.spikeTrials(onsets, [-0.2 0.5], TrialAve=1);
 %     [S, f, R] = mtspectrumpt(sp, params, 0, t);      % Chronux
 %
-%     ONSETS  event times in seconds, recording-relative (see eventOnsets)
+%     ONSETS  event times in seconds, recording-relative (see eventOnsets).
+%             Times on the continuous clock (spike times, (row-1)/Fs) are
+%             used as they are; digital-input onsets (eventOnsets, t =
+%             row/rate) are one sample late on it, so pass EventFs=
+%             info.eventFs from eventOnsets (option below).
 %     TWIN    [tPre tPost] seconds relative to the onset, tPre usually
 %             negative (default [-0.2 0.5]). Chronux's createdatamatpt takes
 %             the same window as [-tPre tPost], both positive.
@@ -45,10 +49,18 @@ function [data, params, t, info] = spikeTrials(obj, onsets, twin, opts)
 %     Source, Times, ResultsDir, Units, Groups, DetectOptions   forwarded to
 %                 ChronuxDataset.spikes when Spikes is not given
 %     SpikeFs     grid rate for T and params.Fs (default: the SpikeFs property)
+%     EventFs     the rate of the clock ONSETS count rows of, for digital-input
+%                 onsets (t = row/EventFs; eventOnsets' info.eventFs): each
+%                 onset moves to the continuous clock of the spike times,
+%                 t - 1/EventFs, as trials' OnsetRule "event" moves it
+%                 onto the signal. Default NaN: the onsets are taken as
+%                 continuous times, unchanged
 %     Tapers, Pad, Fpass, Err, TrialAve   per-call params overrides
 %
 %   INFO: unitId, label, twin, timeBase, nTrials, keptTrials (indices into
-%   ONSETS), onsets of the kept trials, droppedIncomplete, counts per trial,
+%   ONSETS), onsets of the kept trials (as passed), onsetTimes (the same on the
+%   continuous clock the windows are cut on: the onsets less 1/EventFs), eventFs
+%   (EventFs, NaN when not given), droppedIncomplete, counts per trial,
 %   rate (mean count / window length), recordingRange, spikeFs, source.
 %
 %   See also ChronuxDataset.spikes, ChronuxDataset.trials,
@@ -71,6 +83,7 @@ arguments
     opts.Groups (1,:) string = string.empty(1,0)
     opts.DetectOptions struct = struct()
     opts.SpikeFs (1,1) double = NaN
+    opts.EventFs (1,1) double = NaN     % NaN = the onsets are continuous-clock times
     opts.Tapers (1,:) double = double.empty(1,0)
     opts.Pad double = []
     opts.Fpass (1,:) double = double.empty(1,0)
@@ -81,6 +94,13 @@ end
 onsets = onsets(:);
 if isempty(onsets)
     error('ChronuxDataset:NoOnsets', 'ONSETS is empty; nothing to epoch.');
+end
+given = onsets;                         % as passed, for INFO
+if ~isnan(opts.EventFs)
+    if ~(opts.EventFs > 0) || ~isfinite(opts.EventFs)
+        error('ChronuxDataset:BadEventFs', 'EventFs must be a positive rate; got %g.', opts.EventFs);
+    end
+    onsets = onsets - 1 / opts.EventFs; % row/EventFs -> the row's continuous time (row-1)/EventFs
 end
 if twin(2) <= twin(1)
     error('ChronuxDataset:BadWindow', ...
@@ -190,7 +210,9 @@ info.twin              = twin;
 info.timeBase          = opts.TimeBase;
 info.nTrials           = nTrials;
 info.keptTrials        = kept;
-info.onsets            = reshape(E, 1, []);
+info.onsets            = reshape(given(keepTrial), 1, []);
+info.onsetTimes        = reshape(E, 1, []);
+info.eventFs           = opts.EventFs;
 info.droppedIncomplete = droppedIncomplete;
 info.counts            = counts;
 info.rate              = mean(counts) / (twin(2) - twin(1));

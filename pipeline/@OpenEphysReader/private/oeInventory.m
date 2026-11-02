@@ -9,9 +9,12 @@ function inv = oeInventory(node)
 %               processor, processorId, Fs, and channels (struct array:
 %               name, type "headstage" | "aux" | "adc", bitVolts, plus the
 %               format's locations), in the stream's own channel order
-%   Binary parts carry folder + oebin; legacy parts carry expSuffix and
-%   recNumber (0-based, from the record headers); NWB parts carry file,
-%   startSample (from sync_messages) and the stream-independent fields.
+%   Binary parts carry folder, oebin and streams: the streams of THAT
+%   recording's own structure.oebin (inv.streams are the first recording's),
+%   so the reader can tell recordings whose channels or rate differ; legacy
+%   parts carry expSuffix and recNumber (0-based, from the record headers);
+%   NWB parts carry file, startSample (from sync_messages) and the
+%   stream-independent fields.
 %   Only headers, small JSON/XML files and HDF5 metadata are read.
 
 switch node.format
@@ -28,7 +31,7 @@ end
 
 %% === Binary =================================================================
 function inv = binaryInventory(nodeFolder)
-parts = struct('experiment', {}, 'recording', {}, 'label', {}, 'folder', {}, 'oebin', {});
+parts = struct('experiment', {}, 'recording', {}, 'label', {}, 'folder', {}, 'oebin', {}, 'streams', {});
 for e = numberedDirs(nodeFolder, "experiment")
     expDir = fullfile(nodeFolder, "experiment" + e);
     for r = numberedDirs(expDir, "recording")
@@ -36,13 +39,15 @@ for e = numberedDirs(nodeFolder, "experiment")
         f = fullfile(recDir, 'structure.oebin');
         if ~isfile(f); continue; end
         oebin = readJsonFile(f);
+        % each recording's own streams: its oebin is parsed, not the first one's
         parts(end+1) = struct('experiment', e, 'recording', r, ...
-            'label', sprintf("exp%d/rec%d", e, r), 'folder', string(recDir), 'oebin', oebin); %#ok<AGROW>
+            'label', sprintf("exp%d/rec%d", e, r), 'folder', string(recDir), 'oebin', oebin, ...
+            'streams', binaryStreams(oebin)); %#ok<AGROW>
     end
 end
 streams = emptyStreams();
 if ~isempty(parts)
-    streams = binaryStreams(parts(1).oebin);
+    streams = parts(1).streams;
 end
 inv = struct('parts', parts, 'streams', streams);
 end

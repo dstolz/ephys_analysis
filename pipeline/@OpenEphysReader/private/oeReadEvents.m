@@ -7,7 +7,10 @@ function ev = oeReadEvents(format, P, stream)
 %     fullWord     [k x 1] TTL word after each event (uint64; [] if not saved)
 %     initialWord  TTL word when the recording started (NaN if unknown)
 %   Binary: the stream's first TTL event channel (states / sample_numbers /
-%   full_words.npy, initial_state from structure.oebin). Open Ephys format:
+%   full_words.npy, initial_state from structure.oebin); with P.eventsMapped
+%   (EventStream) the TTL channel of another stream, its sample_numbers
+%   replaced by the continuous stream's sample numbers at the events'
+%   timestamps.npy times. Open Ephys format:
 %   the 16-byte records of the stream's .events file (all_channels.events
 %   before GUI 0.6) with event type 3 (TTL) and this recording's number.
 %   NWB: the stream's .TTL TimeSeries (data = +/-line, sync, full_word),
@@ -29,6 +32,12 @@ switch format
         st = double(readNPY(fs));
         sn = double(readNPY(fn));
         k = min(numel(st), numel(sn));
+        if P.eventsMapped
+            % The events belong to another stream (EventStream): their sample
+            % numbers count that stream's clock, so their timestamps.npy
+            % (seconds) are put on this stream's through its own timestamps.npy.
+            sn = onStreamClock(d, P, stream, k);
+        end
         ev.sn = sn(1:k); ev.line = abs(st(1:k)); ev.state = double(st(1:k) > 0);
         fw = fullfile(d.dir, "full_words.npy");
         if isfile(fw)
@@ -86,6 +95,52 @@ end
 [ev.sn, order] = sort(ev.sn);
 ev.line = ev.line(order); ev.state = ev.state(order);
 if ~isempty(ev.fullWord); ev.fullWord = ev.fullWord(order); end
+end
+
+
+function sn = onStreamClock(d, P, stream, k)
+%onStreamClock  Sample numbers of the stream's clock at the times of the first K events of folder D.
+%   The events' timestamps.npy hold seconds on the session's synchronized
+%   clock, and so does the stream's own timestamps.npy (P.clockFile) beside
+%   its sample numbers. The stream's timestamp at the first row of each run
+%   of stored samples (P.runs) fixes where that run lies on the clock, so
+%   an event at time t is sample  firstSample(run) + round((t - t0(run))*Fs)
+%   of the last run that starts at or before t (the first run for earlier
+%   times). A time in a stretch of dropped samples gets a sample number
+%   there, which oeIntervals places on the next stored row. The two clocks
+%   must be synchronized (the GUI's main-stream sync): their timestamps are
+%   taken to share a zero.
+tf = fullfile(d.dir, "timestamps.npy");
+if ~isfile(tf)
+    error('OpenEphysReader:EventTimestamps', ...
+        ['%s has no timestamps.npy, which puts the events of %s on the clock of the ' ...
+         'continuous stream %s; they cannot be read with EventStream.'], d.dir, d.stream, stream.key);
+end
+if ~isfile(P.clockFile)
+    error('OpenEphysReader:EventTimestamps', ...
+        'Missing %s: the continuous stream %s has no timestamps to put the events of %s on its clock.', ...
+        P.clockFile, stream.key, d.stream);
+end
+t = double(readNPY(tf));
+if numel(t) < k
+    error('OpenEphysReader:EventTimestamps', ...
+        '%s holds %d timestamps for %d events.', tf, numel(t), k);
+end
+t = t(1:k);
+H = OpenEphysReader.npyHeader(P.clockFile);
+fid = fopen(P.clockFile, 'r', 'ieee-le');
+if fid < 0; error('OpenEphysReader:Open', 'Cannot open %s', P.clockFile); end
+closer = onCleanup(@() fclose(fid));
+t0 = zeros(size(P.runs, 1), 1);
+for r = 1:numel(t0)
+    t0(r) = OpenEphysReader.npyAt(fid, H, P.runs(r, 1));
+end
+clear closer
+j = ones(k, 1);
+for r = 2:numel(t0)
+    j(t >= t0(r)) = r;
+end
+sn = P.runs(j, 3) + round((t(:) - t0(j)) * stream.Fs);
 end
 
 

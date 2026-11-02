@@ -8,9 +8,11 @@ function X = readChunkUV(obj, chunk)
 %   sees the raw count). An empty result ([] or 0x0) means the chunk held no
 %   amplifier data and should be skipped.
 %
-%   - "rhd"   chunks read the amplifier data of a whole traditional *.rhd
-%             file (microvolts = 0.195*(uint16-32768)) straight from its data
-%             blocks (recordingRows: the values READ_INTAN_RHD2000_FILE_MODIFIED
+%   - "rhd"   chunks read the amplifier data of a traditional *.rhd file -
+%             the chunk's nSamples from its sampleOffset, a whole file or one
+%             window of it (streamPlan cuts a big file; microvolts =
+%             0.195*(uint16-32768)) - straight from its data blocks
+%             (recordingRows: the values READ_INTAN_RHD2000_FILE_MODIFIED
 %             gives, without decoding the file's other signals). A file
 %             saved before version 3.0 with the software notch on is
 %             filtered as part of the recording's stream, from where the
@@ -46,7 +48,7 @@ switch chunk.kind
             return
         end
         X = obj.recordingRows(chunk.sampleOffset + 1, ...
-            chunk.sampleOffset + hdr.numAmplifierSamples);   % [nSamp x nChan], microvolts
+            chunk.sampleOffset + chunk.nSamples);            % [nSamp x nChan], microvolts
 
     case "split"
         X = obj.readSplitWindow(chunk.sampleOffset, chunk.nSamples);

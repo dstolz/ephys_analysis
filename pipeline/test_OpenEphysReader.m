@@ -265,7 +265,7 @@ cfg = EphysPipelineConfig.load(S.configFile);
 check(cfg.Project.NamePattern == OpenEphysReader.DefaultNamePattern && any(cfg.Signals.LineNames == "TTL4=InTrial"), ...
     'the generated config names the TTL lines and matches Open Ephys folders');
 cfg.Signals.Enabled = hasSP;
-cfg.Export.Enabled = hasSP;
+cfg.Export.Enabled = false;     % Export writes NWB through Python (d85cbb6): not what this suite tests
 cfg.Spikes.Filter = hasSP;
 pipe = EphysPipeline(cfg);
 pipe.LogFcn = [];
@@ -308,10 +308,132 @@ pl = dPl.streamPlan(MaxChunkSamples=3000);
 check(isequal([pl.sampleOffset], [0 3000]) && isequal([pl.nSamples], [3000 n1 + n2 - 3000]), ...
     'a last chunk shorter than a second joins the one before it');
 
+%% ---- 8. TTL lines on another stream; recordings that differ ---------------------------------
+fprintf('\n== 8. EventStream, per-recording layouts ==\n');
+% Neuropixels-like: the probe's stream has no TTL events of its own, the TTLs
+% are on an NI-DAQ stream with its own sample numbers (10 kHz, offset), one
+% recording with 300 dropped samples after row 2048.
+gapN = 300;
+sessN = writeSession("binary", "S4_2026-07-07_16-35-39_ni", Gap=gapN, OneRecording=true);
+edges = [1000 1 1; 1500 1 0; 3000 2 1; 3200 2 0];            % stored row, line, state
+addNiStream(sessN, F, gapN, edges);
+dN = EphysDataset(sessN, AutoMetadata=false);
+lastwarn('');
+dN.refreshMetadata();
+[msg, id] = lastwarn();
+check(strcmp(id, 'OpenEphysReader:TTLOtherStream') && contains(msg, 'NI-DAQmx-103.PXIe-6341/TTL') ...
+    && contains(msg, 'EventStream') && isempty(dN.DigInNames), ...
+    'TTL events on another stream are no longer lost silently: the warning lists their folders');
+check(isscalar(dN.Reader.Gaps) && dN.Reader.Gaps.file == "exp1/rec1" && dN.Reader.Gaps.row == 2049 ...
+    && dN.Reader.Gaps.samples == gapN && dN.PerFile.numGaps == 1, ...
+    'dropped samples are in the reader''s Gaps (file, row, samples) and PerFile.numGaps');
+for evs = ["PXIe-6341" "NI-DAQmx-103.PXIe-6341" "pxie-6341"]      % folder name, its part after the processor, case ignored
+    dN.ReaderOptions = struct('OpenEphys', struct('EventStream', evs));
+    lastwarn('');
+    dN.refreshMetadata();
+    [~, id] = lastwarn();
+    EN = dN.digitalEvents(Cache=false);
+    check(~strcmp(id, 'OpenEphysReader:TTLOtherStream') && isequal(dN.DigInNames, ["TTL1" "TTL2"]) ...
+        && isequal(round(EN.events.TTL1 * Fs), [1000 1499]) && isequal(round(EN.events.TTL2 * Fs), [3000 3199]), ...
+        "EventStream " + evs + ": the NI stream's edges land on the probe stream's stored rows, across the dropped samples");
+end
+rN = OpenEphysReader(sessN, struct('OpenEphys', struct('EventStream', "nope")));
+check(strcmp(errorId(@() rN.discoverFiles()), 'OpenEphysReader:NoEventStream'), 'an EventStream with no TTL events is an error');
+% the cache follows the option
+dC = EphysDataset(sessN, AutoMetadata=false);
+dC.OutputDir = fullfile(root, 'out_ni');
+dC.ReaderOptions = struct('OpenEphys', struct('EventStream', "PXIe-6341"));
+dC.refreshMetadata();
+EC1 = dC.digitalEvents();
+EC2 = dC.digitalEvents();
+dC.ReaderOptions = struct('OpenEphys', struct('EventStream', ""));
+ws = warning('off', 'OpenEphysReader:TTLOtherStream');
+dC.refreshMetadata();
+EC3 = dC.digitalEvents();
+warning(ws);
+check(EC1.source == "read" && EC2.source == "cache" && EC3.source == "read" && isempty(fieldnames(EC3.events)), ...
+    'the events cache is not reused when the EventStream option changes');
+% the stream's own events, a second stream's alongside: no warning for siblings of one processor
+sessB = writeSession("binary", "S4_2026-07-07_16-35-39_own", OneRecording=true);
+addNiStream(sessB, F, 0, edges, KeepOwn=true);
+lastwarn('');
+dB = EphysDataset(sessB, AutoMetadata=false);
+dB.refreshMetadata();
+[~, id] = lastwarn();
+check(strcmp(id, 'OpenEphysReader:TTLOtherStream') && isequal(dB.DigInNames, "TTL" + (1:4)), ...
+    'a stream with TTL events of its own still warns about another processor''s, and reads its own');
+
+% recordings of one dataset must have the layout of their own structure.oebin in common
+sessD = writeSession("binary", "S5_2026-07-07_16-35-39_differ");
+ob2 = fullfile(sessD, 'Record Node 101', 'experiment1', 'recording2', 'structure.oebin');
+J = readJsonFile(ob2);
+J.continuous(1).channels(1).bit_volts = 0.5;
+writeJsonFile(ob2, J);
+rD = OpenEphysReader(sessD);
+check(strcmp(errorId(@() rD.discoverFiles()), 'OpenEphysReader:RecordingsDiffer'), ...
+    'recordings whose channels differ (bit_volts) are not read with the first one''s layout');
+J = readJsonFile(ob2);
+J.continuous(1).channels(1).bit_volts = 0.195;
+J.continuous(1).sample_rate = 30000;
+writeJsonFile(ob2, J);
+check(strcmp(errorId(@() OpenEphysReader(sessD).discoverFiles()), 'OpenEphysReader:RecordingsDiffer'), ...
+    'recordings with another sample rate are refused too');
+J.continuous(1).sample_rate = Fs;
+writeJsonFile(ob2, J);
+rD = OpenEphysReader(sessD);
+rD.discoverFiles();
+check(numel(rD.Parts) == 2, 'the same layouts in both recordings read as before');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_OpenEphysReader:Failed', '%d checks failed.', nFail);
 end
+end
+
+
+function addNiStream(sess, F, gap, edges, opts)
+%addNiStream  Put TTL events on an NI-DAQ stream (10 kHz, its own sample numbers) into recording 1.
+%   EDGES [row line state]: stored rows of the probe stream (rows after 2048 follow GAP dropped
+%   samples), TTL line (1-based) and 1 rising / 0 falling. The events' timestamps.npy are the
+%   probe stream's seconds, as the GUI writes them for synchronized streams. Without KeepOwn the
+%   probe stream's own TTL folder is dropped from structure.oebin (Neuropixels: no TTL of its own).
+arguments
+    sess (1,1) string
+    F (1,1) struct
+    gap (1,1) double
+    edges (:,3) double
+    opts.KeepOwn (1,1) logical = false
+end
+rec = fullfile(sess, 'Record Node 101', 'experiment1', 'recording1');
+key = "NI-DAQmx-103.PXIe-6341";
+t = (edges(:, 1) - 1 + (edges(:, 1) > 2048) * gap) / F.Fs;     % seconds on the probe stream's clock
+word = zeros(size(edges, 1), 1, 'uint64');
+cur = uint64(0);
+for k = 1:size(edges, 1)
+    cur = bitset(cur, edges(k, 2), edges(k, 3));
+    word(k) = cur;
+end
+d = fullfile(rec, 'events', key, 'TTL');
+mkdir(d);
+writeNPY(fullfile(d, 'states.npy'), int16(edges(:, 2) .* (2 * edges(:, 3) - 1)), "<i2");
+writeNPY(fullfile(d, 'sample_numbers.npy'), int64(round(t * 10000) + 555), "<i8");
+writeNPY(fullfile(d, 'timestamps.npy'), t, "<f8");
+writeNPY(fullfile(d, 'full_words.npy'), word, "<u8");
+ob = fullfile(rec, 'structure.oebin');
+J = readJsonFile(ob);
+own = J.events(1);
+ni = own;
+ni.folder_name = char(key + "/TTL/");
+ni.stream_name = 'PXIe-6341';
+ni.source_processor = 'NI-DAQmx';
+ni.sample_rate = 10000;
+ni.initial_state = 0;
+if opts.KeepOwn
+    J.events = [J.events(:); ni];
+else
+    J.events = ni;
+end
+writeJsonFile(ob, J);
 end
 
 

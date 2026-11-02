@@ -196,6 +196,21 @@ check(isequal(on, [0.5; 1.5]) && isequal(ei.droppedDuration, 2), ...
     'MinDurationSec drops the short pulse and reports it');
 check(threw(@() cm.eventOnsets("nosuchline")), 'eventOnsets rejects an unknown line');
 
+% Inclusive rows: t_off is the LAST high row, so a pulse high for n rows lasts
+% n/origFs (t_off - t_on + 1/origFs), a one-sample pulse included.
+Se = Sx;  Se.events.din0 = [15000 15299; 30000 30000; 45000 45029] / 30000;   % 10 ms, 1 sample, 30 samples
+ce = ChronuxDataset(Se, Signal="LFP");
+[on, ei] = ce.eventOnsets("din0", MinDurationSec=0.01);
+check(isequal(on, 0.5) && max(abs(ei.durations - 0.01)) < 1e-12 && ei.eventFs == 30000 && isequal(ei.droppedDuration, [2 3]), ...
+    'a 10 ms pulse (300 rows) measures 10 ms and MinDurationSec=0.01 keeps it');
+[~, ei] = ce.eventOnsets("din0");
+check(max(abs(ei.durations - [300; 1; 30] / 30000)) < 1e-12 && isequal(ei.keptEvents, [1 2 3]), ...
+    'durations are rows/origFs; a one-sample pulse lasts 1/origFs, not 0');
+[on, ~] = ce.eventOnsets("din0", MinDurationSec=1 / 30000);
+check(numel(on) == 3, 'MinDurationSec of one sample keeps a one-sample pulse');
+[on, ei] = ce.eventOnsets("din0", MaxDurationSec=0.005);
+check(isequal(on, [1; 1.5]) && isequal(ei.droppedDuration, 1), 'MaxDurationSec drops only the pulse that is longer');
+
 [D, ~, ~, di] = cm.trials(cm.eventOnsets("din0"), [-0.1 0.1], Channels=1);
 check(di.nTrials == 3 && di.eventFs == 30000 && isequal(di.onsetSamples, [501 1001 1501]), ...
     'dig-in onsets (rows 15000.. at origFs 30 kHz) land on the LFP sample nearest their row (501 is t = 0.500 s)');
@@ -288,6 +303,19 @@ check(same && nnz(trainR == 1.1) >= 2 && nnz(st(1).times == 1.1) == nnz(trainR =
     'spikeTrials equals the scan t > E+tPre & t <= E+tPost (ties, spikes on the edges)');
 check(threw(@() cs.spikeTrials(1.0, [-0.1 0.1], Spikes={train, train})), ...
     'spikeTrials refuses to guess which unit to epoch');
+
+% A digital-input onset is t = row/EventFs, one sample after the continuous time
+% (row-1)/EventFs that spike times use: EventFs= moves it back, as trials' "event" rule.
+train2 = [0.93 1.0 1.07 1.5 2.0];
+[st0, ~, ~, s0i] = cs.spikeTrials(1.0, [-0.1 0.1], Spikes={train2});          % continuous time 1.0 = row 1001
+[stE, ~, ~, sEi] = cs.spikeTrials(1.001, [-0.1 0.1], Spikes={train2}, EventFs=1000);   % the row's event time
+[stN, ~, ~, sNi] = cs.spikeTrials(1.001, [-0.1 0.1], Spikes={train2});        % without it: 1 ms late
+check(numel(stE(1).times) == 3 && max(abs(stE(1).times - st0(1).times)) < 1e-9 && sEi.eventFs == 1000 ...
+    && abs(sEi.onsetTimes - 1.0) < 1e-12 && abs(sEi.onsets - 1.001) < 1e-12 && isnan(s0i.eventFs), ...
+    'spikeTrials EventFs=: a row/EventFs onset is cut where the continuous time (row-1)/EventFs is');
+check(max(abs(stN(1).times - (st0(1).times - 0.001))) < 1e-9 && isnan(sNi.eventFs) && abs(sNi.onsetTimes - 1.001) < 1e-12, ...
+    'without EventFs the onsets are taken as continuous times, unchanged');
+check(threw(@() cs.spikeTrials(1.0, [-0.1 0.1], Spikes={train2}, EventFs=0)), 'EventFs must be positive');
 
 %% =====================================================================
 fprintf('\n== 7. binnedSpikes ==\n');

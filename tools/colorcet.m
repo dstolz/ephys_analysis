@@ -145,8 +145,8 @@ mapnames = {
 { 'L14'  'GREENTERNARY' }
 { 'L15'  'BLUETERNARY' }
 { 'L16'  'KBGYW' }
-{ 'L17'  'KBGYW' }
-{ 'L18'  'WORB' }
+{ 'L17'  'WORB' }
+{ 'L18'  'WYOR' }
 { 'L19'  'WCMR' }
 { 'D1'  'BWR'  'COOLWARM' }
 { 'D1A'  'BWRA' }
@@ -4356,7 +4356,7 @@ map = [0.066001 0.066024 0.066019
        0.993265 0.972710 0.851178
        0.986752 0.975079 0.911686
        0.977176 0.977372 0.977324];
-case { 'L17'  'KBGYW' }
+case { 'L17'  'WORB' }
 descriptorname = 'linear_worb_100-25_c53_n256';
 description = 'White-Orange-Red-Blue, decreasing lightness with increasing saturation';
 map = [0.999862 1.000000 1.000000
@@ -4615,7 +4615,7 @@ map = [0.999862 1.000000 1.000000
        0.094242 0.163093 0.654706
        0.038143 0.164291 0.656134
        0.000000 0.165388 0.657553];
-case { 'L18'  'WORB' }
+case { 'L18'  'WYOR' }
 descriptorname = 'linear_wyor_100-45_c55_n256';
 description = 'White-Yellow-Orange-Red, decreasing lightness with increasing saturation';
 map = [0.999862 1.000000 1.000000

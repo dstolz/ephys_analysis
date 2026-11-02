@@ -5,10 +5,11 @@ function P = pairTrials(obj, opts)
 %   TrialConfig: trial 1 with the first interval of the trial line, trial 2
 %   with the second, and so on. When the manifest holds a recorded pairing
 %   (TrialPairing) for the same session and the same trial-line intervals,
-%   its cuts (trials / intervals dropped from the start or the end, the
-%   resolution of a count mismatch) are reused, so a reviewed pairing stays
-%   exactly as approved. Nothing is written; see setTrialPairing to record or
-%   approve a result.
+%   its cuts (trials / intervals dropped from the start or the end, single
+%   intervals dropped from the middle, the resolution of a count mismatch or
+%   of a glitch pulse) are reused, so a reviewed pairing stays exactly as
+%   approved. Nothing is written; see setTrialPairing to record or approve a
+%   result.
 %
 %   Trials from a TDT block's epocs (behaviorSource "epocs") are paired the
 %   same way, with the intervals of the trial store's own event line, so
@@ -22,13 +23,20 @@ function P = pairTrials(obj, opts)
 %     recorded     true when the cuts came from TrialPairing
 %     stale        true when a recorded pairing no longer matched (the
 %                  session or the recording changed) and its cuts were dropped
-%     fingerprint  identifies the session + trial-line intervals
+%     fingerprint  identifies the session (file, trial count, start time and
+%                  first computerTimestamp) + the trial-line intervals: a
+%                  different session with the same name and trial count
+%                  does not inherit approved cuts
 %     digInNames, eventsSource
 %
 %   Options
 %     Cuts         "recorded" (default: TrialPairing's cuts when it matches,
 %                  else none) | "none" | struct with fields trials and
-%                  intervals, each [fromStart fromEnd]
+%                  intervals, each [fromStart fromEnd], and optionally drop,
+%                  the indices of single trial-line intervals to leave out
+%                  (a glitch pulse; numbered as in P.intervals). Without
+%                  drop the recorded drops stay when the record matches (the
+%                  Trials tab sets the end cuts only)
 %     Events       a digitalEvents struct to use instead of reading one
 %     Warn         true (default): a count mismatch also raises
 %                  pairEpsychTrials:CountMismatch
@@ -51,7 +59,7 @@ end
 
 tc = obj.TrialConfig;
 [src, store] = obj.behaviorSource();
-trials = obj.readBehavior();
+[trials, ~, meta] = obj.readBehavior();
 if isempty(opts.Events)
     E = obj.digitalEvents(ProgressFcn=opts.ProgressFcn);
 else
@@ -64,16 +72,22 @@ if isfield(E.events, trialLine)
     rows = round(double(E.events.(trialLine)) * E.Fs);
     [~, stem, ext] = fileparts(obj.BehaviorFile);
     if src == "epocs"; stem = "epocs:" + store; ext = ""; end
-    fp = sprintf("%s%s|%d trials|%s|inverted:%s|%d intervals|%.0f|%.0f", stem, ext, height(trials), ...
-        trialLine, strjoin(sort(string(tc.InvertedLines)), ","), size(rows, 1), sum(rows(:, 1)), sum(rows(:, 2)));
+    fp = sprintf("%s%s|%d trials|%s|inverted:%s|%d intervals|%.0f|%.0f|start:%s|first:%s", stem, ext, height(trials), ...
+        trialLine, strjoin(sort(string(tc.InvertedLines)), ","), size(rows, 1), sum(rows(:, 1)), sum(rows(:, 2)), ...
+        stampText(meta.startTime), stampText(firstTimestamp(trials)));
 end
 
 rec = obj.TrialPairing;
 recorded = false; stale = false;
-cutT = [0 0]; cutI = [0 0];
+cutT = [0 0]; cutI = [0 0]; dropI = zeros(1, 0);
 if isstruct(opts.Cuts)
     cutT = double(opts.Cuts.trials);
     cutI = double(opts.Cuts.intervals);
+    if isfield(opts.Cuts, 'drop')
+        dropI = double(reshape(opts.Cuts.drop, 1, []));
+    elseif ~isempty(rec) && rec.fingerprint == fp
+        dropI = rec.drop_intervals;   % the Trials tab sets the end cuts only: the recorded drops stay
+    end
 else
     mode = string(opts.Cuts);
     if ~ismember(mode, ["recorded" "none"])
@@ -84,6 +98,7 @@ else
         if rec.fingerprint == fp
             cutT = rec.cut_trials;
             cutI = rec.cut_intervals;
+            dropI = rec.drop_intervals;
             recorded = true;
         else
             stale = true;
@@ -93,11 +108,11 @@ end
 
 P = pairEpsychTrials(trials, E.events, E.Fs, TrialLine=trialLine, ...
     InvertedLines=string(tc.InvertedLines), NumSamples=E.nSamples, ...
-    CutTrials=cutT, CutIntervals=cutI, SignalFs=tc.SignalFs, Warn=opts.Warn);
+    CutTrials=cutT, CutIntervals=cutI, DropIntervals=dropI, SignalFs=tc.SignalFs, Warn=opts.Warn);
 if recorded
     P.status = rec.status;
     P.autoApproved = rec.auto_approved;
-elseif src == "epocs" && ~P.countMismatch && ~any(cutT) && ~any(cutI)
+elseif src == "epocs" && ~P.countMismatch && ~any(cutT) && ~any(cutI) && isempty(dropI)
     P.status = "approved";                  % epocs and their line are the same events
     P.autoApproved = true;
 else
@@ -111,4 +126,23 @@ P.fingerprint = fp;
 P.digInNames = E.digInNames;
 P.eventsSource = "";
 if isfield(E, 'source'); P.eventsSource = E.source; end
+end
+
+
+function s = stampText(t)
+%stampText  A datetime as text to the millisecond ("" for a NaT or anything else).
+s = "";
+if isdatetime(t) && isscalar(t) && ~isnat(t)
+    s = string(t, "yyyy-MM-dd HH:mm:ss.SSS");
+end
+end
+
+
+function t = firstTimestamp(trials)
+%firstTimestamp  The computerTimestamp of the first trial (NaT when the session has none).
+t = NaT;
+if ismember("computerTimestamp", string(trials.Properties.VariableNames)) && height(trials) > 0 ...
+        && isdatetime(trials.computerTimestamp)
+    t = trials.computerTimestamp(1);
+end
 end

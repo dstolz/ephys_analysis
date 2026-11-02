@@ -10,13 +10,22 @@ function out = behaviorToMat(obj, opts)
 %     behavior    EphysDataset.behaviorStruct: trials (table), info, meta,
 %                 file, subject, startTime, nTrials, pairing (with Pairing,
 %                 trials also carries the trial onset / offset columns)
+%     pairing     a copy of behavior.pairing (the pairing summary: status,
+%                 cuts, drops, fingerprint ...), small, so setTrialPairing
+%                 can tell what a file carries without loading the trials
 %     conversion  provenance: tool, created, dataset, tags, sourceFolder,
 %                 behaviorFile
+%
+%   The file is written as -v7 (compressed, loads in milliseconds even with
+%   struct-array columns such as TrialEvents: 0.04 s against 1.79 s as -v7.3
+%   at 2000 trials x 8 lines) and as -v7.3 only when a variable would be
+%   over 2 GB, the limit of -v7.
 %
 %   Options
 %   -------
 %     File        target (default <outputFolder>/<Name>_behavior.mat)
-%     MatVersion  "-v7.3" (default) | "-v7"
+%     MatVersion  "-v7" (default; "-v7.3" instead when a variable would
+%                 exceed 2 GB) | "-v7.3"
 %     Overwrite   false (default): error if File already exists
 %     Pairing     [] (default) or a pairTrials result to add to the trials
 %                 (and the derived events of TrialConfig.DerivedEvents)
@@ -45,7 +54,7 @@ function out = behaviorToMat(obj, opts)
 arguments
     obj (1,1) EphysDataset
     opts.File (1,1) string = ""
-    opts.MatVersion (1,1) string {mustBeMember(opts.MatVersion, ["-v7.3", "-v7"])} = "-v7.3"
+    opts.MatVersion (1,1) string {mustBeMember(opts.MatVersion, ["-v7.3", "-v7"])} = "-v7"
     opts.Overwrite (1,1) logical = false
     opts.Pairing = []
     opts.UpdateExtract (1,1) logical = true
@@ -78,6 +87,7 @@ end
 
 S = struct();
 S.behavior = obj.behaviorStruct(Pairing=opts.Pairing);
+S.pairing = S.behavior.pairing;
 S.conversion = struct( ...
     'tool',         "EphysDataset.behaviorToMat", ...
     'created',      string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')), ...
@@ -86,7 +96,12 @@ S.conversion = struct( ...
     'sourceFolder', obj.Folder, ...
     'behaviorFile', obj.BehaviorFile);
 S.conversion.provenance = prov;
-EphysDataset.saveAtomically(file, S, opts.MatVersion);
+matVersion = opts.MatVersion;
+if matVersion == "-v7" && any(structfun(@variableBytes, S) > 2^31 - 2^20)
+    matVersion = "-v7.3";   % -v7 stores no variable over 2 GB
+end
+opts.MatVersion = matVersion;   % what the manifest records is what was written
+EphysDataset.saveAtomically(file, S, matVersion);
 
 xf = strings(1, 0);
 if opts.UpdateExtract && strcmpi(file, standard)
@@ -114,4 +129,11 @@ r.derived_events = cellstr(out.derivedEvents);
 r.derived_failed = cellstr(out.derivedFailed);
 r.extract_files = cellstr(xf);
 obj.Processing.behavior = r;
+end
+
+
+function b = variableBytes(x)
+%variableBytes  Bytes MATLAB holds the variable X in (what -v7 limits to 2 GB, before compression).
+w = whos('x');
+b = w.bytes;
 end

@@ -21,10 +21,11 @@ function b = behaviorStruct(obj, opts)
 %   at the recording rate and per derived signal, PairingFlag, TrialEvents,
 %   ... see pairEpsychTrials) and sets pairing to the summary: status,
 %   autoApproved, trialLine, invertedLines, Fs, nSamples, signalFs,
-%   nTrials, nIntervals, nPaired, cutTrials, cutIntervals, countMismatch,
-%   warnings, partialIntervals, unpairedTrials, unpairedIntervals,
-%   fingerprint, summary and conventions (how times and samples are
-%   counted).
+%   nTrials, nIntervals, nPaired, cutTrials, cutIntervals, dropIntervals,
+%   countMismatch, timingMismatch (the first trial whose end disagrees with
+%   the Epsych2 clock; 0: none), warnings, partialIntervals,
+%   unpairedTrials, unpairedIntervals, fingerprint, summary and conventions
+%   (how times and samples are counted).
 %
 %   With a pairing, the derived events of TrialConfig.DerivedEvents are cut
 %   from the pairing's events (deriveEvents) and kept as derivedEvents: each
@@ -73,8 +74,9 @@ if ~isempty(P)
     end
     pairing = struct();
     for f = ["status" "autoApproved" "trialLine" "invertedLines" "Fs" "nSamples" "signalFs" "nTrials" ...
-            "nIntervals" "nPaired" "cutTrials" "cutIntervals" "countMismatch" "warnings" ...
-            "partialIntervals" "unpairedTrials" "unpairedIntervals" "fingerprint" "summary"]
+            "nIntervals" "nPaired" "cutTrials" "cutIntervals" "dropIntervals" "countMismatch" ...
+            "timingMismatch" "warnings" "partialIntervals" "unpairedTrials" "unpairedIntervals" ...
+            "fingerprint" "summary"]
         pairing.(f) = P.(f);
     end
     pairing.source = src;
@@ -82,7 +84,9 @@ if ~isempty(P)
         "seconds: t = row/Fs on the recording clock; *Sample: 1-based row at Fs; " + ...
         "*Sample_<SIG>: round((t - 1/Fs) * signalFs.<SIG>) + 1, the 1-based row of that signal nearest the recording row; " + ...
         "PairingFlag partial: the interval touches the recording start or end; " + ...
-        "TrialEvents: intervals of other lines overlapping the trial";
+        "TrialEvents: intervals of other lines overlapping the trial, one that begins at or before " + ...
+        "TrialOffset + 1/Fs (the first row after the trial) included; an event belongs to the trial " + ...
+        "holding it from TrialOnset to TrialOffset + 1/Fs";
 end
 if isempty(P)
     [~, D, failed] = deriveEvents(struct(), table(), []);
@@ -103,26 +107,32 @@ function [trials, D, failed] = addDerivedEvents(trials, P, tc)
 %addDerivedEvents  Cut the derived events from the pairing's events into the trials.
 defs = [];
 if isfield(tc, 'DerivedEvents'); defs = tc.DerivedEvents; end
-[~, D, failed] = deriveEvents(P.events, trials, defs, TrialLine=P.trialLine, OnError="skip");
+[~, D, failed] = deriveEvents(P.events, trials, defs, TrialLine=P.trialLine, Fs=P.Fs, OnError="skip");
 if isempty(D)
     return
 end
 % Each derived line joins the trial's other lines: its intervals overlapping
-% the trial, as pairEpsychTrials keeps them.
+% the trial, as pairEpsychTrials keeps them (containingTrial's overlap rule).
 ev = trials.TrialEvents;
 evS = trials.TrialEventSamples;
 on = trials.TrialOnset;
 off = trials.TrialOffset;
+nT = height(trials);
 for k = 1:numel(D)
     iv = D(k).intervals;
-    for i = 1:height(trials)
-        if isfinite(on(i)) && ~isempty(iv)
-            x = iv(iv(:, 1) <= off(i) & iv(:, 2) >= on(i), :);
-        else
-            x = zeros(0, 2);
+    per = repmat({zeros(0, 2)}, nT, 1);
+    if ~isempty(iv)
+        [~, pr] = containingTrial(iv, on, off, 1 / P.Fs);   % [interval trial], by trial
+        if ~isempty(pr)
+            ids = accumarray(pr(:, 2), pr(:, 1), [nT 1], @(v) {v});
+            for i = find(~cellfun(@isempty, ids)).'
+                per{i} = iv(ids{i}, :);
+            end
         end
-        ev(i).(D(k).name) = x;
-        evS(i).(D(k).name) = round(x * P.Fs);
+    end
+    for i = 1:nT
+        ev(i).(D(k).name) = per{i};
+        evS(i).(D(k).name) = round(per{i} * P.Fs);
     end
     if D(k).inDataset
         trials.(D(k).name) = D(k).trials;

@@ -16,11 +16,14 @@ function [t, trial, k, shift, nNoValue, nNoSequence] = resolveEvents(src, ref, m
 %            trials, or on a trial without a finite value
 %     NNOSEQUENCE  how many events REF.sequence cost (below)
 %
-%   An interval belongs to the trial whose [TrialOnset, TrialOffset] holds
-%   its REF.edge (the edge before REF.offsetSec), in both scopes: an
-%   interval that spans several trials counts once, for the trial holding
+%   An interval belongs to the trial whose [TrialOnset, TrialOffset + 1/Fs]
+%   holds its REF.edge (the edge before REF.offsetSec), in both scopes:
+%   TrialOffset is the last high row of the trial line, so an edge on the
+%   first low row after it (TrialOffset + 1/Fs) is still the trial's own.
+%   An interval that spans several trials counts once, for the trial holding
 %   its onset (or offset), never for every trial it overlaps; an edge on
-%   the boundary of two touching trials belongs to the earlier one.
+%   the boundary of two touching trials belongs to the earlier one
+%   (containingTrial).
 %   Trial scope (REF.scope "trial", or "auto" with paired trials): for every
 %   trial in MASK (logical over src.trials; [] = every paired trial) the
 %   intervals of REF.line that belong to it (taken from its TrialEvents, the
@@ -90,18 +93,41 @@ if scope == "trial"
         error('resolveEvents:NoLine', '%s: no digital line "%s" in the trials (lines: %s).', ...
             src.name, ref.line, strjoin(trialLines(src), ", "));
     end
+    on = T.TrialOnset;
+    off = T.TrialOffset;
+    tol = edgeTolerance(src);
+    % the line's intervals each kept trial holds by their edge (one binary
+    % search for all of them, not one scan of the trials per trial)
+    ivs = cell(numel(rows), 1);
+    if isTrialLine
+        for j = 1:numel(rows)
+            ivs{j} = [on(rows(j)) off(rows(j))];
+        end
+    else
+        evs = T.TrialEvents;
+        for j = 1:numel(rows)
+            iv = double(evs(rows(j)).(ref.line));
+            if isempty(iv); iv = zeros(0, 2); end
+            ivs{j} = iv;
+        end
+        nIv = cellfun(@(c) size(c, 1), ivs);
+        allIv = vertcat(ivs{:}, zeros(0, 2));
+        owner = containingTrial(allIv(:, col), on, off, tol);
+        mine = owner == reshape(repelem(rows(:), nIv), [], 1);   % NaN: no trial holds the edge
+        last = cumsum(nIv);
+        for j = 1:numel(rows)
+            ivs{j} = ivs{j}(mine(last(j) - nIv(j) + 1:last(j)), :);
+        end
+    end
+    prep = [];
+    if isfield(ref, 'sequence') && ~isempty(ref.sequence)
+        prep = followSequence(src, ref);
+    end
     tc = cell(numel(rows), 1); rc = cell(numel(rows), 1); kc = cell(numel(rows), 1);
     nNoSequence = 0;
     for j = 1:numel(rows)
         r = rows(j);
-        if isTrialLine
-            iv = [T.TrialOnset(r) T.TrialOffset(r)];
-        else
-            iv = double(T.TrialEvents(r).(ref.line));
-            if isempty(iv); iv = zeros(0, 2); end
-            iv = iv(containingTrial(iv(:, col), T.TrialOnset, T.TrialOffset) == r, :);
-        end
-        [e, kk, ~, nn] = pickEvents(iv, ref, T.TrialOnset(r), -Inf, src);
+        [e, kk, ~, nn] = pickEvents(ivs{j}, ref, on(r), -Inf, src, prep);
         tc{j} = e; rc{j} = repmat(r, numel(e), 1); kc{j} = kk;
         nNoSequence = nNoSequence + nn;
     end
@@ -122,17 +148,21 @@ else
     end
     iv = double(src.events.(line));
     if isempty(iv); iv = zeros(0, 2); end
-    [t, k, row, nNoSequence, failRows] = pickEvents(iv, ref, 0, -Inf, src);
+    prep = [];
+    if isfield(ref, 'sequence') && ~isempty(ref.sequence)
+        prep = followSequence(src, ref);
+    end
+    [t, k, row, nNoSequence, failRows] = pickEvents(iv, ref, 0, -Inf, src, prep);
     trial = NaN(size(t));
     if src.hasTrials
-        trial = containingTrial(iv(row, col), src.trials.TrialOnset, src.trials.TrialOffset);
+        trial = containingTrial(iv(row, col), src.trials.TrialOnset, src.trials.TrialOffset, edgeTolerance(src));
     end
     if ~isempty(mask)
         keep = isfinite(trial);
         keep(keep) = mask(trial(keep));
         t = t(keep); trial = trial(keep); k = k(keep);
         if ref.which == "all" && src.hasTrials   % count only the events of the kept trials
-            ft = containingTrial(iv(failRows, col), src.trials.TrialOnset, src.trials.TrialOffset);
+            ft = containingTrial(iv(failRows, col), src.trials.TrialOnset, src.trials.TrialOffset, edgeTolerance(src));
             nNoSequence = nnz(isfinite(ft) & mask(max(ft, 1)));
         end
     end
@@ -161,12 +191,11 @@ end
 end
 
 
-function r = containingTrial(x, on, off)
-%containingTrial  Row of the first trial whose [on off] holds each time in X (NaN: none).
-r = NaN(size(x));
-for j = 1:numel(x)
-    k = find(on <= x(j) & off >= x(j), 1);
-    if ~isempty(k); r(j) = k; end
+function tol = edgeTolerance(src)
+%edgeTolerance  The one sample after TrialOffset that still belongs to a trial, s (0: rate unknown).
+tol = 0;
+if isfield(src, 'fs') && isscalar(src.fs) && isfinite(src.fs) && src.fs > 0
+    tol = 1 / src.fs;
 end
 end
 

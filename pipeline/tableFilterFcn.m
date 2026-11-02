@@ -8,6 +8,11 @@ function [fcn, names] = tableFilterFcn(expr, columns, opts)
 %   "&&" / "||" the row-wise "&" / "|",
 %   "!=" "~=" and a single "=" "=="; functions must be on the allow-list.
 %   The text is compiled with str2func, never eval, from these tokens only.
+%   Two shapes MATLAB would read otherwise than written are refused: a
+%   chained comparison ("0 < Depth < 5" is (0 < Depth) < 5: write
+%   "0 < Depth & Depth < 5") and "&&" / "||" mixed with "&" / "|" (row by
+%   row they bind differently). A trial whose response code is missing
+%   (NaN) matches no response word.
 %   With COLUMNS = [] only the syntax is checked (any name counts as a
 %   column). The analysis trial filters (selectTrials) and the pipeline's
 %   derived events (deriveEvents) share it.
@@ -83,7 +88,7 @@ for k = 1:numel(toks)
                 error('trialSelection:BadFilter', ...
                     'The filter uses "%s" but the trials have no %s column.', t, opts.RespField);
             end
-            parts(k) = "(bitand(double(T.(""" + opts.RespField + """)), " + bits.(t) + ") > 0)";
+            parts(k) = "(bitand(fillmissing(double(T.(""" + opts.RespField + """)), 'constant', 0), " + bits.(t) + ") > 0)";
             names(end+1) = opts.RespField; %#ok<AGROW>
         elseif ismember(t, allowFns)
             error('trialSelection:BadFilter', 'In the filter, %s must be called: %s(...).', t, t);
@@ -95,12 +100,52 @@ for k = 1:numel(toks)
     end
 end
 names = unique(names, 'stable');
+checkOperators(toks, nm, txt);
 try
     f0 = str2func("@(T) " + strjoin(parts, ""));
 catch ME
     error('trialSelection:BadFilter', 'The filter "%s" is not a valid expression: %s', txt, ME.message);
 end
 fcn = @(T) applyFilter(f0, T, string(txt));
+end
+
+
+function checkOperators(toks, nm, txt)
+%checkOperators  Refuse the shapes MATLAB would read otherwise than they are written.
+%   A chained comparison ("0 < Depth < 5") is (0 < Depth) < 5, the same for
+%   every trial; "&&" / "||" beside "&" / "|" change their precedence once
+%   they are made row-wise. Both are refused, with the way to write them.
+rel = ["==" "~=" "!=" "<" ">" "<=" ">=" "="];
+shortOps = ["&&" "||"];
+longOps = ["&" "|"];
+seen = false;          % a comparison since the last boolean operator, comma or parenthesis at this depth
+stack = false(1, 0);
+hasShort = false;
+hasLong = false;
+for k = 1:numel(toks)
+    if isempty(nm(k).op); continue; end
+    t = string(toks{k});
+    if t == "(" || t == "["
+        stack(end+1) = seen; %#ok<AGROW>
+        seen = false;
+    elseif t == ")" || t == "]"
+        if ~isempty(stack); seen = stack(end); stack(end) = []; end
+    elseif any(t == [shortOps longOps ","])
+        seen = false;
+        hasShort = hasShort || any(t == shortOps);
+        hasLong = hasLong || any(t == longOps);
+    elseif any(t == rel)
+        if seen
+            error('trialSelection:BadFilter', ['The filter "%s" chains comparisons, which MATLAB reads as ' ...
+                '(a < b) < c, the same for every trial: write "a < b & b < c".'], txt);
+        end
+        seen = true;
+    end
+end
+if hasShort && hasLong
+    error('trialSelection:BadFilter', ['The filter "%s" mixes && / || with & / |, which bind differently once ' ...
+        'they are taken row by row: use one kind, or parentheses.'], txt);
+end
 end
 
 

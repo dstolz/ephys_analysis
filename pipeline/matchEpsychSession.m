@@ -10,7 +10,12 @@ function match = matchEpsychSession(T, ds, opts)
 %               wins; several sessions with the same longest stem are
 %               ambiguous.
 %     "time"    the session whose StartTime is nearest to the recording's
-%               AcqDate within MaxStartOffsetMin minutes.
+%               AcqDate within MaxStartOffsetMin minutes. A session with a
+%               Subject (T.Subject, when it is not empty) that is not
+%               contained, ignoring case, in the recording's name or file
+%               names is vetoed: a time match alone ignores whose session it
+%               is. Two remaining sessions within a minute of each other are
+%               ambiguous.
 %   Match="prefix-then-time" (default) tries prefix first.
 %
 %   MATCH is a struct: file ("" when nothing matched), method ("prefix" |
@@ -71,8 +76,24 @@ if ~isdatetime(acq) || isnat(acq)
 end
 dt = abs(minutes(T.StartTime - acq));
 ok = isfinite(dt) & dt <= opts.MaxStartOffsetMin;
+% Two animals recorded at the same time (two rigs, or a shared clock) start
+% sessions within minutes of each other: a session whose subject is not in
+% the recording's name or file names belongs to someone else's recording.
+vetoed = false(height(T), 1);
+if ismember("Subject", string(T.Properties.VariableNames)) && ~isempty(targets)
+    subj = string(T.Subject);
+    for i = find(ok & strlength(subj) > 0).'
+        vetoed(i) = ~any(contains(targets, subj(i), 'IgnoreCase', true));
+    end
+end
+nVetoed = nnz(vetoed);
+ok = ok & ~vetoed;
 if ~any(ok)
     match.reason = sprintf("no session starts within %g min of the recording", opts.MaxStartOffsetMin);
+    if nVetoed > 0
+        match.reason = sprintf("no session of this recording's subject starts within %g min of it (%d session(s) there belong to another subject)", ...
+            opts.MaxStartOffsetMin, nVetoed);
+    end
     return
 end
 C = T(ok, :);

@@ -21,9 +21,26 @@ function P = pairEpsychTrials(trials, events, Fs, opts)
 %   means the recording did not cover the whole session (it was started
 %   late or stopped early) or the line carries intervals that are not
 %   trials. Resolve it with CutTrials / CutIntervals, which drop trials or
-%   intervals from the start or the end before pairing; the app's Trials tab
-%   does this interactively and EphysDataset.pairTrials keeps the reviewed
-%   cuts in the manifest. Every result is meant to be reviewed.
+%   intervals from the start or the end before pairing, and DropIntervals,
+%   which drops single intervals from the middle of the list (a glitch pulse
+%   on the line); the app's Trials tab does the end cuts interactively and
+%   EphysDataset.pairTrials keeps the reviewed cuts and drops in the
+%   manifest. Every result is meant to be reviewed.
+%
+%   Timing cross-check
+%   ------------------
+%   Pairing by order alone cannot tell a glitch pulse plus a missing last
+%   pulse (the counts still agree, and every trial after the glitch is paired
+%   with the wrong interval) from a good pairing. When TRIALS has the
+%   Epsych2 computerTimestamp (datetime at trial end), the time between the
+%   ends of consecutive paired trials by that clock is compared with the time
+%   between the TrialOffsets of their intervals. The first pair that differs
+%   by more than max(0.5 s, 5% of the median interval between trial ends) is
+%   reported as timingMismatch (the row of the later trial; 0: none), with
+%   a pairEpsychTrials:TimingMismatch warning (unless Warn=false) when the
+%   counts agree: with a count mismatch the pairing is not trusted anyway and
+%   the check runs again on whatever the cuts leave. A session without
+%   computerTimestamp is not checked (timingChecked 0).
 %
 %   Intervals at the recording edges
 %   --------------------------------
@@ -53,14 +70,18 @@ function P = pairEpsychTrials(trials, events, Fs, opts)
 %                     and to detect intervals that run to the recording end)
 %     CutTrials       [0 0]  trials to drop [from the start, from the end]
 %     CutIntervals    [0 0]  trial-line intervals to drop [start, end]
-%     SignalFs        struct of derived-signal rates, e.g. struct('LFP', 1000)
+%     DropIntervals   []  indices of single trial-line intervals to drop from
+%                     the middle of the list, numbered as in P.intervals (before
+%                     any cut); intervals the end cuts already drop are
+%                     ignored
+%     SignalFs       struct of derived-signal rates, e.g. struct('LFP', 1000)
 %     Warn            true: a count mismatch raises pairEpsychTrials:CountMismatch
 %
 %   Output P
 %   --------
 %     trialLine, invertedLines (those applied), Fs, nSamples, nTrials,
-%        nIntervals, cutTrials, cutIntervals
-%     intervals       [nIntervals x 2] the trial line's intervals (s, polarity applied)
+%        nIntervals, cutTrials, cutIntervals, dropIntervals ([1 x k] sorted)
+%     intervals      [nIntervals x 2] the trial line's intervals (s, polarity applied)
 %     events          the events struct with the polarity applied
 %     interval        [nTrials x 1] index into intervals (NaN when cut or unpaired)
 %     onset, offset   [nTrials x 1] seconds (t = row/Fs), NaN when unpaired
@@ -75,10 +96,18 @@ function P = pairEpsychTrials(trials, events, Fs, opts)
 %     partialIntervals   intervals touching the recording start or end
 %     unpairedTrials, unpairedIntervals   kept, but left without a partner
 %     nPaired, countMismatch
-%     warnings        string list: the count-mismatch message, or empty
+%     timingMismatch  row of the first trial whose end disagrees with the
+%                     Epsych2 clock (0: none), timingChecked (how many
+%                     consecutive pairs were compared), timingTolerance (s)
+%     warnings        string list: the count-mismatch message and/or the
+%                     timing-mismatch message, or empty
 %     lines           struct: <line> -> {nTrials x 1} [n x 2] seconds of that
 %                     line's intervals overlapping the trial (every line but
-%                     the trial line, polarity applied)
+%                     the trial line, polarity applied). An interval belongs
+%                     to every trial it overlaps: it begins at or before
+%                     TrialOffset + 1/Fs (an event on the first low row after
+%                     the trial still belongs to it) and ends at or after
+%                     TrialOnset
 %     columns         table (nTrials rows) to append to TRIALS: TrialInterval,
 %                     TrialOnset, TrialOffset, TrialOnsetSample,
 %                     TrialOffsetSample, TrialOnsetSample_<SIG>,
@@ -98,6 +127,7 @@ arguments
     opts.NumSamples (1,1) double = NaN
     opts.CutTrials (1,2) double {mustBeNonnegative, mustBeInteger} = [0 0]
     opts.CutIntervals (1,2) double {mustBeNonnegative, mustBeInteger} = [0 0]
+    opts.DropIntervals (1,:) double {mustBePositive, mustBeInteger} = zeros(1, 0)
     opts.SignalFs (1,1) struct = struct()
     opts.Warn (1,1) logical = true
 end
@@ -128,6 +158,11 @@ if sum(ci) > nI
     error('pairEpsychTrials:Cuts', 'CutIntervals [%d %d] drops more than the %d %s interval(s).', ...
         ci(1), ci(2), nI, opts.TrialLine);
 end
+dropI = reshape(unique(opts.DropIntervals), 1, []);
+if any(dropI > nI)
+    error('pairEpsychTrials:Cuts', 'DropIntervals %s: the %s line has only %d interval(s).', ...
+        mat2str(dropI(dropI > nI)), opts.TrialLine, nI);
+end
 
 P = struct();
 P.trialLine     = opts.TrialLine;
@@ -138,12 +173,14 @@ P.nTrials       = nT;
 P.nIntervals    = nI;
 P.cutTrials     = ct;
 P.cutIntervals  = ci;
+P.dropIntervals = dropI;
 P.intervals     = trialIv;
 P.events        = events;
 
-% --- in-order pairing of what is left after the cuts -------------------------
+% --- in-order pairing of what is left after the cuts and drops -----------------
 tKeep = (ct(1) + 1 : nT - ct(2)).';
 iKeep = (ci(1) + 1 : nI - ci(2)).';
+iKeep(ismember(iKeep, dropI)) = [];
 n = min(numel(tKeep), numel(iKeep));
 a = NaN(nT, 1);
 a(tKeep(1:n)) = iKeep(1:n);
@@ -196,6 +233,9 @@ if P.countMismatch
         msg = msg + sprintf(" after cutting %d + %d trial(s) and %d + %d interval(s) (start + end)", ...
             ct(1), ct(2), ci(1), ci(2));
     end
+    if ~isempty(dropI)
+        msg = msg + sprintf(" and dropping interval(s) %s", strjoin(string(dropI), ", "));
+    end
     msg = msg + ".";
     if ~isempty(iKeep) && atStart(iKeep(1))
         msg = msg + sprintf(" Interval %d begins at the first sample of the recording: the recording " + ...
@@ -205,28 +245,51 @@ if P.countMismatch
         msg = msg + sprintf(" Interval %d ends at the last sample of the recording: the recording " + ...
             "stopped during a trial, or after Epsych2 had released the line.", iKeep(end));
     end
-    msg = msg + " Cut trials or intervals from the start or the end to resolve it " + ...
-        "(CutTrials / CutIntervals; the app's Trials tab), then review the pairing.";
+    msg = msg + " Cut trials or intervals from the start or the end, or drop a glitch interval, to resolve it " + ...
+        "(CutTrials / CutIntervals / DropIntervals; the app's Trials tab cuts), then review the pairing.";
     P.warnings = msg;
     if opts.Warn
         warning('pairEpsychTrials:CountMismatch', '%s', msg);
     end
 end
 
+% --- timing cross-check against the Epsych2 clock -----------------------------
+[P.timingMismatch, P.timingChecked, P.timingTolerance] = timingCheck(trials, P.offset);
+if P.timingMismatch > 0 && ~P.countMismatch
+    i2 = P.timingMismatch;
+    prevTrial = i2 - 1;          % the pair compared is (i2 - 1, i2)
+    msgT = sprintf(['Trial %d does not agree with the Epsych2 timestamps: the computer clock puts its end ' ...
+        '%.1f s after trial %d, the %s line puts the end of its paired interval %.1f s after that of the ' ...
+        'previous one (more than %.1f s apart). The intervals from here on may be paired with the wrong ' ...
+        'trials: a glitch pulse on the line, or one missing. Drop the extra interval (DropIntervals) or cut ' ...
+        'trials / intervals, then review the pairing.'], i2, seconds(trials.computerTimestamp(i2) - trials.computerTimestamp(prevTrial)), ...
+        prevTrial, opts.TrialLine, P.offset(i2) - P.offset(prevTrial), P.timingTolerance);
+    P.warnings(end + 1) = string(msgT);
+    if opts.Warn
+        warning('pairEpsychTrials:TimingMismatch', '%s', msgT);
+    end
+end
+
 % --- other lines, per trial -------------------------------------------------
+% An interval is listed in every trial it overlaps: it begins at or before the
+% trial's last high row + 1 sample and ends at or after its first (containingTrial).
 P.lines = struct();
 others = lineNames(lineNames ~= opts.TrialLine);
 trialEv = repmat(struct(), nT, 1);
 trialEvS = repmat(struct(), nT, 1);
 for ln = others
     iv = events.(ln);
-    per = cell(nT, 1);
-    for i = 1:nT
-        if paired(i) && ~isempty(iv)
-            per{i} = iv(iv(:, 1) <= P.offset(i) & iv(:, 2) >= P.onset(i), :);
-        else
-            per{i} = zeros(0, 2);
+    per = repmat({zeros(0, 2)}, nT, 1);
+    if ~isempty(iv) && any(paired)
+        [~, pr] = containingTrial(iv, P.onset, P.offset, 1 / Fs);   % [interval trial], by trial
+        if ~isempty(pr)
+            ids = accumarray(pr(:, 2), pr(:, 1), [nT 1], @(v) {v});
+            for i = find(~cellfun(@isempty, ids)).'
+                per{i} = iv(ids{i}, :);
+            end
         end
+    end
+    for i = 1:nT
         trialEv(i).(ln) = per{i};
         trialEvS(i).(ln) = round(per{i} * Fs);
     end
@@ -248,11 +311,40 @@ P.columns = C;
 s = sprintf("%d of %d trial(s) paired in order with %d %s interval(s)", n, nT, nI, opts.TrialLine);
 if any(ct); s = s + sprintf("; %d + %d trial(s) cut (start + end)", ct(1), ct(2)); end
 if any(ci); s = s + sprintf("; %d + %d interval(s) cut (start + end)", ci(1), ci(2)); end
+if ~isempty(dropI); s = s + sprintf("; interval(s) %s dropped", strjoin(string(dropI), ", ")); end
 if ~isempty(partial)
     s = s + sprintf("; partial interval(s) at the recording edge: %s", strjoin(string(partial(:).'), ", "));
 end
 if P.countMismatch
     s = s + sprintf("; COUNT MISMATCH: %d trial(s) vs %d interval(s)", numel(tKeep), numel(iKeep));
 end
+if P.timingMismatch > 0
+    s = s + sprintf("; TIMING MISMATCH at trial %d", P.timingMismatch);
+end
 P.summary = s;
+end
+
+
+function [bad, nChecked, tol] = timingCheck(trials, offset)
+%timingCheck  First trial whose end disagrees with the Epsych2 clock (0: none).
+%   Compares the seconds between the ends of consecutive paired trials by
+%   computerTimestamp with the seconds between their intervals' offsets.
+bad = 0;
+nChecked = 0;
+tol = NaN;
+if ~ismember("computerTimestamp", string(trials.Properties.VariableNames)) || ~isdatetime(trials.computerTimestamp)
+    return
+end
+dClock = seconds(diff(trials.computerTimestamp(:)));    % NaN across a NaT
+dTtl = diff(offset(:));                                  % NaN across a trial without an interval
+ok = isfinite(dClock) & isfinite(dTtl);
+nChecked = nnz(ok);
+if nChecked == 0
+    return
+end
+tol = max(0.5, 0.05 * median(dTtl(ok)));
+first = find(ok & abs(dClock - dTtl) > tol, 1);
+if ~isempty(first)
+    bad = first + 1;                                      % the later trial of the pair
+end
 end

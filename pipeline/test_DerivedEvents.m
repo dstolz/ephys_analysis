@@ -88,6 +88,25 @@ check(~isfield(E, 'Bad') && isfield(E, 'Good') && isscalar(D) && D.index == 2 &&
 [E0, D0] = deriveEvents(ev, table(), []);
 check(isequal(E0, ev) && isempty(D0) && isfield(D0, 'intervals'), 'no definitions: the events as given and an empty D');
 
+% Ownership: TrialOffset is the last high row, so an event on the first low row
+% (TrialOffset + 1/Fs) is still its trial's; an interval that begins between
+% trials belongs to the first trial it overlaps, as TrialEvents lists it.
+Fs1 = 1000;
+T2 = T(1:3, :);                                                         % trials 10-15, 20-25, 30-35 s; Depth 0, -2, -4
+ev2 = struct('InTrial', [10 15; 20 25; 30 35], ...
+    'Lick', [15 + 1/Fs1, 15.5; 15 + 2/Fs1, 15.6; 19 21; 26 28]);        % first low row; one row later; into trial 2; nowhere
+E1 = deriveEvents(ev2, T2, def("L0", "Lick", "Depth == 0"), TrialLine="InTrial", Fs=Fs1);
+E1n = deriveEvents(ev2, T2, def("L0", "Lick", "Depth == 0"), TrialLine="InTrial");
+check(isequal(E1.L0, ev2.Lick(1, :)) && isempty(E1n.L0), ...
+    'an event on the first low row after the trial is the trial''s; without Fs only [TrialOnset, TrialOffset] holds it');
+T3 = [T2, table(round(T2.TrialOffset * Fs1), 'VariableNames', {'TrialOffsetSample'})];
+E1s = deriveEvents(ev2, T3, def("L0", "Lick", "Depth == 0"), TrialLine="InTrial");
+check(isequal(E1s.L0, E1.L0), 'the rate is estimated from the pairing''s TrialOffsetSample column when Fs is not given');
+E2 = deriveEvents(ev2, T2, def("L1", "Lick", "Depth == -2"), TrialLine="InTrial", Fs=Fs1);
+check(isequal(E2.L1, ev2.Lick(3, :)), 'an interval that begins between trials belongs to the first trial it overlaps');
+E3 = deriveEvents(ev2, T2, def("L9", "Lick", "Depth < 100"), TrialLine="InTrial", Fs=Fs1);
+check(isequal(E3.L9, ev2.Lick([1 3], :)), 'an interval that touches no trial (one row past the first low row, or between trials) is dropped');
+
 fprintf('\n== 2. Behavior.DerivedEvents in the config ==\n');
 two = [def("Shallow", "Trial", "Depth >= -6"), def("Mid", "Trial", ["Depth < -6" "Depth >= -10"], 'InDataset', true)];
 cfg = EphysPipelineConfig();

@@ -45,8 +45,14 @@ function [E, G] = epochTable(src, ref, opts)
 %   epoch's trial's value (none, t1 NaN, when that trial has no value). A
 %   stop event with a sequence is the first of its line's events at or
 %   after t0 whose sequence follows, at its alignStep.
-%   With a restrictive selection (filter, response, trials or groupBy) in
-%   recording scope, events outside the kept trials are dropped.
+%   In recording scope the selection applies as follows. The pairing flags
+%   (SEL.pairingFlags, default "ok") always apply to an event inside a
+%   trial: one in a trial whose PairingFlag is not listed (unpaired,
+%   partial, cut) is dropped. An event outside every trial (a line that
+%   fires between trials) has no flag, so it is kept, unless the selection
+%   also has a filter, response, trials or groupBy: those need the trial's
+%   values, and then only events in the kept trials remain. In trial scope
+%   only the kept trials have events.
 %
 %   Options
 %     Window       epochWindow (default epochWindow())
@@ -129,7 +135,7 @@ if numel(opts.Baseline) == 2
     readStart = min(readStart, t0 + opts.Baseline(1));
     readStop = max(readStop, t0 + opts.Baseline(2));
 end
-inRec = readStart >= 0;
+inRec = readStart >= 1 / src.fs - 1e-9;   % on the event clock (row/fs) the first sample is at 1/fs: continuous time 0
 if isfinite(src.durationSec)
     inRec = inRec & readStop <= src.durationSec;
 end
@@ -161,6 +167,10 @@ if src.hasTrials
     has = isfinite(trial);
     if restrictive || scope == "trial"
         groupIndex(:) = 0;
+        groupIndex(has) = gi(trial(has));
+    else
+        % pairing flags only: the event of a trial they drop is dropped, one
+        % outside every trial (no flag) stays
         groupIndex(has) = gi(trial(has));
     end
 end

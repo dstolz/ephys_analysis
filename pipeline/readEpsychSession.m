@@ -40,6 +40,7 @@ else
         error('readEpsychSession:NotEpsych', 'Data in %s is not a struct array.', file);
     end
     trials = struct2table(Data(:), 'AsArray', true);
+    trials = numericCells(trials);
 end
 
 rc = "";
@@ -52,4 +53,21 @@ end
 meta.responseCodeField = rc;
 meta.parameterNames = string(trials.Properties.VariableNames);
 meta.nTrials = height(trials);
+end
+
+
+function T = numericCells(T)
+%numericCells  A numeric column struct2table left as a cell made numeric, NaN where empty.
+%   A field that some trials lack ([] in a stitched session, or a trial
+%   ended early) makes struct2table return a cell column, and double() of it
+%   fails downstream; when every cell holds at most one number the column is
+%   numeric with NaN for the empties.
+for v = string(T.Properties.VariableNames)
+    x = T.(v);
+    if ~iscell(x); continue; end
+    if all(cellfun(@(c) (isnumeric(c) || islogical(c)) && numel(c) <= 1, x))
+        x(cellfun(@isempty, x)) = {NaN};
+        T.(v) = cellfun(@double, x);
+    end
+end
 end

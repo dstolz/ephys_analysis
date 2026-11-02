@@ -28,9 +28,12 @@ function [events, D, failed] = deriveEvents(events, trials, defs, opts)
 %   The definitions are taken in order, so one can build on an earlier one.
 %
 %   An interval of Line belongs to the paired trial whose [TrialOnset,
-%   TrialOffset] holds its onset (the first such trial); it is kept when
-%   that trial meets the conditions. Intervals outside every paired trial
-%   are dropped.
+%   TrialOffset + 1/Fs] holds its onset (the first such trial: one on the
+%   first low row after the trial is still its own); an interval that begins
+%   between trials belongs to the first paired trial it overlaps, the rule
+%   that lists it in that trial's TrialEvents (containingTrial, the overlap
+%   rule of pairEpsychTrials). It is kept when that trial meets the
+%   conditions. Intervals that touch no paired trial are dropped.
 %
 %   D has one element per definition made (1 x 0 without any):
 %     index        the definition's place in DEFS
@@ -46,6 +49,11 @@ function [events, D, failed] = deriveEvents(events, trials, defs, opts)
 %
 %   Options
 %     TrialLine   the line "Trial" stands for (the pairing's trial line)
+%     Fs          the events' sample rate (the pairing's Fs): the one sample
+%                 after TrialOffset that still belongs to a trial. NaN (the
+%                 default) estimates it from the trials' TrialOffsetSample /
+%                 TrialOffset columns, else takes none (the closed
+%                 [TrialOnset, TrialOffset])
 %     OnError     "error" (default): a definition that cannot be made is an
 %                 error; "skip": it is left out of EVENTS and D, and FAILED
 %                 says why (a session without a parameter a condition uses,
@@ -63,6 +71,7 @@ arguments
     trials table
     defs = []
     opts.TrialLine (1,1) string = ""
+    opts.Fs (1,1) double = NaN
     opts.OnError (1,1) string {mustBeMember(opts.OnError, ["error" "skip"])} = "error"
 end
 
@@ -83,12 +92,18 @@ T = textToString(trials);
 on = double(T.TrialOnset);
 off = double(T.TrialOffset);
 paired = isfinite(on) & isfinite(off);
+fs = opts.Fs;
+if ~(isfinite(fs) && fs > 0) && ismember("TrialOffsetSample", vars)   % the rows the pairing wrote: row = round(t * Fs)
+    fs = median(double(T.TrialOffsetSample(paired)) ./ off(paired), 'omitnan');
+end
+tol = 0;
+if isfinite(fs) && fs > 0; tol = 1 / fs; end
 rf = "RespCode";
 if ~ismember(rf, vars) && ismember("ResponseCode", vars); rf = "ResponseCode"; end
 
 for k = 1:numel(defs)
     try
-        [events, Dk] = oneEvent(events, T, vars, rf, on, off, paired, defs(k), k, opts.TrialLine);
+        [events, Dk] = oneEvent(events, T, vars, rf, on, off, paired, tol, defs(k), k, opts.TrialLine);
         D(end+1) = Dk; %#ok<AGROW>
     catch ME
         if opts.OnError == "error"; rethrow(ME); end
@@ -99,7 +114,7 @@ end
 end
 
 
-function [events, Dk] = oneEvent(events, T, vars, rf, on, off, paired, def, k, trialLine)
+function [events, Dk] = oneEvent(events, T, vars, rf, on, off, paired, tol, def, k, trialLine)
 %oneEvent  Make one derived event; errors say what is wrong with its definition.
 name = strtrim(def.Name);
 if ~isvarname(name)
@@ -144,7 +159,7 @@ meets = reshape(meets, [], 1) & true(height(T), 1);
 
 iv = double(events.(src));
 if isempty(iv); iv = zeros(0, 2); end
-owner = containingTrial(iv(:, 1), on, off, paired);
+owner = containingTrial(iv, on, off, tol);          % NaN on/off (unpaired trials) are left out
 keep = isfinite(owner);
 keep(keep) = meets(owner(keep));
 events.(name) = iv(keep, :);
@@ -176,16 +191,6 @@ for k = 1:numel(defs)
     out{k} = EphysPipelineConfig.normalizeSection("DerivedEvent", defs(k));
 end
 defs = [out{:}];
-end
-
-
-function r = containingTrial(x, on, off, paired)
-%containingTrial  Row of the first paired trial whose [on off] holds each time in X (NaN: none).
-r = NaN(size(x));
-for j = 1:numel(x)
-    k = find(paired & on <= x(j) & off >= x(j), 1);
-    if ~isempty(k); r(j) = k; end
-end
 end
 
 

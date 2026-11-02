@@ -55,6 +55,7 @@ if ~isempty(sel.response)
     end
     bits = respCodeBits();
     rc = double(T.(src.respField));
+    rc(~isfinite(rc)) = 0;   % no code (NaN): no response word, rather than an error from bitand
     any1 = false(n, 1);
     for w = sel.response
         any1 = any1 | bitand(rc, bits.(w)) > 0;
@@ -100,7 +101,7 @@ for j = 1:nP
     v = v(rows);
     isNum(j) = isnumeric(v) || islogical(v);
     if isNum(j)
-        v = double(v);
+        v = double(v) + 0;   % -0 would print as "-0": one key for 0
         k = compose("%.10g", v);
     else
         v = string(v);

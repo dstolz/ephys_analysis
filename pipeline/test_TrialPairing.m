@@ -64,6 +64,8 @@ P = pairEpsychTrials(trials, events, Fs, NumSamples=N, SignalFs=struct('LFP', 50
 [~, wid] = lastwarn;
 check(isequal(P.interval, (1:n).') && P.nPaired == n && ~P.countMismatch && isempty(P.warnings) ...
     && isempty(wid) && all(P.flag == "ok"), 'every trial pairs in order with its interval, nothing to warn about');
+check(P.timingMismatch == 0 && P.timingChecked == n - 1 && isempty(P.dropIntervals) && P.timingTolerance >= 0.5, ...
+    'the Epsych2 timestamps agree with the line''s trial ends: nothing to report');
 check(isequal(P.onsetSample, round(on * Fs)) && isequal(P.offsetSample, round(off * Fs)), 'samples are rows at Fs (t = row/Fs)');
 check(isfield(P.signalSamples, 'LFP') && ~isfield(P.signalSamples, 'Bad') ...
     && isequal(P.signalSamples.LFP, round(([on off] - 1 / Fs) * 500) + 1), ...
@@ -148,6 +150,54 @@ check(strcmp(errorId(@() pairEpsychTrials(trials, events, Fs, TrialLine="Nope"))
 PA = pairEpsychTrials(trials, events, Fs, CutTrials=[n 0], CutIntervals=[0 n], Warn=false);
 check(PA.nPaired == 0 && all(PA.flag == "cut") && ~PA.countMismatch && isempty(PA.unpairedIntervals), ...
     'cutting everything pairs nothing');
+check(strcmp(errorId(@() pairEpsychTrials(trials, events, Fs, DropIntervals=n + 1, Warn=false)), 'pairEpsychTrials:Cuts') ...
+    && ~isempty(errorId(@() pairEpsychTrials(trials, events, Fs, DropIntervals=0))) ...
+    && ~isempty(errorId(@() pairEpsychTrials(trials, events, Fs, DropIntervals=1.5))), ...
+    'dropping an interval that does not exist, or a non-positive / fractional index, is refused');
+
+fprintf('\n== 4b. a glitch pulse plus a missing last pulse: equal counts, wrong pairs ==\n');
+glitch = off(8) + 1.0;                                      % a stray 50 ms pulse 1 s after trial 8
+evG = events;
+evG.InTrial = [iv(1:8, :); glitch, glitch + 0.05; iv(9:n-1, :)];   % ... and the last trial's pulse is missing: n intervals
+lastwarn('');
+PG = pairEpsychTrials(trials, evG, Fs, NumSamples=N);
+[wmsg, wid] = lastwarn;
+check(~PG.countMismatch && PG.nIntervals == n && PG.timingMismatch == 9 && PG.timingChecked == n - 1 ...
+    && strcmp(wid, 'pairEpsychTrials:TimingMismatch') && isscalar(PG.warnings) && string(wmsg) == PG.warnings(1) ...
+    && contains(PG.warnings, "Trial 9 does not agree") && contains(PG.summary, "TIMING MISMATCH at trial 9"), ...
+    'the counts agree, but trial 9 is flagged: its end does not follow the Epsych2 clock');
+lastwarn('');
+PGq = pairEpsychTrials(trials, evG, Fs, NumSamples=N, Warn=false);
+[~, wid] = lastwarn;
+check(PGq.timingMismatch == 9 && isempty(wid), 'Warn=false keeps it in the result and warns nothing');
+PG2 = pairEpsychTrials(trials, evG, Fs, NumSamples=N, DropIntervals=9, CutTrials=[0 1]);
+check(PG2.timingMismatch == 0 && ~PG2.countMismatch && PG2.nPaired == n - 1 && isequal(PG2.dropIntervals, 9) ...
+    && isequal(PG2.interval(1:8), (1:8).') && isequal(PG2.interval(9:n-1), (10:n).') && abs(PG2.onset(9) - on(9)) < 1e-9 ...
+    && PG2.flag(n) == "cut" && contains(PG2.summary, "interval(s) 9 dropped") && isempty(PG2.warnings), ...
+    'dropping interval 9 (and cutting the trial that lost its pulse) pairs every trial with its own interval');
+PG3 = pairEpsychTrials(trials, evG, Fs, NumSamples=N, DropIntervals=9, Warn=false);
+check(PG3.countMismatch && PG3.timingMismatch == 0 && isequal(PG3.unpairedTrials, n) && contains(PG3.warnings, "dropping interval(s) 9") ...
+    && contains(PG3.warnings, "DropIntervals"), 'a drop is part of the count-mismatch message');
+PG4 = pairEpsychTrials(trials, evG, Fs, NumSamples=N, CutIntervals=[1 0], DropIntervals=[1 9 9], Warn=false);
+check(isequal(PG4.dropIntervals, [1 9]) && PG4.nPaired == n - 2, 'drops inside an end cut are harmless; repeats are one');
+tsNone = trials(:, 1:2);
+PNT = pairEpsychTrials(tsNone, evG, Fs, NumSamples=N, Warn=false);
+trialsNaT = trials; trialsNaT.computerTimestamp(:) = NaT;
+PNaT = pairEpsychTrials(trialsNaT, evG, Fs, NumSamples=N, Warn=false);
+check(PNT.timingChecked == 0 && PNT.timingMismatch == 0 && isempty(PNT.warnings) ...
+    && PNaT.timingChecked == 0 && PNaT.timingMismatch == 0 && isempty(PNaT.warnings), ...
+    'a session without computerTimestamp (or without values) is not cross-checked');
+
+fprintf('\n== 4c. an event on the first low row after the trial is the trial''s ==\n');
+evO = events;
+evO.Reward = [off(2) + 1 / Fs, off(2) + 1 / Fs + 0.01; ...      % the first low row after trial 2
+              off(2) + 2 / Fs, off(2) + 2 / Fs + 0.01; ...      % one row later: nobody's
+              on(3) - 0.5, on(3) + 0.2];                         % begins before trial 3 and overlaps it
+PO = pairEpsychTrials(trials, evO, Fs, NumSamples=N);
+check(isequal(PO.lines.Reward{2}, evO.Reward(1, :)) && isequal(PO.lines.Reward{3}, evO.Reward(3, :)) ...
+    && isempty(PO.lines.Reward{1}) && isequal(PO.columns.TrialEvents(2).Reward, evO.Reward(1, :)) ...
+    && isequal(PO.columns.TrialEventSamples(2).Reward, round(evO.Reward(1, :) * Fs)), ...
+    'TrialEvents lists the interval that begins on the first low row and the one that began before the trial');
 
 fprintf('\n== 5. inverted lines ==\n');
 rows = round(iv * Fs);
@@ -277,6 +327,9 @@ check(o.paired && all(ismember(["ToneLevel" "TrialOnset" "TrialOnsetSample" "Tri
     && isequal(B.behavior.pairing.cutTrials, [1 0]) && B.behavior.pairing.countMismatch, ...
     'behaviorToMat writes the pairing columns and summary');
 check(isempty(d.behaviorStruct().pairing), 'behaviorStruct without a pairing leaves trials untouched');
+check(startsWith(matHeader(o.file), "MATLAB 5.0 MAT-file") && isequal(sort(string(who('-file', o.file))), ["behavior"; "conversion"; "pairing"]) ...
+    && B.pairing.status == "approved" && isequal(B.pairing, B.behavior.pairing), ...
+    'the behavior file is -v7 (quick to load) and carries a small copy of the pairing');
 check(isfield(B.behavior.pairing, 'autoApproved') && ~B.behavior.pairing.autoApproved, ...
     'the behavior file says whether the approval was automatic');
 check(d.setTrialPairing(PR, "approved") == "", 'a behavior file that already carries the recorded pairing is left alone');
@@ -289,6 +342,58 @@ B = load(o.file);
 check(tfZ && B.behavior.pairing.status == "approved" && B.behavior.pairing.autoApproved ...
     && isequal(B.behavior.pairing.cutTrials, [0 0]) && isequal(B.behavior.trials.TrialOnsetSample, onR), ...
     'an automatic approval rewrites the behavior file with the approved pairing');
+
+fprintf('\n== 6b. dropped interval in the record; auto-approval checks; another session''s fingerprint ==\n');
+dD = EphysDataset(recDir);
+dD.OutputDir = fullfile(root, 'outdrop', dD.Name);
+dD.BehaviorFile = behFile;
+dD.TrialConfig = d.TrialConfig;
+PD = dD.pairTrials(Cuts=struct('trials', [0 0], 'intervals', [0 0], 'drop', 2), Warn=false);
+check(PD.countMismatch && isequal(PD.dropIntervals, 2) && isequal(PD.interval(1:4), [1; 3; 4; 5]) && isnan(PD.interval(5)) ...
+    && PD.flag(5) == "unpaired", 'pairTrials takes Cuts.drop: interval 2 leaves the pairing');
+dD.setTrialPairing(PD, "approved");
+mfD = readJsonFile(dD.manifestFile());
+dD2 = EphysDataset(recDir);
+dD2.OutputDir = dD.OutputDir; dD2.TrialConfig = d.TrialConfig;
+dD2.applyManifest();
+PD2 = dD2.pairTrials(Warn=false);
+check(isequal(mfD.behavior.pairing.drop_intervals(:).', 2) && isequal(dD2.TrialPairing.drop_intervals, 2) ...
+    && PD2.recorded && PD2.status == "approved" && isequal(PD2.dropIntervals, 2), ...
+    'an approved pairing with a dropped interval survives the manifest round trip');
+PD3 = dD2.pairTrials(Cuts=struct('trials', [1 0], 'intervals', [0 0]), Warn=false);
+PD4 = dD2.pairTrials(Cuts=struct('trials', [0 0], 'intervals', [0 0], 'drop', zeros(1, 0)), Warn=false);
+check(isequal(PD3.dropIntervals, 2) && isempty(PD4.dropIntervals) && ~PD4.countMismatch, ...
+    'cuts given without drop (the Trials tab) keep the recorded drops; drop=[] clears them');
+PZ = dD2.pairTrials(Cuts="none", Warn=false);                % unreviewed, no cuts, counts match
+PZ.timingMismatch = 3;
+[~, tfM] = dD2.autoApproveTrialPairing(PZ);
+PZ.timingMismatch = 0; PZ.flag(1) = "partial";
+[~, tfP] = dD2.autoApproveTrialPairing(PZ);
+PZ.flag(1) = "ok"; PZ.dropIntervals = 2;
+[~, tfD] = dD2.autoApproveTrialPairing(PZ);
+check(PZ.status == "unreviewed" && ~tfM && ~tfP && ~tfD && dD2.TrialPairing.status == "approved" && ~dD2.TrialPairing.auto_approved, ...
+    'auto-approval refuses a timing mismatch, a partial edge interval and a pairing that dropped an interval');
+S73 = dD.behaviorToMat(File=fullfile(root, 'beh73.mat'), MatVersion="-v7.3", Pairing=PD);
+check(startsWith(matHeader(S73.file), "MATLAB 7.3 MAT-file") && S73.paired, 'MatVersion="-v7.3" is still available');
+% a different session with the same file name and trial count must not inherit the approval
+S2 = struct('Data', Data, 'Info', Info);
+for i = 1:k; S2.Data(i).computerTimestamp = Data(i).computerTimestamp + days(1); end
+S2.Info.StartTime = t0 + days(1);
+beh2 = fullfile(root, 'beh_other'); mkdir(beh2);
+save(fullfile(beh2, 'mouseA_260101T120000.mat'), '-struct', 'S2');           % other start time and timestamps
+S3 = struct('Data', Data, 'Info', Info);
+for i = 1:k; S3.Data(i).computerTimestamp = Data(i).computerTimestamp + seconds(2); end
+beh3 = fullfile(root, 'beh_later'); mkdir(beh3);
+save(fullfile(beh3, 'mouseA_260101T120000.mat'), '-struct', 'S3');           % same start time, later timestamps
+dD2.BehaviorFile = string(fullfile(beh2, 'mouseA_260101T120000.mat'));
+PF = dD2.pairTrials(Warn=false);
+dD2.BehaviorFile = string(fullfile(beh3, 'mouseA_260101T120000.mat'));
+PF3 = dD2.pairTrials(Warn=false);
+dD2.BehaviorFile = behFile;
+PF0 = dD2.pairTrials(Warn=false);
+check(PF.stale && ~PF.recorded && PF.status == "unreviewed" && isempty(PF.dropIntervals) ...
+    && PF3.stale && ~PF3.recorded && PF3.status == "unreviewed" && PF0.recorded && PF0.status == "approved", ...
+    'the fingerprint holds the start time and the first timestamp: another session does not inherit the cuts, the same one does');
 
 fprintf('\n== 7. inverted polarity in the extract events ==\n');
 lowRows = [[1; offR + 1], [onR - 1; nSamp]];
@@ -424,5 +529,13 @@ end
 function writeText(file, txt)
 fid = fopen(file, 'w');
 fwrite(fid, char(txt), 'char');
+fclose(fid);
+end
+
+
+function h = matHeader(file)
+%matHeader  The first characters of a MAT-file: "MATLAB 5.0 MAT-file" (-v7) or "MATLAB 7.3 MAT-file" (-v7.3).
+fid = fopen(file, 'r');
+h = string(fread(fid, [1 19], '*char'));
 fclose(fid);
 end

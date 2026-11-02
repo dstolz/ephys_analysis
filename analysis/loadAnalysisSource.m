@@ -130,6 +130,7 @@ src.events = struct();
 src.artifacts = zeros(0, 2);
 src.invertedLines = string.empty(1, 0);
 src.labels = string.empty(0, 1);
+ex = struct('hasInverted', false, 'inverted', string.empty(1, 0), 'fs', NaN, 'signals', zeros(0, 2));   % what the extract says, to check the pairing against
 files = string.empty(1, 0);
 for sig = sigs
     f = out.signalFile(sig);
@@ -149,7 +150,12 @@ if ~isempty(files)
     end
     if isfield(L, 'info') && isstruct(L.info)
         I = L.info;
-        if isfield(I, 'invertedLines'); src.invertedLines = reshape(string(I.invertedLines), 1, []); end
+        if isfield(I, 'invertedLines')
+            src.invertedLines = reshape(string(I.invertedLines), 1, []);
+            ex.hasInverted = true;
+            ex.inverted = src.invertedLines;
+        end
+        if isfield(I, 'origFs'); ex.fs = double(I.origFs); end
         if isfield(I, 'labels'); src.labels = reshape(string(I.labels), [], 1); end
         if isfield(I, 'artifacts') && isstruct(I.artifacts)
             src.artifacts = reshape(double(I.artifacts.intervals), [], 2);
@@ -166,6 +172,9 @@ if ~isempty(files)
                 src.signalFs.(sig) = double(I.(sig).Fs);
                 if isnan(src.durationSec) && isfield(I.(sig), 'nSamples')
                     src.durationSec = double(I.(sig).nSamples) / double(I.(sig).Fs);
+                end
+                if isfield(I.(sig), 'nSamples')
+                    ex.signals(end+1, :) = [double(I.(sig).nSamples) double(I.(sig).Fs)];
                 end
             end
         end
@@ -197,10 +206,25 @@ if out.has("behavior")
     if isfield(B, 'pairing') && ~isempty(B.pairing) && ismember("TrialOnset", vars)
         src.pairing = B.pairing;
         src.hasTrials = true;
+        st = "";
+        if isfield(B.pairing, 'status'); st = string(B.pairing.status); end
+        src.pairingStatus = st;
+        if st ~= "approved"
+            warning('loadAnalysisSource:UnreviewedPairing', ...
+                ['%s: the trial pairing is "%s", not approved (review it on the pipeline app''s Trials tab): ' ...
+                 'a mispaired trial gives its epochs another trial''s values.'], src.name, st);
+        end
         if isfield(B.pairing, 'trialLine'); src.trialLine = string(B.pairing.trialLine); end
         if isnan(src.fs) && isfield(B.pairing, 'Fs'); src.fs = double(B.pairing.Fs); end
         if isnan(src.durationSec) && isfield(B.pairing, 'nSamples') && isfield(B.pairing, 'Fs')
             src.durationSec = double(B.pairing.nSamples) / double(B.pairing.Fs);
+        end
+        why = pairingMismatch(B.pairing, ex);
+        if ~isempty(why)
+            warning('loadAnalysisSource:PairingMismatch', ...
+                ['%s: the trial pairing and the extract disagree (%s). The trial times were measured on ' ...
+                 'another version of the digital lines than the extract''s events: pair the trials and ' ...
+                 'make the extract again with the same line polarity.'], src.name, strjoin(why, "; "));
         end
         if isempty(src.invertedLines) && isfield(B.pairing, 'invertedLines')
             src.invertedLines = reshape(string(B.pairing.invertedLines), 1, []);
@@ -293,6 +317,39 @@ if isfield(s, f) && ~isempty(s.(f))
     x = s.(f);
     if isstring(x) || ischar(x); x = str2double(x); end
     if isnumeric(x) && isscalar(x); v = double(x); end
+end
+end
+
+
+function why = pairingMismatch(pairing, ex)
+%pairingMismatch  How the pairing and the extract disagree about the digital lines (EX: what the extract says), as text.
+%   The pairing's trial times come from the events with a polarity applied
+%   (InvertedLines) at a sample rate (Fs) over a recording of nSamples; the
+%   extract's events were made with its own. When they differ, TrialOnset
+%   and the extract's events are on different versions of the lines. The
+%   extract's signals are at their own rates, so their length is compared
+%   as seconds with the rounding of the resampling.
+why = strings(1, 0);
+if ex.hasInverted && isfield(pairing, 'invertedLines')
+    p = reshape(string(pairing.invertedLines), 1, []);
+    if ~isempty(setxor(ex.inverted, p))
+        why(end+1) = sprintf("inverted lines: pairing {%s}, extract {%s}", strjoin(p, ", "), strjoin(ex.inverted, ", ")); %#ok<AGROW>
+    end
+end
+if isfield(pairing, 'Fs') && isscalar(pairing.Fs) && isfinite(pairing.Fs) && isfinite(ex.fs) ...
+        && abs(double(pairing.Fs) - ex.fs) > 1e-6 * double(pairing.Fs)
+    why(end+1) = sprintf("sample rate: pairing %g Hz, extract %g Hz", double(pairing.Fs), ex.fs); %#ok<AGROW>
+end
+if isfield(pairing, 'nSamples') && isfield(pairing, 'Fs') && isscalar(pairing.nSamples) && isscalar(pairing.Fs) ...
+        && isfinite(pairing.nSamples) && pairing.nSamples > 0 && isfinite(pairing.Fs) && pairing.Fs > 0 && ~isempty(ex.signals)
+    pDur = double(pairing.nSamples) / double(pairing.Fs);
+    eDur = ex.signals(:, 1) ./ ex.signals(:, 2);
+    slack = 2 ./ ex.signals(:, 2) + 2 / double(pairing.Fs);
+    [worst, k] = max(abs(eDur - pDur) - slack);
+    if worst > 0
+        why(end+1) = sprintf("length: pairing %d samples (%.3f s), extract %.3f s", ...
+            double(pairing.nSamples), pDur, eDur(k)); %#ok<AGROW>
+    end
 end
 end
 

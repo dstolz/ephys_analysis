@@ -97,9 +97,30 @@ dsA = struct('Name', "subjA_260101T120000_260101_120004", 'Files', ["subjA_26010
     'AcqDate', t0 + seconds(4));
 mA = matchEpsychSession(S, dsA);
 check(mA.file == string(fA) && mA.method == "prefix" && ~mA.ambiguous, 'prefix match on the recording name');
-dsT = struct('Name', "unrelated_rec", 'Files', "info.rhd", 'AcqDate', t0 + days(1) - minutes(15));
+dsT = struct('Name', "subjB_unmatchedstem", 'Files', "info.rhd", 'AcqDate', t0 + days(1) - minutes(15));
 mT = matchEpsychSession(S, dsT);
 check(mT.file == string(fB) && mT.method == "time", 'falls back to the nearest start time');
+% A time match ignores whose session it is unless the subject is checked:
+dsOther = struct('Name', "unrelated_rec", 'Files', "info.rhd", 'AcqDate', dsT.AcqDate);
+mV = matchEpsychSession(S, dsOther);
+check(mV.file == "" && mV.method == "" && ~mV.ambiguous && contains(mV.reason, "another subject"), ...
+    'a time match is vetoed when the session''s subject is not in the recording name');
+dsCase = struct('Name', "SUBJB_rec", 'Files', "info.rhd", 'AcqDate', dsT.AcqDate);
+check(matchEpsychSession(S, dsCase).file == string(fB), 'the subject is found in the recording name whatever its case');
+dsFile = struct('Name', "rec", 'Files', "subjB_rec.rhd", 'AcqDate', dsT.AcqDate);
+check(matchEpsychSession(S, dsFile).file == string(fB), '... or in one of its file names');
+Sv = [S; S(2, :)];                                      % another animal's session, nearer in time
+Sv.Subject(3) = "subjC"; Sv.File(3) = "other.mat"; Sv.StartTime(3) = dsT.AcqDate;
+mVn = matchEpsychSession(Sv, dsT);
+check(mVn.file == string(fB) && mVn.method == "time" && ~mVn.ambiguous, ...
+    'the nearer session of another subject is skipped for the nearest one of this subject');
+Sa = [S; S(2, :)];                                      % two sessions of this subject within a minute
+Sa.File(3) = "twin.mat"; Sa.StartTime(3) = Sa.StartTime(2) + seconds(30);
+mAm = matchEpsychSession(Sa, dsT);
+check(mAm.file == "" && mAm.ambiguous && contains(mAm.reason, "within a minute"), ...
+    'two sessions of the right subject within a minute of each other stay ambiguous');
+Se = S; Se.Subject(2) = "";                             % a session with no subject is not vetoed
+check(matchEpsychSession(Se, dsOther).file == string(fB), 'a session without a subject is matched by time alone');
 mN = matchEpsychSession(S, dsT, MaxStartOffsetMin=5);
 check(mN.file == "" && mN.method == "" && contains(mN.reason, "within"), 'time match respects the tolerance');
 mP = matchEpsychSession(S, dsT, Match="prefix");

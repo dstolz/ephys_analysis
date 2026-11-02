@@ -122,6 +122,42 @@ check(sb.fs == 20000 && sb.durationSec == 0.25 && sb.signalFs.LFP == 1000 && ise
 check(isequal(sb.artifacts, [0.1 0.12]) && isequal(src.artifacts, zeros(0, 2)), ...
     'artifacts: the periods the Signals step erased (info.artifacts), none for the fixture (detection off, no manual periods)');
 
+% The pairing and the extract must describe the same digital lines: warn when they do not.
+idMis = 'loadAnalysisSource:PairingMismatch';
+ws = warning('error', idMis);
+idOk = errorId(@() loadAnalysisSource(outOnly, Key=F.keys(1)));
+warning(ws);
+check(isempty(idOk), 'the pipeline''s own pairing and extract agree: no PairingMismatch warning');
+mmDir = fullfile(root, 'mismatch', folderName);
+copyfile(char(src.folder), mmDir);
+delete(fullfile(mmDir, '*.rhd'));
+outM = EphysDataset(mmDir).outputs();
+bf = outM.BehaviorFile;
+S0 = load(bf);
+idsMis = strings(1, 3);
+msgsMis = strings(1, 3);
+for v = 1:3
+    S = S0;
+    switch v
+        case 1, S.behavior.pairing.invertedLines = "InTrial";                 % polarity applied to the pairing only
+        case 2, S.behavior.pairing.Fs = 2 * S.behavior.pairing.Fs;
+        case 3, S.behavior.pairing.nSamples = 2 * S.behavior.pairing.nSamples;
+    end
+    S.pairing = S.behavior.pairing;
+    save(bf, '-struct', 'S');
+    ws = warning('error', idMis);
+    try
+        loadAnalysisSource(EphysDataset(mmDir).outputs(), Key=F.keys(1));
+    catch ME
+        idsMis(v) = string(ME.identifier);
+        msgsMis(v) = string(ME.message);
+    end
+    warning(ws);
+end
+check(all(idsMis == idMis) && contains(msgsMis(1), "inverted lines") && contains(msgsMis(2), "sample rate") ...
+    && contains(msgsMis(3), "length"), ...
+    'a pairing made with other inverted lines, another rate or another length than the extract warns (PairingMismatch)');
+
 fprintf('\n== 2. trial scope: first Stim of each trial ==\n');
 [E, G] = epochTable(src, eventRef(line="Stim", scope="trial"), Window=epochWindow(pre=-0.2, post=0.5));
 firstStim = arrayfun(@(i) src.trials.TrialEvents(i).Stim(1, 1), (1:src.nTrials).');
@@ -253,6 +289,28 @@ st2 = withLine(st2, "Edge", [b34, b34 + 0.2]);
 [t2, tr2] = resolveEvents(st2, eventRef(line="Edge", which="all", scope="recording"));
 check(isequal([t tr], [b34 3]) && isequal([t2 tr2], [b34 3]) && size(st2.trials.TrialEvents(4).Edge, 1) == 1, ...
     'an edge on the boundary of two touching trials counts once, for the earlier trial, in both scopes');
+% TrialOffset is the last high row: an event on the first low row after it is the trial's own
+b6 = src.trials.TrialOffset(6);
+sl6 = withLine(src, "Low", [b6 + 1 / src.fs, b6 + 0.2; b6 + 2 / src.fs, b6 + 0.3]);   % the first low row; one row later
+[t, tr] = resolveEvents(sl6, eventRef(line="Low", which="all", scope="trial"));
+[t2, tr2] = resolveEvents(sl6, eventRef(line="Low", which="all", scope="recording"));
+check(isequal([t tr], [b6 + 1 / src.fs, 6]) && isequaln([t2 tr2], [sl6.events.Low(:, 1) [6; NaN]]) ...
+    && size(sl6.trials.TrialEvents(6).Low, 1) == 1, ...
+    'an event on the first low row after a trial (TrialOffset + 1/Fs) is the trial''s, one row later nobody''s, in both scopes');
+% pairing flags always apply in recording scope; an event between trials has no flag
+sp = src;
+sp.trials.PairingFlag(5) = "partial";
+[~, trAll] = resolveEvents(sp, eventRef(line="Stim", which="all", scope="recording"));
+nIn5 = nnz(trAll == 5);
+Ep = epochTable(sp, eventRef(line="Stim", which="all", scope="recording"), Incomplete="keep");
+Ek = epochTable(sp, eventRef(line="Stim", which="all", scope="recording"), Incomplete="keep", Selection=trialSelection(pairingFlags=string.empty(1, 0)));
+check(nIn5 > 0 && height(Ek) == numel(trAll) && height(Ep) == numel(trAll) - nIn5 && ~any(Ep.trial == 5), ...
+    'recording scope: the pairing flags drop the events of a partial trial; every flag kept keeps them');
+Epl = epochTable(sp, eventRef(line="Platform", which="all", scope="recording"), Incomplete="keep");
+check(height(Epl) == size(src.events.Platform, 1) && all(isnan(Epl.trial)) ...
+    && strcmp(errorId(@() epochTable(sp, eventRef(line="Platform", which="all", scope="recording"), ...
+        Incomplete="keep", Selection=trialSelection(groupBy="TrialType"))), 'resolveEvents:NoEvents'), ...
+    'events between trials stay with the default flags; a grouping (a trial value) leaves only those in kept trials');
 E = epochTable(src, eventRef(line="Stim"), Window=epochWindow(pre=-0.2, post=1, stop=eventRef(line="Stim", edge="offset")));
 check(all(abs(E.t1 - E.t0 - 0.5) < 2e-3) && all(E.complete), 'a fixed window with a stop fills t1 (Stim offset, 0.5 s later)');
 E = epochTable(src, eventRef(line="Trial"), Window=epochWindow(mode="between", pre=-0.1, post=0.1, stop=eventRef(line="Trial", edge="offset")));
@@ -602,7 +660,7 @@ function src = withLine(src, name, iv)
 src.events.(name) = iv;
 TE = src.trials.TrialEvents;
 for i = 1:numel(TE)
-    TE(i).(name) = iv(iv(:, 1) <= src.trials.TrialOffset(i) & iv(:, 2) >= src.trials.TrialOnset(i), :);
+    TE(i).(name) = iv(iv(:, 1) <= src.trials.TrialOffset(i) + 1 / src.fs & iv(:, 2) >= src.trials.TrialOnset(i), :);
 end
 src.trials.TrialEvents = TE;
 end

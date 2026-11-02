@@ -1,6 +1,6 @@
-function [e, k, r, nNoSeq, failRows] = pickEvents(iv, ref, origin, after, src)
+function [e, k, r, nNoSeq, failRows] = pickEvents(iv, ref, origin, after, src, prep)
 %pickEvents  Apply an event reference to one set of intervals.
-%   [E, K, R] = pickEvents(IV, REF, ORIGIN, AFTER, SRC) keeps the [on off]
+%   [E, K, R] = pickEvents(IV, REF, ORIGIN, AFTER, SRC, PREP) keeps the [on off]
 %   intervals IV whose length lies in [REF.minDurationSec, REF.maxDurationSec]
 %   and whose REF.edge time, minus ORIGIN, lies in REF.timeRange; of those,
 %   the edges at or after AFTER (default -Inf) whose REF.sequence completes
@@ -11,9 +11,12 @@ function [e, k, r, nNoSeq, failRows] = pickEvents(iv, ref, origin, after, src)
 %   NNOSEQ is how many events the sequence cost: the picks REF.which would
 %   have made without it, less those it made (every event the sequence
 %   does not follow, for which "all"); FAILROWS the rows of IV whose
-%   sequence did not complete.
+%   sequence did not complete. PREP (optional) is followSequence(SRC, REF),
+%   the sequence's steps filtered and sorted once, for a caller that picks
+%   from many sets of intervals with one reference.
 
 if nargin < 4 || isempty(after); after = -Inf; end
+if nargin < 6; prep = []; end
 e = zeros(0, 1); k = zeros(0, 1); r = zeros(0, 1);
 nNoSeq = 0; failRows = zeros(0, 1);
 if isempty(iv); return; end
@@ -28,7 +31,7 @@ row = row(o);
 t = x;
 if isfield(ref, 'sequence') && ~isempty(ref.sequence)
     nBefore = numel(choose(numel(x), ref));
-    [pass, t] = followSequence(src, ref, x);
+    [pass, t] = followSequence(src, ref, x, prep);
     failRows = row(~pass);
     x = x(pass); t = t(pass); row = row(pass);
     nNoSeq = nBefore - numel(choose(numel(x), ref));

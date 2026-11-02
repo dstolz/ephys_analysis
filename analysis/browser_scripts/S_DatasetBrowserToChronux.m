@@ -114,13 +114,21 @@ if ~isempty(S) && any(arrayfun(@(D) ~isempty(D.signal) || ~isempty(D.spikes), S)
 
         % the kept trials, aligned to TrialOnset (not the browser's event: use
         % D.eventsContinuous.<line>(:, 1) for that) on the continuous clock
+        % The spike-only connector knows no recording length (its spikeTrials keeps a partial
+        % first or last trial), so the trials are cut to the recording's duration here: the
+        % same trials for spikes and signal.
+        dur = D.durationSec;
+        if ~isfinite(dur) && isSignal; dur = size(D.signal, 1) / D.signalFs; end
+        if ~isfinite(dur); dur = Inf; end
         idx = [];
         if D.hasTrials
             idx = find(D.kept);
             on = D.toContinuous(D.trials.TrialOnset(idx));
+            ok = isfinite(on) & on + win(1) >= 0 & on + win(2) <= dur;   % paired, with the whole window in the recording
+            idx = idx(ok);
+            on = on(ok);
             if opts.dropArtifacts && ~isempty(D.artifacts)
-                a = D.artifacts;
-                touch = any(on + win(1) < a(:, 2).' & on + win(2) > a(:, 1).', 2);
+                touch = EphysDataset.overlapsIntervals(on + win(1), on + win(2), D.artifacts);
                 idx = idx(~touch);
                 on = on(~touch);
             end
@@ -147,7 +155,7 @@ if ~isempty(S) && any(arrayfun(@(D) ~isempty(D.signal) || ~isempty(D.spikes), S)
             cx = ChronuxDataset(SpikeFs=opts.spikeFs, Tapers=opts.tapers, Pad=opts.pad, Fpass=opts.fpass, Err=opts.err);
             c.units = D.units;
             c.labels = string(D.units.label).';
-            [c.sp, c.params, c.t] = cx.spikes(Times=D.spikes, TimeRange=[0 D.durationSec]);
+            [c.sp, c.params, c.t] = cx.spikes(Times=D.spikes, TimeRange=[0 dur]);
             if ~isempty(idx)
                 c.trials = cell(1, numel(c.sp));
                 for u = 1:numel(c.sp)

@@ -17,7 +17,7 @@ shared builders that arrange the browser's data along the probe:
 | Builder | Input | Gives |
 | --- | --- | --- |
 | [`epochMatrixCSD`](../analysis/epochMatrixCSD.m) | `B.Result` of a signal with *Keep single trials* | the evoked potential of each group per shank profile, plus every epoch |
-| [`sessionDataCSD`](../analysis/sessionDataCSD.m) | `B.Sessions` of a signal (*Load whole sessions*) | the whole signal per shank profile and, with `Window=`, the kept trials cut and averaged per group |
+| [`sessionDataCSD`](../analysis/sessionDataCSD.m) | `B.Sessions` of a signal (*Load whole recordings*) | the whole signal per shank profile and, with `Window=`, the kept trials cut and averaged per group |
 
 Underneath, [`laminarColumns`](../analysis/laminarColumns.m) turns a channel
 table (`R.rows`, `D.channels`, `selectChannels`' META) into the profiles.
@@ -75,14 +75,22 @@ and step), `B0`, `B1` (the 3-point filter of delta and standard) and `Vaknin`.
 default); it matters only with two layers (`CondTop` ≠ `Cond`), and `z` stays
 relative to the top channel.
 
-Delta and step need equally spaced channels (`icsdEstimate:NotUniform`
+Delta, step and standard need equally spaced channels (`icsdEstimate:NotUniform`
 otherwise: the toolbox's delta forward matrix is built from the first spacing
-alone); spline takes any spacing and standard uses the mean. The spline's
+alone, and the second difference assumes one spacing); spline takes any spacing. The spline's
 imaginary top node sits at the surface, so `Surface` must be positive for it
 (`icsdEstimate:Surface`). One toolbox property to know: its Gaussian smoothing
 (spline and step) reports the smoothed profile one grid step shallower than
 the unsmoothed one, as CSDplotter 1.0.0 does; with spline's 50 points over a
 16-channel, 0.1 mm shank that is about 0.035 mm. `GaussSigma=0` avoids it.
+
+The methods agree in amplitude, which the units pin down (positions go to the
+toolbox in mm, `Diam` and `GaussSigma` in m, the CSD comes back in A/m³): on a
+Gaussian bump of potential (1 mV, width 0.2 mm, channels 0.1 mm apart) spline,
+delta and step give the same peak, 13.4 µA/mm³, within 1%, and the standard
+method without smoothing (`B1=0`) 11.1 µA/mm³, because it assumes sheets of
+infinite extent while the others model a column of `Diam` 0.5 mm. Widen the
+column (`Diam=5e-3`) and delta meets the standard method within 0.2%.
 
 ## kcsdEstimate
 
@@ -102,7 +110,16 @@ grid bounds, `Lambda` and `SrcType`. `Lambdas` and `Rs` cross-validate (kCSD's
 `CrossValidate=true` does so with kCSD's defaults; `LCurve=true` picks by its
 L-curve instead. `info` holds `lambd` and `R` as used, `nSources`, `potEst`
 (the potentials the estimate reproduces at the channels, V, a fit check), the
-cross-validation table (`cv.errors` `[nRs x nLambdas]`) and the Python used.
+cross-validation table (`cv.errors` `[nRs x nLambdas]`), the Python used and
+`seconds`, the profile's own time in kCSD.
+
+Several profiles (a shank each) go through **one Python run**: give `pos` and
+`pots` as cell arrays of the same size and `csd`, `G` and `info` come back as
+cell arrays, so Python starts and imports kcsd once, not once per profile. The
+options apply to all of them; `PerProfile`, a struct array with an element per
+profile whose fields are option names (`Rs`, `RInit`, ...), sets them for one
+profile (a basis width per channel spacing, say). The browser script does this
+for all the profiles of the epochs and the sessions together.
 
 The arrays go to Python and back as `.npz` files (`writeNPZ`, `readNPZ`) in a
 temporary folder; `kcsd_estimate.py` beside `kcsdEstimate.m` runs the
@@ -145,8 +162,10 @@ depth axis runs down.
 `test_CSDEstimate` checks `laminarColumns`, the two builders on made-up data,
 and the estimators on known potentials (the standard iCSD recovers the
 constant CSD of a quadratic potential; every method and kCSD put a Gaussian
-bump's source at its center; pages are linear; cross-validation tables; a
-2-D layout; every error). The iCSD section runs when the toolbox is on the
+bump's source at its center; spline, delta, step and standard agree on its
+amplitude within 30%, delta with a wide column meets standard within 2%;
+pages are linear; cross-validation tables; a 2-D layout; several profiles in
+one Python run equal their own runs; every error). The iCSD section runs when the toolbox is on the
 path or at `c:\src\iCSD`, the kCSD section when a Python with kcsd is found.
 `test_DatasetBrowser`'s `csdOfEpochsAndSessions` checks the builders on the
 analysis fixture: the epochs' and the whole sessions' evoked potentials

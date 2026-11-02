@@ -230,10 +230,16 @@ The script:
 2. Writes `~<name>.partial.nwb` next to the target with `NWBHDF5IO`.
 3. Runs `nwbinspector.inspect_nwbfile` on it, which includes pynwb's
    validation, unless `inspect` is false.
-4. Renames the file into place and writes `nwb_status.json`:
-   `{"state": "done", "file", "inspector": [messages], "versions"}`, or
+4. Renames the file into place, reopens it with pynwb and compares its units
+   with the staged arrays (the number of units, of spike times, and a SHA-256
+   of the spike times as little-endian float64), and writes `nwb_status.json`:
+   `{"state": "done", "file", "inspector": [messages], "verified": {"state",
+   "message", "units", "spikes", "sha256"}, "versions"}`, or
    `{"state": "error", "message", "traceback", "versions"}` after removing
-   the partial file. Its last line is `NWB_EXPORT_DONE` or
+   the partial file. `verified.state` is `verified`, `mismatch` (the file is not
+   what was staged: `exportNWB` raises `EphysDataset:exportNWB:Mismatch`) or
+   `unchecked` (the file could not be read back here: reported, never fatal;
+   `exportNWB` warns). Its last line is `NWB_EXPORT_DONE` or
    `NWB_EXPORT_ERROR`.
 
 Nothing is converted. Each signal keeps its dtype (float32 µV) with

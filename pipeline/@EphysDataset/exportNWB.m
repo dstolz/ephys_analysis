@@ -64,7 +64,12 @@ function out = exportNWB(obj, opts)
 %   held: writeNPZ) and one signal_<SIG>.npy per signal. nwb_export.py (next to
 %   this file) then runs in Python. pynwb builds the file, written as
 %   "~<name>.partial.nwb" and renamed when complete, and nwbinspector checks
-%   it: pynwb's schema validation and the NWB best practices. The staging
+%   it: pynwb's schema validation and the NWB best practices. The finished
+%   file is then reopened with pynwb and its units compared with the
+%   staged arrays (their number, the number of spike times and a SHA-256 of
+%   the spike times): OUT.verified is "verified", or "unchecked" with a
+%   warning (EphysDataset:exportNWB:Unchecked) when the file could not be
+%   read back here, and a difference is an error (:Mismatch). The staging
 %   folder needs as much disk as the signals and is deleted afterwards
 %   (KeepStaging=true keeps it). It needs a Python with pynwb and
 %   nwbinspector (pipeline/INSTALL.md); no MATLAB toolbox.
@@ -118,7 +123,9 @@ function out = exportNWB(obj, opts)
 %   OUT: file, bytes, seconds, signals, nElectrodes, nUnits, nTrials,
 %   nTrialsLeftOut, trialColumnsLeftOut, nEventLines, sessionStartTime,
 %   inspector (table: importance, check, message, objectType, objectName,
-%   location; none without Inspect), inspectorFile, versions (Python's
+%   location; none without Inspect), inspectorFile, verified ("verified" |
+%   "unchecked") and verifiedMessage (what was compared, or why it could
+%   not be), versions (Python's
 %   packages), sources, command, stage (the staging folder when kept). The nwbinspector findings are written to
 %   <name>_nwbinspector.json next to the file. Those of importance ERROR,
 %   PYNWB_VALIDATION or CRITICAL warn (EphysDataset:exportNWB:Inspector).
@@ -127,7 +134,8 @@ function out = exportNWB(obj, opts)
 %
 %   Errors: EphysDataset:exportNWB:Exists, :NoPython, :ScriptMissing,
 %   :NoStartTime, :BadTimeZone, :NoBehavior, :Python (the driver failed:
-%   its message), and resolveExportInputs'.
+%   its message), :Mismatch (the file read back differs from what was
+%   staged; it is left in place), and resolveExportInputs'.
 %
 %   ds.Processing.nwb records how the file was made (every option, the
 %   inputs read, the probe, the Python packages) for the manifest's
@@ -533,6 +541,21 @@ if string(R.state) ~= "done"
     error('EphysDataset:exportNWB:Python', 'nwb_export.py failed: %s\n%s', string(R.message), tb);
 end
 
+% --- the script's check: the finished file reopened, its units against the staged ones ------------
+verified = "unchecked";
+verifiedMessage = "nwb_export.py reported no check of the file";
+if isfield(R, 'verified') && isstruct(R.verified)
+    verified = string(R.verified.state);
+    verifiedMessage = string(R.verified.message);
+end
+if verified == "mismatch"
+    error('EphysDataset:exportNWB:Mismatch', ...
+        '%s was written but does not hold what was staged: %s. The file is left in place to look at; do not use it.', ...
+        file, verifiedMessage);
+elseif verified ~= "verified"
+    warning('EphysDataset:exportNWB:Unchecked', '%s was written but not checked by reading it back: %s', file, verifiedMessage);
+end
+
 % --- the inspector's findings ---------------------------------------------------------------------
 I = inspectorTable(R);
 inspectorFile = "";
@@ -556,6 +579,7 @@ out = struct('file', string(file), 'bytes', d.bytes, 'seconds', toc(t0), 'signal
     'nElectrodes', nE, 'nUnits', nU, 'nTrials', 0, 'nTrialsLeftOut', nTrialsLeft, ...
     'trialColumnsLeftOut', colsLeftOut, 'nEventLines', numel(events), ...
     'sessionStartTime', session.start_time, 'inspector', I, 'inspectorFile', inspectorFile, ...
+    'verified', verified, 'verifiedMessage', verifiedMessage, ...
     'versions', R.versions, 'sources', sources, 'command', string(command), 'stage', "");
 if opts.KeepStaging; out.stage = string(stage); end
 if ~isempty(trials); out.nTrials = trials.count; end

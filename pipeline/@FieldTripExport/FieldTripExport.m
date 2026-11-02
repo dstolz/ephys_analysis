@@ -311,22 +311,26 @@ classdef FieldTripExport
             ev = struct('type', {}, 'sample', {}, 'value', {}, 'offset', {}, 'duration', {});
             if isempty(events); return; end
             fn = fieldnames(events);
+            type = cell(numel(fn), 1);          % one piece per line, joined once (no growing struct array)
+            sample = cell(numel(fn), 1);
+            dur = cell(numel(fn), 1);
             for k = 1:numel(fn)
                 iv = events.(fn{k});
                 if isempty(iv); continue; end
                 iv = double(iv);
                 if isvector(iv) && numel(iv) == 2; iv = iv(:).'; end
-                for r = 1:size(iv, 1)
-                    s = round((iv(r, 1) - 1 / opts.EventFs) * Fs) + 1;
-                    d = round((iv(r, 2) - iv(r, 1)) * Fs) + 1;
-                    ev(end+1) = struct('type', fn{k}, 'sample', s, 'value', 1, ...
-                        'offset', 0, 'duration', d); %#ok<AGROW>
-                end
+                sample{k} = round((iv(:, 1) - 1 / opts.EventFs) * Fs) + 1;
+                dur{k} = round((iv(:, 2) - iv(:, 1)) * Fs) + 1;
+                type{k} = repmat(fn(k), size(iv, 1), 1);
             end
-            if ~isempty(ev)
-                [~, ix] = sort([ev.sample]);
-                ev = ev(ix);
-            end
+            type = vertcat(type{:});
+            if isempty(type); return; end
+            sample = vertcat(sample{:});
+            dur = vertcat(dur{:});
+            [~, ix] = sort(sample);             % by sample; a tie keeps the line order
+            n = numel(ix);
+            ev = struct('type', type(ix).', 'sample', num2cell(sample(ix).'), 'value', num2cell(ones(1, n)), ...
+                'offset', num2cell(zeros(1, n)), 'duration', num2cell(dur(ix).'));
         end
 
         function art = artifact(intervals, data)

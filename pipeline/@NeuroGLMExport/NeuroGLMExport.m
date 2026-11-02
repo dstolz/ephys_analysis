@@ -23,6 +23,9 @@ classdef NeuroGLMExport
     %                   prior)                -> F (weights, kernels,
     %                   bits per spike, dm, y)
     %     predict       the model's rate on any trials, per trial
+    %     split         the trials to fit and the trials to hold out: a block
+    %                   of consecutive trials, never one overlapping a fitted
+    %                   trial (splitTrials)
     %   sessionDataNeuroGLM (analysis/) feeds experiment from a sessionData
     %   struct (DatasetBrowser's B.Sessions).
     %
@@ -51,7 +54,12 @@ classdef NeuroGLMExport
     %   - Continuous signals are resampled to the bin rate (1000 / BinMs Hz,
     %     resample of the Signal Processing Toolbox when the rates differ)
     %     and cut so that row k of a trial is the bin starting at
-    %     (k-1) * BinMs; trials running off a signal are dropped.
+    %     (k-1) * BinMs; trials running off a signal are dropped. With a
+    %     continuous signal each trial's start is snapped once to that bin
+    %     grid, round(start * fsBin) / fsBin (fsBin = 1000 / BinMs Hz), so
+    %     the spikes and events are binned from the same edge as the
+    %     signal's rows (else they would sit up to half a bin apart); the
+    %     snapped span is expt.trial(k).span. Without one the start is kept.
     %   - Variable labels are MATLAB field names (matlab.lang.makeValidName,
     %     made unique); the callers keep the original names in expt.param.
     %
@@ -85,7 +93,8 @@ classdef NeuroGLMExport
             %   keep marks the rows of spans that became trials (a trial is
             %   dropped only when a continuous signal does not cover it, or
             %   its duration is shorter than one bin). expt.trial(k) also
-            %   carries span (its [start stop] s on the continuous clock).
+            %   carries span (its [start stop] s on the continuous clock; the
+            %   start snapped to the bin grid when Continuous is given).
             arguments
                 spans (:,2) double
                 opts.BinMs (1,1) double {mustBePositive} = 1
@@ -143,27 +152,40 @@ classdef NeuroGLMExport
                 expt = buildGLM.registerContinuous(expt, char(lab), desc(lab), size(x, 2));
             end
 
-            % the trials
+            % the trials: with a continuous signal each start is snapped to the bin grid
+            % (round(t0 * fsBin) / fsBin) once, here, because the signal's rows are bins on that
+            % grid and the spikes and events must be binned from the same edge (otherwise up to
+            % half a bin apart); the duration is the span's, in whole bins, wherever the start goes
+            t0s = spans(:, 1);
+            if ~isempty(contLabels); t0s = round(t0s * fsBin) / fsBin; end
+            nBinsAll = floor((spans(:, 2) - spans(:, 1)) * 1000 / binMs + 1e-9);
+            tEnds = t0s + nBinsAll * binMs / 1000;            % s, exclusive
+            % spike trains and events are sorted once; each trial's rows are found by binary
+            % search (discretize), not by testing every time against every trial
+            timed = struct();
+            for lab = spikeLabels; timed.(lab) = NeuroGLMExport.windowRows(opts.Spikes.(lab), t0s, tEnds); end
+            for lab = eventLabels; timed.(lab) = NeuroGLMExport.windowRows(opts.Events.(lab), t0s, tEnds); end
             keep = true(n, 1);
             trials = cell(n, 1);
             for k = 1:n
-                t0 = spans(k, 1); t1 = spans(k, 2);
-                nBins = floor((t1 - t0) * 1000 / binMs + 1e-9);
-                if nBins < 1; keep(k) = false; continue; end
+                t0 = t0s(k); tEnd = tEnds(k);
+                nBins = nBinsAll(k);
+                if ~(nBins >= 1); keep(k) = false; continue; end
                 dur = nBins * binMs;                      % ms
-                tEnd = t0 + dur / 1000;                   % s, exclusive
                 tr = buildGLM.newTrial(expt, dur);
                 tr = rmfield(tr, 'expt');
                 tr.span = [t0 tEnd];
-                for lab = spikeLabels
-                    st = double(opts.Spikes.(lab)(:));
-                    st = st(st >= t0 & st < tEnd);
-                    tr.(lab) = sort((st - t0) * 1000);
-                end
-                for lab = eventLabels
-                    et = double(opts.Events.(lab)(:));
-                    et = et(et >= t0 & et < tEnd);
-                    tr.(lab) = sort((et - t0) * 1000);
+                % neuroGLM bins a time by ceil(t / binSize): a time on a bin
+                % edge (the trial's own event at -pre, a spike on the sample
+                % grid) would fall in either neighbor with floating-point
+                % noise, so times are rounded to 1 ns and nudged by 1 ns into
+                % the bin that starts there, as binCounts bins them. The rows
+                % found are a superset (1 us margin); this keeps [0, dur).
+                for lab = [spikeLabels eventLabels]
+                    w = timed.(lab);
+                    rel = round((w.times(w.first(k):w.last(k)) - t0) * 1e9);   % ns from the start, sorted
+                    rel = rel(rel >= 0 & rel < round(dur * 1e6));
+                    tr.(lab) = rel / 1e6 + 1e-6;
                 end
                 for lab = valueLabels
                     v = opts.Values.(lab)(k, :);
@@ -494,7 +516,7 @@ classdef NeuroGLMExport
             F.kernels = buildGLM.combineWeights(dm, F.w);
             v = buildGLM.combineWeights(dm, F.se .^ 2);
             for f = string(fieldnames(v)).'
-                if isstruct(v.(f)); v.(f).data = sqrt(max(v.(f).data, 0)); end
+                if isstruct(v.(f)); v.(f).data = sqrt(max(v.(f).data, 0, 'includenan')); end   % an unknown SE stays NaN, not 0
             end
             F.kernelSE = v;
             eta = F.bias + X * F.w;
@@ -504,7 +526,7 @@ classdef NeuroGLMExport
             F.nSpikes = sum(yf);
             F.logLik = sum(yf .* eta - lambda - gammaln(yf + 1));   % y*log(lambda) through eta: no 0*(-Inf)
             mu = mean(yf);
-            F.logLikNull = sum(yf .* log(mu) - mu - gammaln(yf + 1));
+            F.logLikNull = sum(yf) * log(max(mu, realmin)) - numel(yf) * mu - sum(gammaln(yf + 1));   % no 0 * log(0) when the fold has no spike
             pos = yf > 0;
             logLikSat = sum(yf(pos) .* log(yf(pos)) - yf(pos) - gammaln(yf(pos) + 1));
             F.deviance = 2 * (logLikSat - F.logLik);
@@ -545,8 +567,45 @@ classdef NeuroGLMExport
             end
             P.logLik = sum(y .* eta - lambda - gammaln(y + 1));
             mu = mean(y);
-            P.logLikNull = sum(y .* log(mu) - mu - gammaln(y + 1));
+            P.logLikNull = sum(y) * log(max(mu, realmin)) - numel(y) * mu - sum(gammaln(y + 1));   % no 0 * log(0) when the fold has no spike
             P.bitsPerSpike = (P.logLik - P.logLikNull) / max(sum(y), 1) / log(2);
+        end
+
+        function [train, test] = split(expt, opts)
+            %split  The trials to fit and the trials to test on: a block of consecutive trials held out.
+            %   [TRAIN, TEST] = NeuroGLMExport.split(expt, TestFraction=0.2)
+            %   returns the indices into expt.trial of the trials to fit
+            %   and of those to predict (fit's Trials, predict's trials),
+            %   by splitTrials on the trials' spans: the held-out trials
+            %   are the last block of the session holding about TestFraction
+            %   of them, not trials picked from all over it, because trials
+            %   next to each other share drift and spike history, and
+            %   trials whose spans overlap are never split between the
+            %   two (Blocked=false picks groups at random instead, with Seed).
+            %   TestFraction 0 holds nothing out: TEST is TRAIN. So it is
+            %   for a single trial, or trials that all overlap, with the
+            %   warning NeuroGLMExport:NoHoldOut.
+            arguments
+                expt (1,1) struct
+                opts.TestFraction (1,1) double {mustBeNonnegative, mustBeLessThan(opts.TestFraction, 1)} = 0.2
+                opts.Blocked (1,1) logical = true
+                opts.Seed (1,1) double = 0
+            end
+            n = numel(expt.trial);
+            train = 1:n;
+            test = train;
+            if opts.TestFraction == 0; return; end
+            try
+                S = splitTrials(reshape([expt.trial.span], 2, []).', TestFraction=opts.TestFraction, ...
+                    Blocked=opts.Blocked, Seed=opts.Seed);
+            catch ME
+                if ~strcmp(ME.identifier, 'splitTrials:OneGroup'); rethrow(ME); end
+                warning('NeuroGLMExport:NoHoldOut', 'Nothing to hold out (%s): the model is tested on the trials it was fitted on.', ...
+                    strtrim(ME.message));
+                return
+            end
+            train = reshape(find(S.fold == 1), 1, []);
+            test = reshape(find(S.fold == 2), 1, []);
         end
 
         function fits = fitUnits(expt, units, opts)
@@ -744,6 +803,25 @@ classdef NeuroGLMExport
     end
 
     methods (Static, Access = private)
+        function w = windowRows(times, t0, tEnd)
+            %windowRows  A time vector sorted, and for each window [t0, tEnd) the rows that hold it.
+            %   W = NeuroGLMExport.windowRows(TIMES, T0, TEND): W.times the
+            %   finite TIMES in order, W.first(k):W.last(k) the rows of
+            %   window k with 1 us to spare either side (exclusive tests
+            %   on the rounded times follow); found with discretize on the
+            %   distinct times, whatever the number of windows.
+            s = sort(double(times(:)));
+            s = s(isfinite(s));
+            [u, last] = unique(s, 'last');
+            count = [0; last(:)];                       % count(j): rows at or before the (j-1)th distinct time
+            edges = [-Inf; u(:); Inf];
+            m = 1e-6;
+            w = struct('times', s, 'first', ones(size(t0)), 'last', zeros(size(t0)));
+            ok = isfinite(t0) & isfinite(tEnd);
+            w.first(ok) = count(discretize(t0(ok) - m, edges)) + 1;
+            w.last(ok) = count(discretize(tEnd(ok) + m, edges));
+        end
+
         function reportFit(opts, nDone, nU, part)
             %reportFit  fitUnits' ProgressFcn and, with a finished unit PART, LogFcn.
             if ~isempty(part) && ~isempty(opts.LogFcn)

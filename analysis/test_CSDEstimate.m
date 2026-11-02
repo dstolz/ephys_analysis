@@ -178,6 +178,24 @@ else
         check(isequal(size(csd2), [numel(zs) 100 2]) && max(abs(csd2(:, :, 2) - 2 * csd2(:, :, 1)), [], 'all') < 1e-9 * max(abs(csd2(:))), ...
             sprintf('%s: pages estimated at once, linear', m));
     end
+    % amplitude: positions go to the toolbox in mm, Diam and GaussSigma in m, the CSD comes back in A/m^3.
+    % spline, delta and step model one source (a column of Diam 0.5 mm) and agree on the bump's peak;
+    % "standard" assumes sheets of infinite extent, which with no smoothing (B1 = 0) is what the
+    % column approaches as Diam grows. A unit slip anywhere (mm for m, A for uA) breaks these ratios.
+    pk = struct();
+    for m = ["spline" "delta" "step"]
+        c = icsdEstimate(pots, depth, Method=m);
+        pk.(m) = max(c(:, 1));
+    end
+    c = icsdEstimate(pots, depth, Method="standard", B1=0);
+    pk.standard = max(c(:, 1));
+    p = [pk.spline pk.delta pk.step pk.standard];
+    check(max(p) / min(p) < 1.3 && max(p(1:3)) / min(p(1:3)) < 1.05, ...
+        sprintf('spline, delta, step and standard agree on the peak amplitude within 30%% (%.3g, %.3g, %.3g, %.3g uA/mm^3)', p));
+    cD = icsdEstimate(pots, depth, Method="delta", B1=0, Diam=5e-3);       % a 5 mm column: nearly infinite sheets
+    check(abs(max(cD(:, 1)) / pk.standard - 1) < 0.02, ...
+        sprintf('delta with a 5 mm column and the standard method agree within 2%% (%.4g, %.4g uA/mm^3)', max(cD(:, 1)), pk.standard));
+    check(pk.standard > 5 && pk.standard < 20, 'the peak is of the size -cond * d2V/dz2 of the bump (15 uA/mm^3 for sheets, sampled 0.1 mm apart)');
     csdN = icsdEstimate(cat(3, pots, NaN(size(pots))), depth, Method="delta");
     check(all(isnan(csdN(:, :, 2)), 'all') && all(isfinite(csdN(:, :, 1)), 'all'), 'an all-NaN page (a group without epochs) stays NaN, the rest estimated');
     check(strcmp(errorId(@() icsdEstimate(NaN(size(pots)), depth)), 'icsdEstimate:NoData'), 'nothing finite: icsdEstimate:NoData');
@@ -233,6 +251,20 @@ if pyOk
     [csd3, G3] = kcsdEstimate(pos2, bump2, RInit=0.15, Lambda=0, Gdx=0.025, Gdy=0.05);
     check(isequal(size(csd3), [numel(G3.x) numel(G3.y) 10]) && numel(G3.x) == 3 && numel(G3.y) == 15 && all(isfinite(csd3), 'all'), ...
         'KCSD2D on [x depth] positions: [nX x nY x nTime]');
+    % several profiles in one Python run: cell arrays in and out, options per profile
+    [csd1, G1, info1] = kcsdEstimate(depth, pots, RInit=0.2, Lambda=0, Gdx=0.05);
+    [csdB, GB, infoB] = kcsdEstimate({depth, pos2, depth(1:12)}, {pots, bump2, pots(1:12, 1:10)}, Lambda=0, Gdx=0.05, Gdy=0.05, ...
+        PerProfile=struct('RInit', {0.2; 0.15; 0.25}));
+    check(iscell(csdB) && isequal(size(csdB), [1 3]) && iscell(GB) && iscell(infoB) && isequal(size(csdB{1}), size(csd1)) ...
+        && max(abs(csdB{1} - csd1), [], 'all') < 1e-9 * max(abs(csd1(:))) && isequal(GB{1}.x, G1.x) && infoB{1}.R == info1.R, ...
+        'a cell of profiles in one Python run: the first equals its own run');
+    check(isequal(size(csdB{2}), [numel(GB{2}.x) numel(GB{2}.y) 10]) && isequal(size(csdB{3}), [numel(GB{3}.x) 10]) ...
+        && isequal([infoB{1}.R infoB{2}.R infoB{3}.R], [0.2 0.15 0.25]) && all(isfinite(csdB{3}), 'all'), ...
+        'a 1-D, a 2-D and a shorter profile together; PerProfile gives each its own R');
+    check(strcmp(errorId(@() kcsdEstimate({depth, depth}, {pots})), 'kcsdEstimate:Size') ...
+        && strcmp(errorId(@() kcsdEstimate({depth}, {pots}, PerProfile=struct('Nope', {1}))), 'kcsdEstimate:BadOption') ...
+        && strcmp(errorId(@() kcsdEstimate({depth, depth}, {pots, pots}, PerProfile=struct('RInit', {0.2}))), 'kcsdEstimate:Size'), ...
+        'cells of different sizes, a PerProfile field that is not an option, or too few elements: refused');
     check(strcmp(errorId(@() kcsdEstimate(depth(1:15), pots)), 'kcsdEstimate:Size'), 'rows and positions differ: kcsdEstimate:Size');
     check(strcmp(errorId(@() kcsdEstimate(rand(16, 3), pots)), 'kcsdEstimate:Dim'), 'three columns: kcsdEstimate:Dim');
     check(strcmp(errorId(@() kcsdEstimate(depth, pots, Python="no_such_python.exe")), 'kcsdEstimate:NoPython'), ...

@@ -112,8 +112,8 @@ nDroppedEdge = nnz(~inside);
 idx = idx(inside); start = start(inside); stop = stop(inside);
 nDroppedArtifact = 0;
 if opts.DropArtifacts && ~isempty(D.artifacts)
-    a = D.artifacts;
-    touch = any(start < a(:, 2).' & stop > a(:, 1).', 2);
+    % the span is [start, stop); overlapsIntervals takes closed windows, so stop less two of its 1 ns tolerances
+    touch = EphysDataset.overlapsIntervals(start, stop - 2e-9, D.artifacts);
     nDroppedArtifact = nnz(touch);
     idx = idx(~touch); start = start(~touch); stop = stop(~touch);
 end

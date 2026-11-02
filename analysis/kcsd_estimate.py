@@ -2,39 +2,34 @@
 
     python kcsd_estimate.py <in.npz> <out.npz>
 
-in.npz holds ele_pos [n x dim] (mm), pots [n x nTime] (mV) and params, a
-JSON string: the estimator's keyword arguments (sigma, h, n_src_init,
-R_init, gdx, gdy, ext_x, ext_y, xmin, xmax, ymin, ymax, lambd, src_type),
-plus "cv_lambdas" / "cv_Rs" (arrays: cross-validate over them when
-either is given), "l_curve" (true: pick lambda and R by the L-curve over
-the same arrays) and "source_path" (a folder to import kcsd from, when it
-is not installed). out.npz gets csd (ngx x nTime, or ngx x ngy x nTime),
-estm_x, estm_y, lambd, R, pot_est (the fitted potentials at the
-electrodes), and with a cross-validation cv_lambdas, cv_Rs and cv_errors
-[nRs x nLambdas]. Failures print "KCSD_ERROR: <message>" and exit 1.
+One run takes any number of profiles ("jobs"), so a session's shanks cost one
+Python start, not one each. in.npz holds n_jobs and, for job i = 1 .. n_jobs,
+ele_pos_i [n x dim] (mm), pots_i [n x nTime] (mV) and params_i, a JSON
+string: the estimator's keyword arguments (sigma, h, n_src_init, R_init, gdx,
+gdy, ext_x, ext_y, xmin, xmax, ymin, ymax, lambd, src_type), plus
+"cv_lambdas" / "cv_Rs" (arrays: cross-validate over them when either is
+given), "l_curve" (true: pick lambda and R by the L-curve over the same
+arrays) and "source_path" (a folder to import kcsd from, when it is not
+installed). out.npz gets, for each job i, csd_i (ngx x nTime, or ngx x ngy x
+nTime), estm_x_i, estm_y_i, lambd_i, R_i, pot_est_i (the fitted potentials
+at the electrodes), n_src_i, seconds_i (the job's time here), and with a
+cross-validation cv_lambdas_i, cv_Rs_i and cv_errors_i [nRs x nLambdas].
+A failure prints "KCSD_ERROR: <message>" (naming the job) and exits 1; a
+good run ends with "KCSD_OK".
 
 kCSD-python's validation module still imports scipy.integrate.simps, gone
 in SciPy 1.14: the alias is put back before the import.
 """
 import json
 import sys
+import time
 import traceback
 
 
-def main(src, dst):
-    import numpy as np
-    d = np.load(src)
-    params = json.loads(str(d["params"]))
-    source_path = params.pop("source_path", "")
-    if source_path:
-        sys.path.insert(0, source_path)
-    import scipy.integrate
-    if not hasattr(scipy.integrate, "simps"):
-        scipy.integrate.simps = scipy.integrate.simpson
-    from kcsd import KCSD1D, KCSD2D
-
-    ele_pos = np.asarray(d["ele_pos"], dtype=float)
-    pots = np.asarray(d["pots"], dtype=float)
+def estimate(np, KCSD1D, KCSD2D, ele_pos, pots, params):
+    """One profile: the arrays of out.npz for it (without the job number)."""
+    ele_pos = np.asarray(ele_pos, dtype=float)
+    pots = np.asarray(pots, dtype=float)
     if ele_pos.ndim == 1:
         ele_pos = ele_pos.reshape(-1, 1)
     if pots.ndim == 1:
@@ -93,8 +88,37 @@ def main(src, dst):
     beta = np.linalg.solve(kernel, k.pots)
     out["pot_est"] = np.asarray(k.k_pot @ beta, dtype=float)
     out["n_src"] = int(k.n_src)
+    return out
+
+
+def main(src, dst):
+    import numpy as np
+    d = np.load(src)
+    n_jobs = int(d["n_jobs"])
+    params = [json.loads(str(d["params_%d" % i])) for i in range(1, n_jobs + 1)]
+    source_path = ""
+    for p in params:
+        source_path = p.pop("source_path", "") or source_path
+    if source_path:
+        sys.path.insert(0, source_path)
+    import scipy.integrate
+    if not hasattr(scipy.integrate, "simps"):
+        scipy.integrate.simps = scipy.integrate.simpson
+    from kcsd import KCSD1D, KCSD2D
+
+    out = {}
+    for i in range(1, n_jobs + 1):
+        t = time.perf_counter()
+        try:
+            res = estimate(np, KCSD1D, KCSD2D, d["ele_pos_%d" % i], d["pots_%d" % i], params[i - 1])
+        except Exception as exc:   # noqa: BLE001 - say which profile failed
+            raise RuntimeError("profile %d of %d: %s: %s" % (i, n_jobs, type(exc).__name__, exc)) from exc
+        res["seconds"] = time.perf_counter() - t
+        for name, value in res.items():
+            out["%s_%d" % (name, i)] = value
+        print("KCSD_JOB %d lambd=%g R=%g n_src=%d" % (i, res["lambd"], res["R"], res["n_src"]))
     np.savez(dst, **out)
-    print("KCSD_OK lambd=%g R=%g n_src=%d" % (k.lambd, k.R, k.n_src))
+    print("KCSD_OK jobs=%d" % n_jobs)
 
 
 if __name__ == "__main__":

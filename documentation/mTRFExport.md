@@ -10,7 +10,8 @@ Stimuli*, Front Hum Neurosci 10:604,
 Nothing here reads a recording or calls the toolbox; the toolbox is only
 needed to fit and plot models (`mTRFtrain`, `mTRFcrossval`, `mTRFpredict`,
 `mTRFplot`). The Signal Processing Toolbox is needed (`resample`, `envelope`,
-`hilbert`).
+`hilbert`), and the Image Processing Toolbox (`padarray`, which mirrors a
+signal past its ends before `resample`).
 
 mTRF, [FieldTrip](FieldTripExport.md) and [Chronux](ChronuxDataset.md) are
 separate toolboxes with separate connectors. They take the same neutral inputs
@@ -27,6 +28,17 @@ reconstructs the stimulus from the response. The ridge `lambda` is picked by
 leave-one-trial-out cross-validation (`mTRFcrossval`: the correlation between
 the prediction and the data on the left-out trial, per `lambda`); `mTRFtrain`
 fits the final model and `mTRFpredict` tests it on held-out trials.
+
+Leaving one trial out only tests honestly when the trials share nothing.
+Trials whose windows overlap (events closer together than the window is long)
+contain the same samples, and trials next to each other share slow drift, so
+a left-out trial that overlaps the ones trained on is predicted too well.
+[`mTRFExport.folds`](#static-functions) regroups a package's trials into
+cross-validation folds with
+[`splitTrials`](../analysis/splitTrials.m): blocks of consecutive trials, and
+trials that overlap always in the same fold. The packages warn
+(`mTRFExport:Overlap`) when their trials overlap, and the post-processing
+script cross-validates over folds (`opts.folds`).
 
 The toolbox takes
 
@@ -47,13 +59,15 @@ event by default.
 
 | Call | Returns |
 | --- | --- |
-| `[Y, fs] = mTRFExport.resample(X, FsIn, FsOut)` | `X` (`[nSamples x nVar]`, row `k` at `(k-1)/FsIn`) at `fs = FsIn·p/q` for `[p, q] = rat(FsOut/FsIn)` (exact for the usual pairs, 2000 → 128 among them), by the Signal Processing Toolbox's `resample`: `t = 0` stays on the first sample, `Y` is double with `ceil(nSamples·p/q)` rows. Pass the `fs` it returns to the toolbox |
+| `[Y, fs] = mTRFExport.resample(X, FsIn, FsOut)` | `X` (`[nSamples x nVar]`, row `k` at `(k-1)/FsIn`) at `fs = FsIn·p/q` for `[p, q] = rat(FsOut/FsIn)` (exact for the usual pairs, 2000 → 128 among them), by the Signal Processing Toolbox's `resample`: `t = 0` stays on the first sample, `Y` is double with `ceil(nSamples·p/q)` rows. Pass the `fs` it returns to the toolbox. `resample` filters against zeros beyond the signal, which pulls its first and last 10 output samples toward 0 (16% of a 1 s epoch at 128 Hz); the signal is therefore mirrored past both ends first (`padarray`, `'symmetric'`, by a multiple of `q` samples so the grid keeps `t = 0`) and the extra output cut away, so a constant stays constant to its ends. Every column is filtered alone, so many epochs can be the columns of one matrix |
 | `[Y, fs] = mTRFExport.envelope(X, FsIn, FsOut, ...)` | the amplitude envelope of each column at `fs`, the stimulus feature the toolbox's examples use for speech and sounds: `Method="rms"` (default) the RMS over a sliding window of `round(FsIn/FsOut)` samples (`envelope(x, n, 'rms')`), as `mTRFenvelope` averages the squares over its frames; `"hilbert"` the magnitude of the analytic signal; then resampled, clipped at 0 and raised to `Compression` (`log10(2)` by default, the loudness compression `mTRFenvelope` applies; `1` for none). Each column is centered first (`Center=true`) |
 | `x = mTRFExport.pulses(iv, Fs, N, ...)` | an `[N x 1]` feature at `Fs` from pulses `iv` (`[k x 2]` `[t_on t_off]` s on the continuous clock, `sessionData`'s `eventsContinuous.<line>`): `Kind="onset"` (default) 1 on each onset's sample `round(t_on·Fs) + 1`; `"offset"` on each end's; `"boxcar"` 1 from the onset's sample to the end's. `Value=` gives each pulse's height (`k` values; NaN is 0), `Height=` a factor on all (`Height=Fs` for unit-area impulses). Pulses off the signal are left out; pulses on one sample add up |
 | `[X, names] = mTRFExport.lines(events, names, Fs, N, ...)` | a column of `pulses` per line of an events struct (`names` `[]` = every line), `Kind=` one for all or one per line, `Height=` on the impulses (a boxcar stays 1) |
-| `[C, keep, t, rows] = mTRFExport.trials(X, Fs, onsets, [pre post], Artifacts=)` | `X` cut around event times (s on the continuous clock) into equal trials, sample `round(onset·Fs) + 1 + round(pre·Fs)` to `round(onset·Fs) + 1 + round(post·Fs)`: the samples `FieldTripExport.epochs` gives the same onset. A cell column of `[nTime x nVar]` double, `keep` marking the onsets kept (a NaN onset, a trial running off the signal or touching an artifact period `[tStart tEnd)` is left out), `t` the sample times from the onset, `rows` each trial's `[first last]` samples |
+| `[C, keep, t, rows] = mTRFExport.trials(X, Fs, onsets, [pre post], Artifacts=)` | `X` cut around event times (s on the continuous clock) into equal trials, sample `round(onset·Fs) + 1 + round(pre·Fs)` to `round(onset·Fs) + 1 + round(post·Fs)`: the samples `FieldTripExport.epochs` gives the same onset. A cell column of `[nTime x nVar]` double, `keep` marking the onsets kept (a NaN onset, a trial running off the signal or touching an artifact period `[tStart tEnd)` is left out), `t` the sample times from the onset, `rows` each trial's `[first last]` samples. A trial touches an artifact period (`EphysDataset.overlapsIntervals`, 1 ns tolerance) when the period overlaps any of the samples' own spans, so one starting where the last sample ends does not. Trials that overlap each other warn (`mTRFExport:Overlap`): use `folds` |
 | `[C, rows] = mTRFExport.segments(X, Fs, Artifacts=, MinSeconds=2, MaxSeconds=Inf)` | `X` cut into its artifact-free stretches (every sample a period touches is out; touching periods merge), the continuous data the toolbox cross-validates over, each cell a fold: stretches shorter than `MinSeconds` are dropped, one longer than `MaxSeconds` is split into the fewest equal pieces no longer than that (`MaxSeconds=60` on a clean 10-minute session: ten 1-minute folds); no piece is ever shorter than `MinSeconds`, so when both cannot hold fewer, longer pieces are cut |
 | `M = mTRFExport.package(stim, resp, Fs, ...)` | the pair checked (same rows in each trial's pair, same columns across trials; `mTRFExport:Mismatch` otherwise) as a struct: `stim`, `resp` (cell columns of double), `fs`, `nTrials`, `nFeatures`, `nChannels`, `stimLabels`, `respLabels` (`StimLabels=`, `RespLabels=`; `f1..`, `ch1..` by default), `stimUnits`, `respUnits`, `pos` (`Positions=`, `[nChannels x 2]` µm, NaN unknown), `start` (`Start=`, each trial's first sample as s on the continuous clock, for putting predictions back), `t` (`Time=`, the sample times of a cut trial from its event), `trialinfo` (`TrialInfo=`, a table or matrix) and `cfg` (`Cfg=` plus `exporter`) |
+| `tf = mTRFExport.overlaps(first, stop)` | which windows `[first, stop)` (seconds, or samples with `stop = last + 1`) start before an earlier one has ended; windows that only touch do not overlap |
+| `F = mTRFExport.folds(M, K, Blocked=true, Seed=0)` | the package `M` with its trials joined into `K` cross-validation folds, one cell of `F.stim` / `F.resp` per fold (`mTRFcrossval` leaves one cell out at a time). [`splitTrials`](../analysis/splitTrials.m) chooses who goes together: blocks of trials consecutive in time (`M.start`) holding about equal numbers of trials, trials whose windows overlap always in one fold. `K = Inf` (default): a fold per group of overlapping trials, so leave-one-trial-out when none overlap. A fold of several trials is their rows one after the other in time order (the toolbox builds lags inside a cell, so the samples after a joint see the trial before: a little noise, no leak between folds). `F.trialFold` is each original trial's fold, `F.trialinfo` lists each fold's trials, `F.cfg.folds` the split; `Blocked=false` deals the groups out at random (`Seed`) |
 | `[t, s] = mTRFExport.lagSamples(tmin, tmax, Fs)` | the lags a model fits (`model.t`): `floor(tmin/1e3·Fs)` to `ceil(tmax/1e3·Fs)` samples, in ms |
 | `mTRFExport.hasMTRF()`, `mTRFExport.requireMTRF()` | is the toolbox on the path; error with an install hint when not |
 
@@ -66,7 +80,7 @@ column:
 | Call | Trials | Response | Stimulus |
 | --- | --- | --- | --- |
 | [`M = epochMatrixMTRF(R, ...)`](../analysis/epochMatrixMTRF.m), `R` an `epochMatrix` result computed with *Keep single trials* | each epoch of `R.epochs` | a signal's epochs (what `R.data` averages, never normalized) resampled to `Fs=` (`[]` = the result's rate); spike epochs (units / detected) binned at `Fs` (128 Hz) as rates, spikes/s (`SpikeUnits="count"`) | `Stimulus="onset"` (default): an impulse of `ImpulseHeight` (`fs`: unit area) on the sample nearest the event, scaled by `Values=` (a function of the epochs table, `@(E) E.groupIndex`, or a vector per dataset in a cell); or a function `f(E(j, :), t)` returning `[nTime x nFeatures]` per epoch |
-| [`M = sessionDataMTRF(D, Stimulus=..., ...)`](../analysis/sessionDataMTRF.m), `D` the `sessionData` structs of *Load whole sessions* (`B.Sessions`) | `Mode="segments"` (default): the artifact-free stretches of the session in pieces of at most `MaxSeconds` (60 s) and at least `MinSeconds` (2 s); `Mode="trials"`: the kept trials cut in `Window=[pre post]` around `Align=` (a trials column, `"TrialOnset"`, or a digital line: every pulse) | the whole signal resampled to `Fs=` (128 Hz), or the spike trains binned as rates | a string array of digital lines (their pulses, `Kind=` `"onset"`, `"offset"`, `"boxcar"` each) and numeric trial columns (an impulse of the trial's value on its `Align` sample, every trial); a struct array of `sessionData` of another signal of the same datasets (AUX: `StimulusChannels=`, `Envelope=true` by default, `EnvelopeMethod=`, `Compression=`); or a function `f(D(k))` returning `struct(x, fs, labels)` at its own rate. Impulses are `ImpulseHeight` tall (`fs`) |
+| [`M = sessionDataMTRF(D, Stimulus=..., ...)`](../analysis/sessionDataMTRF.m), `D` the `sessionData` structs of *Load whole recordings* (`B.Sessions`) | `Mode="segments"` (default): the artifact-free stretches of the session in pieces of at most `MaxSeconds` (60 s) and at least `MinSeconds` (2 s); `Mode="trials"`: the kept trials cut in `Window=[pre post]` around `Align=` (a trials column, `"TrialOnset"`, or a digital line: every pulse) | the whole signal resampled to `Fs=` (128 Hz), or the spike trains binned as rates | a string array of digital lines (their pulses, `Kind=` `"onset"`, `"offset"`, `"boxcar"` each) and numeric trial columns (an impulse of the trial's value on its `Align` sample, every trial); a struct array of `sessionData` of another signal of the same datasets (AUX: `StimulusChannels=`, `Envelope=true` by default, `EnvelopeMethod=`, `Compression=`); or a function `f(D(k))` returning `struct(x, fs, labels)` at its own rate. Impulses are `ImpulseHeight` tall (`fs`) |
 
 A forward model fit on `epochMatrixMTRF`'s `"onset"` stimulus with (almost)
 no ridge is the mean evoked response, lag by lag: the check that the pipeline
@@ -89,14 +103,23 @@ ridge in both directions, trains a TRF and a decoder, tests them on a held-out
 trial, plots the TRFs (per channel, by probe depth, the global field power),
 the cross-validation curves and the held-out trial, and checks the epochs'
 TRF against the evoked mean. Set `opts.mtrfPath` to the toolbox's `mtrf` folder;
-`opts.stimulus`, `kind`, `auxChannel`, `fs`, `tmin`/`tmax`, `lambda` and
-`maxSeconds` are the other fields of `opts` at its top.
+`opts.stimulus`, `kind`, `auxChannel`, `fs`, `tmin`/`tmax`, `lambda`,
+`maxSeconds`, `folds` (the cross-validation folds, `mTRFExport.folds`: `Inf`,
+the default, leaves one trial out and keeps trials that overlap together; a
+number of 3 or more makes blocks of consecutive trials) and `holdOut` (the
+fold the final model is tested on) are the other fields of `opts` at its top.
+Epochs that overlap (`epochMatrixMTRF`: events closer than the window is long)
+warn with `mTRFExport:Overlap`; each dataset's epochs are resampled together,
+mirrored past their ends like every `mTRFExport.resample`.
 
 ## Tests
 
-`test_MTRFExport` (pipeline/) checks the builders on known signals and, with
-the toolbox on the path (or at `c:\src\mTRF-Toolbox\mtrf`), that `mTRFtrain`
-recovers a known kernel from a package of unit-area impulses;
+`test_MTRFExport` (pipeline/) checks the builders on known signals (a constant
+epoch stays constant to its ends under `resample`; `splitTrials` and `folds`:
+blocked folds are contiguous, overlapping trials never straddle two folds) and,
+with the toolbox on the path (or at `c:\src\mTRF-Toolbox\mtrf`), that `mTRFtrain`
+recovers a known kernel from a package of unit-area impulses and `mTRFcrossval`
+runs over folds;
 `test_DatasetBrowser`'s `mtrfOfEpochsAndSessions` checks `epochMatrixMTRF` and
 `sessionDataMTRF` against the browser's epochs, sessions, trials, AUX and
 spikes.

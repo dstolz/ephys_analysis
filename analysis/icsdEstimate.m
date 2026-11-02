@@ -18,8 +18,8 @@ function [csd, z, info] = icsdEstimate(pots, depthMm, opts)
 %                      channels, Gaussian-smoothed, on a fine grid; equal
 %                      spacing required
 %            "standard" the second spatial difference (iCSD_standard, with
-%                      Vaknin's duplicated end channels, the mean spacing),
-%                      3-point smoothed
+%                      Vaknin's duplicated end channels), 3-point smoothed;
+%                      equal spacing required (the difference assumes it)
 %   CSD is [nZ x nTime (x nGroups)] in uA/mm^3 (the toolbox's A/m^3 / 1000),
 %   positive = source, Z the nZ depths, mm below the top channel (the
 %   channels' own for delta and standard; the inner channels for standard
@@ -42,8 +42,8 @@ function [csd, z, info] = icsdEstimate(pots, depthMm, opts)
 %
 %   Errors: icsdEstimate:NoToolbox (iCSD_<method> not on the path),
 %   icsdEstimate:Size (rows of POTS and DEPTH differ), icsdEstimate:Depths
-%   (not ascending), icsdEstimate:NotUniform (Method "step" or "delta" on
-%   unequal spacing), icsdEstimate:Surface (Method "spline" with Surface
+%   (not ascending), icsdEstimate:NotUniform (Method "step", "delta" or
+%   "standard" on unequal spacing), icsdEstimate:Surface (Method "spline" with Surface
 %   <= 0).
 %
 %   See also epochMatrixCSD, sessionDataCSD, kcsdEstimate, laminarColumns.
@@ -79,7 +79,7 @@ end
 steps = diff(depthMm);
 h = median(steps);
 uniform = all(abs(steps - h) <= 0.01 * h);
-if any(method == ["step" "delta"]) && ~uniform
+if any(method == ["step" "delta" "standard"]) && ~uniform
     error('icsdEstimate:NotUniform', ...
         'The %s iCSD needs equally spaced channels (steps %.4g to %.4g mm): use "spline", or leave a gap''s neighbors out.', ...
         method, min(steps), max(steps));

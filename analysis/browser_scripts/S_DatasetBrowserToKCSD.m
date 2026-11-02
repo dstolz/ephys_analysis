@@ -51,15 +51,11 @@ opts.gdx = [];                           % mm, the grid step ([] = 1% of the spa
 opts.extMm = 0;                          % mm, how far the estimate extends past the end channels
 opts.plotGroup = [];                     % the group drawn in the detail figure ([] = the first with epochs)
 
-estimate = @(P) kcsdOf(P, opts);
-
 %% 1. Epochs (R.epochs): the evoked potential of each group, per shank profile
 R = B.Result;
 csdEpochs = struct([]);
 if ~isempty(R) && isfield(R, 'epochs') && ~isempty(R.epochs) && R.rowKind == "channel"
-    P = epochMatrixCSD(R, Columns=opts.columns, Shanks=opts.shanks);
-    csdEpochs = estimate(P);
-    fprintf('csdEpochs: %d profile(s) of %d dataset(s), %s\n', numel(csdEpochs), numel(unique([csdEpochs.key])), R.labels.description);
+    csdEpochs = epochMatrixCSD(R, Columns=opts.columns, Shanks=opts.shanks);
 end
 
 %% 2. Whole sessions (B.Sessions): the kept trials in the browser's window
@@ -70,18 +66,29 @@ if ~isempty(S)
     S = S(arrayfun(@(D) ~isempty(D.signal), S));   % spikes or "Load trials only" bring no signal
 end
 if ~isempty(S)
-    P = sessionDataCSD(S, Window=[win.pre win.post], Align=opts.sessionAlign, Columns=opts.columns, Shanks=opts.shanks, ...
+    csdSessions = sessionDataCSD(S, Window=[win.pre win.post], Align=opts.sessionAlign, Columns=opts.columns, Shanks=opts.shanks, ...
         Statistic=B.Settings.signal.statistic);
-    csdSessions = estimate(P);
+end
+
+if isempty(csdEpochs) && isempty(csdSessions)
+    error(['Nothing to estimate: Compute a signal (LFP) with "Keep single trials" ticked (B.Result.epochs), ' ...
+        'or "Load whole sessions" of a signal (B.Sessions).']);
+end
+
+%% The kCSD of every profile, in one Python run
+% (Python starts and imports kcsd once, not once per shank)
+kcsdAll = kcsdOf({csdEpochs, csdSessions}, opts);
+csdEpochs = kcsdAll{1};
+csdSessions = kcsdAll{2};
+if ~isempty(csdEpochs)
+    fprintf('csdEpochs: %d profile(s) of %d dataset(s), %s\n', numel(csdEpochs), numel(unique([csdEpochs.key])), R.labels.description);
+end
+if ~isempty(csdSessions)
     fprintf('csdSessions: %d profile(s) of %d session(s), %d trial(s) in [%g %g] s around %s\n', numel(csdSessions), ...
         numel(S), sum(arrayfun(@(p) numel(p.trial), csdSessions)), win.pre, win.post, opts.sessionAlign);
 end
 
 profiles = [num2cell(csdEpochs(:)); num2cell(csdSessions(:))];   % every profile, the epochs' first
-if isempty(profiles)
-    error(['Nothing to estimate: Compute a signal (LFP) with "Keep single trials" ticked (B.Result.epochs), ' ...
-        'or "Load whole sessions" of a signal (B.Sessions).']);
-end
 for c = profiles.'
     p = c{1};
     fprintf('  %s shank %d: %d channels, %.3g mm apart, %d-D; R = %.3g mm, lambda = %.3g, %d sources, %.1f s; groups: %s\n', ...
@@ -173,24 +180,38 @@ end
 title(tl, sprintf('%s: kCSD of the %s, traces = the potentials', p.name, p.cfg.data), 'Interpreter', 'none');
 
 %% Local functions
-function P = kcsdOf(P, opts)
-% Add csd, grid and info (kcsdEstimate) to every laminar profile of P
-if isempty(P); return; end
-for i = 1:numel(P)
-    p = P(i);
-    args = {'Sigma', opts.sigma, 'Python', opts.kcsdPython, 'Source', opts.kcsdSource};
-    if ~isempty(opts.gdx); args = [args {'Gdx', opts.gdx}]; if p.dim == 2; args = [args {'Gdy', opts.gdx}]; end; end %#ok<AGROW>
-    if opts.extMm > 0; args = [args {'ExtX', opts.extMm}]; if p.dim == 2; args = [args {'ExtY', opts.extMm}]; end; end %#ok<AGROW>
-    Rs = opts.rsPerSpacing * p.h_mm;
-    if opts.crossValidate
-        if ~isempty(Rs); args = [args {'Rs', Rs}]; end %#ok<AGROW>
-        if ~isempty(opts.lambdas); args = [args {'Lambdas', opts.lambdas}]; end %#ok<AGROW>
-        args = [args {'CrossValidate', true}]; %#ok<AGROW>
-    elseif ~isempty(Rs)
-        args = [args {'RInit', Rs(1)}]; %#ok<AGROW>
+function Ps = kcsdOf(Ps, opts)
+% Add csd, grid and info (kcsdEstimate) to every laminar profile of the struct arrays in the cell Ps,
+% all of them in one kcsdEstimate call: one Python start, whatever the number of shanks
+pos = cell(0, 1); pots = cell(0, 1);
+per = struct('Rs', {}, 'RInit', {});                    % what differs from profile to profile: the basis width
+where = zeros(0, 2);                                    % each profile's place in Ps
+for s = 1:numel(Ps)
+    for i = 1:numel(Ps{s})
+        p = Ps{s}(i);
+        % pos_mm: depths for a 1-D profile; x from the leftmost channel and depth for a 2-D layout
+        pos{end + 1, 1} = p.pos_mm; pots{end + 1, 1} = p.pots; where(end + 1, :) = [s i]; %#ok<AGROW>
+        Rs = opts.rsPerSpacing * p.h_mm;                % basis widths in channel spacings
+        if opts.crossValidate
+            per(end + 1, 1) = struct('Rs', Rs, 'RInit', []); %#ok<AGROW>
+        else
+            per(end + 1, 1) = struct('Rs', [], 'RInit', Rs(1:min(1, end))); %#ok<AGROW>
+        end
     end
-    % pos_mm: depths for a 1-D profile; x from the leftmost channel and depth for a 2-D layout
-    [P(i).csd, P(i).grid, P(i).info] = kcsdEstimate(p.pos_mm, p.pots, args{:});
+end
+if isempty(pos); return; end
+args = {'Sigma', opts.sigma, 'Python', opts.kcsdPython, 'Source', opts.kcsdSource, 'PerProfile', per};
+if ~isempty(opts.gdx); args = [args {'Gdx', opts.gdx, 'Gdy', opts.gdx}]; end   % Gdy is ignored for a 1-D profile
+if opts.extMm > 0; args = [args {'ExtX', opts.extMm, 'ExtY', opts.extMm}]; end
+if opts.crossValidate
+    if ~isempty(opts.lambdas); args = [args {'Lambdas', opts.lambdas}]; end
+    args = [args {'CrossValidate', true}];
+end
+[csd, grid, info] = kcsdEstimate(pos, pots, args{:});
+for j = 1:size(where, 1)
+    Ps{where(j, 1)}(where(j, 2)).csd = csd{j};
+    Ps{where(j, 1)}(where(j, 2)).grid = grid{j};
+    Ps{where(j, 1)}(where(j, 2)).info = info{j};
 end
 end
 

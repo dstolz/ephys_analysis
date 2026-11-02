@@ -33,7 +33,7 @@
 %
 % Leaves glm{k} per dataset in the workspace: expt (neuroGLM's experiment),
 % info (labels and trial rows), the train/test split (the same trials for
-% every unit) and fits, one element per unit with spikes: unit (its row of
+% every unit: the last block of consecutive trials is held out) and fits, one element per unit with spikes: unit (its row of
 % D.units), dspec (the design), F (the fit: F.kernels.<covariate>.tr ms /
 % .data log gain, F.bitsPerSpike), P (the prediction on the held-out trials).
 %
@@ -46,7 +46,7 @@ if ~exist('B', 'var') || ~isa(B, 'DatasetBrowser')
 end
 opts = struct();                    % the settings, noted whole in each dataset's manifest
 opts.neuroGLMPath = 'c:\src\neuroGLM';   % added when neuroGLM is not on the path (the folder holding +buildGLM)
-opts.outDir = "C:\Users\dstolz\My Drive\PROJECTS\OFC_Ephys\Analysis\NeuroGLM\";                        % a folder to save <dataset>_neuroglm.mat in; "" keeps them in the workspace only
+opts.outDir = "";                        % a folder to save <dataset>_neuroglm.mat in (in a subfolder named after the browser's tags); "" keeps them in the workspace only
 opts.binMs = 5;                          % neuroGLM's bin (1 ms, as the paper); 5-10 ms fits much faster on long sessions
 opts.window = [-0.5 Inf];                % s around TrialOnset; Inf = up to the next trial's start
 opts.kernelMs = 500;                     % each event kernel's reach after the event
@@ -63,13 +63,13 @@ opts.coupling = false;                   % a coupling filter from every other un
 opts.withSignal = "AUX";                    % "LFP" | "MUA" | "AUX" | "": that signal's channels as an instantaneous covariate
 opts.fitMethod = "matRegress";           % "matRegress": neuroGLM's route (fminunc, ridge prior; the paper's) | "glmfit": maximum likelihood
 opts.ridge = "evidence";                 % matRegress: the ridge prior's precision, or "evidence" to pick it by the marginal likelihood (the paper)
-opts.trainFraction = 0.8;                % trials fitted; the rest are held out for the prediction
+opts.trainFraction = 0.8;                % trials fitted; the last block of consecutive trials (about 1 - this) is held out for the prediction (NeuroGLMExport.split); 1 = test on the fit
 opts.workers = 4;                        % process workers fitting units at once (Parallel Computing Toolbox), fewer when memory is short; 0 = one unit after the other here
-rng(1);                             % the train/test split
 
-opts.outDir = fullfile(opts.outDir,join(B.Filter.Tags,"_")); % place in a subdirectory based on teh tags
-
-if ~isfolder(opts.outDir), mkdir(opts.outDir); end
+if opts.outDir ~= "" && ~isempty(B.Filter.Tags)
+    opts.outDir = fullfile(opts.outDir, join(B.Filter.Tags, "_"));   % a subfolder per set of tags
+end
+if opts.outDir ~= "" && ~isfolder(opts.outDir), mkdir(opts.outDir); end
 
 %% The sessions
 if ~NeuroGLMExport.hasNeuroGLM()
@@ -158,13 +158,11 @@ try
             dsArgs = [dsArgs, {'GroupBy', groupBy, 'GroupEvents', groupEvents}]; %#ok<AGROW>
         end
 
-        % one split per dataset: every unit is fitted and tested on the same trials
-        nT = numel(expt.trial);
-        perm = randperm(nT);
-        nTrain = max(1, round(opts.trainFraction * nT));
-        train = sort(perm(1:nTrain));
-        test = sort(perm(nTrain + 1:end));
-        if isempty(test), test = train; end
+        % one split per dataset: every unit is fitted and tested on the same trials. The held-out
+        % trials are the last block of the session (NeuroGLMExport.split, splitTrials): trials next
+        % to each other share drift and spike history, so scattered held-out trials would be tested
+        % on what the fit has seen of their neighbors
+        [train, test] = NeuroGLMExport.split(expt, TestFraction=1 - opts.trainFraction);
 
         noSpikes = cellfun(@isempty, reshape(D.spikes, [], 1));
         for u = reshape(find(noSpikes), 1, [])

@@ -14,15 +14,22 @@ The staging folder holds
 
 The file is built with pynwb, written as "~<name>.partial.nwb" next to the
 target, checked with nwbinspector (which also runs pynwb's validation) and
-then renamed into place. nwb_status.json in the staging folder says how it
-went:
-  {"state": "done", "file", "inspector": [messages], "versions": {...}}
+then renamed into place. The finished file is reopened with pynwb and its
+units compared with the staged arrays: the number of units, of spike times,
+and a SHA-256 of the spike times. nwb_status.json in the staging folder says
+how it went:
+  {"state": "done", "file", "inspector": [messages], "verified": {...},
+   "versions": {...}}
   {"state": "error", "message", "traceback", "versions": {...}}
+with verified {"state": "verified" | "mismatch" | "unchecked", "message",
+"units", "spikes", "sha256"}: "unchecked" when the file could not be read back
+here (reported, not fatal), "mismatch" when it differs from what was staged.
 and the script prints NWB_EXPORT_DONE or NWB_EXPORT_ERROR as its last line.
 Nothing is converted here: signals keep their dtype and are scaled by the
 conversion given (microvolts x 1e-6 = volts), and times are written as
 given (MATLAB has already put them on the clock of the signals).
 """
+import hashlib
 import json
 import os
 import sys
@@ -250,6 +257,75 @@ def inspect(path):
     return out
 
 
+def times_digest(times):
+    """SHA-256 of spike times as little-endian float64, in order: the same bytes in the file as staged."""
+    return hashlib.sha256(np.ascontiguousarray(times, dtype="<f8").tobytes()).hexdigest()
+
+
+def staged_units(st, arrays):
+    """What the finished file must hold of the units, from the staged arrays: count, spikes, digest.
+
+    None without units. Called while the staging archive is open."""
+    u = st.get("units")
+    if not (u and int(u["count"]) > 0):
+        return None
+    ends = np.atleast_1d(arrays["units_spike_index"]).astype(np.int64)
+    times = np.atleast_1d(arrays["units_spike_times"])[: int(ends[-1])]
+    return {"count": int(u["count"]), "spikes": int(times.size), "sha256": times_digest(times)}
+
+
+def compare_units(expected, n_units, times):
+    """The mismatches between the staged units and what was read back ([] = equal).
+
+    expected is staged_units' answer (None: no units staged), n_units the number of units in the file
+    and times the file's spike times, every unit's one after the other."""
+    if expected is None:
+        return [] if n_units == 0 else ["the file holds %d units, none were staged" % n_units]
+    problems = []
+    if n_units != expected["count"]:
+        problems.append("%d units in the file, %d staged" % (n_units, expected["count"]))
+    if int(times.size) != expected["spikes"]:
+        problems.append("%d spike times in the file, %d staged" % (int(times.size), expected["spikes"]))
+    elif times_digest(times) != expected["sha256"]:
+        problems.append("the spike times in the file differ from the staged ones (SHA-256 %s, staged %s)"
+                        % (times_digest(times), expected["sha256"]))
+    return problems
+
+
+def verify(path, expected):
+    """Reopen the finished file with pynwb and compare its units with the staged ones.
+
+    Returns {"state": "verified" | "mismatch" | "unchecked", "message", "units", "spikes", "sha256"}.
+    "unchecked" says the file could not be read back here (no pynwb read path, an unreadable file):
+    a report, not a failure of the export; "mismatch" means the file is not what was staged."""
+    out = {"state": "unchecked", "message": "", "units": None, "spikes": None, "sha256": None}
+    try:
+        from pynwb import NWBHDF5IO
+        with NWBHDF5IO(path, "r") as io:
+            nwb = io.read()
+            units = nwb.units
+            n_units = 0 if units is None else len(units)
+            if n_units:
+                times = np.concatenate([np.asarray(units.get_unit_spike_times(i), dtype="<f8") for i in range(n_units)])
+            else:
+                times = np.zeros(0, dtype="<f8")
+        out["units"] = int(n_units)
+        out["spikes"] = int(times.size)
+        out["sha256"] = times_digest(times)
+        problems = compare_units(expected, n_units, times)
+        if problems:
+            out["state"] = "mismatch"
+            out["message"] = "; ".join(problems)
+        else:
+            out["state"] = "verified"
+            out["message"] = ("%d units, %d spike times and their checksum equal the staged ones" % (n_units, times.size)
+                              if expected is not None else "reopened with pynwb; no units staged")
+    except Exception as e:  # noqa: BLE001 - a check that cannot run is reported, never fatal
+        out["state"] = "unchecked"
+        out["message"] = "could not read the file back: %s: %s" % (type(e).__name__, e)
+    return out
+
+
 def main(stage_path):
     folder = os.path.dirname(os.path.abspath(stage_path))
     status_path = os.path.join(folder, "nwb_status.json")
@@ -266,12 +342,29 @@ def main(stage_path):
         if os.path.exists(partial):
             os.remove(partial)
         with np.load(os.path.join(folder, "stage.npz"), allow_pickle=False) as arrays:
+            expected, expected_error = None, ""
+            try:
+                expected = staged_units(st, arrays)
+            except Exception as e:  # noqa: BLE001 - the check is reported unchecked below; the export goes on
+                expected_error = "could not summarize the staged units: %s: %s" % (type(e).__name__, e)
             nwb = build(st, folder, arrays)
             with NWBHDF5IO(partial, "w") as io:
                 io.write(nwb)
-        messages = inspect(partial) if st.get("inspect", True) else None
+        messages = None
+        if st.get("inspect", True):
+            try:
+                messages = inspect(partial)
+            except Exception as ie:  # noqa: BLE001 - the file is complete; a checker failure must not discard it
+                messages = [{"importance": "ERROR", "severity": "HIGH", "check": "nwbinspector",
+                             "message": "nwbinspector could not check the file: %s: %s" % (type(ie).__name__, ie),
+                             "object_type": "", "object_name": "", "location": ""}]
         os.replace(partial, target)
-        status = {"state": "done", "file": target, "inspector": messages, "versions": versions()}
+        if expected_error:
+            verified = {"state": "unchecked", "message": expected_error, "units": None, "spikes": None, "sha256": None}
+        else:
+            verified = verify(target, expected)
+        status = {"state": "done", "file": target, "inspector": messages, "verified": verified,
+                  "versions": versions()}
         with open(status_path, "w", encoding="utf-8") as f:
             json.dump(status, f, indent=1)
         print("NWB_EXPORT_DONE")

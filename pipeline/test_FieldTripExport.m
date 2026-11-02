@@ -66,6 +66,16 @@ check(isstruct(ev0) && isempty(ev0) && all(isfield(ev0, {'type', 'sample', 'valu
     'no lines -> empty event struct with the FieldTrip fields');
 evU = FieldTripExport.event(struct('b', [0.9 1.0], 'a', [0.1 0.2]), Fs);
 check(strcmp(evU(1).type, 'a') && strcmp(evU(2).type, 'b'), 'events are sorted by sample');
+evT = FieldTripExport.event(struct('x', [0.2 0.21; 0.1 0.11], 'e', zeros(0, 2), 'y', [0.1 0.15; 0.3 0.31]), Fs);
+check(isequal(size(evT), [1 4]) && isequal({evT.type}, {'x', 'y', 'x', 'y'}) && isequal([evT.sample], [100 100 200 300]) ...
+    && isequal([evT.duration], [11 51 11 11]) && all([evT.value] == 1) && all([evT.offset] == 0), ...
+    'several lines, built at once: a 1 x n array sorted by sample, a tie in the order of the lines, an empty line skipped');
+evV = FieldTripExport.event(struct('a', [0.5 0.6]), Fs);
+check(isequal(size(evV), [1 1]) && strcmp(evV.type, 'a') && evV.sample == 500, 'one pulse: a 1 x 1 struct');
+nPulse = 20000;
+tic;
+evM = FieldTripExport.event(struct('p', [(1:nPulse).' / 100, (1:nPulse).' / 100 + 0.005]), Fs);
+check(numel(evM) == nPulse && issorted([evM.sample]) && toc < 5, 'twenty thousand pulses: sorted, and not grown one at a time');
 
 fprintf('\n== 3. artifact periods on a raw structure ==\n');
 dl = FieldTripExport.continuous(zeros(7000, nCh), Fs);   % 7 s of LFP at 1 kHz

@@ -47,6 +47,7 @@ others.
 | `F = NeuroGLMExport.fit(dspec, Trials=, Response=, Method=, Ridge=, RidgeGrid=)` | the design matrix (`F.dm`, constant columns removed), the binned response `F.y` and a Poisson GLM. `Method="glmfit"` (default): maximum likelihood by `glmfit`, `stats` its stats. `Method="matRegress"`: neuroGLM's route, `glms.neglog.poisson` with its gradient and Hessian minimized by `fminunc` (trust-region) under a ridge prior of precision `Ridge` on every weight but the bias (the penalty `Ridge/2 · ‖w‖²`; 1 by default, 0 = maximum likelihood), or `Ridge="evidence"`: the precision on `RidgeGrid` (`logspace(-2, 4, 13)`) with the largest Laplace approximation of the log marginal likelihood, the paper's evidence optimization (`F.ridge` the value used, `F.evidence` the grid's log evidence); standard errors from the Hessian at the optimum, `stats.hessian` / `stats.covb`. Either way: `bias`, `w`, `se`, `kernels` (`buildGLM.combineWeights`: `kernels.<covariate>.tr` ms from the event, `.data` the log-rate change, so `exp(data)` is the gain), `kernelSE` (the same shape; covariances ignored, as neuroGLM's tutorial), `rate` (spikes/s per bin), `deviance`, `logLik`, `logLikNull` (a constant rate), `bitsPerSpike` (their difference per spike in bits, the paper's single-trial prediction measure), `nSpikes`, `nBins`, `method`, `ridge` |
 | `P = NeuroGLMExport.predict(F, trials)` | the model's rate on any trials (held-out ones give the cross-validated prediction): `t{k}` (ms from the trial's start), `rate{k}` (spikes/s), `counts{k}` (the response's spikes per bin), `logLik`, `bitsPerSpike` |
 | `fits = NeuroGLMExport.fitUnits(expt, units, Design=, Trials=, Test=, Method=, Ridge=, Workers=, ProgressFcn=, LogFcn=, CheckFcn=)` | a design fitted and tested per row of `units` (`info.units`), on process workers (`Workers=`, 0 = here): `fits(j).unit`, `.dspec`, `.F`, `.P` in the rows' order. `ProgressFcn(fraction, message)` and `LogFcn(message)` report each unit as it finishes; an error from `CheckFcn` (e.g. `@() B.checkCancel()`) stops the workers and is raised |
+| `[train, test] = NeuroGLMExport.split(expt, TestFraction=0.2, Blocked=true, Seed=0)` | the trials to fit and to hold out (indices into `expt.trial`, for `fit`'s `Trials` and `fitUnits`'s `Trials` / `Test`), by [`splitTrials`](../analysis/splitTrials.m) on the trials' spans: the held-out trials are the last block of the session holding about `TestFraction` of them, not trials picked from all over it (trials next to each other share drift and spike history, so scattered held-out trials are predicted from their own neighbors), and trials whose spans overlap are never split between the two. `Blocked=false` picks whole groups at random (`Seed`). `TestFraction=0`, a single trial or spans that all overlap hold nothing out: `test` is `train` (the last two with the warning `NeuroGLMExport:NoHoldOut`) |
 | `n = NeuroGLMExport.fitWorkers(dspec, trials, maxWorkers)` | how many process workers can fit this design at once, with the pool open: at most `maxWorkers`, fewer when memory is short (a worker holds about 4 full design matrices); 0 = fit here, with the warning `NeuroGLMExport:SerialFit` when workers were asked for and cannot be had |
 | `NeuroGLMExport.hasNeuroGLM()`, `requireNeuroGLM()` | is neuroGLM on the path? / error with a hint |
 | `NeuroGLMExport.hasMatRegress()`, `requireMatRegress()` | is neuroGLM's `matRegress` on the path (and `fminunc` installed)? / error with a hint |
@@ -65,14 +66,23 @@ others.
 - Continuous signals are resampled to the bin rate (`1000 / BinMs` Hz,
   `resample` when the rates differ) and cut so that row `k` of a trial is
   the bin starting at `(k-1) · BinMs`; a trial a signal does not cover is
-  dropped (`keep` false).
+  dropped (`keep` false). With a continuous signal each trial's start is
+  **snapped once to the bin grid**, `round(start · fsBin) / fsBin` with
+  `fsBin = 1000 / BinMs` Hz, before the spikes and events are binned, so they
+  start from the same edge as the signal's rows (they would otherwise sit up
+  to half a bin apart); the duration stays the span's whole bins and
+  `expt.trial(k).span` is the snapped span. Without a continuous signal the
+  start is kept as given.
+- Spike and event times are found in each trial by binary search on the sorted
+  times (not by testing every time against every trial), then rounded to 1 ns
+  and nudged by 1 ns into the bin that starts on a bin edge.
 - Labels are MATLAB field names (`matlab.lang.makeValidName`, made unique);
   `sessionDataNeuroGLM` keeps the originals in `info` and `expt.param`.
 
 ## `sessionDataNeuroGLM`
 
 ```matlab
-D = B.Sessions;                                   % Load whole sessions, Data = units or detected
+D = B.Sessions;                                   % Load whole recordings, Data = units or detected
 [expt, info] = sessionDataNeuroGLM(D(1));          % trials from TrialOnset - 0.5 s to the next trial
 [expt, info] = sessionDataNeuroGLM(D(1), Window=[-0.2 1.5], Trials="all", BinMs=5);
 L = sessionData(B.source(D(1).key), epochMatrixSettings(B.Settings, data="LFP"));
@@ -108,10 +118,11 @@ the same tables with `key`, `name`, `fs`, `binMs`, `window`, `align`,
 
 [`S_DatasetBrowserToNeuroGLM.m`](../analysis/browser_scripts/S_DatasetBrowserToNeuroGLM.m)
 is in the browser's post-processing script list. Tick datasets, set **Data**
-to *units* or *detected*, **Load whole sessions**, pick the script and **Run
+to *units* or *detected*, **Load whole recordings**, pick the script and **Run
 now** (or tick *Run it after each Compute or Load*). For each dataset it
 builds the experiment and, for every unit with spikes, fits the GLM on the
-same 80% of the trials with a kernel per line edge (one per trial group for the
+same first 80% of the trials (`opts.trainFraction`; the last block of consecutive
+trials is held out, `NeuroGLMExport.split`) with a kernel per line edge (one per trial group for the
 browser's event line when `opts.groupKernels` is on), the trial's response (below), a
 spike-history filter and,
 with `opts.withSignal = "LFP"`, the LFP as a covariate, predicts the held-out

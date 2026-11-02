@@ -16,6 +16,7 @@ function test_MTRFExport()
 here = fileparts(mfilename('fullpath'));
 addpath(here);
 addpath(fileparts(here));
+addpath(fullfile(fileparts(here), 'analysis'));     % splitTrials
 
 nPass = 0; nFail = 0;
     function check(cond, msg)
@@ -48,6 +49,20 @@ mid = 20:size(Y, 1) - 20;               % the filter's half-length is 10 output 
 tY = (mid - 1).' / fsOut;
 check(max(abs(Y(mid, 1) - 3)) < 1e-6 && max(abs(Y(mid, 2) - sin(2 * pi * 5 * tY))) < 1e-4, ...
     'a constant stays, and a 5 Hz sine lands on its own times: t = 0 is the first sample');
+check(max(abs(Y(:, 1) - 3)) < 1e-6, ...
+    'a constant stays constant to its very ends: the signal is mirrored past them, not filtered against zeros');
+epoch = 7 * ones(2000, 1);                  % a 1 s epoch at 2000 Hz: 16% of its samples are within 10 of an end
+Ye = mTRFExport.resample(epoch, Fs, 128);
+check(numel(Ye) == 128 && max(abs(Ye - 7)) < 1e-6, 'a 1 s constant epoch: 128 samples, constant to 1e-6 at both ends');
+Yu = mTRFExport.resample(7 * ones(100, 1), 100, 128);
+check(numel(Yu) == 128 && max(abs(Yu - 7)) < 1e-4 * 7, ...
+    'upsampling 100 -> 128 keeps a constant to its ends too (within the filter''s passband ripple, 1e-4)');
+Ys = mTRFExport.resample(7 * ones(30, 1), Fs, 128);
+check(numel(Ys) == 2 && max(abs(Ys - 7)) < 1e-6, 'an epoch shorter than the padding is mirrored over and over');
+E3 = [epoch, 2 * epoch + (1:2000).' / 100, sin(2 * pi * 3 * (0:1999).' / Fs)];
+Y3 = mTRFExport.resample(E3, Fs, 128);
+check(isequal(size(Y3), [128 3]) && max(abs(Y3(:, 2) - mTRFExport.resample(E3(:, 2), Fs, 128))) < 1e-12, ...
+    'several epochs as the columns of one matrix: each column as if resampled alone');
 [Y1, f1] = mTRFExport.resample(X, Fs, Fs);
 check(f1 == Fs && isa(Y1, 'double') && isequal(Y1, double(X)), 'the same rate returns the data as double');
 [Y0, f0] = mTRFExport.resample(zeros(0, 3), Fs, 128);
@@ -112,6 +127,18 @@ check(isequal(keep, [true; false; false; false]) && isequal(rows, [99 106]) && n
 [C, keep] = mTRFExport.trials(X, Fs, [0.1; 0.3; 0.5], [-0.01 0.02], Artifacts=[0.31 0.32; 0.48 0.49]);
 check(isequal(keep, [true; false; true]) && numel(C) == 2, ...
     'a trial touching an artifact period is dropped; one ending just before it is kept');
+[~, keep] = mTRFExport.trials(X, Fs, 0.5, [-0.01 0.02], Artifacts=[0.521 0.53]);
+check(keep, 'a period that starts where the trial''s last sample ends does not touch it');
+[~, keep] = mTRFExport.trials(X, Fs, 0.5, [-0.01 0.02], Artifacts=[0.5205 0.53]);
+check(~keep, 'a period starting inside the last sample touches the trial');
+lastwarn('');
+mTRFExport.trials(X, Fs, [0.2; 0.3], [-0.01 0.2]);
+[~, wid] = lastwarn;
+check(strcmp(wid, 'mTRFExport:Overlap'), 'trials whose windows overlap warn: they share samples as folds');
+lastwarn('');
+mTRFExport.trials(X, Fs, [0.2; 0.5], [-0.01 0.2]);
+[~, wid] = lastwarn;
+check(isempty(wid), 'trials that do not overlap do not warn');
 [C, keep, tt] = mTRFExport.trials(X, Fs, 0.5, [0.1 0.2]);
 check(keep && isequal(tt, (100:200).' / Fs) && isequal(C{1}, double(X(601:701, :))), ...
     'a window after the onset (pre > 0) is allowed');
@@ -165,7 +192,84 @@ fprintf('\n== 7. lagSamples ==\n');
 [tl, sl] = mTRFExport.lagSamples(-100, 400, 128);
 check(isequal(sl, -13:52) && abs(tl(1) + 13 / 128 * 1e3) < 1e-9, 'floor(tmin) .. ceil(tmax) samples, in ms');
 
-fprintf('\n== 8. the toolbox ==\n');
+fprintf('\n== 8. splitTrials ==\n');
+w = [(0:19).' * 2, (0:19).' * 2 + 2];               % 20 trials end to end
+S = splitTrials(w, 4);
+check(S.nFolds == 4 && isequal(S.fold, ceil((1:20).' / 5)) && S.nGroups == 20 && S.nMerged == 0 ...
+    && isequal(S.test(:, 2), S.fold == 2) && isequal(S.train(:, 2), S.fold ~= 2), ...
+    'blocked: 4 folds of 5 consecutive trials; train / test columns hold a fold out');
+p = [11:20 1:10];
+S2 = splitTrials(w(p, :), 4);
+check(isequal(S2.fold, S.fold(p)), 'rows in any order: the blocks follow the windows, not the row order');
+pairs = [0 0.5 3 3.5 6 6.5 9 9.5 12 12.5 15 15.5 18 18.5 21 21.5 24 24.5 27 27.5].';   % 10 overlapping pairs
+wp = [pairs, pairs + 1];
+S3 = splitTrials(wp, 3);
+ov = (wp(:, 1) < wp(:, 2).') & (wp(:, 2) > wp(:, 1).');
+apart = S3.fold ~= S3.fold.';
+check(~any(ov & apart, 'all') && S3.nGroups == 10 && S3.nMerged == 20, ...
+    'trials whose windows overlap never straddle two folds');
+check(S3.nFolds == 3 && issorted(S3.fold) && isequal(accumarray(S3.fold, 1), [6; 8; 6]), ...
+    'blocked folds are contiguous in time, about equal in trials, whole pairs');
+S3r = splitTrials(wp(p, :), 3);
+check(isequal(S3r.fold, S3.fold(p)), 'overlap groups and blocks do not depend on the row order');
+s0 = rng;
+S4 = splitTrials(wp, 3, Blocked=false, Seed=5);
+S4b = splitTrials(wp, 3, Blocked=false, Seed=5);
+S4c = splitTrials(wp, 3, Blocked=false, Seed=6);
+apart4 = S4.fold ~= S4.fold.';
+check(isequal(S4.fold, S4b.fold) && ~isequal(S4.fold, S4c.fold) && ~issorted(S4.fold) && ~any(ov & apart4, 'all') ...
+    && isequal(rng, s0), 'Blocked=false: groups dealt at random, repeatable by Seed, overlaps still together, the global stream untouched');
+SI = splitTrials(wp, Inf);
+check(SI.nFolds == 10 && isequal(SI.fold, SI.group), 'K = Inf: a fold for each group of overlapping trials');
+ST = splitTrials(w, TestFraction=0.2);
+check(ST.nFolds == 2 && isequal(find(ST.test(:, 2)), (17:20).') && isequal(find(ST.train(:, 2)), (1:16).') && ST.blocked, ...
+    'TestFraction: the test fold is the last block holding about that share of the trials');
+SN = splitTrials(10, 5);
+check(isequal(SN.fold, ceil((1:10).' / 2)), 'a trial count instead of windows: trials in order, none overlapping');
+lastwarn('');
+SF = splitTrials(wp(1:4, :), 5);
+[~, wid] = lastwarn;
+check(strcmp(wid, 'splitTrials:FewerFolds') && SF.nFolds == 2, ...
+    'more folds than groups: fewer folds, with a warning');
+check(strcmp(errorId(@() splitTrials([0 1; 0.5 1.5; 1 2], 2)), 'splitTrials:OneGroup'), 'all trials chained by overlap: nothing to hold out');
+check(strcmp(errorId(@() splitTrials([0 1; NaN 2], 2)), 'splitTrials:BadWindows'), 'a NaN window is refused');
+check(strcmp(errorId(@() splitTrials([1 0; 2 3], 2)), 'splitTrials:BadWindows'), 'a stop before its start is refused');
+check(strcmp(errorId(@() splitTrials(w)), 'splitTrials:NoFolds'), 'neither K nor TestFraction');
+check(strcmp(errorId(@() splitTrials(w, 1)), 'splitTrials:BadFolds') && strcmp(errorId(@() splitTrials(w, 3, TestFraction=0.2)), 'splitTrials:BadFolds'), ...
+    'K below 2, or K with a TestFraction, is refused');
+
+fprintf('\n== 9. overlaps and folds ==\n');
+check(isequal(mTRFExport.overlaps([0; 1; 2; 5], [1; 2.5; 3; 6]), [false; false; true; false]), ...
+    'overlaps: a window starting before an earlier one ended; windows that only touch do not overlap');
+check(isequal(mTRFExport.overlaps([5; 2; 1; 0], [6; 3; 2.5; 1]), [false; true; false; false]), 'overlaps: in the order given');
+fsF = 100;
+starts = [0; 0.5; 5; 6; 10; 20];                    % trials 1 and 2 overlap, 3 and 4 only touch
+stimF = arrayfun(@(k) k * ones(100, 1), (1:6).', 'UniformOutput', false);
+respF = arrayfun(@(k) k * ones(100, 2) + (1:100).', (1:6).', 'UniformOutput', false);
+M = mTRFExport.package(stimF, respF, fsF, Start=starts, StimLabels="s", RespLabels=["a" "b"], Positions=[0 0; 0 50], ...
+    Cfg=struct('name', "x"));
+F = mTRFExport.folds(M);
+check(F.nTrials == 5 && isequal(F.trialFold, [1; 1; 2; 3; 4; 5]) && isequal(cellfun(@(x) size(x, 1), F.stim), [200; 100; 100; 100; 100]) ...
+    && isequal(F.stim{1}, [stimF{1}; stimF{2}]) && isequal(F.resp{1}, [respF{1}; respF{2}]), ...
+    'folds, K = Inf: the two overlapping trials share a fold (their rows joined), the others stay alone');
+check(isequal(F.start, [0; 5; 6; 10; 20]) && isequal(F.respLabels, ["a" "b"]) && isequal(F.pos, [0 0; 0 50]) && F.fs == fsF ...
+    && F.cfg.name == "x" && isequal(F.trialinfo.trials{1}, [1; 2]) && F.cfg.folds.nMerged == 2, ...
+    'folds keep the labels, positions, rate and cfg; start and trialinfo are the folds''');
+F2 = mTRFExport.folds(M, 2);
+check(F2.nTrials == 2 && isequal(F2.trialFold, [1; 1; 1; 2; 2; 2]) && isequal(F2.stim{2}, vertcat(stimF{4:6})), ...
+    'folds, K = 2: blocks of consecutive trials, in time order');
+Mr = mTRFExport.package(flip(stimF), flip(respF), fsF, Start=flip(starts));
+Fr = mTRFExport.folds(Mr, 2);
+check(isequal(Fr.trialFold, [2; 2; 2; 1; 1; 1]) && Fr.start(1) == 0 && isequal(Fr.stim{1}, vertcat(stimF{1:3})), ...
+    'trials listed latest first: blocks follow their starts and each fold is joined in time order');
+M0 = mTRFExport.package(stimF, respF, fsF);
+F0 = mTRFExport.folds(M0, 3);
+check(F0.nTrials == 3 && isequal(F0.trialFold, [1; 1; 2; 2; 3; 3]) && all(isnan(F0.start)), ...
+    'without starts: trials taken in order, none overlapping');
+check(strcmp(errorId(@() mTRFExport.folds(mTRFExport.package(stimF(1:2), respF(1:2), fsF, Start=[0; 0.5]), 2)), 'splitTrials:OneGroup'), ...
+    'trials that all overlap cannot be split');
+
+fprintf('\n== 10. the toolbox ==\n');
 restore = '';
 if ~mTRFExport.hasMTRF()
     mtrf = 'c:\src\mTRF-Toolbox\mtrf';
@@ -203,6 +307,11 @@ if mTRFExport.hasMTRF()
     [pred, stats] = mTRFpredict(M.stim(6), M.resp(6), model, 'verbose', 0);
     if iscell(pred); pred = pred{1}; end
     check(isequal(size(pred), size(M.resp{6})) && all(stats.r(:) > 0.9), 'mTRFpredict on one trial');
+    % folds: three folds of two trials each, cross-validated by the toolbox as they come
+    Fk = mTRFExport.folds(M, 3);
+    cvk = mTRFcrossval(Fk.stim, Fk.resp, Fk.fs, 1, lagsMs(1), lagsMs(2), [1e-3 1e3], 'verbose', 0);
+    check(Fk.nTrials == 3 && isequal(size(cvk.r), [3 2 2]) && mean(cvk.r(:, 1, 1)) > 0.9, ...
+        'folds: mTRFcrossval leaves one of three folds (two trials joined each) out at a time');
     % a trial window of the same data gives a model too
     [C, keep, tC] = mTRFExport.trials(resp{1}, fs, on(6:10) / fs, [-0.05 0.3]);
     S = mTRFExport.trials(stim{1}, fs, on(6:10) / fs, [-0.05 0.3]);

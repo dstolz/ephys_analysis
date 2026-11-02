@@ -45,8 +45,10 @@ opts.auxChannel = [];            % a column of the datasets' AUX signal (e.g. th
 opts.maxSeconds = 30;            % whole sessions: the longest piece (a trial = a cross-validation fold)
 opts.tmin = -100; opts.tmax = 400;    % ms, the lags of the model (negative = the response leads the stimulus)
 opts.lambda = 10 .^ (-2:1:6);    % the ridge values cross-validated
-opts.holdOut = [];               % the trial kept out of training to test the final model on: [] = the first one
-                                 % whose stimulus changes, a number = that trial, 0 = none
+opts.folds = Inf;                % cross-validation folds (mTRFExport.folds): Inf = one per trial, 3 or more = blocks of consecutive
+                                 % trials; trials whose windows overlap always share a fold, so a left-out fold shares no samples
+opts.holdOut = [];               % the fold kept out of training to test the final model on: [] = the first one
+                                 % whose stimulus changes, a number = that fold, 0 = none
 
 %% 1. Epochs (R.epochs): a trial per epoch, an impulse on the event
 R = B.Result;
@@ -75,7 +77,12 @@ if ~isempty(S)
     end
     mtSessions = sessionDataMTRF(S, Stimulus=stim, Kind=opts.kind, Fs=opts.fs, Mode="segments", MaxSeconds=opts.maxSeconds);
     win = B.Settings.window;
-    mtTrials = sessionDataMTRF(S, Stimulus=stim, Kind=opts.kind, Fs=opts.fs, Mode="trials", Window=[win.pre win.post]);
+    mtTrials = {};
+    if all([S.hasTrials])   % Mode "trials" needs paired trials in every dataset
+        mtTrials = sessionDataMTRF(S, Stimulus=stim, Kind=opts.kind, Fs=opts.fs, Mode="trials", Window=[win.pre win.post]);
+    else
+        fprintf('mtTrials: skipped, %d dataset(s) have no paired trials\n', nnz(~[S.hasTrials]));
+    end
     fprintf('mtSessions: %d datasets, %s; %d pieces of <= %g s; mtTrials: %d kept trials\n', ...
         numel(mtSessions), mtSessions{1}.cfg.stimulus, sum(cellfun(@(m) m.nTrials, mtSessions)), ...
         opts.maxSeconds, sum(cellfun(@(m) m.nTrials, mtTrials)));
@@ -117,6 +124,11 @@ if ~any(enough)
         candidates{1}.cfg.name, max(cellfun(@(m) m.nTrials, candidates)));
 end
 M = candidates{find(enough, 1)};
+M = mTRFExport.folds(M, opts.folds);   % the toolbox leaves one cell out: overlapping trials share a cell, K > 1 trials are blocked
+if M.nTrials < 3
+    error('%s gives %d fold(s) at opts.folds = %g: the toolbox cross-validates over at least 2 (raise opts.folds, or shorten the window).', ...
+        M.cfg.name, M.nTrials, opts.folds);
+end
 % pieces whose stimulus never changes (no event in them) cannot be scored: their fold's r is NaN
 silent = cellfun(@(x) all(x(:) == x(1)), M.stim);
 if any(silent)

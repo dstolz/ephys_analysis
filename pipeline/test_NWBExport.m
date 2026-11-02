@@ -90,6 +90,8 @@ classdef test_NWBExport < matlab.unittest.TestCase
             out = D.ds.exportNWB(Extract=D.S, Units=D.U, Behavior=D.B, ProbeFile=D.probe, Metadata=D.meta, PythonExe=py);
             f = char(out.file);
             tc.verifyTrue(isfile(f));
+            tc.verifyEqual(out.verified, "verified", out.verifiedMessage);
+            tc.verifyTrue(contains(out.verifiedMessage, "2 units, 5 spike times"), 'the file read back: the units and spike times compared');
             tc.verifyEmpty(dir(fullfile(D.ds.outputFolder(), '~*')), 'no staging folder or partial file is left');
             tc.verifyEqual(h5read(f, '/processing/ecephys/LFP/LFP/data').', D.S.Y.LFP, 'the LFP, sample for sample');
             tc.verifyEqual(h5readatt(f, '/processing/ecephys/LFP/LFP/data', 'conversion'), 1e-6);
@@ -108,6 +110,40 @@ classdef test_NWBExport < matlab.unittest.TestCase
             o = D.ds.outputs();
             tc.verifyTrue(o.has("nwb"), 'DatasetOutputs finds <Name>.nwb');
             tc.verifyEqual(string(o.NWB.notes.dataset), D.ds.Name);
+        end
+
+        function readBackCheck(tc)
+            % nwb_export.py's check of the finished file, its comparison logic, with any Python that has numpy
+            py = numpyPython();
+            tc.assumeTrue(py ~= "", "no Python with numpy");
+            tmp = tc.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+            script = fullfile(tmp.Folder, "check.py");
+            lines = [
+                "import sys, numpy as np"
+                "import importlib.util"
+                "spec = importlib.util.spec_from_file_location('nwb_export', sys.argv[1])"
+                "m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)"
+                "t = np.array([0.5, 0.1, 2.0])"
+                "arrays = {'units_spike_index': np.array([2, 3]), 'units_spike_times': np.concatenate([t, [9.0]])}"
+                "e = m.staged_units({'units': {'count': 2}}, arrays)"
+                "assert e['count'] == 2 and e['spikes'] == 3 and len(e['sha256']) == 64, e"
+                "assert m.compare_units(e, 2, t.copy()) == []"
+                "assert 'units in the file' in m.compare_units(e, 1, t)[0]"
+                "t2 = t.copy(); t2[1] += 1e-12"
+                "assert 'differ' in m.compare_units(e, 2, t2)[0]"
+                "assert 'spike times in the file' in m.compare_units(e, 2, t[:2])[0]"
+                "assert m.compare_units(None, 0, np.zeros(0)) == []"
+                "assert m.compare_units(None, 1, t) != []"
+                "assert m.staged_units({'units': None}, arrays) is None"
+                "assert m.staged_units({}, arrays) is None"
+                "v = m.verify(sys.argv[2], e)"
+                "assert v['state'] == 'unchecked' and 'could not read' in v['message'], v"
+                "print('PY_OK')"];
+            fid = fopen(script, 'w'); fprintf(fid, '%s\n', lines); fclose(fid);
+            nwbScript = fullfile(fileparts(mfilename('fullpath')), '@EphysDataset', 'nwb_export.py');
+            [st, txt] = system(sprintf('"%s" -I "%s" "%s" "%s"', py, script, nwbScript, fullfile(tmp.Folder, "not_a_file.nwb")));
+            tc.verifyEqual(st, 0, txt);
+            tc.verifyTrue(contains(txt, "PY_OK"), txt);
         end
 
         function errors(tc)
@@ -205,6 +241,23 @@ end
 for c = cands(cands ~= "")
     if ~isfile(c); continue; end
     [st, ~] = system(sprintf('"%s" -c "import pynwb, nwbinspector"', c));
+    if st == 0; py = c; return; end
+end
+end
+
+
+function py = numpyPython()
+%numpyPython  A Python with numpy (enough for nwb_export.py's comparison helpers): NWB_PYTHON, pyenv's, a miniconda base, the PATH's ("" for none).
+py = "";
+cands = [string(getenv('NWB_PYTHON')), string(fullfile(getenv('LOCALAPPDATA'), 'miniconda3', 'python.exe')), "python"];
+try
+    pe = pyenv;
+    cands(end+1) = string(pe.Executable);
+catch
+end
+for c = cands(cands ~= "" & ~ismissing(cands))
+    if contains(c, filesep) && ~isfile(c); continue; end
+    [st, ~] = system(sprintf('"%s" -c "import numpy"', c));
     if st == 0; py = c; return; end
 end
 end

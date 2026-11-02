@@ -34,8 +34,12 @@ classdef mTRFExport
     %   - A package (package) holds stim, resp, fs and the labels of both
     %     sides, with each trial's place on the session (start, s on the
     %     continuous clock) so a model's predictions can be put back.
+    %   - The toolbox cross-validates by leaving one trial out. Trials of
+    %     neighboring windows share samples and drift, so folds (folds,
+    %     splitTrials) joins consecutive trials into blocks and keeps
+    %     overlapping trials in one fold; overlaps says which overlap.
     %
-    %   See also sessionDataMTRF, epochMatrixMTRF, FieldTripExport, ChronuxDataset.
+    %   See also sessionDataMTRF, epochMatrixMTRF, splitTrials, FieldTripExport, ChronuxDataset.
 
     methods (Static)
         function [Y, FsOut] = resample(X, FsIn, FsOut)
@@ -47,10 +51,14 @@ classdef mTRFExport
             %   Toolbox's resample: a Kaiser-windowed anti-aliasing filter
             %   (n = 10, beta = 8: passband ripple under 1e-4, against the
             %   default beta = 5's 1e-3) whose half-length is 10 samples of
-            %   the lower rate, so the first and last 10 output samples are
-            %   filtered against zeros beyond the signal. Y is double, row j
-            %   at (j-1)/FS, ceil(nSamples*p/q) rows. FsOut = FsIn returns X
-            %   as double.
+            %   the lower rate. The toolbox's resample filters against zeros
+            %   beyond the signal, which pulls the first and last 10 output
+            %   samples toward 0 (16% of a 1 s epoch at 128 Hz): X is
+            %   mirrored past both ends first (padarray 'symmetric', by a
+            %   multiple of q input samples so that t = 0 stays on the first
+            %   sample) and the extra output cut away, so a constant stays
+            %   constant to its ends. Y is double, row j at (j-1)/FS,
+            %   ceil(nSamples*p/q) rows. FsOut = FsIn returns X as double.
             arguments
                 X (:,:) {mustBeNumeric}
                 FsIn (1,1) double {mustBePositive}
@@ -72,7 +80,12 @@ classdef mTRFExport
                 Y = X;      % resample needs more than one sample
                 return
             end
-            Y = resample(X, p, q, 10, 8);
+            % the filter reaches 10 samples of the lower rate past each end: n*max(p,q)/p input
+            % samples; m is a multiple of q (so the output grid keeps t = 0) at least that long
+            m = q * ceil(10 / min(p, q));
+            nOut = ceil(size(X, 1) * p / q);
+            Y = resample(padarray(X, [m 0], 'symmetric'), p, q, 10, 8);
+            Y = Y(m / q * p + (1:nOut), :);
         end
 
         function [y, FsOut] = envelope(x, FsIn, FsOut, opts)
@@ -236,12 +249,21 @@ classdef mTRFExport
             keep = ~isnan(onsets) & a >= 1 & b <= N;
             art = reshape(double(opts.Artifacts), [], 2);
             if ~isempty(art)
-                tA = (a - 1) / Fs;          % the trial's span, s: [tA, tB + 1/Fs)
+                tA = (a - 1) / Fs;          % the trial's span, s: [tA, tB), the periods of its samples
                 tB = b / Fs;
-                touch = any(tA < art(:, 2).' & tB > art(:, 1).', 2);
+                % overlapsIntervals takes closed windows: tB less two of its 1 ns tolerances is "before tB"
+                touch = EphysDataset.overlapsIntervals(tA, tB - 2e-9, art);
                 keep = keep & ~touch;
             end
             rows = [a(keep) b(keep)];
+            nOver = 0;
+            if size(rows, 1) > 1; nOver = nnz(mTRFExport.overlaps(rows(:, 1), rows(:, 2) + 1)); end
+            if nOver > 0
+                warning('mTRFExport:Overlap', ...
+                    ['%d of %d trials overlap the one before them: as cross-validation folds they share samples, ' ...
+                     'which inflates the prediction. Shorten the window, use Mode "segments", or group them with ' ...
+                     'mTRFExport.folds, which keeps overlapping trials in one fold.'], nOver, size(rows, 1));
+            end
             C = cell(nnz(keep), 1);
             idx = find(keep);
             for j = 1:numel(idx)
@@ -408,6 +430,83 @@ classdef mTRFExport
             cfg = opts.Cfg;
             cfg.exporter = "mTRFExport.package";
             M.cfg = cfg;
+        end
+
+        function tf = overlaps(first, stop)
+            %overlaps  Which trial windows overlap an earlier one.
+            %   TF = mTRFExport.overlaps(FIRST, STOP) is true for each window
+            %   [FIRST, STOP) (columns, one unit: s, or samples with STOP =
+            %   last + 1) that starts before an earlier-starting window has
+            %   ended. TF is in the order given. Windows that only touch
+            %   (STOP equal to the next FIRST) do not overlap; 1 ns is
+            %   tolerated.
+            first = double(first(:));
+            stop = double(stop(:));
+            tf = false(size(first));
+            if numel(first) < 2; return; end
+            [a, ord] = sort(first);
+            b = stop(ord);
+            tf(ord(2:end)) = a(2:end) < cummax(b(1:end-1)) - 1e-9;
+        end
+
+        function F = folds(M, K, opts)
+            %folds  A package's trials regrouped into cross-validation folds of consecutive trials.
+            %   F = mTRFExport.folds(M, K) returns M with its trials joined
+            %   into K cross-validation folds, one cell of F.stim and F.resp
+            %   per fold (mTRFcrossval leaves one cell out at a time).
+            %   splitTrials decides who goes together: blocks of trials
+            %   consecutive in time (M.start), and trials whose windows
+            %   overlap (start to start + rows/fs) always in one fold, so a
+            %   left-out fold never shares samples with the folds trained
+            %   on. K = Inf (the default) makes a fold of each group of
+            %   overlapping trials: leave-one-trial-out, with nothing joined
+            %   when no trials overlap (the trials come back in time
+            %   order). A fold of several trials is their rows one after
+            %   the other in time order; the toolbox builds its lags inside
+            %   a cell, so the samples after a joint (up to the model's
+            %   longest lag) see the trial before it: a little noise, no
+            %   leak between folds. A package without starts (M.start NaN)
+            %   is taken as trials in time order that do not overlap.
+            %   Options: Blocked (true; false deals the groups out to the
+            %   folds at random) and Seed, as splitTrials.
+            %   F.trialFold is each original trial's fold, F.trialinfo (a
+            %   table) each fold's trials, F.cfg.folds the split.
+            arguments
+                M (1,1) struct
+                K double = Inf
+                opts.Blocked (1,1) logical = true
+                opts.Seed (1,1) double = 0
+            end
+            n = M.nTrials;
+            len = cellfun(@(x) size(x, 1), M.stim) / M.fs;
+            st = reshape(M.start, [], 1);
+            if n > 0 && all(isfinite(st))
+                S = splitTrials([st, st + len(:)], K, Blocked=opts.Blocked, Seed=opts.Seed);
+            else
+                st = (1:n).';
+                S = splitTrials(n, K, Blocked=opts.Blocked, Seed=opts.Seed);
+            end
+            members = cell(S.nFolds, 1);
+            stim = cell(S.nFolds, 1);
+            resp = cell(S.nFolds, 1);
+            start = NaN(S.nFolds, 1);
+            for f = 1:S.nFolds
+                idx = find(S.fold == f);
+                [~, o] = sort(st(idx));
+                idx = idx(o);
+                members{f} = idx;
+                stim{f} = vertcat(M.stim{idx});
+                resp{f} = vertcat(M.resp{idx});
+                if all(isfinite(M.start(idx))); start(f) = M.start(idx(1)); end
+            end
+            cfg = M.cfg;
+            cfg.folds = struct('K', K, 'blocked', opts.Blocked, 'seed', opts.Seed, 'nFolds', S.nFolds, ...
+                'group', S.group, 'nMerged', S.nMerged);
+            info = table((1:S.nFolds).', cellfun(@numel, members), members, 'VariableNames', {'fold', 'nTrials', 'trials'});
+            F = mTRFExport.package(stim, resp, M.fs, StimLabels=M.stimLabels, RespLabels=M.respLabels, ...
+                StimUnits=M.stimUnits, RespUnits=M.respUnits, Positions=M.pos, Start=start, ...
+                TrialInfo=info, Cfg=cfg);
+            F.trialFold = S.fold;
         end
 
         function [t, s] = lagSamples(tmin, tmax, Fs)

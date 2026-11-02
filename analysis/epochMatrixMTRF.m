@@ -32,10 +32,18 @@ function M = epochMatrixMTRF(R, opts)
 %   data, description, event, window, groupLabels, groups and the epochs
 %   table.
 %
+%   Each epoch of a signal is resampled with the others in one call and
+%   mirrored past its ends (mTRFExport.resample), so its first and last
+%   samples are not pulled toward zero. Epochs whose windows overlap (events
+%   closer than the window is long) share samples, which inflates a
+%   leave-one-epoch-out cross-validation: a warning (mTRFExport:Overlap)
+%   says so, and mTRFExport.folds(M{k}, K) regroups the epochs into blocks
+%   with overlapping epochs together (splitTrials).
+%
 %   Errors: epochMatrixMTRF:NoEpochs, epochMatrixMTRF:BadStimulus, plus
 %   mTRFExport's.
 %
-%   See also mTRFExport, sessionDataMTRF, epochMatrix, epochMatrixFieldTrip.
+%   See also mTRFExport, sessionDataMTRF, splitTrials, epochMatrix, epochMatrixFieldTrip.
 
 arguments
     R (1,1) struct
@@ -77,28 +85,35 @@ for k = 1:numel(R.epochs)
 
     % --- the epochs at fs -----------------------------------------------------------------
     if isUnit
-        nT = round((t0(end) - t0(1)) * fs) + 1;
-        t = t0(1) + (0:nT-1).' / fs;
+        % the grid on multiples of 1/fs, so the event (t = 0) is one of its samples
+        t = (round(t0(1) * fs):round(t0(end) * fs)).' / fs;
+        nT = numel(t);
         edges = [t - 0.5 / fs; t(end) + 0.5 / fs];
-        resp = cell(nE, 1);
-        for j = 1:nE
-            Y = zeros(nT, numel(e.spikes));
-            for u = 1:numel(e.spikes)
-                s = e.spikes(u);
-                Y(:, u) = histcounts(s.times(s.epoch == j), edges);
-            end
-            if opts.SpikeUnits == "rate"; Y = Y * fs; end
-            resp{j} = Y;
+        % every unit's spikes binned once, for all the epochs: [bin, epoch] pairs counted by accumarray
+        Y = zeros(nT, numel(e.spikes), nE);
+        for u = 1:numel(e.spikes)
+            if nE == 0; break; end
+            s = e.spikes(u);
+            b = discretize(s.times(:), edges);      % as histcounts: the last bin takes its right edge
+            ep = double(s.epoch(:));
+            ok = ~isnan(b) & ep >= 1 & ep <= nE;
+            Y(:, u, :) = reshape(accumarray([b(ok), ep(ok)], 1, [nT nE]), nT, 1, nE);
         end
+        if opts.SpikeUnits == "rate"; Y = Y * fs; end
+        resp = reshape(num2cell(Y, [1 2]), [], 1);  % {nE x 1} of [nT x nUnits]
         respUnits = "spikes/s";
         if opts.SpikeUnits == "count"; respUnits = "spikes"; end
     else
         resp = cell(nE, 1);
-        for j = 1:nE
-            [resp{j}, fsOut] = mTRFExport.resample(e.data(:, :, j).', fsR, fs);
+        if nE > 0
+            % one resample call for all the epochs (a column each); it mirrors each column past its ends
+            [nCh, nTin, ~] = size(e.data);
+            [Y, fs] = mTRFExport.resample(reshape(permute(e.data, [2 1 3]), nTin, nCh * nE), fsR, fs);
+            nT = size(Y, 1);
+            resp = reshape(num2cell(reshape(Y, nT, nCh, nE), [1 2]), [], 1);   % {nE x 1} of [nT x nChan]
+        else
+            nT = numel(t0);                     % no epochs left: the grid as given
         end
-        if nE > 0; fs = fsOut; end
-        nT = size(resp{1}, 1);
         if fs == fsR && nT == numel(t0)
             t = t0;                             % not resampled: the result's own times
         else
@@ -139,6 +154,13 @@ for k = 1:numel(R.epochs)
     pos = [];
     if hasPos; pos = [rows.x rows.y]; end
     start = E.t0Continuous + t(1);
+    nOver = nnz(mTRFExport.overlaps(start, start + nT / fs));
+    if nOver > 0
+        warning('mTRFExport:Overlap', ...
+            ['%s: %d of %d epochs overlap the one before them: as cross-validation folds they share samples, ' ...
+             'which inflates the prediction. Shorten the window, or group them with mTRFExport.folds, ' ...
+             'which keeps overlapping epochs in one fold.'], e.name, nOver, nE);
+    end
     cfg = struct('dataset', e.key, 'name', e.name, 'data', R.settings.data, 'description', R.labels.description, ...
         'event', R.labels.event, 'window', R.labels.window, 'groupLabels', R.groupLabels, ...
         'groups', R.labels.groups, 'stimulus', stimText, 'sourceFs', fsR, 'epochs', E);

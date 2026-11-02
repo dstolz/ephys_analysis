@@ -109,10 +109,11 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
             tc.verifySize(T, [2 1]);
             tc.verifyEqual([T.duration], [1000 500], 'Whole bins; the end rounded down.');
             tc.verifyEqual(T(1).span, [0 1]);
-            tc.verifyEqual(T(1).a, 500, 'AbsTol', 1e-9);
-            tc.verifyEqual(T(2).a, [100; 499.9], 'AbsTol', 1e-9, 'A spike at the end is excluded.');
-            tc.verifyEqual(T(1).e, 0, 'An event at the start is at 0; one at the end is excluded.');
-            tc.verifyEqual(T(2).e, 250, 'AbsTol', 1e-9);
+            % times are nudged by 1 ns into the bin that starts on their edge (ceil binning)
+            tc.verifyEqual(T(1).a, 500, 'AbsTol', 1e-5);
+            tc.verifyEqual(T(2).a, [100; 499.9], 'AbsTol', 1e-5, 'A spike at the end is excluded.');
+            tc.verifyEqual(T(1).e, 0, 'AbsTol', 1e-5, 'An event at the start is at 0; one at the end is excluded.');
+            tc.verifyEqual(T(2).e, 250, 'AbsTol', 1e-5);
             tc.verifyEqual(T(1).v1, "x");
             tc.verifyEqual(T(2).v2, 2);
             tc.verifyEqual(T(1).c1, (0:999).', 'Row k is the bin at (k-1) ms.');
@@ -126,6 +127,84 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
             tc.verifyEqual(expt5.binfun(expt5.trial(1).duration), 200);
             y = buildGLM.getBinnedSpikeTrain(expt5, 'a', 1:2);
             tc.verifyEqual(full(sum(y)), 3, 'Three spikes inside the two trials.');
+        end
+
+        function experimentSnapsStartToBinGrid(tc)
+            % 5 ms bins and a start 0.2 ms past a bin edge. With a continuous signal (rows are bins on
+            % the grid) the trial starts on the edge, so spikes and the signal's rows agree.
+            spans = [0.0102 0.5];
+            Sp = struct('a', [0.0153; 0.0301]);
+            C = struct('c', struct('data', (0:199).', 'fs', 200));
+            expt = NeuroGLMExport.experiment(spans, BinMs=5, Spikes=Sp, Continuous=C);
+            T = expt.trial;
+            tc.verifyEqual(T.span(1), 0.010, 'AbsTol', 1e-12, 'The start is snapped to the bin grid.');
+            tc.verifyEqual(T.duration, 485, 'The span''s whole bins, wherever the start is moved.');
+            tc.verifyEqual(T.a, [5.3; 20.1], 'AbsTol', 1e-5, 'Spikes are binned from the snapped start.');
+            tc.verifyEqual(T.c(1:2), [2; 3], 'Row 1 is the bin starting at 10 ms.');
+            % without a continuous signal nothing is moved
+            expt2 = NeuroGLMExport.experiment(spans, BinMs=5, Spikes=Sp);
+            tc.verifyEqual(expt2.trial.span(1), 0.0102);
+            tc.verifyEqual(expt2.trial.duration, 485);
+            tc.verifyEqual(expt2.trial.a, [5.1; 19.9], 'AbsTol', 1e-5);
+        end
+
+        function experimentFindsTimesBySearch(tc)
+            % many overlapping spans, repeated spike times: each trial holds exactly the times in [0, duration)
+            rs = RandStream('twister', 'Seed', 3);
+            st = sort(round(rand(rs, 4000, 1) * 20, 3));
+            st = sort([st; st(1:300); 5; 5; 5]);            % duplicates, and three at one instant
+            ev = rand(rs, 250, 1) * 20;
+            t0 = sort(rand(rs, 40, 1) * 18);
+            spans = [t0, t0 + 0.4 + rand(rs, 40, 1)];
+            expt = NeuroGLMExport.experiment(spans, BinMs=2, Spikes=struct('s', st, 'n', zeros(0, 1)), Events=struct('e', ev));
+            tc.verifyEqual(numel(expt.trial), 40);
+            for k = 1:40
+                tr = expt.trial(k);
+                for name = ["s" "e"]
+                    src = st; if name == "e"; src = ev; end
+                    rel = round((src - spans(k, 1)) * 1e9);
+                    rel = sort(rel(rel >= 0 & rel < round(tr.duration * 1e6)));
+                    tc.verifyEqual(tr.(name), rel / 1e6 + 1e-6, 'AbsTol', 1e-9, sprintf('trial %d, %s', k, name));
+                end
+                tc.verifySize(tr.n, [0 1]);
+            end
+        end
+
+        function splitHoldsOutTheLastBlock(tc)
+            spans = [(0:19).' * 2, (0:19).' * 2 + 2];       % 20 trials end to end
+            e = struct('trial', struct('span', mat2cell(spans, ones(20, 1), 2)));
+            [train, test] = NeuroGLMExport.split(e, TestFraction=0.25);
+            tc.verifyEqual(test, 16:20, 'The held-out trials are the last block.');
+            tc.verifyEqual(train, 1:15);
+            [train, test] = NeuroGLMExport.split(e);
+            tc.verifyEqual([train test], 1:20);
+            tc.verifyEqual(numel(test), 4, 'A fifth by default.');
+            [train, test] = NeuroGLMExport.split(e, TestFraction=0);
+            tc.verifyEqual(test, train, 'Nothing held out: test on the fit.');
+            [train, test] = NeuroGLMExport.split(e, TestFraction=0.25, Blocked=false, Seed=2);
+            [~, test2] = NeuroGLMExport.split(e, TestFraction=0.25, Blocked=false, Seed=2);
+            tc.verifyEqual(test, test2, 'Repeatable by Seed.');
+            tc.verifyEqual(sort([train test]), 1:20);
+            tc.verifyFalse(isequal(test, 16:20), 'Blocked=false picks the trials at random.');
+        end
+
+        function splitKeepsOverlappingTrialsTogether(tc)
+            spans = [(0:19).' * 2, (0:19).' * 2 + 2];
+            spans(16, 1) = 29;                              % trial 16 overlaps trial 15 ([28 30])
+            e = struct('trial', struct('span', mat2cell(spans, ones(20, 1), 2)));
+            [train, test] = NeuroGLMExport.split(e, TestFraction=0.25);
+            ov = (spans(train, 1) < spans(test, 2).') & (spans(train, 2) > spans(test, 1).');
+            tc.verifyFalse(any(ov, 'all'), 'No trained trial shares time with a held-out one.');
+            tc.verifyTrue(all(ismember([15 16], test)) || all(ismember([15 16], train)), 'The overlapping pair is not split.');
+            tc.verifyEqual(sort([train test]), 1:20);
+            all1 = [0 3; 1 4; 2 5];                         % every trial overlaps the next: nothing to hold out
+            e1 = struct('trial', struct('span', mat2cell(all1, ones(3, 1), 2)));
+            tc.verifyWarning(@() NeuroGLMExport.split(e1), 'NeuroGLMExport:NoHoldOut');
+            ws = warning('off', 'NeuroGLMExport:NoHoldOut');
+            restore = onCleanup(@() warning(ws));
+            [train, test] = NeuroGLMExport.split(e1);
+            tc.verifyEqual(test, train);
+            tc.verifyEqual(train, 1:3);
         end
 
         function experimentErrors(tc)

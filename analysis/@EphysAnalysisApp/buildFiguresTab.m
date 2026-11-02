@@ -172,7 +172,7 @@ PT = EphysAnalysisConfig.panelTypes();
 
 % --- left: the figures, a tree under groups ------------------------------------------------------
 lg = uigridlayout(g, [9 2]);
-lg.RowHeight = {22, 28, 30, '1x', 30, 30, 30, 30, 64};
+lg.RowHeight = {22, 28, 30, '1x', 34, 30, 30, 30, 64};
 lg.ColumnWidth = {'1x', '1x'};
 lg.Padding = [0 0 0 0];
 l = uilabel(lg, "Text", "Figures  (ticked = enabled)", "FontWeight", "bold");
@@ -204,7 +204,11 @@ obj.FiguresTree = uitree(lg, "Multiselect", "off", "SelectionChangedFcn", @(~, e
 place(obj.FiguresTree, 4, [1 2]);
 obj.AddFigureButton = uibutton(lg, "Text", "Add", "ButtonPushedFcn", @(~,~) obj.onAddFigure(), ...
     "Tooltip", "Add a blank figure and pick its first panel in the New panel window (Cancel leaves it blank).");
-place(obj.AddFigureButton, 5, [1 2]);
+place(obj.AddFigureButton, 5, 1);
+obj.AddStarterButton = uibutton(lg, "Text", "Add Raster + PSTH", "ButtonPushedFcn", @(~,~) obj.onAddFigure("rasterPsth"), ...
+    "Tooltip", "Add a ready-made figure: a unit's raster flush above its PSTH, both following the observed unit. " + ...
+    "Change anything afterwards: it is an ordinary figure.");
+place(obj.AddStarterButton, 5, 2);
 obj.RemoveFigureButton = uibutton(lg, "Text", "Remove", "ButtonPushedFcn", @(~,~) obj.onRemoveFigure(), ...
     "Tooltip", "Remove the selected figure from the config.");
 place(obj.RemoveFigureButton, 6, 1);
@@ -481,7 +485,7 @@ sec(end+1) = S;
 % across sessions: the figure drawn once over several datasets, each layer merged (figureSessionCompute); no key
 S = formSection(eg, 14, "sessions", "Sessions", Color=tint("sessions"));
 [S, r] = formRow(S, "sesEnabled", "");
-E.sesEnabled = uicheckbox(S.Body, "Text", "Across sessions (one figure over several datasets)", "ValueChangedFcn", changed, ...
+E.sesEnabled = uicheckbox(S.Body, "Text", "Across datasets (one figure over several recordings)", "ValueChangedFcn", changed, ...
     "Tooltip", "Draw this figure once across the datasets instead of once per dataset: each observation (a site, " + ...
     "a cell of the mapping, a channel or the dataset) is computed on every session and each panel's layers are " + ...
     "merged, a color per session (or subject). Generate selected figure and Run then write it to the sessions folder. " + ...
@@ -559,7 +563,7 @@ S = formSection(eg, 19, "probe", "Probe layout", Color=tint("probe"));
 E.prbEnabled = uicheckbox(S.Body, "Text", "On the probe (every unit or channel at its site, one page per dataset)", ...
     "ValueChangedFcn", changed, "Tooltip", "Draw this figure once per dataset, every observation (each unit, or " + ...
     "each channel) a small tile of all its panels at its site on the probe, instead of a page per observation. " + ...
-    "Generate selected figure and Run then write one page per dataset. Not with Across sessions (Sessions).");
+    "Generate selected figure and Run then write one page per dataset. Not with Across datasets (Sessions).");
 place(E.prbEnabled, r, [1 2]);
 [S, r] = formRow(S, "prbLayout", "Layout:");
 E.prbLayout = uidropdown(S.Body, "Items", ["Schematic (rows of sites)" "Physical (µm)"], "ItemsData", ["schematic" "physical"], ...
@@ -1600,8 +1604,8 @@ obj.FigureSearchIndex = figureSearchIndex(obj.FigureSections, U);   % the rows a
 % the buttons in a column of their own at the left, beside the Dataset, Observation and Favorites rows (three rows
 % tall enough for its five); Design and Save look as design sit at the right of Dataset and Observation; the
 % template row (and Apply last change) above the preview. Ctrl is Cmd on a Mac (onKeyPress).
-pg = uigridlayout(g, [6 5]);
-pg.RowHeight = {46, 46, 46, 34, '1x', 30};
+pg = uigridlayout(g, [7 5]);
+pg.RowHeight = {46, 46, 46, 34, '1x', 30, 20};
 pg.ColumnWidth = {90, 'fit', '1x', 'fit', 125};
 pg.ColumnSpacing = 6;
 pg.Padding = [0 0 0 0];
@@ -1756,6 +1760,8 @@ obj.FigureOpenButton = uibutton(sg, "Text", "Open in window", "Enable", "off", .
     "It is independent of this app: later edits do not follow into it. An out-of-date preview is redrawn first. (" + cmdKey + "+W)", ...
     "ButtonPushedFcn", @(~,~) obj.onOpenFigureWindow());
 obj.FigureOpenButton.Layout.Row = 1; obj.FigureOpenButton.Layout.Column = 6;
+hintRow = uilabel(pg, "Text", "Right-click the plot to change colors, fonts and labels.", "FontColor", gray);
+hintRow.Layout.Row = 7; hintRow.Layout.Column = [1 5];
 obj.setFigurePreviewState("idle");
 end
 

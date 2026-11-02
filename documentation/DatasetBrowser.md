@@ -76,12 +76,13 @@ The **Help** menu:
 | Item | Does |
 | --- | --- |
 | **Help for DatasetBrowser** | opens this page's wiki page (`Dataset-Browser`) in the browser |
+| **Keyboard shortcuts and right-click menus** | a small window that lists the keys (Ctrl+O, Ctrl+S), what a click on the table does and what its right-click menu does (`B.showShortcuts()`) |
 | **Documentation home** | opens the wiki's front page |
 | **About DatasetBrowser** | shows the version of the code (release number, git commit, branch, date, uncommitted changes), the MATLAB release, the last commit of `DatasetBrowser.m`, `epochMatrix.m` and `DatasetRuns.m`, the versions of the result file and of the cache, and the root, the number of datasets found and the settings file. **Copy** puts the text on the clipboard, for an issue; `B.aboutText()` returns the part particular to the browser |
 
 The rows:
 
-1. **Root** (a field and **Browse...**) and **Pattern**, with **Scan**.
+1. **Project root** (a field and **Browse...**) and **Pattern**, with **Scan**.
    **Scan** lists the root's datasets. It reads each one's outputs and tags
    but loads no dataset. The **Root** of a new scan takes that root's own
    result file, when the result file follows the root. **Keep on top**
@@ -114,7 +115,8 @@ The line above the table reads *showing 12 of 34 (3 ticked hidden) · 9 ticked*.
 ### The table
 
 Click a header to sort; the sort is remembered (preference `Sort`). The
-context menu has **Clear sort** and **Forget cached (ticked)**. Clicking a
+right-click menu has **Clear sort**, **Forget cached (ticked)** and **Details
+of the last run...** (a one-line hint under the table says so). Clicking a
 row makes it the dataset the form's lists are read from.
 
 | Column | Shows |
@@ -126,7 +128,7 @@ row makes it the dataset the form's lists are read from.
 | **Tags** | the manifest's tags |
 | **Units**, **Detected**, **Behavior** | a check mark when the sorting, the spikes file or the behavior file exists |
 | **Signals** | the derived signals the dataset has (`LFP`, `MUA`, `SPIKE`, `AUX`) |
-| **Cached** | the dataset's part for the current **Data** and settings: `✓ 62 units` (kept and current; the units, or for signals the channels, the dataset adds to the result: one matrix row each, so `✓ 8 channels` for signals), `skipped` (nothing to compute, kept so), `old` (kept, but either the settings or the stamp of the dataset's output files differ: computed again next time), or blank. With several kinds of **Data** ticked: `✓ 62 units, 32 LFP` once every kind is kept and current (a kind the dataset lacks reads `AUX skipped`), `old` when one kind is, `skipped` when all are, else blank. The whole row is tinted to match: pale green (cached), pale yellow (`old`), pale red (`skipped`), none (blank) |
+| **Cached** | the dataset's part for the current **Data** and settings: `✓ 62 units` (kept and current; the units, or for signals the channels, the dataset adds to the result: one matrix row each, so `✓ 8 channels` for signals), `skipped: no sorted units` (nothing to compute, with the reason; kept so), `error` (the last **Compute** failed on it with these settings and outputs: tried again next time), `old` (kept, but either the settings or the stamp of the dataset's output files differ: computed again next time), or blank. A `skipped` or `error` cell is in red text; **Details...** has the whole message. With several kinds of **Data** ticked: `✓ 62 units, 32 LFP` once every kind is kept and current (a kind the dataset lacks reads `AUX skipped`), `old` when one kind is, `skipped: <reason>` when all are, else blank. The whole row is tinted to match: pale green (cached), pale yellow (`old`), pale red (`skipped` or `error`), none (blank) |
 
 ### The settings form
 
@@ -150,15 +152,15 @@ mode and its stop event.
 | **Data** | `data`: a box per kind, `units`, `detected`, `LFP`, `MUA`, `SPIKE` and `AUX`; tick one or more ([Several kinds of data](#several-kinds-of-data)). Only the blocks of the **Measure** tab that apply are on |
 | **Event** tab: **Event reference** | `ref`: **Line**, **Edge**, **Which** and **n**, **Scope**, **Offset (s)**, **Length (s)**, **Time range (s)**, **Shift by** and its unit, and **Sequence** |
 | **Event** tab: **Sequence** **Edit...** | `ref.sequence` and `ref.alignStep` in the *Event sequence* window: any number of steps, each *followed by* or *not followed by* a line's onset or offset (its **n**, **Within (s)**, **Min / Max length (s)**), and **Align to** the start or any *followed by* step (aligned to the start, the steps are conditions only). For example *Trial offset then Trough onset*: the first Trough onset after each trial ends. **Apply** checks the steps |
-| **Event** tab: **Epoch window** | `window`: **Pre (s)**, **Post (s)** |
+| **Event** tab: **Epoch window** | `window`: **Pre (s)**, **Post (s)**, seconds from the event (a negative **Pre** is before it; a hint under the two says so) |
 | **Event** tab: **Epoch Diagram** | opens the *How the epochs are cut* window (`EpochDiagram`, also `B.showEpochs()`) for the dataset the lists come from: the lines, each event picked, the sequence, the windows and the trials kept or dropped. It is redrawn on every settings edit and row click until closed, and closes with the browser |
 | **Trials** tab | `selection`: **Filter** (an expression over the trial columns, e.g. `Depth > 0 & ~FA`; **?** lists the columns, words and functions), **Response**, **Pairing** (`pairingFlags`), **Group by** and **and** (one or two trial parameters), **Order**, **Max groups**, **Artifacts** (`excludeArtifacts`, at least `minArtifactSec`) |
 | **Trials** tab: **Epochs per group** | opens the *Epochs per group* window (`EpochGroupCounts`, also `B.showGroupCounts()`) for the dataset the lists come from: see [Epochs per group](#epochs-per-group). It is redrawn on every settings edit and row click until closed, and closes with the browser |
 | **Measure** tab: **Normalize**, **Baseline (s)**, scope | `normalize`: `method`, `baseline` and `scope` (*per row* or *per group*); see [Normalization](#normalization). A change normalizes the result again in place and computes nothing. Off for measure `auroc` (unless a signal is ticked too); **Baseline (s)** only for the methods that use it |
 | **Channels** tab | **Shanks** and **Channels**: `units.shanks` and `units.channels` for `units` and `detected`, `signal.shanks` and `signal.channels` for a signal (blank = all; both with several kinds), also picked by clicking the probe; see [Shanks and channels](#shanks-and-channels) |
-| **Measure** tab: **Spikes** block | **Merge neighboring sites** (`units.merge.enabled`, `detected` only), **Measure**, **Bin (s)**, **auROC baseline (s)** (with measure `auroc`) |
+| **Measure** tab: **Spikes** block | **Merge neighboring sites** (`units.merge.enabled`, `detected` only), **Measure**, **Bin (ms)** (`binSec`, in seconds, in a script), **auROC baseline (s)** (with measure `auroc`) |
 | **Measure** tab: **Signals** block | **Baseline (s)**, **Statistic**, **Detrend**, **Rectify**, **Magnitude (AUX)** |
-| Above **Compute**: **Keep single trials, not just averages (R.epochs)** | `keepEpochs`: the result also keeps every epoch before the average ([Each epoch](#each-epoch-repochs)), which `B.showRasters` draws ([Trial rasters](#trial-rasters)). Every kind of **Data** |
+| Above **Compute**: **Keep single trials, not just averages** | `keepEpochs`: the result also keeps every epoch before the average ([Each epoch](#each-epoch-repochs)), which `B.showRasters` draws ([Trial rasters](#trial-rasters)). Every kind of **Data** |
 
 The form does not show every field (the unit classes and tests, the auROC
 section, the selection's explicit trial rows, and an interval length or time
@@ -224,8 +226,8 @@ them together, with one event, window, trial selection and normalization:
   that no ticked dataset has stops the compute with `epochMatrix:NoData`, its
   kind named (*SPIKE: ...*), and leaves `B.Results` as it was; the kinds
   computed before it stay cached.
-- **Load whole sessions** gives an entry per dataset and kind (see
-  [Load whole sessions](#load-whole-sessions)).
+- **Load whole recordings** gives an entry per dataset and kind (see
+  [Load whole recordings](#load-whole-recordings)).
 - The **Measure** tab's **Spikes** block applies to `units` and `detected`,
   its **Signals** block to the signals.
 - The [Channels tab](#shanks-and-channels) is one pick for every probe kind.
@@ -318,9 +320,9 @@ each starting with its kind, when several are ticked). When the settings or
 ticks changed since the result, it begins *Out of date:* and says what
 differs.
 
-### Load whole sessions
+### Load whole recordings
 
-**Load whole sessions**, beside **Compute**, computes nothing: it uses the
+**Load whole recordings**, beside **Compute**, computes nothing: it uses the
 browser as a way in to the data. Each ticked dataset comes on its own clock,
 not cut into epochs, into `B.Sessions` for your script to use as it likes
 (`B.loadSessions()` from a script). What comes depends on **Data**, each
@@ -375,7 +377,7 @@ raw trial times.
 
 ```matlab
 B = DatasetBrowser.open(root);
-B.wait();                       % tick, then Load whole sessions
+B.wait();                       % tick, then Load whole recordings
 for D = B.Sessions.'
     on = D.toContinuous(D.trials.TrialOnset(D.kept));
     % ... D.spikes{u} against on, D.events.Lick, ...
@@ -411,7 +413,7 @@ plots) are in the workspace as soon as a compute finishes:
 | **+** | adds a `.m` file picked in a dialog to the list and picks it (`B.addScript()`, or `B.addScript(file)`) |
 | **−** | takes the script shown off the list; the file stays (`B.removeScript()`) |
 | **Edit** | opens the script in the MATLAB editor (`B.editScript()`) |
-| **Run it after each Compute or Load** | **Compute** and **Load whole sessions** run the script once the data are in (`B.ScriptAfterCompute`) |
+| **Run it after each Compute or Load** | **Compute** and **Load whole recordings** run the script once the data are in (`B.ScriptAfterCompute`) |
 | **Run now** | runs the script on the result or the sessions as they are (`B.runScript()`); off before either |
 
 The script runs in the base workspace, as `run` runs it, with the browser put
@@ -500,6 +502,29 @@ at once, for every dataset not finished). With `Visible=false`, or once the
 window is closed, the same calls print a line to the command window at most
 every 2 s, and one at the finish.
 
+### When a dataset gives nothing
+
+A dataset that cannot give what the settings ask for is said so, in three
+places:
+
+- its **Cached** cell reads `skipped: no sorted units` (nothing to compute) or
+  `error` (the computation failed), in red;
+- when a **Compute**, `forEach` or **Load whole recordings** ends, the status
+  line names them: *"2 not computed: recA (no sorted units), recB (error: ...)."*
+  (the first three, then *and N more*; red when one failed). The summary adds
+  *", 2 not computed (Details...)"*;
+- **Details...** (beside **Load trials only**, and **Details of the last run...**
+  in the table's right-click menu) opens a window with a row per dataset and
+  kind of **Data** the last run covered: **Dataset**, **Data**, **Status**
+  (`error`, `skipped`, `no rows`, `done`, `cached`), **Reason** (the whole
+  message the run kept) and **Seconds**. The datasets that gave nothing come
+  first.
+
+In a script, `B.notComputedText()` is the status text, `B.runDetails()` the
+table and `B.showDetails()` the window. For a **Compute**, `B.Result.datasets`
+(`R.datasets`) holds the same status and message per dataset, with the rows
+each gave.
+
 ### Workers
 
 **Workers** (`B.Workers`, preference `Workers`) is how many datasets
@@ -534,7 +559,7 @@ B.wait();          % tick, adjust, Compute
 R = B.Result;
 ```
 
-`wait` blocks until a **Compute** or **Load whole sessions** from the window finishes (and the
+`wait` blocks until a **Compute** or **Load whole recordings** from the window finishes (and the
 post-processing script, when ticked, has run), `B.done()` is called, or the
 window is closed (it returns at once when the window is hidden or closed;
 `Timeout=` limits the wait). The window stays open after Compute.
@@ -584,10 +609,11 @@ R = B.compute();
 | `formEdit(B, CONTROL, VALUE)` | edit a control of `B.Ctl` (or of `B.Ctl.Align`, the Event and Trials tabs: `Line`, `Filter`, `Group1`, ...) as a click would |
 | `showEpochs(B)` | the **Epoch Diagram** window of the lists' dataset |
 | `showGroupCounts(B)` | the **Epochs per group** window of the lists' dataset ([Epochs per group](#epochs-per-group)) |
+| `runDetails(B)`, `notComputedText(B)`, `showDetails(B)` | what the last compute, `forEach` or load did for each dataset (Dataset, Data, Status, Reason, Seconds), the status-line text that names the datasets that gave nothing, and the **Details...** window ([When a dataset gives nothing](#when-a-dataset-gives-nothing)) |
 | `showProbe(B)`, `pickProbe(B, KIND, VALUE)` | the **Channels** tab with the lists' dataset's probe; a click on it: `KIND` `"site"` (a recording channel) or `"shank"`, toggled and applied ([Shanks and channels](#shanks-and-channels)) |
 | `showRasters(B, ROW)`, `X = raster(B, ROW, Order=)` | the **Trial rasters** window on row `ROW` of the result; that row trial by trial ([Trial rasters](#trial-rasters)) |
 | `[R, Rs] = compute(B, Recompute=false)` | `epochMatrix` over the ticked datasets with `B.Settings`, once per kind of data: `R` is `B.Result`, `Rs` is `B.Results` ([Several kinds of data](#several-kinds-of-data)) |
-| `[D, T] = loadSessions(B, TrialsOnly=false)` | the ticked datasets whole, in `B.Sessions` ([Load whole sessions](#load-whole-sessions)) |
+| `[D, T] = loadSessions(B, TrialsOnly=false)` | the ticked datasets whole, in `B.Sessions` ([Load whole recordings](#load-whole-recordings)) |
 | `[VALUES, T] = forEach(B, FN, ...)` | [your own per-dataset code, cached](#foreach) |
 | `forget(B, NAME, KEYS)`, `forgetTicked(B)` | drop kept parts |
 | `loadSettings(B, FILE)` | read a [settings file](#settings) (no `FILE`: a file dialog) |
@@ -777,7 +803,7 @@ Notes on the fields:
 ### Each epoch (`R.epochs`)
 
 `R.data` holds averages. To work with single trials (decoding, trial-by-trial
-variability, your own statistics), tick **Keep single trials, not just averages (R.epochs)** above
+variability, your own statistics), tick **Keep single trials, not just averages** above
 **Compute**, or set `keepEpochs=true`, and compute. `R.epochs(k)` is
 dataset `R.keys(k)`'s:
 
@@ -887,7 +913,9 @@ group its own).
 - The SD is over the baseline's bins (spikes) or samples (signals) of the
   group's mean trace, not over the epochs: it shrinks with more epochs and
   grows with narrower bins. `spikePSTH`'s `BaselineMode` `"zscore"`, which
-  the analysis app's PSTH panels use, takes the SD over the epochs instead.
+  the analysis app's PSTH panels use, takes the same mean and SD (over the
+  baseline's whole bins of the group's trial-averaged PSTH), so with scope
+  `"group"` the two give the same z.
 - Where `b` is 0 (ratio, percent), the SD is 0 (zscore), the trace is flat
   (minmax) or no baseline value is finite, the row is NaN in that group (with
   scope `"row"`, in every group) and `R.normalization.undefined` marks it.
@@ -1170,7 +1198,7 @@ out).
 | --- | --- |
 | the window and the handle | [`DatasetBrowser.m`](../analysis/DatasetBrowser.m) |
 | the compute and its result | [`epochMatrix.m`](../analysis/epochMatrix.m) |
-| one dataset on its own clock (**Load whole sessions**) | [`sessionData.m`](../analysis/sessionData.m) |
+| one dataset on its own clock (**Load whole recordings**) | [`sessionData.m`](../analysis/sessionData.m) |
 | the settings, their checks and cache identity | [`epochMatrixSettings.m`](../analysis/epochMatrixSettings.m) |
 | the result's labels and description in words | [`epochMatrixLabels.m`](../analysis/epochMatrixLabels.m) |
 | the normalization of a result | [`epochMatrixNormalize.m`](../analysis/epochMatrixNormalize.m) |

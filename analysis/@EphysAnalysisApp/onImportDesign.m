@@ -16,7 +16,9 @@ try
     name = PlotDesign.import(file);
 catch ME
     if ME.identifier ~= "PlotDesign:Exists"
-        uialert(obj.Fig, ME.message, "Import design");
+        obj.log("Import design failed: " + string(ME.message));
+        AppDialog.alertFailure(obj.Fig, "Import design", "import the design", file, ME, ...
+            Try="pick a design file (.json) made by this app", Details="Log tab");
         return
     end
     a = uiconfirm(obj.Fig, ME.message + " Replace it with the imported one?", "Import design", ...

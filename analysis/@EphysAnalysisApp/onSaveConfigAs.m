@@ -22,7 +22,9 @@ end
 try
     cfg = cfg.save(file);
 catch ME
-    uialert(obj.Fig, "Could not save the config:" + newline + string(ME.message), "Save config");
+    obj.log("Could not save " + file + ": " + string(ME.message));
+    AppDialog.alertFailure(obj.Fig, "Save config", "save the config", file, ME, ...
+        Try="choose another folder or file name", Details="Log tab");
     return
 end
 obj.Config = cfg;

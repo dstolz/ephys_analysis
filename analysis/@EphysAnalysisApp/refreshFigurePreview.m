@@ -79,7 +79,9 @@ end
 k = obj.SelectedFigure;
 if k < 1 || k > numel(obj.Config.Figures)
     obj.FigurePreviewResult = [];
-    clearPanel(obj, "No figure: press Add under the list, then pick its first panel.");
+    delete(obj.FigurePreviewPanel.Children);
+    emptyStateCard(obj, obj.FigurePreviewPanel);   % what to do first, with the starter figure one click away
+    obj.FigurePreviewLabel.Text = "No figure: press Add Raster + PSTH or Add under the list, then pick its first panel.";
     obj.setFigurePreviewState("idle");
     showSessionPicker(obj, []);
     return
@@ -117,7 +119,9 @@ end
 reason = figureSkipReason(src, spec);
 if reason ~= ""
     obj.FigurePreviewResult = [];
-    clearPanel(obj, spec.id + " cannot be drawn for " + src.name + ": " + reason + ".");
+    what = figureSkipRemedy(reason);   % the reason in plain words, with what to do
+    if what == ""; what = reason + "."; end
+    clearPanel(obj, spec.id + " cannot be drawn for " + src.name + ". " + what);
     obj.setFigurePreviewState("skipped");
     return
 end

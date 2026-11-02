@@ -9,7 +9,9 @@ end
 try
     cfg = cfg.save(cfg.File);
 catch ME
-    uialert(obj.Fig, "Could not save the config:" + newline + string(ME.message), "Save config");
+    obj.log("Could not save " + string(cfg.File) + ": " + string(ME.message));
+    AppDialog.alertFailure(obj.Fig, "Save config", "save the config", string(cfg.File), ME, ...
+        Try="save it somewhere else with File > Save config as...", Details="Log tab");
     return
 end
 obj.Config = cfg;

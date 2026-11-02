@@ -17,10 +17,10 @@ left.RowHeight = {'fit', 'fit'};
 left.Padding = [0 0 0 0];
 
 % --- Export ------------------------------------------------------------------
-xp = uipanel(left, "Title", "Figure files (config: Export)");
+xp = uipanel(left, "Title", "Figure files");
 xg = uigridlayout(xp, [7 4]);
 xg.RowHeight = repmat({22}, 1, 7);
-xg.ColumnWidth = {100, '1x', '1x', 70};
+xg.ColumnWidth = {150, '1x', '1x', 70};
 xg.RowSpacing = 4;
 X = struct();
 X.Enabled = uicheckbox(xg, "Text", "Write figure files", "FontWeight", "bold", "ValueChangedFcn", changed);
@@ -41,8 +41,9 @@ X.FilenamePattern = uieditfield(xg, "text", "ValueChangedFcn", changed, ...
     "Tooltip", "Tokens: {Name} {Plot} (the figure's id) {Kind} {Group} {Unit} {Index} {Date}; a figure drawn for " + ...
     "several observations adds _<Unit> unless {Unit} or {Index} is used.");
 place(X.FilenamePattern, 4, [2 4]);
-lab(xg, "Dpi (png):", 5, 1);
-X.Dpi = uieditfield(xg, "numeric", "Limits", [10 2400], "Value", 150, "ValueChangedFcn", changed);
+lab(xg, "Resolution (dpi, PNG):", 5, 1);
+X.Dpi = uieditfield(xg, "numeric", "Limits", [10 2400], "Value", 150, "ValueChangedFcn", changed, ...
+    "Tooltip", "Dots per inch of the PNG files (150 is fine for a screen, 300 or more for print)." + newline + "Script name: Export.Dpi");
 place(X.Dpi, 5, 2);
 X.Overwrite = uicheckbox(xg, "Text", "Overwrite existing", "ValueChangedFcn", changed);
 place(X.Overwrite, 5, [3 4]);
@@ -56,10 +57,10 @@ place(tok, 7, [1 4]);
 obj.ExportControls = X;
 
 % --- Report -------------------------------------------------------------------
-rp = uipanel(left, "Title", "Report (config: Report)");
+rp = uipanel(left, "Title", "Report");
 rg = uigridlayout(rp, [8 4]);
 rg.RowHeight = repmat({22}, 1, 8);
-rg.ColumnWidth = {100, '1x', '1x', 70};
+rg.ColumnWidth = {150, '1x', '1x', 70};
 rg.RowSpacing = 4;
 P = struct();
 P.Enabled = uicheckbox(rg, "Text", "Write a report", "FontWeight", "bold", "ValueChangedFcn", changed);
@@ -83,7 +84,7 @@ place(P.PerDataset, 4, [3 4]);
 lab(rg, "HTML images:", 5, 1);
 P.EmbedFormat = uidropdown(rg, "Items", ["png" "svg"], "ValueChangedFcn", changed);
 place(P.EmbedFormat, 5, 2);
-lab(rg, "Dpi:", 5, 3);
+lab(rg, "Resolution (dpi):", 5, 3);
 P.Dpi = uieditfield(rg, "numeric", "Limits", [10 1200], "Value", 110, "ValueChangedFcn", changed);
 place(P.Dpi, 5, 4);
 ig = uigridlayout(rg, [1 3]); ig.Padding = [0 0 0 0]; ig.Layout.Row = 6; ig.Layout.Column = [1 4];
@@ -114,8 +115,8 @@ P.PageOrientation = uidropdown(pg, "Items", ["Best fit" "Portrait" "Landscape"],
 obj.ReportControls = P;
 
 % --- run ------------------------------------------------------------------------
-right = uigridlayout(g, [5 6]);
-right.RowHeight = {30, '1x', 22, '1x', 30};
+right = uigridlayout(g, [6 6]);
+right.RowHeight = {30, '1x', 20, 22, '1x', 30};
 right.ColumnWidth = {90, 90, 120, 90, 90, '1x'};
 right.Padding = [0 0 0 0];
 obj.ValidateButton = uibutton(right, "Text", "Validate", "ButtonPushedFcn", @(~,~) obj.onValidate());
@@ -148,14 +149,20 @@ wTip = "Process workers that draw and write the pages of a run (Parallel Computi
 uilabel(wg, "Text", "Workers:", "Tooltip", wTip);
 obj.WorkersSpinner = uispinner(wg, "Limits", [0 max(4, feature('numcores'))], "RoundFractionalValues", "on", ...
     "Value", 4, "Tooltip", wTip, "ValueChangedFcn", @(src, ~) AppPrefs.setpref(obj.PrefGroup, 'ReportWorkers', src.Value));
-obj.IssuesTable = uitable(right, "RowName", {}, "ColumnWidth", 'auto', "ColumnSortable", true);
+obj.IssuesTable = uitable(right, "RowName", {}, "ColumnWidth", 'auto', "ColumnSortable", true, ...
+    "DoubleClickedFcn", @(~, evt) obj.onIssueActivated(evt), ...
+    "Tooltip", "The problems Validate found, or the plan: double-click a row to go to the setting or figure it is about.");
 place(obj.IssuesTable, 2, [1 6]);
+hint = uilabel(right, "Text", "Double-click a row to go to the setting or figure it is about.", "FontColor", [0.35 0.35 0.35]);
+place(hint, 3, [1 6]);
 obj.RunLabel = uilabel(right, "Text", "Results", "FontWeight", "bold");
-place(obj.RunLabel, 3, [1 6]);
-obj.ResultsTable = uitable(right, "RowName", {}, "ColumnWidth", 'auto', "ColumnSortable", true);
-place(obj.ResultsTable, 4, [1 6]);
+place(obj.RunLabel, 4, [1 6]);
+obj.ResultsTable = uitable(right, "RowName", {}, "ColumnWidth", 'auto', "ColumnSortable", true, ...
+    "DoubleClickedFcn", @(~, evt) obj.onIssueActivated(evt), ...
+    "Tooltip", "What the last run did, a row per dataset and figure: double-click a row to show its figure on the Figures tab.");
+place(obj.ResultsTable, 5, [1 6]);
 og = uigridlayout(right, [1 3], "Padding", [0 0 0 0], "ColumnWidth", {'fit', 'fit', '1x'});
-place(og, 5, [1 6]);
+place(og, 6, [1 6]);
 obj.OpenReportButton = uibutton(og, "Text", "Open report", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onOpenReport());
 obj.OpenFolderButton = uibutton(og, "Text", "Open figure folder", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onOpenExportFolder(), ...
     "Tooltip", "The first dataset's figure folder of the last run. The session figures' files go to the sessions folder (Export.SessionsFolder).");

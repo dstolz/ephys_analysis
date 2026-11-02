@@ -125,7 +125,7 @@ classdef DatasetBrowser < handle
     %                  ScriptAfterCompute)
     %     [D, T] = loadSessions(B, RunScript=false, TrialsOnly=false)   the ticked datasets on their own
     %                  clock, not cut into epochs, in B.Sessions (sessionData; one per dataset and kind
-    %                  of data; the Load whole sessions button); TrialsOnly: trials and digital lines,
+    %                  of data; the Load whole recordings button); TrialsOnly: trials and digital lines,
     %                  no spikes or signal (Load trials only)
     %     [VALUES, T] = forEach(B, FN, Name=, Id=, Datasets=, Recompute=, SkipIds=)
     %                  FN(SRC) or FN(SRC, INFO) per dataset, kept in Runs
@@ -157,7 +157,7 @@ classdef DatasetBrowser < handle
     %   Post-processing scripts: the "Post-processing script" box under
     %   Compute lists scripts (Scripts; + adds one, − takes the one shown
     %   off the list, Edit opens it). With "Run it after each Compute or
-    %   Load" (ScriptAfterCompute) ticked, Compute and Load whole sessions
+    %   Load" (ScriptAfterCompute) ticked, Compute and Load whole recordings
     %   run the picked one (Script) in the base workspace once the data are
     %   in, with this browser put there as B (the script reads R = B.Result
     %   or S = B.Sessions); "Run now" runs it on them as they are. Its
@@ -192,9 +192,9 @@ classdef DatasetBrowser < handle
     %   channels are one pick for every probe kind (units.* and signal.*
     %   set together), and AUX, which has no probe, keeps all its columns
     %   (and Magnitude is AUX's) when other kinds are ticked. Load whole
-    %   sessions gives an entry per dataset and kind.
+    %   recordings gives an entry per dataset and kind.
     %
-    %   Whole sessions: Load whole sessions (loadSessions) is the browser
+    %   Whole recordings: Load whole recordings (loadSessions) is the browser
     %   as a way in to the data, not a compute. Each ticked dataset's
     %   spike trains (Data units or detected: the units Compute uses) or
     %   its whole signal (LFP, MUA, SPIKE, AUX: the channels the Channels
@@ -210,7 +210,7 @@ classdef DatasetBrowser < handle
     %   the same without the spikes or signal: only the trials and the
     %   digital lines (D.data "trials"), one per dataset.
     %
-    %   Trial rasters: with "Keep single trials, not just averages (R.epochs)"
+    %   Trial rasters: with "Keep single trials, not just averages"
     %   (Measure tab) ticked, Compute keeps every epoch, and showRasters(B)
     %   opens a window on one row of Result (the first kind's; for another,
     %   epochMatrixRaster(B.Results.LFP, ROW)) at a time: a unit's raster
@@ -400,6 +400,8 @@ classdef DatasetBrowser < handle
         EpochWindow = []                   % the Epoch Diagram window (showEpochs), when open
         CountsWindow = []                  % the Epochs per group window (showGroupCounts), when open
         RasterWindow = []                  % the Trial rasters window (showRasters), when open
+        DetailsWindow = []                 % the Details window (showDetails), when open
+        LastRun table = table()          % what the last compute, forEach or load did, a row per dataset and kind: kind, key, name, status, message, seconds (runDetails)
     end
 
     properties (Dependent)
@@ -435,6 +437,7 @@ classdef DatasetBrowser < handle
         DefaultFile (1,1) logical = true   % ResultFile follows Root
         SavedSig (1,1) string = ""         % the state last written to (or read from) the result file
         NotSavedWarned (1,1) logical = false
+        Failed = struct('kind', {}, 'key', {}, 'stamp', {}, 'idText', {})   % datasets whose last compute failed (an error keeps no part): kind of data, key, outputs stamp and settings id then; the Cached column says "error" while both hold
         Clock = []                         % ProgressClock of the strip's run
         RunStart = []                      % tic of the strip's run
         RunTitle (1,1) string = ""
@@ -469,7 +472,7 @@ classdef DatasetBrowser < handle
             "TickShown" "UntickAll" "Table" "FileMenu" "Data" "Normalize" "NormBaseline" "NormScope" ...
             "Shanks" "Channels" "ProbeAll" "Probe" "Merge" "Measure" "Bin" "Baseline" ...
             "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "KeepEpochs" "Compute" "LoadSessions" "LoadTrials" "Workers" ...
-            "GroupCounts" "ScriptAfter" "ScriptList" "ScriptAdd" "ScriptRemove" "ScriptEdit" "ScriptRun" "DefList" "DefAdd" "DefRemove"]
+            "GroupCounts" "Details" "ScriptAfter" "ScriptList" "ScriptAdd" "ScriptRemove" "ScriptEdit" "ScriptRun" "DefList" "DefAdd" "DefRemove"]
         MaxRecent = 10                     % RecentSettings' length
         ErrorColor = [0.75 0.1 0.1]
         TextColor = [0.25 0.25 0.25]
@@ -906,6 +909,121 @@ classdef DatasetBrowser < handle
             B.refreshGroupCounts();
         end
 
+        function s = notComputedText(B)
+            %notComputedText  "2 not computed: recA (no sorted units), recB (error: ...)" for the last run; "" when every dataset gave something.
+            %   A dataset counts when it was skipped (the reason), failed (the
+            %   error's first line) or gave no rows. With several kinds of
+            %   data each is named by its kind first ("LFP: recA (no LFP
+            %   extract)"). Details... lists them all with the whole messages.
+            s = "";
+            L = B.LastRun;
+            if isempty(L); return; end
+            bad = ismember(L.status, ["skipped" "error"]) | (L.status == "done" & L.nRows == 0);
+            if ~any(bad); return; end
+            multi = numel(unique(L.kind)) > 1;
+            parts = strings(0, 1);
+            for k = reshape(find(bad), 1, [])
+                what = DatasetBrowser.reasonText(L.status(k), L.message(k), L.name(k));
+                p = L.name(k) + " (" + what + ")";
+                if multi; p = L.kind(k) + ": " + p; end
+                parts(end+1, 1) = p; %#ok<AGROW>
+            end
+            shown = parts(1:min(3, end));
+            s = sprintf("%d not computed: ", numel(parts)) + strjoin(shown, ", ");
+            if numel(parts) > numel(shown); s = s + sprintf(", and %d more", numel(parts) - numel(shown)); end
+            s = s + ". Details... lists them.";
+        end
+
+        function T = runDetails(B)
+            %runDetails  What the last compute, forEach or load did, a row per dataset and kind of data: Dataset, Data, Status, Reason, Seconds.
+            %   The datasets that gave nothing come first (errors, then
+            %   skipped, then those with no rows), each with the whole
+            %   message (Reason) the run kept: "(no sorting folder)" and
+            %   the like, or the error's text. It is the table the Details...
+            %   button shows; for a compute, B.Result.datasets holds the same
+            %   (and more: subject, date, rows, epochs, groups).
+            L = B.LastRun;
+            if isempty(L)
+                T = table(strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), zeros(0, 1), ...
+                    'VariableNames', {'Dataset', 'Data', 'Status', 'Reason', 'Seconds'});
+                return
+            end
+            status = L.status;
+            status(L.status == "done" & L.nRows == 0) = "no rows";
+            reason = L.message;
+            reason(status == "no rows") = "the dataset gave no rows (nothing passed the filters, or no unit or channel was left)";
+            T = table(L.name, L.kind, status, reason, L.seconds, 'VariableNames', {'Dataset', 'Data', 'Status', 'Reason', 'Seconds'});
+            rank = zeros(height(T), 1);
+            rank(T.Status == "skipped") = 1;
+            rank(T.Status == "no rows") = 2;
+            rank(~ismember(T.Status, ["error" "skipped" "no rows"])) = 3;
+            [~, o] = sort(rank);   % sort keeps the order of equal ranks
+            T = T(o, :);
+        end
+
+        function w = showShortcuts(B)
+            %showShortcuts  A small window that lists the keys and the right-click menus (Help > Keyboard shortcuts and right-click menus).
+            c = "Ctrl";
+            if ismac; c = "Cmd"; end
+            L = [ ...
+                "KEYS"
+                "  " + c + "+O    File > Load settings..."
+                "  " + c + "+S    File > Save settings"
+                ""
+                "MOUSE"
+                "  Use box         tick or untick the dataset for Compute and Load"
+                "  Column header   sort the table by that column (a second click reverses it)"
+                "  A row           the form's lists (events, lines, parameters, probe) load that dataset"
+                "  Probe           click a shank or a site to keep it; All keeps every one"
+                ""
+                "RIGHT-CLICK THE TABLE"
+                "  Clear sort                    back to the scan's order"
+                "  Forget cached (ticked)        drop the kept parts of the ticked datasets, so Compute works them out again"
+                "  Details of the last run...    the datasets the last Compute or Load gave nothing for, and why"
+                ""
+                "CELLS OF THE CACHED COLUMN"
+                "  green    cached for these settings           yellow   old: other settings, or its outputs changed"
+                "  red      skipped: <reason>, or error         (Details... has the whole message)"];
+            w = AppDialog.showText("Dataset browser: keyboard shortcuts and right-click menus", L, Parent=B.Fig, Size=[700 420], ...
+                Visible=~B.headless());
+        end
+
+        function w = showDetails(B)
+            %showDetails  The Details window: runDetails in a table, errors and skips in red (Details..., the table's right-click menu).
+            %   With nothing run yet the status line says so and no window
+            %   opens (W is empty). One window at a time: a second call
+            %   refreshes it. It stays hidden while the browser is (the tests).
+            w = [];
+            if isempty(B.LastRun)
+                B.setStatus("Nothing has been computed or loaded yet: no details.");
+                return
+            end
+            T = B.runDetails();
+            if ~isempty(B.DetailsWindow) && isvalid(B.DetailsWindow)
+                w = B.DetailsWindow;
+                tbl = findobj(w, 'Tag', 'detailsTable');
+                tbl.Data = T;
+                DatasetBrowser.styleDetails(tbl, T);
+                if ~B.headless(); figure(w); end
+                return
+            end
+            pos = [120 120 980 460];
+            if B.uiOk(); pos(1:2) = B.Fig.Position(1:2) + [60 80]; end
+            w = uifigure("Name", "Dataset browser: details of the last run", "Position", pos, "Tag", "DatasetBrowserDetails", ...
+                "Visible", ~B.headless());
+            g = uigridlayout(w, [3 1], "RowHeight", {'fit', '1x', 34}, "Padding", [10 10 10 10], "RowSpacing", 8);
+            uilabel(g, "Text", "A row per dataset and kind of data the last run covered. Errors and skipped datasets come first; " + ...
+                "Reason is the whole message. Skipped: the dataset has nothing to give these settings (fix it in the pipeline, " + ...
+                "or untick it). Error: something failed (the MATLAB warning DatasetRuns:DatasetFailed has the same text).", ...
+                "WordWrap", "on");
+            tbl = uitable(g, "Data", T, "RowName", {}, "ColumnSortable", true, "Tag", "detailsTable", ...
+                "ColumnWidth", {160, 70, 70, 'auto', 70});
+            DatasetBrowser.styleDetails(tbl, T);
+            b = uibutton(g, "Text", "Close", "ButtonPushedFcn", @(~, ~) delete(w));
+            styleButton(b);
+            B.DetailsWindow = w;
+        end
+
         function showProbe(B)
             %showProbe  The Channels tab shown, the probe of one dataset drawn (the clicked row's, else the first ticked).
             if ~B.uiOk(); return; end
@@ -930,7 +1048,7 @@ classdef DatasetBrowser < handle
                 error('DatasetBrowser:NoResult', 'No result yet: press Compute.');
             end
             if ~isfield(B.Result, 'epochs') || isempty(B.Result.epochs)
-                error('epochMatrixRaster:NoEpochs', ['The result keeps no epochs: tick "Keep single trials, not just averages (R.epochs)" ' ...
+                error('epochMatrixRaster:NoEpochs', ['The result keeps no epochs: tick "Keep single trials, not just averages" ' ...
                     'on the Measure tab and press Compute.']);
             end
             w = B.RasterWindow;
@@ -994,6 +1112,7 @@ classdef DatasetBrowser < handle
             own = B.beginOwnRun(); %#ok<NASGU> cleared on return
             B.progressStart("Computing " + strjoin(kinds, ", "));
             stopper = onCleanup(@() B.endRun("Compute stopped."));
+            B.LastRun = table();
             Rs = struct();
             for k = 1:n
                 kind = kinds(k);
@@ -1008,6 +1127,8 @@ classdef DatasetBrowser < handle
                     if ME.identifier == "epochMatrix:Canceled"
                         B.endRun("Canceled: " + string(ME.message));
                     end
+                    B.noteRun(kind, B.Runs.Last);   % what each dataset did before it stopped (Details...)
+                    B.recordFailures(kind, keys, B.Runs.Last);
                     B.afterRun(t0);
                     if n > 1 && ~isempty(ME.identifier) && ME.identifier ~= "epochMatrix:Canceled"
                         E = MException(ME.identifier, '%s: %s', kind, ME.message);
@@ -1017,12 +1138,15 @@ classdef DatasetBrowser < handle
                 end
                 R.name = B.nameOf(R);
                 Rs.(kind) = R;
+                B.noteRun(kind, R.datasets);
+                B.recordFailures(kind, keys, R.datasets);
             end
             R = Rs.(kinds(1));
             B.setResults(Rs);
             B.progressFinish(B.summaryText());
             clear stopper
             B.afterRun(t0);
+            B.reportNotComputed();   % the datasets that gave nothing, named in the status line (Details... lists them)
             B.changed("result");
             if opts.RunScript && B.ScriptS ~= ""; B.runScript(); end
         end
@@ -1063,6 +1187,7 @@ classdef DatasetBrowser < handle
             own = B.beginOwnRun(); %#ok<NASGU> cleared on return
             B.progressStart("Loading " + what + " sessions");
             stopper = onCleanup(@() B.endRun("Loading stopped."));
+            B.LastRun = table();
             skipIds = ["selectUnits:NoUnits" "selectUnits:NoDetected" "selectUnits:NoneLeft" ...
                 "selectChannels:NoSignal" "epochMatrix:NoChannels"];
             try
@@ -1088,8 +1213,10 @@ classdef DatasetBrowser < handle
             B.progressFinish(sprintf("%d session(s) loaded in B.Sessions (%s), %d skipped, %d failed", ...
                 n("done"), what, n("skipped"), n("error")));
             clear stopper
+            B.noteRun(strjoin(kinds, "+"), T);
             B.setStatus(sprintf("Loaded %d session(s) in %s: B.Sessions.", n("done"), ...
                 ProgressClock.durationText(seconds(datetime('now') - t0))));
+            B.reportNotComputed();
             B.applyEnable();
             B.changed("sessions");
             if opts.RunScript && B.ScriptS ~= ""; B.runScript(); end
@@ -1127,6 +1254,7 @@ classdef DatasetBrowser < handle
             own = B.beginOwnRun(); %#ok<NASGU> cleared on return
             B.progressStart(opts.Name);
             stopper = onCleanup(@() B.endRun(opts.Name + " stopped."));
+            B.LastRun = table();
             try
                 [values, T] = B.Runs.run(B.Runner, keys, fn, Name=opts.Name, Id=id, Info=B.info(keys), ...
                     Recompute=opts.Recompute, ProgressFcn=@(f, m) B.progress(f, m), CheckFcn=@() B.checkCancel(), ...
@@ -1142,7 +1270,9 @@ classdef DatasetBrowser < handle
             B.progressFinish(sprintf("%d computed, %d reused, %d skipped, %d failed", ...
                 n("done"), n("cached"), n("skipped"), n("error")));
             clear stopper
+            B.noteRun(opts.Name, T);
             B.afterRun(t0);
+            B.reportNotComputed();
         end
 
         function forget(B, varargin)
@@ -1685,6 +1815,32 @@ classdef DatasetBrowser < handle
             end
             B = DatasetBrowser(root, varargin{:});
         end
+
+        function r = reasonText(status, message, name)
+            %reasonText  A short reason for a dataset that gave nothing: "no sorted units" (skipped), "error: ..." (failed), "no rows".
+            %   The message is cut to what a table cell holds: the leading
+            %   dataset name and "has" go ("recA has no sorted units (no
+            %   sorting folder)." gives "no sorted units"), the first line
+            %   only, at most 60 characters.
+            status = string(status);
+            if status == "done"; r = "no rows"; return; end
+            m = strtrim(string(message));
+            m = strtrim(extractBefore(m + newline, newline));
+            if status == "skipped"
+                m = regexprep(m, "^" + regexptranslate('escape', char(name)) + "\s+", "");
+                m = regexprep(m, "^(has|have)\s+", "");
+                m = regexprep(m, "\s*\(.*$", "");
+            end
+            m = regexprep(m, "\.$", "");
+            if strlength(m) > 60; m = extractBefore(m, 58) + "..."; end
+            if status == "error"
+                r = "error: " + m;
+                if m == ""; r = "error"; end
+            else
+                r = m;
+                if r == ""; r = "skipped"; end
+            end
+        end
     end
 
     methods (Access = private)
@@ -1720,6 +1876,8 @@ classdef DatasetBrowser < handle
             c.HelpMenu = uimenu(f, "Text", "Help");
             uimenu(c.HelpMenu, "Text", "Help for DatasetBrowser", ...
                 "Tooltip", "The DatasetBrowser wiki page.", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.openHelp("Dataset-Browser")));
+            uimenu(c.HelpMenu, "Text", "Keyboard shortcuts and right-click menus", ...
+                "Tooltip", "The keys and the right-click menus of this window.", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.showShortcuts()));
             uimenu(c.HelpMenu, "Text", "Documentation home", ...
                 "Tooltip", "The wiki's front page.", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.openHelp("")));
             uimenu(c.HelpMenu, "Text", "About DatasetBrowser", "Separator", "on", ...
@@ -1730,7 +1888,7 @@ classdef DatasetBrowser < handle
 
             % --- the root and the pattern
             t = uigridlayout(g, [1 7], "ColumnWidth", {'fit', '1x', 90, 'fit', 300, 100, 'fit'}, "RowHeight", {30}, "Padding", [0 0 0 0]);
-            uilabel(t, "Text", "Root");
+            uilabel(t, "Text", "Project root");
             c.Root = uieditfield(t, "text", "Value", B.Root, "Tooltip", "The project root (or a copy of its output root); press Scan to list its datasets.");
             c.Browse = uibutton(t, "Text", "Browse...", "ButtonPushedFcn", @(~, ~) B.onBrowse());
             uilabel(t, "Text", "Pattern");
@@ -1743,7 +1901,7 @@ classdef DatasetBrowser < handle
             m = uigridlayout(g, [1 2], "ColumnWidth", {'1x', 470}, "RowHeight", {'1x'}, "Padding", [0 0 0 0]);
 
             % --- left: the filter, the count and the table
-            L = uigridlayout(m, [4 1], "RowHeight", {30, 30, 20, '1x'}, "Padding", [0 0 0 0], "RowSpacing", 4);
+            L = uigridlayout(m, [5 1], "RowHeight", {30, 30, 20, '1x', 20}, "Padding", [0 0 0 0], "RowSpacing", 4);
             refilter = @(~, ~) B.uiRun(@() B.onFilterControls());
             r1 = uigridlayout(L, [1 6], "ColumnWidth", {'fit', 170, 'fit', 170, 'fit', '1x'}, "RowHeight", {30}, "Padding", [0 0 0 0]);
             uilabel(r1, "Text", "Subject");
@@ -1777,6 +1935,10 @@ classdef DatasetBrowser < handle
                 "ContextMenu", uicontextmenu(f));
             uimenu(c.Table.ContextMenu, "Text", "Clear sort", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.clearSort()));
             uimenu(c.Table.ContextMenu, "Text", "Forget cached (ticked)", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.forgetTicked()));
+            uimenu(c.Table.ContextMenu, "Text", "Details of the last run...", "Separator", "on", ...
+                "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.showDetails()));
+            c.TableHint = uilabel(L, "Text", "Right-click the table: clear the sort, forget cached parts, details of the last run.", ...
+                "FontColor", B.TextColor);
 
             % --- right: the settings
             p = uipanel(m, "Title", "Settings");
@@ -1788,7 +1950,7 @@ classdef DatasetBrowser < handle
             c.DataNote = uilabel(r, "Text", "", "FontColor", B.TextColor, "HorizontalAlignment", "right");
             r = row(R, [{'fit'}, repmat({'fit'}, 1, numel(B.DataItems))]);
             both = " Tick several: Compute gives a result per kind (B.Results.<kind>; B.Result is the first), " + ...
-                "Load whole sessions an entry per dataset and kind (B.Sessions).";
+                "Load whole recordings an entry per dataset and kind (B.Sessions).";
             uilabel(r, "Text", "Data", "Tooltip", "What is computed or loaded." + both);
             what = ["the sorted units (the sorting folder)." "the Spikes step's detections, one train per channel." ...
                 repmat("a derived signal.", 1, 4)];
@@ -1858,8 +2020,10 @@ classdef DatasetBrowser < handle
                 "Tooltip", "detected: join the channels of neighboring sites that hold one neuron (groupDetected)."), 1, [1 4]);
             place(uilabel(sg, "Text", "Measure"), 2, 1);
             c.Measure = place(uidropdown(sg, "Items", {'rate', 'count', 'auroc'}, "ValueChangedFcn", edit("Measure")), 2, 2);
-            place(uilabel(sg, "Text", "Bin (s)"), 2, 3);
-            c.Bin = place(uieditfield(sg, "numeric", "Limits", [0 Inf], "LowerLimitInclusive", "off", "ValueChangedFcn", edit("Bin")), 2, 4);
+            place(uilabel(sg, "Text", "Bin (ms)"), 2, 3);
+            c.Bin = place(uieditfield(sg, "numeric", "Limits", [0 Inf], "LowerLimitInclusive", "off", "ValueChangedFcn", edit("Bin"), ...
+                "Tooltip", "The width of a time bin, in milliseconds (the figures' PSTH bin is in ms too). The window must hold whole bins." + ...
+                newline + "Script name: binSec (in seconds)"), 2, 4);
             place(uilabel(sg, "Text", "auROC baseline (s)"), 3, [1 2]);
             c.Baseline = place(uieditfield(sg, "text", "ValueChangedFcn", edit("Baseline"), ...
                 "Tooltip", "b0 b1, s from the event (measure auroc)."), 3, [3 4]);
@@ -1891,26 +2055,29 @@ classdef DatasetBrowser < handle
             c.DefRemove = uibutton(dg, "Text", "−", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.removeDefinition(string(B.Ctl.DefList.Value))), ...
                 "Tooltip", "Drop the definition shown from the list (the settings stay).");
             c.DefNote = uilabel(dg, "Text", "", "FontColor", B.TextColor);
-            c.KeepEpochs = uicheckbox(R, "Text", "Keep single trials, not just averages (R.epochs)", "ValueChangedFcn", edit("KeepEpochs"), ...
+            c.KeepEpochs = uicheckbox(R, "Text", "Keep single trials, not just averages", "ValueChangedFcn", edit("KeepEpochs"), ...
                 "Tooltip", "Also keep every epoch before it is averaged, in B.Result.epochs, for trial-by-trial work: " + ...
                 "each spike's time from the event and its epoch, or each epoch's signal trace (row x time x epoch). " + ...
                 "Computes every dataset once more; signal epochs are large and go into the result file.");
 
-            r = uigridlayout(R, [1 3], "ColumnWidth", {'1x', '1x', '1x'}, "RowHeight", {34}, "Padding", [0 0 0 0]);
+            r = uigridlayout(R, [1 4], "ColumnWidth", {'1x', '1x', '1x', 100}, "RowHeight", {34}, "Padding", [0 0 0 0]);
             c.Compute = uibutton(r, "Text", "Compute", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.onCompute()), ...
                 "Tooltip", "Compute the ticked datasets (those already computed with these settings are reused), " + ...
                 "a result per kind of Data ticked (B.Results; B.Result is the first); " + ...
                 "then the post-processing script, when ticked below.");
-            c.LoadSessions = uibutton(r, "Text", "Load whole sessions", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.onLoadSessions()), ...
+            c.LoadSessions = uibutton(r, "Text", "Load whole recordings", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.onLoadSessions()), ...
                 "Tooltip", "No epochs, nothing computed: the ticked datasets on their own clock, in B.Sessions for a script. " + ...
                 "Each one's spike times (units, detected) or whole signal (LFP, MUA, SPIKE, AUX: GBs each), " + ...
                 "one entry per dataset and kind of Data ticked, " + ...
                 "every trial (those the Trials tab keeps marked) and every digital line. " + ...
                 "Then the post-processing script, when ticked below.");
             c.LoadTrials = uibutton(r, "Text", "Load trials only", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.onLoadSessions(true)), ...
-                "Tooltip", "Like Load whole sessions, without spikes or signal: each ticked dataset's trials " + ...
+                "Tooltip", "Like Load whole recordings, without spikes or signal: each ticked dataset's trials " + ...
                 "(those the Trials tab keeps marked) and digital lines, in B.Sessions. " + ...
                 "Then the post-processing script, when ticked below.");
+            c.Details = uibutton(r, "Text", "Details...", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.showDetails()), ...
+                "Tooltip", "What the last Compute or Load did for each dataset: which gave nothing and why (skipped: the reason; " + ...
+                "error: the message). Also in the table's right-click menu.");
 
             % --- the post-processing script: run in the base workspace after Compute
             sp = uipanel(R, "Title", "Post-processing script");
@@ -1926,7 +2093,7 @@ classdef DatasetBrowser < handle
                 "Tooltip", "Open the script in the MATLAB editor."), 1, 4);
             c.ScriptAfter = place(uicheckbox(sg, "Text", "Run it after each Compute or Load", ...
                 "ValueChangedFcn", @(src, ~) B.uiRun(@() B.setAfterFrom(src.Value)), ...
-                "Tooltip", "After Compute or Load whole sessions, run the script in the base workspace (B is this browser there, " + ...
+                "Tooltip", "After Compute or Load whole recordings, run the script in the base workspace (B is this browser there, " + ...
                 "R = B.Result or S = B.Sessions in the script); its variables stay in the workspace."), 2, [1 3]);
             c.ScriptRun = place(uibutton(sg, "Text", "Run now", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.runScript()), ...
                 "Tooltip", "Run the script now on the result (or the sessions loaded), in the base workspace."), 2, 4);
@@ -1951,7 +2118,7 @@ classdef DatasetBrowser < handle
             c.Status = uilabel(g, "Text", "", "FontColor", B.TextColor);
 
             styleButton([c.Browse c.TickShown c.UntickAll c.ProbeAll c.ScriptAdd c.ScriptRemove c.ScriptEdit c.ScriptRun c.DefAdd c.DefRemove ...
-                c.GroupCounts]);
+                c.GroupCounts c.Details]);
             styleButton([c.Scan c.Compute], "primary");
             styleButton([c.LoadSessions c.LoadTrials], "confirm");
             styleButton(c.Cancel, "danger");
@@ -1995,7 +2162,9 @@ classdef DatasetBrowser < handle
                 if nk == 1   % "✓ 12 units": one row of a part = one unit (spikes) or one channel (signals)
                     noun = ["channel" "channels"];
                     if ismember(kinds, ["units" "detected"]); noun = ["unit" "units"]; end
-                    Cached(st == "skipped") = "skipped";
+                    for k = reshape(find(st == "skipped"), 1, [])   % "skipped: no sorted units"
+                        Cached(k) = "skipped: " + DatasetBrowser.reasonText("skipped", B.Runs.message(B.PartNames(1), D.key(k)), D.name(k));
+                    end
                     Cached(st == "old") = "old";
                     for k = reshape(find(st == "current"), 1, [])
                         Cached(k) = sprintf("✓ %d %s", rows(k), noun(1 + (rows(k) ~= 1)));
@@ -2008,13 +2177,14 @@ classdef DatasetBrowser < handle
                             parts(s == "skipped") = kinds(s == "skipped") + " skipped";
                             Cached(k) = "✓ " + strjoin(parts, ", ");
                         elseif all(s == "skipped")
-                            Cached(k) = "skipped";
+                            Cached(k) = "skipped: " + DatasetBrowser.reasonText("skipped", B.Runs.message(B.PartNames(1), D.key(k)), D.name(k));
                         elseif any(s == "old")
                             Cached(k) = "old";
                         end
                     end
                 end
             end
+            Cached(Cached == "" & ismember(D.key, B.failedKeys())) = "error";   % the last compute failed on it with these settings (no part is kept)
             mark = @(tf) replace(string(double(tf)), ["1" "0"], ["✓" ""]);
             Date = strings(n, 1);
             Date(~isnat(D.date)) = string(D.date(~isnat(D.date)), 'yyyy-MM-dd');
@@ -2045,7 +2215,7 @@ classdef DatasetBrowser < handle
             nTicked = numel(B.SelectedKeys);
             hidden = nTicked - nnz(T.Use);
             if n == 0
-                msg = "No datasets listed: press Scan.";
+                msg = "No datasets listed: choose the project root and press Scan.";
             elseif nShown == n
                 msg = sprintf("showing all %d", n);
             else
@@ -2167,7 +2337,7 @@ classdef DatasetBrowser < handle
             end
             c.Merge.Value = logical(S.units.merge.enabled);
             c.Measure.Value = char(S.measure);
-            c.Bin.Value = S.binSec;
+            c.Bin.Value = round(S.binSec * 1000, 6);   % the form is in ms, the settings' binSec in s
             c.Baseline.Value = char(numbersText(S.baseline));
             c.SigBaseline.Value = char(numbersText(S.signal.baseline));
             c.Statistic.Value = char(S.signal.statistic);
@@ -2263,7 +2433,7 @@ classdef DatasetBrowser < handle
                     height(R.rows), noun, numel(R.t), tnoun, numel(R.groupLabels), numel(R.keys), height(R.datasets), ...
                     nnz(st == "done"), nnz(st == "cached"));
                 other = nnz(~ismember(st, ["done" "cached"]));
-                if other > 0; t = t + sprintf(", %d skipped or failed", other); end
+                if other > 0; t = t + sprintf(", %d not computed (Details...)", other); end
                 if isfield(R, 'epochs') && ~isempty(R.epochs)
                     t = t + sprintf("; %d epochs kept (R.epochs)", sum(arrayfun(@(e) height(e.E), R.epochs)));
                 end
@@ -2315,7 +2485,7 @@ classdef DatasetBrowser < handle
         end
 
         function onLoadSessions(B, trialsOnly)
-            %onLoadSessions  The Load whole sessions (Load trials only) button: load (and run the script), then let wait return; the window stays.
+            %onLoadSessions  The Load whole recordings (Load trials only) button: load (and run the script), then let wait return; the window stays.
             arguments
                 B
                 trialsOnly (1,1) logical = false
@@ -2465,7 +2635,7 @@ classdef DatasetBrowser < handle
                 case "Shanks";   S = withPick(S, "shanks", parseNumbers(v, "Shanks"));
                 case "Channels"; S = withPick(S, "channels", parseNumbers(v, "Channels"));
                 case "Measure";  S.measure = string(v);
-                case "Bin";      S.binSec = double(v);
+                case "Bin";      S.binSec = double(v) / 1000;   % the form is in ms
                 case "Baseline"; S.baseline = parseNumbers(v, "auROC baseline");
                 case "SigBaseline"; S.signal.baseline = parseNumbers(v, "Baseline");
                 case "Statistic"; S.signal.statistic = string(v);
@@ -2723,6 +2893,57 @@ classdef DatasetBrowser < handle
             B.refreshSummary();
         end
 
+        function noteRun(B, kind, T)
+            %noteRun  Add what a run did to LastRun: one row per dataset of T (key, name, status, message, seconds; a result's datasets table also has nRows).
+            if ~istable(T) || height(T) == 0; return; end
+            n = height(T);
+            rows = NaN(n, 1);
+            if ismember('nRows', T.Properties.VariableNames); rows = double(T.nRows); end
+            N = table(repmat(string(kind), n, 1), string(T.key), string(T.name), string(T.status), string(T.message), ...
+                T.seconds, rows, 'VariableNames', {'kind', 'key', 'name', 'status', 'message', 'seconds', 'nRows'});
+            if isempty(B.LastRun)
+                B.LastRun = N;
+            else
+                B.LastRun = [B.LastRun; N];
+            end
+        end
+
+        function recordFailures(B, kind, keys, T)
+            %recordFailures  Remember which of KEYS failed in compute's run T for data KIND (the Cached column's "error").
+            F = B.Failed;
+            if ~isempty(F); F = F(~([F.kind] == kind & ismember([F.key], keys))); end
+            if ~istable(T) || height(T) == 0 || ~isfield(B.Ids, kind); B.Failed = F; return; end
+            id = DatasetRuns.idText(B.Ids.(kind));
+            bad = T(T.status == "error", :);
+            for k = 1:height(bad)
+                F(end+1) = struct('kind', string(kind), 'key', string(bad.key(k)), 'stamp', B.stampOf(bad.key(k)), 'idText', id); %#ok<AGROW>
+            end
+            B.Failed = F;
+        end
+
+        function keys = failedKeys(B)
+            %failedKeys  The keys of the datasets whose last compute failed with the current settings and outputs.
+            keys = strings(0, 1);
+            F = B.Failed;
+            if isempty(F) || isempty(B.Datasets); return; end
+            D = B.Datasets;
+            for kind = B.SettingsS.data
+                if ~isfield(B.Ids, kind); continue; end
+                id = DatasetRuns.idText(B.Ids.(kind));
+                for f = F([F.kind] == kind & [F.idText] == id)
+                    i = find(D.key == f.key, 1);
+                    if ~isempty(i) && D.stamp(i) == f.stamp; keys(end+1, 1) = f.key; end %#ok<AGROW>
+                end
+            end
+        end
+
+        function reportNotComputed(B)
+            %reportNotComputed  Name the datasets the last run did not compute in the status line (red when one failed).
+            s = B.notComputedText();
+            if s == ""; return; end
+            B.setStatus(s, any(B.LastRun.status == "error"));
+        end
+
         function tookFile(B, file)
             %tookFile  FILE was loaded or saved: SettingsFile, its folder, the top of RecentSettings.
             [ok, a] = fileattrib(file);
@@ -2899,7 +3120,7 @@ classdef DatasetBrowser < handle
 
         function scanProgress(B, f, m)
             B.progress(f, m);
-            if B.CancelRequested
+            if B.CancelRequested || DatasetBrowser.skipAsked(B.Splash)
                 error('EphysAnalysisRunner:Canceled', 'The scan was canceled.');
             end
         end
@@ -3223,15 +3444,41 @@ classdef DatasetBrowser < handle
                 'signals', 'stamp'});
         end
 
+        function tf = skipAsked(splash)
+            %skipAsked  The startup window's "Skip scan" button was pressed (AppSplash.skipRequested, when it has one).
+            tf = ~isempty(splash) && isvalid(splash) && splash.isActive() && ismethod(splash, 'skipRequested') && splash.skipRequested();
+        end
+
         function colorRows(tbl, cached)
-            %colorRows  Tint each row by its Cached text: green cached, yellow old, red skipped; others plain.
+            %colorRows  Tint each row by its Cached text: green cached, yellow old, red skipped or error; others plain.
+            %   A skipped or failed dataset's Cached cell is in red text too
+            %   ("skipped: no sorted units", "error").
             removeStyle(tbl);
-            tint = {startsWith(cached, "✓"), [0.90 0.96 0.90]; cached == "old", [0.98 0.96 0.86]; cached == "skipped", [0.97 0.89 0.89]};
+            bad = startsWith(cached, "skipped") | cached == "error";
+            tint = {startsWith(cached, "✓"), [0.90 0.96 0.90]; cached == "old", [0.98 0.96 0.86]; bad, [0.97 0.89 0.89]};
             for k = 1:size(tint, 1)
                 rows = find(tint{k, 1}).';
                 if ~isempty(rows)
                     addStyle(tbl, uistyle("BackgroundColor", tint{k, 2}), "row", rows);
                 end
+            end
+            col = find(strcmp(tbl.ColumnName, 'Cached'), 1);
+            rows = reshape(find(bad), [], 1);
+            if ~isempty(col) && ~isempty(rows)
+                addStyle(tbl, uistyle("FontColor", DatasetBrowser.ErrorColor, "FontWeight", "bold"), "cell", [rows, repmat(col, numel(rows), 1)]);
+            end
+        end
+
+        function styleDetails(tbl, T)
+            %styleDetails  The Details table: errors in red, skipped and no-rows datasets in dark amber.
+            removeStyle(tbl);
+            err = reshape(find(T.Status == "error"), [], 1);
+            oth = reshape(find(ismember(T.Status, ["skipped" "no rows"])), [], 1);
+            if ~isempty(err)
+                addStyle(tbl, uistyle("FontColor", DatasetBrowser.ErrorColor, "FontWeight", "bold"), "row", err.');
+            end
+            if ~isempty(oth)
+                addStyle(tbl, uistyle("FontColor", [0.55 0.33 0]), "row", oth.');
             end
         end
 

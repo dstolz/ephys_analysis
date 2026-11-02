@@ -49,7 +49,8 @@ EphysAnalysisApp("D:\EPHYS_synthetic")     % a project root processed by the pip
 2. **Alignment**: align to `Stim` onset (first per trial) and set **Group
    by** to `Depth`. The summary on the right counts the epochs in each
    group, and the epoch diagram beside it draws how they are cut.
-3. **Figures**: press **Add** under the figure tree: a blank figure, and the
+3. **Figures**: press **Add Raster + PSTH** under the figure tree for a
+   ready-made figure (a unit's raster flush above its PSTH), or **Add** for a blank figure, and the
    **New panel** window to pick its first panel (a *Raster*, say, following
    the observed unit). **New panel...** in the Panels section puts another
    panel next to the selected one (a *PSTH* **Below** the raster, an LFP
@@ -156,7 +157,7 @@ copies them.
 | **Name**, **Key** | the dataset's name and key (the root-relative folder, or the output folder in folders mode) |
 | **Subject**, **Date** | the dataset's `SubjectID` from the name pattern, and the day it was recorded (a project's recording start, else the date in the name) |
 | **Tags** | the dataset's [tags](EphysDataset.md#tags), `, `-joined (read only: tags are edited in the pipeline app's Project tab). From the manifest beside the data, read once per dataset, not the whole source. They also appear in the report (after the dataset's name, and the *Recording* table's **Tags** row) and in the sessions and population exports ([Tags](EphysAnalysis.md#tags)) |
-| **LFP**, **MUA**, **SPIKE**, **AUX** | ✓ when that signal's extract exists |
+| **LFP**, **MUA**, **Spike band**, **AUX** | ✓ when that signal's extract exists (**Spike band** is the `SPIKE` signal) |
 | **Units**, **Detected** | the sorting folder holds sorted units; the spikes file holds threshold detections |
 | **Behavior** | `<Name>_behavior.mat` exists |
 | **Trials**, **Pairing**, **Duration (s)** | once the dataset has been loaded (making it active loads it): the number of trials, the pairing (its recorded status, `paired`, or `not paired`) and the recording's length |
@@ -257,7 +258,7 @@ Trough onset.
 | Control | Meaning |
 | --- | --- |
 | **Mode** | `fixed: [t0+pre, t0+post]`, or `between: [t0+pre, stop+post]` for a period of varying length that ends at a stop event |
-| **Pre (s)**, **Post (s)** | the window's edges from the event (in between mode, `post` from the stop event) |
+| **Pre (s)**, **Post (s)** | the window's edges, in seconds from the event: a negative **Pre** is before it (`-0.2`: 0.2 s before), **Post** after it (in between mode, `post` from the stop event). A hint under the two says so |
 | **Stop event**, line, edge, **Stop which**, **n**, **Stop scope** | the event that ends each epoch, the first (or chosen) one after the epoch's event. Required in between mode; in fixed mode it is still marked on PSTHs and rasters and can mask a PSTH |
 | **Stop shift by**, **unit** | a trial parameter added to the stop event, from the epoch's trial: with the event at Stim onset and the stop at *RespWindow onset* shifted by *RespLatency*, each raster row marks its response and can be sorted by it |
 | **Stop sequence**, **Edit...** | the events that must follow the stop line's event, in the same *Event sequence* window: the stop at *RespWindow offset* then *Trough onset* is the first Trough onset after the response window |
@@ -329,7 +330,7 @@ accepted, and checks the figures themselves
 alone, from here (below), and the tab's **Redraw All** brings every enabled
 figure's preview up to date.
 A figure can be drawn **across several datasets** instead of once per
-dataset: tick **Across sessions** in its Sessions section ([below](#sessions-in-the-figures-tab)),
+dataset: tick **Across datasets** in its Sessions section ([below](#sessions-in-the-figures-tab)),
 and Generate selected figure and Run draw it once over the ticked (or listed) datasets, a
 page per matched site, cell or channel, and the preview does the same.
 A figure can also be laid out **on the probe**: tick **On the probe** in its
@@ -412,7 +413,8 @@ is drawn.
 | --- | --- |
 | **Group by** | how the tree sorts the figures: *What it observes* (the default: per unit, per channel, per dataset), *Enabled / off* or *None* (one flat list). The choice is remembered (`FigureGroupBy`), and the selected figure stays selected |
 | **All**, **None**, **Invert** | above the tree: tick every figure (enable them all), untick every figure (they stay in the config) or flip each. They act on every figure, whatever the groups; the status bar says how many are enabled |
-| **Add** | adds a blank figure (one empty cell, observing the dataset) with an automatic id (*Blank dataset*), selects it and opens the [New panel window](#the-new-panel-window) on it: **OK** adds its first panel, which its id and its **Observe** choice then follow (*PSTH units*); **Cancel** leaves it blank, to fill with **New panel...** later. The app offers no template (scripts still have `addFigure`'s, [EphysAnalysisConfig](EphysAnalysisConfig.md#figure-ids)) |
+| **Add** | adds a blank figure (one empty cell, observing the dataset) with an automatic id (*Blank dataset*), selects it and opens the [New panel window](#the-new-panel-window) on it: **OK** adds its first panel, which its id and its **Observe** choice then follow (*PSTH units*); **Cancel** leaves it blank, to fill with **New panel...** later. The starting figures of `addFigure` ([EphysAnalysisConfig](EphysAnalysisConfig.md#figure-ids)) are for scripts, but for the one **Add Raster + PSTH** gives |
+| **Add Raster + PSTH** | beside **Add** (and in the empty preview, while there is no figure): adds a ready-made figure, a unit's raster flush above its PSTH, both following the observed unit (`onAddFigure("rasterPsth")`, built from the config's own panel defaults); an ordinary figure, to edit afterwards |
 | **Remove**, **Duplicate** | removes the selected figure; copies it, with its remembered looks and its observation, right after it as *&lt;id&gt; (2)* (the next free number: *PSTH units (3)* when *(2)* is taken), and selects the copy. An automatic id copies as automatic (the copy's id follows its own panels from then on), an id of your own as your own; a *(n)* the id ends in is not doubled (*unit_card (2)* copies as *unit_card (3)*) |
 | **Up**, **Down** | swaps it with its neighbor in its group of the tree (the whole list when ungrouped), which shows as one step and moves it in the config's run order; a figure of another group between the two keeps its place. Off for a figure with no neighbor in its group |
 | **Copy settings...** | under the list, on with a figure selected: copies a figure's settings, one by one, onto other figures (one or many) or into a plot design ([Copy settings to other figures or a design](#copy-settings-to-other-figures-or-a-design)). Each figure copied onto keeps its id (an automatic one follows), title and enabled, and every setting left unticked |
@@ -456,7 +458,7 @@ with the key of each in brackets:
 | Observations (1) | what the figure is drawn for. **Observe** (`observe.data`): *Sorted units* (each sorted unit), *Detected spikes (per channel)* (each channel's threshold detections), *LFP*, *MUA*, *SPIKE*, *AUX* (each channel of that extract) or *The dataset* (one figure per dataset). The data types the active dataset holds come first, then *The dataset*, then the ones it lacks, each marked *(not in subj1_day1)*: those can still be picked (the figure is meant for other datasets too), and switching datasets never changes a figure's choice. A new figure (**Add**: blank) observes the dataset; a figure that observes the dataset and gets its first layer that follows the observation (its first panel from the New panel window, a heat map made a PSTH) observes what that layer reads from then on (when the active dataset holds it, else the first type the dataset holds, in the order above), since a following layer has nothing to follow in a dataset figure (the status bar says so; *The dataset* picked while layers already follow is kept). **Starred only** (`observe.starred`, under it, for every kind) keeps only what is [starred](#favorites): the starred units of the sort in use, the starred channels (a detection channel by its channel) or, for a figure of the dataset, a starred dataset; the picker, **<** **>**, Generate and Export runs then draw just the favorites, and a star set or cleared lists them again at once. Across sessions it keeps a matched observation starred on any of its sessions, still drawn on every session. The rows under it follow the choice. For sorted units: unit classes, **Unit ids**, **Good units only**, **Responsive only** with its test (*vs baseline*, *tuned*, *either*, *both* or *auROC*), direction, windows and options, **Max units**, **Shanks** and **Channels**: the unit filter ([UnitSelection](EphysAnalysisConfig.md#unitselection)), the response test run over the figure's epochs (`observe.units`); for detected spikes the same rows without classes and quality. For a signal: **Channels** (the extract's columns, blank = all). For the dataset: nothing more. **Per trial group (one figure per group)** (`observe.perGroup`; hidden for a figure across sessions, whose trial groups follow its **Trial groups** row) draws each observation once per trial group of the figure's trial selection (its **Group by**): the picker lists every observation and group (the observation's label, a middle dot, the group's label), and each figure keeps that group's epochs only, with the group in its title, its caption and its file name (`{Group}`); it needs a **Group by**, and a panel with a trial selection of its own keeps its own groups ([One figure per trial group](EphysAnalysisConfig.md#panel-types)). A count line ends it (*"14 units on subj1_day1."*; with Per trial group, *"14 units x 3 trial groups on subj1_day1."*; with Starred only, *"3 units on subj1_day1, starred only."*, or *"subj1_day1 is not starred: no figure (Starred only)."* for a figure of the dataset) |
 | Event reference (2), Epoch window (3), Trial selection (4) | the figure's alignment: the [Alignment tab](#alignment-tab)'s controls, for this figure (`ref`, `window`, `selection`), each with **Use default** in its header; **Epoch Diagram** sits under the Epoch window. Hidden when every panel of the figure is of a type that is not aligned to events (probe map, unit waveforms) |
 | First-spike latency | the figure's [latency block](EphysAnalysisConfig.md#first-spike-latency) (`latency`), one for every panel that reads it: a note naming those panels (*read by raster_1 (marks), psth_1 (box plot, onset line)*), **Method** (*First spike in the window*, *Poisson surprise (Legendy & Salcman 1985)*, *Baseline Poisson count (Chase & Young 2007)*), **Detect (ms)** from / to (blank: each panel's window's end), **Baseline** (*Before the event* or a **Window (ms)** of its own, its fields enabled with it), **Baseline rate** (*The unit's* or *Each trial's own*; the Poisson methods), **Burst** (the least surprise and the fewest spikes; *Poisson surprise*), **Alpha (p below)** (*Baseline Poisson count*), and the response onset's CUSUM: **Onset bins (ms)** with how long it must last, **Onset threshold** in baseline SDs with the allowance a bin. Each row is a named edit (*Undo Method*). Shown while the figure has a raster, PSTH or heat map panel; no key |
-| Sessions | **Across sessions**, and with it ticked which datasets, how the sessions are colored, the error band, how the observed unit is matched, the minimum sessions and the trial groups: the figure drawn once over several datasets instead of once per dataset ([Sessions in the Figures tab](#sessions-in-the-figures-tab)); no key; collapsed until opened. Its place in the Figure supersection, above the Panels section: it decides what the figure is drawn over |
+| Sessions | **Across datasets**, and with it ticked which datasets, how the sessions are colored, the error band, how the observed unit is matched, the minimum sessions and the trial groups: the figure drawn once over several datasets instead of once per dataset ([Sessions in the Figures tab](#sessions-in-the-figures-tab)); no key; collapsed until opened. Its place in the Figure supersection, above the Panels section: it decides what the figure is drawn over |
 | Probe layout | **On the probe**, and with it ticked the layout, the overlap strategy, which shanks, channels and depths are laid out, the most tiles and units per site, the tiles' size, scale and labels, shared y, the scale tile, the sites and the leaders: the figure drawn once per dataset, every unit or channel a tile at its site ([Probe layout in the Figures tab](#probe-layout-in-the-figures-tab)); no key; collapsed until opened. Below Sessions: it too decides what the figure is drawn over, and the two exclude each other |
 | Panels (5) | the schematic of the grid, **New panel...** (the [New panel window](#the-new-panel-window)), the selected panel's **Row span**, **Column span**, **Row height**, **Column width**, **Panel size** and **Align in cell**, **Spacing** with **Spacing...**, **Remove panel** and **Move** (below) |
 | **PANEL** (Alt+2) | the sections below, down to Overlays: the selected panel's. Its header names the panel and its type |
@@ -1014,8 +1016,11 @@ The line under the preview names the figure, the observation, the dataset and
 the time taken (*"figure_1, su12  ch 7  -320 µm on subj1_day1 (0.4 s);
 right-click to change colors, lines and fonts"*), or says why the figure
 cannot be drawn: the runner's [skip reasons](#why-is-my-figure-skipped) (no
-sorted units, no LFP extract, no paired trials, ...), or that no unit or
-channel passes the Observations filter. A layer that cannot be drawn for the
+sorted units, no LFP extract, no paired trials, ...) in plain words with what
+to do about it (*"No LFP signal: switch on LFP in the pipeline's Signals tab and
+run it."*), or that no unit or channel passes the Observations filter. Under it
+a gray line reminds you to *"Right-click the plot to change colors, fonts and
+labels."* With no figure at all the preview is a card with **Add Raster + PSTH**. A layer that cannot be drawn for the
 observation is kept: its panel draws the other layers and prints the reason
 in small gray text. A colored badge at its left says where the preview is:
 
@@ -1505,7 +1510,7 @@ matching and the merge are under
 
 | Row | Effect | Config field |
 | --- | --- | --- |
-| **Across sessions (one figure over several datasets)** | ticked, the figure is a session figure: Generate and Run draw it once across the datasets and write it to the sessions folder; the Export tab's Run no longer draws it per dataset | `sessions.enabled` |
+| **Across datasets (one figure over several recordings)** | ticked, the figure is a session figure: Generate and Run draw it once across the datasets and write it to the sessions folder; the Export tab's Run no longer draws it per dataset | `sessions.enabled` |
 | **Datasets** | *The ticked datasets* (those ticked to run on the Data tab) or *These datasets*, a list of their own. **Generate selected figure** draws across the listed datasets whether or not they are ticked; the Export tab's **Run** still needs at least one ticked dataset before any session figure runs | `datasets` |
 | **Keys**, **Pick...** | with *These datasets*: the keys (read-only), and the window that picks them from the scanned datasets (**Use**, **Name**, **Subject**, **Date**, **Key**, pre-ticked from the figure's keys: [Picking the datasets](#picking-the-datasets-and-editing-the-mapping)). **OK** writes the keys, and the observation list and the preview follow; **Cancel** changes nothing | `datasetKeys` |
 | **Figures** | *One for all the sessions* or *One per subject* | `facet` |
@@ -1521,7 +1526,7 @@ matching and the merge are under
 A gray note under the rows says what Generate and Run draw it for (*each
 recording channel with a unit (a site)*, *each cell of the mapping file*, *each
 recording channel* or *the datasets together*) and which of the figure's panels
-are not merged across sessions. With **Across sessions** unticked only the box
+are not merged across sessions. With **Across datasets** unticked only the box
 shows; ticked, every row does (the keys with *These datasets*, **Units matched
 by** for a unit observation, the mapping rows with *Mapping*), the error band
 and the faint sessions are enabled unless there is a color per session, and
@@ -1714,7 +1719,7 @@ drawn, so you can see why. Examples: a fixed window with *pre* after
 
 <!-- wiki: ![Export tab: figure files, the report, and a finished run's results](images/analysis-export-tab.png) -->
 
-**Figure files** (config `Export`):
+**Figure files** (the config's `Export` section):
 
 | Control | Meaning | Default |
 | --- | --- | --- |
@@ -1722,11 +1727,11 @@ drawn, so you can see why. Examples: a fixed window with *pre* after
 | **Formats** | any of `png`, `eps`, `svg`, `pdf` | png, svg |
 | **Folder**, **Browse...** | a folder pattern with `{OutputFolder}` (each dataset's output folder), `{OutputRoot}`, `{Root}`, `{Name}`, `{Date}` | `{OutputFolder}\analysis` |
 | **File names** | a file-name pattern with `{Name}` `{Plot}` `{Kind}` `{Group}` `{Unit}` `{Index}` `{Date}`. A figure writes a file set per observation ([Exported figure names](file-formats.md#exported-figure-names)): `{Plot}` is its id, `{Unit}` the observation's short label (`su12`, `ch7`, `dataset`), `{Index}` its number, and `_<Unit>` is added when the pattern names neither ([Figures in an export](EphysAnalysisConfig.md#figures-in-an-export)) | `{Name}_{Plot}` |
-| **Dpi (png)** | the PNG resolution | 150 |
+| **Resolution (dpi, PNG)** | the PNG resolution (`Export.Dpi`) | 150 |
 | **Overwrite existing** | off: a page whose files all exist is not written again | on |
 | **Size (cm)** | the figure's width and height (a page of many tiles is made taller, and a figure's page grows with its rows: 3.5 cm each plus 2 cm); a figure with a [size of its own](#the-page-a-figure-is-exported-on) keeps that | 18 × 12 |
 
-**Report** (config `Report`):
+**Report** (the config's `Report` section):
 
 | Control | Meaning | Default |
 | --- | --- | --- |
@@ -1734,7 +1739,7 @@ drawn, so you can see why. Examples: a fixed window with *pre* after
 | **Title** | `{Name}` = the config's name, `{Date}` = today | `{Name}` |
 | **Folder**, **Browse...** | folder tokens as above | `{OutputRoot}\analysis` |
 | **File name**, **One per dataset** | `.html` / `.pdf` is added; one report per dataset is named `<FileName>_<dataset>` | `analysis_report`, off |
-| **HTML images**, **Dpi** | PNG (base64) or inline SVG in the HTML; the PNG resolution, for a page whose PNG the figure files do not hold (with png ticked above, the HTML embeds that PNG, at its dpi, rather than write the page again) | png, 110 |
+| **HTML images**, **Resolution (dpi)** | PNG (base64) or inline SVG in the HTML; the PNG resolution, for a page whose PNG the figure files do not hold (with png ticked above, the HTML embeds that PNG, at its dpi, rather than write the page again) | png, 110 |
 | **Summary tables**, **Figure parameters**, **The config** | what the report holds besides the figures | all on |
 | **Order** | *By figure (a figure's units together)*: each figure with all its observations in turn; *By unit (a unit's figures together)*: each unit, channel or the dataset under a heading, with all the figures drawn for it in turn ([Report order](EphysAnalysisConfig.md#report-order)) | by figure |
 | **Per page**, paper, orientation | figure pages on one sheet, 1 to 16; *Letter* or *A4*; *Best fit*, *Portrait* or *Landscape*. 1 gives each page its own, at the size it was drawn. More puts up to that many on each sheet of the PDF, in the rows and orientation that draw them largest, all at one scale and never enlarged, and sets them side by side in the HTML ([Figures per page](EphysAnalysisConfig.md#figures-per-page)) | 1, Letter, Best fit |
@@ -1743,11 +1748,11 @@ drawn, so you can see why. Examples: a fixed window with *pre* after
 
 | Button | Effect |
 | --- | --- |
-| **Validate** | lists the config's issues (Section, Field, Severity, Message) in the table; errors stop a run |
-| **Plan** | one row per ticked dataset and [figure](#figures-tab) (Dataset, Subject, Date, Plot, Kind, Source, Enabled, Reason): `Plot` its id, Kind `figure`, Source what it is drawn for (`unit`, `channel` or `dataset`), Enabled whether it will run, and the Reason, why not ([skip reasons](#why-is-my-figure-skipped): no sorted units, no LFP extract, no line X, ...); then one row per [session figure](#sessions-in-the-figures-tab) (Dataset `sessions: all`, or `sessions: <subject>`; a figure with *Across sessions* ticked is listed there and not per dataset). Every figure is listed, enabled or not. Cheap: no signals or spikes are loaded, so a unit filter or channel list that leaves nothing to draw shows only when the figure runs. The status bar counts the rows that will draw: *"Plan: 4 of 6 figure run(s) and 2 of 2 session figure run(s) will draw."* (a row whose Dataset starts `sessions: ` is a session figure run; the session part is left out when the plan lists none) |
+| **Validate** | lists the config's issues (Section, Field, Severity, Message) in the table; errors stop a run. **Double-click a row** to go to the setting it is about: a Source issue to the Data tab's box, a Defaults issue to the Alignment tab, an Export or Report issue to its box, a Figures issue (`<figure>.<panel>.layers(2).source`) to the figure, panel and layer on the Figures tab, with the section or row of the editor that holds it |
+| **Plan** | one row per ticked dataset and [figure](#figures-tab) (Dataset, Subject, Date, Plot, Kind, Source, Enabled, Reason): `Plot` its id, Kind `figure`, Source what it is drawn for (`unit`, `channel` or `dataset`), Enabled whether it will run, the Reason, why not ([skip reasons](#why-is-my-figure-skipped): no sorted units, no LFP extract, no line X, ...), and **WhatToDo**, the reason in plain words with what to do about it (*No LFP signal: switch on LFP in the pipeline's Signals tab and run it*); a double click on a row shows that figure, and its dataset, on the Figures tab; then one row per [session figure](#sessions-in-the-figures-tab) (Dataset `sessions: all`, or `sessions: <subject>`; a figure with *Across datasets* ticked is listed there and not per dataset). Every figure is listed, enabled or not. Cheap: no signals or spikes are loaded, so a unit filter or channel list that leaves nothing to draw shows only when the figure runs. The status bar counts the rows that will draw: *"Plan: 4 of 6 figure run(s) and 2 of 2 session figure run(s) will draw."* (a row whose Dataset starts `sessions: ` is a session figure run; the session part is left out when the plan lists none) |
 | **Test report** | a spot check of one unit (or channel): every enabled figure of the active dataset, drawn for the unit or channel picked over the Figures tab's preview only, and the figures of the dataset for the dataset, as an HTML report in a temporary folder that opens in the browser, in the report's **Order**; no figure files ([Figures tab](#figures-tab), **Test report**; **Ctrl+U** there). Off without a dataset or an observation picked, for a figure across sessions or on the probe, and while a run goes |
-| **Run** | validates, then runs every enabled figure on every ticked dataset, and then every enabled [session figure](#sessions-in-the-figures-tab) over them, with a cancelable progress dialog: compute, export, report. A figure is drawn once per observation (a unit, a channel or the dataset), a page each, and the dialog names the observation (`<dataset>: <figure> (3/12)`) and, once 1% of the run is done and 5 s have passed, the time left (`<dataset>: <figure> (3/12) · about 4 min left`); writing the report shows its sections and pages (*Writing the report: page 3/12*) in a share of the run of its own. A failing figure is an error row and the rest still run. **File → Generate selected figure** is this run for one figure alone, with no report ([Figures tab](#figures-tab)); its rows land in this table |
-| **Workers** | right of **Cancel**: how many process workers draw and write a run's pages (Parallel Computing Toolbox; `EphysAnalysisRunner.Workers`). They start once a run has 20 pages, which takes about half a minute once, and stay open for the next runs; the figures are computed here meanwhile, and the dialog shows `<dataset>: <figure> drawing page 3/12` while it waits for them. 0 draws every page in this MATLAB. Each worker takes about 1-2 GB of memory. 4 by default, remembered (preference `ReportWorkers`) |
+| **Run** | validates, then runs every enabled figure on every ticked dataset, and then every enabled [session figure](#sessions-in-the-figures-tab) over them, with its progress in the status bar (a bar, the message and **Cancel**, over any tab; nothing is modal): compute, export, report. What stops a run before it starts is an alert that names the first problem and takes you to the tab that fixes it: a config error (the first one, on the Export tab's table), no dataset ticked or no project root (the Data tab). A run that fails part way still fills the results table with the rows it finished and says which dataset it stopped on. A figure is drawn once per observation (a unit, a channel or the dataset), a page each, and the status bar names the observation (`<dataset>: <figure> (3/12)`) and, once 1% of the run is done and 5 s have passed, the time left (`<dataset>: <figure> (3/12) · about 4 min left`); writing the report shows its sections and pages (*Writing the report: page 3/12*) in a share of the run of its own. A failing figure is an error row and the rest still run. **File → Generate selected figure** is this run for one figure alone, with no report ([Figures tab](#figures-tab)); its rows land in this table |
+| **Workers** | right of **Cancel**: how many process workers draw and write a run's pages (Parallel Computing Toolbox; `EphysAnalysisRunner.Workers`). They start once a run has 20 pages, which takes about half a minute once, and stay open for the next runs; the figures are computed here meanwhile, and the status bar shows `<dataset>: <figure> drawing page 3/12` while it waits for them. 0 draws every page in this MATLAB. Each worker takes about 1-2 GB of memory. 4 by default, remembered (preference `ReportWorkers`) |
 | **Cancel** | stops before the next figure observation; what is left (the rest of that figure's observations too) is *canceled*. It also stops a Generate selected figure, which is a run, and the Figures tab's **Redraw All** |
 | **Open report**, **Open figure folder** | after a run: the report files written, and the first dataset's figure folder. After a run with session figures the button's tooltip names the sessions folder (`Export.SessionsFolder`) too; the button itself still opens the first dataset's folder |
 
@@ -1930,7 +1935,7 @@ that is a figure's setting, not a panel type.
 | | **Open my designs folder**, **Keep my designs in...** | opens the folder; or keeps your designs in another, such as one the lab shares |
 | | **Data tip fields...** | what the data tips of every figure show ([Data tips](#figures-tab)): a check box per field; your preference |
 | Help | **Help for this tab** | the wiki page of this app, at the section of the tab shown (`helpURL`) |
-| | **Figures tab keys** | a window listing every key of the Figures tab, as the **?** button over its editor does ([Keyboard](#figures-tab)) |
+| | **Keyboard shortcuts and right-click menus** | a window listing every key of the Figures tab, as the **?** button over its editor does ([Keyboard](#figures-tab)), and what the right-click menus do (the preview, the datasets table, the Template list) |
 | | **Documentation home**, **Analysis quick start**, **Analysis configs** | the wiki's Home, [Quick start](#quick-start) on this page, the page made from [EphysAnalysisConfig.md](EphysAnalysisConfig.md) |
 | | **Report an issue on GitHub...**, **Request a feature on GitHub...** | compose a GitHub issue from this session and open it prefilled ([Reporting an issue](#reporting-an-issue)) |
 | | **Report a figure template issue...**, **Request a figure template feature...** | the same window about [figure templates](#figure-templates): titled *Figure templates:*, sending the system info, the template picked (its file) and the Log tab |
@@ -2061,14 +2066,17 @@ tips keep `FigureDataTips`: the fields they show (`Fields`, the keys of
 
 The runner's `figureSkipReason`, shown by the preview, Plan and the results (it
 checks the figure, then each panel and enabled layer; a layer that cannot be drawn
-is noted in its panel and the rest is drawn):
+is noted in its panel and the rest is drawn). The reasons below are the short,
+exact words (the runner, the tests and generated scripts compare them); the
+app shows each in plain words with what to do about it (`figureSkipRemedy`):
+the preview's line, Plan's *WhatToDo* column and the results' *WhatToDo* column:
 
 | Reason | Cause | Fix |
 | --- | --- | --- |
 | disabled | the figure's **Enabled** box is off (Generate selected figure and the preview still draw it) | tick it |
 | no sorted units | the sorting folder holds no sorted units | sort the dataset, or associate its sorted-output folder ([Sorting](EphysPipelineApp.md#sorting)) |
 | no detected spikes | the spikes file has no threshold detections | run the Spikes step ([Spikes](EphysPipelineApp.md#spikes)) |
-| no LFP extract (MUA, SPIKE, AUX) | the Signals step did not write that signal | enable it in the pipeline's Signals step and run it ([Signals](EphysPipelineApp.md#signals)) |
+| no LFP extract (MUA, SPIKE, AUX) | the Signals step did not write that signal | enable it in the pipeline's Signals step and run it ([Signals](EphysPipelineApp.md#signals)); the app says *No LFP signal: switch on LFP in the pipeline's Signals tab and run it.* |
 | no paired trials | trial scope, the `Trial` line, a filter / response / trial list / group-by, an event or stop shifted by a trial parameter, or a tuning panel, on a dataset without paired trials | approve the pairing on the pipeline app's [Trials tab](EphysPipelineApp.md#trials) and write the behavior file; or align in recording scope without a selection |
 | no line X | the event or stop line, or a line a raster or events layer marks, is not among the dataset's lines (in trial scope: among the lines seen in its trials) | check the line names on the Data tab |
 | no trial parameter X | a group-by, shift-by, tuning, series or raster-sort parameter the trials lack | pick one from the dataset's parameters |
@@ -2128,7 +2136,9 @@ the datasets table's filter (Subject, Tags (any of / all of), their "not" lists 
 dataset keeping its tick; Tick shown only and Untick all); opening on a list of datasets (`Datasets=`, as the pipeline app's Tools panel
 does); the active dataset's lines and parameters, and its sorted units counted
 in the Dataset drop-downs (the same items on the three tabs); the Help menu's GitHub issue
-and feature request (1c); grouping by Depth from the Alignment controls, with the tab's epoch diagram (2);
+and feature request (1c); what stops an action (1d: the alerts of Scan, Plan and Run
+read through `AppDialog.captured`, the issues and plan tables' double click, the
+starter figure, the skip remedies, the run's bar in the status bar); grouping by Depth from the Alignment controls, with the tab's epoch diagram (2);
 and section 3, the Figures tab: the toolbar's Preview, pressed from another
 tab, showing the Figures tab and drawing the selected figure; the header (the
 buttons in a column at the left, a row each -- Preview, Redraw All, Export preview,

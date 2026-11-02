@@ -11,7 +11,9 @@ try
     PlotDesign.use(name);
 catch ME
     obj.refreshDesigns();
-    uialert(obj.Fig, ME.message, "Plot design");
+    obj.log("Plot design failed: " + string(ME.message));
+    AppDialog.alertFailure(obj.Fig, "Plot design", "use the design", name, ME, ...
+        Try="pick another design from the list", Details="Log tab");
     return
 end
 obj.setStatus("Design: " + PlotDesign.currentName() + ". Every figure is drawn in it, the runs' figures too.");

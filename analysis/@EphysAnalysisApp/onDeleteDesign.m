@@ -14,7 +14,9 @@ end
 try
     PlotDesign.remove(name);
 catch ME
-    uialert(obj.Fig, ME.message, "Delete design");
+    obj.log("Delete design failed: " + string(ME.message));
+    AppDialog.alertFailure(obj.Fig, "Delete design", "delete the design", name, ME, ...
+        Try="close any program that has the design's file open, then try again", Details="Log tab");
     return
 end
 obj.setStatus("Deleted design " + name + ".");

@@ -61,17 +61,20 @@ pipeline's project). `EphysAnalysisApp` alone opens your last config.
 
 ## Your first figure
 
-1. **Data.** The project is scanned when the app opens. Click a recording in
-   the table to make it the *active* one: the previews show it.
+1. **Data.** The project is scanned when the app opens (if not, type the
+   **Project root** and press **Scan**). Click a recording in the table to
+   make it the *active* one: the previews show it.
 2. **Alignment.** Pick the **Line** to align to (a stimulus line, say) and
    the **Edge** (onset). Set the window, for example 0.2 s before to 0.8 s
    after. Pick a trial parameter in **Group by** (`Depth`, say) to draw one
    color per value. The numbers on the right are the trials in each group.
-3. **Figures.** Press **Add** under the figure list. A window asks for the
-   first panel: pick *Raster*. Then **New panel...** puts another panel next
-   to it: a *PSTH* **Below** the raster. The preview on the right draws the
-   figure for the unit picked above it; step through the units to look at
-   them one by one.
+3. **Figures.** Press **Add Raster + PSTH** under the figure list for a
+   ready-made figure, a unit's raster above its PSTH; or press **Add** and a
+   window asks for the first panel: pick *Raster*, then **New panel...** puts
+   another panel next to it: a *PSTH* **Below** the raster. The preview on
+   the right draws the figure for the unit picked above it; step through the
+   units to look at them one by one. Right-click the plot to change colors,
+   fonts and labels.
 4. **Export.** Tick the formats (png, svg, pdf), press **Run**, then **Open
    report**.
 5. **File → Save config** keeps it all: the alignment, the figures and the
@@ -83,7 +86,7 @@ pipeline's project). `EphysAnalysisApp` alone opens your last config.
 | --- | --- |
 | change how a figure looks (colors, line widths, fonts, axis labels) | right-click a part of the preview and edit it there, or pick a ready-made look in the **Design** menu (journal, talk, ...) |
 | give one figure its own event or window | in the figure's panel settings, set its own event reference and epoch window; the Alignment tab is only the default |
-| draw a figure across several recordings | tick **Across sessions** in the figure's Sessions section |
+| draw a figure across several recordings | tick **Across datasets** in the figure's Sessions section |
 | draw a small figure at every unit's place on the probe | tick **On the probe** in the figure's Probe layout section |
 | check one unit's figures before a long run | Export tab: **Test report** |
 | undo an edit | **Edit → Undo** (Ctrl+Z) |
@@ -118,11 +121,22 @@ the quickest way to draw the same figures for one group of recordings.
 
 ## When something goes wrong
 
-- **A figure says it cannot be drawn.** It says why: no sorted units, no LFP,
-  no paired trials, no trials left after the filter. See
+- **A figure says it cannot be drawn.** It says why and what to do: *No LFP
+  signal: switch on LFP in the pipeline's Signals tab and run it*, *No paired
+  trials: approve the pairing on the pipeline's Trials tab*, and so on. See
   [Why is my figure skipped?](EphysAnalysisApp.md#why-is-my-figure-skipped)
 - **The Export tab's Plan** lists every recording and figure that would run,
-  and why any would be skipped, before you run anything.
+  and why any would be skipped, with a *What to do* column, before you run
+  anything. Double-click a row to see that figure.
+- **Validate** lists the problems of the config on the Export tab.
+  Double-click a row to go to the setting it is about. **Run** stops with a
+  message that names the first problem and takes you to the tab that fixes it
+  (no recording ticked, no project root, a setting that does not fit).
+- **A run** shows a bar, the time left and **Cancel** at the bottom of the
+  window; you can look at the other tabs meanwhile. A figure that failed is
+  in the results table with its message.
+- **Right-click menus and keys.** **Help → Keyboard shortcuts and
+  right-click menus** lists them.
 - **The Log tab** has the details of every run.
 - **Still stuck?** **Help → Report an issue on GitHub...**
 

@@ -46,13 +46,16 @@ ticks, settings and result.
 
 ## The window
 
-- **Top row:** the project folder (**Root**), the dataset name **Pattern**,
-  and **Scan** to list the recordings again.
+- **Top row:** the project folder (**Project root**), the dataset name
+  **Pattern**, and **Scan** to list the recordings again.
 - **Left:** the filter, and the table of recordings. Tick **Use** for each
   recording to include. **Tick shown only** ticks what the filter shows;
   **Untick all** clears the ticks. The **Cached** column says which
   recordings are already computed with these settings (green), computed
-  with other settings (yellow) or have nothing to compute (red).
+  with other settings (yellow) or gave nothing (red: *skipped* with the
+  reason, such as *skipped: no sorted units*, or *error*). Right-click the
+  table for more: clear the sort, forget what was computed, or see the
+  details of the last run.
 - **Right:** the settings, in tabs:
   - **Data**: what to measure: sorted `units`, `detected` spikes, or a
     signal (`LFP`, `MUA`, `SPIKE`, `AUX`). Tick several to get one result
@@ -65,8 +68,10 @@ ticks, settings and result.
   - **Channels**: which shanks or channels to keep, picked on the probe.
   - **Measure**: firing rate, count or auROC, the bin size, and an optional
     normalization against the baseline.
-- **Bottom:** **Compute**, the post-processing script, and a progress bar
-  with **Cancel**.
+- **Bottom:** **Compute**, **Details...**, the post-processing script, and a
+  progress bar with **Cancel**.
+- **Help → Keyboard shortcuts and right-click menus** lists the keys and what
+  the right-click menu of the table does.
 
 ## A typical session
 
@@ -79,7 +84,10 @@ ticks, settings and result.
    recording has in each group. Too few in a group? Change the filter or the
    grouping before you compute.
 4. **Compute.** The line under the button sums up the result: *812 units ×
-   200 bins × 5 groups from 32 of 34 recordings*.
+   200 bins × 5 groups from 32 of 34 recordings*. If some recordings gave
+   nothing, the line at the very bottom names them and why (*2 not computed:
+   recA (no sorted units), recB (error: ...)*) and **Details...** lists
+   them all.
 5. **Use the result.** Pick a script in the **Post-processing script** list
    (start with `S_DatasetBrowserBasicOutput`, which sorts the units and the
    groups and draws a summary), and press **Run now**; or tick **Run it after
@@ -110,7 +118,7 @@ shown only** and **Compute** to take in the recordings tagged since.
 | --- | --- |
 | compare the same measure across two definitions of the event or trials | keep each as an **Event & trial definition** (**+**), then switch between them in one click |
 | look at single trials, not just the averages | tick **Keep single trials, not just averages** before **Compute** |
-| get the whole recording, not cut around events (for a model or a toolbox) | **Load whole sessions** (or **Load trials only** for the behavior alone) |
+| get the whole recording, not cut around events (for a model or a toolbox) | **Load whole recordings** (or **Load trials only** for the behavior alone) |
 | hand the data to FieldTrip, Chronux, neuroGLM, the mTRF toolbox or a CSD estimate | pick that script in the **Post-processing script** list and **Run now** |
 | run the same computation without the window | **File → Export compute script...** |
 | compute faster | set **Workers** to compute several recordings at once (needs the Parallel Computing Toolbox and memory for one recording per worker) |
@@ -118,8 +126,15 @@ shown only** and **Compute** to take in the recordings tagged since.
 
 ## When something goes wrong
 
-- **A recording is missing from the result.** The result lists every ticked
-  recording with its status (done, cached, skipped or error) and the reason.
+- **A recording is missing from the result.** Look at its **Cached** cell
+  (red: *skipped: ...* with the reason, or *error*) and at the line at the
+  bottom, which names the recordings that were not computed. **Details...**
+  (or right-click the table: **Details of the last run...**) lists every
+  recording of the last **Compute** with its status and the whole reason.
+  *Skipped* means the recording has nothing to give these settings (no
+  sorted units, no LFP, ...): run the missing pipeline step, or untick it.
+  *Error* means something failed: the reason says what; fix it and press
+  **Compute** again (only the failed recordings are computed again).
 - **An edit is undone at once.** The setting does not fit the others; the
   status line at the bottom says why.
 - **A script fails.** The status line names the script and the line; the

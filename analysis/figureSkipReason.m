@@ -43,9 +43,12 @@ function [reason, layerReasons] = figureSkipReason(src, spec)
 %   observation or when it runs (EphysAnalysisRunner.computeFigure keeps
 %   such a layer with its reason).
 %
-%   The line checks are the private hasLine and missingStepLine.
+%   The line checks are the private hasLine and missingStepLine. The
+%   reasons are short and exact (the runner's plan, the tests and the
+%   generated scripts compare them); figureSkipRemedy words each of them,
+%   and what to do about it, for the apps.
 %
-%   See also figureObservations, EphysAnalysisRunner.computeFigure.
+%   See also figureSkipRemedy, figureObservations, EphysAnalysisRunner.computeFigure.
 
 arguments
     src (1,1) struct
@@ -172,7 +175,7 @@ function r = sortReason(src, o, vars)
 r = "";
 if o.rasterSort == "event"
     if isempty(o.rasterSortEvent)
-        r = "no sort event (rasterSortEvent)"; return
+        r = "no sort event chosen"; return
     end
     ref = eventRef(o.rasterSortEvent);
     if (ref.scope == "trial" || ref.line == "Trial" || ref.offsetParam ~= "") && ~src.hasTrials

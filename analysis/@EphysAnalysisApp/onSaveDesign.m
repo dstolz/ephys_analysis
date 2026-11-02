@@ -38,7 +38,9 @@ try
     name = PlotDesign.checkName(name);
     PlotDesign.use(name);
 catch ME
-    uialert(obj.Fig, ME.message, "Save design");
+    obj.log("Save design failed: " + string(ME.message));
+    AppDialog.alertFailure(obj.Fig, "Save design", "save the design", name, ME, ...
+        Try="use another name", Details="Log tab");
     return
 end
 nKind = sum(structfun(@numel, D.kinds));

@@ -25,8 +25,12 @@ if id == ""
 else
     msg = id + " is not drawn yet: Preview draws it.";
 end
-g = uigridlayout(P, [1 1]);
-uilabel(g, "Text", msg, "WordWrap", "on", "HorizontalAlignment", "center", "FontColor", [0.4 0.4 0.4]);
+if id == ""   % the empty state: what to do first, with the starter figure one click away (emptyStateCard)
+    emptyStateCard(obj, P);
+else
+    g = uigridlayout(P, [1 1]);
+    uilabel(g, "Text", msg, "WordWrap", "on", "HorizontalAlignment", "center", "FontColor", [0.4 0.4 0.4]);
+end
 v = struct('Id', string(id), 'Panel', P, 'State', "idle", 'Result', [], 'Drawn', [], 'Seconds', 0, ...
     'Sessions', [], 'Label', msg, 'Used', 0);
 end

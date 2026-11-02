@@ -1,7 +1,8 @@
 function w = onFigureKeys(obj)
-%onFigureKeys  A window listing every key of the Figures tab: the "?" button over the editor, and Help > Figures tab keys.
-%   W is the window, "Figures tab keys": a table of the keys (onKeyPress)
-%   and what each does, with Close (Escape, or closing the app, closes it
+%onFigureKeys  A window listing every key of the Figures tab and the right-click menus: the "?" button over the editor, and Help > Keyboard shortcuts and right-click menus.
+%   W is the window, "Keyboard shortcuts and right-click menus": a table of
+%   the keys (onKeyPress) and the right-click menus, and what each does,
+%   with Close (Escape, or closing the app, closes it
 %   too). One window at a
 %   time: a second call brings the open one to the front. Ctrl is Cmd and
 %   Alt is Option on a Mac.
@@ -35,12 +36,15 @@ K = [ ...
     "Escape (dragging a panel)",         "Cancel the drag in the schematic"
     c + "+Z",                          "Undo the last edit of the figures: the layout, a panel, a layer, an option, the figure list (the Edit menu names it)"
     c + "+Y, " + c + "+Shift+Z",       "Redo the last edit undone"
-    c + "+N, " + c + "+O, " + c + "+S", "New, open, save the config (the File menu)"];
-w = uifigure('Name', 'Figures tab keys', 'Tag', 'EphysFigureKeys', 'Position', [obj.Fig.Position(1:2) + [80 80] 720 590], ...
+    c + "+N, " + c + "+O, " + c + "+S", "New, open, save the config (the File menu)"
+    "Right-click the preview",            "Change the colors, fonts, labels, limits and line styles of the part of the plot under the pointer (Edit aesthetics...), edit its label text, or Go to setting: the row of the editor that controls it"
+    "Right-click the datasets table",     "Data tab: Clear sort (a click on a column header sorts it)"
+    "Right-click the Template list",      "Figures tab: open your templates folder, keep them in another folder, report a template issue or ask for a feature"];
+w = uifigure('Name', 'Keyboard shortcuts and right-click menus', 'Tag', 'EphysFigureKeys', 'Position', [obj.Fig.Position(1:2) + [80 80] 720 590], ...
     'WindowStyle', 'alwaysontop');
 g = uigridlayout(w, [3 1], 'RowHeight', {'fit', '1x', 30});
-uilabel(g, 'Text', "With the Figures tab showing. The search, the sections and the panels are also reached with the mouse: " + ...
-    "the search field over the editor, the headers, the schematic.", 'WordWrap', 'on');
+uilabel(g, 'Text', "The keys work with the Figures tab showing. The search, the sections and the panels are also reached with the mouse: " + ...
+    "the search field over the editor, the headers, the schematic. Right-click menus are listed at the end.", 'WordWrap', 'on');
 t = uitable(g, 'Data', table(K(:, 1), K(:, 2), 'VariableNames', ["Key" "Does"]), 'ColumnWidth', {190, 'auto'}, ...
     'RowName', {}, 'ColumnEditable', false, 'Tag', 'keysTable');
 t.Layout.Row = 2;

@@ -199,6 +199,7 @@ classdef EphysAnalysisApp < handle
         DesignMenu matlab.ui.container.Menu
         HelpMenu   matlab.ui.container.Menu
         StatusBar  matlab.ui.control.Label
+        RunStrip   struct = struct()     % a run's progress in the status bar: Host (its grid), Track, Bar (the fill's two columns), Cancel (onRunExport)
 
         % --- Toolbar (buildToolbar): the most used commands ---
         Toolbar             matlab.ui.container.Toolbar
@@ -259,6 +260,7 @@ classdef EphysAnalysisApp < handle
         FiguresTree            matlab.ui.container.Tree         % the figures under groups (figureGroups); a figure's node holds its index in NodeData
         FigureGroupDropDown    matlab.ui.control.DropDown       % how the tree groups: what it observes, status, none
         AddFigureButton        matlab.ui.control.Button
+        AddStarterButton       matlab.ui.control.Button         % Add Raster + PSTH: the ready-made starter figure (onAddFigure("rasterPsth"))
         RemoveFigureButton     matlab.ui.control.Button
         DuplicateFigureButton  matlab.ui.control.Button
         CopyFigureButton       matlab.ui.control.Button         % Copy settings...: a figure's settings onto other figures or into a design (onCopyFigureSettings)
@@ -538,6 +540,7 @@ classdef EphysAnalysisApp < handle
         T = onPlan(obj)
         R = onRunExport(obj, opts)
         onCancelRun(obj)
+        onIssueActivated(obj, evt)
         onOpenReport(obj)
         onOpenExportFolder(obj)
 

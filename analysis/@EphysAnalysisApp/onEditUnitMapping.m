@@ -51,7 +51,8 @@ if isfile(file)
         old = readUnitMapping(file);
     catch ME
         obj.log("Sessions: could not read " + file + ": " + string(ME.message));
-        uialert(obj.Fig, "Could not read " + file + ":" + newline + string(ME.message), "Unit mapping");
+        AppDialog.alertFailure(obj.Fig, "Unit mapping", "read the mapping file", file, ME, ...
+            Try="pick another file, or delete it to start a new one", Details="Log tab");
         return
     end
 end
@@ -95,7 +96,8 @@ try
 catch ME
     T = [];
     obj.log("Sessions: saving " + file + " failed: " + string(ME.message));
-    uialert(obj.Fig, "Could not save " + file + ":" + newline + string(ME.message), "Unit mapping");
+    AppDialog.alertFailure(obj.Fig, "Unit mapping", "save the mapping file", file, ME, ...
+        Try="close the file in other programs, or choose another file", Details="Log tab");
     return
 end
 obj.log(sprintf("Sessions: unit mapping saved to %s (%d cells, %d datasets).", file, height(T), numel(keys)));

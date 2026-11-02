@@ -33,7 +33,9 @@ try
         EphysAnalysisScript.standalone(cfg, File=file);
     end
 catch ME
-    uialert(obj.Fig, "Could not generate the script:" + newline + string(ME.message), "Generate script");
+    obj.log("Generate script failed: " + string(ME.message));
+    AppDialog.alertFailure(obj.Fig, "Generate script", "generate the script", string(file), ME, ...
+        Try="choose another folder or file name", Details="Log tab");
     return
 end
 obj.ScriptFolder = string(fileparts(file));

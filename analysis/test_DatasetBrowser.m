@@ -108,7 +108,12 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             help = findobj(B.Fig.Children, "flat", "Type", "uimenu", "Text", "Help");
             tc.verifyNotEmpty(help, 'A Help menu.');
             tc.verifyEqual(flip(string({help.Children.Text})), ...
-                ["Help for DatasetBrowser" "Documentation home" "About DatasetBrowser"]);
+                ["Help for DatasetBrowser" "Keyboard shortcuts and right-click menus" "Documentation home" "About DatasetBrowser"]);
+            w = B.showShortcuts();
+            tc.addTeardown(@() delete(w));
+            tc.verifyEqual(string(w.Name), "Dataset browser: keyboard shortcuts and right-click menus");
+            txt = strjoin(string(findall(w, 'Type', 'uitextarea').Value), newline);
+            tc.verifyTrue(contains(txt, "RIGHT-CLICK THE TABLE") && contains(txt, "Details of the last run..."), txt);
             tc.verifyEqual(DatasetBrowser.WikiURL, "https://github.com/dstolz/ephys_analysis/wiki");
             L = B.aboutText();
             txt = join(L, newline);
@@ -355,9 +360,9 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEqual(B.Settings, before);
             tc.verifyEqual(string(c.Shanks.Value), "");
             tc.verifyTrue(startsWith(string(c.Status.Text), "Not applied"), c.Status.Text);
-            B.formEdit("Bin", 5);   % no whole bin fits [-1 1] s
+            B.formEdit("Bin", 5000);   % 5 s: no whole bin fits [-1 1] s
             tc.verifyEqual(B.Settings, before);
-            tc.verifyEqual(c.Bin.Value, 0.01);
+            tc.verifyEqual(c.Bin.Value, 10, 'The Bin box is in ms.');
             tc.verifyTrue(contains(string(c.Status.Text), "bin"), c.Status.Text);
             tc.verifyError(@() setSettings(B, struct('nope', 1)), 'epochMatrixSettings:UnknownField');
             tc.verifyEqual(B.Settings, before);
@@ -827,7 +832,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEqual([B.Settings.units.channels; B.Settings.signal.channels], [2 3; 2 3]);
             B.formEdit("Channels", "");
             tc.verifyEmpty([B.Settings.units.channels B.Settings.signal.channels]);
-            % Load whole sessions: an entry per dataset and kind; a kind no dataset has, none
+            % Load whole recordings: an entry per dataset and kind; a kind no dataset has, none
             B.formEdit("Data", ["units" "LFP" "SPIKE"]);
             tc.verifyTrue(contains(string(c.DataNote.Text), "lack SPIKE"), c.DataNote.Text);
             [D, T] = B.loadSessions();
@@ -849,6 +854,65 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
                 tc.verifyTrue(startsWith(string(ME.message), "SPIKE: "), ME.message);
             end
             tc.verifyEqual(string(fieldnames(B.Results)).', kinds);
+        end
+
+        function notComputedIsShown(tc)
+            % datasets that give nothing are said so: in the Cached cell (red), the status line and the Details window
+            B = tc.open(Settings=epochMatrixSettings(tc.Spike, data="SPIKE"));
+            c = B.Ctl;
+            tc.verifyEmpty(B.runDetails(), 'Nothing has run yet.');
+            tc.verifyEmpty(B.showDetails(), 'No Details window before a run.');
+            tc.verifyTrue(contains(string(c.Status.Text), "Nothing has been computed"), c.Status.Text);
+            tc.verifyError(@() B.compute(), 'epochMatrix:NoData');
+            T = B.Table;
+            tc.verifyTrue(all(startsWith(T.Cached, "skipped: ")) && all(contains(T.Cached, "no SPIKE extract")), strjoin(T.Cached, " | "));
+            S = c.Table.StyleConfigurations;
+            red = S.Style(arrayfun(@(st) ~isempty(st.FontColor), S.Style));
+            tc.verifyEqual(red(1).FontColor, [0.75 0.1 0.1], 'The Cached cells of skipped datasets are in red text.');
+            tc.verifyEqual(B.Runs.message(B.Runs.Entries(1).name, B.Runs.Entries(1).key), string(B.Runs.Entries(1).message));
+            D = B.runDetails();
+            tc.verifyEqual(string(D.Properties.VariableNames), ["Dataset" "Data" "Status" "Reason" "Seconds"]);
+            tc.verifyTrue(height(D) == 2 && all(D.Status == "skipped") && all(contains(D.Reason, "has no SPIKE extract")) && all(D.Data == "SPIKE"), 'Details: whole reasons.');
+            s = B.notComputedText();
+            tc.verifyTrue(startsWith(s, "2 not computed: ") && contains(s, tc.Names(1) + " (no SPIKE extract)") && endsWith(s, "Details... lists them."), s);
+            w = B.showDetails();
+            tc.addTeardown(@() delete(w));
+            tbl = findall(w, 'Type', 'uitable');
+            tc.verifyEqual(tbl.Data, D, 'The Details window lists runDetails.');
+            tc.verifyEqual(w.Visible, matlab.lang.OnOffSwitchState.off, 'Hidden with the browser.');
+            cm = c.Table.ContextMenu.Children;
+            tc.verifyTrue(any(string({cm.Text}) == "Details of the last run..."), 'The table''s right-click menu has Details.');
+            tc.verifyEqual(string(c.Details.Text), "Details...");
+            tc.verifyTrue(contains(string(c.TableHint.Text), "Right-click the table"), 'A one-line hint under the table.');
+        end
+
+        function failuresAreNamed(tc)
+            % a failed dataset reads "error" in the Cached cell; forEach names a skip and a failure in the status line
+            B = tc.open();
+            c = B.Ctl;
+            B.formEdit("Filter", "NoSuchColumn > 1");
+            ws = warning('off', 'DatasetRuns:DatasetFailed');
+            tc.addTeardown(@() warning(ws));
+            tc.verifyError(@() B.compute(), 'epochMatrix:NoData');
+            tc.verifyTrue(all(B.Table.Cached == "error"), strjoin(B.Table.Cached, " | "));
+            tc.verifyTrue(startsWith(B.notComputedText(), "2 not computed: ") && contains(B.notComputedText(), "(error: "), B.notComputedText());
+            D = B.runDetails();
+            tc.verifyTrue(all(D.Status == "error") && all(D.Reason ~= ""));
+            B.formEdit("Filter", "");
+            B.compute();
+            tc.verifyTrue(all(startsWith(B.Table.Cached, "✓")), 'Computed again, the cells are cached.');
+            tc.verifyEqual(B.notComputedText(), "", 'Every dataset gave rows.');
+            names = tc.Names;
+            [~, T] = B.forEach(@(src) pickyFn(src, names(1), names(2)), SkipIds="picky:Skip", Name="picky");
+            tc.verifyEqual(T.status, ["skipped"; "error"]);
+            s = string(c.Status.Text);
+            tc.verifyTrue(startsWith(s, "2 not computed: ") && contains(s, names(1) + " (no gold)") && contains(s, names(2) + " (error: it broke on "), s);
+            tc.verifyEqual(c.Status.FontColor, [0.75 0.1 0.1], 'A failure shows the status line in red.');
+            D = B.runDetails();
+            tc.verifyEqual(D.Status, ["error"; "skipped"], 'Errors first.');
+            tc.verifyEqual(D.Reason(1), "it broke on " + names(2));
+            tc.verifyEqual(DatasetBrowser.reasonText("skipped", "recA has no sorted units (no sorting folder).", "recA"), "no sorted units");
+            tc.verifyEqual(DatasetBrowser.reasonText("error", "Something odd.", "recA"), "error: Something odd");
         end
 
         function fieldTripOfEpochsAndSessions(tc)
@@ -1772,6 +1836,18 @@ end
 
 function setSettings(B, S)
 B.Settings = S;
+end
+
+
+function v = pickyFn(src, skipName, failName)
+%pickyFn  A forEach function that skips one dataset (picky:Skip) and fails on another.
+if src.name == skipName
+    error('picky:Skip', '%s has no gold (none was found).', src.name);
+end
+if src.name == failName
+    error('picky:Boom', 'it broke on %s', src.name);
+end
+v = 1;
 end
 
 

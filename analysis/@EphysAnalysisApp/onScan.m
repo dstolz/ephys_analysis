@@ -13,9 +13,26 @@ function onScan(obj)
 %   loading are steps on the splash; later a modal progress dialog shows the
 %   scan (dataset i/n, time left; Cancel stops it before the datasets are
 %   listed) and then the favorites, the notes and the first dataset.
+%   What stops the scan is an alert (AppDialog) that says what to do and
+%   takes the Data tab: no project root or output folder chosen yet ("Choose
+%   the project root on the Data tab first."), a root that cannot be read
+%   (the reason, the root to check), or a root with no processed
+%   recordings ("No processed recordings under <root>. Check the root, or
+%   run the pipeline app first."). A scan is refused while a run goes.
+if obj.Running
+    obj.setStatus("A run is going: scan when it is done (Cancel stops it).");
+    return
+end
 cfg = obj.gatherConfig();
 scanCfg = cfg;
 scanCfg.Source.Selection = "all";
+if cfg.Source.Mode == "project" && strtrim(cfg.Source.Root) == ""
+    stopAction(obj, "Scan", "Choose the project root on the Data tab first.", Tab=obj.TabData, Control=obj.RootField);
+    return
+elseif cfg.Source.Mode == "folders" && isempty(cfg.Source.Folders)
+    stopAction(obj, "Scan", "Add the output folders on the Data tab first.", Tab=obj.TabData, Control=obj.FoldersArea);
+    return
+end
 obj.setStatus("Scanning " + ternary(cfg.Source.Mode == "project", cfg.Source.Root, "the output folders") + " for datasets ...");
 obj.Splash.step("scan", "Scanning the datasets ...");
 if ~obj.Splash.isActive(); drawnow; end   % the hidden window is laid out once, when it shows (setStatus)
@@ -27,14 +44,18 @@ end
 clock = ProgressClock();
 cleanup = onCleanup(@() closeDialog(dlg));   % closed on every way out, an error too
 try
-    r = EphysAnalysisRunner(scanCfg, LogFcn=@(m) obj.log(m), ProgressFcn=@(f, m) scanProgress(dlg, clock, f, m));
+    r = EphysAnalysisRunner(scanCfg, LogFcn=@(m) obj.log(m), ProgressFcn=@(f, m) scanProgress(dlg, clock, f, m, obj.Splash));
 catch ME
     if ME.identifier == "EphysAnalysisRunner:Canceled"
         obj.setStatus("Scan canceled.");
         return
     end
+    closeDialog(dlg);   % the alert must not wait behind the scan dialog
     obj.ScanLabel.Text = "Scan failed: " + string(ME.message);
-    obj.setStatus("Scan failed: " + string(ME.message));
+    obj.log("Scan failed: " + string(ME.message));
+    stopAction(obj, "Scan", AppDialog.failure("scan for datasets", "", string(ME.message), ...
+        Try=ternary(cfg.Source.Mode == "project", "check the project root on the Data tab", "check the output folders on the Data tab"), ...
+        Details="Log tab"), Tab=obj.TabData, Status="Scan failed: " + string(ME.message), Icon="error");
     return
 end
 r.ProgressFcn = [];   % the dialog is for the scan only (a run sets its own)
@@ -73,6 +94,17 @@ refreshDatasetLabels(obj);   % with what each holds of spikes (the units counted
 obj.ScanLabel.Text = sprintf("%d dataset(s) found (%s).", n, ternary(cfg.Source.Mode == "project", ...
     "project " + cfg.Source.Root, "output folders"));
 obj.log("Scan: " + obj.ScanLabel.Text);
+if n == 0
+    if cfg.Source.Mode == "project"
+        msg = "No processed recordings under " + string(cfg.Source.Root) + ". Check the root, or run the pipeline app first.";
+    else
+        msg = "No processed recordings in the output folders listed. Check them, or run the pipeline app first.";
+    end
+    obj.ScanLabel.Text = msg;
+    closeDialog(dlg);
+    stopAction(obj, "Scan", msg, Tab=obj.TabData);
+    return
+end
 if n > 0
     E = obj.FavoriteEntries;
     fav = 0;
@@ -96,8 +128,11 @@ obj.setStatus(obj.ScanLabel.Text);
 end
 
 
-function scanProgress(dlg, clock, fraction, message)
-%scanProgress  The runner's report while it reads the datasets: the dialog shows it; Cancel stops the scan.
+function scanProgress(dlg, clock, fraction, message, splash)
+%scanProgress  The runner's report while it reads the datasets: the dialog shows it; Cancel stops the scan, so does the startup window's Skip scan (AppSplash.skipRequested, when it has one).
+if ~isempty(splash) && isvalid(splash) && splash.isActive() && ismethod(splash, 'skipRequested') && splash.skipRequested()
+    error('EphysAnalysisRunner:Canceled', 'The scan was skipped.');
+end
 if isempty(dlg) || ~isvalid(dlg); return; end
 dlg.Indeterminate = "off";
 dlg.Value = min(max(fraction, 0), 1);

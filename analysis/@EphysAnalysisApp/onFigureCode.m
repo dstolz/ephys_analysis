@@ -62,7 +62,9 @@ try
     txt = EphysAnalysisScript.preview(cfg, fg.id, Datasets=rn.Keys(idx), Observation=obs, Entry=entry, ...
         Design=PlotDesign.currentName(), Size=max(round(pos(3:4)), [400 300]));
 catch ME
-    uialert(obj.Fig, "Could not write the code:" + newline + string(ME.message), "Export code");
+    obj.log("Export code failed for " + fg.id + ": " + string(ME.message));
+    AppDialog.alertFailure(obj.Fig, "Export code", "write the code", fg.id, ME, ...
+        Try="preview the figure for this observation first, then export again", Details="Log tab");
     return
 end
 editor = false;

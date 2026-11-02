@@ -7,7 +7,10 @@ function onAddFigure(obj, template)
 %   Observe choice then follow; Cancel leaves the figure blank.
 %   onAddFigure(OBJ, TEMPLATE) adds a figure from TEMPLATE (a
 %   figureTemplates name, or a partial figure struct) without the
-%   window, for scripts and tests; the app offers no template.
+%   window. The Add Raster + PSTH button next to Add is
+%   onAddFigure("rasterPsth"): a unit's raster flush above its PSTH, built
+%   from EphysAnalysisConfig's own panel defaults, an ordinary figure to
+%   edit afterwards.
 %   The new figure is selected with its first panel and layer (the editor
 %   state of the figure left is kept for it: saveFigureEditorState) and
 %   shown in a preview container of its own (syncFigureView); the picker

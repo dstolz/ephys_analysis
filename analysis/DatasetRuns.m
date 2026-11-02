@@ -104,6 +104,9 @@ classdef DatasetRuns < handle
     %                  one), "old" (an entry of another id, or, with Stamps
     %                  (text, one per key), of another stamp) or "" (none)
     %     V = value(R, NAME, KEY)   the kept value ([] when none)
+    %     M = message(R, NAME, KEY)   the kept message: why a skipped
+    %                  dataset was skipped ("" when none, or when it was
+    %                  done)
     %     forget(R), forget(R, NAME), forget(R, NAME, KEYS)   drop entries
     %                  (every one, NAME's, NAME's of KEYS; empty KEYS drops
     %                  nothing)
@@ -312,6 +315,13 @@ classdef DatasetRuns < handle
             v = [];
             e = obj.entryIndex(string(name), string(key));
             if ~isempty(e); v = obj.Entries(e).value; end
+        end
+
+        function m = message(obj, name, key)
+            %message  The message kept with (NAME, KEY), whatever its id: why a dataset was skipped ("" for none, or when it was done).
+            m = "";
+            e = obj.entryIndex(string(name), string(key));
+            if ~isempty(e); m = string(obj.Entries(e).message); end
         end
 
         function forget(obj, name, keys)

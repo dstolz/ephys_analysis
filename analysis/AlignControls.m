@@ -28,7 +28,9 @@ classdef AlignControls
     %       follow the event, eventRef's sequence and alignStep, kept in
     %       SeqText's UserData by setSequenceHolder; Edit... opens
     %       editSequence on them)
-    %     Epoch window: Mode, Pre, Post, StopOn, StopLine, StopEdge,
+    %     Epoch window: Mode, Pre, Post (seconds from the event: a
+    %       negative Pre is before it; WindowHint says so under them),
+    %       StopOn, StopLine, StopEdge,
     %       StopWhich, StopN, StopScope, StopShiftParam / StopShiftUnit,
     %       StopSeqText / StopSeqEdit, Diagram ("Epoch Diagram": its
     %       ButtonPushedFcn is the caller's)
@@ -123,8 +125,8 @@ classdef AlignControls
             end
 
             % --- window ------------------------------------------------------------------------
-            wg = uigridlayout(parents(2), [8 4]);
-            wg.RowHeight = [repmat({22}, 1, 7) {30}];
+            wg = uigridlayout(parents(2), [9 4]);
+            wg.RowHeight = [repmat({22}, 1, 8) {30}];
             wg.ColumnWidth = {95, '1x', 70, '1x'};
             wg.RowSpacing = 4;
             C.WindowGrid = wg;
@@ -132,51 +134,56 @@ classdef AlignControls
             C.Mode = uidropdown(wg, "Items", "", "ValueChangedFcn", cbWin);
             AlignControls.setWindowModes(C.Mode, ["fixed" "between"], "fixed");
             C.Mode.Layout.Row = 1; C.Mode.Layout.Column = [2 4];
-            lab(wg, "Pre (s):", 2, 1);
-            C.Pre = uieditfield(wg, "numeric", "Value", -0.2, "ValueChangedFcn", cbWin);
+            lab(wg, "Pre (s):", 2, 1, "Seconds from the event where each epoch starts. Negative is before the event (-0.2: 0.2 s before it).");
+            C.Pre = uieditfield(wg, "numeric", "Value", -0.2, "ValueChangedFcn", cbWin, ...
+                "Tooltip", "Seconds from the event where each epoch starts. Negative is before the event (-0.2: 0.2 s before it).");
             C.Pre.Layout.Row = 2; C.Pre.Layout.Column = 2;
-            lab(wg, "Post (s):", 2, 3);
-            C.Post = uieditfield(wg, "numeric", "Value", 0.8, "ValueChangedFcn", cbWin);
+            lab(wg, "Post (s):", 2, 3, "Seconds from the event where each epoch ends. Positive is after the event.");
+            C.Post = uieditfield(wg, "numeric", "Value", 0.8, "ValueChangedFcn", cbWin, ...
+                "Tooltip", "Seconds from the event where each epoch ends. Positive is after the event.");
             C.Post.Layout.Row = 2; C.Post.Layout.Column = 4;
+            C.WindowHint = uilabel(wg, "Text", "Seconds from the event: negative = before it, positive = after it.", ...
+                "FontColor", [0.35 0.35 0.35]);
+            C.WindowHint.Layout.Row = 3; C.WindowHint.Layout.Column = [1 4];
             C.StopOn = uicheckbox(wg, "Text", "Stop event:", "ValueChangedFcn", cbWin, ...
                 "Tooltip", "Ends each epoch (between mode); in fixed mode it is marked and can mask the PSTH.");
-            C.StopOn.Layout.Row = 3; C.StopOn.Layout.Column = 1;
+            C.StopOn.Layout.Row = 4; C.StopOn.Layout.Column = 1;
             C.StopLine = uidropdown(wg, "Editable", "on", "Items", "Stim", "Value", "Stim", "ValueChangedFcn", cbWin);
-            C.StopLine.Layout.Row = 3; C.StopLine.Layout.Column = 2;
+            C.StopLine.Layout.Row = 4; C.StopLine.Layout.Column = 2;
             C.StopEdge = uidropdown(wg, "Items", ["offset" "onset"], "ValueChangedFcn", cbWin);
-            C.StopEdge.Layout.Row = 3; C.StopEdge.Layout.Column = [3 4];
-            lab(wg, "Stop which:", 4, 1);
+            C.StopEdge.Layout.Row = 4; C.StopEdge.Layout.Column = [3 4];
+            lab(wg, "Stop which:", 5, 1);
             C.StopWhich = uidropdown(wg, "Items", ["first" "last" "all" "nth"], "ValueChangedFcn", cbWin, ...
                 "Tooltip", "Among the stop events at or after each epoch's event.");
-            C.StopWhich.Layout.Row = 4; C.StopWhich.Layout.Column = 2;
-            lab(wg, "n:", 4, 3);
+            C.StopWhich.Layout.Row = 5; C.StopWhich.Layout.Column = 2;
+            lab(wg, "n:", 5, 3);
             C.StopN = uispinner(wg, "Limits", [1 Inf], "Step", 1, "Value", 1, "RoundFractionalValues", "on", "ValueChangedFcn", cbWin, ...
                 "Tooltip", "The stop event ""nth"" takes.");
-            C.StopN.Layout.Row = 4; C.StopN.Layout.Column = 4;
-            lab(wg, "Stop scope:", 5, 1);
+            C.StopN.Layout.Row = 5; C.StopN.Layout.Column = 4;
+            lab(wg, "Stop scope:", 6, 1);
             C.StopScope = uidropdown(wg, "Items", ["auto" "trial" "recording"], "ValueChangedFcn", cbWin);
-            C.StopScope.Layout.Row = 5; C.StopScope.Layout.Column = 2;
-            lab(wg, "Stop shift by:", 6, 1);
+            C.StopScope.Layout.Row = 6; C.StopScope.Layout.Column = 2;
+            lab(wg, "Stop shift by:", 7, 1);
             C.StopShiftParam = uidropdown(wg, "Editable", "on", "Items", "(none)", "Value", "(none)", "ValueChangedFcn", cbWin, ...
                 "Tooltip", "A trial parameter whose value on the epoch's trial is added to the stop event, e.g. RespLatency " + ...
                 "after RespWindow onset: the response time, marked on each raster row and sortable as the stop latency.");
-            C.StopShiftParam.Layout.Row = 6; C.StopShiftParam.Layout.Column = 2;
-            lab(wg, "unit:", 6, 3);
+            C.StopShiftParam.Layout.Row = 7; C.StopShiftParam.Layout.Column = 2;
+            lab(wg, "unit:", 7, 3);
             C.StopShiftUnit = uidropdown(wg, "Items", ["ms" "s"], "Value", "ms", "ValueChangedFcn", cbWin, ...
                 "Tooltip", "The parameter's unit (Epsych2 stores times in ms).");
-            C.StopShiftUnit.Layout.Row = 6; C.StopShiftUnit.Layout.Column = 4;
-            lab(wg, "Stop sequence:", 7, 1);
-            [C.StopSeqText, C.StopSeqEdit] = sequenceRow(wg, 7, "The events that must follow the stop line's event, " + ...
+            C.StopShiftUnit.Layout.Row = 7; C.StopShiftUnit.Layout.Column = 4;
+            lab(wg, "Stop sequence:", 8, 1);
+            [C.StopSeqText, C.StopSeqEdit] = sequenceRow(wg, 8, "The events that must follow the stop line's event, " + ...
                 "e.g. RespWindow offset then Trough onset: stop at the first Trough onset after the response window.");
             if ~isempty(opts.EditSequence)
                 C.StopSeqEdit.ButtonPushedFcn = @(~,~) opts.EditSequence(C.StopSeqText, C.StopLine, C.StopEdge, @() changed("window"));
             end
             C.Diagram = uibutton(wg, "Text", "Epoch Diagram");   % the caller sets its ButtonPushedFcn and tooltip
-            C.Diagram.Layout.Row = 8; C.Diagram.Layout.Column = [1 4];
+            C.Diagram.Layout.Row = 9; C.Diagram.Layout.Column = [1 4];
             if opts.FixedWindow
                 % fixed, no stop event: only Pre / Post and the diagram show
                 AlignControls.setWindowModes(C.Mode, "fixed", "fixed");
-                hide = [1 3:7];
+                hide = [1 4:8];
                 wg.RowHeight(hide) = {0};
                 for h = reshape(wg.Children, 1, [])
                     if any(ismember(h.Layout.Row, hide)); h.Visible = "off"; end
@@ -642,10 +649,11 @@ btn = uibutton(sg, "Text", "Edit...", "Tooltip", tip);
 end
 
 
-function l = lab(parent, txt, row, col)
+function l = lab(parent, txt, row, col, tip)
 l = uilabel(parent, "Text", txt);
 l.Layout.Row = row;
 l.Layout.Column = col;
+if nargin > 4; l.Tooltip = tip; end
 end
 
 

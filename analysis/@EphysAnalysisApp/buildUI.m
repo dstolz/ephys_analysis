@@ -1,5 +1,5 @@
 function buildUI(obj)
-%buildUI  The figure, menus, toolbar, the six tabs and the status bar; every
+%buildUI  The figure, menus, toolbar, the five tabs and the status bar; every
 %   button styled (styleButtons), the main actions in color; the figure's
 %   key presses (onKeyPress) once the tabs are there. The figure is built
 %   hidden (the constructor shows it), each tab a step on the startup
@@ -12,7 +12,7 @@ obj.buildMenus();
 obj.buildToolbar();
 
 outer = uigridlayout(obj.Fig, [2 1]);
-outer.RowHeight = {'1x', 24};
+outer.RowHeight = {'1x', 30};
 outer.Padding = [0 0 0 0];
 outer.RowSpacing = 0;
 obj.Tabs = uitabgroup(outer);
@@ -26,9 +26,22 @@ obj.TabLog    = uitab(obj.Tabs, "Title", "Log");
 
 bar = uipanel(outer, "BorderType", "line", "BackgroundColor", [0.96 0.96 0.98]);
 bar.Layout.Row = 2;
-bg = uigridlayout(bar, [1 1]);
-bg.Padding = [8 0 8 0];
+bg = uigridlayout(bar, [1 3]);
+bg.Padding = [8 2 8 2];
+bg.ColumnSpacing = 8;
+bg.ColumnWidth = {'1x', 0, 0};   % the status text; a run's progress bar and Cancel, shown while it goes (onRunExport)
 obj.StatusBar = uilabel(bg, "Text", "Ready.", "FontColor", [0.15 0.15 0.15]);
+track = uipanel(bg, "BorderType", "line", "BackgroundColor", [0.92 0.92 0.94]);
+track.Layout.Column = 2;
+RS = struct('Host', bg, 'Track', track);
+RS.Bar = uigridlayout(track, [1 2], "Padding", [0 0 0 0], "ColumnSpacing", 0, "RowSpacing", 0, ...
+    "BackgroundColor", [0.92 0.92 0.94], "RowHeight", {'1x'}, "ColumnWidth", {0, '1x'});
+fill = uipanel(RS.Bar, "BorderType", "none", "BackgroundColor", [0.25 0.55 0.85]);
+fill.Layout.Row = 1; fill.Layout.Column = 1;
+RS.Cancel = uibutton(bg, "Text", "Cancel", "Tooltip", "Stop the run before the next figure observation.", ...
+    "ButtonPushedFcn", @(~,~) obj.onCancelRun());
+RS.Cancel.Layout.Column = 3;
+obj.RunStrip = RS;
 
 obj.Splash.step("Data", "Building the Data tab ..."); obj.buildDataTab();
 obj.Splash.step("Alignment", "Building the Alignment tab ..."); obj.buildAlignTab();
@@ -56,7 +69,7 @@ b = findall(obj.Fig, "Type", "uibutton", "-or", "Type", "uistatebutton");
 styleButton(b(~ismember(string(get(b, "Tag")), ["formSectionToggle" "colorSwatch"])));
 styleButton([obj.ScanButton, obj.RunButton, ...
     obj.FigurePreviewButton, obj.FigureRedrawAllButton, obj.FigureApplyLastButton], "primary");
-styleButton([obj.AddFigureButton, obj.FigureEditor.newPanel, obj.FigureEditor.addLayer, obj.FigureTemplateApplyButton], "confirm");
-styleButton([obj.CancelButton, obj.RemoveFigureButton, obj.FigureEditor.removePanel, ...
+styleButton([findall(obj.Fig, "Type", "uibutton", "Tag", "starterCard"), obj.AddFigureButton, obj.AddStarterButton, obj.FigureEditor.newPanel, obj.FigureEditor.addLayer, obj.FigureTemplateApplyButton], "confirm");
+styleButton([obj.CancelButton, obj.RunStrip.Cancel, obj.RemoveFigureButton, obj.FigureEditor.removePanel, ...
     obj.FigureEditor.removeLayer, obj.FigureTemplateRemoveButton], "danger");
 end

@@ -514,6 +514,168 @@ if S.sec("1c", "Help menu: GitHub issue and feature request")
     delete(dlg);
 end
 
+if S.sec("1d", "messages: what stops an action is an alert that says what to do; the issues table's double click; the starter figure; skip remedies; the run strip")
+    wasCapture = AppDialog.capture(true);
+    captureBack = onCleanup(@() AppDialog.capture(wasCapture)); %#ok<NASGU> the tests read the alerts, none is shown
+    AppDialog.captured(Clear=true);
+    alertsOf = @() AppDialog.captured(Clear=true);
+    % the status bar holds the whole message as its tooltip
+    app.setStatus("A long message that the status bar could clip");
+    check(string(app.StatusBar.Tooltip) == "A long message that the status bar could clip", 'the status bar''s tooltip holds the whole message');
+    % no project: Scan names the Data tab's root, Plan has a button to it, a root that is not there and an empty one say so
+    app2 = EphysAnalysisApp("", Splash=false);
+    app2Clean = onCleanup(@() closeApp(app2)); %#ok<NASGU>
+    app2.RootField.Value = '';
+    app2.onConfigChanged("source");
+    app2.onScan();
+    A = alertsOf();
+    check(numel(A) == 1 && A(1).Title == "Scan" && A(1).Message == "Choose the project root on the Data tab first." ...
+        && app2.Tabs.SelectedTab == app2.TabData && isempty(app2.Runner), ...
+        'Scan with no project root: an alert "Choose the project root on the Data tab first." and the Data tab');
+    app2.onPlan();
+    A = alertsOf();
+    check(numel(A) == 1 && A(1).Message == AppDialog.noProject(Where="Data") && isequal(string(A(1).Options), ["Go to Data tab" "Close"]) ...
+        && contains(A(1).Message, "the project root") && contains(string(app2.StatusBar.Text), "No project is loaded"), ...
+        'Plan with no project: the one "No project is loaded" message, with a Go to Data tab button');
+    app2.RootField.Value = fullfile(root, 'nothere');
+    app2.onConfigChanged("source");
+    app2.onScan();
+    A = alertsOf();
+    check(numel(A) == 1 && startsWith(A(1).Message, "Could not scan for datasets.") && contains(A(1).Message, "Project root does not exist") ...
+        && contains(A(1).Message, "Try: check the project root on the Data tab.") && contains(A(1).Message, "Details: Log tab") ...
+        && contains(string(app2.ScanLabel.Text), "Scan failed"), ...
+        'Scan of a root that is not there: "Could not scan for datasets", the reason, what to try and where the details are');
+    emptyProj = fullfile(root, 'emptyproj');
+    mkdir(emptyProj);
+    app2.RootField.Value = emptyProj;
+    app2.onConfigChanged("source");
+    app2.onScan();
+    A = alertsOf();
+    check(numel(A) == 1 && A(1).Message == "No processed recordings under " + string(emptyProj) + ". Check the root, or run the pipeline app first." ...
+        && contains(app2.ScanLabel.Text, "No processed recordings"), ...
+        'Scan of a root with no processed recordings: "No processed recordings under <root>. Check the root, or run the pipeline app first."');
+    closeApp(app2);
+    % a run that cannot start: no figure enabled (the config error is named, the Export tab's table lists it), then no dataset ticked
+    noFigures();
+    app.selectTab(app.TabData);
+    app.IssuesTable.Data = table();
+    app.onRunExport();
+    A = alertsOf();
+    check(numel(A) == 1 && A(1).Title == "Run" && contains(A(1).Message, "The config has 1 error(s), so nothing was run.") ...
+        && contains(A(1).Message, "First: No figure is enabled. (Figures > enabled)") && app.Tabs.SelectedTab == app.TabExport ...
+        && height(app.IssuesTable.Data) >= 1 && ~app.Running, ...
+        'Run with no figure enabled: an alert naming the first error, the Export tab with its issues table');
+    app.selectTab(app.TabFigures);
+    cardButtons = findall(app.Fig, 'Type', 'uibutton', 'Tag', 'starterCard');
+    hintLabels = findall(app.TabFigures, 'Type', 'uilabel', 'Text', 'Right-click the plot to change colors, fonts and labels.');
+    check(isscalar(cardButtons) && cardButtons.Text == "Add Raster + PSTH" && isscalar(app.AddStarterButton) ...
+        && app.AddStarterButton.Text == "Add Raster + PSTH" && ~isempty(hintLabels), ...
+        'the Figures tab has a starter figure button in its empty preview and beside Add, and the right-click hint under the preview');
+    cardButtons.ButtonPushedFcn(cardButtons, []);   % the empty preview's button, as a click
+    check(numel(app.Config.Figures) == 1 && app.SelectedFigure == 1 && isequal([app.Config.Figures(1).panels.type], ["raster" "psth"]) ...
+        && contains(app.StatusBar.Text, "Added Raster+PSTH units"), ...
+        'the starter button adds a raster over a PSTH, built from the config''s panel defaults');
+    app.AddStarterButton.ButtonPushedFcn(app.AddStarterButton, []);
+    check(numel(app.Config.Figures) == 2, 'Add Raster + PSTH beside Add adds another');
+    app.onFigureSelected(1);
+    app.onRemoveFigure();   % one figure is enough for the rest
+    kIssue = 1;
+    figS = app.Config.Figures(1);
+    app.onTickDatasets("none");
+    app.selectTab(app.TabData);
+    app.onRunExport();
+    A = alertsOf();
+    check(numel(A) == 1 && contains(A(1).Message, "No dataset is ticked to run. On the Data tab, tick Run for at least one dataset.") ...
+        && app.Tabs.SelectedTab == app.TabData, 'Run with no dataset ticked: an alert and the Data tab');
+    app.selectTab(app.TabExport);
+    app.onPlan();
+    A = alertsOf();
+    check(numel(A) == 1 && app.Tabs.SelectedTab == app.TabData, 'Plan with no dataset ticked: the same alert and the Data tab');
+    app.onTickDatasets("shown");
+    % the issues table: a double click goes to the setting a row is about
+    fileName0 = app.ReportControls.FileName.Value;
+    app.ReportControls.FileName.Value = 'a/b';
+    app.onConfigChanged("report");
+    app.selectTab(app.TabExport);
+    I = app.onValidate();
+    rReport = find(I.Section == "Report" & I.Field == "FileName", 1);
+    check(~isempty(rReport) && contains(app.StatusBar.Text, "double-click a row to go to it"), ...
+        'Validate lists the file-name error and says rows can be double-clicked');
+    dbl = @(tbl, r) struct('InteractionInformation', struct('Row', r, 'Column', 1), 'Source', tbl);
+    app.selectTab(app.TabData);
+    app.onIssueActivated(dbl(app.IssuesTable, rReport));
+    check(app.Tabs.SelectedTab == app.TabExport && contains(app.StatusBar.Text, "Report FileName"), ...
+        'a double click on a Report issue shows the Export tab (its File name box)');
+    app.ReportControls.FileName.Value = fileName0;
+    app.onConfigChanged("report");
+    app.IssuesTable.Data = table("Figures", figS.id + "." + figS.panels(2).id + ".layers(1).source", "error", "x", ...
+        'VariableNames', {'Section', 'Field', 'Severity', 'Message'});
+    app.selectTab(app.TabData);
+    app.onIssueActivated(dbl(app.IssuesTable, 1));
+    check(app.Tabs.SelectedTab == app.TabFigures && app.SelectedFigure == kIssue && app.SelectedPanel == 2 && app.SelectedLayer == 1 ...
+        && contains(app.StatusBar.Text, figS.id + " > " + figS.panels(2).id + " > layer 1"), ...
+        'a double click on a Figures issue selects its figure, panel and layer on the Figures tab');
+    app.IssuesTable.Data = table("Source", "Root", "error", "x", 'VariableNames', {'Section', 'Field', 'Severity', 'Message'});
+    app.onIssueActivated(dbl(app.IssuesTable, 1));
+    check(app.Tabs.SelectedTab == app.TabData, 'a Source issue shows the Data tab');
+    % the plan: a "What to do" column; a double click on a row shows its figure and dataset
+    app.selectTab(app.TabExport);
+    P = app.onPlan();
+    T = app.IssuesTable.Data;
+    check(ismember("WhatToDo", string(T.Properties.VariableNames)) && height(T) == height(P) && ~ismember("WhatToDo", string(P.Properties.VariableNames)), ...
+        'the plan table has a What to do column; the plan returned is the runner''s');
+    app.selectTab(app.TabData);
+    app.onIssueActivated(dbl(app.IssuesTable, 2));
+    check(app.Tabs.SelectedTab == app.TabFigures && app.SelectedFigure == kIssue && app.ActiveIdx == find(app.Runner.Names == string(T.Dataset(2)), 1), ...
+        'a double click on a plan row shows its figure on the Figures tab, and its dataset');
+    % the remedies
+    check(figureSkipRemedy("no LFP extract") == "No LFP signal: switch on LFP in the pipeline's Signals tab and run it." ...
+        && figureSkipRemedy("no paired trials") == "No paired trials: approve the pairing on the pipeline's Trials tab." ...
+        && contains(figureSkipRemedy("no sorted units"), "Sorting step") && contains(figureSkipRemedy("no detected spikes"), "Spikes step") ...
+        && contains(figureSkipRemedy("no line Stim"), "No line Stim") && contains(figureSkipRemedy("no trial parameter Depth"), "No trial parameter Depth") ...
+        && contains(figureSkipRemedy("no probe map"), "probe") && contains(figureSkipRemedy("no sort event chosen"), "sort the rows") ...
+        && contains(figureSkipRemedy("Chronux is not on the path"), "Chronux") && contains(figureSkipRemedy("fewer than 2 session(s) can draw it (a: no line X)"), "Too few datasets") ...
+        && figureSkipRemedy("") == "" && figureSkipRemedy("something unexpected") == "", ...
+        'figureSkipRemedy words each skip reason with what to do about it; an unknown one gives nothing');
+    % the run: a bar and Cancel in the status bar, not a modal dialog; the results table follows
+    check(isequal(app.RunStrip.Host.ColumnWidth, {'1x', 0, 0}), 'before a run the status bar shows no progress bar');
+    setappdata(groot, 'stripProbe', []);
+    tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) probeRunStrip(t, app));
+    start(tm);
+    R = app.onRunExport(Figures=figS.id, SessionFigures=string.empty(1, 0), Export=false, Report=false);
+    stop(tm); delete(tm);
+    pr = getappdata(groot, 'stripProbe');
+    rmappdata(groot, 'stripProbe');
+    check(isstruct(pr) && pr.cols{2} > 0 && pr.cols{3} > 0 && pr.cancel == "on" ...
+        && isequal(app.RunStrip.Host.ColumnWidth, {'1x', 0, 0}) && ~app.Running, ...
+        'while a run goes the status bar shows a progress bar and Cancel, over any tab; both go when it is done');
+    check(istable(R) && height(R) == height(app.ResultsTable.Data) && height(R) >= 1 && contains(app.RunLabel.Text, "Results:"), ...
+        'the results table is filled with the run''s rows');
+    % menus and labels
+    helpItems = string({app.HelpMenu.Children.Text});
+    check(ismember("Keyboard shortcuts and right-click menus", helpItems) && ~ismember("Figures tab keys", helpItems), ...
+        'the Help menu has Keyboard shortcuts and right-click menus');
+    w = app.onFigureKeys();
+    keyTable = findall(w, 'Type', 'uitable');
+    keyRows = string(keyTable.Data.Key);
+    check(w.Name == "Keyboard shortcuts and right-click menus" && any(startsWith(keyRows, "Right-click the preview")) ...
+        && any(startsWith(keyRows, "Right-click the datasets table")), 'the window lists the keys and the right-click menus');
+    delete(w);
+    panelTitles = string(get(findall(app.TabExport, 'Type', 'uipanel'), {'Title'}));
+    labelTexts = string(get(findall(app.TabExport, 'Type', 'uilabel'), {'Text'}));
+    check(all(ismember(["Figure files" "Report"], panelTitles)) && ~any(contains(panelTitles, "config:")) ...
+        && ismember("Resolution (dpi, PNG):", labelTexts), ...
+        'the Export tab''s sections are Figure files and Report, with the PNG resolution named in words');
+    check(ismember("Spike band", string(app.DatasetsTable.ColumnName)) && ~ismember("SPIKE", string(app.DatasetsTable.ColumnName)), ...
+        'the Data tab''s SPIKE column reads Spike band');
+    check(contains(app.AlignControls.WindowHint.Text, "negative = before") && contains(app.AlignControls.Pre.Tooltip, "Negative is before"), ...
+        'the epoch window says that a negative Pre is before the event');
+    noFigures();
+    app.onTickDatasets("shown");
+    app.selectDataset(kF1);   % the plan row's double click made the second dataset active: the sections after start on the first
+    app.selectTab(app.TabData);
+end
+
 if S.sec("2", "Alignment: group by Depth")
     app.selectTab(app.TabAlign);
     app.AlignControls.Line.Value = 'Stim';
@@ -3698,7 +3860,8 @@ if S.sec("5o", "Size: the page a figure is exported on, the preview shaped like 
     FE.sizeUnits.ValueChangedFcn(FE.sizeUnits, []);
     z = app.Config.Figures(1).size;
     check(z.units == "in" && abs(z.width - 4) < 1e-9 && abs(z.height - 8 / 3) < 1e-3 && abs(shape() - 1.5) < 0.03, ...
-        'the units changed to in: 600 x 400 px at 150 dpi is 4 x 2.667 in, the same page');
+        sprintf('the units changed to in: 600 x 400 px at 150 dpi is 4 x 2.667 in, the same page (got %g x %g %s, preview %s)', ...
+        z.width, z.height, z.units, mat2str(P.Position)));
     FE.sizeHeight.Value = 3;
     FE.sizeHeight.ValueChangedFcn(FE.sizeHeight, []);
     check(abs(app.Config.Figures(1).size.width - 4.5) < 0.01 && abs(shape() - 1.5) < 0.03, 'locked, a height of 3 in gives a width of 4.5 in (to the thousandth the editor keeps)');
@@ -4473,6 +4636,15 @@ if ~app.FigureRedrawing || app.FigurePreviewState ~= "computing"; return; end
 stop(tm);
 setappdata(groot, 'redrawProbe', struct('cancel', string(app.ToolbarCancelTool.Enable), 'redraw', string(app.FigureRedrawAllButton.Enable)));
 clickTool(app, "cancel");
+end
+
+
+function probeRunStrip(tm, app)
+%probeRunStrip  Once a run has started (the runner's Results emptied), note the status bar's strip (appdata stripProbe).
+if ~app.Running || isempty(app.Runner) || height(app.Runner.Results) > 0; return; end
+stop(tm);
+setappdata(groot, 'stripProbe', struct('cols', {app.RunStrip.Host.ColumnWidth}, 'cancel', string(app.RunStrip.Cancel.Enable), ...
+    'tab', string(app.Tabs.SelectedTab.Title)));
 end
 
 

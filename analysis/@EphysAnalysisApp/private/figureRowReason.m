@@ -5,7 +5,7 @@ function why = figureRowReason(label, key, type)
 %   selected panel's type ("" = none). The reasons follow what
 %   syncFigureEditor shows: the Observations rows by the data observed,
 %   the First-spike latency rows by the figure's panels and the method,
-%   the Sessions rows by Across sessions, the Probe layout rows by On the
+%   the Sessions rows by Across datasets, the Probe layout rows by On the
 %   probe, the selected panel's rows, the
 %   picked layer's by its source and binding, the Options rows by the
 %   panel's type (an option of the selected type that is still hidden says
@@ -54,14 +54,14 @@ switch key
     case "obsChannels"
         tail = "is for a signal: pick LFP, MUA, SPIKE or AUX in Observe.";
     case "obsPerGroup"
-        tail = "is not used by a figure across sessions (its Trial groups row, Sessions, decides) or on the probe (Probe layout).";
+        tail = "is not used by a figure across datasets (its Trial groups row, Sessions, decides) or on the probe (Probe layout).";
     case {"prbLayout" "prbOverlap" "prbLanes" "prbShanks" "prbChannels" "prbDepth" "prbMaxTiles" "prbPerSite" "prbTileWidth" ...
             "prbTileHeight" "prbScale" "prbLabels" "prbSharedY" "prbScaleTile" "prbShowSites" "prbLeaders" "prbNote"}
         tail = "shows once On the probe is ticked (Probe layout).";
     case {"sesDatasets" "sesFacet" "sesSeries" "sesColorOrder" "sesTrialGroups" "sesMinSessions" "sesShowMembers" "sesError" "sesNote"}
-        tail = "shows once Across sessions is ticked (Sessions).";
+        tail = "shows once Across datasets is ticked (Sessions).";
     case "sesKeys"
-        tail = "shows with Across sessions ticked and Datasets: These datasets.";
+        tail = "shows with Across datasets ticked and Datasets: These datasets.";
     case {"latNote" "latMethod" "latFrom" "latBaseline" "latCusum" "latCusumSD"}
         tail = "is the figure's first-spike latency: it shows while the figure has a raster, PSTH or heat map panel.";
     case "latRate"
@@ -71,7 +71,7 @@ switch key
     case "latAlpha"
         tail = "is for the Baseline Poisson count method: pick it as the Method (First-spike latency).";
     case "sesMatch"
-        tail = "is for a figure of units drawn across sessions.";
+        tail = "is for a figure of units drawn across datasets.";
     case "sesMappingFile"
         tail = "shows when the units are matched by a mapping file (Units matched by: Mapping).";
     case {"selPanel" "rowSpan" "colSpan" "rowHeight" "colWidth" "panelButtons" "panelWidth" "panelAlign" "panelType" ...

@@ -126,6 +126,8 @@ classdef test_DatasetRuns < matlab.unittest.TestCase
             tc.verifyEqual(T.message(2), "no luck in bb");
             tc.verifyEmpty(v{2});
             tc.verifyEqual(runs.status("x", ["a" "bb" "zz"], 1), ["current"; "skipped"; ""]);
+            tc.verifyEqual([runs.message("x", "bb"); runs.message("x", "a"); runs.message("x", "zz")], ["no luck in bb"; ""; ""], ...
+                'message: why a skipped dataset was skipped, "" for a done one or none.');
             tc.Calls = strings(0, 1);
             [~, T] = runs.run(@(k) tc.source(k), ["a" "bb"], fn, Name="x", Id=1, SkipIds="selectUnits:NoUnits");
             tc.verifyEqual(T.status, ["cached"; "skipped"]);

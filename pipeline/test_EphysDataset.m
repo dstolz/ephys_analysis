@@ -543,6 +543,65 @@ nlAll = dsM.noiseLevels(nlArgs{:});
 check(nl16.nChunks == 16 && nlAll.nChunks == 18 && isequal(iM.noiseFill.sigma, nl16.sigma) ...
     && ~isequal(nl16.sigma, nlAll.sigma), 'toBin measures the fill level on 16 chunks spread over the recording');
 
+fprintf('\n== 8e. toBin''s own detection is artifactIntervals'' ==\n');
+% One broad pulse across the file 1|2 boundary and a stretch of stimulation that
+% fills most of file 3: a detection chunk by chunk would cut the first and take
+% file 3's baseline from the stimulation. A .bin erases exactly the recording's
+% periods, also for a subset of the files, a subset of the channels and under a
+% write filter.
+daDir = fullfile(root, 'detect_rhd');
+mkdir(daDir);
+nPer = 20 * spb;
+rngBefore = rng(83);
+XD = 5 * randn(numAmp, 3*nPer);
+rng(rngBefore);
+XD(:, nPer-40:nPer+39) = XD(:, nPer-40:nPer+39) + 800;
+XD(:, 2*nPer+100:3*nPer-100) = XD(:, 2*nPer+100:3*nPer-100) + 600;
+codes = uint16(round(XD / 0.195) + 32768);
+for f = 1:3
+    fd = fullfile(daDir, sprintf('det_%03d.rhd', f));
+    writeSyntheticRHD(fd, codes(:, (f-1)*nPer+1:f*nPer), zeros(1, nPer), Fs, spb);
+    java.io.File(fd).setLastModified(int64(1.0e12 + 60000 * f));
+end
+dsD = EphysDataset(daDir);
+dsD.OutputDir = fullfile(root, 'detect_rhd_out');
+dsD.ArtifactConfig.Enabled = true;
+dsD.ArtifactConfig.Method = "microvolts";
+dsD.ArtifactConfig.Threshold = 300;
+dsD.ArtifactConfig.MinChannels = 1;
+dsD.ArtifactConfig.Fill = "zero";
+ivD = dsD.artifactIntervals();
+samplesD = sum(round(ivD(:, 2) * Fs) - round(ivD(:, 1) * Fs));
+check(size(ivD, 1) >= 2 && any(ivD(:, 1) < nPer / Fs & ivD(:, 2) > nPer / Fs), ...
+    'the fixture has a period across the file 1|2 boundary');
+binAuto = fullfile(root, 'det_auto.bin');
+binList = fullfile(root, 'det_list.bin');
+iDa = dsD.toBin(BinFile=binAuto, WriteMeta=false);
+iDl = dsD.toBin(BinFile=binList, ArtifactIntervals=ivD, WriteMeta=false);
+check(isequal(readBin(binAuto), readBin(binList)) && iDa.nAutoBlanked == samplesD && iDa.nManualBlanked == 0 ...
+    && iDa.autoArtifact.nIntervals == size(ivD, 1) && numel(iDa.autoArtifact.channelCounts) == numAmp, ...
+    'toBin without a list writes what toBin with artifactIntervals'' list writes, and reports it as automatic');
+binSub = fullfile(root, 'det_sub.bin');
+iDs = dsD.toBin(BinFile=binSub, Files=dsD.Files(2), ChannelOrder=[3 1], WriteMeta=false);
+BD = reshape(typecast(readBin(binAuto), 'int16'), numAmp, []);
+BS = reshape(typecast(readBin(binSub), 'int16'), 2, []);
+check(isequal(BS, BD([3 1], nPer+1:2*nPer)) && numel(iDs.autoArtifact.channelCounts) == 2 ...
+    && iDs.nAutoBlanked == nnz(all(BD(:, nPer+1:2*nPer) == 0, 1)), ...
+    'a Files and ChannelOrder subset erases the recording''s periods (seen in the part written)');
+dsD.setArtifactAdjustment(ivD(1, :), ivD(1, :) + [-5 5] / Fs);
+binAdj = fullfile(root, 'det_adj.bin');
+lastwarn('');
+iDj = dsD.toBin(BinFile=binAdj, WriteMeta=false);
+check(iDj.nAutoBlanked == samplesD + 10 && isempty(lastwarn), 'bounds moved by hand are erased as moved');
+dsD.ArtifactAdjustments = zeros(0, 4);
+dsD.ArtifactConfig.Method = "commonmode";
+dsD.ArtifactConfig.Threshold = 300;
+ivC = dsD.artifactIntervals();
+iDc = dsD.toBin(BinFile=fullfile(root, 'det_cm.bin'), Filter=true, WriteMeta=false);
+check(iDc.autoArtifact.nIntervals == size(ivC, 1) ...
+    && iDc.nAutoBlanked == sum(round(ivC(:, 2) * Fs) - round(ivC(:, 1) * Fs)), ...
+    'the common-mode method and a write filter give the same periods');
+
 fprintf('\n== 9. DatasetTracker integration (ds / project) ==\n');
 % ds.OutputDir = out_stream (section 4); section 8 wrote a dry-run kilosort4/
 % there (settings + script, but no spike output yet).

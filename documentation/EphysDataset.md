@@ -1354,10 +1354,8 @@ used instead.
 detection, which stays as found) and the GUI's Visualize overlay apply them.
 An adjustment whose artifact the detector no longer finds (other settings,
 another common reference) is not applied. It stays in the list and applies
-again if those settings come back. `toBin`'s own chunk-by-chunk detection
-(`Blank`, or `ArtifactConfig.Enabled` without `ArtifactIntervals`) erases the
-detections as found and warns (`EphysDataset:toBin:AdjustmentsIgnored`); pass
-`ArtifactIntervals=ds.artifactIntervals()`, as `runKilosort` does.
+again if those settings come back. `toBin`'s own detection (`Blank`, or
+`ArtifactConfig.Enabled` without `ArtifactIntervals`) applies them too.
 
 Every artifact period, manual or detected, is **half-open** `[t0, t1)` on that
 clock, and every route removes the same samples, `round(t0·Fs)` up to but not
@@ -1675,13 +1673,18 @@ varying fastest. It holds one chunk in memory at a time. Per chunk, in order:
    back, to be filtered again, with context after them, behind the next chunk
    (a look-ahead): neither the start nor the end of a chunk carries the filter's
    edge transient, only the recording's first and last rows do;
-5. find the samples to erase: the automatic detector's, if `Blank=true` **or**
-   `ArtifactConfig.Enabled` and no `ArtifactIntervals` list is given
-   (`ExcludeChannels` take no part), and those of `ArtifactIntervals` when
-   given, else of `ManualArtifacts` (mapped with the block's place in the
-   recording, the chunk's `sampleOffset`, so a `Files` subset that does not
-   start at the first file erases the right samples; the running count of
-   written samples when the reader gives none);
+5. find the samples to erase: the automatic periods, if `Blank=true` **or**
+   `ArtifactConfig.Enabled` and no `ArtifactIntervals` list is given, and those
+   of `ArtifactIntervals` when given, else of `ManualArtifacts`. The automatic
+   periods are `artifactIntervals`', found over the whole recording before the
+   first chunk is written and with the bounds moved by hand applied, so they
+   are the ones the Signals and Spikes steps erase, whatever `Files`,
+   `ChannelOrder` and the write filter are (the detection reads through
+   `ArtifactConfig`'s own filter, and `ExcludeChannels` take no part). All of
+   them are mapped with the block's place in the recording, the chunk's
+   `sampleOffset`, so a `Files` subset that does not start at the first file
+   erases the right samples; the running count of written samples when the
+   reader gives none;
 6. erase them in one pass (`blankArtifacts`); a period cut by a chunk boundary
    is held at the level before it up to the boundary and continues from there
    in the next chunk;

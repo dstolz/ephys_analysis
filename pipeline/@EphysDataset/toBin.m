@@ -39,16 +39,17 @@ function info = toBin(obj, opts)
 %                    rows are written with the next chunk (or at the end).
 %     Blank          (1,1) logical  force automatic artifact detect + blank.
 %                    When false, blanking still runs if ds.ArtifactConfig.Enabled.
-%                    It erases the detections as found, so bounds moved by
-%                    hand (ArtifactAdjustments) warn and are not applied:
-%                    pass ArtifactIntervals=ds.artifactIntervals() for them.
-%                    ExcludeChannels take no part in the detection, and the
-%                    "commonmode" method measures the chunk before the common
-%                    reference is subtracted (see detectArtifacts).
+%                    The periods are artifactIntervals' over the whole recording
+%                    (with the bounds moved by hand, ArtifactAdjustments), found
+%                    before anything is written, so they are the ones the
+%                    Signals and Spikes steps erase, whatever Files,
+%                    ChannelOrder and the write filter are: the detection
+%                    reads through ds.ArtifactConfig's own filter and leaves
+%                    ExcludeChannels out.
 %     ArtifactMethod / ArtifactThreshold / ArtifactRmsWindowMs / ArtifactMergeGapMs /
 %     ArtifactMinChannels / ArtifactPadMs   detection params; each falls back to
 %                    ds.ArtifactConfig when left at its default. See
-%                    detectArtifacts (RmsWindow/MergeGap/Pad are in milliseconds).
+%                    artifactIntervals (RmsWindow/MergeGap/Pad are in milliseconds).
 %     ArtifactIntervals [k x 2] recording-relative seconds to blank instead of
 %                    the manual periods and the detector ([] = blank nothing;
 %                    default NaN = ManualArtifacts, plus detection as above)
@@ -84,8 +85,8 @@ function info = toBin(obj, opts)
 %                    rebuilt from the sidecar. The fingerprint (sidecar field
 %                    "fingerprint") is a hash of the recording's files and
 %                    sizes, the chunks, channel order, dtype, scale, offset,
-%                    write filter, the periods erased (listed and automatic
-%                    settings, fill, noise band and seed) and the common
+%                    write filter, the periods erased (listed, automatic
+%                    settings and bounds moved by hand; fill, noise band and seed) and the common
 %                    reference; runKilosort sets it, so a second sort of the
 %                    same data does not write the .bin again. A fill with a
 %                    new random draw each time (NoiseSeed NaN) is never reused.
@@ -109,8 +110,9 @@ function info = toBin(obj, opts)
 %   nClipped, nBytes, metaFile (if written), nManualBlanked, nAutoBlanked,
 %   artifactFill, noiseFill (struct: bandHz, seed, sigma, center - empty when
 %   filling with zeros) and autoArtifact (struct: enabled, method, threshold,
-%   rmsWindowMs, mergeGapMs, minChannels, padMs, nBlanked, fraction,
-%   pctDuration, nIntervals, channelCounts) and reference (struct: mode -
+%   rmsWindowMs, mergeGapMs, minChannels, padMs, nBlanked and fraction and
+%   pctDuration of the samples written; nIntervals, the recording's, and
+%   channelCounts, one per written channel) and reference (struct: mode -
 %   "none" | "car" | "cmr" | "wcar" - and channels, the 1-based channels the
 %   common reference was taken over, see applyReference; for "wcar" also
 %   wcar: the weighted CAR's options, its Q and whether it was automatic,
@@ -206,15 +208,7 @@ if ~givenIv
     if isempty(listIv); listIv = zeros(0, 2); end
 end
 doBlank   = ~givenIv && (opts.Blank || acfg.Enabled);
-if doBlank && ~isempty(obj.ArtifactAdjustments)
-    % The chunk-by-chunk detection below cannot move a bound into a chunk
-    % already written; artifactIntervals applies them.
-    warning('EphysDataset:toBin:AdjustmentsIgnored', ...
-        ['%s has %d detected artifact(s) with bounds moved by hand; toBin''s own detection ' ...
-        'erases them as detected. Pass ArtifactIntervals=ds.artifactIntervals() to erase them ' ...
-        'as moved (runKilosort and the pipeline do).'], obj.Name, size(obj.ArtifactAdjustments, 1));
-end
-artMethod = opts.ArtifactMethod;        if artMethod == "";       artMethod = acfg.Method;      end
+artMethod = opts.ArtifactMethod;       if artMethod == "";       artMethod = acfg.Method;      end
 artThr    = opts.ArtifactThreshold;     if isnan(artThr);         artThr    = acfg.Threshold;   end
 artWinMs  = opts.ArtifactRmsWindowMs;   if isnan(artWinMs);       artWinMs  = acfg.RmsWindowMs;  end
 artGapMs  = opts.ArtifactMergeGapMs;    if isnan(artGapMs);       artGapMs  = acfg.MergeGapMs;   end
@@ -256,6 +250,7 @@ useOverlap = opts.Filter && opts.FilterEdgeMode == "overlap" && opts.OverlapSamp
 fingerprint = binFingerprint(obj, plan, opts, struct('dtype', dtype, 'scale', scale, 'offset', opts.Offset, ...
     'blank', doBlank, 'method', artMethod, 'threshold', artThr, 'rmsWindowMs', artWinMs, ...
     'mergeGapMs', artGapMs, 'minChannels', artMinCh, 'padMs', artPadMs, 'listed', listIv, ...
+    'detection', EphysDataset.detectionSettings(acfg), 'adjustments', obj.ArtifactAdjustments, ...
     'fill', artFill, 'noiseBandHz', noiseBand, 'noiseSeed', noiseSeed, ...
     'reference', EphysDataset.referenceRecord(obj.referenceInfo())));
 if opts.Reuse && ~(artFill == "noise" && (doBlank || ~isempty(listIv)) && isnan(noiseSeed))
@@ -265,6 +260,18 @@ if opts.Reuse && ~(artFill == "noise" && (doBlank || ~isempty(listIv)) && isnan(
             binFile, info.nBytes / 1e6);
         return
     end
+end
+
+% The automatic periods, before anything is written: the recording-wide
+% detection the Signals and Spikes steps take, with the bounds moved by hand.
+autoIv = zeros(0, 2);
+detected = struct('channelCounts', [], 'rmsWindowMs', NaN);
+if doBlank
+    fprintf('Detecting artifacts over the recording (%s)...\n', artMethod);
+    [autoIv, detected] = obj.artifactIntervals(IncludeAuto=true, IncludeManual=false, ...
+        Method=artMethod, Threshold=artThr, RmsWindowMs=artWinMs, MergeGapMs=artGapMs, ...
+        MinChannels=artMinCh, PadMs=artPadMs);
+    autoIv = obj.adjustArtifacts(autoIv);
 end
 
 % How the artifact samples are erased. "noise" replaces them with a line
@@ -309,16 +316,6 @@ else
         'NoiseCenter', noiseFill.center, 'Stream', fillStream};
 end
 
-% Automatic detection leaves ExcludeChannels out (a dead or broken site - which
-% after a common reference also carries the reference's inverse - must not
-% erase a period on every channel). The "commonmode" method looks for the mean
-% a common reference subtracts, so it measures each chunk before the reference
-% is taken, over the channels that take part.
-recCh = opts.ChannelOrder;
-if isempty(recCh); recCh = 1:obj.NumChannels; end
-detCols  = find(~ismember(recCh, obj.excludedChannels()));   % columns of the written data
-cmDetect = doBlank && artMethod == "commonmode";
-
 % The sidecar of the .bin that is there goes first (it describes that one),
 % and the new one is written under another name, renamed once it is whole.
 partialFile = binFile + ".partial";
@@ -339,13 +336,15 @@ nNonFinite = 0;       % NaN / Inf samples, written as 0 by the cast
 nManualBlanked = 0;   % samples zeroed by manual artifact periods
 nAutoBlanked   = 0;   % samples zeroed by automatic artifact detection
 nErased        = 0;   % samples erased by either (each counted once)
-nAutoIntervals = 0;   % contiguous auto-artifact intervals (summed per file)
-autoChanCounts = [];  % [1 x nChanOut] per-channel exceedance counts
-artWinMsUsed   = NaN; % resolved running-RMS window (ms), for reporting
+nAutoIntervals = size(autoIv, 1);   % the recording's automatic periods
+autoChanCounts = detected.channelCounts;   % [1 x nChan] per-channel exceedance counts
+if ~isempty(autoChanCounts) && ~isempty(opts.ChannelOrder)
+    autoChanCounts = autoChanCounts(opts.ChannelOrder);   % those written
+end
+artWinMsUsed   = detected.rmsWindowMs;   % resolved running-RMS window (ms), for reporting
 Fs        = obj.Fs;
 fstate    = struct('raw', zeros(0, 0), 'pending', 0);   % overlap mode: the raw rows carried, how many of them are held back
-fstateCm  = fstate;   % the same for the common mode
-posNext   = 0;   % recording-global index (0-based) of the next row written
+posNext   = 0;  % recording-global index (0-based) of the next row written
 fillCtx   = [];  % clean samples a run at the top of the next chunk fills from
 edgeRows  = max(1, round(1e-3 * Fs));   % the 1 ms blankArtifacts averages at a run's edge
 
@@ -358,11 +357,9 @@ for i = 1:numel(plan) + double(useOverlap)
     end
     if flush
         X = zeros(0, size(fstate.raw, 2));   % the filter returns the rows held back
-        cm = zeros(0, 1);
     else
-        % [nSamples x nChan], microvolts (all channels), referenced below when it
-        % is read as recorded for the common-mode detector
-        X = obj.readChunkUV(plan(i), Reference=~cmDetect);
+        % [nSamples x nChan], microvolts (all channels), common-referenced
+        X = obj.readChunkUV(plan(i));
 
         if isempty(X)
             warning('EphysDataset:toBin:NoData', 'No amplifier data in %s; skipping.', plan(i).name);
@@ -386,15 +383,6 @@ for i = 1:numel(plan) + double(useOverlap)
                 max(opts.ChannelOrder), thisNumChan);
         end
 
-        if cmDetect
-            cm = mean(X(:, recCh(detCols)), 2);   % before the reference removes it
-            if obj.referenceMode() == "wcar"
-                X = obj.readChunkUV(plan(i));   % taken from its state, not sample by sample
-            else
-                X = obj.applyReference(X);
-            end
-        end
-
         % Channel reorder/subset
         if ~isempty(opts.ChannelOrder)
             X = X(:, opts.ChannelOrder);
@@ -411,14 +399,8 @@ for i = 1:numel(plan) + double(useOverlap)
     if opts.Filter
         if useOverlap
             [X, fstate] = filterOverlap(obj, X, fstate, opts, Fs, flush);
-            if cmDetect
-                [cm, fstateCm] = filterOverlap(obj, cm, fstateCm, opts, Fs, flush);
-            end
         else
             X = filterChunk(obj, X, opts, Fs);
-            if cmDetect
-                cm = filterChunk(obj, cm, opts, Fs);
-            end
         end
         if isempty(X)
             continue   % a chunk shorter than the rows held back
@@ -433,35 +415,16 @@ for i = 1:numel(plan) + double(useOverlap)
         posNext = plan(i).sampleOffset - pendingBefore;
     end
 
-    % The samples to erase: the automatic detector's (per-channel amplitude
-    % deviation, or the common mode) and the listed periods - the
-    % ArtifactIntervals option, else the manual periods (Visualize tab).
-    % Those are recording-relative, so they are mapped into this block with
-    % its place in the recording (posNext, from the chunk's sampleOffset,
+    % The samples to erase: the automatic periods (above) and the listed
+    % ones - the ArtifactIntervals option, else the manual periods (Visualize
+    % tab). Those are recording-relative, so they are mapped into this block
+    % with its place in the recording (posNext, from the chunk's sampleOffset,
     % else the samples written so far). Both are erased in one pass, so a
     % fill spans each whole run.
     erase = false(size(X, 1), 1);
-    if doBlank
-        if cmDetect
-            [amask, ~, astats] = obj.detectArtifacts(cm, Method="commonmode", ...
-                Threshold=artThr, MergeGapMs=artGapMs, PadMs=artPadMs, Fs=Fs);
-            counts = zeros(1, size(X, 2));
-            counts(detCols) = astats.channelExceedCounts;
-        else
-            [amask, ~, astats] = obj.detectArtifacts(X, Method=artMethod, ...
-                Threshold=artThr, RmsWindowMs=artWinMs, MinChannels=artMinCh, ...
-                MergeGapMs=artGapMs, PadMs=artPadMs, Fs=Fs, Channels=detCols);
-            counts = astats.channelExceedCounts;
-        end
-        erase = amask;
-        nAutoBlanked   = nAutoBlanked + nnz(amask);
-        nAutoIntervals = nAutoIntervals + astats.numIntervals;
-        if isempty(autoChanCounts)
-            autoChanCounts = counts;
-        else
-            autoChanCounts = autoChanCounts + counts;
-        end
-        if isnan(artWinMsUsed); artWinMsUsed = astats.rmsWindowMs; end
+    if ~isempty(autoIv)
+        erase = obj.manualArtifactMask(size(X, 1), posNext, Fs, autoIv);
+        nAutoBlanked = nAutoBlanked + nnz(erase);
     end
     if ~isempty(listIv)
         mmask = obj.manualArtifactMask(size(X, 1), posNext, Fs, listIv);
@@ -711,7 +674,7 @@ recording = struct('files', {files}, 'bytes', bytes, 'fs', obj.Fs, 'numChannels'
 chunks = struct('name', {cellstr(string({plan.name}))}, 'offset', [plan.sampleOffset], 'n', [plan.nSamples]);
 filt = struct('on', opts.Filter, 'type', opts.FilterType, 'cutoff', opts.FilterCutoff, ...
     'order', opts.FilterOrder, 'edge', opts.FilterEdgeMode, 'overlap', opts.OverlapSamples);
-fp = EphysDataset.optionsHash(struct('schema', "toBin/2", 'recording', recording, 'chunks', chunks, ...
+fp = EphysDataset.optionsHash(struct('schema', "toBin/3",'recording', recording, 'chunks', chunks, ...
     'channelOrder', opts.ChannelOrder, 'filter', filt, 'excluded', obj.excludedChannels(), 'settings', settings));
 end
 

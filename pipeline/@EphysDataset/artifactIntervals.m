@@ -1,4 +1,4 @@
-function iv = artifactIntervals(obj, opts)
+function [iv, detected] = artifactIntervals(obj, opts)
 %artifactIntervals  Merged artifact periods (seconds) erased before sorting.
 %   IV = ds.artifactIntervals() returns a [k x 2] matrix of [tStart tEnd] in
 %   seconds, recording-relative (file 1 = t0), combining:
@@ -14,6 +14,11 @@ function iv = artifactIntervals(obj, opts)
 %   one period. runKilosort passes this list to toBin, which erases exactly
 %   these spans in the .bin it feeds Kilosort4; the recording files are never
 %   modified.
+%
+%   [IV, DETECTED] = ds.artifactIntervals(...) also returns how the detection
+%   ran, for toBin's report: struct(channelCounts [1 x nChan], samples each
+%   channel exceeded its threshold; rmsWindowMs, the window as resolved). Its
+%   channelCounts is [] and its rmsWindowMs NaN when nothing was detected on.
 %
 %   Auto intervals are found with the same streamPlan + artifactChunk loop the
 %   Artifacts-tab preview uses (analyzeArtifacts), one chunk in memory at a time
@@ -95,6 +100,7 @@ acfg = EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig);
 [useFilter, fType, fCut, fOrd] = EphysDataset.resolveFilterOptions(acfg, ...
     opts.Filter, opts.FilterType, opts.FilterCutoff, opts.FilterOrder);
 
+detected = struct('channelCounts', [], 'rmsWindowMs', NaN);
 includeAuto = opts.IncludeAuto;
 if isempty(includeAuto)
     includeAuto = logical(acfg.Enabled);
@@ -147,7 +153,9 @@ run  = struct('UseParallel', opts.UseParallel, 'MaxWorkers', opts.MaxWorkers, ..
     'CommonModeUnreferenced', opts.CommonModeUnreferenced, 'CommonModeThreshold', opts.CommonModeThreshold);
 
 % The chunks' detections, joined and padded once (artifactRun).
-auto = artifactRun(obj, plan, [], filt, det, Fs, run).intervals;
+res = artifactRun(obj, plan, [], filt, det, Fs, run);
+auto = res.intervals;
+detected = struct('channelCounts', res.channelCounts, 'rmsWindowMs', res.rmsWindowMs);
 % How the detection ran, for the manifest (Processing.artifacts).
 s = EphysDataset.detectionSettings(acfg);
 s.Enabled = true;

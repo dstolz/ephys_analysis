@@ -1561,8 +1561,7 @@ pipeline's cached detection (`EphysPipeline.artifactIntervalsFor`; no new
 detection is needed) and the Visualize overlay. When other detection settings
 no longer find the artifact, the adjustment is not applied. It stays in the
 manifest and applies again if those settings come back. `toBin`'s own
-chunk-by-chunk detection (a direct call without `ArtifactIntervals`) cannot
-apply them and warns (`EphysDataset:toBin:AdjustmentsIgnored`).
+detection (a direct call without `ArtifactIntervals`) applies them too.
 
 **Marking manual periods.** Manual periods are marked on the same plot. Turn
 on **Mark artifacts** (left column, under the periods table; amber while on,

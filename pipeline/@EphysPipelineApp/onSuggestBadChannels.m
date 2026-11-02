@@ -14,7 +14,7 @@ function onSuggestBadChannels(obj)
 if obj.refuseWhileRunning("Suggest"); return; end
 d = obj.currentDataset();
 if isempty(d)
-    uialert(obj.Fig, "Scan a project first.", "Bad channels");
+    obj.alertNoProject("Bad channels");
     return
 end
 obj.applyArtifactConfigToProject();   % the bounds as they stand on the tab
@@ -28,7 +28,8 @@ try
         ProgressFcn=@(i, n, name) progress(dlg, i, n, name));
 catch ME
     if isvalid(dlg); close(dlg); end
-    uialert(obj.Fig, ME.message, "Bad channels");
+    obj.reportFailure("Bad channels", "suggest bad channels", string(d.Name), ME, ...
+        "check that the recording files are there, then press Suggest again");
     return
 end
 if isvalid(dlg); close(dlg); end

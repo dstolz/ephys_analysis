@@ -1,5 +1,10 @@
-function onClose(obj)
+function onClose(obj, opts)
 %onClose  Ask about unsaved changes, stop background work, persist prefs, close.
+%   With a Run under way it asks first ("A run is in progress (sorting 2/5).
+%   Closing cancels it after the current dataset."): Keep running leaves
+%   the app open, Cancel run and close asks the pipeline to stop (as the
+%   Cancel button does) and closes. onClose(Confirm=false) closes without
+%   that question (the tests).
 %   A background copy is not canceled: the copy engine runs outside MATLAB, so
 %   it finishes on its own. Closing only stops watching it, and the app says so
 %   rather than leaving the copy looking abandoned. The same goes for the
@@ -11,7 +16,18 @@ function onClose(obj)
 %   once the project is scanned again), drop it, or stay open. Background
 %   runs going carry on as processes and are kept, to be followed again at
 %   the next launch (keepKSRuns).
+arguments
+    obj (1,1) EphysPipelineApp
+    opts.Confirm (1,1) logical = true
+end
 if ~obj.confirmDiscard(); return; end
+if opts.Confirm && obj.RunActive && ~isempty(obj.Pipe)
+    where = strtrim(string(obj.RunOverallText.Text));
+    if where ~= ""; where = " (" + where + ")"; end
+    answer = uiconfirm(obj.Fig, "A run is in progress" + where + ". Closing cancels it after the current dataset.", ...
+        "Run in progress", "Options", ["Keep running", "Cancel run and close"], "DefaultOption", 1, "CancelOption", 1, "Icon", "warning");
+    if answer ~= "Cancel run and close"; return; end
+end
 if ~isempty(obj.CopyJob)
     answer = uiconfirm(obj.Fig, ...
         "A copy is still running. The files will finish copying on their own, but " + ...

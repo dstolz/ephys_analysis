@@ -24,7 +24,7 @@ if ~isempty(dlg) && isvalid(dlg) && isvalid(dlg.Fig)
     return
 end
 if isempty(obj.Project) || obj.Project.NumDatasets == 0
-    uialert(obj.Fig, "Scan a project first.", "Tags");
+    obj.alertNoProject("Tags");
     return
 end
 if nargin < 2

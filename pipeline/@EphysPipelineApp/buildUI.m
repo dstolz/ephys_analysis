@@ -12,7 +12,7 @@ function buildUI(obj)
 %   (onTabChanged).
 
 pos = [120 90 1240 800];   % default; overridden by the saved preference
-obj.Fig = uifigure("Name", "Ephys preprocessing", "Position", pos, "Visible", "off", ...
+obj.Fig = uifigure("Name", "Ephys pipeline", "Position", pos, "Visible", "off", ...
     "AutoResizeChildren", "off");   % its one child is a grid; off lets SizeChangedFcn run
 obj.Fig.CloseRequestFcn = @(~,~) obj.onClose();
 obj.Fig.DeleteFcn = @(~,~) obj.stopTimers();   % also when deleted without onClose
@@ -79,6 +79,7 @@ obj.Splash.step("Synthetic", "Building the Synthetic tab ..."); obj.buildSynthet
 obj.Splash.step("Clean up", "Building the Clean up tab ..."); obj.buildCleanupTab();
 obj.Splash.step("finish", "Laying out the window ...");
 styleButtons(obj);   % before syncTabStrip, which colors the tab strip by status
+obj.syncProjectEmptyState();   % the card stands in for the table until a project is scanned
 
 obj.Tabs.SelectedTab = obj.TabProject;   % the app still opens on Project
 for t = obj.TabList(obj.TabList ~= obj.TabProject)
@@ -94,10 +95,11 @@ function styleButtons(obj)
 %   A button that changes role while the app runs restyles itself
 %   (setCopyRunning, onArtViewInput's Mark artifacts and Shade artifacts).
 styleButton(findall(obj.Fig, "Type", "uibutton", "-or", "Type", "uistatebutton"));
+set(obj.TabButtons, "FontSize", 11);   % room for the glyph after a tab's name ("Probe !", syncTabStrip)
 styleButton([obj.CopyFindButton, obj.CopyRunButton, obj.ScanButton, obj.TrialsLoadButton, ...
     obj.AssignSelectedButton, obj.ApplyProbeRulesButton, obj.ArtDetectButton, obj.RunStepSortingButton, obj.RunStepSignalsButton, obj.RunStepSpikesButton, ...
     obj.RunStepExportButton, obj.RunStepAnalysisButton, obj.RunButton, obj.VizPlotButton, obj.LoadReviewButton, obj.ReviewRefreshButton, ...
-    obj.SynthPreviewButton, obj.CleanupPreviewButton, obj.TagsButton], "primary");
+    obj.SynthPreviewButton, obj.CleanupPreviewButton, obj.TagsButton, obj.ProjectEmptyButtons], "primary");
 styleButton([obj.TrialsApproveButton, obj.CopyScheduleSaveButton, obj.SynthGenerateButton, obj.ReviewUseSortButton], "confirm");
 styleButton([obj.CleanupRunButton, obj.RunCancelButton, obj.RunKSStopRunsButton, obj.RunKSStopQueueButton, obj.RunTransferStopButton, ...
     obj.CopyScheduleRemoveButton, obj.ArtManualClearButton], "danger");

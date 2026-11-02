@@ -18,6 +18,15 @@ classdef AppSplash < handle
 %   later calls do nothing. Calls on an empty AppSplash do nothing too, so
 %   an app calls them whether or not it is starting (isActive).
 %
+%   S.offerSkip(TEXT) adds a button (default "Skip scan") under the bar,
+%   for a startup step that can take long (reading a project from a slow
+%   network share). S.skipRequested() says whether it was pressed: the
+%   step asks between its units of work (a dataset), and leaves what it
+%   was doing undone. The click is taken when the window next repaints (the
+%   next S.progress call), so a step answers within one unit of work.
+%   Without a window (Show=false) nothing is offered and skipRequested is
+%   false.
+%
 %   S.alert(FIG, MESSAGE, TITLE, ...) is uialert held back while the app
 %   starts (uialert refuses a hidden figure): close() shows the alerts
 %   held, on the app's window shown by then. Closed or empty, S.alert is
@@ -51,6 +60,7 @@ classdef AppSplash < handle
         History table = table(string.empty(0, 1), string.empty(0, 1), zeros(0, 1), ...
             'VariableNames', ["Step" "Text" "Seconds"])
         Alerts cell = {}                           % the alerts held back until close (alert)
+        Skipped (1,1) logical = false              % the Skip button was pressed (offerSkip)
     end
 
     properties (Hidden, SetAccess = private)
@@ -61,6 +71,10 @@ classdef AppSplash < handle
         BarWidth (1,1) double = 0
         BarHeight (1,1) double = 0
         Clock = []        % tic at construction
+        SkipButton = []   % the Skip button (offerSkip): a Forms CheckBox looking like a button, or a uibutton
+        Inner = []        % the Forms panel inside the form's edge (the skip button is added to it)
+        Grid = []         % the uifigure's grid (the skip button takes a row of it)
+        Scale (1,1) double = 1   % the screen's scale (Forms)
     end
 
     properties (Constant, Hidden)
@@ -142,16 +156,85 @@ classdef AppSplash < handle
                 || (~isempty(obj.Fig) && isvalid(obj.Fig)));
         end
 
+        function offerSkip(obj, text)
+            %offerSkip  Add a button under the bar that asks to skip the step under way (skipRequested).
+            %   The window grows by one row. Nothing happens without a window
+            %   or once the button is there.
+            arguments
+                obj AppSplash
+                text (1,1) string = "Skip scan"
+            end
+            if ~isActive(obj) || ~isempty(obj.SkipButton); return; end
+            obj.Skipped = false;
+            extra = 46;   % the row the button takes, px at 96 dpi
+            sz = obj.Size;
+            pad = 20;
+            if obj.Window == "forms" && ~isempty(obj.Form) && ~obj.Form.IsDisposed
+                try
+                    s = obj.Scale;
+                    px = @(x) int32(round(x * s));
+                    obj.Form.ClientSize = System.Drawing.Size(px(sz(1)), px(sz(2) + extra));
+                    obj.Inner.Size = System.Drawing.Size(px(sz(1)) - 2, px(sz(2) + extra) - 2);
+                    % A CheckBox drawn as a button keeps its pressed state in the form itself, so a click
+                    % is seen without MATLAB running a callback while it is busy reading files.
+                    b = System.Windows.Forms.CheckBox();
+                    b.Appearance = System.Windows.Forms.Appearance.Button;
+                    b.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+                    b.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+                    b.Location = System.Drawing.Point(px(sz(1) - pad - 150), px(sz(2) - 4));
+                    b.Size = System.Drawing.Size(px(150), px(34));
+                    b.Font = System.Drawing.Font('Segoe UI', single(double(px(14))), System.Drawing.FontStyle.Bold, ...
+                        System.Drawing.GraphicsUnit.Pixel);
+                    b.BackColor = color(obj.BarColor);
+                    b.ForeColor = color([1 1 1]);
+                    b.Text = char(text);
+                    obj.Inner.Controls.Add(b);
+                    obj.SkipButton = b;
+                    obj.Form.Refresh();
+                    System.Windows.Forms.Application.DoEvents();
+                catch
+                    obj.SkipButton = [];
+                end
+            elseif ~isempty(obj.Fig) && isvalid(obj.Fig)
+                obj.Fig.Position(4) = obj.Fig.Position(4) + extra;
+                obj.Grid.RowHeight = [obj.Grid.RowHeight, {34}];
+                b = uibutton(obj.Grid, "Text", text, "ButtonPushedFcn", @(~, ~) obj.markSkipped());
+                b.Layout.Row = 5;
+                styleButton(b, "primary");
+                obj.SkipButton = b;
+                drawnow;
+            end
+        end
+
+        function tf = skipRequested(obj)
+            %skipRequested  True once the Skip button (offerSkip) was pressed.
+            %   Asks the window to process its clicks first, so a click made
+            %   while the app was busy is seen now.
+            tf = false;
+            if isempty(obj) || ~isvalid(obj); return; end
+            if ~obj.Skipped && ~isempty(obj.SkipButton)
+                try
+                    if obj.Window == "forms" && ~obj.Form.IsDisposed
+                        System.Windows.Forms.Application.DoEvents();
+                        if logical(obj.SkipButton.Checked); obj.markSkipped(); end
+                    end
+                catch
+                end
+            end
+            tf = obj.Skipped;
+        end
+
         function alert(obj, fig, message, title, varargin)
             %alert  uialert(FIG, MESSAGE, TITLE, ...), held back while the app starts.
             %   uialert refuses a hidden figure, and the app's window is
             %   hidden until it is built: while the splash is active the
             %   alert waits, and close() shows it on FIG (shown by then).
-            %   Otherwise, and on an empty AppSplash, it shows at once.
+            %   Otherwise, and on an empty AppSplash, it shows at once
+            %   (AppDialog.alert: the tests can read it instead).
             if isActive(obj)
                 obj.Alerts{end+1} = [{fig, message, title}, varargin];
             else
-                uialert(fig, message, title, varargin{:});
+                AppDialog.alert(fig, string(message), string(title), varargin{:});   % the tests read it (AppDialog.capture)
             end
         end
 
@@ -182,6 +265,20 @@ classdef AppSplash < handle
     end
 
     methods (Access = private)
+        function markSkipped(obj)
+            %markSkipped  The Skip button was pressed: remember it and say so on the button.
+            obj.Skipped = true;
+            try
+                if obj.Window == "forms"
+                    obj.SkipButton.Text = 'Skipping ...';
+                elseif ~isempty(obj.SkipButton) && isvalid(obj.SkipButton)
+                    obj.SkipButton.Text = "Skipping ...";
+                    obj.SkipButton.Enable = "off";
+                end
+            catch
+            end
+        end
+
         function buildForm(obj, v)
             %buildForm  The window as a borderless Windows Forms form, centered, a thin gray edge.
             NET.addAssembly('System.Windows.Forms');
@@ -191,6 +288,7 @@ classdef AppSplash < handle
             g = F.CreateGraphics();
             s = double(g.DpiX) / 96;   % the screen's scale: sizes below are at 96 dpi
             g.Dispose();
+            obj.Scale = s;
             px = @(x) int32(round(x * s));
             sz = obj.Size;
             F.AutoScaleMode = System.Windows.Forms.AutoScaleMode.None;
@@ -206,6 +304,7 @@ classdef AppSplash < handle
             inner.Size = System.Drawing.Size(px(sz(1)) - 2, px(sz(2)) - 2);
             inner.BackColor = color(obj.Background);
             F.Controls.Add(inner);
+            obj.Inner = inner;
             pad = 20;
             addLabel(inner, obj.Name, 22, true, [0.10 0.10 0.10], [pad 14 sz(1) - 2 * pad 32], px);
             addLabel(inner, v, 12, false, [0.40 0.40 0.45], [pad 48 sz(1) - 2 * pad 20], px);
@@ -243,6 +342,7 @@ classdef AppSplash < handle
             obj.Fig.CloseRequestFcn = @(~,~) [];   % it closes when the app is up
             g = uigridlayout(obj.Fig, [4 1], "Padding", [pad 16 pad 18], "RowSpacing", 6, ...
                 "RowHeight", {28, 18, '1x', 12}, "ColumnWidth", {'1x'}, "BackgroundColor", obj.Background);
+            obj.Grid = g;
             uilabel(g, "Text", obj.Name, "FontSize", 20, "FontWeight", "bold", "FontColor", [0.10 0.10 0.10]);
             uilabel(g, "Text", v, "FontSize", 11, "FontColor", [0.40 0.40 0.45]);
             obj.StepLabel = uilabel(g, "Text", "Starting ...", "FontSize", 12, ...

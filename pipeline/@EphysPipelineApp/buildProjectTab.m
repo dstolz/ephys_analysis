@@ -111,7 +111,7 @@ obj.NameTokenGrid.Padding   = [0 0 0 0];
 tb = uigridlayout(g, [2 7]);
 tb.Layout.Row = 2;
 tb.RowHeight   = {30, 30};
-tb.ColumnWidth = {'fit', 60, 60, 80, 'fit', '3x', '2x'};
+tb.ColumnWidth = {'fit', 60, 150, 80, 'fit', '3x', '2x'};
 tb.Padding     = [0 0 0 0];
 tb.RowSpacing  = 6;
 lbl = uilabel(tb, "Text", "Datasets", "FontWeight", "bold");
@@ -119,7 +119,8 @@ lbl.Layout.Row = 1; lbl.Layout.Column = 1;
 obj.SelectAllButton = uibutton(tb, "Text", "All", "Tooltip", "Tick every shown dataset", ...
     "ButtonPushedFcn", @(~,~) obj.onSelectDatasets("all"));
 obj.SelectAllButton.Layout.Row = 1; obj.SelectAllButton.Layout.Column = 2;
-obj.SelectNoneButton = uibutton(tb, "Text", "None", "Tooltip", "Untick every dataset, shown or filtered out (= run all)", ...
+obj.SelectNoneButton = uibutton(tb, "Text", "Clear ticks (= all)", "Tooltip", ["Untick every dataset, shown or filtered out." 
+    "With no row ticked, a run, a plan and every step take ALL the datasets."], ...
     "ButtonPushedFcn", @(~,~) obj.onSelectDatasets("none"));
 obj.SelectNoneButton.Layout.Row = 1; obj.SelectNoneButton.Layout.Column = 3;
 % Tags...: the selected rows' tags (bulk when two or more), else the active one's.
@@ -173,8 +174,14 @@ mid.Layout.Row = 3;
 mid.RowHeight   = {'1x'};
 mid.ColumnWidth = {'1x', 190};
 mid.Padding     = [0 0 0 0];
-obj.DatasetsTable = uitable(mid, "ColumnRearrangeable", "on");
+left = uigridlayout(mid, [2 1], "RowHeight", {'1x', 18}, "ColumnWidth", {'1x'}, "Padding", [0 0 0 0], "RowSpacing", 2);
+left.Layout.Row = 1; left.Layout.Column = 1;
+obj.DatasetsTable = uitable(left, "ColumnRearrangeable", "on");
 obj.DatasetsTable.Layout.Row = 1; obj.DatasetsTable.Layout.Column = 1;
+buildEmptyState(obj, left);
+hint = uilabel(left, "Text", "Right-click a column header for more (Clear sort). Drag a header to move its column; click a Tags cell to tag that dataset.", ...
+    "FontColor", [0.4 0.4 0.4], "FontAngle", "italic");
+hint.Layout.Row = 2; hint.Layout.Column = 1;
 buildToolsPanel(obj, mid);
 % Clicking a row makes its dataset the active one (highlighted; see selectDataset).
 obj.DatasetsTable.CellSelectionCallback = @(~,evt) obj.onDatasetCellSelection(evt);
@@ -190,7 +197,8 @@ obj.DatasetsTable.ContextMenu = uicontextmenu(obj.Fig, ...
 buildSourcePanel(obj, g);
 
 % --- row 5: behavior (Epsych2) panel -----------------------------------------
-bp = uipanel(g, "Title", "Behavior: Epsych2 session files (associated per dataset, saved in the manifest)");
+bp = uipanel(g, "Title", "Behavior files (Epsych2)", "Tooltip", ...
+    "The Epsych2 session file of each dataset: associated per dataset and saved in its manifest.");
 bp.Layout.Row = 5;
 bg = uigridlayout(bp, [2 9]);
 bg.RowHeight   = {'fit', 30};
@@ -248,6 +256,42 @@ obj.BehStatusLabel.Layout.Row = 2; obj.BehStatusLabel.Layout.Column = [8 9];
 end
 
 
+function buildEmptyState(obj, parent)
+%buildEmptyState  The card that stands in for the datasets table until a project is scanned.
+%   Two big buttons: choose the project root (and scan it), or try the app
+%   on made-up data (File > Create synthetic test project). syncProjectEmptyState
+%   shows the card while no dataset is scanned and the table otherwise.
+p = uipanel(parent, "BorderType", "line", "BackgroundColor", [0.96 0.98 1.00], "Visible", "off");
+p.Layout.Row = 1; p.Layout.Column = 1;
+obj.ProjectEmptyPanel = p;
+cg = uigridlayout(p, [5 3], "RowHeight", {'1x', 'fit', 'fit', 44, '1x'}, "ColumnWidth", {'1x', 250, 250}, ...
+    "BackgroundColor", [0.96 0.98 1.00], "Padding", [20 10 20 10], "RowSpacing", 10, "ColumnSpacing", 14);
+l = uilabel(cg, "Text", "No project is loaded yet.", "FontSize", 20, "FontWeight", "bold", "HorizontalAlignment", "center");
+l.Layout.Row = 2; l.Layout.Column = [1 3];
+l = uilabel(cg, "Text", "Choose the folder that holds your recordings (the project root) and the app lists them here. Or try it first on made-up data.", ...
+    "FontSize", 14, "WordWrap", "on", "HorizontalAlignment", "center", "FontColor", [0.25 0.25 0.3]);
+l.Layout.Row = 3; l.Layout.Column = [1 3];
+b1 = uibutton(cg, "Text", "Choose project root...", "Tooltip", "Pick the folder to scan for recordings, then scan it.", ...
+    "ButtonPushedFcn", @(~,~) chooseRootAndScan(obj));
+b1.Layout.Row = 4; b1.Layout.Column = 2;
+b2 = uibutton(cg, "Text", "Try with made-up data", "Tooltip", "File > Create synthetic test project: write four synthetic recordings with sessions and sorted output, open and scan them.", ...
+    "ButtonPushedFcn", @(~,~) obj.onCreateSyntheticProject());
+b2.Layout.Row = 4; b2.Layout.Column = 3;
+obj.ProjectEmptyButtons = [b1 b2];
+end
+
+
+function chooseRootAndScan(obj)
+%chooseRootAndScan  The card's first button: Browse... for the project root, then Scan when one was chosen.
+before = string(obj.RootPathField.Value);
+obj.onBrowseRoot();
+now = string(obj.RootPathField.Value);
+if now ~= "" && now ~= before
+    obj.onScan();
+end
+end
+
+
 function ticksEdited(obj)
 obj.refreshDatasetMenu();
 obj.onConfigChanged();
@@ -274,10 +318,10 @@ changed = @(~,~) obj.onAcquisitionChanged();
 scope = " Applies to every %s in the project; a change rescans it.";
 
 % --- Open Ephys: Acquisition.OpenEphys -----------------------------------------
-oe = uigridlayout(obj.SourceGrid, [1 6]);
+oe = uigridlayout(obj.SourceGrid, [1 8]);
 oe.Layout.Row = 2;
 oe.RowHeight   = {'fit'};
-oe.ColumnWidth = {230, 'fit', 90, 'fit', 180, '1x'};
+oe.ColumnWidth = {230, 'fit', 90, 'fit', 180, 'fit', 180, '1x'};
 oe.Padding     = [0 0 0 0];
 oe.Visible     = "off";
 obj.SourceOEGrid = oe;
@@ -305,6 +349,13 @@ obj.OEStreamField = uieditfield(oe, "text", "Placeholder", "automatic", ...
         + sprintf(scope, "Open Ephys session"), ...
     "ValueChangedFcn", changed);
 obj.OEStreamField.Layout.Column = 5;
+lbl = uilabel(oe, "Text", "Event stream:", "HorizontalAlignment", "right");
+lbl.Layout.Column = 6;
+obj.OEEventStreamField = uieditfield(oe, "text", "Placeholder", "the continuous stream's own", ...
+    "Tooltip", ["Open Ephys only: the stream whose TTL events to use when they are recorded on another stream than the continuous data (an NI-DAQ beside Neuropixels). Leave empty to use the continuous stream's own TTLs." ...
+        "Script name: Acquisition.OpenEphys.EventStream"], ...
+    "ValueChangedFcn", changed);
+obj.OEEventStreamField.Layout.Column = 7;
 
 % --- TDT: Acquisition.TDT --------------------------------------------------------
 td = uigridlayout(obj.SourceGrid, [1 5]);

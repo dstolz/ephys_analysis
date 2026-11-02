@@ -4,12 +4,12 @@ function buildToolbar(obj)
 %   the item's keyboard shortcut when it has one (Ctrl, or Cmd on a Mac).
 %   Left to right, in groups:
 %     File      New config, Open config, Save config
-%     Run       Validate config, Plan, Run pipeline, Dry run, Cancel
+%     Run       Validate config, Show plan, Run pipeline, Rehearse (no files), Cancel
 %     Dataset   View manifest (the active dataset's)
 %     Tools     Open analysis app, Copy files for the analysis app, Channel mapper
 %               (all in the File menu)
 %     Help      Help for this tab
-%   Run pipeline, Dry run and Cancel follow the Run tab's buttons: the first
+%   Run pipeline, Rehearse and Cancel follow the Run tab's buttons: the first
 %   two are off while a Run goes, Cancel is on only then (runPipeline,
 %   onCancelRun). Each tool's Tag names its icon,
 %   pipeline/icons/toolbar/<Tag>.svg.
@@ -25,9 +25,9 @@ addTool(tb, iconDir, "save", "Save config", "S", @(~,~) obj.onSaveConfig());
 
 % --- Run: as the Run menu ---
 addTool(tb, iconDir, "validate", "Validate config", "", @(~,~) obj.onValidate(), Separator=true);
-addTool(tb, iconDir, "plan", "Plan (writes nothing)", "", @(~,~) obj.onPlan());
+addTool(tb, iconDir, "plan", "Show plan (runs nothing)", "", @(~,~) obj.onPlan());
 obj.ToolbarRunTool = addTool(tb, iconDir, "run", "Run pipeline", "R", @(~,~) obj.runPipeline());
-obj.ToolbarDryRunTool = addTool(tb, iconDir, "dryrun", "Dry run", "", @(~,~) obj.runPipeline(DryRun=true));
+obj.ToolbarDryRunTool = addTool(tb, iconDir, "dryrun", "Rehearse (no files)", "", @(~,~) obj.runPipeline(DryRun=true));
 obj.ToolbarCancelTool = addTool(tb, iconDir, "cancel", "Cancel run", "", @(~,~) obj.onCancelRun());
 obj.ToolbarCancelTool.Enable = "off";
 

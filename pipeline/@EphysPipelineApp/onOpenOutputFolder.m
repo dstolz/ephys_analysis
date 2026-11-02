@@ -11,7 +11,7 @@ arguments
     idx (1,:) double = obj.SelectedDatasetIdx
 end
 if isempty(obj.Project) || isempty(idx) || any(idx < 1 | idx > obj.Project.NumDatasets)
-    uialert(obj.Fig, "Scan a project first.", "Output folder");
+    obj.alertNoProject("Output folder");
     return
 end
 obj.applyConfigToProject();   % the output root the field shows

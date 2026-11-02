@@ -18,8 +18,13 @@ function onScan(obj)
 
 if obj.refuseWhileRunning("Scan"); return; end
 root = string(obj.RootPathField.Value);
-if root == "" || ~isfolder(root)
-    obj.Splash.alert(obj.Fig, "Select a valid parent directory first.", "Scan");
+if root == ""
+    obj.alertNoProject("Scan");
+    return
+end
+if ~isfolder(root)
+    obj.Splash.alert(obj.Fig, AppDialog.failure("scan the project", "", "The project root " + root + " was not found.", ...
+        Try="check the path on the Project tab, or press Browse... to choose the folder"), "Scan", "Icon", "warning");
     return
 end
 
@@ -70,7 +75,12 @@ try
     if obj.Config.Project.AutoTag; newTags = obj.Config.Project.NewDatasetTags; end
     if starting
         report = P.refresh(NewTags=newTags, ProgressFcn=@(i, n, name) obj.Splash.progress(i / n, ...
-            sprintf("Reading headers %d/%d: %s", i, n, name)));
+            sprintf("Reading headers %d/%d: %s", i, n, name)), CancelFcn=@() obj.Splash.skipRequested());
+        if obj.Splash.skipRequested()   % Skip scan on the splash: leave the project unscanned
+            obj.ScanStatusLabel.Text = "Scan skipped.";
+            obj.setStatus("The scan of " + root + " was skipped at startup.", "Press Scan on the Project tab once the folder can be reached.");
+            return
+        end
     else
         dlg.Indeterminate = "off";
         report = P.refresh(NewTags=newTags, ProgressFcn=@(i, n, name) showScanProgress(dlg, i, n, name), ...
@@ -123,9 +133,14 @@ try
     end
 catch ME
     closeDialog(dlg);
-    obj.Splash.alert(obj.Fig, ME.message, "Scan failed");
+    obj.LastError = ME;                      % Help > Report an issue sends it with its stack
+    obj.LastErrorTime = datetime('now');
+    if ~starting; obj.runLog("ERROR: scan of %s failed: %s", root, ME.message); end   % (a log line paints the hidden window)
+    obj.Splash.alert(obj.Fig, AppDialog.failure("scan the project", "", string(ME.message), ...
+        Try="check the project root on the Project tab and press Scan again", Details="Run tab > Log"), ...
+        "Scan failed", "Icon", "error");
     obj.setStatus("Scan failed: " + string(ME.message), ...
-        "Check the parent folder path and try Scan again.");
+        "Check the project root path and try Scan again.");
 end
 end
 

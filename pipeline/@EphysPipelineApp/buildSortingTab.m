@@ -49,7 +49,8 @@ obj.SortEnableCheckBox = uicheckbox(cg, "Text", "Enable the Sorting step (Kiloso
     "FontWeight", "bold", "Value", false, "ValueChangedFcn", changed);
 obj.SortEnableCheckBox.Layout.Row = r; obj.SortEnableCheckBox.Layout.Column = [1 3];
 obj.SortSkipExistingCheckBox = uicheckbox(cg, "Text", "Skip datasets already sorted", ...
-    "Value", false, "ValueChangedFcn", changed);
+    "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "On by default: a re-sort takes hours and sets the earlier sort's curation aside. Turn it off to sort a dataset again.");
 obj.SortSkipExistingCheckBox.Layout.Row = r; obj.SortSkipExistingCheckBox.Layout.Column = [4 5];
 
 r = r + 1;

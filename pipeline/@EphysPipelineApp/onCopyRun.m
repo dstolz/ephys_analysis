@@ -55,8 +55,8 @@ try
     close(dlg);
 catch ME
     if isvalid(dlg); close(dlg); end
-    obj.copyLog("ERROR: " + ME.message);
-    uialert(obj.Fig, ME.message, "Preview copy");
+    obj.reportFailure("Preview copy", "preview the copy", sprintf("%d session(s)", numel(sel)), ME, ...
+        "check that the destination folder can be reached, then press Preview again", Where="copy");
     obj.setStatus("Preview copy failed: " + string(ME.message), "");
     return
 end
@@ -86,8 +86,8 @@ try
         CancelFcn=@() obj.CopyCancelRequested, ...
         LogFcn=@(m) obj.copyLog(m));
 catch ME
-    obj.copyLog("ERROR: " + ME.message);
-    uialert(obj.Fig, ME.message, "Copy sessions");
+    obj.reportFailure("Copy sessions", "start the copy", sprintf("%d session(s)", numel(sel)), ME, ...
+        "check that the destination folder can be reached, then press Copy selected again", Where="copy");
     obj.setStatus("Copy sessions failed: " + string(ME.message), "");
     return
 end

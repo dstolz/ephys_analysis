@@ -14,12 +14,12 @@ if obj.RunActive
     error('EphysPipelineApp:RunActive', 'Wait for the run to finish (or Cancel it) first.');
 end
 if isempty(obj.Project) || obj.Project.NumDatasets == 0
-    error('EphysPipelineApp:NoProject', 'Scan a project root first (Project tab).');
+    error('EphysPipelineApp:NoProject', '%s', AppDialog.noProject());
 end
 obj.Config = obj.gatherConfig();
 if ~obj.projectAtRoot(obj.Config.Project.Root)
     error('EphysPipelineApp:OtherProject', ...
-        'The datasets scanned are those under %s, not under the project root %s. Press Scan on the Project tab first.', ...
+        'The datasets scanned are those under %s, not under the project root %s. On the Project tab, press Scan.', ...
         obj.Project.Root, obj.Config.Project.Root);
 end
 pipe = EphysPipeline(obj.Config, Project=obj.Project, Refresh=false);

@@ -86,6 +86,9 @@ end
 if AppPrefs.ispref(g, 'AutoScan')
     obj.AutoScanMenu.Checked = isequal(AppPrefs.getpref(g, 'AutoScan'), true);
 end
+if AppPrefs.ispref(g, 'ConfirmRun')
+    obj.ConfirmRunMenu.Checked = ~isequal(AppPrefs.getpref(g, 'ConfirmRun'), false);
+end
 if AppPrefs.ispref(g, 'QueueSortingRuns')
     obj.RunKSQueueCheckBox.Value = isequal(AppPrefs.getpref(g, 'QueueSortingRuns'), true);
 end

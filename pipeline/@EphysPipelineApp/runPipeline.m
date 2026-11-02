@@ -28,26 +28,38 @@ function runPipeline(obj, opts)
 %   with the settings last used in the copy window, once its steps are over
 %   (copyAnalysisFilesAfterRun); the Run is refused up front when that
 %   window never had a destination chosen.
+%
+%   Before a run (not a rehearsal) the app asks "Run <steps> on <n>
+%   datasets?" with Run, Show plan and Cancel (confirmRun; its "Don't ask
+%   again" box is the preference ConfirmRun). Confirm=false skips the
+%   question (the tests, scripts). A run that ends with datasets that
+%   failed says which, with a button to the results and one to the log.
+%   Closing the app during a run asks first (onClose).
 arguments
     obj (1,1) EphysPipelineApp
     opts.Steps (1,:) string = string.empty(1,0)
     opts.DryRun (1,1) logical = false
+    opts.Confirm (1,1) logical = true
 end
 if obj.RunActive
-    uialert(obj.Fig, "A run is already in progress.", "Run");
+    AppDialog.alert(obj.Fig, "A run is already in progress. Wait for it to finish, or press Cancel.", "Run", "Icon", "warning");
     return
 end
 moving = obj.Transfers(arrayfun(@(X) X.Method == "move" && ~X.Done, obj.Transfers));
 if ~isempty(moving)
-    uialert(obj.Fig, "The outputs of the last Run are still being moved to " + moving(1).Destination + ...
+    AppDialog.alert(obj.Fig, "The outputs of the last Run are still being moved to " + moving(1).Destination + ...
         ", and the move removes them here once they are copied. Wait for it to finish (the last row of the Run tab), " + ...
-        "or stop it with Stop copying..., before running again.", "Run");
+        "or stop it with Stop copying..., before running again.", "Run", "Icon", "warning");
     return
 end
 try
     pipe = obj.buildPipeline();   % gathers the working config
 catch ME
-    uialert(obj.Fig, string(ME.message), "Run");
+    if ME.identifier == "EphysPipelineApp:NoProject"
+        obj.alertNoProject("Run");
+    else
+        obj.reportFailure("Run", "start the run", "", ME, "fix what the message names, then press Run pipeline again");
+    end
     return
 end
 cfg = obj.Config;
@@ -55,25 +67,41 @@ obj.selectTab(obj.TabRun);
 issues = cfg.validate();
 obj.showIssues(issues);
 if any(issues.Severity == "error")
-    uialert(obj.Fig, "The config has errors (see the issues table on the Run tab).", "Run");
+    bad = issues(issues.Severity == "error", :);
+    AppDialog.alert(obj.Fig, sprintf("The config has %d error(s), so nothing was run. The first: %s > %s: %s", ...
+        height(bad), bad.Step(1), bad.Field(1), bad.Message(1)) + newline + ...
+        "The issues table on the Run tab lists them all; double-click a row to go to the setting.", "Run", "Icon", "error");
     return
 end
 if isempty(opts.Steps) && isempty(cfg.enabledSteps())
-    uialert(obj.Fig, "No step is enabled.", "Run");
+    AppDialog.alert(obj.Fig, "No step is switched on. Tick the steps to run in the Steps list of the Run tab, then press Run pipeline.", ...
+        "Run", "Icon", "warning");
     return
 end
 try
     pipe.checkRun(Steps=opts.Steps);   % the plan's blocking rows (duplicate outputs, "error: ...")
 catch ME
-    uialert(obj.Fig, string(ME.message), "Run");
+    obj.reportFailure("Run", "start the run", "", ME, "press Show plan to see the rows that block it, and fix them");
     return
 end
 
 copyForAnalysis = cfg.AnalysisCopy.Enabled && ~opts.DryRun;   % a dry run makes no files
 if copyForAnalysis && ~OutputTransfer.isFullPath(AnalysisCopyDialog.settings().Destination)
-    uialert(obj.Fig, "Copy files for the analysis app is on, but no destination folder was chosen. " + ...
-        "Choose it in File > Copy files for the analysis app... and close that window to keep it, then run again.", "Run");
+    AppDialog.alert(obj.Fig, "Copy files for the analysis app is on, but no destination folder was chosen. " + ...
+        "Choose it in File > Copy files for the analysis app... and close that window to keep it, then run again.", "Run", "Icon", "warning");
     return
+end
+steps = opts.Steps;
+if isempty(steps); steps = cfg.enabledSteps(); end
+if opts.Confirm && ~opts.DryRun
+    choice = obj.confirmRun(steps, numel(obj.selectedDatasetIndices()));
+    if choice == "plan"
+        obj.onPlan();
+        return
+    elseif choice ~= "run"
+        obj.setStatus("Run canceled: nothing was run.", "");
+        return
+    end
 end
 
 pipe.ProgressFcn = @(evt) obj.onPipelineProgress(evt);
@@ -97,8 +125,6 @@ obj.RunTimeLabel.Text = ""; obj.RunStepClock = []; obj.RunClockStep = "";
 obj.RunResults = EphysPipeline.emptyResults();
 obj.showRunResults(obj.RunResults);
 obj.setStatus("Running the pipeline...", "");
-steps = opts.Steps;
-if isempty(steps); steps = cfg.enabledSteps(); end
 obj.resetRunDiagram(steps, opts.DryRun);
 
 outcome = "done"; note = "";
@@ -107,10 +133,8 @@ try
     if pipe.CancelRequested; outcome = "canceled"; end
 catch ME
     outcome = "error"; note = string(ME.message);
-    obj.LastError = ME;                      % Help > Report an issue sends it with its stack
-    obj.LastErrorTime = datetime('now');
-    obj.runLog("ERROR: %s", ME.message);
-    uialert(obj.Fig, "Run stopped:" + newline + string(ME.message), "Run");
+    obj.reportFailure("Run", "finish the run", "", ME, ...
+        "fix the cause named above, then press Run pipeline again; the Results table shows what finished before it stopped");
 end
 R = pipe.Results;   % with the rows the monitor restated since
 obj.finishRunDiagram(R, outcome, note);
@@ -128,6 +152,9 @@ obj.RunStepLabel.Text = sprintf("Finished: %d result(s), %d error(s), %d cancele
 obj.RunTimeLabel.Text = "";   % the diagram says how long it took
 obj.RunStepClock = [];
 obj.setStatus(sprintf("Pipeline finished: %d result(s), %d error(s), %d canceled.", n, nErr, nCan));
+if nErr > 0 && outcome ~= "error"   % a run that threw has told its cause already (reportFailure)
+    obj.alertFailedDatasets(R);
+end
 if copyForAnalysis && outcome == "done"
     try
         obj.copyAnalysisFilesAfterRun(pipe);

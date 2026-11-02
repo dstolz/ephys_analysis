@@ -14,7 +14,7 @@ arguments
 end
 idx = obj.toolTargets();
 if isempty(idx)
-    uialert(obj.Fig, "Scan a project first.", "Tools");
+    obj.alertNoProject("Tools");
     return
 end
 if tool == "phy"

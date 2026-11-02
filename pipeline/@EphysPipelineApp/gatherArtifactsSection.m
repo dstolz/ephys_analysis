@@ -13,6 +13,7 @@ A.Threshold   = obj.ArtThresholdField.Value;
 A.MergeGapMs  = obj.ArtMergeGapField.Value;
 A.MinChannels = max(1, round(obj.ArtMinChannelsField.Value));
 A.PadMs       = obj.ArtPadField.Value;
+A.CommonModeUnreferenced = logical(obj.ArtCommonModeUnrefCheckBox.Value);
 winMs = obj.ArtRmsWindowField.Value;
 if winMs > 0; A.RmsWindowMs = winMs; else; A.RmsWindowMs = NaN; end
 A.Filter       = logical(obj.ArtFilterCheckBox.Value);

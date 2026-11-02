@@ -5,7 +5,7 @@ function onSpikesPreview(obj)
 %   coincident copies found (on the dataset's probe, EphysPipeline.resolveProbe).
 d = obj.currentDataset();
 if isempty(d)
-    uialert(obj.Fig, "Scan a project first.", "Spikes preview");
+    obj.alertNoProject("Spikes preview");
     return
 end
 if isnan(d.Fs) || isempty(d.PerFile); d.refreshMetadata(); end

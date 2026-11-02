@@ -11,7 +11,7 @@ function onSpikesNeighbors(obj)
 
 d = obj.currentDataset();
 if isempty(d)
-    uialert(obj.Fig, "Scan a project first.", "Spike neighbors");
+    obj.alertNoProject("Spike neighbors");
     return
 end
 pf = EphysPipeline.resolveProbe(obj.Config.Probe, d);

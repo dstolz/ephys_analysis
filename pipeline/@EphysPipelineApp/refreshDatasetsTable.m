@@ -33,6 +33,7 @@ arguments
     obj (1,1) EphysPipelineApp
     opts.Datasets (1,:) double = []
 end
+obj.syncProjectEmptyState();
 if ~isempty(opts.Datasets)
     obj.refreshReviewDatasets(Datasets=opts.Datasets);   % the Review tab's rows of them too
     if refreshRows(obj, opts.Datasets)

@@ -16,7 +16,7 @@ function onDetectArtifacts(obj)
 if obj.refuseWhileRunning("Detect / Preview"); return; end
 d = obj.currentDataset();
 if isempty(d)
-    uialert(obj.Fig, "Scan a project first.", "Artifacts");
+    obj.alertNoProject("Artifacts");
     return
 end
 
@@ -67,7 +67,8 @@ try
         d.Name, summary.pctDuration, summary.nIntervals), artHint);
 catch ME
     if isvalid(dlg); close(dlg); end
-    uialert(obj.Fig, ME.message, "Detect failed");
+    obj.reportFailure("Detect artifacts", "detect artifacts", string(d.Name), ME, ...
+        "check that the recording files are there and the Probe tab has a probe for this dataset, then press Detect / Preview again");
     obj.setStatus("Artifact detection failed: " + string(ME.message));
 end
 end

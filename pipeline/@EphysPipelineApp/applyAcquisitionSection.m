@@ -4,6 +4,7 @@ A = EphysPipelineConfig.normalizeSection("Acquisition", A);
 obj.setDropIfMember(obj.OERecordingsDropDown, A.OpenEphys.Recordings, "Acquisition.OpenEphys.Recordings");
 obj.OERecordNodeField.Value = char(A.OpenEphys.RecordNode);
 obj.OEStreamField.Value = char(A.OpenEphys.Stream);
+obj.OEEventStreamField.Value = char(A.OpenEphys.EventStream);
 s = A.TDT.Stream;
 if s == ""; s = "automatic"; end
 if ~any(strcmp(obj.TDTStreamDropDown.Items, s))

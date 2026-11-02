@@ -18,7 +18,7 @@ end
 dlg = [];
 title = "Copy files for the analysis app";
 if isempty(obj.Project) || obj.Project.NumDatasets == 0
-    uialert(obj.Fig, "Scan a project first: the copy takes the files of the ticked datasets.", title);
+    obj.alertNoProject(title);
     return
 end
 try

@@ -13,8 +13,10 @@ function buildMenus(obj)
 %   datasets" submenu, and View manifest opens the active dataset's
 %   manifest in a ManifestViewerApp (onViewManifest); Tags edits the tags
 %   of the selected rows' datasets, or the active one's (onEditTags). Run mirrors the Run
-%   tab's buttons. Help opens pages of the GitHub wiki: the one for the tab
-%   that is shown, the home page and the main guides, and at the bottom
+%   tab's buttons (Show plan, Rehearse (no files)) and has the check item Ask before
+%   running (the preference ConfirmRun: confirmRun). Help opens pages of the GitHub wiki: the one for the tab
+%   that is shown, the home page, the keyboard shortcuts and right-click menus (a
+%   window: onShowShortcuts) and the main guides, and at the bottom
 %   files against the repository itself: Report an issue and Request a
 %   feature compose a GitHub issue from this session (onReportIssue).
 %   About, last, shows the version of the code (showAbout).
@@ -73,11 +75,14 @@ obj.refreshDatasetMenu();
 % --- Run ---------------------------------------------------------------------
 obj.RunMenu = uimenu(obj.Fig, "Text", "Run");
 uimenu(obj.RunMenu, "Text", "Validate config", "MenuSelectedFcn", @(~,~) obj.onValidate());
-uimenu(obj.RunMenu, "Text", "Plan", "MenuSelectedFcn", @(~,~) obj.onPlan());
+uimenu(obj.RunMenu, "Text", "Show plan", "MenuSelectedFcn", @(~,~) obj.onPlan());
 uimenu(obj.RunMenu, "Text", "Run pipeline", "Accelerator", "R", "Separator", "on", ...
     "MenuSelectedFcn", @(~,~) obj.runPipeline());
-uimenu(obj.RunMenu, "Text", "Dry run", "MenuSelectedFcn", @(~,~) obj.runPipeline(DryRun=true));
+uimenu(obj.RunMenu, "Text", "Rehearse (no files)", "MenuSelectedFcn", @(~,~) obj.runPipeline(DryRun=true));
 uimenu(obj.RunMenu, "Text", "Cancel", "MenuSelectedFcn", @(~,~) obj.onCancelRun());
+obj.ConfirmRunMenu = uimenu(obj.RunMenu, "Text", "Ask before running", "Separator", "on", "Checked", "on", ...
+    "Tooltip", "Before a run, ask ""Run <steps> on <n> datasets?"" with Run, Show plan and Cancel. Off after you tick Don't ask again in that question.", ...
+    "MenuSelectedFcn", @(src,~) toggleConfirmRun(obj, src));
 
 % --- Help: pages of the GitHub wiki (helpURL), opened in the browser ------------
 obj.HelpMenu = uimenu(obj.Fig, "Text", "Help");
@@ -86,6 +91,9 @@ uimenu(obj.HelpMenu, "Text", "Help for this tab", ...
     "MenuSelectedFcn", @(~,~) obj.onHelp("tab"));
 uimenu(obj.HelpMenu, "Text", "Documentation home", ...
     "MenuSelectedFcn", @(~,~) obj.onHelp(""));
+uimenu(obj.HelpMenu, "Text", "Keyboard shortcuts and right-click menus", ...
+    "Tooltip", "A window that lists the menu shortcuts, the keys of the Visualize and Artifacts plots and the right-click menus.", ...
+    "MenuSelectedFcn", @(~,~) obj.onShowShortcuts());
 pages = [ ...
     "App guide",                "Pipeline-App-Guide",      "on"
     "Quick start",              "Quick-Start",             "off"
@@ -112,6 +120,14 @@ uimenu(obj.HelpMenu, "Text", "Request a feature on GitHub...", ...
 uimenu(obj.HelpMenu, "Text", "About EphysPipelineApp", "Separator", "on", ...
     "Tooltip", "The version and git commit of this code, and the MATLAB release.", ...
     "MenuSelectedFcn", @(~,~) showAbout(obj.Fig, "EphysPipelineApp"));
+end
+
+
+function toggleConfirmRun(obj, item)
+%toggleConfirmRun  Flip Run > Ask before running and remember it (preference ConfirmRun).
+on = ~logical(item.Checked);
+item.Checked = on;
+AppPrefs.setpref(obj.PrefGroup, 'ConfirmRun', logical(on));
 end
 
 

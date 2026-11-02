@@ -30,8 +30,14 @@ g.Padding     = [10 10 10 10];
 % --- steps checklist ---------------------------------------------------------
 steps = uipanel(g, "Title", "Steps (same switches as on each tab)");
 steps.Layout.Row = 1; steps.Layout.Column = 1;
-sg = uigridlayout(steps, [17 1]);
-sg.RowHeight = [repmat({'fit'}, 1, 16), {'1x'}];
+sg = uigridlayout(steps, [19 1]);
+sg.RowHeight = [repmat({'fit'}, 1, 18), {'1x'}];
+% A red banner while the Sorting tab's "Dry run" box is ticked (syncRunBanner): that box stays on between runs,
+% and a run that only writes the sorting run files looks like one that sorted.
+obj.RunBanner = uilabel(sg, "Text", "Sorting is in dry-run mode: a run writes the Sorting step's run files and does not sort. Untick Dry run on the Sorting tab to sort.", ...
+    "WordWrap", "on", "FontWeight", "bold", "FontColor", [1 1 1], "BackgroundColor", [0.80 0.25 0.20], "Visible", "off", ...
+    "Tooltip", "Sorting.DryRun is ticked (Sorting tab, Dry run). It stays ticked until you untick it.");
+sg.RowHeight{1} = 0;
 uilabel(sg, "Text", "Probe check (always)", "FontColor", [0.4 0.4 0.4]);
 obj.RunBehaviorCheckBox  = uicheckbox(sg, "Text", "Behavior: match Epsych2 sessions", "ValueChangedFcn", @(src,~) mirror(obj, "BehEnableCheckBox", src.Value));
 obj.RunArtifactsCheckBox = uicheckbox(sg, "Text", "Artifacts: automatic detection", "ValueChangedFcn", @(src,~) mirror(obj, "ArtEnableCheckBox", src.Value));
@@ -78,17 +84,21 @@ obj.RunAnalysisCopyCheckBox = uicheckbox(sg, "Text", "Copy files for the analysi
     "Needs a destination chosen in that window once, and Copy outputs on copy, not move.", ...
     "ValueChangedFcn", @(~,~) obj.onConfigChanged());
 obj.RunAnalysisCheckBox  = uicheckbox(sg, "Text", "Analysis: figures and report", "ValueChangedFcn", @(src,~) mirror(obj, "AnaEnableCheckBox", src.Value));
-obj.RunSelectionLabel =uilabel(sg, "Text", "Selection: (scan first)", "WordWrap", "on", "FontColor", [0.3 0.3 0.3]);
+obj.RunSelectionLabel =uilabel(sg, "Text", "Selection: no project is loaded. Scan one on the Project tab.", "WordWrap", "on", "FontColor", [0.3 0.3 0.3]);
 obj.RunValidateButton = uibutton(sg, "Text", "Validate config", "ButtonPushedFcn", @(~,~) obj.onValidate());
-obj.RunPlanButton     = uibutton(sg, "Text", "Plan (writes nothing)", "ButtonPushedFcn", @(~,~) obj.onPlan());
-bg = uigridlayout(sg, [1 3]);
-bg.Padding = [0 0 0 0]; bg.ColumnWidth = {'1x', 'fit', 'fit'};
+obj.RunPlanButton     = uibutton(sg, "Text", "Show plan", "ButtonPushedFcn", @(~,~) obj.onPlan(), ...
+    "Tooltip", "List what a run would do for each dataset and step, in the results table. Nothing is run and nothing is written.");
+obj.RunDryButton = uibutton(sg, "Text", "Rehearse (no files)", "ButtonPushedFcn", @(~,~) obj.runPipeline(DryRun=true), ...
+    "Tooltip", ["Go through the steps without writing output files, to see how a run would go. Not a plan: the steps do run." ...
+    "The Sorting step still writes its run files (config and script) and does not sort."]);
+bg = uigridlayout(sg, [1 2]);
+bg.Padding = [0 0 0 0]; bg.ColumnWidth = {'1x', 'fit'};
 obj.RunButton = uibutton(bg, "Text", "Run pipeline", ...
     "ButtonPushedFcn", @(~,~) obj.runPipeline());
-obj.RunDryButton = uibutton(bg, "Text", "Dry run", "ButtonPushedFcn", @(~,~) obj.runPipeline(DryRun=true));
 obj.RunCancelButton = uibutton(bg, "Text", "Cancel", "Enable", "off", ...
     "ButtonPushedFcn", @(~,~) obj.onCancelRun());
-sg.RowHeight([obj.RunValidateButton.Layout.Row, obj.RunPlanButton.Layout.Row, bg.Layout.Row]) = {30};
+sg.RowHeight([obj.RunValidateButton.Layout.Row, obj.RunPlanButton.Layout.Row, obj.RunDryButton.Layout.Row]) = {30};
+sg.RowHeight{bg.Layout.Row} = 36;
 
 % --- resource use, under the Steps panel (sampled every 2 s by a small idle-priority process outside MATLAB)
 obj.RunMonitorPanel = uipanel(g, "Title", "Resource use");
@@ -139,9 +149,11 @@ obj.RunStepLabel.Layout.Row = 1; obj.RunStepLabel.Layout.Column = 1;
 obj.RunTimeLabel = uilabel(nowRow, "Text", "", "FontColor", [0.3 0.3 0.3], "HorizontalAlignment", "right");
 obj.RunTimeLabel.Layout.Row = 1; obj.RunTimeLabel.Layout.Column = 2;
 
-l = uilabel(right, "Text", "Issues (Validate)", "FontWeight", "bold"); l.Layout.Row = 4; l.Layout.Column = [1 3];
+l = uilabel(right, "Text", "Issues (Validate): double-click a row to go to the setting", "FontWeight", "bold"); l.Layout.Row = 4; l.Layout.Column = [1 3];
 obj.RunIssuesTable = uitable(right, "ColumnName", {'Step', 'Field', 'Severity', 'Message'}, ...
-    "ColumnWidth", {80, 140, 70, '1x'}, "RowName", {});
+    "ColumnWidth", {80, 140, 70, '1x'}, "RowName", {}, ...
+    "Tooltip", "Double-click a row to open the setting the issue is about (its tab, with the field marked).", ...
+    "DoubleClickedFcn", @(~, evt) obj.onIssueActivated(evt));
 obj.RunIssuesTable.Layout.Row = 5; obj.RunIssuesTable.Layout.Column = [1 3];
 makeSortable(obj, obj.RunIssuesTable);
 

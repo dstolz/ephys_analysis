@@ -61,19 +61,22 @@ tab without real data.
   Analysis, then Diagram and Run, then Review and Visualize, then Synthetic
   and Clean up.
 - **The tab colors** tell you what still needs doing. Hover over a tab to see
-  why it has its color.
+  why it has its color. A tab that needs attention also says so in its name
+  (**Probe !**, **Run x**), and while you are on it the status bar says why.
 
   | Color | Means |
   | --- | --- |
   | green | ready |
-  | amber | needs your attention (no datasets scanned, a trial pairing not approved, a dataset without a probe, ...) |
-  | red | an error: a run will not start until you fix it |
+  | amber, name followed by `!` | needs your attention (no datasets scanned, a trial pairing not approved, a dataset without a probe, ...) |
+  | red, name followed by `x` | an error: a run will not start until you fix it |
   | gray | the step is switched off |
   | blue | busy (a run or a copy is going) |
 
 - **The status bar** at the bottom says what was just done on the left, and
   suggests what to do next on the right.
 - **Help → Help for this tab** opens the page for the tab you are on.
+  **Help → Keyboard shortcuts and right-click menus** lists the keys and the
+  right-click menus.
 
 Three ideas make the rest easy:
 
@@ -99,7 +102,7 @@ Three ideas make the rest easy:
    day's sessions, check that each recording has its behavior file, press
    **Preview (dry run)**, then **Copy selected**. The copy runs in the
    background; the copied sessions open as the project when it is done.
-2. **Project.** Set the project folder (the folder that holds the
+2. **Project.** Set the **project root** (the folder that holds the
    recordings) and press **Scan**. Set an output folder if you want the
    results kept apart from the recordings. [Tag](#tag-your-datasets) the new
    recordings, then tick the datasets to process.
@@ -107,7 +110,9 @@ Three ideas make the rest easy:
    the digital lines if needed, then look at each dataset's pairing and press
    **Approve pairing**. When a count does not match (a session started late,
    say), cut the extra trials at the start or the end, then approve. **Auto
-   approve when the counts match** approves the clean ones for you.
+   approve when the counts match** approves the clean ones for you; a dataset
+   whose trial times disagree with the session's clock is left for you to
+   look at.
 4. **Probe.** Pick your probe's map and press **Assign to all datasets** (or
    make it the default probe). Type the bad channels of a recording in
    **Exclude channels**.
@@ -120,9 +125,13 @@ Three ideas make the rest easy:
    good start. The **Diagram** tab draws what your config will do, from top
    to bottom or, with **Direction**, from left to right.
 7. **Run.** On the Run tab press **Validate config** (it lists any problem),
-   **Plan** (what would happen; it writes nothing), then **Run pipeline**. The
-   Run tab shows the progress, the computer's load and, at the end, a row of
-   results per dataset.
+   **Show plan** (what would happen; it runs nothing and writes nothing), then
+   **Run pipeline**, which first asks "Run these steps on these datasets?"
+   (**Run**, **Show plan** or **Cancel**; tick *Don't ask again* to skip the
+   question, and turn it back on in **Run → Ask before running**). The Run tab
+   shows the progress, the computer's load and, at the end, a row of results
+   per dataset. If some datasets failed, a message names them and the
+   reason.
 8. **Save the config** (**File → Save config**), so the next batch runs the
    same way.
 9. **Review.** Look at the sorted units and their quality, add notes, or open
@@ -189,7 +198,9 @@ analysis app and the dataset browser show them and filter by them.
 | ...do this | Do this |
 | --- | --- |
 | process new recordings the same way as before | **File → Open recent**, pick the config, **Scan**, tick the new datasets, **Run pipeline** |
-| see what a run would do, without changing anything | Run tab: **Plan**, or **Dry run** |
+| see what a run would do, without changing anything | Run tab: **Show plan** lists it and runs nothing |
+| go through the steps without writing output files | Run tab: **Rehearse (no files)**. The steps do run; only the files are left out, except that the Sorting step still writes its run files (its config and script) and does not sort |
+| choose which datasets a run takes | tick them in the Project table; **Clear ticks (= all)** unticks every row, and with no row ticked a run takes all the datasets |
 | run one step again, on the ticked datasets | that step's tab: **Run this step** |
 | look at the raw signal around an event or an artifact | [Visualize](EphysPipelineApp.md#visualize) tab |
 | check how well units are sorted | [Review](EphysPipelineApp.md#review) tab, or **Open in phy** |
@@ -217,10 +228,20 @@ the recording's own folder when no output folder is set. The main ones:
 
 ## When something goes wrong
 
-- **A tab is red or amber.** Hover over it to see why, or press **Validate
-  config** on the Run tab for the full list.
-- **A run stopped on a dataset.** The Run tab's results table says what went
-  wrong for each dataset, and **Open log** shows the details.
+- **A tab is red or amber.** Its name ends in `x` (red) or `!` (amber). The
+  status bar says why while you are on it, and hovering over it shows the
+  same. Press **Validate config** on the Run tab for the full list, and
+  double-click a row there to go to the setting.
+- **A run stopped on a dataset.** A message names the datasets that failed
+  and why; its **Show results** and **Show log** buttons take you to the Run
+  tab's results table and its **Log**.
+- **The Sorting step wrote files but did not sort.** A red bar at the top of
+  the Run tab's step list says the Sorting tab's **Dry run** box is ticked.
+  Untick it.
+- **The Project tab is empty.** It offers **Choose project root...** (the
+  folder that holds your recordings) and **Try with made-up data**.
+- **The app is slow to start.** A **Skip scan** button on the start-up window
+  leaves the project unscanned; press **Scan** on the Project tab later.
 - **Still stuck?** **Help → Report an issue on GitHub...** opens a report with
   your settings and the logs filled in (look it over before you send it).
 

@@ -3,7 +3,7 @@ function onRefreshMetadata(obj)
 
 if obj.refuseWhileRunning("Refresh metadata"); return; end
 if isempty(obj.Project) || obj.Project.NumDatasets == 0
-    uialert(obj.Fig, "Scan a parent directory first.", "Refresh metadata");
+    obj.alertNoProject("Refresh metadata");
     return
 end
 

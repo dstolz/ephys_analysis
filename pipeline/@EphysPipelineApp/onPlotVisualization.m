@@ -24,7 +24,7 @@ function onPlotVisualization(obj)
 
 d = obj.currentDataset();
 if isempty(d)
-    uialert(obj.Fig, "Scan a project first.", "Visualize");
+    obj.alertNoProject("Visualize");
     return
 end
 same = ~isempty(obj.VizDataset) && isvalid(obj.VizDataset) && obj.VizDataset == d;
@@ -75,7 +75,8 @@ try
         end
     end
 catch ME
-    uialert(obj.Fig, ME.message, "Visualize failed");
+    obj.reportFailure("Visualize", "show the signals", string(d.Name), ME, ...
+        "check that the dataset's recording or its Signals output is there, then press Reload data");
     obj.setStatus("Visualize failed: " + string(ME.message));
     return
 end

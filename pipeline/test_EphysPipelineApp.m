@@ -105,6 +105,7 @@ allOn.Artifacts.Enabled = true; allOn.Sorting.Enabled = true; allOn.Signals.Enab
 allOn.Signals.LFP = true; allOn.Signals.MUA = true; allOn.Signals.SPIKE = true; allOn.Signals.AUX = true;
 allOn.Export.Enabled = true; allOn.Export.Formats = "nwb";
 allOn.Reference.Mode = "cmr";
+allOn.Spikes.ArtifactMode = "reject";   % the charts below draw the "Reject in Spikes" box (the default is "erase")
 art0 = app.Config.Artifacts;               % the detection settings as opened; the Artifacts tab sections put them back
 ax = app.ArtViewAxes;                      % the Artifacts tab's plot (3a0, 3a0b, 3a0c)
 pan0 = ax.Interactions;                    % its own pan, put back after a drag
@@ -240,7 +241,7 @@ if S.sec("1", "build + open")
     check(find(app.TabList == app.TabReview) + 1 == find(app.TabList == app.TabVisualize) ...
         && isequal(app.Tabs.Children(:)', app.TabList) && numel(findall(app.Fig, 'Tag', 'TabStripBar')) == 5, ...
         'Review comes before Visualize, the tab group follows the strip, and 5 bars separate its groups');
-    check(startsWith(app.Fig.Name, "Ephys preprocessing") && ~startsWith(app.Fig.Name, "*"), 'fresh app is clean');
+    check(startsWith(app.Fig.Name, "Ephys pipeline") && ~startsWith(app.Fig.Name, "*"), 'fresh app is clean');
     check(ok && app.Config.Name == "gui test" && app.Config.File == string(cfgFile), 'openConfigFile loads the config');
     check(strcmp(app.RootPathField.Value, proj) && app.SpkEnableCheckBox.Value && strcmp(app.SpkThresholdField.Value, '2000') ...
         && app.ExpNWBCheckBox.Value && app.ParamControls.nblocks.Value == 3 ...
@@ -513,10 +514,10 @@ end
 
 if S.sec("1b", "Help menu: wiki pages")
     items = flip(string({app.HelpMenu.Children.Text}));
-    check(isequal(items(1:2), ["Help for this tab" "Documentation home"]) && numel(items) == 12 ...
-        && isequal(items(10:12), ["Report an issue on GitHub..." "Request a feature on GitHub..." "About EphysPipelineApp"]) ...
+    check(isequal(items(1:3), ["Help for this tab" "Documentation home" "Keyboard shortcuts and right-click menus"]) && numel(items) == 13 ...
+        && isequal(items(11:13), ["Report an issue on GitHub..." "Request a feature on GitHub..." "About EphysPipelineApp"]) ...
         && app.helpURL("") == app.WikiURL && app.helpURL("Quick-Start") == app.WikiURL + "/Quick-Start", ...
-        'the Help menu opens the tab''s page, the wiki home, the guides, the two GitHub issue items and About');
+        'the Help menu opens the tab''s page, the wiki home, lists the shortcuts, opens the guides, the two GitHub issue items and About');
     v = ephysVersion();
     check(~isempty(regexp(v.Version, '^\d+\.\d+\.\d+$', 'once')) && startsWith(v.Text, v.Version) ...
         && (v.Commit == "" || contains(v.Text, "commit " + v.Commit)) && isfolder(v.Folder + "/pipeline"), ...
@@ -529,6 +530,130 @@ if S.sec("1b", "Help menu: wiki pages")
     app.Tabs.SelectedTab = app.TabProject;
     check(numel(tabPages) == 16 && numel(unique(tabPages)) == 16 && all(startsWith(tabPages, app.WikiURL + "/")) ...
         && ~any(endsWith(tabPages, "/App-Overview")), 'every tab has its own wiki page');
+end
+
+if S.sec("1b2", "messages, run confirmation, tab signs, banner, empty state")
+    wasCapturing = AppDialog.capture(true);
+    restoreCapture = onCleanup(@() AppDialog.capture(wasCapturing));
+    AppDialog.captured(Clear=true);
+    app.selectTab(app.TabRun);
+    app.alertNoProject("Show plan");
+    A = AppDialog.captured(Clear=true);
+    check(numel(A) == 1 && A.Message == AppDialog.noProject() && startsWith(A.Message, "No project is loaded. On the Project tab") ...
+        && A.Title == "Show plan" && any(string(A.Options) == "Go to Project tab"), ...
+        'no project: the one message, with a Go to Project tab button when another tab is shown');
+    app.selectTab(app.TabProject);
+    app.alertNoProject("Scan");
+    A = AppDialog.captured(Clear=true);
+    check(isempty(A.Options), 'on the Project tab the no-project alert has no Go to button');
+    app.reportFailure("Detect artifacts", "detect artifacts", "recA", MException("test:boom", "it broke"), "run Signals first");
+    A = AppDialog.captured(Clear=true);
+    check(A.Message == AppDialog.failure("detect artifacts", "recA", "it broke", Try="run Signals first", Details="Run tab > Log") ...
+        && contains(A.Message, "Could not detect artifacts on recA.") && contains(A.Message, "Try: run Signals first.") ...
+        && contains(A.Message, "Details: Run tab > Log") && app.LastError.message == "it broke" ...
+        && contains(string(app.RunLogArea.Value), "could not detect artifacts on recA: it broke"), ...
+        'a failure reads Could not <action> on <dataset>, the message, Try and Details, and is logged');
+    app.LastError = MException.empty(0, 1);
+    app.LastErrorTime = NaT;
+
+    R = EphysPipeline.emptyResults();
+    R(1, :) = {"sorting", "recA", "error", "no sorted units", "", 0};
+    R(2, :) = {"sorting", "recB", "done", "", "", 1};
+    app.alertFailedDatasets(R);
+    A = AppDialog.captured(Clear=true);
+    check(numel(A) == 1 && startsWith(A.Message, "1 of 2 datasets failed:") && contains(A.Message, "recA (sorting: no sorted units)") ...
+        && isequal(string(A.Options), ["Show results" "Show log" "Close"]), ...
+        'a run with failures ends with k of n datasets failed, each with its step and message, and buttons to the results and the log');
+    app.alertFailedDatasets(R(2, :));
+    check(isempty(AppDialog.captured()), 'no failures: no alert');
+
+    app.RunActive = true;
+    app.runPipeline(Confirm=false);
+    app.RunActive = false;
+    A = AppDialog.captured(Clear=true);
+    check(numel(A) == 1 && contains(A.Message, "already in progress"), 'a run refuses to start while one goes, by an alert');
+
+    AppPrefs.setpref(app.PrefGroup, 'ConfirmRun', false);
+    check(app.confirmRun("spikes", 3) == "run", 'with Don''t ask again set, the run question is not asked');
+    AppPrefs.rmpref(app.PrefGroup, 'ConfirmRun');
+    check(~isempty(app.ConfirmRunMenu) && app.ConfirmRunMenu.Text == "Ask before running", 'Run > Ask before running turns the question back on');
+
+    check(app.RunPlanButton.Text == "Show plan" && app.RunDryButton.Text == "Rehearse (no files)" ...
+        && app.SelectNoneButton.Text == "Clear ticks (= all)" && contains(strjoin(string(app.RunDryButton.Tooltip), " "), "Not a plan"), ...
+        'Show plan, Rehearse (no files) and Clear ticks (= all) are named for what they do');
+
+    dryWas = app.DryRunCheckBox.Value;
+    app.DryRunCheckBox.Value = true;
+    app.syncRunBanner();
+    bannerGrid = app.RunBanner.Parent;   % (g is the prefs group)
+    on = logical(app.RunBanner.Visible) && bannerGrid.RowHeight{app.RunBanner.Layout.Row} > 0;
+    app.DryRunCheckBox.Value = false;
+    app.syncRunBanner();
+    off = ~logical(app.RunBanner.Visible) && bannerGrid.RowHeight{app.RunBanner.Layout.Row} == 0;
+    app.DryRunCheckBox.Value = dryWas;
+    app.syncRunBanner();
+    check(on && off, 'a red banner on the Run tab shows while the Sorting tab''s Dry run box is ticked');
+
+    rootWas = app.RootPathField.Value;
+    app.RootPathField.Value = '';
+    app.onConfigChanged();
+    app.setStatus("test");   % a status without a hint of its own: the tab's reason takes the right side
+    app.syncTabStrip();
+    k = find(app.TabList == app.TabProject);
+    check(app.TabState(k) == "error" && app.TabButtons(k).Text == "Project x" && startsWith(string(app.StatusHint.Text), "x "), ...
+        'a red tab reads "Project x" and the status bar says why while it is shown');
+    app.selectTab(app.TabRun);
+    app.selectTab(app.TabProject);
+    check(startsWith(string(app.StatusHint.Text), "x "), 'the reason shows again when the tab is selected again');
+    app.RootPathField.Value = rootWas;
+    app.onConfigChanged();
+    okGlyph = true;
+    for j = 1:numel(app.TabList)
+        want = string(app.TabList(j).Title) + ternary1(app.TabState(j) == "warn", " !", ternary1(app.TabState(j) == "error", " x", ""));
+        okGlyph = okGlyph && string(app.TabButtons(j).Text) == want;
+    end
+    check(okGlyph, 'every tab''s text carries the glyph of its state: ! amber, x red, none otherwise');
+
+    iss = table("project", "Root", "error", "Project root is empty.", 'VariableNames', {'Step', 'Field', 'Severity', 'Message'});
+    iss(2, :) = {"sorting", "MaxConcurrent", "error", "MaxConcurrent must be a whole number >= 1."};
+    app.showIssues(iss);
+    app.selectTab(app.TabRun);
+    app.onIssueActivated(struct('InteractionInformation', struct('Row', 1, 'Column', 1)));
+    check(app.Tabs.SelectedTab == app.TabProject && contains(string(app.StatusBar.Text), "project > Root"), ...
+        'a double-click on an issue shows the tab of the setting it is about');
+    app.selectTab(app.TabProject);
+    app.onIssueActivated(struct('InteractionInformation', struct('Row', 2, 'Column', 1)));
+    check(app.Tabs.SelectedTab == app.TabRun && contains(string(app.StatusBar.Text), "sorting > MaxConcurrent"), ...
+        'an issue about the runs at once opens the Run tab''s control');
+    app.clearFlowHighlight();
+    app.showIssues(table('Size', [0 4], 'VariableTypes', {'string', 'string', 'string', 'string'}, ...
+        'VariableNames', {'Step', 'Field', 'Severity', 'Message'}));
+
+    app.OEEventStreamField.Value = 'NIDAQ';
+    A1 = app.gatherAcquisitionSection();
+    app.OEEventStreamField.Value = '';
+    app.applyAcquisitionSection(A1);
+    check(A1.OpenEphys.EventStream == "NIDAQ" && app.OEEventStreamField.Value == "NIDAQ", ...
+        'the Open Ephys Event stream field is the config''s Acquisition.OpenEphys.EventStream');
+    app.OEEventStreamField.Value = '';
+    app.ArtCommonModeUnrefCheckBox.Value = false;
+    check(~app.gatherArtifactsSection().CommonModeUnreferenced, 'the common-mode box is Artifacts.CommonModeUnreferenced');
+    app.ArtCommonModeUnrefCheckBox.Value = true;
+
+    app.onShowShortcuts();
+    check(isvalid(app.ShortcutsFig) && contains(strjoin(string(findall(app.ShortcutsFig, 'Type', 'uitextarea').Value), newline), "Right-click menus"), ...
+        'Help > Keyboard shortcuts and right-click menus lists the keys and the menus');
+    delete(app.ShortcutsFig);
+
+    app.syncProjectEmptyState();
+    hasData = ~isempty(app.Project) && app.Project.NumDatasets > 0;
+    check(logical(app.ProjectEmptyPanel.Visible) == ~hasData && logical(app.DatasetsTable.Visible) == hasData ...
+        && numel(app.ProjectEmptyButtons) == 2 && app.ProjectEmptyButtons(2).Text == "Try with made-up data", ...
+        'the Project tab shows the empty-state card until a project is scanned, the table after');
+
+    sp = AppSplash("t", "a", 1, Show=false);
+    sp.offerSkip();
+    check(~sp.skipRequested() && ~sp.Skipped, 'a splash without a window offers no skip and is never skipped');
 end
 
 if S.sec("1c", "Help menu: GitHub issue and feature request")
@@ -706,7 +831,7 @@ if S.sec("2", "edits and the unsaved marker")
     app.applyReferenceSection(R2);
     refPanel = app.ArtRefDropDown.Parent.Parent;
     check(isequaln(app.gatherReferenceSection(), R2) && strcmp(app.ArtRefLowField.Enable, 'on') ...
-        && contains(string(refPanel.Title), "every step") && contains(string(refPanel.Title), "config: Reference") ...
+        && contains(string(refPanel.Title), "every step") && ~contains(string(refPanel.Title), "config:") ...
         && isequaln(app.gatherArtifactsSection(), A0), ...
         'applyReferenceSection / gatherReferenceSection round-trip the panel, titled for every step; the Artifacts section is untouched');
     app.onArtifactControlsChanged();
@@ -1367,7 +1492,7 @@ if S.sec("3a0c", "Artifacts tab: marking manual periods on the plot")
     app.Fig.WindowButtonUpFcn(app.Fig, []);
     check(size(dA.ManualArtifacts, 1) == 2 && abs(dA.ManualArtifacts(2, 1) - 0.012) < 1e-9 ...
         && abs(dA.ManualArtifacts(2, 2) - (nSamp - 1) / Fs) < 1e-12, 'a drag past the window is kept inside it');
-    app.onClearManualArtifacts();
+    app.onClearManualArtifacts(Confirm=false);
     check(isempty(dA.ManualArtifacts) && nOf(colManual) == 0 && isempty(app.ArtManualTable.Data), ...
         'Clear removes the periods, and the plot follows');
     app.RunActive = true;
@@ -2376,7 +2501,7 @@ if S.sec("3c", "Sorting tab: optimize for probe, reset to defaults")
 end
 
 if S.sec("4", "run one step through the pipeline")
-    app.runPipeline(Steps="spikes");
+    app.runPipeline(Steps="spikes", Confirm=false);
     R = app.RunResultsTable.Data;
     check(istable(R) && any(R.Step == "spikes" & R.Status == "done") && isfile(spikesFile), 'the Spikes step ran and wrote its file');
     scriptFile = EphysPipeline.scriptFileFor(app.Config.Project.Root, app.Config.Name);
@@ -2418,7 +2543,7 @@ if S.sec("4b", "Run tab: Copy outputs (the Transfer section)")
     app.RunTransferMethodDropDown.Value = 'copy';
     app.onTransferControlsChanged();
     if ispc
-        app.runPipeline(Steps="spikes");
+        app.runPipeline(Steps="spikes", Confirm=false);
         t0 = tic;
         while ~isempty(app.Transfers) && toc(t0) < 120   % the copies go on after the Run, followed by the timer
             app.pollTransfers();
@@ -2471,7 +2596,7 @@ if S.sec("4b2", "Run tab: Copy files for the analysis app (the AnalysisCopy sect
         cfgOnAC = cfgBeforeAC;
         cfgOnAC.AnalysisCopy.Enabled = true;
         app.applyConfig(cfgOnAC);
-        app.runPipeline(Steps="spikes");
+        app.runPipeline(Steps="spikes", Confirm=false);
         t0 = tic;
         while ~isempty(app.Transfers) && toc(t0) < 120   % the copy goes on after the Run, followed by the timer
             app.pollTransfers();
@@ -3117,7 +3242,7 @@ if S.sec("4e", "Run tab: background Kilosort4 runs, N at a time")
     sampler = timer('ExecutionMode', 'fixedSpacing', 'Period', 0.5, 'BusyMode', 'drop', ...
         'TimerFcn', @(~,~) sampleLabels());
     start(sampler);
-    app.runPipeline(Steps="sorting");
+    app.runPipeline(Steps="sorting", Confirm=false);
     stop(sampler); delete(sampler);
     R = app.RunResultsTable.Data;
     check(any(R.Step == "sorting" & R.Status == "launched") && toc(tSample) < 60, ...
@@ -3174,7 +3299,7 @@ if S.sec("4f", "Run tab: GPUs, and queueing the waiting runs")
     safety = timer('StartDelay', 60, 'TimerFcn', @(~,~) writelines('{"state": "done"}', priorStatus));
     start(safety);
     t0 = tic;
-    app.runPipeline(Steps="sorting");
+    app.runPipeline(Steps="sorting", Confirm=false);
     R = app.RunResultsTable.Data;
     check(toc(t0) < 30 && ~app.RunActive && any(R.Step == "sorting" & R.Status == "queued") ...
         && numel(app.KSQueue) == 1 && numel(app.KSRuns) == 1, ...
@@ -3202,7 +3327,7 @@ if S.sec("4f", "Run tab: GPUs, and queueing the waiting runs")
     app.KSRuns = EphysPipeline.sortRun("earlier", struct('statusFile', priorStatus3, ...
         'resultsDir', priorDir, 'stdoutLog', "", 'device', ""));
     app.startKSMonitor();
-    app.runPipeline(Steps="sorting");
+    app.runPipeline(Steps="sorting", Confirm=false);
     check(numel(app.KSQueue) == 1, 'queued again behind a running earlier run');
     app.RunKSStopQueueButton.ButtonPushedFcn(app.RunKSStopQueueButton, []);
     R = app.RunResultsTable.Data;
@@ -3223,7 +3348,7 @@ if S.sec("4f", "Run tab: GPUs, and queueing the waiting runs")
     app.PythonExeField.Value = slowPython;
     app.onConfigChanged();
     check(strcmp(app.RunKSStopRunsButton.Enable, 'off'), 'Stop runs... is off with no run going');
-    app.runPipeline(Steps="sorting");
+    app.runPipeline(Steps="sorting", Confirm=false);
     t0 = tic;
     while toc(t0) < 10 && ~strcmp(app.RunKSStopRunsButton.Enable, 'on'); pause(0.25); end
     check(strcmp(app.RunKSStopRunsButton.Enable, 'on') && numel(app.KSRuns) == 1, 'Stop runs... is on while a run is going');
@@ -3277,7 +3402,7 @@ if S.sec("5", "save and reopen")
     check(app2.Config.File == string(cfgFile) && ~isempty(app2.Project) && app2.Project.NumDatasets == 1 ...
         && height(app2.DatasetsTable.Data) == 1 && contains(app2.StatusBar.Text, "Scanned"), ...
         'the next launch reopens the last config and scans its project');
-    check(isequal(app2.Fig.Position, app.Fig.Position), 'and the window built hidden takes its saved position');
+    check(isequal(app2.Fig.Position, app.Fig.Position), sprintf('and the window built hidden takes its saved position (saved %s, built %s, screen %s)', mat2str(app.Fig.Position), mat2str(app2.Fig.Position), mat2str(groot().ScreenSize)));
     check(app2.ArtViewContextField.Value == 40 && app2.ArtViewChannelsField.Value == 5 ...
         && ~app2.ArtViewShankColorCheckBox.Value && ~app2.ArtViewShadeButton.Value ...
         && app2.ArtViewScaleDropDown.Value == "manual" && app2.ArtViewLanesField.Value == 150, ...
@@ -3559,7 +3684,7 @@ if S.sec("6", "a config for another root; a rescan; the Visualize tab")
     check(app.Project.NumDatasets == 3 && app.currentDataset() == dM3 && app.VizDataset == dM3 ...
         && ~contains(app.VizStatusLabel.Text, "The plot shows"), ...
         'a rescan that finds a dataset in front keeps recM003 active, and its plot current');
-    app.onClearManualArtifacts();
+    app.onClearManualArtifacts(Confirm=false);
     check(isempty(dM3.ManualArtifacts) && isequal(dM2.ManualArtifacts, [0.001 0.002]), ...
         'Clear clears the active recM003''s periods, not those of the dataset now in its old place');
     dM3.SortingDir = phyDir;
@@ -3903,6 +4028,12 @@ function sel = rowCells(T, names)
 %rowCells  A Project-table Selection ([row column] per cell): the Name cells of the rows named NAMES.
 r = find(ismember(T.Name, names));
 sel = [r, repmat(find(strcmp(T.Properties.VariableNames, 'Name')), numel(r), 1)];
+end
+
+
+function v = ternary1(tf, a, b)
+%ternary1  A when TF, else B.
+if tf; v = a; else; v = b; end
 end
 
 

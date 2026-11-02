@@ -14,7 +14,7 @@ obj.CleanupMove = [];
 idx = obj.selectedDatasetIndices();
 if isempty(idx)
     obj.refreshCleanupTable();
-    uialert(obj.Fig, "Scan a project on the Project tab first.", "Clean up");
+    obj.alertNoProject("Clean up");
     return
 end
 kinds = ["raw" "sorter_copy" "bin" "envelope"];

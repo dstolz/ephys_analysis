@@ -5,7 +5,11 @@ function syncTabStrip(obj)
 %   approved), error (config errors), busy (pipeline running) and neutral
 %   (utility tabs, or nothing to judge yet). Config issues come from
 %   EphysPipelineConfig.validate without path checks, attributed to the tab
-%   that edits the offending field. The button tooltip says why.
+%   that edits the offending field. The button tooltip says why. The
+%   color is not the only sign: an amber tab reads "Probe !" and a red one
+%   "Run x" (a glyph after its name), and the selected tab's first reason
+%   is in the status bar (showTabReason). The states and reasons are kept
+%   in TabState and TabReason, one per tab of TabList.
 if isempty(obj.TabButtons) || ~all(isvalid(obj.TabButtons)); return; end
 
 cfg = obj.Config;
@@ -30,6 +34,8 @@ sel = [];
 if hasData; sel = obj.selectedDatasetIndices(); end
 
 tabs = obj.TabList;
+states = strings(1, numel(tabs));
+reasons = strings(1, numel(tabs));
 for k = 1:numel(tabs)
     switch tabs(k)
         case obj.TabCopy
@@ -100,9 +106,25 @@ for k = 1:numel(tabs)
     b.BackgroundColor = bg;
     b.FontColor = fg;
     b.Tooltip = tip;
+    b.Text = char(string(tabs(k).Title) + stateGlyph(state));
+    states(k) = state;
+    reasons(k) = string(tip);
     selected = tabs(k) == obj.Tabs.SelectedTab;
     b.FontWeight = ternary(selected, "bold", "normal");
     obj.TabMarks(k).Visible = selected;
+end
+obj.TabState = states;
+obj.TabReason = reasons;
+obj.showTabReason();
+end
+
+
+function g = stateGlyph(state)
+%stateGlyph  The sign after a tab's name for a state that needs attention (the color alone is not enough).
+switch state
+    case "warn";   g = " !";
+    case "error";  g = " x";
+    otherwise;     g = "";
 end
 end
 

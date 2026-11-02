@@ -36,8 +36,8 @@ try
     close(dlg);
 catch ME
     if isvalid(dlg); close(dlg); end
-    obj.copyLog("ERROR: " + ME.message);
-    uialert(obj.Fig, ME.message, "Find sessions");
+    obj.reportFailure("Find sessions", "find the sessions", what, ME, ...
+        "check that the source drive is mounted and the recording and Epsych2 roots are right, then press Find sessions again", Where="copy");
     obj.setStatus("Find sessions failed: " + string(ME.message), "Check the roots (is the source drive mounted?).");
     return
 end

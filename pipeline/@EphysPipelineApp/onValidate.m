@@ -3,7 +3,7 @@ function onValidate(obj)
 try
     cfg = obj.gatherConfig();
 catch ME
-    uialert(obj.Fig, string(ME.message), "Validate");
+    obj.reportFailure("Validate", "read the settings", "", ME, "fix the field the message names (a text field that does not parse), then press Validate config again");
     return
 end
 obj.Config = cfg;

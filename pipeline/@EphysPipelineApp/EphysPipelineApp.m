@@ -77,7 +77,8 @@ classdef EphysPipelineApp < handle
     %                copy the ones the analysis app reads, with the settings
     %                last used in the copy window; a dataset whose
     %                background sort is still going is copied when it ends),
-    %                validate, plan, run / dry run / cancel, progress,
+    %                validate, show plan, run / rehearse (no files) / cancel (a run
+    %                asks first: confirmRun), progress,
     %                results (filled as the run goes; background runs' rows
     %                follow them to done / error), log, Stop runs... / Stop
     %                queue (a queue can be kept for the next launch, and
@@ -126,7 +127,7 @@ classdef EphysPipelineApp < handle
     %
     %   Toolbar (buildToolbar): the menus' most used commands as icons, each
     %   with a tooltip naming its keyboard shortcut: New / Open / Save config,
-    %   Validate / Plan / Run pipeline / Dry run / Cancel, View manifest, Open
+    %   Validate / Show plan / Run pipeline / Rehearse / Cancel, View manifest, Open
     %   analysis app / Copy files for the analysis app / Channel mapper, Help for
     %   this tab.
     %
@@ -161,11 +162,15 @@ classdef EphysPipelineApp < handle
         TabList       matlab.ui.container.Tab        % tabs in strip order
         TabButtons    matlab.ui.control.Button       % colored status strip (one per tab)
         TabMarks      matlab.ui.container.Panel      % selected-tab underline (one per tab)
+        TabState      (1,:) string = string.empty(1, 0)   % each tab's status: off / ok / warn / error / busy / neutral (syncTabStrip)
+        TabReason     (1,:) string = string.empty(1, 0)   % why, one text per tab (showTabReason says the selected one's)
 
         % --- Menu bar ---
         FileMenu           matlab.ui.container.Menu
         RecentMenu         matlab.ui.container.Menu
         AutoScanMenu       matlab.ui.container.Menu   % check item: scan the last config's project at startup (startupScan)
+        ConfirmRunMenu     matlab.ui.container.Menu   % check item: ask before a run (the preference ConfirmRun, confirmRun)
+        ShortcutsFig = []                             % the Help > Keyboard shortcuts and right-click menus window (onShowShortcuts)
         DatasetMenu        matlab.ui.container.Menu   % chooses the active dataset (selectDataset)
         DatasetTickedItems matlab.ui.container.Menu   % top of the menu: the ticked datasets (UserData = dataset index)
         DatasetAllMenu     matlab.ui.container.Menu   % "All datasets" submenu
@@ -261,6 +266,7 @@ classdef EphysPipelineApp < handle
         OERecordingsDropDown matlab.ui.control.DropDown   % Acquisition.OpenEphys.Recordings
         OERecordNodeField    matlab.ui.control.EditField  % Acquisition.OpenEphys.RecordNode ("" = automatic)
         OEStreamField        matlab.ui.control.EditField  % Acquisition.OpenEphys.Stream ("" = automatic)
+        OEEventStreamField   matlab.ui.control.EditField  % Acquisition.OpenEphys.EventStream ("" = the continuous stream's own)
         SourceTDTGrid        matlab.ui.container.GridLayout
         TDTStreamDropDown    matlab.ui.control.DropDown   % Acquisition.TDT.Stream (editable; "automatic" = "")
         TDTGainField         matlab.ui.control.EditField  % Acquisition.TDT.GainToMicrovolts ("" = automatic, NaN)
@@ -291,6 +297,8 @@ classdef EphysPipelineApp < handle
         AutoTagField          matlab.ui.control.EditField  % Project.NewDatasetTags, comma-separated (onAutoTags)
         AutoTagButton         matlab.ui.control.Button     % Choose...: the tag dialog over them (onAutoTags "choose")
         ScanStatusLabel   matlab.ui.control.Label
+        ProjectEmptyPanel matlab.ui.container.Panel   % the card shown in place of the datasets table until a project is scanned
+        ProjectEmptyButtons matlab.ui.control.Button  % its two buttons (styled in buildUI)
         % Tools panel (beside the table): open datasets in other programs (onOpenTool)
         ToolsScopeDropDown  matlab.ui.control.DropDown   % ItemsData "active" | "ticked" (toolTargets)
         ToolsTargetLabel    matlab.ui.control.Label      % names what the buttons open (syncToolsPanel)
@@ -403,6 +411,7 @@ classdef EphysPipelineApp < handle
         ArtRmsWindowField   matlab.ui.control.NumericEditField
         ArtMergeGapField    matlab.ui.control.NumericEditField
         ArtMinChannelsField matlab.ui.control.NumericEditField
+        ArtCommonModeUnrefCheckBox matlab.ui.control.CheckBox   % Artifacts.CommonModeUnreferenced
         ArtPadField         matlab.ui.control.NumericEditField
         ArtFilterCheckBox   matlab.ui.control.CheckBox
         ArtHighpassField    matlab.ui.control.NumericEditField
@@ -663,6 +672,7 @@ classdef EphysPipelineApp < handle
         SpkFilterOrderField  matlab.ui.control.NumericEditField
         SpkPolarityDropDown  matlab.ui.control.DropDown
         SpkThreshMethodDropDown matlab.ui.control.DropDown
+        SpkThresholdLabel    matlab.ui.control.Label      % "Threshold (x noise MAD)", follows the method
         SpkThreshScopeDropDown  matlab.ui.control.DropDown   % Spikes.ThresholdScope
         SpkThresholdField    matlab.ui.control.EditField
         SpkMaxAmpField       matlab.ui.control.EditField
@@ -780,7 +790,8 @@ classdef EphysPipelineApp < handle
         RunAnalysisCopyCheckBox   matlab.ui.control.CheckBox  % AnalysisCopy.Enabled
         RunSelectionLabel    matlab.ui.control.Label
         RunValidateButton    matlab.ui.control.Button
-        RunPlanButton        matlab.ui.control.Button
+        RunPlanButton        matlab.ui.control.Button       % Show plan
+        RunBanner            matlab.ui.control.Label        % red: Sorting.DryRun is ticked (syncRunBanner)
         RunButton            matlab.ui.control.Button
         RunDryButton         matlab.ui.control.Button
         RunCancelButton      matlab.ui.control.Button
@@ -1010,7 +1021,7 @@ classdef EphysPipelineApp < handle
                 opts.Splash (1,1) logical = ~batchStartupOptionUsed()   % no one watches a -batch run
             end
             [steps, weights] = startupSteps();
-            obj.Splash = AppSplash("Ephys preprocessing", steps, weights, Show=opts.Splash);
+            obj.Splash = AppSplash("Ephys pipeline", steps, weights, Show=opts.Splash);
             unfinished = onCleanup(@() abandonStartup(obj)); %#ok<NASGU>
             obj.Splash.step("window", "Building the window ...");
             obj.buildUI();
@@ -1120,6 +1131,16 @@ classdef EphysPipelineApp < handle
         tf = projectAtRoot(obj, root)
         tf = refuseWhileRunning(obj, what)
         runPipeline(obj, opts)
+        choice = confirmRun(obj, steps, n)
+        alertFailedDatasets(obj, R)
+        reportFailure(obj, title, action, subject, cause, tryText, opts)
+        alertNoProject(obj, title)
+        onIssueActivated(obj, evt)
+        [ok, tab] = openSetting(obj, target)
+        syncRunBanner(obj)
+        showTabReason(obj)
+        syncProjectEmptyState(obj)
+        onShowShortcuts(obj)
         onPipelineProgress(obj, evt)
         onRunStep(obj, step)
         onCancelRun(obj)
@@ -1245,7 +1266,7 @@ classdef EphysPipelineApp < handle
         onReferenceExcludeEdited(obj)
         onSuggestBadChannels(obj)
         onBadChannelsEdited(obj)
-        onClearManualArtifacts(obj)
+        onClearManualArtifacts(obj, opts)
         showArtifactView(obj, span)
         drawArtifactView(obj)
         tf = onArtViewInput(obj, kind, evt)
@@ -1429,7 +1450,7 @@ classdef EphysPipelineApp < handle
         onTableSorted(obj, id, evt)
         onTableSortMenu(obj, menu, id)
         clearTableSort(obj, id)
-        onClose(obj)
+        onClose(obj, opts)
         stopTimers(obj)
         setStatus(obj, message, hint)
         hint = suggestNextStep(obj)
@@ -1469,7 +1490,9 @@ function scanned = startupScan(obj)
 %startupScan  Scan the project of the config just opened, when its root is there.
 %   The scan reports on the splash (onScan). A root that is not there, or
 %   on a network share that does not answer within 5 s (folderReachable),
-%   is not scanned: the status bar says so, and Scan is left to the user.
+%   is not scanned: the status bar says so, and Scan is left to the user. The
+%   splash offers Skip scan meanwhile (AppSplash.offerSkip): pressed, the scan
+%   stops at the next dataset and the project stays unscanned.
 scanned = false;
 root = strtrim(string(obj.RootPathField.Value));
 if root == ""; return; end
@@ -1478,9 +1501,14 @@ if ~logical(obj.AutoScanMenu.Checked)
     return
 end
 obj.Splash.step("scan","Looking for the project " + root + " ...");
+obj.Splash.offerSkip("Skip scan");   % a slow share: the scan stops at the next dataset (onScan)
 [ok, why] = folderReachable(root, 5);
 if ~ok
     obj.setStatus("The project " + root + " was not scanned: " + why + ".", "Scan once it can be reached.");
+    return
+end
+if obj.Splash.skipRequested()
+    obj.setStatus("The scan of " + root + " was skipped at startup.", "Press Scan on the Project tab once the folder can be reached.");
     return
 end
 obj.onScan();

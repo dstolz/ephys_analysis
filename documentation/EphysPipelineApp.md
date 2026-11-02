@@ -109,10 +109,14 @@ that are already sorting keep running.
     the [active dataset](#which-dataset-does-an-action-act-on). **View
     manifest...** at the bottom opens the active dataset's manifest in the
     [manifest viewer](ManifestViewerApp.md).
-  - **Run**: Validate config, Plan, Run pipeline (Ctrl+R), Dry run, Cancel.
+  - **Run**: Validate config, Show plan, Run pipeline (Ctrl+R), Rehearse (no
+    files), Cancel, and the check item **Ask before running** (on by default:
+    a run asks first, see [Validate, plan, run](#validate-plan-run)).
   - **Help**: opens the [GitHub wiki](https://github.com/dstolz/ephys_analysis/wiki)
     in the browser. Help for this tab (the page for the tab that is shown),
-    Documentation home, App guide, Quick start, App overview, Output files,
+    Documentation home, **Keyboard shortcuts and right-click menus** (a window,
+    not a wiki page: the menu shortcuts, the keys of the Visualize and
+    Artifacts plots and the right-click menus), App guide, Quick start, App overview, Output files,
     Troubleshooting and FAQ, Scripting guide, Pipeline configs. If no
     browser opens, an alert shows the address.
     Its last two items file against the
@@ -129,15 +133,15 @@ that are already sorting keep running.
   | Tool | Menu item |
   | --- | --- |
   | New config, Open config, Save config | File (Ctrl+N, Ctrl+O, Ctrl+S) |
-  | Validate config, Plan (writes nothing), Run pipeline, Dry run, Cancel run | Run (Run pipeline: Ctrl+R) |
+  | Validate config, Show plan (runs nothing), Run pipeline, Rehearse (no files), Cancel run | Run (Run pipeline: Ctrl+R) |
   | View the active dataset's manifest | Dataset → View manifest... |
   | Open analysis app, Copy files for the analysis app, Channel mapper | File |
   | Help for this tab | Help |
 
-  Run pipeline and Dry run are off while a Run goes, and Cancel run is on
+  Run pipeline and Rehearse are off while a Run goes, and Cancel run is on
   only then, as on the Run tab. The icons are
   `pipeline/icons/toolbar/<Tag>.svg`.
-- **Title**: `Ephys preprocessing - <config name>  [<file>]`, with `*` in
+- **Title**: `Ephys pipeline - <config name>  [<file>]`, with `*` in
   front while the config has unsaved changes.
 - **Tab strip**: one button per tab, colored by the tab's state
   ([The tab strip](#the-tab-strip)), with a short bar between groups of tabs.
@@ -170,7 +174,11 @@ The tabs, in workflow order:
 
 Each tab button shows an icon above its title
 (`pipeline/icons/tabs/<title>.svg`, lower case without spaces) and is colored
-by the tab's state. Its tooltip says why. A short vertical bar separates the
+by the tab's state. Its tooltip says why. A tab that needs attention also
+carries a sign after its name, so the color is not the only cue: `!` for amber
+(**Probe !**) and `x` for red (**Run x**), and while that tab is shown the
+status bar's right side gives the first reason in place of the suggested next
+step (`TabState`, `TabReason`; `syncTabStrip`, `showTabReason`). A short vertical bar separates the
 groups: Copy | Project to Analysis | Diagram, Run | Review, Visualize |
 Synthetic | Clean up.
 
@@ -294,7 +302,7 @@ fields show another value, the working config is what the controls show, and
 the title marks it unsaved. A config the controls cannot show at all is
 refused, and the one shown before stays (at startup: the defaults). A config
 for another project root drops the scanned project, whose ticks do not become
-the config's selection: **Run** and **Plan** then need a **Scan** of the
+the config's selection: **Run** and **Show plan** then need a **Scan** of the
 config's root (`EphysPipelineApp:NoProject` /
 `EphysPipelineApp:OtherProject`).
 
@@ -365,7 +373,7 @@ that recording again by its folder.
    the name pattern (and the source settings, for Open Ephys or TDT
    recordings). Tick the datasets to process.
 3. **Behavior** and **Trials**: a copied session's Epsych2 file is associated
-   at the scan; otherwise point the Project tab's **Behavior** panel at the
+   at the scan; otherwise point the Project tab's **Behavior files (Epsych2)** panel at the
    Epsych2 files. On the Trials tab, name the digital lines if needed (Open
    Ephys `TTL4` → `InTrial`), then review and approve each dataset's pairing,
    or let **Auto approve when the counts match** approve the clean ones.
@@ -379,7 +387,7 @@ that recording again by its folder.
    make an analysis config in the analysis app first (**Open in the
    analysis app**) and choose it. The **Diagram** tab shows what the config
    does.
-7. **Run**: **Validate**, **Plan**, then **Run** (or **Dry run**).
+7. **Run**: **Validate**, **Show plan**, then **Run** (or **Rehearse (no files)**).
 8. **File → Save config**. Each run has already saved its standalone script
    in the project root (**Save the pipeline script on each run**, Project
    tab); **Generate script** writes either form wherever you choose.
@@ -732,13 +740,22 @@ with its Epsych2 session.
 | Tag new datasets + Choose... | (under **Scan**) `Project.AutoTag` and `Project.NewDatasetTags`: each dataset a scan finds for the first time gets these tags ([Tags for new datasets](#tags-for-new-datasets)) |
 | Name pattern + Columns | `Project.NamePattern`: how each dataset name splits into tokens ([Name pattern and token columns](#name-pattern-and-token-columns)); one checkbox per token, ticked tokens (`Project.TokenColumns`, default `SubjectID`) become table columns after Name. The label right of the **Tags:** filter shows how many names match, or the pattern error. After a scan that found Open Ephys sessions whose names do not match, the status bar suggests `{SubjectID}_{Date:yyyy-MM-dd}_{Time:HH-mm-ss}*` |
 | Filter | (right of **Tags...**) one editable dropdown per name-pattern token, listing the values found (`-` = the name does not match). Rows whose token does not match are hidden; type `*` / `?` wildcards or comma-separated alternatives (case-insensitive). Filters are a view only: they are not saved, and ticks on hidden rows stay in the selection (the label shows `showing k of n (m ticked hidden)`) |
-| All / None | **All** ticks every shown row; **None** unticks every row, shown or hidden |
+| All / **Clear ticks (= all)** | **All** ticks every shown row; **Clear ticks (= all)** unticks every row, shown or hidden, and with no row ticked a run, a plan and every step take all the datasets |
 | **Tags...** | edits the tags of the datasets on the selected rows (Shift / Ctrl+click selects several), ticked or not, or of the active dataset when no row is selected; also **Dataset → Tags...** ([Dataset tags](#dataset-tags)) |
 | Tags: filter | (under the token filters) the tags picked or typed (**any of** / **all of** them), the tags to leave out (**not**) and a search over the name, key and tags, all applied, as in the [dataset browser](DatasetBrowser.md) ([Dataset tags](#dataset-tags)). A view only, like the token filters: not saved, and ticks on hidden rows stay in the selection |
-| **Source settings** panel (under the table) | the reader options of the **active dataset's** recording system (the [`Acquisition` section](EphysPipeline.md#acquisition)); the panel's title names the system and only its controls show. They are the config's, so they apply to every dataset of that system in the project, and a change rescans the project. **Open Ephys** ([Open Ephys sessions](#open-ephys-sessions)): what a session with several recordings is (**join recordings** = one dataset, **one dataset per recording** = part folders created in the session folder, **single recording only** = refused), **Record node** and **Stream** (blank = automatic). **TDT (Synapse)**: **Stream** (`Acquisition.TDT.Stream`: an editable list of the active block's stream stores, or a typed name; **automatic** = the stream with the most channels, the highest rate among those) and **Gain (µV per unit)** (`Acquisition.TDT.GainToMicrovolts`: blank = 1e6 for float streams, which TDT stores in volts; needed for a stream stored as integers; a value that is not a number is refused in the status bar), and a line saying what the active block reads (its tooltip lists the block's streams). Intan and binary recordings have no source settings; without an active dataset the panel says so. The Open Ephys options therefore show only once an Open Ephys dataset is scanned and active (a config file can set them before a scan) |
+| **Source settings** panel (under the table) | the reader options of the **active dataset's** recording system (the [`Acquisition` section](EphysPipeline.md#acquisition)); the panel's title names the system and only its controls show. They are the config's, so they apply to every dataset of that system in the project, and a change rescans the project. **Open Ephys** ([Open Ephys sessions](#open-ephys-sessions)): what a session with several recordings is (**join recordings** = one dataset, **one dataset per recording** = part folders created in the session folder, **single recording only** = refused), **Record node**, **Stream** and **Event stream** (blank = automatic; the event stream is the stream whose TTL events to use when they are recorded on another stream than the continuous data, an NI-DAQ beside Neuropixels). **TDT (Synapse)**: **Stream** (`Acquisition.TDT.Stream`: an editable list of the active block's stream stores, or a typed name; **automatic** = the stream with the most channels, the highest rate among those) and **Gain (µV per unit)** (`Acquisition.TDT.GainToMicrovolts`: blank = 1e6 for float streams, which TDT stores in volts; needed for a stream stored as integers; a value that is not a number is refused in the status bar), and a line saying what the active block reads (its tooltip lists the block's streams). Intan and binary recordings have no source settings; without an active dataset the panel says so. The Open Ephys options therefore show only once an Open Ephys dataset is scanned and active (a config file can set them before a scan) |
 | **Tools** panel (beside the table) | opens datasets in another program. The box on top chooses which: **Active dataset** (the highlighted row) or **Ticked datasets** (the ticked rows, or every dataset when none is ticked, as a run takes them); the label under it names them, and how many of several have sorted output. **Manifest viewer**: each one's `<Name>_manifest.json` in a [manifest viewer](ManifestViewerApp.md), a window each, cascaded (the same as Dataset → View manifest...). **Analysis app**: one [analysis app](EphysAnalysisApp.md) on the project with those datasets selected (a new config in project mode with `Source.Selection = "list"` and their keys: it lists every dataset but ticks only these to run, the first of them active; `"all"` when they are every dataset); needs the repository's `analysis` folder on the path. **phy**: phy's template-gui on each one's associated sorted output, a window each (on only when one of them has `params.py`; the others are skipped). **Output folder**: each one's output folder in the file browser (an alert names those not written yet). Opening more than four windows at once asks first |
 
 ### What Scan does
+
+Until a project is scanned, the Project tab shows a card in place of the
+table, "No project is loaded yet.", with **Choose project root...** (browse,
+then scan) and **Try with made-up data** (File → Create synthetic test
+project). A scan with no project root, or with a folder that is not there,
+says so by the one "No project is loaded" message. While the app starts, the
+startup window has a **Skip scan** button for a slow network share: pressed,
+the scan stops at the next dataset and the project stays unscanned (press
+**Scan** later).
 
 1. It builds `EphysProject(root, Recursive=, ReaderOptions=)`: one dataset
    for every folder under the root that a registered reader
@@ -792,6 +809,9 @@ Ephys dataset is active:
   or the lowest id when there are several. `Acquisition.OpenEphys.RecordNode`.
 - **Stream**: the continuous stream to read, by name (`Rhythm Data`); blank =
   the stream with the most headstage channels. `Acquisition.OpenEphys.Stream`.
+- **Event stream**: the stream whose TTL events to use when they are recorded
+  on another stream than the continuous data (an NI-DAQ beside Neuropixels);
+  blank = the continuous stream's own TTLs. `Acquisition.OpenEphys.EventStream`.
 
 Changing any of them rescans the project, because it changes which folders
 are datasets. Things to know about Open Ephys datasets:
@@ -964,7 +984,10 @@ The match rules ([`matchEpsychSession`](EphysPipeline.md#epsych2-sessions)):
 the session file's name, which is how Epsych2 names Intan RHX recordings when
 it controls the recorder; the longest name wins, and a tie is ambiguous.
 **time**: the session whose start is nearest the recording's, within the
-offset. **prefix, then time**: prefix first, then time.
+offset, among the sessions of the recording's subject (a session whose
+subject is not in the recording's name or file names is skipped: two animals
+recorded at once start sessions within minutes of each other). **prefix, then
+time**: prefix first, then time.
 
 What the behavior step does for each ticked dataset:
 
@@ -1058,6 +1081,18 @@ line you [name](#naming-digital-lines) `InTrial`). The rule
   the recording started, or still on when it stopped. Partial intervals are
   flagged, and the warning names them, because they are usually what has to
   be cut.
+- **Timestamp check.** Equal counts do not prove the order right. When the
+  session has its computer timestamps, the time between the ends of
+  consecutive trials by the computer clock is compared with the time between
+  their paired intervals' ends, and the first trial where they disagree by
+  more than half a second (or 5% of the usual gap) is named in a warning: a
+  stray pulse on the line plus a missing last pulse give equal counts but
+  pair every later trial with the wrong interval. The tab's spinners cut only
+  from the start or the end; to remove one pulse from the middle, drop it in
+  a script, for example
+  `P = ds.pairTrials(Cuts=struct('trials', [0 1], 'intervals', [0 0], 'drop', 41)); ds.setTrialPairing(P, "approved")`
+  (drops interval 41 and the trial that lost its pulse; the tab keeps such a
+  drop while you change the cuts).
 
 | What happened | What you see | Cut |
 | --- | --- | --- |
@@ -1076,8 +1111,9 @@ of the first three kinds, and a clean one.
 With **Auto approve when the counts match** ticked (`Behavior.AutoApprove`,
 off by default), a pairing is approved as soon as it is paired (**Load**, a
 setting change, **Prefetch ticked**, the behavior step) when it is not
-approved yet, it cuts nothing, and the trials and the trial-line intervals
-are equal in number, at least one
+approved yet, it cuts and drops nothing, the trials and the trial-line
+intervals are equal in number, at least one, the computer timestamps agree
+with the line's trial ends and no trial is paired with a partial edge interval
 (`EphysDataset.autoApproveTrialPairing`). The manifest marks the approval as
 automatic (`auto_approved`), the summary reads *APPROVED automatically (the
 counts match)* and the Project table *pairing approved (auto)*; an existing
@@ -1087,8 +1123,9 @@ pairing**: those cuts are yours to approve. **Reset cuts** and cut edits never
 approve; approving by hand replaces the automatic mark.
 
 Equal counts do not prove the pairing right: a missing trial at one end and a
-spurious pulse at the other also give equal counts. Leave the box off to look
-at every dataset.
+spurious pulse at the other also give equal counts. The timestamp check
+catches that when the session has computer timestamps, and then the pairing
+is left for you; leave the box off to look at every dataset.
 
 ### Derived events
 
@@ -1331,7 +1368,7 @@ marked), and two tabs on the right: **Preview** (the preview's summary with
 its per-channel table) and **Selection** (a stretch measured with **Measure**,
 below).
 
-The first panel, *Bad channels, before every step (config: Artifacts)*, leaves
+The first panel, *Bad channels, before every step*, leaves
 the active dataset's bad channels out of every step that works on the signals:
 the common reference, artifact detection, spike detection, the sorter (dropped
 from its chanMap; they stay in the `.bin`) and the Signals step, so the exports
@@ -1350,7 +1387,7 @@ names, and its legend says whether they are left out (*Bad channel (left
 out)*) or only listed (*kept: Leave out unticked*); the Probe tab's exclusions
 are gray too, *(excluded)*. The preview's per-channel table grays their rows.
 
-The second panel, *Common reference, for every step (config: Reference)*, is
+The second panel, *Common reference, for every step*, is
 the config's `Reference` section, not part of `Artifacts`: every step that
 reads the recording takes the reference, whether or not detection is on, and
 a problem with it colors this tab even while detection is off. It sits here
@@ -1375,7 +1412,7 @@ referenced signal. The Signals tab picks which derived signals take it.
 | Detected artifacts: ◀ / number / ▶, Go to (s), Context (ms), Channels, Shank, Color by shank, Scale, **Shade artifacts**, **Reset view** | the artifact viewer (display only, below) |
 | **Measure**, the **Selection** tab | display only: a stretch dragged over the plot, scored by every detection method (*Measuring a stretch*, below) |
 | Ctrl+drag on the viewer, **Restore bounds** | the active dataset's `ArtifactAdjustments`: detected artifacts with their onset or offset moved by hand (written to its manifest; *Moving a detected artifact's bounds*, below) |
-| Manual periods table, **Mark artifacts**, **Clear** | the active dataset's `ManualArtifacts` (written to its manifest); **Mark artifacts** marks them on the viewer's plot (*Marking manual periods*, below), **Clear** removes them all |
+| Manual periods table, **Mark artifacts**, **Clear all** | the active dataset's `ManualArtifacts` (written to its manifest); **Mark artifacts** marks them on the viewer's plot (*Marking manual periods*, below), **Clear all** removes them all, after asking (it cannot be undone) |
 
 Changing **Method** replaces the threshold with the new method's default
 (*Running RMS* 9, *MAD* 8, *Absolute microvolts* / *Common-mode* 1500 µV) when the
@@ -1393,12 +1430,20 @@ previous method stays. `validate` warns about an *Absolute microvolts* or
 | *Common-mode (mean)* | \|mean over the channels\| > *Threshold*, on every channel at once. It is measured on the signal as recorded, since a common reference subtracts that very mean | µV |
 
 A sample is an artifact when at least **Min channels** channels flag it at
-once (common mode aside). Runs of artifact samples separated by at most
+once (common mode aside). With a common reference on, **Also test the unreferenced
+signal for common-mode artifacts** (`Artifacts.CommonModeUnreferenced`, on by
+default) runs the common-mode test on the signal as recorded too, so broad
+artifacts the reference cancels (movement, chewing) are still flagged for the
+unreferenced LFP. Runs of artifact samples separated by at most
 **Stitch gap** of clean signal are joined, and each run is widened by **Pad**
 on both sides. The channels excluded on the Probe tab take no part. The
-detector works chunk by chunk as it streams the recording: each chunk has its
-own median and MAD, and runs are not joined across chunk boundaries (the
-periods a run uses merge them again). See
+detector works chunk by chunk as it streams the recording, but the result does
+not depend on the chunks: the median and MAD are the recording's own, each
+chunk is read with context beside it, and the runs are joined and widened once
+over the whole list, so a run across a chunk boundary is one artifact. With a
+common reference the unreferenced recording is also tested for a common mode
+above 1500 µV, since the LFP is derived without the reference by default and
+the reference cancels a broad artifact. See
 [Artifact detection and blanking](EphysDataset.md#artifact-detection-and-blanking).
 
 **The preview.** **Detect / Preview** fills the **Preview** tab on the right.
@@ -1558,8 +1603,8 @@ The **Selection** tab on the right comes to the front. It shows:
   **Clear sort** returns to the method's order ([Sorted tables](#sorted-tables)).
   The channels over its threshold are shaded.
 
-The baselines (median / MAD) are those of the whole window shown, as
-detection takes them over its chunk, so measure on a window with enough clean
+The baselines (median / MAD) are those of the whole window shown (detection
+takes them over the whole recording), so measure on a window with enough clean
 signal around the stretch (a wider **Context**, or **Go to (s)**). The method
 chosen on the left is held to its **Threshold** (marked *(set)*), and the
 others to their defaults. *Min channels*, the RMS window and the channels
@@ -1672,7 +1717,7 @@ executable to be sorted.
 
 | Control | Maps to |
 | --- | --- |
-| Enable the Sorting step, Skip datasets already sorted | `Sorting.Enabled`, `SkipExisting` |
+| Enable the Sorting step, Skip datasets already sorted (on by default: a re-sort takes hours and sets the earlier sort's curation aside) | `Sorting.Enabled`, `SkipExisting` |
 | Sorter, **Find SpikeInterface sorters** | `Sorting.Sorter`: Kilosort4 (`"kilosort4"`, the default), or a SpikeInterface sorter the button found in the Python env ([SpikeInterface sorters](#spikeinterface-sorters)) |
 | Python exe (+ Browse), Conda env | `Sorting.PythonExe`, `CondaEnv` (optional: when set, commands run as `conda run -n <env> "<Python exe>" ...`). A new config starts with the Python exe last set in the app (the `PythonExe` preference), else the `kilosort` conda env's `python.exe` found under `CONDA_EXE` or a `miniconda3`, `anaconda3`, `miniforge3` or `mambaforge` folder in `%LOCALAPPDATA%`, `%USERPROFILE%`, `%ProgramData%` or `C:\` |
 | Phy command | preference `PhyCmd`, not part of the config. Blank = the `phy` executable of the `phy` conda env, found in the conda install that holds the Python exe, the one `CONDA_EXE` names, or `%LOCALAPPDATA%\miniconda3`, `%USERPROFILE%\miniconda3` or `%USERPROFILE%\anaconda3`; else `conda run -n phy phy`. phy is started in the sorted-output folder with `pushd` and delayed expansion, so a folder whose path holds `&` or spaces, or a UNC folder, works |
@@ -2091,7 +2136,7 @@ reads these files.
 - **Notch** takes a list, such as `60, 120, 180`. Each notch must fit inside
   (0, `LFP_Fs`/2): `f − width/2 > 0` and `f + width/2 < LFP_Fs/2`. The width
   is between the design's −3 dB points (−6 dB after the zero-phase filter).
-- Every filter edge must lie below half the rate it is applied at. **Plan**
+- Every filter edge must lie below half the rate it is applied at. **Show plan**
   reports a setting that cannot apply to a dataset (`LFP_Fs` above its sample
   rate, say) as `error: ...`, and that blocks the run.
 - Zero-phase IIR filters leave edge transients at the start and end of the
@@ -2152,7 +2197,8 @@ detection boundaries, so no event is lost or counted twice at a join.
 
 <!-- wiki: ![The Spikes tab with a detection preview](images/app-spikes-tab.png) -->
 
-- **Filter** (band-pass on, 500–5000 Hz, order 4), **Threshold** (method
+- **Filter** (band-pass on, 500–5000 Hz, order 4), **Threshold** (its label
+  follows the method: *x noise MAD*, *x SD*, *x RMS*, *percentile* or *µV*; method
   `mad` (a robust SD, median(|x − median(x)|)/0.6745, times the value),
   `std`, `rms`, `percentile` (of |x|) or `absolute` (µV); value blank = the
   method's default, 4, or 99.9 for `percentile`, none for `absolute`;
@@ -2168,11 +2214,13 @@ detection boundaries, so no event is lost or counted twice at a join.
   the checkbox names the sample the window is centered on, *the trough* by
   default; window −0.5 to 1.5 ms around it, source `filtered` / `raw`, edge
   handling `nan` (pad) / `drop`), **Channels & artifacts** (all / manifest
-  exclusions / list; **Artifact periods**, `Spikes.ArtifactMode`: *Reject the
-  events inside them* (default), *Erase them before detection (the cleaned
-  recording)*, whose samples then stay out of the thresholds and are bridged
-  by a line for the band-pass, so an artifact neither rings into the samples
-  around it nor raises the threshold, or *Ignore them*; the periods are the
+  exclusions / list; **Artifact periods**, `Spikes.ArtifactMode`: *Erase them
+  before detection (the cleaned recording)* (default), whose samples then stay
+  out of the thresholds and are bridged by a line for the band-pass, so an
+  artifact neither rings into the samples around it nor raises the threshold,
+  *Reject the events inside them* (the recording is detected on as read, so
+  the band-pass of an artifact can cross threshold for a few milliseconds on
+  either side of it), or *Ignore them*; the periods are the
   manual ones, plus the automatic detection while it is enabled and the
   Artifacts tab's *Apply in spike detection* is ticked, see
   [In a run](#in-a-run)), **Chunking**
@@ -2570,10 +2618,32 @@ or `Selection: all 4 dataset(s).` (none ticked).
 | Button | Does |
 | --- | --- |
 | **Validate config** | checks the config (`cfg.validate()`) and fills **Issues (Validate)**, one row per problem: **Step**, **Field**, **Severity**, **Message**. Errors stop a run; warnings do not. The project, source, parallel, probe and reference settings are always checked, a step's own only while it is enabled |
-| **Plan (writes nothing)** | fills the results table with `pipe.plan()`: what each step would do for each selected dataset ([The plan](#the-plan)) |
-| **Run pipeline** | validates, plans, then runs every enabled step in order over the selected datasets (`EphysPipeline.run`) |
-| **Dry run** | the same, writing nothing: each step reports what it would do in `dry run` rows. Sorting writes only its `settings.json` and `run_ks4.py`, into `kilosort4\dryrun` |
-| **Cancel** | stops the run at the next progress point ([Progress and results](#progress-and-results)) |
+| **Show plan** | fills the results table with `pipe.plan()`: what each step would do for each selected dataset ([The plan](#the-plan)). Nothing is run and nothing is written |
+| **Run pipeline** | validates, plans, asks "Run *steps* on *n* datasets?" (**Run**, **Show plan**, **Cancel**; its *Don't ask again* box is the preference `ConfirmRun`, and **Run → Ask before running** turns the question back on; `confirmRun`), then runs every enabled step in order over the selected datasets (`EphysPipeline.run`) |
+| **Rehearse (no files)** | not a plan: the steps do run, with `DryRun`, and write nothing; each reports what it would do in `dry run` rows. Sorting still writes its `settings.json` and `run_ks4.py` (into `kilosort4\dryrun`) and does not sort. No question is asked first |
+| **Cancel** | stops the run after the current dataset: the pipeline looks for the request at each progress report ([Progress and results](#progress-and-results)). The status line says "Canceling after the current dataset..." |
+
+A red banner at the top of the Steps panel says "Sorting is in dry-run mode"
+while the Sorting tab's **Dry run** box (`Sorting.DryRun`) is ticked: that box
+stays ticked from run to run, and a run with it ticked only writes the
+sorting run files. Closing the app during a run asks "A run is in progress
+(*step i/n*). Closing cancels it after the current dataset." (**Keep
+running** or **Cancel run and close**).
+
+A run that ends with datasets that failed shows "*k* of *n* datasets failed:"
+with each one's step and message, and **Show results** / **Show log** buttons
+(the Run tab's results table and its **Log**; `alertFailedDatasets`). A
+failure of an action (not a dataset) reads "Could not *action* on *dataset*.",
+the message, "Try: ..." and "Details: Run tab > Log" (`reportFailure`,
+`AppDialog.failure`, see the [source map](#source-map)); an action that needs a scanned
+project says the one message "No project is loaded. On the Project tab choose
+the folder that holds your recordings (the project root) and press Scan." with
+a **Go to Project tab** button (`alertNoProject`).
+
+**Double-click** a row of **Issues (Validate)** to go to the setting it is
+about: its tab is shown and the control scrolled into view, marked and
+focused (`issueTarget`, `openSetting`; an issue with no control of its own
+shows its tab).
 
 The tab also always shows a diagram of the run beside the progress bars
 ([The run diagram](#the-run-diagram)) and the computer's load under the Steps
@@ -2590,7 +2660,7 @@ alert. **Scan** and **Refresh metadata** are off while it runs.
 
 ### The plan
 
-**Plan** puts one row per step and dataset in the results table (one per
+**Show plan** puts one row per step and dataset in the results table (one per
 file for Signals; Export's is `export:nwb`): **Step**,
 **Dataset**, **Subject** and **Date** (the dataset's subject ID and the day it
 was recorded, added by the app), **Key**, **Output** (the file or folder the step writes),
@@ -2832,7 +2902,7 @@ every 2 s overwrites one small JSON file in its own temporary folder;
 together they use well under 1 % of one core. The app only reads that file
 on a 2 s timer, and not at all while another tab is showing, so a busy
 MATLAB never stops the sampling itself. The sampler starts the first time the
-Run tab is shown (also by **Validate config**, **Plan** and **Run pipeline**)
+Run tab is shown (also by **Validate config**, **Show plan** and **Run pipeline**)
 and runs until the app closes, which stops it (it also stops by itself when
 MATLAB exits) and it deletes its folder; if no sample comes for 15 s, the app
 starts a new one.
@@ -3664,6 +3734,7 @@ of a config lives here:
 | `SynthOptions` | the Synthetic tab's settings and its design (as `SyntheticDesign` JSON in `design`; a design saved by an older generator is not restored) |
 | `DiagramView`, `DiagramLayout`, `DiagramDirection` | the Diagram tab's **View** (`detail` \| `overview`), **Layout** (`tree` \| `steps`) and **Direction** (`vertical` \| `horizontal`) |
 | `QueueSortingRuns` | the Run tab's **Queue the waiting runs; the Run goes on** switch |
+| `ConfirmRun` | `false` once *Don't ask again* was ticked in the question before a run (**Run → Ask before running** turns it back on) |
 | `KeptSortingQueue` | the sorting queues kept at Close (**Keep the queue for next time**), one element per project root: `root`, `saved` (when), `runs` (`Name`, `key`: the dataset's folder relative to the root, `prepared`: the run `launchSorting` starts). Offered back, then removed, once that root is scanned ([Run](#run)) |
 | `KeptSortingRuns` | the background Kilosort4 runs going at Close (`EphysPipeline.emptyRuns` shape), followed again, then removed, at the next launch |
 | `CleanupOptions` | the Clean up tab's kinds of file and steps to remove, **Removed files go** and its folder, and **Show the files that remain** |
@@ -3730,7 +3801,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `buildUI.m`, `buildMenus.m`, `buildToolbar.m`, `build*Tab.m` | UI construction (`buildToolbar`: the toolbar, its icons in `pipeline/icons/toolbar`) |
 | `gatherConfig.m`, `applyConfig.m`, `gather*/apply*Section.m`, `gather/applyConvertConfig.m`, `gather/applySortingSection.m`, `setControlValue.m`, `onConfigChanged.m`, `syncStepEnableStates.m`, `updateTitle.m` | config model (`setControlValue`: a config value into a control, noting one it cannot show; numbers in text fields are written with `EphysPipelineConfig.numberText`) |
 | `onNewConfig.m`, `onOpenConfig.m`, `openConfigFile.m`, `onSaveConfig.m`, `onSaveConfigAs.m`, `onExportConfigCopy.m`, `onGenerateScript.m`, `onCreateSyntheticProject.m`, `createSyntheticProject.m`, `onOpenAnalysisApp.m`, `onCopyForAnalysis.m`; `pipeline/AnalysisCopyDialog.m`, `confirmDiscard.m`, `addRecentConfig.m`, `refreshRecentMenu.m` | File menu |
-| `buildPipeline.m`, `runPipeline.m`, `onRunStep.m`, `onCancelRun.m`, `onValidate.m`, `onPlan.m`, `refreshStepPlan.m`, `onPipelineProgress.m`, `runLog.m`, `setRunBar.m`, `showIssues.m`, `onParallelControlsChanged.m`, `projectAtRoot.m`, `refuseWhileRunning.m` | running (`projectAtRoot`: whether the scanned project is the config's; `refuseWhileRunning`: the alert that refuses a dataset edit during a run) |
+| `buildPipeline.m`, `runPipeline.m`, `onRunStep.m`, `onCancelRun.m`, `onValidate.m`, `onPlan.m`, `refreshStepPlan.m`, `onPipelineProgress.m`, `runLog.m`, `setRunBar.m`, `showIssues.m`, `onParallelControlsChanged.m`, `projectAtRoot.m`, `refuseWhileRunning.m`, `confirmRun.m`, `alertFailedDatasets.m`, `onIssueActivated.m`, `openSetting.m`, `private/issueTarget.m`, `syncRunBanner.m` | running (`confirmRun`: the question before a run; `alertFailedDatasets`: the end-of-run message; `onIssueActivated`, `openSetting`, `issueTarget`: a double-click on an issue goes to its setting; `syncRunBanner`: the red dry-run banner; `projectAtRoot`: whether the scanned project is the config's; `refuseWhileRunning`: the alert that refuses a dataset edit during a run) |
 | `resetRunDiagram.m`, `updateRunDiagram.m`, `finishRunDiagram.m`, `refreshRunDiagram.m`, `runDiagramHTML.m` | the Run tab's diagram of the run: its model (start, progress events, end), what is sent to the page, the page |
 | `startResourceMonitor.m`, `stopResourceMonitor.m`, `pollResourceMonitor.m`, `showResourceSample.m`, [`resource_monitor.ps1`](../pipeline/resource_monitor.ps1) | the Run tab's resource monitoring: launching and stopping the sampler, the timer reading it, the display |
 | `buildTrialsTab.m`, `onTrialsLoad.m`, `repairTrials.m`, `refreshTrialsView.m`, `refreshTrialsTable.m`, `refreshTrialsPlot.m`, `trialsColumnOrder.m`, `onTrialsTableMenu.m`, `onTrialsPlotMenu.m`, `onTrialsCutsChanged.m`, `syncTrialsCuts.m`, `onTrialsApprove.m`, `onTrialsPrefetch.m`, `onTrialsWriteBehavior.m`, `onTrialsToWorkspace.m`, `onTrialsSettingsChanged.m`, `clearTrialsView.m`, `fillTrialsLines.m`, `setTrialsLineItems.m`, `syncTrialsButtons.m` | Trials tab |
@@ -3759,6 +3830,15 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `helpURL.m`, `onHelp.m` | Help menu (wiki pages) |
 | `onReportIssue.m`, `issueReport.m`, `issueURL.m`; `pipeline/IssueReport.m` | Help menu (GitHub issue / feature request; the dialog, address and system lines are shared with EphysAnalysisApp) |
 | `pipeline/showAbout.m`, `pipeline/ephysVersion.m` | Help menu (About; shared with EphysAnalysisApp). The release number is the repository's `VERSION` file, which `ephysVersion` reads |
+
+Messages shared with the other apps live in `pipeline/AppDialog.m` (`failure`,
+`alertFailure`, `noProject`, `alertNoProject`, `alert`, `showText`; `capture`
+keeps the alerts for the tests instead of showing them). The app's own
+`reportFailure.m` and `alertNoProject.m` use it, `showTabReason.m` writes the
+selected tab's reason in the status bar, `syncProjectEmptyState.m` shows the
+Project tab's empty-state card, `onShowShortcuts.m` is Help > Keyboard
+shortcuts and right-click menus, and the startup window's **Skip scan**
+button is `AppSplash.offerSkip` / `skipRequested`.
 
 ## Tests
 

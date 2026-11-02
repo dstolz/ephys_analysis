@@ -13,6 +13,7 @@ obj.setControlValue(obj.ArtThresholdField, A.Threshold, "Artifacts.Threshold");
 obj.setControlValue(obj.ArtMergeGapField, A.MergeGapMs, "Artifacts.MergeGapMs");
 obj.setControlValue(obj.ArtMinChannelsField, A.MinChannels, "Artifacts.MinChannels");
 obj.setControlValue(obj.ArtPadField, A.PadMs, "Artifacts.PadMs");
+obj.ArtCommonModeUnrefCheckBox.Value = logical(A.CommonModeUnreferenced);
 if isfinite(A.RmsWindowMs)
     obj.setControlValue(obj.ArtRmsWindowField, A.RmsWindowMs, "Artifacts.RmsWindowMs");
 else

@@ -6,6 +6,7 @@ cfg = obj.Config;
 obj.Applying = true;
 restore = onCleanup(@() setApplying(obj, false));
 obj.syncTabStrip();
+obj.syncRunBanner();
 if ~isempty(obj.TabFlow) && isvalid(obj.Tabs) && obj.Tabs.SelectedTab == obj.TabFlow
     obj.refreshFlowChart();
 end
@@ -48,12 +49,12 @@ if ~isempty(obj.BehFindButton) && isvalid(obj.BehFindButton)
 end
 if ~isempty(obj.RunSelectionLabel) && isvalid(obj.RunSelectionLabel)
     if isempty(obj.Project) || obj.Project.NumDatasets == 0
-        obj.RunSelectionLabel.Text = "Selection: scan a project root first.";
+        obj.RunSelectionLabel.Text = "Selection: no project is loaded. Scan one on the Project tab.";
     elseif cfg.Project.Selection == "list"
         obj.RunSelectionLabel.Text = sprintf("Selection: %d of %d dataset(s) ticked.", ...
             numel(cfg.Project.Datasets), obj.Project.NumDatasets);
     else
-        obj.RunSelectionLabel.Text = sprintf("Selection: all %d dataset(s).", obj.Project.NumDatasets);
+        obj.RunSelectionLabel.Text = sprintf("Selection: all %d dataset(s), because none is ticked. Tick rows on the Project tab to run fewer.", obj.Project.NumDatasets);
     end
 end
 if ~isempty(obj.RunDiagramHTML) && isvalid(obj.RunDiagramHTML) && obj.RunDiagram.phase == "idle"

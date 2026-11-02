@@ -7,12 +7,12 @@ function onApplyProbeRules(obj)
 
 if obj.refuseWhileRunning("Apply probe rules"); return; end
 if isempty(obj.Project) || obj.Project.NumDatasets == 0
-    uialert(obj.Fig, "Scan a parent directory first.", "Probe rules");
+    obj.alertNoProject("Probe rules");
     return
 end
 c = obj.Config.Probe;
 if isempty(c.RuleSubjects)
-    uialert(obj.Fig, "Add a rule first.", "Probe rules");
+    AppDialog.alert(obj.Fig, "There is no probe rule yet. Pick a probe in the table and press Add rule (selected probe).", "Probe rules", "Icon", "warning");
     return
 end
 T = EphysPipeline.assignProbeRules(obj.Project.Datasets, c.RuleSubjects, c.RuleProbes);

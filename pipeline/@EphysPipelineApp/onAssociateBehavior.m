@@ -3,7 +3,7 @@ function onAssociateBehavior(obj)
 if obj.refuseWhileRunning("Associate file"); return; end
 d = obj.currentDataset();
 if isempty(d)
-    uialert(obj.Fig, "Scan a project first.", "Behavior");
+    obj.alertNoProject("Behavior");
     return
 end
 start = char(d.BehaviorFile);

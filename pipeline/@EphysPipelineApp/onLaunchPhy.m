@@ -13,7 +13,7 @@ arguments
     idx (1,:) double = obj.SelectedDatasetIdx
 end
 if isempty(obj.Project) || isempty(idx) || any(idx < 1 | idx > obj.Project.NumDatasets)
-    uialert(obj.Fig, "Scan a project first.", "phy");
+    obj.alertNoProject("phy");
     return
 end
 

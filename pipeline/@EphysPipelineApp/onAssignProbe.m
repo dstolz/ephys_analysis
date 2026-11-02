@@ -11,7 +11,7 @@ if pf == "" || ~isfile(pf)
     return
 end
 if isempty(obj.Project) || obj.Project.NumDatasets == 0
-    uialert(obj.Fig, "Scan a parent directory first.", "Assign probe");
+    obj.alertNoProject("Assign probe");
     return
 end
 

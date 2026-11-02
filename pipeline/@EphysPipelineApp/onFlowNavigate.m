@@ -9,7 +9,7 @@ function onFlowNavigate(obj, evt)
 %   The page also reports each zoom or pan ('zoom'), which is kept per view
 %   (FlowZoom) for the next redraw of that view (refreshFlowChart).
 %
-%   See also flowNavControls, flowChartHTML, buildFlowTab.
+%   See also openSetting, flowNavControls, flowChartHTML, buildFlowTab.
 
 if strcmp(evt.HTMLEventName, 'zoom')
     keepZoom(obj, evt.HTMLEventData);
@@ -20,22 +20,10 @@ if ~strcmp(evt.HTMLEventName, 'navigate'); return; end
 if target == ""; return; end
 if title == ""; title = target; end
 
-ctrls = obj.flowNavControls(target);
-obj.clearFlowHighlight();
-if isempty(ctrls)
+[ok, tab] = obj.openSetting(target);   % the tab, the controls in view, marked, the first focused
+if ~ok
     obj.setStatus("Diagram: " + title + " has no setting to open.", "");
     return
-end
-
-tab = ancestor(ctrls{1}, 'matlab.ui.container.Tab');
-if ~isempty(tab); obj.selectTab(tab); end
-for k = 1:numel(ctrls)
-    scrollIntoView(ctrls{k});   % in order, so a box's whole group of controls ends up in view
-    highlight(obj, ctrls{k});
-end
-try
-    focus(ctrls{1});
-catch
 end
 where = ternary(isempty(tab), "this config", "the " + string(tab.Title) + " tab");
 obj.setStatus("Diagram: " + title + " is set on " + where + ".", "");
@@ -77,37 +65,6 @@ s = "";
 if ischar(v) || (isstring(v) && isscalar(v) && ~ismissing(v))
     s = strip(string(v));
 end
-end
-
-
-function scrollIntoView(c)
-%scrollIntoView  Scroll every scrollable container C sits in to C.
-p = c.Parent;
-while ~isempty(p) && ~isa(p, 'matlab.ui.Figure')
-    if isprop(p, 'Scrollable') && strcmp(p.Scrollable, 'on')
-        try
-            scroll(p, c);
-        catch
-        end
-    end
-    p = p.Parent;
-end
-end
-
-
-function highlight(obj, c)
-%highlight  Mark C as the control the Diagram box pointed at, remembering its look.
-%   Tables are left alone: recoloring one recolors every cell in it.
-if isa(c, 'matlab.ui.control.Table'); return; end
-props = intersect(["FontColor", "FontWeight"], string(properties(c)));
-if isempty(props); return; end
-saved = struct();
-for p = props(:)'
-    saved.(p) = c.(p);
-end
-obj.FlowHighlight(end+1) = struct('Control', c, 'Saved', saved);
-if isfield(saved, 'FontColor');  c.FontColor = [0.15 0.45 0.80]; end
-if isfield(saved, 'FontWeight'); c.FontWeight = 'bold'; end
 end
 
 
